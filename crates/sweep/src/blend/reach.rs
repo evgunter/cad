@@ -2834,10 +2834,8 @@ pub(crate) fn band_reach<T: Decide + Bounds>(
                 // exactly when that slice is; a ring read through the
                 // exact triangle certifies it for its cap.
                 let convex = caps.iter().all(|r| r.on == RingOn::Cap { convex: true });
-                // A carrier with a speed bound (a line, a circle, an
-                // ellipse) is read piecewise; any other is not certified.
                 let depth_in = |core: &[Bound<T>], c: &Curve3<T>, span| {
-                    let speed = geom::carrier_speed::speed_hi(c)?;
+                    let speed = geom::carrier_speed::speed_range(c).1.get();
                     curve_in_core(speed, &|t| c.eval(t), span, core, band)
                 };
                 let in_core = |c: &Curve3<T>, span| depth_in(&reach.core, c, span);
