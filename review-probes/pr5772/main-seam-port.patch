@@ -1,0 +1,150 @@
+diff --git a/crates/editor-core/src/eval/wire.rs b/crates/editor-core/src/eval/wire.rs
+index a3e70ebd4..fb7e5be7a 100644
+--- a/crates/editor-core/src/eval/wire.rs
++++ b/crates/editor-core/src/eval/wire.rs
+@@ -482,7 +482,7 @@ where
+             } else {
+                 BooleanOp::Intersect
+             };
+-            wire_combine(
++            let r = wire_combine(
+                 &crate::verbs::boolean::boolean(),
+                 (op, node, members),
+                 id,
+@@ -490,7 +490,9 @@ where
+                 doc,
+                 env.boolean_sweep,
+                 tol,
+-            )
++            );
++            nary_capture(&r);
++            r
+         }
+         Node::Place {
+             source,
+@@ -3371,7 +3373,10 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
+         Some((names::UnionLinks::default(), Vec::new(), Vec::new()))
+     } else {
+         let reads: Vec<crate::VarId> = members.iter().map(|m| m.read).collect();
++        let judged_k = std::cell::Cell::new(0usize);
+         judge_pairwise_contact(&hulls, &reads, |a, b| {
++            let seam_k = judged_k.get();
++            judged_k.set(seam_k + 1);
+             let out = (verb.build)(op, BooleanInputs::default())
+                 .run_pair(&members[a].body, &members[b].body, boolean_sweep, tol)
+                 .map_err(verb_refused)?;
+@@ -3385,6 +3390,12 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
+                     ),
+                 };
+             };
++            #[cfg(any(test, feature = "test-support"))]
++            if let Some(fault) = crate::test_support::judgement_naming_fault(seam_k) {
++                return Err(NodeErrorKind::Naming(fault));
++            }
++            #[cfg(not(any(test, feature = "test-support")))]
++            let _ = seam_k;
+             // The judgement's rows, whole, named in the two members' own
+             // tables: the node's coincidences are its member pairs' (DM4),
+             // each pair's in the order the pass visits it.
+@@ -5140,3 +5151,41 @@ mod union_row_tests {
+         }
+     }
+ }
++
++/// Review capture hook (not for merging).
++fn nary_capture<T: Decide>(r: &OpResult<T>) {
++    use std::hash::{Hash, Hasher};
++    use std::io::Write;
++    let Ok(dir) = std::env::var("NARY_CAPTURE") else {
++        return;
++    };
++    let test = std::env::args()
++        .skip(1)
++        .find(|a| !a.starts_with('-'))
++        .unwrap_or_default()
++        .replace("::", "__");
++    let h = |s: String| {
++        let mut x = std::collections::hash_map::DefaultHasher::new();
++        s.hash(&mut x);
++        format!("{:016x}", x.finish())
++    };
++    let line = match r {
++        Ok(o) => format!(
++            "OK body={} names={} contacts={} rows={} cited={} carried={} parts={}",
++            h(format!("{:?}", o.payload)),
++            h(format!("{:?}", o.outputs)),
++            h(format!("{:?}", o.contacts)),
++            h(format!("{:?}", o.coincidences)),
++            h(format!("{:?}", o.cited_inputs)),
++            h(format!("{:?}", o.carried)),
++            o.parts
++        ),
++        Err(e) => format!("ERR {}", h(format!("{e:?}"))),
++    };
++    let mut f = std::fs::OpenOptions::new()
++        .create(true)
++        .append(true)
++        .open(format!("{dir}/{test}.txt"))
++        .expect("capture file");
++    writeln!(f, "{line}").expect("capture write");
++}
+diff --git a/crates/editor-core/src/test_support.rs b/crates/editor-core/src/test_support.rs
+index e2a8cae51..85a2c2ea9 100644
+--- a/crates/editor-core/src/test_support.rs
++++ b/crates/editor-core/src/test_support.rs
+@@ -1378,6 +1378,42 @@ pub fn assemble_world_copies_edits(
+     (doc, log)
+ }
+ 
++/// The judgement whose naming [`with_judgement_naming_fault`] refuses,
++/// while it runs.
++static JUDGEMENT_FAULT: std::sync::Mutex<Option<usize>> = std::sync::Mutex::new(None);
++
++/// What [`with_judgement_naming_fault`]'s refused naming says.
++pub const JUDGEMENT_NAMING_FAULT: &str = "a test refused the naming of a union's judgement";
++
++/// **`f`, with the naming of every union's judgement `k` refused**
++/// ([`JUDGEMENT_NAMING_FAULT`]): a seam for the order in which a union
++/// announces what goes wrong, which no geometry reaches on demand. One
++/// at a time: a nested call panics.
++///
++/// # Panics
++///
++/// Where another call is running, or the seam was poisoned.
++pub fn with_judgement_naming_fault<R>(k: usize, f: impl FnOnce() -> R) -> R {
++    {
++        let mut slot = JUDGEMENT_FAULT.lock().expect("the judgement-naming seam");
++        assert!(slot.is_none(), "one judgement-naming fault at a time");
++        *slot = Some(k);
++    }
++    let out = f();
++    *JUDGEMENT_FAULT.lock().expect("the judgement-naming seam") = None;
++    out
++}
++
++/// The refusal [`with_judgement_naming_fault`] makes of judgement `k`'s
++/// naming, where it is running for `k`.
++pub(crate) fn judgement_naming_fault(k: usize) -> Option<crate::names::NamingError> {
++    (*JUDGEMENT_FAULT.lock().expect("the judgement-naming seam") == Some(k)).then_some(
++        crate::names::NamingError::Emission {
++            what: JUDGEMENT_NAMING_FAULT,
++        },
++    )
++}
++
+ #[cfg(test)]
+ mod tests {
+     use super::{axes_at, moves_at};
+diff --git a/crates/editor-core/tests/all.rs b/crates/editor-core/tests/all.rs
+index 97f9d0ded..6da7cf780 100644
+--- a/crates/editor-core/tests/all.rs
++++ b/crates/editor-core/tests/all.rs
+@@ -641,6 +641,8 @@ mod switch_slots;
+ mod trim_3_windows_interval;
+ #[path = "u8a_parse.rs"]
+ mod u8a_parse;
++#[path = "union_defects_in_evaluation_order.rs"]
++mod union_defects_in_evaluation_order;
+ #[path = "union_flush_onto_edge_contact.rs"]
+ mod union_flush_onto_edge_contact;
+ #[path = "union_fold_face_face_touch.rs"]
