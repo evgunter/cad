@@ -70,9 +70,10 @@ A topo row now holds that decision in input cells:
   the two cells read and the pierced face. The decision was taken
   against that face. Here the two cells alone would not fix the point,
   because the boss's edge lies in the slab's wall.
-- A debug build checks at `boolean_op_with`'s exit that every input
-  cell a row names, its third included, is held by its input
-  (`rows_name_input_cells`, `records::holds`).
+- The sweep's check, that every input cell a row names (third
+  included) is held by its input, is parked on branch
+  `cleave/rows-name-input-cells-guard`. It waits for WIRE's re-chart
+  row, whose cells still fail it on main.
 - The third cell rides `topo::Coincidence::third`. editor-core names
   it (`coincide::name_rows`), and a fold step spells it in member space
   (`eval/wire.rs` `in_member_space`).
@@ -107,6 +108,7 @@ Default ε, over editor-core's `all` tests matching
 | editor-core rows naming an unheld cell | 12, in 3 tests | 0 |
 | editor-core `ROW_CELL_NOT_IN_TABLE` / `held_out` | 12 / 12 | 0 / 0 |
 | topo rows naming an unheld cell | 77, in 5 tests | 0 |
+| sweep `all` (3156 tests) cells of this class | 160, in 4 `a_pierce_held_in_a_curved_face` tests | 0 |
 
 Every hit on main has this row's shape: a held pierce's vertex
 `OnCarrier` an edge. The editor-core hits are in
@@ -122,3 +124,9 @@ What the sweep cannot see:
 - rows from a split, or from any door but `boolean_op_with`;
 - tests outside those sets;
 - ε rows other than the default.
+
+The sweep-crate counts hold at ε 1e-6 and 1e-12 as well. `sweep` also
+holds 72 re-chart cells, the same on main and on the branch. Those are
+a different class, on WIRE's
+`a-re-charted-operands-rows-may-name-cells-the-re-chart-minted`.
+

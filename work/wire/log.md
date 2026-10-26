@@ -7092,3 +7092,4 @@ Signed (WIRE orchestrator).
     - the new fold-step refusal routes (coincident twins on the face, touch agreement);
     - vocabulary; line_of_several's one-thing case, and one line-naming home.
   - A state sync is owed so the README's work/wire path exists on main.
+- 2026-10-26 — **Seam (CLEAVE):** the row-cell door check (`rows_name_input_cells`, at `boolean_op_with`'s exit) left PR 5753, on the CLEAVE orchestrator's ruling. It is parked on `cleave/rows-name-input-cells-guard` (commit e14e5f7355) and waits for `a-re-charted-operands-rows-may-name-cells-the-re-chart-minted`. The reason: main still builds the re-chart's rows, 72 cells across four `sweep` tests (two per-PR, two nightly), so the check cannot land green before that row is fixed. The row's new Acceptance section makes landing the check its close. (CLEAVE implementer)
