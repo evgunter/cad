@@ -565,17 +565,22 @@ pub use topo::{
 };
 
 // --- 6. Mass properties ---------------------------------------
-// `TargetUnreached` and the `VolumeEnclosure` it carries are
-// `StepImport::Solid::enclosure`'s other arm: an admitted body whose
-// volume is not measurable at this ε imports with that refusal, and
-// the curated-type rule (the `coherence` note below) says a caller
-// able to hold the answer must be able to spell its vocabulary;
-// `VolumeReading` is that answer read as a number or a bracket.
 // `Settle` is what a measurement is asked (`[tolerance.measure]`), with
-// the vocabulary its variants carry.
+// the vocabulary its variants carry, and `Stop` why it stopped.
+// `VolumeEnclosure` is a certificate's bracket, and `CertifiedBody` is
+// `StepImport::Solid::body`, the body held with its certificate: the
+// curated-type rule (the
+// `coherence` note below) says a caller able to hold it must be able to
+// spell it. `MassMeasurement` is what a measurement answers, and
+// `SettleVerdict` what `Stop::Settled` says a deciding predicate
+// decided; each is the one name in Rust and Python (Python's
+// `MassMeasurement.verdict` is a `SettleVerdict`, spelled as its words).
+// `ShellRole` is a sign's verdict, carried with its carrier, and
+// `Unmet` what `MassMeasurement::met` answers where the number went
+// unmet.
 pub use topo::{
-    MassProperties, MassPropsError, RelOp, RoleNames, Settle, SignNames, TargetUnreached,
-    VolumeEnclosure, VolumeReading, mass_properties,
+    CertifiedBody, MassMeasurement, MassProperties, MassPropsError, RoleNames, Settle,
+    SettleVerdict, ShellRole, SignNames, Stop, Unmet, VolumeEnclosure, mass_properties,
 };
 
 // --- 7. Tessellation and export -------------------------------

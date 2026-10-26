@@ -2293,18 +2293,32 @@ pub struct NurbsLane<T: Real> {
         crate::edge_nurbs::PlaneNurbsIncidence<T>,
         crate::edge_nurbs::IncidenceRefusal,
     >,
+    /// [`crate::curve_face::composite::crossings`] at `T`, its scalars
+    /// crossed by their certified enclosures.
+    composite: fn(
+        &geom::NurbsCurve3<T>,
+        (T, T),
+        &Surface<T>,
+        Band,
+    ) -> Result<Vec<T>, crate::curve_face::composite::CompositeRefusal>,
     /// [`NurbsLane::carrier_foot`]'s Newton at `T`.
     foot: fn(
         &geom::NurbsCurve3<T>,
         Point3<T>,
         T,
     ) -> Result<geom::Projection3<T>, geom::ProjectionInconclusive>,
+    /// [`geom::NurbsSurface::project`] at `T`.
+    surface_foot: fn(
+        &geom::NurbsSurface<T>,
+        Point3<T>,
+    )
+        -> Result<geom::SurfaceProjection<T>, geom::SurfaceProjectionInconclusive>,
 }
 
 impl<T: Decide + geom_core::CertifiedBounds> NurbsLane<T> {
-    /// The certified plane × NURBS lane, and the only constructor
-    /// there is: [`crate::plane_nurbs_limbs`] and [`Self::seeded_foot`]
-    /// instantiated at `T`.
+    /// The certified NURBS lane, and the only constructor there is:
+    /// every field holds its door instantiated at `T`, the wiring rows
+    /// below naming which.
     #[must_use]
     pub const fn certified() -> Self {
         Self {
@@ -2312,8 +2326,27 @@ impl<T: Decide + geom_core::CertifiedBounds> NurbsLane<T> {
             pair_limbs: crate::edge_nurbs::nurbs_pair_limbs::<T>,
             analytic_rung3: crate::edge_nurbs::analytic_rung3::<T>,
             incidence: crate::edge_nurbs::plane_nurbs_incidence::<T>,
+            composite: Self::composite_crossings,
             foot: Self::seeded_foot,
+            surface_foot: geom::NurbsSurface::project,
         }
+    }
+
+    /// [`crate::curve_face::composite::crossings`], each scalar crossed
+    /// into certification arithmetic by its certified enclosure.
+    fn composite_crossings(
+        net: &geom::NurbsCurve3<T>,
+        params: (T, T),
+        surface: &Surface<T>,
+        band: Band,
+    ) -> Result<Vec<T>, crate::curve_face::composite::CompositeRefusal> {
+        crate::curve_face::composite::crossings(
+            net,
+            params,
+            surface,
+            band,
+            geom_core::Interval::from_certified,
+        )
     }
 
     /// [`geom::NurbsCurve3::project_from_seed`] seeded at the bracket
@@ -2385,6 +2418,25 @@ impl<T: Real> NurbsLane<T> {
         (self.analytic_rung3)(carrier, params, s1, s2, band)
     }
 
+    /// **A spline span against an analytic face's carrier**: the
+    /// crossings strictly inside `params`, ascending, by the curve × face
+    /// table's ring-composite arm
+    /// ([`crate::curve_face::composite::crossings`]).
+    ///
+    /// # Errors
+    ///
+    /// [`crate::curve_face::composite::CompositeRefusal`], as its
+    /// variants say.
+    pub fn surface_crossings(
+        self,
+        net: &geom::NurbsCurve3<T>,
+        params: (T, T),
+        surface: &Surface<T>,
+        band: Band,
+    ) -> Result<Vec<T>, crate::curve_face::composite::CompositeRefusal> {
+        (self.composite)(net, params, surface, band)
+    }
+
     /// The foot of `point` on a NURBS `carrier`, by Newton from `seed`:
     /// the parameter of a point moved along the carrier, read on the
     /// branch it was moved from. The foot carries its own residuals and
@@ -2402,6 +2454,22 @@ impl<T: Real> NurbsLane<T> {
         seed: T,
     ) -> Result<geom::Projection3<T>, geom::ProjectionInconclusive> {
         (self.foot)(carrier, point, seed)
+    }
+
+    /// The foot of `point` on a NURBS surface ([`geom::NurbsSurface::project`]):
+    /// the projection carries its own distance and certifies nothing;
+    /// the caller decides that distance.
+    ///
+    /// # Errors
+    ///
+    /// [`geom::SurfaceProjectionInconclusive`] when Newton's budget
+    /// expires.
+    pub fn surface_foot(
+        self,
+        surface: &geom::NurbsSurface<T>,
+        point: Point3<T>,
+    ) -> Result<geom::SurfaceProjection<T>, geom::SurfaceProjectionInconclusive> {
+        (self.surface_foot)(surface, point)
     }
 }
 
@@ -4465,6 +4533,18 @@ mod wiring_rows {
         ) {
             return Err("incidence is not `edge_nurbs::plane_nurbs_incidence`");
         }
+        if !std::ptr::fn_addr_eq(
+            lane.composite,
+            NurbsLane::<T>::composite_crossings as fn(_, _, _, _) -> _,
+        ) {
+            return Err("composite is not `NurbsLane::composite_crossings`");
+        }
+        if !std::ptr::fn_addr_eq(
+            lane.surface_foot,
+            geom::NurbsSurface::<T>::project as fn(_, _) -> _,
+        ) {
+            return Err("surface_foot is not `NurbsSurface::project`");
+        }
         Ok(())
     }
 
@@ -4473,7 +4553,7 @@ mod wiring_rows {
         assert_eq!(
             holds_the_certified_nurbs_lane::<f64>(),
             Ok(()),
-            "`NurbsLane::<f64>::certified()` holds something other than `plane_nurbs_limbs`, `nurbs_pair_limbs`, `plane_nurbs_incidence`, `seeded_foot` and `analytic_rung3`"
+            "`NurbsLane::<f64>::certified()` holds something other than `plane_nurbs_limbs`, `nurbs_pair_limbs`, `plane_nurbs_incidence`, `seeded_foot`, `analytic_rung3` and `composite_crossings`"
         );
     }
 
@@ -4484,7 +4564,7 @@ mod wiring_rows {
         assert_eq!(
             holds_the_certified_nurbs_lane::<geom_core::Sym<f64>>(),
             Ok(()),
-            "`NurbsLane::<Sym<f64>>::certified()` holds something other than its four routines"
+            "`NurbsLane::<Sym<f64>>::certified()` holds something other than its routines"
         );
     }
 
@@ -4494,7 +4574,7 @@ mod wiring_rows {
         assert_eq!(
             holds_the_certified_nurbs_lane::<geom_core::Probe>(),
             Ok(()),
-            "`NurbsLane::<Probe>::certified()` holds something other than its four routines"
+            "`NurbsLane::<Probe>::certified()` holds something other than its routines"
         );
     }
 
@@ -4503,7 +4583,7 @@ mod wiring_rows {
         assert_eq!(
             holds_the_certified_nurbs_lane::<geom_core::interval::Interval>(),
             Ok(()),
-            "`NurbsLane::<Interval>::certified()` holds something other than its four routines"
+            "`NurbsLane::<Interval>::certified()` holds something other than its routines"
         );
     }
 }

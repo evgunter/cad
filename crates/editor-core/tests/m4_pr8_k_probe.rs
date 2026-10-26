@@ -95,7 +95,12 @@ fn run_doc(d: &corpus::CorpusDoc) -> Vec<MarginSample> {
         Tol::witness(),
     );
     k_stats::start_recording();
-    topo::mass_properties(&body, Tol::witness()).expect("mass properties");
+    topo::mass_properties(
+        &body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .expect("mass properties");
     samples.extend(k_stats::take_samples());
     samples
 }
@@ -482,6 +487,7 @@ fn probe_agrees_with_f64_bit_for_bit_over_the_corpus() {
                     tol,
                 ),
                 tol,
+                topo::test_support::pinned_resolution(tol),
             );
             let mp = topo::mass_properties(
                 &topo::test_support::finished(
@@ -490,13 +496,14 @@ fn probe_agrees_with_f64_bit_for_bit_over_the_corpus() {
                     tol,
                 ),
                 tol,
+                topo::test_support::pinned_resolution(tol),
             );
             match (&mf, &mp) {
                 (Ok(a), Ok(b)) => {
-                    let (ha, wa) = props_digest(a);
+                    let (ha, wa) = props_digest(&a.enclosure);
                     assert_eq!(
                         (ha, wa),
-                        props_digest(b),
+                        props_digest(&b.enclosure),
                         "{}: mass properties diverged at eps={eps:e} — f64 {a:?} vs \
                          Probe volume/area/pads",
                         d.name

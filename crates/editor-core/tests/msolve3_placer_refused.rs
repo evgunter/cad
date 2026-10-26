@@ -173,7 +173,7 @@ where
     // The target is read AT the placer: that read is what puts the
     // placer upstream of the placement.
     let mate = fixture::rest(
-        fixture::head(in_part(cap, top_body, CapEnd::Start)),
+        fixture::head_at(cap, in_part(cap, top_body, CapEnd::Start)),
         fixture::head_at(placer, name),
     );
     let (doc, mate) = fixture::constrain_at(doc, cap, mate);
@@ -377,20 +377,7 @@ impl Rule {
                         body,
                         editor_core::RoleSeg::LateralEdge(fixture::vpiece(&part, body, 0, 0)),
                     );
-                    let worn = StableName {
-                        kind: edge.kind,
-                        node: legs,
-                        path: vec![editor_core::RoleSeg::InPart {
-                            of: StableName {
-                                kind: edge.kind,
-                                node: fixture::resolver::placement_of(leg_body),
-                                path: vec![editor_core::RoleSeg::Placed {
-                                    of: editor_core::NameRef::new(edge),
-                                }],
-                            }
-                            .into(),
-                        }],
-                    };
+                    let worn = edge;
                     let axis = fixture::axis(editor_core::SitedRef::new(legs, worn));
                     let (doc, pattern) = insert(
                         doc,

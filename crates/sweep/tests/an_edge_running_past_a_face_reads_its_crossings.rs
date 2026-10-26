@@ -111,7 +111,7 @@ fn grid() -> Vec<Point3<f64>> {
 /// margins read clear of 1e-3.
 fn sound(what: &str, r: &topo::BooleanBody<f64>, want: f64, in_b: &dyn Fn(Point3<f64>) -> f64) {
     let band = Band::linear(tol()).unwrap();
-    let v = topo::mass_properties(&r.body, tol()).unwrap().volume;
+    let v = topo::test_support::pinned_volume(what, &r.body, tol()).volume;
     assert!(
         (v - want).abs() < 1e-6,
         "{what}: volume {v}, closed form {want}"

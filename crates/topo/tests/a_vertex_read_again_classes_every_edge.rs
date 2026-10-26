@@ -1061,7 +1061,10 @@ fn probe_material(
             [r * c, r * s, z]
         })
         .collect();
-    let vol = |b: &AtRestBody<f64>| mass_properties(b, t()).map(|m| m.volume);
+    let vol = |b: &AtRestBody<f64>| {
+        mass_properties(b, t(), topo::test_support::pinned_resolution(t()))
+            .map(|m| m.enclosure.volume)
+    };
     let (Ok(vx), Ok(vy)) = (vol(x.0), vol(y.0)) else {
         tally.bad.push(format!("{label}: an operand's volume"));
         return;
@@ -1464,12 +1467,12 @@ const PARTNERS_OVERLAPPING: &[(f64, usize)] = &[(1e-9, 40), (1e-6, 26), (1e-12, 
 
 /// How many cells of [`partners_along_the_face_build_sound_against_the_germ`]
 /// refuse a construction gap of the slit form, at each ε a CI row runs,
-/// as `(ε, SlitLineCrossed, EdgeInFace)`. A void under the top whose ray
-/// lies on it is a zero-area ring of the top, and a partner with an edge
-/// along the ray crosses its two coincident edges there; their union
-/// keeps only the top there and closes it across the line
-/// (`work/cleave/a-boolean-closes-a-slits-face-across-its-line.md`): that
-/// count moves with ε as [`PARTNERS_OVERLAPPING`] does. None refuses
-/// `EdgeInFace` at any ε: a half-turn partner's edge inside the along
-/// face, ending on the face's corner by a record, parts there.
-const PARTNERS_SLIT_GAPS: &[(f64, usize, usize)] = &[(1e-9, 20, 0), (1e-6, 18, 0), (1e-12, 20, 0)];
+/// as `(ε, SlitLineCrossed, EdgeInFace)`, none at any ε.
+///
+/// - `SlitLineCrossed`: a void under the top whose ray lies on it is a
+///   zero-area ring of the top, and a partner with an edge along the ray
+///   crosses the ring's two coincident edges there. Every such cell
+///   builds, the union closing the top across the line.
+/// - `EdgeInFace`: a half-turn partner's edge inside the along face,
+///   ending on the face's corner by a record, parts there.
+const PARTNERS_SLIT_GAPS: &[(f64, usize, usize)] = &[(1e-9, 0, 0), (1e-6, 0, 0), (1e-12, 0, 0)];

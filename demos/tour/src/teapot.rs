@@ -144,10 +144,12 @@
 //!    pair rung and into the sweep, where it stops at the crossing
 //!    layer: the belly's revolve seam — a quarter meridian of its
 //!    sphere, on which the spout's axis leaves the belly — read against
-//!    one of the spout's NURBS walls rising there, refuses
-//!    `CurvedBooleanUnsupported { operand: B, kind: Nurbs }` — the
-//!    Boolean cannot yet find where an edge meets a spline face. That
-//!    is the pierce the join actually needs, the spout's walls entering
+//!    one of the spout's NURBS walls rising there, meets that wall's
+//!    boundary, since the meridian and the spout's seams lie in the
+//!    pot's one plane of symmetry. A meeting on a boundary edge splits
+//!    both edges, and the spout's seam is a spline with no point
+//!    parameter to split at: `PointSplitCarrierUnsupported { operand: B }`.
+//!    That is the pierce the join actually needs, the spout's walls entering
 //!    the belly, and it is the NURBS face against a curved face that
 //!    the section object's rung 3 builds. Making the spout the shape a
 //!    potter draws did not make it joinable; it moved the refusal off a
@@ -239,15 +241,13 @@
 //!    **The sections are ROUND, so the volume is an ENCLOSURE.** A
 //!    circle is RATIONAL, so these lateral walls are rational patches,
 //!    and a rational patch is a QUADRATURE face whose certified
-//!    enclosure is chased to a reporting target derived from ε. Every
-//!    ε the tour runs meets that target: at ε = 1e-12 the volume's
-//!    half-width is 8.1e-12 m³. Where a tighter ε refuses
-//!    `QuadratureBudget`, tier 3 still certifies the body on the
+//!    enclosure is chased to the tour's printed precision. Where it is
+//!    not met, tier 3 still certifies the body on the
 //!    enclosure's SIGN — the tier's own docs say deciding that sign "is
 //!    an act of certification rather than a measurement" — and the
 //!    scene measures through the certificate the tier hands back, so it
-//!    holds the skin's reference to the narrowest bracket the
-//!    certificate or its continuation kept. A polygon's sides are
+//!    holds the skin's reference to the bracket the measurement
+//!    reached. A polygon's sides are
 //!    straight, so octagonal sections would make polynomial walls with
 //!    the integral lane's exact per-span rule, the one `twisted_tube`
 //!    next door takes; the shape a potter draws is round.
@@ -284,7 +284,7 @@ use pncad::select::{
 use pncad::topo::readback::euler_counts;
 use pncad::topo::{Body, BooleanError, Operand};
 
-use crate::{SceneBody, Stop, View};
+use crate::{SceneBody, TourStop, View};
 
 // ---------------------------------------------------------------------
 // The vessel's meridian. Every station is a dyadic rational in meters,
@@ -398,12 +398,11 @@ const _: () = assert!(SPOUT_STATIONS == 7);
 /// **The sections are ROUND, so this body's volume is an ENCLOSURE.**
 /// A circle is RATIONAL, so these lateral walls are rational patches,
 /// and a rational patch is a QUADRATURE face whose certified enclosure
-/// is chased to `QUAD_TARGET_LEN_FACTOR·ε`. Every ε the tour runs meets
-/// that target, and the scene holds the enclosure to the skin's own
-/// integrated volume (`patch_quadrature`). Where a tighter ε refuses
-/// `QuadratureBudget`, tier 3 still certifies the body on the
-/// enclosure's SIGN, and the scene holds the same reference to the
-/// bracket the certificate keeps.
+/// is chased to the tour's printed precision. Where it is met the scene
+/// holds the enclosure to the skin's own integrated volume
+/// (`patch_quadrature`); where it is not, tier 3 still certifies the
+/// body on the enclosure's SIGN, and the scene holds the same reference
+/// to the bracket the measurement reached.
 const SPOUT_ARCS: u32 = 4;
 /// **The spout's total bend**, root tangent to tip tangent: half a
 /// right angle. The canal leaves the belly on [`SPOUT_DIR`] and
@@ -1056,7 +1055,8 @@ pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
                 .expect("nothing reads it, so it deletes")
                 .doc
         });
-    [
+    let mut copies = Vec::new();
+    let placed = [
         (r.handle_body, handle_values()),
         (r.lid, Vec::new()),
         (r.cup, Vec::new()),
@@ -1064,8 +1064,12 @@ pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
     ]
     .into_iter()
     .fold(tidied, |doc, (body, values)| {
-        crate::world::in_world_by(&doc, body, values, tol).doc
-    })
+        let placed = crate::world::in_world_by(&doc, body, values, tol);
+        copies.push(pncad::document::Operand::Node(placed.placement));
+        placed.doc
+    });
+    // What the pot is: its four copies.
+    crate::world::set_product(&placed, &copies, tol).doc
 }
 
 /// The body a node evaluated to.
@@ -1511,13 +1515,18 @@ fn wall_probes(ev: &Evaluation<f64>, r: &Recipe) {
     // `Nurbs`, so the request gets past that rung and into the sweep,
     // which meets the belly's revolve seam, a quarter meridian on which
     // the spout's axis leaves the belly, with one of the spout's NURBS
-    // walls, and has no crossing layer for a spline face.
+    // walls. The sweep reads the meridian against that wall's boundary
+    // first, and the meridian meets it there: the meridian and the
+    // spout's seams lie in the pot's one plane of symmetry, so where
+    // the meridian pierces the wall it crosses a seam. A meeting on a
+    // boundary edge splits both edges, and a spline seam has no point
+    // parameter to split at
+    // (`work/splice/a-meeting-on-a-spline-boundary-edge-has-no-split-parameter`).
     //
-    // The predicate matches on the operand and the kind, deliberately
-    // not the face: an arena key moves whenever the model is re-authored
-    // (wall 3's face key already did once), and a probe that pinned one
-    // would red on a rename. What is pinned is the class and the side:
-    // a NURBS wall of operand B, the spout.
+    // The predicate matches on the operand and the class, deliberately
+    // not the edge: an arena key moves whenever the model is re-authored,
+    // and a probe that pinned one would red on a rename. What is pinned
+    // is the class and the side: an edge of operand B, the spout.
     crate::walls::wall(
         "teapot",
         3,
@@ -1526,9 +1535,8 @@ fn wall_probes(ev: &Evaluation<f64>, r: &Recipe) {
         |e| {
             matches!(
                 e,
-                BooleanError::CurvedBooleanUnsupported {
+                BooleanError::PointSplitCarrierUnsupported {
                     operand: Operand::B,
-                    kind: SurfaceKind::Nurbs,
                     ..
                 }
             )
@@ -1556,7 +1564,7 @@ fn evaluated(tol: Tol) -> (Recipe, Evaluation<f64>) {
     (r, ev)
 }
 
-pub fn stops(tol: Tol) -> Vec<Stop> {
+pub fn stops(tol: Tol) -> Vec<TourStop> {
     let (r, ev) = evaluated(tol);
 
     // ---- the vessel, before the wall ----
@@ -1729,18 +1737,19 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     let a_want = pot_area(0.0) + pot_area(WALL);
     // Finished once: the props and the shell roles below both read it.
     let pot_at_rest = crate::booleans::at_rest(&pot, tol);
-    let props = pncad::topo::mass_properties(&pot_at_rest, tol).expect("the pot's props");
+    let props =
+        pncad::topo::mass_properties(&pot_at_rest, tol, crate::printed()).expect("the pot's props");
     assert!(
-        ((props.volume - v_want) / v_want).abs() < 1e-12,
+        ((props.enclosure.volume - v_want) / v_want).abs() < 1e-12,
         "pot V = {} vs the wall's own closed form {v_want}",
-        props.volume
+        props.enclosure.volume
     );
     assert!(
-        ((props.surface_area - a_want) / a_want).abs() < 1e-12,
+        ((props.enclosure.surface_area - a_want) / a_want).abs() < 1e-12,
         "pot A = {} vs the closed form {a_want}",
-        props.surface_area
+        props.enclosure.surface_area
     );
-    assert_eq!(props.volume_pad, 0.0, "closed forms need no pad");
+    assert_eq!(props.enclosure.volume_pad, 0.0, "closed forms need no pad");
     let classes =
         pncad::topo::classify_shells(&pot_at_rest, tol).expect("per-shell classification");
     let voids: Vec<_> = classes
@@ -1753,10 +1762,10 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         "one cavity, one Void shell — DECIDED, not declared"
     );
     assert!(
-        ((voids[0].volume + v_cav) / v_cav).abs() < 1e-12,
+        ((voids[0].enclosure.volume + v_cav) / v_cav).abs() < 1e-12,
         "the pot holds {} m³ against the cavity stack's own {v_cav}, negated by the \
          orientation convention",
-        voids[0].volume
+        voids[0].enclosure.volume
     );
     let outers: Vec<_> = classes
         .iter()
@@ -1764,9 +1773,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         .collect();
     assert_eq!(outers.len(), 1, "one outer boundary");
     assert!(
-        ((outers[0].volume - v_out) / v_out).abs() < 1e-12,
+        ((outers[0].enclosure.volume - v_out) / v_out).abs() < 1e-12,
         "the outer shell encloses {} m³ against the outer stack's {v_out}",
-        outers[0].volume
+        outers[0].enclosure.volume
     );
     let capacity_l = v_cav * 1000.0;
 
@@ -1977,22 +1986,29 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         "the note narrates V = 5369π/3·256⁻³ = {v_note} and A = (453 + 52√10)π·256⁻² = \
          {a_note}; the stations now give {v_lid} and {a_lid}"
     );
-    let sharp_lid_props =
-        pncad::topo::mass_properties(&crate::booleans::at_rest(&plain_lid, tol), tol)
-            .expect("the lid's props");
+    let sharp_lid_props = pncad::topo::mass_properties(
+        &crate::booleans::at_rest(&plain_lid, tol),
+        tol,
+        crate::printed(),
+    )
+    .expect("the lid's props");
     assert!(
-        ((sharp_lid_props.volume - v_lid) / v_lid).abs() < 1e-12,
+        ((sharp_lid_props.enclosure.volume - v_lid) / v_lid).abs() < 1e-12,
         "lid V = {} vs the closed form {v_lid}",
-        sharp_lid_props.volume
+        sharp_lid_props.enclosure.volume
     );
     assert!(
-        ((sharp_lid_props.surface_area - a_lid) / a_lid).abs() < 1e-12,
+        ((sharp_lid_props.enclosure.surface_area - a_lid) / a_lid).abs() < 1e-12,
         "lid A = {} vs the closed form {a_lid}",
-        sharp_lid_props.surface_area
+        sharp_lid_props.enclosure.surface_area
     );
-    let lid_props = pncad::topo::mass_properties(&crate::booleans::at_rest(&rolled, tol), tol)
-        .expect("the rolled lid");
-    let dv_lid = sharp_lid_props.volume - lid_props.volume;
+    let lid_props = pncad::topo::mass_properties(
+        &crate::booleans::at_rest(&rolled, tol),
+        tol,
+        crate::printed(),
+    )
+    .expect("the rolled lid");
+    let dv_lid = sharp_lid_props.enclosure.volume - lid_props.enclosure.volume;
     // Three convex rims now, so the bound is the three corner squares
     // swept round their own rims.
     let pappus_cap = 2.0 * PI * ROLL * ROLL * (R_KNOB + R_FLANGE + R_NECK);
@@ -2009,7 +2025,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // binary-exact angle, so what the residual costs is MEASURED — off
     // the placed BODY, never re-derived from the same trigonometry the
     // placement used. The subjects are the loft's caps, named at the
-    // loft and read at the placement under its `Placed` segment.
+    // loft and read at the placement, which carries them as they are.
     //
     // TWO subjects, the root annulus and the tip one, and the guard
     // below is why there are two and why neither is the spout's own
@@ -2040,14 +2056,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         face_frame(&ev, r.spout_body, &tip_name).expect("the tip annulus, before the placement");
     let unplaced =
         face_frame(&ev, r.spout_body, &root_name).expect("the root annulus, before the placement");
-    // A copy's face is named under its placement.
-    let copied = |name: &StableName| StableName {
-        kind: name.kind,
-        node: r.spout,
-        path: vec![pncad::prelude::RoleSeg::Placed {
-            of: pncad::prelude::NameRef::new(name.clone()),
-        }],
-    };
+    // A copy carries its source's names as they are.
+    let copied = |name: &StableName| name.clone();
     let tip_placed =
         face_frame(&ev, r.spout, &copied(&tip_name)).expect("the tip annulus, after it");
     let placed = face_frame(&ev, r.spout, &copied(&root_name)).expect("the root annulus, after it");
@@ -2213,19 +2223,21 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // that is the honest authoring — so they are QUADRATURE faces.
     // `mass_properties` publishes a certified ENCLOSURE rather than a
     // number, where every analytic body on this page publishes a pad
-    // of exactly 0, and that enclosure is chased to a REPORTING target
-    // derived from ε. The scene measures through the certificate tier
-    // 3 hands back, continued by `measure`. Where the target is met
+    // of exactly 0, and that enclosure is chased to the printed
+    // precision. The scene measures through the certificate tier 3
+    // hands back, continued by `measure`. Where the precision is met
     // the enclosure must hold the skin's own reference; where it is
-    // refused on budget, the narrowest bracket the certificate or its
-    // continuation held must; any other refusal is a body with no
-    // volume at all, and stays fail-loud.
+    // not, the bracket the measurement reached must; a refusal is a
+    // body with no volume at all, and stays fail-loud.
     let spout_certificate = pncad::topo::validate_geometric_certificate(&spout, tol)
         .unwrap_or_else(|e| panic!("the spout's tier 3 refused: {e:?}"));
     let spout_gated = spout_certificate.enclosure();
-    let spout_measured = spout_certificate.measure();
-    let spout_reading = match spout_measured {
-        Ok(p) => {
+    let spout_measured = spout_certificate
+        .measure(crate::printed())
+        .unwrap_or_else(|refusal| panic!("the spout's mass properties: {refusal}"));
+    let spout_reading = match spout_measured.stop {
+        pncad::topo::Stop::Met => {
+            let p = spout_measured.enclosure;
             let v_gap = (p.volume - v_skin).abs();
             let a_gap = (p.surface_area - a_skin).abs();
             assert!(
@@ -2261,22 +2273,14 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                 p.volume, p.volume_pad, p.surface_area, p.area_pad
             )
         }
-        Err(pncad::topo::TargetUnreached {
-            bracket: b,
-            refusal:
-                refusal @ pncad::topo::MassPropsError::Face {
-                    source: pncad::geom_brep::PropsError::QuadratureBudget { .. },
-                    ..
-                },
-        }) => {
-            // The gate settles the sign with the faces
-            // whose schedule can still meet the target left open; the
-            // continuation refines those in arena order up to the first
-            // face carrying its budget refusal, so the bracket is the
-            // gate's or a narrower one, and never wider.
+        stop @ (pncad::topo::Stop::Floor | pncad::topo::Stop::Wall) => {
+            let b = spout_measured.enclosure.enclosure();
+            // Each face keeps the narrower of the enclosures it held,
+            // so the bracket is the gate's or a narrower one, and never
+            // wider.
             assert!(
                 b.volume_hi - b.volume_lo <= spout_gated.volume_hi - spout_gated.volume_lo,
-                "the spout's refusal bracket [{}, {}] is wider than the gate's [{}, {}]",
+                "the spout's bracket [{}, {}] is wider than the gate's [{}, {}]",
                 b.volume_lo,
                 b.volume_hi,
                 spout_gated.volume_lo,
@@ -2291,11 +2295,11 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                 b.volume_hi
             );
             format!(
-                "mass properties REFUSED TYPED at this tolerance — {refusal} — so there is no \
-                 volume NUMBER to compare. What is missing is a number and not a certificate: \
-                 tier 3 admitted this body at this same eps on the SIGN of the enclosure, and \
-                 the certificate it handed back, continued as far as the schedule reaches, \
-                 keeps a bracket through the refusal — V in [{:.9}, {:.9}] m^3, whose lower \
+                "the measurement stopped at its {stop:?} short of the printed precision, so \
+                 there is no volume NUMBER to compare. What is missing is a number and not a \
+                 certificate: tier 3 admitted this body at this same eps on the SIGN of the \
+                 enclosure, and the certificate it handed back, continued as far as the faces \
+                 refine, keeps a bracket — V in [{:.9}, {:.9}] m^3, whose lower \
                  end clears zero by {:.1e} half-widths, and which holds the skin's own \
                  V = {v_skin:.9}. The straightened frustum's V = {v_spout:.9} sits {v_fit:.1e} \
                  of itself off the skin's, which is the loft FIT, inside the cubic's \
@@ -2305,7 +2309,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                 b.volume_lo / half,
             )
         }
-        Err(unreached) => panic!("the spout's mass properties: {unreached}"),
+        stop => unreachable!("a resolution decides nothing: {stop:?}"),
     };
     let spout_bend_deg = SPOUT_BEND.to_degrees();
 
@@ -2314,17 +2318,21 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     let handle = body_at(&ev, r.handle);
     let v_handle = sweep * HANDLE_R * PI * HANDLE_TUBE * HANDLE_TUBE;
     let a_handle = sweep * HANDLE_R * 2.0 * PI * HANDLE_TUBE + 2.0 * PI * HANDLE_TUBE * HANDLE_TUBE;
-    let handle_props = pncad::topo::mass_properties(&crate::booleans::at_rest(&handle, tol), tol)
-        .expect("the handle's props");
+    let handle_props = pncad::topo::mass_properties(
+        &crate::booleans::at_rest(&handle, tol),
+        tol,
+        crate::printed(),
+    )
+    .expect("the handle's props");
     assert!(
-        ((handle_props.volume - v_handle) / v_handle).abs() < 1e-12,
+        ((handle_props.enclosure.volume - v_handle) / v_handle).abs() < 1e-12,
         "handle V = {} vs Pappus on the disc {v_handle}",
-        handle_props.volume
+        handle_props.enclosure.volume
     );
     assert!(
-        ((handle_props.surface_area - a_handle) / a_handle).abs() < 1e-12,
+        ((handle_props.enclosure.surface_area - a_handle) / a_handle).abs() < 1e-12,
         "handle A = {} vs the closed form {a_handle}",
-        handle_props.surface_area
+        handle_props.enclosure.surface_area
     );
 
     // ---- the walls ----
@@ -2394,8 +2402,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         1,
         "the mouth disc comes back as ONE rim face"
     );
-    let cup_props = pncad::topo::mass_properties(&crate::booleans::at_rest(&cup, tol), tol)
-        .expect("the cup's props");
+    let cup_props =
+        pncad::topo::mass_properties(&crate::booleans::at_rest(&cup, tol), tol, crate::printed())
+            .expect("the cup's props");
     // The cup is the sealed wall LESS the disc of wall the mouth cap
     // was: opening lifts the cavity's cap from the mouth plane's own
     // station minus a wall, up to the plane.
@@ -2413,9 +2422,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         PI * (zone(Y_MOUTH) - zone(Y_MOUTH - WALL))
     };
     assert!(
-        ((cup_props.volume - cup_want) / cup_want).abs() < 1e-12,
+        ((cup_props.enclosure.volume - cup_want) / cup_want).abs() < 1e-12,
         "cup V = {} vs the wall's closed form less the lifted mouth disc {cup_want}",
-        cup_props.volume
+        cup_props.enclosure.volume
     );
     let cup_mesh = pncad::mesh::tessellate(&cup, DELTA, tol)
         .unwrap_or_else(|e| panic!("the opened pot must triangulate, got {e:?}"));
@@ -2430,7 +2439,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     let spout_refusal = describe_join(&ev, r.spout_union);
     wall_probes(&ev, &r);
 
-    vec![Stop {
+    vec![TourStop {
         name: "teapot",
         caption: "THE TEAPOT (FOUR solids: the opened pot, the lid lifted, and the \
                   spout and handle it will not join)"
@@ -2571,8 +2580,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
              its planar walls split in two. spout ∪ vessel: {spout_refusal} — and THIS one moved when the spout became \
              a canal. A loft's walls are Nurbs and the pair rung HAS a Nurbs arm, so the \
              request now gets past it into the sweep, which meets the belly's revolve seam \
-             (a meridian, where the spout leaves the belly) with one of the spout's NURBS walls and cannot yet find where \
-             an edge meets a spline face: the pierce the join needs. The shape a potter \
+             (a meridian, where the spout leaves the belly) with one of the spout's NURBS walls, on that wall's seam, \
+             and cannot yet split a spline seam at a point: the pierce the join needs. The shape a potter \
              draws did not become joinable; the refusal moved off a pair nobody modelled \
              and onto the meeting itself. The schedule is the banked germ-chord \
              lanes (DESIGN frontier (d)) and #1057's two C5 arms. BOTH REFUSALS NOW \
@@ -2591,15 +2600,15 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
              down, the SPINE ITSELF — the loft's placements are \
              {SPOUT_STATIONS} literal frames this file derives, so the saved document carries no \
              arc and moving the bend re-derives all seven",
-            props.volume,
-            props.surface_area,
-            voids[0].volume,
+            props.enclosure.volume,
+            props.enclosure.surface_area,
+            voids[0].enclosure.volume,
             2.0 * WALL,
             planes.len(),
             euler_counts(&cup)
                 .genus()
                 .unwrap_or_else(|refusal| panic!("{refusal}")),
-            cup_props.volume,
+            cup_props.enclosure.volume,
         )),
         // The pot's axis is +y and its spout, handle and lid knob all
         // lie in the world z = 0 plane, so a camera near -z sees the

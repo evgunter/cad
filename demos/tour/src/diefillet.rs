@@ -57,7 +57,7 @@ use pncad::prelude::{
 use pncad::topo::Body;
 
 use crate::scalar::Scalar;
-use crate::{SceneBody, Stop, View};
+use crate::{SceneBody, TourStop, View};
 use pncad::geom_core::Tol;
 
 /// The die's side, shared by both dice (`diechamfer` closes its volume
@@ -512,7 +512,9 @@ pub fn corpus_text(tol: Tol) -> String {
     // the mate by the id that mate's own edit mints.
     let placed = crate::world::place_in_world(&replay, die.composed, tol);
     edits.extend(placed.edits);
-    replay = placed.doc;
+    let product = crate::world::set_product(&placed.doc, &[placed.placement.into()], tol);
+    edits.extend(product.edits);
+    replay = product.doc;
     assert_eq!(
         replay,
         gallery_document(tol),
@@ -536,8 +538,8 @@ pub fn corpus_text(tol: Tol) -> String {
 /// [`Die::blank`] is a second fillet of the same cube, consumed by
 /// nothing — a narration body.
 ///
-/// A document's product is the world: the copies its placements
-/// define, and nothing else (A10). The file places the scene's
+/// A document's product is what it sets its product to: here the
+/// one copy of the die (A10). The file places the scene's
 /// SUBJECT — "the composed die, which remains the sheet's die" (Ev's
 /// montage curation, #218 follow-up, which ruled the two partial dice
 /// out of the sheet for reading as near-duplicates) — and nothing
@@ -550,13 +552,15 @@ pub fn corpus_text(tol: Tol) -> String {
 /// The product is one copy of the die: 89 faces, V = 0.952915, no
 /// separation finding. The 21 pips are the members of ONE
 /// `Node::Union`, so the node count is the pips, the blank, the two
-/// blends and the placement — not a chain length.
+/// blends and the placement — not a chain length — and the product
+/// slot reads the placement's copy.
 pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
     let die = build(tol);
-    crate::world::place_in_world(&die.doc, die.composed, tol).doc
+    let placed = crate::world::place_in_world(&die.doc, die.composed, tol);
+    crate::world::set_product(&placed.doc, &[placed.placement.into()], tol).doc
 }
 
-pub fn stops(tol: Tol) -> Vec<Stop> {
+pub fn stops(tol: Tol) -> Vec<TourStop> {
     let die = build(tol);
     let ev = evaluate::<f64>(
         &die.doc,
@@ -580,9 +584,14 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     );
 
     let blank = body_at(&ev, die.blank);
-    let vol = pncad::topo::mass_properties(&crate::booleans::at_rest(&blank, tol), tol)
-        .unwrap()
-        .volume;
+    let vol = pncad::topo::mass_properties(
+        &crate::booleans::at_rest(&blank, tol),
+        tol,
+        crate::printed(),
+    )
+    .unwrap()
+    .enclosure
+    .volume;
     let want = crate::oracles::rounded_box_volume([L; 3], R);
     assert!(
         (vol - want).abs() < 1e-9 * want,
@@ -595,12 +604,21 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     );
     assert_eq!((f, e, v), (26, 48, 24));
     let pipped = body_at(&ev, die.pipped);
-    let pip_vol = pncad::topo::mass_properties(&crate::booleans::at_rest(&pipped, tol), tol)
-        .unwrap()
-        .volume;
+    let pip_vol = pncad::topo::mass_properties(
+        &crate::booleans::at_rest(&pipped, tol),
+        tol,
+        crate::printed(),
+    )
+    .unwrap()
+    .enclosure
+    .volume;
     let composed = body_at(&ev, die.composed);
-    let comp =
-        pncad::topo::mass_properties(&crate::booleans::at_rest(&composed, tol), tol).unwrap();
+    let comp = pncad::topo::mass_properties(
+        &crate::booleans::at_rest(&composed, tol),
+        tol,
+        crate::printed(),
+    )
+    .unwrap();
     assert_eq!(
         pncad::topo::validate_geometric(&composed, tol),
         Ok(()),
@@ -616,7 +634,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     assert_eq!((cf, ce, cv), (26 + 21 * 3, 48 + 21 * 6, 24 + 21 * 4));
 
     vec![
-        Stop {
+        TourStop {
             name: "diefillet",
             caption: "the die blank (rolling-ball fillets)".to_string(),
             // Standalone since the montage-v2 curation (Ev, #218
@@ -649,7 +667,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                 SceneBody::plain("diefillet", [0.80, 0.72, 0.55], blank).named(&ev, die.blank),
             ],
         },
-        Stop {
+        TourStop {
             name: "diepips",
             caption: "the die's pips (one group cut)".to_string(),
             // Standalone with `diefillet` (see the note there).
@@ -679,7 +697,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                 SceneBody::plain("diepips", [0.62, 0.66, 0.78], pipped).named(&ev, die.pipped),
             ],
         },
-        Stop {
+        TourStop {
             name: "diecomposed",
             caption: "THE COMPOSED DIE (in-place surgery)".to_string(),
             montage: true,
@@ -701,7 +719,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                  Neither blend names an edge by hand: {} lines and {} plane–sphere arcs \
                  come back from `select_where`, and the 42 co-surface meridians it does \
                  NOT return are the ones `fillet_edges` would refuse at margin zero",
-                comp.volume, die.box_edges, die.rims
+                comp.enclosure.volume, die.box_edges, die.rims
             )),
             view: View {
                 elev: 26.0,

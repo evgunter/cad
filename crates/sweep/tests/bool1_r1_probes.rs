@@ -230,9 +230,8 @@ fn near_coplanar_notch_floor_outcome_table() {
 fn coplanar_split_e2e_volume_and_watertight() {
     let body = extruded(vec![notched(0.0)], 1.0);
     let body = sweep::test_support::finished("the body", body, Tol::witness());
-    let v0 = topo::mass_properties(&body, Tol::witness())
-        .expect("operand mass properties")
-        .volume;
+    let v0 =
+        topo::test_support::pinned_volume("operand mass properties", &body, Tol::witness()).volume;
     let result = topo::split(&body, &plane_y1(), Tol::witness()).expect("the coplanar split runs");
     let mut total = 0.0;
     let mut shared_points = 0;
@@ -252,9 +251,7 @@ fn coplanar_split_e2e_volume_and_watertight() {
             Ok(()),
             "{name} passes the pseudomanifold door with no records"
         );
-        total += topo::mass_properties(b, Tol::witness())
-            .unwrap_or_else(|e| panic!("{name} mass properties: {e:?}"))
-            .volume;
+        total += topo::test_support::pinned_volume("the measured body", b, Tol::witness()).volume;
         let m = mesh::tessellate(b, 5e-3, Tol::witness())
             .unwrap_or_else(|e| panic!("{name} tessellates: {e:?}"));
         mesh::validate::check_mesh(&m).unwrap_or_else(|e| panic!("{name} watertight: {e:?}"));

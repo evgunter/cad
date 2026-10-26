@@ -295,10 +295,15 @@ fn kernel_ops(c: &mut Criterion) {
         // the timed loop.
         let at_rest = pncad::topo::AtRestBody::validate(body.clone(), Tol::witness())
             .expect("the washer certifies");
+        // The series is timed at the resolution it was taken at: 1.024 µm
+        // of mean boundary displacement, 1024·ε at the witness ε.
+        let resolution =
+            pncad::topo::Settle::Resolution(pncad::quantity::Length::from_meters(1.024e-6));
         group.bench_function(id("mass_props/washer"), |b| {
             b.iter(|| {
                 pool.install(|| {
-                    mass_properties(black_box(&at_rest), Tol::witness()).expect("mass properties")
+                    mass_properties(black_box(&at_rest), Tol::witness(), resolution)
+                        .expect("mass properties")
                 })
             });
         });

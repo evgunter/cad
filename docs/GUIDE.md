@@ -70,7 +70,7 @@ let plate = extrude(&profile, Extrusion::Distance { depth: real(mm(8.0)), side: 
 validate_closed(&plate).expect("a closed solid");
 // The measurement reads a finished body: tier 3, once, at rest.
 let plate = AtRestBody::validate(plate, tol).map_err(|errors| format!("not a finished body: {errors:?}"))?;
-let props = mass_properties(&plate, tol)?;
+let props = mass_properties(&plate, tol, Settle::Resolution(Length::from_meters(1e-6)))?.met()?;
 assert!((props.volume - 2.56e-5).abs() < 1e-18);
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```
@@ -122,7 +122,7 @@ $ PYTHONPATH=target/python-stage python3 crates/pncad-py/examples/bracket.py
 The same plate, in Python:
 
 ```python
-from pncad import Doc, Formula, Node, evaluate, mm
+from pncad import Doc, Formula, Node, evaluate, mm, Settle, m
 
 doc = Doc()
 profile = doc.insert(
@@ -136,7 +136,7 @@ profile = doc.insert(
 plate = doc.insert(Node.extrude(profile, Formula.length_in(8, mm)))
 body = evaluate(doc).value(plate).body()
 body.validate()
-assert abs(body.mass_properties().volume - 2.56e-5) < 1e-18
+assert abs(body.mass_properties(Settle.resolution(1e-6 * m)).met().volume - 2.56e-5) < 1e-18
 ```
 
 Here `25 * mm` builds a typed `Length`. Dimensions are checked: `25 *
@@ -182,8 +182,9 @@ cross-check is not optional decoration**: the exact B-rep measure and
 the tessellated mesh are computed by independent code paths, and
 comparing them is how you find out that one of them is wrong.
 
-An **assembly** runs this same ladder — on its gathered *product*,
-the bodies its world places — with two rungs of its own in front:
+An **assembly** runs this same ladder — on its *product*, the body
+its product slot reads (`Doc.set_product`) — with two rungs of its own
+in front:
 solving the mates for where each instance sits, and the at-rest gate
 that certifies the parts really meet as the mates declare.
 `docs/guide/assembly.md` is those two rungs, and the workspace store
@@ -346,7 +347,7 @@ are one program:
 ```python
 import math
 
-from pncad import Doc, Formula, Node, Open, Start, evaluate, mm
+from pncad import Doc, Formula, Node, Open, Start, evaluate, mm, Settle, m
 
 rounded = (
     Open.at((0 * mm, 0 * mm))
@@ -366,7 +367,7 @@ assert ev.succeeded(plate)
 # 40 x 30 mm, one 6 mm corner rounded off, 8 mm thick. The rounded
 # corner removes r^2 - pi*r^2/4 of area.
 area = 0.040 * 0.030 - (0.006**2 - math.pi * 0.006**2 / 4)
-assert abs(ev.value(plate).body().mass_properties().volume - area * 0.008) < 1e-15
+assert abs(ev.value(plate).body().mass_properties(Settle.resolution(1e-6 * m)).met().volume - area * 0.008) < 1e-15
 ```
 
 **Corners between a line and a CIRCLE.** A fillet's two sides do not
@@ -443,7 +444,7 @@ perpendicular. An aim of zero length, or a reference parallel to it,
 raises `FrameError` rather than building a degenerate frame.
 
 ```python
-from pncad import Coord, Doc, Formula, Frame, FrameError, MateValue, Node, Placed, evaluate, m
+from pncad import Coord, Doc, Formula, Frame, FrameError, MateValue, Node, Placed, evaluate, m, Settle
 
 doc = Doc()
 # An upright wall: a 2 x 3 sketch extruded 0.25 up its own z, stood in
@@ -472,7 +473,7 @@ wall = doc.place(
     Placed.unmated([MateValue(Coord.spin("x"), quarter), MateValue(Coord.spin("z"), quarter)]),
 )
 ev = evaluate(doc)
-assert abs(ev.value(wall).body().mass_properties().volume - 1.5) < 1e-12
+assert abs(ev.value(wall).body().mass_properties(Settle.resolution(1e-6 * m)).met().volume - 1.5) < 1e-12
 corners = [ev.vertex_position(wall, v) for v in ev.all_vertices(wall)]
 for axis, top in enumerate((0.25, 2.0, 3.0)):
     assert abs(max(c[axis].meters for c in corners) - top) < 1e-12
@@ -502,7 +503,7 @@ that one `set_var_value` moves — at degree 1 the same three sections
 enclose 8.75 m³ rather than 9.
 
 ```python
-from pncad import Doc, Formula, Node, StationMove, evaluate, m
+from pncad import Doc, EditError, Formula, Node, StationMove, evaluate, m, Settle
 
 SQUARE = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]
 TRAPEZOID = [(-1.375, -1.0), (1.375, -1.0), (1.0, 1.0), (-1.0, 1.0)]
@@ -526,15 +527,20 @@ prism = doc.insert(Node.loft(first, then, Formula.count(2)))
 # each slice a trapezoid of area 4 + 2*d*4v(1-v) with d = 0.375, so
 # V = 8 + 8d/3 = 9 m^3 exactly. Mass properties are an ENCLOSURE, so
 # the check is that 9 lies inside the certified pad.
-props = evaluate(doc).value(prism).body().mass_properties()
+props = evaluate(doc).value(prism).body().mass_properties(Settle.resolution(1e-6 * m)).met()
 assert abs(props.volume - 9.0) <= props.volume_pad + 1e-9
 assert props.volume_pad < 1e-6
 
 # The kernel's rule, not the binding's: 1 <= v_degree <= n - 1. Three
 # sections cannot carry degree 3, and nothing here pre-checks that —
-# it refuses at evaluation, where the kernel refuses.
-overdegree = doc.insert(Node.loft(first, then, Formula.count(3)))
-assert not evaluate(doc).succeeded(overdegree)
+# the kernel's edit door refuses it, typed.
+try:
+    doc.insert(Node.loft(first, then, Formula.count(3)))
+except EditError as refused:
+    assert refused.variant == "loft_shape"
+    assert refused.inner_variant == "degree_out_of_range"
+else:
+    raise AssertionError("degree 3 through three sections inserted")
 ```
 
 A profile becomes usable by turning it into a body. `validated` is
@@ -700,7 +706,7 @@ use pncad::prelude::*;
 # let pocket = slab((mm(8.0), mm(28.0)), (mm(10.0), mm(30.0)), (mm(0.0), mm(5.0)))?;
 # let u = union(&base, &web, tol)?; let u = u.body().expect("union");
 # let r = subtract(&u.body, &pocket, tol)?; let result = r.body().expect("difference");
-let props = mass_properties(&result.body, tol)?;
+let props = mass_properties(&result.body, tol, Settle::Resolution(Length::from_meters(1e-6)))?.met()?;
 
 assert!((props.volume - 2.984e-5).abs() < 1e-15);       // m³
 assert!((props.surface_area - 1.0696e-2).abs() < 1e-12); // m²
@@ -728,29 +734,37 @@ point kilometres away for instance. A nonzero pad is the kernel
 telling you how much its quadrature does not know, and a program that
 cares about a tolerance should read it rather than assume it.
 
+**A measurement states what it asks.** There is no default: every
+call passes a `Settle`. A program that wants the number passes a
+resolution, `Settle::Resolution(len)`, the mean boundary displacement
+each face's enclosure may span — never finer than ε, which is the most
+the model defines a measure to. A program that decides something passes
+the question itself: `Settle::Sign`, `Settle::AtMost` or
+`Settle::AtLeast` against a bound, or `Settle::Contains`. The answer is a `MassMeasurement`: the enclosure,
+and why it stopped (`Stop::Met` where every face met the resolution,
+`Stop::Settled(verdict)` where a question decided, and `Stop::Floor`,
+`Stop::Wall` or `Stop::Band` where it stopped short). A resolution the
+quadrature cannot reach is not a refusal: the enclosure is the bracket
+it reached, and the stop says so. So a program that reads the volume as
+a number reads it through `met()`, which answers the enclosure where the
+resolution was met and a typed `Unmet` (in Python, `ValidationError`
+with `measure_refusal == "unmet"`) where it was not; a program that
+wants the bracket reads `enclosure` and its `stop`. A question still
+undecided where no face can refine is the refusal: `Undecided`, carrying
+the bracket it reached (in Python, `measure_refusal == "undecided"`
+with `volume` and `stop`).
+
 **Gating and then measuring pays for one quadrature, not two — if you
 ask for it that way.** `mass_properties` reads a finished body, and
 tier 3's orientation check *is* a certified quadrature over the same
 body at the same band, so `AtRestBody::validate` followed by
 `mass_properties` runs the expensive part twice.
 `validate_geometric_certificate` hands back the certificate the gate
-decided on, and `SignCertificate::refine_to_target` continues that
-same quadrature to the reporting target, reusing every round already
-paid for; the result is `mass_properties`' own answer, bit for bit.
-Python's `body.mass_properties()` is that one call (so is
-`body.validate_geometric_measured()`): a body tier 3 refuses raises
-the gate's `ValidationError` there instead of being measured.
-
-The continuation can refuse where the gate passed, and that is the
-honest answer rather than a wrinkle. The reporting target is `1024·ε`,
-a length that shrinks with your tolerance, while the refinement
-schedule's floor is a property of the part — so a body whose volume's
-*sign* is definite, which is all tier 3 reads, can have no volume
-*number* at a tight enough ε. Such a body is valid and unmeasurable at
-that ε, and what it still offers is the sign-level bracket:
-`SignCertificate::enclosure` in Rust, and in Python the `volume_lo` /
-`volume_hi` / `surface_area` attributes on the refusal
-`validate_geometric_measured` raises.
+decided on, and `SignCertificate::measure` continues that same
+quadrature under your predicate, reusing every round already paid for.
+Python's `body.mass_properties(settle)` is that one call (so is
+`body.validate_geometric_measured(settle)`): a body tier 3 refuses
+raises the gate's `ValidationError` there instead of being measured.
 
 ### 2.5 Tessellate
 
@@ -821,7 +835,7 @@ use pncad::mesh::validate::{check_mesh, signed_volume, triangle_count};
 # let pocket = slab((mm(8.0), mm(28.0)), (mm(10.0), mm(30.0)), (mm(0.0), mm(5.0)))?;
 # let u = union(&base, &web, tol)?; let u = u.body().expect("union");
 # let r = subtract(&u.body, &pocket, tol)?; let result = r.body().expect("difference");
-# let props = mass_properties(&result.body, tol)?;
+# let props = mass_properties(&result.body, tol, Settle::Resolution(Length::from_meters(1e-6)))?.met()?;
 # let mesh = tessellate(&result.body, 0.0005, tol).expect("tessellate");
 // 1. The mesh is the mesh of a SOLID: it carries triangles, every
 //    face's patch carries some, and the triangle set is closed and
@@ -871,7 +885,7 @@ use pncad::step_import::StepImport;
 # let pocket = slab((mm(8.0), mm(28.0)), (mm(10.0), mm(30.0)), (mm(0.0), mm(5.0)))?;
 # let u = union(&base, &web, tol)?; let u = u.body().expect("union");
 # let r = subtract(&u.body, &pocket, tol)?; let result = r.body().expect("difference");
-# let props = mass_properties(&result.body, tol)?;
+# let props = mass_properties(&result.body, tol, Settle::Resolution(Length::from_meters(1e-6)))?.met()?;
 # let mesh = tessellate(&result.body, 0.0005, tol).expect("tessellate");
 let step = step_string(&result.body, &StepOptions {
     product_name: "bracket".to_string(),
@@ -903,8 +917,9 @@ let StepImport::Solid { body: reimported, .. } =
 else {
     panic!("the bracket re-imports as a solid, not a wireframe");
 };
-let reimported = AtRestBody::validate(reimported, tol).map_err(|errors| format!("not a finished body: {errors:?}"))?;
-let back = mass_properties(&reimported, tol)?;
+// The import hands back the body together with its gate's certificate,
+// so the re-measure reads the rounds the gate already ran.
+let back = reimported.measure(Settle::Resolution(Length::from_meters(1e-6)))?.met()?;
 assert!((back.volume - props.volume).abs() < 1e-15);
 # Ok::<(), E>(())
 ```
@@ -936,7 +951,7 @@ opaque kernel calls.
 The same bracket, the same numbers:
 
 ```python
-from pncad import Coord, Doc, Formula, MateValue, Node, Placed, evaluate, import_step, mm
+from pncad import Coord, Doc, Formula, MateValue, Node, Placed, evaluate, import_step, mm, Settle, m
 
 
 def slab(doc, x, y, z, on=None):
@@ -972,17 +987,18 @@ assert ev.succeeded(lightened), "the bracket did not evaluate"
 # Validate, then measure — the same ladder, the same pads.
 body = ev.value(lightened).body()
 body.validate()
-props = body.mass_properties()
+props = body.mass_properties(Settle.resolution(1e-6 * m)).met()
 assert abs(props.volume - 2.984e-5) < 1e-15
 assert props.volume_pad == 0.0
 
 # Export through the document layer, and re-import to prove it. The
-# report's `enclosure` is the IMPORT GATE's own measurement of the
-# body it just adopted — reading it re-measures nothing.
+# report measures through the IMPORT GATE's own certificate of the body
+# it just adopted — continuing its rounds rather than starting again.
 step = ev.step_string(lightened, product_name="bracket")
 assert step.startswith("ISO-10303-21;")
 report = import_step(step)
-assert abs(report.enclosure.volume - props.volume) < 1e-15
+again = report.measure(Settle.resolution(1e-6 * m)).met()
+assert abs(again.volume - props.volume) < 1e-15
 assert report.instances[0].index == 0  # one assembly row per solid
 ```
 
@@ -1012,7 +1028,7 @@ the ladder's claims are checkable from Python — closure on INDICES,
 volume on the triangles:
 
 ```python
-from pncad import Doc, Formula, Node, evaluate, m, mm
+from pncad import Doc, Formula, Node, evaluate, m, mm, Settle
 
 doc = Doc()
 profile = doc.insert(
@@ -1071,7 +1087,7 @@ for i, j, k in mesh.triangles:
     )
 measured /= 6.0
 
-exact = body.mass_properties().volume
+exact = body.mass_properties(Settle.resolution(1e-6 * m)).met().volume
 assert abs(measured - exact) / exact < 1e-12, "mesh vs exact"
 
 # 6. Export the mesh. Both writers ANSWER the bytes rather than take
@@ -1124,7 +1140,7 @@ at `insert`, not as a guess.
 ```python
 import math
 
-from pncad import Doc, EditError, Formula, Node, Open, Start, circle, evaluate, m
+from pncad import Doc, EditError, Formula, Node, Open, Start, circle, evaluate, m, Settle
 
 # The tour's `plate` stop: a 6 x 3 slab, 0.6 deep, with two holes.
 outer = (
@@ -1143,7 +1159,7 @@ plate = doc.insert(Node.extrude(sketch, Formula.length_in(0.6, m)))
 body = evaluate(doc).value(plate).body()
 body.validate()
 area = 6.0 * 3.0 - 2.0 * math.pi * 0.7 * 0.7
-assert abs(body.mass_properties().volume - 0.6 * area) < 1e-12
+assert abs(body.mass_properties(Settle.resolution(1e-6 * m)).met().volume - 0.6 * area) < 1e-12
 
 # Two disjoint circles are not an outline and its hole. The kernel
 # says so; the binding does not pre-empt it.
@@ -1185,7 +1201,7 @@ next section runs them.
 ```python
 import math
 
-from pncad import Doc, EditError, Formula, Node, evaluate, m
+from pncad import Doc, EditError, Formula, Node, evaluate, m, Settle
 
 L, R = 1.0, 0.12
 
@@ -1218,7 +1234,7 @@ want = (
 )
 body = evaluate(doc).value(blank).body()
 body.validate()
-assert abs(body.mass_properties().volume - want) < 1e-9 * want
+assert abs(body.mass_properties(Settle.resolution(1e-6 * m)).met().volume - want) < 1e-9 * want
 
 # A set of edges holds at least one name, so an empty selection is
 # refused where it is written, not by the binding.
@@ -1367,7 +1383,7 @@ chamfer's own word (`chamfer`), not the fillet's: one ladder, but the
 tag says which verb asked.
 
 ```python
-from pncad import Doc, Formula, Node, evaluate, m
+from pncad import Doc, Formula, Node, evaluate, m, Settle
 
 L, D = 1.0, 0.12
 
@@ -1394,14 +1410,15 @@ want = L**3 - 6 * L * D**2 + (16 / 3) * D**3
 ev = evaluate(doc)
 body = ev.value(flat).body()
 body.validate()
-assert abs(body.mass_properties().volume - want) < 1e-9 * want
+assert abs(body.mass_properties(Settle.resolution(1e-6 * m)).met().volume - want) < 1e-9 * want
 
 # Setback against radius, at the same number: the flat strip cuts the
-# corner the ball rides around.
-assert (
-    body.mass_properties().volume
-    < ev.value(round_).body().mass_properties().volume
-)
+# corner the ball rides around. That is a question about the volume, so
+# it is asked as one: a deciding predicate settles it, where comparing
+# two midpoints would only compare two readings.
+rounded = ev.value(round_).body().mass_properties(Settle.resolution(1e-6 * m)).met()
+below = body.mass_properties(Settle.at_most(rounded.volume - rounded.volume_pad))
+assert below.verdict is True
 
 # The result is a NODE, so its faces are named and a downstream
 # selection can reach them: 6 supports, 12 strips, 8 corner patches.
@@ -1431,7 +1448,7 @@ an arc leaves an open elbow of annular section.
 ```python
 import math
 
-from pncad import Doc, Formula, Node, TubeWindow, evaluate, m, rad
+from pncad import Doc, Formula, Node, TubeWindow, evaluate, m, rad, Settle
 
 R, OUTER, WALL = 2.0, 0.5, 0.125
 T0, T1 = 0.0, 1.5
@@ -1443,7 +1460,7 @@ ring = doc.insert(
 )
 solid = evaluate(doc).value(ring).body()
 solid.validate()
-assert abs(solid.mass_properties().volume - 2 * math.pi**2 * R * OUTER**2) < 1e-9
+assert abs(solid.mass_properties(Settle.resolution(1e-6 * m)).met().volume - 2 * math.pi**2 * R * OUTER**2) < 1e-9
 
 # The same ring with a wall: a torus SHELL, its bore a cavity.
 inner = OUTER - WALL
@@ -1455,7 +1472,7 @@ torus = doc.insert(
 walled = evaluate(doc).value(torus).body()
 walled.validate()
 want = 2 * math.pi**2 * R * (OUTER**2 - inner**2)
-assert abs(walled.mass_properties().volume - want) < 1e-9
+assert abs(walled.mass_properties(Settle.resolution(1e-6 * m)).met().volume - want) < 1e-9
 
 # An ARC of the same pipe: an open elbow of annular section, whose
 # volume is the annulus swept through the window's angle.
@@ -1470,7 +1487,7 @@ elbow = doc.insert(
 annulus = math.pi * (OUTER**2 - inner**2)
 body = evaluate(doc).value(elbow).body()
 body.validate()
-assert abs(body.mass_properties().volume - (T1 - T0) * R * annulus) < 1e-9
+assert abs(body.mass_properties(Settle.resolution(1e-6 * m)).met().volume - (T1 - T0) * R * annulus) < 1e-9
 
 # The two doors, differenced over one document: what the wall took out
 # is exactly the bore, which is only true if each node reached its own
@@ -1482,8 +1499,8 @@ ev = evaluate(doc)
 bore = (T1 - T0) * R * math.pi * inner**2
 assert (
     abs(
-        ev.value(open_ring).body().mass_properties().volume
-        - ev.value(elbow).body().mass_properties().volume
+        ev.value(open_ring).body().mass_properties(Settle.resolution(1e-6 * m)).met().volume
+        - ev.value(elbow).body().mass_properties(Settle.resolution(1e-6 * m)).met().volume
         - bore
     )
     < 1e-9
@@ -1528,6 +1545,7 @@ from pncad import (
     Selector,
     evaluate,
     m,
+    Settle,
 )
 
 L, T = 1.0, 0.125
@@ -1555,7 +1573,7 @@ body = evaluate(doc).value(cup).body()
 body.validate()
 inner = L - 2 * T
 want = L**3 - inner * inner * (L - T)
-assert abs(body.mass_properties().volume - want) <= 1e-12 * want
+assert abs(body.mass_properties(Settle.resolution(1e-6 * m)).met().volume - want) <= 1e-12 * want
 
 # The cup's own vocabulary: one rim (named for the top it replaced)
 # and five cavity twins group as the SHELL's; the five outer faces are
@@ -1740,7 +1758,7 @@ let ValuePayload::Body(body) = &value.payload else {
 };
 // An evaluated value holds the body as built; the measurement reads it finished.
 let body = AtRestBody::validate(Body::clone(body), tol).map_err(|errors| format!("not a finished body: {errors:?}"))?;
-let props = mass_properties(&body, tol)?;
+let props = mass_properties(&body, tol, Settle::Resolution(Length::from_meters(1e-6)))?.met()?;
 let expected = 4.0 * 2.0 * 0.5 - core::f64::consts::PI * 0.25 * 0.25 * 0.5;
 assert!((props.volume - expected).abs() < 1e-9);
 # Ok::<(), Box<dyn std::error::Error>>(())
@@ -1894,7 +1912,7 @@ let placed = Placed::unmated(vec![(Coord::Slide(TargetAxis::Z), lit(0.125))]);
 let in_plate = Operand::Var(doc.node_space(plate).expect("a construction is in its own space"));
 let (next, tab_on_plate) = insert(
     &doc,
-    Node::place(vec![BodyRead::plain(Operand::from(tab))], in_plate, placed.bundle()),
+    Node::place(BodyRead::plain(Operand::from(tab)), in_plate, placed.bundle()),
 );
 doc = next;
 let (next, solid) = insert(&doc, Node::Union {
@@ -1910,7 +1928,7 @@ let volume = |ev: &Evaluation<f64>, node: RecipeNodeId| {
         panic!("a union yields a body");
     };
     let body = AtRestBody::validate(Body::clone(body), tol).expect("a finished body");
-    mass_properties(&body, tol).expect("mass properties").volume
+    mass_properties(&body, tol, Settle::Resolution(Length::from_meters(1e-6))).expect("mass properties").met().expect("mass properties").volume
 };
 
 // The analytic oracle: plate + tab − their overlap − two cylinders of

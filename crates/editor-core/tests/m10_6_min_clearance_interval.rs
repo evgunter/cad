@@ -150,17 +150,11 @@ fn dumbbell() -> Dumbbell {
         &[
             SitedRef::new(
                 placed,
-                crate::m10_5_clearance_interval::in_placement(
-                    placed,
-                    fixture::fname(solid, fixture::wall(&r.doc, solid, 2)),
-                ),
+                fixture::fname(solid, fixture::wall(&r.doc, solid, 2)),
             ),
             SitedRef::new(
                 placed,
-                crate::m10_5_clearance_interval::in_placement(
-                    placed,
-                    fixture::fname(solid, fixture::wall(&r.doc, solid, 9)),
-                ),
+                fixture::fname(solid, fixture::wall(&r.doc, solid, 9)),
             ),
         ],
     );
@@ -212,10 +206,7 @@ impl<'v> Neck<'v> {
             panic!("a placement's value is one body");
         };
         let key = |seg: u32| {
-            let n = crate::m10_5_clearance_interval::in_placement(
-                f.placed,
-                fixture::fname(f.solid, fixture::wall(&f.doc, f.solid, seg)),
-            );
+            let n = fixture::fname(f.solid, fixture::wall(&f.doc, f.solid, seg));
             let Some(editor_core::Entry::Unique(ent)) =
                 ev.table_at(f.placed).expect("one table").lookup(&n)
             else {
@@ -523,8 +514,8 @@ fn a_selection_that_is_not_a_body_or_a_face_refuses_at_the_door() {
     // A real EDGE name — the extrude's own lateral edge at profile
     // vertex 0 — so the refusal is about its KIND rather than about a
     // name that names nothing.
-    let edge = SitedRef::at_mint(fixture::prism_edges(&r.doc, solid, 4).remove(2));
-    let face = SitedRef::at_mint(fixture::fname(solid, fixture::wall(&r.doc, solid, 2)));
+    let edge = crate::fixture::sited_ref(fixture::prism_edges(&r.doc, solid, 4).remove(2));
+    let face = crate::fixture::sited_ref(fixture::fname(solid, fixture::wall(&r.doc, solid, 2)));
     let refused = editor_core::measure(
         &r.doc,
         &[MeasurePrimitive::MinClearance { a: edge, b: face }],

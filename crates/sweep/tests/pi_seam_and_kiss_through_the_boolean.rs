@@ -492,7 +492,7 @@ fn the_sphere_capped_tube_turned_within_a_hair_of_aligned() {
 fn the_sphere_capped_tube_is_its_seam() {
     let tube = rod_z(R, 0.0, H);
     let hemi = hemisphere_on_the_cap();
-    let v = topo::mass_properties(&hemi, Tol::witness()).unwrap().volume;
+    let v = topo::test_support::pinned_volume("the measured body", &hemi, Tol::witness()).volume;
     let half_ball = 2.0 / 3.0 * PI * R.powi(3);
     assert!(
         (v - half_ball).abs() <= 1e-12 * half_ball,
@@ -522,7 +522,7 @@ fn a_dome_abutting_on_the_rim_at_a_transverse_corner_builds() {
     let dome = dome_on_the_cap();
     let rise = (2.0_f64.sqrt() - 1.0) * R;
     let dome_v = PI * rise * rise * (3.0 * 2.0_f64.sqrt() * R - rise) / 3.0;
-    let v = topo::mass_properties(&dome, tol).unwrap().volume;
+    let v = topo::test_support::pinned_volume("the measured body", &dome, tol).volume;
     assert!(
         (v - dome_v).abs() <= 1e-12 * dome_v,
         "the dome fixture is the spherical cap on the rim: {v} vs {dome_v}"
@@ -557,7 +557,7 @@ fn a_dome_abutting_on_the_rim_at_a_transverse_corner_builds() {
             };
             topo::validate_geometric(&b, tol)
                 .unwrap_or_else(|e| panic!("{label}, order {order}: tier 3: {e:?}"));
-            let v = topo::mass_properties(&b, tol).unwrap().volume;
+            let v = topo::test_support::pinned_volume("the measured body", &b, tol).volume;
             assert!(
                 (v - want).abs() <= 1e-12 * want,
                 "{label}, order {order}: the tube and the cap: {v} vs {want}"
@@ -602,11 +602,11 @@ fn a_lens_of_two_domes_builds() {
         (Point2::new(R, 0.0), 0.0),
     ]);
     let volume = |b: &Body<f64>| {
-        topo::mass_properties(
+        topo::test_support::pinned_volume(
+            "the measured body",
             &topo::test_support::finished("the measured body", topo::Body::clone(b), tol),
             tol,
         )
-        .unwrap()
         .volume
     };
     let want = 2.0 * volume(&dome);
@@ -786,7 +786,10 @@ fn a_rim_offset_inside_the_zero_band_answers_alike_in_both_member_orders() {
                     vec![kept; 2],
                     "{label}: the rim keeps the first operand's circle"
                 );
-                built.push((label, topo::mass_properties(&b, tol).unwrap().volume));
+                built.push((
+                    label,
+                    topo::test_support::pinned_volume("the measured body", &b, tol).volume,
+                ));
                 continue;
             }
             // At ε = 1e-12 the member orders part: order 0 builds, order
@@ -798,7 +801,10 @@ fn a_rim_offset_inside_the_zero_band_answers_alike_in_both_member_orders() {
                     Ok(BooleanResult::Body(b)) => b.body,
                     other => panic!("{label}: at ε 1e-12 order 0 builds: {other:?}"),
                 };
-                built.push((label, topo::mass_properties(&b, tol).unwrap().volume));
+                built.push((
+                    label,
+                    topo::test_support::pinned_volume("the measured body", &b, tol).volume,
+                ));
                 continue;
             }
             let e = r.err().unwrap_or_else(|| panic!("{label}: refuses"));
@@ -962,7 +968,7 @@ fn the_stadium_answers_every_op() {
             Ok(()),
             "{what}: tier 3"
         );
-        let v = topo::mass_properties(&r.body, tol).unwrap().volume;
+        let v = topo::test_support::pinned_volume("the measured body", &r.body, tol).volume;
         assert!((v - want).abs() < 1e-9, "{what}: volume {v} vs {want}");
     }
 }
@@ -1005,7 +1011,7 @@ fn a_d_bar_on_the_slab_builds_as_a_line_seam() {
     .body;
     let dbar = finished("the D-bar", dbar, tol);
     let half_rod = PI * 0.25 / 2.0;
-    let v = topo::mass_properties(&dbar, tol).unwrap().volume;
+    let v = topo::test_support::pinned_volume("the measured body", &dbar, tol).volume;
     assert!(
         (v - half_rod).abs() <= 1e-12,
         "the half rod: {v} vs {half_rod}"
@@ -1134,7 +1140,7 @@ fn a_rod_in_a_bore_refuses_at_the_crossing_layer() {
                     Ok(()),
                     "turn {k}: tier 3"
                 );
-                let v = topo::mass_properties(&r.body, tol).unwrap().volume;
+                let v = topo::test_support::pinned_volume("the measured body", &r.body, tol).volume;
                 let want = 6.0 * PI + PI / 4.0;
                 assert!((v - want).abs() < 1e-9, "turn {k}: volume {v} vs {want}");
                 "built".to_owned()
@@ -1249,7 +1255,7 @@ fn built(label: &str, r: Result<BooleanResult<f64>, BooleanError>) -> Built {
     );
     let c = &bb.contacts;
     (
-        topo::mass_properties(b, tol).unwrap().volume,
+        topo::test_support::pinned_volume("the measured body", b, tol).volume,
         census(b),
         [
             c.vertex_vertex().count(),
@@ -1580,11 +1586,11 @@ fn a_g1_joint_authored_inside_one_profile_is_the_seams_union() {
         topo::transform_rigid(&at0, &geom_core::test_support::rigid(&turn, tol), tol).unwrap();
     capsule.merge_coplanar_faces(tol).unwrap();
     topo::validate_geometric(&capsule, tol).unwrap_or_else(|e| panic!("tier 3: {e:?}"));
-    let v = topo::mass_properties(
+    let v = topo::test_support::pinned_volume(
+        "the measured body",
         &topo::test_support::finished("the measured body", topo::Body::clone(&capsule), tol),
         tol,
     )
-    .unwrap()
     .volume;
     let want = tube_and_half_ball_volume();
     assert!((v - want).abs() <= 1e-12 * want, "{v} vs {want}");
@@ -1772,11 +1778,19 @@ fn narrow_review_dome_battery() {
                                 let cert =
                                     topo::validate_geometric_certificate(&bb.body, tol).is_ok();
                                 let t3 = topo::validate_geometric(&bb.body, tol).is_ok();
-                                let v = topo::mass_properties(&bb.body, tol)
-                                    .map(|m| m.volume)
-                                    .unwrap_or(f64::NAN);
-                                let vx = topo::mass_properties(x, tol).unwrap().volume;
-                                let vy = topo::mass_properties(y, tol).unwrap().volume;
+                                let v = topo::mass_properties(
+                                    &bb.body,
+                                    tol,
+                                    topo::test_support::pinned_resolution(tol),
+                                )
+                                .map(|m| m.enclosure.volume)
+                                .unwrap_or(f64::NAN);
+                                let vx =
+                                    topo::test_support::pinned_volume("the measured body", x, tol)
+                                        .volume;
+                                let vy =
+                                    topo::test_support::pinned_volume("the measured body", y, tol)
+                                        .volume;
                                 let want = match op {
                                     "union" => vx + vy,
                                     "subtract" => vx,
@@ -1891,9 +1905,13 @@ fn narrow_review_corner_on_ball_battery() {
                             topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol).is_ok();
                         let cert = topo::validate_geometric_certificate(&bb.body, tol).is_ok();
                         let t3 = topo::validate_geometric(&bb.body, tol).is_ok();
-                        let v = topo::mass_properties(&bb.body, tol)
-                            .map(|m| m.volume)
-                            .unwrap_or(f64::NAN);
+                        let v = topo::mass_properties(
+                            &bb.body,
+                            tol,
+                            topo::test_support::pinned_resolution(tol),
+                        )
+                        .map(|m| m.enclosure.volume)
+                        .unwrap_or(f64::NAN);
                         let operand = std::panic::catch_unwind(|| {
                             sweep::test_support::assert_legal_operand("probe", &bb.body, tol)
                         })
@@ -2040,7 +2058,8 @@ fn a_turned_rim_on_a_wall_bounded_by_an_ellipse_builds_every_op_undeclared() {
                 }
                 let pad = match &r {
                     Ok(BooleanResult::Body(bb)) => {
-                        topo::mass_properties(&bb.body, tol).unwrap().volume_pad
+                        topo::test_support::pinned_volume("the measured body", &bb.body, tol)
+                            .volume_pad
                     }
                     _ => 0.0,
                 };

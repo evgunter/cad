@@ -2,10 +2,12 @@
 id: an-edge-lying-partly-in-a-face-ships-the-rider-form-where-its-midpoint-is-off-the-face
 kind: issue
 title: A Boolean edge lying in a face along part of its length ships the rider form where the face holds no edge-on-face record with its midpoint in it
-status: open
+status: review
 opened: 2026-10-25
 priority: P1
 cost: M
+branch: cleave/riders-read-every-edge-in-a-face
+pr: 5793
 ---
 
 

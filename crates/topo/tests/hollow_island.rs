@@ -67,7 +67,7 @@ fn solids(body: &Body<f64>) -> Vec<Solid> {
                 .map(|s| {
                     let c = classes.iter().find(|c| c.shell == *s).expect("classified");
                     assert_eq!(c.solid, solid, "the shell's back-pointer names its solid");
-                    (c.role, c.volume)
+                    (c.role, c.enclosure.volume)
                 })
                 .collect();
             Solid {

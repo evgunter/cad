@@ -58,6 +58,12 @@ pub struct Finding {
     /// How a ring meets its face's own outer loop, or another ring of
     /// that face. `None` on every arm that reports no ring contact.
     pub ring_contact_kind: Option<&'static str>,
+    /// An unresolved sign's volume bracket, `(lo, hi)` read outward
+    /// (`ValidationError::VolumeSignUnresolved`'s `volume`), held as the
+    /// two ends' bit patterns so a finding stays a value that compares
+    /// and hashes. `None` on every other arm, and where the gate read no
+    /// bracket end.
+    pub volume: Option<[u64; 2]>,
 }
 
 /// Read one kernel finding into the words Python receives.
@@ -74,6 +80,13 @@ pub fn project(err: &ValidationError) -> Finding {
         }),
         stale_kind: stale_declaration(err).map(stale_declaration_tag),
         ring_contact_kind: ring_contact_word(err),
+        volume: match err {
+            ValidationError::VolumeSignUnresolved {
+                volume: Some((lo, hi)),
+                ..
+            } => Some([lo.to_bits(), hi.to_bits()]),
+            _ => None,
+        },
     }
 }
 

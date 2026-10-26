@@ -109,14 +109,17 @@ by the variable the input slot reads, DM4: a union's or intersect's members,
 a subtract's two seats, a shell's or blend's one input), boolean (`Seam`,
 `Merged`, `Fragment`), split (`SectionFace`, `SectionEdge`, `SplitFragment`,
 ...), blend (shared by fillet and
-chamfer, told apart by the minting node), `InPart`, pattern `Instance { i, of }`
+chamfer, told apart by the minting node), pattern `Instance { i, of }`
 with `i` recipe-structural. Role arguments are themselves names; profile locators
 (`ProfileEdgeRef`, `ProfileVertexRef`) name a profile piece by the id its step
 was minted with, never by its position (below). Names contain no floats and no arena keys; a pass-through op (a
 split-intact entity, a read of a split's half, a `Part`'s projection of one instance, a mirror's
-image) adds no segment, so `node` stays the original minter; a placement's copy is qualified
-`Placed { of }`, once per copy. Names are document-local;
-assembly wrapping is `ASSEMBLY.md`'s.
+image) adds no segment, so `node` stays the original minter, and so does
+a copy (a placement's of its source, an instance's of its part's
+product), which carries its source's names verbatim. Copies are told
+apart by the variable that holds each (N1), and under a `⊔` by the
+`From { read, of }` that keys each member by its read. Names are
+document-local; assembly's are `ASSEMBLY.md`'s.
 
 **N1, the scope.** A name is scoped by the variable that holds its body:
 there is one name table per output variable, and a name tells apart only
@@ -389,14 +392,14 @@ The qualifier depends on what was split:
   `CrossingVertex` holds it as a field.
   A vertex where two or more lines meet is an `EdgeCrossing` over the run of
   those lines, each with its sense, in name order. Its lines are the edges cut
-  at the vertex, edges that run flush on one line counted once (at a union as
-  the `Merged` set of them, flat and in name order; at a pair boolean as the
-  least of them), and, at a union, each seam through the vertex whose two faces bound
-  none of those edges, cited by its faces' parents as a seam edge is. So a
-  union vertex no member edge reaches is the run of its seams, and a lone
-  member edge through a seam is the run of the edge and the seam. A face
-  through the vertex that bounds none of its lines is not in its name: the
-  lines locate the vertex, as a corner resting on a face cites no face.
+  at the vertex, edges that run flush on one line counted once, as the
+  `Merged` set of them, flat and in name order, and, at a union, each seam
+  through the vertex whose two faces bound none of those edges, cited by its
+  faces' parents as a seam edge is. So a union vertex no member edge reaches
+  is the run of its seams, and a lone member edge through a seam is the run
+  of the edge and the seam. A face through the vertex that bounds none of its
+  lines is not in its name: the lines locate the vertex, as a corner resting
+  on a face cites no face.
   Each edge in the name carries its sense, read against the closed bodies of
   the members the name's other entries belong to, other than the edge's own:
   the crossing face's member for a `Crossing`, the other lines' members for a
@@ -423,8 +426,7 @@ The qualifier depends on what was split:
 No rule reads a plane or a direction, and a union's reading of a seam pair in
 name order changes nothing. Name order spells a set, and at a union it
 chooses no entity: what several members hold at once is named for all of
-them (below). The pair boolean's seam vertex still cites the least of several
-flush edges.
+them (below).
 
 **Flush edges at a union.** Each union edge is named for the member edges it
 lies on, read off the finished body and the members' own bodies
@@ -497,10 +499,8 @@ the image of.
 
 A seam vertex cites an input edge whole, `From(m, e)`, never a piece: the
 one it lies on. Where several of one input's edges lie flush on its line, a
-union cites the `Merged` set of them. A pair boolean cites the least of them
-in name order; it reads each seat's edges apart, so this choice never sets one
-seat against the other
-(`work/wirerest/a-pair-booleans-seam-vertex-cites-the-least-of-several-flush-operand-edges.md`).
+union and a pair boolean cite the `Merged` set of them, read along each
+(`work/wire/a-pair-booleans-seam-vertex-cites-the-least-of-several-flush-operand-edges.md`).
 A vertex at a member vertex is that vertex. At several members' vertices (a
 body glued to its copy) it is `Merged` of them, flat and in name order. A
 vertex where a single face crosses or touches a member edge, or a line of
@@ -626,11 +626,11 @@ discriminator among a tie's candidates like any other: the divided candidate's
 pieces are named by their `Borders`, the undivided candidates stay under the
 bare name, and an edit that moves the divider onto another candidate moves each
 name with its role. The pass-through ops of N1 carry the candidate with the name; an op that wraps the
-name numbers afresh, as it mints a fresh name. A world placement is such an op:
-each copy is its own output, and its names are qualified by the copy
-(`RoleSeg::Placed` at the placement) as a pattern copy's are, so a name reaches
-the product once per copy by construction and the gather has no
-once-per-product rule to keep. The candidate is not part of the name and
+name numbers afresh, as it mints a fresh name. A copy is a pass-through:
+each copy is its own output variable with its source's names, and a `⊔`
+that gathers copies keys each member's names by the member's read
+(`From { read, of }`), so a name reaches the product once per copy by
+construction and the gather has no once-per-product rule to keep. The candidate is not part of the name and
 reaches no name digest.
 
 **The row is a shared handle.** A table keys on `NameRef` — one `Arc<StableName>`

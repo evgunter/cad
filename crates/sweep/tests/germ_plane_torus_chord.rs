@@ -257,11 +257,11 @@ pub(crate) fn volume_and_points(
         Ok(()),
         "{what}: tier 3"
     );
-    let v = topo::mass_properties(
+    let v = topo::test_support::pinned_volume(
+        "the measured body",
         &topo::test_support::finished("the measured body", topo::Body::clone(b), Tol::witness()),
         Tol::witness(),
     )
-    .unwrap_or_else(|e| panic!("{what}: the volume: {e:?}"))
     .volume;
     assert!(
         (v - want).abs() <= volume_tol(want),

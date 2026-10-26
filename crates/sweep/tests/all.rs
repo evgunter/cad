@@ -64,6 +64,10 @@ mod a_circle_of_one_radius_elsewhere_is_no_rim;
 mod a_curved_keel_in_the_plane;
 #[path = "a_curved_keel_on_the_floor_refuses_its_slit_form.rs"]
 mod a_curved_keel_on_the_floor_refuses_its_slit_form;
+#[path = "a_cylinder_split_just_off_its_rim_vertex.rs"]
+mod a_cylinder_split_just_off_its_rim_vertex;
+#[path = "a_face_across_a_wavy_corner.rs"]
+mod a_face_across_a_wavy_corner;
 #[path = "a_face_off_the_tangent_ruling.rs"]
 mod a_face_off_the_tangent_ruling;
 #[path = "a_flank_touch_at_a_shared_corner.rs"]
@@ -92,6 +96,8 @@ mod a_plane_along_an_elliptic_cut;
 mod a_plane_holding_a_conic_tangent_at_a_vertex;
 #[path = "a_plane_moved_to_a_cone_apex.rs"]
 mod a_plane_moved_to_a_cone_apex;
+#[path = "a_point_past_a_spline_solids_reach.rs"]
+mod a_point_past_a_spline_solids_reach;
 #[path = "a_pole_and_an_apex_join_nothing.rs"]
 mod a_pole_and_an_apex_join_nothing;
 #[path = "a_ray_meets_a_curved_edge_once_for_both_faces.rs"]
@@ -114,6 +120,8 @@ mod a_ruling_through_a_box_corner_edge;
 mod a_seam_region_carrying_both_poles;
 #[path = "a_seam_region_covering_the_sphere_twice.rs"]
 mod a_seam_region_covering_the_sphere_twice;
+#[path = "a_sheath_grafted_on_its_blade.rs"]
+mod a_sheath_grafted_on_its_blade;
 #[path = "a_short_shallow_strut_between_wide_walls_is_a_corner.rs"]
 mod a_short_shallow_strut_between_wide_walls_is_a_corner;
 #[path = "a_spiric_cut_far_off_and_turned_reads_as_at_home.rs"]

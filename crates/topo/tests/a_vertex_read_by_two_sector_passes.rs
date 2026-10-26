@@ -145,7 +145,11 @@ fn built(what: &str, r: Result<BooleanResult<f64>, BooleanError>) -> AtRestBody<
 }
 
 fn volume(b: &AtRestBody<f64>) -> f64 {
-    mass_properties(b, t()).unwrap().volume
+    mass_properties(b, t(), topo::test_support::pinned_resolution(t()))
+        .unwrap()
+        .met()
+        .expect("the pinned resolution is met")
+        .volume
 }
 
 /// The census's `TouchUnanalysed` class: two solids of the result touch
@@ -271,7 +275,9 @@ fn three_prime(
                 CensusContact::EdgeFaceOverlap { edge, .. } => along || on_ray(edge),
                 _ => false,
             },
-            ValidationError::CensusUndecidable { a, b, what: class } => {
+            ValidationError::CensusUndecidable {
+                a, b, what: class, ..
+            } => {
                 (class.starts_with("one passes into the other where they touch")
                     || class.starts_with(SLIT_TOUCH))
                     && touches_meet(a)
@@ -420,14 +426,6 @@ fn builds_along(
 ///   wedges overlap, which every tier passed. They return with the
 ///   re-pairing
 ///   (`work/topo/revert-re-pairs-the-sheets-on-a-line-where-coincident-edges-meet.md`).
-/// - `SlitLineCrossed`: the plate less the void lying under the top
-///   holds the void's ray as a zero-area ring of the top, and a partner
-///   round the lying pyramid has an edge along it, so three sheets meet
-///   on the ring's line. Their union keeps only the top there, on both
-///   sides of the ring: it closes the top across the line, which the
-///   join does not build
-///   (`work/cleave/a-boolean-closes-a-slits-face-across-its-line.md`).
-///   The other ops place the two germs apart and build.
 /// - `EdgeInFace`: an edge lies in a face whose material parts it, and
 ///   the parting is not built. The pyramid out the bottom of the glued
 ///   blocks: `y − x` leaves an edge in the glued face, which its
@@ -445,14 +443,6 @@ const REFUSING: &[(&str, BooleanErrorKind)] = &[
     (
         "on the lying pyramid's ray, beside it, mirrored into the void, y − x",
         BooleanErrorKind::LineWedges,
-    ),
-    (
-        "around the lying pyramid, mirrored into the void, x ∪ y",
-        BooleanErrorKind::SlitLineCrossed,
-    ),
-    (
-        "around the lying pyramid, mirrored into the void, y ∪ x",
-        BooleanErrorKind::SlitLineCrossed,
     ),
     (
         "a pyramid through the glued faces, out the bottom, y − x",

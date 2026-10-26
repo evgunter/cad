@@ -293,6 +293,7 @@ fn measured<T: Decide + AtRestPolicy + CertifiedBounds>(
     let mp = mass_properties(
         &topo::test_support::finished("the measured body", body.clone(), tol),
         tol,
+        topo::test_support::pinned_resolution(tol),
     )
     .unwrap_or_else(|e| panic!("{at}: the pipe does not measure: {e}"));
     let eps = tol.eps();
@@ -301,16 +302,16 @@ fn measured<T: Decide + AtRestPolicy + CertifiedBounds>(
         1536.0 * eps * pose.wall() / pose.r * (1.0 + 1e-6),
     );
     assert!(
-        mp.volume_pad > 0.0 && mp.volume_pad <= vpad,
+        mp.enclosure.volume_pad > 0.0 && mp.enclosure.volume_pad <= vpad,
         "{at}: the wall's volume pad {:e} is positive and within the target's {vpad:e}",
-        mp.volume_pad
+        mp.enclosure.volume_pad
     );
     assert!(
-        mp.area_pad > 0.0 && mp.area_pad <= apad,
+        mp.enclosure.area_pad > 0.0 && mp.enclosure.area_pad <= apad,
         "{at}: the wall's area pad {:e} is positive and within the target's {apad:e}",
-        mp.area_pad
+        mp.enclosure.area_pad
     );
-    mp
+    mp.enclosure
 }
 
 #[test]

@@ -33,13 +33,14 @@ fn fingerprint(b: &Body<f64>) -> String {
     let m = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(b), Tol::witness()),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap();
     let _ = writeln!(
         s,
         "V {:016x} A {:016x}",
-        m.volume.to_bits(),
-        m.surface_area.to_bits()
+        m.enclosure.volume.to_bits(),
+        m.enclosure.surface_area.to_bits()
     );
     for (k, p) in b.points() {
         let _ = writeln!(
@@ -234,9 +235,9 @@ fn diamond_with_two_failed_ancestors_has_deterministic_through() {
     // One more hop: a copy of the poisoned join.
     let (doc, tail) = insert(
         doc,
-        crate::fixture::stood(vec![editor_core::BodyRead::plain(
-            editor_core::Operand::Node(join),
-        )]),
+        crate::fixture::stood(editor_core::BodyRead::plain(editor_core::Operand::Node(
+            join,
+        ))),
     );
     for parallel in [false, true] {
         let ev = run(&doc, None, parallel);
@@ -549,8 +550,11 @@ fn revolve_volume(angle: f64) -> Result<f64, String> {
                     Tol::witness(),
                 ),
                 Tol::witness(),
+                topo::test_support::pinned_resolution(Tol::witness()),
             )
-            .unwrap()
+            .expect("the measured body")
+            .met()
+            .expect("the measured body")
             .volume),
             other => Err(format!("non-body: {}", other.kind_name())),
         },
@@ -698,8 +702,11 @@ fn rotational_pip_matches_translated_pip_to_rounding() {
             Tol::witness(),
         ),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
+    .met()
+    .expect("the pinned resolution is met")
     .volume;
     let v_rot = topo::mass_properties(
         &topo::test_support::finished(
@@ -708,8 +715,11 @@ fn rotational_pip_matches_translated_pip_to_rounding() {
             Tol::witness(),
         ),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
+    .met()
+    .expect("the pinned resolution is met")
     .volume;
     assert_eq!(
         v_exact,
@@ -824,8 +834,11 @@ fn interval_memo_reuses_and_invalidates_like_f64() {
             Tol::witness(),
         ),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
+    .met()
+    .expect("the pinned resolution is met")
     .volume;
     let vi = match &e2.value(s).unwrap().payload {
         ValuePayload::Boolean(BooleanValue::Body { body, .. }) => {
@@ -836,8 +849,11 @@ fn interval_memo_reuses_and_invalidates_like_f64() {
                     Tol::witness(),
                 ),
                 Tol::witness(),
+                topo::test_support::pinned_resolution(Tol::witness()),
             )
-            .unwrap()
+            .expect("the measured body")
+            .met()
+            .expect("the measured body")
             .volume
         }
         other => panic!("expected boolean body, got {}", other.kind_name()),

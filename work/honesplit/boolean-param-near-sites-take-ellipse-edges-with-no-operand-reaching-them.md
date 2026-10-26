@@ -35,3 +35,20 @@ A boolean operand with an elliptical edge (a plane cut obliquely
 through a cylinder) through each of the four sites, pinning what they
 now answer; or a decision that the sites keep refusing ellipses, with
 an explicit arm.
+
+## Measured on a thin ellipse (2026-10-26)
+
+From `splice/boundary-first` (PR 5768). The point split
+(`reduce.rs` `split_other_at_point`) now has a row on an ellipse edge:
+`spline_face_rows::a_split_of_a_thin_ellipse_lands_where_it_was_read_or_refuses`,
+on `oblique_rim_wall` at `a/b ≈ 100` and `≈ 1000`, splitting at a point
+half the band's zero off the carrier. Every split there refuses
+`CrossingInsertion { Certification { ResidualExceeded { check: EndpointEnd } } }`:
+`param_near`'s scaled polar angle names a carrier point about
+`(1 + a/b)` times further off than the point, and the child's end
+certification against the point catches it. So the site fails loud,
+never wrong, but it refuses a point the band reads on the ellipse. The
+foot's parameter (`Curve3::foot`) is the reading that holds there, as
+the boundary pass's vertex reading takes it. The SPLICE boundary pass
+reaches this site through `along_boundary` once a spline face's rim
+edge is an ellipse.

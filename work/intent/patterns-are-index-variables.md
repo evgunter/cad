@@ -7,7 +7,7 @@ opened: 2026-10-08
 priority: P0
 cost: H
 refs: [interference-at-rest-is-a-finding, a-placement-is-the-bundle-of-mates, intent-stage3-is-built]
-blocked_on: [assemble-is-an-operator-and-the-product-is-a-slot, an-operation-computes-in-a-frame-of-its-reads]
+blocked_on: [an-operation-computes-in-a-frame-of-its-reads]
 design: true
 ---
 

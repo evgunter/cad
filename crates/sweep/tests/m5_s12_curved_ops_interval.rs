@@ -129,7 +129,15 @@ mod certified {
         let cut = &cut.body().expect("a body").body;
         assert_eq!(topo::validate_geometric(cut, Tol::witness()), Ok(()));
         encloses(
-            mass_properties(cut, Tol::witness()).unwrap().volume,
+            mass_properties(
+                cut,
+                Tol::witness(),
+                topo::test_support::pinned_resolution(Tol::witness()),
+            )
+            .unwrap()
+            .met()
+            .expect("the pinned resolution is met")
+            .volume,
             3.0 * 3.0 * 0.8 - PI * R * R * 0.5,
             "blind hole",
         );
@@ -139,7 +147,15 @@ mod certified {
         let met = &met.body().expect("a body").body;
         assert_eq!(topo::validate_geometric(met, Tol::witness()), Ok(()));
         encloses(
-            mass_properties(met, Tol::witness()).unwrap().volume,
+            mass_properties(
+                met,
+                Tol::witness(),
+                topo::test_support::pinned_resolution(Tol::witness()),
+            )
+            .unwrap()
+            .met()
+            .expect("the pinned resolution is met")
+            .volume,
             PI * R * R * 0.5,
             "the plug",
         );
@@ -178,7 +194,15 @@ mod certified {
         let out = &out.body().expect("a body").body;
         assert_eq!(topo::validate_geometric(out, Tol::witness()), Ok(()));
         encloses(
-            mass_properties(out, Tol::witness()).unwrap().volume,
+            mass_properties(
+                out,
+                Tol::witness(),
+                topo::test_support::pinned_resolution(Tol::witness()),
+            )
+            .unwrap()
+            .met()
+            .expect("the pinned resolution is met")
+            .volume,
             (2.0 - notch) * 0.4,
             "the meet across the reversed wall",
         );
@@ -288,7 +312,15 @@ mod certified {
         // zone = 4π/3 − cap(0.7) − cap(0.5), cap(h) = πh²(3−h)/3.
         let cap = |h: f64| PI * h * h * (3.0 - h) / 3.0;
         let zone = 4.0 * PI / 3.0 - cap(0.7) - cap(0.5);
-        let vol = mass_properties(cut, Tol::witness()).unwrap().volume;
+        let vol = mass_properties(
+            cut,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
+        )
+        .unwrap()
+        .met()
+        .expect("the pinned resolution is met")
+        .volume;
         assert!(
             vol.lo() <= 7.2 - zone && 7.2 - zone <= vol.hi(),
             "enclosure [{}, {}] must contain {}",

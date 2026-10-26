@@ -427,17 +427,11 @@ fn neck_with(distribution: Distribution) -> (ProfileDoc, RecipeNodeId) {
         &[
             SitedRef::new(
                 placed,
-                crate::m10_5_clearance_interval::in_placement(
-                    placed,
-                    fixture::fname(solid, fixture::wall(&r.doc, solid, 2)),
-                ),
+                fixture::fname(solid, fixture::wall(&r.doc, solid, 2)),
             ),
             SitedRef::new(
                 placed,
-                crate::m10_5_clearance_interval::in_placement(
-                    placed,
-                    fixture::fname(solid, fixture::wall(&r.doc, solid, 9)),
-                ),
+                fixture::fname(solid, fixture::wall(&r.doc, solid, 9)),
             ),
         ],
     );
@@ -829,6 +823,12 @@ fn a_band_only_documents_budget_reads_forced_and_a_uniform_ones_priced() {
 /// frame: the fold no longer takes the mated direction back through the
 /// target body's motion, one `pose_unit_norm` decision fewer among the
 /// vector's rows. The neck's copy lands where it landed.
+///
+/// `min_clearance_neck`'s two keys moved, and not the filter
+/// (`dropped=1` held, `plain_distance` unmoved), when D′3 had a copy
+/// carry its source's names: the neck's placed copy names its faces as
+/// its body does, with no `Placed` qualifier, and the vector's rows
+/// carry the names.
 #[test]
 fn the_certifying_filter_moves_the_witness_key_and_the_move_is_goldened() {
     let doc = min_clearance_neck();
@@ -897,8 +897,8 @@ fn plain_distance_doc() -> ProfileDoc {
     let measured = r.measure(
         &[MeasurePrimitive::Distance { a: 0, b: 1 }],
         &[
-            SitedRef::at_mint(fixture::fname(solid, fixture::wall(&r.doc, solid, 0))),
-            SitedRef::at_mint(fixture::fname(solid, fixture::wall(&r.doc, solid, 2))),
+            crate::fixture::sited_ref(fixture::fname(solid, fixture::wall(&r.doc, solid, 0))),
+            crate::fixture::sited_ref(fixture::fname(solid, fixture::wall(&r.doc, solid, 2))),
         ],
     );
     let (_measure, measure_value) = (measured.measures[0], measured.outputs[0]);

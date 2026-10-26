@@ -99,9 +99,7 @@ fn assert_wedge(
             Ok(()),
             "{what}: tier 3"
         );
-        let got = topo::mass_properties(&body, tol)
-            .unwrap_or_else(|e| panic!("{what}: mass properties, got {e:?}"))
-            .volume;
+        let got = topo::test_support::pinned_volume("the measured body", &body, tol).volume;
         assert!(
             (got - want).abs() <= 1e-9 * want.max(1.0),
             "{what}: volume {got} against the closed form {want}"

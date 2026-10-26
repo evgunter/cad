@@ -73,8 +73,8 @@ pub(crate) fn document(blocks: &[Bx], creation: &[usize]) -> (ProfileDoc, Vec<Re
 /// copies, else `m` itself.
 pub(crate) fn construction(doc: &ProfileDoc, m: RecipeNodeId) -> RecipeNodeId {
     match doc.node(m) {
-        Some(editor_core::Node::Place { shapes, .. }) => doc
-            .operation_of(shapes[0].read)
+        Some(editor_core::Node::Place { source, .. }) => doc
+            .operation_of(source.read)
             .expect("the placed body is live"),
         _ => m,
     }
@@ -98,13 +98,7 @@ pub(crate) fn own_name(
     if c == m {
         return own;
     }
-    StableName {
-        kind,
-        node: m,
-        path: vec![RoleSeg::Placed {
-            of: editor_core::NameRef::new(own),
-        }],
-    }
+    own
 }
 
 /// Whether `n` is a published piece of edge `edge` of the member read

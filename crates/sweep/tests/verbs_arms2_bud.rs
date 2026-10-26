@@ -312,13 +312,16 @@ fn the_filleted_bud_removes_material_and_stays_closed_form() {
         tol(),
     )
     .unwrap();
-    let before = topo::mass_properties(&source, tol()).expect("the bud's mass properties");
+    let before =
+        topo::mass_properties(&source, tol(), topo::test_support::pinned_resolution(tol()))
+            .expect("the bud's mass properties");
     let after = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol()),
         tol(),
+        topo::test_support::pinned_resolution(tol()),
     )
     .expect("the filleted bud's mass properties");
-    let removed = before.volume - after.volume;
+    let removed = before.enclosure.volume - after.enclosure.volume;
     // The cut region is inside the triangle bounded by the two setbacks:
     // its area is at most the product of the two, so the revolved volume
     // is at most `2π·r̄·(setback_a · setback_b)` with `r̄ ≤ 0.81`.

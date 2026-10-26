@@ -69,6 +69,7 @@ fn one_call_equals_the_defining_composition() {
     let p = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(&holed.body), tol),
         tol,
+        topo::test_support::pinned_resolution(tol),
     )
     .unwrap();
     let po = topo::mass_properties(
@@ -78,6 +79,7 @@ fn one_call_equals_the_defining_composition() {
             tol,
         ),
         tol,
+        topo::test_support::pinned_resolution(tol),
     )
     .unwrap();
     let ph = topo::mass_properties(
@@ -87,12 +89,20 @@ fn one_call_equals_the_defining_composition() {
             tol,
         ),
         tol,
+        topo::test_support::pinned_resolution(tol),
     )
     .unwrap();
     // Volume: exactly the definition. Area: both boundaries count.
-    assert!(((p.volume - (po.volume - ph.volume)) / p.volume).abs() < 1e-12);
     assert!(
-        ((p.surface_area - (po.surface_area + ph.surface_area)) / p.surface_area).abs() < 1e-12
+        ((p.enclosure.volume - (po.enclosure.volume - ph.enclosure.volume)) / p.enclosure.volume)
+            .abs()
+            < 1e-12
+    );
+    assert!(
+        ((p.enclosure.surface_area - (po.enclosure.surface_area + ph.enclosure.surface_area))
+            / p.enclosure.surface_area)
+            .abs()
+            < 1e-12
     );
 }
 
@@ -137,12 +147,13 @@ fn hole_hugging_the_outer_boundary_at_this_eps() {
     let p = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(&t.body), tol),
         tol,
+        topo::test_support::pinned_resolution(tol),
     )
     .unwrap();
     assert!(
-        ((p.volume - v_expect) / v_expect).abs() < 1e-6,
+        ((p.enclosure.volume - v_expect) / v_expect).abs() < 1e-6,
         "{}",
-        p.volume
+        p.enclosure.volume
     );
 }
 
@@ -204,12 +215,13 @@ fn near_axis_hole_refuses_below_the_band_and_builds_above_it() {
     let p = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(&t.body), tol),
         tol,
+        topo::test_support::pinned_resolution(tol),
     )
     .unwrap();
     assert!(
-        ((p.volume - v_expect) / v_expect).abs() < 1e-9,
+        ((p.enclosure.volume - v_expect) / v_expect).abs() < 1e-9,
         "{}",
-        p.volume
+        p.enclosure.volume
     );
 }
 
@@ -278,16 +290,17 @@ fn wire_outer_with_circular_hole_torus_cavity() {
     let p = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(&t.body), tol),
         tol,
+        topo::test_support::pinned_resolution(tol),
     )
     .unwrap();
     assert!(
-        ((p.volume - v_expect) / v_expect).abs() < 1e-12,
+        ((p.enclosure.volume - v_expect) / v_expect).abs() < 1e-12,
         "{}",
-        p.volume
+        p.enclosure.volume
     );
     assert!(
-        ((p.surface_area - (a_cyl + a_torus)) / p.surface_area).abs() < 1e-12,
+        ((p.enclosure.surface_area - (a_cyl + a_torus)) / p.enclosure.surface_area).abs() < 1e-12,
         "{}",
-        p.surface_area
+        p.enclosure.surface_area
     );
 }

@@ -109,13 +109,14 @@ fn assert_coherent(what: &str, cup: &Body<f64>, want_volume: Option<f64>) {
                 Tol::witness(),
             ),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .expect("props");
         assert!(
-            (props.volume - want).abs() <= 1e-9 + props.volume_pad,
+            (props.enclosure.volume - want).abs() <= 1e-9 + props.enclosure.volume_pad,
             "{what}: volume {} (pad {}), want {want}",
-            props.volume,
-            props.volume_pad
+            props.enclosure.volume,
+            props.enclosure.volume_pad
         );
     }
 }
@@ -551,12 +552,13 @@ fn p8_hollow_operand_thickens_every_boundary() {
             Tol::witness(),
         ),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("props");
     let want = (2.0 * 3.0 * 4.0 - 1.9 * 2.9 * 3.9) + (1.6 * 2.6 * 3.6 - 1.5 * 2.5 * 3.5);
     assert!(
-        (props.volume - want).abs() <= 1e-12,
+        (props.enclosure.volume - want).abs() <= 1e-12,
         "got {}, want {want}",
-        props.volume
+        props.enclosure.volume
     );
 }

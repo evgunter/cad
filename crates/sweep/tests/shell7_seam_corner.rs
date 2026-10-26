@@ -81,14 +81,15 @@ fn shelled_to_closed_form(what: &str, body: &Body<f64>) -> topo::Shelled<f64> {
     let props = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol()),
         tol(),
+        topo::test_support::pinned_resolution(tol()),
     )
     .expect("props");
     let want = wall_volume(SMALL_R, T);
     assert!(
-        (props.volume - want).abs() <= 1e-9 + props.volume_pad,
+        (props.enclosure.volume - want).abs() <= 1e-9 + props.enclosure.volume_pad,
         "{what}: wall volume got {} (pad {}), want {want}",
-        props.volume,
-        props.volume_pad
+        props.enclosure.volume,
+        props.enclosure.volume_pad
     );
     assert_eq!(
         minor_radii(&out.body),
@@ -337,14 +338,15 @@ fn the_line_arm_carries_a_hand_split_drum_seam_to_its_foot_at_the_direct_door() 
     let props = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(&moved), tol()),
         tol(),
+        topo::test_support::pinned_resolution(tol()),
     )
     .expect("props");
     let want = PI * (r - T) * (r - T) * (h - 2.0 * T);
     assert!(
-        (props.volume - want).abs() <= 1e-9 + props.volume_pad,
+        (props.enclosure.volume - want).abs() <= 1e-9 + props.enclosure.volume_pad,
         "the moved drum: got {} (pad {}), want {want}",
-        props.volume,
-        props.volume_pad
+        props.enclosure.volume,
+        props.enclosure.volume_pad
     );
 }
 
@@ -386,13 +388,14 @@ fn shells_with_one_surface_vertices(
     let props = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol()),
         tol(),
+        topo::test_support::pinned_resolution(tol()),
     )
     .expect("props");
     assert!(
-        (props.volume - want).abs() <= 1e-9 + props.volume_pad,
+        (props.enclosure.volume - want).abs() <= 1e-9 + props.enclosure.volume_pad,
         "{what}: volume got {} (pad {}), want {want}",
-        props.volume,
-        props.volume_pad
+        props.enclosure.volume,
+        props.enclosure.volume_pad
     );
     let mut seen = 0;
     for &(new, old) in &out.naming.inner_vertices {
@@ -469,13 +472,14 @@ fn cavity_at_closed_form(
     let props = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(&cavity), tol()),
         tol(),
+        topo::test_support::pinned_resolution(tol()),
     )
     .expect("props");
     assert!(
-        (props.volume - want).abs() <= 1e-9 + props.volume_pad,
+        (props.enclosure.volume - want).abs() <= 1e-9 + props.enclosure.volume_pad,
         "{what}: cavity volume got {} (pad {}), want {want}",
-        props.volume,
-        props.volume_pad
+        props.enclosure.volume,
+        props.enclosure.volume_pad
     );
     let mut seen = 0;
     for (v, _) in body.vertices() {
@@ -527,12 +531,13 @@ fn a_collinear_cap_vertex_drum_shells_to_its_closed_form() {
     let props = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol()),
         tol(),
+        topo::test_support::pinned_resolution(tol()),
     )
     .expect("props");
     assert!(
-        (props.volume - want).abs() <= 1e-12,
+        (props.enclosure.volume - want).abs() <= 1e-12,
         "collinear cap: volume {} vs the closed form {want}",
-        props.volume
+        props.enclosure.volume
     );
     let mesh = mesh::tessellate(&out.body, 1e-3, tol()).expect("the thin drum tessellates");
     mesh::validate::check_mesh(&mesh).expect("watertight");
@@ -609,13 +614,14 @@ fn a_sphere_from_an_arc_run_hollows_to_its_closed_form() {
         let props = topo::mass_properties(
             &topo::test_support::finished("the measured body", topo::Body::clone(&cavity), tol()),
             tol(),
+            topo::test_support::pinned_resolution(tol()),
         )
         .expect("props");
         let want = 4.0 / 3.0 * PI * (r - t).powi(3);
         assert!(
-            (props.volume - want).abs() <= 1e-9 + props.volume_pad,
+            (props.enclosure.volume - want).abs() <= 1e-9 + props.enclosure.volume_pad,
             "station {v}: cavity volume {} vs {want}",
-            props.volume
+            props.enclosure.volume
         );
     }
     // A torus wall's meridian run at, just under and just over the half
@@ -649,6 +655,7 @@ fn a_sphere_from_an_arc_run_hollows_to_its_closed_form() {
                     tol(),
                 ),
                 tol(),
+                topo::test_support::pinned_resolution(tol()),
             )
             .unwrap_or_else(|e| panic!("{label}: props {e:?}"));
         }
@@ -689,12 +696,13 @@ fn a_two_arc_sphere_shells_to_its_closed_form() {
     let props = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol()),
         tol(),
+        topo::test_support::pinned_resolution(tol()),
     )
     .expect("props");
     assert!(
-        (props.volume - want).abs() <= 1e-12,
+        (props.enclosure.volume - want).abs() <= 1e-12,
         "two-arc sphere: volume {} vs the closed form {want}",
-        props.volume
+        props.enclosure.volume
     );
     let mesh = mesh::tessellate(&out.body, 1e-3, tol()).expect("the thin sphere tessellates");
     mesh::validate::check_mesh(&mesh).expect("watertight");
@@ -894,9 +902,12 @@ fn a_partial_frustum_moving_only_its_cone_keeps_its_generators() {
             assert_eq!(generators, 2, "{what}, d {d}: two cone–cap edges");
             let (m0, m1) = (r0 + d / alpha.cos(), r1 + d / alpha.cos());
             let want = turn * h * (m0 * m0 + m0 * m1 + m1 * m1) / 6.0;
-            let got = topo::mass_properties(&finished("the moved body", body, tol()), tol())
-                .expect("props")
-                .volume;
+            let got = topo::test_support::pinned_volume(
+                "props",
+                &finished("the moved body", body, tol()),
+                tol(),
+            )
+            .volume;
             println!("[measured] {what}, d {d}: volume {got} against {want}");
             assert!(
                 (got - want).abs() <= 1e-12 * want,

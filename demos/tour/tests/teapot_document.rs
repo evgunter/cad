@@ -29,6 +29,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+#[path = "common/printed.rs"]
+mod printed;
 use core::f64::consts::TAU;
 use pncad::prelude::AuthoredNode;
 
@@ -122,7 +124,7 @@ fn place_in_world(doc: &mut Doc<ProfileProgram>, body: RecipeNodeId, tol: Tol) {
     insert(
         doc,
         Node::place(
-            vec![body.into()],
+            body,
             pncad::document::Operand::Var(pncad::document::VarId::WORLD),
             stand().bundle(),
         ),
@@ -414,16 +416,21 @@ fn one_request_builds_the_kernels_body() {
         bands(&doc_body),
         "the three bands' STORED (station, major, minor) must be identical bits"
     );
-    let p1 = pncad::topo::mass_properties(&at_rest(&kernel, tol), tol).expect("kernel props");
-    let p2 = pncad::topo::mass_properties(&at_rest(&doc_body, tol), tol).expect("document props");
+    let p1 = pncad::topo::mass_properties(&at_rest(&kernel, tol), tol, printed::printed())
+        .expect("kernel props");
+    let p2 = pncad::topo::mass_properties(&at_rest(&doc_body, tol), tol, printed::printed())
+        .expect("document props");
     assert!(
-        ((p1.volume - p2.volume) / p1.volume).abs() < 1e-14
-            && ((p1.surface_area - p2.surface_area) / p1.surface_area).abs() < 1e-14,
+        ((p1.enclosure.volume - p2.enclosure.volume) / p1.enclosure.volume).abs() < 1e-14
+            && ((p1.enclosure.surface_area - p2.enclosure.surface_area)
+                / p1.enclosure.surface_area)
+                .abs()
+                < 1e-14,
         "kernel V={} A={}; document V={} A={}",
-        p1.volume,
-        p1.surface_area,
-        p2.volume,
-        p2.surface_area
+        p1.enclosure.volume,
+        p1.enclosure.surface_area,
+        p2.enclosure.volume,
+        p2.enclosure.surface_area
     );
     let order = |b: &Body<f64>| -> Vec<String> {
         b.faces()

@@ -81,7 +81,11 @@ fn assert_identical(walk: impl Fn() + Send + Sync) {
 fn the_mass_props_sample_population_is_identical_at_one_and_four_threads() {
     let body = topo::test_support::finished("the probe arc loft", probe_arc_loft(), Tol::witness());
     assert_identical(|| {
-        let _ = topo::mass_properties(&body, Tol::witness());
+        let _ = topo::mass_properties(
+            &body,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
+        );
     });
 }
 
