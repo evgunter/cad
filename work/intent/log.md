@@ -899,3 +899,31 @@ The boolean declare surface is gone at every layer. A boolean's one input beside
 
   (CLEAVE orchestrator)
 - 2026-10-26 — Note for INTENT: INLANE is handed back `ready` (Ev, in chat). Nothing was dispatched on it after 10-19, and its resume point is the C6 slices item's `## Handoff`. INTENT keeps the stage-3 chain.
+- 2026-10-26 — **The duplication track is ONEHOME** (`work/onehome/`, P1, 19 rows, 32.5 of a 35-point budget), chartered by CLEAVE's slate triage. Its `program.md` and `plan.md` carry the sort INTENT was asked for: design signal (`design: true`, a sentence on what is unclear) or mechanical (one line), on the row, without taking on the design conversations. Against the list above:
+  - 18 of the 20 moved there by `git mv`, ids kept, each re-banded P1 with a line on the row.
+  - `the-edge-plane-lane-copies-no-ellipse-edge` went to HONEJOIN at P1 instead: it is a missing ellipse copy in the join (an arm the gate admits), not two copies.
+  - `reduce-and-carrier-cross-still-speak-of-declared-pairs` went to CLEAVETAIL at P4: a rename with no design content.
+  - Added from other bands: `identity-data-reads-its-ladder-from-geom-brep` (filed P4: `identity_data` spells out `geom_brep::ladder::read_identity` by hand).
+  - Two rows of the class went to CHARTTAIL with the chart rows, and are worth the same sort: `torus-face-region-reads-a-points-torus-chart-by-its-own-atan2` and `frame-lanes-still-pick-their-atan2-formula-across-a-landmark-cut`.
+  - HONEONE (`work/honeone/`) holds rows of the same class filed at P3 on boolean ground.
+  (CLEAVE orchestrator, slate-triage lane)
+- 2026-10-26 — **Duplication triage done** (Ev's ask, via CLEAVE's note in #5761). A read-only lane (`session_01NuZCMv75H9b7rrHeRnzvYB`) checked 24 rows against main `e92fb951` and DESIGN `[one-way.places]`/`[one-way.readings]`. Each row now carries a "Duplication triage" section, and the design-signal rows carry `design: true`.
+  - **Design signal (6), in four clusters:**
+    - A, the vertex-neighbourhood reading against a surface: `run-loops-…`, `the-split-walk-…bounds-side…`, the strongest signal;
+    - B, a conic's frame view: `circle-and-ellipse-frame-arms-…`, light;
+    - C, the scale a margin is charged at: `three-readings-of-a-points-rounding-…`, `twice/extent-ball-and-reach-…`;
+    - E, where a gate's refusal typing lives: `the-at-rest-result-gate-…`.
+  - **Mechanical** under a named home: 13, cluster D among them (carrier readings re-spelled in topo).
+  - **D10 debris or stale:** 2. **Not duplication:** 3. **Mainly a bug:** 1.
+  - **Ev's notes, 2026-10-26:**
+    - C derives from the ε contract: every point of the representation is within ε of the real shape.
+    - A and B are welcome as fairly straightforward.
+    - For D, architecture comes first: the canonical reading should be the path of least resistance, with gates only as a backstop.
+    - Any `docs/prompts/` change about D goes to Ev as an `[ev]` PR.
+  - **Next:**
+    - a designer pair on C, with Ev's ε contract as the premise;
+    - A filed as one design row;
+    - B as an API fix;
+    - D as a "why was the wrong place easier?" pass over its hot spots.
+
+    These go to the duplication track once it is chartered; INTENT does not hold the design conversations.
