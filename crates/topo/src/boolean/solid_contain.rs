@@ -1027,6 +1027,50 @@ fn face_geo_arms<T: Decide>(
     }
 }
 
+/// K name: how far a point stands past the hull of a selection's face
+/// reaches, along one world axis (metres).
+const PAST_EVERY_REACH: &str = "bool_point_past_every_reach";
+
+/// Whether `q` lies definitely outside the hull of every face's
+/// certified reach (`census::face_reach_in`, the box rules' one map), on
+/// some world axis. A face with no claim to make answers `false`.
+fn past_every_reach<T: Decide>(
+    body: &Body<T>,
+    faces: &[FaceKey],
+    q: Point3<T>,
+    band: Band,
+) -> bool {
+    let frame = super::boxes::BoxFrame::World;
+    let mut hull: Option<(Point3<T>, Point3<T>)> = None;
+    for &face in faces {
+        let Some((lo, hi)) = crate::census::face_reach_in(body, face, band, &frame) else {
+            return false;
+        };
+        hull = Some(match hull {
+            None => (lo, hi),
+            Some((l, h)) => (
+                Point3::new(l.x.min(lo.x), l.y.min(lo.y), l.z.min(lo.z)),
+                Point3::new(h.x.max(hi.x), h.y.max(hi.y), h.z.max(hi.z)),
+            ),
+        });
+    }
+    let Some((lo, hi)) = hull else {
+        return false;
+    };
+    let past = |m: T| {
+        matches!(
+            decide(PAST_EVERY_REACH, Margin::of(m), band),
+            Ok(Sign::Positive)
+        )
+    };
+    past(q.x - hi.x)
+        || past(lo.x - q.x)
+        || past(q.y - hi.y)
+        || past(lo.y - q.y)
+        || past(q.z - hi.z)
+        || past(lo.z - q.z)
+}
+
 /// **Whether the ray test has an arm for a surface kind** — the one
 /// list of them: [`face_geo`] refuses every other kind through
 /// [`uncrossable`] before its dispatch, and the side-at-infinity reader
@@ -1956,14 +2000,34 @@ fn point_in_faces<T: Decide + crate::props::AtRestPolicy>(
     if faces.is_empty() {
         return Err(PointInSolidError::ZeroVolumeBody);
     }
-
     // ---- Boundary pre-pass: q on any face ⇒ OnBoundary. ----
     // Each face's geometry is built as the pass reaches it, so a point on
     // an earlier face answers before a later face is resolved.
     let mut geos: FaceGeos<T> = Vec::with_capacity(faces.len());
     for &face in faces {
         let escalate = |diag| PointInSolidError::Escalated { face, diag };
-        geos.push((face, face_geo(body, face, &sel.charts)?));
+        let geo = match face_geo(body, face, &sel.charts) {
+            Ok(geo) => geo,
+            // **A point past the whole selection's reach**, read only
+            // where the ray test cannot cross a face of it: definitely
+            // outside the hull of every face's certified reach, it
+            // leaves along a straight path that meets no face, and takes
+            // the side at infinity. Outside each face's own reach is not
+            // enough — the centre of a box solid lies outside every
+            // face's slab and inside the solid.
+            Err(refusal @ PointInSolidError::KindUnsupported { .. }) => {
+                if !past_every_reach(body, faces, q, band) {
+                    return Err(refusal);
+                }
+                return match missed_side(body, sel, band, tol, &MissedRead::new()) {
+                    Ok(side) => Ok(side),
+                    Err(RayFault::InBand(e) | RayFault::Blocked(e) | RayFault::Fatal(e)) => Err(e),
+                    Err(RayFault::Graze | RayFault::Unread) => Err(refusal),
+                };
+            }
+            Err(other) => return Err(other),
+        };
+        geos.push((face, geo));
         let geo = &geos[geos.len() - 1].1;
         match *geo {
             FaceGeo::Plane(origin, normal) => {
@@ -4392,9 +4456,13 @@ fn volume_refusal(
         M::Corrupt { .. } | M::NullScaffoldEdge { .. } => {
             PointInSolidError::CorruptFace { face: first }
         }
-        M::Band { .. } | M::RingOnCurvedFace { .. } | M::Face { .. } => {
-            PointInSolidError::VolumeUncertified
-        }
+        M::Band { .. }
+        | M::RingOnCurvedFace { .. }
+        | M::Face { .. }
+        | M::ResolutionFinerThanEps { .. }
+        | M::EmptyContains
+        | M::Poisoned { .. }
+        | M::Undecided { .. } => PointInSolidError::VolumeUncertified,
     }
 }
 

@@ -159,6 +159,9 @@ pub enum Unsettled {
     /// The residual's form degenerates where the band reads its leading
     /// term zero (a line along a cone's generator).
     Degenerate,
+    /// A meeting within the band of a crease of a spline carrier, where
+    /// it has no tangent to read a crossing by.
+    Crease,
 }
 
 /// Why a finder whose own band decisions can escalate gave no decided

@@ -252,7 +252,12 @@ fn a_boss_on_a_plate_at_interval() {
             topo::validate_geometric(&b.body, tol())
                 .unwrap_or_else(|e| panic!("{what}: tier 3: {e:?}"));
             assert_eq!(Some(census(&b.body)), counted, "{what}: census");
-            let v = topo::mass_properties(&b.body, tol()).unwrap().volume;
+            let v =
+                topo::mass_properties(&b.body, tol(), topo::test_support::pinned_resolution(tol()))
+                    .expect("the measured body")
+                    .met()
+                    .expect("the measured body")
+                    .volume;
             assert!(
                 v.lo() <= want && want <= v.hi() && v.hi() - v.lo() < 1e-9,
                 "{what}: [{}, {}] against {want}",
@@ -520,7 +525,12 @@ fn reads_as(row: &str, r: Result<BooleanResult<f64>, BooleanError>, want: f64, r
                         && es.iter().all(|e| rim(e) || curved(e))),
                 "{row}: tier 3′ {t3p:?}"
             );
-            let v = topo::mass_properties(&b.body, tol()).unwrap().volume;
+            let v =
+                topo::mass_properties(&b.body, tol(), topo::test_support::pinned_resolution(tol()))
+                    .expect("the measured body")
+                    .met()
+                    .expect("the measured body")
+                    .volume;
             assert!((v - want).abs() < 1e-7, "{row}: volume {v} against {want}");
             let line = outcome(Ok(r), want, tol());
             assert!(

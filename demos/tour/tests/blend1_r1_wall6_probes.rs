@@ -21,6 +21,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+#[path = "common/printed.rs"]
+mod printed;
 use pncad::authoring::{p2, validated};
 use pncad::geom::Curve3;
 use pncad::geom_core::{Tol, Vec2};
@@ -182,21 +184,22 @@ fn t3_the_mouth_rim_carves_and_adds_material() {
         (stored - 0.253).abs() < 5e-4,
         "the mouth arc's stored radius is the PR's fourth radius, got {stored}"
     );
-    let v0 = pncad::topo::mass_properties(&at_rest(&lant, tol), tol)
+    let v0 = pncad::topo::mass_properties(&at_rest(&lant, tol), tol, printed::printed())
         .expect("mass properties")
+        .enclosure
         .volume;
     let out = fillet_edges(&finished("lant", lant.clone(), tol), &arcs, 0.02, tol)
         .unwrap_or_else(|e| panic!("the concave mouth rim carves whole at r = 0.02, got {e:?}"));
     pncad::topo::validate_geometric(&out.body, tol)
         .unwrap_or_else(|e| panic!("the mouth carves tier-3 valid, got {e:?}"));
     assert_eq!(out.band_faces.len(), 1, "the mouth leaves one band");
-    let props =
-        pncad::topo::mass_properties(&at_rest(&out.body, tol), tol).expect("mass properties");
-    assert_eq!(props.volume_pad, 0.0, "closed-form inventory");
+    let props = pncad::topo::mass_properties(&at_rest(&out.body, tol), tol, printed::printed())
+        .expect("mass properties");
+    assert_eq!(props.enclosure.volume_pad, 0.0, "closed-form inventory");
     assert!(
-        props.volume > v0,
+        props.enclosure.volume > v0,
         "a concave band ADDS material: {} must exceed {v0}",
-        props.volume
+        props.enclosure.volume
     );
 }
 

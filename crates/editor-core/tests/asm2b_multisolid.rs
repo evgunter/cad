@@ -79,11 +79,11 @@ fn repinned(
 }
 
 fn volume(body: &topo::Body<f64>) -> f64 {
-    topo::mass_properties(
+    topo::test_support::pinned_volume(
+        "mass properties",
         &topo::test_support::finished("the measured body", topo::Body::clone(body), Tol::witness()),
         Tol::witness(),
     )
-    .expect("mass properties")
     .volume
 }
 

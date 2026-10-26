@@ -45,7 +45,11 @@ fn read(
         Ok(()),
         "{label}: the result is tier-3 valid"
     );
-    let volume = mass_properties(&out.body, tol).unwrap().volume;
+    let volume = mass_properties(&out.body, tol, topo::test_support::pinned_resolution(tol))
+        .unwrap()
+        .met()
+        .expect("the pinned resolution is met")
+        .volume;
     (volume, out.body.shells().count(), out.kind)
 }
 

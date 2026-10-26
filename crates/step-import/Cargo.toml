@@ -65,6 +65,9 @@ profile = { path = "../profile", features = ["test-support"] }
 # edge runs import -> tessellate, the direction the pipeline already
 # has (`mesh` does not depend on this crate).
 mesh = { path = "../mesh" }
+# The certified body's refusal rows state a resolution, a `quantity`
+# length, as every measurement does. Dev-only.
+quantity = { path = "../quantity" }
 
 # The single aggregated test binary (see tests/all.rs header). `autotests
 # = false` above means this is the ONLY test target: a suite file not

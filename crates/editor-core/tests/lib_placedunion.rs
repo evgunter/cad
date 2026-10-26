@@ -180,11 +180,27 @@ fn the_fin_group_equals_the_placement_union_chain() {
         Tol::witness(),
     );
     let (ma, mb) = (
-        topo::mass_properties(&a, Tol::witness()).expect("chain mass"),
-        topo::mass_properties(&b, Tol::witness()).expect("group mass"),
+        topo::mass_properties(
+            &a,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
+        )
+        .expect("chain mass"),
+        topo::mass_properties(
+            &b,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
+        )
+        .expect("group mass"),
     );
-    assert_eq!(ma.volume, mb.volume, "same volume, bit for bit");
-    assert_eq!(ma.surface_area, mb.surface_area, "same area, bit for bit");
+    assert_eq!(
+        ma.enclosure.volume, mb.enclosure.volume,
+        "same volume, bit for bit"
+    );
+    assert_eq!(
+        ma.enclosure.surface_area, mb.enclosure.surface_area,
+        "same area, bit for bit"
+    );
     assert_eq!(
         (a.faces().count(), a.edges().count(), a.vertices().count()),
         (b.faces().count(), b.edges().count(), b.vertices().count()),
@@ -916,11 +932,27 @@ fn the_rotated_explicit_group_equals_the_placement_union_chain() {
         Tol::witness(),
     );
     let (mg, mc) = (
-        topo::mass_properties(&g, Tol::witness()).expect("group mass"),
-        topo::mass_properties(&c, Tol::witness()).expect("chain mass"),
+        topo::mass_properties(
+            &g,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
+        )
+        .expect("group mass"),
+        topo::mass_properties(
+            &c,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
+        )
+        .expect("chain mass"),
     );
-    assert_eq!(mg.volume, mc.volume, "volume, bit for bit");
-    assert_eq!(mg.surface_area, mc.surface_area, "area, bit for bit");
+    assert_eq!(
+        mg.enclosure.volume, mc.enclosure.volume,
+        "volume, bit for bit"
+    );
+    assert_eq!(
+        mg.enclosure.surface_area, mc.enclosure.surface_area,
+        "area, bit for bit"
+    );
     assert_eq!(
         (g.faces().count(), g.edges().count(), g.vertices().count()),
         (c.faces().count(), c.edges().count(), c.vertices().count()),

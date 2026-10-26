@@ -170,7 +170,8 @@ fn swept_square(path: &NurbsCurve3<f64>, place: SketchPlane<f64>, stations: usiz
 }
 
 fn volume(b: &Lofted<f64>) -> f64 {
-    topo::mass_properties(
+    topo::test_support::pinned_volume(
+        "the measured body",
         &topo::test_support::finished(
             "the measured body",
             topo::Body::clone(&b.body),
@@ -178,7 +179,6 @@ fn volume(b: &Lofted<f64>) -> f64 {
         ),
         Tol::witness(),
     )
-    .unwrap()
     .volume
 }
 

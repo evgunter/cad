@@ -40,10 +40,11 @@ pub(crate) fn volume(body: &Body<f64>) -> f64 {
     let p = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
         tol(),
+        topo::test_support::pinned_resolution(tol()),
     )
     .expect("closed-form props");
-    assert_eq!(p.volume_pad, 0.0, "the inventory is closed-form");
-    p.volume
+    assert_eq!(p.enclosure.volume_pad, 0.0, "the inventory is closed-form");
+    p.enclosure.volume
 }
 
 /// The widest certified enclosure a row accepts as a claim: the
@@ -128,10 +129,11 @@ pub(crate) fn volume_enclosure<T: Decide + Bounds + CertifiedBounds + topo::AtRe
     let p = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
         tol(),
+        topo::test_support::pinned_resolution(tol()),
     )
     .expect("certified props");
-    let (lo, hi) = (p.volume.lo(), p.volume.hi());
-    (0.5 * (lo + hi), 0.5 * (hi - lo) + p.volume_pad)
+    let (lo, hi) = (p.enclosure.volume.lo(), p.enclosure.volume.hi());
+    (0.5 * (lo + hi), 0.5 * (hi - lo) + p.enclosure.volume_pad)
 }
 
 /// The edge of `body` between the two points, either way round, at any
