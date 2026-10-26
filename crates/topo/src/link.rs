@@ -1943,6 +1943,8 @@ pub(crate) mod rest {
 
 #[cfg(test)]
 mod oracle_rows;
+#[cfg(test)]
+mod review_delta;
 
 #[cfg(test)]
 mod tests {
