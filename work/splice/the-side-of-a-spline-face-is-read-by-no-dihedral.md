@@ -35,14 +35,24 @@ curvature folding the arm. A spline face is given no signed residual.
 A tangent dihedral escalates `SideEscalation::Tangent`, and an in-band
 one escalates through the lever's rungs.
 
+A foot within the band of a line the chart's normal is not continuous
+across (a C⁰ knot run per `KnotStructure::crease_runs`, or a closed
+chart's seam) escalates `SideEscalation::Crease`. The edge's direction
+is an `EdgeWalk`, minted from the half-edge that walks it.
+
 Witness rows, in `dihedral_side::tests`:
 `a_spline_wall_reads_its_side_of_a_plane`,
 `a_plane_reads_its_side_of_a_spline_wall`,
 `a_spline_wall_and_a_cylinder_read_each_others_side`,
 `a_tangent_or_in_band_departure_escalates`,
-`the_analytic_dihedral_reads_no_spline_face`,
+`the_arm_is_the_walls_radius_of_curvature_past_its_reach`,
+`a_foot_in_band_escalates`,
 `a_point_off_the_spline_face_is_refused`,
-`a_spline_face_without_a_lane_refuses_typed`.
+`a_spline_face_without_a_lane_refuses_typed`; in
+`dihedral_side::review_rows`:
+`each_half_of_a_creased_carrier_escalates_on_the_crease`,
+`a_creased_carrier_reads_its_side_off_the_crease`,
+`a_closed_charts_seam_escalates`.
 
 The boolean does not call the door yet. Its consumer is the sweep's
 curved arm, behind the boundary-first reading:

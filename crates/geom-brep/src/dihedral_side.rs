@@ -8,7 +8,10 @@
 //! normal, and a face leaves the edge into its own interior along
 //! `d = n × t̂`, with `t̂` the edge's direction as that face's loop walks
 //! it (outer loops run counterclockwise seen from outside, so the
-//! interior lies to the left of the walk). The departing face lies on
+//! interior lies to the left of the walk). That direction is an
+//! [`EdgeWalk`], minted from the carrier's derivative and the half of
+//! the edge that walks it, so the mate's walk is not a value the door
+//! can be handed by mistake for the face's own. The departing face lies on
 //! the side of the other face that `d` points to, which is
 //! [`crate::enters_material`] of `d` against the other face's outward
 //! normal: the sign of `t̂ · (n_against × n_departing)`, the dihedral's
@@ -27,12 +30,30 @@
 //! ([`crate::implicit_outward_normal`]); its lever arm is
 //! [`crate::curvature_lever_arm`]. A spline face has no implicit form and
 //! is given no signed residual (C5, the curve × face clause): its normal
-//! is its chart's `S_u × S_v` at a certified foot of `p`, the foot
-//! decided on the face by its distance within the band, and its arm is
-//! the radius of its largest principal curvature there. The foot moves
-//! the normal by at most `κ·δ` for a foot distance `δ` inside the band,
-//! which over an arm of at most `1/κ` is a displacement of at most `δ`:
-//! the reading's own tolerance.
+//! is its chart's `S_u × S_v` at a foot of `p` decided on the face by
+//! its distance within the band, and its arm is the radius of its
+//! largest principal curvature there.
+//!
+//! **The chart's normal is read only where it is continuous.** Across a
+//! C⁰ line of the chart — an interior knot run of multiplicity at least
+//! the degree ([`geom_core::spline::KnotStructure::crease_runs`]), or a
+//! closed chart's seam where its two domain ends meet — `S_u × S_v` has
+//! a value on each side, and the jet at a foot on the line reads one of
+//! them, which need not be the face's. A foot within the band of such a
+//! line therefore escalates [`SideEscalation::Crease`]: the face's side
+//! of the line is its trim's fact, which this door does not read. A foot
+//! past the band from every such line lies inside one span, and reads
+//! that span's normal.
+//!
+//! **The foot's offset is charged to first order.** The normal at the
+//! foot stands for the normal at `p`, a distance `δ` inside the band
+//! away, so it turns by about `κ·δ` with `κ` the curvature at the foot,
+//! which over an arm of at most `1/κ` is a displacement of about `δ`.
+//! That is a first-order statement at the foot: `κ` is read pointwise,
+//! not bounded over the gap to `p`, so a curvature rising steeply across
+//! that gap (an inflection's neighbour, a near-crease) is not covered by
+//! it. The gap is inside the band, where the reading's own tolerance
+//! already sits.
 
 use geom::{NurbsSurface, Surface};
 use geom_core::k_stats::Magnitude;
@@ -42,6 +63,33 @@ use crate::certify::NurbsLane;
 
 use crate::enters::{EntersMaterial, LeverEscalation, OutwardNormal, enters_material_reported};
 use crate::implicit::{curvature_lever_arm, implicit_outward_normal};
+
+/// The edge's direction at a point, as one of its two half-edges walks
+/// it: the carrier's derivative there where that half-edge is the edge's
+/// `he_plus` (which walks the carrier forward, the
+/// [`crate::EdgeCurve::walk_tangents`] convention), and its negation
+/// where it is the edge's other half. A topo caller mints it from the
+/// half-edge in the face whose side is asked, and nothing else.
+#[derive(Clone, Copy, Debug)]
+pub struct EdgeWalk<T: Real>(geom_core::Vec3<T>);
+
+impl<T: Real> EdgeWalk<T> {
+    /// The walk of the edge's half named by `he_plus`, at a point where
+    /// the carrier's derivative is `derivative` (any nonzero length).
+    #[must_use]
+    pub fn of_half(derivative: geom_core::Vec3<T>, he_plus: bool) -> Self {
+        Self(if he_plus { derivative } else { -derivative })
+    }
+}
+
+impl<T: Decide> EdgeWalk<T> {
+    /// The walk of the edge's half named by `he_plus` at the carrier's
+    /// parameter `t`.
+    #[must_use]
+    pub fn along(curve: &crate::EdgeCurve<T>, t: T, he_plus: bool) -> Self {
+        Self::of_half(curve.carrier().deriv(t), he_plus)
+    }
+}
 
 /// One face at the shared edge: its carrier and its `Face::sense` bit.
 #[derive(Clone, Copy, Debug)]
@@ -104,6 +152,17 @@ pub enum SideEscalation {
         /// The foot distance, decided past the band.
         margin: MarginDiag,
     },
+    /// The point's foot on a spline face lies within the band of a line
+    /// across which the chart's normal is not continuous (module docs): a
+    /// C⁰ knot run, or a closed chart's seam. Which side of that line the
+    /// face lies on is its trim's fact, so no normal is read.
+    Crease {
+        /// The spline face.
+        role: SideRole,
+        /// The foot's distance from the line, along the chart's iso line
+        /// through it, as decided: zero or in band.
+        reading: Result<MarginDiag, Indeterminate>,
+    },
     /// The arm, or the signed sine metered over it, did not decide.
     Lever(LeverEscalation),
     /// The tangent planes coincide at the point, so the departure has no
@@ -112,8 +171,8 @@ pub enum SideEscalation {
 }
 
 /// **The side of `against` that `departing` leaves the shared edge on**
-/// at `p` (module docs). `tangent` is the edge's direction at `p` as
-/// `departing`'s loop walks it, of any nonzero length; `reach` is the
+/// at `p` (module docs). `walk` is the edge's direction at `p` as
+/// `departing`'s own half-edge walks it; `reach` is the
 /// faces' extent from the edge, the arm's outer fold, as
 /// [`crate::classify_dihedral`] takes it; `lane` is the scalar's certified
 /// NURBS lane, which a spline face's foot is read through.
@@ -125,13 +184,14 @@ pub enum SideEscalation {
 ///
 /// # Errors
 ///
-/// [`SideEscalation`]: a spline face's foot not certified onto it, the
-/// arm or the reading undecided, or a tangent dihedral.
+/// [`SideEscalation`]: a spline face's foot not decided onto it or
+/// lying on a line its normal is not continuous across, the arm or the
+/// reading undecided, or a tangent dihedral.
 pub fn dihedral_side<T: Decide>(
     departing: SideFace<'_, T>,
     against: SideFace<'_, T>,
     p: Point3<T>,
-    tangent: geom_core::Vec3<T>,
+    walk: EdgeWalk<T>,
     reach: T,
     lane: Option<NurbsLane<T>>,
     band: Band,
@@ -140,7 +200,7 @@ pub fn dihedral_side<T: Decide>(
     let (n_dep, arm_dep) = normal(departing, SideRole::Departing)?;
     let (n_against, arm_against) = normal(against, SideRole::Against)?;
     let arm = reach.min(arm_dep).min(arm_against);
-    let departure = n_dep.vec().cross(tangent.normalize());
+    let departure = n_dep.vec().cross(walk.0.normalize());
     match enters_material_reported(departure, n_against, arm, band) {
         Ok((EntersMaterial::Enters, margin)) => Ok((FaceSide::Material, margin)),
         Ok((EntersMaterial::Exits, margin)) => Ok((FaceSide::Outside, margin)),
@@ -201,13 +261,68 @@ fn spline_normal<T: Decide>(
         }
         Err(diag) => return Err(SideEscalation::FootUndecided { role, diag }),
     }
-    let jet = chart.ders(T::from_computed(foot.u), T::from_computed(foot.v));
+    let (u, v) = (T::from_computed(foot.u), T::from_computed(foot.v));
+    off_every_crease(chart, foot.foot, (u, v), band)
+        .map_err(|reading| SideEscalation::Crease { role, reading })?;
+    let jet = chart.ders(u, v);
     let kappa = crate::shape_operator::max_principal_curvature(&jet);
     let (arm, _) = crate::ssi::point_arm(kappa, reach);
     Ok((
         OutwardNormal::from_chart(jet.du.cross(jet.dv).normalize(), sense),
         arm,
     ))
+}
+
+/// Whether the foot `at`, at chart parameters `(u, v)`, lies past the
+/// band from every line of `chart` its normal is not continuous across
+/// (module docs): each interior crease run, per direction, measured from
+/// the foot along the iso line through it; and, per direction, each
+/// domain end, where the other end meets the foot too (a closed chart's
+/// seam). `Err` carries the first such line's reading, zero or in band.
+fn off_every_crease<T: Decide>(
+    chart: &NurbsSurface<T>,
+    at: Point3<T>,
+    (u, v): (T, T),
+    band: Band,
+) -> Result<(), Result<MarginDiag, Indeterminate>> {
+    let near = |q: Point3<T>| -> Result<bool, Result<MarginDiag, Indeterminate>> {
+        match crate::dihedral::decide_magnitude_reported(
+            "dihedral_side_crease",
+            Margin::of((q - at).norm()),
+            band,
+        ) {
+            Ok((Magnitude::Positive, _)) => Ok(false),
+            Ok((Magnitude::Zero, margin)) => Err(Ok(margin)),
+            Err(diag) => Err(Err(diag)),
+        }
+    };
+    let ku = chart.knot_values_u();
+    let kv = chart.knot_values_v();
+    for (knots, along_u) in [(ku, true), (kv, false)] {
+        let at_line = |c: T| {
+            if along_u {
+                chart.ders(c, v).point
+            } else {
+                chart.ders(u, c).point
+            }
+        };
+        let runs: Vec<T> = knots.runs().map(|(value, _)| value).collect();
+        for r in knots.structure().crease_runs() {
+            near(at_line(runs[r]))?;
+        }
+        let (lo, hi) = (runs[0], runs[runs.len() - 1]);
+        // A seam is two ends meeting at the foot: the first end the foot
+        // is within the band of is asked of the other only, so an open
+        // chart's own boundary, which the foot of a rim point sits on,
+        // reads as no line.
+        for (end, other) in [(lo, hi), (hi, lo)] {
+            if near(at_line(end)).is_err() {
+                near(at_line(other))?;
+                break;
+            }
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -256,6 +371,11 @@ mod tests {
         )
     }
 
+    /// The walk of a carrier running along `t`, by its plus half.
+    fn walk(t: Vec3<f64>) -> EdgeWalk<f64> {
+        EdgeWalk::of_half(t, true)
+    }
+
     fn lane() -> Option<crate::NurbsLane<f64>> {
         Some(crate::NurbsLane::certified())
     }
@@ -270,28 +390,11 @@ mod tests {
         p: Point3<f64>,
         tangent: Vec3<f64>,
     ) -> Result<FaceSide, SideEscalation> {
-        dihedral_side(departing, against, p, tangent, 1.0, lane(), band()).map(|(s, _)| s)
+        dihedral_side(departing, against, p, walk(tangent), 1.0, lane(), band()).map(|(s, _)| s)
     }
 
     const ON_EDGE: Point3<f64> = Point3::new(0.3, 0.0, 0.0);
     const X: Vec3<f64> = Vec3::new(1.0, 0.0, 0.0);
-
-    /// The analytic door reads nothing of a spline face: its gradient is
-    /// poison there, so the dihedral escalates where this door reads a
-    /// side.
-    #[test]
-    fn the_analytic_dihedral_reads_no_spline_face() {
-        let w = floor_wall(1.0);
-        assert!(
-            crate::classify_dihedral(&w, &floor(), ON_EDGE, 1.0, band()).is_err(),
-            "classify_dihedral is poison on a spline surface"
-        );
-        assert_eq!(
-            side(face(&w, true), face(&floor(), true), ON_EDGE, X),
-            Ok(FaceSide::Outside),
-            "the spline arm reads the same pair"
-        );
-    }
 
     /// A spline wall against a plane, rising and falling: the side is the
     /// wall's departure, and a wall of either sense, walked the way its
@@ -411,7 +514,7 @@ mod tests {
                     face(&tangent, true),
                     face(&floor, true),
                     ON_EDGE,
-                    X,
+                    walk(X),
                     1.0,
                     lane(),
                     band()
@@ -430,7 +533,7 @@ mod tests {
             face(&near, true),
             face(&floor, true),
             ON_EDGE,
-            X,
+            walk(X),
             1.0,
             lane(),
             b,
@@ -440,6 +543,55 @@ mod tests {
             }
             other => panic!("an in-band rise {rise} read {other:?}"),
         }
+    }
+
+    /// The arm folds the wall's curvature: past its radius of curvature
+    /// the faces' reach meters nothing, so a rise in band over that radius
+    /// escalates however far the faces run.
+    #[test]
+    fn the_arm_is_the_walls_radius_of_curvature_past_its_reach() {
+        let b = band();
+        // The wall bends at `κ ≈ 1` (`S_v ≈ ŷ`, `S_vv = ẑ`), so its arm
+        // is one: a rise in band there, over a reach whose own arm would
+        // carry it ten times past the band.
+        let rise = (b.zero() * b.escalate()).sqrt();
+        let reach = 10.0 * b.escalate() / rise;
+        let near = floor_wall(rise);
+        match dihedral_side(
+            face(&near, true),
+            face(&floor(), true),
+            ON_EDGE,
+            walk(X),
+            reach,
+            lane(),
+            b,
+        ) {
+            Err(SideEscalation::Lever(e)) => {
+                assert_eq!(e.rung(), crate::LeverRung::Reading, "the reading escalates");
+            }
+            other => panic!("rise {rise} over reach {reach} read {other:?}"),
+        }
+    }
+
+    /// A point whose foot on the spline face lies in the band is a size
+    /// the tolerance cannot place on the face: escalated, not read.
+    #[test]
+    fn a_foot_in_band_escalates() {
+        let b = band();
+        let w = floor_wall(1.0);
+        // Beside the wall's rim, off its chart: the foot is the rim point
+        // and its distance is the offset.
+        let off = Point3::new(0.3, -(b.zero() * b.escalate()).sqrt(), 0.0);
+        assert!(
+            matches!(
+                side(face(&w, true), face(&floor(), true), off, X),
+                Err(SideEscalation::FootUndecided {
+                    role: SideRole::Departing,
+                    ..
+                })
+            ),
+            "an in-band foot"
+        );
     }
 
     /// A point off the spline face is no point of its edge: refused, not
@@ -470,7 +622,7 @@ mod tests {
                 face(&floor, true),
                 face(&w, true),
                 ON_EDGE,
-                X,
+                walk(X),
                 1.0,
                 None,
                 band()
@@ -487,7 +639,7 @@ mod tests {
                 face(&tilted, true),
                 face(&floor, true),
                 ON_EDGE,
-                X,
+                walk(X),
                 1.0,
                 None,
                 band()
@@ -500,7 +652,7 @@ mod tests {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
+#[allow(clippy::unwrap_used, clippy::panic)]
 mod review_rows {
     use super::*;
     use geom_core::spline::KnotVector;
@@ -539,6 +691,7 @@ mod review_rows {
     fn side(
         dep: &Surface<f64>,
         against: &Surface<f64>,
+        p: Point3<f64>,
         t: Vec3<f64>,
     ) -> Result<FaceSide, SideEscalation> {
         dihedral_side(
@@ -550,8 +703,8 @@ mod review_rows {
                 surface: against,
                 sense: true,
             },
-            Point3::new(0.3, 0.0, 0.0),
-            t,
+            p,
+            EdgeWalk::of_half(t, true),
             1.0,
             Some(crate::NurbsLane::certified()),
             Band::linear(Tol::witness()).unwrap(),
@@ -560,26 +713,75 @@ mod review_rows {
     }
 
     /// Each half of the creased carrier, as a face whose rim is the
-    /// crease, reads the side the plane it coincides with reads.
+    /// crease, has a normal of its own there that the chart's jet cannot
+    /// tell from the other half's: the side escalates, on either walk.
     #[test]
-    fn each_half_of_a_creased_carrier_reads_its_own_halfs_side() {
+    fn each_half_of_a_creased_carrier_escalates_on_the_crease() {
         let (c, floor) = (creased(), plane(Vec3::new(0.0, 0.0, 1.0)));
-        // The half v < ½: chart normal x × (0, 2, −2) ∝ (0, 1, 1); its
-        // interior (toward −y) lies left of a walk along −x.
-        let lower = plane(Vec3::new(0.0, 1.0, 1.0));
-        // The half v > ½: chart normal ∝ (0, −1, 1); interior (toward
-        // +y) lies left of a walk along +x.
-        let upper = plane(Vec3::new(0.0, -1.0, 1.0));
         let x = Vec3::new(1.0, 0.0, 0.0);
-        assert_eq!(
-            side(&c, &floor, -x),
-            side(&lower, &floor, -x),
-            "the lower half"
+        for (half, walk) in [("lower", -x), ("upper", x)] {
+            let got = side(&c, &floor, Point3::new(0.3, 0.0, 0.0), walk);
+            assert!(
+                matches!(
+                    got,
+                    Err(SideEscalation::Crease {
+                        role: SideRole::Departing,
+                        ..
+                    })
+                ),
+                "the {half} half read {got:?}"
+            );
+        }
+    }
+
+    /// Past the band from the crease, a creased carrier reads the span
+    /// the foot lies in: the lower half `(s, −a, a)` against the plane
+    /// `x = 0.3` across its line there.
+    #[test]
+    fn a_creased_carrier_reads_its_side_off_the_crease() {
+        let c = creased();
+        let cut = Surface::Plane {
+            origin: Point3::new(0.3, 0.0, 0.0),
+            normal: Vec3::new(1.0, 0.0, 0.0),
+            u_ref: Vec3::new(0.0, 1.0, 0.0),
+        };
+        let p = Point3::new(0.3, -0.5, 0.5);
+        // The lower half's outward normal is ∝ (0, 1, 1), so walking
+        // (0, −1, 1) its interior lies toward +x.
+        let t = Vec3::new(0.0, -1.0, 1.0);
+        assert_eq!(side(&c, &cut, p, t), Ok(FaceSide::Outside), "toward +x");
+        assert_eq!(side(&c, &cut, p, -t), Ok(FaceSide::Material), "toward −x");
+    }
+
+    /// A chart closed in `v` with a C⁰ seam: its two ends meet along the
+    /// edge with opposite normals, so a foot on the seam escalates.
+    #[test]
+    fn a_closed_charts_seam_escalates() {
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let control = [-1.0, 1.0]
+            .into_iter()
+            .flat_map(|s| {
+                [
+                    Point3::new(s, 0.0, 0.0),
+                    Point3::new(s, 1.0, 1.0),
+                    Point3::new(s, 0.0, 0.0),
+                ]
+            })
+            .collect();
+        let fin = Surface::Nurbs(std::sync::Arc::new(
+            NurbsSurface::new(ku, kv, control, vec![1.0; 6]).unwrap(),
+        ));
+        let floor = plane(Vec3::new(0.0, 0.0, 1.0));
+        let got = side(
+            &fin,
+            &floor,
+            Point3::new(0.3, 0.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
         );
-        assert_eq!(
-            side(&c, &floor, x),
-            side(&upper, &floor, x),
-            "the upper half"
+        assert!(
+            matches!(got, Err(SideEscalation::Crease { .. })),
+            "the seam read {got:?}"
         );
     }
 }

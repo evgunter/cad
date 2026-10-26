@@ -28,9 +28,13 @@ waits for it.
 
 Once the boundary-first reading has found an edge's run along a spline
 face's boundary edge, the edge's parent faces' sides against that face
-are `dihedral_side(parent, spline face, p, t, reach, lane, band)` at a
-point of the shared run, with `t` the edge's direction as the parent's
-loop walks it. A `Tangent` or in-band answer keeps its escalation.
+are `dihedral_side(parent, spline face, p, walk, reach, lane, band)` at
+a point of the shared run. `walk` is an `EdgeWalk`: the topo seam mints
+it from the parent face's own half-edge as
+`EdgeWalk::along(curve, t, he == edge.he_plus)`, and this row writes that
+mint (a `Body` helper taking the half-edge), so no caller assembles the
+bit by hand. A `Tangent`, `Crease` or in-band answer keeps its
+escalation.
 
 The one-sided cover's side reading (`read_cover_side` in
 `crates/topo/src/boolean/mod.rs`) samples `implicit_residual` on the

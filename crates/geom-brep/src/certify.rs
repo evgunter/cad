@@ -2308,9 +2308,9 @@ pub struct NurbsLane<T: Real> {
 }
 
 impl<T: Decide + geom_core::CertifiedBounds> NurbsLane<T> {
-    /// The certified plane × NURBS lane, and the only constructor
-    /// there is: [`crate::plane_nurbs_limbs`] and [`Self::seeded_foot`]
-    /// instantiated at `T`.
+    /// The certified NURBS lane, and the only constructor there is:
+    /// every field holds its door instantiated at `T`, the wiring rows
+    /// below naming which.
     #[must_use]
     pub const fn certified() -> Self {
         Self {
