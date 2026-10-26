@@ -133,7 +133,7 @@ edge claims no box, so the boolean refuses the first spline edge it
 reads against the first face it reads, wherever the other operand
 stands: no row here can witness a face crossing one NURBS edge twice.
 `editor-core`
-`names::emit_topo::nurbs_crossings_rank_by_parameter::a_union_across_a_nurbs_edge_refuses_until_a_crossing_rung_builds_it`
+`names::emit_topo::wavy_loft::a_union_across_a_nurbs_edge_refuses_until_a_crossing_rung_builds_it`
 is the tripwire that reds the day a rung builds that union. The row
 itself moved, dated, to `nurbs-edge-crossing-rung-is-the-ring-composite`.
 

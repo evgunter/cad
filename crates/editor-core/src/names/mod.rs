@@ -50,11 +50,8 @@ mod table;
 pub(crate) mod words;
 
 pub use attribute::{NameOrigin, attribute};
-pub(crate) use canonical::Unrankable;
 pub(crate) use defer::CarriedRows;
-pub(crate) use discriminate::{
-    CHORD_ON_RIM, DECISION_WORDS, FAMILY, ON_MEMBER_EDGE, ON_SEAM_LINE, ORDER_ALONG,
-};
+pub(crate) use discriminate::{CHORD_ON_RIM, DECISION_WORDS, FAMILY, ON_MEMBER_EDGE};
 pub use emit::{
     CrossingSensesShape, DisagreeShape, JoinShape, NamingError, RimShare, SeamSidesShape,
     SeamVertexShape, UnionNameShape, WayShape,
