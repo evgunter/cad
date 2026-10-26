@@ -2,10 +2,11 @@
 id: a-span-ending-on-a-faces-rim-has-no-sector-clearance
 kind: issue
 title: A span ending on a face's boundary, tangent to the face there, has no sector certificate clearing it of the face near that end
-status: open
+status: parked
 opened: 2026-10-26
 priority: P1
 cost: M
+blocked_on: [a-half-turn-spine-sweeps-only-off-its-exact-tangents]
 refs: [a-span-is-read-against-a-faces-boundary-edges-first, an-analytic-edge-against-a-nurbs-face-has-no-crossing-lane]
 ---
 
