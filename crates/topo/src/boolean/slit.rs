@@ -1,13 +1,15 @@
 //! **The material decides the edges where coincident sheets meet on a
 //! line** (`crates/topo/README.md`, tier 3: where more than two sheets
 //! meet on a line, the material decides the edges, and no face passes
-//! through an edge's material wedge). Two operations on the result build
-//! what it decides:
+//! through an edge's material wedge). Three operations on the result
+//! build what it decides:
 //!
 //! - **Parting** ([`part_riders`]) makes two edges of one, where an edge
 //!   lies in a face whose material crosses its wedge.
 //! - **Merging** ([`merge_slivers`]) makes one edge of two, where a face
 //!   of no area runs between them and nothing else lies on their line.
+//! - **Closing** ([`close_struts`]) makes no edge of two, where the
+//!   result keeps one face on both sides of them.
 //!
 //! # Parting
 //!
@@ -82,6 +84,22 @@
 //! `kef` kills one edge with the sliver, and the other is described on
 //! the two faces. A sliver whose line holds another edge is left for the
 //! result gate, whose line reading refuses its overlapping wedges.
+//!
+//! # Closing
+//!
+//! Merging's mirror: where the result keeps a slit's face F on both
+//! sides of the slit's line and drops both walls, F continues across the
+//! line, a half-turn of material about it, and no edge lies there. The
+//! zip glues F's half of each of the slit's two edges to the other
+//! operand's section strut along the line (`zip::kill_pair`), so the
+//! strut survives with F on both sides and a free end that bounds
+//! nothing. [`close_struts`] runs in the output stage, before the
+//! coplanar merge, whose entry gate refuses a strut, and deletes the
+//! struts the zip reported that F lies on both sides of, each with its
+//! free end, a ring closed whole with its lone vertex too
+//! ([`crate::strut`], the delete the merge runs on its own dangling seam
+//! edges). F's region is unchanged by each step. A strut the zip kept
+//! between two walls is a reflex edge of the result, and stays.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -583,6 +601,88 @@ pub(super) fn merge_slivers<T: Decide + crate::props::AtRestPolicy>(
         super::ops::describe_edges(body, [kept], &[], band, tol)
             .map_err(super::ops::of_describe)?;
         slivers.push(Sliver { face, killed, kept });
+    }
+}
+
+/// One strut the output stage closed its face across
+/// ([`close_struts`]).
+#[derive(Clone, Debug)]
+pub(super) struct ClosedStrut {
+    /// The face on both sides of the strut.
+    pub(super) face: FaceKey,
+    /// The strut's edge.
+    pub(super) edge: EdgeKey,
+    /// The vertices deleted with it: its free end, then, where both its
+    /// ends were free, the other.
+    pub(super) vertices: Vec<VertexKey>,
+}
+
+impl ClosedStrut {
+    /// The lineage rows of the closing, `(dead, holder)`: the edge and
+    /// its deleted vertices lie in the face.
+    pub(super) fn substitutions(&self) -> impl Iterator<Item = (Cell, Cell)> + '_ {
+        core::iter::once(Cell::Edge(self.edge))
+            .chain(self.vertices.iter().map(|&v| Cell::Vertex(v)))
+            .map(|dead| (dead, Cell::Face(self.face)))
+    }
+}
+
+/// **Closes a face across each of `struts` it lies on both sides of**
+/// (module docs, *Closing*): `struts` are the section struts the zip kept
+/// (`zip::ZipReport::struts`), and each whose two halves bound one face
+/// is deleted with its free end ([`crate::strut`]), in the order given
+/// and again after each, so a chain goes one free end at a time. A strut
+/// between two faces is left as it is.
+///
+/// # Errors
+///
+/// [`BooleanError::CurvedFaceClosesAcrossSlit`] where the face is not a
+/// plane; [`BooleanError::SlitFaceClosesMidSlit`] where a strut so held
+/// has no free end, the slit's edges running on past both its ends;
+/// [`BooleanError::JoinDesync`] where one with both ends free is its
+/// face's outline, which the zip never leaves; the Euler operators'
+/// refusals.
+pub(super) fn close_struts<T: Decide + crate::props::AtRestPolicy>(
+    body: &mut Body<T>,
+    struts: &[EdgeKey],
+    tol: Tol,
+) -> Result<Vec<ClosedStrut>, BooleanError> {
+    let one_face = |body: &Body<T>, edge: EdgeKey| {
+        let e = body.get_edge(edge)?;
+        let face = body.face_of_half_edge(e.he_plus)?;
+        (body.face_of_half_edge(e.he_minus)? == face).then_some(face)
+    };
+    let mut closed = Vec::new();
+    loop {
+        let open: Vec<(EdgeKey, FaceKey)> = struts
+            .iter()
+            .filter_map(|&edge| one_face(body, edge).map(|face| (edge, face)))
+            .collect();
+        let next = open
+            .iter()
+            .find_map(|&(edge, face)| body.toward_free_end(edge).map(|t| (edge, face, t)));
+        let Some((edge, face, toward_free)) = next else {
+            return match open.first() {
+                None => Ok(closed),
+                Some(&(edge, face)) => Err(BooleanError::SlitFaceClosesMidSlit { face, edge }),
+            };
+        };
+        let plan = body
+            .plan_strut_prune(face, toward_free)
+            .map_err(|refusal| match refusal {
+                crate::strut::StrutRefusal::Curved => {
+                    BooleanError::CurvedFaceClosesAcrossSlit { face, edge }
+                }
+                crate::strut::StrutRefusal::LoneOutline => BooleanError::JoinDesync {
+                    what: "a strut the zip kept with both ends free is its face's outline",
+                },
+            })?;
+        let vertices = body.prune_strut(&plan, tol)?;
+        closed.push(ClosedStrut {
+            face,
+            edge,
+            vertices,
+        });
     }
 }
 
