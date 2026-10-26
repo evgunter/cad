@@ -1537,7 +1537,7 @@ fn meeting_point<T: Real>(geo: &Geo<T>, (p, q): (EntityId, EntityId)) -> Option<
             let (a, b) = (line_edge(geo, a)?, line_edge(geo, b)?);
             let k = a.dir.dot(b.dir);
             let w = a.p0 - b.p0;
-            let s = (k * b.dir.dot(w) - a.dir.dot(w)) / (T::one() - k * k);
+            let s = (k * b.dir.dot(w) - a.dir.dot(w)) / (T::one() - k.powi(2));
             bounded(a.p0 + a.dir * s)
         }
         (EntityId::Edge(e), EntityId::Face(f)) | (EntityId::Face(f), EntityId::Edge(e)) => {
