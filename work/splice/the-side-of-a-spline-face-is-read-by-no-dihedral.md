@@ -2,11 +2,12 @@
 id: the-side-of-a-spline-face-is-read-by-no-dihedral
 kind: issue
 title: The dihedral side reading has no arm for a spline face: classify_dihedral and implicit_residual are poison on a NURBS surface
-status: open
+status: dispatched
 opened: 2026-10-26
 priority: P1
 cost: M
 refs: [a-span-is-read-against-a-faces-boundary-edges-first, a-unions-flush-reading-cannot-follow-a-nurbs-carrier]
+branch: splice/spline-dihedral
 ---
 
 
