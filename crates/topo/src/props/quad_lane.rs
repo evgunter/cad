@@ -712,9 +712,12 @@ impl RoundOutcome {
 
 /// **INTERIM: a lane's run read at the reporting target** — the
 /// accepted round converged, a window cut short open, and a lane that
-/// stopped short of the target ([`LaneEnd::Floor`], [`LaneEnd::Wall`])
-/// refused [`PropsError::QuadratureBudget`] with its narrowest enclosure,
-/// which a sign walk may still read. Goes with [`to_target`].
+/// stopped short of the target refused with its narrowest enclosure,
+/// which a sign walk may still read: [`PropsError::QuadratureFloor`] at
+/// its floor ([`LaneEnd::Floor`]) where even the part no round removes,
+/// at least `1 − FLOOR_SHARE` of the narrowest width, is over the
+/// target, so no budget would meet it; else
+/// [`PropsError::QuadratureBudget`]. Goes with [`to_target`].
 fn reported(run: LaneRun, eps: f64) -> Result<RoundOutcome, PropsError> {
     let LaneRun {
         bounds,
@@ -732,15 +735,29 @@ fn reported(run: LaneRun, eps: f64) -> Result<RoundOutcome, PropsError> {
             round,
             end: OpenEnd::Window,
         },
-        LaneEnd::Floor | LaneEnd::Wall => RoundOutcome::Open {
-            bounds,
-            round,
-            end: OpenEnd::Exhausted(PropsError::QuadratureBudget {
-                width_len: quad::mean_boundary_displacement(bounds.flux, bounds.area)?,
-                target_len: QUAD_TARGET_LEN_FACTOR * eps,
-                rounds,
-            }),
-        },
+        LaneEnd::Floor | LaneEnd::Wall => {
+            let width_len = quad::mean_boundary_displacement(bounds.flux, bounds.area)?;
+            let target_len = QUAD_TARGET_LEN_FACTOR * eps;
+            let floored =
+                end == LaneEnd::Floor && width_len * (1.0 - quad::FLOOR_SHARE) > target_len;
+            RoundOutcome::Open {
+                bounds,
+                round,
+                end: OpenEnd::Exhausted(if floored {
+                    PropsError::QuadratureFloor {
+                        width_len,
+                        target_len,
+                        rounds,
+                    }
+                } else {
+                    PropsError::QuadratureBudget {
+                        width_len,
+                        target_len,
+                        rounds,
+                    }
+                }),
+            }
+        }
     })
 }
 
@@ -1946,20 +1963,40 @@ mod tests {
 
         /// **A lane stopped short of the target refuses with a width that
         /// really missed**: its narrowest enclosure's, the target the
-        /// run's, and the rounds it ran. An accepted round converges; a
-        /// window cut short stays open with no refusal.
+        /// run's, and the rounds it ran — `QuadratureFloor` at its floor
+        /// where `1 − FLOOR_SHARE` of that width is still over the target,
+        /// so no later round meets it, and `QuadratureBudget` at the work
+        /// wall or at a floor within that share of the target. An accepted
+        /// round converges; a window cut short stays open with no refusal.
         #[test]
         fn a_stopped_lane_refuses_with_its_narrowest_width() {
             let eps = 1e-9;
             let target = 1024.0 * eps;
-            let run = |end| LaneRun {
-                bounds: of_len(2.0 * target),
+            let run = |end, over: f64| LaneRun {
+                bounds: of_len(over * target),
                 round: 4,
                 rounds: 7,
                 end,
             };
-            for end in [LaneEnd::Floor, LaneEnd::Wall] {
-                match reported(run(end), eps).unwrap() {
+            let within = 1.0 + 0.5 * geom_brep::props::quad::FLOOR_SHARE;
+            for (end, over, floored) in [
+                (LaneEnd::Floor, 2.0, true),
+                (LaneEnd::Wall, 2.0, false),
+                (LaneEnd::Floor, within, false),
+                (LaneEnd::Wall, within, false),
+            ] {
+                let (width_len, target_len, is_floor) = match reported(run(end, over), eps).unwrap()
+                {
+                    RoundOutcome::Open {
+                        round: 4,
+                        end:
+                            OpenEnd::Exhausted(PropsError::QuadratureFloor {
+                                width_len,
+                                target_len,
+                                rounds: 7,
+                            }),
+                        ..
+                    } => (width_len, target_len, true),
                     RoundOutcome::Open {
                         round: 4,
                         end:
@@ -1969,25 +2006,25 @@ mod tests {
                                 rounds: 7,
                             }),
                         ..
-                    } => {
-                        assert!(
-                            width_len > target_len,
-                            "{end:?}: {width_len} vs {target_len}"
-                        );
-                        assert!((target_len - target).abs() <= target * 1e-12, "{end:?}");
-                    }
-                    other => panic!("{end:?}: {other:?}"),
-                }
+                    } => (width_len, target_len, false),
+                    other => panic!("{end:?} at {over}× the target: {other:?}"),
+                };
+                assert_eq!(is_floor, floored, "{end:?} at {over}× the target");
+                assert!(
+                    width_len > target_len,
+                    "{end:?}: {width_len} vs {target_len}"
+                );
+                assert!((target_len - target).abs() <= target * 1e-12, "{end:?}");
             }
             assert!(matches!(
-                reported(run(LaneEnd::Window), eps).unwrap(),
+                reported(run(LaneEnd::Window, 2.0), eps).unwrap(),
                 RoundOutcome::Open {
                     end: OpenEnd::Window,
                     ..
                 }
             ));
             assert!(matches!(
-                reported(run(LaneEnd::Accepted(LaneStop::Wall)), eps).unwrap(),
+                reported(run(LaneEnd::Accepted(LaneStop::Wall), 2.0), eps).unwrap(),
                 RoundOutcome::Converged {
                     refinable: false,
                     ..

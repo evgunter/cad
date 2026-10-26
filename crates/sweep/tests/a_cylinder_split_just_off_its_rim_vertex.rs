@@ -75,9 +75,10 @@ fn a_sliver_just_off_the_rim_vertex_builds_and_the_halves_hold_the_volume() {
     }
 }
 
-/// **At 1e-12 the sliver's wall is at its floor, over the target**: the
-/// split refuses at rest with the wall's `QuadratureBudget` after one
-/// round. The width left is the part refinement does not
+/// **At 1e-12 the sliver's wall is at its floor, over the target**, and
+/// says so: the split refuses at rest with the wall's
+/// `QuadratureFloor` after one round, a decided fact rather than a
+/// budget run out. The width left is the part refinement does not
 /// touch, `4.68e-6` at `d = 5e-11` and `2.36e-7` at `d = 1e-9`, against
 /// the `1.024e-9` this ε targets; before the ends were read at their
 /// parameters it was `1.05e-4` and `5.2e-6`, after 13 rounds. Pinned
@@ -100,7 +101,7 @@ fn at_1e_12_the_slivers_wall_refuses_at_its_floor() {
                         source:
                             topo::MassPropsError::Face {
                                 source:
-                                    geom_brep::props::PropsError::QuadratureBudget {
+                                    geom_brep::props::PropsError::QuadratureFloor {
                                         width_len,
                                         target_len,
                                         rounds: 1,

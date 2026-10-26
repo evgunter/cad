@@ -510,9 +510,12 @@ pub enum PropsError {
         check: PropsCheck,
     },
     /// The certified quadrature's enclosure did not tighten to the
-    /// reporting target before its lane stopped, at its floor or at the
-    /// work wall (M5 PR 11; the [`quad`] module docs give the rule and
-    /// the stop, and `topo`'s reporting adapter the target's metering).
+    /// reporting target before its lane stopped: at the work wall, or at
+    /// its floor with the target within the floor's share of the width,
+    /// where a later round might still have met it (M5 PR 11; the [`quad`]
+    /// module docs give the rule and the stop, and `topo`'s reporting
+    /// adapter the target's metering). A floor the target lies wholly
+    /// below is [`Self::QuadratureFloor`].
     /// Certified bounds or typed refusal — never a silently wide
     /// answer. Both payloads are LENGTHS (mean boundary displacement),
     /// the same metering as tier 3's volume check.
@@ -535,6 +538,26 @@ pub enum PropsError {
         /// The refinement rounds the lane ran before it stopped: `0` on
         /// the exact arm, which has no composite round. A receipt for
         /// what the refusal cost.
+        rounds: usize,
+    },
+    /// **The certified quadrature's enclosure is at its floor, above the
+    /// reporting target, so no budget meets it.** The lane stopped at
+    /// [`quad::LaneStop::Floor`]: the part of its width a later round
+    /// removes is at most [`quad::FLOOR_SHARE`] of it, so every later
+    /// round is at least `1 − FLOOR_SHARE` of that width wide, and that
+    /// is above the target. The width is the part refinement does not
+    /// touch: the honesty pads (the trim ends' brackets, the pcurves'
+    /// map residuals) and the arithmetic. Where only the work wall
+    /// stopped the lane, or the target lies within the floor's share,
+    /// the refusal is [`Self::QuadratureBudget`]. Payloads as that
+    /// arm's.
+    QuadratureFloor {
+        /// The width of the narrowest enclosure the lane reached, as a
+        /// length (m).
+        width_len: f64,
+        /// The convergence target, as a length (m).
+        target_len: f64,
+        /// The refinement rounds the lane ran before it stopped.
         rounds: usize,
     },
     /// A quadrature input is outside the lane's certified inventory
@@ -780,6 +803,17 @@ impl core::fmt::Display for PropsError {
                 "a face's quadrature stopped after {rounds} refinement round(s) without its \
                  certified contribution meeting the {target_len:.3e} m this tolerance targets; \
                  its narrowest enclosure is {width_len:.3e} m wide. {}",
+                quadrature_budget_recourse(*width_len)
+            ),
+            Self::QuadratureFloor {
+                width_len,
+                target_len,
+                rounds,
+            } => write!(
+                f,
+                "a face's quadrature reached its floor after {rounds} refinement round(s): no \
+                 later round narrows its certified contribution below {width_len:.3e} m, over \
+                 the {target_len:.3e} m this tolerance targets. {}",
                 quadrature_budget_recourse(*width_len)
             ),
             Self::QuadratureUnsupported { what } => write!(
@@ -1099,6 +1133,11 @@ mod tests {
                 target_len: 1e-9,
                 rounds: 3,
             },
+            PropsError::QuadratureFloor {
+                width_len: 4.7e-6,
+                target_len: 1.024e-9,
+                rounds: 1,
+            },
             PropsError::QuadratureUnsupported {
                 what: "a rational pcurve channel",
             },
@@ -1111,7 +1150,7 @@ mod tests {
             "state", "widen", "loosen", "report", "re-cut", "re-mint", "lie",
         ];
         let arms = props_error_arms();
-        assert_eq!(arms.len(), 17, "an arm was added without a row here");
+        assert_eq!(arms.len(), 18, "an arm was added without a row here");
         for arm in &arms {
             let msg = arm.to_string();
             assert_eq!(

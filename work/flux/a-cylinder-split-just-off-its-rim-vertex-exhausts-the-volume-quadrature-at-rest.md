@@ -40,3 +40,42 @@ between the rim disc and a plane `1e-2` off it, meeting at a chord near
 the seam vertex), and if it should not, give the refusal its one
 ending. PR 4810's pin accepts exactly this refusal on that move and
 names this row.
+
+## Where it stands (flux/cylinder-sliver-exact-bracket)
+
+**The ends' trig brackets.** The cylinder lane read each trim edge's end
+`(cos t, sin t)` off the end's vertex, a bracket `ε` wide, and that width
+rode every piece of the edge: on the wedge's wall, a few `d` high, it alone
+was the floor. Each end is now read at the parameter the lane integrates
+from (`geom_brep::props::quad::trig_at_limit`), met with the vertex
+reading (`topo::props::quad_lane`'s `trig_at_end`), about 1e-14 wide at
+most. At 1e-9 and 1e-6 the split builds at `d = 50ε, 500ε, 5000ε`, and the
+halves hold `π` within their pads
+(`crates/sweep/tests/a_cylinder_split_just_off_its_rim_vertex.rs`).
+
+**At 1e-12 the wall is at its floor, and refuses as one.** It stops after
+one round, in 0.02 s, with `QuadratureFloor` (a floor the target lies
+wholly below, not a budget run out):
+
+| `d` | wall area | flux width | `width_len` | before |
+|---|---|---|---|---|
+| 5e-11 | 6.67e-15 m² | 9.35e-20 | 4.68e-6 | 1.05e-4, 13 rounds |
+| 1e-9 | 5.96e-13 m² | 4.22e-19 | 2.36e-7 | 5.2e-6, 13 rounds |
+
+against the `1.024e-9` this ε targets.
+
+## The open shape
+
+What is left is the meter, not the integrand. The flux width is the part no
+round removes: each edge's rule rounding and its pcurve map-residual pad,
+each at an ulp of the wall's own terms (`O(r) = O(1)` levers, the pcurve
+envelope `2.2e-16`), about `1e-19` in all. The mean boundary displacement
+divides it by `3·area`, and this wall's area is `≈ (4/3)·d·√(d/5e-3)`, so
+`width_len` grows as `d^{-3/2}` as the wedge thins, whatever ε asks. Reading
+the wall's terms about a point of the face, so they round at its own size
+rather than the radius, or metering a face's width against its body rather
+than its own area, would move it; both are the meter's ratified ground,
+left as they are here. The recourse the refusal names, loosening ε to about
+`4.6e-9` at `d = 5e-11`, puts the vertex in band of the plane there, and
+the split refuses the input instead (`SliverVertex`); the wedge itself
+builds from about `d = 50ε` at 1e-9.

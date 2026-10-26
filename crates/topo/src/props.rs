@@ -2215,7 +2215,8 @@ impl<'b, T: Decide> SignCertificate<'b, T> {
     ///
     /// A continuation refuses in two ways that a consumer must tell
     /// apart. The schedule running out (a face's
-    /// [`PropsError::QuadratureBudget`]) is the case this certificate
+    /// [`PropsError::QuadratureBudget`], or its
+    /// [`PropsError::QuadratureFloor`]) is the case this certificate
     /// exists for: the sign was decided, the body is valid, and its
     /// volume is not measurable at this ε — so a bracket is the whole
     /// of what the quadrature is entitled to say, and it comes back in
@@ -2250,7 +2251,8 @@ impl<'b, T: Decide> SignCertificate<'b, T> {
                 let budget = matches!(
                     refusal,
                     MassPropsError::Face {
-                        source: PropsError::QuadratureBudget { .. },
+                        source: PropsError::QuadratureBudget { .. }
+                            | PropsError::QuadratureFloor { .. },
                         ..
                     }
                 );
@@ -3501,7 +3503,10 @@ impl<T> FaceRun<T> {
         self.taken_at = held.taken_at;
         if held_met {
             self.refusal = None;
-        } else if let Some(PropsError::QuadratureBudget { width_len, .. }) = &mut self.refusal
+        } else if let Some(
+            PropsError::QuadratureBudget { width_len, .. }
+            | PropsError::QuadratureFloor { width_len, .. },
+        ) = &mut self.refusal
             && let Ok(w) = geom_brep::props::quad::mean_boundary_displacement(was, was_area)
         {
             *width_len = w;

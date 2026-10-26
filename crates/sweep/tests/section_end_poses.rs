@@ -180,7 +180,7 @@ fn a_section_end_at_the_band_edge_refuses_as_the_inputs_at_the_split_and_its_lev
                             e,
                             topo::ValidationError::VolumeUncomputable {
                                 source: topo::MassPropsError::Face {
-                                    source: geom_brep::props::PropsError::QuadratureBudget { .. },
+                                    source: geom_brep::props::PropsError::QuadratureFloor { .. },
                                     ..
                                 },
                                 ..
