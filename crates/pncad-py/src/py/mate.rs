@@ -17,25 +17,13 @@
 //! with a frame or not at all — and it raises `MateError` carrying
 //! that same value under `fault`, so there is one payload vocabulary
 //! rather than a value type and an exception type that can disagree.
-//!
-//! # What Python cannot reach here, and why
-//!
-//! `MateFault`'s `mate_class_not_admitted` arm fires for a class
-//! outside v1's vocabulary. The kernel's contact vocabulary is `Rest`
-//! and `Tangent` today and the Python mirror carries both, so nothing
-//! Python can author reaches that arm — it is bound, tagged and
-//! unreachable until the kernel grows a class. `class_admission` is
-//! the door that says so BEFORE an edit lands.
 
 use pyo3::prelude::*;
 use pyo3::types::PyString;
 
 use crate::errors::ErrorClass;
 use crate::py::typed_err;
-use crate::tags::{
-    class_admission_tag, coord_tag, maintenance_tag, mate_fault_tag, no_chart_why_tag,
-    placed_by_tag,
-};
+use crate::tags::{coord_tag, maintenance_tag, mate_fault_tag, no_chart_why_tag};
 use std::sync::Arc;
 
 use pncad::document as d;
@@ -68,153 +56,27 @@ impl MateSide {
 
 // ---- The authored payload ----
 
-/// **A pose of the world, read inside a mate**: the world defines no
-/// pose variable, so a mate's `to` reads it here — its frame, a role
-/// of it, and the moves a target may make: a slide along a direction
-/// or an axis, a spin about an axis, a flip.
-///
-/// `WorldRead.frame()` is the world's frame, `WorldRead.through(role)`
-/// the frame read through a role (`"x"`, `"y"` or `"z"` its axes,
-/// `"origin"`, `"xy"`, `"yz"` or `"zx"` its planes). Each move answers
-/// a new read: `read.role("normal")` a role of a plane read,
-/// `read.slide(along, by)` slid along `along` (a direction or an axis
-/// read) by the length `by`, `read.spin(about, by)` spun about `about`
-/// (an axis read) by the angle `by`, right-handed, `read.flip()` the
-/// opposite sense. A lone `0` is the constant zero of the slot's
-/// dimension.
-///
-/// A read whose kinds do not compose (a slide of a direction, a spin
-/// about a plane, a role its pose's kind does not offer, a flipped
-/// point) is built here and refused where its mate is added
-/// (`mate_world_read`); `kind` answers `None` for it.
-#[pyclass(frozen, module = "pncad", from_py_object)]
-#[derive(Clone)]
-pub(crate) struct WorldRead(pub(crate) d::WorldRead<d::Formula>);
-
-/// A move's number, at its dimension.
-fn move_by(
-    py: Python<'_>,
-    by: &super::expr::SlotArg,
-    dim: d::Dimension,
-    what: &str,
-) -> PyResult<d::Formula> {
-    super::pose::scalar_at(py, dim, by, what)
-}
-
-#[pymethods]
-impl WorldRead {
-    /// The world's own frame.
-    #[staticmethod]
-    fn frame() -> Self {
-        Self(d::WorldRead::Frame)
-    }
-
-    /// The world's frame read through `role`: `"x"`, `"y"`, `"z"`,
-    /// `"origin"`, `"xy"`, `"yz"` or `"zx"`.
-    #[staticmethod]
-    fn through(role: &str) -> PyResult<Self> {
-        Ok(Self(d::WorldRead::through(super::pose::role_of(role)?)))
-    }
-
-    /// This read through `role` (a plane's `"normal"`, an axis's
-    /// `"direction"`, a frame's axes, origin and planes).
-    fn role(&self, role: &str) -> PyResult<Self> {
-        Ok(Self(d::WorldRead::Role {
-            pose: Box::new(self.0.clone()),
-            role: super::pose::role_of(role)?,
-        }))
-    }
-
-    /// This read slid along `along` by the length `by`.
-    fn slide(&self, py: Python<'_>, along: &Self, by: super::expr::SlotArg) -> PyResult<Self> {
-        let by = move_by(py, &by, d::Dimension::Length, "slide")?;
-        Ok(Self(self.0.clone().slide(along.0.clone(), by)))
-    }
-
-    /// This read spun about `about` by the angle `by`, right-handed.
-    fn spin(&self, py: Python<'_>, about: &Self, by: super::expr::SlotArg) -> PyResult<Self> {
-        let by = move_by(py, &by, d::Dimension::Angle, "spin")?;
-        Ok(Self(self.0.clone().spin(about.0.clone(), by)))
-    }
-
-    /// This read's opposite sense.
-    fn flip(&self) -> Self {
-        Self(self.0.clone().flip())
-    }
-
-    /// The kind of pose this read is (`"point"`, `"direction"`,
-    /// `"axis"`, `"plane"` or `"frame"`), `None` where its moves do not
-    /// compose.
-    #[getter]
-    fn kind(&self) -> Option<&'static str> {
-        self.0.kind().ok().map(crate::errors::var_kind_tag)
-    }
-
-    /// Bit-exact equality: the same moves, each number equal.
-    fn __eq__(&self, other: &Self) -> bool {
-        self.0 == other.0
-    }
-
-    fn __repr__(&self) -> String {
-        world_text(&self.0)
-    }
-}
-
-/// A world read as the Python that builds it.
-fn world_text(read: &d::WorldRead<d::Formula>) -> String {
-    match read {
-        d::WorldRead::Frame => "WorldRead.frame()".to_owned(),
-        d::WorldRead::Role { pose, role } => {
-            format!(
-                "{}.role({:?})",
-                world_text(pose),
-                super::pose::role_word(*role)
-            )
-        }
-        d::WorldRead::Slide { pose, along, by } => {
-            format!("{}.slide({}, {by})", world_text(pose), world_text(along))
-        }
-        d::WorldRead::Spin { pose, about, by } => {
-            format!("{}.spin({}, {by})", world_text(pose), world_text(about))
-        }
-        d::WorldRead::Flip { pose } => format!("{}.flip()", world_text(pose)),
-    }
-}
-
-/// **What a mate's `to` reads**: a world read, or a pose of the space
-/// the copy joins.
-#[derive(FromPyObject)]
-pub(crate) enum TargetArg {
-    /// The world.
-    World(WorldRead),
-    /// A pose operand.
-    Pose(super::doc::OperandArg),
-}
-
-/// **A mate**: two poses of one kind equated, with the contact class it
-/// declares. A mate is a constraint of the placement that holds it
+/// **A mate**: two poses of one kind equated.
+/// A mate is a constraint of the placement that holds it
 /// (`Doc.constrain`, `Doc.place(shapes, constraints)`), never a node:
 /// this is its payload as a value.
 ///
 /// `on` is a pose read off the copied shapes' geometry (a `PoseDef`
 /// over one of the placement's shapes, or over the instance itself);
-/// `to` is a pose of the space the copy joins, or a `WorldRead`. The
+/// `to` is a pose of the space the copy joins, read off geometry
+/// there: a mate reads only geometry, never the world's frame. The
 /// kind is the primitive: plane to plane rests, axis to axis is
 /// coaxial, frame to frame coincides, point to point is a ball, and
 /// direction to direction is parallel. A plain plane mate equates
 /// outward normals, so two faces resting against each other carry a
 /// flip on the target (`PoseDef.flip`). A mate holds no number: what
 /// it leaves free is set by a `MateValue`, and a standoff is a slide of the
-/// target plane along its own normal.
-///
-/// `class_` is the declared contact class (trailing underscore:
-/// `class` is a Python keyword); `class_admission` says how far each
-/// class gets.
+/// target plane along its own normal. A mate declares no contact: where
+/// the copies it places touch is the at-rest census's to record.
 ///
 /// Where it is added, the door refuses an `on` that does not read the
-/// copy (`mate_not_on_the_copy`), poses of two kinds
-/// (`mate_kinds_differ`) and a world read whose moves do not compose
-/// (`mate_world_read`). A pose that does not evaluate — a face gone,
+/// copy (`mate_not_on_the_copy`) and poses of two kinds
+/// (`mate_kinds_differ`). A pose that does not evaluate — a face gone,
 /// a curved face read as a plane — is the placement's own refusal
 /// where it evaluates (`mate_side_unevaluated`).
 #[pyclass(frozen, module = "pncad", from_py_object)]
@@ -224,20 +86,11 @@ pub(crate) struct Mate(pub(crate) d::Mate<d::Formula>);
 #[pymethods]
 impl Mate {
     #[new]
-    fn new(
-        py: Python<'_>,
-        on: super::doc::OperandArg,
-        to: TargetArg,
-        class_: super::contact::ContactClass,
-    ) -> PyResult<Self> {
-        Ok(Self(d::Mate {
+    fn new(on: super::doc::OperandArg, to: super::doc::OperandArg) -> Self {
+        Self(d::Mate {
             on: on.read(),
-            to: match to {
-                TargetArg::World(world) => d::Target::World(world.0),
-                TargetArg::Pose(pose) => d::Target::Pose(pose.read()),
-            },
-            class: class_.to_kernel(py)?,
-        }))
+            to: to.read(),
+        })
     }
 
     /// The copy's pose, as written.
@@ -248,55 +101,37 @@ impl Mate {
         }
     }
 
-    /// The pose the copy's is equated with: a `PoseDef` or a
-    /// `WorldRead`.
+    /// The pose the copy's is equated with, as written.
     #[getter]
-    fn to(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        Ok(match &self.0.to {
-            d::Target::Pose(read) => Py::new(
-                py,
-                super::pose::PoseDef {
-                    inner: read.clone(),
-                },
-            )?
-            .into_any(),
-            d::Target::World(world) => Py::new(py, WorldRead(world.clone()))?.into_any(),
-        })
+    fn to(&self) -> super::pose::PoseDef {
+        super::pose::PoseDef {
+            inner: self.0.to.clone(),
+        }
     }
 
-    /// The declared contact class.
-    #[getter]
-    fn class_(&self, py: Python<'_>) -> PyResult<super::contact::ContactClass> {
-        super::contact::contact_class(py, self.0.class)
-    }
-
-    /// BIT-exact equality: the same poses, the same world moves, the
-    /// same class.
+    /// BIT-exact equality: the same poses.
     fn __eq__(&self, other: &Self) -> bool {
         self.0.bit_eq(&other.0)
     }
 
     fn __repr__(&self) -> String {
-        let to = match &self.0.to {
-            d::Target::Pose(read) => read.to_string(),
-            d::Target::World(world) => world_text(world),
-        };
-        format!("Mate(on={}, to={to}, class_={:?})", self.0.on, self.0.class)
+        format!("Mate(on={}, to={})", self.0.on, self.0.to)
     }
 }
 
 /// **Which freedom a value sets**: `Coord.slide("x")`, `"y"` or
-/// `"z"` — a slide along the chart's axis, `z` the mated direction —
-/// `Coord.spin()`, the turn about the mated direction, or
-/// `Coord.spin_about("x")`, `"y"` or `"z"`, a turn about the target
-/// space's own axis.
+/// `"z"`, a slide along the chart's axis, or `Coord.spin("x")`, `"y"`
+/// or `"z"`, a turn about it.
 ///
-/// A plane mate leaves the slides along `x` and `y` and the spin; an
-/// axis mate the slide along `z` (its axis) and the spin; a direction
-/// mate the three slides and the spin; a point mate's rotation has no
-/// chart; a frame mate leaves nothing. A value naming no mate slides
-/// along the target space's own axes and spins about them, a chain of
-/// spins in the order written.
+/// The chart is the target space's own axes, swung by the shortest
+/// turn onto the one direction the bundle's mates fix, where they fix
+/// one (`z` that direction). A plane mate leaves the slides along `x`
+/// and `y` and the spin about `z`; an axis mate the slide along and
+/// the spin about `z`; a direction mate the three slides and the spin
+/// about `z`; a point mate its rotation, a chain of spins about the
+/// target space's axes through the mated point; a frame mate nothing.
+/// A bundle with no mate leaves the three slides and a chain of spins
+/// about the target space's axes, in the order written.
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) struct Coord(pub(crate) d::Coord);
@@ -309,21 +144,14 @@ impl Coord {
         Ok(Self(d::Coord::Slide(target_axis(axis)?)))
     }
 
-    /// The spin about the mated direction.
+    /// The spin about the chart's `axis`: `"x"`, `"y"` or `"z"`.
     #[staticmethod]
-    fn spin() -> Self {
-        Self(d::Coord::Spin)
+    fn spin(axis: &str) -> PyResult<Self> {
+        Ok(Self(d::Coord::Spin(target_axis(axis)?)))
     }
 
-    /// The spin about the target space's own `axis`: `"x"`, `"y"` or
-    /// `"z"`, one link of a value chain naming no mate.
-    #[staticmethod]
-    fn spin_about(axis: &str) -> PyResult<Self> {
-        Ok(Self(d::Coord::SpinAbout(target_axis(axis)?)))
-    }
-
-    /// The stable word: `slide_x`, `slide_y`, `slide_z`, `spin`,
-    /// `spin_about_x`, `spin_about_y` or `spin_about_z`.
+    /// The stable word: `slide_x`, `slide_y`, `slide_z`, `spin_x`,
+    /// `spin_y` or `spin_z`.
     #[getter]
     fn variant(&self) -> &'static str {
         coord_tag(self.0)
@@ -341,15 +169,16 @@ impl Coord {
     }
 
     fn __repr__(&self) -> String {
-        match self.0 {
-            d::Coord::Slide(d::TargetAxis::X) => "Coord.slide(\"x\")".to_owned(),
-            d::Coord::Slide(d::TargetAxis::Y) => "Coord.slide(\"y\")".to_owned(),
-            d::Coord::Slide(d::TargetAxis::Z) => "Coord.slide(\"z\")".to_owned(),
-            d::Coord::Spin => "Coord.spin()".to_owned(),
-            d::Coord::SpinAbout(d::TargetAxis::X) => "Coord.spin_about(\"x\")".to_owned(),
-            d::Coord::SpinAbout(d::TargetAxis::Y) => "Coord.spin_about(\"y\")".to_owned(),
-            d::Coord::SpinAbout(d::TargetAxis::Z) => "Coord.spin_about(\"z\")".to_owned(),
-        }
+        let (kind, axis) = match self.0 {
+            d::Coord::Slide(axis) => ("slide", axis),
+            d::Coord::Spin(axis) => ("spin", axis),
+        };
+        let axis = match axis {
+            d::TargetAxis::X => "x",
+            d::TargetAxis::Y => "y",
+            d::TargetAxis::Z => "z",
+        };
+        format!("Coord.{kind}({axis:?})")
     }
 }
 
@@ -365,80 +194,80 @@ fn target_axis(axis: &str) -> PyResult<d::TargetAxis> {
     }
 }
 
-/// **A value**: one freedom a mate of the same bundle leaves, or one of
-/// the target space's own where it names no mate, set to a number — a
-/// `Length` for a slide, an `Angle` for a spin (a lone `0` is the
-/// constant zero).
+/// **A value**: one freedom the bundle's mates leave, set to a number
+/// — a `Length` for a slide, an `Angle` for a spin (a lone `0` is the
+/// constant zero). A value names no mate: the mates of its bundle
+/// together leave its freedom.
 ///
-/// It is charted on the two bodies' own frames, each swung onto the
-/// mated direction by the shortest turn: a slide is the copy's origin
-/// measured from the target's along the chart's axis, a spin the angle
-/// about the mated direction from the target's reference to the
-/// copy's. Zero says the two bodies' own coordinates agree as far as
-/// the mate allows.
+/// It is charted on the target space's own axes, swung by the shortest
+/// turn onto the one direction the mates fix: a slide is the copy's
+/// origin measured along the chart's axis, a spin the angle about it.
+/// Zero says the copy's own coordinates agree with the target space's
+/// as far as the mates allow.
 ///
-/// `mate` names the mate by its id (a `MateRef`'s `constraint`, or the
-/// `MateRef` itself), or is `None`: the target space's own axes, which
-/// chart a bundle with no mate, whose values state the copy's whole
-/// motion and are written whole (`Doc.add_values`). `Doc.add_value` adds
-/// one; the door refuses an id that is no mate of the bundle
-/// (`mate_value_names_no_mate`), a freedom the mate's kind does not
-/// leave (`mate_not_a_freedom`), a point mate's rotation and a value
-/// naming no mate beside a mate (`mate_no_chart`), and a bundle with no
-/// mate that leaves a freedom unwritten (`mate_unpinned`).
+/// A bundle is written whole (`Doc.place`, `Doc.set_constraints`,
+/// `Placed`); the door refuses a freedom the mates do not leave, or
+/// one written twice (`mate_overconstrained`), a slide beside a ball
+/// and a direction (`mate_no_chart`), and a bundle that leaves a
+/// freedom unwritten (`mate_unpinned`).
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
 pub(crate) struct MateValue(pub(crate) d::Value<d::Formula>);
 
-/// **The mate a value names**: its id, or its address.
-#[derive(FromPyObject)]
-pub(crate) enum MateIdArg {
-    /// An address: its id is read.
-    Ref(MateRef),
-    /// An id.
-    Id(ConstraintId),
+/// The id a bundle written whole holds its entry at `at` under until
+/// its write mints one.
+fn placeholder(at: u32) -> d::ConstraintId {
+    d::ConstraintId::placeholder(at.saturating_add(1))
 }
 
-impl MateIdArg {
-    fn id(&self) -> d::ConstraintId {
-        match self {
-            Self::Ref(r) => r.0.id,
-            Self::Id(id) => id.0,
-        }
+/// **One entry of a bundle as Python writes it**: a mate, or a value.
+#[derive(FromPyObject, Clone)]
+pub(crate) enum ConstraintArg {
+    /// A mate.
+    Mate(Mate),
+    /// A value.
+    Value(MateValue),
+}
+
+/// **A bundle as Python writes it**: a sequence of mates and values,
+/// or a `Placed`, the bundle its constructor wrote.
+#[derive(FromPyObject, Clone)]
+pub(crate) enum BundleArg {
+    /// A bundle its constructor wrote.
+    Placed(Placed),
+    /// Mates and values, in order.
+    Entries(Vec<ConstraintArg>),
+}
+
+/// **A bundle as Python writes it**, each entry under the id of its
+/// position (`ConstraintId::placeholder`), which the edit writing it
+/// mints.
+pub(crate) fn bundle(entries: BundleArg) -> Vec<d::Constraint<d::Formula>> {
+    match entries {
+        BundleArg::Placed(placed) => placed.0.bundle(),
+        BundleArg::Entries(entries) => (0..)
+            .zip(entries)
+            .map(|(at, entry)| match entry {
+                ConstraintArg::Mate(mate) => d::Constraint::of_mate(placeholder(at), mate.0),
+                ConstraintArg::Value(value) => d::Constraint::of_value(placeholder(at), value.0),
+            })
+            .collect(),
     }
 }
 
 impl MateValue {
-    /// The value `by` on `coord` of `mate`, `by` read at the
-    /// freedom's dimension.
-    pub(crate) fn of(
-        py: Python<'_>,
-        mate: Option<d::ConstraintId>,
-        coord: d::Coord,
-        by: &super::expr::SlotArg,
-    ) -> PyResult<Self> {
+    /// The value `by` on `coord`, `by` read at the freedom's dimension.
+    pub(crate) fn of(py: Python<'_>, coord: d::Coord, by: &super::expr::SlotArg) -> PyResult<Self> {
         let by = super::pose::scalar_at(py, coord.dimension(), by, coord.name())?;
-        Ok(Self(d::Value { mate, coord, by }))
+        Ok(Self(d::Value { coord, by }))
     }
 }
 
 #[pymethods]
 impl MateValue {
     #[new]
-    fn new(
-        py: Python<'_>,
-        mate: Option<MateIdArg>,
-        coord: &Coord,
-        by: super::expr::SlotArg,
-    ) -> PyResult<Self> {
-        Self::of(py, mate.map(|m| m.id()), coord.0, &by)
-    }
-
-    /// The id of the mate whose freedom it sets, `None` for the target
-    /// space's own axes.
-    #[getter]
-    fn mate(&self) -> Option<ConstraintId> {
-        self.0.mate.map(ConstraintId)
+    fn new(py: Python<'_>, coord: &Coord, by: super::expr::SlotArg) -> PyResult<Self> {
+        Self::of(py, coord.0, &by)
     }
 
     /// Which freedom.
@@ -459,144 +288,121 @@ impl MateValue {
     }
 
     fn __repr__(&self) -> String {
-        let mate = self
-            .0
-            .mate
-            .map_or_else(|| "None".to_owned(), |mate| mate.to_string());
         format!(
-            "MateValue({mate}, {}, {})",
+            "MateValue({}, {})",
             Coord(self.0.coord).__repr__(),
             self.0.by
         )
     }
 }
 
-/// **What a placement gesture wrote** (`Doc.place_at`, `Doc.place`):
-/// the placement, its mate and its values, and how the copy was placed
-/// — `by == "identity"`, the identity bundle, no mate and the constant
-/// `0` on every freedom; `by == "planar_face"`, a plane mate on a
-/// planar face of the copy to
-/// the plane it lies in at the pose, and the three values (slides
-/// along `x` and `y`, and the spin) that put it there; `by == "axis"`,
-/// an axis mate on a full revolve's or ring's own axis and its two
-/// values; or `by == "pin"`, a copy with no planar face pinned over a
-/// frame read off its geometry, with no freedom left to set.
-#[pyclass(frozen, module = "pncad", skip_from_py_object)]
+/// **A placement's bundle, as its author wrote it** — the one
+/// constructor of a bundle: its mates, then the values written, then
+/// the constant `0` on each freedom the mates leave that no value
+/// names (a slide along each axis the mates leave and the spin about
+/// the mated direction, or, where no direction is fixed, the chain's
+/// missing turns about `x`, `y` and `z` until it turns three times).
+/// It reads no geometry and writes no number its author did not, so a
+/// quarter turn written `Formula.turn_over(4)` is one.
+///
+/// `Placed.identity()` is the identity bundle, no mate and the
+/// constant `0` on every freedom, which an instance and a `Doc.place`
+/// with no constraints are written; `Placed.unmated(values)` a bundle
+/// with no mate; `Placed.of(doc, mates, values)` one with mates, the
+/// freedoms they leave read off their kinds in `doc`'s recipe, nothing
+/// evaluated. A `Placed` is passed where a bundle is (`Doc.place`,
+/// `Doc.set_constraints`), or read as its entries (`bundle()`).
+#[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
-pub(crate) struct Placed {
-    pub(crate) placement: NodeId,
-    pub(crate) mate: Option<MateRef>,
-    pub(crate) values: Vec<MateRef>,
-    pub(crate) by: d::PlacedBy,
-}
+pub(crate) struct Placed(pub(crate) d::Placed);
 
 #[pymethods]
 impl Placed {
-    /// The placement.
-    #[getter]
-    fn placement(&self) -> NodeId {
-        self.placement
+    /// The identity bundle.
+    #[staticmethod]
+    fn identity() -> Self {
+        Self(d::Placed::identity())
     }
 
-    /// The mate's address, `None` for the identity bundle.
-    #[getter]
-    fn mate(&self) -> Option<MateRef> {
-        self.mate
+    /// A bundle with no mate: `values`, then the constant `0` on each
+    /// freedom of the target space's axes they leave unnamed.
+    #[staticmethod]
+    fn unmated(values: Vec<MateValue>) -> Self {
+        Self(d::Placed::unmated(
+            values.into_iter().map(|v| (v.0.coord, v.0.by)).collect(),
+        ))
     }
 
-    /// The values' addresses: the three slides and three spins of the
-    /// identity bundle; slide `x`, slide `y`, spin for a planar face;
-    /// the axis mate's two for an axis; empty for a pin.
-    #[getter]
-    fn values(&self) -> Vec<MateRef> {
-        self.values.clone()
+    /// `mates`, then `values`, then the constant `0` on each freedom
+    /// the mates leave that no value names, read off the mates' kinds
+    /// in `doc`'s recipe.
+    #[staticmethod]
+    fn of(doc: &super::doc::Doc, mates: Vec<Mate>, values: Vec<MateValue>) -> Self {
+        Self(d::Placed::of(
+            &doc.inner,
+            mates.into_iter().map(|m| m.0).collect(),
+            values.into_iter().map(|v| (v.0.coord, v.0.by)).collect(),
+        ))
     }
 
-    /// `"identity"`, `"planar_face"`, `"axis"` or `"pin"`.
+    /// The mates, in order.
     #[getter]
-    fn by(&self) -> &'static str {
-        placed_by_tag(self.by)
+    fn mates(&self) -> Vec<Mate> {
+        self.0.mates.iter().cloned().map(Mate).collect()
+    }
+
+    /// The values, the author's first in the order written, then the
+    /// constant `0` on each freedom left unnamed.
+    #[getter]
+    fn values(&self) -> Vec<MateValue> {
+        self.0
+            .values
+            .iter()
+            .map(|(coord, by)| {
+                MateValue(d::Value {
+                    coord: *coord,
+                    by: by.clone(),
+                })
+            })
+            .collect()
+    }
+
+    /// The bundle as its entries: each mate, then each value.
+    fn bundle(&self, py: Python<'_>) -> PyResult<Vec<Py<PyAny>>> {
+        let mates = self
+            .0
+            .mates
+            .iter()
+            .map(|m| Ok(Py::new(py, Mate(m.clone()))?.into_any()));
+        let values = self
+            .values()
+            .into_iter()
+            .map(|v| Ok(Py::new(py, v)?.into_any()));
+        mates.chain(values).collect()
+    }
+
+    /// Bit-exact equality: the same mates and values, in order.
+    fn __eq__(&self, other: &Self) -> bool {
+        self.0.mates.len() == other.0.mates.len()
+            && self
+                .0
+                .mates
+                .iter()
+                .zip(&other.0.mates)
+                .all(|(a, b)| a.bit_eq(b))
+            && self.0.values == other.0.values
     }
 
     fn __repr__(&self) -> String {
         format!(
-            "Placed(placement={}, by={:?})",
-            self.placement.0.full(),
-            placed_by_tag(self.by)
+            "Placed({} mate(s), {} value(s))",
+            self.0.mates.len(),
+            self.0.values.len()
         )
     }
 }
 
 // ---- The admission table ----
-
-/// **How far a contact class gets in v1**, as a value both enforcing
-/// doors read.
-///
-/// The two doors want different things of a class: the solve needs a
-/// coset the alignment table can fold, and the assembly gate's mint
-/// needs a kernel record type that can carry the declaration at rest.
-/// A class can satisfy the first and not the second — which is why a
-/// tool asks this table BEFORE committing an edit rather than
-/// discovering the refusal after it lands.
-#[pyclass(frozen, module = "pncad", skip_from_py_object)]
-#[derive(Clone)]
-pub(crate) struct ClassAdmission(d::ClassAdmission);
-
-#[pymethods]
-impl ClassAdmission {
-    /// The stable tag: `mints`, `no_at_rest_record` or
-    /// `not_admitted`, the three the stub lists for this attribute.
-    // The map is `crate::tags::class_admission_tag`, whose words
-    // `TAG_INVENTORY` pins.
-    #[getter]
-    fn variant(&self) -> &'static str {
-        class_admission_tag(&self.0)
-    }
-
-    /// Whether both doors admit the class: the solve folds it AND the
-    /// gate mints it into the product's record set.
-    #[getter]
-    fn mints(&self) -> bool {
-        matches!(self.0, d::ClassAdmission::Mints)
-    }
-
-    /// Whether the SOLVE admits it — `mints` or `no_at_rest_record`.
-    /// A class the solve refuses never reaches the gate at all.
-    #[getter]
-    fn solves(&self) -> bool {
-        !matches!(self.0, d::ClassAdmission::NotAdmitted)
-    }
-
-    /// Why the assembly gate carries nothing at rest for this class,
-    /// in the class's own terms. Present on every arm — the deferral
-    /// sentence for `not_admitted`, the table's own reason for
-    /// `no_at_rest_record`, and `None` for `mints`, which carries one.
-    #[getter]
-    fn why(&self) -> Option<&'static str> {
-        match self.0 {
-            d::ClassAdmission::Mints => None,
-            d::ClassAdmission::NoAtRestRecord { why } => Some(why),
-            d::ClassAdmission::NotAdmitted => Some(d::CLASS_DEFERRAL),
-        }
-    }
-
-    fn __repr__(&self) -> String {
-        format!("ClassAdmission({:?})", self.variant())
-    }
-}
-
-/// How far `class_` gets in v1 — the table, read.
-///
-/// The whole class policy as one value, so a mate-authoring tool can
-/// offer only what the vocabulary can execute. Nothing is restated
-/// here: `assemble` and `solve_document` read this same table.
-#[pyfunction]
-pub(crate) fn class_admission(
-    py: Python<'_>,
-    class_: super::contact::ContactClass,
-) -> PyResult<ClassAdmission> {
-    Ok(ClassAdmission(d::class_admission(class_.to_kernel(py)?)))
-}
 
 // ---- The solve's read side ----
 
@@ -686,8 +492,7 @@ impl MateRef {
 /// arm does not carry it: `mate`, `side`, `error`, `instance`,
 /// `shape`, `placement`, `constraints`, `free`, `what`,
 /// `expected_document`, `found_document`, `inner_variant`, `on_kind`,
-/// `to_kind`, `value_ref`, `named`, `coord`, `mate_kind`, `why`,
-/// `cause`. The human
+/// `to_kind`, `value_ref`, `why`, `cause`. The human
 /// message is the kernel's own prose, available as `str(fault)`; the
 /// refusal it carries and does not quote is `cause`.
 ///
@@ -791,8 +596,8 @@ impl MateFault {
     }
 
     /// The placement a bundle's fault is about: the one a constraint
-    /// over-constrains (`mate_overconstrained`), or whose constraints
-    /// target different copies (`mate_targets_differ`).
+    /// over-constrains (`mate_overconstrained`), or whose bundle leaves
+    /// a freedom unwritten (`mate_unpinned`).
     #[getter]
     fn placement(&self) -> Option<NodeId> {
         self.payload().placement.map(NodeId)
@@ -800,8 +605,7 @@ impl MateFault {
 
     /// The constraints of `placement` the fault names, by address: on
     /// `mate_overconstrained` each whose removal leaves the bundle's
-    /// codimension unchanged, on `mate_targets_differ` the bundle's
-    /// constraints whose targets differ.
+    /// codimension unchanged.
     #[getter]
     fn constraints(&self) -> Option<Vec<MateRef>> {
         let payload = self.payload();
@@ -835,36 +639,14 @@ impl MateFault {
     }
 
     /// **The value a value's fault is about**, by its address
-    /// (`mate_value_names_no_mate`, `mate_not_a_freedom`,
-    /// `mate_no_chart`).
+    /// (`mate_no_chart`).
     #[getter]
     fn value_ref(&self) -> Option<MateRef> {
         self.payload().value_ref.map(MateRef)
     }
 
-    /// The id a value names that is no mate of its bundle
-    /// (`mate_value_names_no_mate`).
-    #[getter]
-    fn named(&self) -> Option<ConstraintId> {
-        self.payload().named.map(ConstraintId)
-    }
-
-    /// The freedom a value sets that its mate does not leave
-    /// (`mate_not_a_freedom`).
-    #[getter]
-    fn coord(&self) -> Option<Coord> {
-        self.payload().coord.map(Coord)
-    }
-
-    /// The kind of the mate whose kind fixes that freedom
-    /// (`mate_not_a_freedom`).
-    #[getter]
-    fn mate_kind(&self) -> Option<&'static str> {
-        self.payload().mate_kind.map(crate::errors::var_kind_tag)
-    }
-
     /// Why a value's freedom has no chart (`mate_no_chart`):
-    /// `"point_rotation"`, `"two_bodies"` or `"slide_turns_a_ball"`.
+    /// `"slide_turns_a_ball"`.
     #[getter]
     fn why(&self) -> Option<&'static str> {
         self.payload().why.map(no_chart_why_tag)
@@ -890,9 +672,8 @@ impl MateFault {
         self.payload().found_document.map(|id| id.hex())
     }
 
-    /// **The nested refusal's own word**: the lever refusal's, or the
-    /// world read's (`mate_world_read`). `None` on an arm with no
-    /// nested refusal.
+    /// **The nested refusal's own word**: the lever refusal's. `None`
+    /// on an arm with no nested refusal.
     #[getter]
     fn inner_variant(&self) -> Option<&'static str> {
         self.payload().inner_variant
@@ -954,10 +735,11 @@ pub(crate) fn mate_err(py: Python<'_>, fault: &d::MateFault, voice: &Voice) -> P
 /// [`d::SolvedPoses::placement`]'s refusal, raised: the solve's own
 /// fault as `MateError`, spoken from `solved`, the document the solve
 /// recorded it over; a placement that did not evaluate for a reason
-/// not its bundle's as its own standing in `evaluation`; and a loose
-/// copy as the `EvaluationError` a node reading its space beside the
-/// world's carries (`space_mismatch`), spoken from `doc`, the document
-/// the placement door read it off.
+/// not its bundle's as its own standing in `evaluation`; and a copy
+/// placed into a space other than the world as the `EvaluationError` a
+/// node reading that space beside the world's carries
+/// (`space_mismatch`), spoken from `doc`, the document the placement
+/// door read it off.
 fn pose_err(
     py: Python<'_>,
     placement: NodeId,
@@ -973,9 +755,9 @@ fn pose_err(
         d::PoseRefusal::Unevaluated { .. } => {
             return super::value::standing_err(py, solved, evaluation, placement);
         }
-        d::PoseRefusal::Loose { root, .. } => d::NodeErrorKind::SpaceMismatch {
-            a: d::Space::Loose { root: *root },
-            b: d::Space::World,
+        d::PoseRefusal::OtherSpace { space, .. } => d::NodeErrorKind::SpaceMismatch {
+            a: *space,
+            b: d::VarId::WORLD,
         },
     };
     let said = d::Said(refusal, d::Speaker::of(doc)).to_string();
@@ -1008,18 +790,17 @@ impl SolvedPoses {
             .map(|fault| MateFault(fault, Voice::Doc(Arc::clone(&self.1))))
     }
 
-    /// **The placement's solved pose in its space**: where its copy
-    /// sits in the world's coordinates for a copy pinned, transitively,
-    /// against the world, and in a loose copy's own coordinates for one
-    /// pinned to it. `None` when the solve placed nothing there: a node
+    /// **The placement's solved pose in its target space**: where its
+    /// copy sits in that space's coordinates — the world's for a copy
+    /// placed into the world. `None` when the solve placed nothing there: a node
     /// that is no placement, or a placement whose bundle refused.
     fn pose(&self, placement: &NodeId) -> Option<Frame> {
         self.0.relative(placement.0).map(Frame)
     }
 
     /// **The placement's world pose, at the document's own
-    /// parameters**: its pose in its space, for a copy pinned,
-    /// transitively, against the world.
+    /// parameters**: its pose in its target space, for a copy placed
+    /// into the world.
     ///
     /// A copy pinned to the world at a pose returns that pose, to the
     /// rounding of the values its pin is computed in.
@@ -1033,8 +814,8 @@ impl SolvedPoses {
     ///
     /// Raises `MateError` when the placement's bundle did not solve,
     /// and `EvaluationError` — kind `space_mismatch` — when the copy is
-    /// loose, or pinned to a loose copy: it lives in a space of its own
-    /// and has no world pose.
+    /// placed into a space other than the world, and so has no world
+    /// pose.
     fn placement(
         &self,
         py: Python<'_>,
@@ -1143,9 +924,12 @@ impl Maintenance {
     #[getter]
     fn node(&self) -> Option<NodeId> {
         match &self.0 {
-            d::Maintenance::Strand { node, .. } | d::Maintenance::StrandedRead { node, .. } => {
-                Some(NodeId(node.id()))
-            }
+            d::Maintenance::Strand { node, .. }
+            | d::Maintenance::StrandedRead { node, .. }
+            | d::Maintenance::StrandedSpace { node, .. }
+            | d::Maintenance::ValueDropped {
+                placement: node, ..
+            } => Some(NodeId(node.id())),
             d::Maintenance::StrandedSelection { readers, .. } => {
                 readers.first().map(|reader| NodeId(reader.id()))
             }
@@ -1171,9 +955,10 @@ impl Maintenance {
             | d::Maintenance::StrandedAppearance { name, .. } => {
                 super::doc::name_text(py, name.name()).map(Some)
             }
-            d::Maintenance::StrandedRead { .. } | d::Maintenance::AnonymousVarRemoved { .. } => {
-                Ok(None)
-            }
+            d::Maintenance::StrandedRead { .. }
+            | d::Maintenance::StrandedSpace { .. }
+            | d::Maintenance::ValueDropped { .. }
+            | d::Maintenance::AnonymousVarRemoved { .. } => Ok(None),
         }
     }
 
@@ -1185,7 +970,6 @@ impl Maintenance {
 /// Register the mate surface on the module.
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<MateSide>()?;
-    m.add_class::<WorldRead>()?;
     m.add_class::<Coord>()?;
     m.add_class::<MateValue>()?;
     m.add_class::<Placed>()?;
@@ -1194,14 +978,10 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Mate>()?;
     m.add_class::<MateFault>()?;
     m.add_class::<SolvedPoses>()?;
-    m.add_class::<ClassAdmission>()?;
     m.add_class::<Maintenance>()?;
     m.add_function(wrap_pyfunction!(solve_document, m)?)?;
     m.add_function(wrap_pyfunction!(relative_freedom_components, m)?)?;
-    m.add_function(wrap_pyfunction!(class_admission, m)?)?;
-    m.add("CLASS_DEFERRAL", d::CLASS_DEFERRAL)?;
     m.add("OVERCONSTRAINED_RECOURSE", d::OVERCONSTRAINED_RECOURSE)?;
     m.add("UNPINNED_RECOURSE", d::UNPINNED_RECOURSE)?;
-    m.add("NO_AT_REST_RECORD_RECOURSE", d::NO_AT_REST_RECORD_RECOURSE)?;
     Ok(())
 }

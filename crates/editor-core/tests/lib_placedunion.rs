@@ -169,11 +169,19 @@ fn the_fin_group_equals_the_placement_union_chain() {
     let ev_group = eval::<f64>(&grouped.doc);
     assert!(failures(&ev_chain).is_empty(), "{:?}", failures(&ev_chain));
     assert!(failures(&ev_group).is_empty(), "{:?}", failures(&ev_group));
-    let a = body_of(&ev_chain, acc.expect("the chain's root"));
-    let b = body_of(&ev_group, group);
+    let a = topo::test_support::finished(
+        "a",
+        topo::Body::clone(body_of(&ev_chain, acc.expect("the chain's root"))),
+        Tol::witness(),
+    );
+    let b = topo::test_support::finished(
+        "b",
+        topo::Body::clone(body_of(&ev_group, group)),
+        Tol::witness(),
+    );
     let (ma, mb) = (
-        topo::mass_properties(a, Tol::witness()).expect("chain mass"),
-        topo::mass_properties(b, Tol::witness()).expect("group mass"),
+        topo::mass_properties(&a, Tol::witness()).expect("chain mass"),
+        topo::mass_properties(&b, Tol::witness()).expect("group mass"),
     );
     assert_eq!(ma.volume, mb.volume, "same volume, bit for bit");
     assert_eq!(ma.surface_area, mb.surface_area, "same area, bit for bit");
@@ -737,11 +745,24 @@ fn placement_frames_are_held_to_the_group_frame_bar() {
     mirror.columns[0] = [-1.0, 0.0, 0.0];
     assert!(matches!(
         with(mirror).placement_rule_fault(Tol::witness()),
-        Some(PlacementRuleFault::ImproperFrame { index: 0, .. })
+        Some(PlacementRuleFault::NonRigidFrame {
+            index: 0,
+            check: "transform_rigid_det_plus_one"
+        })
     ));
     assert!(matches!(
-        apply(&doc, &DocEdit::InsertNode { node: Box::new(with(mirror)), fresh: Vec::new() }, Tol::witness()),
-        Err(EditError::ImproperPlacement { determinant, .. }) if determinant < 0.0
+        apply(
+            &doc,
+            &DocEdit::InsertNode {
+                node: Box::new(with(mirror)),
+                fresh: Vec::new()
+            },
+            Tol::witness()
+        ),
+        Err(EditError::NonRigidPlacement {
+            check: "transform_rigid_det_plus_one",
+            ..
+        })
     ));
 
     // A proper frame that scales an axis: refused at the edit door by
@@ -884,11 +905,19 @@ fn the_rotated_explicit_group_equals_the_placement_union_chain() {
     let ev_c = eval::<f64>(&cdoc);
     assert!(failures(&ev_g).is_empty(), "{:?}", failures(&ev_g));
     assert!(failures(&ev_c).is_empty(), "{:?}", failures(&ev_c));
-    let g = body_of(&ev_g, group);
-    let c = body_of(&ev_c, acc.expect("the chain's root"));
+    let g = topo::test_support::finished(
+        "g",
+        topo::Body::clone(body_of(&ev_g, group)),
+        Tol::witness(),
+    );
+    let c = topo::test_support::finished(
+        "c",
+        topo::Body::clone(body_of(&ev_c, acc.expect("the chain's root"))),
+        Tol::witness(),
+    );
     let (mg, mc) = (
-        topo::mass_properties(g, Tol::witness()).expect("group mass"),
-        topo::mass_properties(c, Tol::witness()).expect("chain mass"),
+        topo::mass_properties(&g, Tol::witness()).expect("group mass"),
+        topo::mass_properties(&c, Tol::witness()).expect("chain mass"),
     );
     assert_eq!(mg.volume, mc.volume, "volume, bit for bit");
     assert_eq!(mg.surface_area, mc.surface_area, "area, bit for bit");
@@ -946,7 +975,6 @@ fn the_typed_insert_answers_to_the_placement_backstops() {
                 want,
                 EditError::EmptyPlacementList { .. }
                     | EditError::NonFinitePlacement { .. }
-                    | EditError::ImproperPlacement { .. }
                     | EditError::NonRigidPlacement { .. }
             ),
             "the premise: `apply` refuses {what} at the placement backstop: {want:?}"

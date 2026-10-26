@@ -13,7 +13,7 @@ use editor_core::{
 use fixture::{insert, len, on_frame};
 use geom_core::Tol;
 use geom_core::{Bounds, Interval};
-use topo::{mass_properties, validate, validate_closed};
+use topo::{validate, validate_closed};
 
 #[test]
 fn interval_evaluation_of_a_boolean_doc_brackets_the_oracle() {
@@ -54,7 +54,7 @@ fn interval_evaluation_of_a_boolean_doc_brackets_the_oracle() {
         doc,
         cube,
         pip,
-        &fixture::frame_at([1.0, 1.0, 2.0], [1.0, 0.0, 0.0], [0.0, -1.0, 0.0]),
+        &fixture::axes_at([1.0, 1.0, 2.0], [1.0, 0.0, 0.0], [0.0, -1.0, 0.0]),
     );
     // The pip's outer cap lies ON the cube's top; the subtract glues it.
     let (doc, sub) = insert(
@@ -81,7 +81,16 @@ fn interval_evaluation_of_a_boolean_doc_brackets_the_oracle() {
     };
     assert_eq!(validate(body), Ok(()));
     assert_eq!(validate_closed(body), Ok(()));
-    let vol = mass_properties(body, Tol::witness()).unwrap().volume;
+    let vol = topo::mass_properties(
+        &topo::test_support::finished(
+            "the measured body",
+            topo::Body::clone(&**body),
+            Tol::witness(),
+        ),
+        Tol::witness(),
+    )
+    .unwrap()
+    .volume;
     let oracle = 8.0 - 0.25 * 0.25 * 0.125;
     assert!(
         vol.lo() <= oracle && oracle <= vol.hi(),
@@ -112,7 +121,16 @@ fn the_die_evaluates_at_interval_and_brackets_the_oracle() {
     };
     assert_eq!(validate(body), Ok(()));
     assert_eq!(validate_closed(body), Ok(()));
-    let vol = mass_properties(body, Tol::witness()).unwrap().volume;
+    let vol = topo::mass_properties(
+        &topo::test_support::finished(
+            "the measured body",
+            topo::Body::clone(&**body),
+            Tol::witness(),
+        ),
+        Tol::witness(),
+    )
+    .unwrap()
+    .volume;
     assert!(
         vol.lo() <= fixture::DIE_VOLUME && fixture::DIE_VOLUME <= vol.hi(),
         "enclosure [{}, {}] must bracket the oracle",

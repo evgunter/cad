@@ -2,10 +2,11 @@
 id: parse-apply-refuses-its-own-arity-table-disagreeing-as-wrong-arity
 kind: issue
 title: parse.rs apply refuses an arity-table disagreement as WrongArity with a sentinel count (0, usize::MAX)
-status: open
+status: closed
 opened: 2026-10-20
 priority: P3
 cost: E
+closed: 2026-10-22
 ---
 
 
@@ -35,3 +36,12 @@ Row 0 first: an arity table whose entries carry the constructor
 (`fn(Formula) -> ..` for one argument, `fn(Formula, Formula) -> ..`
 for two) makes both branches unrepresentable. Failing that, each
 becomes an `unreachable!` naming the table entry and the count.
+
+## Closed
+
+Closed 2026-10-22 (`intent/hygiene-batch`), by row 0: the vocabulary
+table (`parse.rs`, `function`) carries each function's constructor as
+`Function::Unary` or `Function::Binary`, so its arity is the
+constructor's. `apply` matches the constructor against the arguments
+and has one refusal left, `WrongArity` with the input's own count; the
+two kernel-bug branches are no longer representable.

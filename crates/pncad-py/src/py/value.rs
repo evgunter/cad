@@ -488,24 +488,19 @@ impl Body {
 
 #[pymethods]
 impl Body {
-    /// Volume, area, and their certified pads — a certified
-    /// quadrature from round 0 over the whole body.
+    /// Volume, area, and their certified pads.
     ///
-    /// **After a tier-3 gate this is a SECOND one.** Check 7 is itself
-    /// a certified quadrature over the same body at the same band, so
-    /// `validate_geometric()` then `mass_properties()` pays for the
-    /// measurement twice; [`Self::validate_geometric_measured`] is the
-    /// one-quadrature spelling of that pair. This door stays the right
-    /// one for a body that is not being gated here — measuring is not
-    /// validating, and asking for a volume does not imply a caller
-    /// wants tier 3 run.
+    /// **The measurement reads a finished body** (Ev's decision on PR
+    /// 4822), so this is [`Self::validate_geometric_measured`]: tier 3
+    /// gates the body, and its own certified quadrature, continued to
+    /// the reporting target, is the measurement — one quadrature, the
+    /// same bits the typed door reports over the finished body. A body
+    /// the gate refuses raises the gate's `ValidationError` (door
+    /// `validate_geometric`) rather than being measured; a body the gate
+    /// admits whose number the schedule cannot reach raises the
+    /// measurement's refusal with its bracket, as that door does.
     fn mass_properties(&self, py: Python<'_>) -> PyResult<MassProperties> {
-        let tol = Tol::witness();
-        topo::mass_properties(&self.inner, tol)
-            .map(MassProperties::from)
-            // No bracket: this door refuses with no certificate in
-            // hand, so it has none to offer and must not appear to.
-            .map_err(|err| measurement_err(py, &err, Vec::new()))
+        self.validate_geometric_measured(py)
     }
 
     /// Full validation. Raises `ValidationError` listing the failures.
@@ -552,15 +547,13 @@ impl Body {
     /// **Tier 3 and the number it already computed, in ONE certified
     /// quadrature** — the spelling that pays once.
     ///
-    /// `validate_geometric()` then `mass_properties()` is the natural
-    /// pair and it runs the certified quadrature TWICE over the same
-    /// body at the same band: tier 3's +V check IS a certified
-    /// quadrature, and the reporting door starts another one from
-    /// round 0. This door keeps the certificate the gate decided the
-    /// sign on and continues THAT quadrature to the reporting target,
-    /// so the rounds the gate already paid for are not paid again. The
-    /// `MassProperties` it answers is the pair's second call bit for
-    /// bit, in all four fields.
+    /// Tier 3's +V check IS a certified quadrature, and a measurement
+    /// after it would start another from round 0. This door keeps the
+    /// certificate the gate decided the sign on and continues THAT
+    /// quadrature to the reporting target, so the rounds the gate
+    /// already paid for are not paid again; the `MassProperties` it
+    /// answers is the typed door's over the finished body, bit for bit,
+    /// in all four fields. `mass_properties()` is this door.
     ///
     /// **Why a door and not a certificate.** The Rust certificate
     /// BORROWS the body it was derived from, so it cannot be handed
@@ -1773,26 +1766,6 @@ impl Evaluation {
             .map_err(|err| export_err(py, *node, &err, &self.doc))
     }
 
-    /// **Every loose copy**, by its placement, in id order: a
-    /// placement whose bundle pins less than its copy needs, so it
-    /// lives in a space of its own. The product gathers only the
-    /// world's space, and nothing in one space is compared with
-    /// another's.
-    #[getter]
-    fn loose(&self) -> Vec<NodeId> {
-        self.inner.loose_roots().into_iter().map(NodeId).collect()
-    }
-
-    /// **The space `node`'s value lives in**: `"world"`, or the loose
-    /// copy whose space it is, by its placement. A node that denotes no
-    /// geometry answers `"world"`.
-    fn space(&self, py: Python<'_>, node: &NodeId) -> PyResult<Py<PyAny>> {
-        match self.inner.space(node.0) {
-            d::Space::World => Ok(PyString::new(py, "world").unbind().into_any()),
-            d::Space::Loose { root } => Ok(Py::new(py, NodeId(root))?.into_any()),
-        }
-    }
-
     fn __repr__(&self) -> String {
         format!("Evaluation({} nodes)", self.inner.order.len())
     }
@@ -1800,9 +1773,8 @@ impl Evaluation {
 
 /// Raise `ExportError` mirroring the Rust door's refusal: `variant`
 /// is the arm's stable tag, `node` rides along, a poisoning adds
-/// `through`, a wrong-kind value adds `kind`, and a loose export adds
-/// `copies` — every loose copy the export would have to write, by its
-/// placement. The message is the door's own
+/// `through`, and a wrong-kind value adds `kind`. The message is the
+/// door's own
 /// sentence, its nodes spoken from the evaluated document.
 fn export_err(
     py: Python<'_>,
@@ -1825,7 +1797,6 @@ fn export_err(
         ("node", node_obj),
         ("through", py.None().into_any()),
         ("kind", py.None().into_any()),
-        ("copies", py.None().into_any()),
     ];
     match err {
         E::Standing(standing) => {
@@ -1840,13 +1811,6 @@ fn export_err(
         // here. The arm is spelled out because the match
         // is exhaustive on purpose — the tripwire, not a wildcard.
         E::EmptyBoolean { .. } | E::Step(_) | E::Product(_) => {}
-        E::Loose { copies } => {
-            let listed: Vec<NodeId> = copies.iter().copied().map(NodeId).collect();
-            match listed.into_pyobject(py) {
-                Ok(bound) => fields[4] = ("copies", bound.unbind().into_any()),
-                Err(failed) => return failed,
-            }
-        }
     }
     typed_err(py, ErrorClass::Export, err.spoken(doc), &fields)
 }
@@ -2111,9 +2075,9 @@ fn census(c: pncad::step_import::FaceCensus) -> FaceCensus {
 /// and decided the body's orientation invariant on, handed back rather
 /// than dropped — **not a second computation**. A caller that reads it
 /// measures the imported body ONCE; a caller that calls
-/// `report.body.mass_properties()` runs the certified quadrature a
-/// second time over the same body at the same band and gets the same
-/// four fields bit for bit.
+/// `report.body.mass_properties()` gates the body again and runs its
+/// certified quadrature over the same body at the same band, and gets
+/// the same four fields bit for bit.
 ///
 /// The three record lists are the adoption's own report, "as data,
 /// never silently": `normalizations` is every boundary graph the
@@ -2202,8 +2166,8 @@ impl ImportReport {
 /// journey — import a file, then ask what it encloses — measure the
 /// solid once. The importer's gate has already run the certified
 /// quadrature to decide the body's orientation invariant, so
-/// `enclosure` is that measurement handed back and
-/// `body.mass_properties()` is a second one over the same body.
+/// `enclosure` is that measurement handed back, where
+/// `body.mass_properties()` gates and measures the body over again.
 ///
 /// `eps_in` overrides the file's declared
 /// `UNCERTAINTY_MEASURE_WITH_UNIT` as the import's input tolerance —

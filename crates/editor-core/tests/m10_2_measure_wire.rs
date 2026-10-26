@@ -53,6 +53,16 @@ fn two_named_nodes(doc: &ProfileDoc) -> (ProfileDoc, [RecipeNodeId; 2]) {
     (doc, [blocks[0], blocks[1]])
 }
 
+/// [`two_named_nodes`]' blocks' end caps, read in one space: the
+/// second block stands in the first's, as a measure's sites share one,
+/// and its cap is read at its copy.
+fn two_named_faces(doc: &ProfileDoc) -> (ProfileDoc, [SitedRef; 2]) {
+    let (doc, [a, b]) = two_named_nodes(doc);
+    let (doc, copy) = crate::fixture::stood_in(doc, b, a);
+    let at_copy = SitedRef::new(copy, name(b).name);
+    (doc, [name(a), at_copy])
+}
+
 fn name(node: RecipeNodeId) -> SitedRef {
     // Read at the minting node: these fixtures are about the WIRE, and
     // none of them places geometry.
@@ -93,8 +103,7 @@ fn every_form() -> ProfileDoc {
     // reason the other three are — this fixture IS the populated wire
     // golden for the primitive table, so a primitive absent from it
     // round-trips under no test at all.
-    let (doc, blocks) = two_named_nodes(&doc);
-    let refs = blocks.map(name);
+    let (doc, refs) = two_named_faces(&doc);
     let (mut doc, measured) = crate::fixture::measure(
         doc,
         &[
@@ -171,8 +180,7 @@ fn angular() -> ProfileDoc {
             .expect("a valid edit applies")
             .doc
     };
-    let (doc, blocks) = two_named_nodes(&doc);
-    let refs = blocks.map(name);
+    let (doc, refs) = two_named_faces(&doc);
     let (mut doc, measured) =
         crate::fixture::measure(doc, &[MeasurePrimitive::Angle { a: 0, b: 1 }], &refs);
     doc = push(

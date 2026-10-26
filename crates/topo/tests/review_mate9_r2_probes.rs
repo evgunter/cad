@@ -30,7 +30,7 @@
 //!
 //! 3. **`pair_region_verified` was unguarded.** Bypassing the entire
 //!    verified-interface half of the rung (Door 1
-//!    `contact_pair_verdict(Rest)` + Door 2 `declared_overlap`, MATE-8's
+//!    `rest_pair_verdict` + Door 2 `declared_overlap`, MATE-8's
 //!    witness rung included) left the whole topo suite AND the viewer
 //!    windmill story green at the frozen head. Probe 3 is the
 //!    conjunction control (a verified-but-remote pair backs nothing)
@@ -93,6 +93,19 @@ fn declared(body: &Body<f64>, pairs: &[(FaceKey, FaceKey)]) -> ContactRecords {
 
 fn errors(body: &Body<f64>, records: &ContactRecords) -> Vec<ValidationError> {
     match topo::validate_pseudomanifold(body, records, Tol::witness()) {
+        Ok(()) => Vec::new(),
+        Err(e) => e,
+    }
+}
+
+/// [`errors`] where no face pair can be confirmed: the structural twin
+/// holds no region door, so no pair is confirmed and every crossing on
+/// a seat's boundary is read through the crossing rung's screens, which
+/// the certified census does not reach once it confirms the seat's own
+/// pair, which answers for the touches of its boundary inside its
+/// overlap's closure (`[assertions]`).
+fn structural(body: &Body<f64>, records: &ContactRecords) -> Vec<ValidationError> {
+    match topo::validate_pseudomanifold_structural(body, records, Tol::witness()) {
         Ok(()) => Vec::new(),
         Err(e) => e,
     }
@@ -209,7 +222,7 @@ fn r2_the_undecided_arm_is_a_precondition_violation_not_an_epsilon_residue() {
 fn r2_the_side_question_is_order_free_and_never_duplicated() {
     let (body, post_top, post_side_x030, shelf_bottom, shelf_side_y030) = straddle_parts();
 
-    let perp_only = errors(
+    let perp_only = structural(
         &body,
         &declared(&body, &[(post_side_x030, shelf_side_y030)]),
     );
@@ -273,7 +286,7 @@ fn r2_the_side_question_is_order_free_and_never_duplicated() {
 /// **Probe 3 — the coverage row `pair_region_verified` does not have.**
 ///
 /// Replacing the whole `pair_region_verified(..)` call with `true` (the
-/// two doors, `contact_pair_verdict(Rest)` + `declared_overlap` with
+/// two doors, `rest_pair_verdict` + `declared_overlap` with
 /// MATE-8's witness rung, deleted) leaves `cargo test -p topo` at
 /// 445/445 and the viewer windmill story green — measured at this
 /// head. Nothing in the tree goes red when the verified-interface half
@@ -319,10 +332,12 @@ fn r2_an_unverified_opposed_pair_backs_no_crossing() {
     let far_top = fkeys.face(far.top_face).unwrap();
     let _ = body_base;
 
-    let bare = crossings(&errors(&body, &ContactRecords::default()));
     // The far post genuinely rests under the shelf, so declaring it is
     // honest; what it must NOT do is answer for the OTHER post's
-    // crossings.
+    // crossings. Those lie on the boundary of that post's own seat,
+    // which the census confirms whether or not it is recorded, so they
+    // are no finding with the far pair declared or without it.
+    let bare = crossings(&errors(&body, &ContactRecords::default()));
     let with = crossings(&errors(&body, &declared(&body, &[(far_top, shelf_b)])));
     assert_eq!(
         format!("{bare:?}"),
@@ -330,5 +345,5 @@ fn r2_an_unverified_opposed_pair_backs_no_crossing() {
         "a pair that does not hold the crossing points answers for \
          nothing about them"
     );
-    assert_eq!(bare.len(), 2, "{bare:?}");
+    assert!(bare.is_empty(), "{bare:?}");
 }

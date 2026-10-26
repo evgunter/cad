@@ -198,7 +198,7 @@ fn the_camera_contract_survives_random_operation_walks() {
 
     for walk in 0..walks {
         let aspect = rng.range(0.2, 5.0);
-        let mut camera = Camera::framing(&plate_bounds(), aspect).expect("the plate frames");
+        let mut camera = Camera::framing(Some(plate_bounds()), aspect).expect("the plate frames");
         assert_camera_contract(&camera, || {
             format!("walk {walk} step 0 ({})", fuzz::replay())
         });
@@ -228,7 +228,7 @@ fn the_camera_contract_survives_random_operation_walks() {
                     factor: rng.range(0.05, 20.0),
                 },
                 _ => CameraOp::Frame {
-                    bounds: plate_bounds(),
+                    extent: Some(plate_bounds()),
                     aspect: rng.range(0.2, 5.0),
                 },
             };
@@ -290,7 +290,7 @@ fn the_projection_carries_the_field_of_view_and_the_aspect() {
     for case in 0..cases {
         let aspect = rng.range(0.25, 4.0);
         let camera = camera::apply(
-            &Camera::framing(&plate_bounds(), aspect).expect("the plate frames"),
+            &Camera::framing(Some(plate_bounds()), aspect).expect("the plate frames"),
             &CameraOp::Orbit {
                 yaw: rng.range(-3.0, 3.0),
                 pitch: rng.range(-1.2, 1.2),
@@ -349,7 +349,7 @@ fn a_pan_moves_the_cursor_point_by_the_dragged_distance_on_both_axes() {
         };
         let aspect = size.aspect().expect("a viewport with area");
         let camera = camera::fold(
-            &Camera::framing(&plate_bounds(), aspect).expect("the plate frames"),
+            &Camera::framing(Some(plate_bounds()), aspect).expect("the plate frames"),
             &[
                 CameraOp::Orbit {
                     yaw: rng.range(-3.0, 3.0),
@@ -496,9 +496,9 @@ fn the_drawn_scene_is_the_declared_plate_with_the_declared_hole() {
 #[test]
 fn framing_contains_and_is_tight_across_realistic_aspects() {
     let mesh = built(1.0e-4);
-    let bounds = mesh.bounds();
+    let bounds = mesh.bounds().expect("the scene draws");
     for aspect in [0.1, 0.4, 0.75, 1.0, 4.0 / 3.0, 16.0 / 9.0, 3.0, 10.0] {
-        let camera = Camera::framing(&bounds, aspect).expect("the scene frames");
+        let camera = Camera::framing(Some(bounds), aspect).expect("the scene frames");
         let mut worst: f64 = 0.0;
         for corner in corners(&bounds) {
             let ndc = camera
@@ -531,7 +531,7 @@ fn framing_contains_and_is_tight_across_realistic_aspects() {
 fn framing_at_an_extreme_aspect_should_contain_or_refuse() {
     let bounds = plate_bounds();
     for aspect in [0.05, 0.02, 0.005] {
-        let Ok(camera) = Camera::framing(&bounds, aspect) else {
+        let Ok(camera) = Camera::framing(Some(bounds), aspect) else {
             continue; // refusing is the other acceptable answer
         };
         for corner in corners(&bounds) {
@@ -554,7 +554,7 @@ fn framing_at_an_extreme_aspect_should_contain_or_refuse() {
 /// from "kept going and returned the last".
 #[test]
 fn a_fold_returns_the_first_refusal_and_only_that_one() {
-    let camera = Camera::framing(&plate_bounds(), 1.5).expect("the plate frames");
+    let camera = Camera::framing(Some(plate_bounds()), 1.5).expect("the plate frames");
     let dolly = CameraOp::Dolly { factor: -1.0 };
     let nan_orbit = CameraOp::Orbit {
         yaw: f64::NAN,
@@ -606,25 +606,25 @@ fn the_layer_three_doors_refuse_typed_and_name_no_toolkit_type() {
     // If any of these gains an `egui`, `wgpu` or arena-key parameter,
     // this file stops compiling.
     let _apply: fn(&Camera, &CameraOp) -> Result<Camera, CameraOpError> = camera::apply;
-    let _framing: fn(&Aabb, f64) -> Result<Camera, CameraError> = Camera::framing;
+    let _framing: fn(Option<Aabb>, f64) -> Result<Camera, CameraError> = Camera::framing;
     let _map: fn(&InputMap, &ViewportEvent, ViewportSize, &Camera) -> Option<CameraOp> =
         InputMap::map;
 
-    let camera = Camera::framing(&plate_bounds(), 1.5).expect("the plate frames");
+    let camera = Camera::framing(Some(plate_bounds()), 1.5).expect("the plate frames");
     assert!(matches!(
-        Camera::framing(&plate_bounds(), 0.0),
+        Camera::framing(Some(plate_bounds()), 0.0),
         Err(CameraError::UnusableBounds)
     ));
     assert!(matches!(
         Camera::framing(
-            &Aabb {
+            Some(Aabb {
                 min_x: 1.0,
                 min_y: 1.0,
                 min_z: 1.0,
                 max_x: 0.0,
                 max_y: 0.0,
                 max_z: 0.0,
-            },
+            }),
             1.0
         ),
         Err(CameraError::UnusableBounds)
@@ -644,7 +644,7 @@ fn the_layer_three_doors_refuse_typed_and_name_no_toolkit_type() {
         camera::apply(
             &camera,
             &CameraOp::Frame {
-                bounds: plate_bounds(),
+                extent: Some(plate_bounds()),
                 aspect: f64::NAN
             }
         ),

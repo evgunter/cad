@@ -21,10 +21,9 @@
 //!   definition* — there is nothing for it to be inside of. (Stated,
 //!   because it is a definition and not a measurement.)
 //! - A face with several bounds: each ring is mapped into the face
-//!   surface's own (u, v) chart by the closed-form inverse of the
-//!   kernel's analytic parameterization ([`uv_of`] — the chart
-//!   conventions are `geom::Surface`'s, read off its own
-//!   `eval`), sampled into a chart polygon. The **outer** ring is the
+//!   surface's own (u, v) chart by the kernel's chart reading
+//!   ([`uv_of`], `geom::Surface::chart_point` at the file's band),
+//!   sampled into a chart polygon. The **outer** ring is the
 //!   one whose polygon contains every other ring's; the signed
 //!   (shoelace) area supplies the independent orientation signal, and
 //!   the outer ring's sign must OPPOSE every inner ring's — a genuine
@@ -50,7 +49,8 @@
 //! typed error, not a preference (`entities`' face reader).
 
 use geom::Surface;
-use geom_core::{Point2, Point3, Vec3};
+use geom_core::predicate::Band;
+use geom_core::{Point2, Point3, Tol};
 
 /// Why an outerness inference could not answer (module docs). Carries
 /// no entity ids — the caller names the face.
@@ -113,104 +113,33 @@ impl OuternessRefusal {
     }
 }
 
-/// The chart preimage of `p` on `surface` — the closed-form inverse of
-/// `geom::Surface::eval`, kind by kind. `None` for a chart
-/// with no closed form (NURBS) or a preimage that is not a point (the
-/// cone apex, where every azimuth maps to one place).
-pub(crate) fn uv_of(surface: &Surface<f64>, p: Point3<f64>) -> Option<Point2<f64>> {
-    // The chart's second in-plane basis vector: `azimuth_frame`'s
-    // `radial(u) = cos u · u_ref + sin u · (axis × u_ref)` for the
-    // three round kinds, `normal × u_ref` for the plane.
-    let uv = match *surface {
-        Surface::Plane {
-            origin,
-            normal,
-            u_ref,
-        } => {
-            let d = p - origin;
-            Point2::new(d.dot(u_ref), d.dot(normal.cross(u_ref)))
-        }
-        Surface::Cylinder {
-            origin,
-            axis,
-            u_ref,
-            ..
-        } => {
-            let d = p - origin;
-            Point2::new(azimuth(d, axis, u_ref), d.dot(axis))
-        }
-        Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            u_ref,
-        } => {
-            let d = p - apex;
-            let axial = d.dot(axis);
-            let cos_a = half_angle.cos();
-            if cos_a == 0.0 {
-                return None;
-            }
-            // `v` is slant arc length: the axial component divided by
-            // cos α (`S = apex + axis·(v cos α) + radial·(v sin α)`).
-            let v = axial / cos_a;
-            if v == 0.0 {
-                // The apex: every azimuth maps here, so the preimage
-                // is not a point and there is no chart answer.
-                return None;
-            }
-            // On the mirror nappe (`v < 0`) the radial term points
-            // AGAINST `radial(u)`, so the raw azimuth is half a turn
-            // from the parameter that generates the point.
-            let u = azimuth(d, axis, u_ref);
-            Point2::new(
-                if v < 0.0 {
-                    u + core::f64::consts::PI
-                } else {
-                    u
-                },
-                v,
-            )
-        }
-        Surface::Sphere {
-            center,
-            axis,
-            u_ref,
-            ..
-        } => {
-            let d = p - center;
-            let w = d.dot(axis);
-            let ring = (d - axis * w).norm();
-            if ring == 0.0 {
-                // A pole: the chart is singular there (every longitude
-                // maps to one point), so there is no chart answer.
-                return None;
-            }
-            // `v` is latitude, `[−π/2, π/2]`.
-            Point2::new(azimuth(d, axis, u_ref), w.atan2(ring))
-        }
-        Surface::Torus {
-            center,
-            axis,
-            major_radius,
-            u_ref,
-            ..
-        } => {
-            let d = p - center;
-            let w = d.dot(axis);
-            let ring = (d - axis * w).norm() - major_radius;
-            Point2::new(azimuth(d, axis, u_ref), w.atan2(ring))
-        }
-        // No closed-form chart inverse for a spline, nor for a fitted
-        // stand-in whose chart is one.
-        Surface::Nurbs(_) | Surface::Approx(_) => return None,
-    };
-    (uv.x.is_finite() && uv.y.is_finite()).then_some(uv)
+/// **The band a chart is read at on import** (D3: import reads the
+/// kernel's readings with the file's own coincidence distance as the
+/// band): `(ε_in, K·ε_in)`, the run's K. A file with no budget (`ε_in`
+/// of `0`, refused later as `MissingUncertainty`) reads at
+/// [`Band::least`], as an exact comparison would. `None` where `ε_in`
+/// and K make no band (`K·ε_in` overflowing, or rounding back onto
+/// `ε_in`): then no point has chart coordinates ([`uv_of`]).
+pub(crate) fn file_band(eps_in: f64, tol: Tol) -> Option<Band> {
+    if eps_in == 0.0 {
+        return Some(Band::least());
+    }
+    Band::new(eps_in, tol.k() * eps_in).ok()
 }
 
-/// The azimuth of `d` about `axis` from `u_ref`, in `(−π, π]`.
-fn azimuth(d: Vec3<f64>, axis: Vec3<f64>, u_ref: Vec3<f64>) -> f64 {
-    d.dot(axis.cross(u_ref)).atan2(d.dot(u_ref))
+/// The chart preimage of `p` on `surface`: geom's reading
+/// ([`Surface::chart_point`]) at the file's band ([`file_band`]), kept
+/// only where it names one point. `None` for a chart with no closed
+/// form (NURBS), a point whose preimage is not a point (a pole or the
+/// apex, where every azimuth maps to one place, decided at the band),
+/// or no band.
+pub(crate) fn uv_of(
+    surface: &Surface<f64>,
+    p: Point3<f64>,
+    band: Option<Band>,
+) -> Option<Point2<f64>> {
+    let read = surface.chart_point(p, band?).ok()?;
+    (!read.singular && read.uv.x.is_finite() && read.uv.y.is_finite()).then_some(read.uv)
 }
 
 /// Whether the chart wraps in u / v — where a wrapping ring image is
@@ -250,7 +179,8 @@ struct Ring {
 
 /// Which of `rings` is the outer bound (module docs' rule). `rings`
 /// holds each bound's 3-D samples in traversal order; `eps_in_eff` is
-/// the interpretation budget in meters.
+/// the interpretation budget in meters, and `band` the file's band its
+/// samples are read into the chart at ([`file_band`]).
 ///
 /// # Errors
 ///
@@ -259,6 +189,7 @@ pub(crate) fn infer_outer(
     surface: &Surface<f64>,
     rings: &[Vec<Point3<f64>>],
     eps_in_eff: f64,
+    band: Option<Band>,
 ) -> Result<usize, OuternessRefusal> {
     // Outerness is inferred in the chart, and neither spline kind has
     // the closed-form inverse this needs.
@@ -271,7 +202,7 @@ pub(crate) fn infer_outer(
     for ring in rings {
         let mut poly: Vec<Point2<f64>> = Vec::with_capacity(ring.len());
         for &p in ring {
-            let mut uv = uv_of(surface, p).ok_or(OuternessRefusal::NotOnChart)?;
+            let mut uv = uv_of(surface, p, band).ok_or(OuternessRefusal::NotOnChart)?;
             // Unwrap continuously from the previous sample; a jump past
             // half a period means the ring's image genuinely crosses
             // the seam, which is what makes the answer seam-dependent.
@@ -406,10 +337,10 @@ fn boundary_distance(poly: &[Point2<f64>], p: Point2<f64>) -> f64 {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
-    use super::{infer_outer, uv_of};
+    use super::{file_band, infer_outer, uv_of};
 
     use geom::Surface;
-    use geom_core::{Point3, Vec3};
+    use geom_core::{Point3, Tol, Vec3};
 
     fn plane() -> Surface<f64> {
         Surface::Plane {
@@ -454,7 +385,7 @@ mod tests {
         for s in &surfaces {
             for &(u, v) in &[(0.3, 0.7), (-1.1, 0.2), (2.5, -0.4)] {
                 let p = s.eval(u, v);
-                let uv = uv_of(s, p).expect("a chart preimage");
+                let uv = uv_of(s, p, file_band(1e-9, Tol::witness())).expect("a chart preimage");
                 let back = s.eval(uv.x, uv.y);
                 assert!(
                     (back - p).norm() < 1e-12,
@@ -477,10 +408,23 @@ mod tests {
             .map(|&(x, y)| Point3::new(x, y, 0.0))
             .collect();
         assert_eq!(
-            infer_outer(&plane(), &[outer.clone(), hole.clone()], 1e-9),
+            infer_outer(
+                &plane(),
+                &[outer.clone(), hole.clone()],
+                1e-9,
+                file_band(1e-9, Tol::witness())
+            ),
             Ok(0)
         );
-        assert_eq!(infer_outer(&plane(), &[hole, outer], 1e-9), Ok(1));
+        assert_eq!(
+            infer_outer(
+                &plane(),
+                &[hole, outer],
+                1e-9,
+                file_band(1e-9, Tol::witness())
+            ),
+            Ok(1)
+        );
     }
 
     /// Two disjoint rings have no container: refused, not guessed.
@@ -492,7 +436,7 @@ mod tests {
             .collect();
         let b: Vec<Point3<f64>> = a.iter().map(|p| Point3::new(p.x + 5.0, p.y, 0.0)).collect();
         assert_eq!(
-            infer_outer(&plane(), &[a, b], 1e-9),
+            infer_outer(&plane(), &[a, b], 1e-9, file_band(1e-9, Tol::witness())),
             Err(super::OuternessRefusal::NoUniqueOuter)
         );
     }
@@ -501,9 +445,9 @@ mod tests {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod review_outerness {
-    use super::{OuternessRefusal, infer_outer};
+    use super::{OuternessRefusal, file_band, infer_outer};
     use geom::Surface;
-    use geom_core::{Point3, Vec3};
+    use geom_core::{Point3, Tol, Vec3};
 
     fn cyl() -> Surface<f64> {
         Surface::Cylinder {
@@ -562,7 +506,12 @@ mod review_outerness {
             .collect();
         let inner = ring_on_cyl(0.5, 1.0, 0.2, 0.4, 8);
         assert_eq!(
-            infer_outer(&cyl(), &[wrap, inner.clone()], 1e-10),
+            infer_outer(
+                &cyl(),
+                &[wrap, inner.clone()],
+                1e-10,
+                file_band(1e-10, Tol::witness())
+            ),
             Err(OuternessRefusal::SeamDependent),
             "wrap ring"
         );
@@ -571,7 +520,12 @@ mod review_outerness {
         let outer = ring_on_cyl(0.0, 2.0, 0.0, 1.0, 8);
         let touching = ring_on_cyl(0.0 + 1e-12, 1.0, 0.3, 0.6, 8);
         assert_eq!(
-            infer_outer(&cyl(), &[outer.clone(), touching], 1e-10),
+            infer_outer(
+                &cyl(),
+                &[outer.clone(), touching],
+                1e-10,
+                file_band(1e-10, Tol::witness())
+            ),
             Err(OuternessRefusal::UndecidableAtEps),
             "touching ring"
         );
@@ -580,18 +534,31 @@ mod review_outerness {
         let outer2 = ring_on_cyl(0.0, 2.0, 0.0, 1.0, 8);
         // same CCW winding as outer => contradiction
         assert_eq!(
-            infer_outer(&cyl(), &[outer2.clone(), inner_same.clone()], 1e-10),
+            infer_outer(
+                &cyl(),
+                &[outer2.clone(), inner_same.clone()],
+                1e-10,
+                file_band(1e-10, Tol::witness())
+            ),
             Err(OuternessRefusal::OrientationContradicts),
             "same-wound inner"
         );
         // and reversed is accepted with outer index 0:
         inner_same.reverse();
-        assert_eq!(infer_outer(&cyl(), &[outer2, inner_same], 1e-10), Ok(0));
+        assert_eq!(
+            infer_outer(
+                &cyl(),
+                &[outer2, inner_same],
+                1e-10,
+                file_band(1e-10, Tol::witness())
+            ),
+            Ok(0)
+        );
         // 5. NoUniqueOuter: disjoint rings.
         let a = ring_on_cyl(0.0, 0.5, 0.0, 0.5, 8);
         let b = ring_on_cyl(1.0, 1.5, 0.0, 0.5, 8);
         assert_eq!(
-            infer_outer(&cyl(), &[a, b], 1e-10),
+            infer_outer(&cyl(), &[a, b], 1e-10, file_band(1e-10, Tol::witness())),
             Err(OuternessRefusal::NoUniqueOuter),
             "disjoint"
         );
@@ -606,7 +573,12 @@ mod review_outerness {
         polar[3] = Point3::new(0.0, 0.0, 1.0); // the pole
         let low = lat_ring(1.0, -0.5, 16, false);
         assert_eq!(
-            infer_outer(&sph, &[polar, low.clone()], 1e-10),
+            infer_outer(
+                &sph,
+                &[polar, low.clone()],
+                1e-10,
+                file_band(1e-10, Tol::witness())
+            ),
             Err(OuternessRefusal::NotOnChart),
             "pole sample"
         );
@@ -614,7 +586,7 @@ mod review_outerness {
         //    SeamDependent, refused not guessed.
         let cap = lat_ring(1.0, 1.4, 64, true);
         assert_eq!(
-            infer_outer(&sph, &[cap, low], 1e-10),
+            infer_outer(&sph, &[cap, low], 1e-10, file_band(1e-10, Tol::witness())),
             Err(OuternessRefusal::SeamDependent),
             "pole-enclosing ring"
         );

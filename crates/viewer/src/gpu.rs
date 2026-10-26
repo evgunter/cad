@@ -87,11 +87,11 @@
 //! Module kind: **driver** (`crates/viewer/README.md`, The drivers).
 
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU64, Ordering};
 
 use eframe::wgpu;
 
 use crate::camera::cursor_projection;
+use crate::idpass::{IdChannel, IdReply, ReadbackFault};
 use crate::marks::{EdgeLane, EdgeOverlay};
 use crate::pane::viewport::Composed;
 use crate::pickindex::IdMap;
@@ -536,11 +536,18 @@ const QUAD_CORNERS: [u32; 6] = [0, 2, 1, 1, 2, 3];
 /// should not — which is the reason to keep it minimal rather than to
 /// tune it.
 ///
-/// `crate::pickindex`'s `OCCLUSION_SLACK_REL` plays the same
-/// coincident-edge-over-its-own-face role on the CPU pick lane, in a
-/// different numeric domain (f64 world-depth comparison there, f32
-/// clip z here) — a pointer each way, deliberately not one shared
-/// constant.
+/// The CPU pick lane answers the same coincident-edge-over-its-own-face
+/// question with no margin at all: its occlusion probe
+/// (`crate::pickindex::PickIndex::edge_at_for`) orders the chord's own
+/// certified crossing against the surface in front, and that crossing
+/// contains the probe ray's crossings of the triangles the chord point
+/// lies on (the vertex fan near an end), so where the face in front IS
+/// one of those triangles the edge overlaps it by construction. The
+/// one exception is a free-moved copy, whose front spans are its local
+/// ray's carried across unconverted
+/// (`work/fit/a-moved-copys-pick-span-crosses-its-frame-unconverted.md`).
+/// A depth buffer holds no interval to order, which is why this lane
+/// needs a lift and that one does not.
 ///
 /// **A quad, unlike a line, reaches ONTO the facets its edge
 /// divides** — which is what sets the magnitude. On a concave edge
@@ -827,9 +834,16 @@ impl ViewportRenderer {
     /// state machine spanning frames, for a query that only runs when
     /// the cursor moves inside the viewport.
     ///
-    /// `None` when there is nothing to draw, when the device refuses
-    /// the wait, or when the mapping fails — every one of which is
-    /// "the GPU has no answer", never a wrong answer.
+    /// **Nothing to draw is an answer**: [`IdMap::NOTHING`], the word
+    /// the pass would have read over an empty picture, so the reader
+    /// is told the cursor is over no geometry, which is true of the
+    /// picture on screen. A device that refuses the wait or a mapping
+    /// that fails is NO answer, and is the [`ReadbackFault`] it is.
+    ///
+    /// **Every exit leaves the readback buffer clean**
+    /// ([`release_after`]): unmapped after a read, rebuilt after a
+    /// fault. So a fault is this query's outcome only, and the next
+    /// query's copy does not meet a buffer still mapped.
     fn read_id_at(
         &mut self,
         device: &wgpu::Device,
@@ -837,11 +851,14 @@ impl ViewportRenderer {
         cursor_ndc: [f32; 2],
         viewport_px: [f32; 2],
         view_projection: &[[f32; 4]; 4],
-    ) -> Option<u32> {
-        let geometry = self.geometry.as_ref()?;
-        if geometry.corners == 0 {
-            return None;
-        }
+    ) -> Result<u32, ReadbackFault> {
+        let Some(geometry) = self
+            .geometry
+            .as_ref()
+            .filter(|geometry| geometry.corners > 0)
+        else {
+            return Ok(IdMap::NOTHING);
+        };
         queue.write_buffer(
             &self.id.uniforms,
             0,
@@ -929,19 +946,98 @@ impl ViewportRenderer {
             },
         );
         queue.submit(std::iter::once(encoder.finish()));
+        let read = self.map_and_read(device);
+        // Every exit leaves the readback Idle, or the next query's copy
+        // into it fails `queue.submit` (`BufferStillMapped`), which with
+        // no uncaptured-error handler installed panics the UI thread.
+        match release_after(&read) {
+            Release::Unmap => self.id.readback.unmap(),
+            Release::Rebuild => self.id.readback = IdPass::readback(device),
+        }
+        read
+    }
+
+    /// Map the id readback after the pass's copy and read its id,
+    /// leaving the buffer as the outcome left it: mapped on `Ok`, in
+    /// whatever state the device left it on a fault ([`release_after`]
+    /// says what is done with it).
+    fn map_and_read(&self, device: &wgpu::Device) -> Result<u32, ReadbackFault> {
+        let (sent, mapped) = std::sync::mpsc::channel();
         self.id
             .readback
             .slice(..)
-            .map_async(wgpu::MapMode::Read, |_| {});
-        device.poll(wgpu::PollType::wait_indefinitely()).ok()?;
-        let id = {
-            let view = self.id.readback.slice(..).get_mapped_range().ok()?;
-            let bytes: [u8; 4] = view.get(..4)?.try_into().ok()?;
-            u32::from_le_bytes(bytes)
-        };
-        self.id.readback.unmap();
-        Some(id)
+            .map_async(wgpu::MapMode::Read, move |outcome| {
+                // The receiver outlives the wait below, so a send can
+                // only fail once nobody is left to read the outcome.
+                let _ = sent.send(outcome);
+            });
+        device
+            .poll(wgpu::PollType::wait_indefinitely())
+            .map_err(|error| ReadbackFault::Wait(error.to_string()))?;
+        map_outcome(mapped.try_recv())?;
+        let view = self
+            .id
+            .readback
+            .slice(..)
+            .get_mapped_range()
+            .map_err(|error| ReadbackFault::Map(error.to_string()))?;
+        id_in(&view)
     }
+}
+
+/// **What the map callback said**, as the readback's fault when it
+/// said anything but success. The callback's own error is the device's
+/// word for a mapping it refused, so it is carried, not discarded: a
+/// later `get_mapped_range` refusal would only say the buffer is not
+/// mapped, which is the consequence and not the reason.
+fn map_outcome(
+    outcome: Result<Result<(), wgpu::BufferAsyncError>, std::sync::mpsc::TryRecvError>,
+) -> Result<(), ReadbackFault> {
+    match outcome {
+        Ok(Ok(())) => Ok(()),
+        Ok(Err(error)) => Err(ReadbackFault::Map(error.to_string())),
+        Err(std::sync::mpsc::TryRecvError::Empty) => Err(ReadbackFault::Map(
+            "the mapping had not completed when the wait returned".to_owned(),
+        )),
+        Err(std::sync::mpsc::TryRecvError::Disconnected) => Err(ReadbackFault::Map(
+            "the mapping was dropped without an outcome".to_owned(),
+        )),
+    }
+}
+
+/// **What a readback leaves to be done with its buffer.**
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Release {
+    /// The buffer mapped and was read: unmap it.
+    Unmap,
+    /// The readback failed somewhere between the wait and the read,
+    /// so the buffer's state is the device's: still pending a map (a
+    /// refused wait), mapped (a short mapping), or idle (a refused
+    /// mapping). Unmapping is wrong for an idle buffer (its unmap is
+    /// itself a validation error, which panics as the copy would), so
+    /// the buffer is replaced instead; dropping a buffer is allowed in
+    /// any state.
+    Rebuild,
+}
+
+/// The [`Release`] a readback's outcome calls for: a fault never
+/// leaves the buffer to the next query.
+fn release_after(read: &Result<u32, ReadbackFault>) -> Release {
+    match read {
+        Ok(_) => Release::Unmap,
+        Err(_) => Release::Rebuild,
+    }
+}
+
+/// **The id a mapped readback holds**: its first four bytes, little
+/// endian, which is where the copy put the target's one texel. A
+/// mapping shorter than that holds no id and is a [`ReadbackFault`],
+/// never the clear value.
+fn id_in(mapped: &[u8]) -> Result<u32, ReadbackFault> {
+    mapped
+        .first_chunk::<4>()
+        .map(|bytes| u32::from_le_bytes(*bytes))
+        .ok_or(ReadbackFault::Short { len: mapped.len() })
 }
 
 impl IdPass {
@@ -1047,20 +1143,26 @@ impl IdPass {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             view_formats: &[],
         });
-        let readback = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("viewer_id_readback"),
-            size: COPY_ROW_ALIGNMENT,
-            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
-            mapped_at_creation: false,
-        });
         Self {
             pipeline,
             uniforms,
             bind_group,
             target,
             depth,
-            readback,
+            readback: Self::readback(device),
         }
+    }
+
+    /// The staging buffer the id is copied into: one copy row, read
+    /// back by the host. Built again whenever a readback fails
+    /// ([`Release::Rebuild`]).
+    fn readback(device: &wgpu::Device) -> wgpu::Buffer {
+        device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("viewer_id_readback"),
+            size: COPY_ROW_ALIGNMENT,
+            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+            mapped_at_creation: false,
+        })
     }
 }
 
@@ -1308,15 +1410,12 @@ pub(crate) struct ViewportCallback {
 
 /// One id-buffer question, and where its answer goes.
 ///
-/// The answer travels back through a shared atomic rather than through
-/// `egui_wgpu`'s resources, because the asker is the application and
-/// the answerer is a paint callback: an `Arc` both hold is the whole
-/// channel, with no borrow of the render state in the frame loop.
+/// The answer travels back through an [`IdChannel`] rather than through
+/// `egui_wgpu`'s resources, which says why.
 ///
-/// `serial` is echoed into the high half of [`IdQuery::answer`] so the
-/// application can tell this frame's answer from the previous one's —
-/// an id of `NOTHING` is a real answer, so "unchanged" cannot stand in
-/// for "not yet run".
+/// `serial` is echoed into the [`IdReply`] so the application can tell
+/// this frame's answer from the previous one's — an id of `NOTHING` is
+/// a real answer, so "unchanged" cannot stand in for "not yet run".
 pub(crate) struct IdQuery {
     /// The cursor in normalized device coordinates within the pane.
     pub(crate) cursor_ndc: [f32; 2],
@@ -1324,8 +1423,20 @@ pub(crate) struct IdQuery {
     pub(crate) viewport_px: [f32; 2],
     /// This query's serial.
     pub(crate) serial: u32,
-    /// `serial << 32 | id` once the pass has run.
-    pub(crate) answer: Arc<AtomicU64>,
+    /// Where the reply goes once the pass has run.
+    pub(crate) answer: IdChannel,
+}
+
+impl IdQuery {
+    /// Post `read` as this query's reply, as it is: an id, or the
+    /// readback's fault. This is the one place the pass's outcome
+    /// meets the channel, so no fault is folded into an id on the way.
+    fn reply(&self, read: Result<u32, ReadbackFault>) {
+        self.answer.post(IdReply {
+            serial: self.serial,
+            read,
+        });
+    }
 }
 
 impl ViewportCallback {
@@ -1401,19 +1512,13 @@ impl egui_wgpu::CallbackTrait for ViewportCallback {
             // it cannot ride in the command buffer egui submits after
             // this call returns.
             if let Some(query) = &self.id_query {
-                let id = renderer
-                    .read_id_at(
-                        device,
-                        queue,
-                        query.cursor_ndc,
-                        query.viewport_px,
-                        &self.view_projection,
-                    )
-                    .unwrap_or(IdMap::NOTHING);
-                query.answer.store(
-                    u64::from(query.serial) << 32 | u64::from(id),
-                    Ordering::Relaxed,
-                );
+                query.reply(renderer.read_id_at(
+                    device,
+                    queue,
+                    query.cursor_ndc,
+                    query.viewport_px,
+                    &self.view_projection,
+                ));
             }
         }
         Vec::new()
@@ -2120,11 +2225,7 @@ mod tests {
         let delta = DisplayTolerance::new(1.0e-4).expect("a positive display tolerance");
         for theme in crate::theme::Theme::ALL {
             let block = ViewportCallback {
-                scene: Arc::new(SceneMesh::empty(
-                    bvh::Aabb::from_points([pncad::geom_core::Point3::new(0.0, 0.0, 0.0)])
-                        .expect("one point is a box"),
-                    delta,
-                )),
+                scene: Arc::new(SceneMesh::nothing(delta)),
                 revision: 0,
                 view_projection: [[0.0; 4]; 4],
                 // Nothing here lights anything: the row reads the
@@ -2199,12 +2300,9 @@ mod tests {
             );
         }
 
-        // The empty picture draws nothing: `read_id_at` reads this as
-        // "there is no answer" rather than submitting an empty pass.
-        assert_eq!(
-            corner_count(&SceneMesh::empty(mesh.bounds(), delta)),
-            Some(0)
-        );
+        // The empty picture draws nothing: `read_id_at` answers it
+        // `Ok(IdMap::NOTHING)` without submitting an empty pass.
+        assert_eq!(corner_count(&SceneMesh::nothing(delta)), Some(0));
     }
 
     /// **A vertex table too long to be a draw range is refused, not
@@ -2239,8 +2337,108 @@ mod tests {
         assert_eq!(
             draw_range(too_many),
             None,
-            "`draw_range` answered a draw range for {too_many} vertices, which              it cannot count; the substituted answer is {:?}",
+            "`draw_range` answered a draw range for {too_many} vertices, which it cannot count; the substituted answer is {:?}",
             u32::try_from(too_many).unwrap_or(u32::MAX),
+        );
+    }
+
+    /// **A mapping too short to hold an id is a fault, not the clear
+    /// value**, and a mapping that holds one is read little endian from
+    /// its first four bytes whatever follows. Folded to an `Option` and
+    /// then to [`IdMap::NOTHING`], the short row would read as *nothing
+    /// under the cursor*.
+    #[test]
+    fn a_readback_is_its_first_four_bytes_and_a_short_one_is_a_fault() {
+        let mut row = [0xAB_u8; COPY_ROW_ALIGNMENT as usize];
+        row[..4].copy_from_slice(&[1, 2, 3, 4]);
+        assert_eq!(id_in(&row), Ok(0x0403_0201), "the texel, little endian");
+        assert_eq!(
+            id_in(&[0; 4]),
+            Ok(IdMap::NOTHING),
+            "a cleared texel is the pass's answer over empty space"
+        );
+        for short in [&[][..], &[9, 9, 9][..]] {
+            assert_eq!(
+                id_in(short),
+                Err(ReadbackFault::Short { len: short.len() }),
+                "{} mapped bytes hold no id, and the fault says how many",
+                short.len()
+            );
+        }
+    }
+
+    /// **A mapping the device refused is a fault in its words**, and
+    /// one it never finished is a fault too: only the callback's
+    /// success lets the read go on.
+    #[test]
+    fn a_map_callback_that_did_not_succeed_is_the_readbacks_fault() {
+        use std::sync::mpsc::TryRecvError;
+        assert_eq!(map_outcome(Ok(Ok(()))), Ok(()));
+        assert_eq!(
+            map_outcome(Ok(Err(wgpu::BufferAsyncError))),
+            Err(ReadbackFault::Map(wgpu::BufferAsyncError.to_string())),
+            "the callback's error is carried, not discarded"
+        );
+        for pending in [TryRecvError::Empty, TryRecvError::Disconnected] {
+            assert!(
+                matches!(map_outcome(Err(pending)), Err(ReadbackFault::Map(_))),
+                "a mapping with no outcome after the wait is no answer: {pending:?}"
+            );
+        }
+    }
+
+    /// **A fault never leaves the readback to the next query.** A
+    /// buffer left pending a map, or mapped, fails the next query's
+    /// `queue.submit` (`BufferStillMapped`), and with no
+    /// uncaptured-error handler that is a panic; so every fault
+    /// rebuilds the buffer, and only a read that succeeded unmaps it.
+    /// Which faults a device produces cannot be driven without one.
+    #[test]
+    fn every_readback_fault_rebuilds_the_buffer_and_only_a_read_unmaps_it() {
+        assert_eq!(release_after(&Ok(IdMap::NOTHING)), Release::Unmap);
+        assert_eq!(release_after(&Ok(7)), Release::Unmap);
+        for fault in [
+            ReadbackFault::Wait("lost".to_owned()),
+            ReadbackFault::Map("refused".to_owned()),
+            ReadbackFault::Short { len: 3 },
+        ] {
+            assert_eq!(
+                release_after(&Err(fault.clone())),
+                Release::Rebuild,
+                "{fault}"
+            );
+        }
+    }
+
+    /// **A query's reply is the pass's outcome as it is**: its serial,
+    /// and a fault posted as the fault. A `prepare` that folded the
+    /// fault into [`IdMap::NOTHING`] would post `Ok(0)` here.
+    #[test]
+    fn a_query_posts_its_fault_as_the_fault_under_its_serial() {
+        let answer = IdChannel::new();
+        let query = IdQuery {
+            cursor_ndc: [0.0; 2],
+            viewport_px: [1.0; 2],
+            serial: 7,
+            answer: answer.clone(),
+        };
+        let fault = ReadbackFault::Wait("the device was lost".to_owned());
+        query.reply(Err(fault.clone()));
+        assert_eq!(
+            answer.latest(),
+            Some(IdReply {
+                serial: 7,
+                read: Err(fault)
+            })
+        );
+        query.reply(Ok(IdMap::NOTHING));
+        assert_eq!(
+            answer.latest(),
+            Some(IdReply {
+                serial: 7,
+                read: Ok(IdMap::NOTHING)
+            }),
+            "an empty picture is an answer, posted as one"
         );
     }
 
@@ -2500,7 +2698,7 @@ mod tests {
         assert_eq!(faces.len(), 6, "a cube has six faces");
 
         let aspect = 1.0;
-        let framed = Camera::framing(&scene.bounds(), aspect).expect("the cube frames");
+        let framed = Camera::framing(scene.bounds(), aspect).expect("the cube frames");
         let behind = Camera::new(
             framed.target(),
             framed.distance(),
@@ -2564,20 +2762,25 @@ mod tests {
             // The id pass, one query per facing face, as the app asks it.
             for (serial, &(id, face)) in (1..).zip(&facing) {
                 let [x, y, _] = ndc(face);
-                let answer = Arc::new(AtomicU64::new(0));
+                let answer = IdChannel::new();
                 let mut encoder = device.create_command_encoder(&Default::default());
                 let _ = callback(Some(IdQuery {
                     cursor_ndc: [x as f32, y as f32],
                     viewport_px: [SIDE_PX as f32; 2],
                     serial,
-                    answer: Arc::clone(&answer),
+                    answer: answer.clone(),
                 }))
                 .prepare(&device, &queue, &screen, &mut encoder, &mut resources);
-                let answer = answer.load(Ordering::Relaxed);
-                assert_eq!(answer >> 32, u64::from(serial), "{view}: the id pass ran");
+                let answer = answer
+                    .latest()
+                    .unwrap_or_else(|| panic!("{view}: the id pass ran"));
                 assert_eq!(
-                    answer & u64::from(u32::MAX),
-                    u64::from(id),
+                    answer.serial, serial,
+                    "{view}: the id pass answered this query"
+                );
+                assert_eq!(
+                    answer.read,
+                    Ok(id),
                     "{view}: the id pass at the centre of face {id} answers another id — the \
                      face that faces the eye was culled and the one behind it answered"
                 );

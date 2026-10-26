@@ -41,7 +41,7 @@ from pncad import (
     m,
     rad,
 )
-from placing import frame_at
+from placing import against, axes_at, placed
 from spoken import tag
 
 
@@ -79,7 +79,7 @@ def slab(doc, x, y, z, on=None):
     if on is None:
         assert z0.meters == 0.0, "a box standing alone sits on its own xy"
         return body
-    return doc.place_against(on, body, Frame.translation((0 * m, 0 * m, z0)))
+    return against(doc, on, body, Frame.translation((0 * m, 0 * m, z0)))
 
 
 class TestDocumentEditing(unittest.TestCase):
@@ -183,7 +183,7 @@ class TestNodeKindReadDoor(unittest.TestCase):
     def test_it_is_the_nodes_kind_and_not_its_values(self):
         doc = Doc()
         solid = unit_box(doc, 2 * m, 2 * m, 2 * m)
-        moved = doc.place(solid, pose=Frame.translation((1 * m, 0 * m, 0 * m)))
+        moved = placed(doc, solid, Frame.translation((1 * m, 0 * m, 0 * m)))
         ev = evaluate(doc)
         # Two different recipes, one value kind: `Value.kind` is the
         # PAYLOAD's shape and cannot tell an extrude from a rigid
@@ -664,17 +664,20 @@ class TestPersistence(unittest.TestCase):
     def test_an_operation_defines_its_output_variable(self):
         """An inserted operation defines one variable per port of its
         signature, saved in the variable table as an output of its node:
-        an extrude defines one, at port 0, and no port 1."""
+        an extrude defines two, its body at port 0 and the space it is
+        born in at port 1, and no port 2."""
         doc = Doc()
         box = unit_box(doc, 1 * m, 1 * m, 1 * m)
         body = doc.output(box)
         self.assertIsNotNone(body)
         self.assertEqual(doc.output(box, 0), body)
         self.assertEqual(body.kind, "body")
+        self.assertEqual(doc.output(box, 1).kind, "space")
+        self.assertEqual(doc.space(box), doc.output(box, 1))
         self.assertEqual(doc.slot(box, "distance").kind, "length")
         with self.assertRaises(ValueError) as caught:
-            doc.output(box, 1)
-        self.assertIn("no port 1", str(caught.exception))
+            doc.output(box, 2)
+        self.assertIn("no port 2", str(caught.exception))
         _, body_text = doc.save().split("\n", 1)
         snapshot = json.loads(body_text)["snapshot"]
         held = snapshot["vars"][body.hex]
@@ -1023,8 +1026,8 @@ class TestAPoseReadOffGeometry(unittest.TestCase):
         doc = Doc()
         square = doc.insert(Node.polygon(corners))
         prism = doc.insert(Node.extrude(square, Formula.length_in(1, m)))
-        upright = doc.place(prism)
-        leaning = doc.place(prism, pose=frame_at((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 1.0)))
+        upright = doc.place(prism, doc.world)
+        leaning = placed(doc, prism, axes_at((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 1.0)))
         ev = evaluate(doc)
         self.assertTrue(ev.succeeded(leaning))
         self.assertAlmostEqual(
@@ -1107,8 +1110,8 @@ class TestTheInnerArmBesideTheOpWord(unittest.TestCase):
         # of the root cause's words or neither.
         doc = Doc()
         flat = doc.insert(Node.extrude(self.square(doc), Formula.length_in(0, m)))
-        # A loose copy of it: a node that reads it.
-        moved = doc.place(flat, [])
+        # A copy of it: a node that reads it.
+        moved = doc.place(flat, doc.world)
         with self.assertRaises(EvaluationError) as caught:
             evaluate(doc).value(moved)
         self.assertEqual(caught.exception.reason, "poisoned")
@@ -1211,7 +1214,6 @@ EDIT_ATTRS = (
     "again",
     "value",
     "offered",
-    "determinant",
     "index",
     "mate",
     "path",

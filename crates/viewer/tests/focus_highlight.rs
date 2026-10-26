@@ -117,11 +117,7 @@ fn a_face_pick_marks_its_owning_feature() {
         .copied()
         .expect("the plate draws at least one patch");
     let patch = index.ids().key_of(id).expect("the id maps back");
-    let name = index
-        .name_of(id)
-        .and_then(|n| n.as_ref().ok())
-        .cloned()
-        .expect("a drawn patch is named");
+    let name = index.name_of(id).cloned().expect("a drawn patch is named");
     session.perform(SessionOp::Select(Selection::Face(
         viewer::session::FaceSelection {
             node: patch.node,
@@ -322,7 +318,7 @@ fn die(tol: Tol) -> Die {
                 .find(|&id| want(doc.node(id).expect("an ordered node exists")))
                 .expect("the die has this node kind")
         };
-    let [copy] = viewer::world::world_copies(&doc)[..] else {
+    let [copy] = viewer::world::drawn_copies(&doc)[..] else {
         panic!("the die is placed once")
     };
     let composed = viewer::world::seat_of(&doc, copy);
@@ -486,11 +482,7 @@ fn clicking_a_die_face_reaches_the_feature_that_made_it() {
         Selection::Face(viewer::session::FaceSelection {
             node: patch.node,
             body: patch.body,
-            name: index
-                .name_of(id)
-                .and_then(|n| n.as_ref().ok())
-                .cloned()
-                .expect("a drawn patch is named"),
+            name: index.name_of(id).cloned().expect("a drawn patch is named"),
         })
     };
 

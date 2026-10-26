@@ -645,7 +645,8 @@ fn a_reference_whose_read_is_gone_is_read_gone_before_node_gone() {
             edit: editor_core::ReadEdit::Deleted,
         }
     );
-    let never = editor_core::VarId::new(0, 0);
+    // `(0, 0)` is the world's space, which every document holds.
+    let never = editor_core::VarId::new(999, 7);
     assert!(matches!(
         gone_read(&doc, never),
         ResolveError::ReadGone {

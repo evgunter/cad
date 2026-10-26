@@ -150,14 +150,12 @@ fn measured(half: f64, theta: f64) -> (Evaluation<f64>, RecipeNodeId) {
     // `THICKNESS + SEPARATION` up its z, that frame's xy spun by `theta`
     // about its x: the tilt is a number the pose reads, so nothing
     // decides it before the measure does.
-    let up = editor_core::frame_at(
+    let up = editor_core::test_support::frame_on(
         &doc,
         &editor_core::Operand::from(plates[0]),
         &editor_core::Frame::translation([0.0, 0.0, THICKNESS + SEPARATION]),
-        &EvalOptions::default(),
         Tol::witness(),
-    )
-    .expect("the lower plate offers a frame");
+    );
     let tilted = editor_core::Operand::Pose(Box::new(PoseDef::Spin {
         pose: RoleRead::through(up.clone(), PoseRole::Xy),
         about: RoleRead::through(up, PoseRole::X),
@@ -165,7 +163,7 @@ fn measured(half: f64, theta: f64) -> (Evaluation<f64>, RecipeNodeId) {
     }));
     let (doc, upper) = mint(
         &doc,
-        Node::place(vec![editor_core::BodyRead::plain(
+        crate::fixture::stood(vec![editor_core::BodyRead::plain(
             editor_core::Operand::from(plates[1]),
         )]),
     );
@@ -181,8 +179,7 @@ fn measured(half: f64, theta: f64) -> (Evaluation<f64>, RecipeNodeId) {
         upper,
         editor_core::Mate {
             on: fixture::plane(bottom),
-            to: editor_core::Target::Pose(tilted),
-            class: editor_core::ContactClass::Rest,
+            to: tilted,
         },
         vec![
             (
@@ -194,7 +191,7 @@ fn measured(half: f64, theta: f64) -> (Evaluation<f64>, RecipeNodeId) {
                 editor_core::Formula::zero(editor_core::Dimension::Length),
             ),
             (
-                editor_core::Coord::Spin,
+                editor_core::Coord::Spin(editor_core::TargetAxis::Z),
                 editor_core::Formula::zero(editor_core::Dimension::Angle),
             ),
         ],

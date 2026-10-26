@@ -48,7 +48,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use editor_core::AuthoredNode;
-use editor_core::Formula;
 use std::collections::BTreeSet;
 
 use crate::corpus;
@@ -56,8 +55,7 @@ use crate::fixture;
 
 use editor_core::test_support::{VerbatimKind, verbatim_kind};
 use editor_core::{
-    CapEnd, ContactClass, Coord, DocEdit, DocumentId, EvalOptions, Node, ProfileDoc, RecipeNodeId,
-    StableName, TargetAxis, Value,
+    CapEnd, Coord, DocumentId, EvalOptions, Node, ProfileDoc, RecipeNodeId, StableName, TargetAxis,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{insert, len, on_frame};
@@ -82,11 +80,13 @@ test_utils::f6_variants! {
         Chamfer,
         Shell,
         Split,
+        Mirror,
         Intersect,
         Subtract,
         Union,
         Place,
         World,
+        Space,
         Pattern,
         Part,
         PlacedUnion,
@@ -134,39 +134,22 @@ fn stacked_blocks() -> (ProfileDoc, EvalOptions) {
     let (top, top_body) = store.insert_part(block("vedge-top"), Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive("vedge-stack"), Tol::witness());
     let opts = with_resolver(store);
-    let (doc, base) = fixture::insert_pinned(doc, Node::instantiate_part(base), &opts);
+    let (doc, base) = fixture::insert_pinned(doc, crate::fixture::mated_instance(base), &opts);
     let (doc, top) = insert(doc, fixture::mated_instance(top));
-    let (doc, mate) = fixture::constrain(
+    // The rest and the freedoms it leaves, each zero, written whole:
+    // the top stands square on the base.
+    let (doc, _) = fixture::constrain_with(
         doc,
         fixture::rest(
             fixture::head(in_part(top, top_body, CapEnd::Start)),
             fixture::head(in_part(base, base_body, CapEnd::End)),
-            ContactClass::Rest,
         ),
+        &[
+            (Coord::Slide(TargetAxis::X), len(0.0)),
+            (Coord::Slide(TargetAxis::Y), len(0.0)),
+            (Coord::Spin(editor_core::TargetAxis::Z), fixture::ang(0.0)),
+        ],
     );
-    // The freedoms the rest leaves, each zero: the top stands square on
-    // the base.
-    let doc = [
-        (Coord::Slide(TargetAxis::X), len(0.0)),
-        (Coord::Slide(TargetAxis::Y), len(0.0)),
-        (Coord::Spin, fixture::ang(0.0)),
-    ]
-    .into_iter()
-    .fold(doc, |doc, (coord, by): (Coord, Formula)| {
-        fixture::step(
-            doc,
-            DocEdit::AddValue {
-                placement: mate.placement,
-                value: Box::new(Value {
-                    mate: Some(mate.id),
-                    coord,
-                    by,
-                }),
-                fresh: Vec::new(),
-            },
-        )
-        .0
-    });
     (doc, opts)
 }
 

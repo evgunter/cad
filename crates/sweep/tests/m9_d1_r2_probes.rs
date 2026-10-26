@@ -79,9 +79,16 @@ fn partial_wedge_pole_export_is_direction_safe_both_signs() {
         // The wedge of the unit ball over |θ|: (2/3)·R³·|θ|, the
         // rim-free band's closed form (the caps pass through the
         // centre and contribute no flux).
-        let volume = topo::mass_properties(&t.body, Tol::witness())
-            .unwrap()
-            .volume;
+        let volume = topo::mass_properties(
+            &topo::test_support::finished(
+                "the measured body",
+                topo::Body::clone(&t.body),
+                Tol::witness(),
+            ),
+            Tol::witness(),
+        )
+        .unwrap()
+        .volume;
         let exact = 2.0 / 3.0 * theta.abs();
         assert!(
             (volume - exact).abs() / exact < 1e-12,
@@ -151,9 +158,16 @@ fn partial_with_hole_exports_outer_poles_and_no_hole_poles() {
         // The wedge of the R = 2 ball over |θ| less the revolved hole
         // (Pappus: the 0.6 × 0.6 square at centroid radius 1 sweeps
         // 0.36·|θ|): (2/3)·8·|θ| − 0.36·|θ|.
-        let volume = topo::mass_properties(&t.body, Tol::witness())
-            .unwrap()
-            .volume;
+        let volume = topo::mass_properties(
+            &topo::test_support::finished(
+                "the measured body",
+                topo::Body::clone(&t.body),
+                Tol::witness(),
+            ),
+            Tol::witness(),
+        )
+        .unwrap()
+        .volume;
         let exact = (16.0 / 3.0 - 0.36) * theta.abs();
         assert!(
             (volume - exact).abs() / exact < 1e-12,

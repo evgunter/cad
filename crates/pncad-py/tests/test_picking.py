@@ -46,7 +46,7 @@ from pncad import (
     mm,
 )
 
-from placing import plane_on
+from placing import placed, plane_on
 from spoken import tag
 
 #: The chordal budget every index in this file is built at. A cube's
@@ -244,8 +244,8 @@ class TestNearestAndTheCertifiedTie(unittest.TestCase):
         # the other: the targets of one query are read in one space.
         doc = Doc()
         cube = unit_cube(doc)
-        lower = doc.place(cube)
-        upper = doc.place(cube, pose=Frame.translation((0 * m, 0 * m, 2 * m)))
+        lower = doc.place(cube, doc.world)
+        upper = placed(doc, cube, Frame.translation((0 * m, 0 * m, 2 * m)))
         ev = evaluate(doc)
         picks = [
             NodePick.build(ev, lower, 0, DELTA),
@@ -266,8 +266,8 @@ class TestNearestAndTheCertifiedTie(unittest.TestCase):
         # the order they were offered in. Reversing the list reverses
         # the LIST and changes nothing else.
         doc = Doc()
-        first = doc.place(unit_cube(doc))
-        second = doc.place(doc.insert(Node.extrude(square(doc), Formula.length_in(1, m))))
+        first = doc.place(unit_cube(doc), doc.world)
+        second = doc.place(doc.insert(Node.extrude(square(doc), Formula.length_in(1, m))), doc.world)
         ev = evaluate(doc)
         a = NodePick.build(ev, first, 0, DELTA)
         b = NodePick.build(ev, second, 0, DELTA)
@@ -548,7 +548,7 @@ class TestThePickRefusesTyped(unittest.TestCase):
         doc = Doc()
         cube = unit_cube(doc)
         before = evaluate(doc)
-        later_node = doc.place(cube, pose=Frame.translation((0 * m, 0 * m, 2 * m)))
+        later_node = placed(doc, cube, Frame.translation((0 * m, 0 * m, 2 * m)))
         after = evaluate(doc)
         stale = NodePick.build(after, later_node, 0, DELTA)
         with self.assertRaises(HitTestError) as caught:
@@ -569,7 +569,7 @@ class TestThePickRefusesTyped(unittest.TestCase):
         doc = Doc()
         cube = unit_cube(doc)
         before = evaluate(doc)
-        later_node = doc.place(cube, pose=Frame.translation((0 * m, 0 * m, 2 * m)))
+        later_node = placed(doc, cube, Frame.translation((0 * m, 0 * m, 2 * m)))
         after = evaluate(doc)
         stale = NodePick.build(after, later_node, 0, DELTA)
         with self.assertRaises(HitTestError):

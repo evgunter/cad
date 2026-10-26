@@ -183,7 +183,7 @@ pub fn assembly(
     }) {
         Ok(product) => d::assemble_gathered(product, tol),
         // The kernel's own wrapper over a refused gather: it still
-        // checks each unplaced group in its own space, then raises the
+        // checks each new space's copies by themselves, then raises the
         // gather's refusal.
         Err(_) => d::assemble(doc, evaluation, tol),
     }
@@ -217,13 +217,13 @@ pub fn body_and_names(
     })
 }
 
-/// A product copied field for field, its loose spaces gathered again.
+/// A product copied field for field, its new spaces gathered again.
 ///
 /// Spelled out rather than derived: [`d::Product`] is the kernel's
 /// type and a `Clone` on it is the kernel's decision, while a struct
 /// literal here fails to compile the day the gather grows a field —
 /// which is the loud version of the same guarantee. The spaces are
-/// the kernel's own gather of them ([`d::loose_spaces`]) rather than a
+/// the kernel's own gather of them ([`d::space_gathers`]) rather than a
 /// copy: a refused space holds a gather refusal, which is not `Clone`.
 fn clone_product(
     product: &d::Product<f64>,
@@ -239,17 +239,12 @@ fn clone_product(
         coincidences: product.coincidences.clone(),
         cited_inputs: product.cited_inputs.clone(),
         census: product.census.clone(),
-        refused_at_rest: product.refused_at_rest.clone(),
         solid_copies: product.solid_copies.clone(),
         copies: product.copies.clone(),
         gap_assertions: product.gap_assertions.clone(),
-        minted: product.minted.clone(),
-        unminted: product.unminted.clone(),
-        carried: product.carried.clone(),
-        carried_unminted: product.carried_unminted.clone(),
         carried_interference: product.carried_interference.clone(),
         carried_at_rest: product.carried_at_rest.clone(),
         census_pairs: product.census_pairs.clone(),
-        spaces: d::loose_spaces(doc, evaluation, tol),
+        spaces: d::space_gathers(doc, evaluation, tol),
     }
 }

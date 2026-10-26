@@ -113,6 +113,7 @@ pub(crate) fn seat_kind(node: &Node<ProfileProgram>) -> Option<NodeKindWanted> {
     match node {
         Node::Profile(_) => Some(NodeKindWanted::Profile),
         Node::Split { .. }
+        | Node::Mirror { .. }
         | Node::Pattern { .. }
         | Node::Extrude { .. }
         | Node::Revolve { .. }
@@ -131,6 +132,7 @@ pub(crate) fn seat_kind(node: &Node<ProfileProgram>) -> Option<NodeKindWanted> {
         | Node::InstantiatePart { .. }
         | Node::Place { .. }
         | Node::World
+        | Node::Space
         | Node::Measure { .. }
         | Node::Assertion { .. } => None,
     }
@@ -550,8 +552,8 @@ impl Refusal {
             // The ONE arm whose rank is a per-payload decision: the
             // three gesture-order faults rank with their document
             // twins, and the substantive ones rank with the real
-            // failures, because "this instance lives in the world's
-            // space" is a decision about what the user tried; "no
+            // failures, because "this instance is placed into the
+            // world" is a decision about what the user tried; "no
             // evaluation has landed" is not, and ranks with the
             // gesture-order faults. `Edit` and
             // `SlotUnit` forward whole vocabularies at one rank each
@@ -571,6 +573,8 @@ impl Refusal {
                     | AdmissionFault::InTheWorld { .. }
                     | AdmissionFault::NoSpace { .. }
                     | AdmissionFault::MovedSpace { .. }
+                    | AdmissionFault::NoSuchSpace { .. }
+                    | AdmissionFault::NotShown { .. }
                     | AdmissionFault::FusedGeometry { .. } => 1,
                 },
             },

@@ -126,12 +126,9 @@ fn hit_test_fields(py: Python<'_>, err: &s::HitTestError) -> [Py<PyAny>; 5] {
         s::HitTestError::Ambiguous { hits } => {
             [none(), none(), none(), none(), obj(tied(py, hits))]
         }
-        // A loose copy whose space is one of the two, by its
-        // placement; both spaces are in the message.
-        s::HitTestError::AcrossSpaces { a, b } => match a.loose().or(b.loose()) {
-            Some(root) => [node(root), none(), none(), none(), none()],
-            None => [none(), none(), none(), none(), none()],
-        },
+        // Two spaces, each a variable no node field holds: both are
+        // in the message, and the tag is what a caller branches on.
+        s::HitTestError::AcrossSpaces { .. } => [none(), none(), none(), none(), none()],
         s::HitTestError::Unnamed(s::UnnamedEntity { node: n, entity }) => [
             node(*n),
             none(),
@@ -457,7 +454,7 @@ impl PickHit {
     /// answers, which is always on the triangle. The parameter is the
     /// caller's own ray's: a hit carried across a transform converts
     /// all three or none, which is the viewer's own row
-    /// (`work/view/pickindex-merges-parts-on-a-rounded-t-it-never-converts.md`)
+    /// (`work/fit/a-moved-copys-pick-span-crosses-its-frame-unconverted.md`)
     /// where a display frame moves an instance.
     #[getter]
     fn t_lo(&self) -> f64 {

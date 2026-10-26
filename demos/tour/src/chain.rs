@@ -74,8 +74,8 @@
 
 use pncad::document::{
     AssertionRelation, CancelToken, Coord, Dimension, Distribution, DocEdit, DocumentId,
-    EvalOptions, Evaluation, Formula, Frame, FreeVar, LoopProgram, MeasurePrimitive, Node,
-    ProfileDoc, ProfileProgram, RecipeNodeId, SitedRef, VarName, apply, evaluate,
+    EvalOptions, Evaluation, Formula, FreeVar, LoopProgram, MeasurePrimitive, Node, ProfileDoc,
+    ProfileProgram, RecipeNodeId, SitedRef, TargetAxis, VarName, apply, evaluate,
 };
 use pncad::geom::Surface;
 use pncad::geom_core::Tol;
@@ -372,12 +372,12 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
         },
         tol,
     );
-    let pin_at = |doc: &mut ProfileDoc, x: f64, tol| {
+    let pin_along = |doc: &mut ProfileDoc, x: Formula, tol| {
         let profile = insert(
             doc,
             Node::Profile(ProfileProgram {
                 loops: vec![LoopProgram::Circle {
-                    centre: [len(x), len(0.0)],
+                    centre: [x, Formula::zero(Dimension::Length)],
                     radius: len(PIN_RADIUS),
                 }],
                 ids: Vec::new(),
@@ -393,64 +393,53 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
             tol,
         )
     };
-    let base_pin = pin_at(&mut doc, 0.0, tol);
-    let tip_pin = pin_at(&mut doc, LINK_LENGTH, tol);
+    let base_pin = pin_along(&mut doc, Formula::zero(Dimension::Length), tol);
+    let tip_pin = pin_along(&mut doc, len(LINK_LENGTH), tol);
 
-    // **The joints.** Link 1 stands in the world at the base joint,
-    // turned by `joint_1`; link `k` is placed against link `k-1`'s
-    // copy, one link length along it and turned by `joint_k`. Each
-    // link's placement reads its parent's copy, so joint `j` turns links
-    // `j..n` and leaves links `1..j` where they were. A spin is charted
-    // about the mated direction: against a parent, the start caps'
-    // outward normal `−z`, so a turn of `joint` about `+z` is a spin of
-    // `−joint`; in the world, the start cap flipped onto `+z`, so it is
-    // a spin of `joint`.
-    let turned = |j: usize| {
-        move |values: Vec<(Coord, Formula)>| {
-            values
-                .into_iter()
-                .map(|(coord, by)| match coord {
-                    Coord::Spin => (coord, {
-                        let joint = Formula::named(joint_name(j), Dimension::Angle);
-                        if j == 1 {
-                            joint
-                        } else {
-                            Formula::neg(joint).expect("an angle negates")
-                        }
-                    }),
-                    Coord::Slide(_) | Coord::SpinAbout(_) => (coord, by),
-                })
-                .collect()
-        }
+    // **The joints.** Link `k` stands in the world turned about the
+    // world's `z` by `θ_k = joint_1 + … + joint_k`, its own origin at
+    // link `k-1`'s tip: `Σ_{i<k} LINK_LENGTH·(cos θ_i, sin θ_i)`. Its
+    // values are on the world's axes, each reading the joint variables,
+    // so joint `j` turns links `j..n` and leaves links `1..j` where they
+    // were.
+    let theta = |k: usize| {
+        (1..=k)
+            .map(|j| Formula::named(joint_name(j), Dimension::Angle))
+            .reduce(|a, b| Formula::add(a, b).expect("angles add"))
+            .expect("a link has a joint")
+    };
+    let along = |k: usize, trig: fn(Formula) -> Result<Formula, _>| {
+        (1..k).fold(Formula::zero(Dimension::Length), |sum, i| {
+            let step = Formula::mul(len(LINK_LENGTH), trig(theta(i)).expect("an angle's ratio"))
+                .expect("a length times a ratio");
+            Formula::add(sum, step).expect("lengths add")
+        })
+    };
+    let link_values = |k: usize| {
+        vec![
+            (Coord::Spin(TargetAxis::Z), theta(k)),
+            (Coord::Slide(TargetAxis::X), along(k, Formula::cos)),
+            (Coord::Slide(TargetAxis::Y), along(k, Formula::sin)),
+        ]
     };
     let mut bars: Vec<RecipeNodeId> = Vec::with_capacity(links);
     for k in 1..=links {
-        let placed = match bars.last() {
-            None => crate::world::in_world_valued(&doc, bar, &Frame::IDENTITY, turned(k), tol),
-            Some(&parent) => crate::world::against_valued(
-                &doc,
-                parent,
-                bar,
-                &Frame::translation([LINK_LENGTH, 0.0, 0.0]),
-                turned(k),
-                tol,
-            ),
-        };
+        let placed = crate::world::in_world_by(&doc, bar, link_values(k), tol);
         doc = placed.doc;
         bars.push(placed.placement);
     }
-    // Pin `k` sits at the base of link `k`, so it rides link `k`'s copy;
-    // the last pin is link `links`'s TIP pin and rides the same copy one
-    // shape over. Each is drawn where it sits on its link.
+    // Pin `k` sits at the base of link `k`, so it stands where link `k`
+    // does, by the same values; the last pin is link `links`'s TIP pin,
+    // one shape over.
     let mut pins: Vec<RecipeNodeId> = Vec::with_capacity(links + 1);
-    for (k, &link) in bars.iter().enumerate() {
-        let shapes: &[RecipeNodeId] = if k + 1 == links {
+    for k in 1..=links {
+        let shapes: &[RecipeNodeId] = if k == links {
             &[base_pin, tip_pin]
         } else {
             &[base_pin]
         };
         for &shape in shapes {
-            let placed = crate::world::against(&doc, link, shape, &Frame::IDENTITY, tol);
+            let placed = crate::world::in_world_by(&doc, shape, link_values(k), tol);
             doc = placed.doc;
             pins.push(placed.placement);
         }
@@ -458,7 +447,7 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
 
     // The target: the mating pin at the chain's nominal tip, fixed in
     // the world where it is drawn.
-    let target = pin_at(&mut doc, links as f64 * LINK_LENGTH, tol);
+    let target = pin_along(&mut doc, len(links as f64 * LINK_LENGTH), tol);
     let placed = crate::world::place_in_world(&doc, target, tol);
     doc = placed.doc;
     let target = placed.placement;

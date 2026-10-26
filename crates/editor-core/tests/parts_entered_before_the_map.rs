@@ -17,11 +17,11 @@
 
 use crate::fixture;
 use editor_core::{
-    CancelToken, CapEnd, ContactClass, DocRef, DocumentId, EvalOptions, Evaluation, Frame, Node,
-    NodeResult, ProfileDoc, RecipeNodeId, evaluate,
+    CancelToken, CapEnd, DocRef, DocumentId, EvalOptions, Evaluation, Frame, Node, NodeResult,
+    ProfileDoc, RecipeNodeId, evaluate,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
-use fixture::{at_the_door, insert, len, on_frame, on_pool, square};
+use fixture::{insert, len, on_frame, on_pool, square};
 use geom_core::Tol;
 use geom_core::k_stats::{self, MarginSample, Probe};
 
@@ -78,7 +78,8 @@ enum Rest {
     /// Each pinned at the identity too.
     Pinned,
     /// The second placed by a rest of its bottom cap on the first's
-    /// top cap, so the solve reads the part (its faces' poses).
+    /// top cap, the freedoms it leaves written 0, so the solve reads
+    /// the part (its faces' poses).
     Mated,
 }
 
@@ -99,12 +100,8 @@ fn assembly(
         doc = block(doc, (3.0, 0.0), 0.3, 0.7).0;
     }
     let mut ids = Vec::new();
-    for i in 0..n {
-        let node = match (i, rest) {
-            (0, _) | (_, Rest::Pinned) => Node::instantiate_part(*part),
-            (_, Rest::Mated) => fixture::mated_instance(*part),
-        };
-        let (next, id) = insert(doc, node);
+    for _ in 0..n {
+        let (next, id) = insert(doc, fixture::mated_instance(*part));
         doc = next;
         ids.push(id);
     }
@@ -112,11 +109,8 @@ fn assembly(
         let mate = fixture::rest(
             fixture::head(in_part(ids[1], *body, CapEnd::Start)),
             fixture::head(in_part(ids[0], *body, CapEnd::End)),
-            ContactClass::Rest,
         );
-        doc = at_the_door(&doc, mate)
-            .unwrap_or_else(|(_, fault)| panic!("the door admits the mate: {fault}"))
-            .0;
+        doc = fixture::constrain(doc, mate).0;
     }
     doc
 }
@@ -230,7 +224,7 @@ fn a_nested_assembly_records_the_serial_walks_sequence_under_the_parallel_map() 
     let leaf = stored_block(&mut store, &format!("{label}-leaf"), 0.5, 1.0);
     let other = stored_block(&mut store, &format!("{label}-other"), 0.4, 0.6);
     let mid = ProfileDoc::empty(DocumentId::derive(&format!("{label}-mid")), Tol::witness());
-    let (mid, _) = insert(mid, Node::instantiate_part(leaf));
+    let (mid, _) = insert(mid, crate::fixture::mated_instance(leaf));
     let (mid, apart) = insert(mid, fixture::mated_instance(leaf));
     let mid = fixture::pin(
         mid,
@@ -243,7 +237,7 @@ fn a_nested_assembly_records_the_serial_walks_sequence_under_the_parallel_map() 
     let mut top = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     top = block(top, (3.0, 0.0), 0.3, 0.7).0;
     for part in [mid, leaf, other, mid, leaf, other] {
-        top = insert(top, Node::instantiate_part(part)).0;
+        top = insert(top, crate::fixture::mated_instance(part)).0;
     }
     let (serial_ev, serial) = recorded(&top, &opts, false);
     assert_eq!(

@@ -366,7 +366,7 @@ fn assert_two_sided(result: &topo::splitting::SplitResult<f64>) -> (Body<f64>, B
             panic!("tier 3 passes end to end since PR 11: {errs:?}");
         }
     }
-    (above.clone(), below.clone())
+    (topo::Body::clone(above), topo::Body::clone(below))
 }
 
 /// THE reviewer probe (review_pr5_probe::even_crossing, adopted): the

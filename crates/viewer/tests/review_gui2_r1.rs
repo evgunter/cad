@@ -259,11 +259,7 @@ fn two_copies_draw_under_disjoint_ids_and_every_patch_is_named() {
         let key = ids.key_of(id).expect("assigned ids invert");
         assert_eq!(ids.id_of(key), Some(id), "the two directions agree");
         nodes.insert(key.node);
-        let name = index
-            .name_of(id)
-            .expect("a drawn id has a name slot")
-            .as_ref()
-            .expect("every drawn patch is named");
+        let name = index.name_of(id).expect("every drawn patch is named");
         assert!(
             index.ids_of(name).contains(&id),
             "the name's id list carries the id that named it"
@@ -296,7 +292,7 @@ fn clicks_select_replace_and_clear_and_hover_is_transient() {
     // This suite's own framing: the index's scene bounds, not the
     // unit's plate helper.
     let scene = index.scene().expect("the fixture draws");
-    let camera = Camera::framing(&scene.bounds(), aspect).expect("the fixture frames");
+    let camera = Camera::framing(scene.bounds(), aspect).expect("the fixture frames");
     let cursor_at = |p: Point3<f64>| {
         let ndc = camera
             .project(p, aspect)
@@ -524,7 +520,7 @@ fn e2e_a_gallery_ring_is_picked_edited_killed_and_revived() {
     };
     let aspect = viewport.aspect().expect("a positive aspect");
     let scene = index.scene().expect("the ring draws");
-    let camera = Camera::framing(&scene.bounds(), aspect).expect("the ring frames");
+    let camera = Camera::framing(scene.bounds(), aspect).expect("the ring frames");
 
     // Aim at the centroid of some triangle of the drawn tessellation
     // whose surface faces the camera — derived from the mesh itself,

@@ -522,7 +522,11 @@ fn d_of_arcs(x0: f64, k: usize, start: usize) -> ProfileLoop<f64> {
 
 /// The body's volume against `want`, to the quadrature pad.
 fn has_volume(label: &str, b: &Body<f64>, want: f64) {
-    let p = topo::mass_properties(b, tol()).unwrap_or_else(|e| panic!("{label}: props: {e:?}"));
+    let p = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(b), tol()),
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("{label}: props: {e:?}"));
     assert!(
         (p.volume - want).abs() <= 1e-7 * want.abs().max(1.0) + p.volume_pad,
         "{label}: volume {} want {want}",
@@ -781,8 +785,15 @@ fn arc_runs_build_one_wall_at_interval() {
                     .unwrap_or_else(|e| panic!("{label}: {e:?}"));
                 assert_eq!(r.body.faces().count(), 2, "{label}: one wall");
                 validate_geometric(&r.body, t).unwrap_or_else(|e| panic!("{label}: tier 3: {e:?}"));
-                topo::mass_properties(&r.body, t)
-                    .unwrap_or_else(|e| panic!("{label}: props: {e:?}"));
+                topo::mass_properties(
+                    &topo::test_support::finished(
+                        "the measured body",
+                        topo::Body::clone(&r.body),
+                        t,
+                    ),
+                    t,
+                )
+                .unwrap_or_else(|e| panic!("{label}: props: {e:?}"));
             }
         }
     }

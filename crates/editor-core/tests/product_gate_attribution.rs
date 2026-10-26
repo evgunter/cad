@@ -235,7 +235,7 @@ fn a_lone_multi_solid_source_is_named() {
     let o = with_resolver(store);
     let (doc, source) = fixture::insert_pinned(
         ProfileDoc::empty(DocumentId::derive("per-part-3-a"), Tol::witness()),
-        Node::instantiate_part(b),
+        crate::fixture::mated_instance(b),
         &o,
     );
     let mut ev = fixture::run(&doc, &o);

@@ -1718,7 +1718,7 @@ fn a_count_slot_refuses_a_value_that_is_not_a_number() {
     let carried = SlotValue::of(Dimension::Length, f64::NAN).expect("the continuous arm carries");
     assert!(
         matches!(carried, SlotValue::Continuous(v) if v.is_nan()),
-        "the continuous arm answered {carried:?} instead of carrying its value          to the literal door"
+        "the continuous arm answered {carried:?} instead of carrying its value to the literal door"
     );
 }
 

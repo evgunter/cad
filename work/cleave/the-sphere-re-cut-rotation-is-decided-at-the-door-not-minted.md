@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-13
 priority: P3
 cost: E
-refs: [SYM-17, the-sketch-plane-is-its-frame]
+refs: [SYM-17]
 ---
 
 ## What

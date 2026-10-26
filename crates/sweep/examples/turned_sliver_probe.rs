@@ -46,13 +46,8 @@ fn main() {
             };
             for (word, part) in [("above", r.above.body()), ("below", r.below.body())] {
                 let Some(b) = part else { continue };
-                let fin: AtRestBody<f64> = match AtRestBody::validate(b.clone(), tol()) {
-                    Ok(f) => f,
-                    Err(_) => {
-                        println!("psi {psi:e} phi {phi} {word}: invalid before turning");
-                        continue;
-                    }
-                };
+                // The split's side is finished: its gate kept the verdict.
+                let fin: AtRestBody<f64> = b.clone();
                 for axis in axes {
                     let axis = axis / axis.norm();
                     for a in angles {

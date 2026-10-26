@@ -43,11 +43,13 @@ macro_rules! name_free_node {
             | $crate::node::Node::Chamfer { .. }
             | $crate::node::Node::Shell { .. }
             | $crate::node::Node::Split { .. }
+            | $crate::node::Node::Mirror { .. }
             | $crate::node::Node::Subtract { .. }
             | $crate::node::Node::Union { .. }
             | $crate::node::Node::Intersect { .. }
             | $crate::node::Node::Place { .. }
             | $crate::node::Node::World
+            | $crate::node::Node::Space
             | $crate::node::Node::Pattern { .. }
             | $crate::node::Node::Part { .. }
             | $crate::node::Node::PlacedUnion { .. }
@@ -86,6 +88,18 @@ pub struct StepId(pub MintId);
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
 pub struct ConstraintId(pub MintId);
+
+impl ConstraintId {
+    /// **The `i`-th id of a bundle as written**: the id an authored
+    /// bundle holds until the edit writing it mints its own, so a value
+    /// names a mate written beside it by the mate's placeholder
+    /// ([`crate::mate::pin::Placed::bundle`]). Digest zero, which no
+    /// mint draws.
+    #[must_use]
+    pub const fn placeholder(i: u32) -> Self {
+        Self(MintId::new(i, 0))
+    }
+}
 
 /// A constraint id is spoken by its ordinal, `#<ordinal>`: the mint
 /// never draws one twice, and a sentence always names the placement it
@@ -412,23 +426,6 @@ pub enum SlotId {
     /// [`crate::Node::Tube`] does not carry, because a solid tube has
     /// no wall to drive.
     TubeWall,
-    /// A slide's length in a mate's world read ([`crate::WorldRead`]):
-    /// the `step`th scalar of constraint `constraint`'s read, in
-    /// pre-order.
-    WorldSlide {
-        /// Which constraint of the placement.
-        constraint: ConstraintId,
-        /// The scalar's place in the read.
-        step: usize,
-    },
-    /// A spin's angle in a mate's world read ([`crate::WorldRead`]),
-    /// addressed as [`SlotId::WorldSlide`] is.
-    WorldSpin {
-        /// Which constraint of the placement.
-        constraint: ConstraintId,
-        /// The scalar's place in the read.
-        step: usize,
-    },
     /// A slide of a loft section's station ([`StationMove::Slide`]):
     /// the `step`th move of section `section`'s station, sections
     /// counted in skin order from the first, which has none.
@@ -624,8 +621,8 @@ impl SlotId {
             Self::Count | Self::VDegree | Self::Stations | Self::Instance | Self::Index { .. } => {
                 Dimension::Count
             }
-            Self::WorldSlide { .. } | Self::StationSlide { .. } => Dimension::Length,
-            Self::WorldSpin { .. } | Self::StationSpin { .. } => Dimension::Angle,
+            Self::StationSlide { .. } => Dimension::Length,
+            Self::StationSpin { .. } => Dimension::Angle,
             Self::ValueSlide { .. } => Dimension::Length,
             Self::ValueSpin { .. } => Dimension::Angle,
             // Profile-program roles carry V2's per-role table; none is
@@ -714,8 +711,6 @@ impl SlotId {
             Self::Profile { loop_, step, arg } => {
                 format!("loop {loop_} step {step} · {}", arg.label())
             }
-            Self::WorldSlide { step, .. } => format!("world read slide {}", step + 1),
-            Self::WorldSpin { step, .. } => format!("world read spin {}", step + 1),
             Self::StationSlide { section, step } => {
                 format!("section {} station slide {}", section + 1, step + 1)
             }
@@ -762,19 +757,11 @@ impl SlotId {
             | Self::Operand(_)
             | Self::Index { .. }
             | Self::Profile { .. }
-            | Self::WorldSlide { .. }
-            | Self::WorldSpin { .. }
             | Self::StationSlide { .. }
             | Self::StationSpin { .. }
             | Self::ValueSlide { .. }
             | Self::ValueSpin { .. } => None,
         }
-    }
-
-    /// Whether this slot addresses a scalar of a mate's world read —
-    /// an address only a mate carries.
-    pub fn is_world_read_step(self) -> bool {
-        matches!(self, Self::WorldSlide { .. } | Self::WorldSpin { .. })
     }
 
     /// Whether this slot addresses a value's number — an address only a
@@ -819,7 +806,6 @@ impl core::fmt::Display for SlotId {
 ///
 /// ```compile_fail,E0308
 /// let _ = editor_core::InterfaceCrossing::Mate {
-///     class: editor_core::ContactClass::Rest,
 ///     outer: named(editor_core::EntityKind::Edge),
 ///     inner: named(editor_core::EntityKind::Edge),
 /// };
@@ -844,7 +830,6 @@ impl core::fmt::Display for SlotId {
 /// };
 ///
 /// let _ = editor_core::InterfaceCrossing::Mate {
-///     class: editor_core::ContactClass::Rest,
 ///     outer: face(),
 ///     inner: face(),
 /// };
@@ -880,9 +865,6 @@ pub enum InterfaceCrossing {
     /// a later delete of the mate is not reported — is a reference
     /// with no reader to protect.
     Mate {
-        /// The class the crossing declares.
-        #[serde(with = "crate::persist::kernel_wire::contact_class")]
-        class: crate::mate::ContactClass,
         /// The remainder-side reference — the one the mate keeps.
         outer: FaceName,
         /// The part-side reference, in the part's own names — the one
@@ -1224,11 +1206,13 @@ macro_rules! expr_table {
             | Node::Chamfer { .. }
             | Node::Shell { .. }
             | Node::Split { .. }
+            | Node::Mirror { .. }
             | Node::Subtract { .. }
             | Node::Union { .. }
             | Node::Intersect { .. }
             | Node::Place { .. }
             | Node::World
+            | Node::Space
             | Node::Pattern { .. }
             | Node::Part { .. }
             | Node::PlacedUnion { .. }
@@ -1321,8 +1305,8 @@ impl SitedRef {
 /// ```
 /// use editor_core::pose::PoseDef;
 /// use editor_core::{
-///     ContactClass, EntityKind, FaceName, Formula, Mate, Operand, RecipeNodeId, SitedFace,
-///     StableName, Target,
+///     EntityKind, FaceName, Formula, Mate, Operand, RecipeNodeId, SitedFace,
+///     StableName,
 /// };
 /// let face = FaceName::new(StableName {
 ///     kind: EntityKind::Face,
@@ -1340,8 +1324,7 @@ impl SitedRef {
 /// }));
 /// let _: Mate<Formula> = Mate {
 ///     on: plane(face),
-///     to: Target::Pose(flipped),
-///     class: ContactClass::Rest,
+///     to: flipped,
 /// };
 /// ```
 ///
@@ -1574,17 +1557,8 @@ pub enum PlacementRuleFault {
         /// Its index in the placement list.
         index: usize,
     },
-    /// An IMPROPER placement frame — determinant ≤ 0, i.e. a mirror
-    /// (A6). Admitting one is gated on the equivariance audit R4 owns,
-    /// exactly as for every other literal placement frame.
-    ImproperFrame {
-        /// Its index in the placement list.
-        index: usize,
-        /// The linear part's determinant.
-        determinant: f64,
-    },
-    /// A proper placement frame that is not definitely a rigid motion
-    /// at tolerance ([`crate::placement::FrameFault::NotRigid`]).
+    /// A placement frame that is not definitely a rigid motion at
+    /// tolerance — a mirror among them ([`crate::placement::FrameFault::NotRigid`]).
     NonRigidFrame {
         /// Its index in the placement list.
         index: usize,
@@ -1619,13 +1593,6 @@ impl core::fmt::Display for PlacementRuleFault {
                     crate::placement::FrameFault::NonFinite
                 )
             }
-            Self::ImproperFrame { index, determinant } => write!(
-                f,
-                "placement {index} {}",
-                crate::placement::FrameFault::Improper {
-                    determinant: *determinant
-                }
-            ),
             Self::NonRigidFrame { index, check } => write!(
                 f,
                 "placement {index} {}",
@@ -1944,6 +1911,20 @@ pub enum Node<P, S: Slot = crate::VarId> {
         /// plane read through its role.
         tool: crate::pose::RoleRead<S::Read>,
     },
+    /// **The mirror image of a body** (D10 `[repetition]`,
+    /// `docs/MIRROR-DESIGN.md` P4): a construction defining a new `Body`
+    /// in its source's space, the source reflected across `plane`
+    /// (`topo::mirror_body`). A reflection is not a pose, so no
+    /// placement mirrors and every pose is proper. Its plane reads only
+    /// geometry of that space, as a split's tool does. Its cells keep
+    /// their names in the source, as a copy's do.
+    Mirror {
+        /// The body reflected.
+        body: crate::BodyRead<S>,
+        /// The mirror plane: a `Plane` read, or a frame's coordinate
+        /// plane read through its role.
+        plane: crate::pose::RoleRead<S::Read>,
+    },
     /// **The union** (`crates/editor-core/REFERENCES.md` DM4): one
     /// argument of kind `Bodies` ([`Bodies`]), ONE body out, the fold of
     /// the kernel's pair verb in member order.
@@ -1993,25 +1974,28 @@ pub enum Node<P, S: Slot = crate::VarId> {
     /// qualified by the copy ([`crate::names::RoleSeg::Placed`]). Two
     /// placements of one body are two copies.
     ///
-    /// Its constraints are addressed by their minted ids, never by
-    /// position, and are added and removed by their own edits
-    /// ([`crate::DocEdit::AddConstraint`]). Which copy a constraint
-    /// pins is which placement holds it, so a constraint has no role.
-    /// A copy whose bundle reaches the world through other copies is a
-    /// product copy; one whose bundle pins less than its body needs is
-    /// a loose copy, a space of its own (D10, Spaces).
+    /// Its copies are in its `target`, the space it places into, and
+    /// its bundle pins them there: its constraints set every freedom
+    /// (D10 `[placement.placement]`). They are addressed by their
+    /// minted ids, never by position. Which copy a constraint pins is
+    /// which placement holds it, so a constraint has no role.
     Place {
         /// The shapes copied, in the order written.
         shapes: Vec<crate::BodyRead<S>>,
-        /// The bundle, in the order the edits added it.
+        /// The space the copies are placed into: a `Space` read.
+        target: S::Read,
+        /// The bundle, in the order written.
         constraints: Vec<crate::mate::Constraint<S>>,
     },
-    /// **The world** (D10): one undeletable node every document holds
-    /// from its creation, at [`RecipeNodeId::WORLD`]. It defines no
-    /// variable, so only a placement's mates read it
-    /// ([`crate::mate::Target::World`]), and export writes its
-    /// coordinates. It is not on the wire: every document has it.
+    /// **The world** (D10 `[placement.world]`): one undeletable node
+    /// every document holds from its creation, at
+    /// [`RecipeNodeId::WORLD`], defining the world's space
+    /// ([`VarId::WORLD`]). It is not on the wire: every document has it.
     World,
+    /// **A new space** (D10 `[variables.kinds]`, `new_space()`): reads
+    /// nothing and defines one `Space`, a coordinate system no
+    /// construction is written in, which placements place into.
+    Space,
     /// **A pattern of an upstream value** with a STRUCTURAL
     /// Count-typed index expression (spec D3/A8; N1 `Instance(i)`
     /// will index it): the input is the MASTER, placed WHOLE at every
@@ -2095,9 +2079,8 @@ pub enum Node<P, S: Slot = crate::VarId> {
     /// seam rather than arriving from an upstream node, so it reads
     /// no operand and the DAG has nothing to schedule ahead of it.
     ///
-    /// **An instance is a placement** (D10): its copies sit where its
-    /// constraints pin them, and an instance whose bundle pins less
-    /// than its part needs is a loose copy, a space of its own.
+    /// **An instance is a placement** (D10): its copies are in its
+    /// `target`, where its constraints pin them.
     InstantiatePart {
         /// Which document, at which version (A4: the id answers "which
         /// part", the pin "which version of it"). Cargo.lock semantics
@@ -2113,6 +2096,8 @@ pub enum Node<P, S: Slot = crate::VarId> {
         /// the node's content key.
         #[serde(default, skip_serializing_if = "InterfaceRecord::is_empty")]
         interface: InterfaceRecord,
+        /// The space the copies are placed into: a `Space` read.
+        target: S::Read,
         /// The bundle that pins the instance's copies (D10: an
         /// instance of a part is a placement), addressed by minted id,
         /// as a [`Node::Place`]'s is. Its copy side reads a face of the
@@ -2377,6 +2362,7 @@ macro_rules! node_rows {
             // addressed by the constraint.
             Node::Place {
                 shapes,
+                target: _,
                 constraints,
             } => {
                 for (seat, shape) in shapes.$rows() {
@@ -2389,9 +2375,10 @@ macro_rules! node_rows {
             Node::InstantiatePart {
                 doc_ref: _,
                 interface: _,
+                target: _,
                 constraints,
             } => $out.extend(constraints.$rows()),
-            Node::World => {}
+            Node::World | Node::Space => {}
             // A pattern's count is a field, so it is always there; a
             // placed union's is an `Option`, and a rule missing the
             // count it needs carries no count SLOT either — the
@@ -2413,6 +2400,7 @@ macro_rules! node_rows {
                 select: PartSelect::Instance(index),
             } => $out.push((S::Instance, index)),
             Node::Split { target, tool: _ } => index_rows!(O::Target, target, $rows, $out),
+            Node::Mirror { body, plane: _ } => index_rows!(O::Body, body, $rows, $out),
             Node::Subtract { from, tool } => {
                 index_rows!(O::From, from, $rows, $out);
                 index_rows!(O::Cut, tool, $rows, $out);
@@ -2514,18 +2502,26 @@ impl<P> Node<P> {
             Node::InstantiatePart {
                 doc_ref: _,
                 interface: _,
+                target,
                 constraints,
-            } => side_rows(constraints),
+            } => {
+                let mut v = vec![(O::Space, *target)];
+                v.extend(side_rows(constraints));
+                v
+            }
             Node::Place {
                 shapes,
+                target,
                 constraints,
             } => {
                 let mut v: Vec<(O, VarId)> =
                     shapes.rows().into_iter().map(|(o, r)| (o, r.read)).collect();
+                v.push((O::Space, *target));
                 v.extend(side_rows(constraints));
                 v
             }
             | Node::World
+            | Node::Space
             // An assertion's value is a payload expression
             // ([`payload_exprs`]), not an operand.
             | Node::Assertion {
@@ -2575,6 +2571,7 @@ impl<P> Node<P> {
                 vec![(O::Measured(verb, 0), *a), (O::Measured(verb, 1), *b)]
             }
             Node::Split { target, tool } => vec![(O::Target, target.read), (O::Tool, tool.read)],
+            Node::Mirror { body, plane } => vec![(O::Body, body.read), (O::Plane, plane.read)],
             Node::Subtract {
                 from,
                 tool,
@@ -2620,10 +2617,16 @@ impl<P> Node<P> {
             Node::InstantiatePart {
                 doc_ref: _,
                 interface: _,
+                target,
                 constraints,
-            } => side_rows_mut(constraints),
+            } => {
+                let mut v = vec![(O::Space, target)];
+                v.extend(side_rows_mut(constraints));
+                v
+            }
             Node::Place {
                 shapes,
+                target,
                 constraints,
             } => {
                 let mut v: Vec<(O, &mut VarId)> = shapes
@@ -2631,10 +2634,12 @@ impl<P> Node<P> {
                     .into_iter()
                     .map(|(o, r)| (o, &mut r.read))
                     .collect();
+                v.push((O::Space, target));
                 v.extend(side_rows_mut(constraints));
                 v
             }
             Node::World
+            | Node::Space
             | Node::Assertion {
                 value: _,
                 bound: _,
@@ -2683,6 +2688,9 @@ impl<P> Node<P> {
             }
             Node::Split { target, tool } => {
                 vec![(O::Target, &mut target.read), (O::Tool, &mut tool.read)]
+            }
+            Node::Mirror { body, plane } => {
+                vec![(O::Body, &mut body.read), (O::Plane, &mut plane.read)]
             }
             Node::Subtract { from, tool } => {
                 vec![(O::From, &mut from.read), (O::Cut, &mut tool.read)]
@@ -2999,9 +3007,18 @@ impl<P, S: Slot> Node<P, S> {
     pub fn outputs(&self) -> Vec<OutputPort> {
         use crate::VarKind;
         const BODY: OutputPort = OutputPort::of("body", VarKind::Body);
+        const SPACE: OutputPort = OutputPort::of("space", VarKind::Space);
         match self {
             Self::Profile(_) => vec![OutputPort::of("profile", VarKind::Profile)],
-            Self::Revolve { .. } => vec![BODY, OutputPort::of("axis", VarKind::Axis)],
+            // A construction's body is born in a space of its own,
+            // its last port (D10 `[variables.kinds]`: `a.space`).
+            Self::Revolve { .. } => vec![BODY, OutputPort::of("axis", VarKind::Axis), SPACE],
+            Self::Extrude { .. }
+            | Self::Tube { .. }
+            | Self::HollowTube { .. }
+            | Self::Loft { .. }
+            | Self::Sweep { .. } => vec![BODY, SPACE],
+            Self::World | Self::Space => vec![SPACE],
             Self::Split { .. } => vec![
                 OutputPort::of("above", VarKind::Body),
                 OutputPort::of("below", VarKind::Body),
@@ -3017,20 +3034,16 @@ impl<P, S: Slot> Node<P, S> {
             Self::Measure { primitive } => {
                 vec![OutputPort::of("value", VarKind::from(primitive.dim()))]
             }
-            Self::Extrude { .. }
-            | Self::Tube { .. }
-            | Self::HollowTube { .. }
-            | Self::Loft { .. }
-            | Self::Sweep { .. }
-            | Self::Fillet { .. }
+            Self::Fillet { .. }
             | Self::Chamfer { .. }
             | Self::Shell { .. }
+            | Self::Mirror { .. }
             | Self::Subtract { .. }
             | Self::Union { .. }
             | Self::Intersect { .. }
             | Self::Part { .. }
             | Self::PlacedUnion { .. } => vec![BODY],
-            Self::World | Self::Assertion { .. } => Vec::new(),
+            Self::Assertion { .. } => Vec::new(),
         }
     }
 }
@@ -3140,6 +3153,10 @@ impl<P, S: Slot> Node<P, S> {
                 target: target.try_map(O::Target, f, read)?,
                 tool: tool.try_map(|tool| read(O::Tool, tool))?,
             },
+            Node::Mirror { body, plane } => Node::Mirror {
+                body: body.try_map(O::Body, f, read)?,
+                plane: plane.try_map(|plane| read(O::Plane, plane))?,
+            },
             Node::Subtract { from, tool } => Node::Subtract {
                 from: from.try_map(O::From, f, read)?,
                 tool: tool.try_map(O::Cut, f, read)?,
@@ -3152,6 +3169,7 @@ impl<P, S: Slot> Node<P, S> {
             },
             Node::Place {
                 shapes,
+                target,
                 constraints,
             } => Node::Place {
                 shapes: shapes
@@ -3161,9 +3179,11 @@ impl<P, S: Slot> Node<P, S> {
                         shape.try_map(O::Shape(u32::try_from(i).unwrap_or(u32::MAX)), f, read)
                     })
                     .collect::<Result<_, _>>()?,
+                target: read(O::Space, target)?,
                 constraints: map_constraints(constraints, f, read)?,
             },
             Node::World => Node::World,
+            Node::Space => Node::Space,
             Node::Pattern { input, count, kind } => Node::Pattern {
                 input: read(O::Input, input)?,
                 count: f(count)?,
@@ -3181,10 +3201,12 @@ impl<P, S: Slot> Node<P, S> {
             Node::InstantiatePart {
                 doc_ref,
                 interface,
+                target,
                 constraints,
             } => Node::InstantiatePart {
                 doc_ref: *doc_ref,
                 interface: interface.clone(),
+                target: read(O::Space, target)?,
                 constraints: map_constraints(constraints, f, read)?,
             },
             Node::Measure { primitive } => {
@@ -3219,6 +3241,7 @@ impl<P, S: Slot> Node<P, S> {
         use crate::OperandSlot as O;
         match self {
             Node::Split { target, .. } => vec![(O::Target, target)],
+            Node::Mirror { body, .. } => vec![(O::Body, body)],
             Node::Subtract { from, tool, .. } => vec![(O::From, from), (O::Cut, tool)],
             Node::Union { members, .. } | Node::Intersect { members, .. } => members.rows(),
             Node::Place { shapes, .. } => shapes.rows(),
@@ -3237,6 +3260,7 @@ impl<P, S: Slot> Node<P, S> {
             | Node::PlacedUnion { .. }
             | Node::InstantiatePart { .. }
             | Node::World
+            | Node::Space
             | Node::Measure { .. }
             | Node::Assertion { .. } => Vec::new(),
         }
@@ -3253,6 +3277,7 @@ impl<P, S: Slot> Node<P, S> {
         use crate::OperandSlot as O;
         match (self, seat) {
             (Node::Split { target, .. }, O::Target) => Some(target),
+            (Node::Mirror { body, .. }, O::Body) => Some(body),
             (Node::Subtract { from, .. }, O::From) => Some(from),
             (Node::Subtract { tool, .. }, O::Cut) => Some(tool),
             (Node::Union { members, .. } | Node::Intersect { members, .. }, _) => members
@@ -3310,6 +3335,7 @@ impl<P, S: Slot> Node<P, S> {
         use crate::OperandSlot as O;
         match self {
             Node::Split { tool, .. } => vec![(O::Tool, tool.role)],
+            Node::Mirror { plane, .. } => vec![(O::Plane, plane.role)],
             Node::Pattern {
                 kind: PatternKind::Circular { axis, .. },
                 ..
@@ -3331,6 +3357,7 @@ impl<P, S: Slot> Node<P, S> {
         use crate::OperandSlot as O;
         match (self, seat) {
             (Node::Split { tool, .. }, O::Tool) => Some(&mut tool.role),
+            (Node::Mirror { plane, .. }, O::Plane) => Some(&mut plane.role),
             (
                 Node::Pattern {
                     kind: PatternKind::Circular { axis, .. },
@@ -3501,9 +3528,6 @@ impl<P, S: Slot> Node<P, S> {
                 crate::placement::FrameFault::NonFinite => {
                     Some(PlacementRuleFault::NonFiniteFrame { index })
                 }
-                crate::placement::FrameFault::Improper { determinant } => {
-                    Some(PlacementRuleFault::ImproperFrame { index, determinant })
-                }
                 crate::placement::FrameFault::NotRigid { check } => {
                     Some(PlacementRuleFault::NonRigidFrame { index, check })
                 }
@@ -3550,11 +3574,13 @@ impl<P, S: Slot> Node<P, S> {
             | Node::Chamfer { .. }
             | Node::Shell { .. }
             | Node::Split { .. }
+            | Node::Mirror { .. }
             | Node::Subtract { .. }
             | Node::Union { .. }
             | Node::Intersect { .. }
             | Node::Place { .. }
             | Node::World
+            | Node::Space
             | Node::Part { .. }
             | Node::InstantiatePart { .. }
             | Node::Measure { .. }
@@ -3681,38 +3707,57 @@ impl<P, S: Slot> Node<P, S> {
         Some((owner, slot.selection_entry(reference)?))
     }
 
+    /// **Whether this node is a space and nothing else** (the world, or
+    /// a `new_space()`): it holds nothing, so nothing evaluates it.
+    #[must_use]
+    pub fn is_space(&self) -> bool {
+        matches!(self, Node::World | Node::Space)
+    }
+
     /// Builds a [`Node::InstantiatePart`] with the EMPTY interface
-    /// record and no constraint: a loose copy until its mates pin it. A
-    /// mate reads poses off geometry and there is no part frame to read
-    /// (FORK-S3M), so no constructor can pin an instance where its
-    /// part's world is; the façade's "place part" writes the mates.
-    pub fn instantiate_part(doc_ref: crate::ident::DocRef) -> Self {
-        Self::instantiate_part_with(doc_ref, InterfaceRecord::default())
+    /// record, placed into `target` by `constraints`, which pin it
+    /// there ([`crate::mate::pin::Placed::bundle`]). A mate reads poses
+    /// off geometry and there is no part frame to read (FORK-S3M), so
+    /// no constructor can pin an instance where its part's world is;
+    /// the façade's "place part" writes the mates.
+    pub fn instantiate_part(
+        doc_ref: crate::ident::DocRef,
+        target: impl Into<S::Read>,
+        constraints: Vec<crate::mate::Constraint<S>>,
+    ) -> Self {
+        Self::instantiate_part_with(doc_ref, InterfaceRecord::default(), target, constraints)
     }
 
     /// Builds a [`Node::InstantiatePart`] carrying a SEAM record
-    /// (ASM-R2b D-4), its bundle empty: the split's door, since only a
-    /// split knows what crossed its cut, and the door of an instance
-    /// its own constraints will place ([`crate::DocEdit::AddConstraint`]),
-    /// a loose copy until they pin it.
+    /// (ASM-R2b D-4): the split's door, since only a split knows what
+    /// crossed its cut.
     pub fn instantiate_part_with(
         doc_ref: crate::ident::DocRef,
         interface: InterfaceRecord,
+        target: impl Into<S::Read>,
+        constraints: Vec<crate::mate::Constraint<S>>,
     ) -> Self {
         Node::InstantiatePart {
             doc_ref,
             interface,
-            constraints: Vec::new(),
+            target: target.into(),
+            constraints,
         }
     }
 
-    /// Builds a [`Node::Place`] copying `shapes`, its bundle empty: its
-    /// constraints are added by their own edits
-    /// ([`crate::DocEdit::AddConstraint`]).
-    pub fn place(shapes: Vec<crate::BodyRead<S>>) -> Self {
+    /// Builds a [`Node::Place`] copying `shapes` into `target` under
+    /// `constraints`, the whole bundle: a value naming a mate of it
+    /// names the mate's id as written, which the insert mints
+    /// ([`crate::mate::pin::Placed::bundle`]).
+    pub fn place(
+        shapes: Vec<crate::BodyRead<S>>,
+        target: impl Into<S::Read>,
+        constraints: Vec<crate::mate::Constraint<S>>,
+    ) -> Self {
         Node::Place {
             shapes,
-            constraints: Vec::new(),
+            target: target.into(),
+            constraints,
         }
     }
 
@@ -3775,10 +3820,12 @@ impl<P> Node<P, crate::Formula> {
             | Node::Loft { .. }
             | Node::Sweep { .. }
             | Node::Split { .. }
+            | Node::Mirror { .. }
             | Node::Subtract { .. }
             | Node::Union { .. }
             | Node::Intersect { .. }
             | Node::World
+            | Node::Space
             | Node::Pattern { .. }
             | Node::Part { .. }
             | Node::PlacedUnion { .. }
@@ -3837,6 +3884,19 @@ impl<P> Node<P, crate::Formula> {
                 target,
                 crate::var::Select::canonical(crate::VarKind::Faces, open),
             ),
+        }
+    }
+
+    /// Builds a [`Node::Mirror`]: the body `body` reads, reflected across
+    /// the plane `plane` reads. A symmetric part is the union of a body
+    /// and its mirror across one of its own faces.
+    pub fn mirror(
+        body: impl Into<crate::Operand>,
+        plane: impl Into<crate::pose::RoleRead<crate::Operand>>,
+    ) -> Self {
+        Node::Mirror {
+            body: body.into().into(),
+            plane: plane.into(),
         }
     }
 }
@@ -3934,9 +3994,7 @@ where
             continue;
         };
         out.push((seat(crate::mate::MateSide::On), mate.on.clone()));
-        if let Some(to) = mate.to.pose() {
-            out.push((seat(crate::mate::MateSide::To), to.clone()));
-        }
+        out.push((seat(crate::mate::MateSide::To), mate.to.clone()));
     }
     out
 }
@@ -3956,9 +4014,7 @@ fn side_rows_mut<S: Slot>(
             continue;
         };
         out.push((seat(crate::mate::MateSide::On), on));
-        if let Some(to) = to.pose_mut() {
-            out.push((seat(crate::mate::MateSide::To), to));
-        }
+        out.push((seat(crate::mate::MateSide::To), to));
     }
     out
 }

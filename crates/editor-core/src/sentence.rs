@@ -68,6 +68,21 @@ pub use geom_core::Recourse;
 /// directory).
 pub const PASS_A_RESOLVER: &str = "pass a resolver over the store that holds the part";
 
+/// **Why two spaces' bodies are not read together** (D10
+/// `[placement.spaces]`): the one clause every refusal of a read across
+/// two spaces states, at the edit door ([`crate::EditError::SpaceMismatch`]),
+/// at evaluation ([`crate::NodeErrorKind::SpaceMismatch`]), at a
+/// selection ([`crate::clearance::SelectionRefusal::AcrossSpaces`]) and
+/// at a hit test ([`crate::HitTestError::AcrossSpaces`]).
+pub(crate) const ONLY_A_PLACEMENT_RELATES_TWO_SPACES: &str = "only a placement relates two spaces";
+
+/// The recourse of [`ONLY_A_PLACEMENT_RELATES_TWO_SPACES`]: a read across
+/// two spaces is mended by a placement, or by reading one; `within`
+/// says what the refused door does in one space.
+pub(crate) fn place_into_one_space(within: &str) -> String {
+    format!("place one body into the other's space, or {within} one space")
+}
+
 /// **The indefinite article a word takes**, by its first letter: `an`
 /// before a vowel, `a` otherwise. For a word that comes from a value
 /// (a family word, a surface kind, a piece role), where a sentence

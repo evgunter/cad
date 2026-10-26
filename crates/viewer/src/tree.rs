@@ -280,14 +280,6 @@ pub struct TreeRow {
     pub placed: bool,
     /// What the evaluation said about it.
     pub status: RowStatus,
-    /// A standing caveat about the NODE itself, independent of any
-    /// run's status — today: a mate whose declared class carries no
-    /// at-rest record ([`pncad::document::ClassAdmission`], the
-    /// kernel's own reason). The admission verdict shown at the mate
-    /// tool's commit persists here on the node's own row, so a
-    /// committed `Tangent` is not a green row indistinguishable from
-    /// a certifiable one.
-    pub note: Option<String>,
     /// **Another node whose own slot refused**, when a
     /// [`RowStatus::Failed`] row's error names one: whatever
     /// `repair_named` answers for the row's own error, never this row.
@@ -325,18 +317,13 @@ pub struct ConstraintRow {
 }
 
 /// **What a constraint is, as its child row says it**: its 1-based
-/// position in its bundle (`at`), then `world mate` for a mate whose
-/// target reads the world, its contact class's name and `mate` for any
-/// other mate, and the freedom a value sets —
-/// `constraint 1: world mate`, `constraint 2: Rest mate`,
-/// `constraint 3: spin value`. Never its minted id, which is an arena
+/// position in its bundle (`at`), then `mate` for a mate, and the
+/// freedom a value sets — `constraint 1: mate`,
+/// `constraint 2: spin about z value`. Never its minted id, which is an arena
 /// key and no word a person reads.
 pub fn constraint_said(at: usize, constraint: &Constraint) -> String {
     match (constraint.mate(), constraint.value()) {
-        (Some(mate), _) if matches!(mate.to, pncad::document::Target::World(_)) => {
-            format!("constraint {at}: world mate")
-        }
-        (Some(mate), _) => format!("constraint {at}: {} mate", mate.class.name()),
+        (Some(_), _) => format!("constraint {at}: mate"),
         (None, Some(value)) => format!("constraint {at}: {} value", value.coord.name()),
         (None, None) => unreachable!("a constraint is a mate or a value"),
     }
@@ -584,8 +571,9 @@ pub fn rows(
     let mut depths: BTreeMap<RecipeNodeId, usize> = BTreeMap::new();
     let mut rows = Vec::with_capacity(order.len());
     for id in order {
-        // The world is no feature: it is in every document, defines no
-        // variable, and is never deleted, so it has no row.
+        // The world is no feature: it is in every document, is never
+        // deleted, and only a placement's target reads it, so it has no
+        // row.
         let Some(node) = doc.node(id).filter(|node| !matches!(node, Node::World)) else {
             continue;
         };
@@ -614,7 +602,6 @@ pub fn rows(
             depth,
             placed: crate::world::is_placed(doc, id),
             status,
-            note: node_note(node),
             repair_at,
             readout,
             version_offer,
@@ -640,52 +627,6 @@ fn depth_of(inputs: &[RecipeNodeId], depths: &BTreeMap<RecipeNodeId, usize>) -> 
         .filter_map(|input| depths.get(input))
         .map(|d| d + 1)
         .fold(on_the_line, usize::max)
-}
-
-/// The standing caveat for a node, when it has one — the kernel's own
-/// words, never a sentence composed here (the same rule the badges
-/// follow).
-fn node_note(node: &Node<ProfileProgram>) -> Option<String> {
-    let constraints = match node {
-        Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. } => constraints,
-        Node::Profile(_)
-        | Node::Extrude { .. }
-        | Node::Revolve { .. }
-        | Node::Tube { .. }
-        | Node::HollowTube { .. }
-        | Node::Loft { .. }
-        | Node::Sweep { .. }
-        | Node::Fillet { .. }
-        | Node::Chamfer { .. }
-        | Node::Shell { .. }
-        | Node::Split { .. }
-        | Node::Subtract { .. }
-        | Node::Union { .. }
-        | Node::Intersect { .. }
-        | Node::Pattern { .. }
-        | Node::Part { .. }
-        | Node::PlacedUnion { .. }
-        | Node::World
-        | Node::Measure { .. }
-        | Node::Assertion { .. } => return None,
-    };
-    // One caveat per constraint whose class carries no at-rest record,
-    // in bundle order: a placement's mates are its constraints, so their
-    // standing caveats ride the placement's own row.
-    let caveats: Vec<String> = constraints
-        .iter()
-        .filter_map(|constraint| {
-            let class = constraint.mate()?.class;
-            match pncad::document::class_admission(class) {
-                pncad::document::ClassAdmission::Mints => None,
-                caveat @ (pncad::document::ClassAdmission::NoAtRestRecord { .. }
-                | pncad::document::ClassAdmission::NotAdmitted) => {
-                    Some(format!("{}: {}", class.name(), caveat.no_record_reason()))
-                }
-            }
-        })
-        .collect();
-    (!caveats.is_empty()).then(|| caveats.join("; "))
 }
 
 /// **What `id`'s value says in `evaluation`** — asked only of a row
@@ -1080,9 +1021,8 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         // Names the failing instance itself.
         NodeErrorKind::CrossingUnverified { .. } => None,
         // Names the two spaces the operands live in, as evidence: the
-        // repair is the reading node's own operands, or a constraint
-        // that pins the loose copy, and one link would pick for the
-        // reader.
+        // repair is the reading node's own operands, or a placement's
+        // target, and one link would pick for the reader.
         NodeErrorKind::SpaceMismatch { .. } => None,
         // A copy read the placement does not hold, a copy of the wrong
         // shape, or two copies under one key: the reading node's own
@@ -1117,6 +1057,7 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         | NodeErrorKind::Blend { .. }
         | NodeErrorKind::Boolean(_)
         | NodeErrorKind::Transform(_)
+        | NodeErrorKind::Mirror(_)
         | NodeErrorKind::Motion(_)
         | NodeErrorKind::Skin(_)
         | NodeErrorKind::Loft(_)
@@ -1188,19 +1129,13 @@ fn poisoned_through(through: RecipeNodeId, ev: &Evaluation<f64>) -> Standing<'_>
 /// One arm names none: the mispairing, which reaches no row.
 fn blamed_mates(fault: &MateFault) -> Vec<RecipeNodeId> {
     match fault {
-        MateFault::ClassNotAdmitted { mate }
-        | MateFault::NotOnTheCopy { mate }
+        MateFault::NotOnTheCopy { mate }
         | MateFault::Unleverable { mate, .. }
         | MateFault::KindsDiffer { mate, .. }
-        | MateFault::WorldRead { mate, .. }
         | MateFault::SideUnevaluated { mate, .. } => vec![mate.placement],
-        MateFault::ValueNamesNoMate { value, .. }
-        | MateFault::NotAFreedom { value, .. }
-        | MateFault::NoChart { value, .. } => vec![value.placement],
+        MateFault::NoChart { value, .. } => vec![value.placement],
         // A claim about one bundle: its placement is the row.
-        MateFault::Overconstrained { placement, .. }
-        | MateFault::Unpinned { placement, .. }
-        | MateFault::TargetsDiffer { placement, .. } => {
+        MateFault::Overconstrained { placement, .. } | MateFault::Unpinned { placement, .. } => {
             vec![*placement]
         }
         // Names no mate and reaches NO row (`MateFault`'s doc says

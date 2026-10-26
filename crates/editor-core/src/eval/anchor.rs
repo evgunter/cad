@@ -327,6 +327,23 @@ impl ProfilePieces {
     pub fn vertex(&self, l: usize, v: usize) -> Option<ProfileVertexRef> {
         self.vertices.get(l)?.get(v).copied()
     }
+
+    /// **Whether the vertex `v` bounds a piece of `run`**: the start or
+    /// the end of one of its canonical segments, so the wall swept over
+    /// `run` holds the strut and the cap vertices over `v`.
+    #[must_use]
+    pub fn bounds(&self, run: &PieceRun, v: &ProfileVertexRef) -> bool {
+        self.edges
+            .iter()
+            .zip(&self.vertices)
+            .any(|(edges, vertices)| {
+                let n = vertices.len();
+                edges.iter().enumerate().any(|(k, e)| {
+                    run.holds(e)
+                        && (vertices.get(k) == Some(v) || vertices.get((k + 1) % n) == Some(v))
+                })
+            })
+    }
 }
 
 /// The profile node's evaluated value: the validated (canonical)

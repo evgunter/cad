@@ -74,14 +74,15 @@ pub(crate) struct Drafts {
     /// name field still says it.
     pub(crate) new_variable_offer: Option<VarName>,
     /// The mate tool's choice, as widget state: an index into
-    /// [`crate::matetool::admitted_classes`], an index into
     /// [`crate::matetool::MATE_KINDS`], the flip toggle, and for each
     /// freedom of [`crate::matetool::MateFreedom::ALL`] whether it is set and its number in
     /// SI units. Draft chrome state only — the typed choice is minted
     /// at commit.
-    pub(crate) mate_class: usize,
     pub(crate) mate_kind: usize,
     pub(crate) mate_flip: bool,
+    /// Whether the mate moves its copy into the space its `to` reads,
+    /// asked by name: off, a mate across two spaces refuses.
+    pub(crate) mate_into_target_space: bool,
     pub(crate) mate_values: [(bool, f64); crate::matetool::MateFreedom::ALL.len()],
     /// The toolbar's New… form: `Some(text)` while the name field is
     /// open, `None` while it is not. The op is not emitted until
@@ -602,11 +603,11 @@ impl Default for Drafts {
             new_variable_dimension: None,
             new_variable_value: 0.0,
             new_variable_offer: None,
-            mate_class: 0,
             mate_kind: 0,
             // Two picked faces rest against each other: the plain plane
             // mate equates outward normals, so a rest carries the flip.
             mate_flip: true,
+            mate_into_target_space: false,
             mate_values: [(false, 0.0); crate::matetool::MateFreedom::ALL.len()],
             new_doc_name: None,
             sketch_on_face: false,

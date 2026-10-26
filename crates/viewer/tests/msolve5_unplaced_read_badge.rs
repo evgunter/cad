@@ -16,7 +16,6 @@ use crate::common::{insert_into, len, scl};
 use common::asm;
 use pncad::document::{DocumentId, Formula, Node, PatternKind, ProfileDoc};
 use pncad::geom_core::Tol;
-use pncad::select::ContactClass;
 use pncad::workspace::Workspace;
 use viewer::session::{AtRestBadge, DocSession, SessionOp};
 
@@ -92,9 +91,8 @@ fn read_below_pattern(bench: &asm::Bench, tol: Tol) -> std::path::PathBuf {
         crate::fixture::rest(
             common::head(asm::in_part(post, &bench.post_top)),
             common::head_at(lifted, b),
-            ContactClass::Rest,
         ),
-        asm::middle_seat_values(),
+        asm::own_space_seat_values(),
         tol,
     );
     let mut ws = Workspace::open(&bench.dir).expect("the bench's workspace opens");

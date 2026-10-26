@@ -107,9 +107,8 @@ pub use appearance::{
     AppearanceResolution, Attr, AttrKind, AttrSet, Rgba8,
 };
 pub use assembly::{
-    Assembly, AssemblyError, AtRestBy, AtRestFinding, AtRestRow, Attribution, CarriedAtRestFinding,
-    CarriedDeclaration, CarriedDeclarations, CarriedInterference, CarriedRefusal, MintRefusal,
-    MintedDeclaration, RefusedRef, Relation, Route, assemble, assemble_gathered,
+    Assembly, AssemblyError, AtRestFinding, AtRestRow, CarriedAtRestFinding, CarriedFindings,
+    CarriedInterference, Route, assemble, assemble_gathered,
 };
 pub use checks::at_rest::{CopyRef, FaceSite, InterferenceFinding, Overlap, Unlocalized};
 pub use checks::{
@@ -146,8 +145,8 @@ pub use eval::{
 pub use refusal::Refusal;
 pub use sentence::{Labelled, Labels, PASS_A_RESOLVER, Recourse, Staged};
 pub use spoken::{
-    FullId, HeldNodes, NameTables, Said, Say, Speaker, SpokenName, SpokenNode, SpokenVar, held_by,
-    node_kind_noun, spoken_by, spoken_within,
+    FullId, HeldNodes, NameTables, Said, Say, Speaker, SpokenName, SpokenNode, SpokenSpace,
+    SpokenVar, held_by, node_kind_noun, spoken_by, spoken_within,
 };
 
 pub use expr::{
@@ -159,15 +158,12 @@ pub use formula::{Formula, FreshFault, LowerFault, NameFault};
 pub use ident::{ContentPin, DocRef, DocumentId, Mispaired};
 pub use label::{Label, LabelFault};
 pub use mate::{
-    CLASS_DEFERRAL, ClassAdmission, Constraint, ConstraintKind, Coord, Coset, FrameMove,
-    FreedomRefusal, LeverRefusal, MAX_WORLD_READ_DEPTH, Mate, MateFault, MateRef, MateSide, Member,
-    NO_AT_REST_RECORD_RECOURSE, NoChartWhy, OVERCONSTRAINED_RECOURSE, PinRefusal, Placed, PlacedBy,
-    Placing, PoseRefusal, PoseSymmetry, ReachRefusal, SolvedPoses, Space, Subgroup, SubgroupFamily,
-    Target, TargetAxis, UNPINNED_RECOURSE, Unobservable, Value, WorldRead, WorldReadFault,
-    class_admission, corner_frame, corner_frame_in, frame_at, frame_at_in, head_face, head_of,
-    member_of, member_reading, moved_frame, pin_at, pin_at_in, place_against, place_against_in,
-    place_at, place_at_in, reference_about, relative_freedom_components, solve_document, stand,
-    unobservable,
+    Constraint, ConstraintKind, Coord, Coset, FrameMove, LeverRefusal, Mate, MateFault, MateRef,
+    MateSide, Member, NoChartWhy, OVERCONSTRAINED_RECOURSE, PinRefusal, Placed, Placing,
+    PoseRefusal, PoseSymmetry, ReachRefusal, SolvedPoses, Subgroup, SubgroupFamily, TargetAxis,
+    UNPINNED_RECOURSE, Unobservable, Value, corner_frame, corner_frame_in, head_face, head_of,
+    member_of, member_reading, moved_frame, reference_about, relative_freedom_components,
+    solve_document, stand, unobservable,
 };
 pub use mc::{
     DEFAULT_SAMPLES, DEFAULT_SEED, McAssertion, McConfig, McMeasure, McRefusal, McReport, McValue,
@@ -181,18 +177,17 @@ pub use measure::{
 pub use meta::{MetaError, MetaInt, MetaValue, MetaVersionError, from_value, to_value};
 pub use mint::{Mint, MintId, Minted};
 pub use names::{
-    CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactRefusal, ContactVerdict,
-    CrossingSensesShape, CurveKind, CurveKindSet, DeclaredContact, Denotation, DisagreeShape,
-    DuplicateName, EntityKey, EntityKind, EntityNamed, EntityRef, Entry, FIT_DEFERRAL, FaceName,
-    FragmentGroups, GeomPred, InterrogateError, JoinShape, KindMismatch, LeafRole, MeridianEnd,
-    NameOrigin, NamePat, NameRef, NameTable, NameTextError, NamingError, NotAFaceName, OpGroup,
-    PieceRole, PieceRun, ProfileEdgeRef, ProfileVertexRef, Qualifier, RimShare, RimSupport,
-    RolePath, RoleSeg, RunLine, SEL_PLANE_DISTANCE, SeamSidesShape, SeamVertexShape,
-    SeatingRefusal, SectionCircle, SegPat, SegTag, SelectRefusal, Selector, Sense, ShortTie, Side,
-    SplitHalf, StableName, SurfaceKindSet, TagPat, UnionNameShape, WayShape, all_bodies, all_edges,
-    all_faces, all_vertices, attribute, band, band_pi, band_rim, band_rim_pi, carried, denotation,
-    edge_carrier_kind, edge_frame, face_carrier_kind, face_frame, leaf_role, meridian_vertex,
-    role_leaf, select, select_where, vertex_position,
+    CONTACT_RECOURSE, CapEnd, Cmp, ContactRefusal, ContactVerdict, CrossingSensesShape, CurveKind,
+    CurveKindSet, DeclaredContact, Denotation, DisagreeShape, DuplicateName, EntityKey, EntityKind,
+    EntityNamed, EntityRef, Entry, FaceName, FragmentGroups, GeomPred, InterrogateError, JoinShape,
+    KindMismatch, LeafRole, MeridianEnd, NameOrigin, NamePat, NameRef, NameTable, NameTextError,
+    NamingError, NotAFaceName, OpGroup, PieceRole, PieceRun, ProfileEdgeRef, ProfileVertexRef,
+    Qualifier, RimShare, RimSupport, RolePath, RoleSeg, RunLine, SEL_PLANE_DISTANCE,
+    SeamSidesShape, SeamVertexShape, SeatingRefusal, SectionCircle, SegPat, SegTag, SelectRefusal,
+    Selector, Sense, ShortTie, Side, SplitHalf, StableName, SurfaceKindSet, TagPat, UnionNameShape,
+    WayShape, all_bodies, all_edges, all_faces, all_vertices, attribute, band, band_pi, band_rim,
+    band_rim_pi, carried, denotation, edge_carrier_kind, edge_frame, face_carrier_kind, face_frame,
+    leaf_role, meridian_vertex, role_leaf, select, select_where, vertex_position,
 };
 pub use node::{
     AuthoredNode, Axis3, ConstraintId, CountMismatch, InputFault, InterfaceCrossing,
@@ -212,8 +207,8 @@ pub use placement::{AxisRefusal, Frame, FrameFault, FrameSite};
 #[cfg(debug_assertions)]
 pub use product::gathers_on_this_thread;
 pub use product::{
-    LooseSpace, Product, ProductError, ProductErrorKind, ProductRefusal, SourceFinding,
-    loose_spaces, product, product_named, product_recorded,
+    Product, ProductError, ProductErrorKind, ProductRefusal, SourceFinding, SpaceGather, product,
+    product_named, product_recorded, space_gathers,
 };
 pub use program::{
     LoopProgram, ProfileDoc, ProfilePayload, ProfileProgram, ProgramArcData, ProgramRefusal,
@@ -224,8 +219,8 @@ pub use range::{
     CertifiedRange, DerivedRange, RangeField, RangeRefusal, RangeSeed, RangeSide, certified_range,
 };
 pub use refactor::{
-    InlineError, InlineOutcome, NodeMap, RemapError, SplitError, SplitOutcome, StepMap, Uncarried,
-    Unmapped, inline, remap_name, split,
+    FlattenError, FlattenOutcome, InlineError, InlineOutcome, NodeMap, RemapError, SplitError,
+    SplitOutcome, StepMap, Uncarried, Unmapped, flatten, inline, remap_name, split,
 };
 pub use report::{
     HistogramRow, LeafHistogram, MassBasis, MassBudget, ReportCache, leaf_histogram, report_key,

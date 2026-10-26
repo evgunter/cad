@@ -33,13 +33,13 @@ is the composition (door + `get_face(f)?.surface`) that already serves
 it.
 
 **`topo/tests` is 8, and a census said 1.** The undercount was the
-instrument, not the tree: `trim_3_chart_bound.rs` (~:582) is behind
+instrument, not the tree: `projected_row_chart_box.rs` (once `trim_3_chart_bound.rs`) is behind
 `#![cfg(feature = "interval")]`, and feature-gated code never
 type-checks, so it never warns. The eight are
 `issue86_double_subtract.rs` (~:110), `readback_sense_kind.rs` (~:254),
 `review_m9_1_r2_probes.rs` (~:234), `m3_pr2_reduce.rs` (~:338),
 `m3_pr3_split.rs` (~:385), `verbs_f7_collinear_seam.rs` (~:84),
-`bool4r1_probes.rs` (~:198) and `trim_3_chart_bound.rs` (~:582).
+`bool4r1_probes.rs` (~:198) and `projected_row_chart_box.rs`.
 
 This row is `tint`'s rather than `tcost`'s per `work/reroute/program.md`'s
 `keep_out`: both claim `crates/*/tests/*`, and a row that is both a
@@ -110,7 +110,7 @@ left these test-file pair-walks for this row:
   `spiric_rim.rs` (three), `verbs_f7_r2_probes.rs` (three).
 - `topo/tests/`: `boolean_discards.rs`, `issue86_double_subtract.rs`,
   `readback_sense_kind.rs`, `review_m9_1_r2_probes.rs`,
-  `trim_3_chart_bound.rs`.
+  `projected_row_chart_box.rs`.
 - `step-export/tests/common/mod.rs`.
 - In-crate test modules: `topo/src/attach.rs`, `census.rs` (the
   `face_of` pair in its tests), `tier3_tests.rs`.

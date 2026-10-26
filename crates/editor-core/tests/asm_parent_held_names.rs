@@ -181,7 +181,7 @@ fn a_parents_held_name_follows_its_step_across_a_pin_update() {
     let shelf = Arc::new(shelf);
 
     let parent = ProfileDoc::empty(DocumentId::derive("held-names-parent"), Tol::witness());
-    let (parent, instance) = insert(parent, Node::instantiate_part(r1));
+    let (parent, instance) = insert(parent, crate::fixture::mated_instance(r1));
     let name = held(instance, placement, &wall);
     let parent = apply(
         &parent,
@@ -263,7 +263,7 @@ fn with_leg(base: &ProfileDoc, profile: RecipeNodeId, at: usize, corner: (f64, f
     let [placement] = doc.placements()[..] else {
         panic!("the part places its body once")
     };
-    let doc = fixture::emptied(doc, placement);
+    let doc = fixture::stand_again(doc, placement);
     fixture::pinned(doc, placement, &editor_core::EvalOptions::default())
 }
 
@@ -318,7 +318,7 @@ fn sibling_versions_mint_different_step_ids_and_a_held_name_vanishes_across_them
         )
     };
     let parent = ProfileDoc::empty(DocumentId::derive("held-names-parent"), Tol::witness());
-    let (parent, instance) = insert(parent, Node::instantiate_part(ra));
+    let (parent, instance) = insert(parent, crate::fixture::mated_instance(ra));
     let name = held(instance, placement, &wall(a_new));
     let parent = apply(
         &parent,

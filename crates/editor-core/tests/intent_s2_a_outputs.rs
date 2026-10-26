@@ -84,7 +84,7 @@ fn every_operation_defines_its_signature_at_insert() {
     // Placements, as inserted: a signature is the insert's, before any
     // mate places them.
     let placement = |of: RecipeNodeId| {
-        Node::place(vec![editor_core::BodyRead::plain(
+        crate::fixture::stood(vec![editor_core::BodyRead::plain(
             editor_core::Operand::from(of),
         )])
     };
@@ -93,8 +93,10 @@ fn every_operation_defines_its_signature_at_insert() {
     let (doc, twice_moved) = insert(doc, placement(moved_copies));
     for (node, want) in [
         (profile, vec![VarKind::Profile]),
-        (extrude, vec![VarKind::Body]),
-        (revolve, vec![VarKind::Body, VarKind::Axis]),
+        // A construction's body is born in a space of its own, its last
+        // port.
+        (extrude, vec![VarKind::Body, VarKind::Space]),
+        (revolve, vec![VarKind::Body, VarKind::Axis, VarKind::Space]),
         (split, vec![VarKind::Body, VarKind::Body]),
         (pattern, vec![VarKind::Bodies]),
         (moved_copies, vec![VarKind::Bodies]),
@@ -103,7 +105,7 @@ fn every_operation_defines_its_signature_at_insert() {
     ] {
         assert_eq!(kinds(&doc, node), want, "{:?}", doc.node(node));
     }
-    assert_eq!(doc.output(revolve, 2), None, "a revolve has two ports");
+    assert_eq!(doc.output(revolve, 3), None, "a revolve has three ports");
     // A file holds them, and loads as written.
     let text = save(&doc, &[], Tol::witness()).expect("saves");
     let loaded = load(&text, Tol::witness()).expect("loads").doc;
@@ -127,8 +129,11 @@ fn an_insert_reports_its_outputs_and_a_delete_takes_them_with_its_node() {
         .expect("inserts");
     let node = applied.record.minted.expect("an insert mints its node");
     assert_eq!(applied.record.outputs, applied.doc.outputs(node));
-    let [body] = applied.record.outputs[..] else {
-        panic!("an extrude defines one body: {:?}", applied.record.outputs)
+    let [body, _space] = applied.record.outputs[..] else {
+        panic!(
+            "an extrude defines a body and its space: {:?}",
+            applied.record.outputs
+        )
     };
     // Named, it stays named, and a later edit's sweep of unread
     // anonymous variables leaves it standing.
@@ -261,16 +266,16 @@ fn output_fault(text: &str) -> OutputFault {
 #[test]
 fn the_load_door_holds_the_table_to_every_signature() {
     let (text, body, extrude) = saved_block();
-    // Port 1 of an extrude, which has one.
+    // Port 2 of an extrude, which has two: its body and its space.
     let past = doctored(&text, |wire| {
-        wire["snapshot"]["vars"][&body]["def"]["Output"]["port"] = 1.into();
+        wire["snapshot"]["vars"][&body]["def"]["Output"]["port"] = 2.into();
     });
     assert!(
         matches!(
             output_fault(&past),
             OutputFault::PortOutside {
-                port: 1,
-                ports: 1,
+                port: 2,
+                ports: 2,
                 ..
             }
         ),
@@ -489,23 +494,25 @@ fn every_node_shape_states_its_signature() {
         .collect();
     let want = [
         "Profile -> [profile:Profile]",
-        "Extrude -> [body:Body]",
-        "Revolve -> [body:Body, axis:Axis]",
-        "Tube -> [body:Body]",
-        "Tube -> [body:Body]",
-        "HollowTube -> [body:Body]",
-        "Loft -> [body:Body]",
-        "Sweep -> [body:Body]",
+        "Extrude -> [body:Body, space:Space]",
+        "Revolve -> [body:Body, axis:Axis, space:Space]",
+        "Tube -> [body:Body, space:Space]",
+        "Tube -> [body:Body, space:Space]",
+        "HollowTube -> [body:Body, space:Space]",
+        "Loft -> [body:Body, space:Space]",
+        "Sweep -> [body:Body, space:Space]",
         "Fillet -> [body:Body]",
         "Chamfer -> [body:Body]",
         "Shell -> [body:Body]",
         "Split -> [above:Body, below:Body]",
+        "Mirror -> [body:Body]",
         "Subtract -> [body:Body]",
         "Union -> [body:Body]",
         "Intersect -> [body:Body]",
         "Place -> [copies:placed]",
         "Place -> [copies:placed]",
-        "World -> []",
+        "World -> [space:Space]",
+        "Space -> [space:Space]",
         "Pattern -> [bodies:Bodies]",
         "PlacedUnion -> [body:Body]",
         "PlacedUnion -> [body:Body]",
@@ -576,12 +583,14 @@ fn instance_named_bracket(
     std::sync::Arc<dyn editor_core::PartResolver>,
     RecipeNodeId,
 ) {
-    let (mut doc, profile, extrude) = block(seed);
+    let (doc, profile, extrude) = block(seed);
+    // The heir is the world copy, the extrude's body being in a space
+    // of its own.
+    let (mut doc, copy) = fixture::place(doc, extrude);
     if let Some(heir) = heir {
-        let body = doc.output(extrude, 0).expect("an extrude defines its body");
+        let body = doc.output(copy, 0).expect("a placement defines its copy");
         doc = named(doc, body, heir);
     }
-    doc = fixture::place(doc, extrude).0;
     if second_body {
         let (next, second) = insert(
             doc,
@@ -616,10 +625,11 @@ fn instance_named_bracket(
     )
 }
 
-/// **Inline carries the name on an instance's body** onto the one body
-/// of the part that stands where it did (VR2: the kernel drops no name),
-/// and refuses typed where the part has no one such body, or where that
-/// body's own name would make a variable hold two.
+/// **Inline carries the name on an instance's body** onto the copy the
+/// instance became (VR2: the kernel drops no name): the placement of the
+/// part's world copies into the instance's target, however many bodies
+/// the part places and whatever they are named; it refuses typed only a
+/// name the host already holds.
 #[test]
 fn inline_carries_the_name_on_an_instances_body() {
     let (host, instance, store, _) = instance_named_bracket("s2a-inline", None, false);
@@ -632,34 +642,23 @@ fn inline_carries_the_name_on_an_instances_body() {
         .def()
         .output()
         .expect("onto an output");
-    assert!(
-        matches!(out.doc.node(node), Some(Node::Extrude { .. })),
-        "{node:?}"
-    );
+    // Onto the copy the instance became.
+    assert_eq!(node, out.placement, "{node:?}");
     assert_eq!(port, 0);
 
-    let (host, instance, store, _) = instance_named_bracket("s2a-inline-two", None, true);
-    match editor_core::inline(&host, instance, &store, Tol::witness()) {
-        Err(editor_core::InlineError::InstanceOutputUncarried { name, why }) => {
-            assert_eq!(name.as_str(), "bracket");
-            assert_eq!(why, editor_core::Uncarried::Bodies { count: 2 });
-        }
-        other => panic!("two placed bodies have no one heir, got {other:?}"),
-    }
-
-    let (host, instance, store, _) =
-        instance_named_bracket("s2a-inline-held", Some("plate"), false);
-    match editor_core::inline(&host, instance, &store, Tol::witness()) {
-        Err(editor_core::InlineError::InstanceOutputUncarried { name, why }) => {
-            assert_eq!(name.as_str(), "bracket");
-            assert_eq!(
-                why,
-                editor_core::Uncarried::HeirNamed {
-                    held: VarName::new("plate").unwrap()
-                }
-            );
-        }
-        other => panic!("a named heir would hold two names, got {other:?}"),
+    for (seed, heir, second) in [
+        ("s2a-inline-two", None, true),
+        ("s2a-inline-held", Some("plate"), false),
+    ] {
+        let (host, instance, store, _) = instance_named_bracket(seed, heir, second);
+        let out = editor_core::inline(&host, instance, &store, Tol::witness())
+            .unwrap_or_else(|e| panic!("{seed}: inlines: {e}"));
+        let bracket = out.doc.var_named("bracket").expect("the name crossed");
+        assert_eq!(
+            out.doc.var(bracket).and_then(|v| v.def().output()),
+            Some((out.placement, 0)),
+            "{seed}: onto the copy the instance became"
+        );
     }
 
     let (host, instance, store, _) =

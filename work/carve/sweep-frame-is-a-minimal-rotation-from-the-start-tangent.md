@@ -56,3 +56,17 @@ minimal rotation between consecutive tangents, i.e. a discrete
 rotation-minimizing frame), or a stated frame law the author can pick. It
 is a design question (which frame a sweep follows), so it is
 `design: true`.
+
+## The spin's cost in volume (ISO, 2026-10-24)
+
+The coil skins fall short of the ideal tube's Pappus volume `A·L` by
+far more than a cubic fit would explain. Each skin's own volume was
+integrated over its surfaces (`demos/tour/src/patch_quadrature.rs`). The square wire falls short by 3.6e-3 of `A·L` and
+the round by 4.4e-3, at 32 stations a turn. A cubic spline through
+stations `Δ = 2π/32` apart misses by about `2·(5/384)·Δ⁴ = 3.9e-5`, so
+the coil's deficit is about 100× that. The lily's swept leaves never
+turn far from `t₀` (curl 0.35–0.40 rad), and they meet that scale:
+their skins are 9.9e-8 and 8.0e-8 off Pappus, against 1.6e-7 and
+9.5e-8. `projectbox.rs`'s `COIL_GAP` (5e-3) admits the coil's deficit
+as a measured band. It should narrow toward the fit's scale once the
+frame law stops spinning the section.

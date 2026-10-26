@@ -106,7 +106,7 @@ fn block_on(
 
 /// **`p`'s copy slid `by` further**, by value edits alone: each of its
 /// placement's values, and the slide along its target face's normal,
-/// set to the numbers [`editor_core::place_against`] gives the copy
+/// set to the numbers [`editor_core::test_support::placed_against`] gives the copy
 /// there ([`moved_to`]).
 pub(crate) fn moved(doc: ProfileDoc, p: &Placed, by: [f64; 3]) -> ProfileDoc {
     let at = [p.at[0] + by[0], p.at[1] + by[1], p.at[2] + by[2]];
@@ -115,7 +115,7 @@ pub(crate) fn moved(doc: ProfileDoc, p: &Placed, by: [f64; 3]) -> ProfileDoc {
 
 /// **`placement`'s copy of `body` moved to `at` against `target`**
 /// (`at` in `target`'s own coordinates), by value edits alone: the
-/// numbers [`editor_core::place_against`] gives the copy at `at` written
+/// numbers [`editor_core::test_support::placed_against`] gives the copy at `at` written
 /// into the variables the placement already reads — its values, and the
 /// slide of its target face along that face's normal — so every node
 /// id and every read is kept. A translation off the target's face
@@ -124,7 +124,7 @@ pub(crate) fn moved(doc: ProfileDoc, p: &Placed, by: [f64; 3]) -> ProfileDoc {
 ///
 /// # Panics
 ///
-/// If the placement is not the one `place_against` writes, or carries
+/// If the placement is not the one `placed_against` writes, or carries
 /// no slide.
 pub(crate) fn moved_to(
     doc: ProfileDoc,
@@ -135,16 +135,14 @@ pub(crate) fn moved_to(
 ) -> ProfileDoc {
     use editor_core::pose::PoseDef;
     use editor_core::{FreeValue, Operand, VarDef};
-    let again = editor_core::place_against(
+    let again = editor_core::test_support::placed_against(
         &doc,
         &target.into(),
         &body.into(),
         &editor_core::Frame::translation(at),
-        &EvalOptions::default(),
         Tol::witness(),
-    )
-    .expect("the copy places against its target");
-    let Some(Operand::Pose(def)) = again.mate.as_ref().and_then(|mate| mate.to.pose()) else {
+    );
+    let Some(Operand::Pose(def)) = again.mates.first().map(|mate| &mate.to) else {
         panic!("a pose target")
     };
     let PoseDef::Slide { by: slide, .. } = &**def else {
@@ -154,7 +152,7 @@ pub(crate) fn moved_to(
     let to = bundle
         .iter()
         .find_map(|c| c.mate())
-        .and_then(|m| m.to.pose().copied())
+        .map(|m| m.to)
         .expect("the placement's mate reads a pose");
     let Some(VarDef::Pose(PoseDef::Slide { by: slide_var, .. })) =
         doc.var(to).map(|v| v.def().clone())

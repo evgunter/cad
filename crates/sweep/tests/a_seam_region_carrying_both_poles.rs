@@ -5,13 +5,12 @@
 //! faces overlap: tier 3's cover census refuses it, as claimed twice over
 //! (`geom_brep::props::sphere_region_cover`).
 //!
-//! `mass_properties` runs no tier 3, and still measures the flip. That
-//! residual is pinned here until the door reads the census itself
-//! (`work/flux/mass-properties-measures-a-flipped-seam-region-without-tier-3.md`),
-//! and goes red for the right reason then.
+//! `mass_properties` runs no tier 3, and reads the same census at the
+//! door: it refuses the flip by the same finding.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::seam_region_common::{flipped, sphere_faces, split_at_meridian, v};
+use geom_brep::props::PropsError;
 use geom_core::Tol;
 use std::f64::consts::PI;
 use sweep::test_support::{ball_poled, brick, finished};
@@ -24,12 +23,17 @@ fn close(got: f64, want: f64) -> bool {
 fn measure(label: &str, body: &Body<f64>, tol: Tol) -> f64 {
     topo::validate_geometric(body, tol)
         .unwrap_or_else(|e| panic!("{label}: tier 3 refuses: {e:?}"));
-    topo::mass_properties(body, tol).unwrap().volume
+    topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), tol),
+        tol,
+    )
+    .unwrap()
+    .volume
 }
 
 /// Tier 3 refuses `body` as a region claimed twice over, and nothing
-/// else; the door alone measures it.
-fn overcovered(label: &str, body: &Body<f64>, tol: Tol) -> f64 {
+/// else; so does the door, without tier 3.
+fn overcovered(label: &str, body: &Body<f64>, tol: Tol) {
     let errs = topo::validate_geometric(body, tol).unwrap_err();
     assert!(
         matches!(
@@ -38,15 +42,27 @@ fn overcovered(label: &str, body: &Body<f64>, tol: Tol) -> f64 {
         ),
         "{label}: refused as covered twice: {errs:?}"
     );
-    topo::mass_properties(body, tol).unwrap().volume
+    // Raw door: the measured body is a seam region covered twice, which tier 3 refuses (SeamRegionOvercovered).
+    let door = topo::test_support::measure_unvalidated(body, tol);
+    assert!(
+        matches!(
+            door,
+            Err(topo::MassPropsError::Face {
+                source: PropsError::SeamRegionOvercovered { times: 2 },
+                ..
+            })
+        ),
+        "{label}: the door refuses it as covered twice: {door:?}"
+    );
 }
 
 /// A ball unioned with a brick whose face plane holds its polar axis
 /// keeps one 180° lune; `mef` splits it along the meridian through
 /// `(1, 0, 0)`. The two halves' region is bounded by the great circle
-/// `x = 0`, which carries both poles. Both flipped, tier 3 refuses them
-/// as covering their region twice; the door alone measures the brick
-/// less a whole half-sphere's worth: 48 − 2π against 48 + 2π/3.
+/// `x = 0`, which carries both poles. Both flipped, tier 3 and the door
+/// refuse them as covering their region twice; the door once measured
+/// the brick less a whole half-sphere's worth, 48 − 2π against
+/// 48 + 2π/3.
 #[test]
 fn two_faces_whose_region_carries_both_poles_flip_into_a_double_cover() {
     let tol = Tol::witness();
@@ -77,18 +93,14 @@ fn two_faces_whose_region_carries_both_poles_flip_into_a_double_cover() {
         close(boss, 48.0 + 2.0 * PI / 3.0),
         "the split boss measures {boss}"
     );
-    let door = overcovered("both halves flipped", &flipped(&body, &faces), tol);
-    assert!(
-        close(door, 48.0 - 2.0 * PI),
-        "both halves flipped measure {door} at the door, pinned at 48 − 2π"
-    );
+    overcovered("both halves flipped", &flipped(&body, &faces), tol);
 }
 
 /// A brick less a ball whose polar axis lies 1e-11 off the brick's face
 /// plane. At ε = 1e-12 the dimple is two faces of one sphere, its
 /// boundary carries both poles within the band, and both flipped are
-/// refused as covering it twice; the door alone measures 48 + 2π against
-/// 48 − 2π/3. At a coarser ε the
+/// refused as covering it twice, by tier 3 and the door; the door once
+/// measured 48 + 2π against 48 − 2π/3. At a coarser ε the
 /// plane holds the axis, the dimple is one lune, and its flip is the
 /// boss, a valid body.
 #[test]
@@ -127,13 +139,7 @@ fn a_dimple_beside_its_polar_axis_flips_by_the_run_band() {
                 "the lone lune flipped is the boss, measures {got}"
             );
         }
-        2 => {
-            let got = overcovered("both halves flipped", &both, tol);
-            assert!(
-                (got - (48.0 + 2.0 * PI)).abs() <= 1e-9,
-                "both halves flipped measure {got} at the door, pinned at 48 + 2π"
-            );
-        }
+        2 => overcovered("both halves flipped", &both, tol),
         n => panic!("the dimple is {n} faces"),
     }
 }

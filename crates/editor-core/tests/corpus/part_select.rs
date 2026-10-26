@@ -127,55 +127,21 @@ pub fn document() -> CorpusDoc {
         select: PartSelect::Instance(Formula::count(1)),
     });
     r.place_part(whole);
-    // The middle copy stands on its instance's start cap, `LIFT` up the
-    // world's z, the three values zero. Its end cap, the face the
-    // height moves, would carry that width into the placement at
-    // `Interval` (`docm2_part_interval::a7`). `stand` cannot see that an
-    // instance's start cap reads only the pattern's pitch, so it is
-    // written here.
-    let base = {
-        let ev = r.evaluated();
-        crate::fixture::table(ev, middle)
-            .iter()
-            .map(|(name, _)| name)
-            .find(|name| {
-                matches!(name.path.as_slice(), [RoleSeg::Instance { of, .. }]
-                    if of.path == [RoleSeg::Cap(editor_core::CapEnd::Start)])
-            })
-            .cloned()
-            .expect("the middle copy carries its instance's start cap")
-    };
-    let lifted = r.insert(Node::place(vec![editor_core::BodyRead::plain(
+    // The middle copy stands `LIFT` up the world's z, its other values
+    // the constant zero: a placement with no mate states its motion on
+    // the world's axes.
+    let lifted = r.insert(crate::fixture::stood(vec![editor_core::BodyRead::plain(
         editor_core::Operand::from(middle),
     )]));
-    r.constrain(
-        lifted,
-        editor_core::Mate {
-            on: editor_core::Operand::Pose(Box::new(editor_core::pose::PoseDef::Flip {
-                pose: editor_core::pose::RoleRead::plain(crate::fixture::plane(
-                    editor_core::Operand::select(middle, vec![base]),
-                )),
-            })),
-            to: editor_core::Target::World(
-                editor_core::WorldRead::through(editor_core::pose::PoseRole::Xy).slide(
-                    editor_core::WorldRead::through(editor_core::pose::PoseRole::Z),
-                    len(LIFT),
-                ),
-            ),
-            class: editor_core::ContactClass::Rest,
-        },
-        vec![
-            (
-                editor_core::Coord::Slide(editor_core::TargetAxis::X),
-                len(0.0),
-            ),
-            (
-                editor_core::Coord::Slide(editor_core::TargetAxis::Y),
-                len(0.0),
-            ),
-            (editor_core::Coord::Spin, crate::fixture::ang(0.0)),
-        ],
+    let placed = editor_core::Placed::of(
+        &r.doc,
+        Vec::new(),
+        vec![(
+            editor_core::Coord::Slide(editor_core::TargetAxis::Z),
+            len(LIFT),
+        )],
     );
+    r.write(lifted, placed);
 
     CorpusDoc {
         name: "part_select",

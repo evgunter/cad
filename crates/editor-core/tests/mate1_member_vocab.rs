@@ -13,8 +13,8 @@
 use crate::fixture;
 
 use editor_core::{
-    CapEnd, ContactClass, DocEdit, DocumentId, EntityKind, Formula, Frame, MateRef, MateSide, Node,
-    PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, Space, StableName,
+    CapEnd, DocEdit, DocumentId, EntityKind, Formula, Frame, MateRef, MateSide, Node, PatternKind,
+    ProfileDoc, RecipeNodeId, RoleSeg, StableName, VarId,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{
@@ -46,9 +46,8 @@ pub(crate) fn axis_with(
     };
     let u = seed - n * (seed.dot(n) / n.dot(n));
     let v = n.cross(u);
-    let at = fixture::frame_at(origin, [u.x, u.y, u.z], [v.x, v.y, v.z]);
-    let frame = editor_core::frame_at(doc, &body.into(), &at, o, Tol::witness())
-        .expect("the body offers a frame to read the axis off");
+    let at = fixture::axes_at(origin, [u.x, u.y, u.z], [v.x, v.y, v.z]);
+    let frame = editor_core::test_support::frame_on_in(doc, o, &body.into(), &at, Tol::witness());
     editor_core::pose::RoleRead::through(frame, editor_core::pose::PoseRole::Z)
 }
 
@@ -78,38 +77,20 @@ pub(crate) fn against_with(
     o: &editor_core::EvalOptions,
 ) -> (ProfileDoc, RecipeNodeId) {
     let read = editor_core::Operand::from(body);
-    let placed = editor_core::place_against(&doc, &target.into(), &read, at, o, Tol::witness())
-        .expect("the copy places against its target");
-    let (doc, placement) = insert(doc, Node::place(vec![editor_core::BodyRead::plain(read)]));
-    let applied = doc
-        .apply(
-            &DocEdit::AddConstraint {
-                placement,
-                mate: Box::new(placed.mate.expect("the copy is placed by a mate")),
-                fresh: Vec::new(),
-            },
-            Tol::witness(),
-        )
-        .expect("the mate adds");
-    let mate = applied.record.minted_constraints[0];
-    let doc = placed
-        .values
-        .into_iter()
-        .fold(applied.doc, |doc, (coord, by)| {
-            step(
-                doc,
-                DocEdit::AddValue {
-                    placement,
-                    value: Box::new(editor_core::Value {
-                        mate: Some(mate),
-                        coord,
-                        by,
-                    }),
-                    fresh: Vec::new(),
-                },
-            )
-            .0
-        });
+    let placed = editor_core::test_support::placed_against_in(
+        &doc,
+        o,
+        &target.into(),
+        &read,
+        at,
+        Tol::witness(),
+    );
+    let (doc, placement) = insert(
+        doc,
+        crate::fixture::stood(vec![editor_core::BodyRead::plain(read)]),
+    );
+    // The mate and its values written whole, into the target's space.
+    let (doc, _) = crate::fixture::write_bundle(doc, placement, placed.bundle());
     (doc, placement)
 }
 
@@ -237,7 +218,7 @@ fn four_legs(
     let top_part = cube(&mut store, &format!("{label}-top"));
     let o = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, leg) = insert_pinned(doc, Node::instantiate_part(leg_part.doc_ref), &o);
+    let (doc, leg) = insert_pinned(doc, crate::fixture::mated_instance(leg_part.doc_ref), &o);
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
@@ -285,7 +266,7 @@ fn a_mate_to_a_pattern_copy_places_the_other_member_at_the_derived_pose() {
     assert_eq!(poses.fault(top), None, "the mates solve — no fault");
     assert_eq!(
         poses.space(top),
-        Some(Space::World),
+        Some(VarId::WORLD),
         "the top is pinned, through the leg, to the world"
     );
 
@@ -326,7 +307,7 @@ fn a_circular_pattern_copy_rotates_the_solved_member() {
     let top_part = cube(&mut store, "mate1-circ-top");
     let o = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive("mate1-circ"), Tol::witness());
-    let (doc, leg) = insert_pinned(doc, Node::instantiate_part(leg_part.doc_ref), &o);
+    let (doc, leg) = insert_pinned(doc, crate::fixture::mated_instance(leg_part.doc_ref), &o);
     let axis = axis_with(&doc, leg, [2.0, 0.0, 0.0], [0.0, 0.0, 1.0], &o);
     let theta = core::f64::consts::FRAC_PI_2;
     let (doc, pattern) = insert(
@@ -402,7 +383,7 @@ fn mates_never_solve_pattern_parameters() {
     let top_part = cube(&mut store, &format!("{label}-top"));
     let o = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, leg) = insert_pinned(doc, Node::instantiate_part(leg_part.doc_ref), &o);
+    let (doc, leg) = insert_pinned(doc, crate::fixture::mated_instance(leg_part.doc_ref), &o);
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
@@ -485,7 +466,7 @@ fn a_second_plane_mate_on_one_copy_refuses_overconstrained_at_the_door() {
     let top_part = cube(&mut store, "mate1-contra-top");
     let o = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive("mate1-contra"), Tol::witness());
-    let (doc, leg) = insert_pinned(doc, Node::instantiate_part(leg_part.doc_ref), &o);
+    let (doc, leg) = insert_pinned(doc, crate::fixture::mated_instance(leg_part.doc_ref), &o);
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
@@ -501,19 +482,11 @@ fn a_second_plane_mate_on_one_copy_refuses_overconstrained_at_the_door() {
     let copy_end = head(in_copy(pattern, 1, leg_part.cap(leg, CapEnd::End)));
     let (doc, m0) = constrain(
         doc,
-        rest(
-            head(top_part.cap(top, CapEnd::Start)),
-            copy_end.clone(),
-            ContactClass::Rest,
-        ),
+        rest(head(top_part.cap(top, CapEnd::Start)), copy_end.clone()),
     );
     let fault = fixture::door_refusal(
         &doc,
-        fixture::mate(
-            plane(head(top_part.cap(top, CapEnd::End))),
-            plane(copy_end),
-            ContactClass::Rest,
-        ),
+        fixture::mate(plane(head(top_part.cap(top, CapEnd::End))), plane(copy_end)),
     );
     let editor_core::MateFault::Overconstrained {
         placement,
@@ -528,7 +501,11 @@ fn a_second_plane_mate_on_one_copy_refuses_overconstrained_at_the_door() {
         constraints.contains(&m0.id) && constraints.len() == 2,
         "each mate is named, neither the later one: {constraints:?}"
     );
-    assert_eq!(free, 1, "two planes in general position leave a slide");
+    assert_eq!(
+        free, 0,
+        "the bundle is written whole: the slide two planes in general position leave is \
+         written 0"
+    );
 }
 
 // ---- The fence: what the vocabulary refuses ----
@@ -547,7 +524,7 @@ fn out_of_vocabulary_pattern_heads_refuse_where_the_placement_evaluates() {
     let top_part = cube(&mut store, "mate1-fence-top");
     let o = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive("mate1-fence"), Tol::witness());
-    let (doc, leg) = insert_pinned(doc, Node::instantiate_part(leg_part.doc_ref), &o);
+    let (doc, leg) = insert_pinned(doc, crate::fixture::mated_instance(leg_part.doc_ref), &o);
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
@@ -566,7 +543,6 @@ fn out_of_vocabulary_pattern_heads_refuse_where_the_placement_evaluates() {
         rest(
             head(top_part.cap(top, CapEnd::Start)),
             head(in_copy(pattern, 5, leg_part.cap(leg, CapEnd::End))),
-            ContactClass::Rest,
         ),
     );
     let poses = solve(&doc, &o, Tol::witness());
@@ -605,7 +581,7 @@ fn one_copy_twice_is_not_on_the_copy() {
         },
     );
     let copy_end = || head(in_copy(pattern, 2, leg_part.cap(leg, CapEnd::End)));
-    let refusal = at_the_door_of(&doc, leg, rest(copy_end(), copy_end(), ContactClass::Rest));
+    let refusal = at_the_door_of(&doc, leg, rest(copy_end(), copy_end()));
     assert!(
         matches!(
             refusal,
@@ -648,7 +624,6 @@ fn sibling_copies_of_one_instances_pattern_are_not_on_the_copy() {
         rest(
             head(in_copy(pattern, 0, leg_part.cap(leg, CapEnd::End))),
             head(in_copy(pattern, 1, leg_part.cap(leg, CapEnd::End))),
-            ContactClass::Rest,
         ),
     );
     assert!(

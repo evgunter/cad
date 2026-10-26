@@ -26,7 +26,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::blocks::{block, block_on, failure, run};
-use crate::fixture::{self, against, frame_at, insert, len, slid, union_over};
+use crate::fixture::{self, against, axes_at, insert, len, slid, union_over};
 use editor_core::{
     BooleanValue, LoopProgram, Node, ProfileDoc, ProfileProgram, RecipeNodeId, ValuePayload,
 };
@@ -68,7 +68,7 @@ fn leaning_rod(doc: ProfileDoc, plate: RecipeNodeId, lean: f64) -> (ProfileDoc, 
         doc,
         plate,
         body,
-        &frame_at(
+        &axes_at(
             [0.0, 0.0, 0.0],
             [1.0, 0.0, 0.0],
             [0.0, lean.cos(), lean.sin()],
@@ -97,7 +97,7 @@ fn slab(
         doc,
         plate,
         body,
-        &frame_at(origin, [1.0, 0.0, 0.0], [0.0, 0.8, 0.6]),
+        &axes_at(origin, [1.0, 0.0, 0.0], [0.0, 0.8, 0.6]),
     )
 }
 
@@ -137,7 +137,16 @@ fn touches(
         panic!("{what}: not a boolean body");
     };
     assert_eq!(body.solids().count(), solids, "{what}: solids");
-    let v = topo::mass_properties(body, Tol::witness()).unwrap().volume;
+    let v = topo::mass_properties(
+        &topo::test_support::finished(
+            "the measured body",
+            topo::Body::clone(&**body),
+            Tol::witness(),
+        ),
+        Tol::witness(),
+    )
+    .unwrap()
+    .volume;
     assert!(
         (v - volume).abs() < 1e-9,
         "{what}: volume {v}, want {volume}"
@@ -284,9 +293,16 @@ fn a_slab_across_the_line_leaves_the_touch_on_its_pieces() {
         if let Some(e) = failure(&ev, u) {
             panic!("{what}: refused: {e:?}");
         }
-        let v = topo::mass_properties(crate::corpus::body_of(&ev, u), Tol::witness())
-            .unwrap()
-            .volume;
+        let v = topo::mass_properties(
+            &topo::test_support::finished(
+                "the measured body",
+                topo::Body::clone(crate::corpus::body_of(&ev, u)),
+                Tol::witness(),
+            ),
+            Tol::witness(),
+        )
+        .unwrap()
+        .volume;
         assert!((v - volume).abs() < within, "{what}: volume {v}");
         touches(&doc, what, &members, (plate, rod), 1, v, records);
     }
@@ -365,7 +381,7 @@ fn far_origin_rod(
         doc,
         plate,
         cut,
-        &frame_at([0.0, back * s, -back * c], [1.0, 0.0, 0.0], [0.0, c, s]),
+        &axes_at([0.0, back * s, -back * c], [1.0, 0.0, 0.0], [0.0, c, s]),
     )
 }
 
@@ -450,9 +466,16 @@ fn a_slab_across_the_whole_face_pairs_each_piece_with_its_own_side() {
         if let Some(e) = failure(&ev, u) {
             panic!("{what}: refused: {e:?}");
         }
-        let v = topo::mass_properties(crate::corpus::body_of(&ev, u), Tol::witness())
-            .unwrap()
-            .volume;
+        let v = topo::mass_properties(
+            &topo::test_support::finished(
+                "the measured body",
+                topo::Body::clone(crate::corpus::body_of(&ev, u)),
+                Tol::witness(),
+            ),
+            Tol::witness(),
+        )
+        .unwrap()
+        .volume;
         let want = *volume.get_or_insert(v);
         assert!(
             (v - want).abs() < within,

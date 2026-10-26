@@ -130,9 +130,13 @@ fn plain_body_volume(session: &mut DocSession, node: RecipeNodeId, tol: Tol) -> 
     else {
         panic!("a blend evaluates to a body");
     };
-    pncad::topo::mass_properties(body, tol)
-        .expect("mass properties")
-        .volume
+    pncad::topo::mass_properties(
+        &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(body), tol)
+            .expect("the measured body passes tier 3"),
+        tol,
+    )
+    .expect("mass properties")
+    .volume
 }
 
 /// The blend tool with every edge of `node` held, accumulated by
@@ -1213,8 +1217,7 @@ fn only_a_drawn_selection_names_a_body_for_the_all_edges_door() {
     let face = index
         .ids_in(drawn, 0)
         .first()
-        .and_then(|&id| index.name_of(id))
-        .and_then(|named| named.as_ref().ok())
+        .and_then(|&id| index.name_of(id).ok())
         .map(|name| FaceSelection {
             name: name.clone(),
             node: drawn,

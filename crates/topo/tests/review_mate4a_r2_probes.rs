@@ -105,6 +105,19 @@ fn errors(body: &Body<f64>, recs: &ContactRecords, tol: Tol) -> Vec<ValidationEr
     }
 }
 
+/// [`errors`] where no face pair can be confirmed (the structural twin,
+/// which holds no region door): the sweeps read every meeting on the
+/// seat's boundary, which the certified census lets the seat's confirmed
+/// pair answer for inside its overlap's closure, so the rows about the
+/// edge-on-face bound
+/// read them here.
+fn structural(body: &Body<f64>, recs: &ContactRecords, tol: Tol) -> Vec<ValidationError> {
+    match topo::validate_pseudomanifold_structural(body, recs, tol) {
+        Ok(()) => Vec::new(),
+        Err(e) => e,
+    }
+}
+
 fn undeclared(errors: &[ValidationError]) -> Vec<CensusContact> {
     errors
         .iter()
@@ -132,7 +145,8 @@ fn count_ef(cs: &[CensusContact]) -> usize {
 /// incidence: that the bound lie in both faces' closed regions on their
 /// carriers and the pair's own overlap verify through the confirm
 /// pass's two doors. Two perpendicular planes have no such overlap (the
-/// confirm pass refuses the records themselves), so the unrelated pair
+/// confirm pass refuses the records themselves), so, read where the
+/// seat's own pair is not confirmed (the structural twin), the unrelated pair
 /// backs neither bound and the overlap on `post_top` stands exactly as
 /// it does with no declaration at all, witnesses included.
 #[test]
@@ -153,13 +167,13 @@ fn r2_an_unrelated_declared_pair_backs_no_ef_bound() {
             .map(|e| format!("{e:?}"))
             .collect()
     };
-    let bare = errors(&body, &ContactRecords::default(), Tol::witness());
+    let bare = structural(&body, &ContactRecords::default(), Tol::witness());
     assert_eq!(
         count_ef(&undeclared(&bare)),
         3,
         "the bare baseline: {bare:?}"
     );
-    let unrelated = errors(
+    let unrelated = structural(
         &body,
         &records(&body, &[(side_ha, shelf_side), (side_ab, shelf_side)]),
         Tol::witness(),
@@ -253,15 +267,23 @@ fn r2_the_new_rows_hold_at_the_default_band() {
         Tol::witness(),
     );
     assert!(
-        undeclared(&declared_seat).is_empty(),
-        "declared seat at the default band: {declared_seat:?}"
-    );
-    assert!(
-        declared_seat.is_empty(),
-        "and the seat certifies at the default band: {declared_seat:?}"
+        matches!(
+            &declared_seat[..],
+            [ValidationError::UnrecordedContact {
+                contact: CensusContact::VertexOnEdge { .. },
+                witness,
+                ..
+            }] if witness == "(0.7, 0.3, 0.5)"
+        ),
+        "declared seat at the default band: the tangent T, outside the \
+         overlap's closure, is all: {declared_seat:?}"
     );
 
-    let bare = undeclared(&errors(&body, &ContactRecords::default(), Tol::witness()));
+    let bare = undeclared(&structural(
+        &body,
+        &ContactRecords::default(),
+        Tol::witness(),
+    ));
     assert_eq!(
         count_ef(&bare),
         3,

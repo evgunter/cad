@@ -72,6 +72,8 @@ mod mate7a_r2_probes;
 mod mcchain;
 mod mcplate;
 mod oracles;
+#[cfg(test)]
+mod patch_quadrature;
 mod plate;
 #[cfg(feature = "probe")]
 mod probe;
@@ -249,25 +251,24 @@ impl SceneBody {
         }
     }
 
-    /// An ASSEMBLY at rest: a multi-solid product whose declared
-    /// contacts are the mates' minted records (A5's at-rest door).
+    /// An ASSEMBLY at rest: a multi-solid product whose contacts are
+    /// the records the at-rest census wrote for the touches between
+    /// its copies (A5's at-rest door).
     ///
-    /// Its tier-3′ verdict is taken where the declarations can be
-    /// ATTRIBUTED — `pncad::document::assemble`, in the scene —
-    /// because attribution is what separates a finding against the
-    /// document from the declared direction's frontier, and the plain
-    /// `validate_pseudomanifold` call below cannot see it. So this
-    /// door REPORTS what the un-attributed gate said and leaves the
+    /// Its tier-3′ verdict is taken by the at-rest gate —
+    /// `pncad::document::assemble`, in the scene — which reads the
+    /// census together with the records the gather wrote; the plain
+    /// `validate_pseudomanifold` call below sees the body alone. So
+    /// this door REPORTS what the plain call said and leaves the
     /// verdict to the scene, which asserts it.
     ///
     /// **This is a NARROWING of the harness, and it is deliberate.**
     /// Where `seamed` panics on any tier-3′ refusal, this arm prints,
-    /// so a regression that moved a body from certified into the
-    /// frontier — or added declines to one already there — would pass
-    /// `run_body` unremarked. The gate that catches such a change is
-    /// the scene's own `assemble` match, which refuses the `AtRest`
-    /// arm and pins the minted count; a body taking this door without
-    /// that assertion beside it would be validated by nobody.
+    /// so a regression that moved a body from certified to refused
+    /// would pass `run_body` unremarked. The gate that catches such a
+    /// change is the scene's own `assemble` call, which panics unless
+    /// the gate certifies; a body taking this door without that
+    /// assertion beside it would be validated by nobody.
     fn at_rest(
         name: impl Into<String>,
         color: [f64; 3],
@@ -446,7 +447,7 @@ fn mesh_area(mesh: &pncad::mesh::Mesh) -> f64 {
 /// The reporting door, for the one arm that still has to ask it.
 fn reported(label: &str, body: &Body<f64>, tol: Tol) -> VolumeReading<f64> {
     VolumeReading::Number(
-        pncad::topo::mass_properties(body, tol)
+        pncad::topo::mass_properties(&crate::booleans::at_rest(body, tol), tol)
             .unwrap_or_else(|e| panic!("{label}: mass properties failed: {e:?}")),
     )
 }
@@ -568,7 +569,7 @@ fn run_body(
         "   [{label}] topology: {v} vertices, {e} edges, {f} faces, {r} rings, \
          {s} shell(s) -> genus {genus}; validation: {}",
         match (sb.contacts.is_some(), sb.at_rest) {
-            (true, true) => "tiers 1-2 + 3' AT REST, against the mates' minted declarations",
+            (true, true) => "tiers 1-2 + 3' AT REST, against the census's at-rest records",
             (true, false) => "tiers 1-2 + 3' on the RESULT body with its declared contacts",
             (false, _) => "tiers 1-3 (structural, closed-solid census, geometric/+V)",
         }
@@ -638,8 +639,8 @@ fn run_body(
             );
             println!(
                 "   [{label}] exact: V in [{:.6e}, {:.6e}] m^3, certified bracket \
-                 (tier 3 certified the sign; the reporting target 1024·ε is under this \
-                 body's quadrature floor, so it has no volume NUMBER at this ε), \
+                 (tier 3 certified the sign; the reporting target 1024·ε is under the \
+                 width this body's quadrature stops at, so it has no volume NUMBER at this ε), \
                  A = {:.6} m^2; mesh (delta = {:.0e}): {} triangles, \
                  V_mesh = {v_mesh:.6e} (inside the bracket, chordal slack ±{slack:.1e})",
                 enclosure.volume_lo,

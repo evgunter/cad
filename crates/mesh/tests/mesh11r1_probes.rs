@@ -72,8 +72,9 @@ fn r1_both_witnesses_at_every_delta() {
     }
     // The volume the closed sphere measures, printed either way (issue
     // 1598 asserts 0.0 at head; the same number is the "before").
+    // Raw door: the measured body is a body still carrying construction scaffolding, which tier 3 refuses (ScaffoldAtRest).
     println!(
         "R1 half-cap mass_properties volume = {:?}",
-        topo::mass_properties(&sphere_body, Tol::witness()).map(|m| m.volume)
+        topo::test_support::measure_unvalidated(&sphere_body, Tol::witness()).map(|m| m.volume)
     );
 }

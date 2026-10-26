@@ -2,10 +2,11 @@
 id: a-widened-derived-placement-normalises-a-straddling-newell-sum
 kind: issue
 title: A boss on a widened derived frame refuses on the symbolic lane at clause 1: newell normalises a cross-sum whose enclosure contains zero, so a margin the tier proves zero is never asked
-status: open
+status: parked
 opened: 2026-09-14
 priority: P0
 cost: H
+blocked_on: [an-operation-computes-in-a-frame-of-its-reads]
 ---
 
 
@@ -249,3 +250,7 @@ pins that refusal now, with the same "THIS PINS A DEFECT" framing.
 The HEIGHT document's `5e-2` rung (`m10_derived_frame_interval`) still
 refuses on this row's margin, so the class is not answered — what
 moved is which document reaches it first. Filed by DECIDE-3's lane.
+
+## Parked under the D10 hold (2026-10-21)
+
+FRAME orchestrator. This row is a frame read off a placement, widened through that placement's own dependency, which is INTENT's ground. `Datum::FaceFrame` is retired (stage 3 A), PR #5547 gave `newell_plane` its caller's `u_ref`, and stage 3 E (`an-operation-computes-in-a-frame-of-its-reads`) with D′'s copies ruling (a body value in its own coordinates plus one composed frame) changes exactly the computation whose enclosure straddles here. Re-measure on `editor-core/tests/m10_derived_frame_interval.rs` when E lands, before specifying anything.

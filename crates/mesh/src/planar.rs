@@ -347,8 +347,8 @@ impl ChartFrame {
 /// first point instead of the centroid (module docs: the coordinate
 /// floor argument); certification is deliberately absent —
 /// tessellation does not re-validate (crate docs), and the in-plane
-/// axis is this lane's own extent-aligned composition, not
-/// `newell_plane`'s ambient `orthonormal_basis` pick. A degenerate
+/// axis is this lane's own extent-aligned composition, not the
+/// reference a `newell_plane` caller passes. A degenerate
 /// loop propagates non-finite components to the CDT, which refuses
 /// typed.
 fn chart_frame(outer: &[u32], positions: &[Point3<f64>]) -> ChartFrame {

@@ -82,16 +82,12 @@ fn authored_ring(tol: Tol) -> (DocSession, RecipeNodeId) {
     let profile = session_insert(
         &mut session,
         SessionOp::AddProfile {
-            loops: vec![
-                shape(&ProfileShape::Circle {
-                    centre: [R, 0.0],
-                    radius: RO,
-                }),
-                shape(&ProfileShape::Circle {
-                    centre: [R, 0.0],
-                    radius: RI,
-                }),
-            ],
+            loops: [RO, RI]
+                .map(|radius| LoopProgram::Circle {
+                    centre: [len(R), Formula::zero(Dimension::Length)],
+                    radius: len(radius),
+                })
+                .into(),
         },
     );
     let revolve = session_insert(
@@ -144,14 +140,6 @@ fn a_revolve_stands_by_the_identity_bundle_whatever_its_axis_reads() {
         panic!("the revolve and its placement: {:?}", outcome.minted)
     };
     assert_eq!(
-        outcome.placed,
-        vec![viewer::session::PlaceReport {
-            placement,
-            by: Ok(editor_core::PlacedBy::Identity),
-        }],
-        "the ring stands by the identity bundle"
-    );
-    assert_eq!(
         viewer::frame::outcome_notices(&outcome).count(),
         0,
         "the ordinary answer carries no notice"
@@ -159,21 +147,18 @@ fn a_revolve_stands_by_the_identity_bundle_whatever_its_axis_reads() {
     session.pump();
     let doc = session.committed_doc();
     let bundle = crate::fixture::bundle(doc, placement);
-    let written: Vec<_> = bundle
-        .iter()
-        .map(|c| c.value().map(|v| (v.mate, v.coord)))
-        .collect();
+    let written: Vec<_> = bundle.iter().map(|c| c.value().map(|v| v.coord)).collect();
     assert_eq!(
         written,
         [
-            Some((None, Coord::Slide(TargetAxis::X))),
-            Some((None, Coord::Slide(TargetAxis::Y))),
-            Some((None, Coord::Slide(TargetAxis::Z))),
-            Some((None, Coord::SpinAbout(TargetAxis::X))),
-            Some((None, Coord::SpinAbout(TargetAxis::Y))),
-            Some((None, Coord::SpinAbout(TargetAxis::Z))),
+            Some(Coord::Slide(TargetAxis::X)),
+            Some(Coord::Slide(TargetAxis::Y)),
+            Some(Coord::Slide(TargetAxis::Z)),
+            Some(Coord::Spin(TargetAxis::X)),
+            Some(Coord::Spin(TargetAxis::Y)),
+            Some(Coord::Spin(TargetAxis::Z)),
         ],
-        "six values naming no mate: {bundle:?}"
+        "six values and no mate: {bundle:?}"
     );
     assert!(
         common::solve(&session, doc, tol).at_identity(placement),
@@ -248,6 +233,7 @@ fn a_creation_gesture_places_what_it_made_in_one_action() {
     let Some(Node::Place {
         shapes,
         constraints,
+        ..
     }) = doc.node(placement)
     else {
         panic!("the extrude's placement: {:?}", doc.node(placement))
@@ -261,27 +247,19 @@ fn a_creation_gesture_places_what_it_made_in_one_action() {
         assert_eq!(
             constraints
                 .iter()
-                .map(|c| c.value().map(|v| (v.mate, v.coord)))
+                .map(|c| c.value().map(|v| v.coord))
                 .collect::<Vec<_>>(),
             vec![
-                Some((None, Coord::Slide(TargetAxis::X))),
-                Some((None, Coord::Slide(TargetAxis::Y))),
-                Some((None, Coord::Slide(TargetAxis::Z))),
-                Some((None, Coord::SpinAbout(TargetAxis::X))),
-                Some((None, Coord::SpinAbout(TargetAxis::Y))),
-                Some((None, Coord::SpinAbout(TargetAxis::Z))),
+                Some(Coord::Slide(TargetAxis::X)),
+                Some(Coord::Slide(TargetAxis::Y)),
+                Some(Coord::Slide(TargetAxis::Z)),
+                Some(Coord::Spin(TargetAxis::X)),
+                Some(Coord::Spin(TargetAxis::Y)),
+                Some(Coord::Spin(TargetAxis::Z)),
             ],
             "the identity bundle: every freedom, no mate"
         );
     }
-    assert_eq!(
-        outcome.placed,
-        vec![viewer::session::PlaceReport {
-            placement,
-            by: Ok(editor_core::PlacedBy::Identity),
-        }],
-        "the outcome says how the copy was placed"
-    );
     assert!(
         common::solve(&session, doc, tol).at_identity(placement),
         "the copy stands where it was made"
@@ -362,14 +340,8 @@ fn a_bracket_block_authors_saves_reloads_and_undoes() {
 
     // Undo walks back across the reopened log one edit at a time (the
     // file records edits, not actions: `history`'s module docs) — the
-    // extrude's world placement, its identity bundle written as one
-    // edit, then its insert — then the extrude; redo restores the whole
-    // document.
-    assert!(session.perform(SessionOp::Undo).refusal.is_none());
-    assert!(
-        !session.committed_doc().placements().is_empty(),
-        "the placement's bundle goes before it"
-    );
+    // extrude's world placement, inserted with its identity bundle as
+    // one edit — then the extrude; redo restores the whole document.
     assert!(session.perform(SessionOp::Undo).refusal.is_none());
     assert!(
         session.committed_doc().placements().is_empty(),
@@ -388,9 +360,9 @@ fn a_bracket_block_authors_saves_reloads_and_undoes() {
             direction: Step::Undo
         })
     ));
-    // Four edits: the profile, the extrude, its placement, and the
-    // placement's identity bundle.
-    for _ in 0..4 {
+    // Three edits: the profile, the extrude, and its placement with its
+    // identity bundle.
+    for _ in 0..3 {
         assert!(session.perform(SessionOp::Redo).refusal.is_none());
     }
     assert!(session.committed_doc().bit_eq(&authored), "redo restores");

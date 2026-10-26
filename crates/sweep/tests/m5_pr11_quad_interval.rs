@@ -44,7 +44,7 @@ fn halves() -> (Body<Interval>, Body<Interval>) {
     let (SplitPart::Body(above), SplitPart::Body(below)) = (&result.above, &result.below) else {
         panic!("both sides carry material");
     };
-    (above.clone(), below.clone())
+    (topo::Body::clone(above), topo::Body::clone(below))
 }
 
 /// The Interval-lane certified bracket contains πr²H/2 and tier 3
@@ -54,8 +54,15 @@ fn interval_lane_quadrature_brackets_the_closed_form() {
     let (above, below) = halves();
     let half_exact = core::f64::consts::PI * R * R * H / 2.0;
     for (label, body) in [("above", &above), ("below", &below)] {
-        let m = topo::mass_properties(body, Tol::witness())
-            .unwrap_or_else(|e| panic!("{label}: interval quadrature computes: {e:?}"));
+        let m = topo::mass_properties(
+            &topo::test_support::finished(
+                "the measured body",
+                topo::Body::clone(body),
+                Tol::witness(),
+            ),
+            Tol::witness(),
+        )
+        .unwrap_or_else(|e| panic!("{label}: interval quadrature computes: {e:?}"));
         let (lo, hi) = (m.volume.lo() - m.volume_pad, m.volume.hi() + m.volume_pad);
         assert!(
             lo <= half_exact && half_exact <= hi,

@@ -21,16 +21,19 @@ use sweep::Revolution;
 use sweep::blend::build::fillet_edges;
 use sweep::test_support::{arcs_at, dome, lantern, sphere_zone, waisted};
 use topo::query::rim_of;
-use topo::{Body, EdgeKey, RimBreak, RimError, mass_properties, validate_geometric};
+use topo::{Body, EdgeKey, RimBreak, RimError, validate_geometric};
 
 fn tol() -> Tol {
     Tol::witness()
 }
 
 fn volume(body: &Body<f64>) -> f64 {
-    mass_properties(body, tol())
-        .expect("mass properties")
-        .volume
+    topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
+        tol(),
+    )
+    .expect("mass properties")
+    .volume
 }
 
 /// Is `b` a rotation of `a`? (Same length, same cycle, same direction.)

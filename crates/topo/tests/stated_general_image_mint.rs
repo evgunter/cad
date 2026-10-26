@@ -33,7 +33,7 @@ use geom::{Curve3, NurbsCurve2, NurbsCurve3, NurbsSurface, Surface};
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, Pcurve, PcurveCertifyError};
 use geom_core::spline::KnotVector;
 use geom_core::{Point2, Point3, Tol};
-use topo::{AtRestPolicy, Body, FaceKey, FaceSurface, MefSite, MevSite, PcurveMintError};
+use topo::{AtRestPolicy, Body, FaceKey, FaceSurface, MefSite, MevSite};
 
 /// Which carrier every edge of the lamina is re-described with.
 #[derive(Clone, Copy, Debug)]
@@ -218,8 +218,7 @@ fn certifies_and_mints_its_rows<T: AtRestPolicy>(carrier: Carrier) {
 }
 
 /// At a dual the door is absent: check 4 refuses naming the scalar,
-/// and the mint leaves the faces uncached, whose General images then
-/// have no certificate to read.
+/// and the mint leaves the faces uncached.
 fn refuses_at_check_4_without_the_door<T: AtRestPolicy>(carrier: Carrier) {
     assert!(
         T::fitted_lane().is_none(),
@@ -264,13 +263,6 @@ fn refuses_at_check_4_without_the_door<T: AtRestPolicy>(carrier: Carrier) {
         Ok(0),
         "{carrier:?}: the mint leaves the faces uncached, at {}",
         T::NAME
-    );
-    let got = topo::pcurves::chart_boundary(&body, faces[0], &surface, band);
-    assert!(
-        matches!(got, Err(PcurveMintError::UncertifiedImage { .. })),
-        "{carrier:?}: an uncached face's General images have no certificate, at {}: {:?}",
-        T::NAME,
-        got.err()
     );
 }
 

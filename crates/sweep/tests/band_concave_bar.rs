@@ -28,7 +28,9 @@
 
 use core::f64::consts::PI;
 
+use geom_core::RigidMotion;
 use geom_core::{Bounds, Decide, Interval, Point2, Point3, Real, Vec3};
+use profile::SketchPlane;
 use sweep::blend::build::{Blended, chamfer_edges, fillet_edges};
 use sweep::blend::{BlendError, Convexity};
 use sweep::test_support::{
@@ -81,12 +83,7 @@ pub(crate) fn die<T: Decide + Bounds + AtRestPolicy>(k: f64, s: f64) -> Body<T> 
     let f = |x: f64| T::from_f64(x * k);
     let block = brick((-k, 2.0 * k), (0.0, k), (0.0, k), tol());
     let pocket = prism_on(
-        sketch_from_axes(
-            Point3::new(f(0.0), f(0.0), f(0.5)),
-            Vec3::new(T::from_f64(1.0), T::zero(), T::zero()),
-            Vec3::new(T::zero(), T::from_f64(1.0), T::zero()),
-            tol(),
-        ),
+        SketchPlane::xy_at(Point3::new(f(0.0), f(0.0), f(0.5))),
         [
             (0.25, 0.25),
             (0.75, 0.25),
@@ -921,12 +918,7 @@ fn a_bar_sunk_into_a_support_refuses() {
 pub(crate) fn d_pocket(c: Option<(f64, f64)>, a: f64) -> (Body<f64>, EdgeKey) {
     let ch = rod_chord_at(ROD_FLAT);
     let d = prism_on(
-        sketch_from_axes(
-            Point3::new(0.25, 0.0, 0.0),
-            Vec3::new(0.0, 1.0, 0.0),
-            Vec3::new(0.0, 0.0, 1.0),
-            tol(),
-        ),
+        SketchPlane::from_frame(RigidMotion::axes_yz(Point3::new(0.25, 0.0, 0.0))),
         vec![
             (Point2::new(ROD_FLAT, ch.half), ch.wall_bulge),
             (Point2::new(ROD_FLAT, -ch.half), 0.0),
