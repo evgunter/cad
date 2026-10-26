@@ -3123,6 +3123,10 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::CoincidentWedgesOverlapUndecided { .. } => {
             "coincident_wedges_overlap_undecided"
         }
+        ValidationError::BoundaryCrossesItself { .. } => "boundary_crosses_itself",
+        ValidationError::BoundaryCrossesItselfUndecided { .. } => {
+            "boundary_crosses_itself_undecided"
+        }
         ValidationError::ArcEndOffCorner { .. } => "arc_end_off_corner",
         ValidationError::InstanceInterference { .. } => "instance_interference",
         ValidationError::SameSideInterference { .. } => "same_side_interference",

@@ -113,3 +113,15 @@ crossing lane and the edge-on-face lane (plan.md, Order).
   - The geom-core `certified_endpoint_census` and copysign-census reds the lanes saw are main's, already rowed by PCERT and GERM. — (RESTREAD orchestrator)
 - 2026-10-25 — **Band rule (work/README.md, Priority):** `census-cross-solid-curved-pairs-undecidable-on-shell-results` re-banded P1→P0: it gates REACHHOLD's `boolean-door-runs-the-census-over-its-result`, now P0 because FLUSH's two P0s wait on it. What the door waits on is this row's boolean-result half (the 38 unions, the touches), which is most of what remains here. (band-rule triage)
 - 2026-10-26 — Main red from PR 5529 meeting PR 5745 (SameSideInterference vs. coincident line wedges): fixed in PR 5779, `coincident_line_wedges` restated against SSI deciding the pair, and an aligned face pair now holds the wedges on its lines. (ATREST orchestrator's lane)
+- 2026-10-26 — PR 5704 (`restread/point-touch-winding`) merges. It closes `tier-3-prime-reads-no-side-for-a-face-touching-a-vertex-of-its-own-solid` (P1), the build of decision 1 of [ev] PR 5517: tier 3′ reads each point where one solid touches itself over its whole link (`rest::one_material`), refusing a crossing sheet or a winding that takes more than two values. Curved links are left unread (option B).
+  - **Tier:** dual, arm concurrent (class H). R1 returned APPROVE-WITH-FIXES with a MAJOR (three discs crossing on one line rest); R2 returned REQUEST CHANGES with a MAJOR (a line touch at the point hid the point's other sheets), which R1 had as a MINOR.
+  - **Excluded from the tally under 6(e):** a container restart killed both reviews mid-run and R2 lost its session. The coder's classification is on the row (blinding byte 152).
+  - **Fix passes:** pass 1 read every point whole, the line's own sheets included, and guarded crossings on inner rays. Verifier 1 refused, since three sheets crossing along a cut ray still rested. Pass 2 read every wedge-end ray against every sector, closed the own-pass slit and let a one-sector link rest. Verifier 2 returned VERIFIED-WITH-NITS.
+  - The line-touch hole was census-door only: tier 3 refuses every such witness with `SolidOuterShells`.
+  - The pinched-face union certifies again, so the re-baseline and its row were withdrawn.
+  - **Rows filed:**
+    - `tier-3-prime-reads-no-side-where-a-solid-touches-itself-at-a-point-on-a-curved-face` (P1, option B's unread curved links);
+    - `the-depth-gap-fuzz-finds-a-ring-point-shallower-than-its-bound` (P2);
+    - `one-material-leaves-its-in-band-arm-and-one-sector-reason-unpinned` (P4);
+    - for other programs, two main reds confirmed on main: `tess/a-thin-nested-rings-row-pins-untriangulated-where-the-mesh-now-meshes` (P2) and `splice/the-lofted-cylinder-operand-runs-out-of-quadrature-budget-at-1e-12` (P2).
+  - `fused_into_live_cells` is main's, already filed P0 in `issues/`. — (RESTREAD orchestrator)

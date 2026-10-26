@@ -2065,6 +2065,31 @@ pub enum ValidationError {
         /// its recourse.
         why: crate::census::TouchUnread,
     },
+    /// **Tier 3′: a solid's boundary crosses itself at a point where it
+    /// touches itself.** On decided readings the solid's faces through
+    /// the point bound no one material there: two of its sheets cross,
+    /// or a region about the point lies behind one face bordering it and
+    /// in front of another (D1, `crates/topo/README.md` tier 3), so no
+    /// record makes this valid.
+    BoundaryCrossesItself {
+        /// The solid.
+        solid: SolidKey,
+        /// The point, as coordinates.
+        witness: String,
+    },
+    /// **Tier 3′: whether a solid's boundary crosses itself at a point
+    /// where it touches itself is undecided.** The reading of
+    /// [`Self::BoundaryCrossesItself`] could not be taken: `why` says
+    /// why.
+    BoundaryCrossesItselfUndecided {
+        /// The solid.
+        solid: SolidKey,
+        /// The point, as coordinates.
+        witness: String,
+        /// Why the reading was not taken; the finding renders it with
+        /// its recourse.
+        why: crate::census::TouchUnread,
+    },
     /// Tier 3′: the census read a point at an arc's end that lies
     /// definitely off both of its edge's corners, on a body tier 3 passed
     /// at the same band, which pins every carrier end within the zero
@@ -4469,6 +4494,17 @@ impl fmt::Display for ValidationError {
                 "two edges lie along one line at {witness}, and whether the material each \
                  bounds overlaps the other's is undecided: {}",
                 why.sentence_on_line()
+            ),
+            Self::BoundaryCrossesItself { witness, .. } => write!(
+                f,
+                "a part touches itself at {witness}, and its faces there cross each other or \
+                 face both ways about one region, so they bound no one material. {DEFECT}"
+            ),
+            Self::BoundaryCrossesItselfUndecided { witness, why, .. } => write!(
+                f,
+                "a part touches itself at {witness}, and whether its faces there bound one \
+                 material is undecided: {}",
+                why.sentence()
             ),
             Self::InstanceInterference { .. } => write!(
                 f,

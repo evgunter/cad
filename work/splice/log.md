@@ -499,3 +499,21 @@ Next on lily's path:
   (`an-analytic-edge-against-a-nurbs-face-has-no-crossing-lane`), where
   lily wall 8 now stops;
 - the sector walk's NURBS arm (P0, filed by this unit).
+
+## 2026-10-26 — two lanes dispatched: point-in-face and the sector walk
+
+- `splice/point-in-face` (`session_01UeAbQJ2zE9Jn1YEQa2tvML`):
+  `a-point-has-no-place-in-a-nurbs-faces-trim` (P1 M). Letter M, draw
+  byte 48, 48 mod 3 = 0: a holdout, so a concurrent pair. It unblocks
+  the parked wiring row and teapot wall 3's pierce placement, and the
+  interior arm places its meetings through it.
+- `splice/sector-walk-nurbs` (`session_01E1iVdA3wv8cshkHCxPcy6D`):
+  `the-sector-walk-reads-no-nurbs-face-at-a-crossing-vertex` (P0 M).
+  Letter M, draw byte 59, 59 mod 3 = 2: sequential. It owes the wavy
+  loft's end-to-end row. The brief binds the crease class and reuse of
+  `dihedral_side`'s regularity and crease readings.
+
+The two keep out of each other's files (`contain.rs` and
+`sectors.rs`/`sector_face.rs`). The interior arm
+(`an-analytic-edge-against-a-nurbs-face-has-no-crossing-lane`, P0 H),
+where lily wall 8 now stops, goes next, once point-in-face lands.
