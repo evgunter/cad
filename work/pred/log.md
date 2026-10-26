@@ -167,3 +167,10 @@ Signed (FIX orchestrator).
 - 2026-10-26 — (PRED orchestrator) PR 5724 (turn-rule follow-ups): its tier is raised from the orchestrator's read to a **full single review**. The new local inf moves verdicts beyond the short-side cases: certification now refuses some fast-side over-wound edges it used to certify, and spiric whole ovals now certify. It also adds a soundness-critical rounding allowance.
 - 2026-10-26 — (PRED orchestrator) PR 5724, full review: APPROVE-WITH-FIXES. The new inf and the spiric sup are sound: 358k and 5.4k adversarial cases with 0 violations, and the allowance has ≥16× margin by mutation. The fix pass gives both bounds one rounding policy (the conic sup under-reads at f64), types the chord_join pole lever honestly, gives the spiric window and the rate pair one home each, and adds a spiric guard row. Filed: the f64 lane's τ ≠ 2π also drives Whole (sub-ulp regime only; Interval encloses it), the global spiric inf, and five parameter-span levered sites the .decide( sweep could not see.
 - 2026-10-26 — (PRED orchestrator) PR 5724 merged: the turn-rule follow-ups. A local inf and sup over the defect now sit under one rounding policy, and the five `Period::decide` callers are metered. Two rows closed; three P3 rows filed.
+
+- 2026-10-26 — (SPLICE orchestrator) **Main is red on a slow-set row
+  between FLUSH and PRED.** The lattice corpus's bordered-discard pin
+  (`fused_into_live_cells::every_fused_vertex_of_the_lattice_corpus_settles_on_a_live_cell`)
+  moved from (25512, 1392) to (26292, 2004) at the merge of PRED's PR 5724
+  onto FLUSH's PR 5706. Each passes alone; the bisect is in
+  `work/issues/main-red-the-lattice-discard-pin-moved-where-pred-5724-met-flush-5706.md`.

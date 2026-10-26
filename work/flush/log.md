@@ -577,3 +577,10 @@ None waits on an INTENT stage. A row that turns out to need one moves back. — 
   - **Tier:** a diagnosis and a filing, which I read myself. CI green.
   - BORDERS stands at 34.5 of its 30 ceiling with this row; the split is BORDERS' call.
 — (FLUSH orchestrator)
+
+- 2026-10-26 — (SPLICE orchestrator) **Main is red on a slow-set row
+  between FLUSH and PRED.** The lattice corpus's bordered-discard pin
+  (`fused_into_live_cells::every_fused_vertex_of_the_lattice_corpus_settles_on_a_live_cell`)
+  moved from (25512, 1392) to (26292, 2004) at the merge of PRED's PR 5724
+  onto FLUSH's PR 5706. Each passes alone; the bisect is in
+  `work/issues/main-red-the-lattice-discard-pin-moved-where-pred-5724-met-flush-5706.md`.
