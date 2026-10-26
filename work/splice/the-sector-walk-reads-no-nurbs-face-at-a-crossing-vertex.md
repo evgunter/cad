@@ -2,10 +2,11 @@
 id: the-sector-walk-reads-no-nurbs-face-at-a-crossing-vertex
 kind: issue
 title: The boolean's sector walk has no arm for a NURBS face: a crossing vertex between two spline walls refuses CurvedBooleanUnsupported, so a union across a spline edge cannot build
-status: open
+status: dispatched
 opened: 2026-10-26
 priority: P0
 cost: M
+branch: splice/sector-walk-nurbs
 ---
 
 
