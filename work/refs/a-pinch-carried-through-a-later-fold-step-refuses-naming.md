@@ -89,3 +89,21 @@ boolean rather than a fold step, refuses
 recorded discard between them" })` over the corners the first made.
 The split along the first's floor refuses earlier in the kernel
 (`work/cleave/a-split-through-a-pocket-floor-touching-the-block-walls-refuses-a-sliver-sector.md`).
+
+## The pair corner pass keyed by candidate (WIRE `wire-paircorner`, 2026-10-26)
+
+The refusal was the pair boolean's corner pass, run by the later fold
+step: `emit_topo::name_boolean_vertices` grouped the result vertices
+at a corner by the corner's NAME, and the pinch's two copies, which
+the earlier step tied under one name, were then handed to
+`Obstacles::split_corner` as copies of one corner with no discard
+between them. On branch `wire/pair-boolean-walls-and-tied-corners`
+the pass keys a corner by its candidate
+(`work/wire/a-pair-booleans-tied-corner-is-split-as-one-corner.md`),
+each candidate is held once and joins its name's tie, and every order
+of `prism and cube` + far, `pinch and far` and `pinch and cap` builds
+and publishes the table the other orders publish:
+`union_member_orders_decide_alike::a_vertex_row_is_the_unions_once_in_every_member_order`
+and the four `name_invariance` cases above no longer admit this row.
+`Intersect [prism, cube, big]` and `split_pinch_keeps`'s `moat_split`
+were not re-run.
