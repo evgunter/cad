@@ -37,9 +37,14 @@ From CLEAVE (taken on request in chat; CLEAVE would not start a P3). Moved by `g
 `carrier_speed::speed_range` and its curvature from `curvature_hi` on
 every kind. `accel_hi` and `curvature_hi` now bound a spline too, from
 `NurbsCurve3::accel_upper_bound` and its speed floor, and return a
-value rather than an `Option`. A spline whose speed floor is zero
-bounds no finite curvature, and the second-order bound then clears
-nothing. `curve_pair::walk` reads the same two bounds, so a spline pair
+value rather than an `Option`. The bound is not finite where the
+spline is not `C¹` (a knot of multiplicity at least its degree:
+`accel_upper_bound` reads `KnotStructure::crease_runs`), or where its
+speed floor certifies nothing. The second-order bounds then clear
+nothing. Review of PR 5715 found the crease: a cornered degree-1 net
+had read curvature zero
+(`carrier_touch_rows::a_spline_with_a_corner_crossing_the_face_is_not_off_it`,
+`curve_pair::meet_rows::a_spline_with_a_corner_meets_a_line_past_it`). `curve_pair::walk` reads the same two bounds, so a spline pair
 there now stops at its tangency floor instead of the band.
 Without the spline curvature bound, the first-order walk ran out of
 `PIECE_BUDGET` at ε = 1e-12 (CI on this PR's first head).

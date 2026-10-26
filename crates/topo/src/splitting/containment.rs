@@ -121,7 +121,6 @@
 //! whole band ([`geom_core::k_stats::straddle`]).
 
 use geom_brep::recourse::{LeverOnly, Reading, RefusedArm, RefusedSide, SizedDecision, SizedPass};
-use geom_core::bisect::Step;
 use geom_core::period::{
     Bounded, Exact, Extent, Period, Turn, TurnRow, TurnRows, TurnUndecided, Within,
 };
@@ -1736,20 +1735,19 @@ pub(crate) struct ArcPieces<'c, T: geom_core::Real> {
 }
 
 impl<T: Decide> ArcPieces<'_, T> {
-    /// Whether `clear` decides every piece's floor clear, within
+    /// Whether `clear` decides every piece's floor clear on the
+    /// carrier's point walk ([`geom::Curve3::point_walk`]), within
     /// [`geom_core::bisect::PIECE_BUDGET`].
     fn clear(self, clear: impl Fn(T) -> bool) -> bool {
         let hi = geom::carrier_speed::speed_range(self.carrier).1;
-        let walk = geom_core::bisect::bisect([self.span], |(a, b)| {
-            let mid = geom::mid_param(a, b);
-            let gap = (self.q - self.carrier.eval(mid)).norm();
-            if !clear(gap) {
-                return Step::Stop(());
+        let walk = self.carrier.point_walk(self.q, self.span, hi, |p| {
+            if !clear(p.gap) {
+                return geom::PieceStep::Stop(());
             }
-            if clear(gap - geom_core::bisect::reach(hi, (a, b))) {
-                return Step::Settled;
+            if clear(p.gap - p.reach) {
+                return geom::PieceStep::Settled;
             }
-            Step::Halve([(a, mid), (mid, b)])
+            geom::PieceStep::Halve
         });
         matches!(walk, Ok(None))
     }

@@ -43,11 +43,13 @@ fn sampled_floor(c: &NurbsCurve3<f64>, n: usize) -> f64 {
         .fold(0.0, f64::max)
 }
 
-/// **The bound covers the named carriers.** A quarter arc, a full
-/// circle, the weight-40 parabola, a strongly rational arc and a
-/// rational cubic with interior knots: on each, the certified bound is
-/// at least the sampled sup of `‖C″‖`. The `f64` door agrees with the
-/// `Interval` one to rounding.
+/// **The bound covers the named carriers.** A quarter arc, the
+/// weight-40 parabola, a strongly rational arc and a rational cubic with
+/// interior knots: on each, the certified bound is at least the sampled
+/// sup of `‖C″‖`. The `f64` door agrees with the `Interval` one to
+/// rounding. The nine-point full circle's double knots are creases at
+/// degree 2, across which its structure licenses no `C′`: it reads no
+/// finite bound at either scalar.
 #[test]
 fn the_bound_covers_the_named_carriers() {
     let h = 0.5f64.sqrt();
@@ -59,27 +61,6 @@ fn the_bound_covers_the_named_carriers() {
                 2,
                 &[(1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
                 vec![1.0, h, 1.0],
-            ),
-        ),
-        (
-            "full circle",
-            curve(
-                vec![
-                    0.0, 0.0, 0.0, 0.25, 0.25, 0.5, 0.5, 0.75, 0.75, 1.0, 1.0, 1.0,
-                ],
-                2,
-                &[
-                    (1.0, 0.0),
-                    (1.0, 1.0),
-                    (0.0, 1.0),
-                    (-1.0, 1.0),
-                    (-1.0, 0.0),
-                    (-1.0, -1.0),
-                    (0.0, -1.0),
-                    (1.0, -1.0),
-                    (1.0, 0.0),
-                ],
-                vec![1.0, h, 1.0, h, 1.0, h, 1.0, h, 1.0],
             ),
         ),
         (
@@ -122,6 +103,36 @@ fn the_bound_covers_the_named_carriers() {
             "{name}: the f64 door {f} and the Interval door {b} disagree"
         );
     }
+    let circle = curve(
+        vec![
+            0.0, 0.0, 0.0, 0.25, 0.25, 0.5, 0.5, 0.75, 0.75, 1.0, 1.0, 1.0,
+        ],
+        2,
+        &[
+            (1.0, 0.0),
+            (1.0, 1.0),
+            (0.0, 1.0),
+            (-1.0, 1.0),
+            (-1.0, 0.0),
+            (-1.0, -1.0),
+            (0.0, -1.0),
+            (1.0, -1.0),
+            (1.0, 0.0),
+        ],
+        vec![1.0, h, 1.0, h, 1.0, h, 1.0, h, 1.0],
+    );
+    assert!(
+        circle.accel_upper_bound().is_infinite(),
+        "the full circle's creases bound no |C″|"
+    );
+    assert!(
+        !circle
+            .map_scalar(<Interval as Real>::from_f64)
+            .accel_upper_bound()
+            .hi()
+            .is_finite(),
+        "the full circle's creases bound no |C″| at Interval"
+    );
 }
 
 /// **On one rational segment the bound is the true sup.** With weights

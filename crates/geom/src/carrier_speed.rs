@@ -80,11 +80,14 @@ pub fn turn_defect_speed_hi<T: SpanLocate>(
     }
 }
 
-/// A bound on `|C″(t)|` over every `t`: zero on a line, a conic's
-/// larger semi-axis, a spiric's [`crate::spiric_period_rate_bounds`], a
-/// spline's [`crate::NurbsCurve3::accel_upper_bound`] (certified at
-/// `Interval`, poison where its statement refuses; at `f64` the same
-/// expression in round-to-nearest, as [`speed_range`]'s).
+/// A bound on `|C″(t)|` over every `t`, read as a Lipschitz constant of
+/// `C′` across any window, which is what a second-order bound along the
+/// curve needs: zero on a line, a conic's larger semi-axis, a spiric's
+/// [`crate::spiric_period_rate_bounds`], a spline's
+/// [`crate::NurbsCurve3::accel_upper_bound`] (infinite where a crease
+/// lets `C′` jump; certified at `Interval`, poison where its statement
+/// refuses; at `f64` the same expression in round-to-nearest, as
+/// [`speed_range`]'s).
 pub fn accel_hi<T: SpanLocate>(carrier: &crate::Curve3<T>) -> T {
     Kind::of(carrier).accel_hi()
 }
@@ -93,8 +96,9 @@ pub fn accel_hi<T: SpanLocate>(carrier: &crate::Curve3<T>) -> T {
 /// `speed_hi / speed_lo²` on a conic, and `|C″|/|C′|²` from
 /// [`accel_hi`] and [`speed_range`]'s floor on a spiric (its minor
 /// radius) and a spline (the curvature `|C′ × C″|/|C′|³` is at most
-/// that). A spline whose speed floor is zero or poison bounds no finite
-/// curvature, and its bound reads as such.
+/// that). A floor not above zero is read as zero, so a spline whose
+/// floor certifies nothing (a cusp, a hodograph through the origin),
+/// or with a crease, bounds no finite curvature.
 pub fn curvature_hi<T: SpanLocate>(carrier: &crate::Curve3<T>) -> T {
     Kind::of(carrier).curvature_hi()
 }
@@ -211,7 +215,9 @@ impl<'a, T: SpanLocate> Kind<'a, T> {
         match *self {
             Self::Line(_) => T::zero(),
             Self::Conic(c) => c.curvature_hi(),
-            Self::Spiric { .. } | Self::Nurbs(_) => self.accel_hi() / self.range().0.get().powi(2),
+            Self::Spiric { .. } | Self::Nurbs(_) => {
+                self.accel_hi() / self.range().0.get().max(T::zero()).powi(2)
+            }
         }
     }
 }

@@ -1993,8 +1993,8 @@ fn the_gap_is_charged_with_the_rounding_of_far_coordinates() {
 /// degree-1 spline runs along `y = 0.28` to a corner just past its
 /// middle, then straight down through `y = 0` to `y = −0.008`; the line
 /// `y = 0` crosses that second span at `(0.012, 0, 0)`. Each span is
-/// straight, so `accel_hi` reads zero, though the tangent turns a right
-/// angle at the knot.
+/// straight, so a bound read span by span is zero, though the tangent
+/// turns a right angle at the knot: the crease bounds no `|C″|`.
 #[test]
 fn a_spline_with_a_corner_meets_a_line_past_it() {
     use geom::NurbsCurve3;
@@ -2018,8 +2018,9 @@ fn a_spline_with_a_corner_meets_a_line_past_it() {
         &Span::new(&b, (0.0, 0.6)),
         band(),
     );
-    match &got {
-        Ok(m) => assert!(interiors_meet(m), "decided no meeting: {m:?}"),
-        Err(_) => {}
+    // A refusal keeps the door, which is sound; a verdict must see the
+    // meeting.
+    if let Ok(m) = &got {
+        assert!(interiors_meet(m), "decided no meeting: {m:?}");
     }
 }

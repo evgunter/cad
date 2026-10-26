@@ -485,9 +485,9 @@ fn a_ball_beside_a_spline_or_spiric_edge_is_cleared_of_it() {
 /// along the tangent of the unit cylinder at azimuth `7/10` (on the
 /// quarter sheet), `0.28` outside it, to a corner just past its middle
 /// point, then turns straight in and ends `~0.008` inside the cylinder:
-/// it crosses the sheet once, on the face. Each span is a segment, so
-/// `accel_hi` and `curvature_hi` read zero, though the curve's tangent
-/// turns a right angle at the knot.
+/// it crosses the sheet once, on the face. Each span is a segment, so a
+/// bound read span by span is zero, though the curve's tangent turns a
+/// right angle at the knot: the crease bounds no curvature.
 #[test]
 fn a_spline_with_a_corner_crossing_the_face_is_not_off_it() {
     use geom::NurbsCurve3;
@@ -510,10 +510,9 @@ fn a_spline_with_a_corner_crossing_the_face_is_not_off_it() {
         (b - Point3::new(0.0, 0.0, 0.5)).norm() < 1.0,
         "the end lies inside the cylinder"
     );
-    assert_eq!(
-        geom::carrier_speed::curvature_hi(&c),
-        0.0,
-        "each span is straight"
+    assert!(
+        geom::carrier_speed::curvature_hi(&c).is_infinite(),
+        "the corner is a crease, which bounds no curvature"
     );
     let got = off_face(&body, face, &surface, &c, (0.0, 1.0), band());
     assert!(

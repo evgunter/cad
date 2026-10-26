@@ -20,10 +20,12 @@
 //! distance's derivative along the curve at `m` and `H` a bound on its
 //! second: `1/(ρ − |dist(m)| − ℓ)` for the carrier's level sets (ρ
 //! below), plus the curve's own curvature
-//! ([`geom::carrier_speed::curvature_hi`]), with `ℓ` metered at its
-//! speed bound ([`geom::carrier_speed::speed_range`]), on every kind. A
-//! curvature bound that is not finite (a spline whose speed floor is
-//! zero) leaves the first bound alone. Near a tangency the first
+//! ([`geom::carrier_speed::curvature_hi`]). `ℓ` is metered at the curve's
+//! speed bound ([`geom::carrier_speed::speed_range`]) on every kind. The
+//! second bound needs the curve `C¹` across the piece, and a curvature
+//! bound is finite only where it is: a spline with a crease, or whose
+//! speed floor certifies nothing, bounds none, and takes the first bound
+//! alone. Near a tangency the first
 //! clears nothing finer than the band, the second clears pieces in
 //! proportion to their distance from the touch. The pieces that do not
 //! clear, bisected down to [`geom_core::bisect::tangency_floor`] of ρ, run together
@@ -212,8 +214,11 @@ fn clusters<T: Decide + Bounds>(
         let slope = (normal.dot(tangent) / tangent.norm()).abs();
         let lipschitz = dist.abs() - ell;
         let axis_gap = rho - dist.abs() - ell;
-        let bound = if let Ok(Sign::Positive) =
-            decide("bool_touch_piece_off_axis", Margin::of(axis_gap), band)
+        // A bend with no finite bound (a spline's crease or cusp) takes
+        // the first bound alone.
+        let bound = if geom_core::is_finite_length(bend)
+            && let Ok(Sign::Positive) =
+                decide("bool_touch_piece_off_axis", Margin::of(axis_gap), band)
         {
             let curl = T::one() / axis_gap + bend;
             lipschitz.max(dist.abs() - ell * slope - ell.powi(2) * curl * half)

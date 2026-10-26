@@ -231,9 +231,9 @@ fn a_projected_edge_on_part_of_its_net_reads_the_tighter_box() {
 /// The decided counts are pinned. `contfp` holds an uncrossable edge as
 /// a ball too and refuses a station inside it, so a door that called
 /// every spline edge clear never decides a cell the edge straddles here,
-/// and the soundness assertion cannot see it: the floor's own rows
-/// (`carrier_touch_rows`, a ball on a spline is not cleared of it) stand
-/// against that door.
+/// and neither can these counts:
+/// [`a_cell_crossing_only_the_spline_edge_is_undecided`] stands against
+/// that door.
 #[test]
 fn the_cell_door_reads_a_spline_edge_as_its_ball() {
     use topo::cell_region::{CellRegion, cell_region};
@@ -286,5 +286,50 @@ fn the_cell_door_reads_a_spline_edge_as_its_ball() {
         (inside, outside),
         (75, 407),
         "the cells the door decides beside the spline edge, pinned"
+    );
+}
+
+/// **A cell crossing only the spline edge keeps it.** The prism of
+/// [`the_cell_door_reads_a_spline_edge_as_its_ball`], its first edge
+/// swapped for the chord net; the cell is the rectangle `1.3` deep
+/// across the edge (from `1.25` outside it to `0.05` inside the square)
+/// and `0.4` along it, about the edge's middle. Its centre, `0.6`
+/// outside the edge, lies outside the ball holding the net, and every
+/// other edge and every vertex lies past the cell's reach about it, so
+/// only the spline edge's floor keeps the cell: a
+/// floor that called the edge clear lets the door place the centre,
+/// outside the square, and read the cell `Outside` though it reaches
+/// into the face.
+#[test]
+fn a_cell_crossing_only_the_spline_edge_is_undecided() {
+    use topo::cell_region::{CellRegion, cell_region};
+    let square = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
+    let built = common::prism::<Interval>(&square, 1.0, geom_core::Tol::witness());
+    let mut body = built.body;
+    let face = built.bottom_face;
+    let net = swap_first_edge_for_a_chord_net(&mut body, face, (0.0, 1.0));
+    let mid = |p: Point3<Interval>| p.map(|x| 0.5 * (x.lo() + x.hi()));
+    let (q0, q1) = (mid(net.eval(iv(0.0))), mid(net.eval(iv(1.0))));
+    let m = q0.lerp(q1, 0.5);
+    let along = (q1 - q0).normalize();
+    let out = (m - Point3::new(0.5, 0.5, m.z)).normalize();
+    let chart = face_chart(&body, face).map_scalar(|x| 0.5 * (x.lo() + x.hi()));
+    let c0 = chart.eval(0.0, 0.0);
+    let (eu, ev) = (chart.eval(1.0, 0.0) - c0, chart.eval(0.0, 1.0) - c0);
+    let uv = |p: Point3<f64>| ((p - c0).dot(eu) / eu.dot(eu), (p - c0).dot(ev) / ev.dot(ev));
+    let corners = [(-0.05, -0.2), (-0.05, 0.2), (1.25, -0.2), (1.25, 0.2)]
+        .map(|(o, a)| uv(m + out * o + along * a));
+    let span = |pick: fn((f64, f64)) -> f64| {
+        let all = corners.map(pick);
+        (
+            all.iter().copied().fold(f64::INFINITY, f64::min),
+            all.iter().copied().fold(f64::NEG_INFINITY, f64::max),
+        )
+    };
+    let (cu, cv) = (span(|c| c.0), span(|c| c.1));
+    let got = cell_region(&body, face, cu, cv, band());
+    assert!(
+        matches!(got, CellRegion::Undecided),
+        "the cell reaches 0.05 into the face across the spline edge: {got:?}"
     );
 }
