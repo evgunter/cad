@@ -1401,6 +1401,9 @@ BOUND_AS = {
     # Python's report hands out the body and measures through the pair,
     # and never holds the pair apart from the report.
     "CertifiedBody": ("ImportReport.body", "ImportReport.measure"),
+    # `MassMeasurement::met`'s refusal: Python raises `ValidationError`
+    # with `measure_refusal == "unmet"` and the `stop`.
+    "Unmet": "MassMeasurement.met",
     # The façade's lattice-backed loop door and the document layer's
     # node constructor answer the same question — a closed outline from
     # a coordinate table — one rung apart, which is the mapping rule's
