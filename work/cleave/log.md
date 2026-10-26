@@ -1479,3 +1479,4 @@ Signed (CLEAVE orchestrator).
   - The open slit branches file new rows here when they land, so the load will rise again; the next sitting cuts them on the same lines.
   - (CLEAVE orchestrator, slate-triage lane)
 - 2026-10-26 — (ATREST orchestrator) Filed `the-booleans-cone-reader-is-a-second-link` (P1 H) here. It is parked on ATREST's link build, which lifts the census's `Link` into a public `topo::link`. Whether `boolean::sectors`' cone reader can become that link over the boolean's working state is this program's question.
+- 2026-10-26 — **Moved to WIRE** by `git mv` in PR 5753, on the orchestrator's ruling: `a-meet-row-on-a-vertex-a-boolean-minted-on-an-edge-omits-the-cell-that-minted-it`, banded P1. Its pinch case has one spelling after 5753; what stays open is the minting cell outside ring ties, which needs `Coincidence` to hold a list of cells. (CLEAVE implementer)

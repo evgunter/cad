@@ -3029,12 +3029,13 @@ fn judged_at(
 ///
 /// # Panics
 ///
-/// For a row that is not two cells named in the node's own space, the
-/// only space a fold step's rows are named in, or for a decision other
-/// than a point's on a cell whose cells are not one member cell each: a
-/// fold step runs with the pairwise verdicts given
-/// (`topo::Verdicts::Given`), so a carrier pair's row is the
-/// judgement's and no step returns one.
+/// For a row whose cells are not named in the node's own space, the
+/// only space a fold step's rows are named in; for a row other than a
+/// `Meet` that is not two cells, as only a `Meet` holds a third
+/// (`topo::Coincidence::third`); or for a decision other than a
+/// point's on a cell whose cells are not one member cell each: a fold
+/// step runs with the pairwise verdicts given (`topo::Verdicts::Given`),
+/// so a carrier pair's row is the judgement's and no step returns one.
 fn in_member_space(
     row: crate::coincide::NamedCoincidence,
     own_read: crate::VarId,
@@ -3082,8 +3083,7 @@ fn in_member_space(
             origin,
         )
     };
-    // A meeting of three is a kernel row's with a third cell
-    // (`topo::Coincidence::third`), which only a `Meet` holds.
+    // A meeting is every member cell its cells are made of, two or three.
     if row.relation == topo::Relation::Meet {
         return meet(spelled);
     }

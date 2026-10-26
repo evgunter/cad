@@ -708,7 +708,29 @@ pub fn boolean_op_with<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let result = boolean_door(op, a, b, &Glue::of(inputs), strategy, tol);
     #[cfg(feature = "door-tier3-meter")]
     super::door_meter::record(op, &result, door_from.elapsed(), [a.outcome(), b.outcome()]);
+    #[cfg(debug_assertions)]
+    if let Ok(BooleanResult::Body(out)) = &result {
+        rows_name_input_cells(&out.coincidences, [a, b]);
+    }
     result
+}
+
+/// Asserts that every input cell `rows` name, a meeting's third
+/// included, is one its input holds: a row is keyed in the op's inputs
+/// (`crate::coincidence`), never in the clones the op minted cells in.
+#[cfg(debug_assertions)]
+fn rows_name_input_cells<T: Real>(rows: &[crate::Coincidence], [a, b]: [&Body<T>; 2]) {
+    for row in rows {
+        for cell in row.every_cell() {
+            if let crate::RowCell::Input { input, cell } = cell {
+                let body = if input == Operand::A { a } else { b };
+                assert!(
+                    super::records::holds(body, cell),
+                    "row {row:?} names {input:?}'s {cell:?}, which that input does not hold"
+                );
+            }
+        }
+    }
 }
 
 /// [`boolean_op_with`]'s body.
@@ -3859,15 +3881,19 @@ pub(super) fn ledger<T: Decide>(
         if key(tie.a)? == key(tie.b)? {
             continue;
         }
-        let k = super::reduce::index(super::reduce::pend(
+        let ring = red
+            .ring_of(tie.operand.other(), tie.a)
+            .ok_or_else(|| desync("a ring tie's pierce is served by no ring"))?;
+        let k = decide_one(
             &mut pending,
-            PendingRow::on(
-                (tie.operand, Cell::Vertex(tie.a)),
-                (tie.operand, Cell::Vertex(tie.b)),
-                Some(tie.margin),
-            ),
+            (tie.operand, Cell::Vertex(tie.a)),
+            (tie.operand, Cell::Vertex(tie.b)),
+            tie.margin,
+        );
+        pierced.push((
+            k,
+            (tie.operand.other(), Cell::Face(red.pierce_rings[ring].face)),
         ));
-        pierced.push((k, (tie.operand.other(), Cell::Face(tie.face))));
         carried[usize::from(tie.operand == Operand::B)].push((
             [Cell::Vertex(tie.a), Cell::Vertex(tie.b)],
             Cites::decided(k),
@@ -3878,8 +3904,7 @@ pub(super) fn ledger<T: Decide>(
         carried,
         pending,
         pierced,
-        splits: red.edge_splits.clone(),
-        held: red.held.clone(),
+        mints: red.mints.clone(),
         recorded: red.coincidences.clone(),
         glued: red.glued.clone(),
         incidence: [
@@ -3944,15 +3969,17 @@ fn carried_rows(records: &OperandRecords, side: Operand) -> Vec<([Cell; 2], Cite
 }
 
 /// Records a decision `first` and `second` are one, by `margin`, as a
-/// pending row ([`super::reduce::pend`]), and the citation of it.
+/// pending row ([`super::reduce::pend`]), and returns its index.
 fn decide_one(
     pending: &mut Vec<PendingRow>,
     first: End,
     second: End,
     margin: geom_core::MarginDiag,
-) -> Cites {
-    let k = super::reduce::pend(pending, PendingRow::on(first, second, Some(margin)));
-    Cites::decided(super::reduce::index(k))
+) -> u32 {
+    super::reduce::index(super::reduce::pend(
+        pending,
+        PendingRow::on(first, second, Some(margin)),
+    ))
 }
 
 /// **Everything a result's records are carried from**: the reduction's
@@ -3967,14 +3994,11 @@ pub(super) struct Ledger {
     /// The reduction's decisions, then the ring ties'.
     pending: Vec<PendingRow>,
     /// Each ring tie's decision in `pending`, with the face its two
-    /// pierces pierced ([`super::RingTie::face`]).
+    /// pierces pierced ([`super::PierceRingRecord::face`]).
     pierced: Vec<(u32, End)>,
-    /// The reduction's edge splits, which read a vertex it minted back
-    /// to the input edge it was minted on.
-    splits: super::EdgeSplits,
-    /// The vertices held pierces minted inside faces, which read back
-    /// to the face each was minted in.
-    held: Vec<super::HeldVertex>,
+    /// Where the reduction minted each vertex, which reads it back to the
+    /// input cell it lies in ([`super::Mints`]).
+    mints: super::Mints,
     /// The coincidences the op recorded before its records were carried.
     recorded: Vec<crate::Coincidence>,
     /// Each pending row the op recorded already, with its index in
@@ -4361,7 +4385,7 @@ fn carried<T: Decide + AtRestPolicy>(
                     (side, Cell::Vertex(uncopied(&ledger.copies, side, w))),
                     margin,
                 );
-                cites = cites.union(&fresh);
+                cites = cites.union(&Cites::decided(fresh));
             }
             out[s].push(x, y, cites);
         }
@@ -4416,7 +4440,7 @@ fn operand_fate<T: Real>(
     let (pieces, minted, divided): (Vec<Cell>, Vec<Cell>, bool) = match x {
         Cell::Vertex(v) => (copies(v).collect(), Vec::new(), false),
         Cell::Edge(e) => {
-            let (keys, ms) = ledger.splits.pieces(side, e);
+            let (keys, ms) = ledger.mints.pieces(side, e);
             let divided = keys.len() > 1;
             (
                 keys.into_iter().map(Cell::Edge).collect(),
@@ -4740,13 +4764,15 @@ fn cite_rows(
         // below.
         let Some(margin) = row.margin else { continue };
         let k = super::reduce::index(k);
-        let through = ledger
-            .pierced
-            .iter()
-            .find(|&&(p, _)| p == k)
-            .map(|&(_, face)| face);
+        let mut faces = ledger.pierced.iter().filter(|&&(p, _)| p == k);
+        let through = faces.next().map(|&(_, face)| face);
+        debug_assert!(
+            faces.all(|&(_, face)| Some(face) == through),
+            "decision {k} is tied against two pierced faces: {:?}",
+            ledger.pierced
+        );
         let (cells, third, relation) = spell(row.cells, through, row.relation, |end| {
-            input_end(end, &ledger.splits, &ledger.held)
+            input_end(end, &ledger.mints)
         })?;
         used.push(k);
         if let Some(&(_, c)) = ledger.glued.iter().find(|&&(p, _)| p == k) {
@@ -4791,13 +4817,12 @@ type Carried = (ContactRecords, Vec<crate::Coincidence>);
 /// the second lies in; or two points decided one with the first
 /// widened, spelled the other way round. Any other spelling of a point
 /// decided on a cell states the point as the [`crate::Relation::Meet`]
-/// of the cells read, sorted, and of `through` where the decision has
-/// one: a cell the point lies in beside them (the face two pierces
-/// pierced), which fixes the point where the two cells read alone meet
-/// along more than it. Every spelling drops the cell whose crossing
+/// of the cells read and of `through` where the decision has one (the
+/// face a ring tie's two pierces pierced, which it was decided
+/// against), sorted. Every spelling drops the cell whose crossing
 /// minted a vertex widened onto an edge, which the reduction does not
 /// keep
-/// (`work/cleave/a-meet-row-on-a-vertex-a-boolean-minted-on-an-edge-omits-the-cell-that-minted-it.md`).
+/// (`work/wire/a-meet-row-on-a-vertex-a-boolean-minted-on-an-edge-omits-the-cell-that-minted-it.md`).
 ///
 /// # Errors
 ///
@@ -4855,30 +4880,24 @@ fn spell(
 /// ([`crate::Coincidence::third`]) and its relation.
 type Spelled = ([crate::RowCell; 2], Option<crate::RowCell>, crate::Relation);
 
-/// A pending row's cell as the deciding op's input holds it: a vertex
-/// the reduction minted by splitting an edge is read as the input edge
-/// it was minted on, through every split of that edge's pieces
-/// ([`super::EdgeSplits::root`], total), and a vertex a held pierce
-/// minted inside a face as that face ([`super::HeldVertex`]).
-pub(super) fn input_cell(
-    end: End,
-    splits: &super::EdgeSplits,
-    held: &[super::HeldVertex],
-) -> crate::RowCell {
-    let (input, cell) = input_end(end, splits, held);
+/// A pending row's cell as the deciding op's input holds it
+/// ([`super::Mints`]): a vertex the reduction minted by splitting an
+/// edge is read as the input edge it was minted on, through every split
+/// of that edge's pieces ([`super::Mints::root`], total), and one it
+/// minted inside a face as that face.
+pub(super) fn input_cell(end: End, mints: &super::Mints) -> crate::RowCell {
+    let (input, cell) = input_end(end, mints);
     crate::RowCell::Input { input, cell }
 }
 
 /// [`input_cell`], as an operand and its cell.
-fn input_end((input, cell): End, splits: &super::EdgeSplits, held: &[super::HeldVertex]) -> End {
-    let root = |edge: EdgeKey| splits.root(input, edge);
+fn input_end((input, cell): End, mints: &super::Mints) -> End {
+    let root = |edge: EdgeKey| mints.root(input, edge);
     let cell = match cell {
-        Cell::Vertex(v) => match splits.minted_on(input, v) {
-            Some(parent) => Cell::Edge(root(parent)),
-            None => held
-                .iter()
-                .find(|h| h.operand == input && h.vertex == v)
-                .map_or(cell, |h| Cell::Face(h.face)),
+        Cell::Vertex(v) => match (mints.minted_on(input, v), mints.minted_in(input, v)) {
+            (Some(parent), _) => Cell::Edge(root(parent)),
+            (None, Some(face)) => Cell::Face(face),
+            (None, None) => cell,
         },
         Cell::Edge(e) => Cell::Edge(root(e)),
         // The sweep splits edges and never a face: every pending row is
@@ -7456,7 +7475,12 @@ fn respell_through_cuts<T: Real>(
         let [Some(x), Some(y)] = row.cells.map(end) else {
             continue;
         };
-        let through = row.third.and_then(end);
+        let through = match row.third {
+            None => None,
+            Some(third) => Some(end(third).ok_or(BooleanError::JoinDesync {
+                what: "a meeting's third cell is no cell of the op's input",
+            })?),
+        };
         (row.cells, row.third, row.relation) = spell([x, y], through, row.relation, read)?;
     }
     Ok(())

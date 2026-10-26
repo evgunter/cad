@@ -679,24 +679,30 @@ pub(crate) struct EdgeSplit {
     pub(crate) child: crate::entity::EdgeKey,
 }
 
-/// A Boolean reduction's edge splits ([`EdgeSplit`]), each operand's
-/// in split order: its `(child, parent)` rows checked where each split
-/// is recorded ([`crate::lineage::EdgeDivisions`]), and beside each row
-/// the vertex the split minted between them. A split mints its child, so
-/// the rows cannot cycle, and the walk from a piece back to the operand
-/// edge it lies on ([`Self::root`]) ends.
+/// **Where a Boolean reduction minted each vertex off its operands'
+/// cells**, each operand's: on an edge it split ([`EdgeSplit`]), or
+/// inside a face where a held pierce stands
+/// (`vtxfac::faces_holding_pierce`). The splits are in split order, their
+/// `(child, parent)` rows checked where each is recorded
+/// ([`crate::lineage::EdgeDivisions`]), and beside each row the vertex
+/// the split minted between them. A split mints its child, so the rows
+/// cannot cycle, and the walk from a piece back to the operand edge it
+/// lies on ([`Self::root`]) ends.
 #[derive(Clone, Debug)]
-pub(crate) struct EdgeSplits {
+pub(crate) struct Mints {
     divisions: [crate::lineage::EdgeDivisions; 2],
-    /// Each operand's minted vertices, one per row of its divisions and
-    /// in the same order: [`Self::push`] is the one writer of both, and
-    /// pushes the vertex only once the division's row is in, so the
-    /// `i`-th vertex is the one minted between the `i`-th row's two
-    /// edges (asserted where they are read together, [`Self::of`]).
+    /// Each operand's vertices minted on edges, one per row of its
+    /// divisions and in the same order: [`Self::push`] is the one writer
+    /// of both, and pushes the vertex only once the division's row is
+    /// in, so the `i`-th vertex is the one minted between the `i`-th
+    /// row's two edges (asserted where they are read together,
+    /// [`Self::of`]).
     vertices: [Vec<VertexKey>; 2],
+    /// Each operand's vertices minted inside faces, each with its face.
+    in_faces: [Vec<(VertexKey, FaceKey)>; 2],
 }
 
-impl Default for EdgeSplits {
+impl Default for Mints {
     fn default() -> Self {
         let of = |operand| {
             crate::lineage::EdgeDivisions::new(crate::lineage::LineageRows::EdgeDivisions(Some(
@@ -706,11 +712,12 @@ impl Default for EdgeSplits {
         Self {
             divisions: [of(Operand::A), of(Operand::B)],
             vertices: [Vec::new(), Vec::new()],
+            in_faces: [Vec::new(), Vec::new()],
         }
     }
 }
 
-impl EdgeSplits {
+impl Mints {
     /// Records `split`.
     ///
     /// # Errors
@@ -752,6 +759,19 @@ impl EdgeSplits {
         edge: crate::entity::EdgeKey,
     ) -> crate::entity::EdgeKey {
         self.divisions[usize::from(operand == Operand::B)].root(edge)
+    }
+
+    /// Records `v`, minted inside face `face` of `operand`'s clone.
+    pub(crate) fn push_in_face(&mut self, operand: Operand, v: VertexKey, face: FaceKey) {
+        self.in_faces[usize::from(operand == Operand::B)].push((v, face));
+    }
+
+    /// The face of `operand`'s clone `v` was minted inside, where it was.
+    pub(crate) fn minted_in(&self, operand: Operand, v: VertexKey) -> Option<FaceKey> {
+        self.in_faces[usize::from(operand == Operand::B)]
+            .iter()
+            .find(|&&(w, _)| w == v)
+            .map(|&(_, face)| face)
     }
 
     /// The edge of `operand`'s clone a split minted `v` on, where one did.
@@ -2177,9 +2197,6 @@ pub(crate) struct RingTie {
     pub operand: Operand,
     pub a: VertexKey,
     pub b: VertexKey,
-    /// The pierced face, in the other operand's keys
-    /// ([`PierceRingRecord::face`]).
-    pub face: FaceKey,
     /// The margin `bool_contact_vertex` decided Zero.
     pub margin: geom_core::MarginDiag,
 }
@@ -2265,8 +2282,9 @@ pub struct BooleanReduction<T: Real> {
     /// deduplicated. The whole-shell `On` verdict reads these
     /// (`shell_witness::on_verdict`).
     pub(crate) coincident: Vec<SettledPair>,
-    /// Every edge split the reduction made, both clones, split order.
-    pub(crate) edge_splits: EdgeSplits,
+    /// Every vertex the reduction minted off its operands' cells, both
+    /// clones ([`Mints`]).
+    pub(crate) mints: Mints,
     /// Every operand edge piece the sector passes classified beside a
     /// vertex ([`EdgePieceClass`]), sorted.
     pub edge_classes: Vec<EdgePieceClass>,
@@ -2292,19 +2310,6 @@ pub struct BooleanReduction<T: Real> {
     /// Each pair of pierces one ring serves, decided one point
     /// ([`RingTie`]).
     pub(crate) ring_ties: Vec<RingTie>,
-    /// Each vertex a held pierce minted inside a face of its operand's
-    /// clone (`vtxfac::faces_holding_pierce`), with that face: no edge
-    /// split minted it, and the input cell it lies in is the face.
-    pub(crate) held: Vec<HeldVertex>,
-}
-
-/// A vertex minted inside face `face` of operand `operand`'s clone
-/// ([`BooleanReduction`]'s `held`).
-#[derive(Clone, Copy, Debug)]
-pub(crate) struct HeldVertex {
-    pub operand: Operand,
-    pub vertex: VertexKey,
-    pub face: FaceKey,
 }
 
 /// A cross-operand face pair the coincidence ladder settled one
@@ -5611,7 +5616,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         [None, None],
         tol,
     )?;
-    let edge_splits = core::mem::take(&mut acc.splits);
+    let mut mints = core::mem::take(&mut acc.splits);
     let mut branches = acc.take_branches();
     if FORGET_BRANCHES.with(core::cell::Cell::get) {
         branches.clear();
@@ -5637,7 +5642,6 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     let mut null_pairs = Vec::new();
     let mut pierce_rings = Vec::new();
     let mut ring_ties = Vec::new();
-    let mut held_in = Vec::new();
     let mut covered = Vec::new();
     let mut fates = fate::Fates::default();
     let mut edge_classes = Vec::new();
@@ -5751,7 +5755,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                     operand,
                     c.vertex,
                     &out.classes,
-                    &edge_splits,
+                    &mints,
                 )?);
             }
         }
@@ -5791,13 +5795,11 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             band,
             tol,
         )?;
-        let held_on: std::collections::BTreeMap<_, _> =
+        let held_margin: std::collections::BTreeMap<_, _> =
             held.iter().map(|h| (h.plan.contact.vertex, h.on)).collect();
-        held_in.extend(held.iter().map(|h| HeldVertex {
-            operand,
-            vertex: h.plan.contact.vertex,
-            face: h.face,
-        }));
+        for h in &held {
+            mints.push_in_face(operand, h.plan.contact.vertex, h.face);
+        }
         minted.extend(held.into_iter().map(|h| (vec![h.strut], Some(h.plan))));
         // Each ring is minted, and its records read, where its first
         // pierce was: a face pierced at one point alone mints as it
@@ -5824,8 +5826,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                 operand,
                 a: only[i].contact.vertex,
                 b: only[j].contact.vertex,
-                face: only[i].contact.face,
-                margin: held_on
+                margin: held_margin
                     .get(&only[j].contact.vertex)
                     .copied()
                     .unwrap_or(margin),
@@ -6017,13 +6018,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             Operand::A => &a,
             Operand::B => &b,
         };
-        edge_classes.extend(piece_classes(
-            body,
-            operand,
-            vertex,
-            &classes,
-            &edge_splits,
-        )?);
+        edge_classes.extend(piece_classes(body, operand, vertex, &classes, &mints)?);
     }
     // An edge of a shared vertex that two crossing pairs' edge-edge
     // germs run along folds Out in each of them (`recl::Reversed`).
@@ -6139,8 +6134,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     let kept = glue::touched(
         &declared.verified.coincidences,
         &pending,
-        &edge_splits,
-        &held_in,
+        &mints,
         [a_operand, b_operand],
     );
     let coincidences = kept
@@ -6170,7 +6164,6 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         null_pairs,
         pierce_rings,
         ring_ties,
-        held: held_in,
         covered: covered
             .into_iter()
             .collect::<std::collections::BTreeSet<_>>()
@@ -6179,7 +6172,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         fates,
         rest_contacts,
         coincident,
-        edge_splits,
+        mints,
         edge_classes,
         unread_partners,
         coincidences,
@@ -6411,7 +6404,7 @@ fn piece_classes<T: Real>(
     operand: Operand,
     vertex: VertexKey,
     classes: &[(HalfEdgeKey, SideCode)],
-    splits: &EdgeSplits,
+    splits: &Mints,
 ) -> Result<Vec<EdgePieceClass>, BooleanError> {
     let desync = |what| BooleanError::ClassificationInvariant { what };
     let mut out = Vec::with_capacity(classes.len());

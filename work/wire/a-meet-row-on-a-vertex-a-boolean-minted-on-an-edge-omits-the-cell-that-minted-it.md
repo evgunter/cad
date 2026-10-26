@@ -4,6 +4,7 @@ kind: issue
 title: A boolean's Meet row on a vertex it minted on an edge names the edge and not the cell whose crossing minted it, so one point spells two ways across a union's member orders
 status: open
 opened: 2026-10-19
+priority: P1
 ---
 
 
@@ -54,15 +55,33 @@ above serves all three arms: with the minting cell kept, the second
 cell widens to the edge and that cell, so the row becomes a `Meet` of
 the point and both.
 
-## A row can hold a third cell (2026-10-26)
+## The ring tie's case (PR 5753, 2026-10-26)
 
-`topo::Coincidence` carries a `Meet`'s third cell
-(`coincidence.rs` `Coincidence::third`), which `boolean/ops.rs` `spell`
-fills where a decision names a cell the point lies in beside its two
-(`spell`'s `through`). The ring tie fills it with the pierced face
+`topo::Coincidence::third` (`coincidence.rs`) carries a `Meet`'s third
+cell. `boolean/ops.rs` `spell` fills it with the pierced face where a
+ring tie's two cells both widen
 (`a-fold-steps-ring-tie-row-names-a-pierce-vertex-its-operand-does-not-hold`).
-The minting cell this row asks for can ride the same field. A ring tie
-whose pierce was minted on an edge then has four cells: the edge, its
-minting cell, the face holding the strut, and the pierced face. Where
-the pierced face is the one that minted the vertex, those four are
-three.
+The pinch measured above is that case. Folded last,
+`union_pinch_member_order::pinch` now spells
+`Meet {Edge@m1, Edge@m2, Face@m0}` too, so the point has one spelling in
+every member order
+(`union_member_orders_decide_alike::a_vertex_row_is_the_unions_once_in_every_member_order`).
+
+What stays open is the minting cell outside ring ties: the three arms
+above, for a vertex minted on an edge that no ring tie decides.
+
+**It needs `Coincidence` to hold a list of cells.** A ring tie whose
+pierce was minted on an edge meets in four cells: the edge, its minting
+cell, the face holding the strut and the pierced face. Where the pierced
+face is the minting cell, those are three. A fold row is already spelled
+as "the set of member cells that meet" (`crates/editor-core/REFERENCES.md`,
+DM4, "A row names member cells"), and `NamedCoincidence::cells` is a
+list. The kernel row's `[RowCell; 2]` plus `third` is the stopgap: it
+keeps `Copy` and reaches no four-cell case today.
+
+## Moved (2026-10-26)
+
+Moved from `work/cleave/` to WIRE by `git mv` in PR 5753, banded P1 (a
+cell the row omits is a misnamed row), on the CLEAVE orchestrator's
+ruling. PR 5765's triage had left it unbanded on CLEAVE while 5753 was
+editing it.
