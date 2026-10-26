@@ -3781,6 +3781,7 @@ fn offending_face<T: Real>(body: &Body<T>, error: &ReplaceFaceError<T>) -> Optio
         }
         ReplaceFaceError::TogetherEdgeDisagreement { edge, .. }
         | ReplaceFaceError::TogetherAxialEdge { edge, .. }
+        | ReplaceFaceError::TogetherConicArc { edge, .. }
         | ReplaceFaceError::EdgeSection { edge, .. }
         | ReplaceFaceError::DeclaredEdgeTilted { edge }
         | ReplaceFaceError::MixedEdge { edge, .. }

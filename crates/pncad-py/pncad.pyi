@@ -5505,7 +5505,9 @@ class Evaluation:
         reads the run's ambient tolerance, which is the ε the body was
         built under. An explicit one that is not finite and strictly
         positive is an `ExportError`; the rule is the writer's and is
-        quoted from it, not restated."""
+        quoted from it, not restated. The body is gated at rest first,
+        so one the gate refuses raises `ExportError` tagged
+        `body_invalid` rather than reaching the writer."""
 
 def evaluate(
     doc: Doc,

@@ -4,7 +4,7 @@ kind: issue
 title: A torus wall against a sphere, a cylinder or another torus reaches the join and refuses GermFrameUnsupported: no frame names its section
 status: open
 opened: 2026-10-04
-priority: P1
+priority: P0
 cost: H
 design: true
 refs: [c5-plane-torus-cone-cylinder-arms, cylinder-sphere-germ-pair-has-no-join-lane]
@@ -71,3 +71,7 @@ circles, each loop lying over a run of that circle with two points
 (`±t` along the rod) over each of its points (`section_cert.rs`
 `torus_square_cylinder`), which may be the frame's starting point for
 this one pose.
+
+## Re-banded to P0 (on request in chat, 2026-10-25)
+
+Teapot wall 2 (`demos/tour/src/teapot.rs`, the handle joined to the pot) refuses here: the vessel's sphere face against the handle's torus, the ball × donut row above. Joining a torus handle to a round body is an everyday join.

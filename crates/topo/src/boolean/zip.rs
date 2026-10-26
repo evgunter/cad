@@ -191,14 +191,14 @@ pub(crate) fn fusion_order(n: usize) -> impl Iterator<Item = usize> {
 
 /// A union-find over keys, as a parent map: a key with no entry is its
 /// own root, and a class is rooted at its smallest key.
-pub(super) struct Roots<K>(BTreeMap<K, K>);
+pub(crate) struct Roots<K>(BTreeMap<K, K>);
 
 impl<K: Ord + Copy> Roots<K> {
-    pub(super) fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self(BTreeMap::new())
     }
 
-    pub(super) fn find(&self, mut k: K) -> K {
+    pub(crate) fn find(&self, mut k: K) -> K {
         while let Some(&up) = self.0.get(&k) {
             k = up;
         }
@@ -206,7 +206,7 @@ impl<K: Ord + Copy> Roots<K> {
     }
 
     /// Joins the classes of `a` and `b`; `false` where they were one.
-    pub(super) fn union(&mut self, a: K, b: K) -> bool {
+    pub(crate) fn union(&mut self, a: K, b: K) -> bool {
         let (ra, rb) = (self.find(a), self.find(b));
         if ra != rb {
             self.0.insert(ra.max(rb), ra.min(rb));

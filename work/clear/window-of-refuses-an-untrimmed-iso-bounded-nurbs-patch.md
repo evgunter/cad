@@ -4,7 +4,7 @@ kind: issue
 title: clearance's window_of refuses every NURBS face, including an untrimmed patch bounded by its own chart isos, so the engine cannot answer about any loft or sweep wall
 status: open
 opened: 2026-10-06
-priority: P2
+priority: P0
 cost: M
 ---
 

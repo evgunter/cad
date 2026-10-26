@@ -2,6 +2,8 @@
 
 ## Slate and order
 
+Steps 1 and 2 are done (PRs #5605 and #5637). Stage 4 is built.
+
 1. **Wait for INTENT's census unit.**
    `the-census-records-a-planar-area-contact-as-one-face-pair` is in
    flight on INTENT's branch `intent/census-planar-face-pair`. It adds
@@ -34,16 +36,23 @@
      cost of replaying a node row on a part. It shares ground with
      COINCIDE.
 
-## The seam with INTENT
+## The seam with INTENT (re-cut 2026-10-26)
 
-INTENT's D′3 (`assemble-is-an-operator-and-the-product-is-a-slot`) puts
-the census at each `⊔`'s door. Stage 4 I and 5 C change what that census
-records and how its findings are reported. Either may land first:
-- **D′3 first:** I and C are written against `⊔`.
-- **I or C first:** D′3 moves what they built.
-
-Both sides announce their changes to `assembly.rs` and
-`checks/at_rest.rs` on their PRs.
+No INTENT stage 3 row waits on ATREST. Only the D10 umbrella
+`d10-one-way-to-say-intent-is-unbuilt` waits on stage 5 C, at the very
+end. So ATREST runs under its own orchestrator, in parallel. What
+remains is a file seam, not a dependency:
+- **Stage 5 C dispatches after D′3 (#5636) merges.** D′3 moves the census onto each `⊔`'s door (`assembly.rs`, `checks/at_rest.rs`). 5 C makes that census a check resident and retires `assemble`'s gate, so building it before D′3 would rewrite a path D′3 is moving. Write 5 C against the `⊔` door.
+- **Everything else on the slate is dispatchable now.** It touches the census's records, findings and topo, not where the census runs:
+  - `two-copies-filling-one-volume-certify-at-rest` (P1);
+  - `a-census-contact-is-a-row-and-a-record` (P1, a ruling);
+  - `stage5-contact-finding-and-the-unproven-row-report-one-contact-twice` (5 C's precondition);
+  - the record rows in step 4;
+  - `separation-quiets-only-first-rung-rows`;
+  - `the-contact-recourse-names-a-class-nobody-can-declare` (needs a ruling: it rewrites a SELECT-DESIGN §3d sentence);
+  - `a-declared-contacts-class-admits-continuation`.
+- **`an-instance-carries-its-parts-coincidences`** stays parked on `coincidences-are-recorded-at-one-door`.
+- Both sides announce changes to `assembly.rs` and `checks/at_rest.rs` on their PRs. D′3's lane is `session_017HwxSpesEsgKsHjvrj6TyM`.
 
 ## Review posture
 

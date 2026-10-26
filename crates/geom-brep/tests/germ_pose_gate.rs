@@ -25,7 +25,9 @@
 use crate::shared::tol::{band, eps};
 use geom::{Surface, SurfaceKind};
 use geom_brep::Reach;
-use geom_brep::intersect::{PlaneConeSection, SectionError, plane_cone_section, route, route_pose};
+use geom_brep::intersect::{
+    PlaneConeSection, SectionError, plane_cone_section, plane_torus_section, route, route_pose,
+};
 use geom_core::{Point3, Vec3};
 
 const PI_6: f64 = core::f64::consts::FRAC_PI_6;
@@ -136,7 +138,7 @@ fn each_scoped_arm_serves_its_own_poses_and_refuses_the_rest() {
             "axis-parallel plane off the apex (a hyperbola)",
             plane(Point3::new(0.05, 0.0, 0.0), Vec3::unit_x()),
             &cone,
-            false,
+            true,
         ),
         (
             "tilted plane off the apex (an ellipse)",
@@ -151,7 +153,7 @@ fn each_scoped_arm_serves_its_own_poses_and_refuses_the_rest() {
                 Vec3::new((PI_2 - PI_6).sin(), 0.0, (PI_2 - PI_6).cos()),
             ),
             &cone,
-            false,
+            true,
         ),
         // plane × torus
         (
@@ -213,14 +215,14 @@ fn each_scoped_arm_serves_its_own_poses_and_refuses_the_rest() {
 /// served, and the kind-level note says what the arm does serve.
 #[test]
 fn a_refused_pose_carries_the_arms_own_grounds() {
-    let cone = cone_z(PI_6);
-    let hyperbola = plane(Point3::new(0.05, 0.0, 0.0), Vec3::unit_x());
-    let posed = route_pose(&hyperbola, &cone, &at_apex(4.0), band()).unwrap();
-    let kind = route(SurfaceKind::Plane, SurfaceKind::Cone);
+    let tor = torus_y();
+    let tilted = plane(Point3::new(0.0, 0.0, 0.0), Vec3::new(0.3, 1.0, 0.0));
+    let posed = route_pose(&tilted, &tor, &at_apex(4.0), band()).unwrap();
+    let kind = route(SurfaceKind::Plane, SurfaceKind::Torus);
     assert!(!posed.implemented);
     assert_ne!(posed.note, kind.note);
     let Err(SectionError::RoutesToGeneralRung { why, .. }) =
-        plane_cone_section(&hyperbola, &cone, &at_apex(4.0), band())
+        plane_torus_section(&tilted, &tor, 4.0, band())
     else {
         panic!("the arm refuses this pose");
     };

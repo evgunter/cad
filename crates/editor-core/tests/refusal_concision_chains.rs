@@ -887,7 +887,7 @@ mod kernel {
             Band, NonFiniteAxis, UnderflowedAxis, DegenerateAxis, AxisEscalated, Turn,
             DegenerateAngle, FullRangeAngle, AngleEscalated, VertexCrossesAxis,
             SliverRadius, ArcCrossesAxis, SliverAxisClearance, UnsupportedToroid,
-            NonManifoldAxisContact, MultipleAxisRuns, HoleTouchesAxis, VoidInsertion,
+            NonManifoldAxisContact, AxisGapEscalated, HoleTouchesAxis, VoidInsertion,
             CosurfaceEscalated, SliverJoin, SliverRim, SmoothJoinRefuted,
             PinnedRunStation, CapPlane, Op, Pcurve,
         ];
@@ -1000,7 +1000,8 @@ mod kernel {
             OrderEscalated, Escalated, DegenerateSection, CurvedSlitTrace, RingHoming,
             RingHomingAmbiguous, UnpairedLooseEnds, SingleSiteSectionLoop,
             SectionLoopMixed, SectionLoopUndecided, CutInvariant, Corrupt, LineageRow,
-            Band, Euler, SectionEndEscalated, SectionUnresolved, Section, ApexUnlifted,
+            Band, Euler, SectionEndEscalated, SectionUnresolved, Section, OpenConicChord,
+            ApexUnlifted,
             PoleEdgesCoincide, SectionInvariant, SectionUnarmed, RingIslandUnread,
             TangentChordEscalated, TangentChordBendEscalated, TangentChordRefuted,
             SectionCrossings,
@@ -1041,7 +1042,8 @@ mod kernel {
             ReanchorInconclusive, NurbsLaneUnsupported, TogetherNonPlanar,
             TogetherPartialSet, TogetherCorner, TogetherChartMixed,
             TogetherFaceRepeated, TogetherEdgeDisagreement, TogetherAxialUnsupported,
-            TogetherNotAxial, TogetherAxialCorner, TogetherAxialEdge, DegenerateTorus,
+            TogetherNotAxial, TogetherAxialCorner, TogetherAxialEdge, TogetherConicArc,
+            DegenerateTorus,
             Escalated, Op, Pcurve, Join, ResultNotClosed,
         ];
     }
@@ -2203,12 +2205,19 @@ fn revolve_arms() -> Vec<(&'static str, sweep::RevolveError)> {
                 vertex_index: 3,
             },
         ),
-        ("MultipleAxisRuns", E::MultipleAxisRuns { loop_index: 0 }),
+        (
+            "AxisGapEscalated",
+            E::AxisGapEscalated {
+                loop_index: 0,
+                vertex_index: 3,
+                source: diag(),
+            },
+        ),
         ("HoleTouchesAxis", E::HoleTouchesAxis { loop_index: 1 }),
         (
             "VoidInsertion",
             E::VoidInsertion {
-                loop_index: 1,
+                cavity: sweep::CavityOrigin::Hole { loop_index: 1 },
                 source: topo::VoidInsertError::NotStrictlyContained {
                     shell: topo::ShellKey::default(),
                 },
@@ -2637,6 +2646,13 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                     source: geom_brep::SectionError::Carrier(geom::EllipseInvalid::Escalated(
                         payloads::named("ellipse_minor_positive"),
                     )),
+                },
+            ),
+            (
+                "OpenConicChord",
+                J::OpenConicChord {
+                    face,
+                    conic: geom_brep::OpenConic::Hyperbola,
                 },
             ),
             ("ApexUnlifted", J::ApexUnlifted { face }),
@@ -5779,6 +5795,13 @@ fn replace_face() -> Vec<(String, topo::ReplaceFaceError<f64>)> {
                     what: "a rim whose moved cap stands at or past the torus wall's inner equator, \
                            or out of its reach — the section there is a node, one folded loop or \
                            nothing, not two ovals",
+                },
+            ),
+            (
+                "TogetherConicArc",
+                R::TogetherConicArc {
+                    edge,
+                    conic: geom_brep::OpenConic::Hyperbola,
                 },
             ),
             (

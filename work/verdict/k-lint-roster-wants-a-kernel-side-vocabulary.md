@@ -4,7 +4,7 @@ kind: issue
 title: k-lint's roster pin parses kernel source because the fence forbade the two cheaper shapes
 status: open
 opened: 2026-09-07
-priority: P4
+priority: P3
 cost: D
 ---
 
@@ -131,3 +131,13 @@ not conflict: `k-lint`'s own `EPS_COUPLED_PREDICATES` is a
 the ruling above added a `[(&str, &str); 1]` beside it the same way. A
 kernel-side `const` slice of `&'static str` would be imported and
 compared identically, with `decide`'s signature untouched.
+
+## 2026-10-25 — re-banded P4→P3 (band rule)
+
+`work/instr/k-lint-eps-coupled-criterion-unwritten` (P3) is parked on
+this row, and the shape this row prefers, a `const` slice in
+`geom_core::k_stats` declared beside which names are ε-metered, is what
+closes it. A blocker inherits the band of what waits on it
+(`work/README.md`, Priority), so this row carries P3; the first shape, a
+`#[test]` inside `geom-brep`, would not unblock that row. (band-rule
+triage)

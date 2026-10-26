@@ -2,10 +2,11 @@
 id: an-instance-value-carries-its-copies-only
 kind: issue
 title: An instance's value carries its fused part product beside its copies; it should carry the copies only, with contact records re-keyed per copy
-status: open
+status: parked
 opened: 2026-10-16
 priority: P1
 refs: [mates-declare-no-contact, a-placement-is-the-bundle-of-mates]
+blocked_on: [assemble-is-an-operator-and-the-product-is-a-slot]
 ---
 
 

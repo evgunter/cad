@@ -2,10 +2,11 @@
 id: python-census-finding-rows-read-a-rest-contact-since-the-planar-face-pair-census
 kind: issue
 title: four test_validate rows read a Rest contact where they expect vertex_on_face and edge_face_overlap, since PR 5605
-status: open
+status: closed
 opened: 2026-10-23
 priority: P1
 cost: E
+closed: 2026-10-26
 ---
 
 

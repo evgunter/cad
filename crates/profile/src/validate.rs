@@ -113,7 +113,8 @@
 //! | `full_turn_sense` | a full turn's signed reach 2r·Δθ/2π | diameter |
 //! | `arc_start_on_carrier` | ‖a − c‖ − r | direct |
 //! | `arc_landing` | ‖a turned by Δθ about c − b‖ | direct |
-//! | `arc_sweep_range` | r·\|Δθ\|·(2π − \|Δθ\|)/2π; a full turn's r·(2π − \|Δθ\|) | radius |
+//! | `arc_sweep_length` | the arc length r·Δθ, definitely nonzero (its sign the turn sense) | radius |
+//! | `arc_sweep_range` | the gap r·(2π − \|Δθ\|) to a full turn (the turn rule): definitely positive for a chord arc, zero for a full turn | radius |
 //! | `arc_diameter_clearance` | 2r − half-span chord | ≈ L²/16r near full arcs |
 //! | `chord_side` | ⟂ distance to chord line | direct |
 //! | `circle_side` | ‖q − c‖ − r | direct |
@@ -803,7 +804,12 @@ pub const DECISION_ENDINGS: &[DecisionEnding] = &[
         name: "arc_start_on_carrier",
         kind: EndingKind::Sized,
     },
-    // a table arc's sweep against a full turn, levered by its radius
+    // a table arc's arc length at its radius, against zero
+    DecisionEnding {
+        name: "arc_sweep_length",
+        kind: EndingKind::Lever(COINCIDENCE_RECOURSE),
+    },
+    // a table arc's gap to a full turn, at its radius
     DecisionEnding {
         name: "arc_sweep_range",
         kind: EndingKind::Lever(COINCIDENCE_RECOURSE),
@@ -955,7 +961,7 @@ pub const DECISION_ENDINGS: &[DecisionEnding] = &[
         name: "path_arc_branch_resolution",
         kind: EndingKind::Lever(ARC_SCENE_RESOLUTION_RECOURSE),
     },
-    // an authored sweep angle metered against zero
+    // an authored sweep's arc length at its radius, against zero
     DecisionEnding {
         name: "path_arc_sweep",
         kind: EndingKind::Lever(COINCIDENCE_RECOURSE),
@@ -1195,7 +1201,8 @@ pub fn decision_subject(predicate: &str) -> Option<&'static str> {
         "arc_diameter_clearance" => "whether an arc stops short of a full circle",
         "arc_landing" => "whether an arc's sweep carries its start onto its end",
         "arc_start_on_carrier" => "whether an arc's start lies on its carrier circle",
-        "arc_sweep_range" => "whether an arc's sweep lies between zero and a full turn",
+        "arc_sweep_length" => "whether an arc sweeps any length",
+        "arc_sweep_range" => "whether an arc's sweep stops short of a full turn, or makes one",
         "canonical_order_x" => "which of two points comes first along x",
         "full_turn_reach" => "whether a full turn reaches round its carrier",
         "full_turn_sense" => "which way a full turn runs",
@@ -1234,7 +1241,7 @@ pub fn decision_subject(predicate: &str) -> Option<&'static str> {
         "path_arc_landing_resolution" => {
             "whether an arc's miss of its end vertex is a defect the scene resolves"
         }
-        "path_arc_sweep" => "whether an authored sweep angle is zero",
+        "path_arc_sweep" => "whether an authored sweep's arc length is zero",
         "path_arc_sweep_full" => "whether an authored sweep is short of a full turn",
         "path_arc_start_on_carrier" => "whether an arc the path built starts on its own carrier",
         "path_arc_start_on_carrier_resolution" => {

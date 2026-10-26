@@ -643,8 +643,16 @@ fn guided_validation_at_interval_certifies_without_the_pinned_decides() {
 }
 
 /// The three consistency checks D1 puts on a stored arc
-/// (`crates/profile/src/seg.rs`, `build_seg`).
-const CONSISTENCY: [&str; 3] = ["arc_start_on_carrier", "arc_landing", "arc_sweep_range"];
+/// (`crates/profile/src/seg.rs`, `build_seg`), by the rows they decide:
+/// the sweep's range check reads two, the arc length
+/// (`arc_sweep_length`) and then its gap to a full turn
+/// (`arc_sweep_range`).
+const CONSISTENCY: [&str; 4] = [
+    "arc_start_on_carrier",
+    "arc_landing",
+    "arc_sweep_length",
+    "arc_sweep_range",
+];
 
 /// **A table is checked at `Interval`; a replayed loop is not
 /// re-checked.** D1: a table's arcs are verified at validate, and an arc

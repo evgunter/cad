@@ -27,9 +27,10 @@
 
 use geom::Curve3;
 use geom::Surface;
+use geom_core::period::{Exact, Extent, NotForward, TurnRate, TurnRows};
 use geom_core::{
-    Band, Decide, LeveredUnitError, Margin, Point3, Real, RigidMotion, Sign, UNIT_DIRECTION_ARM,
-    UnitVec3, UnitVec3Error, Vec3,
+    Band, Decide, InfSpeed, LeveredUnitError, Margin, Point3, Real, RigidMotion, Sign,
+    UNIT_DIRECTION_ARM, UnitVec3, UnitVec3Error, Vec3,
 };
 
 use super::closure::{self, ChartLoop, EdgeTurn, Joint};
@@ -866,7 +867,7 @@ struct Rim<T: Real> {
     d_u_sign: Sign,
     /// Carrier parameter span `t1 − t0` (angle-true; `Δu`), decided
     /// within certification's per-edge bound ([`Rim::decided`]).
-    dt: T,
+    dt: Extent<T>,
     /// The rim's iso-level, dimension carried by the variant (see
     /// [`RimLevel`] and the per-surface call sites).
     level: RimLevel<T>,
@@ -886,10 +887,10 @@ impl<T: Decide> Rim<T> {
         r_c: T,
         band: Band,
     ) -> Result<Self, PropsError> {
-        require_rim_span(e, r_c, band)?;
+        let dt = require_rim_span(e, r_c, band)?;
         Ok(Self {
             d_u_sign,
-            dt: e.t1 - e.t0,
+            dt,
             level,
         })
     }
@@ -1324,7 +1325,7 @@ fn cylinder_chart<T: Decide>(
                     what: "a cylinder rim carried a non-length level",
                 });
             };
-            rims.push((v, t_sign::<T>(rim.d_u_sign) * rim.dt));
+            rims.push((v, t_sign::<T>(rim.d_u_sign) * rim.dt.get()));
         }
         levels.extend(b.levels);
         spans.push((first_rim, length - length_before));
@@ -1858,6 +1859,32 @@ pub fn cone_face_closed_form<T: Decide>(
     })
 }
 
+/// **A loop through the apex sweeps at most a turn**: its net azimuth
+/// `total` (signed, in the loop's sense) at the arm `arm`, decided
+/// definitely nonzero (`props_cone_apex_loop_net`; a loop sweeping none
+/// bounds nothing and refuses) and not over a turn
+/// (`props_cone_apex_loop_sweep`, the turn rule), each refusing as
+/// [`PropsError::ConeLoop`].
+fn apex_loop_sweep<T: Decide>(total: T, arm: T, band: Band) -> Result<(), PropsError> {
+    let escalated = |cause| PropsError::Escalated {
+        cause,
+        check: PropsCheck::Inventory,
+    };
+    let net = "props_cone_apex_loop_net";
+    let (_, extent) = Extent::decide_signed(net, total, InfSpeed::new(arm), band).map_err(
+        |cause: geom_core::Indeterminate| match cause.margin.rejected_sign() {
+            Some(Sign::Zero) => PropsError::ConeLoop { what: net },
+            _ => escalated(cause),
+        },
+    )?;
+    let sweep = "props_cone_apex_loop_sweep";
+    match Period::new(T::tau()).not_over(TurnRows::exact(sweep), extent, Exact::new(arm), band) {
+        Ok(true) => Ok(()),
+        Ok(false) => Err(PropsError::ConeLoop { what: sweep }),
+        Err(undecided) => Err(escalated(undecided.diag)),
+    }
+}
+
 /// **A cone face's loops, read and decided to bound its region once** —
 /// the one reading the flux arm ([`cone_face_closed_form`]) and the
 /// material sign ([`cone_material_sign`]) share, so the side the gate
@@ -1887,18 +1914,8 @@ fn cone_face_read<T: Decide>(
     let ring_charts = || rings.iter().map(|r| &r.chart);
     let windings = if w.through_apex {
         // A loop through the apex has no winding: the azimuth it sweeps
-        // is a sector's, a slit cap's whole turn admitted (Zero).
-        if classify(
-            "props_cone_apex_loop_sweep",
-            Margin::levered(T::tau() - w.total.abs(), w.arm),
-            band,
-            PropsCheck::Inventory,
-        )? == Sign::Negative
-        {
-            return Err(PropsError::ConeLoop {
-                what: "props_cone_apex_loop_sweep",
-            });
-        }
+        // is a sector's, a slit cap's whole turn admitted.
+        apex_loop_sweep(w.total, w.arm, band)?;
         let mut windings = vec![[0]];
         windings.extend(closure::closed_loop_turns(ring_charts(), band)?);
         // A ring that winds the axis beside a loop through the apex is not
@@ -2374,25 +2391,38 @@ fn radial_sag<T: Real>(q0: Vec3<T>, q1: Vec3<T>) -> T {
 /// under the rim's names at its own radius ([`require_rim_span`]). An
 /// ellipse arc is no rim: its span is decided under its own names,
 /// `props_cone_ellipse_span_forward` / `props_cone_ellipse_span_winding`,
-/// at certification's ellipse meter, the smaller semi-axis magnitude,
-/// refusing as [`PropsError::ConeLoop`].
+/// at certification's ellipse rates (the speed floor forward, and the inf
+/// and sup over the turn's defect for the turn), refusing as
+/// [`PropsError::ConeLoop`].
 fn require_cone_conic_spans<T: Decide>(
     edges: &[LoopEdge<T>],
     band: Band,
 ) -> Result<(), PropsError> {
     for e in edges {
         match e.carrier {
-            Curve3::Circle { radius, .. } => require_rim_span(e, radius, band)?,
-            Curve3::Ellipse { semi_u, semi_v, .. } => require_span_within_period(
-                e,
-                semi_u.abs().min(semi_v),
-                band,
-                [
-                    "props_cone_ellipse_span_forward",
+            Curve3::Circle { radius, .. } => {
+                require_rim_span(e, radius, band)?;
+            }
+            ref ellipse @ Curve3::Ellipse { .. } => {
+                let Some(floor) = geom::carrier_speed::speed_floor(ellipse) else {
+                    unreachable!("`speed_floor` answers an ellipse")
+                };
+                let rows = TurnRows::bounded(
                     "props_cone_ellipse_span_winding",
-                ],
-                |what| PropsError::ConeLoop { what },
-            )?,
+                    "props_cone_ellipse_span_winding_straddle",
+                );
+                require_span_within_period(
+                    (e.t0, e.t1),
+                    floor,
+                    |extent| {
+                        let rate = geom::carrier_speed::turn_defect_rate(ellipse, e.t0, extent);
+                        (rate, rows)
+                    },
+                    "props_cone_ellipse_span_forward",
+                    band,
+                    |what| PropsError::ConeLoop { what },
+                )?;
+            }
             _ => {}
         }
     }
@@ -2894,7 +2924,10 @@ fn cone_apex_level<T: Decide>(
     if unanimous_rim_dir(&b.rims).is_none() {
         return Ok(());
     }
-    require_rim_only_closed(edges, span_sum(&b.rims), b.arms.azimuth, band)?;
+    let Some(du) = span_sum(&b.rims) else {
+        unreachable!("a unanimous direction is read off at least one rim")
+    };
+    require_rim_only_closed(edges, du, b.arms.azimuth, band)?;
     b.levels.push(T::zero());
     Ok(())
 }
@@ -2906,9 +2939,10 @@ fn cone_apex_level<T: Decide>(
 /// answered half the cap's area, and the
 /// same full rim stated twice double.
 ///
-/// **A SUM is not a COVER.** The comparand is `(Δu − τ)` at the rim
-/// radius ([`RimArms::azimuth`]), the arc the spans fail to total a
-/// turn by. It admits any multiset of same-direction arcs whose spans
+/// **A SUM is not a COVER.** The question is the turn rule's whole turn
+/// ([`geom_core::period`]), the headroom `(τ − Δu)` at the rim radius
+/// ([`RimArms::azimuth`]): the arc the spans fail to total a turn by.
+/// It admits any multiset of same-direction arcs whose spans
 /// total `τ` — the same HALF rim stated twice covers half the circle —
 /// so the arcs must also TILE: `props_rim_only_join` decides, for each
 /// edge in the loop's own order, that its traversal END is the next
@@ -2928,16 +2962,21 @@ fn cone_apex_level<T: Decide>(
 /// rim of the one group, in loop order.
 fn require_rim_only_closed<T: Decide>(
     edges: &[LoopEdge<T>],
-    du: T,
+    du: Extent<T>,
     arm: T,
     band: Band,
 ) -> Result<(), PropsError> {
-    require_zero(
-        "props_rim_only_closed",
-        Margin::levered(du - T::tau(), arm),
-        band,
-        Premise::Inventory,
-    )?;
+    let name = "props_rim_only_closed";
+    match Period::new(T::tau()).whole_turn(TurnRows::exact(name), du, Exact::new(arm), band) {
+        Ok(true) => {}
+        Ok(false) => return Err(Premise::Inventory.refusal(name)),
+        Err(undecided) => {
+            return Err(PropsError::Escalated {
+                cause: undecided.diag,
+                check: Premise::Inventory.check(),
+            });
+        }
+    }
     // The joins, in the loop's own order: edge `i`'s traversal END is
     // edge `i + 1`'s traversal START, cyclically. A point deviation in
     // metres.
@@ -2964,10 +3003,10 @@ fn unanimous_rim_dir<T: Real>(rims: &[Rim<T>]) -> Option<Sign> {
 
 /// The `Δu` a one-group rim set spans — the plain sum of the stored
 /// spans, asked only where a fold has already established one group
-/// (one level, one direction). It decides nothing and records nothing; the
-/// deciding is [`require_rim_only_closed`]'s.
-fn span_sum<T: Real>(rims: &[Rim<T>]) -> T {
-    rims.iter().fold(T::zero(), |acc, r| acc + r.dt)
+/// (one level, one direction); `None` for no rims. It decides nothing
+/// and records nothing; the deciding is [`require_rim_only_closed`]'s.
+fn span_sum<T: Real>(rims: &[Rim<T>]) -> Option<Extent<T>> {
+    rims.iter().map(|r| r.dt).reduce(|acc, dt| acc + dt)
 }
 
 /// The cone's azimuthal lever arm: the first rim's own radius
@@ -3144,7 +3183,7 @@ fn solid_angle<T: Decide>(center: Point3<T>, lp: &SphereLoop<T>, left: bool) -> 
             let u = arc.start - arc.centre;
             let w = arc.axis.cross(u);
             let at = |phi: T| (arc.centre - center) + u * phi.cos() + w * phi.sin();
-            let delta = arc.span / pieces;
+            let delta = arc.extent.get() / pieces;
             // The arc's own end points, as its edge evaluates them, so
             // the faces either side of an edge fan over the same points.
             let (first, last) = if arc.forward {
@@ -3164,7 +3203,7 @@ fn solid_angle<T: Decide>(center: Point3<T>, lp: &SphereLoop<T>, left: bool) -> 
         .fold(Vec3::zero(), |sum, &p| sum + p);
     let mut fan = T::zero();
     for (arc, ends) in lp.arcs.iter().zip(&thirds) {
-        let delta = arc.span / pieces;
+        let delta = arc.extent.get() / pieces;
         // The carrier plane's offset along its (unit) axis, over the
         // sphere's radius as the carrier states it, and `ρ²/R²`.
         let offset = (arc.centre - center).dot(arc.axis);
@@ -3304,7 +3343,7 @@ struct SphereArc<T: Real> {
     axis: Vec3<T>,
     radius: T,
     start: Point3<T>,
-    span: T,
+    extent: Extent<T>,
     forward: bool,
     from: Point3<T>,
     depart: Vec3<T>,
@@ -3396,8 +3435,8 @@ fn sphere_loop<T: Decide>(
             Margin::of((w.norm_squared() + r_c.powi(2)).sqrt() - radius),
             band,
         )?;
-        require_span_within_period(
-            e,
+        let extent = require_circle_span(
+            (e.t0, e.t1),
             r_c,
             band,
             [
@@ -3407,7 +3446,7 @@ fn sphere_loop<T: Decide>(
             |what| PropsError::SphereLoop { what },
         )?;
         let (from, at) = e.traversal_ends();
-        let span = e.t1 - e.t0;
+        let span = extent.get();
         // `N·â` is the same at every point of the arc.
         let k = normal(from).dot(n_c) * span;
         curvature = if e.forward {
@@ -3425,7 +3464,7 @@ fn sphere_loop<T: Decide>(
             axis: n_c,
             radius: r_c,
             start: e.p0(),
-            span,
+            extent,
             forward: e.forward,
             from,
             depart: tangent(from),
@@ -3966,13 +4005,7 @@ fn pole_side<T: Decide>(
     };
     let mut turning = lp.corners;
     for (arc, c) in lp.arcs.iter().zip(circulations) {
-        let full = classify(
-            "props_sphere_pole_arc_full",
-            Margin::levered(T::tau() - arc.span, arc.radius),
-            band,
-            PropsCheck::Inventory,
-        )? == Sign::Zero;
-        let sweep = if full {
+        let sweep = if pole_arc_full(arc.extent, arc.radius, band)? {
             c * T::tau()
         } else {
             let d = push(arc.from, arc.depart);
@@ -3997,6 +4030,18 @@ fn pole_side<T: Decide>(
     )
 }
 
+/// Whether a sphere arc of `extent` on a circle of `radius` is a whole
+/// circle (`props_sphere_pole_arc_full`, the turn rule's whole turn).
+fn pole_arc_full<T: Decide>(extent: Extent<T>, radius: T, band: Band) -> Result<bool, PropsError> {
+    let rows = TurnRows::exact("props_sphere_pole_arc_full");
+    Period::new(T::tau())
+        .whole_turn(rows, extent, Exact::new(radius), band)
+        .map_err(|undecided| PropsError::Escalated {
+            cause: undecided.diag,
+            check: PropsCheck::Inventory,
+        })
+}
+
 /// Whether the point `p`, on `arc`'s carrier, lies within its stored
 /// span, as a margin ([`span_membership`], levered by the circle
 /// radius).
@@ -4005,18 +4050,22 @@ fn arc_point_margin<T: Decide>(arc: &SphereArc<T>, p: Point3<T>) -> Margin<T> {
     let rr = arc.radius.powi(2);
     let q = p - arc.centre;
     let (ps, pc) = (q.dot(w0) / rr, q.dot(arc.axis.cross(w0)) / rr);
-    Margin::levered(span_membership(ps, pc, arc.span), arc.radius)
+    Margin::levered(span_membership(ps, pc, arc.extent.get()), arc.radius)
 }
 
-/// **The rim span door**: [`require_span_within_period`] at a coaxial
+/// **The rim span door**: [`require_circle_span`] at a coaxial
 /// circle's own radius `r_c`, as `props_rim_span_forward` /
 /// `props_rim_span_winding`, refusing [`PropsError::NotIsoRectangle`].
 /// Asked by [`Rim::decided`] at every rim mint, and by
 /// [`require_cone_conic_spans`] wherever the cone reads a circle's span
 /// without minting a rim.
-fn require_rim_span<T: Decide>(e: &LoopEdge<T>, r_c: T, band: Band) -> Result<(), PropsError> {
-    require_span_within_period(
-        e,
+fn require_rim_span<T: Decide>(
+    e: &LoopEdge<T>,
+    r_c: T,
+    band: Band,
+) -> Result<Extent<T>, PropsError> {
+    require_circle_span(
+        (e.t0, e.t1),
         r_c,
         band,
         ["props_rim_span_forward", "props_rim_span_winding"],
@@ -4024,7 +4073,7 @@ fn require_rim_span<T: Decide>(e: &LoopEdge<T>, r_c: T, band: Band) -> Result<()
     )
 }
 
-/// **The meridian span door**: [`require_span_within_period`] at the
+/// **The meridian span door**: [`require_circle_span`] at the
 /// meridian circle's radius — the sphere's `R`, the torus's minor
 /// radius — as `props_meridian_span_forward` /
 /// `props_meridian_span_winding`, refusing
@@ -4036,38 +4085,60 @@ fn require_meridian_span<T: Decide>(
     radius: T,
     band: Band,
 ) -> Result<(), PropsError> {
-    require_span_within_period(
-        e,
+    require_circle_span(
+        (e.t0, e.t1),
         radius,
         band,
         ["props_meridian_span_forward", "props_meridian_span_winding"],
         |what| PropsError::NotIsoRectangle { what },
     )
+    .map(|_| ())
+}
+
+/// [`require_span_within_period`] on a circle of radius `radius`, whose
+/// speed is its radius everywhere: the forward half at it, the turn at
+/// [`Exact`].
+fn require_circle_span<T: Decide>(
+    span: (T, T),
+    radius: T,
+    band: Band,
+    [forward, winding]: [&'static str; 2],
+    refuse: fn(&'static str) -> PropsError,
+) -> Result<Extent<T>, PropsError> {
+    require_span_within_period(
+        span,
+        InfSpeed::new(radius),
+        |_| (Exact::new(radius), TurnRows::exact(winding)),
+        forward,
+        band,
+        refuse,
+    )
 }
 
 /// **Certification's per-edge span bounds, re-decided at the parse**:
 /// the stored span is definitely forward and does not definitely
-/// exceed one period. Certification enforces `0 < Δt ≤ τ` on every
-/// edge — `interval_span_forward` (the span `Δt·r`, definitely
-/// positive) and `interval_span_winding` (the headroom `(τ − Δt)·r`,
-/// not definitely negative), both at the linear band — and every span
-/// read here rests on that bound; a loop built without a body
+/// exceed one period, certification's check 2 (`interval_span_forward`,
+/// then the turn rule, [`geom_core::period`]) at the linear band. Every
+/// span read here rests on that bound; a loop built without a body
 /// ([`LoopEdge::hand_built`]) can state any span, so both halves are
-/// decided under their own names with certification's margins and
+/// decided under the asker's own names with certification's rates and
 /// band, hence its dispositions: the forward half admits only a
-/// definite `Positive` span (certification's `IntervalNotForward`),
-/// the winding half admits `Zero` and `Positive` headroom (a span in
-/// the coincidence band above τ is one certification admits too);
-/// either decide's ambiguity band escalates.
+/// definite `Positive` span (certification's `IntervalNotForward`), the
+/// turn is asked "not over" ([`Period::not_over`]), refusing an extent
+/// over a turn; an undecided reading escalates. The rate is the asker's,
+/// read off the decided extent (a bounded rate's sup is over the turn's
+/// defect); the extent is returned for the asker that reads it again.
 ///
-/// Each asker brings its own lever and names:
+/// Each asker brings its own rates and names:
 ///
 /// * a meridian, through [`require_meridian_span`];
 /// * a rim of any kind, and every circle the cone reads, through
 ///   [`require_rim_span`];
-/// * every ellipse arc the cone reads, at the smaller semi-axis
-///   magnitude, `props_cone_ellipse_span_forward` /
-///   `props_cone_ellipse_span_winding`, refusing as
+/// * every ellipse arc the cone reads, forward at certification's speed
+///   floor and turned between it and the sup over the turn's defect,
+///   `props_cone_ellipse_span_forward` /
+///   `props_cone_ellipse_span_winding` (straddle
+///   `props_cone_ellipse_span_winding_straddle`), refusing as
 ///   [`PropsError::ConeLoop`] ([`require_cone_conic_spans`]);
 /// * every arc of the sphere's flux lane ([`sphere_loop`]) at the arc's
 ///   own radius, `props_sphere_arc_span_forward` /
@@ -4077,33 +4148,31 @@ fn require_meridian_span<T: Decide>(
 /// The torus decides the same pair for a span it reconstructs across
 /// pieces (`props_meridian_pieces_forward`,
 /// `props_meridian_pieces_winding`, [`fold_chain`]).
-fn require_span_within_period<T: Decide>(
-    e: &LoopEdge<T>,
-    radius: T,
+fn require_span_within_period<T: Decide, R: TurnRate<T>>(
+    (t0, t1): (T, T),
+    forward_rate: InfSpeed<T>,
+    rate: impl FnOnce(Extent<T>) -> (R, TurnRows<R::Straddle>),
+    forward: &'static str,
     band: Band,
-    [forward, winding]: [&'static str; 2],
     refuse: fn(&'static str) -> PropsError,
-) -> Result<(), PropsError> {
-    let dt = e.t1 - e.t0;
-    if classify(
-        forward,
-        Margin::levered(dt, radius),
-        band,
-        PropsCheck::Inventory,
-    )? != Sign::Positive
+) -> Result<Extent<T>, PropsError> {
+    let escalated = |cause| PropsError::Escalated {
+        cause,
+        check: PropsCheck::Inventory,
+    };
+    let extent = Extent::forward(forward, t0, t1, forward_rate, band).map_err(|n| match n {
+        NotForward::Undecided(cause) => escalated(cause),
+        NotForward::Zero(_) | NotForward::Reversed(_) => refuse(forward),
+    })?;
+    let (rate, rows) = rate(extent);
+    if Period::new(T::tau())
+        .not_over(rows, extent, rate, band)
+        .map_err(|undecided| escalated(undecided.diag))?
     {
-        return Err(refuse(forward));
+        Ok(extent)
+    } else {
+        Err(refuse(rows.turn))
     }
-    if classify(
-        winding,
-        Margin::levered(T::tau() - dt, radius),
-        band,
-        PropsCheck::Inventory,
-    )? == Sign::Negative
-    {
-        return Err(refuse(winding));
-    }
-    Ok(())
 }
 
 /// The two poles' span-membership margins for a sphere meridian arc,
@@ -4623,7 +4692,7 @@ fn torus_chart<T: Decide>(
                     let step = TorusStep::Rim {
                         sin_v,
                         cos_v,
-                        du: sign * rim.dt,
+                        du: sign * rim.dt.get(),
                         rho: big + r * cos_v,
                     };
                     (step, sign)
@@ -4750,7 +4819,12 @@ fn torus_lift<T: Decide>(at: T, angle: T, minor: T, band: Band) -> Result<(i32, 
     let name = "props_torus_lift_turns";
     let period = Period::new(T::tau());
     period
-        .decide(name, at - angle, |g| Margin::levered(g, minor), band)
+        .decide(
+            name,
+            at - angle,
+            |g| Margin::metered(g, InfSpeed::new(minor)),
+            band,
+        )
         .map(|k| (k, angle + period.times(k)))
         .map_err(|stop| match stop.miss {
             BranchMiss::Undecided(cause) => PropsError::Escalated {
@@ -5203,28 +5277,16 @@ fn fold_chain<T: Decide>(
     };
     let dt = hi.edge.t1 - lo.edge.t0;
     if pieces {
-        if classify(
-            "props_meridian_pieces_forward",
-            Margin::levered(dt, minor),
+        require_circle_span(
+            (lo.edge.t0, hi.edge.t1),
+            minor,
             band,
-            PropsCheck::Inventory,
-        )? != Sign::Positive
-        {
-            return Err(PropsError::NotIsoRectangle {
-                what: "props_meridian_pieces_forward",
-            });
-        }
-        if classify(
-            "props_meridian_pieces_winding",
-            Margin::levered(T::tau() - dt, minor),
-            band,
-            PropsCheck::Inventory,
-        )? == Sign::Negative
-        {
-            return Err(PropsError::NotIsoRectangle {
-                what: "props_meridian_pieces_winding",
-            });
-        }
+            [
+                "props_meridian_pieces_forward",
+                "props_meridian_pieces_winding",
+            ],
+            |what| PropsError::NotIsoRectangle { what },
+        )?;
     }
     Ok(TorusMeridian {
         n_c: lo.n_c,
@@ -5358,7 +5420,7 @@ mod rim_level_review_probe {
         let band = Band::linear(Tol::witness()).expect("band");
         let rim = Rim {
             d_u_sign: Sign::Positive,
-            dt: 1.0,
+            dt: Extent::between(0.0, 1.0),
             level: RimLevel::Unit(0.5, 0.5),
         };
         // Rim is `Unit`, the ends are `Length`.
@@ -5407,7 +5469,7 @@ mod rim_level_review_probe {
         let d = band.zero() * 0.8;
         let rim = Rim {
             d_u_sign: Sign::Positive,
-            dt: 1.0,
+            dt: Extent::between(0.0, 1.0),
             level: RimLevel::Unit(d, d),
         };
         let got = require_rims_at_extremes(
@@ -5707,3 +5769,7 @@ mod sphere_region_cover_rows {
         );
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod turn_rows;

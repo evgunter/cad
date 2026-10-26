@@ -2225,7 +2225,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::NurbsExtentUnsupported
         | BooleanErrorKind::FallbackExtentUnsupported
         | BooleanErrorKind::GermFrameUnsupported
-        | BooleanErrorKind::GermSectionOutsideInventory
+        | BooleanErrorKind::GermSectionOpenConic
         | BooleanErrorKind::GermSectionSpiric
         | BooleanErrorKind::NodeUnbuilt
         | BooleanErrorKind::JoinDesync
@@ -2527,6 +2527,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ),
     ("fate.rs", "contained", "BooleanDecision::Containment", 1),
     ("fate.rs", "places", "BooleanDecision::of_normal", 1),
+    (
+        "fate.rs",
+        "ring_winding",
+        "BooleanDecision::CutRingWinding",
+        1,
+    ),
     ("fate.rs", "sign", "Coincide::Sectors", 1),
     ("glue.rs", "tangency", "Coincide::Rim", 1),
     ("insert.rs", "germ_dir", "BooleanDecision::SelfCheck", 1),
@@ -2573,7 +2579,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("mod.rs", "unglued_coincidence", "Coincide::Carriers", 1),
     ("mod.rs", "sectors_read", "Coincide::Sectors", 1),
     ("mod.rs", "unglued_corner", "Coincide::Sectors", 1),
-    ("mod.rs", "decision_words", "BooleanDecision::ArcSpan", 1),
     (
         "mod.rs",
         "decision_words",
@@ -2646,9 +2651,10 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("mod.rs", "verify_tangency", "Coincide::Contact", 1),
     ("mod.rs", "verify_tangency", "Coincide::Rim", 1),
     ("mod.rs", "verify_tangency", "Coincide::TangentLocus", 1),
+    ("ops.rs", "bounded", "BooleanDecision::VolumeBackstop", 1),
     (
         "ops.rs",
-        "bound_holds",
+        "decide_left",
         "BooleanDecision::VolumeBackstop",
         1,
     ),
@@ -2708,12 +2714,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("ops.rs", "piece_holds", "SelfCheck::CarriedLineage", 1),
     ("ops.rs", "span_in_band", "BooleanDecision::SelfCheck", 1),
     ("ops.rs", "span_in_band", "SelfCheck::CarriedLineage", 1),
-    (
-        "ops.rs",
-        "volume_backstop",
-        "BooleanDecision::VolumeBackstop",
-        1,
-    ),
     ("recl.rs", "flank_rep", "Coincide::Sectors", 1),
     ("recl.rs", "parallel_same_dir", "Coincide::EdgeOnEdge", 1),
     ("recl.rs", "recl_sectors", "Coincide::TangentSide", 1),
@@ -2784,12 +2784,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("reduce.rs", "read_lying_in", "Coincide::VertexOnFace", 1),
-    (
-        "reduce.rs",
-        "split_other_at_point",
-        "BooleanDecision::ArcSpan",
-        1,
-    ),
     (
         "reduce.rs",
         "split_other_at_point",
