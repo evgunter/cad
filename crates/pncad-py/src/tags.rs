@@ -1376,7 +1376,7 @@ pub fn revolve_error_tag(err: &RevolveError) -> &'static str {
         RevolveError::SliverAxisClearance { .. } => "sliver_axis_clearance",
         RevolveError::UnsupportedToroid { .. } => "unsupported_toroid",
         RevolveError::NonManifoldAxisContact { .. } => "non_manifold_axis_contact",
-        RevolveError::MultipleAxisRuns { .. } => "multiple_axis_runs",
+        RevolveError::AxisGapEscalated { .. } => "axis_gap_escalated",
         RevolveError::HoleTouchesAxis { .. } => "hole_touches_axis",
         RevolveError::VoidInsertion { .. } => "void_insertion",
         RevolveError::CosurfaceEscalated { .. } => "cosurface_escalated",

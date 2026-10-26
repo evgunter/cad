@@ -335,8 +335,8 @@ fn the_cavity_is_a_two_wall_torus_at_the_inner_bits() {
         let t = hollow(major, outer, wall, window);
         assert_eq!(t.body.shells().count(), 2);
         assert_eq!(t.cavities.len(), 1);
-        assert_ne!(t.cavities[0], t.shell);
-        let cavity = t.body.get_shell(t.cavities[0]).unwrap();
+        assert_ne!(t.cavities[0].shell, t.shell);
+        let cavity = t.body.get_shell(t.cavities[0].shell).unwrap();
         assert_eq!(cavity.faces.len(), 2);
         let inner = outer - wall;
         for f in &cavity.faces {

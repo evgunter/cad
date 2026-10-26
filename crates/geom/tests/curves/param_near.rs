@@ -183,12 +183,11 @@ fn the_exact_half_period_boundary_lands_on_an_endpoint() {
 /// still strictly interior.
 ///
 /// It is here as the reason the guard exists, and BOTH span-reading
-/// consumers now spell one. `topo`'s edge split spells it as the
-/// `bool_split_span_period` decide row. `sweep`'s fillet seam split
-/// spells it as a bounds-lane refusal on the stored window — its
-/// window test alone is NOT enough, which is exactly what this row
-/// shows: an aliased parameter is still strictly interior, so a test
-/// that only asks "inside the window?" passes it. (The fillet also
+/// consumers read one: `topo`'s edge split and `sweep`'s fillet seam
+/// split each read the edge certificate's turn, which is never over a
+/// period. The fillet's window test alone is NOT enough, which is
+/// exactly what this row shows: an aliased parameter is still strictly
+/// interior, so a test that only asks "inside the window?" passes it. (The fillet also
 /// anchors at the carrier's seam rather than at the window, for a
 /// separate reason its own docs carry.) The offset door anchors at an
 /// endpoint's own old parameter and has no span to exceed.

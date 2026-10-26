@@ -242,3 +242,7 @@ and `refined_net_encloses_the_exact_refined_net` hold a ring refinement
 against the exact refined net by Boehm's insertion in rationals, and
 each one's contrast arm shows a refine-then-lift net missing it. Site 1
 wants the same row once it refines in the ring.
+
+## Rows that waited on site 5 are un-parked (band-rule triage, 2026-10-25)
+
+`work/encl/offset-fit-at-tight-eps-refuses-every-curved-nurbs-chart` (P0), `work/encl/patch-bound-offset-fit-recentring-origins` (P1) and `work/ssiedge/plane-nurbs-certificate-bound-does-not-refine-with-eps` (P1) parked on this row, and each waited only on site 5, which PR 3524 closed. All three are open again. No row waits on what remains here, site 1 (`crates/mesh/src/chords.rs`), so this row keeps its P2.

@@ -1126,7 +1126,7 @@ const RING_NO_AREA: &str = "a fate cut closes a ring of no area";
 ///
 /// # Errors
 ///
-/// [`BooleanError::Escalated`] ([`super::BooleanDecision::RingWinding`])
+/// [`BooleanError::Escalated`] ([`super::BooleanDecision::CutRingWinding`])
 /// where it reads in band.
 fn ring_winding<T: Decide>(
     points: &[Point3<T>],
@@ -1136,7 +1136,7 @@ fn ring_winding<T: Decide>(
     let (area, len) = winding(points, n);
     crate::validate::decide("bool_fate_ring", Margin::of(area / len), band).map_err(|diag| {
         BooleanError::Escalated {
-            decision: super::BooleanDecision::RingWinding,
+            decision: super::BooleanDecision::CutRingWinding,
             diag,
         }
     })
@@ -1522,7 +1522,7 @@ mod tests {
     /// counterclockwise about +z, and its reading (twice its area over its
     /// length) is h / √5. At h = ±1 that is clear; at h = 5.5 √5 ε it is
     /// 5.5 ε, mid-band (ε to 10 ε), and refuses
-    /// [`BooleanDecision::RingWinding`], not a broken invariant.
+    /// [`BooleanDecision::CutRingWinding`], not a broken invariant.
     #[test]
     fn a_ring_winding_in_band_escalates_as_its_own_decision() {
         let tol = Tol::witness();
@@ -1543,7 +1543,7 @@ mod tests {
             matches!(
                 err,
                 BooleanError::Escalated {
-                    decision: BooleanDecision::RingWinding,
+                    decision: BooleanDecision::CutRingWinding,
                     ..
                 }
             ),
