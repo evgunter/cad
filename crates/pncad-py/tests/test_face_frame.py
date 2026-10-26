@@ -46,6 +46,7 @@ from pncad import (
     Node,
     Open,
     Orientation,
+    Placed,
     Pose,
     PoseDef,
     ReadbackError,
@@ -472,6 +473,53 @@ class TestARestSpinsOneWay(unittest.TestCase):
                 near = min(corners, key=lambda p: math.dist(p, want))
                 for got, w in zip(near, want, strict=True):
                     self.assertAlmostEqual(got, w, delta=1e-12)
+
+
+class TestARestOnAWall(unittest.TestCase):
+    """A unit plate's `-x` face rests on a wall's `+x` face under the
+    identity orientation, so the plane fixes the slide along `x` and
+    leaves `y` and `z`. `Doc.constrain`, the gesture, reads the copy's
+    geometry and writes those two; the raw `DocEdit.add_constraint`
+    reads none and writes `x` and `y`, which the solve refuses, naming
+    the pair to write, and that pair places."""
+
+    def scene(self):
+        doc = Doc()
+        wall = doc.place(plate(doc, 0.2 * m), doc.world)
+        body = plate(doc, 0.2 * m)
+        copy = doc.place(body, doc.world)
+        ev = evaluate(doc)
+
+        def facing(node, normal):
+            (face,) = [f for f in ev.all_faces(node) if outward(ev, node, f) == normal]
+            return PoseDef.plane(node, face)
+
+        mate = Mate(facing(body, (-1.0, 0.0, 0.0)), PoseDef.flip(facing(wall, (1.0, 0.0, 0.0))))
+        return doc, copy, mate
+
+    def test_the_gesture_rests_the_plate_flush_on_the_wall(self):
+        """Breaks if `Doc.constrain` fills the slides in axis order, the
+        `x` the wall fixes among them."""
+        doc, copy, mate = self.scene()
+        doc.constrain(copy, mate)
+        self.assertIsNone(solve_document(doc).fault(copy))
+        xs = [p[0] for p in positions(evaluate(doc), copy)]
+        self.assertAlmostEqual(min(xs), 1.0, delta=1e-12)
+
+    def test_the_raw_edit_refuses_naming_the_pair_that_places(self):
+        """Breaks if the raw edit's refusal names no pair, or a pair that
+        does not place."""
+        doc, copy, mate = self.scene()
+        doc.apply(DocEdit.add_constraint(copy, mate))
+        fault = solve_document(doc).fault(copy)
+        self.assertIsNotNone(fault)
+        self.assertEqual(fault.why, "slides_do_not_span")
+        self.assertEqual(fault.slides, ["y", "z"])
+        self.assertIn("write the slides along y and z", str(fault))
+        doc, copy, mate = self.scene()
+        pair = [MateValue(Coord.slide("y"), 0.0 * m), MateValue(Coord.slide("z"), 0.0 * m)]
+        doc.set_constraints(copy, Placed.of(doc, [mate], pair))
+        self.assertIsNone(solve_document(doc).fault(copy))
 
 
 class TestSketchOnAFaceRefuses(unittest.TestCase):

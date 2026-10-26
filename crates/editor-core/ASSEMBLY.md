@@ -513,7 +513,13 @@ value: its mates' cosets met, then its values placed inside what they
 leave. A bundle is written by one pure constructor (`Placed::of`) from
 the mates and moves its caller wrote, with the constant `0` on each
 freedom left unnamed; it reads no geometry, so a copy stands exactly
-where its author means it. A copy pinned in the world at a pose is that
+where its author means it. A gesture names the slides from the
+source's geometry before calling the constructor: it reads `n` off the
+evaluated copy and writes the slides `mate::slides_left_along` leaves
+(`Recording::sketch_on_face`, `Recording::constrain` and `remove_mate`,
+the viewer's mate tool and snap). The raw edit doors stay structural,
+so where the slides they fill do not span the solve refuses
+`SlidesDoNotSpan`, naming the slides to write. A copy pinned in the world at a pose is that
 pose's moves written as values on the world's axes; the "place part"
 gesture writes the identity bundle (`mate::stand`). A frame read off
 geometry is `mate::corner_frame`'s, which a caller asks before writing

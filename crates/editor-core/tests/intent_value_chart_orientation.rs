@@ -372,10 +372,16 @@ fn a_document_whose_mates_carry_no_orientation_refuses_naming_it() {
     }
 }
 
-/// A unit box resting its `−x` face on a wall's `+x` face under
-/// `orient`, written with `slides` (each `0`) and the spin `0`: the
-/// placement's fault, or its frame.
-fn on_the_wall(orient: Orientation, slides: [TargetAxis; 2]) -> Hung {
+/// **A wall, and a unit box stood beside it**: the document, the box's
+/// placement, and the rest of the box's `−x` face on the wall's `+x`
+/// face under `orient`, not yet written.
+fn wall_and_box(
+    orient: Orientation,
+) -> (
+    ProfileDoc,
+    RecipeNodeId,
+    editor_core::Mate<editor_core::Formula>,
+) {
     let doc = ProfileDoc::empty(DocumentId::derive("value-chart-wall"), Tol::witness());
     let (doc, body) = block(doc, 1.0, 1.0, 1.0);
     let (doc, wall) = block(doc, 2.0, 10.0, 10.0);
@@ -388,6 +394,22 @@ fn on_the_wall(orient: Orientation, slides: [TargetAxis; 2]) -> Hung {
     let side = face(&doc, body, [0.0, 0.5, 0.5], [-1.0, 0.0, 0.0]);
     let mut mate = fixture::rest(head(side), head_at(w, wall_face));
     mate.orient = orient;
+    (doc, placement, mate)
+}
+
+/// The placement's fault in `doc`, or its frame in its target space.
+fn standing(doc: &ProfileDoc, placement: RecipeNodeId) -> Hung {
+    let poses = solve(doc, &EvalOptions::default(), Tol::witness());
+    match poses.fault(placement) {
+        Some(fault) => Err(fault.clone()),
+        None => Ok(poses.relative(placement).expect("the box is placed")),
+    }
+}
+
+/// The box rested on the wall under `orient`, written with `slides`
+/// (each `0`) and the spin `0`: the placement's fault, or its frame.
+fn on_the_wall(orient: Orientation, slides: [TargetAxis; 2]) -> Hung {
+    let (doc, placement, mate) = wall_and_box(orient);
     let placed = Placed {
         mates: vec![mate],
         values: slides
@@ -397,11 +419,7 @@ fn on_the_wall(orient: Orientation, slides: [TargetAxis; 2]) -> Hung {
             .collect(),
     };
     let (doc, _) = fixture::write_bundle(doc, placement, placed.bundle());
-    let poses = solve(&doc, &EvalOptions::default(), Tol::witness());
-    match poses.fault(placement) {
-        Some(fault) => Err(fault.clone()),
-        None => Ok(poses.relative(placement).expect("the box is placed")),
-    }
+    standing(&doc, placement)
 }
 
 /// **Slides that do not span what a plane leaves refuse, naming the
@@ -435,5 +453,107 @@ fn slides_that_do_not_span_refuse_naming_the_pair_to_write() {
         .unwrap_or_else(|f| panic!("the pair named places: {f}"));
     // The box's `−x` face passes through its own origin, so the origin
     // lies on the wall's face, at `x = 2`.
+    assert_eq!(placed.translation[0], 2.0, "flush on the wall: {placed:?}");
+}
+
+/// **The structural door refuses a rest on a wall, naming the pair to
+/// write; the gesture writes that pair.** The box's `−x` face rests on
+/// the wall's `+x` face under the identity, so the plane fixes the slide
+/// along `x`:
+/// - `DocEdit::AddConstraint`, which reads no geometry, keeps the stood
+///   copy's slides in axis order, `x` and `y`, and the solve refuses
+///   `SlidesDoNotSpan`, naming `y` and `z`;
+/// - the gesture (`Recording::constrain`) reads the copy's geometry and
+///   writes `y` and `z`, and the box stands flush on the wall.
+///
+/// *Breaks if* the structural door's refusal names no pair, or the
+/// gesture writes the slide the plane fixes.
+#[test]
+fn a_rest_on_a_wall_refuses_at_the_raw_door_and_places_through_the_gesture() {
+    use editor_core::{NoChartWhy, SlideAxes};
+    let (doc, placement, mate) = wall_and_box(Orientation::IDENTITY);
+    let raw = editor_core::DocEdit::AddConstraint {
+        placement,
+        mate: Box::new(mate.clone()),
+        fresh: Vec::new(),
+    };
+    let raw = editor_core::apply(&doc, &raw, Tol::witness())
+        .expect("the door admits the rest")
+        .doc;
+    match standing(&raw, placement) {
+        Err(MateFault::NoChart {
+            why: NoChartWhy::SlidesDoNotSpan { along, write },
+            ..
+        }) => {
+            assert_eq!(along, Some(TargetAxis::X), "the plane fixes x");
+            assert_eq!(write, SlideAxes::of([TargetAxis::Y, TargetAxis::Z]));
+        }
+        other => panic!("the raw door's x and y do not span the wall: {other:?}"),
+    }
+    let mut action = editor_core::Recording::start(&doc, Tol::witness());
+    action
+        .constrain(placement, mate, &EvalOptions::default())
+        .expect("the gesture lands");
+    let doc = action.finish().expect("one action").doc;
+    let placed = standing(&doc, placement).unwrap_or_else(|f| panic!("the gesture places: {f}"));
+    assert_eq!(placed.translation[0], 2.0, "flush on the wall: {placed:?}");
+}
+
+/// **Taking a constraint out, as a gesture, writes the slides the
+/// bundle leaves.** The structural door's rest on the wall holds the
+/// slides along `x` and `y`, and refuses. Taking the `x` slide out
+/// through the structural door (`DocEdit::RemoveConstraint`) writes it
+/// back as the constant `0` in its own place, which still refuses. The
+/// gesture (`Recording::remove_mate`) reads the copy's geometry: it
+/// takes the `x` slide out, keeps `y`, writes `z`, and the box stands
+/// flush on the wall.
+///
+/// *Breaks if* the gesture keeps the slide the plane fixes.
+#[test]
+fn taking_a_slide_out_as_a_gesture_writes_the_slides_the_bundle_leaves() {
+    let (doc, placement, mate) = wall_and_box(Orientation::IDENTITY);
+    let raw = editor_core::DocEdit::AddConstraint {
+        placement,
+        mate: Box::new(mate),
+        fresh: Vec::new(),
+    };
+    let doc = editor_core::apply(&doc, &raw, Tol::witness())
+        .expect("the door admits the rest")
+        .doc;
+    let slide_x = fixture::bundle(&doc, placement)
+        .iter()
+        .find(|c| {
+            c.value()
+                .is_some_and(|v| v.coord == Coord::Slide(TargetAxis::X))
+        })
+        .map(|c| c.id)
+        .expect("the structural fill wrote x");
+    let take_x = editor_core::DocEdit::RemoveConstraint {
+        placement,
+        constraint: slide_x,
+    };
+    let still = editor_core::apply(&doc, &take_x, Tol::witness())
+        .expect("the door takes it out")
+        .doc;
+    assert!(
+        standing(&still, placement).is_err(),
+        "the structural door writes x back, and still refuses"
+    );
+    let mut action = editor_core::Recording::start(&doc, Tol::witness());
+    action
+        .remove_mate(placement, slide_x, &EvalOptions::default())
+        .expect("the gesture lands");
+    let done = action.finish().expect("one action");
+    let slides: Vec<Coord> = fixture::bundle(&done.doc, placement)
+        .iter()
+        .filter_map(|c| c.value().map(|v| v.coord))
+        .filter(|c| matches!(c, Coord::Slide(_)))
+        .collect();
+    assert_eq!(
+        slides,
+        [Coord::Slide(TargetAxis::Y), Coord::Slide(TargetAxis::Z)],
+        "the slides the wall leaves"
+    );
+    let placed = standing(&done.doc, placement).unwrap_or_else(|f| panic!("placed: {f}"));
     assert_eq!(placed.translation[0], 2.0, "flush on the wall: {placed:?}");
 }

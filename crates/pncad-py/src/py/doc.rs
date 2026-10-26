@@ -1510,11 +1510,14 @@ impl Doc {
     }
 
     /// **Add `mate` to `placement`'s bundle**, and return the
-    /// constraint's address: the edit `DocEdit.add_constraint`, which
-    /// writes the bundle whole again with the mate: each value the
+    /// constraint's address: the gesture over `DocEdit.add_constraint`,
+    /// which writes the bundle whole again with the mate: each value the
     /// mates then still leave is kept, and each freedom they leave that
-    /// no value sets is written the constant `0` (`Placed`'s rule), so
-    /// the copy stays pinned. The constraint's id is minted by the edit.
+    /// no value sets is written the constant `0`, so the copy stays
+    /// pinned. The gesture reads the copy's geometry for which slides
+    /// those are (the two a plane leaves, the one an axis leaves); the
+    /// raw edit, which reads none, writes them in axis order. The
+    /// constraint's id is minted by the edit.
     ///
     /// Refuses typed on `EditError`: `constraint_on_non_placement`,
     /// `mate_refused` (the solve's own admission of the datum, with
@@ -1527,15 +1530,14 @@ impl Doc {
         mate: &super::mate::Mate,
     ) -> PyResult<super::mate::MateRef> {
         let tol = Tol::witness();
-        let edit = d::DocEdit::AddConstraint {
-            placement: placement.0,
-            mate: Box::new(mate.0.clone()),
-            fresh: Vec::new(),
-        };
-        let applied = d::apply(&self.inner, &edit, tol).map_err(|err| edit_err(py, &err))?;
-        let record = self.accept(applied);
-        let id = *record
-            .minted_constraints
+        let mut action = d::Recording::start(&self.inner, tol);
+        let edit_failed = |err: d::EditError| edit_err(py, &err);
+        let minted = action
+            .constrain(placement.0, mate.0.clone(), &d::EvalOptions::default())
+            .map_err(edit_failed)?;
+        let done = action.finish().map_err(edit_failed)?;
+        self.take_up(done.doc, done.maintenance);
+        let id = *minted
             .first()
             .unwrap_or_else(|| unreachable!("an accepted constraint mints its id"));
         Ok(super::mate::MateRef(d::MateRef::new(placement.0, id)))
@@ -1878,9 +1880,10 @@ impl Doc {
         })
     }
 
-    /// **Remove the constraint `mate` addresses** (`DocEdit.remove_constraint`):
-    /// the bundle written whole again without it, so the copy stays
-    /// pinned. A mate taken away frees what it fixed, and a value taken
+    /// **Remove the constraint `mate` addresses**, the gesture over
+    /// `DocEdit.remove_constraint`: the bundle written whole again
+    /// without it, so the copy stays pinned, the slides it leaves read
+    /// off the copy's geometry as `Doc.constrain` reads them. A mate taken away frees what it fixed, and a value taken
     /// away leaves its freedom; each value the remaining mates still
     /// leave is kept, and each freedom they leave that no value then
     /// sets is written the constant `0` (`Placed`'s rule). Answers the
@@ -1895,15 +1898,14 @@ impl Doc {
         mate: &super::mate::MateRef,
     ) -> PyResult<Vec<super::mate::MateRef>> {
         let at = mate.0;
-        let edit = d::DocEdit::RemoveConstraint {
-            placement: at.placement,
-            constraint: at.id,
-        };
-        let applied =
-            d::apply(&self.inner, &edit, Tol::witness()).map_err(|err| edit_err(py, &err))?;
-        let record = self.accept(applied);
-        Ok(record
-            .minted_constraints
+        let mut action = d::Recording::start(&self.inner, Tol::witness());
+        let edit_failed = |err: d::EditError| edit_err(py, &err);
+        let minted = action
+            .remove_mate(at.placement, at.id, &d::EvalOptions::default())
+            .map_err(edit_failed)?;
+        let done = action.finish().map_err(edit_failed)?;
+        self.take_up(done.doc, done.maintenance);
+        Ok(minted
             .iter()
             .map(|&id| super::mate::MateRef(d::MateRef::new(at.placement, id)))
             .collect())

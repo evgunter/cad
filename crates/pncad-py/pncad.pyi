@@ -3855,22 +3855,26 @@ class Doc:
 
     def constrain(self, placement: NodeId, mate: Mate) -> MateRef:
         """Add `mate` to `placement`'s bundle and answer the
-        constraint's address: `apply` of `DocEdit.add_constraint`, which
-        writes the bundle whole again with the mate — each value the
-        mates then still leave kept, each freedom they leave that no
-        value sets written `0` (`Placed`'s rule) — the id minted by the
-        edit. Refuses typed on `EditError`:
+        constraint's address: the gesture over `DocEdit.add_constraint`,
+        which writes the bundle whole again with the mate — each value
+        the mates then still leave kept, each freedom they leave that no
+        value sets written `0` — the id minted by the edit. The gesture
+        reads the copy's geometry for which slides those are; the raw
+        edit, which reads none, writes them in axis order, and the solve
+        refuses `slides_do_not_span` where they do not span, naming the
+        slides to write. Refuses typed on `EditError`:
         `constraint_on_non_placement`, `mate_refused` (the door's
         fault — `mate_not_on_the_copy`, `mate_kinds_differ`,
         `mate_overconstrained` where the other mates already fix what it
         fixes), and the slot doors' refusals."""
 
     def remove_mate(self, mate: MateRef) -> list[MateRef]:
-        """Remove the constraint `mate` addresses: `apply` of
+        """Remove the constraint `mate` addresses: the gesture over
         `DocEdit.remove_constraint`, the bundle written whole again
         without it, so the copy stays pinned — each value the remaining
         mates still leave kept, each freedom they leave that no value
-        then sets written the constant `0` (`Placed`'s rule). Answers
+        then sets written the constant `0`, the slides read off the
+        copy's geometry as `Doc.constrain` reads them. Answers
         the addresses of the values that rewrite wrote. Raises
         `EditError`: `unknown_node`, `constraint_on_non_placement`,
         `unknown_constraint` (no such id)."""
@@ -5969,6 +5973,11 @@ class MateFault:
     def value_ref(self) -> Optional[MateRef]: ...
     @property
     def why(self) -> Optional[Literal["slide_turns_a_ball", "slides_do_not_span"]]: ...
+    @property
+    def slides(self) -> Optional[list[str]]:
+        """The slides to write, by their axes' words, where the slides
+        written do not span what the mate leaves (`slides_do_not_span`):
+        `["y", "z"]` beside a plane mate fixing `x`."""
     @property
     def orient(self) -> Optional[Orientation]: ...
     @property

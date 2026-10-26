@@ -280,16 +280,21 @@ impl Coord {
     }
 
     fn __repr__(&self) -> String {
-        let word = |axis| match axis {
-            d::TargetAxis::X => "x",
-            d::TargetAxis::Y => "y",
-            d::TargetAxis::Z => "z",
-        };
+        let word = axis_word;
         match self.0 {
             d::Coord::Slide(axis) => format!("Coord.slide({:?})", word(axis)),
             d::Coord::Spin(Some(axis)) => format!("Coord.spin({:?})", word(axis)),
             d::Coord::Spin(None) => "Coord.spin()".to_string(),
         }
+    }
+}
+
+/// The word of an axis of the target's frame: `"x"`, `"y"` or `"z"`.
+fn axis_word(axis: d::TargetAxis) -> &'static str {
+    match axis {
+        d::TargetAxis::X => "x",
+        d::TargetAxis::Y => "y",
+        d::TargetAxis::Z => "z",
     }
 }
 
@@ -763,6 +768,19 @@ impl MateFault {
     #[getter]
     fn why(&self) -> Option<&'static str> {
         self.payload().why.map(no_chart_why_tag)
+    }
+
+    /// The slides to write, by their axes' words, where the slides
+    /// written do not span what the mate leaves (`slides_do_not_span`):
+    /// `["y", "z"]` beside a plane mate fixing `x`.
+    #[getter]
+    fn slides(&self) -> Option<Vec<&'static str>> {
+        match self.payload().why? {
+            d::NoChartWhy::SlidesDoNotSpan { write, .. } => {
+                Some(write.axes().map(axis_word).collect())
+            }
+            d::NoChartWhy::SlideTurnsABall => None,
+        }
     }
 
     /// The orientation a mate was written with, where the mated direction

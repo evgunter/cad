@@ -1098,6 +1098,9 @@ BOUND_AS = {
     # crosses as `MateFault.why`.
     "TargetAxis": "Coord.slide",
     "NoChartWhy": "MateFault.why",
+    # The slides a span refusal names to write cross as their axes'
+    # words.
+    "SlideAxes": "MateFault.slides",
     # An orientation's axes are the words `Orientation` takes.
     "SignedAxis": "Orientation",
     # A body's own frame at a corner it has, as a pose to read; a frame
