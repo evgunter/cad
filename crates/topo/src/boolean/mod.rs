@@ -2514,7 +2514,7 @@ pub enum RefusedRow {
 /// **Which construction a slit's line lacks**
 /// ([`BooleanError::SlitLineCrossed`]): the other solid has an edge
 /// along an operand's slit or ring, and the germs on the line are not
-/// placed where
+/// placed where the case says.
 ///
 /// **NOT carried to the façade's curated list, and that is a decision
 /// rather than an omission** (`scripts/payload-rung-sweep.py` names
@@ -2530,10 +2530,6 @@ pub enum RefusedRow {
 /// and the disposition row with it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SlitLineGap {
-    /// The result keeps only the slit's face on the line, on both
-    /// sides: it closes that face across the line, which the join does
-    /// not build.
-    Closes,
     /// A flank of a wedge on the line lies in a flank's plane of the
     /// other's, flush with a face of the other solid there, and the op
     /// keeps one of the two flush faces: the cut the germs make in the
@@ -2548,10 +2544,6 @@ impl SlitLineGap {
     /// The gap in the refusal's words.
     pub(super) const fn words(self) -> &'static str {
         match self {
-            Self::Closes => {
-                "the result keeps only that face on the line, on both sides, so it closes the \
-                 face across the line"
-            }
             Self::Flush => {
                 "a face of the other solid lies flush with a face on the line, and the op keeps \
                  one of the two"
@@ -3844,6 +3836,30 @@ pub enum BooleanError {
         /// The face carrying it, a key of the operand's working copy.
         face: FaceKey,
     },
+    /// The result keeps a curved face on both sides of an operand's
+    /// slit or zero-area ring, whose two edges the zip glued into one
+    /// edge of that face, and deleting that edge from a curved face is
+    /// not built (`slit::close_struts`): the lone ring's bridge is a
+    /// line chord, which lies in no curved face. A construction gap,
+    /// with no lever.
+    CurvedFaceClosesAcrossSlit {
+        /// The curved face, in the result's keys.
+        face: FaceKey,
+        /// The edge it lies on both sides of.
+        edge: crate::entity::EdgeKey,
+    },
+    /// The result keeps a face on both sides of part of an operand's
+    /// slit or zero-area ring, between stretches of it the result keeps:
+    /// the zip glues the slit's two edges into one edge of that face
+    /// there, with the slit's edges running on past both its ends, and
+    /// deleting it parts the slit in two, which is not built
+    /// (`slit::close_struts`). A construction gap, with no lever.
+    SlitFaceClosesMidSlit {
+        /// The face, in the result's keys.
+        face: FaceKey,
+        /// The edge it lies on both sides of.
+        edge: crate::entity::EdgeKey,
+    },
     /// **The result's edges on one line, where two or more lie, bound
     /// material the result gate cannot admit** ([`crate::census::line_wedges`]):
     /// each such edge classifies its own wedge (D1's
@@ -4079,6 +4095,10 @@ pub enum BooleanErrorKind {
     SlitLineCrossed,
     /// [`BooleanError::SlitFaceGlued`].
     SlitFaceGlued,
+    /// [`BooleanError::CurvedFaceClosesAcrossSlit`].
+    CurvedFaceClosesAcrossSlit,
+    /// [`BooleanError::SlitFaceClosesMidSlit`].
+    SlitFaceClosesMidSlit,
     /// [`BooleanError::LineWedges`].
     LineWedges,
 }
@@ -4293,6 +4313,8 @@ impl BooleanError {
             Self::EdgeInFace { .. } => BooleanErrorKind::EdgeInFace,
             Self::SlitLineCrossed { .. } => BooleanErrorKind::SlitLineCrossed,
             Self::SlitFaceGlued { .. } => BooleanErrorKind::SlitFaceGlued,
+            Self::CurvedFaceClosesAcrossSlit { .. } => BooleanErrorKind::CurvedFaceClosesAcrossSlit,
+            Self::SlitFaceClosesMidSlit { .. } => BooleanErrorKind::SlitFaceClosesMidSlit,
             Self::LineWedges { .. } => BooleanErrorKind::LineWedges,
         }
     }
@@ -5142,6 +5164,21 @@ impl core::fmt::Display for BooleanError {
                  edge between its two walls, or stay in the one of the two flush faces the op \
                  keeps, and the join does not build that there. {}",
                 operand_word(*operand),
+                geom_core::NOT_YET_ENDING
+            ),
+            Self::CurvedFaceClosesAcrossSlit { face, edge } => write!(
+                f,
+                "the result keeps curved face {face:?} on both sides of edge {edge:?}, where an \
+                 operand's slit or zero-area ring lay, so the face closes across it, and \
+                 deleting an edge from a curved face is not built. {}",
+                geom_core::NOT_YET_ENDING
+            ),
+            Self::SlitFaceClosesMidSlit { face, edge } => write!(
+                f,
+                "the result keeps face {face:?} on both sides of edge {edge:?}, part of an \
+                 operand's slit or zero-area ring whose edges run on past both its ends, so the \
+                 face closes across that part and parts the slit in two, which the Boolean does \
+                 not yet build. {}",
                 geom_core::NOT_YET_ENDING
             ),
             Self::LineWedges { fault, from, to } => match fault {
@@ -9186,6 +9223,8 @@ mod tests {
                 BooleanErrorKind::EdgeInFace => "EdgeInFace",
                 BooleanErrorKind::SlitLineCrossed => "SlitLineCrossed",
                 BooleanErrorKind::SlitFaceGlued => "SlitFaceGlued",
+                BooleanErrorKind::CurvedFaceClosesAcrossSlit => "CurvedFaceClosesAcrossSlit",
+                BooleanErrorKind::SlitFaceClosesMidSlit => "SlitFaceClosesMidSlit",
                 BooleanErrorKind::LineWedges => "LineWedges",
             }
         }
