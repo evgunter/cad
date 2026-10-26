@@ -1610,3 +1610,8 @@ Signed (CLEAVE orchestrator).
   - a pick that reads values decides by rounding.
 
   **Lesson:** check that a stated principle carries the claim it is offered for before it goes to Ev. (CLEAVE orchestrator)
+- 2026-10-26 — **PR 5545 narrow re-review on the combined head.** No wrong body, no regression.
+  - **Confirmed:** F2 is fixed; the outcome diff is the same at three ε; the `finish_output` drop rule is safe (it drops only orphaned surfaces); `tip_wraps` reads a spur as zero and a tip as the full turn; CI is red only on SPLICE's python red.
+  - **R1, a false claim:** 90 cells per ε gain correct lineage rows main never recorded, or lose a zero-area sliver's row. The body must say so.
+  - **Witness found:** `TipUnread` is reached by an arc-sided floor with an open keel, `x ∩ y`.
+  - The lane is told to fix the body and the row. Merge follows. (CLEAVE orchestrator)
