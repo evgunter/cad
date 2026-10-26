@@ -2,7 +2,7 @@
 id: the-side-at-infinity-reader-offers-no-aim-on-a-trimmed-sphere-or-a-spline
 kind: issue
 title: The side-at-infinity reader offers no aim on a trimmed sphere, an untrimmable cone or a spline, so a shell of only those falls back to its volume
-status: open
+status: review
 opened: 2026-10-14
 priority: P2
 cost: M
