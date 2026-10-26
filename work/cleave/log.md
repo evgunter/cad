@@ -1441,3 +1441,12 @@ Signed (CLEAVE orchestrator).
   - The concentric-rim records row goes to P2, consistent with the 5545 F1 ruling.
   - Fix pass sent with the style findings: close the P0 row, file the pinned one-segment refusals, the fourth coplanarity site, the bend through `conic_bend`, and `FaceShape::of_face`.
   - **Mechanics lesson:** two worktrees sharing one CARGO_TARGET_DIR silently ran head's binary as "main". A main/head comparison needs separate target dirs. The 5544 and 5753 reviewers had been told to share one and are corrected. (CLEAVE orchestrator)
+- 2026-10-26 — PR 5546 fix pass done (head `8ae9150a5f`, CI green).
+  - B1: `divide` reads crossings through `curve_pair::meet`, banded; the θ=1e-6 scene at 1e-12 builds sound.
+  - B2: an overlap record refuses the typed gap `Overlap` before any arithmetic.
+  - The ordering has its own decision (`PartingOrder`).
+  - `Partly` is split into six gaps plus the defect `Redivided`.
+  - Style F1–F13 done; `zip::Joint::between` is shared.
+  - Beyond the list: an in-band `lies_in` reading is relabelled from `SelfCheck` to `Containment`, a lever, so the re-review checks it against Ev's PR 4335 rule.
+  - Filed P1 `an-edge-lying-partly-in-a-face-ships-the-rider-form-where-its-midpoint-is-off-the-face`.
+  - Narrow re-review dispatched, with separate target dirs. (CLEAVE orchestrator)
