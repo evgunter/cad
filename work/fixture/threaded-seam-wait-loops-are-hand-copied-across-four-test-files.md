@@ -53,3 +53,7 @@ and the honest answer there may be to leave it.
 The lane that folded the three threaded seams onto one coalescing
 handle (`work/view/the-two-seams-are-hand-maintained-twins`), whose own
 item predicted two copies of the harness and found six.
+
+## Moved to FIXTURE (2026-10-26, tracker sweep)
+
+Moved from `work/suite/` when SUITE folded into FIXTURE: its exit walk had been ratified on PR 2685 (merged by Ev 2026-09-15), and this was one of three rows that arrived afterwards (`docs/doc-ledger/suite-leaves-the-tracker.md`). The id and body are unchanged. Re-checked against main: still live.

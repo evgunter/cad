@@ -73,3 +73,7 @@ line for one line — with one exception and it is a pre-existing error:
 either revision. It is inside a `PreviewFreeMove` rotation assertion.
 Disclosed rather than repointed, because the number was never about
 its subject.
+
+## Moved to FIXTURE (2026-10-26, tracker sweep)
+
+Moved from `work/suite/` when SUITE folded into FIXTURE: its exit walk had been ratified on PR 2685 (merged by Ev 2026-09-15), and this was one of three rows that arrived afterwards (`docs/doc-ledger/suite-leaves-the-tracker.md`). The id and body are unchanged. Re-checked against main: still live.

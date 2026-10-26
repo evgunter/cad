@@ -60,3 +60,12 @@ question, and it is the same one the parent row asks: if the population
 gets an executable home, a prose restatement of it is exactly the copy
 this program exists to remove; if it does not, the prose is the only
 record and wants a keeper. A taker decides that once, for both.
+
+## Re-checked (2026-10-26, tracker sweep)
+
+The trivial sibling is fixed. `crates/sweep/tests/common/cavity.rs:45`
+now cites `work/fixture/sweep-boolean-suite-brick-and-prism-copies.md`,
+and `crates/sweep/tests/common/oracles.rs:60` cites
+`work/helper/chamfered-cube-and-steiner-oracles-outside-sweep.md`. The
+census sentence (`cavity.rs:41-44`) is unchanged and still false, so
+the row stays open for it.

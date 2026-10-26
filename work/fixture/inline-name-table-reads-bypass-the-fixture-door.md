@@ -57,3 +57,17 @@ subject.
 `crates/editor-core/tests/*` — tcost's and tint's. Filed by EDIT's
 `edit/suite-helpers-one-home` lane, which found it sweeping for the
 SHAPE of the helpers its own row named by symbol.
+
+## Re-checked (2026-10-26, tracker sweep)
+
+The `.name_table` field is gone. `grep '\.name_table'` over
+`crates/editor-core/tests` now finds nothing, and the door
+`fixture::table` reads `ev.table_at(id)`
+(`crates/editor-core/tests/fixture/mod.rs:2461`). The class has moved to
+the new accessor and is still live: `\.table_at(` appears 120 times in
+47 files outside `tests/fixture/`. Re-derive the work list from that
+spelling.
+
+## Moved to FIXTURE (2026-10-26, tracker sweep)
+
+Moved from `work/tcost/`. The row is a test-side copy of a shared fixture door, which is FIXTURE's charter, and it is not a cost lever. It was re-checked against main and is still live. The id and body are unchanged.

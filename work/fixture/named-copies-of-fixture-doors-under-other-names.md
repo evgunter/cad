@@ -83,3 +83,7 @@ at 45 distinct bodies and finds none of that shape today.
 `review/helpers-rv` lane reviewing EDIT's PR #2867 and re-scoped by
 that PR's fix pass; sibling of
 `inline-name-table-reads-bypass-the-fixture-door`.
+
+## Moved to FIXTURE (2026-10-26, tracker sweep)
+
+Moved from `work/tcost/`. The row is a test-side copy of a shared fixture door, which is FIXTURE's charter, and it is not a cost lever. It was re-checked against main and is still live. The id and body are unchanged.

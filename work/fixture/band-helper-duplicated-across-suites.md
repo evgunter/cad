@@ -198,3 +198,7 @@ PR and are accurate as of `8851abb` — re-derive before taking it.
 Nothing about the finding is changed by the move: same id, same
 evidence, still `open`, and no part of its question is answered for
 you except where this note says Ev answered it.
+
+## Moved to FIXTURE (2026-10-26, tracker sweep)
+
+Moved from `work/suite/` when SUITE folded into FIXTURE: its exit walk had been ratified on PR 2685 (merged by Ev 2026-09-15), and this was one of three rows that arrived afterwards (`docs/doc-ledger/suite-leaves-the-tracker.md`). The id and body are unchanged. Re-checked against main: still live.

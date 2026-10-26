@@ -52,3 +52,7 @@ since that tree has its own reasons for standing alone).
 A copy that is NOT this document must stay a copy: the check a taker
 owes each site is that the four nodes really are these four, not that
 the corner coordinate matched.
+
+## Moved to FIXTURE (2026-10-26, tracker sweep)
+
+Moved from `work/tcost/`. The row is a test-side copy of a shared fixture door, which is FIXTURE's charter, and it is not a cost lever. It was re-checked against main and is still live. The id and body are unchanged.
