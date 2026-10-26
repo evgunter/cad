@@ -6,6 +6,7 @@ status: open
 opened: 2026-10-13
 priority: P3
 cost: M
+design: true
 ---
 
 
@@ -34,3 +35,13 @@ decides which faces a section enters at a vertex
 One reading of a bound's side, read by both: either `side_code` takes
 `entry_side`'s second-order fall-through, or the reverse, decided on
 which one certifies what it claims.
+
+## Duplication triage (INTENT, 2026-10-26)
+
+Classified on Ev's ask, via the CLEAVE note on INTENT's log, against main `e92fb951` and DESIGN `[one-way.places]` / `[one-way.readings]`. The four classes:
+- **design signal:** DESIGN names no single home, so a design conversation is owed;
+- **mechanical:** DESIGN names the home; delete the off-home copy and repoint its users;
+- **D10 debris:** a D10 stage retires one copy;
+- **not duplication.**
+
+**Design signal.** **Cluster A, the vertex-neighbourhood reading against a surface.** Split and boolean each own run enumeration, the sector walk, the bound side, struts and site choice. The only shared ground is the Euler types and the loose `vertex_section.rs`/`sector_*` modules, and the boolean already reaches into `splitting`. `neighborhood.rs::entry_side` and `sectors.rs::side_code` disagree at ties. The canonical copy is hosted inside one consumer (`vertex_section.rs` imports `splitting::entry_side`). `[one-way.readings]` names only the crate (topo), not a module.
