@@ -339,10 +339,11 @@ straddle-hull treatment). Built as the document layer's
 `MeasurePrimitive::Gap { outer, inner }`
 (`crates/editor-core/src/measure.rs`, evaluated in
 `crates/editor-core/src/eval/measure.rs`), argument order the mating
-role, authored rather than inferred. Between a vertex or an edge and another cell, g is
-how far the lower-dimensional cell (of two edges or two vertices, the
-inner) stands out of the other's material, read as the half-spaces of
-the face carriers that cell lies on: zero where it rests on them,
+role, authored rather than inferred. Between a vertex or an edge and
+another cell, g is how far one cell stands out of the other's
+material, read as the half-spaces of the face carriers the reading
+cell lies on. The higher-dimensional cell reads, and of two edges or
+two vertices the outer. g is zero where the cell rests on them and
 negative inside (the arms are that module's table).
 
 **C6 — Interference fits.** No class states a fit; what an
