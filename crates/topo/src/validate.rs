@@ -5783,10 +5783,11 @@ fn plus_v_by_sign<'b, T: geom_core::Decide>(
             parts.iter_mut().collect();
         crate::props::role_walk_set(&mut members, quad, PLUS_V_SIGN)
     };
-    // Each solid's enclosure where its walk stopped, read outward where
-    // the door reads a bracket end: an unresolved sign carries it.
-    let brackets: Vec<Option<(f64, f64)>> = parts.iter().map(bracket).collect();
-    let mut roles = roles.into_iter().zip(brackets);
+    // Each solid's bracket where its walk stopped, read outward where the
+    // door reads a bracket end: an unresolved sign carries it. Read only
+    // for a sign left unresolved — it is an interval re-derivation of
+    // the solid's faces, which a decided sign never reports.
+    let mut roles = roles.into_iter().zip(parts.iter());
     let mut errors = Vec::new();
     for ((solid, faces), unmeasured) in subjects.into_iter().zip(unmeasured) {
         let verdict = match unmeasured {
@@ -5796,7 +5797,7 @@ fn plus_v_by_sign<'b, T: geom_core::Decide>(
             }
             None => roles
                 .next()
-                .map(|(role, volume)| plus_v_verdict(role, volume)),
+                .map(|(role, part)| plus_v_verdict(role, || bracket(part))),
         };
         errors.extend(plus_v_errors(body, solid, faces, verdict.as_ref(), band));
     }
@@ -6206,7 +6207,7 @@ pub(crate) fn plus_v_read<T: geom_core::Decide>(
 /// unresolved, and otherwise it is undecided about the body.
 fn plus_v_verdict(
     role: Result<crate::props::ShellRole, crate::props::RoleWalkRefusal>,
-    volume: Option<(f64, f64)>,
+    volume: impl FnOnce() -> Option<(f64, f64)>,
 ) -> PlusVVerdict {
     use crate::props::{RoleWalkRefusal, ShellRole};
     match role {
@@ -6215,7 +6216,10 @@ fn plus_v_verdict(
         Err(RoleWalkRefusal::Refused(source)) => PlusVVerdict::Uncomputable(source),
         Err(RoleWalkRefusal::Unread {
             limit: Some(limit), ..
-        }) => PlusVVerdict::Unresolved { limit, volume },
+        }) => PlusVVerdict::Unresolved {
+            limit,
+            volume: volume(),
+        },
         Err(RoleWalkRefusal::Poisoned(last) | RoleWalkRefusal::Unread { last, .. }) => {
             PlusVVerdict::Undecided(last.escalation())
         }
@@ -11019,6 +11023,18 @@ mod tests {
     /// here because no shipped surface kind reaches the world-origin arm
     /// now that every face is taken about a vertex of the body
     /// ([`crate::props::rederive`]).
+    /// **A decided sign reads no bracket**: the bracket is an interval
+    /// re-derivation of the solid's faces, which only an unresolved sign
+    /// reports, so check 7 reads it for no other verdict (a body that
+    /// passes was paying for one on every validation).
+    #[test]
+    fn a_decided_sign_reads_no_bracket() {
+        use crate::props::ShellRole;
+        for role in [ShellRole::Outer, ShellRole::Void] {
+            let _ = plus_v_verdict(Ok(role), || panic!("{role:?} read a bracket"));
+        }
+    }
+
     #[test]
     fn an_open_round_and_an_unresolved_one_stay_apart() {
         use crate::props::SignLimit;
@@ -11043,7 +11059,7 @@ mod tests {
                     limit,
                     in_band: false,
                 }),
-                Some((-1.0, 1.0)),
+                || Some((-1.0, 1.0)),
             )
         };
         assert!(
