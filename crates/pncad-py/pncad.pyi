@@ -738,7 +738,10 @@ class SplitError(PncadError):
     staying: Optional[str]
     """`definition_straddles_cut`: `param` is the tied variable, `moving`
     a variable it reads that the cut moves, `staying` one that stays or
-    that the document no longer holds."""
+    that the document no longer holds.
+
+    `space_straddles_cut`: `node` is a cut placement into the space,
+    `input` a kept one, and `param` the space."""
 
 class InlineError(PncadError):
     """The `inline` refactoring refused.
