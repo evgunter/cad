@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-26
 priority: P2
 cost: M
-refs: [tier-3-prime-reads-no-side-between-coincident-edges-on-one-line]
+refs: [tier-3-prime-reads-no-side-between-coincident-edges-on-one-line, tier-3-prime-reads-no-side-between-coincident-curved-edges]
 ---
 
 
@@ -44,6 +44,11 @@ The same wrapper still holds a side verdict elsewhere:
   one is a site arm 2 never reads. Its records route (`recorded`) reads
   no face pair. Whether arm 2's containment probe catches every such
   interpenetration is unread.
+- **Pass 5′'s curved lane** (`pair_curved_edge_edge`, `census.rs:4224`)
+  runs under `confine` too. It pushes only records today, but the
+  side reading filed as
+  `tier-3-prime-reads-no-side-between-coincident-curved-edges` will
+  meet the same trap when it lands.
 
 Not a hit: pass 4's `edge_in_own_face` (`census.rs:3655`, from
 `ef_overlap_lane` at `:3633`) does not run under `confine`. A
@@ -51,7 +56,9 @@ confirmed pair only adds backing to a cell's bounds there
 (`ef_bound_backed`, `census.rs:3060`), which reaches the side read
 rather than skipping it.
 
-Unprobed: no body has yet been built that drops a same-side crossing
+Unprobed: PR 5529's second verifier tried two same-side crossings
+inside a confirmed pair's closure (flush and stepped); both made
+transversal face crossings that tier 3 catches. No body has yet been built that drops a same-side crossing
 under a confirmed pair. The shape to try is the pinwheel turned so two
 of its edges cross at a point of a flush wall's boundary rather than
 run along a corner line.
@@ -61,4 +68,9 @@ run along a corner line.
 Read each lane's side verdict outside `confine`, as pass 5's collinear
 lane now does: `confine` returns whether a pair answered, and the side
 reading runs when the touch is certified either way. Or have `confine`
-keep a finding it cannot answer for, by kind.
+keep a finding it cannot answer for, by kind. Either way, make the
+question one each caller has to face: `confine`'s answered flag is
+dropped by every caller but `pair_edge_edge`, carries no `#[must_use]`,
+and its doc still says a confirmed pair "answers for" what the lane
+finds, "an in-band reading included", where that now holds of records
+only.

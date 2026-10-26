@@ -122,14 +122,10 @@ two into one is filed as
     unread.
 - **Run coverage.**
   - No shipped body newly refuses.
-  - Topo and sweep, slow set included, at the default ε: main's known
-    reds only.
-  - Topo, slow set included, at 1e-12: all pass.
-  - Sweep at 1e-12 ran in part (about 2100 of its 3133 rows): main's
-    known reds and two `RayExhausted` refusals of main's, no line-wedge
-    finding.
-  - This PR's rows also ran at 1e-12.
-  - The rest of sweep at 1e-12 is the nightly's.
+  - At the final head (`fa60a5f8`, measured by the second verifier):
+    topo 3418/3418 at both the default ε and 1e-12, slow set included;
+    sweep 3115/3116 at the default ε and 3108/3116 at 1e-12, every red
+    one of main's known reds, and no line-wedge finding in either log.
 - **Not read.**
   - Two coincident curved edges (pass 5′), filed as
     `tier-3-prime-reads-no-side-between-coincident-curved-edges`.
