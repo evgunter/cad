@@ -43,9 +43,14 @@ fn permutations(items: &[RecipeNodeId]) -> Vec<Vec<RecipeNodeId>> {
 }
 
 fn volume(body: &topo::Body<f64>) -> f64 {
-    topo::test_support::unmigrated_measure(body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-        .expect("mass")
-        .enclosure.volume
+    topo::test_support::unmigrated_measure(
+        body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .expect("mass")
+    .enclosure
+    .volume
 }
 
 /// A junction row: a vertex named by a run of two or more seam lines.

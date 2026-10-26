@@ -75,6 +75,11 @@ fn r1_both_witnesses_at_every_delta() {
     // Raw door: the measured body is a body still carrying construction scaffolding, which tier 3 refuses (ScaffoldAtRest).
     println!(
         "R1 half-cap mass_properties volume = {:?}",
-        topo::test_support::measure_unvalidated(&sphere_body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).map(|m| m.enclosure.volume)
+        topo::test_support::measure_unvalidated(
+            &sphere_body,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness())
+        )
+        .map(|m| m.enclosure.volume)
     );
 }

@@ -51,7 +51,8 @@ fn a1_perturbed_value_flows_to_reexport() {
         topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .enclosure.volume;
+    .enclosure
+    .volume;
     let expected = 4.0 / 3.0 * std::f64::consts::PI * 1.25f64.powi(3);
     assert!(
         (v - expected).abs() < 1e-9,
@@ -229,14 +230,16 @@ fn d4_reversed_data_lines_still_assemble() {
         topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .enclosure.volume;
+    .enclosure
+    .volume;
     let v2 = topo::mass_properties(
         &topo::test_support::finished("the measured body", reference.clone(), Tol::witness()),
         Tol::witness(),
         topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .enclosure.volume;
+    .enclosure
+    .volume;
     assert_eq!(v1.to_bits(), v2.to_bits());
     let e1 = export(&body, "die");
     let body2 = solid(&e1, "reversed die reimport");
@@ -276,14 +279,16 @@ fn d4_renumbered_kiss_assembly_still_assembles() {
         topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .enclosure.volume;
+    .enclosure
+    .volume;
     let v2 = topo::mass_properties(
         &topo::test_support::finished("the measured body", reference.clone(), Tol::witness()),
         Tol::witness(),
         topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .enclosure.volume;
+    .enclosure
+    .volume;
     assert_eq!(v1.to_bits(), v2.to_bits());
     let e1 = export(&body, "kiss_assembly");
     let body2 = solid(&e1, "renumbered kiss reimport");
@@ -355,7 +360,8 @@ fn f6_reversed_face_unflip_is_not_healed() {
                 topo::test_support::pinned_resolution(Tol::witness()),
             )
             .unwrap()
-            .enclosure.volume;
+            .enclosure
+            .volume;
             let v0 = topo::mass_properties(
                 &topo::test_support::finished(
                     "the measured body",
@@ -366,7 +372,8 @@ fn f6_reversed_face_unflip_is_not_healed() {
                 topo::test_support::pinned_resolution(Tol::witness()),
             )
             .unwrap()
-            .enclosure.volume;
+            .enclosure
+            .volume;
             // Finding data, not a hard assert: tier-3 detectability of a
             // curved-face sense flip is kernel scope, not import scope.
             println!(
@@ -505,14 +512,16 @@ fn g7_nonunit_vector_rescales_without_moving_the_solid() {
             topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
-        .enclosure.volume,
+        .enclosure
+        .volume,
         topo::mass_properties(
             &topo::test_support::finished("the measured body", (b).clone(), Tol::witness()),
             Tol::witness(),
             topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
-        .enclosure.volume,
+        .enclosure
+        .volume,
         "the line's parameter scale is not the line"
     );
     for bad in ["0.0", "-2.0"] {
@@ -578,7 +587,8 @@ fn e5_closed_forms() {
         topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .enclosure.volume;
+    .enclosure
+    .volume;
     let expected: f64 = 987904868.2836792e-9;
     let ulp = expected.next_up() - expected;
     println!(
@@ -590,7 +600,8 @@ fn e5_closed_forms() {
             topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
-        .enclosure.volume_pad
+        .enclosure
+        .volume_pad
     );
 }
 
@@ -619,7 +630,8 @@ fn h8_eps_in_not_consumed() {
             topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
-        .enclosure.volume;
+        .enclosure
+        .volume;
         assert_eq!(
             v.to_bits(),
             1.0f64.to_bits(),

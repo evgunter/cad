@@ -95,7 +95,14 @@ fn stacked_plates_scenario<T: Decide + geom_core::CertifiedBounds + topo::AtRest
 fn stacked_plates_full_face_rest() {
     let g = stacked_plates_scenario::<f64>();
     assert_eq!(
-        mass_properties(&g.body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap().enclosure.volume,
+        mass_properties(
+            &g.body,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness())
+        )
+        .unwrap()
+        .enclosure
+        .volume,
         8.0,
         "exact dyadic volume additivity"
     );
@@ -112,13 +119,27 @@ fn three_plate_chain() {
     let g12 = glue(&p1, &p2);
     assert_glued(&g12);
     assert_eq!(
-        mass_properties(&g12.body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap().enclosure.volume,
+        mass_properties(
+            &g12.body,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness())
+        )
+        .unwrap()
+        .enclosure
+        .volume,
         8.0
     );
     let g123 = glue(&g12.body, &p3);
     assert_glued(&g123);
     assert_eq!(
-        mass_properties(&g123.body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap().enclosure.volume,
+        mass_properties(
+            &g123.body,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness())
+        )
+        .unwrap()
+        .enclosure
+        .volume,
         12.0
     );
     assert_eq!(g123.body.faces().count(), 6, "still a plain brick");
@@ -150,11 +171,25 @@ fn corner_flush_scenario<T: Decide + geom_core::CertifiedBounds + topo::AtRestPo
 fn corner_flush_rest_union_builds() {
     let (g, sub) = corner_flush_scenario::<f64>();
     assert_eq!(
-        mass_properties(&g.body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap().enclosure.volume,
+        mass_properties(
+            &g.body,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness())
+        )
+        .unwrap()
+        .enclosure
+        .volume,
         18.0
     );
     assert_eq!(
-        mass_properties(&sub.body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap().enclosure.volume,
+        mass_properties(
+            &sub.body,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness())
+        )
+        .unwrap()
+        .enclosure
+        .volume,
         16.0
     );
 }
@@ -181,9 +216,14 @@ fn annular_rest_contact_unions_exactly_additively() {
     let BooleanResult::Body(b) = out else {
         panic!("a stacked-tube union cannot be empty");
     };
-    let v = topo::mass_properties(&b.body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-        .unwrap()
-        .enclosure.volume;
+    let v = topo::mass_properties(
+        &b.body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap()
+    .enclosure
+    .volume;
     assert_eq!(v, 16.0, "exactly additive: two 8-volume tube rings");
     if let Err(errs) = topo::validate_geometric(&b.body, Tol::witness()) {
         panic!("the stacked tube must be tier-3 valid: {errs:?}");
@@ -211,7 +251,14 @@ fn rest_subtract_and_intersect_resolve_structurally() {
         BooleanResult::Body(sub) => {
             assert_eq!(sub.kind, BooleanResultKind::OperandA);
             assert_eq!(
-                mass_properties(&sub.body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap().enclosure.volume,
+                mass_properties(
+                    &sub.body,
+                    Tol::witness(),
+                    topo::test_support::pinned_resolution(Tol::witness())
+                )
+                .unwrap()
+                .enclosure
+                .volume,
                 0.9375
             );
         }

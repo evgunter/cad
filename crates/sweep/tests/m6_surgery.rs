@@ -282,7 +282,12 @@ fn the_pipped_cube_fillets_in_place_with_rings_carried() {
     assert_eq!(body.edges().count(), 48 + 21 * 4);
     assert_eq!(body.faces().count(), 26 + 21 * 2);
     let want = blank_volume() - 21.0 * cap(PIP_R, PIP_H);
-    let props = topo::test_support::unmigrated_measure(&body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap();
+    let props = topo::test_support::unmigrated_measure(
+        &body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap();
     assert!(
         (props.enclosure.volume - want).abs() <= 1e-9 * want,
         "volume {} vs closed form {want}",
@@ -336,7 +341,12 @@ fn the_composed_die_certifies_and_tessellates_watertight() {
     assert_eq!(die.edges().count(), 48 + 21 * 6);
     assert_eq!(die.faces().count(), 26 + 21 * 3);
     let want = blank_volume() - 21.0 * (cap(PIP_R, PIP_H) + rim_fillet_extra(PIP_R, PIP_H, RIM_R));
-    let props = topo::test_support::unmigrated_measure(&die, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap();
+    let props = topo::test_support::unmigrated_measure(
+        &die,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap();
     assert!(
         (props.enclosure.volume - want).abs() <= 1e-9 * want,
         "composed volume {} vs closed form {want} (diff {})",
@@ -347,7 +357,9 @@ fn the_composed_die_certifies_and_tessellates_watertight() {
     let mesh = mesh::tessellate(&die, 5e-3, Tol::witness()).expect("the composed die tessellates");
     mesh::validate::check_mesh(&mesh).expect("watertight");
     let v_mesh = mesh::validate::signed_volume(&mesh);
-    assert!(v_mesh > 0.0 && ((v_mesh - props.enclosure.volume) / props.enclosure.volume).abs() < 5e-3);
+    assert!(
+        v_mesh > 0.0 && ((v_mesh - props.enclosure.volume) / props.enclosure.volume).abs() < 5e-3
+    );
 }
 
 /// The composed die: pips first (one certified group op), then the
@@ -383,12 +395,22 @@ fn the_composed_die_replays_bit_identically() {
     let a = composed_die();
     let b = composed_die();
     let (va, vb) = (
-        topo::test_support::unmigrated_measure(&a, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-            .unwrap()
-            .enclosure.volume,
-        topo::test_support::unmigrated_measure(&b, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-            .unwrap()
-            .enclosure.volume,
+        topo::test_support::unmigrated_measure(
+            &a,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
+        )
+        .unwrap()
+        .enclosure
+        .volume,
+        topo::test_support::unmigrated_measure(
+            &b,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
+        )
+        .unwrap()
+        .enclosure
+        .volume,
     );
     assert_eq!(va.to_bits(), vb.to_bits(), "volume bits");
     assert_eq!(

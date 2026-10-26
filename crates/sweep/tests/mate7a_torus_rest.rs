@@ -185,9 +185,14 @@ fn peg_in_socket_union_holds(s: &AtRestBody<f64>, p: &AtRestBody<f64>) {
         "the at-rest certificate"
     );
     let vol = |b: &Body<f64>| {
-        topo::test_support::unmigrated_measure(b, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-            .unwrap()
-            .enclosure.volume
+        topo::test_support::unmigrated_measure(
+            b,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
+        )
+        .unwrap()
+        .enclosure
+        .volume
     };
     let (v, want) = (vol(&bb.body), vol(s) + vol(p));
     assert!(
@@ -353,9 +358,14 @@ fn subtract_and_intersect_on_the_torus_rest_fixtures() {
         match (r, want) {
             (Ok(BooleanResult::Empty), None) => {}
             (Ok(BooleanResult::Body(bb)), Some(want)) => {
-                let v = topo::mass_properties(&bb.body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-                    .unwrap()
-                    .enclosure.volume;
+                let v = topo::mass_properties(
+                    &bb.body,
+                    Tol::witness(),
+                    topo::test_support::pinned_resolution(Tol::witness()),
+                )
+                .unwrap()
+                .enclosure
+                .volume;
                 assert!(
                     (v - want).abs() <= 1e-12 * want,
                     "{what}: volume {v} against Pappus {want}"

@@ -118,9 +118,17 @@ fn door_agrees_with_the_subtract_fallback() {
         topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap();
-    let pb = mass_properties(&bb.body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap();
+    let pb = mass_properties(
+        &bb.body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap();
     assert_eq!(pd.enclosure.volume.to_bits(), pb.enclosure.volume.to_bits());
-    assert_eq!(pd.enclosure.surface_area.to_bits(), pb.enclosure.surface_area.to_bits());
+    assert_eq!(
+        pd.enclosure.surface_area.to_bits(),
+        pb.enclosure.surface_area.to_bits()
+    );
 }
 
 /// Planted corruption: every dishonest evidence shape refuses typed,

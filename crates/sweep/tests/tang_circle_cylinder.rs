@@ -150,9 +150,14 @@ fn assert_body(label: &str, body: &Body<f64>, expected: f64) {
         Ok(()),
         "{label}: validate_geometric"
     );
-    let v = topo::test_support::unmigrated_measure(body, tol, topo::test_support::pinned_resolution(tol))
-        .unwrap_or_else(|e| panic!("{label}: mass properties, got {e:?}"))
-        .enclosure.volume;
+    let v = topo::test_support::unmigrated_measure(
+        body,
+        tol,
+        topo::test_support::pinned_resolution(tol),
+    )
+    .unwrap_or_else(|e| panic!("{label}: mass properties, got {e:?}"))
+    .enclosure
+    .volume;
     assert!(
         (v - expected).abs() <= 1e-9 * expected.max(1.0),
         "{label}: volume {v} against the closed form {expected}"

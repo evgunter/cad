@@ -168,15 +168,6 @@ use crate::patch_bound::{certified_inf, certified_sup};
 
 /// The initial piece count of the composite rule (round 0).
 pub(super) const QUAD_INIT_PIECES: usize = 16;
-/// The reporting target as a multiple of ε, metered as the mean
-/// boundary displacement `width(flux)/(3·area)` ([`mean_boundary_displacement`]).
-/// Not 1·ε: the width floor is set by the ε-scale endpoint and boundary
-/// slacks times the boundary length, so an ε-tight target would refuse
-/// every real face; three decades above the floor and far below display
-/// relevance is the useful band. No lane reads it: it is the caller's,
-/// and `topo`'s number doors pass it as their resolution until each
-/// takes its own caller's.
-pub const QUAD_TARGET_LEN_FACTOR: f64 = 1024.0;
 
 /// **The work a face may spend over all its rounds**, in weighted cell
 /// evaluations: the unit is a tenth of one cell of the rational lane's
@@ -5763,9 +5754,12 @@ pub fn trimmed_patch_face_rounds<T: Decide>(
 #[cfg(test)]
 pub(super) mod test_target {
     use super::{
-        FaceCutBounds, LaneEnd, LaneRun, LaneStop, PropsError, QUAD_TARGET_LEN_FACTOR,
-        mean_boundary_displacement,
+        FaceCutBounds, LaneEnd, LaneRun, LaneStop, PropsError, mean_boundary_displacement,
     };
+
+    /// The resolution these rows stand their targets at, as a multiple
+    /// of ε: 1024·ε, the one `topo`'s suites read their pinned numbers at.
+    pub(in crate::props) const QUAD_TARGET_LEN_FACTOR: f64 = 1024.0;
 
     /// Accepts a round whose mean boundary displacement is at most
     /// `QUAD_TARGET_LEN_FACTOR·eps`: the reporting target, read as a
@@ -5871,7 +5865,7 @@ mod tests {
         truth_area: f64,
         slack: f64,
     ) -> EpsPosture {
-        let target = QUAD_TARGET_LEN_FACTOR * Tol::witness().get().eps;
+        let target = test_target::QUAD_TARGET_LEN_FACTOR * Tol::witness().get().eps;
         let run = match out {
             Ok(run) => run,
             Err(e) => panic!("{row}: unsound outcome {e:?}"),
@@ -6193,7 +6187,7 @@ mod tests {
         // number (at ε = 1e-6 a ~3e-2 width is a legitimately wider
         // certified enclosure, not a defect).
         let lever = (out.area.lo() + out.area.hi()) * 0.5;
-        let width_cap = QUAD_TARGET_LEN_FACTOR * eps * 3.0 * lever * 1.000001;
+        let width_cap = test_target::QUAD_TARGET_LEN_FACTOR * eps * 3.0 * lever * 1.000001;
         assert!(
             out.flux.width() <= width_cap,
             "width {} exceeds the lane's own converged target {width_cap} (eps {eps})",
@@ -7793,7 +7787,7 @@ mod tests {
             // wall — with an enclosure that still contains the oracle and
             // really missed its target, never a silently wide bracket,
             // never a silent skip.
-            let target = QUAD_TARGET_LEN_FACTOR * eps;
+            let target = test_target::QUAD_TARGET_LEN_FACTOR * eps;
             match cylinder_cut_face::<f64>(
                 pt(1.0),
                 Interval::zero(),
@@ -8088,7 +8082,7 @@ mod tests {
         // The chord polygon is integrated EXACTLY and a degree-1 image
         // IS its chord, so the only width here is outward rounding — the
         // target is four decades above it at every ε the matrix draws.
-        let target = QUAD_TARGET_LEN_FACTOR * Tol::witness().get().eps;
+        let target = test_target::QUAD_TARGET_LEN_FACTOR * Tol::witness().get().eps;
         assert!(
             b.flux.width() < target * 3.0 * b.area.lo(),
             "Q1: width {:e} is not inside the reporting target's own bound",

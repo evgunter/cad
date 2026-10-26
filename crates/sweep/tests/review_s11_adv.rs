@@ -30,9 +30,14 @@ use topo::boolean::{SolidContainment, point_in_solid};
 use topo::{Body, FaceKey};
 
 fn vol(body: &Body<f64>) -> f64 {
-    topo::test_support::unmigrated_measure(body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-        .unwrap()
-        .enclosure.volume
+    topo::test_support::unmigrated_measure(
+        body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap()
+    .enclosure
+    .volume
 }
 
 fn sense_of(body: &Body<f64>, f: FaceKey) -> bool {

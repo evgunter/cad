@@ -112,7 +112,12 @@ fn ball(x: f64, y: f64, rad: f64) -> AtRestBody<f64> {
 }
 
 fn volume(body: &Body<f64>) -> f64 {
-    let p = mass_properties(&at_rest(body, tol()), tol(), pncad::topo::Settle::Resolution(pncad::quantity::Length::from_meters(1.024e-6))).expect("mass properties");
+    let p = mass_properties(
+        &at_rest(body, tol()),
+        tol(),
+        pncad::topo::Settle::Resolution(pncad::quantity::Length::from_meters(1.024e-6)),
+    )
+    .expect("mass properties");
     assert_eq!(p.enclosure.volume_pad, 0.0, "closed-form faces only");
     p.enclosure.volume
 }
@@ -315,9 +320,14 @@ fn p4_a_ball_subtracted_into_a_revolves_cap_builds_its_closed_form() {
         .expect("a ball subtracted into the vase's top annulus builds");
     let body = &out.body().expect("material remains").body;
     validate_geometric(body, tol()).unwrap_or_else(|e| panic!("tier 3, got {e:?}"));
-    let got = mass_properties(body, tol(), pncad::topo::Settle::Resolution(pncad::quantity::Length::from_meters(1.024e-6)))
-        .expect("mass properties")
-        .enclosure.volume;
+    let got = mass_properties(
+        body,
+        tol(),
+        pncad::topo::Settle::Resolution(pncad::quantity::Length::from_meters(1.024e-6)),
+    )
+    .expect("mass properties")
+    .enclosure
+    .volume;
     // The vase by Pappus over its meridian, less the half ball.
     let want = 1.4135 * core::f64::consts::PI - 2.0 / 3.0 * core::f64::consts::PI * 0.08f64.powi(3);
     assert!(

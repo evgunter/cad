@@ -142,7 +142,12 @@ fn the_boss_dome_rims_meridians_run_pole_to_rim_and_the_carve_is_naming_total() 
             "{name}: every meridian's he_plus ENDS at its rim vertex, so the rim-side \
              piece of each split is a fresh key — this is what the fixture witnesses"
         );
-        let before = topo::test_support::unmigrated_measure(&source, tol(), topo::test_support::pinned_resolution(tol())).unwrap();
+        let before = topo::test_support::unmigrated_measure(
+            &source,
+            tol(),
+            topo::test_support::pinned_resolution(tol()),
+        )
+        .unwrap();
         let out = fillet_edges(
             &sweep::test_support::at_rest(&source, tol()),
             &arcs,
@@ -152,8 +157,16 @@ fn the_boss_dome_rims_meridians_run_pole_to_rim_and_the_carve_is_naming_total() 
         .unwrap_or_else(|e| panic!("{name} carves, got {e:?}"));
         validate_geometric(&out.body, tol())
             .unwrap_or_else(|e| panic!("{name} is tier-3 valid, got {e:?}"));
-        let after = topo::test_support::unmigrated_measure(&out.body, tol(), topo::test_support::pinned_resolution(tol())).unwrap();
-        assert_eq!(after.enclosure.volume_pad, 0.0, "{name}: closed-form faces only");
+        let after = topo::test_support::unmigrated_measure(
+            &out.body,
+            tol(),
+            topo::test_support::pinned_resolution(tol()),
+        )
+        .unwrap();
+        assert_eq!(
+            after.enclosure.volume_pad, 0.0,
+            "{name}: closed-form faces only"
+        );
         let want = if adds { form } else { -form };
         let measured = after.enclosure.volume - before.enclosure.volume;
         assert!(

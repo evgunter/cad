@@ -67,7 +67,14 @@ fn the_boss_union_lands_end_to_end() {
 
     // Volume: plate (16) + protruding boss (π·0.25·0.6), within the
     // exact-B-rep props' honesty.
-    let vol = topo::mass_properties(body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap().enclosure.volume;
+    let vol = topo::mass_properties(
+        body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap()
+    .enclosure
+    .volume;
     let expect = 16.0 + core::f64::consts::PI * 0.25 * 0.6;
     assert!(
         (vol - expect).abs() < 1e-6,

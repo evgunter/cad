@@ -94,9 +94,14 @@ impl Verb {
         }
         .map_err(|e| e.error)?;
         topo::validate_geometric(&out, tol()).unwrap_or_else(|e| panic!("{self:?}: tier 3, {e:?}"));
-        Ok(topo::test_support::unmigrated_measure(&out, tol(), topo::test_support::pinned_resolution(tol()))
-            .expect("a volume")
-            .enclosure.volume)
+        Ok(topo::test_support::unmigrated_measure(
+            &out,
+            tol(),
+            topo::test_support::pinned_resolution(tol()),
+        )
+        .expect("a volume")
+        .enclosure
+        .volume)
     }
 
     /// The section the band removes from a right dihedral.

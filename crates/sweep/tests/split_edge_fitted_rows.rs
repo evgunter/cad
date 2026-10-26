@@ -398,7 +398,12 @@ fn rows<T: Real>(body: &Body<T>) -> Vec<String> {
 fn the_mint_rederives_the_carried_rows_and_the_trimmed_lane_refuses_their_sub_range() {
     let (mut body, he, edge, chart) = general_seam_at_rest::<f64>();
     assert!(
-        topo::test_support::unmigrated_measure(&body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).is_ok(),
+        topo::test_support::unmigrated_measure(
+            &body,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness())
+        )
+        .is_ok(),
         "the trimmed lane measures the unsplit body"
     );
     let (t0, t1) = body.pcurve(he).unwrap().params();
@@ -413,7 +418,11 @@ fn the_mint_rederives_the_carried_rows_and_the_trimmed_lane_refuses_their_sub_ra
         "the mint derives the rows the split carried, bit for bit"
     );
     let wall = face_on(&body, chart);
-    match topo::test_support::unmigrated_measure(&body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())) {
+    match topo::test_support::unmigrated_measure(
+        &body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    ) {
         Err(topo::MassPropsError::Face {
             face,
             source: geom_brep::PropsError::QuadratureUnsupported { .. },

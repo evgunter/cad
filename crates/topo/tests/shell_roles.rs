@@ -58,9 +58,20 @@ fn cube_is_one_outer_shell() {
     assert_eq!(c.enclosure.volume_pad, 0.0);
     // The one shell IS the body: its flux is the whole-body flux,
     // bit-identical (same per-face contributions, same order).
-    let props = mass_properties(&body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap();
-    assert_eq!(c.enclosure.volume.to_bits(), props.enclosure.volume.to_bits());
-    assert_eq!(c.enclosure.surface_area.to_bits(), props.enclosure.surface_area.to_bits());
+    let props = mass_properties(
+        &body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap();
+    assert_eq!(
+        c.enclosure.volume.to_bits(),
+        props.enclosure.volume.to_bits()
+    );
+    assert_eq!(
+        c.enclosure.surface_area.to_bits(),
+        props.enclosure.surface_area.to_bits()
+    );
 }
 
 #[test]
@@ -92,7 +103,12 @@ fn voided_body_is_outer_plus_void() {
 fn per_shell_volumes_sum_to_the_body_volume() {
     let body = voided();
     let classes = classify_shells(&body, Tol::witness()).unwrap();
-    let props = mass_properties(&body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap();
+    let props = mass_properties(
+        &body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap();
     let sum: f64 = classes.iter().map(|c| c.enclosure.volume).sum();
     // 27 − 1: the whole-body walk visits the same faces with the same
     // closed forms; only the grouping differs.

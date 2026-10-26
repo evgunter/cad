@@ -412,8 +412,16 @@ fn the_overrun_carves_at_the_certified_scalar() {
             .unwrap_or_else(|e| panic!("{what}: builds at Interval, got {:?}", e.error));
         validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("{what}: tier 3, {e:?}"));
         assert_naming_totality(&ibody, &out, &iedges, &what);
-        let v0 = mass_properties(&ibody, tol(), topo::test_support::pinned_resolution(tol())).expect("props").enclosure.volume;
-        let p = topo::test_support::unmigrated_measure(&out.body, tol(), topo::test_support::pinned_resolution(tol())).expect("props");
+        let v0 = mass_properties(&ibody, tol(), topo::test_support::pinned_resolution(tol()))
+            .expect("props")
+            .enclosure
+            .volume;
+        let p = topo::test_support::unmigrated_measure(
+            &out.body,
+            tol(),
+            topo::test_support::pinned_resolution(tol()),
+        )
+        .expect("props");
         let (removed, pad) = (v0 - p.enclosure.volume, p.enclosure.volume_pad.hi());
         assert!(
             removed.lo() - pad <= want && want <= removed.hi() + pad,

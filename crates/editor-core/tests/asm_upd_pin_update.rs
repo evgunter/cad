@@ -172,9 +172,14 @@ fn pin_of(doc: &editor_core::ProfileDoc, node: RecipeNodeId) -> DocRef {
 }
 
 fn volume(body: &topo::Body<f64>) -> f64 {
-    topo::test_support::unmigrated_measure(body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-        .expect("mass properties")
-        .enclosure.volume
+    topo::test_support::unmigrated_measure(
+        body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .expect("mass properties")
+    .enclosure
+    .volume
 }
 
 /// The assembly's whole-product volume, gathered through the shelf.

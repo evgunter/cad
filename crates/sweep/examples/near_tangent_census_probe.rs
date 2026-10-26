@@ -326,7 +326,10 @@ fn main() {
             continue;
         }
         let body = pr.body(tol());
-        let va = mass_properties(&body, tol(), topo::test_support::pinned_resolution(tol())).unwrap().enclosure.volume;
+        let va = mass_properties(&body, tol(), topo::test_support::pinned_resolution(tol()))
+            .unwrap()
+            .enclosure
+            .volume;
         for (j, &a) in (0..3).flat_map(|j| sixteenths.iter().map(move |a| (j, a))) {
             for &d in &ds {
                 let tag = format!("{} nt e{j} a{a} d{d:e}", pr.name);

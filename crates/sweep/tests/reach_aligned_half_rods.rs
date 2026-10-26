@@ -47,9 +47,14 @@ fn rod(z0: f64, phase: f64) -> AtRestBody<f64> {
 }
 
 fn volume(body: &Body<f64>) -> f64 {
-    topo::test_support::unmigrated_measure(body, tol(), topo::test_support::pinned_resolution(tol()))
-        .unwrap()
-        .enclosure.volume
+    topo::test_support::unmigrated_measure(
+        body,
+        tol(),
+        topo::test_support::pinned_resolution(tol()),
+    )
+    .unwrap()
+    .enclosure
+    .volume
 }
 
 /// A boolean that must build a body of volume `expect` (closed form),

@@ -8,9 +8,8 @@
 //! outside chord makes), and its volume is the closed form wherever the
 //! volume answers. On main's pairing (the book's rule on curved faces)
 //! every row goes red on its section faces; the volumes are right on
-//! both, by cancellation. A volume refusal (`props_quad_converged`
-//! escalations, `QuadratureBudget`) is the props lane's and is printed,
-//! not failed.
+//! both, by cancellation. A volume refusal is the props lane's and is
+//! printed, not failed.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common::bores::turned_cylinder;
@@ -369,7 +368,11 @@ fn a_keyed_cylinder_from_subtract_splits_into_counter_clockwise_sections() {
                     continue;
                 }
             };
-            let total = topo::mass_properties(&body, tol(), topo::test_support::pinned_resolution(tol())).unwrap().enclosure.volume;
+            let total =
+                topo::mass_properties(&body, tol(), topo::test_support::pinned_resolution(tol()))
+                    .unwrap()
+                    .enclosure
+                    .volume;
             for tilt in [0.0, 1.0, 1.2, 1.4] {
                 for (o, phi) in [([0.0, 0.0, 1.25], 0.0), ([0.0, 0.3, 1.25], 1.3)] {
                     for flip in [false, true] {

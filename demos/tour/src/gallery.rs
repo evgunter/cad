@@ -483,9 +483,14 @@ mod tests {
             26 + 21 * 3,
             "the product is the composed die's own face count, not it plus a blank"
         );
-        let volume = mass_properties(&crate::booleans::at_rest(&product, tol), tol, crate::printed())
-            .expect("the product has mass properties")
-            .enclosure.volume;
+        let volume = mass_properties(
+            &crate::booleans::at_rest(&product, tol),
+            tol,
+            crate::printed(),
+        )
+        .expect("the product has mass properties")
+        .enclosure
+        .volume;
         // MEASURED, not a closed form: the scene closes the BLANK's
         // volume in `diefillet::blank_volume` (core + slabs + quarter
         // cylinders + octants), and the composed die — 21 spherical

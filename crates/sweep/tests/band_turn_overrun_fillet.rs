@@ -708,8 +708,14 @@ fn the_overrun_carves_at_the_certified_scalar() {
             .unwrap_or_else(|e| panic!("{what}: builds at Interval, got {:?}", e.error));
         validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("{what}: tier 3, {e:?}"));
         assert_naming_totality(&ibody, &out, &iedges, &what);
-        let v0 = mass_properties(&ibody, tol(), topo::test_support::pinned_resolution(tol())).expect("props");
-        let p = topo::test_support::unmigrated_measure(&out.body, tol(), topo::test_support::pinned_resolution(tol())).expect("props");
+        let v0 = mass_properties(&ibody, tol(), topo::test_support::pinned_resolution(tol()))
+            .expect("props");
+        let p = topo::test_support::unmigrated_measure(
+            &out.body,
+            tol(),
+            topo::test_support::pinned_resolution(tol()),
+        )
+        .expect("props");
         let removed = v0.enclosure.volume - p.enclosure.volume;
         let pad = v0.enclosure.volume_pad.hi() + p.enclosure.volume_pad.hi();
         assert!(

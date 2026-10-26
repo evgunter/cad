@@ -31,7 +31,8 @@ fn main() {
         Err(errs) => println!("validate_geometric: {} error(s): {errs:?}", errs.len()),
     }
     let body = pncad::topo::AtRestBody::validate(body, tol).expect("the loft prism passes tier 3");
-    let m = mass_properties(&body, tol, topo::test_support::pinned_resolution(tol)).expect("mass properties certify");
+    let m = mass_properties(&body, tol, topo::test_support::pinned_resolution(tol))
+        .expect("mass properties certify");
     println!(
         "volume {:.17e} ({:#018x}) pad {:.17e} ({:#018x})",
         m.enclosure.volume,

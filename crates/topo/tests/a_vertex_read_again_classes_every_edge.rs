@@ -1188,7 +1188,10 @@ fn probe_material(
             [r * c, r * s, z]
         })
         .collect();
-    let vol = |b: &AtRestBody<f64>| mass_properties(b, t(), topo::test_support::pinned_resolution(t())).map(|m| m.enclosure.volume);
+    let vol = |b: &AtRestBody<f64>| {
+        mass_properties(b, t(), topo::test_support::pinned_resolution(t()))
+            .map(|m| m.enclosure.volume)
+    };
     let (Ok(vx), Ok(vy)) = (vol(x.0), vol(y.0)) else {
         tally.bad.push(format!("{label}: an operand's volume"));
         return;

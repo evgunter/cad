@@ -29,7 +29,8 @@ fn vol(b: &topo::Body<f64>) -> f64 {
         topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .enclosure.volume
+    .enclosure
+    .volume
 }
 
 fn bbox(b: &topo::Body<f64>) -> [f64; 6] {

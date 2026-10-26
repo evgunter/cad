@@ -58,14 +58,35 @@ fn plate_with_bores() -> AtRestBody<f64> {
 fn two_peg_plate_union_is_exactly_additive() {
     let p = plate_with_pegs();
     let q = plate_with_bores();
-    let vp = mass_properties(&p, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap().enclosure.volume;
-    let vq = mass_properties(&q, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap().enclosure.volume;
+    let vp = mass_properties(
+        &p,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap()
+    .enclosure
+    .volume;
+    let vq = mass_properties(
+        &q,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap()
+    .enclosure
+    .volume;
     let out = topo::union(&p, &q, Tol::witness()).expect("the two-peg kernel path unions");
     let BooleanResult::Body(bb) = out else {
         panic!("a two-peg union cannot be empty");
     };
     let body = bb.body;
-    let v = mass_properties(&body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap().enclosure.volume;
+    let v = mass_properties(
+        &body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap()
+    .enclosure
+    .volume;
     assert_eq!(v, vp + vq, "exactly additive (the C7-lane statement)");
     // And the closed form: the peg and bore π-terms cancel exactly —
     // vol(P) + vol(Q) = (24 + π/2) + (24 − π/2) = 48, bitwise.
@@ -166,14 +187,35 @@ fn quarter_round_above() -> AtRestBody<f64> {
 fn kissing_rounds_rim_unions_and_carries_the_tangent_intersection() {
     let a = quarter_round_below();
     let b = quarter_round_above();
-    let va = mass_properties(&a, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap().enclosure.volume;
-    let vb = mass_properties(&b, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap().enclosure.volume;
+    let va = mass_properties(
+        &a,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap()
+    .enclosure
+    .volume;
+    let vb = mass_properties(
+        &b,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap()
+    .enclosure
+    .volume;
     let out = topo::union(&a, &b, Tol::witness()).expect("the kissing-rounds union runs");
     let BooleanResult::Body(bb) = out else {
         panic!("a kissing-rounds union cannot be empty");
     };
     let body = bb.body;
-    let v = mass_properties(&body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap().enclosure.volume;
+    let v = mass_properties(
+        &body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap()
+    .enclosure
+    .volume;
     // Additive to re-association rounding: the seam chord at x = 0.5
     // SPLITS A's top face, so the same per-edge flux terms are summed
     // in a different association — each term is O(V) and one
@@ -335,13 +377,27 @@ fn wide_slab_below() -> AtRestBody<f64> {
 fn a_tangent_curved_sector_on_a_face_lumps_whole() {
     let a = wide_slab_below();
     let b = quarter_round_above();
-    let va = mass_properties(&a, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap().enclosure.volume;
+    let va = mass_properties(
+        &a,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap()
+    .enclosure
+    .volume;
     let diff = topo::subtract(&a, &b, Tol::witness())
         .expect("the tangent sector lumps and the difference runs");
     let BooleanResult::Body(diff) = diff else {
         panic!("the slab minus a body resting on it is the slab, not empty");
     };
-    let v = mass_properties(&diff.body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap().enclosure.volume;
+    let v = mass_properties(
+        &diff.body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap()
+    .enclosure
+    .volume;
     assert!(
         (v - va).abs() <= 4.0 * va * f64::EPSILON,
         "the slab minus the round is the slab: {v} vs {va}"

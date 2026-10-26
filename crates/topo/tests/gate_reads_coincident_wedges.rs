@@ -52,7 +52,10 @@ fn a_slanted_edge_leaving_a_kiss_line_is_not_read_on_it() {
             else {
                 panic!("{what}, {order}: empty");
             };
-            let v = topo::mass_properties(&r.body, t(), topo::test_support::pinned_resolution(t())).unwrap().enclosure.volume;
+            let v = topo::mass_properties(&r.body, t(), topo::test_support::pinned_resolution(t()))
+                .unwrap()
+                .enclosure
+                .volume;
             assert!((v - 3.5).abs() < 1e-9, "{what}, {order}: volume {v}");
         }
     }

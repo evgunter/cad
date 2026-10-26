@@ -116,9 +116,14 @@ fn answers(
             "{what}, {:?}: tier 3",
             w.op
         );
-        let m = topo::mass_properties(&b.body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).expect("the volume integrates");
+        let m = topo::mass_properties(
+            &b.body,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
+        )
+        .expect("the volume integrates");
         assert!(
-            (m.enclosure.volume - w.volume).abs() <= volume_slack(&m, w.volume),
+            (m.enclosure.volume - w.volume).abs() <= volume_slack(&m.enclosure, w.volume),
             "{what}, {:?}: volume {} against the closed form {}",
             w.op,
             m.enclosure.volume,

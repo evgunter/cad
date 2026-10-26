@@ -67,9 +67,14 @@ fn placed(b: &Body<f64>, pose: &Affine3<f64>) -> AtRestBody<f64> {
 }
 
 fn volume(b: &Body<f64>) -> f64 {
-    topo::test_support::unmigrated_measure(b, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-        .unwrap()
-        .enclosure.volume
+    topo::test_support::unmigrated_measure(
+        b,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap()
+    .enclosure
+    .volume
 }
 
 /// The collar's closed-form volume, `π(R² − r²)·h`.

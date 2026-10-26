@@ -97,16 +97,30 @@ fn r1_a_distant_box_does_not_lever_the_vessels_margins() {
     );
     let wall = core::f64::consts::PI * (r * r * h - (r - t) * (r - t) * (h - 2.0 * t));
     let (alone, far) = (
-        topo::test_support::unmigrated_measure(&alone, tol(), topo::test_support::pinned_resolution(tol())).expect("props"),
-        topo::test_support::unmigrated_measure(&far, tol(), topo::test_support::pinned_resolution(tol())).expect("props"),
+        topo::test_support::unmigrated_measure(
+            &alone,
+            tol(),
+            topo::test_support::pinned_resolution(tol()),
+        )
+        .expect("props"),
+        topo::test_support::unmigrated_measure(
+            &far,
+            tol(),
+            topo::test_support::pinned_resolution(tol()),
+        )
+        .expect("props"),
     );
     println!(
         "[r1] vessel alone {:.12}, in a far pair {:.12}, closed form {:.12}, stored box {:.15}",
         alone.enclosure.volume, far.enclosure.volume, wall, far_box
     );
-    assert!((alone.enclosure.volume - wall).abs() < 1e-12, "the vessel's own wall");
     assert!(
-        (far.enclosure.volume - (alone.enclosure.volume + far_box)).abs() <= far.enclosure.volume_pad + alone.enclosure.volume_pad + 1e-12,
+        (alone.enclosure.volume - wall).abs() < 1e-12,
+        "the vessel's own wall"
+    );
+    assert!(
+        (far.enclosure.volume - (alone.enclosure.volume + far_box)).abs()
+            <= far.enclosure.volume_pad + alone.enclosure.volume_pad + 1e-12,
         "the pair is the vessel's wall and the stored box's exact volume: {} against {} + {far_box}",
         far.enclosure.volume,
         alone.enclosure.volume

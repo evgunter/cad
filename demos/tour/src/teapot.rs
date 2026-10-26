@@ -237,15 +237,13 @@
 //!    **The sections are ROUND, so the volume is an ENCLOSURE.** A
 //!    circle is RATIONAL, so these lateral walls are rational patches,
 //!    and a rational patch is a QUADRATURE face whose certified
-//!    enclosure is chased to a reporting target derived from ε. Every
-//!    ε the tour runs meets that target: at ε = 1e-12 the volume's
-//!    half-width is 8.1e-12 m³. Where a tighter ε refuses
-//!    `QuadratureBudget`, tier 3 still certifies the body on the
+//!    enclosure is chased to the tour's printed precision. Where it is
+//!    not met, tier 3 still certifies the body on the
 //!    enclosure's SIGN — the tier's own docs say deciding that sign "is
 //!    an act of certification rather than a measurement" — and the
 //!    scene measures through the certificate the tier hands back, so it
-//!    holds the skin's reference to the narrowest bracket the
-//!    certificate or its continuation kept. A polygon's sides are
+//!    holds the skin's reference to the bracket the measurement
+//!    reached. A polygon's sides are
 //!    straight, so octagonal sections would make polynomial walls with
 //!    the integral lane's exact per-span rule, the one `twisted_tube`
 //!    next door takes; the shape a potter draws is round.
@@ -396,12 +394,11 @@ const _: () = assert!(SPOUT_STATIONS == 7);
 /// **The sections are ROUND, so this body's volume is an ENCLOSURE.**
 /// A circle is RATIONAL, so these lateral walls are rational patches,
 /// and a rational patch is a QUADRATURE face whose certified enclosure
-/// is chased to `QUAD_TARGET_LEN_FACTOR·ε`. Every ε the tour runs meets
-/// that target, and the scene holds the enclosure to the skin's own
-/// integrated volume (`patch_quadrature`). Where a tighter ε refuses
-/// `QuadratureBudget`, tier 3 still certifies the body on the
-/// enclosure's SIGN, and the scene holds the same reference to the
-/// bracket the certificate keeps.
+/// is chased to the tour's printed precision. Where it is met the scene
+/// holds the enclosure to the skin's own integrated volume
+/// (`patch_quadrature`); where it is not, tier 3 still certifies the
+/// body on the enclosure's SIGN, and the scene holds the same reference
+/// to the bracket the measurement reached.
 const SPOUT_ARCS: u32 = 4;
 /// **The spout's total bend**, root tangent to tip tangent: half a
 /// right angle. The canal leaves the belly on [`SPOUT_DIR`] and
@@ -1727,7 +1724,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     let a_want = pot_area(0.0) + pot_area(WALL);
     // Finished once: the props and the shell roles below both read it.
     let pot_at_rest = crate::booleans::at_rest(&pot, tol);
-    let props = pncad::topo::mass_properties(&pot_at_rest, tol, crate::printed()).expect("the pot's props");
+    let props =
+        pncad::topo::mass_properties(&pot_at_rest, tol, crate::printed()).expect("the pot's props");
     assert!(
         ((props.enclosure.volume - v_want) / v_want).abs() < 1e-12,
         "pot V = {} vs the wall's own closed form {v_want}",
@@ -1975,9 +1973,12 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         "the note narrates V = 5369π/3·256⁻³ = {v_note} and A = (453 + 52√10)π·256⁻² = \
          {a_note}; the stations now give {v_lid} and {a_lid}"
     );
-    let sharp_lid_props =
-        pncad::topo::mass_properties(&crate::booleans::at_rest(&plain_lid, tol), tol, crate::printed())
-            .expect("the lid's props");
+    let sharp_lid_props = pncad::topo::mass_properties(
+        &crate::booleans::at_rest(&plain_lid, tol),
+        tol,
+        crate::printed(),
+    )
+    .expect("the lid's props");
     assert!(
         ((sharp_lid_props.enclosure.volume - v_lid) / v_lid).abs() < 1e-12,
         "lid V = {} vs the closed form {v_lid}",
@@ -1988,8 +1989,12 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         "lid A = {} vs the closed form {a_lid}",
         sharp_lid_props.enclosure.surface_area
     );
-    let lid_props = pncad::topo::mass_properties(&crate::booleans::at_rest(&rolled, tol), tol, crate::printed())
-        .expect("the rolled lid");
+    let lid_props = pncad::topo::mass_properties(
+        &crate::booleans::at_rest(&rolled, tol),
+        tol,
+        crate::printed(),
+    )
+    .expect("the rolled lid");
     let dv_lid = sharp_lid_props.enclosure.volume - lid_props.enclosure.volume;
     // Three convex rims now, so the bound is the three corner squares
     // swept round their own rims.
@@ -2306,8 +2311,12 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     let handle = body_at(&ev, r.handle);
     let v_handle = sweep * HANDLE_R * PI * HANDLE_TUBE * HANDLE_TUBE;
     let a_handle = sweep * HANDLE_R * 2.0 * PI * HANDLE_TUBE + 2.0 * PI * HANDLE_TUBE * HANDLE_TUBE;
-    let handle_props = pncad::topo::mass_properties(&crate::booleans::at_rest(&handle, tol), tol, crate::printed())
-        .expect("the handle's props");
+    let handle_props = pncad::topo::mass_properties(
+        &crate::booleans::at_rest(&handle, tol),
+        tol,
+        crate::printed(),
+    )
+    .expect("the handle's props");
     assert!(
         ((handle_props.enclosure.volume - v_handle) / v_handle).abs() < 1e-12,
         "handle V = {} vs Pappus on the disc {v_handle}",
@@ -2386,8 +2395,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         1,
         "the mouth disc comes back as ONE rim face"
     );
-    let cup_props = pncad::topo::mass_properties(&crate::booleans::at_rest(&cup, tol), tol, crate::printed())
-        .expect("the cup's props");
+    let cup_props =
+        pncad::topo::mass_properties(&crate::booleans::at_rest(&cup, tol), tol, crate::printed())
+            .expect("the cup's props");
     // The cup is the sealed wall LESS the disc of wall the mouth cap
     // was: opening lifts the cavity's cap from the mouth plane's own
     // station minus a wall, up to the plane.

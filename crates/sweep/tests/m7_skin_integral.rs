@@ -387,7 +387,12 @@ fn nonuniform_prism_loft_body_matches_the_derived_volume() {
         Ok(()),
         "tier 3 at rest"
     );
-    let m = topo::test_support::unmigrated_measure(body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).expect("mass properties");
+    let m = topo::test_support::unmigrated_measure(
+        body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .expect("mass properties");
     assert!(
         (m.enclosure.volume - 12.0).abs() <= m.enclosure.volume_pad + 1e-9,
         "volume {} ± {} must bracket the derived 12",
@@ -485,7 +490,12 @@ fn curved_path_sweep_body_builds_validates_and_brackets_pappus() {
         "tier 3 at rest"
     );
 
-    let m = topo::test_support::unmigrated_measure(body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).expect("mass properties");
+    let m = topo::test_support::unmigrated_measure(
+        body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .expect("mass properties");
     let pappus = (2.0 * ELBOW_H) * (2.0 * ELBOW_H) * ELBOW_R * FRAC_PI_2;
     let rel = ((m.enclosure.volume - pappus) / pappus).abs();
     assert!(

@@ -568,8 +568,8 @@ pub use topo::{
 // type rule (the `coherence` note below) says a caller able to hold it
 // must be able to spell it.
 pub use topo::{
-    HeldCertificate, MassProperties, MassPropsError, Measured, RelOp, RoleNames, Settle,
-    SignNames, Stop, Verdict, VolumeEnclosure, mass_properties,
+    HeldCertificate, MassProperties, MassPropsError, Measured, RelOp, RoleNames, Settle, SignNames,
+    Stop, Verdict, VolumeEnclosure, mass_properties,
 };
 
 // --- 7. Tessellation and export -------------------------------

@@ -149,7 +149,8 @@ fn tiny_real_sliver_not_wrongly_refused() {
         topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .enclosure.volume;
+    .enclosure
+    .volume;
     let expect = 2.0 * h * h / (1.0 + h);
     assert!(
         (va - expect).abs() <= 1e-6 * expect,

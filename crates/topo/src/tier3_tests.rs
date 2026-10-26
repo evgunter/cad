@@ -3047,7 +3047,12 @@ fn an_inside_out_part_beside_an_ordinary_one_refuses_by_name() {
         panic!("two cubes are two solids");
     };
     // Raw door: the measured body is an inside-out body, which tier 3 refuses (NegativeVolume).
-    let total = crate::test_support::measure_unvalidated(&body, tol, crate::test_support::pinned_resolution(tol)).expect("both cubes measure");
+    let total = crate::test_support::measure_unvalidated(
+        &body,
+        tol,
+        crate::test_support::pinned_resolution(tol),
+    )
+    .expect("both cubes measure");
     assert!(
         total.enclosure.volume > 0.0,
         "the fixture's point is a POSITIVE total: {}",
@@ -3248,9 +3253,14 @@ fn a_solid_holding_several_outer_shells_refuses() {
 
     // Raw door: the measured body is a solid filed with two outer shells, which tier 3 refuses (SolidOuterShells).
     assert!(
-        crate::test_support::measure_unvalidated(&body, tol, crate::test_support::pinned_resolution(tol))
-            .expect("the cubes measure")
-            .enclosure.volume
+        crate::test_support::measure_unvalidated(
+            &body,
+            tol,
+            crate::test_support::pinned_resolution(tol)
+        )
+        .expect("the cubes measure")
+        .enclosure
+        .volume
             > 0.0,
         "check 7's subject is this solid, and its volume is positive"
     );

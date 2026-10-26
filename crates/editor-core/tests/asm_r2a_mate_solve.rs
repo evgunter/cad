@@ -313,9 +313,14 @@ fn row1_a_coaxial_slid_and_clocked_pair_is_determined_and_evaluates() {
     let ev = run(&doc, &o);
     assert!(matches!(ev.result(ids[1]), Some(NodeResult::Ok(_))));
     let body = product(&doc, &ev, Tol::witness()).expect("the product gathers");
-    let volume = topo::test_support::unmigrated_measure(&body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-        .expect("mass properties")
-        .enclosure.volume;
+    let volume = topo::test_support::unmigrated_measure(
+        &body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .expect("mass properties")
+    .enclosure
+    .volume;
     assert!(
         (volume - 2.0).abs() < 1e-9,
         "two unit blocks, apart, gather whole: {volume}"
@@ -338,9 +343,14 @@ fn row1_evaluation_and_save_bytes_are_bit_identical_across_runs() {
     let second = run(&doc, &o);
     let volume = |ev: &Evaluation<f64>| {
         let body = product(&doc, ev, Tol::witness()).expect("gathers");
-        topo::test_support::unmigrated_measure(&body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-            .expect("props")
-            .enclosure.volume
+        topo::test_support::unmigrated_measure(
+            &body,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
+        )
+        .expect("props")
+        .enclosure
+        .volume
     };
     assert_eq!(
         volume(&first).to_bits(),
@@ -794,9 +804,14 @@ fn row6c_the_gather_takes_the_placements_alone() {
     let ev = run(&doc, &kit.opts());
     assert_eq!(doc.len(), ids.len(), "the constraints are no nodes");
     let body = product(&doc, &ev, Tol::witness()).expect("the product gathers");
-    let volume = topo::test_support::unmigrated_measure(&body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-        .expect("props")
-        .enclosure.volume;
+    let volume = topo::test_support::unmigrated_measure(
+        &body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .expect("props")
+    .enclosure
+    .volume;
     assert!(
         (volume - 2.0).abs() < 1e-9,
         "the gather took the two instances: {volume}"

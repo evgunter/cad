@@ -59,7 +59,8 @@ fn flipped_sense_is_never_silent_misgeometry() {
         topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .enclosure.volume;
+    .enclosure
+    .volume;
 
     // Box: flip one EDGE_CURVE sense only.
     let m = base.replace(
@@ -82,7 +83,8 @@ fn flipped_sense_is_never_silent_misgeometry() {
         topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .enclosure.volume;
+    .enclosure
+    .volume;
     let m2 = sg1.replace(
         "#46=EDGE_CURVE('',#43,#45,#41,.F.) ;",
         "#46=EDGE_CURVE('',#43,#45,#41,.T.) ;",

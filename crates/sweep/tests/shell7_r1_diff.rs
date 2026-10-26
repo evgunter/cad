@@ -70,7 +70,11 @@ fn dump(label: &str, body: &Body<f64>) {
     for (k, p) in body.vertex_points() {
         println!("[r1diff] {label}: vertex {k:?} point={:?}", p);
     }
-    match topo::test_support::unmigrated_measure(body, tol(), topo::test_support::pinned_resolution(tol())) {
+    match topo::test_support::unmigrated_measure(
+        body,
+        tol(),
+        topo::test_support::pinned_resolution(tol()),
+    ) {
         Ok(p) => println!(
             "[r1diff] {label}: volume={:?} pad={:?} area={:?}",
             p.enclosure.volume, p.enclosure.volume_pad, p.enclosure.surface_area

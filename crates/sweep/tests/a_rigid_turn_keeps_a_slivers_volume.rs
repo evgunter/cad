@@ -99,16 +99,25 @@ fn a_turned_sliver_validates_and_measures_its_own_volume() {
             "{pose}: the turned sliver validates"
         );
         let truth = sliver_volume(psi);
-        let before = topo::mass_properties(&sliver, tol, topo::test_support::pinned_resolution(tol)).unwrap();
-        let after = topo::test_support::unmigrated_measure(&turned, tol, topo::test_support::pinned_resolution(tol)).unwrap();
+        let before =
+            topo::mass_properties(&sliver, tol, topo::test_support::pinned_resolution(tol))
+                .unwrap();
+        let after = topo::test_support::unmigrated_measure(
+            &turned,
+            tol,
+            topo::test_support::pinned_resolution(tol),
+        )
+        .unwrap();
         assert!(
             (after.enclosure.volume - truth).abs() <= after.enclosure.volume_pad,
             "{pose}: the turned sliver's enclosure {:e} ± {:e} misses its volume {truth:e}",
             after.enclosure.volume,
             after.enclosure.volume_pad
         );
-        let (slack_before, slack_after) =
-            (volume_slack(&before, truth), volume_slack(&after, truth));
+        let (slack_before, slack_after) = (
+            volume_slack(&before.enclosure, truth),
+            volume_slack(&after.enclosure, truth),
+        );
         assert!(
             (after.enclosure.volume - before.enclosure.volume).abs() <= slack_after + slack_before,
             "{pose}: the turn moved the volume from {:e} to {:e}, past both pads ({:e}, {:e})",

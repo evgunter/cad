@@ -96,8 +96,12 @@ fn the_chamfered_cavity() {
     );
 
     let want = chamfered_cavity_volume(2.0, D);
-    let props = topo::test_support::unmigrated_measure(&out_body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-        .expect("closed-form props");
+    let props = topo::test_support::unmigrated_measure(
+        &out_body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .expect("closed-form props");
     assert!(
         (props.enclosure.volume - want).abs() <= 1e-12 * want,
         "volume {} vs closed form {want}",

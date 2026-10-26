@@ -285,8 +285,12 @@ fn the_filleted_dome_matches_its_closed_form_volume_with_no_quadrature_pad() {
         tol(),
     )
     .unwrap();
-    let props = topo::test_support::unmigrated_measure(&out.body, tol(), topo::test_support::pinned_resolution(tol()))
-        .expect("mass properties must compute");
+    let props = topo::test_support::unmigrated_measure(
+        &out.body,
+        tol(),
+        topo::test_support::pinned_resolution(tol()),
+    )
+    .expect("mass properties must compute");
     assert_eq!(
         props.enclosure.volume_pad, 0.0,
         "every face of the filleted dome is closed-form"

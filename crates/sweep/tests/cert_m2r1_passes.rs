@@ -44,7 +44,14 @@ fn certified<T: geom_core::CertifiedBounds + topo::AtRestPolicy>() -> Doors<T> {
         pseudomanifold: topo::validate_pseudomanifold::<T>,
         marks: |body, tol| topo::contact_marks(body, tol).map(|m| sorted_marks(m.iter())),
         // Raw door: the corpus holds corrupt bodies tier 3 refuses, and the dump is of what each door says of them.
-        mass: topo::test_support::measure_unvalidated::<T>,
+        mass: |body, tol| {
+            topo::test_support::measure_unvalidated(
+                body,
+                tol,
+                topo::test_support::pinned_resolution(tol),
+            )
+            .map(|measured| measured.enclosure)
+        },
     }
 }
 
@@ -165,14 +172,21 @@ fn m2r1_structural_at_dual64_is_the_f64_closed_form_and_refuses_where_the_lane_w
     let mut refused = Vec::new();
     for ((name, b), (dname, d)) in base.iter().zip(&dual) {
         assert_eq!(name, dname);
-        let certified = topo::test_support::unmigrated_measure(b, tol, topo::test_support::pinned_resolution(tol))
-            .unwrap_or_else(|e| panic!("{name}: the certified door refused a corpus body: {e:?}"));
+        let certified = topo::test_support::unmigrated_measure(
+            b,
+            tol,
+            topo::test_support::pinned_resolution(tol),
+        )
+        .unwrap_or_else(|e| panic!("{name}: the certified door refused a corpus body: {e:?}"));
         // Raw door: the corpus holds corrupt bodies tier 3 refuses, and the row reads each door's answer on them.
         match topo::test_support::measure_unvalidated_structural(d, tol) {
             Ok(s) => {
                 assert_eq!(
                     (s.volume.value.to_bits(), s.surface_area.value.to_bits()),
-                    (certified.enclosure.volume.to_bits(), certified.enclosure.surface_area.to_bits()),
+                    (
+                        certified.enclosure.volume.to_bits(),
+                        certified.enclosure.surface_area.to_bits()
+                    ),
                     "{name}: the dual's value channel is the f64 certified measurement"
                 );
                 assert_eq!(

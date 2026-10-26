@@ -35,9 +35,14 @@ use topo::boolean::{BooleanOp, boolean_op_with};
 use topo::{Body, SweepStrategy};
 
 fn vol(body: &Body<f64>) -> f64 {
-    topo::test_support::unmigrated_measure(body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-        .unwrap()
-        .enclosure.volume
+    topo::test_support::unmigrated_measure(
+        body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap()
+    .enclosure
+    .volume
 }
 
 /// 2-arc disc radius `r` centred at origin with seam vertices at

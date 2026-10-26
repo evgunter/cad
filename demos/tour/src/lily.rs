@@ -535,7 +535,8 @@ const FOOT_BOTTOM_Z: f64 = -0.92;
 fn volume<S: Scalar>(b: &Body<S>, tol: Tol) -> f64 {
     pncad::topo::mass_properties(&crate::booleans::at_rest(b, tol), tol, crate::printed())
         .expect("the volume integrates")
-        .enclosure.volume
+        .enclosure
+        .volume
         .f()
 }
 
@@ -2896,7 +2897,10 @@ mod review_probes {
             "lantern volume {} vs the closed form {exact}",
             props.enclosure.volume
         );
-        assert_eq!(props.enclosure.volume_pad, 0.0, "every lantern face is closed-form");
+        assert_eq!(
+            props.enclosure.volume_pad, 0.0,
+            "every lantern face is closed-form"
+        );
     }
 
     /// Finding 13 re-measured: one chord budget spends wildly

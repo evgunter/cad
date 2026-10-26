@@ -63,7 +63,8 @@ fn run(tag: &str, operand: &AtRestBody<f64>, origin: V3, normal: V3) -> bool {
         Ok(r) => {
             let vol = |b: Option<&AtRestBody<f64>>| {
                 b.map_or(0.0, |b| {
-                    mass_properties(b, tol(), topo::test_support::pinned_resolution(tol())).map_or(f64::NAN, |m| m.enclosure.volume)
+                    mass_properties(b, tol(), topo::test_support::pinned_resolution(tol()))
+                        .map_or(f64::NAN, |m| m.enclosure.volume)
                 })
             };
             format!(

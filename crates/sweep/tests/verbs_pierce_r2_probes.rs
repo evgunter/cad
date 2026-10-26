@@ -65,7 +65,10 @@ fn r2_a_box_through_the_washer_hole_reads_disjoint() {
         panic!("washer + through-hole box is two shells");
     };
     assert_eq!(out.body.shells().count(), 2, "two disjoint shells");
-    let v = topo::mass_properties(&out.body, tol, topo::test_support::pinned_resolution(tol)).unwrap().enclosure.volume;
+    let v = topo::mass_properties(&out.body, tol, topo::test_support::pinned_resolution(tol))
+        .unwrap()
+        .enclosure
+        .volume;
     let truth = PI * (1.0 - 0.25) * 2.0 + 0.4 * 0.4 * 4.0;
     assert!((v - truth).abs() < 1e-12, "{v} vs {truth}");
 }
@@ -88,7 +91,11 @@ fn r2_a_box_through_the_washer_solid_part_is_never_silent() {
     match topo::union(&a, &b, tol) {
         Err(e) => println!("washer-solid union refuses typed: {e:?}"),
         Ok(topo::BooleanResult::Body(out)) => {
-            let v = topo::mass_properties(&out.body, tol, topo::test_support::pinned_resolution(tol)).unwrap().enclosure.volume;
+            let v =
+                topo::mass_properties(&out.body, tol, topo::test_support::pinned_resolution(tol))
+                    .unwrap()
+                    .enclosure
+                    .volume;
             let disjoint_wrong = PI * (1.0 - 0.09) * 2.0 + 0.3 * 0.3 * 2.0;
             assert!(
                 (v - disjoint_wrong).abs() > 1e-9,
@@ -129,7 +136,10 @@ fn r2_a_box_through_a_lens_cap_measures_the_all_arc_remainder() {
     .unwrap()
     .body;
     let a = finished("the lens", a, tol);
-    let va = topo::mass_properties(&a, tol, topo::test_support::pinned_resolution(tol)).unwrap().enclosure.volume;
+    let va = topo::mass_properties(&a, tol, topo::test_support::pinned_resolution(tol))
+        .unwrap()
+        .enclosure
+        .volume;
     // A small box through the cap around the origin, inside the lens,
     // standing a unit above its top.
     let b = finished(
@@ -144,7 +154,10 @@ fn r2_a_box_through_a_lens_cap_measures_the_all_arc_remainder() {
     else {
         panic!("a union of two solids is a body");
     };
-    let v = topo::mass_properties(&out.body, tol, topo::test_support::pinned_resolution(tol)).unwrap().enclosure.volume;
+    let v = topo::mass_properties(&out.body, tol, topo::test_support::pinned_resolution(tol))
+        .unwrap()
+        .enclosure
+        .volume;
     assert!(
         (v - truth).abs() < 1e-9,
         "lens + box: {v} against the truth {truth} (silent-wrong {silent_wrong} — the \
@@ -198,7 +211,10 @@ fn r2_a_box_through_a_half_disc_cap_measures_the_mixed_loop_remainder() {
         else {
             panic!("bulge={bulge}: a union of two solids is a body");
         };
-        let v = topo::mass_properties(&out.body, tol, topo::test_support::pinned_resolution(tol)).unwrap().enclosure.volume;
+        let v = topo::mass_properties(&out.body, tol, topo::test_support::pinned_resolution(tol))
+            .unwrap()
+            .enclosure
+            .volume;
         println!("half-disc cap bulge={bulge}: BODY volume {v}");
         volumes.push(v);
     }
@@ -224,7 +240,11 @@ fn r2_stacked_boxes_calibrate_the_cosurface_claim() {
     match topo::union(&a, &b, tol) {
         Err(e) => println!("stacked boxes refuse: {e:?}"),
         Ok(topo::BooleanResult::Body(out)) => {
-            let v = topo::mass_properties(&out.body, tol, topo::test_support::pinned_resolution(tol)).unwrap().enclosure.volume;
+            let v =
+                topo::mass_properties(&out.body, tol, topo::test_support::pinned_resolution(tol))
+                    .unwrap()
+                    .enclosure
+                    .volume;
             println!("stacked boxes union OK, volume {v}");
         }
         Ok(other) => println!("stacked boxes: {other:?}"),
@@ -265,7 +285,11 @@ fn r2_a_box_buried_in_a_pancake_cylinder_attacks_the_ray_cap_trim() {
     match topo::union(&cyl, &b, tol) {
         Err(e) => panic!("the buried box must be swallowed, not refused: {e:?}"),
         Ok(topo::BooleanResult::Body(out)) => {
-            let v = topo::mass_properties(&out.body, tol, topo::test_support::pinned_resolution(tol)).unwrap().enclosure.volume;
+            let v =
+                topo::mass_properties(&out.body, tol, topo::test_support::pinned_resolution(tol))
+                    .unwrap()
+                    .enclosure
+                    .volume;
             let truth = PI * 25.0 * 0.4;
             println!("pancake union volume {v}; truth {truth}");
             assert!(

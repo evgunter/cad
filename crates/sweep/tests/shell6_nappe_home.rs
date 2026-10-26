@@ -92,9 +92,14 @@ fn both_doors_mint_the_turned_offset_on_both_nappes() {
         let faces = cone_faces(&body);
         let old = cone_of(&body, faces[0]);
         let nappe = topo::group_nappe(&body, &faces, band()).expect("the chart has a nappe");
-        let v0 = topo::test_support::unmigrated_measure(&body, tol, topo::test_support::pinned_resolution(tol))
-            .expect("props")
-            .enclosure.volume;
+        let v0 = topo::test_support::unmigrated_measure(
+            &body,
+            tol,
+            topo::test_support::pinned_resolution(tol),
+        )
+        .expect("props")
+        .enclosure
+        .volume;
         for (door, d) in [("per-chart", small), ("axial", T)] {
             let want = geom_brep::offset_surface(&old, nappe.turn(-d), band()).expect("the mint");
             let Surface::Cone {
@@ -136,9 +141,14 @@ fn both_doors_mint_the_turned_offset_on_both_nappes() {
                 Ok(()),
                 "{what}: the {door} door's own output must validate"
             );
-            let v1 = topo::test_support::unmigrated_measure(&work, tol, topo::test_support::pinned_resolution(tol))
-                .expect("props")
-                .enclosure.volume;
+            let v1 = topo::test_support::unmigrated_measure(
+                &work,
+                tol,
+                topo::test_support::pinned_resolution(tol),
+            )
+            .expect("props")
+            .enclosure
+            .volume;
             assert!(
                 v1 < v0,
                 "{what}: the {door} door's inward request must shrink the solid ({v1} vs {v0})"

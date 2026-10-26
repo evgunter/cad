@@ -391,9 +391,14 @@ fn a_cut_clear_of_the_faces_window_splits() {
     for f in fixtures() {
         let body = build(&f, s);
         let sigma = sense(&body, f.theta);
-        let whole = topo::test_support::unmigrated_measure(&body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-            .unwrap()
-            .enclosure.volume;
+        let whole = topo::test_support::unmigrated_measure(
+            &body,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
+        )
+        .unwrap()
+        .enclosure
+        .volume;
         let grid = half_volume(&f, s, sigma, Vec3::new(0.0, 1.0, 0.0), -10.0 * s);
         let slack = 2e-3 * whole;
         assert!(
@@ -439,9 +444,14 @@ fn a_cut_clear_of_the_faces_window_splits() {
                         let oracle = half_volume(&f, s, sigma, n * sign, d * sign);
                         let got = match part {
                             SplitPart::Body(b) => {
-                                topo::props::mass_properties(b, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-                                    .unwrap()
-                                    .enclosure.volume
+                                topo::props::mass_properties(
+                                    b,
+                                    Tol::witness(),
+                                    topo::test_support::pinned_resolution(Tol::witness()),
+                                )
+                                .unwrap()
+                                .enclosure
+                                .volume
                             }
                             SplitPart::Empty => 0.0,
                         };

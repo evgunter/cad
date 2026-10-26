@@ -63,7 +63,12 @@ fn long(phi: f64) -> Body<f64> {
 type Measured = (f64, f64);
 
 fn volume(b: &Body<f64>) -> Measured {
-    let m = topo::test_support::unmigrated_measure(b, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap();
+    let m = topo::test_support::unmigrated_measure(
+        b,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap();
     (m.enclosure.volume, m.enclosure.volume_pad)
 }
 

@@ -96,7 +96,10 @@ fn builds_at(what: &str, got: Result<BooleanResult<f64>, BooleanError>, volume: 
         Ok(BooleanResult::Body(r)) => {
             topo::validate_geometric(&r.body, t())
                 .unwrap_or_else(|e| panic!("{what}: tier 3: {e:?}"));
-            let v = topo::mass_properties(&r.body, t(), topo::test_support::pinned_resolution(t())).unwrap().enclosure.volume;
+            let v = topo::mass_properties(&r.body, t(), topo::test_support::pinned_resolution(t()))
+                .unwrap()
+                .enclosure
+                .volume;
             assert!(
                 (v - volume).abs() < 1e-7,
                 "{what}: volume {v}, closed form {volume}"
@@ -239,7 +242,10 @@ fn a_difference_leaving_a_cusp_along_the_ruling_builds() {
         else {
             panic!("cell {cell}: empty");
         };
-        let v = topo::mass_properties(&r.body, t(), topo::test_support::pinned_resolution(t())).unwrap().enclosure.volume;
+        let v = topo::mass_properties(&r.body, t(), topo::test_support::pinned_resolution(t()))
+            .unwrap()
+            .enclosure
+            .volume;
         let want = (cusp + triangle) * th;
         assert!(
             (v - want).abs() < 1e-9,

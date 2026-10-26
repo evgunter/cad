@@ -623,7 +623,7 @@ class TestGateAndMeasureInOneQuadrature(unittest.TestCase):
     saves the whole second quadrature; a body whose sign settles early
     leaves rounds open, the lane re-derives each open face's setup,
     and the saving is nil. Both are correct and the kernel's own
-    `refine_to_target` docs carry the regime. What this suite can
+    `SignCertificate::measure` docs carry the regime. What this suite can
     show — and does, below — is the OBSERVABLE consequence of one
     quadrature: the door's answer is the reporting walk's own bits.
 

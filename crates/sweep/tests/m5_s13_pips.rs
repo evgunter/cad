@@ -48,9 +48,14 @@ fn slack() -> f64 {
 }
 
 fn vol(body: &Body<f64>) -> f64 {
-    topo::test_support::unmigrated_measure(body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-        .unwrap()
-        .enclosure.volume
+    topo::test_support::unmigrated_measure(
+        body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap()
+    .enclosure
+    .volume
 }
 
 /// Spherical cap volume, height `h` off a radius-`r` ball.
@@ -544,7 +549,12 @@ fn a_ball_straddling_a_notched_walls_carrier_builds() {
                 // Against the enclosure's own half-width, which must be
                 // able to see the ball: `slack()` is 1e-3 at ε = 1e-6,
                 // twice the ball's whole volume.
-                let props = topo::mass_properties(&b.body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap();
+                let props = topo::mass_properties(
+                    &b.body,
+                    Tol::witness(),
+                    topo::test_support::pinned_resolution(Tol::witness()),
+                )
+                .unwrap();
                 assert!(
                     props.enclosure.volume_pad < v_ball / 10.0,
                     "{op:?}: a pad of {} cannot see a ball of {v_ball}",

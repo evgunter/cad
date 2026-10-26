@@ -257,7 +257,8 @@ fn body_at<S: Scalar>(ev: &Evaluation<S>, id: RecipeNodeId) -> Body<S> {
 fn volume(body: &Body<f64>, tol: Tol) -> f64 {
     mass_properties(&crate::booleans::at_rest(body, tol), tol, crate::printed())
         .expect("certified mass properties")
-        .enclosure.volume
+        .enclosure
+        .volume
 }
 
 fn assert_volume(what: &str, got: f64, want: f64) {

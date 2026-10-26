@@ -135,14 +135,16 @@ fn quasi_uniform_vocabulary_reads_the_same_surface() {
             topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
-        .enclosure.volume,
+        .enclosure
+        .volume,
         topo::mass_properties(
             &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
             Tol::witness(),
             topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
-        .enclosure.volume,
+        .enclosure
+        .volume,
     );
     assert_eq!(v1.to_bits(), v2.to_bits(), "volume bit-identical");
 }
@@ -498,21 +500,15 @@ fn the_mixed_arc_prism_imports_first_class_over_the_intersection_pcurve_arm() {
                 line_promotions.len()
             );
         }
-        // The FIXED SCHEDULE's honest frontier (M8-3, D9): where the
-        // seam certifies but the rational wall's flux cannot reach
-        // `1024·ε`, a caller wanting the NUMBER is refused TYPED with
-        // the measured width. That is a DIFFERENT refusal from the
-        // retired bank — the lane ran, and said how far it got.
-        //
-        // Tier 3's own check 7 no longer makes that refusal (it reads
-        // a SIGN), so a body reaching this arm is one whose aggregate
-        // tier-3′ gate asked for the number, or one whose sign was
-        // undecided when the schedule ran out.
+        // The honest frontier: where the seam certifies but the
+        // rational wall's sign is still open at its work wall, check 7
+        // refuses TYPED. That is a DIFFERENT refusal from the retired
+        // bank — the lane ran, and said how far it got.
         Err(refusal @ StepImportError::TierInvalid { .. }) => {
             let shown = format!("{refusal:?}");
             assert!(
-                shown.contains("QuadratureBudget"),
-                "the only surviving at-rest refusal is the quadrature budget: {shown}"
+                shown.contains("VolumeSignUnresolved"),
+                "the only surviving at-rest refusal is a sign open at the wall: {shown}"
             );
             assert!(
                 !shown.contains("RATIONAL patch flux"),

@@ -125,7 +125,10 @@ fn assert_every_op(
         );
         let m = topo::mass_properties(&out.body, tol, topo::test_support::pinned_resolution(tol))
             .unwrap_or_else(|e| panic!("{label}: mass properties {e:?}"));
-        assert_eq!(m.enclosure.volume_pad, 0.0, "{label}: closed-form faces only");
+        assert_eq!(
+            m.enclosure.volume_pad, 0.0,
+            "{label}: closed-form faces only"
+        );
         assert!(
             (m.enclosure.volume - truth).abs() <= 1e-12 * truth.max(1.0),
             "{label}: volume {} against the closed form {truth}",
@@ -526,7 +529,10 @@ fn a_bar_clear_of_the_wall_still_answers() {
     };
     assert_eq!(out.body.shells().count(), 2);
     assert_eq!(topo::validate_geometric(&out.body, tol), Ok(()), "tier 3");
-    let v = topo::mass_properties(&out.body, tol, topo::test_support::pinned_resolution(tol)).unwrap().enclosure.volume;
+    let v = topo::mass_properties(&out.body, tol, topo::test_support::pinned_resolution(tol))
+        .unwrap()
+        .enclosure
+        .volume;
     let truth = PI * 4.0 + 1.0 * 0.6 * 0.6;
     assert!((v - truth).abs() < 1e-12, "{v} vs {truth}");
 }

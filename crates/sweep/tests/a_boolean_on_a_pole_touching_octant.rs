@@ -33,7 +33,12 @@ fn octant() -> topo::Body<f64> {
 /// The volume of a boolean's body.
 fn volume(r: Result<BooleanResult<f64>, topo::BooleanError>, what: &str) -> f64 {
     match r {
-        Ok(BooleanResult::Body(b)) => topo::mass_properties(&b.body, tol(), topo::test_support::pinned_resolution(tol())).unwrap().enclosure.volume,
+        Ok(BooleanResult::Body(b)) => {
+            topo::mass_properties(&b.body, tol(), topo::test_support::pinned_resolution(tol()))
+                .unwrap()
+                .enclosure
+                .volume
+        }
         other => panic!("{what}: {other:?}"),
     }
 }

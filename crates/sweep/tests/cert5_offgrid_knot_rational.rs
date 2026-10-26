@@ -37,15 +37,15 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common::arc_section;
-use geom_brep::PropsError;
 use geom_core::Point3;
 use geom_core::Tol;
 use profile::{Profile, SketchPlane};
 use sweep::ExtrudeSide;
 use sweep::{Section, loft_body};
-use topo::{MassProperties, MassPropsError};
+use topo::{Measured, Stop};
 
-/// Mirrored from `geom_brep::props::quad` (private there).
+/// The resolution this row reads at, as a multiple of ε: the pinned
+/// resolution's (`topo::test_support::pinned_resolution`).
 const QUAD_TARGET_LEN_FACTOR: f64 = 1024.0;
 
 // The arc section is the crate's one copy (`tests/common/`), which
@@ -98,32 +98,19 @@ enum EpsPosture {
     Budget,
 }
 
-fn body_posture(row: &str, out: &Result<MassProperties<f64>, MassPropsError>) -> EpsPosture {
+fn body_posture(row: &str, out: &(Measured<f64>, Option<f64>)) -> EpsPosture {
     let target = QUAD_TARGET_LEN_FACTOR * Tol::witness().get().eps;
-    match out {
-        Ok(_) => EpsPosture::Certified,
-        Err(MassPropsError::Face {
-            source:
-                PropsError::QuadratureBudget {
-                    width_len,
-                    target_len,
-                    ..
-                },
-            ..
-        }) => {
+    match (out.0.stop, out.1) {
+        (Stop::Met, None) => EpsPosture::Certified,
+        (Stop::Floor | Stop::Wall, Some(width_len)) => {
             assert!(
-                width_len.is_finite() && width_len > target_len,
-                "{row}: a budget refusal must carry a width that really missed: \
-                 {width_len:e} vs {target_len:e}"
-            );
-            assert!(
-                (target_len - target).abs() <= target * 1e-12,
-                "{row}: the refused target must BE 1024·ε for this run: \
-                 {target_len:e} vs {target:e}"
+                width_len.is_finite() && width_len > target,
+                "{row}: a face short of the resolution has a width that really missed: \
+                 {width_len:e} vs {target:e}"
             );
             EpsPosture::Budget
         }
-        Err(other) => panic!("{row}: not an honest quadrature posture: {other}"),
+        other => panic!("{row}: not an honest quadrature posture: {other:?}"),
     }
 }
 
@@ -204,25 +191,17 @@ fn oracle_volume() -> f64 {
         Tol::witness(),
     )
     .expect("extrude");
-    let want = topo::test_support::unmigrated_measure(&oracle.body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-        .expect("analytic mass properties");
+    let want = topo::test_support::unmigrated_measure(
+        &oracle.body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .expect("analytic mass properties");
     assert_eq!(
         want.enclosure.volume_pad, 0.0,
         "ORACLE: the extrude oracle must be a closed form"
     );
     want.enclosure.volume
-}
-
-/// The measured width a budget refusal carries, if that is the
-/// posture.
-fn budget_width(out: &Result<MassProperties<f64>, MassPropsError>) -> Option<f64> {
-    match out {
-        Err(MassPropsError::Face {
-            source: PropsError::QuadratureBudget { width_len, .. },
-            ..
-        }) => Some(*width_len),
-        _ => None,
-    }
 }
 
 /// The default ε — the tolerance the rows below make their CERTIFIED
@@ -261,16 +240,18 @@ fn row(
     // every ε regardless of the posture below.
     topo::validate_closed(&body).expect("TIER-1/2: tiers 1/2 admit the blade");
     let eps = Tol::witness().get().eps;
-    let got = topo::test_support::unmigrated_measure(&body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()));
+    let got = topo::test_support::measure_with_unmet_width(
+        &body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap_or_else(|e| panic!("{name}: the blade measures: {e}"));
     let posture = body_posture(name, &got);
     eprintln!(
-        "EPS-ROW {name} @ eps={eps:e}: {posture:?}{}",
-        match &got {
-            Ok(m) => format!(" volume {} ± {}", m.enclosure.volume, m.enclosure.volume_pad),
-            Err(e) => format!(" ({e})"),
-        }
+        "EPS-ROW {name} @ eps={eps:e}: {posture:?} volume {} ± {}",
+        got.0.enclosure.volume, got.0.enclosure.volume_pad
     );
-    if let Some(w) = budget_width(&got) {
+    if let Some(w) = got.1 {
         assert!(
             w < retired_below,
             "{name}: the straddle floor is retired — a refusal may only carry a \
@@ -290,7 +271,7 @@ fn row(
         "{name}: this wall must certify at the default ε (it refused at \
          {pre_fix_floor:e} m against a 1.024e-6 m target before knot-aligned cells)"
     );
-    let got = got.expect("certified");
+    let got = got.0;
     // ACCURACY: the certified enclosure contains the analytic volume.
     let want = oracle_volume();
     assert!(
@@ -335,9 +316,8 @@ const BLADE_8_PAD_AT_DEFAULT_EPS: f64 = 2.210_6e-6;
 /// and a rational wall whose interior v knots are off the composite's
 /// grid.
 ///
-/// Before knot-aligned cells this refused
-/// `QuadratureBudget { width_len: 2.143e-4, target_len: 1.024e-6 }` —
-/// 209× over, and provably unreachable: the straddling cells' share of
+/// Before knot-aligned cells this stopped at a width of 2.143e-4 m
+/// against a 1.024e-6 m target — 209× over, and provably unreachable: the straddling cells' share of
 /// the enclosure halved per round while the cell count quadrupled, so
 /// the seven-round schedule could not close it at any budget.
 #[test]

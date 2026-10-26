@@ -82,7 +82,8 @@ fn every_donut_split_meshes_and_measures_as_the_donut() {
         topo::test_support::pinned_resolution(tol),
     )
     .unwrap()
-    .enclosure.volume
+    .enclosure
+    .volume
     .to_bits();
     let mut wrong = Vec::new();
     for i in 0..n_edges {
@@ -104,7 +105,12 @@ fn every_donut_split_meshes_and_measures_as_the_donut() {
             }
             let got = mesh::tessellate(&body, 0.1, tol).map(|m| m.positions.len());
             // Raw door: these witness bodies are read alike, and tier 3 refuses the ones whose joinable vertices are still at rest (JoinableVertexAtRest).
-            let vol = topo::test_support::measure_unvalidated(&body, tol, topo::test_support::pinned_resolution(tol)).map(|m| m.enclosure.volume);
+            let vol = topo::test_support::measure_unvalidated(
+                &body,
+                tol,
+                topo::test_support::pinned_resolution(tol),
+            )
+            .map(|m| m.enclosure.volume);
             println!("edge {i} (r = {radius}), pattern {pi}: {got:?}, V = {vol:?}");
             if got.is_err() || vol.as_ref().map(|v| v.to_bits()) != Ok(v0) {
                 wrong.push((i, pi, format!("{got:?} / {vol:?}")));
@@ -129,7 +135,12 @@ fn the_witness_bodies_are_topologically_valid_and_tier3_refuses_them() {
         let topo_ok = topo::validate(&body);
         let closed = topo::validate_closed(&body);
         // Raw door: the measured body is a body still carrying construction scaffolding, which tier 3 refuses (ScaffoldAtRest).
-        let mass = topo::test_support::measure_unvalidated(&body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).map(|m| m.enclosure.volume);
+        let mass = topo::test_support::measure_unvalidated(
+            &body,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
+        )
+        .map(|m| m.enclosure.volume);
         println!("{name}: validate = {topo_ok:?}, closed = {closed:?}, mass = {mass:?}");
         assert!(topo_ok.is_ok(), "{name} is a topologically valid body");
     }

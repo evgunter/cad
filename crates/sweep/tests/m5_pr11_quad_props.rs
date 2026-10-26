@@ -67,14 +67,19 @@ fn tilted_halves_volume_enclosure_brackets_the_closed_form() {
     let (above, below) = halves();
     let half_exact = core::f64::consts::PI * R * R * H / 2.0;
     for (label, body) in [("above", &above), ("below", &below)] {
-        let m = topo::test_support::unmigrated_measure(body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-            .unwrap_or_else(|e| panic!("{label}: the PR 11 quadrature lane computes: {e:?}"));
+        let m = topo::test_support::unmigrated_measure(
+            body,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
+        )
+        .unwrap_or_else(|e| panic!("{label}: the PR 11 quadrature lane computes: {e:?}"));
         assert!(
             m.enclosure.volume_pad > 0.0,
             "{label}: a curved-cut half carries a certified (nonzero) volume pad"
         );
         assert!(
-            m.enclosure.volume - m.enclosure.volume_pad <= half_exact && half_exact <= m.enclosure.volume + m.enclosure.volume_pad,
+            m.enclosure.volume - m.enclosure.volume_pad <= half_exact
+                && half_exact <= m.enclosure.volume + m.enclosure.volume_pad,
             "{label}: certified bracket [{}, {}] must contain πr²H/2 = {half_exact}",
             m.enclosure.volume - m.enclosure.volume_pad,
             m.enclosure.volume + m.enclosure.volume_pad
@@ -97,13 +102,19 @@ fn half_area_enclosures_bracket_the_closed_form() {
     let pi = core::f64::consts::PI;
     let exact = pi * R * R + pi * R * H + pi * R * R / PHI.cos();
     for (label, body) in [("above", &above), ("below", &below)] {
-        let m = topo::test_support::unmigrated_measure(body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap();
+        let m = topo::test_support::unmigrated_measure(
+            body,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
+        )
+        .unwrap();
         assert!(
             m.enclosure.area_pad > 0.0,
             "{label}: the cut wall's area is a certified enclosure"
         );
         assert!(
-            m.enclosure.surface_area - m.enclosure.area_pad <= exact && exact <= m.enclosure.surface_area + m.enclosure.area_pad,
+            m.enclosure.surface_area - m.enclosure.area_pad <= exact
+                && exact <= m.enclosure.surface_area + m.enclosure.area_pad,
             "{label}: area bracket [{}, {}] must contain {exact}",
             m.enclosure.surface_area - m.enclosure.area_pad,
             m.enclosure.surface_area + m.enclosure.area_pad
@@ -186,12 +197,31 @@ fn tier3_passes_on_both_halves() {
 #[test]
 fn quadrature_is_bit_deterministic() {
     let (above, _) = halves();
-    let a = topo::test_support::unmigrated_measure(&above, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap();
-    let b = topo::test_support::unmigrated_measure(&above, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap();
+    let a = topo::test_support::unmigrated_measure(
+        &above,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap();
+    let b = topo::test_support::unmigrated_measure(
+        &above,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap();
     assert_eq!(a.enclosure.volume.to_bits(), b.enclosure.volume.to_bits());
-    assert_eq!(a.enclosure.surface_area.to_bits(), b.enclosure.surface_area.to_bits());
-    assert_eq!(a.enclosure.volume_pad.to_bits(), b.enclosure.volume_pad.to_bits());
-    assert_eq!(a.enclosure.area_pad.to_bits(), b.enclosure.area_pad.to_bits());
+    assert_eq!(
+        a.enclosure.surface_area.to_bits(),
+        b.enclosure.surface_area.to_bits()
+    );
+    assert_eq!(
+        a.enclosure.volume_pad.to_bits(),
+        b.enclosure.volume_pad.to_bits()
+    );
+    assert_eq!(
+        a.enclosure.area_pad.to_bits(),
+        b.enclosure.area_pad.to_bits()
+    );
 }
 
 /// The two halves complement: volumes sum to the full cylinder well
@@ -199,8 +229,18 @@ fn quadrature_is_bit_deterministic() {
 #[test]
 fn halves_sum_to_the_cylinder() {
     let (above, below) = halves();
-    let a = topo::test_support::unmigrated_measure(&above, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap();
-    let b = topo::test_support::unmigrated_measure(&below, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap();
+    let a = topo::test_support::unmigrated_measure(
+        &above,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap();
+    let b = topo::test_support::unmigrated_measure(
+        &below,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap();
     let full = core::f64::consts::PI * R * R * H;
     let sum = a.enclosure.volume + b.enclosure.volume;
     let pad = a.enclosure.volume_pad + b.enclosure.volume_pad;

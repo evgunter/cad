@@ -112,9 +112,14 @@ fn validate(what: &str, body: &Body<f64>) {
 }
 
 fn volume(body: &Body<f64>) -> f64 {
-    topo::test_support::unmigrated_measure(body, tol(), topo::test_support::pinned_resolution(tol()))
-        .unwrap()
-        .enclosure.volume
+    topo::test_support::unmigrated_measure(
+        body,
+        tol(),
+        topo::test_support::pinned_resolution(tol()),
+    )
+    .unwrap()
+    .enclosure
+    .volume
 }
 
 fn close(what: &str, got: f64, want: f64, rel: f64) {

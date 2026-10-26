@@ -34,10 +34,9 @@
 //! - **every rostered mint's margin still derives from an ε-scaled
 //!   `target_len`**, with the identifier matched WHOLE, the binding
 //!   found in the mint's own enclosing function, and that binding's
-//!   value `QUAD_TARGET_LEN_FACTOR * eps` with the factor finite and
-//!   positive;
+//!   value `QUAD_TARGET_LEN_FACTOR * eps`;
 //! - **every mint whose margin derives from the ε-scaled target is
-//!   rostered** — a margin naming `target_len`, `interim_resolution` or
+//!   rostered** — a margin naming `target_len` or
 //!   `QUAD_TARGET_LEN_FACTOR` — or excused by name in
 //!   `EPS_COUPLED_UNRULED` (empty today): the ADDED direction, closed
 //!   for those spellings in these sources and for nothing wider;
@@ -418,15 +417,11 @@ fn every_rostered_predicate_is_still_minted_by_the_kernel() {
 const TARGET: &str = "target_len";
 const TARGET_BINDING: &str = "let target_len =";
 const TARGET_VALUE: &str = "QUAD_TARGET_LEN_FACTOR * eps";
-const FACTOR_DECL: &str = "const QUAD_TARGET_LEN_FACTOR: f64 = ";
 
-/// Whether a margin names the ε-scaled target by any of its spellings:
-/// the lanes' [`TARGET`] binding, topo's interim number-door resolution,
-/// or the factor itself.
+/// Whether a margin names the ε-scaled target by either of its
+/// spellings: the [`TARGET`] binding, or the factor itself.
 fn eps_scaled(margin: &str) -> bool {
-    uses_target(margin)
-        || margin.contains("interim_resolution")
-        || margin.contains("QUAD_TARGET_LEN_FACTOR")
+    uses_target(margin) || margin.contains("QUAD_TARGET_LEN_FACTOR")
 }
 
 /// Whether `text` uses [`TARGET`] as a WHOLE identifier.
@@ -495,8 +490,7 @@ fn enclosing_fn(code: &str, at: usize) -> (std::ops::Range<usize>, std::ops::Ran
 /// 3. that `fn` does not take [`TARGET`] as a PARAMETER, where its
 ///    value is a caller's property this walk does not follow. That
 ///    shape is REFUSED rather than answered: it is not a de-coupling,
-///    and this pin cannot tell that it is not;
-/// 4. `QUAD_TARGET_LEN_FACTOR` is a plain finite positive literal.
+///    and this pin cannot tell that it is not.
 ///
 /// **Textual, and for THIS roster only.** It reads the kernel's
 /// spelling, so a refactor that keeps the ε-coupling and changes the
@@ -509,15 +503,6 @@ fn the_rostered_familys_margin_is_still_eps_scaled_at_its_mint() {
     let sites = kernel_mint_sites();
     let (_, complaints) = rostered_margin_complaints(&EPS_COUPLED_PREDICATES, &sites);
     assert!(complaints.is_empty(), "{}", complaints.join("\n"));
-    let (path, code, _, _) = kernel_views()[0];
-    let factor: f64 = code[source::sole_initializer(code, path, FACTOR_DECL)]
-        .trim()
-        .parse()
-        .expect("QUAD_TARGET_LEN_FACTOR is a float literal");
-    assert!(
-        factor.is_finite() && factor > 0.0,
-        "QUAD_TARGET_LEN_FACTOR is {factor}, so the target is not a positive multiple of ε"
-    );
 }
 
 /// The live roster is empty, so the pin above asserts nothing over it.

@@ -53,7 +53,10 @@ fn translation_is_exact_and_key_stable() {
         .unwrap(),
     );
     assert_eq!(m0.enclosure.volume.to_bits(), m1.enclosure.volume.to_bits());
-    assert_eq!(m0.enclosure.surface_area.to_bits(), m1.enclosure.surface_area.to_bits());
+    assert_eq!(
+        m0.enclosure.surface_area.to_bits(),
+        m1.enclosure.surface_area.to_bits()
+    );
 }
 
 #[test]
@@ -139,7 +142,14 @@ fn transformed_tool_subtracts_exactly() {
         BooleanResult::Empty => panic!("nonempty subtract"),
     };
     tiers_ok(&out);
-    let vol = mass_properties(&out, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap().enclosure.volume;
+    let vol = mass_properties(
+        &out,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap()
+    .enclosure
+    .volume;
     assert_eq!(vol, 8.0 - 0.25 * 0.25 * 0.25);
 }
 

@@ -127,7 +127,11 @@ fn probe(
                     if let Err(e) = topo::validate_geometric_certificate(&bb.body, tol()) {
                         bad.push(format!("cert {e:?}"));
                     }
-                    match topo::mass_properties(&bb.body, tol(), topo::test_support::pinned_resolution(tol())) {
+                    match topo::mass_properties(
+                        &bb.body,
+                        tol(),
+                        topo::test_support::pinned_resolution(tol()),
+                    ) {
                         Ok(m) if (m.enclosure.volume - want).abs() <= abs => {}
                         Ok(m) => bad.push(format!("volume {} against {want}", m.enclosure.volume)),
                         Err(e) => bad.push(format!("volume unmeasured {e:?}")),

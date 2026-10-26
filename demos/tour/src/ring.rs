@@ -283,7 +283,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // torus would fail.
     // Finished once: the props and the shell roles below both read it.
     let ring_at_rest = crate::booleans::at_rest(&ring.body, tol);
-    let props = pncad::topo::mass_properties(&ring_at_rest, tol, crate::printed()).expect("mass properties");
+    let props = pncad::topo::mass_properties(&ring_at_rest, tol, crate::printed())
+        .expect("mass properties");
     let v_solid = 2.0 * PI * PI * R * RO * RO;
     let v_want = 2.0 * PI * PI * R * (RO * RO - RI * RI);
     let a_want = 4.0 * PI * PI * R * (RO + RI);
@@ -347,8 +348,12 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         (2, v, e, f),
         "the recipe layer carries the hole through to the same verb"
     );
-    let doc_props = pncad::topo::mass_properties(&crate::booleans::at_rest(&doc_ring, tol), tol, crate::printed())
-        .expect("recipe mass properties");
+    let doc_props = pncad::topo::mass_properties(
+        &crate::booleans::at_rest(&doc_ring, tol),
+        tol,
+        crate::printed(),
+    )
+    .expect("recipe mass properties");
     assert_eq!(
         doc_props.enclosure.volume, props.enclosure.volume,
         "the two doors build the same solid, not merely the same census"

@@ -54,9 +54,16 @@ fn interval_lane_quadrature_brackets_the_closed_form() {
     let (above, below) = halves();
     let half_exact = core::f64::consts::PI * R * R * H / 2.0;
     for (label, body) in [("above", &above), ("below", &below)] {
-        let m = topo::test_support::unmigrated_measure(body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-            .unwrap_or_else(|e| panic!("{label}: interval quadrature computes: {e:?}"));
-        let (lo, hi) = (m.enclosure.volume.lo() - m.enclosure.volume_pad, m.enclosure.volume.hi() + m.enclosure.volume_pad);
+        let m = topo::test_support::unmigrated_measure(
+            body,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
+        )
+        .unwrap_or_else(|e| panic!("{label}: interval quadrature computes: {e:?}"));
+        let (lo, hi) = (
+            m.enclosure.volume.lo() - m.enclosure.volume_pad,
+            m.enclosure.volume.hi() + m.enclosure.volume_pad,
+        );
         assert!(
             lo <= half_exact && half_exact <= hi,
             "{label}: interval bracket [{lo}, {hi}] must contain {half_exact}"

@@ -46,7 +46,8 @@ fn assert_valid_with_volume(label: &str, body: &Body<f64>, volume: f64) {
         topo::test_support::pinned_resolution(tol),
     )
     .unwrap()
-    .enclosure.volume;
+    .enclosure
+    .volume;
     assert!(
         (got - volume).abs() < 1e-9,
         "{label}: volume {got}, expected {volume}"

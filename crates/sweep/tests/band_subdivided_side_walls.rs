@@ -135,7 +135,8 @@ fn is_plane(body: &Body<f64>, f: FaceKey) -> bool {
 fn volume(body: &Body<f64>, t: Tol) -> f64 {
     topo::test_support::unmigrated_measure(body, t, topo::test_support::pinned_resolution(t))
         .unwrap()
-        .enclosure.volume
+        .enclosure
+        .volume
 }
 
 /// **Extrude: one wall over the run, and the union runs as built.**

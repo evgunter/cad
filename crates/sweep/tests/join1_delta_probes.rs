@@ -362,7 +362,10 @@ fn the_seam_body_is_an_operand() {
     };
     let (sk, cp, z) = seams(&r.body);
     println!("[seam] hex ∪ box: samekey={sk} coplanar={cp} zero={z}");
-    let vr = topo::mass_properties(&r.body, tol(), topo::test_support::pinned_resolution(tol())).unwrap().enclosure.volume;
+    let vr = topo::mass_properties(&r.body, tol(), topo::test_support::pinned_resolution(tol()))
+        .unwrap()
+        .enclosure
+        .volume;
     assert!((vr - 1.71875).abs() < 1e-9, "{vr}");
     let c = finished(
         "the brick",
@@ -415,7 +418,11 @@ fn the_peg_collar_unions_are_operands() {
             topo::BooleanResult::Empty => panic!("empty"),
         };
         let (sk, cp, z) = seams(&r.body);
-        let vr = topo::mass_properties(&r.body, tol(), topo::test_support::pinned_resolution(tol())).unwrap().enclosure.volume;
+        let vr =
+            topo::mass_properties(&r.body, tol(), topo::test_support::pinned_resolution(tol()))
+                .unwrap()
+                .enclosure
+                .volume;
         let next = outcome(topo::union(&r.body, &far, tol()), vr + 1.0, tol());
         let l = format!("{what}: samekey={sk} coplanar={cp} zero={z}; with a far brick: {next}");
         println!("[peg] {l}");

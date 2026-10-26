@@ -87,9 +87,14 @@ fn every_door(operand: &AtRestBody<Dual64>) -> Vec<(&'static str, Option<SplitRe
 fn the_inside_out_wedge_does_not_finish_at_f64_or_interval() {
     let tol = Tol::witness();
     // Raw door: the measured body is an inside-out body, which tier 3 refuses (NegativeVolume).
-    let volume = topo::test_support::measure_unvalidated(&wedge::<f64>(false), tol, topo::test_support::pinned_resolution(tol))
-        .unwrap()
-        .enclosure.volume;
+    let volume = topo::test_support::measure_unvalidated(
+        &wedge::<f64>(false),
+        tol,
+        topo::test_support::pinned_resolution(tol),
+    )
+    .unwrap()
+    .enclosure
+    .volume;
     assert!(
         (volume + 0.5 * 0.5 * 110f64.to_radians().sin()).abs() < 1e-12,
         "the clockwise wedge encloses minus its area times its height: {volume}"
@@ -369,7 +374,12 @@ fn the_outward_wedge_splits_into_two_positive_halves() {
     let half = 0.25 * 0.5 * 110f64.to_radians().sin();
     let halves = |r: topo::SplitResult<f64>| {
         [r.above, r.below].map(|part| match part {
-            SplitPart::Body(b) => mass_properties(&b, tol, topo::test_support::pinned_resolution(tol)).unwrap().enclosure.volume,
+            SplitPart::Body(b) => {
+                mass_properties(&b, tol, topo::test_support::pinned_resolution(tol))
+                    .unwrap()
+                    .enclosure
+                    .volume
+            }
             SplitPart::Empty => panic!("the mid-height plane leaves material on both sides"),
         })
     };

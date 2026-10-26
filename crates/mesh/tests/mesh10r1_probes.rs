@@ -106,12 +106,21 @@ fn r1_every_donut_split_is_the_donut_bitwise() {
             let body = split_donut(i, fracs);
             let r = receipts(&body);
             // Raw door: these split donuts are read alike, and tier 3 refuses the ones whose joinable vertices are still at rest (JoinableVertexAtRest).
-            let mp = topo::test_support::measure_unvalidated(&body, tol, topo::test_support::pinned_resolution(tol));
+            let mp = topo::test_support::measure_unvalidated(
+                &body,
+                tol,
+                topo::test_support::pinned_resolution(tol),
+            );
             let vol_ok = mp
                 .as_ref()
                 .map(|m| {
-                    (m.enclosure.volume.to_bits(), m.enclosure.surface_area.to_bits())
-                        == (mp0.enclosure.volume.to_bits(), mp0.enclosure.surface_area.to_bits())
+                    (
+                        m.enclosure.volume.to_bits(),
+                        m.enclosure.surface_area.to_bits(),
+                    ) == (
+                        mp0.enclosure.volume.to_bits(),
+                        mp0.enclosure.surface_area.to_bits(),
+                    )
                 })
                 .unwrap_or(false);
             let faces_ok = r == r0;
@@ -214,7 +223,10 @@ fn r1_a_reparametrised_split_child_refuses_at_the_fold() {
         topo::test_support::pinned_resolution(tol),
     )
     .unwrap();
-    println!("unsplit: V={} A={}", mp0.enclosure.volume, mp0.enclosure.surface_area);
+    println!(
+        "unsplit: V={} A={}",
+        mp0.enclosure.volume, mp0.enclosure.surface_area
+    );
     let mut body = split_donut(0, &[0.5]);
     // The second child is the edge the split minted: the last edge.
     let child = body.edges().last().unwrap().0;
@@ -246,7 +258,8 @@ fn r1_a_reparametrised_split_child_refuses_at_the_fold() {
             );
             println!(
                 "mass_properties: {:?}",
-                mp.as_ref().map(|m| (m.enclosure.volume, m.enclosure.surface_area))
+                mp.as_ref()
+                    .map(|m| (m.enclosure.volume, m.enclosure.surface_area))
             );
             println!(
                 "tessellate: {:?}",
@@ -265,7 +278,8 @@ fn r1_a_reparametrised_split_child_refuses_at_the_fold() {
             };
             let v = mp
                 .unwrap_or_else(|e| panic!("mass_properties reads the identical arc: {e:?}"))
-                .enclosure.volume;
+                .enclosure
+                .volume;
             assert!(
                 (v - mp0.enclosure.volume).abs() <= 1e-12 * mp0.enclosure.volume,
                 "the shifted child measures as the donut: {v} vs {}",
@@ -359,7 +373,12 @@ fn r1_the_class_sweep_measured_over_the_curved_corpus() {
             tol,
             topo::test_support::pinned_resolution(tol),
         )
-        .map(|m| (m.enclosure.volume.to_bits(), m.enclosure.surface_area.to_bits()))
+        .map(|m| {
+            (
+                m.enclosure.volume.to_bits(),
+                m.enclosure.surface_area.to_bits(),
+            )
+        })
         .map_err(|e| format!("{e:?}"));
         let n = base.edges().count();
         for i in 0..n {
@@ -384,9 +403,18 @@ fn r1_the_class_sweep_measured_over_the_curved_corpus() {
                 }
                 let r = receipts(&body);
                 // Raw door: these split donuts are read alike, and tier 3 refuses the ones whose joinable vertices are still at rest (JoinableVertexAtRest).
-                let mp = topo::test_support::measure_unvalidated(&body, tol, topo::test_support::pinned_resolution(tol))
-                    .map(|m| (m.enclosure.volume.to_bits(), m.enclosure.surface_area.to_bits()))
-                    .map_err(|e| format!("{e:?}"));
+                let mp = topo::test_support::measure_unvalidated(
+                    &body,
+                    tol,
+                    topo::test_support::pinned_resolution(tol),
+                )
+                .map(|m| {
+                    (
+                        m.enclosure.volume.to_bits(),
+                        m.enclosure.surface_area.to_bits(),
+                    )
+                })
+                .map_err(|e| format!("{e:?}"));
                 let same = r == r0 && mp == mp0;
                 if !same {
                     println!("{name} edge {i} @{fracs:?}: MOVED  mp={mp:?} vs {mp0:?}");

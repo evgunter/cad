@@ -72,9 +72,16 @@ fn assert_solid(label: &str, body: &Body<f64>, expected: f64) {
         Ok(()),
         "{label}: validate_geometric"
     );
-    let p = topo::test_support::unmigrated_measure(body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-        .unwrap_or_else(|e| panic!("{label}: mass properties, got {e:?}"));
-    assert_eq!(p.enclosure.volume_pad, 0.0, "{label}: closed-form faces only");
+    let p = topo::test_support::unmigrated_measure(
+        body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap_or_else(|e| panic!("{label}: mass properties, got {e:?}"));
+    assert_eq!(
+        p.enclosure.volume_pad, 0.0,
+        "{label}: closed-form faces only"
+    );
     assert!(
         // Relative to the result, floored at the operands' unit scale:
         // the divergence sum rounds against the whole spheres' terms.
@@ -408,9 +415,14 @@ fn the_snowman_builds_at_the_interval_scalar() {
             Ok(()),
             "Interval {op:?}: validate_geometric"
         );
-        let v = topo::mass_properties(body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-            .unwrap_or_else(|e| panic!("Interval {op:?}: mass properties, got {e:?}"))
-            .enclosure.volume;
+        let v = topo::mass_properties(
+            body,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
+        )
+        .unwrap_or_else(|e| panic!("Interval {op:?}: mass properties, got {e:?}"))
+        .enclosure
+        .volume;
         let slack = 1e-9 * expected.max(1.0);
         assert!(
             v.lo() - slack <= expected && expected <= v.hi() + slack,
@@ -671,9 +683,16 @@ fn a_bar_through_a_ball_builds_under_every_boolean() {
             Ok(()),
             "{label}: validate_geometric"
         );
-        let p = topo::mass_properties(&body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-            .unwrap_or_else(|e| panic!("{label}: mass properties, got {e:?}"));
-        assert_eq!(p.enclosure.volume_pad, 0.0, "{label}: closed-form faces only");
+        let p = topo::mass_properties(
+            &body,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
+        )
+        .unwrap_or_else(|e| panic!("{label}: mass properties, got {e:?}"));
+        assert_eq!(
+            p.enclosure.volume_pad, 0.0,
+            "{label}: closed-form faces only"
+        );
         assert!(
             (p.enclosure.volume - expected).abs() <= 1e-9 * expected.max(1.0),
             "{label}: volume {} against the slice integral {expected}",
@@ -1305,7 +1324,11 @@ fn a_millimetre_lens_inside_a_ball_builds_at_every_tolerance() {
                     Ok(()),
                     "{label}: tier 3"
                 );
-                let v = topo::mass_properties(&out, tol, topo::test_support::pinned_resolution(tol)).unwrap().enclosure.volume;
+                let v =
+                    topo::mass_properties(&out, tol, topo::test_support::pinned_resolution(tol))
+                        .unwrap()
+                        .enclosure
+                        .volume;
                 assert!(
                     (v - want).abs() <= 1e-9 * want,
                     "{label}: volume {v} against {want}"

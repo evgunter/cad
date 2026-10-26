@@ -95,7 +95,12 @@ impl core::ops::Add for Vol {
 }
 
 fn volume(h: &Body<f64>) -> Vol {
-    let m = topo::test_support::unmigrated_measure(h, tol(), topo::test_support::pinned_resolution(tol())).unwrap();
+    let m = topo::test_support::unmigrated_measure(
+        h,
+        tol(),
+        topo::test_support::pinned_resolution(tol()),
+    )
+    .unwrap();
     Vol {
         v: m.enclosure.volume,
         pad: m.enclosure.volume_pad,

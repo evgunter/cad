@@ -484,7 +484,8 @@ fn crease_narration(plate: &Extruded<f64>, rounded: &Body<f64>, tol: Tol) -> Str
     let volume = |b: &Body<f64>| {
         mass_properties(&crate::booleans::at_rest(b, tol), tol, crate::printed())
             .expect("the rocker's mass properties are closed-form")
-            .enclosure.volume
+            .enclosure
+            .volume
     };
 
     // The kind-pair description alone also matches the six vertical

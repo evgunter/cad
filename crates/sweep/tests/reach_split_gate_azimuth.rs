@@ -382,7 +382,11 @@ fn split_and_check(
             );
             continue;
         };
-        let p = match topo::props::mass_properties(b, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())) {
+        let p = match topo::props::mass_properties(
+            b,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
+        ) {
             Ok(p) => p,
             // The quadrature's own convergence decision in band: the
             // volume lane's limit, not the split's.

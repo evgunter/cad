@@ -362,9 +362,14 @@ fn r1_the_cavity_gains_what_the_mirrored_cube_loses() {
     )
     .expect("a cube chamfers")
     .body;
-    let cube_vol = topo::test_support::unmigrated_measure(&chamfered_cube, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-        .expect("closed-form props")
-        .enclosure.volume;
+    let cube_vol = topo::test_support::unmigrated_measure(
+        &chamfered_cube,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .expect("closed-form props")
+    .enclosure
+    .volume;
     let removed = a.powi(3) - cube_vol;
 
     // (ii) What the cavity GAINS, measured the same way.
@@ -378,9 +383,14 @@ fn r1_the_cavity_gains_what_the_mirrored_cube_loses() {
     let vent = rod(Point2::new(2.0, 2.0), 0.5, 2.5, 5.0);
     let cavity = brick(Point3::new(1.0, 1.0, 1.0), Point3::new(3.0, 3.0, 3.0));
     let body = cut("cavity", &cut("vent", &block, &vent), &cavity);
-    let plain = topo::test_support::unmigrated_measure(&body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-        .expect("closed-form props")
-        .enclosure.volume;
+    let plain = topo::test_support::unmigrated_measure(
+        &body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .expect("closed-form props")
+    .enclosure
+    .volume;
     let edges = cavity_edges_of(&body, &poly, 1.0, 3.0);
     let carved = chamfer_edges(
         &sweep::test_support::at_rest(&body, Tol::witness()),
@@ -390,9 +400,14 @@ fn r1_the_cavity_gains_what_the_mirrored_cube_loses() {
     )
     .expect("the cavity chamfers")
     .body;
-    let gained = topo::test_support::unmigrated_measure(&carved, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-        .expect("closed-form props")
-        .enclosure.volume
+    let gained = topo::test_support::unmigrated_measure(
+        &carved,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .expect("closed-form props")
+    .enclosure
+    .volume
         - plain;
 
     assert!(
@@ -478,9 +493,14 @@ fn r1_one_request_carries_both_convexity_signs() {
         "the two components are disjoint"
     );
 
-    let before = topo::test_support::unmigrated_measure(&body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-        .expect("closed-form props")
-        .enclosure.volume;
+    let before = topo::test_support::unmigrated_measure(
+        &body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .expect("closed-form props")
+    .enclosure
+    .volume;
 
     let mut both = concave;
     both.extend(convex);
@@ -512,9 +532,14 @@ fn r1_one_request_carries_both_convexity_signs() {
     // it from the shared home; what it checks is the SIGN each side
     // carries, which no closed form can supply.
     let chamfer_of = |a: f64| chamfered_cube_removed(a, D);
-    let after = topo::test_support::unmigrated_measure(&out.body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-        .expect("closed-form props")
-        .enclosure.volume;
+    let after = topo::test_support::unmigrated_measure(
+        &out.body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .expect("closed-form props")
+    .enclosure
+    .volume;
     let want = before + chamfer_of(2.0) - chamfer_of(4.0);
     assert!(
         (after - want).abs() <= 1e-12 * want,
@@ -551,9 +576,14 @@ fn r1_one_fillet_request_carries_both_convexity_signs() {
     both.extend(block_edges(&body));
     assert_eq!(both.len(), 24, "both components");
 
-    let before = topo::test_support::unmigrated_measure(&body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-        .expect("closed-form props")
-        .enclosure.volume;
+    let before = topo::test_support::unmigrated_measure(
+        &body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .expect("closed-form props")
+    .enclosure
+    .volume;
 
     let out = sweep::blend::build::fillet_edges(
         &sweep::test_support::at_rest(&body, Tol::witness()),
@@ -582,9 +612,14 @@ fn r1_one_fillet_request_carries_both_convexity_signs() {
     // scale. The form is `common::oracles`'; what this row checks is
     // the two signs in one carve.
     let fillet_of = |a: f64| a.powi(3) - rounded_box_volume(a - 2.0 * D, D);
-    let after = topo::test_support::unmigrated_measure(&out.body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-        .expect("closed-form props")
-        .enclosure.volume;
+    let after = topo::test_support::unmigrated_measure(
+        &out.body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .expect("closed-form props")
+    .enclosure
+    .volume;
     let want = before + fillet_of(2.0) - fillet_of(4.0);
     assert!(
         (after - want).abs() <= 1e-12 * want,

@@ -399,7 +399,12 @@ fn op_fates(op: Op, x: &AtRestBody<f64>, y: &AtRestBody<f64>) -> OpFates {
     lost.sort();
     OpFates {
         kind: Some(out.kind),
-        volume: (mass_properties(&out.body, tol, topo::test_support::pinned_resolution(tol)).expect("mass").enclosure.volume * 1e6).round() as i64,
+        volume: (mass_properties(&out.body, tol, topo::test_support::pinned_resolution(tol))
+            .expect("mass")
+            .enclosure
+            .volume
+            * 1e6)
+            .round() as i64,
         held: out
             .naming
             .substituted

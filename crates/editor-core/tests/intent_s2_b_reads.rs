@@ -753,9 +753,14 @@ fn split_block(name: &str) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
 
 /// The volume of `id`'s body in `ev`.
 fn volume(ev: &editor_core::Evaluation<f64>, id: RecipeNodeId) -> f64 {
-    topo::test_support::unmigrated_measure(crate::corpus::body_of(ev, id), Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-        .expect("mass properties")
-        .enclosure.volume
+    topo::test_support::unmigrated_measure(
+        crate::corpus::body_of(ev, id),
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .expect("mass properties")
+    .enclosure
+    .volume
 }
 
 /// A body's vertex bits, sorted: what a stale body differs in.

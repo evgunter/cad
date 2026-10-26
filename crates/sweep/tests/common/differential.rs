@@ -273,7 +273,13 @@ fn judge(
                     tol,
                 );
                 let operand = topo::union(&bb.body, &far, tol).is_ok();
-                match topo::mass_properties(&bb.body, tol, topo::test_support::pinned_resolution(tol)).map(|m| (m.enclosure.volume, m.enclosure.volume_pad)) {
+                match topo::mass_properties(
+                    &bb.body,
+                    tol,
+                    topo::test_support::pinned_resolution(tol),
+                )
+                .map(|m| (m.enclosure.volume, m.enclosure.volume_pad))
+                {
                     Ok((v, pad)) => {
                         let verdict = match want {
                             _ if !(t2 && t3 && cert && operand && extra) => Verdict::Bad,

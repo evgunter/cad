@@ -630,7 +630,8 @@ fn a_ring_on_a_cone_wall_whose_winding_sums_to_rounding_answers() {
         topo::validate_geometric(&bb.body, tol).unwrap_or_else(|e| panic!("{op}: tier 3: {e:?}"));
         let v = topo::mass_properties(&bb.body, tol, topo::test_support::pinned_resolution(tol))
             .unwrap_or_else(|e| panic!("{op}: the volume refused {e:?}"))
-            .enclosure.volume;
+            .enclosure
+            .volume;
         assert!((v - want).abs() <= 1e-5, "{op}: volume {v} against {want}");
     }
 }

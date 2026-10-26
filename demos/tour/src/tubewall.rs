@@ -221,8 +221,12 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     let area = PI * (OUTER * OUTER - INNER * INNER);
     let v_elbow = theta * R * area;
     let a_elbow = theta * R * 2.0 * PI * (OUTER + INNER) + 2.0 * area;
-    let props = pncad::topo::mass_properties(&crate::booleans::at_rest(&elbow.body, tol), tol, crate::printed())
-        .expect("mass properties");
+    let props = pncad::topo::mass_properties(
+        &crate::booleans::at_rest(&elbow.body, tol),
+        tol,
+        crate::printed(),
+    )
+    .expect("mass properties");
     assert!(
         ((props.enclosure.volume - v_elbow) / v_elbow).abs() < 1e-12,
         "elbow V = {} vs the Pappus form {v_elbow}",
@@ -252,8 +256,12 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     )
     .expect("the solid elbow builds")
     .body;
-    let solid_props = pncad::topo::mass_properties(&crate::booleans::at_rest(&solid, tol), tol, crate::printed())
-        .expect("mass properties");
+    let solid_props = pncad::topo::mass_properties(
+        &crate::booleans::at_rest(&solid, tol),
+        tol,
+        crate::printed(),
+    )
+    .expect("mass properties");
     let bore = theta * R * PI * INNER * INNER;
     assert!(
         ((solid_props.enclosure.volume - props.enclosure.volume - bore) / bore).abs() < 1e-12,
@@ -372,7 +380,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // counts the inner wall.
     // Finished once: the props and the shell roles below both read it.
     let torus_at_rest = crate::booleans::at_rest(&torus.body, tol);
-    let props_t = pncad::topo::mass_properties(&torus_at_rest, tol, crate::printed()).expect("mass properties");
+    let props_t = pncad::topo::mass_properties(&torus_at_rest, tol, crate::printed())
+        .expect("mass properties");
     let v_solid_t = 2.0 * PI * PI * R * OUTER * OUTER;
     let v_want = 2.0 * PI * PI * R * (OUTER * OUTER - INNER * INNER);
     let a_want = 4.0 * PI * PI * R * (OUTER + INNER);
@@ -386,7 +395,10 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         "torus A = {} vs the closed form {a_want}",
         props_t.enclosure.surface_area
     );
-    assert_eq!(props_t.enclosure.volume_pad, 0.0, "closed forms need no pad");
+    assert_eq!(
+        props_t.enclosure.volume_pad, 0.0,
+        "closed forms need no pad"
+    );
 
     // The cavity's own capacity, asked for directly (the hollow ring's
     // finding 2, on this door's shape): the `Void`-role shell IS the

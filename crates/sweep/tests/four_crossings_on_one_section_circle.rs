@@ -144,9 +144,16 @@ fn a_slab_crossing_one_section_circle_four_times_builds_under_every_boolean() {
                     Ok(()),
                     "{label}: tier 3"
                 );
-                let p = topo::mass_properties(&body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-                    .unwrap_or_else(|e| panic!("{label}: mass properties, {e:?}"));
-                assert_eq!(p.enclosure.volume_pad, 0.0, "{label}: closed-form faces only");
+                let p = topo::mass_properties(
+                    &body,
+                    Tol::witness(),
+                    topo::test_support::pinned_resolution(Tol::witness()),
+                )
+                .unwrap_or_else(|e| panic!("{label}: mass properties, {e:?}"));
+                assert_eq!(
+                    p.enclosure.volume_pad, 0.0,
+                    "{label}: closed-form faces only"
+                );
                 assert!(
                     (p.enclosure.volume - expected).abs() <= 1e-9 * expected,
                     "{label}: volume {} against the closed form {expected}",
@@ -215,7 +222,14 @@ fn four_crossings_above_the_centre_wind_the_sphere_ring() {
                 Ok(()),
                 "{label}: tier 3"
             );
-            let v = topo::mass_properties(&body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap().enclosure.volume;
+            let v = topo::mass_properties(
+                &body,
+                Tol::witness(),
+                topo::test_support::pinned_resolution(Tol::witness()),
+            )
+            .unwrap()
+            .enclosure
+            .volume;
             assert!(
                 (v - expected).abs() <= 1e-9 * expected,
                 "{label}: volume {v} against the closed form {expected}"

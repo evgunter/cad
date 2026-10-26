@@ -40,7 +40,11 @@ fn an_exterior_meridian_covers_the_sphere_twice_and_is_refused() {
         ),
         "the doubled ball is refused as covered twice: {errs:?}"
     );
-    let door = topo::test_support::unmigrated_measure(&body, tol, topo::test_support::pinned_resolution(tol));
+    let door = topo::test_support::unmigrated_measure(
+        &body,
+        tol,
+        topo::test_support::pinned_resolution(tol),
+    );
     assert!(
         matches!(
             door,
@@ -71,9 +75,14 @@ fn a_double_cover_whose_faces_each_read_their_own_side_is_refused() {
     split_faces_at_equator(&mut control, tol);
     topo::validate_geometric(&control, tol)
         .unwrap_or_else(|e| panic!("the ball split at its equator is valid: {e:?}"));
-    let got = topo::test_support::unmigrated_measure(&control, tol, topo::test_support::pinned_resolution(tol))
-        .unwrap()
-        .enclosure.volume;
+    let got = topo::test_support::unmigrated_measure(
+        &control,
+        tol,
+        topo::test_support::pinned_resolution(tol),
+    )
+    .unwrap()
+    .enclosure
+    .volume;
     assert!(
         (got - 4.0 * std::f64::consts::PI / 3.0).abs() <= 1e-9,
         "the split ball measures {got}"
@@ -95,7 +104,11 @@ fn a_double_cover_whose_faces_each_read_their_own_side_is_refused() {
         ),
         "the split double cover is refused as covered twice: {errs:?}"
     );
-    let door = topo::test_support::unmigrated_measure(&body, tol, topo::test_support::pinned_resolution(tol));
+    let door = topo::test_support::unmigrated_measure(
+        &body,
+        tol,
+        topo::test_support::pinned_resolution(tol),
+    );
     assert!(
         matches!(
             door,

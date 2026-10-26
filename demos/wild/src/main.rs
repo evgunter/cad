@@ -170,7 +170,7 @@ fn run_cell(cell: &Cell, outdir: &str, tol: Tol) -> String {
     });
     let StepImport::Solid {
         body,
-        enclosure,
+        certificate,
         eps_in,
         normalizations,
         ..
@@ -196,8 +196,9 @@ fn run_cell(cell: &Cell, outdir: &str, tol: Tol) -> String {
         }
     }
 
-    // Exact B-rep mass properties — the import gate's own enclosure,
-    // continued to the number — then the kernel's own tessellation
+    // Exact B-rep mass properties — measured through the import gate's
+    // own certificate at the precision the row prints, 1.024 µm of mean
+    // boundary displacement — then the kernel's own tessellation
     // with a chordal tolerance sized off the body's real extent (bbox
     // of the body's stored points — vertex points and control points,
     // whose hull bounds every NURBS patch). The wild has no closed
@@ -205,9 +206,16 @@ fn run_cell(cell: &Cell, outdir: &str, tol: Tol) -> String {
     // sanity ribbon the tour prints. A pinned cell measures a NUMBER:
     // one that comes back a bracket at this ε has drifted as surely as
     // one that stops importing.
-    let props = enclosure.unwrap_or_else(|unreached| {
-        panic!("{name}: a PINNED montage cell has no volume number at this eps: {unreached}")
-    });
+    let printed = pncad::topo::Settle::Resolution(pncad::quantity::Length::from_meters(1.024e-6));
+    let measured = certificate
+        .measure(&body, printed)
+        .unwrap_or_else(|e| panic!("{name}: a PINNED montage cell does not measure: {e}"));
+    assert_eq!(
+        measured.stop,
+        pncad::topo::Stop::Met,
+        "{name}: a PINNED montage cell has no volume number at this eps: {measured:?}"
+    );
+    let props = measured.enclosure;
     let (lo, hi) = body.points().fold(
         ([f64::INFINITY; 3], [f64::NEG_INFINITY; 3]),
         |(lo, hi), (_, p)| {

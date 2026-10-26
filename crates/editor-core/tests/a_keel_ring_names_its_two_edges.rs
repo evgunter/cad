@@ -78,9 +78,14 @@ fn a_keel_ring_names_its_two_edges_apart() {
     };
     let tol = Tol::witness();
     for (what, b, v) in [("above", above, 16.0 - 0.3), ("below", below, 16.0)] {
-        let got = topo::test_support::unmigrated_measure(b, tol, topo::test_support::pinned_resolution(tol))
-            .unwrap()
-            .enclosure.volume;
+        let got = topo::test_support::unmigrated_measure(
+            b,
+            tol,
+            topo::test_support::pinned_resolution(tol),
+        )
+        .unwrap()
+        .enclosure
+        .volume;
         assert!((got - v).abs() < 1e-9 * v, "{what}: volume {got}, not {v}");
     }
     let ring: Vec<topo::EdgeKey> = above

@@ -158,11 +158,17 @@ fn r2_lamina_message_versus_the_measured_volume() {
         crate::test_support::pinned_resolution(tol),
     )
     .unwrap()
-    .enclosure.volume;
+    .enclosure
+    .volume;
     let flipped = p.body.flipped_face_sense_for_tests(p.face_side[1]).unwrap();
     let errs = validate_geometric(&flipped, tol).unwrap_err();
     // Raw door: the measured body is a body whose loop roles are inverted, which tier 3 refuses (LoopRoleInverted).
-    let v_flipped = crate::test_support::measure_unvalidated(&flipped, tol, crate::test_support::pinned_resolution(tol)).map(|m| m.enclosure.volume);
+    let v_flipped = crate::test_support::measure_unvalidated(
+        &flipped,
+        tol,
+        crate::test_support::pinned_resolution(tol),
+    )
+    .map(|m| m.enclosure.volume);
     println!("R2: cusp prism volume {v_ok}; flat-face-flipped volume {v_flipped:?}");
     println!("R2: flipped-flat verdict {errs:?}");
 }

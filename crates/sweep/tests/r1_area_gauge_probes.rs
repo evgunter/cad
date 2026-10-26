@@ -48,8 +48,12 @@ fn r1_sections() -> (Vec<Section>, Vec<SketchPlane<f64>>) {
 fn r1_e2e_gauge_is_silent_on_an_honest_body_through_the_public_door() {
     let (sections, places) = r1_sections();
     let lofted = loft_body::<f64>(&sections, &places, 2, Tol::witness()).expect("r1 loft builds");
-    let m = topo::test_support::unmigrated_measure(&lofted.body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-        .expect("mass properties");
+    let m = topo::test_support::unmigrated_measure(
+        &lofted.body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .expect("mass properties");
     // Report the honest widths so the run is a measurement, not just a
     // non-panic.
     println!(
@@ -66,7 +70,10 @@ fn r1_e2e_gauge_is_silent_on_an_honest_body_through_the_public_door() {
         m.enclosure.area_pad.to_bits(),
         m.enclosure.surface_area.to_bits()
     );
-    assert!(m.enclosure.area_pad > 0.0, "an honest curved wall pays a width");
+    assert!(
+        m.enclosure.area_pad > 0.0,
+        "an honest curved wall pays a width"
+    );
     assert!(
         debug_assertions_are_on(),
         "this probe is only a reading when the assert is compiled in"
@@ -104,7 +111,11 @@ fn r1_e2e_gauge_is_silent_at_the_interval_lane() {
         Tol::witness(),
     )
     .expect("r1 loft builds");
-    match topo::test_support::unmigrated_measure(&lofted.body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())) {
+    match topo::test_support::unmigrated_measure(
+        &lofted.body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    ) {
         Ok(m) => println!(
             "R1-E2E(interval) area_pad {:?} surface {:?}",
             m.enclosure.area_pad, m.enclosure.surface_area

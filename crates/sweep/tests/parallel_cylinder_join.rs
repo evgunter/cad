@@ -252,8 +252,12 @@ fn the_rim_crossing_rods_build_in_every_op() {
                     );
                     // The cut wall's flux is a certified quadrature: the
                     // slack is its enclosure's own half-width.
-                    let m = topo::mass_properties(&bb.body, tol, topo::test_support::pinned_resolution(tol))
-                        .unwrap_or_else(|e| panic!("{label}: measures, got {e:?}"));
+                    let m = topo::mass_properties(
+                        &bb.body,
+                        tol,
+                        topo::test_support::pinned_resolution(tol),
+                    )
+                    .unwrap_or_else(|e| panic!("{label}: measures, got {e:?}"));
                     assert!(
                         (m.enclosure.volume - want).abs() <= m.enclosure.volume_pad + 1e-12,
                         "{label}: volume {} ± {} vs {want}",
@@ -262,8 +266,12 @@ fn the_rim_crossing_rods_build_in_every_op() {
                     );
                     let joined = topo::union(&bb.body, &far, tol)
                         .unwrap_or_else(|e| panic!("{label}: ∪ a far brick builds, got {e:?}"));
-                    let j = topo::mass_properties(&joined.body().expect("not empty").body, tol, topo::test_support::pinned_resolution(tol))
-                        .unwrap_or_else(|e| panic!("{label}: ∪ a far brick measures, got {e:?}"));
+                    let j = topo::mass_properties(
+                        &joined.body().expect("not empty").body,
+                        tol,
+                        topo::test_support::pinned_resolution(tol),
+                    )
+                    .unwrap_or_else(|e| panic!("{label}: ∪ a far brick measures, got {e:?}"));
                     assert!(
                         (j.enclosure.volume - (want + 1.0)).abs() <= j.enclosure.volume_pad + 1e-12,
                         "{label}: ∪ a far brick: volume {} ± {} vs {}",

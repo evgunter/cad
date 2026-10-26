@@ -37,7 +37,10 @@ fn exact(label: &str, op: Op, x: &AtRestBody<f64>, y: &AtRestBody<f64>, want: f6
         Ok(()),
         "{label}: tier 3′"
     );
-    let v = mass_properties(&bb.body, tol, topo::test_support::pinned_resolution(tol)).unwrap().enclosure.volume;
+    let v = mass_properties(&bb.body, tol, topo::test_support::pinned_resolution(tol))
+        .unwrap()
+        .enclosure
+        .volume;
     assert!((v - want).abs() < 1e-12, "{label}: volume {v}, want {want}");
 }
 
@@ -195,7 +198,10 @@ fn a_split_through_the_reflex_corner_whose_run_holds_the_whole_orbit() {
                 Ok(()),
                 "n = {n:?} {side}: tier 3"
             );
-            let v = mass_properties(b, tol, topo::test_support::pinned_resolution(tol)).unwrap().enclosure.volume;
+            let v = mass_properties(b, tol, topo::test_support::pinned_resolution(tol))
+                .unwrap()
+                .enclosure
+                .volume;
             assert!(
                 (v - want).abs() < 1e-12,
                 "n = {n:?} {side}: volume {v}, want {want}"

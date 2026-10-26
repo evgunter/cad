@@ -6063,9 +6063,7 @@ fn plus_v_verdict(
     match role {
         Ok(ShellRole::Outer) => PlusVVerdict::Pass,
         Ok(ShellRole::Void) => PlusVVerdict::Refuse,
-        Err(
-            RoleWalkRefusal::Refused(source)
-        ) => PlusVVerdict::Uncomputable(source),
+        Err(RoleWalkRefusal::Refused(source)) => PlusVVerdict::Uncomputable(source),
         Err(RoleWalkRefusal::Unread {
             limit: Some(limit), ..
         }) => PlusVVerdict::Unresolved(limit),
@@ -16006,9 +16004,14 @@ mod tests {
         // could not refuse the flipped one even if it ran.
         let volume = |b: &Body<f64>| {
             // Raw door: the measured body still carries construction scaffolding, or a loop flipped against its role, which tier 3 refuses (ScaffoldAtRest, LoopRoleInverted).
-            crate::test_support::measure_unvalidated(b, Tol::witness(), crate::test_support::pinned_resolution(Tol::witness()))
-                .unwrap()
-                .enclosure.volume
+            crate::test_support::measure_unvalidated(
+                b,
+                Tol::witness(),
+                crate::test_support::pinned_resolution(Tol::witness()),
+            )
+            .unwrap()
+            .enclosure
+            .volume
         };
         assert_eq!(
             volume(&cube).to_bits(),

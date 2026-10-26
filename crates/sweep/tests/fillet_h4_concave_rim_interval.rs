@@ -44,7 +44,12 @@ fn the_waist_carves_at_the_certified_scalar_and_brackets_the_pappus_fill() {
     let source = waisted_at::<Interval>(tol);
     let arcs = rim_arcs_at(&source, 0.5, 0.5);
     assert_eq!(arcs.len(), 2, "the waist rim is seam-split into two arcs");
-    let p0 = topo::test_support::unmigrated_measure(&source, tol, topo::test_support::pinned_resolution(tol)).expect("interval props");
+    let p0 = topo::test_support::unmigrated_measure(
+        &source,
+        tol,
+        topo::test_support::pinned_resolution(tol),
+    )
+    .expect("interval props");
     let v0 = 7.0 * PI / 12.0;
     assert_brackets(p0.enclosure.volume, v0, "the source");
 
@@ -57,12 +62,21 @@ fn the_waist_carves_at_the_certified_scalar_and_brackets_the_pappus_fill() {
     .unwrap_or_else(|e| panic!("the concave waist carves at Interval, got {e:?}"));
     assert_eq!(out.band_faces.len(), 1, "one annulus band");
     validate_geometric(&out.body, tol).unwrap_or_else(|e| panic!("tier-3 valid, got {e:?}"));
-    let p1 = topo::test_support::unmigrated_measure(&out.body, tol, topo::test_support::pinned_resolution(tol)).expect("interval props");
+    let p1 = topo::test_support::unmigrated_measure(
+        &out.body,
+        tol,
+        topo::test_support::pinned_resolution(tol),
+    )
+    .expect("interval props");
     assert_eq!(
         p1.enclosure.volume_pad, 0.0,
         "closed-form inventory at the certified scalar too"
     );
-    assert_brackets(p1.enclosure.volume, v0 + waist_fill(0.5, r), "the carved body");
+    assert_brackets(
+        p1.enclosure.volume,
+        v0 + waist_fill(0.5, r),
+        "the carved body",
+    );
     // The sign is DEFINITE at the certified scalar: the whole enclosure
     // of the carved volume lies above the whole enclosure of the source's.
     assert!(

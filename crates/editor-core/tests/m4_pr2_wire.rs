@@ -74,9 +74,14 @@ fn revolve_wires_its_axis_through_the_sketch_plane() {
     };
     assert_eq!(validate(body), Ok(()));
     assert_eq!(validate_closed(body), Ok(()));
-    let vol = topo::test_support::unmigrated_measure(body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-        .unwrap()
-        .enclosure.volume;
+    let vol = topo::test_support::unmigrated_measure(
+        body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap()
+    .enclosure
+    .volume;
     assert!((vol - PI).abs() < 1e-9, "cylinder volume π, got {vol}");
 }
 
@@ -91,7 +96,12 @@ fn rotational_placement_wires_and_preserves_volume() {
     };
     assert_eq!(validate(body), Ok(()));
     assert_eq!(validate_closed(body), Ok(()));
-    let m = topo::test_support::unmigrated_measure(body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap();
+    let m = topo::test_support::unmigrated_measure(
+        body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap();
     assert!((m.enclosure.volume - 1.0).abs() < 1e-12);
     assert!((m.enclosure.surface_area - 6.0).abs() < 1e-12);
 }
@@ -119,9 +129,14 @@ fn linear_pattern_evaluates_instances_as_data() {
     for (i, inst) in instances.iter().enumerate() {
         assert_eq!(validate(inst), Ok(()));
         assert_eq!(
-            topo::test_support::unmigrated_measure(inst, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-                .unwrap()
-                .enclosure.volume,
+            topo::test_support::unmigrated_measure(
+                inst,
+                Tol::witness(),
+                topo::test_support::pinned_resolution(Tol::witness())
+            )
+            .unwrap()
+            .enclosure
+            .volume,
             1.0
         ); // dyadic exact
         // Instance i sits at x offset 2i exactly (translation-only).
@@ -179,9 +194,14 @@ fn circular_pattern_rotates_about_an_axis_read_off_the_body() {
     for inst in instances {
         assert_eq!(validate(inst), Ok(()));
         assert!(
-            (topo::test_support::unmigrated_measure(inst, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-                .unwrap()
-                .enclosure.volume
+            (topo::test_support::unmigrated_measure(
+                inst,
+                Tol::witness(),
+                topo::test_support::pinned_resolution(Tol::witness())
+            )
+            .unwrap()
+            .enclosure
+            .volume
                 - 1.0)
                 .abs()
                 < 1e-12

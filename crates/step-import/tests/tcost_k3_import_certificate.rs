@@ -143,7 +143,13 @@ fn the_readers_gate_runs_one_certificate_and_hands_it_back() {
     // the count is of the one measurement.
     let body = topo::test_support::finished("the measured body", body.clone(), tol);
     let mut measured = None;
-    let one = quad_rounds(|| measured = Some(topo::mass_properties(&body, tol, topo::test_support::pinned_resolution(tol))));
+    let one = quad_rounds(|| {
+        measured = Some(topo::mass_properties(
+            &body,
+            tol,
+            topo::test_support::pinned_resolution(tol),
+        ))
+    });
     let measured = measured.expect("the closure ran").expect(
         "IDENTITY: the body the reader shipped passed the reader's own tier-3′ gate, so \
          its enclosure certifies by construction",

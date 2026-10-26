@@ -298,7 +298,8 @@ fn the_boolean_on_the_cup_builds_and_balances() {
             "cup {what} cutter: volume {v} ± {pad} against the closed form {truth}"
         );
     }
-    let whole = topo::mass_properties(&cup, tol, topo::test_support::pinned_resolution(tol)).expect("the cup measures");
+    let whole = topo::mass_properties(&cup, tol, topo::test_support::pinned_resolution(tol))
+        .expect("the cup measures");
     let gap = (vd + vi - whole.enclosure.volume).abs();
     assert!(
         vi > 0.0 && gap <= pd + pi + whole.enclosure.volume_pad + 1e-12 * whole.enclosure.volume,

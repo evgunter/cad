@@ -208,7 +208,12 @@ fn the_die_blank_certifies_and_tessellates_watertight() {
         Ok(()),
         "tier 3"
     );
-    let props = topo::mass_properties(&die, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap();
+    let props = topo::mass_properties(
+        &die,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap();
     let want = blank_volume();
     assert!(
         (props.enclosure.volume - want).abs() <= 1e-9 * want,
@@ -222,7 +227,10 @@ fn the_die_blank_certifies_and_tessellates_watertight() {
     let mesh = mesh::tessellate(&die, 5e-3, Tol::witness()).expect("the blank tessellates");
     mesh::validate::check_mesh(&mesh).expect("watertight");
     let v_mesh = mesh::validate::signed_volume(&mesh);
-    assert!(v_mesh > 0.0 && v_mesh < props.enclosure.volume, "an inscribed mesh");
+    assert!(
+        v_mesh > 0.0 && v_mesh < props.enclosure.volume,
+        "an inscribed mesh"
+    );
     assert!(((v_mesh - props.enclosure.volume) / props.enclosure.volume).abs() < 5e-3);
 }
 
@@ -258,9 +266,14 @@ fn the_pips_cut_in_one_group_operation_on_all_six_faces() {
         "tier 3"
     );
     let want = DIE_L.powi(3) - 21.0 * cap(PIP_R, PIP_H);
-    let vol = topo::test_support::unmigrated_measure(&pipped, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-        .unwrap()
-        .enclosure.volume;
+    let vol = topo::test_support::unmigrated_measure(
+        &pipped,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap()
+    .enclosure
+    .volume;
     assert!(
         (vol - want).abs() <= 1e-9 * want,
         "pipped cube volume {vol} vs closed form {want}"
@@ -291,10 +304,18 @@ fn the_pips_cut_in_one_group_operation_on_all_six_faces() {
 fn the_pip_caps_measure_through_the_closed_form() {
     let blank = finished("the cube", cube(DIE_L, Tol::witness()), Tol::witness());
     let pipped = subtract(&blank, &pip_tool());
-    let props = topo::test_support::unmigrated_measure(&pipped, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap();
+    let props = topo::test_support::unmigrated_measure(
+        &pipped,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap();
     println!(
         "PROBE pipped: volume={} volume_pad={} area={} area_pad={}",
-        props.enclosure.volume, props.enclosure.volume_pad, props.enclosure.surface_area, props.enclosure.area_pad
+        props.enclosure.volume,
+        props.enclosure.volume_pad,
+        props.enclosure.surface_area,
+        props.enclosure.area_pad
     );
     let want = DIE_L.powi(3) - 21.0 * cap(PIP_R, PIP_H);
     assert_eq!(
@@ -351,9 +372,14 @@ fn deviation_1_both_doors_compose_and_agree() {
         Ok(()),
         "tier 3"
     );
-    let va = topo::mass_properties(via_boolean, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-        .unwrap()
-        .enclosure.volume;
+    let va = topo::mass_properties(
+        via_boolean,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap()
+    .enclosure
+    .volume;
     assert!(
         (va - want).abs() <= 1e-9 * want,
         "door A volume {va} vs closed form {want}"
@@ -381,9 +407,14 @@ fn deviation_1_both_doors_compose_and_agree() {
         Ok(()),
         "tier 3"
     );
-    let vb = topo::test_support::unmigrated_measure(&via_surgery, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-        .unwrap()
-        .enclosure.volume;
+    let vb = topo::test_support::unmigrated_measure(
+        &via_surgery,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap()
+    .enclosure
+    .volume;
     assert!(
         (vb - want).abs() <= 1e-9 * want,
         "door B volume {vb} vs closed form {want}"

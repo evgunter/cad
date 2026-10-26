@@ -19,7 +19,6 @@ use geom_core::{Band, Point2, Point3, RigidMotion, Tol, Vec3};
 use profile::test_support::bulge_loop;
 use profile::{ProfileLoop, SketchPlane};
 use sweep::loft_body;
-use topo::MassPropsError;
 
 /// The lens on chord `width`, rising `ridge` above it and dropping
 /// `keel` below, run counterclockwise from the `+s` margin.
@@ -125,18 +124,24 @@ fn a_lofted_lens_blade_certifies_its_sign_and_its_number() {
         enclosure.volume_lo > 0.0,
         "the admitted blade's volume enclosure is positive: {enclosure:?}"
     );
-    // At ε = 1e-12 the target is a thousand times tighter and the
+    // At ε = 1e-12 the resolution is a thousand times tighter and the
     // blade's number may stay open; the sign is the claim there.
-    match topo::mass_properties(&body, tol, topo::test_support::pinned_resolution(tol)) {
-        Ok(measured) => {
+    let measured = topo::mass_properties(&body, tol, topo::test_support::pinned_resolution(tol))
+        .unwrap_or_else(|e| panic!("the door measures the blade at ε = {:e}: {e:?}", tol.eps()));
+    match measured.stop {
+        topo::Stop::Met => {
             assert!(
-                enclosure.volume_lo <= measured.enclosure.volume && measured.enclosure.volume <= enclosure.volume_hi,
+                enclosure.volume_lo <= measured.enclosure.volume
+                    && measured.enclosure.volume <= enclosure.volume_hi,
                 "the blade's number {} sits in the gate's bracket {enclosure:?}",
                 measured.enclosure.volume
             );
             if tol.eps() == geom_core::tolerance::DEFAULT_EPS {
                 assert_eq!(
-                    (measured.enclosure.volume.to_bits(), measured.enclosure.volume_pad.to_bits()),
+                    (
+                        measured.enclosure.volume.to_bits(),
+                        measured.enclosure.volume_pad.to_bits()
+                    ),
                     (
                         0.034_605_949_150_085_27_f64.to_bits(),
                         4.641_116_041_851_727e-7_f64.to_bits()
@@ -145,25 +150,21 @@ fn a_lofted_lens_blade_certifies_its_sign_and_its_number() {
                 );
             }
         }
-        Err(MassPropsError::Face {
-            source: geom_brep::PropsError::QuadratureBudget { .. },
-            ..
-        }) if tol.eps() < geom_core::tolerance::DEFAULT_EPS => {}
-        Err(e) => panic!(
-            "the reporting door measures the blade at ε = {:e}: {e:?}",
+        topo::Stop::Floor | topo::Stop::Wall if tol.eps() < geom_core::tolerance::DEFAULT_EPS => {}
+        stop => panic!(
+            "the door meets the resolution on the blade at ε = {:e}: {stop:?}",
             tol.eps()
         ),
     }
 }
 
 /// **The sign settles while the number is open.** The gate admits the
-/// tube on a positive enclosure; the reporting door refuses its number
-/// with the wall's own width, after the rounds the lane ran; the gate
-/// carries no refusal (it stopped where the sign settled); and the
-/// certificate's continuation refuses verbatim as the door does, with a
-/// positive bracket no wider than the gate's.
+/// tube on a positive enclosure; the door answers its bracket, stopped
+/// at the wall short of the resolution; and the certificate's
+/// continuation stops there too, with a positive bracket narrower than
+/// the gate's.
 #[test]
-fn a_round_tube_certifies_its_sign_while_its_number_is_refused() {
+fn a_round_tube_certifies_its_sign_while_its_number_is_open() {
     let tol = Tol::witness();
     let body = topo::test_support::finished("the round tube", round_tube(tol), tol);
     let certificate = topo::validate_geometric_certificate(&body, tol)
@@ -173,56 +174,36 @@ fn a_round_tube_certifies_its_sign_while_its_number_is_refused() {
         enclosure.volume_lo > 0.0,
         "the admitted tube's volume enclosure is positive: {enclosure:?}"
     );
-    let door = topo::mass_properties(&body, tol, topo::test_support::pinned_resolution(tol));
-    match &door {
-        Err(MassPropsError::Face {
-            source:
-                source @ geom_brep::PropsError::QuadratureBudget {
-                    width_len,
-                    target_len,
-                    rounds: 11,
-                },
-            ..
-        }) => assert!(width_len > target_len, "{source:?}"),
-        other => panic!(
-            "the reporting door refuses the tube's number at the wall at ε = {:e}: {other:?}",
-            tol.eps()
-        ),
-    }
-    // The gate stopped each wall where the sign settled, long before any
-    // reached its wall, so the certificate carries no refusal of its
-    // own; its continuation runs the walls on and refuses verbatim as
-    // the door does.
+    let door = topo::mass_properties(&body, tol, topo::test_support::pinned_resolution(tol))
+        .unwrap_or_else(|e| panic!("the door measures the tube at ε = {:e}: {e:?}", tol.eps()));
     assert_eq!(
-        certificate.target_refusal(),
-        None,
-        "no face ran out under the gate"
+        door.stop,
+        topo::Stop::Wall,
+        "the door stops the tube's number at the wall at ε = {:e}: {door:?}",
+        tol.eps()
     );
-    match certificate.measure() {
-        Err(topo::TargetUnreached { refusal, bracket }) => {
-            assert_eq!(
-                Err(refusal),
-                door.map(|_| ()),
-                "the continuation refuses as the door does"
-            );
-            // The bracket a budget refusal keeps is the walls' last
-            // round's, run on past where the sign settled: strictly
-            // narrower than the gate's, so a tighter ε never reads a
-            // wider answer
-            // (`work/quad/measure-holds-a-budget-refused-faces-bracket-at-the-round-its-sign-settled`).
-            let b = bracket;
-            assert!(
-                b.volume_lo > 0.0
-                    && b.volume_hi - b.volume_lo < enclosure.volume_hi - enclosure.volume_lo,
-                "the continuation's bracket [{}, {}] is narrower than the gate's [{}, {}]",
-                b.volume_lo,
-                b.volume_hi,
-                enclosure.volume_lo,
-                enclosure.volume_hi
-            );
-        }
-        Ok(p) => panic!("the continuation measured the tube: {p:?}"),
-    }
+    // The gate stopped each wall where the sign settled, long before any
+    // reached its wall; its continuation runs the walls on to the same
+    // stop as the door.
+    let continued = certificate
+        .measure(topo::test_support::pinned_resolution(tol))
+        .unwrap_or_else(|e| panic!("the continuation measures the tube: {e:?}"));
+    assert_eq!(
+        continued.stop, door.stop,
+        "the continuation stops as the door does"
+    );
+    // Its bracket is the walls' narrowest rounds, run on past where the
+    // sign settled: strictly narrower than the gate's, so a tighter ε
+    // never reads a wider answer.
+    let b = continued.enclosure.enclosure();
+    assert!(
+        b.volume_lo > 0.0 && b.volume_hi - b.volume_lo < enclosure.volume_hi - enclosure.volume_lo,
+        "the continuation's bracket [{}, {}] is narrower than the gate's [{}, {}]",
+        b.volume_lo,
+        b.volume_hi,
+        enclosure.volume_lo,
+        enclosure.volume_hi
+    );
 }
 
 /// **The backstop pays a refused face once per body it reads.** The
@@ -239,7 +220,14 @@ fn the_volume_backstop_reads_a_refused_face_once_per_body() {
     let body = topo::test_support::finished("the round tube", round_tube(tol), tol);
     let brick = crate::common::square_prism();
     let reporting = crate::common::quad_rounds(|| {
-        topo::mass_properties(&body, tol, topo::test_support::pinned_resolution(tol)).expect_err("the reporting door refuses the tube");
+        let measured =
+            topo::mass_properties(&body, tol, topo::test_support::pinned_resolution(tol))
+                .expect("the door measures the tube");
+        assert_eq!(
+            measured.stop,
+            topo::Stop::Wall,
+            "the tube's number stops at the wall"
+        );
     });
     let backstop = crate::common::quad_rounds(|| {
         topo::test_support::volume_backstop(topo::BooleanOp::Union, &body, &brick, &body, tol)

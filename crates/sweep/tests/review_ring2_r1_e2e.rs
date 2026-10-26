@@ -25,7 +25,12 @@ fn ring2_r1_end_to_end_certificate_bits() {
     let tol = Tol::witness();
     let body = loft_prism(tol);
     topo::validate_geometric(&body, tol).expect("the prism is tier-3 valid");
-    let props = topo::test_support::unmigrated_measure(&body, tol, topo::test_support::pinned_resolution(tol)).expect("mass properties");
+    let props = topo::test_support::unmigrated_measure(
+        &body,
+        tol,
+        topo::test_support::pinned_resolution(tol),
+    )
+    .expect("mass properties");
     println!(
         "R1E2E volume={:.17e} bits={:#018x} pad={:.17e} pad_bits={:#018x}",
         props.enclosure.volume,
@@ -53,7 +58,9 @@ fn ring2_r1_end_to_end_certificate_bits() {
         props.enclosure.volume_pad
     );
     assert!(
-        props.enclosure.area_pad > 0.0 && props.enclosure.area_pad.is_finite() && props.enclosure.surface_area > 0.0,
+        props.enclosure.area_pad > 0.0
+            && props.enclosure.area_pad.is_finite()
+            && props.enclosure.surface_area > 0.0,
         "the area certificate is a width around a positive area: {props:?}"
     );
 

@@ -495,7 +495,8 @@ fn a_millimetre_cube_on_a_thin_plate_builds() {
     ] {
         let both = topo::union(a, b, tol).unwrap_or_else(|e| panic!("{order}: builds, got {e:?}"));
         let body = both.body().expect("the union is not empty");
-        let m = topo::mass_properties(&body.body, tol, topo::test_support::pinned_resolution(tol)).expect("the union measures");
+        let m = topo::mass_properties(&body.body, tol, topo::test_support::pinned_resolution(tol))
+            .expect("the union measures");
         let va = m.enclosure.volume / m.enclosure.surface_area;
         let band = geom_core::Band::linear(tol).expect("the band forms");
         assert!(

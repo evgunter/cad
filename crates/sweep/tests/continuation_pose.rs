@@ -219,10 +219,15 @@ fn every_op(
         );
         let joined = topo::union(&out.body, &far, tol)
             .unwrap_or_else(|e| panic!("{label}: ∪ a far brick: {e:?}"));
-        let j = topo::mass_properties(&joined.body().expect("not empty").body, tol, topo::test_support::pinned_resolution(tol))
-            .unwrap_or_else(|e| panic!("{label}: ∪ a far brick: mass properties {e:?}"));
+        let j = topo::mass_properties(
+            &joined.body().expect("not empty").body,
+            tol,
+            topo::test_support::pinned_resolution(tol),
+        )
+        .unwrap_or_else(|e| panic!("{label}: ∪ a far brick: mass properties {e:?}"));
         assert!(
-            (j.enclosure.volume - (truth + 1.0)).abs() <= j.enclosure.volume_pad + 1e-9 * (truth + 1.0),
+            (j.enclosure.volume - (truth + 1.0)).abs()
+                <= j.enclosure.volume_pad + 1e-9 * (truth + 1.0),
             "{label}: ∪ a far brick: volume {} ± {} against {}",
             j.enclosure.volume,
             j.enclosure.volume_pad,

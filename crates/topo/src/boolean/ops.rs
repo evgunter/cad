@@ -8646,9 +8646,14 @@ mod tests {
         );
         // Raw door: the measured prisms still carry construction scaffolding, which tier 3 refuses (ScaffoldAtRest).
         let volume = |body: &crate::Body<f64>| {
-            crate::test_support::measure_unvalidated(body, Tol::witness(), crate::test_support::pinned_resolution(Tol::witness()))
-                .unwrap()
-                .enclosure.volume
+            crate::test_support::measure_unvalidated(
+                body,
+                Tol::witness(),
+                crate::test_support::pinned_resolution(Tol::witness()),
+            )
+            .unwrap()
+            .enclosure
+            .volume
         };
         assert!(
             volume(&low) < volume(&high),

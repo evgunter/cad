@@ -71,7 +71,8 @@ fn assert_op(label: &str, op: BooleanOp, a: &AtRestBody<f64>, b: &AtRestBody<f64
         .unwrap_or_else(|e| panic!("{label}: certificate: {e:?}"));
     let v = topo::mass_properties(&bb.body, tol, topo::test_support::pinned_resolution(tol))
         .unwrap_or_else(|e| panic!("{label}: mass properties: {e:?}"))
-        .enclosure.volume;
+        .enclosure
+        .volume;
     assert!(
         (v - expected).abs() <= 1e-9 * expected.max(1.0),
         "{label}: volume {v} against the closed form {expected}"

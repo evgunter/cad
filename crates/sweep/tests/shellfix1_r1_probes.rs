@@ -102,7 +102,12 @@ fn assert_coherent(what: &str, cup: &Body<f64>, want_volume: Option<f64>) {
             .unwrap_or_else(|e| panic!("{what}: must triangulate at delta = {delta}, got {e:?}"));
     }
     if let Some(want) = want_volume {
-        let props = topo::test_support::unmigrated_measure(cup, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).expect("props");
+        let props = topo::test_support::unmigrated_measure(
+            cup,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
+        )
+        .expect("props");
         assert!(
             (props.enclosure.volume - want).abs() <= 1e-9 + props.enclosure.volume_pad,
             "{what}: volume {} (pad {}), want {want}",
@@ -536,7 +541,12 @@ fn p8_hollow_operand_thickens_every_boundary() {
             .unwrap_or_else(|| panic!("operand face {face:?} survives under its key"));
         assert_eq!(got.shell, data.shell, "{face:?} keeps its shell");
     }
-    let props = topo::test_support::unmigrated_measure(&shelled, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).expect("props");
+    let props = topo::test_support::unmigrated_measure(
+        &shelled,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .expect("props");
     let want = (2.0 * 3.0 * 4.0 - 1.9 * 2.9 * 3.9) + (1.6 * 2.6 * 3.6 - 1.5 * 2.5 * 3.5);
     assert!(
         (props.enclosure.volume - want).abs() <= 1e-12,

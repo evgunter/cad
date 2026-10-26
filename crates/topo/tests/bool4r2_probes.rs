@@ -317,7 +317,12 @@ fn the_per_solid_door_reads_the_container_s_own_sign_at_infinity() {
         panic!()
     };
     // Raw door: the measured body is an inside-out body, which tier 3 refuses (NegativeVolume).
-    let whole_props = topo::test_support::measure_unvalidated(&body, tol, topo::test_support::pinned_resolution(tol)).unwrap();
+    let whole_props = topo::test_support::measure_unvalidated(
+        &body,
+        tol,
+        topo::test_support::pinned_resolution(tol),
+    )
+    .unwrap();
     println!("total volume {}", whole_props.enclosure.volume);
     assert!(whole_props.enclosure.volume > 0.0);
     let q = Point3::new(-7.0, 11.0, 23.0);

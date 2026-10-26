@@ -48,7 +48,8 @@ fn two_outer_bounds_on_a_planar_face_with_a_real_hole() {
         topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .enclosure.volume;
+    .enclosure
+    .volume;
     println!("baseline volume {v0}");
     match import_step(&m, &ImportOptions::default(), Tol::witness()) {
         Ok(StepImport::Solid { body, .. }) => {

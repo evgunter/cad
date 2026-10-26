@@ -462,12 +462,26 @@ fn subtract_and_intersect_partition_a_and_a_complement_is_unfinished() {
 pub(crate) fn partition_and_complement(name: &str, a: &AtRestBody<f64>, b: &AtRestBody<f64>) {
     let volume = |r: BooleanResult<f64>| {
         r.body().map_or(0.0, |bb| {
-            mass_properties(&bb.body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap().enclosure.volume
+            mass_properties(
+                &bb.body,
+                Tol::witness(),
+                topo::test_support::pinned_resolution(Tol::witness()),
+            )
+            .unwrap()
+            .enclosure
+            .volume
         })
     };
     let minus = volume(subtract(a, b, Tol::witness()).unwrap());
     let meet = volume(topo::intersect(a, b, Tol::witness()).unwrap());
-    let whole = mass_properties(a, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap().enclosure.volume;
+    let whole = mass_properties(
+        a,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap()
+    .enclosure
+    .volume;
     assert_eq!(minus + meet, whole, "{name}: A∖B and A∩B partition A");
     let refused = AtRestBody::validate(b.revert().unwrap(), Tol::witness())
         .expect_err("a complement is not a finished body");

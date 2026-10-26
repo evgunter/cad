@@ -59,7 +59,14 @@ fn plane(o: (f64, f64), n: (f64, f64)) -> SplitPlane<f64> {
 fn volume(label: &str, part: &SplitPart<f64>) -> Option<f64> {
     part.body().map(|b| {
         assert_eq!(validate_closed(b), Ok(()), "{label}");
-        mass_properties(b, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap().enclosure.volume
+        mass_properties(
+            b,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
+        )
+        .unwrap()
+        .enclosure
+        .volume
     })
 }
 
@@ -449,9 +456,14 @@ fn a_convex_graze_of_a_cylinder_lands_it_whole_at_interval() {
             (&r.below, &r.above)
         };
         assert!(empty.body().is_none(), "{label}: two-sided");
-        let v = mass_properties(whole.body().expect("the whole cylinder"), Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-            .unwrap()
-            .enclosure.volume;
+        let v = mass_properties(
+            whole.body().expect("the whole cylinder"),
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
+        )
+        .unwrap()
+        .enclosure
+        .volume;
         assert!(
             v.lo() - 1e-12 <= pi4 && pi4 <= v.hi() + 1e-12,
             "{label}: [{}, {}]",

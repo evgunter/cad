@@ -52,9 +52,14 @@ pub(crate) fn beside(body: &Body<f64>, other: &Body<f64>, dx: f64) -> Body<f64> 
 }
 
 pub(crate) fn volume(body: &Body<f64>) -> f64 {
-    topo::test_support::unmigrated_measure(body, tol(), topo::test_support::pinned_resolution(tol()))
-        .expect("props")
-        .enclosure.volume
+    topo::test_support::unmigrated_measure(
+        body,
+        tol(),
+        topo::test_support::pinned_resolution(tol()),
+    )
+    .expect("props")
+    .enclosure
+    .volume
 }
 
 /// The solid a face belongs to ([`Body::solid_of_face`], which every

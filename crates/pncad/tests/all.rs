@@ -1470,8 +1470,14 @@ fn the_import_answer_and_its_record_are_spellable_through_the_prelude() {
         enclosure.surface_area.to_bits(),
         again.enclosure.surface_area.to_bits()
     );
-    assert_eq!(enclosure.volume_pad.to_bits(), again.enclosure.volume_pad.to_bits());
-    assert_eq!(enclosure.area_pad.to_bits(), again.enclosure.area_pad.to_bits());
+    assert_eq!(
+        enclosure.volume_pad.to_bits(),
+        again.enclosure.volume_pad.to_bits()
+    );
+    assert_eq!(
+        enclosure.area_pad.to_bits(),
+        again.enclosure.area_pad.to_bits()
+    );
 
     // The assembly record is kept whether or not the file states an
     // assembly, so a one-solid box still carries one.
@@ -1572,7 +1578,12 @@ fn a_boolean_result_validates_at_tier_3_prime() {
     // empty set. This is what makes 3′ meaningful.
     ladder(&result.body, Some(&result.contacts));
 
-    let props = mass_properties(&result.body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).expect("mass properties");
+    let props = mass_properties(
+        &result.body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .expect("mass properties");
     assert!(
         (props.enclosure.volume - 7.0).abs() < 1e-12,
         "6.0 + 1.5 - 0.5 overlap = 7.0, got {}",
@@ -2391,7 +2402,8 @@ fn a_recorded_paths_chain_becomes_a_profile_program_node() {
         topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("mass properties")
-    .enclosure.volume;
+    .enclosure
+    .volume;
     // 40 x 30, less what the r = 6 round takes off, times 8 thick.
     let area = 40.0 * 30.0 - (36.0 - core::f64::consts::PI * 36.0 / 4.0);
     assert!((volume - area * 8.0).abs() < 1e-9, "volume {volume}");
@@ -2430,7 +2442,8 @@ fn the_persist_doors_round_trip_through_the_facade() {
         topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("mass properties")
-    .enclosure.volume;
+    .enclosure
+    .volume;
     // Exact on purpose: every coordinate is dyadic and small, so each closed-form term and
     // their sum are exact in f64 (a zero pad states no rounding; here there is none).
     assert_eq!(volume, 6.0);
@@ -2469,7 +2482,8 @@ fn the_persist_doors_round_trip_through_the_facade() {
         topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("mass properties")
-    .enclosure.volume;
+    .enclosure
+    .volume;
     assert_eq!(
         volume.to_bits(),
         replayed.to_bits(),
@@ -2497,7 +2511,8 @@ fn the_export_door_serves_the_one_shot_journey() {
                 topo::test_support::pinned_resolution(Tol::witness()),
             )
             .expect("imported mass properties")
-            .enclosure.volume;
+            .enclosure
+            .volume;
             assert!((v - 6.0).abs() < 1e-9, "imported volume {v} differs");
         }
         other => panic!("expected a solid import, got {other:?}"),
@@ -2564,7 +2579,8 @@ fn the_document_export_door_ships_the_multi_solid_product() {
                 topo::test_support::pinned_resolution(Tol::witness()),
             )
             .expect("imported mass properties")
-            .enclosure.volume;
+            .enclosure
+            .volume;
             assert!(
                 (v - (2.0 * 2.0 * 1.5 + 1.0)).abs() < 1e-9,
                 "imported volume {v} is not the parts' sum"
@@ -2931,7 +2947,8 @@ fn plate_param_authors_facade_only_and_its_saved_text_is_pinned() {
         topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("mass properties")
-    .enclosure.volume;
+    .enclosure
+    .volume;
     // Plate + tab − their overlap − two cylinders of radius 0.25: the
     // same closed form `switch_plate_param.rs` asserts, tab included.
     let oracle = 4.0 * 2.0 * 0.5 + 1.0 * 0.75 * 0.25
@@ -3741,7 +3758,8 @@ fn asm2a_row1_two_instances_through_a_real_workspace() {
             topo::test_support::pinned_resolution(Tol::witness()),
         )
         .expect("mass properties")
-        .enclosure.volume
+        .enclosure
+        .volume
     };
     assert_eq!(
         vol(&body).to_bits(),
@@ -3892,7 +3910,8 @@ fn asm2a_child_product_probe() {
         topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("mass properties")
-    .enclosure.volume;
+    .enclosure
+    .volume;
     std::fs::write(&out, format!("{}", v.to_bits())).expect("probe output writable");
 }
 
@@ -4040,7 +4059,8 @@ fn asm_r2a_child_mated_probe() {
         topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("mass properties")
-    .enclosure.volume;
+    .enclosure
+    .volume;
     let text = pncad::document::save(&doc, &[], Tol::witness()).expect("the document saves");
     std::fs::write(
         &out,
@@ -4156,7 +4176,8 @@ fn asm_r2b_child_crossing_probe() {
         topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("mass properties")
-    .enclosure.volume;
+    .enclosure
+    .volume;
     std::fs::write(
         &out,
         format!(
@@ -4282,7 +4303,8 @@ fn asm2b_row2_sub_assembly_through_a_real_workspace() {
             topo::test_support::pinned_resolution(Tol::witness()),
         )
         .expect("mass properties")
-        .enclosure.volume
+        .enclosure
+        .volume
     };
     let part_doc = ws.resolve(&p, Tol::witness()).expect("resolves");
     let part_ev = asm2a_eval(&part_doc, &ws);
@@ -4357,7 +4379,8 @@ fn asm2b_child_product_probe() {
         topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("mass properties")
-    .enclosure.volume;
+    .enclosure
+    .volume;
     let text = format!("{}|{}", v.to_bits(), asm2b_signature(&body));
     std::fs::write(&out, text).expect("probe output writable");
 }
@@ -4469,7 +4492,8 @@ fn asm4_split_and_inline_through_the_real_store() {
             topo::test_support::pinned_resolution(Tol::witness()),
         )
         .expect("mass properties")
-        .enclosure.volume
+        .enclosure
+        .volume
         .to_bits()
     };
 
@@ -4633,7 +4657,8 @@ fn asm_upd_row3_update_to_store_picks_up_the_resaved_part() {
             topo::test_support::pinned_resolution(Tol::witness()),
         )
         .expect("mass properties")
-        .enclosure.volume
+        .enclosure
+        .volume
     };
     let ev = asm2a_eval(&doc, &ws);
     let before = vol(&d::product(&doc, &ev, Tol::witness()).expect("gathers"));
@@ -4772,7 +4797,8 @@ fn asm_upd_child_update_probe() {
         topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("mass properties")
-    .enclosure.volume;
+    .enclosure
+    .volume;
     let text = format!(
         "{}\u{1e}{}",
         d::save(&updated, &[], Tol::witness()).expect("the updated document saves"),
@@ -6761,7 +6787,10 @@ mod the_hollowed_box_through_the_facade {
         let want = 1.0 - inner * inner * (1.0 - 0.125);
         // Exact on purpose: every coordinate is dyadic and small, so each closed-form term and
         // their sum are exact in f64 (a zero pad states no rounding; here there is none).
-        assert_eq!(props.enclosure.volume, want, "the cup's volume is its closed form");
+        assert_eq!(
+            props.enclosure.volume, want,
+            "the cup's volume is its closed form"
+        );
     }
 
     /// At a dual the same document refuses at the shell node and

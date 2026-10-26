@@ -70,10 +70,15 @@ fn cut_cylinder_gains_tessellation_and_props_columns() {
         ("cut_cylinder/below", &**below),
     ] {
         let (ms, tris) = tess_column(label, body);
-        let m = topo::test_support::unmigrated_measure(body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-            .expect("the PR 11 quadrature lane computes");
+        let m = topo::test_support::unmigrated_measure(
+            body,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
+        )
+        .expect("the PR 11 quadrature lane computes");
         assert!(
-            m.enclosure.volume - m.enclosure.volume_pad <= half && half <= m.enclosure.volume + m.enclosure.volume_pad,
+            m.enclosure.volume - m.enclosure.volume_pad <= half
+                && half <= m.enclosure.volume + m.enclosure.volume_pad,
             "{label}: bracket [{}, {}] vs {half}",
             m.enclosure.volume - m.enclosure.volume_pad,
             m.enclosure.volume + m.enclosure.volume_pad
@@ -94,9 +99,14 @@ fn boss_union_gains_tessellation_and_props_columns() {
     assert!(failures(&ev).is_empty());
     let body = body_of(&ev, d.result.expect("boss carries a result"));
     let (ms, tris) = tess_column("boss_union", body);
-    let vol = topo::test_support::unmigrated_measure(body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-        .unwrap()
-        .enclosure.volume;
+    let vol = topo::test_support::unmigrated_measure(
+        body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap()
+    .enclosure
+    .volume;
     // 3×3×0.8 plate + r = 0.35 boss poking 0.5 out of the plate.
     let expect = 7.2 + core::f64::consts::PI * 0.35f64.powi(2) * 0.5;
     assert!((vol - expect).abs() < 1e-6, "vol {vol} vs {expect}");

@@ -275,9 +275,14 @@ fn revert_extruded_prism_posture() {
     let body: Body<f64> = out.body;
     assert_eq!(validate_geometric(&body, Tol::witness()), Ok(()));
     let original = format!("{body:?}");
-    let vol = topo::test_support::unmigrated_measure(&body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-        .unwrap()
-        .enclosure.volume;
+    let vol = topo::test_support::unmigrated_measure(
+        &body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap()
+    .enclosure
+    .volume;
     assert!(vol > 0.0);
     let reverted = body.revert().unwrap();
     assert_eq!(format!("{body:?}"), original, "revert mutated its operand");
@@ -289,9 +294,14 @@ fn revert_extruded_prism_posture() {
         }]),
         "tier 3 on a reverted prism must be exactly NegativeVolume"
     );
-    let rvol = topo::test_support::unmigrated_measure(&reverted, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-        .unwrap()
-        .enclosure.volume;
+    let rvol = topo::test_support::unmigrated_measure(
+        &reverted,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap()
+    .enclosure
+    .volume;
     assert_eq!(rvol.to_bits(), (-vol).to_bits());
     // Involution + determinism, bitwise through the Debug channel.
     assert_eq!(format!("{:?}", reverted.revert().unwrap()), original);
@@ -325,9 +335,14 @@ fn revert_curved_body_reverts_via_the_sense_bit() {
     let body: Body<f64> = out.body;
     assert_eq!(validate_geometric(&body, Tol::witness()), Ok(()));
     let before = format!("{body:?}");
-    let vol = topo::test_support::unmigrated_measure(&body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-        .unwrap()
-        .enclosure.volume;
+    let vol = topo::test_support::unmigrated_measure(
+        &body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap()
+    .enclosure
+    .volume;
     assert!(vol > 0.0);
     // There really is a non-plane surface here (the arc wall).
     let curved: Vec<_> = body
@@ -362,9 +377,14 @@ fn revert_curved_body_reverts_via_the_sense_bit() {
         }]),
         "tier 3 on a reverted curved body must be exactly NegativeVolume"
     );
-    let rvol = topo::test_support::unmigrated_measure(&reverted, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-        .unwrap()
-        .enclosure.volume;
+    let rvol = topo::test_support::unmigrated_measure(
+        &reverted,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap()
+    .enclosure
+    .volume;
     assert_eq!(rvol.to_bits(), (-vol).to_bits());
     assert_eq!(format!("{:?}", reverted.revert().unwrap()), before);
     assert_eq!(
@@ -390,9 +410,14 @@ fn split_then_null_lifecycle_on_prism() {
     )
     .unwrap();
     let mut body: Body<f64> = out.body;
-    let vol0 = topo::test_support::unmigrated_measure(&body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-        .unwrap()
-        .enclosure.volume;
+    let vol0 = topo::test_support::unmigrated_measure(
+        &body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap()
+    .enclosure
+    .volume;
     // Split some line edge mid-span.
     let (edge, curve) = body
         .edges()
@@ -410,10 +435,15 @@ fn split_then_null_lifecycle_on_prism() {
     }]);
     assert_eq!(validate_geometric(&body, Tol::witness()), joinable);
     assert_eq!(
-        topo::test_support::unmigrated_measure(&body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-            .unwrap()
-            .enclosure.volume
-            .to_bits(),
+        topo::test_support::unmigrated_measure(
+            &body,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness())
+        )
+        .unwrap()
+        .enclosure
+        .volume
+        .to_bits(),
         vol0.to_bits(),
         "split changed the prism's exact volume"
     );
@@ -427,7 +457,12 @@ fn split_then_null_lifecycle_on_prism() {
         )
         .unwrap();
     assert!(matches!(
-        topo::test_support::unmigrated_measure(&body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap_err(),
+        topo::test_support::unmigrated_measure(
+            &body,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness())
+        )
+        .unwrap_err(),
         topo::MassPropsError::NullScaffoldEdge { .. }
     ));
     assert!(validate_closed(&body).is_err());

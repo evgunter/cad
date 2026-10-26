@@ -642,18 +642,30 @@ fn an_interior_column_intersection_mints_a_general_image() {
     // widened chart has interior knots in its degree-1 `u` direction,
     // and `mesh`'s patch-bound gate refuses that C⁰ crease first
     // (`geom_brep::patch_bound::PatchBoundError::Degree1Crease`). ----
-    let props = topo::test_support::unmigrated_measure(&body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-        .unwrap_or_else(|e| panic!("the trimmed lane answers the degree-1 body too: {e:?}"));
-    let want =
-        topo::test_support::unmigrated_measure(&prism(INTERIOR_COLUMN_SCALE), Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-            .expect("the oracle prism's own lanes answer it");
+    let props = topo::test_support::unmigrated_measure(
+        &body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap_or_else(|e| panic!("the trimmed lane answers the degree-1 body too: {e:?}"));
+    let want = topo::test_support::unmigrated_measure(
+        &prism(INTERIOR_COLUMN_SCALE),
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .expect("the oracle prism's own lanes answer it");
     println!(
         "M8-4 DEG1 mass_properties on the trimmed chart: volume {:e} ± {:e}, area {:e} ± {:e}",
-        props.enclosure.volume, props.enclosure.volume_pad, props.enclosure.surface_area, props.enclosure.area_pad
+        props.enclosure.volume,
+        props.enclosure.volume_pad,
+        props.enclosure.surface_area,
+        props.enclosure.area_pad
     );
     assert!(
-        props.enclosure.volume - props.enclosure.volume_pad <= want.enclosure.volume + want.enclosure.volume_pad
-            && want.enclosure.volume - want.enclosure.volume_pad <= props.enclosure.volume + props.enclosure.volume_pad,
+        props.enclosure.volume - props.enclosure.volume_pad
+            <= want.enclosure.volume + want.enclosure.volume_pad
+            && want.enclosure.volume - want.enclosure.volume_pad
+                <= props.enclosure.volume + props.enclosure.volume_pad,
         "the degree-1 widening is the SAME solid as the oracle prism, so its volume \
          enclosure must overlap: {:e} ± {:e} vs {:e} ± {:e}",
         props.enclosure.volume,
@@ -863,11 +875,19 @@ fn a_degree_two_widening_measures_against_the_oracle() {
         findings.is_empty(),
         "the degree-2 body validates at rest: {findings:?}"
     );
-    let props = topo::test_support::unmigrated_measure(&body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-        .unwrap_or_else(|e| panic!("the trimmed lane answers the degree-2 body: {e:?}"));
+    let props = topo::test_support::unmigrated_measure(
+        &body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap_or_else(|e| panic!("the trimmed lane answers the degree-2 body: {e:?}"));
     let oracle = prism(INTERIOR_COLUMN_SCALE);
-    let want = topo::test_support::unmigrated_measure(&oracle, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-        .expect("the oracle prism's own lanes answer it");
+    let want = topo::test_support::unmigrated_measure(
+        &oracle,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .expect("the oracle prism's own lanes answer it");
     let overlaps = |a: (f64, f64), b: (f64, f64)| a.0 <= b.1 && b.0 <= a.1;
     let bracket = |v: f64, pad: f64| (v - pad, v + pad);
     let (got_v, want_v) = (

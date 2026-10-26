@@ -78,8 +78,12 @@ fn committed_corpus_row(name: &str) {
     // teeth both ways: the review's scale-corruption probe
     // (`review_k3_probe`) shows the new budget catching corruptions
     // the old slop accepted, at 1600×/8000× margins.
-    let (props, terms) = topo::test_support::mass_properties_with_face_terms(&body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-        .unwrap_or_else(|e| panic!("{name}: {e}"));
+    let (props, terms) = topo::test_support::mass_properties_with_face_terms(
+        &body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap_or_else(|e| panic!("{name}: {e}"));
     let expected_m3 = expect.kernel_volume_mm3 * 1e-9;
     let native_pad_m3 = expect.kernel_volume_pad_mm3 * 1e-9;
     let ulp = expected_m3.next_up() - expected_m3;
@@ -191,14 +195,16 @@ fn fixed_point() {
             topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
-        .enclosure.volume;
+        .enclosure
+        .volume;
         let v2 = topo::mass_properties(
             &topo::test_support::finished("the measured body", body2.clone(), Tol::witness()),
             Tol::witness(),
             topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
-        .enclosure.volume;
+        .enclosure
+        .volume;
         assert_eq!(
             v1.to_bits(),
             v2.to_bits(),

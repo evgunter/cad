@@ -546,7 +546,11 @@ fn measure(body: &Body<f64>) -> String {
         body.solids().count(),
         body.faces().count(),
         body.edges().count(),
-        topo::test_support::unmigrated_measure(body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
+        topo::test_support::unmigrated_measure(
+            body,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness())
+        )
     )
 }
 

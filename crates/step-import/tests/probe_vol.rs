@@ -58,7 +58,8 @@ fn measured_relative_volume_agreement() {
             topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap_or_else(|e| panic!("{name}: imported but has no volume: {e:?}"))
-        .enclosure.volume
+        .enclosure
+        .volume
             * 1e9;
         let rel = (v - oracle).abs() / oracle.abs();
         worst = worst.max(rel);

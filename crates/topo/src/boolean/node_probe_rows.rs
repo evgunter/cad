@@ -197,7 +197,8 @@ fn bicylinder(flip: bool) -> Body<f64> {
 fn the_bicylinder_built_by_hand_is_a_finished_body() {
     let tol = Tol::witness();
     let done = crate::test_support::finished("the bicylinder", bicylinder(true), tol);
-    let v = crate::mass_properties(&done, tol, crate::test_support::pinned_resolution(tol)).unwrap();
+    let v =
+        crate::mass_properties(&done, tol, crate::test_support::pinned_resolution(tol)).unwrap();
     assert!(
         (v.enclosure.volume - 16.0 / 3.0).abs() <= v.enclosure.volume_pad + 1e-12,
         "volume {} ± {}",
@@ -371,7 +372,8 @@ fn a_piece_of_the_subtraction_built_by_hand_is_a_finished_body() {
         top_piece(false, Vec3::new(0.0, 0.0, -1.0)),
         tol,
     );
-    let v = crate::mass_properties(&done, tol, crate::test_support::pinned_resolution(tol)).unwrap();
+    let v =
+        crate::mass_properties(&done, tol, crate::test_support::pinned_resolution(tol)).unwrap();
     let want = 2.0 * PI - 8.0 / 3.0;
     assert!(
         (v.enclosure.volume - want).abs() <= v.enclosure.volume_pad + 1e-12,

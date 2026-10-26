@@ -784,7 +784,8 @@ fn corners_by_wall<S: Scalar>(sharp: &Body<S>, corners: &[EdgeKey]) -> (EdgeKey,
 fn volume<S: Scalar>(b: &Body<S>, tol: Tol) -> f64 {
     pncad::topo::mass_properties(&crate::booleans::at_rest(b, tol), tol, crate::printed())
         .expect("the volume integrates")
-        .enclosure.volume
+        .enclosure
+        .volume
         .f()
 }
 

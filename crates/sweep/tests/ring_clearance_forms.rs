@@ -61,13 +61,26 @@ fn carve(name: &str, body: &Body<f64>, rims: &[(f64, f64)], r: f64) -> (f64, Bod
         assert_eq!(a.len(), 2, "{name}: the ({rr}, {ry}) rim is two arcs");
         arcs.extend(a);
     }
-    let before = topo::test_support::unmigrated_measure(body, tol(), topo::test_support::pinned_resolution(tol())).unwrap();
+    let before = topo::test_support::unmigrated_measure(
+        body,
+        tol(),
+        topo::test_support::pinned_resolution(tol()),
+    )
+    .unwrap();
     let out = fillet_edges(&sweep::test_support::at_rest(body, tol()), &arcs, r, tol())
         .unwrap_or_else(|e| panic!("{name} carves, got {e:?}"));
     validate_geometric(&out.body, tol())
         .unwrap_or_else(|e| panic!("{name} is tier-3 valid, got {e:?}"));
-    let after = topo::test_support::unmigrated_measure(&out.body, tol(), topo::test_support::pinned_resolution(tol())).unwrap();
-    assert_eq!(after.enclosure.volume_pad, 0.0, "{name}: closed-form faces only");
+    let after = topo::test_support::unmigrated_measure(
+        &out.body,
+        tol(),
+        topo::test_support::pinned_resolution(tol()),
+    )
+    .unwrap();
+    assert_eq!(
+        after.enclosure.volume_pad, 0.0,
+        "{name}: closed-form faces only"
+    );
     assert_eq!(out.band_faces.len(), rims.len(), "{name}: one band per rim");
     (after.enclosure.volume - before.enclosure.volume, out.body)
 }
@@ -204,16 +217,26 @@ fn the_bosss_two_rims_refuse_together_and_compose_sequentially() {
             ),
             other => panic!("{name}: expected the mixed shared-support arm, got {other:?}"),
         }
-        let before = topo::test_support::unmigrated_measure(&body, tol(), topo::test_support::pinned_resolution(tol()))
-            .unwrap()
-            .enclosure.volume;
+        let before = topo::test_support::unmigrated_measure(
+            &body,
+            tol(),
+            topo::test_support::pinned_resolution(tol()),
+        )
+        .unwrap()
+        .enclosure
+        .volume;
         let (_, after_ladder) = carve(name, &body, &[(0.5, 1.0)], 0.1);
         let (_, out) = carve(name, &after_ladder, &[(1.0, 1.0)], 0.1);
         // Each band's host trimlines joined: one vertex and one edge fewer apiece.
         assert_eq!(census(&out), (9, 14, 8), "{name}: two bands' census");
-        let measured = topo::test_support::unmigrated_measure(&out, tol(), topo::test_support::pinned_resolution(tol()))
-            .unwrap()
-            .enclosure.volume
+        let measured = topo::test_support::unmigrated_measure(
+            &out,
+            tol(),
+            topo::test_support::pinned_resolution(tol()),
+        )
+        .unwrap()
+        .enclosure
+        .volume
             - before;
         agrees(name, measured, if up { ladder } else { -ladder } - annulus);
     }

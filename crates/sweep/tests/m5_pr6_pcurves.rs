@@ -526,9 +526,15 @@ fn a_seam_closed_tube_split_mints_clean_halves() {
         assert!(findings.is_empty(), "{findings:?}");
         // A curved wall's volume is a quadrature read to the band's own
         // reporting target: within its enclosure, beyond 1e-8.
-        let m = topo::mass_properties(part, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap();
+        let m = topo::mass_properties(
+            part,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
+        )
+        .unwrap();
         assert!(
-            (m.enclosure.volume - 0.144 * core::f64::consts::PI).abs() < 1e-8 + m.enclosure.volume_pad,
+            (m.enclosure.volume - 0.144 * core::f64::consts::PI).abs()
+                < 1e-8 + m.enclosure.volume_pad,
             "{} ± {}",
             m.enclosure.volume,
             m.enclosure.volume_pad

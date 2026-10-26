@@ -304,10 +304,18 @@ fn a_bore_inside_the_planar_bands_sliver_goes_with_it_at_interval() {
             (f - 4, e - 12, v - 8),
             "{verb:?} at Interval: the bored block's carve is that of the block with no hole"
         );
-        let v0 = mass_properties(&body, tol, topo::test_support::pinned_resolution(tol)).expect("interval props").enclosure.volume;
-        let v1 = topo::test_support::unmigrated_measure(&out.body, tol, topo::test_support::pinned_resolution(tol))
+        let v0 = mass_properties(&body, tol, topo::test_support::pinned_resolution(tol))
             .expect("interval props")
-            .enclosure.volume;
+            .enclosure
+            .volume;
+        let v1 = topo::test_support::unmigrated_measure(
+            &out.body,
+            tol,
+            topo::test_support::pinned_resolution(tol),
+        )
+        .expect("interval props")
+        .enclosure
+        .volume;
         let want = section(verb, D) - PI * a * a;
         let dv = v0 - v1;
         assert!(

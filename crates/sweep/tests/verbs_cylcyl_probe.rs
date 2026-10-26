@@ -147,7 +147,10 @@ fn cylinder_unions_glue_their_coincidences_and_steinmetz_refuses_at_the_pierce()
             Ok(()),
             "{name}: tier 3"
         );
-        let v = topo::mass_properties(&bb.body, tol, topo::test_support::pinned_resolution(tol)).unwrap().enclosure.volume;
+        let v = topo::mass_properties(&bb.body, tol, topo::test_support::pinned_resolution(tol))
+            .unwrap()
+            .enclosure
+            .volume;
         assert!(
             (v - want).abs() < 1e-9,
             "{name}: {v} vs the closed form {want}"
@@ -210,7 +213,10 @@ fn the_coaxial_boss_unions_and_meters_at_the_closed_form() {
         panic!("a boss on a shaft is one solid");
     };
     assert_eq!(topo::validate_geometric(&out.body, tol), Ok(()), "tier 3");
-    let v = topo::mass_properties(&out.body, tol, topo::test_support::pinned_resolution(tol)).unwrap().enclosure.volume;
+    let v = topo::mass_properties(&out.body, tol, topo::test_support::pinned_resolution(tol))
+        .unwrap()
+        .enclosure
+        .volume;
     let truth = PI * 2.0 + PI * 0.25;
     assert!((v - truth).abs() < 1e-12, "{v} vs {truth}");
 }
@@ -248,7 +254,10 @@ fn the_bracket_rounds_at_every_radius_and_meters_exactly() {
         let topo::BooleanResult::Body(bb) = out else {
             panic!("r = {r} mm: the cut cannot empty the plate");
         };
-        let v = topo::mass_properties(&bb.body, tol, topo::test_support::pinned_resolution(tol)).unwrap().enclosure.volume;
+        let v = topo::mass_properties(&bb.body, tol, topo::test_support::pinned_resolution(tol))
+            .unwrap()
+            .enclosure
+            .volume;
         // Plate area less the four corner bites, times the thickness,
         // less the pocket's 20×20×5 bite.
         let expect =
@@ -309,12 +318,16 @@ fn the_bracket_rounds_at_six_millimetres() {
 fn a_fully_crossing_cylinder_pair_with_no_edge_event_refuses_typed() {
     let tol = Tol::witness();
     let (a, b) = crossing_pair_without_edge_events();
-    let va = topo::test_support::unmigrated_measure(&a, tol, topo::test_support::pinned_resolution(tol))
-        .unwrap()
-        .enclosure.volume;
-    let vb = topo::test_support::unmigrated_measure(&b, tol, topo::test_support::pinned_resolution(tol))
-        .unwrap()
-        .enclosure.volume;
+    let va =
+        topo::test_support::unmigrated_measure(&a, tol, topo::test_support::pinned_resolution(tol))
+            .unwrap()
+            .enclosure
+            .volume;
+    let vb =
+        topo::test_support::unmigrated_measure(&b, tol, topo::test_support::pinned_resolution(tol))
+            .unwrap()
+            .enclosure
+            .volume;
     // The wrong answer the silence used to give, kept as the row's own
     // yardstick: 10π + 20π, the lens counted twice.
     assert!((va + vb - 30.0 * core::f64::consts::PI).abs() < 1e-9);
@@ -342,7 +355,10 @@ fn cylinders_standing_clear_of_each_other_still_answer() {
         panic!("two disjoint solids union into a two-shell body");
     };
     assert_eq!(out.body.shells().count(), 2);
-    let v = topo::mass_properties(&out.body, tol, topo::test_support::pinned_resolution(tol)).unwrap().enclosure.volume;
+    let v = topo::mass_properties(&out.body, tol, topo::test_support::pinned_resolution(tol))
+        .unwrap()
+        .enclosure
+        .volume;
     assert!((v - 4.0 * core::f64::consts::PI).abs() < 1e-9, "{v}");
 }
 
@@ -659,7 +675,10 @@ fn the_line_clearance_clamp_is_what_lets_a_radial_edge_clear() {
         panic!("two disjoint solids union into a body");
     };
     // Disjoint operands, so the volumes add: π·1²·2 + 2.0·2.001·0.2.
-    let v = topo::mass_properties(&bb.body, tol, topo::test_support::pinned_resolution(tol)).unwrap().enclosure.volume;
+    let v = topo::mass_properties(&bb.body, tol, topo::test_support::pinned_resolution(tol))
+        .unwrap()
+        .enclosure
+        .volume;
     let expect = core::f64::consts::PI * 2.0 + 2.0 * 2.001 * 0.2;
     assert!((v - expect).abs() < 1e-9, "metered {v}, expected {expect}");
 }

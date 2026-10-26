@@ -560,9 +560,14 @@ mod tests {
         let want = coil_volume(4.0 * WIRE_H * WIRE_H);
         let gap = |per_turn| {
             let body = spring::<f64>(&[square_wire(tol)], per_turn, tol).expect("the coil");
-            let v = pncad::topo::mass_properties(&crate::booleans::at_rest(&body, tol), tol, crate::printed())
-                .expect("the coil's volume")
-                .enclosure.volume;
+            let v = pncad::topo::mass_properties(
+                &crate::booleans::at_rest(&body, tol),
+                tol,
+                crate::printed(),
+            )
+            .expect("the coil's volume")
+            .enclosure
+            .volume;
             (v - want) / want
         };
         let (coarse, fine) = (gap(PER_TURN), gap(2 * PER_TURN));

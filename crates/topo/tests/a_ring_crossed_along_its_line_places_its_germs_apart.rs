@@ -50,7 +50,10 @@ fn built(what: &str, r: Result<BooleanResult<f64>, BooleanError>) -> AtRestBody<
 }
 
 fn volume(b: &AtRestBody<f64>) -> f64 {
-    mass_properties(b, t(), topo::test_support::pinned_resolution(t())).unwrap().enclosure.volume
+    mass_properties(b, t(), topo::test_support::pinned_resolution(t()))
+        .unwrap()
+        .enclosure
+        .volume
 }
 
 /// `q`'s side of `b`, `None` on its boundary or within the band of it.

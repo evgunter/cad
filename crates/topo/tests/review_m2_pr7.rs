@@ -38,7 +38,12 @@ fn mirrored_cube_is_caught_by_negative_volume() {
     );
     // The exact machinery agrees the volume is −1.
     // Raw door: the measured body is an inside-out body, which tier 3 refuses (NegativeVolume).
-    let props = topo::test_support::measure_unvalidated(&body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap();
+    let props = topo::test_support::measure_unvalidated(
+        &body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap();
     assert!(
         (props.enclosure.volume + 1.0).abs() < 1e-12,
         "mirrored cube volume: {}",
@@ -101,8 +106,16 @@ fn thin_inverted_slab_reads_inside_out() {
     let t = 10.0 * eps; // = Kε at default K: certifies; |V|/A = 5ε ∈ (ε, Kε).
     let body = common::mapped_cube(|x, y, z| Point3::new(-x, y, z * t), Tol::witness());
     // Raw door: the measured body is an inside-out body, which tier 3 refuses (NegativeVolume).
-    let props = topo::test_support::measure_unvalidated(&body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap();
-    assert!(props.enclosure.volume < 0.0, "the slab is genuinely inside out");
+    let props = topo::test_support::measure_unvalidated(
+        &body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap();
+    assert!(
+        props.enclosure.volume < 0.0,
+        "the slab is genuinely inside out"
+    );
     let solid = body.solids().next().expect("one solid").0;
     assert_eq!(
         validate_geometric(&body, Tol::witness()),

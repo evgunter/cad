@@ -63,7 +63,14 @@ fn answers(label: &str, body: Body<f64>, origin: (f64, f64), normal: (f64, f64),
             .body()
             .unwrap_or_else(|| panic!("{label}: no {side} side"));
         assert_eq!(validate_closed(b), Ok(()), "{label}: {side} is closed");
-        let v = mass_properties(b, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap().enclosure.volume;
+        let v = mass_properties(
+            b,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
+        )
+        .unwrap()
+        .enclosure
+        .volume;
         assert!(
             (v - want).abs() <= 1e-9 * want.max(1.0),
             "{label}: {side} {v}, want {want}"

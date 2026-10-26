@@ -780,8 +780,12 @@ fn a_moved_plane_meets_a_fitted_cap_along_their_certified_section() {
     // the exact outer rule's window, so the composite arm's.
     let at_rest = topo::AtRestBody::validate(moved, Tol::witness())
         .unwrap_or_else(|e| panic!("the moved box passes tier 3: {e:?}"));
-    let props =
-        topo::mass_properties(&at_rest, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).expect("the moved box has a volume");
+    let props = topo::mass_properties(
+        &at_rest,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .expect("the moved box has a volume");
     // The closed form is the box `(2 − T) × 2 × 1`, its cap a fit of the
     // plane `z = 1` within ε over an area under 4 m².
     let truth = (2.0 - THICKNESS) * 2.0;

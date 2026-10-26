@@ -137,7 +137,12 @@ fn r2_the_same_gate_hole_is_closed_on_a_single_shell_notched_operand() {
     let s = topo::shell(&finished("the operand", body.clone(), tol), 0.1, tol)
         .expect("clear of every wall");
     assert_eq!(topo::validate_geometric(&s.body, tol), Ok(()));
-    let props = topo::test_support::unmigrated_measure(&s.body, tol, topo::test_support::pinned_resolution(tol)).expect("props");
+    let props = topo::test_support::unmigrated_measure(
+        &s.body,
+        tol,
+        topo::test_support::pinned_resolution(tol),
+    )
+    .expect("props");
     // Erode every plane by t: the box to 5.8 × 3.8 × 3.8, each notch
     // grown by t on its three material sides and running from the
     // eroded outer face it opens on (notch 1: x 0.9..2.6, y 0.1..1.9;
@@ -261,7 +266,12 @@ fn r2_a_thin_curved_wall_shells_silently_into_crossing_walls() {
         tb[0].1
     );
 
-    let props = topo::test_support::unmigrated_measure(out, tol, topo::test_support::pinned_resolution(tol)).expect("props");
+    let props = topo::test_support::unmigrated_measure(
+        out,
+        tol,
+        topo::test_support::pinned_resolution(tol),
+    )
+    .expect("props");
     println!("thin-curved-wall volume = {}", props.enclosure.volume);
 }
 

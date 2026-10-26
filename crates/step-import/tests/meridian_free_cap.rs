@@ -64,7 +64,8 @@ fn an_imported_rim_only_sphere_cap_passes_every_tier_and_the_mesh_lane_refuses_i
             topo::test_support::pinned_resolution(tol),
         )
         .unwrap()
-        .enclosure.volume;
+        .enclosure
+        .volume;
         assert!(
             (volume - exact).abs() <= 1e-9 * exact,
             "{name}: volume {volume} vs the closed form {exact}"

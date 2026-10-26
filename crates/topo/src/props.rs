@@ -326,7 +326,10 @@ impl fmt::Display for MassPropsError {
                  ask for a resolution of at least the tolerance"
             ),
             Self::Poisoned { cause } => {
-                write!(f, "the measurement's question could not be decided: {cause}")
+                write!(
+                    f,
+                    "the measurement's question could not be decided: {cause}"
+                )
             }
             Self::CertificateOfAnotherBody => f.write_str(
                 "a body's certificate was measured against another body. Recourse: measure \
@@ -378,15 +381,15 @@ impl std::error::Error for MassPropsError {}
 ///
 /// ```compile_fail,E0277
 /// use geom_core::{Dual64, Tol};
-/// use topo::{AtRestBody, mass_properties};
-/// fn measure(b: &AtRestBody<Dual64>, tol: Tol) {
-///     let _ = mass_properties(b, tol);
+/// use topo::{AtRestBody, Settle, mass_properties};
+/// fn measure(b: &AtRestBody<Dual64>, tol: Tol, settle: Settle<Dual64>) {
+///     let _ = mass_properties(b, tol, settle);
 /// }
 /// ```
 ///
-/// The two rows differ in one identifier and every path either names
-/// resolves, so the second fails on the bound alone — `E0277`,
-/// `CertifiedEnclosure` not implemented for `Dual<f64>`.
+/// The two rows differ in the door and its predicate, and every path
+/// either names resolves, so the second fails on the bound alone —
+/// `E0277`, `CertifiedEnclosure` not implemented for `Dual<f64>`.
 ///
 /// **It measures a finished body** (`&AtRestBody`, Ev's decision on
 /// PR 4822): one tier 3 has passed, so the lanes read loops that bound
@@ -2235,7 +2238,11 @@ impl<T: Decide> HeldCertificate<T> {
     /// [`MassPropsError::CertificateOfAnotherBody`] where `body`'s face
     /// arena is not the one the certificate was derived over, face for
     /// face in arena order; otherwise as [`SignCertificate::measure`].
-    pub fn measure(&self, body: &Body<T>, settle: Settle<T>) -> Result<Measured<T>, MassPropsError> {
+    pub fn measure(
+        &self,
+        body: &Body<T>,
+        settle: Settle<T>,
+    ) -> Result<Measured<T>, MassPropsError> {
         let same = self.runs.len() == body.faces.len()
             && self
                 .runs
@@ -2987,7 +2994,9 @@ mod continuation_refusal_order_tests {
             .face;
         let measured = certificate(&body, vec![run_of(skeletal, LaneStop::Wall)])
             .measure(crate::test_support::pinned_resolution(Tol::witness()))
-            .unwrap_or_else(|err| panic!("the continuation resumed a face its lane had stopped: {err}"));
+            .unwrap_or_else(|err| {
+                panic!("the continuation resumed a face its lane had stopped: {err}")
+            });
         assert_eq!(measured.stop, Stop::Wall, "the bracket, at the wall");
     }
 
@@ -3172,13 +3181,50 @@ pub fn mass_properties_with_face_terms(
     Ok((props, terms))
 }
 
+/// [`mass_properties`] over any body, with the kept width (mean boundary
+/// displacement, m) of the first face in arena order that a
+/// [`Settle::Resolution`] left unmet: `None` where every face met it, or
+/// under a deciding predicate. Test vocabulary: the rows that pin how far
+/// short of a resolution a lane stopped.
+///
+/// # Errors
+///
+/// As [`mass_properties`].
+#[cfg(any(test, feature = "test-support"))]
+#[doc(hidden)]
+pub fn measure_with_unmet_width(
+    body: &Body<f64>,
+    tol: Tol,
+    settle: Settle<f64>,
+) -> Result<(Measured<f64>, Option<f64>), MassPropsError> {
+    let band = Band::linear(tol).map_err(|error| MassPropsError::Band { error })?;
+    let faces = crate::query::all_faces(body);
+    let lane = Some(QuadLane::certified());
+    let (stop, certificate) = measure_to(body, &faces, band, tol, (lane, lane), settle)?;
+    let unmet = match settle {
+        Settle::Resolution(len) => certificate
+            .runs
+            .iter()
+            .find(|run| !run.meets(len.meters()))
+            .and_then(|run| run.width_len().ok()),
+        _ => None,
+    };
+    Ok((
+        Measured {
+            enclosure: certificate.props(),
+            stop,
+        },
+        unmet,
+    ))
+}
+
 /// Every face's own flux term and its area, in face-arena order,
 /// each read about its shell's reference by its own lane ([`face_flux`])
 /// WITHOUT the door's seam-region reads ([`seam_refusals`]): what each
 /// face's arm measures of a body the door refuses as a whole, such as a
 /// sphere seam region whose members' bits disagree. Test vocabulary: the
 /// rows that pin how one face's arm reads its own bit, each face run to
-/// `resolution` or its own stop.
+/// `resolution` (m) or its own stop.
 ///
 /// # Errors
 ///
@@ -3189,13 +3235,13 @@ pub fn mass_properties_with_face_terms(
 pub fn face_flux_terms(
     body: &Body<f64>,
     tol: Tol,
-    resolution: Length,
+    resolution: f64,
 ) -> Result<Vec<(FaceKey, f64, f64)>, MassPropsError> {
     let band = Band::linear(tol).map_err(|error| MassPropsError::Band { error })?;
     let faces = crate::query::all_faces(body);
     let hook = round_hook(Some(QuadLane::certified()));
     let refs = References::points(body, faces.iter().copied());
-    let len = resolution_len(resolution, tol)?;
+    let len = resolution_len(Length::from_meters(resolution), tol)?;
     faces
         .iter()
         .map(|&face| {
@@ -3227,7 +3273,7 @@ pub fn shell_references(body: &Body<f64>) -> Vec<(ShellKey, Point3<f64>)> {
 }
 
 /// Every quadrature face of `body` with the first round its lane meets
-/// `resolution` at, each read alone at that round about the
+/// `resolution` (m) at, each read alone at that round about the
 /// face's shell's reference ([`shell_reference`]) as [`mass_properties`] reads it:
 /// `(face, its surface's kind, round)`, `None` where no round of the
 /// schedule meets it. Test vocabulary: two poses of one body compare their faces'
@@ -3242,13 +3288,13 @@ pub fn shell_references(body: &Body<f64>) -> Vec<(ShellKey, Point3<f64>)> {
 pub fn quadrature_rounds(
     body: &Body<f64>,
     tol: Tol,
-    resolution: Length,
+    resolution: f64,
 ) -> Result<Vec<(FaceKey, geom::SurfaceKind, Option<usize>)>, MassPropsError> {
     let band = Band::linear(tol).map_err(|error| MassPropsError::Band { error })?;
     let faces = crate::query::all_faces(body);
     let hook = round_hook(Some(QuadLane::certified()));
     let refs = References::of(body, faces.iter().copied(), band);
-    let len = resolution_len(resolution, tol)?;
+    let len = resolution_len(Length::from_meters(resolution), tol)?;
     let mut rounds = Vec::new();
     for &face in &faces {
         let (mut met, mut quadrature) = (None, false);
@@ -6697,7 +6743,12 @@ mod face_list_door_tests {
                     .unwrap()
                     .enclosure;
             // Raw door: the measured body is a body still carrying construction scaffolding, which tier 3 refuses (ScaffoldAtRest).
-            let whole = crate::test_support::measure_unvalidated(&body, tol, crate::test_support::pinned_resolution(tol)).unwrap();
+            let whole = crate::test_support::measure_unvalidated(
+                &body,
+                tol,
+                crate::test_support::pinned_resolution(tol),
+            )
+            .unwrap();
             assert_eq!(
                 (
                     assembled.volume.to_bits(),
@@ -7262,9 +7313,17 @@ mod shell_reference_rows {
             .unwrap();
             let about_first = fold_runs(&runs);
             // Raw door: this row walks bodies with and without construction scaffolding alike, and tier 3 refuses the scaffolded ones and those with a loop flipped against its role (ScaffoldAtRest, LoopRoleInverted).
-            let walked = crate::test_support::measure_unvalidated(body, tol, crate::test_support::pinned_resolution(tol)).unwrap();
+            let walked = crate::test_support::measure_unvalidated(
+                body,
+                tol,
+                crate::test_support::pinned_resolution(tol),
+            )
+            .unwrap();
             assert_eq!(
-                (walked.enclosure.volume.to_bits(), walked.enclosure.surface_area.to_bits()),
+                (
+                    walked.enclosure.volume.to_bits(),
+                    walked.enclosure.surface_area.to_bits()
+                ),
                 (
                     about_first.volume.to_bits(),
                     about_first.surface_area.to_bits()

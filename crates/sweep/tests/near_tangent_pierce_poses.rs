@@ -279,7 +279,8 @@ fn check_pose((name, edge, a, d): (&str, usize, f64, f64), tol: Tol) -> (Vec<Str
     let body = pr.body(tol);
     let m = pr.near_normal(edge, a, d);
     let cube = nt_cube(pr.v, m, tol);
-    let props = topo::mass_properties(&body, tol, topo::test_support::pinned_resolution(tol)).unwrap();
+    let props =
+        topo::mass_properties(&body, tol, topo::test_support::pinned_resolution(tol)).unwrap();
     let (va, vb, common) = (props.enclosure.volume, 64.0, pr.overlap(m));
     // The cube's six faces of side 4.
     let faces = props.enclosure.surface_area + 96.0;
@@ -332,7 +333,9 @@ fn check_pose((name, edge, a, d): (&str, usize, f64, f64), tol: Tol) -> (Vec<Str
             continue;
         };
         built += 1;
-        let props = topo::mass_properties(&bb.body, tol, topo::test_support::pinned_resolution(tol)).unwrap();
+        let props =
+            topo::mass_properties(&bb.body, tol, topo::test_support::pinned_resolution(tol))
+                .unwrap();
         let slack = tol.eps() * props.enclosure.surface_area;
         if (props.enclosure.volume - want).abs() > slack {
             wrong.push(format!(

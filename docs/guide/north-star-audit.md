@@ -366,7 +366,7 @@ LIB-PYSEL bound the selector.)
 ```python
 import math
 
-from pncad import Doc, Formula, Node, deg, evaluate, m
+from pncad import Doc, Formula, Node, deg, evaluate, m, Settle
 
 poly = [
     (1.0, 0.0), (1.75, 0.0), (1.75, 0.625), (1.5625, 0.625),
@@ -385,7 +385,7 @@ chute = doc.insert(Node.revolve(profile, *axis, Formula.angle_in(270, deg)))
 
 body = evaluate(doc).value(chute).body()
 body.validate()
-assert abs(body.mass_properties().volume - (1287 / 2048) * math.pi) < 1e-12
+assert abs(body.mass_properties(Settle.resolution(1e-6 * m)).enclosure.volume - (1287 / 2048) * math.pi) < 1e-12
 ```
 
 `die` (a cube less 21 pip pockets, 21 sequential subtracts) and
@@ -402,7 +402,7 @@ its own xy, extruded up its own z, and stood in the world at the frame
 it faces along:
 
 ```python
-from pncad import Coord, Doc, Formula, MateValue, Node, Placed, evaluate, m
+from pncad import Coord, Doc, Formula, MateValue, Node, Placed, evaluate, m, Settle
 
 # The scene's "T": a sketch extruded 2 up its own z, stood on the world
 # yz-plane through the origin — its x along +y, its y along +z — so its
@@ -429,7 +429,7 @@ prism = doc.place(
 # exactly.
 body = evaluate(doc).value(prism).body()
 body.validate()
-assert abs(body.mass_properties().volume - 5.5) < 1e-12
+assert abs(body.mass_properties(Settle.resolution(1e-6 * m)).enclosure.volume - 5.5) < 1e-12
 ```
 
 Rows 33–35 are the same body as row 32 seen down a different axis, so

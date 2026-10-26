@@ -134,8 +134,14 @@ fn every_reachable_crossing_pose_refuses_typed_or_answers_correctly() {
             finished(name, a.clone(), tol),
             finished(name, b.clone(), tol),
         );
-        let va = topo::mass_properties(&a, tol, topo::test_support::pinned_resolution(tol)).unwrap().enclosure.volume;
-        let vb = topo::mass_properties(&b, tol, topo::test_support::pinned_resolution(tol)).unwrap().enclosure.volume;
+        let va = topo::mass_properties(&a, tol, topo::test_support::pinned_resolution(tol))
+            .unwrap()
+            .enclosure
+            .volume;
+        let vb = topo::mass_properties(&b, tol, topo::test_support::pinned_resolution(tol))
+            .unwrap()
+            .enclosure
+            .volume;
         for (op_name, out) in [
             ("union", topo::union(&a, &b, tol)),
             ("subtract", topo::subtract(&a, &b, tol)),
@@ -165,7 +171,14 @@ fn every_reachable_crossing_pose_refuses_typed_or_answers_correctly() {
                     e.kind()
                 ),
                 Ok(topo::BooleanResult::Body(body)) => {
-                    let v = topo::mass_properties(&body.body, tol, topo::test_support::pinned_resolution(tol)).unwrap().enclosure.volume;
+                    let v = topo::mass_properties(
+                        &body.body,
+                        tol,
+                        topo::test_support::pinned_resolution(tol),
+                    )
+                    .unwrap()
+                    .enclosure
+                    .volume;
                     // The one FORBIDDEN outcome: the interpenetrating
                     // union metered as the disjoint sum.
                     if op_name == "union" {
@@ -240,7 +253,10 @@ fn the_nested_coaxial_pair_answers_the_nested_closed_forms() {
     let volume = |r: Result<topo::BooleanResult<f64>, BooleanError>| {
         let r = r.unwrap_or_else(|e| panic!("the nested pair: {e:?}"));
         let b = &r.body().expect("non-empty").body;
-        topo::mass_properties(b, tol, topo::test_support::pinned_resolution(tol)).unwrap().enclosure.volume
+        topo::mass_properties(b, tol, topo::test_support::pinned_resolution(tol))
+            .unwrap()
+            .enclosure
+            .volume
     };
     for (a, b) in [(&inner, &outer), (&outer, &inner)] {
         let v = volume(topo::union(a, b, tol));
@@ -269,7 +285,10 @@ fn a_diagonally_offset_disjoint_pair_answers_two_units() {
     let b = finished("B", cyl(1.9, 1.9, 1.0, 0.0, 2.0), tol);
     let r = topo::union(&a, &b, tol).unwrap_or_else(|e| panic!("the diagonal pair: {e:?}"));
     let body = &r.body().expect("non-empty").body;
-    let v = topo::mass_properties(body, tol, topo::test_support::pinned_resolution(tol)).unwrap().enclosure.volume;
+    let v = topo::mass_properties(body, tol, topo::test_support::pinned_resolution(tol))
+        .unwrap()
+        .enclosure
+        .volume;
     assert!((v - 4.0 * PI).abs() < 1e-9, "two disjoint units: {v}");
 }
 
@@ -399,9 +418,16 @@ fn revolve_minted_walls_meet_the_same_gate() {
     let Ok(topo::BooleanResult::Body(body)) = &out else {
         panic!("the revolve-minted crossing pair builds: {out:?}");
     };
-    let va = topo::mass_properties(&a, tol, topo::test_support::pinned_resolution(tol)).unwrap().enclosure.volume;
-    let vb = topo::mass_properties(&b, tol, topo::test_support::pinned_resolution(tol)).unwrap().enclosure.volume;
-    let m = topo::mass_properties(&body.body, tol, topo::test_support::pinned_resolution(tol)).unwrap();
+    let va = topo::mass_properties(&a, tol, topo::test_support::pinned_resolution(tol))
+        .unwrap()
+        .enclosure
+        .volume;
+    let vb = topo::mass_properties(&b, tol, topo::test_support::pinned_resolution(tol))
+        .unwrap()
+        .enclosure
+        .volume;
+    let m =
+        topo::mass_properties(&body.body, tol, topo::test_support::pinned_resolution(tol)).unwrap();
     let want = va + vb - 16.0 / 3.0;
     assert!(
         (m.enclosure.volume - want).abs() <= m.enclosure.volume_pad + 1e-9,

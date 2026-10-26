@@ -197,9 +197,11 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         "the chamfer's census delta over the source, rings carried through"
     );
 
-    let src_props = pncad::topo::mass_properties(&pipped, tol, crate::printed()).expect("source props");
+    let src_props =
+        pncad::topo::mass_properties(&pipped, tol, crate::printed()).expect("source props");
     let props =
-        pncad::topo::mass_properties(&crate::booleans::at_rest(&die, tol), tol, crate::printed()).expect("die props");
+        pncad::topo::mass_properties(&crate::booleans::at_rest(&die, tol), tol, crate::printed())
+            .expect("die props");
     let want = src_props.enclosure.volume - edge_material(L, D);
     let slack = 1e-9 * want + src_props.enclosure.volume_pad + props.enclosure.volume_pad;
     assert!(

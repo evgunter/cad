@@ -104,7 +104,8 @@ fn split_volumes(session: &mut DocSession, split: RecipeNodeId, tol: Tol) -> (f6
                 topo::test_support::pinned_resolution(tol),
             )
             .expect("mass properties")
-            .enclosure.volume
+            .enclosure
+            .volume
         }
         SplitSide::Empty => 0.0,
     };
@@ -2356,7 +2357,8 @@ fn drawn_volume(session: &mut DocSession, tol: Tol) -> f64 {
         topo::test_support::pinned_resolution(tol),
     )
     .expect("mass properties")
-    .enclosure.volume
+    .enclosure
+    .volume
 }
 
 /// A box, and a pattern of two of it stepped clear along +x.

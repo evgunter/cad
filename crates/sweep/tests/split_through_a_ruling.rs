@@ -114,9 +114,11 @@ fn holds(label: &str, side: &str, part: &SplitPart<f64>, want: f64) {
     topo::validate_geometric(b, tol).unwrap_or_else(|e| panic!("{label}: {side}: tier 3: {e:?}"));
     topo::validate_pseudomanifold(b, &ContactRecords::default(), tol)
         .unwrap_or_else(|e| panic!("{label}: {side}: tier 3′: {e:?}"));
-    let v = topo::test_support::unmigrated_measure(b, tol, topo::test_support::pinned_resolution(tol))
-        .unwrap_or_else(|e| panic!("{label}: {side}: mass properties: {e:?}"))
-        .enclosure.volume;
+    let v =
+        topo::test_support::unmigrated_measure(b, tol, topo::test_support::pinned_resolution(tol))
+            .unwrap_or_else(|e| panic!("{label}: {side}: mass properties: {e:?}"))
+            .enclosure
+            .volume;
     assert!(
         (v - want).abs() <= 1e-9 * want.max(1.0),
         "{label}: {side} volume {v}, want {want}"
@@ -367,7 +369,8 @@ fn a_near_tangent_cut_along_a_cylinder_ruling_never_answers_wrongly() {
                     let m = mass_properties(b, tol, topo::test_support::pinned_resolution(tol))
                         .unwrap_or_else(|e| panic!("{label}: mass properties: {e:?}"));
                     assert!(
-                        (m.enclosure.volume - PI).abs() <= 1e-9 * PI + m.enclosure.volume_pad + floor,
+                        (m.enclosure.volume - PI).abs()
+                            <= 1e-9 * PI + m.enclosure.volume_pad + floor,
                         "{label}: landed whole with volume {}",
                         m.enclosure.volume
                     );
@@ -392,7 +395,8 @@ fn a_near_tangent_cut_along_a_cylinder_ruling_never_answers_wrongly() {
                     let m = mass_properties(b, tol, topo::test_support::pinned_resolution(tol))
                         .unwrap_or_else(|e| panic!("{label}: {side}: mass properties: {e:?}"));
                     assert!(
-                        (m.enclosure.volume - want).abs() <= 1e-9 * want + m.enclosure.volume_pad + floor,
+                        (m.enclosure.volume - want).abs()
+                            <= 1e-9 * want + m.enclosure.volume_pad + floor,
                         "{label}: {side} volume {}, want {want}",
                         m.enclosure.volume
                     );
@@ -477,7 +481,8 @@ fn near_tangent_rulings(name: &str, r0: f64, r1: f64) -> usize {
                     let m = mass_properties(b, tol, topo::test_support::pinned_resolution(tol))
                         .unwrap_or_else(|e| panic!("{label}: mass properties: {e:?}"));
                     assert!(
-                        (m.enclosure.volume - whole).abs() <= 1e-9 * whole + m.enclosure.volume_pad + floor,
+                        (m.enclosure.volume - whole).abs()
+                            <= 1e-9 * whole + m.enclosure.volume_pad + floor,
                         "{label}: landed whole with volume {}, want {whole}",
                         m.enclosure.volume
                     );
@@ -492,9 +497,12 @@ fn near_tangent_rulings(name: &str, r0: f64, r1: f64) -> usize {
                         .unwrap_or_else(|e| panic!("{label}: {side}: tier 2: {e:?}"));
                     topo::validate_geometric(b, tol)
                         .unwrap_or_else(|e| panic!("{label}: {side}: tier 3: {e:?}"));
-                    if let Ok(m) = mass_properties(b, tol, topo::test_support::pinned_resolution(tol)) {
+                    if let Ok(m) =
+                        mass_properties(b, tol, topo::test_support::pinned_resolution(tol))
+                    {
                         assert!(
-                            (m.enclosure.volume - want).abs() <= 1e-9 * want + m.enclosure.volume_pad + floor,
+                            (m.enclosure.volume - want).abs()
+                                <= 1e-9 * want + m.enclosure.volume_pad + floor,
                             "{label}: {side} volume {}, want {want}",
                             m.enclosure.volume
                         );

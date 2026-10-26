@@ -71,7 +71,10 @@ fn a_box_driven_through_a_cap_no_longer_unions_as_two_disjoint_solids() {
         other => panic!("the box-through-cap union answers one solid, got {other:?}"),
     };
     assert_eq!(topo::validate_geometric(&out, tol), Ok(()), "tier 3");
-    let v = topo::mass_properties(&out, tol, topo::test_support::pinned_resolution(tol)).unwrap().enclosure.volume;
+    let v = topo::mass_properties(&out, tol, topo::test_support::pinned_resolution(tol))
+        .unwrap()
+        .enclosure
+        .volume;
     assert!(
         (v - 6.643185307179586).abs() < 1e-12,
         "the overlap is counted once: volume {v} (the old wrong answer was \
@@ -98,7 +101,10 @@ fn a_crossing_outside_the_disc_mints_no_event() {
         panic!("two clear solids union into a two-shell body");
     };
     assert_eq!(out.body.shells().count(), 2);
-    let v = topo::mass_properties(&out.body, tol, topo::test_support::pinned_resolution(tol)).unwrap().enclosure.volume;
+    let v = topo::mass_properties(&out.body, tol, topo::test_support::pinned_resolution(tol))
+        .unwrap()
+        .enclosure
+        .volume;
     let truth = PI * 2.0 + 0.95 * 1.0 * 2.0;
     assert!((v - truth).abs() < 1e-12, "{v} vs {truth}");
 }
@@ -122,7 +128,10 @@ fn a_box_buried_in_a_cylinder_unions_to_the_cylinder() {
     else {
         panic!("a buried box unions into one solid");
     };
-    let v = topo::mass_properties(&out.body, tol, topo::test_support::pinned_resolution(tol)).unwrap().enclosure.volume;
+    let v = topo::mass_properties(&out.body, tol, topo::test_support::pinned_resolution(tol))
+        .unwrap()
+        .enclosure
+        .volume;
     assert!((v - PI * 2.0).abs() < 1e-12, "{v} vs {}", PI * 2.0);
 }
 
@@ -180,7 +189,10 @@ fn a_box_down_a_circular_hole_in_a_square_plate_sees_the_hole() {
         panic!("a plate and a box down its hole are two disjoint shells");
     };
     assert_eq!(out.body.shells().count(), 2, "the box touches no material");
-    let v = topo::mass_properties(&out.body, tol, topo::test_support::pinned_resolution(tol)).unwrap().enclosure.volume;
+    let v = topo::mass_properties(&out.body, tol, topo::test_support::pinned_resolution(tol))
+        .unwrap()
+        .enclosure
+        .volume;
     let truth = (16.0 - PI * 0.25) * 1.0 + 0.4 * 0.4 * 1.5;
     assert!((v - truth).abs() < 1e-12, "{v} vs {truth}");
 }

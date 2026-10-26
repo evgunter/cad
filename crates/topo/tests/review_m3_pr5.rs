@@ -213,7 +213,12 @@ fn pocket_orientation_matrix() {
         match subtract(&a, &b, Tol::witness()) {
             Ok(BooleanResult::Body(body)) => {
                 assert_eq!(validate_closed(&body.body), Ok(()), "{name}");
-                let m = mass_properties(&body.body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap();
+                let m = mass_properties(
+                    &body.body,
+                    Tol::witness(),
+                    topo::test_support::pinned_resolution(Tol::witness()),
+                )
+                .unwrap();
                 // Exact on purpose: every coordinate is dyadic and small, so each closed-form
                 // term and their sum are exact in f64 (a zero pad states no rounding; here
                 // there is none).
@@ -297,7 +302,12 @@ fn corner_flush_pillar_union_honest() {
     match union(&a, &b, Tol::witness()) {
         Ok(BooleanResult::Body(body)) => {
             assert_eq!(validate_closed(&body.body), Ok(()));
-            let m = mass_properties(&body.body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap();
+            let m = mass_properties(
+                &body.body,
+                Tol::witness(),
+                topo::test_support::pinned_resolution(Tol::witness()),
+            )
+            .unwrap();
             // Exact on purpose: every coordinate is dyadic and small, so each closed-form term
             // and their sum are exact in f64 (a zero pad states no rounding; here there is
             // none).

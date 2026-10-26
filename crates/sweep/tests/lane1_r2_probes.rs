@@ -36,13 +36,25 @@ fn classify_shells_structural_is_the_closed_form_and_refuses_where_the_lane_woul
                     assert_eq!(a.shell, b.shell, "{name}: shell key");
                     assert_eq!(a.solid, b.solid, "{name}: solid key");
                     assert_eq!(
-                        (a.enclosure.volume.to_bits(), a.enclosure.surface_area.to_bits()),
-                        (b.enclosure.volume.to_bits(), b.enclosure.surface_area.to_bits()),
+                        (
+                            a.enclosure.volume.to_bits(),
+                            a.enclosure.surface_area.to_bits()
+                        ),
+                        (
+                            b.enclosure.volume.to_bits(),
+                            b.enclosure.surface_area.to_bits()
+                        ),
                         "{name}: the closed form is one computation at both doors"
                     );
                     assert_eq!(
-                        (a.enclosure.volume_pad.to_bits(), a.enclosure.area_pad.to_bits()),
-                        (b.enclosure.volume_pad.to_bits(), b.enclosure.area_pad.to_bits()),
+                        (
+                            a.enclosure.volume_pad.to_bits(),
+                            a.enclosure.area_pad.to_bits()
+                        ),
+                        (
+                            b.enclosure.volume_pad.to_bits(),
+                            b.enclosure.area_pad.to_bits()
+                        ),
                         "{name}: a closed-form shell carries pads of 0 at both doors"
                     );
                 }
@@ -87,8 +99,16 @@ fn the_certified_doors_form_at_the_symbolic_tier_and_answer_the_base_bits() {
             topo::contact_marks(s, tol).is_ok(),
             "{name}: marks verdict"
         );
-        let mp_base = topo::test_support::unmigrated_measure(b, tol, topo::test_support::pinned_resolution(tol));
-        let mp_sym = topo::test_support::unmigrated_measure(s, tol, /* Settle<Sym<f64>> */);
+        let mp_base = topo::test_support::unmigrated_measure(
+            b,
+            tol,
+            topo::test_support::pinned_resolution(tol),
+        );
+        let mp_sym = topo::test_support::unmigrated_measure(
+            s,
+            tol,
+            topo::test_support::pinned_resolution(tol),
+        );
         match (mp_base, mp_sym) {
             (Ok(x), Ok(y)) => assert_eq!(
                 x.enclosure.volume.to_bits(),

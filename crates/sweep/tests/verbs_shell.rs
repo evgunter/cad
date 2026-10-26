@@ -89,8 +89,12 @@ fn a_sealed_shelled_box_is_an_outer_and_a_void() {
         "one outer boundary, one cavity"
     );
 
-    let props = topo::test_support::unmigrated_measure(&hollow, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-        .expect("a planar body's props");
+    let props = topo::test_support::unmigrated_measure(
+        &hollow,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .expect("a planar body's props");
     let want = w * d * h - (w - 2.0 * t) * (d - 2.0 * t) * (h - 2.0 * t);
     assert!(
         (props.enclosure.volume - want).abs() <= 1e-12,
@@ -188,8 +192,12 @@ fn a_sealed_shelled_vessel_matches_its_closed_form() {
     );
     assert_eq!(hollow.shells().count(), 2);
 
-    let props = topo::test_support::unmigrated_measure(&hollow, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-        .expect("the vessel's props");
+    let props = topo::test_support::unmigrated_measure(
+        &hollow,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .expect("the vessel's props");
     let want = core::f64::consts::PI * (r * r * h - (r - t) * (r - t) * (h - 2.0 * t));
     assert!(
         (props.enclosure.volume - want).abs() <= 1e-9 + props.enclosure.volume_pad,
@@ -237,8 +245,12 @@ fn an_opened_shelled_box_is_a_closed_thin_solid_with_a_rim() {
         .expect("the designated face survives as the rim");
     assert_eq!(rim.rings.len(), 1, "the rim carries exactly one ring");
 
-    let props = topo::test_support::unmigrated_measure(&cup, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-        .expect("a planar body's props");
+    let props = topo::test_support::unmigrated_measure(
+        &cup,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .expect("a planar body's props");
     // The cup is the sealed wall plus the lid that is no longer there:
     // equivalently, the box minus a cavity that runs to the top.
     let want = w * d * h - (w - 2.0 * t) * (d - 2.0 * t) * (h - t);
@@ -270,7 +282,12 @@ fn opening_two_faces_gives_two_rims_and_one_shell() {
         "tier 3 on the two-ended tube"
     );
     assert_eq!(tubey.shells().count(), 1);
-    let props = topo::test_support::unmigrated_measure(&tubey, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).expect("props");
+    let props = topo::test_support::unmigrated_measure(
+        &tubey,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .expect("props");
     let want = w * d * h - (w - 2.0 * t) * (d - 2.0 * t) * h;
     assert!(
         (props.enclosure.volume - want).abs() <= 1e-12,
@@ -314,7 +331,12 @@ fn shelling_a_hollow_box_thickens_every_boundary() {
             "{solid:?}: one outer boundary and one cavity"
         );
     }
-    let props = topo::test_support::unmigrated_measure(body, tol, topo::test_support::pinned_resolution(tol)).expect("a planar body's props");
+    let props = topo::test_support::unmigrated_measure(
+        body,
+        tol,
+        topo::test_support::pinned_resolution(tol),
+    )
+    .expect("a planar body's props");
     let want = OUTER_TERM() + INNER_TERM();
     assert!(
         (props.enclosure.volume - want).abs() <= 1e-12,
@@ -684,7 +706,12 @@ fn a_thick_wedge_at_the_crossing_lean_shells_to_its_closed_form() {
         .unwrap_or_else(|e| panic!("a 0.5 foot holds two 0.15 walls, got {e}"))
         .body;
     assert_eq!(topo::validate_geometric(&hollow, tol), Ok(()), "tier 3");
-    let props = topo::test_support::unmigrated_measure(&hollow, tol, topo::test_support::pinned_resolution(tol)).expect("props");
+    let props = topo::test_support::unmigrated_measure(
+        &hollow,
+        tol,
+        topo::test_support::pinned_resolution(tol),
+    )
+    .expect("props");
     let want = arm_volume(1.0, 0.5, 0.8, 0.5, 1.0, t);
     assert!(
         (props.enclosure.volume - want).abs() <= 1e-12,
@@ -738,7 +765,12 @@ fn the_tilted_read_turns_at_the_crossing_foot_at_metre_and_millimetre_extents() 
             Ok(()),
             "scale {s}: tier 3"
         );
-        let props = topo::test_support::unmigrated_measure(&hollow, tol, topo::test_support::pinned_resolution(tol)).expect("props");
+        let props = topo::test_support::unmigrated_measure(
+            &hollow,
+            tol,
+            topo::test_support::pinned_resolution(tol),
+        )
+        .expect("props");
         let want = arm_volume(s, len, outside + lean, outside, s, t);
         assert!(
             (props.enclosure.volume - want).abs() <= 1e-12 * s.powi(3),
@@ -870,7 +902,12 @@ fn an_adjacent_pair_crossing_away_from_its_edge_refuses_at_the_offset_door() {
     .unwrap_or_else(|e| panic!("a lip 0.5 wide holds two 0.1 walls, got {e}"))
     .body;
     assert_eq!(topo::validate_geometric(&hollow, tol), Ok(()), "tier 3");
-    let props = topo::test_support::unmigrated_measure(&hollow, tol, topo::test_support::pinned_resolution(tol)).expect("props");
+    let props = topo::test_support::unmigrated_measure(
+        &hollow,
+        tol,
+        topo::test_support::pinned_resolution(tol),
+    )
+    .expect("props");
     let want = lipped_volume(0.5, 0.6, 0.1, t);
     assert!(
         (props.enclosure.volume - want).abs() <= 1e-12,
@@ -920,7 +957,12 @@ fn two_voids_refuse_across_their_gap_and_build_three_solids_below_it() {
     for (solid, kinds) in roles_by_solid(out) {
         assert_eq!(kinds, vec![ShellRole::Outer, ShellRole::Void], "{solid:?}");
     }
-    let props = topo::test_support::unmigrated_measure(out, tol, topo::test_support::pinned_resolution(tol)).expect("props");
+    let props = topo::test_support::unmigrated_measure(
+        out,
+        tol,
+        topo::test_support::pinned_resolution(tol),
+    )
+    .expect("props");
     let want = (box_volume(6.0, 4.0, 4.0) - box_volume(5.7, 3.7, 3.7))
         + 2.0 * (box_volume(1.5, 2.3, 2.3) - box_volume(1.2, 2.0, 2.0));
     assert!(
@@ -948,7 +990,12 @@ fn shelling_a_hollow_vessel_thickens_every_boundary() {
     for (solid, kinds) in roles_by_solid(body) {
         assert_eq!(kinds, vec![ShellRole::Outer, ShellRole::Void], "{solid:?}");
     }
-    let props = topo::test_support::unmigrated_measure(body, tol, topo::test_support::pinned_resolution(tol)).expect("props");
+    let props = topo::test_support::unmigrated_measure(
+        body,
+        tol,
+        topo::test_support::pinned_resolution(tol),
+    )
+    .expect("props");
     let pi = core::f64::consts::PI;
     let want = pi * ((1.0 * 1.0 * 2.0 - 0.95 * 0.95 * 1.9) + (0.85 * 0.85 * 1.7 - 0.8 * 0.8 * 1.6));
     assert!(
@@ -1016,7 +1063,12 @@ fn the_full_period_torus_shells_solid_and_hollow_alike() {
     assert_eq!(topo::validate_geometric(body, tol), Ok(()), "solid: tier 3");
     assert_eq!(body.solids().count(), 1);
     assert_eq!(body.shells().count(), 2);
-    let props = topo::test_support::unmigrated_measure(body, tol, topo::test_support::pinned_resolution(tol)).expect("solid: props");
+    let props = topo::test_support::unmigrated_measure(
+        body,
+        tol,
+        topo::test_support::pinned_resolution(tol),
+    )
+    .expect("solid: props");
     let want = pi2r * ring(r, r - t);
     assert!(
         (props.enclosure.volume - want).abs() <= 1e-9 + props.enclosure.volume_pad,
@@ -1038,7 +1090,12 @@ fn the_full_period_torus_shells_solid_and_hollow_alike() {
     for (solid, kinds) in roles_by_solid(body) {
         assert_eq!(kinds, vec![ShellRole::Outer, ShellRole::Void], "{solid:?}");
     }
-    let props = topo::test_support::unmigrated_measure(body, tol, topo::test_support::pinned_resolution(tol)).expect("hollow: props");
+    let props = topo::test_support::unmigrated_measure(
+        body,
+        tol,
+        topo::test_support::pinned_resolution(tol),
+    )
+    .expect("hollow: props");
     let want = pi2r * (ring(r, r - t) + ring(r - w + t, r - w));
     assert!(
         (props.enclosure.volume - want).abs() <= 1e-9 + props.enclosure.volume_pad,
@@ -1095,7 +1152,12 @@ fn opening_the_hollow_boxs_outer_top_cups_the_outer_wall_only() {
         .get_face(top)
         .expect("the designated face survives as the rim");
     assert_eq!(rim.rings.len(), 1);
-    let props = topo::test_support::unmigrated_measure(body, tol, topo::test_support::pinned_resolution(tol)).expect("props");
+    let props = topo::test_support::unmigrated_measure(
+        body,
+        tol,
+        topo::test_support::pinned_resolution(tol),
+    )
+    .expect("props");
     let want = (OUTER_TERM() - 1.9 * 2.9 * t) + INNER_TERM();
     assert!(
         (props.enclosure.volume - want).abs() <= 1e-12,
@@ -1166,7 +1228,12 @@ fn opening_the_hollow_boxs_void_ceiling_cups_the_inner_wall_only() {
             assert_eq!(kinds, vec![ShellRole::Outer], "the inner cup is one shell");
         }
     }
-    let props = topo::test_support::unmigrated_measure(body, tol, topo::test_support::pinned_resolution(tol)).expect("props");
+    let props = topo::test_support::unmigrated_measure(
+        body,
+        tol,
+        topo::test_support::pinned_resolution(tol),
+    )
+    .expect("props");
     let want = OUTER_TERM() + (INNER_TERM() - 1.6 * 2.6 * t);
     assert!(
         (props.enclosure.volume - want).abs() <= 1e-12,
@@ -1715,9 +1782,14 @@ fn the_klein_wall_pair_seals_to_its_measured_volume_and_opens_to_the_hand_built_
         .count();
     assert_eq!(spirics, 0, "every rim on a meridian plane is a circle");
     let volume = |b: &Body<f64>| {
-        topo::test_support::unmigrated_measure(b, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-            .expect("the elbow's props")
-            .enclosure.volume
+        topo::test_support::unmigrated_measure(
+            b,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
+        )
+        .expect("the elbow's props")
+        .enclosure
+        .volume
     };
     // Pappus: a quarter turn of the annulus about the spine radius.
     let (r_out, r_in) = (KLEIN_R + KLEIN_WALL / 2.0, KLEIN_R - KLEIN_WALL / 2.0);
@@ -1834,9 +1906,14 @@ fn a_hex_prism_with_a_coaxial_bore_hollows_to_its_closed_form() {
         "tier 3"
     );
     assert_eq!(hollow.shells().count(), 2, "the wall and its cavity");
-    let got = topo::test_support::unmigrated_measure(&hollow, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-        .expect("props")
-        .enclosure.volume;
+    let got = topo::test_support::unmigrated_measure(
+        &hollow,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .expect("props")
+    .enclosure
+    .volume;
     println!("[measured] bored hex prism hollow {got}, closed form {want}");
     assert!((got - want).abs() <= 1e-12, "hollow {got}, want {want}");
 }
@@ -1886,9 +1963,14 @@ fn assert_extrusion_hollows_axially(
         2,
         "{what}: the wall and its cavity"
     );
-    let got = topo::test_support::unmigrated_measure(&hollow, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-        .expect("props")
-        .enclosure.volume;
+    let got = topo::test_support::unmigrated_measure(
+        &hollow,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .expect("props")
+    .enclosure
+    .volume;
     println!("[measured] {what} hollow {got}, closed form {want}");
     assert!(
         (got - want).abs() <= 1e-12,
@@ -2011,7 +2093,12 @@ fn a_revolved_cap_opens_to_one_annular_rim() {
         mesh::tessellate(&cup, delta, tol)
             .unwrap_or_else(|e| panic!("the rim must triangulate at delta = {delta}, got {e:?}"));
     }
-    let props = topo::test_support::unmigrated_measure(&cup, tol, topo::test_support::pinned_resolution(tol)).expect("props");
+    let props = topo::test_support::unmigrated_measure(
+        &cup,
+        tol,
+        topo::test_support::pinned_resolution(tol),
+    )
+    .expect("props");
     let want = core::f64::consts::PI * (r * r * h - (r - t) * (r - t) * (h - t));
     assert!(
         (props.enclosure.volume - want).abs() <= 1e-9 + props.enclosure.volume_pad,
@@ -2091,7 +2178,12 @@ fn an_annular_cap_opens_to_two_disjoint_rims() {
         mesh::tessellate(&cup, delta, tol)
             .unwrap_or_else(|e| panic!("the rims must triangulate at delta = {delta}, got {e:?}"));
     }
-    let props = topo::test_support::unmigrated_measure(&cup, tol, topo::test_support::pinned_resolution(tol)).expect("props");
+    let props = topo::test_support::unmigrated_measure(
+        &cup,
+        tol,
+        topo::test_support::pinned_resolution(tol),
+    )
+    .expect("props");
     let want = core::f64::consts::PI
         * ((ro * ro - ri * ri) * h - ((ro - t).powi(2) - (ri + t).powi(2)) * (h - t));
     assert!(
@@ -2327,7 +2419,12 @@ fn oblique_planar_prisms_hollow_with_their_closed_forms() {
             "{what}: tier 3"
         );
         assert_eq!(hollow.shells().count(), 2, "{what}: outer + cavity");
-        let props = topo::test_support::unmigrated_measure(&hollow, tol, topo::test_support::pinned_resolution(tol)).expect("props");
+        let props = topo::test_support::unmigrated_measure(
+            &hollow,
+            tol,
+            topo::test_support::pinned_resolution(tol),
+        )
+        .expect("props");
         println!("[oblique] {what}: wall volume {}", props.enclosure.volume);
         if let Some(want) = want {
             assert!(
@@ -2368,7 +2465,12 @@ fn oblique_planar_prisms_open_at_their_cap() {
         let cap = plane_face_at(&body, 0.25);
         match topo::shell_open(&finished("the operand", body.clone(), tol), t, &[cap], tol) {
             Ok(s) => {
-                let props = topo::test_support::unmigrated_measure(&s.body, tol, topo::test_support::pinned_resolution(tol)).expect("props");
+                let props = topo::test_support::unmigrated_measure(
+                    &s.body,
+                    tol,
+                    topo::test_support::pinned_resolution(tol),
+                )
+                .expect("props");
                 // The sealed wall plus the lid: the footprint's inset
                 // polygon times `t`.
                 let want = shoelace(&pts) * 0.25 - shoelace(&inset(&pts, t)) * (0.25 - t);

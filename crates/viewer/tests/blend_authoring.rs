@@ -137,7 +137,8 @@ fn plain_body_volume(session: &mut DocSession, node: RecipeNodeId, tol: Tol) -> 
         topo::test_support::pinned_resolution(tol),
     )
     .expect("mass properties")
-    .enclosure.volume
+    .enclosure
+    .volume
 }
 
 /// The blend tool with every edge of `node` held, accumulated by

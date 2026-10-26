@@ -1633,8 +1633,7 @@ mod tests {
         use crate::entity::{FaceKey, LoopBoundary};
         use crate::props::{
             FaceRun, QuadLane, References, corner_of, decide_faces_serially, face_flux, face_loops,
-            flat_loops, rederive, resolve_face, round_hook, shell_polygons,
-            vertex_rings,
+            flat_loops, rederive, resolve_face, round_hook, shell_polygons, vertex_rings,
         };
 
         /// `m · 2^e`, exactly.

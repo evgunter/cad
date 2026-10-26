@@ -99,9 +99,14 @@ fn tier_three_refuses_a_hand_flipped_face_sense() {
     // Winding-derived, hence blind to a lone sense flip: same volume.
     let volume = |b: &Body<f64>| {
         // Raw door: this helper measures the cube and its sense-flipped copy alike, and tier 3 refuses the copy (LoopRoleInverted).
-        topo::test_support::measure_unvalidated(b, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-            .unwrap()
-            .enclosure.volume
+        topo::test_support::measure_unvalidated(
+            b,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
+        )
+        .unwrap()
+        .enclosure
+        .volume
     };
     assert_eq!(
         volume(&body).to_bits(),

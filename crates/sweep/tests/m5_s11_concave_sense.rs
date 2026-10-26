@@ -72,9 +72,14 @@ use topo::boolean::{SolidContainment, point_in_solid};
 use topo::{Body, FaceKey};
 
 fn vol(body: &Body<f64>) -> f64 {
-    topo::test_support::unmigrated_measure(body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-        .unwrap()
-        .enclosure.volume
+    topo::test_support::unmigrated_measure(
+        body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap()
+    .enclosure
+    .volume
 }
 
 fn sense_of(body: &Body<f64>, f: FaceKey) -> bool {
@@ -590,8 +595,14 @@ fn extruded_twin(loops: &[ProfileLoop<f64>], h: f64) -> Body<f64> {
 /// convergence predicate may escalate. Anything else is a real failure.
 fn assert_rational_volume(row: &str, body: &Body<f64>, want: f64) {
     let target = 1024.0 * Tol::witness().get().eps;
-    match topo::test_support::unmigrated_measure(body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())) {
-        Ok(m) => {
+    let (m, unmet) = topo::test_support::measure_with_unmet_width(
+        body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap_or_else(|e| panic!("{row}: not an honest quadrature posture: {e}"));
+    match unmet {
+        None => {
             // ACCURACY: the certified enclosure must CONTAIN the
             // independent oracle (`want` is the extruded twin's closed
             // form, pad exactly 0).
@@ -630,27 +641,13 @@ fn assert_rational_volume(row: &str, body: &Body<f64>, want: f64) {
                 );
             }
         }
-        Err(topo::MassPropsError::Face {
-            source:
-                geom_brep::PropsError::QuadratureBudget {
-                    width_len,
-                    target_len,
-                    ..
-                },
-            ..
-        }) => {
+        Some(width_len) => {
             assert!(
-                width_len.is_finite() && width_len > target_len,
-                "{row}: a budget refusal must carry a width that really \
-                 missed: {width_len:e} vs {target_len:e}"
-            );
-            assert!(
-                (target_len - target).abs() <= target * 1e-12,
-                "{row}: the refused target must BE 1024·ε for this run: \
-                 {target_len:e} vs {target:e}"
+                width_len.is_finite() && width_len > target && m.stop != topo::Stop::Met,
+                "{row}: a face short of the resolution has a width that really missed: \
+                 {width_len:e} vs {target:e}"
             );
         }
-        Err(other) => panic!("{row}: not an honest quadrature posture: {other}"),
     }
 }
 

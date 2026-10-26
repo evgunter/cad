@@ -88,7 +88,8 @@ fn the_counterclockwise_wedge_shells_to_its_closed_form_wall() {
         topo::test_support::pinned_resolution(tol),
     )
     .unwrap()
-    .enclosure.volume;
+    .enclosure
+    .volume;
     assert!(
         ((volume - wall) / wall).abs() < 1e-12,
         "the wall is {volume} against the closed form {wall}"

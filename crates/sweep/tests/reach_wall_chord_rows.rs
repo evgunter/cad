@@ -60,7 +60,10 @@ fn check(what: &str, r: Result<BooleanResult<f64>, BooleanError>, want: Want) {
                     topo::validate_pseudomanifold(&b.body, &b.contacts, tol)
                         .unwrap_or_else(|e| panic!("{what}: tier 3′, got {e:?}"));
                     sweep::test_support::assert_legal_operand(what, &b.body, tol);
-                    topo::mass_properties(&b.body, tol, topo::test_support::pinned_resolution(tol)).unwrap().enclosure.volume
+                    topo::mass_properties(&b.body, tol, topo::test_support::pinned_resolution(tol))
+                        .unwrap()
+                        .enclosure
+                        .volume
                 }
                 None => 0.0,
             };
@@ -74,7 +77,10 @@ fn check(what: &str, r: Result<BooleanResult<f64>, BooleanError>, want: Want) {
                 Some(b) => {
                     topo::validate_geometric(&b.body, tol)
                         .unwrap_or_else(|e| panic!("{what}: tier 3, got {e:?}"));
-                    topo::mass_properties(&b.body, tol, topo::test_support::pinned_resolution(tol)).unwrap().enclosure.volume
+                    topo::mass_properties(&b.body, tol, topo::test_support::pinned_resolution(tol))
+                        .unwrap()
+                        .enclosure
+                        .volume
                 }
                 None => 0.0,
             };

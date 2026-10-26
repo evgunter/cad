@@ -242,7 +242,14 @@ fn judge(
         }
         Ok(BooleanResult::Body(bb)) => {
             let mut bad = Vec::new();
-            let v = mass_properties(&bb.body, tol(), topo::test_support::pinned_resolution(tol())).unwrap().enclosure.volume;
+            let v = mass_properties(
+                &bb.body,
+                tol(),
+                topo::test_support::pinned_resolution(tol()),
+            )
+            .unwrap()
+            .enclosure
+            .volume;
             if (v - want_vol).abs() > 1e-9_f64.max(1e-7 * want_vol) {
                 bad.push(format!("volume {v} vs {want_vol}"));
             }

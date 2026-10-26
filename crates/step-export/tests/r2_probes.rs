@@ -50,7 +50,12 @@ fn r2_lamina_verdicts_versus_measured_volume() {
         let flipped = body.flipped_face_sense_for_tests(k).expect("live face");
         let errs = validate_geometric(&flipped, tol).unwrap_err();
         // Raw door: the measured body is a lamina (a flipped band), which tier 3 refuses (LaminaWedge).
-        let vol = topo::test_support::measure_unvalidated(&flipped, tol, topo::test_support::pinned_resolution(tol)).map(|m| m.enclosure.volume);
+        let vol = topo::test_support::measure_unvalidated(
+            &flipped,
+            tol,
+            topo::test_support::pinned_resolution(tol),
+        )
+        .map(|m| m.enclosure.volume);
         let all_lamina = errs
             .iter()
             .all(|e| matches!(e, ValidationError::LaminaWedge { .. }));
@@ -73,7 +78,12 @@ fn r2_lamina_verdicts_versus_measured_volume() {
         let flipped = b.flipped_face_sense_for_tests(k).expect("live face");
         let errs = validate_geometric(&flipped, tol);
         // Raw door: the measured body is a lamina (a flipped band), which tier 3 refuses (LaminaWedge).
-        let vol = topo::test_support::measure_unvalidated(&flipped, tol, topo::test_support::pinned_resolution(tol)).map(|m| m.enclosure.volume);
+        let vol = topo::test_support::measure_unvalidated(
+            &flipped,
+            tol,
+            topo::test_support::pinned_resolution(tol),
+        )
+        .map(|m| m.enclosure.volume);
         println!("R2 ball band {k:?}: volume {vol:?}; verdict {errs:?}");
     }
 }

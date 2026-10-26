@@ -64,7 +64,12 @@ struct Got {
 }
 
 fn read(b: &AtRestBody<f64>) -> Got {
-    let m = mass_properties(b, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap();
+    let m = mass_properties(
+        b,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap();
     Got {
         volume: m.enclosure.volume,
         area: m.enclosure.surface_area,

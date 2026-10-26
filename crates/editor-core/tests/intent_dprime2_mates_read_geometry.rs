@@ -346,9 +346,14 @@ fn flatten_folds_the_identity_and_refuses_the_rest_typed() {
         let body =
             product(doc, &run(doc, &EvalOptions::default()), Tol::witness()).expect("gathers");
         let measured = topo::test_support::finished("the product", body, Tol::witness());
-        topo::mass_properties(&measured, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-            .expect("mass")
-            .enclosure.volume
+        topo::mass_properties(
+            &measured,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
+        )
+        .expect("mass")
+        .enclosure
+        .volume
     };
     assert_eq!(volume(&flat.doc), 1.0);
 

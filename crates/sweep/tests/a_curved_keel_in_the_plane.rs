@@ -59,9 +59,14 @@ fn a_curved_keel_in_the_plane_splits_sound_and_sections_with_no_spur() {
         for s in [0.0, 0.6, -0.6, 0.9, -0.9] {
             let what = format!("the V turned {turn}°, its tip {s} ε off the plane");
             let body = keeled(s, turn);
-            let whole = topo::test_support::unmigrated_measure(&body, tol(), topo::test_support::pinned_resolution(tol()))
-                .unwrap()
-                .enclosure.volume;
+            let whole = topo::test_support::unmigrated_measure(
+                &body,
+                tol(),
+                topo::test_support::pinned_resolution(tol()),
+            )
+            .unwrap()
+            .enclosure
+            .volume;
             for up in [1.0, -1.0] {
                 let what = format!("{what}, the plane's normal {up} y");
                 let plane = topo::test_support::split_plane(
@@ -73,9 +78,14 @@ fn a_curved_keel_in_the_plane_splits_sound_and_sections_with_no_spur() {
                 let sum: f64 = halves
                     .iter()
                     .map(|h| {
-                        topo::test_support::unmigrated_measure(h, tol(), topo::test_support::pinned_resolution(tol()))
-                            .unwrap()
-                            .enclosure.volume
+                        topo::test_support::unmigrated_measure(
+                            h,
+                            tol(),
+                            topo::test_support::pinned_resolution(tol()),
+                        )
+                        .unwrap()
+                        .enclosure
+                        .volume
                     })
                     .sum();
                 assert!(

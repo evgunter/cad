@@ -179,7 +179,8 @@ fn prefixed_unit_scales_instead_of_refusing() {
                 topo::test_support::pinned_resolution(Tol::witness()),
             )
             .unwrap()
-            .enclosure.volume,
+            .enclosure
+            .volume,
             eps_in,
         )
     };
@@ -222,7 +223,8 @@ fn a_conversion_based_unit_resolves_from_the_file_s_own_factor() {
             topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
-        .enclosure.volume
+        .enclosure
+        .volume
     };
     // The same metre unit, re-declared as an inch OVER that metre.
     let inch = plain.replace(

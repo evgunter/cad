@@ -731,12 +731,16 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         paired(1),
         "each twisted strut runs from c_k to c_(k+1): the top square starts one corner on"
     );
-    let twist_props =
-        pncad::topo::mass_properties(&crate::booleans::at_rest(&twisted_at_origin, tol), tol, finest)
-            .expect("the twisted loft has a volume");
+    let twist_props = pncad::topo::mass_properties(
+        &crate::booleans::at_rest(&twisted_at_origin, tol),
+        tol,
+        finest,
+    )
+    .expect("the twisted loft has a volume");
     assert!(
         twist_props.enclosure.volume_pad <= PRISM_PAD_MAX
-            && (twist_props.enclosure.volume - twist_narrated).abs() <= twist_props.enclosure.volume_pad,
+            && (twist_props.enclosure.volume - twist_narrated).abs()
+                <= twist_props.enclosure.volume_pad,
         "twisted_loft's V = {} ± {} does not bracket the {twist_narrated} m³ its \
          correspondence derives",
         twist_props.enclosure.volume,
@@ -1122,12 +1126,22 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // the ratio of the areas is constant along the spine and comes
     // straight out of the integral: 1 − (TUBE_IN/TUBE_OUT)² = 16/25,
     // whatever the spine does.
-    let v_tube = pncad::topo::mass_properties(&crate::booleans::at_rest(&twisted_tube, tol), tol, crate::printed())
-        .expect("the tube has a volume")
-        .enclosure.volume;
-    let v_solid = pncad::topo::mass_properties(&crate::booleans::at_rest(&twisted_solid, tol), tol, crate::printed())
-        .expect("the solid twin has a volume")
-        .enclosure.volume;
+    let v_tube = pncad::topo::mass_properties(
+        &crate::booleans::at_rest(&twisted_tube, tol),
+        tol,
+        crate::printed(),
+    )
+    .expect("the tube has a volume")
+    .enclosure
+    .volume;
+    let v_solid = pncad::topo::mass_properties(
+        &crate::booleans::at_rest(&twisted_solid, tol),
+        tol,
+        crate::printed(),
+    )
+    .expect("the solid twin has a volume")
+    .enclosure
+    .volume;
     let hollow_ratio = 1.0 - (TUBE_IN / TUBE_OUT) * (TUBE_IN / TUBE_OUT);
     assert!(
         ((v_tube - hollow_ratio * v_solid) / v_tube).abs() < 1e-12,

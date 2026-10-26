@@ -327,7 +327,14 @@ fn two_cylinders_tangent_along_a_ruling_cover_the_stack() {
     for (lower, upper) in STACKS {
         let want = area(lower) + area(upper);
         for (label, bb) in stacks(lower, upper) {
-            let v = topo::mass_properties(&bb.body, tol(), topo::test_support::pinned_resolution(tol())).unwrap().enclosure.volume;
+            let v = topo::mass_properties(
+                &bb.body,
+                tol(),
+                topo::test_support::pinned_resolution(tol()),
+            )
+            .unwrap()
+            .enclosure
+            .volume;
             assert!(
                 (v - want).abs() <= 1e-12 * want,
                 "{label}: the stack's volume {v} against the closed form {want}"
@@ -498,7 +505,14 @@ fn the_capsules_strut_waits_at_the_crossing_layer() {
             let got = topo::union(a, b, tol());
             match (pose, order, &got) {
                 ("ending on the joint", _, Ok(BooleanResult::Body(bb))) => {
-                    let v = topo::mass_properties(&bb.body, tol(), topo::test_support::pinned_resolution(tol())).unwrap().enclosure.volume;
+                    let v = topo::mass_properties(
+                        &bb.body,
+                        tol(),
+                        topo::test_support::pinned_resolution(tol()),
+                    )
+                    .unwrap()
+                    .enclosure
+                    .volume;
                     let want = capsule_volume + PI * R * R;
                     assert!(
                         (v - want).abs() <= 1e-12 * want,
@@ -521,7 +535,14 @@ fn the_capsules_strut_waits_at_the_crossing_layer() {
         let Ok(BooleanResult::Body(bb)) = r else {
             panic!("short of the joint, {order}: builds: {r:?}");
         };
-        let v = topo::mass_properties(&bb.body, tol(), topo::test_support::pinned_resolution(tol())).unwrap().enclosure.volume;
+        let v = topo::mass_properties(
+            &bb.body,
+            tol(),
+            topo::test_support::pinned_resolution(tol()),
+        )
+        .unwrap()
+        .enclosure
+        .volume;
         assert!(
             (v - want).abs() <= 1e-12 * want,
             "short of the joint, {order}: {v} against {want}"

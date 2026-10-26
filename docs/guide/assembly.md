@@ -231,6 +231,7 @@ from pncad import (
     m,
     product,
     relative_freedom_components,
+    Settle,
 )
 
 POST_SECTION, POST_HEIGHT = 0.12, 0.5
@@ -351,7 +352,7 @@ assert {post_a, shelf_i, post_b} <= set(component)
 # never in the product.
 assert stand.placements() == [post_a, shelf_i, post_b]
 assert [stand.node_kind(n) for n in stand.placements()] == ["instantiate_part"] * 3
-volume = product(stand, ev).mass_properties().volume
+volume = product(stand, ev).mass_properties(Settle.resolution(1e-6 * m)).enclosure.volume
 expected = 2 * POST_SECTION**2 * POST_HEIGHT + SHELF_LENGTH * SHELF_DEPTH * SHELF_THICKNESS
 assert abs(volume - expected) < 1e-12
 
@@ -370,7 +371,7 @@ except ProductError as refusal:
 # Only a placement relates two spaces: a copy of `alone` placed into
 # the world, by the identity bundle, puts the post in the product.
 flat.place(alone, flat.world)
-volume = product(flat, evaluate(flat, resolver=store)).mass_properties().volume
+volume = product(flat, evaluate(flat, resolver=store)).mass_properties(Settle.resolution(1e-6 * m)).enclosure.volume
 assert abs(volume - POST_SECTION**2 * POST_HEIGHT) < 1e-12
 ```
 
@@ -466,6 +467,7 @@ from pncad import (
     evaluate,
     m,
     product,
+    Settle,
 )
 
 POST_SECTION, POST_HEIGHT = 0.12, 0.5
@@ -513,7 +515,7 @@ ev = evaluate(layout, resolver=store)
 assert ev.succeeded(post_i) and ev.succeeded(shelf_i)
 assert ev.part_evaluations == 2, "two referenced documents crossed the seam"
 
-volume = product(layout, ev).mass_properties().volume
+volume = product(layout, ev).mass_properties(Settle.resolution(1e-6 * m)).enclosure.volume
 expected = POST_SECTION**2 * POST_HEIGHT + SHELF_LENGTH * SHELF_DEPTH * SHELF_THICKNESS
 assert abs(volume - expected) < 1e-12
 ```
@@ -561,6 +563,7 @@ from pncad import (
     content_pin,
     evaluate,
     m,
+    Settle,
 )
 
 
@@ -584,7 +587,7 @@ shelf_i = layout.insert(Node.instantiate_part(DocRef(shelf.id, content_pin(shelf
 # scheduled nowhere.
 before = evaluate(layout, resolver=store)
 assert (before.reused, before.recomputed) == (0, 1)
-pinned_volume = before.value(shelf_i).body().mass_properties().volume
+pinned_volume = before.value(shelf_i).body().mass_properties(Settle.resolution(1e-6 * m)).enclosure.volume
 
 # Someone thickens the shelf and saves it. The assembly still pins
 # the version it was authored against.
@@ -606,7 +609,7 @@ except EvaluationError as refusal:
 memoized = evaluate(layout, resolver=store, prior=before)
 assert (memoized.reused, memoized.recomputed) == (1, 0)
 assert memoized.part_evaluations == 0, "the seam was not crossed"
-assert memoized.value(shelf_i).body().mass_properties().volume == pinned_volume
+assert memoized.value(shelf_i).body().mass_properties(Settle.resolution(1e-6 * m)).enclosure.volume == pinned_volume
 
 # The limit case of the same rule: with every node a memo hit, the
 # resolver is not needed at all.
@@ -686,6 +689,7 @@ from pncad import (
     m,
     product,
     solve_document,
+    Settle,
 )
 
 POST_SECTION, POST_HEIGHT = 0.12, 0.5
@@ -794,13 +798,13 @@ assert [d.mate for d in assembly.minted] == list(mates)
 assert [d.class_ for d in assembly.minted] == [ContactClass.Rest] * 2
 expected = (2 * POST_SECTION**2 * POST_HEIGHT
             + SHELF_LENGTH * SHELF_DEPTH * SHELF_THICKNESS)
-assert abs(assembly.body.mass_properties().volume - expected) < 1e-12
+assert abs(assembly.body.mass_properties(Settle.resolution(1e-6 * m)).enclosure.volume - expected) < 1e-12
 
 # `assemble` IS the gather plus the check, so its body is the gathered
 # body — and a mate-less, disjoint layout passes the same gate
 # outright, with nothing minted.
 gathered = product(stand, ev)
-assert gathered.mass_properties().volume == assembly.body.mass_properties().volume
+assert gathered.mass_properties(Settle.resolution(1e-6 * m)).enclosure.volume == assembly.body.mass_properties(Settle.resolution(1e-6 * m)).enclosure.volume
 ```
 
 ## 5. The refusals an assembly author actually meets
@@ -1098,6 +1102,7 @@ from pncad import (
     product,
     random_document_id,
     split,
+    Settle,
 )
 
 
@@ -1123,7 +1128,7 @@ layout.set_constraints(shelf_i, Placed.unmated([MateValue(Coord.slide("y"), 0.5 
 
 
 def volume(doc):
-    return product(doc, evaluate(doc, resolver=store)).mass_properties().volume
+    return product(doc, evaluate(doc, resolver=store)).mass_properties(Settle.resolution(1e-6 * m)).enclosure.volume
 
 
 before = volume(layout)

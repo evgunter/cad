@@ -64,14 +64,16 @@ fn two_hole_box_split_between_rehomes_both_ways() {
             topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
-        .enclosure.volume,
+        .enclosure
+        .volume,
         mass_properties(
             &topo::test_support::finished("the measured body", (below).clone(), Tol::witness()),
             Tol::witness(),
             topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
-        .enclosure.volume,
+        .enclosure
+        .volume,
     );
     assert!((va - 10.0).abs() < 1e-12, "above {va}");
     assert!((vb - 10.0).abs() < 1e-12, "below {vb}");
@@ -103,14 +105,16 @@ fn split_through_hole_two_section_polygons() {
             topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
-        .enclosure.volume,
+        .enclosure
+        .volume,
         mass_properties(
             &topo::test_support::finished("the measured body", (below).clone(), Tol::witness()),
             Tol::witness(),
             topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
-        .enclosure.volume,
+        .enclosure
+        .volume,
     );
     // Total 20; below = 1·2·2 − (0.5·1·2 channel half) = 3.
     assert!((vb - 3.0).abs() < 1e-12, "below {vb}");

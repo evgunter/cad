@@ -337,12 +337,18 @@ fn arc_loft_natively_computes_its_rational_volume() {
             //
             // * the import's gate enclosure IS the imported body's own
             //   measurement, bit for bit (same body, same order);
-            let (imported, imported_terms) =
-                topo::test_support::mass_properties_with_face_terms(&body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-                    .expect("the imported body measures where its gate certified");
+            let (imported, imported_terms) = topo::test_support::mass_properties_with_face_terms(
+                &body,
+                Tol::witness(),
+                topo::test_support::pinned_resolution(Tol::witness()),
+            )
+            .expect("the imported body measures where its gate certified");
             assert_eq!(
                 (got.volume.to_bits(), got.volume_pad.to_bits()),
-                (imported.enclosure.volume.to_bits(), imported.enclosure.volume_pad.to_bits()),
+                (
+                    imported.enclosure.volume.to_bits(),
+                    imported.enclosure.volume_pad.to_bits()
+                ),
                 "the gate's enclosure must BE the imported body's measurement: \
                  gate {} ± {}, measured {} ± {}",
                 got.volume,

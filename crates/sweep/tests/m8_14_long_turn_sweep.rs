@@ -95,8 +95,12 @@ fn helix_oracle_gap(turns: f64, stations: usize) -> f64 {
     let profile = quad([(-H, -H), (H, -H), (H, H), (-H, H)]);
     let swept = sweep_body::<f64>(&profile, place, &path, stations, 3, Tol::witness())
         .unwrap_or_else(|e| panic!("a {turns}-turn helical sweep must build now: {e:?}"));
-    let m = topo::test_support::unmigrated_measure(&swept.body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-        .expect("mass properties certify");
+    let m = topo::test_support::unmigrated_measure(
+        &swept.body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .expect("mass properties certify");
     assert!(
         m.enclosure.volume_pad < 1e-9,
         "{turns}-turn helix @ {stations} stations: the certified enclosure must \

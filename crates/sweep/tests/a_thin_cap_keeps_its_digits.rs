@@ -49,7 +49,8 @@ fn a_thin_cap_measures_to_its_closed_form() {
             .expect("a body")
             .body
             .clone();
-        let props = topo::mass_properties(&body, tol, topo::test_support::pinned_resolution(tol)).unwrap();
+        let props =
+            topo::mass_properties(&body, tol, topo::test_support::pinned_resolution(tol)).unwrap();
         // The height the slab's stored level leaves, exactly.
         let h = 1.0 - (1.0 - h);
         let volume = pi * h * h * (3.0 - h) / 3.0;

@@ -100,7 +100,8 @@ fn unslit_plane_annuli_round_trip_through_step() {
             topo::test_support::pinned_resolution(tol()),
         )
         .unwrap()
-        .enclosure.volume;
+        .enclosure
+        .volume;
         let read = certificate
             .measure(&imported, topo::test_support::pinned_resolution(tol()))
             .expect("the import's certificate measures")

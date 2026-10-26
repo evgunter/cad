@@ -73,7 +73,14 @@ fn assert_sound(what: &str, r: Result<BooleanResult<f64>, BooleanError>, want: f
         .unwrap_or_else(|e| panic!("{what}: tier 3′: {e:?}"));
     topo::validate_geometric_certificate(&bb.body, tol())
         .unwrap_or_else(|e| panic!("{what}: the at-rest certificate: {e:?}"));
-    let v = topo::mass_properties(&bb.body, tol(), topo::test_support::pinned_resolution(tol())).unwrap().enclosure.volume;
+    let v = topo::mass_properties(
+        &bb.body,
+        tol(),
+        topo::test_support::pinned_resolution(tol()),
+    )
+    .unwrap()
+    .enclosure
+    .volume;
     assert!(
         (v - want).abs() < 1e-9,
         "{what}: volume {v} against the closed form {want}"

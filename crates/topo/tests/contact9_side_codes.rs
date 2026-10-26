@@ -144,7 +144,8 @@ fn volume(body: &Body<f64>) -> f64 {
         topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .enclosure.volume
+    .enclosure
+    .volume
 }
 
 /// The smallest intersection whose volume these rows trust, in m³. The

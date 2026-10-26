@@ -386,7 +386,12 @@ fn build(
 }
 
 fn vol(body: &Body<f64>) -> (f64, f64) {
-    let p = topo::test_support::unmigrated_measure(body, tol(), topo::test_support::pinned_resolution(tol())).expect("props");
+    let p = topo::test_support::unmigrated_measure(
+        body,
+        tol(),
+        topo::test_support::pinned_resolution(tol()),
+    )
+    .expect("props");
     (p.enclosure.volume, p.enclosure.volume_pad)
 }
 

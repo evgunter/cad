@@ -45,7 +45,10 @@ fn read(
         Ok(()),
         "{label}: the result is tier-3 valid"
     );
-    let volume = mass_properties(&out.body, tol, topo::test_support::pinned_resolution(tol)).unwrap().enclosure.volume;
+    let volume = mass_properties(&out.body, tol, topo::test_support::pinned_resolution(tol))
+        .unwrap()
+        .enclosure
+        .volume;
     (volume, out.body.shells().count(), out.kind)
 }
 

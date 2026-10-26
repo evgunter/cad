@@ -303,7 +303,12 @@ fn r1p1_cylindrical_void_in_a_box_through_the_axial_door() {
         .unwrap_or_else(|e| panic!("box with cylindrical void at t={t} hollows: {e:?}"));
     let out = &s.body;
     let tier3 = topo::validate_geometric(out, tol());
-    let props = topo::test_support::unmigrated_measure(out, tol(), topo::test_support::pinned_resolution(tol())).expect("props");
+    let props = topo::test_support::unmigrated_measure(
+        out,
+        tol(),
+        topo::test_support::pinned_resolution(tol()),
+    )
+    .expect("props");
     let pi = core::f64::consts::PI;
     let want = (64.0 - 3.8f64.powi(3)) + pi * (1.1 * 1.1 * 2.2 - 2.0);
     println!(
@@ -402,7 +407,11 @@ fn r1p6_open_a_void_ceiling_with_a_pillar_through_it() {
         Ok(s) => {
             let out = &s.body;
             let tier3 = topo::validate_geometric(out, tol());
-            let props = topo::test_support::unmigrated_measure(out, tol(), topo::test_support::pinned_resolution(tol()));
+            let props = topo::test_support::unmigrated_measure(
+                out,
+                tol(),
+                topo::test_support::pinned_resolution(tol()),
+            );
             // A = 4³ − 3.8³; B = V′ − V where V = 2²·2 − 0.4²·2 and
             // V′ = 2.2³ − 0.2²·2.2; the removed slab is the counterpart's
             // footprint (2.2² − 0.2²) × t.
@@ -497,7 +506,12 @@ fn r1_e2e_hollow_twice_then_open_the_inner_wall() {
         twice.naming.thickened,
         roles_by_solid(&twice.body)
     );
-    let props = topo::test_support::unmigrated_measure(&twice.body, tol(), topo::test_support::pinned_resolution(tol())).expect("props");
+    let props = topo::test_support::unmigrated_measure(
+        &twice.body,
+        tol(),
+        topo::test_support::pinned_resolution(tol()),
+    )
+    .expect("props");
     println!(
         "[e2e] hollow twice volume={} area={}",
         props.enclosure.volume, props.enclosure.surface_area
@@ -514,7 +528,12 @@ fn r1_e2e_hollow_twice_then_open_the_inner_wall() {
         tol(),
     )
     .expect("hollow, hollow, open is three verbs");
-    let props = topo::test_support::unmigrated_measure(&three.body, tol(), topo::test_support::pinned_resolution(tol())).expect("props");
+    let props = topo::test_support::unmigrated_measure(
+        &three.body,
+        tol(),
+        topo::test_support::pinned_resolution(tol()),
+    )
+    .expect("props");
     println!(
         "[e2e] hollow, hollow, open: solids={} shells={} tier3={:?} volume={} thickened={:?}",
         three.body.solids().count(),
@@ -575,7 +594,12 @@ fn r1_e2e_hollow_twice_then_open_the_inner_wall() {
         topo::validate_geometric(out, tol()),
         roles_by_solid(out)
     );
-    let props = topo::test_support::unmigrated_measure(out, tol(), topo::test_support::pinned_resolution(tol())).expect("props");
+    let props = topo::test_support::unmigrated_measure(
+        out,
+        tol(),
+        topo::test_support::pinned_resolution(tol()),
+    )
+    .expect("props");
     let want = (box_volume(2.0, 3.0, 4.0) - box_volume(1.9, 2.9, 3.9))
         + (box_volume(1.6, 2.6, 3.6) - box_volume(1.5, 2.5, 3.5))
         - 1.6 * 2.6 * 0.05;

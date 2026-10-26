@@ -66,13 +66,35 @@ fn one_call_equals_the_defining_composition() {
     let hole_as_outer = revolve(&validated(vec![hole()]), axis_y(), Revolution::Full, tol).unwrap();
 
     assert_all_tiers(&holed.body);
-    let p = topo::test_support::unmigrated_measure(&holed.body, tol, topo::test_support::pinned_resolution(tol)).unwrap();
-    let po = topo::test_support::unmigrated_measure(&solid_outer.body, tol, topo::test_support::pinned_resolution(tol)).unwrap();
-    let ph = topo::test_support::unmigrated_measure(&hole_as_outer.body, tol, topo::test_support::pinned_resolution(tol)).unwrap();
+    let p = topo::test_support::unmigrated_measure(
+        &holed.body,
+        tol,
+        topo::test_support::pinned_resolution(tol),
+    )
+    .unwrap();
+    let po = topo::test_support::unmigrated_measure(
+        &solid_outer.body,
+        tol,
+        topo::test_support::pinned_resolution(tol),
+    )
+    .unwrap();
+    let ph = topo::test_support::unmigrated_measure(
+        &hole_as_outer.body,
+        tol,
+        topo::test_support::pinned_resolution(tol),
+    )
+    .unwrap();
     // Volume: exactly the definition. Area: both boundaries count.
-    assert!(((p.enclosure.volume - (po.enclosure.volume - ph.enclosure.volume)) / p.enclosure.volume).abs() < 1e-12);
     assert!(
-        ((p.enclosure.surface_area - (po.enclosure.surface_area + ph.enclosure.surface_area)) / p.enclosure.surface_area).abs() < 1e-12
+        ((p.enclosure.volume - (po.enclosure.volume - ph.enclosure.volume)) / p.enclosure.volume)
+            .abs()
+            < 1e-12
+    );
+    assert!(
+        ((p.enclosure.surface_area - (po.enclosure.surface_area + ph.enclosure.surface_area))
+            / p.enclosure.surface_area)
+            .abs()
+            < 1e-12
     );
 }
 
@@ -114,7 +136,12 @@ fn hole_hugging_the_outer_boundary_at_this_eps() {
     // orders of magnitude before any winding/containment mistake
     // (an inside-out cavity lands near 2·2π·1.5 ≈ 18.8).
     let v_expect = 2.0 * PI * 1.5 * (4.0 * g * (1.0 - g));
-    let p = topo::test_support::unmigrated_measure(&t.body, tol, topo::test_support::pinned_resolution(tol)).unwrap();
+    let p = topo::test_support::unmigrated_measure(
+        &t.body,
+        tol,
+        topo::test_support::pinned_resolution(tol),
+    )
+    .unwrap();
     assert!(
         ((p.enclosure.volume - v_expect) / v_expect).abs() < 1e-6,
         "{}",
@@ -177,7 +204,12 @@ fn near_axis_hole_refuses_below_the_band_and_builds_above_it() {
     // at r̄=(g+0.5)/2.
     let v_hole = 2.0 * PI * ((g + 0.5) / 2.0) * ((0.5 - g) * 0.5);
     let v_expect = 2.0 * PI * 0.5 - v_hole;
-    let p = topo::test_support::unmigrated_measure(&t.body, tol, topo::test_support::pinned_resolution(tol)).unwrap();
+    let p = topo::test_support::unmigrated_measure(
+        &t.body,
+        tol,
+        topo::test_support::pinned_resolution(tol),
+    )
+    .unwrap();
     assert!(
         ((p.enclosure.volume - v_expect) / v_expect).abs() < 1e-9,
         "{}",
@@ -247,7 +279,12 @@ fn wire_outer_with_circular_hole_torus_cavity() {
     let v_expect = 12.0 * PI - 2.0 * PI * PI * 0.16;
     let a_torus = 4.0 * PI * PI * 1.0 * 0.4;
     let a_cyl = 2.0 * PI * 2.0 * 3.0 + 2.0 * PI * 4.0;
-    let p = topo::test_support::unmigrated_measure(&t.body, tol, topo::test_support::pinned_resolution(tol)).unwrap();
+    let p = topo::test_support::unmigrated_measure(
+        &t.body,
+        tol,
+        topo::test_support::pinned_resolution(tol),
+    )
+    .unwrap();
     assert!(
         ((p.enclosure.volume - v_expect) / v_expect).abs() < 1e-12,
         "{}",

@@ -196,7 +196,8 @@ fn three_instances_of_one_component() {
         topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("mass properties")
-    .enclosure.volume
+    .enclosure
+    .volume
         * 1e9;
     let want = 3.0 * v_box + v_sphere;
     assert!(

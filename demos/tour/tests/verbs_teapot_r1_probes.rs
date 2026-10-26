@@ -363,7 +363,12 @@ fn p2_the_oblique_class_hollows_outside_the_enumeration() {
             "{what}: tier 3"
         );
         assert_eq!(hollow.shells().count(), 2, "{what}: outer + cavity");
-        let props = pncad::topo::mass_properties(&at_rest(&hollow, tol), tol, pncad::topo::Settle::Resolution(pncad::quantity::Length::from_meters(1.024e-6))).expect("props");
+        let props = pncad::topo::mass_properties(
+            &at_rest(&hollow, tol),
+            tol,
+            pncad::topo::Settle::Resolution(pncad::quantity::Length::from_meters(1.024e-6)),
+        )
+        .expect("props");
         println!("{what}: hollows, wall volume {}", props.enclosure.volume);
         if let Some(want) = want {
             assert!(
@@ -507,9 +512,14 @@ fn p3_wall1_hollows_to_its_closed_form() {
         y_c - ((r_belly - t) * (r_belly - t) - (r_foot - t) * (r_foot - t)).sqrt()
     );
     let want = enclosed(0.0) - enclosed(t);
-    let got = pncad::topo::mass_properties(&at_rest(&pot, tol), tol, pncad::topo::Settle::Resolution(pncad::quantity::Length::from_meters(1.024e-6)))
-        .expect("the pot's props")
-        .enclosure.volume;
+    let got = pncad::topo::mass_properties(
+        &at_rest(&pot, tol),
+        tol,
+        pncad::topo::Settle::Resolution(pncad::quantity::Length::from_meters(1.024e-6)),
+    )
+    .expect("the pot's props")
+    .enclosure
+    .volume;
     println!("wall-1 wall volume = {got}, closed form = {want}");
     assert!(
         (got - want).abs() < 1e-15,

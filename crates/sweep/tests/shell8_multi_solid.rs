@@ -104,7 +104,12 @@ fn a_box_beside_a_vessel_takes_one_door_each() {
     assert_eq!(topo::validate_geometric(body, tol()), Ok(()), "tier 3");
     assert_eq!(body.solids().count(), 2);
     assert_eq!(body.shells().count(), 4);
-    let props = topo::test_support::unmigrated_measure(body, tol(), topo::test_support::pinned_resolution(tol())).expect("props");
+    let props = topo::test_support::unmigrated_measure(
+        body,
+        tol(),
+        topo::test_support::pinned_resolution(tol()),
+    )
+    .expect("props");
     assert!((props.enclosure.volume - want).abs() <= 1e-9 + props.enclosure.volume_pad);
 }
 
@@ -142,7 +147,12 @@ fn a_box_beside_a_full_torus_takes_one_door_each() {
     );
     assert_eq!(topo::validate_geometric(body, tol()), Ok(()), "tier 3");
     assert_eq!(body.solids().count(), 2);
-    let props = topo::test_support::unmigrated_measure(body, tol(), topo::test_support::pinned_resolution(tol())).expect("props");
+    let props = topo::test_support::unmigrated_measure(
+        body,
+        tol(),
+        topo::test_support::pinned_resolution(tol()),
+    )
+    .expect("props");
     assert!((props.enclosure.volume - want).abs() <= 1e-9 + props.enclosure.volume_pad);
 }
 

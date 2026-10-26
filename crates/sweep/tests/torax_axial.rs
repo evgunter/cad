@@ -859,9 +859,14 @@ fn torax_the_sphere_lune_hollows_to_its_closed_form() {
 
     // The operand's own tier 3, first: the wedge arm measures its wall.
     assert_eq!(topo::validate_geometric(&body, tol()), Ok(()));
-    let volume = topo::test_support::unmigrated_measure(&body, tol(), topo::test_support::pinned_resolution(tol()))
-        .expect("the lune's wall measures by its meridian pair")
-        .enclosure.volume;
+    let volume = topo::test_support::unmigrated_measure(
+        &body,
+        tol(),
+        topo::test_support::pinned_resolution(tol()),
+    )
+    .expect("the lune's wall measures by its meridian pair")
+    .enclosure
+    .volume;
     let exact = core::f64::consts::PI * r * r * r / 3.0;
     assert!(
         (volume - exact).abs() / exact < 1e-12,
@@ -911,9 +916,14 @@ fn torax_the_sphere_lune_lifts_its_rims_onto_the_caps() {
         .unwrap_or_else(|e| panic!("the lune opens at one cap, got {e:?}"))
         .body;
     assert_eq!(topo::validate_geometric(&one, tol()), Ok(()));
-    let got = topo::test_support::unmigrated_measure(&one, tol(), topo::test_support::pinned_resolution(tol()))
-        .expect("the opened lune measures")
-        .enclosure.volume;
+    let got = topo::test_support::unmigrated_measure(
+        &one,
+        tol(),
+        topo::test_support::pinned_resolution(tol()),
+    )
+    .expect("the opened lune measures")
+    .enclosure
+    .volume;
     let (pi, big_r) = (core::f64::consts::PI, r - t);
     let cavity = pi / 2.0 * (2.0 * big_r.powi(3) / 3.0 - big_r * big_r * t + t.powi(3) / 3.0);
     let want = pi * r * r * r / 3.0 - cavity;
@@ -951,9 +961,14 @@ fn assert_hollow_lune(label: &str, body: &Body<f64>, r: f64, t: f64) {
         .unwrap_or_else(|e| panic!("{label}: the hollow builds, got {e:?}"))
         .body;
     assert_eq!(topo::validate_geometric(&hollow, tol()), Ok(()), "{label}");
-    let volume = topo::test_support::unmigrated_measure(&hollow, tol(), topo::test_support::pinned_resolution(tol()))
-        .expect("the cavity's lens measures")
-        .enclosure.volume;
+    let volume = topo::test_support::unmigrated_measure(
+        &hollow,
+        tol(),
+        topo::test_support::pinned_resolution(tol()),
+    )
+    .expect("the cavity's lens measures")
+    .enclosure
+    .volume;
     let exact = core::f64::consts::PI * r * r * r / 3.0 - lune_cavity_volume(r, t);
     assert!(
         (volume - exact).abs() / exact < 1e-9,

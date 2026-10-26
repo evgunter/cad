@@ -59,7 +59,14 @@ fn assert_sound(what: &str, r: Result<BooleanResult<f64>, topo::BooleanError>, w
         .unwrap_or_else(|e| panic!("{what}: tier 3′: {e:?}"));
     topo::validate_geometric_certificate(&bb.body, tol())
         .unwrap_or_else(|e| panic!("{what}: certificate: {e:?}"));
-    let v = topo::mass_properties(&bb.body, tol(), topo::test_support::pinned_resolution(tol())).unwrap().enclosure.volume;
+    let v = topo::mass_properties(
+        &bb.body,
+        tol(),
+        topo::test_support::pinned_resolution(tol()),
+    )
+    .unwrap()
+    .enclosure
+    .volume;
     assert!((v - want).abs() < 1e-9, "{what}: volume {v} against {want}");
     sweep::test_support::assert_legal_operand(what, &bb.body, tol());
 }
@@ -209,7 +216,14 @@ fn a_pole_struts_halves_face_their_own_meridians() {
             .unwrap_or_else(|e| panic!("{what}: tier 3′: {e:?}"));
         topo::validate_geometric_certificate(&bb.body, tol())
             .unwrap_or_else(|e| panic!("{what}: certificate: {e:?}"));
-        let v = topo::mass_properties(&bb.body, tol(), topo::test_support::pinned_resolution(tol())).unwrap().enclosure.volume;
+        let v = topo::mass_properties(
+            &bb.body,
+            tol(),
+            topo::test_support::pinned_resolution(tol()),
+        )
+        .unwrap()
+        .enclosure
+        .volume;
         assert!((v - want).abs() < 1e-9, "{what}: volume {v} against {want}");
         let far = finished(
             "the far box",

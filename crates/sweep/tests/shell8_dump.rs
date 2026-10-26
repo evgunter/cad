@@ -70,7 +70,11 @@ fn dump(label: &str, body: &Body<f64>) {
             p
         );
     }
-    match topo::test_support::unmigrated_measure(body, tol(), topo::test_support::pinned_resolution(tol())) {
+    match topo::test_support::unmigrated_measure(
+        body,
+        tol(),
+        topo::test_support::pinned_resolution(tol()),
+    ) {
         Ok(p) => println!(
             "[dump8] {label}: volume={:?} pad={:?} area={:?}",
             p.enclosure.volume, p.enclosure.volume_pad, p.enclosure.surface_area

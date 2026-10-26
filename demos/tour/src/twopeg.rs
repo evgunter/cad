@@ -358,7 +358,8 @@ pub(crate) fn build<S: Scalar>(
     let vol = |b: &Body<S>| {
         pncad::topo::mass_properties(&crate::booleans::at_rest(b, tol), tol, crate::printed())
             .expect("mass properties")
-            .enclosure.volume
+            .enclosure
+            .volume
             .f()
     };
     let (vp, vq, v) = (vol(&p), vol(&q), vol(&mated.body));

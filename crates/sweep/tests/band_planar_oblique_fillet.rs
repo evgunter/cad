@@ -309,8 +309,18 @@ fn the_oblique_fillet_carves_at_the_certified_scalar() {
         );
     }
     let (p0, p1) = (
-        topo::test_support::unmigrated_measure(&body, tol(), topo::test_support::pinned_resolution(tol())).expect("interval props"),
-        topo::test_support::unmigrated_measure(&out.body, tol(), topo::test_support::pinned_resolution(tol())).expect("interval props"),
+        topo::test_support::unmigrated_measure(
+            &body,
+            tol(),
+            topo::test_support::pinned_resolution(tol()),
+        )
+        .expect("interval props"),
+        topo::test_support::unmigrated_measure(
+            &out.body,
+            tol(),
+            topo::test_support::pinned_resolution(tol()),
+        )
+        .expect("interval props"),
     );
     let removed = p0.enclosure.volume - p1.enclosure.volume;
     let pad = p0.enclosure.volume_pad + p1.enclosure.volume_pad;

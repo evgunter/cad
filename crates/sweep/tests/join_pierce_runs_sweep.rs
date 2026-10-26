@@ -290,7 +290,10 @@ fn pose_runs((place, lo): (&str, [f64; 3]), (i, j, psi): (u32, u32, f64)) -> Vec
         "the prism",
         fixtures::prism::<f64>(&PROFILE, 1.0, tol()).body,
     );
-    let va = mass_properties(&prism, tol(), topo::test_support::pinned_resolution(tol())).unwrap().enclosure.volume;
+    let va = mass_properties(&prism, tol(), topo::test_support::pinned_resolution(tol()))
+        .unwrap()
+        .enclosure
+        .volume;
     let f = frame(direction(i, j), psi);
     let b = finished("the cube", cube(f, lo));
     let common = shared(&cube_planes(f, lo));
@@ -851,7 +854,10 @@ fn a_pinch_round_a_notch_on_a_faces_outer_loop_is_one_vertex_per_cone() {
     let lo = [-2.0, -2.0, 0.0];
     let vee = finished("the vee", fixtures::prism::<f64>(&VEE, 1.0, tol()).body);
     let cube = finished("the cube", cube_at(v, f, lo));
-    let va = mass_properties(&vee, tol(), topo::test_support::pinned_resolution(tol())).unwrap().enclosure.volume;
+    let va = mass_properties(&vee, tol(), topo::test_support::pinned_resolution(tol()))
+        .unwrap()
+        .enclosure
+        .volume;
     let common = pieces_within(&pieces, (0.0, 1.0), &cube_planes_at(v, f, lo));
     assert!(common > 1e-3, "the cube holds some of the vee: {common}");
     let runs = every_op(["xy", "yx"], (&vee, va), (&cube, SIDE.powi(3)), common);
@@ -1206,9 +1212,14 @@ fn a_near_tangent_two_run_pierce_builds_with_edges_in_band_only_at_its_copies() 
     );
     let cube = finished("the cube", cube_at(v, f, lo));
     let vol = |b: &Body<f64>| {
-        topo::test_support::unmigrated_measure(b, tol(), topo::test_support::pinned_resolution(tol()))
-            .unwrap()
-            .enclosure.volume
+        topo::test_support::unmigrated_measure(
+            b,
+            tol(),
+            topo::test_support::pinned_resolution(tol()),
+        )
+        .unwrap()
+        .enclosure
+        .volume
     };
     let common: f64 = shallow_pieces()
         .into_iter()
@@ -1727,7 +1738,12 @@ fn four_pairs_battery() {
                             .collect(),
                     )
                     .filter(|b| {
-                        (mass_properties(b, tol(), topo::test_support::pinned_resolution(tol())).unwrap().enclosure.volume - 4.0 * SIDE.powi(3)).abs()
+                        (mass_properties(b, tol(), topo::test_support::pinned_resolution(tol()))
+                            .unwrap()
+                            .enclosure
+                            .volume
+                            - 4.0 * SIDE.powi(3))
+                        .abs()
                             < 1e-9
                     });
                     let Some(pinch) = pinch else {
@@ -2713,7 +2729,10 @@ fn eight_crossings_with_a_pinched_cube(
     b_pieces.push(cube_planes_sized(a.v, g, [0.0; 3], SIDE));
     let vol = |ps: &[Vec<Plane>]| ps.iter().map(|p| convex_volume(p)).sum::<f64>();
     let (va, vb) = (vol(&a_pieces), vol(&b_pieces));
-    let got = mass_properties(&united, tol(), topo::test_support::pinned_resolution(tol())).unwrap().enclosure.volume;
+    let got = mass_properties(&united, tol(), topo::test_support::pinned_resolution(tol()))
+        .unwrap()
+        .enclosure
+        .volume;
     if (got - vb).abs() > 1e-9 {
         return Err(format!("{pose}: the pinch's volume {got} vs {vb}"));
     }

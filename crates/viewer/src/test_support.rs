@@ -563,7 +563,8 @@ pub fn evaluated_volume(eval: &Evaluation<f64>, node: RecipeNodeId, tol: Tol) ->
         pncad::topo::Settle::Resolution(pncad::quantity::Length::from_meters(1024.0 * tol.eps())),
     )
     .expect("mass properties")
-    .enclosure.volume
+    .enclosure
+    .volume
 }
 
 // --- a part reference the evaluation refused ------------------------

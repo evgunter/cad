@@ -171,7 +171,12 @@ fn r2_partial_revolve_axis_touching_cap() {
                     panic!("VALIDATED WRONG BODY: valid but no mesh at {delta}: {e:?}")
                 });
             }
-            let props = topo::test_support::unmigrated_measure(cup, tol, topo::test_support::pinned_resolution(tol)).expect("props");
+            let props = topo::test_support::unmigrated_measure(
+                cup,
+                tol,
+                topo::test_support::pinned_resolution(tol),
+            )
+            .expect("props");
             let want = 0.5 * theta * (r * r * h - (r - t) * (r - t) * (h - t));
             println!(
                 "    volume got {} want (naive wedge closed form) {want}",
@@ -352,7 +357,12 @@ fn r2_my_own_annulus_splits_into_two_rims() {
         mesh::tessellate(&cup, delta, tol)
             .unwrap_or_else(|e| panic!("the two rims must mesh at {delta}: {e:?}"));
     }
-    let props = topo::test_support::unmigrated_measure(&cup, tol, topo::test_support::pinned_resolution(tol)).expect("props");
+    let props = topo::test_support::unmigrated_measure(
+        &cup,
+        tol,
+        topo::test_support::pinned_resolution(tol),
+    )
+    .expect("props");
     let want = core::f64::consts::PI
         * ((ro * ro - ri * ri) * h - ((ro - t).powi(2) - (ri + t).powi(2)) * (h - t));
     println!(
@@ -627,7 +637,12 @@ fn r2_box_control_fingerprint() {
         );
         match cup {
             Ok(topo::Shelled { body: cup, .. }) => {
-                let props = topo::test_support::unmigrated_measure(&cup, tol, topo::test_support::pinned_resolution(tol)).expect("props");
+                let props = topo::test_support::unmigrated_measure(
+                    &cup,
+                    tol,
+                    topo::test_support::pinned_resolution(tol),
+                )
+                .expect("props");
                 println!(
                     "FINGERPRINT {name}: v={} e={} f={} l={} r={} s={} genus={} V={:.17e} A={:.17e} tier3={}",
                     cup.vertices().count(),

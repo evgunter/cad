@@ -82,9 +82,14 @@ fn plate_with_tube<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>(
 /// design — the interval lane checks censuses instead).
 fn plate_with_tube_f64() -> AtRestBody<f64> {
     let u1 = plate_with_tube::<f64>();
-    let v = mass_properties(&u1, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-        .expect("u1 mass")
-        .enclosure.volume;
+    let v = mass_properties(
+        &u1,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .expect("u1 mass")
+    .enclosure
+    .volume;
     assert!((v - 22.0).abs() < 1e-12, "u1 volume {v} != 22.0 exact");
     u1
 }
@@ -185,9 +190,14 @@ fn issue105_doubly_nested_union_exact() {
         panic!("|pillar emptied");
     };
     tiers(&u2, "u2");
-    let v = mass_properties(&u2.body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-        .expect("u2 mass")
-        .enclosure.volume;
+    let v = mass_properties(
+        &u2.body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .expect("u2 mass")
+    .enclosure
+    .volume;
     assert!(
         (v - 22.4375).abs() < 1e-12,
         "REGRESSION toward issue #105: pillar union volume {v} != 22.4375 \
@@ -218,18 +228,28 @@ fn issue106_depth2_nested_intersect_exact() {
     // `plate_with_tube_f64` (u1 = 22.0), so a miss below is the
     // intersect's fault, never a corrupt operand.
     let u2 = depth2_chain::<f64>();
-    let vu2 = mass_properties(&u2, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-        .expect("u2 mass")
-        .enclosure.volume;
+    let vu2 = mass_properties(
+        &u2,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .expect("u2 mass")
+    .enclosure
+    .volume;
     assert!((vu2 - 22.4375).abs() < 1e-12, "u2 volume {vu2} != 22.4375");
     match intersect(&u2, &slab::<f64>(), Tol::witness()) {
         Ok(BooleanResult::Body(bb)) => {
             tiers(&bb, "depth-2 intersect");
             // Tube annulus prism (10 faces) + pillar box (6).
             census(&bb, 2, 16, "depth-2 intersect");
-            let v = mass_properties(&bb.body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-                .expect("mass")
-                .enclosure.volume;
+            let v = mass_properties(
+                &bb.body,
+                Tol::witness(),
+                topo::test_support::pinned_resolution(Tol::witness()),
+            )
+            .expect("mass")
+            .enclosure
+            .volume;
             assert!(
                 (v - 3.25).abs() < 1e-12,
                 "REGRESSION toward issue #106: depth-2 nested intersect \
@@ -251,9 +271,14 @@ fn depth1_nested_intersect_control_exact() {
     match intersect(&plate_with_tube_f64(), &slab::<f64>(), Tol::witness()) {
         Ok(BooleanResult::Body(bb)) => {
             tiers(&bb, "depth-1 control");
-            let v = mass_properties(&bb.body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-                .expect("mass")
-                .enclosure.volume;
+            let v = mass_properties(
+                &bb.body,
+                Tol::witness(),
+                topo::test_support::pinned_resolution(Tol::witness()),
+            )
+            .expect("mass")
+            .enclosure
+            .volume;
             assert!((v - 3.0).abs() < 1e-12, "control volume {v} != 3.0 exact");
         }
         other => panic!("depth-1 control did not build: {other:?}"),
@@ -316,9 +341,14 @@ fn pillar_tube<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>() ->
 #[test]
 fn issue106_depth3_nested_intersect_probe() {
     let u3 = depth3_chain::<f64>();
-    let vu3 = mass_properties(&u3, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-        .expect("u3 mass")
-        .enclosure.volume;
+    let vu3 = mass_properties(
+        &u3,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .expect("u3 mass")
+    .enclosure
+    .volume;
     assert!(
         (vu3 - 22.3544921875).abs() < 1e-12,
         "depth-3 input chain u3 volume {vu3} != 22.3544921875 exact"
@@ -328,9 +358,14 @@ fn issue106_depth3_nested_intersect_probe() {
             tiers(&bb, "depth-3 intersect");
             // Tube annulus (10) + pillar annulus (10) + post box (6).
             census(&bb, 3, 26, "depth-3 intersect");
-            let v = mass_properties(&bb.body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-                .expect("mass")
-                .enclosure.volume;
+            let v = mass_properties(
+                &bb.body,
+                Tol::witness(),
+                topo::test_support::pinned_resolution(Tol::witness()),
+            )
+            .expect("mass")
+            .enclosure
+            .volume;
             assert!(
                 (v - 3.203125).abs() < 1e-12,
                 "depth-3 nested intersect volume {v} != 3.203125 exact"
@@ -439,9 +474,14 @@ fn issue106_comb_island_intersect_probe() {
         panic!("|comb emptied");
     };
     tiers(&u2, "comb u2");
-    let vu2 = mass_properties(&u2.body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-        .expect("u2 mass")
-        .enclosure.volume;
+    let vu2 = mass_properties(
+        &u2.body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .expect("u2 mass")
+    .enclosure
+    .volume;
     assert!(
         (vu2 - 22.287109375).abs() < 1e-12,
         "comb chain u2 volume {vu2} != 22.287109375 exact"
@@ -451,9 +491,14 @@ fn issue106_comb_island_intersect_probe() {
             tiers(&bb, "comb intersect");
             // Tube annulus (10 faces) + comb prism (12 sides + 2 caps).
             census(&bb, 2, 24, "comb intersect");
-            let v = mass_properties(&bb.body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-                .expect("mass")
-                .enclosure.volume;
+            let v = mass_properties(
+                &bb.body,
+                Tol::witness(),
+                topo::test_support::pinned_resolution(Tol::witness()),
+            )
+            .expect("mass")
+            .enclosure
+            .volume;
             assert!(
                 (v - 3.1640625).abs() < 1e-12,
                 "comb intersect volume {v} != 3.1640625 exact"

@@ -410,8 +410,12 @@ fn wall_probes(tol: Tol) {
     let sectioned = pncad::topo::shell(&quarter, WALL, tol)
         .expect("the sectioned vessel hollows through tier 3")
         .body;
-    let props = pncad::topo::mass_properties(&crate::booleans::at_rest(&sectioned, tol), tol, crate::printed())
-        .expect("the sectioned hollow's props");
+    let props = pncad::topo::mass_properties(
+        &crate::booleans::at_rest(&sectioned, tol),
+        tol,
+        crate::printed(),
+    )
+    .expect("the sectioned hollow's props");
     println!(
         "   the sectioned vessel's hollow measures {} ± {} m³ (its spiric faces by quadrature)",
         props.enclosure.volume, props.enclosure.volume_pad
@@ -439,7 +443,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     let body = AtRestBody::validate(bellied(tol), tol).expect("the operand: tier 3");
     assert_eq!(census(&body), (12, 18, 10), "the vessel's operand census");
     assert_eq!(euler_counts(&body).genus(), Ok(0), "a vessel is a ball");
-    let props = pncad::topo::mass_properties(&body, tol, crate::printed()).expect("the operand's props");
+    let props =
+        pncad::topo::mass_properties(&body, tol, crate::printed()).expect("the operand's props");
     let (v_out, a_out) = boundary(R_BELLIED, 0.0);
     assert!(
         ((props.enclosure.volume - v_out) / v_out).abs() < 1e-12,
@@ -519,8 +524,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     let (v_cav, a_cav) = boundary(R_BELLIED, WALL);
     // Finished once: the props and the shell roles below both read it.
     let sealed_at_rest = crate::booleans::at_rest(&sealed, tol);
-    let props_s =
-        pncad::topo::mass_properties(&sealed_at_rest, tol, crate::printed()).expect("the sealed vessel's props");
+    let props_s = pncad::topo::mass_properties(&sealed_at_rest, tol, crate::printed())
+        .expect("the sealed vessel's props");
     let v_wall = v_out - v_cav;
     assert!(
         ((props_s.enclosure.volume - v_wall) / v_wall).abs() < 1e-12,
@@ -533,7 +538,10 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         props_s.enclosure.surface_area,
         a_out + a_cav
     );
-    assert_eq!(props_s.enclosure.volume_pad, 0.0, "closed forms need no pad");
+    assert_eq!(
+        props_s.enclosure.volume_pad, 0.0,
+        "closed forms need no pad"
+    );
 
     // The capacity, asked for DIRECTLY of the body rather than
     // inferred from a difference: the cavity is the `Void`-role shell
@@ -581,9 +589,12 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     let (twin_v_out, _) = boundary(R_WAISTED, 0.0);
     let (twin_v_cav, _) = boundary(R_WAISTED, WALL);
     let twin_wall = twin_v_out - twin_v_cav;
-    let twin_props =
-        pncad::topo::mass_properties(&crate::booleans::at_rest(&twin_hollow, tol), tol, crate::printed())
-            .expect("the waisted twin's props");
+    let twin_props = pncad::topo::mass_properties(
+        &crate::booleans::at_rest(&twin_hollow, tol),
+        tol,
+        crate::printed(),
+    )
+    .expect("the waisted twin's props");
     assert!(
         ((twin_props.enclosure.volume - twin_wall) / twin_wall).abs() < 1e-12,
         "the twin's wall V = {} vs the same closed form at the other sense {twin_wall}",
@@ -646,8 +657,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     );
     let cup_census = census(&cup);
     assert_eq!(cup_census, (24, 36, 19), "the cup's census");
-    let props_c = pncad::topo::mass_properties(&crate::booleans::at_rest(&cup, tol), tol, crate::printed())
-        .expect("the cup's props");
+    let props_c =
+        pncad::topo::mass_properties(&crate::booleans::at_rest(&cup, tol), tol, crate::printed())
+            .expect("the cup's props");
     // Opening lifts the cavity's mouth cap from its own station up to
     // the mouth plane, so the cup is the WALL less that plug — a
     // cylinder of the cavity's neck radius, one wall tall.

@@ -106,8 +106,12 @@ fn face_outer_cycle(body: &topo::Body<f64>, face: &topo::Face) -> Option<Vec<top
 fn shape_iii_volume_matches_the_derived_closed_form() {
     let (sections, places) = shape_iii_sections();
     let lofted = loft_body::<f64>(&sections, &places, 2, Tol::witness()).expect("loft builds");
-    let m = topo::test_support::unmigrated_measure(&lofted.body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-        .expect("mass properties");
+    let m = topo::test_support::unmigrated_measure(
+        &lofted.body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .expect("mass properties");
     let exact = 9.0;
     assert!(
         (m.enclosure.volume - exact).abs() <= m.enclosure.volume_pad + 1e-9,
@@ -241,11 +245,17 @@ mod certified {
             Ok(()),
             "tier 3"
         );
-        let m = topo::test_support::unmigrated_measure(&lofted.body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-            .expect("mass properties");
+        let m = topo::test_support::unmigrated_measure(
+            &lofted.body,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
+        )
+        .expect("mass properties");
         let (lo, hi) = (
-            geom_core::Bounds::lo(m.enclosure.volume) - geom_core::Bounds::hi(m.enclosure.volume_pad),
-            geom_core::Bounds::hi(m.enclosure.volume) + geom_core::Bounds::hi(m.enclosure.volume_pad),
+            geom_core::Bounds::lo(m.enclosure.volume)
+                - geom_core::Bounds::hi(m.enclosure.volume_pad),
+            geom_core::Bounds::hi(m.enclosure.volume)
+                + geom_core::Bounds::hi(m.enclosure.volume_pad),
         );
         assert!(lo <= 9.0 && 9.0 <= hi, "9 ∈ [{lo}, {hi}]");
         // The same two ceilings the f64 row carries, against the same

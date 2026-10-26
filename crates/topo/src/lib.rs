@@ -317,8 +317,8 @@ pub mod test_support {
     // would be comparing that constant against itself.
     pub use crate::null::with_ring_root;
     pub use crate::props::{
-        FaceTerm, fold_order_bound, mass_properties_with_face_terms, quadrature_rounds,
-        shell_references,
+        FaceTerm, fold_order_bound, mass_properties_with_face_terms, measure_with_unmet_width,
+        quadrature_rounds, shell_references,
     };
     pub use crate::test_support_fixtures::{
         CubeOps, CylFrame, CylKey, FaceGeometry, NullStrutListing, Prism, PrismOps, RingFaceOps,
@@ -1124,11 +1124,10 @@ pub use pcurves::{
 };
 pub use props::{
     AtRestOutcome, AtRestPolicy, HeldCertificate, MassProperties, MassPropsError, Measured,
-    QuadLane, RelOp,
-    RoleNames, Settle, ShellClassification, ShellClassifyError, ShellClassifyPayload, ShellDoor,
-    ShellRole, SignCertificate, SignLimit, SignNames, Stop, Verdict, VolumeEnclosure,
-    classify_shells, classify_shells_of, classify_shells_structural, mass_properties,
-    mass_properties_structural,
+    QuadLane, RelOp, RoleNames, Settle, ShellClassification, ShellClassifyError,
+    ShellClassifyPayload, ShellDoor, ShellRole, SignCertificate, SignLimit, SignNames, Stop,
+    Verdict, VolumeEnclosure, classify_shells, classify_shells_of, classify_shells_structural,
+    mass_properties, mass_properties_structural,
 };
 pub use provenance::{Provenance, SplitLineageCycle};
 // The query VOCABULARY rides at the root like every other type;

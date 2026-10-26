@@ -185,8 +185,12 @@ fn assert_body(label: &str, body: &Body<f64>, expected: f64) {
         Ok(()),
         "{label}: a closed manifold mesh"
     );
-    let p = topo::test_support::unmigrated_measure(body, tol, topo::test_support::pinned_resolution(tol))
-        .unwrap_or_else(|e| panic!("{label}: mass properties, got {e:?}"));
+    let p = topo::test_support::unmigrated_measure(
+        body,
+        tol,
+        topo::test_support::pinned_resolution(tol),
+    )
+    .unwrap_or_else(|e| panic!("{label}: mass properties, got {e:?}"));
     assert!(
         (p.enclosure.volume - expected).abs() <= p.enclosure.volume_pad + 1e-12,
         "{label}: volume {} ± {} against the closed form {expected}",

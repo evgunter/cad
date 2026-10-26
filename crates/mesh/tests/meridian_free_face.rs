@@ -126,9 +126,14 @@ fn a_rim_only_sphere_cap_refuses_at_either_pole_and_any_latitude() {
         );
         let exact = PI * (1.0 - z).powi(2) * (2.0 + z) / 3.0;
         // Raw door: the measured body is construction state whose joinable vertices tier 3 refuses (JoinableVertexAtRest).
-        let volume = topo::test_support::measure_unvalidated(&above, tol, topo::test_support::pinned_resolution(tol))
-            .unwrap()
-            .enclosure.volume;
+        let volume = topo::test_support::measure_unvalidated(
+            &above,
+            tol,
+            topo::test_support::pinned_resolution(tol),
+        )
+        .unwrap()
+        .enclosure
+        .volume;
         assert!(
             (volume - exact).abs() <= 1e-12 * exact,
             "cap above z = {z}: volume {volume} vs {exact}"
@@ -149,9 +154,14 @@ fn a_rim_only_sphere_cap_refuses_at_either_pole_and_any_latitude() {
         );
         let exact = PI * (1.0 + z).powi(2) * (2.0 - z) / 3.0;
         // Raw door: the measured body is construction state whose joinable vertices tier 3 refuses (JoinableVertexAtRest).
-        let volume = topo::test_support::measure_unvalidated(&below, tol, topo::test_support::pinned_resolution(tol))
-            .unwrap()
-            .enclosure.volume;
+        let volume = topo::test_support::measure_unvalidated(
+            &below,
+            tol,
+            topo::test_support::pinned_resolution(tol),
+        )
+        .unwrap()
+        .enclosure
+        .volume;
         assert!(
             (volume - exact).abs() <= 1e-10 * exact,
             "ball below z = {z}: volume {volume} vs {exact}"
@@ -301,10 +311,16 @@ fn the_seamed_twins_of_the_refused_caps_mesh_watertight() {
                 topo::test_support::pinned_resolution(tol),
             )
             .unwrap()
-            .enclosure.volume,
-            topo::test_support::measure_unvalidated(&rim_only, tol, topo::test_support::pinned_resolution(tol))
-                .unwrap()
-                .enclosure.volume,
+            .enclosure
+            .volume,
+            topo::test_support::measure_unvalidated(
+                &rim_only,
+                tol,
+                topo::test_support::pinned_resolution(tol),
+            )
+            .unwrap()
+            .enclosure
+            .volume,
         );
         assert!(
             (a - b).abs() <= 1e-12 * exact.0 && (a - exact.0).abs() <= 1e-12 * exact.0,

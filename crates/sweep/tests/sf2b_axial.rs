@@ -127,7 +127,12 @@ fn wall(what: &str, body: &Body<f64>) -> f64 {
         "{what}: tier 3"
     );
     assert_eq!(hollow.shells().count(), 2, "{what}: outer + cavity");
-    let props = topo::test_support::unmigrated_measure(&hollow, tol, topo::test_support::pinned_resolution(tol)).expect("props");
+    let props = topo::test_support::unmigrated_measure(
+        &hollow,
+        tol,
+        topo::test_support::pinned_resolution(tol),
+    )
+    .expect("props");
     println!("[axial] {what}: wall volume {}", props.enclosure.volume);
     props.enclosure.volume
 }

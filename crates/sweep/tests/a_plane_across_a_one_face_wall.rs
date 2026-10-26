@@ -122,7 +122,8 @@ fn every_op(what: &str, a: Body<f64>, b: Body<f64>, v: (f64, f64, f64)) {
         // The volume against the closed form within the quadrature's
         // own certified pad, which grows with ε; `outcome`'s fixed 1e-7
         // holds at the default ε only.
-        let m = topo::mass_properties(body, tol(), topo::test_support::pinned_resolution(tol())).unwrap();
+        let m = topo::mass_properties(body, tol(), topo::test_support::pinned_resolution(tol()))
+            .unwrap();
         assert!(
             (m.enclosure.volume - want).abs() <= m.enclosure.volume_pad + 1e-9 * want.max(1.0),
             "{row}: volume {} ± {}, closed form {want}",
@@ -138,9 +139,15 @@ fn every_op(what: &str, a: Body<f64>, b: Body<f64>, v: (f64, f64, f64)) {
         );
         let joined = topo::union(body, &far, tol())
             .unwrap_or_else(|e| panic!("{row}: ∪ a far brick: {e:?}"));
-        let j = topo::mass_properties(&joined.body().expect("not empty").body, tol(), topo::test_support::pinned_resolution(tol())).unwrap();
+        let j = topo::mass_properties(
+            &joined.body().expect("not empty").body,
+            tol(),
+            topo::test_support::pinned_resolution(tol()),
+        )
+        .unwrap();
         assert!(
-            (j.enclosure.volume - (m.enclosure.volume + 1.0)).abs() <= j.enclosure.volume_pad + m.enclosure.volume_pad + 1e-9,
+            (j.enclosure.volume - (m.enclosure.volume + 1.0)).abs()
+                <= j.enclosure.volume_pad + m.enclosure.volume_pad + 1e-9,
             "{row}: ∪ a far brick: volume {} vs {}",
             j.enclosure.volume,
             m.enclosure.volume + 1.0

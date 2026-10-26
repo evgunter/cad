@@ -310,7 +310,12 @@ fn r2_lift_on_the_vessels_void_ceiling_alone_and_beside_a_box() {
         tol(),
     )
     .expect("the void ceiling opens");
-    let props = topo::test_support::unmigrated_measure(&alone.body, tol(), topo::test_support::pinned_resolution(tol())).unwrap();
+    let props = topo::test_support::unmigrated_measure(
+        &alone.body,
+        tol(),
+        topo::test_support::pinned_resolution(tol()),
+    )
+    .unwrap();
     let want = hollow_vessel_want(t1, t, 1.0, 2.0, true);
     println!(
         "[r2] hollow vessel opened on its void ceiling: solids={} shells={} volume={} want={want} pad={}",
@@ -369,7 +374,12 @@ fn r2_lift_on_the_vessels_void_ceiling_alone_and_beside_a_box() {
     }
     println!("[r2] box beside opened vessel: box vertices same={same} moved={moved}");
     assert_eq!((same, moved), (8, 0));
-    let props = topo::test_support::unmigrated_measure(&opened.body, tol(), topo::test_support::pinned_resolution(tol())).unwrap();
+    let props = topo::test_support::unmigrated_measure(
+        &opened.body,
+        tol(),
+        topo::test_support::pinned_resolution(tol()),
+    )
+    .unwrap();
     let want = (box_volume(2.0, 3.0, 4.0)
         - box_volume(2.0 - 2.0 * t, 3.0 - 2.0 * t, 4.0 - 2.0 * t))
         + hollow_vessel_want(t1, t, 1.0, 2.0, true);
@@ -528,7 +538,12 @@ fn r2_e2e_consumer_seat() {
     )
     .expect("both parts hollow in one call");
     let want = one_wall(0.05) + PI * (1.0 * 2.0 - 0.95 * 0.95 * 1.9);
-    let props = topo::test_support::unmigrated_measure(&hollowed.body, tol(), topo::test_support::pinned_resolution(tol())).unwrap();
+    let props = topo::test_support::unmigrated_measure(
+        &hollowed.body,
+        tol(),
+        topo::test_support::pinned_resolution(tol()),
+    )
+    .unwrap();
     println!(
         "[r2] e2e 1: solids={} shells={} volume={} want={want}",
         hollowed.body.solids().count(),
@@ -638,7 +653,12 @@ fn r2_e2e_consumer_seat() {
     let want = (box_volume(2.0, 3.0, 4.0) - box_volume(1.96, 2.96, 3.96))
         + (box_volume(1.94, 2.94, 3.94) - box_volume(1.9, 2.9, 3.9))
         + hollow_vessel_want(0.05, 0.02, 1.0, 2.0, true);
-    let props = topo::test_support::unmigrated_measure(&opened.body, tol(), topo::test_support::pinned_resolution(tol())).unwrap();
+    let props = topo::test_support::unmigrated_measure(
+        &opened.body,
+        tol(),
+        topo::test_support::pinned_resolution(tol()),
+    )
+    .unwrap();
     println!(
         "[r2] e2e 3: solids={} shells={} volume={} want={want} rims={}",
         opened.body.solids().count(),
@@ -947,7 +967,12 @@ fn opposed_pair() -> (Body<f64>, SolidKey, SolidKey, FaceKey, FaceKey) {
 
 /// `body`'s volume is `want` to the exact-volume pad.
 fn assert_volume(body: &Body<f64>, want: f64, what: &str) {
-    let props = topo::test_support::unmigrated_measure(body, tol(), topo::test_support::pinned_resolution(tol())).unwrap();
+    let props = topo::test_support::unmigrated_measure(
+        body,
+        tol(),
+        topo::test_support::pinned_resolution(tol()),
+    )
+    .unwrap();
     assert!(
         (props.enclosure.volume - want).abs() <= 1e-9 + props.enclosure.volume_pad,
         "{what}: volume {} want {want}",

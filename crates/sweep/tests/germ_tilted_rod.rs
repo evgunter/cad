@@ -196,9 +196,14 @@ fn the_rod_short_of_the_inner_equator_answers_every_op() {
                 Ok(()),
                 "{what} at {pose}: tier 3"
             );
-            let m = topo::mass_properties(&b.body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).expect("the volume integrates");
+            let m = topo::mass_properties(
+                &b.body,
+                Tol::witness(),
+                topo::test_support::pinned_resolution(Tol::witness()),
+            )
+            .expect("the volume integrates");
             assert!(
-                (m.enclosure.volume - want).abs() <= volume_slack(&m, want),
+                (m.enclosure.volume - want).abs() <= volume_slack(&m.enclosure, want),
                 "{what} at {pose}: volume {} against the closed form {want}",
                 m.enclosure.volume
             );

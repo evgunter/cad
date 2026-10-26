@@ -25,7 +25,8 @@ fn measure(label: &str, body: &Body<f64>, tol: Tol) -> f64 {
         .unwrap_or_else(|e| panic!("{label}: tier 3 refuses: {e:?}"));
     topo::test_support::unmigrated_measure(body, tol, topo::test_support::pinned_resolution(tol))
         .unwrap()
-        .enclosure.volume
+        .enclosure
+        .volume
 }
 
 /// Tier 3 refuses `body` as a region claimed twice over, and nothing
@@ -39,7 +40,11 @@ fn overcovered(label: &str, body: &Body<f64>, tol: Tol) {
         ),
         "{label}: refused as covered twice: {errs:?}"
     );
-    let door = topo::test_support::unmigrated_measure(body, tol, topo::test_support::pinned_resolution(tol));
+    let door = topo::test_support::unmigrated_measure(
+        body,
+        tol,
+        topo::test_support::pinned_resolution(tol),
+    );
     assert!(
         matches!(
             door,

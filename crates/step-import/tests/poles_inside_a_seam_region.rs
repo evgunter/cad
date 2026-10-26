@@ -33,7 +33,8 @@ fn a_seam_region_holding_its_poles_inside_its_faces_imports_and_measures() {
         topo::test_support::pinned_resolution(tol),
     )
     .unwrap()
-    .enclosure.volume;
+    .enclosure
+    .volume;
     assert!(
         (volume - exact).abs() <= 1e-9 * exact,
         "the side-cut ball measures {volume}, the closed form is {exact}"
@@ -68,7 +69,8 @@ fn a_seam_region_reads_its_side_at_a_pole_on_another_members_edge() {
         topo::test_support::pinned_resolution(tol),
     )
     .unwrap()
-    .enclosure.volume;
+    .enclosure
+    .volume;
     assert!(
         (volume - exact).abs() <= 1e-9 * exact,
         "the split side-cut ball measures {volume}, the closed form is {exact}"

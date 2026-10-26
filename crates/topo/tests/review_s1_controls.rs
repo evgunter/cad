@@ -97,7 +97,14 @@ fn control_same_shape_via_subtract() {
         panic!("control subtract yields a body");
     };
     assert_eq!(
-        mass_properties(&s.body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap().enclosure.volume,
+        mass_properties(
+            &s.body,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness())
+        )
+        .unwrap()
+        .enclosure
+        .volume,
         5.5
     );
     let v = checked_mesh_volume(&s.body);
@@ -124,7 +131,14 @@ fn control_ring_face_from_interior_pillar() {
         BooleanResult::Empty => panic!("pillar union cannot be empty"),
     };
     assert!(assert_ring_senses(&g.body, "pillar") >= 1);
-    let exact = mass_properties(&g.body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap().enclosure.volume;
+    let exact = mass_properties(
+        &g.body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap()
+    .enclosure
+    .volume;
     assert_eq!(exact, 8.25);
     let v = checked_mesh_volume(&g.body);
     assert!(((v - exact) / exact).abs() < 1e-9, "pillar mesh volume {v}");

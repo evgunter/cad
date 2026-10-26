@@ -486,7 +486,8 @@ fn a6_unit_edges() {
                 topo::test_support::pinned_resolution(Tol::witness()),
             )
             .unwrap()
-            .enclosure.volume;
+            .enclosure
+            .volume;
             println!("a6 micro volume={v:e} (expect 1e-18)");
         }
         Ok(_) => panic!(),

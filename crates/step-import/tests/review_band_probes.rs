@@ -175,7 +175,8 @@ fn r1_torus_region_selection_is_real() {
             topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
-        .enclosure.volume;
+        .enclosure
+        .volume;
         let rel = ((v - v_want) / v_want).abs();
         assert!(
             rel < 1e-12,
@@ -270,7 +271,8 @@ fn r1_shared_rim_split_order_does_not_starve_the_second_band() {
         topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .enclosure.volume;
+    .enclosure
+    .volume;
     assert!(
         ((v - v_want) / v_want).abs() < 1e-12,
         "band_a volume {v:e} vs closed form {v_want:e}"
@@ -316,7 +318,8 @@ fn r1_washer90_imports_the_true_region() {
         topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .enclosure.volume;
+    .enclosure
+    .volume;
     assert!(
         ((v - v_true) / v_true).abs() < 1e-12,
         "washer90 volume {v:e} vs true {v_true:e} — the winding read regressed"

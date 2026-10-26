@@ -113,7 +113,12 @@ fn closed_forms_at_varied_geometry() {
     for (major, outer, wall, window) in CASES {
         let inner = outer - wall;
         let t = hollow(major, outer, wall, window);
-        let props = topo::test_support::unmigrated_measure(&t.body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).expect("props");
+        let props = topo::test_support::unmigrated_measure(
+            &t.body,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
+        )
+        .expect("props");
         let ring = outer * outer - inner * inner;
         let (v, a) = match window {
             Some((t0, t1)) => {
@@ -130,7 +135,12 @@ fn closed_forms_at_varied_geometry() {
         };
         let what = format!("R={major} ro={outer} w={wall} win={window:?}");
         rel_close(props.enclosure.volume, v, 1e-9, &format!("volume {what}"));
-        rel_close(props.enclosure.surface_area, a, 1e-9, &format!("area {what}"));
+        rel_close(
+            props.enclosure.surface_area,
+            a,
+            1e-9,
+            &format!("area {what}"),
+        );
     }
 }
 
@@ -155,8 +165,18 @@ fn the_bore_differences_out_against_the_solid_door() {
             Tol::witness(),
         )
         .expect("the solid tube builds");
-        let hp = topo::test_support::unmigrated_measure(&h.body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).expect("props");
-        let sp = topo::test_support::unmigrated_measure(&s.body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).expect("props");
+        let hp = topo::test_support::unmigrated_measure(
+            &h.body,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
+        )
+        .expect("props");
+        let sp = topo::test_support::unmigrated_measure(
+            &s.body,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
+        )
+        .expect("props");
         rel_close(
             sp.enclosure.volume - hp.enclosure.volume,
             (t1 - t0) * major * PI * inner * inner,
@@ -402,7 +422,12 @@ mod certified {
                 }
                 Err(e) => panic!("unexpected refusal at Interval for R={major}: {e}"),
             };
-            let m = topo::test_support::unmigrated_measure(&t.body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).expect("props");
+            let m = topo::test_support::unmigrated_measure(
+                &t.body,
+                Tol::witness(),
+                topo::test_support::pinned_resolution(Tol::witness()),
+            )
+            .expect("props");
             let inner = outer - wall;
             let ring = outer * outer - inner * inner;
             let v = match window {

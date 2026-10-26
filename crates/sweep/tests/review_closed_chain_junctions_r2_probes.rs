@@ -318,8 +318,16 @@ fn r2_rims_one_n_past_the_suite_carve_at_the_homed_oracle() {
     for (name, body, z, signed) in &cases {
         let arcs = circle_arcs_at_z(body, *z);
         let n = arcs.len();
-        let p0 = topo::test_support::unmigrated_measure(body, tol(), topo::test_support::pinned_resolution(tol())).expect("props");
-        assert_eq!(p0.enclosure.volume_pad, 0.0, "{name}: closed-form faces only");
+        let p0 = topo::test_support::unmigrated_measure(
+            body,
+            tol(),
+            topo::test_support::pinned_resolution(tol()),
+        )
+        .expect("props");
+        assert_eq!(
+            p0.enclosure.volume_pad, 0.0,
+            "{name}: closed-form faces only"
+        );
         let v0 = p0.enclosure.volume;
         let c0 = (
             body.vertices().count(),
@@ -355,8 +363,16 @@ fn r2_rims_one_n_past_the_suite_carve_at_the_homed_oracle() {
             Some(n - 1),
             "{name}: every host rim foot but the slit's is joined"
         );
-        let p1 = topo::test_support::unmigrated_measure(&out.body, tol(), topo::test_support::pinned_resolution(tol())).expect("props");
-        assert_eq!(p1.enclosure.volume_pad, 0.0, "{name}: closed-form faces only after");
+        let p1 = topo::test_support::unmigrated_measure(
+            &out.body,
+            tol(),
+            topo::test_support::pinned_resolution(tol()),
+        )
+        .expect("props");
+        assert_eq!(
+            p1.enclosure.volume_pad, 0.0,
+            "{name}: closed-form faces only after"
+        );
         assert!(
             (p1.enclosure.volume - v0 - signed).abs() < 1e-13,
             "{name}: V1 - V0 = {} against wedge_fill's {signed}",

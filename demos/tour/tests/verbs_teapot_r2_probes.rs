@@ -227,7 +227,11 @@ fn r2_my_own_revolve_opens_at_a_chart_they_never_touch() {
         "[r2-1] tessellate = {:?}",
         mesh.map(|m| m.patches.iter().map(|q| q.triangles.len()).sum::<usize>())
     );
-    let props = pncad::topo::mass_properties(&at_rest(&cup, tol), tol, pncad::topo::Settle::Resolution(pncad::quantity::Length::from_meters(1.024e-6)));
+    let props = pncad::topo::mass_properties(
+        &at_rest(&cup, tol),
+        tol,
+        pncad::topo::Settle::Resolution(pncad::quantity::Length::from_meters(1.024e-6)),
+    );
     println!(
         "[r2-1] props = {:?}",
         props.map(|p| (p.enclosure.volume, p.enclosure.volume_pad))
@@ -459,7 +463,12 @@ fn r2_ring_anatomy_on_a_drum() {
     );
     println!(
         "[r2-4] props = {:?}",
-        pncad::topo::mass_properties(&at_rest(&cup, tol), tol, pncad::topo::Settle::Resolution(pncad::quantity::Length::from_meters(1.024e-6))).map(|p| (
+        pncad::topo::mass_properties(
+            &at_rest(&cup, tol),
+            tol,
+            pncad::topo::Settle::Resolution(pncad::quantity::Length::from_meters(1.024e-6))
+        )
+        .map(|p| (
             p.enclosure.volume,
             p.enclosure.volume_pad,
             p.enclosure.surface_area
@@ -521,7 +530,12 @@ fn r2_box_control_is_right() {
         "[r2-5] tessellate = {:?}",
         m.map(|x| x.patches.iter().map(|q| q.triangles.len()).sum::<usize>())
     );
-    let props = pncad::topo::mass_properties(&at_rest(&cup, tol), tol, pncad::topo::Settle::Resolution(pncad::quantity::Length::from_meters(1.024e-6))).expect("props");
+    let props = pncad::topo::mass_properties(
+        &at_rest(&cup, tol),
+        tol,
+        pncad::topo::Settle::Resolution(pncad::quantity::Length::from_meters(1.024e-6)),
+    )
+    .expect("props");
     let want = w * d * h - (w - 2.0 * t) * (d - 2.0 * t) * (h - t);
     println!(
         "[r2-5] volume {} vs the cup's closed form {want} (pad {})",
@@ -916,7 +930,12 @@ fn r2_annular_mouth_anatomy() {
         * ((ro * ro - ri * ri) * h - ((ro - t).powi(2) - (ri + t).powi(2)) * (h - t));
     println!(
         "[r2-10] props = {:?} vs a correct cup's {want}",
-        pncad::topo::mass_properties(&at_rest(&cup, tol), tol, pncad::topo::Settle::Resolution(pncad::quantity::Length::from_meters(1.024e-6))).map(|p| (p.enclosure.volume, p.enclosure.volume_pad))
+        pncad::topo::mass_properties(
+            &at_rest(&cup, tol),
+            tol,
+            pncad::topo::Settle::Resolution(pncad::quantity::Length::from_meters(1.024e-6))
+        )
+        .map(|p| (p.enclosure.volume, p.enclosure.volume_pad))
     );
 }
 

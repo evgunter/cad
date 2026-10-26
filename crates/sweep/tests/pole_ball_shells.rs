@@ -37,7 +37,12 @@ fn a_pole_touching_ball_shells_to_the_difference_of_two_balls() {
             Ok(()),
             "{label}: the thin solid is tier-3 valid"
         );
-        let props = topo::test_support::unmigrated_measure(&out, tol, topo::test_support::pinned_resolution(tol)).expect("props");
+        let props = topo::test_support::unmigrated_measure(
+            &out,
+            tol,
+            topo::test_support::pinned_resolution(tol),
+        )
+        .expect("props");
         let want = 4.0 / 3.0 * PI * (r.powi(3) - (r - t).powi(3));
         // The volume is a sum of r³-sized terms, so its rounding scales
         // with r³; the pad is the quadrature's own bound.

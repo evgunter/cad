@@ -195,15 +195,25 @@ fn seam_crossing_pairs_build() {
         .unwrap_or_else(|e| {
             panic!("offset along X, in the seam plane: the union builds, got {e:?}")
         });
-    let tilted = topo::mass_properties(&joined.body().expect("a body").body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-        .unwrap()
-        .enclosure.volume;
+    let tilted = topo::mass_properties(
+        &joined.body().expect("a body").body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap()
+    .enclosure
+    .volume;
     let joined = topo::union(&a, &ball_at(1.0, Vec3::new(2.0, 3.4, 0.5)), Tol::witness())
         .unwrap_or_else(|e| panic!("offset along Y, the polar axis: the union builds, got {e:?}"));
     let joined = &joined.body().expect("a body").body;
-    let v = topo::mass_properties(joined, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-        .unwrap()
-        .enclosure.volume;
+    let v = topo::mass_properties(
+        joined,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap()
+    .enclosure
+    .volume;
     // Two unit balls 1.4 apart share a lens of two caps of height 0.3.
     let lens = 2.0 * PI * 0.3_f64.powi(2) * (3.0 - 0.3) / 3.0;
     let want = 2.0 * 4.0 * PI / 3.0 - lens;
@@ -225,8 +235,13 @@ fn nested_balls_still_answer() {
     )
     .expect("nested balls answer");
     let joined = &joined.body().expect("a body").body;
-    let v = topo::mass_properties(joined, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-        .unwrap()
-        .enclosure.volume;
+    let v = topo::mass_properties(
+        joined,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap()
+    .enclosure
+    .volume;
     assert!((v - 4.0 * PI / 3.0).abs() < 1e-9, "{v}");
 }

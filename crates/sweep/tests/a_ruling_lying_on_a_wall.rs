@@ -237,7 +237,11 @@ fn a_prism_edge_on_the_tubes_wall_builds_every_op_undeclared() {
                     .unwrap_or_else(|e| panic!("{label}: tier 3: {e:?}"));
                 topo::validate_pseudomanifold(body, &bb.contacts, tol)
                     .unwrap_or_else(|e| panic!("{label}: tier 3′: {e:?}"));
-                let v = topo::mass_properties(body, tol, topo::test_support::pinned_resolution(tol)).unwrap().enclosure.volume;
+                let v =
+                    topo::mass_properties(body, tol, topo::test_support::pinned_resolution(tol))
+                        .unwrap()
+                        .enclosure
+                        .volume;
                 assert!(
                     (v - volume).abs() <= 1e-12 * volume,
                     "{label}: the closed form: {v} vs {volume}"
@@ -391,7 +395,8 @@ fn a_ruling_across_an_ellipse_builds_every_op_undeclared() {
                 .unwrap_or_else(|e| panic!("{label}: tier 3: {e:?}"));
             topo::validate_pseudomanifold(body, &bb.contacts, tol)
                 .unwrap_or_else(|e| panic!("{label}: tier 3′: {e:?}"));
-            let m = topo::mass_properties(body, tol, topo::test_support::pinned_resolution(tol)).unwrap();
+            let m = topo::mass_properties(body, tol, topo::test_support::pinned_resolution(tol))
+                .unwrap();
             assert!(
                 (m.enclosure.volume - volume).abs() <= m.enclosure.volume_pad + 1e-12,
                 "{label}: the closed form: {} ± {} vs {volume}",
@@ -465,7 +470,8 @@ fn a_continuation_on_a_wall_bounded_by_an_ellipse_builds_every_op() {
         topo::validate_geometric(body, tol).unwrap_or_else(|e| panic!("{op}: tier 3: {e:?}"));
         topo::validate_pseudomanifold(body, &bb.contacts, tol)
             .unwrap_or_else(|e| panic!("{op}: tier 3′: {e:?}"));
-        let m = topo::mass_properties(body, tol, topo::test_support::pinned_resolution(tol)).unwrap();
+        let m =
+            topo::mass_properties(body, tol, topo::test_support::pinned_resolution(tol)).unwrap();
         assert!(
             (m.enclosure.volume - volume).abs() <= m.enclosure.volume_pad + 1e-12,
             "{op}: the closed form: {} ± {} vs {volume}",
@@ -547,7 +553,9 @@ fn a_rim_across_a_walls_ellipse_builds_every_op_in_both_orders() {
                 .unwrap_or_else(|e| panic!("{}: tier 3: {e:?}", label(op)));
             topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol)
                 .unwrap_or_else(|e| panic!("{}: tier 3′: {e:?}", label(op)));
-            let m = topo::mass_properties(&bb.body, tol, topo::test_support::pinned_resolution(tol)).unwrap();
+            let m =
+                topo::mass_properties(&bb.body, tol, topo::test_support::pinned_resolution(tol))
+                    .unwrap();
             assert!(
                 (m.enclosure.volume - volume).abs() <= m.enclosure.volume_pad + 1e-9 * volume,
                 "{}: the closed form: {} ± {} vs {volume}",
@@ -674,7 +682,8 @@ fn a_half_rods_rim_across_a_rods_wall_moves_with_its_flat_face() {
             panic!("{op}: builds: {res:?}");
         };
         topo::validate_geometric(&bb.body, tol).unwrap_or_else(|e| panic!("{op}: tier 3: {e:?}"));
-        let m = topo::mass_properties(&bb.body, tol, topo::test_support::pinned_resolution(tol)).unwrap();
+        let m = topo::mass_properties(&bb.body, tol, topo::test_support::pinned_resolution(tol))
+            .unwrap();
         assert!(
             (m.enclosure.volume - 2.5 * PI).abs() <= m.enclosure.volume_pad + 1e-9,
             "{op}: the closed form: {} ± {} vs 2.5π",
@@ -728,7 +737,8 @@ fn a_half_rods_rim_across_a_rods_wall_moves_with_its_flat_face() {
                 "{label}: the rim still lies across the kept wall as an image"
             );
             let want = 2.5 * PI + d * (1.0 - d * d).sqrt() + d.asin();
-            let m = topo::mass_properties(&moved, tol, topo::test_support::pinned_resolution(tol)).unwrap();
+            let m = topo::mass_properties(&moved, tol, topo::test_support::pinned_resolution(tol))
+                .unwrap();
             assert!(
                 (m.enclosure.volume - want).abs() <= m.enclosure.volume_pad + 1e-9,
                 "{op}, d = {d}: the closed form: {} ± {} vs {want}",
@@ -859,7 +869,9 @@ fn two_slanted_bottoms_crossing_on_one_wall_build_every_op() {
                 .unwrap_or_else(|e| panic!("{label}: tier 3: {e:?}"));
             topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol)
                 .unwrap_or_else(|e| panic!("{label}: tier 3′: {e:?}"));
-            let m = topo::mass_properties(&bb.body, tol, topo::test_support::pinned_resolution(tol)).unwrap();
+            let m =
+                topo::mass_properties(&bb.body, tol, topo::test_support::pinned_resolution(tol))
+                    .unwrap();
             assert!(
                 (m.enclosure.volume - volume).abs() <= m.enclosure.volume_pad + 1e-9 * volume,
                 "{label}: the closed form: {} ± {} vs {volume}",

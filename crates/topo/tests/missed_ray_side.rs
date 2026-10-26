@@ -192,7 +192,8 @@ fn a_thin_walled_hollow_reads_out_far_away_and_in_its_cavity() {
             "{m}ε: hollow ∪ brick is two solids"
         );
         let wall = 1.0 - (1.0 - 2.0 * d).powi(3);
-        let v = topo::mass_properties(joined, tol, topo::test_support::pinned_resolution(tol)).unwrap();
+        let v =
+            topo::mass_properties(joined, tol, topo::test_support::pinned_resolution(tol)).unwrap();
         assert!(
             (v.enclosure.volume - (wall + 1.0)).abs() <= v.enclosure.volume_pad + 1e-12,
             "{m}ε: hollow ∪ brick holds the wall and the brick: {} ± {} vs {}",

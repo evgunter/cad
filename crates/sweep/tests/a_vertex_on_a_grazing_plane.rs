@@ -45,9 +45,14 @@ fn pad_ceiling() -> f64 {
 }
 
 fn volume(body: &Body<f64>) -> f64 {
-    topo::test_support::unmigrated_measure(body, tol(), topo::test_support::pinned_resolution(tol()))
-        .unwrap()
-        .enclosure.volume
+    topo::test_support::unmigrated_measure(
+        body,
+        tol(),
+        topo::test_support::pinned_resolution(tol()),
+    )
+    .unwrap()
+    .enclosure
+    .volume
 }
 
 /// The ladder, as `(label, ψ)`.
@@ -161,7 +166,12 @@ fn the_split_reads_a_grazing_vertex_against_its_section() {
                 // integrated by quadrature.
                 let vol = |b: Option<&Body<f64>>| {
                     b.map_or((0.0, 0.0), |b| {
-                        let m = topo::test_support::unmigrated_measure(b, tol(), topo::test_support::pinned_resolution(tol())).unwrap();
+                        let m = topo::test_support::unmigrated_measure(
+                            b,
+                            tol(),
+                            topo::test_support::pinned_resolution(tol()),
+                        )
+                        .unwrap();
                         (m.enclosure.volume, m.enclosure.volume_pad)
                     })
                 };

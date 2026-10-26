@@ -476,14 +476,16 @@ fn wild_bodies_are_a_fixed_point_of_our_own_dialect() {
                 topo::test_support::pinned_resolution(Tol::witness()),
             )
             .unwrap()
-            .enclosure.volume,
+            .enclosure
+            .volume,
             topo::mass_properties(
                 &topo::test_support::finished("the measured body", again.clone(), Tol::witness()),
                 Tol::witness(),
                 topo::test_support::pinned_resolution(Tol::witness()),
             )
             .unwrap()
-            .enclosure.volume,
+            .enclosure
+            .volume,
         );
         assert!(
             (v1 - v2).abs() <= 4.0 * f64::EPSILON * v1.abs(),

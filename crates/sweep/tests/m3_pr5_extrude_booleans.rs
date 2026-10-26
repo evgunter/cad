@@ -65,7 +65,12 @@ fn extruded_two_bricks_all_ops() {
         assert_eq!(body.kind, BooleanResultKind::Seamed);
         assert_eq!(validate(&body.body), Ok(()), "tier 1");
         assert_eq!(validate_closed(&body.body), Ok(()), "tier 2");
-        let m = mass_properties(&body.body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap();
+        let m = mass_properties(
+            &body.body,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
+        )
+        .unwrap();
         assert_eq!(m.enclosure.volume, volume, "exact volume");
     }
 }
@@ -79,6 +84,11 @@ fn extruded_pocket_subtract() {
     let body = r.body().expect("non-empty");
     assert_eq!(body.kind, BooleanResultKind::Seamed);
     assert_eq!(validate_closed(&body.body), Ok(()), "tier 2");
-    let m = mass_properties(&body.body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap();
+    let m = mass_properties(
+        &body.body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap();
     assert_eq!(m.enclosure.volume, 8.0 - 0.125, "exact volume");
 }

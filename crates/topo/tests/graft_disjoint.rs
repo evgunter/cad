@@ -230,7 +230,8 @@ fn a_multi_solid_graft_equals_sequential_single_solid_grafts() {
             topo::test_support::pinned_resolution(Tol::witness()),
         )
         .expect("volume")
-        .enclosure.volume
+        .enclosure
+        .volume
         .to_bits(),
         topo::mass_properties(
             &topo::test_support::finished("the measured body", one_by_one.clone(), Tol::witness()),
@@ -238,7 +239,8 @@ fn a_multi_solid_graft_equals_sequential_single_solid_grafts() {
             topo::test_support::pinned_resolution(Tol::witness()),
         )
         .expect("volume")
-        .enclosure.volume
+        .enclosure
+        .volume
         .to_bits(),
         "bit-equal volume"
     );

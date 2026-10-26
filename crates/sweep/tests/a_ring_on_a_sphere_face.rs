@@ -130,7 +130,14 @@ fn assert_six(
                             }) => {}
                     (got, _) => panic!("{label}: tier 3′ for {want:?}: {got:?}"),
                 }
-                let v = topo::mass_properties(&bb.body, tol, topo::test_support::pinned_resolution(tol)).unwrap().enclosure.volume;
+                let v = topo::mass_properties(
+                    &bb.body,
+                    tol,
+                    topo::test_support::pinned_resolution(tol),
+                )
+                .unwrap()
+                .enclosure
+                .volume;
                 assert!(
                     (v - volume).abs() <= 1e-9 * volume.max(1.0),
                     "{label}: volume {v} against the slice integral {volume}"
@@ -274,7 +281,10 @@ fn a_pierce_ring_beside_a_sphere_island_stays_outside() {
     .body
     .clone();
     let small = ball_y(0.5, Vec3::new(2.7, 2.0, 1.3));
-    let va = topo::mass_properties(&lens, tol, topo::test_support::pinned_resolution(tol)).unwrap().enclosure.volume;
+    let va = topo::mass_properties(&lens, tol, topo::test_support::pinned_resolution(tol))
+        .unwrap()
+        .enclosure
+        .volume;
     let vb = ball_volume(0.5);
     let common = topo::mass_properties(
         &topo::intersect(&lens, &small, tol)
@@ -286,7 +296,8 @@ fn a_pierce_ring_beside_a_sphere_island_stays_outside() {
         topo::test_support::pinned_resolution(tol),
     )
     .unwrap()
-    .enclosure.volume;
+    .enclosure
+    .volume;
     assert!(common > 0.0 && common < vb, "the shared volume {common}");
     assert_six(
         "the lens union against a crease ball",
@@ -374,7 +385,10 @@ fn an_island_holding_the_far_caps_pole_winds() {
             .unwrap()
             .body
             .clone();
-        let vt = topo::mass_properties(&tool, tol, topo::test_support::pinned_resolution(tol)).unwrap().enclosure.volume;
+        let vt = topo::mass_properties(&tool, tol, topo::test_support::pinned_resolution(tol))
+            .unwrap()
+            .enclosure
+            .volume;
         let cut: Bounds = [(notch[0].0, 0.6), notch[1], notch[2]];
         let shared = ball_in_box(1.0, o, big) - ball_in_box(1.0, o, cut);
         for tilt in [

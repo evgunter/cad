@@ -11,7 +11,7 @@
 //! `(8, −3, 5)` and turned by 0.7 rad about a skew axis stood ~990 m
 //! off: each spiric face's vector area kept ~7e-11 of width per
 //! component at the last round, the lever made the flux ~8.6e-8 wide,
-//! and `T ∩ P`, `P ∩ T` and `T ∖ P` refused `QuadratureBudget` at every
+//! and `T ∩ P`, `P ∩ T` and `T ∖ P` stopped short of the resolution at every
 //! ε (width 3.6e-8 against 1024ε = 1.024e-9 at 1e-12). Carried without
 //! the turn, the faces' widths off their normals stayed zero, so the
 //! translation alone built.
@@ -75,7 +75,8 @@ fn every_op_far_off_and_turned_measures_its_volume_at_home() {
         };
         let (home, far) = (at(&home, 0.0), at(&far, 100.0));
         assert!(
-            (far.enclosure.volume - home.enclosure.volume).abs() <= far.enclosure.volume_pad + home.enclosure.volume_pad,
+            (far.enclosure.volume - home.enclosure.volume).abs()
+                <= far.enclosure.volume_pad + home.enclosure.volume_pad,
             "{label}: far off {} ± {} against at home {} ± {}",
             far.enclosure.volume,
             far.enclosure.volume_pad,
@@ -93,7 +94,7 @@ fn every_spiric_face_meets_its_target_at_the_round_it_does_at_home() {
     let tol = Tol::witness();
     let rounds = |b: &AtRestBody<f64>| {
         let mut rounds: Vec<(String, Option<usize>)> =
-            topo::test_support::quadrature_rounds(b, tol)
+            topo::test_support::quadrature_rounds(b, tol, topo::test_support::pinned_len(tol))
                 .unwrap()
                 .into_iter()
                 .map(|(_, kind, round)| (format!("{kind:?}"), round))
@@ -138,7 +139,12 @@ fn every_spiric_face_meets_its_target_at_the_round_it_does_at_home() {
 fn every_op_far_off_and_turned_keeps_its_pads_at_home() {
     let tol = Tol::witness();
     for ((label, home), (_, far)) in built(0.0).into_iter().zip(built(100.0)) {
-        let pad = |b: &AtRestBody<f64>| topo::mass_properties(b, tol, topo::test_support::pinned_resolution(tol)).unwrap().enclosure.volume_pad;
+        let pad = |b: &AtRestBody<f64>| {
+            topo::mass_properties(b, tol, topo::test_support::pinned_resolution(tol))
+                .unwrap()
+                .enclosure
+                .volume_pad
+        };
         let (home, far) = (pad(&home), pad(&far));
         assert!(
             home > 0.0 && far <= home * 1.01,
@@ -175,9 +181,14 @@ fn one_solid_in_two_face_orders_carries_nearly_one_pad() {
     };
     let pad = |x: &AtRestBody<f64>, y: &AtRestBody<f64>| {
         let got = topo::union(x, y, tol).unwrap();
-        topo::mass_properties(&got.body().unwrap().body, tol, topo::test_support::pinned_resolution(tol))
-            .unwrap()
-            .enclosure.volume_pad
+        topo::mass_properties(
+            &got.body().unwrap().body,
+            tol,
+            topo::test_support::pinned_resolution(tol),
+        )
+        .unwrap()
+        .enclosure
+        .volume_pad
     };
     let apart = |x: &AtRestBody<f64>, y: &AtRestBody<f64>| {
         let (xy, yx) = (pad(x, y), pad(y, x));
@@ -217,9 +228,14 @@ fn pads_over_rotations(body: &topo::Body<f64>) -> Vec<f64> {
         .map(|k| {
             let mut b = body.clone();
             topo::test_support::rotate_shell_faces(&mut b, k);
-            topo::test_support::unmigrated_measure(&b, tol, topo::test_support::pinned_resolution(tol))
-                .unwrap()
-                .enclosure.volume_pad
+            topo::test_support::unmigrated_measure(
+                &b,
+                tol,
+                topo::test_support::pinned_resolution(tol),
+            )
+            .unwrap()
+            .enclosure
+            .volume_pad
         })
         .collect()
 }
@@ -342,11 +358,12 @@ fn each_shell_is_read_about_the_first_face_its_walk_measures_by_quadrature() {
     ];
     for (name, out) in bodies {
         let body = out.unwrap().body().unwrap().body.clone().into_body();
-        let quadrature: Vec<topo::FaceKey> = topo::test_support::quadrature_rounds(&body, tol)
-            .unwrap()
-            .into_iter()
-            .map(|(face, _, _)| face)
-            .collect();
+        let quadrature: Vec<topo::FaceKey> =
+            topo::test_support::quadrature_rounds(&body, tol, topo::test_support::pinned_len(tol))
+                .unwrap()
+                .into_iter()
+                .map(|(face, _, _)| face)
+                .collect();
         let n = *topo::test_support::rotate_shell_faces(&mut body.clone(), 0)
             .iter()
             .max()

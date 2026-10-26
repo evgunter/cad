@@ -67,7 +67,14 @@ fn corner_aligned_leg_union_tier2_exact() {
     assert_eq!(validate_closed(&bb.body), Ok(()));
     assert_eq!(bb.body.shells().count(), 1);
     assert_eq!(
-        mass_properties(&bb.body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap().enclosure.volume,
+        mass_properties(
+            &bb.body,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness())
+        )
+        .unwrap()
+        .enclosure
+        .volume,
         TOP_VOL + PER_LEG_GAIN,
         "exact dyadic volume"
     );
@@ -98,7 +105,14 @@ fn corner_aligned_table_four_legs_builds() {
     assert_eq!(validate_closed(&table), Ok(()));
     assert_eq!(table.shells().count(), 1);
     assert_eq!(
-        mass_properties(&table, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap().enclosure.volume,
+        mass_properties(
+            &table,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness())
+        )
+        .unwrap()
+        .enclosure
+        .volume,
         TOP_VOL + 4.0 * PER_LEG_GAIN,
         "exact dyadic volume, all four legs"
     );

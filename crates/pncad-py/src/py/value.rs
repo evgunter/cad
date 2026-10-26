@@ -541,9 +541,10 @@ impl MassMeasurement {
             Some(topo::Verdict::Sign(topo::ShellRole::Void)) => {
                 PyString::new(py, "void").unbind().into_any()
             }
-            Some(topo::Verdict::Holds(holds)) => {
-                pyo3::types::PyBool::new(py, holds).to_owned().unbind().into_any()
-            }
+            Some(topo::Verdict::Holds(holds)) => pyo3::types::PyBool::new(py, holds)
+                .to_owned()
+                .unbind()
+                .into_any(),
             None => py.None(),
         }
     }

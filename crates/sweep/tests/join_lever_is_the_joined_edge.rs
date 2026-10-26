@@ -158,9 +158,14 @@ fn a_station_on_the_line_edge_builds_either_side_of_k_eps_and_joins_back() {
             let what = format!("sin θ = {sin}, sin θ · s = {frac} Kε");
             let cut = station(sin, frac * k / sin)
                 .unwrap_or_else(|e| panic!("{what}: the cut builds, got {e:?}"));
-            let v = topo::test_support::unmigrated_measure(&cut, tol(), topo::test_support::pinned_resolution(tol()))
-                .unwrap()
-                .enclosure.volume;
+            let v = topo::test_support::unmigrated_measure(
+                &cut,
+                tol(),
+                topo::test_support::pinned_resolution(tol()),
+            )
+            .unwrap()
+            .enclosure
+            .volume;
             assert!(
                 (v - exact).abs() <= 1e-9 * exact,
                 "{what}: the volume is the segment's, {v:e} vs {exact:e}"

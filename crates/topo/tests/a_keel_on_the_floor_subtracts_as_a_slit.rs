@@ -260,7 +260,10 @@ fn a_keel_on_the_floor_subtracts_as_its_slit_form() {
                     Ok(()),
                     "{what}: tier 3′"
                 );
-                let v = topo::mass_properties(b, tol, topo::test_support::pinned_resolution(tol)).unwrap().enclosure.volume;
+                let v = topo::mass_properties(b, tol, topo::test_support::pinned_resolution(tol))
+                    .unwrap()
+                    .enclosure
+                    .volume;
                 assert!(
                     (v - row.volume).abs() < 1e-9 * row.volume,
                     "{what}: volume {v}, closed form {}",
@@ -357,14 +360,22 @@ fn the_split_and_the_boolean_build_one_body() {
                     b.solids().count(),
                 )
             };
-            let split_volume = topo::mass_properties(&walls, tol, topo::test_support::pinned_resolution(tol)).unwrap().enclosure.volume;
+            let split_volume =
+                topo::mass_properties(&walls, tol, topo::test_support::pinned_resolution(tol))
+                    .unwrap()
+                    .enclosure
+                    .volume;
             for (what, r) in doors(row, &pose) {
                 assert_eq!(
                     count(&r.body),
                     count(&walls),
                     "{what}: (v, e, f, solids) against the split"
                 );
-                let v = topo::mass_properties(&r.body, tol, topo::test_support::pinned_resolution(tol)).unwrap().enclosure.volume;
+                let v =
+                    topo::mass_properties(&r.body, tol, topo::test_support::pinned_resolution(tol))
+                        .unwrap()
+                        .enclosure
+                        .volume;
                 assert!(
                     (v - split_volume).abs() < 1e-9 * v,
                     "{what}: volume {v}, the split's {split_volume}"
@@ -406,7 +417,10 @@ fn a_cavity_resting_its_keel_on_the_floor_opens_through_it_as_a_ring() {
             "{what}: tier 3′"
         );
         // `16 − ½ · 0.3 · 0.5` along the trench's unit length.
-        let v = topo::mass_properties(b, tol, topo::test_support::pinned_resolution(tol)).unwrap().enclosure.volume;
+        let v = topo::mass_properties(b, tol, topo::test_support::pinned_resolution(tol))
+            .unwrap()
+            .enclosure
+            .volume;
         assert!((v - 15.925).abs() < 1e-9 * v, "{what}: volume {v}");
         assert_eq!(
             (b.solids().count(), b.shells().count()),
@@ -561,7 +575,11 @@ fn a_face_glued_to_the_slit_floor_merges_its_two_edges() {
                         Ok(()),
                         "{what}: tier 3′"
                     );
-                    let v = topo::mass_properties(b, tol, topo::test_support::pinned_resolution(tol)).unwrap().enclosure.volume;
+                    let v =
+                        topo::mass_properties(b, tol, topo::test_support::pinned_resolution(tol))
+                            .unwrap()
+                            .enclosure
+                            .volume;
                     let want = (g.volume)(length);
                     assert!(
                         (v - want).abs() < 1e-9 * want,
@@ -693,7 +711,10 @@ fn a_box_flush_under_a_ringed_top_kept_once_refuses_typed() {
             panic!("{}: the plate less the pyramid", pose.label);
         };
         let y = y.body;
-        let pyramid = topo::mass_properties(&void, tol, topo::test_support::pinned_resolution(tol)).unwrap().enclosure.volume;
+        let pyramid = topo::mass_properties(&void, tol, topo::test_support::pinned_resolution(tol))
+            .unwrap()
+            .enclosure
+            .volume;
         for (lo, holds) in [(0.0, true), (0.3, true), (0.6, false)] {
             let what = format!("{}, the box from {lo}", pose.label);
             let x = posed_box("the box", [(1.0, 2.0), (0.5, 1.5), (lo, 1.0)], pose, tol);
@@ -718,7 +739,10 @@ fn a_box_flush_under_a_ringed_top_kept_once_refuses_typed() {
                         Ok(()),
                         "{what}: {op}: tier 3′"
                     );
-                    topo::mass_properties(&r.body, tol, topo::test_support::pinned_resolution(tol)).unwrap().enclosure.volume
+                    topo::mass_properties(&r.body, tol, topo::test_support::pinned_resolution(tol))
+                        .unwrap()
+                        .enclosure
+                        .volume
                 }
                 other => panic!("{what}: {op}: {:?}", other.map(|_| ())),
             };

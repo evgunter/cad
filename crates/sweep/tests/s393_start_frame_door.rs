@@ -170,9 +170,14 @@ fn swept_square(path: &NurbsCurve3<f64>, place: SketchPlane<f64>, stations: usiz
 }
 
 fn volume(b: &Lofted<f64>) -> f64 {
-    topo::test_support::unmigrated_measure(&b.body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-        .unwrap()
-        .enclosure.volume
+    topo::test_support::unmigrated_measure(
+        &b.body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap()
+    .enclosure
+    .volume
 }
 
 /// **The door IS the retired recipe outside the cone, bit for bit, and

@@ -27,68 +27,49 @@
 //!
 //! # ε posture (the PR-1 discipline, applied at the BODY level)
 //!
-//! The convergence target is `1024·ε` against a **fixed** schedule
-//! (D9), so a body that certifies at one ε honestly may not at a
-//! tighter one. The row below therefore pins both honest outcomes and
-//! never widens a target: `Certified` (the enclosure must CONTAIN the
-//! oracle and respect its pad ceiling) and `Budget` (a typed
-//! `QuadratureBudget` whose width really missed a target that really
-//! is `1024·ε`). The resolution is compared, not decided, so no
-//! convergence predicate can escalate. Anything else panics.
+//! The row reads at a resolution of `1024·ε`, so a body that meets it at
+//! one ε honestly may not at a tighter one. The row below therefore pins
+//! both honest outcomes and never widens a target: `Certified` (the
+//! enclosure must CONTAIN the oracle and respect its pad ceiling) and
+//! `Budget` (a bracket short of the resolution, at the floor or the work
+//! wall). The resolution is compared, not decided, so no predicate can
+//! escalate. Anything else panics.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common::{arc_section, stacked};
-use geom_brep::PropsError;
 use geom_core::Tol;
 use profile::{Profile, SketchPlane};
 use sweep::ExtrudeSide;
 use sweep::loft_body;
-use topo::{MassProperties, MassPropsError};
+use topo::{Measured, Stop};
 
-/// The convergence target's tolerance factor, mirrored from
-/// `geom_brep::props::quad` (private there; the pin is that the
-/// refusal's own `target_len` equals this times the run's ε).
+/// The resolution this row reads its numbers at, as a multiple of ε:
+/// the pinned resolution's (`topo::test_support::pinned_resolution`).
 const QUAD_TARGET_LEN_FACTOR: f64 = 1024.0;
 
 /// The two honest outcomes of a certified quadrature at a given ε.
 #[derive(Debug, PartialEq, Eq)]
 enum EpsPosture {
-    /// Bounds returned; the caller pins accuracy and the pad ceiling.
+    /// The resolution met; the caller pins accuracy and the pad ceiling.
     Certified,
-    /// The fixed schedule ran out before `1024·ε` — typed, with the
-    /// measured width.
+    /// The faces stopped short of `1024·ε`, at the floor or the work
+    /// wall, with the bracket they reached.
     Budget,
 }
 
-/// Classify a body-level mass-properties outcome, asserting each
-/// posture's own invariants. Anything outside the two is a real
-/// failure and panics.
-fn body_posture(row: &str, out: &Result<MassProperties<f64>, MassPropsError>) -> EpsPosture {
-    let target = QUAD_TARGET_LEN_FACTOR * Tol::witness().get().eps;
-    match out {
-        Ok(_) => EpsPosture::Certified,
-        Err(MassPropsError::Face {
-            source:
-                PropsError::QuadratureBudget {
-                    width_len,
-                    target_len,
-                    ..
-                },
-            ..
-        }) => {
+/// Classify a body-level measurement, asserting each posture's own
+/// invariants. Anything outside the two is a real failure and panics.
+fn body_posture(row: &str, out: &Measured<f64>) -> EpsPosture {
+    match out.stop {
+        Stop::Met => EpsPosture::Certified,
+        Stop::Floor | Stop::Wall => {
             assert!(
-                width_len.is_finite() && width_len > target_len,
-                "{row}: a budget refusal must carry a width that really missed: \
-                 {width_len:e} vs {target_len:e}"
-            );
-            assert!(
-                (target_len - target).abs() <= target * 1e-12,
-                "{row}: the refused target must BE 1024·ε for this run: \
-                 {target_len:e} vs {target:e}"
+                out.enclosure.volume_pad > 0.0,
+                "{row}: a bracket short of the resolution has a width: {out:?}"
             );
             EpsPosture::Budget
         }
-        Err(other) => panic!("{row}: not an honest quadrature posture: {other}"),
+        stop => panic!("{row}: not an honest quadrature posture: {stop:?}"),
     }
 }
 
@@ -173,15 +154,15 @@ fn tier3_admits_the_rational_wall_body_and_its_volume_brackets_the_extrusion() {
     });
     // The ε posture is the CONTINUATION's: the caller that wants the
     // number is the one the fixed schedule can honestly refuse.
-    let got: Result<MassProperties<f64>, MassPropsError> = gated.refine_to_target();
+    let got = gated
+        .measure(topo::test_support::pinned_resolution(Tol::witness()))
+        .unwrap_or_else(|e| panic!("the arc prism measures: {e}"));
     let posture = body_posture("arc prism", &got);
     eprintln!(
-        "EPS-ROW arc prism @ eps={:e}: {posture:?}{}",
+        "EPS-ROW arc prism @ eps={:e}: {posture:?} volume {} ± {}",
         Tol::witness().get().eps,
-        match &got {
-            Ok(m) => format!(" volume {} ± {}", m.volume, m.volume_pad),
-            Err(e) => format!(" ({e})"),
-        }
+        got.enclosure.volume,
+        got.enclosure.volume_pad
     );
     if posture != EpsPosture::Certified {
         // The honest non-certifying postures still say the CHART map
@@ -190,7 +171,7 @@ fn tier3_admits_the_rational_wall_body_and_its_volume_brackets_the_extrusion() {
         // pin above has already fired on this row regardless.
         return;
     }
-    let got = got.expect("certified");
+    let got = got.enclosure;
 
     // The oracle: the same solid through `extrude`, whose bulged wall
     // is an analytic cylinder (closed form, pad 0).
@@ -206,8 +187,12 @@ fn tier3_admits_the_rational_wall_body_and_its_volume_brackets_the_extrusion() {
         Tol::witness(),
     )
     .expect("extrude");
-    let want = topo::test_support::unmigrated_measure(&oracle.body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-        .expect("analytic mass properties");
+    let want = topo::test_support::unmigrated_measure(
+        &oracle.body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .expect("analytic mass properties");
     assert_eq!(
         want.enclosure.volume_pad, 0.0,
         "ORACLE: the extrude oracle must be a closed form"

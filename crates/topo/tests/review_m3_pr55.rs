@@ -113,7 +113,8 @@ fn vol(body: &Body<f64>) -> f64 {
         topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .enclosure.volume
+    .enclosure
+    .volume
 }
 
 /// Subtract with the exact volume oracle AND the partition cross-oracle
@@ -624,9 +625,22 @@ fn c_boss_orientation_matrix() {
         let r = run(union, &a, &b);
         let out = body_of(&r);
         assert_eq!(out.kind, BooleanResultKind::Seamed, "{name}");
-        let m = mass_properties(&out.body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap();
-        assert_eq!(m.enclosure.volume, 8.0 + 0.5 * 0.5 * 0.5, "{name}: boss volume");
-        assert_eq!(m.enclosure.surface_area, 24.0 + 4.0 * 0.25, "{name}: boss area");
+        let m = mass_properties(
+            &out.body,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
+        )
+        .unwrap();
+        assert_eq!(
+            m.enclosure.volume,
+            8.0 + 0.5 * 0.5 * 0.5,
+            "{name}: boss volume"
+        );
+        assert_eq!(
+            m.enclosure.surface_area,
+            24.0 + 4.0 * 0.25,
+            "{name}: boss area"
+        );
     }
 }
 
@@ -1117,7 +1131,14 @@ fn d_die_21_pips_exact() {
     }
     assert_eq!(vol(&acc), 8.0 - 21.0 * pip_vol); // 7.8359375
     assert_eq!(
-        mass_properties(&acc, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap().enclosure.surface_area,
+        mass_properties(
+            &acc,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness())
+        )
+        .unwrap()
+        .enclosure
+        .surface_area,
         24.0 + 21.0 * 4.0 * 0.25 * 0.125
     );
 }

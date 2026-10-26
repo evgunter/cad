@@ -64,8 +64,12 @@ fn exact_mass_pins_hold() {
         assert_eq!(validate_closed(body), Ok(()), "{}: closed", d.name);
         let Some(pin) = d.pin else { continue };
         pinned += 1;
-        let m =
-            topo::test_support::unmigrated_measure(body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).expect("mass properties");
+        let m = topo::test_support::unmigrated_measure(
+            body,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
+        )
+        .expect("mass properties");
         assert_eq!(
             m.enclosure.volume, pin.volume,
             "{}: volume {} != exact oracle {} (derivation in the document's module docs)",

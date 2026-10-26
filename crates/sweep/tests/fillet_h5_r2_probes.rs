@@ -450,9 +450,14 @@ fn a_curved_single_face_carrying_both_arcs_is_construction_state() {
             image,
             "repair = {repair}, order = {order}: the survivor wraps"
         );
-        let volume = topo::test_support::unmigrated_measure(&body, tol(), topo::test_support::pinned_resolution(tol()))
-            .unwrap()
-            .enclosure.volume;
+        let volume = topo::test_support::unmigrated_measure(
+            &body,
+            tol(),
+            topo::test_support::pinned_resolution(tol()),
+        )
+        .unwrap()
+        .enclosure
+        .volume;
         assert!(
             (volume - core::f64::consts::PI).abs() < 1e-9,
             "repair = {repair}, order = {order}: the wall meters π, got {volume}"
@@ -492,8 +497,16 @@ fn compose_two_rims(
     validate_geometric(&one_call.body, tol())
         .map_err(|e| format!("{what}: one-call result not tier-3 valid: {e:?}"))?;
     assert_eq!(one_call.band_faces.len(), 2, "{what}: one band per rim");
-    let one = topo::test_support::unmigrated_measure(&one_call.body, tol(), topo::test_support::pinned_resolution(tol())).unwrap();
-    assert_eq!(one.enclosure.volume_pad, 0.0, "{what}: closed-form faces only");
+    let one = topo::test_support::unmigrated_measure(
+        &one_call.body,
+        tol(),
+        topo::test_support::pinned_resolution(tol()),
+    )
+    .unwrap();
+    assert_eq!(
+        one.enclosure.volume_pad, 0.0,
+        "{what}: closed-form faces only"
+    );
     for order in [[rims[0], rims[1]], [rims[1], rims[0]]] {
         let mut body = source.clone();
         for (rr, ry) in order {
@@ -504,7 +517,12 @@ fn compose_two_rims(
         }
         validate_geometric(&body, tol())
             .map_err(|e| format!("{what}: sequential result not tier-3 valid: {e:?}"))?;
-        let seq = topo::test_support::unmigrated_measure(&body, tol(), topo::test_support::pinned_resolution(tol())).unwrap();
+        let seq = topo::test_support::unmigrated_measure(
+            &body,
+            tol(),
+            topo::test_support::pinned_resolution(tol()),
+        )
+        .unwrap();
         // The same body, not the same history: each carve ends with the
         // join, which kills the edge of the vertex's first half-edge in
         // arena order and extends the other's interval over it
@@ -514,7 +532,9 @@ fn compose_two_rims(
         // interval — which the volume integrates over — differs in its
         // last bits. The census below is the identity; the volume agrees
         // to the last ulps (D9 promises bits for one history only).
-        if (one.enclosure.volume - seq.enclosure.volume).abs() > 4.0 * f64::EPSILON * one.enclosure.volume.abs() {
+        if (one.enclosure.volume - seq.enclosure.volume).abs()
+            > 4.0 * f64::EPSILON * one.enclosure.volume.abs()
+        {
             return Err(format!(
                 "{what}: one call {} vs sequential {order:?} {} differ past summation order",
                 one.enclosure.volume, seq.enclosure.volume
@@ -634,14 +654,24 @@ fn the_hostless_closed_forms_match_an_independent_derivation() {
     ];
     for (name, body, rim, want) in cases {
         let arcs = rim_arcs_at(&body, rim.0, rim.1);
-        let before = topo::test_support::unmigrated_measure(&body, tol(), topo::test_support::pinned_resolution(tol()))
-            .unwrap()
-            .enclosure.volume;
+        let before = topo::test_support::unmigrated_measure(
+            &body,
+            tol(),
+            topo::test_support::pinned_resolution(tol()),
+        )
+        .unwrap()
+        .enclosure
+        .volume;
         let out = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &arcs, r, tol())
             .unwrap_or_else(|e| panic!("{name} carves, got {e:?}"));
-        let after = topo::test_support::unmigrated_measure(&out.body, tol(), topo::test_support::pinned_resolution(tol()))
-            .unwrap()
-            .enclosure.volume;
+        let after = topo::test_support::unmigrated_measure(
+            &out.body,
+            tol(),
+            topo::test_support::pinned_resolution(tol()),
+        )
+        .unwrap()
+        .enclosure
+        .volume;
         let delta = after - before;
         assert!(
             (delta - want).abs() <= 1e-12 * want.abs(),

@@ -197,9 +197,14 @@ mod certified {
             Ok(()),
             "tier 3"
         );
-        let vol = topo::test_support::unmigrated_measure(&die, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
-            .unwrap()
-            .enclosure.volume;
+        let vol = topo::test_support::unmigrated_measure(
+            &die,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
+        )
+        .unwrap()
+        .enclosure
+        .volume;
         let want = blank_volume() - cap(PIP_R, PIP_H) - rim_fillet_extra(PIP_R, PIP_H, RIM_R);
         assert!(
             vol.lo() <= want && want <= vol.hi(),

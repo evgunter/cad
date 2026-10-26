@@ -374,9 +374,14 @@ fn support_face(f: &Ruled, support: u32) -> StableName {
 }
 
 fn volume(body: &Body<f64>) -> f64 {
-    topo::test_support::unmigrated_measure(body, tol(), topo::test_support::pinned_resolution(tol()))
-        .expect("closed-form mass properties")
-        .enclosure.volume
+    topo::test_support::unmigrated_measure(
+        body,
+        tol(),
+        topo::test_support::pinned_resolution(tol()),
+    )
+    .expect("closed-form mass properties")
+    .enclosure
+    .volume
 }
 
 // ---------------------------------------------------------------- //

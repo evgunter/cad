@@ -414,11 +414,24 @@ fn one_request_builds_the_kernels_body() {
         bands(&doc_body),
         "the three bands' STORED (station, major, minor) must be identical bits"
     );
-    let p1 = pncad::topo::mass_properties(&at_rest(&kernel, tol), tol, pncad::topo::Settle::Resolution(pncad::quantity::Length::from_meters(1.024e-6))).expect("kernel props");
-    let p2 = pncad::topo::mass_properties(&at_rest(&doc_body, tol), tol, pncad::topo::Settle::Resolution(pncad::quantity::Length::from_meters(1.024e-6))).expect("document props");
+    let p1 = pncad::topo::mass_properties(
+        &at_rest(&kernel, tol),
+        tol,
+        pncad::topo::Settle::Resolution(pncad::quantity::Length::from_meters(1.024e-6)),
+    )
+    .expect("kernel props");
+    let p2 = pncad::topo::mass_properties(
+        &at_rest(&doc_body, tol),
+        tol,
+        pncad::topo::Settle::Resolution(pncad::quantity::Length::from_meters(1.024e-6)),
+    )
+    .expect("document props");
     assert!(
         ((p1.enclosure.volume - p2.enclosure.volume) / p1.enclosure.volume).abs() < 1e-14
-            && ((p1.enclosure.surface_area - p2.enclosure.surface_area) / p1.enclosure.surface_area).abs() < 1e-14,
+            && ((p1.enclosure.surface_area - p2.enclosure.surface_area)
+                / p1.enclosure.surface_area)
+                .abs()
+                < 1e-14,
         "kernel V={} A={}; document V={} A={}",
         p1.enclosure.volume,
         p1.enclosure.surface_area,

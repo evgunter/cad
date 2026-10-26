@@ -433,7 +433,7 @@ let ValuePayload::Boolean(BooleanValue::Body { body, .. }) = &value.payload else
     panic!("expected a body");
 };
 let body = AtRestBody::validate(Body::clone(body), tol).expect("a finished body");
-assert_eq!(mass_properties(&body, tol).expect("mass").volume, 1.125);
+assert_eq!(mass_properties(&body, tol, Settle::Resolution(Length::from_meters(1e-6))).expect("mass").enclosure.volume, 1.125);
 assert_eq!(
     value.coincidences.len(),
     5,

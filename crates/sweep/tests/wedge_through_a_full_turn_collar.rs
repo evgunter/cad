@@ -101,7 +101,8 @@ fn assert_wedge(
         );
         let got = topo::mass_properties(&body, tol, topo::test_support::pinned_resolution(tol))
             .unwrap_or_else(|e| panic!("{what}: mass properties, got {e:?}"))
-            .enclosure.volume;
+            .enclosure
+            .volume;
         assert!(
             (got - want).abs() <= 1e-9 * want.max(1.0),
             "{what}: volume {got} against the closed form {want}"

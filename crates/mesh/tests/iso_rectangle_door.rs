@@ -119,7 +119,8 @@ fn a_rimless_lune_meshes_through_the_door_and_measures() {
         topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("the flux lane measures the lune by its meridian pair")
-    .enclosure.volume;
+    .enclosure
+    .volume;
     let exact = 2.0 / 3.0 * 2.0;
     assert!(
         (volume - exact).abs() / exact < 1e-12,
@@ -223,8 +224,14 @@ fn a_split_seam_donut_meshes_and_measures_as_the_unsplit_donut() {
     )
     .expect("the split-seam donut measures");
     assert_eq!(
-        (mp.enclosure.volume.to_bits(), mp.enclosure.surface_area.to_bits()),
-        (mp0.enclosure.volume.to_bits(), mp0.enclosure.surface_area.to_bits()),
+        (
+            mp.enclosure.volume.to_bits(),
+            mp.enclosure.surface_area.to_bits()
+        ),
+        (
+            mp0.enclosure.volume.to_bits(),
+            mp0.enclosure.surface_area.to_bits()
+        ),
         "mass properties bitwise: split {mp:?} vs unsplit {mp0:?}"
     );
     assert!(
@@ -329,7 +336,8 @@ fn split_children_partition_the_parent_edges_own_parametrisation() {
         topo::test_support::pinned_resolution(tol),
     )
     .unwrap()
-    .enclosure.volume
+    .enclosure
+    .volume
     .to_bits();
     let (f0, _) = base.faces().next().unwrap();
     let (outer0, _) = topo::props::loop_edges(&base, base.get_face(f0).unwrap().outer).unwrap();
@@ -390,7 +398,8 @@ fn split_children_partition_the_parent_edges_own_parametrisation() {
                 topo::test_support::pinned_resolution(tol),
             )
             .unwrap()
-            .enclosure.volume
+            .enclosure
+            .volume
             .to_bits(),
             v0,
             "{fracs:?}: the volume, bitwise"
@@ -419,7 +428,8 @@ fn split_children_partition_the_parent_edges_own_parametrisation() {
             topo::test_support::pinned_resolution(tol),
         )
         .unwrap_or_else(|e| panic!("{fracs:?}: the shifted child measures: {e:?}"))
-        .enclosure.volume;
+        .enclosure
+        .volume;
         let want = f64::from_bits(v0);
         assert!(
             (got - want).abs() <= 1e-12 * want,

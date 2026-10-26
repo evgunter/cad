@@ -235,9 +235,11 @@ fn the_meeting_axes_pose_builds_at_the_certified_scalar() {
     // where the union's four faces meet.
     let want = 2.0 * PI * 2.4 - 16.0 / 3.0;
     let assert_union = |out: &topo::BooleanBody<Interval>, nodes: [Point3<f64>; 2], what: &str| {
-        let m = topo::mass_properties(&out.body, tol, topo::test_support::pinned_resolution(tol)).expect("interval props");
+        let m = topo::mass_properties(&out.body, tol, topo::test_support::pinned_resolution(tol))
+            .expect("interval props");
         assert!(
-            m.enclosure.volume.lo() - m.enclosure.volume_pad <= want && want <= m.enclosure.volume.hi() + m.enclosure.volume_pad,
+            m.enclosure.volume.lo() - m.enclosure.volume_pad <= want
+                && want <= m.enclosure.volume.hi() + m.enclosure.volume_pad,
             "{what}: volume {:?} ± {} brackets {want}",
             m.enclosure.volume,
             m.enclosure.volume_pad
