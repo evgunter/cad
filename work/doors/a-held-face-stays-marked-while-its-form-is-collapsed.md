@@ -45,3 +45,8 @@ doc states.
 ## Decided (2026-10-25)
 
 Decided together with `a-seated-tools-held-node-is-drawn-nowhere`, which carries the design. This row rides with it. The body above cites the add-datum form (`datum_face_frame_rows`, `Drafts::datum_face`), which is gone. Its successor is the add-profile form's on-face latch: `Drafts::sketch_face`, written by `sketch_face_rows`. That latch becomes `ToolKind::SketchOnFace`, and the open tool's panel is drawn outside the collapsing sections, which closes both symptoms.
+
+## Moved (2026-10-26)
+
+AUTHTAIL folded into DOORS (Ev, in chat, 2026-10-26): both were AUTHOR's
+successors on the viewer authoring files. Id and body unchanged.

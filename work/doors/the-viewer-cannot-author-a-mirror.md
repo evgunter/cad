@@ -27,3 +27,10 @@ Found by `a-mirror-is-a-construction` (2026-10-22). `Node::Mirror { body, plane 
   - `a-mate-on-a-taken-over-copys-face-goes-stale`;
   - `repoint-matches-a-shape-by-its-operation-not-its-read`.
 - **Review tier:** full single review, then two re-verifies of the fix passes.
+
+## Moved (2026-10-26)
+
+AUTHTAIL folded into DOORS (Ev, in chat, 2026-10-26). Kept although
+closed: `the-mirror-keeps-two-pieces-and-mirrors-across-another-spaces-face-after-dprime3`
+is the residue of this row's mirror arrival fork, and its body points
+at the `## Closed` section above for the decision it builds on.

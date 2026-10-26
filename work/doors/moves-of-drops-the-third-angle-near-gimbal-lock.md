@@ -14,3 +14,8 @@ Found by PR 5693's review (sure, measured). `moves_of` (`crates/viewer/src/sessi
 **Callers:** `frame_off` and `gesture_moves` (INTENT's `the-viewers-numeric-gestures-read-a-frame-back-off-geometry`), and since PR 5693 the duplicate's `duplicate_seats`, through `combine::copy_motion`. The same decomposition is written out verbatim in `editor_core::test_support::euler_turns`, which `moves_at`-pinned fixtures share; one home for both is part of the fix.
 
 **Fix (the reviewer's):** in the fallback, keep γ = atan2(r10, r00) and solve α from Ry(β)ᵀRz(γ)ᵀR, so the band is exact. Add rows at β = π/2 − 1e-9 and −π/2 + 1.4e-8 that read the drawn copy. Also tell INTENT's row that the duplicate is now a third caller.
+
+## Moved (2026-10-26)
+
+AUTHTAIL folded into DOORS (Ev, in chat, 2026-10-26): both were AUTHOR's
+successors on the viewer authoring files. Id and body unchanged.

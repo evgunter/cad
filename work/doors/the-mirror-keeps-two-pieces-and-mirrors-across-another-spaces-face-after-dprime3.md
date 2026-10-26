@@ -15,3 +15,8 @@ The residue of the mirror arrival fork (2026-10-25, designer pair, converged; re
 
 - **Two pieces.** `B ⊔ Mirror{B, plane}`, taken over the same way. The image stays its own piece (a pick through the `⊔`'s path), and the seam is recorded as a touch rather than glued. It becomes the tool's second output beside the fused one, as the pattern tool offers Fused beside Instances.
 - **A mirror across another space's face**, such as a bracket mirrored across a chassis's centre plane. This is a world-level creation, `Mirror { body: C, plane: Plane { face: wall.f } }`, where C is the clicked copy. The gesture adds it to the product's `⊔` (D′3's creation rule: a gesture writes `SetProduct`). Today it refuses `SpaceMismatch`, which is right until then. Both designers lean to building it, and neither is sure.
+
+## Moved (2026-10-26)
+
+AUTHTAIL folded into DOORS (Ev, in chat, 2026-10-26): both were AUTHOR's
+successors on the viewer authoring files. Id and body unchanged.

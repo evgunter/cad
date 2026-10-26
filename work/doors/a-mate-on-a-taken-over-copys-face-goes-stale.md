@@ -41,3 +41,8 @@ It is one undo step. The door is editor-core's, beside `refactor::inline` / `ske
 - A selection on `C ∪ D` through the same takeover.
 - A face the feature consumes stays stale with its diagnosis.
 - One undo restores everything.
+
+## Moved (2026-10-26)
+
+AUTHTAIL folded into DOORS (Ev, in chat, 2026-10-26): both were AUTHOR's
+successors on the viewer authoring files. Id and body unchanged.

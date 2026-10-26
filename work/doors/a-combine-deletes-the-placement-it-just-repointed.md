@@ -16,3 +16,8 @@ Found while reading `combine_in_world` (`crates/viewer/src/session.rs`) for PR 5
 It shows only on a multi-shape `Place`, which D′3 retires (one source per placement). If D′3 lands first, close this as absorbed. Otherwise the repair is to skip deleting a placement that the re-point just took over, plus a row on the two-shape `Place`.
 
 Banded P1 E and parked on PR 5636 at PR 5693's merge (orchestrator). It shows only on a multi-shape `Place`, which D′3 retires, so once D′3 lands, close it as absorbed unless it reproduces on a one-source placement.
+
+## Moved (2026-10-26)
+
+AUTHTAIL folded into DOORS (Ev, in chat, 2026-10-26): both were AUTHOR's
+successors on the viewer authoring files. Id and body unchanged.

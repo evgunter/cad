@@ -19,3 +19,8 @@ Found by AUTH-13 (`author/geometry-close`, PR 3579) and its reviews.
 - **Inside the kernel's ambiguity band.** `line_to Start` escalates as too close to call, and the preview says so rather than re-spelling it. A last leg that turns by `1e-9` from straight-on is one example; there `continue_to Start` escalates too. Another is a long leg with a short close: `two_legs`, then `line_to (0.0010000004, 0.001)`, anywhere in a window of at least `d` from 2e-10 to 1e-9 in `line_to (0.001 + d, 0.001)`. There `continue_to Start` would replay. The viewer re-spells only a *decided* tangency, though. An escalation is the kernel declining to say whether the close runs straight on, and another spelling that happens to pass is not that answer. Drawing the leg here would show the author a straight-on close the kernel has not called straight on.
 
 **Shape of a fix.** The start-on-tip case wants a door from the kernel: a typed refusal for a close of no length (`work/profiletail/a-close-from-a-tip-on-its-start-is-refused-as-a-tangent-seam`), or a replay that returns an open chain's tip. With the first, a straight last leg can be drawn as the prefix before it closed, which is the same segment. The cusp and band cases have no close at all, so drawing their last leg needs a drawing that is not a closed replay. That is a design question about what the preview is.
+
+## Moved (2026-10-26)
+
+AUTHTAIL folded into DOORS (Ev, in chat, 2026-10-26): both were AUTHOR's
+successors on the viewer authoring files. Id and body unchanged.

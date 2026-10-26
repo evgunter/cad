@@ -40,3 +40,8 @@ door, and differ in their close rule and in what the op is built from.
 Folding them means either giving `tool_commit_row` a middle slot and a
 close-on-commit flag, or stating why these two stay apart. Choosing
 between those is the work, which is why the cost is M rather than E.
+
+## Moved (2026-10-26)
+
+AUTHTAIL folded into DOORS (Ev, in chat, 2026-10-26): both were AUTHOR's
+successors on the viewer authoring files. Id and body unchanged.

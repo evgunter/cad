@@ -79,3 +79,8 @@ An Opus and a Fable designer weighed this row together with `a-held-face-stays-m
 - the three face holders' "last said" containers: mate's `[Option<SpokenNode>; 2]`, the sketch latch's `HeldNodes`, and the mirror's `Option<SpokenNode>`;
 - the mirror's plane riding in the mate's slot `a` of `marks::Held::faces`;
 - the hand-spelled end-cap `StableName` literals in the viewer tests (`combine_ops`, `node_labels`, `mirror_authoring`, `creation_ops` ×3, `sketch_on_face`), which want one helper.
+
+## Moved (2026-10-26)
+
+AUTHTAIL folded into DOORS (Ev, in chat, 2026-10-26): both were AUTHOR's
+successors on the viewer authoring files. Id and body unchanged.

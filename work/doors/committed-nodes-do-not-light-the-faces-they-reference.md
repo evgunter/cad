@@ -19,3 +19,8 @@ A `Declare`, a `Mate`, a `Datum::FaceFrame` and a `Measure` each reference faces
 So an author cannot see which two faces a committed declaration or mate joins.
 
 This is the picture half of the face-naming answer. It needs no ruling: whatever #3571 decides about words, selecting such a node should light its referenced faces. The designer proposed reading them from `Node::payload_names`. The open part is the mark: a referenced face is neither selected nor held, and `marks::Held` has fixed slots.
+
+## Moved (2026-10-26)
+
+AUTHTAIL folded into DOORS (Ev, in chat, 2026-10-26): both were AUTHOR's
+successors on the viewer authoring files. Id and body unchanged.
