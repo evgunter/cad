@@ -2176,9 +2176,10 @@ FAMILIES: dict[str, str] = {
 #: is where the two meet, and `Value.body` / `Value.bodies` now make
 #: the same reconciliation so a body read off a value and the same
 #: body read by the gather cannot disagree about what was declared
-#: over it. `assemble` is the second source (D-1 plus the mates'
-#: minted D-2), and `product` is deliberately the third case: it
-#: gathers and declares NOTHING, so its body is plain. Those two are
+#: over it. An instance of an assembly is the second source (the
+#: records its document's census minted, carried across the seam),
+#: and `product` is deliberately the third case: it gathers and
+#: declares NOTHING, so its body is plain. Those two are
 #: the same geometry through two doors, and the suite pins that they
 #: answer differently — which is the only way to show from Python
 #: that the capture is load-bearing rather than decorative.
@@ -3056,37 +3057,29 @@ NOT_BOUND = {
     # binding CALLS.** `Product` is the document's product with
     # everything the gather knows about it, `product_recorded` is the
     # gather that builds one, `Subject` is what the check registry runs
-    # over, and `run_checks_on` / `assemble_gathered` are the two doors
-    # that take a product a caller already holds.
+    # over, and `run_checks_on` is the door that takes a product a
+    # caller already holds.
     #
     # A Python `Evaluation` is the immutable (document, evaluation)
     # pair captured at `evaluate`, and a product is a pure function of
     # that pair and the run's tolerance — so the evaluation gathers
     # ONCE and memoizes, and every bound door that wants a product
-    # (`run_checks`, `assemble`, `product`, `product_named`) reads that
-    # one gather through exactly these five names
+    # (`run_checks`, `product`, `product_named`) reads that one gather
+    # through exactly these names
     # (`crates/pncad-py/src/product_memo.rs`). They are `INTERIOR`
     # because the memo removes the question a Python caller would have
     # held a `Product` to ask: there is nothing to hand between doors,
     # so there is nothing to name.
-    #
-    # That is what changed. The cost this entry used to record — both
-    # questions on one evaluation gathering twice — is gone, and so is
-    # the reason it stood: `assemble_gathered` CONSUMES its product, so
-    # the memo hands it a COPY and keeps the original, measured at
-    # about a fiftieth of the gather it saves at the heat sink's
-    # 160-fin point. An ownership order still does not cross this
-    # boundary; nothing has to cross it any more.
     "Product": INTERIOR,
     # One of a product's at-rest decisions, interior with its `Product`:
     # Python reads them as the unproven-coincidence lint's findings.
     "AtRestRow": INTERIOR,
     "Subject": INTERIOR,
-    "assemble_gathered": INTERIOR,
     "product_recorded": INTERIOR,
     # A `⊔` the product slot does not read, gathered by itself, interior
-    # with its `Product` (`Product::assembles`): Python's `assemble`
-    # gates each, and a refusal is `AssemblyError.variant == "assemble"`.
+    # with its `Product` (`Product::assembles`): Python's `run_checks`
+    # reads each one's census under `CheckId.AtRest`, and a refusal is
+    # an `AtRestEvidence.variant == "not_gathered"` finding.
     "AssembleGather": INTERIOR,
     "assemble_gathers": INTERIOR,
     "Pieces": INTERIOR,
@@ -3582,10 +3575,12 @@ MEMBERS_BOUND_AS = {
     # spelled there.
     "Value::coord": "MateValue.coord",
     "Value::by": "MateValue.by",
-    "AssemblyError::Product": "AssemblyError.variant",
-    "AssemblyError::CarriedAtRest": "AssemblyError.variant",
-    "AssemblyError::AtRest": "AssemblyError.variant",
-    "AssemblyError::Assemble": "AssemblyError.variant",
+    # Why the at-rest check could not look, a value: the tag word.
+    "AtRestEvidence::NoLane": "AtRestEvidence.variant",
+    "AtRestEvidence::Malformed": "AtRestEvidence.variant",
+    "AtRestEvidence::InsideArrival": "AtRestEvidence.variant",
+    "AtRestEvidence::NotGathered": "AtRestEvidence.variant",
+    "AtRestEvidence::NotRun": "AtRestEvidence.variant",
     # A part's own census findings, carried: a route is three facts and
     # Python reads all three without holding the type, and the
     # finding's nodes are said from the part's (`str(row.finding)`).
@@ -3598,8 +3593,6 @@ MEMBERS_BOUND_AS = {
     "CheckEvidence::Unsupported": "CheckEvidence.variant",
     "CheckEvidence::NotAtRest": "CheckEvidence.variant",
     "CheckEvidence::StaleExpectation": "CheckEvidence.variant",
-    "CheckEvidence::NotSeparated": "CheckEvidence.variant",
-    "CheckEvidence::SeparationUnavailable": "CheckEvidence.variant",
     "CheckEvidence::ChartCoherence": "CheckEvidence.variant",
     "CheckEvidence::ChartCoherenceUnexamined": "CheckEvidence.variant",
     "CheckEvidence::ChartCoherenceUnavailable": "CheckEvidence.variant",
@@ -4154,6 +4147,14 @@ ARMS_SPELLED_BY_A_PROPERTY = {
     # word that is about something else.
     "NodePickError::Index": "NodePickError.index",
     "PersistError::Snapshot": "PersistError.snapshot",
+    # The arm's PAYLOAD, whole: the value the arm carries, `None` on
+    # every other arm. Each arm itself crosses as the tag word beside
+    # it (`variant == "interference"`, `"carried_interference"`,
+    # `"at_rest"`, `"carried"`).
+    "CheckEvidence::Interference": "CheckEvidence.interference",
+    "CheckEvidence::CarriedInterference": "CheckEvidence.carried_interference",
+    "CheckEvidence::AtRest": "CheckEvidence.at_rest",
+    "AtRestEvidence::Carried": "AtRestEvidence.carried",
 }
 
 #: Members with no Python spelling at all, by family — `NOT_BOUND`'s three
@@ -4217,13 +4218,6 @@ MEMBERS_NOT_BOUND = {
     "Sweep::angle": SHAPE,
     "Via::q": SHAPE,
     "Via::p": SHAPE,
-    # `ContactRecords` is `INTERIOR` and this is that entry one level
-    # in: nothing hands one out, so the field has nothing to project.
-    "Assembly::contacts": INTERIOR,
-    # The kernel's own finding, the finding's `str()` — the
-    # flattened-payload bullet at the door that renders rather than
-    # raises.
-    "AtRestFinding::error": SHAPE,
     # The census's verdicts on the pair are the kernel's own story, read
     # through `ValidationFinding` where a body is validated; the finding
     # names its copies and site, which is what a caller acts on.

@@ -4,7 +4,7 @@
 scene into a store and evaluates what it reads back; here nothing goes
 near disk that this file did not put there. Two part documents are
 authored, written into a workspace, instantiated into two assembly
-documents, mated, solved, gathered and gated — the whole of the audit's
+documents, mated, solved, gathered and checked — the whole of the audit's
 row 44 through the public doors.
 
 THE SCENE IS `bench_scene.py`, AND THE ORACLE COMES FROM THE TOUR
@@ -15,7 +15,7 @@ own assertions are the oracle: the layout's three disjoint solids of
 world and each other instance placed by the one mate its bundle holds
 and that mate's values, the far post's solved translation, the identity
 rotation two face-on-face rests compose to, two recorded seats, and
-a gate that certifies. Every number below is that scene's, re-derived from the
+an at-rest check with nothing to report. Every number below is that scene's, re-derived from the
 same base dimensions rather than copied as a total. The tour's bench
 also stands on a turntable and carries a crate, whose seat is a
 third; this scene authors neither (`bench_scene.py`'s header).
@@ -40,7 +40,7 @@ TWO THINGS THIS FILE CANNOT SAY, AND THEY ARE NOT DEFECTS OF IT
    against the placement arithmetic rather than against a
    transcribed coordinate.
 
-WHAT THE GATE SAYS OF A MATE READ BELOW A PLACER, AND WHY
+WHAT THE CHECKS SAY OF A MATE READ BELOW A PLACER, AND WHY
 ---------------------------------------------------------
 A mate's pose is read off the body it names. A pose may read a node
 that a `placed_union` consumes: no placement reads that node, so the
@@ -50,7 +50,7 @@ them (the gather's rule, pinned in editor-core).
 
 A plane read off a name that is NOT A FACE is built and admitted —
 the door is structural — and refused where its placement evaluates
-(`mate_side_unevaluated`, asserted below), not at the gate.
+(`mate_side_unevaluated`, asserted below), not by the checks.
 
 THE SPELLING OF THE PLACED FAMILY, MEASURED RATHER THAN CLAIMED
 ---------------------------------------------------------------
@@ -59,8 +59,8 @@ and `bench_scene.layout`'s `posts=` says them with `Node.placed_union`
 instead. `TestBenchLayout` runs its whole battery against BOTH, which
 is what turns "the fused spelling says the same placed family" from a
 sentence into a reading: the material, the per-placement cap frames,
-the instance-qualified names, their denotations and an A5 gate that
-passes outright are the same for a PLURAL `instances` value as for a
+the instance-qualified names, their denotations and an at-rest check
+with nothing to report are the same for a PLURAL `instances` value as for a
 single body, and `test_the_two_spellings_differ_in_the_values_
 plurality_alone` is what keeps that from being a coincidence of two
 identical nodes.
@@ -112,19 +112,25 @@ from pncad import (
     PoseDef,
     RoleRead,
     SegTag,
+    CheckId,
     VarName,
     Workspace,
-    assemble,
     content_pin,
     evaluate,
     m,
     product,
     rad,
     random_document_id,
+    run_checks,
     solve_document,
 )
 
 from placing import against, moves, placed, assemble_world_copies
+
+
+def at_rest(doc, evaluation):
+    """The at-rest check's findings over `evaluation`, in report order."""
+    return [f for f in run_checks(doc, evaluation).findings if f.check == CheckId.AtRest]
 
 
 class BenchWorkspace(unittest.TestCase):
@@ -184,8 +190,8 @@ class TestBenchLayout(BenchWorkspace):
 
     The layout has no mates, so the bundles and the solve are
     `TestBenchStand`'s expectations and not this document's; what this
-    one is held to is the material, the placements, the names and a gate
-    that passes OUTRIGHT with nothing recorded."""
+    one is held to is the material, the placements, the names and an
+    at-rest check with nothing to report."""
 
     def layout(self, posts=Node.pattern):
         doc, post_i, family, shelf_i = bench_scene.layout(
@@ -225,21 +231,23 @@ class TestBenchLayout(BenchWorkspace):
                 self.assertEqual(len(caps), PATTERN_COUNT)
                 self.assertEqual(len(set(caps)), PATTERN_COUNT)
 
-    def test_the_disjoint_layout_passes_the_at_rest_gate_outright(self):
+    def test_the_disjoint_layout_has_nothing_at_rest_to_report(self):
         for name, posts in SPELLINGS.items():
             with self.subTest(posts=name):
                 doc, _, _, _ = self.layout(posts)
                 assemble_world_copies(doc)
-                assembly = assemble(doc, evaluate(doc, resolver=self.ws))
-                # Nothing touches, so the kernel's at-rest door passes
-                # with nothing recorded. That is exactly what "disjoint
-                # assemblies validate today" means — and it is what a
-                # PLURAL value reaching the gate had to be measured
-                # against rather than assumed: the gate takes the family
-                # either way.
-                self.assertGreater(len(assembly.names), 0)
+                ev = evaluate(doc, resolver=self.ws)
+                # Nothing touches, so the at-rest check reports nothing,
+                # and nothing it could not look at. That is exactly what
+                # "disjoint assemblies validate today" means — and it is
+                # what a PLURAL value reaching the census had to be
+                # measured against rather than assumed: the census takes
+                # the family either way.
+                self.assertEqual(at_rest(doc, ev), [])
+                body, names = pncad.product_named(doc, ev)
+                self.assertGreater(len(names), 0)
                 self.assertAlmostEqual(
-                    assembly.body.mass_properties().volume,
+                    body.mass_properties().volume,
                     PATTERN_COUNT * POST_VOLUME + SHELF_VOLUME,
                     delta=1e-12,
                 )
@@ -685,29 +693,18 @@ class TestBenchStand(BenchWorkspace):
         ):
             self.assertAlmostEqual(got.meters, want, delta=1e-12)
 
-    def test_the_flush_seated_stand_certifies_at_the_at_rest_gate(self):
+    def test_the_flush_seated_stand_has_nothing_at_rest_to_report(self):
+        """The seats are mates, so the census's two touches are
+        structural: no `AtRest` finding, and none it could not look at."""
         doc, _, _ = self.stand()
         assemble_world_copies(doc)
-        assembly = assemble(doc, evaluate(doc, resolver=self.ws))
+        ev = evaluate(doc, resolver=self.ws)
+        self.assertEqual(at_rest(doc, ev), [])
         self.assertAlmostEqual(
-            assembly.body.mass_properties().volume,
+            product(doc, ev).mass_properties().volume,
             2 * POST_VOLUME + SHELF_VOLUME,
             delta=1e-12,
         )
-
-    def test_the_gather_and_the_gate_agree_on_the_body(self):
-        doc, _, _ = self.stand()
-        ev = evaluate(doc, resolver=self.ws)
-        gathered = product(doc, ev)
-        gated = assemble(doc, ev).body
-        # `assemble` IS the gather plus the check, so the body is the
-        # same body. Volume rather than identity: the two are separate
-        # values, and equality of bodies is not a door Python has.
-        self.assertEqual(
-            gathered.mass_properties().volume, gated.mass_properties().volume
-        )
-        _, names = pncad.product_named(doc, ev)
-        self.assertEqual(sorted(names), sorted(assemble(doc, ev).names))
 
 
 class TestAssemblyRefusals(BenchWorkspace):
@@ -957,18 +954,19 @@ class TestAssemblyRefusals(BenchWorkspace):
         doc = Doc("no-resolver")
         self.pinned(doc, self.post_ref)
         # Evaluated with no resolver, the instance — a placement — produced
-        # no copies, so the GATHER refuses before the gate runs — and it
-        # refuses with the gather's own tag, not a wrapper's, because
-        # which invariant broke is what a caller branches on.
-        with self.assertRaises(pncad.AssemblyError) as caught:
-            assemble_world_copies(doc)
-            assemble(doc, evaluate(doc))
-        self.assertEqual(caught.exception.variant, "root_failed")
-        self.assertIsNotNone(caught.exception.node)
+        # no copies, so the GATHER refuses with its own tag, because which
+        # invariant broke is what a caller branches on. The checks cannot
+        # run over a placement with no value either, and say which.
+        assemble_world_copies(doc)
+        ev = evaluate(doc)
         with self.assertRaises(pncad.ProductError) as gather:
-            assemble_world_copies(doc)
-            product(doc, evaluate(doc))
+            product(doc, ev)
         self.assertEqual(gather.exception.variant, "root_failed")
+        self.assertIsNotNone(gather.exception.node)
+        with self.assertRaises(pncad.ChecksError) as checks:
+            run_checks(doc, ev)
+        self.assertEqual(checks.exception.variant, "root_without_value")
+        self.assertEqual(checks.exception.node, gather.exception.node)
 
     def test_a_gather_refusal_speaks_its_root_from_the_evaluated_document(self):
         doc = Doc("no-resolver-labelled")
@@ -1461,7 +1459,7 @@ class TestTheWorld(BenchWorkspace):
 
 
 class TestNestedAcrossTheSeam(BenchWorkspace):
-    """An inner document's seats, at the OUTER document's gate.
+    """An inner document's seats, at the OUTER document's census.
 
     The census over the inner stand records its seat as a row and a
     record, and the record crosses the instantiation seam with the
@@ -1504,8 +1502,10 @@ class TestNestedAcrossTheSeam(BenchWorkspace):
         self.pinned(outer, ref)
         self.pinned(outer, ref, Frame.translation((5 * m, 0 * m, 0 * m)))
         assemble_world_copies(outer)
-        assembly = assemble(outer, evaluate(outer, resolver=self.ws))
-        self.assertGreater(len(assembly.names), 0)
+        ev = evaluate(outer, resolver=self.ws)
+        self.assertEqual(at_rest(outer, ev), [])
+        _, names = pncad.product_named(outer, ev)
+        self.assertGreater(len(names), 0)
 
 
 class TestAPoseFollowsItsFace(BenchWorkspace):

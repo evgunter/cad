@@ -841,6 +841,11 @@ fn what_a_part_could_not_look_at_crosses_whole() {
         })
         .collect();
     assert_eq!(
+        findings.len(),
+        reported.len(),
+        "every finding is the sub-assembly's, carried: {reported:?}"
+    );
+    assert_eq!(
         findings.iter().map(|row| &row.finding).collect::<Vec<_>>(),
         own.iter().collect::<Vec<_>>(),
         "the findings whole, verbatim"

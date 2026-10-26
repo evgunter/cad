@@ -40,10 +40,10 @@ CONTACTHOLD), it moved here by `git mv` with its id unchanged. Priced
 
 With the at-rest gate gone (`the-at-rest-census-is-a-check`), an
 escalation the census re-finds inside an instance's copy is no longer
-hidden behind the part's carried refusal: nothing refuses, so each level
-that re-finds it reports it loud as its own could-not-look finding
-(`AtRestEvidence::NoLane`), beside the part's carried one. Pinned by
-`intent_part_census_seam::what_a_part_could_not_look_at_is_reported_as_the_parts`
-and `an_escalation_two_documents_down_is_reported_once_as_the_parts`
-(the part's rows once each; the re-findings beside them). Naming the
-pair would let the in-arrival discard place it and report it once.
+hidden behind the part's carried refusal. Stage 5 C answers it by value:
+`checks::at_rest::less_carried` drops a pair-less census verdict equal to
+one of the part's carried could-not-look rows, one row per verdict
+(pinned by `intent_part_census_seam`'s escalation rows). That match is by
+equality on a finding that names nothing, so a genuine escalation of the
+host's own equal to a part's would be dropped too; naming the pair would
+let the in-arrival discard place it instead.

@@ -494,9 +494,10 @@ twice reports its overlap once, as the part's (`CarriedInterference`,
 `CarriedAtRestFinding`), quiet or loud as the part's own assertions
 judged it, and never refusing. A finding that names no pair of solids
 (a census escalation, a pair it had no lane for, a stale record of a
-vertex or an edge) is inside no one arrival, and is kept: it is
-reported loud again at each level that re-finds it
-(`work/contacthold/an-escalated-census-finding-names-no-pair.md`).
+vertex or an edge) is inside no one arrival, and is kept, but for one
+equal to a part's carried row, which that row answers for
+(`checks::at_rest::less_carried`;
+`work/contacthold/an-escalated-census-finding-names-no-pair.md`).
 What does not cross: the census of a part's spaces other than its
 world, and the rows
 of a part read one member at a time rather than whole

@@ -132,7 +132,7 @@ pub(crate) fn reading<T: LocalizeLane>(product: &Product<T>, tol: Tol) -> Readin
             could_not_look: vec![AtRestEvidence::NotRun],
         };
     }
-    let errors = product.census.clone();
+    let errors = less_carried(product, product.census.clone());
     if errors.is_empty() {
         return Reading {
             interference: Vec::new(),
@@ -149,6 +149,41 @@ pub(crate) fn reading<T: LocalizeLane>(product: &Product<T>, tol: Tol) -> Readin
         interference,
         could_not_look,
     }
+}
+
+/// **The census's verdicts less what a part already answered**: a
+/// finding that names no pair of solids (an escalation) cannot be
+/// placed inside the copy that re-found it, so the in-arrival discard
+/// keeps it (`product::gather_sources`); where a part's carried
+/// could-not-look row is that same verdict, it is the part's, reported
+/// once as the part's, and each carried row answers for one.
+fn less_carried<T: Decide>(
+    product: &Product<T>,
+    errors: Vec<ValidationError>,
+) -> Vec<ValidationError> {
+    let mut answered: Vec<&ValidationError> = product
+        .carried_at_rest
+        .iter()
+        .filter_map(|row| match &row.finding {
+            AtRestEvidence::NoLane(e) | AtRestEvidence::InsideArrival(e) => Some(e),
+            _ => None,
+        })
+        .collect();
+    errors
+        .into_iter()
+        .filter(|error| {
+            if finding_solids(&product.body, error).is_some() {
+                return true;
+            }
+            match answered.iter().position(|a| *a == error) {
+                Some(i) => {
+                    answered.swap_remove(i);
+                    false
+                }
+                None => true,
+            }
+        })
+        .collect()
 }
 
 /// **Which could-not-look finding a census verdict is**: inside one

@@ -4092,7 +4092,6 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
             # the other signature gaps rather than here.
             # G18 LEFT this list at LIB-G18b, the series' second half:
             # `Mate` (now two poses, with `MateValue`),
-            # `assemble`, `Assembly`, `AssemblyError`,
             # `solve_document`, `update_references`, `mixed_pins` and
             # `Workspace.update_to_store` are all bound, and the
             # positive form is `tests/test_assembly_author.py`, which
@@ -4100,7 +4099,7 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
             # (the stand pinned to the world, short of the tour's
             # turntable and crate) — two part documents into a store,
             # instances of them, the mates that seat one on the other,
-            # the solve, the gather and the A5 gate. `update_to_store` is a Workspace METHOD
+            # the solve, the gather and the at-rest check. `update_to_store` is a Workspace METHOD
             # rather than a module door, which is why it is not tested
             # for here.
             # G17: the shipped kernel verb with no node. Absent as a

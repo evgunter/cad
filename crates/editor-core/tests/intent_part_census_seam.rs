@@ -257,12 +257,13 @@ fn an_overlap_two_documents_down_carries_up_by_its_route() {
 /// on whether they touch: its own check reports could-not-look findings.
 /// The document instantiating it reports each, verbatim and by the route
 /// through the instance, and refuses nothing. An escalation names no
-/// pair, so nothing matches it to the census's re-finding inside the
-/// copy (`work/contacthold/an-escalated-census-finding-names-no-pair.md`),
-/// which the instantiating document also reports, loud, as its own.
+/// pair, so the in-arrival discard cannot place the census's re-finding
+/// inside the copy (`work/contacthold/an-escalated-census-finding-names-no-pair.md`);
+/// the part's carried row answers for it, so it is reported once.
 ///
-/// *Breaks if* the carried findings are not the part's, or a part's
-/// finding refuses the instantiating document.
+/// *Breaks if* the carried findings are not the part's, the re-finding
+/// is reported again as this document's, or a part's finding refuses
+/// the instantiating document.
 #[test]
 fn what_a_part_could_not_look_at_is_reported_as_the_parts() {
     let part = in_band("seam-in-band-part");
@@ -273,6 +274,11 @@ fn what_a_part_could_not_look_at_is_reported_as_the_parts() {
     let (doc, ids, opts) = instantiating("seam-in-band", &part, 1);
     let outer = gate(&doc, &opts).expect("nothing refuses");
     let findings = outer.carried_at_rest();
+    assert_eq!(
+        findings.len(),
+        outer.could_not_look.len(),
+        "every finding is the part's, once: {outer:?}"
+    );
     assert_eq!(
         findings.iter().map(|f| &f.finding).collect::<Vec<_>>(),
         own.iter().collect::<Vec<_>>(),
@@ -296,12 +302,11 @@ fn what_a_part_could_not_look_at_is_reported_as_the_parts() {
 /// part, and a top document instantiates the sub-assembly: the top
 /// reports each of the part's findings once, by the route through the
 /// sub-assembly. The sub-assembly's census finds the part's escalations
-/// again inside its copy, and an escalation names no pair, so nothing
-/// matches them: those cross as the sub-assembly's own, loud
-/// (`work/contacthold/an-escalated-census-finding-names-no-pair.md`).
+/// again inside its copy, and the part's carried rows answer for them,
+/// so nothing of the sub-assembly's own crosses.
 ///
-/// *Breaks if* a carried finding stops at the first seam, or the part's
-/// is reported twice.
+/// *Breaks if* a carried finding stops at the first seam, or a
+/// re-finding is reported as the sub-assembly's or the top's own.
 #[test]
 fn an_escalation_two_documents_down_is_reported_once_as_the_parts() {
     let part = in_band("seam-deep-band-part");
@@ -323,11 +328,12 @@ fn an_escalation_two_documents_down_is_reported_once_as_the_parts() {
     let top = ProfileDoc::empty_derived("seam-deep-band-top", Tol::witness());
     let (top, outer) = insert_pinned(top, crate::fixture::mated_instance(mid_ref), &opts);
     let reported = gate(&top, &opts).expect("nothing refuses");
-    let findings: Vec<_> = reported
-        .carried_at_rest()
-        .into_iter()
-        .filter(|f| f.route.of == part.id())
-        .collect();
+    let findings = reported.carried_at_rest();
+    assert_eq!(
+        findings.len(),
+        reported.could_not_look.len(),
+        "nothing of the sub-assembly's or the top's own: {reported:?}"
+    );
     assert_eq!(
         findings.iter().map(|f| &f.finding).collect::<Vec<_>>(),
         own.iter().collect::<Vec<_>>(),
