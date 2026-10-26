@@ -927,3 +927,8 @@ The boolean declare surface is gone at every layer. A boolean's one input beside
     - D as a "why was the wrong place easier?" pass over its hot spots.
 
     These go to the duplication track once it is chartered; INTENT does not hold the design conversations.
+- 2026-10-26 12:50 —
+  - **Main is red in the CI profile** on RESTREAD's `CoincidentWedgesOverlap` since PR 5529: nine rows across topo, editor-core, viewer and python. Filed P0 on RESTREAD's slate (`main-red-coincident-wedges-overlap-refuses-flush-copies`) and flagged on their PR 5704.
+  - **Loft (#5748):** the fix pass was read and accepted, and the lane is archived. Its only reds are exactly that set. The merge over the inherited red was refused by the session's auto-mode classifier, so it waits for RESTREAD's fix, or for Ev to say to merge over it.
+  - **Value chart (#5742, MSOLVE-held):** review 1 is NOT-MERGEABLE. The MAJOR: sketch-on-face is unevaluable on side faces. A fix pass is sent, and review 2 follows on the sequential arm. The spin sense on a rest is put to Ev on the PR (`[ev]` in the title, and this session is subscribed). Reviewer `session_01Uays4fae5gRCSFbxgwS38i`.
+  - **Split (#5763):** fix pass in progress (now dirty against main).

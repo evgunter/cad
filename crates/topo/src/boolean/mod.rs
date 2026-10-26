@@ -284,6 +284,7 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         crate::census::SPAN_ORDER_CHARGED
         | crate::census::EE_OVERLAP_CHARGED
         | crate::census::SPAN_ROUNDING => BooleanDecision::LineSpanPrecision.subject(),
+        slit::PARTING_ORDER => BooleanDecision::PartingOrder.subject(),
         // The line's wedges the result gate reads (`census::line_wedges`),
         // tier 3's pinch-corner reading under names of its own.
         crate::census::LINE_WEDGE_AFTER_LEAVING
@@ -3783,9 +3784,9 @@ pub enum BooleanError {
     /// An edge of the result lies in one of its own faces, and the
     /// material parts it into two edges, face | wall each
     /// ([`EdgeInFaceGap`]): a parting the kernel does not build there,
-    /// or ([`EdgeInFaceGap::Crossed`], [`EdgeInFaceGap::TwinIncident`]) a
-    /// face crossing the edge's material or a parting that left a record
-    /// it cannot hold, which are the kernel's own defects.
+    /// or ([`EdgeInFaceGap::is_defect`]) a face crossing the edge's
+    /// material, or a parting or division that left what it never
+    /// makes, which are the kernel's own defects.
     EdgeInFace {
         /// The edge, in the result's keys.
         edge: crate::entity::EdgeKey,
@@ -3857,18 +3858,17 @@ pub enum LineWedgeFault {
         /// The result's two edges, in arena order.
         edges: [EdgeKey; 2],
     },
-    /// A face of this edge has no tangent plane where it meets the line,
-    /// so the material on its side has no reading.
-    NoSheet {
+    /// This edge's material wedge has no reading on the line: a face of
+    /// it with no tangent plane there, its faces meeting at a zero angle
+    /// or a full turn (a cusp or a knife slit, D1's wedge ends), or a
+    /// length too long or too short to measure. Tier 3′ names the same
+    /// reading of a body's own coincident edges
+    /// ([`crate::ValidationError::CoincidentWedgesOverlapUndecided`]).
+    Unread {
         /// The result's edge.
         edge: EdgeKey,
-    },
-    /// This edge's faces meet at a zero angle or a full turn, a cusp or
-    /// a knife slit (D1's wedge ends), and the line's reading has no
-    /// answer for those.
-    WedgeEnd {
-        /// The result's edge.
-        edge: EdgeKey,
+        /// Why its wedge has no reading.
+        why: crate::census::TouchUnread,
     },
 }
 
@@ -5088,11 +5088,7 @@ impl core::fmt::Display for BooleanError {
                      {NOT_YET_ENDING}"
                 )
             }
-            Self::EdgeInFace {
-                edge,
-                face,
-                gap: gap @ (EdgeInFaceGap::Crossed | EdgeInFaceGap::TwinIncident),
-            } => write!(
+            Self::EdgeInFace { edge, face, gap } if gap.is_defect() => write!(
                 f,
                 "edge {edge:?} of the result lies in face {face:?}, and {}. {}",
                 gap.words(),
@@ -5136,17 +5132,11 @@ impl core::fmt::Display for BooleanError {
                      material: the Boolean pairs the faces meeting there as the material does \
                      not, and the re-pairing it needs is not built. {NOT_YET_ENDING}"
                 ),
-                LineWedgeFault::NoSheet { .. } => write!(
+                LineWedgeFault::Unread { why, .. } => write!(
                     f,
-                    "a face meeting the line from {from} to {to}, where two or more of the \
-                     result's edges lie, has no tangent plane there, so the material on its side has no \
-                     reading. {NOT_YET_ENDING}"
-                ),
-                LineWedgeFault::WedgeEnd { .. } => write!(
-                    f,
-                    "an edge on the line from {from} to {to}, where two or more of the result's \
-                     edges lie, bounds a cusp or a knife slit, which the reading of the line's \
-                     material does not cover. {NOT_YET_ENDING}"
+                    "an edge on the line from {from} to {to}, where two or more of the \
+                     result's edges lie, bounds material the check cannot read: {}",
+                    why.sentence_on_line()
                 ),
             },
         }
@@ -9057,17 +9047,16 @@ mod tests {
                 from: "(0.0, 1.0, 2.0)".to_owned(),
                 to: "(3.0, 4.0, 5.0)".to_owned(),
             },
-            BooleanError::LineWedges {
-                fault: LineWedgeFault::NoSheet { edge },
-                from: "(0.0, 1.0, 2.0)".to_owned(),
-                to: "(3.0, 4.0, 5.0)".to_owned(),
-            },
-            BooleanError::LineWedges {
-                fault: LineWedgeFault::WedgeEnd { edge },
-                from: "(0.0, 1.0, 2.0)".to_owned(),
-                to: "(3.0, 4.0, 5.0)".to_owned(),
-            },
         ]
+        .into_iter()
+        .chain(
+            crate::census::WEDGE_UNREAD.map(|why| BooleanError::LineWedges {
+                fault: LineWedgeFault::Unread { edge, why },
+                from: "(0.0, 1.0, 2.0)".to_owned(),
+                to: "(3.0, 4.0, 5.0)".to_owned(),
+            }),
+        )
+        .collect()
     }
 
     /// **The phantom direction, closed by the compiler; the pairing

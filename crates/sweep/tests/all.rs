@@ -148,6 +148,8 @@ mod an_arc_rim_picks_the_row_it_lies_on;
 mod an_arc_tangent_at_a_boolean_vertex;
 #[path = "an_arcs_sweep_structure_is_certified_for_every_member.rs"]
 mod an_arcs_sweep_structure_is_certified_for_every_member;
+#[path = "an_edge_running_past_a_face_reads_its_crossings.rs"]
+mod an_edge_running_past_a_face_reads_its_crossings;
 #[path = "an_inside_out_thin_tube_operand.rs"]
 mod an_inside_out_thin_tube_operand;
 #[path = "at_rest_pcurve_faces.rs"]
@@ -346,6 +348,8 @@ mod trimmed_sphere_aims;
 mod tube_rim_touch_rows;
 #[path = "two_tubes_in_the_zero_band.rs"]
 mod two_tubes_in_the_zero_band;
+#[path = "two_wedge_ends_on_one_line.rs"]
+mod two_wedge_ends_on_one_line;
 #[path = "unjoined_operand_at_a_dual.rs"]
 mod unjoined_operand_at_a_dual;
 #[path = "verbs_offc_consumer.rs"]
