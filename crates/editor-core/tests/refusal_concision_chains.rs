@@ -1004,6 +1004,7 @@ mod kernel {
             ApexUnlifted,
             PoleEdgesCoincide, SectionInvariant, SectionUnarmed, RunImageNotYet,
             RingIslandUnread,
+            RunEdgeCarrierUnsupported,
             TangentChordEscalated, TangentChordBendEscalated, TangentChordRefuted,
             SectionCrossings,
         ];
@@ -2685,6 +2686,13 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                 J::RingIslandUnread {
                     face,
                     kind: geom::SurfaceKind::Cone,
+                },
+            ),
+            (
+                "RunEdgeCarrierUnsupported",
+                J::RunEdgeCarrierUnsupported {
+                    face,
+                    edge: topo::EdgeKey::default(),
                 },
             ),
             (
