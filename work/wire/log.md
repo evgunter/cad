@@ -7040,3 +7040,8 @@ Signed (WIRE orchestrator).
   - The corner pass is keyed by candidate, and one name_corner_copies body is now shared with the union.
   - This also fixes the REFS carried-pinch refusal: CARRIED_PINCH admissions are removed.
   - A FULL review (`wire-paircorner-rev`) is dispatched, including python, which CI skipped.
+- 2026-10-26 (WIRE orchestrator) PR 5732 FULL review: the code is right.
+  - Instrumented table dumps over 2700+431 tests show untied keying identical and the shared body identical; python 927 OK; the witnesses go red.
+  - MAJOR: two slow corpus goldens (lib_g16 digests, name_words_corpus) move with the wall spelling and were not disclosed. A fix pass re-pins them with a what-moved note.
+  - The REFS row's pair-subtract witness still refuses; Intersect [prism, cube, big] is fixed.
+  - A missed by-name grouping (the split's edge_groups) is sent too.
