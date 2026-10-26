@@ -109,8 +109,9 @@ fn the_boss_union_document_row_f64_volume_and_roundtrip() {
         Tol::witness(),
         topo::test_support::pinned_resolution(Tol::witness()),
     )
-    .unwrap()
-    .enclosure
+    .expect("the measured body")
+    .met()
+    .expect("the measured body")
     .volume;
     let expect = 7.2 + std::f64::consts::PI * 0.35 * 0.35 * 0.5;
     assert!(
@@ -173,8 +174,9 @@ fn the_boss_union_document_row_interval_bit_replay() {
             Tol::witness(),
             topo::test_support::pinned_resolution(Tol::witness()),
         )
-        .unwrap()
-        .enclosure
+        .expect("the measured body")
+        .met()
+        .expect("the measured body")
         .volume;
         let expect = 7.2 + std::f64::consts::PI * 0.35 * 0.35 * 0.5;
         assert!(

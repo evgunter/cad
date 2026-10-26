@@ -902,13 +902,11 @@ fn a_partial_frustum_moving_only_its_cone_keeps_its_generators() {
             assert_eq!(generators, 2, "{what}, d {d}: two cone–cap edges");
             let (m0, m1) = (r0 + d / alpha.cos(), r1 + d / alpha.cos());
             let want = turn * h * (m0 * m0 + m0 * m1 + m1 * m1) / 6.0;
-            let got = topo::mass_properties(
+            let got = topo::test_support::pinned_volume(
+                "props",
                 &finished("the moved body", body, tol()),
                 tol(),
-                topo::test_support::pinned_resolution(tol()),
             )
-            .expect("props")
-            .enclosure
             .volume;
             println!("[measured] {what}, d {d}: volume {got} against {want}");
             assert!(

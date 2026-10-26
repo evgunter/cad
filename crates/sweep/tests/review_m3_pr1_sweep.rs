@@ -275,14 +275,7 @@ fn revert_extruded_prism_posture() {
     let body = topo::test_support::finished("body", out.body, Tol::witness());
     assert_eq!(validate_geometric(&body, Tol::witness()), Ok(()));
     let original = format!("{:?}", *body);
-    let vol = topo::mass_properties(
-        &body,
-        Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
-    )
-    .unwrap()
-    .enclosure
-    .volume;
+    let vol = topo::test_support::pinned_volume("the measured body", &body, Tol::witness()).volume;
     assert!(vol > 0.0);
     let reverted = body.revert().unwrap();
     assert_eq!(
@@ -305,7 +298,8 @@ fn revert_extruded_prism_posture() {
         topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .enclosure
+    .met()
+    .expect("the pinned resolution is met")
     .volume;
     assert_eq!(rvol.to_bits(), (-vol).to_bits());
     // Involution + determinism, bitwise through the Debug channel.
@@ -340,14 +334,7 @@ fn revert_curved_body_reverts_via_the_sense_bit() {
     let body = topo::test_support::finished("body", out.body, Tol::witness());
     assert_eq!(validate_geometric(&body, Tol::witness()), Ok(()));
     let before = format!("{:?}", *body);
-    let vol = topo::mass_properties(
-        &body,
-        Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
-    )
-    .unwrap()
-    .enclosure
-    .volume;
+    let vol = topo::test_support::pinned_volume("the measured body", &body, Tol::witness()).volume;
     assert!(vol > 0.0);
     // There really is a non-plane surface here (the arc wall).
     let curved: Vec<_> = body
@@ -389,7 +376,8 @@ fn revert_curved_body_reverts_via_the_sense_bit() {
         topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .enclosure
+    .met()
+    .expect("the pinned resolution is met")
     .volume;
     assert_eq!(rvol.to_bits(), (-vol).to_bits());
     assert_eq!(format!("{:?}", reverted.revert().unwrap()), before);
@@ -416,17 +404,15 @@ fn split_then_null_lifecycle_on_prism() {
     )
     .unwrap();
     let mut body: Body<f64> = out.body;
-    let vol0 = topo::mass_properties(
+    let vol0 = topo::test_support::pinned_volume(
+        "the measured body",
         &topo::test_support::finished(
             "the measured body",
             topo::Body::clone(&body),
             Tol::witness(),
         ),
         Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
     )
-    .unwrap()
-    .enclosure
     .volume;
     // Split some line edge mid-span.
     let (edge, curve) = body
@@ -452,7 +438,8 @@ fn split_then_null_lifecycle_on_prism() {
             topo::test_support::pinned_resolution(Tol::witness())
         )
         .unwrap()
-        .enclosure
+        .met()
+        .expect("the pinned resolution is met")
         .volume
         .to_bits(),
         vol0.to_bits(),

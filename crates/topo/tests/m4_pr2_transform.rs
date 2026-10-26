@@ -148,7 +148,8 @@ fn transformed_tool_subtracts_exactly() {
         topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .enclosure
+    .met()
+    .expect("the pinned resolution is met")
     .volume;
     assert_eq!(vol, 8.0 - 0.25 * 0.25 * 0.25);
 }

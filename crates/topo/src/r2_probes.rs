@@ -152,13 +152,11 @@ fn r2_lamina_message_versus_the_measured_volume() {
     // trim, the rimless ball). Build the curved one here on a prism
     // whose two adjacent side faces share one cylinder.
     let p = crate::tier3_tests::cusp_prism(tol);
-    let v_ok = crate::mass_properties(
+    let v_ok = crate::test_support::pinned_volume(
+        "the measured body",
         &crate::test_support::finished("the measured body", p.body.clone(), tol),
         tol,
-        crate::test_support::pinned_resolution(tol),
     )
-    .unwrap()
-    .enclosure
     .volume;
     let flipped = p.body.flipped_face_sense_for_tests(p.face_side[1]).unwrap();
     let errs = validate_geometric(&flipped, tol).unwrap_err();

@@ -473,17 +473,15 @@ fn pappus_cross_checks_review_revolves() {
         Tol::witness(),
     )
     .unwrap();
-    let v = topo::mass_properties(
+    let v = topo::test_support::pinned_volume(
+        "the measured body",
         &topo::test_support::finished(
             "the measured body",
             topo::Body::clone(&frustum.body),
             Tol::witness(),
         ),
         Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
     )
-    .unwrap()
-    .enclosure
     .volume;
     let pappus = full_pappus_y(&frustum);
     assert!(

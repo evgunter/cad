@@ -55,7 +55,8 @@ fn a_rest_unions_and_replays_records_bit_identically() {
             topo::test_support::pinned_resolution(Tol::witness())
         )
         .unwrap()
-        .enclosure
+        .met()
+        .expect("the pinned resolution is met")
         .volume,
         mass_properties(
             &y.body,
@@ -63,7 +64,8 @@ fn a_rest_unions_and_replays_records_bit_identically() {
             topo::test_support::pinned_resolution(Tol::witness())
         )
         .unwrap()
-        .enclosure
+        .met()
+        .expect("the pinned resolution is met")
         .volume
     );
 }

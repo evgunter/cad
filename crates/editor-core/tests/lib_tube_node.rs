@@ -469,17 +469,15 @@ fn solid_minus_hollow_is_the_bore_within_one_document() {
     let ev = eval::<f64>(&doc);
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
     let vol = |id| {
-        topo::mass_properties(
+        topo::test_support::pinned_volume(
+            "mass properties",
             &topo::test_support::finished(
                 "the measured body",
                 topo::Body::clone(body_of(&ev, id)),
                 Tol::witness(),
             ),
             Tol::witness(),
-            topo::test_support::pinned_resolution(Tol::witness()),
         )
-        .expect("mass properties")
-        .enclosure
         .volume
     };
     close(

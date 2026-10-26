@@ -2132,13 +2132,11 @@ mod tests {
 
         // Mass properties: the unit box's volume against a refusal.
         assert_eq!(
-            crate::mass_properties(
+            crate::test_support::pinned_volume(
+                "the Euler-op prism has mass properties",
                 &crate::test_support::finished("the measured body", euler.body.clone(), tol),
-                tol,
-                crate::test_support::pinned_resolution(tol),
+                tol
             )
-            .expect("the Euler-op prism has mass properties")
-            .enclosure
             .volume,
             1.0
         );

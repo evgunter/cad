@@ -106,13 +106,11 @@ fn assert_half(row: &str, part: &Body<f64>, holds_bore: bool) {
     if let Err(errs) = topo::validate_geometric(part, tol()) {
         panic!("{row}: tier 3 refused the half: {errs:?}");
     }
-    let v = topo::mass_properties(
+    let v = topo::test_support::pinned_volume(
+        "the measured body",
         &topo::test_support::finished("the measured body", topo::Body::clone(part), tol()),
         tol(),
-        topo::test_support::pinned_resolution(tol()),
     )
-    .unwrap_or_else(|e| panic!("{row}: mass properties refused: {e:?}"))
-    .enclosure
     .volume;
     let want = half_volume(holds_bore);
     assert!(
@@ -226,11 +224,7 @@ fn a_split_carries_two_lune_bores_each_with_its_half() {
             if let Err(errs) = topo::validate_geometric(part, tol()) {
                 panic!("{pose}, {side}: tier 3 refused the half: {errs:?}");
             }
-            let v =
-                topo::mass_properties(part, tol(), topo::test_support::pinned_resolution(tol()))
-                    .unwrap()
-                    .enclosure
-                    .volume;
+            let v = topo::test_support::pinned_volume("the measured body", part, tol()).volume;
             let want = 2.0 * PI - bores * bore;
             assert!(
                 (v - want).abs() < 1e-9,
@@ -297,14 +291,7 @@ fn an_oblique_cut_carries_a_lune_bore_with_its_half() {
                 if let Err(errs) = topo::validate_geometric(part, tol()) {
                     panic!("{row}, {side}: tier 3 refused the half: {errs:?}");
                 }
-                let v = topo::mass_properties(
-                    part,
-                    tol(),
-                    topo::test_support::pinned_resolution(tol()),
-                )
-                .unwrap()
-                .enclosure
-                .volume;
+                let v = topo::test_support::pinned_volume("the measured body", part, tol()).volume;
                 let want = PI - if holds { column } else { 0.0 };
                 // The oblique face's quadrature lands ~1.5e-9 off.
                 assert!(

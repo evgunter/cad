@@ -480,17 +480,15 @@ fn a6_unit_edges() {
     assert_ne!(t, orig);
     match import_step(&t, &ImportOptions::default(), Tol::witness()) {
         Ok(StepImport::Solid { body, .. }) => {
-            let v = topo::mass_properties(
+            let v = topo::test_support::pinned_volume(
+                "the measured body",
                 &topo::test_support::finished(
                     "the measured body",
                     body.body().clone(),
                     Tol::witness(),
                 ),
                 Tol::witness(),
-                topo::test_support::pinned_resolution(Tol::witness()),
             )
-            .unwrap()
-            .enclosure
             .volume;
             println!("a6 micro volume={v:e} (expect 1e-18)");
         }

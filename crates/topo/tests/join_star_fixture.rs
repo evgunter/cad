@@ -92,7 +92,8 @@ fn the_star_fixture_folds_in_every_member_order() {
         // it (an ulp at 2.7 is 2·EPSILON).
         let volume = mass_properties(&acc, tol, topo::test_support::pinned_resolution(tol))
             .unwrap()
-            .enclosure
+            .met()
+            .expect("the pinned resolution is met")
             .volume;
         assert!(
             (volume - 2.7).abs() <= 8.0 * f64::EPSILON,

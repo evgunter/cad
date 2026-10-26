@@ -39,7 +39,8 @@ fn exact(label: &str, op: Op, x: &AtRestBody<f64>, y: &AtRestBody<f64>, want: f6
     );
     let v = mass_properties(&bb.body, tol, topo::test_support::pinned_resolution(tol))
         .unwrap()
-        .enclosure
+        .met()
+        .expect("the pinned resolution is met")
         .volume;
     assert!((v - want).abs() < 1e-12, "{label}: volume {v}, want {want}");
 }
@@ -200,7 +201,8 @@ fn a_split_through_the_reflex_corner_whose_run_holds_the_whole_orbit() {
             );
             let v = mass_properties(b, tol, topo::test_support::pinned_resolution(tol))
                 .unwrap()
-                .enclosure
+                .met()
+                .expect("the pinned resolution is met")
                 .volume;
             assert!(
                 (v - want).abs() < 1e-12,

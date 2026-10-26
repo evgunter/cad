@@ -266,14 +266,8 @@ fn the_pips_cut_in_one_group_operation_on_all_six_faces() {
         "tier 3"
     );
     let want = DIE_L.powi(3) - 21.0 * cap(PIP_R, PIP_H);
-    let vol = topo::mass_properties(
-        &pipped,
-        Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
-    )
-    .unwrap()
-    .enclosure
-    .volume;
+    let vol =
+        topo::test_support::pinned_volume("the measured body", &pipped, Tol::witness()).volume;
     assert!(
         (vol - want).abs() <= 1e-9 * want,
         "pipped cube volume {vol} vs closed form {want}"
@@ -373,14 +367,8 @@ fn deviation_1_both_doors_compose_and_agree() {
         Ok(()),
         "tier 3"
     );
-    let va = topo::mass_properties(
-        via_boolean,
-        Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
-    )
-    .unwrap()
-    .enclosure
-    .volume;
+    let va =
+        topo::test_support::pinned_volume("the measured body", via_boolean, Tol::witness()).volume;
     assert!(
         (va - want).abs() <= 1e-9 * want,
         "door A volume {va} vs closed form {want}"
@@ -412,14 +400,8 @@ fn deviation_1_both_doors_compose_and_agree() {
         Ok(()),
         "tier 3"
     );
-    let vb = topo::mass_properties(
-        &via_surgery,
-        Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
-    )
-    .unwrap()
-    .enclosure
-    .volume;
+    let vb =
+        topo::test_support::pinned_volume("the measured body", &via_surgery, Tol::witness()).volume;
     assert!(
         (vb - want).abs() <= 1e-9 * want,
         "door B volume {vb} vs closed form {want}"

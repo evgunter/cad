@@ -100,7 +100,8 @@ mod certified {
             topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
-        .enclosure
+        .met()
+        .expect("the pinned resolution is met")
         .volume;
         assert!(
             vol.lo() <= closed && closed <= vol.hi(),

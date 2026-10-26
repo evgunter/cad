@@ -414,7 +414,8 @@ fn the_overrun_carves_at_the_certified_scalar() {
         assert_naming_totality(&ibody, &out, &iedges, &what);
         let v0 = mass_properties(&ibody, tol(), topo::test_support::pinned_resolution(tol()))
             .expect("props")
-            .enclosure
+            .met()
+            .expect("the pinned resolution is met")
             .volume;
         let p = topo::mass_properties(
             &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol()),

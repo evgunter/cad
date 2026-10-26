@@ -216,14 +216,7 @@ fn edge_edge_sites_at_a_reflex_wedge_build_sound() {
                 topo::validate_geometric_certificate(&bb.body, tol()).is_ok(),
                 "{what}: the at-rest certificate"
             );
-            let v = topo::mass_properties(
-                &bb.body,
-                tol(),
-                topo::test_support::pinned_resolution(tol()),
-            )
-            .unwrap()
-            .enclosure
-            .volume;
+            let v = topo::test_support::pinned_volume("the measured body", &bb.body, tol()).volume;
             assert!(
                 (v - want).abs() < 1e-9,
                 "{what}: volume {v} against the closed form {want}"

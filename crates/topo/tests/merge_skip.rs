@@ -50,7 +50,8 @@ fn l_corner_caps_merge_and_stay_tier3_green() {
             topo::test_support::pinned_resolution(Tol::witness())
         )
         .unwrap()
-        .enclosure
+        .met()
+        .expect("the pinned resolution is met")
         .volume,
         1.0 + 1.0 - 0.5 * 0.75,
         "exact dyadic volume"

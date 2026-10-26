@@ -51,13 +51,11 @@ fn built(
 ) -> Result<f64, BlendError> {
     let f = fillet_edges(body, edges, r, tol()).map_err(|e| e.error)?;
     assert_eq!(validate_geometric(&f.body, tol()), Ok(()), "{what}: tier 3");
-    Ok(topo::mass_properties(
+    Ok(topo::test_support::pinned_volume(
+        "a volume",
         &topo::test_support::finished("the measured body", topo::Body::clone(&f.body), tol()),
         tol(),
-        topo::test_support::pinned_resolution(tol()),
     )
-    .expect("a volume")
-    .enclosure
     .volume)
 }
 

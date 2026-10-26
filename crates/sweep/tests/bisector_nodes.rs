@@ -1057,10 +1057,7 @@ fn a_rod_against_a_bore_builds_every_operation() {
 fn mesh_agrees(body: &topo::AtRestBody<f64>, tol: Tol, what: &str) {
     let mesh = mesh::tessellate(body, 2e-3, tol).expect("the result tessellates");
     let meshed = mesh::validate::signed_volume(&mesh);
-    let v = topo::mass_properties(body, tol, topo::test_support::pinned_resolution(tol))
-        .unwrap()
-        .enclosure
-        .volume;
+    let v = topo::test_support::pinned_volume("the measured body", body, tol).volume;
     assert!(
         (meshed - v).abs() <= 5e-3 * v,
         "{what}: the mesh encloses {meshed}, the body {v}"

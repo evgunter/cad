@@ -7603,7 +7603,7 @@ mod at_rest_policy_tests {
 mod quad_lane;
 pub(crate) mod settle;
 pub(crate) use settle::RelOp;
-pub use settle::{MassMeasurement, Settle, SettleVerdict, SignNames, Stop};
+pub use settle::{MassMeasurement, Settle, SettleVerdict, SignNames, Stop, Unmet};
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -7792,7 +7792,8 @@ mod face_list_door_tests {
                 SignCertificate::assembled(&body, band, tol, Some(QuadLane::certified()), parts)
                     .measure(crate::test_support::pinned_resolution(tol))
                     .unwrap()
-                    .enclosure;
+                    .met()
+                    .expect("the pinned resolution is met");
             // Raw door: the measured body is a body still carrying construction scaffolding, which tier 3 refuses (ScaffoldAtRest).
             let whole = crate::test_support::measure_unvalidated(
                 &body,

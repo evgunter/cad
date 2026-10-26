@@ -170,13 +170,11 @@ fn seam_siblings_flipped_together_are_refused_by_name() {
     let tol = Tol::witness();
     for p in &PAIRS {
         let (body, want) = build(p, tol);
-        let got = topo::mass_properties(
+        let got = topo::test_support::pinned_volume(
+            "the measured body",
             &topo::test_support::finished("the measured body", topo::Body::clone(&body), tol),
             tol,
-            topo::test_support::pinned_resolution(tol),
         )
-        .unwrap_or_else(|e| panic!("{}: the unflipped body does not measure: {e:?}", p.label))
-        .enclosure
         .volume;
         assert!(
             (got - want).abs() <= 1e-9 * want,
@@ -348,13 +346,11 @@ fn a_chain_of_three_siblings_reads_one_side() {
     };
     split_along_a_meridian(&mut body, x, other, tol);
     topo::validate_geometric(&body, tol).expect("the split body is valid");
-    let got = topo::mass_properties(
+    let got = topo::test_support::pinned_volume(
+        "the measured body",
         &topo::test_support::finished("the measured body", topo::Body::clone(&body), tol),
         tol,
-        topo::test_support::pinned_resolution(tol),
     )
-    .unwrap()
-    .enclosure
     .volume;
     assert!(
         (got - want).abs() <= 1e-9 * want,
@@ -418,13 +414,11 @@ fn a_lone_lune_through_both_poles_flips_into_another_valid_body() {
     let half = 2.0 * PI / 3.0;
     let measure = |b: &Body<f64>| {
         topo::validate_geometric(b, tol).expect("tier 3 accepts the body");
-        topo::mass_properties(
+        topo::test_support::pinned_volume(
+            "the measured body",
             &topo::test_support::finished("the measured body", topo::Body::clone(b), tol),
             tol,
-            topo::test_support::pinned_resolution(tol),
         )
-        .unwrap()
-        .enclosure
         .volume
     };
     let boss = measure(&body);

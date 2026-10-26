@@ -237,11 +237,7 @@ fn a_prism_edge_on_the_tubes_wall_builds_every_op_undeclared() {
                     .unwrap_or_else(|e| panic!("{label}: tier 3: {e:?}"));
                 topo::validate_pseudomanifold(body, &bb.contacts, tol)
                     .unwrap_or_else(|e| panic!("{label}: tier 3′: {e:?}"));
-                let v =
-                    topo::mass_properties(body, tol, topo::test_support::pinned_resolution(tol))
-                        .unwrap()
-                        .enclosure
-                        .volume;
+                let v = topo::test_support::pinned_volume("the measured body", body, tol).volume;
                 assert!(
                     (v - volume).abs() <= 1e-12 * volume,
                     "{label}: the closed form: {v} vs {volume}"

@@ -4262,7 +4262,8 @@ mod tests {
                 r.unwrap().body().map_or(0.0, |b| {
                     mass_properties(&b.body, tol, crate::test_support::pinned_resolution(tol))
                         .unwrap()
-                        .enclosure
+                        .met()
+                        .expect("the pinned resolution is met")
                         .volume
                 })
             };

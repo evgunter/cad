@@ -137,17 +137,15 @@ fn touches(
         panic!("{what}: not a boolean body");
     };
     assert_eq!(body.solids().count(), solids, "{what}: solids");
-    let v = topo::mass_properties(
+    let v = topo::test_support::pinned_volume(
+        "the measured body",
         &topo::test_support::finished(
             "the measured body",
             topo::Body::clone(&**body),
             Tol::witness(),
         ),
         Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
     )
-    .unwrap()
-    .enclosure
     .volume;
     assert!(
         (v - volume).abs() < 1e-9,
@@ -295,17 +293,15 @@ fn a_slab_across_the_line_leaves_the_touch_on_its_pieces() {
         if let Some(e) = failure(&ev, u) {
             panic!("{what}: refused: {e:?}");
         }
-        let v = topo::mass_properties(
+        let v = topo::test_support::pinned_volume(
+            "the measured body",
             &topo::test_support::finished(
                 "the measured body",
                 topo::Body::clone(crate::corpus::body_of(&ev, u)),
                 Tol::witness(),
             ),
             Tol::witness(),
-            topo::test_support::pinned_resolution(Tol::witness()),
         )
-        .unwrap()
-        .enclosure
         .volume;
         assert!((v - volume).abs() < within, "{what}: volume {v}");
         touches(&doc, what, &members, (plate, rod), 1, v, records);
@@ -470,17 +466,15 @@ fn a_slab_across_the_whole_face_pairs_each_piece_with_its_own_side() {
         if let Some(e) = failure(&ev, u) {
             panic!("{what}: refused: {e:?}");
         }
-        let v = topo::mass_properties(
+        let v = topo::test_support::pinned_volume(
+            "the measured body",
             &topo::test_support::finished(
                 "the measured body",
                 topo::Body::clone(crate::corpus::body_of(&ev, u)),
                 Tol::witness(),
             ),
             Tol::witness(),
-            topo::test_support::pinned_resolution(Tol::witness()),
         )
-        .unwrap()
-        .enclosure
         .volume;
         let want = *volume.get_or_insert(v);
         assert!(

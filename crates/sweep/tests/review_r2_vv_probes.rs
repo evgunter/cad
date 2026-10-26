@@ -228,7 +228,8 @@ fn roof_cross(union: bool) -> Option<Shape> {
     };
     let kv = mass_properties(&s.body, tol(), topo::test_support::pinned_resolution(tol()))
         .unwrap()
-        .enclosure
+        .met()
+        .expect("the pinned resolution is met")
         .volume;
     let ov = s.volume_with(&[]);
     assert!((kv - ov).abs() < 1e-9, "{} oracle {ov} kernel {kv}", s.name);

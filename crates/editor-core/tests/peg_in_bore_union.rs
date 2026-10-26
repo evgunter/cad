@@ -97,17 +97,15 @@ fn a_peg_in_a_bore_of_its_own_radius_unions() {
     let ev = eval(&doc);
     let want = [peg, block]
         .map(|n| {
-            topo::mass_properties(
+            topo::test_support::pinned_volume(
+                "the measured body",
                 &topo::test_support::finished(
                     "the measured body",
                     topo::Body::clone(body_of(&ev, n)),
                     Tol::witness(),
                 ),
                 Tol::witness(),
-                topo::test_support::pinned_resolution(Tol::witness()),
             )
-            .unwrap()
-            .enclosure
             .volume
         })
         .iter()
@@ -134,17 +132,15 @@ fn a_peg_in_a_bore_of_its_own_radius_unions() {
         Ok(()),
         "tier 3"
     );
-    let v = topo::mass_properties(
+    let v = topo::test_support::pinned_volume(
+        "the measured body",
         &topo::test_support::finished(
             "the measured body",
             topo::Body::clone(&**body),
             Tol::witness(),
         ),
         Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
     )
-    .unwrap()
-    .enclosure
     .volume;
     assert!(
         (v - want).abs() <= 1e-9 * want,

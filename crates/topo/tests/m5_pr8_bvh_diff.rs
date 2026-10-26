@@ -429,14 +429,8 @@ fn grazing_infinite_plane_divergence_is_exactly_as_documented() {
             if k > 1.0 && k < tol.k {
                 let re = real.unwrap_or_else(|e| panic!("k = {k} / {op:?}: realized: {e:?}"));
                 let volume = re.body().map(|bb| {
-                    topo::mass_properties(
-                        &bb.body,
-                        Tol::witness(),
-                        topo::test_support::pinned_resolution(Tol::witness()),
-                    )
-                    .unwrap()
-                    .enclosure
-                    .volume
+                    topo::test_support::pinned_volume("the measured body", &bb.body, Tol::witness())
+                        .volume
                 });
                 let disjoint = match op {
                     BooleanOp::Union => Some(2.0),

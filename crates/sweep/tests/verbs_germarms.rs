@@ -529,10 +529,7 @@ fn a_bar_clear_of_the_wall_still_answers() {
     };
     assert_eq!(out.body.shells().count(), 2);
     assert_eq!(topo::validate_geometric(&out.body, tol), Ok(()), "tier 3");
-    let v = topo::mass_properties(&out.body, tol, topo::test_support::pinned_resolution(tol))
-        .unwrap()
-        .enclosure
-        .volume;
+    let v = topo::test_support::pinned_volume("the measured body", &out.body, tol).volume;
     let truth = PI * 4.0 + 1.0 * 0.6 * 0.6;
     assert!((v - truth).abs() < 1e-12, "{v} vs {truth}");
 }

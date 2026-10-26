@@ -90,17 +90,15 @@ fn answer(ev: &Evaluation<f64>, id: RecipeNodeId) -> Option<(f64, usize, Boolean
     match &ev.value(id).expect("a value").payload {
         ValuePayload::Boolean(BooleanValue::Empty) => None,
         ValuePayload::Boolean(BooleanValue::Body { body, kind, .. }) => {
-            let volume = topo::mass_properties(
+            let volume = topo::test_support::pinned_volume(
+                "the measured body",
                 &topo::test_support::finished(
                     "the measured body",
                     topo::Body::clone(&**body),
                     Tol::witness(),
                 ),
                 Tol::witness(),
-                topo::test_support::pinned_resolution(Tol::witness()),
             )
-            .unwrap()
-            .enclosure
             .volume;
             Some((volume, body.shells().count(), *kind))
         }

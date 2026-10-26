@@ -1,6 +1,8 @@
 //! **[`EPS_COUPLED_PREDICATES`] names predicates the kernel still
-//! mints, and their margins are still ε-scaled where it mints them** —
-//! the two pins this roster can carry across the cargo-root boundary.
+//! mints, and no production door states an ε-derived resolution** —
+//! the two pins this roster carries across the cargo-root boundary
+//! (the second replaced the ε-scaled target's pins when that target was
+//! retired; the note above its row says why).
 //!
 //! # Why the kernel's source is read and not depended on
 //!
@@ -95,7 +97,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use k_lint::{EPS_COUPLED_PREDICATES, EPS_COUPLED_UNRULED, ERA_EPS_COUPLED_PREDICATES};
+use k_lint::{EPS_COUPLED_PREDICATES, ERA_EPS_COUPLED_PREDICATES};
 use std::sync::OnceLock;
 use test_utils::source;
 
@@ -412,229 +414,81 @@ fn every_rostered_predicate_is_still_minted_by_the_kernel() {
     assert!(complaints.is_empty(), "{}", complaints.join("\n"));
 }
 
-/// The `let` the ε-scaled target is bound by, the value it must have,
-/// and the constant that value names.
-const TARGET: &str = "target_len";
-const TARGET_BINDING: &str = "let target_len =";
-const TARGET_VALUE: &str = "QUAD_TARGET_LEN_FACTOR * eps";
+// **The ε-scaled target's pins are retired** (QUAD measure door unit C,
+// PR 5741). They held a rostered mint's margin to a `target_len` bound
+// to `QUAD_TARGET_LEN_FACTOR * eps`, and they held every mint metered
+// against that target to the roster. The constant is gone from the
+// kernel (no lane reads a reporting target: a caller states its own
+// resolution), the live roster is empty, and no mint can be bound to a
+// value that no longer exists, so neither pin could go red. What
+// carries the risk now is a production door stating an ε-derived
+// resolution of its own, which would be the reporting target back under
+// another name: the row below pins that.
 
-/// Whether a margin names the ε-scaled target by either of its
-/// spellings: the [`TARGET`] binding, or the factor itself.
-fn eps_scaled(margin: &str) -> bool {
-    uses_target(margin) || margin.contains("QUAD_TARGET_LEN_FACTOR")
-}
-
-/// Whether `text` uses [`TARGET`] as a WHOLE identifier.
-///
-/// A substring test answers yes to `fixed_target_len`, which is a
-/// different binding and need not be ε-scaled at all — exactly the
-/// shape a de-coupling that keeps the family's name would take.
-fn uses_target(text: &str) -> bool {
-    let part = |b: u8| b.is_ascii_alphanumeric() || b == b'_';
-    text.match_indices(TARGET).any(|(at, _)| {
-        let after = at + TARGET.len();
-        (at == 0 || !part(text.as_bytes()[at - 1]))
-            && (after == text.len() || !part(text.as_bytes()[after]))
-    })
-}
-
-/// `(signature, whole item)` byte ranges of the top-level `fn` enclosing
-/// `at` in `code`.
-///
-/// Top-level: an item head starts at column zero, which every `fn` in
-/// [`MINT_SOURCES`] holding a mint does. The item runs to the next such
-/// head, so the answer over-reaches past the item's own `}` rather than
-/// under-reaching past a nested block — and over-reaching can only make
-/// the binding checks below stricter, never laxer. A trailing
-/// `mod tests` is inside that reach only as blank bytes: [`kernel_only`]
-/// has blanked it out of the view, so a test's `let target_len` can
-/// neither stand in for the kernel's binding nor count as a second one.
-fn enclosing_fn(code: &str, at: usize) -> (std::ops::Range<usize>, std::ops::Range<usize>) {
-    let mut heads: Vec<usize> = ["\nfn ", "\npub fn ", "\npub(crate) fn "]
-        .iter()
-        .flat_map(|head| code.match_indices(head).map(|(off, _)| off + 1))
-        .collect();
-    heads.sort_unstable();
-    let start = *heads
-        .iter()
-        .rev()
-        .find(|h| **h <= at)
-        .unwrap_or_else(|| panic!("a mint at byte {at} sits outside every top-level `fn`"));
-    let end = heads
-        .iter()
-        .find(|h| **h > at)
-        .copied()
-        .unwrap_or(code.len());
-    let head_end = start + code[start..end].find('{').expect("the `fn` opens a body");
-    (start..head_end, start..end)
-}
-
-/// **The rostered family's margin is still ε-SCALED where it is
-/// minted** — the direction that is otherwise silent, closed for
-/// today's roster only.
-///
-/// Rule (4) exempts the roster from the metre rules because its margin
-/// is a headroom against an ε-scaled target, not a model-scale
-/// distance. A name pin cannot see that premise fail: re-meter the
-/// quadrature stopping test against a fixed length and the name is
-/// still minted, the roster still matches, rule (4) still exempts it,
-/// and a genuinely fragile model-scale margin is judged by a rule that
-/// will essentially never fire on it. So the premise is pinned too,
-/// textually, and **at each mint rather than file-wide**:
-///
-/// 1. the margin uses [`TARGET`] as a WHOLE identifier — a
-///    `fixed_target_len` bound beside the real one does not answer;
-/// 2. the mint's own enclosing `fn` binds that identifier exactly once,
-///    by [`TARGET_BINDING`], to [`TARGET_VALUE`] — so neither a second
-///    binding nor one in a different function can stand in for it;
-/// 3. that `fn` does not take [`TARGET`] as a PARAMETER, where its
-///    value is a caller's property this walk does not follow. That
-///    shape is REFUSED rather than answered: it is not a de-coupling,
-///    and this pin cannot tell that it is not.
-///
-/// **Textual, and for THIS roster only.** It reads the kernel's
-/// spelling, so a refactor that keeps the ε-coupling and changes the
-/// spelling reds it — deliberately, per (3)'s reason. It does not
-/// generalise to a roster entry the kernel has not minted yet; that
-/// wants the criterion
-/// `work/instr/k-lint-eps-coupled-criterion-unwritten` schedules.
+/// **No production door states an ε-derived resolution** — where the
+/// retired target pins' risk now sits. `[tolerance.measure]` has no
+/// default: the caller states its resolution, so a kernel or binding
+/// door that builds `Resolution(` from ε is a reporting target by
+/// another name. Read over every `crates/*/src` file's code view, test
+/// modules blanked ([`kernel_only`]); test-support files and
+/// `topo`'s `test_support` module (the suites' `pinned_resolution`, a
+/// stated test resolution) are not production and are skipped.
 #[test]
-fn the_rostered_familys_margin_is_still_eps_scaled_at_its_mint() {
-    let sites = kernel_mint_sites();
-    let (_, complaints) = rostered_margin_complaints(&EPS_COUPLED_PREDICATES, &sites);
-    assert!(complaints.is_empty(), "{}", complaints.join("\n"));
-}
-
-/// The live roster is empty, so the pin above asserts nothing over it.
-/// **Its rule is read here against a synthetic roster** instead: a
-/// kernel mint whose margin is no headroom against the target REDS it,
-/// naming the mint, and a fixture mint metered against a correctly bound
-/// `target_len` is QUIET, so the rule is neither vacuous nor a refusal
-/// of everything.
-#[test]
-fn the_margin_rule_reds_an_unscaled_rostered_mint_and_passes_a_scaled_one() {
-    let sites = kernel_mint_sites();
-    let (rostered, complaints) = rostered_margin_complaints(&["props_quad_face_extent"], &sites);
-    assert!(rostered > 0, "the lanes mint `props_quad_face_extent`");
+fn no_production_door_states_an_eps_derived_resolution() {
+    let crates = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../crates");
+    let mut files = Vec::new();
+    let mut stack = vec![crates];
+    while let Some(dir) = stack.pop() {
+        for entry in std::fs::read_dir(&dir).expect("the tree reads") {
+            let path = entry.expect("an entry reads").path();
+            let name = path.file_name().and_then(|n| n.to_str()).unwrap_or_default().to_owned();
+            if path.is_dir() {
+                if name != "tests" && name != "examples" && name != "benches" && name != "target" {
+                    stack.push(path);
+                }
+            } else if name.ends_with(".rs")
+                && path.components().any(|c| c.as_os_str() == "src")
+                && !name.contains("test_support")
+                && name != "tests.rs"
+                && !name.ends_with("_tests.rs")
+            {
+                files.push(path);
+            }
+        }
+    }
+    files.sort();
+    assert!(files.len() > 100, "the walk reaches the workspace's sources");
+    let mut found = Vec::new();
+    for path in &files {
+        let text = std::fs::read_to_string(path).expect("a source reads");
+        let shown = path.display().to_string();
+        let (mut code, _) = kernel_only(&shown, &text);
+        if let Some(at) = code.find("pub mod test_support {") {
+            let open = at + code[at..].find('{').expect("the module opens");
+            let close = source::balanced_end(&code, open).expect("the module closes");
+            let blank: String = code[at..=close]
+                .chars()
+                .map(|c| if c == '\n' { c } else { ' ' })
+                .collect();
+            code.replace_range(at..=close, &blank);
+        }
+        for (at, _) in code.match_indices("Resolution(") {
+            let open = at + "Resolution".len();
+            let Some(close) = source::balanced_end(&code, open) else {
+                continue;
+            };
+            if code[open..close].contains("eps") {
+                let line = code[..at].matches('\n').count() + 1;
+                found.push(format!("{shown}:{line}: {}", code[at..=close].trim()));
+            }
+        }
+    }
     assert!(
-        complaints
-            .iter()
-            .any(|c| c.contains("props_quad_face_extent") && c.contains("does not derive")),
-        "a rostered mint metered against a perimeter, not the target, reds: {complaints:?}"
+        found.is_empty(),
+        "a production door states an ε-derived resolution, a reporting target by another \
+         name: the caller states its resolution (`[tolerance.measure]`, no default):\n{}",
+        found.join("\n")
     );
-
-    let scaled = concat!(
-        "\n",
-        "pub(crate) fn walk<T: Decide>(eps: f64, w: f64) -> R {\n",
-        "    let target_len = QUAD_TARGET_LEN_FACTOR * eps;\n",
-        "    classify_len::<T>(\"synthetic_coupled\", Margin::of(target_len - w), band)\n",
-        "}\n",
-    );
-    let (code, literals) = (source::code_only(scaled), source::code_and_literals(scaled));
-    let fixture: Vec<(&str, &str, Mint)> = mint_sites(LANE_MINTS, &code, &literals, "the fixture")
-        .into_iter()
-        .map(|mint| ("the fixture", code.as_str(), mint))
-        .collect();
-    let (rostered, complaints) = rostered_margin_complaints(&["synthetic_coupled"], &fixture);
-    assert_eq!(rostered, 1, "the fixture mints the synthetic entry once");
-    assert!(
-        complaints.is_empty(),
-        "a mint metered against a bound `target_len` passes: {complaints:?}"
-    );
-}
-
-/// [`the_rostered_familys_margin_is_still_eps_scaled_at_its_mint`]'s rule
-/// over `sites` under `roster`: how many sites are rostered, and the
-/// refusal of each that breaks it.
-fn rostered_margin_complaints(
-    roster: &[&str],
-    sites: &[(&str, &str, Mint)],
-) -> (usize, Vec<String>) {
-    let mut rostered = 0usize;
-    let mut complaints = Vec::new();
-    for (path, code, mint) in sites {
-        if !roster.contains(&mint.name.as_str()) {
-            continue;
-        }
-        rostered += 1;
-        let (name, margin) = (&mint.name, &mint.margin);
-        if !uses_target(margin) {
-            complaints.push(format!(
-                "{name} is rostered ε-coupled and its margin at the mint in {path} reads \
-                 {margin:?}, which does not derive from the identifier `{TARGET}` — rule (4)'s \
-                 premise is that this margin is a headroom against an ε-scaled target"
-            ));
-            continue;
-        }
-        let (head, item) = enclosing_fn(code, mint.at);
-        if uses_target(&code[head.clone()]) {
-            complaints.push(format!(
-                "{name} is rostered ε-coupled and is minted inside `{}`, which takes `{TARGET}` \
-                 as a PARAMETER — whether it is ε-scaled is then the caller's property, and this \
-                 textual pin does not follow it. Refused rather than answered",
-                code[head].split('(').next().unwrap_or_default().trim()
-            ));
-            continue;
-        }
-        let body = &code[item];
-        let bindings = source::initializers(body, TARGET_BINDING);
-        if bindings.len() != 1 {
-            complaints.push(format!(
-                "{name} is rostered ε-coupled and its enclosing `fn` in {path} binds \
-                 `{TARGET_BINDING}` {} times, not once — a mint cannot be read against an \
-                 ambiguous binding",
-                bindings.len()
-            ));
-            continue;
-        }
-        if body[bindings[0].clone()].trim() != TARGET_VALUE {
-            complaints.push(format!(
-                "the `{TARGET}` in scope at {name}'s mint in {path} is not {TARGET_VALUE:?} — \
-                 rule (4)'s exemption assumes this family's margin scales with ε"
-            ));
-        }
-    }
-    (rostered, complaints)
-}
-
-/// **Every mint whose margin derives from the ε-scaled target is on the
-/// roster** — the ADDED direction, closed for
-/// `target_len`-derived mints in [`MINT_SOURCES`] and for nothing
-/// wider.
-///
-/// `EPS_COUPLED_PREDICATES` is a subset selected from an open
-/// vocabulary by a property nothing writes down, so its completeness is
-/// not checkable in general
-/// (`work/instr/k-lint-eps-coupled-criterion-unwritten`). What IS
-/// checkable is that property's spelling in this family's own source: a
-/// margin metered against `target_len` is a headroom against
-/// `QUAD_TARGET_LEN_FACTOR·ε`, which the pin above establishes for
-/// every rostered mint. A mint that acquires one and is not rostered
-/// gets ruled on here, instead of being judged by rules (2) and (3)
-/// with nobody noticing the question was open.
-#[test]
-fn every_target_len_mint_is_rostered_or_excused() {
-    for (path, _, mint) in kernel_mint_sites() {
-        if !eps_scaled(&mint.margin) {
-            continue;
-        }
-        let name = mint.name.as_str();
-        assert!(
-            EPS_COUPLED_PREDICATES.contains(&name)
-                || EPS_COUPLED_UNRULED.iter().any(|(n, _)| *n == name),
-            "{name:?} is minted in {path} with margin {:?} — a headroom against the ε-scaled \
-             `{TARGET}`, which is the property rule (4) exempts a family for — but it is not on \
-             EPS_COUPLED_PREDICATES nor excused in EPS_COUPLED_UNRULED. Rule it: a line on the \
-             roster, or a line in EPS_COUPLED_UNRULED saying why the metre rules are right for it",
-            mint.margin
-        );
-    }
-    for (name, _) in EPS_COUPLED_UNRULED {
-        assert!(
-            !EPS_COUPLED_PREDICATES.contains(name),
-            "{name:?} is both rostered and excused from the roster"
-        );
-    }
 }
 
 /// The locator reads a mint and not prose about it, the coverage

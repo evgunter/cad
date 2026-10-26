@@ -457,7 +457,8 @@ fn a_curved_single_face_carrying_both_arcs_is_construction_state() {
             topo::test_support::pinned_resolution(tol()),
         )
         .unwrap()
-        .enclosure
+        .met()
+        .expect("the pinned resolution is met")
         .volume;
         assert!(
             (volume - core::f64::consts::PI).abs() < 1e-9,
@@ -659,23 +660,19 @@ fn the_hostless_closed_forms_match_an_independent_derivation() {
     ];
     for (name, body, rim, want) in cases {
         let arcs = rim_arcs_at(&body, rim.0, rim.1);
-        let before = topo::mass_properties(
+        let before = topo::test_support::pinned_volume(
+            "the measured body",
             &topo::test_support::finished("the measured body", topo::Body::clone(&body), tol()),
             tol(),
-            topo::test_support::pinned_resolution(tol()),
         )
-        .unwrap()
-        .enclosure
         .volume;
         let out = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &arcs, r, tol())
             .unwrap_or_else(|e| panic!("{name} carves, got {e:?}"));
-        let after = topo::mass_properties(
+        let after = topo::test_support::pinned_volume(
+            "the measured body",
             &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol()),
             tol(),
-            topo::test_support::pinned_resolution(tol()),
         )
-        .unwrap()
-        .enclosure
         .volume;
         let delta = after - before;
         assert!(

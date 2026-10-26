@@ -58,11 +58,7 @@ use topo::Body;
 fn measured(body: &topo::Body<f64>, major: f64) -> topo::MassProperties<f64> {
     let tol = Tol::witness();
     match topo::AtRestBody::validate(topo::Body::clone(body), tol) {
-        Ok(finished) => {
-            topo::mass_properties(&finished, tol, topo::test_support::pinned_resolution(tol))
-                .expect("props")
-                .enclosure
-        }
+        Ok(finished) => topo::test_support::pinned_volume("props", &finished, tol),
         Err(errors) => {
             let named = major == 1300.0
                 && tol.get().eps == 1e-12
@@ -80,7 +76,8 @@ fn measured(body: &topo::Body<f64>, major: f64) -> topo::MassProperties<f64> {
                 topo::test_support::pinned_resolution(tol),
             )
             .expect("props")
-            .enclosure
+            .met()
+            .expect("the pinned resolution is met")
         }
     }
 }

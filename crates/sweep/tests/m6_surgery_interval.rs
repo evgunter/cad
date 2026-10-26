@@ -202,8 +202,9 @@ mod certified {
             Tol::witness(),
             topo::test_support::pinned_resolution(Tol::witness()),
         )
-        .unwrap()
-        .enclosure
+        .expect("the measured body")
+        .met()
+        .expect("the measured body")
         .volume;
         let want = blank_volume() - cap(PIP_R, PIP_H) - rim_fillet_extra(PIP_R, PIP_H, RIM_R);
         assert!(

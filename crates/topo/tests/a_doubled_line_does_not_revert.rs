@@ -196,10 +196,7 @@ fn subtracting_a_slit_tool_refuses_where_it_keeps_the_slit() {
         else {
             panic!("{what}: empty");
         };
-        let v = topo::mass_properties(&r.body, t(), topo::test_support::pinned_resolution(t()))
-            .unwrap()
-            .enclosure
-            .volume;
+        let v = topo::test_support::pinned_volume("the measured body", &r.body, t()).volume;
         let closed = 54.0 - (8.0 - 2.5 * 0.5 * 0.6 * 0.75);
         assert!(
             (v - closed).abs() < 1e-9,
@@ -307,10 +304,7 @@ fn a_tool_with_near_parallel_edges_standing_apart_builds() {
         else {
             panic!("{what}: empty");
         };
-        let v = topo::mass_properties(&r.body, tol, topo::test_support::pinned_resolution(tol))
-            .unwrap()
-            .enclosure
-            .volume;
+        let v = topo::test_support::pinned_volume("the measured body", &r.body, tol).volume;
         let closed = 30.0 - (2.0 + eta) * h;
         assert!(
             (v - closed).abs() < 1e-9,
@@ -377,10 +371,7 @@ fn bricks_a_hair_apart_on_one_line_escalate_with_the_move_that_builds() {
     else {
         panic!("moved apart: empty");
     };
-    let v = topo::mass_properties(&r.body, tol, topo::test_support::pinned_resolution(tol))
-        .unwrap()
-        .enclosure
-        .volume;
+    let v = topo::test_support::pinned_volume("the measured body", &r.body, tol).volume;
     let closed = 2.0 - 0.25 - 0.5 * (0.5 - g);
     assert!(
         (v - closed).abs() < 1e-9,

@@ -339,10 +339,7 @@ fn the_fenced_poses_keep_their_own_outcomes() {
         let Ok(topo::BooleanResult::Body(bb)) = &built else {
             panic!("parallel-equal-r, {pose}: the union builds: {built:?}");
         };
-        let v = topo::mass_properties(&bb.body, tol, topo::test_support::pinned_resolution(tol))
-            .unwrap()
-            .enclosure
-            .volume;
+        let v = topo::test_support::pinned_volume("the measured body", &bb.body, tol).volume;
         assert!(
             (v - want).abs() < 1e-9,
             "parallel-equal-r, {pose}: {v} vs the closed form {want}"

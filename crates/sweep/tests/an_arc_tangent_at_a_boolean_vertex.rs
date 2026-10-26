@@ -166,7 +166,8 @@ fn the_wide_slab_minus_and_meet_the_round() {
             topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
-        .enclosure
+        .met()
+        .expect("the pinned resolution is met")
         .volume
     };
     let (vr, vs) = (vol(&round), vol(&s));
@@ -218,7 +219,8 @@ fn a_tilted_dipping_round_meets_the_slab_in_its_closed_form() {
             topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
-        .enclosure
+        .met()
+        .expect("the pinned resolution is met")
         .volume
     };
     let vs = vol(&s);
@@ -281,7 +283,8 @@ fn the_flush_and_corner_slabs_answer() {
             topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
-        .enclosure
+        .met()
+        .expect("the pinned resolution is met")
         .volume
     };
     let vr = vol(&round);
@@ -347,7 +350,8 @@ fn the_untilted_dip() {
             topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
-        .enclosure
+        .met()
+        .expect("the pinned resolution is met")
         .volume,
         mass_properties(
             &wide,
@@ -355,7 +359,8 @@ fn the_untilted_dip() {
             topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
-        .enclosure
+        .met()
+        .expect("the pinned resolution is met")
         .volume,
     );
     let lens = 4.0 - core::f64::consts::PI;
@@ -405,7 +410,8 @@ fn the_dip_on_a_deep_slab_unions_into_one_solid() {
             topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
-        .enclosure
+        .met()
+        .expect("the pinned resolution is met")
         .volume
     };
     let lens = 4.0 - core::f64::consts::PI;
@@ -481,7 +487,8 @@ fn review_tilted_dip_off_the_vertex_on_face_pass() {
             topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
-        .enclosure
+        .met()
+        .expect("the pinned resolution is met")
         .volume
     };
     for alpha in [0.3f64, 0.6] {
@@ -602,7 +609,8 @@ fn a_round_tilted_to_bend_its_arc_out_of_the_slab_answers() {
             topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
-        .enclosure
+        .met()
+        .expect("the pinned resolution is met")
         .volume
     };
     for alpha in [-0.3f64, -0.2] {

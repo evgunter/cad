@@ -112,10 +112,7 @@ fn r1_a_box_through_an_annular_cap() {
     // box stands in the annulus' material from z = 1 to 2, so the
     // union adds only its part above the tube.
     assert_eq!(topo::validate_geometric(&out, tol), Ok(()), "tier 3");
-    let v = topo::mass_properties(&out, tol, topo::test_support::pinned_resolution(tol))
-        .unwrap()
-        .enclosure
-        .volume;
+    let v = topo::test_support::pinned_volume("the measured body", &out, tol).volume;
     let truth = core::f64::consts::PI * (1.0 - 0.16) * 2.0 + 0.3 * 0.3 * 1.0;
     assert!(
         (v - truth).abs() < 1e-9,
@@ -160,10 +157,7 @@ fn r1_concentric_buried_cylinder() {
         other => panic!("R1[concentric-buried] expected one solid, got {other:?}"),
     };
     assert_eq!(topo::validate_geometric(&out, tol), Ok(()), "tier 3");
-    let v = topo::mass_properties(&out, tol, topo::test_support::pinned_resolution(tol))
-        .unwrap()
-        .enclosure
-        .volume;
+    let v = topo::test_support::pinned_volume("the measured body", &out, tol).volume;
     assert!(
         (v - PI * 2.0).abs() < 1e-9,
         "R1[concentric-buried] volume {v}, truth {}",
@@ -239,10 +233,7 @@ fn r1_a_box_through_a_half_disc_cap() {
         else {
             panic!("bulge={bulge}: a union of two solids is a body");
         };
-        let v = topo::mass_properties(&out.body, tol, topo::test_support::pinned_resolution(tol))
-            .unwrap()
-            .enclosure
-            .volume;
+        let v = topo::test_support::pinned_volume("the measured body", &out.body, tol).volume;
         println!("R1[half-disc-cap bulge={bulge}] BODY volume={v}");
         volumes.push(v);
     }
@@ -333,10 +324,7 @@ fn r1_the_boss_closed_form_and_ulp_claim() {
         Ok(topo::BooleanResult::Body(o)) => o,
         other => panic!("R1[boss] {other:?}"),
     };
-    let v = topo::mass_properties(&out.body, tol, topo::test_support::pinned_resolution(tol))
-        .unwrap()
-        .enclosure
-        .volume;
+    let v = topo::test_support::pinned_volume("the measured body", &out.body, tol).volume;
     let shaft = PI * 1.0f64.powi(2) * 2.0;
     let stub = PI * 0.5f64.powi(2) * (3.0 - 2.0);
     let truth = shaft + stub;

@@ -135,7 +135,8 @@ fn die_from_raw_extrudes_watertight_stl() {
                     topo::test_support::pinned_resolution(Tol::witness())
                 )
                 .unwrap()
-                .enclosure
+                .met()
+                .expect("the pinned resolution is met")
                 .volume,
                 expect,
                 "pip {pips}"
@@ -150,7 +151,8 @@ fn die_from_raw_extrudes_watertight_stl() {
             topo::test_support::pinned_resolution(Tol::witness())
         )
         .unwrap()
-        .enclosure
+        .met()
+        .expect("the pinned resolution is met")
         .volume,
         7.8359375
     );

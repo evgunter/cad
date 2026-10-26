@@ -119,7 +119,8 @@ fn an_area_overlap_cap_contact_publishes_one_cap_top_and_bottom() {
             topo::test_support::pinned_resolution(Tol::witness())
         )
         .unwrap()
-        .enclosure
+        .met()
+        .expect("the pinned resolution is met")
         .volume,
         1.75
     );
@@ -148,7 +149,8 @@ fn the_merged_union_takes_a_third_brick() {
     assert_eq!(
         mass_properties(&bb.body, tol, topo::test_support::pinned_resolution(tol))
             .unwrap()
-            .enclosure
+            .met()
+            .expect("the pinned resolution is met")
             .volume,
         2.0
     );
@@ -227,7 +229,8 @@ fn a_bent_seam_around_a_hole_merges_to_one_ringed_cap() {
     assert_eq!(
         mass_properties(&bb.body, tol, topo::test_support::pinned_resolution(tol))
             .unwrap()
-            .enclosure
+            .met()
+            .expect("the pinned resolution is met")
             .volume,
         9.0
     );
@@ -262,7 +265,8 @@ fn assert_plug_merges(plug: Body<f64>, volume: f64, what: &str) {
     assert_eq!(
         mass_properties(&bb.body, tol, topo::test_support::pinned_resolution(tol))
             .unwrap()
-            .enclosure
+            .met()
+            .expect("the pinned resolution is met")
             .volume,
         volume,
         "{what}"
@@ -286,7 +290,8 @@ fn assert_plug_merges(plug: Body<f64>, volume: f64, what: &str) {
     assert_eq!(
         mass_properties(&nb.body, tol, topo::test_support::pinned_resolution(tol))
             .unwrap()
-            .enclosure
+            .met()
+            .expect("the pinned resolution is met")
             .volume,
         volume + 4.0,
         "{what}: next union"
@@ -360,7 +365,8 @@ fn a_plug_folded_first_merges_into_the_face_it_plugs() {
     assert_eq!(
         mass_properties(&bb.body, tol, topo::test_support::pinned_resolution(tol))
             .unwrap()
-            .enclosure
+            .met()
+            .expect("the pinned resolution is met")
             .volume,
         12.0
     );

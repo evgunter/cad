@@ -70,7 +70,7 @@ let plate = extrude(&profile, Extrusion::Distance { depth: real(mm(8.0)), side: 
 validate_closed(&plate).expect("a closed solid");
 // The measurement reads a finished body: tier 3, once, at rest.
 let plate = AtRestBody::validate(plate, tol).map_err(|errors| format!("not a finished body: {errors:?}"))?;
-let props = mass_properties(&plate, tol, Settle::Resolution(Length::from_meters(1e-6)))?.enclosure;
+let props = mass_properties(&plate, tol, Settle::Resolution(Length::from_meters(1e-6)))?.met()?;
 assert!((props.volume - 2.56e-5).abs() < 1e-18);
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```
@@ -136,7 +136,7 @@ profile = doc.insert(
 plate = doc.insert(Node.extrude(profile, Formula.length_in(8, mm)))
 body = evaluate(doc).value(plate).body()
 body.validate()
-assert abs(body.mass_properties(Settle.resolution(1e-6 * m)).enclosure.volume - 2.56e-5) < 1e-18
+assert abs(body.mass_properties(Settle.resolution(1e-6 * m)).met().volume - 2.56e-5) < 1e-18
 ```
 
 Here `25 * mm` builds a typed `Length`. Dimensions are checked: `25 *
@@ -366,7 +366,7 @@ assert ev.succeeded(plate)
 # 40 x 30 mm, one 6 mm corner rounded off, 8 mm thick. The rounded
 # corner removes r^2 - pi*r^2/4 of area.
 area = 0.040 * 0.030 - (0.006**2 - math.pi * 0.006**2 / 4)
-assert abs(ev.value(plate).body().mass_properties(Settle.resolution(1e-6 * m)).enclosure.volume - area * 0.008) < 1e-15
+assert abs(ev.value(plate).body().mass_properties(Settle.resolution(1e-6 * m)).met().volume - area * 0.008) < 1e-15
 ```
 
 **Corners between a line and a CIRCLE.** A fillet's two sides do not
@@ -472,7 +472,7 @@ wall = doc.place(
     Placed.unmated([MateValue(Coord.spin("x"), quarter), MateValue(Coord.spin("z"), quarter)]),
 )
 ev = evaluate(doc)
-assert abs(ev.value(wall).body().mass_properties(Settle.resolution(1e-6 * m)).enclosure.volume - 1.5) < 1e-12
+assert abs(ev.value(wall).body().mass_properties(Settle.resolution(1e-6 * m)).met().volume - 1.5) < 1e-12
 corners = [ev.vertex_position(wall, v) for v in ev.all_vertices(wall)]
 for axis, top in enumerate((0.25, 2.0, 3.0)):
     assert abs(max(c[axis].meters for c in corners) - top) < 1e-12
@@ -526,7 +526,7 @@ prism = doc.insert(Node.loft(first, then, Formula.count(2)))
 # each slice a trapezoid of area 4 + 2*d*4v(1-v) with d = 0.375, so
 # V = 8 + 8d/3 = 9 m^3 exactly. Mass properties are an ENCLOSURE, so
 # the check is that 9 lies inside the certified pad.
-props = evaluate(doc).value(prism).body().mass_properties(Settle.resolution(1e-6 * m)).enclosure
+props = evaluate(doc).value(prism).body().mass_properties(Settle.resolution(1e-6 * m)).met()
 assert abs(props.volume - 9.0) <= props.volume_pad + 1e-9
 assert props.volume_pad < 1e-6
 
@@ -700,7 +700,7 @@ use pncad::prelude::*;
 # let pocket = slab((mm(8.0), mm(28.0)), (mm(10.0), mm(30.0)), (mm(0.0), mm(5.0)))?;
 # let u = union(&base, &web, tol)?; let u = u.body().expect("union");
 # let r = subtract(&u.body, &pocket, tol)?; let result = r.body().expect("difference");
-let props = mass_properties(&result.body, tol, Settle::Resolution(Length::from_meters(1e-6)))?.enclosure;
+let props = mass_properties(&result.body, tol, Settle::Resolution(Length::from_meters(1e-6)))?.met()?;
 
 assert!((props.volume - 2.984e-5).abs() < 1e-15);       // m³
 assert!((props.surface_area - 1.0696e-2).abs() < 1e-12); // m²
@@ -739,7 +739,14 @@ and why it stopped (`Stop::Met` where every face met the resolution,
 `Stop::Settled(verdict)` where a question decided, and `Stop::Floor`,
 `Stop::Wall` or `Stop::Band` where it stopped short). A resolution the
 quadrature cannot reach is not a refusal: the enclosure is the bracket
-it reached, and the stop says so.
+it reached, and the stop says so. So a program that reads the volume as
+a number reads it through `met()`, which answers the enclosure where the
+resolution was met and a typed `Unmet` (in Python, `ValidationError`
+with `measure_refusal == "unmet"`) where it was not; a program that
+wants the bracket reads `enclosure` and its `stop`. A question still
+undecided where no face can refine is the refusal: `Undecided`, carrying
+the bracket it reached (in Python, `measure_refusal == "undecided"`
+with `volume` and `stop`).
 
 **Gating and then measuring pays for one quadrature, not two — if you
 ask for it that way.** `mass_properties` reads a finished body, and
@@ -822,7 +829,7 @@ use pncad::mesh::validate::{check_mesh, signed_volume, triangle_count};
 # let pocket = slab((mm(8.0), mm(28.0)), (mm(10.0), mm(30.0)), (mm(0.0), mm(5.0)))?;
 # let u = union(&base, &web, tol)?; let u = u.body().expect("union");
 # let r = subtract(&u.body, &pocket, tol)?; let result = r.body().expect("difference");
-# let props = mass_properties(&result.body, tol, Settle::Resolution(Length::from_meters(1e-6)))?.enclosure;
+# let props = mass_properties(&result.body, tol, Settle::Resolution(Length::from_meters(1e-6)))?.met()?;
 # let mesh = tessellate(&result.body, 0.0005, tol).expect("tessellate");
 // 1. The mesh is the mesh of a SOLID: it carries triangles, every
 //    face's patch carries some, and the triangle set is closed and
@@ -872,7 +879,7 @@ use pncad::step_import::StepImport;
 # let pocket = slab((mm(8.0), mm(28.0)), (mm(10.0), mm(30.0)), (mm(0.0), mm(5.0)))?;
 # let u = union(&base, &web, tol)?; let u = u.body().expect("union");
 # let r = subtract(&u.body, &pocket, tol)?; let result = r.body().expect("difference");
-# let props = mass_properties(&result.body, tol, Settle::Resolution(Length::from_meters(1e-6)))?.enclosure;
+# let props = mass_properties(&result.body, tol, Settle::Resolution(Length::from_meters(1e-6)))?.met()?;
 # let mesh = tessellate(&result.body, 0.0005, tol).expect("tessellate");
 let step = step_string(&result.body, &StepOptions {
     product_name: "bracket".to_string(),
@@ -905,7 +912,7 @@ else {
     panic!("the bracket re-imports as a solid, not a wireframe");
 };
 let reimported = AtRestBody::validate(reimported, tol).map_err(|errors| format!("not a finished body: {errors:?}"))?;
-let back = mass_properties(&reimported, tol, Settle::Resolution(Length::from_meters(1e-6)))?.enclosure;
+let back = mass_properties(&reimported, tol, Settle::Resolution(Length::from_meters(1e-6)))?.met()?;
 assert!((back.volume - props.volume).abs() < 1e-15);
 # Ok::<(), E>(())
 ```
@@ -973,7 +980,7 @@ assert ev.succeeded(lightened), "the bracket did not evaluate"
 # Validate, then measure — the same ladder, the same pads.
 body = ev.value(lightened).body()
 body.validate()
-props = body.mass_properties(Settle.resolution(1e-6 * m)).enclosure
+props = body.mass_properties(Settle.resolution(1e-6 * m)).met()
 assert abs(props.volume - 2.984e-5) < 1e-15
 assert props.volume_pad == 0.0
 
@@ -983,7 +990,7 @@ assert props.volume_pad == 0.0
 step = ev.step_string(lightened, product_name="bracket")
 assert step.startswith("ISO-10303-21;")
 report = import_step(step)
-again = report.measure(Settle.resolution(1e-6 * m)).enclosure
+again = report.measure(Settle.resolution(1e-6 * m)).met()
 assert abs(again.volume - props.volume) < 1e-15
 assert report.instances[0].index == 0  # one assembly row per solid
 ```
@@ -1073,7 +1080,7 @@ for i, j, k in mesh.triangles:
     )
 measured /= 6.0
 
-exact = body.mass_properties(Settle.resolution(1e-6 * m)).enclosure.volume
+exact = body.mass_properties(Settle.resolution(1e-6 * m)).met().volume
 assert abs(measured - exact) / exact < 1e-12, "mesh vs exact"
 
 # 6. Export the mesh. Both writers ANSWER the bytes rather than take
@@ -1145,7 +1152,7 @@ plate = doc.insert(Node.extrude(sketch, Formula.length_in(0.6, m)))
 body = evaluate(doc).value(plate).body()
 body.validate()
 area = 6.0 * 3.0 - 2.0 * math.pi * 0.7 * 0.7
-assert abs(body.mass_properties(Settle.resolution(1e-6 * m)).enclosure.volume - 0.6 * area) < 1e-12
+assert abs(body.mass_properties(Settle.resolution(1e-6 * m)).met().volume - 0.6 * area) < 1e-12
 
 # Two disjoint circles are not an outline and its hole. The kernel
 # says so; the binding does not pre-empt it.
@@ -1220,7 +1227,7 @@ want = (
 )
 body = evaluate(doc).value(blank).body()
 body.validate()
-assert abs(body.mass_properties(Settle.resolution(1e-6 * m)).enclosure.volume - want) < 1e-9 * want
+assert abs(body.mass_properties(Settle.resolution(1e-6 * m)).met().volume - want) < 1e-9 * want
 
 # A set of edges holds at least one name, so an empty selection is
 # refused where it is written, not by the binding.
@@ -1396,14 +1403,15 @@ want = L**3 - 6 * L * D**2 + (16 / 3) * D**3
 ev = evaluate(doc)
 body = ev.value(flat).body()
 body.validate()
-assert abs(body.mass_properties(Settle.resolution(1e-6 * m)).enclosure.volume - want) < 1e-9 * want
+assert abs(body.mass_properties(Settle.resolution(1e-6 * m)).met().volume - want) < 1e-9 * want
 
 # Setback against radius, at the same number: the flat strip cuts the
-# corner the ball rides around.
-assert (
-    body.mass_properties(Settle.resolution(1e-6 * m)).enclosure.volume
-    < ev.value(round_).body().mass_properties(Settle.resolution(1e-6 * m)).enclosure.volume
-)
+# corner the ball rides around. That is a question about the volume, so
+# it is asked as one: a deciding predicate settles it, where comparing
+# two midpoints would only compare two readings.
+rounded = ev.value(round_).body().mass_properties(Settle.resolution(1e-6 * m)).met()
+below = body.mass_properties(Settle.at_most(rounded.volume - rounded.volume_pad))
+assert below.verdict is True
 
 # The result is a NODE, so its faces are named and a downstream
 # selection can reach them: 6 supports, 12 strips, 8 corner patches.
@@ -1445,7 +1453,7 @@ ring = doc.insert(
 )
 solid = evaluate(doc).value(ring).body()
 solid.validate()
-assert abs(solid.mass_properties(Settle.resolution(1e-6 * m)).enclosure.volume - 2 * math.pi**2 * R * OUTER**2) < 1e-9
+assert abs(solid.mass_properties(Settle.resolution(1e-6 * m)).met().volume - 2 * math.pi**2 * R * OUTER**2) < 1e-9
 
 # The same ring with a wall: a torus SHELL, its bore a cavity.
 inner = OUTER - WALL
@@ -1457,7 +1465,7 @@ torus = doc.insert(
 walled = evaluate(doc).value(torus).body()
 walled.validate()
 want = 2 * math.pi**2 * R * (OUTER**2 - inner**2)
-assert abs(walled.mass_properties(Settle.resolution(1e-6 * m)).enclosure.volume - want) < 1e-9
+assert abs(walled.mass_properties(Settle.resolution(1e-6 * m)).met().volume - want) < 1e-9
 
 # An ARC of the same pipe: an open elbow of annular section, whose
 # volume is the annulus swept through the window's angle.
@@ -1472,7 +1480,7 @@ elbow = doc.insert(
 annulus = math.pi * (OUTER**2 - inner**2)
 body = evaluate(doc).value(elbow).body()
 body.validate()
-assert abs(body.mass_properties(Settle.resolution(1e-6 * m)).enclosure.volume - (T1 - T0) * R * annulus) < 1e-9
+assert abs(body.mass_properties(Settle.resolution(1e-6 * m)).met().volume - (T1 - T0) * R * annulus) < 1e-9
 
 # The two doors, differenced over one document: what the wall took out
 # is exactly the bore, which is only true if each node reached its own
@@ -1484,8 +1492,8 @@ ev = evaluate(doc)
 bore = (T1 - T0) * R * math.pi * inner**2
 assert (
     abs(
-        ev.value(open_ring).body().mass_properties(Settle.resolution(1e-6 * m)).enclosure.volume
-        - ev.value(elbow).body().mass_properties(Settle.resolution(1e-6 * m)).enclosure.volume
+        ev.value(open_ring).body().mass_properties(Settle.resolution(1e-6 * m)).met().volume
+        - ev.value(elbow).body().mass_properties(Settle.resolution(1e-6 * m)).met().volume
         - bore
     )
     < 1e-9
@@ -1558,7 +1566,7 @@ body = evaluate(doc).value(cup).body()
 body.validate()
 inner = L - 2 * T
 want = L**3 - inner * inner * (L - T)
-assert abs(body.mass_properties(Settle.resolution(1e-6 * m)).enclosure.volume - want) <= 1e-12 * want
+assert abs(body.mass_properties(Settle.resolution(1e-6 * m)).met().volume - want) <= 1e-12 * want
 
 # The cup's own vocabulary: one rim (named for the top it replaced)
 # and five cavity twins group as the SHELL's; the five outer faces are
@@ -1743,7 +1751,7 @@ let ValuePayload::Body(body) = &value.payload else {
 };
 // An evaluated value holds the body as built; the measurement reads it finished.
 let body = AtRestBody::validate(Body::clone(body), tol).map_err(|errors| format!("not a finished body: {errors:?}"))?;
-let props = mass_properties(&body, tol, Settle::Resolution(Length::from_meters(1e-6)))?.enclosure;
+let props = mass_properties(&body, tol, Settle::Resolution(Length::from_meters(1e-6)))?.met()?;
 let expected = 4.0 * 2.0 * 0.5 - core::f64::consts::PI * 0.25 * 0.25 * 0.5;
 assert!((props.volume - expected).abs() < 1e-9);
 # Ok::<(), Box<dyn std::error::Error>>(())
@@ -1913,7 +1921,7 @@ let volume = |ev: &Evaluation<f64>, node: RecipeNodeId| {
         panic!("a union yields a body");
     };
     let body = AtRestBody::validate(Body::clone(body), tol).expect("a finished body");
-    mass_properties(&body, tol, Settle::Resolution(Length::from_meters(1e-6))).expect("mass properties").enclosure.volume
+    mass_properties(&body, tol, Settle::Resolution(Length::from_meters(1e-6))).expect("mass properties").met().expect("mass properties").volume
 };
 
 // The analytic oracle: plate + tab − their overlap − two cylinders of

@@ -132,8 +132,9 @@ fn a_tangent_rest_on_a_face_interior_records_its_union() {
             Tol::witness(),
             topo::test_support::pinned_resolution(Tol::witness()),
         )
-        .unwrap()
-        .enclosure
+        .expect("the measured body")
+        .met()
+        .expect("the measured body")
         .volume;
         (v, v)
     });
@@ -152,8 +153,9 @@ fn a_tangent_rest_on_a_face_interior_records_its_union_at_interval() {
             Tol::witness(),
             topo::test_support::pinned_resolution(Tol::witness()),
         )
-        .unwrap()
-        .enclosure
+        .expect("the measured body")
+        .met()
+        .expect("the measured body")
         .volume;
         (v.lo(), v.hi())
     });

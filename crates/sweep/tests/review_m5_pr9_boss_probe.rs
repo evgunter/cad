@@ -54,13 +54,11 @@ fn audit(body: &Body<f64>, expect_vol: f64, expect_seam_arcs: usize, seam_z: f64
     if let Err(errs) = topo::validate_geometric(body, Tol::witness()) {
         panic!("tier-3 validity: {errs:?}");
     }
-    let vol = topo::mass_properties(
+    let vol = topo::test_support::pinned_volume(
+        "the measured body",
         &topo::test_support::finished("the measured body", topo::Body::clone(body), Tol::witness()),
         Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
     )
-    .unwrap()
-    .enclosure
     .volume;
     assert!(
         (vol - expect_vol).abs() < 1e-9,
@@ -137,27 +135,14 @@ fn my_boss_subtract_makes_a_blind_hole_honestly() {
     let met = topo::intersect(&plate(), &boss(3, 0.3, 1.0), Tol::witness())
         .expect("curved intersect is live");
     let met_body = &met.body().expect("a body").body;
-    let met_vol = topo::mass_properties(
-        met_body,
-        Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
-    )
-    .unwrap()
-    .enclosure
-    .volume;
+    let met_vol =
+        topo::test_support::pinned_volume("the measured body", met_body, Tol::witness()).volume;
     assert!(
         (met_vol - std::f64::consts::PI * 0.35 * 0.35 * 0.5).abs() < 1e-9,
         "intersect meters the plug: {met_vol}"
     );
     assert!(
-        (topo::mass_properties(
-            body,
-            Tol::witness(),
-            topo::test_support::pinned_resolution(Tol::witness())
-        )
-        .unwrap()
-        .enclosure
-        .volume
+        (topo::test_support::pinned_volume("the measured body", body, Tol::witness()).volume
             + met_vol
             - 3.0 * 3.0 * 0.8)
             .abs()
@@ -221,14 +206,8 @@ fn a_second_curved_boolean_chains_on_the_first_result() {
             if let Err(errs) = topo::validate_geometric(body, Tol::witness()) {
                 panic!("chained curved boolean must stay tier-3: {errs:?}");
             }
-            let vol = topo::mass_properties(
-                body,
-                Tol::witness(),
-                topo::test_support::pinned_resolution(Tol::witness()),
-            )
-            .unwrap()
-            .enclosure
-            .volume;
+            let vol =
+                topo::test_support::pinned_volume("the measured body", body, Tol::witness()).volume;
             // plate + slab + boss pieces outside both:
             // boss z in [0.3, 1.6]: exposed z in [0.8,1.0] and [1.15,1.6].
             let boss_extra = std::f64::consts::PI * 0.35 * 0.35 * ((1.0 - 0.8) + (1.6 - 1.15));
@@ -286,14 +265,7 @@ fn du_of_rims_sums_equal_span_arcs_the_shape_the_old_rule_silently_halved() {
         .filter(|(side, _)| *side == topo::splitting::PlaneSide::Below)
         .collect();
     assert_eq!(merges.len(), 1, "one wall re-merge: {merges:?}");
-    let vol = topo::mass_properties(
-        &below,
-        Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
-    )
-    .unwrap()
-    .enclosure
-    .volume;
+    let vol = topo::test_support::pinned_volume("the measured body", &below, Tol::witness()).volume;
     let expect = std::f64::consts::PI * 0.25 / 2.0;
     assert!(
         (vol - expect).abs() < 1e-9,
@@ -341,14 +313,8 @@ fn a_genuinely_non_maximal_curved_operand_slips_the_f7_gate_what_then() {
         topo::Body::clone(parts.below.body().expect("below")), // NOT merged
         Tol::witness(),
     );
-    let vol_below = topo::mass_properties(
-        &below,
-        Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
-    )
-    .unwrap()
-    .enclosure
-    .volume;
+    let vol_below =
+        topo::test_support::pinned_volume("the measured body", &below, Tol::witness()).volume;
     // A thin slab through the fragments: 2 x 2 x [0.4, 0.6] centered.
     let lp2 = bulge_loop(
         [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]
@@ -377,14 +343,8 @@ fn a_genuinely_non_maximal_curved_operand_slips_the_f7_gate_what_then() {
             if let Err(errs) = topo::validate_geometric(b, Tol::witness()) {
                 panic!("non-maximal curved operand produced an invalid body: {errs:?}");
             }
-            let vol = topo::mass_properties(
-                b,
-                Tol::witness(),
-                topo::test_support::pinned_resolution(Tol::witness()),
-            )
-            .unwrap()
-            .enclosure
-            .volume;
+            let vol =
+                topo::test_support::pinned_volume("the measured body", b, Tol::witness()).volume;
             // below is a prism (height 1); the slab [-1,1]^2 x [0.4,0.6]
             // contains its whole cross-section, so overlap = 0.2 * vol.
             let expect = vol_below + 2.0 * 2.0 * 0.2 - vol_below * 0.2;
@@ -421,14 +381,8 @@ fn a_boss_overhanging_the_plate_edge_hits_the_curved_pierce_frontier() {
         Ok(out) => {
             // If it works, the volume must be right (overhang union).
             let body = &out.body().expect("body").body;
-            let vol = topo::mass_properties(
-                body,
-                Tol::witness(),
-                topo::test_support::pinned_resolution(Tol::witness()),
-            )
-            .unwrap()
-            .enclosure
-            .volume;
+            let vol =
+                topo::test_support::pinned_volume("the measured body", body, Tol::witness()).volume;
             eprintln!("PIERCE: union succeeded, vol {vol} — inspect");
         }
     }

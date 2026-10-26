@@ -262,13 +262,11 @@ fn the_boolean_builds_the_groove_and_a_short_sunk_rod() {
 fn the_short_sunk_rod_agrees_with_its_intersection_and_difference() {
     let cyl = cylinder(0.2, 0.6);
     let v = |b: &Body<f64>| {
-        topo::mass_properties(
+        topo::test_support::pinned_volume(
+            "the measured body",
             &topo::test_support::finished("the measured body", topo::Body::clone(b), tol()),
             tol(),
-            topo::test_support::pinned_resolution(tol()),
         )
-        .unwrap()
-        .enclosure
         .volume
     };
     let body = |r: Result<topo::BooleanResult<f64>, topo::BooleanError>| {

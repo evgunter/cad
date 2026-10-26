@@ -3104,7 +3104,8 @@ fn a_multi_solid_certificate_is_the_whole_body_measurement() {
             .expect("two ordinary cubes certify")
             .measure(crate::test_support::pinned_resolution(tol))
             .expect("two ordinary cubes measure")
-            .enclosure;
+            .met()
+            .expect("the pinned resolution is met");
     let measured = crate::mass_properties(
         &crate::test_support::finished("the measured body", body.clone(), tol),
         tol,
@@ -3168,7 +3169,8 @@ fn a_structural_certificate_continues_at_a_dual_to_the_closed_form() {
     .expect("two closed-form boxes pass the no-lane tier-3′ door at a dual")
     .measure(crate::test_support::pinned_resolution(tol))
     .expect("a closed-form certificate's continuation cannot refuse")
-    .enclosure;
+    .met()
+    .expect("the pinned resolution is met");
     let measured = crate::mass_properties_structural(
         &crate::test_support::finished("the two boxes", body.clone(), tol),
         tol,
@@ -3259,7 +3261,8 @@ fn a_solid_holding_several_outer_shells_refuses() {
             crate::test_support::pinned_resolution(tol)
         )
         .expect("the cubes measure")
-        .enclosure
+        .met()
+        .expect("the pinned resolution is met")
         .volume
             > 0.0,
         "check 7's subject is this solid, and its volume is positive"

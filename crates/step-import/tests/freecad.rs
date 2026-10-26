@@ -501,25 +501,21 @@ fn cross_dialect_fixed_point() {
             export1, export2,
             "{name}: the second export must be byte-identical to the first"
         );
-        let v1 = topo::mass_properties(
+        let v1 = topo::test_support::pinned_volume(
+            "the measured body",
             &topo::test_support::finished("the measured body", body1.clone(), Tol::witness()),
             Tol::witness(),
-            topo::test_support::pinned_resolution(Tol::witness()),
         )
-        .unwrap()
-        .enclosure
         .volume;
-        let v2 = topo::mass_properties(
+        let v2 = topo::test_support::pinned_volume(
+            "the measured body",
             &topo::test_support::finished(
                 "the measured body",
                 body2.body().clone(),
                 Tol::witness(),
             ),
             Tol::witness(),
-            topo::test_support::pinned_resolution(Tol::witness()),
         )
-        .unwrap()
-        .enclosure
         .volume;
         // Bit-identity everywhere but ONE named fixture. Byte-identical
         // exports already prove both bodies carry the same stated
@@ -554,13 +550,11 @@ fn cross_dialect_fixed_point() {
 /// S9 flip rows, where what matters is that two imports describe the
 /// same solid (or a stated multiple of it).
 fn volume_mm3(body: &topo::Body<f64>) -> f64 {
-    topo::mass_properties(
+    topo::test_support::pinned_volume(
+        "mass properties",
         &topo::test_support::finished("the measured body", (body).clone(), Tol::witness()),
         Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
     )
-    .expect("mass properties")
-    .enclosure
     .volume
         * 1e9
 }
@@ -646,13 +640,11 @@ fn millimetre_lengths_scale_by_one_rounded_multiply() {
         "1 mm is the f64 nearest 1e-3 m — one rounded multiply, no more"
     );
     // And the closed form lands within the roundoff that implies.
-    let v = topo::mass_properties(
+    let v = topo::test_support::pinned_volume(
+        "the measured body",
         &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
         Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
     )
-    .unwrap()
-    .enclosure
     .volume;
     assert!(
         (v - 1e-9).abs() <= 8.0 * f64::EPSILON * 1e-9,

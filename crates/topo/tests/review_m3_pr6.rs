@@ -114,7 +114,8 @@ fn both_sided_pinch_scenario<T: Decide + geom_core::CertifiedBounds + topo::AtRe
             topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
-        .enclosure
+        .met()
+        .expect("the pinned resolution is met")
         .volume;
         let r = split(&operand, &plane_y::<T>(1.0, 1.0), Tol::witness())
             .unwrap_or_else(|e| panic!("{profile:?}: refused: {e:?}"));
@@ -138,7 +139,8 @@ fn both_sided_pinch_scenario<T: Decide + geom_core::CertifiedBounds + topo::AtRe
                 topo::test_support::pinned_resolution(Tol::witness()),
             )
             .unwrap()
-            .enclosure
+            .met()
+            .expect("the pinned resolution is met")
             .volume,
             mass_properties(
                 &topo::test_support::finished(
@@ -150,7 +152,8 @@ fn both_sided_pinch_scenario<T: Decide + geom_core::CertifiedBounds + topo::AtRe
                 topo::test_support::pinned_resolution(Tol::witness()),
             )
             .unwrap()
-            .enclosure
+            .met()
+            .expect("the pinned resolution is met")
             .volume,
         );
         let d = (va + vb - v0).abs();
@@ -207,7 +210,8 @@ fn mirror_identity_scenario<T: Decide + geom_core::CertifiedBounds + topo::AtRes
                 topo::test_support::pinned_resolution(Tol::witness()),
             )
             .unwrap()
-            .enclosure
+            .met()
+            .expect("the pinned resolution is met")
             .volume
                 - mass_properties(
                     &topo::test_support::finished("the measured body", (y).clone(), Tol::witness()),
@@ -215,7 +219,8 @@ fn mirror_identity_scenario<T: Decide + geom_core::CertifiedBounds + topo::AtRes
                     topo::test_support::pinned_resolution(Tol::witness()),
                 )
                 .unwrap()
-                .enclosure
+                .met()
+                .expect("the pinned resolution is met")
                 .volume)
                 .abs();
             assert!(d.hi() <= 1e-9, "{side}: volume mismatch {d:?}");
@@ -464,7 +469,8 @@ fn vol_of(r: Result<BooleanResult<f64>, BooleanError>, ctx: &str) -> Option<f64>
                 topo::test_support::pinned_resolution(Tol::witness()),
             )
             .unwrap()
-            .enclosure
+            .met()
+            .expect("the pinned resolution is met")
             .volume,
         ),
         Ok(BooleanResult::Empty) => Some(0.0),
@@ -489,7 +495,8 @@ fn r4_extended_sweep_volume_identities() {
         topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .enclosure
+    .met()
+    .expect("the pinned resolution is met")
     .volume;
     let mut closed = 0;
     let mut refused = 0;
@@ -532,7 +539,8 @@ fn r4_extended_sweep_volume_identities() {
                     topo::test_support::pinned_resolution(Tol::witness()),
                 )
                 .unwrap()
-                .enclosure
+                .met()
+                .expect("the pinned resolution is met")
                 .volume;
                 let ctx = format!("zc={zc} family={family} k={k}");
                 let vu = vol_of(union(&a, &b, Tol::witness()), &ctx);
@@ -718,7 +726,8 @@ fn r7_closure_reversed_rows_loud() {
                     topo::test_support::pinned_resolution(Tol::witness())
                 )
                 .unwrap()
-                .enclosure
+                .met()
+                .expect("the pinned resolution is met")
                 .volume,
                 0.875
             );
@@ -752,7 +761,8 @@ fn r7_closure_reversed_rows_loud() {
                 topo::test_support::pinned_resolution(Tol::witness()),
             )
             .unwrap()
-            .enclosure
+            .met()
+            .expect("the pinned resolution is met")
             .volume;
             match validate_pseudomanifold(&r.body, &r.contacts, Tol::witness()) {
                 Ok(()) => eprintln!("R7 intersect second-toucher closed: vol {v}"),

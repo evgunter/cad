@@ -420,8 +420,9 @@ fn the_snowman_builds_at_the_interval_scalar() {
             Tol::witness(),
             topo::test_support::pinned_resolution(Tol::witness()),
         )
-        .unwrap_or_else(|e| panic!("Interval {op:?}: mass properties, got {e:?}"))
-        .enclosure
+        .expect("the measured body")
+        .met()
+        .expect("the measured body")
         .volume;
         let slack = 1e-9 * expected.max(1.0);
         assert!(
@@ -1326,8 +1327,9 @@ fn a_millimetre_lens_inside_a_ball_builds_at_every_tolerance() {
                 );
                 let v =
                     topo::mass_properties(&out, tol, topo::test_support::pinned_resolution(tol))
-                        .unwrap()
-                        .enclosure
+                        .expect("the measured body")
+                        .met()
+                        .expect("the measured body")
                         .volume;
                 assert!(
                     (v - want).abs() <= 1e-9 * want,

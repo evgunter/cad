@@ -458,6 +458,14 @@ pub fn stl_refusal_tag(refusal: StlRefusal<'_>) -> &'static str {
 /// not a word in this file.
 pub const STEP_IMPORT_WIREFRAME: &str = "wireframe";
 
+/// The `measure_refusal` of `MassMeasurement.met()` where the
+/// measurement stopped short of its resolution: no kernel refusal, but
+/// the typed answer of `topo::MassMeasurement::met`, `topo::Unmet`, a
+/// one-field struct whose word this is. Spelled here, beside the
+/// inventory's other constant, for the reason
+/// [`STEP_IMPORT_WIREFRAME`] gives.
+pub const MEASUREMENT_UNMET: &str = "unmet";
+
 /// The stable tag for a NAMED expression slot — `EditError.slot`, the
 /// address a refusal is about.
 ///

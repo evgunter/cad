@@ -166,7 +166,8 @@ fn the_counterclockwise_wedge_answers_the_true_volumes() {
         };
         let got = mass_properties(&out.body, tol, topo::test_support::pinned_resolution(tol))
             .unwrap()
-            .enclosure
+            .met()
+            .expect("the pinned resolution is met")
             .volume;
         assert!(
             (got - want).abs() < 1e-12,
@@ -228,7 +229,8 @@ fn an_inside_out_part_beside_an_ordinary_one_refuses() {
             topo::test_support::pinned_resolution(tol)
         )
         .unwrap()
-        .enclosure
+        .met()
+        .expect("the pinned resolution is met")
         .volume
             > 0.0,
         "the body's total is positive, so it hides the part's sign"

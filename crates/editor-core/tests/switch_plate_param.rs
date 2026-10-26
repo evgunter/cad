@@ -126,17 +126,15 @@ fn a_parameter_edit_re_evaluates_into_new_geometry() {
         let doc = set_hole_r(&s.doc, r);
         let ev = eval::<f64>(&doc);
         assert_eq!(ev.outcome, EvalOutcome::Completed, "r = {r} evaluates");
-        topo::mass_properties(
+        topo::test_support::pinned_volume(
+            "mass properties",
             &topo::test_support::finished(
                 "the measured body",
                 topo::Body::clone(body_of(&ev, s.solid)),
                 Tol::witness(),
             ),
             Tol::witness(),
-            topo::test_support::pinned_resolution(Tol::witness()),
         )
-        .expect("mass properties")
-        .enclosure
         .volume
     };
 
@@ -168,29 +166,25 @@ fn one_parameter_drives_both_holes() {
     let delta = {
         let a = eval::<f64>(&set_hole_r(&s.doc, 0.2));
         let b = eval::<f64>(&set_hole_r(&s.doc, 0.3));
-        topo::mass_properties(
+        topo::test_support::pinned_volume(
+            "a",
             &topo::test_support::finished(
                 "the measured body",
                 topo::Body::clone(body_of(&a, s.solid)),
                 Tol::witness(),
             ),
             Tol::witness(),
-            topo::test_support::pinned_resolution(Tol::witness()),
         )
-        .expect("a")
-        .enclosure
         .volume
-            - topo::mass_properties(
+            - topo::test_support::pinned_volume(
+                "b",
                 &topo::test_support::finished(
                     "the measured body",
                     topo::Body::clone(body_of(&b, s.solid)),
                     Tol::witness(),
                 ),
                 Tol::witness(),
-                topo::test_support::pinned_resolution(Tol::witness()),
             )
-            .expect("b")
-            .enclosure
             .volume
     };
     let one_hole = std::f64::consts::PI * (0.3 * 0.3 - 0.2 * 0.2) * PLATE_DEPTH;

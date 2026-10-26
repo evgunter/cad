@@ -112,10 +112,7 @@ fn r2_both_cone_nappes_hollow_to_their_closed_forms() {
     ] {
         let body = topo::test_support::finished("body", frustum(r0, r1, h), tol);
         describe_cones(what, &body);
-        let v_out = topo::mass_properties(&body, tol, topo::test_support::pinned_resolution(tol))
-            .expect("props")
-            .enclosure
-            .volume;
+        let v_out = topo::test_support::pinned_volume("props", &body, tol).volume;
         match topo::shell(
             &finished("the operand", topo::Body::clone(&body.clone()), tol),
             T,
@@ -127,17 +124,15 @@ fn r2_both_cone_nappes_hollow_to_their_closed_forms() {
                     Ok(()),
                     "{what}: tier 3"
                 );
-                let v = topo::mass_properties(
+                let v = topo::test_support::pinned_volume(
+                    "props",
                     &topo::test_support::finished(
                         "the measured body",
                         topo::Body::clone(&hollow),
                         tol,
                     ),
                     tol,
-                    topo::test_support::pinned_resolution(tol),
                 )
-                .expect("props")
-                .enclosure
                 .volume;
                 let want = frustum_wall(r0, r1, h);
                 println!(
@@ -268,27 +263,22 @@ fn r2_wedge_at_degenerate_turns() {
             ),
             tol,
         );
-        let v0 = topo::mass_properties(&body, tol, topo::test_support::pinned_resolution(tol))
-            .expect("props")
-            .enclosure
-            .volume;
+        let v0 = topo::test_support::pinned_volume("props", &body, tol).volume;
         match topo::shell(
             &finished("the operand", topo::Body::clone(&body.clone()), tol),
             T,
             tol,
         ) {
             Ok(topo::Shelled { body: hollow, .. }) => {
-                let v = topo::mass_properties(
+                let v = topo::test_support::pinned_volume(
+                    "props",
                     &topo::test_support::finished(
                         "the measured body",
                         topo::Body::clone(&hollow),
                         tol,
                     ),
                     tol,
-                    topo::test_support::pinned_resolution(tol),
                 )
-                .expect("props")
-                .enclosure
                 .volume;
                 let valid = topo::validate_geometric(&hollow, tol);
                 println!(

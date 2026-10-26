@@ -132,7 +132,8 @@ fn a_rim_only_sphere_cap_refuses_at_either_pole_and_any_latitude() {
             topo::test_support::pinned_resolution(tol),
         )
         .unwrap()
-        .enclosure
+        .met()
+        .expect("the pinned resolution is met")
         .volume;
         assert!(
             (volume - exact).abs() <= 1e-12 * exact,
@@ -160,7 +161,8 @@ fn a_rim_only_sphere_cap_refuses_at_either_pole_and_any_latitude() {
             topo::test_support::pinned_resolution(tol),
         )
         .unwrap()
-        .enclosure
+        .met()
+        .expect("the pinned resolution is met")
         .volume;
         assert!(
             (volume - exact).abs() <= 1e-10 * exact,
@@ -305,13 +307,11 @@ fn the_seamed_twins_of_the_refused_caps_mesh_watertight() {
     ] {
         // Raw door: the measured body is construction state whose joinable vertices tier 3 refuses (JoinableVertexAtRest).
         let (a, b) = (
-            topo::mass_properties(
+            topo::test_support::pinned_volume(
+                "the measured body",
                 &topo::test_support::finished("the measured body", (seamed).clone(), tol),
                 tol,
-                topo::test_support::pinned_resolution(tol),
             )
-            .unwrap()
-            .enclosure
             .volume,
             topo::test_support::measure_unvalidated(
                 &rim_only,
@@ -319,7 +319,8 @@ fn the_seamed_twins_of_the_refused_caps_mesh_watertight() {
                 topo::test_support::pinned_resolution(tol),
             )
             .unwrap()
-            .enclosure
+            .met()
+            .expect("the pinned resolution is met")
             .volume,
         );
         assert!(

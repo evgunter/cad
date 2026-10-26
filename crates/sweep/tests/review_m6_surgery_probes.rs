@@ -231,17 +231,15 @@ fn p2_ring_touch_trio_through_the_front_door() {
             "tier 3"
         );
         let want = blank_volume() - cap(PIP_R, PIP_H) - rim_fillet_extra(PIP_R, PIP_H, RIM_R);
-        let v = topo::mass_properties(
+        let v = topo::test_support::pinned_volume(
+            "the measured body",
             &topo::test_support::finished(
                 "the measured body",
                 topo::Body::clone(&out.body),
                 Tol::witness(),
             ),
             Tol::witness(),
-            topo::test_support::pinned_resolution(Tol::witness()),
         )
-        .unwrap()
-        .enclosure
         .volume;
         assert!((v - want).abs() <= 1e-9 * want, "volume {v} vs {want}");
         println!("P2a: +1cm passes, volume ok");
@@ -370,14 +368,7 @@ fn p3_one_and_two_pip_ladders_and_tight_pair() {
         }
         assert_eq!(doubled, 1, "exactly one double-traversed edge (the slit)");
         let want = blank_volume() - per_pip;
-        let v = topo::mass_properties(
-            &die,
-            Tol::witness(),
-            topo::test_support::pinned_resolution(Tol::witness()),
-        )
-        .unwrap()
-        .enclosure
-        .volume;
+        let v = topo::test_support::pinned_volume("the measured body", &die, Tol::witness()).volume;
         assert!(
             (v - want).abs() <= 1e-9 * want,
             "one-pip volume {v} vs {want}"
@@ -438,17 +429,15 @@ fn p3_one_and_two_pip_ladders_and_tight_pair() {
             "tier 3"
         );
         let want = blank_volume() - 2.0 * per_pip;
-        let v = topo::mass_properties(
+        let v = topo::test_support::pinned_volume(
+            "the measured body",
             &topo::test_support::finished(
                 "the measured body",
                 topo::Body::clone(&out.body),
                 Tol::witness(),
             ),
             Tol::witness(),
-            topo::test_support::pinned_resolution(Tol::witness()),
         )
-        .unwrap()
-        .enclosure
         .volume;
         assert!(
             (v - want).abs() <= 1e-9 * want,
@@ -590,17 +579,15 @@ fn p5_seam_azimuth_rotation_certifies_identically() {
             Ok(()),
             "tier 3 at theta {theta}"
         );
-        let v = topo::mass_properties(
+        let v = topo::test_support::pinned_volume(
+            "the measured body",
             &topo::test_support::finished(
                 "the measured body",
                 topo::Body::clone(&out.body),
                 Tol::witness(),
             ),
             Tol::witness(),
-            topo::test_support::pinned_resolution(Tol::witness()),
         )
-        .unwrap()
-        .enclosure
         .volume;
         assert!(
             (v - want).abs() <= 1e-9 * want,

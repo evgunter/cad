@@ -64,13 +64,11 @@ fn slack() -> f64 {
 }
 
 fn vol(body: &Body<f64>) -> f64 {
-    topo::mass_properties(
+    topo::test_support::pinned_volume(
+        "the measured body",
         &finished("the measured body", Body::clone(body), Tol::witness()),
         Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
     )
-    .unwrap()
-    .enclosure
     .volume
 }
 
@@ -245,7 +243,8 @@ fn revert_uses_the_plane_normal_for_planes_and_the_sense_bit_for_charts() {
         topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .enclosure
+    .met()
+    .expect("the pinned resolution is met")
     .volume;
     assert_eq!(rev_v.to_bits(), (-v).to_bits(), "volume is bit-negated");
 }

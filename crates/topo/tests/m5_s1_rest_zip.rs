@@ -101,7 +101,8 @@ fn stacked_plates_full_face_rest() {
             topo::test_support::pinned_resolution(Tol::witness())
         )
         .unwrap()
-        .enclosure
+        .met()
+        .expect("the pinned resolution is met")
         .volume,
         8.0,
         "exact dyadic volume additivity"
@@ -125,7 +126,8 @@ fn three_plate_chain() {
             topo::test_support::pinned_resolution(Tol::witness())
         )
         .unwrap()
-        .enclosure
+        .met()
+        .expect("the pinned resolution is met")
         .volume,
         8.0
     );
@@ -138,7 +140,8 @@ fn three_plate_chain() {
             topo::test_support::pinned_resolution(Tol::witness())
         )
         .unwrap()
-        .enclosure
+        .met()
+        .expect("the pinned resolution is met")
         .volume,
         12.0
     );
@@ -177,7 +180,8 @@ fn corner_flush_rest_union_builds() {
             topo::test_support::pinned_resolution(Tol::witness())
         )
         .unwrap()
-        .enclosure
+        .met()
+        .expect("the pinned resolution is met")
         .volume,
         18.0
     );
@@ -188,7 +192,8 @@ fn corner_flush_rest_union_builds() {
             topo::test_support::pinned_resolution(Tol::witness())
         )
         .unwrap()
-        .enclosure
+        .met()
+        .expect("the pinned resolution is met")
         .volume,
         16.0
     );
@@ -216,14 +221,7 @@ fn annular_rest_contact_unions_exactly_additively() {
     let BooleanResult::Body(b) = out else {
         panic!("a stacked-tube union cannot be empty");
     };
-    let v = topo::mass_properties(
-        &b.body,
-        Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
-    )
-    .unwrap()
-    .enclosure
-    .volume;
+    let v = topo::test_support::pinned_volume("the measured body", &b.body, Tol::witness()).volume;
     assert_eq!(v, 16.0, "exactly additive: two 8-volume tube rings");
     if let Err(errs) = topo::validate_geometric(&b.body, Tol::witness()) {
         panic!("the stacked tube must be tier-3 valid: {errs:?}");
@@ -257,7 +255,8 @@ fn rest_subtract_and_intersect_resolve_structurally() {
                     topo::test_support::pinned_resolution(Tol::witness())
                 )
                 .unwrap()
-                .enclosure
+                .met()
+                .expect("the pinned resolution is met")
                 .volume,
                 0.9375
             );

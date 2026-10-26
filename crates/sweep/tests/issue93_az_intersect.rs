@@ -171,7 +171,8 @@ fn check_success(bb: &BooleanBody<f64>, oracle: f64, label: &str) {
         topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("mass properties")
-    .enclosure
+    .met()
+    .expect("the pinned resolution is met")
     .volume;
     assert!(
         (v - oracle).abs() < 1e-12,
@@ -305,7 +306,8 @@ fn az_plain_interval_refuses_or_encloses() {
                 topo::test_support::pinned_resolution(Tol::witness()),
             )
             .expect("interval mass properties")
-            .enclosure
+            .met()
+            .expect("the pinned resolution is met")
             .volume;
             assert!(
                 v.lo() <= ORACLE_PLAIN && ORACLE_PLAIN <= v.hi(),

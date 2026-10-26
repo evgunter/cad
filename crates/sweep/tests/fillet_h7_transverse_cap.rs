@@ -733,14 +733,7 @@ fn the_parallel_cylinder_union_builds_and_a_box_edge_is_cut_off() {
     // Two r = 1/2 discs whose centres are 0.6 apart, one high.
     let lens = 0.5 * 0.6_f64.acos() - 0.3 * 0.8;
     let want = 2.0 * core::f64::consts::PI * 0.25 - lens;
-    let v = topo::mass_properties(
-        &bb.body,
-        tol(),
-        topo::test_support::pinned_resolution(tol()),
-    )
-    .unwrap()
-    .enclosure
-    .volume;
+    let v = topo::test_support::pinned_volume("the measured body", &bb.body, tol()).volume;
     assert!((v - want).abs() < 1e-9, "{v} vs the closed form {want}");
 
     let body = cube(1.0, tol());

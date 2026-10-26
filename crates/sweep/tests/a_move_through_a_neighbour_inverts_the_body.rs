@@ -52,13 +52,11 @@ fn face_where(body: &Body<f64>, want: impl Fn(&Surface<f64>) -> bool) -> FaceKey
 }
 
 fn volume(body: &Body<f64>) -> f64 {
-    topo::mass_properties(
+    topo::test_support::pinned_volume(
+        "the measured body",
         &AtRestBody::validate(Body::clone(body), Tol::witness()).expect("the body is finished"),
         Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
     )
-    .unwrap()
-    .enclosure
     .volume
 }
 
@@ -119,7 +117,8 @@ fn the_door_builds_the_inverted_body_and_the_gate_refuses_it() {
             topo::test_support::pinned_resolution(tol),
         )
         .unwrap()
-        .enclosure
+        .met()
+        .expect("the pinned resolution is met")
         .volume;
         assert!(
             want_v < 0.0 && (v - want_v).abs() <= 1e-12,

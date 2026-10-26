@@ -88,14 +88,7 @@ fn a_rest_touch_is_the_unions_one_verdict_and_glues_as_given() {
         given.coincidences
     );
     let volume = |out: &topo::BooleanBody<f64>| {
-        topo::mass_properties(
-            &out.body,
-            tol(),
-            topo::test_support::pinned_resolution(tol()),
-        )
-        .unwrap()
-        .enclosure
-        .volume
+        topo::test_support::pinned_volume("the measured body", &out.body, tol()).volume
     };
     assert_eq!(
         (volume(&given), given.body.faces().count()),

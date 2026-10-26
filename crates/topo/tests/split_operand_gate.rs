@@ -93,7 +93,8 @@ fn the_inside_out_wedge_does_not_finish_at_f64_or_interval() {
         topo::test_support::pinned_resolution(tol),
     )
     .unwrap()
-    .enclosure
+    .met()
+    .expect("the pinned resolution is met")
     .volume;
     assert!(
         (volume + 0.5 * 0.5 * 110f64.to_radians().sin()).abs() < 1e-12,
@@ -377,7 +378,8 @@ fn the_outward_wedge_splits_into_two_positive_halves() {
             SplitPart::Body(b) => {
                 mass_properties(&b, tol, topo::test_support::pinned_resolution(tol))
                     .unwrap()
-                    .enclosure
+                    .met()
+                    .expect("the pinned resolution is met")
                     .volume
             }
             SplitPart::Empty => panic!("the mid-height plane leaves material on both sides"),

@@ -48,7 +48,7 @@ plate = doc.insert(Node.extrude(profile, Formula.length_in(8, mm)))
 
 body = evaluate(doc).value(plate).body()
 body.validate()
-print(f"{body.mass_properties(Settle.resolution(1e-6 * m)).enclosure.volume:.3e} m^3")      # 2.560e-05 m^3
+print(f"{body.mass_properties(Settle.resolution(1e-6 * m)).met().volume:.3e} m^3")      # 2.560e-05 m^3
 ```
 
 Rounds and arcs are the PATHS lattice, where each state of the tip is

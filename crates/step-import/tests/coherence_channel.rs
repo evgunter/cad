@@ -544,7 +544,8 @@ fn asking_for_the_examination_changes_nothing_about_acceptance() {
                 let enclosure = body
                     .measure(topo::test_support::pinned_resolution(tol))
                     .unwrap_or_else(|e| panic!("{name}: the certificate measures: {e}"))
-                    .enclosure;
+                    .met()
+                    .expect("the pinned resolution is met");
                 (
                     common::arena_census(body.body()),
                     [

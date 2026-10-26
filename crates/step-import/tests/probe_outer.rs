@@ -42,13 +42,11 @@ fn two_outer_bounds_on_a_planar_face_with_a_real_hole() {
         );
         return;
     };
-    let v0 = topo::mass_properties(
+    let v0 = topo::test_support::pinned_volume(
+        "the measured body",
         &topo::test_support::finished("the measured body", body.body().clone(), Tol::witness()),
         Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
     )
-    .unwrap()
-    .enclosure
     .volume;
     println!("baseline volume {v0}");
     match import_step(&m, &ImportOptions::default(), Tol::witness()) {

@@ -189,25 +189,21 @@ fn fixed_point() {
             arena_census(body2.body()),
             "{name}: census identical across the adoption pass"
         );
-        let v1 = topo::mass_properties(
+        let v1 = topo::test_support::pinned_volume(
+            "the measured body",
             &topo::test_support::finished("the measured body", body1.clone(), Tol::witness()),
             Tol::witness(),
-            topo::test_support::pinned_resolution(Tol::witness()),
         )
-        .unwrap()
-        .enclosure
         .volume;
-        let v2 = topo::mass_properties(
+        let v2 = topo::test_support::pinned_volume(
+            "the measured body",
             &topo::test_support::finished(
                 "the measured body",
                 body2.body().clone(),
                 Tol::witness(),
             ),
             Tol::witness(),
-            topo::test_support::pinned_resolution(Tol::witness()),
         )
-        .unwrap()
-        .enclosure
         .volume;
         assert_eq!(
             v1.to_bits(),

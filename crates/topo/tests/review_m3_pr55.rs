@@ -113,7 +113,8 @@ fn vol(body: &Body<f64>) -> f64 {
         topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .enclosure
+    .met()
+    .expect("the pinned resolution is met")
     .volume
 }
 
@@ -1137,7 +1138,8 @@ fn d_die_21_pips_exact() {
             topo::test_support::pinned_resolution(Tol::witness())
         )
         .unwrap()
-        .enclosure
+        .met()
+        .expect("the pinned resolution is met")
         .surface_area,
         24.0 + 21.0 * 4.0 * 0.25 * 0.125
     );

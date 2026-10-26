@@ -111,14 +111,8 @@ fn the_chamfer_removes_more_than_the_fillet_of_the_same_size() {
         topo::Body::clone(body_of(&ev, ch.result.expect("head"))),
         Tol::witness(),
     );
-    let cv = topo::mass_properties(
-        &chamfered,
-        Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
-    )
-    .expect("mass properties")
-    .enclosure
-    .volume;
+    let cv =
+        topo::test_support::pinned_volume("mass properties", &chamfered, Tol::witness()).volume;
 
     let fi = corpus::die_fillet::document();
     let fev = eval::<f64>(&fi.doc);
@@ -127,14 +121,7 @@ fn the_chamfer_removes_more_than_the_fillet_of_the_same_size() {
         topo::Body::clone(body_of(&fev, fi.result.expect("head"))),
         Tol::witness(),
     );
-    let fv = topo::mass_properties(
-        &filleted,
-        Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
-    )
-    .expect("mass properties")
-    .enclosure
-    .volume;
+    let fv = topo::test_support::pinned_volume("mass properties", &filleted, Tol::witness()).volume;
 
     assert_eq!(die_chamfer::D, corpus::die_fillet::R, "same size, by value");
     assert!(

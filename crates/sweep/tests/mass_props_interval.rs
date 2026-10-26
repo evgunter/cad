@@ -159,8 +159,9 @@ fn f64_value_within_interval_enclosure() {
         Tol::witness(),
         topo::test_support::pinned_resolution(Tol::witness()),
     )
-    .unwrap()
-    .enclosure
+    .expect("the measured body")
+    .met()
+    .expect("the measured body")
     .volume;
 
     let lp_f = bulge_loop(vec![
@@ -189,8 +190,9 @@ fn f64_value_within_interval_enclosure() {
         Tol::witness(),
         topo::test_support::pinned_resolution(Tol::witness()),
     )
-    .unwrap()
-    .enclosure
+    .expect("the measured body")
+    .met()
+    .expect("the measured body")
     .volume;
     // The `Interval` enclosure must CONTAIN the f64 value, and be
     // narrow. Widening the admitted band by the enclosure's own width

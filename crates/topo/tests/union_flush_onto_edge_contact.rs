@@ -197,7 +197,8 @@ fn every_order_folds_a_flush_partner_onto_the_edge_contact() {
             let volume =
                 mass_properties(&last.body, tol, topo::test_support::pinned_resolution(tol))
                     .expect("the union has mass")
-                    .enclosure
+                    .met()
+                    .expect("the pinned resolution is met")
                     .volume;
             let want = 1.5 + (span.1 - span.0);
             assert!(
@@ -524,7 +525,8 @@ fn every_op_builds(
         );
         let volume = mass_properties(&out.body, tol, topo::test_support::pinned_resolution(tol))
             .expect("mass")
-            .enclosure
+            .met()
+            .expect("the pinned resolution is met")
             .volume;
         assert!(
             (volume - want).abs() < 1e-9,
@@ -787,7 +789,8 @@ fn two_pinches_crossing_on_one_line_refuse_their_union_typed() {
         };
         let volume = mass_properties(&less.body, tol, topo::test_support::pinned_resolution(tol))
             .expect("the difference has mass")
-            .enclosure
+            .met()
+            .expect("the pinned resolution is met")
             .volume;
         assert!(
             (volume - minuend).abs() < 1e-9,
@@ -836,7 +839,8 @@ fn two_pinches_meeting_end_to_end_build_in_every_op() {
             let volume =
                 mass_properties(&out.body, tol, topo::test_support::pinned_resolution(tol))
                     .expect("the result has mass")
-                    .enclosure
+                    .met()
+                    .expect("the pinned resolution is met")
                     .volume;
             assert!(
                 (volume - want).abs() < 1e-9,
@@ -1038,7 +1042,8 @@ fn a_pinch_line_through_a_face_keeps_its_records_at_the_new_end() {
         assert!(verdict.is_ok(), "{op}: 3′ refused {:?}", verdict.err());
         mass_properties(&out.body, tol, topo::test_support::pinned_resolution(tol))
             .expect("mass")
-            .enclosure
+            .met()
+            .expect("the pinned resolution is met")
             .volume
     };
     let union = volume_of("pinch ∪ cutter", union_in(&pinch.body, &cutter, &ab, tol));
@@ -1163,7 +1168,8 @@ fn a_face_through_a_pinch_line_builds_in_every_op() {
         );
         let volume = mass_properties(&out.body, tol, topo::test_support::pinned_resolution(tol))
             .expect("mass")
-            .enclosure
+            .met()
+            .expect("the pinned resolution is met")
             .volume;
         assert!(
             (volume - want).abs() < 1e-9,
@@ -1212,7 +1218,8 @@ fn a_four_row_remap_group_certifies_a_subtract_of_two_pinches() {
     };
     let volume = mass_properties(&out.body, tol, topo::test_support::pinned_resolution(tol))
         .expect("mass")
-        .enclosure
+        .met()
+        .expect("the pinned resolution is met")
         .volume;
     assert!((volume - 2.0).abs() < 1e-9, "volume {volume}, want 2.0");
     let verdict = validate_pseudomanifold(&out.body, &out.contacts, tol);
@@ -1404,7 +1411,8 @@ fn dangling_null_edges_meeting_on_the_pinch_line(notch: (f64, f64), tol: Tol) {
         );
         let volume = mass_properties(&out.body, tol, topo::test_support::pinned_resolution(tol))
             .expect("mass")
-            .enclosure
+            .met()
+            .expect("the pinned resolution is met")
             .volume;
         assert!(
             (volume - want).abs() < 1e-9,
@@ -1597,7 +1605,8 @@ fn pit_holding_spikes_built(
     let y_volume = 8.0 - clipped_volume(prism_faces(PIT, 3.0), &block) + whole;
     let got = mass_properties(&y.body, tol, topo::test_support::pinned_resolution(tol))
         .expect("mass")
-        .enclosure
+        .met()
+        .expect("the pinned resolution is met")
         .volume;
     assert!(
         (got - y_volume).abs() < 1e-9,
@@ -1628,7 +1637,8 @@ fn pit_holding_spikes_built(
         );
         let volume = mass_properties(&out.body, tol, topo::test_support::pinned_resolution(tol))
             .expect("mass")
-            .enclosure
+            .met()
+            .expect("the pinned resolution is met")
             .volume;
         assert!(
             (volume - want).abs() < 1e-9,
@@ -1874,7 +1884,8 @@ fn lens_against_the_cube(
 ) {
     let got = mass_properties(&y.body, tol, topo::test_support::pinned_resolution(tol))
         .expect("mass")
-        .enclosure
+        .met()
+        .expect("the pinned resolution is met")
         .volume;
     assert!(
         (got - y_volume).abs() < 1e-9,
@@ -1914,7 +1925,8 @@ fn lens_against_the_cube(
         );
         let got = mass_properties(&out.body, tol, topo::test_support::pinned_resolution(tol))
             .expect("mass")
-            .enclosure
+            .met()
+            .expect("the pinned resolution is met")
             .volume;
         assert!(
             (got - volume).abs() < 1e-9,
@@ -2188,7 +2200,8 @@ fn a_corner_crossing_the_cubes_four_times_builds_every_op() {
         );
         let volume = mass_properties(&out.body, tol, topo::test_support::pinned_resolution(tol))
             .expect("mass")
-            .enclosure
+            .met()
+            .expect("the pinned resolution is met")
             .volume;
         assert!(
             (volume - want).abs() < 1e-9,
@@ -2253,7 +2266,8 @@ fn three_corners_alternating_round_the_cube_refuse_three_ops() {
     };
     let y_volume = mass_properties(&y.body, tol, topo::test_support::pinned_resolution(tol))
         .expect("mass")
-        .enclosure
+        .met()
+        .expect("the pinned resolution is met")
         .volume;
     let mut volumes = std::collections::BTreeMap::new();
     for (op, got) in against_the_cube(&y.body, &carried_rows(&y.contacts), tol) {
@@ -2269,7 +2283,8 @@ fn three_corners_alternating_round_the_cube_refuse_three_ops() {
                     op,
                     mass_properties(&out.body, tol, topo::test_support::pinned_resolution(tol))
                         .expect("mass")
-                        .enclosure
+                        .met()
+                        .expect("the pinned resolution is met")
                         .volume,
                 );
             }
@@ -2369,7 +2384,8 @@ fn a_face_holding_the_pinch_line_ties_the_pierces_germs() {
                 };
                 let v = mass_properties(&out.body, tol, topo::test_support::pinned_resolution(tol))
                     .expect("mass")
-                    .enclosure
+                    .met()
+                    .expect("the pinned resolution is met")
                     .volume;
                 let want = match what {
                     "pinch ∪ cutter" | "cutter ∪ pinch" => 33.0,

@@ -552,8 +552,9 @@ fn revolve_volume(angle: f64) -> Result<f64, String> {
                 Tol::witness(),
                 topo::test_support::pinned_resolution(Tol::witness()),
             )
-            .unwrap()
-            .enclosure
+            .expect("the measured body")
+            .met()
+            .expect("the measured body")
             .volume),
             other => Err(format!("non-body: {}", other.kind_name())),
         },
@@ -704,7 +705,8 @@ fn rotational_pip_matches_translated_pip_to_rounding() {
         topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .enclosure
+    .met()
+    .expect("the pinned resolution is met")
     .volume;
     let v_rot = topo::mass_properties(
         &topo::test_support::finished(
@@ -716,7 +718,8 @@ fn rotational_pip_matches_translated_pip_to_rounding() {
         topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .enclosure
+    .met()
+    .expect("the pinned resolution is met")
     .volume;
     assert_eq!(
         v_exact,
@@ -834,7 +837,8 @@ fn interval_memo_reuses_and_invalidates_like_f64() {
         topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .enclosure
+    .met()
+    .expect("the pinned resolution is met")
     .volume;
     let vi = match &e2.value(s).unwrap().payload {
         ValuePayload::Boolean(BooleanValue::Body { body, .. }) => {
@@ -847,8 +851,9 @@ fn interval_memo_reuses_and_invalidates_like_f64() {
                 Tol::witness(),
                 topo::test_support::pinned_resolution(Tol::witness()),
             )
-            .unwrap()
-            .enclosure
+            .expect("the measured body")
+            .met()
+            .expect("the measured body")
             .volume
         }
         other => panic!("expected boolean body, got {}", other.kind_name()),

@@ -462,13 +462,11 @@ fn null_scaffold_fail_loud_audit() {
 fn split_edge_double_split_preserves_tier3_and_volume() {
     let mut cube = geometric_cube::<f64>(Tol::witness());
     describe_as_intersections(&mut cube.body, Tol::witness());
-    let vol0 = topo::mass_properties(
+    let vol0 = topo::test_support::pinned_volume(
+        "the measured body",
         &topo::test_support::finished("the measured body", cube.body.clone(), Tol::witness()),
         Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
     )
-    .unwrap()
-    .enclosure
     .volume;
     let edge = cube.mevs[0].edge; // A->B, unit line, params [0, 1]
     let first = cube.body.split_edge(edge, 0.25, Tol::witness()).unwrap();
@@ -528,7 +526,8 @@ fn split_edge_double_split_preserves_tier3_and_volume() {
         topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .enclosure
+    .met()
+    .expect("the pinned resolution is met")
     .volume;
     assert_eq!(vol0.to_bits(), vol1.to_bits(), "split changed the solid");
 }
@@ -709,7 +708,8 @@ fn revert_on_split_body_involution_and_posture() {
         topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .enclosure
+    .met()
+    .expect("the pinned resolution is met")
     .volume;
     let reverted = cube.body.revert().unwrap();
     // Source untouched (functional, both-results-free).
@@ -734,7 +734,8 @@ fn revert_on_split_body_involution_and_posture() {
         topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .enclosure
+    .met()
+    .expect("the pinned resolution is met")
     .volume;
     assert_eq!(rvol.to_bits(), (-vol).to_bits());
     // Bitwise involution + determinism.
@@ -968,7 +969,8 @@ fn merge_coplanar_annulus_and_value_equal_center_make_one_face() {
         topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .enclosure
+    .met()
+    .expect("the pinned resolution is met")
     .volume;
     let outcome = cube.body.merge_coplanar_faces(Tol::witness()).unwrap();
     assert_eq!(outcome.groups.len(), 1, "expected exactly one merged run");
@@ -991,7 +993,8 @@ fn merge_coplanar_annulus_and_value_equal_center_make_one_face() {
         topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .enclosure
+    .met()
+    .expect("the pinned resolution is met")
     .volume;
     assert!((vol0 - vol1).abs() < 1e-12, "merge changed the volume");
     // D9 determinism across a full independent replay.
@@ -1012,7 +1015,8 @@ fn merge_coplanar_annulus_and_value_equal_center_make_one_face() {
         topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .enclosure
+    .met()
+    .expect("the pinned resolution is met")
     .volume;
     assert_eq!(rvol.to_bits(), (-vol1).to_bits());
     assert_eq!(dump(&reverted.revert().unwrap()), original);

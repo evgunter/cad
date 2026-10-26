@@ -215,14 +215,7 @@ fn a_trimmed_sphere_face_is_classified_through_its_chart_rectangle() {
 fn curved_revert_reverts_the_ball_instead_of_refusing() {
     let body = topo::test_support::finished("body", ball(), Tol::witness());
     let before: Vec<bool> = body.faces().map(|(_, f)| f.sense).collect();
-    let v = topo::mass_properties(
-        &body,
-        Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
-    )
-    .unwrap()
-    .enclosure
-    .volume;
+    let v = topo::test_support::pinned_volume("the measured body", &body, Tol::witness()).volume;
 
     let rev = body.revert().unwrap();
     let after: Vec<bool> = rev.faces().map(|(_, f)| f.sense).collect();
@@ -257,7 +250,8 @@ fn curved_revert_reverts_the_ball_instead_of_refusing() {
             topo::test_support::pinned_resolution(Tol::witness())
         )
         .unwrap()
-        .enclosure
+        .met()
+        .expect("the pinned resolution is met")
         .volume
         .to_bits(),
         (-v).to_bits()

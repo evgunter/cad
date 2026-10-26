@@ -84,7 +84,8 @@ fn interval_union_keeps_the_pellet() {
         topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .enclosure
+    .met()
+    .expect("the pinned resolution is met")
     .volume;
     let analytic = 3.008;
     assert!(
@@ -116,8 +117,9 @@ fn interval_washer_props_and_bore_door() {
         Tol::witness(),
         topo::test_support::pinned_resolution(Tol::witness()),
     )
-    .unwrap()
-    .enclosure
+    .expect("the measured body")
+    .met()
+    .expect("the measured body")
     .volume;
     let analytic = 3.0 * PI;
     assert!(

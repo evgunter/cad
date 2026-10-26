@@ -18,14 +18,11 @@ PINNED = Settle.resolution(1.024e-6 * m)
 
 
 def met(measurement):
-    """`measurement`'s enclosure, where every face met its resolution.
-
-    A test reading a number at `PINNED` reads it only where the
-    resolution was met; a bracket that stopped short is a failure of the
-    row, named with its stop."""
-    if measurement.stop != "met":
-        raise AssertionError(f"the resolution went unmet: {measurement!r}")
-    return measurement.enclosure
+    """`measurement`'s enclosure, where every face met its resolution:
+    `MassMeasurement.met()`, which raises where the resolution went
+    unmet, so a bracket that stopped short is a failure of the row,
+    named with its stop."""
+    return measurement.met()
 
 
 def pinned(body):

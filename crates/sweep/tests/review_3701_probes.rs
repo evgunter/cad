@@ -82,13 +82,11 @@ fn chamfered(a: f64, b: f64, c: f64, d: f64) -> f64 {
 }
 
 fn vol(b: &Body<f64>, t: Tol) -> f64 {
-    topo::mass_properties(
+    topo::test_support::pinned_volume(
+        "the measured body",
         &topo::test_support::finished("the measured body", topo::Body::clone(b), t),
         t,
-        topo::test_support::pinned_resolution(t),
     )
-    .unwrap()
-    .enclosure
     .volume
 }
 

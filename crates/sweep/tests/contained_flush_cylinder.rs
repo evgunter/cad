@@ -24,7 +24,8 @@ fn a_cylinder_flush_inside_a_block_unions_to_the_block() {
     };
     let volume = mass_properties(&union.body, tol, topo::test_support::pinned_resolution(tol))
         .unwrap()
-        .enclosure
+        .met()
+        .expect("the pinned resolution is met")
         .volume;
     assert!(
         (volume - 4.0).abs() < 1e-9,

@@ -97,14 +97,7 @@ fn p1b_order_on_distinct_charts_moves_the_key_but_nothing_else() {
     assert_eq!(body.shells().count(), 1);
     let inner = cup::L - 2.0 * cup::T;
     assert_eq!(
-        topo::mass_properties(
-            &body,
-            Tol::witness(),
-            topo::test_support::pinned_resolution(Tol::witness())
-        )
-        .unwrap()
-        .enclosure
-        .volume,
+        topo::test_support::pinned_volume("the measured body", &body, Tol::witness()).volume,
         cup::L * cup::L * cup::H - inner * inner * cup::H
     );
 }

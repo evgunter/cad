@@ -51,7 +51,8 @@ fn a_cylinder_cap_over_a_merged_rim_vertex_answers_every_op() {
             );
             let v = mass_properties(&bb.body, tol, topo::test_support::pinned_resolution(tol))
                 .unwrap()
-                .enclosure
+                .met()
+                .expect("the pinned resolution is met")
                 .volume;
             assert!((v - want).abs() < 1e-9, "{label}: volume {v}, want {want}");
         }

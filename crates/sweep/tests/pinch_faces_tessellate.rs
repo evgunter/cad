@@ -381,14 +381,7 @@ fn a_face_through_two_vertices_on_one_point_tessellates() {
         }) {
             let (got, want) = (
                 mesh::validate::signed_volume(&mesh),
-                topo::mass_properties(
-                    &bb.body,
-                    tol(),
-                    topo::test_support::pinned_resolution(tol()),
-                )
-                .unwrap()
-                .enclosure
-                .volume,
+                topo::test_support::pinned_volume("the measured body", &bb.body, tol()).volume,
             );
             assert!(
                 (got - want).abs() < 1e-9,

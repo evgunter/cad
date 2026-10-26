@@ -299,13 +299,11 @@ fn r2a_a_face_named_twice_across_moves() {
         faces: moves[0].faces.clone(),
         distance: moves[0].distance,
     });
-    let before = topo::mass_properties(
+    let before = topo::test_support::pinned_volume(
+        "props",
         &topo::test_support::finished("the measured body", topo::Body::clone(&body), tol),
         tol,
-        topo::test_support::pinned_resolution(tol),
     )
-    .expect("props")
-    .enclosure
     .volume;
     match topo::offset_planes_together(&mut body, &moves, band(), tol) {
         Err(e) => println!("[r2a] duplicate face: refused, {e}"),
@@ -414,10 +412,7 @@ fn r2a_one_curved_face_among_oblique_planes_takes_the_axial_door() {
         topo::is_axial(&body, band()).expect("the axis gate decides"),
         "sides parallel to the arc's axis, ends normal to it"
     );
-    let operand = topo::mass_properties(&body, tol, topo::test_support::pinned_resolution(tol))
-        .expect("props")
-        .enclosure
-        .volume;
+    let operand = topo::test_support::pinned_volume("props", &body, tol).volume;
     let area = bulge_loop_area(&hex);
     assert!(
         (operand - area * depth).abs() <= 1e-15,
@@ -433,13 +428,11 @@ fn r2a_one_curved_face_among_oblique_planes_takes_the_axial_door() {
     .unwrap_or_else(|e| panic!("the one-arc hexagon hollows: {e}"))
     .body;
     assert_eq!(topo::validate_geometric(&hollow, tol), Ok(()), "tier 3");
-    let got = topo::mass_properties(
+    let got = topo::test_support::pinned_volume(
+        "props",
         &topo::test_support::finished("the measured body", topo::Body::clone(&hollow), tol),
         tol,
-        topo::test_support::pinned_resolution(tol),
     )
-    .expect("props")
-    .enclosure
     .volume;
     println!("[r2a] one-arc hexagon hollow: {got}, closed form {want}");
     assert!((got - want).abs() <= 1e-15, "hollow {got}, want {want}");

@@ -97,7 +97,8 @@ fn interval_offset_charts_together_sphere_zone() {
         topo::test_support::pinned_resolution(tol),
     )
     .expect("props")
-    .enclosure
+    .met()
+    .expect("props")
     .volume;
     contains("sphere-zone wall", got, want);
 }
@@ -162,7 +163,8 @@ fn interval_offset_charts_together_partial_wedge() {
         topo::test_support::pinned_resolution(tol),
     )
     .expect("props")
-    .enclosure
+    .met()
+    .expect("props")
     .volume;
     contains("wedge wall", got, want);
 }
@@ -208,7 +210,8 @@ fn interval_offset_charts_together_cone_frustum() {
             topo::test_support::pinned_resolution(tol),
         )
         .expect("props")
-        .enclosure
+        .met()
+        .expect("props")
         .volume,
         want,
     );
@@ -245,7 +248,8 @@ fn interval_offset_charts_together_drum() {
             topo::test_support::pinned_resolution(tol),
         )
         .expect("props")
-        .enclosure
+        .met()
+        .expect("props")
         .volume,
         want,
     );

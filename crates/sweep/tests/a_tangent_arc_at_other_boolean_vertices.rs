@@ -124,7 +124,8 @@ fn a_tilted_dip_at_vertex_edge_and_vertex_vertex_postures() {
             topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
-        .enclosure
+        .met()
+        .expect("the pinned resolution is met")
         .volume
     };
     let mut wrong = 0;
@@ -214,7 +215,8 @@ fn a_rising_round_tilted_onto_a_slab_edge_keeps_its_operands() {
             topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
-        .enclosure
+        .met()
+        .expect("the pinned resolution is met")
         .volume
     };
     let round = tilted_round(0.3, false);

@@ -412,10 +412,7 @@ fn a_whole_flipped_shell_of_two_does_not_finish_and_the_raw_door_measures_it_wro
         tol,
     );
     let hollow = g(topo::boolean::subtract(&unit, &small_in, tol)).expect("the hollow ball");
-    let measured = topo::mass_properties(&hollow, tol, topo::test_support::pinned_resolution(tol))
-        .unwrap()
-        .enclosure
-        .volume;
+    let measured = topo::test_support::pinned_volume("the measured body", &hollow, tol).volume;
     assert_eq!(hollow.shells().count(), 2, "the hollow ball has two shells");
     let mut wrong = 0;
     for (shell, s) in hollow.shells() {

@@ -1012,17 +1012,15 @@ fn one_declared_radius_decides_equal_radii_at_the_germ_as_its_kernel_twin_does()
         "one declared parameter's two walls must decide equal radii: {:?}",
         value.coincidences
     );
-    let from_document = topo::mass_properties(
+    let from_document = topo::test_support::pinned_volume(
+        "the measured body",
         &topo::test_support::finished(
             "the measured body",
             topo::Body::clone(body_of(&ev, union)),
             tol(),
         ),
         tol(),
-        topo::test_support::pinned_resolution(tol()),
     )
-    .unwrap()
-    .enclosure
     .volume;
 
     let raw_a = raw_spin(&raw_cylinder(R, H), Vec3::new(0.0, 0.0, 1.0), PHI);
@@ -1041,14 +1039,8 @@ fn one_declared_radius_decides_equal_radii_at_the_germ_as_its_kernel_twin_does()
         decides_equal_radii(raw.coincidences.iter().map(|c| (&c.relation, &c.site))),
         "the kernel-built twin at bit-identical radii decides equal radii too"
     );
-    let raw_volume = topo::mass_properties(
-        &raw.body,
-        tol(),
-        topo::test_support::pinned_resolution(tol()),
-    )
-    .unwrap()
-    .enclosure
-    .volume;
+    let raw_volume =
+        topo::test_support::pinned_volume("the measured body", &raw.body, tol()).volume;
     assert!(
         (from_document - raw_volume).abs() < 1e-9,
         "the document's union {from_document} against its kernel twin's {raw_volume}"

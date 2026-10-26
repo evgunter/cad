@@ -58,10 +58,7 @@ fn a_flipped_dimple_is_refused_by_the_side_reader() {
         .clone();
     topo::validate_geometric(&body, tol).expect("the dimpled slab is valid");
     let volume = 16.0 - cap_volume(R, 1.0 - (C.2 - R));
-    let v = topo::mass_properties(&body, tol, topo::test_support::pinned_resolution(tol))
-        .unwrap()
-        .enclosure
-        .volume;
+    let v = topo::test_support::pinned_volume("the measured body", &body, tol).volume;
     assert!(
         (v - volume).abs() <= 1e-9 * volume,
         "volume {v} against the closed form {volume}"

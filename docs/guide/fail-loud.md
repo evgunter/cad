@@ -315,7 +315,7 @@ ev = evaluate(doc)
 body = ev.value(glued).body()
 body.validate()
 # 10 × 10 × 20 mm³ — one block, watertight.
-assert abs(body.mass_properties(Settle.resolution(1e-6 * m)).enclosure.volume - 2e-6) < 1e-15
+assert abs(body.mass_properties(Settle.resolution(1e-6 * m)).met().volume - 2e-6) < 1e-15
 
 # The rest at z = 10 mm, the four walls carried on across it, and the
 # four corners where the slabs meet.

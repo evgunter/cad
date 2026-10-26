@@ -134,11 +134,7 @@ fn r1_the_dome_rims_material_side_is_read_off_the_body() {
             convex, !up,
             "{name}: the boss's dome rim is concave, the dimple's convex"
         );
-        let before =
-            topo::mass_properties(&body, tol(), topo::test_support::pinned_resolution(tol()))
-                .unwrap()
-                .enclosure
-                .volume;
+        let before = topo::test_support::pinned_volume("the measured body", &body, tol()).volume;
         let out = fillet_edges(
             &sweep::test_support::at_rest(&body, tol()),
             &arcs,
@@ -153,13 +149,11 @@ fn r1_the_dome_rims_material_side_is_read_off_the_body() {
             convex,
             "{name}: the band's stored sense bit is the chain's convexity"
         );
-        let delta = topo::mass_properties(
+        let delta = topo::test_support::pinned_volume(
+            "the measured body",
             &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol()),
             tol(),
-            topo::test_support::pinned_resolution(tol()),
         )
-        .unwrap()
-        .enclosure
         .volume
             - before;
         assert_eq!(
@@ -223,10 +217,7 @@ fn r1_a_convex_corner_arc_of_a_mixed_outer_cycle_takes_the_external_term() {
     let body = topo::test_support::finished("body", dimpled_plate(0.3, 0.15, 0.3, 0.0), tol());
     validate_geometric(&body, tol()).expect("the dimpled plate is tier-3 valid");
     let arcs = z_rim(&body, 0.15, 0.4, true);
-    let before = topo::mass_properties(&body, tol(), topo::test_support::pinned_resolution(tol()))
-        .unwrap()
-        .enclosure
-        .volume;
+    let before = topo::test_support::pinned_volume("the measured body", &body, tol()).volume;
     let out = fillet_edges(
         &sweep::test_support::at_rest(&body, tol()),
         &arcs,
@@ -297,13 +288,11 @@ fn r1_a_bored_cylinders_off_axis_ring_reaches_the_annulus_backstop_at_the_front_
     .expect("a contained off-axis ring carves");
     validate_geometric(&out.body, tol()).expect("tier-3 valid");
     assert_eq!(
-        topo::mass_properties(
+        topo::test_support::pinned_volume(
+            "the measured body",
             &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol()),
-            tol(),
-            topo::test_support::pinned_resolution(tol()),
+            tol()
         )
-        .unwrap()
-        .enclosure
         .volume_pad,
         0.0
     );
@@ -348,13 +337,11 @@ fn r1_a_bored_cylinders_off_axis_ring_reaches_the_ladder_backstop_at_the_front_d
         .expect("a contained trim circle carves");
     validate_geometric(&out.body, tol()).expect("tier-3 valid");
     assert_eq!(
-        topo::mass_properties(
+        topo::test_support::pinned_volume(
+            "the measured body",
             &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol()),
-            tol(),
-            topo::test_support::pinned_resolution(tol()),
+            tol()
         )
-        .unwrap()
-        .enclosure
         .volume_pad,
         0.0
     );

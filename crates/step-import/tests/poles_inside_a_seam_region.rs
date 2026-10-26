@@ -28,13 +28,11 @@ fn a_seam_region_holding_its_poles_inside_its_faces_imports_and_measures() {
     };
     topo::validate_geometric(body.body(), tol)
         .unwrap_or_else(|e| panic!("tier 3 refuses it: {e:?}"));
-    let volume = topo::mass_properties(
+    let volume = topo::test_support::pinned_volume(
+        "the measured body",
         &topo::test_support::finished("the measured body", body.body().clone(), tol),
         tol,
-        topo::test_support::pinned_resolution(tol),
     )
-    .unwrap()
-    .enclosure
     .volume;
     assert!(
         (volume - exact).abs() <= 1e-9 * exact,
@@ -65,13 +63,11 @@ fn a_seam_region_reads_its_side_at_a_pole_on_another_members_edge() {
     };
     topo::validate_geometric(body.body(), tol)
         .unwrap_or_else(|e| panic!("tier 3 refuses it: {e:?}"));
-    let volume = topo::mass_properties(
+    let volume = topo::test_support::pinned_volume(
+        "the measured body",
         &topo::test_support::finished("the measured body", body.body().clone(), tol),
         tol,
-        topo::test_support::pinned_resolution(tol),
     )
-    .unwrap()
-    .enclosure
     .volume;
     assert!(
         (volume - exact).abs() <= 1e-9 * exact,

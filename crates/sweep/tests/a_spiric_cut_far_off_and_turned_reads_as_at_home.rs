@@ -143,8 +143,9 @@ fn every_op_far_off_and_turned_keeps_its_pads_at_home() {
     for ((label, home), (_, far)) in built(0.0).into_iter().zip(built(100.0)) {
         let pad = |b: &AtRestBody<f64>| {
             topo::mass_properties(b, tol, topo::test_support::pinned_resolution(tol))
-                .unwrap()
-                .enclosure
+                .expect("the measured body")
+                .met()
+                .expect("the measured body")
                 .volume_pad
         };
         let (home, far) = (pad(&home), pad(&far));
@@ -188,8 +189,9 @@ fn one_solid_in_two_face_orders_carries_nearly_one_pad() {
             tol,
             topo::test_support::pinned_resolution(tol),
         )
-        .unwrap()
-        .enclosure
+        .expect("the measured body")
+        .met()
+        .expect("the measured body")
         .volume_pad
     };
     let apart = |x: &AtRestBody<f64>, y: &AtRestBody<f64>| {
@@ -235,8 +237,9 @@ fn pads_over_rotations(body: &topo::Body<f64>) -> Vec<f64> {
                 tol,
                 topo::test_support::pinned_resolution(tol),
             )
-            .unwrap()
-            .enclosure
+            .expect("the measured body")
+            .met()
+            .expect("the measured body")
             .volume_pad
         })
         .collect()
@@ -572,8 +575,9 @@ fn a_carried_region_at_the_certified_scalar_holds_its_volume() {
     );
     let truth = 303.0 + std::f64::consts::PI * std::f64::consts::PI / 8.0;
     let volume = topo::mass_properties(&body, tol, topo::test_support::pinned_resolution(tol))
-        .unwrap()
-        .enclosure
+        .expect("the measured body")
+        .met()
+        .expect("the measured body")
         .volume;
     assert!(
         volume.lo() <= truth && truth <= volume.hi(),

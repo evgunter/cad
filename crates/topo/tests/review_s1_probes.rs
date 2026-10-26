@@ -44,7 +44,8 @@ fn glued(
             topo::test_support::pinned_resolution(Tol::witness())
         )
         .unwrap()
-        .enclosure
+        .met()
+        .expect("the pinned resolution is met")
         .volume,
         volume
     );
@@ -122,7 +123,8 @@ fn probe_symmetric_two_patch_bridge() {
             topo::test_support::pinned_resolution(Tol::witness())
         )
         .unwrap()
-        .enclosure
+        .met()
+        .expect("the pinned resolution is met")
         .volume,
         2.5
     );
@@ -171,7 +173,8 @@ fn probe_subtract_notch_rests_on_b() {
             topo::test_support::pinned_resolution(Tol::witness())
         )
         .unwrap()
-        .enclosure
+        .met()
+        .expect("the pinned resolution is met")
         .volume,
         5.0
     );
@@ -193,7 +196,8 @@ fn probe_subtract_notch_rests_on_b() {
             topo::test_support::pinned_resolution(Tol::witness())
         )
         .unwrap()
-        .enclosure
+        .met()
+        .expect("the pinned resolution is met")
         .volume,
         5.0
     );

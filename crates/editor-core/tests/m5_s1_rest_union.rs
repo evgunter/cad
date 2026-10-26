@@ -73,17 +73,15 @@ fn rest_union_evaluates_green() {
     };
     assert_eq!(*kind, topo::BooleanResultKind::Seamed);
     assert_eq!(
-        topo::mass_properties(
+        topo::test_support::pinned_volume(
+            "the measured body",
             &topo::test_support::finished(
                 "the measured body",
                 topo::Body::clone(&**body),
                 Tol::witness()
             ),
-            Tol::witness(),
-            topo::test_support::pinned_resolution(Tol::witness()),
+            Tol::witness()
         )
-        .unwrap()
-        .enclosure
         .volume,
         8.0
     );

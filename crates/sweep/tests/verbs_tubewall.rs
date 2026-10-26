@@ -422,30 +422,26 @@ fn hollow_wall_and_shared_refusal_doors() {
         "the normalized axis builds the same hollow torus"
     );
     assert_eq!(
-        topo::mass_properties(
+        topo::test_support::pinned_volume(
+            "mass properties",
             &topo::test_support::finished(
                 "the measured body",
                 topo::Body::clone(&scaled.body),
                 Tol::witness()
             ),
-            Tol::witness(),
-            topo::test_support::pinned_resolution(Tol::witness()),
+            Tol::witness()
         )
-        .expect("mass properties")
-        .enclosure
         .volume
         .to_bits(),
-        topo::mass_properties(
+        topo::test_support::pinned_volume(
+            "mass properties",
             &topo::test_support::finished(
                 "the measured body",
                 topo::Body::clone(&unit.body),
                 Tol::witness()
             ),
-            Tol::witness(),
-            topo::test_support::pinned_resolution(Tol::witness()),
+            Tol::witness()
         )
-        .expect("mass properties")
-        .enclosure
         .volume
         .to_bits(),
         "the normalized axis builds it bit for bit"

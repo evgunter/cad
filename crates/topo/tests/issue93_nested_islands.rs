@@ -88,7 +88,8 @@ fn plate_with_tube_f64() -> AtRestBody<f64> {
         topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("u1 mass")
-    .enclosure
+    .met()
+    .expect("the pinned resolution is met")
     .volume;
     assert!((v - 22.0).abs() < 1e-12, "u1 volume {v} != 22.0 exact");
     u1
@@ -196,7 +197,8 @@ fn issue105_doubly_nested_union_exact() {
         topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("u2 mass")
-    .enclosure
+    .met()
+    .expect("the pinned resolution is met")
     .volume;
     assert!(
         (v - 22.4375).abs() < 1e-12,
@@ -234,7 +236,8 @@ fn issue106_depth2_nested_intersect_exact() {
         topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("u2 mass")
-    .enclosure
+    .met()
+    .expect("the pinned resolution is met")
     .volume;
     assert!((vu2 - 22.4375).abs() < 1e-12, "u2 volume {vu2} != 22.4375");
     match intersect(&u2, &slab::<f64>(), Tol::witness()) {
@@ -248,7 +251,8 @@ fn issue106_depth2_nested_intersect_exact() {
                 topo::test_support::pinned_resolution(Tol::witness()),
             )
             .expect("mass")
-            .enclosure
+            .met()
+            .expect("the pinned resolution is met")
             .volume;
             assert!(
                 (v - 3.25).abs() < 1e-12,
@@ -277,7 +281,8 @@ fn depth1_nested_intersect_control_exact() {
                 topo::test_support::pinned_resolution(Tol::witness()),
             )
             .expect("mass")
-            .enclosure
+            .met()
+            .expect("the pinned resolution is met")
             .volume;
             assert!((v - 3.0).abs() < 1e-12, "control volume {v} != 3.0 exact");
         }
@@ -347,7 +352,8 @@ fn issue106_depth3_nested_intersect_probe() {
         topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("u3 mass")
-    .enclosure
+    .met()
+    .expect("the pinned resolution is met")
     .volume;
     assert!(
         (vu3 - 22.3544921875).abs() < 1e-12,
@@ -364,7 +370,8 @@ fn issue106_depth3_nested_intersect_probe() {
                 topo::test_support::pinned_resolution(Tol::witness()),
             )
             .expect("mass")
-            .enclosure
+            .met()
+            .expect("the pinned resolution is met")
             .volume;
             assert!(
                 (v - 3.203125).abs() < 1e-12,
@@ -480,7 +487,8 @@ fn issue106_comb_island_intersect_probe() {
         topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("u2 mass")
-    .enclosure
+    .met()
+    .expect("the pinned resolution is met")
     .volume;
     assert!(
         (vu2 - 22.287109375).abs() < 1e-12,
@@ -497,7 +505,8 @@ fn issue106_comb_island_intersect_probe() {
                 topo::test_support::pinned_resolution(Tol::witness()),
             )
             .expect("mass")
-            .enclosure
+            .met()
+            .expect("the pinned resolution is met")
             .volume;
             assert!(
                 (v - 3.1640625).abs() < 1e-12,

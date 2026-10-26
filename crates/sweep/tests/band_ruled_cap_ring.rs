@@ -49,7 +49,8 @@ fn volume(body: &Body<f64>) -> f64 {
         topo::test_support::pinned_resolution(tol()),
     )
     .expect("closed-form props")
-    .enclosure
+    .met()
+    .expect("closed-form props")
     .volume
 }
 
@@ -721,7 +722,8 @@ fn a_hole_whose_edge_leaves_the_slivers_enclosure_by_two_faces_carves_at_interva
                 topo::test_support::pinned_resolution(tol),
             )
             .expect("interval props")
-            .enclosure
+            .met()
+            .expect("interval props")
             .volume
         };
         let dv = vol(&out.body) - vol(&body);

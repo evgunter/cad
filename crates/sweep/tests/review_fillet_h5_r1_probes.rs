@@ -107,13 +107,11 @@ fn r1_the_bosss_base_rim_is_hostless_and_carves() {
     validate_geometric(&out.body, tol()).expect("tier-3 valid");
     assert_eq!(out.band_faces.len(), 1, "one band");
     assert_eq!(
-        topo::mass_properties(
+        topo::test_support::pinned_volume(
+            "the measured body",
             &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol()),
-            tol(),
-            topo::test_support::pinned_resolution(tol()),
+            tol()
         )
-        .unwrap()
-        .enclosure
         .volume_pad,
         0.0,
         "closed-form faces only"
@@ -171,13 +169,11 @@ fn r1_a_hostless_rim_on_a_ringed_host_carves_under_the_recourse_that_promises_it
     validate_geometric(&out.body, tol()).expect("tier-3 valid");
     assert_eq!(out.band_faces.len(), 1, "one band");
     assert_eq!(
-        topo::mass_properties(
+        topo::test_support::pinned_volume(
+            "the measured body",
             &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol()),
-            tol(),
-            topo::test_support::pinned_resolution(tol()),
+            tol()
         )
-        .unwrap()
-        .enclosure
         .volume_pad,
         0.0,
         "closed-form faces only"

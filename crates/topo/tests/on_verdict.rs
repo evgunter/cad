@@ -47,7 +47,8 @@ fn read(
     );
     let volume = mass_properties(&out.body, tol, topo::test_support::pinned_resolution(tol))
         .unwrap()
-        .enclosure
+        .met()
+        .expect("the pinned resolution is met")
         .volume;
     (volume, out.body.shells().count(), out.kind)
 }

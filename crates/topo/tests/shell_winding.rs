@@ -99,7 +99,8 @@ fn positive_total(body: &Body<f64>) {
             topo::test_support::pinned_resolution(tol())
         )
         .expect("the body measures")
-        .enclosure
+        .met()
+        .expect("the pinned resolution is met")
         .volume
             > 0.0,
         "the premise: the total is positive, so check 7 alone would pass"

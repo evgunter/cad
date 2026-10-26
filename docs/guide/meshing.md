@@ -167,7 +167,7 @@ washer = doc.insert(Node.revolve(outline, *axis, Formula.angle_in(360, deg)))
 
 body = evaluate(doc).value(washer).body()
 body.validate()
-exact = body.mass_properties(Settle.resolution(1e-6 * m)).enclosure.volume
+exact = body.mass_properties(Settle.resolution(1e-6 * m)).met().volume
 assert abs(exact - math.pi * (1.5**2 - 0.5**2) * 2.0) < 1e-9
 
 # The error is first order in the budget: the mesh is inscribed, so

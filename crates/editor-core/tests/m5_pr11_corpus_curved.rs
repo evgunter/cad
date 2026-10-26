@@ -107,14 +107,7 @@ fn boss_union_gains_tessellation_and_props_columns() {
         Tol::witness(),
     );
     let (ms, tris) = tess_column("boss_union", &body);
-    let vol = topo::mass_properties(
-        &body,
-        Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
-    )
-    .unwrap()
-    .enclosure
-    .volume;
+    let vol = topo::test_support::pinned_volume("the measured body", &body, Tol::witness()).volume;
     // 3×3×0.8 plate + r = 0.35 boss poking 0.5 out of the plate.
     let expect = 7.2 + core::f64::consts::PI * 0.35f64.powi(2) * 0.5;
     assert!((vol - expect).abs() < 1e-6, "vol {vol} vs {expect}");

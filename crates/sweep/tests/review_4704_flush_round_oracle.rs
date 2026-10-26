@@ -204,7 +204,8 @@ fn judge(
                 topo::test_support::pinned_resolution(Tol::witness()),
             )
             .unwrap()
-            .enclosure
+            .met()
+            .expect("the pinned resolution is met")
             .volume;
             if (v - want_vol).abs() > 1e-9_f64.max(1e-9 * want_vol) {
                 bad.push(format!("volume {v} vs {want_vol}"));
@@ -254,7 +255,8 @@ fn pose(slab: Slab, beta: f64, mirror: bool, meet: f64) -> Vec<String> {
             topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
-        .enclosure
+        .met()
+        .expect("the pinned resolution is met")
         .volume
     };
     let (vs, vr) = (vol(&s), vol(&r));

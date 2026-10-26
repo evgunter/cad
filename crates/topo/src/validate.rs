@@ -16128,7 +16128,8 @@ mod tests {
                 crate::test_support::pinned_resolution(Tol::witness()),
             )
             .unwrap()
-            .enclosure
+            .met()
+            .expect("the pinned resolution is met")
             .volume
         };
         assert_eq!(

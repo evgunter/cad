@@ -76,13 +76,11 @@ fn every_donut_split_meshes_and_measures_as_the_donut() {
     let tol = Tol::witness();
     let patterns: [&[f64]; 2] = [&[0.5], &[0.3129, 0.15645]];
     let n_edges = donut().edges().count();
-    let v0 = topo::mass_properties(
+    let v0 = topo::test_support::pinned_volume(
+        "the measured body",
         &topo::test_support::finished("the measured body", donut().clone(), tol),
         tol,
-        topo::test_support::pinned_resolution(tol),
     )
-    .unwrap()
-    .enclosure
     .volume
     .to_bits();
     let mut wrong = Vec::new();

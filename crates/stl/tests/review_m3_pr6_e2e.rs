@@ -47,7 +47,8 @@ fn die(x0: f64, y0: f64, z0: f64) -> AtRestBody<f64> {
             topo::test_support::pinned_resolution(Tol::witness())
         )
         .unwrap()
-        .enclosure
+        .met()
+        .expect("the pinned resolution is met")
         .volume,
         0.875
     );

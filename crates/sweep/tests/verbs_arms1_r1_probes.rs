@@ -299,13 +299,11 @@ fn both_zone_rims_in_one_call_match_the_sequential_composition() {
             tol(),
         )
         .expect("the second sequential call");
-        topo::mass_properties(
+        topo::test_support::pinned_volume(
+            "mass properties",
             &topo::test_support::finished("the measured body", topo::Body::clone(&b.body), tol()),
             tol(),
-            topo::test_support::pinned_resolution(tol()),
         )
-        .expect("mass properties")
-        .enclosure
         .volume
     };
     let (v_lo_hi, v_hi_lo) = (seq(-0.5, 1.0), seq(1.0, -0.5));

@@ -222,14 +222,8 @@ fn four_crossings_above_the_centre_wind_the_sphere_ring() {
                 Ok(()),
                 "{label}: tier 3"
             );
-            let v = topo::mass_properties(
-                &body,
-                Tol::witness(),
-                topo::test_support::pinned_resolution(Tol::witness()),
-            )
-            .unwrap()
-            .enclosure
-            .volume;
+            let v = topo::test_support::pinned_volume("the measured body", &body, Tol::witness())
+                .volume;
             assert!(
                 (v - expected).abs() <= 1e-9 * expected,
                 "{label}: volume {v} against the closed form {expected}"

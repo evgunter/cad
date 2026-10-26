@@ -88,14 +88,8 @@ fn a_tube_rim_vertex_touching_a_turned_face_unions_past_tier_3_prime() {
             let bb = r
                 .body()
                 .unwrap_or_else(|| panic!("{tag}: the union is a body"));
-            let volume = topo::mass_properties(
-                &bb.body,
-                tol(),
-                topo::test_support::pinned_resolution(tol()),
-            )
-            .unwrap()
-            .enclosure
-            .volume;
+            let volume =
+                topo::test_support::pinned_volume("the measured body", &bb.body, tol()).volume;
             assert!(
                 (volume - exact).abs() < 1e-6,
                 "{tag}: the union's volume is the cube's and the tube's, got {volume}"

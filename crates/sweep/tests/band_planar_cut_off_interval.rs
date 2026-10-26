@@ -56,7 +56,8 @@ fn the_box_rows_carve_at_the_certified_scalar_and_bracket_their_closed_forms() {
     let across = edge(&body, [0.0, 0.0, 1.0], [0.0, 1.5, 1.0]);
     let v0 = mass_properties(&body, tol, topo::test_support::pinned_resolution(tol))
         .expect("interval props")
-        .enclosure
+        .met()
+        .expect("the pinned resolution is met")
         .volume;
     let chamfer = (D * D / 2.0, 2.0 / 3.0 * D.powi(3));
     let fillet = (
@@ -198,7 +199,8 @@ fn a_feature_across_a_requested_edges_line_is_clear_at_the_certified_scalar() {
             let tip = edge(&body, [3.5, 2.5, z], [2.5, 2.5, z]);
             let v0 = mass_properties(&body, tol, topo::test_support::pinned_resolution(tol))
                 .expect("interval props")
-                .enclosure
+                .met()
+                .expect("the pinned resolution is met")
                 .volume;
             for (round, section) in [(false, D * D / 2.0), (true, (1.0 - PI / 4.0) * D * D)] {
                 let out = if round {
@@ -223,7 +225,8 @@ fn a_feature_across_a_requested_edges_line_is_clear_at_the_certified_scalar() {
                         topo::test_support::pinned_resolution(tol),
                     )
                     .expect("interval props")
-                    .enclosure
+                    .met()
+                    .expect("interval props")
                     .volume;
                 let truth = if convex { section } else { -section };
                 assert!(
@@ -329,7 +332,8 @@ fn a_fillet_foot_on_atan2s_cut_at_an_oblique_end_carves_at_the_certified_scalar(
             let (ibody, iedge) = sheared::<Interval>(s, convex, tol);
             let fv0 = mass_properties(&fbody, tol, topo::test_support::pinned_resolution(tol))
                 .expect("props")
-                .enclosure
+                .met()
+                .expect("the pinned resolution is met")
                 .volume;
             let iv0 = mass_properties(&ibody, tol, topo::test_support::pinned_resolution(tol))
                 .expect("interval props");
@@ -353,7 +357,8 @@ fn a_fillet_foot_on_atan2s_cut_at_an_oblique_end_carves_at_the_certified_scalar(
                         topo::test_support::pinned_resolution(tol),
                     )
                     .expect("props")
-                    .enclosure
+                    .met()
+                    .expect("props")
                     .volume;
                 let out = match if round {
                     fillet_edges(&ibody, &[iedge], iv(D), tol)

@@ -304,7 +304,8 @@ fn a_curved_notch_at_a_corner_pinch_builds_bodies_the_census_cannot_read_yet() {
             topo::test_support::pinned_resolution(tol()),
         )
         .unwrap()
-        .enclosure
+        .met()
+        .expect("the pinned resolution is met")
         .volume;
         assert!(
             (v - want).abs() < 1e-7,
@@ -342,7 +343,8 @@ fn a_curved_notch_at_a_corner_pinch_builds_bodies_the_census_cannot_read_yet() {
             topo::test_support::pinned_resolution(tol()),
         )
         .unwrap()
-        .enclosure
+        .met()
+        .expect("the pinned resolution is met")
         .volume;
         assert!(
             (joined - (want + 1.0)).abs() < 1e-7,

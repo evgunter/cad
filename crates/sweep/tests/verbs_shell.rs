@@ -1780,17 +1780,15 @@ fn the_klein_wall_pair_seals_to_its_measured_volume_and_opens_to_the_hand_built_
         .count();
     assert_eq!(spirics, 0, "every rim on a meridian plane is a circle");
     let volume = |b: &Body<f64>| {
-        topo::mass_properties(
+        topo::test_support::pinned_volume(
+            "the elbow's props",
             &topo::test_support::finished(
                 "the measured body",
                 topo::Body::clone(b),
                 Tol::witness(),
             ),
             Tol::witness(),
-            topo::test_support::pinned_resolution(Tol::witness()),
         )
-        .expect("the elbow's props")
-        .enclosure
         .volume
     };
     // Pappus: a quarter turn of the annulus about the spine radius.
@@ -1908,17 +1906,15 @@ fn a_hex_prism_with_a_coaxial_bore_hollows_to_its_closed_form() {
         "tier 3"
     );
     assert_eq!(hollow.shells().count(), 2, "the wall and its cavity");
-    let got = topo::mass_properties(
+    let got = topo::test_support::pinned_volume(
+        "props",
         &topo::test_support::finished(
             "the measured body",
             topo::Body::clone(&hollow),
             Tol::witness(),
         ),
         Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
     )
-    .expect("props")
-    .enclosure
     .volume;
     println!("[measured] bored hex prism hollow {got}, closed form {want}");
     assert!((got - want).abs() <= 1e-12, "hollow {got}, want {want}");
@@ -1969,17 +1965,15 @@ fn assert_extrusion_hollows_axially(
         2,
         "{what}: the wall and its cavity"
     );
-    let got = topo::mass_properties(
+    let got = topo::test_support::pinned_volume(
+        "props",
         &topo::test_support::finished(
             "the measured body",
             topo::Body::clone(&hollow),
             Tol::witness(),
         ),
         Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
     )
-    .expect("props")
-    .enclosure
     .volume;
     println!("[measured] {what} hollow {got}, closed form {want}");
     assert!(

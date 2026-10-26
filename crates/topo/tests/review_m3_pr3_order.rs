@@ -48,7 +48,8 @@ fn tilted_plane_f64_and_replay() {
             topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
-        .enclosure
+        .met()
+        .expect("the pinned resolution is met")
         .volume,
         mass_properties(
             &topo::test_support::finished("the measured body", (below).clone(), Tol::witness()),
@@ -56,7 +57,8 @@ fn tilted_plane_f64_and_replay() {
             topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
-        .enclosure
+        .met()
+        .expect("the pinned resolution is met")
         .volume,
         mass_properties(
             &fx,
@@ -64,7 +66,8 @@ fn tilted_plane_f64_and_replay() {
             topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
-        .enclosure
+        .met()
+        .expect("the pinned resolution is met")
         .volume,
     );
     assert!((vb - 2.0).abs() < 1e-9, "below {vb}");
@@ -147,7 +150,8 @@ fn orientation_flip_swaps_sides_only() {
             topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
-        .enclosure
+        .met()
+        .expect("the pinned resolution is met")
         .volume
     };
     assert!((vol(&r1.above) - vol(&r2.below)).abs() < 1e-12);

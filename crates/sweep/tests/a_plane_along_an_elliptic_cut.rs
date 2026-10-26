@@ -60,7 +60,8 @@ fn lower_piece(tol: Tol) -> (AtRestBody<f64>, f64, Point3<f64>) {
         .clone();
     let volume = mass_properties(&lower, tol, topo::test_support::pinned_resolution(tol))
         .unwrap()
-        .enclosure
+        .met()
+        .expect("the pinned resolution is met")
         .volume;
     let want = core::f64::consts::PI * RADIUS * RADIUS * DEPTH / 2.0;
     assert!(
@@ -95,7 +96,8 @@ fn lands_whole_below(
     assert_eq!(validate_closed(below), Ok(()), "{label}: Below is closed");
     let got = mass_properties(below, tol, topo::test_support::pinned_resolution(tol))
         .unwrap()
-        .enclosure
+        .met()
+        .expect("the pinned resolution is met")
         .volume;
     assert!(
         (got - volume).abs() <= within(tol) * volume,

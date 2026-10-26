@@ -59,7 +59,8 @@ fn probe_two_peg_oracle_rederivation() {
         topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .enclosure
+    .met()
+    .expect("the pinned resolution is met")
     .volume;
     let vq = mass_properties(
         &q,
@@ -67,7 +68,8 @@ fn probe_two_peg_oracle_rederivation() {
         topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .enclosure
+    .met()
+    .expect("the pinned resolution is met")
     .volume;
     let body = body_of(topo::union(&p, &q, Tol::witness()).unwrap());
     let v = mass_properties(
@@ -76,7 +78,8 @@ fn probe_two_peg_oracle_rederivation() {
         topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .enclosure
+    .met()
+    .expect("the pinned resolution is met")
     .volume;
     eprintln!(
         "vp = {vp:.17e}, vq = {vq:.17e}, vp+vq = {:.17e}, v = {v:.17e}",
@@ -102,7 +105,8 @@ fn probe_peg_offset_one_ulp_characterized() {
         topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .enclosure
+    .met()
+    .expect("the pinned resolution is met")
     .volume;
     let vq = mass_properties(
         &q,
@@ -110,7 +114,8 @@ fn probe_peg_offset_one_ulp_characterized() {
         topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .enclosure
+    .met()
+    .expect("the pinned resolution is met")
     .volume;
     match topo::union(&p, &q, Tol::witness()) {
         Ok(out) => {
@@ -121,7 +126,8 @@ fn probe_peg_offset_one_ulp_characterized() {
                 topo::test_support::pinned_resolution(Tol::witness()),
             )
             .unwrap()
-            .enclosure
+            .met()
+            .expect("the pinned resolution is met")
             .volume;
             eprintln!(
                 "1-ulp offset unioned: v = {v:.17e}, vp+vq = {:.17e}",
@@ -171,7 +177,8 @@ fn probe_partial_engagement_never_silent() {
         topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .enclosure
+    .met()
+    .expect("the pinned resolution is met")
     .volume;
     let vq = mass_properties(
         &q,
@@ -179,7 +186,8 @@ fn probe_partial_engagement_never_silent() {
         topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .enclosure
+    .met()
+    .expect("the pinned resolution is met")
     .volume;
     match topo::union(&p, &q, Tol::witness()) {
         Ok(out) => {
@@ -190,7 +198,8 @@ fn probe_partial_engagement_never_silent() {
                 topo::test_support::pinned_resolution(Tol::witness()),
             )
             .unwrap()
-            .enclosure
+            .met()
+            .expect("the pinned resolution is met")
             .volume;
             eprintln!(
                 "partial engagement unioned: v = {v:.17e} vs {:.17e}",
@@ -266,7 +275,8 @@ fn probe_two_ring_patch_unions_exactly() {
         topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .enclosure
+    .met()
+    .expect("the pinned resolution is met")
     .volume;
     let vt = mass_properties(
         &top,
@@ -274,7 +284,8 @@ fn probe_two_ring_patch_unions_exactly() {
         topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .enclosure
+    .met()
+    .expect("the pinned resolution is met")
     .volume;
     let out = topo::union(&bot, &top, Tol::witness()).expect("the two-ring patch union runs");
     let body = body_of(out);
@@ -284,7 +295,8 @@ fn probe_two_ring_patch_unions_exactly() {
         topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .enclosure
+    .met()
+    .expect("the pinned resolution is met")
     .volume;
     assert_eq!(v, vb + vt, "exactly additive with two rings per patch");
     if let Err(errs) = topo::validate_geometric(&body, Tol::witness()) {
@@ -305,7 +317,8 @@ fn probe_ring_count_mismatch_never_silent() {
         topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .enclosure
+    .met()
+    .expect("the pinned resolution is met")
     .volume;
     let vt = mass_properties(
         &top,
@@ -313,7 +326,8 @@ fn probe_ring_count_mismatch_never_silent() {
         topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .enclosure
+    .met()
+    .expect("the pinned resolution is met")
     .volume;
     match topo::union(&bot, &top, Tol::witness()) {
         Ok(out) => {
@@ -326,7 +340,8 @@ fn probe_ring_count_mismatch_never_silent() {
                 topo::test_support::pinned_resolution(Tol::witness()),
             )
             .unwrap()
-            .enclosure
+            .met()
+            .expect("the pinned resolution is met")
             .volume;
             eprintln!("ring mismatch unioned: v = {v:.17e}");
             assert_eq!(v, vb + vt, "if it unions it must be exactly additive");
@@ -403,7 +418,8 @@ fn probe_tube_chain_additivity_error_measured() {
         topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .enclosure
+    .met()
+    .expect("the pinned resolution is met")
     .volume;
     let vb = mass_properties(
         &b,
@@ -411,7 +427,8 @@ fn probe_tube_chain_additivity_error_measured() {
         topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .enclosure
+    .met()
+    .expect("the pinned resolution is met")
     .volume;
     let body = body_of(topo::union(&a, &b, Tol::witness()).unwrap());
     let v = mass_properties(
@@ -420,7 +437,8 @@ fn probe_tube_chain_additivity_error_measured() {
         topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .enclosure
+    .met()
+    .expect("the pinned resolution is met")
     .volume;
     eprintln!(
         "tube-chain: va = {va:.17e}, vb = {vb:.17e}, v = {v:.17e}, err = {:.3e}",

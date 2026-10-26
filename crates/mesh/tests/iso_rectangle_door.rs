@@ -113,13 +113,11 @@ fn a_rimless_lune_meshes_through_the_door_and_measures() {
         Ok(()),
         "a rimless lune is a chart rectangle"
     );
-    let volume = topo::mass_properties(
+    let volume = topo::test_support::pinned_volume(
+        "the flux lane measures the lune by its meridian pair",
         &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
         Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
     )
-    .expect("the flux lane measures the lune by its meridian pair")
-    .enclosure
     .volume;
     let exact = 2.0 / 3.0 * 2.0;
     assert!(
@@ -330,13 +328,11 @@ fn a_split_seam_donut_meshes_and_measures_as_the_unsplit_donut() {
 fn split_children_partition_the_parent_edges_own_parametrisation() {
     let tol = Tol::witness();
     let base = donut();
-    let v0 = topo::mass_properties(
+    let v0 = topo::test_support::pinned_volume(
+        "the measured body",
         &topo::test_support::finished("the measured body", base.clone(), tol),
         tol,
-        topo::test_support::pinned_resolution(tol),
     )
-    .unwrap()
-    .enclosure
     .volume
     .to_bits();
     let (f0, _) = base.faces().next().unwrap();
@@ -392,13 +388,11 @@ fn split_children_partition_the_parent_edges_own_parametrisation() {
             "{fracs:?}: the anchor point"
         );
         assert_eq!(
-            topo::mass_properties(
+            topo::test_support::pinned_volume(
+                "the measured body",
                 &topo::test_support::finished("the measured body", body.clone(), tol),
-                tol,
-                topo::test_support::pinned_resolution(tol),
+                tol
             )
-            .unwrap()
-            .enclosure
             .volume
             .to_bits(),
             v0,
@@ -422,13 +416,11 @@ fn split_children_partition_the_parent_edges_own_parametrisation() {
         let meet = PropsError::NotIsoRectangle {
             what: "props_meridian_pieces_meet",
         };
-        let got = topo::mass_properties(
+        let got = topo::test_support::pinned_volume(
+            "the measured body",
             &topo::test_support::finished("the measured body", shifted.clone(), tol),
             tol,
-            topo::test_support::pinned_resolution(tol),
         )
-        .unwrap_or_else(|e| panic!("{fracs:?}: the shifted child measures: {e:?}"))
-        .enclosure
         .volume;
         let want = f64::from_bits(v0);
         assert!(

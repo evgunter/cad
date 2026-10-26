@@ -30,17 +30,15 @@ fn symmetric_double_rim_split_volume_at_base() {
     .unwrap()
     .body;
     let true_vol = std::f64::consts::PI * 0.25 * 1.0;
-    let v0 = topo::mass_properties(
+    let v0 = topo::test_support::pinned_volume(
+        "the measured body",
         &topo::test_support::finished(
             "the measured body",
             topo::Body::clone(&body),
             Tol::witness(),
         ),
         Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
     )
-    .unwrap()
-    .enclosure
     .volume;
     assert!((v0 - true_vol).abs() < 1e-9, "pre-split volume sane");
     // Find one cylinder wall face and its two circle-carrier edges.

@@ -368,11 +368,7 @@ fn a_keyed_cylinder_from_subtract_splits_into_counter_clockwise_sections() {
                     continue;
                 }
             };
-            let total =
-                topo::mass_properties(&body, tol(), topo::test_support::pinned_resolution(tol()))
-                    .unwrap()
-                    .enclosure
-                    .volume;
+            let total = topo::test_support::pinned_volume("the measured body", &body, tol()).volume;
             for tilt in [0.0, 1.0, 1.2, 1.4] {
                 for (o, phi) in [([0.0, 0.0, 1.25], 0.0), ([0.0, 0.3, 1.25], 1.3)] {
                     for flip in [false, true] {

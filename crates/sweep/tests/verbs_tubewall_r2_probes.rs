@@ -424,41 +424,35 @@ fn r2_hollow_plus_bore_is_the_solid_tube() {
             Tol::witness(),
         )
         .expect("bore builds");
-        let vh = topo::mass_properties(
+        let vh = topo::test_support::pinned_volume(
+            "props",
             &topo::test_support::finished(
                 "the measured body",
                 topo::Body::clone(&hollow.body),
                 Tol::witness(),
             ),
             Tol::witness(),
-            topo::test_support::pinned_resolution(Tol::witness()),
         )
-        .expect("props")
-        .enclosure
         .volume;
-        let vs = topo::mass_properties(
+        let vs = topo::test_support::pinned_volume(
+            "props",
             &topo::test_support::finished(
                 "the measured body",
                 topo::Body::clone(&solid.body),
                 Tol::witness(),
             ),
             Tol::witness(),
-            topo::test_support::pinned_resolution(Tol::witness()),
         )
-        .expect("props")
-        .enclosure
         .volume;
-        let vb = topo::mass_properties(
+        let vb = topo::test_support::pinned_volume(
+            "props",
             &topo::test_support::finished(
                 "the measured body",
                 topo::Body::clone(&bore.body),
                 Tol::witness(),
             ),
             Tol::witness(),
-            topo::test_support::pinned_resolution(Tol::witness()),
         )
-        .expect("props")
-        .enclosure
         .volume;
         assert!(
             rel(vh + vb, vs) < 1e-11,

@@ -226,14 +226,8 @@ fn a_sphere_window_opens_to_a_ring_and_passes_tier_3() {
     assert_eq!(topo::validate_geometric(&cut, tol), Ok(()), "tier 3");
     let rim = cut.get_face(zone[0]).expect("the designated face survives");
     assert_eq!(rim.rings, vec![shelled.naming.rims[0].ring], "one ring");
-    let before = topo::mass_properties(&body, tol, topo::test_support::pinned_resolution(tol))
-        .unwrap()
-        .enclosure
-        .volume;
-    let after = topo::mass_properties(&cut, tol, topo::test_support::pinned_resolution(tol))
-        .unwrap()
-        .enclosure
-        .volume;
+    let before = topo::test_support::pinned_volume("the measured body", &body, tol).volume;
+    let after = topo::test_support::pinned_volume("the measured body", &cut, tol).volume;
     assert!(
         0.0 < after && after < before,
         "the shell removes material: {after} of {before}"

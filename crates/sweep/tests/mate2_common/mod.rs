@@ -150,13 +150,11 @@ pub fn plane_face(body: &Body<f64>, z: f64, up: bool) -> topo::FaceKey {
 }
 
 pub fn volume(b: &Body<f64>) -> f64 {
-    topo::mass_properties(
+    topo::test_support::pinned_volume(
+        "the measured body",
         &topo::test_support::finished("the measured body", topo::Body::clone(b), Tol::witness()),
         Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
     )
-    .unwrap()
-    .enclosure
     .volume
 }
 

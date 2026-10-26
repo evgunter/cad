@@ -88,7 +88,8 @@ fn the_counterclockwise_wedge_shells_to_its_closed_form_wall() {
         topo::test_support::pinned_resolution(tol),
     )
     .unwrap()
-    .enclosure
+    .met()
+    .expect("the pinned resolution is met")
     .volume;
     assert!(
         ((volume - wall) / wall).abs() < 1e-12,

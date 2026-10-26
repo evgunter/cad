@@ -505,51 +505,75 @@ pub(crate) struct MassMeasurement {
     /// The volume and area enclosures.
     #[pyo3(get)]
     enclosure: MassProperties,
-    /// Why the measurement stopped.
-    #[pyo3(get)]
-    stop: &'static str,
-    verdict: Option<topo::SettleVerdict>,
+    stop: topo::Stop,
 }
 
 impl From<topo::MassMeasurement<f64>> for MassMeasurement {
     fn from(measured: topo::MassMeasurement<f64>) -> Self {
-        let stop = measured.stop.word();
-        let verdict = match measured.stop {
-            topo::Stop::Settled(verdict) => Some(verdict),
-            _ => None,
-        };
         Self {
             enclosure: measured.enclosure.into(),
-            stop,
-            verdict,
+            stop: measured.stop,
         }
     }
 }
 
 #[pymethods]
 impl MassMeasurement {
+    /// Why the measurement stopped, as `topo::Stop::word` spells it.
+    #[getter]
+    fn stop(&self) -> &'static str {
+        self.stop.word()
+    }
+
     /// What a deciding predicate decided, a `SettleVerdict` spelled as
     /// its words: `"outer"` or `"void"` for a sign (`SettleVerdict::Sign`),
     /// a bool for a relation or a containment (`SettleVerdict::Holds`),
     /// `None` where none settled.
     #[getter]
     fn verdict(&self, py: Python<'_>) -> Py<PyAny> {
-        match self.verdict {
-            Some(topo::SettleVerdict::Sign(role)) => {
+        match self.stop {
+            topo::Stop::Settled(topo::SettleVerdict::Sign(role)) => {
                 PyString::new(py, role.word()).unbind().into_any()
             }
-            Some(topo::SettleVerdict::Holds(holds)) => pyo3::types::PyBool::new(py, holds)
-                .to_owned()
-                .unbind()
-                .into_any(),
-            None => py.None(),
+            topo::Stop::Settled(topo::SettleVerdict::Holds(holds)) => {
+                pyo3::types::PyBool::new(py, holds)
+                    .to_owned()
+                    .unbind()
+                    .into_any()
+            }
+            _ => py.None(),
         }
+    }
+
+    /// The enclosure as a number, where the measurement met its
+    /// resolution (`stop == "met"`): `topo::MassMeasurement::met`.
+    ///
+    /// # Errors
+    ///
+    /// `ValidationError` with `measure_refusal == "unmet"` and `stop`,
+    /// the stop the measurement reached instead.
+    fn met(&self, py: Python<'_>) -> PyResult<MassProperties> {
+        if self.stop == topo::Stop::Met {
+            return Ok(self.enclosure.clone());
+        }
+        let word = |w: &str| PyString::new(py, w).unbind().into_any();
+        Err(typed_err(
+            py,
+            ErrorClass::Validation(ValidationRefusal::MassProperties),
+            topo::Unmet { stop: self.stop }.to_string(),
+            &[
+                ("measure_refusal", word(crate::tags::MEASUREMENT_UNMET)),
+                ("stop", word(self.stop.word())),
+            ],
+        ))
     }
 
     fn __repr__(&self) -> String {
         format!(
             "MassMeasurement(stop={}, volume={} ± {} m^3)",
-            self.stop, self.enclosure.volume, self.enclosure.volume_pad
+            self.stop.word(),
+            self.enclosure.volume,
+            self.enclosure.volume_pad
         )
     }
 }

@@ -352,7 +352,7 @@ assert {post_a, shelf_i, post_b} <= set(component)
 # never in the product.
 assert stand.placements() == [post_a, shelf_i, post_b]
 assert [stand.node_kind(n) for n in stand.placements()] == ["instantiate_part"] * 3
-volume = product(stand, ev).mass_properties(Settle.resolution(1e-6 * m)).enclosure.volume
+volume = product(stand, ev).mass_properties(Settle.resolution(1e-6 * m)).met().volume
 expected = 2 * POST_SECTION**2 * POST_HEIGHT + SHELF_LENGTH * SHELF_DEPTH * SHELF_THICKNESS
 assert abs(volume - expected) < 1e-12
 
@@ -371,7 +371,7 @@ except ProductError as refusal:
 # Only a placement relates two spaces: a copy of `alone` placed into
 # the world, by the identity bundle, puts the post in the product.
 flat.place(alone, flat.world)
-volume = product(flat, evaluate(flat, resolver=store)).mass_properties(Settle.resolution(1e-6 * m)).enclosure.volume
+volume = product(flat, evaluate(flat, resolver=store)).mass_properties(Settle.resolution(1e-6 * m)).met().volume
 assert abs(volume - POST_SECTION**2 * POST_HEIGHT) < 1e-12
 ```
 
@@ -494,7 +494,7 @@ ev = evaluate(layout, resolver=store)
 assert ev.succeeded(post_i) and ev.succeeded(shelf_i)
 assert ev.part_evaluations == 2, "two referenced documents crossed the seam"
 
-volume = product(layout, ev).mass_properties(Settle.resolution(1e-6 * m)).enclosure.volume
+volume = product(layout, ev).mass_properties(Settle.resolution(1e-6 * m)).met().volume
 expected = POST_SECTION**2 * POST_HEIGHT + SHELF_LENGTH * SHELF_DEPTH * SHELF_THICKNESS
 assert abs(volume - expected) < 1e-12
 ```
@@ -566,7 +566,7 @@ shelf_i = layout.insert(Node.instantiate_part(DocRef(shelf.id, content_pin(shelf
 # scheduled nowhere.
 before = evaluate(layout, resolver=store)
 assert (before.reused, before.recomputed) == (0, 1)
-pinned_volume = before.value(shelf_i).body().mass_properties(Settle.resolution(1e-6 * m)).enclosure.volume
+pinned_volume = before.value(shelf_i).body().mass_properties(Settle.resolution(1e-6 * m)).met().volume
 
 # Someone thickens the shelf and saves it. The assembly still pins
 # the version it was authored against.
@@ -588,7 +588,7 @@ except EvaluationError as refusal:
 memoized = evaluate(layout, resolver=store, prior=before)
 assert (memoized.reused, memoized.recomputed) == (1, 0)
 assert memoized.part_evaluations == 0, "the seam was not crossed"
-assert memoized.value(shelf_i).body().mass_properties(Settle.resolution(1e-6 * m)).enclosure.volume == pinned_volume
+assert memoized.value(shelf_i).body().mass_properties(Settle.resolution(1e-6 * m)).met().volume == pinned_volume
 
 # The limit case of the same rule: with every node a memo hit, the
 # resolver is not needed at all.
@@ -772,12 +772,12 @@ assembly = assemble(stand, ev)
 assert assembly.interference == []
 expected = (2 * POST_SECTION**2 * POST_HEIGHT
             + SHELF_LENGTH * SHELF_DEPTH * SHELF_THICKNESS)
-assert abs(assembly.body.mass_properties(Settle.resolution(1e-6 * m)).enclosure.volume - expected) < 1e-12
+assert abs(assembly.body.mass_properties(Settle.resolution(1e-6 * m)).met().volume - expected) < 1e-12
 
 # `assemble` IS the gather plus the check, so its body is the gathered
 # body.
 gathered = product(stand, ev)
-assert gathered.mass_properties(Settle.resolution(1e-6 * m)).enclosure.volume == assembly.body.mass_properties(Settle.resolution(1e-6 * m)).enclosure.volume
+assert gathered.mass_properties(Settle.resolution(1e-6 * m)).met().volume == assembly.body.mass_properties(Settle.resolution(1e-6 * m)).met().volume
 ```
 
 ## 5. The refusals an assembly author actually meets
@@ -1063,7 +1063,7 @@ layout.set_constraints(shelf_i, Placed.unmated([MateValue(Coord.slide("y"), 0.5 
 
 
 def volume(doc):
-    return product(doc, evaluate(doc, resolver=store)).mass_properties(Settle.resolution(1e-6 * m)).enclosure.volume
+    return product(doc, evaluate(doc, resolver=store)).mass_properties(Settle.resolution(1e-6 * m)).met().volume
 
 
 before = volume(layout)

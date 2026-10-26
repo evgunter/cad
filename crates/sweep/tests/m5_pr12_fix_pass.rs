@@ -254,17 +254,15 @@ fn f4_an_oblique_trihedron_builds_and_passes_tier_3() {
         })
         .sum();
     let volume = |b: &Body<f64>| {
-        topo::mass_properties(
+        topo::test_support::pinned_volume(
+            "the measured body",
             &topo::test_support::finished(
                 "the measured body",
                 topo::Body::clone(b),
                 Tol::witness(),
             ),
             Tol::witness(),
-            topo::test_support::pinned_resolution(Tol::witness()),
         )
-        .unwrap()
-        .enclosure
         .volume
     };
     let (clip, rounded) = (volume(&clipped), volume(&f.body));

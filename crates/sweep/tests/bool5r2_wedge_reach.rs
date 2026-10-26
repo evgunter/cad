@@ -66,17 +66,15 @@ fn the_dimpled_ring_measures_its_closed_form_at_a_quarter_turn() {
     let vp = validated(vec![dimpled_ring(l)]);
     let t = revolve(&vp, axis_y(), Revolution::Partial(theta), Tol::witness()).unwrap();
     assert_all_tiers(&t.body);
-    let v = topo::mass_properties(
+    let v = topo::test_support::pinned_volume(
+        "the measured body",
         &topo::test_support::finished(
             "the measured body",
             topo::Body::clone(&t.body),
             Tol::witness(),
         ),
         Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
     )
-    .unwrap()
-    .enclosure
     .volume;
     let want = exact_volume(l, theta);
     assert!(

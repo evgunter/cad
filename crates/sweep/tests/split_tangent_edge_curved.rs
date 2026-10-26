@@ -65,7 +65,8 @@ fn volume(label: &str, part: &SplitPart<f64>) -> Option<f64> {
             topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
-        .enclosure
+        .met()
+        .expect("the pinned resolution is met")
         .volume
     })
 }
@@ -462,7 +463,8 @@ fn a_convex_graze_of_a_cylinder_lands_it_whole_at_interval() {
             topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
-        .enclosure
+        .met()
+        .expect("the pinned resolution is met")
         .volume;
         assert!(
             v.lo() - 1e-12 <= pi4 && pi4 <= v.hi() + 1e-12,

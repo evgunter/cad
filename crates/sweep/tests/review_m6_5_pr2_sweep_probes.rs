@@ -81,14 +81,9 @@ fn x4_disjoint_boolean_over_a_filleted_body_builds_past_the_plane_touches() {
                     Ok(()),
                     "{op:?}: tier 3"
                 );
-                let got = topo::mass_properties(
-                    body,
-                    Tol::witness(),
-                    topo::test_support::pinned_resolution(Tol::witness()),
-                )
-                .unwrap()
-                .enclosure
-                .volume;
+                let got =
+                    topo::test_support::pinned_volume("the measured body", body, Tol::witness())
+                        .volume;
                 assert!(
                     (got - want).abs() <= 1e-9 * want,
                     "{op:?}: {got} against the closed form {want}"
@@ -130,23 +125,9 @@ fn x4b_a_filleted_body_assembles_with_an_operand_off_its_carriers() {
         "tier 3"
     );
     assert_eq!(body.shells().count(), 2, "the die and the box, disjoint");
-    let want = topo::mass_properties(
-        &a,
-        Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
-    )
-    .unwrap()
-    .enclosure
-    .volume
-        + 1.0;
-    let got = topo::mass_properties(
-        body,
-        Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
-    )
-    .unwrap()
-    .enclosure
-    .volume;
+    let want =
+        topo::test_support::pinned_volume("the measured body", &a, Tol::witness()).volume + 1.0;
+    let got = topo::test_support::pinned_volume("the measured body", body, Tol::witness()).volume;
     assert!(
         (got - want).abs() <= 1e-9 * want,
         "disjoint union adds volumes: {got} vs {want}"

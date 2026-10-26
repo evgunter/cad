@@ -392,8 +392,9 @@ fn the_rings_volume_brackets_its_closed_form_at_the_certified_scalar() {
         };
         topo::validate_geometric(&bb.body, tol).unwrap_or_else(|e| panic!("{op}: tier 3: {e:?}"));
         let v = topo::mass_properties(&bb.body, tol, topo::test_support::pinned_resolution(tol))
-            .unwrap()
-            .enclosure
+            .expect("the measured body")
+            .met()
+            .expect("the measured body")
             .volume;
         assert!(
             v.lo() <= want && want <= v.hi() && v.hi() - v.lo() < 1e-10,

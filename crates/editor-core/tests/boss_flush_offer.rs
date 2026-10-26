@@ -55,17 +55,15 @@ fn the_flush_boss_unions() {
     }
     let volume = match &ev.value(union).expect("the union evaluated").payload {
         ValuePayload::Boolean(BooleanValue::Body { body, .. }) => {
-            topo::mass_properties(
+            topo::test_support::pinned_volume(
+                "the union measures",
                 &topo::test_support::finished(
                     "the measured body",
                     topo::Body::clone(&**body),
                     Tol::witness(),
                 ),
                 Tol::witness(),
-                topo::test_support::pinned_resolution(Tol::witness()),
             )
-            .expect("the union measures")
-            .enclosure
             .volume
         }
         other => panic!("the union is a body, got {other:?}"),

@@ -69,7 +69,8 @@ fn answers(label: &str, body: Body<f64>, origin: (f64, f64), normal: (f64, f64),
             topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
-        .enclosure
+        .met()
+        .expect("the pinned resolution is met")
         .volume;
         assert!(
             (v - want).abs() <= 1e-9 * want.max(1.0),

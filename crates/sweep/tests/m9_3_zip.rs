@@ -64,7 +64,8 @@ fn two_peg_plate_union_is_exactly_additive() {
         topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .enclosure
+    .met()
+    .expect("the pinned resolution is met")
     .volume;
     let vq = mass_properties(
         &q,
@@ -72,7 +73,8 @@ fn two_peg_plate_union_is_exactly_additive() {
         topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .enclosure
+    .met()
+    .expect("the pinned resolution is met")
     .volume;
     let out = topo::union(&p, &q, Tol::witness()).expect("the two-peg kernel path unions");
     let BooleanResult::Body(bb) = out else {
@@ -85,7 +87,8 @@ fn two_peg_plate_union_is_exactly_additive() {
         topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .enclosure
+    .met()
+    .expect("the pinned resolution is met")
     .volume;
     assert_eq!(v, vp + vq, "exactly additive (the C7-lane statement)");
     // And the closed form: the peg and bore π-terms cancel exactly —
@@ -193,7 +196,8 @@ fn kissing_rounds_rim_unions_and_carries_the_tangent_intersection() {
         topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .enclosure
+    .met()
+    .expect("the pinned resolution is met")
     .volume;
     let vb = mass_properties(
         &b,
@@ -201,7 +205,8 @@ fn kissing_rounds_rim_unions_and_carries_the_tangent_intersection() {
         topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .enclosure
+    .met()
+    .expect("the pinned resolution is met")
     .volume;
     let out = topo::union(&a, &b, Tol::witness()).expect("the kissing-rounds union runs");
     let BooleanResult::Body(bb) = out else {
@@ -214,7 +219,8 @@ fn kissing_rounds_rim_unions_and_carries_the_tangent_intersection() {
         topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .enclosure
+    .met()
+    .expect("the pinned resolution is met")
     .volume;
     // Additive to re-association rounding: the seam chord at x = 0.5
     // SPLITS A's top face, so the same per-edge flux terms are summed
@@ -383,7 +389,8 @@ fn a_tangent_curved_sector_on_a_face_lumps_whole() {
         topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .enclosure
+    .met()
+    .expect("the pinned resolution is met")
     .volume;
     let diff = topo::subtract(&a, &b, Tol::witness())
         .expect("the tangent sector lumps and the difference runs");
@@ -396,7 +403,8 @@ fn a_tangent_curved_sector_on_a_face_lumps_whole() {
         topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .enclosure
+    .met()
+    .expect("the pinned resolution is met")
     .volume;
     assert!(
         (v - va).abs() <= 4.0 * va * f64::EPSILON,

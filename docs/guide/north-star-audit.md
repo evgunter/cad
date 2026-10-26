@@ -385,7 +385,7 @@ chute = doc.insert(Node.revolve(profile, *axis, Formula.angle_in(270, deg)))
 
 body = evaluate(doc).value(chute).body()
 body.validate()
-assert abs(body.mass_properties(Settle.resolution(1e-6 * m)).enclosure.volume - (1287 / 2048) * math.pi) < 1e-12
+assert abs(body.mass_properties(Settle.resolution(1e-6 * m)).met().volume - (1287 / 2048) * math.pi) < 1e-12
 ```
 
 `die` (a cube less 21 pip pockets, 21 sequential subtracts) and
@@ -429,7 +429,7 @@ prism = doc.place(
 # exactly.
 body = evaluate(doc).value(prism).body()
 body.validate()
-assert abs(body.mass_properties(Settle.resolution(1e-6 * m)).enclosure.volume - 5.5) < 1e-12
+assert abs(body.mass_properties(Settle.resolution(1e-6 * m)).met().volume - 5.5) < 1e-12
 ```
 
 Rows 33–35 are the same body as row 32 seen down a different axis, so

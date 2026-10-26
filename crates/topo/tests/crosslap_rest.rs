@@ -47,7 +47,8 @@ fn notched_beams() -> (topo::AtRestBody<f64>, topo::AtRestBody<f64>) {
                 topo::test_support::pinned_resolution(Tol::witness())
             )
             .unwrap()
-            .enclosure
+            .met()
+            .expect("the pinned resolution is met")
             .volume,
             BEAM_VOL - NOTCH_VOL,
             "notched beam {label}: exact dyadic volume"
@@ -96,7 +97,8 @@ fn declared_crosslap_rest_union_builds() {
             topo::test_support::pinned_resolution(Tol::witness())
         )
         .unwrap()
-        .enclosure
+        .met()
+        .expect("the pinned resolution is met")
         .volume,
         2.0 * (BEAM_VOL - NOTCH_VOL),
         "exact dyadic volume additivity (disjoint interiors)"

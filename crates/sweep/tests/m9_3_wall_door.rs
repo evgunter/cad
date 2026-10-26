@@ -83,14 +83,9 @@ fn rest_two_peg_reaches_downstream_of_classification() {
             // Exactly additive against the closed-form oracle: the peg
             // fills the bore exactly, so the union is the unbored
             // plate's volume, exactly (the C7-lane statement).
-            let vol = topo::mass_properties(
-                &b.body,
-                Tol::witness(),
-                topo::test_support::pinned_resolution(Tol::witness()),
-            )
-            .unwrap()
-            .enclosure
-            .volume;
+            let vol =
+                topo::test_support::pinned_volume("the measured body", &b.body, Tol::witness())
+                    .volume;
             assert_eq!(vol, 16.0, "exactly-additive volume (closed form)");
             // The surviving rim arcs sit between two COPLANAR planar
             // faces (plate cap × peg cap): the surfaces under-

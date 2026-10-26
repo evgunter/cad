@@ -1224,7 +1224,8 @@ fn r2_replace_faces_offset_scopes_to_the_solid_across_shells_and_solids() {
         topo::test_support::pinned_resolution(tol()),
     )
     .unwrap()
-    .enclosure
+    .met()
+    .expect("the pinned resolution is met")
     .volume;
     topo::replace_faces_offset(&mut one, &tops, -0.1, tol()).expect("both of the solid's wearers");
     // Two pieces under one solid is tier 3's refusal by count; tiers 1
@@ -1238,7 +1239,8 @@ fn r2_replace_faces_offset_scopes_to_the_solid_across_shells_and_solids() {
             topo::test_support::pinned_resolution(tol()),
         )
         .unwrap()
-        .enclosure,
+        .met()
+        .expect("the pinned resolution is met"),
         before - 2.0 * 2.5 * 0.1,
         "one solid, both tops",
     );

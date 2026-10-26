@@ -250,8 +250,9 @@ fn a_boss_on_a_plate_at_interval() {
             assert_eq!(Some(census(&b.body)), counted, "{what}: census");
             let v =
                 topo::mass_properties(&b.body, tol(), topo::test_support::pinned_resolution(tol()))
-                    .unwrap()
-                    .enclosure
+                    .expect("the measured body")
+                    .met()
+                    .expect("the measured body")
                     .volume;
             assert!(
                 v.lo() <= want && want <= v.hi() && v.hi() - v.lo() < 1e-9,
@@ -533,8 +534,9 @@ fn reads_as(row: &str, r: Result<BooleanResult<f64>, BooleanError>, want: f64, r
             );
             let v =
                 topo::mass_properties(&b.body, tol(), topo::test_support::pinned_resolution(tol()))
-                    .unwrap()
-                    .enclosure
+                    .expect("the measured body")
+                    .met()
+                    .expect("the measured body")
                     .volume;
             assert!((v - want).abs() < 1e-7, "{row}: volume {v} against {want}");
             let line = outcome(Ok(r), want, tol());

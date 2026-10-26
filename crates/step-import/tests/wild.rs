@@ -471,25 +471,21 @@ fn wild_bodies_are_a_fixed_point_of_our_own_dialect() {
         // not zero; the sharper claims still hold exactly — the
         // census above, and the byte-identical second export below.
         let (v1, v2) = (
-            topo::mass_properties(
+            topo::test_support::pinned_volume(
+                "the measured body",
                 &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
                 Tol::witness(),
-                topo::test_support::pinned_resolution(Tol::witness()),
             )
-            .unwrap()
-            .enclosure
             .volume,
-            topo::mass_properties(
+            topo::test_support::pinned_volume(
+                "the measured body",
                 &topo::test_support::finished(
                     "the measured body",
                     again.body().clone(),
                     Tol::witness(),
                 ),
                 Tol::witness(),
-                topo::test_support::pinned_resolution(Tol::witness()),
             )
-            .unwrap()
-            .enclosure
             .volume,
         );
         assert!(

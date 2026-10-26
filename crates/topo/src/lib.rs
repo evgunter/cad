@@ -304,6 +304,31 @@ pub mod test_support {
         crate::Settle::Resolution(quantity::Length::from_meters(pinned_len(tol)))
     }
 
+    /// **`body`'s volume and area as numbers met at
+    /// [`pinned_resolution`]**: [`crate::mass_properties`] under it, read
+    /// through [`crate::MassMeasurement::met`], so a row that compares a
+    /// number with a closed form or a pin reads it only where every face
+    /// met the resolution. `what` names the body in the panic.
+    ///
+    /// # Panics
+    ///
+    /// Where the door refuses, or the resolution went unmet.
+    #[must_use]
+    #[allow(clippy::panic)]
+    pub fn pinned_volume(
+        what: &str,
+        body: &crate::AtRestBody<f64>,
+        tol: geom_core::Tol,
+    ) -> crate::MassProperties<f64> {
+        match crate::mass_properties(body, tol, pinned_resolution(tol)) {
+            Ok(measured) => match measured.met() {
+                Ok(enclosure) => enclosure,
+                Err(unmet) => panic!("{what}: {unmet}"),
+            },
+            Err(refusal) => panic!("{what}: mass properties refused: {refusal}"),
+        }
+    }
+
     /// [`pinned_resolution`]'s length (m), for a row that hands a face's
     /// lane the resolution itself.
     #[must_use]
@@ -1229,7 +1254,7 @@ pub use props::{
     AtRestOutcome, AtRestPolicy, CertifiedBody, Certifier, MassMeasurement, MassProperties,
     MassPropsError, QuadLane, RoleNames, Settle, SettleVerdict, ShellClassification,
     ShellClassifyError, ShellClassifyPayload, ShellDoor, ShellRole, SignCertificate, SignLimit,
-    SignNames, Stop, VolumeEnclosure, classify_shells, classify_shells_of,
+    SignNames, Stop, Unmet, VolumeEnclosure, classify_shells, classify_shells_of,
     classify_shells_structural, mass_properties, mass_properties_structural,
 };
 pub use provenance::{Provenance, SplitLineageCycle};

@@ -328,7 +328,8 @@ fn main() {
         let body = pr.body(tol());
         let va = mass_properties(&body, tol(), topo::test_support::pinned_resolution(tol()))
             .unwrap()
-            .enclosure
+            .met()
+            .expect("the pinned resolution is met")
             .volume;
         for (j, &a) in (0..3).flat_map(|j| sixteenths.iter().map(move |a| (j, a))) {
             for &d in &ds {

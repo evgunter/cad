@@ -807,6 +807,14 @@ never reported and the run is a success, so definite-negative
 `props_quad_last_round` readings can accumulate on a wholly green
 suite. A note in a green log does not catch that; a gate does.
 
+*(2026-10-26, QUAD measure door unit C, PR 5741: the refusal this
+paragraph describes no longer exists. `sign_walk`, `last_word`,
+`props_quad_last_round` and `QuadratureBudget` are gone; a face never
+refuses for width, and a sign still undecided where no face can refine
+is the walk's own refusal, carrying its bracket —
+`ValidationError::VolumeSignUnresolved` at check 7,
+`MassPropsError::Undecided` at the number doors.)*
+
 **What a green `k-lint` row does and does not say about this.** `ci.yml`
 lints exactly `target/k-fresh/k-eps-{1e-6,1e-9,1e-12}.csv` with every
 rule gating, so a green there is a claim about the GATED FILES: no

@@ -648,13 +648,11 @@ fn a_relation_refines_a_quadrature_face_and_settles_or_stops_in_the_band() {
     )
     .expect("the arc loft lofts")
     .body;
-    let v = topo::mass_properties(
+    let v = topo::test_support::pinned_volume(
+        "the arc loft measures",
         &topo::test_support::finished("the loft", body.clone(), tol),
         tol,
-        topo::test_support::pinned_resolution(tol),
     )
-    .expect("the arc loft measures")
-    .enclosure
     .volume;
     let name = "sign_walk_plus_v_relation";
     let ask = |bound: f64| {

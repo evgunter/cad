@@ -140,6 +140,59 @@ pub struct MassMeasurement<T: Real> {
     pub stop: Stop,
 }
 
+impl<T: Real> MassMeasurement<T> {
+    /// **The enclosure as a number**: where the measurement met its
+    /// resolution ([`Stop::Met`]), the enclosure every face met it at;
+    /// otherwise the stop it reached instead. A reader taking the
+    /// midpoint as THE volume reads it through this, so a bracket that
+    /// stopped short is never read as a number met. Python's
+    /// `MassMeasurement.met()` is this.
+    ///
+    /// # Errors
+    ///
+    /// [`Unmet`], carrying the stop, where the stop is anything but
+    /// [`Stop::Met`].
+    pub fn met(&self) -> Result<MassProperties<T>, Unmet> {
+        match self.stop {
+            Stop::Met => Ok(self.enclosure),
+            stop => Err(Unmet { stop }),
+        }
+    }
+
+    /// **What a deciding predicate decided**: the verdict
+    /// [`Stop::Settled`] carries, and `None` on every other stop.
+    /// Python's `MassMeasurement.verdict` is this.
+    #[must_use]
+    pub fn verdict(&self) -> Option<SettleVerdict> {
+        match self.stop {
+            Stop::Settled(verdict) => Some(verdict),
+            _ => None,
+        }
+    }
+}
+
+/// **A number asked of a measurement that did not meet its
+/// resolution** ([`MassMeasurement::met`]): the stop it reached instead.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Unmet {
+    /// The stop the measurement reached instead of [`Stop::Met`].
+    pub stop: Stop,
+}
+
+impl core::fmt::Display for Unmet {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "the measurement did not meet its resolution: it stopped at `{}`, so its \
+             enclosure is a bracket and not a number met. Recourse: read the bracket, or \
+             ask for a coarser resolution",
+            self.stop.word()
+        )
+    }
+}
+
+impl std::error::Error for Unmet {}
+
 /// **One round's answer to a deciding predicate** over a volume
 /// enclosure.
 #[derive(Clone, Debug, PartialEq)]

@@ -259,8 +259,9 @@ fn one_segment_circles_extrude_at_interval() {
                         tol(),
                         topo::test_support::pinned_resolution(tol()),
                     )
-                    .unwrap()
-                    .enclosure
+                    .expect("the measured body")
+                    .met()
+                    .expect("the measured body")
                     .volume;
                     assert!(
                         v.lo() <= want && want <= v.hi(),
@@ -575,8 +576,9 @@ fn one_segment_circles_revolve_at_interval() {
                     tol(),
                     topo::test_support::pinned_resolution(tol()),
                 )
-                .unwrap()
-                .enclosure
+                .expect("the measured body")
+                .met()
+                .expect("the measured body")
                 .volume;
                 assert!(
                     v.lo() <= want && want <= v.hi(),

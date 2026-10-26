@@ -54,13 +54,11 @@ fn rings(half: &Body<f64>) -> usize {
 }
 
 fn volume(half: &Body<f64>) -> f64 {
-    topo::mass_properties(
+    topo::test_support::pinned_volume(
+        "the measured body",
         &topo::test_support::finished("the measured body", topo::Body::clone(half), tol()),
         tol(),
-        topo::test_support::pinned_resolution(tol()),
     )
-    .unwrap()
-    .enclosure
     .volume
 }
 
@@ -625,13 +623,11 @@ fn a_plane_through_a_notch_tip_splits_exactly() {
     let second = [(0.5, 4.5), (1.0, 2.0), (1.5, 4.5)].map(|(x, y)| Point2::new(x, y));
     let two = cut("second notch", &v, &prism(&second, -1.0, 3.0));
     for (name, body) in [("one notch", &v), ("two notches", &two)] {
-        let whole = topo::mass_properties(
+        let whole = topo::test_support::pinned_volume(
+            "the measured body",
             &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
             tol(),
-            topo::test_support::pinned_resolution(tol()),
         )
-        .unwrap()
-        .enclosure
         .volume;
         if name == "one notch" {
             // The notch's part inside the block is the triangle
@@ -665,7 +661,8 @@ fn a_plane_through_a_notch_tip_splits_exactly() {
                 );
                 let v = mass_properties(b, tol(), topo::test_support::pinned_resolution(tol()))
                     .unwrap()
-                    .enclosure
+                    .met()
+                    .expect("the pinned resolution is met")
                     .volume;
                 assert!(
                     (v - want).abs() < 1e-12,

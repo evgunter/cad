@@ -276,13 +276,11 @@ fn a_curved_closed_form_tie_passes_on_the_faces_own_enclosures() {
     let rod = |first: f64| three_arc_cylinder(Point2::new(0.1, 0.2), 0.7, 0.0, 0.9, first);
     let (low, high) = (rod(45.0), rod(60.0));
     let volume = |b: &Body<f64>| {
-        topo::mass_properties(
+        topo::test_support::pinned_volume(
+            "the measured body",
             &topo::test_support::finished("the measured body", topo::Body::clone(b), tol()),
             tol(),
-            topo::test_support::pinned_resolution(tol()),
         )
-        .unwrap()
-        .enclosure
         .volume
     };
     assert!(
@@ -419,10 +417,7 @@ fn planted_subtraction_results_refuse_down_to_the_stated_resolution() {
 fn a_planted_union_result_short_by_less_than_the_reporting_pads_refuses() {
     let theta = 0.2;
     let u = body_of(topo::union(&base(), &boss(theta, 0.5), tol()), "U");
-    let pad_u = topo::mass_properties(&u, tol(), topo::test_support::pinned_resolution(tol()))
-        .unwrap()
-        .enclosure
-        .volume_pad;
+    let pad_u = topo::test_support::pinned_volume("the measured body", &u, tol()).volume_pad;
     let h = 1e-4;
     let slope =
         (penetrating_union(theta, BOSS_R + h) - penetrating_union(theta, BOSS_R - h)) / (2.0 * h);
@@ -491,14 +486,8 @@ fn a_result_equal_in_truth_but_larger_at_the_midpoint_passes() {
     );
     let circle = oblique_rod(0.0, 0.5);
     let (vc, va) = (
-        topo::mass_properties(&circle, tol(), topo::test_support::pinned_resolution(tol()))
-            .unwrap()
-            .enclosure
-            .volume,
-        topo::mass_properties(&arcs, tol(), topo::test_support::pinned_resolution(tol()))
-            .unwrap()
-            .enclosure
-            .volume,
+        topo::test_support::pinned_volume("the measured body", &circle, tol()).volume,
+        topo::test_support::pinned_volume("the measured body", &arcs, tol()).volume,
     );
     assert!(
         vc != va,

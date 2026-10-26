@@ -453,7 +453,8 @@ fn closure_kiss_vs_mover() {
             topo::test_support::pinned_resolution(Tol::witness())
         )
         .unwrap()
-        .enclosure
+        .met()
+        .expect("the pinned resolution is met")
         .volume,
         2.875
     );
@@ -471,7 +472,8 @@ fn closure_kiss_vs_mover() {
             topo::test_support::pinned_resolution(Tol::witness())
         )
         .unwrap()
-        .enclosure
+        .met()
+        .expect("the pinned resolution is met")
         .volume,
         1.875
     );
@@ -490,7 +492,8 @@ fn closure_kiss_vs_mover() {
             topo::test_support::pinned_resolution(Tol::witness())
         )
         .unwrap()
-        .enclosure
+        .met()
+        .expect("the pinned resolution is met")
         .volume,
         0.125
     );
@@ -548,7 +551,8 @@ fn closure_consumed_base_stays_certified() {
             topo::test_support::pinned_resolution(Tol::witness())
         )
         .unwrap()
-        .enclosure
+        .met()
+        .expect("the pinned resolution is met")
         .volume,
         18.0
     );
@@ -561,7 +565,8 @@ fn closure_consumed_base_stays_certified() {
             topo::test_support::pinned_resolution(Tol::witness())
         )
         .unwrap()
-        .enclosure
+        .met()
+        .expect("the pinned resolution is met")
         .volume,
         18.0 - 0.125
     );

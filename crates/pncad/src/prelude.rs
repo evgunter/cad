@@ -575,10 +575,12 @@ pub use topo::{
 // `SettleVerdict` what `Stop::Settled` says a deciding predicate
 // decided; each is the one name in Rust and Python (Python's
 // `MassMeasurement.verdict` is a `SettleVerdict`, spelled as its words).
-// `ShellRole` is a sign's verdict, carried with its carrier.
+// `ShellRole` is a sign's verdict, carried with its carrier, and
+// `Unmet` what `MassMeasurement::met` answers where the number went
+// unmet.
 pub use topo::{
     CertifiedBody, MassMeasurement, MassProperties, MassPropsError, RoleNames, Settle,
-    SettleVerdict, ShellRole, SignNames, Stop, VolumeEnclosure, mass_properties,
+    SettleVerdict, ShellRole, SignNames, Stop, Unmet, VolumeEnclosure, mass_properties,
 };
 
 // --- 7. Tessellation and export -------------------------------

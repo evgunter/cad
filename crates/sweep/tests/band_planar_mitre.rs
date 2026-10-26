@@ -435,7 +435,8 @@ fn the_mitre_carves_at_the_certified_scalar() {
     ];
     let v0 = mass_properties(&body, tol, topo::test_support::pinned_resolution(tol))
         .expect("interval props")
-        .enclosure
+        .met()
+        .expect("the pinned resolution is met")
         .volume;
     for verb in [Verb::Chamfer, Verb::Fillet] {
         let bracket = Bracket::open();

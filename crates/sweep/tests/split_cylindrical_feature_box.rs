@@ -130,13 +130,11 @@ fn round(plane: SketchPlane<f64>, c: Point2<f64>, h: f64) -> Body<f64> {
 /// owes: material on both sides, each half valid at tiers 1 and 3,
 /// and the halves partitioning the volume. Returns the halves.
 fn halves(what: &str, body: &Body<f64>) -> [Body<f64>; 2] {
-    let v = topo::mass_properties(
+    let v = topo::test_support::pinned_volume(
+        "the body's volume",
         &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
         tol(),
-        topo::test_support::pinned_resolution(tol()),
     )
-    .expect("the body's volume")
-    .enclosure
     .volume;
     let cut = split(
         &sweep::test_support::finished("the operand", body.clone(), tol()),

@@ -180,10 +180,7 @@ fn the_whole_torus_answers_containment_and_a_disjoint_union() {
         Ok(()),
         "the union's tier 3"
     );
-    let v = topo::mass_properties(b, tol(), topo::test_support::pinned_resolution(tol()))
-        .unwrap()
-        .enclosure
-        .volume;
+    let v = topo::test_support::pinned_volume("the measured body", b, tol()).volume;
     let want = 2.0 * PI * PI * R * MINOR * MINOR + 1.0;
     assert!((v - want).abs() < 1e-12, "union volume {v} vs {want}");
 }

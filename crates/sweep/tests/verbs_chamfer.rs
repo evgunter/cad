@@ -236,17 +236,15 @@ fn one_edge_of_a_cube_is_cut_off_at_its_end_faces() {
     )
     .expect("one edge of a cube chamfers");
     let removed = L.powi(3)
-        - topo::mass_properties(
+        - topo::test_support::pinned_volume(
+            "closed-form props",
             &topo::test_support::finished(
                 "the measured body",
                 topo::Body::clone(&out.body),
                 Tol::witness(),
             ),
             Tol::witness(),
-            topo::test_support::pinned_resolution(Tol::witness()),
         )
-        .expect("closed-form props")
-        .enclosure
         .volume;
     assert!(
         (removed - D * D / 2.0 * L).abs() < 1e-12,

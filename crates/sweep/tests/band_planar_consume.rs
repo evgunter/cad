@@ -306,7 +306,8 @@ fn a_bore_inside_the_planar_bands_sliver_goes_with_it_at_interval() {
         );
         let v0 = mass_properties(&body, tol, topo::test_support::pinned_resolution(tol))
             .expect("interval props")
-            .enclosure
+            .met()
+            .expect("the pinned resolution is met")
             .volume;
         let v1 = topo::mass_properties(
             &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol),
@@ -314,7 +315,8 @@ fn a_bore_inside_the_planar_bands_sliver_goes_with_it_at_interval() {
             topo::test_support::pinned_resolution(tol),
         )
         .expect("interval props")
-        .enclosure
+        .met()
+        .expect("interval props")
         .volume;
         let want = section(verb, D) - PI * a * a;
         let dv = v0 - v1;

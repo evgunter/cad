@@ -103,7 +103,8 @@ fn control_same_shape_via_subtract() {
             topo::test_support::pinned_resolution(Tol::witness())
         )
         .unwrap()
-        .enclosure
+        .met()
+        .expect("the pinned resolution is met")
         .volume,
         5.5
     );
@@ -137,7 +138,8 @@ fn control_ring_face_from_interior_pillar() {
         topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .enclosure
+    .met()
+    .expect("the pinned resolution is met")
     .volume;
     assert_eq!(exact, 8.25);
     let v = checked_mesh_volume(&g.body);

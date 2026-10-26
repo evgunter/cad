@@ -175,7 +175,8 @@ mod certified {
                 topo::test_support::pinned_resolution(Tol::witness()),
             )
             .unwrap()
-            .enclosure
+            .met()
+            .expect("the pinned resolution is met")
             .volume,
             16.0 + 2.0 * cap(1.0, 0.5),
             "the poking union",
@@ -199,7 +200,8 @@ mod certified {
             topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
-        .enclosure
+        .met()
+        .expect("the pinned resolution is met")
         .volume;
         encloses(v_cut, 16.0 - cap(r, h), "the pip cavity");
 
@@ -212,7 +214,8 @@ mod certified {
             topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
-        .enclosure
+        .met()
+        .expect("the pinned resolution is met")
         .volume;
         encloses(v_met, cap(r, h), "the cap");
 

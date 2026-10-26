@@ -57,13 +57,11 @@ fn flipped_sense_is_never_silent_misgeometry() {
     else {
         panic!()
     };
-    let v0 = topo::mass_properties(
+    let v0 = topo::test_support::pinned_volume(
+        "the measured body",
         &topo::test_support::finished("the measured body", body.body().clone(), Tol::witness()),
         Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
     )
-    .unwrap()
-    .enclosure
     .volume;
 
     // Box: flip one EDGE_CURVE sense only.
@@ -81,13 +79,11 @@ fn flipped_sense_is_never_silent_misgeometry() {
     else {
         panic!()
     };
-    let vs = topo::mass_properties(
+    let vs = topo::test_support::pinned_volume(
+        "the measured body",
         &topo::test_support::finished("the measured body", body.body().clone(), Tol::witness()),
         Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
     )
-    .unwrap()
-    .enclosure
     .volume;
     let m2 = sg1.replace(
         "#46=EDGE_CURVE('',#43,#45,#41,.F.) ;",

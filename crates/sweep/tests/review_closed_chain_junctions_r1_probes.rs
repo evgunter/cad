@@ -224,13 +224,11 @@ fn r1_fixture_volumes_and_convexities_are_the_bodys() {
 /// One carve, checked: one band, tier-3 valid, `V₁ − V₀` at the
 /// closed form.
 fn carve(body: &Body<f64>, arcs: &[EdgeKey], signed: f64, what: &str) {
-    let v0 = topo::mass_properties(
+    let v0 = topo::test_support::pinned_volume(
+        "the measured body",
         &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
         tol(),
-        topo::test_support::pinned_resolution(tol()),
     )
-    .unwrap()
-    .enclosure
     .volume;
     let out = fillet_edges(&sweep::test_support::at_rest(body, tol()), arcs, RHO, tol())
         .unwrap_or_else(|e| panic!("{what}: carves, got {e}"));
@@ -305,10 +303,7 @@ fn r1_both_rims_of_a_three_arc_cylinder_walk_into_two_closed_chains_and_carve() 
         assert_eq!(c.junctions.len(), 3);
     }
     assert_pairing_is_the_bodys(&body, &inter, &chains, "both rims");
-    let v0 = topo::mass_properties(&body, tol(), topo::test_support::pinned_resolution(tol()))
-        .unwrap()
-        .enclosure
-        .volume;
+    let v0 = topo::test_support::pinned_volume("the measured body", &body, tol()).volume;
     let out = fillet_edges(
         &sweep::test_support::at_rest(&body, tol()),
         &inter,
@@ -318,13 +313,11 @@ fn r1_both_rims_of_a_three_arc_cylinder_walk_into_two_closed_chains_and_carve() 
     .unwrap_or_else(|e| panic!("both rims carve, got {e}"));
     assert_eq!(out.band_faces.len(), 2);
     validate_geometric(&out.body, tol()).unwrap();
-    let v1 = topo::mass_properties(
+    let v1 = topo::test_support::pinned_volume(
+        "the measured body",
         &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol()),
         tol(),
-        topo::test_support::pinned_resolution(tol()),
     )
-    .unwrap()
-    .enclosure
     .volume;
     assert!(
         (v1 - v0 + 2.0 * corner_fill(R, RHO, true)).abs() < 1e-13,

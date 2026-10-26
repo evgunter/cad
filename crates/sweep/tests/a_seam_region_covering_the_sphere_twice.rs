@@ -76,13 +76,11 @@ fn a_double_cover_whose_faces_each_read_their_own_side_is_refused() {
     split_faces_at_equator(&mut control, tol);
     topo::validate_geometric(&control, tol)
         .unwrap_or_else(|e| panic!("the ball split at its equator is valid: {e:?}"));
-    let got = topo::mass_properties(
+    let got = topo::test_support::pinned_volume(
+        "the measured body",
         &topo::test_support::finished("the measured body", topo::Body::clone(&control), tol),
         tol,
-        topo::test_support::pinned_resolution(tol),
     )
-    .unwrap()
-    .enclosure
     .volume;
     assert!(
         (got - 4.0 * std::f64::consts::PI / 3.0).abs() <= 1e-9,

@@ -248,7 +248,8 @@ fn judge(
                 topo::test_support::pinned_resolution(tol()),
             )
             .unwrap()
-            .enclosure
+            .met()
+            .expect("the pinned resolution is met")
             .volume;
             if (v - want_vol).abs() > 1e-9_f64.max(1e-7 * want_vol) {
                 bad.push(format!("volume {v} vs {want_vol}"));

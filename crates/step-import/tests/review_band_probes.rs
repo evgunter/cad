@@ -169,13 +169,11 @@ fn r1_torus_region_selection_is_real() {
             );
         };
         assert_eq!(arena_census(body.body()), cens, "{tag}: census");
-        let v = topo::mass_properties(
+        let v = topo::test_support::pinned_volume(
+            "the measured body",
             &topo::test_support::finished("the measured body", body.body().clone(), Tol::witness()),
             Tol::witness(),
-            topo::test_support::pinned_resolution(Tol::witness()),
         )
-        .unwrap()
-        .enclosure
         .volume;
         let rel = ((v - v_want) / v_want).abs();
         assert!(
@@ -265,13 +263,11 @@ fn r1_shared_rim_split_order_does_not_starve_the_second_band() {
     // Two fewer edges and vertices than the re-mint leaves: the join
     // the import ends with takes the file's valence-2 rim vertices.
     assert_eq!(arena_census(body.body()), (1, 1, 2, 4, 2), "band_a census");
-    let v = topo::mass_properties(
+    let v = topo::test_support::pinned_volume(
+        "the measured body",
         &topo::test_support::finished("the measured body", body.body().clone(), Tol::witness()),
         Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
     )
-    .unwrap()
-    .enclosure
     .volume;
     assert!(
         ((v - v_want) / v_want).abs() < 1e-12,
@@ -316,13 +312,11 @@ fn r1_washer90_imports_the_true_region() {
         Ok(()),
         "washer90 tier 3"
     );
-    let v = topo::mass_properties(
+    let v = topo::test_support::pinned_volume(
+        "the measured body",
         &topo::test_support::finished("the measured body", body.body().clone(), Tol::witness()),
         Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
     )
-    .unwrap()
-    .enclosure
     .volume;
     assert!(
         ((v - v_true) / v_true).abs() < 1e-12,

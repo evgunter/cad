@@ -52,13 +52,11 @@ fn measured_relative_volume_agreement() {
         // A body that DID import must still be measurable. "Imported,
         // but declines to compute a volume" is precisely the state the
         // periodic-band refusal exists to keep out of this corpus.
-        let v = topo::mass_properties(
+        let v = topo::test_support::pinned_volume(
+            "the measured body",
             &topo::test_support::finished("the measured body", body.body().clone(), Tol::witness()),
             Tol::witness(),
-            topo::test_support::pinned_resolution(Tol::witness()),
         )
-        .unwrap_or_else(|e| panic!("{name}: imported but has no volume: {e:?}"))
-        .enclosure
         .volume
             * 1e9;
         let rel = (v - oracle).abs() / oracle.abs();

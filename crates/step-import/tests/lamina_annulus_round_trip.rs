@@ -90,18 +90,17 @@ fn unslit_plane_annuli_round_trip_through_step() {
             census(imported.body()),
             "{what}: the census survives the round trip"
         );
-        let native = topo::mass_properties(
+        let native = topo::test_support::pinned_volume(
+            "the measured body",
             &topo::test_support::finished("the measured body", (body).clone(), tol()),
             tol(),
-            topo::test_support::pinned_resolution(tol()),
         )
-        .unwrap()
-        .enclosure
         .volume;
         let read = imported
             .measure(topo::test_support::pinned_resolution(tol()))
             .expect("the import's certificate measures")
-            .enclosure
+            .met()
+            .expect("the pinned resolution is met")
             .volume;
         assert!(
             (read - native).abs() < 1e-9,

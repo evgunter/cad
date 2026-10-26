@@ -135,7 +135,8 @@ mod certified {
                 topo::test_support::pinned_resolution(Tol::witness()),
             )
             .unwrap()
-            .enclosure
+            .met()
+            .expect("the pinned resolution is met")
             .volume,
             3.0 * 3.0 * 0.8 - PI * R * R * 0.5,
             "blind hole",
@@ -152,7 +153,8 @@ mod certified {
                 topo::test_support::pinned_resolution(Tol::witness()),
             )
             .unwrap()
-            .enclosure
+            .met()
+            .expect("the pinned resolution is met")
             .volume,
             PI * R * R * 0.5,
             "the plug",
@@ -198,7 +200,8 @@ mod certified {
                 topo::test_support::pinned_resolution(Tol::witness()),
             )
             .unwrap()
-            .enclosure
+            .met()
+            .expect("the pinned resolution is met")
             .volume,
             (2.0 - notch) * 0.4,
             "the meet across the reversed wall",
@@ -315,7 +318,8 @@ mod certified {
             topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
-        .enclosure
+        .met()
+        .expect("the pinned resolution is met")
         .volume;
         assert!(
             vol.lo() <= 7.2 - zone && 7.2 - zone <= vol.hi(),

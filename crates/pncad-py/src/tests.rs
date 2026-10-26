@@ -6586,7 +6586,10 @@ fn a_lever_refusal_spells_a_shapes_reach_and_a_parts_alike() {
 /// list. That
 /// door's growth is walled by the compiler instead — the enum is not
 /// `#[non_exhaustive]` and the door matches it exhaustively.
-const TAG_CONSTS: &[(&str, &str)] = &[("STEP_IMPORT_WIREFRAME", "wireframe")];
+const TAG_CONSTS: &[(&str, &str)] = &[
+    ("MEASUREMENT_UNMET", "unmet"),
+    ("STEP_IMPORT_WIREFRAME", "wireframe"),
+];
 
 /// Everything [`read_tag_table`] recognised in the source it read.
 struct TagTable {

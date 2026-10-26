@@ -121,7 +121,8 @@ fn a_split_through_a_seam_vertex_returns_no_side_tier_three_refuses() {
                                     topo::test_support::pinned_resolution(tol()),
                                 )
                                 .unwrap_or_else(|e| panic!("{pose}: {word} measures: {e}"))
-                                .enclosure
+                                .met()
+                                .expect("the pinned resolution is met")
                                 .volume;
                             }
                             assert!(

@@ -4669,6 +4669,12 @@ class MassMeasurement:
     def stop(self) -> Literal["settled", "met", "floor", "wall", "band"]: ...
     @property
     def verdict(self) -> Literal["outer", "void"] | bool | None: ...
+    def met(self) -> MassProperties:
+        """The enclosure as a number, where the measurement met its
+        resolution (`stop == "met"`); `topo::MassMeasurement::met`.
+        Otherwise raises `ValidationError` with `measure_refusal ==
+        "unmet"` and `stop`, the stop the measurement reached instead,
+        so a bracket that stopped short is never read as a number."""
 
 class Body:
     """A solid body — an opaque handle with curated doors.

@@ -153,10 +153,7 @@ fn r1_the_planar_cap_pierce_and_the_curved_wall_pierce_both_join() {
     let tol = Tol::witness();
     let volume = |r: Result<topo::BooleanResult<f64>, BooleanError>, what: &str| match r {
         Ok(topo::BooleanResult::Body(out)) => {
-            topo::mass_properties(&out.body, tol, topo::test_support::pinned_resolution(tol))
-                .unwrap()
-                .enclosure
-                .volume
+            topo::test_support::pinned_volume("the measured body", &out.body, tol).volume
         }
         other => panic!("{what} joins, got {other:?}"),
     };

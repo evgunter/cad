@@ -433,7 +433,8 @@ fn cut_cylinder_conic_trim_wall_flip_is_caught_and_the_inversion_refuses_at_both
         topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("volume computes")
-    .enclosure
+    .met()
+    .expect("the pinned resolution is met")
     .volume;
     assert!(
         v > 0.0,

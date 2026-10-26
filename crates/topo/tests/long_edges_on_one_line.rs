@@ -69,10 +69,7 @@ fn two_long_bars_overlapping_by_half_their_length_build_their_union() {
     );
     let built = union(&a, &b, tol).unwrap_or_else(|e| panic!("the union refused: {e}"));
     let body = &built.body().expect("a body").body;
-    let volume = topo::mass_properties(body, tol, topo::test_support::pinned_resolution(tol))
-        .unwrap()
-        .enclosure
-        .volume;
+    let volume = topo::test_support::pinned_volume("the measured body", body, tol).volume;
     assert!((volume - 6000.0).abs() < 1e-6, "volume {volume}");
     validate_geometric(body, tol).unwrap_or_else(|e| panic!("the union is invalid: {e:?}"));
 }
@@ -102,10 +99,7 @@ fn a_cube_on_a_six_kilometre_bar_builds_its_union() {
     );
     let built = union(&bar, &cube, tol).unwrap_or_else(|e| panic!("the union refused: {e}"));
     let body = &built.body().expect("a body").body;
-    let volume = topo::mass_properties(body, tol, topo::test_support::pinned_resolution(tol))
-        .unwrap()
-        .enclosure
-        .volume;
+    let volume = topo::test_support::pinned_volume("the measured body", body, tol).volume;
     assert!((volume - 6001.0).abs() < 1e-6, "volume {volume}");
     validate_geometric(body, tol).unwrap_or_else(|e| panic!("the union is invalid: {e:?}"));
 }

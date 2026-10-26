@@ -460,22 +460,8 @@ fn fixed_union_keeps_a_pellet_in_a_concave_notch() {
         Tol::witness(),
     );
     let b = finished("the pellet", pellet::<f64>(), Tol::witness());
-    let vol_a = topo::mass_properties(
-        &a,
-        Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
-    )
-    .unwrap()
-    .enclosure
-    .volume;
-    let vol_b = topo::mass_properties(
-        &b,
-        Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
-    )
-    .unwrap()
-    .enclosure
-    .volume;
+    let vol_a = topo::test_support::pinned_volume("the measured body", &a, Tol::witness()).volume;
+    let vol_b = topo::test_support::pinned_volume("the measured body", &b, Tol::witness()).volume;
     assert!(
         (vol_b - 0.008).abs() < 1e-12,
         "the pellet meters 0.008, got {vol_b}"
@@ -483,14 +469,8 @@ fn fixed_union_keeps_a_pellet_in_a_concave_notch() {
 
     let r = topo::boolean::union(&a, &b, Tol::witness()).unwrap();
     let out = r.body().expect("union of two non-empty solids");
-    let vol = topo::mass_properties(
-        &out.body,
-        Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
-    )
-    .unwrap()
-    .enclosure
-    .volume;
+    let vol =
+        topo::test_support::pinned_volume("the measured body", &out.body, Tol::witness()).volume;
     let shells = out.body.shells().count();
 
     assert!(

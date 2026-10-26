@@ -217,22 +217,16 @@ fn the_bosss_two_rims_refuse_together_and_compose_sequentially() {
             ),
             other => panic!("{name}: expected the mixed shared-support arm, got {other:?}"),
         }
-        let before =
-            topo::mass_properties(&body, tol(), topo::test_support::pinned_resolution(tol()))
-                .unwrap()
-                .enclosure
-                .volume;
+        let before = topo::test_support::pinned_volume("the measured body", &body, tol()).volume;
         let (_, after_ladder) = carve(name, &body, &[(0.5, 1.0)], 0.1);
         let (_, out) = carve(name, &after_ladder, &[(1.0, 1.0)], 0.1);
         // Each band's host trimlines joined: one vertex and one edge fewer apiece.
         assert_eq!(census(&out), (9, 14, 8), "{name}: two bands' census");
-        let measured = topo::mass_properties(
+        let measured = topo::test_support::pinned_volume(
+            "the measured body",
             &topo::test_support::finished("the measured body", topo::Body::clone(&out), tol()),
             tol(),
-            topo::test_support::pinned_resolution(tol()),
         )
-        .unwrap()
-        .enclosure
         .volume
             - before;
         agrees(name, measured, if up { ladder } else { -ladder } - annulus);

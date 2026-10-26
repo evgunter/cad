@@ -73,7 +73,8 @@ fn corner_aligned_leg_union_tier2_exact() {
             topo::test_support::pinned_resolution(Tol::witness())
         )
         .unwrap()
-        .enclosure
+        .met()
+        .expect("the pinned resolution is met")
         .volume,
         TOP_VOL + PER_LEG_GAIN,
         "exact dyadic volume"
@@ -111,7 +112,8 @@ fn corner_aligned_table_four_legs_builds() {
             topo::test_support::pinned_resolution(Tol::witness())
         )
         .unwrap()
-        .enclosure
+        .met()
+        .expect("the pinned resolution is met")
         .volume,
         TOP_VOL + 4.0 * PER_LEG_GAIN,
         "exact dyadic volume, all four legs"

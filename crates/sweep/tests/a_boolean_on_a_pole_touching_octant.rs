@@ -34,10 +34,7 @@ fn octant() -> topo::Body<f64> {
 fn volume(r: Result<BooleanResult<f64>, topo::BooleanError>, what: &str) -> f64 {
     match r {
         Ok(BooleanResult::Body(b)) => {
-            topo::mass_properties(&b.body, tol(), topo::test_support::pinned_resolution(tol()))
-                .unwrap()
-                .enclosure
-                .volume
+            topo::test_support::pinned_volume("the measured body", &b.body, tol()).volume
         }
         other => panic!("{what}: {other:?}"),
     }

@@ -204,8 +204,9 @@ fn a_tilted_sphere_pair_builds_at_the_interval_scalar() {
             Tol::witness(),
             topo::test_support::pinned_resolution(Tol::witness()),
         )
-        .unwrap_or_else(|e| panic!("Interval {op:?}: mass properties, got {e:?}"))
-        .enclosure
+        .expect("the measured body")
+        .met()
+        .expect("the measured body")
         .volume;
         let slack = 1e-9 * expected.max(1.0);
         assert!(

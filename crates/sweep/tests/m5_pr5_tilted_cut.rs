@@ -256,14 +256,7 @@ fn lands_whole(label: &str, above: &SplitPart<f64>, below: &SplitPart<f64>) {
     assert_eq!(validate(b), Ok(()), "{label}");
     assert_eq!(validate_closed(b), Ok(()), "{label}");
     assert_eq!(validate_geometric(b, Tol::witness()), Ok(()), "{label}");
-    let v = topo::mass_properties(
-        b,
-        Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
-    )
-    .unwrap()
-    .enclosure
-    .volume;
+    let v = topo::test_support::pinned_volume("the measured body", b, Tol::witness()).volume;
     let want = std::f64::consts::PI / 4.0;
     assert!((v - want).abs() <= 1e-9, "{label}: volume {v}, want {want}");
 }

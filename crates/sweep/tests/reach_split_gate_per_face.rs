@@ -113,13 +113,11 @@ fn rounding_volume() -> f64 {
 const LOFT_PRISM_VOLUME: f64 = 9.0;
 
 fn props(b: &Body<f64>) -> topo::props::MassProperties<f64> {
-    topo::mass_properties(
+    topo::test_support::pinned_volume(
+        "the measured body",
         &topo::test_support::finished("the measured body", topo::Body::clone(b), Tol::witness()),
         Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
     )
-    .unwrap()
-    .enclosure
 }
 
 /// `v` lies within the kernel's certified bracket of `oracle`.

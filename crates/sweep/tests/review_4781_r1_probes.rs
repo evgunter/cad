@@ -201,7 +201,8 @@ fn judge(
                 topo::test_support::pinned_resolution(tol()),
             )
             .unwrap()
-            .enclosure
+            .met()
+            .expect("the pinned resolution is met")
             .volume;
             if (v - want_vol).abs() > 1e-9 * vol_scale {
                 bad.push(format!("volume {v} vs {want_vol}"));
@@ -270,7 +271,8 @@ fn pose(a: Shape, b: Shape, meet: f64, union_solids: Option<usize>) -> Vec<Strin
     let vol = |x: &AtRestBody<f64>| {
         mass_properties(x, tol(), topo::test_support::pinned_resolution(tol()))
             .unwrap()
-            .enclosure
+            .met()
+            .expect("the pinned resolution is met")
             .volume
     };
     let (va, vb) = (vol(&ba), vol(&bb));
@@ -648,7 +650,8 @@ fn review_4781_ee_record_after_a_later_op() {
                 let v =
                     mass_properties(&r.body, tol(), topo::test_support::pinned_resolution(tol()))
                         .unwrap()
-                        .enclosure
+                        .met()
+                        .expect("the pinned resolution is met")
                         .volume;
                 let verdict = topo::validate_pseudomanifold(&r.body, &r.contacts, tol());
                 let short = verdict.as_ref().map_err(|e| {

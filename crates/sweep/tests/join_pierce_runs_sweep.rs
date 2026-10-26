@@ -292,7 +292,8 @@ fn pose_runs((place, lo): (&str, [f64; 3]), (i, j, psi): (u32, u32, f64)) -> Vec
     );
     let va = mass_properties(&prism, tol(), topo::test_support::pinned_resolution(tol()))
         .unwrap()
-        .enclosure
+        .met()
+        .expect("the pinned resolution is met")
         .volume;
     let f = frame(direction(i, j), psi);
     let b = finished("the cube", cube(f, lo));
@@ -856,7 +857,8 @@ fn a_pinch_round_a_notch_on_a_faces_outer_loop_is_one_vertex_per_cone() {
     let cube = finished("the cube", cube_at(v, f, lo));
     let va = mass_properties(&vee, tol(), topo::test_support::pinned_resolution(tol()))
         .unwrap()
-        .enclosure
+        .met()
+        .expect("the pinned resolution is met")
         .volume;
     let common = pieces_within(&pieces, (0.0, 1.0), &cube_planes_at(v, f, lo));
     assert!(common > 1e-3, "the cube holds some of the vee: {common}");
@@ -1212,13 +1214,11 @@ fn a_near_tangent_two_run_pierce_builds_with_edges_in_band_only_at_its_copies() 
     );
     let cube = finished("the cube", cube_at(v, f, lo));
     let vol = |b: &Body<f64>| {
-        topo::mass_properties(
+        topo::test_support::pinned_volume(
+            "the measured body",
             &topo::test_support::finished("the measured body", topo::Body::clone(b), tol()),
             tol(),
-            topo::test_support::pinned_resolution(tol()),
         )
-        .unwrap()
-        .enclosure
         .volume
     };
     let common: f64 = shallow_pieces()
@@ -1740,7 +1740,8 @@ fn four_pairs_battery() {
                     .filter(|b| {
                         (mass_properties(b, tol(), topo::test_support::pinned_resolution(tol()))
                             .unwrap()
-                            .enclosure
+                            .met()
+                            .expect("the pinned resolution is met")
                             .volume
                             - 4.0 * SIDE.powi(3))
                         .abs()
@@ -2731,7 +2732,8 @@ fn eight_crossings_with_a_pinched_cube(
     let (va, vb) = (vol(&a_pieces), vol(&b_pieces));
     let got = mass_properties(&united, tol(), topo::test_support::pinned_resolution(tol()))
         .unwrap()
-        .enclosure
+        .met()
+        .expect("the pinned resolution is met")
         .volume;
     if (got - vb).abs() > 1e-9 {
         return Err(format!("{pose}: the pinch's volume {got} vs {vb}"));

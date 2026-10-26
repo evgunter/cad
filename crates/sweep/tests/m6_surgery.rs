@@ -396,22 +396,8 @@ fn the_composed_die_replays_bit_identically() {
     let a = topo::test_support::finished("a", composed_die(), Tol::witness());
     let b = topo::test_support::finished("b", composed_die(), Tol::witness());
     let (va, vb) = (
-        topo::mass_properties(
-            &a,
-            Tol::witness(),
-            topo::test_support::pinned_resolution(Tol::witness()),
-        )
-        .unwrap()
-        .enclosure
-        .volume,
-        topo::mass_properties(
-            &b,
-            Tol::witness(),
-            topo::test_support::pinned_resolution(Tol::witness()),
-        )
-        .unwrap()
-        .enclosure
-        .volume,
+        topo::test_support::pinned_volume("the measured body", &a, Tol::witness()).volume,
+        topo::test_support::pinned_volume("the measured body", &b, Tol::witness()).volume,
     );
     assert_eq!(va.to_bits(), vb.to_bits(), "volume bits");
     assert_eq!(
