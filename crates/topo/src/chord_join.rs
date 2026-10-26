@@ -5044,18 +5044,15 @@ impl ChordJoiner {
             // Interior null edge: kef merges the two slivers. Kill a
             // sliver side (never a real face), deterministically
             // preferring he_plus's side.
-            //
-            // Neither side is a completed null face, though one sits in
-            // `slivers` and the boolean carries its key to quiescence
-            // unremapped: the edge's sides are the slivers its own
-            // polygon's chords walled off at its two ends, and a
-            // completed face is bounded by another polygon's two copies,
-            // which kemr left once that polygon's last null edge was cut.
-            debug_assert!(
-                !self.completed.contains_key(f_plus) && !self.completed.contains_key(f_minus),
-                "{} would kef a completed null face",
-                EntityId::Edge(edge)
-            );
+            if self.completed.contains_key(f_plus) || self.completed.contains_key(f_minus) {
+                unreachable!(
+                    "{} would kef a completed null face: the edge's sides are the slivers its \
+                     own polygon's chords walled off at its two ends, and a completed face is \
+                     bounded by another polygon's two copies, which kemr left once that \
+                     polygon's last null edge was cut",
+                    EntityId::Edge(edge)
+                );
+            }
             let (victim, survivor) = if self.slivers.contains_key(f_plus) {
                 (edge_data.he_plus, f_minus)
             } else if self.slivers.contains_key(f_minus) {

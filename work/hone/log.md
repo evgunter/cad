@@ -83,3 +83,6 @@ cleave-tangency)
 
   The track is still far over budget (116 points against 30) and should split on its priority seam: the P2 rows against the P3/P4 rows. Eight rows carry no band or cost: the four D3 pair-audit rows, `sweep-trace-…`, `a-driver-carried-…`, `plane-parallel-…` and the band-less `a-short-ruling-…`.
 - 2026-10-26 — (easy-fixes lane) `reach-refusals-short-of-the-shape-guard`: `Boolean/Join/Section` and `Split/Join/Section` were fixed at the source (`SectionError::WrongLane` now ends in a recourse), and their admissions were removed.
+- 2026-10-26 — (easy-fixes lane) Closed `section-promotion-clears-a-null-face-record-mfkrh-already-dropped`: the three clears are deleted, the oracle asserts the record is gone, and the module docs name the struct promotion reads.
+- 2026-10-26 — (easy-fixes lane) `a-kef-of-a-completed-null-face-is-ruled-out-by-a-debug-assert`: the guard is an `unreachable!` in every build. The row stays open on its proof or witness.
+- 2026-10-26 — (easy-fixes lane) Filed `topo-test-frames-hand-roll-the-across-axis-reference` (P4 E): four topo test fixtures hand-roll an across-axis reference beside `Vec3::orthonormal_basis`.

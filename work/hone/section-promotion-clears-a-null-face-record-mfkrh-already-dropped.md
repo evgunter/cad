@@ -2,11 +2,12 @@
 id: section-promotion-clears-a-null-face-record-mfkrh-already-dropped
 kind: issue
 title: the split and boolean finish clear a null-face record that the mfkrh before them already dropped
-status: open
+status: closed
 opened: 2026-10-01
 priority: P4
 cost: E
 refs: [kef-kvfs-and-mekr-leave-a-null-face-record-naming-the-loop-they-remove, 3618]
+closed: 2026-10-26
 ---
 
 ## What
@@ -56,3 +57,7 @@ its own pipeline struct, and after `mfkrh` the record is gone anyway:
 
 The fix rewords each to name the struct it reads, in the same change
 that deletes the clears.
+
+## Closed (2026-10-26, easy-fixes lane)
+
+The three production clears are deleted: `splitting/finish.rs`'s slit and section arms, and `boolean/finish.rs` `promote_solid`. Each followed `body.mfkrh(ring, …)` on a ring of the same face, and `mfkrh_with` (`euler_kill.rs`) calls `drop_null_face_records_naming(ring)`. In `splitting/reassembly.rs`'s oracle the clear became an `assert!` that `body.null_face_pair(section.face)` is already `None` after the `mfkrh`. The module docs are reworded: `splitting::finish` says promotion reads the roles off the join's `CompletedSection`, and `boolean::finish` names `CompletedPolygonPair`. Verified: `cargo clippy -p topo --all-targets --all-features -- -D warnings` is clean. `cargo nextest run -p topo --lib -E 'test(/chord_join|splitting|boolean::finish|reassembly|merge_faces|split_param|boolean::join|shell::|null::|euler::/)'`: 367 passed. `cargo nextest run -p topo --tests -E 'kind(test) & test(/shell|moved_wall|thin|split|merge_face|section/)'`: 168 passed.

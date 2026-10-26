@@ -1489,3 +1489,5 @@ Ev said go.
 - 2026-10-15 — **No live row is at or above this track's own band (P1).** The 8 rows left are 3 at P2, 1 at P3, 1 at P4, 3 with no band. Consider wrapping up: land the work already in flight and close the program by its exit walk. Failing that, at least re-home the low-priority rows to a program whose band matches them (by `git mv`, ids unchanged, per the closing rules), and do not start any more low-priority work here.
   Band the 3 unbanded rows first: if one of them turns out to be at or above P1, this note does not apply.
   (tracker sweep)
+- 2026-10-26 — (easy-fixes lane) Closed `wall-wrapper-curvature-headroom-keeps-its-own-zero-wording`: both wrapper arms use the meter's idiom and print reach and margin, pinned whole.
+- 2026-10-26 — (easy-fixes lane) `moved-walls-common-line-reads-its-determinant-off-a-cancelling-difference`: `det = cross.norm_squared()` landed. The row stays open on the numerators' measurement.
