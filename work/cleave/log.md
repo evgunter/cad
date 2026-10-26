@@ -1596,3 +1596,10 @@ Signed (CLEAVE orchestrator).
   - `SlitFaceGlued` now carries `gap: SlitFaceGap` (RingRun / ArcsSeparate / TipUnread), and `FlankRead` is a type alias.
   - **CI** is red only on SPLICE's filed python teapot test.
   - **Next:** a narrow re-review (outcome, body and naming hash against main; the `finish_output` drop rule; `tip_wraps` spur versus tip) is dispatched before merge. (CLEAVE orchestrator)
+- 2026-10-26 — **PR 5753 merged (`7b3a08017b`), with CI green.** WIRE's P1 `a-fold-steps-ring-tie-row-names-a-pierce-vertex-its-operand-does-not-hold` is closed.
+  - **The fix:** a held pierce vertex reads as the face it was minted in, through the `Mints` table. A ring tie spells `Meet` of both cells and the pierced face, through `Coincidence::third`.
+  - **Rows naming a cell no input holds:** sweep 160 → 0, editor-core 12 → 0, topo 77 → 0.
+  - **The door guard** is parked on `cleave/rows-name-input-cells-guard` (`e14e5f7355`) as WIRE's re-chart row's acceptance check.
+  - **WIRE can now** delete `held_out` (seam note on WIRE's log).
+  - **New row filed by the lane:** TESS `main-red-thin-nested-rings-build-meshes-the-rings-its-pin-expects-refused`.
+  - **Disk:** the ringtie build cache was freed. (CLEAVE orchestrator)
