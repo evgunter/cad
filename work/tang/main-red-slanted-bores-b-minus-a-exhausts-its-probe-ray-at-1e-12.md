@@ -15,6 +15,6 @@ opened: 2026-10-26
 3° (B, A), ∖: the node builds, got Err(Pieces(Probe { shell: ShellKey(2v5), source: Loop(RayExhausted { loop: LoopKey(16v5) }) }))
 ```
 
-The 3° pose's B ∖ A operation refuses in the shell-pieces probe: every ray cast from the loop is exhausted without a decided crossing. No bisect was run. The row was not in PCERT's 1e-12 red list on the merge base `9039ea9c45` (2026-10-25), so a main change between `9039ea9c45` and `663dd78fef` is the likely cause.
+The 3° pose's B ∖ A operation refuses in the shell-pieces probe: every ray cast from the loop is exhausted without a decided crossing. No bisect was run. The row was green at 1e-12 in E1's pre-merge round, on a tree based on main `9039ea9c45` (2026-10-25), so a main change between `9039ea9c45` and `663dd78fef` is the likely cause.
 
 **Done when** the 3° pose builds all its operations at 1e-12, with the probe ray decided rather than the row's pins loosened, and the row is green on main at every ε.
