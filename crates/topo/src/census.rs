@@ -5547,8 +5547,8 @@ struct FacePairs {
 
 /// What the census says of an in-band face pair ([`in_band_finding`]).
 const IN_BAND: &str = "whether they lie on one plane is within the tolerance band, so where \
-    their boundaries meet cannot be read. Move one of them clear of the band, or onto the \
-    other's plane";
+    their boundaries meet cannot be read. Recourse: move one of them clear of the band, or onto \
+    the other's plane";
 
 /// **An in-band face pair's one finding** (`[assertions]`): two planar
 /// faces of different solids whose carriers read in band, which the
