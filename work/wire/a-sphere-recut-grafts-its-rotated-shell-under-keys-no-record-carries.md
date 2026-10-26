@@ -2,7 +2,7 @@
 id: a-sphere-recut-grafts-its-rotated-shell-under-keys-no-record-carries
 kind: issue
 title: apply_recuts re-keys a re-charted sphere shell through a graft whose map it drops, so the boolean's naming record never sees the operand's keys for it
-status: open
+status: dispatched
 opened: 2026-10-14
 priority: P1
 cost: M
