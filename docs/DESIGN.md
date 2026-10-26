@@ -1589,9 +1589,11 @@ of `A` both operands carry are glued structurally.
 Where its verdicts decide Zero, a union, a cut or a meet glues where
 an arm exists for the carrier pair ([topology]'s frontier), keeping
 one fixed operand's description for a merged face (the first-written
-operand's: a boolean mints no surface, so every face of its result lies
-on a carrier one of its operands holds, and the written order is the
-one rule that decides nothing from values), and an assemble
+operand's: a boolean creates no new surface, every face of its result
+lying on a surface one of its operands already has, so where two
+operands' surfaces are glued as one, one of the two must be kept; and
+the written order is the one rule that decides that from nothing but
+what was written), and an assemble
 records the touch ([topology.records]); each refuses what falls in the
 sliver band. Its result holds no in-band pair, a pair of result cells
 whose one census number lies in band. A solid's only shell is its outer
