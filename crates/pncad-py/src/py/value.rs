@@ -406,7 +406,8 @@ fn unreached_err(py: Python<'_>, unreached: &topo::TargetUnreached<f64>) -> PyEr
     let bracket = matches!(
         unreached.refusal,
         topo::MassPropsError::Face {
-            source: pncad::geom_brep::PropsError::QuadratureBudget { .. },
+            source: pncad::geom_brep::PropsError::QuadratureBudget { .. }
+                | pncad::geom_brep::PropsError::QuadratureFloor { .. },
             ..
         }
     )

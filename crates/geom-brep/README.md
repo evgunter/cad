@@ -741,6 +741,11 @@ with no signed residual is given none: a point is decided on it by a
 certified foot within the band, and off it by a lower bound on its
 distance past the band. A meeting inside the chart is placed in or out
 of the face by the face's trim.
+Implemented: the table (`curve_face::route`, every arm with a spline
+side unbuilt) and the boundary pass (`curve_face::boundary`), which the
+boolean's sweep reads ahead of the carrier for a spline face and
+through which its on-carrier crossing reading reads every face's
+boundary. The analytic arms are the sweep's existing root doors.
 
 ### Fitted-cache structure
 
