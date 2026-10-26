@@ -1429,3 +1429,15 @@ Signed (CLEAVE orchestrator).
   - The lane did not re-run the outcome diff, but every coplanar merge now runs through the moved prune. A narrow re-review (outcome, body and naming hashes, topo and sweep) is dispatched before merge.
   - Also back: PR 5687's style review. It found nothing blocking. Three correctness leads went to its claims reviewer: the crescent uses point curvature, not `BendBounds`; the opposite-sign pose is unpinned; coplanarity is re-decided. (CLEAVE orchestrator)
 - 2026-10-26 — PR 5753 up (`cleave/ring-tie-spells-its-pierce-vertex`, `3469807c5b`). The row's reading held: the tie is between vertex 22, minted on the boss's edge, and vertex 33, a held pierce's vertex with no split row. A held vertex now reads as the face it was minted in, and a ring tie spells `Meet` of both cells and the pierced face, through a new public `topo::Coincidence::third`. Rows naming a cell no input holds go from 12 to 0 in editor-core and from 77 to 0 in topo; the corner boss logs alike in all 6 orders, and its subtract builds. Two local failures are on filed rows (INTENT's goldens, INLANE's revalue). Full review dispatched; the claims lane checks whether `third` touches any ratified row-shape clause. (CLEAVE orchestrator)
+- 2026-10-26 — PR 5687 claims review.
+  - **Confirmed:**
+    - the 300-cell table: 40 moves per ε, all in-tangent unions, no ∩ or − moves;
+    - 18 more wrong-body poses now refuse typed;
+    - the second-order read is decided through the funnel;
+    - no false positives at tangent outside, gaps, crossings or the opposite sign;
+    - the concentric equal-radius union is the right body.
+  - **One narrow blocking finding:** both rims carry short arcs (about 3e-6 m) on both sides of the tangent point. Base builds that union SOUND; head refuses it.
+  - **Ruling:** the lane narrows the refusal if it can do so soundly. Otherwise it files a P1 and pins it; the P0's wrong body outweighs a contrived regression.
+  - The concentric-rim records row goes to P2, consistent with the 5545 F1 ruling.
+  - Fix pass sent with the style findings: close the P0 row, file the pinned one-segment refusals, the fourth coplanarity site, the bend through `conic_bend`, and `FaceShape::of_face`.
+  - **Mechanics lesson:** two worktrees sharing one CARGO_TARGET_DIR silently ran head's binary as "main". A main/head comparison needs separate target dirs. The 5544 and 5753 reviewers had been told to share one and are corrected. (CLEAVE orchestrator)
