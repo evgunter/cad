@@ -354,9 +354,11 @@ interference fit asserts is stage 5's question.
 The backstop's containment arm decides the nested-instance class by a
 material test — a nested placement sharing no material clears; an
 instance with a vertex inside another's material is
-`ValidationError::InstanceInterference` — and no declaration admits an
-interference. Between two copies at rest the editor's gate reads that
-verdict, a pierce and a same-side crossing as interference evidence
+`ValidationError::InstanceInterference`, and a face of each on one plane,
+facing the same way and sharing interior, is
+`ValidationError::SameSideInterference` — and no declaration admits an
+interference. Between two copies at rest the editor's gate reads those
+verdicts, a pierce and a same-side crossing as interference evidence
 (ASSEMBLY A5 *Interference.*), quieted by a one-sided `Gap` assertion at
 the overlap, not by a declaration. Invariant: inside one body an interference is always a
 typed error, and at rest between two copies it is always a finding

@@ -3075,8 +3075,13 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::FaceThroughEdgeWedgeUndecided { .. } => {
             "face_through_edge_wedge_undecided"
         }
+        ValidationError::CoincidentWedgesOverlap { .. } => "coincident_wedges_overlap",
+        ValidationError::CoincidentWedgesOverlapUndecided { .. } => {
+            "coincident_wedges_overlap_undecided"
+        }
         ValidationError::ArcEndOffCorner { .. } => "arc_end_off_corner",
         ValidationError::InstanceInterference { .. } => "instance_interference",
+        ValidationError::SameSideInterference { .. } => "same_side_interference",
         ValidationError::CuspEdgesMissing { .. } => "cusp_edges_missing",
         ValidationError::DanglingTopology { .. } => "dangling_topology",
         ValidationError::DanglingGeometry { .. } => "dangling_geometry",

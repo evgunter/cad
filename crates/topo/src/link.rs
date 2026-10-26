@@ -167,10 +167,13 @@ pub(crate) enum TouchVerdict {
     Unread(TouchUnread),
 }
 
-/// **Why the touch analysis read no side** at a touch: the one home of
-/// its refusal reasons, which a cross-solid touch renders as
-/// [`Undecided`] and an edge lying in a face of its own solid as
-/// [`ValidationError::FaceThroughEdgeWedgeUndecided`].
+/// **Why tier 3′ read no side** at a touch: the one home of its
+/// refusal reasons, which a cross-solid touch renders as the census's
+/// `Undecided`, an edge lying in a face of its own solid as
+/// [`ValidationError::FaceThroughEdgeWedgeUndecided`](crate::validate::ValidationError::FaceThroughEdgeWedgeUndecided), two coincident
+/// edges on one line as
+/// [`ValidationError::CoincidentWedgesOverlapUndecided`](crate::validate::ValidationError::CoincidentWedgesOverlapUndecided), and `Gap`'s
+/// cell arms as a typed refusal.
 ///
 /// **NOT carried to the façade's curated list, and that is a decision
 /// rather than an omission** (`scripts/payload-rung-sweep.py` names this
