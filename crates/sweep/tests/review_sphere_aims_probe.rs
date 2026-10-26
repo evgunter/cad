@@ -213,3 +213,69 @@ fn review_sphere_aims_anywhere() {
         println!("RSA-ANY eps={eps:e} {what}: {tally:?}");
     }
 }
+
+/// (c) Claim 5: the side reader's decisions, and its exact ties, in
+/// recorded `Sym<f64>` builds of trimmed-sphere bodies at symmetric
+/// and generic poses (the booleans' own finishing gates read check 7
+/// and the roles through the reader).
+#[test]
+#[ignore = "probe"]
+fn review_sphere_aims_sym_ties() {
+    use geom_core::Real as _;
+    use geom_core::sym::{Sym, SymBudget, revalue::record, with_session};
+    type S = Sym<f64>;
+    let tol = Tol::witness();
+    let s = |x: f64| S::from_f64(x);
+    let v = |x: f64, y: f64, z: f64| Vec3::new(s(x), s(y), s(z));
+    let ball = |r: f64, c: Vec3<S>| -> AtRestBody<S> {
+        let at = ball_poled_y(s(r), v(0.0, 0.0, 0.0), tol);
+        let m = topo::transform_rigid(&at, &geom_core::RigidMotion::translation(c).unwrap(), tol)
+            .unwrap();
+        finished("ball", m, tol)
+    };
+    let block = || finished("block", brick::<S>((-2.0, 2.0), (-2.0, 2.0), (-2.0, 2.0), tol), tol);
+    let cases: Vec<(&str, Box<dyn Fn() -> usize>)> = vec![
+        ("sym lens", Box::new(move || {
+            let r = topo::intersect(&ball(1.0, v(0.0, 0.0, -0.5)), &ball(1.0, v(0.0, 0.0, 0.5)), tol);
+            r.map(|r| r.body().map_or(0, |b| topo::classify_shells_structural(&b.body, tol).map_or(0, |c| c.len()))).unwrap_or(99)
+        })),
+        ("sym bite", Box::new(move || {
+            let r = topo::subtract(&ball(1.0, v(0.0, 0.0, -0.5)), &ball(1.0, v(0.0, 0.0, 0.5)), tol);
+            r.map(|r| r.body().map_or(0, |b| topo::classify_shells_structural(&b.body, tol).map_or(0, |c| c.len()))).unwrap_or(99)
+        })),
+        ("lens", Box::new(move || {
+            let r = topo::intersect(&ball(1.0, v(0.0, 0.0, 0.0)), &ball(0.8, v(0.0, 0.0, 0.9)), tol);
+            r.map(|r| r.body().map_or(0, |b| topo::classify_shells_structural(&b.body, tol).map_or(0, |c| c.len()))).unwrap_or(99)
+        })),
+        ("block less sym lens", Box::new(move || {
+            let lens = topo::intersect(&ball(1.0, v(0.0, 0.0, -0.5)), &ball(1.0, v(0.0, 0.0, 0.5)), tol)
+                .ok()
+                .and_then(|r| r.body().map(|b| b.body.clone()));
+            let Some(lens) = lens else { return 98 };
+            let r = topo::subtract(&block(), &lens, tol);
+            r.map(|r| r.body().map_or(0, |b| topo::classify_shells_structural(&b.body, tol).map_or(0, |c| c.len()))).unwrap_or(99)
+        })),
+    ];
+    for (what, f) in cases {
+        let ((shells, decisions), _) = with_session(
+            SymBudget { max_terms: 4096, max_degree: 128 },
+            || record(|| f()),
+        );
+        let fam: Vec<_> = decisions
+            .iter()
+            .enumerate()
+            .filter(|(_, d)| d.family == Some(topo::SIDE_READER_FAMILY))
+            .collect();
+        let ties: Vec<_> = fam
+            .iter()
+            .filter(|(_, d)| d.value == Some(0.0))
+            .map(|(k, d)| (k + 1, d.predicate))
+            .collect();
+        let names: std::collections::BTreeSet<&str> = fam.iter().map(|(_, d)| d.predicate).collect();
+        println!(
+            "RSA-TIES {what}: shells {shells}, {} decisions, {} the reader's, exact ties {ties:?}, predicates {names:?}",
+            decisions.len(),
+            fam.len()
+        );
+    }
+}
