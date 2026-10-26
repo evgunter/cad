@@ -86,7 +86,7 @@ use crate::scalar::Scalar;
 fn pe(src: &str) -> Formula {
     parse_formula(src, &BTreeMap::new()).expect("tour expression")
 }
-use crate::{SceneBody, Stop, View};
+use crate::{SceneBody, TourStop, View};
 use pncad::geom_core::Tol;
 
 /// The count-5 name table's size, pinned. Measured, not derived: the
@@ -284,10 +284,12 @@ fn solidify<S: Scalar>(r: &Recipe, ev: &Evaluation<S>, n: usize, tol: Tol) -> pn
         panic!("fillet payload: {:?}", value.payload);
     };
     let want = volume(n);
-    let got = pncad::topo::mass_properties(&crate::booleans::at_rest(body, tol), tol)
-        .expect("mass properties")
-        .volume
-        .f();
+    let got =
+        pncad::topo::mass_properties(&crate::booleans::at_rest(body, tol), tol, crate::printed())
+            .expect("mass properties")
+            .enclosure
+            .volume
+            .f();
     assert!(
         (got - want).abs() <= 1e-9,
         "the {n}-fin solid measures {got}, and the rounded base + {n} fins is {want}"
@@ -350,7 +352,13 @@ pub(crate) fn probe_solids(tol: Tol) -> Vec<pncad::topo::Body<Probe>> {
 /// about this one.
 pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
     let r = scene_doc(tol);
-    crate::world::place_in_world(&r.doc, r.solid, tol).doc
+    let placed = crate::world::place_in_world(&r.doc, r.solid, tol);
+    crate::world::set_product(
+        &placed.doc,
+        &[pncad::document::Operand::Node(placed.placement)],
+        tol,
+    )
+    .doc
 }
 
 /// Flush fins, measured live — the module docs' first section: the
@@ -377,7 +385,7 @@ fn flush_fins(tol: Tol) {
     );
 }
 
-pub fn stops(tol: Tol) -> Vec<Stop> {
+pub fn stops(tol: Tol) -> Vec<TourStop> {
     let r = scene_doc(tol);
 
     // Evaluate at 5, then EDIT the structural count and re-evaluate
@@ -455,7 +463,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                 7 => "heatsink7",
                 _ => "heatsink9",
             };
-            Stop {
+            TourStop {
                 name,
                 caption: format!("heat sink ({n} fins)"),
                 // Montage cell held by `impeller12`, which makes this

@@ -346,7 +346,7 @@ fn every_formula_the_door_walks_refuses_typed_as_an_unheld_name() {
             }],
         },
         Node::Place {
-            shapes: vec![b.into()],
+            source: b.into(),
             target: editor_core::Operand::Var(editor_core::VarId::WORLD),
             constraints: vec![
                 editor_core::Constraint {
@@ -491,10 +491,11 @@ fn every_formula_the_door_walks_refuses_typed_as_an_unheld_name() {
     assert!(formulas > 0 && programs > 0 && offsets == 3);
     // Every node kind is in the sweep but the world, which no edit
     // inserts and no document writes: a kind added to the vocabulary
-    // that no corpus document holds owes an edge above.
+    // that no corpus document holds owes an edge above. D′3's `⊔`
+    // joined it: every assembly's product reads one.
     assert_eq!(
         kinds.len(),
-        22,
+        23,
         "a node kind the sweep does not reach: {kinds:?}"
     );
 }

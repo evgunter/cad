@@ -258,12 +258,13 @@ fn the_acceptance_exports_parse_back_honestly_and_never_drift() {
         let exact = topo::mass_properties(
             &topo::test_support::finished("the measured body", (body).clone(), Tol::witness()),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap();
         assert!(
-            (vol - exact.volume).abs() <= 3.0 * delta * exact.surface_area,
+            (vol - exact.enclosure.volume).abs() <= 3.0 * delta * exact.enclosure.surface_area,
             "VOLUME: {name}: parsed-back volume {vol} vs exact {} beyond 3δA",
-            exact.volume
+            exact.enclosure.volume
         );
         assert!(vol > 0.0, "VOLUME: {name}: shell must be outward");
 
@@ -604,9 +605,10 @@ fn consumer_e2e_vase_and_bracket() {
         let props = topo::mass_properties(
             &topo::test_support::finished("the measured body", (body).clone(), Tol::witness()),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap();
-        assert!(props.volume > 0.0 && props.surface_area > 0.0);
+        assert!(props.enclosure.volume > 0.0 && props.enclosure.surface_area > 0.0);
         let mesh = mesh::tessellate(body, delta, Tol::witness()).unwrap();
         mesh::validate::check_mesh(&mesh).unwrap();
         // Export both formats to disk, re-read, re-derive volume.
@@ -628,9 +630,9 @@ fn consumer_e2e_vase_and_bracket() {
         let (_, facets) = parse_binary_strict(&bytes);
         let v = soup_volume(&facets);
         assert!(
-            (v - props.volume).abs() <= 3.0 * delta * props.surface_area,
+            (v - props.enclosure.volume).abs() <= 3.0 * delta * props.enclosure.surface_area,
             "{name}: parsed volume {v} vs exact {} beyond 3δA",
-            props.volume
+            props.enclosure.volume
         );
         let asc = parse_ascii_strict(&std::fs::read_to_string(&asc_path).unwrap());
         assert_eq!(asc.len(), facets.len());
@@ -695,15 +697,16 @@ fn review_shapes_mesh_volume_within_3_delta_area() {
         let props = topo::mass_properties(
             &topo::test_support::finished("the measured body", (body).clone(), Tol::witness()),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap();
         let mesh = mesh::tessellate(body, delta, Tol::witness()).unwrap();
         mesh::validate::check_mesh(&mesh).unwrap();
         let vm = mesh::validate::signed_volume(&mesh);
         assert!(
-            (vm - props.volume).abs() <= 3.0 * delta * props.surface_area,
+            (vm - props.enclosure.volume).abs() <= 3.0 * delta * props.enclosure.surface_area,
             "{name}: mesh volume {vm} vs exact {} beyond 3δA",
-            props.volume
+            props.enclosure.volume
         );
     }
 }

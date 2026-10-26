@@ -807,6 +807,14 @@ never reported and the run is a success, so definite-negative
 `props_quad_last_round` readings can accumulate on a wholly green
 suite. A note in a green log does not catch that; a gate does.
 
+*(2026-10-26, QUAD measure door unit C, PR 5741: the refusal this
+paragraph describes no longer exists. `sign_walk`, `last_word`,
+`props_quad_last_round` and `QuadratureBudget` are gone; a face never
+refuses for width, and a sign still undecided where no face can refine
+is the walk's own refusal, carrying its bracket —
+`ValidationError::VolumeSignUnresolved` at check 7,
+`MassPropsError::Undecided` at the number doors.)*
+
 **What a green `k-lint` row does and does not say about this.** `ci.yml`
 lints exactly `target/k-fresh/k-eps-{1e-6,1e-9,1e-12}.csv` with every
 rule gating, so a green there is a claim about the GATED FILES: no
@@ -861,6 +869,14 @@ the live roster. A fresh sweep records no `props_quad_converged` row:
 that is a removed population, not a threshold move. A deciding
 measurement now records its own predicate instead, under its call
 site's names, every round it is asked.
+
+**The factor goes too (2026-10-26, measure door unit C).** No lane and
+no number door reads `QUAD_TARGET_LEN_FACTOR` any more: every caller
+states its own resolution, so the constant left `props/quad.rs`, and
+`predicate_roster`'s pin that it is a finite positive literal went with
+it. The rule (2) spelling it checks a rostered mint's `target_len`
+against, `QUAD_TARGET_LEN_FACTOR * eps`, stays the spelling the next
+ε-coupled family is held to.
 
 **Roster addition (TRIM-3): the chart-boundary outside test.** Six
 names, in the crate scan's blind spot #4 — four of them are a

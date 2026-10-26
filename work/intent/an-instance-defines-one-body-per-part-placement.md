@@ -2,12 +2,11 @@
 id: an-instance-defines-one-body-per-part-placement
 kind: issue
 title: An instance defines one Body port holding its part's whole world; FORK-1's signature (one Body per world placement, fixed by the pin) is unbuilt
-status: parked
+status: closed
 opened: 2026-10-08
 refs: [a-placement-is-the-bundle-of-mates]
 parent: assemble-is-an-operator-and-the-product-is-a-slot
-rides_with: assemble-is-an-operator-and-the-product-is-a-slot
-blocked_on: [assemble-is-an-operator-and-the-product-is-a-slot]
+closed: 2026-10-23
 ---
 
 
@@ -53,3 +52,5 @@ Split's consumer-ward re-point (`refactor.rs`, the crossing reads
 re-pointed with `SetParam` to the instance's body) and inline's heir
 rule (`Uncarried::Bodies`) are stated over the one port and change with
 this row.
+
+Absorbed by D′3 (`assemble-is-an-operator-and-the-product-is-a-slot`), as PR 5494 restated FORK-1: an instance defines one `Body`, the copy of its part's product (`Node::output_signature`, `copy`), and a pick reads one piece of it (`an_instance_defines_one_body_of_its_parts_product`, `crates/editor-core/tests/intent_dprime3_assemble_product_slot.rs`).

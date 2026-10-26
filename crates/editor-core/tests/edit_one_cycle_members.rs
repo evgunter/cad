@@ -23,11 +23,11 @@ use topo::Body;
 const A: f64 = 0.006;
 
 fn volume(body: &Body<f64>) -> f64 {
-    topo::mass_properties(
+    topo::test_support::pinned_volume(
+        "closed-form mass properties",
         &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
         tol(),
     )
-    .expect("closed-form mass properties")
     .volume
 }
 

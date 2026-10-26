@@ -60,7 +60,6 @@ fn body_of(payload: &ValuePayload<f64>) -> &topo::Body<f64> {
     match payload {
         ValuePayload::Body(b) => b,
         ValuePayload::Boolean(BooleanValue::Body { body, .. }) => body,
-        ValuePayload::Copies(copies) if copies.bodies.len() == 1 => &copies.bodies[0],
         other => panic!("expected a body, got {other:?}"),
     }
 }
@@ -106,8 +105,7 @@ fn a_ball_cut_by_a_brick_refuses_at_its_turned_pole_where_a_member_vertex_is_rea
             .filter_map(|(n, e)| match (n.path.as_slice(), e) {
                 ([RoleSeg::From { of, .. }], Entry::Unique(r))
                     if of.kind == EntityKind::Vertex
-                        && matches!(of.path.as_slice(), [RoleSeg::Placed { of }]
-                            if matches!(of.path.as_slice(), [RoleSeg::Pole(_)])) =>
+                        && matches!(of.path.as_slice(), [RoleSeg::Pole(_)]) =>
                 {
                     match r.key {
                         EntityKey::Vertex(v) => Some(points[&v]),

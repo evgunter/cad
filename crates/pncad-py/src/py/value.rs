@@ -23,7 +23,7 @@
 use std::sync::Arc;
 
 use pyo3::prelude::*;
-use pyo3::types::{PyFloat, PyString};
+use pyo3::types::PyString;
 
 use crate::errors::{ErrorClass, EvalReason, ValidationRefusal, measurement_dimension_tag};
 use crate::py::quantity::Length;
@@ -374,62 +374,35 @@ impl From<topo::MassProperties<f64>> for MassProperties {
 }
 
 /// The refusal a MEASUREMENT door raises: the kernel's own message
-/// under the `reason` a caller dispatches on, plus whatever the door
-/// itself has to add.
-///
-/// One construction site for the same reason
-/// [`Body::validator_err`] is one: two doors that refuse the same
-/// class must not drift on the word. `extra` is where they legitimately
-/// differ — the certificate door has a bracket to hand over and the
-/// reporting door has none.
-fn measurement_err(
-    py: Python<'_>,
-    err: &topo::MassPropsError,
-    extra: Vec<(&'static str, Py<PyAny>)>,
-) -> PyErr {
+/// under the `reason` a caller dispatches on, and which refusal it is
+/// as `measure_refusal` ([`crate::tags::mass_props_error_tag`]): a face
+/// with no enclosure, a predicate whose margin could not be read, a
+/// resolution finer than ε, or a deciding predicate still undecided
+/// where no face can refine (`"undecided"`). That last one carries its
+/// bracket as data beside the word, as the kernel's refusal does:
+/// `volume`, the enclosure's ends `(lo, hi)` read outward, and `stop`,
+/// why no face could refine further. An unmet resolution is no refusal:
+/// it is a [`MassMeasurement`] whose `stop` says so.
+fn measurement_err(py: Python<'_>, err: &topo::MassPropsError) -> PyErr {
+    let word = |w: &str| PyString::new(py, w).unbind().into_any();
+    let mut fields = vec![(
+        "measure_refusal",
+        word(crate::tags::mass_props_error_tag(err)),
+    )];
+    if let topo::MassPropsError::Undecided { volume, stop } = err {
+        fields.push((
+            "volume",
+            pyo3::types::PyTuple::new(py, [volume.0, volume.1])
+                .map_or_else(|_| py.None(), |t| t.unbind().into_any()),
+        ));
+        fields.push(("stop", word(stop.word())));
+    }
     typed_err(
         py,
         ErrorClass::Validation(ValidationRefusal::MassProperties),
         err.to_string(),
-        &extra,
+        &fields,
     )
-}
-
-/// The refusal a door raises when a gate's certificate could not be
-/// continued to the number ([`topo::SignCertificate::measure`]): the
-/// measurement refusal, carrying the kernel's bracket as
-/// `volume_lo`/`volume_hi`/`surface_area` when the kernel classified
-/// the refusal as the schedule running out, and `None` on every other
-/// refusal because no other refusal has one. The classification is the
-/// kernel's ([`topo::TargetUnreached::bracket`]); this only spells it.
-fn unreached_err(py: Python<'_>, unreached: &topo::TargetUnreached<f64>) -> PyErr {
-    let bracket = matches!(
-        unreached.refusal,
-        topo::MassPropsError::Face {
-            source: pncad::geom_brep::PropsError::QuadratureBudget { .. }
-                | pncad::geom_brep::PropsError::QuadratureFloor { .. },
-            ..
-        }
-    )
-    .then_some(unreached.bracket);
-    measurement_err(
-        py,
-        &unreached.refusal,
-        vec![
-            ("volume_lo", pyfloat(py, bracket.map(|b| b.volume_lo))),
-            ("volume_hi", pyfloat(py, bracket.map(|b| b.volume_hi))),
-            ("surface_area", pyfloat(py, bracket.map(|b| b.surface_area))),
-        ],
-    )
-}
-
-/// A float payload attribute, `None` where the door has no value for
-/// it — the "every field on every arm" shape a caller branches on.
-fn pyfloat(py: Python<'_>, value: Option<f64>) -> Py<PyAny> {
-    match value {
-        Some(value) => PyFloat::new(py, value).unbind().into_any(),
-        None => py.None(),
-    }
 }
 
 #[pymethods]
@@ -438,6 +411,171 @@ impl MassProperties {
         format!(
             "MassProperties(volume={} m^3, surface_area={} m^2)",
             self.volume, self.surface_area
+        )
+    }
+}
+
+/// **What a measurement is asked** (`[tolerance.measure]`): a sign, a
+/// relation against a volume bound, a containment, or a resolution.
+/// There is no default: every measurement door takes one. Each deciding
+/// constructor's decisions are recorded under the funnel name its
+/// docstring gives.
+#[pyclass(frozen, module = "pncad", from_py_object)]
+#[derive(Clone, Copy)]
+pub(crate) struct Settle(topo::Settle<f64>);
+
+#[pymethods]
+impl Settle {
+    /// The volume's sign: `verdict` is `"outer"` for a positive volume
+    /// and `"void"` for a negative one. Recorded under
+    /// `py_measure_sign` (the walk's sums) and `py_measure_sign_exact`
+    /// (the interval re-derivation).
+    #[staticmethod]
+    fn sign() -> Self {
+        Self(topo::Settle::Sign(topo::SignNames {
+            walk: topo::RoleNames::one("py_measure_sign"),
+            certified: topo::RoleNames::one("py_measure_sign_exact"),
+        }))
+    }
+
+    /// The volume at most `bound` (m³): `verdict` is whether it holds.
+    /// Recorded under `py_measure_at_most`.
+    #[staticmethod]
+    fn at_most(bound: f64) -> Self {
+        Self(topo::Settle::AtMost {
+            bound,
+            name: "py_measure_at_most",
+        })
+    }
+
+    /// The volume at least `bound` (m³): `verdict` is whether it holds.
+    /// Recorded under `py_measure_at_least`.
+    #[staticmethod]
+    fn at_least(bound: f64) -> Self {
+        Self(topo::Settle::AtLeast {
+            bound,
+            name: "py_measure_at_least",
+        })
+    }
+
+    /// The volume within `[lo, hi]` (m³): `verdict` is whether it holds.
+    /// Recorded under `py_measure_contains`. A `lo` definitely above `hi`
+    /// names no volume and is refused (`measure_refusal`
+    /// `"empty_contains"`).
+    #[staticmethod]
+    fn contains(lo: f64, hi: f64) -> Self {
+        Self(topo::Settle::Contains {
+            lo,
+            hi,
+            name: "py_measure_contains",
+        })
+    }
+
+    /// Each face refined until its enclosure spans at most `length` of
+    /// mean boundary displacement: the predicate of a caller that wants
+    /// the number. Decides nothing, and is recorded nowhere. A length
+    /// finer than the tolerance is refused (`measure_refusal`
+    /// `"resolution_finer_than_eps"`).
+    #[staticmethod]
+    fn resolution(length: &Length) -> Self {
+        Self(topo::Settle::Resolution(length.0))
+    }
+
+    fn __repr__(&self) -> String {
+        match self.0 {
+            topo::Settle::Sign(_) => "Settle.sign()".to_owned(),
+            topo::Settle::AtMost { bound, .. } => format!("Settle.at_most({bound})"),
+            topo::Settle::AtLeast { bound, .. } => format!("Settle.at_least({bound})"),
+            topo::Settle::Contains { lo, hi, .. } => format!("Settle.contains({lo}, {hi})"),
+            topo::Settle::Resolution(len) => format!("Settle.resolution({} m)", len.meters()),
+        }
+    }
+}
+
+/// **What a measurement reached**: the narrowest enclosure it held, why
+/// it stopped, and what a deciding predicate decided.
+///
+/// `stop` is `"settled"` (a deciding predicate settled), `"met"` (every
+/// face met the resolution), `"floor"` (refinement stopped paying short
+/// of the question), `"wall"` (a face short of the question reached the
+/// work wall) or `"band"` (the enclosure lies wholly in the predicate's
+/// band). `verdict` is `"outer"`/`"void"` for `Settle.sign()` settled,
+/// a bool for a relation or containment settled, and `None` otherwise.
+#[pyclass(frozen, module = "pncad", skip_from_py_object)]
+#[derive(Clone)]
+pub(crate) struct MassMeasurement {
+    /// The volume and area enclosures.
+    #[pyo3(get)]
+    enclosure: MassProperties,
+    stop: topo::Stop,
+}
+
+impl From<topo::MassMeasurement<f64>> for MassMeasurement {
+    fn from(measured: topo::MassMeasurement<f64>) -> Self {
+        Self {
+            enclosure: measured.enclosure.into(),
+            stop: measured.stop,
+        }
+    }
+}
+
+#[pymethods]
+impl MassMeasurement {
+    /// Why the measurement stopped, as `topo::Stop::word` spells it.
+    #[getter]
+    fn stop(&self) -> &'static str {
+        self.stop.word()
+    }
+
+    /// What a deciding predicate decided, a `SettleVerdict` spelled as
+    /// its words: `"outer"` or `"void"` for a sign (`SettleVerdict::Sign`),
+    /// a bool for a relation or a containment (`SettleVerdict::Holds`),
+    /// `None` where none settled.
+    #[getter]
+    fn verdict(&self, py: Python<'_>) -> Py<PyAny> {
+        match self.stop {
+            topo::Stop::Settled(topo::SettleVerdict::Sign(role)) => {
+                PyString::new(py, role.word()).unbind().into_any()
+            }
+            topo::Stop::Settled(topo::SettleVerdict::Holds(holds)) => {
+                pyo3::types::PyBool::new(py, holds)
+                    .to_owned()
+                    .unbind()
+                    .into_any()
+            }
+            _ => py.None(),
+        }
+    }
+
+    /// The enclosure as a number, where the measurement met its
+    /// resolution (`stop == "met"`): `topo::MassMeasurement::met`.
+    ///
+    /// # Errors
+    ///
+    /// `ValidationError` with `measure_refusal == "unmet"` and `stop`,
+    /// the stop the measurement reached instead.
+    fn met(&self, py: Python<'_>) -> PyResult<MassProperties> {
+        if self.stop == topo::Stop::Met {
+            return Ok(self.enclosure);
+        }
+        let word = |w: &str| PyString::new(py, w).unbind().into_any();
+        Err(typed_err(
+            py,
+            ErrorClass::Validation(ValidationRefusal::MassProperties),
+            topo::Unmet { stop: self.stop }.to_string(),
+            &[
+                ("measure_refusal", word(crate::tags::MEASUREMENT_UNMET)),
+                ("stop", word(self.stop.word())),
+            ],
+        ))
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "MassMeasurement(stop={}, volume={} ± {} m^3)",
+            self.stop.word(),
+            self.enclosure.volume,
+            self.enclosure.volume_pad
         )
     }
 }
@@ -496,19 +634,17 @@ impl Body {
 
 #[pymethods]
 impl Body {
-    /// Volume, area, and their certified pads.
+    /// Volume and area enclosures under `settle`, and why the
+    /// measurement stopped.
     ///
     /// **The measurement reads a finished body** (Ev's decision on PR
     /// 4822), so this is [`Self::validate_geometric_measured`]: tier 3
-    /// gates the body, and its own certified quadrature, continued to
-    /// the reporting target, is the measurement — one quadrature, the
-    /// same bits the typed door reports over the finished body. A body
-    /// the gate refuses raises the gate's `ValidationError` (door
-    /// `validate_geometric`) rather than being measured; a body the gate
-    /// admits whose number the schedule cannot reach raises the
-    /// measurement's refusal with its bracket, as that door does.
-    fn mass_properties(&self, py: Python<'_>) -> PyResult<MassProperties> {
-        self.validate_geometric_measured(py)
+    /// gates the body, and its own certified quadrature, continued under
+    /// `settle`, is the measurement — one quadrature. A body the gate
+    /// refuses raises the gate's `ValidationError` (door
+    /// `validate_geometric`) rather than being measured.
+    fn mass_properties(&self, py: Python<'_>, settle: Settle) -> PyResult<MassMeasurement> {
+        self.validate_geometric_measured(py, settle)
     }
 
     /// Full validation. Raises `ValidationError` listing the failures.
@@ -552,41 +688,29 @@ impl Body {
         )
     }
 
-    /// **Tier 3 and the number it already computed, in ONE certified
-    /// quadrature** — the spelling that pays once.
+    /// **Tier 3 and a measurement, in ONE certified quadrature** — the
+    /// spelling that pays once.
     ///
     /// Tier 3's +V check IS a certified quadrature, and a measurement
     /// after it would start another from round 0. This door keeps the
     /// certificate the gate decided the sign on and continues THAT
-    /// quadrature to the reporting target, so the rounds the gate
-    /// already paid for are not paid again; the `MassProperties` it
-    /// answers is the typed door's over the finished body, bit for bit,
-    /// in all four fields. `mass_properties()` is this door.
+    /// quadrature under `settle`, so the rounds the gate already paid for
+    /// are not paid again.
     ///
     /// **Why a door and not a certificate.** The Rust certificate
     /// BORROWS the body it was derived from, so it cannot be handed
     /// out and asked for a number later — a lifetime does not survive
-    /// the FFI boundary, and memoizing one on a `Body` cannot be
-    /// spelled. Gating and measuring in one call is the shape that
-    /// does cross.
+    /// the FFI boundary. Gating and measuring in one call is the shape
+    /// that does cross.
     ///
-    /// # The refusal the pair does not have
-    ///
-    /// The continuation can refuse where the GATE passed, and that is
-    /// not this door misbehaving: the reporting target is a length
-    /// that scales with ε while the refinement schedule's floor is a
-    /// property of the part, so a body whose volume SIGN is definite
-    /// may have no volume number at this ε. Tier 3 admits it — the +V
-    /// check reads only the sign — and the measurement refuses, with
-    /// the same `ValidationError` and the same `reason`
-    /// ([`ValidationRefusal::MassProperties`]) `mass_properties()`
-    /// raises on that body. On THAT refusal the exception also carries the
-    /// narrowest bracket the gate's certificate or its continuation
-    /// held — `volume_lo`, `volume_hi`, `surface_area` — which is the
-    /// whole of what the certified quadrature is entitled to say about
-    /// the body, and is `None` on every other refusal because no other
-    /// refusal has one.
-    fn validate_geometric_measured(&self, py: Python<'_>) -> PyResult<MassProperties> {
+    /// A resolution the quadrature cannot reach is no refusal: the
+    /// `MassMeasurement`'s `stop` is `"floor"` or `"wall"`, and its enclosure
+    /// is the bracket it reached.
+    fn validate_geometric_measured(
+        &self,
+        py: Python<'_>,
+        settle: Settle,
+    ) -> PyResult<MassMeasurement> {
         let tol = Tol::witness();
         let certificate = match topo::validate_geometric_certificate(&self.inner, tol) {
             Ok(certificate) => certificate,
@@ -602,9 +726,9 @@ impl Body {
             }
         };
         certificate
-            .measure()
-            .map(MassProperties::from)
-            .map_err(|unreached| unreached_err(py, &unreached))
+            .measure(settle.0)
+            .map(MassMeasurement::from)
+            .map_err(|err| measurement_err(py, &err))
     }
 
     /// **Tier 3′** — the ladder's fourth rung: tier 3's whole local
@@ -806,6 +930,15 @@ impl ValidationFinding {
         self.0.ring_contact_kind
     }
 
+    /// A `volume_sign_unresolved` finding's volume bracket `(lo, hi)`
+    /// in m³, read outward: the true volume lies between them.
+    #[getter]
+    fn volume(&self) -> Option<(f64, f64)> {
+        self.0
+            .volume
+            .map(|[lo, hi]| (f64::from_bits(lo), f64::from_bits(hi)))
+    }
+
     fn __repr__(&self) -> String {
         // Python's own spelling of an absent word, not Rust's: a repr
         // a reader can paste back is the whole point of one.
@@ -954,11 +1087,6 @@ impl Value {
             d::ValuePayload::Boolean(d::BooleanValue::Body { contacts, .. }) => {
                 Body::recorded(Arc::clone(body), Arc::clone(contacts))
             }
-            // An instance's copies as one body — its part's world — carry
-            // the declarations that part's product minted.
-            d::ValuePayload::Copies(copies) if copies.bodies.len() == 1 => {
-                Body::recorded(Arc::clone(body), Arc::clone(&self.contacts))
-            }
             _ => Body::plain(Arc::clone(body)),
         }
     }
@@ -976,9 +1104,9 @@ impl Value {
 
     /// The single body this value denotes.
     ///
-    /// Accepts `Body`, a non-empty `Boolean`, and `copies` that are one
-    /// body (an instance whose part's world is one body); raises for
-    /// every other kind, and for an empty Boolean.
+    /// Accepts `Body` (a placement's or an instance's copy and a `⊔`
+    /// among them) and a non-empty `Boolean`; raises for every other
+    /// kind, and for an empty Boolean.
     fn body(&self, py: Python<'_>) -> PyResult<Body> {
         match &self.payload {
             d::ValuePayload::Body(body) => Ok(self.recorded_body(body)),
@@ -991,9 +1119,6 @@ impl Value {
                 EvalReason::EmptyBoolean,
                 self.node,
             )),
-            d::ValuePayload::Copies(copies) if copies.bodies.len() == 1 => {
-                Ok(self.recorded_body(&copies.bodies[0]))
-            }
             other => Err(eval_err(
                 py,
                 format!("a `{}` value is not a body", other.kind_name()),
@@ -1004,7 +1129,7 @@ impl Value {
     }
 
     /// Every body this value denotes: one for `Body`/`Boolean`, the
-    /// whole list for `Instances` and for `copies`, both sides for a
+    /// whole list for `Instances`, both sides for a
     /// `Split`.
     fn bodies(&self) -> Vec<Body> {
         let wrap = |body: &Arc<topo::Body<f64>>| self.recorded_body(body);
@@ -1016,7 +1141,6 @@ impl Value {
             d::ValuePayload::Body(body) => vec![wrap(body)],
             d::ValuePayload::Boolean(d::BooleanValue::Body { body, .. }) => vec![wrap(body)],
             d::ValuePayload::Instances(bodies) => bodies.iter().map(wrap).collect(),
-            d::ValuePayload::Copies(copies) => copies.bodies.iter().map(wrap).collect(),
             d::ValuePayload::Split { above, below } => {
                 [side(above), side(below)].into_iter().flatten().collect()
             }
@@ -2076,18 +2200,16 @@ fn census(c: pncad::step_import::FaceCensus) -> FaceCensus {
 }
 
 /// **What a successful STEP import produced** — the body, the gate's
-/// own measurement of it, and the record of what the adoption changed
+/// own certificate of it, and the record of what the adoption changed
 /// about the file.
 ///
 /// The body is a `Body` handle like any other and gains nothing from
-/// arriving this way; the report is what is new. `enclosure` is the
-/// certified `MassProperties` the import's own at-rest gate derived
-/// and decided the body's orientation invariant on, handed back rather
-/// than dropped — **not a second computation**. A caller that reads it
-/// measures the imported body ONCE; a caller that calls
-/// `report.body.mass_properties()` gates the body again and runs its
-/// certified quadrature over the same body at the same band, and gets
-/// the same four fields bit for bit.
+/// arriving this way; the report is what is new. `measure(settle)`
+/// measures the body through the certificate the import's own at-rest
+/// gate decided the body's orientation invariant on — **not a second
+/// computation**: it continues the gate's rounds, where
+/// `report.body.mass_properties(settle)` gates the body again and runs
+/// its certified quadrature from round 0.
 ///
 /// The three record lists are the adoption's own report, "as data,
 /// never silently": `normalizations` is every boundary graph the
@@ -2100,10 +2222,10 @@ pub(crate) struct ImportReport {
     /// rest, checked before it was handed out.
     #[pyo3(get)]
     body: Body,
-    /// The at-rest gate's own enclosure of `body`, continued to the
-    /// number — or why it could not be (read through the `enclosure`
-    /// getter, which raises that refusal).
-    enclosure: Result<MassProperties, topo::TargetUnreached<f64>>,
+    /// The body held with the at-rest gate's own certificate of it
+    /// (`topo::CertifiedBody`): what `measure` measures through. `body`
+    /// is its body, handed out as a handle like any other.
+    certified: topo::CertifiedBody,
     /// The import's input tolerance in metres: the file's declared
     /// uncertainty, which is a separate quantity from the kernel's ε.
     #[pyo3(get)]
@@ -2115,21 +2237,17 @@ pub(crate) struct ImportReport {
 
 #[pymethods]
 impl ImportReport {
-    /// The at-rest gate's own measurement of `body` — its certificate
-    /// continued to the number, not a second computation.
+    /// The body measured under `settle` through the at-rest gate's own
+    /// certificate of it, continuing the rounds the gate took.
     ///
     /// # Errors
     ///
-    /// The import SUCCEEDED either way: the gate decides each solid's
-    /// volume sign, and admits a valid body whose volume is not
-    /// measurable at this ε. Reading this on such a report raises the
-    /// measurement refusal `validate_geometric_measured` raises, with
-    /// its bracket when the schedule ran out.
-    #[getter]
-    fn enclosure(&self, py: Python<'_>) -> PyResult<MassProperties> {
-        self.enclosure
-            .clone()
-            .map_err(|unreached| unreached_err(py, &unreached))
+    /// The measurement refusal `validate_geometric_measured` raises.
+    fn measure(&self, py: Python<'_>, settle: Settle) -> PyResult<MassMeasurement> {
+        self.certified
+            .measure(settle.0)
+            .map(MassMeasurement::from)
+            .map_err(|err| measurement_err(py, &err))
     }
 
     /// Every boundary graph the adoption re-minted, in resolution
@@ -2156,11 +2274,7 @@ impl ImportReport {
 
     fn __repr__(&self) -> String {
         format!(
-            "ImportReport(volume={}, {} normalization(s), {} promotion(s), {} instance(s))",
-            match &self.enclosure {
-                Ok(enclosure) => format!("{} m^3", enclosure.volume),
-                Err(_) => "unmeasured".to_owned(),
-            },
+            "ImportReport({} normalization(s), {} promotion(s), {} instance(s))",
             self.normalizations.len(),
             self.promotions.len(),
             self.instances.len()
@@ -2170,14 +2284,14 @@ impl ImportReport {
 
 /// Parse a STEP text with the kernel's own importer and adopt its
 /// solid, answering the whole [`ImportReport`]: the body, the gate's
-/// own enclosure of it, and the record of what the adoption changed.
+/// own certificate of it, and the record of what the adoption changed.
 ///
 /// The report rather than the body alone is what makes the natural
 /// journey — import a file, then ask what it encloses — measure the
 /// solid once. The importer's gate has already run the certified
 /// quadrature to decide the body's orientation invariant, so
-/// `enclosure` is that measurement handed back, where
-/// `body.mass_properties()` gates and measures the body over again.
+/// `report.measure(settle)` continues that quadrature, where
+/// `body.mass_properties(settle)` gates and measures the body over again.
 ///
 /// `eps_in` overrides the file's declared
 /// `UNCERTAINTY_MEASURE_WITH_UNIT` as the import's input tolerance —
@@ -2213,7 +2327,6 @@ pub(crate) fn import_step(
     match pncad::step_import::import_step(text, &options, tol) {
         Ok(pncad::step_import::StepImport::Solid {
             body,
-            enclosure,
             eps_in,
             normalizations,
             curve_promotions,
@@ -2228,8 +2341,8 @@ pub(crate) fn import_step(
             // document reads through this door.
             coincidences: _,
         }) => Ok(ImportReport {
-            body: Body::recorded(Arc::new(body), Arc::new(contacts)),
-            enclosure: enclosure.map(MassProperties::from),
+            body: Body::recorded(Arc::new(body.body().clone()), Arc::new(contacts)),
+            certified: body,
             eps_in,
             normalizations: normalizations
                 .into_iter()
@@ -2656,6 +2769,8 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Value>()?;
     m.add_class::<Body>()?;
     m.add_class::<MassProperties>()?;
+    m.add_class::<Settle>()?;
+    m.add_class::<MassMeasurement>()?;
     m.add_class::<ImportReport>()?;
     m.add_class::<StructureNormalization>()?;
     m.add_class::<CurvePromotion>()?;

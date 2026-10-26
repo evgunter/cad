@@ -298,13 +298,14 @@ fn tangent_charts_shell_onto_their_closed_forms() {
                     Tol::witness(),
                 ),
                 Tol::witness(),
+                topo::test_support::pinned_resolution(Tol::witness()),
             )
             .unwrap_or_else(|e| panic!("eps {eps:e}, {name} at {t}: the thin solid weighs: {e}"));
             let want = closed(t);
             assert!(
-                (props.volume - want).abs() <= props.volume_pad + 10.0 * eps,
+                (props.enclosure.volume - want).abs() <= props.enclosure.volume_pad + 10.0 * eps,
                 "eps {eps:e}, {name} at {t}: volume {} against the closed form {want}",
-                props.volume
+                props.enclosure.volume
             );
         }
     }

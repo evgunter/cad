@@ -131,9 +131,12 @@ fn the_folds_divergence_is_exactly_the_reported_promotion() {
         else {
             panic!("{name}: the re-import must be a solid");
         };
-        let out2 =
-            step_export::step_string(&crate::common::at_rest(&body2), &options, Tol::witness())
-                .expect("second re-export");
+        let out2 = step_export::step_string(
+            &crate::common::at_rest(body2.body()),
+            &options,
+            Tol::witness(),
+        )
+        .expect("second re-export");
         assert_eq!(out, out2, "{name}: fixed point from the first re-export on");
     }
 }

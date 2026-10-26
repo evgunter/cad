@@ -36,6 +36,7 @@ from pncad import (
     StepId,
     circle_split,
     evaluate,
+    Settle,
     import_step,
     load,
     m,
@@ -43,6 +44,7 @@ from pncad import (
 )
 from placing import against, axes_at, placed
 from spoken import tag
+from measuring import PINNED, met, pinned
 
 
 def strands(doc):
@@ -227,7 +229,7 @@ class TestEvaluation(unittest.TestCase):
         self.assertEqual(ev.value(profile_node).kind, "profile")
         value = ev.value(extrude_node)
         self.assertEqual(value.kind, "body")
-        self.assertEqual(value.body().mass_properties().volume, 6.0)
+        self.assertEqual(pinned(value.body()).volume, 6.0)
         self.assertEqual(box, extrude_node)
 
     def test_a_body_validates(self):
@@ -285,7 +287,7 @@ class TestEvaluation(unittest.TestCase):
         body = ev.value(fused).body()
         body.validate_closed()
         # 6.0 base + 1.5 post - 0.5 shared = 7.0
-        self.assertEqual(body.mass_properties().volume, 7.0)
+        self.assertEqual(pinned(body).volume, 7.0)
 
     def test_a_coincident_boolean_glues_and_records(self):
         # Two boxes sharing the x=0, y=0 and z=0 planes: the margins
@@ -300,7 +302,7 @@ class TestEvaluation(unittest.TestCase):
         self.assertTrue(ev.succeeded(cut))
         body = ev.value(cut).body()
         body.validate()
-        self.assertEqual(body.mass_properties().volume, 7.0)
+        self.assertEqual(pinned(body).volume, 7.0)
         relations = [row.relation for row in ev.coincidences(cut)]
         self.assertEqual(
             sorted(relations),
@@ -378,7 +380,7 @@ class TestTheUnionGluesItsContacts(unittest.TestCase):
         ev = evaluate(doc)
         body = ev.value(fused).body()
         body.validate()
-        self.assertEqual(body.mass_properties().volume, 1.125)
+        self.assertEqual(pinned(body).volume, 1.125)
         relations = [row.relation for row in ev.coincidences(fused)]
         self.assertEqual(relations, ["same_opposite"] + ["on_carrier"] * 4)
 
@@ -394,7 +396,7 @@ class TestTheUnionGluesItsContacts(unittest.TestCase):
         ev = evaluate(doc)
         body = ev.value(fused).body()
         body.validate()
-        self.assertEqual(body.mass_properties().volume, 9 + 4 + 1)
+        self.assertEqual(pinned(body).volume, 9 + 4 + 1)
         relations = [row.relation for row in ev.coincidences(fused)]
         self.assertEqual(
             sorted(relations), ["on_carrier"] * 8 + ["same_opposite"] * 2
@@ -440,7 +442,7 @@ class TestD9BitReplaySeed(unittest.TestCase):
     def test_volume_is_bit_exact(self):
         doc = Doc()
         box = unit_box(doc, 2 * m, 3 * m, 0.5 * m)
-        volume = evaluate(doc).value(box).body().mass_properties().volume
+        volume = pinned(evaluate(doc).value(box).body()).volume
         self.assertEqual(
             volume.hex(),
             self.EXPECTED_VOLUME_HEX,
@@ -456,7 +458,7 @@ class TestD9BitReplaySeed(unittest.TestCase):
             # should) compare unequal.
             doc = Doc(seed="replay-of-the-same-recipe")
             box = unit_box(doc, 2 * m, 3 * m, 0.5 * m)
-            return doc, evaluate(doc).value(box).body().mass_properties()
+            return doc, pinned(evaluate(doc).value(box).body())
 
         first_doc, first = build()
         second_doc, second = build()
@@ -529,7 +531,7 @@ class TestPersistence(unittest.TestCase):
     def test_save_load_evaluate_round_trip_is_bit_exact(self):
         doc = Doc()
         box = unit_box(doc, 2 * m, 3 * m, 0.5 * m)
-        before = evaluate(doc).value(box).body().mass_properties().volume
+        before = pinned(evaluate(doc).value(box).body()).volume
 
         text = doc.save()
         self.assertTrue(
@@ -540,7 +542,7 @@ class TestPersistence(unittest.TestCase):
         loaded = load(text)
         self.assertEqual(loaded.edit_count, 0)  # snapshot-only file
         self.assertTrue(loaded.doc.bit_eq(doc), "load replays to the SAME document")
-        after = evaluate(loaded.doc).value(box).body().mass_properties().volume
+        after = pinned(evaluate(loaded.doc).value(box).body()).volume
         # D9: the same recipe replays to the same bits.
         self.assertEqual(struct.pack(">d", before), struct.pack(">d", after))
 
@@ -735,16 +737,17 @@ class TestStepExport(unittest.TestCase):
         step = ev.step_string(box, product_name="doors-box")
         self.assertIn("ISO-10303-21", step)
         # The oracle is the kernel's own importer: the text PARSES and
-        # adopts as a first-class solid whose volume agrees. The
-        # enclosure is the import gate's OWN measurement, so reading it
-        # is the whole journey — nothing here measures twice.
+        # adopts as a first-class solid whose volume agrees. A closed
+        # form is checked by containment, measured through the import
+        # gate's OWN certificate, so nothing here measures twice.
         report = import_step(step)
-        self.assertAlmostEqual(report.enclosure.volume, 3.0, places=9)
+        measured = report.measure(Settle.contains(3.0 - 1e-6, 3.0 + 1e-6))
+        self.assertEqual((measured.stop, measured.verdict), ("settled", True))
 
-    def test_the_reports_enclosure_is_not_a_second_computation(self):
+    def test_the_reports_measurement_is_not_a_second_computation(self):
         """The gate already ran the certified quadrature to decide this
-        body's orientation invariant, and `enclosure` is that result
-        handed back rather than dropped.
+        body's orientation invariant, and `measure` continues that
+        certificate rather than starting again.
 
         BIT equality, not `assertAlmostEqual`: the claim is that the
         two are the same computation over the same body at the same
@@ -754,10 +757,11 @@ class TestStepExport(unittest.TestCase):
         doc = Doc()
         box = unit_box(doc, 2 * m, 3 * m, 0.5 * m)
         report = import_step(evaluate(doc).step_string(box))
-        again = report.body.mass_properties()
+        again = pinned(report.body)
+        through = met(report.measure(PINNED))
         for field in ("volume", "surface_area", "volume_pad", "area_pad"):
             self.assertEqual(
-                getattr(report.enclosure, field).hex(),
+                getattr(through, field).hex(),
                 getattr(again, field).hex(),
                 f"{field} differs between the gate's enclosure and a re-measure",
             )
@@ -776,7 +780,7 @@ class TestStepExport(unittest.TestCase):
         box = unit_box(doc, 2 * m, 3 * m, 0.5 * m)
         report = import_step(evaluate(doc).step_string(box))
         self.assertIsInstance(report.body, pncad.Body)
-        self.assertIsInstance(report.enclosure, pncad.MassProperties)
+        self.assertIsInstance(report.measure(PINNED), pncad.MassMeasurement)
         self.assertGreater(report.eps_in, 0.0)
         self.assertEqual(report.normalizations, [])
         self.assertEqual(report.promotions, [])
@@ -1031,7 +1035,7 @@ class TestAPoseReadOffGeometry(unittest.TestCase):
         ev = evaluate(doc)
         self.assertTrue(ev.succeeded(leaning))
         self.assertAlmostEqual(
-            ev.value(leaning).body().mass_properties().volume, 1.0, delta=1e-9
+            pinned(ev.value(leaning).body()).volume, 1.0, delta=1e-9
         )
 
         def top(node):

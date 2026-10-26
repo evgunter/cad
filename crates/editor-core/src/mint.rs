@@ -281,6 +281,8 @@ pub(crate) enum Held {
     },
     /// A pose definition, by its reads and scalars.
     Pose(crate::pose::PoseDef),
+    /// A pick: the copy read and the path.
+    Pick(crate::var::Pick),
 }
 
 impl Held {
@@ -298,6 +300,7 @@ impl Held {
                 names: select.names.clone(),
             },
             WrittenDef::Pose(_, def) => Self::Pose(def.clone()),
+            WrittenDef::Pick(pick) => Self::Pick(pick.clone()),
         }
     }
 }

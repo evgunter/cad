@@ -115,12 +115,18 @@ fn volume(body: &Body<f64>, right_way: bool) -> f64 {
         topo::mass_properties(
             &AtRestBody::validate(body.clone(), Tol::witness()).expect("the body is finished"),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
     } else {
         // Raw door: an inside-out body, which tier 3 refuses (NegativeVolume, as `finishes_iff` pins); its signed volume is the subject.
-        topo::test_support::measure_unvalidated(body, Tol::witness())
+        topo::test_support::measure_unvalidated(
+            body,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
+        )
     }
     .unwrap()
+    .enclosure
     .volume
 }
 

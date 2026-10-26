@@ -124,6 +124,10 @@ pub fn stored_reading(
                 let body = given(doc, slot, body, read);
                 crate::edit::selection_into(&mut doc.borrow_mut(), slot, body, names)
             }
+            crate::Operand::Pick { placement, of } => {
+                let placement = given(doc, slot, placement, read);
+                crate::edit::pick_into(&mut doc.borrow_mut(), placement, of)
+            }
             crate::Operand::Pose(def) => {
                 let lowered = def
                     .try_map(
@@ -247,7 +251,7 @@ fn place_of(
 ) -> (ProfileDoc, RecipeNodeId) {
     let applied = crate::apply(
         &doc,
-        &DocEdit::place(vec![crate::BodyRead::plain(body)], target, placed.bundle()),
+        &DocEdit::place(crate::BodyRead::plain(body), target, placed.bundle()),
         tol,
     )
     .expect("a placement inserts");
@@ -1014,6 +1018,8 @@ pub enum VerbatimKind {
     Intact,
     /// `VerbatimEdge::Reflected`: a mirror's image.
     Reflected,
+    /// `VerbatimEdge::Copied`: a placement's or an instance's copy.
+    Copied,
 }
 
 /// **The name-carrying edge the recipe walks read `node` as, if any**:
@@ -1032,6 +1038,7 @@ pub fn verbatim_kind<P>(node: &Node<P>) -> Option<VerbatimKind> {
         VerbatimEdge::Selected { .. } => VerbatimKind::Selected,
         VerbatimEdge::Intact { .. } => VerbatimKind::Intact,
         VerbatimEdge::Reflected { .. } => VerbatimKind::Reflected,
+        VerbatimEdge::Copied { .. } => VerbatimKind::Copied,
     })
 }
 
@@ -1144,7 +1151,10 @@ pub fn beside_past_the_bundle_rule(
         <crate::program::ProfileProgram as crate::ProfilePayload>::Authored,
         Formula,
     > = Node::Place {
-        shapes: Vec::new(),
+        source: crate::BodyRead::plain(crate::Operand::Var(
+            out.output(placement, 0)
+                .unwrap_or_else(|| panic!("{placement:?} defines its copy")),
+        )),
         target: crate::Operand::Var(crate::VarId::WORLD),
         constraints: vec![crate::Constraint::of_mate(
             crate::node::ConstraintId::placeholder(1),
@@ -1247,6 +1257,125 @@ pub(crate) fn record_fold_row(
         relation: named.relation,
         spelled: spelled.clone(),
     });
+}
+
+/// **The product said as the world's copies** (D10 `[operations]`): the
+/// slot set to the one world copy, or to a `⊔` of the world's copies in
+/// document order, written through the doors — what a fixture that
+/// places bodies into the world and makes all of them means. A `⊔` this
+/// wrote before is replaced, so a fixture that places one more body
+/// calls it again. A document with no world placement is left with an
+/// empty product. The one home of this fixture: a demo or a row about
+/// what a user authors names its product's copies instead.
+///
+/// # Panics
+///
+/// If a door refuses an edit it writes.
+#[must_use]
+pub fn assemble_world_copies(doc: ProfileDoc, tol: geom_core::Tol) -> ProfileDoc {
+    assemble_world_copies_edits(doc, tol).0
+}
+
+/// **[`assemble_world_copies`] with the edits it wrote**, in the order it
+/// wrote them: what a recorded log replays to reach the same product.
+///
+/// # Panics
+///
+/// If a door refuses an edit it writes.
+#[must_use]
+#[allow(clippy::expect_used)]
+pub fn assemble_world_copies_edits(
+    doc: ProfileDoc,
+    tol: geom_core::Tol,
+) -> (ProfileDoc, Vec<crate::DocEdit<ProfileProgram>>) {
+    let mut log = Vec::new();
+    let apply = |log: &mut Vec<_>, doc: &ProfileDoc, edit: crate::DocEdit<ProfileProgram>| {
+        let out = crate::apply(doc, &edit, tol)
+            .unwrap_or_else(|e| panic!("the product's edit applies: {e}"))
+            .doc;
+        log.push(edit);
+        out
+    };
+    let mut doc = doc;
+    // A `⊔` the slot reads, read by nothing else, is this helper's own.
+    let held = doc
+        .product()
+        .and_then(|var| doc.operation_of(var))
+        .filter(|&at| matches!(doc.node(at), Some(Node::Assemble { .. })))
+        .filter(|&at| {
+            let var = doc.output(at, 0);
+            !doc.ids().into_iter().any(|id| {
+                doc.node(id).is_some_and(|node| {
+                    node.operand_rows()
+                        .into_iter()
+                        .any(|(_, read)| Some(read) == var)
+                })
+            })
+        });
+    // A product already the world's copies is kept as it is, so a
+    // document written twice is the one document.
+    let world: Vec<crate::VarId> = doc
+        .placements()
+        .into_iter()
+        .filter(|&p| doc.node_space(p) == Some(crate::VarId::WORLD))
+        .filter_map(|p| doc.output(p, 0))
+        .filter(|&copy| {
+            doc.var(copy)
+                .is_some_and(|v| v.kind() == crate::VarKind::Body)
+        })
+        .collect();
+    let spelled = |copies: &[crate::VarId]| {
+        crate::Bodies::Spelled(
+            copies
+                .iter()
+                .map(|&copy| crate::BodyRead::plain(copy))
+                .collect(),
+        )
+    };
+    let kept = match world.as_slice() {
+        [] => doc.product().is_none(),
+        [one] => doc.product() == Some(*one),
+        several => held.is_some_and(|at| {
+            matches!(doc.node(at), Some(Node::Assemble { members }) if *members == spelled(several))
+        }),
+    };
+    if kept {
+        return (doc, log);
+    }
+    doc = apply(&mut log, &doc, crate::DocEdit::SetProduct { product: None });
+    if let Some(at) = held {
+        doc = apply(&mut log, &doc, crate::DocEdit::DeleteNode { id: at });
+    }
+    let product = match world.as_slice() {
+        [] => return (doc, log),
+        [one] => crate::Operand::Var(*one),
+        several => {
+            let insert = crate::DocEdit::InsertNode {
+                node: Box::new(Node::Assemble {
+                    members: crate::Bodies::Spelled(
+                        several
+                            .iter()
+                            .map(|&copy| crate::BodyRead::plain(crate::Operand::Var(copy)))
+                            .collect(),
+                    ),
+                }),
+                fresh: Vec::new(),
+            };
+            let outcome = crate::apply(&doc, &insert, tol)
+                .unwrap_or_else(|e| panic!("the world's copies assemble: {e}"));
+            log.push(insert);
+            doc = outcome.doc;
+            crate::Operand::Node(outcome.record.minted.expect("an insert mints its node"))
+        }
+    };
+    let doc = apply(
+        &mut log,
+        &doc,
+        crate::DocEdit::SetProduct {
+            product: Some(product),
+        },
+    );
+    (doc, log)
 }
 
 #[cfg(test)]

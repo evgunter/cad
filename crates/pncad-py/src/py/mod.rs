@@ -97,11 +97,9 @@ pyo3::create_exception!(
      `Body.validate_geometric_measured` raises through both halves: \
      the gate's shape when tier 3 refuses, and the \
      `mass_properties` shape when the gate passed and the \
-     measurement could not reach its target. That second refusal \
-     carries `volume_lo`, `volume_hi` and `surface_area` beside \
-     `reason` — the sign-level bracket the gate DID certify, which \
-     is the whole of what the quadrature is entitled to say about \
-     such a body. They are `None` on every other refusal."
+     measurement could not be made. That second refusal carries \
+     `measure_refusal` beside `reason`: which arm of the measurement \
+     refused."
 );
 pyo3::create_exception!(
     pncad,
@@ -344,13 +342,14 @@ pyo3::create_exception!(
     ProductError,
     PncadError,
     "The whole-document gather refused. Carries `variant`, the stable \
-     tag of the refusing arm, plus `node`, `through` and \
-     `unplaced_bodies` (`None` where the arm does not carry them).\n\n\
+     tag of the refusing arm, plus `node`, `through` and `read` (the \
+     product slot's read, on `stranded_product`; `None` where the arm \
+     does not carry them).\n\n\
      Its message names each node as the evaluation's own document \
      holds it (kind, label and tag): the document the gather was taken \
      of. `node` and `through` carry the full ids.\n\n\
-     A product is every copy the world's placements define or none of \
-     them — there are no partial products."
+     A product is the body the document's product slot reads, \
+     gathered whole or not at all — there are no partial products."
 );
 pyo3::create_exception!(
     pncad,

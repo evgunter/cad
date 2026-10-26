@@ -674,10 +674,7 @@ fn mark_germ(rec: &mut PairRecord) -> Result<(), BooleanError> {
 ///   own sides. Where the result keeps only the slit's face there, on
 ///   both sides, the zip glues the face's halves of the two edges into
 ///   one edge and the output stage closes the face across it
-///   (`slit::close_struts`). What the line's germs cannot build yet
-///   refuses [`BooleanError::SlitLineCrossed`], by its [`SlitLineGap`]:
-///   a flank flush with one of the other's where the op keeps one copy
-///   (`Flush`).
+///   (`slit::close_struts`).
 ///
 /// `held` is each solid's face through the point that the other's
 /// vertex touches ([`HeldFace`]), read with every edge-edge meeting of
@@ -956,9 +953,6 @@ pub(super) fn recl_edges<T: Decide>(
             let (a_ws, a_faces) = split(wedges(&a_ms, &b_ms, true)?, a_sectors, a_body)?;
             let (b_ws, b_faces) = split(wedges(&b_ms, &a_ms, false)?, b_sectors, b_body)?;
             let mut germs = Vec::new();
-            // Whether a flank read on the line lies in a flank's plane of
-            // the other's ([`FlankRead::along`]).
-            let mut along = false;
             for (i, &aw) in a_ws.iter().enumerate() {
                 for (j, &bw) in b_ws.iter().enumerate() {
                     let faces: [&[Folded<T>]; 2] = [
@@ -966,8 +960,7 @@ pub(super) fn recl_edges<T: Decide>(
                         if bw.edge { &b_faces } else { &[] },
                     ];
                     let (germ, flanks) = meet(aw, bw, faces, Some(line))?;
-                    along |= flanks.along;
-                    germs.extend(germ.map(|g| (g, [i, j], flanks.inside)));
+                    germs.extend(germ.map(|g| (g, [i, j], flanks)));
                 }
             }
             let vertex = |body: &Body<T>, secs: &[BoolSector<T>]| {
@@ -983,11 +976,6 @@ pub(super) fn recl_edges<T: Decide>(
                         b_vertex: vertex(b_body, b_sectors),
                     });
                 };
-                // A flank flush with one of the other's leaves the germs'
-                // cut no corner to end in.
-                if along {
-                    return Err(slit.refusal(SlitLineGap::Flush));
-                }
                 Some(slit)
             } else {
                 None
@@ -1247,19 +1235,9 @@ fn reflank(idx: usize, codes: (SideCode, SideCode), n: usize) -> (usize, (SideCo
     }
 }
 
-/// How each flank of an edge-edge event's two wedges reads against the
-/// other's material ([`resolve_edge_edge`]).
-#[derive(Clone, Copy, Debug)]
-pub(super) struct FlankRead {
-    /// Each wedge's two flanks' membership in the other's material, A's
-    /// then B's.
-    pub inside: [[bool; 2]; 2],
-    /// Whether a flank lies in a flank's plane of the other's, along that
-    /// flank, where the op keeps one copy of the two flush faces (or they
-    /// are a glued tangency): the coplanar verdict decides its membership,
-    /// and the dropped copy is cut where its fate changes.
-    pub along: bool,
-}
+/// Each flank of an edge-edge event's two wedges read against the
+/// other's material, A's wedge's then B's ([`resolve_edge_edge`]).
+pub(super) type FlankRead = [[bool; 2]; 2];
 
 /// What an edge-edge event reads ([`resolve_edge_edge`]).
 #[derive(Clone, Copy, Debug)]
@@ -1706,7 +1684,6 @@ pub(super) fn resolve_edge_edge<T: Decide>(
 
     // Membership of one flanker's rep inside one wedge of the other
     // solid's.
-    let along = core::cell::Cell::new(false);
     let in_wedge_of = |own_is_a: bool,
                        own_idx: usize,
                        (w, reach): Rep<T>,
@@ -1793,7 +1770,6 @@ pub(super) fn resolve_edge_edge<T: Decide>(
                         );
                         let lump =
                             if read == DeclarationRead::Spent(crate::contact::GlueClass::Tangent) {
-                                along.set(true);
                                 let surface_of = |body: &Body<T>, face| {
                                     body.get_face(face)
                                         .and_then(|f| body.get_surface(f.surface))
@@ -1843,9 +1819,6 @@ pub(super) fn resolve_edge_edge<T: Decide>(
                                     arm,
                                     band,
                                 )?;
-                                if kept_copy(op, rel).is_some() {
-                                    along.set(true);
-                                }
                                 eq15_3_lump(op, comparison, rel)
                             };
                         *inside = Half::Along(lump == SideCode::In);
@@ -1993,10 +1966,7 @@ pub(super) fn resolve_edge_edge<T: Decide>(
         }
         Ok(crossing)
     };
-    let flanks = FlankRead {
-        inside: [a_in, b_in],
-        along: along.get(),
-    };
+    let flanks: FlankRead = [a_in, b_in];
     let cross_a = crossings(true, a_fl, a_in, &b_fl)?;
     let cross_b = crossings(false, b_fl, b_in, &a_fl)?;
     if cross_a.len() > 1 || cross_b.len() > 1 {

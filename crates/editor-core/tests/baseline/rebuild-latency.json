@@ -22,8 +22,8 @@
     },
     "cut_cylinder": {
       "about": "M5 shape (i): tilted plane\u00d7cylinder cut \u2014 exact Ellipse section edges",
-      "nodes": 5,
-      "cone": 3
+      "nodes": 6,
+      "cone": 4
     },
     "measured_web": {
       "about": "M10-2: a measured web with an assertion over it (E3/E10)",
@@ -32,8 +32,8 @@
     },
     "declared_tangency": {
       "about": "#101: fillet-constructed joints + a hand-declared line/arc tangency",
-      "nodes": 6,
-      "cone": 2
+      "nodes": 7,
+      "cone": 3
     },
     "die": {
       "about": "M3 exact-oracle die: 21 declared pip subtracts (57 nodes)",
@@ -77,13 +77,13 @@
     },
     "part_select": {
       "about": "DOCM-2: a split's two halves read by port, and a pattern's middle instance (Node::Part)",
-      "nodes": 8,
-      "cone": 3
+      "nodes": 9,
+      "cone": 4
     },
     "heat_sink": {
       "about": "parametric fin strip: Pattern instances + explicit union chain",
-      "nodes": 26,
-      "cone": 23
+      "nodes": 27,
+      "cone": 24
     },
     "heat_sink_fins": {
       "about": "the parametric fin group as ONE node: PlacedUnion(fin, Linear) driven by the fins param",
@@ -117,8 +117,8 @@
     },
     "kitchen_sink": {
       "about": "every v1 node kind and every DocEdit kind in one document",
-      "nodes": 26,
-      "cone": 8
+      "nodes": 27,
+      "cone": 9
     },
     "loft_prism": {
       "about": "R5 shape (iii): three-section polyline loft, non-affine middle (M6-3)",

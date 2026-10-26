@@ -14,8 +14,8 @@
 use crate::fixture;
 
 use editor_core::{
-    CapEnd, DocEdit, DocumentId, EntityKind, EvalOptions, Formula, Frame, MateRef, MateSide,
-    NameRef, Node, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, StableName, VarId,
+    CapEnd, DocEdit, DocumentId, EntityKind, EvalOptions, Formula, Frame, MateRef, MateSide, Node,
+    PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, StableName, VarId,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{
@@ -72,7 +72,7 @@ fn cube(store: &mut PartStore, label: &str) -> Cube {
 
 impl Cube {
     /// The cap `end` of this part as `instance` places it.
-    fn cap(&self, instance: RecipeNodeId, end: CapEnd) -> StableName {
+    fn cap(&self, instance: RecipeNodeId, end: CapEnd) -> crate::fixture::resolver::PartName {
         in_part(instance, self.body, end)
     }
 
@@ -86,9 +86,16 @@ impl Cube {
         wrap: &dyn Fn(StableName) -> StableName,
     ) -> editor_core::Operand {
         let name = |kind, seg| {
-            fixture::read_minted(wrap(fixture::resolver::in_part_of(
-                kind, instance, self.body, seg,
-            )))
+            let own = fixture::resolver::in_part_of(kind, instance, self.body, seg);
+            let worn = wrap(own.name.clone());
+            // A part's own name is read at its instance; a name a
+            // pattern wraps, at the pattern that minted it.
+            let at = if worn == own.name {
+                instance
+            } else {
+                worn.node
+            };
+            fixture::read_at(at, worn)
         };
         fixture::corner_frame(
             name(EntityKind::Edge, RoleSeg::LateralEdge(self.corners[0])),
@@ -663,13 +670,7 @@ fn r1_an_underqualified_nested_name_refuses_and_a_pattern_of_a_placed_copy_place
     let (doc2, ti) = insert(doc2, mated_instance(top2.doc_ref));
     // The copy's names are its placement's: the leg's own, under the
     // `Placed` layer of `xf`.
-    let copy = |n: StableName| StableName {
-        kind: n.kind,
-        node: xf,
-        path: vec![RoleSeg::Placed {
-            of: NameRef::new(n),
-        }],
-    };
+    let copy = |n: StableName| n;
     let (doc2, m2) = seat(doc2, ti, &top2, |n| in_copy(pat, 1, copy(n)), &leg2, li);
     let poses2 = solve(&doc2, &o2, Tol::witness());
     // A pattern OF A PLACED COPY resolves: the face is read through the

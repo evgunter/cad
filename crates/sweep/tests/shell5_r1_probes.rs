@@ -307,7 +307,8 @@ fn r1p1_cylindrical_void_in_a_box_through_the_axial_door() {
         .unwrap_or_else(|e| panic!("box with cylindrical void at t={t} hollows: {e:?}"));
     let out = topo::test_support::finished("out", topo::Body::clone(&s.body), tol());
     let tier3 = topo::validate_geometric(&out, tol());
-    let props = topo::mass_properties(&out, tol()).expect("props");
+    let props = topo::mass_properties(&out, tol(), topo::test_support::pinned_resolution(tol()))
+        .expect("props");
     let pi = core::f64::consts::PI;
     let want = (64.0 - 3.8f64.powi(3)) + pi * (1.1 * 1.1 * 2.2 - 2.0);
     println!(
@@ -315,15 +316,15 @@ fn r1p1_cylindrical_void_in_a_box_through_the_axial_door() {
         out.solids().count(),
         out.shells().count(),
         roles_by_solid(&out),
-        props.volume,
-        props.volume_pad
+        props.enclosure.volume,
+        props.enclosure.volume_pad
     );
     assert_eq!(tier3, Ok(()));
     assert_eq!(out.solids().count(), 2);
     for (_, kinds) in roles_by_solid(&out) {
         assert_eq!(kinds, vec![ShellRole::Outer, ShellRole::Void]);
     }
-    assert!((props.volume - want).abs() <= 1e-9 + props.volume_pad);
+    assert!((props.enclosure.volume - want).abs() <= 1e-9 + props.enclosure.volume_pad);
 }
 
 // ---------------------------------------------------------------------
@@ -406,7 +407,8 @@ fn r1p6_open_a_void_ceiling_with_a_pillar_through_it() {
         Ok(s) => {
             let out = topo::test_support::finished("out", topo::Body::clone(&s.body), tol());
             let tier3 = topo::validate_geometric(&out, tol());
-            let props = topo::mass_properties(&out, tol());
+            let props =
+                topo::mass_properties(&out, tol(), topo::test_support::pinned_resolution(tol()));
             // A = 4³ − 3.8³; B = V′ − V where V = 2²·2 − 0.4²·2 and
             // V′ = 2.2³ − 0.2²·2.2; the removed slab is the counterpart's
             // footprint (2.2² − 0.2²) × t.
@@ -418,7 +420,7 @@ fn r1p6_open_a_void_ceiling_with_a_pillar_through_it() {
                 "[measured] open the holed void ceiling at t={t}: BUILDS solids={} shells={} tier3={tier3:?} volume={:?} want={want} rims={} holes={} dead.faces={:?} dead.shells={:?}",
                 out.solids().count(),
                 out.shells().count(),
-                props.as_ref().map(|p| p.volume),
+                props.as_ref().map(|p| p.enclosure.volume),
                 s.naming.rims.len(),
                 s.naming.rims.first().map_or(0, |r| r.holes.len()),
                 s.naming.dead.faces,
@@ -445,7 +447,7 @@ fn r1p6_open_a_void_ceiling_with_a_pillar_through_it() {
             // form, one rim and one hole rim both facing UP into the gap,
             // the designated face dead, the operand void fused away.
             assert_eq!(tier3, Ok(()));
-            let volume = props.expect("props").volume;
+            let volume = props.expect("props").enclosure.volume;
             assert!((volume - want).abs() <= 1e-12, "got {volume}, want {want}");
             let r = &s.naming.rims[0];
             assert_eq!(r.holes.len(), 1);
@@ -504,11 +506,12 @@ fn r1_e2e_hollow_twice_then_open_the_inner_wall() {
     let props = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(&twice.body), tol()),
         tol(),
+        topo::test_support::pinned_resolution(tol()),
     )
     .expect("props");
     println!(
         "[e2e] hollow twice volume={} area={}",
-        props.volume, props.surface_area
+        props.enclosure.volume, props.enclosure.surface_area
     );
 
     // 3a. open the inner wall ON THE RESULT: what a user tries first,
@@ -525,6 +528,7 @@ fn r1_e2e_hollow_twice_then_open_the_inner_wall() {
     let props = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(&three.body), tol()),
         tol(),
+        topo::test_support::pinned_resolution(tol()),
     )
     .expect("props");
     println!(
@@ -532,7 +536,7 @@ fn r1_e2e_hollow_twice_then_open_the_inner_wall() {
         three.body.solids().count(),
         three.body.shells().count(),
         topo::validate_geometric(&three.body, tol()),
-        props.volume,
+        props.enclosure.volume,
         three.naming.thickened
     );
     println!("[e2e] roles={:?}", roles_by_solid(&three.body));
@@ -546,9 +550,9 @@ fn r1_e2e_hollow_twice_then_open_the_inner_wall() {
         + (box_volume(1.52, 2.52, 3.52) - box_volume(1.5, 2.5, 3.5))
         - 1.52 * 2.52 * 0.01;
     assert!(
-        (props.volume - want).abs() < 1e-12,
+        (props.enclosure.volume - want).abs() < 1e-12,
         "{} vs {want}",
-        props.volume
+        props.enclosure.volume
     );
     assert_eq!(three.body.solids().count(), 4);
     // Eight thin-solid shells less the one the rim fusion consumed.
@@ -587,17 +591,18 @@ fn r1_e2e_hollow_twice_then_open_the_inner_wall() {
         topo::validate_geometric(&out, tol()),
         roles_by_solid(&out)
     );
-    let props = topo::mass_properties(&out, tol()).expect("props");
+    let props = topo::mass_properties(&out, tol(), topo::test_support::pinned_resolution(tol()))
+        .expect("props");
     let want = (box_volume(2.0, 3.0, 4.0) - box_volume(1.9, 2.9, 3.9))
         + (box_volume(1.6, 2.6, 3.6) - box_volume(1.5, 2.5, 3.5))
         - 1.6 * 2.6 * 0.05;
     println!(
         "[e2e] opened volume={} want={want} rim={:?} ring_edges={}",
-        props.volume,
+        props.enclosure.volume,
         opened.naming.rims[0].rim,
         opened.naming.rims[0].ring_edges.len()
     );
-    assert!((props.volume - want).abs() < 1e-12);
+    assert!((props.enclosure.volume - want).abs() < 1e-12);
 
     // 4. mesh it.
     match mesh::tessellate(&out, 0.01, tol()) {
