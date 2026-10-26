@@ -481,13 +481,10 @@ pub(crate) fn finding_solids<T: Decide>(
         // about the record a door carried, not a meeting; an escalation
         // names no entity at all
         // (`work/contacthold/an-escalated-census-finding-names-no-pair.md`);
-        // an arc end off its corner names one face; a boundary crossing
-        // itself names one solid.
+        // an arc end off its corner names one face.
         E::StaleContactDeclaration { .. }
         | E::CensusEscalated { .. }
-        | E::ArcEndOffCorner { .. }
-        | E::BoundaryCrossesItself { .. }
-        | E::BoundaryCrossesItselfUndecided { .. } => {
+        | E::ArcEndOffCorner { .. } => {
             return None;
         }
         // Every other finding is about one body's own topology or
