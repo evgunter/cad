@@ -2,11 +2,11 @@
 id: seam-rank-extents-compare-carrier-parameters-as-metres
 kind: issue
 title: The crossing ranks compare a curved carrier's parameter extents against a band in metres
-status: parked
+status: closed
 opened: 2026-10-19
 priority: P3
 cost: M
-blocked_on: [a-unions-line-of-several-edges-is-oriented-by-its-least-edge]
+closed: 2026-10-26
 ---
 
 ## What
@@ -42,3 +42,7 @@ rankers is WIRE's `a-unions-line-of-several-edges-is-oriented-by-its-least-edge`
 so this row waits on it: if that build deletes the rank reads, it
 closes as superseded; if any metered extent comparison survives it,
 the row opens again for that.
+
+## Moot (WIRE orchestrator, 2026-10-26)
+
+Closed by PR 5758 (2026-10-26, "nothing is ranked", Ev's ruling on PR 5705). The code this row is about is deleted: ranks, `RankRule`, canonical's rank rewrite and the carrier-parameter rank readers. PR 5758's FULL review checked that no premise of this row remains in editor-core.

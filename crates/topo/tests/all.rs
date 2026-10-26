@@ -105,6 +105,8 @@ mod cell_pair_records;
 mod census_g2_carrier;
 #[path = "census_records_what_it_decides.rs"]
 mod census_records_what_it_decides;
+#[path = "coincident_line_wedges.rs"]
+mod coincident_line_wedges;
 #[path = "cone_apex_cap_body.rs"]
 mod cone_apex_cap_body;
 #[path = "cone_apex_sector_joints.rs"]
@@ -464,3 +466,5 @@ mod tangent_touch_charges_both_sags;
 mod the_fin_crown_winds_as_a_solid;
 #[path = "three_solids_on_one_line.rs"]
 mod three_solids_on_one_line;
+#[path = "two_copies_filling_one_volume.rs"]
+mod two_copies_filling_one_volume;

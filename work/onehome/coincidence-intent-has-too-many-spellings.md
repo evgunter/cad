@@ -2,11 +2,11 @@
 id: coincidence-intent-has-too-many-spellings
 kind: issue
 title: Coincidence intent can be said in too many ways (shared key, face-pair declaration, split declaration, carried records, derived datum, shared parameters); weigh whether they reduce to fewer
-status: open
+status: closed
 opened: 2026-10-03
 priority: P1
 cost: M
-design: true
+closed: 2026-10-26
 ---
 
 
@@ -58,3 +58,10 @@ Classified on Ev's ask, via the CLEAVE note on INTENT's log, against main `e92fb
 
 - Re-banded P2 → P1: one intent with several spellings: two implementations of one underlying logic, P1 by `work/README.md` Priority.
 - Moved to ONEHOME (`work/onehome/`) by `git mv`, id and body unchanged: the P1 track opened for CLEAVE's duplication rows; INTENT is sorting each into design signal or a mechanical deletion (`work/intent/log.md`, 2026-10-26), and the sort goes on the row. CLEAVE measured 270.5 budget points against 30 and split on its priority seam (Ev, in chat, 2026-10-26).
+
+## Closed (INTENT, 2026-10-26)
+
+INTENT owns the coincidence door (D10 stage 4), so this row's question is INTENT's, and it is answered: `[coincidence.door]` and `[one-way.places]`'s row "A coincidence decided from values" name one home. The declared-pair spellings (shared key, face-pair and split declarations) are gone from the tree, and no design conversation is owed. The residue is code, not a question:
+
+- `topo::contact::DeclaredContact` / `ContactFinding` retire with ATREST's stage 5 C, `the-at-rest-census-is-a-check` (`work/atrest/plan.md`), which writes the census as a check over D′3's `⊔` door.
+- Carried records and derived datums as coincidence evidence are COINCIDE's (`work/coincide/`).
