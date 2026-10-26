@@ -916,8 +916,9 @@ let StepImport::Solid { body: reimported, .. } =
 else {
     panic!("the bracket re-imports as a solid, not a wireframe");
 };
-let reimported = AtRestBody::validate(reimported, tol).map_err(|errors| format!("not a finished body: {errors:?}"))?;
-let back = mass_properties(&reimported, tol, Settle::Resolution(Length::from_meters(1e-6)))?.met()?;
+// The import hands back the body together with its gate's certificate,
+// so the re-measure reads the rounds the gate already ran.
+let back = reimported.measure(Settle::Resolution(Length::from_meters(1e-6)))?.met()?;
 assert!((back.volume - props.volume).abs() < 1e-15);
 # Ok::<(), E>(())
 ```
