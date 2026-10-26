@@ -26,3 +26,5 @@ unchanged. Rows dispatchable: 10, for 23.5 points.
 
 - 2026-10-23 — **Seam (QUAD):** PR 5589 (`quad/measure-a-lanes`, measure door unit A) edits `topo/src/props.rs`. `FaceRun` gains `refinable` and keeps the narrower enclosure across windows. `PastTarget::refine` advances through it, and its cap at `LAST_ROUND_EVERY_LANE_RUNS` goes. (QUAD orchestrator's lane)
 - 2026-10-26 — Seam note from ATREST: `gap-reads-vertex-and-edge-cells` adds `gap`'s vertex and edge arms to `crates/editor-core/src/eval/measure.rs`, with two new decisions, `gap_edge_convexity` and `gap_wedge_crossing`. (ATREST orchestrator's lane)
+
+- 2026-10-23 — **Seam (QUAD):** PR 5628 (`quad/measure-b-door`, measure door unit B) edits `topo/src/props.rs`: the walks behind `certify_role` and `rounding_bound` are now `walk_set`/`role_walk_set`, and `FaceRun` is one state. The role readers themselves are unchanged. (QUAD unit B lane)

@@ -98,3 +98,5 @@ Orchestrator's read on the fix pass: `turned` takes an origin, as `axes_*` do, a
 - parked on INTENT's stage 3: the widened derived placement (on E), the two `path_start_frame` rows (on D′) and the Python `SketchPlane.from_frame` row (on D′).
 
 A successor should run `work.py incoming --program frame` first: E and D′ are the triggers.
+
+- 2026-10-26 — (tracker sweep) `authored-and-derived-directions-decide-a-unitless-norm-against-the-length-band` (P3 M) arrives from FLUXHOLD by `mv`, id kept. It is off the D10 hold, and it asks of the same direction doors what `direction-doors-refuse-finite-directions-normalize-now-answers` asks, so the plan's lanes now pair them. Its hit list is refreshed against main `bb25fa4f`. Every other live row was re-read against the tree and kept. Three rows carry no `priority` (`a-frame-turned-by-a-radian-angle-is-spelled-as-its-columns`, `exact-axis-and-reference-frames-still-decide`, `turns-has-two-answers-to-an-integer-past-the-mantissa`), and those three have no `cost` either; band them at the next sitting.

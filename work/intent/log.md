@@ -860,3 +860,8 @@ The boolean declare surface is gone at every layer. A boolean's one input beside
   - `a-split-name-picks-a-pattern-copy-by-its-evaluated-index` is parked on G.
   - Three at-rest rows move to ATREST.
   - **The P0 chain is inherently serial**, per spec §6 and §8: D′3 → E → G (a)/(b). Each rewrites `wire_place`, the value a placement defines, and `product.rs`. G (c), the mirror construction, is already on main.
+- 2026-10-26 — Parallel work beside D′3 (Ev: "do it in parallel or defer it as you see fit"):
+  - **Design fork `the-tours-post-cell-split-refuses-the-space-its-copies-read`** (P1): what `split` means for a document's spaces. Designers A (Opus, `session_01RhV9WXnw4P3s61LRSEDHVm`) and B (Fable, `session_012nPf8DvEbLzcANErmY7KZa`). Blinding byte 234 (Opus is A), recorded on `analysis/design-fork/intent-tour-post-cell-split`. Both weigh the state after D′3.
+  - **`a-loft-set-members-cannot-add-a-section`** (P2): lane `session_01M6MHcsnKrWoJ1FjuGvraRE` on `intent/loft-section-stations`. Orchestrator's shape: one `SetLoftSections { node, sections: [(read, station)] }`, every station written, and `SetMembers` keeps its count refusal and names the recourse. Tier: single FULL.
+  - **Deferred:** `lies-on-beyond-the-extrude` (P3, on COINCIDE's `coincide.rs`); the viewer rows (they wait on E's drawing).
+- 2026-10-26 — Note for INTENT: INLANE is handed back `ready` (Ev, in chat). Nothing was dispatched on it after 10-19, and its resume point is the C6 slices item's `## Handoff`. INTENT keeps the stage-3 chain.

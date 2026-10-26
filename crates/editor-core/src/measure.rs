@@ -599,7 +599,7 @@ pub enum UnevaluatedReason {
 /// rounding in it keeps the cell. So `hi` would remain a minimum over
 /// a superset and the two unsound arms would still refuse. The
 /// recourse that retires them is exact-region cells,
-/// `work/trim/exact-region-cells-for-lower-bound-only.md`.
+/// `work/charttail/exact-region-cells-for-lower-bound-only.md`.
 pub const WINDOW_TIGHTENING: &str = "work/trim/clearance-window-tightening-needs-chart-boundary.md";
 
 /// **How much of a measured enclosure is certified for the thing the

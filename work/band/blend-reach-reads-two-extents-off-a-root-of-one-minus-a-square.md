@@ -2,7 +2,8 @@
 id: blend-reach-reads-two-extents-off-a-root-of-one-minus-a-square
 kind: issue
 title: blend reach reads a circle's meridian lean and a torus band's box extent off sqrt(1 - x^2), which floors at sqrt(2u) near x -> 1 where a cancellation-free form exists
-status: open
+status: closed
+closed: 2026-10-26
 opened: 2026-10-13
 priority: P3
 cost: E
@@ -38,3 +39,16 @@ Read each through its cancellation-free form, or show that every use
 of `d_mer` and of the box is conservative in the direction the
 rounding errs, with a row near a meridian and one with the axis along
 a coordinate axis.
+
+## Closed (2026-10-26, tracker sweep)
+
+Fixed on main by `f84f8ef95d` ("sweep: sheet_clip clips a cylinder and
+a plane at every pose; ... respell the chord-from-dot spellings",
+2026-10-14), which rewrote both reads in their cancellation-free forms:
+
+- `sheet_clip`'s meridian lean, `crates/sweep/src/blend/reach.rs:1837-1842`:
+  `lean = |dot|·√2 / √(1 + √(1 − dot²))` ("spelt without the
+  cancellation near ⊥");
+- `circular_reach`'s box extent, `reach.rs:1283-1284`:
+  `ext(p, q) = R·√(p² + q²) + reach` over the axis's other two
+  components.

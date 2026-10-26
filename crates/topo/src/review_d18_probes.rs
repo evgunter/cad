@@ -2,9 +2,10 @@
 //! proofs and the `link_half_edges` conversion behind them.
 //!
 //! These are **independent derivations** of what that unit claims, not
-//! a re-reading of its diff. Three of the four rows gate; the fourth is
-//! marked as evidence for the review and asserts a fact about a
-//! *fixture*, not about the kernel.
+//! a re-reading of its diff. Four of the five rows gate; the fourth
+//! (`d18_torn_body_fixture_leaves_every_prev_live`) is marked as
+//! evidence for the review and asserts a fact about a *fixture*, not
+//! about the kernel.
 //!
 //! What each row is for:
 //!
@@ -20,6 +21,9 @@
 //!   row below rebuilds the tear and shows every `prev` stays live, so
 //!   the new check never fires there and the row carries no coverage of
 //!   it. Recorded so the coverage claim is not inherited.
+//! - The last row holds the premise the unit's postcondition
+//!   discriminator rests on: no `unreachable!` message in the crate
+//!   carries the word `postcondition`.
 //!
 //! No fixed seeds (nothing here is randomized); the one loop count is
 //! on the workspace `CAD_FUZZ_EFFORT` dial via `fuzz::scaled`.

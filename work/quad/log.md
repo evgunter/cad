@@ -286,3 +286,12 @@ PR 5568's fix pass.
 - 2026-10-24 — **The rest of 5629's moves, on PR 5640.**
   - **Teapot spout at 1e-12.** ISO's PR 5642 landed the fix on main first. Its oracle agrees with mine: 5.50526488107455e-5 against my 5.505264881074554e-5. PR 5640 takes main's `teapot.rs` whole. The round coil keeps a test-only independent oracle, `demos/tour/src/patch_quadrature.rs`, which has its own de Boor evaluation and pins `ROUND_COIL_V`/`ROUND_COIL_A`.
   - **Sweep goldens.** The lens blade's bits and the thread-count digest's `arc_loft_*` lines bisect to 5629 (a probe reproduces both at `72a76e0a` and `67006526`). Re-pinned at all three ε. Every moved reading holds its oracle: the blade's quadrature 0.0346059453481, and the arc loft's closed form `2s³(3+π/2)`. Three pads widened, the largest by +6.5e-10 relative; filed as `a-per-row-cartesian-lane-widens-two-arc-loft-pads-by-ulps-to-6e-10`. — (QUAD fix lane)
+
+## 2026-10-24: measure door unit B (PR 5628) reviewed and merged
+
+- **DUAL pair** (H, concurrent, cloud sessions). Both reviewers said APPROVE-WITH-FIXES, and neither found an unsound enclosure or a wrong verdict. The shared MAJOR was that the unit's headline behaviours had no row: surviving mutants. Tally 1, R1's first-wanted-member mutant.
+- **Continuation bits.** Kept: the sign walk refines past 1024·ε, so a certificate's continuation can be narrower than `mass_properties`. Named, pinned against the closed form, and the false identities restated.
+- **Main's reds this crossed.**
+  - PR 5629 flipped projectbox wall 1 and the teapot spout at 1e-12. Fixed by QUAD 5640 and ISO 5642.
+  - The python census rows, red since PR 5605, are INTENT's P1. Ev chose to merge 5628 over that red rather than wait.
+- **Next.** Unit C: no default. The public doors take a required `Settle`.

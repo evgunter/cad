@@ -104,6 +104,7 @@ test_utils::f6_variants! {
         ResolutionOverflow,
         StepNotPositive,
         CertificateExceeded,
+        RoundingUnresolved,
         Triangulation,
         SelfTouchingTrimLoop,
         PinchWedge,
@@ -137,6 +138,7 @@ const TESSELLATE_ERROR_FIELDS: &[&str] = &[
     "count:",
     "bound:",
     "requested:",
+    "allowance:",
     "off_bbox:",
     "first_uv:",
     "max_distance:",
@@ -216,6 +218,21 @@ fn tessellate_error_display_names_its_content_not_its_struct() {
                 requested: 1.0,
             },
             vec!["2e0", "1e0", "uncertified"],
+        ),
+        (
+            TessellateError::RoundingUnresolved {
+                face,
+                bound: 1.000_000_000_000_001e-3,
+                requested: 1e-3,
+                allowance: 2e-12,
+            },
+            vec![
+                "1e-3",
+                "2e-12",
+                "rounding",
+                "nearer the origin",
+                "coarser δ",
+            ],
         ),
         (
             TessellateError::Triangulation { face },

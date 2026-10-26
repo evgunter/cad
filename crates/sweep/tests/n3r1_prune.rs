@@ -127,7 +127,7 @@ fn digest(r: &Result<BooleanResult<f64>, topo::BooleanError>) -> String {
 /// certifies — and no reference-accepted pair unexamined wherever the
 /// reference runs. A face-free vertex record the idealized trace counts
 /// against a face the fragment's box never meets would show here
-/// (`work/hone/sweep-trace-counts-a-face-free-vertex-record-as-the-pairs-event.md`);
+/// (`work/honesplit/sweep-trace-counts-a-face-free-vertex-record-as-the-pairs-event.md`);
 /// none stands on the corpus, since the narrow phase behind the tree
 /// (`boolean::separating`) parts the cylinder pair's in both strategies.
 #[test]

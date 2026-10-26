@@ -692,9 +692,10 @@ const NEST_STEP: f64 = 0.04;
 /// the resolver, so the picks below are real rays onto real bodies.
 ///
 /// `Pattern` over `Part { Instance(1) }` over `Pattern` over the
-/// post: the shape a nested copy is reachable through, since a
-/// pattern's value is many bodies and a pattern's input is one. A
-/// second `Part` selecting inner copy 0 is placed beside it, so the
+/// post: the `Part` between the two patterns chooses one inner copy
+/// for the outer pattern to replicate, which is the shape the picks
+/// below want (a pattern directly over a pattern evaluates too; this
+/// fixture is not the only road to a nested copy). A second `Part` selecting inner copy 0 is placed beside it, so the
 /// same document offers both picks this pair of rows wants: one on a
 /// nested copy, one on a `Part` over a pattern. The world (A10) is the
 /// shelf, the outer pattern's two copies (a `Part` each) and the loose

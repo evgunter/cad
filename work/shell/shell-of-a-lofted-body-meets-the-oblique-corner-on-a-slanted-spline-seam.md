@@ -27,7 +27,7 @@ build:
 |---|---|---|
 | twisted loft, 0.3 rad (`common::approx::twisted_loft`) | `ReanchorOffCarrier` on a wall–wall seam | 0.019466 m |
 | circular vase (circle sections r = 1, 1.3, 1 at z = 0, 1, 2, degree 2) | `ReanchorOffCarrier` on a wall–wall seam | 0.025370 m |
-| straight square prism (`common::approx::prism`) | passes the re-anchor; see `work/iso/nurbs-iso-derive-line-rim-arm-refuses-an-interior-row.md` | — |
+| straight square prism (`common::approx::prism`) | passes the re-anchor; see `work/isotail/nurbs-iso-derive-line-rim-arm-refuses-an-interior-row.md` | — |
 
 The twisted loft's gap is exactly `0.05 · sin(slant)`, where the slant
 is the seam's chord against the cap normal (the seam drifts 0.4227 m
@@ -131,7 +131,7 @@ and the corner gate is the only place the slant is caught.
    (the march is `f64`-only, so an `Interval` slanted edge refuses by
    name) are unchanged.
 
-**Carried:** `work/iso/nurbs-iso-derive-line-rim-arm-refuses-an-interior-row`
+**Carried:** `work/isotail/nurbs-iso-derive-line-rim-arm-refuses-an-interior-row`
 lands first (ISO has nothing dispatched; the moved rim on a parallel-
 section loft is an interior row of the wall, and the mint must place it
 there either way). The stale docs: `replace_face.rs`'s module docs

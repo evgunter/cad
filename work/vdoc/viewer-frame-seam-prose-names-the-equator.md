@@ -2,8 +2,9 @@
 id: viewer-frame-seam-prose-names-the-equator
 kind: issue
 title: the viewer's two statements of where the kernel's frame seam is name the equator, which PROPS's sign-hull unit retires
-status: open
+status: closed
 opened: 2026-09-19
+closed: 2026-10-26
 ---
 
 
@@ -80,3 +81,7 @@ PROPS's sign-hull unit at its merge with `main` of 2026-09-19, where
 main's viewer rows and the unit's construction met for the first time;
 filed rather than fixed because the sentences are this program's and
 the fixture's re-derivation is a judgement about what the rows measure.
+
+## Closed (2026-10-26, tracker sweep)
+
+**Superseded.** All three sentences sat in files that are gone from main (`bb25fa4f`): `crates/viewer/src/datums.rs` (`fn basis`) and `crates/viewer/tests/datum_draw.rs` (the `NORMALS` header and `a_planes_ruling_runs_along_the_kernels_orthonormal_basis`). Datums became poses under D10, and the viewer no longer draws datum planes. `grep -rn 'equator\|n.z == 0' crates/viewer` returns nothing.

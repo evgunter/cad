@@ -93,7 +93,7 @@ Three exemplars per group, by id with title quoted. `emit/…` rows are closed a
   - Also: `emit/shared-rim-several-is-a-missing-rule…`, `refs/a-pinch-carried-through-a-later-fold-step-refuses-naming`, `tang/a-lone-unread-partner-has-no-class-rule`.
 - **Other.**
   - Collision: `wire/a-split-through-a-pinch-names-both-tip-copies-alike`; `wire/a-subtract-of-a-transform-copy-ties-its-seam-crossings` ("bare sides collide").
-  - Kernel lineage: `wire/emit-topo-reads-a-fusion-chain-one-hop`, `hone/a-split-half-loses-the-lineage-of-a-twice-crossed-edge`, plus 6 more.
+  - Kernel lineage: `wire/emit-topo-reads-a-fusion-chain-one-hop`, `honesplit/a-split-half-loses-the-lineage-of-a-twice-crossed-edge`, plus 6 more.
   - Growth: `emit/a-crossing-cites-its-edge-by-a-name-that-holds-that-edges-ends-so-names-grow-exponentially` (row 77).
   - Misclassification: `wire/a-split-names-an-operand-edge-in-its-plane-as-a-section-chord` (163).
 

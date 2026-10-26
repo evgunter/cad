@@ -95,7 +95,7 @@ the decision is about.
 ~15 sites are fine consulting `Tol` directly.
 
 **Why PRED.** PRED is *the class the 2026-08 scan named and nobody owned: one numeric fact,
-decided in several places, each with its own margin* (`work/pred/program.md`),
+decided in several places, each with its own margin* (`work/predtail/program.md`),
 and its slate already carries the same shape three times —
 `period-headroom-margin-has-no-shared-home`,
 `lever-arm-fold-six-hand-rolled-siblings`, `cone-nappe-is-decided-in-five-places`.

@@ -1,7 +1,7 @@
 ---
 id: circle-plane-first-harmonic-has-three-hand-built-copies
 kind: issue
-title: The circle x meridian-plane first harmonic is hand-assembled in three places with no shared door and an unaudited noise charge
+title: The circle x plane first-harmonic door (FirstHarmonic::circle_off_plane) carries one uniform rounding charge, no phase or frame-defect charge, unaudited
 status: open
 opened: 2026-10-06
 priority: P2
@@ -39,3 +39,17 @@ One circle × plane door beside `circle_sphere_harmonic` that both plane
 sites call, with its noise charge audited against the frame defect and
 the phase. A missing charge here is a root certified where the arc's
 stored frame leaves it undecided.
+
+## 2026-10-26 (tracker sweep): the shared door exists; the audit is what is left
+
+On main at `bb25fa4f` the hand-built copies are gone: the circle (and
+conic) against a plane is one door,
+`circle_roots::FirstHarmonic::circle_off_plane` / `conic_off_plane`
+(`crates/topo/src/boolean/circle_roots.rs` ~:204-247, "The one spelling
+of a circle against a plane"), read by `ops.rs` (~:7025),
+`sphere_region.rs` (~:296), `torus_region.rs` and `ruled_region.rs`.
+The charge it carries is still the one this row questions: one uniform
+`rounding_charge(|C − on| + max(a, b))` on both extremes,
+`phase_noise: T::zero()`, and no frame-defect charge for a `û`,
+`axis × û` pair that is not orthonormal. So the row's remaining ask is
+the noise audit of that one door, not the consolidation.

@@ -76,3 +76,10 @@ Rows moved with `git mv` and keep their ids.
   - **Production:** no change to `chart_transverse_margin` or any reading.
   (NURBS build A)
 
+- 2026-10-26 — (tracker sweep) Closed four rows, each with its evidence in its Closed section:
+  - `compensated-blocks-check-shifts-past-i128` — fixed: the oracle compares in `BigInt` and the width check has its zero arm (`ssi/compensated.rs` ~:288-321);
+  - `compensated-blocks-oracle-shifts-an-i128-past-its-width` — fixed, and a duplicate of the row above;
+  - `ssi-cut-derivative-box-is-wider-than-the-whole-cell` — fixed: `deriv_box` meets the cut box with the whole cell's (PR 5123);
+  - `ssi-enclose-carries-a-private-two-sum-beside-geom-core-exact` — superseded by `work/issues/double-double-arithmetic-is-spelled-in-five-places.md`. The copy now sits in `ssi/compensated.rs:44`.
+  - Re-pointed `limb3-carrier-ends-read-at-f64-points`' citation to `certify.rs` ~2167. Plan slate refreshed (load 33/30).
+  - Not merged with SSIMARCH: the two share their paths, but together they would carry about 67 points against 30. (tracker sweep)
