@@ -251,7 +251,9 @@ pub struct BooleanNaming {
     /// that first reports it, result keys.
     pub seam_edges: Vec<EdgeKey>,
     /// Vertex fusions `(dead, kept)` in mint order, result keys: the
-    /// zips'.
+    /// zips', then the partings' joined ends
+    /// (`boolean::slit`, an end joined to the vertex of the face's loop
+    /// on its point).
     pub vertex_merges: Fusions,
     /// Face absorption groups `(kept, absorbed…)`, result keys:
     /// `merge_coplanar_faces`'.
@@ -422,8 +424,8 @@ impl Default for BooleanNaming {
 }
 
 impl BooleanNaming {
-    /// Each result vertex a zip fused away → the live cell of `body`
-    /// its point lies in ([`Self::settler`]).
+    /// Each result vertex a zip or a parting fused away → the live cell
+    /// of `body` its point lies in ([`Self::settler`]).
     ///
     /// # Errors
     ///
@@ -504,7 +506,8 @@ pub struct Settler<'a, T: Real> {
 
 impl<T: Real> Settler<'_, T> {
     /// The live cell `vertex`'s point lies in: the vertex it finally
-    /// fused into, following the zips' fusions through every hop, while
+    /// fused into, following the zips' and the partings' fusions
+    /// ([`BooleanNaming::vertex_merges`]) through every hop, while
     /// that lives. A later stage can delete it without moving its point,
     /// and both such stages record the kill: the merge's pruning leaves
     /// the point inside its group's kept face ([`Cell::Face`]), and the
@@ -837,8 +840,8 @@ pub(super) fn collinear_escalated(
 ///
 /// [`BooleanError::LineWedges`]: an overlap, whose re-pairing is not
 /// built; or a wedge the reading cannot take, a face with no sheet on
-/// the line or a cusp or slit edge (D1: a consumer with no wedge-end
-/// answer refuses typed).
+/// the line, a cusp or slit edge (D1: a consumer with no wedge-end
+/// answer refuses typed), or an edge too long or short to measure.
 /// [`BooleanError::Escalated`]: a reading in band, of whether two of the
 /// result's straight edges lie on one line ([`BooleanDecision::LineEdges`])
 /// or of their wedges ([`BooleanDecision::LineWedges`]). Both read where
@@ -868,11 +871,8 @@ fn coincident_wedges_disjoint<T: Decide + Bounds>(
                 diag,
             });
         }
-        Err((i, crate::census::WedgeRefusal::NoSheet(edge))) => {
-            (i, LineWedgeFault::NoSheet { edge })
-        }
-        Err((i, crate::census::WedgeRefusal::WedgeEnd(edge))) => {
-            (i, LineWedgeFault::WedgeEnd { edge })
+        Err((i, crate::census::WedgeRefusal::Unread(edge, why))) => {
+            (i, LineWedgeFault::Unread { edge, why })
         }
     };
     Err(BooleanError::LineWedges {
@@ -1001,7 +1001,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     for shell in shells {
         body.movefac(shell)?;
     }
-    let vertex_merges = desc.vertex_merges();
+    let mut vertex_merges = desc.vertex_merges();
     let mut cone_splits = cones.splits().clone();
     let declared_pairs = declared_surface_pairs(&body, a, b, decls, &fin.graft);
     let views = [&KeyView::Direct, &KeyView::Graft(&fin.graft)];
@@ -1067,6 +1067,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         &mut graft_faces,
         &mut face_fragments_a,
         &mut cone_splits,
+        &mut vertex_merges,
         &mut discards,
     )?;
     let naming = BooleanNaming {
@@ -1108,7 +1109,9 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
 
 /// **The naming rows of the partings [`super::slit::part_riders`]
 /// made.** An end the material parted is held as one copy per wedge, as
-/// the zip's per-cone splits are (`cone_splits`). A face it divided along
+/// the zip's per-cone splits are (`cone_splits`); an end joined to the
+/// vertex of the face's loop on its point is fused into it, as the zip
+/// fuses a seam pair (`vertex_merges`). A face it divided along
 /// an edge lying in it descends from the face it was divided off, on that
 /// face's side (`graft_faces` for B's, `face_fragments_a` for A's), and
 /// lost the line between its pieces: a discard row whose stretch is the
@@ -1122,12 +1125,14 @@ fn name_parted(
     graft_faces: &mut Vec<(FaceKey, FaceKey)>,
     face_fragments_a: &mut crate::lineage::FaceDivisions,
     cone_splits: &mut crate::lineage::ConeCopies,
+    vertex_merges: &mut Fusions,
     discards: &mut Vec<super::DiscardRow>,
 ) -> Result<(), BooleanError> {
     for p in parted {
         for &row in &p.copies {
             cone_splits.push(row)?;
         }
+        vertex_merges.extend(&p.fused)?;
         let Some(piece) = p.divided else { continue };
         let (operand, face) = match graft_faces.iter().find(|&&(_, r)| r == p.face) {
             Some(&(from, _)) => {
@@ -3789,6 +3794,35 @@ pub(super) fn piece_holds<T: Decide>(
     q: Point3<T>,
     band: Band,
 ) -> Result<PieceRead, BooleanError> {
+    piece_reading(body, face, q, band, DoorInBand::SelfCheck)
+}
+
+/// How [`piece_reading`] types an in-band margin of the containment door.
+#[derive(Clone, Copy)]
+pub(super) enum DoorInBand {
+    /// The carry's check: the door re-reads a cell a record already
+    /// placed, so a margin in band is the kernel disagreeing with itself.
+    SelfCheck,
+    /// A first reading of a point against the face: the door's own
+    /// decision, whose margin is the operands' geometry.
+    Containment,
+}
+
+/// [`piece_holds`], typing an in-band margin of the containment door as
+/// `door` says. The on-plane margin re-reads a plane the census already
+/// put the point on, so it escalates as the carry's check either way.
+///
+/// # Errors
+///
+/// [`BooleanError::Escalated`] on a margin in band: `SelfCheck(CarriedLineage)`
+/// for the on-plane one, `door`'s for the door's.
+pub(super) fn piece_reading<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    q: Point3<T>,
+    band: Band,
+    door: DoorInBand,
+) -> Result<PieceRead, BooleanError> {
     use super::contain::{CurvedPlacement, PlacementError};
     let in_band = |diag| BooleanError::Escalated {
         decision: BooleanDecision::SelfCheck(SelfCheck::CarriedLineage),
@@ -3803,10 +3837,21 @@ pub(super) fn piece_holds<T: Decide>(
             )),
         ) => Ok(PieceRead::NotIn),
         Ok(CurvedPlacement::Trim(None)) => Ok(PieceRead::Unread(None)),
-        Err(
-            PlacementError::OnPlane(diag)
-            | PlacementError::Door(ContainError::Escalated { diag, .. }),
-        ) => Err(in_band(diag)),
+        Err(PlacementError::OnPlane(diag)) => Err(in_band(diag)),
+        Err(PlacementError::Door(ContainError::Escalated {
+            decision,
+            escalation,
+            diag,
+        })) => Err(match door {
+            DoorInBand::SelfCheck => in_band(diag),
+            DoorInBand::Containment => BooleanError::Escalated {
+                decision: BooleanDecision::Containment {
+                    decision,
+                    escalation,
+                },
+                diag,
+            },
+        }),
         Err(PlacementError::Door(ContainError::StaleFace(face))) => {
             super::contain::driver_face_stale(face)
         }
@@ -5929,8 +5974,11 @@ fn finding_arm(finding: &ValidationError) -> Option<InBand> {
         | V::CensusUndecidable { .. }
         | V::FaceThroughEdgeWedge { .. }
         | V::FaceThroughEdgeWedgeUndecided { .. }
+        | V::CoincidentWedgesOverlap { .. }
+        | V::CoincidentWedgesOverlapUndecided { .. }
         | V::ArcEndOffCorner { .. }
         | V::InstanceInterference { .. }
+        | V::SameSideInterference { .. }
         | V::CuspEdgesMissing { .. } => None,
         // A certificate that failed or a lane that cannot run: the
         // kernel's.
@@ -7686,11 +7734,13 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 crate::lineage::FaceDivisions::new(crate::lineage::LineageRows::FaceDivisions);
             let mut cone_splits =
                 crate::lineage::ConeCopies::new(crate::lineage::LineageRows::ConeCopies);
+            let mut vertex_merges = Fusions::new(crate::lineage::LineageRows::Fusions);
             name_parted(
                 &parted,
                 &mut graft_faces,
                 &mut face_fragments_a,
                 &mut cone_splits,
+                &mut vertex_merges,
                 &mut discards,
             )?;
             let naming = BooleanNaming {
@@ -7715,6 +7765,7 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 face_fragments_a,
                 face_fragments_b,
                 cone_splits,
+                vertex_merges,
                 discards,
                 ..BooleanNaming::default()
             };

@@ -11,8 +11,13 @@
 //! (the seat certifies), same-side refuses carrying the verdict as
 //! the refusal's `side` field (between two copies at rest the editor's
 //! gate reads it as interference evidence, ASSEMBLY A5), undecided
-//! escalates typed. The first two arms
-//! are reached below; the THIRD is not reachable on this corpus, and
+//! escalates typed. The first arm is reached below. The second is not
+//! reached on this corpus either: a crossing whose two faces lie on one
+//! plane facing the same way lies in the closure of that aligned pair's
+//! shared area, which the face-pair arm decides as one
+//! `SameSideInterference` that answers for it, so the same-side verdict
+//! is left for a pair whose overlap the arm cannot decide (in band, or a
+//! face with an arc). The THIRD is not reachable on this corpus, and
 //! that is a statement about the fix-pass screens rather than a
 //! coverage gap: undecided now requires a candidate that HOLDS the
 //! whole crossing (point and both edges in its carrier) yet cannot
@@ -150,19 +155,19 @@ fn the_declared_crossing_seat_certifies_both_ways() {
     }
 }
 
-/// **The transverse fork: same-side refuses, NAMING the verdict.**
-/// The same straddle in plan view, but the post sits ABOVE the
-/// contact plane — its material and the shelf's both lie above
-/// `z = 0.5`, so the seat is interpenetration, not rest. The declared
-/// pair holds both crossing points (the geometry is unchanged in
-/// plan), the side test answers SAME-SIDE, and the refusal carries
-/// the verdict as its `side` — the interference evidence the at-rest
-/// gate reads between copies, which is why the finding must never
-/// regress to a plain undeclared crossing. The lying declaration itself is `ContactContradicted`
-/// (aligned senses), independently — both refusals stand, run both
-/// ways for the frame.
+/// **The transverse fork: a same-side seat is one interference.** The
+/// same straddle in plan view, but the post sits ABOVE the contact
+/// plane — its material and the shelf's both lie above `z = 0.5`, so
+/// the seat is interpenetration, not rest. The two bottoms lie on one
+/// plane facing the same way and share interior: the face-pair arm
+/// decides the overlap as one `SameSideInterference`, and the two
+/// crossing points, in the closure of that shared area, are the pair's
+/// and no finding of their own, declared or not — the interference the
+/// at-rest gate reads between copies. The lying declaration itself is
+/// `ContactContradicted` (aligned senses), independently; run both ways
+/// for the frame.
 #[test]
-fn a_transverse_crossing_refuses_naming_the_side_verdict() {
+fn a_transverse_crossing_is_the_aligned_pairs_interference() {
     let post: common::Prism<f64> = common::prism_z(
         &[(0.30, 0.20), (0.60, 0.20), (0.60, 0.42), (0.30, 0.42)],
         0.5,
@@ -179,29 +184,22 @@ fn a_transverse_crossing_refuses_naming_the_side_verdict() {
     let keys = topo::graft_disjoint_all_keyed(&mut body, &shelf.body).unwrap();
     let shelf_bottom = keys.face(shelf.bottom_face).unwrap();
 
-    // Bare control: the crossings refuse PLAIN — no verdict is named
-    // where no declared pair answered.
-    let bare = crossings(&errors(&body, &ContactRecords::default()));
-    assert_eq!(bare.len(), 2, "{bare:?}");
-    assert!(
-        bare.iter().all(|(c, _)| side(c).is_none()),
-        "an unanswered crossing names no verdict: {bare:?}"
-    );
+    let one_overlap = |found: &[ValidationError]| {
+        crossings(found).is_empty()
+            && common::placement_findings(found)
+                .iter()
+                .all(|e| matches!(e, ValidationError::SameSideInterference { .. }))
+            && common::placement_findings(found).len() == 1
+    };
+    let bare = errors(&body, &ContactRecords::default());
+    assert!(one_overlap(&bare), "{bare:?}");
 
     for pair in [
         (post.bottom_face, shelf_bottom),
         (shelf_bottom, post.bottom_face),
     ] {
         let found = errors(&body, &declared(&body, &[pair]));
-        let crossed = crossings(&found);
-        assert_eq!(crossed.len(), 2, "declared {pair:?}: {found:?}");
-        assert!(
-            crossed
-                .iter()
-                .all(|(c, _)| side(c) == Some(CrossingSideVerdict::SameSide)),
-            "a transverse crossing refuses with the verdict NAMED \
-             (declared {pair:?}): {crossed:?}"
-        );
+        assert!(one_overlap(&found), "declared {pair:?}: {found:?}");
         assert!(
             found
                 .iter()
