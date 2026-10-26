@@ -39,4 +39,17 @@ collision. No witness built.
 
 Signed (WIRE lane `wire-seamorder`).
 
-Closed by PR 5732 (2026-10-26). A wall now cites the boolean's own `From` name, as a seam side does. The only witness is a unit-level spelling test; an end-to-end collision needs D10 copies. Four corpus goldens were re-pinned, spelling only.
+## Closed (2026-10-26, sweep follow-up)
+
+Fixed by PR 5732 (merge `94f46f49`, commit `5b3c7c96`: "a pair
+boolean's walls cite its own From"). On main the `wall` closure in
+`name_boolean` (`crates/editor-core/src/names/emit_topo.rs:1823-1833`)
+returns a merged face's `Merged` name, or else
+`name1(EntityKind::Face, node, d.wrap(a, b, up.name))`: the face as this
+boolean's table names it (`From { read, of }`), as a seam side's
+`plain` is (`emit_topo.rs:2155`). The same closure is what
+`obstacles.split_corner` reads (`emit_topo.rs:1926`), so a corner's
+copies cite the wrapped name too. Two walls of one bare name from the
+two operands now spell two names. The PR re-baselined the goldens that
+read walls (`m4_pr3_names_bool.rs`, `m4_pr4_*`, `name_words_corpus.rs`,
+the corpus digests).

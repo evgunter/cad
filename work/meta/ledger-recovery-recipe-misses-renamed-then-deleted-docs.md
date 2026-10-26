@@ -2,8 +2,9 @@
 id: ledger-recovery-recipe-misses-renamed-then-deleted-docs
 kind: issue
 title: The ledger's recovery recipe does not resolve for any doc renamed into work/ before it was deleted — five sweep-5 programs, ten spellings, 51 live citations
-status: open
+status: closed
 opened: 2026-09-10
+closed: 2026-10-26
 priority: P4
 cost: E
 ---
@@ -110,3 +111,16 @@ Repointing the 44 remaining citations. Most are append-only or
 provenance mentions, which the ledger's own Inbound-references note
 says are fine once the recipe resolves; the ones in live present-tense
 code are their owners'.
+
+## Closed (2026-10-26, tracker sweep)
+
+**Fixed in this sweep.** `docs/DOC-LEDGER.md` was itself replaced by the
+per-note directory on 2026-09-22 (`docs/doc-ledger/doc-ledger.md`), so
+the sweep-5 table and its "resolve here as before" sentence now live in
+`docs/doc-ledger/five-closed-programs-leave-the-tracker.md`, which had
+the same gap. That note now carries the rename note the row asked for:
+a citation of the old `docs/` name resolves under `work/<program>/`,
+with the ten old spellings mapped to their five programs. Verified
+against the sweep SHA through the GitHub contents API: all ten
+`work/<program>/{plan,log}.md` exist at `f955ddc75`, and the old
+`docs/` names do not.

@@ -4,6 +4,8 @@ kind: issue
 title: topo's planar offset corner and plane-plane section solve their three-plane Cramer systems from the world origin, so the point sits about u·|p|/det off its planes
 status: open
 opened: 2026-10-19
+priority: P2
+cost: E
 ---
 
 

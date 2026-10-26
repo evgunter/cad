@@ -2,8 +2,9 @@
 id: gate-require-file-guards-with-no-gone-case
 kind: issue
 title: viewer-module-kinds.sh's two gate_require_file guards can both be deleted with its selftest green
-status: open
+status: closed
 opened: 2026-09-15
+closed: 2026-10-26
 priority: P3
 cost: D
 ---
@@ -68,3 +69,17 @@ result without them is a claim:
   because its self-test is the longest in the directory and the mutation
   budget went to the two that read as uncovered. It is the one site this
   row does not settle.
+
+## Closed (2026-10-26, tracker sweep)
+
+**Fixed in this sweep, as the row specified.** `viewer-module-kinds.sh`
+gains `plant_readme_gone` and `plant_manifest_gone` (:1087–1088), each
+asserted by a case naming its own subject (`$README does not exist
+under` / `$MANIFEST does not exist under`, :1538–1539). Mutation-checked:
+replacing either `gate_require_file` call by `:` now reds the selftest on
+that case.
+
+The one site this row left unsettled, `bit-identity-debug-only.sh`'s
+`gate_require_file "$path"` inside the subject loop (now :426), was
+mutated the same way: the selftest reds (`plant_subject_gone
+crates/editor-core/src/product.rs`), so it is covered.

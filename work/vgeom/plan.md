@@ -1,9 +1,10 @@
 # VGEOM — the plan
 
-the viewer's geometry, camera and numeric renders
+the viewer's geometry, camera and numeric renders, and what it decides to show: the display budget and the pick index
 
 Re-scoped 2026-09-20 by VGEOM's priority-seam cut
-(`work/README.md`, Track size). **Live state is
+(`work/README.md`, Track size), which cut FIT out to run in parallel;
+FIT folded back on 2026-10-26 (`docs/doc-ledger/fit-leaves-the-tracker.md`). **Live state is
 `python3 scripts/work.py status --program vgeom` and the item files,
 never this file.** The wave below says what is in flight and why each
 grouping is one unit; it does not say what is OPEN, and a list here
@@ -18,6 +19,34 @@ Sized against a ceiling of 30 points (`work/README.md`, Track size).
 The weight is the `load` column of `work.py status`, re-derived on
 every run and stored nowhere — which is the repair for the table that
 used to stand here.
+
+**The track is over budget, and that is accepted.** At FIT's fold on
+2026-10-26 it measured 36.5 points against 30 (VGEOM's own 30.5 and
+FIT's 6). FIT was cut from here on 2026-09-20 so that the two could run
+in PARALLEL (Ev, in chat, that day); at 6 points of P3 that reason is
+gone, and Ev accepted the overrun on the fold (in chat, 2026-10-26):
+**the orchestrator that opens this track splits it sensibly first**,
+along its priority seam (`work/README.md`, Track size), rather than
+working an over-budget slate.
+
+FIT's five rows arrived by `git mv`, ids and bodies unchanged:
+
+- three open P3 rows. `a-dense-floor-is-priced-off-the-law-from-the-scale-probe`
+  and `flat-harmlessness-is-unproven-on-the-nurbs-refinement-lane`
+  share `scene::fit_delta`'s ladder and the Flat paragraph that #5600
+  wrote, so one lane can take both. `mispaired-ids-exempts-the-empty-window`
+  is independent; first establish whether a zero-name part with
+  patches is reachable (`NodePick::patch_names`, editor-core).
+- two rows parked on the D10 hold (stage 3 D′,
+  `a-placement-pins-by-written-values-without-a-mate`):
+  `a-moved-copys-pick-span-crosses-its-frame-unconverted` (P1, E) and
+  `one-failed-root-refuses-the-whole-pick-index` (P2, M, design).
+  Re-read both against the walk D′ leaves once it lands; each body says
+  what to check.
+
+FIT's review tiers carry over for its rows: a full review for a change
+that moves a type or a frame order or adds a certified door, a style
+review for the rest, and the orchestrator's own read for E rows.
 
 ## The 2026-09-21 wave — four lanes, eleven rows
 

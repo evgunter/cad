@@ -54,3 +54,7 @@ are admitted by exact row and label in
 
 - `Split/Reduce/CrossingInsertion`: "inserting the plane crossing on
   edge EdgeKey(…) (endpoints …) refused:" (`topo/src/splitting/mod.rs`).
+
+## Note (2026-10-26, easy-fixes lane)
+
+`Boolean/Join/Section` and `Split/Join/Section` are fixed at their source and left `FILED_NO_RECOURSE`. Their rendered source, `geom_brep::SectionError::WrongLane`, now ends in `ssi.rs`'s `WRONG_LANE_RECOURSE` (`germtail/section-wrong-lane-ends-in-a-tag`). That leaves 22 of the 24.

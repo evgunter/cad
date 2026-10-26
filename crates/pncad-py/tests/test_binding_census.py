@@ -1653,6 +1653,18 @@ FAMILIES: dict[str, str] = {
         "`IndexedRead`, and one Python row reading one copy of an "
         "instance at a body seat."
     ),
+    # THE MEASUREMENT PREDICATE ARRIVED BEFORE ITS DOORS
+    # (`docs/QUAD-MEASURE-SPEC.md` unit B): the façade curates `Settle`
+    # and the vocabulary its variants carry, while no number door takes
+    # one yet. Python taking it as data is unit C's
+    # (`work/quad/the-measurement-door-refines-until-a-predicate-resolves`).
+    "B-SETTLE": (
+        "what a measurement is asked — `Settle` (a sign, a relation, a "
+        "containment or a resolution) with `RelOp`, `SignNames` and "
+        "`RoleNames`. Closing it needs `Body.mass_properties()` and the "
+        "other number doors to take one as data, a `pncad.pyi` entry for "
+        "each, and one Python row per variant."
+    ),
 }
 
 #: Curated names with no Python spelling at all, by family.
@@ -2400,6 +2412,10 @@ NOT_BOUND = {
     "SpokenSpace": SHAPE,
     "VarDef": f"{GAP}: B-VAR-ID a variable's minted identity",
     "CopyKey": f"{GAP}: B-COPY-KEY the key of one copy of a placement's copies",
+    "Settle": f"{GAP}: B-SETTLE what a measurement is asked",
+    "RelOp": f"{GAP}: B-SETTLE what a measurement is asked",
+    "SignNames": f"{GAP}: B-SETTLE what a measurement is asked",
+    "RoleNames": f"{GAP}: B-SETTLE what a measurement is asked",
     "KeyedCopy": f"{GAP}: B-COPY-KEY the key of one copy of a placement's copies",
     "VarRef": f"{GAP}: B-VAR-ID a variable's minted identity",
     "node_kind_noun": SHAPE,
@@ -2906,6 +2922,14 @@ NOT_BOUND = {
     # as its tag word plus prose, and the guard's prose is its own
     # sentence, so a Python caller reads the site in the message.
     "PairRefusalSite": INTERIOR,
+    # `BooleanError::EdgeCarrierUnsupported`'s SITE: which lane met the
+    # spiric or spline edge (the sweep's planar or curved crossing arm,
+    # the join's germ frame or ring run). Carried in Rust so a consumer
+    # matching that variant can name the field's type; interior here
+    # because Python never holds one. The refusal crosses as its tag
+    # word plus prose, and each site's clause is its own, so a Python
+    # caller reads the site in the message.
+    "EdgeCarrierSite": INTERIOR,
     # `NodeErrorKind::FullRangeStep`'s `turns`: whether a step of a
     # turn or more lands every copy on the master or names an angle
     # within the turn. Carried in Rust so a consumer matching that
@@ -3747,7 +3771,6 @@ MEMBERS_BOUND_AS = {
     "InlineError::StrandedPartName": "InlineError.variant",
     "InlineError::StrandedPartRead": "InlineError.variant",
     "InlineError::NameOnDroppedStep": "InlineError.variant",
-    "InlineError::RankedRunReordered": "InlineError.variant",
     "InlineError::Edit": "InlineError.variant",
     "FlattenError::UnknownNode": "FlattenError.variant",
     "FlattenError::NotAPlacement": "FlattenError.variant",
@@ -3875,7 +3898,6 @@ MEMBERS_BOUND_AS = {
     "SplitError::PartNameReachesRemainder": "SplitError.variant",
     "SplitError::NameStraddlesCut": "SplitError.variant",
     "SplitError::NameOnDroppedStep": "SplitError.variant",
-    "SplitError::RankedRunReordered": "SplitError.variant",
     "SplitError::BodyNameCrossesCut": "SplitError.variant",
     "SplitError::NameOutsidePartWorld": "SplitError.variant",
     "SplitError::Pin": "SplitError.variant",
@@ -3919,6 +3941,7 @@ MEMBERS_BOUND_AS = {
     "TessellateError::ResolutionOverflow": "TessellateError.variant",
     "TessellateError::StepNotPositive": "TessellateError.variant",
     "TessellateError::CertificateExceeded": "TessellateError.variant",
+    "TessellateError::RoundingUnresolved": "TessellateError.variant",
     "TessellateError::Triangulation": "TessellateError.variant",
     "TessellateError::SelfTouchingTrimLoop": "TessellateError.variant",
     "TessellateError::PinchWedge": "TessellateError.variant",

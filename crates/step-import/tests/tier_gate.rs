@@ -441,15 +441,6 @@ const PARAM_SPAN_UNTOLD: &str = "lies inside the ambiguity band (1e-12, 1e-11). 
      from zero. Recourse: move the geometry so this edge runs forward over a clear length, or, if \
      this length is intended, re-export the file with its uncertainty declared below \
      5.65487109168879e-12 m and tighten the tolerance below 5.65487109168879e-13 m";
-/// dm1's former coarse-band sub-reason: the convergence predicate
-/// declines to decide, by name. **No cell reaches it any more** — the
-/// gate stops on a definite SIGN before the round whose width lands in
-/// the predicate's ambiguity band. Kept, not deleted, for the reason
-/// the gap constant was kept and then needed: an escalation is a
-/// real outcome of this lane and would become reachable again the
-/// moment anything at the gate moves.
-#[allow(dead_code)]
-const QUAD_CONVERGED_ESCALATED: &str = "props_quad_converged";
 // dm1's `#389` polyline gap ("edge #389: no intensional description
 // certifies", with an empty attempt list) is RETIRED, by execution and
 // not by unreachability: degree-1 carriers promote to `Curve3::Line`

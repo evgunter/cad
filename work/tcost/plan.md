@@ -49,8 +49,10 @@ reviewed retroactively.
 - `memories/review-and-dependency-policy.md` — **retirement is always
   permitted**: delete (naming the row that now owns the claim),
   `#[ignore]` a reporting row, or gate a sweep on the change filter.
-  A promoted reviewer suite's independence is worth keeping where it
-  pulls its weight; that is not a prohibition on retiring the rest.
+  Reviewer tests are ordinary tests (Ev, 2026-09-04, 2026-09-27): a
+  row keeps its own code only where that row's claim needs its own
+  derivation, which is a per-row test-design question and not a
+  question of who wrote the row.
 - A run may skip a detector whose subject PERSISTS in the tree; it may
   not skip a detector of ABSENCE. A gated test's break persists, so
   gating is the persistence case, argued per row.
@@ -160,7 +162,8 @@ at a time on the box. Decisions taken unilaterally are logged in
   cut count that leaves it running on every run at a weaker depth.
 - No fixed seed is introduced; no `#[ignore]` on a row that gates
   (only on rows that report).
-- Reviewer suites that pull their weight keep their independence from
-  shipped fixtures (`memories/review-and-dependency-policy.md`).
+- A row keeps its own fixture code only where its claim needs its own
+  derivation; who wrote the row does not enter into it
+  (`memories/review-and-dependency-policy.md`).
 - Nothing here gates on a millisecond: cost is reported, not
   thresholded.
