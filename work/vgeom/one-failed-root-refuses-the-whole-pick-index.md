@@ -74,3 +74,9 @@ composing door shared with export. This row's question (does the
 picture cover what evaluated when the product does not gather?) is a
 question about that shown set, so it is asked again once D′ lands,
 against the walk D′ leaves, and not before.
+
+## Moved (2026-10-26)
+
+FIT folded back into VGEOM (Ev, in chat, 2026-10-26): FIT was cut from
+VGEOM on 2026-09-20 to run in parallel, a reason that is gone at FIT's
+size. Id and body unchanged.

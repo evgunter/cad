@@ -49,3 +49,9 @@ against the fit.
 The FIT lane on `the-budgets-predicted-count-is-not-always-an-over-count`
 and `a-flat-rung-pair-is-read-as-flat-below-it` (PR 5600). This row is
 the disclosed residue of the second.
+
+## Moved (2026-10-26)
+
+FIT folded back into VGEOM (Ev, in chat, 2026-10-26): FIT was cut from
+VGEOM on 2026-09-20 to run in parallel, a reason that is gone at FIT's
+size. Id and body unchanged.

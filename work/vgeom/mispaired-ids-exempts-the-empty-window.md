@@ -94,3 +94,9 @@ re-scope**, so the open question is no longer *may CHROME work this*
 but *should this row sit on VGEOM's slate instead* — a `git mv` if so,
 per `work/README.md`. That call is taken by the wave that takes the
 row, not here.
+
+## Moved (2026-10-26)
+
+FIT folded back into VGEOM (Ev, in chat, 2026-10-26): FIT was cut from
+VGEOM on 2026-09-20 to run in parallel, a reason that is gone at FIT's
+size. Id and body unchanged.

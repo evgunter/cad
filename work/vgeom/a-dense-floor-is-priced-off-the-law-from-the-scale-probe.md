@@ -52,3 +52,9 @@ tests.
 The FIT lane that made the budget a target
 (`the-budgets-predicted-count-is-not-always-an-over-count`), checking
 the ladder's descent conditions for the Flat bound.
+
+## Moved (2026-10-26)
+
+FIT folded back into VGEOM (Ev, in chat, 2026-10-26): FIT was cut from
+VGEOM on 2026-09-20 to run in parallel, a reason that is gone at FIT's
+size. Id and body unchanged.

@@ -7,7 +7,6 @@ opened: 2026-10-22
 priority: P1
 cost: E
 blocked_on: [a-placement-pins-by-written-values-without-a-mate]
-refs: [pickindex-merges-parts-on-a-rounded-t-it-never-converts]
 ---
 
 
@@ -54,3 +53,9 @@ rewrites the map this site reads, and possibly the site itself, so
 fixing it now would fix code D′ is about to replace. When D′ lands,
 re-read this site: if the composing door already converts the span, or
 picks through world coordinates, the row closes as overtaken.
+
+## Moved (2026-10-26)
+
+FIT folded back into VGEOM (Ev, in chat, 2026-10-26): FIT was cut from
+VGEOM on 2026-09-20 to run in parallel, a reason that is gone at FIT's
+size. Id and body unchanged.
