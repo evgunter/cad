@@ -26,8 +26,10 @@ contact**, and at the same site:
   face is one of the loop's four NURBS walls and rises from that rim.
 - **lily wall 8**: the blade's base-section rim circle, against a
   sheath NURBS wall rising from the same rim.
-- **teapot wall 3**: a belly latitude circle (sphere | sphere), against
-  a spout NURBS wall.
+- **teapot wall 3**: edge 9v1, a quarter MERIDIAN of the belly sphere
+  (its revolve seam at azimuth π, in z = 0), against a spout NURBS
+  wall. The spout's axis leaves the belly on that meridian. (Measured
+  by PR 5723's review; the PR's first account called it a latitude.)
 
 So the first thing each join needs is an analytic edge (line, circle)
 of one operand read against a NURBS face of the other, and no crossing
@@ -81,7 +83,7 @@ Two designers, A and B, weighed it and converged (design-fork log row
   wall's boundary rim: a shared run, decided by the curve-pair table
   with no spline arithmetic. Klein 3's seam line ends on the wall's rim
   circle, with the wall tangent there (it leaves the rim straight up).
-  Teapot 3 is a transverse pierce of the spout's wall by a belly circle,
+  Teapot 3 is a transverse pierce of the spout's wall by the belly's meridian seam,
   not a rim contact.
 - Klein 3 is also held by the loop's 3.99e-4 rad cap tilt (the rims are
   up to 1.1e-4 m apart, not Zero at any ε the demos run), which goes
