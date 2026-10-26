@@ -860,11 +860,16 @@ tiers".
   ([verdicts]), and nothing beyond a Zero verdict moves geometry: a
   merged face keeps one operand's description, and nothing in the
   sliver band is moved. Which description is kept is one decision,
-  taken once at the glue for each pair it decides Zero: the other face
-  takes the kept carrier and its boundary is re-derived on it before
-  the operation builds, so the operation runs on its operands as
-  decided and a glued face holds one description, its carrier and its
-  boundary alike. Booleans on independently modelled
+  taken once at the glue for each pair it decides Zero: the
+  first-written operand's. The other face takes the kept carrier and
+  its boundary is re-derived on it before the operation builds, so the
+  operation runs on its operands as decided and a glued face holds one
+  description, its carrier and its boundary alike. The Zero verdict
+  certifies the operand as re-derived, not only the face: it decides
+  the displacement the re-derivation induces, an edge re-cut where a
+  neighbour meets the kept carrier at dihedral angle α moving by the
+  carriers' separation over sin α, and where that is in band the glue
+  refuses. Booleans on independently modelled
   nearly-touching bodies fail loudly rather than guess; the resolution
   is one construction or an explicit repair or adoption ([import]).
 - **Maximal faces and maximal edges.** Merging is never silent: a
@@ -1583,7 +1588,10 @@ of `A` both operands carry are glued structurally.
 
 Where its verdicts decide Zero, a union, a cut or a meet glues where
 an arm exists for the carrier pair ([topology]'s frontier), keeping
-one fixed operand's description for a merged face, and an assemble
+one fixed operand's description for a merged face (the first-written
+operand's: a boolean mints no surface, so every face of its result lies
+on a carrier one of its operands holds, and the written order is the
+one rule that decides nothing from values), and an assemble
 records the touch ([topology.records]); each refuses what falls in the
 sliver band. Its result holds no in-band pair, a pair of result cells
 whose one census number lies in band. A solid's only shell is its outer

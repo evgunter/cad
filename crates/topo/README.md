@@ -848,9 +848,10 @@ reparents only within one shell (`EulerOpError::CrossShell`).
   recorded and reported by the `unproven-coincidence` lint unless it is
   structural ([coincidence]). No snapping beyond the Zero verdict: a merged face
   keeps one operand's description, and nothing in the sliver band is
-  moved. Which description is kept is decided once, at the glue; the
-  other face takes the kept carrier and its boundary is re-derived on it
-  before the operation builds (DESIGN.md [topology]). Booleans on independently modeled nearly-touching bodies fail
+  moved. Which description is kept is decided once, at the glue: the
+  first-written operand's. The other face takes the kept carrier and its
+  boundary is re-derived on it before the operation builds, and the Zero
+  verdict certifies that re-derived boundary (DESIGN.md [topology]). Booleans on independently modeled nearly-touching bodies fail
   loudly rather than guess — the design thesis; the resolution is one
   construction or an explicit [import]-style repair/adoption op.
 - **Maximal-faces precondition and the merge stage.** Booleans
