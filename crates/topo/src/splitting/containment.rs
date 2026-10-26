@@ -14,8 +14,8 @@
 //! carriers. A loop of lines is the polygon through its vertices, and
 //! its walk — the boundary pre-pass and one ray's parity count — is
 //! [`crate::ray_walk`], shared with the 2-D chart-space consumer. A
-//! loop bearing any other edge crosses each conic on its conic and
-//! holds each uncrossable edge as a ball (the `point_in_arc_loop_*`
+//! loop bearing any other edge crosses each conic on its conic, and
+//! each spiric or spline arc piece by piece (the `point_in_arc_loop_*`
 //! rows). What this module owns is the *3-D* half: reading the loop out
 //! of the body, and turning each member of the space-direction schedule
 //! into an in-plane frame.
@@ -82,21 +82,32 @@
 //!
 //! - **`point_in_arc_loop_{segment,boundary,side,advance}`**: the four
 //!   rows above, over the loop's STRAIGHT edges.
-//! - **`point_in_arc_loop_arm`**: the schedule gate, with the conics'
-//!   and balls' reach in the extent.
-//! - **`point_in_arc_loop_reach`**: a ray's clearance from a ball, less
-//!   its reach: an uncrossable (spline) edge's, where definitely through
-//!   the ball blocks the ray, `Zero` grazes it and in-band sets it aside;
-//!   and a spiric piece's, where it halves the piece.
+//! - **`point_in_arc_loop_arm`**: the schedule gate, with the curved
+//!   edges' balls' reach in the extent.
+//! - **`point_in_arc_loop_reach`**: a ray's clearance from a spiric
+//!   piece's ball, less its reach, where anything undecided halves the
+//!   piece.
 //! - **`point_in_arc_loop_spiric_{end,clear,on,leaf}`**: the boundary
-//!   reading of a spiric edge ([`SpiricArc::contact`]) — the distance to
-//!   an end, a piece's ball's clearance from the point, the distance to
-//!   a point of the arc, and a piece's own radius, which ends the halving.
+//!   reading of a spiric edge ([`PiecedArc::contact`] on a
+//!   [`SpiricArc`]) — the distance to an end, a piece's ball's clearance
+//!   from the point, the distance to a point of the arc, and a piece's
+//!   own radius, which ends the halving.
 //! - **`point_in_arc_loop_spiric_{side,turn,advance}`**: a ray's
-//!   crossing of a spiric piece ([`SpiricArc::crossings`]) — an end's
+//!   crossing of a spiric piece ([`PiecedArc::crossings`]) — an end's
 //!   offset from the ray line, the piece's monotonicity margin, and its
 //!   ball's advance along the ray — where anything undecided halves the
 //!   piece, and a piece still unsettled at the depth grazes the ray.
+//! - **`point_in_arc_loop_spline_{end,clear,on,leaf}`**: the boundary
+//!   reading of a spline edge ([`PiecedArc::contact`] on a
+//!   [`SplineArc`]) — the distance to an end, a piece's control ball's
+//!   clearance from the point, the distance to the piece's start point,
+//!   and the control ball's own radius, which ends the halving.
+//! - **`point_in_arc_loop_spline_{side,turn,advance}`**: a ray's
+//!   crossing of a spline piece ([`PiecedArc::crossings`]) — a control
+//!   point's offset from the ray line, a step of those offsets along the
+//!   control polygon, and a control point's advance along the ray —
+//!   where anything undecided halves the piece, and a piece still
+//!   unsettled at the depth grazes the ray.
 //! - **`point_in_arc_loop_conic_span`**: a conic arc's gap to a full
 //!   period, `(τ − w)` levered by the smaller semi-axis — read only for a
 //!   window wound definitely PAST a period, which is no edge. Anything
@@ -130,7 +141,9 @@ use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, LoopBoundary, LoopKey};
 use crate::live::{linked, proven};
 use crate::ray_walk::{self, ParityRows, RayFault};
-use crate::splitting::spiric_arc::{Oval, SpiricArc, SpiricHit, SpiricRefusal, SpiricRows};
+use crate::splitting::pieced_arc::{ArcHit, ArcRefusal, ArcRows, PiecedArc};
+use crate::splitting::spiric_arc::{Oval, SpiricArc};
+use crate::splitting::spline_arc::SplineArc;
 use crate::validate::decide;
 
 /// This consumer's K rows for the shared walk, and the greppable
@@ -171,10 +184,9 @@ pub enum LoopDecision {
     Boundary,
     /// Where one ray of the walk's fixed schedule meets the boundary: a
     /// corner's offset from the ray's line, a crossing's advance along
-    /// it, how far the ray's direction lies in the loop's plane, its
-    /// clearance from an edge it cannot cross. The point is already
-    /// clear of the boundary here; the margin is a fact about the
-    /// kernel's choice of ray, not a size the user chose.
+    /// it, how far the ray's direction lies in the loop's plane. The
+    /// point is already clear of the boundary here; the margin is a fact
+    /// about the kernel's choice of ray, not a size the user chose.
     Ray,
     /// Whether an arc stays short of a full turn: its gap to one. On an
     /// elliptic edge a gap of zero is a whole ellipse, which passes, and
@@ -381,20 +393,16 @@ impl core::fmt::Display for OffPlane {
     }
 }
 
-/// **Where the arc-aware walk could not decide, and why**: no scheduled
-/// ray from the point settled, and one definitely met `edge`, an edge of
-/// `loop` the walk cannot cross. A spline has no crossing row: the walk
-/// holds it as a ball its locus lies in, so this is confined to points
-/// some ray from which passes definitely through that ball (a ray
-/// within the band of it grazes). A spiric is crossed piece by piece: it
-/// stands in the way where its boundary reading runs out of depth or
-/// pieces before placing the point; a piece meeting a ray that the
-/// halving's depth settles neither way grazes that ray.
+/// **Where the arc-aware walk could not read an edge**: `edge`, a spiric
+/// or spline edge of `loop`, is crossed piece by piece, and its boundary
+/// reading ran out of depth or pieces before placing the point. (A piece
+/// meeting a ray that the halving's depth settles neither way grazes
+/// that ray instead.)
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Uncrossable {
     /// The loop the walk could not read.
     pub r#loop: LoopKey,
-    /// The first edge, in schedule order, that a ray definitely met.
+    /// The first edge, in loop order, whose reading ran out.
     pub edge: EdgeKey,
     /// That edge's carrier.
     pub carrier: UncrossableCarrier,
@@ -423,8 +431,8 @@ impl core::fmt::Display for Uncrossable {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(
             f,
-            "no test ray got past a {} edge of the outline, which the test cannot cross, \
-             and the point lies within that edge's reach",
+            "the test could not place the point against a {} edge of the outline: \
+             cutting the edge into pieces ran out before the point was clear of every one",
             self.carrier.word()
         )
     }
@@ -730,7 +738,7 @@ fn walk_schedule<T: Decide>(
 /// kept apart from [`point_in_vertex_polygon`]'s so the two walks'
 /// populations stay separable. Its own rows, written at their `decide` calls:
 /// `point_in_arc_loop_arm` (the schedule gate), `point_in_arc_loop_reach`
-/// (the loop's bounding ball, for an edge with no crossing row), and the
+/// (a spiric piece's ball's clearance from a ray), and the
 /// conic arm's `point_in_arc_loop_conic_{span,on,window,disc,advance}`
 /// and its pre-pass trim's `point_in_arc_loop_conic_{end,trim}`.
 const ARC_LOOP_ROWS: ParityRows = ParityRows {
@@ -749,8 +757,8 @@ const ARC_LOOP_ROWS: ParityRows = ParityRows {
 pub(crate) type ConicRows = TurnRows<&'static str>;
 
 /// The rows a caller reads a loop's boundary under: a straight edge's
-/// ([`ray_walk::on_segment`]'s two), a conic edge's and a spiric
-/// edge's.
+/// ([`ray_walk::on_segment`]'s two), a conic edge's, a spiric edge's and
+/// a spline edge's.
 #[derive(Clone, Copy)]
 pub(crate) struct BoundaryRows {
     /// A straight edge's rows.
@@ -758,7 +766,9 @@ pub(crate) struct BoundaryRows {
     /// A conic edge's rows.
     pub(crate) conic: ConicRows,
     /// A spiric edge's rows.
-    pub(crate) spiric: SpiricRows,
+    pub(crate) spiric: ArcRows,
+    /// A spline edge's rows.
+    pub(crate) spline: ArcRows,
 }
 
 /// [`point_in_loop`]'s rows for a loop's boundary.
@@ -768,11 +778,17 @@ const WALK_ROWS: BoundaryRows = BoundaryRows {
         "point_in_arc_loop_conic_span",
         "point_in_arc_loop_conic_straddle",
     ),
-    spiric: SpiricRows {
+    spiric: ArcRows {
         end: "point_in_arc_loop_spiric_end",
         clear: "point_in_arc_loop_spiric_clear",
         on: "point_in_arc_loop_spiric_on",
         leaf: "point_in_arc_loop_spiric_leaf",
+    },
+    spline: ArcRows {
+        end: "point_in_arc_loop_spline_end",
+        clear: "point_in_arc_loop_spline_clear",
+        on: "point_in_arc_loop_spline_on",
+        leaf: "point_in_arc_loop_spline_leaf",
     },
 };
 
@@ -1220,13 +1236,8 @@ pub(crate) enum LoopEdge<T: geom_core::Real> {
     Conic(ConicArc<T>),
     /// An arc of a spiric oval.
     Spiric(SpiricArc<T>),
-    /// A spline, which has no crossing row, carried as a ball its whole
-    /// locus lies in: `|x − center| ≤ reach`.
-    Unrowed {
-        center: Point3<T>,
-        reach: T,
-        carrier: UncrossableCarrier,
-    },
+    /// An arc of a spline.
+    Spline(SplineArc<T>),
 }
 
 /// An [`EdgeContact`] that places the point off the edge: what a caller's
@@ -1279,8 +1290,11 @@ pub(crate) enum EdgeContact {
     On(MarginDiag),
     /// Within the band of one of a curved edge's two carrier ends.
     End,
-    /// A spline edge, which has no row: this pass cannot say, and the
-    /// region walk holds it as a ball.
+    /// The reading could not place the point: a spiric's or a spline's
+    /// whose pieces ran out of depth or budget, which the region walk
+    /// refuses on ([`Uncrossable`]); or a conic's that did not settle,
+    /// which it does not, since a conic's crossing count reads its own
+    /// carrier.
     Unread,
 }
 
@@ -1288,8 +1302,8 @@ impl<T: Decide> LoopEdge<T> {
     /// **The one boundary reading of an edge** `a → b`, shared by every
     /// point-in-loop door: a straight edge by the distance to its closed
     /// segment ([`ray_walk::on_segment`]), a conic by
-    /// [`ConicArc::hit`], a spiric by [`SpiricArc::contact`], a spline
-    /// unread.
+    /// [`ConicArc::hit`], a spiric or a spline by
+    /// [`PiecedArc::contact`].
     pub(crate) fn contact(
         &self,
         (a, b): (Point3<T>, Point3<T>),
@@ -1311,27 +1325,32 @@ impl<T: Decide> LoopEdge<T> {
                 ConicHit::End => EdgeContact::End,
                 ConicHit::Unsettled => EdgeContact::Unread,
             },
-            Self::Spiric(k) => match k.contact(q, rows.spiric, band) {
-                Ok(SpiricHit::Off) => EdgeContact::Off,
-                Ok(SpiricHit::On(on)) => EdgeContact::On(on),
-                Ok(SpiricHit::End) => EdgeContact::End,
-                // The pass cannot place the point; the region walk holds
-                // the arc as it holds a spline's ball.
-                Err(SpiricRefusal::Unsettled) => EdgeContact::Unread,
-                Err(SpiricRefusal::Escalated(diag)) => return Err(diag.into()),
-            },
-            Self::Unrowed { .. } => EdgeContact::Unread,
+            Self::Spiric(k) => pieced_contact(k.contact(q, rows.spiric, band))?,
+            Self::Spline(k) => pieced_contact(k.contact(q, rows.spline, band))?,
         })
     }
 
-    /// A conic or spiric edge's two carrier end points (at its start and
-    /// end parameters).
+    /// A curved edge's two carrier end points (at its start and end
+    /// parameters).
     pub(crate) fn carrier_ends(&self) -> Option<[Point3<T>; 2]> {
         match self {
             Self::Conic(k) => Some(k.ends),
             Self::Spiric(k) => Some(k.ends()),
-            Self::Chord | Self::Unrowed { .. } => None,
+            Self::Spline(k) => Some(k.ends()),
+            Self::Chord => None,
         }
+    }
+}
+
+/// A pieced arc's boundary reading as an edge's. A reading that ran out
+/// cannot place the point, which the region walk refuses on.
+fn pieced_contact(hit: Result<ArcHit, ArcRefusal>) -> Result<EdgeContact, ReadEscalation> {
+    match hit {
+        Ok(ArcHit::Off) => Ok(EdgeContact::Off),
+        Ok(ArcHit::On(on)) => Ok(EdgeContact::On(on)),
+        Ok(ArcHit::End) => Ok(EdgeContact::End),
+        Err(ArcRefusal::Unsettled) => Ok(EdgeContact::Unread),
+        Err(ArcRefusal::Escalated(diag)) => Err(diag.into()),
     }
 }
 
@@ -1487,8 +1506,7 @@ pub(crate) fn carrier_loop<T: Decide>(
     for step in &steps {
         verts.push(step.point);
         keys.push(step.edge);
-        let ball = step_ball(r#loop, step)?;
-        balls.extend(ball);
+        balls.extend(step_ball(r#loop, step)?);
         let Some(curve) = step.curve else {
             edges.push(LoopEdge::Chord);
             continue;
@@ -1522,23 +1540,20 @@ pub(crate) fn carrier_loop<T: Decide>(
                 }
             },
             Ok(Some(k)) => edges.push(LoopEdge::Conic(k)),
-            Ok(None) => edges.push(match (curve.carrier(), ball) {
-                (geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. }, _) => {
+            Ok(None) => edges.push(match *curve.carrier() {
+                geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. } => {
                     unreachable!("a circle or an ellipse is a conic arc above")
                 }
                 // A line: its segment is its two end vertices'.
-                (geom::Curve3::Line { .. }, _) => LoopEdge::Chord,
-                (
-                    &geom::Curve3::Spiric {
-                        center,
-                        axis,
-                        u_ref,
-                        major_radius,
-                        minor_radius,
-                        offset,
-                    },
-                    _,
-                ) => LoopEdge::Spiric(SpiricArc::new(
+                geom::Curve3::Line { .. } => LoopEdge::Chord,
+                geom::Curve3::Spiric {
+                    center,
+                    axis,
+                    u_ref,
+                    major_radius,
+                    minor_radius,
+                    offset,
+                } => LoopEdge::Spiric(SpiricArc::new(
                     Oval {
                         center,
                         axis,
@@ -1549,13 +1564,10 @@ pub(crate) fn carrier_loop<T: Decide>(
                     },
                     curve.params(),
                 )),
-                (geom::Curve3::Nurbs(_), Some((center, reach))) => LoopEdge::Unrowed {
-                    center,
-                    reach,
-                    carrier: UncrossableCarrier::Spline,
-                },
-                (geom::Curve3::Nurbs(_), None) => {
-                    unreachable!("step_ball refuses a curved edge it cannot hold")
+                // A certified edge's span is forward, between point
+                // parameters.
+                geom::Curve3::Nurbs(ref n) => {
+                    LoopEdge::Spline(SplineArc::new(n, curve.params()).ok_or_else(corrupt)?)
                 }
             }),
             Err(ConicArcError::WoundPastPeriod) => return Err(corrupt()),
@@ -1809,27 +1821,22 @@ enum Boundary<'a> {
 ///   skips its own `s = 0` root. Every graze — a vertex on the ray line,
 ///   a ray tangent to a conic, a root at an arc's endpoint, a zero
 ///   advance — passes to the next ray.
-/// - **Spiric arcs**: the boundary pass reads the arc by halving it
-///   until every piece's ball is definitely clear of the point, or a
-///   point of the arc is within the band of it ([`SpiricArc::contact`]),
-///   and each ray counts its crossings piece by piece, a piece settled
-///   when its ball misses the ray or when its offset from the ray line
-///   is definitely monotone across it ([`SpiricArc::crossings`]). A ray
-///   with a piece still unsettled at the depth grazes; a boundary
-///   reading that runs out
-///   of depth or pieces is that edge's `Uncrossable` at once — it is no
-///   reading in the band. Its crossing count presumes the point off the
-///   arc, which only that boundary reading says: behind a caller's pass
-///   the walk takes the caller's.
-/// - **A spline edge**: no crossing row exists, so it is held as its
-///   control hull's ball: a ray definitely through that ball is blocked
-///   by the edge, one within the zero band of it grazes, and one whose
-///   clearance lands in the band is set aside. The rest of the loop
-///   answers along any scheduled ray that definitely misses every such
-///   ball.
-///
-/// [`PointInLoopError::Uncrossable`] is where no scheduled ray settled
-/// and one was blocked by such an edge ([`ray_walk::Evidence`]).
+/// - **Spiric and spline arcs**: the boundary pass reads the arc by
+///   halving it until every piece's ball is definitely clear of the
+///   point, or a point of the arc is within the band of it
+///   ([`PiecedArc::contact`]), and each ray counts its crossings piece by
+///   piece ([`PiecedArc::crossings`]). A spiric piece is settled when its
+///   ball misses the ray or when its offset from the ray line is
+///   definitely monotone across it ([`super::spiric_arc`]); a spline
+///   piece when its control points all lie definitely on one side of the
+///   ray line or behind the point, or when their offsets from the ray
+///   line are definitely monotone ([`super::spline_arc`]). A ray with a
+///   piece still unsettled at the depth grazes; a boundary reading that
+///   runs out of depth or pieces is that edge's
+///   [`PointInLoopError::Uncrossable`] at once — it is no reading in the
+///   band. The crossing count presumes the point off the arc, which only
+///   that boundary reading says: behind a caller's pass the walk takes
+///   the caller's.
 ///
 /// `normal` must be a unit normal of the loop's plane, and `q` must lie
 /// in that plane; each is certified before the walk, and a loop, normal
@@ -1857,10 +1864,14 @@ enum Boundary<'a> {
 ///   unchanged, the vertex-on-the-ray `Zero` graze is unchanged, and the
 ///   crossing's advance `(xᵢyⱼ − xⱼyᵢ)/(yⱼ − yᵢ)` has numerator and
 ///   denominator both negated.
-/// - **Conics and uncrossable edges.** A conic's crossing reads the ray
-///   `q + d·t` in the conic's own frame, and an uncrossable edge's ball
-///   its clearance from that ray: neither reads `n̂ × d`. The boundary
+/// - **Conics.** A conic's crossing reads the ray `q + d·t` in the
+///   conic's own frame, which does not read `n̂ × d`. The boundary
 ///   pre-pass reads no normal at all.
+/// - **Spiric and spline pieces.** Every offset from the ray line along
+///   `n̂ × d` is negated: the side rows and a spiric's distance from the
+///   ray are symmetric in it; a spiric's turn row reads `|s_b − s_a|`;
+///   a spline's control offsets all of one sign, or all steps of one
+///   sign, swap that sign; and two ends on one side stay on one side.
 ///
 /// Negation is exact, so **the verdict is bit-identical either way**,
 /// and a refusal is identical in variant, predicate and band. One thing
@@ -1883,8 +1894,8 @@ enum Boundary<'a> {
 /// # Errors
 ///
 /// [`PointInLoopError`] — an escalation, exhaustion, an unwalkable
-/// loop, an edge no ray got past, or a broken precondition
-/// ([`PointInLoopError::OffPlane`]).
+/// loop, a spiric or spline edge whose reading ran out, or a broken
+/// precondition ([`PointInLoopError::OffPlane`]).
 pub fn point_in_loop<T: Decide>(
     body: &Body<T>,
     r#loop: LoopKey,
@@ -2046,26 +2057,6 @@ fn carrier_walk<T: Decide>(
     let (verts, edges) = (&lp.verts, &lp.edges);
     // The loop's reach from `q`: the schedule gate's lever.
     let extent = extent_from(r#loop, q, verts, &lp.balls)?;
-    let balls: Vec<_> = edges
-        .iter()
-        .zip(&lp.keys)
-        .filter_map(|(e, &edge)| match *e {
-            LoopEdge::Unrowed {
-                center,
-                reach,
-                carrier,
-            } => Some((
-                center,
-                reach,
-                Uncrossable {
-                    r#loop,
-                    edge,
-                    carrier,
-                },
-            )),
-            _ => None,
-        })
-        .collect();
     let n = verts.len();
     // ---- Boundary pass, and which conics carry `q`. ----
     let mut on_carrier = vec![false; n];
@@ -2081,18 +2072,23 @@ fn carrier_walk<T: Decide>(
                 Err(_) => return Ok(WalkSide::OnBoundary),
             },
         };
-        match off {
-            // A spiric's crossing count presumes `q` definitely off the
-            // arc, which only its own reading says.
-            OffEdge::Unread if matches!(edge, LoopEdge::Spiric(_)) => {
+        // A pieced arc's crossing count presumes `q` definitely off the
+        // arc, which only its own reading says.
+        let pieced = match edge {
+            LoopEdge::Spiric(_) => Some(UncrossableCarrier::Spiric),
+            LoopEdge::Spline(_) => Some(UncrossableCarrier::Spline),
+            LoopEdge::Chord | LoopEdge::Conic(_) => None,
+        };
+        match (off, pieced) {
+            (OffEdge::Unread, Some(carrier)) => {
                 return Err(PointInLoopError::Uncrossable(Uncrossable {
                     r#loop,
                     edge: lp.keys[i],
-                    carrier: UncrossableCarrier::Spiric,
+                    carrier,
                 }));
             }
-            OffEdge::Off | OffEdge::Unread => {}
-            OffEdge::Carrier => on_carrier[i] = true,
+            (OffEdge::Off | OffEdge::Unread, _) => {}
+            (OffEdge::Carrier, _) => on_carrier[i] = true,
         }
     }
     // ---- The rays. ----
@@ -2106,28 +2102,6 @@ fn carrier_walk<T: Decide>(
         "point_in_arc_loop_arm",
         band,
         |d, side_axis| {
-            // A ray that could meet an uncrossable edge's ball answers
-            // nothing: `|w − d·max(w·d, 0)|` is the ray's distance from
-            // the ball's centre (`w = c − q`), taken without a branch.
-            // Definitely through the ball, the edge blocks the ray at
-            // every tolerance; within the band of it, the ray grazes it,
-            // and an in-band clearance is the ray's to set aside.
-            for &(center, reach, edge) in &balls {
-                let w = center - q;
-                let nearest = w - d * w.dot(d).max(T::zero());
-                match decide(
-                    "point_in_arc_loop_reach",
-                    Margin::of(nearest.norm() - reach),
-                    band,
-                ) {
-                    Ok(Sign::Positive) => {}
-                    Ok(Sign::Negative) => {
-                        return Err(RayFault::Blocked(PointInLoopError::Uncrossable(edge)));
-                    }
-                    Ok(Sign::Zero) => return Err(RayFault::Graze),
-                    Err(diag) => return Err(RayFault::InBand(escalate(diag))),
-                }
-            }
             let mut crossings = RayFault::of(
                 ray_walk::ray_crossings(verts, q, d, side_axis, &ARC_LOOP_ROWS, band, |i| {
                     matches!(edges[i], LoopEdge::Chord)
@@ -2140,11 +2114,14 @@ fn carrier_walk<T: Decide>(
                         RayFault::of(conic_crossings(*k, on_carrier[i], q, d, band), escalate)?
                     }
                     // A piece still unsettled at the depth is a graze, or a
-                    // crossing at a piece's end ([`SpiricArc::crossings`]).
+                    // crossing at a piece's end ([`PiecedArc::crossings`]).
                     LoopEdge::Spiric(k) => {
                         k.crossings(q, d, side_axis, band).ok_or(RayFault::Graze)?
                     }
-                    LoopEdge::Chord | LoopEdge::Unrowed { .. } => 0,
+                    LoopEdge::Spline(k) => {
+                        k.crossings(q, d, side_axis, band).ok_or(RayFault::Graze)?
+                    }
+                    LoopEdge::Chord => 0,
                 };
             }
             Ok(!crossings.is_multiple_of(2))
@@ -3157,5 +3134,149 @@ mod tests {
             .collect();
         assert!(other.is_empty(), "{:#?}", &other[..other.len().min(20)]);
         assert!(!moved.is_empty(), "the listed move occurs");
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod spline_cap_rows {
+    use super::*;
+    use crate::boolean::FaceContainment;
+    use crate::entity::FaceKey;
+    use crate::euler::{MefSite, MevSite};
+    use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
+    use geom_core::Tol;
+
+    /// The cubic over `(0, 0), (1, 3), (3, 3), (4, 0)` in the `z = 0`
+    /// plane — its top `(2, 2.25)` at `t = ½` — and the cap it closes
+    /// with its chord, on a flat spline sheet that holds the cubic as
+    /// an iso line. The control net's ball, about `(2, 1.5)` with
+    /// radius `2.5`, holds every point the rows below ask.
+    fn spline_cap() -> (Body<f64>, FaceKey, LoopKey, EdgeKey, geom::Curve3<f64>) {
+        let tol = Tol::witness();
+        let p = |x, y| Point3::new(x, y, 0.0);
+        let ctrl = [p(0.0, 0.0), p(1.0, 3.0), p(3.0, 3.0), p(4.0, 0.0)];
+        let cubic = || {
+            geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3)
+                .unwrap()
+        };
+        let spline = geom::Curve3::Nurbs(std::sync::Arc::new(
+            geom::NurbsCurve3::new(cubic(), ctrl.to_vec(), vec![1.0; 4]).unwrap(),
+        ));
+        let mut body = Body::<f64>::new();
+        let seed = body.mvfs(ctrl[0], true).expect("a seed");
+        let sheet = body.add_surface(geom::Surface::Nurbs(std::sync::Arc::new(
+            geom::NurbsSurface::new(
+                geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+                cubic(),
+                ctrl.iter()
+                    .copied()
+                    .chain(ctrl.iter().map(|c| *c - Vec3::unit_y() * 5.0))
+                    .collect(),
+                vec![1.0; 8],
+            )
+            .unwrap(),
+        )));
+        let arc = body
+            .mev(
+                MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                ctrl[3],
+                EdgeCurveSpec {
+                    description: EdgeDescriptionSpec::iso(sheet, 0.0, 0.0, 1.0, 0.0, 1.0),
+                    carrier: spline.clone(),
+                    param_start: 0.0,
+                    param_end: 1.0,
+                },
+                tol,
+            )
+            .expect("the spline arc");
+        let cap = body
+            .mef(
+                MefSite::Chords {
+                    he1: arc.he_minus,
+                    he2: arc.he_plus,
+                },
+                EdgeCurveSpec::line_between(ctrl[3], ctrl[0]),
+                crate::euler::FaceSurface::Shared {
+                    key: sheet,
+                    sense: true,
+                },
+                tol,
+            )
+            .expect("the chord closes the cap");
+        let outer = body.get_face(cap.face).expect("the cap").outer;
+        (body, cap.face, outer, arc.edge, spline)
+    }
+
+    /// **A planar face bounded by a spline edge is read inside its
+    /// control net's ball**, by the walk and by the boolean's face
+    /// containment (whose boundary pre-pass reads the edge through
+    /// [`LoopEdge::contact`]): under the top and over the chord is in,
+    /// over the top and under the chord out, a point of the arc on it.
+    /// Each refused `Uncrossable { carrier: Spline }` before the spline
+    /// had a row.
+    #[test]
+    fn a_spline_cap_is_read_inside_its_control_ball() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let (body, face, outer, edge, spline) = spline_cap();
+        let z = Vec3::unit_z();
+        let on = spline.eval(0.3);
+        for (name, q, walk, face_wise) in [
+            (
+                "under the top",
+                Point3::new(2.0, 2.2, 0.0),
+                LoopContainment::In,
+                FaceContainment::In,
+            ),
+            (
+                "near the chord",
+                Point3::new(2.0, 0.1, 0.0),
+                LoopContainment::In,
+                FaceContainment::In,
+            ),
+            (
+                "near an end",
+                Point3::new(0.1, 0.1, 0.0),
+                LoopContainment::In,
+                FaceContainment::In,
+            ),
+            (
+                "over the top",
+                Point3::new(2.0, 2.3, 0.0),
+                LoopContainment::Out,
+                FaceContainment::Out,
+            ),
+            (
+                "under the chord",
+                Point3::new(2.0, -0.5, 0.0),
+                LoopContainment::Out,
+                FaceContainment::Out,
+            ),
+            (
+                "beside the arc",
+                Point3::new(0.2, 1.0, 0.0),
+                LoopContainment::Out,
+                FaceContainment::Out,
+            ),
+            (
+                "on the arc",
+                on,
+                LoopContainment::OnBoundary,
+                FaceContainment::OnEdge(edge),
+            ),
+        ] {
+            assert_eq!(
+                point_in_loop(&body, outer, z, q, band),
+                Ok(walk),
+                "{name}: the walk"
+            );
+            assert_eq!(
+                crate::boolean::contfp(&body, face, z, q, band),
+                Ok(face_wise),
+                "{name}: the face's containment"
+            );
+        }
     }
 }
