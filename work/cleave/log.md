@@ -1503,3 +1503,16 @@ Signed (CLEAVE orchestrator).
   - **Moved to existing owners:** HONE family, TANG, CHARTTAIL, WIRE, COINCIDE, PCTAIL. TANG, CHARTTAIL and COINCIDE were already over budget and stay over.
   - **Parked:** ATREST's new `the-booleans-cone-reader-is-a-second-link` on its listed blocker `material-and-convexity-are-read-three-ways`.
   - **Not done in this PR:** HONEONE's duplication-class rows are still banded P3. By the same rule they are P1, so they are a follow-up for HONEONE or ONEHOME. (CLEAVE orchestrator)
+- 2026-10-26 — PR 5753 claims review.
+  - **Confirmed:**
+    - `Coincidence::third` is implementation under DM4, ratified on #5329: a row is the set of member cells that meet.
+    - The corner boss logs one identical `Meet` in all six orders.
+    - The editor-core goldens are unchanged.
+    - The sweep finds 87 unheld cells on main and 0 on head, at all three ε.
+    - On main, every pair boolean of that union with the plate refused `ROW_CELL_NOT_IN_TABLE`, not only the subtract the PR mentions.
+  - **Blocking:** B1, step-import's perf12 census goldens, slow set, print `Coincidence` by Debug and move by `third: None`.
+  - **Rulings:**
+    - Keep `Option` for `third` now. The meet row records that its four-cell case needs a list.
+    - The unconditional third cell stands per DM4, and the docs are fixed to match.
+    - Add debug guards: one pierced face per pending row, and every spelled `Input` cell held by its input, checked at the door.
+  - Fix pass sent. The meet row moves to WIRE in that PR. (CLEAVE orchestrator)
