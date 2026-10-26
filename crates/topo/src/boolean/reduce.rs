@@ -614,7 +614,7 @@ pub(super) fn gate_unverdicted_operand<T: Decide + crate::props::AtRestPolicy>(
 /// - the sector walk at an ON vertex (`sectors::build_sectors`), which
 ///   takes a spline's chord as its departure direction.
 ///
-/// Retiring it is `work/orbit/delete-the-boolean-operand-edge-gate.md`.
+/// Retiring it is `work/splice/delete-the-boolean-operand-edge-gate.md`.
 fn gate_operand_edges<T: Decide>(body: &Body<T>, operand: Operand) -> Result<(), BooleanError> {
     for (edge_key, edge) in body.edges() {
         match certified(body.get_curve_geom(edge.curve))?.carrier() {
@@ -3483,8 +3483,9 @@ fn wall_crossing<T: Decide + Bounds>(
     // The wall and sphere quadratics take any non-zero `dir`; the torus
     // quartic ([`super::solid_contain::line_torus_roots`]) assumes it UNIT,
     // the `Line` carrier's convention, which nothing checks.
-    // `None`: a kind pair with no root lane, which takes the refusals'
-    // path below, as a door's refusal does.
+    // `None`: a kind pair with no root lane (a spiric or a spline
+    // against any carrier), which takes the refusals' path below, as a
+    // door's refusal does.
     let found = match *carrier {
         geom::Curve3::Line { origin, dir } => {
             match line_wall_roots_of(origin, dir, (t0, t1), surface, band)? {
@@ -3515,7 +3516,7 @@ fn wall_crossing<T: Decide + Bounds>(
             )?),
             _ => None,
         },
-        _ => return Ok(SpanVerdict::Unsettled),
+        geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => None,
     };
     let found = match found {
         Some(Ok(found)) => found,
@@ -4427,31 +4428,10 @@ fn split_other_at_point<T: Decide + crate::props::AtRestPolicy>(
             }
         }
         // A span of at most one period is what makes the MIDPOINT
-        // anchor's branch the right one, and it is CHECKED rather than
-        // assumed: past a period the azimuth aliases by 2π silently,
-        // and `split_edge`'s interiority gate cannot see it (an aliased
-        // parameter is still inside a span that long). The row is the
-        // period guard the boundary pre-pass's conic arm already spells,
-        // metered the same way; a full turn is `Zero` and passes.
-        match decide(
-            "bool_split_span_period",
-            Margin::levered(T::tau() - (t1 - t0), radius),
-            band,
-        ) {
-            Ok(Sign::Positive | Sign::Zero) => {}
-            Ok(Sign::Negative) => {
-                return Err(BooleanError::ClassificationInvariant {
-                    what: "circle edge span exceeds one period; the split azimuth \
-                           would alias by a turn",
-                });
-            }
-            Err(diag) => {
-                return Err(BooleanError::Escalated {
-                    decision: BooleanDecision::ArcSpan,
-                    diag,
-                });
-            }
-        }
+        // anchor's branch the right one (past a period the azimuth
+        // aliases by 2π silently, and `split_edge`'s interiority gate
+        // cannot see it): the edge's certificate holds its turn, which
+        // is never over one ([`geom_brep::CertifiedTurn`]).
     }
     let t = curve
         .carrier()
@@ -5814,6 +5794,50 @@ mod edge_span_tests {
         assert!(
             matches!(got, Ok(SpanVerdict::Pierce { .. })),
             "the root is interior, and the half-wall's trim holds it: {got:?}"
+        );
+    }
+
+    /// **A spline span with no root lane is localized against the face,
+    /// not refused.** The quadratic in the plane `z = 1/2` through the
+    /// unit cylinder's point at azimuth `−1/2`, with offset
+    /// `(2s − 1)²/10` along its normal, touches the wall there from
+    /// outside, past the quarter sheet over azimuths `[0, π/2]`: no root
+    /// door reads a spline, so the touch is the carrier-touch door's,
+    /// and it lies off the face.
+    #[test]
+    fn a_spline_touch_past_the_face_is_off_it() {
+        use geom_core::spline::{KnotVector, Knots};
+        let band = Band::linear(Tol::witness()).expect("the witness band");
+        let mut y = Body::<f64>::new();
+        let frame = crate::test_support_fixtures::CylFrame::canonical(1.0);
+        let face = crate::test_support_fixtures::cyl_wall_sheet(
+            &mut y,
+            frame,
+            (0.0, core::f64::consts::FRAC_PI_2),
+            (0.0, 1.0),
+            Tol::witness(),
+        );
+        crate::test_support_fixtures::set_sheet_sense(&mut y, face, true, Tol::witness());
+        let (sin, cos) = (-0.5_f64).sin_cos();
+        let (p, n, t) = (
+            Point3::new(cos, sin, 0.5),
+            Vec3::new(cos, sin, 0.0),
+            Vec3::new(-sin, cos, 0.0),
+        );
+        let knots =
+            KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).expect("clamped knots");
+        let spline = geom::Curve3::Nurbs(std::sync::Arc::new(
+            geom::NurbsCurve3::new(
+                Knots::from(knots),
+                vec![p + n * 0.1 - t * 0.3, p - n * 0.1, p + n * 0.1 + t * 0.3],
+                vec![1.0; 3],
+            )
+            .expect("a quadratic Bézier"),
+        ));
+        let got = wall_crossing(&y, face, &frame.surface(), &spline, 0.0, 1.0, band);
+        assert!(
+            matches!(got, Ok(SpanVerdict::OffFace)),
+            "the touch lies past the sheet: {got:?}"
         );
     }
 }

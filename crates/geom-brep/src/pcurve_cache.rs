@@ -4231,6 +4231,38 @@ fn azimuth_lever<T: Real>(surface: &Surface<T>, v_sup: T) -> T {
     }
 }
 
+/// The inf of [`azimuth_lever`] over a chart window whose second
+/// parameter spans `[v_lo, v_hi]`, the arm's under-statement per kind:
+/// cylinder `r` (exact); sphere `r·cos v` at the window's largest `|v|`
+/// (`v` is a latitude, so `cos` decreases in `|v|` up to the pole, where
+/// it reads zero); torus `R − r` (`R + r·cos v ≥ R − r` at every `v`);
+/// cone `v_inf·sin α` with `v_inf` the window's least `|v|`, zero where
+/// the window straddles the apex. Never negative: a spindle torus, or a
+/// window on the pole, reads zero.
+fn azimuth_lever_inf<T: Real>(surface: &Surface<T>, v_lo: T, v_hi: T) -> InfSpeed<T> {
+    let arm = match *surface {
+        Surface::Cylinder { radius, .. } => radius,
+        Surface::Sphere { radius, .. } => {
+            let half_turn = T::pi() * T::from_f64(0.5);
+            radius * v_lo.abs().max(v_hi.abs()).min(half_turn).cos()
+        }
+        Surface::Torus {
+            major_radius,
+            minor_radius,
+            ..
+        } => major_radius - minor_radius,
+        Surface::Cone { half_angle, .. } => {
+            v_lo.max(T::zero() - v_hi).max(T::zero()) * half_angle.sin()
+        }
+        Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => unreachable!(
+            "azimuth_lever_inf: a {} chart has no azimuth, and every caller asks on a \
+             periodic chart only",
+            surface.kind().name()
+        ),
+    };
+    InfSpeed::new(arm.max(T::zero()))
+}
+
 /// The rate that meters this carrier's parameter into metres — the
 /// lever arm the forward-span and period checks use (the
 /// [`crate::certify`] convention: radians × the conservative radius).
@@ -5250,47 +5282,6 @@ fn incidence<T: Decide>(
     }
 }
 
-/// Why a [`Period`] decided no branch.
-#[derive(Clone, Debug)]
-pub enum BranchMiss {
-    /// A half-period mark is undecided: the gap is not resolved to one
-    /// branch at this width (D4 ¶3, escalate-never-guess). A gap that is
-    /// not a finite number, or whose branch no `i32` names, decides no
-    /// mark either, and reads here with an invalid margin.
-    Undecided(Indeterminate),
-    /// The gap sits ON a half-period mark (the mark decided Zero): it
-    /// is half a period from two branches and is the gap of neither — a
-    /// stored image half a period off (`topo::pcurves` reads a sphere's
-    /// twin as its own orbit point, with half the period, so a twin is
-    /// never this).
-    OnMark,
-}
-
-/// Where [`Period::decide`] stopped short of a branch: the miss, and the
-/// two branches `[j, j + 1]` either side of the mark it stopped on (none
-/// for a gap that names no mark at all, or where `j + 1` is past
-/// `i32::MAX`).
-#[derive(Clone, Debug)]
-pub struct WalkStop {
-    /// Why no branch was decided.
-    pub miss: BranchMiss,
-    /// The branches either side of the mark the walk stopped on.
-    pub astride: Option<[i32; 2]>,
-}
-
-/// **A periodic channel's period**: the length one whole turn of the
-/// channel spans, which every whole-period question of that channel is
-/// asked of. Today that is τ in azimuth, its half on a sphere joint's
-/// orbit (whose twin sits half a period over), and the first-channel
-/// period a loop walk decides its joints in. Two questions go through
-/// it:
-/// - a joint's deck element, decided by the half-period marks
-///   ([`Period::decide`]);
-/// - a deck element's shift, `k` periods as a length ([`Period::times`]).
-///
-/// No whole-period integer is read off a value: [`Period::decide`]
-/// decides it through the marks, and every other integer is structure.
-///
 /// **The principal windows** a periodic chart's angles are placed in
 /// ([`Window`]): an azimuth or a torus's tube angle in `(−1, τ − 1]`
 /// ([`ANGLE_WINDOW_START`], whose doc has the census that chose it),
@@ -5298,469 +5289,10 @@ pub struct WalkStop {
 /// ([`LATITUDE_WINDOW_START`]), about `1`, which holds every latitude
 /// the chart's points have, so each of those is named as itself. A
 /// row's angle at its span's midpoint is taken into its window by
-/// deciding the turns off it through these marks ([`Placement::turns`]). A net's channels keep
-/// their knot domain.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct Period<T> {
-    length: T,
-}
-
-impl<T: Real> Period<T> {
-    /// The channel's period, one whole turn of it.
-    pub fn new(length: T) -> Self {
-        Self { length }
-    }
-
-    /// The period as a length.
-    pub fn length(self) -> T {
-        self.length
-    }
-
-    /// Half the period, as a length: how far an offset may sit from a
-    /// whole number of periods and still be nearer it than the next.
-    pub fn half(self) -> T {
-        self.length / (T::one() + T::one())
-    }
-
-    /// `k` whole periods, as a length: a deck element's shift, or the
-    /// advance of a winding of `k`.
-    pub fn times(self, k: i32) -> T {
-        T::from_f64(f64::from(k)) * self.length
-    }
-
-    /// `k` windings of this channel as a rate per unit of a carrier's
-    /// parameter: [`Period::times`]`(k)` of this channel's period over
-    /// the carrier's `period`. A winding becomes a slope only here, read
-    /// through the two periods it is counted in (C4). Exact at `f64`
-    /// for the counts a closed-form table holds; at `Interval` it is a
-    /// tight enclosure of the ratio.
-    pub fn rate(self, k: i32, carrier: Period<T>) -> T {
-        self.times(k) / carrier.length()
-    }
-}
-
-impl<T: Decide> Period<T> {
-    /// **A branch, decided as structure**: the whole number of periods
-    /// `k` with `|gap − k·length| < length/2`, as the integer it is. It
-    /// is read off the half period of room a branch has, by sign
-    /// decisions against the half-period marks (`name`, metered through
-    /// `meter`), read outward from zero, never by rounding the gap. The
-    /// marks either side of zero first; then, on the side the gap lies,
-    /// the marks 1, 2, 4, 8, ... periods out until one is not cleared
-    /// (decided past, away from zero), and a bisection between it and
-    /// the last cleared. A gap that clears a mark clears every mark
-    /// nearer zero (the meter grows with the gap's distance from the
-    /// mark), so the mark the walk stops on is the first, from zero, that
-    /// the gap does not clear; where that mark decides Zero
-    /// ([`BranchMiss::OnMark`]) the gap is within the band's zero of it
-    /// in the meter's units, and the branches astride it are the gap's
-    /// own nearest. Out to two periods the marks asked are the ones a
-    /// step-by-step walk asks, in its order.
-    ///
-    /// No cap: the walk asks O(log k) marks however far out the gap
-    /// lies, and stops only on a mark it does not clear. Once images are
-    /// placed over their edges' spans (C4's placement, unit B of the
-    /// `[ev]` PR 5142 answer), a joint's gap is within about two periods
-    /// and the walk is a handful of decisions; until then a carrier
-    /// stated far off puts its gap that far out. A gap that is not
-    /// finite, or whose branch is past `i32`, decides nothing and stops
-    /// as undecided.
-    ///
-    /// # Errors
-    ///
-    /// [`WalkStop`]: a mark undecided, or the gap on a mark, each with
-    /// the branches astride it.
-    pub fn decide(
-        self,
-        name: &'static str,
-        gap: T,
-        meter: impl Fn(T) -> Margin<T>,
-        band: Band,
-    ) -> Result<i32, WalkStop> {
-        // A gap that names no branch reads as an unreadable margin, and
-        // the funnel records it as it records any. Two paths reach it: a
-        // gap that is not finite, which decided no mark, and a gap that
-        // clears the mark past `i32::MAX`, whose branch no `i32` names.
-        // A stop ON a mark keeps that mark's own miss (`across` below).
-        let unnamed = || WalkStop {
-            miss: BranchMiss::Undecided(
-                match decide(name, Margin::of(T::from_f64(f64::NAN)), band) {
-                    Err(cause) => cause,
-                    Ok(sign) => unreachable!("an unreadable margin classified {sign:?}"),
-                },
-            ),
-            astride: None,
-        };
-        if !geom_core::is_finite_length(gap) {
-            return Err(unnamed());
-        }
-        let half = T::from_f64(0.5);
-        // The mark `i + ½` periods up (`up`), or `i + ½` down, and
-        // whether the gap clears it: decided past it, away from zero.
-        // Spelled `k + side` with `k` the branch below or above it, as
-        // a step-by-step walk spells it, so the forms a decision builds
-        // are that walk's.
-        let mark = |i: i32, up: bool| {
-            let at = if up {
-                T::from_f64(f64::from(i)) + half
-            } else {
-                T::from_f64(f64::from(-i)) + (T::zero() - half)
-            };
-            let sign = decide(name, meter(gap - at * self.length), band);
-            let cleared = matches!(
-                (&sign, up),
-                (Ok(Sign::Positive), true) | (Ok(Sign::Negative), false)
-            );
-            (sign, cleared)
-        };
-        // The branch across the first mark, from zero, the gap does not
-        // clear: `i` periods out where the gap is decided short of it,
-        // else the stop on it with the branches astride it.
-        let across = |i: i32, up: bool, sign: Result<Sign, Indeterminate>| {
-            // The branch is `±i`, which an `i32` always names; the pair
-            // astride the mark is named only where both of its ends are
-            // (not past `i32::MAX`), and the stop keeps the mark's own
-            // miss either way.
-            let astride = || {
-                let i = i64::from(i);
-                let [lo, hi] = if up { [i, i + 1] } else { [-i - 1, -i] };
-                Some([i32::try_from(lo).ok()?, i32::try_from(hi).ok()?])
-            };
-            match sign {
-                Ok(Sign::Zero) => Err(WalkStop {
-                    miss: BranchMiss::OnMark,
-                    astride: astride(),
-                }),
-                Ok(_) => Ok(if up { i } else { -i }),
-                Err(cause) => Err(WalkStop {
-                    miss: BranchMiss::Undecided(cause),
-                    astride: astride(),
-                }),
-            }
-        };
-        let up = match mark(0, true) {
-            (_, true) => true,
-            (sign @ (Ok(Sign::Zero) | Err(_)), false) => return across(0, true, sign),
-            (_, false) => match mark(0, false) {
-                (_, true) => false,
-                (sign, false) => return across(0, false, sign),
-            },
-        };
-        // Mark 0 is cleared. Gallop out (marks 1, 2, 4, 8, ...) to the
-        // first the gap does not clear, then bisect between it and the
-        // last it clears: the marks it clears are those nearer zero, so
-        // the mark found is the first uncleared from zero, and the walk
-        // asks O(log k) marks however far out the gap lies.
-        let (mut cleared, mut probe) = (0, 1);
-        let mut stop = loop {
-            let (sign, past) = mark(probe, up);
-            if !past {
-                break (probe, sign);
-            }
-            if probe == i32::MAX {
-                return Err(unnamed());
-            }
-            cleared = probe;
-            probe = probe.saturating_mul(2);
-        };
-        while stop.0 - cleared > 1 {
-            let mid = cleared + (stop.0 - cleared) / 2;
-            match mark(mid, up) {
-                (_, true) => cleared = mid,
-                (sign, false) => stop = (mid, sign),
-            }
-        }
-        across(stop.0, up, stop.1)
-    }
-}
-
-#[cfg(test)]
-#[allow(clippy::expect_used, clippy::panic)]
-mod period_rows {
-    use geom_core::{Band, Interval, Margin, Real, SpanLocate};
-
-    use super::{BranchMiss, Period, WalkStop};
-
-    fn band() -> Band {
-        Band::new(1e-9, 1e-8).expect("a band")
-    }
-
-    /// **The marks are read from zero, however far out.** A gap 25 and a
-    /// fraction periods out decides `25`; seven half periods decide `7`
-    /// on an orbit whose step is half a period.
-    #[test]
-    fn a_far_gap_decides_its_branch_with_no_cap() {
-        let tau = f64::tau();
-        let period = Period::new(tau);
-        assert!(matches!(
-            period.decide("t", 25.3 * tau, Margin::of, band()),
-            Ok(25)
-        ));
-        assert!(matches!(
-            period.decide("t", -25.3 * tau, Margin::of, band()),
-            Ok(-25)
-        ));
-        let half = Period::new(tau / 2.0);
-        assert!(matches!(
-            half.decide("t", 3.5 * tau, Margin::of, band()),
-            Ok(7)
-        ));
-    }
-
-    /// **A far gap on a mark names the branches astride it.** A bracket
-    /// straddling the mark 40.5 periods out decides neither branch, and
-    /// the walk stops on that mark with `[40, 41]`.
-    #[test]
-    fn a_far_gap_on_a_mark_stops_astride_it() {
-        let mark = Interval::from_f64(40.5 * f64::tau());
-        let gap =
-            (mark - Interval::from_f64(1e-10)).enclosure_hull(mark + Interval::from_f64(1e-10));
-        match Period::new(Interval::tau()).decide("t", gap, Margin::of, band()) {
-            Err(WalkStop {
-                miss: BranchMiss::OnMark | BranchMiss::Undecided(_),
-                astride: Some([40, 41]),
-            }) => {}
-            other => panic!("the walk stops on the mark at 40.5 periods: {other:?}"),
-        }
-    }
-
-    /// The step-by-step walk the gallop stands for: each mark from zero
-    /// in turn, out to the first the gap does not clear.
-    fn step_walk(gap: f64, asked: &core::cell::RefCell<Vec<f64>>) -> Result<i32, String> {
-        let tau = f64::tau();
-        let mark = |at: f64| {
-            let m = gap - at * tau;
-            asked.borrow_mut().push(m);
-            geom_core::k_stats::decide("t", Margin::of(m), band())
-        };
-        let on = |k: i32, side: f64| f64::from(k) + side;
-        let mut k = 0;
-        let (mut below, mut above) = (false, false);
-        loop {
-            if !above {
-                match mark(on(k, 0.5)) {
-                    Ok(geom_core::Sign::Negative) => {}
-                    Ok(geom_core::Sign::Positive) => {
-                        (k, below, above) = (k + 1, true, false);
-                        continue;
-                    }
-                    other => return Err(format!("{other:?} [{k}, {}]", k + 1)),
-                }
-            }
-            if !below {
-                match mark(on(k, -0.5)) {
-                    Ok(geom_core::Sign::Positive) => {}
-                    Ok(geom_core::Sign::Negative) => {
-                        (k, below, above) = (k - 1, false, true);
-                        continue;
-                    }
-                    other => return Err(format!("{other:?} [{}, {k}]", k - 1)),
-                }
-            }
-            return Ok(k);
-        }
-    }
-
-    /// **The gallop answers as the step-by-step walk does**, on branches,
-    /// on marks and in band, from 40 periods down to 40 up; out to two
-    /// periods it asks the same marks in the same order.
-    #[test]
-    fn the_gallop_answers_as_the_step_walk_does() {
-        let tau = f64::tau();
-        let band = band();
-        let mut gaps = Vec::new();
-        for k in -40..=40 {
-            for frac in [0.0, 0.2, 0.49, -0.3] {
-                gaps.push((f64::from(k) + frac) * tau);
-            }
-            let mark = (f64::from(k) + 0.5) * tau;
-            gaps.extend([
-                mark,
-                mark + 0.5 * band.zero(),
-                mark + 0.5 * (band.zero() + band.escalate()),
-            ]);
-        }
-        for gap in gaps {
-            let (walked, galloped) = (
-                core::cell::RefCell::new(Vec::new()),
-                core::cell::RefCell::new(Vec::new()),
-            );
-            let want = step_walk(gap, &walked);
-            let got = Period::new(tau)
-                .decide(
-                    "t",
-                    gap,
-                    |m| {
-                        galloped.borrow_mut().push(m);
-                        Margin::of(m)
-                    },
-                    band,
-                )
-                .map_err(|stop| {
-                    let [lo, hi] = stop.astride.expect("a finite gap stops on a mark");
-                    let sign = match stop.miss {
-                        BranchMiss::OnMark => "Ok(Zero)".to_owned(),
-                        BranchMiss::Undecided(cause) => format!("{:?}", Err::<(), _>(cause)),
-                    };
-                    format!("{sign} [{lo}, {hi}]")
-                });
-            assert_eq!(got, want, "gap {:.6} periods", gap / tau);
-            if (gap / tau).abs() <= 2.5 {
-                assert_eq!(
-                    *galloped.borrow(),
-                    *walked.borrow(),
-                    "gap {:.6} periods",
-                    gap / tau
-                );
-            }
-        }
-    }
-
-    /// **A far gap costs O(log k) marks**, and a branch past `i32`
-    /// decides nothing: a billion periods out answers in under a hundred
-    /// marks, and three billion stops undecided with no mark named.
-    #[test]
-    fn a_far_gap_costs_log_k_marks() {
-        let tau = f64::tau();
-        let asked = core::cell::Cell::new(0);
-        let meter = |m| {
-            asked.set(asked.get() + 1);
-            Margin::of(m)
-        };
-        let period = Period::new(tau);
-        assert!(matches!(
-            period.decide("t", (1e9 + 0.25) * tau, meter, band()),
-            Ok(1_000_000_000)
-        ));
-        assert!(asked.get() < 100, "{} marks", asked.get());
-        assert!(matches!(
-            period.decide("t", -3e9 * tau, Margin::of, band()),
-            Err(WalkStop {
-                miss: BranchMiss::Undecided(_),
-                astride: None
-            })
-        ));
-    }
-
-    /// **A branch an `i32` names is answered, to its last value.** A
-    /// gap just past `i32::MAX` periods decides `i32::MAX`, and its
-    /// mirror `−i32::MAX`: the pair astride a mark is formed only where
-    /// the walk stops on one.
-    #[test]
-    fn a_branch_at_i32_max_is_answered() {
-        let tau = f64::tau();
-        let k = f64::from(i32::MAX);
-        let period = Period::new(tau);
-        let up = period.decide("t", (k + 0.1) * tau, Margin::of, band());
-        let down = period.decide("t", -(k + 0.1) * tau, Margin::of, band());
-        assert!(matches!(up, Ok(i32::MAX)), "up: {up:?}");
-        assert!(matches!(down, Ok(-2_147_483_647)), "down: {down:?}");
-    }
-
-    test_utils::gated_to!["crates/geom-brep/src/pcurve_cache.rs"];
-
-    /// **The gallop answers as the step-by-step walk does at `Interval`,
-    /// levered** (a counterexample search: the seed varies). Enclosures
-    /// of every width from a point to two periods, centred out to 300
-    /// periods, half of them within 1e-7 periods of a half-period mark,
-    /// metered at a lever of 0.37: the answer, the miss and the pair
-    /// astride it agree with a walk that asks every mark from zero.
-    #[test]
-    fn the_gallop_answers_as_the_step_walk_does_at_interval() {
-        use geom_core::k_stats::decide;
-        use geom_core::{Real as _, Sign};
-        use test_utils::fuzz;
-        let mut rng = fuzz::start("pcurve_cache::period_rows::gallop_at_interval");
-        let tau = Interval::tau();
-        let arm = Interval::from_f64(0.37);
-        let band = band();
-        let meter = |g| Margin::levered(g, arm);
-        let step_walk = |gap: Interval| -> String {
-            let half = Interval::from_f64(0.5);
-            let mark = |k: i32, side: Interval| {
-                decide(
-                    "t",
-                    meter(gap - (Interval::from_f64(f64::from(k)) + side) * tau),
-                    band,
-                )
-            };
-            let (mut k, mut below, mut above) = (0i32, false, false);
-            loop {
-                if !above {
-                    match mark(k, half) {
-                        Ok(Sign::Negative) => {}
-                        Ok(Sign::Positive) => {
-                            (k, below, above) = (k + 1, true, false);
-                            continue;
-                        }
-                        Ok(Sign::Zero) => return format!("OnMark {:?}", [k, k + 1]),
-                        Err(_) => return format!("Undecided {:?}", [k, k + 1]),
-                    }
-                }
-                if !below {
-                    match mark(k, Interval::zero() - half) {
-                        Ok(Sign::Positive) => {}
-                        Ok(Sign::Negative) => {
-                            (k, below, above) = (k - 1, false, true);
-                            continue;
-                        }
-                        Ok(Sign::Zero) => return format!("OnMark {:?}", [k - 1, k]),
-                        Err(_) => return format!("Undecided {:?}", [k - 1, k]),
-                    }
-                }
-                return format!("Ok({k})");
-            }
-        };
-        let widths = [0.0, 1e-12, 1e-9, 3e-8, 1e-3, 0.4, 2.0];
-        for trial in 0..fuzz::scaled(20_000) {
-            let mut c = rng.range(-300.0, 300.0);
-            if rng.unit() < 0.5 {
-                c = c.round() + 0.5 + rng.range(-5e-8, 5e-8);
-            }
-            let w = widths[rng.below(widths.len())];
-            let gap = (tau * Interval::from_f64(c)).enclosure_hull(tau * Interval::from_f64(c + w));
-            let got = match Period::new(tau).decide("t", gap, meter, band) {
-                Ok(k) => format!("Ok({k})"),
-                Err(WalkStop {
-                    miss: BranchMiss::OnMark,
-                    astride: Some(a),
-                }) => format!("OnMark {a:?}"),
-                Err(WalkStop {
-                    miss: BranchMiss::Undecided(_),
-                    astride: Some(a),
-                }) => format!("Undecided {a:?}"),
-                Err(other) => format!("{other:?}"),
-            };
-            assert_eq!(
-                got,
-                step_walk(gap),
-                "seed {:#x}, trial {trial}: centre {c} periods, width {w}",
-                fuzz::seed()
-            );
-        }
-    }
-
-    /// **A gap that names no number decides nothing.** An infinite or
-    /// NaN gap stops at once as undecided, with no mark: an infinite
-    /// margin would read every mark definite and the walk would never
-    /// end.
-    #[test]
-    fn a_gap_that_is_not_finite_stops_undecided() {
-        let period = Period::new(f64::tau());
-        for gap in [f64::INFINITY, f64::NEG_INFINITY, f64::NAN] {
-            assert!(
-                matches!(
-                    period.decide("t", gap, Margin::of, band()),
-                    Err(WalkStop {
-                        miss: BranchMiss::Undecided(_),
-                        astride: None
-                    })
-                ),
-                "{gap}"
-            );
-        }
-    }
-}
+/// deciding the turns off it through a [`Period`]'s marks
+/// ([`Placement::turns`]). A net's channels keep their knot domain.
+pub use geom_core::period::Period;
+pub use geom_core::period::{BranchMiss, WalkStop};
 
 /// The `(u, v)` periods of an analytic chart's channels: `None` where the
 /// channel is a length ([`angle_periods`]).
@@ -8211,7 +7743,20 @@ pub(crate) enum Along {
 /// has the length its ends give it), and, for a span wholly on the axis (a
 /// pole or apex vertex read over no length), at the farthest its carrier
 /// reaches over its own interval; only a carrier wholly on the axis has
-/// none. The tube angle at the torus's minor radius; the latitude at the
+/// none.
+///
+/// **What the azimuth lever is.** A point's azimuth rate is its distance
+/// from the axis, so over the span the rate runs from its inf (zero, on
+/// an edge through the axis) to its sup, the span's largest reach. Three
+/// samples of the reach are a floor on that sup, not on the rate
+/// everywhere: the lever is the least the span's farthest point moves per
+/// radian. That is the side a placement needs and no more, since every
+/// outcome of its marks names a placement of the same curve: either side
+/// of a decided mark, or the tie-break on one in band, are whole turns
+/// apart ([`Placement`], *What holds across scalars*). The lever only
+/// sets how wide the band about each mark reads, and a floor never
+/// decides a mark apart that the span's largest movement would leave in
+/// band. The tube angle at the torus's minor radius; the latitude at the
 /// sphere's radius. A chart without one of those angles carries `1` in
 /// its slot, which no arm reads (no arm places a tube angle off a torus,
 /// or a latitude off a sphere).
@@ -8317,7 +7862,7 @@ impl<T: Decide> Placement<T> {
     /// read piece by piece (the projected one), the turns its deck origin
     /// takes. The turns are decided through the half-period marks about
     /// the window's centre (C4: a whole-period choice a reader tells apart
-    /// goes through the marks), levered at the angle's lever ([`Levers`]).
+    /// goes through the marks), metered at the angle's lever ([`Levers`]).
     /// A lever of zero (an edge wholly on the axis, a pole's zero-radius
     /// parallel; at `Interval`, an enclosure reaching zero) moves nothing,
     /// so every copy is the same curve and the angle as read is kept, at
@@ -8349,7 +7894,7 @@ impl<T: Decide> Placement<T> {
         match Period::new(T::tau()).decide(
             "pcurve_chart_placement",
             at - centre,
-            |g| Margin::levered(g, lever),
+            |g| Margin::metered(g, InfSpeed::new(lever)),
             band,
         ) {
             Ok(k) => Ok(k),

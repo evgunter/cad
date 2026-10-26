@@ -2,11 +2,10 @@
 id: offset-fit-at-tight-eps-refuses-every-curved-nurbs-chart
 kind: issue
 title: the offset fit's certified bound rises from round 6 on, from Bézier-insertion width, so tight-eps fits refuse; and no NURBS-walled body shells, so the body-level cost has no operand
-status: parked
+status: open
 opened: 2026-09-05
 priority: P0
 cost: H
-blocked_on: [f64-refinement-inside-an-enclosure-has-five-more-sites]
 ---
 
 **Owner: the offset fit's — PROPS / S-CERT
@@ -131,3 +130,7 @@ public-API body and both of its boundaries are pinned in
 `OFFSET_FIT_BUDGET` and `BudgetExhausted` are gone: a loop whose bound still falls refines until it certifies, stalls, or meets `OFFSET_FIT_SAMPLE_CAP`. That cap is now `us.len() · vs.len() ≤ 48² = 2304`.
 - The saddle wall's `d = ±0.05` case above certifies at the default ε on 49×26, round 9.
 - `bowed()` at 1e-12 needed 49×49 = 2401 samples on the schedule measured above, which is still over the total cap. It is not re-measured on this branch.
+
+## Un-parked (band-rule triage, 2026-10-25)
+
+This row parked on `f64-refinement-inside-an-enclosure-has-five-more-sites` for its site 5 alone, the lerp form of `insert_once_ring`. PR 3524 closed that site (`work/encl/log.md`, 2026-09-30, which re-measured this row's figures against the fix). The site still open on that row, `crates/mesh/src/chords.rs`'s chord bound, does not touch the offset fit. What is left here is §1's limits question (`bowed()` at 1e-12 wants 2401 samples against the 2304 total cap) and §2's missing operand, and neither waits on that row.

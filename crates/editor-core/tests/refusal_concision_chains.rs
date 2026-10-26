@@ -887,7 +887,7 @@ mod kernel {
             Band, NonFiniteAxis, UnderflowedAxis, DegenerateAxis, AxisEscalated, Turn,
             DegenerateAngle, FullRangeAngle, AngleEscalated, VertexCrossesAxis,
             SliverRadius, ArcCrossesAxis, SliverAxisClearance, UnsupportedToroid,
-            NonManifoldAxisContact, MultipleAxisRuns, HoleTouchesAxis, VoidInsertion,
+            NonManifoldAxisContact, AxisGapEscalated, HoleTouchesAxis, VoidInsertion,
             CosurfaceEscalated, SliverJoin, SliverRim, SmoothJoinRefuted,
             PinnedRunStation, CapPlane, Op, Pcurve,
         ];
@@ -2206,12 +2206,19 @@ fn revolve_arms() -> Vec<(&'static str, sweep::RevolveError)> {
                 vertex_index: 3,
             },
         ),
-        ("MultipleAxisRuns", E::MultipleAxisRuns { loop_index: 0 }),
+        (
+            "AxisGapEscalated",
+            E::AxisGapEscalated {
+                loop_index: 0,
+                vertex_index: 3,
+                source: diag(),
+            },
+        ),
         ("HoleTouchesAxis", E::HoleTouchesAxis { loop_index: 1 }),
         (
             "VoidInsertion",
             E::VoidInsertion {
-                loop_index: 1,
+                cavity: sweep::CavityOrigin::Hole { loop_index: 1 },
                 source: topo::VoidInsertError::NotStrictlyContained {
                     shell: topo::ShellKey::default(),
                 },

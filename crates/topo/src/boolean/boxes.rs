@@ -3740,9 +3740,13 @@ pub(crate) mod tests {
         // its bricks' faces to hand the arm's question what the scan
         // hands it. `boolean/torn_hop_rows.rs`' four are not
         // doors either: its torn-body witnesses call `face_box` and
-        // `edge_box` to show a torn link panics.
-        const PINNED: [(&str, usize); 12] = [
+        // `edge_box` to show a torn link panics. Nor is
+        // `boolean/carrier_touch_rows.rs`' one: a spiric-edge witness
+        // calls `edge_box` to show its ball lies inside the edge's box,
+        // so that only the edge's own floor can clear it.
+        const PINNED: [(&str, usize); 13] = [
             ("boolean/carrier_touch.rs", 1),
+            ("boolean/carrier_touch_rows.rs", 1),
             ("boolean/glue.rs", 2),
             ("boolean/mod.rs", 1),
             ("boolean/ops.rs", 4),

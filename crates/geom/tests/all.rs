@@ -101,6 +101,10 @@ mod curves_m5_pr7_speed_meter;
 mod curves_m8_14_long_turn_meter;
 #[path = "curves/n1r1_c24_dump.rs"]
 mod curves_n1r1_c24_dump;
+#[path = "r2_turn_probes.rs"]
+mod r2_turn_probes;
+#[path = "review_turn_follow_ups_probes.rs"]
+mod review_turn_follow_ups_probes;
 // Lane registration (aggregation guard): the R1 meter probe was pushed
 // without a `#[path]` line.
 #[path = "cert_n2r2_probes.rs"]

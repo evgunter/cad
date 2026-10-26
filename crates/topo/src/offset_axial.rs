@@ -289,7 +289,7 @@ use geom::{Curve3, Surface};
 use geom_brep::EdgeCurveSpec;
 use geom_core::k_stats::decide;
 use geom_core::{
-    Arc2, Band, Decide, Indeterminate, Margin, Point3, Real, Sign, SpanLocate, Tol, Vec3,
+    Arc2, Band, Decide, Indeterminate, InfSpeed, Margin, Point3, Real, Sign, SpanLocate, Tol, Vec3,
 };
 
 use crate::attach::Rechart;
@@ -2743,9 +2743,9 @@ fn param_speeds<T: SpanLocate>(carrier: &Curve3<T>) -> Option<(T, T)> {
 ///
 /// The number of turns is decided as structure
 /// ([`geom_brep::Period::decide`]): sign decisions at the half-turn
-/// marks of `read − old`, levered at `lever`, so it is a literal at every
-/// scalar, and [`forward_window`]'s `offset_axial_edge_turn` reads
-/// `kept − read` as the constant it is. A mark decided either way admits
+/// marks of `read − old`, metered at `lever` ([`Margin::metered`]), so
+/// it is a literal at every scalar, and [`forward_window`]'s
+/// `offset_axial_edge_turn` reads `kept − read` as the constant it is. A mark decided either way admits
 /// a turn, so the lever is the carrier's speed FLOOR ([`param_speeds`]'
 /// rule for a decision whose sign admits); an arc's re-authored sweep
 /// levers at its circle's radius.
@@ -2775,7 +2775,7 @@ fn keep_turn<T: Decide>(
         .decide(
             "offset_axial_keep_turn",
             gap,
-            |g| Margin::levered(g, lever),
+            |g| Margin::metered(g, InfSpeed::new(lever)),
             band,
         )
         .map_err(|stop| stop.miss)

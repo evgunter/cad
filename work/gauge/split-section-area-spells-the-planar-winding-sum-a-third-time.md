@@ -67,9 +67,9 @@ area; listed so the next sweep does not re-find them:**
   (sampled points). Not carrier-bounded.
 - `crates/mesh/src/curved.rs` — a UV shoelace (`area2`) read for a
   chart DIRECTION flip, not a winding verdict (its own comment says so).
-- `crates/step-export/src/volume.rs` — `area2` cross-sum per face for a
-  divergence-theorem volume; Line-only (any other carrier refuses
-  `CurvedShellClassification`).
+- `crates/step-export/src/writer.rs` `void_refusal` — no sum of its
+  own: the writer reads multi-shell roles and volumes through
+  `topo::classify_shells_of`.
 - `crates/step-import/src/recognize.rs` — Newell over a control net's
   boundary ring to recognize a plane; normal only.
 

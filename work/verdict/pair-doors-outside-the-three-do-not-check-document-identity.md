@@ -202,3 +202,15 @@ The `## Spec` above is EDIT's and is spent. PROPS writes its own for
 the `stackup` and `drive` doors; the shape it should follow is the
 one this row records — one arm per door over `ident::mispaired`, in
 that door's own error vocabulary.
+
+## The stackup doors (2026-10-25, OFFSET)
+
+`stackup::sensitivities` and `stackup::stackup` now check their handed
+build of record, in the shape above: one arm,
+`BindingViolation::EvaluationOfAnotherDocument`, over
+`ident::mispaired`, built by OFFSET's
+`the-sensitivity-report-binds-by-build-identity-and-checks-the-measured-value`
+(branch `offset/sensitivity-build-identity`), where the report binds
+the build of record to its passes by build identity (DUAL-DESIGN DL3).
+Pinned in `m10_4_stackup_interval::the_binding_is_red_capable_on_a_stale_build`.
+What remains of this row is `drive::certifying`.

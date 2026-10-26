@@ -5,11 +5,12 @@ Every row moved from `work/emit/` by `git mv`, id kept.
 
 ## The slate
 
-**29.5 budget points** of dispatchable work against a ceiling of 30
+**34.5 budget points** of dispatchable work against a ceiling of 30
 (unpriced rows charged 2.5).
 
 | pri | item | cost | title |
 |---|---|---|---|
+| P2 | `a-direct-operands-own-split-lineage-climbs-to-a-live-sibling-seam` | M | Borders reads a Direct operand's own split lineage up to a live sibling edge and credits a piece with the sibling's discard seam (filed by FLUSH, 2026-10-26) |
 | P2 | `a-union-over-a-stepped-plate-refuses-in-the-orders-that-fold-the-plate-early` | M | Unions over a stepped plate or a flush engulf refuse 'a piece of a face held as several borders no recorded discard between them' in some me |
 | P3 | `a-discard-border-inside-a-merged-face-or-joined-edge-reads-as-no-border` | M +design | A discard's bordered stretch whose end settles inside a merged face or a joined edge is read as no border |
 | P3 | `a-face-whose-discarded-fragments-share-a-chord-has-no-fixture` | M | No fixture pins the Borders obstacle join of two discarded fragments of one face across a chord |

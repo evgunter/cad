@@ -70,7 +70,7 @@
 use geom_core::bisect::{Step, bisect};
 use geom_core::k_stats::{decide, decide_reported, straddle};
 use geom_core::{
-    Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Point3, Real, Sign, Vec3,
+    Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Point3, Real, Sign, SupSpeed, Vec3,
 };
 
 use super::Curve3;
@@ -213,14 +213,66 @@ impl From<Indeterminate> for CarrierRefusal {
     }
 }
 
-/// A run `(a, b)` of a spline's domain.
-#[derive(Clone, Copy)]
-struct Piece<T> {
-    a: T,
-    b: T,
+/// What a [`Curve3::point_walk`] visit makes of a piece.
+pub enum PieceStep<R> {
+    /// Nothing more to read in it.
+    Settled,
+    /// Read its two halves, the earlier first.
+    Halve,
+    /// The walk's question is answered, by `R`: stop.
+    Stop(R),
+}
+
+/// A piece of a [`Curve3::point_walk`], as its visit reads it.
+#[derive(Clone, Copy, Debug)]
+pub struct PieceRead<T> {
+    /// The piece's parameter run.
+    pub span: (T, T),
+    /// Its middle parameter ([`crate::mid_param`]).
+    pub mid: T,
+    /// The distance from the walk's point to the carrier's point at
+    /// `mid`.
+    pub gap: T,
+    /// The most metres a point of the piece lies from that point
+    /// ([`geom_core::bisect::reach`] at the walk's speed bound), so
+    /// `gap − reach` is a floor on the piece's distance from the point.
+    pub reach: T,
 }
 
 impl<T: Decide> Curve3<T> {
+    /// **The point-against-span piece walk**: `(t0, t1)` halved depth
+    /// first ([`geom_core::bisect`]), each piece read against `q` as
+    /// [`PieceRead`], with `hi` a bound on the carrier's speed. What a
+    /// reading settles is `visit`'s: the one walk behind
+    /// [`Self::clear_of`] and every other reading of a point against a
+    /// span by its pieces.
+    ///
+    /// # Errors
+    ///
+    /// [`geom_core::bisect::Exhausted`] past the piece budget.
+    pub fn point_walk<R>(
+        &self,
+        q: Point3<T>,
+        (t0, t1): (T, T),
+        hi: SupSpeed<T>,
+        mut visit: impl FnMut(PieceRead<T>) -> PieceStep<R>,
+    ) -> Result<Option<R>, geom_core::bisect::Exhausted> {
+        bisect([(t0, t1)], |(a, b)| {
+            let mid = crate::mid_param(a, b);
+            let read = PieceRead {
+                span: (a, b),
+                mid,
+                gap: (self.eval(mid) - q).norm(),
+                reach: geom_core::bisect::reach(hi, (a, b)),
+            };
+            match visit(read) {
+                PieceStep::Settled => Step::Settled,
+                PieceStep::Halve => Step::Halve([(a, mid), (mid, b)]),
+                PieceStep::Stop(answer) => Step::Stop(answer),
+            }
+        })
+    }
+
     /// **`q`'s foot on the carrier** (module docs). `near` is a seed: the
     /// parameter a consumer already holds for `q`, or any parameter of
     /// the interval it reads.
@@ -435,14 +487,14 @@ impl<T: Decide> Curve3<T> {
             return Err(CarrierRefusal::Unbounded);
         }
         let mut kept: Option<Result<Decided, Indeterminate>> = None;
-        bisect(
-            [Piece { a: t0, b: t1 }],
-            |p: Piece<T>| -> Step<Piece<T>, core::convert::Infallible> {
-                let m = crate::mid_param(p.a, p.b);
-                let reach = geom_core::bisect::reach(hi, (p.a, p.b));
+        self.point_walk(
+            q,
+            (t0, t1),
+            hi,
+            |p| -> PieceStep<core::convert::Infallible> {
                 let clear = decide_reported(
                     "curve_carrier_piece_clear",
-                    Margin::of((self.eval(m) - q).norm() - reach),
+                    Margin::of(p.gap - p.reach),
                     band,
                 );
                 if matches!(
@@ -452,16 +504,16 @@ impl<T: Decide> Curve3<T> {
                         ..
                     })
                 ) {
-                    return Step::Settled;
+                    return PieceStep::Settled;
                 }
                 if matches!(
-                    decide("curve_carrier_piece", Margin::of(reach), band),
+                    decide("curve_carrier_piece", Margin::of(p.reach), band),
                     Ok(Sign::Negative | Sign::Zero)
                 ) {
                     kept = kept.or(Some(clear));
-                    return Step::Settled;
+                    return PieceStep::Settled;
                 }
-                Step::Halve([Piece { a: p.a, b: m }, Piece { a: m, b: p.b }])
+                PieceStep::Halve
             },
         )
         .map_err(|_| CarrierRefusal::Exhausted)?;

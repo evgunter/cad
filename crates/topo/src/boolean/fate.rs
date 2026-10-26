@@ -13,8 +13,9 @@
 //! ([`FateEdge`]): on its one side the dropped face is substituted, on
 //! its other side not.
 //!
-//! After the join, [`cut`] divides the dropped face along each such
-//! edge with a one-sided chord, between the vertices the dropped
+//! After the join, or once a containment fallback has built its result
+//! (`ops::fallback_fates`), [`cut`] divides the dropped face along each
+//! such edge with a one-sided chord, between the vertices the dropped
 //! operand holds at the edge's two ends: the partner of a vertex–vertex
 //! site, the ring vertex of a pierce, or, where the face holds no vertex
 //! there (a vertex-on-face site the classification did no surgery at, or
@@ -86,6 +87,17 @@ pub(crate) enum KeptAt<T: geom_core::Real> {
     Pierced(FaceKey, VertexKey, Vec3<T>),
 }
 
+impl<T: geom_core::Real> KeptAt<T> {
+    /// The kept face, in the holder's clone keys, as the classification
+    /// read it.
+    pub(crate) fn face(&self) -> FaceKey {
+        match *self {
+            Self::Sector(s) => s.face,
+            Self::Pierced(f, ..) => f,
+        }
+    }
+}
+
 /// A dropped sector the kept copy holds wholly (module docs).
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct FateCorner<T: geom_core::Real> {
@@ -136,6 +148,30 @@ pub struct SubstitutedFace {
     pub face: FaceKey,
     /// The kept face holding it, in the other operand's clone keys.
     pub by: FaceKey,
+}
+
+/// **A dropped coincident face a containment fallback could not divide**
+/// (`BooleanNaming::uncut`): a kept face holds part of it, and the cut
+/// that would divide it where the held region ends met one of the cut's
+/// placement limits (`fate::Limit`). No row names any part of
+/// it, neither a [`SubstitutedFace`] nor a discard: the naming says
+/// nothing of which part the kept face holds, and a reader meets an
+/// absence. The fallback keeps or drops whole shells, so the face's
+/// refusal moves no body and no other face's cut. Clone keys, as
+/// [`SubstitutedFace`]'s.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UncutFace {
+    /// The dropped copy's operand.
+    pub operand: Operand,
+    /// The dropped face, whole.
+    pub face: FaceKey,
+    /// The kept face holding part of it, in the other operand's clone
+    /// keys.
+    pub by: FaceKey,
+    /// The cut's refusal.
+    pub kind: super::BooleanErrorKind,
+    /// Its words.
+    pub what: String,
 }
 
 /// A one-sided chord and the kept edge it runs along.
@@ -225,6 +261,94 @@ pub(super) fn border_fates<T: geom_core::Real>(
     }
     fates.edges = edges;
     Ok(fates)
+}
+
+/// **The cut's placement limits**: the poses where the rules here
+/// cannot place a chord or a ring in the dropped face as the face stands.
+/// Each is a pose the cut has no rule for, not a defect: a key that does
+/// not resolve is [`BooleanError::JoinDesync`], a reading in band is
+/// [`BooleanError::Escalated`], and an Euler operator's refusal is its
+/// own; none of those is one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum Limit {
+    /// A chord's end reads in no corner of the dropped face.
+    NoCorner,
+    /// A chord's end reads in several corners at once.
+    SeveralCorners,
+    /// A ring of a divided face lies on the new piece's boundary at
+    /// every vertex.
+    RingUnplaced,
+    /// A closed kept edge's one vertex leaves and returns through two
+    /// corners no rule here joins.
+    ClosedAtOneVertex,
+    /// A ring the chord closes, on a face with no one normal to wind it
+    /// by.
+    RingOnCurved,
+    /// A circular edge, on a face with no one normal to wind it by.
+    CircleOnCurved,
+}
+
+impl Limit {
+    /// Its words, as the section path refuses with them.
+    const fn what(self) -> &'static str {
+        match self {
+            Self::NoCorner => "a fate cut's end lies in no corner of the dropped face",
+            Self::SeveralCorners => "a fate cut's end lies in several corners of the dropped face",
+            Self::RingUnplaced => {
+                "a ring of a face a fate cut divides is placed at none of its vertices"
+            }
+            Self::ClosedAtOneVertex => {
+                "a fate cut along a closed kept edge has both ends at one vertex of the dropped face"
+            }
+            Self::RingOnCurved => "a fate cut closes a ring on a curved face",
+            Self::CircleOnCurved => "a fate cut closes a circular edge on a curved face",
+        }
+    }
+}
+
+/// A refusal of [`cut`]: one of its placement limits, or any other
+/// refusal, as it is.
+#[derive(Debug)]
+pub(super) enum CutError {
+    /// A placement limit ([`Limit`]).
+    Limit(Limit),
+    /// Any other refusal.
+    Refused(BooleanError),
+}
+
+impl From<Limit> for CutError {
+    fn from(limit: Limit) -> Self {
+        Self::Limit(limit)
+    }
+}
+
+impl From<BooleanError> for CutError {
+    fn from(e: BooleanError) -> Self {
+        Self::Refused(e)
+    }
+}
+
+impl From<crate::lineage::RowRefusal> for CutError {
+    fn from(e: crate::lineage::RowRefusal) -> Self {
+        Self::Refused(e.into())
+    }
+}
+
+impl From<crate::euler::EulerOpError> for CutError {
+    fn from(e: crate::euler::EulerOpError) -> Self {
+        Self::Refused(e.into())
+    }
+}
+
+/// A limit refuses the boolean that cannot place its cut as the broken
+/// invariant it would be there (the section path).
+impl From<CutError> for BooleanError {
+    fn from(e: CutError) -> Self {
+        match e {
+            CutError::Limit(limit) => Self::ClassificationInvariant { what: limit.what() },
+            CutError::Refused(e) => e,
+        }
+    }
 }
 
 /// Where a chord meets the dropped face at one of its ends.
@@ -470,7 +594,7 @@ fn place<T: Decide>(
     divisions: &FaceDivisions,
     leaving: Leaving<T>,
     band: Band,
-) -> Result<Option<Place>, BooleanError> {
+) -> Result<Option<Place>, CutError> {
     let mut corners = Vec::new();
     let readings = [(leaving.tangent, false), (leaving.secant, true)];
     for (k, (d, secant)) in readings.into_iter().enumerate() {
@@ -493,13 +617,12 @@ fn place<T: Decide>(
             return Ok(Some(*one));
         }
     }
-    Err(BooleanError::ClassificationInvariant {
-        what: if corners.is_empty() {
-            "a fate cut's end lies in no corner of the dropped face"
-        } else {
-            "a fate cut's end lies in several corners of the dropped face"
-        },
-    })
+    Err(if corners.is_empty() {
+        Limit::NoCorner
+    } else {
+        Limit::SeveralCorners
+    }
+    .into())
 }
 
 /// Whether a face divided from `root` holds one of `at`, a lone vertex
@@ -596,6 +719,31 @@ fn end_at<T: geom_core::Real>(
         })
 }
 
+/// The one face divided from `root`, null faces aside, where it is one
+/// piece: that piece holds whatever the face held.
+fn one_piece<T: geom_core::Real>(
+    body: &Body<T>,
+    root: FaceKey,
+    divisions: &FaceDivisions,
+) -> Option<FaceKey> {
+    match pieces(body, root, divisions).as_slice() {
+        [one] => Some(*one),
+        _ => None,
+    }
+}
+
+/// The faces divided from `root`, null faces aside.
+fn pieces<T: geom_core::Real>(
+    body: &Body<T>,
+    root: FaceKey,
+    divisions: &FaceDivisions,
+) -> Vec<FaceKey> {
+    body.faces()
+        .map(|(f, _)| f)
+        .filter(|&f| divisions.root(f) == root && body.null_face_pair(f).is_none())
+        .collect()
+}
+
 /// The face divided from `root` that holds `p` inside it.
 fn fragment_at<T: Decide>(
     body: &Body<T>,
@@ -604,17 +752,12 @@ fn fragment_at<T: Decide>(
     p: Point3<T>,
     band: Band,
 ) -> Result<FaceKey, BooleanError> {
-    let pieces: Vec<FaceKey> = body
-        .faces()
-        .map(|(f, _)| f)
-        .filter(|&f| divisions.root(f) == root && body.null_face_pair(f).is_none())
-        .collect();
-    if let [one] = pieces.as_slice() {
-        return Ok(*one);
+    if let Some(one) = one_piece(body, root, divisions) {
+        return Ok(one);
     }
     let unplaced = |e| contained(e, "a fate cut's end is not placed in its face");
     let mut inside = Vec::new();
-    for f in pieces {
+    for f in pieces(body, root, divisions) {
         let at = match crate::face_normal::face_outward_normal(body, f) {
             Some(normal) => super::contfp(body, f, normal.vec(), p, band).map_err(unplaced)?,
             None => super::curved_face_containment(body, f, p, band)
@@ -668,7 +811,7 @@ fn rehome<T: Decide>(
     (old, remainder): (FaceKey, LoopKey),
     new: FaceKey,
     band: Band,
-) -> Result<(), BooleanError> {
+) -> Result<(), CutError> {
     let desync = |what| BooleanError::JoinDesync { what };
     let rings = body
         .get_face(old)
@@ -720,11 +863,9 @@ fn rehome<T: Decide>(
         match (side, in_band) {
             (Some(true), _) => moved.push(ring),
             (Some(false), _) => {}
-            (None, Some(escalated)) => return Err(escalated),
+            (None, Some(escalated)) => return Err(escalated.into()),
             (None, None) => {
-                return Err(BooleanError::ClassificationInvariant {
-                    what: "a ring of a face a fate cut divides is placed at none of its vertices",
-                });
+                return Err(Limit::RingUnplaced.into());
             }
         }
     }
@@ -736,12 +877,13 @@ fn rehome<T: Decide>(
 
 /// The kept edge's `curve` as a chord's spec, run in its own sense
 /// (`along`) or back: a line or a circle as the scaffold the join mints
-/// its chords on, any other carrier as an image in `chart`, the dropped
-/// face's surface, which the kept one coincides with.
+/// its chords on, any other carrier, or a closed one (a whole-turn
+/// scaffold circle reads as a null edge's), as an image in `chart`, the
+/// dropped face's surface, which the kept one coincides with.
 fn along_spec<T: Decide>(
     curve: &geom_brep::EdgeCurve<T>,
     chart: crate::geometry::SurfaceKey,
-    along: bool,
+    (along, closed): (bool, bool),
 ) -> Result<geom_brep::EdgeCurveSpec<T>, BooleanError> {
     let refuse = || BooleanError::ClassificationInvariant {
         what: "a fate cut's kept edge does not restate as a chord on the dropped face's surface",
@@ -758,7 +900,9 @@ fn along_spec<T: Decide>(
     };
     match carrier {
         geom::Curve3::Line { .. } => geom_brep::EdgeCurveSpec::segment_of_line(carrier, t0, t1),
-        geom::Curve3::Circle { .. } => geom_brep::EdgeCurveSpec::arc_of_circle(carrier, t0, t1),
+        geom::Curve3::Circle { .. } if !closed => {
+            geom_brep::EdgeCurveSpec::arc_of_circle(carrier, t0, t1)
+        }
         _ => Some(geom_brep::EdgeCurveSpec {
             description: own.description,
             carrier,
@@ -780,7 +924,7 @@ fn chord<T: Decide + crate::props::AtRestPolicy>(
     divisions: &mut FaceDivisions,
     band: Band,
     tol: Tol,
-) -> Result<HalfEdgeKey, BooleanError> {
+) -> Result<HalfEdgeKey, CutError> {
     let desync = |what| BooleanError::JoinDesync { what };
     let start_of = |body: &Body<T>, p: Place| -> Result<VertexKey, BooleanError> {
         match p {
@@ -805,7 +949,8 @@ fn chord<T: Decide + crate::props::AtRestPolicy>(
     if face != face_of(body, to)? {
         return Err(BooleanError::ClassificationInvariant {
             what: "a fate cut's two ends lie in different pieces of the dropped face",
-        });
+        }
+        .into());
     }
     let point = |body: &Body<T>, v: VertexKey| {
         body.get_vertex(v)
@@ -819,14 +964,48 @@ fn chord<T: Decide + crate::props::AtRestPolicy>(
         .get_face(face)
         .map(|f| f.surface)
         .ok_or_else(|| desync("a fate cut's face no longer resolves"))?;
-    let run = |v: VertexKey| along_spec(curve, chart, forward == (v == u));
+    let run = |v: VertexKey| along_spec(curve, chart, (forward == (v == u), false));
     let outer = body
         .get_face(face)
         .map(|f| f.outer)
         .ok_or_else(|| desync("a fate cut's face no longer resolves"))?;
     if u == w {
-        return Err(BooleanError::ClassificationInvariant {
-            what: "a fate cut along a closed kept edge has both ends at one vertex of the dropped face",
+        // A closed kept edge, both of whose ends are one vertex of the
+        // face: a circular edge there (Fig. 9.8b), in one corner of it or
+        // lone, or, leaving and returning through two corners of the
+        // outer loop, a chord splitting that loop.
+        let (site, along) = match (from, to) {
+            (Place::Lone(l, _), Place::Lone(m, _)) if l == m => (
+                MefSite::Lone { r#loop: l },
+                circular(body, face, curve, band)?,
+            ),
+            (Place::Corner(h0), Place::Corner(h1)) if h0 == h1 => (
+                MefSite::Chords { he1: h0, he2: h0 },
+                circular(body, face, curve, band)?,
+            ),
+            (Place::Corner(h0), Place::Corner(h1))
+                if loop_of(body, h0)? == outer && loop_of(body, h1)? == outer =>
+            {
+                (MefSite::Chords { he1: h0, he2: h1 }, forward)
+            }
+            _ => {
+                return Err(Limit::ClosedAtOneVertex.into());
+            }
+        };
+        let made = body.mef(
+            site,
+            along_spec(curve, chart, (along, true))?,
+            FaceSurface::Inherit,
+            tol,
+        )?;
+        divisions.push((made.face, face))?;
+        let remainder = loop_of(body, made.he_plus)?;
+        rehome(body, (face, remainder), made.face, band)?;
+        // The half run in the kept edge's own sense along `forward`.
+        return Ok(if along == forward {
+            made.he_plus
+        } else {
+            made.he_minus
         });
     }
     let made = match (from, to) {
@@ -836,11 +1015,8 @@ fn chord<T: Decide + crate::props::AtRestPolicy>(
             let (he1, he2) = if loop_of(body, h0)? == outer {
                 (h0, h1)
             } else {
-                let normal = crate::face_normal::face_outward_normal(body, face).ok_or(
-                    BooleanError::ClassificationInvariant {
-                        what: "a fate cut closes a ring on a curved face",
-                    },
-                )?;
+                let normal = crate::face_normal::face_outward_normal(body, face)
+                    .ok_or(Limit::RingOnCurved)?;
                 let mut points = Vec::new();
                 let mut at = h0;
                 while at != h1 {
@@ -860,14 +1036,13 @@ fn chord<T: Decide + crate::props::AtRestPolicy>(
                 }
                 points.push(pw);
                 points.extend(back);
-                let (area, len) = winding(&points, normal.vec());
-                match crate::validate::decide("bool_fate_ring", Margin::of(area / len), band) {
-                    Ok(Sign::Positive) => (h0, h1),
-                    Ok(Sign::Negative) => (h1, h0),
-                    Ok(Sign::Zero) | Err(_) => {
-                        return Err(BooleanError::ClassificationInvariant {
-                            what: "a fate cut closes a ring of no area",
-                        });
+                match ring_winding(&points, normal.vec(), band)? {
+                    Sign::Positive => (h0, h1),
+                    Sign::Negative => (h1, h0),
+                    Sign::Zero => {
+                        return Err(
+                            BooleanError::ClassificationInvariant { what: RING_NO_AREA }.into()
+                        );
                     }
                 }
             };
@@ -911,16 +1086,65 @@ fn chord<T: Decide + crate::props::AtRestPolicy>(
         (Place::Along(_), _) | (_, Place::Along(_)) => {
             return Err(BooleanError::ClassificationInvariant {
                 what: "a fate cut runs along an edge at one end only",
-            });
+            }
+            .into());
         }
     };
-    made.into_iter()
+    Ok(made
+        .into_iter()
         .find(|&he| body.get_half_edge(he).is_some_and(|h| h.start == u))
-        .ok_or_else(|| desync("a fate cut's chord does not start at its end"))
+        .ok_or_else(|| desync("a fate cut's chord does not start at its end"))?)
+}
+
+/// The sense, the kept edge's own (`true`) or back, in which a circular
+/// edge along closed `curve` runs in plane `face`: its minus half bounds
+/// the new face's outer loop, which winds counterclockwise, so the plus
+/// half runs the way the curve winds clockwise.
+fn circular<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    curve: &geom_brep::EdgeCurve<T>,
+    band: Band,
+) -> Result<bool, CutError> {
+    let normal =
+        crate::face_normal::face_outward_normal(body, face).ok_or(Limit::CircleOnCurved)?;
+    let points: Vec<Point3<T>> = (0..8)
+        .map(|i| curve.carrier().eval(curve.sample_param(i)))
+        .collect();
+    match ring_winding(&points, normal.vec(), band)? {
+        Sign::Negative => Ok(true),
+        Sign::Positive => Ok(false),
+        Sign::Zero => Err(BooleanError::ClassificationInvariant { what: RING_NO_AREA }.into()),
+    }
+}
+
+/// A ring the cut closes whose signed area decides zero.
+const RING_NO_AREA: &str = "a fate cut closes a ring of no area";
+
+/// Which way the ring through `points` winds about `n`: its signed area
+/// over its length, positive counterclockwise.
+///
+/// # Errors
+///
+/// [`BooleanError::Escalated`] ([`super::BooleanDecision::CutRingWinding`])
+/// where it reads in band.
+fn ring_winding<T: Decide>(
+    points: &[Point3<T>],
+    n: Vec3<T>,
+    band: Band,
+) -> Result<Sign, BooleanError> {
+    let (area, len) = winding(points, n);
+    crate::validate::decide("bool_fate_ring", Margin::of(area / len), band).map_err(|diag| {
+        BooleanError::Escalated {
+            decision: super::BooleanDecision::CutRingWinding,
+            diag,
+        }
+    })
 }
 
 /// The piece of the sector's face, as divided since, that holds the
-/// sector's direction at its vertex ([`place`]).
+/// sector's direction at its vertex ([`place`]); the face itself where
+/// it is one piece.
 ///
 /// # Errors
 ///
@@ -932,8 +1156,11 @@ fn sector_piece<T: Decide>(
     s: SectorAt<T>,
     (divisions, copies): (&FaceDivisions, &NullCopies),
     band: Band,
-) -> Result<FaceKey, BooleanError> {
+) -> Result<FaceKey, CutError> {
     let (he, face, d) = (s.he, s.face, s.dir);
+    if let Some(one) = one_piece(body, divisions.root(face), divisions) {
+        return Ok(one);
+    }
     let v = body
         .get_half_edge(he)
         .ok_or(BooleanError::JoinDesync {
@@ -948,7 +1175,7 @@ fn sector_piece<T: Decide>(
         Leaving::bisector(d),
         band,
     );
-    match placed? {
+    let piece: Result<FaceKey, BooleanError> = match placed? {
         Some(Place::Corner(h)) => face_of_he(body, h),
         Some(Place::Lone(l, _)) => {
             body.get_loop(l)
@@ -963,7 +1190,8 @@ fn sector_piece<T: Decide>(
         Some(Place::Along(_)) => Err(BooleanError::ClassificationInvariant {
             what: "a sector's bisector runs along an edge of its divided face",
         }),
-    }
+    };
+    Ok(piece?)
 }
 
 /// The face holding `he`, in `body`.
@@ -994,7 +1222,7 @@ pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
     divisions: [&mut FaceDivisions; 2],
     band: Band,
     tol: Tol,
-) -> Result<FateCuts, BooleanError> {
+) -> Result<FateCuts, CutError> {
     let desync = |what| BooleanError::JoinDesync { what };
     let [div_a, div_b] = divisions;
     let mut lone = std::collections::BTreeMap::new();
@@ -1097,7 +1325,7 @@ pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
                 .zip(departure(kept_body, he))
         });
         let [Some((x0, (d0, _))), Some((x1, (d1, _)))] = ends else {
-            return Err(desync("a fate edge has no direction"));
+            return Err(desync("a fate edge has no direction").into());
         };
         // Each end's chord to the kept edge's midpoint.
         let mid = curve.mid_point();
@@ -1153,7 +1381,8 @@ pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
         ) else {
             return Err(BooleanError::ClassificationInvariant {
                 what: "a fate cut's end left the dropped face as it was cut",
-            });
+            }
+            .into());
         };
         let run = match (p0, p1) {
             (Place::Along(h), _) => h,
@@ -1196,7 +1425,8 @@ pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
         if face_of_he(body, c)? == face_of_he(body, mate)? {
             return Err(BooleanError::ClassificationInvariant {
                 what: "a fate cut leaves a slit in the dropped face",
-            });
+            }
+            .into());
         }
     }
     let mut corners: Vec<(Operand, FaceKey, FaceKey)> = Vec::new();
@@ -1230,8 +1460,9 @@ pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
                 let ring = red.pierce_rings.iter().find(|r| {
                     r.operand == fc.holder && div_k.root(r.face) == root && r.pierces.contains(&at)
                 });
-                match ring {
-                    Some(ring) => {
+                match (one_piece(kept_body, root, div_k), ring) {
+                    (Some(one), _) => one,
+                    (None, Some(ring)) => {
                         let copies =
                             NullCopies::of_operand(&red.null_edges, fc.holder).of(ring.ring_vertex);
                         let at = Leaving::bisector(d);
@@ -1239,7 +1470,8 @@ pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
                             None => {
                                 return Err(BooleanError::ClassificationInvariant {
                                     what: "a pierce's ring vertex lies off its kept face",
-                                });
+                                }
+                                .into());
                             }
                             Some(Place::Corner(h)) => face_of_he(kept_body, h)?,
                             Some(Place::Lone(l, _)) => kept_body
@@ -1249,11 +1481,11 @@ pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
                             Some(Place::Along(_)) => {
                                 return Err(BooleanError::ClassificationInvariant {
                                     what: "a dropped sector held at a pierce runs along a kept edge",
-                                });
+                                }.into());
                             }
                         }
                     }
-                    None => {
+                    (None, None) => {
                         let p = body
                             .get_vertex(at)
                             .and_then(|v| body.get_point(v.point))
@@ -1276,49 +1508,46 @@ pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
     Ok(out)
 }
 
-/// The faces a path that cuts nothing holds through coincident ones
-/// (the containment fallback, which keeps or drops whole shells): each
-/// coincident pair the classification found, written from what the
-/// result holds. The face of the pair `discarded` lists is the dropped
-/// one, held whole by the other; a pair whose faces the result holds
-/// both or neither of has no row. The pairs are the faces the
-/// classification read, which a path that cuts nothing leaves whole.
-pub(super) fn uncut<T: geom_core::Real>(
-    red: &BooleanReduction<T>,
-    discarded: [&std::collections::BTreeSet<FaceKey>; 2],
-) -> Vec<SubstitutedFace> {
-    let mut pairs = Vec::new();
-    for fe in &red.fates.edges {
-        pairs.push((fe.holder, fe.kept, fe.face));
-    }
-    for fc in &red.fates.corners {
-        let kept = match fc.kept {
-            KeptAt::Sector(s) => s.face,
-            KeptAt::Pierced(f, ..) => f,
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+    use geom_core::{Band, Point3, Sign, Tol, Vec3};
+
+    use super::ring_winding;
+    use crate::boolean::{BooleanDecision, BooleanError};
+
+    /// **A ring whose winding reads in band escalates as its own
+    /// decision**: the triangle (0, 0), (1, 0), (0.5, h) in z = 0 winds
+    /// counterclockwise about +z, and its reading (twice its area over its
+    /// length) is h / √5. At h = ±1 that is clear; at h = 5.5 √5 ε it is
+    /// 5.5 ε, mid-band (ε to 10 ε), and refuses
+    /// [`BooleanDecision::CutRingWinding`], not a broken invariant.
+    #[test]
+    fn a_ring_winding_in_band_escalates_as_its_own_decision() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let ring = |h: f64| {
+            [
+                Point3::new(0.0, 0.0, 0.0),
+                Point3::new(1.0, 0.0, 0.0),
+                Point3::new(0.5, h, 0.0),
+            ]
         };
-        pairs.push((fc.holder, kept, fc.dropped.face));
+        let up = Vec3::new(0.0, 0.0, 1.0);
+        assert_eq!(ring_winding(&ring(1.0), up, band).unwrap(), Sign::Positive);
+        assert_eq!(ring_winding(&ring(-1.0), up, band).unwrap(), Sign::Negative);
+        let err =
+            ring_winding(&ring(5.5 * 5f64.sqrt() * tol.eps()), up, band).expect_err("in band");
+        assert!(
+            matches!(
+                err,
+                BooleanError::Escalated {
+                    decision: BooleanDecision::CutRingWinding,
+                    ..
+                }
+            ),
+            "{err:?}"
+        );
     }
-    let mut out = Vec::new();
-    for (holder, kept, dropped) in pairs {
-        let (a, b) = match holder {
-            Operand::A => (kept, dropped),
-            Operand::B => (dropped, kept),
-        };
-        match (discarded[0].contains(&a), discarded[1].contains(&b)) {
-            (false, true) => out.push(SubstitutedFace {
-                operand: Operand::B,
-                face: b,
-                by: a,
-            }),
-            (true, false) => out.push(SubstitutedFace {
-                operand: Operand::A,
-                face: a,
-                by: b,
-            }),
-            _ => {}
-        }
-    }
-    out.sort();
-    out.dedup();
-    out
 }

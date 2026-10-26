@@ -842,3 +842,14 @@ The boolean declare surface is gone at every layer. A boolean's one input beside
   3. **Part names.** `Rebind` holds `from.node` to the host's mint log (`RebindUnknownName`), so a takeover of an instance's copy cannot rebind its part-spelled references.
 
   Filed on INTENT's slate: `d-prime3-fallback-diagnosis-blames-the-sources-minting-node-for-a-re-pointed-copy` (P3 E). Also noted, unfiled because D′3 closes it: on main, a mate on a copy's face goes stale under the Transform takeover too (`Renamed::through` re-seats only the viewer's held picks). PR 5636's branch predates the mirror (PR 5683): at its next main merge, `add_mirror`'s `repoint(...).map(drop)` follows `repoint`'s new signature.
+- 2026-10-26 — Resumed after a usage reset; nothing moved from 10-24 16:45. Both lanes picked up on their own: D′3 (#5636, `session_017HwxSpesEsgKsHjvrj6TyM`) on MAJOR 1 over merged #5637, and the value chart (`session_01ReeWyLMjbS8q7pwdH5Tpwo`).
+  - **AUTHTAIL's 10-25 notes, ruled for D′3:**
+    - a pick is never re-pointed. A takeover that would strand a pick refuses typed at the takeover door, and an exact re-seat is filed P3;
+    - the takeover rule stays door behaviour, with no `[placement.placement]` change in this PR (it would bind future work, so it is Ev's if wanted);
+    - part names in `Rebind` are filed P3;
+    - spec sentences (a)–(c) are written into `docs/INTENT-STAGE3-SPEC.md` by the D′3 lane, without the sink-set wording.
+- 2026-10-26 — **Split, on Ev's ask** ("restructure atrest so none of its work is on your critical path… or split off a thread… that can be worked on in parallel"):
+  - **INTENT now holds only the stage 3 chain:** D′3 (#5636, in flight) → E (`an-operation-computes-in-a-frame-of-its-reads`) and `a-placement-pins-by-written-values-without-a-mate` → G (`patterns-are-index-variables`). It also keeps the D′3 residue and its viewer, Python and doc rows.
+  - **ATREST is handed back `ready`.** It was never on the chain by dependency: only the D10 umbrella waits on 5 C. Its plan now says that 5 C waits on D′3 for files only, and everything else is dispatchable now.
+  - **The values and pose-kinds thread moves to MSOLVE** (`ready`, `mate/*` ground) by `git mv`, ids kept: `the-value-chart-reads-a-written-orientation` (in flight, lane `session_01ReeWyLMjbS8q7pwdH5Tpwo`), `a-value-chart-jumps-at-the-antipode-under-a-downward-face`, `a-lone-slide-refuses-the-chart-it-never-reads`, `flag-and-pivot-pose-kinds` (now parked on the value chart), `a-slide-beside-a-ball-refuses-though-it-fixes-the-turn`, `a-seated-pin-written-as-an-axis-and-a-number-is-a-finding` and `a-value-on-a-placed-copy-target-is-charted-on-the-space`. The charter is in `work/msolve/plan.md`.
+  - Until an MSOLVE orchestrator picks it up, INTENT watches the value-chart lane so its report is not orphaned. That is a courtesy hold, not a dependency.

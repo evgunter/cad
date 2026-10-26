@@ -56,10 +56,10 @@
 //!
 //! # The standing gate this scene declares
 //!
-//! **The ring cannot leave as STEP.** The writer's outward/void shell
-//! classifier has closed forms for planar faces only, so a multi-shell
-//! CURVED solid refuses `CurvedShellClassification` — the known
-//! standing gate of OFFSET-DESIGN O6's demo-gates list, pinned as
+//! **The ring cannot leave as STEP.** The writer reads the bore as the
+//! void it is and refuses it, `VoidShellUnsupported`, because it does
+//! not write `BREP_WITH_VOIDS` yet
+//! (`work/export/step-export-refuses-every-hollow-body.md`) — pinned as
 //! klein's wall 6. This scene is the first tour body to reach it while
 //! being RENDERED, so it declares the frontier at the scene
 //! (`SceneBody::step_at_frontier`), which runs the export every pass
@@ -114,7 +114,7 @@ use pncad::prelude::{
 // the table pairs with `mm`, so the two cannot drift.
 use pncad::profile::{ConstructedLoop, SketchPlane};
 use pncad::quantity::MILLI;
-use pncad::sweep::{Revolution, RevolveAxis, revolve};
+use pncad::sweep::{CavityOrigin, Revolution, RevolveAxis, revolve};
 use pncad::topo::Body;
 
 use crate::{SceneBody, Stop, View};
@@ -268,12 +268,12 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         "outer torus + toroidal cavity, in ONE solid"
     );
     assert_eq!(ring.cavities.len(), 1, "one cavity per hole loop");
-    assert_ne!(ring.cavities[0], ring.shell, "the cavity is not the outer");
+    let bore = ring
+        .cavity(CavityOrigin::Hole { loop_index: 1 })
+        .expect("the hole loop's cavity");
+    assert_ne!(bore, ring.shell, "the cavity is not the outer");
     assert_eq!(
-        ring.body
-            .get_shell(ring.cavities[0])
-            .expect("the cavity shell")
-            .solid,
+        ring.body.get_shell(bore).expect("the cavity shell").solid,
         ring.solid,
         "the cavity belongs to the ring's own solid"
     );
@@ -308,10 +308,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         .filter(|c| c.role == pncad::topo::ShellRole::Void)
         .collect();
     assert_eq!(voids.len(), 1, "one cavity, one Void shell");
-    assert_eq!(
-        voids[0].shell, ring.cavities[0],
-        "the Void shell is the named cavity"
-    );
+    assert_eq!(voids[0].shell, bore, "the Void shell is the named cavity");
     let v_bore = 2.0 * PI * PI * R * RI * RI;
     assert!(
         ((voids[0].volume + v_bore) / v_bore).abs() < 1e-12,
@@ -387,9 +384,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
              inner wall. Both at zero enclosure pad. Drawn see-through at 45 for the same \
              reason the bottle's loop tubes are: a cavity cannot be read from an opaque \
              render at any camera. The shape's remaining wall is its STEP export — the \
-             writer's outward/void classifier has closed forms for planar faces only, so \
-             this multi-shell CURVED solid refuses CurvedShellClassification, declared at \
-             the scene and probed every pass. The SAME ring built as a two-node recipe \
+             writer reads the bore as a void and refuses it (VoidShellUnsupported: no \
+             BREP_WITH_VOIDS yet), declared at the scene and probed every pass. The SAME ring built as a two-node recipe \
              — one profile whose loop list is [Circle(rₒ), Circle(rᵢ)], and \
              Revolve(2π) — comes back with the same shells, the same {v}/{e}/{f} and a \
              bit-equal volume, so the hole reaches the verb through the document too",
@@ -409,7 +405,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                     |e| {
                         matches!(
                             e,
-                            pncad::step_export::StepExportError::CurvedShellClassification { .. }
+                            pncad::step_export::StepExportError::VoidShellUnsupported { .. }
                         )
                     },
                     "say so in klein's findings entry 7 and retire the other three probes \

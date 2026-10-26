@@ -258,7 +258,7 @@ fn one_node_eval(
         node,
         editor_core::NodeResult::Ok(editor_core::NodeValue::hand_built(t, groups, log)),
     );
-    Evaluation::<f64>::hand_built(document, vec![node], nodes)
+    Evaluation::<f64>::hand_built(document, vec![node], nodes, Tol::witness())
 }
 
 /// A two-frame document and the vanished/base/wall names

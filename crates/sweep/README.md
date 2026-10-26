@@ -649,6 +649,7 @@ Moved from DESIGN `[topology]` on 2026-10-17, verbatim. Bracketed ids (`[topolog
   adjacent faces on one plane.
 - **The extrude/full-revolve hole asymmetry is structural** (moved from DESIGN):
   extruded holes are cap-to-cap tunnels
-  (one shell, genus); full-revolve holes are cavities (a second shell,
-  through `topo::insert_void`); partial revolve is extrude-shaped and carries
+  (one shell, genus); full-revolve holes, and the gaps between a full
+  revolve's axis runs, are cavities (a shell each, through
+  `topo::insert_void`); partial revolve is extrude-shaped and carries
   holes in its one shell. Sweeps emit single-shell primary boundaries.
