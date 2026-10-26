@@ -4447,6 +4447,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "slit_face_glued",
             "slit_line_crossed",
             "spheres_meet",
+            "spline_crossing_unsettled",
             "split_lineage_cycle",
             "tangent_crescent_unsupported",
             "torn_component",

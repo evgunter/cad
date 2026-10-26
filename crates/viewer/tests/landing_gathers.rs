@@ -128,8 +128,8 @@ fn a_part_documents_body_is_borrowed_from_its_landing() {
 
 /// **An assembly keeps its body, whatever its census found.** Two posts
 /// seated side by side under the shelf, three ε apart: inside the sliver
-/// band, so the census cannot say whether they touch. That is a
-/// could-not-look finding, which refuses nothing, and the landing keeps
+/// band, so the census cannot look at the faces they stand off over.
+/// That is a could-not-look finding, which refuses nothing, and the landing keeps
 /// the product's body all the same.
 #[test]
 fn an_assembly_keeps_its_body_whatever_its_census_found() {

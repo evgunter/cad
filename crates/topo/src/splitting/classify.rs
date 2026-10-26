@@ -93,9 +93,9 @@ pub(super) fn carrier_gate<T: Decide>(
 
 /// Whether the plane certainly misses an edge: behind its own reach
 /// (`census::edge_reach_in`) or behind the reach of either face it
-/// bounds, since an edge lies on both its faces. A spline edge has no
-/// sound box of its own (`EdgeBoxRule::NoSoundBox`), so its faces'
-/// reaches are what clear it. `frame` is the plane's
+/// bounds, since an edge lies on both its faces. A spline edge's own
+/// reach is its control net's hull (`EdgeBoxRule::ControlHull`), which
+/// its faces' reaches may beat. `frame` is the plane's
 /// ([`BoxFrame::aimed`] at its normal).
 ///
 /// `edge` is one this call's caller read out of the body: the gate's
@@ -347,12 +347,14 @@ pub(crate) enum PlaneCrossingLane<T> {
     Line,
     /// A circle or an ellipse: what the root lane found.
     Conic(ConicPlaneMeet<T>),
-    /// A spiric or a spline: no lane finds its crossings. Its endpoints'
-    /// sides say nothing about its interior, which can cross the plane
-    /// and come back between same-side ends, and a parameter
-    /// interpolated between them is not a point on the plane. The caller
-    /// refuses it, or passes it only behind a certificate that its whole
-    /// locus clears the plane.
+    /// A spiric or a spline: no closed form finds its crossings. Its
+    /// endpoints' sides say nothing about its interior, which can cross
+    /// the plane and come back between same-side ends, and a parameter
+    /// interpolated between them is not a point on the plane. A spline's
+    /// crossings are the curve × face table's ring-composite arm's, which
+    /// the boolean's planar lane reads; every other caller refuses it, or
+    /// passes it only behind a certificate that its whole locus clears
+    /// the plane.
     Unlaned,
 }
 

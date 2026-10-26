@@ -2,9 +2,7 @@
 //! edge and the face** ([`BooleanError::EdgeCarrierUnsupported`]): the
 //! germ frame along an edge of either solid, and the ring run.
 //!
-//! The sweep refuses such an edge wherever it meets the other operand
-//! (a spline claims no box), so no public door brings one here; the
-//! rows drive each site directly on the sweep rows' sheets
+//! The rows drive each site directly on the sweep rows' sheets
 //! (`reduce::planar_lane_carrier_rows`): a planar sheet in `z = 0`
 //! bounded by a quadratic Bézier arc and its chord, and one in `x = ½`
 //! bounded by a spiric arc and its chord.

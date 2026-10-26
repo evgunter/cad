@@ -263,6 +263,20 @@ fn at_rest(
     Ok(AtRest { product, findings })
 }
 
+/// The census's own verdicts among what the at-rest check could not
+/// look at, typed.
+fn could_not_look_errors(at_rest: &AtRest) -> Vec<topo::ValidationError> {
+    fixture::could_not_look(&at_rest.findings)
+        .into_iter()
+        .filter_map(|evidence| match evidence {
+            editor_core::AtRestEvidence::NoLane(e)
+            | editor_core::AtRestEvidence::Malformed(e)
+            | editor_core::AtRestEvidence::InsideArrival(e) => Some(e),
+            _ => None,
+        })
+        .collect()
+}
+
 /// The census verdicts the at-rest check could not look at; the empty
 /// vector where it judged every pair.
 fn findings(result: &Result<AtRest, editor_core::ProductError>) -> Vec<String> {
@@ -444,11 +458,16 @@ fn row3_b_the_mated_touching_pair_is_recorded_as_the_unmated_one_is() {
     }
 }
 
-/// INVARIANT (spec row 4's in-band clause; C4's escalation rail): a
-/// seat whose gap is AUTHORED INTO THE BAND — a standoff off the base's
-/// top, which places the cube and declares nothing — is neither
-/// certified nor contradicted: it escalates TYPED, and the escalation
-/// carries the kernel's predicate name.
+/// INVARIANT (spec row 4's in-band clause): a seat whose gap is
+/// AUTHORED INTO THE BAND — a standoff off the base's top, which places
+/// the cube and declares nothing — is neither certified nor
+/// contradicted. The two caps read one carrier in band, so they are one
+/// face pair the census cannot look at (`[assertions]`), which hides no
+/// overlap: one could-not-look finding, typed, once. Each
+/// pair of side walls lies flush with its boundaries a band apart, the
+/// flush door's finding, once; and the cube's vertical edges lying
+/// along those walls escalate where they end in band of the base's top,
+/// a reading no one point locates, so it stands.
 ///
 /// The gap is DERIVED FROM THE COMMITTED BAND, never spelled as a
 /// literal: the hosted matrix runs ε = 1e-12 and 1e-6 as well as the
@@ -460,7 +479,7 @@ fn row3_b_the_mated_touching_pair_is_recorded_as_the_unmated_one_is() {
 /// (Row adopted from the review's probe; the band-relative derivation
 /// is the repo's own precedent for literal-ε rows.)
 #[test]
-fn row4_b_an_in_band_authored_gap_escalates_typed_and_predicate_named() {
+fn row4_b_an_in_band_authored_gap_is_its_in_band_pairs() {
     let band =
         geom_core::predicate::Band::linear(Tol::witness()).expect("the committed band builds");
     let gap = (band.zero() * band.escalate()).sqrt();
@@ -471,25 +490,43 @@ fn row4_b_an_in_band_authored_gap_escalates_typed_and_predicate_named() {
         band.zero(),
         band.escalate()
     );
-    let (doc, _, mate, store, _) = stacked("asm-r2b-row4b", 1.0 + gap);
+    let (doc, _, _, store, _) = stacked("asm-r2b-row4b", 1.0 + gap);
     let ev = run(&doc, &with_resolver(store));
-    let result = at_rest(&doc, &ev);
-    let errs = findings(&result);
+    let checked = at_rest(&doc, &ev).expect("the seat gathers");
+    let findings = could_not_look_errors(&checked);
+    let mut pairs: Vec<[topo::FaceKey; 2]> = findings
+        .iter()
+        .filter_map(|f| match *f {
+            topo::ValidationError::CensusUndecidable {
+                a: topo::EntityId::Face(a),
+                b: topo::EntityId::Face(b),
+                ..
+            } => Some([a.min(b), a.max(b)]),
+            _ => None,
+        })
+        .collect();
     assert!(
-        errs.iter().any(|e| e.contains("CensusEscalated")),
-        "an in-band authored gap is the Err(Indeterminate) rail, not a \
-         verdict either way: {errs:?}"
+        findings.iter().any(|f| matches!(
+            f,
+            topo::ValidationError::CensusUndecidable {
+                reason: topo::Undecidable::ThinInBand,
+                ..
+            }
+        )),
+        "the caps' pair hides no overlap: {findings:?}"
     );
     assert!(
-        errs.iter().any(|e| e.contains("predicate")),
-        "and the escalation names the PREDICATE that could not decide: \
-         {errs:?}"
+        findings.iter().all(|f| matches!(
+            f,
+            topo::ValidationError::CensusUndecidable { .. }
+                | topo::ValidationError::CensusEscalated { .. }
+        )),
+        "nothing is decided, either way: {findings:?}"
     );
-    assert!(
-        result.is_ok(),
-        "the escalation is a could-not-look finding, and nothing refuses"
-    );
-    let _ = mate;
+    let found = pairs.len();
+    pairs.sort();
+    pairs.dedup();
+    assert_eq!(pairs.len(), found, "each pair is one finding: {pairs:?}");
 }
 
 // ---- Rows 5 and 6: the crossing record ----
@@ -1060,9 +1097,15 @@ fn slab_part(label: &str, x: (f64, f64), y: (f64, f64), dz: f64) -> (ProfileDoc,
 /// numbers agree by construction and are deliberately not shared —
 /// each layer's fixture reads as the thing that layer is about.
 fn flush_seat(label: &str) -> (ProfileDoc, MateRef, PartStore) {
+    seat_off_the_end(label, 0.0)
+}
+
+/// [`flush_seat`] with the post's end standing `off` in from the
+/// shelf's end plane.
+fn seat_off_the_end(label: &str, off: f64) -> (ProfileDoc, MateRef, PartStore) {
     let mut store = PartStore::default();
     let (post, post_body) = store.insert_part(
-        slab_part(&format!("{label}-post"), (0.0, 0.12), (0.09, 0.21), 0.5),
+        slab_part(&format!("{label}-post"), (off, 0.12), (0.09, 0.21), 0.5),
         Tol::witness(),
     );
     let (shelf, shelf_body) = store.insert_part(
@@ -1110,6 +1153,34 @@ fn a_flush_seat_certifies_at_the_gate() {
         1,
         "the seat is recorded once, at face granularity"
     );
+}
+
+/// **A near-flush end is one finding.** The same seat with the post's
+/// end standing in from the shelf's by a distance inside the band: the
+/// two ends read one carrier in band, so they are one face pair the
+/// census cannot look at (`[assertions]`): one could-not-look finding,
+/// which refuses nothing. Nothing of the two ends' cells escalates
+/// beside it, and the seat's own pair is recorded. Red if the check
+/// reports anything but the one in-band pair.
+#[test]
+fn a_near_flush_seat_is_one_in_band_pair_it_could_not_look_at() {
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
+    let off = 0.5 * (band.zero() + band.escalate());
+    let (doc, _, store) = seat_off_the_end("asm-r2b-near-flush", off);
+    let ev = run(&doc, &with_resolver(store));
+    let checked = at_rest(&doc, &ev).expect("the seat gathers");
+    let [
+        editor_core::AtRestEvidence::NoLane(topo::ValidationError::CensusUndecidable {
+            a: topo::EntityId::Face(_),
+            b: topo::EntityId::Face(_),
+            reason: topo::Undecidable::ThinInBand,
+            ..
+        }),
+    ] = fixture::could_not_look(&checked.findings).as_slice()
+    else {
+        panic!("one finding, the in-band pair's: {:?}", checked.findings);
+    };
+    assert_eq!(checked.findings.len(), 1, "{:?}", checked.findings);
 }
 
 /// **Discovery is never a record** (F1/F2(iii)), and between copies

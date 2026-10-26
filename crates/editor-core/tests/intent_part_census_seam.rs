@@ -68,9 +68,9 @@ fn in_band_gap() -> f64 {
     3.0 * Tol::witness().eps()
 }
 
-/// The two copies stand three ε apart, inside the sliver band: the census
-/// escalates on whether they touch, which the part's own gate refuses,
-/// naming none of its declarations.
+/// The two copies stand three ε apart, inside the sliver band: the faces
+/// they stand off over read one carrier in band, one pair the census
+/// cannot look at, which the part's own check reports.
 pub(crate) fn in_band(label: &str) -> ProfileDoc {
     two_blocks(label, 0.5 + in_band_gap())
 }
@@ -253,13 +253,12 @@ fn an_overlap_two_documents_down_carries_up_by_its_route() {
 }
 
 /// **What the part could not look at is reported as the part's.** The
-/// part's two copies stand in the sliver band, so its census escalates
-/// on whether they touch: its own check reports could-not-look findings.
-/// The document instantiating it reports each, verbatim and by the route
-/// through the instance, and refuses nothing. An escalation names no
-/// pair, so the in-arrival discard cannot place the census's re-finding
-/// inside the copy (`work/contacthold/an-escalated-census-finding-names-no-pair.md`);
-/// the part's carried row answers for it, so it is reported once.
+/// part's two copies stand in the sliver band, so its census cannot look
+/// at the faces they stand off over: its own check reports could-not-look
+/// findings. The document instantiating it reports each, verbatim and by
+/// the route through the instance, and refuses nothing. The census's
+/// re-finding inside the copy names the copy's faces, so the in-arrival
+/// discard drops it, and it is reported once.
 ///
 /// *Breaks if* the carried findings are not the part's, the re-finding
 /// is reported again as this document's, or a part's finding refuses
@@ -270,7 +269,10 @@ fn what_a_part_could_not_look_at_is_reported_as_the_parts() {
     let own = gate(&part, &EvalOptions::default())
         .expect("the part's own check runs")
         .could_not_look;
-    assert!(own.len() > 1, "the premise: several findings: {own:?}");
+    assert!(
+        !own.is_empty(),
+        "the premise: the part could not look: {own:?}"
+    );
     let (doc, ids, opts) = instantiating("seam-in-band", &part, 1);
     let outer = gate(&doc, &opts).expect("nothing refuses");
     let findings = outer.carried_at_rest();
@@ -297,18 +299,18 @@ fn what_a_part_could_not_look_at_is_reported_as_the_parts() {
     );
 }
 
-/// **An escalation two documents down is reported once, as the
+/// **An in-band pair two documents down is reported once, as the
 /// part's, by its whole route.** A sub-assembly instantiates the in-band
 /// part, and a top document instantiates the sub-assembly: the top
 /// reports each of the part's findings once, by the route through the
-/// sub-assembly. The sub-assembly's census finds the part's escalations
-/// again inside its copy, and the part's carried rows answer for them,
-/// so nothing of the sub-assembly's own crosses.
+/// sub-assembly. The sub-assembly's census finds the part's pair again
+/// inside its copy and discards it there, so nothing of the
+/// sub-assembly's own crosses.
 ///
 /// *Breaks if* a carried finding stops at the first seam, or a
 /// re-finding is reported as the sub-assembly's or the top's own.
 #[test]
-fn an_escalation_two_documents_down_is_reported_once_as_the_parts() {
+fn an_in_band_pair_two_documents_down_is_reported_once_as_the_parts() {
     let part = in_band("seam-deep-band-part");
     let own = gate(&part, &EvalOptions::default())
         .expect("the part's own check runs")
@@ -383,7 +385,7 @@ fn a_part_in_the_world_and_a_loose_space_reports_its_overlap_once() {
 }
 
 /// **A part placed twice reports what it could not look at once.** Both
-/// copies carry the in-band part's escalations up, and they are one part
+/// copies carry the in-band part's finding up, and it is one part
 /// row's findings, reported by the first instance's route.
 ///
 /// *Breaks if* each instance reports the part's findings again (the
