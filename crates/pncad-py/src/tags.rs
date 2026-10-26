@@ -1583,6 +1583,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::EdgeInFace => "edge_in_face",
         BooleanErrorKind::SlitLineCrossed => "slit_line_crossed",
         BooleanErrorKind::SlitFaceGlued => "slit_face_glued",
+        BooleanErrorKind::CurvedFaceClosesAcrossSlit => "curved_face_closes_across_slit",
         BooleanErrorKind::LineWedges => "line_wedges",
     }
 }

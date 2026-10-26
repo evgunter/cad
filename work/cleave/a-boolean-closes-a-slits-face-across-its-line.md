@@ -61,71 +61,92 @@ too, and pin the void-ray unions building the box.
 
 ## Built (branch `cleave/boolean-closes-a-slits-face`)
 
-recl places the germs on the slit's line in the union too: the
-`Closes` arm of `recl_edges` and the `SlitLineGap::Closes` case are
-gone (`crates/topo/src/boolean/recl.rs`, `recl_edges`;
+recl places the germs on the slit's line in the union as in every
+other op: `recl_edges` has no `Closes` arm and `SlitLineGap` no
+`Closes` case (`crates/topo/src/boolean/recl.rs`, `recl_edges`;
 `crates/topo/src/boolean/mod.rs`, `SlitLineGap`). Two pieces build
-what it then reaches.
+what it reaches.
 
-- **The zip keeps a strut section.** Where the result keeps only F
-  about the line, one operand's section along it is a strut (an edge
-  of the other's, both halves in the section face) and the other's is
-  the slit's two edges. Each seam pair's loop of two dies by `kef`
-  across B's edge; where B's edge is that strut, both its halves are
-  paired, and the first `kef` killed the second pair's half too (the
-  `y ∪ x` panic in `glue`). `kill_pair`
+- **The zip keeps a section strut.** Where the op drops both faces of
+  one operand's edge along the line, that edge's section loop runs it
+  both ways, so both its halves pair against the other operand's two
+  coincident edges there, a slit's or ring's. `kill_pair`
   (`crates/topo/src/boolean/zip.rs`, `kill_pair`, called from `glue`)
-  kills across A's edge there instead, and the report names the strut
-  as the surviving seam edge; both edges so paired refuses
-  `ZipCorrespondence`. Either order then leaves F's halves of the two
-  slit edges glued into one edge, F on both sides.
+  kills each pair's loop of two across B's edge, or across A's where
+  B's is that strut, since a `kef` across the strut kills the other
+  pair's half with it. The strut survives between the faces the other
+  edges bound beyond the line: F twice where the result keeps the
+  slit's face on both sides, the two walls (a reflex edge) where it
+  keeps them. `ZipReport` names it among its `struts`, and as the
+  pair's seam edge where it is B's; a pair of two struts refuses
+  `ZipCorrespondence`.
 - **The output stage closes F across it.** `close_struts`
   (`crates/topo/src/boolean/slit.rs`, `close_struts`; module docs,
   *Closing*) runs first in `finish_output`
   (`crates/topo/src/boolean/ops.rs`, `finish_output`), before the
-  coplanar merge, whose entry gate refused the strut (`Merge`
-  `InputNotClosed`, `ScaffoldingStrutVertex`): `kev` deletes each edge
-  with both halves in one face toward its free end, and a ring closed
-  whole leaves a lone vertex that `mekr` to the outline then `kev`
-  delete (the bridge targets the face's first cycle left), as the merge
-  prunes its own dangling seam edges. The edge
-  and its vertices substitute onto F in the op's lineage and naming
-  (`output_substitutions`), and the strut leaves the seam edges.
+  coplanar merge, whose entry gate refuses a strut. It takes the struts
+  the zip reports and deletes each that one face lies on both sides of
+  with its free end, a ring closed whole with its lone vertex too,
+  through the delete the merge runs on its own dangling seam edges
+  (`crates/topo/src/strut.rs`, `Body::plan_strut_prune`,
+  `Body::prune_strut`). The edge and its vertices substitute onto F in
+  the op's lineage and naming (`output_substitutions`), and the strut
+  leaves the seam edges. Any other strut reaching the output stage
+  meets the merge's entry gate, which refuses it.
 
 It is the mirror of `merge_slivers`: there the sheets on the line are
 the two walls and a sliver between them dies by `kef`; here they are F
 twice and the strut between them dies by `kev`.
 
-Measured on main (`f742e4c97b`) and head at ε = default, 1e-6 and
-1e-12: the 20 void-ray unions per ε of
-`a_ring_crossed_along_its_line_places_its_germs_apart.rs` (two scenes,
-five poses, both orders) refuse `SlitLineCrossed` `Closes` on main and
-build on head, tier 3 and 3′: "around" is the plate box v8 e12 f6 at
-volume 6 (the partner holds the void), "under" v15 e24 f12, the ring
-closed from the apex to the partner's edge end and kept beyond; at
-sampled points along the line the result's edges are the creases the
-operands' material decides, and `|x ∪ y| + |x ∩ y| = |x| + |y|`. The
-test now builds every op. `REFUSING` in
-`a_vertex_read_by_two_sector_passes.rs` drops "around the lying
-pyramid, mirrored into the void" `x ∪ y` and `y ∪ x` (10 cells per ε),
-which build sound at every pose. `PARTNERS_SLIT_GAPS` in
-`a_vertex_read_again_classes_every_edge.rs` pins 0 `SlitLineCrossed`
-at every ε (was 20, 18, 20); those cells build and the germ probe
-reads them right, the other counts unchanged (`EdgeInFace` 8, 3, 7;
-overlaps 40, 26, 35).
+### Evidence
 
-A sweep of the whole topo suite, the slow set included, through the
-door meter (`scripts/door-tier3-meter.py`'s feature), main against
-head at each ε, moves only `SlitLineCrossed` unions to bodies: 60, 56
-and 60 calls at default, 1e-6 and 1e-12, in the three files above and
-`a_touching_vertex_beside_a_partner_along_the_face_builds_sound_in_every_op`
-(the same `REFUSING` scene). No other call's outcome or face count
-moves.
+At ε = default, 1e-6 and 1e-12, against main (`f742e4c97b`):
 
-No definite sub-case stays typed for this gap. Two guards stay, each
-a state the join never builds: a strut with both ends free that is its
-face's outline (a face of no area) refuses `JoinDesync`, and a seam
-pair whose two edges are both struts of their section faces refuses
-`ZipCorrespondence`. A ring closed whole on a curved face (a line
-edge parted along a ruling) would take the same `mekr`, whose chord is
-scaffolding killed at once; no witness reaches one.
+- `a_ring_crossed_along_its_line_places_its_germs_apart.rs`,
+  `an_edge_along_a_ring_places_its_germs_apart_and_the_union_closes_the_ring`:
+  the 8 unions per ε (two scenes, at rest and turned, both orders),
+  which refuse `SlitLineCrossed` `Closes` on main, build tier 3 and
+  3′. "around" is the plate box v8 e12 f6 at volume 6 (the partner
+  holds the void); "under" is v15 e24 f12, the ring closed from the
+  apex to the partner's edge end and kept beyond. At sampled points
+  along the line the result's edges are the creases the operands'
+  material decides, and `|x ∪ y| + |x ∩ y| = |x| + |y|`.
+- `a_partner_grooved_along_the_ring_unites_in_either_order` (same
+  file): a box straddling the top less a pyramid lying in it, whose
+  reflex edge runs along the ring, ∪ the plate less the void. `y ∪ x`
+  panics on main in `glue` ("half-edge … does not resolve"); both
+  orders build v24 e36 f17, tier 3 and 3′, the strut kept between the
+  void's walls. The claims review of PR 5544 counts 19 such cells at
+  rest and 11 turned in its probe.
+- `a_vertex_read_by_two_sector_passes.rs`: `REFUSING` holds no
+  `SlitLineCrossed` row; "around the lying pyramid, mirrored into the
+  void" `x ∪ y` and `y ∪ x` (10 cells per ε) build sound at every pose.
+- `a_vertex_read_again_classes_every_edge.rs`: `PARTNERS_SLIT_GAPS`
+  pins 0 `SlitLineCrossed` at every ε (20, 18, 20 on main); those cells
+  build and the germ probe reads them right, the other counts as on
+  main (`EdgeInFace` 8, 3, 7; overlaps 40, 26, 35).
+- The whole topo suite, the slow set included, through the door meter
+  (`scripts/door-tier3-meter.py`'s feature), main against head at each
+  ε: only `SlitLineCrossed` unions move, to bodies, 60, 56 and 60 calls,
+  in the three files above and
+  `a_touching_vertex_beside_a_partner_along_the_face_builds_sound_in_every_op`
+  (the same `REFUSING` scene).
+
+### What stays typed
+
+- Where the partner's edge along the slit ends inside it, `x − y`
+  refuses `LineWedges` `Overlap` at the result gate where it refuses
+  `Closes` on main (ring-groove short; the keel ring's box less the
+  wide vee, `half`):
+  `a-difference-whose-partner-ends-inside-a-slit-overlaps-its-wedges`.
+- A face closed across a strut that is not a plane refuses
+  `CurvedFaceClosesAcrossSlit`: the lone ring's bridge is a line chord,
+  which lies in no curved face. No witness reaches it.
+- Guards on states the zip never builds: a strut with both ends free
+  that is its face's outline refuses `JoinDesync`, and so does a closed
+  face's strut with no free end; a seam pair of two struts refuses
+  `ZipCorrespondence`.
+
+Refusals the same on main, found by the review's probe and filed:
+`a-partner-along-part-of-a-slit-refuses-result-invalid` and
+`a-union-touching-along-a-rings-line-fails-tier-3-prime`.

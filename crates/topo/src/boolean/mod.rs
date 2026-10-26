@@ -2450,7 +2450,7 @@ pub enum RefusedRow {
 /// **Which construction a slit's line lacks**
 /// ([`BooleanError::SlitLineCrossed`]): the other solid has an edge
 /// along an operand's slit or ring, and the germs on the line are not
-/// placed where
+/// placed where the case says.
 ///
 /// **NOT carried to the façade's curated list, and that is a decision
 /// rather than an omission** (`scripts/payload-rung-sweep.py` names
@@ -3774,6 +3774,18 @@ pub enum BooleanError {
         /// The face carrying it, a key of the operand's working copy.
         face: FaceKey,
     },
+    /// The result keeps a curved face on both sides of an operand's
+    /// slit or zero-area ring, whose two edges the zip glued into one
+    /// edge of that face, and deleting that edge from a curved face is
+    /// not built (`slit::close_struts`): the lone ring's bridge is a
+    /// line chord, which lies in no curved face. A construction gap,
+    /// with no lever.
+    CurvedFaceClosesAcrossSlit {
+        /// The curved face, in the result's keys.
+        face: FaceKey,
+        /// The edge it lies on both sides of.
+        edge: crate::entity::EdgeKey,
+    },
     /// **The result's edges on one line, where two or more lie, bound
     /// material the result gate cannot admit** ([`crate::census::line_wedges`]):
     /// each such edge classifies its own wedge (D1's
@@ -4010,6 +4022,8 @@ pub enum BooleanErrorKind {
     SlitLineCrossed,
     /// [`BooleanError::SlitFaceGlued`].
     SlitFaceGlued,
+    /// [`BooleanError::CurvedFaceClosesAcrossSlit`].
+    CurvedFaceClosesAcrossSlit,
     /// [`BooleanError::LineWedges`].
     LineWedges,
 }
@@ -4226,6 +4240,7 @@ impl BooleanError {
             Self::EdgeInFace { .. } => BooleanErrorKind::EdgeInFace,
             Self::SlitLineCrossed { .. } => BooleanErrorKind::SlitLineCrossed,
             Self::SlitFaceGlued { .. } => BooleanErrorKind::SlitFaceGlued,
+            Self::CurvedFaceClosesAcrossSlit { .. } => BooleanErrorKind::CurvedFaceClosesAcrossSlit,
             Self::LineWedges { .. } => BooleanErrorKind::LineWedges,
         }
     }
@@ -5081,6 +5096,13 @@ impl core::fmt::Display for BooleanError {
                  edge between its two walls, or stay in the one of the two flush faces the op \
                  keeps, and the join does not build that there. {}",
                 operand_word(*operand),
+                geom_core::NOT_YET_ENDING
+            ),
+            Self::CurvedFaceClosesAcrossSlit { face, edge } => write!(
+                f,
+                "the result keeps curved face {face:?} on both sides of edge {edge:?}, where an \
+                 operand's slit or zero-area ring lay, so the face closes across it, and \
+                 deleting an edge from a curved face is not built. {}",
                 geom_core::NOT_YET_ENDING
             ),
             Self::LineWedges { fault, from, to } => match fault {
@@ -9127,6 +9149,7 @@ mod tests {
                 BooleanErrorKind::EdgeInFace => "EdgeInFace",
                 BooleanErrorKind::SlitLineCrossed => "SlitLineCrossed",
                 BooleanErrorKind::SlitFaceGlued => "SlitFaceGlued",
+                BooleanErrorKind::CurvedFaceClosesAcrossSlit => "CurvedFaceClosesAcrossSlit",
                 BooleanErrorKind::LineWedges => "LineWedges",
             }
         }

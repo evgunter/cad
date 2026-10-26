@@ -2261,6 +2261,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::EdgeInFace
         | BooleanErrorKind::SlitLineCrossed
         | BooleanErrorKind::SlitFaceGlued
+        | BooleanErrorKind::CurvedFaceClosesAcrossSlit
         | BooleanErrorKind::LineWedges => Vec::new(),
     }
 }

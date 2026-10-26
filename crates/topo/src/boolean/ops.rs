@@ -930,6 +930,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let mut finished = fin.body;
     let mut body = finished.begin_surgery();
     let mut seam_edges = Vec::new();
+    let mut struts = Vec::new();
     // Each operand's face divisions: the join's chord-mef rows.
     let fragments = [connected.a_fragments.clone(), connected.b_fragments.clone()];
     let mut desc = Descendants::default()
@@ -953,6 +954,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         };
         desc.absorb_zip(&rep)?;
         seam_edges.extend(rep.seam_edges);
+        struts.extend(rep.struts);
         vertex_map = fused_through(&vertex_map, &rep.vertex_merges);
     }
     super::zip::share_points(&mut body, &points)?;
@@ -990,14 +992,11 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         &mut body,
         &mut desc,
         &declared_pairs,
-        &seam_edges,
+        (&mut seam_edges, &struts),
         &recorded,
         band,
         tol,
     )?;
-    seam_edges.retain(|e| {
-        !slivers.iter().any(|s| s.killed == *e) && !closed.iter().any(|c| c.edge == *e)
-    });
     let output = output_substitutions(&closed, &merged, &slivers, &edge_joins)?;
     // Curved results carry certified per-half-edge pcurves at rest
     // (M5 PR 9, the PR 6 contract): re-derive the whole cache set on
@@ -2237,7 +2236,7 @@ pub(super) fn merge_rows(
 ///
 /// [`BooleanError::LineageRow`] at the first row the list refuses.
 pub(super) fn output_substitutions(
-    closed: &[super::slit::Closed],
+    closed: &[super::slit::ClosedStrut],
     m: &crate::merge_faces::MergeCoplanarOutcome,
     slivers: &[super::slit::Sliver],
     joins: &[super::EdgeJoin],
@@ -2260,7 +2259,7 @@ pub(super) fn output_substitutions(
     });
     closed
         .iter()
-        .flat_map(super::slit::Closed::substitutions)
+        .flat_map(super::slit::ClosedStrut::substitutions)
         .chain(merged)
         .chain(slivers.iter().flat_map(super::slit::Sliver::substitutions))
         .chain(joined)
@@ -2734,7 +2733,7 @@ fn bound_holds<'t, 'b, T: Decide>(
 /// What [`finish_output`] made.
 pub(super) struct OutputStage {
     /// The struts closed away ([`super::slit::close_struts`]).
-    pub(super) closed: Vec<super::slit::Closed>,
+    pub(super) closed: Vec<super::slit::ClosedStrut>,
     /// The merge of coplanar faces.
     pub(super) merged: crate::merge_faces::MergeCoplanarOutcome,
     /// The slivers merged away
@@ -2742,33 +2741,35 @@ pub(super) struct OutputStage {
     pub(super) slivers: Vec<super::slit::Sliver>,
     /// The joins, in the order made ([`BooleanNaming::edge_joins`]).
     pub(super) edge_joins: Vec<super::EdgeJoin>,
-    /// The parents of the edges the merge, the slivers' merge and the
-    /// join killed ([`BooleanNaming::killed_lineage`]).
+    /// The parents of the edges the closing, the merge, the slivers'
+    /// merge and the join killed ([`BooleanNaming::killed_lineage`]).
     pub(super) killed_lineage: BTreeMap<EdgeKey, EdgeKey>,
 }
 
 /// **The boolean's output stage**, the one every result path takes
-/// (`docs/DESIGN.md`, the merge stage): the closing of each face across
-/// the struts it holds ([`super::slit::close_struts`]), the merge of
-/// coplanar faces
-/// over the `declared` surface pairs (none where one operand is absent
-/// from the result), the re-description of the edges the op minted
-/// (`seam_edges`, plus the boundaries of groups the merge skipped), the
-/// merge of each sliver's two edges where its line holds no other edge
+/// (`docs/DESIGN.md`, the merge stage): the closing of a face across
+/// each of the zip's `struts` that it lies on both sides of
+/// ([`super::slit::close_struts`]), the merge of coplanar faces over the
+/// `declared` surface pairs (none where one operand is absent from the
+/// result), the re-description of the edges the op minted (`seam_edges`,
+/// plus the boundaries of groups the merge skipped), the merge of each
+/// sliver's two edges where its line holds no other edge
 /// ([`super::slit::merge_slivers`]), and the join
-/// ([`super::edge_join::join_stage`]), each writing its rows
-/// into the op's one `desc`. The result then has maximal faces and
-/// maximal edges, and its records are carried over `desc` after.
+/// ([`super::edge_join::join_stage`]), each writing its rows into the
+/// op's one `desc`. The result then has maximal faces and maximal edges,
+/// and its records are carried over `desc` after. `seam_edges` loses the
+/// edges the closing and the slivers' merge kill.
 ///
 /// # Errors
 ///
-/// The merge's ([`BooleanError::Merge`]), the description's, or the
-/// join's.
+/// The closing's ([`super::slit::close_struts`]), the merge's
+/// ([`BooleanError::Merge`]), the description's, the slivers' merge's,
+/// or the join's.
 pub(super) fn finish_output<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     desc: &mut Descendants,
     declared: &[(SurfaceKey, SurfaceKey)],
-    seam_edges: &[EdgeKey],
+    (seam_edges, struts): (&mut Vec<EdgeKey>, &[EdgeKey]),
     recorded: &BTreeSet<VertexKey>,
     band: Band,
     tol: Tol,
@@ -2789,21 +2790,20 @@ pub(super) fn finish_output<T: Decide + crate::props::AtRestPolicy>(
     // One snapshot of the records serves every stage: nothing between
     // the closing and the join mints an edge that survives it.
     let split_from = super::edge_join::split_records(body);
-    let closed = super::slit::close_struts(body, tol)?;
+    let closed = super::slit::close_struts(body, struts, tol)?;
     let mut killed_lineage = BTreeMap::new();
     super::edge_join::record_killed_lineage(
         &mut killed_lineage,
         &split_from,
         closed.iter().map(|c| c.edge),
     );
-    for row in closed.iter().flat_map(super::slit::Closed::substitutions) {
+    for row in closed
+        .iter()
+        .flat_map(super::slit::ClosedStrut::substitutions)
+    {
         desc.substitute(row)?;
     }
-    let seam_edges: Vec<EdgeKey> = seam_edges
-        .iter()
-        .copied()
-        .filter(|e| !closed.iter().any(|c| c.edge == *e))
-        .collect();
+    seam_edges.retain(|e| !closed.iter().any(|c| c.edge == *e));
     let merged = body.merge_coplanar_faces_unjoined(declared, tol)?;
     super::edge_join::record_killed_lineage(
         &mut killed_lineage,
@@ -2814,7 +2814,7 @@ pub(super) fn finish_output<T: Decide + crate::props::AtRestPolicy>(
             .flat_map(|g| g.killed_edges.iter().copied()),
     );
     desc.absorb_merge(&merged)?;
-    describe_minted_edges(body, &seam_edges, &merged, band, tol)?;
+    describe_minted_edges(body, seam_edges, &merged, band, tol)?;
     let slivers = super::slit::merge_slivers(body, band, tol)?;
     super::edge_join::record_killed_lineage(
         &mut killed_lineage,
@@ -2824,6 +2824,7 @@ pub(super) fn finish_output<T: Decide + crate::props::AtRestPolicy>(
     for row in slivers.iter().flat_map(super::slit::Sliver::substitutions) {
         desc.substitute(row)?;
     }
+    seam_edges.retain(|e| !slivers.iter().any(|s| s.killed == *e));
     let edge_joins = join_stage(
         body,
         desc,
@@ -7497,7 +7498,7 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 &mut body,
                 &mut desc,
                 &declared_pairs,
-                &[],
+                (&mut Vec::new(), &[]),
                 &recorded,
                 band,
                 tol,
@@ -7637,7 +7638,15 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
         slivers,
         edge_joins,
         killed_lineage,
-    } = finish_output(&mut body, &mut desc, &[], &[], &recorded, band, tol)?;
+    } = finish_output(
+        &mut body,
+        &mut desc,
+        &[],
+        (&mut Vec::new(), &[]),
+        &recorded,
+        band,
+        tol,
+    )?;
     let output = output_substitutions(&closed, &merged, &slivers, &edge_joins)?;
     crate::pcurves::mint_pcurves(&mut body, tol)
         .map_err(|source| BooleanError::Pcurves { source })?;
