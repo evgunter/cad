@@ -1316,7 +1316,6 @@ fn a_contact_line_beside_a_face_holding_it_builds_in_every_op() {
             let inputs = topo::BooleanInputs {
                 records_a,
                 records_b,
-                ..topo::BooleanInputs::default()
             };
             match topo::boolean_op_with(
                 topo::BooleanOp::Union,

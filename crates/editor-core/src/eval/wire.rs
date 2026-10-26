@@ -1842,7 +1842,7 @@ fn verb_refused<T: geom_core::Bounds>(refusal: verbs::VerbError<T>) -> NodeError
         verbs::VerbError::Members(refusal) => match refusal {
             topo::NaryRefusal::Hull { error, .. }
             | topo::NaryRefusal::Judgement { error, .. }
-            | topo::NaryRefusal::Step { error, .. } => NodeErrorKind::Boolean(error),
+            | topo::NaryRefusal::Step { error, .. } => NodeErrorKind::Boolean(*error),
             topo::NaryRefusal::VerdictsDisagree { .. } => {
                 NodeErrorKind::Naming(names::NamingError::Emission {
                     what: UNION_VERDICTS_DISAGREE,
@@ -3319,7 +3319,7 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 NodeErrorKind::UnionFoldStep {
                     member: u32::try_from(member).unwrap_or(u32::MAX),
                     read: members[member].read,
-                    refusal: Box::new(NodeErrorKind::Boolean(error)),
+                    refusal: Box::new(NodeErrorKind::Boolean(*error)),
                 }
             }
             other => verb_refused(other),

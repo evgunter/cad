@@ -281,14 +281,15 @@ fn a_boolean_refusal_crosses_the_dispatch_unaltered() {
     assert_eq!(door.to_string(), carried.to_string());
 }
 
-/// Three members, each with its rank its place, run through the n-ary
-/// dispatch and through the kernel's door.
-fn members_both_ways(
-    bodies: [&AtRestBody<f64>; 3],
-) -> (
+/// What the kernel's n-ary door and the dispatch each returned.
+type BothWays = (
     Result<topo::NaryResult<f64>, topo::NaryRefusal>,
     Result<topo::NaryResult<f64>, VerbError<f64>>,
-) {
+);
+
+/// Three members, each with its rank its place, run through the n-ary
+/// dispatch and through the kernel's door.
+fn members_both_ways(bodies: [&AtRestBody<f64>; 3]) -> BothWays {
     let inputs: Vec<topo::MemberInputs> = (0..3)
         .map(|rank| topo::MemberInputs {
             rank,

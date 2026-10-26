@@ -21,9 +21,10 @@ use super::{
     BooleanBody, BooleanError, BooleanInputs, BooleanNaming, BooleanOp, BooleanResult, GlueVerdict,
     GluedPair, Operand, OperandKeys, OperandRecords, SweepStrategy,
 };
+use crate::AtRestBody;
 use crate::body::Body;
 use crate::entity::FaceKey;
-use crate::props::{AtRestBody, AtRestPolicy};
+use crate::props::AtRestPolicy;
 
 /// The two operators that take a list of members.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -308,7 +309,7 @@ pub enum NaryRefusal {
         /// The member.
         member: usize,
         /// The box door's refusal.
-        error: BooleanError,
+        error: Box<BooleanError>,
     },
     /// A pair's judgement refused, or, with two members, their one step:
     /// the pair's refusal, the same in every member order.
@@ -318,14 +319,14 @@ pub enum NaryRefusal {
         /// Operand B's member.
         b: usize,
         /// The pair boolean's refusal.
-        error: BooleanError,
+        error: Box<BooleanError>,
     },
     /// The fold step joining `member` refused.
     Step {
         /// The member the step joins.
         member: usize,
         /// The pair boolean's refusal.
-        error: BooleanError,
+        error: Box<BooleanError>,
     },
     /// Two judgements' verdicts glue one accumulation face to one face
     /// of the member a step joins under two relations: two decisions
@@ -434,7 +435,10 @@ pub fn nary_boolean<T: Decide + Bounds + AtRestPolicy>(
         .map(|(member, m)| {
             crate::Separation::of(m.body, tol)
                 .map(|s| s.hull())
-                .map_err(|error| NaryRefusal::Hull { member, error })
+                .map_err(|error| NaryRefusal::Hull {
+                    member,
+                    error: Box::new(error),
+                })
         })
         .collect::<Result<Vec<_>, _>>()?;
     let empty = |what: &str| match op {
@@ -460,7 +464,11 @@ pub fn nary_boolean<T: Decide + Bounds + AtRestPolicy>(
                 sweep,
                 tol,
             )
-            .map_err(|error| NaryRefusal::Judgement { a, b, error })?;
+            .map_err(|error| NaryRefusal::Judgement {
+                a,
+                b,
+                error: Box::new(error),
+            })?;
             let BooleanResult::Body(body) = judged else {
                 return empty("pairwise judgement");
             };
@@ -501,6 +509,7 @@ pub fn nary_boolean<T: Decide + Bounds + AtRestPolicy>(
             tol,
         )
         .map_err(|error| {
+            let error = Box::new(error);
             if pairwise {
                 NaryRefusal::Step { member, error }
             } else {

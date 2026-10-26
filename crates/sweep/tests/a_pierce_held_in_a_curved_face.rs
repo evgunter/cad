@@ -438,7 +438,6 @@ fn every_op(
             let inputs = topo::BooleanInputs {
                 records_a: x.records.clone(),
                 records_b: y.records.clone(),
-                ..topo::BooleanInputs::default()
             };
             let r = match topo::boolean_op_with(
                 op,
