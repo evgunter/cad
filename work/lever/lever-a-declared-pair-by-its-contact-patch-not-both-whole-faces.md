@@ -72,3 +72,14 @@ scratch branches `flush/glue-verdict-design-u92Pc` @ `84c44eeb`
   displacement of 0.8ε. This may be a second over-meter, by √2, in the
   containment reading.
 
+## Ev's ruling (PR 5737, 2026-10-26)
+
+"tolerance.epsilon should meter an angle in whatever way is required to
+make all geometry correct to within epsilon". `[tolerance.epsilon]` now
+says so: an angle's lever arm is the reach at which it displaces the
+geometry it governs, and for parallelism that is each face's own points
+measured against the other's carrier, not the extent of both whole
+faces. The declared and the undeclared readings above both follow from
+this. So do the code comments that quote the old "face extent for
+parallelism": `geom-brep` `dihedral.rs` (`reach`) and `enters.rs`.
+
