@@ -12,3 +12,4 @@ yet.
   - **Closed, superseded by that ruling:** `n2s-crossing-clause-states-only-part-of-the-tie` (the clause is gone), `seam-line-ranks-keep-a-sided-axis-and-a-collapse-correction` (no rank, so no axis and no `RankRule::Reverse`), `crossings-of-a-seam-edge-whose-sides-names-do-not-settle-tie` (no first side is asked).
   - **Parked on the WIRE build:** `seam-rank-extents-compare-carrier-parameters-as-metres` (the rank reads go with the rankers) and `a-crossing-of-a-seam-edge-with-no-first-side-refuses` (re-read after it: a seam whose two sides carry one name may still leave `entering` ambiguous).
   - `emit-union-track-caller-helpers-panic-inside-closures` priced P4 E; `union-in-every-order-helpers-…` re-counted. Load 33 → 18.
+- 2026-10-26 — (easy-fixes lane) Closed `emit-union-track-caller-helpers-panic-inside-closures`: the three lookups and `edit.rs` `pose_into` raise from `let … else`.

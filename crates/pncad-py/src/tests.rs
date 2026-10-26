@@ -4430,6 +4430,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "slit_line_crossed",
             "spheres_meet",
             "split_lineage_cycle",
+            "tangent_crescent_unsupported",
             "torn_component",
             "underflowed_sector_chord",
             "unjoined_operand",

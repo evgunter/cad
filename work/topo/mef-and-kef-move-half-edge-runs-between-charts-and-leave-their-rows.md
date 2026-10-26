@@ -128,8 +128,8 @@ in its plan phase. Both doors are declared `Transfers`. The residues
 went to their owners' slates when they were filed:
 `work/topo/mint-face-surface-and-sense-reads-key-equality-where-same-chart-reads-provenance`,
 `work/origin/set-surface-source-stamps-a-recipe-without-checking-the-descriptions-agree`,
-`work/unseen/tracker-paths-in-crate-doc-comments-rot-on-a-program-re-cut`,
-`work/trim/pcurves-docs-claim-a-recycled-slot-can-read-another-half-edges-row`,
+`work/unread/tracker-paths-in-crate-doc-comments-rot-on-a-program-re-cut`,
+`work/charttail/pcurves-docs-claim-a-recycled-slot-can-read-another-half-edges-row`,
 plus the run doors' measurements on
 `work/pcert/validate-pcurves-cannot-tell-a-never-minted-face-from-an-emptied-one`.
 The minted halves' rows remain the ruled minting unit's

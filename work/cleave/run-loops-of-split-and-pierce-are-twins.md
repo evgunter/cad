@@ -6,6 +6,7 @@ status: open
 opened: 2026-10-06
 priority: P3
 cost: M
+design: true
 ---
 
 
@@ -41,3 +42,13 @@ orbit, or strut at `after`, with its check) belong in one helper over
 `(he, is_real, in_run)`, which both lanes would call. Each lane would
 keep its own side and record. If they share a home, the proof at the
 strut site is stated once. If not, say why the two must stay separate.
+
+## Duplication triage (INTENT, 2026-10-26)
+
+Classified on Ev's ask, via the CLEAVE note on INTENT's log, against main `e92fb951` and DESIGN `[one-way.places]` / `[one-way.readings]`. The four classes:
+- **design signal:** DESIGN names no single home, so a design conversation is owed;
+- **mechanical:** DESIGN names the home; delete the off-home copy and repoint its users;
+- **D10 debris:** a D10 stage retires one copy;
+- **not duplication.**
+
+**Design signal.** **Cluster A, the vertex-neighbourhood reading against a surface.** Split and boolean each own run enumeration, the sector walk, the bound side, struts and site choice. The only shared ground is the Euler types and the loose `vertex_section.rs`/`sector_*` modules, and the boolean already reaches into `splitting`. A third copy exists (`boolean/insert.rs`), and it disagrees: it refuses `RunSite::WholeOrbit` where split and `vtxfac` mint it. Unclear: who owns "a vertex neighbourhood's runs against a surface, with the null-edge site and strut". Candidates: beside `RunSite` in `euler.rs`, a topo module such as `vertex_section.rs`, or split's copy made canonical. DESIGN has no canonical-places row for it.

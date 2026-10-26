@@ -13,7 +13,7 @@
 //! section faces are transients that die in the seam zip; a boolean
 //! intersection polygon is in general non-planar, so no honest plane
 //! exists to mint). Which promoted/remaining face is the IN copy is
-//! read from the [`crate::null::NullFacePair::Boolean`] loop roles — the F3-chain
+//! read from the [`CompletedPolygonPair`] loop roles — the F3-chain
 //! derivation carried as data ("consistent orientation of null edges"
 //! is never consulted).
 //!
@@ -109,7 +109,6 @@ fn promote_solid<T: Decide>(
         // The transient section faces inherit the null face's surface
         // (module docs — they die in the zip).
         let promoted = body.mfkrh(ring, FaceSurface::Inherit)?;
-        body.clear_null_face_pair(face);
         let (in_face, out_face) = if ring == in_loop {
             (promoted.face, face)
         } else {

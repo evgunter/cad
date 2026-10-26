@@ -2,10 +2,11 @@
 id: sphere-sphere-section-radius-cancels-at-unequal-radii
 kind: issue
 title: sphere_sphere_section's secant arm takes the section circle's radius from a cancelling radical offset, so at radii orders of magnitude apart the circle lies off the smaller sphere
-status: open
+status: closed
 opened: 2026-10-13
 priority: P2
 cost: E
+closed: 2026-10-26
 ---
 
 
@@ -41,3 +42,7 @@ home for the algebra; fixing this site with a local spelling mints
 another copy.
 
 2026-10-14 (PATHS, `paths/circle-pair-shared-home`): the shared home has landed as `geom_core::Circles` (`crates/geom-core/src/arc/pair.rs`): built from `d` and the two radii, it hands out the identity, external and internal margins and the cancellation-free `radical` foot and `half_chord` from one `r₁ + r₂` and `r₁ − r₂`; `Circles2` places them in the plane. profile `seg.rs` and topo `validate.rs` arm 5 read it. Fix this site by reading it, deciding its margins from the same value, rather than minting a copy.
+
+## Closed (2026-10-26, easy-fixes lane)
+
+`crates/geom-brep/src/intersect.rs` `sphere_sphere_section` now builds `geom_core::Circles::new(d, r1, r2).at(c1, c2)`. It decides `ss_carrier_identity`, `_external` and `_internal` on `identity()`, `external()` and `internal()`, whose bits match the old `d + |Δr|`, `d − (r₁ + r₂)` and `d − |Δr|`. It places both tangent points and the secant circle's centre at `foot()`, its axis at `direction()`, and its radius at `half_chord()`. The tangent points stay at the radical foot (`issues/decided-tangent-point-is-the-radical-foot`); only their rounding moves. Pinned by `intersect_table.rs` `sphere_sphere_cut_at_unequal_radii_lies_on_the_smaller_sphere`: radii `10⁶` and 1 at `d = 10⁶ + 0.25`, every sample within 8 ulps of `r₁` of both spheres. The old closed form put this circle about `5.5e-5` off the unit sphere, against `1.4e-11` now (a Python replay of both formulas). Verified: `cargo nextest run -p geom-brep -E 'test(/sphere|intersect_table|…/)'`, 404 passed.
