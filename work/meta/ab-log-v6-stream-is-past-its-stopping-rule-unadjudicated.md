@@ -78,3 +78,17 @@ the record of why the file was parked there.
 Ev, in chat: keep the duals for the moment. Recorded in the log's
 protocol list. The readout over the candidates is still owed; this
 item stays open for it.
+
+## Where it stands (2026-10-26, tracker sweep)
+
+**Part (2) is answered; part (1) is not.** Ev took the second branch of
+the row's question — write v7 and say why — on 2026-09-19 (Protocol v7:
+the protocol runs on the hard units only), and then **suspended the
+protocol** on 2026-09-23 (`docs/MODEL-AB-LOG.md`, PROTOCOL SUSPENDED:
+everything runs on Opus; second reviews are recorded in
+`docs/DUAL-REVIEW-LOG.md` instead). So no v6 spend continues. What is
+still owed is the blinded adjudication of the v6 unilateral-MAJOR
+candidates — the readout the stopping rule existed to produce — and the
+suspension entry says any readout spanning it reports the eras either
+side separately. Whether that readout is still wanted is Ev's to say;
+nothing here asks it on a PR yet.

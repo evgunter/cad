@@ -19,8 +19,8 @@ priority seam on 2026-10-20.
   `revalue_corpus`'s pairing of the reader's decisions
   (`revalue-pairs-the-ray-casters-decisions-…`).
 - **The glue door's quiet paths:** the looser tolerance that a refusal
-  without an offer hides, the declared tangent pair re-witnessed, and
-  `KeptBoundaryUndecided` with no live fixture.
+  without an offer hides, and `KeptBoundaryUndecided` with no live
+  fixture.
 - **Two curved residues:** a split seam's `kfmrh` onto a curved host,
   and the seam that two coincident curved walls ship where operand A's
   copy ends.

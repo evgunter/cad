@@ -2,10 +2,11 @@
 id: tilted-cut-upper-pads-moved-in-the-thread-count-digest-at-1e-12
 kind: issue
 title: sweep mass_props thread-count digest: tilted_cut_upper's vpad/apad moved at CAD_TOLERANCE_EPS=1e-12 after PR 4952 landed
-status: open
+status: closed
 opened: 2026-10-13
 priority: P3
 cost: E
+closed: 2026-10-26
 ---
 
 
@@ -36,3 +37,13 @@ fails at `eps=1e-9` with the same `tilted_cut_upper` pad move
 other line unchanged. Reproduced with `crates/topo/src/pcurves.rs` at
 `origin/main`'s, so it is not that branch's. The row is in the slow
 set, so per-PR CI runs it only when a diff seeds sweep's slow tests.
+
+## Closed (2026-10-26, tracker sweep)
+
+**Superseded.** The re-cuts named on
+`the-thread-count-digests-sym-frozen-counts-moved-on-main`'s closure
+(`8bfc8e2319`, `0da1cd59e7`, `1cfffd8748`) re-baselined
+`tilted_cut_upper` too. `crates/sweep/tests/thread-count-digest/eps-1e-9.txt:3`
+now reads `vpad=3e812c48b2000000 apad=3ea9c26d0ae00000`, which matches
+neither side of this row's delta, and `eps-1e-12.txt:3` has moved as
+well. The move this row reports is no longer in the tree.

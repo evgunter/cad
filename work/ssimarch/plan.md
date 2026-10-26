@@ -6,7 +6,9 @@ dispatched.
 
 ## The slate
 
-**25 budget points** of dispatchable work against a ceiling of 30.
+**34.5 budget points** of dispatchable work against a ceiling of 30:
+over, with the rows filed since the cut that the table below does not
+list.
 
 | pri | item | cost | title |
 |---|---|---|---|
@@ -17,15 +19,13 @@ dispatched.
 | P3 | `ssi-the-residual-test-samples-a-bent-chart-at-eps-to-the-quarter-along-its-whole-bend` | M | ssi/march: the residual test samples a flat wall whose chart bends at an ε^−¼ density along the whole bend, against main's certificate-local density: 3.5–5.3× main's samples at ε 1e-12 |
 | P3 | `the-cylinder-chart-ellipse-pcurve-samples-a-fixed-schedule` | M | pcurve: the cylinder-chart ellipse pcurve is fitted through a fixed 129-sample schedule, a density nothing asks the certificate about; whether it meets small eps on metre-scale cuts is unmeasured |
 | P3 | `ssi-limb-three-refuses-a-bent-chart-path-line-at-eps-1e-12` | — | ssi: limb 3 refuses the bent-chart-path flat wall's line at mu 0.1 and eps 1e-12, its pieces stopping short of a carrier end |
-| P3 | `ssi-one-arc-side-readers-discard-the-side-rows-refusal` | — | ssi: one_arc's side_readers discards side_row's SplineError as an undecided side |
 | P3 | `ssi-short-branch-uncertified-length-can-name-another-branchs-crossing` | — | ssi: ShortBranchUncertified's length can be the distance to another branch's crossing, not the branch's |
 | P3 | `ssi-unsupported-certificate-carries-faults-that-are-not-boundaries` | — | geom-brep: SsiError::UnsupportedCertificate is raised for kernel faults and a degenerate operand as well as per-arm boundaries, so those sites end in no way through yet |
 
 ## Order
 
 The refusal-text rows
-(`ssi-one-arc-side-readers-discard-the-side-rows-refusal`,
-`ssi-short-branch-uncertified-length-can-name-another-branchs-crossing`,
+(`ssi-short-branch-uncertified-length-can-name-another-branchs-crossing`,
 `ssi-unsupported-certificate-carries-faults-that-are-not-boundaries`,
 `ssi-a-coincident-wall-or-side-crossing-refuses-the-cell-budget`) are
 small and run together. `ssi-match-exit-picks-the-crossing-nearest-a-chord`

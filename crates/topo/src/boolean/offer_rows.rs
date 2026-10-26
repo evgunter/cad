@@ -2192,8 +2192,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::CurvedPierceUnsupported
         | BooleanErrorKind::CrossingAtConeApex
         | BooleanErrorKind::NormalAtConeApex
-        | BooleanErrorKind::CurvedEdgeUnsupported
-        | BooleanErrorKind::CrossingCarrierUnsupported
+        | BooleanErrorKind::EdgeCarrierUnsupported
         | BooleanErrorKind::PointSplitCarrierUnsupported
         | BooleanErrorKind::GermEdgeCarrierUnsupported
         | BooleanErrorKind::ArcLoopContainmentUnsupported
@@ -2645,9 +2644,10 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("mod.rs", "verify_tangency", "Coincide::Contact", 1),
     ("mod.rs", "verify_tangency", "Coincide::Rim", 1),
     ("mod.rs", "verify_tangency", "Coincide::TangentLocus", 1),
+    ("ops.rs", "bounded", "BooleanDecision::VolumeBackstop", 1),
     (
         "ops.rs",
-        "bound_holds",
+        "decide_left",
         "BooleanDecision::VolumeBackstop",
         1,
     ),
@@ -2707,12 +2707,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("ops.rs", "piece_holds", "SelfCheck::CarriedLineage", 1),
     ("ops.rs", "span_in_band", "BooleanDecision::SelfCheck", 1),
     ("ops.rs", "span_in_band", "SelfCheck::CarriedLineage", 1),
-    (
-        "ops.rs",
-        "volume_backstop",
-        "BooleanDecision::VolumeBackstop",
-        1,
-    ),
     ("recl.rs", "flank_rep", "Coincide::Sectors", 1),
     ("recl.rs", "parallel_same_dir", "Coincide::EdgeOnEdge", 1),
     ("recl.rs", "recl_sectors", "Coincide::TangentSide", 1),

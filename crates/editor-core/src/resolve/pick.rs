@@ -1475,7 +1475,7 @@ pub struct PickHit {
     /// **The parameter is of the ray this call was given.** A consumer
     /// that carries a hit across a transform converts all three, or
     /// none of them mean anything: the viewer's moved-copy crossing is
-    /// `work/fit/a-moved-copys-pick-span-crosses-its-frame-unconverted.md`.
+    /// `work/vgeom/a-moved-copys-pick-span-crosses-its-frame-unconverted.md`.
     pub t: f64,
     /// See [`PickHit::t`].
     pub t_lo: f64,

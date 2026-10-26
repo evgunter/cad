@@ -161,5 +161,5 @@ Residue, filed:
 
 Not residue: `mint_pcurves` on the split body re-derives the carried
 `General` rows bit for bit (pinned), so the iso rim arms' frontier
-(`work/iso/iso-derivation-arms-assume-an-edge-spans-the-charts-whole-domain.md`)
+(`work/isotail/iso-derivation-arms-assume-an-edge-spans-the-charts-whole-domain.md`)
 does not reach a fitted-grade row.

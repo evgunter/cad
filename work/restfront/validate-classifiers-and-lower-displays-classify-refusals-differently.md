@@ -52,7 +52,7 @@ Ev, not a guess.
 
 **Already filed, fold if they are still open:** the `own_close(…, "lower
 the tolerance")` arms (`work/encl/validate-own-close-levers-follow-the-d4-recourse-ruling.md`),
-`work/chart/chart-region-corrupt-spells-its-kernel-defect-ending-by-hand.md`,
+`work/charttail/chart-region-corrupt-spells-its-kernel-defect-ending-by-hand.md`,
 and `work/props/nappe-spanning-spells-its-kernel-defect-ending-by-hand.md`.
 
 **Fixed already, not members:** `ArcLoopUnsupported` (#3388) and

@@ -4,6 +4,9 @@ kind: issue
 title: The kernel's fillet and chamfer doors return their input for an empty edge list
 status: open
 opened: 2026-10-20
+priority: P3
+cost: E
+design: true
 ---
 
 

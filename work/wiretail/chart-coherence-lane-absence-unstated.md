@@ -2,10 +2,11 @@
 id: chart-coherence-lane-absence-unstated
 kind: issue
 title: ChartCoherenceLane's None is the f64-only class, and its arms say nothing
-status: open
+status: closed
 opened: 2026-09-21
 priority: P3
 cost: E
+closed: 2026-10-26
 ---
 
 ## What
@@ -62,3 +63,15 @@ arm that says what it means rather than by a missing impl.
 WIRE's priority-seam cut moved this row, keeping its id and body: WIRE keeps its P0–P2 rows and the E rows that ride with them.
 
 Signed (WIRE orchestrator).
+
+## Closed (2026-10-26, tracker sweep)
+
+Fixed by the sweep, as the row's cheap answer ("state the reason on
+each arm"). `crates/editor-core/src/checks.rs`: the `ChartCoherenceLane`
+trait doc gains a paragraph saying the examination is written at `f64`
+(`topo::examine_chart_coherence` takes a `&Body<f64>`), so every other
+lane's `None` is LANE-0's "not written at this scalar" and not a
+refusal to certify, and that `Sym` and `Dual` have no impl (a static
+exclusion, not a `None`); the `Probe` and `Interval` arms each carry a
+two-line comment saying the same. Prose only. The H5-ruling-3
+alternative (one door value) is not taken and is not owed by this row.

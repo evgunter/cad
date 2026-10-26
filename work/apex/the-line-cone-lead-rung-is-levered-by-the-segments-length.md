@@ -16,15 +16,15 @@ second review (r2 m-2).
 ## What
 
 `reduce::line_cone_roots` decides `bool_line_cone_lead` on
-`Margin::levered(A/|dir|², L)` (`crates/topo/src/boolean/reduce.rs:3595`),
-`L` the segment's length (`reduce.rs:3592`). On a short edge the lever
+`Margin::levered(A/|dir|², L)` (`crates/topo/src/boolean/reduce.rs:3879-3882`),
+`L` the segment's length (`reduce.rs:3878`). On a short edge the lever
 is small, so the rung reads a line well off any generator as
 "parallel to a generator" and answers `Uncertain`.
 
 Measured by r2: at scale 1e-3 and ε 1e-6, 13 of 240 random sweeps
 escalate `bool_line_cone_lead`, at a margin of 6.36e-6 = `A·L` — `A`
 about 0.06 on a 0.1 mm edge, roughly ±15° of direction.
-`solid_contain::quadratic_roots` (`crates/topo/src/boolean/solid_contain.rs:4174`)
+`geom_brep::quartic::quadratic_roots` (`crates/geom-brep/src/quartic.rs:28`, read at `reduce.rs:3903`)
 is stable at small `A`, so the lever is the rung's, not the solve's.
 The filing `a-line-parallel-to-a-cone-generator-…` describes the
 degeneracy itself, not this lever.

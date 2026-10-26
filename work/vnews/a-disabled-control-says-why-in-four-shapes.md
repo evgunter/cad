@@ -159,7 +159,7 @@ for exactly this shape of grep over `crates/viewer/src`, and
 `scripts/gates/probe-suite-census.sh` is the precedent for a gate that
 holds a census's membership rather than a comment's number.
 `scripts/gates/*` is GUARD's, so the guard is filed rather than
-written: `work/guard/viewer-disabled-control-population-has-no-gate`.
+written: `work/unread/viewer-disabled-control-population-has-no-gate`.
 
 ### P2 — a sentence drawn in the place a control would occupy: 11 sites, judged
 

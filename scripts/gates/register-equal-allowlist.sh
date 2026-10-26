@@ -39,10 +39,10 @@
 #         for the configuration it was handed or an upstream enclosure
 #         does not contain its real. The assertion is live in release
 #         (this workspace ships `debug-assertions = true` there).
-#     The sweep's sites reach that arm table through one helper,
-#     `sweep::swept::handle_registration`, and the profile lowering's
-#     through `profile::handle_registration`; each match is exhaustive
-#     by hand;
+#     The arm table is one method, `SymRegistration::handle`
+#     (`crates/geom-core/src/real.rs`), exhaustive by hand, which every
+#     registrant calls on its answer — the sweep's sites and the
+#     profile lowering's alike;
 #
 # THE RATIFIED SITES (M10-9's unit of scope, the CONSTRUCTOR, as the
 # #3453 ruling reads it: the construction registers what the algebra

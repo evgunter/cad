@@ -214,6 +214,7 @@ def parse_front_matter(raw: str, where: str) -> tuple[dict[str, object], list[st
     for n, line in enumerate(lines[1:], start=2):
         if line == "---":
             body = "\n".join(lines[n:])
+            _refuse_fallen_header(lines[n:], n + 1, where)
             return fields, order, body
         if line.strip() == "" or line.lstrip().startswith("#"):
             continue
@@ -238,6 +239,27 @@ def parse_front_matter(raw: str, where: str) -> tuple[dict[str, object], list[st
             fields[key] = _scalar(value)
         order.append(key)
     raise Bail(f"{where}: front matter never closed (no second `---` line)")
+
+
+def _refuse_fallen_header(body: list[str], first: int, where: str) -> None:
+    """A header whose fields were appended BELOW its closing `---` and closed
+    again — `priority:` and `cost:` added after `work.py new` wrote the header —
+    parses as a short header and a body that opens with the lost fields, which
+    then escape validation and the board alike. So the body's first non-blank
+    lines being known header keys, closed by a `---` line, is refused. A lone
+    Markdown rule in a body is not: only key lines followed by `---` are."""
+    keys = 0
+    for n, line in enumerate(body, start=first):
+        if line.strip() == "" and keys == 0:
+            continue
+        m = KEY_RE.match(line)
+        if m and m.group(1) in SCHEMA:
+            keys += 1
+            continue
+        if line == "---" and keys:
+            raise Bail(f"{where}:{n}: {keys} header field(s) fell below the closing `---` into the "
+                       f"body — move them up into the front matter, where lint reads them")
+        return
 
 
 def format_front_matter(fields: dict[str, object], order: list[str]) -> str:
@@ -596,6 +618,11 @@ def lint(root: str, warnings: list[str] | None = None) -> list[str]:
             errors.append(f"{it.path}: status closed needs a `closed:` date")
         if it.status != "closed" and it.get("closed") is not None:
             errors.append(f"{it.path}: `closed:` is set but status is {it.status}")
+        # Both dates are shape-checked YYYY-MM-DD, so they order as strings.
+        if (it.get("closed") is not None and it.get("opened") is not None
+                and str(it.get("closed")) < str(it.get("opened"))):
+            errors.append(f"{it.path}: closed {it.get('closed')} is before opened "
+                          f"{it.get('opened')} — one of the two dates is wrong")
         if it.status == "parked" and not it.get("blocked_on"):
             errors.append(f"{it.path}: parked needs a non-empty `blocked_on`")
         if it.get("cost") == "D" and str(it.get("opened")) >= LEGACY_D_UNTIL:
@@ -1211,6 +1238,10 @@ def selftest() -> int:
              "status: open", "status: open\ndesign: yes"),
             ("a program carries no band", "work/topo/program.md",
              "status: ready", "status: ready\npriority: P0"),
+            ("closed before opened", "work/topo/T-1.md",
+             "closed: 2026-08-19", "closed: 2026-07-31"),
+            ("header fields fallen into the body", "work/mesh/MESH-2.md",
+             "needs_ev: true\n---\n", "needs_ev: true\n---\npriority: P3\ncost: E\n---\n"),
         ]
         expectations = ["unknown key", "either `true` or absent", "no item", "must equal the file name", "must be one of",
                         "needs a `closed:` date", "non-empty `blocked_on`",
@@ -1219,7 +1250,8 @@ def selftest() -> int:
                         "nothing else gates this row", "so prune the fired entry",
                         "cite the ratification in the body",
                         "`cost: D` is legacy", "either `true` or absent",
-                        "not a field of kind program"]
+                        "not a field of kind program", "is before opened",
+                        "fell below the closing `---`"]
         for (name, rel, old, new), needle in zip(cases, expectations, strict=True):
             p = os.path.join(root, rel)
             with open(p, encoding="utf-8") as f:

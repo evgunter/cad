@@ -2,10 +2,11 @@
 id: the-mate-tools-refusal-names-the-mate-tool-twice
 kind: issue
 title: the mate tool's missing-picks refusal reads "mate tool: the mate tool needs two face picks"
-status: open
+status: closed
 opened: 2026-09-30
 priority: P4
 cost: E
+closed: 2026-10-26
 ---
 
 
@@ -32,3 +33,7 @@ yet"). The fix is the wording of the one `Display` arm, for example
 "needs two face picks" or "no face picked for pick a / pick b yet" to
 match the seats. `crates/viewer/tests/mate_tool_flow.rs` matches the
 variant, not its text, so no row asserts the words.
+
+## Closed (2026-10-26, tracker sweep)
+
+**Fixed in this sweep.** `MateToolError::NotTwoPicks`'s `Display` (`crates/viewer/src/matetool.rs:246`) now reads *needs two face picks*, so the status line says *mate tool: needs two face picks* through `ToolKind::Mate.refuses` (`pane/create.rs:545`/`:570`), with no stutter. No row asserts the text: `mate_tool_flow.rs:124` matches the variant, and `grep -rn 'needs two face picks'` finds only the arm.

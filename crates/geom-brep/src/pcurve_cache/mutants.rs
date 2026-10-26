@@ -24,7 +24,7 @@ const NAME: Option<&str> = option_env!("PCERT_RADIAL_PAIR_MUTANT");
 
 /// Every site this crate's hooks name. topo's `chord_join` declares its
 /// own two (`topo-gate`, `topo-v-var`) under the same variable.
-pub(super) const SITES: [&str; 15] = [
+pub(super) const SITES: [&str; 16] = [
     "class-circle",
     "zero-winding",
     "torus-parallel",
@@ -40,6 +40,7 @@ pub(super) const SITES: [&str; 15] = [
     "radial-amplitude",
     "frame",
     "envelope-fit",
+    "skip-incidence",
 ];
 
 fn on(site: &str) -> bool {
@@ -174,4 +175,11 @@ fn the_named_mutant_is_a_site() {
         NAME.is_none_or(|n| SITES.contains(&n) || matches!(n, "topo-gate" | "topo-v-var")),
         "PCERT_RADIAL_PAIR_MUTANT names no site: {NAME:?}"
     );
+}
+
+/// `incidence::incident`: the incidence test skipped, so a carrier off
+/// the chart reaches the general lane and a class reading's "not yet"
+/// (its rows are `off_chart_class_rows`).
+pub(super) fn skip_incidence() -> bool {
+    on("skip-incidence")
 }
