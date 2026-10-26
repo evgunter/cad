@@ -54,9 +54,7 @@
 
 use geom::Curve3;
 use geom::Surface;
-use geom_core::period::{
-    Bounded, Exact, Extent, NotForward, Period, Turn, TurnRows, TurnUndecided, Within,
-};
+use geom_core::period::{Exact, Extent, NotForward, Period, Turn, TurnRows, TurnUndecided, Within};
 use geom_core::spline::SpanLocate;
 use geom_core::{
     Band, BandError, Decide, Decided, Indeterminate, Margin, MarginDiag, Point3, Real, Sign,
@@ -3492,9 +3490,9 @@ fn run_checks<T: Decide>(
                 one_turn.turn(rows, extent, Exact::new(floor.get()), band)
             } else {
                 // The ellipse and the spiric read the turn between the
-                // floor and the sup over the turn's defect of this window.
-                let sup = geom::carrier_speed::turn_defect_speed_hi(periodic, t0, extent);
-                one_turn.turn(WINDING_ROWS, extent, Bounded::new(floor, sup), band)
+                // inf and the sup over the turn's defect of this window.
+                let rate = geom::carrier_speed::turn_defect_rate(periodic, t0, extent);
+                one_turn.turn(WINDING_ROWS, extent, rate, band)
             };
             Some(CertifiedTurn {
                 params: (t0, t1),

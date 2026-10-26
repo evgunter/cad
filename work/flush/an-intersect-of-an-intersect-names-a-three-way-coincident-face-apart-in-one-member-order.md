@@ -2,11 +2,12 @@
 id: an-intersect-of-an-intersect-names-a-three-way-coincident-face-apart-in-one-member-order
 kind: issue
 title: The silhouette letters' intersect of an intersect names one piece of the y 3 face with an extra wall when both intersects take the other member order
-status: open
+status: dispatched
 opened: 2026-10-20
 priority: P2
 cost: M
 refs: [5368]
+branch: flush/three-way-coincident-names
 ---
 
 

@@ -1649,7 +1649,7 @@ enum Fold<T> {
 
 /// The fold for windows whose azimuth midpoints are `gap` apart, on a
 /// cylinder of `radius`: the shift `k·τ`, with `k` decided by the
-/// half-period marks ([`geom_brep::Period::decide`]) levered at the
+/// half-period marks ([`geom_brep::Period::decide`]) metered at the
 /// radius, so it is a literal at every scalar. Where a mark misses, the
 /// two branches astride it (`pcurves::branches_astride`), each a literal.
 ///
@@ -1661,7 +1661,7 @@ enum Fold<T> {
 fn period_fold<T: Decide>(gap: T, radius: T, band: Band) -> Result<Fold<T>, ChartRegionError> {
     let tau = T::tau();
     let name = "chart_region_period_fold";
-    let meter = |g| Margin::levered(g, radius);
+    let meter = |g| Margin::metered(g, InfSpeed::new(radius));
     let period = geom_brep::Period::new(tau);
     let shift = |k: i32| period.times(k);
     match period.decide(name, gap, meter, band) {

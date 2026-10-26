@@ -172,7 +172,7 @@ pub use curves::{
     MajorFrame, NurbsCurve2, NurbsCurve3, OnCarrier, Projection2, Projection3,
     ProjectionInconclusive, RefitSkip, SeamSide, SpiricInvalid, compose_chain,
     ellipse_level_clearance, spiric_curvature_sup, spiric_f_range, spiric_period_box,
-    spiric_period_rate_bounds, spiric_radial, spiric_rate_bounds,
+    spiric_period_rate_bounds, spiric_radial, spiric_rate_bounds, spiric_window_rate_bounds,
 };
 pub use datum::{AnalyticData, DatumValue};
 pub use param::mid_param;
