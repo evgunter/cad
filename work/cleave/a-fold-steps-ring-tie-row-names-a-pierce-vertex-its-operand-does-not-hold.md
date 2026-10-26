@@ -5,6 +5,8 @@ title: A union fold step's ring-tie row names a pierce vertex the reduction mint
 status: open
 opened: 2026-10-19
 priority: P1
+pr: 5753
+branch: cleave/ring-tie-spells-its-pierce-vertex
 ---
 
 
