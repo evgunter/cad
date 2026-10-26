@@ -221,7 +221,12 @@ fn one_solid_in_two_face_orders_carries_nearly_one_pad() {
     }
 }
 
-/// Pads of `body` with every shell's face list rotated by each `k`.
+/// Pads of `body` with every shell's face list rotated by each `k`: each
+/// rotation's volume enclosure's half-width, read at the pinned resolution
+/// whatever the measurement's stop. These rows compare brackets, so a
+/// rotation whose face stopped at its floor short of the resolution
+/// (`Stop::Floor`, at 1e-12 on the two tori's bar) is read as the bracket
+/// it states, not refused as a number unmet.
 fn pads_over_rotations(body: &topo::Body<f64>) -> Vec<f64> {
     let tol = Tol::witness();
     let n = *topo::test_support::rotate_shell_faces(&mut body.clone(), 0)
@@ -238,8 +243,7 @@ fn pads_over_rotations(body: &topo::Body<f64>) -> Vec<f64> {
                 topo::test_support::pinned_resolution(tol),
             )
             .expect("the measured body")
-            .met()
-            .expect("the measured body")
+            .enclosure
             .volume_pad
         })
         .collect()
