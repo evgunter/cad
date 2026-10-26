@@ -6,6 +6,7 @@ status: parked
 opened: 2026-10-10
 blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 cost: M
+priority: P2
 ---
 
 
@@ -89,3 +90,12 @@ at-rest findings, which INTENT stages 4 and 5 rebuild. Per RESTREAD's
 plan (a row needing declared pairs or contact parks and moves to
 CONTACTHOLD), it moved here by `git mv` with its id unchanged. Priced
 `M` where it carried no cost. (RESTREAD orchestrator)
+
+## 2026-10-25 — banded P2 (band rule)
+
+`a-line-edge-in-a-curved-faces-interior-is-recorded-at-its-ends-only`
+(P2) is parked on this row, and the line-in-a-curved-face case its title
+names is the lane that row's producer waits for. A blocker inherits the
+band of what waits on it (`work/README.md`, Priority), so this row,
+unbanded until now, carries P2. Its own blocker, the D10 hold, is P0.
+(band-rule triage)

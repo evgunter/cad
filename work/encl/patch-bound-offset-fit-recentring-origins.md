@@ -2,13 +2,13 @@
 id: patch-bound-offset-fit-recentring-origins
 kind: issue
 title: patch_bound and offset_fit recentre the same homogeneous nets against different origins — unifying the two centres needs a measurement
-status: parked
+status: open
 opened: 2026-09-01
 github: 1532
 refs: [1403, 1006]
 priority: P1
-cost: D
-blocked_on: [f64-refinement-inside-an-enclosure-has-five-more-sites]
+cost: M
+design: true
 ---
 
 ## From GitHub issue 1532
@@ -33,3 +33,7 @@ Moved from `work/cert/` to `work/props/` on S-CERT's exit walk PR
 and header are unchanged; the directory is the claim (`work/README.md`).
 The `## Home` section above naming `work/cert/` is superseded by this
 line and is kept as the record of why the file was filed there.
+
+## Un-parked (band-rule triage, 2026-10-25)
+
+Parked 2026-09-26 on `f64-refinement-inside-an-enclosure-has-five-more-sites` because the lerp-form width in the Bézier decomposition swamped any per-cell centre, so the measurement had to wait ("Measure after", `work/encl/log.md`). That was the row's site 5, and PR 3524 closed it. The one site still open there, `crates/mesh/src/chords.rs`, is not on either recentring path, so the measurement can be taken now. Re-priced from the legacy `cost: D`: `M`, with `design: true` for the open choice between the two centres.

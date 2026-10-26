@@ -96,9 +96,11 @@ Row 2 (a shape no rule names):
   members and no seam at a union vertex". The code's argument that no
   manifold union reaches this covers planar faces only.
 - `cite_member_edges`, `CITED_GROUP_NO_MEMBER_EDGE` (two sites). This is
-  the sibling of `CITED_GROUP_NOT_ONE_SEAM`, which a legal document
-  reaches
-  (`a-bridge-met-with-the-wedges-and-the-other-bridge-names-vertices-on-no-single-seam-alike`).
+  the sibling of `CITED_GROUP_NOT_ONE_SEAM`. A legal document once
+  reached that one through a member corner held as several vertices
+  (`a-bridge-met-with-the-wedges-and-the-other-bridge-names-vertices-on-no-single-seam-alike`,
+  now named by `name_corner_copies`), so the argument that neither is
+  reachable has already failed once.
 - `Parents::cited`: "a name a union publishes cites faces of several
   parents". A tied member face is keyed to the parent of each of its
   candidates, and those parents can differ.

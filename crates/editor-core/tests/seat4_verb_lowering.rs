@@ -506,11 +506,16 @@ fn a_boolean_document_round_trips_byte_identical() {
 /// RE-BLESSED, every row, for a certificate that keeps its turn: the
 /// digest feeds each edge curve's `Debug`, which now spells the
 /// certificate's `turn`. No outcome or point moved.
+///
+/// RE-BLESSED, `crossing_slots` only, for a pair boolean's `Borders`
+/// walls citing their parent as the boolean's own table names it (the
+/// `From` each came in through): the second subtract's divided pieces'
+/// names moved. No outcome or point moved.
 #[test]
 fn the_boolean_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("crossing_slots", 0xd133_5064_d178_c6a3_u64),
+        ("crossing_slots", 0x45d7_a6e9_356c_41b1_u64),
         ("heat_sink", 0x0ec3_4ebe_7178_d688),
         ("kiss_carry", 0x0a0b_0ddb_99f9_abb9),
     ] {

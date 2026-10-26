@@ -35,9 +35,7 @@
 
 use profile::ValidatedProfile;
 
-use crate::names::{
-    NamingError, PieceRole, PieceRun, ProfileEdgeRef, ProfileVertexRef, SectionCircle, to_u32,
-};
+use crate::names::{PieceRole, PieceRun, ProfileEdgeRef, ProfileVertexRef, SectionCircle, to_u32};
 use crate::node::StepId;
 
 /// One canonical loop's anchor: how canonical indices map back to the
@@ -214,33 +212,30 @@ impl ProfilePieces {
     /// circle and loop 1 a hollow tube's bore, each of `counts[l]`
     /// pieces, named structurally under the node that builds them.
     ///
-    /// # Errors
-    ///
-    /// [`NamingError::Emission`] for a piece index past the `u32` a role
-    /// stores.
-    ///
     /// # Panics
     ///
     /// For more than two loops, a shape no tube door builds.
-    pub(crate) fn section(counts: &[usize]) -> Result<Self, NamingError> {
-        let circle = |l: usize| match l {
-            0 => SectionCircle::Outer,
-            1 => SectionCircle::Bore,
-            _ => unreachable!(
-                "a tube's section has {} loops, though the tube doors build an outer circle and \
-                 at most one bore",
-                counts.len()
-            ),
-        };
+    #[track_caller]
+    pub(crate) fn section(counts: &[usize]) -> Self {
         let mut edges = Vec::with_capacity(counts.len());
         let mut vertices = Vec::with_capacity(counts.len());
         for (l, &n) in counts.iter().enumerate() {
-            let circle = circle(l);
-            let roles = (0..n)
-                .map(|k| {
-                    to_u32(k, "a tube section's piece index exceeds u32").map(PieceRole::Piece)
-                })
-                .collect::<Result<Vec<_>, _>>()?;
+            let circle = match l {
+                0 => SectionCircle::Outer,
+                1 => SectionCircle::Bore,
+                _ => unreachable!(
+                    "a tube's section has {} loops, though the tube doors build an outer circle \
+                     and at most one bore",
+                    counts.len()
+                ),
+            };
+            let mut roles: Vec<PieceRole> = Vec::with_capacity(n);
+            for k in 0..n {
+                roles.push(PieceRole::Piece(to_u32(
+                    k,
+                    "a tube section's piece index, on a circle a tube door builds as two arcs",
+                )));
+            }
             edges.push(
                 roles
                     .iter()
@@ -254,11 +249,11 @@ impl ProfilePieces {
                     .collect(),
             );
         }
-        Ok(Self {
+        Self {
             reversed: vec![false; edges.len()],
             edges,
             vertices,
-        })
+        }
     }
 
     /// **Distinct stand-in pieces for a profile no document holds** —
@@ -478,11 +473,12 @@ pub(crate) fn derive_naming(
 /// records one role per loop.
 #[track_caller]
 pub(crate) fn validated_naming(canonical: &profile::CanonicalStructure) -> ProfileNaming {
-    derive_naming(canonical).unwrap_or_else(|outers| {
-        unreachable!(
+    match derive_naming(canonical) {
+        Ok(naming) => naming,
+        Err(outers) => unreachable!(
             "a validation recorded {outers} outer loops over {} loops, though it refuses any \
              profile without exactly one before recording",
             canonical.loops.len()
-        )
-    })
+        ),
+    }
 }
