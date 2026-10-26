@@ -57,26 +57,26 @@ an arc of the loops crossed is its `CrossedCurve` gap.
 
 ## 2026-10-26 — read by its crossings (CLEAVE, `cleave/riders-read-every-edge-in-a-face`)
 
-- `slit::riders` (`crates/topo/src/boolean/slit.rs:631`) asks a face
+- `slit::riders` (`crates/topo/src/boolean/slit.rs:636`) asks a face
   of an edge where both of the edge's ends lie on it, an edge-on-face
   record names the pair, or a record names a crossing of the edge with
   the face's loops: an edge-edge record with an edge of them, or a
   vertex-on-edge record of a vertex of them (`crossed_faces`,
-  `slit.rs:691`).
-- `slit::holding` (`slit.rs:742`) reads the edge as lying in the face
+  `slit.rs:710`).
+- `slit::holding` (`slit.rs:758`) reads the edge as lying in the face
   where its carrier lies on the face's surface (`on_carrier`,
-  `slit.rs:849`) and an edge-on-face record names the pair, or the face
+  `slit.rs:885`) and an edge-on-face record names the pair, or the face
   holds the midpoint of one of the pieces the recorded crossings cut it
-  into (`cuts`, `slit.rs:785`). The edge's own midpoint decides
+  into (`cuts`, `slit.rs:821`). The edge's own midpoint decides
   nothing. The edge is divided first unless both its ends lie on the
   face and no record names a crossing. A face on the surface one of
   the edge's own faces lies on is not asked: the edge bounds that sheet.
-- `slit::divide` (`slit.rs:1344`) reads each crossing through
+- `slit::divide` (`slit.rs:1380`) reads each crossing through
   `curve_pair::meet` for any certified carrier of the loops
-  (`crossing_named`, `slit.rs:1548`), so an arc of the loops is divided
+  (`crossing_named`, `slit.rs:1584`), so an arc of the loops is divided
   where the edge crosses it, once or twice per arc; the resting
   vertices on a crossed edge go to the piece holding them, ordered
-  along it (`slot_from_far_end`, `slit.rs:1623`). A meeting the reader
+  along it (`slot_from_far_end`, `slit.rs:1659`). A meeting the reader
   does not settle refuses `CrossedCurve`.
 - Witnesses, `sweep/tests/edges_lying_in_a_face_part_wherever_they_lie.rs`:
   the cutter over `z ∈ [.6, .9]`, over `[.25, .5]` (the midpoint on the
@@ -88,6 +88,12 @@ an arc of the loops crossed is its `CrossedCurve` gap.
   coincident edges over each piece the face holds. Against main's
   reading every `A ∖ B` holds one edge there and fails 3′
   (`FaceThroughEdgeWedge`, or `…Undecided` on the pocket floors).
+- The review's probe (its 22 scenes, every op, at three ε), against
+  main: the scenes above move from the rider form to the parted form,
+  and the shallow crossing tilted 1e-7 (at 1e-9) or 1e-4 (at 1e-6,
+  `an_edge_running_past_a_face_reads_its_crossings.rs` re-pinned)
+  moves from an in-band read of the edge's midpoint to a sound build;
+  nothing else moves.
 - The reading still finds no edge lying in a torus or spline face, nor
   one lying in a face where no record names the pair or a crossing; it
   ships one edge there.
