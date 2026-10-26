@@ -98,10 +98,10 @@ fn corners(
 ) -> Vec<(f64, f64, f64)> {
     let body = corpus::body_of(ev, instance);
     let face = fixture::face_of(table(ev, instance), "held wall", name);
-    let mut out: Vec<(f64, f64, f64)> = fixture::face_vertices(body, face)
+    let mut out: Vec<(f64, f64, f64)> = fixture::face_vertices(&body, face)
         .into_iter()
         .map(|v| {
-            let p = point(body, v);
+            let p = point(&body, v);
             (p.x, p.y, p.z)
         })
         .collect();

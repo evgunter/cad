@@ -586,8 +586,8 @@ fn direct_validation_door_behavior_at_dual64() {
     // runs and answers. That door is the `_structural` twin: the composed
     // entry carries the +V invariant's certified bound and cannot be
     // called at a dual at all.
-    let direct = topo::validate_geometric_structural(body, tol);
-    let policy = <Dual64 as topo::AtRestPolicy>::gate_at_rest(body, tol);
+    let direct = topo::validate_geometric_structural(&body, tol);
+    let policy = <Dual64 as topo::AtRestPolicy>::gate_at_rest(&body, tol);
     assert_eq!(
         policy,
         Ok(topo::AtRestOutcome::NotRunAtThisScalar),
@@ -604,7 +604,7 @@ fn direct_validation_door_behavior_at_dual64() {
         // NURBS wall and says so as `VolumeUncomputable` rather than
         // passing it unbounded. Nothing else the battery consults refuses
         // this body.
-        let verdict = topo::validate_geometric_structural(body_n, tol);
+        let verdict = topo::validate_geometric_structural(&body_n, tol);
         assert!(
             matches!(&verdict, Err(errs) if !errs.is_empty() && errs.iter().all(|e| matches!(
                 e,

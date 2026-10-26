@@ -1402,15 +1402,18 @@ fn a2_a_box_on_the_bolts_spacing_encloses_the_bolt_at_every_corner() {
     }
 }
 
-/// **Over a wide box the bolt meets the placement door's refusal** —
-/// the residual every boxed placer meets today: the bolt's own refusal is
-/// the rigid motion's, not its bundle's, and the pattern, which reads
-/// the bolt, is poisoned through it.
+/// **Over a wide box the bolt builds**: a copy is its source's body
+/// under its frame (D10 `[placement.frame]`), never rebuilt, so the
+/// box-wide motion is the copy's frame and no mapped carrier is
+/// certified again — the placement door's re-certification, which
+/// refused over this box while a placement mapped its source, is not
+/// run. The pattern reading the bolt builds its copies the same way.
 ///
-/// *Breaks if* a box-wide motion is certified rigid, or the refusal
-/// reads as the bundle's.
+/// *Breaks if* a copy is rebuilt under a box-wide motion (the mapped
+/// carriers refuse certification), or the pattern is poisoned through
+/// the bolt.
 #[test]
-fn a2_over_a_wide_box_the_bolts_refusal_is_the_placement_doors() {
+fn a2_over_a_wide_box_the_bolt_builds_its_copy_unbuilt() {
     let b = bolted("msolve14-a2-wide");
     let ev = run_at::<Interval>(
         &b.doc,
@@ -1418,23 +1421,14 @@ fn a2_over_a_wide_box_the_bolts_refusal_is_the_placement_doors() {
         None,
     );
     assert!(
-        matches!(
-            ev.result(b.pattern),
-            Some(NodeResult::Poisoned { through }) if *through == b.bolt
-        ),
-        "{:?}",
-        ev.result(b.pattern)
+        ev.node_error(b.bolt).is_none(),
+        "the bolt builds over the box: {:?}",
+        ev.node_error(b.bolt)
     );
-    let kind = &ev
-        .node_error(b.bolt)
-        .expect("the placement door refuses")
-        .kind;
     assert!(
-        matches!(
-            kind,
-            editor_core::NodeErrorKind::Transform(_) | editor_core::NodeErrorKind::Motion(_)
-        ),
-        "the bolt refuses at the rigid motion: {kind:?}"
+        matches!(ev.result(b.pattern), Some(NodeResult::Ok(_))),
+        "the pattern builds over the box: {:?}",
+        ev.node_error(b.pattern)
     );
 }
 

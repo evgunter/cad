@@ -147,8 +147,7 @@ fn linear_pattern_evaluates_instances_as_data() {
             1.0
         ); // dyadic exact
         // Instance i sits at x offset 2i exactly (translation-only).
-        let min_x = inst
-            .body()
+        let min_x = crate::fixture::in_space(inst)
             .points()
             .map(|(_, p)| p.x)
             .fold(f64::INFINITY, f64::min);
@@ -655,8 +654,7 @@ fn a_non_finite_pattern_direction_places_its_instances_at_the_interval_scalar() 
     };
     assert_eq!(instances.len(), 3);
     for (i, inst) in instances.iter().enumerate() {
-        let min_x = inst
-            .body()
+        let min_x = crate::fixture::in_space(inst)
             .points()
             .map(|(_, p)| geom_core::Bounds::lo(p.x))
             .fold(f64::INFINITY, f64::min);

@@ -308,7 +308,7 @@ fn row4_a_placement_moves_every_solid_of_a_multi_solid_instance() {
     let opts = with_resolver(store);
 
     let before = run(&doc, &opts);
-    let body0 = product(&doc, &before, Tol::witness()).expect("gathers");
+    let body0 = crate::fixture::product_in_world(&doc, &before, Tol::witness()).expect("gathers");
     let pin0 = content_pin(&doc, Tol::witness()).expect("pins");
 
     let moved = repinned(doc, ids[0], [7.0, 0.0, 0.0], &opts);
@@ -319,7 +319,7 @@ fn row4_a_placement_moves_every_solid_of_a_multi_solid_instance() {
     );
 
     let after = run(&moved, &opts);
-    let body1 = product(&moved, &after, Tol::witness()).expect("gathers");
+    let body1 = crate::fixture::product_in_world(&moved, &after, Tol::witness()).expect("gathers");
     assert_eq!(body1.solids().count(), 2, "both solids came along");
     assert_eq!(
         volume(&body0).to_bits(),

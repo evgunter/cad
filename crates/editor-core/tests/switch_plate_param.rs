@@ -129,7 +129,7 @@ fn a_parameter_edit_re_evaluates_into_new_geometry() {
         topo::mass_properties(
             &topo::test_support::finished(
                 "the measured body",
-                topo::Body::clone(body_of(&ev, s.solid)),
+                topo::Body::clone(&(body_of(&ev, s.solid))),
                 Tol::witness(),
             ),
             Tol::witness(),
@@ -169,7 +169,7 @@ fn one_parameter_drives_both_holes() {
         topo::mass_properties(
             &topo::test_support::finished(
                 "the measured body",
-                topo::Body::clone(body_of(&a, s.solid)),
+                topo::Body::clone(&(body_of(&a, s.solid))),
                 Tol::witness(),
             ),
             Tol::witness(),
@@ -179,7 +179,7 @@ fn one_parameter_drives_both_holes() {
             - topo::mass_properties(
                 &topo::test_support::finished(
                     "the measured body",
-                    topo::Body::clone(body_of(&b, s.solid)),
+                    topo::Body::clone(&(body_of(&b, s.solid))),
                     Tol::witness(),
                 ),
                 Tol::witness(),

@@ -113,7 +113,7 @@ fn body_arc(ev: &Evaluation<f64>, id: RecipeNodeId) -> &Arc<Body<f64>> {
 
 /// A single body read off any single-body value — a `Body` or a
 /// boolean's non-empty result.
-fn body_of(ev: &Evaluation<f64>, id: RecipeNodeId) -> &Body<f64> {
+fn body_of(ev: &Evaluation<f64>, id: RecipeNodeId) -> Body<f64> {
     corpus::body_of(ev, id)
 }
 
@@ -301,20 +301,18 @@ fn a1_the_half_is_the_half_through_a_placement_a_boolean_and_a_fillet() {
             .zip(lifted.columns.iter().flatten().chain(&lifted.translation))
             .all(|(a, b)| (a - b).abs() <= 1e-12);
         assert!(near, "{h:?}: the lift is {LIFT} up z: {pose:?}");
-        let map = pose.affine::<f64>();
-        let placed = transform_rigid(
-            side,
-            &geom_core::test_support::rigid(&map, Tol::witness()),
-            Tol::witness(),
-        )
-        .expect("a rigid placement");
-        assert_eq!(
-            bits(body_arc(&ev, moved)),
-            bits(&placed),
-            "{h:?}: placement"
+        // The copy is the half itself: its body is the half's `Arc`,
+        // under the lift.
+        assert!(
+            Arc::ptr_eq(body_arc(&ev, moved), side),
+            "{h:?}: placement shares the half"
         );
-        let fused = kernel_union(side, body_of(&ev, other));
-        assert_eq!(bits(body_of(&ev, joined)), bits(&fused), "{h:?}: boolean");
+        let fused = kernel_union(side, &(body_of(&ev, other)));
+        assert_eq!(
+            bits(&(body_of(&ev, joined))),
+            bits(&fused),
+            "{h:?}: boolean"
+        );
         let keys = edge_keys(&ev, split, h.output_body(), &selection);
         let filleted = sweep::blend::build::fillet_edges(
             &sweep::test_support::at_rest(side, Tol::witness()),
@@ -364,8 +362,24 @@ fn a2_the_instance_is_the_instance() {
         Arc::ptr_eq(body_arc(&ev, p0), body_arc(&ev, cube)),
         "instance 0 is the input body itself"
     );
-    let fused = kernel_union(&v[1], &v[2]);
-    assert_eq!(bits(body_of(&ev, joined)), bits(&fused));
+    // The union computes in its first member's frame and reads the
+    // second into it through `relative`.
+    let framed = |id: RecipeNodeId| match &ev.value(id).expect("a value").payload {
+        ValuePayload::Body(b) => b.clone(),
+        other => panic!("node {} is a {}, not a body", id.0, other.kind_name()),
+    };
+    let (first, second) = (framed(p1), framed(p2));
+    let map = first
+        .relative(&second)
+        .expect("a finite relative map")
+        .expect("two instances apart");
+    let read = transform_rigid(second.body(), &map, Tol::witness()).expect("a rigid read");
+    let fused = kernel_union(first.body(), &read);
+    let joined = match &ev.value(joined).expect("the union").payload {
+        ValuePayload::Boolean(editor_core::BooleanValue::Body { body, .. }) => body.clone(),
+        other => panic!("the union is a {}", other.kind_name()),
+    };
+    assert_eq!(bits(joined.body()), bits(&fused));
 }
 
 /// The edge names of ONE output body of a node's table.

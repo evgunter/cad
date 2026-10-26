@@ -740,6 +740,10 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
             symbols: self.symbols,
             // The reference's own pin already says which version this is.
             pin: false,
+            // A part's product computes in its own frames: the host's
+            // second frame reaches it through the instance's copy.
+            #[cfg(any(test, feature = "test-support"))]
+            computing_twist: None,
         };
         let evaluation =
             super::evaluate_nested::<T>(doc, cancel, &opts, Reached(reached), &doc_ref.pin, tol);

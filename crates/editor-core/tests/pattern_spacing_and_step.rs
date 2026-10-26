@@ -145,8 +145,7 @@ impl Built {
         bodies
             .iter()
             .map(|body| {
-                let (n, sum) = body
-                    .body()
+                let (n, sum) = crate::fixture::in_space(body)
                     .points()
                     .fold((0.0, [0.0; 3]), |(n, c), (_, p)| {
                         (n + 1.0, [c[0] + p.x, c[1] + p.y, c[2] + p.z])

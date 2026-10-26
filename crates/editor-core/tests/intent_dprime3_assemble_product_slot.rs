@@ -80,9 +80,9 @@ fn set_product(doc: &ProfileDoc, product: Option<Operand>) -> ProfileDoc {
 
 fn body_of(ev: &Evaluation<f64>, node: RecipeNodeId) -> topo::Body<f64> {
     match ev.value(node).map(|v| &v.payload) {
-        Some(ValuePayload::Body(b)) => b.body().clone(),
+        Some(ValuePayload::Body(b)) => fixture::in_space(b),
         Some(ValuePayload::Boolean(editor_core::BooleanValue::Body { body, .. })) => {
-            body.body().clone()
+            fixture::in_space(body)
         }
         other => panic!(
             "{node:?} reads one body, not {other:?}: {:?}",

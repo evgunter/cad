@@ -223,8 +223,7 @@ fn a_parameter_driven_negative_depth_refuses_with_a_recourse_that_builds() {
         ValuePayload::Body(b) => b,
         other => panic!("expected a body, got {}", other.kind_name()),
     };
-    let mut z: Vec<f64> = body
-        .body()
+    let mut z: Vec<f64> = crate::fixture::in_space(body)
         .vertex_points()
         .map(|(_, p)| p)
         .map(|p| p.z)

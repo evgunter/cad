@@ -48,7 +48,7 @@ fn a_flush_rest_glues_and_records_its_unproven_rows() {
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
     let body = topo::test_support::finished(
         "body",
-        topo::Body::clone(body_of(&ev, union)),
+        topo::Body::clone(&(body_of(&ev, union))),
         Tol::witness(),
     );
     assert_eq!(body.solids().count(), 1, "one solid");

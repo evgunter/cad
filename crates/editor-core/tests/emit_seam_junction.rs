@@ -116,8 +116,8 @@ fn crossing(
     let editor_core::EntityKey::Edge(e) = r.key else {
         panic!("a's rim names an edge");
     };
-    let [v0, v1] = crate::fixture::ends(a_body, e);
-    let x = |v| crate::fixture::point(a_body, v).x;
+    let [v0, v1] = crate::fixture::ends(&a_body, e);
+    let x = |v| crate::fixture::point(&a_body, v).x;
     let sense = if x(v1) > x(v0) {
         Sense::Enters
     } else {
@@ -184,7 +184,7 @@ fn a_slab_crossing_a_merged_rim_is_named_by_the_rim_and_the_slab() {
     let (docx, union) = crate::fixture::union_over(doc, &[b, g, a, h]);
     let ev = run(&docx);
     assert!(failure(&ev, union).is_none(), "{:?}", failure(&ev, union));
-    let v = volume(body_of(&ev, union));
+    let v = volume(&(body_of(&ev, union)));
     // a ∪ b is 1.5; g adds 0.1 × 3 × 3 less its 0.1 × 1 × 0.5 inside
     // a, and h adds the same less its share inside b.
     assert!((v - (1.5 + 2.0 * (0.9 - 0.05))).abs() < 1e-9, "volume {v}");

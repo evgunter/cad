@@ -43,7 +43,7 @@ fn a_union_of_two_flush_placements_of_one_prototype_fuses() {
     let volume = topo::mass_properties(
         &topo::test_support::finished(
             "the measured body",
-            topo::Body::clone(body_of(&ev, union)),
+            topo::Body::clone(&(body_of(&ev, union))),
             Tol::witness(),
         ),
         Tol::witness(),
@@ -168,7 +168,7 @@ fn a_member_flush_under_a_merged_wall_fuses() {
     let volume = topo::mass_properties(
         &topo::test_support::finished(
             "the measured body",
-            topo::Body::clone(body_of(&ev, union)),
+            topo::Body::clone(&(body_of(&ev, union))),
             Tol::witness(),
         ),
         Tol::witness(),
@@ -426,7 +426,7 @@ fn a_contact_against_a_merged_cap_glues_in_every_order() {
         let v = topo::mass_properties(
             &topo::test_support::finished(
                 "the measured body",
-                topo::Body::clone(body_of(&ev, union)),
+                topo::Body::clone(&(body_of(&ev, union))),
                 Tol::witness(),
             ),
             Tol::witness(),
@@ -456,7 +456,7 @@ fn a_stack_of_resting_slabs_builds() {
     let volume = topo::mass_properties(
         &topo::test_support::finished(
             "the measured body",
-            topo::Body::clone(body_of(&ev, union)),
+            topo::Body::clone(&(body_of(&ev, union))),
             Tol::witness(),
         ),
         Tol::witness(),

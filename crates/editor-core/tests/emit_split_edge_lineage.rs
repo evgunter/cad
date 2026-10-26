@@ -179,7 +179,7 @@ fn a_rim_arc_crossed_twice_names_its_pieces_by_their_ends_and_its_crossings_by_t
                 .is_some_and(&rim)
         })
         .expect("the extrude's start rim Piece(0)");
-    let start = point(ext_body, crate::fixture::ends(ext_body, rim_edge)[0]);
+    let start = point(&ext_body, crate::fixture::ends(&ext_body, rim_edge)[0]);
     let from_start = |c: [f64; 3]| ((c[0] - start.x).powi(2) + (c[1] - start.y).powi(2)).sqrt();
     assert!(
         from_start(first) < from_start(second),

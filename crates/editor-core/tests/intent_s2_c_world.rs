@@ -695,7 +695,7 @@ fn a_posed_placement_moves_its_copy_and_its_records_rigidly() {
     let moved_run = ev(&moved);
     let (at_pose, transformed) = (
         points(&product(&posed, &ev(&posed), Tol::witness()).expect("the world gathers")),
-        points(corpus::body_of(&moved_run, by)),
+        points(&(corpus::body_of(&moved_run, by))),
     );
     assert_eq!(
         at_pose.iter().map(|(k, _)| *k).collect::<Vec<_>>(),

@@ -135,6 +135,8 @@ pub use edit::{
     SketchOutcome, SketchedOnFace, SlotValue, Took, apply, apply_replayed, cascade_delete_order,
     measure, sketch_on_face,
 };
+#[cfg(any(test, feature = "test-support"))]
+pub use eval::ComputingTwist;
 pub use eval::measure::{Observed, ObservedRefusal};
 pub use eval::{
     At, BooleanValue, CancelToken, CanonicalSegment, CarriedChain, CarriedIn, CarriedLevel,

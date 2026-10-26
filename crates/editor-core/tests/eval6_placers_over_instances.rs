@@ -98,7 +98,7 @@ pub(crate) fn bits<T: geom_core::Decide + core::fmt::Debug>(b: &Body<T>) -> Vec<
 }
 
 /// The `Instances` a node evaluated to.
-pub(crate) fn instances_of<T: geom_core::Decide>(
+pub(crate) fn instances_of<T: geom_core::Decide + topo::AtRestPolicy>(
     ev: &editor_core::Evaluation<T>,
     id: RecipeNodeId,
 ) -> Vec<Arc<Body<T>>> {
@@ -107,13 +107,16 @@ pub(crate) fn instances_of<T: geom_core::Decide>(
         .unwrap_or_else(|| panic!("{id:?} evaluated: {:?}", ev.node_error(id)))
         .payload
     {
-        ValuePayload::Instances(v) => v.iter().map(|b| Arc::clone(b.shared())).collect(),
+        ValuePayload::Instances(v) => v
+            .iter()
+            .map(|b| Arc::new(crate::fixture::in_space(b)))
+            .collect(),
         other => panic!("{id:?} is a {}, not instances", other.kind_name()),
     }
 }
 
 /// The one body a node evaluated to.
-pub(crate) fn body_of<T: geom_core::Decide>(
+pub(crate) fn body_of<T: geom_core::Decide + topo::AtRestPolicy>(
     ev: &editor_core::Evaluation<T>,
     id: RecipeNodeId,
 ) -> Arc<Body<T>> {
@@ -122,7 +125,7 @@ pub(crate) fn body_of<T: geom_core::Decide>(
         .unwrap_or_else(|| panic!("{id:?} evaluated: {:?}", ev.node_error(id)))
         .payload
     {
-        ValuePayload::Body(b) => Arc::clone(b.shared()),
+        ValuePayload::Body(b) => Arc::new(crate::fixture::in_space(b)),
         other => panic!("{id:?} is a {}, not a body", other.kind_name()),
     }
 }

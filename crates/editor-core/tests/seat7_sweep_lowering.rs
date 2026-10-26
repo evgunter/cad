@@ -617,12 +617,12 @@ fn a_revolve_over_an_on_axis_edge_mints_no_wall_for_it() {
     // five faces; a degenerate wall from the on-axis edge would be more.
     let body = body_of(&ev, solid);
     assert_eq!(
-        topo::query::all_faces(body).len(),
+        topo::query::all_faces(&body).len(),
         5,
         "three of the four segments minted a wall, each curved one split at the seam"
     );
     let mut tori = 0;
-    for face in topo::query::all_faces(body) {
+    for face in topo::query::all_faces(&body) {
         let carrier = body
             .get_face(face)
             .and_then(|f| body.get_surface(f.surface))
@@ -708,8 +708,8 @@ fn the_memo_never_serves_a_sweep_a_stale_spelling() {
     );
     let ev3 = memo_eval(&doc, Some(&ev2));
     assert!(failures(&ev3).is_empty(), "{:?}", failures(&ev3));
-    let ra = cylinder_walls(body_of(&ev3, a))[0].1;
-    let rb = cylinder_walls(body_of(&ev3, b))[0].1;
+    let ra = cylinder_walls(&(body_of(&ev3, a)))[0].1;
+    let rb = cylinder_walls(&(body_of(&ev3, b)))[0].1;
     assert_eq!(
         ra, R,
         "A is the literal {R}; a memo-served A would follow `r`"
@@ -812,7 +812,7 @@ fn a_chain_arcs_radius_spelling_moves_the_profiles_key() {
     let (doc, _, peg) = extruded(doc, vec![circle_loop(param("r"))]);
     let ev1 = memo_eval(&doc, None);
     assert!(failures(&ev1).is_empty(), "{:?}", failures(&ev1));
-    let walls = cylinder_walls(body_of(&ev1, a));
+    let walls = cylinder_walls(&(body_of(&ev1, a)));
     assert_eq!(
         walls.len(),
         1,
@@ -852,7 +852,7 @@ fn a_chain_arcs_radius_spelling_moves_the_profiles_key() {
         format!("{:?}", body_of(&ev1, peg)),
         "the memo-served peg is the peg"
     );
-    let walls = cylinder_walls(body_of(&ev2, a));
+    let walls = cylinder_walls(&(body_of(&ev2, a)));
     assert_eq!(
         walls.len(),
         1,
@@ -922,7 +922,7 @@ fn assert_two_arcs_at_their_own_radii(
             "identity"
         }
     );
-    let mut radii: Vec<f64> = cylinder_walls(body_of(&ev, chain))
+    let mut radii: Vec<f64> = cylinder_walls(&(body_of(&ev, chain)))
         .into_iter()
         .map(|(_, r)| r)
         .collect();
@@ -1035,7 +1035,7 @@ fn one_declared_radius_decides_equal_radii_at_the_germ_as_its_kernel_twin_does()
     let from_document = topo::mass_properties(
         &topo::test_support::finished(
             "the measured body",
-            topo::Body::clone(body_of(&ev, union)),
+            topo::Body::clone(&(body_of(&ev, union))),
             tol(),
         ),
         tol(),

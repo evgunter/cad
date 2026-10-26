@@ -866,11 +866,11 @@ fn a_nested_instances_copy_is_placed_outer_after_inner() {
     let (top, reader) = insert(top, crate::fixture::stood(Operand::Node(outer)));
     let ev = run(&top, &with_resolver(store));
     let body = match ev.value(reader).map(|v| &v.payload) {
-        Some(editor_core::ValuePayload::Body(b)) => b.clone(),
+        Some(editor_core::ValuePayload::Body(b)) => crate::fixture::in_space(b),
         other => panic!("one copy reads one body, not {other:?}"),
     };
     let (mut lo, mut hi) = ([f64::INFINITY; 3], [f64::NEG_INFINITY; 3]);
-    for (_, p) in body.body().points() {
+    for (_, p) in body.points() {
         for (k, c) in p.to_array().into_iter().enumerate() {
             lo[k] = lo[k].min(c);
             hi[k] = hi[k].max(c);

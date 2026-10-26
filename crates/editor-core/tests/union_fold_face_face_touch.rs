@@ -296,7 +296,7 @@ fn a_slab_across_the_line_leaves_the_touch_on_its_pieces() {
         let v = topo::mass_properties(
             &topo::test_support::finished(
                 "the measured body",
-                topo::Body::clone(crate::corpus::body_of(&ev, u)),
+                topo::Body::clone(&(crate::corpus::body_of(&ev, u))),
                 Tol::witness(),
             ),
             Tol::witness(),
@@ -469,7 +469,7 @@ fn a_slab_across_the_whole_face_pairs_each_piece_with_its_own_side() {
         let v = topo::mass_properties(
             &topo::test_support::finished(
                 "the measured body",
-                topo::Body::clone(crate::corpus::body_of(&ev, u)),
+                topo::Body::clone(&(crate::corpus::body_of(&ev, u))),
                 Tol::witness(),
             ),
             Tol::witness(),

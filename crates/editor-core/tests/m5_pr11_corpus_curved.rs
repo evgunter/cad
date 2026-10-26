@@ -101,7 +101,7 @@ fn boss_union_gains_tessellation_and_props_columns() {
     assert!(failures(&ev).is_empty());
     let body = topo::test_support::finished(
         "body",
-        topo::Body::clone(body_of(&ev, d.result.expect("boss carries a result"))),
+        topo::Body::clone(&(body_of(&ev, d.result.expect("boss carries a result")))),
         Tol::witness(),
     );
     let (ms, tris) = tess_column("boss_union", &body);

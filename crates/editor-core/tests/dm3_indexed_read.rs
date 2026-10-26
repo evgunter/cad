@@ -55,7 +55,7 @@ fn error_of(ev: &Evaluation<f64>, id: RecipeNodeId) -> &NodeErrorKind {
 fn least_x(ev: &Evaluation<f64>, id: RecipeNodeId) -> f64 {
     let body = crate::corpus::body_of(ev, id);
     body.vertices()
-        .map(|(v, _)| fixture::point(body, v).x)
+        .map(|(v, _)| fixture::point(&body, v).x)
         .fold(f64::INFINITY, f64::min)
 }
 
@@ -63,7 +63,7 @@ fn volume(ev: &Evaluation<f64>, id: RecipeNodeId) -> f64 {
     topo::mass_properties(
         &topo::test_support::finished(
             "the measured body",
-            topo::Body::clone(crate::corpus::body_of(ev, id)),
+            topo::Body::clone(&(crate::corpus::body_of(ev, id))),
             Tol::witness(),
         ),
         Tol::witness(),

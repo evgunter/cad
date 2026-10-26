@@ -1802,7 +1802,7 @@ fn a_seam_crossings_raw_sense_names_one_members_side_in_every_order() {
             let EntityKey::Vertex(v) = r.key else {
                 continue;
             };
-            let p = crate::fixture::point(body, v);
+            let p = crate::fixture::point(&body, v);
             if (p.x - 2.0).abs() > 1e-9 || (p.y - 1.0).abs() > 1e-9 || (p.z - 1.0).abs() > 1e-9 {
                 continue;
             }

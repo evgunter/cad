@@ -314,28 +314,26 @@ fn carrier(ev: &Evaluation<f64>, cell: &editor_core::NamedCell) -> Option<Carrie
     let Some(editor_core::Entry::Unique(e)) = ev.table(*input).and_then(|t| t.lookup(name)) else {
         return None;
     };
-    let body = ev.read_body(*input, e.body).ok()?.ok()?;
+    // Where the cell stands in its space: the rows across cells read
+    // through two reads compare there.
+    let body = &crate::fixture::in_space(ev.read_body(*input, e.body).ok()?.ok()?);
     match e.key {
-        editor_core::EntityKey::Vertex(v) => {
-            Some(Carrier::Point(crate::fixture::point(body.body(), v)))
-        }
+        editor_core::EntityKey::Vertex(v) => Some(Carrier::Point(crate::fixture::point(body, v))),
         editor_core::EntityKey::Edge(k) => {
-            let edge = body.body().get_edge(k)?;
+            let edge = body.get_edge(k)?;
             let straight = body
-                .body()
                 .get_curve_geom(edge.curve)
                 .and_then(|g| g.certified())
                 .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Line { .. }));
             if !straight {
                 return None;
             }
-            let [u, w] =
-                crate::fixture::ends(body.body(), k).map(|v| crate::fixture::point(body.body(), v));
+            let [u, w] = crate::fixture::ends(body, k).map(|v| crate::fixture::point(body, v));
             Some(Carrier::Line(u, w - u))
         }
         editor_core::EntityKey::Face(f) => {
-            let (_, face) = body.body().faces().find(|&(k, _)| k == f)?;
-            match body.body().get_surface(face.surface)? {
+            let (_, face) = body.faces().find(|&(k, _)| k == f)?;
+            match body.get_surface(face.surface)? {
                 topo::Surface::Plane { origin, normal, .. } => {
                     Some(Carrier::Plane(*origin, *normal))
                 }
@@ -429,7 +427,7 @@ fn built(
     }
     let body = topo::test_support::finished(
         "body",
-        topo::Body::clone(body_of(ev, union)),
+        topo::Body::clone(&(body_of(ev, union))),
         Tol::witness(),
     );
     let topology = (

@@ -236,6 +236,12 @@ impl<T> Copy for LaneEnv<'_, T> {}
 /// table, and the lane environment — everything ambient to the
 /// run, as opposed to the op's inputs and slots.
 pub(crate) struct OpEnv<'a, T: Decide> {
+    /// **A second computing frame** (`test-support`,
+    /// [`super::EvalOptions::computing_twist`]): each construction's body
+    /// built, then mapped by it, its frame the inverse, so every
+    /// operation downstream computes in a frame the twist turned.
+    #[cfg(any(test, feature = "test-support"))]
+    pub twist: Option<RigidMotion<T>>,
     pub boolean_sweep: topo::SweepStrategy,
     pub parts: &'a super::parts::Reached<T>,
     /// The environments profile geometry is elaborated over.
@@ -399,9 +405,11 @@ where
         }
         Node::Extrude { profile, .. } => {
             wire_extrude(id, at(O::Profile, *profile)?, results, vals, tol)
+                .and_then(|out| twisted(out, env, tol))
         }
         Node::Revolve { profile, .. } => {
             wire_revolve(id, at(O::Profile, *profile)?, results, vals, tol)
+                .and_then(|out| twisted(out, env, tol))
         }
         Node::Loft { first, then, .. } => {
             let sections = core::iter::once(*first)
@@ -414,13 +422,18 @@ where
                 .map(|section| section.station.as_slice())
                 .collect();
             wire_loft(id, &sections, &stations, results, vals, tol)
+                .and_then(|out| twisted(out, env, tol))
         }
         Node::Sweep { profile, path, .. } => {
             let (profile, path) = (at(O::Profile, *profile)?, at(O::Path, *path)?);
-            wire_sweep(profile, path, results, vals)
+            wire_sweep(profile, path, results, vals).and_then(|out| twisted(out, env, tol))
         }
-        Node::Tube { window, .. } => wire_tube(id, window, vals, tol),
-        Node::HollowTube { window, .. } => wire_hollow_tube(id, window, vals, tol),
+        Node::Tube { window, .. } => {
+            wire_tube(id, window, vals, tol).and_then(|out| twisted(out, env, tol))
+        }
+        Node::HollowTube { window, .. } => {
+            wire_hollow_tube(id, window, vals, tol).and_then(|out| twisted(out, env, tol))
+        }
         Node::Fillet { selection, .. } => wire_blend(
             &crate::verbs::blend::fillet(),
             id,
@@ -595,6 +608,35 @@ where
             Ok(out.moved(placed))
         }
     }
+}
+
+/// **A construction's value in the second computing frame**, where the
+/// evaluation asks for one ([`OpEnv::twist`]): its body mapped by the
+/// twist, its frame the twist's inverse, so it stands where it did in
+/// its space. Itself everywhere else.
+#[cfg_attr(
+    not(any(test, feature = "test-support")),
+    allow(clippy::unnecessary_wraps)
+)]
+fn twisted<T: Decide + topo::AtRestPolicy>(
+    out: OpOut<T>,
+    env: &OpEnv<'_, T>,
+    tol: Tol,
+) -> OpResult<T> {
+    #[cfg(any(test, feature = "test-support"))]
+    if let (Some(twist), ValuePayload::Body(body)) = (env.twist.as_ref(), &out.payload) {
+        let turned = transform_rigid(body.body(), twist, tol).map_err(NodeErrorKind::Transform)?;
+        let back = super::Frame::Own
+            .moved(&twist.inverse().map_err(NodeErrorKind::Motion)?)
+            .map_err(NodeErrorKind::Motion)?;
+        return Ok(OpOut {
+            payload: ValuePayload::Body(super::Framed::in_frame(Arc::new(turned), back)),
+            ..out
+        });
+    }
+    #[cfg(not(any(test, feature = "test-support")))]
+    let _ = (env, tol);
+    Ok(out)
 }
 
 /// **A copy's reach in its own coordinates** — a shape's body's, as

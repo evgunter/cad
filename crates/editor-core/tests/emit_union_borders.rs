@@ -77,7 +77,7 @@ fn face_centroids(ev: &Evaluation<f64>, union: RecipeNodeId) -> BTreeMap<StableN
             continue;
         };
         let EntityKey::Face(f) = e.key else { continue };
-        let vs = face_vertices(body, f);
+        let vs = face_vertices(&body, f);
         let mut c = [0.0; 3];
         for &v in &vs {
             let p = body.get_point(body.get_vertex(v).unwrap().point).unwrap();
@@ -1652,7 +1652,7 @@ fn assert_wall_chords_cite_the_merged_parent(
         .filter_map(|(name, entry)| match entry {
             Entry::Unique(ent) => match ent.key {
                 EntityKey::Face(f)
-                    if topo::query::face_surface_kind(boss_body, f)
+                    if topo::query::face_surface_kind(&boss_body, f)
                         == Some(geom::SurfaceKind::Cylinder) =>
                 {
                     Some(name.to_string())
@@ -1674,7 +1674,7 @@ fn assert_wall_chords_cite_the_merged_parent(
         let EntityKey::Edge(e) = ent.key else {
             continue;
         };
-        let [p0, p1] = ends(body, e).map(|v| point(body, v));
+        let [p0, p1] = ends(&body, e).map(|v| point(&body, v));
         if !(on_wall(p0) && on_wall(p1) && (p0.x - p1.x).abs() < 1e-9 && (p0.y - p1.y).abs() < 1e-9)
         {
             continue;

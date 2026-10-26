@@ -358,19 +358,22 @@ pub(crate) fn encloses_or_escalates<T: geom_core::Decide>(
 
 /// The one body a node's value holds: a body, or a placement's copies
 /// gathered as one.
-pub(crate) fn body_of<T: geom_core::Decide>(ev: &Evaluation<T>, id: RecipeNodeId) -> Arc<Body<T>> {
+pub(crate) fn body_of<T: geom_core::Decide + topo::AtRestPolicy>(
+    ev: &Evaluation<T>,
+    id: RecipeNodeId,
+) -> Arc<Body<T>> {
     let one = |bodies: &[editor_core::Framed<T>]| {
         let [b] = bodies else {
             panic!("{id:?} holds {} bodies, not one", bodies.len());
         };
-        Arc::clone(b.shared())
+        Arc::new(crate::fixture::in_space(b))
     };
     match &ev
         .value(id)
         .unwrap_or_else(|| panic!("{id:?} evaluated: {:?}", ev.node_error(id)))
         .payload
     {
-        ValuePayload::Body(b) => Arc::clone(b.shared()),
+        ValuePayload::Body(b) => Arc::new(crate::fixture::in_space(b)),
         ValuePayload::Instances(bodies) => one(bodies),
         other => panic!("{id:?} is a {}, not a body", other.kind_name()),
     }

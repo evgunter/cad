@@ -182,7 +182,7 @@ fn two_parts_of_one_copy_answer_under_every_op() {
     let copy = topo::mass_properties(
         &topo::test_support::finished(
             "the measured body",
-            topo::Body::clone(crate::corpus::body_of(&ev, union)),
+            topo::Body::clone(&(crate::corpus::body_of(&ev, union))),
             Tol::witness(),
         ),
         Tol::witness(),

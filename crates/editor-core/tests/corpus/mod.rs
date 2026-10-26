@@ -425,32 +425,35 @@ pub fn failures<T: Decide>(ev: &Evaluation<T>) -> Vec<String> {
 }
 
 /// The single body a node evaluated to (`Body` payload, a boolean's
-/// nonempty body, or an instance's copies read as its part product).
-pub fn body_of<T: Decide>(ev: &Evaluation<T>, id: RecipeNodeId) -> &Body<T> {
+/// nonempty body, or an instance's copies read as its part product),
+/// where it stands in its space.
+pub fn body_of<T: Decide + topo::AtRestPolicy>(ev: &Evaluation<T>, id: RecipeNodeId) -> Body<T> {
     match &ev.value(id).expect("node evaluated to a value").payload {
-        ValuePayload::Body(b) => b.body(),
-        ValuePayload::Boolean(BooleanValue::Body { body, .. }) => body.body(),
+        ValuePayload::Body(b) => crate::fixture::in_space(b),
+        ValuePayload::Boolean(BooleanValue::Body { body, .. }) => crate::fixture::in_space(body),
         other => panic!("expected a single body, got {}", other.kind_name()),
     }
 }
 
 /// The single body a read holds: its output's body
-/// ([`ValuePayload::output_body`]), a split's port that half.
-pub fn read_body<'e, T: Decide>(
-    ev: &'e Evaluation<T>,
+/// ([`ValuePayload::output_body`]), a split's port that half, where it
+/// stands in its space.
+pub fn read_body<T: Decide + topo::AtRestPolicy>(
+    ev: &Evaluation<T>,
     doc: &ProfileDoc,
     read: editor_core::VarId,
-) -> &'e Body<T> {
+) -> Body<T> {
     let (node, port) = doc
         .var(read)
         .and_then(|var| var.def().output())
         .expect("a read of a live output");
-    (ev.value(node)
-        .expect("node evaluated to a value")
-        .payload
-        .output_body(u32::from(port))
-        .unwrap_or_else(|e| panic!("the read holds one body: {e}")))
-    .body()
+    crate::fixture::in_space(
+        ev.value(node)
+            .expect("node evaluated to a value")
+            .payload
+            .output_body(u32::from(port))
+            .unwrap_or_else(|e| panic!("the read holds one body: {e}")),
+    )
 }
 
 /// **The node kinds no document can evaluate to a value** — the
