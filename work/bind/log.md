@@ -20,3 +20,5 @@ dispatched.
 - 2026-10-23 — **Seam (QUAD):** PR 5589 (`quad/measure-a-lanes`, measure door unit A) edits `pncad-py/tests`. `oversized_round_loft` in `test_validate.py` is now 64× (8 km); the 125 m tube certifies once no lane refuses at round 0. The test is kept. Two `test_north_star.py` comments are re-worded (the spout at 1e-12 stops at its work wall). No binding change. (QUAD orchestrator's lane)
 
 - 2026-10-23 — **Seam (QUAD):** PR 5628 (`quad/measure-b-door`, measure door unit B) `pncad-py` is not edited. `topo::Settle` exists from this PR and is public, and Python taking it as data is unit C's. (QUAD unit B lane)
+
+- 2026-10-26 — seam from ATREST (stage 5 C, `the-at-rest-census-is-a-check`, branch `atrest/the-at-rest-census-is-a-check`): pncad-py: `assemble`, `Assembly`, `AssemblyError`, `AtRestFinding` and `ErrorClass::Assembly` go; `CheckId.AtRest` replaces `Separation`; `AtRestEvidence` is new; `CheckFinding` gains `quiet` and `census`; `InterferenceFinding`/`CarriedInterference` are read off the report's AtRest findings.

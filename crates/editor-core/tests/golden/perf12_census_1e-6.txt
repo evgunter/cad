@@ -1,16 +1,16 @@
 ## die
 solids=1 faces=111 edges=264 vertices=176
-assemble: Ok
+at rest: 0 interference, 0 could not look
 census: Ok
 rows: 0
 ## corner_table
 solids=1 faces=18 edges=48 vertices=32
-assemble: Ok
+at rest: 0 interference, 0 could not look
 census: Ok
 rows: 0
 ## heat_sink
 solids=6 faces=61 edges=132 vertices=88
-assemble: Ok
+at rest: 5 interference, 0 could not look
 census: 5 findings
 InstanceInterference { outer: SolidKey(1v1), inner: SolidKey(2v1), witness: VertexKey(49v1) }
 InstanceInterference { outer: SolidKey(1v1), inner: SolidKey(3v1), witness: VertexKey(57v1) }
@@ -20,32 +20,32 @@ InstanceInterference { outer: SolidKey(1v1), inner: SolidKey(6v1), witness: Vert
 rows: 0
 ## crossing_slots
 solids=1 faces=18 edges=48 vertices=32
-assemble: Ok
+at rest: 0 interference, 0 could not look
 census: Ok
 rows: 0
 ## nested_islands_105
 solids=1 faces=21 edges=48 vertices=32
-assemble: Ok
+at rest: 0 interference, 0 could not look
 census: Ok
 rows: 0
 ## nested_islands_106_depth1
 solids=1 faces=10 edges=24 vertices=16
-assemble: Ok
+at rest: 0 interference, 0 could not look
 census: Ok
 rows: 0
 ## nested_islands_106_depth2
 solids=2 faces=16 edges=36 vertices=24
-assemble: Ok
+at rest: 0 interference, 0 could not look
 census: Ok
 rows: 0
 ## declared_tangency
 solids=2 faces=18 edges=42 vertices=28
-assemble: Ok
+at rest: 0 interference, 0 could not look
 census: Ok
 rows: 0
 ## kitchen_sink
 solids=8 faces=48 edges=96 vertices=64
-assemble: Err(AtRest)
+at rest: 0 interference, 29 could not look
 census: 29 findings
 UnrecordedContact { contact: VertexVertex { a: VertexKey(5v1), b: VertexKey(60v1) }, witness: "(0.0, 0.0, 0.0)", margin: Some(MarginDiag(Value(0.0, None, ZeroWord(0)))) }
 UnrecordedContact { contact: VertexVertex { a: VertexKey(25v1), b: VertexKey(60v1) }, witness: "(0.0, 0.0, 0.0)", margin: Some(MarginDiag(Value(0.0, None, ZeroWord(0)))) }
@@ -90,7 +90,7 @@ rows: 11
 (CopyRef { var: VarId(MintId { ordinal: 204, digest: 7858438222280329745 }), member: 0 }, CopyRef { var: VarId(MintId { ordinal: 277, digest: 16632222393860275092 }), member: 0 }) NamedCoincidence { cells: [Entity { input: VarId(MintId { ordinal: 204, digest: 7858438222280329745 }), name: StableName { kind: Face, node: RecipeNodeId(MintId { ordinal: 284, digest: 14381309559155464028 }), path: [From { read: VarId(MintId { ordinal: 204, digest: 7858438222280329745 }), of: StableName { kind: Face, node: RecipeNodeId(MintId { ordinal: 78, digest: 1092964189310024336 }), path: [SplitFragment { parent: StableName { kind: Face, node: RecipeNodeId(MintId { ordinal: 70, digest: 8408365170054999750 }), path: [Merged([StableName { kind: Face, node: RecipeNodeId(MintId { ordinal: 70, digest: 8408365170054999750 }), path: [From { read: VarId(MintId { ordinal: 36, digest: 8970533094000353102 }), of: StableName { kind: Face, node: RecipeNodeId(MintId { ordinal: 35, digest: 11329801404211565894 }), path: [Lateral(Piece { step: StepId(MintId { ordinal: 28, digest: 430396667567798409 }), role: Leg })] } }] }, StableName { kind: Face, node: RecipeNodeId(MintId { ordinal: 70, digest: 8408365170054999750 }), path: [From { read: VarId(MintId { ordinal: 65, digest: 6246691214313982292 }), of: StableName { kind: Face, node: RecipeNodeId(MintId { ordinal: 54, digest: 8143011896488621885 }), path: [Lateral(Piece { step: StepId(MintId { ordinal: 48, digest: 11968960315933402451 }), role: Leg })] } }] }])] } }] } }] } }, Entity { input: VarId(MintId { ordinal: 277, digest: 16632222393860275092 }), name: StableName { kind: Face, node: RecipeNodeId(MintId { ordinal: 284, digest: 14381309559155464028 }), path: [From { read: VarId(MintId { ordinal: 277, digest: 16632222393860275092 }), of: StableName { kind: Face, node: RecipeNodeId(MintId { ordinal: 138, digest: 8888181787799604340 }), path: [RevolveCap(Start)] } }] } }], relation: SameOriented, site: CensusAtRest, margin: MarginDiag(Value(0.0, None, ZeroWord(0))), discharge: Numeric, origin: Node }
 ## cut_cylinder
 solids=2 faces=8 edges=12 vertices=8
-assemble: Err(AtRest)
+at rest: 0 interference, 14 could not look
 census: 14 findings
 UnrecordedContact { contact: VertexVertex { a: VertexKey(3v1), b: VertexKey(7v1) }, witness: "(0.5, 0.0, 0.3453318751951884)", margin: Some(MarginDiag(Value(0.0, None, ZeroWord(0)))) }
 UnrecordedContact { contact: VertexVertex { a: VertexKey(4v1), b: VertexKey(8v1) }, witness: "(-0.5, 0.0, 0.6546681248048115)", margin: Some(MarginDiag(Value(0.0, None, ZeroWord(0)))) }
@@ -109,107 +109,107 @@ CensusUndecidable { a: Solid(SolidKey(1v1)), b: Solid(SolidKey(2v1)), what: "ano
 rows: 0
 ## measured_web
 solids=1 faces=6 edges=12 vertices=8
-assemble: Ok
+at rest: 0 interference, 0 could not look
 census: Ok
 rows: 0
 ## boss_union
 solids=1 faces=10 edges=21 vertices=14
-assemble: Ok
+at rest: 0 interference, 0 could not look
 census: Ok
 rows: 0
 ## die_fillet
 solids=1 faces=26 edges=48 vertices=24
-assemble: Ok
+at rest: 0 interference, 0 could not look
 census: Ok
 rows: 0
 ## die_chamfer
 solids=1 faces=26 edges=48 vertices=24
-assemble: Ok
+at rest: 0 interference, 0 could not look
 census: Ok
 rows: 0
 ## die_pips
 solids=1 faces=8 edges=16 vertices=11
-assemble: Ok
+at rest: 0 interference, 0 could not look
 census: Ok
 rows: 0
 ## heat_sink_fins
 solids=5 faces=30 edges=60 vertices=40
-assemble: Ok
+at rest: 0 interference, 0 could not look
 census: Ok
 rows: 0
 ## die_tool
 solids=1 faces=18 edges=36 vertices=26
-assemble: Ok
+at rest: 0 interference, 0 could not look
 census: Ok
 rows: 0
 ## face_sketch
 solids=1 faces=11 edges=24 vertices=16
-assemble: Ok
+at rest: 0 interference, 0 could not look
 census: Ok
 rows: 0
 ## part_select
 solids=2 faces=12 edges=24 vertices=16
-assemble: Ok
+at rest: 0 interference, 0 could not look
 census: Ok
 rows: 0
 ## symmetric_plate
 solids=1 faces=10 edges=24 vertices=16
-assemble: Ok
+at rest: 0 interference, 0 could not look
 census: Ok
 rows: 0
 ## loft_prism
 solids=1 faces=6 edges=12 vertices=8
-assemble: Ok
+at rest: 0 interference, 0 could not look
 census: Ok
 rows: 0
 ## die_composed
 solids=1 faces=29 edges=54 vertices=28
-assemble: Ok
+at rest: 0 interference, 0 could not look
 census: Ok
 rows: 0
 ## die_composed_tour
 solids=1 faces=89 edges=174 vertices=108
-assemble: Ok
+at rest: 0 interference, 0 could not look
 census: Ok
 rows: 0
 ## plate_param
 solids=1 faces=16 edges=42 vertices=28
-assemble: Ok
+at rest: 0 interference, 0 could not look
 census: Ok
 rows: 0
 ## kiss_carry
 solids=2 faces=18 edges=42 vertices=28
-assemble: Ok
+at rest: 0 interference, 0 could not look
 census: Ok
 rows: 0
 ## tube_ring
 solids=1 faces=2 edges=4 vertices=2
-assemble: Ok
+at rest: 0 interference, 0 could not look
 census: Ok
 rows: 0
 ## tube_arc
 solids=1 faces=4 edges=6 vertices=4
-assemble: Ok
+at rest: 0 interference, 0 could not look
 census: Ok
 rows: 0
 ## hollow_tube_elbow
 solids=1 faces=6 edges=12 vertices=8
-assemble: Ok
+at rest: 0 interference, 0 could not look
 census: Ok
 rows: 0
 ## hollow_tube_ring
 solids=1 faces=4 edges=8 vertices=4
-assemble: Ok
+at rest: 0 interference, 0 could not look
 census: Ok
 rows: 0
 ## reshaped_rod
 solids=1 faces=10 edges=24 vertices=16
-assemble: Ok
+at rest: 0 interference, 0 could not look
 census: Ok
 rows: 0
 ## heat_sink@10
 solids=11 faces=91 edges=192 vertices=128
-assemble: Ok
+at rest: 9 interference, 0 could not look
 census: 25 findings
 UnrecordedContact { contact: EdgeFacePierce { edge: EdgeKey(137v1), face: FaceKey(1v1) }, witness: "(1.8125, 0.125, 0.25)", margin: None }
 UnrecordedContact { contact: EdgeFacePierce { edge: EdgeKey(138v1), face: FaceKey(1v1) }, witness: "(2.0, 0.125, 0.25)", margin: None }
@@ -239,7 +239,7 @@ InstanceInterference { outer: SolidKey(1v1), inner: SolidKey(10v1), witness: Ver
 rows: 0
 ## heat_sink@40
 solids=41 faces=271 edges=552 vertices=368
-assemble: Ok
+at rest: 9 interference, 0 could not look
 census: 25 findings
 UnrecordedContact { contact: EdgeFacePierce { edge: EdgeKey(137v1), face: FaceKey(1v1) }, witness: "(1.8125, 0.125, 0.25)", margin: None }
 UnrecordedContact { contact: EdgeFacePierce { edge: EdgeKey(138v1), face: FaceKey(1v1) }, witness: "(2.0, 0.125, 0.25)", margin: None }
@@ -269,7 +269,7 @@ InstanceInterference { outer: SolidKey(1v1), inner: SolidKey(10v1), witness: Ver
 rows: 0
 ## heat_sink@160
 solids=161 faces=991 edges=1992 vertices=1328
-assemble: Ok
+at rest: 9 interference, 0 could not look
 census: 25 findings
 UnrecordedContact { contact: EdgeFacePierce { edge: EdgeKey(137v1), face: FaceKey(1v1) }, witness: "(1.8125, 0.125, 0.25)", margin: None }
 UnrecordedContact { contact: EdgeFacePierce { edge: EdgeKey(138v1), face: FaceKey(1v1) }, witness: "(2.0, 0.125, 0.25)", margin: None }

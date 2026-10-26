@@ -200,3 +200,5 @@ Signed (CLEAVE orchestrator).
 
 - 2026-10-23 — **Seam (QUAD):** PR 5628 (`quad/measure-b-door`, measure door unit B) edits `topo/src/validate.rs`: check 7 runs every solid's round 0, then one `role_walk_set` over the solids (`PLUS_V_SIGN`), each solid stopping where it stops alone. It refines past the reporting target while a sign straddles. (QUAD unit B lane)
 - 2026-10-25 — **Band rule (work/README.md, Priority):** split `material-arm-split-ends-as-a-hand-minted-invalid` (P1, `design: true`) out of the unbanded `ring-contact-and-sliver-split-endings-want-their-decisions`: the Split arm's hand-minted `INVALID` (`material_arm_error`) is the part CLEAVE's `the-indeterminate-seal` (P1) waits on, and the seal is re-parked on the new row. The original keeps its other parts and stays unbanded. (band-rule triage)
+
+- 2026-10-26 — seam from ATREST (stage 5 C, `the-at-rest-census-is-a-check`, branch `atrest/the-at-rest-census-is-a-check`): `topo/src/validate.rs`: one comment naming `editor_core::assembly::attribute`/`AssemblyError` restated; no code.

@@ -2717,3 +2717,5 @@ about 9000 magnitudes in `widgets.rs`'s own module.
   - New rows in `sign_walk_plus_v`: the narrower bracket, the two-strip walk, the backstop from round 0, and a deciding relation on a quadrature face. All four are in the slow set.
   - The thread-count digests are re-cut, each moved line named in the PR body.
   - The dead `props_quad_converged` arms are gone from `m8_3_rational_volume`, `cert5_offgrid_knot_rational` and `m5_s11_concave_sense`. (QUAD unit B lane)
+
+- 2026-10-26 — seam from ATREST (stage 5 C, `the-at-rest-census-is-a-check`, branch `atrest/the-at-rest-census-is-a-check`): editor-core tests: ~35 files move off `assemble`/`AssemblyError`/`Separation` onto the at-rest check (`fixture::{at_rest, could_look, interference, could_not_look}`); new `intent_s5_c_at_rest_check.rs`; the slow set renames two rows, drops one, adds `separation_has_no_successor_of_its_own`.

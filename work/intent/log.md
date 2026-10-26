@@ -956,3 +956,5 @@ The boolean declare surface is gone at every layer. A boolean's one input beside
     - FRAME's three rows and VGEOM's two that were parked on the umbrella are opened for their owners;
     - the carry and G stay parked on E.
   - **E dispatched:** `an-operation-computes-in-a-frame-of-its-reads`, implementer `session_01VTwWeVZSEt1FF4QH3bM1Jo` on `intent/e-operation-frame-of-reads`, review dual H (concurrent) on a frozen head after the report.
+
+- 2026-10-26 — seam from ATREST (stage 5 C, `the-at-rest-census-is-a-check`, branch `atrest/the-at-rest-census-is-a-check`): `crates/pncad/src/document.rs`: the at-rest re-export block is restated (the gate's names out, `AtRestEvidence` in).

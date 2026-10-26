@@ -5294,3 +5294,5 @@ Signed: (ENCL orchestrator)
 - 2026-10-23 — **Seam (QUAD):** PR 5589 (`quad/measure-a-lanes`, measure door unit A) edits `pncad-py/tests/test_validate.py`. `oversized_round_loft` is now 64× (8 km): the 125 m tube certifies once no lane refuses at round 0. The test is kept, at about 47 s in the dev-profile module. (QUAD orchestrator's lane)
 
 - 2026-10-23 — **Seam (QUAD):** PR 5628 (`quad/measure-b-door`, measure door unit B) edits `pncad/src/prelude.rs`: the prelude carries `Settle`, `RelOp`, `SignNames` and `RoleNames`, the measurement door's predicate vocabulary. (QUAD unit B lane)
+
+- 2026-10-26 — seam from ATREST (stage 5 C, `the-at-rest-census-is-a-check`, branch `atrest/the-at-rest-census-is-a-check`): pncad-py and `pncad::document`: `assemble`, `Assembly`, `AssemblyError`, `AtRestFinding` retire from the façade; `AtRestEvidence` joins it; Python's `CheckId.AtRest`, `AtRestEvidence`, `CheckFinding.quiet` are new, `ChecksConfig.separation` becomes `at_rest`.

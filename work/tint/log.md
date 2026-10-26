@@ -1581,3 +1581,5 @@ subject, and what has actually caught them.
 - 2026-10-26 — (tracker sweep) Closed `nothingtodo-pattern-sites-took-a-payload-tint`, an announcement whose change is on main (its TCOST twin closed too).
 
 - 2026-10-24 — **Seam (QUAD):** PR 5628 (measure door unit B) touches sweep and step-import rows in your territory (the same list as TCOST's log line of this date). The posture rows lose their dead `Escalated{props_quad_converged}` arms, because no convergence predicate is minted any more. `TargetUnreached::bracket` is a plain field: every continuation refusal holds a sound bracket, and readers that want the budget case match the refusal. (QUAD unit B lane)
+
+- 2026-10-26 — seam from ATREST (stage 5 C, `the-at-rest-census-is-a-check`, branch `atrest/the-at-rest-census-is-a-check`): editor-core tests: ~35 files move off `assemble`/`AssemblyError`/`Separation` onto the at-rest check; new `intent_s5_c_at_rest_check.rs`; `perf12_census` goldens re-blessed (outcome line only).

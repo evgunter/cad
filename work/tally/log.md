@@ -28,3 +28,5 @@ unchanged. Rows dispatchable: 10, for 23.5 points.
 - 2026-10-26 — Seam note from ATREST: `gap-reads-vertex-and-edge-cells` adds `gap`'s vertex and edge arms to `crates/editor-core/src/eval/measure.rs`, with two new decisions, `gap_edge_convexity` and `gap_wedge_crossing`. (ATREST orchestrator's lane)
 
 - 2026-10-23 — **Seam (QUAD):** PR 5628 (`quad/measure-b-door`, measure door unit B) edits `topo/src/props.rs`: the walks behind `certify_role` and `rounding_bound` are now `walk_set`/`role_walk_set`, and `FaceRun` is one state. The role readers themselves are unchanged. (QUAD unit B lane)
+
+- 2026-10-26 — seam from ATREST (stage 5 C, `the-at-rest-census-is-a-check`, branch `atrest/the-at-rest-census-is-a-check`): `eval/{mod,parts,wire}.rs`: paths re-spelled from `crate::assembly::` to `crate::checks::at_rest::`; `seam_verdict` now crosses a part's could-not-look findings as `AtRestEvidence`.
