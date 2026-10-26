@@ -1227,7 +1227,10 @@ macro_rules! nurbs_curve {
             /// order"), each a bound on its own open span alone. Infinite
             /// where the knots hold a crease (`KnotStructure::crease_runs`),
             /// where `C′` may jump and no finite bound holds across the
-            /// knot (poison at `Interval`, which holds no infinity).
+            /// knot (poison at `Interval`, which holds no infinity). The
+            /// cost: a creased spline reads no second-order bound even
+            /// inside a smooth span, so its touches and tangent meetings
+            /// walk to the band.
             /// At `Interval` it is certified; at `f64` it is the same
             /// expression in round-to-nearest. Poison where the
             /// statement refuses (a degree above 18, where `3p` passes

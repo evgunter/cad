@@ -31,8 +31,9 @@ pub fn speed_hi<T: SpanLocate>(carrier: &crate::Curve3<T>) -> Option<T> {
 /// and a circle, an ellipse's semi-axes, a spiric's minor radius `r`
 /// below (`|C′|² = r²(1 + (d/f)²·sin²v)`) and [`crate::spiric_rate_bounds`]
 /// over a whole period above, and a spline's control-net bounds
-/// ([`crate::NurbsCurve3::speed_lower_bound`], whose floor may be zero
-/// or poison). A rational spline's bounds are certified at `Interval`;
+/// ([`crate::NurbsCurve3::speed_lower_bound`], whose floor may be zero,
+/// negative or poison: its assemblies are joined by `max`, and each may
+/// read below zero where the hodograph runs near the origin). A rational spline's bounds are certified at `Interval`;
 /// at `f64` they are the same expressions in round-to-nearest, not a
 /// bound at extreme weights.
 pub fn speed_range<T: SpanLocate>(carrier: &crate::Curve3<T>) -> (InfSpeed<T>, SupSpeed<T>) {
@@ -97,8 +98,12 @@ pub fn accel_hi<T: SpanLocate>(carrier: &crate::Curve3<T>) -> T {
 /// [`accel_hi`] and [`speed_range`]'s floor on a spiric (its minor
 /// radius) and a spline (the curvature `|C′ × C″|/|C′|³` is at most
 /// that). A floor not above zero is read as zero, so a spline whose
-/// floor certifies nothing (a cusp, a hodograph through the origin),
-/// or with a crease, bounds no finite curvature.
+/// floor certifies nothing (a cusp, or a hodograph near the origin,
+/// whose `f64` floor can read negative), or with a crease, bounds no
+/// finite curvature: infinite or NaN at `f64`, poison at `Interval` for
+/// a crease. At `Interval` a floor whose enclosure straddles zero gives
+/// an enclosure unbounded above, `[x, +∞]`, which reads as a length
+/// ([`geom_core::is_finite_length`]) but bounds nothing above.
 pub fn curvature_hi<T: SpanLocate>(carrier: &crate::Curve3<T>) -> T {
     Kind::of(carrier).curvature_hi()
 }

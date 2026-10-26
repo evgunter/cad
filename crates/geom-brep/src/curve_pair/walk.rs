@@ -25,9 +25,11 @@
 //! carrier `C¹` across its piece, and its bound is finite only where it
 //! is: a spline with a crease clears on the first reading alone. Pieces
 //! stop at [`geom_core::bisect::tangency_floor`] of `1/κ`, `κ` the two
-//! carriers' summed curvature bound (`curve_pair_walk_piece`), or at the
-//! band itself where that floor is not finite (a spline with a crease,
-//! or whose speed floor certifies nothing). A pair that
+//! carriers' summed curvature bound (`curve_pair_walk_piece`). Where
+//! that bound is not finite (a spline with a crease, or whose speed
+//! floor certifies nothing) the floor is zero, poison, or at `Interval`
+//! an enclosure reaching zero, and a piece stops only once its reach is
+//! within the band. A pair that
 //! stops is polished toward the meeting by Gauss–Newton, each carrier's
 //! foot of the other's point is polished, and the point is read on both
 //! spans ([`Span::contact`]). Every piece the walk does not clear ends at

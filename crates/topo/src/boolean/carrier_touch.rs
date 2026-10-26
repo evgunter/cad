@@ -24,8 +24,9 @@
 //! speed bound ([`geom::carrier_speed::speed_range`]) on every kind. The
 //! second bound needs the curve `C¹` across the piece, and a curvature
 //! bound is finite only where it is: a spline with a crease, or whose
-//! speed floor certifies nothing, bounds none, and takes the first bound
-//! alone. Near a tangency the first
+//! speed floor certifies nothing, bounds none, and the first bound
+//! decides alone (at `Interval`, a bound unbounded above leaves the
+//! second bound unbounded below, which the larger-of drops). Near a tangency the first
 //! clears nothing finer than the band, the second clears pieces in
 //! proportion to their distance from the touch. The pieces that do not
 //! clear, bisected down to [`geom_core::bisect::tangency_floor`] of ρ, run together
@@ -215,7 +216,10 @@ fn clusters<T: Decide + Bounds>(
         let lipschitz = dist.abs() - ell;
         let axis_gap = rho - dist.abs() - ell;
         // A bend with no finite bound (a spline's crease or cusp) takes
-        // the first bound alone.
+        // the first bound alone. At `Interval` a bend unbounded above (a
+        // speed floor straddling zero) passes here, and leaves the second
+        // bound's lower end unbounded below, so the `max` keeps the
+        // first's.
         let bound = if geom_core::is_finite_length(bend)
             && let Ok(Sign::Positive) =
                 decide("bool_touch_piece_off_axis", Margin::of(axis_gap), band)

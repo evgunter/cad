@@ -38,8 +38,9 @@ The finding's premise had moved: a spline or spiric edge already had
 a floor, the distance to one ball holding the whole arc
 (`containment::carrier_ball`). It now also has a per-piece floor.
 `containment::arc_distance_floor`'s ball arm carries the arc
-(`ArcPieces`), read when the ball is not clear: the shared
-`geom_core::bisect` walk halves the span, and a piece's floor is
+(`ArcPieces`), read when the ball is not clear: the carrier's point
+walk (`geom::Curve3::point_walk`, the one `clear_of` and
+`curve_pair::walk` read too) halves the span, and a piece's floor is
 `|q − m| − ℓ`, with `ℓ` its reach at `speed_range`'s bound. This is
 the one floor the touch gate (`edge_clear_of_ball`) and the cell door
 (`cell_region`) share, so both read it.

@@ -2018,9 +2018,11 @@ fn a_spline_with_a_corner_meets_a_line_past_it() {
         &Span::new(&b, (0.0, 0.6)),
         band(),
     );
-    // A refusal keeps the door, which is sound; a verdict must see the
-    // meeting.
-    if let Ok(m) = &got {
-        assert!(interiors_meet(m), "decided no meeting: {m:?}");
-    }
+    let Ok(m) = got else {
+        panic!("the walk reads the crossing: {got:?}")
+    };
+    assert!(
+        m.points.len() == 1 && interiors_meet(&m),
+        "one meeting, on both interiors: {m:?}"
+    );
 }

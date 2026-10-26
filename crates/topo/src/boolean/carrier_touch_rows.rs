@@ -520,3 +520,50 @@ fn a_spline_with_a_corner_crossing_the_face_is_not_off_it() {
         "the spline crosses the sheet at azimuth ~0.71, on the face: {got:?}"
     );
 }
+
+/// **A creased spline crossing the wall past the face is off it, at
+/// `Interval`.** Two quadratic spans in the plane `z = 1/2`: the first
+/// runs straight out through the unit cylinder at azimuth `−1/2`, past
+/// the quarter sheet, crossing it once; the second turns a right angle
+/// at the knot and runs along the azimuth, outside the cylinder. The
+/// double knot is a crease, so the spline bounds no curvature: at
+/// `Interval` its bound is poison, and a second-order bound read with it
+/// would poison the first-order one it is maxed with. The crossing is
+/// localized on the first bound alone, into a ball off the face.
+#[test]
+fn a_creased_spline_crossing_past_the_face_is_off_it_at_interval() {
+    use geom::NurbsCurve3;
+    use geom_core::Interval;
+    use geom_core::spline::{KnotVector, Knots};
+    let tol = Tol::witness();
+    let mut body = Body::<Interval>::new();
+    let frame = CylFrame::canonical(1.0);
+    let face = cyl_wall_sheet(&mut body, frame, (0.0, FRAC_PI_2), (0.0, 1.0), tol);
+    crate::test_support_fixtures::set_sheet_sense(&mut body, face, true, tol);
+    let surface = frame.surface::<Interval>();
+    let (p, n, t) = on_unit_cylinder(-0.5);
+    let corner = p + n * 0.1;
+    let knots = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 2.0, 2.0, 2.0], 2).unwrap();
+    let net = NurbsCurve3::new(
+        Knots::from(knots),
+        vec![p - n * 0.1, p, corner, corner + t * 0.1, corner + t * 0.2],
+        vec![1.0; 5],
+    )
+    .unwrap();
+    let c = Curve3::Nurbs(std::sync::Arc::new(
+        net.map_scalar(<Interval as geom_core::Real>::from_f64),
+    ));
+    assert!(
+        !geom_core::is_finite_length(geom::carrier_speed::curvature_hi(&c)),
+        "the crease bounds no curvature"
+    );
+    let span = (
+        Interval::from_bounds(0.0, 0.0),
+        Interval::from_bounds(2.0, 2.0),
+    );
+    let got = off_face(&body, face, &surface, &c, span, band());
+    assert!(
+        matches!(got, Ok(true)),
+        "the crossing lies past the sheet: {got:?}"
+    );
+}
