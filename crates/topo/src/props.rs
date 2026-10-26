@@ -4012,6 +4012,7 @@ fn quadrature_regions<T: Decide>(body: &Body<T>, shell: ShellKey) -> Vec<Vec<Fac
 /// (`work/flux/a-shells-pad-still-depends-on-which-quadrature-face-it-stores-first.md`).
 /// That is the first quadrature region's point: a region far from it is
 /// read about a point of its own and carried here ([`References`]).
+#[cfg_attr(not(any(test, feature = "test-support")), expect(dead_code))]
 fn shell_reference<T: Decide>(body: &Body<T>, shell: ShellKey) -> Point3<T> {
     reference_of(body, shell, &quadrature_regions(body, shell))
 }
