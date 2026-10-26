@@ -484,14 +484,6 @@ impl MirrorTool {
         })
     }
 
-    /// **The held plane's name re-seated** after an operation that
-    /// moved it ([`crate::session::Renamed`]).
-    pub fn rename(&mut self, renamed: &crate::session::Renamed) {
-        if let Some(face) = &mut self.plane {
-            renamed.rename(&mut face.name);
-        }
-    }
-
     /// The held picks spoken again from `doc` ([`Seats::respeak`]).
     pub fn respeak(&mut self, doc: &Doc<ProfileProgram>) {
         self.seats.respeak(doc);

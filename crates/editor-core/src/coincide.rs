@@ -849,6 +849,13 @@ fn lies_on<P: crate::ProfilePayload>(
     if cell.maps != face.maps {
         return false;
     }
+    // A walk that stopped at an instance holds the part's names, whose
+    // profiles this document does not hold.
+    if let Some(Map::World(at)) = cell.maps.last()
+        && matches!(doc.node(*at), Some(Node::InstantiatePart { .. }))
+    {
+        return on_face(cell_name, face_name, &|_, _, _| false);
+    }
     // The profile an extrude at `node` of this document sweeps.
     let bounds =
         |node: RecipeNodeId, run: &crate::names::PieceRun, v: &crate::names::ProfileVertexRef| {
@@ -930,9 +937,6 @@ fn on_face(
         (RoleSeg::LateralEdge(v) | RoleSeg::CapVertex(_, v), RoleSeg::Lateral(wall)) => {
             bounds(cell.node, wall, v)
         }
-        // A part's entities are its own document's, whose profiles
-        // this one does not hold.
-        (RoleSeg::InPart { of }, RoleSeg::InPart { of: on }) => on_face(of, on, &|_, _, _| false),
         (carried, carrying) => {
             let (SegOrigin::Carried(of, _), SegOrigin::Carried(on, _)) =
                 (origin(carried), origin(carrying))
@@ -1064,8 +1068,40 @@ pub fn construction<P: crate::ProfilePayload>(
     let (mut read, mut name) = (read, name.clone());
     let mut at = doc.operation_of(read).ok_or(Unwalked::Unread(read))?;
     loop {
+        // A `⊔`'s name of a member's entity, read in that member, is
+        // the member's own name.
+        if matches!(doc.node(name.node), Some(Node::Assemble { .. }))
+            && let [RoleSeg::From { read: member, of }] = name.path.as_slice()
+            && *member == read
+        {
+            name = (**of).clone();
+            continue;
+        }
+        // A pick is its piece of the copy, placed there.
+        if let Some(pick) = doc.pick(read) {
+            maps.push(Map::World(at));
+            read = *pick.of.last().ok_or(Unwalked::Unread(read))?;
+            at = operation(doc, at, read)?;
+            continue;
+        }
         while at != name.node {
             read = match crate::names::verbatim_edge(node(at)?) {
+                // A copy carries its source's names verbatim.
+                Some(VerbatimEdge::Copied {
+                    source: Some(source),
+                }) => {
+                    maps.push(Map::World(at));
+                    source
+                }
+                // A part's entity enters at its instance, where the
+                // walk stops: its name is the part's, in the part's ids.
+                Some(VerbatimEdge::Copied { source: None }) => {
+                    maps.push(Map::World(at));
+                    return Ok(Construction {
+                        origin: Origin::Minted(name),
+                        maps,
+                    });
+                }
                 Some(VerbatimEdge::Selected { of, .. }) => of,
                 Some(VerbatimEdge::Intact { target }) => target,
                 Some(VerbatimEdge::Reflected { body, plane }) => {
@@ -1119,7 +1155,7 @@ pub fn construction<P: crate::ProfilePayload>(
             SegOrigin::Unclassified => return Err(Unwalked::Unclassified(at)),
             SegOrigin::Carried(of, _) => of.clone(),
         };
-        read = carried_read(doc, seg, node(at)?, at, &mut maps)?;
+        read = carried_read(seg, node(at)?, at, &mut maps)?;
         at = operation(doc, at, read)?;
         name = of;
     }
@@ -1167,14 +1203,13 @@ fn operation<P>(
 }
 
 /// **The read a carried segment at `at` names its entity in**, by the
-/// segment and the node together: a `From`'s own read; a placing
-/// segment (`Instance`, `Placed`) adds its map.
+/// segment and the node together: a `From`'s own read; a pattern's
+/// `Instance` adds its map.
 ///
 /// # Errors
 ///
 /// [`Unwalked::Misplaced`] for a segment `at`'s kind does not carry.
 fn carried_read<P>(
-    doc: &crate::doc::Doc<P>,
     seg: &RoleSeg,
     node: &Node<P>,
     at: RecipeNodeId,
@@ -1191,16 +1226,6 @@ fn carried_read<P>(
             Ok(*input)
         }
         (RoleSeg::Instance { .. }, _) => Err(misplaced),
-        (RoleSeg::Placed { of }, Node::Place { shapes, .. }) => {
-            maps.push(Map::World(at));
-            // The copy of the shape whose name the segment carries.
-            let shape = shapes
-                .iter()
-                .find(|shape| doc.operation_of(shape.read) == Some(of.node))
-                .or_else(|| shapes.first())
-                .ok_or(misplaced)?;
-            Ok(shape.read)
-        }
         // Every other carried segment is a split's, carried from its
         // target.
         (_, Node::Split { target, .. }) => Ok(target.read),

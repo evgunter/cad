@@ -39,6 +39,7 @@ impl ViewerBehavior<'_> {
         self.standing_ui(ui, &standing);
         if let Some(node) = self.session.selection().node() {
             self.instance_ui(ui, node);
+            self.product_ui(ui, node);
         }
         match self.session.selection().clone() {
             Selection::None => {
@@ -593,6 +594,33 @@ impl ViewerBehavior<'_> {
                     .map_or([0.0; 3], |frame| frame.translation);
                 free_move_probe(ui, node, current, *self.notation, self.ops);
             }
+        }
+    }
+
+    /// **Whether a world copy is in what the document makes**, and the
+    /// control that says it is or is not (D10 `[operations]`): a copy in
+    /// the product can be taken out of it, any other copy in the world
+    /// added to it, through [`SessionOp::SetProduct`]. Nothing joins the
+    /// product by being placed, so this is where a document made in the
+    /// viewer says what it delivers. Read off the committed document, the
+    /// one the op reads.
+    fn product_ui(&mut self, ui: &mut egui::Ui, node: RecipeNodeId) {
+        let doc = self.session.committed_doc();
+        let Some(copy) = crate::world::world_copy(doc, node) else {
+            return;
+        };
+        let bodies = if crate::world::product_reads(doc).contains(&copy) {
+            crate::widgets::message(ui, "in the product");
+            ui.button("Take out of the product")
+                .clicked()
+                .then(|| crate::world::product_without(doc, copy))
+        } else {
+            ui.button("Add to the product")
+                .clicked()
+                .then(|| crate::world::product_with(doc, copy))
+        };
+        if let Some(bodies) = bodies {
+            self.ops.push(SessionOp::SetProduct { bodies });
         }
     }
 

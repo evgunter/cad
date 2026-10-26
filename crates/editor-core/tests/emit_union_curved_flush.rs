@@ -117,13 +117,10 @@ fn one_table(runs: &[Run]) {
     }
 }
 
-/// The path of a member's entity `of` in its construction: through the
-/// `Placed` layer a placed copy names it under.
+/// The path of a member's entity `of` in its construction, which a
+/// placed copy carries verbatim.
 fn own_path(of: &StableName) -> &[RoleSeg] {
-    match of.path.as_slice() {
-        [RoleSeg::Placed { of }] => own_path(of),
-        path => path,
-    }
+    of.path.as_slice()
 }
 
 /// Whether `name` is a member's rim edge carried bare.

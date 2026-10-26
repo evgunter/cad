@@ -31,7 +31,7 @@ use crate::fixture;
 use editor_core::measure::MeasurePrimitive;
 use editor_core::{
     CapEnd, EditError, EntityKind, Node, OperandSlot, PersistError, ProfileDoc, RecipeNodeId,
-    SelectionFault, SitedRef, SnapshotError, StableName, load, save,
+    SelectionFault, SnapshotError, StableName, load, save,
 };
 use fixture::{fname, insert, insert_refused, len, on_frame, square, wall};
 use geom_core::Tol;
@@ -294,8 +294,8 @@ fn a_measure_reference_of_another_kind_refuses_at_the_door() {
         let refused = editor_core::measure(
             &doc,
             &[MeasurePrimitive::MinClearance {
-                a: SitedRef::at_mint(name),
-                b: SitedRef::at_mint(face),
+                a: crate::fixture::sited_ref(name),
+                b: crate::fixture::sited_ref(face),
             }],
             Tol::witness(),
         );

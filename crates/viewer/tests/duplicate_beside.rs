@@ -280,7 +280,7 @@ fn a_body_named_in_the_tree_is_duplicated_beside_each_drawn_copy() {
     let (doc, second) = crate::fixture::insert(
         session.committed_doc().clone(),
         Node::place(
-            vec![pncad::document::BodyRead::plain(Operand::Var(var))],
+            pncad::document::BodyRead::plain(Operand::Var(var)),
             Operand::Var(pncad::document::VarId::WORLD),
             pncad::document::stand().bundle(),
         ),

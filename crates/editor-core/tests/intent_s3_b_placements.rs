@@ -10,16 +10,16 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::fixture::resolver::{PartStore, copy_key, placement_of, with_resolver};
+use crate::fixture::resolver::{PartName, PartStore, with_resolver};
 use crate::fixture::{
     self, at_the_door_of, insert, len, mated_instance, on_frame, run, square, step,
 };
 use editor_core::eval::bound_pose;
 use editor_core::pose::PoseDef;
 use editor_core::{
-    BodyRead, CapEnd, CopyKey, DocEdit, DocumentId, EditError, EvalOptions, Formula, Frame,
-    MateFault, MateRef, Node, NodeErrorKind, NodeResult, Operand, OperandSlot, PoseValue,
-    ProductError, ProfileDoc, RecipeNodeId, RoleSeg, StableName, VarId,
+    BodyRead, CapEnd, DocEdit, DocumentId, EditError, EvalOptions, Formula, Frame, MateFault,
+    MateRef, Node, NodeErrorKind, NodeResult, Operand, OperandSlot, PoseValue, ProductError,
+    ProfileDoc, RecipeNodeId, RoleSeg, VarId,
 };
 use geom_core::Tol;
 use geom_core::UnitVec3;
@@ -55,25 +55,10 @@ fn host(label: &str) -> (ProfileDoc, PartStore, editor_core::DocRef, RecipeNodeI
     (doc, store, doc_ref, body)
 }
 
-/// **Face `seg` of the part's block, as instance `instance` names it**:
-/// the block's face under its part placement's copy, worn inside the
-/// instance's `InPart`.
-fn face_in(instance: RecipeNodeId, body: RecipeNodeId, seg: RoleSeg) -> StableName {
-    let own = StableName {
-        kind: editor_core::EntityKind::Face,
-        node: body,
-        path: vec![seg],
-    };
-    editor_core::FaceName::new(StableName {
-        kind: editor_core::EntityKind::Face,
-        node: placement_of(body),
-        path: vec![RoleSeg::Placed {
-            of: editor_core::NameRef::new(own),
-        }],
-    })
-    .expect("a face")
-    .in_part(instance)
-    .into_name()
+/// **Face `seg` of the block, read at the copy `instance` carries it
+/// in**: the block's own name, which every copy of it carries verbatim.
+fn face_in(instance: RecipeNodeId, body: RecipeNodeId, seg: RoleSeg) -> PartName {
+    fixture::resolver::in_part_of(editor_core::EntityKind::Face, instance, body, seg)
 }
 
 /// `b`'s bottom resting on `a`'s top: the rest a stack starts from,
@@ -105,9 +90,9 @@ fn place_by_values(
     body: RecipeNodeId,
     pose: &Frame,
 ) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, placement) = insert(doc, crate::fixture::stood(vec![body.into()]));
+    let (doc, placement) = insert(doc, crate::fixture::stood(body));
     (
-        fixture::pin(doc, placement, pose, &EvalOptions::default()),
+        fixture::assemble_world_copies(fixture::pin(doc, placement, pose, &EvalOptions::default())),
         placement,
     )
 }
@@ -173,14 +158,9 @@ fn two_placements_of_one_body_are_two_copies() {
     assert_eq!(product_solids(&doc, &ev), 2);
     let product = editor_core::product_recorded(&doc, &ev, Tol::witness()).expect("it gathers");
     let cap = fixture::fname(body, RoleSeg::Cap(CapEnd::End));
+    // The product's `⊔` keys each copy's names by the copy.
     for placement in [first, second] {
-        let copied = StableName {
-            kind: cap.kind,
-            node: placement,
-            path: vec![RoleSeg::Placed {
-                of: editor_core::NameRef::new(cap.clone()),
-            }],
-        };
+        let copied = fixture::product_name(&doc, &ev, (placement, cap.clone()));
         assert!(
             product.names.lookup(&copied).is_some(),
             "the cap resolves in {placement:?}'s copy"
@@ -238,7 +218,7 @@ fn copies_placed_into_a_new_space_are_in_it_not_the_world() {
     assert!(
         matches!(
             editor_core::product_recorded(&doc, &ev, Tol::witness()),
-            Err(ProductError::EmptyProduct { .. })
+            Err(ProductError::EmptyProduct)
         ),
         "an empty world"
     );
@@ -258,22 +238,12 @@ fn a_copy_pinned_against_a_body_of_another_space_is_in_that_space() {
     let (doc, space) = insert(doc, Node::Space);
     let (doc, l) = step(
         doc,
-        DocEdit::place(
-            vec![a.into()],
-            Operand::Node(space),
-            editor_core::stand().bundle(),
-        ),
+        DocEdit::place(a, Operand::Node(space), editor_core::stand().bundle()),
     );
     let l = l.expect("the placement mints");
     let space = doc.output(space, 0).expect("a new space defines its space");
     let cap = fixture::fname(a, RoleSeg::Cap(CapEnd::Start));
-    let placed_cap = StableName {
-        kind: cap.kind,
-        node: l,
-        path: vec![RoleSeg::Placed {
-            of: editor_core::NameRef::new(cap),
-        }],
-    };
+    let placed_cap = cap;
     // A copy's bottom on a face, square to its target's coordinates:
     // the plane mate and a zero value on each freedom it leaves.
     let pin_on = |doc: ProfileDoc, at: RecipeNodeId, body: RecipeNodeId, target: Operand| {
@@ -286,7 +256,7 @@ fn a_copy_pinned_against_a_body_of_another_space_is_in_that_space() {
         );
         fixture::write_bundle(doc, at, zeroed(mate)).0
     };
-    let (doc, l2) = insert(doc, crate::fixture::stood(vec![b.into()]));
+    let (doc, l2) = insert(doc, crate::fixture::stood(b));
     let doc = pin_on(
         doc,
         l2,
@@ -311,7 +281,7 @@ fn a_copy_pinned_against_a_body_of_another_space_is_in_that_space() {
         .map(|(n, _)| n.clone())
         .find(|n| n.kind == editor_core::EntityKind::Face)
         .expect("the subtract names a face");
-    let (doc, p) = insert(doc, crate::fixture::stood(vec![c.into()]));
+    let (doc, p) = insert(doc, crate::fixture::stood(c));
     let doc = pin_on(
         doc,
         p,
@@ -332,7 +302,7 @@ fn a_copy_pinned_against_a_body_of_another_space_is_in_that_space() {
     assert!(
         matches!(
             editor_core::product_recorded(&doc, &ev, Tol::witness()),
-            Err(ProductError::EmptyProduct { .. })
+            Err(ProductError::EmptyProduct)
         ),
         "an empty world"
     );
@@ -374,7 +344,7 @@ fn a_place_copy_resting_on_the_world_asks_no_lever() {
     };
     let (doc, place) = step(
         doc,
-        DocEdit::place(vec![body.into()], Operand::Var(VarId::WORLD), zeroed(rest)),
+        DocEdit::place(body, Operand::Var(VarId::WORLD), zeroed(rest)),
     );
     let place = place.expect("the placement mints");
     let ev = run(&doc, &EvalOptions::default());
@@ -812,44 +782,37 @@ fn a_union_of_an_instances_copy_and_a_block_evaluates() {
     );
 }
 
-/// **A whole read of an instance's copies at a body seat refuses at the
-/// door, and a key the part delivers nothing at refuses at evaluation**,
-/// typed, never re-pointed.
+/// **An instance's copy is one body, read whole, and a pick of a piece
+/// its part's product does not hold refuses at evaluation**, typed,
+/// never re-pointed: the part's product is one copy, so it holds no
+/// piece.
 #[test]
-fn an_instances_copies_are_read_one_by_key() {
+fn an_instances_copy_is_one_body_and_a_missing_piece_refuses() {
     let (doc, store, doc_ref, part_body) = host("s3b-keyed");
     let o = with_resolver(store);
     let (doc, instance) = fixture::insert_pinned(doc, crate::fixture::mated_instance(doc_ref), &o);
-    let whole = fixture::insert_refused(
-        &doc,
-        Node::Union {
-            members: editor_core::Bodies::Spelled(vec![
-                instance.into(),
-                fixture::copy(instance, part_body),
-            ]),
-        },
-    );
-    assert!(matches!(whole, EditError::SlotVarKind { .. }), "{whole:?}");
-    let missing = CopyKey::part(RecipeNodeId::new(0, 1), copy_key(part_body));
-    let (doc, union) = insert(
+    let (doc, picked) = insert(
         doc,
-        Node::Union {
-            members: editor_core::Bodies::Spelled(vec![
-                BodyRead::keyed(Operand::Node(instance), missing.clone()),
-                fixture::copy(instance, part_body),
-            ]),
-        },
+        crate::fixture::stood(BodyRead::plain(Operand::pick(
+            Operand::Node(instance),
+            vec![VarId::new(0, 1)],
+        ))),
     );
+    let pick = match doc.node(picked) {
+        Some(Node::Place { source, .. }) => source.read,
+        other => panic!("a placement, not {other:?}"),
+    };
     let ev = run(&doc, &o);
-    match ev.result(union) {
+    match ev.result(picked) {
         Some(NodeResult::Failed(e)) => match &e.kind {
-            NodeErrorKind::NoSuchCopy { input, key } => {
-                assert_eq!((*input, key.as_ref()), (instance, &missing));
+            NodeErrorKind::NoSuchPiece { pick: read, at } => {
+                assert_eq!((*read, *at), (pick, 0));
             }
-            other => panic!("no such copy, not {other:?}"),
+            other => panic!("no such piece, not {other:?}"),
         },
         other => panic!("a refusal, not {other:?}"),
     }
+    let _ = part_body;
 }
 
 /// **One copy of a nested instance is placed by the outer motion after
@@ -877,6 +840,7 @@ fn a_nested_instances_copy_is_placed_outer_after_inner() {
         &Frame::translation([5.0, 0.0, 0.0]),
         &with_resolver(store.clone()),
     );
+    let mid = crate::fixture::assemble_world_copies(mid);
     let mid_ref = store.insert(mid, Tol::witness());
     let top = ProfileDoc::empty(DocumentId::derive("s3b-nested-top"), Tol::witness());
     let (top, outer) = insert(
@@ -896,11 +860,10 @@ fn a_nested_instances_copy_is_placed_outer_after_inner() {
     // values hold the instance at the quarter turn and the reader where
     // it reads.
     let top = fixture::pin(top, outer, &quarter_turn, &with_resolver(store.clone()));
-    let key = CopyKey::part(inner, copy_key(leaf_body));
-    let (top, reader) = insert(
-        top,
-        crate::fixture::stood(vec![BodyRead::keyed(Operand::Node(outer), key)]),
-    );
+    // The middle document's product is its one instance's copy, so
+    // the outer copy is the block, placed twice.
+    let _ = (inner, leaf_body);
+    let (top, reader) = insert(top, crate::fixture::stood(Operand::Node(outer)));
     let ev = run(&top, &with_resolver(store));
     let body = match ev.value(reader).map(|v| &v.payload) {
         Some(editor_core::ValuePayload::Body(b)) => b.clone(),
@@ -923,11 +886,11 @@ fn a_nested_instances_copy_is_placed_outer_after_inner() {
     );
 }
 
-/// **A `Place` over several shapes defines one output, its copies keyed
-/// by read**: a read of one evaluates to that copy, and two reads of one
-/// family key alike and refuse (FORK-DM4), before any mate is asked.
+/// **A placement of a `⊔` copies one body, its pieces kept**: a pick of
+/// one piece of the copy evaluates to that piece, and a pick through a
+/// `∪` refuses at the door.
 #[test]
-fn a_place_of_several_shapes_keys_its_copies_by_read() {
+fn a_place_of_an_assemble_picks_its_pieces() {
     let (doc, first) = block("s3b-place-several");
     let (doc, profile) = on_frame(
         doc,
@@ -943,64 +906,53 @@ fn a_place_of_several_shapes_keys_its_copies_by_read() {
             distance: len(1.0),
         },
     );
-    // Both shapes in `first`'s space, so one pin stands them both.
+    // Both shapes in `first`'s space, so one `⊔` holds them both.
     let (doc, second) = fixture::slid(doc, first, second, [0.0; 3]);
-    let (doc, place) = insert(
+    let (doc, both) = insert(
         doc,
-        crate::fixture::stood(vec![first.into(), second.into()]),
+        Node::Assemble {
+            members: editor_core::Bodies::Spelled(vec![first.into(), second.into()]),
+        },
     );
+    let (doc, place) = insert(doc, crate::fixture::stood(both));
     let doc = fixture::pinned(doc, place, &EvalOptions::default());
-    assert_eq!(
-        doc.outputs(place).len(),
-        1,
-        "one output, however many shapes"
-    );
+    assert_eq!(doc.outputs(place).len(), 1, "one output, one copy");
     let second_read = doc.output(second, 0).expect("the block's copy");
     let first_read = doc.output(first, 0).expect("the block's body");
     let (doc, union) = insert(
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![
-                BodyRead::keyed(Operand::Node(place), CopyKey::Read(second_read)),
-                BodyRead::keyed(Operand::Node(place), CopyKey::Read(first_read)),
+                BodyRead::plain(Operand::pick(Operand::Node(place), vec![second_read])),
+                BodyRead::plain(Operand::pick(Operand::Node(place), vec![first_read])),
             ]),
         },
     );
+    let doc = editor_core::test_support::assemble_world_copies(doc, Tol::witness());
     let ev = run(&doc, &EvalOptions::default());
     assert!(
         matches!(ev.result(union), Some(NodeResult::Ok(_))),
         "{:?}",
         ev.result(union)
     );
-    assert_eq!(product_solids(&doc, &ev), 2);
-
-    let (doc, pattern) = insert(
+    let (doc, joined) = insert(
         doc,
-        Node::Pattern {
-            input: first.into(),
-            count: Formula::count(2),
-            kind: editor_core::PatternKind::Linear {
-                direction: [fixture::scl(0.0), fixture::scl(1.0), fixture::scl(0.0)],
-                spacing: len(3.0),
-            },
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![first.into(), second.into()]),
         },
     );
-    let (doc, twice) = insert(
-        doc,
-        crate::fixture::stood(vec![
-            BodyRead::indexed(Operand::Node(pattern), vec![Formula::count(0)]),
-            BodyRead::indexed(Operand::Node(pattern), vec![Formula::count(1)]),
-        ]),
+    let (doc, through) = insert(doc, crate::fixture::stood(joined));
+    let refused = fixture::insert_refused(
+        &doc,
+        crate::fixture::stood(BodyRead::plain(Operand::pick(
+            Operand::Node(through),
+            vec![first_read],
+        ))),
     );
-    let ev = run(&doc, &EvalOptions::default());
-    match ev.result(twice) {
-        Some(NodeResult::Failed(e)) => assert!(
-            matches!(e.kind, NodeErrorKind::CopiesShareAKey { .. }),
-            "{:?}",
-            e.kind
-        ),
-        other => panic!("two reads of one family refuse, not {other:?}"),
-    }
+    assert!(
+        matches!(refused, EditError::PickPath { at: Some(0), .. }),
+        "{refused:?}"
+    );
 }
 
 // ---- Carried ----

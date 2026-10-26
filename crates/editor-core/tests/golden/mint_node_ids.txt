@@ -14,8 +14,9 @@ Mirror 1:29b5f2bf9b537f33
 Subtract 1:e2323a9d9f242b03
 Union 1:9b2084c212f77e04
 Intersect 1:f70bb7a0dd0873e4
-Place 1:49af979591753744
-Place 3:4c2674aba6ac04ec
+Assemble 1:4bf36e1809ac1fc6
+Place 1:7537c26a51e641c9
+Place 3:1f5113e4b08a1729
 World 1:e7e7ed757f3906a3
 Space 1:f90d851ed7087a2f
 Pattern 6:d5158f2607a02303
@@ -29,6 +30,6 @@ PlacedUnion 2:e4ddac107275f47e
 PlacedUnion 1:150544a5320c3e58
 Part 2:ea12db188ebe4622
 InstantiatePart 2:5047f88fd6a54b72
-Place 7:9d00d76a39096b96
+Place 7:4adecf4385ed7b6d
 Measure 3:c56a63f809c915d7
 Assertion 3:5e435f9e700dd9cf

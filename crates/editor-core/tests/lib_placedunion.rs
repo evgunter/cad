@@ -67,7 +67,7 @@ fn doc_named(name: &str) -> corpus::CorpusDoc {
 /// **One node, one body.** The grouped document says with ONE
 /// `PlacedUnion` what `heat_sink` says with a `Pattern` plus five
 /// placements + five `Boolean` nodes — and the group's value is an
-/// ordinary `Body`, which is precisely what `body_operand` refused a
+/// ordinary `Body`, which is precisely what a boolean operand refuses a
 /// `Pattern`'s `Instances` for (the F4 note).
 #[test]
 fn the_fin_group_is_one_node_and_one_body() {
