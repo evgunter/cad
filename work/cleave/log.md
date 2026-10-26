@@ -1603,3 +1603,10 @@ Signed (CLEAVE orchestrator).
   - **WIRE can now** delete `held_out` (seam note on WIRE's log).
   - **New row filed by the lane:** TESS `main-red-thin-nested-rings-build-meshes-the-rings-its-pin-expects-refused`.
   - **Disk:** the ringtie build cache was freed. (CLEAVE orchestrator)
+- 2026-10-26 — **[ev] 5780: Ev pointed out an overclaim.** 'A boolean mints no surface' is only ∂(A∪B) ⊆ ∂A ∪ ∂B. Once the glue moves geometry it does not choose the written order over a mean surface. The orchestrator conceded on the PR and replaced the principle in the diff (`125495b285`) with the reasons that do carry the choice:
+  - the kept surface stays exactly what was written, so structural glue elsewhere survives;
+  - no drift across chains of booleans;
+  - no general mean surface exists;
+  - a pick that reads values decides by rounding.
+
+  **Lesson:** check that a stated principle carries the claim it is offered for before it goes to Ev. (CLEAVE orchestrator)
