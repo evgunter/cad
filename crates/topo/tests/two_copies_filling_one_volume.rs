@@ -116,3 +116,39 @@ fn a_stacked_copy_rests_and_lies_flush() {
     assert_eq!(relations, [topo::Relation::SameOpposite], "the caps rest");
     assert_eq!(flush.rows.len(), 4, "the walls lie flush: {:?}", flush.rows);
 }
+
+/// **An overlap within the band is no interference.** A cube stacked on
+/// the base and sunk into it by `d`, and one beside it pushed in by
+/// `d`: the coplanar walls (and caps) share a strip of width `d`. Within
+/// the band the census cannot say the strip exists, so no
+/// `SameSideInterference` is decided; past it, the strip is one. Red if
+/// the face-pair arm decides an overlap off a reading in the band.
+#[test]
+fn an_overlap_within_the_band_is_no_interference() {
+    let (eps, k) = (Tol::witness().eps(), Tol::witness().k());
+    let beside: Vec<(f64, f64)> = SQ.iter().map(|&(x, y)| (x + 1.0, y)).collect();
+    for (label, d, decided) in [
+        ("exact", 0.0, false),
+        ("half eps", 0.5 * eps, false),
+        ("gap half eps", -0.5 * eps, false),
+        ("mid band", 0.5 * (1.0 + k) * eps, false),
+        ("past band", 4.0 * k * eps, true),
+    ] {
+        let pushed: Vec<(f64, f64)> = beside.iter().map(|&(x, y)| (x - d, y)).collect();
+        for (shape, body) in [
+            ("stacked", two(&SQ, (0.0, 1.0), &SQ, (1.0 - d, 2.0 - d))),
+            ("beside", two(&SQ, (0.0, 1.0), &pushed, (0.0, 1.0))),
+        ] {
+            let (recorded, _) = at_rest(&body);
+            assert_eq!(
+                recorded
+                    .findings
+                    .iter()
+                    .any(|f| matches!(f, ValidationError::SameSideInterference { .. })),
+                decided,
+                "{shape}, {label}: {:?}",
+                recorded.findings
+            );
+        }
+    }
+}

@@ -19,6 +19,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
+use common::placement_findings;
 use geom_core::{Band, Point3, Tol};
 use topo::{
     Body, CensusContact, ContactRecords, EntityId, FaceKey, SolidContainment, SolidKey,
@@ -211,26 +212,6 @@ fn all_on_boundary() -> Body<f64> {
     assembly(&container, &part)
 }
 
-/// The arm-2 findings among `errors`: every `CensusUndecidable` naming
-/// two SOLIDS, every `InstanceInterference` and every
-/// `SameSideInterference`.
-fn placement_findings(errors: &[ValidationError]) -> Vec<&ValidationError> {
-    errors
-        .iter()
-        .filter(|e| {
-            matches!(
-                e,
-                ValidationError::CensusUndecidable {
-                    a: EntityId::Solid(_),
-                    b: EntityId::Solid(_),
-                    ..
-                } | ValidationError::InstanceInterference { .. }
-                    | ValidationError::SameSideInterference { .. }
-            )
-        })
-        .collect()
-}
-
 fn undecidable_what(e: &ValidationError) -> Option<&'static str> {
     match e {
         ValidationError::CensusUndecidable { what, .. } => Some(what),
@@ -360,10 +341,11 @@ fn a_part_in_a_planar_pocket_clears() {
 /// not a placement its vertices decide. The slab IS inside the cube's
 /// material, and its two end faces say so: each lies on a wall of the
 /// cube, facing the same way, so both solids hold the material behind
-/// it. The one placement finding is that decided interference, beside
-/// the sixteen touch findings.
+/// it. That decided interference is the one finding: the sixteen
+/// touches of the two boundaries all lie in the closure of an aligned
+/// pair's shared area, and are the pair's.
 #[test]
-fn every_vertex_on_the_boundary_refuses_typed() {
+fn every_vertex_on_the_boundary_is_a_same_side_interference() {
     let body = all_on_boundary();
     let errors = validate_pseudomanifold(&body, &ContactRecords::default(), Tol::witness())
         .expect_err("refuses");
@@ -375,7 +357,7 @@ fn every_vertex_on_the_boundary_refuses_typed() {
         ),
         "the one decided interference: {errors:?}"
     );
-    assert_eq!(errors.len(), 17, "{errors:?}");
+    assert_eq!(errors.len(), 1, "{errors:?}");
 }
 
 /// **The witness at the band edge**: the part shifted off the wall by
@@ -489,7 +471,9 @@ fn split_straddle() -> (Body<f64>, ContactRecords) {
     );
     let body = assembly(&l.body, &part.body);
     // Every touch the sweeps report, declared as the v-on-f records it
-    // is: all true (each vertex IS in that face's region).
+    // is: all true (each vertex IS in that face's region). The four at
+    // `x = 0` lie in the closure of the aligned pair there and are that
+    // pair's; the four on the wall `x = 1` are reported.
     let errors = validate_pseudomanifold(&body, &ContactRecords::default(), Tol::witness())
         .expect_err("undeclared touches refuse");
     let mut records = ContactRecords::default();
@@ -506,7 +490,7 @@ fn split_straddle() -> (Body<f64>, ContactRecords) {
             )]);
         }
     }
-    assert_eq!(records.vertex_face().count(), 8, "{errors:?}");
+    assert_eq!(records.vertex_face().count(), 4, "{errors:?}");
     (body, records)
 }
 
@@ -520,7 +504,7 @@ fn split_straddle() -> (Body<f64>, ContactRecords) {
 /// `SameSideInterference`, declared or not — a record certifies a
 /// coincidence, never a side.
 #[test]
-fn a_mixed_side_touch_blocks_the_clear_declared_or_not() {
+fn a_mixed_side_touch_beside_a_coplanar_face_is_a_same_side_interference() {
     let (body, records) = split_straddle();
     for (name, recs) in [
         ("undeclared", ContactRecords::default()),

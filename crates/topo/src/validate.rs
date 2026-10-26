@@ -2027,8 +2027,10 @@ pub enum ValidationError {
     /// material under every interior point the faces share: the two
     /// materials overlap there, though no vertex of either need lie
     /// strictly inside the other (two coincident copies, or one nested
-    /// flush in another). No record answers for this finding; between
-    /// two copies at rest the assembly layer reports it as an
+    /// flush in another). The touches of cells bounding the two faces
+    /// that lie in the closure of their shared area are the pair's, and
+    /// report nothing of their own. No record answers for this finding;
+    /// between two copies at rest the assembly layer reports it as an
     /// interference finding.
     SameSideInterference {
         /// The face of one instance.

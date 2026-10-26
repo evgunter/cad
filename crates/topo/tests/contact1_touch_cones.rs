@@ -18,6 +18,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
+use common::placement_findings;
 use geom_core::{Band, Point3, Tol};
 use topo::{
     Body, CensusContact, ContactRecords, EntityId, SolidContainment, SolidKey, ValidationError,
@@ -58,23 +59,6 @@ fn parallelepiped(p: [f64; 3], a: [f64; 3], b: [f64; 3], c: [f64; 3]) -> Body<f6
         },
         Tol::witness(),
     )
-}
-
-fn placement_findings(errors: &[ValidationError]) -> Vec<&ValidationError> {
-    errors
-        .iter()
-        .filter(|e| {
-            matches!(
-                e,
-                ValidationError::CensusUndecidable {
-                    a: EntityId::Solid(_),
-                    b: EntityId::Solid(_),
-                    ..
-                } | ValidationError::InstanceInterference { .. }
-                    | ValidationError::SameSideInterference { .. }
-            )
-        })
-        .collect()
 }
 
 /// Every touch kind the sweeps reported, by name.
@@ -162,15 +146,13 @@ fn a_block_standing_against_the_wall_clears_through_every_touch_kind() {
 /// vertex of either strictly inside the other — the probe cannot see
 /// it. The block's faces on the bracket's outer face and on its floor
 /// and ceiling share interior facing the same way, which decides the
-/// overlap: one `SameSideInterference`.
+/// overlap: one `SameSideInterference`, which answers for the touches
+/// in the closure of those shared areas.
 #[test]
 fn a_block_sunk_into_the_leg_is_a_same_side_interference() {
     let body = bracket_with(&block((0.0, 1.5), (1.0, 3.0), (0.0, 1.0)));
     let errors = refused(&body, &ContactRecords::default());
     let kinds = touch_kinds(&errors);
-    for kind in ["VertexVertex", "VertexOnEdge", "EdgeEdgeOverlap"] {
-        assert!(kinds.contains(&kind), "{kind}: {kinds:?}");
-    }
     assert!(
         !kinds.contains(&"EdgeFacePierce") && !kinds.contains(&"EdgeEdgeCross"),
         "{kinds:?}"

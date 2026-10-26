@@ -279,7 +279,7 @@ mod interval_r1 {
 /// EdgeEdgeCross (in-plane boundary crossings) and/or EdgeFaceOverlap.
 /// The two slabs' tops (and bottoms) lie on one plane facing the same
 /// way and share interior, so the instance arm decides the overlap as
-/// one `SameSideInterference`.
+/// one `SameSideInterference`, and the edge×edge crossings answer to it.
 #[test]
 fn r2_coplanar_plus_overlap_detected() {
     let mut body = mapped_cube(|x, y, z| Point3::new(3.0 * x, 1.0 + y, z), Tol::witness());
@@ -301,15 +301,17 @@ fn r2_coplanar_plus_overlap_detected() {
         ),
         "{errors:?}"
     );
+    // The in-plane crossings of the two tops (and bottoms) lie in the
+    // closure of that aligned pair's shared area, and are the pair's.
     assert!(
-        errors.iter().any(|e| matches!(
+        !errors.iter().any(|e| matches!(
             e,
             ValidationError::UnrecordedContact {
                 contact: topo::CensusContact::EdgeEdgeCross { .. },
                 ..
             }
         )),
-        "expected in-plane edge-edge crossings: {errors:?}"
+        "the crossings are the aligned pair's: {errors:?}"
     );
 }
 

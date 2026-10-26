@@ -11,6 +11,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
+use common::placement_findings;
 use geom_core::{Band, Point3, Tol};
 use topo::{
     Body, CensusContact, ContactRecords, EntityId, SolidContainment, SolidKey, ValidationError,
@@ -35,23 +36,6 @@ fn assembly(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
 
 fn solids(body: &Body<f64>) -> Vec<SolidKey> {
     body.solids().map(|(k, _)| k).collect()
-}
-
-fn placement_findings(errors: &[ValidationError]) -> Vec<&ValidationError> {
-    errors
-        .iter()
-        .filter(|e| {
-            matches!(
-                e,
-                ValidationError::CensusUndecidable {
-                    a: EntityId::Solid(_),
-                    b: EntityId::Solid(_),
-                    ..
-                } | ValidationError::InstanceInterference { .. }
-                    | ValidationError::SameSideInterference { .. }
-            )
-        })
-        .collect()
 }
 
 fn crossings(errors: &[ValidationError]) -> Vec<&ValidationError> {
@@ -102,7 +86,7 @@ fn point_of(body: &Body<f64>, v: topo::VertexKey) -> Point3<f64> {
 /// the bracket's, facing the same way, and share interior, so the pair
 /// is one `SameSideInterference`, not cleared.
 #[test]
-fn a_straddling_part_with_touch_only_crossings_is_refused_as_a_crossing() {
+fn a_straddling_part_with_touch_only_crossings_is_a_same_side_interference() {
     let l = common::prism_z::<f64>(&L_PROFILE, 0.0, 1.0, Tol::witness());
     let part = common::brick::<f64>((0.5, 1.5), (1.0, 3.0), (0.0, 1.0), Tol::witness());
     let body = assembly(&l.body, &part);

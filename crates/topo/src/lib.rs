@@ -314,6 +314,44 @@ pub mod test_support {
     };
     pub use crate::test_support_impl::ArenaCounts;
 
+    /// **A placement the census decided overlaps**: arm 2's decided
+    /// verdicts on a pair of solids, a vertex of one strictly inside the
+    /// other's material ([`crate::ValidationError::InstanceInterference`])
+    /// or a face of each on one carrier, facing the same way and sharing
+    /// interior ([`crate::ValidationError::SameSideInterference`]). The
+    /// one home of the test that a row asserting a placement clears, or
+    /// refuses undecided, reads, so a new decided verdict reaches all of
+    /// them.
+    #[must_use]
+    pub fn is_decided_overlap(e: &crate::ValidationError) -> bool {
+        matches!(
+            e,
+            crate::ValidationError::InstanceInterference { .. }
+                | crate::ValidationError::SameSideInterference { .. }
+        )
+    }
+
+    /// **The census's verdicts on where two solids sit**: each decided
+    /// overlap ([`is_decided_overlap`]) and each
+    /// [`crate::ValidationError::CensusUndecidable`] naming two solids.
+    #[must_use]
+    pub fn placement_findings(errors: &[crate::ValidationError]) -> Vec<&crate::ValidationError> {
+        errors
+            .iter()
+            .filter(|e| {
+                is_decided_overlap(e)
+                    || matches!(
+                        e,
+                        crate::ValidationError::CensusUndecidable {
+                            a: crate::EntityId::Solid(_),
+                            b: crate::EntityId::Solid(_),
+                            ..
+                        }
+                    )
+            })
+            .collect()
+    }
+
     /// **The raw measurement door**: [`crate::mass_properties`]' walk over
     /// a body that has not passed tier 3. The public door takes a
     /// finished body (`&AtRestBody`, Ev's decision on PR 4822); a test

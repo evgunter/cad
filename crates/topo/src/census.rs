@@ -936,7 +936,13 @@ fn census_with<T: Decide + crate::props::AtRestPolicy + Bounds>(
     let mut declared = Declared::index(&geo, contacts);
     let cands = Candidates::build(body, &geo, band, strategy, plant);
     let found = planar_face_pairs(body, &geo, band, region, &cands);
-    declared.confirm(body, &geo, band, region, &found.opposed);
+    declared.confirm(
+        body,
+        &geo,
+        band,
+        region,
+        found.opposed.iter().chain(&found.same_side),
+    );
     sweep_vertex_vertex(
         body,
         &geo,
@@ -1100,19 +1106,19 @@ impl Declared {
     }
 
     /// Confirms the recorded face pairs, once per unordered pair, and
-    /// adds the pairs the face-pair arm `found`, which its own two doors
-    /// confirmed. A record confirms where both patch doors answer in
+    /// adds the pairs the face-pair arm `found`, opposed or aligned,
+    /// which its own doors confirmed. A record confirms where both patch doors answer in
     /// either frame order ([`pair_verified`]), or where the confirm
     /// pass's own reading of it ([`confirm_face_pair`]: the patch, a
     /// point touch, or the tangent line two carriers derive) finds
     /// nothing; each is the pair's verified interface.
-    fn confirm<T: Decide>(
+    fn confirm<'a, T: Decide>(
         &mut self,
         body: &Body<T>,
         geo: &Geo<T>,
         band: Band,
         region: Option<RegionLane<T>>,
-        found: &[FoundPair],
+        found: impl IntoIterator<Item = &'a FoundPair>,
     ) {
         let confirms = |fa, fb| {
             pair_verified(body, fa, fb, band, region) || {
@@ -1127,14 +1133,14 @@ impl Declared {
             .filter(|(fa, fb)| fa < fb)
             .filter(|&&(fa, fb)| confirms(fa, fb))
             .copied();
-        let found = found.iter().map(|p| (p.a, p.b));
+        let found = found.into_iter().map(|p| (p.a, p.b));
         let both: Vec<_> = recorded.chain(found).collect();
         for (fa, fb) in both {
             self.confirmed.insert((fa, fb));
             self.confirmed.insert((fb, fa));
             if matches!(
                 pair_contact(body, geo, fa, fb, band),
-                Some(PairContact::Area)
+                Some(PairContact::Area { .. })
             ) {
                 self.area.insert((fa, fb));
                 self.area.insert((fb, fa));
@@ -1637,9 +1643,9 @@ fn placed<T: Decide>(
 /// - **at a point**: the closures share that point alone, so a touch in
 ///   both is at it.
 ///
-/// The pair's two faces touch with opposed senses (Door 1, or the
-/// tangent table's sides), so `y`'s cone is read about `x`'s outward
-/// normal reversed.
+/// Where the pair's two faces touch with opposed senses (Door 1, or the
+/// tangent table's sides), `y`'s cone is read about `x`'s outward normal
+/// reversed; an aligned pair's two faces share that normal.
 ///
 /// `Some(false)` where either face holds `q` out, or the overlap does
 /// not reach it; `None` where a reading escalated or refused (pushed),
@@ -1681,10 +1687,11 @@ fn in_overlap_closure<T: Decide>(
     if cy == FaceContainment::Out {
         return Some(false);
     }
+    let aligned = matches!(contact, PairContact::Area { aligned: true });
     let along = match contact {
         // The two closures share the touch point alone.
         PairContact::Point => return Some(true),
-        PairContact::Area => {
+        PairContact::Area { .. } => {
             if cx == FaceContainment::In || cy == FaceContainment::In {
                 return Some(true);
             }
@@ -1706,6 +1713,7 @@ fn in_overlap_closure<T: Decide>(
         Err(Unread::Unbuilt) => Err(None),
     };
     let cones = match (cone(fx, cx), cone(fy, cy)) {
+        (Ok(x), Ok(Cone::Corner(y))) if aligned => (x, Cone::Corner(y)),
         (Ok(x), Ok(Cone::Corner(y))) => (x, Cone::Corner(y.reversed())),
         (Ok(x), Ok(Cone::Full)) => (x, Cone::Full),
         (Err(Some(cause)), _) | (_, Err(Some(cause))) => {
@@ -1741,8 +1749,13 @@ fn in_overlap_closure<T: Decide>(
 /// What a confirmed pair's two faces share.
 #[derive(Clone, Copy)]
 enum PairContact<T: Real> {
-    /// An area: the two faces lie on one carrier.
-    Area,
+    /// An area: the two faces lie on one carrier, facing opposite ways
+    /// (a rest) or, where `aligned`, the same way (an overlap of the two
+    /// solids, [`planar_face_pairs`]).
+    Area {
+        /// The two faces face the same way.
+        aligned: bool,
+    },
     /// A point: a sphere touching a plane or a sphere.
     Point,
     /// A line, along the unit direction: two other carriers tangent
@@ -1760,9 +1773,8 @@ fn pair_contact<T: Decide>(
     band: Band,
 ) -> Option<PairContact<T>> {
     use crate::boolean::{CarrierEqError, CarrierRelation};
-    // One carrier with opposed senses, the only one a confirmed pair
-    // can have ([`in_overlap_closure`] reads `y`'s cone reversed); two
-    // planes are one carrier or none.
+    // One carrier, with the senses opposed (a rest) or aligned (the
+    // face-pair arm's overlap); two planes are one carrier or none.
     let planes = planar_face(geo, fx).is_some() && planar_face(geo, fy).is_some();
     match crate::boolean::carrier_pair_relation(body, fx, body, fy, false, band) {
         Ok(
@@ -1771,7 +1783,14 @@ fn pair_contact<T: Decide>(
                 relation: CarrierRelation::SameOpposite,
                 ..
             }),
-        ) => return Some(PairContact::Area),
+        ) => return Some(PairContact::Area { aligned: false }),
+        Ok(
+            Ok(CarrierRelation::SameOriented)
+            | Err(CarrierEqError::Undecided {
+                relation: CarrierRelation::SameOriented,
+                ..
+            }),
+        ) => return Some(PairContact::Area { aligned: true }),
         Ok(Ok(CarrierRelation::Distinct)) if !planes => {}
         _ => return None,
     }
@@ -5249,7 +5268,7 @@ struct FacePairs {
     /// The same-side pairs whose interiors meet: each an overlap of its
     /// two solids' materials, which arm 2 of
     /// [`sweep_cross_solid_backstop`] reports.
-    same_side: Vec<(FaceKey, FaceKey)>,
+    same_side: Vec<FoundPair>,
 }
 
 /// **The planar face-pair arm** (`[assertions]`): two planar faces of
@@ -5328,7 +5347,11 @@ fn planar_face_pairs<T: Decide>(
                 }
                 crate::boolean::CarrierRelation::SameOriented => {
                     if let Ok(true) = same_side_overlap(body, geo, lane, fa, fb, verdict, band) {
-                        found.same_side.push((fa.key, fb.key));
+                        found.same_side.push(FoundPair {
+                            a: fa.key,
+                            b: fb.key,
+                            margin,
+                        });
                     }
                 }
                 _ => {}
@@ -5349,8 +5372,9 @@ enum SameSideUnread {
 
 /// **Whether two planar faces on one carrier, facing the same way, share
 /// interior**, on Door 1's verdict: the region door's positive area or
-/// empty intersection, and where its walk refuses at a shared boundary,
-/// the faces' own reading ([`planar_interiors_meet`]).
+/// empty intersection in either frame order, as [`pair_verified`] reads
+/// it, and where its walk refuses at a shared boundary, the faces' own
+/// reading ([`planar_interiors_meet`]). A refusal is the first order's.
 fn same_side_overlap<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
@@ -5360,14 +5384,30 @@ fn same_side_overlap<T: Decide>(
     verdict: crate::contact::ContactVerdict,
     band: Band,
 ) -> Result<bool, SameSideUnread> {
-    match lane.declared_overlap(body, fa.key, body, fb.key, verdict, band) {
-        Ok(crate::chart_region::ChartOverlap::PositiveArea) => Ok(true),
-        Ok(crate::chart_region::ChartOverlap::Empty) => Ok(false),
-        Err(ChartRegionError::TouchingBoundary) => {
-            planar_interiors_meet(body, geo, fa, fb, band).map_err(SameSideUnread::Interiors)
-        }
-        Err(cause) => Err(SameSideUnread::Region(cause)),
+    let read = |x: &FaceGeo<T>, y: &FaceGeo<T>| {
+        lane.declared_overlap(body, x.key, body, y.key, verdict, band)
+    };
+    use crate::chart_region::ChartOverlap;
+    let either = [read(fa, fb), read(fb, fa)];
+    if either
+        .iter()
+        .any(|r| matches!(r, Ok(ChartOverlap::PositiveArea)))
+    {
+        return Ok(true);
     }
+    if either.iter().any(|r| matches!(r, Ok(ChartOverlap::Empty))) {
+        return Ok(false);
+    }
+    if either
+        .iter()
+        .any(|r| matches!(r, Err(ChartRegionError::TouchingBoundary)))
+    {
+        return planar_interiors_meet(body, geo, fa, fb, band).map_err(SameSideUnread::Interiors);
+    }
+    let [first, _] = either;
+    first
+        .map(|_| unreachable!("an answer of either order returned above"))
+        .map_err(SameSideUnread::Region)
 }
 
 /// Each pair the planar face-pair arm found that no face–face record
@@ -8636,7 +8676,7 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
     body: &Body<T>,
     geo: &Geo<T>,
     declared: &Declared,
-    same_side: &[(FaceKey, FaceKey)],
+    same_side: &[FoundPair],
     band: Band,
     tol: Tol,
     cands: &Candidates,
@@ -9312,10 +9352,23 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
             .map(|&(_, b)| b)
             .collect()
     };
+    // Each solid pair's first same-side face pair sharing interior, in
+    // the face-pair arm's order: a decided interference whatever else
+    // stands ([`planar_face_pairs`]).
+    let mut coincident_pairs: std::collections::BTreeMap<(SolidKey, SolidKey), (FK, FK)> =
+        std::collections::BTreeMap::new();
+    for p in same_side {
+        if let (Some(x), Some(y)) = (solid_of(p.a), solid_of(p.b)) {
+            coincident_pairs
+                .entry((x.min(y), x.max(y)))
+                .or_insert((p.a, p.b));
+        }
+    }
     for (i, &(&sa, _)) in solids.iter().enumerate() {
         for j in extents.later(i) {
             let &(&sb, _) = candidate(&solids, j);
             let before = errors.len();
+            let coincident = coincident_pairs.get(&(sa.min(sb), sa.max(sb))).copied();
             // No deferral on records here, deliberately: every record in
             // `ContactRecords` states one coincidence, and this arm's
             // question is where one instance sits relative to another.
@@ -9327,16 +9380,20 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
             // the shell's vertex hull against `outer`'s reach box; a
             // definitely-negative margin on any axis says that shell is
             // not inside `outer`'s reach. A container whose extent no
-            // sound box claims refuses the ordering.
+            // sound box claims refuses the ordering, unless a same-side
+            // face pair has decided the pair already: the gate could only
+            // have cleared it, and a decided overlap needs no clearing.
             let mut unclaimable = false;
             let mut reaches = false;
             for (outer, inner) in [(sa, sb), (sb, sa)] {
                 let Some((olo, ohi)) = solid_reach.get(&outer).copied().flatten() else {
-                    errors.push(ValidationError::CensusUndecidable {
-                        a: EntityId::Solid(outer),
-                        b: EntityId::Solid(inner),
-                        what: Undecided::Unclaimable.what(),
-                    });
+                    if coincident.is_none() {
+                        errors.push(ValidationError::CensusUndecidable {
+                            a: EntityId::Solid(outer),
+                            b: EntityId::Solid(inner),
+                            what: Undecided::Unclaimable.what(),
+                        });
+                    }
                     unclaimable = true;
                     continue;
                 };
@@ -9442,12 +9499,6 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
             // A point the two share a key at is no declaration: such a
             // pair is probed too, and its shared points are read strictly,
             // an undecided reading refusing (`blocks`).
-            // A same-side face pair sharing interior is a decided
-            // interference whatever else stands ([`planar_face_pairs`]).
-            let coincident = same_side.iter().find(|&&(a, b)| {
-                let pair = (solid_of(a), solid_of(b));
-                pair == (Some(sa), Some(sb)) || pair == (Some(sb), Some(sa))
-            });
             let mut interfered = false;
             if !unclaimable && (reaches || found || declared_only) {
                 // The material test, both orderings, every vertex. An
@@ -9493,7 +9544,7 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
             }
             // The face pair witnesses the overlap where no vertex does:
             // coincident copies, or one nested flush in another.
-            if !interfered && let Some(&(a, b)) = coincident {
+            if !interfered && let Some((a, b)) = coincident {
                 errors.push(ValidationError::SameSideInterference { a, b });
             }
             if let Some(t) = trace.as_deref_mut() {
@@ -11446,9 +11497,7 @@ mod tests {
             "{whats:?}"
         );
         assert!(
-            !errors
-                .iter()
-                .any(|e| matches!(e, ValidationError::InstanceInterference { .. })),
+            !errors.iter().any(crate::test_support::is_decided_overlap),
             "{errors:?}"
         );
     }
@@ -12548,6 +12597,53 @@ mod tests {
         seeds
     }
 
+    /// **A decided overlap answers the pair before an unclaimable
+    /// extent.** Two coincident cubes, one side face of the first
+    /// re-described as a poisoned net: the first solid has no sound reach,
+    /// so arm 2's gate cannot bound it as a container, and before the
+    /// face-pair arm that refused the solid pair `Unclaimable`. The other
+    /// five face pairs lie on one carrier facing the same way and share
+    /// interior, so the pair is one `SameSideInterference` and no
+    /// solid-pair refusal stands beside it. Red if arm 2 pushes the
+    /// unclaimable ordering beside the decided overlap.
+    #[test]
+    fn a_coincident_pair_with_an_unclaimable_extent_is_one_interference() {
+        let tol = Tol::witness();
+        let sq = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
+        let a = crate::test_support_fixtures::prism_z::<f64>(&sq, 0.0, 1.0, tol);
+        let b = crate::test_support_fixtures::prism_z::<f64>(&sq, 0.0, 1.0, tol);
+        let mut body = a.body;
+        crate::graft_disjoint_all_keyed(&mut body, &b.body).unwrap();
+        let wall = a.side_faces[0];
+        body.set_face_surface_unvouched_for_tests(
+            wall,
+            FaceSurface::New {
+                surface: crate::fixtures::poisoned_net(|_| true),
+                sense: true,
+            },
+        )
+        .unwrap();
+        assert!(
+            face_reach(&body, wall, band()).is_none(),
+            "the poisoned wall bounds nothing"
+        );
+        let errors = census_and_certify(
+            &body,
+            &ContactRecords::default(),
+            band(),
+            tol,
+            Some(RegionLane::certified()),
+        );
+        let placements = crate::test_support::placement_findings(&errors);
+        assert!(
+            matches!(
+                placements[..],
+                [ValidationError::SameSideInterference { .. }]
+            ),
+            "one decided overlap and no unclaimable refusal: {errors:?}"
+        );
+    }
+
     /// A described net carrying poison has no reach: the backstop
     /// refuses every cross-solid pair naming it, and arm 2 takes
     /// neither solid as the container, rather than either clearing on
@@ -12858,6 +12954,14 @@ mod tests {
                     outer: s0,
                     inner: s1,
                     witness: vertex_of(s1),
+                },
+                pair,
+                pair,
+            ),
+            (
+                ValidationError::SameSideInterference {
+                    a: face_of(s0),
+                    b: face_of(s1),
                 },
                 pair,
                 pair,
@@ -14294,13 +14398,14 @@ mod tests {
             .unwrap_or_default()
             .iter()
             .filter(|e| {
-                matches!(
-                    e,
-                    ValidationError::CensusUndecidable {
-                        a: EntityId::Solid(_),
-                        ..
-                    } | ValidationError::InstanceInterference { .. }
-                )
+                crate::test_support::is_decided_overlap(e)
+                    || matches!(
+                        e,
+                        ValidationError::CensusUndecidable {
+                            a: EntityId::Solid(_),
+                            ..
+                        }
+                    )
             })
             .map(|e| format!("{e:?}"))
             .collect()
@@ -15373,11 +15478,14 @@ mod tests {
                         b: b @ EntityId::Solid(_),
                         what,
                     } => Some((*a, *b, (*what).to_owned())),
-                    ValidationError::InstanceInterference { outer, inner, .. } => Some((
-                        EntityId::Solid(*outer),
-                        EntityId::Solid(*inner),
-                        "interference".to_owned(),
-                    )),
+                    e if crate::test_support::is_decided_overlap(e) => {
+                        let (x, y) = census_interference_solids(body, e)?;
+                        Some((
+                            EntityId::Solid(x),
+                            EntityId::Solid(y),
+                            "interference".to_owned(),
+                        ))
+                    }
                     _ => None,
                 })
                 .collect()
