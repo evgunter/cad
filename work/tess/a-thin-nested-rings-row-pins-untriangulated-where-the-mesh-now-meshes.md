@@ -30,7 +30,7 @@ The volume and `outcome` lines pass. Only the mesh pin moved.
   (cf0c114, "mesh sizes each lane at its own worst-triangle theorem")
   and its fix passes. PR 5704 touches only the census, which
   tessellation does not call.
-- Not run on main itself.
+- Confirmed on origin/main `ea88d599ea` by PR 5704's second verifier: red at both ε, `the mesh Ok("meshed")`.
 
 ## Fix
 

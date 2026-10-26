@@ -132,7 +132,9 @@ units are the vertex-vertex, vertex-on-edge and vertex-on-face ties and
 the point keys that name two cells of one solid; a line touch reaching
 the point is read with it, every sheet through the point included. No
 sheet may cross another, and every piece's front winding must be equal,
-so the winding takes two consecutive values. A decided failure refuses
+so the winding takes two consecutive values; a link of one sector with
+no reading in band rests (one sheet alone bounds one material, and the
+tie loop cannot read a lone plane). A decided failure refuses
 `BoundaryCrossesItself`, which arm 2 reads as a pierce of the solid,
 and a planar link read in band, or not built, refuses
 `BoundaryCrossesItselfUndecided`, which leaves the solid unexamined.

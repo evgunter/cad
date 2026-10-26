@@ -15,7 +15,7 @@ Filed by RESTREAD (PR 5704's local sweep run at `CAD_TOLERANCE_EPS=1e-12`), outs
 
 `spline_spiric_operands::no_spline_or_spiric_operand_builds_wrong`
 (`crates/sweep/tests/spline_spiric_operands.rs:397`) panics at 1e-12 in
-`census` (`crates/sweep/tests/spline_spiric_operands.rs:193-195`),
+`census` (`crates/sweep/tests/spline_spiric_operands.rs`, `no_spline_or_spiric_operand_builds_wrong`),
 measuring the bare lofted cylinder before any op runs
 (`lofted_cylinder_census`, `:336-340`):
 
@@ -27,7 +27,7 @@ measuring the bare lofted cylinder before any op runs
 - The row came in with main's merge at PR 5704's 173271c. It is in the sweep slow set, so a PR run does not reach it.
 - The failure is `topo::mass_properties` on the operand alone, built by `lofted_cylinder`. No boolean and no census has run yet. PR 5704 touches only the census.
 - `work/splice/delete-the-boolean-operand-edge-gate.md` says the census was measured at 1e-12. This run says the operand does not measure there.
-- Not run on main itself.
+- Confirmed on origin/main `ea88d599ea` by PR 5704's second verifier: red at 1e-12 with the same `QuadratureBudget` (width 1.70e-9 against target 1.024e-9).
 
 ## Fix
 
