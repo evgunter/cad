@@ -7035,3 +7035,8 @@ Signed (WIRE orchestrator).
   - Ruling: walls cite the boolean's own From name. N3 ('a wall cites its parent') with NS1(b) settles it; no fork.
   - The end-to-end wall witness may wait on D10 copies.
   - Priced the two unpriced lane rows (both P3).
+- 2026-10-26 (WIRE orchestrator) `wire-paircorner` opened PR 5732 (head 5b3c7c9649).
+  - Walls cite the boolean's own From. There is a unit witness only; a collision needs D10 copies.
+  - The corner pass is keyed by candidate, and one name_corner_copies body is now shared with the union.
+  - This also fixes the REFS carried-pinch refusal: CARRIED_PINCH admissions are removed.
+  - A FULL review (`wire-paircorner-rev`) is dispatched, including python, which CI skipped.
