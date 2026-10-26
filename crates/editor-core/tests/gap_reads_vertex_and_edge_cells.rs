@@ -514,4 +514,51 @@ mod real_bodies {
             check(&doc, &ridge, &strut, &format!("ridge/strut h {h}"));
         }
     }
+
+    /// Review probe (review/atrest-link-ZmfEDg): crossing ridges at exact
+    /// contact, the wedge turned a quarter turn about generic axes, so the
+    /// ridge meets the strut's line at (1, 1, 0.5) in a generic direction.
+    #[test]
+    fn review_probe_generic_crossing_ridges_at_contact() {
+        let mut lines = Vec::new();
+        let (mut read, mut refused) = (0, 0);
+        for k in 0..24 {
+            let kf = f64::from(k);
+            let a = [1.0 + 0.37 * kf.sin(), 0.6 * (1.3 * kf).cos(), 0.25 + 0.5 * (0.7 * kf).sin()];
+            let n = (a[0] * a[0] + a[1] * a[1] + a[2] * a[2]).sqrt();
+            let a = [a[0] / n, a[1] / n, a[2] / n];
+            // R e_z for a quarter turn about a: a x e_z + a a_z.
+            let d = [a[1] + a[0] * a[2], -a[0] + a[1] * a[2], a[2] * a[2]];
+            let t = [1.0 - d[0], 1.0 - d[1], 0.5 - d[2]];
+            let doc = ProfileDoc::empty_derived("gap-cells-review-x", Tol::witness());
+            let (doc, blk) = extrude(doc, vec![poly(&SQUARE)], 1.0);
+            let (doc, w) = extrude(doc, vec![poly(&[(0.0, 0.0), (1.0, -0.3), (1.0, 0.3)])], 2.0);
+            let (doc, pa) = place(doc, blk);
+            let Ok(frame) = Frame::rotate_by_turns_then_translate(
+                a,
+                Turns::new(1, 4).expect("a quarter"),
+                t,
+                crate::fixture::band(),
+            ) else {
+                continue;
+            };
+            let (doc, pw) = in_world(doc, w, &frame);
+            let ca = vpiece(&doc, blk, 0, 2);
+            let apex = vpiece(&doc, w, 0, 0);
+            let strut = SitedRef::new(pa, ename(blk, RoleSeg::LateralEdge(ca)).in_copy(pa));
+            let ridge = SitedRef::new(pw, ename(w, RoleSeg::LateralEdge(apex)).in_copy(pw));
+            let one = gap(&doc, &strut, &ridge);
+            let two = gap(&doc, &ridge, &strut);
+            for g in [&one, &two] {
+                if g.is_ok() { read += 1 } else { refused += 1 }
+            }
+            let show = |g: &Result<f64, String>| match g {
+                Ok(v) => format!("{v:+.3e}"),
+                Err(e) => format!("REFUSED {}", e.chars().take(160).collect::<String>()),
+            };
+            lines.push(format!("k {k} d {d:.3?}: strut-outer {}, ridge-outer {}", show(&one), show(&two)));
+        }
+        eprintln!("REVIEW PROBE eps {:e}: {read} read, {refused} refused\n{}", Tol::witness().eps(), lines.join("\n"));
+    }
 }
+
