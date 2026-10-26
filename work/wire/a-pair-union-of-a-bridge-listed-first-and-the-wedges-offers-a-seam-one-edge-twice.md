@@ -2,10 +2,11 @@
 id: a-pair-union-of-a-bridge-listed-first-and-the-wedges-offers-a-seam-one-edge-twice
 kind: issue
 title: A pair union of a low bridge listed first and the union of the wedges it spans refuses Naming(EntityNamed): a seam is offered one edge twice
-status: dispatched
+status: closed
 priority: P2
 cost: M
 opened: 2026-10-20
+closed: 2026-10-26
 ---
 
 Filed by WIRE's `wire-nameinv` lane (branch `wire/name-invariance-checks`),
@@ -36,3 +37,5 @@ A: the seam between the inner union's two walls is a piece of a
 `Merged`-free seam of the inner union, and its pieces between the
 bridge's cap vertices are offered once per wall. Then a two-member union
 that publishes one table in either order.
+
+Closed by PR 5535 (2026-10-26). The union refusal was a kernel record duplicate: `seam_edges` listed one edge twice, and `ops.rs` now dedups it (`SeamEdges`). The intersect refusal was emit_union re-spelling N2's corner copies bare; the copies are now named by `name_corner_copies`. `name_invariance`'s operand-order admissions and VACUOUS cases are empty.

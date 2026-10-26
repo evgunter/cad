@@ -3436,6 +3436,11 @@ pub(crate) fn classify_mass_props(e: &crate::props::MassPropsError) -> MassProps
                 geom_brep::props::quadrature_budget_recourse(*width_len).into(),
                 false,
             ),
+            P::QuadratureFloor { width_len, .. } => reading(
+                "a face's contribution is at its quadrature's floor, over the tolerance",
+                geom_brep::props::quadrature_budget_recourse(*width_len).into(),
+                false,
+            ),
             P::Unimplemented
             | P::NotIsoRectangle { .. }
             | P::NappeSpanning

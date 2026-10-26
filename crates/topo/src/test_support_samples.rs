@@ -789,6 +789,11 @@ fn props_errors() -> Vec<PropsError> {
             target_len: 1e-9,
             rounds: 12,
         },
+        PropsError::QuadratureFloor {
+            width_len: 4.7e-6,
+            target_len: 1.024e-9,
+            rounds: 1,
+        },
         PropsError::QuadratureUnsupported {
             what: "a NURBS face",
         },

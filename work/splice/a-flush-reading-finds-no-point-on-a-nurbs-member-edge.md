@@ -31,3 +31,7 @@ a certified distance to the piece.
 ## Moved to SPLICE (2026-10-25)
 
 From SEAMRANK. Moved by `git mv` in the chat-approved refold that opened SPLICE (`work/splice/program.md`), the track for a body built by loft or sweep entering every boolean. Re-banded P3 → P1: a union's flush and rest readings on a lofted operand (lily wall 8's sheath on its blade) read these NURBS edges.
+
+## Re-pointed (WIRE orchestrator, 2026-10-26)
+
+Closed by PR 5758 (2026-10-26, "nothing is ranked", Ev's ruling on PR 5705). `chord_along` is deleted. The finding stands on `Track::offset`.

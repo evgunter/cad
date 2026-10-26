@@ -315,13 +315,31 @@ fn mismatched_sections_refuse_before_the_frontier() {
 /// A v-degree the section count cannot carry refuses typed, before any
 /// surface is built, naming the slot's own domain `1 ..= sections − 1`.
 /// The domain has an upper end on every target, so this row pins the
-/// bounded sentence everywhere.
+/// bounded sentence everywhere. The edit door refuses such a degree as
+/// written; one read off a variable moved after the insert reaches
+/// evaluation, which refuses it here.
 #[test]
 fn an_unusable_v_degree_refuses_typed() {
     let (doc, _, profiles) = loft_doc();
-    let (doc, loft) = insert(
+    let (doc, _) = fixture::step(
         doc,
-        lofted(&profiles, count(3)), // == the section count
+        editor_core::DocEdit::DeclareVar {
+            name: editor_core::VarName::from_static("skin"),
+            def: editor_core::VarDecl::Free(editor_core::FreeVar::Count { value: 2 }),
+        },
+    );
+    let skin = Formula::named(
+        editor_core::VarName::from_static("skin"),
+        editor_core::Dimension::Count,
+    );
+    let (doc, loft) = insert(doc, lofted(&profiles, skin));
+    let var = doc.var_named("skin").expect("declared");
+    let (doc, _) = fixture::step(
+        doc,
+        editor_core::DocEdit::SetVarValue {
+            var: var.into(),
+            value: editor_core::FreeValue::Count(3), // == the section count
+        },
     );
     with_failure(&doc, loft, |kind| match kind {
         NodeErrorKind::CountOutOfRange {
