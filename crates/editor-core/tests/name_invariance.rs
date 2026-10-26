@@ -49,6 +49,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Mutex;
 
 use crate::blocks::{Spans, block, block_of, block_on, block_on_of, failure, run};
+use crate::emit_union_seam_rank as seam_scene;
 use crate::fixture::{
     against, ang, axes_at, desc, ends, face_edges, face_vertices, in_world_by, insert, len, point,
     turned_to,
@@ -1511,6 +1512,8 @@ enum Part {
     /// way. Drawn on its own xy with `y` reversed and turned a half turn
     /// about `x`, its top slid to `z0 + dz`.
     Downward(Spans),
+    /// A [`seam_scene::disc`] extruded `dz`, slid up to `z0`.
+    Disc(seam_scene::Disc, f64, f64),
 }
 
 impl Part {
@@ -1521,6 +1524,10 @@ impl Part {
                 in_world_by(doc, b, turned_to([0.0, 0.0, z0], &[]))
             }
             Self::Sector(s) => pinch_order::sector_in_world(doc, s),
+            Self::Disc(d, z0, dz) => {
+                let (doc, b) = seam_scene::disc(doc, d, dz);
+                in_world_by(doc, b, turned_to([0.0, 0.0, z0], &[]))
+            }
             Self::Downward(((x0, x1), (y0, y1), z0, dz)) => {
                 let (doc, p) = insert(
                     doc,
@@ -1574,6 +1581,26 @@ const KISS_B: Part = Part::Block(decide_alike::KISS[1]);
 const WEDGE_A: Part = Part::Sector(pinch_order::WEDGE_A);
 const WEDGE_B: Part = Part::Sector(pinch_order::WEDGE_B);
 const CROSSING_A: Part = Part::Sector(pinch_order::CROSSING_A);
+
+/// `seam_scene`'s members: `x`, `y` under z = 0.5 and `w` slid down a
+/// quarter, each standing in the world.
+const fn seam_members(scene: &seam_scene::Scene) -> [(&'static str, Part); 3] {
+    [
+        ("x", Part::Disc(scene.x, 0.0, 1.0)),
+        ("y", Part::Block((scene.y.0, scene.y.1, 0.0, 0.5))),
+        ("w", Part::Disc(scene.w, -0.25, 1.0)),
+    ]
+}
+
+const OPEN_ARC_SEAMS: [(&str, Part); 3] = seam_members(&seam_scene::OPEN_ARC);
+const CUT_ARC_SEAMS: [(&str, Part); 3] = seam_members(&seam_scene::CUT_ARC);
+
+/// Two blocks united as a tool and standing through the plate's top,
+/// so each seam of their union crosses it: `x = 2` of the first meets
+/// `y = 1` of the second, and `x = 1.5` of the second `y = 1.5` of the
+/// first.
+const TOOL_A: Part = Part::Block(((1.0, 2.0), (0.5, 1.5), 0.5, 1.0));
+const TOOL_B: Part = Part::Block(((1.5, 2.5), (1.0, 1.75), 0.4, 1.0));
 
 /// Contact-heavy fixtures by role: twins and exact copies, whose names
 /// differ by their ids alone, and the corpus's pinches and crossings.
@@ -1636,6 +1663,21 @@ const HISTORIES: &[Roles] = &[
     (
         "the plate less the pinch's blocks",
         &[("plate", PLATE), ("p1", P1), ("p2", P2)],
+        Combine::Cut,
+    ),
+    (
+        "seams crossing one open arc",
+        &OPEN_ARC_SEAMS,
+        Combine::Nary(Nary::Union),
+    ),
+    (
+        "seams crossing an arc cut twice",
+        &CUT_ARC_SEAMS,
+        Combine::Nary(Nary::Union),
+    ),
+    (
+        "the plate less a union whose seams cross its top",
+        &[("plate", PLATE), ("a", TOOL_A), ("b", TOOL_B)],
         Combine::Cut,
     ),
 ];
@@ -1752,11 +1794,7 @@ fn a_body_and_its_copy_name_every_entity_by_both_reads() {
 }
 
 /// The history cases that move today.
-const ADMITTED_HISTORY: &[Admitted] = &[(
-    "plate pinch, p2 extruded down / authored in another order",
-    18,
-    LINE_ORIENTED_BY_LEAST,
-)];
+const ADMITTED_HISTORY: &[Admitted] = &[];
 
 /// The history cases that compare no table today.
 const VACUOUS_HISTORY: &[Vacuous] = &[
@@ -1770,12 +1808,6 @@ const VACUOUS_HISTORY: &[Vacuous] = &[
         LINE_WEDGES,
     ),
 ];
-
-/// A union's line of several flush member edges is oriented by its
-/// least edge, which orders by read, so where the edges run opposite
-/// ways its crossing's sense reads which member was minted first.
-const LINE_ORIENTED_BY_LEAST: &str =
-    "work/wire/a-unions-line-of-several-edges-is-oriented-by-its-least-edge.md";
 
 /// A plate less blocks that meet on a line through it refuses
 /// `LineWedges`: the contact is two coincident edges whose material

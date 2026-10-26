@@ -681,7 +681,10 @@ fn an_edge_whose_member_face_was_glued_away_is_a_seam_in_every_member_order() {
             let heads: std::collections::BTreeSet<_> = run
                 .iter()
                 .map(|l| {
-                    assert_eq!(l.sense, None, "{what}: a seam carries no sense: {l:?}");
+                    assert!(
+                        matches!(&l.sense, editor_core::Sense::Through { entering } if entering.len() == 1),
+                        "{what}: a seam carries the side it enters along: {l:?}"
+                    );
                     l.line.path.first().cloned()
                 })
                 .collect();

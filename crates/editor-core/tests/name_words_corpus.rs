@@ -976,7 +976,8 @@ fn a_run_of_seams_says_each_seam_by_its_faces() {
         .map(|(name, _)| name)
         .filter(|name| {
             matches!(name.path.as_slice(), [RoleSeg::EdgeCrossing(run)]
-                if run.len() == 3 && run.iter().all(|l| l.sense.is_none()))
+                if run.len() == 3
+                    && run.iter().all(|l| matches!(l.line.path.as_slice(), [RoleSeg::Seam { .. }])))
         })
         .cloned()
         .collect();

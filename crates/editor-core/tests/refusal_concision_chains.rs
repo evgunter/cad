@@ -4638,7 +4638,7 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
             "UnsupportedUnionName",
             NamingError::UnsupportedUnionName {
                 name: Box::new(stable(EntityKind::Vertex, 3)),
-                shape: editor_core::UnionNameShape::SeamGroupNoMemberEdge,
+                shape: editor_core::UnionNameShape::SeveralParents,
             },
         ),
         (
@@ -4737,8 +4737,8 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
         (
             "Escalated",
             NamingError::Escalated {
-                predicate: "name_frag_order_along",
-                source: named("name_frag_order_along"),
+                predicate: "name_frag_on_member_edge",
+                source: named("name_frag_on_member_edge"),
             },
         ),
     ];
