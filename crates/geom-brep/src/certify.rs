@@ -3439,8 +3439,11 @@ fn run_checks<T: Decide>(
             image: Option<Pcurve<T>>,
             /// D1's wrap edge ([`ChartCurve::wrap`]).
             wrap: bool,
-            /// U2 Q3's authority payload, carried here for ONE reason:
-            /// so the meter that used to run on it still runs.
+            /// U2 Q3's authority payload, carried here for TWO reasons,
+            /// the one datum both read: the meter that used to run on it
+            /// still runs (below), and the chart-image mint ends a
+            /// carrier's incidence by who placed it (D3: `Some` routes a
+            /// miss to the modeler's lever).
             ///
             /// Pre-collapse a declared locus WAS the description and
             /// took the scaffolding arm, whose
@@ -3782,13 +3785,11 @@ fn run_checks<T: Decide>(
             key,
             ref image,
             wrap,
-            // The authority record is built from the SPEC by
-            // `authority_of`, not from this arm; here it has already
-            // done its job at the meter above. The mint reads its kind:
-            // who placed the carrier decides how a miss ends (D3).
-            declared: _,
+            // Who placed the carrier decides how a miss ends (D3): the
+            // payload the meter reads, read once more here.
+            ref declared,
         } => {
-            let declared = authority_of(&spec.description).kind().is_declared();
+            let declared = declared.is_some();
             let pcurve = match image {
                 // D4, the stated half: a spline chart's image IS the
                 // constructor's own iso data, exactly, and a
