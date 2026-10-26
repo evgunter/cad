@@ -2687,8 +2687,8 @@ fn tie_breaks_after<T: Decide>(
 /// A conic edge's On against a plane is as real: its height bound over
 /// the whole arc reads within the band (`Reach::Conic`,
 /// `sectors::conic_side`); a tie whose bend reads no side is lumped or
-/// refuses before this runs. Against a curved face, and for a fitted
-/// edge's chord (`Reach::Extent`), it is a first-order tie
+/// refuses before this runs. Against a curved face it is a first-order
+/// tie
 /// (`work/contacthold/conic-ties-outside-the-vertex-on-face-pass-still-read-first-order.md`).
 ///
 /// A bisector entry's On is a direction's, levered at its sector's arm,
