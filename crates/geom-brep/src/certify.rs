@@ -2299,6 +2299,12 @@ pub struct NurbsLane<T: Real> {
         Point3<T>,
         T,
     ) -> Result<geom::Projection3<T>, geom::ProjectionInconclusive>,
+    /// [`geom::NurbsSurface::project`] at `T`.
+    surface_foot: fn(
+        &geom::NurbsSurface<T>,
+        Point3<T>,
+    )
+        -> Result<geom::SurfaceProjection<T>, geom::SurfaceProjectionInconclusive>,
 }
 
 impl<T: Decide + geom_core::CertifiedBounds> NurbsLane<T> {
@@ -2313,6 +2319,7 @@ impl<T: Decide + geom_core::CertifiedBounds> NurbsLane<T> {
             analytic_rung3: crate::edge_nurbs::analytic_rung3::<T>,
             incidence: crate::edge_nurbs::plane_nurbs_incidence::<T>,
             foot: Self::seeded_foot,
+            surface_foot: geom::NurbsSurface::project,
         }
     }
 
@@ -2402,6 +2409,22 @@ impl<T: Real> NurbsLane<T> {
         seed: T,
     ) -> Result<geom::Projection3<T>, geom::ProjectionInconclusive> {
         (self.foot)(carrier, point, seed)
+    }
+
+    /// The foot of `point` on a NURBS surface ([`geom::NurbsSurface::project`]):
+    /// the projection carries its own distance and certifies nothing;
+    /// the caller decides that distance.
+    ///
+    /// # Errors
+    ///
+    /// [`geom::SurfaceProjectionInconclusive`] when Newton's budget
+    /// expires.
+    pub fn surface_foot(
+        self,
+        surface: &geom::NurbsSurface<T>,
+        point: Point3<T>,
+    ) -> Result<geom::SurfaceProjection<T>, geom::SurfaceProjectionInconclusive> {
+        (self.surface_foot)(surface, point)
     }
 }
 
