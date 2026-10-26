@@ -227,7 +227,8 @@ fn volume(doc: &editor_core::ProfileDoc, node: RecipeNodeId) -> f64 {
         "the document evaluates:\n{}",
         bad.join("\n")
     );
-    topo::mass_properties(
+    topo::test_support::pinned_volume(
+        "closed-form mass properties",
         &topo::test_support::finished(
             "the measured body",
             topo::Body::clone(&(corpus::body_of(&ev, node))),
@@ -235,7 +236,6 @@ fn volume(doc: &editor_core::ProfileDoc, node: RecipeNodeId) -> f64 {
         ),
         tol(),
     )
-    .expect("closed-form mass properties")
     .volume
 }
 

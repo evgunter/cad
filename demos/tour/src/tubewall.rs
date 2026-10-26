@@ -88,7 +88,7 @@ use pncad::geom_core::{Point3, Tol, Vec3};
 use pncad::sweep::{CavityOrigin, TubeWindow, tube_along_arc, tube_along_arc_hollow};
 use pncad::topo::Body;
 
-use crate::{SceneBody, Stop, View};
+use crate::{SceneBody, TourStop, View};
 
 // The spine, the window, the outer radius and the chord budget are
 // IMPORTED from `tube`, which owns them. This panel's headline
@@ -192,7 +192,7 @@ fn wall_triangles(body: &Body<f64>, mesh: &pncad::mesh::Mesh, r: f64) -> Vec<usi
     counts
 }
 
-pub fn stops(tol: Tol) -> Vec<Stop> {
+pub fn stops(tol: Tol) -> Vec<TourStop> {
     let mut out = Vec::new();
 
     // ---- the windowed hollow elbow: a wall you can look down ----
@@ -220,19 +220,23 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     let area = PI * (OUTER * OUTER - INNER * INNER);
     let v_elbow = theta * R * area;
     let a_elbow = theta * R * 2.0 * PI * (OUTER + INNER) + 2.0 * area;
-    let props = pncad::topo::mass_properties(&crate::booleans::at_rest(&elbow.body, tol), tol)
-        .expect("mass properties");
+    let props = pncad::topo::mass_properties(
+        &crate::booleans::at_rest(&elbow.body, tol),
+        tol,
+        crate::printed(),
+    )
+    .expect("mass properties");
     assert!(
-        ((props.volume - v_elbow) / v_elbow).abs() < 1e-12,
+        ((props.enclosure.volume - v_elbow) / v_elbow).abs() < 1e-12,
         "elbow V = {} vs the Pappus form {v_elbow}",
-        props.volume
+        props.enclosure.volume
     );
     assert!(
-        ((props.surface_area - a_elbow) / a_elbow).abs() < 1e-12,
+        ((props.enclosure.surface_area - a_elbow) / a_elbow).abs() < 1e-12,
         "elbow A = {} vs the closed form {a_elbow}",
-        props.surface_area
+        props.enclosure.surface_area
     );
-    assert_eq!(props.volume_pad, 0.0, "closed forms need no pad");
+    assert_eq!(props.enclosure.volume_pad, 0.0, "closed forms need no pad");
 
     // The elbow is hollow as a NUMBER: the solid tube of the same
     // window over the same spine is heavier by exactly the bore, which
@@ -251,13 +255,17 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     )
     .expect("the solid elbow builds")
     .body;
-    let solid_props = pncad::topo::mass_properties(&crate::booleans::at_rest(&solid, tol), tol)
-        .expect("mass properties");
+    let solid_props = pncad::topo::mass_properties(
+        &crate::booleans::at_rest(&solid, tol),
+        tol,
+        crate::printed(),
+    )
+    .expect("mass properties");
     let bore = theta * R * PI * INNER * INNER;
     assert!(
-        ((solid_props.volume - props.volume - bore) / bore).abs() < 1e-12,
+        ((solid_props.enclosure.volume - props.enclosure.volume - bore) / bore).abs() < 1e-12,
         "the bore is {}, closed form {bore}",
-        solid_props.volume - props.volume
+        solid_props.enclosure.volume - props.enclosure.volume
     );
 
     // Finding 2, executed: the outer walls are the SOLID door's own
@@ -289,7 +297,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // shifting the tessellation baseline's per-scene total.
     assert_eq!((ve, ee, fe), (8, 12, 6), "elbow census");
 
-    out.push(Stop {
+    out.push(TourStop {
         name: "hollowelbow",
         caption: "THE WINDOWED HOLLOW ELBOW (a wall, and an open bore)".to_string(),
         // Montage cell RETIRED by the montage-v3 curation (Ev,
@@ -325,7 +333,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
              EQUAL, face for face, to the solid `tube_along_arc` panel's, since they are \
              the same surface over the same window — and the inner walls at \
              {inner_here:?}",
-            props.volume, props.surface_area
+            props.enclosure.volume, props.enclosure.surface_area
         )),
         // `tube`'s camera: the ring lies in the world XZ plane (its
         // axis is +y), and 18 degrees off +y is where the window reads
@@ -367,21 +375,25 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // counts the inner wall.
     // Finished once: the props and the shell roles below both read it.
     let torus_at_rest = crate::booleans::at_rest(&torus.body, tol);
-    let props_t = pncad::topo::mass_properties(&torus_at_rest, tol).expect("mass properties");
+    let props_t = pncad::topo::mass_properties(&torus_at_rest, tol, crate::printed())
+        .expect("mass properties");
     let v_solid_t = 2.0 * PI * PI * R * OUTER * OUTER;
     let v_want = 2.0 * PI * PI * R * (OUTER * OUTER - INNER * INNER);
     let a_want = 4.0 * PI * PI * R * (OUTER + INNER);
     assert!(
-        ((props_t.volume - v_want) / v_want).abs() < 1e-12,
+        ((props_t.enclosure.volume - v_want) / v_want).abs() < 1e-12,
         "torus V = {} vs the closed form {v_want}",
-        props_t.volume
+        props_t.enclosure.volume
     );
     assert!(
-        ((props_t.surface_area - a_want) / a_want).abs() < 1e-12,
+        ((props_t.enclosure.surface_area - a_want) / a_want).abs() < 1e-12,
         "torus A = {} vs the closed form {a_want}",
-        props_t.surface_area
+        props_t.enclosure.surface_area
     );
-    assert_eq!(props_t.volume_pad, 0.0, "closed forms need no pad");
+    assert_eq!(
+        props_t.enclosure.volume_pad, 0.0,
+        "closed forms need no pad"
+    );
 
     // The cavity's own capacity, asked for directly (the hollow ring's
     // finding 2, on this door's shape): the `Void`-role shell IS the
@@ -397,9 +409,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     assert_eq!(voids[0].shell, bore, "the Void shell is the named cavity");
     let v_bore_t = 2.0 * PI * PI * R * INNER * INNER;
     assert!(
-        ((voids[0].volume + v_bore_t) / v_bore_t).abs() < 1e-12,
+        ((voids[0].enclosure.volume + v_bore_t) / v_bore_t).abs() < 1e-12,
         "the cavity's capacity is {} vs the closed form -{v_bore_t}",
-        voids[0].volume
+        voids[0].enclosure.volume
     );
 
     let (vt, et, ft) = (
@@ -412,7 +424,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // rims and 2 vertices, twice over.
     assert_eq!((vt, et, ft), (4, 8, 4), "torus-shell census");
 
-    out.push(Stop {
+    out.push(TourStop {
         name: "hollowtorus",
         caption: "THE FULL-PERIOD HOLLOW TUBE (the bore becomes a cavity)".to_string(),
         // Montage cell RETIRED by the montage-v3 curation (Ev,
@@ -447,7 +459,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
              predicted for this shape and this scene now PROBES on every pass. δ = {DELTA_TORUS} rather than the elbow's \
              {DELTA_ELBOW}: the full period sweeps 2π of spine where the window sweeps \
              {theta}, so the same chord budget would cost 4.2x the mesh",
-            props_t.volume, props_t.surface_area, voids[0].volume
+            props_t.enclosure.volume, props_t.enclosure.surface_area, voids[0].enclosure.volume
         )),
         // The hollow ring's camera, for the same reason and on the same
         // kind of body: the tube axis is +y, and this elevation shows

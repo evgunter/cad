@@ -39,11 +39,11 @@ fn measured(doc: &ProfileDoc, node: RecipeNodeId) -> ([f64; 2], f64) {
         })
         .collect();
     zs.sort_by(|a, b| a.partial_cmp(b).expect("finite"));
-    let volume = topo::mass_properties(
+    let volume = topo::test_support::pinned_volume(
+        "the loft",
         &topo::test_support::finished("the loft", topo::Body::clone(body.body()), Tol::witness()),
         Tol::witness(),
     )
-    .expect("mass properties")
     .volume;
     ([zs[0], zs[zs.len() - 1]], volume)
 }

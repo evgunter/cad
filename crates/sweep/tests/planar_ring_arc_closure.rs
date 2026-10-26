@@ -289,13 +289,13 @@ fn check(
         }
         Err(errs) => panic!("{label}: tier 3′ {errs:?}"),
     }
-    let m = topo::mass_properties(&out.body, tol)
+    let m = topo::mass_properties(&out.body, tol, topo::test_support::pinned_resolution(tol))
         .unwrap_or_else(|e| panic!("{label}: mass properties {e:?}"));
     assert!(
-        (m.volume - truth).abs() <= 1e-12 * truth.max(1.0) + m.volume_pad,
+        (m.enclosure.volume - truth).abs() <= 1e-12 * truth.max(1.0) + m.enclosure.volume_pad,
         "{label}: volume {} ± {} against the closed form {truth}",
-        m.volume,
-        m.volume_pad
+        m.enclosure.volume,
+        m.enclosure.volume_pad
     );
     census(&out.body)
 }

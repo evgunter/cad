@@ -36,7 +36,8 @@ fn blocks(span: (f64, f64)) -> (ProfileDoc, [RecipeNodeId; 3]) {
 }
 
 fn volume(ev: &editor_core::Evaluation<f64>, id: RecipeNodeId) -> f64 {
-    topo::mass_properties(
+    topo::test_support::pinned_volume(
+        "the union has mass",
         &topo::test_support::finished(
             "the measured body",
             topo::Body::clone(&(body_of(ev, id))),
@@ -44,7 +45,6 @@ fn volume(ev: &editor_core::Evaluation<f64>, id: RecipeNodeId) -> f64 {
         ),
         Tol::witness(),
     )
-    .expect("the union has mass")
     .volume
 }
 

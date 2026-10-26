@@ -86,7 +86,7 @@ use crate::scalar::Scalar;
 fn pe(src: &str) -> Formula {
     parse_formula(src, &BTreeMap::new()).expect("tour expression")
 }
-use crate::{SceneBody, Stop, View};
+use crate::{SceneBody, TourStop, View};
 use pncad::geom_core::Tol;
 
 /// The count-5 name table's size, pinned. Measured, not derived: the
@@ -285,10 +285,12 @@ fn solidify<S: Scalar>(r: &Recipe, ev: &Evaluation<S>, n: usize, tol: Tol) -> pn
     };
     let body = &crate::world::in_its_space(body, tol);
     let want = volume(n);
-    let got = pncad::topo::mass_properties(&crate::booleans::at_rest(body, tol), tol)
-        .expect("mass properties")
-        .volume
-        .f();
+    let got =
+        pncad::topo::mass_properties(&crate::booleans::at_rest(body, tol), tol, crate::printed())
+            .expect("mass properties")
+            .enclosure
+            .volume
+            .f();
     assert!(
         (got - want).abs() <= 1e-9,
         "the {n}-fin solid measures {got}, and the rounded base + {n} fins is {want}"
@@ -384,7 +386,7 @@ fn flush_fins(tol: Tol) {
     );
 }
 
-pub fn stops(tol: Tol) -> Vec<Stop> {
+pub fn stops(tol: Tol) -> Vec<TourStop> {
     let r = scene_doc(tol);
 
     // Evaluate at 5, then EDIT the structural count and re-evaluate
@@ -462,7 +464,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                 7 => "heatsink7",
                 _ => "heatsink9",
             };
-            Stop {
+            TourStop {
                 name,
                 caption: format!("heat sink ({n} fins)"),
                 // Montage cell held by `impeller12`, which makes this

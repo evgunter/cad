@@ -88,11 +88,12 @@ fn f2_every_corner_face_of_a_hexagonal_prism_is_tier3_valid() {
             Tol::witness(),
         ),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("closed-form mass properties");
-    assert!(props.volume > 0.0);
+    assert!(props.enclosure.volume > 0.0);
     assert_eq!(
-        props.volume_pad, 0.0,
+        props.enclosure.volume_pad, 0.0,
         "a closed-form body needs no enclosure pad"
     );
 }
@@ -253,7 +254,8 @@ fn f4_an_oblique_trihedron_builds_and_passes_tier_3() {
         })
         .sum();
     let volume = |b: &Body<f64>| {
-        topo::mass_properties(
+        topo::test_support::pinned_volume(
+            "the measured body",
             &topo::test_support::finished(
                 "the measured body",
                 topo::Body::clone(b),
@@ -261,7 +263,6 @@ fn f4_an_oblique_trihedron_builds_and_passes_tier_3() {
             ),
             Tol::witness(),
         )
-        .unwrap()
         .volume
     };
     let (clip, rounded) = (volume(&clipped), volume(&f.body));

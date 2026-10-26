@@ -282,13 +282,18 @@ fn the_pipped_cube_fillets_in_place_with_rings_carried() {
     assert_eq!(body.edges().count(), 48 + 21 * 4);
     assert_eq!(body.faces().count(), 26 + 21 * 2);
     let want = blank_volume() - 21.0 * cap(PIP_R, PIP_H);
-    let props = topo::mass_properties(&body, Tol::witness()).unwrap();
+    let props = topo::mass_properties(
+        &body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap();
     assert!(
-        (props.volume - want).abs() <= 1e-9 * want,
+        (props.enclosure.volume - want).abs() <= 1e-9 * want,
         "volume {} vs closed form {want}",
-        props.volume
+        props.enclosure.volume
     );
-    assert_eq!(props.volume_pad, 0.0, "closed forms need no pad");
+    assert_eq!(props.enclosure.volume_pad, 0.0, "closed forms need no pad");
     let mesh = mesh::tessellate(&body, 5e-3, Tol::witness()).expect("tessellates");
     mesh::validate::check_mesh(&mesh).expect("watertight");
 }
@@ -337,18 +342,25 @@ fn the_composed_die_certifies_and_tessellates_watertight() {
     assert_eq!(die.edges().count(), 48 + 21 * 6);
     assert_eq!(die.faces().count(), 26 + 21 * 3);
     let want = blank_volume() - 21.0 * (cap(PIP_R, PIP_H) + rim_fillet_extra(PIP_R, PIP_H, RIM_R));
-    let props = topo::mass_properties(&die, Tol::witness()).unwrap();
+    let props = topo::mass_properties(
+        &die,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap();
     assert!(
-        (props.volume - want).abs() <= 1e-9 * want,
+        (props.enclosure.volume - want).abs() <= 1e-9 * want,
         "composed volume {} vs closed form {want} (diff {})",
-        props.volume,
-        props.volume - want
+        props.enclosure.volume,
+        props.enclosure.volume - want
     );
-    assert_eq!(props.volume_pad, 0.0, "closed forms need no pad");
+    assert_eq!(props.enclosure.volume_pad, 0.0, "closed forms need no pad");
     let mesh = mesh::tessellate(&die, 5e-3, Tol::witness()).expect("the composed die tessellates");
     mesh::validate::check_mesh(&mesh).expect("watertight");
     let v_mesh = mesh::validate::signed_volume(&mesh);
-    assert!(v_mesh > 0.0 && ((v_mesh - props.volume) / props.volume).abs() < 5e-3);
+    assert!(
+        v_mesh > 0.0 && ((v_mesh - props.enclosure.volume) / props.enclosure.volume).abs() < 5e-3
+    );
 }
 
 /// The composed die: pips first (one certified group op), then the
@@ -384,8 +396,8 @@ fn the_composed_die_replays_bit_identically() {
     let a = topo::test_support::finished("a", composed_die(), Tol::witness());
     let b = topo::test_support::finished("b", composed_die(), Tol::witness());
     let (va, vb) = (
-        topo::mass_properties(&a, Tol::witness()).unwrap().volume,
-        topo::mass_properties(&b, Tol::witness()).unwrap().volume,
+        topo::test_support::pinned_volume("the measured body", &a, Tol::witness()).volume,
+        topo::test_support::pinned_volume("the measured body", &b, Tol::witness()).volume,
     );
     assert_eq!(va.to_bits(), vb.to_bits(), "volume bits");
     assert_eq!(

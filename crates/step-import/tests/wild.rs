@@ -159,7 +159,7 @@ fn oracle(name: &str) -> Oracle {
 
 fn solid(name: &str) -> (topo::Body<f64>, f64) {
     match import_step(&wild(name), &ImportOptions::default(), Tol::witness()) {
-        Ok(StepImport::Solid { body, eps_in, .. }) => (body, eps_in),
+        Ok(StepImport::Solid { body, eps_in, .. }) => (body.into_body(), eps_in),
         Ok(StepImport::Wireframe { .. }) => panic!("{name}: a solid was expected"),
         Err(e) => panic!("{name}: {e}"),
     }
@@ -254,16 +254,16 @@ fn assert_sub_tolerance_obligation(row: &str) {
         match import_step(&wild(name), &ImportOptions::default(), Tol::witness()) {
             Ok(StepImport::Solid { body, .. }) => {
                 assert_eq!(
-                    topo::validate(&body),
+                    topo::validate(body.body()),
                     Ok(()),
                     "{row}/{name}: tier 1 at ε {eps:e}"
                 );
                 assert_eq!(
-                    topo::validate_closed(&body),
+                    topo::validate_closed(body.body()),
                     Ok(()),
                     "{row}/{name}: tier 2 at ε {eps:e}"
                 );
-                match topo::validate_geometric(&body, Tol::witness()) {
+                match topo::validate_geometric(body.body(), Tol::witness()) {
                     Ok(()) => certified += 1,
                     Err(errs) => {
                         assert!(
@@ -329,10 +329,11 @@ fn wild_files_import_and_agree_with_the_oracle() {
         let props = topo::mass_properties(
             &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap_or_else(|e| panic!("{name}: {e}"));
-        let volume_mm3 = props.volume * 1e9;
-        let tolerance = 1e-11 * e.volume_mm3.abs() + props.volume_pad * 1e9;
+        let volume_mm3 = props.enclosure.volume * 1e9;
+        let tolerance = 1e-11 * e.volume_mm3.abs() + props.enclosure.volume_pad * 1e9;
         assert!(
             (volume_mm3 - e.volume_mm3).abs() <= tolerance,
             "{name}: volume {volume_mm3} mm3 vs the oracle's {} mm3 (tolerance {tolerance})",
@@ -453,7 +454,7 @@ fn wild_bodies_are_a_fixed_point_of_our_own_dialect() {
         };
         assert_eq!(
             arena_census(&body),
-            arena_census(&again),
+            arena_census(again.body()),
             "{name}: census across the wire"
         );
         // Volume across the wire: the same per-face contributions,
@@ -470,26 +471,33 @@ fn wild_bodies_are_a_fixed_point_of_our_own_dialect() {
         // not zero; the sharper claims still hold exactly — the
         // census above, and the byte-identical second export below.
         let (v1, v2) = (
-            topo::mass_properties(
+            topo::test_support::pinned_volume(
+                "the measured body",
                 &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
                 Tol::witness(),
             )
-            .unwrap()
             .volume,
-            topo::mass_properties(
-                &topo::test_support::finished("the measured body", again.clone(), Tol::witness()),
+            topo::test_support::pinned_volume(
+                "the measured body",
+                &topo::test_support::finished(
+                    "the measured body",
+                    again.body().clone(),
+                    Tol::witness(),
+                ),
                 Tol::witness(),
             )
-            .unwrap()
             .volume,
         );
         assert!(
             (v1 - v2).abs() <= 4.0 * f64::EPSILON * v1.abs(),
             "{name}: volume across the wire, to summation order: {v1} vs {v2}"
         );
-        let second =
-            step_export::step_string(&crate::common::at_rest(&again), &options, Tol::witness())
-                .unwrap();
+        let second = step_export::step_string(
+            &crate::common::at_rest(again.body()),
+            &options,
+            Tol::witness(),
+        )
+        .unwrap();
         assert_eq!(
             first, second,
             "{name}: the second export must be byte-identical"

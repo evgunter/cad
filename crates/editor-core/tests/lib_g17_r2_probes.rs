@@ -100,7 +100,7 @@ fn p1b_order_on_distinct_charts_moves_the_key_but_nothing_else() {
     assert_eq!(body.shells().count(), 1);
     let inner = cup::L - 2.0 * cup::T;
     assert_eq!(
-        topo::mass_properties(&body, Tol::witness()).unwrap().volume,
+        topo::test_support::pinned_volume("the measured body", &body, Tol::witness()).volume,
         cup::L * cup::L * cup::H - inner * inner * cup::H
     );
 }
@@ -385,9 +385,13 @@ fn p6_rebinding_the_designation_moves_the_rim() {
             Tol::witness(),
         ),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap();
-    assert_eq!(m.volume, cup::closed_forms(cup::L, cup::H, cup::T).volume);
+    assert_eq!(
+        m.enclosure.volume,
+        cup::closed_forms(cup::L, cup::H, cup::T).volume
+    );
 }
 
 /// P7 — a designated face WITH A HOLE: the `HoleRim` role has no row

@@ -55,12 +55,23 @@ fn cube_is_one_outer_shell() {
     assert_eq!(classes.len(), 1);
     let c = &classes[0];
     assert_eq!(c.role, ShellRole::Outer);
-    assert_eq!(c.volume_pad, 0.0);
+    assert_eq!(c.enclosure.volume_pad, 0.0);
     // The one shell IS the body: its flux is the whole-body flux,
     // bit-identical (same per-face contributions, same order).
-    let props = mass_properties(&body, Tol::witness()).unwrap();
-    assert_eq!(c.volume.to_bits(), props.volume.to_bits());
-    assert_eq!(c.surface_area.to_bits(), props.surface_area.to_bits());
+    let props = mass_properties(
+        &body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap();
+    assert_eq!(
+        c.enclosure.volume.to_bits(),
+        props.enclosure.volume.to_bits()
+    );
+    assert_eq!(
+        c.enclosure.surface_area.to_bits(),
+        props.enclosure.surface_area.to_bits()
+    );
 }
 
 #[test]
@@ -83,23 +94,28 @@ fn voided_body_is_outer_plus_void() {
     // The outer boundary encloses the uncarved brick; the cavity wall
     // integrates NEGATIVE (its loops wind about the outward — i.e.
     // into-the-cavity — normal).
-    assert!((outers[0].volume - 27.0).abs() < 1e-12);
-    assert!(voids[0].volume < 0.0);
-    assert!((voids[0].volume - (-1.0)).abs() < 1e-12);
+    assert!((outers[0].enclosure.volume - 27.0).abs() < 1e-12);
+    assert!(voids[0].enclosure.volume < 0.0);
+    assert!((voids[0].enclosure.volume - (-1.0)).abs() < 1e-12);
 }
 
 #[test]
 fn per_shell_volumes_sum_to_the_body_volume() {
     let body = voided();
     let classes = classify_shells(&body, Tol::witness()).unwrap();
-    let props = mass_properties(&body, Tol::witness()).unwrap();
-    let sum: f64 = classes.iter().map(|c| c.volume).sum();
+    let props = mass_properties(
+        &body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap();
+    let sum: f64 = classes.iter().map(|c| c.enclosure.volume).sum();
     // 27 − 1: the whole-body walk visits the same faces with the same
     // closed forms; only the grouping differs.
-    assert!((sum - props.volume).abs() < 1e-12);
-    assert!((props.volume - 26.0).abs() < 1e-12);
-    let area_sum: f64 = classes.iter().map(|c| c.surface_area).sum();
-    assert!((area_sum - props.surface_area).abs() < 1e-12);
+    assert!((sum - props.enclosure.volume).abs() < 1e-12);
+    assert!((props.enclosure.volume - 26.0).abs() < 1e-12);
+    let area_sum: f64 = classes.iter().map(|c| c.enclosure.surface_area).sum();
+    assert!((area_sum - props.enclosure.surface_area).abs() < 1e-12);
 }
 
 /// The role read is the NAMED funnel site: each shell's role is read

@@ -165,28 +165,6 @@ fn a_section_end_at_the_band_edge_refuses_as_the_inputs_at_the_split_and_its_lev
         for (t, d) in moves {
             match cut(t, d) {
                 Ok(_) => {}
-                // At 1e-12, turned off square the other way, the plane
-                // leaves a sliver below the rim whose wall's quadrature is
-                // at its floor over the target at rest
-                // (`a_cylinder_split_just_off_its_rim_vertex`); at 1e-9 and
-                // 1e-6 it builds.
-                Err(SplitError::Finish(topo::SplitFinishError::ResultNotAtRest {
-                    errors, ..
-                })) if want == SectionEndReading::SquareToAxis
-                    && t < 0.0
-                    && (eps - 1e-12).abs() <= 1e-15
-                    && errors.iter().all(|e| {
-                        matches!(
-                            e,
-                            topo::ValidationError::VolumeUncomputable {
-                                source: topo::MassPropsError::Face {
-                                    source: geom_brep::props::PropsError::QuadratureFloor { .. },
-                                    ..
-                                },
-                                ..
-                            }
-                        )
-                    }) => {}
                 Err(e) => wrong.push(format!("{tag} moved to t{t:e} d{d:e}: {e:?}")),
             }
         }

@@ -159,9 +159,15 @@ fn a_station_on_the_line_edge_builds_either_side_of_k_eps_and_joins_back() {
             let cut = station(sin, frac * k / sin)
                 .unwrap_or_else(|e| panic!("{what}: the cut builds, got {e:?}"));
             // Raw door: `cut` is construction state whose joinable vertices tier 3 refuses (JoinableVertexAtRest).
-            let v = topo::test_support::measure_unvalidated(&cut, tol())
-                .unwrap()
-                .volume;
+            let v = topo::test_support::measure_unvalidated(
+                &cut,
+                tol(),
+                topo::test_support::pinned_resolution(tol()),
+            )
+            .unwrap()
+            .met()
+            .expect("the pinned resolution is met")
+            .volume;
             assert!(
                 (v - exact).abs() <= 1e-9 * exact,
                 "{what}: the volume is the segment's, {v:e} vs {exact:e}"

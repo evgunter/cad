@@ -407,6 +407,7 @@ fn a_distribution_only_edit_invalidates_no_memoized_evaluation() {
                 Tol::witness(),
             ),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .expect("props"),
         topo::mass_properties(
@@ -416,11 +417,15 @@ fn a_distribution_only_edit_invalidates_no_memoized_evaluation() {
                 Tol::witness(),
             ),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .expect("props"),
     );
-    assert_eq!(mb.volume.to_bits(), ma.volume.to_bits());
-    assert_eq!(mb.surface_area.to_bits(), ma.surface_area.to_bits());
+    assert_eq!(mb.enclosure.volume.to_bits(), ma.enclosure.volume.to_bits());
+    assert_eq!(
+        mb.enclosure.surface_area.to_bits(),
+        ma.enclosure.surface_area.to_bits()
+    );
 }
 
 /// CLAIM 1, the environment half at BOTH ends of a doc's life: the

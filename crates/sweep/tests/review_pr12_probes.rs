@@ -220,9 +220,10 @@ fn probe_e_hexagon_tier3_error() {
                 topo::Body::clone(&f.body),
                 Tol::witness()
             ),
-            Tol::witness()
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
-        .map(|p| (p.volume, p.volume_pad))
+        .map(|p| (p.enclosure.volume, p.enclosure.volume_pad))
     );
     if let Err(errs) = topo::validate_geometric(&f.body, Tol::witness()) {
         for e in &errs {
@@ -278,9 +279,8 @@ fn probe_g_door_a_fields() {
         .body,
         Tol::witness(),
     );
-    let blank_v = topo::mass_properties(&blank, Tol::witness())
-        .unwrap()
-        .volume;
+    let blank_v =
+        topo::test_support::pinned_volume("the measured body", &blank, Tol::witness()).volume;
     let ball = ball_at(0.09, Vec3::new(0.5, 0.5, 1.04));
     let out = boolean_op_with(
         BooleanOp::Subtract,
@@ -298,7 +298,7 @@ fn probe_g_door_a_fields() {
     // ball, cut from a face the fillet left flat.
     let h = 0.09 - 0.04;
     let want = blank_v - PI * h * h * (3.0 * 0.09 - h) / 3.0;
-    let got = topo::mass_properties(body, Tol::witness()).unwrap().volume;
+    let got = topo::test_support::pinned_volume("the measured body", body, Tol::witness()).volume;
     assert!((got - want).abs() <= 1e-9 * want, "{got} vs {want}");
 }
 
@@ -350,12 +350,11 @@ fn probe_h_door_a_closed_tool() {
     let body = &out.body().expect("a body").body;
     assert_eq!(topo::validate_geometric(body, Tol::witness()), Ok(()));
     assert_eq!(body.shells().count(), 1);
-    let blank_v = topo::mass_properties(&blank, Tol::witness())
-        .unwrap()
-        .volume;
+    let blank_v =
+        topo::test_support::pinned_volume("the measured body", &blank, Tol::witness()).volume;
     let h = 0.09 - 0.04;
     let want = blank_v - 2.0 * PI * h * h * (3.0 * 0.09 - h) / 3.0;
-    let got = topo::mass_properties(body, Tol::witness()).unwrap().volume;
+    let got = topo::test_support::pinned_volume("the measured body", body, Tol::witness()).volume;
     assert!((got - want).abs() <= 1e-9 * want, "{got} vs {want}");
 }
 

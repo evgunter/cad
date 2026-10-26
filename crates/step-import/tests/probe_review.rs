@@ -39,9 +39,9 @@ fn a3_cone_trunc_all_tiers_green_at_1e7_landing_retired() {
     let StepImport::Solid { body, .. } = imp else {
         panic!("wireframe")
     };
-    assert_eq!(topo::validate(&body), Ok(()));
-    assert_eq!(topo::validate_closed(&body), Ok(()));
-    let g = topo::validate_geometric(&body, Tol::witness());
+    assert_eq!(topo::validate(body.body()), Ok(()));
+    assert_eq!(topo::validate_closed(body.body()), Ok(()));
+    let g = topo::validate_geometric(body.body(), Tol::witness());
     println!("a3 tier3 result: {g:?}");
     assert_eq!(g, Ok(()), "the in-band landing is retired: tier 3 is green");
 }
@@ -68,9 +68,9 @@ fn a3_sweep_all_tiers() {
     for name in names {
         match import_step(&fixture(name), &ImportOptions::default(), Tol::witness()) {
             Ok(StepImport::Solid { body, .. }) => {
-                let t1 = topo::validate(&body).is_ok();
-                let t2 = topo::validate_closed(&body).is_ok();
-                let t3 = topo::validate_geometric(&body, Tol::witness());
+                let t1 = topo::validate(body.body()).is_ok();
+                let t2 = topo::validate_closed(body.body()).is_ok();
+                let t3 = topo::validate_geometric(body.body(), Tol::witness());
                 if !(t1 && t2 && t3.is_ok()) {
                     println!("a3sweep eps={eps:e} {name}: t1={t1} t2={t2} t3={t3:?}");
                 } else {
@@ -133,8 +133,8 @@ fn a1_control_box_face_sense_flip() {
         Ok(StepImport::Solid { body, .. }) => {
             println!(
                 "a1 box-flip: imported; t2={:?} t3={:?}",
-                topo::validate_closed(&body),
-                topo::validate_geometric(&body, Tol::witness())
+                topo::validate_closed(body.body()),
+                topo::validate_geometric(body.body(), Tol::witness())
             );
         }
         Ok(_) => panic!("wireframe"),
@@ -153,7 +153,7 @@ fn a1_control_sphere_sense_flip() {
         Ok(StepImport::Solid { body, .. }) => {
             println!(
                 "a1 sphere-flip: imported; t3={:?}",
-                topo::validate_geometric(&body, Tol::witness())
+                topo::validate_geometric(body.body(), Tol::witness())
             );
         }
         Ok(_) => panic!("wireframe"),
@@ -217,7 +217,7 @@ fn a1_flipped_torus_body_sense() {
     else {
         panic!("the stated torus imports")
     };
-    let senses: Vec<bool> = body.faces().map(|(_, f)| f.sense).collect();
+    let senses: Vec<bool> = body.body().faces().map(|(_, f)| f.sense).collect();
     println!("a1sense orig: senses={senses:?}");
     let flipped = fixture("torus").replace(
         "#17 = ADVANCED_FACE('',(#18),#38,.T.);",
@@ -250,8 +250,8 @@ fn a1_control_box_bound_flip() {
         Ok(StepImport::Solid { body, .. }) => {
             println!(
                 "a1bb imported; t2={:?} t3={:?}",
-                topo::validate_closed(&body),
-                topo::validate_geometric(&body, Tol::witness())
+                topo::validate_closed(body.body()),
+                topo::validate_geometric(body.body(), Tol::witness())
             );
         }
         Ok(_) => panic!("wireframe"),
@@ -285,15 +285,16 @@ fn a1_inside_out_cone_apex() {
                 let v = topo::mass_properties(
                     &topo::test_support::finished(
                         "the measured body",
-                        body.clone(),
+                        body.body().clone(),
                         Tol::witness(),
                     ),
                     Tol::witness(),
+                    topo::test_support::pinned_resolution(Tol::witness()),
                 )
-                .map(|p| p.volume);
+                .map(|p| p.enclosure.volume);
                 println!(
                     "a1ca {label}: imported t3={:?} vol={:?}",
-                    topo::validate_geometric(&body, Tol::witness()),
+                    topo::validate_geometric(body.body(), Tol::witness()),
                     v
                 );
                 panic!("a1ca {label}: an inside-out cone_apex must refuse pre-body (M6-6 rider)");
@@ -447,7 +448,7 @@ fn a4_inference_on_demoted_bounds() {
         Ok(StepImport::Solid { body, .. }) => {
             println!(
                 "a4inf imported t3={:?}",
-                topo::validate_geometric(&body, Tol::witness())
+                topo::validate_geometric(body.body(), Tol::witness())
             );
         }
         Ok(_) => panic!("wireframe"),
@@ -479,11 +480,15 @@ fn a6_unit_edges() {
     assert_ne!(t, orig);
     match import_step(&t, &ImportOptions::default(), Tol::witness()) {
         Ok(StepImport::Solid { body, .. }) => {
-            let v = topo::mass_properties(
-                &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
+            let v = topo::test_support::pinned_volume(
+                "the measured body",
+                &topo::test_support::finished(
+                    "the measured body",
+                    body.body().clone(),
+                    Tol::witness(),
+                ),
                 Tol::witness(),
             )
-            .unwrap()
             .volume;
             println!("a6 micro volume={v:e} (expect 1e-18)");
         }

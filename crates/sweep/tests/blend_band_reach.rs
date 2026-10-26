@@ -80,9 +80,10 @@ fn a_concave_fillet_refuses_to_grow_into_an_island_on_one_shell() {
                         topo::Body::clone(&f.body),
                         tol()
                     ),
-                    tol()
+                    tol(),
+                    topo::test_support::pinned_resolution(tol()),
                 )
-                .map(|m| m.volume)
+                .map(|m| m.enclosure.volume)
             )
         })
         .expect_err("the band reaches the island");
@@ -140,9 +141,10 @@ fn the_reach_meters_an_island_that_is_a_second_solid() {
                         topo::Body::clone(&f.body),
                         tol()
                     ),
-                    tol()
+                    tol(),
+                    topo::test_support::pinned_resolution(tol()),
                 )
-                .map(|m| m.volume)
+                .map(|m| m.enclosure.volume)
             )
         })
         .expect_err("the band reaches the island");

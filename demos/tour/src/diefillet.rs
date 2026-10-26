@@ -57,7 +57,7 @@ use pncad::prelude::{
 use pncad::topo::Body;
 
 use crate::scalar::Scalar;
-use crate::{SceneBody, Stop, View};
+use crate::{SceneBody, TourStop, View};
 use pncad::geom_core::Tol;
 
 /// The die's side, shared by both dice (`diechamfer` closes its volume
@@ -562,7 +562,7 @@ pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
     crate::world::set_product(&placed.doc, &[placed.placement.into()], tol).doc
 }
 
-pub fn stops(tol: Tol) -> Vec<Stop> {
+pub fn stops(tol: Tol) -> Vec<TourStop> {
     let die = build(tol);
     let ev = evaluate::<f64>(
         &die.doc,
@@ -586,9 +586,14 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     );
 
     let blank = body_at(&ev, die.blank, tol);
-    let vol = pncad::topo::mass_properties(&crate::booleans::at_rest(&blank, tol), tol)
-        .unwrap()
-        .volume;
+    let vol = pncad::topo::mass_properties(
+        &crate::booleans::at_rest(&blank, tol),
+        tol,
+        crate::printed(),
+    )
+    .unwrap()
+    .enclosure
+    .volume;
     let want = crate::oracles::rounded_box_volume([L; 3], R);
     assert!(
         (vol - want).abs() < 1e-9 * want,
@@ -601,12 +606,21 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     );
     assert_eq!((f, e, v), (26, 48, 24));
     let pipped = body_at(&ev, die.pipped, tol);
-    let pip_vol = pncad::topo::mass_properties(&crate::booleans::at_rest(&pipped, tol), tol)
-        .unwrap()
-        .volume;
+    let pip_vol = pncad::topo::mass_properties(
+        &crate::booleans::at_rest(&pipped, tol),
+        tol,
+        crate::printed(),
+    )
+    .unwrap()
+    .enclosure
+    .volume;
     let composed = body_at(&ev, die.composed, tol);
-    let comp =
-        pncad::topo::mass_properties(&crate::booleans::at_rest(&composed, tol), tol).unwrap();
+    let comp = pncad::topo::mass_properties(
+        &crate::booleans::at_rest(&composed, tol),
+        tol,
+        crate::printed(),
+    )
+    .unwrap();
     assert_eq!(
         pncad::topo::validate_geometric(&composed, tol),
         Ok(()),
@@ -622,7 +636,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     assert_eq!((cf, ce, cv), (26 + 21 * 3, 48 + 21 * 6, 24 + 21 * 4));
 
     vec![
-        Stop {
+        TourStop {
             name: "diefillet",
             caption: "the die blank (rolling-ball fillets)".to_string(),
             // Standalone since the montage-v2 curation (Ev, #218
@@ -655,7 +669,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                 SceneBody::plain("diefillet", [0.80, 0.72, 0.55], blank).named(&ev, die.blank),
             ],
         },
-        Stop {
+        TourStop {
             name: "diepips",
             caption: "the die's pips (one group cut)".to_string(),
             // Standalone with `diefillet` (see the note there).
@@ -685,7 +699,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                 SceneBody::plain("diepips", [0.62, 0.66, 0.78], pipped).named(&ev, die.pipped),
             ],
         },
-        Stop {
+        TourStop {
             name: "diecomposed",
             caption: "THE COMPOSED DIE (in-place surgery)".to_string(),
             montage: true,
@@ -707,7 +721,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                  Neither blend names an edge by hand: {} lines and {} plane–sphere arcs \
                  come back from `select_where`, and the 42 co-surface meridians it does \
                  NOT return are the ones `fillet_edges` would refuse at margin zero",
-                comp.volume, die.box_edges, die.rims
+                comp.enclosure.volume, die.box_edges, die.rims
             )),
             view: View {
                 elev: 26.0,

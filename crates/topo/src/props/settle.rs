@@ -2,8 +2,8 @@
 //! `[tolerance.measure]`): what a caller asks of a volume's enclosure,
 //! as closed data, and how one round's enclosure answers it.
 //!
-//! A deciding predicate ([`Settle::Sign`], [`Settle::Relation`],
-//! [`Settle::Contains`]) is a named funnel decision: it settles when the
+//! A deciding predicate ([`Settle::Sign`], [`Settle::AtMost`],
+//! [`Settle::AtLeast`], [`Settle::Contains`]) is a named funnel decision: it settles when the
 //! enclosure decides it, refines while the enclosure straddles its
 //! threshold, stops when the enclosure lies wholly in the band, and is
 //! recorded at every round it is asked. [`Settle::Resolution`] is a
@@ -13,7 +13,7 @@
 use geom_core::{Band, Decide, Indeterminate, Margin, Real, Sign};
 use quantity::Length;
 
-use super::{RoleNames, ShellRole, VolumeEnclosure};
+use super::{MassProperties, RoleNames, ShellRole, VolumeEnclosure};
 
 /// **What a measurement is asked**, at the door
 /// ([`super::measure_to`]). There is no default: every caller states
@@ -23,19 +23,27 @@ pub enum Settle<T: Real> {
     /// The volume's sign, as the role it gives a closed surface:
     /// positive is [`ShellRole::Outer`], negative [`ShellRole::Void`].
     Sign(SignNames),
-    /// The volume against a bound of the body's scalar, as an assertion
-    /// states it. The margin is a volume, metered over the surface area
-    /// to a mean boundary displacement and decided against the band.
-    Relation {
-        /// The relation the volume is claimed to stand in.
-        op: RelOp,
+    /// The volume at most a bound of the body's scalar, as an assertion
+    /// states it. The margin `bound − V` is a volume, metered over the
+    /// surface area to a mean boundary displacement and decided against
+    /// the band.
+    AtMost {
         /// The bound, a volume.
         bound: T,
         /// The funnel predicate the decision is recorded under.
         name: &'static str,
     },
-    /// The volume within `[lo, hi]`: both ends of the claim at once, each
-    /// a [`Settle::Relation`] under `name`.
+    /// The volume at least a bound of the body's scalar: the mirror of
+    /// [`Settle::AtMost`].
+    AtLeast {
+        /// The bound, a volume.
+        bound: T,
+        /// The funnel predicate the decision is recorded under.
+        name: &'static str,
+    },
+    /// The volume within `[lo, hi]`: both ends of the claim at once, a
+    /// [`Settle::AtLeast`] of `lo` and a [`Settle::AtMost`] of `hi` under
+    /// `name`.
     Contains {
         /// The least volume claimed.
         lo: T,
@@ -51,9 +59,11 @@ pub enum Settle<T: Real> {
     Resolution(Length),
 }
 
-/// **A relation an assertion states** (`[assertions]`: `≤`, `≥`).
+/// **Which side of a bound a relation claims** (`≤`, `≥`): the reading
+/// [`Settle::AtMost`] and [`Settle::AtLeast`] share, and the backstop's
+/// operand gate reads too.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum RelOp {
+pub(crate) enum RelOp {
     /// At most the bound.
     Le,
     /// At least the bound.
@@ -73,11 +83,11 @@ pub struct SignNames {
 
 /// **What a deciding predicate decided.**
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Verdict {
+pub enum SettleVerdict {
     /// [`Settle::Sign`]'s: the role the sign gives.
     Sign(ShellRole),
-    /// [`Settle::Relation`]'s and [`Settle::Contains`]'s: whether the
-    /// claim holds.
+    /// [`Settle::AtMost`]'s, [`Settle::AtLeast`]'s and
+    /// [`Settle::Contains`]'s: whether the claim holds.
     Holds(bool),
 }
 
@@ -85,7 +95,7 @@ pub enum Verdict {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Stop {
     /// A deciding predicate settled.
-    Settled(Verdict),
+    Settled(SettleVerdict),
     /// Every face met the resolution.
     Met,
     /// Refinement stopped paying on every face still short of the
@@ -97,6 +107,91 @@ pub enum Stop {
     /// threshold, where no narrower enclosure decides it.
     Band,
 }
+
+impl Stop {
+    /// **The stop as its word**: its variant's name in snake case, the
+    /// one spelling every surface that names a stop reads (Python's
+    /// `MassMeasurement.stop`, which the binding census holds to this
+    /// list and to the variants' order).
+    #[must_use]
+    pub const fn word(self) -> &'static str {
+        match self {
+            Self::Settled(_) => "settled",
+            Self::Met => "met",
+            Self::Floor => "floor",
+            Self::Wall => "wall",
+            Self::Band => "band",
+        }
+    }
+}
+
+/// **What a measurement reached** (`[tolerance.measure]`): the
+/// narrowest enclosure each face reached, summed, and why the
+/// measurement stopped. A number is a [`Settle::Resolution`]'s
+/// enclosure, read with its stop: [`Stop::Met`] is the resolution
+/// reached, and [`Stop::Floor`] or [`Stop::Wall`] the bracket where it
+/// went unmet, at the width the enclosure states.
+#[derive(Clone, Copy, Debug)]
+pub struct MassMeasurement<T: Real> {
+    /// The volume and area enclosures: midpoints and half-widths
+    /// ([`MassProperties`]).
+    pub enclosure: MassProperties<T>,
+    /// Why the measurement stopped.
+    pub stop: Stop,
+}
+
+impl<T: Real> MassMeasurement<T> {
+    /// **The enclosure as a number**: where the measurement met its
+    /// resolution ([`Stop::Met`]), the enclosure every face met it at;
+    /// otherwise the stop it reached instead. A reader taking the
+    /// midpoint as THE volume reads it through this, so a bracket that
+    /// stopped short is never read as a number met. Python's
+    /// `MassMeasurement.met()` is this.
+    ///
+    /// # Errors
+    ///
+    /// [`Unmet`], carrying the stop, where the stop is anything but
+    /// [`Stop::Met`].
+    pub fn met(&self) -> Result<MassProperties<T>, Unmet> {
+        match self.stop {
+            Stop::Met => Ok(self.enclosure),
+            stop => Err(Unmet { stop }),
+        }
+    }
+
+    /// **What a deciding predicate decided**: the verdict
+    /// [`Stop::Settled`] carries, and `None` on every other stop.
+    /// Python's `MassMeasurement.verdict` is this.
+    #[must_use]
+    pub fn verdict(&self) -> Option<SettleVerdict> {
+        match self.stop {
+            Stop::Settled(verdict) => Some(verdict),
+            _ => None,
+        }
+    }
+}
+
+/// **A number asked of a measurement that did not meet its
+/// resolution** ([`MassMeasurement::met`]): the stop it reached instead.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Unmet {
+    /// The stop the measurement reached instead of [`Stop::Met`].
+    pub stop: Stop,
+}
+
+impl core::fmt::Display for Unmet {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "the measurement did not meet its resolution: it stopped at `{}`, so its \
+             enclosure is a bracket and not a number met. Recourse: read the bracket, or \
+             ask for a coarser resolution",
+            self.stop.word()
+        )
+    }
+}
+
+impl std::error::Error for Unmet {}
 
 /// **One round's answer to a deciding predicate** over a volume
 /// enclosure.
@@ -111,6 +206,9 @@ pub(crate) enum Step {
     Band,
     /// A margin was poisoned: no enclosure decides it.
     Poisoned(Indeterminate),
+    /// The claim names no volume at all: a [`Settle::Contains`] whose
+    /// least volume definitely exceeds its greatest.
+    Empty,
 }
 
 /// **A relation read off a volume enclosure**: `V op bound`, the margin
@@ -209,6 +307,17 @@ pub(crate) fn contains_step<T: Decide>(
     name: &'static str,
     band: Band,
 ) -> Step {
+    // `hi − lo`, metered over the surface area as the relations' margins
+    // are: definitely negative, and no volume lies in the claim.
+    match geom_core::k_stats::decide_reported(
+        name,
+        Margin::over_lever(hi - lo, e.surface_area),
+        band,
+    ) {
+        Ok(decided) if decided.sign == Sign::Negative => return Step::Empty,
+        Err(cause) if cause.margin.is_invalid() => return Step::Poisoned(cause),
+        _ => {}
+    }
     let at_least = relation_step(e, RelOp::Ge, lo, name, band);
     let at_most = relation_step(e, RelOp::Le, hi, name, band);
     match (at_least, at_most) {

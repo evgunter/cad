@@ -94,13 +94,17 @@ fn a_sealed_shelled_box_is_an_outer_and_a_void() {
         "one outer boundary, one cavity"
     );
 
-    let props =
-        topo::mass_properties(&hollow_at_rest, Tol::witness()).expect("a planar body's props");
+    let props = topo::mass_properties(
+        &hollow_at_rest,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .expect("a planar body's props");
     let want = w * d * h - (w - 2.0 * t) * (d - 2.0 * t) * (h - 2.0 * t);
     assert!(
-        (props.volume - want).abs() <= 1e-12,
+        (props.enclosure.volume - want).abs() <= 1e-12,
         "the wall's volume is outer minus inner: got {}, want {want}",
-        props.volume
+        props.enclosure.volume
     );
 }
 
@@ -200,14 +204,15 @@ fn a_sealed_shelled_vessel_matches_its_closed_form() {
             Tol::witness(),
         ),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("the vessel's props");
     let want = core::f64::consts::PI * (r * r * h - (r - t) * (r - t) * (h - 2.0 * t));
     assert!(
-        (props.volume - want).abs() <= 1e-9 + props.volume_pad,
+        (props.enclosure.volume - want).abs() <= 1e-9 + props.enclosure.volume_pad,
         "wall volume: got {} (pad {}), want {want}",
-        props.volume,
-        props.volume_pad
+        props.enclosure.volume,
+        props.enclosure.volume_pad
     );
 }
 
@@ -252,15 +257,16 @@ fn an_opened_shelled_box_is_a_closed_thin_solid_with_a_rim() {
     let props = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(&cup), Tol::witness()),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("a planar body's props");
     // The cup is the sealed wall plus the lid that is no longer there:
     // equivalently, the box minus a cavity that runs to the top.
     let want = w * d * h - (w - 2.0 * t) * (d - 2.0 * t) * (h - t);
     assert!(
-        (props.volume - want).abs() <= 1e-12,
+        (props.enclosure.volume - want).abs() <= 1e-12,
         "cup volume: got {}, want {want}",
-        props.volume
+        props.enclosure.volume
     );
 }
 
@@ -292,13 +298,14 @@ fn opening_two_faces_gives_two_rims_and_one_shell() {
             Tol::witness(),
         ),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("props");
     let want = w * d * h - (w - 2.0 * t) * (d - 2.0 * t) * h;
     assert!(
-        (props.volume - want).abs() <= 1e-12,
+        (props.enclosure.volume - want).abs() <= 1e-12,
         "tube volume: got {}, want {want}",
-        props.volume
+        props.enclosure.volume
     );
 }
 
@@ -337,12 +344,13 @@ fn shelling_a_hollow_box_thickens_every_boundary() {
             "{solid:?}: one outer boundary and one cavity"
         );
     }
-    let props = topo::mass_properties(&body, tol).expect("a planar body's props");
+    let props = topo::mass_properties(&body, tol, topo::test_support::pinned_resolution(tol))
+        .expect("a planar body's props");
     let want = OUTER_TERM() + INNER_TERM();
     assert!(
-        (props.volume - want).abs() <= 1e-12,
+        (props.enclosure.volume - want).abs() <= 1e-12,
         "two walls: got {}, want {want}",
-        props.volume
+        props.enclosure.volume
     );
     for (face, data) in hollow.faces() {
         let got = body
@@ -710,13 +718,14 @@ fn a_thick_wedge_at_the_crossing_lean_shells_to_its_closed_form() {
     let props = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(&hollow), tol),
         tol,
+        topo::test_support::pinned_resolution(tol),
     )
     .expect("props");
     let want = arm_volume(1.0, 0.5, 0.8, 0.5, 1.0, t);
     assert!(
-        (props.volume - want).abs() <= 1e-12,
+        (props.enclosure.volume - want).abs() <= 1e-12,
         "the wedge's wall is {want}, got {}",
-        props.volume
+        props.enclosure.volume
     );
 }
 
@@ -768,13 +777,14 @@ fn the_tilted_read_turns_at_the_crossing_foot_at_metre_and_millimetre_extents() 
         let props = topo::mass_properties(
             &topo::test_support::finished("the measured body", topo::Body::clone(&hollow), tol),
             tol,
+            topo::test_support::pinned_resolution(tol),
         )
         .expect("props");
         let want = arm_volume(s, len, outside + lean, outside, s, t);
         assert!(
-            (props.volume - want).abs() <= 1e-12 * s.powi(3),
+            (props.enclosure.volume - want).abs() <= 1e-12 * s.powi(3),
             "scale {s}: the arm's wall is {want}, got {}",
-            props.volume
+            props.enclosure.volume
         );
     }
 }
@@ -904,13 +914,14 @@ fn an_adjacent_pair_crossing_away_from_its_edge_refuses_at_the_offset_door() {
     let props = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(&hollow), tol),
         tol,
+        topo::test_support::pinned_resolution(tol),
     )
     .expect("props");
     let want = lipped_volume(0.5, 0.6, 0.1, t);
     assert!(
-        (props.volume - want).abs() <= 1e-12,
+        (props.enclosure.volume - want).abs() <= 1e-12,
         "the lipped block's wall is {want}, got {}",
-        props.volume
+        props.enclosure.volume
     );
 }
 
@@ -959,13 +970,14 @@ fn two_voids_refuse_across_their_gap_and_build_three_solids_below_it() {
     for (solid, kinds) in roles_by_solid(&out) {
         assert_eq!(kinds, vec![ShellRole::Outer, ShellRole::Void], "{solid:?}");
     }
-    let props = topo::mass_properties(&out, tol).expect("props");
+    let props = topo::mass_properties(&out, tol, topo::test_support::pinned_resolution(tol))
+        .expect("props");
     let want = (box_volume(6.0, 4.0, 4.0) - box_volume(5.7, 3.7, 3.7))
         + 2.0 * (box_volume(1.5, 2.3, 2.3) - box_volume(1.2, 2.0, 2.0));
     assert!(
-        (props.volume - want).abs() <= 1e-12,
+        (props.enclosure.volume - want).abs() <= 1e-12,
         "three walls: got {}, want {want}",
-        props.volume
+        props.enclosure.volume
     );
     assert_eq!(shelled.naming.thickened.len(), 3);
 }
@@ -987,14 +999,15 @@ fn shelling_a_hollow_vessel_thickens_every_boundary() {
     for (solid, kinds) in roles_by_solid(&body) {
         assert_eq!(kinds, vec![ShellRole::Outer, ShellRole::Void], "{solid:?}");
     }
-    let props = topo::mass_properties(&body, tol).expect("props");
+    let props = topo::mass_properties(&body, tol, topo::test_support::pinned_resolution(tol))
+        .expect("props");
     let pi = core::f64::consts::PI;
     let want = pi * ((1.0 * 1.0 * 2.0 - 0.95 * 0.95 * 1.9) + (0.85 * 0.85 * 1.7 - 0.8 * 0.8 * 1.6));
     assert!(
-        (props.volume - want).abs() <= 1e-9 + props.volume_pad,
+        (props.enclosure.volume - want).abs() <= 1e-9 + props.enclosure.volume_pad,
         "two walls of revolution: got {} (pad {}), want {want}",
-        props.volume,
-        props.volume_pad
+        props.enclosure.volume,
+        props.enclosure.volume_pad
     );
     assert_eq!(shelled.naming.thickened.len(), 2);
 }
@@ -1059,13 +1072,14 @@ fn the_full_period_torus_shells_solid_and_hollow_alike() {
     );
     assert_eq!(body.solids().count(), 1);
     assert_eq!(body.shells().count(), 2);
-    let props = topo::mass_properties(&body, tol).expect("solid: props");
+    let props = topo::mass_properties(&body, tol, topo::test_support::pinned_resolution(tol))
+        .expect("solid: props");
     let want = pi2r * ring(r, r - t);
     assert!(
-        (props.volume - want).abs() <= 1e-9 + props.volume_pad,
+        (props.enclosure.volume - want).abs() <= 1e-9 + props.enclosure.volume_pad,
         "solid torus wall: got {} (pad {}), want {want}",
-        props.volume,
-        props.volume_pad
+        props.enclosure.volume,
+        props.enclosure.volume_pad
     );
 
     let shelled = topo::shell(&finished("the operand", hollow.clone(), tol), t, tol)
@@ -1081,13 +1095,14 @@ fn the_full_period_torus_shells_solid_and_hollow_alike() {
     for (solid, kinds) in roles_by_solid(&body) {
         assert_eq!(kinds, vec![ShellRole::Outer, ShellRole::Void], "{solid:?}");
     }
-    let props = topo::mass_properties(&body, tol).expect("hollow: props");
+    let props = topo::mass_properties(&body, tol, topo::test_support::pinned_resolution(tol))
+        .expect("hollow: props");
     let want = pi2r * (ring(r, r - t) + ring(r - w + t, r - w));
     assert!(
-        (props.volume - want).abs() <= 1e-9 + props.volume_pad,
+        (props.enclosure.volume - want).abs() <= 1e-9 + props.enclosure.volume_pad,
         "two thin tori: got {} (pad {}), want {want}",
-        props.volume,
-        props.volume_pad
+        props.enclosure.volume,
+        props.enclosure.volume_pad
     );
     assert_eq!(shelled.naming.thickened.len(), 2);
 }
@@ -1138,12 +1153,13 @@ fn opening_the_hollow_boxs_outer_top_cups_the_outer_wall_only() {
         .get_face(top)
         .expect("the designated face survives as the rim");
     assert_eq!(rim.rings.len(), 1);
-    let props = topo::mass_properties(&body, tol).expect("props");
+    let props = topo::mass_properties(&body, tol, topo::test_support::pinned_resolution(tol))
+        .expect("props");
     let want = (OUTER_TERM() - 1.9 * 2.9 * t) + INNER_TERM();
     assert!(
-        (props.volume - want).abs() <= 1e-12,
+        (props.enclosure.volume - want).abs() <= 1e-12,
         "cup plus untouched inner wall: got {}, want {want}",
-        props.volume
+        props.enclosure.volume
     );
     assert_eq!(opened.naming.rims.len(), 1);
     assert_eq!(opened.naming.rims[0].side, RimShell::Outer);
@@ -1209,12 +1225,13 @@ fn opening_the_hollow_boxs_void_ceiling_cups_the_inner_wall_only() {
             assert_eq!(kinds, vec![ShellRole::Outer], "the inner cup is one shell");
         }
     }
-    let props = topo::mass_properties(&body, tol).expect("props");
+    let props = topo::mass_properties(&body, tol, topo::test_support::pinned_resolution(tol))
+        .expect("props");
     let want = OUTER_TERM() + (INNER_TERM() - 1.6 * 2.6 * t);
     assert!(
-        (props.volume - want).abs() <= 1e-12,
+        (props.enclosure.volume - want).abs() <= 1e-12,
         "untouched outer wall plus inner cup: got {}, want {want}",
-        props.volume
+        props.enclosure.volume
     );
     let record = &opened.naming;
     assert_eq!(record.rims.len(), 1);
@@ -1763,7 +1780,8 @@ fn the_klein_wall_pair_seals_to_its_measured_volume_and_opens_to_the_hand_built_
         .count();
     assert_eq!(spirics, 0, "every rim on a meridian plane is a circle");
     let volume = |b: &Body<f64>| {
-        topo::mass_properties(
+        topo::test_support::pinned_volume(
+            "the elbow's props",
             &topo::test_support::finished(
                 "the measured body",
                 topo::Body::clone(b),
@@ -1771,7 +1789,6 @@ fn the_klein_wall_pair_seals_to_its_measured_volume_and_opens_to_the_hand_built_
             ),
             Tol::witness(),
         )
-        .expect("the elbow's props")
         .volume
     };
     // Pappus: a quarter turn of the annulus about the spine radius.
@@ -1889,7 +1906,8 @@ fn a_hex_prism_with_a_coaxial_bore_hollows_to_its_closed_form() {
         "tier 3"
     );
     assert_eq!(hollow.shells().count(), 2, "the wall and its cavity");
-    let got = topo::mass_properties(
+    let got = topo::test_support::pinned_volume(
+        "props",
         &topo::test_support::finished(
             "the measured body",
             topo::Body::clone(&hollow),
@@ -1897,7 +1915,6 @@ fn a_hex_prism_with_a_coaxial_bore_hollows_to_its_closed_form() {
         ),
         Tol::witness(),
     )
-    .expect("props")
     .volume;
     println!("[measured] bored hex prism hollow {got}, closed form {want}");
     assert!((got - want).abs() <= 1e-12, "hollow {got}, want {want}");
@@ -1948,7 +1965,8 @@ fn assert_extrusion_hollows_axially(
         2,
         "{what}: the wall and its cavity"
     );
-    let got = topo::mass_properties(
+    let got = topo::test_support::pinned_volume(
+        "props",
         &topo::test_support::finished(
             "the measured body",
             topo::Body::clone(&hollow),
@@ -1956,7 +1974,6 @@ fn assert_extrusion_hollows_axially(
         ),
         Tol::witness(),
     )
-    .expect("props")
     .volume;
     println!("[measured] {what} hollow {got}, closed form {want}");
     assert!(
@@ -2083,14 +2100,15 @@ fn a_revolved_cap_opens_to_one_annular_rim() {
     let props = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(&cup), tol),
         tol,
+        topo::test_support::pinned_resolution(tol),
     )
     .expect("props");
     let want = core::f64::consts::PI * (r * r * h - (r - t) * (r - t) * (h - t));
     assert!(
-        (props.volume - want).abs() <= 1e-9 + props.volume_pad,
+        (props.enclosure.volume - want).abs() <= 1e-9 + props.enclosure.volume_pad,
         "drum cup volume: got {} (pad {}), want {want}",
-        props.volume,
-        props.volume_pad
+        props.enclosure.volume,
+        props.enclosure.volume_pad
     );
 }
 
@@ -2167,15 +2185,16 @@ fn an_annular_cap_opens_to_two_disjoint_rims() {
     let props = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(&cup), tol),
         tol,
+        topo::test_support::pinned_resolution(tol),
     )
     .expect("props");
     let want = core::f64::consts::PI
         * ((ro * ro - ri * ri) * h - ((ro - t).powi(2) - (ri + t).powi(2)) * (h - t));
     assert!(
-        (props.volume - want).abs() <= 1e-9 + props.volume_pad,
+        (props.enclosure.volume - want).abs() <= 1e-9 + props.enclosure.volume_pad,
         "tube cup volume: got {} (pad {}), want {want}",
-        props.volume,
-        props.volume_pad
+        props.enclosure.volume,
+        props.enclosure.volume_pad
     );
 }
 
@@ -2407,14 +2426,15 @@ fn oblique_planar_prisms_hollow_with_their_closed_forms() {
         let props = topo::mass_properties(
             &topo::test_support::finished("the measured body", topo::Body::clone(&hollow), tol),
             tol,
+            topo::test_support::pinned_resolution(tol),
         )
         .expect("props");
-        println!("[oblique] {what}: wall volume {}", props.volume);
+        println!("[oblique] {what}: wall volume {}", props.enclosure.volume);
         if let Some(want) = want {
             assert!(
-                (props.volume - want).abs() <= 1e-12,
+                (props.enclosure.volume - want).abs() <= 1e-12,
                 "{what}: the wall's closed form is {want}, got {}",
-                props.volume
+                props.enclosure.volume
             );
         }
     }
@@ -2456,6 +2476,7 @@ fn oblique_planar_prisms_open_at_their_cap() {
                         tol,
                     ),
                     tol,
+                    topo::test_support::pinned_resolution(tol),
                 )
                 .expect("props");
                 // The sealed wall plus the lid: the footprint's inset
@@ -2464,7 +2485,7 @@ fn oblique_planar_prisms_open_at_their_cap() {
                 println!(
                     "[oblique-open] {what}: BUILDS tier3={:?} volume={} want={want}",
                     topo::validate_geometric(&s.body, tol),
-                    props.volume
+                    props.enclosure.volume
                 );
                 assert_eq!(
                     topo::validate_geometric(&s.body, tol),
@@ -2472,9 +2493,9 @@ fn oblique_planar_prisms_open_at_their_cap() {
                     "{what}: tier 3"
                 );
                 assert!(
-                    (props.volume - want).abs() <= 1e-12,
+                    (props.enclosure.volume - want).abs() <= 1e-12,
                     "{what}: the cup's closed form is {want}, got {}",
-                    props.volume
+                    props.enclosure.volume
                 );
             }
             Err(e) => panic!("{what}: an all-planar cap lifts through the general door, got {e}"),

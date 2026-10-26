@@ -8,6 +8,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+#[path = "common/printed.rs"]
+mod printed;
 use core::f64::consts::PI;
 use pncad::sweep::ExtrudeSide;
 
@@ -363,13 +365,14 @@ fn p2_the_oblique_class_hollows_outside_the_enumeration() {
             "{what}: tier 3"
         );
         assert_eq!(hollow.shells().count(), 2, "{what}: outer + cavity");
-        let props = pncad::topo::mass_properties(&at_rest(&hollow, tol), tol).expect("props");
-        println!("{what}: hollows, wall volume {}", props.volume);
+        let props = pncad::topo::mass_properties(&at_rest(&hollow, tol), tol, printed::printed())
+            .expect("props");
+        println!("{what}: hollows, wall volume {}", props.enclosure.volume);
         if let Some(want) = want {
             assert!(
-                (props.volume - want).abs() <= 1e-12,
+                (props.enclosure.volume - want).abs() <= 1e-12,
                 "{what}: the wall's closed form is {want}, got {}",
-                props.volume
+                props.enclosure.volume
             );
         }
     }
@@ -507,8 +510,9 @@ fn p3_wall1_hollows_to_its_closed_form() {
         y_c - ((r_belly - t) * (r_belly - t) - (r_foot - t) * (r_foot - t)).sqrt()
     );
     let want = enclosed(0.0) - enclosed(t);
-    let got = pncad::topo::mass_properties(&at_rest(&pot, tol), tol)
+    let got = pncad::topo::mass_properties(&at_rest(&pot, tol), tol, printed::printed())
         .expect("the pot's props")
+        .enclosure
         .volume;
     println!("wall-1 wall volume = {got}, closed form = {want}");
     assert!(
