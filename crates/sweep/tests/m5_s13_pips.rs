@@ -267,6 +267,64 @@ fn two_pips_cut_under_the_group_arm() {
     );
 }
 
+/// **A re-charted ball's rows name its input shell, not the cells the
+/// turn moved.** `slab ∖ (two balls)` re-charts both balls and keeps no
+/// shell, so the first turned ball becomes the re-cut operand with its
+/// input keys at turned places, and the second is grafted under new
+/// keys. Every cell a row names in the pair is the least face of one of
+/// its input shells, both shells reached: the sphere each turned cell
+/// lies on. An input edge or vertex of the first ball, held under its
+/// own key but standing where the turn put it, names no row.
+#[test]
+fn a_re_charted_balls_rows_name_its_input_shells_least_face() {
+    let pair = topo::union(&pip_ball(2.0, 1.2), &pip_ball(2.0, 2.8), Tol::witness())
+        .expect("disjoint balls assemble")
+        .body()
+        .expect("a body")
+        .body
+        .clone();
+    let least: Vec<topo::FaceKey> = pair
+        .shells()
+        .map(|(_, shell)| *shell.faces.iter().min().expect("a shell has faces"))
+        .collect();
+    assert_eq!(least.len(), 2, "two disjoint balls, two shells");
+    let a = finished("operand A", slab(), Tol::witness());
+    let out = boolean_op_with(
+        BooleanOp::Subtract,
+        &a,
+        &pair,
+        &topo::BooleanInputs::default(),
+        SweepStrategy::Realized,
+        Tol::witness(),
+    )
+    .expect("the two pips cut");
+    let out = out.body().expect("a body");
+    let named: Vec<topo::Cell> = out
+        .coincidences
+        .iter()
+        .flat_map(topo::Coincidence::every_cell)
+        .filter_map(|cell| match cell {
+            topo::RowCell::Input {
+                input: topo::Operand::B,
+                cell,
+            } => Some(cell),
+            _ => None,
+        })
+        .collect();
+    for cell in &named {
+        assert!(
+            matches!(cell, topo::Cell::Face(f) if least.contains(f)),
+            "a row names the pair's {cell:?}, not one of its shells' least faces {least:?}"
+        );
+    }
+    for face in &least {
+        assert!(
+            named.contains(&topo::Cell::Face(*face)),
+            "no row names the shell whose least face is {face:?}: {named:?}"
+        );
+    }
+}
+
 // ---------------------------------------------------------------------
 // §1: the extent scan's refusal/escalation arms.
 // ---------------------------------------------------------------------
