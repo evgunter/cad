@@ -1,7 +1,7 @@
 ---
 id: an-edge-running-past-a-face-along-coincident-edges-is-not-divided
 kind: issue
-title: A Boolean edge running past the face it lies in, along another edge on its line, refuses EdgeInFace Partly instead of dividing
+title: A Boolean edge running past the face it lies in, along another edge on its line, refuses EdgeInFace Unplaced instead of dividing
 status: open
 opened: 2026-10-21
 priority: P2
@@ -15,13 +15,16 @@ face (`cleave/boolean-parts-an-edge-running-past-its-face`, the row
 
 ## What
 
-`topo::boolean::slit::divide` divides an edge lying in a face along
-part of its length where it crosses the face's boundary: at an edge of
-the loops an edge-edge record names, or at a vertex of them a
-vertex-on-edge record names. It places each vertex-on-edge record of a
-divided edge on the piece holding the vertex. Any other record naming
-the edge or a crossed edge refuses `BooleanError::EdgeInFace { gap:
-EdgeInFaceGap::Partly }`, since which piece holds it is not read.
+`topo::boolean::slit::divide` (`crates/topo/src/boolean/slit.rs:1041`)
+divides an edge lying in a face along part of its length where it
+crosses the face's boundary: at an edge of the loops an edge-edge record
+names, or at a vertex of them a vertex-on-edge record names. It places
+each vertex-on-edge record of a divided edge on the piece holding the
+vertex. Any other record naming the edge or a crossed edge refuses
+`BooleanError::EdgeInFace { gap: EdgeInFaceGap::Unplaced }`
+(`slit.rs:1203`), since which piece holds it is not read; an
+edge-edge record with an edge of the face's own boundary on the edge's
+line refuses `Overlap` before any division.
 
 `crates/topo/tests/three_solids_on_one_line.rs`, `UNPARTED`: the line
 body (the plate and the prisms over 0°–50° and 120°–170°, touching

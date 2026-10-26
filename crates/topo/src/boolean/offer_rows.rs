@@ -2590,6 +2590,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     (
         "mod.rs",
         "decision_words",
+        "BooleanDecision::PartingOrder",
+        1,
+    ),
+    (
+        "mod.rs",
+        "decision_words",
         "BooleanDecision::LineSpanPrecision",
         1,
     ),
@@ -2856,8 +2862,20 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("sectors.rs", "within_signs", "Coincide::Sectors", 1),
-    ("slit.rs", "divide", "BooleanDecision::Crossing", 1),
+    (
+        "slit.rs",
+        "crossing_escalated",
+        "BooleanDecision::Crossing",
+        1,
+    ),
+    ("slit.rs", "lies_in", "BooleanDecision::Containment", 1),
     ("slit.rs", "lies_in", "Coincide::EdgeOnPlane", 1),
+    (
+        "slit.rs",
+        "parting_order",
+        "BooleanDecision::PartingOrder",
+        1,
+    ),
     ("slit.rs", "walls_inside", "BooleanDecision::of_normal", 1),
     ("slit.rs", "walls_inside", "Coincide::Sectors", 1),
     (

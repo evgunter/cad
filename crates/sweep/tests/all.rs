@@ -146,6 +146,8 @@ mod an_arc_rim_picks_the_row_it_lies_on;
 mod an_arc_tangent_at_a_boolean_vertex;
 #[path = "an_arcs_sweep_structure_is_certified_for_every_member.rs"]
 mod an_arcs_sweep_structure_is_certified_for_every_member;
+#[path = "an_edge_running_past_a_face_reads_its_crossings.rs"]
+mod an_edge_running_past_a_face_reads_its_crossings;
 #[path = "an_inside_out_thin_tube_operand.rs"]
 mod an_inside_out_thin_tube_operand;
 #[path = "at_rest_pcurve_faces.rs"]

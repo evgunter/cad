@@ -412,8 +412,8 @@ impl Default for BooleanNaming {
 }
 
 impl BooleanNaming {
-    /// Each result vertex a zip fused away → the live cell of `body`
-    /// its point lies in ([`Self::settler`]).
+    /// Each result vertex a zip or a parting fused away → the live cell
+    /// of `body` its point lies in ([`Self::settler`]).
     ///
     /// # Errors
     ///
@@ -494,7 +494,8 @@ pub struct Settler<'a, T: Real> {
 
 impl<T: Real> Settler<'_, T> {
     /// The live cell `vertex`'s point lies in: the vertex it finally
-    /// fused into, following the zips' fusions through every hop, while
+    /// fused into, following the zips' and the partings' fusions
+    /// ([`BooleanNaming::vertex_merges`]) through every hop, while
     /// that lives. A later stage can delete it without moving its point,
     /// and both such stages record the kill: the merge's pruning leaves
     /// the point inside its group's kept face ([`Cell::Face`]), and the
@@ -1097,9 +1098,7 @@ fn name_parted(
         for &row in &p.copies {
             cone_splits.push(row)?;
         }
-        for &row in &p.fused {
-            vertex_merges.push(row)?;
-        }
+        vertex_merges.extend(&p.fused)?;
         let Some(piece) = p.divided else { continue };
         let (operand, face) = match graft_faces.iter().find(|&&(_, r)| r == p.face) {
             Some(&(from, _)) => {

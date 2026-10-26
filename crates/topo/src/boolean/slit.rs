@@ -30,16 +30,17 @@
 //!
 //! An end joins rather than parts where it is not the face's own vertex
 //! but another on its point, a vertex-vertex record between them. That
-//! is where the edge runs on past the face ([`divide`]): the edge and
-//! the face's boundary edge it crosses are each divided at the crossing
-//! an edge-edge record names (the edge alone, where a vertex-on-edge
-//! record puts a corner of the face on it), and the record becomes one
-//! between the two vertices. The walls the edge runs on between join the
-//! two wedges beyond the face, so the material there is one cone, and
-//! one vertex.
-//! The same holds where an edge lying wholly in the face ends at a
-//! vertex its record puts on the face's corner: the two vertices'
-//! cones are one once the line parts.
+//! is where the edge runs on past the face ([`divide`]): the edge, and the
+//! face's boundary edge it crosses, are each divided where the two lines
+//! meet, at a crossing an edge-edge record names, or the edge alone where
+//! a vertex-on-edge record puts a corner of the face on it; the record
+//! becomes one between the two vertices. Beyond the face the walls the
+//! edge runs on between join its two wedges, so the material at the
+//! crossing is one cone, and one vertex.
+//!
+//! The same holds where an edge lying wholly in the face ends at a vertex
+//! a record puts on the face's corner: the two vertices' cones are one
+//! once the line parts.
 //!
 //! Where it reads an edge whose material parts it and the parting is not
 //! built, the Boolean refuses ([`EdgeInFaceGap`]) rather than leave the
@@ -48,10 +49,12 @@
 //! built, and an arc leaves two coincident arcs the census does not read
 //! ([`EdgeInFaceGap::Tangent`], [`EdgeInFaceGap::Curved`]). The reading
 //! finds an edge only where its ends lie on the face, by structure or by
-//! a record, or a record names the pair; an edge it does not find stays
-//! one edge, and the result gate's line reading
-//! ([`crate::census::line_wedges`]) refuses its overlapping wedges
-//! instead.
+//! a record, or an edge-on-face record names the pair and the face holds
+//! the edge's midpoint. An edge it does not find stays one edge: the
+//! result gate's line reading ([`crate::census::line_wedges`]) refuses it
+//! where its wedges overlap another edge's on the line, and it ships
+//! otherwise
+//! (`work/cleave/an-edge-lying-partly-in-a-face-ships-the-rider-form-where-its-midpoint-is-off-the-face.md`).
 //!
 //! The parting is Euler surgery on the result. `mef` in the wall the
 //! edge's plus half runs in mints the second edge, and the two-edge face
@@ -82,16 +85,18 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use geom_brep::curve_pair::{Hit, MeetFault, Span, SpanEnd, meet};
 use geom_core::{Band, Decide, Margin, Point3, Sign, Tol};
 
 use super::ops::{PieceRead, piece_holds};
 use super::{BooleanDecision, BooleanError, Coincide, DeclarationRead};
 use crate::Cell;
 use crate::body::Body;
-use crate::boolean::records::{Contact, ContactKind, ContactRecords};
+use crate::boolean::records::{Contact, ContactKind, ContactPairError, ContactRecords};
 use crate::coincidence::Cited;
 use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 use crate::euler::{FaceSurface, MefSite, MevSite};
+use crate::lineage::{Fusions, LineageRows};
 use crate::live::proven;
 
 /// Why an edge of the result lying in one of its faces is not parted
@@ -100,10 +105,9 @@ use crate::live::proven;
 /// **NOT carried to the façade's curated list, and that is a decision
 /// rather than an omission** (`scripts/payload-rung-sweep.py` names
 /// this rung; the disposition table cites this paragraph as its home).
-/// Every case but two is a construction gap with no lever, and
-/// [`EdgeInFaceGap::Crossed`] and [`EdgeInFaceGap::TwinIncident`] are
-/// kernel defects: nothing a person does
-/// differs by case, and the refusal's sentence names it. A Rust caller
+/// Every case is a construction gap with no lever but the kernel's own
+/// defects ([`EdgeInFaceGap::is_defect`]): nothing a person does differs
+/// by case, and the refusal's sentence names it. A Rust caller
 /// can already name and match it, since `pncad` re-exports `topo`
 /// whole.
 ///
@@ -133,12 +137,24 @@ pub enum EdgeInFaceGap {
     /// the edge's faces go into the material of two faces it lies in.
     Shared,
     /// The edge lies in the face along part of its length and runs on
-    /// past the face's boundary, and the division there is not built
-    /// ([`divide`]): no record names a crossing with the face's
-    /// boundary, a crossed edge is no line, a recorded vertex lies at a
-    /// crossing, or another record names the edge or a crossed edge,
-    /// which a piece would hold.
-    Partly,
+    /// past the face's boundary, and no record names a crossing of the
+    /// two ([`divide`]).
+    Unrecorded,
+    /// A record names a crossing of the edge with an edge of the face's
+    /// boundary that is no line, which [`divide`] does not read.
+    CrossedCurve,
+    /// A record names an edge of the face's boundary on the edge's own
+    /// line, so the two run along each other rather than cross.
+    Overlap,
+    /// A record names the edge, or an edge of the face's boundary it
+    /// crosses, as other than a crossing, a vertex resting on it, or the
+    /// edge lying in the face, so which of the pieces [`divide`] would
+    /// leave holds it is not read.
+    Unplaced,
+    /// Two crossings of the face's boundary, or a crossing and a vertex
+    /// resting on the edge, lie at one point along the edge, which
+    /// [`divide`] would divide it at once.
+    AtACrossing,
     /// An end of the edge touches the face's boundary inside one of its
     /// edges.
     EndOnBoundary,
@@ -157,10 +173,27 @@ pub enum EdgeInFaceGap {
     /// the twin cannot hold the record. The parting never makes that: a
     /// kernel defect.
     TwinIncident,
+    /// A piece of an edge [`divide`] left is read again as running past
+    /// the face it was divided against. The division drops the
+    /// edge-on-face record that read so, and the pieces' ends lie on the
+    /// face by records or not at all: a kernel defect.
+    Redivided,
+    /// A point [`divide`] divided the edge at, where it meets the face's
+    /// boundary, bounds no piece of it read as lying in the face: the
+    /// edge touches a corner of the face from outside, say, which a
+    /// vertex-on-edge record names as it names a crossing.
+    Unjoined,
 }
 
 impl EdgeInFaceGap {
-    /// The words a refusal says it in.
+    /// Whether the case is the kernel's own defect rather than a
+    /// parting not built: no Boolean result holds it.
+    pub const fn is_defect(self) -> bool {
+        matches!(self, Self::Crossed | Self::TwinIncident | Self::Redivided)
+    }
+
+    /// The words a refusal says it in: after "where" for a construction
+    /// gap, after "and" for a defect.
     pub(super) const fn words(self) -> &'static str {
         match self {
             Self::NoNormal => "one of the edge's faces has no normal there to read its side by",
@@ -181,10 +214,18 @@ impl EdgeInFaceGap {
                 "an end the parting would divide touches an edge, which the census does not read \
                  at the end's copies"
             }
-            Self::Partly => {
-                "the edge runs on past the face's boundary where no record names the crossing \
-                 the parting would divide it at, or a record names the edge in a way the \
-                 division does not place on a piece"
+            Self::Unrecorded => {
+                "the edge runs on past the face's boundary and no record names where it crosses it"
+            }
+            Self::CrossedCurve => "the edge crosses the face's boundary at an edge that is no line",
+            Self::Overlap => "the edge runs along an edge of the face's boundary",
+            Self::Unplaced => {
+                "a record names the edge, or an edge of the face's boundary it crosses, in a way \
+                 that puts it on none of the pieces the parting would divide it into"
+            }
+            Self::AtACrossing => {
+                "two of the points the edge would be divided at, where it crosses the face's \
+                 boundary or where a vertex rests on it, lie at one point"
             }
             Self::EndOnBoundary => "an end of the edge touches the inside of an edge of the face",
             Self::Pocket => "both ends of the edge lie on one hole of the face",
@@ -193,6 +234,14 @@ impl EdgeInFaceGap {
             Self::TwinIncident => {
                 "a cell the parting minted is incident to the cell a record of its original \
                  names"
+            }
+            Self::Redivided => {
+                "a piece of the edge, divided where it crosses the face's boundary, is read \
+                 again as running past the face"
+            }
+            Self::Unjoined => {
+                "a point it is divided at, where it meets the face's boundary, bounds no piece of \
+                 it lying in the face"
             }
         }
     }
@@ -217,29 +266,32 @@ pub(super) struct Parted {
     pub(super) copies: Vec<(VertexKey, VertexKey)>,
     /// Each end the parting joined to the vertex of the face's loop on
     /// its point, as `(dead, kept)`.
-    pub(super) fused: Vec<(VertexKey, VertexKey)>,
+    pub(super) fused: Fusions,
 }
 
 /// **Parts every edge of `body` lying in one of its faces whose material
 /// both of the edge's faces leave the line into**, and returns the
 /// records that hold after it: the edge-on-face and vertex-on-face
-/// records the parting makes structure are dropped, and a record of the
-/// edge, or of an end it divides, is held by the twin too.
+/// records the parting makes structure are dropped, a record of a joined
+/// end is its kept vertex's, and a record of the edge, or of an end it
+/// divides, is held by the twin too.
 ///
 /// An edge lies in a face `f` it does not bound where both its ends lie
-/// on `f` — on its loops, or by a vertex-on-face record — or an
-/// edge-on-face record names the pair, and the edge between them lies
-/// in `f`: a line edge whose midpoint `f`, a plane, holds; a conic edge
-/// whose plane is `f`'s and whose midpoint `f` holds. An edge whose
-/// faces both leave the line on `f`'s empty side touches `f` from
-/// outside its wedge, and stays one edge in contact with it.
+/// on `f` ([`riders`]), or an edge-on-face record names the pair, and the
+/// edge between them lies in `f`: a line edge whose midpoint `f`, a
+/// plane, holds; a conic edge whose plane is `f`'s and whose midpoint
+/// `f` holds. One that lies in `f` along part of its length only is
+/// divided where it crosses `f`'s boundary first ([`divide`]), and its
+/// pieces read again. An edge whose faces both leave the line on `f`'s
+/// empty side touches `f` from outside its wedge, and stays one edge in
+/// contact with it.
 ///
 /// # Errors
 ///
 /// [`BooleanError::Escalated`] where a reading is in band;
 /// [`BooleanError::EdgeInFace`] where the parting is not built
-/// ([`EdgeInFaceGap`]); the Euler operators' and the re-description's
-/// refusals.
+/// ([`EdgeInFaceGap`]); the Euler operators', the splits' and the
+/// re-description's refusals.
 pub(super) fn part_riders<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     contacts: &ContactRecords,
@@ -253,23 +305,21 @@ pub(super) fn part_riders<T: Decide + crate::props::AtRestPolicy>(
     // Each parted edge and divided end, and its twin: every contact the
     // one holds the other holds too, at one point or along one line.
     let mut twins: Vec<(Cell, Cell, EdgeKey, FaceKey)> = Vec::new();
-    let mut divided: BTreeSet<FaceKey> = BTreeSet::new();
+    let mut divided_faces: BTreeSet<FaceKey> = BTreeSet::new();
     // The records as the divisions leave them: each crossing a
     // vertex-vertex record between its two vertices.
-    let mut working = contacts.clone();
-    // Each piece a division left: a piece read again as running past a
-    // face refuses rather than divide twice.
-    let mut pieces: BTreeSet<EdgeKey> = BTreeSet::new();
-    // Each division's vertex on the edge at a crossing, with the edge
-    // and face it was read on: each must be joined by a parting.
+    let mut records = contacts.clone();
+    // Each piece a division left, with the face it was divided against.
+    let mut pieces: BTreeSet<(EdgeKey, FaceKey)> = BTreeSet::new();
+    // Each crossing's vertex on the edge a division divided, with the
+    // edge and the face it ran past: each is joined by a parting.
     let mut crossings: Vec<(VertexKey, EdgeKey, FaceKey)> = Vec::new();
-    // Each joined end, dead, and the vertex it was joined to.
-    let mut fused: BTreeMap<VertexKey, VertexKey> = BTreeMap::new();
+    let mut fused = Fusions::new(LineageRows::Fusions);
     // Read again after each parting: a parting that divides a face
     // gives one of its pieces a new key, which a later edge lying in
     // that piece is read against. A record naming a divided face refuses
     // `Recorded` below.
-    while let Some((edge, faces)) = riders(body, &working, band)?
+    while let Some((edge, faces)) = riders(body, &records, band)?
         .into_iter()
         .find(|(e, _)| !read.contains(e))
     {
@@ -299,46 +349,50 @@ pub(super) fn part_riders<T: Decide + crate::props::AtRestPolicy>(
             return Err(refused(EdgeInFaceGap::Curved));
         }
         if partly {
-            if pieces.contains(&edge) {
-                return Err(refused(EdgeInFaceGap::Partly));
+            if pieces.contains(&(edge, face)) {
+                return Err(refused(EdgeInFaceGap::Redivided));
             }
-            let (made, crossed) = divide(body, &mut working, edge, face, band, tol)?;
-            pieces.extend(made);
-            crossings.extend(crossed.into_iter().map(|v| (v, edge, face)));
+            let division = divide(body, &mut records, edge, face, band, tol)?;
+            pieces.extend(division.pieces.into_iter().map(|piece| (piece, face)));
+            crossings.extend(division.crossings.into_iter().map(|v| (v, edge, face)));
             // The edge's key holds its first piece, read again with the
             // others.
             read.remove(&edge);
             continue;
         }
-        let (a, b) = crate::query::edge_ends(body, edge);
-        if [a, b]
+        let (start, end) = crate::query::edge_ends(body, edge);
+        if [start, end]
             .into_iter()
-            .any(|v| touches_boundary_between(body, &working, v, face))
+            .any(|v| touches_boundary_between(body, &records, v, face))
         {
             return Err(refused(EdgeInFaceGap::EndOnBoundary));
         }
-        if [a, b]
+        if [start, end]
             .into_iter()
-            .any(|v| on_face_loops(body, face, v) && touches_an_edge(&working, v))
+            .any(|v| on_face_loops(body, face, v) && touches_an_edge(&records, v))
         {
             return Err(refused(EdgeInFaceGap::DividedEndTouched));
         }
         let mut joined = Vec::new();
-        for v in [a, b] {
+        for v in [start, end] {
             if on_face_loops(body, face, v) {
                 continue;
             }
-            match joins(body, &working, v, face)[..] {
+            match joins(body, &records, v, face)[..] {
                 [] => {}
                 [w] => joined.push((v, w)),
                 _ => return Err(refused(EdgeInFaceGap::Shared)),
             }
         }
         let p = part(body, edge, face, &joined, tol)?;
-        let (a, b) = p.parted.ends;
-        fused.extend(p.parted.fused.iter().copied());
+        fused.extend(&p.parted.fused)?;
+        let (kept_start, kept_end) = p.parted.ends;
         // A record's cells are in canonical order, the lesser first.
-        for c in [Cell::Vertex(a), Cell::Vertex(b), Cell::Edge(edge)] {
+        for c in [
+            Cell::Vertex(kept_start),
+            Cell::Vertex(kept_end),
+            Cell::Edge(edge),
+        ] {
             dropped.insert([c, Cell::Face(face)]);
         }
         twins.push((Cell::Edge(edge), Cell::Edge(p.parted.minted), edge, face));
@@ -349,21 +403,21 @@ pub(super) fn part_riders<T: Decide + crate::props::AtRestPolicy>(
                 .map(|&(copy, of)| (Cell::Vertex(of), Cell::Vertex(copy), edge, face)),
         );
         if p.parted.divided.is_some() {
-            divided.insert(face);
+            divided_faces.insert(face);
         }
         parted.push(p.parted);
     }
     // A crossing no parting joined leaves its two vertices on one point
-    // apart: no piece of the edge was read as lying in the face.
-    if let Some(&(_, edge, face)) = crossings.iter().find(|(v, ..)| !fused.contains_key(v)) {
+    // apart.
+    if let Some(&(_, edge, face)) = crossings.iter().find(|&&(v, ..)| fused.get(v).is_none()) {
         return Err(BooleanError::EdgeInFace {
             edge,
             face,
-            gap: EdgeInFaceGap::Partly,
+            gap: EdgeInFaceGap::Unjoined,
         });
     }
     if parted.is_empty() {
-        return Ok((parted, working));
+        return Ok((parted, records));
     }
     let worklist: Vec<EdgeKey> = parted.iter().flat_map(|p| [p.kept, p.minted]).collect();
     super::ops::describe_edges(body, worklist, &[], band, tol).map_err(super::ops::of_describe)?;
@@ -375,21 +429,21 @@ pub(super) fn part_riders<T: Decide + crate::props::AtRestPolicy>(
         body.movefac(shell)?;
     }
     let mut kept = ContactRecords::default();
-    for row in working.rows() {
+    for row in records.rows() {
         let [x, y] = row.record.cells();
         let settle = |c: Cell| match c {
-            Cell::Vertex(v) => Cell::Vertex(fused.get(&v).copied().unwrap_or(v)),
+            Cell::Vertex(v) => Cell::Vertex(fused.survivor(v)),
             c => c,
         };
         // A record of a joined end is the kept vertex's; one the joint
-        // made structure (the two vertices one, or one bounding the
-        // other) is dropped.
+        // made structure, the two vertices one or one bounding the other,
+        // is dropped.
         let record = if (settle(x), settle(y)) == (x, y) {
             row.record
         } else {
             match Contact::new(body, settle(x), settle(y)) {
                 Ok(contact) => contact,
-                Err(_) => continue,
+                Err(ContactPairError::OneCell(_) | ContactPairError::Incident(_)) => continue,
             }
         };
         let cells = record.cells();
@@ -398,7 +452,10 @@ pub(super) fn part_riders<T: Decide + crate::props::AtRestPolicy>(
         }
         // A face the parting divided holds a record's cell on one of its
         // pieces, which nothing here reads.
-        if let Some(&face) = divided.iter().find(|&&f| cells.contains(&Cell::Face(f))) {
+        if let Some(&face) = divided_faces
+            .iter()
+            .find(|&&f| cells.contains(&Cell::Face(f)))
+        {
             let edge = parted
                 .iter()
                 .find(|p| p.face == face)
@@ -544,27 +601,11 @@ fn riders<T: Decide>(
     contacts: &ContactRecords,
     band: Band,
 ) -> Result<Vec<(EdgeKey, Vec<Holding>)>, BooleanError> {
-    let mut vf: BTreeSet<(VertexKey, FaceKey)> = BTreeSet::new();
-    let mut ef: BTreeSet<(EdgeKey, FaceKey)> = BTreeSet::new();
-    let mut vv: BTreeSet<(VertexKey, VertexKey)> = BTreeSet::new();
-    for row in contacts.rows() {
-        match row.record.kind() {
-            ContactKind::VertexFace(v, f) => {
-                vf.insert((v, f));
-            }
-            ContactKind::EdgeFace(e, f) => {
-                ef.insert((e, f));
-            }
-            ContactKind::VertexVertex(v, w) => {
-                vv.extend([(v, w), (w, v)]);
-            }
-            _ => {}
-        }
-    }
+    let vf: BTreeSet<(VertexKey, FaceKey)> = contacts.vertex_face().collect();
+    let ef: BTreeSet<(EdgeKey, FaceKey)> = contacts.edge_face().collect();
     let on = |v: VertexKey| -> BTreeSet<FaceKey> {
-        let partners = vv.iter().filter(|&&(x, _)| x == v).map(|&(_, w)| w);
         core::iter::once(v)
-            .chain(partners)
+            .chain(partners(contacts, v))
             .flat_map(|x| body.faces_of_vertex(x).unwrap_or_default())
             .chain(vf.iter().filter(|&&(w, _)| w == v).map(|&(_, f)| f))
             .collect()
@@ -646,7 +687,19 @@ fn lies_in<T: Decide>(
         }
         _ => return Ok(false),
     };
-    Ok(matches!(piece_holds(body, f, mid, band)?, PieceRead::In))
+    match piece_holds(body, f, mid, band) {
+        Ok(read) => Ok(matches!(read, PieceRead::In)),
+        // In band, the question is whether the face holds the edge's
+        // midpoint, not the carry's check `piece_holds` names.
+        Err(BooleanError::Escalated { diag, .. }) => Err(BooleanError::Escalated {
+            decision: BooleanDecision::Containment {
+                decision: None,
+                escalation: crate::splitting::Escalation::Margin,
+            },
+            diag,
+        }),
+        Err(refusal) => Err(refusal),
+    }
 }
 
 /// Whether both faces of edge `e` leave its line on the material side of
@@ -817,15 +870,15 @@ fn part<T: Decide + crate::props::AtRestPolicy>(
         .get_curve_geom(data.curve)
         .and_then(|c| c.certified())
         .cloned();
-    let (a, b) = crate::query::edge_ends(body, edge);
+    let (start, end) = crate::query::edge_ends(body, edge);
     let wall = body.face_of_half_edge(h).ok_or_else(desync)?;
     let surfaces = [face, wall].map(|f| body.get_face(f).map(|d| d.surface));
     let [Some(floor_surface), Some(wall_surface)] = surfaces else {
         return Err(desync());
     };
-    let (pa, pb) = crate::readback::vertex_point(body, a)
+    let (pa, pb) = crate::readback::vertex_point(body, start)
         .ok()
-        .zip(crate::readback::vertex_point(body, b).ok())
+        .zip(crate::readback::vertex_point(body, end).ok())
         .ok_or_else(desync)?;
     // A line edge (an arc refuses `Curved` before parting): the draft
     // draws the chord between the ends, its own spec.
@@ -842,20 +895,13 @@ fn part<T: Decide + crate::props::AtRestPolicy>(
         FaceSurface::Inherit,
         tol,
     )?;
-    // The two-edge face: `h` from `a` to `b`, the minted minus half back.
+    // The two-edge face: `h` from `start` to `end`, the minted minus half
+    // back.
     let gusset = made.face;
-    let tip_out = |v: VertexKey| if v == a { h } else { made.he_minus };
-    let on_loops = |body: &Body<T>, v: VertexKey| -> Result<Vec<HalfEdgeKey>, BooleanError> {
-        let leaving: Vec<HalfEdgeKey> = face_halves(body, face)
-            .ok_or_else(desync)?
-            .into_iter()
-            .filter(|&he| proven(&body.half_edges, he, EntityId::HalfEdge).start == v)
-            .collect();
-        Ok(leaving)
-    };
+    let tip_out = |v: VertexKey| if v == start { h } else { made.he_minus };
     let mut boundary: Vec<(VertexKey, HalfEdgeKey)> = Vec::new();
-    for v in [a, b] {
-        match on_loops(body, v)?.as_slice() {
+    for v in [start, end] {
+        match loop_leaving(body, face, v).as_slice() {
             [] => {}
             [he] => boundary.push((v, *he)),
             _ => return Err(refused(EdgeInFaceGap::Shared)),
@@ -918,32 +964,20 @@ fn part<T: Decide + crate::props::AtRestPolicy>(
     // Each joined end: a joint from the face's vertex to the end, across
     // the two loops they lie on or, the last of a slit both of whose ends
     // reach the face's outline, across the one, which parts the face.
-    let mut fused = Vec::new();
+    let mut fused = Fusions::new(LineageRows::Fusions);
     for &(v, w) in joined {
-        let leaving = |body: &Body<T>, x: VertexKey| match on_loops(body, x)?.as_slice() {
+        let leaving = |x: VertexKey| match loop_leaving(body, face, x).as_slice() {
             [he] => Ok(*he),
             _ => Err(refused(EdgeInFaceGap::Shared)),
         };
-        let (hw, hv) = (leaving(body, w)?, leaving(body, v)?);
-        let loop_of =
-            |he: HalfEdgeKey| proven(&body.half_edges, he, EntityId::HalfEdge).parent_loop;
+        let (hw, hv) = (leaving(w)?, leaving(v)?);
+        let joint = super::zip::Joint::between(body, hw, hv).ok_or_else(desync)?;
         let outer = body.get_face(face).ok_or_else(desync)?.outer;
-        let joint = if loop_of(hw) == loop_of(hv) {
-            if loop_of(hw) != outer {
-                return Err(refused(EdgeInFaceGap::Pocket));
-            }
-            super::zip::Joint::Chord { he1: hw, he2: hv }
-        } else if loop_of(hv) == outer {
-            super::zip::Joint::Loops {
-                target: hv,
-                ring: hw,
-            }
-        } else {
-            super::zip::Joint::Loops {
-                target: hw,
-                ring: hv,
-            }
-        };
+        if matches!(joint, super::zip::Joint::Chord { .. })
+            && proven(&body.half_edges, hw, EntityId::HalfEdge).parent_loop != outer
+        {
+            return Err(refused(EdgeInFaceGap::Pocket));
+        }
         let p = crate::readback::vertex_point(body, w).map_err(|_| desync())?;
         fused.push(super::zip::fuse_by_joint(
             body,
@@ -951,7 +985,7 @@ fn part<T: Decide + crate::props::AtRestPolicy>(
             (p, w),
             joint_desync,
             tol,
-        )?);
+        )?)?;
     }
     // A joint across one loop parted the face: the line's two sides lie
     // in its two pieces.
@@ -960,256 +994,269 @@ fn part<T: Decide + crate::props::AtRestPolicy>(
     if divided.is_none() && sides[0] != sides[1] {
         divided = sides.into_iter().find(|&f| f != face);
     }
-    let settle = |v: VertexKey| {
-        fused
-            .iter()
-            .find(|&&(dead, _)| dead == v)
-            .map_or(v, |&(_, kept)| kept)
-    };
     Ok(Parting {
         parted: Parted {
             kept: edge,
             minted: made.edge,
             face,
             divided,
-            ends: (settle(a), settle(b)),
+            ends: (fused.survivor(start), fused.survivor(end)),
             copies,
             fused,
         },
     })
 }
 
+/// What [`divide`] left: the edge's pieces, the edge's key holding the
+/// first, and its vertex at each crossing.
+struct Division {
+    pieces: Vec<EdgeKey>,
+    crossings: Vec<VertexKey>,
+}
+
 /// **Divides `edge`, lying in `face` along part of its length, and each
-/// edge of `face`'s loops it crosses**, at each crossing an edge-edge
-/// record of the two names: one point, read once off the two lines and
-/// held by both new vertices, so the joint that fuses them
-/// ([`part`]) certifies. Where it crosses at a vertex of the loops, a
-/// vertex-on-edge record names it, and the edge alone is divided, at the
-/// vertex's own point. Each such record becomes a vertex-vertex record
-/// of its two vertices, citing what it cited; a vertex-on-edge
-/// record of a divided edge goes to the piece holding the vertex, read
-/// against the crossings along the line; and the edge's edge-on-face
-/// record with `face` is dropped: the piece lying in `face` has both
-/// ends on it, and [`riders`] reads it by them. Returns the edge's
-/// pieces and its vertices at the crossings.
+/// edge of `face`'s loops it crosses**, where a record names a crossing:
+/// an edge-edge record of the edge and an edge of the loops, read where
+/// the two lines meet ([`geom_brep::curve_pair::meet`]), both divided
+/// there and their new vertices holding the meeting's point; or a
+/// vertex-on-edge record of a vertex of the loops, the edge alone divided
+/// at the vertex's own point. Each such record becomes a vertex-vertex
+/// record of the crossing's two vertices, citing what it cited, which
+/// the parting joins ([`part`]); a vertex-on-edge record of a divided
+/// edge goes to the piece holding the vertex, ordered against the
+/// crossings along the line ([`BooleanDecision::PartingOrder`]); and the
+/// edge's edge-on-face record with `face` is dropped: the piece lying in
+/// `face` has both ends on it, and [`riders`] reads it by them.
 ///
 /// # Errors
 ///
-/// [`EdgeInFaceGap::Partly`] where no record names a crossing with the
-/// face's boundary, a crossed edge is no line, a recorded vertex lies at
-/// a crossing, or a record other than these names the edge or a crossed
-/// edge; [`BooleanError::Escalated`] where an order along the line is in
-/// band; the split's refusals, a crossing outside either edge's span
-/// among them.
+/// [`BooleanError::EdgeInFace`] where the division is not built:
+/// [`EdgeInFaceGap::Unrecorded`], [`EdgeInFaceGap::CrossedCurve`],
+/// [`EdgeInFaceGap::Overlap`], [`EdgeInFaceGap::Unplaced`],
+/// [`EdgeInFaceGap::AtACrossing`], and [`EdgeInFaceGap::EndOnBoundary`]
+/// where a crossing is the edge's own end; [`BooleanError::Escalated`]
+/// where the meeting of the two lines, a vertex on a line, or an order
+/// along one is in band; [`BooleanError::ClassificationInvariant`] where
+/// the meeting of two lines reads no closed form; the splits' refusals.
 fn divide<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
-    working: &mut ContactRecords,
+    records: &mut ContactRecords,
     edge: EdgeKey,
     face: FaceKey,
     band: Band,
     tol: Tol,
-) -> Result<(Vec<EdgeKey>, Vec<VertexKey>), BooleanError> {
-    let refused = || BooleanError::EdgeInFace {
-        edge,
-        face,
-        gap: EdgeInFaceGap::Partly,
-    };
+) -> Result<Division, BooleanError> {
+    let refused = |gap| BooleanError::EdgeInFace { edge, face, gap };
     let desync = || BooleanError::JoinDesync {
         what: "an edge running past a face does not resolve",
     };
-    // The sign of `a − b` along a line, as a split orders two crossings
-    // on an edge; one point divides nothing between them.
-    let order = |a: T, b: T| match crate::validate::decide(
-        "split_conic_root_order",
-        Margin::of(a - b),
-        band,
-    ) {
-        Ok(Sign::Zero) => Err(refused()),
-        Ok(sign) => Ok(sign == Sign::Positive),
-        Err(diag) => Err(BooleanError::Escalated {
-            decision: BooleanDecision::Crossing(crate::splitting::CrossingDecision::Order),
-            diag,
-        }),
-    };
-    let boundary: BTreeSet<EdgeKey> = face_halves(body, face)
-        .ok_or_else(desync)?
-        .into_iter()
-        .filter_map(|he| body.get_half_edge(he).map(|h| h.edge))
-        .collect();
-    // Each crossing's record, and the cell of the loops crossed.
-    let mut crossed: Vec<(usize, Cell)> = Vec::new();
-    for (k, row) in working.rows().iter().enumerate() {
-        match row.record.kind() {
-            ContactKind::EdgeEdge(x, g) | ContactKind::EdgeEdge(g, x)
-                if x == edge && boundary.contains(&g) =>
+    let boundary = face_edges(body, face);
+    let (carrier, span) = line_of(body, edge).ok_or_else(desync)?;
+    let along = Span::new(&carrier, span);
+    // The crossings, as their records name them.
+    let mut crossings: Vec<Crossing<T>> = Vec::new();
+    for row in records.rows() {
+        let named = row.record.cells();
+        let crossing = match row.record.kind() {
+            ContactKind::EdgeEdge(x, y) if x == edge || y == edge => {
+                let crossed = if x == edge { y } else { x };
+                if !boundary.contains(&crossed) {
+                    continue;
+                }
+                let (other, other_span) =
+                    line_of(body, crossed).ok_or_else(|| refused(EdgeInFaceGap::CrossedCurve))?;
+                let met = meet(&along, &Span::new(&other, other_span), band)
+                    .map_err(|r| meet_refused(r.fault))?;
+                if met.shared.is_some() {
+                    return Err(refused(EdgeInFaceGap::Overlap));
+                }
+                let [m] = met.points[..] else {
+                    return Err(refused(EdgeInFaceGap::Unrecorded));
+                };
+                let Hit::On { t, .. } = m.on_a else {
+                    return Err(refused(EdgeInFaceGap::EndOnBoundary));
+                };
+                let crossed = match m.on_b {
+                    Hit::On { t: on_crossed, .. } => Crossed::Edge(crossed, on_crossed),
+                    Hit::End(which) => {
+                        let (first, last) = crate::query::edge_ends(body, crossed);
+                        Crossed::Corner(match which {
+                            SpanEnd::Start => first,
+                            SpanEnd::Stop => last,
+                        })
+                    }
+                };
+                Crossing {
+                    at: t,
+                    point: m.point,
+                    crossed,
+                    named: vec![named],
+                }
+            }
+            ContactKind::VertexEdge(corner, e)
+                if e == edge && on_face_loops(body, face, corner) =>
             {
-                crossed.push((k, Cell::Edge(g)));
+                let point = crate::readback::vertex_point(body, corner).map_err(|_| desync())?;
+                Crossing {
+                    at: on_line(&along, point, band, refused(EdgeInFaceGap::Unplaced))?,
+                    point,
+                    crossed: Crossed::Corner(corner),
+                    named: vec![named],
+                }
             }
-            ContactKind::VertexEdge(w, x) if x == edge && on_face_loops(body, face, w) => {
-                crossed.push((k, Cell::Vertex(w)));
-            }
-            _ => {}
-        }
-    }
-    if crossed.is_empty() {
-        return Err(refused());
-    }
-    let divided: BTreeSet<EdgeKey> = crossed
-        .iter()
-        .filter_map(|&(_, c)| match c {
-            Cell::Edge(g) => Some(g),
-            _ => None,
-        })
-        .chain([edge])
-        .collect();
-    // Each vertex a record puts inside a divided edge, by the record.
-    let mut touching: Vec<(usize, VertexKey, EdgeKey)> = Vec::new();
-    for (k, row) in working.rows().iter().enumerate() {
-        match row.record.kind() {
-            _ if crossed.iter().any(|&(c, _)| c == k) => {}
-            ContactKind::VertexEdge(v, e) if divided.contains(&e) => touching.push((k, v, e)),
-            ContactKind::EdgeFace(x, f) if x == edge && f == face => {}
-            _ if divided
-                .iter()
-                .any(|&e| row.record.cells().contains(&Cell::Edge(e))) =>
-            {
-                return Err(refused());
-            }
-            _ => {}
-        }
-    }
-    let line = |body: &Body<T>, e: EdgeKey| match body
-        .get_edge(e)
-        .and_then(|d| body.get_curve_geom(d.curve))
-        .and_then(|c| c.certified())
-    {
-        Some(c) => match *c.carrier() {
-            geom::Curve3::Line { origin, dir } => Some((origin, dir, c.params())),
-            _ => None,
-        },
-        None => None,
-    };
-    let half = T::from_f64(0.5);
-    // A point's parameter on `e`'s line, anchored inside its span.
-    let param = |body: &Body<T>, e: EdgeKey, p: Point3<T>| {
-        let (origin, dir, (s0, s1)) = line(body, e).ok_or_else(refused)?;
-        geom::Curve3::Line { origin, dir }
-            .param_near(p, (s0 + s1) * half)
-            .ok_or_else(refused)
-    };
-    let (o, d, _) = line(body, edge).ok_or_else(refused)?;
-    let mut at = Vec::new();
-    for &(record, cell) in &crossed {
-        let (point, crossed) = match cell {
-            Cell::Edge(g) => {
-                let (og, dg, _) = line(body, g).ok_or_else(refused)?;
-                // The closest points of two lines meeting: `o + t·d`
-                // with `t = (b·e − c·f) / (a·c − b²)` over `w = o − og`.
-                let w = o - og;
-                let (a, b, c) = (d.dot(d), d.dot(dg), dg.dot(dg));
-                let (f, e) = (d.dot(w), dg.dot(w));
-                let p = o + d * ((b * e - c * f) / (a * c - b.powi(2)));
-                (p, Crossed::Edge(g, param(body, g, p)?))
-            }
-            Cell::Vertex(w) => (
-                crate::readback::vertex_point(body, w).map_err(|_| desync())?,
-                Crossed::Corner(w),
-            ),
-            Cell::Face(_) => return Err(desync()),
+            _ => continue,
         };
-        at.push(Crossing {
-            at: param(body, edge, point)?,
-            point,
-            crossed,
-            record,
-        });
+        // A corner two records name is one crossing.
+        match crossings
+            .iter_mut()
+            .find(|c| matches!((c.crossed, crossing.crossed), (Crossed::Corner(a), Crossed::Corner(b)) if a == b))
+        {
+            Some(same) => same.named.extend(crossing.named),
+            None => crossings.push(crossing),
+        }
     }
+    if crossings.is_empty() {
+        return Err(refused(EdgeInFaceGap::Unrecorded));
+    }
+    let crossed_edges: BTreeSet<EdgeKey> = crossings
+        .iter()
+        .filter_map(|c| match c.crossed {
+            Crossed::Edge(g, _) => Some(g),
+            Crossed::Corner(_) => None,
+        })
+        .collect();
+    let divided = |e: EdgeKey| e == edge || crossed_edges.contains(&e);
     // The edge keeps `[t0, t]` at each split, so the crossings go from
     // its far end back.
     let mut ordered: Vec<Crossing<T>> = Vec::new();
-    for crossing in at {
+    for crossing in crossings {
         let mut slot = ordered.len();
         for (k, placed) in ordered.iter().enumerate() {
-            if order(crossing.at, placed.at)? {
+            if parting_order(
+                crossing.at,
+                placed.at,
+                band,
+                refused(EdgeInFaceGap::AtACrossing),
+            )? {
                 slot = k;
                 break;
             }
         }
         ordered.insert(slot, crossing);
     }
-    // Where each recorded vertex lies: on the edge, after how many of
-    // its crossings; on a crossed edge, past its crossing or not. Read
-    // before any split, on the undivided lines.
-    let mut placed: BTreeMap<usize, (EdgeKey, usize)> = BTreeMap::new();
-    for &(k, v, e) in &touching {
-        let p = crate::readback::vertex_point(body, v).map_err(|_| desync())?;
-        let t = param(body, e, p)?;
-        let past = if e == edge {
-            let mut n = 0;
-            for crossing in &ordered {
-                n += usize::from(order(t, crossing.at)?);
+    // Each vertex a record rests on a divided edge, by the record, with
+    // the index along that edge of the piece holding it: on the edge,
+    // how many crossings it lies past; on a crossed edge, whether it lies
+    // past its crossing. Read before any split, on the undivided lines.
+    let mut resting: BTreeMap<[Cell; 2], Resting> = BTreeMap::new();
+    let edge_face = Contact::of(Cell::Edge(edge), Cell::Face(face))
+        .ok()
+        .map(Contact::cells);
+    for row in records.rows() {
+        let named = row.record.cells();
+        if ordered.iter().any(|c| c.named.contains(&named)) || Some(named) == edge_face {
+            continue;
+        }
+        match row.record.kind() {
+            ContactKind::VertexEdge(vertex, on) if divided(on) => {
+                let point = crate::readback::vertex_point(body, vertex).map_err(|_| desync())?;
+                let past = if on == edge {
+                    let t = on_line(&along, point, band, refused(EdgeInFaceGap::Unplaced))?;
+                    let mut past = 0;
+                    for crossing in &ordered {
+                        past += usize::from(parting_order(
+                            t,
+                            crossing.at,
+                            band,
+                            refused(EdgeInFaceGap::AtACrossing),
+                        )?);
+                    }
+                    past
+                } else {
+                    let (other, other_span) = line_of(body, on).ok_or_else(desync)?;
+                    let t = on_line(
+                        &Span::new(&other, other_span),
+                        point,
+                        band,
+                        refused(EdgeInFaceGap::Unplaced),
+                    )?;
+                    let crossing = ordered
+                        .iter()
+                        .find_map(|c| match c.crossed {
+                            Crossed::Edge(g, at) if g == on => Some(at),
+                            _ => None,
+                        })
+                        .ok_or_else(desync)?;
+                    usize::from(parting_order(
+                        t,
+                        crossing,
+                        band,
+                        refused(EdgeInFaceGap::AtACrossing),
+                    )?)
+                };
+                resting.insert(named, Resting { vertex, on, past });
             }
-            n
-        } else {
-            let tg = ordered
+            _ if named
                 .iter()
-                .find_map(|c| match c.crossed {
-                    Crossed::Edge(g, tg) if g == e => Some(tg),
-                    _ => None,
-                })
-                .ok_or_else(desync)?;
-            usize::from(order(t, tg)?)
-        };
-        placed.insert(k, (e, past));
+                .any(|&c| matches!(c, Cell::Edge(e) if divided(e))) =>
+            {
+                return Err(refused(EdgeInFaceGap::Unplaced));
+            }
+            _ => {}
+        }
     }
     let mut pieces = vec![edge];
     let mut ends = Vec::new();
-    let mut pairs: BTreeMap<usize, (VertexKey, VertexKey)> = BTreeMap::new();
+    // Each crossing's two vertices, by the records naming it.
+    let mut joined: Vec<(Vec<[Cell; 2]>, VertexKey, VertexKey)> = Vec::new();
     // Each divided edge's pieces along it, from its start.
-    let mut along: BTreeMap<EdgeKey, Vec<EdgeKey>> = BTreeMap::new();
+    let mut along_pieces: BTreeMap<EdgeKey, Vec<EdgeKey>> = BTreeMap::new();
     for crossing in &ordered {
-        let p = crossing.point;
-        let w = match crossing.crossed {
-            Crossed::Edge(g, tg) => {
-                let on_g = body.split_edge_onto(g, tg, p, tol)?;
-                along.insert(g, vec![g, on_g.new_edge]);
-                on_g.vertex
+        let on_boundary = match crossing.crossed {
+            Crossed::Edge(g, at) => {
+                let split = body.split_edge_onto(g, at, crossing.point, tol)?;
+                along_pieces.insert(g, vec![g, split.new_edge]);
+                split.vertex
             }
-            Crossed::Corner(w) => w,
+            Crossed::Corner(corner) => corner,
         };
-        let on_edge = body.split_edge_onto(edge, crossing.at, p, tol)?;
-        pieces.push(on_edge.new_edge);
-        ends.push(on_edge.vertex);
-        pairs.insert(crossing.record, (on_edge.vertex, w));
+        let split = body.split_edge_onto(edge, crossing.at, crossing.point, tol)?;
+        pieces.push(split.new_edge);
+        ends.push(split.vertex);
+        joined.push((crossing.named.clone(), split.vertex, on_boundary));
     }
-    along.insert(
+    along_pieces.insert(
         edge,
         core::iter::once(edge)
             .chain(pieces[1..].iter().rev().copied())
             .collect(),
     );
-    let mut rows = ContactRecords::default();
-    for (k, row) in working.rows().iter().enumerate() {
-        let record = if let Some(&(x, y)) = pairs.get(&k) {
-            Contact::new(body, Cell::Vertex(x), Cell::Vertex(y))
-        } else if let Some(&(e, past)) = placed.get(&k) {
-            let (_, v, _) = touching
-                .iter()
-                .find(|&&(j, ..)| j == k)
-                .copied()
+    let mut rewritten = ContactRecords::default();
+    for row in records.rows() {
+        let named = row.record.cells();
+        let record = if let Some((_, on_edge, on_boundary)) =
+            joined.iter().find(|(n, ..)| n.contains(&named))
+        {
+            Contact::new(body, Cell::Vertex(*on_edge), Cell::Vertex(*on_boundary))
+        } else if let Some(rest) = resting.get(&named) {
+            let piece = along_pieces
+                .get(&rest.on)
+                .and_then(|p| p.get(rest.past))
                 .ok_or_else(desync)?;
-            let piece = along.get(&e).and_then(|p| p.get(past)).ok_or_else(desync)?;
-            Contact::new(body, Cell::Vertex(v), Cell::Edge(*piece))
-        } else if row.record.kind() == ContactKind::EdgeFace(edge, face) {
+            Contact::new(body, Cell::Vertex(rest.vertex), Cell::Edge(*piece))
+        } else if Some(named) == edge_face {
             continue;
         } else {
-            rows.push(row.clone());
+            rewritten.push(row.clone());
             continue;
         };
-        rows.push(Cited::new(record.map_err(|_| desync())?, row.cites.clone()));
+        rewritten.push(Cited::new(record.map_err(|_| desync())?, row.cites.clone()));
     }
-    *working = rows;
-    Ok((pieces, ends))
+    *records = rewritten;
+    Ok(Division {
+        pieces,
+        crossings: ends,
+    })
 }
 
 /// Where an edge running past a face crosses the face's loops
@@ -1221,16 +1268,109 @@ struct Crossing<T: geom_core::Real> {
     point: Point3<T>,
     /// What the edge crosses.
     crossed: Crossed<T>,
-    /// The record naming the crossing, by its index.
-    record: usize,
+    /// The records naming the crossing, by their cells.
+    named: Vec<[Cell; 2]>,
 }
 
 /// The cell of a face's loops an edge crosses ([`Crossing`]).
+#[derive(Clone, Copy)]
 enum Crossed<T> {
     /// A vertex of the loops.
     Corner(VertexKey),
     /// An edge of the loops, with its parameter at the crossing.
     Edge(EdgeKey, T),
+}
+
+/// A vertex a record rests on an edge [`divide`] divides, and the index
+/// along that edge of the piece holding it.
+struct Resting {
+    vertex: VertexKey,
+    on: EdgeKey,
+    past: usize,
+}
+
+/// An edge's line carrier and its span, `None` for any other carrier.
+fn line_of<T: Decide>(body: &Body<T>, e: EdgeKey) -> Option<(geom::Curve3<T>, (T, T))> {
+    let curve = body
+        .get_edge(e)
+        .and_then(|d| body.get_curve_geom(d.curve))
+        .and_then(|c| c.certified())?;
+    matches!(curve.carrier(), geom::Curve3::Line { .. })
+        .then(|| (curve.carrier().clone(), curve.params()))
+}
+
+/// Where `point` sits inside `span`: its parameter there, or `outside`
+/// where it reads off the span or at an end of it.
+///
+/// # Errors
+///
+/// `outside` as above; [`BooleanError::Escalated`] where the reading is
+/// in band.
+fn on_line<T: Decide>(
+    span: &Span<'_, T>,
+    point: Point3<T>,
+    band: Band,
+    outside: BooleanError,
+) -> Result<T, BooleanError> {
+    let (t0, t1) = span.params();
+    match span.contact(point, geom::mid_param(t0, t1), band) {
+        Ok(Some(Hit::On { t, .. })) => Ok(t),
+        Ok(Some(Hit::End(_)) | None) => Err(outside),
+        Err(geom::CarrierRefusal::Escalated(diag) | geom::CarrierRefusal::Straddle(diag)) => {
+            Err(crossing_escalated(diag))
+        }
+        Err(geom::CarrierRefusal::Exhausted | geom::CarrierRefusal::Unbounded) => Err(outside),
+    }
+}
+
+/// Whether `a` lies past `b` along an edge [`divide`] divides
+/// ([`BooleanDecision::PartingOrder`]), two parameters of its line.
+///
+/// # Errors
+///
+/// `at_one_point` ([`EdgeInFaceGap::AtACrossing`]) where the two are one
+/// point; [`BooleanError::Escalated`] where the order is in band.
+fn parting_order<T: Decide>(
+    a: T,
+    b: T,
+    band: Band,
+    at_one_point: BooleanError,
+) -> Result<bool, BooleanError> {
+    match crate::validate::decide(PARTING_ORDER, Margin::of(a - b), band) {
+        Ok(Sign::Positive) => Ok(true),
+        Ok(Sign::Negative) => Ok(false),
+        Ok(Sign::Zero) => Err(at_one_point),
+        Err(diag) => Err(BooleanError::Escalated {
+            decision: BooleanDecision::PartingOrder,
+            diag,
+        }),
+    }
+}
+
+/// The site [`parting_order`] decides under.
+pub(super) const PARTING_ORDER: &str = "bool_parting_order";
+
+/// An in-band reading of where a crossing lies on an edge, or where two
+/// lines meet.
+fn crossing_escalated(diag: geom_core::Indeterminate) -> BooleanError {
+    BooleanError::Escalated {
+        decision: BooleanDecision::Crossing(crate::splitting::CrossingDecision::OnEdge),
+        diag,
+    }
+}
+
+/// [`divide`]'s refusal of a meeting of two lines.
+fn meet_refused(fault: MeetFault) -> BooleanError {
+    match fault {
+        MeetFault::Escalated(diag) => crossing_escalated(diag),
+        // Two lines meet in closed form, with no root finder or walk.
+        MeetFault::Unsettled(_)
+        | MeetFault::Unsupported { .. }
+        | MeetFault::Desync
+        | MeetFault::Contradiction { .. } => BooleanError::ClassificationInvariant {
+            what: "the meeting of two straight edges read no closed form",
+        },
+    }
 }
 
 /// A joint the parting made that no longer resolves.
@@ -1246,22 +1386,25 @@ fn touches_boundary_between<T: Decide>(
     v: VertexKey,
     face: FaceKey,
 ) -> bool {
-    let Some(halves) = face_halves(body, face) else {
-        return false;
-    };
-    let on_loop = |w: VertexKey| {
-        halves
-            .iter()
-            .any(|&he| body.get_half_edge(he).is_some_and(|h| h.start == w))
-    };
-    if on_loop(v) {
+    if on_face_loops(body, face, v) {
         return false;
     }
-    contacts.rows().iter().any(|row| match row.record.kind() {
-        ContactKind::VertexEdge(x, g) if x == v => halves
-            .iter()
-            .any(|&he| body.get_half_edge(he).is_some_and(|h| h.edge == g)),
-        _ => false,
+    let boundary = face_edges(body, face);
+    contacts
+        .vertex_edge()
+        .any(|(x, g)| x == v && boundary.contains(&g))
+}
+
+/// The vertices a vertex-vertex record puts on `v`'s point.
+fn partners(contacts: &ContactRecords, v: VertexKey) -> impl Iterator<Item = VertexKey> + '_ {
+    contacts.vertex_vertex().filter_map(move |(x, y)| {
+        if x == v {
+            Some(y)
+        } else if y == v {
+            Some(x)
+        } else {
+            None
+        }
     })
 }
 
@@ -1274,33 +1417,38 @@ fn joins<T: Decide>(
     v: VertexKey,
     face: FaceKey,
 ) -> Vec<VertexKey> {
-    contacts
-        .rows()
-        .iter()
-        .filter_map(|row| match row.record.kind() {
-            ContactKind::VertexVertex(x, y) if x == v => Some(y),
-            ContactKind::VertexVertex(x, y) if y == v => Some(x),
-            _ => None,
-        })
+    partners(contacts, v)
         .filter(|&w| on_face_loops(body, face, w))
         .collect()
 }
 
 /// Whether a loop of `face` passes through `v`.
 fn on_face_loops<T: Decide>(body: &Body<T>, face: FaceKey, v: VertexKey) -> bool {
-    face_halves(body, face).is_some_and(|halves| {
-        halves
-            .iter()
-            .any(|&he| body.get_half_edge(he).is_some_and(|h| h.start == v))
-    })
+    !loop_leaving(body, face, v).is_empty()
+}
+
+/// The half-edges of `face`'s loops leaving `v`: one per pass of a loop
+/// through it.
+fn loop_leaving<T: Decide>(body: &Body<T>, face: FaceKey, v: VertexKey) -> Vec<HalfEdgeKey> {
+    face_halves(body, face)
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|&he| body.get_half_edge(he).is_some_and(|h| h.start == v))
+        .collect()
+}
+
+/// The edges of `face`'s loops.
+fn face_edges<T: Decide>(body: &Body<T>, face: FaceKey) -> BTreeSet<EdgeKey> {
+    face_halves(body, face)
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|he| body.get_half_edge(he).map(|h| h.edge))
+        .collect()
 }
 
 /// Whether a record puts `v` inside an edge.
 fn touches_an_edge(contacts: &ContactRecords, v: VertexKey) -> bool {
-    contacts
-        .rows()
-        .iter()
-        .any(|row| matches!(row.record.kind(), ContactKind::VertexEdge(x, _) if x == v))
+    contacts.vertex_edge().any(|(x, _)| x == v)
 }
 
 /// Every half-edge of `face`'s loops.

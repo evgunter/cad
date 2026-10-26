@@ -332,7 +332,7 @@ struct Closed<'a> {
 ///   the prism's edge lies in the third's face along part of its length,
 ///   crossing the face's boundary at its corner on the plate's top, and
 ///   runs along the line body's own coincident edges there, whose
-///   edge-edge records the division does not place (`Partly`;
+///   edge-edge records the division does not place (`Unplaced`;
 ///   `work/cleave/an-edge-running-past-a-face-along-coincident-edges-is-not-divided.md`).
 ///   At its midpoint, from the face's own direction round into it, the
 ///   material is solid to 30°, empty to 80°, solid to 180°, empty to
@@ -773,34 +773,23 @@ fn the_line_less_the_moved_bridge_passes_three_prime_with_its_records() {
             "{what}: tier 3′"
         );
         // The bridge's line, x = 1.51 on y = 1: two edges from the face's
-        // bottom edge (z = 1) to the bridge's top corner, one below.
-        let on_line = |p: Point3<f64>| (p.x - 1.51).abs() < 1e-9 && (p.y - 1.0).abs() < 1e-9;
-        let mut spans = Vec::new();
-        for (_, edge) in r.body.edges() {
-            let plus = edge.he_plus;
-            let a = r.body.get_half_edge(plus).unwrap().start;
-            let b = r.body.half_edge_end(plus).unwrap();
-            let [pa, pb] = [a, b].map(|v| topo::readback::vertex_point(&r.body, v).unwrap());
-            if on_line(pa) && on_line(pb) {
-                let (lo, hi) = (pa.z.min(pb.z), pa.z.max(pb.z));
-                spans.push(((lo * 1e6).round() / 1e6, (hi * 1e6).round() / 1e6));
-            }
-        }
-        spans.sort_by(|x, y| x.partial_cmp(y).unwrap());
+        // bottom edge (z = 1) to the bridge's top corner, one below, and
+        // one vertex at the crossing.
+        let (spans, vertices) = topo::test_support::along_line(
+            &r.body,
+            Point3::new(1.51, 1.0, 0.0),
+            geom_core::Vec3::new(0.0, 0.0, 1.0),
+        );
         assert_eq!(
             spans,
             [(0.44, 1.0), (1.0, 1.81), (1.0, 1.81)],
             "{what}: the edges along the bridge's line"
         );
-        let crossing = r
-            .body
-            .vertices()
-            .filter(|&(v, _)| {
-                let p = topo::readback::vertex_point(&r.body, v).unwrap();
-                on_line(p) && (p.z - 1.0).abs() < 1e-9
-            })
-            .count();
-        assert_eq!(crossing, 1, "{what}: vertices at the crossing");
+        assert_eq!(
+            vertices,
+            [0.44, 1.0, 1.81],
+            "{what}: the vertices along the bridge's line"
+        );
     }
 }
 

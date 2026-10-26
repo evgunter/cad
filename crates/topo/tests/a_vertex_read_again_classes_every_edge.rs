@@ -1468,8 +1468,8 @@ const PARTNERS_OVERLAPPING: &[(f64, usize)] = &[(1e-9, 40), (1e-6, 26), (1e-12, 
 /// lies on it is a zero-area ring of the top, and a partner with an edge
 /// along the ray crosses its two coincident edges there; their union
 /// keeps only the top there and closes it across the line
-/// (`work/cleave/a-boolean-closes-a-slits-face-across-its-line.md`). A
-/// half-turn partner's edge inside the along face, ending on its corner
-/// by a record, parts there, and none refuses `EdgeInFace`. They move
-/// with ε as [`PARTNERS_OVERLAPPING`] does.
+/// (`work/cleave/a-boolean-closes-a-slits-face-across-its-line.md`): that
+/// count moves with ε as [`PARTNERS_OVERLAPPING`] does. None refuses
+/// `EdgeInFace` at any ε: a half-turn partner's edge inside the along
+/// face, ending on the face's corner by a record, parts there.
 const PARTNERS_SLIT_GAPS: &[(f64, usize, usize)] = &[(1e-9, 20, 0), (1e-6, 18, 0), (1e-12, 20, 0)];

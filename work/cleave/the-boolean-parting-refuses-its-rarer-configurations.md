@@ -39,8 +39,10 @@ rather than keep the rider form, where:
   `a_plane_tangent_to_a_hole_answers_every_op`;
   `crates/sweep/tests/review_4831_probes.rs`, `p5`), where main built
   the ruling as one edge the cut face passes through, and by `p12` there,
-  whose ruling runs on past the pocket's wall and is divided at its
-  crossings before the tangency refuses;
+  whose ruling runs on past the pocket's wall: the tangency refuses
+  before the division. Built, `p12`'s `A ∖ B` returns to its body,
+  `30 − π`, a target this row carries from
+  `a-boolean-edge-running-past-the-face-it-lies-in-is-not-parted`;
 - `DividedEndTouched`: an end the parting divides touches an edge's
   interior (a vertex-edge record), and the census reads that touch at
   neither copy: built, 3′ refuses `CensusUndecidable`. Reached by
@@ -55,9 +57,24 @@ rather than keep the rider form, where:
 reached by no test in the topo, sweep and editor-core suites at
 default, 1e-6 or 1e-12. Each is a configuration the ratified sentence
 decides; each is a construction gap, with no lever. An arc refuses
-`Curved` (`a-curved-slit-fails-tier-3-prime-on-its-two-coincident-arcs`)
-and an edge running past the face `Partly`
-(`a-boolean-edge-running-past-the-face-it-lies-in-is-not-parted`).
+`Curved` (`a-curved-slit-fails-tier-3-prime-on-its-two-coincident-arcs`).
+
+An edge running past the face is divided where it crosses the face's
+boundary (`slit::divide`, `crates/topo/src/boolean/slit.rs:1041`, built
+with `a-boolean-edge-running-past-the-face-it-lies-in-is-not-parted`).
+Its refusals: `Overlap`, a boundary edge running along it
+(`crates/sweep/tests/an_edge_running_past_a_face_reads_its_crossings.rs`);
+`Unplaced`, another record naming it
+(`crates/topo/tests/three_solids_on_one_line.rs`, `UNPARTED`, and
+`an-edge-running-past-a-face-along-coincident-edges-is-not-divided`).
+Reached by no test in the topo boolean and witness suites at default,
+1e-6 or 1e-12, nor by the PR 5546 review's probe scenes: `Unrecorded`
+(no record names a crossing), `CrossedCurve` (a crossed boundary edge
+that is no line; the curved lane's), `AtACrossing` and the escalation of
+`BooleanDecision::PartingOrder` (two division points at one, or in band,
+along the line), `Unjoined` (a division point bounding no piece in the
+face, as an edge touching a corner from outside), and the defect
+`Redivided` (`slit.rs:353`).
 
 ## Fix
 

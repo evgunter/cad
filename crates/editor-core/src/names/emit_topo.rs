@@ -2717,8 +2717,8 @@ fn name_boolean_vertices<T: Decide>(
             OpSide::on(side, ()).wrap(a, b, e.clone()),
         )))
     };
-    // The zips' fusions (`vertex_merges`): kept key → dead partners
-    // (a fused vertex may owe
+    // The zips' and the partings' fusions (`vertex_merges`): kept key →
+    // dead partners (a fused vertex may owe
     // its operand identity to a DEAD partner's key — e.g. a B corner
     // vertex fused into an A-side crossing key on a shared plane).
     let fused = Fused::of(naming);
@@ -3278,7 +3278,8 @@ impl Fused {
         self.cones.root(k)
     }
 
-    /// From the zips' fusions `(dead, kept)` and the null copies, each
+    /// From the zips' and the partings' fusions `(dead, kept)`
+    /// (`vertex_merges`) and the null copies, each
     /// in the order made, with no copy per cone ([`Fused::of`] adds
     /// those).
     fn from_rows(

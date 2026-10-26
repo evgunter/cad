@@ -169,7 +169,9 @@ fn boxd(q: Point3<f64>, x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> f64 {
         .max(q.z - z.1)
 }
 
-/// The signed distance off the diamond `|x| + |y| < 1`.
+/// A margin off the diamond `|x| + |y| < 1`, positive outside: the
+/// distance to the line of the edge facing the point, at most its
+/// distance to the diamond. [`margin`] reads only its sign, past 1e-3.
 fn diamond(q: Point3<f64>) -> f64 {
     (q.x.abs() + q.y.abs() - 1.0) / std::f64::consts::SQRT_2
 }
@@ -789,33 +791,23 @@ fn p12_a_plane_through_the_middle_of_a_diamond_holes_edge() {
         None,
         "p12 diamond A ∖ B: tier 3′"
     );
-    // The edges along the line x = 1, y = 0, by their z-span.
-    let on_line = |p: Point3<f64>| (p.x - 1.0).abs() < 1e-9 && p.y.abs() < 1e-9;
-    let mut spans = Vec::new();
-    for (_, edge) in r.body.edges() {
-        let a = r.body.get_half_edge(edge.he_plus).unwrap().start;
-        let b = r.body.half_edge_end(edge.he_plus).unwrap();
-        let [pa, pb] = [a, b].map(|v| topo::readback::vertex_point(&r.body, v).unwrap());
-        if on_line(pa) && on_line(pb) {
-            let round = |z: f64| (z * 1e6).round() / 1e6;
-            spans.push((round(pa.z.min(pb.z)), round(pa.z.max(pb.z))));
-        }
-    }
-    spans.sort_by(|x, y| x.partial_cmp(y).unwrap());
+    // Along the hole's edge, x = 1 on y = 0: the parted middle twice,
+    // the edge whole below and above, and a vertex per crossing.
+    let (spans, vertices) = topo::test_support::along_line(
+        &r.body,
+        Point3::new(1.0, 0.0, 0.0),
+        geom_core::Vec3::new(0.0, 0.0, 1.0),
+    );
     assert_eq!(
         spans,
         [(0.0, 0.25), (0.25, 0.75), (0.25, 0.75), (0.75, 1.0)],
         "p12 diamond A ∖ B: the edges along the hole's edge"
     );
-    let at_crossings = r
-        .body
-        .vertices()
-        .filter(|&(v, _)| {
-            let p = topo::readback::vertex_point(&r.body, v).unwrap();
-            on_line(p) && [0.25, 0.75].iter().any(|z| (p.z - z).abs() < 1e-9)
-        })
-        .count();
-    assert_eq!(at_crossings, 2, "p12 diamond A ∖ B: a vertex per crossing");
+    assert_eq!(
+        vertices,
+        [0.0, 0.25, 0.75, 1.0],
+        "p12 diamond A ∖ B: the vertices along the hole's edge"
+    );
 }
 
 /// Opposite senses, void crescent, cylinder × cylinder outside each

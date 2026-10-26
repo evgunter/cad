@@ -15,99 +15,69 @@ the parent row `a-boolean-builds-a-reflex-edge-lying-inside-a-face`).
 
 ## What
 
-`sweep` `review_4831_probes::p12_a_plane_tangent_to_the_middle_of_a_hole`:
-the holed plate (hole r = 1 about the z axis, `z ∈ [0, 1]`) less the
-cutter brick `x ∈ [1, 4]`, `z ∈ [0.25, 0.75]`. The cutter's face
-`x = 1` is tangent to the hole along the ruling `x = 1, y = 0`. In the
-result the hole's ruling edge, `(1, 0, 0)` to `(1, 0, 1)`, lies in the
-pocket's wall `x = 1` along its middle half only, crossing the wall's
-top and bottom edges (edge–edge records at `z = 0.25` and `0.75`, and
-an edge–face record on the wall). Both of the ruling's faces bend into
-the wall's material there: a doubled cusp, which D1
-(`crates/topo/README.md`, tier 3) parts into two coincident edges.
+An edge of a Boolean result whose two faces both bend into a face's
+material, lying in that face along part of its length only, crossing
+the face's boundary, is a doubled wedge D1 (`crates/topo/README.md`,
+tier 3) parts into two coincident edges. `topo::boolean::slit` read it
+and refused `BooleanError::EdgeInFace { gap: Partly }`: the parting
+needs the edge and the face's boundary divided at their crossings first.
+Main had built the rider form, the edge whole across the face. The
+witnesses:
 
-On main `A ∖ B` built the rider form, the ruling whole across the wall.
-On the branch `topo::boolean::slit` reads it and refuses
-`BooleanError::EdgeInFace { gap: EdgeInFaceGap::Partly }` ("the edge
-runs on past the face's boundary"): the parting needs the ruling and
-the wall's two edges divided at their crossings first, and their
-crossing vertices fused, before the middle piece parts the wall as an
-edge whose ends lie on its outline.
-
-**More witnesses** (PR 5380, with 5357 merged). The same refusal
-(`Partly`) has more witnesses. In each, a material-wedge reading at the
-edge's midpoint finds both of its faces going into the face's material,
-and main built the one edge:
-
-- `crates/topo/tests/a_vertex_read_again_classes_every_edge.rs`,
-  `partners_along_the_face_build_sound_against_the_germ`: the half-turn
-  partners against "an edge inside the (other) along face", `y − x`, at
-  both scales. That is 8 cells; main's results pass the germ's material
-  probe round `MEET`.
-- `every_edge_a_vertex_read_again_reads_is_classed_against_the_germ` and
-  `a_vertex_read_by_two_sector_passes.rs`: a pyramid on the void's face,
-  in the arch or round its island, `y − x`, at every pose.
-- `crates/topo/tests/three_solids_on_one_line.rs` (`UNPARTED`):
-  - the line body less the 0° prism against the bisector, every order
-    (main refused it `LineWedges`);
-  - the line body less the bridge moved 1e-2 along x, every order (main
-    built it).
-
-## Fix
-
-Divide the edge and the face's boundary edges at each crossing the
-edge–edge records name (the zip's `fuse_by_joint` shape), then part the
-piece lying in the face (`slit::part`, both ends on the face's loop).
-Return `p12`'s `A ∖ B` to its body, `30 − π`.
+- `crates/sweep/tests/review_4831_probes.rs`,
+  `p12_a_plane_tangent_to_the_middle_of_a_hole`: the holed plate less
+  a cutter whose face `x = 1` holds the hole's ruling along its middle
+  half;
+- `crates/topo/tests/a_vertex_read_again_classes_every_edge.rs`: the
+  half-turn partners along the face (8 cells), and a pyramid on the
+  void's face, in the arch or round its island, `y − x`, every pose;
+  `crates/topo/tests/a_vertex_read_by_two_sector_passes.rs`, the same
+  pyramids. Their edge lies wholly in the face and ends on its corner
+  by a vertex-vertex record, which the reading took as running past;
+- `crates/topo/tests/three_solids_on_one_line.rs` (`UNPARTED`): the line
+  body less the bridge moved 1e-2 along x, and less the 0° prism
+  against the bisector, every order.
 
 ## Where it stands
 
-`topo::boolean::slit::divide` (`crates/topo/src/boolean/slit.rs:1004`)
-divides an edge read as lying in a face along part of its length at
-each crossing of the face's loops a record names: an edge of the loops
-by an edge-edge record (both edges split onto one point, read once off
-the two lines), or a vertex of them by a vertex-on-edge record (the
+`slit::divide` (`crates/topo/src/boolean/slit.rs:1041`) divides the
+edge where it crosses the face's loops at a crossing a record names,
+read where the two lines meet (`geom_brep::curve_pair::meet`): at an
+edge of the loops (an edge-edge record; both edges split onto the
+meeting's point), or at a vertex of them (a vertex-on-edge record; the
 edge alone split, onto the vertex's point). Each crossing's record
-becomes a vertex-vertex record of its two vertices; a vertex-on-edge
-record of a divided edge goes to the piece holding the vertex, ordered
-along the line by the split's own order reading
-(`split_conic_root_order`, `CrossingDecision::Order`). The piece lying
-in the face then has both ends on it (`riders`, `slit.rs:542`, reads an
-end tied by a vertex-vertex record to a vertex of the face's loops as
-on the face), and `part` (`slit.rs:803`) parts it, joining each such
-end to the loop's vertex with a zero-length joint
-(`zip::fuse_by_joint`): `mekr` across two loops, `mef` across one, which
-divides the face (`slit.rs:935`). A joined end is one vertex, not one
-per wedge: the walls the edge runs on between join the two wedges
-beyond the face, so the material there is one cone. The fusions ride
-on `BooleanNaming::vertex_merges` (`ops.rs`, `name_parted`).
+becomes a vertex-vertex record of its two vertices, and a
+vertex-on-edge record of a divided edge moves to the piece holding the
+vertex, ordered along the line by `BooleanDecision::PartingOrder`.
+`riders` (`slit.rs:599`) reads an end tied by a vertex-vertex record
+to a vertex of the face's loops as on the face, and `part`
+(`slit.rs:856`) joins each such end to that vertex with a zero-length
+joint (`zip::fuse_by_joint`, through `zip::Joint::between`): one vertex
+per crossing, the material there one cone. The fusions ride on
+`BooleanNaming::vertex_merges`.
 
-Built, each sound against its closed form at tier 3 and its material
-probes:
+Built, sound against the closed forms at tiers 3 and 3′:
 
-- `three_solids_on_one_line.rs`: the line body less the bridge moved
-  1e-2 along x, every order (`every_op`, closed-form volume), and
-  `the_line_less_the_moved_bridge_passes_three_prime_with_its_records`
-  (tier 3′ with the members' records carried, two coincident edges in
-  the face, one vertex at the crossing);
-- `a_vertex_read_again_classes_every_edge.rs`: the half-turn partners
-  (`PARTNERS_SLIT_GAPS`, no `EdgeInFace` at any ε) and the pyramids on
-  the void's face, in the arch and round its island, every pose, every
-  germ row read (an edge wholly in the face, ending on its corner by a
-  vertex-vertex record: the joined end alone);
-- `a_vertex_read_by_two_sector_passes.rs`: the same scenes (`REFUSING`
-  no longer names them);
-- `crates/sweep/tests/review_4831_probes.rs`,
-  `p12_a_plane_through_the_middle_of_a_diamond_holes_edge`: `p12` with
-  a diamond hole, its edge crossing the wall's top and bottom edges,
-  `A ∖ B` = 28 at tier 3′, the wall divided in two.
+- the bridge, every order (`three_solids_on_one_line.rs`, `every_op`, and
+  `the_line_less_the_moved_bridge_passes_three_prime_with_its_records`);
+- the half-turn partners and the void's-face pyramids, every pose, every
+  germ row read (`PARTNERS_SLIT_GAPS`; `a_vertex_read_by_two_sector_passes.rs`
+  `REFUSING` no longer names them);
+- `review_4831_probes.rs`,
+  `p12_a_plane_through_the_middle_of_a_diamond_holes_edge`: `p12` with a
+  diamond hole, `A ∖ B` = 28, the wall divided in two;
+- `crates/sweep/tests/an_edge_running_past_a_face_reads_its_crossings.rs`:
+  a crossing at a shallow angle builds or refuses typed at every ε, and
+  a boundary edge on the edge's own line refuses `Overlap`.
 
-Still refused:
+Carried elsewhere:
 
-- `p12` itself refuses `Tangent` now, not `Partly`: the hole's wall is
-  tangent to the pocket's wall along the ruling, the doubled cusp
-  `the-boolean-parting-refuses-its-rarer-configurations` holds.
+- `p12` refuses `Tangent`: the hole's wall is tangent to the pocket's
+  wall along the ruling. Its `A ∖ B` target, `30 − π`, is
+  `the-boolean-parting-refuses-its-rarer-configurations`'.
 - The line body less the 0° prism against the bisector refuses
-  `Partly`: the divided edge overlaps the line body's own coincident
-  edges, whose edge-edge records `divide` does not place
-  (`an-edge-running-past-a-face-along-coincident-edges-is-not-divided`).
+  `Unplaced`: the divided edge overlaps the line body's own coincident
+  edges (`an-edge-running-past-a-face-along-coincident-edges-is-not-divided`).
+- An edge running past a face whose midpoint the face does not hold is
+  not read at all
+  (`an-edge-lying-partly-in-a-face-ships-the-rider-form-where-its-midpoint-is-off-the-face`).
