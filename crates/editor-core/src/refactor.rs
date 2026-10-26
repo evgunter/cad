@@ -77,7 +77,12 @@
 //! variable and constraint — and order, on every cut split admits
 //! (A4): split appends its instance to the remainder and inline appends
 //! what it splices, so a cut whose placements a kept one separates
-//! comes back after it. `split(inline(h))` is not promised: an unread
+//! comes back after it. One cut split admits does not come back: with
+//! the product reading one of several cut copies, split widens the
+//! part's product to the `⊔` of its world copies and inline then finds
+//! no preimage of the copy the product read
+//! (`split-widens-a-product-reading-one-of-several-cut-copies`, open).
+//! `split(inline(h))` is not promised: an unread
 //! free named variable the part held has no reader to follow back, and
 //! stays in the host.
 //!
