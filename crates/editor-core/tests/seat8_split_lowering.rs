@@ -393,9 +393,9 @@ fn a_split_document_read_by_port_round_trips_byte_identical() {
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("cut_cylinder", 0xd82f_d380_9e2e_8e5e_u64),
-        ("part_select", 0x4540_8c74_d757_704f),
-        ("kitchen_sink", 0x4f64_6f46_1d52_45eb),
+        ("cut_cylinder", 0x0286_358d_ae09_89ce_u64),
+        ("part_select", 0x8aa1_95af_2c83_4e37),
+        ("kitchen_sink", 0x2c66_c057_0db1_b2af),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()

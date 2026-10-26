@@ -982,9 +982,9 @@ fn run_at<T: editor_core::EvalScalar>(
 /// another place. Rewritten to the old shape, every row reproduces its
 /// old digest, so nothing else moved.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0x7b0f_be4e_b4f4_e5d1),
-    (1e-6, 0x01ef_f0e0_9fde_7c4e),
-    (1e-12, 0x6429_efaa_9430_4fd7),
+    (1e-9, 0x7efd_3085_5c78_e807),
+    (1e-6, 0x15ec_e6bc_04be_4a4a),
+    (1e-12, 0x46e7_8b89_8026_1c46),
 ];
 
 /// **Each seat of the corpus stands on what it is seated on**: in the

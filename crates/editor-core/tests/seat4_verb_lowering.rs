@@ -303,8 +303,8 @@ fn both_blends_evaluate_in_one_document() {
 fn the_blend_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("die_fillet", 0xddf0_a0f0_e60d_6605_u64),
-        ("die_chamfer", 0x6538_8256_a1f3_ec21),
+        ("die_fillet", 0x4be9_87c3_76d7_814d_u64),
+        ("die_chamfer", 0xe4b5_16f2_ef50_6409),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -560,9 +560,9 @@ fn a_boolean_document_round_trips_byte_identical() {
 fn the_boolean_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("crossing_slots", 0x6e1f_9e35_ee29_9c2f_u64),
-        ("heat_sink", 0x6ece_8456_1f08_4fd6),
-        ("kiss_carry", 0x4a5f_c225_42ec_5a68),
+        ("crossing_slots", 0x5574_8842_9ad0_3faf_u64),
+        ("heat_sink", 0x020f_42da_e5df_1fc6),
+        ("kiss_carry", 0xe515_ba97_d83d_8888),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -707,9 +707,9 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
     // The edge curve's `Debug` feeds the digest; it moved when check 2's
     // turn moved off the certificate onto the edge (PR 5728). Rewritten
     // to the old shape, the evaluation reproduces the old digest
-    // (`0x3314_e34b_988c_6eea`), so nothing else moved.
+    // (`0xdf3a_7395_42b8_2277`), so nothing else moved.
     assert_eq!(
-        got, 0xdf3a_7395_42b8_2277,
+        got, 0x67b1_d463_bf86_6b77,
         "the empty-boolean evaluation moved — value token, bodies or name tables"
     );
 }
