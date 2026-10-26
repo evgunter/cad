@@ -19,10 +19,12 @@ tracker-vocabulary ruling made anywhere lands its build here.
 Two neighbours were cut out of it on 2026-10-26, when it carried 38
 budget points against 30:
 
-- **BRIEF** holds `docs/prompts/*` and the rows whose fix is a sentence
-  in the standing briefs or in `memories/` — every one an `[ev]` PR.
-  CIW's standing right to amend `implementer-discipline.md` §2 is
-  BRIEF's fence now.
+- **BRIEF** held `docs/prompts/*` and the rows whose fix is a sentence
+  in the standing briefs or in `memories/`. Ev ruled on all four the
+  same day and BRIEF closed (`docs/doc-ledger/brief-leaves-the-tracker.md`).
+  `docs/prompts/*` is this program's again; a change to it is an `[ev]`
+  PR, and CIW keeps its standing right to amend
+  `implementer-discipline.md` §2 for its own runs.
 - **UNSEEN** holds the checkers whose subject is a hand-written
   reference or a surface across the whole tree (citations, tracker
   paths in crates, ledger recovery commands, the public-method census,
