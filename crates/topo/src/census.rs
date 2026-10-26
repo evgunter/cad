@@ -3682,14 +3682,12 @@ struct Cut<T> {
     at: CutAt,
 }
 
-/// One cell of an edge-on-face overlap: two consecutive cuts, the
-/// midpoint the face holds `In`, and whether the cell reaches the edge's
-/// start and its end.
+/// One cell of an edge-on-face overlap: two consecutive cuts, and the
+/// midpoint the face holds `In`.
 struct Cell<T: Real> {
     lo: Cut<T>,
     hi: Cut<T>,
     mid: Point3<T>,
-    ends: [bool; 2],
 }
 
 /// The rows the face's loop is built under for the crossing cuts: a
@@ -3762,8 +3760,7 @@ fn ef_overlap_cells<T: Decide>(
             j -= 1;
         }
     }
-    let last = cuts.len().saturating_sub(2);
-    for (k, pair) in cuts.windows(2).enumerate() {
+    for pair in cuts.windows(2) {
         let (lo, hi) = (pair[0], pair[1]);
         // The sort decided each adjacent pair's order on this same
         // difference, so this reads `Zero` (an empty cell) or `Positive`;
@@ -3783,89 +3780,9 @@ fn ef_overlap_cells<T: Decide>(
             // cell, vertex passes cover it.
             continue;
         }
-        out.push(Cell {
-            lo,
-            hi,
-            mid,
-            ends: [k == 0, k == last],
-        });
+        out.push(Cell { lo, hi, mid });
     }
     out
-}
-
-/// **Whether a line touch of `solid` reaches the point of `keys`**: two
-/// of the solid's line edges there on one line, overlapping (pass 5's
-/// reading, [`parallel_overlap`]), or one ending there lying in a face of
-/// the solid that holds the point, its overlap reaching that end (pass
-/// 4's cells, [`ef_overlap_cells`]). An edge is read where it ends on the
-/// point or a tie holds the point inside it. A point a line touch reaches
-/// is no isolated touch, and the line's rules read its sides (D1 tier
-/// 3). `None` where a reading did not decide.
-fn line_touch_reaches<T: Decide>(
-    body: &Body<T>,
-    geo: &Geo<T>,
-    ties: &Ties,
-    solid: crate::SolidKey,
-    keys: &BTreeSet<PointKey>,
-    band: Band,
-) -> Option<bool> {
-    let on = |v: &VertexKey| geo.vpoint.get(v).is_some_and(|k| keys.contains(k));
-    let mine = |id| census_entity_solid(body, id) == Some(solid);
-    let ending: Vec<&EdgeGeo<T>> = geo
-        .edges
-        .iter()
-        .filter(|e| (on(&e.v0) || on(&e.v1)) && mine(EntityId::Edge(e.key)))
-        .collect();
-    let through: Vec<&EdgeGeo<T>> = ties
-        .ve
-        .iter()
-        .filter(|(v, e)| on(v) && mine(EntityId::Edge(*e)))
-        .filter_map(|&(_, e)| geo.line_edge(e))
-        .collect();
-    let mut errors = Vec::new();
-    for (i, a) in ending.iter().enumerate() {
-        for b in ending[i + 1..].iter().chain(&through) {
-            if a.key == b.key {
-                continue;
-            }
-            if parallel_overlap(*a, *b, band, &mut errors)?.is_some() {
-                return Some(true);
-            }
-        }
-    }
-    let mut faces = BTreeSet::new();
-    for (&v, fs) in &geo.vertex_faces {
-        if on(&v) {
-            faces.extend(fs.iter().copied());
-        }
-    }
-    faces.extend(through.iter().flat_map(|e| [e.f_plus, e.f_minus]));
-    faces.extend(ties.vf.iter().filter(|(v, _)| on(v)).map(|&(_, f)| f));
-    for e in &ending {
-        let (near, far) = if on(&e.v0) { (0, e.p1) } else { (1, e.p0) };
-        for &fk in &faces {
-            if fk == e.f_plus || fk == e.f_minus || !mine(EntityId::Face(fk)) {
-                continue;
-            }
-            let Some(f) = planar_face(geo, fk) else {
-                continue;
-            };
-            match decide(
-                "pm_census_ef_residual",
-                Margin::of((far - f.origin).dot(f.normal)),
-                band,
-            ) {
-                Ok(Sign::Zero) => {}
-                Ok(_) => continue,
-                Err(_) => return None,
-            }
-            let cells = ef_overlap_cells(body, e, f, geo, band, &mut errors);
-            if cells.iter().any(|c| c.ends[near]) {
-                return Some(true);
-            }
-        }
-    }
-    errors.is_empty().then_some(false)
 }
 
 /// Every point strictly inside `e`'s span where `f`'s boundary crosses
@@ -6733,9 +6650,8 @@ pub enum TouchUnread {
     PieceInBand,
     /// A curved face or edge takes part.
     Unreadable,
-    /// A face meets the touch point both at a corner and along an edge,
-    /// or along two of its edges; its piece there does not close on
-    /// decided readings (a gap between neighbouring turns of half a turn
+    /// A face's piece at the touch point does not close on decided
+    /// readings (a gap between neighbouring turns of half a turn
     /// or more, or no edge met across one, [`face_piece`]); or a link's
     /// sectors do not pair up at their bounds ([`Link::closes`]).
     Unanalysed,
@@ -6791,9 +6707,8 @@ impl TouchUnread {
                  a curved face material lies on. There is no way through yet for this shape"
             }
             Self::Unanalysed => {
-                "the part's faces there meet the point along an edge and again, or do not \
-                 close around it, so no side reads. There is no way through yet for this \
-                 shape"
+                "the part's faces there do not close around the point, so no side reads. \
+                 There is no way through yet for this shape"
             }
             Self::Degenerate => {
                 "two faces of the part lie on each other there, as a slit or a doubled face \
@@ -7167,10 +7082,12 @@ fn edge_in_own_face<T: Decide>(
 /// whole link at the point ([`Link::at_point`], [`rest::one_material`]).
 /// A decided failure is [`ValidationError::BoundaryCrossesItself`], any
 /// other unread verdict its undecided twin. A point a line touch of the
-/// solid reaches ([`line_touch_reaches`]) is not an isolated touch: the
-/// line's rules read it (pass 4's [`edge_in_own_face`], pass 5's
-/// coincident edges). A link holding a curved face or edge is left
-/// unread: no sector reads one yet.
+/// solid reaches is read whole here too, every sheet through it, the
+/// line's own included; the line's sides along it are its rules' (pass
+/// 4's [`edge_in_own_face`], read at each cell's middle). A link holding
+/// a curved face or edge is left unread, wherever in the link it stands
+/// ([`Link::at_point`] answers `Unreadable` before any other refusal):
+/// no sector reads one yet.
 fn sweep_self_touch_points<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
@@ -7218,16 +7135,12 @@ fn sweep_self_touch_points<T: Decide>(
         if !read.insert((s, least)) {
             continue;
         }
-        let verdict = match line_touch_reaches(body, geo, &ties, s, &keys, band) {
-            Some(true) => continue,
-            Some(false) => match Link::at_point(body, geo, &ties, s, &keys, at, band) {
-                Ok(link) => rest::one_material(&link, band),
-                // A curved face or edge in the link: genuinely undetected
-                // (the module doc's class list), not refused.
-                Err(TouchVerdict::Unread(TouchUnread::Unreadable)) => continue,
-                Err(v) => v,
-            },
-            None => TouchVerdict::Unread(TouchUnread::InBand),
+        let verdict = match Link::at_point(body, geo, &ties, s, &keys, at, band) {
+            Ok(link) => rest::one_material(&link, band),
+            // A curved face or edge in the link: genuinely undetected
+            // (the module doc's class list), not refused.
+            Err(TouchVerdict::Unread(TouchUnread::Unreadable)) => continue,
+            Err(v) => v,
         };
         match verdict {
             TouchVerdict::Rest(_) => {}
@@ -7360,7 +7273,7 @@ fn chord<T: Real>(p: Point3<T>, q: Point3<T>) -> Result<T, TouchVerdict> {
 type Segment<T> = (Point3<T>, Point3<T>);
 
 /// Where `p` sits on the face whose piece is built.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum PieceAt {
     /// At the face's corner: loop positions `(ring, k)` of `p`.
     Corner(usize, usize),
@@ -7425,7 +7338,7 @@ fn face_piece<T: Decide>(
     m: Vec3<T>,
     rings: &[Vec<Point3<T>>],
     at: PieceAt,
-    also: &[(usize, usize)],
+    also: &[PieceAt],
     band: Band,
 ) -> Result<Vec<Point3<T>>, TouchVerdict> {
     use core::cmp::Ordering::{Equal, Greater, Less};
@@ -7443,17 +7356,17 @@ fn face_piece<T: Decide>(
     for (r, ring) in rings.iter().enumerate() {
         let n = ring.len();
         for k in 0..n {
-            let corner = |(rr, kk): (usize, usize)| rr == r && (k == kk || (k + 1) % n == kk);
-            let holds_p = match at {
-                PieceAt::Corner(rr, kk) => corner((rr, kk)),
+            let holds = |pass: PieceAt| match pass {
+                PieceAt::Corner(rr, kk) => rr == r && (k == kk || (k + 1) % n == kk),
                 PieceAt::Edge(rr, kk) => rr == r && k == kk,
                 PieceAt::Inside => false,
-            } || also.iter().any(|&c| corner(c));
-            if !holds_p {
+            };
+            if !(holds(at) || also.iter().any(|&pass| holds(pass))) {
                 edges.push((ring[k], ring[(k + 1) % n]));
             }
-            let at_p = matches!(at, PieceAt::Corner(rr, kk) if rr == r && kk == k)
-                || also.contains(&(r, k));
+            let corner =
+                |pass: PieceAt| matches!(pass, PieceAt::Corner(rr, kk) if rr == r && kk == k);
+            let at_p = corner(at) || also.iter().any(|&pass| corner(pass));
             if !at_p {
                 points.push(ring[k]);
             }
@@ -7514,20 +7427,32 @@ fn face_piece<T: Decide>(
         }
         sorted.insert(slot, item);
     }
-    // Where the face meets `p` more than once, a corner's sector runs
+    // Where the face meets `p` more than once, a pass's sector runs
     // from its outgoing ray to the first incoming ray of ANY pass
     // counterclockwise from it: the face's interior lies left of the
     // outgoing edge until the loop next reaches `p`. (A loop through two
     // vertices on one point, a pinch, returns to `p` on another lobe's
-    // edge, so its own pass's incoming edge is not where it ends.)
+    // edge, so its own pass's incoming edge is not where it ends.) A
+    // corner's incoming ray runs to its loop's previous vertex; an edge
+    // through `p` comes in from its start.
     let end = match (at, end) {
-        (PieceAt::Corner(..), Some(own)) if !also.is_empty() => {
+        (PieceAt::Corner(..) | PieceAt::Edge(..), Some(own)) if !also.is_empty() => {
             let mut best = (turn(own)?, own);
-            for &(rr, kk) in also {
-                let n = rings[rr].len();
-                let q = rings[rr][(kk + n - 1) % n];
+            for &pass in also {
+                let q = match pass {
+                    PieceAt::Corner(rr, kk) => {
+                        let n = rings[rr].len();
+                        rings[rr][(kk + n - 1) % n]
+                    }
+                    PieceAt::Edge(rr, kk) => rings[rr][kk],
+                    PieceAt::Inside => continue,
+                };
                 let item = (turn(q)?, q);
-                if order(item, best)? == Less {
+                // An incoming ray along the outgoing one (a slit's two
+                // edges) closes the turn: the interior lies left of the
+                // outgoing edge just off it, so the sector ends there a
+                // full turn round, never at its start.
+                if item.0 != Turn::Ahead && order(item, best)? == Less {
                     best = item;
                 }
             }
@@ -7697,10 +7622,10 @@ impl<T: Decide> Sector<T> {
     /// one edge of it (one sector, about `p`), or at its corners — every
     /// place its loops pass through a vertex on the point, each its own
     /// sector about that vertex, whether the loops pass one vertex twice
-    /// or two vertices on one point (a pinch, one vertex per cone). A
-    /// face held inside two of its edges, or both at a corner and inside
-    /// an edge, touches itself there in a way no sector reads, and is not
-    /// read. A corner tie that is a face tie too reads the corner, and an
+    /// or two vertices on one point (a pinch, one vertex per cone), and
+    /// inside each edge of it a tie holds there (one sector about `p`),
+    /// every pass ending at the next pass's incoming ray. A corner tie
+    /// that is a face tie too reads the corner, and an
     /// edge tie that is a face tie too reads the edge: the face's interior
     /// holds no point of its boundary.
     fn of(
@@ -7722,8 +7647,9 @@ impl<T: Decide> Sector<T> {
             .get_surface(face.surface)
             .cloned()
             .ok_or(TouchVerdict::Unread(TouchUnread::Corrupt))?;
+        // A planar face at rest has an outward normal: none is a defect.
         let outward = crate::face_normal::face_outward_normal(body, f)
-            .ok_or(TouchVerdict::Unread(TouchUnread::Unreadable))?
+            .ok_or(TouchVerdict::Unread(TouchUnread::Corrupt))?
             .vec();
         let rings = fg
             .loops
@@ -7766,8 +7692,9 @@ impl<T: Decide> Sector<T> {
                 }
             }
         }
+        edges.dedup();
         let inside = holds.contains(&Hold::Inside);
-        let sector = |at: Point3<T>, place: PieceAt, also: &[(usize, usize)]| {
+        let sector = |at: Point3<T>, place: PieceAt, also: &[PieceAt]| {
             let piece = face_piece(at, outward, &rings, place, also, band)?;
             Ok(Self {
                 surface: surface.clone(),
@@ -7782,20 +7709,29 @@ impl<T: Decide> Sector<T> {
             .iter()
             .filter(|h| matches!(h, Hold::Corner(_)))
             .count();
-        match (&corners[..], &edges[..], inside) {
-            // A corner tie that is a face tie too names the touch at the
-            // corner: the face's interior holds no point of its boundary.
-            ([_, ..], [], _) => corners
+        // Every pass of the loops through the point, a corner about its
+        // vertex and an edge about `p`. A corner or edge tie that is a
+        // face tie too names the touch there: the face's interior holds
+        // no point of its boundary.
+        let passes: Vec<(PieceAt, Point3<T>)> = corners
+            .iter()
+            .map(|&((r, k), q)| (PieceAt::Corner(r, k), q))
+            .chain(edges.iter().map(|&(r, k)| (PieceAt::Edge(r, k), p)))
+            .collect();
+        match (&passes[..], inside) {
+            ([], true) if named_corners == 0 => Ok(vec![sector(p, PieceAt::Inside, &[])?]),
+            ([], _) => Err(TouchVerdict::Unread(TouchUnread::Corrupt)),
+            _ => passes
                 .iter()
                 .map(|&(at, q)| {
-                    let also: Vec<_> = corners.iter().map(|c| c.0).filter(|&c| c != at).collect();
-                    sector(q, PieceAt::Corner(at.0, at.1), &also)
+                    let also: Vec<PieceAt> = passes
+                        .iter()
+                        .map(|pass| pass.0)
+                        .filter(|&pass| pass != at)
+                        .collect();
+                    sector(q, at, &also)
                 })
                 .collect(),
-            ([], &[(r, k)], _) => Ok(vec![sector(p, PieceAt::Edge(r, k), &[])?]),
-            ([], [], true) if named_corners == 0 => Ok(vec![sector(p, PieceAt::Inside, &[])?]),
-            ([], [], _) => Err(TouchVerdict::Unread(TouchUnread::Corrupt)),
-            _ => Err(TouchVerdict::Unread(TouchUnread::Unanalysed)),
         }
     }
 
@@ -7960,7 +7896,11 @@ impl<T: Decide> Link<T> {
                 holds.entry(*f).or_default().push(Hold::Inside);
             }
         }
+        // Every face is built before any refusal is returned, and a curved
+        // one is the refusal: what the link holds, not the order its faces
+        // are walked in, says whether it is unreadable.
         let mut sectors = Vec::with_capacity(holds.len());
+        let mut refused = None;
         for (f, all) in holds {
             let mut hs: Vec<Hold> = Vec::with_capacity(all.len());
             for h in all {
@@ -7968,7 +7908,16 @@ impl<T: Decide> Link<T> {
                     hs.push(h);
                 }
             }
-            sectors.extend(Sector::of(body, geo, f, p, &hs, band)?);
+            match Sector::of(body, geo, f, p, &hs, band) {
+                Ok(s) => sectors.extend(s),
+                Err(v @ TouchVerdict::Unread(TouchUnread::Unreadable)) => return Err(v),
+                Err(v) => {
+                    refused.get_or_insert(v);
+                }
+            }
+        }
+        if let Some(v) = refused {
+            return Err(v);
         }
         Self::of(p, sectors)
     }
@@ -8430,16 +8379,9 @@ mod rest {
         // reading, whose line turns with the ray, by as much. One link's
         // point read against the other's planes and rays is moved by
         // both, so twice their sum covers every reading.
-        let rd = Reading {
-            band,
-            slack: Some((a.tie + b.tie) * T::from_f64(2.0)),
-        };
-        for link in [a, b] {
-            match link.closes(rd) {
-                Some(true) => {}
-                Some(false) => return TouchVerdict::Unread(TouchUnread::Unanalysed),
-                None => return TouchVerdict::Unread(TouchUnread::InBand),
-            }
+        let rd = reading(a, b, band);
+        if let Some(open) = held_closed(&[a, b], rd) {
+            return open;
         }
         let mut notes = Notes::default();
         let mut refused = None;
@@ -8484,22 +8426,8 @@ mod rest {
                     }
                     // Every point strictly inside the piece reads its one
                     // cell, so any one that decides is the piece's
-                    // reading. The far side is tried at its middle, then
-                    // its quarter and sixteenth points from each end: a
-                    // point stands in band of a plane only on a stretch
-                    // of the side (the distance is affine along it), and
-                    // these sit at five distinct places, nearer each end
-                    // in turn, where a far end lifted off a plane reads
-                    // most of its lift. The ladder chooses only how often
-                    // a piece refuses, never what one that reads says.
-                    let fractions = [
-                        T::from_f64(0.5),
-                        T::from_f64(0.25),
-                        T::from_f64(0.75),
-                        T::from_f64(0.0625),
-                        T::from_f64(0.9375),
-                    ];
-                    let read = fractions.into_iter().find_map(|t| {
+                    // reading, tried along the far side ([`ladder`]).
+                    let read = ladder::<T>().into_iter().find_map(|t| {
                         let q = c0 + (c1 - c0) * t;
                         other.reads(q, rd).map(|m| (q, m))
                     });
@@ -8580,16 +8508,11 @@ mod rest {
     /// no decided reading ties to the others, [`TouchUnread::InBand`].
     /// The link is first held to close ([`Link::closes`]).
     pub(super) fn one_material<T: Decide>(link: &Link<T>, band: Band) -> TouchVerdict {
-        // Every point is read against the link's own planes and rays, so
-        // each reading is moved by the tie twice over ([`judge`]).
-        let rd = Reading {
-            band,
-            slack: Some(link.tie * T::from_f64(4.0)),
-        };
-        match link.closes(rd) {
-            Some(true) => {}
-            Some(false) => return TouchVerdict::Unread(TouchUnread::Unanalysed),
-            None => return TouchVerdict::Unread(TouchUnread::InBand),
+        // The link is read against its own planes and rays: the reading
+        // over the pair it makes with itself.
+        let rd = reading(link, link, band);
+        if let Some(open) = held_closed(&[link], rd) {
+            return open;
         }
         let mut notes = Notes::default();
         let near = |q| within(link.p, q, link.ball);
@@ -8627,18 +8550,34 @@ mod rest {
         if notes.degenerate {
             return TouchVerdict::Unread(TouchUnread::Degenerate);
         }
+        // Two sheets crossing along a ray inside both: a ray two wedges
+        // of one sector share (no bound, so no cut, and no piece crosses
+        // there) lying inside another sector, which runs on across it
+        // too. A sheet that ends at the ray is its bound, and rests there.
+        for (k, s) in link.sectors.iter().enumerate() {
+            let n = s.wedges.len();
+            let inner = s.wedges[..n.saturating_sub(1)].iter().map(|w| w.1);
+            let wrap = s.closed.then(|| s.wedges.last().map(|w| w.1)).flatten();
+            for r in inner.chain(wrap) {
+                for (j, t) in link.sectors.iter().enumerate() {
+                    if j == k || link.side(t, r, rd) != Some(Sign::Zero) {
+                        continue;
+                    }
+                    match (t.place(link.p, r, rd), t.place(link.p, near(r), rd)) {
+                        (Some(Place::Inside), Some(Place::Inside)) => {
+                            return TouchVerdict::Crossing;
+                        }
+                        (Some(Place::Inside), _) | (None, _) => notes.in_band = true,
+                        _ => {}
+                    }
+                }
+            }
+        }
         // Tie every probe to the first, each through any probe already
         // tied: the windings in front of them all equal, or two that
-        // differ. A pair is read at its pieces' middles, then along the
-        // ladder [`judge`] reads a piece at: where it reads, it reads the
-        // pieces' one cell each.
-        let ladder = [
-            T::from_f64(0.5),
-            T::from_f64(0.25),
-            T::from_f64(0.75),
-            T::from_f64(0.0625),
-            T::from_f64(0.9375),
-        ];
+        // differ. A pair is read along both pieces ([`ladder`]): where it
+        // reads, it reads the pieces' one cell each.
+        let ladder = ladder::<T>();
         let at = |(k, (c0, c1)): (usize, Segment<T>), t: T| (k, c0 + (c1 - c0) * t);
         let mut tied = vec![false; probes.len()];
         if let Some(first) = tied.first_mut() {
@@ -8683,6 +8622,42 @@ mod rest {
         } else {
             TouchVerdict::Rest(Rest { _sealed: () })
         }
+    }
+
+    /// The reading over two links, `a` and `b`: one link's point read
+    /// against the other's planes and rays is moved by both their ties
+    /// ([`judge`]'s first paragraph), so twice their sum covers it.
+    fn reading<T: Decide>(a: &Link<T>, b: &Link<T>, band: Band) -> Reading<T> {
+        Reading {
+            band,
+            slack: Some((a.tie + b.tie) * T::from_f64(2.0)),
+        }
+    }
+
+    /// The refusal of the first of `links` that does not close
+    /// ([`Link::closes`]), or `None` where every one does.
+    fn held_closed<T: Decide>(links: &[&Link<T>], rd: Reading<T>) -> Option<TouchVerdict> {
+        links.iter().find_map(|link| match link.closes(rd) {
+            Some(true) => None,
+            Some(false) => Some(TouchVerdict::Unread(TouchUnread::Unanalysed)),
+            None => Some(TouchVerdict::Unread(TouchUnread::InBand)),
+        })
+    }
+
+    /// Where along a piece a reading is taken: its middle, then its
+    /// quarter and sixteenth points from each end. A point stands in band
+    /// of a plane only on a stretch of the piece (the distance is affine
+    /// along it), and these sit at five distinct places, nearer each end
+    /// in turn. The ladder chooses only how often a piece refuses, never
+    /// what one that reads says.
+    fn ladder<T: Decide>() -> [T; 5] {
+        [
+            T::from_f64(0.5),
+            T::from_f64(0.25),
+            T::from_f64(0.75),
+            T::from_f64(0.0625),
+            T::from_f64(0.9375),
+        ]
     }
 
     /// Whether the piece `c0`–`c1` crosses a face of `other` along a ray

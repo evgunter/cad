@@ -125,27 +125,27 @@ Two designers weighed it and converged after two rounds. The `[ev]` PR states th
 
 ## Closed
 
-2026-10-25 (branch `restread/point-touch-winding`). Tier 3′ reads each
-point where one solid touches itself once, over the solid's whole link
-(`sweep_self_touch_points`, `rest::one_material`). Its units are the
-vertex-vertex, vertex-on-edge and vertex-on-face ties and the point keys
-that name two cells of one solid. No sheet may cross another, and every
-piece's front winding must be equal, so the winding takes two
-consecutive values. A decided failure refuses
-`BoundaryCrossesItself`. Anything unread refuses
-`BoundaryCrossesItselfUndecided`, which arm 2 reads as a pierce of the
-solid, or as the solid left unexamined. That closes the cross-solid
-gap above.
+2026-10-26 (branch `restread/point-touch-winding`, PR 5704). Tier 3′
+reads each point where one solid touches itself once, over the solid's
+whole link (`sweep_self_touch_points`, `rest::one_material`). Its
+units are the vertex-vertex, vertex-on-edge and vertex-on-face ties and
+the point keys that name two cells of one solid; a line touch reaching
+the point is read with it, every sheet through the point included. No
+sheet may cross another, and every piece's front winding must be equal,
+so the winding takes two consecutive values. A decided failure refuses
+`BoundaryCrossesItself`, which arm 2 reads as a pierce of the solid,
+and a planar link read in band, or not built, refuses
+`BoundaryCrossesItselfUndecided`, which leaves the solid unexamined.
+That closes the cross-solid gap above.
 
 - **Witnesses** (`census::self_touch`): the crossing tetrahedra refuse
   with their four records, and the lifted control refuses four
-  `EdgeFacePierce`. The pit and two pits beside a needle pass.
-- **Points a line touch of the solid reaches are the line's**
-  (`line_touch_reaches`), filed as
-  `tier-3-prime-reads-no-side-at-the-end-of-a-line-touch-inside-one-solid`.
-- **A link with a curved face or edge stays unread**, ruled B
-  (orchestrator with Ev). Filed P1 as
+  `EdgeFacePierce`. The pit, two pits beside a needle and the mould of
+  a pyramid on a plate (its touch recorded) pass.
+- **A link holding a curved face or edge is left unread**, by the
+  orchestrator's ruling with Ev (option B, PR 5704): no refusal, a
+  silent pass of the class. Filed P1 as
   `tier-3-prime-reads-no-side-where-a-solid-touches-itself-at-a-point-on-a-curved-face`.
-- **A face held at a corner and along an edge** refuses `Unanalysed`,
-  filed as
-  `the-touch-analysis-reads-no-face-held-at-a-corner-and-along-an-edge-at-one-point`.
+- **A face held at a corner and along an edge** at the point is read as
+  one sector per pass, so the Boolean union pinched at a crossing
+  (`vertex_on_edge_records`) certifies.

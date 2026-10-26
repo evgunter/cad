@@ -786,8 +786,7 @@ fn a_solid_crossing_itself_blocks_its_pairs() {
 
 /// **A line touch passing through the point reads as the line rule
 /// reads it**: an edge lying along the floor, its wedge above, read
-/// inside the edge (a vertex tied inside it, whose line
-/// [`line_touch_reaches`] does not skip). Standing on a floor whose
+/// inside the edge (a vertex tied inside it). Standing on a floor whose
 /// material is below, the wedge rests (1 below, 1 in the wedge, 0
 /// elsewhere); sunk into a floor whose material is above, it crosses (2
 /// in the wedge), as [`edge_in_own_face`] refuses it along the line.
@@ -832,4 +831,287 @@ fn a_line_touch_through_the_point_reads_as_its_line() {
             assert_eq!(got, TouchVerdict::Crossing, "sunk");
         }
     }
+}
+// ---- Line touches and nested cones at one point.
+
+/// The unit cube and parallelepipeds `u·a + v·b + w·c` cornered at the
+/// origin, one solid, each corner on the cube's key there.
+fn cube_and_corners(parts: &[([f64; 3], [f64; 3], [f64; 3])]) -> Body<f64> {
+    let mut body = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol());
+    let here = |body: &Body<f64>, v: VertexKey| (at(body, v) - P::origin()).norm() < 1e-12;
+    let origin = body.vertices.keys().find(|&v| here(&body, v)).unwrap();
+    let keep = census_entity_solid(&body, EntityId::Vertex(origin)).unwrap();
+    for &(a, b, c) in parts {
+        let part = crate::test_support_fixtures::mapped_cube::<f64>(
+            move |u, v, w| {
+                let k = |i: usize| u * a[i] + v * b[i] + w * c[i];
+                P::new(k(0), k(1), k(2))
+            },
+            tol(),
+        );
+        let before: BTreeSet<VertexKey> = body.vertices.keys().collect();
+        let gone = crate::instance::graft_disjoint(&mut body, &part).unwrap();
+        for sh in body.solids.remove(gone).unwrap().shells {
+            body.shells[sh].solid = keep;
+            body.solids[keep].shells.push(sh);
+        }
+        body.solid_provenance.remove(gone);
+        let corner = body
+            .vertices
+            .keys()
+            .find(|v| !before.contains(v) && here(&body, *v))
+            .unwrap();
+        let (old, key) = (body.vertices[corner].point, body.vertices[origin].point);
+        body.vertices[corner].point = key;
+        body.points.remove(old);
+    }
+    body
+}
+
+/// Every unrecorded touch a finding names, as a record.
+fn record_all(errors: &[ValidationError]) -> ContactRecords {
+    use crate::Cell as C;
+    errors
+        .iter()
+        .filter_map(|e| {
+            let ValidationError::UnrecordedContact { contact, .. } = e else {
+                return None;
+            };
+            let (x, y) = match *contact {
+                CensusContact::VertexVertex { a, b } => (C::Vertex(a), C::Vertex(b)),
+                CensusContact::VertexOnFace { vertex, face } => (C::Vertex(vertex), C::Face(face)),
+                CensusContact::VertexOnEdge { vertex, edge } => (C::Vertex(vertex), C::Edge(edge)),
+                CensusContact::EdgeFaceOverlap { edge, face } => (C::Edge(edge), C::Face(face)),
+                CensusContact::EdgeEdgeOverlap { a, b } => (C::Edge(a), C::Edge(b)),
+                _ => return None,
+            };
+            Some(crate::Cited::new(
+                crate::Contact::of(x, y).unwrap(),
+                crate::Cites::decided(0),
+            ))
+        })
+        .collect()
+}
+
+/// The census over `body` with every touch it finds recorded.
+fn census_recorded(body: &Body<f64>) -> Vec<ValidationError> {
+    let first = census_and_certify(body, &ContactRecords::default(), band(), tol(), None);
+    census_and_certify(body, &record_all(&first), band(), tol(), None)
+}
+
+/// **A line touch at the point hides none of its other sheets**: the
+/// cube with a parallelepiped cornered inside it at the origin (2 in
+/// it), and a second outside the cube whose edge from the origin lies in
+/// the cube's face `y = 0`, an edge-in-face line touch reaching the
+/// point. Every touch recorded, the nested corner refuses at the point
+/// as it does alone; the leaning one alone passes. An edge running on
+/// end to end from the cube's edge beside the nested corner is no line
+/// touch, and the nested corner refuses there too. Each body is one
+/// solid of several shells, which tier 3 refuses (`SolidOuterShells`),
+/// so these rows read at the census door.
+#[test]
+fn a_line_touch_at_the_point_hides_none_of_its_other_sheets() {
+    let into = ([0.5, 0.1, 0.1], [0.1, 0.5, 0.1], [0.1, 0.1, 0.5]);
+    let lean = ([0.5, 0.0, 0.5], [0.0, -0.3, 0.4], [0.1, -0.5, 0.0]);
+    let back = ([-0.5, 0.0, 0.0], [-0.1, 0.1, 0.5], [-0.1, 0.5, 0.1]);
+    let crossed = |errors: &[ValidationError]| {
+        matches!(
+            errors,
+            [ValidationError::BoundaryCrossesItself { witness, .. }] if witness == "(0.0, 0.0, 0.0)"
+        )
+    };
+    for (what, parts, crosses) in [
+        ("nested", vec![into], true),
+        ("leaning", vec![lean], false),
+        ("nested and leaning", vec![into, lean], true),
+        ("end to end", vec![back], false),
+        ("nested and end to end", vec![into, back], true),
+    ] {
+        let body = cube_and_corners(&parts);
+        let got = census_recorded(&body);
+        if crosses {
+            assert!(crossed(&got), "{what}: {got:?}");
+        } else {
+            assert!(got.is_empty(), "{what}: {got:?}");
+        }
+    }
+}
+
+/// **Nested cones read by their winding**: three cones pinched at one
+/// point rest; a cone inside a cone crosses; a floor, a pit in it, a
+/// needle in the pit and a pit in the needle rest (1, 0, 1, 0), and
+/// with the innermost a needle (2) cross. A sheet through two opposite
+/// edges of a cone crosses it, whichever way either faces, and a floor
+/// tilted off another floor crosses it until the two read as one sheet.
+#[test]
+fn nested_cones_and_sheets_read_by_their_winding() {
+    let side = [
+        [1.0, 0.3, 0.3],
+        [1.0, -0.3, 0.3],
+        [1.0, -0.3, -0.3],
+        [1.0, 0.3, -0.3],
+    ];
+    let pinch = whole(vec![
+        cone(&square(0.3, 1.0), true),
+        cone(&square(0.3, -1.0), true),
+        cone(&side, true),
+    ]);
+    assert!(
+        rest::one_material(&pinch, band()).is_rest(),
+        "three pinched"
+    );
+    let nested = whole(vec![
+        cone(&square(1.0, 1.0), true),
+        cone(&square(0.3, 1.0), true),
+    ]);
+    assert_eq!(
+        rest::one_material(&nested, band()),
+        TouchVerdict::Crossing,
+        "nested"
+    );
+    for (innermost, rests) in [(false, true), (true, false)] {
+        let link = whole(vec![
+            floor(false),
+            cone(&square(1.0, 1.0), false),
+            cone(&square(0.5, 1.0), true),
+            cone(&square(0.2, 1.0), innermost),
+        ]);
+        let got = rest::one_material(&link, band());
+        if rests {
+            assert!(got.is_rest(), "pit, needle, pit: {got:?}");
+        } else {
+            assert_eq!(got, TouchVerdict::Crossing, "pit, needle, needle");
+        }
+    }
+    // A disc in `x = y`, through the cone's edges to (±0.5, ±0.5, 1).
+    let diag = |flip: bool| {
+        let mut verts = vec![
+            P::new(-1.0, -1.0, -1.0),
+            P::new(1.0, 1.0, -1.0),
+            P::new(1.0, 1.0, 1.0),
+            P::new(-1.0, -1.0, 1.0),
+        ];
+        let mut m = Vec3::new(1.0, -1.0, 0.0).normalize();
+        if flip {
+            m = -m;
+            verts.reverse();
+        }
+        let faces = [(m, vec![vec![0, 1, 2, 3]])];
+        synthetic(P::origin(), At::Face, verts, &faces, &[], band()).unwrap()
+    };
+    for flip in [false, true] {
+        for inside in [false, true] {
+            let link = whole(vec![cone(&square(0.5, 1.0), inside), diag(flip)]);
+            let got = rest::one_material(&link, band());
+            assert_eq!(
+                got,
+                TouchVerdict::Crossing,
+                "a sheet through edges: {flip} {inside}"
+            );
+        }
+    }
+    for (t, crosses) in [(1e-2, true), (1e-6, true), (1e-8, true), (1e-12, false)] {
+        let n = Vec3::new(0.0, -t, 1.0).normalize();
+        let verts = vec![
+            P::new(-2.0, -2.0, -2.0 * t),
+            P::new(2.0, -2.0, -2.0 * t),
+            P::new(2.0, 2.0, 2.0 * t),
+            P::new(-2.0, 2.0, 2.0 * t),
+        ];
+        let faces = [(n, vec![vec![0, 1, 2, 3]])];
+        let tilted = synthetic(P::origin(), At::Face, verts, &faces, &[], band()).unwrap();
+        let got = rest::one_material(&whole(vec![floor(true), tilted]), band());
+        let want = if crosses {
+            TouchVerdict::Crossing
+        } else {
+            TouchVerdict::Unread(TouchUnread::Degenerate)
+        };
+        assert_eq!(got, want, "a floor tilted {t}");
+    }
+}
+
+/// **The mould of a pyramid resting on a plate**: a block less the
+/// plate with the pyramid standing on its apex on it (held to the plate
+/// by an arch, so the two are one solid). The mould touches itself where
+/// the pyramid's cavity meets the plate's: the cavity's corner on a face
+/// of its own solid. That is the operand's own touch, which an op called
+/// without the operand's records does not carry, so it stands
+/// unrecorded; recorded, the mould holds tier 3′: the cavity's corner
+/// rests.
+#[test]
+fn the_mould_of_a_pyramid_on_a_plate_holds_with_its_touch_recorded() {
+    let plate = block((0.0, 4.0), (0.0, 4.0), (0.0, 1.0));
+    let post = block((0.2, 0.8), (1.6, 2.4), (0.5, 3.6));
+    let beam = block((0.2, 2.4), (1.6, 2.4), (3.0, 3.6));
+    let arch = built("the arch", union(&post, &beam, tol()));
+    let held = built(
+        "the held pyramid",
+        union(&arch, &pyramid([2.0, 2.0, 1.0], 1.0, 2.2), tol()),
+    );
+    let body = built("the pyramid on its apex", union(&plate, &held, tol()));
+    assert_eq!(body.solids.len(), 1, "one solid");
+    let Ok(BooleanResult::Body(mould)) =
+        subtract(&block((-1.0, 5.0), (-1.0, 5.0), (-1.0, 4.5)), &body, tol())
+    else {
+        panic!("the mould builds");
+    };
+    let errors = validate_pseudomanifold(&mould.body, &mould.contacts, tol()).unwrap_err();
+    assert!(
+        matches!(
+            &errors[..],
+            [ValidationError::UnrecordedContact {
+                contact: CensusContact::VertexOnFace { .. },
+                witness,
+                ..
+            }] if witness == "(2.0, 2.0, 1.0)"
+        ),
+        "only the unrecorded corner: {errors:?}"
+    );
+    assert_eq!(
+        validate_pseudomanifold(&mould.body, &record_all(&errors), tol()),
+        Ok(()),
+        "recorded"
+    );
+}
+
+/// **Three sheets crossing along one line through their corners cross**:
+/// three discs through the x axis, each a hexagon with corners on it, so
+/// every fan has a ray along the line where they cross and no piece
+/// crosses another sheet off it. Their normals, a third of a turn apart,
+/// sum to zero, so every direction lies behind one sheet or two: the
+/// winding takes two values, and only the crossing refuses it.
+#[test]
+fn three_sheets_crossing_along_their_corners_rays_cross() {
+    let disc = |n: Vec3<f64>| {
+        let e1 = Vec3::new(1.0, 0.0, 0.0);
+        let e2 = n.cross(e1);
+        let o = P::origin();
+        let verts = vec![
+            o + e1 * 2.0,
+            o + e1 + e2 * 2.0,
+            o - e1 + e2 * 2.0,
+            o - e1 * 2.0,
+            o - e1 - e2 * 2.0,
+            o + e1 - e2 * 2.0,
+        ];
+        synthetic(
+            o,
+            At::Face,
+            verts,
+            &[(n, vec![vec![0, 1, 2, 3, 4, 5]])],
+            &[],
+            band(),
+        )
+        .unwrap()
+    };
+    let h = 3f64.sqrt() / 2.0;
+    let got = rest::one_material(
+        &whole(vec![
+            disc(Vec3::new(0.0, 0.0, 1.0)),
+            disc(Vec3::new(0.0, -h, -0.5)),
+            disc(Vec3::new(0.0, h, -0.5)),
+        ]),
+        band(),
+    );
+    assert_eq!(got, TouchVerdict::Crossing);
 }
