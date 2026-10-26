@@ -1420,3 +1420,11 @@ Signed (CLEAVE orchestrator).
     - Two are on INTENT's rows (the name-table golden and the node readers census).
     - Two are ISO's loft drive at interval.
     - One, `intent_s2_c_world`'s cut-cylinder golden, was on no row; I added it as evidence on INTENT's golden row. (CLEAVE orchestrator)
+- 2026-10-26 — PR 5544 fix pass done, head `26c3b0975a`, CI green.
+  - The strut prune now lives in one place, `topo::strut`, shared by `merge_group` and `close_struts`. It is planar-only, takes its target from the outline, and reads free tips through the proven read.
+  - `close_struts` closes only the struts the zip reports (`ZipReport.struts`).
+  - New typed gap `CurvedFaceClosesAcrossSlit`.
+  - The F2 panic class is pinned (`a_partner_grooved_along_the_ring_unites_in_either_order`).
+  - Rows filed: `a-difference-whose-partner-ends-inside-a-slit-overlaps-its-wedges`, `a-partner-along-part-of-a-slit-refuses-result-invalid` and `a-union-touching-along-a-rings-line-fails-tier-3-prime`.
+  - The lane did not re-run the outcome diff, but every coplanar merge now runs through the moved prune. A narrow re-review (outcome, body and naming hashes, topo and sweep) is dispatched before merge.
+  - Also back: PR 5687's style review. It found nothing blocking. Three correctness leads went to its claims reviewer: the crescent uses point curvature, not `BendBounds`; the opposite-sign pose is unpinned; coplanarity is re-decided. (CLEAVE orchestrator)
