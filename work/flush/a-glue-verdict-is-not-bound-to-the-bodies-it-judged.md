@@ -6,7 +6,8 @@ status: open
 opened: 2026-10-13
 priority: P2
 cost: H
-design: true
+design: false
+branch: flush/nary-union-door
 ---
 
 The residue of `boolean-given-pairs-glue-unmeasured-for-any-rust-caller`
@@ -105,3 +106,67 @@ Open within the answer, settled at dispatch: which member is a judgement's opera
 `editor-core` picks the lesser read (PR 5303). The kernel door either
 takes a per-member rank, or judges in list order with the margin made
 symmetric where the asymmetry starts.
+
+Settled at dispatch (the orchestrator's ruling, 2026-10-26): the door
+takes a per-member rank, and `editor-core` passes the order it uses
+today (the lesser read is operand A, PR 5303), so the move changes no
+behaviour. The other option, list order with the margin made symmetric
+where the asymmetry starts, is a possible follow-up.
+
+## Measured (2026-10-26, on main `c2c75756dd`)
+
+- **The union and intersect corpus through `editor-core`.** A temporary
+  hook (not committed) fingerprinted every union and intersect node
+  evaluation in `editor-core`'s whole suite, default profile with the
+  slow set: its body, its name tables, its rows, its records and their
+  cited inputs, or its refusal. 3009 of the suite's 3020 tests ran on
+  both sides (the 11 left out are debug-build interval and range tests
+  that run past 300 s, none a union test). 458 tests evaluate a union
+  or an intersect: 11,427 evaluations, 11,350 bodies and 77 refusals.
+- **The batteries.** `corner_pairs_battery`, `join1_delta_arc_battery`,
+  `four_pairs_battery`, `pinch_runs_battery` and `pierce_runs_battery`
+  (release, ignored): 32,959 outcome lines.
+- **On main, red before this change** (default profile, not this
+  unit's): 18 `editor-core` tests, among them
+  `intent_s2_c_world::the_migrated_world_is_the_pre_c_product`
+  (cut_cylinder's product moved), `m4_pr3_names_ci::die_name_tables_are_golden`,
+  seven `revalue_corpus::revalue_*` rows, `node_standing`'s reader census
+  and the interval pins.
+
+## Fix
+
+`crates/topo/src/boolean/nary.rs`: `topo::nary_boolean` takes the
+members in the author's order, each with its records and rank
+(`MemberInputs`). It reads each member's box, judges every pair whose
+boxes meet as a pair boolean (operand A the lesser rank, the listed
+first on a tie), and folds in list order. Each step is given the
+judgements' verdicts on the member it joins, read through the face
+lineage the door advances from each step's naming (`MemberLineage`,
+`FaceDescent`, which moved from `editor-core`), and is handed the
+previous step's records and the member's. It returns each judgement's
+and each step's `BooleanBody`, each step's lineage, and for each
+restated row the judged rows it stands for (`NaryStep::restates`). A
+refusal says where it was raised (`NaryRefusal`).
+
+`BooleanInputs` lost `given` and is records only; `GlueVerdict::given_at`
+and `GluedPair` are crate-private, and a step's given pairs reach the
+pair pipeline through the crate-private `boolean_op_given`.
+`verbs::Members` is the n-ary verb (`run_members`), of kind
+`VerbKind::Boolean(op)`, so its content tag is unchanged.
+`editor-core`'s `wire_combine` (`crates/editor-core/src/eval/wire.rs`)
+runs it and names what it returns; `judge_pairwise_contact`,
+`PairVerdict`, `pair_verdicts`, `given_pairs`, `restated_given`,
+`member_lineage` and `debug_assert_given` are gone, and `names::Fold`
+reads the kernel's lineage instead of building its own.
+
+Re-measured on the branch: every one of the 11,427 evaluations gives
+the same body, names, records, cited inputs and refusal. Rows are
+identical except in one test's four evaluations
+(`coincidence_door::an_unproven_fold_row_is_reported_under_the_judged_row_decided_at_its_point`),
+where a fold row's margin carries a different deferred-entry index
+(`ZeroWord`, the place of a Zero on the deferring symbolic session's
+list): all of a union's booleans now run before its steps are named,
+so the session's list fills in another order. Value, relation, cells
+and site are equal. The batteries' 32,959 lines are identical, and the
+failing set is the 18 above on both sides.
+
