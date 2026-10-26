@@ -66,6 +66,8 @@ mod a_curved_keel_in_the_plane;
 mod a_curved_keel_on_the_floor_refuses_its_slit_form;
 #[path = "a_cylinder_split_just_off_its_rim_vertex.rs"]
 mod a_cylinder_split_just_off_its_rim_vertex;
+#[path = "review_5734_probe.rs"]
+mod review_5734_probe;
 #[path = "a_face_off_the_tangent_ruling.rs"]
 mod a_face_off_the_tangent_ruling;
 #[path = "a_flank_touch_at_a_shared_corner.rs"]
