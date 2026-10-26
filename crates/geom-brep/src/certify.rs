@@ -837,21 +837,29 @@ impl core::fmt::Display for CertifyError {
             Self::DeclaredOffChart {
                 chart,
                 carrier,
-                margin: Some(crate::OffMargin::InBand(_)),
-            } => write!(
-                f,
-                "a declared {} is no curve of the {} chart its description names at this \
-                 tolerance: it sits, within the band, at a pose where that chart holds no {}",
-                carrier.name(),
-                chart.name(),
-                carrier.name()
-            ),
-            Self::DeclaredOffChart { chart, carrier, .. } => write!(
-                f,
-                "a declared {} does not lie on the {} chart its description names",
-                carrier.name(),
-                chart.name()
-            ),
+                margin,
+            } => match crate::IncidenceRead::of_margin(*margin) {
+                // Not shown off the chart: read AT a pose where the chart
+                // holds no curve of its kind, which says nothing about
+                // whether it lies on it.
+                crate::IncidenceRead::AtPose(_) => write!(
+                    f,
+                    "a declared {} is no curve of the {} chart its description names at this \
+                     tolerance: it sits, within the band, at a pose where that chart holds no {}",
+                    carrier.name(),
+                    chart.name(),
+                    carrier.name()
+                ),
+                crate::IncidenceRead::Off(_) => write!(
+                    f,
+                    "a declared {} does not lie on the {} chart its description names",
+                    carrier.name(),
+                    chart.name()
+                ),
+                crate::IncidenceRead::Undecided(_) => {
+                    unreachable!("a decided incidence refusal carries no undecided read")
+                }
+            },
             Self::Unimplemented => write!(
                 f,
                 "a Nurbs described surface, or a Nurbs carrier under a \
@@ -1042,7 +1050,7 @@ impl CertifyError {
             } => (CertCheck::GeneralLane, RefusedArm::SignCertain(None)),
             Self::DeclaredOffChart { margin, .. } => (
                 CertCheck::DeclaredIncidence,
-                RefusedArm::SignCertain(margin.map(crate::OffMargin::diag)),
+                crate::IncidenceRead::of_margin(*margin).arm(),
             ),
             Self::OnPairArcRim { iso, limb, bound } => {
                 match iso.and_then(crate::pcurve_cache::PcurveCheck::incidence_limb) {
@@ -1082,6 +1090,21 @@ impl CertifyError {
             Self::PlaneNurbs(refusal) => refusal.ending(at),
             Self::AnalyticRung3(refusal) => refusal.ending(at),
             Self::StatedInterval { refused } => Some(refused.ending(at)),
+            // A declared carrier's incidence ends by what was read
+            // ([`crate::IncidenceRead::declared_lever`]), the one map every
+            // incidence ending goes through.
+            Self::DeclaredOffChart { margin, .. } => {
+                let read = crate::IncidenceRead::of_margin(*margin);
+                Some(read.declared_lever().recourse(read.arm(), at))
+            }
+            Self::Escalated {
+                check: CertCheck::DeclaredIncidence,
+                cause,
+                ..
+            } => {
+                let read = crate::IncidenceRead::Undecided(cause);
+                Some(read.declared_lever().recourse(read.arm(), at))
+            }
             _ => self.decision().map(|(check, arm)| recourse(check, arm, at)),
         }
     }
@@ -1476,6 +1499,10 @@ impl CertCheck {
             // A lane choice (D3): no defect and no tolerance on any arm.
             Self::ChartClass | Self::GeneralLane => Ending::NotYet,
             // The modeler's own placement (D3): their lever on every arm.
+            // Which lever is the read's ([`crate::IncidenceRead`]): both
+            // refusals this check owns end through
+            // [`CertifyError::ending`]'s incidence arms, and this entry
+            // classifies the check.
             Self::DeclaredIncidence => Ending::Lever(crate::recourse::DECLARED_OFF_FACE),
             // A fold over samples that each decided transverse: a poison
             // that survives it is the kernel's.

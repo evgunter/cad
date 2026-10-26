@@ -2156,49 +2156,39 @@ impl PcurveCertifyError {
                 chart.name(),
                 channel.describe()
             ),
+            // The payload says what was read; the ending says what to do,
+            // and it is the authority's ([`IncidenceRead::ending`]), so no
+            // recourse is written here.
             Self::CarrierOffChart {
                 chart,
                 carrier,
                 why,
-                margin: None,
-            } => write!(
-                f,
-                "pcurve certification: the {} carrier does not lie on the {} chart — {why}. \
-                 The edge is not on its face. Recourse: repair the body so the edge's carrier \
-                 lies on the face's surface",
-                carrier.name(),
-                chart.name(),
-            ),
-            Self::CarrierOffChart {
-                chart,
-                carrier,
-                why,
-                margin: Some(OffMargin::Past(m)),
-            } => write!(
-                f,
-                "pcurve certification: the {} carrier does not lie on the {} chart — {why} \
-                 (margin {m:e} m). The edge is not on its face. Recourse: repair the body so the \
-                 edge's carrier lies on the face's surface",
-                carrier.name(),
-                chart.name(),
-            ),
-            // Not shown off the chart: the carrier is read AT a pose where
-            // no carrier of its kind lies on it, which says nothing about
-            // whether the edge is on its face.
-            Self::CarrierOffChart {
-                chart,
-                carrier,
-                why,
-                margin: Some(OffMargin::InBand(m)),
-            } => write!(
-                f,
-                "pcurve certification: the {} carrier is no curve of the {} chart at this \
-                 tolerance — {why} (margin {m:e} m, within the band). Recourse: move the \
-                 carrier clear of that pose by more than the tolerance, or split the edge so no \
-                 piece of it sits there",
-                carrier.name(),
-                chart.name(),
-            ),
+                margin,
+            } => match IncidenceRead::of_margin(*margin) {
+                IncidenceRead::Off(margin) => write!(
+                    f,
+                    "pcurve certification: the {} carrier does not lie on the {} chart — \
+                     {why}{}. The edge is not on its face",
+                    carrier.name(),
+                    chart.name(),
+                    margin
+                        .map(|m| format!(" (margin {m:e} m)"))
+                        .unwrap_or_default()
+                ),
+                // Not shown off the chart: the carrier is read AT a pose
+                // where no carrier of its kind lies on it, which says
+                // nothing about whether the edge is on its face.
+                IncidenceRead::AtPose(m) => write!(
+                    f,
+                    "pcurve certification: the {} carrier is no curve of the {} chart at this \
+                     tolerance — {why} (margin {m:e} m, within the band)",
+                    carrier.name(),
+                    chart.name(),
+                ),
+                IncidenceRead::Undecided(_) => {
+                    unreachable!("a decided incidence refusal carries no undecided read")
+                }
+            },
             Self::ImageMismatch { image, why } => write!(
                 f,
                 "pcurve certification: the {} image offered is not its carrier's image at \
@@ -2370,6 +2360,12 @@ impl PcurveCertifyError {
                 (PcurveCheck::ChartWinding, RefusedArm::SignCertain(None))
             }
             Self::TubePeriodExceeded => (PcurveCheck::TubePeriod, RefusedArm::SignCertain(None)),
+            // The derived default: a reader that holds the carrier's
+            // authority ends it by [`IncidenceRead::ending`] instead.
+            Self::CarrierOffChart { margin, .. } => (
+                PcurveCheck::ChartIncidence,
+                IncidenceRead::of_margin(*margin).arm(),
+            ),
             Self::NoGeneralLane {
                 gap: LaneGap::Unwritten,
                 ..
@@ -2380,7 +2376,6 @@ impl PcurveCertifyError {
             } => (PcurveCheck::GeneralLane, RefusedArm::SignCertain(None)),
             Self::FittedEscalated { .. }
             | Self::UnsupportedChart { .. }
-            | Self::CarrierOffChart { .. }
             | Self::ImageMismatch { .. }
             | Self::FittedLaneUnsupported { .. }
             | Self::SectorRefused { .. }
@@ -2431,7 +2426,44 @@ impl PcurveCertifyError {
                 cause.payload(),
                 check.recourse(RefusedArm::Undecided(cause), at)
             ),
+            // Read with no authority: the kernel's ending, the derived
+            // default. A reader holding the authority ends it by
+            // [`IncidenceRead::ending`].
+            Self::CarrierOffChart { .. } => format!(
+                "{}. {}",
+                core::fmt::from_fn(|f| self.write_payload(f)),
+                self.ending(at)
+                    .unwrap_or_else(|| unreachable!("an off-chart refusal is decided"))
+            ),
             _ => core::fmt::from_fn(|f| self.write_payload(f)).to_string(),
+        }
+    }
+
+    /// This refusal's text read at `at` for a carrier of `authority`: an
+    /// incidence refusal ([`IncidenceRead::of`]) ends by who placed the
+    /// carrier, through the one map ([`IncidenceRead::ending`]); every
+    /// other refusal reads as [`Self::render`]. The door a boundary row's
+    /// refusal is read at holds the authority, so it renders here.
+    #[must_use]
+    pub fn render_by(&self, authority: crate::AuthorityKind, at: impl Into<ReadAt>) -> String {
+        let at = at.into();
+        let Some(read) = IncidenceRead::of(self) else {
+            return self.render(at);
+        };
+        let ending = read.ending(authority, at);
+        match self {
+            Self::Escalated {
+                check,
+                sample,
+                cause,
+            } => format!(
+                "pcurve certification: {check:?} at sample {sample} escalated: {}. {ending}",
+                cause.payload()
+            ),
+            _ => format!(
+                "{}. {ending}",
+                core::fmt::from_fn(|f| self.write_payload(f))
+            ),
         }
     }
 
@@ -9277,6 +9309,85 @@ impl OffMargin {
     }
 }
 
+/// **How a carrier's incidence on its chart was read**: the one
+/// classifier every door's incidence ending matches on
+/// ([`IncidenceRead::of`], [`IncidenceRead::ending`]).
+#[derive(Clone, Copy, Debug)]
+pub enum IncidenceRead<'a> {
+    /// Decided off the chart: past the band, or with no margin to quote.
+    Off(Option<geom_core::MarginDiag>),
+    /// A band-decided Zero at a degenerate pose ([`OffMargin::InBand`]):
+    /// at this tolerance the carrier sits where the chart holds no curve
+    /// of its kind; it is not shown off the chart.
+    AtPose(geom_core::MarginDiag),
+    /// The incidence test landed in the band
+    /// ([`PcurveCheck::ChartIncidence`] escalated).
+    Undecided(&'a Indeterminate),
+}
+
+impl<'a> IncidenceRead<'a> {
+    /// The incidence read a refusal carries, or `None` for a refusal of
+    /// anything else.
+    #[must_use]
+    pub fn of(error: &'a PcurveCertifyError) -> Option<Self> {
+        match error {
+            PcurveCertifyError::CarrierOffChart { margin, .. } => Some(Self::of_margin(*margin)),
+            PcurveCertifyError::Escalated {
+                check: PcurveCheck::ChartIncidence,
+                cause,
+                ..
+            } => Some(Self::Undecided(cause)),
+            _ => None,
+        }
+    }
+
+    /// The read a decided incidence refusal's margin names.
+    #[must_use]
+    pub fn of_margin(margin: Option<OffMargin>) -> Self {
+        match margin {
+            Some(OffMargin::InBand(m)) => Self::AtPose(m),
+            None => Self::Off(None),
+            Some(OffMargin::Past(m)) => Self::Off(Some(m)),
+        }
+    }
+
+    /// The refused arm the read carries.
+    #[must_use]
+    pub fn arm(self) -> RefusedArm<'a> {
+        match self {
+            Self::Off(margin) => RefusedArm::SignCertain(margin),
+            Self::AtPose(m) => RefusedArm::SignCertain(Some(m)),
+            Self::Undecided(cause) => RefusedArm::Undecided(cause),
+        }
+    }
+
+    /// The modeler's lever for this read of a DECLARED carrier: each arm
+    /// worded for what was read.
+    #[must_use]
+    pub fn declared_lever(self) -> crate::recourse::LeverOnly {
+        match self {
+            Self::Off(_) => crate::recourse::DECLARED_OFF_FACE,
+            Self::AtPose(_) => crate::recourse::DECLARED_AT_POSE,
+            Self::Undecided(_) => crate::recourse::DECLARED_UNSHOWN,
+        }
+    }
+
+    /// **The one ending of an incidence refusal** (D3), by who placed the
+    /// carrier, read at `at`: a declared carrier ends in the modeler's
+    /// lever alone ([`Self::declared_lever`]), with no tolerance offer and
+    /// no defect; a derived one ends as [`PcurveCheck::ChartIncidence`]'s
+    /// routing gives it, the kernel's. Every door that reads an incidence
+    /// refusal with its authority ends it here.
+    #[must_use]
+    pub fn ending(self, authority: crate::AuthorityKind, at: impl Into<ReadAt>) -> String {
+        if authority.is_declared() {
+            self.declared_lever().recourse(self.arm(), at)
+        } else {
+            PcurveCheck::ChartIncidence.recourse(self.arm(), at)
+        }
+    }
+}
+
 /// A closed-form arm's conclusion that the carrier cannot lie on the
 /// chart, with why ([`PcurveCertifyError::CarrierOffChart`]).
 #[derive(Clone, Copy, Debug)]
@@ -11571,7 +11682,8 @@ mod tests {
 
     /// Each split arm names its condition, the pair it was raised on,
     /// and a recourse — a floor on the vocabulary, as the sibling
-    /// `every_*_arm_names_a_recourse` rows are.
+    /// `every_*_arm_names_a_recourse` rows are. An incidence refusal's
+    /// recourse is its ending, the authority's: none in its payload.
     #[test]
     fn every_carrier_refusal_arm_names_its_pair_and_a_recourse() {
         use geom::{CurveKind, SurfaceKind};
@@ -11616,13 +11728,44 @@ mod tests {
             },
             vec!["Spiric", "WHY"],
         ));
+        let declared = crate::EdgeAuthority::Declared(crate::MappedCurve::whole(
+            crate::MappedSource::ExtrudedPoint {
+                point: Point2::new(0.0, 0.0),
+                place: geom_core::Affine3::identity(),
+                vec: Vec3::unit_z(),
+            },
+        ))
+        .kind();
         for (err, payload) in rows {
             let msg = err.to_string();
             for word in payload {
                 assert!(msg.contains(word), "{word} missing from: {msg}");
             }
-            assert!(msg.contains("Recourse: "), "no recourse in: {msg}");
-            assert_eq!(err.ending(Reading::AtRest), None, "{msg}");
+            assert!(
+                test_utils::refusal::recourse_markers(&msg) >= 1,
+                "no recourse in: {msg}"
+            );
+            let Some(read) = IncidenceRead::of(&err) else {
+                assert_eq!(err.ending(Reading::AtRest), None, "{msg}");
+                continue;
+            };
+            // An incidence refusal's payload carries no recourse: the
+            // ending is the authority's, so the text a reader with no
+            // authority sees is the kernel's ending, and a declared
+            // carrier's reads the modeler's lever alone.
+            let text = core::fmt::from_fn(|f| err.write_payload(f)).to_string();
+            assert!(!text.contains("Recourse"), "{text}");
+            assert_eq!(err.ending(Reading::Build), Some(read.ending(
+                crate::EdgeAuthority::<f64>::Derived.kind(),
+                Reading::Build,
+            )));
+            let as_declared = err.render_by(declared, Reading::Build);
+            assert!(
+                as_declared.contains("Recourse: move the declared curve")
+                    && !as_declared.contains("defect")
+                    && !as_declared.contains("repair the body"),
+                "{as_declared}"
+            );
         }
     }
 

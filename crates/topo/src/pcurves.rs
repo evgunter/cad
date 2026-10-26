@@ -563,11 +563,16 @@ impl PcurveMintError {
     #[must_use]
     pub fn render(&self, at: impl Into<geom_brep::recourse::ReadAt>) -> String {
         match self {
+            // The row's own authority ends an incidence refusal
+            // ([`geom_brep::IncidenceRead::ending`]), at every door this
+            // refusal is read at, as at rest.
             Self::Certify {
-                half_edge, error, ..
+                half_edge,
+                error,
+                authority,
             } => format!(
                 "the pcurve of half-edge {half_edge:?} failed certification: {}",
-                error.render(at)
+                error.render_by(*authority, at)
             ),
             _ => core::fmt::from_fn(|f| self.write_payload(f)).to_string(),
         }

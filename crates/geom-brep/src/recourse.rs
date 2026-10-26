@@ -347,15 +347,28 @@ pub struct LeverOnly {
     pub lever: &'static str,
 }
 
-/// **A declared curve that does not lie on the face it names** (D3):
-/// the modeler's to move, on every arm — decided or in band, at a build
-/// or at rest — with no tolerance offer and no defect. The one spelling
-/// of that ending, for the edge certificate
-/// ([`crate::CertCheck::DeclaredIncidence`]) and for a declared boundary
-/// row's refusal at rest.
+/// **A declared curve decided off the face it names** (D3): the
+/// modeler's to move, at a build or at rest, with no tolerance offer and
+/// no defect. One of the three levers [`crate::IncidenceRead::ending`]
+/// gives a declared carrier, one per way its incidence was read.
 pub const DECLARED_OFF_FACE: LeverOnly = LeverOnly {
     lever: "move the declared curve onto the face it bounds, or declare it on the face it \
             lies on",
+};
+
+/// **A declared curve read, within the band, at a pose where its face
+/// holds no curve of its kind** ([`crate::OffMargin::InBand`]): not shown
+/// off the face, so the lever does not ask to move it onto it.
+pub const DECLARED_AT_POSE: LeverOnly = LeverOnly {
+    lever: "move the declared curve clear of that pose by more than the tolerance, or split \
+            the edge so no piece of it sits there",
+};
+
+/// **A declared curve whose incidence on its face is undecided**: not
+/// shown on the face, and not shown off it.
+pub const DECLARED_UNSHOWN: LeverOnly = LeverOnly {
+    lever: "the declared curve is not shown on the face it bounds: place it clearly on that \
+            face, or declare it on the face it lies on",
 };
 
 impl LeverOnly {

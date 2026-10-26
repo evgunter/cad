@@ -3000,11 +3000,9 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
         | CertifyError::IntersectionSameSurface { .. }
         | CertifyError::WrapOnNonPeriodic
         | CertifyError::PlaneNurbs(P::PcurveFit) => MISMATCH,
-        CertifyError::DeclaredOffChart {
-            margin: Some(geom_brep::OffMargin::InBand(_)),
-            ..
-        } => DECLARED_AT_POSE,
-        CertifyError::DeclaredOffChart { .. } => DECLARED_OFF,
+        CertifyError::DeclaredOffChart { margin, .. } => {
+            incidence_reason(geom_brep::IncidenceRead::of_margin(*margin), true)
+        }
         CertifyError::NoGeneralLane { .. } => {
             "it is on its face but is none of the face's own curves, and the kernel cannot yet \
              write where such a curve sits on that face"
@@ -3521,65 +3519,47 @@ const DECLARED_CLOSE: &str = geom_core::undecided!("whether a declared curve lie
 /// it is not shown off its face, so the reason does not say it is.
 const DECLARED_AT_POSE: &str =
     "a declared curve sits, within the band, where its face holds no curve of its kind";
+/// Why a DERIVED boundary decided off its face refused at rest.
+const DERIVED_OFF: &str = "the stored boundary does not match the face";
+/// Why a DERIVED boundary read, within the band, at a pose where its face
+/// holds no curve of its kind refused: not decided off, so the reason does
+/// not say it fails to match.
+const DERIVED_AT_POSE: &str =
+    "the stored boundary sits, within the band, where its face holds no curve of its kind";
+/// Why a DERIVED boundary's incidence on its face is undecided.
+const DERIVED_CLOSE: &str = geom_core::undecided!("the boundary");
+
+/// **Why a carrier's incidence refused, by what was read and who placed
+/// it**: the one reason table, read by a boundary row at rest
+/// ([`off_face_ending`]) and by the edge certificate's declared arms
+/// ([`classify_certify`]).
+fn incidence_reason(read: geom_brep::IncidenceRead<'_>, declared: bool) -> &'static str {
+    use geom_brep::IncidenceRead as R;
+    match (declared, read) {
+        (true, R::Off(_)) => DECLARED_OFF,
+        (true, R::AtPose(_)) => DECLARED_AT_POSE,
+        (true, R::Undecided(_)) => DECLARED_CLOSE,
+        (false, R::Off(_)) => DERIVED_OFF,
+        (false, R::AtPose(_)) => DERIVED_AT_POSE,
+        (false, R::Undecided(_)) => DERIVED_CLOSE,
+    }
+}
 
 /// **A boundary curve that misses its face, ended by who placed it**
-/// (D3): the one place a carrier-off-chart refusal or an undecided
-/// incidence reading ([`geom_brep::PcurveCheck::ChartIncidence`]) picks
-/// its ending, or `None` for any other refusal.
-///
-/// A curve the modeler DECLARED that does not lie on its face is the
-/// modeler's to move: it ends in that lever alone, decided, undecided or
-/// read in band at a degenerate pose ([`geom_brep::OffMargin::InBand`]),
-/// with no tolerance offer and no defect. A locus the kernel DERIVED for
-/// itself that misses its face is the kernel's: a definite miss, or one
-/// read in band at such a pose, is the defect, and an undecided one ends
-/// as the incidence check's routing gives it at rest. `wrong` and `close`
-/// are the caller's reasons for a derived locus.
+/// (D3), at rest: a carrier-off-chart refusal or an undecided incidence
+/// reading ([`geom_brep::IncidenceRead::of`]) takes its reason from
+/// [`incidence_reason`] and its ending from the one map,
+/// [`geom_brep::IncidenceRead::ending`], which the build-time render
+/// reads too; `None` for any other refusal.
 fn off_face_ending(
     error: &geom_brep::PcurveCertifyError,
     authority: geom_brep::AuthorityKind,
-    wrong: &'static str,
-    close: &'static str,
 ) -> Option<(&'static str, Cow<'static, str>)> {
-    use geom_brep::OffMargin;
-    use geom_brep::PcurveCertifyError as C;
-    use geom_brep::recourse::DECLARED_OFF_FACE;
-    /// How the incidence reading ended.
-    enum Read {
-        Off,
-        AtPose,
-        Undecided,
-    }
-    let (arm, read) = match error {
-        C::CarrierOffChart { margin, .. } => (
-            RefusedArm::SignCertain(margin.map(OffMargin::diag)),
-            match margin {
-                Some(OffMargin::InBand(_)) => Read::AtPose,
-                None | Some(OffMargin::Past(_)) => Read::Off,
-            },
-        ),
-        C::Escalated {
-            check: geom_brep::PcurveCheck::ChartIncidence,
-            cause,
-            ..
-        } => (RefusedArm::Undecided(cause), Read::Undecided),
-        _ => return None,
-    };
-    let lever = || Cow::Owned(DECLARED_OFF_FACE.recourse(arm, Reading::AtRest));
-    Some(match (authority.is_declared(), read) {
-        (true, Read::Off) => (DECLARED_OFF, lever()),
-        (true, Read::AtPose) => (DECLARED_AT_POSE, lever()),
-        (true, Read::Undecided) => (DECLARED_CLOSE, lever()),
-        (false, Read::Off | Read::AtPose) => (wrong, Cow::Borrowed(DEFECT)),
-        (false, Read::Undecided) => (
-            close,
-            Cow::Owned(
-                error
-                    .ending(Reading::AtRest)
-                    .unwrap_or_else(|| unreachable!("an escalation is a decision's refused arm")),
-            ),
-        ),
-    })
+    let read = geom_brep::IncidenceRead::of(error)?;
+    Some((
+        incidence_reason(read, authority.is_declared()),
+        Cow::Owned(read.ending(authority, Reading::AtRest)),
+    ))
 }
 
 fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'static, str>) {
@@ -3625,7 +3605,7 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
         M::Certify {
             error, authority, ..
         } => {
-            if let Some(ending) = off_face_ending(error, *authority, WRONG, CLOSE) {
+            if let Some(ending) = off_face_ending(error, *authority) {
                 return ending;
             }
             // A decision's refused arm ends as its check's routing gives
@@ -12237,7 +12217,23 @@ mod tests {
                 4e-10,
             ))),
         };
-        for error in [off, in_band, at_pose] {
+        // Each read with the lever worded for it (R4): a curve decided off
+        // is asked onto its face; one at a pose, clear of it; an undecided
+        // one, clearly onto it.
+        for (error, lever) in [
+            (
+                off,
+                "Recourse: move the declared curve onto the face it bounds",
+            ),
+            (
+                in_band,
+                "Recourse: the declared curve is not shown on the face it bounds",
+            ),
+            (
+                at_pose,
+                "Recourse: move the declared curve clear of that pose by more than the tolerance",
+            ),
+        ] {
             let rest = |authority| {
                 classify_pcurve(&M::Certify {
                     half_edge: crate::entity::HalfEdgeKey::default(),
@@ -12245,8 +12241,6 @@ mod tests {
                     authority,
                 })
             };
-            let (why, ending) = rest(declared);
-            assert!(why.contains("declared curve"), "{error:?}: {why}");
             let at_a_pose = matches!(
                 error,
                 C::CarrierOffChart {
@@ -12254,20 +12248,26 @@ mod tests {
                     ..
                 }
             );
+            let decided_off = matches!(error, C::CarrierOffChart { .. }) && !at_a_pose;
+            let (why, ending) = rest(declared);
+            assert!(why.contains("declared curve"), "{error:?}: {why}");
             assert_eq!(
                 why.contains("does not lie on"),
-                matches!(error, C::CarrierOffChart { .. }) && !at_a_pose,
+                decided_off,
                 "{error:?}: {why}"
             );
-            assert!(
-                ending.starts_with("Recourse: move the declared curve onto the face it bounds"),
-                "{error:?}: {ending}"
-            );
-            for word in ["defect", "tolerance", "bug"] {
+            assert!(ending.starts_with(lever), "{error:?}: {ending}");
+            for word in ["defect", "bug", "loosen", "tighten", "repair the body"] {
                 assert!(!ending.contains(word), "{error:?}: {word}: {ending}");
             }
             let (why, ending) = rest(derived);
             assert!(!why.contains("declared"), "{error:?}: {why}");
+            // Only a boundary decided off is said not to match its face.
+            assert_eq!(
+                why.contains("does not match the face"),
+                decided_off,
+                "{error:?}: {why}"
+            );
             assert!(!ending.contains("declared curve"), "{error:?}: {ending}");
             if matches!(error, C::CarrierOffChart { .. }) {
                 assert_eq!(ending, DEFECT, "{error:?}");
@@ -12277,6 +12277,29 @@ mod tests {
                     error.ending(Reading::AtRest),
                     "{error:?}"
                 );
+            }
+            // The build door reads the same map with the same stamp.
+            for (authority, at_rest) in [(declared, true), (derived, false)] {
+                let built = M::Certify {
+                    half_edge: crate::entity::HalfEdgeKey::default(),
+                    error: error.clone(),
+                    authority,
+                }
+                .to_string();
+                assert_eq!(
+                    built.contains("declared curve"),
+                    at_rest,
+                    "{error:?}: {built}"
+                );
+                if authority.is_declared() {
+                    assert!(
+                        !built.contains("defect") && !built.contains("repair the body"),
+                        "{error:?}: {built}"
+                    );
+                } else {
+                    let kernels = error.ending(Reading::Build).unwrap();
+                    assert!(built.ends_with(&kernels), "{error:?}: {built}");
+                }
             }
         }
     }
