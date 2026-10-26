@@ -57,6 +57,7 @@ mod carrier_net;
 pub mod carrier_resolution;
 pub mod certify;
 pub mod conic_bend;
+pub mod curve_face;
 pub mod curve_pair;
 pub(crate) mod descent;
 pub mod description;

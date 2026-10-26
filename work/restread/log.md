@@ -112,3 +112,4 @@ crossing lane and the edge-on-face lane (plan.md, Order).
     - `not-yet-ending-is-still-hand-spelled-in-arm-twos-touch-wording` (P4).
   - The geom-core `certified_endpoint_census` and copysign-census reds the lanes saw are main's, already rowed by PCERT and GERM. — (RESTREAD orchestrator)
 - 2026-10-25 — **Band rule (work/README.md, Priority):** `census-cross-solid-curved-pairs-undecidable-on-shell-results` re-banded P1→P0: it gates REACHHOLD's `boolean-door-runs-the-census-over-its-result`, now P0 because FLUSH's two P0s wait on it. What the door waits on is this row's boolean-result half (the 38 unions, the touches), which is most of what remains here. (band-rule triage)
+- 2026-10-26 — Main red from PR 5529 meeting PR 5745 (SameSideInterference vs. coincident line wedges): fixed in PR 5779, `coincident_line_wedges` restated against SSI deciding the pair, and an aligned face pair now holds the wedges on its lines. (ATREST orchestrator's lane)
