@@ -1564,10 +1564,9 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
                     Some(true) => stored.clone(),
                     Some(false) => stored.clone().flipped(),
                     None => unreachable!(
-                        "union vertex name {was:?} re-cites member {:?}'s edge {:?} as member \
-                         {:?}'s edge {:?}, off its line: `Flush::line_through` cites only edges \
-                         on the line through the vertex",
-                        own.0, own.1, e.0, e.1
+                        "union vertex name {was:?} re-cites member edge {own:?} as member edge \
+                         {e:?}, off its line: `Flush::line_through` cites only edges on the line \
+                         through the vertex"
                     ),
                 };
                 read.push((e, along, self.reading_of(e)?));
