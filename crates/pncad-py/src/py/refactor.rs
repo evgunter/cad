@@ -209,6 +209,20 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
             none(),
             none(),
         ),
+        // The space is the shared thing, as `UncutVarReference`'s
+        // variable is: its node in the `param` field's place.
+        E::SpaceStraddlesCut {
+            space,
+            cut_node,
+            kept_node,
+        } => (
+            id(cut_node),
+            none(),
+            id(kept_node),
+            text(&space.to_string()),
+            none(),
+            none(),
+        ),
         E::DefinitionStraddlesCut { var, .. } => (
             none(),
             none(),

@@ -80,6 +80,38 @@ pub(super) enum Joint {
     Chord { he1: HalfEdgeKey, he2: HalfEdgeKey },
 }
 
+impl Joint {
+    /// **The joint from `he1`'s start to `he2`'s**, two half-edges of one
+    /// face: across their one loop, or across their two, the face's
+    /// outline absorbing the other where `he2` lies on it (`mekr`
+    /// absorbs a ring into the other loop; the joint reads the same
+    /// either way round). `None` where a half-edge resolves no loop or
+    /// face.
+    pub(super) fn between<T: geom_core::Real>(
+        body: &Body<T>,
+        he1: HalfEdgeKey,
+        he2: HalfEdgeKey,
+    ) -> Option<Self> {
+        let loop_of = |h: HalfEdgeKey| body.get_half_edge(h).map(|d| d.parent_loop);
+        let (l1, l2) = (loop_of(he1)?, loop_of(he2)?);
+        if l1 == l2 {
+            return Some(Self::Chord { he1, he2 });
+        }
+        let outer = body.get_face(body.face_of_half_edge(he2)?)?.outer;
+        Some(if outer == l2 {
+            Self::Loops {
+                target: he2,
+                ring: he1,
+            }
+        } else {
+            Self::Loops {
+                target: he1,
+                ring: he2,
+            }
+        })
+    }
+}
+
 /// **Fuses two coincident vertices**: a zero-length edge between them at
 /// `p` (the canonical self-loop carrier, whose certification requires
 /// the pair bitwise coincident), collapsed onto `keep`, one of its ends,
@@ -912,9 +944,7 @@ fn glue<T: Decide + crate::props::AtRestPolicy>(
         // end: A's.
         let (he1, he2) = if start { (o, x) } else { (x, o) };
         let (l1, l2) = (he(body, he1).parent_loop, he(body, he2).parent_loop);
-        let joint = if l1 == l2 {
-            Joint::Chord { he1, he2 }
-        } else {
+        if l1 != l2 {
             let (f1, f2) = (face(body, he1)?.0, face(body, he2)?.0);
             if f1 != f2 {
                 let ringless = |f: FaceKey| proven(&body.faces, f, EntityId::Face).rings.is_empty();
@@ -924,20 +954,9 @@ fn glue<T: Decide + crate::props::AtRestPolicy>(
                     _ => return Err(corr("a seam joint's two faces both hold rings")),
                 };
             }
-            // `mekr` absorbs a ring into the other loop; the joint reads
-            // the same either way round.
-            if face(body, he2)?.1 == l2 {
-                Joint::Loops {
-                    target: he2,
-                    ring: he1,
-                }
-            } else {
-                Joint::Loops {
-                    target: he1,
-                    ring: he2,
-                }
-            }
-        };
+        }
+        let joint = Joint::between(body, he1, he2)
+            .ok_or_else(|| corr("a seam joint's half-edge has no face"))?;
         let keep = he(body, he1).start;
         let p = body
             .get_vertex(keep)

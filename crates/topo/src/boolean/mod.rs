@@ -284,6 +284,7 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         crate::census::SPAN_ORDER_CHARGED
         | crate::census::EE_OVERLAP_CHARGED
         | crate::census::SPAN_ROUNDING => BooleanDecision::LineSpanPrecision.subject(),
+        slit::PARTING_ORDER => BooleanDecision::PartingOrder.subject(),
         // The line's wedges the result gate reads (`census::line_wedges`),
         // tier 3's pinch-corner reading under names of its own.
         crate::census::LINE_WEDGE_AFTER_LEAVING
@@ -3775,9 +3776,9 @@ pub enum BooleanError {
     /// An edge of the result lies in one of its own faces, and the
     /// material parts it into two edges, face | wall each
     /// ([`EdgeInFaceGap`]): a parting the kernel does not build there,
-    /// or ([`EdgeInFaceGap::Crossed`], [`EdgeInFaceGap::TwinIncident`]) a
-    /// face crossing the edge's material or a parting that left a record
-    /// it cannot hold, which are the kernel's own defects.
+    /// or ([`EdgeInFaceGap::is_defect`]) a face crossing the edge's
+    /// material, or a parting or division that left what it never
+    /// makes, which are the kernel's own defects.
     EdgeInFace {
         /// The edge, in the result's keys.
         edge: crate::entity::EdgeKey,
@@ -5109,11 +5110,7 @@ impl core::fmt::Display for BooleanError {
                      {NOT_YET_ENDING}"
                 )
             }
-            Self::EdgeInFace {
-                edge,
-                face,
-                gap: gap @ (EdgeInFaceGap::Crossed | EdgeInFaceGap::TwinIncident),
-            } => write!(
+            Self::EdgeInFace { edge, face, gap } if gap.is_defect() => write!(
                 f,
                 "edge {edge:?} of the result lies in face {face:?}, and {}. {}",
                 gap.words(),
