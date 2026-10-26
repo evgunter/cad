@@ -296,11 +296,16 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 /// the `From { read, of }` it came in through, as a seam side does: the
 /// second subtract's divided pieces' walls gained their read. No
 /// outcome moved, and every other document held.
+///
+/// Re-pinned, `corner_table` and `crossing_slots` alone, when a run
+/// line's sense stopped being optional (an orientation is read, never
+/// chosen): their pair booleans' `EdgeCrossing` names spell each line's
+/// sense bare. No outcome moved, and every other document held.
 const PINNED: &[(&str, u64)] = &[
     ("die", 0x7edd9af875ab8a41),
-    ("corner_table", 0x7b26284bc1febf4a),
+    ("corner_table", 0x4d02bc775a5c1a26),
     ("heat_sink", 0xa73720bc22f28026),
-    ("crossing_slots", 0x0e26537c1371045d),
+    ("crossing_slots", 0xaf0d64a2abba8f6b),
     ("nested_islands_105", 0xccb5f0610256c3b0),
     ("nested_islands_106_depth1", 0xe0e0e0478a1875fc),
     ("nested_islands_106_depth2", 0x2f5fb3d31d8f6f6c),

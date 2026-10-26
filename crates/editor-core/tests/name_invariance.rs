@@ -1754,6 +1754,86 @@ fn an_authoring_history_moves_no_name() {
     found.settle(ADMITTED_HISTORY, VACUOUS_HISTORY);
 }
 
+/// **The raw table reads a seam crossing alike in every authoring
+/// order**, with no `remap_name` between: the plate less the union of
+/// [`TOOL_A`] and [`TOOL_B`], whose seam crosses the plate's top at
+/// (2, 1, 1). The crossing names the side it enters along, and that side
+/// is the same member's in every order. A sense read along the seam's
+/// lesser side would flip with which member was authored first.
+#[test]
+fn a_seam_crossings_raw_sense_names_one_members_side_in_every_order() {
+    use editor_core::{EntityKey, Entry, RoleSeg, Sense};
+    let mut seen = BTreeSet::new();
+    for order in decide_alike::orders(3) {
+        let members = [PLATE, TOOL_A, TOOL_B];
+        let mut doc = ProfileDoc::empty_derived("name-invariance", Tol::witness());
+        let mut ids = [None; 3];
+        for &i in &order {
+            let (d, id) = members[i].author(doc);
+            doc = d;
+            ids[i] = Some(id);
+        }
+        let ids = ids.map(|i| i.expect("authored"));
+        let (doc, tool) = insert(doc, Nary::Union.node(&ids[1..]));
+        let (doc, op) = insert(
+            doc,
+            Node::Subtract {
+                from: ids[0].into(),
+                tool: tool.into(),
+            },
+        );
+        let ev = run(&doc);
+        assert!(
+            failure(&ev, op).is_none(),
+            "{order:?}: {:?}",
+            failure(&ev, op)
+        );
+        let body = crate::corpus::body_of(&ev, op);
+        let role = |read| {
+            ["plate", "a", "b"]
+                .into_iter()
+                .zip(ids)
+                .find(|&(_, id)| crate::fixture::out(&doc, id) == read)
+                .map_or("another read", |(r, _)| r)
+        };
+        let mut at = Vec::new();
+        for (name, entry) in crate::fixture::table(&ev, op).iter() {
+            let Entry::Unique(r) = entry else { continue };
+            let EntityKey::Vertex(v) = r.key else {
+                continue;
+            };
+            let p = crate::fixture::point(body, v);
+            if (p.x - 2.0).abs() > 1e-9 || (p.y - 1.0).abs() > 1e-9 || (p.z - 1.0).abs() > 1e-9 {
+                continue;
+            }
+            let [RoleSeg::Crossing { sense, .. }] = name.path.as_slice() else {
+                panic!("{order:?}: the seam's crossing of the top: {name:?}");
+            };
+            at.push(match sense {
+                Sense::Through { entering } => entering
+                    .iter()
+                    .map(|n| match n.path.as_slice() {
+                        [RoleSeg::From { of, .. }] => match of.path.as_slice() {
+                            [RoleSeg::From { read, .. }] => role(*read).to_owned(),
+                            other => format!("{other:?}"),
+                        },
+                        other => format!("{other:?}"),
+                    })
+                    .collect::<Vec<_>>()
+                    .join(", "),
+                other => format!("{other:?}"),
+            });
+        }
+        assert_eq!(at.len(), 1, "{order:?}: one vertex at the crossing: {at:?}");
+        seen.insert(at.remove(0));
+    }
+    assert_eq!(
+        seen.len(),
+        1,
+        "the raw sense reads alike in every authoring order: {seen:?}"
+    );
+}
+
 /// **A body and its exact copy name every entity by both reads** (N0's
 /// NS4: two operands with identical tables are told apart by their
 /// reads, never ordered): their union is one body, each face, edge and
