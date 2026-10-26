@@ -556,7 +556,7 @@ impl MassMeasurement {
     /// the stop the measurement reached instead.
     fn met(&self, py: Python<'_>) -> PyResult<MassProperties> {
         if self.stop == topo::Stop::Met {
-            return Ok(self.enclosure.clone());
+            return Ok(self.enclosure);
         }
         let word = |w: &str| PyString::new(py, w).unbind().into_any();
         Err(typed_err(
