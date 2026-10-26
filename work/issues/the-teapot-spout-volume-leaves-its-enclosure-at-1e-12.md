@@ -39,5 +39,5 @@ the measure or restate the scene's comparison.
 ## Closed
 
 2026-10-24: the same finding as
-`work/iso/the-teapot-spouts-frustum-oracle-misses-its-measured-volume-at-1e-12.md`,
+`work/isotail/the-teapot-spouts-frustum-oracle-misses-its-measured-volume-at-1e-12.md`,
 filed in parallel and closed by ISO's PR 5642 (the spout's oracle).

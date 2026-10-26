@@ -2,9 +2,10 @@
 id: boolean-face-walks-hop-to-a-mates-face-without-proving-it-lists-the-loop
 kind: issue
 title: the REST lane's patch flood and BFS, and surface_group's closure test, read a mate loop's face without proving the face lists the loop
-status: open
+status: closed
 opened: 2026-10-01
 priority: P3
+closed: 2026-10-26
 ---
 
 
@@ -56,3 +57,7 @@ Hop through `Body::proven_mate` and prove that the face the mate's loop
 names lists the loop, answering the lane's corrupt-input refusal
 (`desync` in `rest`, the `Err(face)` arm `unmated_boundary` already
 returns) at the hop.
+
+## Closed (2026-10-26, tracker sweep)
+
+**Fixed / superseded.** Two of the three walks are gone: `boolean/rest.rs` (`patch_faces`, `bfs_order`) left the tree when INTENT stage 4 retired the declared-`Rest` zip, and no `patch_faces` or `bfs_order` exists in `crates/`. The third, `surface_group::unmated_boundary` (`crates/topo/src/boolean/surface_group.rs:122`), now hops through `Body::proven_mate` (`:137`, the same-edge proof) and reads the far face through `Body::face_of_linked` (`:138`). That function asserts that the face lists the loop (`crates/topo/src/body.rs:1330`–`:1334`). Torn-link rows pin it: `boolean/torn_hop_rows.rs:279`–`:335` (`the_wrap_scan_panics_on_a_torn_outer_link`, `the_wrap_scan_panics_on_a_torn_curve`, the mate's-loop tear included).

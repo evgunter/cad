@@ -2,7 +2,7 @@
 id: ab-log-sample-numbers-collide-under-branch-side-block-records
 kind: issue
 title: Branch-side block records make 'prior highest sample on main' collide: TRIM-3 PR-2 and D290 both recorded #201
-status: open
+status: deferred
 opened: 2026-09-15
 priority: P3
 cost: E
@@ -64,3 +64,14 @@ method), or a small script (`scripts/ab-sample.py`, META's ground)
 prints the table above for a given PR list so no orchestrator reads
 the ledger by eye. Until one of those lands, every block close should
 run the first-parent check before writing its numbers.
+
+## Deferred (2026-10-26, tracker sweep): no sample number is drawn while the protocol is suspended
+
+`docs/MODEL-AB-LOG.md`, **PROTOCOL SUSPENDED (Ev, in-chat, 2026-09-23)**,
+item 1: "No block is drawn, no slot is spent, no ordinal is claimed and
+no row is recorded here." With no rows recorded there is no merge-order
+sample number to collide, so the race this row describes cannot recur
+while the suspension stands; item 6 says "Resuming is Ev's call and is a
+new entry here". That ratification is the not-now. The row's fix (derive
+the number from `git log --first-parent main` at block close, or a small
+script) is owed the day the protocol resumes.

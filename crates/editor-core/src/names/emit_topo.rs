@@ -33,7 +33,7 @@ use super::role::{
     EntityKind, NameRef, Qualifier, RoleSeg, RunLine, Sense, SplitHalf, StableName, edge_line,
 };
 use super::seam_pair;
-use super::table::{EntityKey, Entry, NameTable};
+use super::table::{Candidate, EntityKey, EntityRef, Entry, NameTable};
 use crate::node::RecipeNodeId;
 use geom_core::Tol;
 
@@ -1820,15 +1820,16 @@ pub(crate) fn name_boolean<T: Decide>(
             topo::Operand::B => OpSide::B(b_rows.root(f)),
         }]))
     })?;
-    // A wall is cited by its parent's name: a merged face's, or the
-    // name of the operand face it descends from in its operand, the
-    // space the pair reads its operands in (a union's fold collapses it
-    // like any other embedded name).
+    // A wall is cited by its parent as this boolean's table names it
+    // (N3), as a seam side is: a merged face's `Merged` name, or the
+    // `From` the operand face it descends from came in through.
     let wall = |g: FaceKey| -> Result<StableName, NamingError> {
         if let Some((n, _)) = merged_names.get(&g) {
             return Ok((**n).clone());
         }
-        Ok((*operand_face_name(descend_face(g)?)?.name).clone())
+        let d = descend_face(g)?;
+        let up = operand_face_name(d)?;
+        Ok(name1(EntityKind::Face, node, d.wrap(a, b, up.name)))
     };
     // Every face that holds part of operand face `d`: its unmerged
     // pieces, then the merged faces that list it.
@@ -2026,6 +2027,64 @@ pub(super) fn name_parent_faces<T: geom_core::Real, K: Ord + Clone>(
             Ok(())
         }
     }
+}
+
+/// The vertices one operand corner is held as: its name, whether that
+/// name is tied, and each copy with its row's entity.
+pub(super) struct CornerCopies {
+    pub(super) name: StableName,
+    pub(super) tied: bool,
+    pub(super) copies: Vec<(VertexKey, EntityRef)>,
+}
+
+/// **Operand corners, each by the vertices it is held as** (N2, N4). A
+/// corner is keyed by `K`, what tells it from every other corner: at
+/// the pair boolean the operand keys of one candidate of its name, at
+/// the union the member corners it sits at. One held as one
+/// vertex is its name, a tied one joining its name's tie with the other
+/// undivided candidates. One held as several is fragments of it: each
+/// copy is `Fragment(Borders)` over the divider walls `split` finds for
+/// it (`Obstacles::split_corner`), so only a divided candidate's copies
+/// take `Borders`, and pieces with one name, of one candidate or
+/// several, tie. The pair boolean's vertex pass and the union's end pass
+/// both name their corners here.
+pub(super) fn name_corner_copies<K>(
+    t: &mut NameTable,
+    tie: &mut TieRows,
+    corners: impl IntoIterator<Item = (K, CornerCopies)>,
+    mut split: impl FnMut(
+        &K,
+        &[VertexKey],
+    ) -> Result<BTreeMap<Vec<StableName>, Vec<VertexKey>>, NamingError>,
+) -> Result<(), NamingError> {
+    let mut pieces: BTreeMap<StableName, (bool, Vec<EntityRef>)> = BTreeMap::new();
+    for (at, held) in corners {
+        if let [(_, one)] = held.copies[..] {
+            put(t, tie, held.tied, held.name, one)?;
+            continue;
+        }
+        let keys: Vec<VertexKey> = held.copies.iter().map(|&(v, _)| v).collect();
+        for (walls, vs) in split(&at, &keys)? {
+            let mut piece = held.name.clone();
+            piece
+                .path
+                .push(RoleSeg::Fragment(Qualifier::Borders(walls)));
+            let slot = pieces
+                .entry(canonical::minted(piece))
+                .or_insert((false, Vec::new()));
+            slot.0 |= held.tied;
+            slot.1.extend(
+                held.copies
+                    .iter()
+                    .filter(|(v, _)| vs.contains(v))
+                    .map(|&(_, e)| e),
+            );
+        }
+    }
+    for (name, (from_tie, ents)) in pieces {
+        mint_candidates(t, tie, from_tie, name, ents)?;
+    }
+    Ok(())
 }
 
 /// Boolean edges, grouped by parent: `Seam` for zip-minted edges,
@@ -2734,6 +2793,7 @@ fn name_boolean_vertices<T: Decide>(
         (
             name1(EntityKind::Vertex, node, side.wrap(a, b, u.name)),
             u.tied,
+            u.candidate,
             parent,
             side,
         )
@@ -2742,12 +2802,18 @@ fn name_boolean_vertices<T: Decide>(
     // is the (A, B) parent pair, the value (descends-from-a-tie,
     // vertices).
     let mut groups: BTreeMap<RoleSeg, (bool, Vec<(VertexKey, Along)>)> = BTreeMap::new();
-    // Operand vertices → the operand keys read there and the result
-    // vertices that are each of them: several where the boolean leaves
-    // several at one corner (null copies, and the zip's copies per
-    // cone, `BooleanNaming::cone_splits`).
-    type Corner = (bool, Parent, BTreeSet<OpSide<VertexKey>>, Vec<VertexKey>);
-    let mut corners: BTreeMap<StableName, Corner> = BTreeMap::new();
+    // Operand corners, each a candidate of its name → where it descends
+    // from, the operand keys read there, and the result vertices that
+    // are it: several where the boolean leaves several at one corner
+    // (null copies, and the zip's copies per cone,
+    // `BooleanNaming::cone_splits`). A tied name's candidates are
+    // corners apart, wherever they lie.
+    struct Corner {
+        parent: Parent,
+        sides: BTreeSet<OpSide<VertexKey>>,
+        held: CornerCopies,
+    }
+    let mut corners: BTreeMap<(StableName, Candidate), Corner> = BTreeMap::new();
     for (v, _) in body.vertices() {
         // A vertex that is one of an operand's own vertices is that
         // vertex (N2), read at every operand key the boolean leaves at
@@ -2778,13 +2844,21 @@ fn name_boolean_vertices<T: Decide>(
         {
             identity = Some(identity_of(side, u));
         }
-        if let Some((name, from_tie, parent, side)) = identity {
+        if let Some((name, tied, candidate, parent, side)) = identity {
             let at = corners
-                .entry(name)
-                .or_insert((from_tie, parent, BTreeSet::new(), Vec::new()));
-            at.0 |= from_tie;
-            at.2.insert(side);
-            at.3.push(v);
+                .entry((name.clone(), candidate))
+                .or_insert_with(|| Corner {
+                    parent,
+                    sides: BTreeSet::new(),
+                    held: CornerCopies {
+                        name,
+                        tied,
+                        copies: Vec::new(),
+                    },
+                });
+            at.sides.insert(side);
+            at.held.tied |= tied;
+            at.held.copies.push((v, ent(0, EntityKey::Vertex(v))));
             continue;
         }
         // What the boolean classified here: the senses a crossing is
@@ -3104,27 +3178,13 @@ fn name_boolean_vertices<T: Decide>(
         slot.0 |= from_tie;
         slot.1.push((v, along));
     }
-    // A corner held as one vertex is that corner; one held as several
-    // is fragments of it, `Fragment(Borders)` over each copy's divider
-    // walls (N2), and copies with equal sets tie. The union's twin is
-    // `emit_union::name_corner_copies`, which keys a corner by its
-    // candidate where this pass keys it by name
-    // (`work/wire/a-pair-booleans-tied-corner-is-split-as-one-corner.md`).
-    for (name, (from_tie, parent, sides, copies)) in corners {
-        let ents = |vs: &[VertexKey]| vs.iter().map(|&v| ent(0, EntityKey::Vertex(v))).collect();
-        rec.record(&name, ents(&copies), parent);
-        if let [one] = copies[..] {
-            put(t, tie, from_tie, name, ent(0, EntityKey::Vertex(one)))?;
-            continue;
-        }
-        for (walls, vs) in corner_walls(&sides, &copies)? {
-            let mut piece = name.clone();
-            piece
-                .path
-                .push(RoleSeg::Fragment(Qualifier::Borders(walls)));
-            mint_candidates(t, tie, from_tie, canonical::minted(piece), ents(&vs))?;
-        }
+    let mut held = Vec::with_capacity(corners.len());
+    for c in corners.into_values() {
+        let members = c.held.copies.iter().map(|&(_, e)| e).collect();
+        rec.record(&c.held.name, members, c.parent);
+        held.push((c.sides, c.held));
     }
+    name_corner_copies(t, tie, held, corner_walls)?;
     for (seg, (from_tie, verts)) in groups {
         let base = name1(EntityKind::Vertex, node, seg);
         rec.record_by_name(
@@ -8230,7 +8290,7 @@ mod touch_reread_rows {
     use super::{OperandCtx, name_boolean};
     use crate::names::emit::{ent, name1};
     use crate::names::role::{CapEnd, EntityKind, RoleSeg};
-    use crate::names::table::{EntityKey, NameTable};
+    use crate::names::table::{EntityKey, EntityRef, Entry, NameTable};
     use crate::names::{PieceRole, PieceRun, ProfileEdgeRef, ProfileVertexRef};
     use crate::node::{RecipeNodeId, StepId};
     use geom_core::Tol;
@@ -8238,7 +8298,7 @@ mod touch_reread_rows {
         PLATE, Pose, along_lying_ray, apex_pyramid, bearing, corners, lying, mix, near_flat, nest,
         nest_polygon, posed_box, poses,
     };
-    use topo::{AtRestBody, BooleanResult, intersect, subtract, union};
+    use topo::{AtRestBody, BooleanResult, VertexKey, intersect, subtract, union};
 
     fn t() -> Tol {
         Tol::witness()
@@ -8460,10 +8520,10 @@ mod touch_reread_rows {
         for walls in [one, other] {
             assert!(
                 !walls.is_empty()
-                    && walls
-                        .iter()
-                        .all(|w| w.kind == EntityKind::Face && w.node == yn),
-                "each copy's walls are y's faces: {walls:?}"
+                    && walls.iter().all(|w| w.kind == EntityKind::Face
+                        && matches!(w.path.as_slice(), [RoleSeg::From { read, of }]
+                            if *read == crate::names::FOLD_B && of.node == yn)),
+                "each copy's walls are y's faces as the boolean carries them in: {walls:?}"
             );
         }
         let bare = named
@@ -8471,6 +8531,193 @@ mod touch_reread_rows {
             .iter()
             .any(|(n, _)| n.kind == EntityKind::Vertex && n.path == [(*corner).clone()]);
         assert!(!bare, "a corner held as several vertices has no bare name");
+    }
+
+    /// [`table`], with the vertices `tied` one tied row, under the
+    /// first one's name.
+    fn table_tying(body: &AtRestBody<f64>, node: RecipeNodeId, tied: [VertexKey; 2]) -> NameTable {
+        let plain = table(body, node);
+        let at = tied.map(|v| ent(0, EntityKey::Vertex(v)));
+        let name = plain
+            .name_of(&at[0])
+            .expect("a tied vertex is named")
+            .clone();
+        let mut t = NameTable::new();
+        for (n, e) in plain.iter() {
+            let Entry::Unique(r) = e else {
+                unreachable!("`table` names every entity apart")
+            };
+            if !at.contains(r) {
+                t.insert(n.clone(), *r).unwrap();
+            }
+        }
+        t.insert_tied(name, at.to_vec()).unwrap();
+        t
+    }
+
+    /// The scene of
+    /// [`a_corner_held_as_several_result_vertices_is_a_fragment_at_each`]:
+    /// `x`, `y`, and `x − y`.
+    fn over_a_void() -> (AtRestBody<f64>, AtRestBody<f64>, topo::BooleanBody<f64>) {
+        let pose = &poses()[0];
+        let p = |b: [[f64; 3]; 3]| apex_pyramid(&b, pose, t());
+        let arch_base = corners(60.0, 0.5, 0.4);
+        let bare_hollow = built(subtract(&p(arch_base), &p(nest(arch_base, 0.7)), t()));
+        let over = p(corners(50.0, 0.7, 0.5));
+        let Ok(BooleanResult::Body(r)) = subtract(&over, &bare_hollow, t()) else {
+            panic!("x − y builds");
+        };
+        (over, bare_hollow, r)
+    }
+
+    /// `x − y` of [`over_a_void`] named with `xt` as `x`'s table.
+    fn name_over_a_void(
+        (x, y, r): &(AtRestBody<f64>, AtRestBody<f64>, topo::BooleanBody<f64>),
+        xt: &NameTable,
+    ) -> Result<std::sync::Arc<NameTable>, crate::names::NamingError> {
+        let yt = table(y, RecipeNodeId::new(0, 2));
+        let a = OperandCtx {
+            node: RecipeNodeId::new(0, 1),
+            read: crate::names::FOLD_A,
+            table: xt,
+            body: x,
+        };
+        let b = OperandCtx {
+            node: RecipeNodeId::new(0, 2),
+            read: crate::names::FOLD_B,
+            table: &yt,
+            body: y,
+        };
+        let op = topo::BooleanOp::Subtract;
+        Ok(name_boolean(RecipeNodeId::new(0, 9), op, &r.body, &r.naming, &a, &b, t())?.table)
+    }
+
+    /// **Each candidate of a tied corner is a corner of its own** (N4,
+    /// "A tie's candidates keep their identity"): in `x − y` of
+    /// [`over_a_void`], `x`'s apex is held as two vertices and other
+    /// corners of `x` as one each. With two whole corners tied in `x`'s
+    /// table, at two points, the result ties them under the bare name.
+    /// With the apex tied to a whole corner, the apex's copies are the
+    /// fragments they are untied, each `Fragment(Borders)`, and the whole
+    /// corner stays under the bare name, narrowed to it.
+    #[test]
+    fn a_tied_corners_candidates_are_named_apart_wherever_they_lie() {
+        use crate::names::role::Qualifier;
+        let scene = over_a_void();
+        let x = &scene.0;
+        let xn = RecipeNodeId::new(0, 1);
+        let plain = name_over_a_void(&scene, &table(x, xn)).expect("x − y names");
+        let xt = table(x, xn);
+        // `x`'s vertex under the name `of`, and the corners of `x` the
+        // plain naming holds whole (one result vertex) or as fragments.
+        let vertex_of = |of: &crate::names::StableName| match xt.lookup(of) {
+            Some(Entry::Unique(r)) => match r.key {
+                EntityKey::Vertex(v) => v,
+                other => panic!("{of:?} names {other:?}"),
+            },
+            other => panic!("{of:?}: {other:?}"),
+        };
+        let mut whole = Vec::new();
+        let mut apex_copies: Vec<(Vec<crate::names::StableName>, Entry)> = Vec::new();
+        let mut apex = None;
+        for (n, e) in plain.iter().filter(|(n, _)| n.kind == EntityKind::Vertex) {
+            match n.path.as_slice() {
+                [RoleSeg::From { read, of }] if *read == crate::names::FOLD_A => {
+                    whole.push((vertex_of(of), e.clone()));
+                }
+                [
+                    RoleSeg::From { read, of },
+                    RoleSeg::Fragment(Qualifier::Borders(walls)),
+                ] if *read == crate::names::FOLD_A => {
+                    apex = Some(vertex_of(of));
+                    apex_copies.push((walls.clone(), e.clone()));
+                }
+                _ => {}
+            }
+        }
+        let apex = apex.expect("x's apex is held as several vertices");
+        assert_eq!(apex_copies.len(), 2, "the apex's copies: {apex_copies:?}");
+        let [(w0, e0), (w1, _), ..] = whole.as_slice() else {
+            panic!("two of x's corners are held whole: {whole:?}");
+        };
+        let at = |v: VertexKey| {
+            let p = crate::names::emit::vertex_point(x, v);
+            [p.x, p.y, p.z]
+        };
+        assert_ne!(at(*w0), at(*w1), "the whole corners lie apart");
+        // The tied name, as the result carries it in.
+        let carried = |t: &NameTable| {
+            let of = t.name_of(&ent(0, EntityKey::Vertex(*w0))).unwrap().clone();
+            name1(
+                EntityKind::Vertex,
+                RecipeNodeId::new(0, 9),
+                RoleSeg::From {
+                    read: crate::names::FOLD_A,
+                    of: of.into(),
+                },
+            )
+        };
+        let rows_under = |t: &NameTable, base: &crate::names::StableName| {
+            t.iter()
+                .filter(|(n, _)| {
+                    n.kind == EntityKind::Vertex && n.path.first() == base.path.first()
+                })
+                .map(|(n, e)| (n.clone(), e.clone()))
+                .collect::<Vec<_>>()
+        };
+
+        // Both candidates whole: one tied row, the two whole vertices.
+        let both = table_tying(x, xn, [*w0, *w1]);
+        let named = name_over_a_void(&scene, &both).expect("two whole candidates name");
+        let base = carried(&both);
+        let rows = rows_under(&named, &base);
+        let [(n, Entry::Tied(es))] = rows.as_slice() else {
+            panic!("the whole candidates tie under the bare name: {rows:?}");
+        };
+        assert_eq!(*n, base, "the bare name");
+        let held: Vec<EntityRef> = [w0, w1]
+            .iter()
+            .map(
+                |&&w| match &whole.iter().find(|(v, _)| *v == w).unwrap().1 {
+                    Entry::Unique(r) => *r,
+                    other => panic!("{other:?}"),
+                },
+            )
+            .collect();
+        let mut es = es.clone();
+        es.sort();
+        let mut held_sorted = held.clone();
+        held_sorted.sort();
+        assert_eq!(es, held_sorted, "the tie holds the two whole vertices");
+
+        // One candidate divided: its copies take `Borders`, as untied,
+        // and the whole one keeps the bare name.
+        let divided = table_tying(x, xn, [*w0, apex]);
+        let named = name_over_a_void(&scene, &divided).expect("a divided candidate names");
+        let base = carried(&divided);
+        let rows = rows_under(&named, &base);
+        let mut bare = Vec::new();
+        let mut fragments = Vec::new();
+        for (n, e) in rows {
+            match n.path.as_slice() {
+                [_] => bare.push(e),
+                [_, RoleSeg::Fragment(Qualifier::Borders(walls))] => {
+                    fragments.push((walls.clone(), e));
+                }
+                other => panic!("a row of the tied corner: {other:?}"),
+            }
+        }
+        assert_eq!(
+            bare,
+            vec![e0.clone()],
+            "the whole candidate keeps the bare name"
+        );
+        fragments.sort_by(|p, q| p.0.cmp(&q.0));
+        apex_copies.sort_by(|p, q| p.0.cmp(&q.0));
+        assert_eq!(
+            fragments, apex_copies,
+            "the divided candidate's copies, as untied"
+        );
     }
 
     /// At rest, every scene: seven operand corners are held as several

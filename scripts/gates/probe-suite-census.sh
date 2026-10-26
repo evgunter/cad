@@ -187,7 +187,10 @@ CENSUS_FLOOR=(editor-core:2 geom-brep:4 geom-core:1 profile:4 sweep:2 topo:5)
 # complement.
 RUN_FLOOR=(
   ignored:editor-core:m10_3_driver_k_probe_interval:1
-  ignored:editor-core:m4_pr8_k_probe:1
+  # Two, not one: the dump and the Probe-vs-f64 differential do
+  # different jobs, and the differential only asserts, so the complement
+  # rule cannot see it deleted (both of its counts drop by one).
+  ignored:editor-core:m4_pr8_k_probe:2
   ignored:sweep:k_report:1
   plain:editor-core:assemble_one_local_battery:1
   plain:editor-core:intent_s3_c_mates:22

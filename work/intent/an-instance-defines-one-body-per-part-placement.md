@@ -2,10 +2,12 @@
 id: an-instance-defines-one-body-per-part-placement
 kind: issue
 title: An instance defines one Body port holding its part's whole world; FORK-1's signature (one Body per world placement, fixed by the pin) is unbuilt
-status: open
+status: parked
 opened: 2026-10-08
 refs: [a-placement-is-the-bundle-of-mates]
 parent: assemble-is-an-operator-and-the-product-is-a-slot
+rides_with: assemble-is-an-operator-and-the-product-is-a-slot
+blocked_on: [assemble-is-an-operator-and-the-product-is-a-slot]
 ---
 
 

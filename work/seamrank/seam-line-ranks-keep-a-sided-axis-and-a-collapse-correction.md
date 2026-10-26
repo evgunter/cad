@@ -2,11 +2,12 @@
 id: seam-line-ranks-keep-a-sided-axis-and-a-collapse-correction
 kind: issue
 title: Every ranker along a seam line ranks along the minted pair's n_a × n_b, so a commutative consumer needs RankRule to re-orient it; a canonical axis would remove the correction and rename pair-boolean OrderAlong names
-status: open
+status: closed
 opened: 2026-09-24
 priority: P3
 cost: D
 refs: [3125]
+closed: 2026-10-26
 ---
 
 
@@ -49,3 +50,16 @@ by the collapse) has no such discontinuity. What PR 3125's review
 showed is that the pair-line rule needs ONE home, answering which line
 a name's rank is along for every consumer, not a different axis. The
 row is re-banded P3. It stays open as the record of the alternative.
+
+## Closed (2026-10-26, tracker sweep)
+
+Superseded. The question (a canonical geometric axis against the
+pair-line rule plus `RankRule::Reverse`) is answered by removing ranks:
+FORK-ORIENT (fork-log row 197; Ev, 2026-10-26; PR 5705, `964083e5`)
+rules that nothing is ranked along a line and that `Reverse`,
+`flip_senses`, `RefuseRun` and `OrderAlong`'s `of` retire. N2 in
+`crates/editor-core/src/names/README.md` now says so. With no rank there
+is no axis to choose and no collapse correction to keep. The code
+(`names/canonical.rs`'s `RankRule`, the seam rankers) is unchanged on
+main; its retirement is the build of
+`work/wire/a-unions-line-of-several-edges-is-oriented-by-its-least-edge.md`.

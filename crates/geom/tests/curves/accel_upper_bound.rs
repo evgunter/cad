@@ -43,11 +43,13 @@ fn sampled_floor(c: &NurbsCurve3<f64>, n: usize) -> f64 {
         .fold(0.0, f64::max)
 }
 
-/// **The bound covers the named carriers.** A quarter arc, a full
-/// circle, the weight-40 parabola, a strongly rational arc and a
-/// rational cubic with interior knots: on each, the certified bound is
-/// at least the sampled sup of `‖C″‖`. The `f64` door agrees with the
-/// `Interval` one to rounding.
+/// **The bound covers the named carriers.** A quarter arc, the
+/// weight-40 parabola, a strongly rational arc and a rational cubic with
+/// interior knots: on each, the certified bound is at least the sampled
+/// sup of `‖C″‖`. The `f64` door agrees with the `Interval` one to
+/// rounding. The nine-point full circle's double knots are creases at
+/// degree 2, across which its structure licenses no `C′`: it reads no
+/// finite bound at either scalar.
 #[test]
 fn the_bound_covers_the_named_carriers() {
     let h = 0.5f64.sqrt();
@@ -59,27 +61,6 @@ fn the_bound_covers_the_named_carriers() {
                 2,
                 &[(1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
                 vec![1.0, h, 1.0],
-            ),
-        ),
-        (
-            "full circle",
-            curve(
-                vec![
-                    0.0, 0.0, 0.0, 0.25, 0.25, 0.5, 0.5, 0.75, 0.75, 1.0, 1.0, 1.0,
-                ],
-                2,
-                &[
-                    (1.0, 0.0),
-                    (1.0, 1.0),
-                    (0.0, 1.0),
-                    (-1.0, 1.0),
-                    (-1.0, 0.0),
-                    (-1.0, -1.0),
-                    (0.0, -1.0),
-                    (1.0, -1.0),
-                    (1.0, 0.0),
-                ],
-                vec![1.0, h, 1.0, h, 1.0, h, 1.0, h, 1.0],
             ),
         ),
         (
@@ -122,6 +103,36 @@ fn the_bound_covers_the_named_carriers() {
             "{name}: the f64 door {f} and the Interval door {b} disagree"
         );
     }
+    let circle = curve(
+        vec![
+            0.0, 0.0, 0.0, 0.25, 0.25, 0.5, 0.5, 0.75, 0.75, 1.0, 1.0, 1.0,
+        ],
+        2,
+        &[
+            (1.0, 0.0),
+            (1.0, 1.0),
+            (0.0, 1.0),
+            (-1.0, 1.0),
+            (-1.0, 0.0),
+            (-1.0, -1.0),
+            (0.0, -1.0),
+            (1.0, -1.0),
+            (1.0, 0.0),
+        ],
+        vec![1.0, h, 1.0, h, 1.0, h, 1.0, h, 1.0],
+    );
+    assert!(
+        circle.accel_upper_bound().is_infinite(),
+        "the full circle's creases bound no |C″|"
+    );
+    assert!(
+        !circle
+            .map_scalar(<Interval as Real>::from_f64)
+            .accel_upper_bound()
+            .hi()
+            .is_finite(),
+        "the full circle's creases bound no |C″| at Interval"
+    );
 }
 
 /// **On one rational segment the bound is the true sup.** With weights
@@ -331,4 +342,57 @@ fn the_pieces_quotient_is_the_second_derivative_pointwise() {
             );
         }
     }
+}
+
+/// **A speed floor that certifies nothing bounds no curvature.** A
+/// quadratic whose hodograph passes within `4e-4` of the origin, near
+/// `t ≈ 0.6`: its `f64` speed floor reads `−0.015`, below zero, and the
+/// curvature there runs past `1e8`. `carrier_speed::curvature_hi` reads
+/// a floor not above zero as zero, so the bound is not finite; squaring
+/// the negative floor instead would read `accel / 0.015² ≈ 1e5`, three
+/// orders below the curvature sampled on the curve.
+#[test]
+fn a_negative_speed_floor_bounds_no_curvature() {
+    let n = curve(
+        vec![
+            0.0,
+            0.0,
+            0.0,
+            0.333_333_333_333_333_3,
+            0.666_666_666_666_666_6,
+            1.0,
+            1.0,
+            1.0,
+        ],
+        2,
+        &[
+            (-0.319_028_147_829_698_35, -0.603_727_187_226_300_1),
+            (-0.815_157_349_743_728_1, -0.900_129_476_941_211_1),
+            (0.470_530_898_125_187_9, -0.132_348_527_774_435_4),
+            (0.805_494_952_913_653_3, -0.223_410_013_943_190_7),
+            (0.777_023_731_571_268, -0.315_957_763_176_544_2),
+        ],
+        vec![1.0; 5],
+    );
+    let c = geom::Curve3::Nurbs(std::sync::Arc::new(n.clone()));
+    assert!(
+        geom::carrier_speed::speed_range(&c).0.get() < 0.0,
+        "the speed floor certifies nothing"
+    );
+    let sampled = (0..=20_000)
+        .map(|i| {
+            let t = f64::from(i) / 20_000.0;
+            let (d1, d2) = (n.deriv(t), n.deriv2(t));
+            d1.cross(d2).norm() / d1.norm().powi(3)
+        })
+        .fold(0.0, f64::max);
+    assert!(
+        sampled > 1e8,
+        "the curve turns sharply near its cusp: {sampled:e}"
+    );
+    let bound = geom::carrier_speed::curvature_hi(&c);
+    assert!(
+        !bound.is_finite(),
+        "a negative floor bounds no curvature: read {bound:e}, sampled {sampled:e}"
+    );
 }

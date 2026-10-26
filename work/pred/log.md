@@ -167,3 +167,28 @@ Signed (FIX orchestrator).
 - 2026-10-26 — (PRED orchestrator) PR 5724 (turn-rule follow-ups): its tier is raised from the orchestrator's read to a **full single review**. The new local inf moves verdicts beyond the short-side cases: certification now refuses some fast-side over-wound edges it used to certify, and spiric whole ovals now certify. It also adds a soundness-critical rounding allowance.
 - 2026-10-26 — (PRED orchestrator) PR 5724, full review: APPROVE-WITH-FIXES. The new inf and the spiric sup are sound: 358k and 5.4k adversarial cases with 0 violations, and the allowance has ≥16× margin by mutation. The fix pass gives both bounds one rounding policy (the conic sup under-reads at f64), types the chord_join pole lever honestly, gives the spiric window and the rate pair one home each, and adds a spiric guard row. Filed: the f64 lane's τ ≠ 2π also drives Whole (sub-ulp regime only; Interval encloses it), the global spiric inf, and five parameter-span levered sites the .decide( sweep could not see.
 - 2026-10-26 — (PRED orchestrator) PR 5724 merged: the turn-rule follow-ups. A local inf and sup over the defect now sit under one rounding policy, and the five `Period::decide` callers are metered. Two rows closed; three P3 rows filed.
+
+- 2026-10-26 — (SPLICE orchestrator) **Main is red on a slow-set row
+  between FLUSH and PRED.** The lattice corpus's bordered-discard pin
+  (`fused_into_live_cells::every_fused_vertex_of_the_lattice_corpus_settles_on_a_live_cell`)
+  moved from (25512, 1392) to (26292, 2004) at the merge of PRED's PR 5724
+  onto FLUSH's PR 5706. Each passes alone; the bisect is in
+  `work/issues/main-red-the-lattice-discard-pin-moved-where-pred-5724-met-flush-5706.md`.
+- 2026-10-26 — (PRED orchestrator) The mesh-sizing build is PR 5717, frozen at `a59a018aca`, CI and render green. Triangles −7.3% overall (cone −50%, torus −48%), NURBS bit-identical, no new refusals. TESS's cone rim row refused typed on main (1.34δ, not a P0) and certifies now. Filed: the trimmed cylinder's `UNPROVED_HEADROOM` debt (P2) and the unmeasured NURBS share (P3). Its full single review is running.
+- 2026-10-26 — (PRED orchestrator) PR 5717, full review: APPROVE-WITH-FIXES. No triangle over δ by dense sampling, and the core lemmas hold. The fix pass covers four review items:
+  - **MAJOR:** δ set from an n-gon refuses by about 1e-16. The comparison charged rounding against δ, contrary to the ratified promise; the fix is a computed rounding allowance in the comparison.
+  - **Cone:** it drops its rows (27× fewer triangles, all still certifying).
+  - **Sphere:** it sizes azimuth per face at its widest latitude.
+  - **Routing:** one lane-routing predicate.
+
+  NURBS's typed ½ share is re-banded P2 and left to its own unit. Brief correction, recorded: 'NURBS stays bit-identical' was a designer's expectation, not Ev's ruling.
+- 2026-10-26 — (PRED orchestrator) The user, on 5717's rounding allowance: "kind of ugly but i can see why it may be the best solution. but seems worth making sure it's always small compared to delta and epsilon and flagging it when it isn't". Forwarded to the fix pass as binding: the allowance is checked against a stated small fraction of min(δ, ε), and when it exceeds that it is flagged loudly (preferably a typed refusal naming allowance, δ and ε) and never absorbed silently. Both sides are pinned.
+- 2026-10-26 — (PRED orchestrator) The user, clarifying: "(that can be a debug assert kind of thing, though)". The allowance-size flag is a `debug_assert!` stating the invariant; no typed refusal is needed. Forwarded.
+- 2026-10-26 — (PRED orchestrator) The user, correcting the relay: "it doesn't *have* to be it just can be if it makes sense". A debug_assert is permitted, not required. The lane chooses the flag mechanism and argues it.
+- 2026-10-26 — (PRED orchestrator) PR 5717 merged: `[mesh.sizing]` is built, and `mesh-sizes-each-lane-by-its-worst-admissible-triangle` is closed.
+- 2026-10-26 — (PRED orchestrator) **Track handed back, `blocked`.** No dispatchable P0 or P1 row remains. The two parked P1 rows wait on PR 5500 (PCERT) and on the D10 hold. The sitting's six P3 filings moved to PREDTAIL. The sitting's frame was the user's: "focus on things that are high priority but won't be made irrelevant by INTENT". Every unit landed was kernel-numeric ground outside the D10 hold, and the one row on held ground (`contact_verify`) was parked rather than built. Merged this sitting:
+  - 5679, 5681, 5680 (Ev ruled S116p);
+  - 5684, 5685, 5686, 5707;
+  - 5708 (Ev ruled S29), 5710, 5717, 5721, 5724.
+
+  Design forks put to Ev: rows 194 and 195. Dual-review row: PR-5686. The PREDTAIL board now holds the P3 tail and D46's remainder.

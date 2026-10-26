@@ -29,3 +29,17 @@ Extend the pattern to `env::temp_dir(`, `env::current_dir(` and
 `env::home_dir(`, with the gate's selftest fixtures. Allowlist each
 test-only and app-shell reader, with its reason, or move it behind
 `#[cfg(test)]` where the gate already skips.
+
+## Merged from `no-ambient-env-does-not-match-current-dir` (2026-10-26, tracker sweep)
+
+That row (opened 2026-09-19) asked for the `current_dir` arm alone and
+was closed into this one. What it added:
+
+- The two `current_dir` readers it named are both in allowlisted homes:
+  `crates/viewer/src/platform.rs`'s `launch_dir` (the file dialogs'
+  last-resort starting directory, PR #2858; the gate's header already
+  says the viewer home's cwd read is not pattern-enforced) and
+  `crates/test-utils/src/source.rs`'s `crate_dir` (the fallback when the
+  baked `CARGO_MANIFEST_DIR` holds no `Cargo.toml`). So widening the
+  pattern goes green on those two as the tree stands.
+- `env::set_current_dir(` belongs in the widened pattern too.

@@ -2,10 +2,11 @@
 id: frame-mint-funnel-names-outside-every-sweep-corpus
 kind: issue
 title: Two frame-mint funnel names, one of them production, reach no k-lint sweep corpus
-status: open
+status: closed
 opened: 2026-09-15
 priority: P3
 cost: D
+closed: 2026-10-26
 ---
 
 ## What
@@ -195,3 +196,21 @@ the transported direction's re-mint). The K-REPORT roster-change
 paragraph for MSOLVE-8 tables them; two test-owned names
 (`fixture_mate_axis`, `pncad_py_test_normal`) follow
 `fixture_frame_axis` and reach no corpus by construction.
+
+## Closed (2026-10-26, tracker sweep)
+
+**Superseded and disclosed.**
+- **The production name is gone.** `sketch_plane_frame_norm` is minted
+  nowhere: `git grep` over `crates/` is empty, and
+  `crates/pncad-py/src/py/` no longer carries a `SketchPlane.from_frame`
+  door. The binding doors were retired by the intent refactor's façade
+  work (for example `d69c2031e5`, D′2, 2026-10-23).
+- **The test-owned name is disclosed.** `fixture_frame_axis` is the
+  row's option 2 already taken. `docs/K-REPORT.md:1162` tables it as
+  reached "only if a rostered probe module builds a fixture plane off
+  the world axes; none does today", next to the other test-owned names
+  (`fixture_mate_axis`, `fixture_split_normal`, `pncad_py_test_normal`),
+  which the same table marks "a test-owned name".
+
+The `sketch_plane_frame_norm` line at `K-REPORT.md:1163` sits in a dated
+roster-change record and is left as written.

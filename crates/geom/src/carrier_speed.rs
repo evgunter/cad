@@ -5,8 +5,9 @@
 //! spline's bounds. [`turn_defect_rate`] bounds it over one stretch, a
 //! window's turn defect, no looser than [`speed_range`] and tight as the
 //! defect shrinks. [`speed_at`] and [`speed_hi`] answer the line and the
-//! conics alone, `None` for a spiric or spline carrier, which their
-//! callers read as a door that stays.
+//! conics alone, `None` for a spiric or spline carrier: the speed at a
+//! point a conic's root is metered by, and the closed form a carrier's
+//! rounding resolution is summed from.
 
 use geom_core::period::{Bounded, Extent};
 use geom_core::{InfSpeed, Real, SpanLocate, SupSpeed, Vec3};
@@ -28,19 +29,13 @@ pub fn speed_hi<T: SpanLocate>(carrier: &crate::Curve3<T>) -> Option<T> {
     Kind::of(carrier).closed_hi()
 }
 
-/// [`speed_hi`] and [`curvature_hi`] together, `None` past
-/// [`speed_hi`]'s kinds.
-pub fn speed_and_curvature_hi<T: SpanLocate>(carrier: &crate::Curve3<T>) -> Option<(T, T)> {
-    let kind = Kind::of(carrier);
-    Some((kind.closed_hi()?, kind.curvature_hi()?))
-}
-
 /// Bounds on `|C′(t)|` over every `t`, on every kind: exact on a line
 /// and a circle, an ellipse's semi-axes, a spiric's minor radius `r`
 /// below (`|C′|² = r²(1 + (d/f)²·sin²v)`) and [`crate::spiric_rate_bounds`]
 /// over a whole period above, and a spline's control-net bounds
-/// ([`crate::NurbsCurve3::speed_lower_bound`], whose floor may be zero
-/// or poison). A rational spline's bounds are certified at `Interval`;
+/// ([`crate::NurbsCurve3::speed_lower_bound`], whose floor may be zero,
+/// negative or poison: its assemblies are joined by `max`, and each may
+/// read below zero where the hodograph runs near the origin). A rational spline's bounds are certified at `Interval`;
 /// at `f64` they are the same expressions in round-to-nearest, not a
 /// bound at extreme weights.
 pub fn speed_range<T: SpanLocate>(carrier: &crate::Curve3<T>) -> (InfSpeed<T>, SupSpeed<T>) {
@@ -159,18 +154,30 @@ pub fn turn_defect_rate<T: SpanLocate>(
     )
 }
 
-/// A bound on `|C″(t)|` over every `t`: zero on a line, a conic's
-/// larger semi-axis, a spiric's [`crate::spiric_period_rate_bounds`];
-/// `None` on a spline, which has no bound here at every scalar.
-pub fn accel_hi<T: SpanLocate>(carrier: &crate::Curve3<T>) -> Option<T> {
+/// A bound on `|C″(t)|` over every `t`, read as a Lipschitz constant of
+/// `C′` across any window, which is what a second-order bound along the
+/// curve needs: zero on a line, a conic's larger semi-axis, a spiric's
+/// [`crate::spiric_period_rate_bounds`], a spline's
+/// [`crate::NurbsCurve3::accel_upper_bound`] (infinite where a crease
+/// lets `C′` jump; certified at `Interval`, poison where its statement
+/// refuses; at `f64` the same expression in round-to-nearest, as
+/// [`speed_range`]'s).
+pub fn accel_hi<T: SpanLocate>(carrier: &crate::Curve3<T>) -> T {
     Kind::of(carrier).accel_hi()
 }
 
 /// A bound on the carrier's curvature over every `t`: zero on a line,
 /// `speed_hi / speed_lo²` on a conic, and `|C″|/|C′|²` from
-/// [`accel_hi`] and the minor radius on a spiric (the curvature
-/// `|C′ × C″|/|C′|³` is at most that); `None` on a spline.
-pub fn curvature_hi<T: SpanLocate>(carrier: &crate::Curve3<T>) -> Option<T> {
+/// [`accel_hi`] and [`speed_range`]'s floor on a spiric (its minor
+/// radius) and a spline (the curvature `|C′ × C″|/|C′|³` is at most
+/// that). A floor not above zero is read as zero, so a spline whose
+/// floor certifies nothing (a cusp, or a hodograph near the origin,
+/// whose `f64` floor can read negative), or with a crease, bounds no
+/// finite curvature: infinite or NaN at `f64`, poison at `Interval` for
+/// a crease. At `Interval` a floor whose enclosure straddles zero gives
+/// an enclosure unbounded above, `[x, +∞]`, which reads as a length
+/// ([`geom_core::is_finite_length`]) but bounds nothing above.
+pub fn curvature_hi<T: SpanLocate>(carrier: &crate::Curve3<T>) -> T {
     Kind::of(carrier).curvature_hi()
 }
 
@@ -270,7 +277,7 @@ impl<'a, T: SpanLocate> Kind<'a, T> {
     }
 
     /// The greatest speed of a line or a conic; `None` on a spiric or a
-    /// spline, which [`speed_at`]'s callers read as a door that stays.
+    /// spline.
     fn closed_hi(&self) -> Option<T> {
         match self {
             Self::Line(_) | Self::Conic(_) => Some(self.range().1.get()),
@@ -278,25 +285,26 @@ impl<'a, T: SpanLocate> Kind<'a, T> {
         }
     }
 
-    fn accel_hi(&self) -> Option<T> {
+    fn accel_hi(&self) -> T {
         match *self {
-            Self::Line(_) => Some(T::zero()),
-            Self::Conic(c) => Some(c.speed_hi()),
+            Self::Line(_) => T::zero(),
+            Self::Conic(c) => c.speed_hi(),
             Self::Spiric {
                 major,
                 minor,
                 offset,
-            } => Some(crate::spiric_period_rate_bounds(major, minor, offset).1),
-            Self::Nurbs(_) => None,
+            } => crate::spiric_period_rate_bounds(major, minor, offset).1,
+            Self::Nurbs(n) => n.accel_upper_bound(),
         }
     }
 
-    fn curvature_hi(&self) -> Option<T> {
+    fn curvature_hi(&self) -> T {
         match *self {
-            Self::Line(_) => Some(T::zero()),
-            Self::Conic(c) => Some(c.curvature_hi()),
-            Self::Spiric { minor, .. } => Some(self.accel_hi()? / minor.powi(2)),
-            Self::Nurbs(_) => None,
+            Self::Line(_) => T::zero(),
+            Self::Conic(c) => c.curvature_hi(),
+            Self::Spiric { .. } | Self::Nurbs(_) => {
+                self.accel_hi() / self.range().0.get().max(T::zero()).powi(2)
+            }
         }
     }
 }

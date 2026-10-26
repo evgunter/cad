@@ -843,7 +843,8 @@ impl From<&CellMeasure> for Bound {
 /// rather than a hope.** Two kernel gates run strictly before
 /// `mesh::budget::note_face` and admit strictly less than this refuses:
 /// `mesh::tessellate` returns `InvalidChordalTolerance` unless
-/// `chordal` is finite and positive, and `δ_s` is `chordal · 0.5`; and
+/// `chordal` is finite and positive, and the NURBS lane's lattice budget
+/// `δ_s` is its fixed positive share of it (`mesh::nurbs_cert::lattice_budget`); and
 /// `nurbs_cert`'s `nurbs_face_bound` and `nurbs_cell_grid` both return
 /// `UnsupportedNurbsFace` (*"second-derivative hull is
 /// unbounded/refused"*) unless every component of the bound is finite.
@@ -1187,7 +1188,7 @@ pub fn unfloored_worst_excess(decades: f64, samples: usize) -> f64 {
 /// tree does not record — distribution, count and seed all unwritten —
 /// so a re-take cannot be compared with it and no figure from one is
 /// quoted here. `D206`'s residue
-/// `work/meter/tess-meter-sampled-retune-figure-unreproducible` owns
+/// `work/budget/tess-meter-sampled-retune-figure-unreproducible` owns
 /// what this crate should do about that; until it is answered, the
 /// argument above stands on the derivation and on the argmax member,
 /// both of which the suite re-takes.
