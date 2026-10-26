@@ -2,11 +2,12 @@
 id: the-value-chart-reads-a-written-orientation
 kind: unit
 title: The value chart reads a written orientation: the swing retires, slides carry by the least turn, one pole refuses
-status: dispatched
+status: review
 opened: 2026-10-24
 priority: P1
 cost: M
 branch: intent/value-chart-orientation
+pr: 5742
 ---
 
 
@@ -37,3 +38,25 @@ Build `[placement.values]` as ratified on PR 5621 (Ev chose F, 2026-10-24; desig
 - **Waits:** `flag-and-pivot-pose-kinds` follows this unit, and a pivot takes the residual-spin rule.
 
 **Review tier:** dual (letter M). It is the chart every valued placement reads, hard to change later.
+
+## Handoff
+
+(2026-10-26, implementer.) PR 5742, branch `intent/value-chart-orientation`, merged over main through ATREST stage 4 I (#5637), so the mate is `{ on, to, orient }`.
+
+- **Built as ruled.**
+  - The orientation is `Mate.orient` (`mate/orient.rs`).
+  - The chart is the least turn, with carried slides, the residual spin `Coord::Spin(None)`, one pole band (`MateFault::Backwards`, naming the orientation to write), and the span check (`SlidesDoNotSpan`).
+  - The swing and `reference_about` are gone.
+  - The viewer's snap writes the nearest orientation, the residual spin and the snapped slides (`viewer/src/session/snap.rs`).
+  - Python: `Mate(orient=)` and `Orientation`.
+  - An older document refuses at load naming `orient`.
+- **Deviations** (the PR body says why):
+  - the orientation sits on the mate, not on `place(orient=)`;
+  - resting mates' spin sense flips (about `d`, its flip included);
+  - `sketch_on_face` takes the orientation;
+  - the panel offers every slide and refuses by count.
+- **What moved:** ids after every mate (the mint chain), content key v21, the m10/sym decision counts (two antipode theorems out and one pole decision in per mated placement), and the tour die's ±x pip seams (a quarter turn, rim vertices within an ulp). The PR body has the full list.
+- **Open for the reviewer:**
+  - the slow-set reds that are main's own are attributed in the PR body's test status;
+  - `review_pick_r2` (red on main) moves by `kitchen_sink`'s first edit, 29 fewer aimed-vertex answers;
+  - `pncad-py`'s `test_validate` ×4 is red on main's nightly.
