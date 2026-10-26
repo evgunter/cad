@@ -4,7 +4,8 @@ kind: issue
 title: A cell's material and an edge's convexity are read three ways with three levers
 status: open
 priority: P1
-cost: M
+cost: H
+design: true
 opened: 2026-10-26
 refs: [gap-reads-vertex-and-edge-cells, gap-reads-no-curved-cell-below-a-face]
 ---
