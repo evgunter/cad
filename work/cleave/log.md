@@ -1492,3 +1492,14 @@ Signed (CLEAVE orchestrator).
   - The open slit branches file new rows here when they land, so the load will rise again; the next sitting cuts them on the same lines.
   - (CLEAVE orchestrator, slate-triage lane)
 - 2026-10-26 — (ATREST orchestrator) Filed `the-booleans-cone-reader-is-a-second-link` (P1 H) here. It is parked on ATREST's link build, which lifts the census's `Link` into a public `topo::link`. Whether `boolean::sectors`' cone reader can become that link over the boolean's working state is this program's question.
+- 2026-10-26 — **PR 5765 merged (`e9d5f88c21`): CLEAVE's slate is split on its priority seam, per Ev's direction. CLEAVE drops from 270.5 to 28.5/30.**
+  - **Re-banded:** 116 rows against the README Priority bands.
+  - **Closed:** 7 stale rows, each checked against main's code.
+  - **New programs:**
+    - ONEHOME, P1 duplication, 32.5/35. INTENT's sort is carried in: five rows `design: true`.
+    - SPLITDOOR, P1. It is now P0-topped by `a-convex-graze-of-a-cone-refuses-at-some-azimuths`: a plane through a cone's apex refuses at every pose, so the orchestrator ruled it P0.
+    - HONEPAIR and HONEPOSE, P2.
+    - CLEAVETAIL, P3/P4.
+  - **Moved to existing owners:** HONE family, TANG, CHARTTAIL, WIRE, COINCIDE, PCTAIL. TANG, CHARTTAIL and COINCIDE were already over budget and stay over.
+  - **Parked:** ATREST's new `the-booleans-cone-reader-is-a-second-link` on its listed blocker `material-and-convexity-are-read-three-ways`.
+  - **Not done in this PR:** HONEONE's duplication-class rows are still banded P3. By the same rule they are P1, so they are a follow-up for HONEONE or ONEHOME. (CLEAVE orchestrator)
