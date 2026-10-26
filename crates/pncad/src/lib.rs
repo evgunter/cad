@@ -138,7 +138,7 @@
 //! let body = extrude(&profile, Extrusion::Distance { depth: real(1.0), side: ExtrudeSide::Along }, tol)?.body;
 //! let body = AtRestBody::validate(body, tol).map_err(|e| format!("{e:?}"))?; // tier 3, at rest
 //! let unit = Settle::Contains { lo: 1.0 - 1e-6, hi: 1.0 + 1e-6, name: "example_unit_cube" };
-//! assert_eq!(mass_properties(&body, tol, unit)?.stop, Stop::Settled(pncad::topo::Verdict::Holds(true)));
+//! assert_eq!(mass_properties(&body, tol, unit)?.stop, Stop::Settled(SettleVerdict::Holds(true)));
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
 

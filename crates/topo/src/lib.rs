@@ -1158,9 +1158,9 @@ pub use pcurves::{
 };
 pub use props::{
     AtRestOutcome, AtRestPolicy, HeldCertificate, MassMeasurement, MassProperties, MassPropsError,
-    QuadLane, RelOp, RoleNames, Settle, ShellClassification, ShellClassifyError,
+    QuadLane, RoleNames, Settle, SettleVerdict, ShellClassification, ShellClassifyError,
     ShellClassifyPayload, ShellDoor, ShellRole, SignCertificate, SignLimit, SignNames, Stop,
-    Verdict, VolumeEnclosure, classify_shells, classify_shells_of, classify_shells_structural,
+    VolumeEnclosure, classify_shells, classify_shells_of, classify_shells_structural,
     mass_properties, mass_properties_structural,
 };
 pub use provenance::{Provenance, SplitLineageCycle};

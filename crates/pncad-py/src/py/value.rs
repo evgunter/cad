@@ -431,8 +431,7 @@ impl Settle {
     /// Recorded under `py_measure_at_most`.
     #[staticmethod]
     fn at_most(bound: f64) -> Self {
-        Self(topo::Settle::Relation {
-            op: topo::RelOp::Le,
+        Self(topo::Settle::AtMost {
             bound,
             name: "py_measure_at_most",
         })
@@ -442,8 +441,7 @@ impl Settle {
     /// Recorded under `py_measure_at_least`.
     #[staticmethod]
     fn at_least(bound: f64) -> Self {
-        Self(topo::Settle::Relation {
-            op: topo::RelOp::Ge,
+        Self(topo::Settle::AtLeast {
             bound,
             name: "py_measure_at_least",
         })
@@ -473,16 +471,8 @@ impl Settle {
     fn __repr__(&self) -> String {
         match self.0 {
             topo::Settle::Sign(_) => "Settle.sign()".to_owned(),
-            topo::Settle::Relation {
-                op: topo::RelOp::Le,
-                bound,
-                ..
-            } => format!("Settle.at_most({bound})"),
-            topo::Settle::Relation {
-                op: topo::RelOp::Ge,
-                bound,
-                ..
-            } => format!("Settle.at_least({bound})"),
+            topo::Settle::AtMost { bound, .. } => format!("Settle.at_most({bound})"),
+            topo::Settle::AtLeast { bound, .. } => format!("Settle.at_least({bound})"),
             topo::Settle::Contains { lo, hi, .. } => format!("Settle.contains({lo}, {hi})"),
             topo::Settle::Resolution(len) => format!("Settle.resolution({} m)", len.meters()),
         }
@@ -507,7 +497,7 @@ pub(crate) struct MassMeasurement {
     /// Why the measurement stopped.
     #[pyo3(get)]
     stop: &'static str,
-    verdict: Option<topo::Verdict>,
+    verdict: Option<topo::SettleVerdict>,
 }
 
 impl From<topo::MassMeasurement<f64>> for MassMeasurement {
@@ -529,19 +519,20 @@ impl From<topo::MassMeasurement<f64>> for MassMeasurement {
 
 #[pymethods]
 impl MassMeasurement {
-    /// What a deciding predicate decided: `"outer"` or `"void"` for a
-    /// sign, a bool for a relation or a containment, `None` where none
-    /// settled.
+    /// What a deciding predicate decided, a `SettleVerdict` spelled as
+    /// its words: `"outer"` or `"void"` for a sign (`SettleVerdict::Sign`),
+    /// a bool for a relation or a containment (`SettleVerdict::Holds`),
+    /// `None` where none settled.
     #[getter]
     fn verdict(&self, py: Python<'_>) -> Py<PyAny> {
         match self.verdict {
-            Some(topo::Verdict::Sign(topo::ShellRole::Outer)) => {
+            Some(topo::SettleVerdict::Sign(topo::ShellRole::Outer)) => {
                 PyString::new(py, "outer").unbind().into_any()
             }
-            Some(topo::Verdict::Sign(topo::ShellRole::Void)) => {
+            Some(topo::SettleVerdict::Sign(topo::ShellRole::Void)) => {
                 PyString::new(py, "void").unbind().into_any()
             }
-            Some(topo::Verdict::Holds(holds)) => pyo3::types::PyBool::new(py, holds)
+            Some(topo::SettleVerdict::Holds(holds)) => pyo3::types::PyBool::new(py, holds)
                 .to_owned()
                 .unbind()
                 .into_any(),

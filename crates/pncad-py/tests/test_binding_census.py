@@ -1389,10 +1389,11 @@ BOUND_AS = {
     "loft_body": "Node.loft",
     "mass_properties": "Body.mass_properties",
     # Why a measurement stopped crosses as `MassMeasurement.stop`'s
-    # word (and a deciding predicate's verdict as its `verdict`). A relation's
-    # operator is which `Settle` constructor built it.
+    # word, and what a deciding predicate decided as its `verdict`'s.
     "Stop": "MassMeasurement.stop",
-    "RelOp": ("Settle.at_most", "Settle.at_least"),
+    "SettleVerdict": "MassMeasurement.verdict",
+    # A sign's verdict: `"outer"` or `"void"`, the same words.
+    "ShellRole": "MassMeasurement.verdict",
     # The import gate's certificate, held beside the body: Python
     # measures through it and never holds it.
     "HeldCertificate": "ImportReport.measure",
@@ -4165,10 +4166,6 @@ MEMBERS_NOT_BOUND = {
     # itself and renders from it, so there is no second document to
     # check against and no id to read back.
     "McReport::document": SHAPE,
-    # A relation is built by its operator's constructor,
-    # `Settle.at_most` or `Settle.at_least` (`RelOp`'s row above), so
-    # there is no `relation` to spell.
-    "Settle::Relation": SHAPE,
     # The same for the checks report and its refusal: Python's
     # `ChecksReport` holds the evaluated document and speaks from it,
     # and `CheckRefusal` is raised with the message already spoken.
@@ -4605,6 +4602,38 @@ class TestBindingCensus(unittest.TestCase):
         )
         self.assertEqual(stale, [], "stale roster entries — remove them")
 
+
+
+class TestStopWords(unittest.TestCase):
+    """`Stop` crosses as `MassMeasurement.stop`'s words, which are its
+    variants' own names in snake case (the one-name rule, spelled in each
+    language's casing). This row holds the stub's `Literal` to the Rust
+    enum, in declaration order, so a variant added, removed or reordered
+    on either side reds here rather than reaching a caller as a word no
+    `Literal` admits."""
+
+    def test_the_stop_literal_is_stops_variants_in_order(self):
+        sweep = resolver()
+        crates = sweep.dependency_set(REPO)
+        index = sweep.declarations(REPO, crates)
+        where = sweep.resolve_curated(REPO, ("prelude",), crates, index)["Stop"]
+        decls = [d for stem in sorted(where) for d in where[stem]]
+        self.assertTrue(decls, "the prelude's `Stop` resolves to a declaration")
+        words = [snake_case(variant) for variant in sweep.declared_members(decls[0])]
+        stub = STUB.read_text(encoding="utf-8")
+        found = re.search(
+            r"class MassMeasurement\b.*?def stop\(self\) -> Literal\[([^\]]*)\]",
+            stub,
+            re.S,
+        )
+        self.assertIsNotNone(found, "`MassMeasurement.stop` is a `Literal` in the stub")
+        literal = re.findall(r'"([a-z_]+)"', found.group(1))
+        self.assertEqual(
+            literal,
+            words,
+            "`MassMeasurement.stop`'s `Literal` must be `topo::Stop`'s variants, "
+            "snake-cased, in declaration order",
+        )
 
 if __name__ == "__main__":
     unittest.main()

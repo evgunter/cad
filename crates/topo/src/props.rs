@@ -704,7 +704,7 @@ pub(crate) fn measure_to<'b, T: Decide>(
 }
 
 /// [`SignCertificate::settle_on`]'s walk for a predicate read off the
-/// volume enclosure ([`Settle::Relation`], [`Settle::Contains`]): every
+/// volume enclosure ([`Settle::AtMost`], [`Settle::AtLeast`], [`Settle::Contains`]): every
 /// refinable face a round further at a time, until `step` settles or
 /// stops in the band, or no face can refine.
 ///
@@ -741,7 +741,9 @@ fn deciding_walk<T: Decide>(
             read => read,
         };
         match read {
-            settle::Step::Settled(holds) => Ask::Decided(Ok(Stop::Settled(Verdict::Holds(holds)))),
+            settle::Step::Settled(holds) => {
+                Ask::Decided(Ok(Stop::Settled(SettleVerdict::Holds(holds))))
+            }
             settle::Step::Band => Ask::Decided(Ok(Stop::Band)),
             settle::Step::Poisoned(cause) => Ask::Decided(Err(MassPropsError::Poisoned { cause })),
             settle::Step::Refine => Ask::Refine(vec![true]),
@@ -1045,7 +1047,7 @@ impl<'b, T: Decide> SignCertificate<'b, T> {
                     unreachable!("a role walk over one member reads one role")
                 };
                 match role {
-                    Ok(role) => Ok(Stop::Settled(Verdict::Sign(role))),
+                    Ok(role) => Ok(Stop::Settled(SettleVerdict::Sign(role))),
                     Err(RoleWalkRefusal::Refused(refusal)) => Err(refusal),
                     Err(RoleWalkRefusal::Poisoned(last)) => {
                         let Some(cause) = last.escalation() else {
@@ -1057,8 +1059,11 @@ impl<'b, T: Decide> SignCertificate<'b, T> {
                     Err(RoleWalkRefusal::Unread { .. }) => Ok(self.ran_out()),
                 }
             }
-            Settle::Relation { op, bound, name } => deciding_walk(self, certify, |e| {
-                settle::relation_step(e, op, bound, name, band)
+            Settle::AtMost { bound, name } => deciding_walk(self, certify, |e| {
+                settle::relation_step(e, RelOp::Le, bound, name, band)
+            }),
+            Settle::AtLeast { bound, name } => deciding_walk(self, certify, |e| {
+                settle::relation_step(e, RelOp::Ge, bound, name, band)
             }),
             Settle::Contains { lo, hi, name } => deciding_walk(self, certify, |e| {
                 settle::contains_step(e, lo, hi, name, band)
@@ -3153,10 +3158,15 @@ mod measure_door_rows {
     #[test]
     fn each_predicate_reads_the_cube_as_its_closed_form_says() {
         let cube = unit_cube();
-        let relation = |op, bound| Settle::Relation {
-            op,
-            bound,
-            name: "measure_door_row",
+        let relation = |op, bound| match op {
+            RelOp::Le => Settle::AtMost {
+                bound,
+                name: "measure_door_row",
+            },
+            RelOp::Ge => Settle::AtLeast {
+                bound,
+                name: "measure_door_row",
+            },
         };
         // ε itself: the finest resolution offered, which a closed form
         // meets.
@@ -3168,17 +3178,17 @@ mod measure_door_rows {
         );
         assert_eq!(
             stop(&cube, Settle::Sign(crate::validate::PLUS_V_SIGN)),
-            Stop::Settled(Verdict::Sign(ShellRole::Outer)),
+            Stop::Settled(SettleVerdict::Sign(ShellRole::Outer)),
             "sign"
         );
         assert_eq!(
             stop(&cube, relation(RelOp::Le, 2.0)),
-            Stop::Settled(Verdict::Holds(true)),
+            Stop::Settled(SettleVerdict::Holds(true)),
             "V ≤ 2"
         );
         assert_eq!(
             stop(&cube, relation(RelOp::Ge, 2.0)),
-            Stop::Settled(Verdict::Holds(false)),
+            Stop::Settled(SettleVerdict::Holds(false)),
             "V ≥ 2"
         );
         assert_eq!(stop(&cube, relation(RelOp::Le, 1.0)), Stop::Band, "V ≤ 1");
@@ -3191,7 +3201,7 @@ mod measure_door_rows {
                     name: "measure_door_row"
                 }
             ),
-            Stop::Settled(Verdict::Holds(true)),
+            Stop::Settled(SettleVerdict::Holds(true)),
             "0.5 ≤ V ≤ 1.5"
         );
     }
@@ -7423,7 +7433,8 @@ mod at_rest_policy_tests {
 /// module owns everything that needs half-edges and vertex points.
 mod quad_lane;
 pub(crate) mod settle;
-pub use settle::{MassMeasurement, RelOp, Settle, SignNames, Stop, Verdict};
+pub(crate) use settle::RelOp;
+pub use settle::{MassMeasurement, Settle, SettleVerdict, SignNames, Stop};
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]

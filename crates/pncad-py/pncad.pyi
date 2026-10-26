@@ -4651,8 +4651,10 @@ class MassMeasurement:
     face met the resolution), `"floor"` (refinement stopped paying short
     of the question), `"wall"` (a face short of the question reached the
     work wall) or `"band"` (the enclosure lies wholly in the predicate's
-    band). `verdict` is `"outer"` or `"void"` for `Settle.sign()`
-    settled, a bool for a relation or a containment settled, and `None`
+    band): `topo::Stop`'s variants, in order. `verdict` is the
+    `SettleVerdict` a deciding predicate settled on, spelled as its words:
+    `"outer"` or `"void"` for `Settle.sign()`, a bool for
+    `Settle.at_most`, `Settle.at_least` or `Settle.contains`, and `None`
     otherwise."""
 
     @property

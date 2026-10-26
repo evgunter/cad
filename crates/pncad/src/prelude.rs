@@ -570,24 +570,14 @@ pub use topo::{
 // `VolumeEnclosure` is a certificate's bracket, and `HeldCertificate` is
 // `StepImport::Solid::certificate`: the curated-type rule (the
 // `coherence` note below) says a caller able to hold it must be able to
-// spell it. `MassMeasurement` is what a measurement answers, the one
-// name in Rust and Python.
-//
-// **`Verdict`, `Stop::Settled`'s payload, is NOT here, and that is a
-// decision.** A caller does branch on it (a role, or whether a claim
-// holds), so it is reachable one hop away, at `pncad::topo::Verdict`,
-// which is the façade's own path to it. What it may not do is sit on the
-// glob surface: there the name `Verdict` is censused against Python's,
-// and Python's `Verdict` is an `Assertion` node's three-state report — a
-// different fact. Carried here, one name would spell two facts, which
-// the one-name rule (Rust and Python spell a door type identically) rules
-// out; on the Python side the same payload crosses as
-// `MassMeasurement.verdict`. Falsifier: a program written against the
-// prelude that matches `Stop::Settled(v)` and cannot name `v`'s type
-// without naming a kernel crate — `pncad::topo::Verdict` is that name.
+// spell it. `MassMeasurement` is what a measurement answers, and
+// `SettleVerdict` what `Stop::Settled` says a deciding predicate
+// decided; each is the one name in Rust and Python (Python's
+// `MassMeasurement.verdict` is a `SettleVerdict`, spelled as its words).
+// `ShellRole` is a sign's verdict, carried with its carrier.
 pub use topo::{
-    HeldCertificate, MassMeasurement, MassProperties, MassPropsError, RelOp, RoleNames, Settle,
-    SignNames, Stop, VolumeEnclosure, mass_properties,
+    HeldCertificate, MassMeasurement, MassProperties, MassPropsError, RoleNames, Settle,
+    SettleVerdict, ShellRole, SignNames, Stop, VolumeEnclosure, mass_properties,
 };
 
 // --- 7. Tessellation and export -------------------------------

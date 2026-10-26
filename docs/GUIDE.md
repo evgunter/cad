@@ -733,8 +733,8 @@ call passes a `Settle`. A program that wants the number passes a
 resolution, `Settle::Resolution(len)`, the mean boundary displacement
 each face's enclosure may span — never finer than ε, which is the most
 the model defines a measure to. A program that decides something passes
-the question itself: `Settle::Sign`, a `Settle::Relation` against a
-bound, or `Settle::Contains`. The answer is a `MassMeasurement`: the enclosure,
+the question itself: `Settle::Sign`, `Settle::AtMost` or
+`Settle::AtLeast` against a bound, or `Settle::Contains`. The answer is a `MassMeasurement`: the enclosure,
 and why it stopped (`Stop::Met` where every face met the resolution,
 `Stop::Settled(verdict)` where a question decided, and `Stop::Floor`,
 `Stop::Wall` or `Stop::Band` where it stopped short). A resolution the

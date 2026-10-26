@@ -2,8 +2,8 @@
 //! `[tolerance.measure]`): what a caller asks of a volume's enclosure,
 //! as closed data, and how one round's enclosure answers it.
 //!
-//! A deciding predicate ([`Settle::Sign`], [`Settle::Relation`],
-//! [`Settle::Contains`]) is a named funnel decision: it settles when the
+//! A deciding predicate ([`Settle::Sign`], [`Settle::AtMost`],
+//! [`Settle::AtLeast`], [`Settle::Contains`]) is a named funnel decision: it settles when the
 //! enclosure decides it, refines while the enclosure straddles its
 //! threshold, stops when the enclosure lies wholly in the band, and is
 //! recorded at every round it is asked. [`Settle::Resolution`] is a
@@ -23,19 +23,27 @@ pub enum Settle<T: Real> {
     /// The volume's sign, as the role it gives a closed surface:
     /// positive is [`ShellRole::Outer`], negative [`ShellRole::Void`].
     Sign(SignNames),
-    /// The volume against a bound of the body's scalar, as an assertion
-    /// states it. The margin is a volume, metered over the surface area
-    /// to a mean boundary displacement and decided against the band.
-    Relation {
-        /// The relation the volume is claimed to stand in.
-        op: RelOp,
+    /// The volume at most a bound of the body's scalar, as an assertion
+    /// states it. The margin `bound − V` is a volume, metered over the
+    /// surface area to a mean boundary displacement and decided against
+    /// the band.
+    AtMost {
         /// The bound, a volume.
         bound: T,
         /// The funnel predicate the decision is recorded under.
         name: &'static str,
     },
-    /// The volume within `[lo, hi]`: both ends of the claim at once, each
-    /// a [`Settle::Relation`] under `name`.
+    /// The volume at least a bound of the body's scalar: the mirror of
+    /// [`Settle::AtMost`].
+    AtLeast {
+        /// The bound, a volume.
+        bound: T,
+        /// The funnel predicate the decision is recorded under.
+        name: &'static str,
+    },
+    /// The volume within `[lo, hi]`: both ends of the claim at once, a
+    /// [`Settle::AtLeast`] of `lo` and a [`Settle::AtMost`] of `hi` under
+    /// `name`.
     Contains {
         /// The least volume claimed.
         lo: T,
@@ -51,9 +59,11 @@ pub enum Settle<T: Real> {
     Resolution(Length),
 }
 
-/// **A relation an assertion states** (`[assertions]`: `≤`, `≥`).
+/// **Which side of a bound a relation claims** (`≤`, `≥`): the reading
+/// [`Settle::AtMost`] and [`Settle::AtLeast`] share, and the backstop's
+/// operand gate reads too.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum RelOp {
+pub(crate) enum RelOp {
     /// At most the bound.
     Le,
     /// At least the bound.
@@ -73,11 +83,11 @@ pub struct SignNames {
 
 /// **What a deciding predicate decided.**
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Verdict {
+pub enum SettleVerdict {
     /// [`Settle::Sign`]'s: the role the sign gives.
     Sign(ShellRole),
-    /// [`Settle::Relation`]'s and [`Settle::Contains`]'s: whether the
-    /// claim holds.
+    /// [`Settle::AtMost`]'s, [`Settle::AtLeast`]'s and
+    /// [`Settle::Contains`]'s: whether the claim holds.
     Holds(bool),
 }
 
@@ -85,7 +95,7 @@ pub enum Verdict {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Stop {
     /// A deciding predicate settled.
-    Settled(Verdict),
+    Settled(SettleVerdict),
     /// Every face met the resolution.
     Met,
     /// Refinement stopped paying on every face still short of the

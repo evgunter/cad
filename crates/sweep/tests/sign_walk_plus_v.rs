@@ -598,7 +598,7 @@ fn the_backstop_reads_from_round_zero() {
 /// refine record more of it than the one that settles at round 0.
 #[test]
 fn a_relation_refines_a_quadrature_face_and_settles_or_stops_in_the_band() {
-    use topo::{RelOp, Settle, Stop, Verdict};
+    use topo::{Settle, SettleVerdict, Stop};
     let tol = Tol::witness();
     let s = 1.0e7 * tol.get().eps;
     let body = loft_body::<f64>(
@@ -620,16 +620,8 @@ fn a_relation_refines_a_quadrature_face_and_settles_or_stops_in_the_band() {
     let name = "sign_walk_plus_v_relation";
     let ask = |bound: f64| {
         let bracket = geom_core::k_stats::Bracket::open();
-        let measured = topo::test_support::measure_to(
-            &body,
-            Settle::Relation {
-                op: RelOp::Le,
-                bound,
-                name,
-            },
-            tol,
-        )
-        .unwrap_or_else(|refusal| panic!("the door measures the loft: {refusal}"));
+        let measured = topo::test_support::measure_to(&body, Settle::AtMost { bound, name }, tol)
+            .unwrap_or_else(|refusal| panic!("the door measures the loft: {refusal}"));
         let recorded = bracket.finish();
         let asked = recorded
             .verdicts
@@ -647,13 +639,13 @@ fn a_relation_refines_a_quadrature_face_and_settles_or_stops_in_the_band() {
     let (stop, round_zero, asked_once) = ask(10.0 * v);
     assert_eq!(
         stop,
-        Stop::Settled(Verdict::Holds(true)),
+        Stop::Settled(SettleVerdict::Holds(true)),
         "a bound ten times over"
     );
     let (stop, near, asked_near) = ask(v * (1.0 + 1.0e-5));
     assert_eq!(
         stop,
-        Stop::Settled(Verdict::Holds(true)),
+        Stop::Settled(SettleVerdict::Holds(true)),
         "a bound just above the volume settles once refined"
     );
     assert!(
