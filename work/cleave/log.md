@@ -1584,3 +1584,9 @@ Signed (CLEAVE orchestrator).
   - That class is WIRE's row `a-re-charted-operands-rows-may-name-cells-the-re-chart-minted`, now P1. How to spell a re-charted cell is a design question there.
   - **Ruling:** remove the guard from 5753 and preserve it on `cleave/rows-name-input-cells-guard` as the WIRE row's acceptance check. Nothing is skipped; the tests pass without the guard, as they do on main.
   - **Measured:** the ring-tie class goes from 160 to 0 in sweep, 12 to 0 in editor-core and 77 to 0 in topo. (CLEAVE orchestrator)
+- 2026-10-26 — **[ev] 5780 updated after Ev's comment**, which asked about four points and said a guard that is redundant must go. Rounds 3 and 4 with the designers:
+  - Both keep the written-order asymmetry, with the principle that a boolean mints no surface.
+  - Both rewrote (3) and (4).
+  - The guard is NOT redundant: an acute neighbour's re-cut edge moves g/sin α. Both now place it inside the glue's Zero verdict.
+  - They differ only on sharpness: conservative g/sin α, or measured against the kept face.
+  - The diff and fork-log row 200 are updated, and a comment is posted for Ev. (CLEAVE orchestrator)
