@@ -2,10 +2,11 @@
 id: doc-comment-merge-scars-row-is-one-third-discharged-and-one-third-relocated
 kind: issue
 title: app-rs-doc-comment-merge-scars: one scar is fixed and the row's title asserts it is not, one moved out of app.rs into sketch.rs, and one is live where the row says
-status: open
+status: closed
 opened: 2026-09-10
 priority: P4
 cost: E
+closed: 2026-10-26
 ---
 
 
@@ -92,3 +93,7 @@ subject either.
 rather than inferred. `likely` that `35609ed29` is the commit that
 discharged bullet 3, which is a `git log -S` attribution and not a diff
 read.
+
+## Closed (2026-10-26, tracker sweep)
+
+**Superseded.** This row re-scoped `app-rs-doc-comment-merge-scars`, which closes in the same sweep because all three of its scars are now gone (see that row's `## Closed`). Bullet 2, the live third this row recorded, was fixed when `perform_batch`'s stranded summary went. Bullet 1, the relocated third, went with `tip_mark` (#2829). Nothing is left for a re-title to describe.

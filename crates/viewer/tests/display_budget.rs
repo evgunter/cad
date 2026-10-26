@@ -108,7 +108,8 @@ fn the_gallery_ring_at_the_starting_delta_is_inside_the_budget() {
     let fitted = scene::fit_delta(body, requested, tol).expect("the ring fits");
     assert_eq!(fitted.delta, requested, "the ring is drawn as asked");
     assert_eq!(fitted.requested_cost, None, "nothing was over budget");
-    let mesh = scene::scene_of_body(body, requested, tol).expect("the ring draws at 0.1 mm");
+    let mesh =
+        scene::scene_of_body(body, requested, tol).expect("the ring draws at the starting delta");
     let triangles = mesh.stats().triangles;
     assert!(
         triangles < TRIANGLE_BUDGET / 4,

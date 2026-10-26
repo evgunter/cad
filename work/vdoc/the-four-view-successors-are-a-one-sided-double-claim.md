@@ -2,10 +2,11 @@
 id: the-four-view-successors-are-a-one-sided-double-claim
 kind: issue
 title: CHROME's keep_out names VIEW and not the four successor programs that now hold VIEW's rows
-status: open
+status: closed
 opened: 2026-09-17
 priority: P4
 cost: E
+closed: 2026-10-26
 ---
 
 
@@ -72,3 +73,7 @@ in the same commit, re-homed from VIEW: it is a chrome-coverage row on
 The `*/tests/*` half of this is the standing case already filed as
 `work/meta/double-claim-lint-rule-waits-on-the-tests-seam.md` and is not
 re-filed here.
+
+## Closed (2026-10-26, tracker sweep)
+
+**Superseded.** The asymmetry is no longer a defect, and the carve-out it asked CHROME to restate is retired. `work/README.md` (Ev, 2026-09-20) rules that two open programs may claim one path and that *neither side owes the other a `keep_out` clause for the overlap to be allowed*. `work/chrome/plan.md` §*Territory — the carve-out is spent (2026-09-21)* and CHROME's `keep_out` say CHROME cedes none of `crates/viewer`. Its `datums.rs` half is moot too, because the file no longer exists.
