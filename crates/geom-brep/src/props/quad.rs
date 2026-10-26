@@ -148,6 +148,15 @@
 //! the closed-form lanes do (f64 rounding of closed forms is the
 //! documented slack there, unchanged).
 
+macro_rules! crate_probe_log { ($($a:tt)*) => {{
+    if let Ok(path) = std::env::var("PROBE5734_FILE") {
+        use std::io::Write;
+        let line = format!($($a)*);
+        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+            let _ = writeln!(f, "{} {}", std::env::var("NEXTEST_TEST_NAME").unwrap_or_default(), line);
+        }
+    }
+}}; }
 use geom_core::Bounds;
 use geom_core::interval::certification::Certification;
 use geom_core::interval::{Interval, certified_hi, cross, dot};
@@ -793,6 +802,7 @@ pub(super) struct Run<'c> {
     work: Work,
     cost: &'c dyn Fn(usize) -> usize,
     narrowest: Option<(usize, FaceCutBounds)>,
+    probe_first_floor: Option<(usize, f64)>,
 }
 
 impl<'c> Run<'c> {
@@ -813,6 +823,7 @@ impl<'c> Run<'c> {
             work,
             cost,
             narrowest: None,
+            probe_first_floor: None,
         }
     }
 
@@ -833,7 +844,19 @@ impl<'c> Run<'c> {
         {
             self.narrowest = Some((round, bounds));
         }
-        if removable * FLOOR_SHARE_INV <= width {
+        if std::env::var_os("PROBE5734_ROUNDS").is_some() {
+            crate_probe_log!("PROBE5734_ROUND round={round} width={width:e} removable={removable:e} areamid={:.6e} flo={:e} mbd={:?}", (bounds.area.lo()+bounds.area.hi())*0.5, bounds.flux.lo(), mean_boundary_displacement(bounds.flux, bounds.area));
+        }
+        if let Some((r0, w0)) = self.probe_first_floor {
+            crate_probe_log!("PROBE5734_AFTER floor_round={r0} round={round} ratio={:e}", width / w0);
+        }
+        let extra: Option<usize> = std::env::var("PROBE5734_EXTRA").ok().and_then(|v| v.parse().ok());
+        if removable * FLOOR_SHARE_INV <= width && self.probe_first_floor.is_none() {
+            let nw = self.narrowest.map_or(width, |(_, b)| b.flux.width());
+            self.probe_first_floor = Some((round, nw));
+        }
+        let hold = extra.is_some_and(|n| round < n);
+        if removable * FLOOR_SHARE_INV <= width && !hold && std::env::var_os("PROBE5734_NOFLOOR").is_none() {
             LaneStop::Floor
         } else if self.work.admits((self.cost)(round + 1)) {
             LaneStop::Refinable

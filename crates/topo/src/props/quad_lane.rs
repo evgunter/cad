@@ -2,6 +2,15 @@ use geom_brep::props::quad::{
     self, Accept, FaceCutBounds, HarmChan, LaneEnd, LaneRun, LaneStop, PatchNet,
     QUAD_TARGET_LEN_FACTOR, RoundWindow, TrimChord, TrimEdgeQ, TrimPiece,
 };
+macro_rules! crate_probe_log { ($($a:tt)*) => {{
+    if let Ok(path) = std::env::var("PROBE5734_FILE") {
+        use std::io::Write;
+        let line = format!($($a)*);
+        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+            let _ = writeln!(f, "{} {}", std::env::var("NEXTEST_TEST_NAME").unwrap_or_default(), line);
+        }
+    }
+}}; }
 use geom_brep::props::{FaceContribution, LoopEdge, PropsCheck, PropsError, loop_vector_area};
 use geom_brep::props::{rational_rim, spiric};
 use geom_brep::{Pcurve, SpiricImage, WallTorus};
@@ -55,8 +64,30 @@ pub(super) fn mid_pad(x: Interval) -> (f64, f64) {
 /// wider than a point, the vertex encloses the trig of where in it the
 /// carrier starts, not of its midpoint, and only the parameter's bracket
 /// is the one the lane needs.
+fn probe_mode() -> &'static str {
+    static M: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    M.get_or_init(|| std::env::var("PROBE5734").unwrap_or_default())
+}
+
 fn trig_at_end(t: Interval, vertex: (Interval, Interval)) -> (Interval, Interval) {
     let (c, s) = quad::trig_at_limit(t);
+    if std::env::var_os("PROBE5734_LOG").is_some() {
+        let rel = |p: Interval, v: Interval| {
+            if !p.is_certified() || !v.is_certified() { "refused" }
+            else if v.lo() <= p.lo() && p.hi() <= v.hi() { "contained" }
+            else if p.hi() < v.lo() || v.hi() < p.lo() { "EMPTY" }
+            else { "PARTIAL" }
+        };
+        let (rc, rs) = (rel(c, vertex.0), rel(s, vertex.1));
+        if rc != "contained" || rs != "contained" {
+            crate_probe_log!("PROBE5734 t=[{:e},{:e}] c={:?} vc={:?} {} s={:?} vs={:?} {}", t.lo(), t.hi(), c, vertex.0, rc, s, vertex.1, rs);
+        }
+    }
+    match probe_mode() {
+        "vertex" => return vertex,
+        "param" => return (c, s),
+        _ => {}
+    }
     if t.is_certified() && t.lo() == t.hi() {
         (c.meet(vertex.0), s.meet(vertex.1))
     } else {
@@ -739,7 +770,12 @@ fn reported(run: LaneRun, eps: f64) -> Result<RoundOutcome, PropsError> {
             let width_len = quad::mean_boundary_displacement(bounds.flux, bounds.area)?;
             let target_len = QUAD_TARGET_LEN_FACTOR * eps;
             let floored =
-                end == LaneEnd::Floor && width_len * (1.0 - quad::FLOOR_SHARE) > target_len;
+                match probe_mode() {
+                "flip" => end == LaneEnd::Floor && width_len * (1.0 - quad::FLOOR_SHARE) <= target_len,
+                "allfloor" => end == LaneEnd::Floor,
+                _ => end == LaneEnd::Floor && width_len * (1.0 - quad::FLOOR_SHARE) > target_len,
+            };
+            if std::env::var_os("PROBE5734_LOG").is_some() { crate_probe_log!("PROBE5734_END {end:?} width_len={width_len:e} target={target_len:e} rounds={rounds} floored={floored}"); }
             RoundOutcome::Open {
                 bounds,
                 round,
@@ -875,7 +911,7 @@ fn cut_face_lane<T: Decide + Bounds + CertifiedEnclosure>(
             let p_start = start_point(body, *he, le.forward)?;
             let trig0 = trig_at_end(t0, trig_at_start(&le.carrier, p_start, eps)?);
             let p_end = start_point(body, *he, !le.forward)?;
-            let trig1 = Some(trig_at_end(t1, trig_at_start(&le.carrier, p_end, eps)?));
+            let trig1 = Some(if probe_mode() == "trig1vertex" { trig_at_start(&le.carrier, p_end, eps)? } else { trig_at_end(t1, trig_at_start(&le.carrier, p_end, eps)?) });
             edges.push(TrimEdgeQ {
                 u: chan(p0.x, pa.x, pb.x, pl.x)?,
                 v: chan(p0.y, pa.y, pb.y, pl.y)?,
