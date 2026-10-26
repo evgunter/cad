@@ -20,3 +20,4 @@ unchanged. No row is dispatchable; the track opens `blocked`.
   - `c9-ring-class-phrase-names-a-retired-ring-or-the-exclusion-ring`, fixed in this sweep: comments at `census.rs`, `validate.rs`, `instance.rs` and `m5_pr9_boss_union.rs` now name the C9 exclusion ring, per `crates/topo/README.md:133`.
 
   `maximal-faces-curved-arm-cannot-tell-a-licensed-curved-skip` gains a note: the rounded stack merges its fillets now, so its conflict witness is gone. Re-measure before building.
+- 2026-10-23 — **Seam (QUAD), carried from REACHTAIL's log at the fold:** PR 5628 (`quad/measure-b-door`, measure door unit B) edits `boolean/ops.rs`'s volume backstop: it walks from round 0 and refines to each face's own wall (see CLEAVE's note). (QUAD unit B lane)

@@ -72,6 +72,7 @@ cleave-tangency)
 
 - 2026-10-23 — **Seam (QUAD):** PR 5589 (`quad/measure-a-lanes`, measure door unit A) re-words one doc in `topo/src/boolean/ops.rs` (the lane's stop is its floor or its work wall). No code change. (QUAD orchestrator's lane)
 
+- 2026-10-23 — **Seam (QUAD):** PR 5628 (`quad/measure-b-door`, measure door unit B) edits `boolean/ops.rs` (the volume backstop's walk) and `offer_rows.rs`'s site census, as on CLEAVE's log. (QUAD unit B lane)
 - 2026-10-25 — **Re-cut (refold approved in chat):** moved `joining-a-spline-carrier-is-unbuilt` to SPLICE by `git mv`, ids and bodies unchanged, each with a dated Moved note. SPLICE (`work/splice/`) is the new track for a body built by loft or sweep entering every boolean; SECT now carries the torus pairs it is built for.
 - 2026-10-26 — (tracker sweep) Closed five rows, each checked against main at `bb25fa4f`:
   - `a-coplanar-sector-offers-a-rest-the-door-contradicts-across-the-faces`, superseded: INTENT F retired the declare surface, and the sector refusal now offers no declaration (`reduce.rs:5573`, `:5638`);
