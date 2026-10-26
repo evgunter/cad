@@ -11755,10 +11755,10 @@ mod tests {
             // carrier's reads the modeler's lever alone.
             let text = core::fmt::from_fn(|f| err.write_payload(f)).to_string();
             assert!(!text.contains("Recourse"), "{text}");
-            assert_eq!(err.ending(Reading::Build), Some(read.ending(
-                crate::EdgeAuthority::<f64>::Derived.kind(),
-                Reading::Build,
-            )));
+            assert_eq!(
+                err.ending(Reading::Build),
+                Some(read.ending(crate::EdgeAuthority::<f64>::Derived.kind(), Reading::Build,))
+            );
             let as_declared = err.render_by(declared, Reading::Build);
             assert!(
                 as_declared.contains("Recourse: move the declared curve")

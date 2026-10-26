@@ -734,7 +734,10 @@ fn a_declared_carrier_ends_by_its_incidence_read_at_the_edge_certificate() {
         let declared = certify(true);
         match (what, &declared) {
             ("off", CertifyError::DeclaredOffChart { margin, .. }) => {
-                assert!(!matches!(margin, Some(OffMargin::InBand(_))), "{declared:?}");
+                assert!(
+                    !matches!(margin, Some(OffMargin::InBand(_))),
+                    "{declared:?}"
+                );
             }
             (
                 "undecided",
@@ -761,7 +764,10 @@ fn a_declared_carrier_ends_by_its_incidence_read_at_the_edge_certificate() {
             let ending = declared.ending(reading).unwrap();
             assert!(ending.starts_with(lever), "{what} {reading:?}: {ending}");
             for word in ["defect", "loosen", "tighten", "repair the body"] {
-                assert!(!ending.contains(word), "{what} {reading:?}: {word}: {ending}");
+                assert!(
+                    !ending.contains(word),
+                    "{what} {reading:?}: {word}: {ending}"
+                );
             }
         }
         let derived = certify(false);

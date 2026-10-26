@@ -955,7 +955,11 @@ fn half_edge_curve<T: Real>(
 /// **A certification refusal of `half_edge`'s row**, stamped with its
 /// edge's authority ([`geom_brep::EdgeAuthority::kind`]): the one place a
 /// [`PcurveMintError::Certify`] reads who determined the locus. A row is
-/// certified only against a certified carrier, so the edge holds one.
+/// certified only against a certified carrier, so the edge holds one:
+/// every caller (batched ones included) refused a certification it ran
+/// against the carrier this re-fetches, and nothing between the two
+/// re-describes the edge. The carrier is re-fetched rather than passed
+/// because the batched callers hold only the half-edge and the error.
 #[track_caller]
 fn certify_refused<T: Real>(
     body: &Body<T>,
@@ -964,7 +968,10 @@ fn certify_refused<T: Real>(
 ) -> PcurveMintError {
     let (edge, data) = edge_record(body, half_edge);
     let Some(curve) = body.edge_curve_linked(edge, data).certified() else {
-        unreachable!("a row's certification refused on a half-edge with no certified carrier");
+        unreachable!(
+            "{half_edge:?}: a row's certification refused against a certified carrier, \
+             yet the edge holds none (re-described between the certification and its refusal?)"
+        );
     };
     PcurveMintError::Certify {
         half_edge,
