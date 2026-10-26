@@ -7045,3 +7045,4 @@ Signed (WIRE orchestrator).
   - MAJOR: two slow corpus goldens (lib_g16 digests, name_words_corpus) move with the wall spelling and were not disclosed. A fix pass re-pins them with a what-moved note.
   - The REFS row's pair-subtract witness still refuses; Intersect [prism, cube, big] is fixed.
   - A missed by-name grouping (the split's edge_groups) is sent too.
+- 2026-10-26 (WIRE orchestrator) Ev approved PR 5705 ("cool, seems good!"). Fork-log row 197 is filled: Ev took the round-3 joint no-rank answer, neither first recommendation; A/B was Opus A, Fable B. [ev] is dropped from the title, and the PR merges on green CI. The build is next.
