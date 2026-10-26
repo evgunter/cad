@@ -194,8 +194,6 @@ pub enum BooleanDecision {
     /// Whether a split point lies on the circle it was placed on: a
     /// residual on a point the kernel placed.
     SplitPointOnCircle,
-    /// Whether an arc stays short of a full turn.
-    ArcSpan,
     /// Which way a ring that a fate cut closes in a dropped coincident
     /// face winds about the face's normal (`fate::ring_winding`, its
     /// signed area over its length): either definite sign passes, and a
@@ -1449,7 +1447,6 @@ impl BooleanDecision {
             Self::Crossing(decision) => decision.subject(),
             Self::VertexOnVertex => "whether two vertices coincide",
             Self::SplitPointOnCircle => "whether a split point lies on the circle it was placed on",
-            Self::ArcSpan => "whether an arc stays short of a full turn",
             Self::RingWinding => "which way a ring that the cut of a coincident face closes winds",
             Self::VolumeBackstop => "whether the result's volume agrees with its operands'",
             Self::LeverArm(gate) => gate.subject(),
@@ -1596,13 +1593,6 @@ impl BooleanDecision {
                 "distance between the vertices",
                 SizedPass::NonNegative,
             ),
-            // The edge's certification decided this same margin (its
-            // headroom to a full turn, metred at the radius) at this
-            // band, so neither arm is one the user reaches: an arc
-            // certified short of a full turn that now reads longer, or
-            // undecided, is the kernel's. It ends as its definite
-            // sibling, a broken classification invariant, does.
-            Self::ArcSpan => Ending::Unsized(Unsized::Defect),
             Self::RingWinding => Ending::Lever(RING_WINDING),
             Self::VolumeBackstop => Ending::Unsized(Unsized::Defect),
             // The arm passes on a positive length, and a zero-band one
@@ -2022,7 +2012,6 @@ pub(in crate::boolean) mod tests {
                 BooleanDecisionKind::SplitPointOnCircle => {
                     vec![BooleanDecision::SplitPointOnCircle]
                 }
-                BooleanDecisionKind::ArcSpan => vec![BooleanDecision::ArcSpan],
                 BooleanDecisionKind::RingWinding => vec![BooleanDecision::RingWinding],
                 BooleanDecisionKind::VolumeBackstop => vec![BooleanDecision::VolumeBackstop],
                 BooleanDecisionKind::LeverArm => {
@@ -2601,9 +2590,6 @@ pub(in crate::boolean) mod tests {
                 "whether a split point lies on the circle it was placed on",
                 Ending::Defect,
             ),
-            BooleanDecision::ArcSpan => {
-                ("whether an arc stays short of a full turn", Ending::Defect)
-            }
             BooleanDecision::RingWinding => (
                 "which way a ring that the cut of a coincident face closes winds",
                 Ending::Lever(

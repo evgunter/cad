@@ -2,11 +2,10 @@
 id: plane-nurbs-certificate-bound-does-not-refine-with-eps
 kind: issue
 title: Limb 2's between-samples bound is a function of a FIXED sample schedule, so an exact intensional description refuses at small enough epsilon
-status: parked
+status: open
 opened: 2026-09-15
 priority: P1
 cost: H
-blocked_on: [f64-refinement-inside-an-enclosure-has-five-more-sites, 3524]
 design: true
 ---
 
@@ -222,3 +221,7 @@ Only that pair escapes `h²`. Raising the degree alone does not.
 `PXN_IMAGE_DEGREE`'s own doc fixes "one structure" and banks curved loci
 on the algebraic route. The schedule, the image and the doc are all in
 `edge_nurbs`, which is ISO's territory per `work.py territory`.
+
+## Un-parked (band-rule triage, 2026-10-25)
+
+This row parked on `f64-refinement-inside-an-enclosure-has-five-more-sites` and PR 3524 for the convex form at `insert_once_ring` (term (c) above). PR 3524 closed that site. The one site still open on that row, `crates/mesh/src/chords.rs`, plays no part in limb 2. So the design question in "What follows" item 2 can be taken up now. Before weighing (i) against (ii), re-take the 2026-10-01 table: its numbers are from the lerp form.

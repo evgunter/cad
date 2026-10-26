@@ -22,7 +22,7 @@ Opened 2026-09-20 by PROPS's priority-seam cut
 | P1 | `the-scalar-lift-convention-mints-doors-faster-than-consumers` | D | Measured: of the eight map_scalar rungs scalar_lift.rs's convention names, one has a production consumer outside its crate; both top rungs have no non-test consumer anywhere |
 | P2 | `mc-lanes-draws-are-not-reproducible-from-outside-the-crate` | E | the MC lane's draws are not reproducible from outside editor-core |
 | P2 | `part-per-node-logs-dropped-with-nested-evaluation` | D | A part's per-node verdict and escalation logs are dropped with its nested Evaluation |
-| P4 | `k-lint-roster-wants-a-kernel-side-vocabulary` | D | k-lint's roster pin parses kernel source because the fence forbade the two cheaper shapes |
+| P3 | `k-lint-roster-wants-a-kernel-side-vocabulary` | D | k-lint's roster pin parses kernel source because the fence forbade the two cheaper shapes |
 | P4 | `should-classify-replays-error-enum-arms-be-deleted` | E | Should classify_replay's two error-enum arms be deleted? The precondition is discharged; the measurement is not |
 
 ## Order

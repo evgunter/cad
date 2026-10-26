@@ -41,3 +41,15 @@ whole-call failure is intended and should be written down at
 `pair_pass`. BAND's `S90-impl` makes this matter more: one of the
 options for tightening the blend doors to `CertifiedBounds` makes a
 fillet or chamfer node refuse at `Dual` in exactly this way.
+
+## Since the build-identity binding (2026-10-25, OFFSET)
+
+The whole-call failure is gone. The report no longer compares a pass
+with the `f64` build node by node (DUAL-DESIGN DL3, as ratified on PR
+5689): it binds the two by build identity and reads each pass's own
+result. A shell node a pass refuses leaves the measured value under it
+with no value in that pass, and the entry reads `MeasureRefused`,
+carrying the shell's refusal (`stackup.rs`, `unread_measure`). What
+this row still asks: whether DL3's designed dual refusals belong in
+`LiftRefusal`, so such an entry reads `Unliftable` like the guided
+replay's, rather than as a refused measure.

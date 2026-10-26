@@ -1,7 +1,8 @@
 //! **The discarded faces of a boolean** ([`DiscardRow`],
 //! `BooleanNaming::discards`): every face an operand loses to the
-//! result, with the kept faces it bordered, but a dropped coincident face
-//! a containment fallback could not divide (`BooleanNaming::uncut`).
+//! result, with the kept faces it bordered, except a dropped coincident
+//! face a containment fallback could not divide
+//! (`BooleanNaming::uncut`).
 //!
 //! The naming layer names a face the result holds as several pieces by
 //! the walls between them (N2's `Borders`), and those walls stand where
@@ -14,10 +15,10 @@
 //!
 //! Both paths record them: the section path (`finish`), and the
 //! containment fallback, which keeps or drops whole shells and records
-//! every face of a dropped one once it has cut its dropped coincident
-//! faces (`ops::fallback_fates`), all but those it leaves uncut. Such a face borders no kept face of its
-//! own operand, so its stretches are read through substituted fragments
-//! alone.
+//! every face of a dropped one, except those it leaves uncut, once it
+//! has cut its dropped coincident faces (`ops::fallback_fates`). Such a
+//! face borders no kept face of its own operand, so its stretches are
+//! read through substituted fragments alone.
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, VertexKey};

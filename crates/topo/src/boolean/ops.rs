@@ -247,7 +247,8 @@ pub struct BooleanNaming {
     pub graft_dead_edges: Vec<(EdgeKey, EdgeKey)>,
     /// B-side face graft lineage (see `graft_vertices`).
     pub graft_faces: Vec<(FaceKey, FaceKey)>,
-    /// Seam edges surviving the zips, in zip/cycle order, result keys.
+    /// Seam edges surviving the zips, each once, in the zip/cycle order
+    /// that first reports it, result keys.
     pub seam_edges: Vec<EdgeKey>,
     /// Vertex fusions `(dead, kept)` in mint order, result keys: the
     /// zips'.
@@ -303,7 +304,7 @@ pub struct BooleanNaming {
     pub reduction_contacts: ReductionContacts,
     /// Every face an operand lost to the result, with the kept faces it
     /// bordered (`boolean::discard`, which says how each path records
-    /// its rows), but the dropped coincident faces in [`Self::uncut`];
+    /// its rows), except the dropped coincident faces in [`Self::uncut`];
     /// and every face the material divided along an edge lying in it,
     /// which lost the line between its pieces (`boolean::slit`).
     pub discards: Vec<super::DiscardRow>,
@@ -893,6 +894,30 @@ fn one_solid<T: Decide>(body: &Body<T>) -> Result<std::borrow::Cow<'_, Body<T>>,
     Ok(std::borrow::Cow::Owned(flat))
 }
 
+/// The seam edges surviving a boolean's zips, each once, in the order
+/// first reported: an edge two zips each glue one of its half-edges
+/// along is one edge of the result.
+#[derive(Default)]
+struct SeamEdges {
+    listed: Vec<EdgeKey>,
+    held: BTreeSet<EdgeKey>,
+}
+
+impl SeamEdges {
+    fn extend(&mut self, edges: impl IntoIterator<Item = EdgeKey>) {
+        for e in edges {
+            if self.held.insert(e) {
+                self.listed.push(e);
+            }
+        }
+    }
+
+    fn retain(&mut self, keep: impl Fn(&EdgeKey) -> bool) {
+        self.listed.retain(&keep);
+        self.held.retain(keep);
+    }
+}
+
 /// The pipeline behind the front door, parameterized on whether the
 /// no-crossings sphere RE-CUT (M5 S13) may still run: the re-entry
 /// pass sets `recut = false`, so a re-cut that surfaces no crossings
@@ -940,7 +965,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     // scope by dropping it.
     let mut finished = fin.body;
     let mut body = finished.begin_surgery();
-    let mut seam_edges = Vec::new();
+    let mut seam_edges = SeamEdges::default();
     // Each operand's face divisions: the join's chord-mef rows.
     let fragments = [connected.a_fragments.clone(), connected.b_fragments.clone()];
     let mut desc = Descendants::default()
@@ -1000,7 +1025,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         &mut body,
         &mut desc,
         &declared_pairs,
-        &seam_edges,
+        &seam_edges.listed,
         &recorded,
         band,
         tol,
@@ -1051,7 +1076,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         graft_edges,
         graft_dead_edges,
         graft_faces,
-        seam_edges,
+        seam_edges: seam_edges.listed,
         vertex_merges,
         merge_groups: merge_rows(&merged, &output)?,
         substitutions: output.clone(),

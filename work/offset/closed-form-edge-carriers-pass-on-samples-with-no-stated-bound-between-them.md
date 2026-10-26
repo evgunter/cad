@@ -2,13 +2,12 @@
 id: closed-form-edge-carriers-pass-on-samples-with-no-stated-bound-between-them
 kind: unit
 title: A closed-form Intersection carrier passes its certificate on nine samples with no stated bound between them; the standing is provenance read off the variant
-status: parked
+status: spec
 opened: 2026-10-24
 priority: P0
 cost: H
 refs: [offset-lane-has-no-conic-carrier]
 parent: offset-lane-has-no-conic-carrier
-blocked_on: [a-lane-less-door-refusing-closed-form-carriers-refuses-every-dual-evaluation]
 branch: offset/limb2-for-every-carrier
 ---
 
@@ -66,3 +65,15 @@ net's tightness on a long oval (both designers unsure) with a row.
 
 Banded P0 as part of the P0 build; it is also what closes the latent gap
 (a spiric slightly off its torus owes no bound today).
+
+**Re-scoped (Ev's ruling on PR 5689, 2026-10-25).** Limb 2 for every carrier is built on the new door shape:
+- **The door split.** Mint is generic over any deciding scalar. Certify is bounded on the certification trait and takes its lane as a plain argument. A dual only mints. `Option<NurbsLane>` and every "not run here" arm go; the policy's other optional lanes move to the same shape.
+- **Sensitivities in `editor-core`.** The pairing rework is its own unit (`the-sensitivity-report-binds-by-build-identity-and-checks-the-measured-value`).
+- **Cost.** The limb-2 cost row (`closed-form-limb-2-costs-milliseconds-per-curved-edge`) rides the instrument.
+- **Check first:**
+  - whether a dual escalates an undecided sign as `f64` does (`geom-core/src/dual.rs` `sign_within`);
+  - whether a pin of the resolved parts exists.
+
+  File a row for each gap found.
+
+The lane's earlier branch is `offset/limb2-for-every-carrier`, head `452e7d8757`.

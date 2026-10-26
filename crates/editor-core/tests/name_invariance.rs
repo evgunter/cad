@@ -933,18 +933,7 @@ fn an_operand_order_moves_no_name() {
 }
 
 /// The operand-order cases that move today.
-const ADMITTED_OPERAND_ORDER: &[Admitted] = &[
-    (
-        "two bridges / union / m2 against the rest",
-        1,
-        BRIDGE_LISTED_FIRST,
-    ),
-    (
-        "two bridges / union / m3 against the rest",
-        1,
-        BRIDGE_LISTED_FIRST,
-    ),
-];
+const ADMITTED_OPERAND_ORDER: &[Admitted] = &[];
 
 /// The operand-order cases that compare no table today.
 const VACUOUS_OPERAND_ORDER: &[Vacuous] = &[
@@ -964,22 +953,12 @@ const VACUOUS_OPERAND_ORDER: &[Vacuous] = &[
         "pinch and far / union / m2 against the rest",
         decide_alike::CARRIED_PINCH,
     ),
-    ("two bridges / intersect / m2 against the rest", BRIDGES_MET),
-    ("two bridges / intersect / m3 against the rest", BRIDGES_MET),
 ];
-
-/// A bridge listed before the union of the wedges and the other bridge
-/// refuses that a seam was offered one edge twice.
-const BRIDGE_LISTED_FIRST: &str = "work/wire/a-pair-union-of-a-bridge-listed-first-and-the-wedges-offers-a-seam-one-edge-twice.md";
 
 /// The bridging prism folded last, after the plate and both wedges,
 /// refuses the union's fold step.
 const BRIDGE_FOLDED_LAST: &str =
     "work/wirerest/a-union-folding-a-bridging-prism-last-refuses-its-fold-step.md";
-
-/// A bridge met with the union of the wedges and the other bridge
-/// refuses: vertices share a name that is no single seam.
-const BRIDGES_MET: &str = "work/wire/a-bridge-met-with-the-wedges-and-the-other-bridge-names-vertices-on-no-single-seam-alike.md";
 
 // ------------------------------------------------------------------ //
 // Merged chords
