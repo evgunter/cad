@@ -2,7 +2,8 @@
 id: a-shells-pad-still-depends-on-face-order-where-one-quadrature-region-spans-the-lever
 kind: issue
 title: "A shell's pad still depends on its stored face order where one quadrature region spans the lever: 456× across rotations at 1e-6 with a torus on a bar's long top face"
-status: open
+status: closed
+closed: 2026-10-26
 opened: 2026-10-25
 priority: P2
 cost: M
@@ -71,3 +72,43 @@ torus" at `(−450, 0, 6.1)`).
 The two bodies above read within 2× across rotations at every ε, pinned
 by a row, or this item is closed with the measurement that says no shape
 helps.
+
+## Closed
+
+Closed by `flux/shell-pad-joined-regions`, which narrows what a region is
+(`crates/topo/src/props.rs`, `References`, "What a region is"):
+
+- **Regions join only across rims**, the edges whose vector area does
+  not read exactly (`curved_rim`: a spiric or rational carrier). A line,
+  conic or polynomial-spline edge between two quadrature faces is a
+  boundary, so a long plane no longer joins everything it touches across
+  its straight edges.
+- **A region's point is the stored start of its first curved face**
+  (`region_point`), which lies on its rims and so on the planes they
+  bound, not the start of its first face, which may be a long plane's a
+  bar's length off.
+- **A plane is levered off its plane.** A plane's flux about a point on
+  its plane is zero, so its samples count for `far_from`'s extent by
+  their normal distance `|n·(p − x)|`, and the region's nearness is
+  measured over its curved faces where it has any.
+- The first region stays read about the shell's point: carried about its
+  own point it read the same pads to six digits on every body here.
+
+Pads across rotations of the stored face list, measured, and pinned at
+1.1× in `a_shell_joined_along_a_long_face_reads_alike_whichever_face_it_stores_first`:
+
+| body | ε | before | after |
+|---|---|---|---|
+| R1: a side torus `torus(2, 0.5)` at `(−895, 0, 5.7)` on the top face | 1e-6 | 456× | 1.000005× |
+| | 1e-9 | | 1.000005× |
+| | 1e-12 | | 1.0054× |
+| R2: a mid torus `torus(2, 0.5)` at `(−450, 0, 6.3)`, with `torus(0.2, 0.05)` at `(−900.27, 0, 0)` | 1e-6 | 83× | 1.000005× |
+| | 1e-9 | | 1.0000067× |
+| | 1e-12 | | 1.0077× |
+
+A body these rules do not reach is filed as
+`work/flux/a-long-plane-face-cut-by-a-torus-reads-a-wide-pad-about-a-point-off-its-plane.md`:
+a torus astride the bar's end edge reads 1170× across rotations at
+1e-12, all of it one long plane face's area width levered by the shell's
+point's distance off its plane.
+
