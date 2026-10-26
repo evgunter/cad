@@ -78,3 +78,15 @@ top on both sides of the ring and close it across the line; they
 refuse `SlitLineCrossed`, now that gap's name, filed as
 `a-boolean-closes-a-slits-face-across-its-line`. Pinned by
 `a_ring_crossed_along_its_line_places_its_germs_apart.rs`.
+
+## Note (2026-10-25, branch `cleave/boolean-closes-a-slits-face`)
+
+The `## Fix` above is done in part. With the unions closing the top
+across the ring (`a-boolean-closes-a-slits-face-across-its-line`), no
+`REFUSING` row of `a_vertex_read_by_two_sector_passes.rs` names
+`SlitLineCrossed`. The variant stays, for the two gaps still typed
+under it, `Flush`
+(`a-boolean-cuts-a-flush-face-kept-once-along-a-slits-line`) and
+`CrossedTwice`. The 3′ touch along a slit's line this row admits as
+`SLIT_TOUCH` is filed as
+`a-union-touching-along-a-rings-line-fails-tier-3-prime`.

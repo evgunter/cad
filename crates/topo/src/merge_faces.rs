@@ -203,8 +203,6 @@ struct HalfEdgeFacts {
     r#loop: LoopKey,
     /// The parent loop's face.
     face: FaceKey,
-    /// The half-edge's start vertex.
-    start: VertexKey,
 }
 
 /// The door's one kind question, asked of every live face
@@ -2354,20 +2352,6 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
         Ok(census)
     }
 
-    /// **Does `toward` dangle alone at its start vertex** — is that
-    /// vertex the free end of a shared edge the glue left dangling,
-    /// the condition that licenses `kev` over `kemr` on a planar
-    /// survivor's duplicate?
-    ///
-    /// # Panics
-    ///
-    /// Where `toward`'s start vertex's orbit does not close: on a
-    /// tier-1-valid body every orbit does.
-    #[track_caller]
-    fn strut_tip(&self, toward: crate::entity::HalfEdgeKey) -> bool {
-        self.orbit_walk(toward).closed("orbit", toward).len() == 1
-    }
-
     /// The group's survivor: its first member in face-arena order that
     /// lies in no other member's HOLE, with the rest of the members.
     ///
@@ -2552,14 +2536,13 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
         HalfEdgeFacts {
             r#loop: parent,
             face,
-            start: hd.start,
         }
     }
 
     /// The two halves of `edge` (`data` is its record), resolved.
     ///
-    /// It carries the parent loop and start vertex beside the face
-    /// because the scans need those too: returning them from the walk
+    /// It carries the parent loop beside the face because the scans
+    /// need it too: returning it from the walk
     /// that proved the keys is what leaves the later steps with
     /// nothing to look up.
     ///
@@ -2778,47 +2761,6 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
             .collect()
     }
 
-    /// Deletes the lone-vertex ring `ring` of `rep` with its vertex:
-    /// `mekr` bridges it to `rep`'s outline and `kev` kills the bridge
-    /// and the vertex.
-    ///
-    /// # Panics
-    ///
-    /// Where `rep`'s outline is a lone vertex: the entry gate proved the
-    /// body closed, where an outline bounds its face's area, and
-    /// [`Body::refuse_lone_outline`] stops the surgery before it
-    /// reduces one to a lone vertex.
-    fn delete_lone_ring(
-        &mut self,
-        rep: FaceKey,
-        ring: crate::entity::LoopKey,
-        tol: Tol,
-    ) -> Result<(), MergeCoplanarError>
-    where
-        T: crate::props::AtRestPolicy,
-    {
-        let outline = proven(&self.faces, rep, EntityId::Face).outer;
-        let target = match linked(
-            &self.loops,
-            outline,
-            EntityId::Loop,
-            EntityId::Face(rep),
-            "outer",
-        )
-        .boundary
-        {
-            crate::entity::LoopBoundary::Cycle { first } => first,
-            crate::entity::LoopBoundary::Empty { .. } => unreachable!(
-                "survivor {rep:?}'s outline {outline:?} is a lone vertex: the entry gate proved \
-                 the body closed, where an outline bounds its face's area, and \
-                 refuse_lone_outline stops the surgery before it reduces one to a lone vertex"
-            ),
-        };
-        let bridge = self.mekr_chord(crate::MekrSite::EmptyRing { target, ring }, tol)?;
-        self.kev(bridge.he_plus)?;
-        Ok(())
-    }
-
     /// Refuses, before any write, a surgery that would leave `rep`'s
     /// outline a lone vertex: `ring` is the loop the surgery is about
     /// to reduce to one, and an outline bounds the face's area, so it
@@ -3035,45 +2977,32 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
             if kind == MergeKind::Curved {
                 return Err(MergeCoplanarError::PeriodClosure { edge: first_key });
             }
-            // The first dangling edge in edge-arena order, with the
-            // half that runs TOWARD its free end: `kev` takes that
-            // half's edge and its end vertex. `vertex_orbit` walks the
-            // halves STARTING at its argument's start vertex, so each
-            // candidate asks about the far end of the other half.
-            //
-            let mut strut = None;
-            'scan: for &(edge_key, (he_plus, hp), (he_minus, hm)) in &duplicates {
-                for (toward_free, from_free, near, free) in [
-                    (he_plus, he_minus, hp.start, hm.start),
-                    (he_minus, he_plus, hm.start, hp.start),
-                ] {
-                    if self.strut_tip(from_free) {
-                        strut = Some((edge_key, toward_free, near, free, hp.r#loop));
-                        break 'scan;
-                    }
-                }
-            }
-            if let Some((edge_key, toward_free, near, free, ring)) = strut {
-                // BOTH ends free: the edge is its own loop, a ring of
-                // the survivor holding nothing but itself — the last
-                // edge of a doubled cycle the pruning has taken the
-                // rest of. `kev` leaves that ring as a lone vertex, and
-                // `mekr` then `kev` delete the vertex with its ring.
-                // A ring that is the survivor's outline is refused
-                // before any of the three calls.
-                let other = self.strut_tip(toward_free).then_some(near);
-                if other.is_some() {
-                    self.refuse_lone_outline(rep, ring, edge_key)?;
-                }
+            // The first dangling edge in edge-arena order, deleted with
+            // its free end (`crate::strut`); one with BOTH ends free is
+            // a ring of the survivor holding nothing but itself, the
+            // last edge of a doubled cycle the pruning has taken the
+            // rest of, and goes with its ring. A ring that is the
+            // survivor's outline is refused before any write.
+            let strut = duplicates.iter().find_map(|&(edge_key, _, _)| {
+                self.toward_free_end(edge_key)
+                    .map(|toward| (edge_key, toward))
+            });
+            if let Some((edge_key, toward_free)) = strut {
+                let plan =
+                    self.plan_strut_prune(rep, toward_free)
+                        .map_err(|refusal| match refusal {
+                            crate::strut::StrutRefusal::Curved => {
+                                MergeCoplanarError::PeriodClosure { edge: edge_key }
+                            }
+                            crate::strut::StrutRefusal::LoneOutline => {
+                                MergeCoplanarError::UnsupportedConfiguration { edge: edge_key }
+                            }
+                        })?;
                 #[cfg(test)]
                 tear_before_kev(self, toward_free, edge_key);
-                self.kev(toward_free)?;
+                let deleted = self.prune_strut(&plan, tol)?;
                 group.killed_edges.push(edge_key);
-                group.killed_vertices.push(free);
-                if let Some(lone) = other {
-                    self.delete_lone_ring(rep, ring, tol)?;
-                    group.killed_vertices.push(lone);
-                }
+                group.killed_vertices.extend(deleted);
                 continue;
             }
             let (edge_key, (he_plus, hp), (he_minus, hm)) = duplicates[0];
@@ -3683,17 +3612,20 @@ mod tests {
     #[test]
     fn a_torn_adjacency_lookup_panics_naming_its_key() {
         let tol = Tol::witness();
-        type Tear = fn(&mut Body<f64>, HalfEdgeFacts, HalfEdgeFacts) -> Option<String>;
+        // Each row tears through the edge's two halves' facts and its
+        // two end vertices, plus half's then minus half's start.
+        type Tear =
+            fn(&mut Body<f64>, HalfEdgeFacts, HalfEdgeFacts, [VertexKey; 2]) -> Option<String>;
         let rows: [(&str, Tear); 5] = [
-            ("nothing", |_, _, _| None),
-            ("a face", |b, _, hm| {
+            ("nothing", |_, _, _, _| None),
+            ("a face", |b, _, hm, _| {
                 b.faces.remove(hm.face);
                 Some(format!(
                     "{:?}, read off a loop's face link, is not in the kind census",
                     hm.face
                 ))
             }),
-            ("a face's surface", |b, _, hm| {
+            ("a face's surface", |b, _, hm, _| {
                 let k = b.get_face(hm.face).expect("live").surface;
                 b.surfaces.remove(k);
                 Some(format!(
@@ -3702,19 +3634,19 @@ mod tests {
                     crate::entity::GeomRef::Surface(k)
                 ))
             }),
-            ("an end vertex", |b, hp, _| {
-                b.vertices.remove(hp.start);
+            ("an end vertex", |b, _, _, [start, _]| {
+                b.vertices.remove(start);
                 Some(format!(
                     "'s start names {}, which does not resolve",
-                    EntityId::Vertex(hp.start)
+                    EntityId::Vertex(start)
                 ))
             }),
-            ("an end point", |b, _, hm| {
-                let p = b.get_vertex(hm.start).expect("live").point;
+            ("an end point", |b, _, _, [_, start]| {
+                let p = b.get_vertex(start).expect("live").point;
                 b.points.remove(p);
                 Some(format!(
                     "{}'s point names {}, which does not resolve",
-                    EntityId::Vertex(hm.start),
+                    EntityId::Vertex(start),
                     crate::entity::GeomRef::Point(p)
                 ))
             }),
@@ -3731,7 +3663,9 @@ mod tests {
             };
             let (edge_key, edge) = body.edges().next().expect("an edge");
             let (hp, hm) = body.edge_halves(edge_key, edge);
-            let want = tear(&mut body, hp, hm);
+            let starts =
+                [edge.he_plus, edge.he_minus].map(|h| body.get_half_edge(h).expect("live").start);
+            let want = tear(&mut body, hp, hm, starts);
             let mut got = None;
             let panicked = crate::surgery::tests::caught(std::panic::AssertUnwindSafe(|| {
                 got = Some(
@@ -4617,6 +4551,7 @@ mod tests {
     /// where the truthful call refuses, and nothing downstream of the
     /// surgery notices.
     #[test]
+    #[cfg(debug_assertions)]
     #[should_panic(expected = "merge_group: the survivor's kind is the contract's")]
     fn a_curved_run_told_planar_is_caught_before_any_surgery() {
         let tol = Tol::witness();
@@ -4630,6 +4565,7 @@ mod tests {
     /// absorption runs first and refuses `SameFace` — and the re-check
     /// does not depend on that.
     #[test]
+    #[cfg(debug_assertions)]
     #[should_panic(expected = "merge_group: the survivor's kind is the contract's")]
     fn a_planar_group_told_curved_is_caught_before_any_surgery() {
         let tol = Tol::witness();

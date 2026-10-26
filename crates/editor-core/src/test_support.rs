@@ -1191,15 +1191,16 @@ pub fn past_the_load_door(text: &str) -> ProfileDoc {
 
 // --- a union's fold rows, as their steps named them ---------------
 
-/// **One fold-step row as the step named it**: its two cells' names in
+/// **One fold-step row as the step named it**: its cells' names in
 /// the union's own space, collapsed ([`crate::names::collapse_table`]),
 /// the relation the step decided, and the row the union spelled from
 /// them in member space. A suite resolves the names to member cells by
 /// its own reading and holds the spelled row to it.
 #[derive(Clone, Debug)]
 pub struct FoldRowNames {
-    /// The two cells' collapsed names, in the order the step read them.
-    pub cells: [crate::names::StableName; 2],
+    /// The cells' collapsed names, in the order the step read them: two,
+    /// or a meeting's three (`topo::Coincidence::third`).
+    pub cells: Vec<crate::names::StableName>,
     /// What the step decided between them.
     pub relation: topo::Relation,
     /// The row the union spelled.
@@ -1241,11 +1242,8 @@ pub(crate) fn record_fold_row(
         crate::coincide::NamedCell::Entity { name, .. } => name.clone(),
         other => panic!("a fold row's cell is an entity of the union: {other:?}"),
     };
-    let [a, b] = named.cells.as_slice() else {
-        panic!("a fold step's row names two cells: {named:?}");
-    };
     rows.push(FoldRowNames {
-        cells: [name(a), name(b)],
+        cells: named.cells.iter().map(name).collect(),
         relation: named.relation,
         spelled: spelled.clone(),
     });

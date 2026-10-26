@@ -39,7 +39,7 @@ the placeholder question, and agrees with this by construction — both
 read `net`'s one implementation."* `work/topo/S330.md`'s `## Closed`
 names the exhaustive `net_state` match as check 1's mechanism and lists
 the sibling two-state reads as a residue filed as a class. That class is
-`work/pipe/described-net-two-state-reads-hand-a-poisoned-net-the-described-arm`
+`work/topo/described-net-two-state-reads-hand-a-poisoned-net-the-described-arm`
 (thirteen sites; PIPE's), and its question is which ARM a poisoned net
 reaches at each consumer. This row is the narrower spelling question:
 a site that genuinely asks only "placeholder or not" — a filter, a

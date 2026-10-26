@@ -245,28 +245,46 @@ fn subtracting_an_enclosed_m7_8_cube_refuses_before_the_void_door() {
 }
 
 /// A disjoint union with the M7-8 cube refuses typed BEFORE its
-/// fallback reaches the assembly graft: the operand gate refuses the
-/// NURBS-carried edge. The row goes red the day the gate admits the
-/// class, which is the day the assembly's carried certificates become
-/// reachable from the boolean.
+/// fallback reaches the assembly graft: the sweep's planar crossing arm
+/// refuses the NURBS-carried edge at a face of the far brick, since a
+/// spline edge claims no box and so is cleared of no face. The row goes
+/// red the day a crossing rung reads the kind, which is the day the
+/// assembly's carried certificates become reachable from the boolean.
 #[test]
 fn a_disjoint_union_with_the_m7_8_cube_refuses_before_the_graft() {
     let tol = Tol::witness();
     let cube = finished_m7_8_cube(tol);
     let brick = common::finished(
         "the far brick",
-        common::brick::<f64>((4.0, 5.0), (4.0, 5.0), (4.0, 5.0), tol),
+        topo::test_support::brick_with_fresh_keys::<f64>((4.0, 5.0), (4.0, 5.0), (4.0, 5.0), tol),
         tol,
     );
     match topo::union(&brick, &cube, Tol::witness()) {
-        Err(topo::BooleanError::CurvedEdgeUnsupported {
+        Err(topo::BooleanError::EdgeCarrierUnsupported {
             operand: topo::Operand::B,
-            ..
-        }) => {}
-        Err(e) => panic!("expected the curved-edge refusal, got {e:?}"),
-        Ok(BooleanResult::Empty) => panic!("expected the curved-edge refusal, got Empty"),
+            edge,
+            face,
+            face_of: topo::Operand::A,
+            site: topo::EdgeCarrierSite::PlanarCrossing,
+        }) => {
+            assert!(
+                topo::query::edge_carrier_kind(&cube, edge) == Some(topo::query::CurveKind::Nurbs),
+                "the refusal names a spline edge of the cube: {edge:?}"
+            );
+            // The brick is fresh-keyed, so a face read in the wrong body
+            // resolves in neither.
+            assert!(
+                brick.get_face(face).is_some() && cube.get_face(face).is_none(),
+                "the refusal names a face of the brick, not of the cube: {face:?}"
+            );
+        }
+        Err(e) => panic!("expected the planar crossing refusal, got {e:?}"),
+        Ok(BooleanResult::Empty) => panic!("expected the planar crossing refusal, got Empty"),
         Ok(BooleanResult::Body(b)) => {
-            panic!("expected the curved-edge refusal, got a {:?} body", b.kind)
+            panic!(
+                "expected the planar crossing refusal, got a {:?} body",
+                b.kind
+            )
         }
     }
 }

@@ -1141,17 +1141,14 @@ fn split_half<P>(doc: &crate::doc::Doc<P>, read: crate::VarId) -> Option<crate::
 /// the split, the crossed edge and the sense read against the
 /// [`crate::SplitHalf::Above`] half. Each half holds its own copy of a
 /// crossing, its sense against that half, so the `Below` copy's sense
-/// is the `Above` copy's flipped. A crossing holds one piece of the
-/// edge on each side, so its sense always crosses. Its ranking
-/// qualifiers are kept: crossings of one sense are ranked along the
-/// crossed edge as the target holds it, which the two halves share,
-/// and the `Above` copy's crossings of one sense are the `Below`
-/// copy's crossings of the other.
+/// is the `Above` copy's read the other way (`Sense::other_half`). A
+/// crossing holds one piece of the edge on each side, so its sense
+/// always crosses.
 fn crossing(mut name: StableName, half: crate::SplitHalf) -> StableName {
     if half == crate::SplitHalf::Below
-        && let Some(RoleSeg::CrossingVertex { sense, .. }) = name.path.first_mut()
+        && let Some(RoleSeg::CrossingVertex { edge, sense }) = name.path.first_mut()
     {
-        *sense = sense.flipped();
+        *sense = sense.other_half(edge);
     }
     name
 }
@@ -1288,7 +1285,10 @@ pub(crate) fn name_rows(
     };
     rows.iter()
         .map(|row| {
-            let cells = vec![name(&row.cells[0])?, name(&row.cells[1])?];
+            let cells = row
+                .every_cell()
+                .map(|cell| name(&cell))
+                .collect::<Result<Vec<_>, _>>()?;
             if row.relation == topo::Relation::Meet {
                 return NamedCoincidence::meet(
                     cells,

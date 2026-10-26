@@ -292,7 +292,7 @@ fn shoulder(h: f64) -> topo::AtRestBody<f64> {
 /// `y = 1`, tangent to the shoulder's wall along its vertex ruling,
 /// normal `−y`. Normal `+y` refuses earlier, at the reduction
 /// (`ConsecutiveOnSectors`), for a reason of its own:
-/// `work/hone/split-shoulder-refuses-one-orientation-at-the-reduction.md`.
+/// `work/honesplit/split-shoulder-refuses-one-orientation-at-the-reduction.md`.
 fn shoulder_cut() -> topo::SplitPlane<f64> {
     topo::test_support::split_plane(Point3::new(0.0, 1.0, 0.0), Vec3::new(0.0, -1.0, 0.0), tol())
 }

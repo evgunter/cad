@@ -541,14 +541,16 @@ class TessellateError(PncadError):
     `unsupported_nurbs_face`, `unsupported_curve`,
     `null_scaffold_edge`, `ring_on_curved_face`, `empty_loop`,
     `missing_entity`, `resolution_overflow`, `step_not_positive`,
-    `certificate_exceeded`, `triangulation`, `self_touching_trim_loop`
+    `certificate_exceeded`, `rounding_unresolved`, `triangulation`,
+    `self_touching_trim_loop`
     or `unsupported_curved_domain`.
 
     The offending face or edge is an arena KEY and does not cross, so
     what a caller reads beside the tag is the arm's NUMBERS, always
     present and `None` where inapplicable: `value` (the refused
-    budget, the overflowed count, the refused step, or the curved
-    domain's worst off-box distance in metres), `bound` / `requested`
+    budget, the overflowed count, the refused step, the unabsorbed
+    rounding allowance, or the curved domain's worst off-box distance
+    in metres), `bound` / `requested`
     (a failed deviation certificate against the budget it was checked
     to), and `note` (the arm's own prose about which lane would be
     needed)."""
@@ -736,7 +738,10 @@ class SplitError(PncadError):
     staying: Optional[str]
     """`definition_straddles_cut`: `param` is the tied variable, `moving`
     a variable it reads that the cut moves, `staying` one that stays or
-    that the document no longer holds."""
+    that the document no longer holds.
+
+    `space_straddles_cut`: `node` is a cut placement into the space,
+    `input` a kept one, and `param` the space."""
 
 class InlineError(PncadError):
     """The `inline` refactoring refused.
@@ -2106,8 +2111,11 @@ class MeasurePrimitive:
         offset is measured from) and `inner` the contained one. C5's
         formulas are asymmetric in exactly that way, so the roles are
         authored rather than inferred from which radius is larger. Each
-        reference names a face (another kind refuses `slot_var_kind` at
-        insert)."""
+        reference names a face, an edge or a vertex (a body refuses
+        `slot_var_kind` at insert). Between a face and an edge or a
+        vertex, or an edge and a vertex, the higher-dimensional cell's
+        material reads the other in either seat; between two edges or
+        two vertices the outer's reads the inner."""
 
     @property
     def verb(self) -> str:
@@ -2236,7 +2244,9 @@ class Node:
         the order written). Order is data. The loft lies in its first
         section's coordinates. `v_degree` is a count
         (`Formula.count`); `DocEdit.set_members` re-points the sections'
-        profiles, one per section (else `loft_section_count`)."""
+        profiles, one per section (else `loft_section_count`), and
+        `DocEdit.set_loft_sections` writes them whole with their
+        stations."""
     @staticmethod
     def chamfer(target: _Operand, distance: _LengthArg, selection: list[str]) -> Node:
         """Equal-setback flat chamfers on named edges of `target`.
@@ -2501,7 +2511,8 @@ class Node:
 
         What each primitive reads is checked at insert: `distance` a
         face, an edge or a vertex, `angle` a face or an edge,
-        `min_clearance` a body or a face, `gap` a face; any other
+        `min_clearance` a body or a face, `gap` a face, an edge or a
+        vertex; any other
         refuses `slot_var_kind`. The rest are the kernel's own typed
         refusals at `evaluate`: a name that no longer resolves
         (`select_resolve`), a carrier pair with no v1 closed form
@@ -3334,9 +3345,27 @@ class DocEdit:
         one member, or none, is a union or intersect still. A loft's
         sections are spelled one read each, so a family there refuses
         `loft_sections_spelled`, a count other than the loft's sections
-        refuses `loft_section_count` (each section keeps its station),
-        and a node carrying no list refuses
-        `set_members_on_non_list`."""
+        refuses `loft_section_count` (each section keeps its station;
+        `set_loft_sections` adds or drops one), and a node carrying no
+        list refuses `set_members_on_non_list`."""
+
+    @staticmethod
+    def set_loft_sections(
+        node: NodeId,
+        first: _Operand,
+        then: Sequence[tuple[_Operand, Sequence[StationMove]]],
+    ) -> DocEdit:
+        """Write a `Node.loft`'s sections whole, each with its station:
+        `first`'s profile, then each later section as `(profile,
+        station)`, `Node.loft`'s own shape. The edit that adds, drops or
+        reorders a loft's sections; the degree is kept.
+
+        It admits a loft exactly where `Doc.insert` would, through the
+        same kernel checks: `slot_var_kind` for a section that is not a
+        profile, `slot_dimension_mismatch` for a station move of the
+        wrong dimension, `loft_shape` (`fault`: `too_few_sections`,
+        `empty_station`, `degree_out_of_range`). A node that is not a
+        loft refuses `set_loft_sections_on_non_loft`."""
 
     @staticmethod
     def set_param(node: NodeId, slot: str, value: _SlotArg | NodeId) -> DocEdit:

@@ -128,7 +128,7 @@ use pncad::document::LabelFault;
 use pncad::document::{
     AssemblyError, AttrKind, Axis3, CheckEvidence, ChecksError, Coord, CountMismatch,
     DimensionError, Distribution, DistributionFault, DistributionField, EditError, EvalError,
-    FlattenError, InlineError, InterfaceCrossing, LeverRefusal, Maintenance, MateFault,
+    FlattenError, InlineError, InterfaceCrossing, LeverRefusal, LoftFault, Maintenance, MateFault,
     MeasureUnavailableAt, MetaVersionError, NoChartWhy, NodeErrorClass, NodeErrorKind,
     NodeStanding, ParseError, PersistError, PinRefusal, PlacementRuleFault, ProgramFault,
     ProgramRefusal, ReachRefusal, RecordedProgramError, ResolveFault, ShellClassifyError, SlotId,
@@ -579,6 +579,8 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::PoseShape { .. } => "pose_shape",
         EditError::IndexedRead { .. } => "indexed_read",
         EditError::SetMembersOnNonList { .. } => "set_members_on_non_list",
+        EditError::SetLoftSectionsOnNonLoft { .. } => "set_loft_sections_on_non_loft",
+        EditError::LoftShape { .. } => "loft_shape",
         EditError::LoftSectionsSpelled { .. } => "loft_sections_spelled",
         EditError::SetProgramOnNonProfile { .. } => "set_program_on_non_profile",
         EditError::LoftSectionCount { .. } => "loft_section_count",
@@ -1165,6 +1167,9 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::PoseShape { fault, .. } => Some(pose_fault_tag(fault)),
         EditError::IndexedRead { fault, .. } => Some(input_fault_tag(fault)),
         EditError::SetMembersOnNonList { .. } => None,
+        EditError::SetLoftSectionsOnNonLoft { .. } => None,
+        // What is wrong with the loft is the arm.
+        EditError::LoftShape { fault, .. } => Some(loft_fault_tag(fault)),
         EditError::LoftSectionsSpelled { .. } => None,
         EditError::SetProgramOnNonProfile { .. } => None,
         EditError::LoftSectionCount { .. } => None,
@@ -1512,8 +1517,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::CurvedPierceUnsupported => "curved_pierce_unsupported",
         BooleanErrorKind::CrossingAtConeApex => "crossing_at_cone_apex",
         BooleanErrorKind::NormalAtConeApex => "normal_at_cone_apex",
-        BooleanErrorKind::CurvedEdgeUnsupported => "curved_edge_unsupported",
-        BooleanErrorKind::CrossingCarrierUnsupported => "crossing_carrier_unsupported",
+        BooleanErrorKind::EdgeCarrierUnsupported => "edge_carrier_unsupported",
         BooleanErrorKind::PointSplitCarrierUnsupported => "point_split_carrier_unsupported",
         BooleanErrorKind::GermEdgeCarrierUnsupported => "germ_edge_carrier_unsupported",
         BooleanErrorKind::ArcLoopContainmentUnsupported => "arc_loop_containment_unsupported",
@@ -1537,6 +1541,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::PairingMismatch => "pairing_mismatch",
         BooleanErrorKind::SharedVertexCrossings => "shared_vertex_crossings",
         BooleanErrorKind::PinchRaysInAFace => "pinch_rays_in_a_face",
+        BooleanErrorKind::TangentCrescentUnsupported => "tangent_crescent_unsupported",
         BooleanErrorKind::CrossingsAlongAContactLine => "crossings_along_a_contact_line",
         BooleanErrorKind::VertexReadTwice => "vertex_read_twice",
         BooleanErrorKind::PartnerAlongFace => "partner_along_face",
@@ -1583,6 +1588,8 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::EdgeInFace => "edge_in_face",
         BooleanErrorKind::SlitLineCrossed => "slit_line_crossed",
         BooleanErrorKind::SlitFaceGlued => "slit_face_glued",
+        BooleanErrorKind::CurvedFaceClosesAcrossSlit => "curved_face_closes_across_slit",
+        BooleanErrorKind::SlitFaceClosesMidSlit => "slit_face_closes_mid_slit",
         BooleanErrorKind::LineWedges => "line_wedges",
     }
 }
@@ -1635,6 +1642,17 @@ pub fn skin_error_tag(err: &SkinError) -> &'static str {
         SkinError::Fit(_) => "fit",
         SkinError::KnotAlgebra(_) => "knot_algebra",
         SkinError::Structure(_) => "structure",
+    }
+}
+
+/// The stable tag for why a loft's shape refuses at the edit door —
+/// the fault `EditError::LoftShape` carries, published on
+/// `inner_variant` beside the edit's own word.
+pub fn loft_fault_tag(fault: &LoftFault) -> &'static str {
+    match fault {
+        LoftFault::TooFewSections { .. } => "too_few_sections",
+        LoftFault::EmptyStation { .. } => "empty_station",
+        LoftFault::DegreeOutOfRange { .. } => "degree_out_of_range",
     }
 }
 
@@ -1733,9 +1751,7 @@ pub fn join_shape_tag(shape: &JoinShape) -> &'static str {
 /// [`NamingError::UnsupportedUnionName`].
 pub fn union_name_shape_tag(shape: &UnionNameShape) -> &'static str {
     match shape {
-        UnionNameShape::SeamGroupNoMemberEdge => "unsupported_union_name_seam_group_no_member_edge",
         UnionNameShape::SeveralParents => "unsupported_union_name_several_parents",
-        UnionNameShape::RunLeastLineMoved => "unsupported_union_name_run_least_line_moved",
         UnionNameShape::JunctionLinesCollide => "unsupported_union_name_junction_lines_collide",
     }
 }
@@ -2385,6 +2401,7 @@ pub fn tessellate_error_tag(err: &TessellateError) -> &'static str {
         TessellateError::ResolutionOverflow { .. } => "resolution_overflow",
         TessellateError::StepNotPositive { .. } => "step_not_positive",
         TessellateError::CertificateExceeded { .. } => "certificate_exceeded",
+        TessellateError::RoundingUnresolved { .. } => "rounding_unresolved",
         TessellateError::Triangulation { .. } => "triangulation",
         TessellateError::SelfTouchingTrimLoop { .. } => "self_touching_trim_loop",
         TessellateError::PinchWedge { .. } => "pinch_wedge",
@@ -2467,12 +2484,12 @@ pub fn split_error_tag(err: &SplitError) -> &'static str {
         SplitError::CutsTheWorld => "cuts_the_world",
         SplitError::NoMaterial { .. } => "no_material",
         SplitError::UncutVarReference { .. } => "uncut_var_reference",
+        SplitError::SpaceStraddlesCut { .. } => "space_straddles_cut",
         SplitError::DefinitionStraddlesCut { .. } => "definition_straddles_cut",
         SplitError::UnresolvedVarCrossesCut { .. } => "unresolved_var_crosses_cut",
         SplitError::PartNameReachesRemainder { .. } => "part_name_reaches_remainder",
         SplitError::NameStraddlesCut { .. } => "name_straddles_cut",
         SplitError::NameOnDroppedStep { .. } => "name_on_dropped_step",
-        SplitError::RankedRunReordered { .. } => "ranked_run_reordered",
         SplitError::BodyNameCrossesCut { .. } => "body_name_crosses_cut",
         SplitError::NameOutsidePartWorld { .. } => "name_outside_part_world",
         SplitError::Pin { .. } => "split_pin",
@@ -2504,7 +2521,6 @@ pub fn inline_error_tag(err: &InlineError) -> &'static str {
         InlineError::StrandedPartName { .. } => "stranded_part_name",
         InlineError::StrandedPartRead { .. } => "stranded_part_read",
         InlineError::NameOnDroppedStep { .. } => "name_on_dropped_step",
-        InlineError::RankedRunReordered { .. } => "ranked_run_reordered",
         InlineError::Edit { .. } => "inline_edit",
     }
 }
@@ -3077,8 +3093,13 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::FaceThroughEdgeWedgeUndecided { .. } => {
             "face_through_edge_wedge_undecided"
         }
+        ValidationError::CoincidentWedgesOverlap { .. } => "coincident_wedges_overlap",
+        ValidationError::CoincidentWedgesOverlapUndecided { .. } => {
+            "coincident_wedges_overlap_undecided"
+        }
         ValidationError::ArcEndOffCorner { .. } => "arc_end_off_corner",
         ValidationError::InstanceInterference { .. } => "instance_interference",
+        ValidationError::SameSideInterference { .. } => "same_side_interference",
         ValidationError::CuspEdgesMissing { .. } => "cusp_edges_missing",
         ValidationError::DanglingTopology { .. } => "dangling_topology",
         ValidationError::DanglingGeometry { .. } => "dangling_geometry",

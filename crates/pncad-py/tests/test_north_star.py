@@ -988,15 +988,18 @@ class TestLoftPrism(unittest.TestCase):
     def test_the_v_degree_is_a_count_the_kernel_checks(self):
         """`1 <= v_degree <= len(profiles) - 1` is the kernel's rule,
         not the binding's: nothing is pre-checked here, so degree 3
-        through three sections refuses at evaluation."""
+        through three sections is the kernel's `loft_shape` refusal at
+        the insert door."""
         doc = Doc()
         sections = [
             (doc.insert(Node.polygon([(Formula.length_in(x, m), Formula.length_in(y, m)) for x, y in PRISM_SQUARE])), z)
             for z in (0.0, 1.0, 2.0)
         ]
-        overdegree = doc.insert(Node.loft(*stacked(sections), Formula.count(3)))
-        ev = evaluate(doc)
-        self.assertFalse(ev.succeeded(overdegree), "degree 3 needs four sections")
+        with self.assertRaises(EditError) as caught:
+            doc.insert(Node.loft(*stacked(sections), Formula.count(3)))
+        self.assertEqual(caught.exception.variant, "loft_shape")
+        self.assertEqual(caught.exception.inner_variant, "degree_out_of_range")
+        self.assertEqual((caught.exception.count, caught.exception.given), (3, 3))
 
 
 class TestTheVDegreeParamBinding(unittest.TestCase):
@@ -3302,21 +3305,22 @@ class TestTeapot(unittest.TestCase):
         )
 
         # spout union vessel: PAST the pair rung, because a loft's
-        # walls are Nurbs and that arm exists — and dead one door in,
-        # at the operand gate's edge rule, on a NURBS seam of the
-        # spout: the join and section lanes behind the sweep have no
-        # row for a spline edge. Making the spout the shape a potter
-        # draws did not make it joinable; it moved the refusal off a
-        # pair nobody modelled and onto the body's own edges.
+        # walls are Nurbs and that arm exists — and dead where the
+        # spout leaves the belly: a spline (NURBS) edge of the spout
+        # has to be split where the solids meet, and the Boolean
+        # cannot yet find a point's parameter on a spline (SPLICE's
+        # `a-meeting-on-a-spline-boundary-edge-has-no-split-parameter`).
+        # Making the spout the shape a potter draws did not make it
+        # joinable; it moved the refusal off a pair nobody modelled
+        # and onto the meeting itself. Pinned by the refusal's arm, not
+        # a sentence of its text.
         self.assertFalse(ev.succeeded(spout_join))
         with self.assertRaises(EvaluationError) as caught:
             ev.value(spout_join)
         refusal = caught.exception
         self.assertEqual(refusal.kind, "boolean")
+        self.assertEqual(refusal.inner_kind, "point_split_carrier_unsupported")
         text = str(refusal)
-        self.assertIn(
-            "an edge of the second operand is a spiric or spline (NURBS) curve", text
-        )
         # NOT the pair rung any more, and this is the half that would
         # go quietly wrong if it were only asserted positively.
         self.assertNotIn("may meet", text)
@@ -4018,7 +4022,8 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
                 "delete_node", "delete_var",
                 "insert_node", "rebind", "remove_constraint",
                 "rename_var",
-                "set_constraints", "set_label", "set_members",
+                "set_constraints", "set_label", "set_loft_sections",
+                "set_members",
                 "set_param", "set_program",
                 "set_tolerance", "set_var_distribution", "set_var_unit",
                 "set_var_value", "update_reference",

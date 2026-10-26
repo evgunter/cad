@@ -2,8 +2,9 @@
 id: the-file-level-carve-out-cannot-express-a-row-whose-work-crosses-a-call-site
 kind: issue
 title: The CHROME/VIEW carve-out divides by file, and body-seat's work crosses it through denotes_body's only caller
-status: open
+status: closed
 opened: 2026-09-15
+closed: 2026-10-26
 refs: [body-seat-reads-through-the-placer-chain]
 priority: P3
 cost: D
@@ -79,3 +80,20 @@ viewer-side member, so a third program is downstream of whatever is
 decided here.
 
 Signed: (CHROME orchestrator)
+
+## Closed (2026-10-26, tracker sweep)
+
+**Superseded.** Both halves are gone:
+
+- **The instance landed.** `crates/viewer/src/combine.rs:1453` is now
+  `denotes_body(doc: &Doc<ProfileProgram>, node: RecipeNodeId)`, and its
+  one production caller, `crates/viewer/src/session/refuse.rs:74`,
+  threads the `Doc` through (`NodeKindWanted::Body =>
+  combine::denotes_body(doc, node)`). `body-seat-reads-through-the-placer-chain`
+  closed 2026-10-08 (`work/forms/`).
+- **The carve-out it asked a rule for no longer exists.** VIEW has left
+  the tracker (no `work/view/`), and `work/README.md`'s 2026-09-20 rule
+  (§Rules, "Two open programs may claim one path") makes shared ground
+  legitimate with awareness owed per live branch — a fix that reaches a
+  caller in another program's file is an announced crossing, not a
+  boundary the tracker has to express.

@@ -27,6 +27,7 @@
 //! alone).
 
 use geom_core::Interval;
+use geom_core::exact::{two_product as two_prod, two_sum};
 
 /// The unit roundoff, `2⁻⁵³`.
 const U: f64 = f64::EPSILON / 2.0;
@@ -40,24 +41,10 @@ fn up(x: f64) -> f64 {
     x * (1.0 + 8.0 * U) + f64::from_bits(1)
 }
 
-/// `a + b` as an exact pair.
-fn two_sum(a: f64, b: f64) -> (f64, f64) {
-    let s = a + b;
-    let a1 = s - b;
-    let b1 = s - a1;
-    (s, (a - a1) + (b - b1))
-}
-
 /// `a + b` as an exact pair, `|a| ≥ |b|` (or `a` zero).
 fn fast_two_sum(a: f64, b: f64) -> (f64, f64) {
     let s = a + b;
     (s, b - (s - a))
-}
-
-/// `a·b` as an exact pair (no underflow).
-fn two_prod(a: f64, b: f64) -> (f64, f64) {
-    let p = a * b;
-    (p, a.mul_add(b, -p))
 }
 
 /// A double-word value and its error bound (module docs).

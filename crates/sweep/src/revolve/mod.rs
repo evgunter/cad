@@ -128,8 +128,8 @@
 //! # K-telemetry
 //!
 //! Every topology-determining comparison goes through the named
-//! [`decide`] funnel, which delegates to the unified recorder funnel
-//! `geom_core::k_stats::decide` (M2 PR 7).
+//! [`decide`](crate::swept::decide) funnel, which delegates to the
+//! unified recorder funnel `geom_core::k_stats::decide`.
 
 mod axis;
 mod chain;

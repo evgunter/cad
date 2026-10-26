@@ -2,10 +2,11 @@
 id: viewer-prose-calls-the-frame-entry-point-update
 kind: issue
 title: The viewer's prose names the frame entry point `update`, and no such function has ever existed
-status: open
+status: closed
 opened: 2026-09-16
 priority: P4
 cost: E
+closed: 2026-10-26
 ---
 
 
@@ -49,3 +50,7 @@ repointed on the lane's authority.
 `crates/viewer/src/frame.rs` and one row in `work/view/` — both VIEW's.
 The repair is two words and its value is that the next lane writing a
 link off that sentence does not spend a CI round trip finding out.
+
+## Closed (2026-10-26, tracker sweep)
+
+**Fixed in this sweep.** `crates/viewer/src/frame.rs`, `projection_badge`'s doc (~`:2780`), now says *the same frame's `ui`*, which is `<ViewerApp as eframe::App>::ui` (`app.rs:1876`). The tracker half, in `the-guard-that-decides-whether-a-preference-is-kept-has-no-test`, now names the entry point the same way and records that the row first called it `update`.

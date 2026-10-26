@@ -247,7 +247,8 @@ fn r1_certify_turn_is_sound_against_the_true_defect_length() {
 /// starts, on ovals clear of the tangent regime `d = R − r` (the sup the
 /// spiric arm reads is the period's, finite there). Nearer tangency the
 /// global sup loosens and a whole oval can escalate
-/// (`work/pred/turn-rule-reads-short-at-the-global-speed-floor.md`).
+/// (`turn-rule-reads-short-at-the-global-speed-floor`, closed; recoverable
+/// by `docs/doc-ledger/pred-leaves-the-tracker.md`).
 #[test]
 fn r1_spiric_whole_ovals_certify_whole() {
     let (big_r, r) = (0.09375, 0.0703125);

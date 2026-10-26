@@ -2,10 +2,11 @@
 id: tess-budget-doc-identity-column-list
 kind: issue
 title: docs/TESS-BUDGET.md's two identity-column enumerations still name the sizing-block entry tess-lint no longer carries
-status: open
+status: closed
 opened: 2026-09-07
 priority: P3
 cost: D
+closed: 2026-10-26
 ---
 
 
@@ -73,3 +74,17 @@ Moved from `work/meter/` to `work/instr/` by `git mv` when METER's exit
 walk opened the successor (`docs/METER-EXIT-WALK.md` §4, ratified by Ev on
 2026-09-08 at PR #2212). Id, header and body unchanged; the directory is
 the claim. This row is one of the twenty on INSTR's opening slate.
+
+## Closed (2026-10-26, tracker sweep)
+
+**Fixed in this sweep.** I edited both `docs/TESS-BUDGET.md` sentences. They
+now name the seven-entry list (chart, trim box, whole-patch divisions;
+`tess_lint::IDENTITY_COLUMNS`, `tools/tess-lint/src/lib.rs:1582`) and point
+at the parse refusal for the case the eighth entry used to cover:
+
+- `:127-131`, the `--sizing-only` paragraph;
+- `:628-631`, under "A re-keyed face is read before it is re-cut".
+
+`IDENTITY_COLUMNS`' own doc (`lib.rs:1567-1581`) carries the argument. No
+test reads either sentence: `baseline_census.rs`'s prose arm looks for
+test names only.

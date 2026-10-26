@@ -2,12 +2,12 @@
 id: purchasable-area-tightness-valve
 kind: issue
 title: Purchasable area tightness - a demand-triggered valve on the patch lanes' area enclosure (caller-requested target, typed refusal)
-status: open
+status: deferred
 opened: 2026-08-31
 github: 1367
 refs: [870, 873, 472, 1315, 1366, S230]
 priority: P2
-cost: D
+cost: H
 ---
 
 ## From GitHub issue 1367
@@ -39,3 +39,15 @@ S-CERT: the valve sits on the patch lanes' area enclosure in `crates/geom-brep/s
 `work/code-quality/` left the tracker (`docs/DOC-LEDGER.md`, sweep 11)
 and its closed rows went with it. `S26` is now cited by its closing PR
 1366.
+
+## Deferred (2026-10-26, tracker sweep)
+
+`status: deferred`, not `open`: the row is ratified not-now, and the
+ratification is the one its first paragraph cites, S-CERT Q1 (Ev, in
+chat, 2026-08-29), which declined always-on area metering and deferred
+purchasable tightness to a valve built only when a consumer asks. As
+`open` it counted as dispatchable work it says must not be dispatched.
+It goes back to `open` when a consumer asks for a tighter area.
+Re-priced `H` from legacy `D`: the sketch's item 2 is a structural
+change to the patch lanes, and item 3 a new typed refusal that needs a
+row-by-row argument.

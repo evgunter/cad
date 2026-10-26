@@ -1,8 +1,8 @@
 use geom_brep::props::quad::{
-    self, Accept, FaceCutBounds, HarmChan, LaneEnd, LaneRun, LaneStop, PatchNet,
-    QUAD_TARGET_LEN_FACTOR, RoundWindow, TrimChord, TrimEdgeQ, TrimPiece,
+    self, Accept, FaceCutBounds, HarmChan, LaneRun, LaneStop, PatchNet, RoundWindow, TrimChord,
+    TrimEdgeQ, TrimPiece,
 };
-use geom_brep::props::{FaceContribution, LoopEdge, PropsCheck, PropsError, loop_vector_area};
+use geom_brep::props::{FaceContribution, LoopEdge, PropsError, loop_vector_area};
 use geom_brep::props::{rational_rim, spiric};
 use geom_brep::{Pcurve, SpiricImage, WallTorus};
 use geom_core::Tol;
@@ -19,7 +19,7 @@ use geom_core::interval::certification::Certification;
 // same bound. So the module stays uninstantiable at a dual.
 use geom::Curve3;
 use geom::Surface;
-use geom_core::{Band, Bounds, CertifiedEnclosure, Decide, Margin, Point3, Sign};
+use geom_core::{Band, Bounds, CertifiedEnclosure, Decide, Point3};
 
 use crate::body::Body;
 use crate::entity::HalfEdgeKey;
@@ -41,57 +41,14 @@ pub(super) fn mid_pad(x: Interval) -> (f64, f64) {
     ((x.lo() + x.hi()) * 0.5, (x.hi() - x.lo()) * 0.5)
 }
 
-/// `(cos t₀, sin t₀)` enclosure at the carrier-interval start,
-/// recovered algebraically from the carrier frame and the interval
-/// start's VERTEX point (within the run's ε of the carrier, D4 ¶2
-/// — the ε rides into the bracket as an explicit pad).
-fn trig_at_start<T: Decide + Bounds + CertifiedEnclosure>(
-    carrier: &Curve3<T>,
-    p: Point3<T>,
-    eps: f64,
-) -> Result<(Interval, Interval), PropsError> {
-    let full = Interval::from_bounds(-1.0, 1.0);
-    // `from_bounds` mints a fresh bracket out of whatever
-    // endpoints it is handed, so a refused operand would come back
-    // clean. The refusal is carried across by hand.
-    let clamp = |x: Interval, pad: f64| {
-        if !x.is_certified() {
-            return Interval::refused();
-        }
-        Interval::from_bounds(x.lo() - pad, x.hi() + pad).clamped_to(-1.0, 1.0)
-    };
+/// **The trim carrier's kind, as the cylinder lane reads it**: a line, a
+/// circle or an ellipse, whose harmonic pcurve the lane integrates; each
+/// end's `(cos, sin)` is formed at the limit the lane integrates from
+/// ([`quad::trig_at_limit`]), so no vertex is read. The other kinds
+/// refuse by name.
+fn harmonic_carrier<T: Decide>(carrier: &Curve3<T>) -> Result<(), PropsError> {
     match carrier {
-        // A line's harmonic pcurve has zero trig amplitudes; the
-        // whole-circle bracket is sound and multiplies away.
-        Curve3::Line { .. } => Ok((full, full)),
-        Curve3::Circle {
-            center,
-            axis,
-            radius,
-            u_ref,
-        } => {
-            let v_ref = axis.cross(*u_ref);
-            let w = p - *center;
-            let c = Interval::from_certified(w.dot(*u_ref)) / Interval::from_certified(*radius);
-            let s = Interval::from_certified(w.dot(v_ref)) / Interval::from_certified(*radius);
-            let pad = (Interval::point(eps) / Interval::from_certified(*radius)).mag();
-            Ok((clamp(c, pad), clamp(s, pad)))
-        }
-        Curve3::Ellipse {
-            center,
-            axis,
-            semi_u,
-            semi_v,
-            u_ref,
-        } => {
-            let v_ref = axis.cross(*u_ref);
-            let w = p - *center;
-            let c = Interval::from_certified(w.dot(*u_ref)) / Interval::from_certified(*semi_u);
-            let s = Interval::from_certified(w.dot(v_ref)) / Interval::from_certified(*semi_v);
-            let pad_c = (Interval::point(eps) / Interval::from_certified(*semi_u)).mag();
-            let pad_s = (Interval::point(eps) / Interval::from_certified(*semi_v)).mag();
-            Ok((clamp(c, pad_c), clamp(s, pad_s)))
-        }
+        Curve3::Line { .. } | Curve3::Circle { .. } | Curve3::Ellipse { .. } => Ok(()),
         // The spiric's chart images are not harmonic (its `m`
         // channel is `√((R + r cos v)² − d²)`), so the trig
         // brackets this lane reads do not exist for it. Unreachable
@@ -522,213 +479,48 @@ pub(super) fn exact_polygon_volume(polygons: &[Vec<Vec<Point3<Interval>>>]) -> O
 }
 
 /// The certified flux/area enclosures of one curved-cut face
-/// (module docs of `geom_brep::props::quad`) over a [`RoundWindow`],
-/// read at the reporting target ([`to_target`], [`reported`]) — the
-/// cylinder chart's closed-form lane plus the described-NURBS patch lane
-/// (M6-3), entered and left where the window says; [`super::QuadLane`]
-/// holds this and reads it at either level. A cone face never arrives:
+/// (module docs of `geom_brep::props::quad`) over a [`RoundWindow`] —
+/// the cylinder chart's closed-form lane plus the described-NURBS patch
+/// lane (M6-3), entered and left where the window says;
+/// [`super::QuadLane`] holds this. Each round is asked one question,
+/// `resolution`: a round whose mean boundary displacement
+/// ([`quad::mean_boundary_displacement`]) is at most that length ends the
+/// call there. It is a sizing, so it is compared, not decided, and
+/// nothing is recorded; `None` accepts no round, so the call ends at the
+/// window's last round or the lane's own stop. A cone face never arrives:
 /// the face walk routes it to its closed form
 /// ([`geom_brep::props::cone_face_closed_form`]). A plane or torus face
 /// reaches this lane only with a spiric on its boundary
 /// ([`rim_face`]); a sphere chart mints stored pcurves but has no
 /// flux lane here, and refuses typed.
+///
+/// The tolerance is the hook's ([`super::QuadLane`]): no lane here reads
+/// it, since each trim end's trig is formed at its parameter, not off its
+/// vertex within `ε` ([`harmonic_carrier`]).
 #[allow(clippy::too_many_arguments)]
 pub(super) fn cut_face_rounds<T: Decide + Bounds + CertifiedEnclosure>(
     body: &Body<T>,
     surface: &Surface<T>,
     loops: &[super::FlatLoop<T>],
     band: Band,
-    tol: Tol,
+    _tol: Tol,
     window: RoundWindow,
     centre: Option<Point3<Interval>>,
-) -> Result<RoundOutcome, PropsError> {
-    let eps = tol.eps();
-    let mut accept = to_target::<T>(eps, band);
-    let run = cut_face_lane(body, surface, loops, band, tol, window, centre, &mut accept)?;
-    reported(run, eps)
-}
-
-/// **INTERIM: the reporting target, asked of every round a lane runs.**
-/// The lanes know no target (`geom_brep::props::quad`'s module docs);
-/// this is the question the face walks ask today, at
-/// `QUAD_TARGET_LEN_FACTOR·ε` of mean boundary displacement, through the
-/// funnel predicate `props_quad_converged`. It stands in for the caller's
-/// own predicate until the measurement door carries one
-/// (`docs/QUAD-MEASURE-SPEC.md`, unit B), and goes with it.
-///
-/// Only a definite `Positive` converges, and a definite `Negative` does
-/// not. A margin within the band — `Zero` or the ambiguity band — is no
-/// answer either way: at a round the lane can refine past it refines,
-/// since the next round's enclosure, about 4× narrower, decides it; at a
-/// round the lane stops on it escalates, since there the width may be
-/// under the target and a budget refusal would misstate it. A `Zero`
-/// reading carries no diagnostic, so there the same margin is re-asked
-/// through the funnel's positive gate, which rejects it with one; that
-/// path alone records the predicate twice. The margin is finite by
-/// [`quad::mean_boundary_displacement`]'s invariant, so the band is the
-/// only escalation the reading carries.
-fn to_target<T: Decide>(
-    eps: f64,
-    band: Band,
-) -> impl FnMut(&FaceCutBounds, LaneStop) -> Result<bool, PropsError> {
-    let target_len = QUAD_TARGET_LEN_FACTOR * eps;
-    move |bounds, stop| {
-        let width_len = quad::mean_boundary_displacement(bounds.flux, bounds.area)?;
-        let last = stop != LaneStop::Refinable;
-        match quad::classify_len::<T>(
-            "props_quad_converged",
-            Margin::of(target_len - width_len),
-            band,
-            PropsCheck::Converged,
-        ) {
-            Ok(Sign::Positive) => Ok(true),
-            Ok(Sign::Negative) => Ok(false),
-            Ok(Sign::Zero) if !last => Ok(false),
-            Ok(Sign::Zero) => match geom_core::k_stats::decide_positive(
-                "props_quad_converged",
-                Margin::of(target_len - width_len).lift::<T>(),
-                band,
-            ) {
-                Ok(()) => Ok(true),
-                Err(cause) => Err(PropsError::Escalated {
-                    cause,
-                    check: PropsCheck::Converged,
-                }),
-            },
-            Err(PropsError::Escalated { .. }) if !last => Ok(false),
-            Err(other) => Err(other),
-        }
-    }
-}
-
-/// **INTERIM: where a face's window ended, read at the reporting
-/// target** ([`reported`]): [`Self::Converged`] met the target, and
-/// [`Self::Open`] is an enclosure at a named round, sound and wider
-/// than the target, which is all a caller deciding a SIGN needs. Goes
-/// with [`to_target`].
-#[derive(Clone, Debug)]
-pub(crate) enum RoundOutcome {
-    /// A round's enclosure met the reporting target.
-    Converged {
-        /// The enclosure.
-        bounds: FaceCutBounds,
-        /// Whether the lane can refine past it: a later round is
-        /// narrower, and fits in the work wall.
-        refinable: bool,
-    },
-    /// The window ended without meeting the target.
-    Open {
-        /// The narrowest enclosure the window reached — sound, and
-        /// wider than the reporting target asks for.
-        bounds: FaceCutBounds,
-        /// The round `bounds` was taken at.
-        round: usize,
-        /// Why the window ended.
-        end: OpenEnd,
-    },
-}
-
-/// **INTERIM: why an [`RoundOutcome::Open`] window ended** — whether
-/// rounds remain, and the refusal a caller wanting a NUMBER from the
-/// face earns.
-#[derive(Clone, Debug)]
-pub(crate) enum OpenEnd {
-    /// The window's own last round: rounds remain, and a later one may
-    /// still meet the reporting target.
-    Window,
-    /// The lane stopped (its floor or its work wall) short of the target.
-    Exhausted(PropsError),
-}
-
-impl OpenEnd {
-    /// The refusal a caller wanting the number earns, if any.
-    pub(crate) fn refusal(&self) -> Option<&PropsError> {
-        match self {
-            Self::Window => None,
-            Self::Exhausted(refusal) => Some(refusal),
-        }
-    }
-
-    /// Whether a later round exists to resume at.
-    pub(crate) fn rounds_remain(&self) -> bool {
-        matches!(self, Self::Window)
-    }
-}
-
-impl RoundOutcome {
-    /// **The reporting level's reading of this outcome**: the converged
-    /// outcome, or the refusal the lane stopped with.
-    ///
-    /// INVARIANT: a [`RoundWindow::SCHEDULE`] window ends converged or
-    /// at the lane's own stop, which carries its refusal, so
-    /// [`OpenEnd::Window`] is reachable only from a window a caller
-    /// deliberately cut short, which is a caller that wanted the
-    /// enclosure rather than the number.
-    ///
-    /// # Errors
-    ///
-    /// The lane's own refusal, unchanged.
-    pub(crate) fn at_target(self) -> Result<Self, PropsError> {
-        match self {
-            converged @ Self::Converged { .. } => Ok(converged),
-            Self::Open {
-                end: OpenEnd::Exhausted(refusal),
-                ..
-            } => Err(refusal),
-            Self::Open {
-                round,
-                end: OpenEnd::Window,
-                ..
-            } => unreachable!(
-                "a target-level reading of a window cut short at round {round}: the \
-                 reporting door runs the whole schedule, which ends converged or refused"
-            ),
-        }
-    }
-}
-
-/// **INTERIM: a lane's run read at the reporting target** — the
-/// accepted round converged, a window cut short open, and a lane that
-/// stopped short of the target ([`LaneEnd::Floor`], [`LaneEnd::Wall`])
-/// refused [`PropsError::QuadratureBudget`] with its narrowest enclosure,
-/// which a sign walk may still read. Goes with [`to_target`].
-fn reported(run: LaneRun, eps: f64) -> Result<RoundOutcome, PropsError> {
-    let LaneRun {
-        bounds,
-        round,
-        rounds,
-        end,
-    } = run;
-    Ok(match end {
-        LaneEnd::Accepted(stop) => RoundOutcome::Converged {
-            bounds,
-            refinable: stop == LaneStop::Refinable,
-        },
-        LaneEnd::Window => RoundOutcome::Open {
-            bounds,
-            round,
-            end: OpenEnd::Window,
-        },
-        LaneEnd::Floor | LaneEnd::Wall => RoundOutcome::Open {
-            bounds,
-            round,
-            end: OpenEnd::Exhausted(PropsError::QuadratureBudget {
-                width_len: quad::mean_boundary_displacement(bounds.flux, bounds.area)?,
-                target_len: QUAD_TARGET_LEN_FACTOR * eps,
-                rounds,
-            }),
-        },
-    })
+    resolution: Option<f64>,
+) -> Result<LaneRun, PropsError> {
+    let mut accept = |bounds: &FaceCutBounds, _: LaneStop| match resolution {
+        None => Ok(false),
+        Some(len) => Ok(quad::mean_boundary_displacement(bounds.flux, bounds.area)? <= len),
+    };
+    cut_face_lane(body, surface, loops, band, window, centre, &mut accept)
 }
 
 /// [`cut_face_rounds`]' lanes, asking `accept` of every round.
-#[allow(clippy::too_many_arguments)]
 fn cut_face_lane<T: Decide + Bounds + CertifiedEnclosure>(
     body: &Body<T>,
     surface: &Surface<T>,
     loops: &[super::FlatLoop<T>],
     band: Band,
-    tol: Tol,
     window: RoundWindow,
     centre: Option<Point3<Interval>>,
     accept: &mut Accept<'_>,
@@ -775,7 +567,6 @@ fn cut_face_lane<T: Decide + Bounds + CertifiedEnclosure>(
                    algebra is the cylinder's",
         });
     };
-    let eps = tol.eps();
     let mut va = geom_core::Vec3::new(T::zero(), T::zero(), T::zero());
     for (edges, _) in loops {
         va = va + loop_vector_area(edges, *origin)?;
@@ -829,17 +620,15 @@ fn cut_face_lane<T: Decide + Bounds + CertifiedEnclosure>(
                 });
             };
             let (t0, t1) = cache.params();
-            // The interval-start vertex: traversal start when forward,
-            // traversal end when reversed (`he_plus` start either way).
-            let p_start = start_point(body, *he, le.forward)?;
-            let trig0 = trig_at_start(&le.carrier, p_start, eps)?;
-            let p_end = start_point(body, *he, !le.forward)?;
-            let trig1 = Some(trig_at_start(&le.carrier, p_end, eps)?);
+            let (t0, t1) = (Interval::from_certified(t0), Interval::from_certified(t1));
+            harmonic_carrier(&le.carrier)?;
+            let trig0 = quad::trig_at_limit(t0);
+            let trig1 = Some(quad::trig_at_limit(t1));
             edges.push(TrimEdgeQ {
                 u: chan(p0.x, pa.x, pb.x, pl.x)?,
                 v: chan(p0.y, pa.y, pb.y, pl.y)?,
-                t0: Interval::from_certified(t0),
-                t1: Interval::from_certified(t1),
+                t0,
+                t1,
                 forward: le.forward,
                 trig0,
                 trig1,
@@ -1691,25 +1480,6 @@ fn about(control: Vec<quad::RVec3>, centre: Option<Point3<Interval>>) -> Vec<qua
     }
 }
 
-/// The vertex POINT at a half-edge's carrier-interval start (its
-/// edge's `he_plus` start vertex).
-fn start_point<T: Decide + Bounds + CertifiedEnclosure>(
-    body: &Body<T>,
-    he: HalfEdgeKey,
-    forward: bool,
-) -> Result<Point3<T>, PropsError> {
-    let corrupt = PropsError::QuadratureUnsupported {
-        what: "corrupt body reaching the quadrature lane (a key did not resolve)",
-    };
-    let vk = if forward {
-        body.half_edges.get(he).ok_or(corrupt.clone())?.start
-    } else {
-        body.half_edge_end(he).ok_or(corrupt.clone())?
-    };
-    let v = body.vertices.get(vk).ok_or(corrupt.clone())?;
-    body.points.get(v.point).copied().ok_or(corrupt)
-}
-
 #[cfg(test)]
 mod tests {
     /// The plane cap ([`super::plane_cap`]) over hand-built loops: a rim
@@ -1849,129 +1619,6 @@ mod tests {
         }
     }
 
-    /// The interim reporting adapter ([`super::to_target`],
-    /// [`super::reported`]) on enclosures built to a chosen mean
-    /// boundary displacement.
-    #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-    mod reporting_adapter_tests {
-        use geom_brep::props::PropsCheck;
-        use geom_brep::props::quad::{FaceCutBounds, LaneEnd, LaneRun, LaneStop};
-        use geom_core::{Band, Interval};
-
-        use super::super::{OpenEnd, PropsError, RoundOutcome, reported, to_target};
-
-        /// An enclosure whose mean boundary displacement is `len`: a flux
-        /// of width `3·len` over a unit area.
-        fn of_len(len: f64) -> FaceCutBounds {
-            FaceCutBounds {
-                flux: Interval::from_bounds(0.0, 3.0 * len),
-                area: Interval::from_bounds(1.0, 1.0),
-            }
-        }
-
-        /// **A convergence margin within the band refines where the lane
-        /// can refine and escalates where it stops.** At a round the lane
-        /// can refine past, an in-band margin is no answer, and the next
-        /// round, about 4× narrower, decides it; at the round its floor or
-        /// work wall stops it, the width may be under the target and a
-        /// budget refusal would misstate it, so it escalates through the
-        /// funnel. A margin inside the zero band and one inside the
-        /// ambiguity band above it, on a band scaled to the target.
-        #[test]
-        fn an_in_band_margin_refines_where_the_lane_can_and_escalates_where_it_stops() {
-            let eps = 1e-9;
-            let target = 1024.0 * eps;
-            let band = Band::new(1e-3 * target, 1e-2 * target).unwrap();
-            for (what, len) in [
-                ("zero band", target),
-                ("ambiguity band", target * (1.0 - 5e-3)),
-            ] {
-                let mut accept = to_target::<f64>(eps, band);
-                assert!(
-                    !accept(&of_len(len), LaneStop::Refinable).unwrap(),
-                    "{what}: an in-band margin refines while the lane can"
-                );
-                for stop in [LaneStop::Floor, LaneStop::Wall] {
-                    match accept(&of_len(len), stop) {
-                        Err(PropsError::Escalated { cause, check }) => {
-                            assert_eq!(check, PropsCheck::Converged, "{what}, {stop:?}");
-                            assert_eq!(
-                                cause.predicate,
-                                Some("props_quad_converged"),
-                                "{what}, {stop:?}"
-                            );
-                        }
-                        other => panic!("{what}, {stop:?}: an in-band margin escalates: {other:?}"),
-                    }
-                }
-            }
-        }
-
-        /// **A definite margin is its own answer at any stop**: a width
-        /// well under the target converges, one well over it does not.
-        #[test]
-        fn a_definite_margin_answers_at_any_stop() {
-            let eps = 1e-9;
-            let band = Band::new(eps, 10.0 * eps).unwrap();
-            for stop in [LaneStop::Refinable, LaneStop::Floor, LaneStop::Wall] {
-                let mut accept = to_target::<f64>(eps, band);
-                assert!(accept(&of_len(1e-7), stop).unwrap(), "{stop:?}: under");
-                assert!(!accept(&of_len(1e-5), stop).unwrap(), "{stop:?}: over");
-            }
-        }
-
-        /// **A lane stopped short of the target refuses with a width that
-        /// really missed**: its narrowest enclosure's, the target the
-        /// run's, and the rounds it ran. An accepted round converges; a
-        /// window cut short stays open with no refusal.
-        #[test]
-        fn a_stopped_lane_refuses_with_its_narrowest_width() {
-            let eps = 1e-9;
-            let target = 1024.0 * eps;
-            let run = |end| LaneRun {
-                bounds: of_len(2.0 * target),
-                round: 4,
-                rounds: 7,
-                end,
-            };
-            for end in [LaneEnd::Floor, LaneEnd::Wall] {
-                match reported(run(end), eps).unwrap() {
-                    RoundOutcome::Open {
-                        round: 4,
-                        end:
-                            OpenEnd::Exhausted(PropsError::QuadratureBudget {
-                                width_len,
-                                target_len,
-                                rounds: 7,
-                            }),
-                        ..
-                    } => {
-                        assert!(
-                            width_len > target_len,
-                            "{end:?}: {width_len} vs {target_len}"
-                        );
-                        assert!((target_len - target).abs() <= target * 1e-12, "{end:?}");
-                    }
-                    other => panic!("{end:?}: {other:?}"),
-                }
-            }
-            assert!(matches!(
-                reported(run(LaneEnd::Window), eps).unwrap(),
-                RoundOutcome::Open {
-                    end: OpenEnd::Window,
-                    ..
-                }
-            ));
-            assert!(matches!(
-                reported(run(LaneEnd::Accepted(LaneStop::Wall)), eps).unwrap(),
-                RoundOutcome::Converged {
-                    refinable: false,
-                    ..
-                }
-            ));
-        }
-    }
-
     /// The scalar bracket seam, at the `Interval` scalar.
     ///
     /// A bracket can be sound and still inadmissible:
@@ -2077,7 +1724,8 @@ mod tests {
         use crate::entity::{FaceKey, LoopBoundary};
         use crate::props::{
             FaceRun, QuadLane, References, corner_of, decide_faces_serially, face_flux, face_loops,
-            flat_loops, rederive, reporting_hook, resolve_face, shell_polygons, vertex_rings,
+            flat_loops, interim_resolution, rederive, resolve_face, round_hook, shell_polygons,
+            vertex_rings,
         };
 
         /// `m · 2^e`, exactly.
@@ -2318,7 +1966,7 @@ mod tests {
         /// A brick's walk runs, measured as the role read measures them.
         fn runs(body: &Body<f64>, band: Band, tol: Tol) -> Vec<FaceRun<f64>> {
             let faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
-            let hook = reporting_hook(Some(QuadLane::<f64>::certified()));
+            let hook = round_hook(Some(QuadLane::<f64>::certified()));
             let refs = References::of(
                 body,
                 faces.iter().copied(),
@@ -2326,7 +1974,16 @@ mod tests {
                 Some(crate::props::QuadLane::certified()),
             );
             decide_faces_serially(&faces, |&f| {
-                face_flux(body, f, band, &hook, tol, RoundWindow::SCHEDULE, &refs)
+                face_flux(
+                    body,
+                    f,
+                    band,
+                    &hook,
+                    tol,
+                    RoundWindow::SCHEDULE,
+                    &refs,
+                    Some(interim_resolution(tol)),
+                )
             })
             .unwrap()
         }

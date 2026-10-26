@@ -2,10 +2,13 @@
 id: a-block-resting-a-zero-band-gap-above-another-refuses-at-the-volume-backstop
 kind: issue
 title: A union of a block resting a Zero-band gap above another refuses ResultVolumeImplausible: the glue closes the gap and the backstop has no slack for it
-status: open
+status: review
 opened: 2026-10-13
 priority: P0
 cost: M
+branch: cleave/backstop-admits-the-glues-zero-band
+needs_ev: true
+design: true
 ---
 
 

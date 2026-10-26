@@ -107,3 +107,14 @@ same directory, which agree on the three files above. Blind spots:
   word matches neither pattern.
 - Python passed as `python3 -c '…'` rather than as a heredoc matches
   neither.
+
+## The population moved (2026-10-26, tracker sweep)
+
+`scripts/gates/msrv-floor-equals-channel.sh`, PORT's copy and the
+third row of the table above, was deleted in `45d9509a95` (2026-09-28,
+"nightly: full suite at opt-2, a PR-latency alarm; three gates go").
+`grep -l "<<'PY'" scripts/gates/*.sh` at `bb25fa4f` returns
+`kernel-serde-free.sh`, `test-features-dev-only.sh` and
+`knots-f64-interim.sh` — the last is new since this row was filed and
+was not read here. Both original findings stand for the two that
+remain: each still carries one blind `except Exception`.

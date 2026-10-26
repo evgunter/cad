@@ -184,15 +184,23 @@ fn the_slit_annulus_cap_survives_the_written_zero() {
     )
     .expect("revolve")
     .body;
-    let m = tessellate(&body, 1e-2, Tol::witness()).expect("slit annulus tessellates");
+    let delta = 1e-2;
+    let m = tessellate(&body, delta, Tol::witness()).expect("slit annulus tessellates");
     assert_eq!(check_mesh(&m), Ok(()), "slit annulus not watertight");
-    // A chorded annulus under-fills the true volume; accept the chord
-    // deficit, reject a seam that leaked or double-counted.
-    let exact = core::f64::consts::PI * (r_out * r_out - r_in * r_in) * h;
+    // The walls are cylinders with no interior points, so the mesh is
+    // the prism over the two rims' chord polygons: each rim a regular
+    // polygon of `⌈2π/φ⌉` chords at the sagitta step φ = 2·acos(1 − δ/r).
+    // A seam that leaked or double-counted moves the volume off it.
+    let tau = core::f64::consts::TAU;
+    let polygon = |r: f64| {
+        let n = (tau / (2.0 * (1.0 - delta / r).acos())).ceil();
+        0.5 * n * r * r * (tau / n).sin()
+    };
+    let want = h * (polygon(r_out) - polygon(r_in));
     let v = signed_volume(&m);
     assert!(
-        v > 0.985 * exact && v <= exact,
-        "slit annulus volume {v} against exact {exact}"
+        (v - want).abs() < 1e-9,
+        "slit annulus volume {v} against the chord prism's {want}"
     );
 }
 

@@ -1698,7 +1698,7 @@ impl<T: Decide> Body<T> {
     /// merge, the chord join's sliver cut, the blend) rely on that
     /// move, and [`Body::kef_describing`] absorbs it once each states
     /// its re-descriptions
-    /// (`work/topo/kef-and-kfmrh-across-keys-want-a-describing-door-or-reordered-callers`).
+    /// (`work/restate/kef-and-kfmrh-across-keys-want-a-describing-door-or-reordered-callers`).
     pub fn kef_minting(&mut self, he: HalfEdgeKey, tol: Tol) -> Result<KefResult, EulerOpError> {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();

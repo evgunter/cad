@@ -2329,6 +2329,31 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     carries(&E::WouldCycle { at: sp(1) }, &["node"]);
     carries(&E::ReadSiteMissingNode { at: sp(1) }, &["node"]);
     carries(&E::SetMembersOnNonList { node: sp(1) }, &["node"]);
+    carries(&E::SetLoftSectionsOnNonLoft { node: sp(1) }, &["node"]);
+    carries(
+        &E::LoftShape {
+            node: sp(1),
+            fault: pncad::document::LoftFault::TooFewSections { have: 1 },
+        },
+        &["node", "count"],
+    );
+    carries(
+        &E::LoftShape {
+            node: sp(1),
+            fault: pncad::document::LoftFault::EmptyStation { section: 1 },
+        },
+        &["node", "index"],
+    );
+    carries(
+        &E::LoftShape {
+            node: sp(1),
+            fault: pncad::document::LoftFault::DegreeOutOfRange {
+                degree: 2,
+                sections: 2,
+            },
+        },
+        &["node", "count", "given"],
+    );
     carries(&E::SetProgramOnNonProfile { node: sp(1) }, &["node"]);
     carries(
         &E::StepIdsRefused {
@@ -4372,16 +4397,16 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "continuation_contradicted",
             "coplanar_neighbours",
             "crossing_at_cone_apex",
-            "crossing_carrier_unsupported",
             "crossing_insertion",
             "crossings_along_a_contact_line",
             "curved_boolean_unsupported",
-            "curved_edge_unsupported",
+            "curved_face_closes_across_slit",
             "curved_pair_unsupported",
             "curved_pierce_unsupported",
             "curved_sector_side_unsupported",
             "declaration_contradicted",
             "degenerate_torus",
+            "edge_carrier_unsupported",
             "edge_in_face",
             "edge_undescribed",
             "escalated",
@@ -4427,10 +4452,12 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "seam_orientation",
             "shared_vertex_crossings",
             "shell_witness_exhausted",
+            "slit_face_closes_mid_slit",
             "slit_face_glued",
             "slit_line_crossed",
             "spheres_meet",
             "split_lineage_cycle",
+            "tangent_crescent_unsupported",
             "torn_component",
             "underflowed_sector_chord",
             "unjoined_operand",
@@ -4661,6 +4688,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "label_unchanged",
             "loft_section_count",
             "loft_sections_spelled",
+            "loft_shape",
             "mate_refused",
             "meta_non_finite",
             "meta_not_set",
@@ -4692,6 +4720,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "rebind_unknown_name",
             "selection_name_kind",
             "selection_shape",
+            "set_loft_sections_on_non_loft",
             "set_members_on_non_list",
             "set_program_on_non_profile",
             "shared_var_needs_name",
@@ -4732,6 +4761,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "distribution_fault_tag",
             "expr_dimension_error_tag",
             "input_fault_tag",
+            "loft_fault_tag",
             "mate_fault_tag",
             "meta_version_error_tag",
             "node_error_tag",
@@ -4890,7 +4920,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "name_on_dropped_step",
             "not_an_instance",
             "part_carries_metadata",
-            "ranked_run_reordered",
             "stranded_part_name",
             "stranded_part_read",
             "unknown_node",
@@ -4974,6 +5003,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "skin",
             "stacking_escalated",
         ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "loft_fault_tag",
+        values: &["degree_out_of_range", "empty_station", "too_few_sections"],
         delegates: &[],
     },
     TagEntry {
@@ -5782,10 +5816,10 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "part_edit",
             "part_id_collides",
             "part_name_reaches_remainder",
-            "ranked_run_reordered",
             "remainder_edit",
             "remainder_read_uncarried",
             "severed_edge",
+            "space_straddles_cut",
             "split_pin",
             "uncut_var_reference",
             "unknown_cut_node",
@@ -5897,6 +5931,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "pinch_wedge",
             "resolution_overflow",
             "ring_on_curved_face",
+            "rounding_unresolved",
             "self_touching_trim_loop",
             "single_column_curved_face",
             "step_not_positive",
@@ -5947,8 +5982,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "union_name_shape_tag",
         values: &[
             "unsupported_union_name_junction_lines_collide",
-            "unsupported_union_name_run_least_line_moved",
-            "unsupported_union_name_seam_group_no_member_edge",
             "unsupported_union_name_several_parents",
         ],
         delegates: &[],
@@ -5987,6 +6020,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "census_lane_unsupported",
             "census_undecidable",
             "census_unsupported",
+            "coincident_wedges_overlap",
+            "coincident_wedges_overlap_undecided",
             "component_euler_violation",
             "contact_contradicted",
             "curved_sense_inverted",
@@ -6048,6 +6083,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "ring_nesting_undecided",
             "ring_outside_outer",
             "ring_pair_contact_escalated",
+            "same_side_interference",
             "scaffold_at_rest",
             "scaffolding_empty_loop",
             "scaffolding_strut_vertex",
@@ -6261,9 +6297,6 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // `program`, which leaves `profile` to the operand the slot
     // alphabet forwards.
     ("profile", 2),
-    // A split's and an inline's refusal of a ranked run its re-minted
-    // ids reorder: one fact (`editor_core::RemapError::RankedRunReordered`).
-    ("ranked_run_reordered", 2),
     // One fact: a list that names one entry twice, a selection's face
     // set (`selection_fault_tag`) as a profile's kept step ids.
     ("repeated", 2),
@@ -6300,6 +6333,9 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("step_ids", 3),
     ("structure", 3),
     ("tolerance_conflict", 2),
+    // One fact at the edit door and in the skin: a loft through fewer
+    // than two sections.
+    ("too_few_sections", 2),
     ("transition", 2),
     // A coincidence: a crossing side the band left undecided, and a
     // rigidity margin the decided door left undecided.

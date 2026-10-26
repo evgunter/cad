@@ -510,19 +510,15 @@ pub enum PropsError {
         check: PropsCheck,
     },
     /// The certified quadrature's enclosure did not tighten to the
-    /// reporting target before its lane stopped, at its floor or at the
-    /// work wall (M5 PR 11; the [`quad`] module docs give the rule and
-    /// the stop, and `topo`'s reporting adapter the target's metering).
-    /// Certified bounds or typed refusal — never a silently wide
-    /// answer. Both payloads are LENGTHS (mean boundary displacement),
-    /// the same metering as tier 3's volume check.
-    ///
-    /// Two-tolerance shape, stated: the in-band twin of this refusal is
-    /// [`PropsError::Escalated`] on `props_quad_converged` (a margin
-    /// close to the target at the round the lane stops escalates
-    /// through the funnel); this arm is the *definite* "the enclosure
-    /// sits above the target" outcome. The recourse is the ε knob: the
-    /// target scales with the run's ε.
+    /// reporting resolution before its lane stopped at the work wall (M5
+    /// PR 11; the [`quad`] module docs give the rule and the stop, and
+    /// `topo`'s number doors the resolution). A lane that stopped at its
+    /// floor is [`Self::QuadratureFloor`]. Certified bounds or typed
+    /// refusal — never a silently wide answer. Both payloads are LENGTHS
+    /// (mean boundary displacement), the same metering as tier 3's volume
+    /// check. A resolution is a sizing, so the width is compared with it
+    /// and nothing is decided: there is no in-band twin. The recourse is
+    /// the ε knob: the resolution scales with the run's ε.
     QuadratureBudget {
         /// The width of the narrowest enclosure the lane reached, as a
         /// length (m). The narrowest round is chosen by flux width, so
@@ -535,6 +531,27 @@ pub enum PropsError {
         /// The refinement rounds the lane ran before it stopped: `0` on
         /// the exact arm, which has no composite round. A receipt for
         /// what the refusal cost.
+        rounds: usize,
+    },
+    /// **The certified quadrature's lane stopped at its floor, its
+    /// enclosure over the reporting target.** The lane stopped at
+    /// [`quad::LaneStop::Floor`]: at that round the rule's remainder,
+    /// the part of the width a later round removes, was at most
+    /// [`quad::FLOOR_SHARE`] of it, and the rest is the honesty pads (the
+    /// trim ends' brackets, the pcurves' map residuals) and the
+    /// arithmetic, which refinement does not aim at. That is where more
+    /// rounds stop paying, not a proof that none meets the target: the
+    /// rest moves between rounds as the pieces move (by 1–2% on a sliver
+    /// wall), so a target close to the width may yet be met. Where the
+    /// work wall stopped the lane, the refusal is
+    /// [`Self::QuadratureBudget`]. Payloads as that arm's.
+    QuadratureFloor {
+        /// The width of the narrowest enclosure the lane reached, as a
+        /// length (m).
+        width_len: f64,
+        /// The convergence target, as a length (m).
+        target_len: f64,
+        /// The refinement rounds the lane ran before it stopped.
         rounds: usize,
     },
     /// A quadrature input is outside the lane's certified inventory
@@ -782,6 +799,18 @@ impl core::fmt::Display for PropsError {
                  its narrowest enclosure is {width_len:.3e} m wide. {}",
                 quadrature_budget_recourse(*width_len)
             ),
+            Self::QuadratureFloor {
+                width_len,
+                target_len,
+                rounds,
+            } => write!(
+                f,
+                "a face's quadrature stopped at its floor after {rounds} refinement round(s), \
+                 where more rounds stop narrowing its certified contribution: its narrowest \
+                 enclosure is {width_len:.3e} m wide, over the {target_len:.3e} m this \
+                 tolerance targets. {}",
+                quadrature_budget_recourse(*width_len)
+            ),
             Self::QuadratureUnsupported { what } => write!(
                 f,
                 "a quadrature input is outside the certified inventory ({what}). Recourse: \
@@ -947,41 +976,6 @@ mod tests {
         }
     }
 
-    /// **A last round's zero, which the convergence gate rejects, ends in
-    /// the last resort at rest.** `converged` re-asks a last-round `Zero`
-    /// through `decide_positive`, so the escalation carries the gate's
-    /// rejected zero; the meter is the enclosure's own width, so that
-    /// rejection is the kernel's approximation limit
-    /// ([`PropsCheck::Converged`]), never a stored contradiction. Red if
-    /// [`Unsized::Fit`] ends a gate's rejected zero as its definite arm.
-    #[test]
-    fn a_last_rounds_rejected_zero_ends_in_the_last_resort() {
-        let band = geom_core::Band::new(1e-9, 1e-8).unwrap();
-        let cause = geom_core::k_stats::decide_positive(
-            "props_quad_converged",
-            geom_core::Margin::of(5e-10),
-            band,
-        )
-        .unwrap_err();
-        assert_eq!(
-            cause.margin.rejected_sign(),
-            Some(geom_core::Sign::Zero),
-            "tagged"
-        );
-        assert_eq!(
-            PropsError::Escalated {
-                cause,
-                check: PropsCheck::Converged,
-            }
-            .to_string(),
-            format!(
-                "whether the quadrature's enclosure has converged is undecided: margin 5e-10 lies \
-                 within the zero band (±1e-9). {}",
-                geom_core::KERNEL_LIMIT_RECOURSE
-            )
-        );
-    }
-
     /// **The in-band arm's ending follows its CHECK, not its predicate
     /// name** (D4 ¶1 (i)): one escalation payload, four checks, four
     /// endings out of [`crate::recourse`]'s table — and each names a
@@ -1099,6 +1093,11 @@ mod tests {
                 target_len: 1e-9,
                 rounds: 3,
             },
+            PropsError::QuadratureFloor {
+                width_len: 4.7e-6,
+                target_len: 1.024e-9,
+                rounds: 1,
+            },
             PropsError::QuadratureUnsupported {
                 what: "a rational pcurve channel",
             },
@@ -1111,7 +1110,7 @@ mod tests {
             "state", "widen", "loosen", "report", "re-cut", "re-mint", "lie",
         ];
         let arms = props_error_arms();
-        assert_eq!(arms.len(), 17, "an arm was added without a row here");
+        assert_eq!(arms.len(), 18, "an arm was added without a row here");
         for arm in &arms {
             let msg = arm.to_string();
             assert_eq!(

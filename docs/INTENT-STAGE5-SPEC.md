@@ -129,7 +129,7 @@ It lives in `checks/at_rest.rs` beside `quiet_verdicts`, and the `unproven-coinc
 The space condition follows from the selections: a `Gap` over the `⊔`'s operands reads bodies of the `⊔`'s space. The rule matches by cells, not by bodies, so a second contact between the same two arrivals stays loud. It reads verdicts only, so a failed or poisoned assertion quiets nothing, gates nothing, and the finding stays loud (`a-failed-requirement-refuses-the-whole-product`'s acceptance is kept). The rule is written over a row's two cells, whatever the row's kind and the cells' dimension (§11):
 
 - **Rows.** C applies it to the at-rest rows of each `⊔`. An operation's unproven row (a boolean's glue, a split's ON verdict, a blend's) is quieted by the same rule once its cells can be selected (`an-assertion-quiets-an-operations-unproven-row`).
-- **Dimensions.** C quiets every row whose two cells `Gap`'s door admits, which today means face pairs. A row with a vertex or an edge cell stays loud until `Gap` reads such cells (`gap-reads-vertex-and-edge-cells`).
+- **Dimensions.** C quiets every row whose two cells `Gap`'s door admits: a face, an edge or a vertex (`gap-reads-vertex-and-edge-cells`). A row whose cell `Gap` refuses (a curved edge, a saddle vertex, `gap-reads-no-curved-cell-below-a-face`) stays loud, since no `Gap` over it holds.
 - **A flush pair is never quieted by an assertion.** It is no contact, and only a flag mate or the replay establishes it (`[assertions]`).
 - **The lint's knob stays `Advisory`.**
 
@@ -209,8 +209,9 @@ Rows 1–4 are A's and 5–10 are B's, built and kept as their PRs pinned them (
     - With a `Gap = 0` that is `Violated` (the bodies moved apart), there is no row and the assertion reports its own failure.
     - The same pair placed by a mate has no finding.
     - A flush pair of two coplanar faces of the two bodies, with `Gap = 0` over its two cells, stays loud.
-    - A vertex-on-face row stays loud: `Gap` admits no vertex.
-    - *Breaks if* the rule matches by body pair (the other-face row quiets), `≥ 0` quiets (the straddle reading), a mated pair is reported, or the flush pair quiets.
+    - A vertex-on-face row (a prism's apex vertex resting on a block's top) is quiet under a holding `Gap = 0` over its vertex and its face, and loud under `Gap ≥ 0`.
+    - An edge-on-face row (the prism's apex edge lying on the top) is quiet under a holding `Gap = 0` over its edge and its face, and loud under `Gap ≥ 0`.
+    - *Breaks if* the rule matches by body pair (the other-face row quiets), `≥ 0` quiets (the straddle reading), a mated pair is reported, the flush pair quiets, or the rule reads face cells only (a vertex or an edge row stays loud under `= 0`).
 13. **A could-not-look finding never refuses.**
     - A `CensusUndecidable` pair between two arrivals is one could-not-look finding, reported at Warn and Error, and `enforce_checks` refuses it at neither.
     - A loud interference finding refuses at Error only.
@@ -275,7 +276,7 @@ The first cut's FORKs (S5-1 to S5-5) are settled by fork-log rows 91 and 98 and 
 
 **Q1 — Which unproven rows the contact half quiets.** The final state is every unproven row. `[intent.checked]` says of every unproven coincidence that "an assertion at its site quiets it", and that includes a boolean's glue, a split's ON verdict and a blend's rows. C builds the at-rest rows, with the rule written over a row's two cells so that it applies unchanged to an operation's row. The operation rows' cells are named in the deciding node's input tables, and selecting them is `an-assertion-quiets-an-operations-unproven-row`.
 
-**Q2 — Cells below a face.** The final state is every dimension: `[assertions.quiet]` says "at whatever dimension they are". `Gap`'s door admits faces only (`MeasurePrimitive::admits`, `measure.rs`). So C quiets every row whose two cells `Gap` admits, and a lower-dimensional row stays loud until `gap-reads-vertex-and-edge-cells` widens `Gap`, which is buildable beside C. C writes the rule cell-generic, so that widening adds no rule.
+**Q2 — Cells below a face.** The final state is every dimension: `[assertions.quiet]` says "at whatever dimension they are". `Gap`'s door admits a face, an edge or a vertex (`MeasurePrimitive::admits`, `measure.rs`; `gap-reads-vertex-and-edge-cells`). So C quiets every row whose two cells a holding `Gap` reads, at any dimension, with the rule written cell-generic. A row over cells `Gap` refuses stays loud (`gap-reads-no-curved-cell-below-a-face`).
 
 **Q3 — A flush pair.** A `Gap` assertion never quiets one. `[assertions]` says a flush pair is "no contact, but a coincidence … a finding unless established, by a flag mate or by the replay", and `[assertions.quiet]` quiets "a contact". Ev, on PR 5555: "the proper way to specify this would be a mate that additionally indicates that it is flush".
 

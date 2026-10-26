@@ -2,8 +2,9 @@
 id: ci-pin-quoted-branch-skips-the-bare-branch-rejection
 kind: issue
 title: ci-pin.py's quoted branch accepts a scalar its bare branch would refuse
-status: open
+status: closed
 opened: 2026-09-11
+closed: 2026-10-26
 refs: [2327]
 priority: P3
 cost: E
@@ -42,3 +43,14 @@ quotes — plus a fixture in `--selftest`, which is where this reader's other
 refusals already live. The docstring's promise that *"`set -euo pipefail` plus
 `v="$(scripts/ci-pin.py NAME)"` is the whole of a caller's error handling"* is
 the reason to take it: callers are told to trust the answer's shape.
+
+## Closed (2026-10-26, tracker sweep)
+
+**Fixed in this sweep, as the row specified.** `unquote()` in
+`scripts/ci-pin.py` now refuses whitespace inside a quoted scalar too,
+with its own message ("holds whitespace inside its quotes"), and
+`--selftest` §6 gains the `"0.9.140 extra"` fixture asserting that
+refusal (:390). Mutation-checked: with the new check disabled the
+selftest reds on that case. Every pin in `ci.yml` still reads
+(`ACTIONLINT`, `MATURIN`, `NEXTEST`, `RUFF`, `SCCACHE`, `TY`); ruff is
+clean.

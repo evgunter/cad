@@ -531,7 +531,7 @@ fn the_document_layers_own_payloads_render_their_own_stories() {
             ResolveError::Vanished {
                 name: name(EntityKind::Face),
                 diagnosis: Diagnosis::PredicateFlip {
-                    predicate: "name_frag_order_along",
+                    predicate: "name_frag_on_member_edge",
                     from: geom_core::Sign::Zero,
                     to: geom_core::Sign::Positive,
                 },
@@ -541,8 +541,7 @@ fn the_document_layers_own_payloads_render_their_own_stories() {
             &[
                 "the output body of node 000000000005",
                 "no longer resolves",
-                "the margin deciding the order of two crossings along an edge flipped from zero to \
-                 positive",
+                "the margin deciding a point's place along an edge flipped from zero to positive",
             ],
         ),
         (

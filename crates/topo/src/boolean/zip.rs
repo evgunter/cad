@@ -80,6 +80,38 @@ pub(super) enum Joint {
     Chord { he1: HalfEdgeKey, he2: HalfEdgeKey },
 }
 
+impl Joint {
+    /// **The joint from `he1`'s start to `he2`'s**, two half-edges of one
+    /// face: across their one loop, or across their two, the face's
+    /// outline absorbing the other where `he2` lies on it (`mekr`
+    /// absorbs a ring into the other loop; the joint reads the same
+    /// either way round). `None` where a half-edge resolves no loop or
+    /// face.
+    pub(super) fn between<T: geom_core::Real>(
+        body: &Body<T>,
+        he1: HalfEdgeKey,
+        he2: HalfEdgeKey,
+    ) -> Option<Self> {
+        let loop_of = |h: HalfEdgeKey| body.get_half_edge(h).map(|d| d.parent_loop);
+        let (l1, l2) = (loop_of(he1)?, loop_of(he2)?);
+        if l1 == l2 {
+            return Some(Self::Chord { he1, he2 });
+        }
+        let outer = body.get_face(body.face_of_half_edge(he2)?)?.outer;
+        Some(if outer == l2 {
+            Self::Loops {
+                target: he2,
+                ring: he1,
+            }
+        } else {
+            Self::Loops {
+                target: he1,
+                ring: he2,
+            }
+        })
+    }
+}
+
 /// **Fuses two coincident vertices**: a zero-length edge between them at
 /// `p` (the canonical self-loop carrier, whose certification requires
 /// the pair bitwise coincident), collapsed onto `keep`, one of its ends,
@@ -131,12 +163,16 @@ pub(super) fn fuse_by_joint<T: Decide + crate::props::AtRestPolicy>(
 pub(super) struct ZipReport {
     /// Vertex fusions in zip order: `(dead, kept)` per zipped pair.
     pub vertex_merges: Fusions,
-    /// The seam edges surviving the zip: each A section half-edge's
-    /// edge, in the order the zip was given them.
+    /// The seam edges surviving the zip, one per seam pair in the order
+    /// the zip was given them: the A section half-edge's edge, or the B
+    /// one's where that is a section strut ([`kill_pair`]).
     pub seam_edges: Vec<crate::entity::EdgeKey>,
-    /// Edge fusions, `(dead, kept)`: each B section edge the zip kills
-    /// and the A seam edge on its segment, which survives in its place.
+    /// Edge fusions, `(dead, kept)`, one per seam pair: the B section
+    /// edge the zip kills and the A edge on its segment, which survives
+    /// in its place; or, where B's is a section strut, A's onto it.
     pub edge_merges: Vec<(crate::entity::EdgeKey, crate::entity::EdgeKey)>,
+    /// The section struts the zip kept ([`kill_pair`]), each once.
+    pub struts: Vec<crate::entity::EdgeKey>,
 }
 
 impl Default for ZipReport {
@@ -146,6 +182,7 @@ impl Default for ZipReport {
             vertex_merges: Fusions::new(crate::lineage::LineageRows::Fusions),
             seam_edges: Default::default(),
             edge_merges: Default::default(),
+            struts: Default::default(),
         }
     }
 }
@@ -907,9 +944,7 @@ fn glue<T: Decide + crate::props::AtRestPolicy>(
         // end: A's.
         let (he1, he2) = if start { (o, x) } else { (x, o) };
         let (l1, l2) = (he(body, he1).parent_loop, he(body, he2).parent_loop);
-        let joint = if l1 == l2 {
-            Joint::Chord { he1, he2 }
-        } else {
+        if l1 != l2 {
             let (f1, f2) = (face(body, he1)?.0, face(body, he2)?.0);
             if f1 != f2 {
                 let ringless = |f: FaceKey| proven(&body.faces, f, EntityId::Face).rings.is_empty();
@@ -919,20 +954,9 @@ fn glue<T: Decide + crate::props::AtRestPolicy>(
                     _ => return Err(corr("a seam joint's two faces both hold rings")),
                 };
             }
-            // `mekr` absorbs a ring into the other loop; the joint reads
-            // the same either way round.
-            if face(body, he2)?.1 == l2 {
-                Joint::Loops {
-                    target: he2,
-                    ring: he1,
-                }
-            } else {
-                Joint::Loops {
-                    target: he1,
-                    ring: he2,
-                }
-            }
-        };
+        }
+        let joint = Joint::between(body, he1, he2)
+            .ok_or_else(|| corr("a seam joint's half-edge has no face"))?;
         let keep = he(body, he1).start;
         let p = body
             .get_vertex(keep)
@@ -947,7 +971,7 @@ fn glue<T: Decide + crate::props::AtRestPolicy>(
                 && !killed[k]
                 && pair(body, k)? == Pair::Alone
             {
-                body.kef_minting(edges[k].1, tol)?;
+                kill_pair(body, edges, &pair_of, k, &mut report, tol)?;
                 killed[k] = true;
             }
         }
@@ -974,11 +998,68 @@ fn glue<T: Decide + crate::props::AtRestPolicy>(
                     body.mfkrh_minting(l, FaceSurface::Inherit, tol)?;
                 }
             }
-            body.kef_minting(edges[k].1, tol)?;
+            kill_pair(body, edges, &pair_of, k, &mut report, tol)?;
             killed[k] = true;
         }
     }
     Ok(report)
+}
+
+/// **Kills seam pair `k`'s loop of two** with `kef`, across B's edge,
+/// whose A partner survives in its place; or across A's, where B's edge
+/// is a section strut.
+///
+/// A section strut is an operand's edge along a line where the op
+/// drops both its faces, so its section loop runs it both ways and both
+/// its halves are paired: with the other operand's two coincident edges
+/// on that line, a slit's or ring's. Killing it would kill the other
+/// pair's half too, so it survives, between the two faces the other
+/// operand's edges bounded on the far sides: the slit's face twice where
+/// the result keeps it on both sides of the line (closed in the output
+/// stage, `slit::close_struts`), or the two walls, a reflex edge, where
+/// the result keeps them. `report` names it among its struts and, where
+/// it is B's, as the pair's seam edge in place of A's.
+///
+/// # Errors
+///
+/// [`BooleanError::ZipCorrespondence`] where the pair's two edges are
+/// both section struts; [`BooleanError::Euler`] where `kef` refuses.
+fn kill_pair<T: Decide + crate::props::AtRestPolicy>(
+    body: &mut Body<T>,
+    edges: &[(HalfEdgeKey, HalfEdgeKey)],
+    pair_of: &BTreeMap<HalfEdgeKey, usize>,
+    k: usize,
+    report: &mut ZipReport,
+    tol: Tol,
+) -> Result<(), BooleanError> {
+    let (ob, r) = edges[k];
+    let strut = |h: HalfEdgeKey| {
+        body.mate(h)
+            .and_then(|m| pair_of.get(&m))
+            .is_some_and(|&j| j != k)
+    };
+    let edge = |h: HalfEdgeKey| proven(&body.half_edges, h, EntityId::HalfEdge).edge;
+    let (dying, kept_strut) = match (strut(ob), strut(r)) {
+        (false, false) => (r, None),
+        (true, false) => (r, Some(edge(ob))),
+        (false, true) => {
+            report.seam_edges[k] = edge(r);
+            report.edge_merges[k] = (edge(ob), edge(r));
+            (ob, Some(edge(r)))
+        }
+        (true, true) => {
+            return Err(BooleanError::ZipCorrespondence {
+                what: "both edges of a seam pair are section struts",
+            });
+        }
+    };
+    if let Some(e) = kept_strut
+        && !report.struts.contains(&e)
+    {
+        report.struts.push(e);
+    }
+    body.kef_minting(dying, tol)?;
+    Ok(())
 }
 
 /// The half-edge cycle of a section face's loop `l`.

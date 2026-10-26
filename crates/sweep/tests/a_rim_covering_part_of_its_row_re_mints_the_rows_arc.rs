@@ -271,7 +271,7 @@ fn a_double_split_re_mints_every_piece() {
 /// Tier 3 is not read: the in-place re-chart leaves the edges'
 /// descriptions naming the old chart, and the describing door, which
 /// would restate them, refuses (`RechartFalsifies { Unimplemented }`,
-/// `work/topo/the-describing-door-refuses-a-wall-re-charted-reversed-in-u.md`).
+/// `work/restate/the-describing-door-refuses-a-wall-re-charted-reversed-in-u.md`).
 /// The mint pass certifies every row it stores.
 #[test]
 fn a_rim_against_the_charts_u_re_mints_its_pieces() {

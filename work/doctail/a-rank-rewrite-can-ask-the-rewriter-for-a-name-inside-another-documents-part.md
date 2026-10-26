@@ -2,10 +2,11 @@
 id: a-rank-rewrite-can-ask-the-rewriter-for-a-name-inside-another-documents-part
 kind: issue
 title: names: a rewritten name's rank rule reads a seam through an InPart wrapper and asks the rewriter for the image of another document's name
-status: open
+status: closed
 opened: 2026-09-30
 priority: P3
 cost: E
+closed: 2026-10-26
 ---
 
 (EDIT, found by the name-nesting row's sweep, `edit/name-nesting-stack-safe`.
@@ -38,3 +39,7 @@ Decide whether a rank's line is read through the document seam at all;
 if it is, the image of a name inside `InPart` is that name (the
 rewrite does not cross the seam). A row that splits a document holding
 such a name.
+
+## Moot (WIRE orchestrator, 2026-10-26)
+
+Closed by PR 5758 (2026-10-26, "nothing is ranked", Ev's ruling on PR 5705). The code this row is about is deleted: ranks, `RankRule`, canonical's rank rewrite and the carrier-parameter rank readers. PR 5758's FULL review checked that no premise of this row remains in editor-core.

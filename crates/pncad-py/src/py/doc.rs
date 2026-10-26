@@ -2568,16 +2568,18 @@ impl Node {
     ///
     /// The degree is the node's `VDegree` slot —
     /// `DocEdit.bind_v_degree_param` is what makes it a named,
-    /// editable number, and `DocEdit.set_members` is what re-points the
+    /// editable number, `DocEdit.set_members` is what re-points the
     /// sections' profiles without re-authoring the node (one per
-    /// section, else `loft_section_count`); a station's moves are its
-    /// `station_slide` and `station_spin` slots.
+    /// section, else `loft_section_count`), and
+    /// `DocEdit.set_loft_sections` writes the sections whole with their
+    /// stations; a station's moves are its `station_slide` and
+    /// `station_spin` slots.
     ///
-    /// Nothing is pre-checked here. Too few sections, a degree outside
-    /// `1 ≤ d ≤ len − 1`, a section that is not a profile, sections
-    /// whose loops do not correspond — every one of those is the
-    /// kernel's own typed refusal, arriving from `insert` or from
-    /// `evaluate` exactly where the Rust surface raises it.
+    /// Nothing is pre-checked here. Too few sections, an empty station,
+    /// a degree outside `1 ≤ d ≤ len − 1`, a section that is not a
+    /// profile, sections whose loops do not correspond — every one of
+    /// those is the kernel's own typed refusal, arriving from `insert`
+    /// or from `evaluate` exactly where the Rust surface raises it.
     #[staticmethod]
     fn loft(
         py: Python<'_>,
@@ -3084,7 +3086,8 @@ impl Node {
     ///
     /// What each primitive reads is checked when the node is inserted:
     /// `distance` a face, an edge or a vertex, `angle` a face or an
-    /// edge, `min_clearance` a body or a face, `gap` a face, and any
+    /// edge, `min_clearance` a body or a face, `gap` a face, an edge or
+    /// a vertex, and any
     /// other refuses `slot_var_kind`. The rest are the kernel's own
     /// typed refusals at `evaluate`: a name that no longer resolves
     /// (`select_resolve`), a carrier pair with no v1 closed form
@@ -3890,14 +3893,50 @@ impl DocEdit {
     /// and this edit does not. Any count is a list: one member, or
     /// none, is a union or intersect still. A loft's sections are
     /// spelled one read each, so a family there refuses
-    /// `loft_sections_spelled`; a node carrying no list at all refuses
-    /// `set_members_on_non_list`.
+    /// `loft_sections_spelled`, and are re-pointed in place, keeping
+    /// each station, so a different count refuses `loft_section_count`
+    /// (`DocEdit.set_loft_sections` adds or drops one); a node
+    /// carrying no list at all refuses `set_members_on_non_list`.
     #[staticmethod]
     fn set_members(node: &NodeId, members: MembersArg) -> Self {
         Self {
             inner: d::DocEdit::SetMembers {
                 node: node.0,
                 members: members.bodies(),
+            },
+        }
+    }
+
+    /// **Write a `Node.loft`'s sections whole, each with its
+    /// station**: `first`'s profile, then each later section as
+    /// `(profile, station)`, `Node.loft`'s own shape. The edit that
+    /// adds, drops or reorders a loft's sections, since each after the
+    /// first stands where its station puts it. The degree is kept.
+    ///
+    /// It admits a loft exactly where `Doc.insert` would, through the
+    /// same kernel checks: `slot_var_kind` for a section that is not a
+    /// profile, `slot_dimension_mismatch` for a station move of the
+    /// wrong dimension, `loft_shape` for too few sections, an empty
+    /// station or a degree outside `1 ≤ d ≤ len − 1`. A node that is
+    /// not a loft refuses `set_loft_sections_on_non_loft`.
+    #[staticmethod]
+    fn set_loft_sections(
+        node: &NodeId,
+        first: OperandArg,
+        then: Vec<(OperandArg, Vec<StationMove>)>,
+    ) -> Self {
+        Self {
+            inner: d::DocEdit::SetLoftSections {
+                node: node.0,
+                first: first.read(),
+                then: then
+                    .into_iter()
+                    .map(|(profile, station)| d::LoftSection {
+                        profile: profile.read(),
+                        station: station.into_iter().map(|m| m.0).collect(),
+                    })
+                    .collect(),
+                fresh: Vec::new(),
             },
         }
     }
