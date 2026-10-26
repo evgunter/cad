@@ -631,7 +631,13 @@ BOUNDS_ALLOWLIST=(
   # beneath it as `raw_door::classify_body_of` (`Decide +
   # CertifiedBounds`), the same certified lane `classify_shells_through`
   # reads; the `_structural` twins it moved with are plain `Decide`.
-  'crates/topo/src/props.rs 12 M5 PR 11, the certified-quadrature plumbing'
+  # 12 -> 13 (QUAD measure door unit C, PR 5741): `SignCertificate::measure`
+  # is the door at `Decide + Bounds`. A deciding predicate the walk runs
+  # out on is its refusal, and the refusal carries the enclosure's ends
+  # read outward (`undecided_refused`, at `T: Bounds` alone): a bracket
+  # REPORTED, never branched on. The walk beneath it
+  # (`SignCertificate::continued`) stays plain `Decide`.
+  'crates/topo/src/props.rs 13 M5 PR 11, the certified-quadrature plumbing'
   # quad_lane.rs 14 -> 15: `closed_form` re-derives a closed-form
   # face's flux at the interval scalar, lifting the face's geometry
   # through `Interval::from_certified` (`Decide + CertifiedBounds`), and

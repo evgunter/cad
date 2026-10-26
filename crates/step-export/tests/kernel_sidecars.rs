@@ -100,6 +100,7 @@ fn kernel_sidecar_fields_match_live_kernel() {
         let props = topo::mass_properties(
             &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap_or_else(|e| panic!("{name}: mass properties: {e}"));
         let print = |value: f64, what: &'static str| {
@@ -116,11 +117,11 @@ fn kernel_sidecar_fields_match_live_kernel() {
         if at_corpus_eps {
             want.push((
                 "KERNEL_VOLUME_MM3",
-                print(props.volume, "KERNEL_VOLUME_MM3"),
+                print(props.enclosure.volume, "KERNEL_VOLUME_MM3"),
             ));
             want.push((
                 "KERNEL_VOLUME_PAD_MM3",
-                print(props.volume_pad, "KERNEL_VOLUME_PAD_MM3"),
+                print(props.enclosure.volume_pad, "KERNEL_VOLUME_PAD_MM3"),
             ));
         } else {
             // Off the corpus ε the byte pin is out of its domain
@@ -135,14 +136,14 @@ fn kernel_sidecar_fields_match_live_kernel() {
             };
             let pinned = pin("KERNEL_VOLUME_MM3");
             let pinned_pad = pin("KERNEL_VOLUME_PAD_MM3");
-            let dev = (props.volume * 1e9 - pinned).abs();
-            let budget = props.volume_pad * 1e9 + pinned_pad;
+            let dev = (props.enclosure.volume * 1e9 - pinned).abs();
+            let budget = props.enclosure.volume_pad * 1e9 + pinned_pad;
             if dev > budget {
                 failures.push(format!(
                     "{name}: live enclosure {} ± {} mm³ does not overlap the pinned \
                      {pinned} ± {pinned_pad} mm³ (both certify the same true volume)",
-                    props.volume * 1e9,
-                    props.volume_pad * 1e9,
+                    props.enclosure.volume * 1e9,
+                    props.enclosure.volume_pad * 1e9,
                 ));
             }
             println!(

@@ -29,6 +29,7 @@ from pncad import (
 )
 
 from placing import own_frame
+from measuring import pinned
 
 
 def cube(doc):
@@ -72,7 +73,7 @@ class TestAFaceReadsAsItsPlane(unittest.TestCase):
             ))
             above, _ = evaluate(doc).value(cut).split()
             self.assertIsNotNone(above, f"z = {height}")
-            self.assertAlmostEqual(above.mass_properties().volume, 0.25, delta=1e-12, msg=f"z = {height}")
+            self.assertAlmostEqual(pinned(above).volume, 0.25, delta=1e-12, msg=f"z = {height}")
 
     def test_a_curved_face_has_no_plane(self):
         doc = Doc()
@@ -154,7 +155,7 @@ class TestTheConstructors(unittest.TestCase):
         halves = evaluate(doc)
         for cut in (plain, twice):
             above, _ = halves.value(cut).split()
-            self.assertAlmostEqual(above.mass_properties().volume, 0.25, delta=1e-12)
+            self.assertAlmostEqual(pinned(above).volume, 0.25, delta=1e-12)
         corner = ev.all_vertices(body)[0]
         with self.assertRaises(EditError) as caught:
             doc.insert(Node.split(body, PoseDef.flip(PoseDef.flip(PoseDef.point(body, corner)))))
@@ -175,8 +176,8 @@ class TestTheConstructors(unittest.TestCase):
             RoleRead(frame, "xy"), RoleRead(frame, "z"), 0.5 * m,
         )))
         above, below = evaluate(doc).value(cut).split()
-        self.assertAlmostEqual(above.mass_properties().volume, 0.5, delta=1e-12)
-        self.assertAlmostEqual(below.mass_properties().volume, 0.5, delta=1e-12)
+        self.assertAlmostEqual(pinned(above).volume, 0.5, delta=1e-12)
+        self.assertAlmostEqual(pinned(below).volume, 0.5, delta=1e-12)
 
     def test_a_plane_spun_about_a_line_in_it_tilts_the_cut(self):
         """The cube's mid-height plane spun 45° about the line through
@@ -194,7 +195,7 @@ class TestTheConstructors(unittest.TestCase):
         cut = doc.insert(Node.split(body, PoseDef.spin(mid, line, 45 * deg)))
         above, below = evaluate(doc).value(cut).split()
         for half in (above, below):
-            self.assertAlmostEqual(half.mass_properties().volume, 0.5, delta=1e-9)
+            self.assertAlmostEqual(pinned(half).volume, 0.5, delta=1e-9)
 
     def test_a_point_in_a_frame_is_its_origin_slid(self):
         """The plane through the cube's own frame's z axis and the point
@@ -208,7 +209,7 @@ class TestTheConstructors(unittest.TestCase):
         )
         cut = doc.insert(Node.split(body, RoleRead(through, "zx")))
         above, below = evaluate(doc).value(cut).split()
-        volumes = sorted(half.mass_properties().volume for half in (above, below))
+        volumes = sorted(pinned(half).volume for half in (above, below))
         self.assertAlmostEqual(volumes[0], 0.25, delta=1e-9)
         self.assertAlmostEqual(volumes[1], 0.75, delta=1e-9)
 

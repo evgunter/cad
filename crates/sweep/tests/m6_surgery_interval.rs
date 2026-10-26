@@ -197,7 +197,15 @@ mod certified {
             Ok(()),
             "tier 3"
         );
-        let vol = topo::mass_properties(&die, Tol::witness()).unwrap().volume;
+        let vol = topo::mass_properties(
+            &die,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
+        )
+        .expect("the measured body")
+        .met()
+        .expect("the measured body")
+        .volume;
         let want = blank_volume() - cap(PIP_R, PIP_H) - rim_fillet_extra(PIP_R, PIP_H, RIM_R);
         assert!(
             vol.lo() <= want && want <= vol.hi(),

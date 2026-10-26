@@ -172,7 +172,8 @@ fn p1_an_oblique_all_concave_cavity_carves_to_its_own_steiner_form() {
     let edges = cavity_edges(&body, &quad);
     assert_eq!(edges.len(), 12, "the skewed cavity's twelve concave edges");
 
-    let before = topo::mass_properties(
+    let before = topo::test_support::pinned_volume(
+        "closed-form props",
         &topo::test_support::finished(
             "the measured body",
             topo::Body::clone(&body),
@@ -180,7 +181,6 @@ fn p1_an_oblique_all_concave_cavity_carves_to_its_own_steiner_form() {
         ),
         Tol::witness(),
     )
-    .expect("closed-form props")
     .volume;
     let out = fillet_edges(
         &sweep::test_support::at_rest(&body, Tol::witness()),
@@ -208,7 +208,8 @@ fn p1_an_oblique_all_concave_cavity_carves_to_its_own_steiner_form() {
     };
     let added = prism_void - rounded_void_volume(&quad, 1.0, 3.0, r);
     let want = before + added;
-    let after = topo::mass_properties(
+    let after = topo::test_support::pinned_volume(
+        "closed-form props",
         &topo::test_support::finished(
             "the measured body",
             topo::Body::clone(&out.body),
@@ -216,7 +217,6 @@ fn p1_an_oblique_all_concave_cavity_carves_to_its_own_steiner_form() {
         ),
         Tol::witness(),
     )
-    .expect("closed-form props")
     .volume;
     assert!(
         (after - want).abs() <= 1e-12 * want,
@@ -279,7 +279,8 @@ fn p2_slim_skews_carve_valid_or_refuse_typed_never_worse() {
                     Ok(()),
                     "a carve that lands at {deg}° must be tier-3 valid"
                 );
-                let vol = topo::mass_properties(
+                let vol = topo::test_support::pinned_volume(
+                    "closed-form props",
                     &topo::test_support::finished(
                         "the measured body",
                         topo::Body::clone(&out.body),
@@ -287,7 +288,6 @@ fn p2_slim_skews_carve_valid_or_refuse_typed_never_worse() {
                     ),
                     Tol::witness(),
                 )
-                .expect("closed-form props")
                 .volume;
                 assert!(vol.is_finite() && vol > 0.0, "a finite positive volume");
             }
@@ -323,11 +323,11 @@ fn digest(body: &Body<f64>) -> (usize, usize, usize, u64, u64) {
             h = h.wrapping_mul(0x0000_0100_0000_01b3);
         }
     }
-    let vol = topo::mass_properties(
+    let vol = topo::test_support::pinned_volume(
+        "closed-form props",
         &topo::test_support::finished("the measured body", topo::Body::clone(body), Tol::witness()),
         Tol::witness(),
     )
-    .expect("closed-form props")
     .volume;
     (nv, ne, nf, h, vol.to_bits())
 }

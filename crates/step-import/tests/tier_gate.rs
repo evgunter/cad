@@ -951,7 +951,7 @@ fn the_table_is_the_whole_corpus() {
 fn assert_typed_outcome(who: &str, got: Result<StepImport, StepImportError>) {
     match got {
         Ok(StepImport::Solid { body, .. }) => assert_eq!(
-            topo::validate_geometric(&body, Tol::witness()),
+            topo::validate_geometric(body.body(), Tol::witness()),
             Ok(()),
             "{who}: import shipped a body its own gate refuses"
         ),
@@ -1066,7 +1066,7 @@ fn every_corpus_import_passes_the_shared_gate() {
             match (import_step(&text, &options, Tol::witness()), want) {
                 (Ok(StepImport::Solid { body, .. }), Pass(s, sh, f, e, v)) => {
                     assert_eq!(
-                        topo::validate_geometric(&body, Tol::witness()),
+                        topo::validate_geometric(body.body(), Tol::witness()),
                         Ok(()),
                         "{who}: the SHIPPED body must be gate-clean — import handed out a \
                          body its own gate refuses, which can only mean the gate is no \
@@ -1074,11 +1074,11 @@ fn every_corpus_import_passes_the_shared_gate() {
                     );
                     assert_eq!(
                         (
-                            body.solids().count(),
-                            body.shells().count(),
-                            body.faces().count(),
-                            body.edges().count(),
-                            body.vertices().count()
+                            body.body().solids().count(),
+                            body.body().shells().count(),
+                            body.body().faces().count(),
+                            body.body().edges().count(),
+                            body.body().vertices().count()
                         ),
                         (s, sh, f, e, v),
                         "{who}: census (solids, shells, faces, edges, vertices) — a \

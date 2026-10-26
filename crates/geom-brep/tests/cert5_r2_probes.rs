@@ -41,11 +41,9 @@ test_utils::gated_to![
     "crates/geom-brep/tests/shared/",
 ];
 
-use crate::shared::patch::{Unmet, at_target, patch_net, to_target};
+use crate::shared::patch::{QUAD_TARGET_LEN_FACTOR, Unmet, at_target, patch_net, to_target};
 
-use geom_brep::props::quad::{
-    QUAD_TARGET_LEN_FACTOR, mean_boundary_displacement, nurbs_patch_face,
-};
+use geom_brep::props::quad::{mean_boundary_displacement, nurbs_patch_face};
 use geom_core::Bounds;
 use geom_core::Interval;
 use geom_core::Tol;

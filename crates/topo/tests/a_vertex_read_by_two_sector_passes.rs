@@ -145,7 +145,11 @@ fn built(what: &str, r: Result<BooleanResult<f64>, BooleanError>) -> AtRestBody<
 }
 
 fn volume(b: &AtRestBody<f64>) -> f64 {
-    mass_properties(b, t()).unwrap().volume
+    mass_properties(b, t(), topo::test_support::pinned_resolution(t()))
+        .unwrap()
+        .met()
+        .expect("the pinned resolution is met")
+        .volume
 }
 
 /// The census's `TouchUnanalysed` class: two solids of the result touch
@@ -271,7 +275,9 @@ fn three_prime(
                 CensusContact::EdgeFaceOverlap { edge, .. } => along || on_ray(edge),
                 _ => false,
             },
-            ValidationError::CensusUndecidable { a, b, what: class } => {
+            ValidationError::CensusUndecidable {
+                a, b, what: class, ..
+            } => {
                 (class.starts_with("one passes into the other where they touch")
                     || class.starts_with(SLIT_TOUCH))
                     && touches_meet(a)

@@ -2,11 +2,12 @@
 id: nurbs-edge-crossing-rung-is-the-ring-composite
 kind: unit
 title: a NURBS operand edge gets one crossing rung keyed on the carrier: the spline::compose ring composite
-status: dispatched
+status: closed
 opened: 2026-10-03
 priority: P0
 cost: H
 refs: [3984]
+closed: 2026-10-26
 branch: splice/converse-arm
 ---
 
@@ -118,3 +119,58 @@ the sheath's base cap in that plane. The plane case of this arm is what
 it needs next. `sweep`'s
 `a_sheath_grafted_on_its_blade::a_sheath_on_its_blade_unions_past_the_shared_rim`
 pins the refusal in miniature and reds when this arm lands.
+
+## Closed
+
+The spline span × analytic face arm is
+`geom_brep::curve_face::composite::crossings`, reached through
+`NurbsLane::surface_crossings`. Its unit rows are in
+`curve_face/composite/rows.rs`: clear, a pass within the zero band
+inside the span refusing (an in-band pass is not clear: C5's "an in-band
+decision escalating and never pruning"), one crossing, three crossings with the first and
+third of one sense, a tangency refusing, a crossing on a knot, a meeting
+at a crease refusing next to an ordinary crossing off it, an in-band
+apex and an in-band dip at a crease and a crossing within the band of
+one refusing as the crease's, an end on the
+plane, a rational arc against a plane and a cylinder, an arc lying on
+its cylinder refusing, and a non-rational cubic against a sphere
+through the door. `curve_face::route` reads `(Nurbs, Plane)` as built.
+The boolean's planar lane dispatches through it
+(`reduce::spline_plane_crossings`). An unsettled span refuses
+`BooleanError::SplineCrossingUnsettled`. The edge's box is its control
+net's hull (`boxes::EdgeBoxRule::ControlHull`).
+
+Witness rows:
+- lily wall 8 now refuses `CurvedBooleanUnsupported { operand: B, kind: Nurbs }`.
+  That is a blade edge against a sheath wall at the spline-face door
+  (`an-analytic-edge-against-a-nurbs-face-has-no-crossing-lane`). The
+  miniature, `sweep`'s
+  `a_sheath_grafted_on_its_blade::a_sheath_on_its_blade_unions_past_the_shared_rim`,
+  pins the same refusal in both operand orders, and pins the arm
+  reading every blade seam against every sheath cap without a crossing.
+- The end-to-end row: the boolean's sweep splits each wavy corner at
+  its three crossings with the box's face (`sweep`'s
+  `a_face_across_a_wavy_corner`), and the union stops one step on, at
+  the sector walk. The naming row moves with that refusal to
+  `the-sector-walk-reads-no-nurbs-face-at-a-crossing-vertex`, and
+  `emit_topo`'s `a_union_across_a_nurbs_edge_refuses_at_the_sector_walk`
+  is its tripwire.
+- The far spline edge is pruned by its hull and no longer refuses at a
+  pair that does not meet. The containment fallback's NURBS re-gate
+  reads reach first (`s16_box_soundness::a_lofted_operand_reaches_the_fallbacks_re_gate`
+  pins both halves). The vertex probe reads a point that stands
+  definitely past the hull of every face's certified reach as being at
+  infinity (`a_point_past_a_spline_solids_reach`, which also pins a box
+  solid's centre as still refusing). The census `spline_spiric_operands`
+  builds every op for the loft prism and the lofted cylinder against
+  the far brick and the brick around each, at their closed-form
+  volumes. A brick inside either refuses typed, at the probe or the
+  spline-face door
+  (`inside/point-containments-ray-test-has-no-spline-arm`).
+- The plane rows in `topo`'s `planar_lane_carrier_rows` that refused an
+  arc now split it at its closed-form crossings.
+
+Left as their own items: the curved lane's dispatch
+(`a-spline-span-against-a-curved-face-is-not-dispatched-to-the-composite`),
+and the plane split's crossing reading
+(`cleave/the-plane-split-reads-no-crossing-of-a-spline-edge`).

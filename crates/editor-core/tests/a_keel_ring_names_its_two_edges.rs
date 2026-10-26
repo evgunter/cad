@@ -78,11 +78,11 @@ fn a_keel_ring_names_its_two_edges_apart() {
     };
     let tol = Tol::witness();
     for (what, b, v) in [("above", above, 16.0 - 0.3), ("below", below, 16.0)] {
-        let got = topo::mass_properties(
+        let got = topo::test_support::pinned_volume(
+            "the measured body",
             &topo::test_support::finished("the measured body", topo::Body::clone(&**b), tol),
             tol,
         )
-        .unwrap()
         .volume;
         assert!((got - v).abs() < 1e-9 * v, "{what}: volume {got}, not {v}");
     }

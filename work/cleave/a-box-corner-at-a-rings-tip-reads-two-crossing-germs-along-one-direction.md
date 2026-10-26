@@ -2,10 +2,11 @@
 id: a-box-corner-at-a-rings-tip-reads-two-crossing-germs-along-one-direction
 kind: issue
 title: A box flush under the ringed top with a corner or edge at the ring's tip refuses ClassificationInvariant: two crossing germs of a vertex pair lie along one direction in one sector entry
-status: open
+status: dispatched
 opened: 2026-10-25
 priority: P1
 cost: M
+branch: cleave/flush-partners-at-a-slit-build
 ---
 
 

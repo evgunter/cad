@@ -435,7 +435,8 @@ fn ladder_roots<T: Decide>(
                 | Unsettled::Exhausted
                 | Unsettled::ImpossibleCount
                 | Unsettled::AtApex
-                | Unsettled::Degenerate,
+                | Unsettled::Degenerate
+                | Unsettled::Crease,
             )) => Ok(()),
         };
     }
@@ -470,7 +471,7 @@ const SUBDIVISION_START: u32 = 16;
 ///   `0.88` of its piece: `k` levels down, a piece is at most `0.88ᵏ` of
 ///   a sixteenth of the turn, and the width row is reached in a number
 ///   of levels logarithmic in the band.
-const SPLITS: [f64; 9] = [
+pub(crate) const SPLITS: [f64; 9] = [
     0.472_135_954_999_579_4,
     0.3,
     0.618,

@@ -1,5 +1,5 @@
 # f64
-quintic_prism REFUSED at FaceKey(3v1): a face's share of the volume and surface area cannot be computed: a face's quadrature stopped after 7 refinement round(s) without its certified contribution meeting the 1.024e-9 m this tolerance targets; its narrowest enclosure is 7.207e-8 m wide. Recourse: loosen the tolerance to 7.038e-11 m or more, as a last resort; this refusal may indicate a kernel bug worth reporting | verdicts n=0 h=cbf29ce484222325 esc n=0 h=cbf29ce484222325
+quintic_prism v=3f8b43650bdd8683 a=3fd89d360a67b42e vpad=3e49010b1e66d556 apad=3f69215a38e8c700 | verdicts n=0 h=cbf29ce484222325 esc n=0 h=cbf29ce484222325
 tilted_cut_upper v=3fd921fb54442d07 a=40096d2e7648c6bd vpad=3df11376aaaaaaac apad=3e199d31c0000000 | verdicts n=10 h=c5311dd0c395a321 esc n=0 h=cbf29ce484222325
 bulged_extrusion v=4022487ed5110b46 a=403995a0313fde5c vpad=0000000000000000 apad=0000000000000000 | verdicts n=28 h=99ed4b2263813166 esc n=0 h=cbf29ce484222325
 loft_prism v=4022000000000000 a=4039524a6c672fe1 vpad=3d07000000000000 apad=3fc84532b9a1b030 | verdicts n=4 h=02d6a212b0c1a17d esc n=0 h=cbf29ce484222325

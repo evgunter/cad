@@ -82,26 +82,26 @@ fn unslit_plane_annuli_round_trip_through_step() {
         );
         let back = import_step(&text, &ImportOptions::default(), tol())
             .unwrap_or_else(|e| panic!("{what}: import {e:?}"));
-        let StepImport::Solid {
-            body: imported,
-            enclosure,
-            ..
-        } = back
-        else {
+        let StepImport::Solid { body: imported, .. } = back else {
             panic!("{what}: a solid")
         };
         assert_eq!(
             census(body),
-            census(&imported),
+            census(imported.body()),
             "{what}: the census survives the round trip"
         );
-        let native = topo::mass_properties(
+        let native = topo::test_support::pinned_volume(
+            "the measured body",
             &topo::test_support::finished("the measured body", (body).clone(), tol()),
             tol(),
         )
-        .unwrap()
         .volume;
-        let read = enclosure.expect("the import's enclosure").volume;
+        let read = imported
+            .measure(topo::test_support::pinned_resolution(tol()))
+            .expect("the import's certificate measures")
+            .met()
+            .expect("the pinned resolution is met")
+            .volume;
         assert!(
             (read - native).abs() < 1e-9,
             "{what}: volume {read} vs {native}"

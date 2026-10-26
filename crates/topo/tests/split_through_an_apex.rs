@@ -67,7 +67,7 @@ fn splits_sound(
             let SplitPart::Body(b) = part else {
                 panic!("{what}: empty");
             };
-            let v = topo::mass_properties(b, t()).unwrap().volume;
+            let v = topo::test_support::pinned_volume("the measured body", b, t()).volume;
             // A vertex read in the plane within `ε` of it moves the cut
             // by as much.
             assert!(
@@ -178,7 +178,7 @@ fn a_crown_whose_valleys_lie_in_the_plane_splits_sound() {
         let above = crown_above(&ring, -1.0);
         for pose in poses() {
             let u = posed_crown(&ring, [0.0, 0.0, -1.0], &pose, t());
-            let whole = topo::mass_properties(&u, t()).unwrap().volume;
+            let whole = topo::test_support::pinned_volume("the measured body", &u, t()).volume;
             splits_sound(name, &u, &pose, [above, whole - above], Some(pieces));
         }
     }
@@ -298,7 +298,7 @@ fn a_crown_with_one_corner_in_the_plane_splits_sound() {
             let what = format!("{name}, its corner at {s} ε");
             for pose in poses() {
                 let u = posed_crown(&ring, [0.0, 0.0, -1.0], &pose, t());
-                let whole = topo::mass_properties(&u, t()).unwrap().volume;
+                let whole = topo::test_support::pinned_volume("the measured body", &u, t()).volume;
                 splits_sound(&what, &u, &pose, [above, whole - above], Some([1, 0]));
                 section_is(&what, &u, &pose, section, ring.len());
             }

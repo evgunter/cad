@@ -99,8 +99,9 @@ pub fn check<S: Scalar>(
 ) -> Verdict<S> {
     match r {
         Ok(BooleanResult::Body(b)) => {
-            let v = pncad::topo::mass_properties(&b.body, tol)
+            let v = pncad::topo::mass_properties(&b.body, tol, crate::printed())
                 .expect("mass properties")
+                .enclosure
                 .volume
                 .f();
             if (v - expected).abs() <= 1e-9 {

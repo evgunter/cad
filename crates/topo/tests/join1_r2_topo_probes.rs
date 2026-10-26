@@ -48,7 +48,8 @@ fn r2_multi_spike_corner_meet_is_tier_three() {
                     if let Err(e) = topo::validate_geometric_certificate(&bb.body, t) {
                         bad.push(format!("cert {e:?}"));
                     }
-                    let v = topo::mass_properties(&bb.body, t).unwrap().volume;
+                    let v =
+                        topo::test_support::pinned_volume("the measured body", &bb.body, t).volume;
                     if (v - want).abs() > 1e-12 {
                         bad.push(format!("volume {v} against {want}"));
                     }
