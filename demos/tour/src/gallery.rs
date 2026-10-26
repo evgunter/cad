@@ -123,8 +123,9 @@ fn write_one(dir: &Path, name: &str, doc: &ProfileDoc, tol: Tol) {
 ///
 /// A count, never a verdict: the registry reports, it does not gate
 /// (`editor_core::checks`), and the scenes that report today —
-/// `checks`, whose finding is its subject, and the teapot, four solids
-/// the operand gate cannot join — are no reason to refuse their files.
+/// `checks`, whose finding is its subject, the teapot, four solids
+/// the operand gate cannot join, and the chain, whose joints no mate
+/// declares — are no reason to refuse their files.
 fn advisory(doc: &ProfileDoc, tol: Tol) -> String {
     let evaluation = evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
     match run_checks(doc, &evaluation, &ChecksConfig::default(), tol) {
@@ -259,19 +260,20 @@ mod tests {
                 name: "teapot",
                 doc: crate::teapot::gallery_document(tol),
                 placements: 4,
-                at_rest: 2,
+                at_rest: 42,
                 product: None,
                 why: concat!(
                     "FOUR placements, because the teapot is four solids and the operand ",
-                    "gate has no arm for either join. TWO findings over the six ",
-                    "pairs, and the check denies a BOX certificate rather than ",
-                    "asserting an overlap: handle/vessel and spout/vessel are the ",
-                    "scene's own two walls, real interpenetrations a boolean would ",
-                    "have to take. The four pairs it says nothing about are the ones ",
-                    "the box rule PROVED apart, the lifted lid's two among them: its ",
-                    "dome is boxed by its latitude zone, not the whole ball. ",
-                    "No mate is authored, so nothing declares ",
-                    "the gap the render shows",
+                    "gate has no arm for either join. FORTY-TWO at-rest findings, all ",
+                    "loud and none refusing: ONE interference, the handle's torus ",
+                    "standing in the vessel's sphere, unlocalised because the ",
+                    "intersection cannot take it; FORTY-ONE could-not-look, the face ",
+                    "pairs where a curved face of one part is within reach of the ",
+                    "other (the spout's walls in the vessel among them) and the ",
+                    "contacts the census met but no door recorded. The lifted lid's ",
+                    "pairs are the ones the box rule PROVED apart: its dome is boxed ",
+                    "by its latitude zone, not the whole ball. No mate is authored, ",
+                    "so nothing declares the gap the render shows",
                 ),
             },
             Shape {
@@ -312,7 +314,7 @@ mod tests {
                 name: "chain",
                 doc: crate::chain::gallery_document(tol),
                 placements: 10,
-                at_rest: 13,
+                at_rest: 196,
                 // Each bar a six-face box; each pin a cylinder wall in
                 // two halves and its two caps.
                 product: Some(Product {
@@ -324,9 +326,11 @@ mod tests {
                     "copies: one bar extrude, each link placed against its parent, is ",
                     "four copies, each its own output with its own names; the target ",
                     "stands in the world because the tip measure reads it beside the ",
-                    "tip pin's copy. THIRTEEN findings, all separation: each pin stands ",
-                    "in the bar ends it joins, the bars meet at the joints, the target ",
-                    "stands on the tip pin at nominal, and no mate declares a joint",
+                    "tip pin's copy. ONE HUNDRED NINETY-SIX at-rest findings, all ",
+                    "could-not-look and none interference: each pin's curved wall is ",
+                    "within reach of the bar ends it joins, the bars meet at the joints ",
+                    "in edge contacts no door recorded, and the pairs those leave ",
+                    "unchecked wait on them. No mate declares a joint",
                 ),
             },
         ];
