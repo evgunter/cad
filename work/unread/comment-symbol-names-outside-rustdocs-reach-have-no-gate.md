@@ -160,3 +160,9 @@ doc builds do not enable `cfg(test)` — so it is outside rustdoc's reach
 for a reason unrelated to `//` versus `///`, and a bracket there would
 be punctuation exactly as this item's opening paragraph describes.
 Neither of the two blind spots measured above names it.
+
+## Moved to UNREAD (2026-10-26, GUARD's split)
+
+GUARD measured 43 points against 30 and split three ways. This row is a
+claim the tree carries with no gate reading it at all, which is UNREAD's
+charter (`work/unread/plan.md`). Id and body unchanged.

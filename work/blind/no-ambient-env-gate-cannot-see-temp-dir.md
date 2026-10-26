@@ -43,3 +43,9 @@ was closed into this one. What it added:
   baked `CARGO_MANIFEST_DIR` holds no `Cargo.toml`). So widening the
   pattern goes green on those two as the tree stands.
 - `env::set_current_dir(` belongs in the widened pattern too.
+
+## Moved to BLIND (2026-10-26, GUARD's split)
+
+GUARD measured 43 points against 30 and split three ways. This row is a
+spelling a kernel-discipline gate's matcher misses (or refuses wrongly),
+which is BLIND's charter (`work/blind/plan.md`). Id and body unchanged.

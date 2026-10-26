@@ -41,3 +41,9 @@ the register's first entries. The existing shapes' known
 under-counts apply here too and should be stated rather than closed: a
 receiver repeated through a `let` alias (`let w = v; v.dot(w)`) is two
 statements and outside any regex over one.
+
+## Moved to BLIND (2026-10-26, GUARD's split)
+
+GUARD measured 43 points against 30 and split three ways. This row is a
+spelling a kernel-discipline gate's matcher misses (or refuses wrongly),
+which is BLIND's charter (`work/blind/plan.md`). Id and body unchanged.

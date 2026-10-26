@@ -87,3 +87,9 @@ through `swept::register_rim_identity`, which the caller arm's
 `\.register_equal\(` grep cannot see, so that route is held by
 convention. Same gate, same class — a reader of the allowlist cannot tell
 what it actually covers — and worth taking together.
+
+## Moved to BLIND (2026-10-26, GUARD's split)
+
+GUARD measured 43 points against 30 and split three ways. This row is a
+spelling a kernel-discipline gate's matcher misses (or refuses wrongly),
+which is BLIND's charter (`work/blind/plan.md`). Id and body unchanged.

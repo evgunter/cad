@@ -18,3 +18,9 @@ PR 5492 created the first child module, `crates/topo/src/validate/gap_rows.rs`, 
 ## Fix
 
 Count the `validate` module tree, with `#[cfg(test)]` children excepted, or have the census refuse to run when `validate/` holds a non-test child it doesn't count. Update the `real.rs` prose to match.
+
+## Moved to BLIND (2026-10-26, GUARD's split)
+
+GUARD measured 43 points against 30 and split three ways. This row is a
+spelling a kernel-discipline gate's matcher misses (or refuses wrongly),
+which is BLIND's charter (`work/blind/plan.md`). Id and body unchanged.

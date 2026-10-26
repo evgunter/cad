@@ -94,3 +94,9 @@ all of the swept shape (a `#[cfg(feature = "probe")]` directly above
 `splitting::containment::tests::an_ellipses_centre_records_no_invalid_margin`.
 All seven pass there. The per-op scalpel's half of the same gap is
 `work/ciw/no-ci-row-runs-topo-under-the-per-op-postcondition-scalpel.md`.
+
+## Moved to UNREAD (2026-10-26, GUARD's split)
+
+GUARD measured 43 points against 30 and split three ways. This row is a
+claim the tree carries with no gate reading it at all, which is UNREAD's
+charter (`work/unread/plan.md`). Id and body unchanged.

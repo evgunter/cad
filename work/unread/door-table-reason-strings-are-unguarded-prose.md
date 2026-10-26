@@ -68,3 +68,9 @@ file is free to take it.
 Found by the S-DUP unit
 `the-cylindrical-patch-rim-builder-is-written-nine-times`, whose own
 entry was the wrong one.
+
+## Moved to UNREAD (2026-10-26, GUARD's split)
+
+GUARD measured 43 points against 30 and split three ways. This row is a
+claim the tree carries with no gate reading it at all, which is UNREAD's
+charter (`work/unread/plan.md`). Id and body unchanged.

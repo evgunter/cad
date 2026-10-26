@@ -32,3 +32,9 @@ Either widen the scan root to the cargo roots `scripts/doc-gate.sh
 --print-roots` derives (with an allowlist entry for `scalar.rs` citing
 its ratification), or state at the gate why `demos/` is out of scope
 and put the tour's bundle in a register the gate's prose names.
+
+## Moved to BLIND (2026-10-26, GUARD's split)
+
+GUARD measured 43 points against 30 and split three ways. This row is a
+spelling a kernel-discipline gate's matcher misses (or refuses wrongly),
+which is BLIND's charter (`work/blind/plan.md`). Id and body unchanged.

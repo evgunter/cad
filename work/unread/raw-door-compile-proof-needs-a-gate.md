@@ -30,3 +30,9 @@ Announce to CIW before wiring.
 ## Re-homed at S-BOOL's exit (2026-09-16)
 
 Moved from `work/bool/` to GUARD (scripts/gates/* is GUARD's) when S-BOOL closed (`docs/S-BOOL-EXIT-WALK.md`); the item's content, id and history are unchanged.
+
+## Moved to UNREAD (2026-10-26, GUARD's split)
+
+GUARD measured 43 points against 30 and split three ways. This row is a
+claim the tree carries with no gate reading it at all, which is UNREAD's
+charter (`work/unread/plan.md`). Id and body unchanged.
