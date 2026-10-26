@@ -283,7 +283,7 @@ impl<T: Decide> Body<T> {
     /// that keeps its chart are kept as found, for the tier-3 pcurve
     /// pass to re-certify against the new carrier, where
     /// [`Body::set_edge_curve`] re-mints that face
-    /// (`work/topo/set-face-surfaces-describing-keeps-a-moved-edges-rows-on-a-kept-chart`).
+    /// (`work/restate/set-face-surfaces-describing-keeps-a-moved-edges-rows-on-a-kept-chart`).
     ///
     /// Minting order (D9): the new charts' surfaces in `charts` order,
     /// then the listed edges' curves in list order.
@@ -3846,7 +3846,7 @@ mod tests {
     /// **Where the new face keeps the parent's key, `mef` takes a chord
     /// whose description names a key neither face wears, unasked** —
     /// pinned as it stands: the boolean pipeline's chord joins rely on
-    /// it (`work/topo/minting-doors-take-a-callers-description-unasked-where-the-new-face-keeps-the-key`).
+    /// it (`work/restate/minting-doors-take-a-callers-description-unasked-where-the-new-face-keeps-the-key`).
     /// The rim circle described as the cylinder's intersection with the
     /// plane, under `Inherit`, is `Ok`; and so is the chord across the
     /// described membrane as an image in a second key holding the cap's
