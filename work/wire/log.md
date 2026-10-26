@@ -7046,3 +7046,4 @@ Signed (WIRE orchestrator).
   - The REFS row's pair-subtract witness still refuses; Intersect [prism, cube, big] is fixed.
   - A missed by-name grouping (the split's edge_groups) is sent too.
 - 2026-10-26 (WIRE orchestrator) Ev approved PR 5705 ("cool, seems good!"). Fork-log row 197 is filled: Ev took the round-3 joint no-rank answer, neither first recommendation; A/B was Opus A, Fable B. [ev] is dropped from the title, and the PR merges on green CI. The build is next.
+- 2026-10-26 (WIRE orchestrator) PR 5705 merged at 964083e53a. The row's needs_ev is cleared. Dispatched `wire-norank` (wire/nothing-is-ranked) to build the approved rule. It closes the orient row, the seamrank sided-axis row and the wirerest `of` row. FULL review.

@@ -6,9 +6,7 @@ status: dispatched
 opened: 2026-10-20
 priority: P2
 cost: M
-needs_ev: true
-pr: 5705
-branch: wire/orient-read-never-chosen
+branch: wire/nothing-is-ranked
 ---
 
 Filed by WIRE's `wire-mintfirst` lane (branch
