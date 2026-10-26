@@ -14,3 +14,4 @@ sign-off sit on one slate. They arrived by `git mv` with ids, bodies
 and headers unchanged (`needs_ev` included). Band 15100–15199 is
 claimed in the same commit (`docs/MODEL-AB-LOG.md`). Nothing
 dispatched; the program is `ready` at 7 points.
+- 2026-10-26 — `four-lane-practices-have-no-home-outside-the-ledger` closed: Ev declined all four proposals in chat (words on the row); `needs_ev` cleared.

@@ -2,9 +2,9 @@
 id: four-lane-practices-have-no-home-outside-the-ledger
 kind: issue
 title: Four standing lane practices survive only in DOC-LEDGER sweep notes and belong in docs/prompts/
-status: open
+status: closed
 opened: 2026-09-22
-needs_ev: true
+closed: 2026-10-26
 ---
 
 
@@ -108,3 +108,14 @@ This row does not edit `docs/prompts/`. A META unit takes it to Ev as an
 work waits for Ev. If Ev declines any of the four, close the row citing
 the ruling: the practices remain recoverable in this file and in the
 ledger's own git history.
+
+## Closed (2026-10-26, Ev declined all four, in chat)
+
+Ev, in chat, 2026-10-26, on each proposal:
+
+1. Route from the instrument: "this doesn't seem like it caused much harm, i don't think it needs a rule".
+2. The pin question: "this is way too general and i don't know if it's worth stating a more specific version".
+3. Deletion over grep: the two cover different cases and are not interchangeable; declined.
+4. One worktree per lane: declined. Per-lane checkouts are already the default (`local-scripts/new-lane.sh`, `memories/agent-lane-operations.md`), and that memory's paragraph on subagents sharing the orchestrator's checkout covers the shared case.
+
+Nothing goes into `docs/prompts/`. The texts stay recoverable in this file's history.
