@@ -7031,3 +7031,7 @@ Signed (WIRE orchestrator).
   - Merged at c8a25fe0b4. The helpers row now holds only its 4 D10 raises: parked on patterns-are-index-variables and moved to WIREHOLD. No code cites its path.
   - The lane filed a cross-program row (issues/track-caller-fns-panic-inside-closures-in-topo-and-sweep, 61 sites).
 - 2026-10-26 (WIRE orchestrator) PR 5535's focused re-review says mergeable: untied grouping is identical, SeamEdges matches the old behaviour, and the targeted suites are green. Merged at 354012bb8c, and both bridge rows are closed. Filed `a-unions-tied-fold-rows-at-a-member-corner-bypass-the-corner-rule` (P3/M) and corrected the pair-boolean tied-corner row's no-fixture claim.
+- 2026-10-26 (WIRE orchestrator) Dispatched `wire-paircorner` (wire/pair-boolean-walls-and-tied-corners) for the pair boolean's bare-name walls and its by-name tied-corner pass.
+  - Ruling: walls cite the boolean's own From name. N3 ('a wall cites its parent') with NS1(b) settles it; no fork.
+  - The end-to-end wall witness may wait on D10 copies.
+  - Priced the two unpriced lane rows (both P3).

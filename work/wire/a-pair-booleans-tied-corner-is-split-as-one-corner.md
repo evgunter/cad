@@ -2,7 +2,7 @@
 id: a-pair-booleans-tied-corner-is-split-as-one-corner
 kind: issue
 title: The pair boolean groups an operand corner's copies by name, so a tied corner's candidates are split as one corner
-status: open
+status: dispatched
 opened: 2026-10-25
 priority: P2
 cost: M

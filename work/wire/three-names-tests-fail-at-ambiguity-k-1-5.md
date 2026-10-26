@@ -4,6 +4,8 @@ kind: issue
 title: Three names/union tests fail on main under CAD_AMBIGUITY_K=1.5, a K that Tolerance accepts
 status: open
 opened: 2026-10-21
+priority: P3
+cost: E
 ---
 
 

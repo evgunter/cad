@@ -1,9 +1,11 @@
 ---
 id: loop-coordinates-narrowing-has-no-bound
 kind: issue
-title: "loop_coordinates and output_body raise NamingError::Emission for an input-reachable count past u32::MAX: a profile's loop count and a multi-body value's body count have no bound, so neither is a kernel bug"
+title: loop_coordinates and output_body raise NamingError::Emission for an input-reachable count past u32::MAX: a profile's loop count and a multi-body value's body count have no bound, so neither is a kernel bug
 status: open
 opened: 2026-10-21
+priority: P3
+cost: M
 ---
 
 

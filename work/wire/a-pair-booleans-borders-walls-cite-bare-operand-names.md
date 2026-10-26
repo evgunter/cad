@@ -2,7 +2,7 @@
 id: a-pair-booleans-borders-walls-cite-bare-operand-names
 kind: issue
 title: A pair boolean's Borders walls cite the operands' bare face names, so two walls of one name from the two operands spell one set
-status: open
+status: dispatched
 opened: 2026-10-20
 priority: P2
 cost: M
