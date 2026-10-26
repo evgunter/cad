@@ -259,8 +259,8 @@ impl Parts {
 /// **A seat**: `mover`'s bottom cap resting on `onto`'s top cap,
 /// `by` above it, and the mover's origin at `(x, y)` on the target
 /// space's axes as the least turn onto the mated direction carries
-/// them, turned `spin` about that direction (the cap's normal
-/// reversed) — the rest and its three values, in `mover`'s bundle. Answers the rest's address.
+/// them, turned `spin` about the cap's own normal — the rest and its
+/// three values, in `mover`'s bundle. Answers the rest's address.
 #[allow(clippy::too_many_arguments)]
 fn seat(
     doc: ProfileDoc,
@@ -471,9 +471,8 @@ fn bolted(label: &str) -> Bolted {
 
 /// **The bolt on a parametric standoff**: seated on the slab `gap`
 /// above its top cap — a slide of the cap's plane along its own normal
-/// — with its origin at `(2, 3)` and turned 0.4 rad about the world's
-/// `z`, a spin of −0.4 about the mated `−z`, so the bolt moves by `e_z`
-/// per unit of `gap`.
+/// — with its origin at `(2, 3)` and turned 0.4 rad, so the bolt moves
+/// by `e_z` per unit of `gap`.
 struct Lifted {
     doc: ProfileDoc,
     opts: EvalOptions,
@@ -493,7 +492,7 @@ fn lifted(label: &str) -> Lifted {
         p.bolt_foot(bolt),
         p.slab_top(slab),
         named(gap(), Dimension::Length),
-        at(2.0, 3.0, -0.4),
+        at(2.0, 3.0, 0.4),
     );
     Lifted {
         doc,
@@ -610,7 +609,7 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
         p.bolt_foot(bolts[1]),
         p.slab_top(slab),
         len(0.0),
-        at(5.0, 1.0, -0.3),
+        at(5.0, 1.0, 0.3),
     );
     out.push(("seats", doc, p.opts()));
 
@@ -1538,7 +1537,7 @@ struct Slid {
 }
 
 const SLIDE: f64 = 2.0;
-const SPIN: f64 = -0.3;
+const SPIN: f64 = 0.3;
 
 fn slide() -> VarName {
     VarName::from_static("slide")

@@ -135,8 +135,9 @@ pub(crate) fn residual(families: impl IntoIterator<Item = SubgroupFamily>) -> Su
 /// **The freedoms of `left` that `written` leaves unnamed**, in
 /// canonical order: a slide along each of `x`, `y` and `z` no value
 /// writes until the slides are as many as the residual frees, and the
-/// spin about the mated direction where no value writes it; or, where no direction is fixed, the chain's missing turns
-/// about `x`, `y` and `z`, appended until it turns three times.
+/// spin about the target's own direction where no value writes it; or,
+/// where no direction is fixed, the chain's missing turns about `x`,
+/// `y` and `z`, appended until it turns three times.
 pub(crate) fn unnamed(left: SubgroupFamily, written: &[Coord]) -> Vec<Coord> {
     let mut out = Vec::new();
     let mut slides = TargetAxis::ALL

@@ -77,14 +77,13 @@
 //!   say where on the top it stands, so a thicker shelf lifts it and
 //!   shorter posts lower it, and the gate certifies both
 //!   (`update_door`).
-//! - **A seat's spin turns about the mated direction.** A value is
+//! - **A seat's spin turns about the face it rests on.** A value is
 //!   measured on the world's axes, carried onto the mated direction by
 //!   the least turn from where the mate's orientation puts the copy's,
-//!   and the spin is the turn left about the mated direction — the
-//!   flipped normal of the face the copy rests on. A seat on an upward
-//!   face is mated along the world's `-z`, so a turn about the world's
-//!   vertical is written negated there, and a seat under a downward
-//!   face writes it as it is (`stand_doc`).
+//!   and the spin is the turn left about the target face's own outward
+//!   normal, whichever side the rest's flip is written on. A seat on an
+//!   upward face writes a turn about the world's vertical as it is, and
+//!   a seat under a downward face writes it negated (`stand_doc`).
 //!
 //! The declared direction's frontier — a mated assembly's gate can
 //! neither certify nor refute — is not new here; it is the census
@@ -321,7 +320,7 @@ fn add_constraint(placement: RecipeNodeId, mate: Mate<Formula>) -> DocEdit<Profi
 }
 
 /// A plane mate's three freedoms set: the slides along its chart's `x`
-/// and `y` and the spin about the mated direction.
+/// and `y` and the spin about its normal.
 fn seated_at(x: Formula, y: Formula, spin: Formula) -> [(Coord, Formula); 3] {
     [
         (Coord::Slide(TargetAxis::X), x),
@@ -810,10 +809,10 @@ fn on_the_turntable(spot: [f64; 3], scope: &BTreeMap<VarName, Dimension>) -> Pla
 /// The seats' values are where the posts meet the shelf, [`SEAT_A`]
 /// and [`SEAT_B`]: each copy's origin at swing zero, turned about the
 /// pivot by the swing ([`swung`]), on the world's axes, and its spin the
-/// swing about the mated direction. The shelf's seat reads the near
-/// post's top, which faces up, so the shelf is mated along the world's
-/// `-z` and its spin turns the other way; the far post's reads the
-/// shelf's underside, which faces down, so it is mated along `+z`.
+/// swing about the target face's own normal. The shelf's seat reads the
+/// near post's top, which faces up, so its spin is the swing; the far
+/// post's reads the shelf's underside, which faces down, so a turn by
+/// the swing about the world's `+z` is a spin of the negated swing.
 fn stand_doc(parts: &Parts, tol: Tol) -> Stand {
     let (post, shelf) = (parts.post, parts.shelf);
     let (post_top, shelf_bottom) = (&parts.post_top, &parts.shelf_bottom);
@@ -846,15 +845,15 @@ fn stand_doc(parts: &Parts, tol: Tol) -> Stand {
         shelf_at[0] + SEAT_B[0] - half,
         shelf_at[1] + SEAT_B[1] - half,
     ];
-    // A seat on an upward face is mated along the world's `-z`: a turn
-    // about the world's `+z` is a spin of the negated swing.
     let on_top = |at: [f64; 2]| {
         let [x, y] = swung(at, &scope);
-        seated_at(x, y, pe("-swing", &scope))
+        seated_at(x, y, pe("swing", &scope))
     };
+    // A seat under a downward face spins about its normal, the world's
+    // `-z`: a turn about the world's `+z` is a spin of the negated swing.
     let under = |at: [f64; 2]| {
         let [x, y] = swung(at, &scope);
-        seated_at(x, y, pe("swing", &scope))
+        seated_at(x, y, pe("-swing", &scope))
     };
     let mate_1 = constrain(
         &mut doc,
@@ -916,10 +915,7 @@ fn bench(stand: &Stand, parts: &Parts, tol: Tol) -> Bench {
             plane(crate_i, &parts.crate_bottom),
             plane(stand.shelf_i, &parts.shelf_top),
         ),
-        // The shelf's top faces up, so the crate is mated along the
-        // world's `-z`: a turn by the swing about `+z` is a spin of the
-        // negated swing, as on the shelf's own seat.
-        seated_at(x, y, pe("-swing", &scope)),
+        seated_at(x, y, pe("swing", &scope)),
         tol,
     );
     Bench {
@@ -1378,7 +1374,7 @@ fn placed_as_composed(
 /// The translation is the far post's pose in the turntable, one shelf
 /// length minus a section along, turned about [`PIVOT`]. The rotation
 /// is the half a translation check cannot see: each seat's spin is the
-/// swing about its mated direction, so the post turns by the swing and
+/// swing about its face's own normal, so the post turns by the swing and
 /// no more — a solve that
 /// rotated it further and still landed its seating point would pass
 /// the translation check and put the part in sideways.

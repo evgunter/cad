@@ -174,7 +174,9 @@ A mate holds no number. What the bundle's mates leave free — a plane
 mate's two slides and its spin, an axis mate's slide along it and its
 spin — is set by a **value**, `MateValue(Coord.slide("x"), by)`, which
 names no mate; the spin beside a mate is `Coord.spin()`, with no
-axis. A value is charted on the target space's own axes, carried by
+axis, and it turns about the target's own direction (a face's outward
+normal) whichever side carries the rest's flip, so a positive spin on a
+part resting on a floor turns it counter-clockwise seen from above. A value is charted on the target space's own axes, carried by
 the least turn from where the mate's orientation (`Mate(...,
 orient=Orientation("+x", "-z"))`, the identity unless written) puts
 the copy's mated direction onto the one direction the mates fix, so

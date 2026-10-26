@@ -402,12 +402,12 @@ fn box_resting_on(
 /// where the identity orientation puts the box's bottom: the least turn
 /// is the identity). At zero values the box's own coordinates agree with
 /// the world's; at `(3, 4, 30°)` its origin stands at `(3, 4, 0)` turned
-/// 30° about the mated direction `−z`. Every order of the three values
-/// places it alike.
+/// 30° about `z`, the floor's own normal, whichever side the flip is
+/// on. Every order of the three values places it alike.
 ///
 /// *Breaks if* a slide is charted along the other slide's moved axis
 /// (order-dependent), the spin is measured about another axis than the
-/// mated direction, or the least turn is not the identity where the
+/// floor's own normal, or the least turn is not the identity where the
 /// orientation puts the face on the floor.
 #[test]
 fn a_plane_mate_leaves_two_slides_and_a_spin_in_any_order() {
@@ -428,14 +428,14 @@ fn a_plane_mate_leaves_two_slides_and_a_spin_in_any_order() {
         );
     }
     let turn = 30.0_f64.to_radians();
-    let expected = Mat3::rotation_about(Vec3::new(0.0, 0.0, -1.0), turn);
+    let expected = Mat3::rotation_about(Vec3::new(0.0, 0.0, 1.0), turn);
     let mut first: Option<Affine3<f64>> = None;
     for order in orders {
         let (doc, p) = box_on_the_floor([3.0, 4.0, turn], order);
         let at = solved(&doc, p);
         assert!(
             turn_between(at.linear, expected) < 1e-12,
-            "{order:?}: turned by the spin about −z: {at:?}"
+            "{order:?}: turned by the spin about z: {at:?}"
         );
         assert!(
             (at.translation - Vec3::new(3.0, 4.0, 0.0)).norm() < 1e-12,
@@ -477,7 +477,7 @@ fn every_order_places_the_copy_to_the_bit_on_a_tilted_target() {
     let maps: Vec<String> = orders
         .iter()
         .map(|&order| {
-            let (doc, p) = box_resting_on(tilted.clone(), [3.3, 4.7, -0.9], order);
+            let (doc, p) = box_resting_on(tilted.clone(), [3.3, 4.7, 0.9], order);
             format!("{:?}", solved(&doc, p))
         })
         .collect();
@@ -706,7 +706,7 @@ fn a_cap_at_the_antipode_places_without_a_turn() {
 #[test]
 fn a_constraint_taken_out_leaves_its_bundle_pinned() {
     use editor_core::TargetAxis::{X, Y, Z};
-    let (doc, p) = box_on_the_floor([0.0, 0.0, -0.5], [2, 0, 1]);
+    let (doc, p) = box_on_the_floor([0.0, 0.0, 0.5], [2, 0, 1]);
     let bundle = fixture::bundle(&doc, p);
     let mate = bundle
         .iter()
@@ -1114,8 +1114,7 @@ fn a_parametric_pose_at_a_nominal_identity_keeps_its_derivative() {
 /// turn: it is no identity bundle, so every lane runs its map
 /// (FORK-REST), the `f64` lane's the identity to rounding. A dual run seeded at `t` places it by a map whose value
 /// channel is the `f64` lane's bits and whose tangent is the spin's:
-/// the turn about the mated direction, the flipped floor's `−z`, moves
-/// the copy's `x` along `−y` at unit rate.
+/// the turn about `z` moves the copy's `x` along `y` at unit rate.
 ///
 /// *Breaks if* a lane drops the map (the value lane's would be no map,
 /// the dual's tangent lost), or the dual's value channel rounds off
@@ -1180,8 +1179,8 @@ fn a_seeded_copy_at_rest_has_the_value_lanes_bits_and_its_tangent() {
         }
     }
     assert!(
-        (entries[0][1].deriv + 1.0).abs() < 1e-12 && (entries[1][0].deriv - 1.0).abs() < 1e-12,
-        "the turn's tangent moves x along −y: {map:?}"
+        (entries[0][1].deriv - 1.0).abs() < 1e-12 && (entries[1][0].deriv + 1.0).abs() < 1e-12,
+        "the turn's tangent moves x along y: {map:?}"
     );
 }
 

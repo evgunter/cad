@@ -52,9 +52,10 @@ Build `[placement.values]` as ratified on PR 5621 (Ev chose F, 2026-10-24; desig
   - An older document refuses at load naming `orient`.
 - **Deviations** (the PR body says why):
   - the orientation sits on the mate, not on `place(orient=)`;
-  - resting mates' spin sense flips (about `d`, its flip included);
-  - `sketch_on_face` takes the orientation;
+  - `sketch_on_face` takes the orientation and writes the two slides it leaves;
   - the panel offers every slide and refuses by count.
+- **The spin's sense** (Ev, PR 5742, option (b)): the one spin turns about the target's own direction (`mate::flipped` undoes the target side's flips), so a rest spins the same way whichever side carries its flip, as before this unit.
+- **Review 1's fix pass:** sketch-on-face's slides follow the orientation (six-face rows in Rust and Python); the least turn has one home (`mate/turn.rs`); `toward` keeps the author's x; the orientation's words are named tags; the review's probes are ordinary rows; the panel's count refusal is filed on CHROME.
 - **What moved:** ids after every mate (the mint chain), content key v21, the m10/sym decision counts (two antipode theorems out and one pole decision in per mated placement), and the tour die's ±x pip seams (a quarter turn, rim vertices within an ulp). The PR body has the full list.
 - **Open for the reviewer:**
   - the slow-set reds that are main's own are attributed in the PR body's test status;

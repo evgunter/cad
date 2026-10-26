@@ -475,9 +475,13 @@ Where a mate fixes a direction `d`, the mate's `orient` (an
 `Orientation`, one of the 24 ways the copy's axes lie along the target
 space's, the identity unless written) puts the copy's mated direction
 `d_c` at `n = O·d_c`, and the least turn `S` carries `n` onto `d`; the
-copy's turn is `rot(d, θ)·S·O`. A slide is the copy's origin measured
+copy's turn is `rot(a, θ)·S·O`, `a` the target's own direction (its
+outward normal for a plane: `d` with every flip on the target's side
+undone, `mate::flipped`). A slide is the copy's origin measured
 from the target space's along a target axis as `S` carries it, and the
-spin `θ` is the turn left about `d` (`mate/value.rs`, `Chart`). Where
+spin `θ` is the turn left about `a`, whatever the contact's sense, so a
+flip written on either side of a rest turns its spin the same way
+(`mate/value.rs`, `Chart`). Where
 `n` is a target axis, the slide `S` carries onto `d` is the one a plane
 mate fixes and an axis mate leaves; otherwise the written slides are
 admitted only where they span what the mate leaves

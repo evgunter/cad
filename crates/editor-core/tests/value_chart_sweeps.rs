@@ -219,18 +219,44 @@ fn std_values_for(o: Orientation) -> Vec<(Coord, Formula)> {
 /// refuses short of its band.
 #[test]
 fn a_plate_swept_through_all_but_the_pole_moves_its_hung_copy_continuously() {
-    let orients = [
-        Orientation::IDENTITY,
-        ori(SignedAxis::PlusY, SignedAxis::PlusZ),
-        ori(SignedAxis::MinusX, SignedAxis::PlusZ),
-        ori(SignedAxis::PlusX, SignedAxis::PlusY),
-        ori(SignedAxis::PlusZ, SignedAxis::MinusX),
-    ];
-    let steps = 400;
+    plate_sweep(
+        &[
+            Orientation::IDENTITY,
+            ori(SignedAxis::PlusY, SignedAxis::PlusZ),
+            ori(SignedAxis::MinusX, SignedAxis::PlusZ),
+            ori(SignedAxis::PlusX, SignedAxis::PlusY),
+            ori(SignedAxis::PlusZ, SignedAxis::MinusX),
+        ],
+        &["x", "y", "oblique"],
+        400,
+    );
+}
+
+/// **The plate sweep, at a few stations**: the fast set's twin of
+/// [`a_plate_swept_through_all_but_the_pole_moves_its_hung_copy_continuously`],
+/// two orientations about the oblique chain in sixteen steps.
+///
+/// *Breaks if* as the full sweep, wherever a jump is as wide as a step.
+#[test]
+fn a_plate_swept_at_a_few_stations_moves_its_hung_copy_continuously() {
+    plate_sweep(
+        &[
+            Orientation::IDENTITY,
+            ori(SignedAxis::PlusZ, SignedAxis::MinusX),
+        ],
+        &["oblique"],
+        16,
+    );
+}
+
+/// The plate sweep under `orients`, about each of `axes`, in `steps`
+/// steps from −(π−δ) to π−δ: no refusal, and no step moving the copy by
+/// more than the lever times the step.
+fn plate_sweep(orients: &[Orientation], axes: &[&str], steps: u32) {
     let delta = 1e-3;
     let mut report = Vec::new();
-    for o in orients {
-        for axis in ["x", "y", "oblique"] {
+    for &o in orients {
+        for &axis in axes {
             let chain = |t: f64| -> Vec<(Coord, Formula)> {
                 match axis {
                     "x" => vec![(Coord::Spin(Some(TargetAxis::X)), fixture::ang(t))],
@@ -328,6 +354,38 @@ fn every_orientation_written_backwards_refuses_and_its_write_places() {
 /// wedge, or the chart jumps on an oblique source.
 #[test]
 fn a_wedge_resting_on_its_sloped_face_stays_on_a_tilting_floor() {
+    wedge_sweep(
+        &[
+            Orientation::IDENTITY,
+            ori(SignedAxis::PlusY, SignedAxis::PlusZ),
+            ori(SignedAxis::PlusX, SignedAxis::MinusY),
+        ],
+        &["x,y", "x,z", "y,z"],
+        300,
+    );
+}
+
+/// **The wedge sweep, at a few stations**: the fast set's twin of
+/// [`a_wedge_resting_on_its_sloped_face_stays_on_a_tilting_floor`], one
+/// orientation and each pair of slides, the floor tilted through 3 rad
+/// in ten steps.
+///
+/// *Breaks if* as the full sweep, wherever a jump is as wide as a step.
+#[test]
+fn a_wedge_resting_at_a_few_stations_stays_on_a_tilting_floor() {
+    wedge_sweep(
+        &[ori(SignedAxis::PlusY, SignedAxis::PlusZ)],
+        &["x,y", "x,z", "y,z"],
+        10,
+    );
+}
+
+/// The wedge sweep under `orients`, for each pair of written slides
+/// named in `pairs`, the floor tilted from −1.5 to 1.5 rad in `steps`
+/// steps: where the slides span, the slope lies on the floor,
+/// antiparallel, and no step moves the wedge by more than the lever
+/// times the step.
+fn wedge_sweep(orients: &[Orientation], pairs: &[&str], steps: u32) {
     let mut bad = Vec::new();
     let run = |t: f64, values: Vec<(Coord, Formula)>, o: Orientation| -> Out {
         let doc = ProfileDoc::empty(
@@ -357,21 +415,21 @@ fn a_wedge_resting_on_its_sloped_face_stays_on_a_tilting_floor() {
     let y = |v| (Coord::Slide(TargetAxis::Y), len(v));
     let z = |v| (Coord::Slide(TargetAxis::Z), len(v));
     let sp = (Coord::SPIN, fixture::ang(0.3));
-    for o in [
-        Orientation::IDENTITY,
-        ori(SignedAxis::PlusY, SignedAxis::PlusZ),
-        ori(SignedAxis::PlusX, SignedAxis::MinusY),
-    ] {
+    let h = 3.0 / f64::from(steps);
+    for &o in orients {
         for (label, vals) in [
             ("x,y", vec![x(3.0), y(4.0), sp.clone()]),
             ("x,z", vec![x(3.0), z(4.0), sp.clone()]),
             ("y,z", vec![y(3.0), z(4.0), sp.clone()]),
-        ] {
+        ]
+        .into_iter()
+        .filter(|(label, _)| pairs.contains(label))
+        {
             let mut last: Option<Frame> = None;
             let mut worst = 0.0_f64;
             let mut first = None;
-            for k in 0..=300 {
-                let t = -1.5 + 0.01 * f64::from(k);
+            for k in 0..=steps {
+                let t = -1.5 + h * f64::from(k);
                 match run(t, vals.clone(), o) {
                     Ok(f) => {
                         // a point of the slope (2,0,0) on the floor plane
@@ -382,7 +440,7 @@ fn a_wedge_resting_on_its_sloped_face_stays_on_a_tilting_floor() {
                             bad.push(format!("{o} {label} t={t}: off {off:e} anti {anti:e}"));
                         }
                         if let Some(l) = &last {
-                            worst = worst.max(dist(&f, l) / 0.01);
+                            worst = worst.max(dist(&f, l) / h);
                         }
                         last = Some(f);
                     }

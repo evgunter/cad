@@ -66,8 +66,8 @@ const SAIL_B_PARK: [f64; 3] = [-0.12, 0.02, 0.0];
 /// **A rest of two centred boxes' faces, with its values**: the picked
 /// faces' planes, the target flipped (the faces rest against each
 /// other), the copy slid along the two target axes `slides` names, as
-/// the snap's orientation charts them, and spun `spin` about the mated
-/// direction. Every part here is a box centred on its own origin, so a
+/// the snap's orientation charts them, and spun `spin` about the target
+/// face's own normal. Every part here is a box centred on its own origin, so a
 /// slide of zero centres the copy on its target's own axis.
 fn rest_choice(
     slides: [(pncad::document::TargetAxis, f64); 2],
@@ -96,7 +96,7 @@ fn rest_choice(
 /// sail's origin is its underside's middle and the wall's middle is
 /// `HUB_SIDE / 2` up the hub, which sits on the tower's top, so the
 /// slide along `z` is `TOWER_HEIGHT + HUB_SIDE / 2` on either wall;
-/// `spin` turns the blade about the mated direction from the world's
+/// `spin` turns the blade about the wall's own normal from the world's
 /// `x`.
 fn sail_choice(spin: f64) -> viewer::matetool::MateChoice {
     use pncad::document::TargetAxis;
@@ -741,7 +741,7 @@ fn the_windmill_story() {
     tool.pick(session.doc(), back_wall.clone());
     let sail_b_proposal = {
         let (doc, _) = session.landed_pair().expect("landed");
-        tool.proposal(doc, sail_choice(-core::f64::consts::FRAC_PI_2))
+        tool.proposal(doc, sail_choice(core::f64::consts::FRAC_PI_2))
             .expect("the second sail proposes")
     };
     let outcome = session.perform(sail_b_proposal.op_into_target_space());

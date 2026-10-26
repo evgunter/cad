@@ -4,7 +4,8 @@
 //! Beside a mate fixing a direction `d`, the mate's orientation `O` puts
 //! the copy's mated direction at `O·d_c`, and the least turn carries that
 //! onto `d`: the slides run along the target's axes as the least turn
-//! carries them, and the spin is the turn left about `d`. The one pole is
+//! carries them, and the spin is the turn left about the target's own
+//! direction, whatever side spells the contact's flip. The one pole is
 //! the orientation written backwards, which refuses in its band, naming
 //! the orientation to write; nothing refuses short of it.
 
@@ -259,6 +260,69 @@ fn a_floor_swept_through_a_quarter_turn_moves_its_copy_continuously() {
         );
         last = now;
     }
+}
+
+/// **A rest turns the same way whichever side spells its flip.** A unit
+/// box rests on a level floor at values `(3, 4, 0.5)`, its contact
+/// spelled twice: the flip on the floor's plane (as the viewer's mate
+/// tool and the façade's `rest` write it), and the flip on the box's
+/// bottom (as sketch-on-face writes it). Both stand the box at one pose,
+/// and the positive spin turns it counter-clockwise seen from `+z`: its
+/// `x` lies at `(cos 0.5, sin 0.5, 0)`.
+///
+/// *Breaks if* the spin turns about the mated direction with the flip
+/// included, which points down for the floor-side flip and turns that
+/// box clockwise.
+#[test]
+fn a_rest_spins_the_same_way_whichever_side_carries_its_flip() {
+    let spin = 0.5_f64;
+    let at = |copy_side: bool| -> Frame {
+        let doc = ProfileDoc::empty(DocumentId::derive("value-chart-flip-side"), Tol::witness());
+        let (doc, body) = block(doc, 1.0, 1.0, 1.0);
+        let (doc, floor, _) = fixture::floor(doc, Vec::new());
+        let (doc, placement) = insert(
+            doc,
+            fixture::stood(vec![editor_core::BodyRead::plain(Operand::from(body))]),
+        );
+        let bottom = fixture::plane(head(fixture::fname(body, RoleSeg::Cap(CapEnd::Start))));
+        let mate = if copy_side {
+            fixture::mate(fixture::flip(bottom), floor)
+        } else {
+            fixture::mate(bottom, fixture::flip(floor))
+        };
+        let placed = Placed {
+            mates: vec![mate],
+            values: vec![
+                (Coord::Slide(TargetAxis::X), len(3.0)),
+                (Coord::Slide(TargetAxis::Y), len(4.0)),
+                (Coord::SPIN, fixture::ang(spin)),
+            ],
+        };
+        let (doc, _) = fixture::write_bundle(doc, placement, placed.bundle());
+        solve(&doc, &EvalOptions::default(), Tol::witness())
+            .placement(&doc, placement)
+            .unwrap_or_else(|r| panic!("copy side {copy_side}: the box rests: {r:?}"))
+    };
+    let (floor_side, copy_side) = (at(false), at(true));
+    for c in 0..3 {
+        for r in 0..3 {
+            assert!(
+                (floor_side.columns[c][r] - copy_side.columns[c][r]).abs() < 1e-12,
+                "one turn whichever side flips: {floor_side:?} vs {copy_side:?}"
+            );
+        }
+        assert!(
+            (floor_side.translation[c] - copy_side.translation[c]).abs() < 1e-12,
+            "one place whichever side flips: {floor_side:?} vs {copy_side:?}"
+        );
+    }
+    let x = floor_side.columns[0];
+    assert!(
+        (x[0] - spin.cos()).abs() < 1e-12
+            && (x[1] - spin.sin()).abs() < 1e-12
+            && x[2].abs() < 1e-12,
+        "a positive spin turns the box counter-clockwise seen from +z: x = {x:?}"
+    );
 }
 
 /// **A document written before a mate carried its orientation refuses

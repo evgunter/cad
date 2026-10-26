@@ -5719,7 +5719,7 @@ class Orientation:
 class Coord:
     """Which freedom a value sets: `Coord.slide("x")`, `"y"` or `"z"`,
     a slide along the chart's axis; `Coord.spin()`, the spin about the
-    mated direction beside a mate fixing one; or `Coord.spin("x")`,
+    target's own direction beside a mate fixing one; or `Coord.spin("x")`,
     `"y"` or `"z"`, a link of a chain of turns about the target space's
     axis where none is fixed.
 
@@ -5741,7 +5741,7 @@ class Coord:
         """Raises ValueError for any other axis word."""
     @staticmethod
     def spin(axis: Optional[Literal["x", "y", "z"]] = None) -> Coord:
-        """The spin about the mated direction with no `axis`, a chain
+        """The spin about the target's own direction with no `axis`, a chain
         link about `axis` with one. Raises ValueError for any other
         axis word."""
     @property
@@ -5761,7 +5761,7 @@ class MateValue:
     space's own axes carried by the least turn from where the mate's
     orientation puts the copy's mated direction onto the mated one: a
     slide is the copy's origin measured along a carried axis, the spin
-    the turn left about the mated direction. Zero says the copy's own
+    the turn left about the target's own direction. Zero says the copy's own
     coordinates agree with the target space's, up to the orientation,
     as far as the mates allow.
 
@@ -5786,7 +5786,7 @@ class Placed:
     constructor of a bundle: its mates, then the values written, then
     the constant `0` on each freedom the mates leave that no value
     names (a slide along each axis the mates leave and the spin about
-    the mated direction, or, where no direction is fixed, the chain's
+    the target's own direction, or, where no direction is fixed, the chain's
     missing turns about `x`, `y` and `z` until it turns three times).
     It reads no geometry and writes no number its author did not, so a
     quarter turn written `Formula.turn_over(4)` is one.

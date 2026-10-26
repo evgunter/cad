@@ -736,7 +736,13 @@ where
         )
         .map_err(|kind| unevaluated(MateSide::To, kind))?;
         let to = crate::mate::solve::tightened(to);
-        charted.push((mate, on.clone(), to.clone(), m.orient));
+        charted.push((
+            mate,
+            on.clone(),
+            to.clone(),
+            crate::mate::flipped(doc, m.to),
+            m.orient,
+        ));
         mates.push(crate::mate::solve::ReadMate { mate, on, to });
     }
     let equations = crate::mate::solve::equations_of(doc, constraints);
@@ -757,8 +763,10 @@ where
             })
         })?;
         let arm = crate::mate::solve::bundle_arm(reach, &mates).map_err(|f| fault(*f))?;
-        for (mate, on, to, orient) in charted.iter().filter(|_| !values.is_empty()) {
-            if let Some(found) = crate::mate::value::Chart::of(*mate, on, to, *orient, arm, b)? {
+        for (mate, on, to, to_flipped, orient) in charted.iter().filter(|_| !values.is_empty()) {
+            if let Some(found) =
+                crate::mate::value::Chart::of(*mate, on, to, *to_flipped, *orient, arm, b)?
+            {
                 chart = Some(found);
                 break;
             }

@@ -7,7 +7,8 @@
 //! stands, turned by the least turn onto `d`, and its mated point carried
 //! onto the target's plane or line by the shortest move. The gesture
 //! then writes the orientation nearest the snapped turn, the spin the
-//! least turn leaves about `d`, and each slide the copy's snapped
+//! least turn leaves about the target's own direction (`d` with the
+//! contact's flip undone), and each slide the copy's snapped
 //! coordinate along the target axis the least turn carries — the values
 //! that place the copy where the snap stands it (D10
 //! `[placement.values]`).
@@ -167,7 +168,7 @@ fn unplaced(pose: PoseValue<f64>, r: Mat3<f64>, t: Vec3<f64>, tol: Tol) -> Optio
 /// puts it from `before`**, where the copy stood before its mate, read
 /// off `ev`, that evaluation: the mate fixing a direction carries the
 /// orientation nearest the snapped turn, the spin is the turn left about
-/// the mated direction, and the slides are the snapped coordinates along
+/// the target's own direction, and the slides are the snapped coordinates along
 /// the carried axes the mate leaves. `None` where the copy stood nowhere,
 /// or its mate's poses do not evaluate: the bundle is then the door's as
 /// it wrote it.
@@ -198,7 +199,7 @@ pub(crate) fn snapped(
         )
         .ok()
     };
-    let (mate_id, seat) = raw.iter().find_map(|c| {
+    let (mate_id, seat, to_flipped) = raw.iter().find_map(|c| {
         let m = c.mate()?;
         let on = bind(c.id, pncad::document::MateSide::On, m.on)?;
         // An instance's `on` reads its own output, which stands where the
@@ -209,7 +210,11 @@ pub(crate) fn snapped(
             on
         };
         let to = bind(c.id, pncad::document::MateSide::To, m.to)?;
-        Some((c.id, seat_of(&on, &to)?))
+        Some((
+            c.id,
+            seat_of(&on, &to)?,
+            editor_core::mate::flipped(doc, m.to),
+        ))
     })?;
     // The snap: the copy's mated direction turned the least way onto
     // `d`, its mated point moved the shortest way onto what holds it.
@@ -225,7 +230,10 @@ pub(crate) fn snapped(
     let across = across(n).normalize();
     let to = s * across;
     let copy = turned * orient.unapply(across);
-    let spin = f64::atan2(to.cross(copy).dot(d), to.dot(copy));
+    // The spin turns about the target's own direction, whichever side
+    // spells the contact's sense.
+    let about = if to_flipped { -d } else { d };
+    let spin = f64::atan2(to.cross(copy).dot(about), to.dot(copy));
     // The slides the mate leaves: the carried axes most across `d` for a
     // plane, the one most along it for a line, all three for a direction.
     let mut axes = TargetAxis::ALL.to_vec();

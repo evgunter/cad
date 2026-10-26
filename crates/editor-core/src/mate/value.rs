@@ -6,10 +6,14 @@
 //! orientation `O`: the mated direction `d` (the target's, its `Flip`
 //! the contact's sense), the copy's mated direction `d_c` in its own
 //! coordinates, and the **least turn** `S` carrying `n = O·d_c` onto
-//! `d`. The copy's turn is `rot(d, θ)·S·O`, where `θ`, the one spin, is
-//! what is left about `d` after the least turn, so no reference axis is
-//! chosen on either side; a slide is the copy's origin measured from the
-//! target space's along a target axis as `S` carries it. Each is a
+//! `d`. The copy's turn is `rot(a, θ)·S·O`, where `θ`, the one spin, is
+//! the angle about the target's own direction `a` (its outward normal
+//! for a plane: `d` with every flip on the target's side undone,
+//! [`flipped`]), whatever the contact's sense, left after the least
+//! turn. So no reference axis is chosen on either side, and a flip
+//! written on either side of a rest turns its spin the same way. A
+//! slide is the copy's origin measured from the target space's along a
+//! target axis as `S` carries it. Each is a
 //! function of the copy's relative pose alone, so no order of the values
 //! is chosen, and nothing about the body the target pose is read off
 //! enters the chart.
@@ -21,7 +25,7 @@
 //! target by a sliver moves a copy by a sliver.
 //!
 //! [`settle`] places a folded bundle's copy at its values: the spin
-//! turns the copy about `d` inside the bundle's residual, then the
+//! turns the copy about `a` inside the bundle's residual, then the
 //! slides set its origin inside what the mates leave of its
 //! translation. Where `n` is a target axis, the slide along it is the
 //! mate's, and the others run across `d`; otherwise the written slides
@@ -47,8 +51,14 @@ use crate::pose::PoseValue;
 /// space.**
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct Chart<T: geom_core::Real> {
-    /// The mated direction: the target's.
+    /// The mated direction: the target's, its `Flip` the contact's
+    /// sense.
     d: UnitVec3<T>,
+    /// **The direction the one spin turns about**: the target's own,
+    /// `d` with every flip along the target's pose undone, so the spin's
+    /// sense is the target's whichever side of the mate spells the
+    /// contact's.
+    about: UnitVec3<T>,
     /// The target axes as the least turn carries them: `S·x`, `S·y`,
     /// `S·z`.
     carried: [Vec3<T>; 3],
@@ -95,6 +105,29 @@ enum Seat<T: geom_core::Real> {
 
 use super::turn::zero;
 
+/// **Whether `pose` reads the opposite sense of its own direction**: an
+/// odd count of flips along the poses it keeps, read plainly or through
+/// a role that keeps a sense (a plane's normal, an axis's direction).
+/// The one spin turns about the target's own direction, so a flip on
+/// either side of a mate moves no spin.
+#[must_use]
+pub fn flipped<P>(doc: &crate::doc::Doc<P>, pose: crate::VarId) -> bool {
+    use crate::pose::{PoseDef, PoseRole, RoleRead};
+    let mut odd = false;
+    let mut at = pose;
+    while let Some(def) = doc.var(at).and_then(|v| v.def().pose()) {
+        odd ^= matches!(def, PoseDef::Flip { .. });
+        match def.kept() {
+            Some(RoleRead {
+                read,
+                role: None | Some(PoseRole::Normal | PoseRole::Direction),
+            }) => at = *read,
+            _ => break,
+        }
+    }
+    odd
+}
+
 /// `v` turned by the angle whose sine and cosine are given about the
 /// unit direction `d`.
 fn rotate<T: geom_core::Real>(d: Vec3<T>, v: Vec3<T>, sin: T, cos: T) -> Vec3<T> {
@@ -115,6 +148,7 @@ impl<T: SolveScalar> Chart<T> {
         mate: MateRef,
         on: &PoseValue<T>,
         to: &PoseValue<T>,
+        to_flipped: bool,
         orient: Orientation,
         arm: Arm,
         band: Band,
@@ -200,6 +234,7 @@ impl<T: SolveScalar> Chart<T> {
         };
         Ok(Some(Self {
             d,
+            about: if to_flipped { -d } else { d },
             carried,
             n,
             aligned,
@@ -237,13 +272,13 @@ impl<T: SolveScalar> Chart<T> {
         }
     }
 
-    /// The spin of the copy at relative pose `m`: the angle about `d`
-    /// from the least turn's image of the reference direction to the
-    /// copy's, as `m` carries it.
+    /// The spin of the copy at relative pose `m`: the angle about the
+    /// target's own direction from the least turn's image of the
+    /// reference direction to the copy's, as `m` carries it.
     fn spin(&self, m: &Affine3<T>) -> T {
         let to = self.carried_of(self.across);
         let copy = m.linear * self.orient.unapply(self.across);
-        T::solve_atan2(to.cross(copy).dot(self.d.get()), to.dot(copy))
+        T::solve_atan2(to.cross(copy).dot(self.about.get()), to.dot(copy))
     }
 
     /// `S·v`, from the carried axes.
@@ -266,10 +301,11 @@ impl<T: SolveScalar> Chart<T> {
         Mat3::from_cols(col(0), col(1), col(2))
     }
 
-    /// The turn of every map whose spin is `by`: `rot(d, by)·S·O`.
+    /// The turn of every map whose spin is `by`: `rot(a, by)·S·O`, `a`
+    /// the target's own direction.
     fn turned(&self, by: Angle<T>) -> Mat3<T> {
         let (sin, cos) = by.sin_cos();
-        let d = self.d.get();
+        let d = self.about.get();
         let l = self.least();
         Mat3::from_cols(
             rotate(d, l.c0, sin, cos),
@@ -285,10 +321,10 @@ impl<T: SolveScalar> Chart<T> {
 
     /// **The copy's map at spin `by` and the translation `shift` before
     /// [`Self::onto`]**: the shift, then the turn by `by` about the
-    /// mated direction, each composed as a motion, so nothing re-derives
-    /// its rigidity from its entries and nothing is decided.
+    /// target's own direction, each composed as a motion, so nothing
+    /// re-derives its rigidity from its entries and nothing is decided.
     fn head_at(&self, by: Angle<T>, shift: Vec3<T>) -> Option<RigidMotion<T>> {
-        let turn = RigidMotion::rotation_by(self.d, by).ok()?;
+        let turn = RigidMotion::rotation_by(self.about, by).ok()?;
         RigidMotion::translation(shift).ok()?.compose(turn).ok()
     }
 
@@ -354,7 +390,7 @@ impl<T: geom_core::Real> ReadValue<T> {
 /// only there.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct Composed<T: geom_core::Real> {
-    /// The shift, then the spin about the mated direction
+    /// The shift, then the spin about the target's own direction
     /// ([`Chart::head_at`]).
     head: RigidMotion<T>,
     /// The constant turn.
@@ -464,8 +500,8 @@ pub(crate) fn point_motion<T: SolveScalar>(
 /// admitted every value's freedom (`super::solve::overconstrained`) and
 /// as many slides as the mates leave translations, so each is held by
 /// the residual by construction: a spin turns about the residual's own
-/// line, or about `d` through the copy's origin where every line along
-/// `d` will do.
+/// line, or about the target's own direction through the copy's origin
+/// where every line along it will do.
 ///
 /// **The slides.** In the least turn's coordinates (`′`, so `S·v′ = v`)
 /// the mate leaves the copy's translation the plane across `n` (or the
@@ -508,7 +544,7 @@ pub(crate) fn settle<T: SolveScalar>(
         .into_iter()
         .partition(|v| matches!(v.coord, Coord::Spin(_)));
     // The rule admits the axisless spin alone here, held loud: the chart
-    // turns about `d`.
+    // turns about the target's own direction.
     assert!(
         spins.iter().all(|v: &&ReadValue<T>| v.coord == Coord::SPIN),
         "a mate's chart is spun about its mated direction alone"
@@ -542,9 +578,9 @@ pub(crate) fn settle<T: SolveScalar>(
         // widen it by the turn's own width levered over the origin's
         // distance, twice.
         let turned = match residual_turn_point(left).or(chart.line()) {
-            Some(at) => turn_to(at, chart.d, v, measured) * m,
+            Some(at) => turn_to(at, chart.about, v, measured) * m,
             None => {
-                let turn = turn_to(Point3::origin(), chart.d, v, measured);
+                let turn = turn_to(Point3::origin(), chart.about, v, measured);
                 Affine3::from_parts(turn.linear * m.linear, m.translation)
             }
         };

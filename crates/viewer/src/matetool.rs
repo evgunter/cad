@@ -40,7 +40,7 @@
 //! Values set the freedoms the mate's kind leaves, on the target
 //! space's axes carried onto the mated direction by the least turn from
 //! where the mate's orientation puts the copy's: a plane mate leaves two
-//! slides and the spin about the mated direction, an axis mate one slide
+//! slides and the spin about the target's own direction, an axis mate one slide
 //! and the spin. A value the kind does not leave is refused here
 //! ([`MateToolError::NotAFreedom`], [`MateFreedom::left_by`]), before
 //! any edit exists. The mate goes in through the bundle door, which
@@ -98,9 +98,10 @@ pub const MATE_KINDS: [(VarKind, &str); 2] = [(VarKind::Plane, "plane"), (VarKin
 vocabulary! {
     /// **A freedom a mate's value can set**, as the mate panel offers
     /// it: a slide along the chart's (carried) `x`, `y` or `z`, or the
-    /// spin about the mated direction. Which of them a mate leaves is its kind's
-    /// ([`Self::left_by`]), and the panel offers those alone. It mirrors
-    /// the kernel's [`Coord`] both ways, by two exhaustive matches
+    /// spin about the target's own direction. Which of them a mate leaves
+    /// is its kind's ([`Self::left_by`]), and the panel offers those
+    /// alone. It mirrors the kernel's [`Coord`] both ways, by two
+    /// exhaustive matches
     /// ([`Self::coord`], [`Self::of`]), so a freedom the kernel grows
     /// does not build here until the panel offers it or says why not: a
     /// spin about the chart's `x` or `y` is a link of a chain of turns,
@@ -114,7 +115,7 @@ vocabulary! {
         SlideY,
         /// A slide along the chart's `z`.
         SlideZ,
-        /// The spin about the mated direction.
+        /// The spin about the target's own direction.
         Spin,
     }
 

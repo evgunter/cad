@@ -34,16 +34,20 @@ import math
 import unittest
 
 from pncad import (
+    Coord,
     Doc,
     DocEdit,
     EditError,
     EntityKind,
     EvaluationError,
     Formula,
+    Mate,
+    MateValue,
     Node,
     Open,
     Orientation,
     Pose,
+    PoseDef,
     ReadbackError,
     Start,
     SurfaceKind,
@@ -227,6 +231,13 @@ def loop(points):
 PAD = loop([(-0.3, -0.3), (0.3, -0.3), (0.3, 0.3), (-0.3, 0.3)])
 
 
+def outward(ev, node, face):
+    """`node`'s face `face`'s outward normal: its sense times its axis."""
+    frame = ev.face_frame(node, face)
+    sign = 1.0 if frame.sense else -1.0
+    return tuple(sign * a for a in frame.axis)
+
+
 def positions(ev, node):
     """Every vertex of `node`, in metres."""
     return [tuple(c.meters for c in ev.vertex_position(node, v)) for v in ev.all_vertices(node)]
@@ -329,16 +340,11 @@ class TestSketchOnEveryFace(unittest.TestCase):
     `z` opposite the face, and the solve refuses `mate_backwards`,
     naming the orientation to write, which then places the boss."""
 
-    def outward(self, ev, node, face):
-        frame = ev.face_frame(node, face)
-        sign = 1.0 if frame.sense else -1.0
-        return tuple(sign * a for a in frame.axis)
-
     def faces(self):
         doc = Doc()
         node = plate(doc, 0.2 * m)
         ev = evaluate(doc)
-        return doc, node, {self.outward(ev, node, f): f for f in ev.all_faces(node)}
+        return doc, node, {outward(ev, node, f): f for f in ev.all_faces(node)}
 
     def test_the_boss_grows_out_of_every_face_but_the_bottom(self):
         """Breaks if the gesture writes the slide the face's plane fixes
@@ -377,6 +383,64 @@ class TestSketchOnEveryFace(unittest.TestCase):
         zs = [p[2] for p in positions(evaluate(doc), sketched.placement)]
         self.assertAlmostEqual(max(zs), 0.0, delta=1e-12)
         self.assertAlmostEqual(min(zs), -0.3, delta=1e-12)
+
+
+class TestARestSpinsOneWay(unittest.TestCase):
+    """A unit plate rests on a floor plate at slides `(3, 4)` and a
+    spin of 0.5, its contact spelled twice: the flip on the floor's
+    plane (as the viewer's mate tool and `Mate`'s docs write a rest), and
+    the flip on the copy's bottom (as `sketch_on_face` writes it). The
+    one spin turns about the target's own direction whatever side
+    carries the flip, so both stand the copy at one place, turned
+    counter-clockwise seen from `+z`."""
+
+    SPIN = 0.5
+
+    def rested(self, copy_side):
+        doc = Doc()
+        floor = doc.place(plate(doc, 0.2 * m), doc.world)
+        body = plate(doc, 0.2 * m)
+        copy = doc.place(body, doc.world)
+        ev = evaluate(doc)
+
+        def facing(node, z):
+            (face,) = [f for f in ev.all_faces(node) if outward(ev, node, f) == (0.0, 0.0, z)]
+            return PoseDef.plane(node, face)
+
+        bottom, top = facing(body, -1.0), facing(floor, 1.0)
+        mate = Mate(PoseDef.flip(bottom), top) if copy_side else Mate(bottom, PoseDef.flip(top))
+        doc.set_constraints(
+            copy,
+            [
+                mate,
+                MateValue(Coord.slide("x"), 3.0 * m),
+                MateValue(Coord.slide("y"), 4.0 * m),
+                MateValue(Coord.spin(), self.SPIN * rad),
+            ],
+        )
+        return sorted(positions(evaluate(doc), copy))
+
+    def test_both_spellings_stand_the_copy_at_one_place(self):
+        """Breaks if the spin turns about the mated direction with the
+        flip included: the floor-side flip points it down, turning that
+        copy the other way."""
+        floor_side, copy_side = self.rested(False), self.rested(True)
+        self.assertEqual(len(floor_side), len(copy_side))
+        for a, b in zip(floor_side, copy_side, strict=True):
+            for x, y in zip(a, b, strict=True):
+                self.assertAlmostEqual(x, y, delta=1e-12)
+
+    def test_a_positive_spin_turns_counter_clockwise_seen_from_above(self):
+        """Breaks if a positive spin on a floor rest turns clockwise seen
+        from `+z`: the copy's own corner `(1, 0, 0)` lands at
+        `(3 + cos 0.5, 4 + sin 0.5)` on the floor's top, 0.2 up."""
+        want = (3.0 + math.cos(self.SPIN), 4.0 + math.sin(self.SPIN), 0.2)
+        for copy_side in (False, True):
+            with self.subTest(copy_side=copy_side):
+                corners = self.rested(copy_side)
+                near = min(corners, key=lambda p: math.dist(p, want))
+                for got, w in zip(near, want, strict=True):
+                    self.assertAlmostEqual(got, w, delta=1e-12)
 
 
 class TestSketchOnAFaceRefuses(unittest.TestCase):

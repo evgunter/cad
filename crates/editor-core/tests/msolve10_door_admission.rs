@@ -538,7 +538,7 @@ fn corpus() -> Vec<Row> {
             doc,
             ids[1],
             mate(body, ids[0], ids[1]),
-            &[(Coord::SPIN, ang(-0.3))],
+            &[(Coord::SPIN, ang(0.3))],
         );
         ("msolve10-corpus-value", doc, opts)
     });

@@ -312,9 +312,8 @@ fn a1_a_slide_value_is_the_documents_nominal_parameter_bit_for_bit() {
 }
 
 /// **A spin value follows the document's angle parameter**: the
-/// solved pose is the control turned `θ` about the mated direction
-/// through the top's origin — the flipped target's `−z` — at the
-/// nominal `θ`, and follows an edit of `θ`.
+/// solved pose is the control turned `θ` about the vertical through
+/// the top's origin, at the nominal `θ`, and follows an edit of `θ`.
 ///
 /// *Breaks if* a spin value is read anywhere but the document's
 /// nominal environment, or turns about another line.
@@ -334,7 +333,7 @@ fn a1_a_spin_value_follows_the_documents_angle_parameter() {
         let t = top_pose(&sc, what).affine::<f64>();
         let expected = Affine3::rotation_about_axis(
             Point3::origin() + c.translation,
-            Vec3::new(0.0, 0.0, -1.0),
+            Vec3::new(0.0, 0.0, 1.0),
             th,
         ) * c;
         let gap = fixture::seat::map_gap(&t, &expected);
@@ -414,7 +413,7 @@ fn saved_with_a_bundle(label: &str) -> (ProfileDoc, String) {
             fixture::plane(name(ids[1], CapEnd::Start)),
             standoff(name(ids[0], CapEnd::End), 0.5),
         ),
-        &[(Coord::SPIN, ang(-0.25))],
+        &[(Coord::SPIN, ang(0.25))],
     );
     let text = save(&doc, &[], Tol::witness()).expect("saves");
     (doc, text)

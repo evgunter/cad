@@ -51,6 +51,7 @@ pub use solve::{
 };
 pub use turn::LeastTurn;
 pub use unobservable::{Unobservable, unobservable};
+pub use value::flipped;
 
 /// Which side of a mate a diagnostic is about.
 #[derive(
@@ -465,8 +466,8 @@ pub enum Coord {
     /// A slide along the target space's axis (carried by the least turn
     /// beside a mate).
     Slide(TargetAxis),
-    /// A spin: with no axis, the turn about the mated direction left
-    /// after the least turn, beside a mate fixing a direction; about an
+    /// A spin: with no axis, the turn about the target's own direction
+    /// left after the least turn, beside a mate fixing a direction; about an
     /// axis, one link of a written chain of turns where none is fixed.
     Spin(Option<TargetAxis>),
 }
@@ -518,7 +519,7 @@ impl TargetAxis {
 }
 
 impl Coord {
-    /// The spin about the mated direction.
+    /// The spin about the target's own direction.
     pub const SPIN: Self = Self::Spin(None);
 
     /// The dimension of the number that sets it.
