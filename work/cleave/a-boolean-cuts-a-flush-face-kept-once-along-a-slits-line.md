@@ -2,7 +2,7 @@
 id: a-boolean-cuts-a-flush-face-kept-once-along-a-slits-line
 kind: issue
 title: A Boolean whose other solid lies flush with a slit's face beside the slit's line, where the op keeps one of the two flush faces, refuses SlitLineCrossed Flush: the fate cut has no corner to end in
-status: dispatched
+status: review
 opened: 2026-10-20
 priority: P1
 cost: M
