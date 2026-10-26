@@ -130,9 +130,10 @@ pub use drive::{
     RefusalReason, RefusedLeaf, StructureFlip, drive,
 };
 pub use edit::{
-    Applied, CarryForwardDoor, DEFINITION_NODE_BOUND, DocEdit, EditError, EditRecord, Maintenance,
-    MaintenanceNet, MeasureOutcome, Measured, Recorded, Recording, SketchOutcome, SketchedOnFace,
-    SlotValue, Took, apply, apply_replayed, cascade_delete_order, measure, sketch_on_face,
+    Applied, CarryForwardDoor, DEFINITION_NODE_BOUND, DocEdit, EditError, EditRecord, LoftFault,
+    Maintenance, MaintenanceNet, MeasureOutcome, Measured, Recorded, Recording, SketchOutcome,
+    SketchedOnFace, SlotValue, Took, apply, apply_replayed, cascade_delete_order, measure,
+    sketch_on_face,
 };
 pub use eval::measure::{Observed, ObservedRefusal};
 pub use eval::{
@@ -254,9 +255,9 @@ pub use resolve::{
     PickTarget, pick_face,
 };
 pub use stackup::{
-    Chamber, ChamberSpan, DivergedAt, LiftRefusal, PairingViolation, PerParam, Rss, Sensitivity,
-    SensitivityOutcome, SensitivityRefusal, Stackup, StackupRefusal, Unavailable, WorstCase,
-    render_sensitivity, sensitivities, stackup,
+    BindingViolation, Chamber, ChamberSpan, DivergedAt, LiftRefusal, PerParam, RecordReading, Rss,
+    Sensitivity, SensitivityOutcome, SensitivityRefusal, Stackup, StackupRefusal, Unavailable,
+    WorstCase, render_sensitivity, sensitivities, stackup,
 };
 pub use update::{PinMultiplicity, PinSites, UpdateError, mixed_pins, update_references};
 pub use witness::{

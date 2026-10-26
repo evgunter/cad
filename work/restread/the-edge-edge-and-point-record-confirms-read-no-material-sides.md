@@ -56,3 +56,17 @@ The edge–face lane belongs in this row's list beside the edge–edge
 and point lanes. Disc ∖ nested disc with its seams on the line (one
 solid, v = 3π, two coincident seam edges, one edge–edge record) also
 passes 3′ with no sides read.
+
+## 2026-10-21: coincident line edges are read (RESTREAD, `restread/coincident-wedges`)
+
+Pass 5's collinear lane now reads the two edges' material wedges
+wherever it certifies a collinear overlap, a recorded pair included
+(`census.rs` `ee_collinear_lane`, `ee_overlap_sides`, through
+`census::line_wedges`), and refuses an overlap
+`CoincidentWedgesOverlap`. So the edge–edge bullet above stands for
+two curved edges (pass 5′,
+`tier-3-prime-reads-no-side-between-coincident-curved-edges`) and for
+a recorded crossing at a point, and no longer for two line edges
+overlapping on one line; the disc ∖ nested disc's two coincident seam
+rulings are read now. The record confirm itself
+(`confirm_edge_edge`) still reads no side, which this row keeps.

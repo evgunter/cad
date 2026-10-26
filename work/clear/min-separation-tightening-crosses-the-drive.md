@@ -85,7 +85,7 @@ separation of `0.269`, unchanged by PR-2
 (`m10_6_r1_probes_interval::the_notch_bracket_is_the_windows_not_the_faces`),
 and `Certified::LowerBoundOnly` goes on refusing the two unsound arms —
 now for two reasons: this one, and
-`work/trim/exact-region-cells-for-lower-bound-only.md`'s.
+`work/charttail/exact-region-cells-for-lower-bound-only.md`'s.
 
 ## Fix shape
 

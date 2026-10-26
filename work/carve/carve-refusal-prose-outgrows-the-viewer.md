@@ -17,7 +17,7 @@ and that run past 50 words (literal words, before payload):
 | words | site | arm |
 |---|---|---|
 | 69 | `sweep/src/loft.rs` `LoftError::ReversedStacking` | |
-| 68 | `sweep/src/revolve/mod.rs` `RevolveError::MultipleAxisRuns` | |
+| 68 | `sweep/src/revolve/mod.rs` `RevolveError::MultipleAxisRuns` | retired since: the full revolve builds the case |
 | 64 | `sweep/src/revolve/tube.rs` `TubeError::WallGapCollapsed` | |
 | 55 | `sweep/src/blend/mod.rs` `BlendError::NonpositiveSize` | (also BAND's ground) |
 

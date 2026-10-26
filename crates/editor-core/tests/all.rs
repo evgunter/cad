@@ -61,6 +61,8 @@ mod wire;
 
 #[path = "a_keel_on_the_floor_names_its_two_edges.rs"]
 mod a_keel_on_the_floor_names_its_two_edges;
+#[path = "aligned_overlap_quiets.rs"]
+mod aligned_overlap_quiets;
 #[path = "asm1_identity_pins.rs"]
 mod asm1_identity_pins;
 #[path = "asm2a_instantiate.rs"]
@@ -221,6 +223,8 @@ mod fix_loop_polygon_expr;
 mod fix_pattern_mate_crossing;
 #[path = "fork7_shared_is_named.rs"]
 mod fork7_shared_is_named;
+#[path = "gap_reads_vertex_and_edge_cells.rs"]
+mod gap_reads_vertex_and_edge_cells;
 #[path = "reach_slab_cut_sector_side.rs"]
 mod reach_slab_cut_sector_side;
 #[path = "refusal_concision.rs"]
@@ -613,6 +617,8 @@ mod seat4_verb_lowering;
 mod seat7_sweep_lowering;
 #[path = "seat8_split_lowering.rs"]
 mod seat8_split_lowering;
+#[path = "split_carries_spaces.rs"]
+mod split_carries_spaces;
 #[path = "split_pinch_keeps.rs"]
 mod split_pinch_keeps;
 #[path = "step_handle_binding.rs"]
@@ -792,6 +798,8 @@ mod intent_literals_b_door;
 mod intent_literals_c_slots;
 #[path = "intent_literals_d_constants.rs"]
 mod intent_literals_d_constants;
+#[path = "intent_loft_set_sections.rs"]
+mod intent_loft_set_sections;
 #[path = "intent_part_census_seam.rs"]
 mod intent_part_census_seam;
 #[path = "intent_part_split_half.rs"]

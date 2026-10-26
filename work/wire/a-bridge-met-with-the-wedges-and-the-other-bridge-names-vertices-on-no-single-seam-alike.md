@@ -2,10 +2,11 @@
 id: a-bridge-met-with-the-wedges-and-the-other-bridge-names-vertices-on-no-single-seam-alike
 kind: issue
 title: A bridge intersected with the union of the wedges and the other bridge refuses with the kernel-defect sentence: vertices sharing one name lie on no single seam
-status: open
+status: closed
 priority: P2
 cost: M
 opened: 2026-10-20
+closed: 2026-10-26
 ---
 
 Filed by WIRE's `wire-nameinv` lane (branch `wire/name-invariance-checks`),
@@ -39,3 +40,5 @@ Measure which vertices share the name, and why the name is no single
 seam. The kernel-defect wording says the emitter assumed it could not
 happen. Then either rank them along something the name does hold, or
 change the refusal to say what the author can do.
+
+Closed by PR 5535 (2026-10-26). The union refusal was a kernel record duplicate: `seam_edges` listed one edge twice, and `ops.rs` now dedups it (`SeamEdges`). The intersect refusal was emit_union re-spelling N2's corner copies bare; the copies are now named by `name_corner_copies`. `name_invariance`'s operand-order admissions and VACUOUS cases are empty.

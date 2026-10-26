@@ -717,11 +717,11 @@ fn hand_eval(
     }
     nodes.insert(named, value(table, vec![]));
     order.push(named);
-    Evaluation::<f64>::hand_built(doc.id(), order, nodes)
+    Evaluation::<f64>::hand_built(doc.id(), order, nodes, Tol::witness())
 }
 
 /// Hand-built tables at `cut` for a fragment group that stops being
-/// divided: before, two ranked fragments of the cut's output body —
+/// divided: before, two fragments of the cut's output body —
 /// names that mention no partner, so nothing but `cut` is on their
 /// derivation path (the carry is through `cut`'s own read) — and after,
 /// the undivided base. Returns the tables and the first fragment.
@@ -739,10 +739,16 @@ fn collapsing_group(doc: &ProfileDoc, cut: RecipeNodeId) -> (NameTable, NameTabl
             of: f.clone().into(),
         }],
     };
-    let ranked = |rank| {
+    let ranked = |k: u64| {
         let mut name = base.clone();
-        name.path
-            .push(RoleSeg::Fragment(Qualifier::OrderAlong { rank, of: 2 }));
+        // Told apart by how many times they cite the cut's own body.
+        let own = fixture::minted(EntityKind::Body, cut, RoleSeg::OutputBody);
+        name.path.push(RoleSeg::Fragment(Qualifier::Ends(vec![
+            own;
+            usize::try_from(k)
+                .expect("small")
+                + 1
+        ])));
         name
     };
     let mut before = NameTable::new();

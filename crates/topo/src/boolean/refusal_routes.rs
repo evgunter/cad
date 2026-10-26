@@ -194,8 +194,12 @@ pub enum BooleanDecision {
     /// Whether a split point lies on the circle it was placed on: a
     /// residual on a point the kernel placed.
     SplitPointOnCircle,
-    /// Whether an arc stays short of a full turn.
-    ArcSpan,
+    /// Which way a ring that a fate cut closes in a dropped coincident
+    /// face winds about the face's normal (`fate::ring_winding`, its
+    /// signed area over its length): either definite sign passes, and a
+    /// ring that reads in band refuses rather than divide the face the
+    /// wrong way round.
+    CutRingWinding,
     /// Whether the result's volume agrees with its operands': the
     /// kernel checking its own result.
     VolumeBackstop,
@@ -312,6 +316,17 @@ pub enum BooleanDecision {
     /// near-coincidence of the geometry: no move apart reaches it, and
     /// the lever is shorter edges (`census::SPAN_PRECISION_RECOURSE`).
     LineSpanPrecision,
+    /// The order along an edge of the result that lies in a face along
+    /// part of its length (`slit::divide`) of the points it is divided
+    /// at, where it crosses the face's boundary, and of each vertex a
+    /// record rests on it or on a boundary edge it crosses: two
+    /// crossings against each other, or a resting vertex against a
+    /// crossing. The edges are the operands', so moving the geometry
+    /// reaches it. A Zero reading puts two of the points at one, which
+    /// the division does not build and refuses
+    /// ([`crate::EdgeInFaceGap::AtACrossing`]), so the lever names the
+    /// move that builds, the points clearly apart.
+    PartingOrder,
     /// Whether the material the result's edges along one line bound
     /// overlaps there, asked at the result gate of every op of each pair
     /// of the result's edges on one line (`census::line_wedges`): each
@@ -869,6 +884,11 @@ const TANGENT_SIDE: SizedDecision = SizedDecision {
 const LINE_EDGES_LEVER: &str = "move the geometry so the straight edges along that line clearly \
                                 stand apart";
 
+/// [`BooleanDecision::PartingOrder`]'s lever.
+const PARTING_ORDER_LEVER: &str = "move the geometry so the points where that edge crosses the \
+                                   face's boundary, and the vertices resting on it, lie clearly \
+                                   apart";
+
 /// [`BooleanDecision::LineSpanPrecision`]' lever: the precision limit's
 /// recourse, never a move apart.
 const LINE_SPAN_PRECISION_LEVER: &str = crate::census::SPAN_PRECISION_RECOURSE;
@@ -960,6 +980,12 @@ const PARTNER_FACES: SizedDecision = SizedDecision {
 /// read, measures that arm ([`LeverArm`]'s corner gates,
 /// [`CORNER_SENSE`], [`BooleanDecision::BisectorSide`]).
 pub(crate) const CORNER_EDGES: &str = corner_edges!();
+
+/// The lever of a ring a fate cut cannot wind
+/// ([`BooleanDecision::CutRingWinding`]): the ring bounds the region the
+/// kept face holds of the dropped one, so moving the parts widens it.
+const CUT_RING_WINDING: &str = "move the parts so the region one coincident face holds of the other spans clearly more than \
+     the tolerance";
 
 /// **Which question the curved-extent scan asks of a sphere face**
 /// ([`BooleanDecision::Sphere`]). The scan takes no declarations; each
@@ -1437,7 +1463,9 @@ impl BooleanDecision {
             Self::Crossing(decision) => decision.subject(),
             Self::VertexOnVertex => "whether two vertices coincide",
             Self::SplitPointOnCircle => "whether a split point lies on the circle it was placed on",
-            Self::ArcSpan => "whether an arc stays short of a full turn",
+            Self::CutRingWinding => {
+                "which way a ring that the cut of a coincident face closes winds"
+            }
             Self::VolumeBackstop => "whether the result's volume agrees with its operands'",
             Self::LeverArm(gate) => gate.subject(),
             Self::Radius(radius) => radius.subject(),
@@ -1482,6 +1510,9 @@ impl BooleanDecision {
             Self::LineEdges => "whether two straight edges lie on one line along a length",
             Self::LineSpanPrecision => {
                 "whether two long straight edges on one line overlap, read past their ends' rounding"
+            }
+            Self::PartingOrder => {
+                "the order of the points an edge running past a face is divided at"
             }
             Self::LineWedges => {
                 "whether the material that the result's edges along one line bound overlaps there"
@@ -1583,13 +1614,7 @@ impl BooleanDecision {
                 "distance between the vertices",
                 SizedPass::NonNegative,
             ),
-            // The edge's certification decided this same margin (its
-            // headroom to a full turn, metred at the radius) at this
-            // band, so neither arm is one the user reaches: an arc
-            // certified short of a full turn that now reads longer, or
-            // undecided, is the kernel's. It ends as its definite
-            // sibling, a broken classification invariant, does.
-            Self::ArcSpan => Ending::Unsized(Unsized::Defect),
+            Self::CutRingWinding => Ending::Lever(CUT_RING_WINDING),
             Self::VolumeBackstop => Ending::Unsized(Unsized::Defect),
             // The arm passes on a positive length, and a zero-band one
             // is a size a smaller tolerance decides positive
@@ -1686,6 +1711,7 @@ impl BooleanDecision {
             Self::SeamJet => Ending::Sized(SEAM_JET),
             Self::LineEdges => Ending::Lever(LINE_EDGES_LEVER),
             Self::LineSpanPrecision => Ending::Lever(LINE_SPAN_PRECISION_LEVER),
+            Self::PartingOrder => Ending::Lever(PARTING_ORDER_LEVER),
             Self::LineWedges => Ending::Lever(LINE_WEDGES_LEVER),
             Self::EdgeOnFaces => Ending::Lever(crate::merge_faces::EDGE_ON_FACES_LEVER),
             Self::ShellRole { .. } => Ending::Sized(crate::props::AIMED_PAIR),
@@ -2008,7 +2034,7 @@ pub(in crate::boolean) mod tests {
                 BooleanDecisionKind::SplitPointOnCircle => {
                     vec![BooleanDecision::SplitPointOnCircle]
                 }
-                BooleanDecisionKind::ArcSpan => vec![BooleanDecision::ArcSpan],
+                BooleanDecisionKind::CutRingWinding => vec![BooleanDecision::CutRingWinding],
                 BooleanDecisionKind::VolumeBackstop => vec![BooleanDecision::VolumeBackstop],
                 BooleanDecisionKind::LeverArm => {
                     LeverArm::iter().map(BooleanDecision::LeverArm).collect()
@@ -2036,6 +2062,7 @@ pub(in crate::boolean) mod tests {
                 BooleanDecisionKind::SeamJet => vec![BooleanDecision::SeamJet],
                 BooleanDecisionKind::LineEdges => vec![BooleanDecision::LineEdges],
                 BooleanDecisionKind::LineSpanPrecision => vec![BooleanDecision::LineSpanPrecision],
+                BooleanDecisionKind::PartingOrder => vec![BooleanDecision::PartingOrder],
                 BooleanDecisionKind::LineWedges => vec![BooleanDecision::LineWedges],
                 BooleanDecisionKind::EdgeOnFaces => vec![BooleanDecision::EdgeOnFaces],
                 BooleanDecisionKind::ShellRole => vec![BooleanDecision::ShellRole {
@@ -2421,6 +2448,13 @@ pub(in crate::boolean) mod tests {
                      tolerance's room",
                 ),
             ),
+            BooleanDecision::PartingOrder => (
+                "the order of the points an edge running past a face is divided at",
+                Ending::Lever(
+                    "Recourse: move the geometry so the points where that edge crosses the face's \
+                     boundary, and the vertices resting on it, lie clearly apart",
+                ),
+            ),
             BooleanDecision::LineWedges => (
                 "whether the material that the result's edges along one line bound overlaps there",
                 Ending::Lever(
@@ -2586,9 +2620,13 @@ pub(in crate::boolean) mod tests {
                 "whether a split point lies on the circle it was placed on",
                 Ending::Defect,
             ),
-            BooleanDecision::ArcSpan => {
-                ("whether an arc stays short of a full turn", Ending::Defect)
-            }
+            BooleanDecision::CutRingWinding => (
+                "which way a ring that the cut of a coincident face closes winds",
+                Ending::Lever(
+                    "Recourse: move the parts so the region one coincident face holds of the \
+                     other spans clearly more than the tolerance",
+                ),
+            ),
             BooleanDecision::VolumeBackstop => (
                 "whether the result's volume agrees with its operands'",
                 Ending::Defect,

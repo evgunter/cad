@@ -847,21 +847,25 @@ impl<T: Real> core::fmt::Display for AsShelled<'_, T> {
                 match error {
                     M::CurvatureHeadroom {
                         reach,
-                        verdict: Refused::Negative { .. },
+                        verdict: verdict @ Refused::Negative { .. },
                         ..
                     } => write!(
                         f,
                         "a wall this thick passes the face's radius of curvature on the wall's \
-                         side ({reach} m), so the face's offset folds over itself. {ending}"
+                         side, {} m (margin {} m), so its offset folds over itself. {ending}",
+                        geom_core::Readable(*reach),
+                        verdict.margin().readable()
                     ),
                     M::CurvatureHeadroom {
                         reach,
-                        verdict: Refused::Zero(_),
+                        verdict: verdict @ Refused::Zero(_),
                         ..
                     } => write!(
                         f,
-                        "a wall this thick is within tolerance of the face's radius of curvature \
-                         on the wall's side ({reach} m), so the face's offset may fold. {ending}"
+                        "a wall this thick is not shown below the face's radius of curvature on \
+                         the wall's side, {} m (margin {} m), so its offset may fold. {ending}",
+                        geom_core::Readable(*reach),
+                        verdict.margin().readable()
                     ),
                     M::Escalated { .. } | M::NormalFloor { .. } => {
                         f.write_str(&fit.render_with_lever(THINNER_WALL))
@@ -3781,6 +3785,7 @@ fn offending_face<T: Real>(body: &Body<T>, error: &ReplaceFaceError<T>) -> Optio
         }
         ReplaceFaceError::TogetherEdgeDisagreement { edge, .. }
         | ReplaceFaceError::TogetherAxialEdge { edge, .. }
+        | ReplaceFaceError::TogetherConicArc { edge, .. }
         | ReplaceFaceError::EdgeSection { edge, .. }
         | ReplaceFaceError::DeclaredEdgeTilted { edge }
         | ReplaceFaceError::MixedEdge { edge, .. }
@@ -4363,7 +4368,7 @@ fn walls_cross<T: Decide>(
     let q = a.lo + (a.hi - a.lo) * T::from_f64(0.5);
     let r_a = a.normal.dot(a.origin - q);
     let r_b = b.normal.dot(b.origin - q);
-    let det = T::one() - k.powi(2);
+    let det = cross.norm_squared();
     let p0 = q + a.normal * ((r_a - k * r_b) / det) + b.normal * ((r_b - k * r_a) / det);
     let on_a = a.cut(p0, d, band)?;
     let on_b = b.cut(p0, d, band)?;
@@ -5044,6 +5049,52 @@ mod tests {
     mod footprint_fuzz;
     #[allow(clippy::panic)]
     mod speed_fuzz;
+
+    /// **The wall wrapper words the curvature-headroom meter in the
+    /// meter's own idiom**: the zero arm is "not shown below", never
+    /// "within tolerance", and both arms print the reach and the margin
+    /// as `Readable` numbers, ending in the meter's ending under the
+    /// wall's lever.
+    #[test]
+    fn the_wall_wrapper_states_the_headroom_reach_and_margin() {
+        use geom_brep::offset_meters::MeterError;
+        use geom_brep::recourse::{Classified, Reading, Refused};
+        let band = geom_core::Band::linear(geom_core::Tol::witness()).unwrap();
+        let render = |verdict: Refused| {
+            let meter = MeterError::CurvatureHeadroom {
+                reach: 1e-3,
+                kappa: (-1e3, 0.0),
+                verdict,
+            };
+            let ending = meter.ending_with_lever(THINNER_WALL, Reading::Build);
+            let error = ReplaceFaceError::<f64>::Fit {
+                face: FaceKey::default(),
+                error: geom_brep::OffsetFitError::Meter(meter),
+            };
+            (AsShelled(&error).to_string(), ending)
+        };
+        let (zero, ending) = render(Refused::Zero(Classified {
+            margin: geom_core::MarginDiag::value(5e-10),
+            band,
+        }));
+        assert_eq!(
+            zero,
+            format!(
+                "a wall this thick is not shown below the face's radius of curvature on the \
+                 wall's side, 0.001 m (margin 5e-10 m), so its offset may fold. {ending}"
+            )
+        );
+        let (negative, ending) = render(Refused::Negative {
+            margin: geom_core::MarginDiag::value(-1e-4),
+        });
+        assert_eq!(
+            negative,
+            format!(
+                "a wall this thick passes the face's radius of curvature on the wall's side, \
+                 0.001 m (margin -0.0001 m), so its offset folds over itself. {ending}"
+            )
+        );
+    }
 
     /// **The tilted read cuts a conic at its roots.** A face's cut of a
     /// line is read edge by edge; a circle or ellipse edge is split at

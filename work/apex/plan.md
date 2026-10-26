@@ -8,13 +8,12 @@ against 30 with its six charter rows closed. Nothing dispatched.
 
 ## The slate
 
-**29.5 budget points** of dispatchable work against a ceiling of 30.
+**27 budget points** of dispatchable work against a ceiling of 30, in 10 rows (2026-10-26).
 
 | pri | item | cost | title |
 |---|---|---|---|
 | P3 | `a-conic-touching-a-torus-off-its-face-passes-the-pierce-and-refuses-at-the-section-pass` | M | A circle or ellipse edge touching a torus off its face passes the pierce, then refuses FallbackExtentUnsupported at the section pass |
 | P3 | `a-straddling-span-whose-roots-do-not-settle-keeps-its-door-off-the-face` | E | A span whose ends straddle a carrier and whose roots do not settle keeps the pierce door though every touch is certified off the face |
-| P3 | `a-touch-beside-a-spline-or-spiric-edge-is-not-certified-clear-of-it` | M | A carrier touch whose ball a spline or spiric boundary edge's box reaches is never certified clear of that edge, so it keeps the pierce door |
 | P3 | `f64-cannot-place-a-shallow-crossing-within-the-finest-band` | H +design | At eps 1e-12 an f64 first-order bound cannot place a circle x sphere crossing of slope below ~1e-3: the near-tangent snowman stops at delta 1e-7 |
 | P3 | `face-reach-misses-an-interior-far-point-on-a-sphere-torus-or-cone-face` | M | face_extent reads only a face's boundary, which misses a sphere's or torus's far side or a cone's apex inside the face |
 | P3 | `the-cone-apex-refusal-zone-is-a-frontier` | H | The cone root lanes refuse a wide zone about the apex, growing with scale: a frontier VERBS-CONE consumers will meet |

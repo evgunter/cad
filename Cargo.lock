@@ -3958,6 +3958,7 @@ dependencies = [
  "mesh",
  "num-bigint",
  "proptest",
+ "quantity",
  "rayon",
  "slotmap",
  "step-export",

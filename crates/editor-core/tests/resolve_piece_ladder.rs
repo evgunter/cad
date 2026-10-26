@@ -258,7 +258,7 @@ fn one_node_eval(
         node,
         editor_core::NodeResult::Ok(editor_core::NodeValue::hand_built(t, groups, log)),
     );
-    Evaluation::<f64>::hand_built(document, vec![node], nodes)
+    Evaluation::<f64>::hand_built(document, vec![node], nodes, Tol::witness())
 }
 
 /// A two-frame document and the vanished/base/wall names
@@ -287,12 +287,19 @@ fn hand() -> Hand {
         Node::Profile(fixture::desc(vec![fixture::square(0.0, 0.0, 0.5)])),
     );
     let of = minted(EntityKind::Body, n, RoleSeg::OutputBody);
-    let wall = |rank| StableName {
+    let wall = |k: u64| StableName {
         kind: EntityKind::Body,
         node: m,
         path: vec![
             RoleSeg::OutputBody,
-            RoleSeg::Fragment(Qualifier::OrderAlong { rank, of: 2 }),
+            RoleSeg::Fragment(Qualifier::Ends(vec![
+                minted(
+                    EntityKind::Body,
+                    m,
+                    RoleSeg::OutputBody
+                );
+                usize::try_from(k).expect("small") + 1
+            ])),
         ],
     };
     let walls = [wall(0), wall(1)];
@@ -690,10 +697,18 @@ fn a_group_that_grows_is_resized_too_and_a_tie_inside_it_is_several_members() {
     // spelled with a different qualifier kind on purpose — the count
     // is of the group, whatever qualifies its members, and a `Borders`
     // sibling nearest the vanished piece would be the border delta's.
-    let ranked = |rank| {
+    let ranked = |k: u64| {
         let mut n = h.base.clone();
-        n.path
-            .push(RoleSeg::Fragment(Qualifier::OrderAlong { rank, of: 3 }));
+        n.path.push(RoleSeg::Fragment(Qualifier::Ends(vec![
+            minted(
+                EntityKind::Body,
+                h.node,
+                RoleSeg::OutputBody
+            );
+            usize::try_from(k)
+                .expect("small")
+                + 1
+        ])));
         (n, 1)
     };
     let f = group_diagnosis(

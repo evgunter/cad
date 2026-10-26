@@ -307,3 +307,30 @@ about 9000 magnitudes in `widgets.rs`'s own module.
 - 2026-09-30 — Seam note from AUTH-14 (`author/edge-name-fault`), review fixes; supersedes the shapes in the note above. `pickindex.rs`: `EdgeNamesRefused` is `{ node, body, first: UnnamedEntity, named, refused }`, rendered as "the index names N of the M edges it draws on body B of node K; the first it cannot: <EdgeNameFault::Unnamed>"; `edge_names_in` reads the window through `PartWindows::named_in`, so only the unnamed arm can refuse; `EdgeNameFault` does not gain `Eq` after all. `blend.rs`: `BlendEvent::EdgesUnnamed { refused }` (no separate `target`). `frame.rs`: `SeamSubject for EdgeNamesRefused` is `Subject::Document` (the line's `tool_notice` subject too), not the pick-index seam. `test_support.rs`: `unnamed_edge(node, body)`. Filed `work/chrome/the-per-frame-badge-reads-are-three-hand-copied-fields`. (AUTH-14 implementer)
 
 - 2026-09-30 — Seam note from AUTH-15 (`author/accept-part-version`, PR #3591). A new `SessionOp::AcceptPartVersion { id }` commits `pncad::workspace::update_to_store`'s edits (one `DocEdit::UpdateReference` per site whose pin moves) as one action. The store is read through a new `DocSession::read_store`, which `add_instance` and `part_catalogue` now share; `parts::catalogue` takes the scanned `&Workspace` and is infallible. `frame::version_offer(kind, files)` sits beside `declare_offer` and reads a `session::VersionOffer` off an instance's own `PartFault::Unresolved { fault: PinMismatch }`. `tree::TreeRow` gains `version_offer: Option<VersionOffer>` (every `TreeRow` literal needs the field). `DocSession::tree_rows` withholds every offer while `busy()`. `pane::features::feature_row_ui` draws `Refusal::version_question` and a `VersionOffer::LABEL` button under the row (`RowClicks::accept`). `DeclareOffer::ACCEPT_LABEL` and `DECLINE_LABEL` replace `pane::create`'s "Declare"/"Decline" literals. Every exhaustive `SessionOp` table gains the arm (`tools.rs`, `frame::acts`, the three in `session/op.rs`, and `tests/gesture_table.rs`, whose `OP_COUNT` is 47). `test_support::{PART_FILE, part_refused}` are new fixtures. Rows: `tests/instance_authoring.rs` (accept, one undo, the store's refusals, the committed-document read), `frame`'s `PartFault` census, the label-versus-recourse row in `session::refuse`, and a `pane::features` unit test.
+- 2026-10-26 — (tracker sweep) Re-read all 42 live rows against main `bb25fa4f` and closed 22.
+  - **Fixed on main already (5):** `app-rs-doc-comment-merge-scars`, `props-header-says-no-door-between-create-or-replace-and-value`, `viewer-readme-counts-one-tone-function-outside-frame`, `hover-route-for-an-absent-chooser-has-no-test`, `every-crate-root-reexport-is-a-second-path-not-the-only-one`.
+  - **Fixed in this sweep (doc, comment and README prose only; 9):**
+    - `edge-cost-claims-name-a-search-that-is-gone` (`marks.rs`)
+    - `pickkinds-doc-states-its-disclaimer-twice` (`pickindex.rs`)
+    - `mate-tool-flow-header-says-a-patterns-input-is-one-body` (`tests/mate_tool_flow.rs`)
+    - `refuse-roster-and-chrome-labels-header-predate-the-disabled-reason-doors` (`tests/chrome_labels.rs`, README)
+    - `the-readme-splits-camera-rs-across-two-decision-rows` (README)
+    - `viewer-lib-marker-claims-the-log-carries-its-sentence` (`lib.rs`)
+    - `viewer-prose-calls-the-frame-entry-point-update` (`frame.rs`)
+    - `viewer-readme-counts-the-status-line-writers-by-hand` (README)
+    - `renamed-module-leaves-citations-in-two-other-programs` (FIT's row re-pointed)
+  - **Superseded (8):**
+    - `a-world-axis-ruling-row-is-green-over-a-ruling-along-the-normal` and `viewer-frame-seam-prose-names-the-equator`: `datums.rs` and `datum_draw.rs` are gone.
+    - `a-fixture-may-compose-a-dead-door-and-nothing-says-when`: `apply` takes a `RankedVerdict`, and no instance is left.
+    - `doc-comment-merge-scars-row-is-one-third-discharged-and-one-third-relocated`: the row it re-scoped closed.
+    - `register-citations-in-item-files-point-at-deleted-text`: VIEW's leave note rules that citations resolve at its SHA.
+    - `the-four-view-successors-are-a-one-sided-double-claim`: the 2026-09-20 shared-ground ruling and CHROME's spent carve-out.
+    - `tree-rs-header-growth-moved-five-cited-subjects`: its carriers left with VIEW, and GUARD's instance is gone.
+    - `the-f32-seam-diff-shifted-84-cited-lines-in-seven-programs`: absorbed by `stale-file-citations-after-the-split`, which carries a pointer.
+  - **Kept, with notes:**
+    - `the-starting-delta-has-one-home-and-five-prose-spellings` is re-banded P2 → P4 and re-priced `D` → `E` with `design: true`, and its `expect` half is fixed.
+    - `viewer-tests-assert-ratifications-that-are-not` has its three test members re-worded; the README half is left.
+    - `crates-cite-work-view-rows-that-moved-in-the-rescope` has its live population re-derived (19 sites).
+    - `a-disabled-controls-reason-has-one-home`: its sequencing blockers are all closed.
+
+  The plan's opening condition (VNEWS, VGEOM and VSEAM closed) still holds the spine.

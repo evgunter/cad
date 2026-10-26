@@ -77,7 +77,7 @@ f64, and outward at Interval.
     there.
   - Whether `certified_arms` should claim a certificate at f64, or stop
     saying so, is the owner's question: filed for CHART as
-    `work/chart/certified-arms-reads-a-round-to-nearest-stretch-at-f64.md`.
+    `work/charttail/certified-arms-reads-a-round-to-nearest-stretch-at-f64.md`.
 
 **Re-taking the census.** The probe instruments geom's
 `NurbsSurface::stretch_sup` itself: every suite that reads a stretch

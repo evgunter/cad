@@ -27,6 +27,12 @@ fn validated(plane: SketchPlane<f64>, lp: ProfileLoop<f64>) -> ValidatedProfile<
 /// [`sweep::test_support::brick`], and so is `stl`'s.
 pub use sweep::test_support::brick;
 
+/// `body` finished through the at-rest gate: what the export door
+/// takes. Panics, naming the gate's findings, on a body it refuses.
+pub fn at_rest(body: &Body<f64>) -> AtRestBody<f64> {
+    finished("the exported body", body.clone(), Tol::witness())
+}
+
 /// The unit cube `[0,1]³` — the spike's 6/12/8 reference shape.
 pub fn cube() -> Body<f64> {
     sweep::test_support::cube(1.0, Tol::witness())
@@ -45,7 +51,8 @@ pub fn die(x0: f64, y0: f64, z0: f64) -> Body<f64> {
 }
 
 /// Two pocketed dies kissing at the corner `(1,1,1)` — the M3 R6
-/// assembly: one solid, TWO shells (both outward), exact volume 1.75.
+/// assembly: two solids of one shell each (pieces that only touch are
+/// distinct pieces of material), exact volume 1.75.
 pub fn kiss_assembly() -> Body<f64> {
     let d1 = finished("die 1", die(0.0, 0.0, 0.0), Tol::witness());
     let d2 = finished("die 2", die(1.0, 1.0, 1.0), Tol::witness());
@@ -349,11 +356,8 @@ pub fn notched() -> Body<f64> {
 
 /// S12's two-stub complement: a radius-0.35 cylindrical boss spanning
 /// z ∈ [−0.2, 1.0] MINUS a 3×3×0.8 plate — the boss's two ends stick
-/// out above and below, so the result is one solid with TWO disjoint
-/// shells, both carrying cylinder walls. The only curved MULTI-shell
-/// body constructible at rest, and therefore the only body that
-/// reaches (and refuses at) the export's outward/void classifier.
-/// Deliberately NOT a committed fixture: it does not export.
+/// out above and below, so the result is two solids of one shell
+/// each, both carrying cylinder walls.
 pub fn two_stub_complement() -> Body<f64> {
     use core::f64::consts::PI;
 

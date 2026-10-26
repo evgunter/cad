@@ -46,7 +46,7 @@ fn export(body: &topo::Body<f64>, name: &str) -> String {
         uncertainty_m: Some(1e-9),
         ..StepOptions::default()
     };
-    step_string(body, &options, Tol::witness()).expect("the body exports")
+    step_string(&common::at_rest(body), &options, Tol::witness()).expect("the body exports")
 }
 
 #[test]

@@ -2,10 +2,12 @@
 id: main-red-node-standing-readers-census-trails-the-dprime2-mate-split
 kind: issue
 title: main red: node_standing's READERS census trails PR 5613 (D′2): mate/corner.rs and viewer/src/session.rs read node results unlisted, mate/pin.rs is listed and gone, wire.rs reads one fewer
-status: open
+status: parked
 opened: 2026-10-25
 priority: P1
 cost: E
+rides_with: assemble-is-an-operator-and-the-product-is-a-slot
+blocked_on: [assemble-is-an-operator-and-the-product-is-a-slot]
 ---
 
 

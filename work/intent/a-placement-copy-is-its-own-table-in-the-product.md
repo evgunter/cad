@@ -2,11 +2,13 @@
 id: a-placement-copy-is-its-own-table-in-the-product
 kind: unit
 title: A placement copy is its own table in the product: Placed retires and the product reads one table per copy
-status: open
+status: parked
 opened: 2026-10-11
 priority: P2
 refs: [a-name-is-scoped-by-the-variable-holding-its-body, the-at-rest-census-is-a-check]
 parent: assemble-is-an-operator-and-the-product-is-a-slot
+rides_with: assemble-is-an-operator-and-the-product-is-a-slot
+blocked_on: [assemble-is-an-operator-and-the-product-is-a-slot]
 ---
 
 Filed by FORK-DM4 unit 2 (`a-name-is-scoped-by-the-variable-holding-its-body`),

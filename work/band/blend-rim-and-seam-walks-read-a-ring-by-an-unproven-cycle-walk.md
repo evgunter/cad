@@ -31,6 +31,11 @@ Both are reached by `fillet_edges` and the chamfer door through
 closing tier-2 check is a `debug_assert`, so a release build adopts
 whatever the diverted walk wrote. Not measured.
 
+Re-read on main 2026-10-26 (tracker sweep): unchanged. `loop_walk` is
+at `surgery.rs:2205` over `Body::loop_cycle` (`crates/topo/src/body.rs:1148`),
+`wall_seam` at `:2158`, `split_fragment` at `:3886`, `rim_phase` at
+`:3997`; `Body::loop_cycle_of` (`body.rs:1170`) is still `pub(crate)`.
+
 ## The shape to give
 
 `loop_walk` over `Body::loop_cycle_of(first, loop)` (crate-internal

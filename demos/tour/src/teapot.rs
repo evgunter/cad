@@ -140,17 +140,21 @@
 //!
 //!    spout ∪ pot used to be the same shape of refusal — cone × plane
 //!    — and it is not any more. A loft's walls are `Nurbs`, and the
-//!    pair gate has an arm for `Nurbs`, so the request now gets PAST
-//!    the pair rung and dies one door in: `CurvedEdgeUnsupported`, on
-//!    an EDGE of operand B. That variant's own words are the finding —
-//!    *"rung-3 edges are what the curved zip MINTS, not what it
-//!    consumes"* — so what stops this join is no longer a missing
-//!    face-kind arm but the canal's own seams: a NURBS-carried edge
-//!    cannot be an INPUT to a boolean at all. Making the spout the
-//!    shape a potter draws did not make it joinable; it moved the
-//!    refusal from a pair the model does not care about onto the
-//!    body's own edges, which is a narrower and more useful frontier.
-//!    Wall 3 pins the new variant and the note carries the payload.
+//!    pair gate has an arm for `Nurbs`, so the request gets PAST the
+//!    pair rung and into the sweep, where it stops at the crossing
+//!    layer: the belly's revolve seam — a quarter meridian of its
+//!    sphere, on which the spout's axis leaves the belly — read against
+//!    one of the spout's NURBS walls rising there, meets that wall's
+//!    boundary, since the meridian and the spout's seams lie in the
+//!    pot's one plane of symmetry. A meeting on a boundary edge splits
+//!    both edges, and the spout's seam is a spline with no point
+//!    parameter to split at: `PointSplitCarrierUnsupported { operand: B }`.
+//!    That is the pierce the join actually needs, the spout's walls entering
+//!    the belly, and it is the NURBS face against a curved face that
+//!    the section object's rung 3 builds. Making the spout the shape a
+//!    potter draws did not make it joinable; it moved the refusal off a
+//!    pair the model does not care about and onto the meeting itself.
+//!    Wall 3 pins it and the note carries the payload.
 //!
 //!    Wall 2 is past the operand gate and past the maximal-faces
 //!    precondition, and stops where the vessel's sphere face meets the
@@ -240,7 +244,7 @@
 //!    enclosure is chased to a reporting target derived from ε. Every
 //!    ε the tour runs meets that target: at ε = 1e-12 the volume's
 //!    half-width is 8.1e-12 m³. Where a tighter ε refuses
-//!    `QuadratureBudget`, tier 3 still certifies the body on the
+//!    `QuadratureBudget` or `QuadratureFloor`, tier 3 still certifies the body on the
 //!    enclosure's SIGN — the tier's own docs say deciding that sign "is
 //!    an act of certification rather than a measurement" — and the
 //!    scene measures through the certificate the tier hands back, so it
@@ -399,7 +403,7 @@ const _: () = assert!(SPOUT_STATIONS == 7);
 /// is chased to `QUAD_TARGET_LEN_FACTOR·ε`. Every ε the tour runs meets
 /// that target, and the scene holds the enclosure to the skin's own
 /// integrated volume (`patch_quadrature`). Where a tighter ε refuses
-/// `QuadratureBudget`, tier 3 still certifies the body on the
+/// `QuadratureBudget` or `QuadratureFloor`, tier 3 still certifies the body on the
 /// enclosure's SIGN, and the scene holds the same reference to the
 /// bracket the certificate keeps.
 const SPOUT_ARCS: u32 = 4;
@@ -1506,17 +1510,21 @@ fn wall_probes(ev: &Evaluation<f64>, r: &Recipe) {
     // The frustum's walls were cones, so this used to die where wall 2
     // dies: `CurvedPairUnsupported`, on a face-kind pair with no arm.
     // A loft's walls are `Nurbs` and the pair gate HAS an arm for
-    // `Nurbs`, so the request gets past that rung and dies one door in,
-    // on an EDGE of operand B — the canal's own seams, whose carriers
-    // are rung 3. The variant's own doc is the finding: *"rung-3 edges
-    // are what the curved zip MINTS, not what it consumes."*
+    // `Nurbs`, so the request gets past that rung and into the sweep,
+    // which meets the belly's revolve seam, a quarter meridian on which
+    // the spout's axis leaves the belly, with one of the spout's NURBS
+    // walls. The sweep reads the meridian against that wall's boundary
+    // first, and the meridian meets it there: the meridian and the
+    // spout's seams lie in the pot's one plane of symmetry, so where
+    // the meridian pierces the wall it crosses a seam. A meeting on a
+    // boundary edge splits both edges, and a spline seam has no point
+    // parameter to split at
+    // (`work/splice/a-meeting-on-a-spline-boundary-edge-has-no-split-parameter`).
     //
-    // The predicate matches on the OPERAND alone, deliberately. This
-    // variant carries an `EdgeKey`, and an arena key moves whenever the
-    // model is re-authored (wall 3's face key already did once); a
-    // probe that pinned one would red on a rename. What is pinned is
-    // the class and the side: operand B, the spout, is where the
-    // unconsumable carrier is.
+    // The predicate matches on the operand and the class, deliberately
+    // not the edge: an arena key moves whenever the model is re-authored,
+    // and a probe that pinned one would red on a rename. What is pinned
+    // is the class and the side: an edge of operand B, the spout.
     crate::walls::wall(
         "teapot",
         3,
@@ -1525,7 +1533,7 @@ fn wall_probes(ev: &Evaluation<f64>, r: &Recipe) {
         |e| {
             matches!(
                 e,
-                BooleanError::CurvedEdgeUnsupported {
+                BooleanError::PointSplitCarrierUnsupported {
                     operand: Operand::B,
                     ..
                 }
@@ -2260,8 +2268,14 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             )
         }
         Err(pncad::topo::TargetUnreached {
-            bracket: Some(b),
-            refusal,
+            bracket: b,
+            refusal:
+                refusal @ pncad::topo::MassPropsError::Face {
+                    source:
+                        pncad::geom_brep::PropsError::QuadratureBudget { .. }
+                        | pncad::geom_brep::PropsError::QuadratureFloor { .. },
+                    ..
+                },
         }) => {
             // The gate settles the sign with the faces
             // whose schedule can still meet the target left open; the
@@ -2493,9 +2507,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
              {DELTA}. On an ANNULAR mouth the same class needs two disjoint annuli — a \
              face SPLIT — and that is built too; `tests/verbs_teapot.rs` carries both \
              shapes. THE OPENED POT NOW LEAVES AS STEP, which the sealed one could not: \
-             the writer's outward/void classifier has closed forms for planar faces \
-             only, so a CURVED solid of two or more shells refuses \
-             CurvedShellClassification — and a cup is ONE shell. That gate keeps three \
+             the writer refuses a void shell (VoidShellUnsupported: no \
+             BREP_WITH_VOIDS yet) — and a cup is ONE shell. That gate keeps three \
              live probes (klein's wall 6, the `ring` scene's and `hollowtorus`'s); this \
              scene is no longer one of them, because the body it ships no longer \
              reaches it. THE LID, which is where the CURVED-SUPPORT fillet family \
@@ -2565,11 +2578,11 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
              at the maximal-faces precondition on the VESSEL, whose full revolve mints \
              its planar walls split in two. spout ∪ vessel: {spout_refusal} — and THIS one moved when the spout became \
              a canal. A loft's walls are Nurbs and the pair rung HAS a Nurbs arm, so the \
-             request now gets past it and dies one door in, on an EDGE of the spout: \
-             rung-3 carriers are what the curved zip MINTS, not what it consumes, so the \
-             canal's own seams are what stop the join. The shape a potter draws did not \
-             become joinable; the refusal moved off a pair nobody modelled and onto the \
-             body's own edges. The schedule is the banked germ-chord \
+             request now gets past it into the sweep, which meets the belly's revolve seam \
+             (a meridian, where the spout leaves the belly) with one of the spout's NURBS walls, on that wall's seam, \
+             and cannot yet split a spline seam at a point: the pierce the join needs. The shape a potter \
+             draws did not become joinable; the refusal moved off a pair nobody modelled \
+             and onto the meeting itself. The schedule is the banked germ-chord \
              lanes (DESIGN frontier (d)) and #1057's two C5 arms. BOTH REFUSALS NOW \
              ARRIVE THROUGH THE DOCUMENT: each union is a `Node::Union` that lowers \
              to the same kernel `union` and fails at `evaluate`, so what is quoted here \
@@ -2577,8 +2590,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
              why both survived a re-authoring that moved one — the mouth-rim annulus at \
              y = 1/8 was FaceKey(1v1) off the plane scan and is FaceKey(2v1) off the \
              document. Wall 2 matches on the operand; wall 3 matches on \
-             the OPERAND alone, because the variant it now pins carries no kinds and the \
-             edge key it does carry is exactly the sort of value a probe must not pin. The lofted canal above \
+             the operand and the face's kind, never the face key, which is exactly the \
+             sort of value a probe must not pin. The lofted canal above \
              is what a potter would draw and it IS authorable; what is not is a SWEPT \
              spout said as a recipe (`wire_sweep` refuses unconditionally, U4/LQ3 \
              banked — the library sweep itself turns a bend like this one, short of a U-turn) \

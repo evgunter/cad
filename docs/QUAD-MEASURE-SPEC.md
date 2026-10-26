@@ -102,7 +102,12 @@ Line numbers cite main at `9f7f131` and drift. Each unit's lane re-greps.
   - the backstop: the multi-body `Relation`.
 
   `classify_shells` stops running the reporting walk before reading a role.
-  It returns each shell's role and the enclosure the role's walk reached.
+  It returns each shell's role and the enclosure the role's read reached:
+  the sign walk's where the role was read off the volume, round 0's
+  otherwise. Through B that enclosure rides in `ShellClassification`'s
+  four number fields (`volume`, `volume_pad`, `surface_area`,
+  `area_pad`), documented as that enclosure and not a measured volume; C
+  replaces the four fields with the enclosure itself.
   `editor_core::checks::connectedness` reads roles only, which closes
   COINCIDE's `connectedness-reads-shell-roles-through-the-reporting-walk`.
 - **R9. The public number doors** are `topo::mass_properties`,
@@ -167,6 +172,10 @@ Each lands green. None lands half a representation change.
   - Review: **DUAL** (H).
 - **C (no default; the public doors and every consumer).**
   - R9, R10, and the interim sites deleted.
+  - `ShellClassification`'s four number fields give way to the role
+    read's enclosure (R8).
+  - The resolution-finer-than-ε panic at B's interim number door becomes
+    a typed refusal of the caller's `Resolution`.
   - Every caller states its predicate:
     - the tour and the Python tests: `Contains` for closed-form checks,
       `Resolution` for a printed number, `Sign` for a sign;

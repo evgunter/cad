@@ -502,7 +502,7 @@ that one `set_var_value` moves — at degree 1 the same three sections
 enclose 8.75 m³ rather than 9.
 
 ```python
-from pncad import Doc, Formula, Node, StationMove, evaluate, m
+from pncad import Doc, EditError, Formula, Node, StationMove, evaluate, m
 
 SQUARE = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]
 TRAPEZOID = [(-1.375, -1.0), (1.375, -1.0), (1.0, 1.0), (-1.0, 1.0)]
@@ -532,9 +532,14 @@ assert props.volume_pad < 1e-6
 
 # The kernel's rule, not the binding's: 1 <= v_degree <= n - 1. Three
 # sections cannot carry degree 3, and nothing here pre-checks that —
-# it refuses at evaluation, where the kernel refuses.
-overdegree = doc.insert(Node.loft(first, then, Formula.count(3)))
-assert not evaluate(doc).succeeded(overdegree)
+# the kernel's edit door refuses it, typed.
+try:
+    doc.insert(Node.loft(first, then, Formula.count(3)))
+except EditError as refused:
+    assert refused.variant == "loft_shape"
+    assert refused.inner_variant == "degree_out_of_range"
+else:
+    raise AssertionError("degree 3 through three sections inserted")
 ```
 
 A profile becomes usable by turning it into a body. `validated` is
@@ -847,7 +852,7 @@ assert!(triangle_count(&mesh) > 0);
 
 ### 2.7 Export
 
-STEP (AP242) for exchange, STL for the mesh:
+STEP (AP214) for exchange, STL for the mesh:
 
 ```
 use pncad::prelude::*;
@@ -913,10 +918,13 @@ That round-trip is the habit to copy. An export that writes bytes
 proves nothing; an export that re-imports to the same volume proves
 the geometry survived.
 
-STEP export is one of the few places the kernel refuses for a reason
-you should *expect* rather than fix: `UnsupportedSurface`,
-`UnsupportedCurve` and `CurvedShellClassification` mean the AP242
-writer has no representation for a surface the modeller can build.
+`step_string` takes a finished body (`AtRestBody`), so a body the
+at-rest gate refuses never reaches the writer. Past the gate, STEP
+export is one of the few places the kernel refuses for a reason you
+should *expect* rather than fix: `UnsupportedSurface`,
+`UnsupportedCurve` and `VoidShellUnsupported` mean the AP214
+writer has no representation for a surface or a cavity the modeller
+can build.
 The tour treats exactly those three as tolerated, per scene, and
 panics on anything else.
 

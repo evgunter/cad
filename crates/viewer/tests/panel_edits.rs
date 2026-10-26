@@ -671,7 +671,7 @@ fn the_affordance_outranks_the_bookkeeping_refusal_it_causes() {
     );
     assert!(
         shown.to_string().contains("edit the expression?"),
-        "and it renders the ratified wording: {shown}"
+        "and it renders the affordance's wording: {shown}"
     );
     assert!(shown.rank() < Refusal::NoGesture.rank());
 }
@@ -1718,7 +1718,7 @@ fn a_count_slot_refuses_a_value_that_is_not_a_number() {
     let carried = SlotValue::of(Dimension::Length, f64::NAN).expect("the continuous arm carries");
     assert!(
         matches!(carried, SlotValue::Continuous(v) if v.is_nan()),
-        "the continuous arm answered {carried:?} instead of carrying its value          to the literal door"
+        "the continuous arm answered {carried:?} instead of carrying its value to the literal door"
     );
 }
 

@@ -111,7 +111,7 @@ fn shared_charts(body: &Body<f64>) -> Vec<Vec<(FaceKey, bool)>> {
 fn a_chart_worn_both_ways_is_finished_and_shell_refuses_it() {
     let tol = Tol::witness();
     let text = step_string(
-        &topo::test_support::prism::<f64>(&Z_STEP, 1.0, tol).body,
+        &crate::common::at_rest(&topo::test_support::prism::<f64>(&Z_STEP, 1.0, tol).body),
         &StepOptions::default(),
         tol,
     )

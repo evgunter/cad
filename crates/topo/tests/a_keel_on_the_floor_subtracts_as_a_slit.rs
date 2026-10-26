@@ -1092,3 +1092,47 @@ fn a_flush_partner_crossing_the_slit_intersects_it_in_either_order() {
         }
     }
 }
+
+/// **A face closed across part of the slit refuses typed.** The slab
+/// less the trench closed at both ends, from either origin, carries the
+/// keel as a ring of its floor. A box under and around the floor less a
+/// wide vee along the middle of the keel, `(1.7, 2.3)` of its
+/// `(1.5, 2.5)`, less the slab keeps the floor on both sides of that
+/// stretch of the keel and the walls beyond it: the zip glues the floor
+/// to itself there, a strut whose ends both run on into the ring's
+/// edges, and deleting it parts the ring in two, which is not built.
+/// `x − y` refuses `SlitFaceClosesMidSlit`, a construction gap with no
+/// lever (`work/cleave/a-partner-along-part-of-a-slit-refuses-result-invalid.md`).
+#[test]
+fn a_face_closed_across_part_of_the_slit_refuses_typed() {
+    let tol = t();
+    let pose = &poses()[0];
+    let vee = prism(
+        pose,
+        "the wide vee",
+        &[(2.0, 0.0), (2.9, 2.0), (1.1, 2.0)],
+        (1.7, 2.3),
+        &|y, z, x| [x, y, z],
+    );
+    let around = prism(
+        pose,
+        "the box",
+        &[(-1.0, -1.0), (5.0, -1.0), (5.0, 5.0), (-1.0, 5.0)],
+        (-1.0, 0.5),
+        &|x, y, z| [x, y, z],
+    );
+    let Ok(BooleanResult::Body(x)) = subtract(&around, &vee, tol) else {
+        panic!("the box less the wide vee");
+    };
+    for (origin, y) in slit_operands(&ROWS[0], pose) {
+        let what = format!("{origin}, {}", pose.label);
+        match subtract(&x.body, &y, tol) {
+            Err(e) => assert_eq!(
+                e.kind(),
+                topo::BooleanErrorKind::SlitFaceClosesMidSlit,
+                "{what}: x − y: {e:?}"
+            ),
+            Ok(_) => panic!("{what}: x − y builds, where it refuses typed"),
+        }
+    }
+}

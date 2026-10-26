@@ -431,6 +431,6 @@ fn the_query_seat_holds_no_walk_of_its_own() {
         .join(" ");
     assert_eq!(
         body, SEAT_BODY,
-        "query::edge_carrier_kind is the typed door flattened and nothing else; a walk here          would be a second reading of one edge's carrier tag"
+        "query::edge_carrier_kind is the typed door flattened and nothing else; a walk here would be a second reading of one edge's carrier tag"
     );
 }

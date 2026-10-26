@@ -34,3 +34,18 @@ Make the gate select the corpus id-pin rows for any diff that can move ids. Two 
 - one cheap id-only digest row in the fast set, which the slow rows then refine.
 
 Until then, implementer briefs must say to run the slow set of every touched crate before reporting green. — (INTENT orchestrator)
+
+## A wider instance: an inventory of call sites (2026-10-26, SPLICE)
+
+The class is wider than corpus ids. It covers any slow-set row that
+inventories the tree, which a diff can break without naming the row.
+PR 5715 (`splice/touch-doors`) added one test-side `boxes::edge_box(`
+call in `boolean/carrier_touch_rows.rs`. That turns
+`topo boolean::boxes::tests::every_door_that_reads_a_box_is_inventoried`
+red, because its PINNED list has no row for that file. The PR's gate
+was green and did not select the row. A reviewer's full local run of
+geom, geom-brep and topo found it. (SPLICE orchestrator)
+
+## Evidence (2026-10-26, ATREST orchestrator)
+
+Another instance, this time for verdicts rather than ids. PR 5745 changed what the topo census reports for aligned face pairs (`crates/topo/src/census.rs`). Its PR gate was green and selected no slow census golden. `editor-core` `perf12_census_goldens` had moved at all three ε rows: heat_sink went from 105 findings to 5 at every size. The lane found the move only because the orchestrator asked it to run the slow census goldens by hand before merging. So a diff to `census.rs` should select the `perf12_census_*` rows, by the same mechanism this row asks for ids.

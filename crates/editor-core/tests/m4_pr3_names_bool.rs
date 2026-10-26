@@ -1,6 +1,6 @@
 //! M4 PR 3 naming tests, part 2 (spec D3/D5/D6): boolean roles
 //! (FromA/FromB/Seam), N2 discriminators (`Borders` wall sets,
-//! OrderAlong sub-edge ranks), the genuine-tie fixture, and
+//! `Ends` edge pieces), the genuine-tie fixture, and
 //! discriminator-flip localization (counted).
 #![allow(
     clippy::unwrap_used,
@@ -78,7 +78,7 @@ fn worn(placement: RecipeNodeId, name: StableName) -> StableName {
     crate::m10_5_clearance_interval::in_placement(placement, name)
 }
 
-// ---- From + Seam + OrderAlong on the overlapping union. ----
+// ---- From + Seam + Ends on the overlapping union. ----
 
 #[test]
 fn union_names_operand_descent_seams_and_rim_pieces_by_their_ends() {
@@ -273,15 +273,21 @@ fn slot_subtract_names_cap_fragments_by_the_walls_they_border() {
         .collect();
     assert_eq!(frags.len(), 2, "expected two Borders-qualified cap pieces");
     assert_ne!(frags[0], frags[1]);
-    // The walls are B lateral names (recipe-covariant references),
-    // one per piece: the slot wall on its side.
+    // The walls are B's lateral faces as the subtract carries them in
+    // (recipe-covariant references), one per piece: the slot wall on
+    // its side.
+    let b_read = out(&doc, b);
     for f in frags {
         let Some(RoleSeg::Fragment(Qualifier::Borders(walls))) = f.path.get(1) else {
             unreachable!()
         };
         assert_eq!(walls.len(), 1, "{f:?}");
         for wall in walls {
-            assert_eq!(wall.node, b, "a wall is not a B-operand face");
+            assert!(
+                matches!(wall.path.as_slice(), [RoleSeg::From { read, of }]
+                    if *read == b_read && of.node == b),
+                "a wall is not a B-operand face as the subtract carries it in: {wall:?}"
+            );
         }
     }
 }

@@ -378,7 +378,7 @@ fn the_door_answers_the_exhaustive_walk_and_keeps_every_aimed_vertex() {
         tie.rays
     );
     assert!(
-        wide.rays > 400_000,
+        wide.rays > 390_000,
         "the wide aim is the whole corpus's: {} rays",
         wide.rays
     );

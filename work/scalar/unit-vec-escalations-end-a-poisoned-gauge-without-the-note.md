@@ -29,3 +29,7 @@ At an enclosure (`Interval`), `Decide::sign_within` reads any margin that is not
 - `UnitVec3Error::Escalated` decides a direction's length, a gauge. The same decision ends through `lever_ending` at sweep's axis door and at editor-core's `DirectionNorm`. Switch it to `source.lever_ending(COINCIDENCE_RECOURSE)`.
 - `LeveredUnitError::Arm` decides the caller's arm, which is a length. If that length is one the user chose, it is sized and wants `source.ending(..)`. If not, it wants `lever_ending`. Decide which before switching it.
 - Pin both arms on a poisoned margin: through the door at an enclosure if one is constructible, else through `k_stats::decide`, as `rigid_motion.rs`'s `an_undecided_check_ends_in_the_lever_and_notes_a_poisoned_margin` does.
+
+## Note (2026-10-26, easy-fixes lane)
+
+The first bullet is done: `UnitVec3Error::Escalated` now ends in `source.lever_ending(COINCIDENCE_RECOURSE)`. It is pinned by `unit_vec::tests::an_escalated_length_ends_in_the_lever_and_notes_a_poisoned_margin` through `k_stats::decide`. `LeveredUnitError::Arm(Some(_))` is unchanged. It still needs the sized-or-gauge decision the second bullet asks for: its callers lever by a cylinder radius the user chose (`topo::boolean::boxes`, `BOX_CYLINDER_AXIS`), by a reach off the model's box (`topo::boolean::join`, `reach.lever_from(origin)`; `separating.rs`), and by a torus reach (`geom_brep::props::curved`). That is not one answer.

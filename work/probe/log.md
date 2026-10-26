@@ -112,3 +112,16 @@ filter now asserts rather than filters, and `seqgen.rs`'s seam is
 noted above (PR 3161's fix pass).
 - 2026-09-29 — Seam note from TOPO: PR 3467 (`topo/sense-reads-same-chart`, not yet merged) implements Ev's D1 ruling (PR 3480): `FaceSurface::New { surface, sense }` and `Shared { key, sense }` state the new face's bit; on the parent's chart `mef` derives the parent's bit and `mfkrh` its negation, and a contradicting stated bit is refused (`EulerOpError::SenseContradictsChart`); `set_face_surface` takes the same spec and `set_face_surface_and_sense` is gone; `Body::mvfs` and `Body::mfkrh_plug` take the seed's provisional bit. Paths: `topo/src/review_d18.rs`, `topo/src/review_d18_probes.rs`, `topo/src/seqgen.rs`. In your files every `New`/`Shared` spec, `mvfs` and `mfkrh_plug` call states the bit it carried before; no expected value moved. (TOPO implementer)
 - 2026-10-11 — From TOPO's second cut: `merge-faces-should-panic-rows-on-a-debug-assert-fail-in-release` (priced P4 E at the move), `kef-and-kfmrh-fuse-roundtrip-skips-are-admitted-per-kind`, `revert-review-residue-test-shape-and-row-text` and `census-face-walks-skip-torn-hops-silently` moved here: guards that cannot go red. (`work/topo/log.md`)
+- 2026-10-26 — (tracker sweep) **PIN merged in.** All fifteen PIN rows moved here, ids kept, and PIN's program, plan and log are deleted (`docs/doc-ledger/pin-leaves-the-tracker.md`). The charter and plan now cover both halves; the load is about 23 of 30.
+  - **Closed, PROBE's own:**
+    - `bits-witness-slice-workaround-outlived-its-defect`, superseded: `bits_witness` and `topo/src/source.rs` are gone;
+    - `census-snapshot-arm1-discard-has-no-justification`, already fixed: the census walks loops through the audited `face_cycles`, and `snapshot` states its reason;
+    - three fixed by this sweep's edits: `censussubject-eq-answers-false-for-a-new-variant-against-itself` (`validate.rs`, mismatches spelled out), `fused-two-shell-body-doc-predates-movefac` (`euler_ring.rs` doc) and `review-d18-probes-header-miscounts-its-own-rows` (header count).
+  - **Closed, PIN's:**
+    - `rows-do-not-cross-a-boolean-remap`, superseded by D10's declared-pair retirement;
+    - `census-at-rest-two-boolean-lane-premises`, `edge-chord-len-defaults-to-one-metre` and `boolean-smooth-arm-rebuilds-line-carrier`, already fixed on main;
+    - `boolean-mod-doc-links-a-feature-gated-variant`, fixed by this sweep (`boolean/mod.rs:33`).
+  - **Notes added:** `D284`, `flush-pair-relation-has-no-caller` (its code citation re-pointed to `work/probe/`) and `join-probe-charts-hand-roll-the-across-axis-reference` (half fixed).
+- 2026-10-26 — (easy-fixes lane) Closed `merge-faces-should-panic-rows-on-a-debug-assert-fail-in-release`: both rows are gated on `debug_assertions`.
+- 2026-10-26 — (easy-fixes lane) Closed `join-probe-charts-hand-roll-the-across-axis-reference`: `cylinder_at` and the coaxial-circles probe read `orthonormal_basis`. Four siblings are filed on HONE.
+- 2026-10-26 — `topo-test-frames-hand-roll-the-across-axis-reference` (P4 E) arrives from HONE, where the easy-fixes lane filed it; its sibling `join-probe-charts-hand-roll-the-across-axis-reference` is here.

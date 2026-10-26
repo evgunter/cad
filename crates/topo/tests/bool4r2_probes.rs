@@ -11,10 +11,11 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
+use common::placement_findings;
 use geom_core::{Band, Point3, Tol};
 use topo::{
-    Body, CensusContact, ContactRecords, EntityId, SolidContainment, SolidKey, ValidationError,
-    VfContact, VoidContainment, VoidEvidence, insert_void, point_in_solid, point_in_solid_of,
+    Body, CensusContact, ContactRecords, SolidContainment, SolidKey, ValidationError, VfContact,
+    VoidContainment, VoidEvidence, insert_void, point_in_solid, point_in_solid_of,
     validate_pseudomanifold,
 };
 
@@ -35,22 +36,6 @@ fn assembly(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
 
 fn solids(body: &Body<f64>) -> Vec<SolidKey> {
     body.solids().map(|(k, _)| k).collect()
-}
-
-fn placement_findings(errors: &[ValidationError]) -> Vec<&ValidationError> {
-    errors
-        .iter()
-        .filter(|e| {
-            matches!(
-                e,
-                ValidationError::CensusUndecidable {
-                    a: EntityId::Solid(_),
-                    b: EntityId::Solid(_),
-                    ..
-                } | ValidationError::InstanceInterference { .. }
-            )
-        })
-        .collect()
 }
 
 fn crossings(errors: &[ValidationError]) -> Vec<&ValidationError> {
@@ -96,10 +81,12 @@ fn point_of(body: &Body<f64>, v: topo::VertexKey) -> Point3<f64> {
 /// corners on the bracket's edge `y = 1` ARE rests — the part is above
 /// `y = 1` there and the bracket below — and the bracket's inner-corner
 /// vertices `(1, 1, z)` on the part's edges are saddles the analysis
-/// does not decide; a decided crossing outranks both.) The pair is
-/// REFUSED as a crossing, not cleared.
+/// does not decide; a decided crossing outranks both.) The overlap is
+/// decided before any of that: the part's top and bottom faces lie on
+/// the bracket's, facing the same way, and share interior, so the pair
+/// is one `SameSideInterference`, not cleared.
 #[test]
-fn a_straddling_part_with_touch_only_crossings_is_refused_as_a_crossing() {
+fn a_straddling_part_with_touch_only_crossings_is_a_same_side_interference() {
     let l = common::prism_z::<f64>(&L_PROFILE, 0.0, 1.0, Tol::witness());
     let part = common::brick::<f64>((0.5, 1.5), (1.0, 3.0), (0.0, 1.0), Tol::witness());
     let body = assembly(&l.body, &part);
@@ -130,12 +117,10 @@ fn a_straddling_part_with_touch_only_crossings_is_refused_as_a_crossing() {
         point_in_solid_of(&body, part_solid, q, band, tol).unwrap(),
         SolidContainment::In
     );
-    assert_eq!(placements.len(), 1, "{placements:?}");
     assert!(
         matches!(
-            placements[0],
-            ValidationError::CensusUndecidable { what, .. }
-                if what.contains("one passes into the other where they touch")
+            placements[..],
+            [ValidationError::SameSideInterference { .. }]
         ),
         "{placements:?}"
     );
@@ -207,11 +192,10 @@ fn contact_kind(c: &CensusContact) -> &'static str {
 /// faces, edges lying in faces, corners on edges. The box gate separates
 /// both orderings (neither hull sits inside the other's reach), so the
 /// material test does not run; but the boundaries meet, so the gate does
-/// not clear the pair on its own, and the touch analysis reads the
-/// coplanar same-normal faces' touches as the two materials passing into
-/// each other.
+/// not clear the pair on its own, and the coplanar same-normal faces
+/// sharing interior decide the overlap.
 #[test]
-fn two_half_overlapping_cubes_refuse_as_a_mixed_touch() {
+fn two_half_overlapping_cubes_refuse_as_a_same_side_interference() {
     let a = common::brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0), Tol::witness());
     let b = common::brick::<f64>((1.0, 3.0), (0.0, 2.0), (0.0, 2.0), Tol::witness());
     let body = assembly(&a, &b);
@@ -222,8 +206,7 @@ fn two_half_overlapping_cubes_refuse_as_a_mixed_touch() {
     assert!(
         matches!(
             placements[..],
-            [ValidationError::CensusUndecidable { what, .. }]
-                if what.contains("one passes into the other where they touch")
+            [ValidationError::SameSideInterference { .. }]
         ),
         "{placements:?}"
     );

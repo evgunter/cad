@@ -169,9 +169,21 @@ const UNMARKED_RECOURSE: &[&str] = &[
 /// read as well as the `Placed` copy it came through, and the longest
 /// name says it at each of its ends; the growth is the same placed-copy
 /// wrapping `name-words-budget-grew-under-placed-copy-wrapping` files.
+///
+/// A pair boolean's `Borders` wall came to cite its parent as the
+/// boolean's own table names it, the `From` it came in through: each
+/// wall of `crossing_slots`' pieces now says its read ("… through
+/// <read>"). Scoped p99 43 → 45, total 60241 → 60371; full total
+/// 461129 → 461339. No outcome moved.
+///
+/// An orientation is read, never chosen: a union's seam in a run says
+/// its sense where it said "runs through", and a line of several things
+/// says the things it enters along ("…, entering along …, crosses …").
+/// Full p99 135 → 137, total 461339 → 461547; scoped faces held. No
+/// outcome moved.
 const NAME_WORDS: [(&str, [usize; 4]); 2] = [
-    ("scoped faces", [16, 43, 57, 60_241]),
-    ("full", [19, 135, 396, 461_129]),
+    ("scoped faces", [16, 45, 57, 60_371]),
+    ("full", [19, 137, 396, 461_547]),
 ];
 
 /// **A digest of every word the corpus's names say** — each name a
@@ -328,7 +340,16 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// and this PR's `test_support::plane_on` reads `symmetric_plate`'s
 /// seam face plainly, so its node tags moved too; the words that moved
 /// are the node tags.
-const SAID_DIGEST: u64 = 0x84aa_4c5d_d24d_3960;
+///
+/// Re-pinned with [`NAME_WORDS`] when a pair boolean's `Borders` walls
+/// came to say the read each came in through: the words that moved are
+/// those walls'.
+///
+/// Re-pinned with [`NAME_WORDS`] when an orientation came to be read,
+/// never chosen: the words that moved are the senses of a union's seams
+/// in a run and of lines of several things, which say what they enter
+/// along.
+const SAID_DIGEST: u64 = 0x254a_ffa5_d163_ea3c;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a
@@ -966,7 +987,8 @@ fn a_run_of_seams_says_each_seam_by_its_faces() {
         .map(|(name, _)| name)
         .filter(|name| {
             matches!(name.path.as_slice(), [RoleSeg::EdgeCrossing(run)]
-                if run.len() == 3 && run.iter().all(|l| l.sense.is_none()))
+                if run.len() == 3
+                    && run.iter().all(|l| matches!(l.line.path.as_slice(), [RoleSeg::Seam { .. }])))
         })
         .cloned()
         .collect();

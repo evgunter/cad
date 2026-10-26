@@ -403,7 +403,15 @@ fn measurement_err(
 /// refusal because no other refusal has one. The classification is the
 /// kernel's ([`topo::TargetUnreached::bracket`]); this only spells it.
 fn unreached_err(py: Python<'_>, unreached: &topo::TargetUnreached<f64>) -> PyErr {
-    let bracket = unreached.bracket;
+    let bracket = matches!(
+        unreached.refusal,
+        topo::MassPropsError::Face {
+            source: pncad::geom_brep::PropsError::QuadratureBudget { .. }
+                | pncad::geom_brep::PropsError::QuadratureFloor { .. },
+            ..
+        }
+    )
+    .then_some(unreached.bracket);
     measurement_err(
         py,
         &unreached.refusal,
@@ -1717,7 +1725,9 @@ impl Evaluation {
     /// for "which body does this node denote", shared with Rust).
     ///
     /// Accepts a `body` or non-empty `boolean` value; everything else
-    /// raises a typed `ExportError`.
+    /// raises a typed `ExportError`. The body is gated at rest first,
+    /// so one the gate refuses raises `ExportError` tagged
+    /// `body_invalid` rather than reaching the writer.
     ///
     /// Every `StepOptions` field is a keyword here, and each defaults
     /// to `None` meaning the Rust default — so the door narrows
@@ -1810,7 +1820,7 @@ fn export_err(
         // the world's placements, not this call's node, so it adds no field
         // here. The arm is spelled out because the match
         // is exhaustive on purpose — the tripwire, not a wildcard.
-        E::EmptyBoolean { .. } | E::Step(_) | E::Product(_) => {}
+        E::EmptyBoolean { .. } | E::BodyInvalid { .. } | E::Step(_) | E::Product(_) => {}
     }
     typed_err(py, ErrorClass::Export, err.spoken(doc), &fields)
 }
@@ -2464,6 +2474,7 @@ pub(crate) fn evaluate(
         param_box: defaults.param_box,
         seed: defaults.seed,
         symbols: defaults.symbols,
+        pin: defaults.pin,
     };
     let token = cancel.map_or_else(d::CancelToken::new, CancelToken::token);
     let recipe = &doc.inner;

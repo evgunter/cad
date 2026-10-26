@@ -2,7 +2,7 @@
 id: a-boolean-cuts-a-flush-face-kept-once-along-a-slits-line
 kind: issue
 title: A Boolean that keeps one of two flush faces where one carries a slit cuts the dropped one through the slit's tip, which the fate cut reads as a cusp
-status: dispatched
+status: review
 opened: 2026-10-20
 priority: P1
 cost: M
@@ -104,3 +104,17 @@ branch, and are filed: `a-box-corner-at-a-rings-tip-reads-two-crossing-germs-alo
 from this row: `a-union-beside-a-slit-misses-an-edge-overlap-record`
 (P2), `a-sliver-of-more-than-two-edges-is-not-read-as-one` (P3),
 `slit-face-glued-has-no-witness` (P3).
+
+**With PR 5544 on main.** `Closes` is gone with recl's `kept_slit_face`
+reading, and the ring's flush partner `y ∪ x` reaches the output
+stage. There it refused `Merge InvalidInput` "declared surface key does
+not resolve": `finish_output` (`boolean/ops.rs`) read the declared
+surface pairs before 5544's `slit::close_struts`, whose `kev` runs
+outside a surgery scope and sweeps the arena, so a declared surface no
+face held (the dropped flush copy's) was gone when the merge read it.
+`finish_output` now drops a pair whose side the closing consumed, the
+rule `declared_surface_pairs` already applies to a consumed side. All
+six ops build with the flush partners, left and right, at rest and
+turned, at the three ε, the two orders of each op alike.
+`SlitFaceGlued` carries `SlitFaceGap` (`RingRun`, `ArcsSeparate`,
+`TipUnread`).

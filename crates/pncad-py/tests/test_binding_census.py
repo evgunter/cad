@@ -976,6 +976,9 @@ BOUND_AS = {
     # `StepIdFault` is what `EditError::StepIdsRefused` carries, and
     # its arms cross at the carrier's second word.
     "StepIdFault": "EditError.inner_variant",
+    # `LoftFault` is what `EditError::LoftShape` carries, and its arms
+    # cross at the carrier's second word.
+    "LoftFault": "EditError.inner_variant",
     # Which primitive a measure is, without its references: Python reads
     # it as the primitive's verb word.
     "MeasureVerb": "MeasurePrimitive.verb",
@@ -1652,6 +1655,18 @@ FAMILIES: dict[str, str] = {
         "was stored with, a Python spelling of the keyed read beside "
         "`IndexedRead`, and one Python row reading one copy of an "
         "instance at a body seat."
+    ),
+    # THE MEASUREMENT PREDICATE ARRIVED BEFORE ITS DOORS
+    # (`docs/QUAD-MEASURE-SPEC.md` unit B): the façade curates `Settle`
+    # and the vocabulary its variants carry, while no number door takes
+    # one yet. Python taking it as data is unit C's
+    # (`work/quad/the-measurement-door-refines-until-a-predicate-resolves`).
+    "B-SETTLE": (
+        "what a measurement is asked — `Settle` (a sign, a relation, a "
+        "containment or a resolution) with `RelOp`, `SignNames` and "
+        "`RoleNames`. Closing it needs `Body.mass_properties()` and the "
+        "other number doors to take one as data, a `pncad.pyi` entry for "
+        "each, and one Python row per variant."
     ),
 }
 
@@ -2400,6 +2415,10 @@ NOT_BOUND = {
     "SpokenSpace": SHAPE,
     "VarDef": f"{GAP}: B-VAR-ID a variable's minted identity",
     "CopyKey": f"{GAP}: B-COPY-KEY the key of one copy of a placement's copies",
+    "Settle": f"{GAP}: B-SETTLE what a measurement is asked",
+    "RelOp": f"{GAP}: B-SETTLE what a measurement is asked",
+    "SignNames": f"{GAP}: B-SETTLE what a measurement is asked",
+    "RoleNames": f"{GAP}: B-SETTLE what a measurement is asked",
     "KeyedCopy": f"{GAP}: B-COPY-KEY the key of one copy of a placement's copies",
     "VarRef": f"{GAP}: B-VAR-ID a variable's minted identity",
     "node_kind_noun": SHAPE,
@@ -2809,6 +2828,12 @@ NOT_BOUND = {
     # Python speaks the document layer and reads a wall by its NAME.
     "SideWall": INTERIOR,
     "BandWall": INTERIOR,
+    # `Revolved::cavities` elements and their key (`CavityOrigin`, also
+    # `RevolveError::VoidInsertion`'s subject): behind the same door as
+    # `Revolved`. A refusal crosses as its tag, and the document layer
+    # answers a body, not its shells.
+    "Cavity": INTERIOR,
+    "CavityOrigin": INTERIOR,
     # The run a swept wall's role segment holds. Python never builds a
     # name from parts: a run wall's name is the opaque text `select`
     # answers, and the one-piece run is what `band(node, piece)` spells.
@@ -2900,6 +2925,14 @@ NOT_BOUND = {
     # as its tag word plus prose, and the guard's prose is its own
     # sentence, so a Python caller reads the site in the message.
     "PairRefusalSite": INTERIOR,
+    # `BooleanError::EdgeCarrierUnsupported`'s SITE: which lane met the
+    # spiric or spline edge (the sweep's planar or curved crossing arm,
+    # the join's germ frame or ring run). Carried in Rust so a consumer
+    # matching that variant can name the field's type; interior here
+    # because Python never holds one. The refusal crosses as its tag
+    # word plus prose, and each site's clause is its own, so a Python
+    # caller reads the site in the message.
+    "EdgeCarrierSite": INTERIOR,
     # `NodeErrorKind::FullRangeStep`'s `turns`: whether a step of a
     # turn or more lands every copy on the master or names an angle
     # within the turn. Carried in Rust so a consumer matching that
@@ -3469,6 +3502,7 @@ NOT_BOUND = {
     "PerParam": SHAPE,
     "ReasonClass": SHAPE,
     "Receipt": SHAPE,
+    "RecordReading": SHAPE,
     "RefusalReason": SHAPE,
     "RefusedLeaf": SHAPE,
     "ReportCache": SHAPE,
@@ -3631,6 +3665,8 @@ MEMBERS_BOUND_AS = {
     "EditError::PoseShape": "EditError.variant",
     "EditError::IndexedRead": "EditError.variant",
     "EditError::SetMembersOnNonList": "EditError.variant",
+    "EditError::SetLoftSectionsOnNonLoft": "EditError.variant",
+    "EditError::LoftShape": "EditError.variant",
     "EditError::LoftSectionsSpelled": "EditError.variant",
     "EditError::SetProgramOnNonProfile": "EditError.variant",
     "EditError::LoftSectionCount": "EditError.variant",
@@ -3740,7 +3776,6 @@ MEMBERS_BOUND_AS = {
     "InlineError::StrandedPartName": "InlineError.variant",
     "InlineError::StrandedPartRead": "InlineError.variant",
     "InlineError::NameOnDroppedStep": "InlineError.variant",
-    "InlineError::RankedRunReordered": "InlineError.variant",
     "InlineError::Edit": "InlineError.variant",
     "FlattenError::UnknownNode": "FlattenError.variant",
     "FlattenError::NotAPlacement": "FlattenError.variant",
@@ -3863,12 +3898,12 @@ MEMBERS_BOUND_AS = {
     "SplitError::RemainderReadUncarried": "SplitError.variant",
     "SplitError::NoMaterial": "SplitError.variant",
     "SplitError::UncutVarReference": "SplitError.variant",
+    "SplitError::SpaceStraddlesCut": "SplitError.variant",
     "SplitError::DefinitionStraddlesCut": "SplitError.variant",
     "SplitError::UnresolvedVarCrossesCut": "SplitError.variant",
     "SplitError::PartNameReachesRemainder": "SplitError.variant",
     "SplitError::NameStraddlesCut": "SplitError.variant",
     "SplitError::NameOnDroppedStep": "SplitError.variant",
-    "SplitError::RankedRunReordered": "SplitError.variant",
     "SplitError::BodyNameCrossesCut": "SplitError.variant",
     "SplitError::NameOutsidePartWorld": "SplitError.variant",
     "SplitError::Pin": "SplitError.variant",
@@ -3912,6 +3947,7 @@ MEMBERS_BOUND_AS = {
     "TessellateError::ResolutionOverflow": "TessellateError.variant",
     "TessellateError::StepNotPositive": "TessellateError.variant",
     "TessellateError::CertificateExceeded": "TessellateError.variant",
+    "TessellateError::RoundingUnresolved": "TessellateError.variant",
     "TessellateError::Triangulation": "TessellateError.variant",
     "TessellateError::SelfTouchingTrimLoop": "TessellateError.variant",
     "TessellateError::PinchWedge": "TessellateError.variant",
@@ -3983,8 +4019,11 @@ MEMBERS_BOUND_AS = {
     "ValidationError::CensusUndecidable": "ValidationFinding.variant",
     "ValidationError::FaceThroughEdgeWedge": "ValidationFinding.variant",
     "ValidationError::FaceThroughEdgeWedgeUndecided": "ValidationFinding.variant",
+    "ValidationError::CoincidentWedgesOverlap": "ValidationFinding.variant",
+    "ValidationError::CoincidentWedgesOverlapUndecided": "ValidationFinding.variant",
     "ValidationError::ArcEndOffCorner": "ValidationFinding.variant",
     "ValidationError::InstanceInterference": "ValidationFinding.variant",
+    "ValidationError::SameSideInterference": "ValidationFinding.variant",
     "ValidationError::CuspEdgesMissing": "ValidationFinding.variant",
     "ValidationError::DanglingTopology": "ValidationFinding.variant",
     "ValidationError::DanglingGeometry": "ValidationFinding.variant",

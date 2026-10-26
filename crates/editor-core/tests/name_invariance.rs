@@ -49,6 +49,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Mutex;
 
 use crate::blocks::{Spans, block, block_of, block_on, block_on_of, failure, run};
+use crate::emit_union_seam_rank as seam_scene;
 use crate::fixture::{
     against, ang, axes_at, desc, ends, face_edges, face_vertices, in_world_by, insert, len, point,
     turned_to,
@@ -861,11 +862,7 @@ fn a_member_order_moves_no_name() {
 }
 
 /// The member-order cases that move today.
-const ADMITTED_MEMBER_ORDER: &[Admitted] = &[
-    ("bridging / union", 6, BRIDGE_FOLDED_LAST),
-    ("pinch and cap / intersect", 2, decide_alike::CARRIED_PINCH),
-    ("pinch and far / union", 2, decide_alike::CARRIED_PINCH),
-];
+const ADMITTED_MEMBER_ORDER: &[Admitted] = &[("bridging / union", 6, BRIDGE_FOLDED_LAST)];
 
 /// The member-order cases that compare no table today.
 const VACUOUS_MEMBER_ORDER: &[Vacuous] = &[];
@@ -933,18 +930,7 @@ fn an_operand_order_moves_no_name() {
 }
 
 /// The operand-order cases that move today.
-const ADMITTED_OPERAND_ORDER: &[Admitted] = &[
-    (
-        "two bridges / union / m2 against the rest",
-        1,
-        BRIDGE_LISTED_FIRST,
-    ),
-    (
-        "two bridges / union / m3 against the rest",
-        1,
-        BRIDGE_LISTED_FIRST,
-    ),
-];
+const ADMITTED_OPERAND_ORDER: &[Admitted] = &[];
 
 /// The operand-order cases that compare no table today.
 const VACUOUS_OPERAND_ORDER: &[Vacuous] = &[
@@ -956,30 +942,12 @@ const VACUOUS_OPERAND_ORDER: &[Vacuous] = &[
         "bridging / union / m3 against the rest",
         pinch_order::TWO_GERMS,
     ),
-    (
-        "pinch and cap / intersect / m2 against the rest",
-        decide_alike::CARRIED_PINCH,
-    ),
-    (
-        "pinch and far / union / m2 against the rest",
-        decide_alike::CARRIED_PINCH,
-    ),
-    ("two bridges / intersect / m2 against the rest", BRIDGES_MET),
-    ("two bridges / intersect / m3 against the rest", BRIDGES_MET),
 ];
-
-/// A bridge listed before the union of the wedges and the other bridge
-/// refuses that a seam was offered one edge twice.
-const BRIDGE_LISTED_FIRST: &str = "work/wire/a-pair-union-of-a-bridge-listed-first-and-the-wedges-offers-a-seam-one-edge-twice.md";
 
 /// The bridging prism folded last, after the plate and both wedges,
 /// refuses the union's fold step.
 const BRIDGE_FOLDED_LAST: &str =
     "work/wirerest/a-union-folding-a-bridging-prism-last-refuses-its-fold-step.md";
-
-/// A bridge met with the union of the wedges and the other bridge
-/// refuses: vertices share a name that is no single seam.
-const BRIDGES_MET: &str = "work/wire/a-bridge-met-with-the-wedges-and-the-other-bridge-names-vertices-on-no-single-seam-alike.md";
 
 // ------------------------------------------------------------------ //
 // Merged chords
@@ -1544,6 +1512,8 @@ enum Part {
     /// way. Drawn on its own xy with `y` reversed and turned a half turn
     /// about `x`, its top slid to `z0 + dz`.
     Downward(Spans),
+    /// A [`seam_scene::disc`] extruded `dz`, slid up to `z0`.
+    Disc(seam_scene::Disc, f64, f64),
 }
 
 impl Part {
@@ -1554,6 +1524,10 @@ impl Part {
                 in_world_by(doc, b, turned_to([0.0, 0.0, z0], &[]))
             }
             Self::Sector(s) => pinch_order::sector_in_world(doc, s),
+            Self::Disc(d, z0, dz) => {
+                let (doc, b) = seam_scene::disc(doc, d, dz);
+                in_world_by(doc, b, turned_to([0.0, 0.0, z0], &[]))
+            }
             Self::Downward(((x0, x1), (y0, y1), z0, dz)) => {
                 let (doc, p) = insert(
                     doc,
@@ -1607,6 +1581,26 @@ const KISS_B: Part = Part::Block(decide_alike::KISS[1]);
 const WEDGE_A: Part = Part::Sector(pinch_order::WEDGE_A);
 const WEDGE_B: Part = Part::Sector(pinch_order::WEDGE_B);
 const CROSSING_A: Part = Part::Sector(pinch_order::CROSSING_A);
+
+/// `seam_scene`'s members: `x`, `y` under z = 0.5 and `w` slid down a
+/// quarter, each standing in the world.
+const fn seam_members(scene: &seam_scene::Scene) -> [(&'static str, Part); 3] {
+    [
+        ("x", Part::Disc(scene.x, 0.0, 1.0)),
+        ("y", Part::Block((scene.y.0, scene.y.1, 0.0, 0.5))),
+        ("w", Part::Disc(scene.w, -0.25, 1.0)),
+    ]
+}
+
+const OPEN_ARC_SEAMS: [(&str, Part); 3] = seam_members(&seam_scene::OPEN_ARC);
+const CUT_ARC_SEAMS: [(&str, Part); 3] = seam_members(&seam_scene::CUT_ARC);
+
+/// Two blocks united as a tool and standing through the plate's top,
+/// so each seam of their union crosses it: `x = 2` of the first meets
+/// `y = 1` of the second, and `x = 1.5` of the second `y = 1.5` of the
+/// first.
+const TOOL_A: Part = Part::Block(((1.0, 2.0), (0.5, 1.5), 0.5, 1.0));
+const TOOL_B: Part = Part::Block(((1.5, 2.5), (1.0, 1.75), 0.4, 1.0));
 
 /// Contact-heavy fixtures by role: twins and exact copies, whose names
 /// differ by their ids alone, and the corpus's pinches and crossings.
@@ -1669,6 +1663,21 @@ const HISTORIES: &[Roles] = &[
     (
         "the plate less the pinch's blocks",
         &[("plate", PLATE), ("p1", P1), ("p2", P2)],
+        Combine::Cut,
+    ),
+    (
+        "seams crossing one open arc",
+        &OPEN_ARC_SEAMS,
+        Combine::Nary(Nary::Union),
+    ),
+    (
+        "seams crossing an arc cut twice",
+        &CUT_ARC_SEAMS,
+        Combine::Nary(Nary::Union),
+    ),
+    (
+        "the plate less a union whose seams cross its top",
+        &[("plate", PLATE), ("a", TOOL_A), ("b", TOOL_B)],
         Combine::Cut,
     ),
 ];
@@ -1745,6 +1754,86 @@ fn an_authoring_history_moves_no_name() {
     found.settle(ADMITTED_HISTORY, VACUOUS_HISTORY);
 }
 
+/// **The raw table reads a seam crossing alike in every authoring
+/// order**, with no `remap_name` between: the plate less the union of
+/// [`TOOL_A`] and [`TOOL_B`], whose seam crosses the plate's top at
+/// (2, 1, 1). The crossing names the side it enters along, and that side
+/// is the same member's in every order. A sense read along the seam's
+/// lesser side would flip with which member was authored first.
+#[test]
+fn a_seam_crossings_raw_sense_names_one_members_side_in_every_order() {
+    use editor_core::{EntityKey, Entry, RoleSeg, Sense};
+    let mut seen = BTreeSet::new();
+    for order in decide_alike::orders(3) {
+        let members = [PLATE, TOOL_A, TOOL_B];
+        let mut doc = ProfileDoc::empty_derived("name-invariance", Tol::witness());
+        let mut ids = [None; 3];
+        for &i in &order {
+            let (d, id) = members[i].author(doc);
+            doc = d;
+            ids[i] = Some(id);
+        }
+        let ids = ids.map(|i| i.expect("authored"));
+        let (doc, tool) = insert(doc, Nary::Union.node(&ids[1..]));
+        let (doc, op) = insert(
+            doc,
+            Node::Subtract {
+                from: ids[0].into(),
+                tool: tool.into(),
+            },
+        );
+        let ev = run(&doc);
+        assert!(
+            failure(&ev, op).is_none(),
+            "{order:?}: {:?}",
+            failure(&ev, op)
+        );
+        let body = crate::corpus::body_of(&ev, op);
+        let role = |read| {
+            ["plate", "a", "b"]
+                .into_iter()
+                .zip(ids)
+                .find(|&(_, id)| crate::fixture::out(&doc, id) == read)
+                .map_or("another read", |(r, _)| r)
+        };
+        let mut at = Vec::new();
+        for (name, entry) in crate::fixture::table(&ev, op).iter() {
+            let Entry::Unique(r) = entry else { continue };
+            let EntityKey::Vertex(v) = r.key else {
+                continue;
+            };
+            let p = crate::fixture::point(body, v);
+            if (p.x - 2.0).abs() > 1e-9 || (p.y - 1.0).abs() > 1e-9 || (p.z - 1.0).abs() > 1e-9 {
+                continue;
+            }
+            let [RoleSeg::Crossing { sense, .. }] = name.path.as_slice() else {
+                panic!("{order:?}: the seam's crossing of the top: {name:?}");
+            };
+            at.push(match sense {
+                Sense::Through { entering } => entering
+                    .iter()
+                    .map(|n| match n.path.as_slice() {
+                        [RoleSeg::From { of, .. }] => match of.path.as_slice() {
+                            [RoleSeg::From { read, .. }] => role(*read).to_owned(),
+                            other => format!("{other:?}"),
+                        },
+                        other => format!("{other:?}"),
+                    })
+                    .collect::<Vec<_>>()
+                    .join(", "),
+                other => format!("{other:?}"),
+            });
+        }
+        assert_eq!(at.len(), 1, "{order:?}: one vertex at the crossing: {at:?}");
+        seen.insert(at.remove(0));
+    }
+    assert_eq!(
+        seen.len(),
+        1,
+        "the raw sense reads alike in every authoring order: {seen:?}"
+    );
+}
+
 /// **A body and its exact copy name every entity by both reads** (N0's
 /// NS4: two operands with identical tables are told apart by their
 /// reads, never ordered): their union is one body, each face, edge and
@@ -1785,19 +1874,11 @@ fn a_body_and_its_copy_name_every_entity_by_both_reads() {
 }
 
 /// The history cases that move today.
-const ADMITTED_HISTORY: &[Admitted] = &[(
-    "plate pinch, p2 extruded down / authored in another order",
-    18,
-    LINE_ORIENTED_BY_LEAST,
-)];
+const ADMITTED_HISTORY: &[Admitted] = &[];
 
 /// The history cases that compare no table today.
 const VACUOUS_HISTORY: &[Vacuous] = &[
     ("bridging / after an unrelated node", BRIDGE_FOLDED_LAST),
-    (
-        "pinch and far / after an unrelated node",
-        decide_alike::CARRIED_PINCH,
-    ),
     (
         "the plate less the pinch's blocks / authored in another order",
         LINE_WEDGES,
@@ -1807,12 +1888,6 @@ const VACUOUS_HISTORY: &[Vacuous] = &[
         LINE_WEDGES,
     ),
 ];
-
-/// A union's line of several flush member edges is oriented by its
-/// least edge, which orders by read, so where the edges run opposite
-/// ways its crossing's sense reads which member was minted first.
-const LINE_ORIENTED_BY_LEAST: &str =
-    "work/wire/a-unions-line-of-several-edges-is-oriented-by-its-least-edge.md";
 
 /// A plate less blocks that meet on a line through it refuses
 /// `LineWedges`: the contact is two coincident edges whose material
@@ -1965,14 +2040,7 @@ fn a_far_feature_moves_no_other_name() {
 }
 
 /// The far-feature cases that move today.
-const ADMITTED_FAR: &[Admitted] = &[(
-    "prism and cube / a far member",
-    1,
-    decide_alike::CARRIED_PINCH,
-)];
+const ADMITTED_FAR: &[Admitted] = &[];
 
 /// The far-feature cases that compare no table today.
-const VACUOUS_FAR: &[Vacuous] = &[
-    ("bridging / a far member", BRIDGE_FOLDED_LAST),
-    ("pinch and far / a far member", decide_alike::CARRIED_PINCH),
-];
+const VACUOUS_FAR: &[Vacuous] = &[("bridging / a far member", BRIDGE_FOLDED_LAST)];

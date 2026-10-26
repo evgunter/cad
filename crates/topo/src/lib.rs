@@ -236,6 +236,7 @@ pub(crate) mod side_reader;
 pub mod split;
 pub mod splitting;
 pub(crate) mod stands;
+pub(crate) mod strut;
 pub mod surgery;
 // Existence and visibility are two questions, gated separately; the
 // module's own docs are the statement of both. EXISTENCE: the items
@@ -297,19 +298,60 @@ pub mod test_support {
     // would be comparing that constant against itself.
     pub use crate::null::with_ring_root;
     pub use crate::props::{
-        FaceTerm, fold_order_bound, mass_properties_with_face_terms, quadrature_rounds,
+        DoorOutcome, DoorRead, FaceReading, FaceTerm, every_door, face_reading,
+        face_reading_structural, fold_order_bound, mass_properties_one_point,
+        mass_properties_with_face_terms, quadrature_rounds, read_points, region_carries_of,
         shell_references,
     };
     pub use crate::test_support_fixtures::{
         CubeOps, CylFrame, CylKey, FaceGeometry, NullStrutListing, Prism, PrismOps, RingFaceOps,
         StraddleSeat, arc_chain_over_the_jump, assert_every_chord_named_by_the_fence, brick,
-        cube_into, cyl_arc_at, cyl_wall_sheet, cyl_wall_sheet_keyed, declined_cube,
-        describe_as_intersections, drill_hole, every_chord_stated_as_its_pair, face_facing,
-        geometric_cube, holed_block, identity_map, kill_under_a_null_strut, line, mapped_cube,
-        plane, plane_every_face, plant_disc_face, plant_ring_face, prism, prism_ops, prism_z,
-        split_plane, straddle_seat, wedge_on_a_block_top,
+        brick_with_fresh_keys, cube_into, cyl_arc_at, cyl_wall_sheet, cyl_wall_sheet_keyed,
+        declined_cube, describe_as_intersections, drill_hole, every_chord_stated_as_its_pair,
+        face_facing, fresh_keyed_body, geometric_cube, holed_block, identity_map,
+        kill_under_a_null_strut, line, mapped_cube, plane, plane_every_face, plant_disc_face,
+        plant_ring_face, prism, prism_ops, prism_z, split_plane, straddle_seat,
+        wedge_on_a_block_top,
     };
     pub use crate::test_support_impl::ArenaCounts;
+
+    /// **A placement the census decided overlaps**: arm 2's decided
+    /// verdicts on a pair of solids, a vertex of one strictly inside the
+    /// other's material ([`crate::ValidationError::InstanceInterference`])
+    /// or a face of each on one carrier, facing the same way and sharing
+    /// interior ([`crate::ValidationError::SameSideInterference`]). The
+    /// one home of the test that a row asserting a placement clears, or
+    /// refuses undecided, reads, so a new decided verdict reaches all of
+    /// them.
+    #[must_use]
+    pub fn is_decided_overlap(e: &crate::ValidationError) -> bool {
+        matches!(
+            e,
+            crate::ValidationError::InstanceInterference { .. }
+                | crate::ValidationError::SameSideInterference { .. }
+        )
+    }
+
+    /// **The census's verdicts on where two solids sit**: each decided
+    /// overlap ([`is_decided_overlap`]) and each
+    /// [`crate::ValidationError::CensusUndecidable`] naming two solids.
+    #[must_use]
+    pub fn placement_findings(errors: &[crate::ValidationError]) -> Vec<&crate::ValidationError> {
+        errors
+            .iter()
+            .filter(|e| {
+                is_decided_overlap(e)
+                    || matches!(
+                        e,
+                        crate::ValidationError::CensusUndecidable {
+                            a: crate::EntityId::Solid(_),
+                            b: crate::EntityId::Solid(_),
+                            ..
+                        }
+                    )
+            })
+            .collect()
+    }
 
     /// **The raw measurement door**: [`crate::mass_properties`]' walk over
     /// a body that has not passed tier 3. The public door takes a
@@ -384,6 +426,63 @@ pub mod test_support {
         crate::side_reader::aimed_rays_report(body, band)
     }
 
+    /// What each shell's aimed rays read before the volume, as text
+    /// (`side_reader`): the trimmed-sphere aims' pin reads it.
+    pub fn shell_aims(body: &Body<f64>, band: geom_core::Band) -> Vec<String> {
+        crate::side_reader::shell_aims_report(body, band)
+    }
+
+    /// Each face's aimed ray's own reading, every face aimed at
+    /// (`side_reader`): the curved edge-meeting ray's probes read it.
+    pub fn each_aim(body: &Body<f64>, band: geom_core::Band) -> Vec<String> {
+        crate::side_reader::each_aim_report(body, band)
+    }
+
+    /// One aimed ray at `aim` on `face`, at the aimed incidence to
+    /// `normal` (`side_reader`): the probes aim it at and about an edge.
+    pub fn ray_at(
+        body: &Body<f64>,
+        face: crate::FaceKey,
+        aim: geom_core::Point3<f64>,
+        normal: geom_core::Vec3<f64>,
+        band: geom_core::Band,
+    ) -> String {
+        crate::side_reader::ray_at_report(body, face, aim, normal, band)
+    }
+
+    pub use crate::side_reader::EdgeFrame;
+
+    /// Every crossing of the ray `q + s·d` with the solid holding `face`,
+    /// its faces in an order turned left by `turn` and reversed where
+    /// asked, as `(from, to, count, sideless)` (`side_reader`): the probes
+    /// read a whole ray's count off it.
+    pub fn ray_counts(
+        body: &Body<f64>,
+        face: crate::FaceKey,
+        ray: (geom_core::Point3<f64>, geom_core::Vec3<f64>),
+        band: geom_core::Band,
+        order: (usize, bool),
+    ) -> Result<Vec<(f64, f64, i32, bool)>, String> {
+        crate::side_reader::ray_counts(body, face, ray, band, order)
+    }
+
+    /// Each edge's frames on each of its faces, at each fraction of
+    /// `fractions` along it (`side_reader`): the probes aim at and about
+    /// an edge from them.
+    pub fn edge_frames(
+        body: &Body<f64>,
+        fractions: &[f64],
+        band: geom_core::Band,
+    ) -> Vec<EdgeFrame> {
+        crate::side_reader::edge_frames(body, fractions, band)
+    }
+
+    /// Rays aimed at and beside every edge, `offsets` into each face
+    /// (`side_reader`): the curved edge-meeting ray's probes read it.
+    pub fn edge_rays(body: &Body<f64>, offsets: &[f64], band: geom_core::Band) -> Vec<String> {
+        crate::side_reader::edge_rays_report(body, offsets, band)
+    }
+
     /// The pad a face's reach box takes past the band, and each face's
     /// share of the census's gaps (`boolean::boxes::sweep_pad`): the
     /// spelling a test outside this crate reads it by.
@@ -401,6 +500,31 @@ pub mod test_support {
         surface: geom::Surface<T>,
     ) -> bool {
         body.surfaces.get_mut(key).map(|s| *s = surface).is_some()
+    }
+
+    /// `host` holding `cavity` as [`crate::insert_void`] would graft it,
+    /// without the revert's refusal: `cavity`'s every face side reversed
+    /// and no sheet re-paired, so coincident edges on one line land each
+    /// bounding the complement of its own wedge.
+    ///
+    /// # Panics
+    ///
+    /// Where `solid` does not resolve in `host`, or `cavity` holds other
+    /// than one solid.
+    #[must_use]
+    #[allow(clippy::panic)]
+    pub fn grafted_reverted_unrefused<T: geom_core::Decide>(
+        host: &Body<T>,
+        solid: crate::SolidKey,
+        cavity: &Body<T>,
+    ) -> Body<T> {
+        let mut out = host.clone();
+        if let Err(e) =
+            crate::boolean::combine::graft_solids_disjoint(&mut out, &[solid], &cavity.reverted())
+        {
+            panic!("the graft refused: {e:?}");
+        }
+        out
     }
 
     /// A test's hand-built contact records: each pair of `body`'s cells
@@ -426,11 +550,12 @@ pub mod test_support {
     /// ([`crate::test_support_meeting`]).
     pub mod meeting {
         pub use crate::test_support_meeting::{
-            Hole, MEET, PLATE, Point, Pose, along_lying_ray, apex_pyramid, apex_pyramid_kept, arch,
-            arch_cone, at, bearing, branching_cone, comb, corners, corners_disjoint, crown,
-            cycles_of, ell, ell_and_wedges, fin, four_wedges, inner_rows, leaned, lying, mix,
-            near_flat, nest, nest_polygon, notch, notch_rows, on_the_lying_faces, orders,
-            posed_box, posed_boxes, posed_crown, posed_prism, posed_pyramid, poses,
+            FIN_BOTTOM, Hole, MEET, PLATE, Point, Pose, along_lying_ray, apex_pyramid,
+            apex_pyramid_kept, arch, arch_cone, at, bearing, branching_cone, comb, corners,
+            corners_disjoint, crown, crown_body, cycles_of, ell, ell_and_wedges, fin,
+            fin_crown_body, four_wedges, inner_rows, leaned, lying, mix, near_flat, nest,
+            nest_polygon, notch, notch_rows, on_the_lying_faces, orders, posed_box, posed_boxes,
+            posed_crown, posed_crown_kept, posed_fin_crown, posed_prism, posed_pyramid, poses,
             pyramid_volumes, shape, single_arch, three_wedges, two_wedges, wedge,
             wedges_on_one_side, zigzag,
         };
@@ -474,6 +599,49 @@ pub mod test_support {
         }
     }
 
+    /// **What of `body` lies along a line**: the line through `origin`
+    /// along the unit `dir`, and each edge both of whose ends lie on it
+    /// (within 1e-9) as their parameters along it, the lesser first, and
+    /// each vertex on it as its parameter, each list sorted and rounded
+    /// to 1e-6. Two coincident edges read as one span twice.
+    ///
+    /// # Panics
+    ///
+    /// Where an edge's half or end, or a vertex's point, does not
+    /// resolve: a torn body.
+    #[must_use]
+    #[allow(clippy::expect_used)]
+    pub fn along_line(
+        body: &Body<f64>,
+        origin: geom_core::Point3<f64>,
+        dir: geom_core::Vec3<f64>,
+    ) -> (Vec<(f64, f64)>, Vec<f64>) {
+        let at = |v: crate::entity::VertexKey| {
+            let p = crate::readback::vertex_point(body, v).expect("a vertex's point");
+            let t = (p - origin).dot(dir);
+            let off = (p - origin - dir * t).norm();
+            (off < 1e-9).then_some((t * 1e6).round() / 1e6)
+        };
+        let mut spans: Vec<(f64, f64)> = body
+            .edges()
+            .filter_map(|(_, edge)| {
+                let start = body.get_half_edge(edge.he_plus).expect("a half").start;
+                let end = body.half_edge_end(edge.he_plus).expect("an end");
+                let (a, b) = (at(start)?, at(end)?);
+                Some((a.min(b), a.max(b)))
+            })
+            .collect();
+        spans.sort_by(f64_pair_order);
+        let mut vertices: Vec<f64> = body.vertices().filter_map(|(v, _)| at(v)).collect();
+        vertices.sort_by(f64::total_cmp);
+        (spans, vertices)
+    }
+
+    /// Two pairs of floats in order, first by first.
+    fn f64_pair_order(x: &(f64, f64), y: &(f64, f64)) -> core::cmp::Ordering {
+        x.0.total_cmp(&y.0).then(x.1.total_cmp(&y.1))
+    }
+
     /// Which bridge a graft ran ([`take_graft_bridges`]).
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     pub enum GraftBridge {
@@ -509,6 +677,32 @@ pub mod test_support {
     /// built their operands ([`with_vertex_pairs_reversed`]).
     pub fn ops_under_test<R>(f: impl FnOnce() -> R) -> R {
         crate::boolean::insert::ops_under_test(f)
+    }
+
+    /// **The measurement door** ([`crate::props::measure_to`]) over every
+    /// face of `body`, measured and certified through the certified lane,
+    /// under `settle`: why it stopped and the enclosure it reached, or the
+    /// refusal's text. The door is crate-private until unit C makes it
+    /// every caller's; this is the one a suite drives it through.
+    ///
+    /// # Errors
+    ///
+    /// The door's refusal, as text, or a tolerance that forms no band.
+    ///
+    /// # Panics
+    ///
+    /// On a resolution finer than ε, as the door does.
+    pub fn measure_to(
+        body: &Body<f64>,
+        settle: crate::Settle<f64>,
+        tol: geom_core::Tol,
+    ) -> Result<(crate::Stop, crate::VolumeEnclosure<f64>), String> {
+        let band = geom_core::Band::linear(tol).map_err(|e| format!("{e:?}"))?;
+        let lane = Some(crate::props::QuadLane::certified());
+        let faces = crate::query::all_faces(body);
+        crate::props::measure_to(body, &faces, band, tol, (lane, lane), settle)
+            .map(|(stop, certificate)| (stop, certificate.enclosure()))
+            .map_err(|refusal| format!("{refusal:?}"))
     }
 
     /// The boolean's volume backstop over `a`, `b` and a `result`, as the
@@ -948,6 +1142,8 @@ mod r2_probes;
 #[cfg(test)]
 mod tier3_tests;
 pub mod transform;
+#[cfg(test)]
+mod turn_rows;
 pub mod validate;
 mod wedge_reach;
 pub use wedge_reach::{WedgeReach, edge_faces, edge_wedge_reach, wedge_reach};
@@ -960,21 +1156,21 @@ pub use boolean::{
     BooleanOp, BooleanReduction, BooleanResult, BooleanResultKind, CarriedRecord, CarrierDesc,
     CarrierEqError, CarrierRelation, CarryRefusal, Cell, Coincide, CoincidenceMeasure,
     CompletedPolygonPair, ConsumedExtent, Contact, ContactKind, ContactPairError, ContactRecords,
-    ContainDecision, ContainError, Contradiction, DeclarationRead, DiscardRow, EdgeInFaceGap,
-    EdgeJoin, EdgePieceClass, EeContact, EfContact, FaceContainment, FfContact, Fusions,
-    GlueVerdict, GluedPair, JOIN_LEVER, JOIN_SUBJECT, JoinReading, JoinRefusal, JoinUndecided,
-    LeverArm, LineWedgeFault, NodeWhy, NullEdgePairRecord, Operand, OperandKeys, OperandRecords,
-    PairFace, PairRefusalSite, PairSite, PairUnread, PierceRingRecord, PlaneDesc, PlaneEqError,
-    PlaneIdentity, PlaneRelation, PlaneRung, PointInSolidError, ReductionContacts, RefusedRow,
-    SectorRead, SectorRung, SelfCheck, SettleError, Settler, Settling, ShellOrientation, SideCode,
-    SlitLineGap, SolidContainment, SolidFaces, SphereQuestion, SpiricLoops, SubstitutedFace,
-    SweepStrategy, SweepTrace, TorusConvention, UnreadNeighbourhood, UnreadPartner, VeContact,
-    VfContact, VoidContainment, VoidEvidence, VoidInsertError, VoidInserted, VvContact, WallRung,
-    boolean_op_with, boolean_reduce, carrier_eq, contfp, curved_face_containment, decision_words,
-    face_carrier, flush_pair_relation, insert_void, insert_voids, intersect,
-    is_conventional_vertex, join_covers, joinable_vertices, joined_cell, joined_edge,
-    oriented_plane_eq, point_in_solid, point_in_solid_faces, point_in_solid_of, rest_locus,
-    subtract, tangent_pair_relation, union,
+    ContainDecision, ContainError, Contradiction, DeclarationRead, DiscardRow, EdgeCarrierSite,
+    EdgeInFaceGap, EdgeJoin, EdgePieceClass, EeContact, EfContact, FaceContainment, FfContact,
+    Fusions, GlueVerdict, GluedPair, JOIN_LEVER, JOIN_SUBJECT, JoinReading, JoinRefusal,
+    JoinUndecided, LeverArm, LineWedgeFault, NodeWhy, NullEdgePairRecord, Operand, OperandKeys,
+    OperandRecords, PairFace, PairRefusalSite, PairSite, PairUnread, PierceRingRecord, PlaneDesc,
+    PlaneEqError, PlaneIdentity, PlaneRelation, PlaneRung, PointInSolidError, ReductionContacts,
+    RefusedRow, SectorRead, SectorRung, SelfCheck, SettleError, Settler, Settling,
+    ShellOrientation, SideCode, SlitFaceGap, SlitLineGap, SolidContainment, SolidFaces,
+    SphereQuestion, SpiricLoops, SubstitutedFace, SweepStrategy, SweepTrace, TorusConvention,
+    UncutFace, UnreadNeighbourhood, UnreadPartner, VeContact, VfContact, VoidContainment,
+    VoidEvidence, VoidInsertError, VoidInserted, VvContact, WallRung, boolean_op_with,
+    boolean_reduce, carrier_eq, contfp, curved_face_containment, decision_words, face_carrier,
+    flush_pair_relation, insert_void, insert_voids, intersect, is_conventional_vertex, join_covers,
+    joinable_vertices, joined_cell, joined_edge, oriented_plane_eq, point_in_solid,
+    point_in_solid_faces, point_in_solid_of, rest_locus, subtract, tangent_pair_relation, union,
 };
 pub use joint::{Deck, JointElement};
 pub use lineage::{
@@ -1058,10 +1254,11 @@ pub use pcurves::{
     pcurve_of,
 };
 pub use props::{
-    AtRestOutcome, AtRestPolicy, MassProperties, MassPropsError, QuadLane, ShellClassification,
-    ShellClassifyError, ShellClassifyPayload, ShellDoor, ShellRole, SignCertificate, SignLimit,
-    TargetUnreached, VolumeEnclosure, VolumeReading, classify_shells, classify_shells_of,
-    classify_shells_structural, mass_properties, mass_properties_structural,
+    AtRestOutcome, AtRestPolicy, MassProperties, MassPropsError, QuadLane, RelOp, RoleNames,
+    Settle, ShellClassification, ShellClassifyError, ShellClassifyPayload, ShellDoor, ShellRole,
+    SignCertificate, SignLimit, SignNames, Stop, TargetUnreached, Verdict, VolumeEnclosure,
+    VolumeReading, classify_shells, classify_shells_of, classify_shells_structural,
+    mass_properties, mass_properties_structural,
 };
 pub use provenance::{Provenance, SplitLineageCycle};
 // The query VOCABULARY rides at the root like every other type;

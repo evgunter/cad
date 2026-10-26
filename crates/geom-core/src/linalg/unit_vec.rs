@@ -183,7 +183,7 @@ impl core::fmt::Display for UnitVec3Error {
             Self::Escalated(source) => source
                 .undecided(
                     crate::predicate::DIRECTION_LENGTH_SUBJECT,
-                    crate::predicate::lever_recourse(crate::predicate::COINCIDENCE_RECOURSE, None),
+                    source.lever_ending(crate::predicate::COINCIDENCE_RECOURSE),
                 )
                 .fmt(f),
         }
@@ -818,6 +818,37 @@ mod tests {
         assert!(
             (tangent - closed).norm() <= 1e-15,
             "the quotient rule's derivative: {tangent:?} vs {closed:?}"
+        );
+    }
+
+    /// **An escalated direction length ends in the lever, and notes a
+    /// poisoned margin**: the length is a gauge, so an in-band margin
+    /// carries the lever alone and an unreadable one adds the note.
+    #[test]
+    fn an_escalated_length_ends_in_the_lever_and_notes_a_poisoned_margin() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let render = |margin: f64| {
+            let i = crate::k_stats::decide(
+                "unit_vec_test_length",
+                crate::predicate::Margin::of(margin),
+                band,
+            )
+            .unwrap_err();
+            UnitVec3Error::Escalated(i).to_string()
+        };
+        let lever = crate::predicate::COINCIDENCE_RECOURSE;
+        let in_band = render(0.5 * (band.zero() + band.escalate()));
+        assert!(
+            in_band.ends_with(&format!(". Recourse: {lever}")),
+            "in band: the lever alone: {in_band}"
+        );
+        let poisoned = render(f64::NAN);
+        assert!(
+            poisoned.ends_with(&format!(
+                ". Recourse: {lever}; {}",
+                crate::predicate::UNREADABLE_MARGIN_NOTE
+            )),
+            "poisoned: the lever, then the note: {poisoned}"
         );
     }
 }

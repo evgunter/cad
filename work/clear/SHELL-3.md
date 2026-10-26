@@ -5,7 +5,7 @@ title: the clearance engine's body-level half moves into topo behind interval â€
 status: open
 opened: 2026-09-04
 refs: [shell-curved-clearance-consumer, 1725, 1737]
-priority: P1
+priority: P0
 cost: H
 ---
 

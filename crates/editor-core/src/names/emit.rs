@@ -15,7 +15,9 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use geom_core::{BandError, Indeterminate};
-use topo::{Body, EdgeKey, FaceKey, HalfEdgeKey, SettleError, SplitLineageCycle, VertexKey};
+use topo::{
+    Body, EdgeKey, FaceKey, HalfEdgeKey, LoopKey, SettleError, SplitLineageCycle, VertexKey,
+};
 
 use super::role::{EntityKind, StableName};
 use super::table::{EntityKey, EntityRef, NameTable, SeatingRefusal};
@@ -321,14 +323,11 @@ pub enum NamingError {
     },
     /// A union's member edge read where ONE edge is needed, where a tie
     /// stands: the member's own table ties the edge's name (or the
-    /// least row on its line) to several edges, or the fold tied two of
-    /// its crossings under one name.
+    /// least row on its line) to several edges.
     ///
-    /// The union needs one edge to rank the crossings of one face
-    /// along it (`emit_union`'s `cite_member_edges`), to place a
-    /// finished vertex or edge on it, and to read its two faces
-    /// (`Flush`); a tie offers several edges or several vertices and no
-    /// rule picks one. Nothing about the result body is wrong, so this
+    /// The union needs one edge to place a finished vertex or edge on
+    /// it and to read its two faces (`Flush`); a tie offers several
+    /// edges and no rule picks one. Nothing about the result body is wrong, so this
     /// is a missing rule and not an [`Self::Emission`].
     MemberEdgeTied {
         /// The member whose edge it is.
@@ -375,9 +374,8 @@ pub enum NamingError {
     UnsupportedUnionName {
         /// The name as the union held it where the shape was met: the
         /// fold row the collapse was rewriting for
-        /// [`UnionNameShape::RunLeastLineMoved`] and
         /// [`UnionNameShape::JunctionLinesCollide`], the member-keyed
-        /// name being published for the other two.
+        /// name being published for the other.
         name: Box<StableName>,
         /// What the name met.
         shape: UnionNameShape,
@@ -583,19 +581,9 @@ shapes! {
     /// What a name a union publishes met
     /// ([`NamingError::UnsupportedUnionName`]).
     UnionNameShape {
-        /// Several vertices share one seam name once they cite member
-        /// edges whole, and neither side of it is an edge to rank them
-        /// along.
-        SeamGroupNoMemberEdge => "is one seam name several vertices share once they cite member \
-                                  edges whole, and neither side of it is an edge to rank them \
-                                  along",
         /// It cites member faces of several parents: a tied member face
         /// is keyed to each candidate's parent, and those can differ.
         SeveralParents => "cites faces of several parents, so it names no one face",
-        /// A ranked edge-crossing run whose least line is another line
-        /// once keyed by member: the collapse does not keep name order.
-        RunLeastLineMoved => "is a ranked run whose least line is another line once keyed by \
-                              member, so nothing says where its vertices lie along it",
         /// Two lines of a seam junction, met at different steps, collapse
         /// to one member-space line.
         JunctionLinesCollide => "is a seam junction two of whose lines collapse to one \
@@ -896,8 +884,8 @@ impl crate::spoken::Say for NamingError {
             Self::MemberEdgeTied { member, edge } => write!(
                 f,
                 "{UNRULED_FRAMING}: member {}'s edge ({}) is read where one edge is needed, \
-                 to rank crossings along it, place a vertex on it or read its faces, but the \
-                 member ties that name to several edges, or ties two of its crossings",
+                 to place a vertex on it or read its faces, but the member ties that name to \
+                 several edges",
                 by.read(*member),
                 by.name(edge)
             ),
@@ -1093,21 +1081,26 @@ pub(crate) fn empty() -> Arc<NameTable> {
 /// placers and `Node::Part`, the emitters, the mate walk's `Part`
 /// agreement) and not a number silently narrowed.
 pub(crate) fn output_body(index: usize) -> Result<u32, NamingError> {
-    to_u32(
-        index,
-        "an output-body index exceeds the table's u32 row width",
-    )
+    u32::try_from(index).map_err(|_| NamingError::Emission {
+        what: "an output-body index exceeds the table's u32 row width",
+    })
 }
 
-/// **A count or index, narrowed to the `u32` the name vocabulary and
-/// the table store**, or [`NamingError::Emission`] with `what` when it
-/// does not fit. The one spelling of that narrowing in `names/`: a
-/// saturating or truncating cast would hand two different values one
-/// stored number, so a name or row would silently alias another. No
-/// body this crate can hold reaches the bound, so meeting it is a
-/// kernel bug, reported loudly.
-pub(crate) fn to_u32(n: usize, what: &'static str) -> Result<u32, NamingError> {
-    u32::try_from(n).map_err(|_| NamingError::Emission { what })
+/// **A count or index of what one body holds, narrowed to the `u32`
+/// the name vocabulary and the table store.** A saturating or
+/// truncating cast would hand two different values one stored number,
+/// so a name or row would silently alias another. Every caller's `n`
+/// is bounded below `u32::MAX` by what it counts — distinct entities of
+/// one kind in one body, which a `topo` arena (a `SlotMap`, refusing
+/// its `u32::MAX`-th slot) caps, or the few pieces a door builds — and
+/// `what` names that subject and its bound, so past it is a kernel bug
+/// and panics with both.
+#[track_caller]
+pub(crate) fn to_u32(n: usize, what: &'static str) -> u32 {
+    let Ok(narrow) = u32::try_from(n) else {
+        unreachable!("{what}: {n} does not fit the u32 a name stores")
+    };
+    narrow
 }
 
 /// **The placement-major layout**, the one home of its arithmetic:
@@ -1455,16 +1448,24 @@ pub(crate) struct Incidence {
 
 impl Incidence {
     /// Builds the incidence maps for one body.
-    pub(crate) fn of<T: geom_core::Real>(body: &Body<T>) -> Result<Self, NamingError> {
-        let bug = || NamingError::Emission {
-            what: "incidence walk: dangling half-edge reference",
-        };
+    ///
+    /// # Panics
+    ///
+    /// For a half-edge whose loop is dead, which a tier-1-valid body
+    /// never holds.
+    #[track_caller]
+    pub(crate) fn of<T: geom_core::Real>(body: &Body<T>) -> Self {
         let mut vertex_edges: BTreeMap<VertexKey, Vec<EdgeKey>> = BTreeMap::new();
         let mut edge_faces: BTreeMap<EdgeKey, Vec<FaceKey>> = BTreeMap::new();
-        for (_, he) in body.half_edges() {
+        for (k, he) in body.half_edges() {
             vertex_edges.entry(he.start).or_default().push(he.edge);
-            let face = body.get_loop(he.parent_loop).ok_or_else(bug)?.face;
-            edge_faces.entry(he.edge).or_default().push(face);
+            let Some(l) = body.get_loop(he.parent_loop) else {
+                unreachable!(
+                    "incidence walk: dangling loop {:?} of half-edge {k:?}; {TIER1}",
+                    he.parent_loop
+                )
+            };
+            edge_faces.entry(he.edge).or_default().push(l.face);
         }
         for v in vertex_edges.values_mut() {
             v.sort_unstable();
@@ -1474,12 +1475,26 @@ impl Incidence {
             f.sort_unstable();
             f.dedup();
         }
-        Ok(Self {
+        Self {
             vertex_edges,
             edge_faces,
-        })
+        }
     }
 }
+
+/// Why a link a record of the body holds resolves: the doors hand the
+/// emitters tier-1-valid bodies.
+const TIER1: &str = "a tier-1-valid body keeps every key it links live and every half-edge mated";
+
+/// Why a key a caller passes resolves: every caller reads it, in the
+/// same call, off a live record of the same body — its arena
+/// iteration, a link of a live entity, or a row of the table emitted
+/// for it, which names only that body's live entities. A live-key
+/// brand would carry this as a type (`topo`'s `Live`), but it would
+/// spread into every emitter signature naming a key, which do not
+/// otherwise care, so row 0 is "no" here.
+const LIVE_ARGUMENT: &str = "every caller reads the key off a live record of this body in the \
+                             same call";
 
 /// What the rim walk found. A caller MUST write down which of the two
 /// it means, because the two mean different things to different callers.
@@ -1489,25 +1504,6 @@ pub(crate) enum Rim {
     /// They do not share exactly one, and which way.
     NotOne(RimShare),
 }
-
-/// Structural corruption the rim walk can meet, one named sentence per
-/// arm.
-///
-/// Named constants rather than a `let bug = |what| …` closure: a
-/// closure taking arbitrary `&'static str` is a general-purpose
-/// `Emission` factory sitting in scope over the cardinality returns
-/// below, and it would take one line to classify a cardinality as a
-/// kernel bug from inside the walk — which is the defect this function
-/// is shaped to prevent. Constants cannot be applied to a new subject.
-const UNMATED: NamingError = NamingError::Emission {
-    what: "rim walk: unmated half-edge",
-};
-const DANGLING_MATE: NamingError = NamingError::Emission {
-    what: "rim walk: dangling mate",
-};
-const DANGLING_LOOP: NamingError = NamingError::Emission {
-    what: "rim walk: dangling loop",
-};
 
 /// The one edge face `f` and face `g` share, or which way they do not
 /// have one.
@@ -1521,125 +1517,150 @@ const DANGLING_LOOP: NamingError = NamingError::Emission {
 /// descended faces carry a seam chord's rim, which is a guess a later
 /// split can legitimately refute.
 ///
-/// What this buys is not that a wrong classification is impossible —
-/// `NamingError::Emission` takes a `&'static str` and anyone may write
-/// one. It is that a caller must **write** its classification: the
-/// return is a [`Rim`], so the cardinality arrives as a value that has
-/// to be matched, and no caller inherits a verdict by saying nothing.
-/// The two hazards that made saying nothing easy are gone with it — no
-/// `map_err` on this path at any call site
-/// (`work/wire/names-flush-and-select-discard-a-refusal-with-map-err-underscore.md`,
-/// closed by PR 2378, is what a `|_|` there costs), and no free-form
-/// `Emission` factory in scope here.
+/// The return is a [`Rim`], so a caller must **write** its
+/// classification: the cardinality arrives as a value to be matched,
+/// and no caller inherits a verdict by saying nothing.
 ///
-/// What the walk DOES refuse is structural corruption of `body` — the
-/// three arms above and the three in [`face_half_edges`]. Those are
-/// about the body rather than about anybody's premise: `topo`'s derived
-/// accessors return `None` exactly for a stale key or a broken
-/// edge/half-edge bijection, so they stay [`NamingError::Emission`]
-/// under every caller.
+/// What the walk does NOT report is structural corruption of `body`
+/// (a dead key, an unmated half-edge): that is about the body rather
+/// than anybody's premise, and the doors keep every body an emitter
+/// reads tier-1-valid, so it panics as a kernel bug under every caller.
 ///
 /// Named `rim_between` rather than `shared_rim`: `topo`'s
 /// `boolean::rim_wedge::shared_rim` answers the same question one layer
 /// down, and one name for two functions in two crates costs every
 /// future reader a `grep` they cannot disambiguate.
-pub(crate) fn rim_between<T: geom_core::Real>(
-    body: &Body<T>,
-    f: FaceKey,
-    g: FaceKey,
-) -> Result<Rim, NamingError> {
-    Ok(match rims_between(body, f, g)?.as_slice() {
+#[track_caller]
+pub(crate) fn rim_between<T: geom_core::Real>(body: &Body<T>, f: FaceKey, g: FaceKey) -> Rim {
+    match rims_between(body, f, g).as_slice() {
         [] => Rim::NotOne(RimShare::NotAdjacent),
         [e] => Rim::One(*e),
         _ => Rim::NotOne(RimShare::Several),
-    })
+    }
 }
 
 /// EVERY edge face `f` and face `g` share, each once, in `f`'s
 /// half-edge order — the walk [`rim_between`] classifies, for a caller
 /// whose premise lets it choose among several by something else (the
 /// boolean pass's chord, [`crate::names::emit_topo`]). Structural
-/// corruption refuses exactly as [`rim_between`] documents.
+/// corruption panics exactly as [`rim_between`] documents.
+#[track_caller]
 pub(crate) fn rims_between<T: geom_core::Real>(
     body: &Body<T>,
     f: FaceKey,
     g: FaceKey,
-) -> Result<Vec<EdgeKey>, NamingError> {
+) -> Vec<EdgeKey> {
     let mut found: Vec<EdgeKey> = Vec::new();
-    for he in face_half_edges(body, f)? {
-        let mate = body.mate(he).ok_or(UNMATED)?;
-        let mate_he = body.get_half_edge(mate).ok_or(DANGLING_MATE)?;
-        let other = body
-            .get_loop(mate_he.parent_loop)
-            .ok_or(DANGLING_LOOP)?
-            .face;
-        if other == g && !found.contains(&mate_he.edge) {
+    for he in face_half_edges(body, f) {
+        let Some(mate) = body.mate(he) else {
+            unreachable!("rim walk: unmated half-edge {he:?} of face {f:?}; {TIER1}")
+        };
+        let Some(mate_he) = body.get_half_edge(mate) else {
+            unreachable!(
+                "rim walk: dangling mate {mate:?} of half-edge {he:?} of face {f:?}; {TIER1}"
+            )
+        };
+        let Some(other) = body.get_loop(mate_he.parent_loop) else {
+            unreachable!(
+                "rim walk: dangling loop {:?} of mate {mate:?} of face {f:?}; {TIER1}",
+                mate_he.parent_loop
+            )
+        };
+        if other.face == g && !found.contains(&mate_he.edge) {
             found.push(mate_he.edge);
         }
     }
-    Ok(found)
+    found
 }
 
 /// A vertex's point in `body` — the one reader of it in this module's
 /// emitters.
+///
+/// # Panics
+///
+/// For a dead vertex ([`LIVE_ARGUMENT`]: `v` is the caller's key) or a
+/// vertex without a point ([`TIER1`]: a link the vertex holds).
+#[track_caller]
 pub(crate) fn vertex_point<T: geom_core::Real>(
     body: &Body<T>,
     v: VertexKey,
-) -> Result<geom_core::Point3<T>, NamingError> {
-    body.get_vertex(v)
-        .and_then(|vd| body.get_point(vd.point))
-        .copied()
-        .ok_or(NamingError::Emission {
-            what: "a vertex without a point",
-        })
+) -> geom_core::Point3<T> {
+    let Some(vd) = body.get_vertex(v) else {
+        unreachable!("vertex point: dangling vertex {v:?}; {LIVE_ARGUMENT}")
+    };
+    let Some(p) = body.get_point(vd.point) else {
+        unreachable!(
+            "vertex point: dead point {:?} of vertex {v:?}; {TIER1}",
+            vd.point
+        )
+    };
+    *p
 }
 
 /// All half-edges of a face (outer loop + rings), deterministic
 /// order.
-pub(crate) fn face_half_edges<T: geom_core::Real>(
-    body: &Body<T>,
-    f: FaceKey,
-) -> Result<Vec<HalfEdgeKey>, NamingError> {
-    let bug = |what| NamingError::Emission { what };
-    let face = body
-        .get_face(f)
-        .ok_or_else(|| bug("face walk: dangling face"))?;
+///
+/// # Panics
+///
+/// For a dead face ([`LIVE_ARGUMENT`]: `f` is the caller's key), or
+/// where [`loop_half_edges`] panics on one of its loops ([`TIER1`]).
+#[track_caller]
+pub(crate) fn face_half_edges<T: geom_core::Real>(body: &Body<T>, f: FaceKey) -> Vec<HalfEdgeKey> {
+    let Some(face) = body.get_face(f) else {
+        unreachable!("face walk: dangling face {f:?}; {LIVE_ARGUMENT}")
+    };
     let mut out = Vec::new();
     for l in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
-        match body
-            .get_loop(l)
-            .ok_or_else(|| bug("face walk: dangling loop"))?
-            .boundary
-        {
-            topo::LoopBoundary::Empty { .. } => {}
-            topo::LoopBoundary::Cycle { first } => {
-                out.extend(
-                    body.loop_cycle(first)
-                        .ok_or_else(|| bug("face walk: unwalkable loop"))?,
-                );
-            }
-        }
+        out.extend(loop_half_edges(body, l));
     }
-    Ok(out)
+    out
+}
+
+/// The half-edges of loop `l`, in cycle order (none for an empty loop).
+///
+/// # Panics
+///
+/// For a dead loop, or a cycle that does not close ([`TIER1`]): every
+/// caller reads `l` off a live face of `body` ([`face_half_edges`], the
+/// plane pieces' outline walk), a link that face holds.
+#[track_caller]
+pub(crate) fn loop_half_edges<T: geom_core::Real>(body: &Body<T>, l: LoopKey) -> Vec<HalfEdgeKey> {
+    let Some(lp) = body.get_loop(l) else {
+        unreachable!("face walk: dangling loop {l:?}; {TIER1}")
+    };
+    let topo::LoopBoundary::Cycle { first } = lp.boundary else {
+        return Vec::new();
+    };
+    let Some(cycle) = body.loop_cycle(first) else {
+        unreachable!("face walk: unwalkable loop {l:?} from {first:?}; {TIER1}")
+    };
+    cycle
 }
 
 /// The two endpoint vertices of an edge.
-pub(crate) fn edge_ends<T: geom_core::Real>(
-    body: &Body<T>,
-    e: EdgeKey,
-) -> Result<(VertexKey, VertexKey), NamingError> {
-    let bug = |what| NamingError::Emission { what };
-    let edge = body
-        .get_edge(e)
-        .ok_or_else(|| bug("edge ends: dangling edge"))?;
-    let start = body
-        .get_half_edge(edge.he_plus)
-        .ok_or_else(|| bug("edge ends: dangling he_plus"))?
-        .start;
-    let end = body
-        .half_edge_end(edge.he_plus)
-        .ok_or_else(|| bug("edge ends: he_plus has no end"))?;
-    Ok((start, end))
+///
+/// # Panics
+///
+/// For a dead edge ([`LIVE_ARGUMENT`]: `e` is the caller's key) or a
+/// broken link from its `he_plus` ([`TIER1`]).
+#[track_caller]
+pub(crate) fn edge_ends<T: geom_core::Real>(body: &Body<T>, e: EdgeKey) -> (VertexKey, VertexKey) {
+    let Some(edge) = body.get_edge(e) else {
+        unreachable!("edge ends: dangling edge {e:?}; {LIVE_ARGUMENT}")
+    };
+    let Some(plus) = body.get_half_edge(edge.he_plus) else {
+        unreachable!(
+            "edge ends: dangling he_plus {:?} of edge {e:?}; {TIER1}",
+            edge.he_plus
+        )
+    };
+    let Some(end) = body.half_edge_end(edge.he_plus) else {
+        unreachable!(
+            "edge ends: he_plus has no end: {:?} of edge {e:?}; {TIER1}",
+            edge.he_plus
+        )
+    };
+    (plus.start, end)
 }
 
 /// TOTALITY (spec D4): every live face/edge/vertex of `body` (output
@@ -2221,10 +2242,10 @@ mod display_tests {
             ),
             (
                 NamingError::Escalated {
-                    predicate: crate::names::discriminate::ORDER_ALONG,
+                    predicate: crate::names::discriminate::ON_MEMBER_EDGE,
                     source: escalation(),
                 },
-                vec!["the order of two crossings along an edge"],
+                vec!["a point's place along an edge"],
             ),
             (
                 NamingError::SplitLineage(SplitLineageCycle {
@@ -2655,8 +2676,8 @@ mod display_tests {
     /// This is the mechanism [`NamingError::SharedRim`]'s doc argues
     /// for, pinned. A unit cube that `topo::validate_closed` accepts
     /// answers "no shared edge" for its two caps — most face pairs of
-    /// most bodies share none — and the walk returns that as a FACT,
-    /// with no [`NamingError`] anywhere in the outer result. A caller
+    /// most bodies share none — and the walk returns that as a FACT, a
+    /// [`Rim`] the caller has to match. A caller
     /// therefore cannot inherit a classification it did not choose:
     /// `emit_sweep` calls the same answer a contradicted key bundle and
     /// `emit_topo` calls it a refuted guess, and both are right because
@@ -2664,16 +2685,14 @@ mod display_tests {
     ///
     /// The control is the pair that DOES share one rim: without it this
     /// row would pass if the walk had stopped finding rims at all. The
-    /// corruption the walk does refuse is driven hop by hop in
+    /// corruption the walk panics on is driven hop by hop in
     /// `walk_tests`.
     #[test]
     fn the_rim_walk_reports_cardinality_as_a_fact() {
         let cube = super::walk_tests::cube();
 
         let wall = cube.side_faces()[0][0];
-        let Rim::One(rim) = rim_between(&cube.body, cube.top, wall)
-            .expect("a sound body raises no emission refusal")
-        else {
+        let Rim::One(rim) = rim_between(&cube.body, cube.top, wall) else {
             panic!("a cap and a wall of a box share exactly one rim");
         };
         assert!(
@@ -2683,12 +2702,9 @@ mod display_tests {
         );
 
         match rim_between(&cube.body, cube.top, cube.bottom) {
-            // `Ok`, not `Err`: the walk hands back a FACT and raises no
-            // refusal, which is what stops a caller inheriting one.
-            Ok(Rim::NotOne(RimShare::NotAdjacent)) => {}
-            Ok(Rim::One(_)) => panic!("opposite caps of a box share no rim"),
-            Ok(Rim::NotOne(other)) => panic!("wanted NotAdjacent, got {other:?}"),
-            Err(e) => panic!("a sound body must raise no refusal here: {e}"),
+            Rim::NotOne(RimShare::NotAdjacent) => {}
+            Rim::One(_) => panic!("opposite caps of a box share no rim"),
+            Rim::NotOne(other) => panic!("wanted NotAdjacent, got {other:?}"),
         }
     }
 
@@ -2807,7 +2823,6 @@ mod walk_tests {
         let (top, wall) = (cube.top, cube.side_faces()[0][0]);
         let body = &cube.body;
         let (he, mate) = face_half_edges(body, top)
-            .unwrap()
             .into_iter()
             .map(|he| (he, body.mate(he).unwrap()))
             .find(|&(_, m)| body.face_of_half_edge(m) == Some(wall))
@@ -2841,35 +2856,39 @@ mod walk_tests {
         }
     }
 
-    /// The sentence a walk refused with.
-    fn refusal<V>(walk: &str, r: Result<V, NamingError>) -> &'static str {
-        match r {
-            Err(NamingError::Emission { what }) => what,
-            Err(other) => panic!("{walk}: wanted an emission refusal, got {other}"),
-            Ok(_) => panic!("{walk}: a body with a dangling link must refuse"),
+    #[test]
+    fn the_rim_walk_finds_the_rim_of_a_sound_box() {
+        let r = rim1();
+        match rim_between(r.body(), r.top, r.wall) {
+            Rim::One(e) => assert_eq!(e, r.edge, "the control finds the rim"),
+            Rim::NotOne(other) => {
+                panic!("a cap and a wall of a sound box share one rim: {other:?}")
+            }
         }
     }
 
+    /// The half-edge's edge is gone: it has no mate.
     #[test]
-    fn the_rim_walk_refuses_each_hop_in_its_own_words() {
+    #[should_panic(expected = "rim walk: unmated half-edge")]
+    fn the_rim_walk_panics_on_an_unmated_half_edge() {
         let r = rim1();
-        match rim_between(r.body(), r.top, r.wall) {
-            Ok(Rim::One(e)) => assert_eq!(e, r.edge, "the control finds the rim"),
-            _ => panic!("a cap and a wall of a sound box share exactly one rim"),
-        }
-        let walk = |body: &Body<f64>| refusal("rim_between", rim_between(body, r.top, r.wall));
-        // The half-edge's edge is gone: it has no mate.
-        assert_eq!(
-            walk(&r.without(EntityId::Edge(r.edge))),
-            "rim walk: unmated half-edge"
-        );
-        // The mate is named but gone: the first hop.
-        assert_eq!(
-            walk(&r.without(EntityId::HalfEdge(r.mate))),
-            "rim walk: dangling mate"
-        );
-        // The mate is live and its loop is gone: the second hop.
-        assert_eq!(walk(&r.without(r.wall_loop())), "rim walk: dangling loop");
+        rim_between(&r.without(EntityId::Edge(r.edge)), r.top, r.wall);
+    }
+
+    /// The mate is named but gone: the first hop.
+    #[test]
+    #[should_panic(expected = "rim walk: dangling mate")]
+    fn the_rim_walk_panics_on_a_dangling_mate() {
+        let r = rim1();
+        rim_between(&r.without(EntityId::HalfEdge(r.mate)), r.top, r.wall);
+    }
+
+    /// The mate is live and its loop is gone: the second hop.
+    #[test]
+    #[should_panic(expected = "rim walk: dangling loop")]
+    fn the_rim_walk_panics_on_a_dangling_loop() {
+        let r = rim1();
+        rim_between(&r.without(r.wall_loop()), r.top, r.wall);
     }
 
     /// The chord walk over the cube's top as a section face, through
@@ -2877,7 +2896,7 @@ mod walk_tests {
     fn chord_walk(r: &Rim1, body: &Body<f64>) -> BTreeMap<EdgeKey, FaceKey> {
         let sections = [(r.top, PlaneSide::Above)];
         let keys = BTreeSet::from([r.top]);
-        chord_faces(body, &sections, &keys).unwrap()
+        chord_faces(body, &sections, &keys)
     }
 
     #[test]
@@ -2912,47 +2931,117 @@ mod walk_tests {
     }
 
     #[test]
-    fn the_face_walk_refuses_each_hop_in_its_own_words() {
+    fn the_face_walk_walks_the_square_cap() {
         let r = rim1();
-        let hes = face_half_edges(r.body(), r.top).unwrap();
-        assert_eq!(hes.len(), 4, "the control walks the square cap");
-        let walk = |body: &Body<f64>| refusal("face_half_edges", face_half_edges(body, r.top));
         assert_eq!(
-            walk(&r.without(EntityId::Face(r.top))),
-            "face walk: dangling face"
-        );
-        let outer = r.body().get_face(r.top).unwrap().outer;
-        assert_eq!(
-            walk(&r.without(EntityId::Loop(outer))),
-            "face walk: dangling loop"
-        );
-        // A live loop whose cycle runs through a removed half-edge.
-        assert_eq!(
-            walk(&r.without(EntityId::HalfEdge(hes[1]))),
-            "face walk: unwalkable loop"
+            face_half_edges(r.body(), r.top).len(),
+            4,
+            "the control walks the square cap"
         );
     }
 
     #[test]
-    fn edge_ends_refuses_each_hop_in_its_own_words() {
+    #[should_panic(expected = "face walk: dangling face")]
+    fn the_face_walk_panics_on_a_dangling_face() {
+        let r = rim1();
+        face_half_edges(&r.without(EntityId::Face(r.top)), r.top);
+    }
+
+    #[test]
+    #[should_panic(expected = "face walk: dangling loop")]
+    fn the_face_walk_panics_on_a_dangling_loop() {
+        let r = rim1();
+        let outer = r.body().get_face(r.top).unwrap().outer;
+        face_half_edges(&r.without(EntityId::Loop(outer)), r.top);
+    }
+
+    /// A live loop whose cycle runs through a removed half-edge.
+    #[test]
+    #[should_panic(expected = "face walk: unwalkable loop")]
+    fn the_face_walk_panics_on_an_unwalkable_loop() {
+        let r = rim1();
+        let hes = face_half_edges(r.body(), r.top);
+        face_half_edges(&r.without(EntityId::HalfEdge(hes[1])), r.top);
+    }
+
+    #[test]
+    fn edge_ends_reads_two_ends_of_a_sound_edge() {
+        let r = rim1();
+        let (start, end) = edge_ends(r.body(), r.edge);
+        assert_ne!(start, end, "the control reads two ends");
+    }
+
+    #[test]
+    #[should_panic(expected = "edge ends: dangling edge")]
+    fn edge_ends_panics_on_a_dangling_edge() {
+        let r = rim1();
+        edge_ends(&r.without(EntityId::Edge(r.edge)), r.edge);
+    }
+
+    #[test]
+    #[should_panic(expected = "edge ends: dangling he_plus")]
+    fn edge_ends_panics_on_a_dangling_he_plus() {
+        let r = rim1();
+        let he_plus = r.body().get_edge(r.edge).unwrap().he_plus;
+        edge_ends(&r.without(EntityId::HalfEdge(he_plus)), r.edge);
+    }
+
+    #[test]
+    #[should_panic(expected = "edge ends: he_plus has no end")]
+    fn edge_ends_panics_on_a_he_plus_with_no_end() {
         let r = rim1();
         let he_plus = r.body().get_edge(r.edge).unwrap().he_plus;
         let next = r.body().get_half_edge(he_plus).unwrap().next;
-        let (start, end) = edge_ends(r.body(), r.edge).unwrap();
-        assert_ne!(start, end, "the control reads two ends");
-        let walk = |body: &Body<f64>| refusal("edge_ends", edge_ends(body, r.edge));
+        edge_ends(&r.without(EntityId::HalfEdge(next)), r.edge);
+    }
+
+    #[test]
+    #[should_panic(expected = "incidence walk: dangling loop")]
+    fn the_incidence_walk_panics_on_a_dangling_loop() {
+        let r = rim1();
+        Incidence::of(&r.without(r.wall_loop()));
+    }
+
+    /// The rim edge's start, read off the sound cube.
+    fn rim_start(r: &Rim1) -> VertexKey {
+        edge_ends(r.body(), r.edge).0
+    }
+
+    #[test]
+    fn vertex_point_reads_a_sound_vertex() {
+        let r = rim1();
+        let v = rim_start(&r);
+        let at = *r
+            .body()
+            .get_point(r.body().get_vertex(v).unwrap().point)
+            .unwrap();
+        let p = vertex_point(r.body(), v);
         assert_eq!(
-            walk(&r.without(EntityId::Edge(r.edge))),
-            "edge ends: dangling edge"
+            [p.x, p.y, p.z],
+            [at.x, at.y, at.z],
+            "the control reads the vertex's point"
         );
-        assert_eq!(
-            walk(&r.without(EntityId::HalfEdge(he_plus))),
-            "edge ends: dangling he_plus"
-        );
-        assert_eq!(
-            walk(&r.without(EntityId::HalfEdge(next))),
-            "edge ends: he_plus has no end"
-        );
+    }
+
+    #[test]
+    #[should_panic(expected = "vertex point: dangling vertex")]
+    fn vertex_point_panics_on_a_dangling_vertex() {
+        let r = rim1();
+        let v = rim_start(&r);
+        vertex_point(&r.without(EntityId::Vertex(v)), v);
+    }
+
+    #[test]
+    #[should_panic(expected = "vertex point: dead point")]
+    fn vertex_point_panics_on_a_vertex_without_a_point() {
+        let r = rim1();
+        let v = rim_start(&r);
+        let point = r.body().get_vertex(v).unwrap().point;
+        let torn = r
+            .body()
+            .with_point_removed_for_tests(point)
+            .expect("the vertex's point is live");
+        vertex_point(&torn, v);
     }
 }
 
@@ -3073,27 +3162,24 @@ mod conventional_vertex_tests {
 mod to_u32_tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-    use super::{NamingError, to_u32};
+    use super::to_u32;
 
-    /// The last value a `u32` holds narrows exactly; the first one past
-    /// it is refused with the caller's own sentence, never saturated
-    /// onto `u32::MAX` where it would share that value's name.
+    /// The last value a `u32` holds narrows exactly.
     #[test]
-    fn narrows_to_the_bound_and_refuses_past_it() {
+    fn narrows_to_the_bound() {
         let max = usize::try_from(u32::MAX).expect("a 32-bit or wider usize");
-        assert_eq!(to_u32(max, "unused").ok(), Some(u32::MAX));
-        assert_eq!(to_u32(0, "unused").ok(), Some(0));
-        let Some(past) = max.checked_add(1) else {
-            return; // a 32-bit usize holds no value past the bound
-        };
-        assert!(
-            matches!(
-                to_u32(past, "the caller's sentence"),
-                Err(NamingError::Emission {
-                    what: "the caller's sentence"
-                })
-            ),
-            "one past u32::MAX is refused, not saturated"
-        );
+        assert_eq!(to_u32(max, "unused"), u32::MAX);
+        assert_eq!(to_u32(0, "unused"), 0);
+    }
+
+    /// The first value past the bound panics with the caller's own
+    /// sentence and the value, never saturated onto `u32::MAX` where it
+    /// would share that value's name.
+    #[cfg(target_pointer_width = "64")]
+    #[test]
+    #[should_panic(expected = "the caller's sentence: 4294967296 does not fit")]
+    fn panics_one_past_the_bound() {
+        let past = usize::try_from(u64::from(u32::MAX) + 1).expect("a 64-bit usize");
+        to_u32(past, "the caller's sentence");
     }
 }

@@ -1033,8 +1033,7 @@ fn survives_definite_near_band_classes_do_not_flip() {
 fn survives_two_isolated_axis_vertices_pinch_is_non_manifold() {
     // Axis contact at two isolated VERTICES (no on-axis segment at
     // all): the revolved boundary pinches at both points — must be
-    // NonManifoldAxisContact, not accepted and not MultipleAxisRuns
-    // (there are zero runs).
+    // NonManifoldAxisContact, not accepted (there are zero runs).
     let lp = ProfileLoop::polygon([
         Point2::new(0.0, 0.0),
         Point2::new(1.0, 0.0),

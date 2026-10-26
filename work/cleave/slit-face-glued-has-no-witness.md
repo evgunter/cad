@@ -14,15 +14,15 @@ Found reviewing PR 5545 (`cleave/fate-cut-ends-at-a-slit-tip`).
 ## What
 
 `BooleanError::SlitFaceGlued` (`crates/topo/src/boolean/mod.rs`) is
-raised on three paths, and no test or probe reaches any of them:
+raised on three paths, its `gap` (`SlitFaceGap`) naming which, and no test or probe reaches any of them:
 
-- `join.rs` `pinch_ray_refusal`, where `choose_roles` refuses a ring
+- `RingRun`: `join.rs` `pinch_ray_refusal`, where `choose_roles` refuses a ring
   run that encloses no area through a slit's tip (the calls in the
   section loop, `join.rs` ~1420), on a lane `glued_slit_roles` does not
   take (a curved face's ring lane);
-- `join.rs` `glued_slit_roles`, where `best_arc` finds both arcs
+- `ArcsSeparate`: `join.rs` `glued_slit_roles`, where `best_arc` finds both arcs
   separating a pending pair (`Capture::Separates`);
-- `fate.rs` `tip_wraps`, where a fate cut ends at a corner whose two
+- `TipUnread`: `fate.rs` `tip_wraps`, where a fate cut ends at a corner whose two
   straight bounds leave along one ray and the loop's turns are not read:
   a curved face, a curved edge on the loop, or half-turns both ways.
 

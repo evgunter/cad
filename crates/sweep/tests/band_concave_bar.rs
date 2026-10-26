@@ -555,7 +555,7 @@ pub(crate) fn past_the_chord(dist: f64) -> (f64, f64) {
 /// ellipses, and the arc's inside reading charges the cycle its major
 /// semi-axis across the section's minor one, which at lean `s` costs
 /// `a·(√(1 + s²) − 1)`, `1.8e-4` at `0.3`
-/// (`work/band/an-oblique-caps-inside-reading-charges-a-ring-its-major-semi-axis.md`;
+/// (`work/bandmeter/an-oblique-caps-inside-reading-charges-a-ring-its-major-semi-axis.md`;
 /// the convex bore reads the same).
 #[test]
 fn a_bar_a_hair_across_the_fills_boundary_crosses_and_one_inside_is_absorbed() {

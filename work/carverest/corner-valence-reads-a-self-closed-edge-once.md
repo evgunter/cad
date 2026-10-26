@@ -47,6 +47,15 @@ outcome is a typed refusal with the wrong tag, not a wrong body. No
 body the tree builds has a non-seam edge ending at a self-closed rim's
 vertex, so no test reaches it today.
 
+Re-read on main 2026-10-26 (tracker sweep): all five stand, at
+`battery.rs:2653` (`valence = edges.len()`), `battery.rs:2796`
+(`faces.len() != 3`), `battery.rs:2570` (`let [_, _, _] = incident[..]`),
+`admit.rs:458` (`let [f0, f1, f2] = faces[..]`) and `surgery.rs:690`
+(`incident.len() != 3`). A sixth distinct-count read sits in
+`reach.rs:1424` (`corner_reach`: `faces.len() != 3 || links.len() != 3`).
+It takes only three plane supports, so a self-closed rim probably
+cannot reach it, but a fix should check it with the five.
+
 ## Fix shape
 
 Read the degree, not the distinct-edge count, at all five readers: a
