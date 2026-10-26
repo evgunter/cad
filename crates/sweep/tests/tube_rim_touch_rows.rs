@@ -170,7 +170,7 @@ fn curved_pairs_refused(
         .filter(|e| {
             matches!(
                 e,
-                ValidationError::CensusUndecidable { a, b, what }
+                ValidationError::CensusUndecidable { a, b, what, .. }
                     if what.contains("a curved face of one is within reach of the other")
                         && (on(a) || on(b))
             )
