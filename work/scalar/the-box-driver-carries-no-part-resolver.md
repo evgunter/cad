@@ -41,3 +41,7 @@ question.
 ## Re-homed from FLUX to FLUXHOLD (2026-10-10)
 
 (FLUX orchestrator) FLUX measured 125.5 budget points against 30 and was cut on its priority seam: FLUX kept the curved closed-form arms. FLUXHOLD holds FLUX's rows on the D10 hold (`work/intent/d10-one-way-to-say-intent-is-unbuilt.md`). Each waits on the INTENT unit that rebuilds its ground, named in `blocked_on`. The id and the body above are unchanged; the move may have set `priority`, `cost` or `status` in the header.
+
+## Moved (2026-10-26, tracker sweep)
+
+From FLUXHOLD, which closed (`docs/doc-ledger/fluxhold-leaves-the-tracker.md`); this program claims the file the row is about.

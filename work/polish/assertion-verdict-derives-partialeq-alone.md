@@ -46,3 +46,7 @@ argument in the comment or compare that arm by something that is `Eq`.
 Not D10-held any more: the ground is the viewer's tree row, so this row
 belongs on a viewer program's slate (CHROME or POLISH claim
 `crates/viewer/src/*`).
+
+## Moved (2026-10-26, tracker sweep)
+
+From FLUXHOLD, which closed (`docs/doc-ledger/fluxhold-leaves-the-tracker.md`); this program claims the file the row is about.
