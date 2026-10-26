@@ -94,10 +94,8 @@ fn sites(finding: &InterferenceFinding, doc: &ProfileDoc) -> Vec<(RecipeNodeId, 
             let placement = doc
                 .operation_of(site.copy.var)
                 .expect("a copy is a placement's output");
-            let [RoleSeg::Placed { of }] = &site.face.path[..] else {
-                panic!("a copy's face name wraps the body's: {:?}", site.face)
-            };
-            (placement, of.name().clone())
+            // A copy names its faces as its body does.
+            (placement, site.face.clone())
         })
         .collect()
 }
@@ -242,7 +240,7 @@ fn a_holding_gap_over_the_unplaced_bodies_quiets_nothing() {
         doc.clone(),
         [
             SitedRef::new(a, plus_x(&doc, a)),
-            SitedRef::new(b_at, minus_x(&doc, b).in_copy(b_at)),
+            SitedRef::new(b_at, minus_x(&doc, b)),
         ],
         AssertionRelation::AtMost,
         -0.01,
@@ -265,7 +263,7 @@ fn a_holding_gap_over_the_unplaced_bodies_quiets_nothing() {
 }
 
 /// A `Gap` over faces of two world copies, read where each copy holds
-/// it (`face.in_copy(placement)`), bounded by `relation` and `bound`.
+/// it (`face`), bounded by `relation` and `bound`.
 fn gap_at_copies(
     doc: ProfileDoc,
     (p, outer): (RecipeNodeId, StableName),
@@ -275,10 +273,7 @@ fn gap_at_copies(
 ) -> (ProfileDoc, RecipeNodeId) {
     asserted_gap(
         doc,
-        [
-            SitedRef::new(p, outer.in_copy(p)),
-            SitedRef::new(q, inner.in_copy(q)),
-        ],
+        [SitedRef::new(p, outer), SitedRef::new(q, inner)],
         relation,
         bound,
     )
@@ -457,11 +452,11 @@ fn an_overlap_with_a_sunk_flange_stays_loud() {
 #[test]
 fn a_gap_whose_face_vanished_quiets_nothing_and_gates_nothing() {
     let (doc, a, b, p, q) = slab_overlap();
-    let vanished = fname(a, RoleSeg::Cap(editor_core::CapEnd::End)).in_copy(q);
+    let vanished = fname(a, RoleSeg::Cap(editor_core::CapEnd::End));
     let (doc, assertion) = asserted_gap(
         doc.clone(),
         [
-            SitedRef::new(p, plus_x(&doc, a).in_copy(p)),
+            SitedRef::new(p, plus_x(&doc, a)),
             SitedRef::new(q, vanished),
         ],
         AssertionRelation::AtMost,
@@ -664,7 +659,7 @@ fn a_pin_bottoming_through_a_blind_bore_stays_loud() {
         .clone();
     let (doc, assertion) = asserted_gap(
         doc,
-        [SitedRef::new(p, site), SitedRef::new(q, wall.in_copy(q))],
+        [SitedRef::new(p, site), SitedRef::new(q, wall)],
         AssertionRelation::AtMost,
         -0.001,
     );

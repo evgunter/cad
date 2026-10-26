@@ -48,8 +48,8 @@ fn a_flush_sided_slab_is_quiet_under_its_gap() {
         &doc,
         MeasurePrimitive::Gap { outer: 0, inner: 1 },
         vec![
-            SitedRef::new(p, fname(a, wall(&doc, a, 1)).in_copy(p)),
-            SitedRef::new(q, fname(b, wall(&doc, b, 3)).in_copy(q)),
+            SitedRef::new(p, fname(a, wall(&doc, a, 1))),
+            SitedRef::new(q, fname(b, wall(&doc, b, 3))),
         ],
     );
     let value = crate::fixture::value_of(&doc, measure);

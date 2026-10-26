@@ -1466,8 +1466,8 @@ type DoorRows = (
 /// **The rows the `unproven-coincidence` resident asks the door
 /// about** (D10): every evaluated node's rows, in evaluation order then
 /// decision order, then the at-rest census's rows on the gathered
-/// product and on each `new_space()` it carries
-/// ([`crate::Product::spaces`]), in their order; each
+/// product and on each other `⊔` it carries
+/// ([`crate::Product::assembles`]), in their order; each
 /// under the subject it is reported against — the node that decided it,
 /// or the two copies the census found in contact.
 fn door_rows<P, T: Decide>(
@@ -1481,10 +1481,10 @@ fn door_rows<P, T: Decide>(
             .iter()
             .chain(
                 gathered
-                    .spaces
+                    .assembles
                     .iter()
-                    .filter_map(|space| space.gather.as_ref().ok())
-                    .flat_map(|space| space.coincidences.iter()),
+                    .filter_map(|assemble| assemble.gather.as_ref().ok())
+                    .flat_map(|assemble| assemble.coincidences.iter()),
             )
             .collect(),
         Subject::EmptyProduct | Subject::Unavailable { .. } => Vec::new(),
@@ -2071,12 +2071,12 @@ mod tests {
     /// refusal it was handed, whole, so the checks door can forward it
     /// for the frame holding the document to say.
     ///
-    /// The refusal below is reachable: a placement whose body was
-    /// deleted gathers into `ProductError::StrandedPlacement`.
+    /// The refusal below is reachable: a product whose body was
+    /// deleted gathers into `ProductError::StrandedProduct`.
     #[test]
     fn the_subject_door_carries_the_gather_refusal_it_saw() {
-        let refusal = || crate::ProductError::StrandedPlacement {
-            placement: RecipeNodeId::new(0, 7),
+        let refusal = || crate::ProductError::StrandedProduct {
+            read: crate::VarId::new(0, 7),
         };
         let subject: Subject<'_, f64> = Subject::refused(refusal());
         let Subject::Unavailable {
@@ -2130,10 +2130,7 @@ mod tests {
     #[test]
     fn the_subject_door_routes_an_absence_away_from_the_unavailable_arm() {
         for refusal in [
-            crate::ProductError::EmptyProduct {
-                unplaced: Vec::new(),
-                elsewhere: Vec::new(),
-            },
+            crate::ProductError::EmptyProduct,
             crate::ProductError::Root(crate::NodeStanding::Poisoned {
                 node: RecipeNodeId::new(0, 7),
                 through: RecipeNodeId::new(0, 2),

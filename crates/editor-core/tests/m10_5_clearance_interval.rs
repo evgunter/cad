@@ -236,24 +236,9 @@ pub(crate) fn slid_by(
             _ => {}
         }
     }
-    let placement = r.insert(crate::fixture::stood(vec![BodyRead::plain(read)]));
+    let placement = r.insert(crate::fixture::stood(BodyRead::plain(read)));
     r.write(placement, placed);
     placement
-}
-
-/// **A name worn by the copy `placement` makes**: one `Placed` wrapper
-/// round the name its body minted.
-pub(crate) fn in_placement(
-    placement: RecipeNodeId,
-    of: editor_core::StableName,
-) -> editor_core::StableName {
-    editor_core::StableName {
-        kind: of.kind,
-        node: placement,
-        path: vec![editor_core::RoleSeg::Placed {
-            of: editor_core::NameRef::new(of),
-        }],
-    }
 }
 
 /// A copy of `input` slid by `by` along its own +x ([`slid_by`]).

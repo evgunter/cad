@@ -1444,7 +1444,9 @@ fn named_alike(gap: &Gap) -> usize {
         if let Err(e) = topo::validate_geometric(body, Tol::witness()) {
             panic!("{what}: tier 3 refused the body: {e:?}");
         }
-        let mut walls = gap.walls.map(|i| m[i]);
+        let mut walls = gap
+            .walls
+            .map(|i| doc.output(m[i], 0).expect("a member's body"));
         walls.sort_unstable();
         for &(lo, hi) in gap.seams {
             let on: Vec<&StableName> = crate::fixture::table(&ev, u)
@@ -1468,7 +1470,7 @@ fn named_alike(gap: &Gap) -> usize {
             let Some(RoleSeg::Seam { a, b }) = seam.path.first() else {
                 panic!("{what}: the edge on the line from z {lo} to {hi}: {seam:?}")
             };
-            let mut sides = [side_node(a.name()), side_node(b.name())];
+            let mut sides = [side_read(a.name()), side_read(b.name())];
             sides.sort_unstable();
             assert_eq!(
                 sides, walls,
@@ -1586,6 +1588,15 @@ fn a_bridge_met_with_the_wedges_holds_each_corner_on_the_line_as_two_copies() {
         let [a, b, d, c] = m[..] else {
             unreachable!("two bridges are four members")
         };
+        // A copy carries its source's names, so a member's names are
+        // spelled with the prism it copies.
+        let minted = |copy: RecipeNodeId| match doc.node(copy) {
+            Some(editor_core::Node::Place { source, .. }) => doc
+                .operation_of(source.read)
+                .expect("a copy reads a construction"),
+            _ => copy,
+        };
+        let (pa, pb, pd) = (minted(a), minted(b), minted(d));
         let (doc, rest) = crate::fixture::union_over(doc, &[a, b, c]);
         let (x, y) = if swapped { (rest, d) } else { (d, rest) };
         let (doc, met) = insert(doc, pair_node(BooleanOp::Intersect, x, y));
@@ -1604,7 +1615,7 @@ fn a_bridge_met_with_the_wedges_holds_each_corner_on_the_line_as_two_copies() {
             else {
                 continue;
             };
-            if n.kind != EntityKind::Vertex || of.name().node != d {
+            if n.kind != EntityKind::Vertex || of.name().node != pd {
                 continue;
             }
             let editor_core::Entry::Unique(r) = e else {
@@ -1627,7 +1638,7 @@ fn a_bridge_met_with_the_wedges_holds_each_corner_on_the_line_as_two_copies() {
             let at = micron(MEET[0], MEET[1], z);
             let mut walls = copies.remove(&at).unwrap_or_default();
             walls.sort_unstable();
-            let mut wedges = [a, b];
+            let mut wedges = [pa, pb];
             wedges.sort_unstable();
             assert_eq!(
                 walls, wedges,
@@ -1638,10 +1649,10 @@ fn a_bridge_met_with_the_wedges_holds_each_corner_on_the_line_as_two_copies() {
     }
 }
 
-/// The member node a union's `From` side was minted by.
-fn side_node(side: &StableName) -> RecipeNodeId {
+/// The member read a union's `From` side came in through.
+fn side_read(side: &StableName) -> editor_core::VarId {
     match side.path.as_slice() {
-        [RoleSeg::From { of, .. }, ..] => of.name().node,
+        [RoleSeg::From { read, .. }, ..] => *read,
         _ => panic!("a union seam side cites a member face: {side:?}"),
     }
 }

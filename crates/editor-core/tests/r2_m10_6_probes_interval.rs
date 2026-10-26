@@ -188,11 +188,11 @@ fn straddling_assertion() -> (ProfileDoc, RecipeNodeId) {
         &[
             SitedRef::new(
                 placed,
-                fixture::fname(solid, fixture::wall(&r.doc, solid, 1)).in_copy(placed),
+                fixture::fname(solid, fixture::wall(&r.doc, solid, 1)),
             ),
             SitedRef::new(
                 placed,
-                fixture::fname(solid, fixture::wall(&r.doc, solid, 3)).in_copy(placed),
+                fixture::fname(solid, fixture::wall(&r.doc, solid, 3)),
             ),
         ],
     );

@@ -94,8 +94,4 @@ the touch's record; `Tangent` once the cusp-line reading is built (the
 wedge reader's, with the torus's bend for a curved wall).
 
 **PR 5479 cleanup notes (its re-review, 2026-10-21).** None of these are blocking.
-- `SlitLineGap`'s doc in `topo/src/boolean/mod.rs` breaks off mid-sentence.
-- `Flush`'s doc and wording omit the glued-tangency case that `FlankRead::along` includes.
-- `kept_copy(op, rel).is_some()` re-spells `tables::lump_keeps_one`.
 - `off_wedge`'s `ClassificationInvariant` arm is unreachable.
-- `along` is a `Cell` set inside the membership reader and OR'd over every wedge pair.
