@@ -28,12 +28,7 @@ type Footprint = (&'static str, (f64, f64), (f64, f64));
 
 /// The six ops of `a` and `b`, labelled, with the box arithmetic's
 /// volume of each: `[vol(A ∪ B), vol(A ∩ B), vol(A ∖ B), vol(B ∖ A)]`.
-fn six(
-    a: &AtRestBody<f64>,
-    b: &AtRestBody<f64>,
-    want: [f64; 4],
-    tol: Tol,
-) -> [Cell; 6] {
+fn six(a: &AtRestBody<f64>, b: &AtRestBody<f64>, want: [f64; 4], tol: Tol) -> [Cell; 6] {
     let [union, common, a_less, b_less] = want;
     [
         ("A ∪ B", topo::union(a, b, tol), union),
