@@ -251,7 +251,7 @@ impl<T: Decide> SphereFaceRegion<T> {
                 geom::Curve3::Circle { radius, .. } => (radius / self.radius).abs().min(one),
                 _ => one,
             };
-            let cosine = (one - sine * sine).max(T::zero()).sqrt();
+            let cosine = (one - sine.powi(2)).max(T::zero()).sqrt();
             let (cos, sin) = (((one + cosine) / two).sqrt(), ((one - cosine) / two).sqrt());
             w / w.norm() * cos + into / into.norm() * sin
         };
