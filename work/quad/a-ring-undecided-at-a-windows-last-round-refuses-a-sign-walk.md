@@ -12,7 +12,7 @@ cost: M
 ## What
 
 `geom_brep::props::quad::cylinder_cut_face_rounds` and
-`geom_brep::props::spiric::spiric_face_rounds` read every ring's winding
+`geom_brep::props::spiric::rim_face_rounds` read every ring's winding
 (`props_ring_winding`) at whichever round a window returns. Since the
 fix for
 `an-undecided-ring-at-the-first-converged-round-refuses-instead-of-refining`,

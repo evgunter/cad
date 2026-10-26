@@ -286,6 +286,14 @@ impl<T: Real> Traversed<T> {
         })
     }
 
+    /// This traversal run the other way: the reversal involution
+    /// [`swept_segments`] applies to a canonical kind, applied to a
+    /// traversed one (an arc's sweep negated and its turn flipped, the
+    /// carrier kept).
+    pub(crate) fn reversed(self) -> Self {
+        Self::backward(self.0)
+    }
+
     /// The half turn about `centre` of radius `radius`, traversed in
     /// the sense `turn` — for a builder with no validated loop to
     /// traverse (`revolve::tube`, which stores its caller's centre and
@@ -413,6 +421,20 @@ impl<T: Real> SweptSeg<T> {
             b: next.b,
             kind: self.kind.continued(next.kind),
             ..self
+        }
+    }
+
+    /// This segment traversed the other way ([`Traversed::reversed`]),
+    /// starting at the vertex whose canonical index is
+    /// `canonical_vertex` (this segment's end); it retraces the same
+    /// canonical segment.
+    pub(crate) fn reversed(self, canonical_vertex: usize) -> Self {
+        Self {
+            a: self.b,
+            b: self.a,
+            kind: self.kind.reversed(),
+            canonical_vertex,
+            canonical_segment: self.canonical_segment,
         }
     }
 

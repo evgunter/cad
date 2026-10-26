@@ -2,10 +2,11 @@
 id: props-header-says-no-door-between-create-or-replace-and-value
 kind: issue
 title: props.rs's parameter-panel header still says no door sits between create-or-replace and value-only
-status: open
+status: closed
 opened: 2026-09-16
 priority: P4
 cost: E
+closed: 2026-10-26
 ---
 
 
@@ -66,3 +67,7 @@ but not by asserting a door that shipped does not exist.
 The style review of EDIT's `doc-param-distribution-edit-has-no-door`
 (PR #2774, review lane `distrib-rv`), sweeping Q4 for prose that cited
 the premise the new door removes.
+
+## Closed (2026-10-26, tracker sweep)
+
+**Fixed.** `crates/viewer/src/props.rs`'s module header (`:36-55`) no longer says that nothing sits between create-or-replace and value-only. Under the variables refactor it says *A document variable keeps both rules, through its own pair of doors*: `variable_edit` (`DocEdit::SetVarValue`) and `variable_unit_edit` (`DocEdit::SetVarUnit`), each a carry-forward edit. `grep -n 'nothing in between\|until the kernel door exists' crates/viewer/src/props.rs` returns nothing. The unit door the row said the panel could now use exists, and the header names it.

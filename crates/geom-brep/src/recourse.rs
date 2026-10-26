@@ -117,8 +117,8 @@ pub fn unreadable_margin_note(at: impl Into<ReadAt>) -> &'static str {
 /// note at `reading` after the ending's joint ([`noted`]), as
 /// [`LeverOnly`] and [`SizedDecision`] do.
 #[must_use]
-pub fn not_yet(arm: RefusedArm<'_>, reading: Reading) -> String {
-    noted(NOT_YET_ENDING, arm.unreadable_note(reading))
+pub fn not_yet(arm: RefusedArm<'_>, at: impl Into<ReadAt>) -> String {
+    noted(NOT_YET_ENDING, arm.unreadable_note(at))
 }
 
 /// A decision with no size the user chose: a residual (it passes only at
@@ -332,9 +332,8 @@ impl RefusedArm<'_> {
     /// The note the arm's ending takes at `reading`
     /// ([`MarginDiag::unreadable_note`]), for [`not_yet`] and
     /// [`LeverOnly`].
-    fn unreadable_note(self, reading: Reading) -> Option<&'static str> {
-        self.banded()?
-            .unreadable_note(unreadable_margin_note(reading))
+    fn unreadable_note(self, at: impl Into<ReadAt>) -> Option<&'static str> {
+        self.banded()?.unreadable_note(unreadable_margin_note(at))
     }
 }
 

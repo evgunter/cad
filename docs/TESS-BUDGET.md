@@ -126,8 +126,10 @@ else, this document included.
 What the gate READS is the part worth stating here, because it is what
 makes `--sizing-only` sound: triangle counts, the sizing columns, and
 the identity columns its per-face join checks itself against — chart,
-trim box, the whole-patch divisions, and whether the row carries a
-sizing block at all. (It read *"triangle counts and the sizing columns
+trim box and the whole-patch divisions (`tess_lint::IDENTITY_COLUMNS`).
+Whether a row carries the sizing block is not among them: `parse`
+refuses a row whose block disagrees with its chart, so block presence
+never reaches the join. (It read *"triangle counts and the sizing columns
 only"* here until this edit. That has been false since the join gained
 its precondition, and every added rule made it more so.) It never
 reads `worst_dev` or `dev_samples`, which is why the resampling pass
@@ -624,8 +626,9 @@ reason.** The per-face join is by ORDINAL. The CSV also carries a
 the sweep can reach an evaluation for — but no rule keys on it yet,
 and it is empty on every row a re-key could be manufactured out of
 (above), so `tess-lint` checks at each ordinal that both sides
-describe one face (chart, trim box, whole-patch divisions, and whether
-the row carries the sizing block at all) and stops comparing a scene
+describe one face (chart, trim box and whole-patch divisions; a row
+whose sizing block disagrees with its chart is refused at the parse
+instead) and stops comparing a scene
 from the first ordinal where they do not. The finding names that
 column and both readings. Establish what moved in the MODEL first: a
 face genuinely replaced is a geometry change, a face merely renumbered
@@ -717,6 +720,17 @@ fundamental form. The options:
 generalizes both extremes — A is the dial). Executed by TESS-SPLIT
 (#951) over TESS-SPAN's sizing functions; `NurbsFaceBound::split_steps`
 and `mesh::nurbs_cert::ASPECT_CAP` are the shipped statement of record.
+
+**What A is for.** A regularizes the split optimizer: it stops the
+cheapest point on the certified ellipse from collapsing into a strip
+that admits Delaunay slivers beside every off-lattice point (the
+hazard below). It is not a promise about mesh shape. The kernel makes
+none (`[tolerance.chordal]`), and lanes outside the NURBS split, such
+as the cylinder wall's one-row strips (issue 685), are not bound by it.
+A shape promise would be a new decision, lane-independent, made for a
+named consumer. A is a heuristic, not a principle. It is kept while
+it earns its place, and it is open to replacement by the criterion it
+stands in for: the sliver hazard below.
 
 ### The sliver hazard the schedule is built around
 

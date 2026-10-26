@@ -2,12 +2,15 @@
 id: lever-arm-fold-six-hand-rolled-siblings
 kind: issue
 title: The two-surface lever-arm fold has one documented home and six hand-rolled siblings; contact_tangent_opposed is classify_material_pairing's undisclosed twin
-status: open
+status: closed
 opened: 2026-09-01
 github: 1439
 refs: [1423]
 priority: P1
-cost: D
+cost: E
+branch: pred/lever-arm-point-arm-and-d57
+closed: 2026-10-25
+pr: 5681
 ---
 
 ## From GitHub issue 1439
@@ -134,3 +137,44 @@ done:
 (`crates/geom-brep/src/dihedral.rs`) used to say "two siblings remain
 (`contact_verify`, `ops`)" and "one remaining sibling (`validate`)".
 They now name these sites instead.
+
+## Re-census (PRED orchestrator, 2026-10-25, main `2d5677e1`)
+
+The fold itself has no hand-rolled copy left, and `ssi/march.rs` no
+longer folds in place. Two pieces remain on this row, both outside the
+D10 hold:
+- **`ssi::point_arm(κ_max, E) = E / max(1, κE)`** is a second home of
+  `folded_lever_arm`'s `min(1/κ, E)` fold. It is numerically the same
+  but spelled separately, and `decide_transversality` reads it. Route it
+  through `folded_lever_arm`, or state at both sites why they are
+  separate.
+- **Two stale docs in `crates/geom-brep/src/dihedral.rs`.**
+  `classify_material_pairing`'s doc says `contact_tangent_opposed` takes
+  "the same margin … levered by the folded arm", and
+  `folded_lever_arm`'s doc calls it that function's twin.
+  `contact_tangent_opposed` levers by `extent`.
+
+The `contact_verify` sites (the orientation lever, the second-order
+sibling, the parallelism lever choice) moved to
+`contact-verify-spells-the-orientation-and-second-order-margins-beside-their-homes`,
+parked on the D10 hold. Re-priced **E**.
+
+## Closed (PRED orchestrator, 2026-10-25, PR 5681)
+
+`ssi::point_arm` is not a second home of the fold, so it is not
+routed. The two share only the final `min(radius, E)`. The radius each
+reads differs:
+- `folded_lever_arm` folds `curvature_lever_arm`, each carrier kind's
+  own length scale, which is poison on a NURBS or Approx carrier;
+- `point_arm` folds `1/κ` from a jet's largest principal curvature,
+  which works on any carrier.
+
+Every `point_arm` caller is a NURBS lane, so routing them through the
+fold would poison every one of their decisions. Both docs now say so.
+`ssi::ending_tests::the_point_arm_agrees_with_the_folded_arm_where_both_read_the_radius`
+pins agreement on plane, sphere and cylinder across `κE = 1`, the poison
+rows, and the NURBS row where the two part. `dihedral.rs`'s two docs now
+say `contact_tangent_opposed` levers by the faces' extent. The
+`contact_verify` remainder is
+`contact-verify-spells-the-orientation-and-second-order-margins-beside-their-homes`,
+parked on the D10 hold. Nothing served moved.

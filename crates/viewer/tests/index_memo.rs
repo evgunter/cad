@@ -1046,8 +1046,11 @@ fn a_wide_but_informative_candidate_answers_before_the_rings_aimed_vertex() {
     session.pump();
     // The bump stops the revolve short of a turn; the ring's placement
     // reads no geometry, so it stands where it stood.
-    let index =
-        common::index_at(&session, common::corpus_delta()).expect("the bumped ring indexes");
+    // Indexed at half the corpus δ: the witness below is a graze on the
+    // ring as it meshes there, and the corpus δ's coarser grid puts no
+    // near-coplanar triangle on this ray.
+    let half = DisplayTolerance::new(common::corpus_delta().get() / 2.0).expect("a positive delta");
+    let index = common::index_at(&session, half).expect("the bumped ring indexes");
     // Its y is exactly 0: the ring's axis heading is the quarter turn
     // it is written as, read off the fraction (it was `2.9e-19`, the
     // rounding of `cos(π/2)`, before a turn was exact).
@@ -1192,7 +1195,7 @@ const RING_WIDE_CANDIDATE_T: f64 = 1.448_765_272_489_762_4;
 
 /// **The other side of the line: a wide candidate whose interval DOES
 /// reach the aimed vertex, and the door refuses with both.** The
-/// `tube_arc` corpus document at open, a `+y` ray through the mesh
+/// `tube_arc` corpus document at half the corpus δ, a `+y` ray through the mesh
 /// vertex `(1.2534, 0.3843, −1.9521)`. `main` answered
 /// `1.475_904_852_772_309_5` — `0.0041` short of the vertex, a
 /// near-coplanar candidate whose rounded `t` is the smallest on the
@@ -1217,7 +1220,10 @@ fn a_wide_candidates_interval_reaching_the_aimed_vertex_refuses_with_both() {
         .expect("tube_arc is a corpus document");
     let mut session = crate::common::inline_without_door(c.doc.clone(), tol);
     session.pump();
-    let index = common::index_at(&session, common::corpus_delta()).expect("tube_arc indexes");
+    // Indexed at half the corpus δ, where tube_arc meshes with this
+    // vertex and the edge-on face in front of it.
+    let half = DisplayTolerance::new(common::corpus_delta().get() / 2.0).expect("a positive delta");
+    let index = common::index_at(&session, half).expect("tube_arc indexes");
     let vertex = Point3::new(
         1.253_413_016_011_234,
         0.384_323_569_889_266_14,

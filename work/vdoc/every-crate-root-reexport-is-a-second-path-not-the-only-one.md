@@ -2,11 +2,12 @@
 id: every-crate-root-reexport-is-a-second-path-not-the-only-one
 kind: issue
 title: The crate root re-export is a SECOND path to an item, never the only one: pub mod camera plus pub use camera::cursor_projection gives two
-status: open
+status: closed
 opened: 2026-09-06
 refs: [2089]
 priority: P4
 cost: E
+closed: 2026-10-26
 ---
 
 
@@ -137,3 +138,9 @@ resolved by a local `use` is not, and neither is the `viewer::app::…`
 spelling from outside the crate, which is how `tests/panel_display.rs`
 reaches it. It is also one crate; the same shape can exist wherever a
 module re-exports and a sibling's docs link through it.
+
+## Closed (2026-10-26, tracker sweep)
+
+**Fixed / its carriers are gone.**
+- **Second half (the production link through `crate::app::FieldWriting`): fixed.** `crates/viewer/src/props.rs:40` now spells `crate::forms::FieldWriting`, the type's home. So `app.rs`'s comment above `pub use crate::forms::FieldWriting;` (`:80-83`), which names `tests/panel_display.rs` as the one consumer, is now true (`panel_display.rs:861` is the only `viewer::app::FieldWriting` reach).
+- **First half ("exactly ONE path"): its durable carriers left the tracker with VIEW** (`docs/doc-ledger/view-leaves-the-tracker.md`). Those were the closed item's `## Closed` and `work/view/log.md`; the PR body is history. The places this row said to look hold no such claim: `grep -rni 'exactly one path\|one path to' crates/viewer/README.md crates/viewer/src` finds no re-export claim. `session-shims-and-test-imports`'s *What it takes* does not describe its end state as one path.

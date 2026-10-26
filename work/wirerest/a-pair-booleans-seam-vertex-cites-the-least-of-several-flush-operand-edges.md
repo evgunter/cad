@@ -57,3 +57,14 @@ orientation question at the pair.
 ## Moved to WIREREST (2026-10-20)
 
 WIRE measured 69 budget points against 30. This row is P3 or P4, and WIRETAIL already stood at 25 of 30, so it moved by `git mv` (id and body unchanged) to WIRE's second tail. Signed (WIRE orchestrator).
+
+## The orientation is settled (2026-10-26, tracker sweep)
+
+What this row waited for is ruled: FORK-ORIENT (fork-log row 197; Ev,
+2026-10-26; PR 5705) reads a line of several things along each of them
+and ranks nothing, so the pair's set rule needs no orientation choice.
+The names README still says "The pair boolean's seam vertex still cites
+the least of several flush edges" (`names/README.md:423`), and
+`emit_topo::flush_lines` still reads `least_per_line`. WIRE's
+`a-unions-line-of-several-edges-is-oriented-by-its-least-edge` builds
+the ruling on `emit_topo.rs`; this row can ride with it or follow it.

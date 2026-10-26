@@ -2,10 +2,11 @@
 id: tools-doc-prose-cites-thirteen-dead-work-meter-paths
 kind: issue
 title: tools/ doc prose cites thirteen work/meter/ paths that resolve nowhere, two of them in the list whose own sentence claims its pointers followed
-status: open
+status: closed
 opened: 2026-09-16
 priority: P4
 cost: E
+closed: 2026-10-26
 ---
 
 
@@ -167,3 +168,25 @@ file (`work/meter/C15.md` x2, `work/meter/D201.md`,
 including the two in the doctrine's own worked example. From this PR
 on the count above reads `baseline_census.rs` 4, **six live across
 three files**.
+
+## Closed (2026-10-26, tracker sweep)
+
+**Fixed.** Every live `work/meter/` pointer in `tools/` resolves now.
+
+The k-lint citations had already been re-pointed on main to
+`work/instr/k-lint-eps-coupled-criterion-unwritten`:
+`tools/k-lint/src/lib.rs:339`, and `tools/k-lint/tests/predicate_roster.rs:59`, `:443` and `:507`.
+The pointer at `k-lint-last-round-is-eps-coupled-but-unrostered` is gone
+with the name it described.
+
+This sweep re-pointed the rest:
+- `tools/tess-lint/tests/baseline_census.rs`:
+  - `C15` → `work/instr/C15.md` (`:122`, `:187`);
+  - `D201` → its recover SHA `2723839067e8` (`:123-124`);
+  - the paragraph saying the pointers followed their rows (`:134-137`);
+  - two `work/instr/` pointers to rows now on BUDGET (`:228`, `:329`);
+- `tools/README.md:218`;
+- `tools/tess-meter/src/lib.rs:1190`.
+
+The one remaining `work/meter/` mention, `baseline_census.rs:135`, records
+a former home and is not a pointer.

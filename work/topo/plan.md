@@ -69,67 +69,43 @@ What this program does **not** take is written in `program.md`'s
 
 ## The slate
 
-**Three issues, re-homed at opening** (header edit and `git mv`, ids
-unchanged):
+Twenty-three live rows, all P2 to P4 (`python3 scripts/work.py status
+--program topo` is the live view, and this file does not restate it).
+The opening slate (the three re-homed issues and code-quality Track P's
+fourteen rows) has closed or moved to the 2026-09-20 and 2026-10-11
+successors. What is left falls into four groups:
 
-1. **`validate-tier3-curved-boundary-containment`** (H) — face-boundary
-   containment on curved surfaces, the last unmarked deferral in
-   `validate.rs`'s not-yet-checked list. Its own `## Home` said
-   `crates/topo/src/validate.rs` is in no open program's `paths`; it is
-   in this one's now.
-2. **`no-public-census-or-genus-query`** (D→E) — the Euler–Poincaré
-   identity is hand-written above eight call sites with no public
-   census or genus door. Its `## Home` names the door's site as
-   "beside `euler.rs`/`fixtures.rs`/`seqgen.rs`, which no open
-   program's `paths` covers"; `readback.rs` is the typed-read module
-   and the natural seat. Code-quality parks `S79` on it.
-
-**Track P's fourteen rows, claimed whole** — they keep their ids and
-their `track: P` letter, and this directory is where they are open,
-dispatched and closed from now on. The code-quality plan already runs P
-as three disjoint sub-lanes, and that partition is inherited unchanged:
-
-| sub-lane | rows | files |
-|---|---|---|
-| Euler surgery and validation | `S93`, `S94`, `D265`, `D262`, `D263`, `S330`, `S69` | `euler.rs`, `euler_ring.rs`, `euler_kill.rs`, `merge_faces.rs`, `validate.rs` |
-| the review and fixture readers | `D107`, `D261`, `D264` | `review_d18.rs`, `review_d18_probes.rs`, `fixtures.rs`, `source_walk.rs` |
-| liveness and the generator | `D50`, `D260`, `D20` | `live.rs`, `seqgen.rs` |
-
-The three share no file, so they can run at once.
+- **P2, on the goal's ground.** `revert-re-pairs-the-sheets-on-a-line-where-coincident-edges-meet`
+  (H: the re-pairing CLEAVE's PR 4795 ruling unblocked),
+  `mfkrh-leaves-an-orphan-surface-under-the-per-op-scalpel`,
+  `movefac-torn-bodies-fuzz-seed-panics-at-the-door-postcondition` and
+  `a-lone-site-placeholder-has-no-type-of-its-own` (a representation
+  change; designers first, and Ev weakly prefers to hold that round until
+  D10 settles).
+- **The describing-door family** (P3, mostly `design: true`): the
+  kills across keys and their absorption of the `_minting` twins
+  (`kef-and-kfmrh-across-keys-…`, ruled on PR 3970), the restater
+  (`restatement-derives-each-moved-edges-kind`), the minting doors that
+  ask nothing (`minting-doors-take-a-callers-description-unasked-…`),
+  and the half-minting moving doors.
+- **Endings and wording** (P3 E): `split-param-not-interior-…`,
+  `merge-door-bend-ending-…`, `merge-faces-undescribed-ending-…`,
+  `offset-derive-swallows-…`.
+- **Cost and hygiene** (P3/P4): `set-edge-curve-scans-…`,
+  `a-joined-finisher-mints-the-whole-body-twice`,
+  `topo-internal-stored-curve-ladders-…`, and topo's lib-test compile
+  cost.
 
 ## Order
 
-Blocks TOPO-B1 through TOPO-B5 are concluded, and blocks end there:
-the model A/B protocol was suspended on 2026-09-23, so units no longer
-draw an arm. Their records live in `docs/MODEL-AB-LOG.md`, and the
-log's entries carry what each unit closed. B5 (2026-09-24) closed the
-setter's rows (PR 2594), the run doors' rows (PR 2603) and the fan
-`mev`'s null-edge hole (PR 3148, the first `docs/DUAL-REVIEW-LOG.md`
-row). The M7-8 question went to Ev as PR 3156.
+By priority, with the cheap E rows taken as drive-bys:
 
-**Next, run two at a time** (the box holds two fresh builds), each
-with its brief and tier on its item:
-
-- `kevs-fan-merge-needs-a-re-describing-kill-door`: Ev's (c), two
-  doors. `S93` closes with it. DUAL.
-- `half-edge-minting-euler-ops-leave-a-minted-curved-face-incomplete`:
-  mint the row at the mint site. Phase 1 is the closed-form split
-  under `Decide`. DUAL.
-
-**After them, by priority:**
-
-- `mint-face-surface-and-sense-reads-key-equality-where-same-chart-reads-provenance`
-  (P1, E; a single review).
-- `three-spellings-of-one-chart-answer-the-same-question-differently`
-  (P2).
-- `set-face-surface-hands-the-caller-an-ordering-obligation-in-prose`
-  and `movefac-row-skips-three-component-shells` (P3, E).
-
-**Not yet, and why:**
-
-- (`D262` no longer waits on the `decide_flagged` register: its residue is fail-loud lookups, not a dimension; dispatched 2026-09-30.)
-- `the-re-basing-gate-refuses-m7-8-where-nothing-moves` waits on Ev
-  (PR 3156).
+- The P2 rows first. `revert-re-pairs-…` is a unit of its own.
+  `mfkrh-…` and `movefac-…` are a replay and a fix each.
+- The describing-door family next, as one designer-first thread: its
+  rows share one question (how an edge a door moves gets described).
+  The PR 4562 fork (F1/F2 on `kef-and-kfmrh-across-keys-…`) is open on
+  it.
 
 ## Review posture
 

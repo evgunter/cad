@@ -48,7 +48,6 @@ test_utils::gated_to![
 
 use crate::common::{arc_section, stacked};
 use geom_core::Tol;
-use geom_core::k_stats::Bracket;
 use step_import::{ImportOptions, StepImport, import_step};
 use topo::MassProperties;
 
@@ -68,18 +67,11 @@ fn arc_prism(s: f64) -> topo::Body<f64> {
     .body
 }
 
-/// The number of quadrature-lane classifications recorded while `run`
-/// executed — the certificate COUNTER (the `sweep` half's, verbatim,
-/// because it is the same measurement).
-fn quad_verdicts(run: impl FnOnce()) -> usize {
-    let bracket = Bracket::open();
-    run();
-    bracket
-        .finish()
-        .verdicts
-        .iter()
-        .filter(|v| v.predicate.starts_with("props_quad"))
-        .count()
+/// The face-lane rounds run while `run` executed — the certificate
+/// COUNTER (the `sweep` half's, verbatim, because it is the same
+/// measurement).
+fn quad_rounds(run: impl FnOnce()) -> usize {
+    geom_brep::props::quad::rounds_run_by(run).1
 }
 
 /// The four fields as raw bits — the identity currency.
@@ -114,11 +106,15 @@ fn bits(m: &MassProperties<f64>) -> [u64; 4] {
 fn the_readers_gate_runs_one_certificate_and_hands_it_back() {
     let tol = Tol::witness();
     let native = arc_prism(1.0e5 * tol.get().eps);
-    let text = step_export::step_string(&native, &step_export::StepOptions::default(), tol)
-        .expect("the rational-walled prism exports");
+    let text = step_export::step_string(
+        &crate::common::at_rest(&native),
+        &step_export::StepOptions::default(),
+        tol,
+    )
+    .expect("the rational-walled prism exports");
 
     let mut imported = None;
-    let through_import = quad_verdicts(|| {
+    let through_import = quad_rounds(|| {
         imported = Some(import_step(&text, &ImportOptions::default(), tol));
     });
     let (body, enclosure) = match imported.expect("the closure ran") {
@@ -141,7 +137,7 @@ fn the_readers_gate_runs_one_certificate_and_hands_it_back() {
     // the count is of the one measurement.
     let body = topo::test_support::finished("the measured body", body.clone(), tol);
     let mut measured = None;
-    let one = quad_verdicts(|| measured = Some(topo::mass_properties(&body, tol)));
+    let one = quad_rounds(|| measured = Some(topo::mass_properties(&body, tol)));
     let measured = measured.expect("the closure ran").expect(
         "IDENTITY: the body the reader shipped passed the reader's own tier-3′ gate, so \
          its enclosure certifies by construction",

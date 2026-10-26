@@ -8,21 +8,21 @@ against 30 with its six charter rows closed. Nothing dispatched.
 
 ## The slate
 
-**27.5 budget points** of dispatchable work against a ceiling of 30.
+**34.5 budget points** of dispatchable work against a ceiling of 30:
+over, with the rows moved in from FUSE and filed since the cut that the
+table below does not list.
 
 | pri | item | cost | title |
 |---|---|---|---|
 | P2 | `a-line-parallel-to-a-cone-generator-has-no-root-lane` | M | A line edge parallel to a cone's generator, a generator lying on the cone included, is not answered by the line x cone lane: its quadratic degenerates and the lead rung keeps the frontier |
 | P2 | `circle-cylinder-square-arm-root-slack-charges-the-whole-term-bound` | M | The circle x cylinder square arm charges its root slack with the whole harmonic term bound, not the near extreme's |
-| P2 | `circle-plane-first-harmonic-has-three-hand-built-copies` | M | The circle x meridian-plane first harmonic is hand-assembled in three places with no shared door and an unaudited noise charge |
+| P2 | `circle-plane-first-harmonic-has-three-hand-built-copies` | M | The circle x plane first-harmonic door carries one uniform rounding charge, no phase or frame-defect charge, unaudited |
 | P2 | `conic-quadric-first-harmonic-arm-refuses-crossings-the-ladder-places` | M +design | The conic x quadric first-harmonic arm charges the dropped second harmonic to definite crossings the ladder places |
-| P2 | `join-and-continuation-sites-blame-the-edge-gate-for-a-spline-edge` | M | the join's germ frame and ring run and the continuation scan answer a spline or spiric edge as a kernel invariant that blames the operand gate |
 | P2 | `narrow-phase-anchor-of-a-revolved-face-sits-on-its-seam` | M | The boolean narrow phase anchors a face at the mean of its boundary vertices, which for a revolved face sits on its seam, so two curved faces may find no separating direction |
 | P2 | `no-row-checks-the-ellipse-torus-door-certifies-at-eps-1e-12` | M | At eps 1e-12 no row checks that the ellipse x torus door still certifies: the crossing row accepts Uncertain on every pose there |
 | P2 | `sphere-section-circle-inside-a-hole-refuses-at-the-plane-arms-edge-boxes` | M | A sphere whose section circle lies inside a plane face's hole refuses FallbackExtentUnsupported at the extent scan's edge-box test, the circle nowhere near the face |
 | P2 | `the-operand-gates-curved-arms-have-no-finished-fixture` | M | No finished fixture reaches the boolean's pair-scoped curved gate or curved_face_arm: their rows relabelled a surface the at-rest gate refuses |
 | P2 | `tilted-section-through-a-chart-pole-is-not-split-at-the-pole` | M | The join mints a tilted section arc that runs through a chart pole without a vertex there, where a pole on a face is a vertex of it |
-| P3 | `a-step-ellipse-stored-minor-first-reaches-readers-that-assume-the-order` | M | A STEP ellipse stored minor first: no end-to-end row reaches the order-free bounds, and three readers still refuse on it |
 
 ## Order
 

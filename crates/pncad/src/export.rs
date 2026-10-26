@@ -1,6 +1,7 @@
 //! **The document layer's export door**.
 //!
-//! `step_export::step_string` takes a kernel [`topo::Body`]; before
+//! `step_export::step_string` takes a finished kernel body
+//! ([`topo::AtRestBody`]); before
 //! this module, nothing curated accepted an EVALUATED body, so the
 //! one-shot journey ("build a bracket, export STEP") stopped at
 //! "measure". This door completes it in the document layer's own
@@ -30,6 +31,7 @@ use editor_core::{
 };
 use geom_core::Tol;
 use step_export::{StepExportError, StepOptions, step_string};
+use topo::{AtRestBody, Body};
 
 /// Why [`step_for_node`] refused. Fail-loud and typed, D2-style; the
 /// standing carries the ids to ask the caller's own [`Evaluation`] for
@@ -54,6 +56,15 @@ pub enum ExportError {
     EmptyBoolean {
         /// The node whose Boolean came up empty.
         node: RecipeNodeId,
+    },
+    /// The node's body fails the at-rest gate
+    /// ([`topo::AtRestBody::validate`]), so it is not a finished body
+    /// and the writer is not handed it.
+    BodyInvalid {
+        /// The node whose body was refused.
+        node: RecipeNodeId,
+        /// The gate's findings, verbatim.
+        errors: Vec<topo::ValidationError>,
     },
     /// The body was denoted but the STEP writer refused it.
     Step(StepExportError),
@@ -81,6 +92,15 @@ impl Say for ExportError {
                     by.node(*node)
                 )
             }
+            ExportError::BodyInvalid { node, errors } => write!(
+                f,
+                "export: {}'s body is not at rest ({} finding(s), first: {})",
+                by.node(*node),
+                errors.len(),
+                errors
+                    .first()
+                    .map_or_else(|| "none".to_owned(), ToString::to_string)
+            ),
             ExportError::Step(e) => write!(f, "export: the STEP writer refused: {e}"),
             ExportError::Product(e) => write!(f, "export: {}", Said(e, by)),
         }
@@ -118,6 +138,7 @@ impl core::error::Error for ExportError {}
 /// # Errors
 ///
 /// Every arm of [`ExportError`]: the evaluation-side refusals above, or
+/// [`ExportError::BodyInvalid`] for a body the at-rest gate refuses, or
 /// [`ExportError::Step`] carrying the writer's own refusal. A body is
 /// written in its space's coordinates, as it stands there.
 pub fn step_for_node(
@@ -142,7 +163,9 @@ pub fn step_for_node(
             });
         }
     };
-    step_string(body, options, tol).map_err(ExportError::Step)
+    let body = AtRestBody::validate(Body::clone(body), tol)
+        .map_err(|errors| ExportError::BodyInvalid { node, errors })?;
+    step_string(&body, options, tol).map_err(ExportError::Step)
 }
 
 /// Serializes the WHOLE DOCUMENT's product — the world: every copy a
@@ -152,7 +175,7 @@ pub fn step_for_node(
 /// This is the door that accepts what [`step_for_node`] refuses: a
 /// pattern's instances, a split's two halves, several disjoint tips.
 /// One writer path serves both cases — `step_export` already emits one
-/// `MANIFOLD_SOLID_BREP` per shell of every solid, which is exactly
+/// `MANIFOLD_SOLID_BREP` per solid, which is exactly
 /// the shape an imported multi-solid assembly round-trips through — so
 /// a one-solid product is not a special case here, it is the same call
 /// with one solid.
@@ -169,6 +192,7 @@ pub fn export_document_step(
     options: &StepOptions,
     tol: Tol,
 ) -> Result<String, ExportError> {
-    let body = editor_core::product(doc, evaluation, tol).map_err(ExportError::Product)?;
-    step_string(&body, options, tol).map_err(ExportError::Step)
+    let product =
+        editor_core::product_recorded(doc, evaluation, tol).map_err(ExportError::Product)?;
+    step_string(&product.body, options, tol).map_err(ExportError::Step)
 }

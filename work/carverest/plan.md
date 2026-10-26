@@ -7,7 +7,7 @@ Opened 2026-10-10 by CARVE's third priority-seam cut
 
 ## The slate
 
-**17 budget points** of dispatchable work against a ceiling of 30.
+**15.5 budget points** of dispatchable work against a ceiling of 30.
 
 | pri | item | cost | title |
 |---|---|---|---|
@@ -17,7 +17,7 @@ Opened 2026-10-10 by CARVE's third priority-seam cut
 | P3 | `loft-geometry-refuses-a-bad-parameter-vector-as-a-count-mismatch` | E | loft_geometry refuses a NaN, descending or unclamped parameter vector as a count mismatch |
 | P3 | `material-jet-readings-take-plus-minus-order` | M | tier 3, rim_wedge and contact_verify read the tangent jet in (plus, minus) order, a third order beside the certificate's key order |
 | P3 | `skin-union-mints-a-hairline-span-from-knots-an-ulp-apart` | M | make_compatible's knot union keeps two section knots an ulp apart as two knots |
-| P3 | `sweep-places-vanishing-tangent-is-a-bare-f64-compare` | M | sweep_places refuses a vanishing path tangent by a bare n > 0.0 |
+| P3 | `cap-plane-refusals-end-as-typed-kernel-defects` | E | CapPlaneError's Orientation and EdgeOn, and LoftError's SeamStructure and SectionStructure, name the kernel alone for states a validated input never reaches |
 | P4 | `certify-residual-predicates-still-name-a-slot` | E | certify's residual predicate names still name a slot of the surface pair |
 
 ## Order
@@ -34,10 +34,9 @@ The rows pair up:
   `loft-doors-take-a-non-finite-placement` and
   `loft-geometry-refuses-a-bad-parameter-vector-as-a-count-mismatch`.
   One unit.
-- **One banded decide.** `sweep-places-vanishing-tangent-is-a-bare-f64-compare`
-  is a Q1 fix. CARVE's `sweep-frame-is-a-minimal-rotation-from-the-start-tangent`
-  rewrites `sweep_places`, so it should land after that row's weighing
-  or ride its build.
+- **The kernel-defect endings.** `cap-plane-refusals-end-as-typed-kernel-defects`
+  is a child of ENCL's census of typed kernel-defect endings, and is
+  repaired in the shape that census gives.
 - **The knot union.** `skin-union-mints-a-hairline-span-from-knots-an-ulp-apart`
   is unmeasured. Its first step is whether a real loft reaches it.
 

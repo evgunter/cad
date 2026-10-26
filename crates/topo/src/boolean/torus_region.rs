@@ -64,7 +64,7 @@
 //! # The boundary first
 //!
 //! Before any path, `p` is read against every edge on its own carrier
-//! ([`ConicArc::hit`](crate::splitting::containment::ConicArc::hit) for a circle, [`SpiricArc::contact`] for an oval):
+//! ([`ConicArc::hit`](crate::splitting::containment::ConicArc::hit) for a circle, [`PiecedArc::contact`] for an oval):
 //! on an edge, or within the band of one of its ends, is the point on
 //! the boundary ([`None`]); in the band of one refuses.
 //!
@@ -135,15 +135,16 @@ use super::circle_roots::{
     FirstHarmonic, FirstHarmonicRoots, FirstHarmonicRows, first_harmonic_roots_in_band, near_span,
 };
 use super::region::{
-    self, EdgeCarrier, Fault, Landing, Paths, Region, RegionEdge, RegionRefusal, Round,
-    Scaffolding, circle_edge_hit, found, in_band, span, turn,
+    self, End, Fault, Landing, Legs, Paths, Region, RegionEdge, RegionRefusal, Round, Scaffolding,
+    circle_edge_hit, found, in_band, span,
 };
 use super::solid_contain::PointInSolidError;
 use crate::body::Body;
 use crate::entity::{FaceKey, LoopKey};
-use crate::ray_walk::{self, RayFault};
+use crate::ray_walk::RayFault;
 use crate::splitting::containment::ConicRows;
-use crate::splitting::spiric_arc::{Oval, SpiricArc, SpiricHit, SpiricRefusal, SpiricRows};
+use crate::splitting::pieced_arc::{ArcHit, ArcRefusal, ArcRows, PiecedArc};
+use crate::splitting::spiric_arc::{Oval, SpiricArc};
 use crate::splitting::{Uncrossable, UncrossableCarrier};
 use crate::validate::decide;
 use geom_brep::roots::{RootRefusal, Roots};
@@ -156,14 +157,17 @@ const ROOT_ROWS: FirstHarmonicRows = FirstHarmonicRows {
     decision: BooleanDecision::CONTAINMENT_UNNAMED,
 };
 
+/// The row a place is read against a first leg's corner on.
+const CORNER: &str = "bool_torus_region_corner";
+
 /// A circle edge's boundary reading's rows (module docs).
-const BOUNDARY: ConicRows = ConicRows {
-    span: "bool_torus_region_arc_span",
-    straddle: "bool_torus_region_arc_straddle",
-};
+const BOUNDARY: ConicRows = ConicRows::bounded(
+    "bool_torus_region_arc_span",
+    "bool_torus_region_arc_straddle",
+);
 
 /// An oval edge's boundary reading's rows (module docs).
-const SPIRIC: SpiricRows = SpiricRows {
+const SPIRIC: ArcRows = ArcRows {
     end: "bool_torus_region_spiric_end",
     clear: "bool_torus_region_spiric_clear",
     on: "bool_torus_region_spiric_on",
@@ -187,72 +191,8 @@ pub(crate) struct TorusFaceRegion<T: geom_core::Real> {
     edges: Vec<Edge<T>>,
 }
 
-/// One boundary edge's planar carrier.
-#[derive(Clone, Copy, Debug)]
-pub(crate) enum Carrier<T: geom_core::Real> {
-    /// `center + radius·(û cos θ + v̂ sin θ)`, `v̂ = axis × û`.
-    Circle {
-        center: Point3<T>,
-        axis: Vec3<T>,
-        radius: T,
-        u_ref: Vec3<T>,
-    },
-    /// One oval of a spiric ([`geom::Curve3::Spiric`]'s data).
-    Spiric {
-        center: Point3<T>,
-        axis: Vec3<T>,
-        u_ref: Vec3<T>,
-        major: T,
-        minor: T,
-        offset: T,
-    },
-}
-
-/// One boundary edge.
-type Edge<T> = RegionEdge<T, Carrier<T>>;
-
-impl<T: Decide> Carrier<T> {
-    fn curve(&self) -> geom::Curve3<T> {
-        match *self {
-            Carrier::Circle {
-                center,
-                axis,
-                radius,
-                u_ref,
-            } => geom::Curve3::Circle {
-                center,
-                axis,
-                radius,
-                u_ref,
-            },
-            Carrier::Spiric {
-                center,
-                axis,
-                u_ref,
-                major,
-                minor,
-                offset,
-            } => geom::Curve3::Spiric {
-                center,
-                axis,
-                u_ref,
-                major_radius: major,
-                minor_radius: minor,
-                offset,
-            },
-        }
-    }
-}
-
-impl<T: Decide> EdgeCarrier<T> for Carrier<T> {
-    fn at(&self, t: T) -> Point3<T> {
-        self.curve().eval(t)
-    }
-
-    fn tangent(&self, t: T) -> Vec3<T> {
-        self.curve().deriv(t)
-    }
-}
+/// One boundary edge: a circle or an oval of a spiric.
+type Edge<T> = RegionEdge<T>;
 
 /// Which family a leg's circle belongs to.
 #[derive(Clone, Copy)]
@@ -281,14 +221,29 @@ enum CircleFamily {
     Other,
 }
 
-/// One leg of a path, round a circle of the torus, ending at the angle
-/// `corner` along it where it is a first leg.
+/// A leg's course: a circle of the torus, of the family `kind`.
 #[derive(Clone, Copy)]
-pub(crate) struct Leg<T: geom_core::Real> {
+pub(crate) struct TorusCircle<T: geom_core::Real> {
     kind: LegKind<T>,
     round: Round<T>,
-    corner: Option<T>,
 }
+
+impl<T: Decide> region::Course<T> for TorusCircle<T> {
+    fn place(&self, y: Point3<T>, at: &'static str, band: Band) -> Result<Option<T>, Fault> {
+        self.round.place(y, at, band)
+    }
+
+    fn reach(&self, y: Point3<T>, at: &'static str, band: Band) -> Result<Option<T>, Fault> {
+        self.round.reach(y, at, band)
+    }
+
+    fn heading(&self, y: Point3<T>) -> Vec3<T> {
+        self.round.heading(y)
+    }
+}
+
+/// One leg of a path, round a circle of the torus.
+type Leg<T> = region::Leg<T, TorusCircle<T>>;
 
 /// `face`'s region on its torus, or `None` when an edge of it lies in no
 /// plane — a spline — or is neither a circle nor a spiric. A circle or a
@@ -327,36 +282,8 @@ pub(crate) fn torus_face_region<T: Decide>(
     else {
         return Err(corrupt());
     };
-    let carrier = |curve: &geom::Curve3<T>| match *curve {
-        geom::Curve3::Circle {
-            center,
-            axis,
-            radius,
-            u_ref,
-        } => Some(Carrier::Circle {
-            center,
-            axis,
-            radius,
-            u_ref,
-        }),
-        geom::Curve3::Spiric {
-            center,
-            axis,
-            u_ref,
-            major_radius,
-            minor_radius,
-            offset,
-        } => Some(Carrier::Spiric {
-            center,
-            axis,
-            u_ref,
-            major: major_radius,
-            minor: minor_radius,
-            offset,
-        }),
-        _ => None,
-    };
-    let Some(edges) = region::boundary(body, face, Scaffolding::Skipped, carrier)? else {
+    let planar = [geom::CurveKind::Circle, geom::CurveKind::Spiric];
+    let Some(edges) = region::boundary(body, face, Scaffolding::Skipped, &planar)? else {
         return Ok(None);
     };
     Ok(Some(TorusFaceRegion {
@@ -379,7 +306,7 @@ impl<T: Decide> TorusFaceRegion<T> {
     ///
     /// [`RegionRefusal`]: `p` in the band of an edge, a torus off the
     /// ring convention or a point on its axis, no path decided
-    /// ([`ray_walk::walk`]), or an arc that bounds nothing.
+    /// ([`crate::ray_walk::walk`]), or an arc that bounds nothing.
     pub(crate) fn contains(&self, p: Point3<T>, band: Band) -> Result<Option<bool>, RegionRefusal> {
         if self.edges.is_empty() {
             return Ok(Some(true));
@@ -407,11 +334,10 @@ impl<T: Decide> TorusFaceRegion<T> {
     /// The parallel through `a`, run `forward` (the major angle
     /// increasing) or back.
     fn parallel(&self, a: Point3<T>, forward: bool) -> Leg<T> {
-        Leg {
+        Leg::whole(TorusCircle {
             kind: LegKind::Parallel,
             round: region::parallel(self.center, self.axis, a, forward),
-            corner: None,
-        }
+        })
     }
 
     /// The meridian through `a`, run `forward` (the minor angle
@@ -423,7 +349,7 @@ impl<T: Decide> TorusFaceRegion<T> {
         let e1 = off / off.norm();
         let normal = radial.cross(self.axis);
         let normal = if forward { normal } else { -normal };
-        Leg {
+        Leg::whole(TorusCircle {
             kind: LegKind::Meridian { radial },
             round: Round {
                 center,
@@ -432,8 +358,7 @@ impl<T: Decide> TorusFaceRegion<T> {
                 e1,
                 e2: normal.cross(e1),
             },
-            corner: None,
-        }
+        })
     }
 
     /// Which reading a circle edge `(axis, radius)` takes on a meridian
@@ -456,31 +381,6 @@ impl<T: Decide> TorusFaceRegion<T> {
             Ok(Sign::Negative) => CircleFamily::Parallel { outer: false },
             Ok(Sign::Zero) | Err(_) => CircleFamily::Rim,
         }
-    }
-
-    /// An edge on the leg's own circle: the leg runs along it if the
-    /// path reaches it, which grazes. A whole leg reaches every point of
-    /// its circle; a first leg, those short of its corner. Neither end of
-    /// the edge is the leg's start, which the boundary pre-pass placed off
-    /// the edge.
-    fn along(&self, edge: &Edge<T>, leg: &Leg<T>, band: Band) -> Result<(), Fault> {
-        let Some(corner) = leg.corner else {
-            return Err(RayFault::Graze);
-        };
-        for t in [edge.t0, edge.t1] {
-            let s = turn(leg.round.angle(edge.at(t)));
-            match decide(
-                "bool_torus_region_corner",
-                Margin::of(leg.round.radius * (corner - s)),
-                band,
-            )
-            .map_err(in_band)?
-            {
-                Sign::Negative => {}
-                Sign::Positive | Sign::Zero => return Err(RayFault::Graze),
-            }
-        }
-        Ok(())
     }
 
     /// The unit chart normal at `y`.
@@ -506,7 +406,7 @@ impl<T: Decide> TorusFaceRegion<T> {
         leg: &Leg<T>,
         band: Band,
     ) -> Result<FirstHarmonicRoots<T>, RootRefusal> {
-        let Carrier::Circle {
+        let geom::Curve3::Circle {
             center,
             axis,
             radius,
@@ -518,7 +418,7 @@ impl<T: Decide> TorusFaceRegion<T> {
         first_harmonic_roots_in_band(
             &FirstHarmonic::circle_off_plane(
                 (center, axis, radius, u_ref),
-                (leg.round.center, leg.round.normal),
+                (leg.course.round.center, leg.course.round.normal),
             ),
             radius,
             edge.t0,
@@ -540,14 +440,14 @@ impl<T: Decide> TorusFaceRegion<T> {
         first_harmonic_roots_in_band(
             &FirstHarmonic::circle_off_plane(
                 (
-                    leg.round.center,
-                    leg.round.normal,
-                    leg.round.radius,
-                    leg.round.e1,
+                    leg.course.round.center,
+                    leg.course.round.normal,
+                    leg.course.round.radius,
+                    leg.course.round.e1,
                 ),
                 (on, n),
             ),
-            leg.round.radius,
+            leg.course.round.radius,
             T::zero(),
             T::tau(),
             &ROOT_ROWS,
@@ -557,8 +457,6 @@ impl<T: Decide> TorusFaceRegion<T> {
 }
 
 impl<T: Decide> Region<T> for TorusFaceRegion<T> {
-    type Carrier = Carrier<T>;
-
     fn edges(&self) -> &[Edge<T>] {
         &self.edges
     }
@@ -568,19 +466,23 @@ impl<T: Decide> Region<T> for TorusFaceRegion<T> {
     }
 
     /// A circle on its own carrier, an oval by its contact
-    /// ([`SpiricArc::contact`]).
+    /// ([`PiecedArc::contact`]).
     fn on_edge(&self, edge: &Edge<T>, p: Point3<T>, band: Band) -> Result<bool, RegionRefusal> {
         match edge.carrier {
-            Carrier::Circle { .. } => {
-                let span = (edge.t0, edge.t1);
-                circle_edge_hit(&edge.carrier.curve(), span, BOUNDARY, p, self.outer, band)
-            }
-            Carrier::Spiric {
+            geom::Curve3::Circle { .. } => circle_edge_hit(
+                &edge.carrier,
+                edge.turn.as_ref(),
+                BOUNDARY,
+                p,
+                self.outer,
+                band,
+            ),
+            geom::Curve3::Spiric {
                 center,
                 axis,
                 u_ref,
-                major,
-                minor,
+                major_radius: major,
+                minor_radius: minor,
                 offset,
             } => {
                 let oval = Oval {
@@ -592,30 +494,22 @@ impl<T: Decide> Region<T> for TorusFaceRegion<T> {
                     offset,
                 };
                 match SpiricArc::new(oval, (edge.t0, edge.t1)).contact(p, SPIRIC, band) {
-                    Ok(SpiricHit::On(_) | SpiricHit::End) => Ok(true),
-                    Ok(SpiricHit::Off) => Ok(false),
-                    Err(SpiricRefusal::Escalated(diag)) => Err(RegionRefusal::Escalated(diag)),
-                    Err(SpiricRefusal::Unsettled) => Err(RegionRefusal::Unreadable(Uncrossable {
+                    Ok(ArcHit::On(_) | ArcHit::End) => Ok(true),
+                    Ok(ArcHit::Off) => Ok(false),
+                    Err(ArcRefusal::Escalated(diag)) => Err(RegionRefusal::Escalated(diag)),
+                    Err(ArcRefusal::Unsettled) => Err(RegionRefusal::Unreadable(Uncrossable {
                         r#loop: edge.r#loop,
                         edge: edge.edge,
                         carrier: UncrossableCarrier::Spiric,
                     })),
                 }
             }
+            _ => unreachable!("torus_face_region admits circles and spirics only"),
         }
     }
 }
 
 impl<T: Decide> Paths<T> for TorusFaceRegion<T> {
-    type Leg = Leg<T>;
-
-    const SIDE: (&'static str, &'static str) =
-        ("bool_torus_region_order", "bool_torus_region_cross");
-
-    fn lever(&self) -> T {
-        self.minor
-    }
-
     /// `p`'s parallel, or its meridian.
     fn single(
         &self,
@@ -642,10 +536,10 @@ impl<T: Decide> Paths<T> for TorusFaceRegion<T> {
         first_forward: bool,
         then_forward: bool,
         _: Band,
-    ) -> Result<(Leg<T>, T, impl FnOnce() -> Leg<T>), Fault> {
+    ) -> Result<(TorusCircle<T>, End<T>, impl FnOnce() -> Leg<T>), Fault> {
         let (rho_p, h_p, radial_p) = self.polar(p);
         let (rho_t, h_t, radial_t) = self.polar(target);
-        let (mut first, corner) = if parallel_first {
+        let (first, corner) = if parallel_first {
             (
                 self.parallel(p, first_forward),
                 self.center + self.axis * h_p + radial_t * rho_p,
@@ -656,8 +550,10 @@ impl<T: Decide> Paths<T> for TorusFaceRegion<T> {
                 self.center + self.axis * h_t + radial_p * rho_t,
             )
         };
-        let to_corner = turn(first.round.angle(corner));
-        first.corner = Some(to_corner);
+        let end = End {
+            place: first.course.round.arc(corner),
+            row: CORNER,
+        };
         let then = move || {
             if parallel_first {
                 self.meridian(corner, then_forward)
@@ -665,7 +561,20 @@ impl<T: Decide> Paths<T> for TorusFaceRegion<T> {
                 self.parallel(corner, then_forward)
             }
         };
-        Ok((first, first.round.radius * to_corner, then))
+        Ok((first.course, end, then))
+    }
+}
+
+impl<T: Decide> Legs<T> for TorusFaceRegion<T> {
+    type Course = TorusCircle<T>;
+
+    const AT: &'static str = "bool_torus_region_at";
+
+    const SIDE: (&'static str, &'static str) =
+        ("bool_torus_region_order", "bool_torus_region_cross");
+
+    fn lever(&self) -> T {
+        self.minor
     }
 
     /// Where `leg` crosses `edge`: each crossing's point, the edge's
@@ -676,9 +585,9 @@ impl<T: Decide> Paths<T> for TorusFaceRegion<T> {
         let span =
             |t: T, lever: T| span("bool_torus_region_span", t, (edge.t0, edge.t1), lever, band);
         let mut out = Vec::new();
-        match (edge.carrier, leg.kind) {
+        match (&edge.carrier, leg.course.kind) {
             (
-                Carrier::Circle {
+                &geom::Curve3::Circle {
                     center,
                     axis,
                     radius,
@@ -691,7 +600,7 @@ impl<T: Decide> Paths<T> for TorusFaceRegion<T> {
                 // parameter (speed `r`). The plane holds two parallels at
                 // `ρ − R = ±r·cos v`, which the decided `outer` tells apart.
                 for s in found(self.plane_roots(leg, axis, center, band))? {
-                    let y = leg.round.at(s);
+                    let y = leg.course.round.at(s);
                     let (rho, _, _) = self.polar(y);
                     let side = row("bool_torus_region_component", rho - self.major)?;
                     match (side, outer) {
@@ -709,7 +618,7 @@ impl<T: Decide> Paths<T> for TorusFaceRegion<T> {
                     }
                 }
             }
-            (Carrier::Circle { center, radius, .. }, LegKind::Meridian { radial }) => {
+            (&geom::Curve3::Circle { center, radius, .. }, LegKind::Meridian { radial }) => {
                 let thetas = match self.circle_roots(edge, leg, band) {
                     // The edge in the leg's plane: on the leg's own
                     // meridian, or on the opposite one, which the leg
@@ -719,7 +628,7 @@ impl<T: Decide> Paths<T> for TorusFaceRegion<T> {
                             "bool_torus_region_component",
                             (center - self.center).dot(radial),
                         )? {
-                            Sign::Positive => self.along(edge, leg, band)?,
+                            Sign::Positive => leg.along(edge, Self::AT, band)?,
                             Sign::Negative => {}
                             Sign::Zero => return Err(RayFault::Graze),
                         }
@@ -742,7 +651,7 @@ impl<T: Decide> Paths<T> for TorusFaceRegion<T> {
                 }
             }
             (
-                Carrier::Circle {
+                &geom::Curve3::Circle {
                     center,
                     axis,
                     radius,
@@ -756,10 +665,12 @@ impl<T: Decide> Paths<T> for TorusFaceRegion<T> {
                     // meets. Within the band of each other the two are
                     // read as one, which can only set the path aside.
                     Ok(Roots::On(_)) => {
-                        if row("bool_torus_region_component", radius - leg.round.radius)?
-                            == Sign::Zero
+                        if row(
+                            "bool_torus_region_component",
+                            radius - leg.course.round.radius,
+                        )? == Sign::Zero
                         {
-                            self.along(edge, leg, band)?;
+                            leg.along(edge, Self::AT, band)?;
                         }
                         return Ok(out);
                     }
@@ -769,7 +680,7 @@ impl<T: Decide> Paths<T> for TorusFaceRegion<T> {
                 // torus in it and its mirror through the centre.
                 let mirror = self.center + (self.center - center);
                 for s in roots {
-                    let y = leg.round.at(s);
+                    let y = leg.course.round.at(s);
                     let w = y - center;
                     let theta = near_span(
                         w.dot(axis.cross(u_ref)).atan2(w.dot(u_ref)),
@@ -791,19 +702,19 @@ impl<T: Decide> Paths<T> for TorusFaceRegion<T> {
                 }
             }
             (
-                Carrier::Spiric {
+                &geom::Curve3::Spiric {
                     center,
                     axis,
                     u_ref,
-                    major,
-                    minor,
+                    major_radius: major,
+                    minor_radius: minor,
                     offset,
                 },
                 _,
             ) => {
                 let on_plane = center + u_ref * offset;
                 for s in found(self.plane_roots(leg, u_ref, on_plane, band))? {
-                    let y = leg.round.at(s);
+                    let y = leg.course.round.at(s);
                     let w = y - center;
                     // The oval this edge is an arc of lies on the `+m`
                     // side of its plane's trace; the other is
@@ -821,35 +732,9 @@ impl<T: Decide> Paths<T> for TorusFaceRegion<T> {
                     }
                 }
             }
+            _ => unreachable!("torus_face_region admits circles and spirics only"),
         }
         Ok(out)
-    }
-
-    /// Its arc length along the leg, short of a first leg's corner.
-    fn place(&self, leg: &Leg<T>, y: Point3<T>, band: Band) -> Result<Option<T>, Fault> {
-        let radius = leg.round.radius;
-        let s = leg.round.angle(y);
-        ray_walk::apart("bool_torus_region_at", Margin::of((radius * s).abs()), band)
-            .map_err(|f| f.map(RegionRefusal::Escalated))?;
-        let s = turn(s);
-        if let Some(corner) = leg.corner {
-            match decide(
-                "bool_torus_region_corner",
-                Margin::of(radius * (corner - s)),
-                band,
-            )
-            .map_err(in_band)?
-            {
-                Sign::Positive => {}
-                Sign::Negative => return Ok(None),
-                Sign::Zero => return Err(RayFault::Graze),
-            }
-        }
-        Ok(Some(radius * s))
-    }
-
-    fn heading(&self, leg: &Leg<T>, y: Point3<T>) -> Vec3<T> {
-        leg.round.heading(y)
     }
 
     fn outward(&self, y: Point3<T>) -> Vec3<T> {
@@ -874,7 +759,7 @@ mod tests {
         RegionEdge {
             edge: EdgeKey::from(KeyData::from_ffi(key)),
             r#loop: LoopKey::default(),
-            carrier: Carrier::Circle {
+            carrier: geom::Curve3::Circle {
                 center: Point3::new(0.0, 0.0, MINOR * v.sin()),
                 axis: Vec3::new(0.0, 0.0, 1.0),
                 radius: R + MINOR * v.cos(),
@@ -882,6 +767,7 @@ mod tests {
             },
             t0: 0.0,
             t1: TAU,
+            turn: crate::boolean::region::fixture_turn(0.0, TAU),
             forward,
         }
     }
@@ -949,7 +835,7 @@ mod tests {
         let circle = |phi: f64, forward: bool, key: u64| RegionEdge {
             edge: EdgeKey::from(KeyData::from_ffi(key)),
             r#loop: LoopKey::default(),
-            carrier: Carrier::Circle {
+            carrier: geom::Curve3::Circle {
                 center: Point3::origin() + turned(phi, c0),
                 axis: turned(phi, n0),
                 radius: R,
@@ -957,6 +843,7 @@ mod tests {
             },
             t0: 0.0,
             t1: TAU,
+            turn: crate::boolean::region::fixture_turn(0.0, TAU),
             forward,
         };
         TorusFaceRegion {
@@ -1087,7 +974,7 @@ mod tests {
             let circle = |phi: f64, forward: bool, key: u64| RegionEdge {
                 edge: EdgeKey::from(KeyData::from_ffi(key)),
                 r#loop: LoopKey::default(),
-                carrier: Carrier::Circle {
+                carrier: geom::Curve3::Circle {
                     center: Point3::origin() + rot(phi, c0),
                     axis: rot(phi, n0),
                     radius: big,
@@ -1095,6 +982,7 @@ mod tests {
                 },
                 t0: 0.0,
                 t1: TAU,
+                turn: crate::boolean::region::fixture_turn(0.0, TAU),
                 forward,
             };
             let point = |phi: f64, t: f64| {
@@ -1189,7 +1077,7 @@ mod tests {
         RegionEdge {
             edge: EdgeKey::from(KeyData::from_ffi(9)),
             r#loop: LoopKey::default(),
-            carrier: Carrier::Circle {
+            carrier: geom::Curve3::Circle {
                 center,
                 axis,
                 radius,
@@ -1197,6 +1085,7 @@ mod tests {
             },
             t0,
             t1,
+            turn: crate::boolean::region::fixture_turn(t0, t1),
             forward: true,
         }
     }
@@ -1259,16 +1148,17 @@ mod tests {
         let oval = RegionEdge {
             edge: EdgeKey::from(KeyData::from_ffi(9)),
             r#loop: LoopKey::default(),
-            carrier: Carrier::Spiric {
+            carrier: geom::Curve3::Spiric {
                 center: Point3::origin(),
                 axis: Vec3::new(0.0, 0.0, 1.0),
                 u_ref: Vec3::new(1.0, 0.0, 0.0),
-                major: R,
-                minor: MINOR,
+                major_radius: R,
+                minor_radius: MINOR,
                 offset: 1.0,
             },
             t0: -2.5,
             t1: 2.5,
+            turn: crate::boolean::region::fixture_turn(-2.5, 2.5),
             forward: true,
         };
         let region = holding(oval.clone());

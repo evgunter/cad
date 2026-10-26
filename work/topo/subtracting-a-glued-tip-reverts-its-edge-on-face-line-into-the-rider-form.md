@@ -2,11 +2,12 @@
 id: subtracting-a-glued-tip-reverts-its-edge-on-face-line-into-the-rider-form
 kind: issue
 title: ∖ reverts a tool's edge lying in a face (glued tip, records carried) into the rider form, and every tier passes it
-status: open
+status: closed
 opened: 2026-10-14
 priority: P2
 cost: M
 refs: [revert-re-pairs-the-sheets-on-a-line-where-coincident-edges-meet, census-passes-a-face-inside-an-edges-material-wedge]
+closed: 2026-10-26
 ---
 
 Found by the sweep of
@@ -58,3 +59,7 @@ Branch `restread/face-in-edge-wedge`: tier 3′ refuses the rider form
 tool) build and pass tier 3′
 (`crates/topo/tests/a_face_inside_an_edges_wedge_refuses_at_tier_3_prime.rs`,
 `a_glued_tip_subtracted_with_its_records_passes_tier_3_prime`).
+
+## Closed (2026-10-26, tracker sweep)
+
+Fixed on main, by the Boolean's slit parting (`topo::boolean::slit`, `part_riders` in the output stage) together with RESTREAD's tier-3′ wedge check, as the 2026-10-20 note above records. The row's own construction is now a gating row. `crates/topo/tests/a_face_inside_an_edges_wedge_refuses_at_tier_3_prime.rs` `a_glued_tip_subtracted_with_its_records_passes_tier_3_prime` (`:211`) builds the same tool (the slab `[0,4]×[−1,3]×[0,1]` united with the tip), carries its records into `boolean_op_with(Subtract, ..)` against the same slab and box round the tool, and asserts `validate_pseudomanifold` passes on the slit-form results. The rider form the row was about is refused at tier 3′ (`FaceThroughEdgeWedge`, the same file's keel row), so "every tier passes it" no longer holds. What is still owed for coincident edges in general, the re-pairing, stays on `revert-re-pairs-the-sheets-on-a-line-where-coincident-edges-meet`.

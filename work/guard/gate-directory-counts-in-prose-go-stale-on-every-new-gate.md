@@ -2,8 +2,9 @@
 id: gate-directory-counts-in-prose-go-stale-on-every-new-gate
 kind: issue
 title: Two GUARD rows carry gate-directory counts that a new gate silently falsifies
-status: open
+status: closed
 opened: 2026-09-15
+closed: 2026-10-26
 priority: P3
 cost: D
 ---
@@ -61,3 +62,22 @@ A pattern that would have caught both:
 `grep -rnE '\b(all )?[0-9]+ (gates|files)\b' work/ docs/ scripts/ .github/`.
 Its own blind spot: a count spelled as a word (`twenty-four`), and a count
 in a file this grep's roots do not cover.
+
+## Closed (2026-10-26, tracker sweep)
+
+**Both instances are gone; the class question is not taken up.**
+
+1. The quoted `gate-roster.sh` OK line: that gate was deleted in
+   `24fedbfadf` (2026-09-28), so the quote is now a transcript of a
+   deleted gate, not a count of the live directory.
+   `gate-roster-and-probe-census-have-no-reader-guards` says so in a dated
+   section, and its `:94` "whether 21 gates have this" sentence is
+   superseded by that section's "whether this is one gate or many".
+2. `work/guard/plan.md`'s "(24 files)" and its sibling counts ("17 gate
+   consumers", "22 gates", "seventeen gates") are removed in this sweep;
+   the table now names the population ("every gate that calls
+   `gate_rust_code`", "every gate in `scripts/gates/`") instead of a size.
+
+The general rule the row floated — decide once whether a directory size
+belongs in prose — is the kind of note `work/README.md` ("The tracker is
+not comprehensive") says to fix where you stand rather than schedule.

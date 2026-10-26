@@ -13,7 +13,7 @@ design: true
 A residual of the arrival `[ev]` design (`arc-closer-constructed-from-arrival-tangent`), named by its designers and its harmony pass and left outside that question.
 
 **Which arrivals close at `Start` today.**
-- The `Via` arrival closes at `Start`: `Via { q, p: Start }` then a director gives the sharp seam (`ViaArrivalStart`, `crates/profile/src/path/family.rs:845`), and under the token half of that design `Via { q, p: Start.arrives_tangent() }` gives the tangent seam, complete at the verb.
+- The `Via` arrival closes at `Start`: `Via { q, p: Start }` then a director gives the sharp seam (`ViaArrivalStart`, `crates/profile/src/path/family.rs:962`), and under the token half of that design `Via { q, p: Start.arrives_tangent() }` gives the tangent seam, complete at the verb.
 - `arc_onto(target)` (`docs/PATHS-DESIGN.md` §2a item 6) does the same: `arc_onto(Start).toward(d)` is the sharp seam and `arc_onto(Start.arrives_tangent())` the tangent one.
 - The `Radius { r, side }` arrival has neither. Its anchor comes from the builder's `.at`, which takes only a `Point2` (`verb At(Point2<T>)` in `crates/profile/src/path/program.rs`'s `transition_table!`), and it has no target slot that could hold `Start` or the token.
 

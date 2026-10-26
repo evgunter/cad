@@ -25,7 +25,15 @@ gathered across M2's full pipeline.
   shipped decision funnels through `k_stats::decide`, which names the
   predicate; runs at the `Probe` scalar record every classification
   (predicate, margin, band, outcome) with decisions bit-identical to
-  f64.
+  f64. That premise is checked, not argued:
+  `crates/editor-core/tests/m4_pr8_k_probe.rs`'s
+  `probe_agrees_with_f64_bit_for_bit_over_the_corpus` evaluates the
+  registered corpus at `Probe` and at `f64` and compares them bit for
+  bit (value channel, mass properties, content keys, name tables,
+  verdict and escalation logs), once per ε row `scripts/k_probe_sweep.sh`
+  dumps. It does not read curve carriers, surface geometry or pcurves,
+  and it covers neither the demo scenes the same sweep dumps nor
+  `cup`/`vessel`.
 - Harness: `crates/sweep/tests/k_report.rs` (`dump_k_samples`,
   `#[ignore]`d) builds ten M2 acceptance shapes end-to-end at `Probe`
   — profile validation → extrude/revolve → tier 1–3 validation
@@ -837,6 +845,23 @@ minted it with, and a face that meets the target records the same
 samples; a face that cannot now records one at every round to its
 lane's stop, where the budget exit ended it after round 0.
 
+**Retirement (2026-10-23): `props_quad_converged`, and rule (4)'s
+roster with it.** The reporting target is now a resolution
+(`[tolerance.measure]`, `docs/QUAD-MEASURE-SPEC.md` unit B): a face's
+width is compared with it, and a sizing is not recorded, so `topo`'s
+interim adapter and its mint are gone and nothing mints the name.
+`k_lint::EPS_COUPLED_PREDICATES` is empty, `predicate_roster`'s
+`MINT_SOURCES` reads `props/quad.rs` alone (it still rules on any mint
+there whose margin derives from `target_len`), and rule (4) stays
+specified for the next family. The committed eras still carry the
+family's rows, and the constants above were cut against them as
+ε-coupled, so their provenance reads them through
+`k_lint::ERA_EPS_COUPLED_PREDICATES` (`lint_sample_under`), not through
+the live roster. A fresh sweep records no `props_quad_converged` row:
+that is a removed population, not a threshold move. A deciding
+measurement now records its own predicate instead, under its call
+site's names, every round it is asked.
+
 **Roster addition (TRIM-3): the chart-boundary outside test.** Six
 names, in the crate scan's blind spot #4 — four of them are a
 `ray_walk::ParityRows` value, the carrier this document already
@@ -973,10 +998,8 @@ Notes on the neighbouring names:
 - `point_in_arc_loop_conic_window` decides only where a ray crosses an
   arc, as `arc_trim`'s trim row (ATREST-12's distance trim, the one home
   check 9's `ring_outer_arc_{end,trim}` also read).
-- `point_in_arc_loop_reach` is a ray's clearance from a ball: an
-  uncrossable (spline) edge's, where a clearance in the band abandons
-  the ray rather than escalating, and a spiric piece's, where it halves
-  the piece.
+- `point_in_arc_loop_reach` is a ray's clearance from a spiric
+  piece's ball, where anything undecided halves the piece.
 
 Dimensions: `docs/predicate-dimension-audit.md`'s rows of the same
 names.
@@ -985,23 +1008,44 @@ names.
 names from `topo/src/splitting/spiric_arc.rs`, the row the carrier walk
 crosses a spiric edge by, halving the arc into pieces each held in a
 ball from the oval's speed bound. The boundary reading's are
-`SpiricRows` fields, one set per caller (`containment`'s `WALK_ROWS`,
+`ArcRows` fields, one set per caller (`containment`'s `WALK_ROWS`,
 `contain`'s `ROWS`); the ray's are the walk's own, bare literals:
 
 | name | carrier |
 |---|---|
-| `point_in_arc_loop_spiric_end` | `SpiricRows` field (`WALK_ROWS`): the distance to an end of the arc |
-| `point_in_arc_loop_spiric_clear` | `SpiricRows` field (`WALK_ROWS`): a piece's ball's clearance from the point |
-| `point_in_arc_loop_spiric_on` | `SpiricRows` field (`WALK_ROWS`): the distance to a point of the arc |
-| `point_in_arc_loop_spiric_leaf` | `SpiricRows` field (`WALK_ROWS`): a piece's ball's radius, `Zero` ending the halving |
-| `bool_contact_spiric_end` | `SpiricRows` field (`contain`'s `ROWS`) |
-| `bool_contact_spiric_clear` | `SpiricRows` field (`ROWS`) |
-| `bool_contact_spiric` | `SpiricRows` field (`ROWS`): the distance to a point of the arc |
-| `bool_contact_spiric_leaf` | `SpiricRows` field (`ROWS`) |
+| `point_in_arc_loop_spiric_end` | `ArcRows` field (`WALK_ROWS`): the distance to an end of the arc |
+| `point_in_arc_loop_spiric_clear` | `ArcRows` field (`WALK_ROWS`): a piece's ball's clearance from the point |
+| `point_in_arc_loop_spiric_on` | `ArcRows` field (`WALK_ROWS`): the distance to a point of the arc |
+| `point_in_arc_loop_spiric_leaf` | `ArcRows` field (`WALK_ROWS`): a piece's ball's radius, `Zero` ending the halving |
+| `bool_contact_spiric_end` | `ArcRows` field (`contain`'s `ROWS`) |
+| `bool_contact_spiric_clear` | `ArcRows` field (`ROWS`) |
+| `bool_contact_spiric` | `ArcRows` field (`ROWS`): the distance to a point of the arc |
+| `bool_contact_spiric_leaf` | `ArcRows` field (`ROWS`) |
 | `point_in_arc_loop_spiric_side` | a `const` in `spiric_arc`: a piece end's offset from the ray line |
 | `point_in_arc_loop_spiric_turn` | a `const` in `spiric_arc`: `|s(v_b) − s(v_a)| − 2·A·h²`, the piece's monotonicity across the ray line |
 | `point_in_arc_loop_spiric_advance` | a `const` in `spiric_arc`: a piece's ball's advance along the ray, less or plus its reach |
 | `point_in_arc_loop_reach` | (above) also a spiric piece's ball's clearance from the ray |
+
+**Roster addition (SPLICE): the spline edge's crossing row.** Eleven
+new names from `topo/src/splitting/spline_arc.rs`, the row the carrier
+walk crosses a spline edge by, halving the arc into Bézier pieces each
+held in its control net. The boundary reading's are `ArcRows` fields,
+one set per caller (`containment`'s `WALK_ROWS`, `contain`'s `ROWS`);
+the ray's are the walk's own, bare literals:
+
+| name | carrier |
+|---|---|
+| `point_in_arc_loop_spline_end` | `ArcRows` field (`WALK_ROWS`): the distance to an end of the arc |
+| `point_in_arc_loop_spline_clear` | `ArcRows` field (`WALK_ROWS`): a piece's control ball's clearance from the point |
+| `point_in_arc_loop_spline_on` | `ArcRows` field (`WALK_ROWS`): the distance to a piece's start point |
+| `point_in_arc_loop_spline_leaf` | `ArcRows` field (`WALK_ROWS`): a piece's control ball's radius, `Zero` ending the halving |
+| `bool_contact_spline_end` | `ArcRows` field (`contain`'s `ROWS`) |
+| `bool_contact_spline_clear` | `ArcRows` field (`ROWS`) |
+| `bool_contact_spline` | `ArcRows` field (`ROWS`): the distance to a piece's start point |
+| `bool_contact_spline_leaf` | `ArcRows` field (`ROWS`) |
+| `point_in_arc_loop_spline_side` | a `const` in `spline_arc`: a control point's offset from the ray line |
+| `point_in_arc_loop_spline_turn` | a `const` in `spline_arc`: a step of those offsets along the control polygon, its monotonicity across the ray line |
+| `point_in_arc_loop_spline_advance` | a `const` in `spline_arc`: a control point's advance along the ray |
 
 **Roster addition (CLEAVE): a trimmed sphere face's region.** Fourteen
 names from `topo/src/boolean/sphere_region.rs`. Nine are its rays',
@@ -1039,7 +1083,7 @@ windows: `bool_torus_trim`, `bool_torus_trim_major_period`,
 `bool_torus_chart_box` and `bool_torus_chart_closure` leave the roster,
 and `bool_torus_frame_radius` moves into the region. Seven are its paths'
 bare literals, four a `FirstHarmonicRows` value (`ROOT_ROWS`), two a
-`ConicRows` value (`BOUNDARY`) and four a `SpiricRows` value (`SPIRIC`)
+`ConicRows` value (`BOUNDARY`) and four a `ArcRows` value (`SPIRIC`)
 for its boundary pre-pass:
 
 | name | carrier |
@@ -1057,10 +1101,10 @@ for its boundary pre-pass:
 | `bool_torus_region_roots_slack` | `FirstHarmonicRows` field (`ROOT_ROWS`) |
 | `bool_torus_region_arc_span` | `ConicRows` field (`BOUNDARY`): a circle edge's gap to a whole turn |
 | `bool_torus_region_arc_straddle` | `ConicRows` field (`BOUNDARY`): an ellipse's straddle; a circle never mints it, and it never reaches the funnel |
-| `bool_torus_region_spiric_end` | `SpiricRows` field (`SPIRIC`): the distance to either end of an oval arc |
-| `bool_torus_region_spiric_clear` | `SpiricRows` field (`SPIRIC`): a piece's ball's clearance from the point |
-| `bool_torus_region_spiric_on` | `SpiricRows` field (`SPIRIC`): the distance to a point of the arc |
-| `bool_torus_region_spiric_leaf` | `SpiricRows` field (`SPIRIC`): a piece's ball's radius |
+| `bool_torus_region_spiric_end` | `ArcRows` field (`SPIRIC`): the distance to either end of an oval arc |
+| `bool_torus_region_spiric_clear` | `ArcRows` field (`SPIRIC`): a piece's ball's clearance from the point |
+| `bool_torus_region_spiric_on` | `ArcRows` field (`SPIRIC`): the distance to a point of the arc |
+| `bool_torus_region_spiric_leaf` | `ArcRows` field (`SPIRIC`): a piece's ball's radius |
 
 They pool with nothing: the region is read by the point doors at points
 on a torus.

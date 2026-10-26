@@ -43,3 +43,11 @@ its plane by hand, so "sharing would hide what the same means" is not
 the rule either side is actually following.
 
 (2026-10-14, PATHS PR 5068) `SketchPlane::new(Affine3)` is gone: a plane is minted from its frame, and the translation-only plane above is now spelled `SketchPlane::xy_at(origin)`.
+
+## Re-checked (2026-10-26, tracker sweep)
+
+`crates/editor-core/tests/seat6_param_source.rs` no longer exists, so
+that half of the row has gone with it. `seat7_sweep_lowering.rs`'s
+`raw_cylinder` (`:920-939`) still spells its plane by hand
+(`SketchPlane::xy_at(Point3::new(0.0, 0.0, -h))`) beside the recipe
+side's placement, so the row stands on seat7 alone.
