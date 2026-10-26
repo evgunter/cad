@@ -449,8 +449,15 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
     // the world where it is drawn.
     let target = pin_along(&mut doc, len(links as f64 * LINK_LENGTH), tol);
     let placed = crate::world::place_in_world(&doc, target, tol);
-    doc = placed.doc;
     let target = placed.placement;
+    // What the document makes: the links, their pins and the target.
+    let made: Vec<pncad::document::Operand> = bars
+        .iter()
+        .chain(&pins)
+        .chain([&target])
+        .map(|&copy| pncad::document::Operand::Node(copy))
+        .collect();
+    doc = crate::world::set_product(&placed.doc, &made, tol).doc;
 
     // The wall names come from the SELECTION door, the way a user gets
     // them: evaluate what is built so far, then ask each pin for its

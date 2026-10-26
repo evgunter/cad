@@ -299,10 +299,7 @@ fn an_l_shaped_face_holds_where_it_has_no_material() {
     let bottom = Selection {
         at: floated,
         body: 0,
-        faces: FaceScope::Named(vec![crate::m10_5_clearance_interval::in_placement(
-            floated,
-            fixture::fname(block, RoleSeg::Cap(CapEnd::Start)),
-        )]),
+        faces: FaceScope::Named(vec![fixture::fname(block, RoleSeg::Cap(CapEnd::Start))]),
     };
     let leaf = box_of(&doc, "lift");
     let sound = clearance(&doc, &leaf, &top, &bottom, 0.45, Tol::witness());

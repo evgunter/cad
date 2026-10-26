@@ -468,7 +468,7 @@ fn reads(code: &str) -> usize {
 /// [`reads`]'s hits in the file's code; a hit added anywhere reds, and
 /// the answer is to read through `Evaluation::usable` or to give the
 /// file its line here.
-const READERS: [(&str, usize, &str); 13] = [
+const READERS: [(&str, usize, &str); 14] = [
     (
         "crates/editor-core/src/eval/mod.rs",
         27,
@@ -480,7 +480,7 @@ const READERS: [(&str, usize, &str); 13] = [
     ),
     (
         "crates/editor-core/src/eval/wire.rs",
-        10,
+        9,
         "the op wiring holds the result map as it is written, and reads it through `usable_in`; \
          a read of a split's port or a family's member copies the standing entries and writes \
          the value it resolves to (`reads_projected`), every read still through `value_of`; a \
@@ -507,15 +507,22 @@ const READERS: [(&str, usize, &str); 13] = [
     ),
     (
         "crates/editor-core/src/stackup.rs",
-        23,
-        "the pairing compares two runs arm by arm — values, failure kinds, poison sources \
-         — and labels each arm in its prose",
+        6,
+        "a measure's sensitivity reads the failed node's own error to tell the guided \
+         replay's refusal from the measure's (`unread_measure`); its tests write results",
     ),
     (
-        "crates/editor-core/src/mate/pin.rs",
+        "crates/editor-core/src/mate/corner.rs",
         3,
-        "the pin evaluates the document itself and reads the copy's own value before \
-         placement; anything else is its `Unevaluated` refusal",
+        "the corner frame evaluates the document itself and reads the body's own value \
+         before placement; anything else is its `Unevaluated` refusal",
+    ),
+    (
+        "crates/viewer/src/session.rs",
+        3,
+        "the numeric gestures' frame reads the body's own value as `corner_frame` does; \
+         anything else is its `Unevaluated` refusal \
+         (`work/intent/the-viewers-numeric-gestures-read-a-frame-back-off-geometry.md`)",
     ),
     (
         "crates/editor-core/src/mate/unobservable.rs",

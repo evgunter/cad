@@ -445,37 +445,6 @@ impl FaceName {
         self.0
     }
 
-    /// **This face as the instance that places its part names it** —
-    /// the part's own name for the face, worn inside the one
-    /// [`RoleSeg::InPart`] qualifier an instantiate node puts round
-    /// every name it places, headed at that instance. What a mate side
-    /// on a placed part names; [`FaceName::part_local`] is its inverse.
-    pub fn in_part(&self, instance: RecipeNodeId) -> FaceName {
-        Self(StableName {
-            kind: self.0.kind,
-            node: instance,
-            path: vec![RoleSeg::InPart {
-                of: self.0.clone().into(),
-            }],
-        })
-    }
-
-    /// **The part-local face a placed name wraps** — the row of the
-    /// part's own table under the one `InPart` qualifier `instance`
-    /// put round it, read INSIDE the part where no instance exists:
-    /// the last step of [`crate::mate::head_face`]. `None` when `name` is not
-    /// of that shape (headed elsewhere, qualified otherwise, or not a
-    /// face); [`FaceName::in_part`] is its inverse.
-    pub fn part_local(name: &StableName, instance: RecipeNodeId) -> Option<FaceName> {
-        if name.node != instance {
-            return None;
-        }
-        let [RoleSeg::InPart { of }] = name.path.as_slice() else {
-            return None;
-        };
-        FaceName::new((**of).clone()).ok()
-    }
-
     /// **The one in-crate way a face name is re-made**: this face's
     /// DERIVATION rewritten, its kind untouched.
     ///
@@ -646,17 +615,11 @@ pub(crate) fn edge_line(name: &NameRef) -> NameRef {
 /// [`wrapped_edge`] and its mutable twin, which match ergonomics give a
 /// shared or a mutable reference alike.
 ///
-/// `InPart` is read through: its argument names another document's
-/// edge, and stripping a piece qualifier from it reads no id as local
-/// (the `resolve` walk does not descend into it because it reads ids),
-/// so a piece of a part's edge is a piece of that edge's line in the
-/// part as anywhere else.
 macro_rules! wrapped_edge_of {
     ($seg:expr) => {
         match $seg {
             RoleSeg::From { of: n, .. }
             | RoleSeg::SplitFragment { parent: n, .. }
-            | RoleSeg::InPart { of: n }
             | RoleSeg::Instance { of: n, .. } => Some(n),
             _ => None,
         }
@@ -1567,31 +1530,6 @@ pub enum RoleSeg {
         hole: u32,
     },
 
-    // ---- Instantiate part (ASM-2A D-4: the name bridge) ----
-    /// An entity of an instantiated part's product, named under the
-    /// instance (argument: its PART-LOCAL stable name).
-    ///
-    /// The instance's identity rides in the enclosing
-    /// [`StableName::node`] — the instantiate node — and the referenced
-    /// DOCUMENT's identity rides in that node's `doc_ref`, so neither is
-    /// repeated here: one qualifier per instance is all the
-    /// distinctness the part-local names need, exactly as
-    /// [`RoleSeg::Instance`] carries a pattern's.
-    InPart {
-        /// The entity's name inside the referenced document's product.
-        of: NameRef,
-    },
-
-    // ---- Placement ----
-    /// The copy a [`crate::Node::Place`] defines of its shape's entity
-    /// `of` (D10, A10). The placement's identity rides in the enclosing
-    /// [`StableName::node`], so two placements of one body name their
-    /// copies apart, as [`RoleSeg::Instance`] names a pattern's.
-    Placed {
-        /// The entity's name in the body placed.
-        of: NameRef,
-    },
-
     // ---- Pattern ----
     /// Instance `i` of the pattern's master (i is the D8-structural
     /// index — A8/N1; `of` is the master entity's name).
@@ -1745,8 +1683,6 @@ pub(crate) fn read_edge(seg: &RoleSeg) -> Option<VarId> {
         | RoleSeg::Inner(_)
         | RoleSeg::Rim(_)
         | RoleSeg::HoleRim { .. }
-        | RoleSeg::InPart { .. }
-        | RoleSeg::Placed { .. }
         | RoleSeg::Instance { .. } => None,
     }
 }
@@ -1785,6 +1721,16 @@ pub(crate) enum VerbatimEdge<'a> {
         /// The mirror plane.
         plane: &'a crate::pose::RoleRead<crate::VarId>,
     },
+    /// Every entity of the source, copied (D10 `[placement.placement]`):
+    /// a [`Node::Place`](crate::node::Node::Place)'s copy of its
+    /// `source`, or an instance's copy of its part's product, whose
+    /// names are spelled in the part's ids and which no walk of this
+    /// document follows (`source` is `None`). The copy's own body row
+    /// is minted at the copying node.
+    Copied {
+        /// The source's read, `None` for an instance.
+        source: Option<crate::VarId>,
+    },
 }
 
 /// **The name-carrying edge `node` is, if any**: a part's projection,
@@ -1821,6 +1767,10 @@ pub(crate) fn verbatim_edge<P>(node: &crate::node::Node<P>) -> Option<VerbatimEd
             body: body.read,
             plane,
         }),
+        Node::Place { source, .. } => Some(VerbatimEdge::Copied {
+            source: Some(source.read),
+        }),
+        Node::InstantiatePart { .. } => Some(VerbatimEdge::Copied { source: None }),
         Node::Profile(_)
         | Node::Extrude { .. }
         | Node::Revolve { .. }
@@ -1834,12 +1784,11 @@ pub(crate) fn verbatim_edge<P>(node: &crate::node::Node<P>) -> Option<VerbatimEd
         | Node::Subtract { .. }
         | Node::Union { .. }
         | Node::Intersect { .. }
+        | Node::Assemble { .. }
         | Node::Pattern { .. }
-        | Node::Place { .. }
         | Node::World
         | Node::Space
         | Node::PlacedUnion { .. }
-        | Node::InstantiatePart { .. }
         | Node::Measure { .. }
         | Node::Assertion { .. } => None,
     }
@@ -2175,10 +2124,6 @@ impl RoleSeg {
     /// [`locator_seg`]'s list, spelled arm by arm because each arm
     /// rebuilds its own payload.
     ///
-    /// `InPart` crosses verbatim under every rewriter: its argument
-    /// names ANOTHER document's nodes (the document seam), whose
-    /// profiles and id space are not this document's to rewrite.
-    ///
     /// # Errors
     ///
     /// Whatever `w` refuses, at the first thing it refuses.
@@ -2296,11 +2241,6 @@ impl RoleSeg {
                 of: rewrite_ref(of, w)?,
                 hole: *hole,
             },
-            // The document seam.
-            R::InPart { .. } => self.clone(),
-            R::Placed { of } => R::Placed {
-                of: rewrite_ref(of, w)?,
-            },
             R::Instance { i, of } => R::Instance {
                 i: *i,
                 of: rewrite_ref(of, w)?,
@@ -2310,35 +2250,6 @@ impl RoleSeg {
 }
 
 impl StableName {
-    /// **This entity as placement `placement`'s copy names it**
-    /// (D10, A10): the body's own name, worn inside the one
-    /// [`RoleSeg::Placed`] qualifier the placement puts round every
-    /// name of the body it places, headed at the placement. What the
-    /// product's table spells the entity by; [`StableName::copy_of`] is
-    /// its inverse.
-    #[must_use]
-    pub fn in_copy(&self, placement: RecipeNodeId) -> StableName {
-        StableName {
-            kind: self.kind,
-            node: placement,
-            path: vec![RoleSeg::Placed {
-                of: self.clone().into(),
-            }],
-        }
-    }
-
-    /// **The body's own name a copy's name wraps**: the name under the
-    /// one `Placed` qualifier, with the placement that put it there.
-    /// `None` when this name is not of that shape;
-    /// [`StableName::in_copy`] is its inverse.
-    #[must_use]
-    pub fn copy_of(&self) -> Option<(RecipeNodeId, &StableName)> {
-        match self.path.as_slice() {
-            [RoleSeg::Placed { of }] => Some((self.node, of)),
-            _ => None,
-        }
-    }
-
     /// This name with every segment of its path rebuilt through `w`
     /// ([`RoleSeg::rewrite`]), then put back in canonical form; the
     /// kind and the minting node are not the path's and are kept.
@@ -2391,9 +2302,7 @@ impl StableName {
     }
 
     /// **Every authored step this name spells a piece of** — in its own
-    /// path and in every name it carries from this document. An
-    /// `InPart` argument names ANOTHER document's steps (the document
-    /// seam), so it is not read: its ids are not this document's.
+    /// path and in every name it carries.
     ///
     /// What a `SetProgram` that drops a step asks of each name the
     /// document holds (DM7): a step id is unique across the document,
@@ -2521,8 +2430,6 @@ macro_rules! never_in_a_boolean_table {
             | $crate::names::RoleSeg::Inner(_)
             | $crate::names::RoleSeg::Rim(_)
             | $crate::names::RoleSeg::HoleRim { .. }
-            | $crate::names::RoleSeg::InPart { .. }
-            | $crate::names::RoleSeg::Placed { .. }
             | $crate::names::RoleSeg::Instance { .. }
     };
 }
@@ -2656,10 +2563,9 @@ mod tests {
     }
 
     /// **A name's piece steps are its own path's and every carried
-    /// name's of this document, and never an `InPart` argument's** —
-    /// the other document's ids are not this one's.
+    /// name's**.
     #[test]
-    fn piece_steps_read_the_names_own_document_only() {
+    fn piece_steps_read_the_name_and_what_it_carries() {
         let wall = |node: u64, step: u64| StableName {
             kind: EntityKind::Face,
             node: RecipeNodeId::new(0, node),
@@ -2676,14 +2582,6 @@ mod tests {
             carried_wall.piece_steps().into_iter().collect::<Vec<_>>(),
             vec![StepId::new(0, 4)]
         );
-        let foreign = StableName {
-            kind: EntityKind::Face,
-            node: RecipeNodeId::new(0, 9),
-            path: vec![RoleSeg::InPart {
-                of: NameRef::new(wall(1, 5)),
-            }],
-        };
-        assert!(foreign.piece_steps().is_empty());
         let section = band(N, edges()[1]);
         assert!(section.piece_steps().is_empty(), "a section has no step");
     }

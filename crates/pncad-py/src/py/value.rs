@@ -954,11 +954,6 @@ impl Value {
             d::ValuePayload::Boolean(d::BooleanValue::Body { contacts, .. }) => {
                 Body::recorded(Arc::clone(body), Arc::clone(contacts))
             }
-            // An instance's copies as one body — its part's world — carry
-            // the declarations that part's product minted.
-            d::ValuePayload::Copies(copies) if copies.bodies.len() == 1 => {
-                Body::recorded(Arc::clone(body), Arc::clone(&self.contacts))
-            }
             _ => Body::plain(Arc::clone(body)),
         }
     }
@@ -976,9 +971,9 @@ impl Value {
 
     /// The single body this value denotes.
     ///
-    /// Accepts `Body`, a non-empty `Boolean`, and `copies` that are one
-    /// body (an instance whose part's world is one body); raises for
-    /// every other kind, and for an empty Boolean.
+    /// Accepts `Body` (a placement's or an instance's copy and a `⊔`
+    /// among them) and a non-empty `Boolean`; raises for every other
+    /// kind, and for an empty Boolean.
     fn body(&self, py: Python<'_>) -> PyResult<Body> {
         match &self.payload {
             d::ValuePayload::Body(body) => Ok(self.recorded_body(body)),
@@ -991,9 +986,6 @@ impl Value {
                 EvalReason::EmptyBoolean,
                 self.node,
             )),
-            d::ValuePayload::Copies(copies) if copies.bodies.len() == 1 => {
-                Ok(self.recorded_body(&copies.bodies[0]))
-            }
             other => Err(eval_err(
                 py,
                 format!("a `{}` value is not a body", other.kind_name()),
@@ -1004,7 +996,7 @@ impl Value {
     }
 
     /// Every body this value denotes: one for `Body`/`Boolean`, the
-    /// whole list for `Instances` and for `copies`, both sides for a
+    /// whole list for `Instances`, both sides for a
     /// `Split`.
     fn bodies(&self) -> Vec<Body> {
         let wrap = |body: &Arc<topo::Body<f64>>| self.recorded_body(body);
@@ -1016,7 +1008,6 @@ impl Value {
             d::ValuePayload::Body(body) => vec![wrap(body)],
             d::ValuePayload::Boolean(d::BooleanValue::Body { body, .. }) => vec![wrap(body)],
             d::ValuePayload::Instances(bodies) => bodies.iter().map(wrap).collect(),
-            d::ValuePayload::Copies(copies) => copies.bodies.iter().map(wrap).collect(),
             d::ValuePayload::Split { above, below } => {
                 [side(above), side(below)].into_iter().flatten().collect()
             }

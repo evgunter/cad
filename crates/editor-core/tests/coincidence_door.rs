@@ -7,7 +7,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::blocks::{block, block_on, failure, run};
-use crate::emit_shared_rim_several::own_name;
+use crate::emit_shared_rim_several::{construction, own_name};
 use crate::fixture::{fname, insert, len, len2, on_frame, out, scl, table};
 
 use editor_core::{
@@ -141,7 +141,7 @@ fn a_glued_rest_and_its_corners_are_unproven_rows_named_by_their_operands() {
             corner.site == DecisionSite::VertexFusion
                 && corner.relation == Relation::OnCarrier
                 && matches!(&corner.cells[0], NamedCell::Entity { name, .. }
-                    if name.node == plate && name.kind == EntityKind::Vertex)
+                    if name.node == construction(&doc, plate) && name.kind == EntityKind::Vertex)
                 && corner.cells[1] == entity(out(&doc, base), &top),
             "a plate corner on the block's top: {corner:?}"
         );
@@ -348,7 +348,13 @@ fn a_unions_rows_follow_its_member_order() {
         for row in faces {
             assert_eq!(row.relation, Relation::SameOriented);
             let input = |c: &NamedCell| match c {
-                NamedCell::Entity { input, name } if out(&doc, name.node) == *input => *input,
+                // A copy carries its source's names, so the cell's
+                // name is the source's and its input the member read.
+                NamedCell::Entity { input, .. }
+                    if members.iter().any(|&m| out(&doc, m) == *input) =>
+                {
+                    *input
+                }
                 other => panic!("{members:?}: a cell is a member's own face: {other:?}"),
             };
             assert_eq!(
@@ -838,17 +844,14 @@ fn a_reunited_splits_section_caps_are_one_construction() {
     );
 }
 
-/// Whether `cell` names a split's crossing vertex, through any copies
-/// a placement made of it.
+/// Whether `cell` names a split's crossing vertex (a placement's copy
+/// carries it verbatim).
 fn a_crossing(cell: &NamedCell) -> bool {
-    fn crossing(name: &StableName) -> bool {
-        match name.path.first() {
-            Some(RoleSeg::CrossingVertex { .. }) => true,
-            Some(RoleSeg::Placed { of }) => crossing(of),
-            _ => false,
-        }
-    }
-    matches!(cell, NamedCell::Entity { name, .. } if crossing(name))
+    matches!(
+        cell,
+        NamedCell::Entity { name, .. }
+            if matches!(name.path.first(), Some(RoleSeg::CrossingVertex { .. }))
+    )
 }
 
 /// **A split's crossing vertex lies on its tool's plane, and so on the
@@ -2084,7 +2087,7 @@ fn two_copies_meeting_by_the_same_face_are_not_one_construction() {
     .expect("a half-turn about z");
     let (doc, q) = crate::fixture::insert(
         doc,
-        crate::fixture::stood(vec![editor_core::BodyRead::plain(the_box)]),
+        crate::fixture::stood(editor_core::BodyRead::plain(the_box)),
     );
     let doc = crate::fixture::pin(doc, q, &turned, &EvalOptions::default());
     let ev = run(&doc);

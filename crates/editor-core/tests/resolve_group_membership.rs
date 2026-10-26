@@ -475,21 +475,14 @@ fn a_unions_group_resized_at_any_fold_step_reads_two_to_one() {
             },
         );
         // Member `member`'s wall `segment` (of the block `of`), as the
-        // union's seams spell it.
-        let member_wall = |member: RecipeNodeId, of, segment| {
-            let own = wall(&doc, of, segment);
-            StableName {
-                kind: editor_core::EntityKind::Face,
-                node: u,
-                path: vec![RoleSeg::From {
-                    read: crate::fixture::out(&doc, member),
-                    of: editor_core::NameRef::new(if member == of {
-                        own
-                    } else {
-                        own.in_copy(member)
-                    }),
-                }],
-            }
+        // union's seams spell it: a copy carries its block's names.
+        let member_wall = |member: RecipeNodeId, of, segment| StableName {
+            kind: editor_core::EntityKind::Face,
+            node: u,
+            path: vec![RoleSeg::From {
+                read: crate::fixture::out(&doc, member),
+                of: editor_core::NameRef::new(wall(&doc, of, segment)),
+            }],
         };
         let from = |n: &StableName, m: RecipeNodeId| {
             let m_read = crate::fixture::out(&doc, m);
@@ -795,7 +788,7 @@ fn bar_wall(segment: u32) -> StableName {
         node: u,
         path: vec![RoleSeg::From {
             read: crate::fixture::out(&doc, tr.placement),
-            of: editor_core::NameRef::new(wall(&doc, bar, segment).in_copy(tr.placement)),
+            of: editor_core::NameRef::new(wall(&doc, bar, segment)),
         }],
     }
 }
@@ -926,7 +919,7 @@ fn a_cutter_a_fold_step_requalified_is_the_same_cutter() {
             node: u,
             path: vec![RoleSeg::From {
                 read: crate::fixture::out(&doc, tr.placement),
-                of: editor_core::NameRef::new(wall(&doc, bar, 1).in_copy(tr.placement)),
+                of: editor_core::NameRef::new(wall(&doc, bar, 1)),
             }],
         };
         for (n, d) in rows {

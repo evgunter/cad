@@ -2,12 +2,13 @@
 id: assemble-is-an-operator-and-the-product-is-a-slot
 kind: unit
 title: D′3: Assemble (⊔) is the fourth operator, with the census at its door; one product slot; a placement copies one source body; an instance reads its part's product; picks, so RoleSeg::Placed/InPart and CopyKey retire
-status: dispatched
+status: review
 opened: 2026-10-22
 priority: P0
 cost: H
 parent: a-placement-pins-by-written-values-without-a-mate
 branch: intent/dprime3-assemble-product-slot
+pr: 5636
 ---
 
 
@@ -53,3 +54,42 @@ gather, each reported.
 `a-placement-copy-is-its-own-table-in-the-product`,
 `an-instance-defines-one-body-per-part-placement`,
 `the-viewer-authors-no-read-of-one-copy`.
+
+## Handoff
+
+Lane: D′3 implementer, branch `intent/dprime3-assemble-product-slot`.
+
+**Split decision: one PR.** The spec's seam (one source and picks
+first, then `⊔`) leaves no spelling for a list placement in PR 1: a
+list `Place` under a mated bundle cannot become several placements
+(the mate's copy side reads one copy), and inline of a part with
+several world placements writes exactly that list. One source needs
+`⊔` to be written at all, so the two halves land together.
+
+**Plan, in commit order** (each compile-driven):
+1. Names: `RoleSeg::Placed` and `InPart` retire; a placement's and an
+   instance's copy carry their source's names verbatim (the copy's
+   body row stays its own).
+2. `Place { source, target, constraints }`, one copy.
+3. `Node::Assemble { members }` (`⊔`): graft pieces, names keyed by
+   read as a union's members are, records carried; the census at its
+   door (`product_in`'s machinery over its members as arrivals).
+4. `Doc.product` slot, `DocEdit::SetProduct`, wire + content key;
+   `product_recorded` reads the slot; gather retires.
+5. `InstantiatePart` defines one body: its part's product.
+6. Picks (`VarDef::Pick`); `CopyKey`, `BodyRead.key`, `SlotValue::Copy`,
+   `Copies`/`KeyedCopy`, `copy_of` retire.
+7. Inline lands the copied product body; split/flatten follow.
+8. pncad, pncad-py, viewer, tour, wild; stored documents regenerated.
+
+**Progress:**
+- Steps 1–8 landed. Editor-core: `⊔`, the slot, one source, the instance's one body, picks; `CopyKey`, `RoleSeg::Placed`/`InPart`, `Copies`/`KeyedCopy`, `SlotValue::Copy` and `NodeErrorKind::ProductOperand` are gone. The census runs at each `⊔`'s door and its verdict is kept on the `⊔`'s value (`product::Census`), run once where it is first asked for; a copy or a pick carries it, a boolean reading the `⊔` reads its records, and every census discards what it finds inside an arrival a door already decided (a `⊔`'s, an instance's copy). `census_pairs` and `less_carried` retired.
+- A `⊔` reading one body twice gathers its names as a tie (`names::repeated_member_view`), not a panic.
+- Acceptance rows for tests 19, 25 and 26: `crates/editor-core/tests/intent_dprime3_assemble_product_slot.rs`.
+- pncad, pncad-py (bindings, stubs, Python suite), viewer, tour and the guide are migrated. A test document says its product (`placing.world_product`, `fixture::world_product`).
+- Filed: `a-name-through-a-parts-assemble-moves-with-every-earlier-part-edit`, `a-boolean-over-an-assemble-cites-none-of-its-meetings`, `an-unread-body-is-no-finding`, `the-viewer-authors-no-pick`, `the-viewer-sets-no-product`, `the-pick-cross-check-cannot-tell-two-copies-of-one-body-apart`.
+- Absorbed items closed. `the-world-still-speaks-of-roots` was read and is left open with a note: the rename is a naming choice.
+- Slow set run whole on the branch and on main. Every row D′3 moved is re-pinned with its cause: names, ids, the product `⊔` node, and `heat_sink`/`declared_tangency`/`kitchen_sink`/`cut_cylinder`/`part_select` latency structure. No outcome or point moved: `m10_p_fence`'s ids-masked row, with the corpus's `⊔` nodes set aside, is main's pin, before and after merging main's plane pose. The perf12 census verdicts held.
+- 22 slow rows and the tour's teapot at 1e-12 are red on main with the same messages. The teapot is filed as `the-teapot-canal-volume-misses-its-frustum-at-1e-12`; the rest are listed in the PR body.
+- `python-census-finding-rows-read-a-rest-contact-since-the-planar-face-pair-census` closed: this branch's Python migration met its four rows.
+- Fix pass (dual review): every door holds the slot; picks walk picks and refuse an operand read twice; `−` and `∩` distribute over `⊔` (`eval/wire/distribute.rs`); the census at the `⊔`'s door with its verdict on the value (rows (a), (b), (c): `a_placed_seat_made_the_product_is_at_rest`, `a_nested_assemble_records_what_the_flat_one_records_once`, `an_overlap_inside_a_nested_assemble_is_reported_once`, `a_host_does_not_redecide_an_instances_self_overlap`). Filed on cleave: `a-vertex-piercing-two-declared-coincident-faces-reads-as-one` (the bridged bead, and a `⊔` as a cut's tool).
