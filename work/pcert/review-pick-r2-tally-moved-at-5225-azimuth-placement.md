@@ -51,3 +51,13 @@ reading before any re-pin. The row's other asserts still hold: no
 genuine crossing is refused, and there are no wide winners. The
 overnight move is not bisected. The window's code merges are listed in
 the 2026-10-24 triage PR (`intent/nightly-triage-1024`).
+
+## 2026-10-26 — PR 5742 (the value chart reads a written orientation)
+
+Main `6ff6b23` reads `(441036, 141417, 25542, 7998)`, and PR 5742 reads `(441036, 141388, 25542, 7998)`. The PR's 29 fewer aimed-vertex answers all come from one landing, `kitchen_sink` after its first edit, measured landing by landing against the merge base:
+- the edit sets the moved copy's `Slide(Y)`;
+- under the least-turn chart that slide runs along another carried axis;
+- so the edited copy stands elsewhere.
+
+Every other landing reads the base's tally exactly.
+
