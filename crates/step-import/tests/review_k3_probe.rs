@@ -37,12 +37,12 @@ fn k3_scale_corruption_old_accepted_new_catches() {
         StepImport::Wireframe { .. } => panic!("wireframe"),
     };
     assert_eq!(
-        topo::validate_geometric(&body, Tol::witness()),
+        topo::validate_geometric(body.body(), Tol::witness()),
         Ok(()),
         "tier 3 must pass"
     );
     let props = topo::mass_properties(
-        &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
+        &topo::test_support::finished("the measured body", body.body().clone(), Tol::witness()),
         Tol::witness(),
         topo::test_support::pinned_resolution(Tol::witness()),
     )

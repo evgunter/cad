@@ -41,7 +41,7 @@ fn whole_torus() -> Body<f64> {
                 normalizations.is_empty(),
                 "the whole torus adopts as stated: {normalizations:?}"
             );
-            body
+            body.into_body()
         }
         Ok(StepImport::Wireframe { .. }) => panic!("the torus imported as a wireframe"),
         Err(e) => panic!("the torus imports: {e}"),

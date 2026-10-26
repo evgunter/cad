@@ -16,7 +16,7 @@ fn solid(text: &str, what: &str) -> topo::Body<f64> {
     match import_step(text, &ImportOptions::default(), Tol::witness())
         .unwrap_or_else(|e| panic!("{what}: {e}"))
     {
-        StepImport::Solid { body, .. } => body,
+        StepImport::Solid { body, .. } => body.into_body(),
         StepImport::Wireframe { .. } => panic!("{what}: wireframe"),
     }
 }
@@ -316,8 +316,8 @@ fn f6_face_sense_flip_is_not_healed() {
     match import_text(&text) {
         Err(e) => println!("f6 .T.->.F.: typed refusal: {e}"),
         Ok(StepImport::Solid { body, .. }) => {
-            let tier3 = topo::validate_geometric(&body, Tol::witness());
-            let out = export(&body, "cube");
+            let tier3 = topo::validate_geometric(body.body(), Tol::witness());
+            let out = export(body.body(), "cube");
             let kept = out.contains("ADVANCED_FACE('', (#39), #5, .F.)")
                 || out.matches(", .F.);").count() > 0;
             println!("f6 .T.->.F.: imported; tier3 = {tier3:?}; re-export keeps .F.: {kept}");
@@ -351,11 +351,15 @@ fn f6_reversed_face_unflip_is_not_healed() {
             );
         }
         Ok(StepImport::Solid { body, .. }) => {
-            let tier3 = topo::validate_geometric(&body, Tol::witness());
-            let out = export(&body, "washer");
+            let tier3 = topo::validate_geometric(body.body(), Tol::witness());
+            let out = export(body.body(), "washer");
             let flipped_back = out.contains(", #5, .F.);");
             let v = topo::mass_properties(
-                &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
+                &topo::test_support::finished(
+                    "the measured body",
+                    body.body().clone(),
+                    Tol::witness(),
+                ),
                 Tol::witness(),
                 topo::test_support::pinned_resolution(Tol::witness()),
             )
@@ -507,7 +511,11 @@ fn g7_nonunit_vector_rescales_without_moving_the_solid() {
     };
     assert_eq!(
         topo::mass_properties(
-            &topo::test_support::finished("the measured body", (a).clone(), Tol::witness()),
+            &topo::test_support::finished(
+                "the measured body",
+                ((a).clone()).into_body(),
+                Tol::witness()
+            ),
             Tol::witness(),
             topo::test_support::pinned_resolution(Tol::witness()),
         )
@@ -515,7 +523,11 @@ fn g7_nonunit_vector_rescales_without_moving_the_solid() {
         .enclosure
         .volume,
         topo::mass_properties(
-            &topo::test_support::finished("the measured body", (b).clone(), Tol::witness()),
+            &topo::test_support::finished(
+                "the measured body",
+                ((b).clone()).into_body(),
+                Tol::witness()
+            ),
             Tol::witness(),
             topo::test_support::pinned_resolution(Tol::witness()),
         )
@@ -625,7 +637,7 @@ fn h8_eps_in_not_consumed() {
         };
         assert_eq!(eps_in, eps);
         let v = topo::mass_properties(
-            &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
+            &topo::test_support::finished("the measured body", body.body().clone(), Tol::witness()),
             Tol::witness(),
             topo::test_support::pinned_resolution(Tol::witness()),
         )

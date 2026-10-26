@@ -231,7 +231,6 @@ mod units;
 pub use error::{AdoptionAttempt, AdoptionCandidate, StepImportError};
 
 use geom_core::Tol;
-use topo::Body;
 
 /// A boundary-graph census: what a region contributes to the body.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -539,21 +538,22 @@ pub enum StepImport {
         /// [`StepImportError::TierInvalid`]. Nothing imports into a
         /// state its native twin does not occupy — and nothing imports
         /// into a state the kernel will not certify.
-        body: Body<f64>,
-        /// **The at-rest gate's own certificate of `body`**: the one
-        /// the aggregate gate's check 7 decided the +V invariant on,
-        /// kept rather than dropped. The import has no purpose to state,
-        /// so it measures nothing: a reader that wants the imported
-        /// body's volume measures through this
-        /// ([`topo::HeldCertificate::measure`], against `body`) under its
-        /// own predicate, which reuses every round the gate ran and pays
-        /// only the rest, instead of calling [`topo::mass_properties`]
-        /// again.
         ///
-        /// Its band is `Band::linear` of the import's `tol`, and its
-        /// lane is the tier-3′ door's — the `f64` quadrature lane,
-        /// which is the certified one at this scalar.
-        certificate: topo::HeldCertificate<f64>,
+        /// **It arrives with the at-rest gate's own certificate of it,
+        /// as one value** ([`topo::CertifiedBody`]): the certificate the
+        /// aggregate gate's check 7 decided the +V invariant on, kept
+        /// rather than dropped, and of this body by construction. The
+        /// import has no purpose to state, so it measures nothing: a
+        /// reader that wants the imported body's volume measures through
+        /// it ([`topo::CertifiedBody::measure`]) under its own predicate,
+        /// which reuses every round the gate ran and pays only the rest,
+        /// instead of calling [`topo::mass_properties`] again; the body
+        /// itself is [`topo::CertifiedBody::body`].
+        ///
+        /// The certificate's band is `Band::linear` of the import's
+        /// `tol`, and its lane is the tier-3′ door's — the `f64`
+        /// quadrature lane, which is the certified one at this scalar.
+        body: topo::CertifiedBody,
         /// The import's input tolerance ε_in (meters): the override if
         /// given, else the file's declared uncertainty.
         eps_in: f64,
@@ -880,7 +880,7 @@ pub fn import_step(
             // two solids that overlap refuse. The per-solid gates above stay
             // tier 3: contact is an aggregate-body fact, and the
             // aggregate census sweeps every entity of every instance.
-            let (contacts, coincidences, certificate) = gate3(&body, tol)?;
+            let (body, contacts, coincidences) = gate3(body, tol)?;
             // **The chart-coherence channel** — after the gate, on the
             // body that ships, and consuming nothing. The door is a
             // pure function of (body, ε) that refuses nothing and
@@ -892,10 +892,9 @@ pub fn import_step(
             // scalar for which the examination could be absent.
             let coherence = options
                 .examine_chart_coherence
-                .then(|| topo::examine_chart_coherence(&body, tol));
+                .then(|| topo::examine_chart_coherence(body.body(), tol));
             Ok(StepImport::Solid {
                 body,
-                certificate,
                 eps_in,
                 normalizations,
                 curve_promotions: model.curve_promotions.clone(),
@@ -949,32 +948,51 @@ fn gate(body: &topo::Body<f64>, solid: Option<u64>, tol: Tol) -> Result<(), Step
 /// pass confirms the records the first one's touches minted.
 #[allow(clippy::type_complexity)] // the gate's three products, read once at its one caller
 fn gate3(
-    body: &topo::Body<f64>,
+    body: topo::Body<f64>,
     tol: Tol,
 ) -> Result<
     (
+        topo::CertifiedBody,
         topo::ContactRecords,
         Vec<topo::Coincidence>,
-        topo::HeldCertificate<f64>,
     ),
     StepImportError,
 > {
-    let instance: std::collections::BTreeMap<topo::SolidKey, u32> =
-        body.solids().map(|(solid, _)| solid).zip(0..).collect();
-    let mut certificate = None;
-    let recorded = topo::record_at_rest(
-        body,
-        &topo::ContactRecords::default(),
-        |records| match topo::validate_pseudomanifold_certificate(body, records, tol) {
-            Ok(certified) => {
-                certificate = Some(certified);
-                Vec::new()
-            }
-            Err(errors) => errors,
-        },
-        &|solid| instance.get(&solid).copied(),
-        0,
-    );
+    let (certified, gated) = topo::CertifiedBody::certify(body, |certifier| {
+        let body = certifier.body();
+        let instance: std::collections::BTreeMap<topo::SolidKey, u32> =
+            body.solids().map(|(solid, _)| solid).zip(0..).collect();
+        let recorded = topo::record_at_rest(
+            body,
+            &topo::ContactRecords::default(),
+            |records| match certifier.validate_pseudomanifold(records, tol) {
+                Ok(()) => Vec::new(),
+                Err(errors) => errors,
+            },
+            &|solid| instance.get(&solid).copied(),
+            0,
+        );
+        gate3_findings(body, tol, &instance, recorded)
+    });
+    match (certified, gated) {
+        (Ok(certified), Ok((records, rows))) => Ok((certified, records, rows)),
+        (_, Err(error)) => Err(error),
+        (Err(_), Ok(_)) => Err(StepImportError::TierInvalid {
+            solid: None,
+            errors: Vec::new(),
+        }),
+    }
+}
+
+/// The aggregate gate's findings over `recorded`, the flush pairs between
+/// instances included: its records and rows where there are none, else
+/// the gate's refusal.
+fn gate3_findings(
+    body: &topo::Body<f64>,
+    tol: Tol,
+    instance: &std::collections::BTreeMap<topo::SolidKey, u32>,
+    recorded: topo::RecordedAtRest,
+) -> Result<(topo::ContactRecords, Vec<topo::Coincidence>), StepImportError> {
     // The flush pairs between instances are rows of their own, which no
     // record cites.
     let flush = match geom_core::Band::linear(tol) {
@@ -990,15 +1008,14 @@ fn gate3(
     };
     let mut findings = recorded.findings;
     findings.extend(flush.findings);
-    match certificate {
-        Some(certified) if findings.is_empty() => {
-            let mut rows = recorded.rows;
-            rows.extend(flush.rows);
-            Ok((recorded.records, rows, certified.detach()))
-        }
-        _ => Err(StepImportError::TierInvalid {
+    if findings.is_empty() {
+        let mut rows = recorded.rows;
+        rows.extend(flush.rows);
+        Ok((recorded.records, rows))
+    } else {
+        Err(StepImportError::TierInvalid {
             solid: None,
             errors: findings,
-        }),
+        })
     }
 }

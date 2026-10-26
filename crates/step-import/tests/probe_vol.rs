@@ -53,7 +53,7 @@ fn measured_relative_volume_agreement() {
         // but declines to compute a volume" is precisely the state the
         // periodic-band refusal exists to keep out of this corpus.
         let v = topo::mass_properties(
-            &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
+            &topo::test_support::finished("the measured body", body.body().clone(), Tol::witness()),
             Tol::witness(),
             topo::test_support::pinned_resolution(Tol::witness()),
         )

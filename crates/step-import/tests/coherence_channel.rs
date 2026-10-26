@@ -64,7 +64,7 @@ fn own_examined(name: &str) -> (Body<f64>, CoherenceReport) {
         Ok(StepImport::Solid {
             body, coherence, ..
         }) => (
-            body,
+            body.into_body(),
             coherence.expect("the examination was asked for, so the report is present"),
         ),
         Ok(StepImport::Wireframe { .. }) => panic!("{name} imported as a wireframe"),
@@ -209,7 +209,7 @@ fn the_channel_reports_the_kernel_door_verbatim() {
     );
     assert_eq!(
         reported,
-        topo::examine_chart_coherence(&body, tol),
+        topo::examine_chart_coherence(body.body(), tol),
         "the half-cap's findings are not the door's"
     );
 }
@@ -254,7 +254,7 @@ fn the_half_cap_findings_arrive_in_the_doors_order() {
 /// at an ordinary point halfway from the arc's start to the pole: the
 /// split twin as the file states it, before the import's join.
 fn split_half_cap(tol: Tol) -> Body<f64> {
-    let Ok(StepImport::Solid { mut body, .. }) = import_step(
+    let Ok(StepImport::Solid { body, .. }) = import_step(
         &halfcap_fixture("halfcap_nosplit.step"),
         &ImportOptions::default(),
         tol,
@@ -264,6 +264,7 @@ fn split_half_cap(tol: Tol) -> Body<f64> {
             tol.eps()
         );
     };
+    let mut body = body.into_body();
     let (centre, axis) = body
         .faces()
         .find_map(|(_, f)| match body.get_surface(f.surface) {
@@ -539,15 +540,13 @@ fn asking_for_the_examination_changes_nothing_about_acceptance() {
     for name in ["cube", "cut_cylinder"] {
         let text = fixture(name, "step");
         let one = |examine: bool| match import_step(&text, &own_import_options(examine), tol) {
-            Ok(StepImport::Solid {
-                body, certificate, ..
-            }) => {
-                let enclosure = certificate
-                    .measure(&body, topo::test_support::pinned_resolution(tol))
+            Ok(StepImport::Solid { body, .. }) => {
+                let enclosure = body
+                    .measure(topo::test_support::pinned_resolution(tol))
                     .unwrap_or_else(|e| panic!("{name}: the certificate measures: {e}"))
                     .enclosure;
                 (
-                    common::arena_census(&body),
+                    common::arena_census(body.body()),
                     [
                         enclosure.volume,
                         enclosure.surface_area,

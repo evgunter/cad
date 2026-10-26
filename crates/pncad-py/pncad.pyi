@@ -321,6 +321,10 @@ class ValidationFinding:
       The word says where the ring has to move: a shared position one
       vertex clears, a shared arc no single vertex move separates, or
       a crossing or touching point no vertex carries.
+    - `volume` — a `volume_sign_unresolved` finding's volume bracket
+      `(lo, hi)` in m³, read outward: the walk ran every face to its
+      own stop and the bracket still holds zero, and the true volume
+      lies in it. `None` on every other finding.
 
     No arena key crosses. A `Body` is an opaque handle, so WHICH face
     or vertex a finding names stays in the kernel's own prose on the
@@ -341,6 +345,8 @@ class ValidationFinding:
     def stale_kind(self) -> Optional[str]: ...
     @property
     def ring_contact_kind(self) -> Optional[str]: ...
+    @property
+    def volume(self) -> Optional[tuple[float, float]]: ...
     def __eq__(self, other: object) -> bool: ...
 
 class ValidationError(PncadError):
@@ -4704,8 +4710,11 @@ class Body:
         `reason == "mass_properties_failed"` and `measure_refusal`
         naming which: `"face"`, `"ring_on_curved_face"`, `"corrupt"`,
         `"null_scaffold_edge"` or `"band"` (no enclosure),
-        `"poisoned"` (the predicate's margin could not be read) or
-        `"resolution_finer_than_eps"`."""
+        `"poisoned"` (the predicate's margin could not be read),
+        `"resolution_finer_than_eps"`, or `"undecided"`: a deciding
+        predicate still undecided where no face can refine, which
+        carries `volume`, the enclosure's ends `(lo, hi)` read outward,
+        and `stop`, `"wall"` or `"floor"`."""
     def validate_pseudomanifold(self) -> None:
         """Tier 3′, the ladder's fourth rung: tier 3's whole local
         battery PLUS the global coincidence census tier 3 defers,

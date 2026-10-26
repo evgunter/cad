@@ -108,6 +108,23 @@ pub enum Stop {
     Band,
 }
 
+impl Stop {
+    /// **The stop as its word**: its variant's name in snake case, the
+    /// one spelling every surface that names a stop reads (Python's
+    /// `MassMeasurement.stop`, which the binding census holds to this
+    /// list and to the variants' order).
+    #[must_use]
+    pub const fn word(self) -> &'static str {
+        match self {
+            Self::Settled(_) => "settled",
+            Self::Met => "met",
+            Self::Floor => "floor",
+            Self::Wall => "wall",
+            Self::Band => "band",
+        }
+    }
+}
+
 /// **What a measurement reached** (`[tolerance.measure]`): the
 /// narrowest enclosure each face reached, summed, and why the
 /// measurement stopped. A number is a [`Settle::Resolution`]'s

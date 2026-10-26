@@ -4397,7 +4397,7 @@ fn volume_refusal(
         | M::Face { .. }
         | M::ResolutionFinerThanEps { .. }
         | M::Poisoned { .. }
-        | M::CertificateOfAnotherBody => PointInSolidError::VolumeUncertified,
+        | M::Undecided { .. } => PointInSolidError::VolumeUncertified,
     }
 }
 

@@ -285,9 +285,19 @@ pub enum MassPropsError {
         /// The poisoned decision.
         cause: Indeterminate,
     },
-    /// A held certificate was measured against a body whose face arena
-    /// is not the one it was derived over ([`HeldCertificate::measure`]).
-    CertificateOfAnotherBody,
+    /// **A deciding predicate still undecided where no face can refine**
+    /// (`[tolerance.measure]`: the one quadrature refusal): the walk ran
+    /// every face to its own stop and the enclosure still straddles the
+    /// predicate's threshold. A [`Settle::Resolution`] left unmet is no
+    /// refusal; it is the bracket, with its stop.
+    Undecided {
+        /// The volume enclosure the walk stopped on, its ends `(lo, hi)`
+        /// read outward (m³): the true volume lies between them.
+        volume: (f64, f64),
+        /// Why no face could refine further: [`Stop::Wall`] or
+        /// [`Stop::Floor`].
+        stop: Stop,
+    },
 }
 
 impl fmt::Display for MassPropsError {
@@ -331,10 +341,21 @@ impl fmt::Display for MassPropsError {
                     "the measurement's question could not be decided: {cause}"
                 )
             }
-            Self::CertificateOfAnotherBody => f.write_str(
-                "a body's certificate was measured against another body. Recourse: measure \
-                 the certificate against the body it was derived from",
-            ),
+            Self::Undecided {
+                volume: (lo, hi),
+                stop,
+            } => {
+                let at = match stop {
+                    Stop::Wall => "a face reached its work wall",
+                    _ => "refinement stopped paying",
+                };
+                write!(
+                    f,
+                    "the measurement's question is still undecided where no face can refine \
+                     ({at}); the volume lies in [{lo:e}, {hi:e}] m³. {}",
+                    geom_core::NOT_YET_ENDING
+                )
+            }
         }
     }
 }
@@ -436,7 +457,11 @@ pub(crate) mod raw_door {
         settle: Settle<T>,
     ) -> Result<MassMeasurement<T>, MassPropsError> {
         let band = Band::linear(tol).map_err(|error| MassPropsError::Band { error })?;
-        mass_properties_with(body, band, tol, Some(QuadLane::certified()), settle)
+        let deciding = !matches!(settle, Settle::Resolution(_));
+        undecided_refused(
+            deciding,
+            mass_properties_with(body, band, tol, Some(QuadLane::certified()), settle)?,
+        )
     }
 
     /// [`mass_properties_structural`]'s closed-form walk over any body
@@ -544,6 +569,33 @@ pub(crate) fn mass_properties_with<T: Decide>(
         enclosure: certificate.props(),
         stop,
     })
+}
+
+/// **A deciding predicate run out is the refusal** (`[tolerance.measure]`):
+/// where `deciding` and the walk stopped at [`Stop::Wall`] or
+/// [`Stop::Floor`], [`MassPropsError::Undecided`] carrying the enclosure
+/// read outward; any other measurement passes. A resolution decides
+/// nothing, so its unmet stop is the bracket and passes.
+///
+/// # Errors
+///
+/// [`MassPropsError::Undecided`], as above.
+fn undecided_refused<T: geom_core::Bounds>(
+    deciding: bool,
+    measured: MassMeasurement<T>,
+) -> Result<MassMeasurement<T>, MassPropsError> {
+    match measured.stop {
+        stop @ (Stop::Wall | Stop::Floor) if deciding => {
+            let e = &measured.enclosure;
+            let lo = geom_core::Bounds::lo(e.volume) - geom_core::Bounds::hi(e.volume_pad);
+            let hi = geom_core::Bounds::hi(e.volume) + geom_core::Bounds::hi(e.volume_pad);
+            Err(MassPropsError::Undecided {
+                volume: (lo.next_down(), hi.next_up()),
+                stop,
+            })
+        }
+        _ => Ok(measured),
+    }
 }
 
 /// **A resolution the model defines**: `len` meters, refused typed where
@@ -2098,46 +2150,13 @@ impl<'b, T: Decide> SignCertificate<'b, T> {
         fold_runs(&self.runs).enclosure()
     }
 
-    /// **The measurement, continued from here** — the door
-    /// ([`crate::mass_properties`]) under `settle`, over the faces as the
-    /// certificate holds them, reusing every round already taken.
-    ///
-    /// Under [`Settle::Resolution`] a face short of the resolution at
-    /// round `k` resumes at `k + 1`, a face whose enclosure already meets
-    /// it is not touched, and the sum is over the same terms in the same
-    /// arena order. Where the walk stopped before a face met the
-    /// resolution, the face's enclosure and its piece evaluations are the
-    /// door's, so a certificate whose sign settled before any face met it
-    /// continues bit-identical to that door. A face the walk had refined
-    /// past the resolution keeps its narrower enclosure. A deciding
-    /// predicate walks on from where the faces stand
-    /// ([`Self::settle_on`]), certified through the certificate's lane.
-    ///
-    /// **Its refusal is the door's too** — [`SignCertificate`]'s refusal
-    /// rule: the open faces are resumed by an indexed parallel map into
-    /// one slot per face in arena order (D9's addendum idiom 1, through
-    /// [`geom_core::k_stats::map_detached`], each resumption under a
-    /// K-funnel frame of its own) and the walk over those slots is
-    /// sequential in that order (idiom 2), so the verdict log, the
-    /// escalation log and the `probe` sample population are the serial
-    /// continuation's at any thread count. Under a symbolic session the
-    /// continuation is the SERIAL walk instead, for
-    /// [`decide_faces_serially`]'s reason.
-    ///
-    /// **What the continuation costs against one measurement.** The
-    /// piece evaluations compose exactly, but each entry into a face's
-    /// lane re-derives that face's round-independent SETUP — the
-    /// derivative grids, the block hulls — because a `RoundWindow` enters
-    /// the lane at its front door. A certificate whose walk ran every face
-    /// to its own stop re-enters no lane; one that stopped part-way pays
-    /// the setup again for every face it left open. Removing it is
-    /// `work/perf/`'s `quadrature-setup-is-re-derived-per-round-window`,
-    /// which carries the measurements.
-    ///
-    /// # Errors
-    ///
-    /// [`MassPropsError`], as [`crate::mass_properties`].
-    pub fn measure(mut self, settle: Settle<T>) -> Result<MassMeasurement<T>, MassPropsError> {
+    /// [`Self::measure`]'s walk at any scalar: the faces sized to a
+    /// resolution, or a deciding predicate walked on, with no refusal
+    /// for a predicate run out.
+    pub(crate) fn continued(
+        mut self,
+        settle: Settle<T>,
+    ) -> Result<MassMeasurement<T>, MassPropsError> {
         let stop = match settle {
             Settle::Resolution(len) => {
                 let len = resolution_len(len, self.tol)?;
@@ -2152,11 +2171,9 @@ impl<'b, T: Decide> SignCertificate<'b, T> {
         })
     }
 
-    /// **This certificate, held apart from its body**: what a reader that
-    /// keeps the body beside it (an import's report) stores, and measures
-    /// through later against that body ([`HeldCertificate::measure`]).
-    #[must_use]
-    pub fn detach(self) -> HeldCertificate<T> {
+    /// The certificate's parts without its borrow of the body, for
+    /// [`Certifier`] to keep beside the body it certified.
+    fn into_parts(self) -> Held<T> {
         let Self {
             body: _,
             band,
@@ -2164,7 +2181,7 @@ impl<'b, T: Decide> SignCertificate<'b, T> {
             quad,
             runs,
         } = self;
-        HeldCertificate {
+        Held {
             band,
             tol,
             quad,
@@ -2217,59 +2234,198 @@ impl<'b, T: Decide> SignCertificate<'b, T> {
     }
 }
 
-/// **A [`SignCertificate`] held apart from the body it was derived
-/// from** ([`SignCertificate::detach`]): its faces' rounds, band,
-/// tolerance and lane, and no borrow, so it can sit beside the body that
-/// owns it. Opaque: it is read only by measuring through it.
+impl<T: Decide + geom_core::Bounds> SignCertificate<'_, T> {
+    /// **The measurement, continued from here** — the door
+    /// ([`crate::mass_properties`]) under `settle`, over the faces as the
+    /// certificate holds them, reusing every round already taken.
+    ///
+    /// Under [`Settle::Resolution`] a face short of the resolution at
+    /// round `k` resumes at `k + 1`, a face whose enclosure already meets
+    /// it is not touched, and the sum is over the same terms in the same
+    /// arena order. Where the walk stopped before a face met the
+    /// resolution, the face's enclosure and its piece evaluations are the
+    /// door's, so a certificate whose sign settled before any face met it
+    /// continues bit-identical to that door. A face the walk had refined
+    /// past the resolution keeps its narrower enclosure. A deciding
+    /// predicate walks on from where the faces stand
+    /// ([`Self::settle_on`]), certified through the certificate's lane.
+    ///
+    /// **Its refusal is the door's too** — [`SignCertificate`]'s refusal
+    /// rule: the open faces are resumed by an indexed parallel map into
+    /// one slot per face in arena order (D9's addendum idiom 1, through
+    /// [`geom_core::k_stats::map_detached`], each resumption under a
+    /// K-funnel frame of its own) and the walk over those slots is
+    /// sequential in that order (idiom 2), so the verdict log, the
+    /// escalation log and the `probe` sample population are the serial
+    /// continuation's at any thread count. Under a symbolic session the
+    /// continuation is the SERIAL walk instead, for
+    /// [`decide_faces_serially`]'s reason.
+    ///
+    /// **What the continuation costs against one measurement.** The
+    /// piece evaluations compose exactly, but each entry into a face's
+    /// lane re-derives that face's round-independent SETUP — the
+    /// derivative grids, the block hulls — because a `RoundWindow` enters
+    /// the lane at its front door. A certificate whose walk ran every face
+    /// to its own stop re-enters no lane; one that stopped part-way pays
+    /// the setup again for every face it left open. Removing it is
+    /// `work/perf/`'s `quadrature-setup-is-re-derived-per-round-window`,
+    /// which carries the measurements.
+    ///
+    /// # Errors
+    ///
+    /// [`MassPropsError`], as [`crate::mass_properties`]: a deciding
+    /// predicate still undecided where no face can refine is
+    /// [`MassPropsError::Undecided`].
+    pub fn measure(self, settle: Settle<T>) -> Result<MassMeasurement<T>, MassPropsError> {
+        let deciding = !matches!(settle, Settle::Resolution(_));
+        undecided_refused(deciding, self.continued(settle)?)
+    }
+}
+
+/// A [`SignCertificate`]'s parts without its borrow: what
+/// [`CertifiedBody`] keeps beside the one body they were derived over.
 #[derive(Clone)]
-pub struct HeldCertificate<T: Decide> {
+struct Held<T: Decide> {
     band: Band,
     tol: Tol,
     quad: Option<QuadLane<T>>,
     runs: Vec<FaceRun<T>>,
 }
 
-impl<T: Decide> HeldCertificate<T> {
-    /// **The measurement, continued against `body`**:
-    /// [`SignCertificate::measure`] on the certificate re-attached to the
-    /// body it was derived from. It leaves this certificate as it was, so
-    /// each call continues from the rounds the gate took.
+/// **A body held together with the at-rest gate's certificate of it**:
+/// what an import hands out, so a reader measures the body through the
+/// rounds the gate already ran ([`CertifiedBody::measure`]) instead of
+/// running its quadrature again.
+///
+/// **The pair is one value, and the certificate is of this body by
+/// construction.** It is minted only by [`CertifiedBody::certify`], whose
+/// gate certifies the very body the value then owns ([`Certifier`]); the
+/// body is reached by shared borrow ([`CertifiedBody::body`]) and leaves
+/// only by [`CertifiedBody::into_body`], which drops the certificate. So
+/// no certificate is ever measured against a body it was not derived
+/// over: not a twin built the same way, whose face keys are the same, and
+/// not this body changed after it was certified. Neither has a spelling.
+/// A measurement names no body to measure against:
+///
+/// ```compile_fail,E0061
+/// fn cross(a: &topo::CertifiedBody, b: &topo::Body<f64>, s: topo::Settle<f64>) {
+///     let _ = a.measure(b, s);
+/// }
+/// ```
+///
+/// and the body held is never reached mutably:
+///
+/// ```compile_fail,E0308
+/// fn change(a: &topo::CertifiedBody) -> &mut topo::Body<f64> {
+///     a.body()
+/// }
+/// ```
+#[derive(Clone)]
+pub struct CertifiedBody {
+    body: Body<f64>,
+    held: Held<f64>,
+}
+
+/// **The gate's handle on the body [`CertifiedBody::certify`] is
+/// certifying**: it certifies that body and no other, and keeps the
+/// certificate of the last validation that passed.
+pub struct Certifier<'a> {
+    body: &'a Body<f64>,
+    kept: Option<Held<f64>>,
+}
+
+impl<'a> Certifier<'a> {
+    /// The body being certified.
+    #[must_use]
+    pub fn body(&self) -> &'a Body<f64> {
+        self.body
+    }
+
+    /// **Tier 3′ over the body being certified**
+    /// ([`crate::validate_pseudomanifold_certificate`] under `contacts`),
+    /// keeping its certificate where it passes.
     ///
     /// # Errors
     ///
-    /// [`MassPropsError::CertificateOfAnotherBody`] where `body`'s face
-    /// arena is not the one the certificate was derived over, face for
-    /// face in arena order; otherwise as [`SignCertificate::measure`].
-    pub fn measure(
-        &self,
-        body: &Body<T>,
-        settle: Settle<T>,
-    ) -> Result<MassMeasurement<T>, MassPropsError> {
-        let same = self.runs.len() == body.faces.len()
-            && self
-                .runs
-                .iter()
-                .zip(body.faces.iter())
-                .all(|(run, (face, _))| run.face == face);
-        if !same {
-            return Err(MassPropsError::CertificateOfAnotherBody);
-        }
-        SignCertificate::of_runs(body, self.band, self.tol, self.quad, self.runs.clone())
-            .measure(settle)
+    /// The validator's findings, as that door returns them; a refusal
+    /// keeps nothing and leaves an earlier pass's certificate kept.
+    pub fn validate_pseudomanifold(
+        &mut self,
+        contacts: &crate::boolean::ContactRecords,
+        tol: Tol,
+    ) -> Result<(), Vec<crate::ValidationError>> {
+        let certificate = crate::validate_pseudomanifold_certificate(self.body, contacts, tol)?;
+        self.kept = Some(certificate.into_parts());
+        Ok(())
     }
 }
 
-impl<T: Decide> fmt::Debug for HeldCertificate<T> {
+impl CertifiedBody {
+    /// **`body`, certified by `gate`**: `gate` runs over a [`Certifier`]
+    /// of `body`, and where it kept a certificate the body and that
+    /// certificate come back as one value. Where it kept none, the body
+    /// comes back alone. Either way `gate`'s own answer comes back beside
+    /// it.
+    pub fn certify<R>(
+        body: Body<f64>,
+        gate: impl FnOnce(&mut Certifier<'_>) -> R,
+    ) -> (Result<Self, Body<f64>>, R) {
+        let (kept, answer) = {
+            let mut certifier = Certifier {
+                body: &body,
+                kept: None,
+            };
+            let answer = gate(&mut certifier);
+            (certifier.kept, answer)
+        };
+        match kept {
+            Some(held) => (Ok(Self { body, held }), answer),
+            None => (Err(body), answer),
+        }
+    }
+
+    /// The certified body.
+    #[must_use]
+    pub fn body(&self) -> &Body<f64> {
+        &self.body
+    }
+
+    /// The body, with the certificate dropped.
+    #[must_use]
+    pub fn into_body(self) -> Body<f64> {
+        self.body
+    }
+
+    /// **The body measured under `settle` through its certificate**:
+    /// [`SignCertificate::measure`] continued from the rounds the gate
+    /// took. It leaves the certificate as it was, so each call continues
+    /// from the gate's rounds.
+    ///
+    /// # Errors
+    ///
+    /// As [`SignCertificate::measure`].
+    pub fn measure(&self, settle: Settle<f64>) -> Result<MassMeasurement<f64>, MassPropsError> {
+        let Held {
+            band,
+            tol,
+            quad,
+            runs,
+        } = &self.held;
+        SignCertificate::of_runs(&self.body, *band, *tol, *quad, runs.clone()).measure(settle)
+    }
+}
+
+impl fmt::Debug for CertifiedBody {
     /// The certificate as [`SignCertificate`]'s render reads it.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let e = fold_runs(&self.runs).enclosure();
+        let e = fold_runs(&self.held.runs).enclosure();
         write!(
             f,
-            "HeldCertificate: volume in [{:?}, {:?}], surface area {:?}, {} faces",
+            "CertifiedBody: volume in [{:?}, {:?}], surface area {:?}, {} faces",
             e.volume_lo,
             e.volume_hi,
             e.surface_area,
-            self.runs.len()
+            self.held.runs.len()
         )
     }
 }
@@ -5205,6 +5361,19 @@ pub(crate) enum BracketEnd {
     Low,
     /// The bracket's upper end.
     High,
+}
+
+impl ShellRole {
+    /// **The role as its word**: its variant's name in snake case, the
+    /// one spelling every surface that names a role reads (Python's
+    /// `MassMeasurement.verdict` for a sign).
+    #[must_use]
+    pub const fn word(self) -> &'static str {
+        match self {
+            Self::Outer => "outer",
+            Self::Void => "void",
+        }
+    }
 }
 
 impl ShellRole {

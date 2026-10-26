@@ -61,10 +61,10 @@ fn imports_and_measures(name: &str, exact: f64) {
     else {
         panic!("{name} must import as a solid");
     };
-    topo::validate_geometric(&body, Tol::witness())
+    topo::validate_geometric(body.body(), Tol::witness())
         .unwrap_or_else(|e| panic!("{name} must pass tier 3: {e:?}"));
     let mp = topo::mass_properties(
-        &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
+        &topo::test_support::finished("the measured body", body.body().clone(), Tol::witness()),
         Tol::witness(),
         topo::test_support::pinned_resolution(Tol::witness()),
     )
@@ -110,13 +110,14 @@ fn tee_the_one_sided_variant_imports_and_measures_exactly() {
 /// same exact volume rather than certify 7.2533e-7 with pad 0.
 #[test]
 fn merge_coplanar_faces_no_longer_turns_an_exact_body_into_a_wrong_one() {
-    let Ok(StepImport::Solid { mut body, .. }) = import_step(
+    let Ok(StepImport::Solid { body, .. }) = import_step(
         &fixture("xsplit.step"),
         &ImportOptions::default(),
         Tol::witness(),
     ) else {
         panic!("xsplit.step (rectangular sub-faces) must import as a solid");
     };
+    let mut body = body.into_body();
     let exact = cross_volume();
     let before = topo::mass_properties(
         &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),

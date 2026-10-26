@@ -281,9 +281,7 @@ fn arc_loft_natively_computes_its_rational_volume() {
     )
     .expect("the writer exports the rational-walled body");
     match import_step(&text, &ImportOptions::default(), Tol::witness()) {
-        Ok(step_import::StepImport::Solid {
-            body, certificate, ..
-        }) => {
+        Ok(step_import::StepImport::Solid { body, .. }) => {
             // The honest frontier, reached through the import's own
             // certificate instead of the native one. The gate ADMITS the
             // body — check 7 decides a sign, and this body's is definite
@@ -291,8 +289,8 @@ fn arc_loft_natively_computes_its_rational_volume() {
             // holds no opinion of its own about which admitted bodies
             // ship). Where the faces stop short of the resolution the
             // measurement is the bracket they reached.
-            let measured = certificate
-                .measure(&body, topo::test_support::pinned_resolution(Tol::witness()))
+            let measured = body
+                .measure(topo::test_support::pinned_resolution(Tol::witness()))
                 .unwrap_or_else(|err| panic!("the import's certificate measures: {err:?}"));
             if measured.stop != topo::Stop::Met {
                 assert!(
@@ -338,7 +336,7 @@ fn arc_loft_natively_computes_its_rational_volume() {
             // * the import's gate enclosure IS the imported body's own
             //   measurement, bit for bit (same body, same order);
             let (imported, imported_terms) = topo::test_support::mass_properties_with_face_terms(
-                &body,
+                body.body(),
                 Tol::witness(),
                 topo::test_support::pinned_resolution(Tol::witness()),
             )
@@ -465,8 +463,8 @@ fn arc_loft_natively_computes_its_rational_volume() {
                 .unwrap_or_else(|e| panic!("re-exporting the {who} body: {e}"))
             };
             assert_eq!(
-                rewrite(&again, "reversed-DATA"),
-                rewrite(&body, "as-written"),
+                rewrite(again.body(), "reversed-DATA"),
+                rewrite(body.body(), "as-written"),
                 "a reordered file must import to the SAME BODY, and it re-exports \
                  differently — entity order became information somewhere in the reader"
             );
@@ -483,8 +481,8 @@ fn arc_loft_natively_computes_its_rational_volume() {
                 all
             };
             assert_eq!(
-                descriptions(&again),
-                descriptions(&body),
+                descriptions(again.body()),
+                descriptions(body.body()),
                 "a reordered file must mint the SAME edge descriptions — this is the \
                  half the re-export cannot see, and the arc rim's IsoArc lives in it"
             );
@@ -628,6 +626,7 @@ fn an_adopted_iso_column_is_a_knot_domain_end() {
     // The wall the reparameterization names, located by its DOMAIN so
     // the row survives arena renumbering.
     let (wall, _) = body
+        .body()
         .surfaces()
         .find(|(_, s)| match s {
             geom::Surface::Nurbs(n) => n.knots_u_f64_interim().domain() == (0.0, 3.0),
@@ -635,6 +634,7 @@ fn an_adopted_iso_column_is_a_knot_domain_end() {
         })
         .expect("the reparameterized wall survives the import");
     let mut columns: Vec<f64> = body
+        .body()
         .curves()
         .filter_map(|(_, geom)| match geom {
             topo::CurveGeom::Certified(c) => match c.description() {
@@ -653,7 +653,7 @@ fn an_adopted_iso_column_is_a_knot_domain_end() {
         vec![0.0, 3.0],
         "both of the wall's seams adopt on ITS OWN knot-domain ends"
     );
-    topo::validate_geometric(&body, Tol::witness())
+    topo::validate_geometric(body.body(), Tol::witness())
         .expect("and the reparameterized body is valid at rest");
 }
 
@@ -734,7 +734,7 @@ fn promoted_ruling_seams_reexport_as_line() {
         panic!("the prism is a solid");
     };
     let text2 = step_export::step_string(
-        &crate::common::at_rest(&body),
+        &crate::common::at_rest(body.body()),
         &step_export::StepOptions::default(),
         tol,
     )

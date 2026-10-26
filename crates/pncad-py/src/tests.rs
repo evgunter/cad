@@ -3692,6 +3692,7 @@ fn every_validation_finding_carries_every_word_its_arm_has() {
             crossing_side: None,
             stale_kind: None,
             ring_contact_kind: None,
+            volume: None,
         }
     );
 
@@ -3711,6 +3712,7 @@ fn every_validation_finding_carries_every_word_its_arm_has() {
             crossing_side: None,
             stale_kind: None,
             ring_contact_kind: None,
+            volume: None,
         }
     );
 
@@ -3746,6 +3748,7 @@ fn every_validation_finding_carries_every_word_its_arm_has() {
             crossing_side: None,
             stale_kind: None,
             ring_contact_kind: None,
+            volume: None,
         }
     );
 }
@@ -4997,13 +5000,13 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "mass_props_error_tag",
         values: &[
             "band",
-            "certificate_of_another_body",
             "corrupt",
             "face",
             "null_scaffold_edge",
             "poisoned",
             "resolution_finer_than_eps",
             "ring_on_curved_face",
+            "undecided",
         ],
         delegates: &[],
     },
@@ -6316,7 +6319,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("transition", 2),
     // A coincidence: a crossing side the band left undecided, and a
     // rigidity margin the decided door left undecided.
-    ("undecided", 2),
+    ("undecided", 3),
     ("underflowed_direction", 2),
     // One fact for the boolean and the blends: the operand gate
     // (`topo::Unfinished::Unjoined`) found a vertex tier 3's check 11

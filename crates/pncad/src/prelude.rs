@@ -567,8 +567,9 @@ pub use topo::{
 // --- 6. Mass properties ---------------------------------------
 // `Settle` is what a measurement is asked (`[tolerance.measure]`), with
 // the vocabulary its variants carry, and `Stop` why it stopped.
-// `VolumeEnclosure` is a certificate's bracket, and `HeldCertificate` is
-// `StepImport::Solid::certificate`: the curated-type rule (the
+// `VolumeEnclosure` is a certificate's bracket, and `CertifiedBody` is
+// `StepImport::Solid::body`, the body held with its certificate: the
+// curated-type rule (the
 // `coherence` note below) says a caller able to hold it must be able to
 // spell it. `MassMeasurement` is what a measurement answers, and
 // `SettleVerdict` what `Stop::Settled` says a deciding predicate
@@ -576,7 +577,7 @@ pub use topo::{
 // `MassMeasurement.verdict` is a `SettleVerdict`, spelled as its words).
 // `ShellRole` is a sign's verdict, carried with its carrier.
 pub use topo::{
-    HeldCertificate, MassMeasurement, MassProperties, MassPropsError, RoleNames, Settle,
+    CertifiedBody, MassMeasurement, MassProperties, MassPropsError, RoleNames, Settle,
     SettleVerdict, ShellRole, SignNames, Stop, VolumeEnclosure, mass_properties,
 };
 

@@ -1412,7 +1412,6 @@ fn the_import_answer_and_its_record_are_spellable_through_the_prelude() {
     // Every field of the arm, bound by name and typed from this list.
     let StepImport::Solid {
         body,
-        certificate,
         eps_in,
         normalizations,
         curve_promotions,
@@ -1424,10 +1423,10 @@ fn the_import_answer_and_its_record_are_spellable_through_the_prelude() {
     else {
         panic!("the box re-imports as a solid, not a wireframe");
     };
-    named::<Body<f64>>(body.clone());
-    named::<HeldCertificate<f64>>(certificate.clone());
-    let measured: pncad::topo::MassMeasurement<f64> = certificate
-        .measure(&body, pinned_resolution(Tol::witness()))
+    named::<CertifiedBody>(body.clone());
+    named::<&Body<f64>>(body.body());
+    let measured: pncad::topo::MassMeasurement<f64> = body
+        .measure(pinned_resolution(Tol::witness()))
         .expect("a box measures through its certificate");
     named::<Stop>(measured.stop);
     let enclosure: MassProperties<f64> = measured.enclosure;
@@ -1466,7 +1465,7 @@ fn the_import_answer_and_its_record_are_spellable_through_the_prelude() {
 
     // "Not a second computation", as an equality rather than a claim.
     let again = mass_properties(
-        &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&body), Tol::witness())
+        &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(body.body()), Tol::witness())
             .expect("the measured body passes tier 3"),
         Tol::witness(),
         pinned_resolution(Tol::witness()),
@@ -2512,8 +2511,11 @@ fn the_export_door_serves_the_one_shot_journey() {
     match imported {
         pncad::step_import::StepImport::Solid { body, .. } => {
             let v = mass_properties(
-                &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&body), Tol::witness())
-                    .expect("the measured body passes tier 3"),
+                &pncad::topo::AtRestBody::validate(
+                    pncad::topo::Body::clone(body.body()),
+                    Tol::witness(),
+                )
+                .expect("the measured body passes tier 3"),
                 Tol::witness(),
                 pinned_resolution(Tol::witness()),
             )
@@ -2578,10 +2580,13 @@ fn the_document_export_door_ships_the_multi_solid_product() {
         .expect("the export re-imports");
     match imported {
         pncad::step_import::StepImport::Solid { body, .. } => {
-            assert_eq!(body.solids().count(), 2, "two disjoint solids ship");
+            assert_eq!(body.body().solids().count(), 2, "two disjoint solids ship");
             let v = mass_properties(
-                &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&body), Tol::witness())
-                    .expect("the measured body passes tier 3"),
+                &pncad::topo::AtRestBody::validate(
+                    pncad::topo::Body::clone(body.body()),
+                    Tol::witness(),
+                )
+                .expect("the measured body passes tier 3"),
                 Tol::witness(),
                 pinned_resolution(Tol::witness()),
             )

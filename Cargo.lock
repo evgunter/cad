@@ -3716,6 +3716,7 @@ dependencies = [
  "geom-core",
  "mesh",
  "profile",
+ "quantity",
  "step-export",
  "sweep",
  "test-utils",

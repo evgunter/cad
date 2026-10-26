@@ -214,7 +214,7 @@ fn r1_multisolid_of_honest_solids_still_imports() {
     else {
         panic!("expected a solid");
     };
-    assert_eq!(body.solids().count(), 2, "both solids shipped");
+    assert_eq!(body.body().solids().count(), 2, "both solids shipped");
 }
 
 /// Moves the cube's (0,1,1) corner to (0,1,1+delta) and re-aims every
@@ -590,7 +590,7 @@ fn r1_in_band_dihedral_wedge_never_ships_silently() {
         match import_step(&text, &ImportOptions::default(), Tol::witness()) {
             Ok(StepImport::Solid { body, .. }) => panic!(
                 "alpha={alpha:e}: the in-band wedge SHIPPED as a solid (gate re-run: {:?})",
-                topo::validate_geometric(&body, Tol::witness())
+                topo::validate_geometric(body.body(), Tol::witness())
             ),
             Ok(other) => panic!("alpha={alpha:e}: unexpected non-solid {other:?}"),
             Err(err) => {
@@ -621,12 +621,12 @@ fn r1_a_wedge_in_band_only_at_its_apex_edges_length_ships_as_a_corner() {
             panic!("alpha={alpha:e}: the wedge imports as a solid");
         };
         assert_eq!(
-            topo::validate_geometric(&body, Tol::witness()),
+            topo::validate_geometric(body.body(), Tol::witness()),
             Ok(()),
             "alpha={alpha:e}: the wedge is valid at rest"
         );
         let mp = topo::mass_properties(
-            &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
+            &topo::test_support::finished("the measured body", body.body().clone(), Tol::witness()),
             Tol::witness(),
             topo::test_support::pinned_resolution(Tol::witness()),
         )
@@ -661,7 +661,7 @@ fn r1_the_kiss_certifies_with_its_touch_recorded() {
     else {
         panic!("the kiss imports as a solid");
     };
-    assert_eq!(body.solids().count(), 2, "both kissing solids ship");
+    assert_eq!(body.body().solids().count(), 2, "both kissing solids ship");
     assert!(
         !coincidences.is_empty()
             && coincidences
@@ -678,7 +678,7 @@ fn r1_the_kiss_certifies_with_its_touch_recorded() {
         contacts.decided().iter().all(|&k| k < rows),
         "every record cites a row the import ships"
     );
-    topo::validate_pseudomanifold(&body, &contacts, Tol::witness())
+    topo::validate_pseudomanifold(body.body(), &contacts, Tol::witness())
         .expect("the shipped records confirm at rest");
 }
 

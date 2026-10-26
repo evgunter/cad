@@ -29,7 +29,7 @@ fn base_text() -> String {
 
 fn solid_body(r: step_import::StepImport) -> topo::Body<f64> {
     match r {
-        StepImport::Solid { body, .. } => body,
+        StepImport::Solid { body, .. } => body.into_body(),
         StepImport::Wireframe { .. } => panic!("expected a solid"),
     }
 }

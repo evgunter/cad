@@ -372,7 +372,7 @@ pub fn mass_props_error_tag(err: &pncad::topo::MassPropsError) -> &'static str {
         M::NullScaffoldEdge { .. } => "null_scaffold_edge",
         M::ResolutionFinerThanEps { .. } => "resolution_finer_than_eps",
         M::Poisoned { .. } => "poisoned",
-        M::CertificateOfAnotherBody => "certificate_of_another_body",
+        M::Undecided { .. } => "undecided",
     }
 }
 

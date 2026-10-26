@@ -96,6 +96,45 @@ fn strip_loft(s: f64, delta: f64, reversed: bool) -> Option<Body<f64>> {
     .map(|l| l.body)
 }
 
+/// **A deciding predicate run out at the wall is THE refusal, and it
+/// carries the enclosure** (`[tolerance.measure]`; PR 5741's review,
+/// n6). The thin strip of the row below, at `delta/s = 1e-10`: every
+/// wall runs to its work wall with the enclosure still straddling the
+/// strip's own volume, so `V ≤ V_true` cannot be decided. The door
+/// answers [`topo::MassPropsError::Undecided`] — not `Ok` with a stop
+/// and no verdict, which a caller reading only the verdict would take
+/// for a decision — and its bracket holds the closed form
+/// `V = 2·s·delta·s`. Through the raw door: tier 3 refuses this body
+/// (check 7's own undecided sign), which is the row below.
+#[test]
+fn a_relation_run_out_at_the_wall_is_the_refusal_carrying_the_bracket() {
+    let tol = Tol::witness();
+    let s = 1.0e14 * tol.get().eps;
+    let delta = 1e-10 * s;
+    let body = strip_loft(s, delta, false).expect("the strip lofts at every ε row");
+    let truth = 2.0 * s * delta * s;
+    let asked = topo::Settle::AtMost {
+        bound: truth,
+        name: "sign_walk_plus_v_undecided",
+    };
+    match topo::test_support::measure_unvalidated(&body, tol, asked) {
+        Err(topo::MassPropsError::Undecided {
+            volume: (lo, hi),
+            stop,
+        }) => {
+            assert!(
+                matches!(stop, topo::Stop::Wall | topo::Stop::Floor),
+                "the walk stops at a face's own stop: {stop:?}"
+            );
+            assert!(
+                lo <= truth && truth <= hi,
+                "the refusal's bracket [{lo:e}, {hi:e}] holds V = {truth:e}"
+            );
+        }
+        other => panic!("V ≤ V_true is undecided at the wall, so it is the refusal: {other:?}"),
+    }
+}
+
 /// **UNDECIDED IS NOT A PASS** — the hole an early exit opens, and the
 /// reason this unit's loop returns a VERDICT rather than a stopping
 /// condition.

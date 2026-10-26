@@ -169,8 +169,7 @@ fn run_cell(cell: &Cell, outdir: &str, tol: Tol) -> String {
         )
     });
     let StepImport::Solid {
-        body,
-        certificate,
+        body: certified,
         eps_in,
         normalizations,
         ..
@@ -179,7 +178,8 @@ fn run_cell(cell: &Cell, outdir: &str, tol: Tol) -> String {
         panic!("{name}: expected a solid import, got a wireframe");
     };
 
-    let counts = euler_counts(&body);
+    let body = certified.body();
+    let counts = euler_counts(body);
     let genus = counts
         .genus()
         .unwrap_or_else(|refusal| panic!("{name}: {refusal}"));
@@ -207,8 +207,8 @@ fn run_cell(cell: &Cell, outdir: &str, tol: Tol) -> String {
     // one that comes back a bracket at this ε has drifted as surely as
     // one that stops importing.
     let printed = pncad::topo::Settle::Resolution(pncad::quantity::Length::from_meters(1.024e-6));
-    let measured = certificate
-        .measure(&body, printed)
+    let measured = certified
+        .measure(printed)
         .unwrap_or_else(|e| panic!("{name}: a PINNED montage cell does not measure: {e}"));
     assert_eq!(
         measured.stop,
@@ -228,7 +228,7 @@ fn run_cell(cell: &Cell, outdir: &str, tol: Tol) -> String {
     let diag = ((hi[0] - lo[0]).powi(2) + (hi[1] - lo[1]).powi(2) + (hi[2] - lo[2]).powi(2)).sqrt();
     assert!(diag.is_finite() && diag > 0.0, "{name}: degenerate bbox");
     let delta = diag * cell.delta_frac;
-    let mesh = pncad::mesh::tessellate(&body, delta, tol)
+    let mesh = pncad::mesh::tessellate(body, delta, tol)
         .unwrap_or_else(|e| panic!("{name}: tessellation at delta {delta:e} failed: {e:?}"));
     check_mesh(&mesh).unwrap_or_else(|e| panic!("{name}: check_mesh failed: {e:?}"));
     let v_mesh = signed_volume(&mesh);

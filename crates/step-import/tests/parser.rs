@@ -174,7 +174,11 @@ fn prefixed_unit_scales_instead_of_refusing() {
         };
         (
             topo::mass_properties(
-                &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
+                &topo::test_support::finished(
+                    "the measured body",
+                    body.body().clone(),
+                    Tol::witness(),
+                ),
                 Tol::witness(),
                 topo::test_support::pinned_resolution(Tol::witness()),
             )
@@ -218,7 +222,7 @@ fn a_conversion_based_unit_resolves_from_the_file_s_own_factor() {
             panic!("a solid")
         };
         topo::mass_properties(
-            &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
+            &topo::test_support::finished("the measured body", body.body().clone(), Tol::witness()),
             Tol::witness(),
             topo::test_support::pinned_resolution(Tol::witness()),
         )

@@ -186,7 +186,7 @@ fn fixed_point() {
         };
         assert_eq!(
             arena_census(&body1),
-            arena_census(&body2),
+            arena_census(body2.body()),
             "{name}: census identical across the adoption pass"
         );
         let v1 = topo::mass_properties(
@@ -198,7 +198,11 @@ fn fixed_point() {
         .enclosure
         .volume;
         let v2 = topo::mass_properties(
-            &topo::test_support::finished("the measured body", body2.clone(), Tol::witness()),
+            &topo::test_support::finished(
+                "the measured body",
+                body2.body().clone(),
+                Tol::witness(),
+            ),
             Tol::witness(),
             topo::test_support::pinned_resolution(Tol::witness()),
         )
@@ -210,7 +214,7 @@ fn fixed_point() {
             v2.to_bits(),
             "{name}: certified volume bit-identical across the adoption pass"
         );
-        let export2 = step_export::step_string(&at_rest(&body2), &options, Tol::witness())
+        let export2 = step_export::step_string(&at_rest(body2.body()), &options, Tol::witness())
             .unwrap_or_else(|e| panic!("{name}: re-export 2: {e}"));
         if line_promotions == 0 {
             assert_eq!(
@@ -244,8 +248,9 @@ fn fixed_point() {
             .unwrap_or_else(|e| panic!("{name}: re-import 2: {e}")) else {
                 panic!("{name}: re-import 2 lost the solid");
             };
-            let export3 = step_export::step_string(&at_rest(&body3), &options, Tol::witness())
-                .unwrap_or_else(|e| panic!("{name}: re-export 3: {e}"));
+            let export3 =
+                step_export::step_string(&at_rest(body3.body()), &options, Tol::witness())
+                    .unwrap_or_else(|e| panic!("{name}: re-export 3: {e}"));
             assert_eq!(
                 export2, export3,
                 "{name}: fixed point from the second cycle on"

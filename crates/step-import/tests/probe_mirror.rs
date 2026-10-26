@@ -17,7 +17,7 @@ fn twobody() -> String {
 
 fn solid(text: &str) -> topo::Body<f64> {
     match import_step(text, &ImportOptions::default(), Tol::witness()) {
-        Ok(StepImport::Solid { body, .. }) => body,
+        Ok(StepImport::Solid { body, .. }) => body.into_body(),
         other => panic!("expected a solid, got {other:?}"),
     }
 }
@@ -147,7 +147,7 @@ fn mirror_smuggling_and_rigid_roundtrip() {
         Ok(StepImport::Solid { body, .. }) => {
             // If it imports, the composed map must have been rigid:
             // volume is the witness.
-            let v = vol(&body);
+            let v = vol(body.body());
             println!("sloppy dirs imported: vol={v}");
             assert!(
                 (v0 - v).abs() <= 1e-9 * v0.abs(),

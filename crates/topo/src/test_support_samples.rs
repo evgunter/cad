@@ -809,7 +809,10 @@ fn mass_props_errors() -> Vec<MassPropsError> {
             eps: 1e-9,
         },
         MassPropsError::Poisoned { cause: diag() },
-        MassPropsError::CertificateOfAnotherBody,
+        MassPropsError::Undecided {
+            volume: (-1e-9, 1e-9),
+            stop: crate::Stop::Wall,
+        },
     ]);
     v.extend(
         props_errors()

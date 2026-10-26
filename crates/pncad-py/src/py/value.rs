@@ -376,21 +376,32 @@ impl From<topo::MassProperties<f64>> for MassProperties {
 /// The refusal a MEASUREMENT door raises: the kernel's own message
 /// under the `reason` a caller dispatches on, and which refusal it is
 /// as `measure_refusal` ([`crate::tags::mass_props_error_tag`]): a face
-/// with no enclosure, a predicate the door could not decide, a
-/// resolution finer than ε, or a certificate measured against another
-/// body. An unmet resolution or a question still open at the work wall
-/// is no refusal: it is a [`MassMeasurement`] whose `stop` says so.
+/// with no enclosure, a predicate whose margin could not be read, a
+/// resolution finer than ε, or a deciding predicate still undecided
+/// where no face can refine (`"undecided"`). That last one carries its
+/// bracket as data beside the word, as the kernel's refusal does:
+/// `volume`, the enclosure's ends `(lo, hi)` read outward, and `stop`,
+/// why no face could refine further. An unmet resolution is no refusal:
+/// it is a [`MassMeasurement`] whose `stop` says so.
 fn measurement_err(py: Python<'_>, err: &topo::MassPropsError) -> PyErr {
+    let word = |w: &str| PyString::new(py, w).unbind().into_any();
+    let mut fields = vec![(
+        "measure_refusal",
+        word(crate::tags::mass_props_error_tag(err)),
+    )];
+    if let topo::MassPropsError::Undecided { volume, stop } = err {
+        fields.push((
+            "volume",
+            pyo3::types::PyTuple::new(py, [volume.0, volume.1])
+                .map_or_else(|_| py.None(), |t| t.unbind().into_any()),
+        ));
+        fields.push(("stop", word(stop.word())));
+    }
     typed_err(
         py,
         ErrorClass::Validation(ValidationRefusal::MassProperties),
         err.to_string(),
-        &[(
-            "measure_refusal",
-            PyString::new(py, crate::tags::mass_props_error_tag(err))
-                .unbind()
-                .into_any(),
-        )],
+        &fields,
     )
 }
 
@@ -502,12 +513,10 @@ pub(crate) struct MassMeasurement {
 
 impl From<topo::MassMeasurement<f64>> for MassMeasurement {
     fn from(measured: topo::MassMeasurement<f64>) -> Self {
-        let (stop, verdict) = match measured.stop {
-            topo::Stop::Settled(verdict) => ("settled", Some(verdict)),
-            topo::Stop::Met => ("met", None),
-            topo::Stop::Floor => ("floor", None),
-            topo::Stop::Wall => ("wall", None),
-            topo::Stop::Band => ("band", None),
+        let stop = measured.stop.word();
+        let verdict = match measured.stop {
+            topo::Stop::Settled(verdict) => Some(verdict),
+            _ => None,
         };
         Self {
             enclosure: measured.enclosure.into(),
@@ -526,11 +535,8 @@ impl MassMeasurement {
     #[getter]
     fn verdict(&self, py: Python<'_>) -> Py<PyAny> {
         match self.verdict {
-            Some(topo::SettleVerdict::Sign(topo::ShellRole::Outer)) => {
-                PyString::new(py, "outer").unbind().into_any()
-            }
-            Some(topo::SettleVerdict::Sign(topo::ShellRole::Void)) => {
-                PyString::new(py, "void").unbind().into_any()
+            Some(topo::SettleVerdict::Sign(role)) => {
+                PyString::new(py, role.word()).unbind().into_any()
             }
             Some(topo::SettleVerdict::Holds(holds)) => pyo3::types::PyBool::new(py, holds)
                 .to_owned()
@@ -896,6 +902,15 @@ impl ValidationFinding {
     #[getter]
     fn ring_contact_kind(&self) -> Option<&'static str> {
         self.0.ring_contact_kind
+    }
+
+    /// A `volume_sign_unresolved` finding's volume bracket `(lo, hi)`
+    /// in m³, read outward: the true volume lies between them.
+    #[getter]
+    fn volume(&self) -> Option<(f64, f64)> {
+        self.0
+            .volume
+            .map(|[lo, hi]| (f64::from_bits(lo), f64::from_bits(hi)))
     }
 
     fn __repr__(&self) -> String {
@@ -2190,8 +2205,10 @@ pub(crate) struct ImportReport {
     /// rest, checked before it was handed out.
     #[pyo3(get)]
     body: Body,
-    /// The at-rest gate's own certificate of `body`.
-    certificate: topo::HeldCertificate<f64>,
+    /// The body held with the at-rest gate's own certificate of it
+    /// (`topo::CertifiedBody`): what `measure` measures through. `body`
+    /// is its body, handed out as a handle like any other.
+    certified: topo::CertifiedBody,
     /// The import's input tolerance in metres: the file's declared
     /// uncertainty, which is a separate quantity from the kernel's ε.
     #[pyo3(get)]
@@ -2210,8 +2227,8 @@ impl ImportReport {
     ///
     /// The measurement refusal `validate_geometric_measured` raises.
     fn measure(&self, py: Python<'_>, settle: Settle) -> PyResult<MassMeasurement> {
-        self.certificate
-            .measure(&self.body.inner, settle.0)
+        self.certified
+            .measure(settle.0)
             .map(MassMeasurement::from)
             .map_err(|err| measurement_err(py, &err))
     }
@@ -2293,7 +2310,6 @@ pub(crate) fn import_step(
     match pncad::step_import::import_step(text, &options, tol) {
         Ok(pncad::step_import::StepImport::Solid {
             body,
-            certificate,
             eps_in,
             normalizations,
             curve_promotions,
@@ -2308,8 +2324,8 @@ pub(crate) fn import_step(
             // document reads through this door.
             coincidences: _,
         }) => Ok(ImportReport {
-            body: Body::recorded(Arc::new(body), Arc::new(contacts)),
-            certificate,
+            body: Body::recorded(Arc::new(body.body().clone()), Arc::new(contacts)),
+            certified: body,
             eps_in,
             normalizations: normalizations
                 .into_iter()

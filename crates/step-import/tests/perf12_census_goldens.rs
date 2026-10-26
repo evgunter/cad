@@ -53,7 +53,7 @@ fn row(label: &str, text: &str, options: &ImportOptions, out: &mut String) {
             coincidences,
             ..
         }) => {
-            let (solids, shells, faces, edges, vertices) = arena_census(&body);
+            let (solids, shells, faces, edges, vertices) = arena_census(body.body());
             out.push_str(&format!(
                 "import: Ok(Solid) solids={solids} shells={shells} faces={faces} edges={edges} vertices={vertices}\n"
             ));

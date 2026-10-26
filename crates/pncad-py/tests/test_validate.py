@@ -692,11 +692,13 @@ class TestGateAndMeasureInOneQuadrature(unittest.TestCase):
         there. The door answers the bracket it reached, with the stop
         that says why, and the bracket is this body's.
 
-        ONE certified quadrature is run here and that is deliberate:
-        this row is the suite's most expensive. Measured in the
-        dev-profile module this suite's CI job builds: about 47 s (the
-        125 m version of the tube, which meets the resolution, takes
-        17 s).
+        TWO certified quadratures are run here, on one body, and that is
+        deliberate: this row is the suite's most expensive. The first is
+        the resolution's; the second is a deciding predicate run out on
+        the same walls, the refusal half of the same door. Measured in
+        the dev-profile module this suite's CI job builds: about 47 s
+        for the first (the 125 m version of the tube, which meets the
+        resolution, takes 17 s).
         """
         body = oversized_round_loft()
         measured = body.mass_properties(PINNED)
@@ -714,6 +716,21 @@ class TestGateAndMeasureInOneQuadrature(unittest.TestCase):
         frustum = math.pi * 8000.0 * (1497.6**2 + 1497.6 * 748.8 + 748.8**2) / 3.0
         self.assertLess(lo, frustum)
         self.assertGreater(hi, frustum)
+        # A deciding predicate the walk runs out on is THE quadrature
+        # refusal (`[tolerance.measure]`): asked whether the volume is at
+        # most the bracket's own midpoint, every wall runs to its stop
+        # with the enclosure still straddling it, so the door raises
+        # `undecided` carrying its bracket and its stop, rather than
+        # answering a stop with no verdict that `if m.verdict:` would
+        # read as a decision.
+        with self.assertRaises(ValidationError) as refused:
+            body.mass_properties(Settle.at_most(e.volume))
+        r = refused.exception
+        self.assertEqual(r.measure_refusal, "undecided")
+        self.assertIn(r.stop, ("wall", "floor"))
+        rlo, rhi = r.volume
+        self.assertLessEqual(rlo, e.volume)
+        self.assertGreaterEqual(rhi, e.volume)
 
 
 class TestSettle(unittest.TestCase):

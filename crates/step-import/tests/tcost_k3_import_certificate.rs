@@ -117,10 +117,8 @@ fn the_readers_gate_runs_one_certificate_and_hands_it_back() {
     let through_import = quad_rounds(|| {
         imported = Some(import_step(&text, &ImportOptions::default(), tol));
     });
-    let (body, certificate) = match imported.expect("the closure ran") {
-        Ok(StepImport::Solid {
-            body, certificate, ..
-        }) => (body, certificate),
+    let body = match imported.expect("the closure ran") {
+        Ok(StepImport::Solid { body, .. }) => body,
         other => panic!(
             "ONE CERTIFICATE: the ε-scaled rational prism is a single-solid file that \
              certifies at every ε row, so the reader must ship a Solid: {other:?}"
@@ -132,7 +130,7 @@ fn the_readers_gate_runs_one_certificate_and_hands_it_back() {
     // number and continuing them runs none.
     let mut through = None;
     let continued = quad_rounds(|| {
-        through = Some(certificate.measure(&body, topo::test_support::pinned_resolution(tol)));
+        through = Some(body.measure(topo::test_support::pinned_resolution(tol)));
     });
     let enclosure = through
         .expect("the closure ran")
@@ -145,7 +143,7 @@ fn the_readers_gate_runs_one_certificate_and_hands_it_back() {
     );
     // Validated outside the count: tier 3 measures the volume too, and
     // the count is of the one measurement.
-    let body = topo::test_support::finished("the measured body", body.clone(), tol);
+    let body = topo::test_support::finished("the measured body", body.body().clone(), tol);
     let mut measured = None;
     let one = quad_rounds(|| {
         measured = Some(topo::mass_properties(

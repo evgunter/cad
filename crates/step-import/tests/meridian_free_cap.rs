@@ -51,15 +51,15 @@ fn an_imported_rim_only_sphere_cap_passes_every_tier_and_the_mesh_lane_refuses_i
             panic!("{name} imports as a solid");
         };
         assert_eq!(
-            body.edges().count(),
+            body.body().edges().count(),
             rim_edges,
             "{name}: adopted as stated. If import now normalizes the rim-only cap \
              (work/exch/import-normalizes-the-rim-only-cap.md), this red is that unit \
              working: turn this row into the normalization's own"
         );
-        assert_eq!(topo::validate_geometric(&body, tol), Ok(()), "{name}");
+        assert_eq!(topo::validate_geometric(body.body(), tol), Ok(()), "{name}");
         let volume = topo::mass_properties(
-            &topo::test_support::finished("the measured body", body.clone(), tol),
+            &topo::test_support::finished("the measured body", body.body().clone(), tol),
             tol,
             topo::test_support::pinned_resolution(tol),
         )
@@ -71,11 +71,14 @@ fn an_imported_rim_only_sphere_cap_passes_every_tier_and_the_mesh_lane_refuses_i
             "{name}: volume {volume} vs the closed form {exact}"
         );
         let (cap, _) = body
+            .body()
             .faces()
-            .find(|(_, f)| body.get_surface(f.surface).unwrap().kind() == SurfaceKind::Sphere)
+            .find(|(_, f)| {
+                body.body().get_surface(f.surface).unwrap().kind() == SurfaceKind::Sphere
+            })
             .expect("the cap's sphere face");
         assert_eq!(
-            mesh::tessellate(&body, 1e-4, tol).map(|_| ()),
+            mesh::tessellate(body.body(), 1e-4, tol).map(|_| ()),
             Err(mesh::TessellateError::MeridianFreeCurvedFace {
                 face: cap,
                 surface: SurfaceKind::Sphere,

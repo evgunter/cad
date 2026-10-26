@@ -3500,9 +3500,9 @@ pub(crate) fn classify_mass_props(e: &crate::props::MassPropsError) -> MassProps
             "Recourse: ask for a resolution of at least the tolerance".into(),
             false,
         ),
-        M::CertificateOfAnotherBody => reading(
-            "a certificate was measured against another body",
-            "Recourse: measure the certificate against the body it was derived from".into(),
+        M::Undecided { .. } => reading(
+            "the measurement's question is still undecided where refinement stopped",
+            geom_core::NOT_YET_ENDING.into(),
             false,
         ),
         M::Poisoned { cause } => reading(

@@ -43,7 +43,7 @@ fn two_outer_bounds_on_a_planar_face_with_a_real_hole() {
         return;
     };
     let v0 = topo::mass_properties(
-        &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
+        &topo::test_support::finished("the measured body", body.body().clone(), Tol::witness()),
         Tol::witness(),
         topo::test_support::pinned_resolution(Tol::witness()),
     )
@@ -53,9 +53,13 @@ fn two_outer_bounds_on_a_planar_face_with_a_real_hole() {
     println!("baseline volume {v0}");
     match import_step(&m, &ImportOptions::default(), Tol::witness()) {
         Ok(StepImport::Solid { body, .. }) => {
-            let t3 = topo::validate_geometric(&body, Tol::witness());
+            let t3 = topo::validate_geometric(body.body(), Tol::witness());
             let v = topo::mass_properties(
-                &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
+                &topo::test_support::finished(
+                    "the measured body",
+                    body.body().clone(),
+                    Tol::witness(),
+                ),
                 Tol::witness(),
                 topo::test_support::pinned_resolution(Tol::witness()),
             )

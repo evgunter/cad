@@ -1394,9 +1394,10 @@ BOUND_AS = {
     "SettleVerdict": "MassMeasurement.verdict",
     # A sign's verdict: `"outer"` or `"void"`, the same words.
     "ShellRole": "MassMeasurement.verdict",
-    # The import gate's certificate, held beside the body: Python
-    # measures through it and never holds it.
-    "HeldCertificate": "ImportReport.measure",
+    # The imported body held with the import gate's certificate of it:
+    # Python's report hands out the body and measures through the pair,
+    # and never holds the pair apart from the report.
+    "CertifiedBody": ("ImportReport.body", "ImportReport.measure"),
     # The façade's lattice-backed loop door and the document layer's
     # node constructor answer the same question — a closed outline from
     # a coordinate table — one rung apart, which is the mapping rule's
@@ -4620,7 +4621,27 @@ class TestStopWords(unittest.TestCase):
         where = sweep.resolve_curated(REPO, ("prelude",), crates, index)["Stop"]
         decls = [d for stem in sorted(where) for d in where[stem]]
         self.assertTrue(decls, "the prelude's `Stop` resolves to a declaration")
-        words = [snake_case(variant) for variant in sweep.declared_members(decls[0])]
+        variants = sweep.declared_members(decls[0])
+        # The binding emits `topo::Stop::word()`, so the words are read off
+        # that function's own arms: one per variant, in the variants'
+        # order, each its variant's name in snake case.
+        settle = (REPO / "crates" / "topo" / "src" / "props" / "settle.rs").read_text(
+            encoding="utf-8"
+        )
+        body = re.search(r"impl Stop \{.*?fn word\(self\).*?\{(.*?)\n    \}", settle, re.S)
+        self.assertIsNotNone(body, "`topo::Stop::word` is the stop's one spelling")
+        arms = re.findall(r'Self::([A-Za-z]+)(?:\([^)]*\))? => "([a-z_]+)"', body.group(1))
+        self.assertEqual(
+            [variant for variant, _ in arms],
+            variants,
+            "`Stop::word` spells every variant once, in declaration order",
+        )
+        self.assertEqual(
+            [word for _, word in arms],
+            [snake_case(variant) for variant in variants],
+            "each stop's word is its variant's name in snake case",
+        )
+        words = [word for _, word in arms]
         stub = STUB.read_text(encoding="utf-8")
         found = re.search(
             r"class MassMeasurement\b.*?def stop\(self\) -> Literal\[([^\]]*)\]",
@@ -4632,8 +4653,8 @@ class TestStopWords(unittest.TestCase):
         self.assertEqual(
             literal,
             words,
-            "`MassMeasurement.stop`'s `Literal` must be `topo::Stop`'s variants, "
-            "snake-cased, in declaration order",
+            "`MassMeasurement.stop`'s `Literal` must be `topo::Stop::word`'s words, "
+            "in the variants' order",
         )
 
 if __name__ == "__main__":
