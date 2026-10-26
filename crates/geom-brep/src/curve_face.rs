@@ -231,3 +231,5 @@ fn carrier(refusal: geom::CarrierRefusal) -> BoundaryRefusal {
 
 #[cfg(test)]
 mod rows;
+#[cfg(test)]
+mod review_rows;
