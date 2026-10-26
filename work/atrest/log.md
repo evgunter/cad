@@ -96,3 +96,12 @@
   - The adjudicated union went to the lane (eight items).
   - The blind coding is running on a local agent. Its inputs are on `analysis/dual-review/pr-5773-coding` (`b765eebd`); the byte and mapping are recorded by the orchestrator. The first commit of that branch named the mapping in-file and was superseded within a minute, so the coder was given the file and told not to read its history. The row discloses this.
 - 2026-10-26 — #5773 blind coding (local agent; inputs `analysis/dual-review/pr-5773-coding` @ `b765eebd`). **Tally 1:** R1's M2, the Interval offset over a box is not an enclosure. It is unilateral, MAJOR, a code (contract) defect, and was executed with measured wrong values. The coder ruled it a separate defect from R2's executed MINOR, the f64 false zero beside a short ray, because the two have one site but different causes and different fixes. R2's unexecuted `within()` note pairs with that MINOR. Near-misses: R2's Dual NaN tangent (MINOR); R1's Escalated-vs-Unsupported (MINOR, unexecuted). The fix list's item 2 was split into 2a and 2b for the lane to match.
+- 2026-10-26 — **Main-red fix merges** (#5779, `f55c22fa`, lane `session_01X3MQyfqLQ8PHNHUBemgJH7`).
+  - **Root cause:** #5529 reads line wedges outside `Declared::confine` on purpose, so that a rest pair does not answer for its sides. An aligned SSI pair is not a rest, though: it is the overlap. So each coincident line in its closure re-reported the overlap, and refused.
+  - **The fix:**
+    - aligned pairs answer for lines in their overlap closure (D10's closure rule);
+    - a cross-solid `CoincidentWedgesOverlap` reads as interference, and its `…Undecided` as uncleared;
+    - RESTREAD's two `coincident_line_wedges` rows are restated, with the reason.
+  - **Verified:** the census goldens are green at three ε, and 7210 local ci-profile rows pass.
+  - **Tier:** the orchestrator's read plus a post-merge single FULL review (`review/atrest-5779-post`), because main was red across programs. It is not mechanical, so the review is owed. Findings become a follow-up.
+  - **Residue:** a second path is filed on `a-touch-the-analysis-decides-crossing-is-read-as-undecidable`.
