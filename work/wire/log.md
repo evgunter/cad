@@ -7102,3 +7102,8 @@ Signed (WIRE orchestrator).
   - Main's P0 had cleared, and CI is green. Merged at 7eb29ffbe0.
   - The pair-flush row and the wirerest twin-helper row are closed. The 5705 rule is now built at every door.
 - 2026-10-26 (WIRE orchestrator) CLEAVE's split moved two WIRE-filed P1 rows back to WIRE (meet-row minting cell; re-chart rows), and unparked held_out because the ring-tie fix landed in 5753. Dispatched `wire-meetrow` (spell/EdgeSplits) and `wire-rechart` (through_the_join, then held_out), split by function within ops.rs. Priced the group-size row P3/M.
+- 2026-10-26 (WIRE orchestrator) `wire-rechart` opened PR 5795 (head 5c38d62542).
+  - Recharts maps re-charted cells to the input shell's LEAST face, so Meet and OnCarrier keep their relation. Other relations refuse typed.
+  - CLEAVE's door check is cherry-picked; there is a moved-keys witness; held_out is deleted.
+  - The full suites were not run locally (disk).
+  - A FULL review (`wire-rechart-rev`) is dispatched. It presses whether 'least face' is a mint/storage-order choice, and whether the BooleanNaming blind spot misnames anything today.
