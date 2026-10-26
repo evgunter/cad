@@ -98,8 +98,7 @@ impl crate::spoken::Say for AtRestEvidence {
                 crate::spoken::Said(refusal, by)
             ),
             Self::NotRun => f.write_str(
-                "this evaluation's scalar runs no census at rest, so nothing was looked at; \
-                 the f64 evaluation of the same document is the one that checks",
+                "this evaluation's scalar runs no census at rest, so nothing was looked at",
             ),
             Self::Carried(row) => write!(f, "{}", crate::spoken::Said(&**row, by)),
         }

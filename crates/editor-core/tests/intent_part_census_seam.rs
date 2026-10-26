@@ -58,7 +58,7 @@ fn two_blocks(label: &str, x: f64) -> ProfileDoc {
 
 /// The two copies overlap in one slab, 0.05 deep: one interference
 /// finding, which the part's own gate reports and does not refuse.
-fn overlapping(label: &str) -> ProfileDoc {
+pub(crate) fn overlapping(label: &str) -> ProfileDoc {
     two_blocks(label, 0.45)
 }
 
@@ -71,7 +71,7 @@ fn in_band_gap() -> f64 {
 /// The two copies stand three ε apart, inside the sliver band: the census
 /// escalates on whether they touch, which the part's own gate refuses,
 /// naming none of its declarations.
-fn in_band(label: &str) -> ProfileDoc {
+pub(crate) fn in_band(label: &str) -> ProfileDoc {
     two_blocks(label, 0.5 + in_band_gap())
 }
 
@@ -118,7 +118,7 @@ fn gate(doc: &ProfileDoc, opts: &EvalOptions) -> Result<AtRest, editor_core::Che
 /// A document instantiating `part` `n` times, each copy pinned to the
 /// world 3 m along x from the last; the instances, and the options that
 /// resolve the part.
-fn instantiating(
+pub(crate) fn instantiating(
     label: &str,
     part: &ProfileDoc,
     n: usize,

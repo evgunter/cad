@@ -116,8 +116,8 @@ fn write_one(dir: &Path, name: &str, doc: &ProfileDoc, tol: Tol) {
 /// finding ships a picture that is wrong in a way only the badge
 /// explains. The die shipped exactly that for as long as this exporter
 /// has existed: two bodies in its product, one sitting on the other, the pips
-/// filled in and the outer faces z-fighting (#1162 diagnosed it; its
-/// separation resident is what reports it). Writing the count here
+/// filled in and the outer faces z-fighting (#1162 diagnosed it; the
+/// at-rest check is what reports it). Writing the count here
 /// means the next one is noticed when it is WRITTEN rather than when
 /// someone opens the file and wonders what they are looking at.
 ///
@@ -131,13 +131,13 @@ fn advisory(doc: &ProfileDoc, tol: Tol) -> String {
         Err(error) => format!(" — the check registry refused: {}", error.spoken(doc)),
         Ok(report) if report.findings.is_empty() => String::new(),
         Ok(report) => {
-            let separation = report
+            let at_rest = report
                 .findings
                 .iter()
-                .filter(|finding| finding.check == CheckId::Separation)
+                .filter(|finding| finding.check == CheckId::AtRest)
                 .count();
             format!(
-                " — {} finding(s), {separation} of them separation",
+                " — {} finding(s), {at_rest} of them at rest",
                 report.findings.len()
             )
         }
@@ -166,9 +166,9 @@ mod tests {
         doc: ProfileDoc,
         /// World placements. One, unless the scene has a reason.
         placements: usize,
-        /// The separation findings the advisory registry reports, and
-        /// why.
-        separation: usize,
+        /// The at-rest findings the advisory registry reports, loud and
+        /// quiet, and why.
+        at_rest: usize,
         /// The product's shape, where a row's `why` makes a claim
         /// about it: pinned so the claim goes red when the document
         /// changes under it.
@@ -212,7 +212,7 @@ mod tests {
                 name: "bracket",
                 doc: crate::bracket::gallery_document(tol),
                 placements: 1,
-                separation: 0,
+                at_rest: 0,
                 product: None,
                 why: "one placement: the extrude, split, its corner piece kept and that piece's \
                       chords chamfered; the offcuts live in the scene's wall probe, not in the \
@@ -222,16 +222,16 @@ mod tests {
                 name: "checks",
                 doc: crate::checks::gallery_document(tol),
                 placements: 1,
-                separation: 0,
+                at_rest: 0,
                 product: None,
                 why: "one placement; its connectedness finding is the scene's own subject \
-                      and is not a separation one",
+                      and is not an at-rest one",
             },
             Shape {
                 name: "ring",
                 doc: crate::ring::gallery_document(tol),
                 placements: 1,
-                separation: 0,
+                at_rest: 0,
                 product: None,
                 why: "one revolve, one placement",
             },
@@ -239,7 +239,7 @@ mod tests {
                 name: "diefillet",
                 doc: crate::diefillet::gallery_document(tol),
                 placements: 1,
-                separation: 0,
+                at_rest: 0,
                 product: None,
                 why: "the composed die alone — the blank is a narration body and \
                       nothing places it, which is what this row guards",
@@ -248,7 +248,7 @@ mod tests {
                 name: "heatsink",
                 doc: crate::heatsink::gallery_document(tol),
                 placements: 1,
-                separation: 0,
+                at_rest: 0,
                 product: None,
                 why: "one placement, and nothing in the document interpenetrates: the base \
                       is rounded by a Fillet, the fin group is a PlacedUnion, and a \
@@ -259,7 +259,7 @@ mod tests {
                 name: "teapot",
                 doc: crate::teapot::gallery_document(tol),
                 placements: 4,
-                separation: 2,
+                at_rest: 2,
                 product: None,
                 why: concat!(
                     "FOUR placements, because the teapot is four solids and the operand ",
@@ -278,7 +278,7 @@ mod tests {
                 name: "impeller",
                 doc: crate::impeller::gallery_document(tol),
                 placements: 1,
-                separation: 0,
+                at_rest: 0,
                 // The 24-gon hub's 26 faces, and each blade's three
                 // outer walls plus its top and bottom.
                 product: Some(Product {
@@ -292,7 +292,7 @@ mod tests {
                 name: "plate",
                 doc: crate::plate::gallery_document(tol),
                 placements: 1,
-                separation: 0,
+                at_rest: 0,
                 product: Some(Product {
                     solids: 1,
                     faces: 6,
@@ -312,7 +312,7 @@ mod tests {
                 name: "chain",
                 doc: crate::chain::gallery_document(tol),
                 placements: 10,
-                separation: 13,
+                at_rest: 13,
                 // Each bar a six-face box; each pin a cylinder wall in
                 // two halves and its two caps.
                 product: Some(Product {
@@ -367,15 +367,15 @@ mod tests {
                         error.spoken(&shape.doc)
                     )
                 });
-            let separation = report
+            let at_rest = report
                 .findings
                 .iter()
-                .filter(|finding| finding.check == CheckId::Separation)
+                .filter(|finding| finding.check == CheckId::AtRest)
                 .count();
             assert_eq!(
-                separation,
-                shape.separation,
-                "{}: separation findings ({}) — {}",
+                at_rest,
+                shape.at_rest,
+                "{}: at-rest findings ({}) — {}",
                 shape.name,
                 shape.why,
                 report.spoken(&shape.doc)

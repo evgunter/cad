@@ -116,10 +116,10 @@ const OVER_BUDGET: &[(&str, usize)] = &[
 /// here is English the person reads, not a pipeline stage.
 pub(crate) const ALLOWED_LABELS: &[(&str, &str)] = &[
     // A check finding's labels as its own `Display` says them, with no
-    // document at hand (`check separation: placement 000000000004 output
+    // document at hand (`check at-rest: placement 000000000004 output
     // 0: …`): the check the person ran, named as the menu names it, and
     // the placement it ran on, by its tag.
-    ("Check/", "check separation"),
+    ("Check/", "check at-rest"),
     ("Check/", "check connectedness"),
     ("Check/", "check chart-coherence"),
     ("Check/", "placement 000000000004 output 0"),
@@ -372,9 +372,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "Check/ChartCoherenceUnexamined(corrupt)",
     "Check/ChartCoherenceUnexamined(non-iso)",
     "Check/ChartCoherenceUnexamined(scaffold)",
-    "Check/SeparationUnavailable/Containment(CorruptFace)",
-    "Check/SeparationUnavailable/Containment(NoSuchSolid)",
-    "Check/SeparationUnavailable/Containment(ZeroVolumeBody)",
 ];
 
 /// The rows that render a door's generic fallback subject
@@ -868,7 +865,6 @@ mod kernel {
     pub(super) type ShellError = topo::ShellError<f64>;
     pub(super) type ReplaceFaceError = topo::ReplaceFaceError<f64>;
     use geom_core::BandError;
-    use topo::PointInSolidError;
 
     test_utils::f6_variants! {
         /// `ExtrudeError`'s arms, for the `Extrude/` rows.
@@ -1049,16 +1045,6 @@ mod kernel {
     }
 
     test_utils::f6_variants! {
-        /// `PointInSolidError`'s arms, for the `Check/SeparationUnavailable/Containment(…)` rows.
-        pub(super) const POINT_IN_SOLID_ERROR: PointInSolidError = [
-            Escalated, RayExhausted, ZeroVolumeBody, InsideOut, Loop, CorruptFace,
-            KindUnsupported, VolumeUncertified, PartialSphereFace, PartialConeFace,
-            PartialTorusFace, EdgeCarrierUnsupported, WallOutlineUnsupported,
-            RootCountDisagrees, NoSuchSolid,
-        ];
-    }
-
-    test_utils::f6_variants! {
         /// `BandError`'s arms, for the `Band/` rows.
         pub(super) const BAND_ERROR: BandError = [
             InvalidValue, InvalidLeverArm, Empty,
@@ -1126,7 +1112,6 @@ const ROSTERS: &[(&str, &[&str])] = {
         ("SplitFinishError", SPLIT_FINISH_ERROR.identifiers()),
         ("ShellError", SHELL_ERROR.identifiers()),
         ("ReplaceFaceError", REPLACE_FACE_ERROR.identifiers()),
-        ("PointInSolidError", POINT_IN_SOLID_ERROR.identifiers()),
         ("BandError", BAND_ERROR.identifiers()),
     ]
 };
@@ -1347,9 +1332,7 @@ fn names_arms(label: &str, arms: &[&str]) -> bool {
 /// arms are checked under is its row's `NodeErrorKind` arm followed by
 /// the arms of the levels above it (`Split/Reduce`), so a family cannot
 /// drop out of the check while the arm above it has a row, and the
-/// first census makes every arm have one. The separation finding's
-/// containment refusals (`check_findings`) are welded the same way, as
-/// the `Check/SeparationUnavailable/Containment` family.
+/// first census makes every arm have one.
 ///
 /// What it does not weld: the arms [`forward`] files as `Unwelded` or
 /// `RenderedIn`, and any refusal below a level's last roster (a
@@ -5974,12 +5957,7 @@ fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
     assert!(!unowned.contains("thicken"), "{unowned}");
     for (name, finding) in &check_findings() {
         let text = finding.to_string();
-        // The separation arm forwards the Boolean's own sentence, whose
-        // coincidence ending is `geom_core::COINCIDENCE_RECOURSE`'s to
-        // repair (work/props/coincidence-recourse-says-lower-where-d4-says-tighten.md).
-        if !name.starts_with("SeparationUnavailable/") {
-            assert!(!text.contains("lower"), "{name}: {text}");
-        }
+        assert!(!text.contains("lower"), "{name}: {text}");
     }
 }
 

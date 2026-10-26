@@ -487,15 +487,18 @@ fn touching_roots_are_the_lints_contact_and_no_at_rest_finding() {
     let (doc, _, _) = two_roots(1.0);
     let report = checks(&doc, &ChecksConfig::default());
     assert_eq!(at_rest(&report), Vec::new(), "{report}");
-    assert_eq!(
-        report
-            .findings
-            .iter()
-            .filter(|f| f.check == CheckId::UnprovenCoincidence)
-            .count(),
-        1,
-        "{report}"
-    );
+    let rests = report
+        .findings
+        .iter()
+        .filter(|f| {
+            matches!(
+                &f.evidence,
+                CheckEvidence::UnprovenCoincidence { row, .. }
+                    if row.relation == topo::Relation::SameOpposite
+            )
+        })
+        .count();
+    assert_eq!(rests, 1, "one rest, the lint's: {report}");
 }
 
 /// A legitimately disjoint multi-solid body draws no at-rest finding:

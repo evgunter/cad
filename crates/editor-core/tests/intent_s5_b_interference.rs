@@ -48,11 +48,11 @@ fn block(doc: ProfileDoc, (cx, cy): (f64, f64), h: f64, height: f64) -> (Profile
 
 /// The `square` wall facing +x (segment 1) and the one facing −x
 /// (segment 3), as `block`'s extrude names them.
-fn plus_x(doc: &ProfileDoc, b: RecipeNodeId) -> StableName {
+pub(crate) fn plus_x(doc: &ProfileDoc, b: RecipeNodeId) -> StableName {
     fname(b, wall(doc, b, 1))
 }
 
-fn minus_x(doc: &ProfileDoc, b: RecipeNodeId) -> StableName {
+pub(crate) fn minus_x(doc: &ProfileDoc, b: RecipeNodeId) -> StableName {
     fname(b, wall(doc, b, 3))
 }
 
@@ -62,7 +62,7 @@ fn minus_x(doc: &ProfileDoc, b: RecipeNodeId) -> StableName {
 /// wall is inside `a`'s material and nothing is coplanar. `a` placed
 /// once at the identity and `b` once 0.25 up: `(doc, a, b, copy of a,
 /// copy of b)`.
-fn slab_overlap() -> (
+pub(crate) fn slab_overlap() -> (
     ProfileDoc,
     RecipeNodeId,
     RecipeNodeId,
@@ -283,7 +283,7 @@ fn a_holding_gap_over_the_unplaced_bodies_quiets_nothing() {
 
 /// A `Gap` over faces of two world copies, read where each copy holds
 /// it (`face`), bounded by `relation` and `bound`.
-fn gap_at_copies(
+pub(crate) fn gap_at_copies(
     doc: ProfileDoc,
     (p, outer): (RecipeNodeId, StableName),
     (q, inner): (RecipeNodeId, StableName),
@@ -500,7 +500,7 @@ fn a_gap_whose_face_vanished_quiets_nothing_and_gates_nothing() {
 /// A plate with a 0.5 bore and a pin of radius `pin_r` through it,
 /// each placed once: `(doc, plate, pin, copy of plate, copy of pin,
 /// the bore's wall, the pin's wall)`.
-fn bore_and_pin(
+pub(crate) fn bore_and_pin(
     pin_r: f64,
 ) -> (
     ProfileDoc,

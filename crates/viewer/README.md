@@ -551,8 +551,8 @@ evaluation) pair, taken in that pair's single `land`. As one value
 they cannot come from different runs, which is the property
 `landed_pair` needs: it returns two of the seven, and the two it
 returns are the pair a single run answered. The gather's outcome is
-one `Result`, the refusal or what the gather left (the A5 badge and
-the body); `LandedRun`'s doc says what that shape does and does not
+one `Result`, the refusal or what the gather left (the at-rest badge
+and the body); `LandedRun`'s doc says what that shape does and does not
 rule out.
 
 The body is the one thing a landing keeps with a cost on the other
@@ -562,10 +562,7 @@ against an `Arc` clone, on a 165-body, 990-face document — and the
 price is that the session retains one gathered aggregate for the life
 of a landing, beside the `Doc` and `Evaluation` it already holds. One
 at a time: the next landing replaces it, and `Open` drops it with the
-rest of `Derived`. It is absent when the gather refused, and when the
-A5 gate refused and so consumed the product it was judging; the
-consumer that needs one there gathers it itself, at a door that says
-so (`scene::product_of_evaluation`). `bounds` sits in
+rest of `Derived`. It is absent when the gather refused. `bounds` sits in
 `Derived` but is discarded on a stricter rule than the block's: every
 submit drops it (`request_eval`), because a range is a statement about
 one document and a commit or an undo already invalidates it. Both
@@ -2370,8 +2367,8 @@ ways across five modules* without stating what a *way* was, so a
 reviewer meeting a new site could not tell whether it made seven or
 was one more instance of a way already counted. A shape has no
 syntactic marker and no grep produces the population, so the
-enumeration rule is the list itself — **six shapes, composed in five
-modules of this crate** — and a new site is a seventh member only when
+enumeration rule is the list itself — **five shapes, composed in four
+modules of this crate** — and a new site is a sixth member only when
 its shape is not one of these:
 
 - **A composer on the vocabulary type, one home, called by every
@@ -2391,19 +2388,12 @@ its shape is not one of these:
   last step has to target the start*.
 - **A reason accumulated as chrome-local data and rendered once** —
   `pane::create`'s `blocked: Option<&'static str>`.
-- **Already stringified into the value and stored** —
-  `session::AtRestBadge::Refused`, whose `message` `frame::at_rest_badge`
-  renders unaltered.
 
-The five modules are the ones a shape is COMPOSED in —
-`session::refuse`, `platform`, `pane::create`, `pane::profile` and
-`session` — not the ones that spend one: `app`, `forms` and `frame`
-each render a sentence composed elsewhere and add no shape.
-`AtRestBadge` used to sit OUTSIDE this count, named beside it as a
-separate fact; it is a shape like the other five and is counted here,
-so the population moved even where the digit did not. Naming ONE shape
-for the whole family is still a separate question, and the move above
-neither answers nor forecloses it.
+The four modules are the ones a shape is COMPOSED in —
+`session::refuse`, `platform`, `pane::create` and `pane::profile` —
+not the ones that spend one: `app`, `forms` and `frame` each render a
+sentence composed elsewhere and add no shape. Naming ONE shape for the
+whole family is still a separate question.
 
 ## Rustdoc posture: the host all-features pass is the link gate
 

@@ -147,12 +147,13 @@ fn every_at_rest_finding_renders_to_the_standard() {
                 }
             }
             problems.extend(test_utils::refusal::problems(&name, &text, &allowed, keyed));
-            // A header and ONE finding line: a line break inside a
-            // finding (a `\` continuation left inside a literal) would
-            // split it across the list.
-            if text.lines().count() != 2 {
+            // One finding line, under a header where the wrapper writes
+            // one: a line break inside a finding (a `\` continuation left
+            // inside a literal) would split it across the list.
+            let lines = if route == "at rest" { 1 } else { 2 };
+            if text.lines().count() != lines {
                 problems.push(format!(
-                    "{name} renders {} lines, not a header and one finding: {text}",
+                    "{name} renders {} lines, not {lines}: {text}",
                     text.lines().count()
                 ));
             }

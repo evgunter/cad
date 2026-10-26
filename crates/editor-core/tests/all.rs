@@ -834,6 +834,8 @@ mod intent_s4_h_placed;
 mod intent_s5_a_relation;
 #[path = "intent_s5_b_interference.rs"]
 mod intent_s5_b_interference;
+#[path = "intent_s5_c_at_rest_check.rs"]
+mod intent_s5_c_at_rest_check;
 #[path = "intent_vars_2_table.rs"]
 mod intent_vars_2_table;
 #[path = "intent_vars_3_readers.rs"]

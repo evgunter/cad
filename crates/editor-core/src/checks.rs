@@ -837,8 +837,16 @@ impl SaidFinding<'_> {
             CheckEvidence::NotAtRest { .. }
             | CheckEvidence::Escalated { .. }
             | CheckEvidence::Unsupported { .. }
-            | CheckEvidence::StaleExpectation { .. }
-            | CheckEvidence::AtRest { .. } => "",
+            | CheckEvidence::StaleExpectation { .. } => "",
+            CheckEvidence::AtRest { evidence } => match evidence {
+                at_rest::AtRestEvidence::NotRun => {
+                    "Recourse: evaluate the document at f64, where the census runs, rather \
+                     than reading this silence as a clean assembly"
+                }
+                // The kernel's verdict, the gather's refusal and the
+                // part's row each end in their own recourse.
+                _ => "",
+            },
         }
     }
 }

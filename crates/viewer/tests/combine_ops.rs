@@ -2558,7 +2558,7 @@ fn a_pattern_places_nothing_and_a_projection_places_its_copy() {
     );
     let both = drawn_volume(&mut session, tol);
     assert!(near(both, one * 2.0), "both copies drawn {both}");
-    assert_eq!(separation_findings(&mut session), 0, "and they do not meet");
+    assert_eq!(at_rest_findings(&mut session), 0, "and they do not overlap");
 }
 
 /// **Duplicate leaves the original placed and its copy placed beside
@@ -2615,7 +2615,7 @@ fn duplicating_a_body_places_its_patterned_copy_beside_it() {
     // sharing space — the product gathers shared space twice — so the
     // check the picture itself raises is the witness that they do not
     // meet.
-    assert_eq!(separation_findings(&mut session), 0, "and they do not meet");
+    assert_eq!(at_rest_findings(&mut session), 0, "and they do not overlap");
 }
 
 /// **One gesture, one undo**: the three inserts are one action, so one
@@ -2909,14 +2909,14 @@ fn step_of(session: &DocSession, pattern: RecipeNodeId) -> [f64; 3] {
     })
 }
 
-/// The separation findings the landed checks report.
-fn separation_findings(session: &mut DocSession) -> usize {
+/// The at-rest findings the landed checks report.
+fn at_rest_findings(session: &mut DocSession) -> usize {
     session.pump();
     let report = session.checks().expect("the registry ran");
     report
         .findings
         .iter()
-        .filter(|f| f.check == pncad::document::CheckId::Separation)
+        .filter(|f| f.check == pncad::document::CheckId::AtRest)
         .count()
 }
 
@@ -3031,7 +3031,7 @@ fn duplicating_a_moved_copy_picked_in_the_viewport_duplicates_the_copy() {
         "the pattern replicates the moved copy"
     );
     assert_eq!(
-        separation_findings(&mut session),
+        at_rest_findings(&mut session),
         0,
         "and no copy landed on top of another",
     );
@@ -3064,7 +3064,7 @@ fn the_part_tool_seats_a_pattern_picked_in_the_tree() {
     ));
 }
 
-/// **A duplicate lands clear of its original** — no separation
+/// **A duplicate lands clear of its original** — no at-rest
 /// finding, which is the check the picture actually raises when two
 /// bodies share space. Doubled volume cannot show it: the product
 /// gathers overlapping space twice.
@@ -3080,9 +3080,9 @@ fn a_duplicate_lands_clear_of_its_original() {
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(
-        separation_findings(&mut session),
+        at_rest_findings(&mut session),
         0,
-        "the copies do not meet"
+        "the copies do not overlap"
     );
     let step = spacing_of(&session, outcome.minted[0]);
     assert!(
@@ -3145,9 +3145,9 @@ fn a_duplicate_keeps_the_notes_promise() {
         "the floor holds on a thin body: {got}"
     );
     assert_eq!(
-        separation_findings(&mut session),
+        at_rest_findings(&mut session),
         0,
-        "and the plates do not meet"
+        "and the plates do not overlap"
     );
 }
 
@@ -3359,9 +3359,9 @@ fn a_duplicate_is_not_measured_off_a_picture_older_than_the_document() {
         "the step clears the grown width"
     );
     assert_eq!(
-        separation_findings(&mut session),
+        at_rest_findings(&mut session),
         0,
-        "and the copies do not meet"
+        "and the copies do not overlap"
     );
 }
 

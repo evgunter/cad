@@ -1294,12 +1294,15 @@ fn a_mated_assembly_is_silent_and_the_mate_is_why() {
         Tol::witness(),
     )
     .expect("checks run over a completed evaluation");
+    // The flush pairs the seat's side walls make are the lint's, and a
+    // mate establishes no flush pair: only the rest is the mate's.
     assert!(
-        report.findings.iter().all(|f| !matches!(
-            f.check,
-            editor_core::CheckId::AtRest | editor_core::CheckId::UnprovenCoincidence
-        )),
-        "a mated assembly reports nothing at rest: {report}"
+        report.findings.iter().all(|f| match &f.evidence {
+            editor_core::CheckEvidence::UnprovenCoincidence { row, .. } =>
+                row.relation == topo::Relation::SameOriented,
+            _ => f.check != editor_core::CheckId::AtRest,
+        }),
+        "a mated assembly reports no rest and nothing at rest: {report}"
     );
 }
 
