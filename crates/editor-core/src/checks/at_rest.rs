@@ -792,6 +792,8 @@ pub(crate) fn finding_solids<T: Decide>(
         | E::NoDihedralArm { .. }
         | E::LoopRoleInverted { .. }
         | E::CurvedSenseInverted { .. }
+        | E::BoundaryCrossesItself { .. }
+        | E::BoundaryCrossesItselfUndecided { .. }
         | E::SeamRegionOvercovered { .. }
         | E::SeamRegionCoverUnresolved { .. }
         | E::NegativeVolume { .. }
