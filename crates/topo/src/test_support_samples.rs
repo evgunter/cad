@@ -1303,6 +1303,7 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             inner: solid,
             witness: vertex,
         },
+        ValidationError::SameSideInterference { a: face, b: face },
         ValidationError::CuspEdgesMissing {
             a: face,
             b: face,

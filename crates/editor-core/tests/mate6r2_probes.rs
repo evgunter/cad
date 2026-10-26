@@ -315,7 +315,8 @@ fn p4_checks_over_a_correctly_mated_document() {
 
 /// P6: carried PENETRATING geometry (the inner upper cube sunk half a
 /// unit into the lower, by a standoff that declares nothing): whatever
-/// arm fires, the outer document must not pass.
+/// arm fires, the outer document must not pass silently — it refuses,
+/// or it carries the part's loud interference.
 #[test]
 fn p6_carried_penetration_is_loud() {
     let mut store = PartStore::default();
@@ -326,7 +327,13 @@ fn p6_carried_penetration_is_loud() {
     let ev = run(&outer, &with_resolver(store));
     let result = assemble(&outer, &ev, Tol::witness());
     println!("P6: {}", headline(&result));
-    assert!(result.is_err(), "penetrating carried geometry must be loud");
+    assert!(
+        result.as_ref().map_or(true, |a| a
+            .carried_interference
+            .iter()
+            .any(|c| c.finding.is_loud())),
+        "penetrating carried geometry must be loud"
+    );
 }
 
 /// P7: the outer gate over the ×3-stand seam document, counted by arm.

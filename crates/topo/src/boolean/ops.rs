@@ -5795,6 +5795,7 @@ fn finding_arm(finding: &ValidationError) -> Option<InBand> {
         | V::FaceThroughEdgeWedgeUndecided { .. }
         | V::ArcEndOffCorner { .. }
         | V::InstanceInterference { .. }
+        | V::SameSideInterference { .. }
         | V::CuspEdgesMissing { .. } => None,
         // A certificate that failed or a lane that cannot run: the
         // kernel's.

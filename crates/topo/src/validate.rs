@@ -1935,7 +1935,8 @@ pub enum ValidationError {
     /// refused, a container whose extent no sound box claims, or an
     /// instance whose every vertex lies on the container's boundary.
     /// A decided interference is
-    /// [`ValidationError::InstanceInterference`], never this.
+    /// [`ValidationError::InstanceInterference`] or
+    /// [`ValidationError::SameSideInterference`], never this.
     CensusUndecidable {
         /// One side of the pair the census cannot clear.
         a: EntityId,
@@ -2006,6 +2007,23 @@ pub enum ValidationError {
         /// `inner`'s first vertex in arena order found strictly inside
         /// `outer`'s material.
         witness: VertexKey,
+    },
+    /// Tier 3′ (the census's instance-containment arm): a face of one
+    /// instance and a face of another lie on one carrier, facing the same
+    /// way, and their interiors meet over an area — an interference fit
+    /// DECIDED by the faces, and not undecidable. Each face has its
+    /// solid's material on its inner side, so both solids hold the
+    /// material under every interior point the faces share: the two
+    /// materials overlap there, though no vertex of either need lie
+    /// strictly inside the other (two coincident copies, or one nested
+    /// flush in another). No record answers for this finding; between
+    /// two copies at rest the assembly layer reports it as an
+    /// interference finding.
+    SameSideInterference {
+        /// The face of one instance.
+        a: FaceKey,
+        /// The face of the other, on `a`'s carrier and facing its way.
+        b: FaceKey,
     },
     /// Tier 3′ (D1 tier 3, C4): two faces of one solid that share no
     /// edge, on carriers whose closed-form tangent line runs strictly
@@ -4326,6 +4344,12 @@ impl fmt::Display for ValidationError {
                 "two instances overlap: a corner of one lies inside the other \
                  (an interference fit), which no declaration can make valid. Recourse: move \
                  the instances apart"
+            ),
+            Self::SameSideInterference { .. } => write!(
+                f,
+                "two instances overlap: a face of each lies on one plane facing the same way, \
+                 sharing an area that both hold material under (an interference fit), which no \
+                 declaration can make valid. Recourse: move the instances apart"
             ),
             Self::CuspEdgesMissing { witness, .. } => write!(
                 f,

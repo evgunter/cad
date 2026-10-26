@@ -6049,6 +6049,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "ring_nesting_undecided",
             "ring_outside_outer",
             "ring_pair_contact_escalated",
+            "same_side_interference",
             "scaffold_at_rest",
             "scaffolding_empty_loop",
             "scaffolding_strut_vertex",

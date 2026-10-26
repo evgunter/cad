@@ -212,7 +212,8 @@ fn all_on_boundary() -> Body<f64> {
 }
 
 /// The arm-2 findings among `errors`: every `CensusUndecidable` naming
-/// two SOLIDS, and every `InstanceInterference`.
+/// two SOLIDS, every `InstanceInterference` and every
+/// `SameSideInterference`.
 fn placement_findings(errors: &[ValidationError]) -> Vec<&ValidationError> {
     errors
         .iter()
@@ -224,6 +225,7 @@ fn placement_findings(errors: &[ValidationError]) -> Vec<&ValidationError> {
                     b: EntityId::Solid(_),
                     ..
                 } | ValidationError::InstanceInterference { .. }
+                    | ValidationError::SameSideInterference { .. }
             )
         })
         .collect()
@@ -355,22 +357,23 @@ fn a_part_in_a_planar_pocket_clears() {
 }
 
 /// An instance whose every vertex lies on the container's boundary is
-/// not a placement its vertices decide, and never an interference
-/// verdict. The slab IS inside the cube's material, and the touch
-/// analysis says so: with the probe undecided, the findings are read,
-/// and their reason — a touch whose cones overlap — is the one
-/// refusal, beside the sixteen touch findings.
+/// not a placement its vertices decide. The slab IS inside the cube's
+/// material, and its two end faces say so: each lies on a wall of the
+/// cube, facing the same way, so both solids hold the material behind
+/// it. The one placement finding is that decided interference, beside
+/// the sixteen touch findings.
 #[test]
 fn every_vertex_on_the_boundary_refuses_typed() {
     let body = all_on_boundary();
     let errors = validate_pseudomanifold(&body, &ContactRecords::default(), Tol::witness())
         .expect_err("refuses");
     let placements = placement_findings(&errors);
-    assert_eq!(placements.len(), 1, "{errors:?}");
-    let what = undecidable_what(placements[0]).expect("the typed refusal");
     assert!(
-        what.contains("one passes into the other where they touch"),
-        "{what}"
+        matches!(
+            placements[..],
+            [ValidationError::SameSideInterference { .. }]
+        ),
+        "the one decided interference: {errors:?}"
     );
     assert_eq!(errors.len(), 17, "{errors:?}");
 }
@@ -508,14 +511,14 @@ fn split_straddle() -> (Body<f64>, ContactRecords) {
 }
 
 /// **A mixed-side touch is a crossing at a lower-dimensional feature,
-/// and it BLOCKS.** At each vertex on the wall the part's edges leave
-/// the wall's plane to `x < 1` (the bracket's material) and to `x > 1`
-/// (the concavity); the vertical edges in the wall have their two
-/// adjacent faces on both sides. Undeclared, the sweeps report the
-/// touches and the cone analysis refuses the clear typed; declared,
-/// the same analysis runs over the records and refuses the same way —
-/// a record certifies a coincidence, never a side. No interference is
-/// claimed (no vertex is inside) and nothing clears.
+/// and it never clears.** At each vertex on the wall the part's edges
+/// leave the wall's plane to `x < 1` (the bracket's material) and to
+/// `x > 1` (the concavity); the vertical edges in the wall have their
+/// two adjacent faces on both sides. No vertex is inside and nothing
+/// pierces, but the part's `x = 0` face lies on the bracket's outer
+/// face, facing the same way: the overlap is decided there, as one
+/// `SameSideInterference`, declared or not — a record certifies a
+/// coincidence, never a side.
 #[test]
 fn a_mixed_side_touch_blocks_the_clear_declared_or_not() {
     let (body, records) = split_straddle();
@@ -526,18 +529,12 @@ fn a_mixed_side_touch_blocks_the_clear_declared_or_not() {
         let Err(errors) = validate_pseudomanifold(&body, &recs, Tol::witness()) else {
             panic!("{name}: the straddle must not certify");
         };
-        let placements = placement_findings(&errors);
-        assert_eq!(placements.len(), 1, "{name}: {errors:?}");
-        let what = undecidable_what(placements[0]).expect("the typed refusal");
         assert!(
-            what.contains("one passes into the other where they touch"),
-            "{name}: {what}"
-        );
-        assert!(
-            !errors
-                .iter()
-                .any(|e| matches!(e, ValidationError::InstanceInterference { .. })),
-            "{name}: {errors:?}"
+            matches!(
+                placement_findings(&errors)[..],
+                [ValidationError::SameSideInterference { .. }]
+            ),
+            "{name}: the one decided interference: {errors:?}"
         );
     }
 }

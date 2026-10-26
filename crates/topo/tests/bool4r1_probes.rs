@@ -91,8 +91,8 @@ fn coords_in(p: Point3<f64>, vals: &[f64]) -> bool {
         .all(|c| vals.iter().any(|v| (c - v).abs() < 1e-12))
 }
 
-/// The arm-2 findings: a `CensusUndecidable` naming two SOLIDS, or an
-/// `InstanceInterference`.
+/// The arm-2 findings: a `CensusUndecidable` naming two SOLIDS, an
+/// `InstanceInterference` or a `SameSideInterference`.
 fn placement_findings(errors: &[ValidationError]) -> Vec<&ValidationError> {
     errors
         .iter()
@@ -104,6 +104,7 @@ fn placement_findings(errors: &[ValidationError]) -> Vec<&ValidationError> {
                     b: topo::EntityId::Solid(_),
                     ..
                 } | ValidationError::InstanceInterference { .. }
+                    | ValidationError::SameSideInterference { .. }
             )
         })
         .collect()

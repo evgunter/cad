@@ -71,20 +71,10 @@ fn placement_findings(errors: &[ValidationError]) -> Vec<&ValidationError> {
                     b: EntityId::Solid(_),
                     ..
                 } | ValidationError::InstanceInterference { .. }
+                    | ValidationError::SameSideInterference { .. }
             )
         })
         .collect()
-}
-
-/// The one placement refusal's `what`, asserting there is exactly one
-/// and that it is not an interference.
-fn the_refusal(errors: &[ValidationError]) -> &'static str {
-    let placements = placement_findings(errors);
-    assert_eq!(placements.len(), 1, "{errors:?}");
-    let ValidationError::CensusUndecidable { what, .. } = placements[0] else {
-        panic!("a typed refusal, not a decided interference: {placements:?}");
-    };
-    what
 }
 
 /// Every touch kind the sweeps reported, by name.
@@ -170,11 +160,11 @@ fn a_block_standing_against_the_wall_clears_through_every_touch_kind() {
 /// collinear with the bracket's inside the same wedge, and the wall's
 /// edges lie in the block's faces. No pierce, no edge cross, and no
 /// vertex of either strictly inside the other — the probe cannot see
-/// it, and the extent gate hands it on only because the block's hull
-/// sits inside the bracket's. It refuses as a crossing; at the base it
-/// refused on the unanalysed vertex pair.
+/// it. The block's faces on the bracket's outer face and on its floor
+/// and ceiling share interior facing the same way, which decides the
+/// overlap: one `SameSideInterference`.
 #[test]
-fn a_block_sunk_into_the_leg_refuses_as_a_crossing() {
+fn a_block_sunk_into_the_leg_is_a_same_side_interference() {
     let body = bracket_with(&block((0.0, 1.5), (1.0, 3.0), (0.0, 1.0)));
     let errors = refused(&body, &ContactRecords::default());
     let kinds = touch_kinds(&errors);
@@ -197,7 +187,10 @@ fn a_block_sunk_into_the_leg_refuses_as_a_crossing() {
         );
     }
     assert!(
-        the_refusal(&errors).contains("one passes into the other where they touch"),
+        matches!(
+            placement_findings(&errors)[..],
+            [ValidationError::SameSideInterference { .. }]
+        ),
         "{errors:?}"
     );
 }

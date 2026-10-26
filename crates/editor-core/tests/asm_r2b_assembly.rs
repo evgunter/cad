@@ -1451,103 +1451,105 @@ fn a_mate_proves_its_faces_only_in_the_sense_it_states() {
     );
 }
 
-/// R1 probe (review of PR 5637): a seating mate whose sense is wrong —
-/// `to` read without its flip, so the copy is turned over and sunk into
-/// the base, sharing the base's top plane with the same outward normal.
-/// Whatever the census reads there, the separation resident must not be
-/// quieted for an interpenetrating pair, and no row may be proved by the
-/// mate in a sense the geometry does not have.
+/// The seating mate with its flip stripped: a plain plane mate, which
+/// equates the two caps' outward normals and so turns the copy over.
+fn unflip(mate: &mut Mate<Formula>) {
+    if let Operand::Pose(p) = &mate.to
+        && let PoseDef::Flip { pose } = &**p
+    {
+        mate.to = pose.read.clone();
+    }
+}
+
+/// **A seat written without its flip turns the copy over beside its
+/// base, and the two abut.** The copy's start cap is set facing up on
+/// the base's top plane, so the copy turns over about x and lands at
+/// y in [-1, 0], sharing the base's y = 0 wall face to face. That is a
+/// rest (one opposed row) beside four flush pairs (the caps and the
+/// x walls, facing the same way with only their edges meeting), and no
+/// overlap: the gate certifies it with no interference, mated or pinned
+/// where it solved. Red if the copy lands anywhere else, or if a flush
+/// pair's shared boundary is read as shared material.
 #[test]
-fn r1_probe_a_wrong_sense_mate_quiets_nothing() {
-    for origin in [[0.5, 0.5, 1.0], [0.0, 0.0, 1.0], [1.0, 0.0, 1.0]] {
-        let (doc, _ids, _mate, store, _) = stacked_as("r1-probe-sink", origin, |m| {
-            if let Operand::Pose(p) = &m.to {
-                if let PoseDef::Flip { pose } = &**p {
-                    m.to = pose.read.clone();
-                }
-            }
-        });
-        let o = with_resolver(store);
+fn a_seat_without_its_flip_turns_the_copy_over_beside_its_base() {
+    let (doc, _ids, _mate, store, _) = stacked_as("unflipped", [0.0, 0.0, 1.0], unflip);
+    let o = with_resolver(store);
+    let pinned = pinned_where_solved(doc.clone(), &o);
+    for (label, doc) in [("mated", doc), ("pinned", pinned)] {
         let ev = run(&doc, &o);
-        let product = match product_recorded(&doc, &ev, Tol::witness()) {
-            Ok(p) => p,
-            Err(e) => {
-                eprintln!("R1 {origin:?}: gather refused: {e}");
-                continue;
-            }
+        let product = product_recorded(&doc, &ev, Tol::witness()).expect("the pair gathers");
+        let ys: Vec<f64> = product.body.vertex_points().map(|(_, p)| p.y).collect();
+        assert!(
+            ys.contains(&-1.0) && ys.iter().all(|&y| (-1.0..=1.0).contains(&y)),
+            "{label}: the copy lies at y in [-1, 0], beside the base: {ys:?}"
+        );
+        let count = |relation| {
+            product
+                .coincidences
+                .iter()
+                .filter(|r| r.row.relation == relation)
+                .count()
         };
-        eprintln!("R1 {origin:?}: rows {}", product.coincidences.len());
-        for r in &product.coincidences {
-            eprintln!("R1   row {:?} {:?}", r.row.relation, r.row.cells);
-        }
-        for c in &product.census {
-            eprintln!("R1   census {c}");
-        }
-        let report = editor_core::run_checks(
-            &doc,
-            &ev,
-            &editor_core::ChecksConfig::default(),
-            Tol::witness(),
-        )
-        .expect("checks run");
-        for f in &report.findings {
-            eprintln!("R1   finding {:?}: {}", f.check, f);
-        }
-        let result = assemble(&doc, &ev, Tol::witness());
-        match &result {
-            Ok(a) => eprintln!("R1   assembled; interference {}", a.interference.len()),
-            Err(e) => eprintln!("R1   refused: {e}"),
-        }
+        assert_eq!(
+            (
+                count(topo::Relation::SameOpposite),
+                count(topo::Relation::SameOriented)
+            ),
+            (1, 4),
+            "{label}: the y = 0 walls rest, and the caps and x walls lie flush"
+        );
+        let assembly = assemble(&doc, &ev, Tol::witness()).expect("abutting copies certify");
+        assert!(
+            assembly.interference.is_empty(),
+            "{label}: abutting copies do not interfere: {:?}",
+            assembly.interference
+        );
     }
 }
 
-/// R1 probe 2: the wrong-sense seat at the identity, its mate replaced
-/// by a pin where it solved — two unmated copies filling one volume.
+/// **Copies whose material coincides over an area are one interference.**
+/// A seat at height 0 is a standoff that sets the copy exactly on the
+/// base: the two copies fill one volume, with no vertex of either
+/// strictly inside the other and nothing piercing, mated or pinned where
+/// it solved. The seat without its flip at (0.5, 0.5, 1) turns the copy
+/// over half across the base, the two caps of each sharing a quarter.
+/// Each pair is one finding on `Assembly::interference`, bounded by the
+/// intersection of the two copies, loud, and its evidence carries the
+/// census's decided `SameSideInterference` and no `CensusUndecidable`.
+/// Red if the census reports such a pair as could-not-look.
 #[test]
-fn r1_probe_two_unmated_copies_filling_one_volume() {
-    let (doc, _ids, _mate, store, _) = stacked_as("r1-probe-twin", [0.0, 0.0, 1.0], |m| {
-        if let Operand::Pose(p) = &m.to {
-            if let PoseDef::Flip { pose } = &**p {
-                m.to = pose.read.clone();
-            }
-        }
-    });
+fn copies_filling_one_volume_are_one_interference() {
+    let (doc, _ids, _mate, store, _) = stacked_as("coincident", [0.0, 0.0, 0.0], |_| {});
     let o = with_resolver(store);
-    let doc = pinned_where_solved(doc, &o);
-    let ev = run(&doc, &o);
-    let product = product_recorded(&doc, &ev, Tol::witness()).expect("gathers");
-    eprintln!("R1P2 rows {} census {}", product.coincidences.len(), product.census.len());
-    for (v, pt) in product.body.vertex_points() {
-        eprintln!("R1P2 vertex {v:?} {pt:?}");
-    }
-    match assemble(&doc, &ev, Tol::witness()) {
-        Ok(a) => eprintln!("R1P2 assembled; interference {}", a.interference.len()),
-        Err(e) => eprintln!("R1P2 refused: {e}"),
-    }
-}
-
-#[test]
-fn r1_probe_truly_coincident() {
-    let (doc, _ids, _mate, store, _) = stacked_as("r1-probe-coinc", [0.0, 0.0, 0.0], |_| {});
-    let o = with_resolver(store);
-    for (label, doc) in [("mated standoff", doc.clone()), ("pinned", pinned_where_solved(doc, &o))] {
-        let ev = run(&doc, &o);
-        match product_recorded(&doc, &ev, Tol::witness()) {
-            Ok(product) => {
-                eprintln!("RC {label}: rows {} census {}", product.coincidences.len(), product.census.len());
-                for c in &product.census {
-                    eprintln!("RC   census {c}");
-                }
-                let mut ys: Vec<_> = product.body.vertex_points().map(|(_, p)| (p.y * 10.0) as i64).collect();
-                ys.sort();
-                ys.dedup();
-                eprintln!("RC   ys {ys:?}");
-            }
-            Err(e) => eprintln!("RC {label}: gather refused {e}"),
-        }
-        match assemble(&doc, &ev, Tol::witness()) {
-            Ok(a) => eprintln!("RC {label}: assembled; interference {}", a.interference.len()),
-            Err(e) => eprintln!("RC {label}: refused: {e}"),
-        }
+    let pinned = pinned_where_solved(doc.clone(), &o);
+    let (overhang, _ids, _mate, store, _) = stacked_as("overhang", [0.5, 0.5, 1.0], unflip);
+    let overhang_o = with_resolver(store);
+    for (label, doc, o) in [
+        ("mated", doc, &o),
+        ("pinned", pinned, &o),
+        ("overhang", overhang, &overhang_o),
+    ] {
+        let ev = run(&doc, o);
+        let assembly = assemble(&doc, &ev, Tol::witness())
+            .unwrap_or_else(|e| panic!("{label}: an interference is a finding: {e}"));
+        let [finding] = &assembly.interference[..] else {
+            panic!("{label}: one interference: {:?}", assembly.interference);
+        };
+        assert!(
+            matches!(finding.overlap, editor_core::Overlap::Bounded { .. }) && finding.is_loud(),
+            "{label}: bounded and loud: {finding:?}"
+        );
+        assert!(
+            finding
+                .evidence
+                .iter()
+                .any(|e| matches!(e, topo::ValidationError::SameSideInterference { .. }))
+                && !finding
+                    .evidence
+                    .iter()
+                    .any(|e| matches!(e, topo::ValidationError::CensusUndecidable { .. })),
+            "{label}: decided by the coincident faces: {:?}",
+            finding.evidence
+        );
     }
 }
