@@ -399,8 +399,9 @@ fn coplanar_faces_meeting_only_along_a_line_are_no_face_pair() {
 /// base's by a distance inside the band. The seat is confirmed, one face
 /// pair, recorded and confirming. The x = 0 sides' carriers read in band,
 /// so that pair is one could-not-look finding naming the two faces
-/// (`[assertions]`), its cells asked nothing: no escalation stands, and
-/// the finding is no evidence the two blocks overlap, so the seat is
+/// (`[assertions]`), its cells' escalations its own: none stands. The two
+/// sides face the same way but share no area thicker than the band, so
+/// the finding is no evidence the two blocks overlap, and the seat is
 /// still recorded. Red if any escalation stands, if the in-band pair is
 /// reported more than once or names another pair, or if the seat is not
 /// recorded.
@@ -452,4 +453,65 @@ fn a_near_flush_side_is_its_pairs_finding_and_the_seat_is_one_pair() {
         flush.rows.is_empty() && flush.findings.is_empty(),
         "the in-band pair is the census's, not the flush door's: {flush:?}"
     );
+}
+
+/// **Two blocks overlapping past the band, with aligned faces in band,
+/// are never cleared.** The second block is lifted by a distance inside
+/// the band, so its top lies in band of the first's top, both facing up,
+/// and the two tops share area. Both materials lie behind both faces, so
+/// such a pair hides an overlap rather than ruling one out: each such
+/// pair is a finding that may hide an overlap (`Undecidable::MayOverlap`),
+/// and nothing between the two blocks is recorded. Three poses: a corner
+/// overlap (both caps in band), one nested inside the other's footprint
+/// (both caps in band), and a corner overlap with only the tops in band.
+/// Red if an aligned pair in band reads as one hiding no overlap, or a
+/// touch between the blocks is recorded.
+#[test]
+fn an_overlap_whose_aligned_faces_are_in_band_is_never_cleared() {
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
+    let off = 0.5 * (band.zero() + band.escalate());
+    let base = ((0.0, 2.0), (0.0, 2.0), (0.0, 1.0));
+    for (name, top, unread) in [
+        ("corner", ((1.0, 3.0), (1.0, 3.0), (off, 1.0 + off)), 2),
+        ("nested", ((0.5, 1.5), (0.5, 1.5), (off, 1.0 + off)), 2),
+        (
+            "corner, tops only",
+            ((1.0, 3.0), (1.0, 3.0), (0.5, 1.0 + off)),
+            1,
+        ),
+    ] {
+        let body = two_blocks(base, top);
+        let (recorded, _) = at_rest(&body);
+        let reasons: Vec<topo::Undecidable> = recorded
+            .findings
+            .iter()
+            .filter_map(|e| match e {
+                ValidationError::CensusUndecidable {
+                    a: topo::EntityId::Face(_),
+                    b: topo::EntityId::Face(_),
+                    reason,
+                    ..
+                } => Some(*reason),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            reasons,
+            vec![topo::Undecidable::MayOverlap; unread],
+            "{name}: {:?}",
+            recorded.findings
+        );
+        assert!(
+            recorded
+                .findings
+                .iter()
+                .any(|e| topo::census_uncleared_solids(&body, e).is_some()),
+            "{name}: the blocks are not cleared"
+        );
+        assert!(
+            recorded.records.is_empty() && recorded.rows.is_empty(),
+            "{name}: nothing between overlapping blocks is recorded: {:?}",
+            recorded.records
+        );
+    }
 }

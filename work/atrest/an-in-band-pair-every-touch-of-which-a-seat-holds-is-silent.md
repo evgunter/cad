@@ -4,7 +4,7 @@ kind: issue
 title: an in-band face pair whose every touch a confirmed pair holds reports nothing, since the flush door leaves Door 1's in-band pairs to the census
 status: open
 opened: 2026-10-26
-priority: P4
+priority: P3
 cost: E
 refs: [an-in-band-face-pair-at-rest-is-not-one-finding]
 ---

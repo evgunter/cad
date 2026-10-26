@@ -1073,20 +1073,27 @@ recorded pairs as well as the confirmed ones, so a declared pair holding
 a crossing with the materials on one side names `SameSide`; it backs only
 through a confirmed pair.
 
-**In-band pairs.** Two planar faces of two solids whose carriers Door 1
-reads in band, aligned or opposed, are one pair too, which the census
-cannot look at (`planar_face_pairs`): what the sweeps find of a touch of
-a cell bounding one of its faces against a cell bounding the other is
-the pair's one `CensusUndecidable`, naming the two faces
-(`Undecidable::InBandPair`), and nothing of the cells is reported
-(`Declared::absorb`). An escalation of two other cells whose closures
-hold such a touch reads it again and stands for nothing more, and so
-does arm 2's material test where it cannot place a vertex of such a
-touch. Any overlap the pair hides is thinner than the band, so the
-finding is no evidence the two solids interpenetrate: arm 2 reads it as
-blocking nothing, and `census_uncleared_solids` leaves the solids'
-other touches to be recorded at rest. The flush arm leaves such a pair
-to the census.
+**Unread pairs.** Two planar faces of two solids whose carriers Door 1
+reads in band are one pair too, which the census cannot look at
+(`planar_face_pairs`): an escalation the sweeps find of a touch of a
+cell bounding one of its faces against a cell bounding the other is
+the pair's one `CensusUndecidable`, naming the two faces, and nothing
+of the cells' escalations is reported (`Declared::absorb`); a decided
+finding of them stands. An escalation of two other cells meeting in
+band of such a touch, their closures holding its cells, reads it again
+and is dropped (`drop_shadows`). The finding's reason says whether the
+pair may hide an overlap. An opposed pair in band hides none thicker
+than the band: its two materials lie on either side
+(`Undecidable::InBandPair`). An aligned pair has both materials behind
+both faces, so where the two share area the solids overlap: it is an
+overlap where the region door reads a positive area, `InBandPair` only
+where they share no area thicker than the band (`thin_overlap`), and
+otherwise `Undecidable::MayOverlap`, as is a pair whose Door 1
+escalated. Arm 2 reads an `InBandPair` finding as blocking nothing, its
+material test does not refuse on a vertex of such a pair's touch, and
+`census_uncleared_solids` leaves the solids' other touches to be
+recorded at rest; a `MayOverlap` finding blocks them. The flush arm
+leaves Door 1's in-band pairs to the census.
 
 The edge-on-face lane cuts an edge at every boundary vertex on it and
 every place a boundary edge crosses it, each placed in metres along

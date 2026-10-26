@@ -1683,10 +1683,15 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             },
         ));
     }
-    s.push((
-        "CensusUndecidable/InBandPair".to_owned(),
-        crate::census::in_band_finding(face, face),
-    ));
+    for reason in [
+        crate::validate::Undecidable::InBandPair,
+        crate::validate::Undecidable::MayOverlap,
+    ] {
+        s.push((
+            format!("CensusUndecidable/unread/{reason:?}"),
+            crate::census::unread_sample(face, face, reason),
+        ));
+    }
     s.push((
         "FaceThroughEdgeWedge".to_owned(),
         ValidationError::FaceThroughEdgeWedge {

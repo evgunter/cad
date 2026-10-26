@@ -530,8 +530,8 @@ pub(crate) fn decide_nonzero<T: Decide>(
 }
 
 /// **What a [`ValidationError::CensusUndecidable`] leaves open**: whether
-/// the two solids it names may interpenetrate, or one face pair's own
-/// reading in band. `census_uncleared_solids` reads it: the first leaves
+/// the two solids it names may interpenetrate, or only one face pair's
+/// own reading in band. `census_uncleared_solids` reads it: the first leaves
 /// the two solids uncleared, the second does not.
 ///
 /// **NOT carried to the façade's curated list, and that is a decision
@@ -544,8 +544,8 @@ pub(crate) fn decide_nonzero<T: Decide>(
 /// `carried_refusal_payloads_are_matchable_through_the_prelude` and a
 /// Python word per arm, both the façade crate's to write.
 ///
-/// **The falsifier is a Python caller who must tell an in-band pair (move
-/// one face clear of the band, no overlap read) from a pair the census
+/// **The falsifier is a Python caller who must tell a pair hiding no
+/// overlap (move one face clear of the band) from a pair the census
 /// cannot clear (the solids may overlap)** without reading the sentence.
 /// When the façade carries the reason, delete this paragraph and the
 /// disposition row with it.
@@ -556,10 +556,14 @@ pub enum Undecidable {
     /// not read, a containment its material test could not answer.
     MayOverlap,
     /// Two planar faces of different solids whose carriers, or whose
-    /// lying flush, read within the band: the pair's one could-not-look
-    /// finding (`[assertions]`). Any overlap it hides is thinner than
-    /// the band, which the representation cannot tell from contact, so
-    /// it is no evidence the two solids interpenetrate.
+    /// lying flush, read within the band, and which hide no overlap
+    /// thicker than the band: the pair's one could-not-look finding
+    /// (`[assertions]`). An opposed pair: its two materials lie on
+    /// either side, so any overlap it hides is thinner than the band,
+    /// which the representation cannot tell from contact. An aligned
+    /// pair has both materials behind both faces, so it is this only
+    /// where the two share no area thicker than the band. It is no
+    /// evidence the two solids interpenetrate.
     InBandPair,
 }
 
