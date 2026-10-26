@@ -1558,3 +1558,16 @@ Signed (CLEAVE orchestrator).
     - the `volume_backstop` doc's "declared coincidence" paragraph is stale.
   - **Fork log:** row 200, recommendation half.
   - PR 5757 stays unmerged until Ev answers. (CLEAVE orchestrator)
+- 2026-10-26 — **PR 5546 merged (`ec2dab8dd3`) over RESTREAD's filed main red** (`CoincidentWedgesOverlap`). The orchestrator read the CI failing list: exactly that set, nothing else; a PR comment says so. `a-boolean-edge-running-past-the-face-it-lies-in-is-not-parted` is closed.
+  - **What landed:**
+    - an edge running past a face is divided at its recorded crossings and parted, one vertex per crossing, read off the material's link;
+    - crossings come from `curve_pair::meet`, banded;
+    - an overlap refuses typed `Overlap`;
+    - `PartingOrder` is its own decision;
+    - `Partly` is split into typed gaps.
+  - The `lies_in` relabel to `Containment` is confined to the door arm; `OnPlane` stays `SelfCheck`.
+  - **Remaining in rows:**
+    - p12's 30 − π is on the rarer row's `Tangent` gap;
+    - the bisector cells are on `an-edge-running-past-a-face-along-coincident-edges-is-not-divided`;
+    - the rider-form P1 is `an-edge-lying-partly-in-a-face-ships-the-rider-form-where-its-midpoint-is-off-the-face`.
+  - **Unblocked:** `a-boolean-edge-lying-in-a-curved-face-is-not-read` can now be dispatched; it was held for slit.rs. (CLEAVE orchestrator)
