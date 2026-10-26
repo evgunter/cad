@@ -7,6 +7,7 @@ opened: 2026-10-09
 priority: P0
 cost: H
 branch: intent/e-operation-frame-of-reads
+pr: 5811
 refs: [intent-stage3-is-built, each-space-computes-in-its-earliest-members-frame]
 ---
 
