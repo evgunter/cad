@@ -837,17 +837,31 @@ pub struct NodeValue<T: Decide> {
     /// outputs that are a split's two halves are two parts. The placers
     /// (`Place`, `Pattern`) and `Part` carry the count through; every
     /// other op builds a body of its own and counts 1, an explicit union
-    /// (the fuse) included. More than one makes the value a PRODUCT,
-    /// which every op that fuses or reshapes a single body operand
-    /// refuses ([`NodeErrorKind::ProductOperand`]); a reader of its
-    /// geometry (a pose read off a face) reads it as it is.
+    /// (the fuse) included. A body of several parts is an ordinary
+    /// operand (D10 `[operations.operators]`: `(p ⊔ q) − t` cuts both
+    /// pieces).
     pub parts: usize,
-    /// **A placement's solved motion** (D10): where its copies sit
-    /// relative to the shapes they copy, `None` for a copy the identity
+    /// **A placement's solved motion** (D10): where its copy sits
+    /// relative to its source, `None` for a copy the identity
     /// bundle places by no map and for every value that is no
     /// placement's. A carried
     /// pose reads it ([`crate::pose::PoseDef::Carried`]).
     pub motion: Option<geom_core::RigidMotion<T>>,
+    /// **The pieces its body holds** ([`Pieces`]): a `⊔`'s members, or
+    /// the pieces a copy or an instance carries from its source; `None`
+    /// for a body of no pieces.
+    pub pieces: Option<Arc<Pieces<T>>>,
+    /// **The census at the door that assembled its pieces**
+    /// ([`crate::product::Census`]): a `⊔`'s, or a cut's or a meet's
+    /// that kept its operand's pieces; the one a copy or a pick carries
+    /// from its source. Each door's census runs once, where a reader
+    /// first asks for its verdict, and every reader reads that one.
+    pub census: Option<Arc<crate::product::Census<T>>>,
+    /// **Whether a door already decided the meetings inside its body**:
+    /// a `⊔`'s value, an instance's copy (its part's census decided
+    /// them), and a copy, pick or projection of either. A census reading
+    /// such a body as one arrival discards what it finds inside it.
+    pub censused: bool,
     /// The node's verdict log (M4 PR 4, N5): every definite predicate
     /// decision made evaluating the node — those made before its
     /// content key (a profile's f64 precompute: the plane read, the
@@ -914,6 +928,9 @@ impl<T: Decide> NodeValue<T> {
             coincidences: out.coincidences,
             cited_inputs: out.cited_inputs,
             parts: out.parts,
+            pieces: out.pieces,
+            census: out.census,
+            censused: out.censused,
             verdicts: Arc::new(Vec::new()),
             escalations: Arc::new(Vec::new()),
             motion: None,
@@ -948,6 +965,9 @@ impl NodeValue<f64> {
             verdicts: Arc::new(verdicts),
             escalations: Arc::new(vec![]),
             motion: None,
+            pieces: None,
+            census: None,
+            censused: false,
             witness: WitnessSlot::default(),
             content_key: ContentKey(0),
             naming_key: NamingKey(0),
@@ -1067,21 +1087,14 @@ pub enum ValuePayload<T: Decide> {
     /// instance out of it by index, and the product gather takes
     /// every instance in order. Every other consumer of a body
     /// operand — the set is `wire::read_body`'s callers (a pose read
-    /// off a face) and `wire::body_operand`'s (a blend's and a shell's
-    /// body, a split's target, a boolean's and a union's members, a
-    /// placed union's prototype) —
+    /// off a face, a blend's and a shell's body, a split's target, a
+    /// boolean's and a union's members, a placed union's prototype) —
     /// takes ONE body and refuses this value typed (`WrongOperand`):
     /// a boolean of N bodies is N booleans or one union of them, a
     /// blend of N bodies is N blends, and the recipe does not guess
     /// which (D3), so the asymmetry between the placers and the rest
     /// is the decision, not an omission.
     Instances(Vec<Arc<Body<T>>>),
-    /// **A placement's copies, keyed** ([`Copies`]): a `Place`'s over
-    /// several shapes, keyed by read, and an instance's, the part's
-    /// world copies keyed by their identity in the part. A `Place` of
-    /// one shape has that shape's value ([`ValuePayload::Body`] or
-    /// [`ValuePayload::Instances`]).
-    Copies(Arc<Copies<T>>),
     /// A `Measure` node's typed F1 quantity (E3): the measured value
     /// in kernel units with the dimension it was measured in. Not
     /// body-denoting — the product gather skips it exactly as it skips
@@ -1151,9 +1164,6 @@ macro_rules! family_word {
     (instances) => {
         "instances"
     };
-    (copies) => {
-        "copies"
-    };
     (measure) => {
         "measure"
     };
@@ -1173,7 +1183,6 @@ pub(crate) mod family {
     pub(crate) const BOOLEAN: &str = family_word!(boolean);
     pub(crate) const SPLIT: &str = family_word!(split);
     pub(crate) const INSTANCES: &str = family_word!(instances);
-    pub(crate) const COPIES: &str = family_word!(copies);
     pub(crate) const MEASURE: &str = family_word!(measure);
     pub(crate) const ASSERTION: &str = family_word!(assertion);
 }
@@ -1261,7 +1270,6 @@ impl<T: Decide> ValuePayload<T> {
             Self::Boolean(_) => family::BOOLEAN,
             Self::Split { .. } => family::SPLIT,
             Self::Instances(_) => family::INSTANCES,
-            Self::Copies(_) => family::COPIES,
             Self::Measure { .. } => family::MEASURE,
             // The SAME family name as a measure that has a value: the
             // node kind is what a typed operand mismatch is about, and
@@ -1291,52 +1299,65 @@ pub enum BooleanValue<T: Decide> {
     },
 }
 
-/// **A placement's copies, keyed** ([`ValuePayload::Copies`]).
-///
-/// `bodies` is what the node's name table indexes and the product
-/// gather grafts: a `Place`'s copies flat in key order, or an
-/// instance's part product as ONE body, whose arena keys the part's
-/// declared contact records. `members` is the same material copy by
-/// copy, each with its own table, for a reader of one copy
-/// ([`crate::BodyRead::key`]).
+/// **The pieces of a body** (D10 `[operations.operators]`): what a
+/// `⊔` grafted, one piece per member, each by the variable it read,
+/// with its own bodies and names. A placement's copy and an instance
+/// carry their source's pieces under their motion, so a pick reads one
+/// piece of a copy ([`crate::VarDef::Pick`]) without the copy being
+/// cut apart.
 #[derive(Debug, Clone)]
-pub struct Copies<T: Decide> {
-    /// The bodies the node's table indexes, in output-body order.
-    pub bodies: Vec<Arc<Body<T>>>,
-    /// Each copy by its key, in key order of its placement.
-    pub members: Vec<KeyedCopy<T>>,
+pub struct Pieces<T: Decide> {
+    /// The node whose names key them: each piece's names are spelled in
+    /// the holder's table under this node, keyed by the piece's read
+    /// ([`crate::names::RoleSeg::From`]).
+    pub by: RecipeNodeId,
+    /// The pieces, in member order.
+    pub pieces: Vec<Piece<T>>,
 }
 
-/// **One copy of a placement's copies, by its key**: a body, or a
-/// family delivered flat under one key (a part's copy placed by a
-/// pattern, until `work/refs/an-indexed-read-of-rank-two-has-no-family`).
+/// **One piece of a body** ([`Pieces`]).
 #[derive(Debug, Clone)]
-pub struct KeyedCopy<T: Decide> {
-    /// The copy's key.
-    pub key: crate::CopyKey,
-    /// Its bodies: one for a body, the family's otherwise.
+pub struct Piece<T: Decide> {
+    /// The variable the `⊔` read it through.
+    pub read: crate::VarId,
+    /// Its bodies where the `⊔` read them: one, or until patterns are
+    /// index variables a pattern's family.
     pub bodies: Vec<Arc<Body<T>>>,
     /// Whether it is a family, whatever its count.
     pub family: bool,
-    /// The parts it delivers ([`NodeValue::parts`]): what a reader of
-    /// this one copy reads, not its placement's sum.
+    /// The parts it delivers ([`NodeValue::parts`]).
     pub parts: usize,
-    /// Its names, indexing `bodies` by position.
+    /// Its names, indexing `bodies` by position: the member's own.
     pub table: Arc<crate::names::NameTable>,
-    /// **The motion a reader moves `bodies` by**: an instance's copy
-    /// holds its part's bodies where the part put them, and is placed
-    /// when a reader reads that one copy, so an instance that nothing
-    /// reads copy by copy places its part once. `None` for bodies that
-    /// stand where they are read, and for a copy the identity bundle
-    /// places.
+    /// Its own contact records, keyed in `bodies[0]`'s arena: what the
+    /// census at the `⊔`'s door carries for it.
+    pub contacts: Arc<topo::ContactRecords>,
+    /// The mate bookkeeping those records travel with.
+    pub carried: Arc<crate::assembly::CarriedFindings>,
+    /// The pieces it holds in turn: a member that is itself a `⊔`, or a
+    /// copy of one.
+    pub pieces: Option<Arc<Pieces<T>>>,
+    /// The census of the door that assembled those pieces, as the
+    /// member's value carries it ([`NodeValue::census`]).
+    pub census: Option<Arc<crate::product::Census<T>>>,
+    /// Whether a door already decided the meetings inside it
+    /// ([`NodeValue::censused`]).
+    pub censused: bool,
+    /// **The motion a reader moves `bodies` by**: a copy holds its
+    /// source's pieces where the source put them, placed when a pick
+    /// reads one. `None` for pieces that stand where they are read.
     pub motion: Option<geom_core::RigidMotion<T>>,
 }
 
-impl<T: Decide> Copies<T> {
-    /// The copy keyed `key`, if any.
+impl<T: Decide> Pieces<T> {
+    /// The one piece read through `read`; `None` where no piece is, and
+    /// where two are (a `⊔` reading one body twice), which a read
+    /// cannot tell apart.
     #[must_use]
-    pub fn member(&self, key: &crate::CopyKey) -> Option<&KeyedCopy<T>> {
-        self.members.iter().find(|m| &m.key == key)
+    pub fn piece(&self, read: crate::VarId) -> Option<&Piece<T>> {
+        let mut held = self.pieces.iter().filter(|p| p.read == read);
+        let one = held.next()?;
+        held.next().is_none().then_some(one)
     }
 }
 
@@ -1641,20 +1662,6 @@ pub enum NodeErrorKind {
         /// The empty input node.
         input: RecipeNodeId,
     },
-    /// A body operand is a PRODUCT — several parts a document gathered
-    /// ([`NodeValue::parts`]; `crates/editor-core/ASSEMBLY.md`, A2) —
-    /// which no op that fuses or reshapes one body accepts
-    /// (`docs/DESIGN.md`, "A solid is one piece of material"): which
-    /// solids are one part is recipe structure, and an explicit union is
-    /// what makes the parts one body. The placers carry a product
-    /// through instead, and a reader of geometry (a pose read off a face)
-    /// consumes no material and reads it as it is.
-    ProductOperand {
-        /// The operand node.
-        input: RecipeNodeId,
-        /// How many parts its document gathered.
-        parts: usize,
-    },
     /// A body operand is not a finished body: the at-rest gate
     /// ([`topo::AtRestPolicy::gate_at_rest_kept`], tier 3) refuses the
     /// body its input node built, so a door that takes finished bodies
@@ -1692,30 +1699,21 @@ pub enum NodeErrorKind {
         /// How many instances the value holds.
         count: usize,
     },
-    /// A read of one copy ([`crate::BodyRead::key`]) whose key names no
-    /// copy of the placement's copies: the part no longer places it, or
-    /// the key was never one of these copies. Refused, never re-pointed.
-    NoSuchCopy {
-        /// The placement whose copies were read.
-        input: RecipeNodeId,
-        /// The key as written.
-        key: Box<crate::CopyKey>,
+    /// A pick ([`crate::VarDef::Pick`]) whose path names no piece of
+    /// its copy: the source no longer holds that piece, or never did.
+    /// Unresolved, typed, never re-pointed.
+    NoSuchPiece {
+        /// The pick.
+        pick: crate::VarId,
+        /// The step of its path that names no piece.
+        at: usize,
     },
-    /// A `Place` over several shapes reading one variable twice, so two
-    /// of its copies key alike (FORK-DM4: an indexed read keys by its
-    /// family): copy the family whole, or place each member apart.
-    CopiesShareAKey {
-        /// The key both copies would carry.
-        key: Box<crate::CopyKey>,
-    },
-    /// A read of one copy at the other shape: an index into a copy that
-    /// is one body, or no index into one that is a family.
-    CopyShape {
-        /// The placement whose copies were read.
-        input: RecipeNodeId,
-        /// The key as written.
-        key: Box<crate::CopyKey>,
-        /// Whether the copy is a family.
+    /// A read of a picked piece at the other shape: an index into a
+    /// piece that is one body, or no index into one that is a family.
+    PieceShape {
+        /// The pick.
+        pick: crate::VarId,
+        /// Whether the piece is a family.
         family: bool,
     },
     /// A direction-valued vector decided to zero length. Which
@@ -2239,12 +2237,6 @@ impl crate::spoken::Say for NodeErrorKind {
                 "{} is the empty value — the body ops take real bodies",
                 by.node_as(*input, "input")
             ),
-            Self::ProductOperand { input, parts } => write!(
-                f,
-                "{} gathers {parts} parts, and this op takes one body. Recourse: union the \
-                 parts explicitly in their document and use that union",
-                by.node_as(*input, "input")
-            ),
             Self::UnfinishedOperand { input, errors } => write!(
                 f,
                 "{} shipped a body that does not finish: {}",
@@ -2262,32 +2254,24 @@ impl crate::spoken::Say for NodeErrorKind {
                 },
                 by.node(*input)
             ),
-            Self::NoSuchCopy { input, key } => write!(
+            Self::NoSuchPiece { pick, at } => write!(
                 f,
-                "{} delivers no copy keyed {key}. {}",
-                by.node(*input),
-                crate::sentence::Recourse("read a copy it delivers")
+                "the pick {pick} names no piece at step {} of its path: its copy's source holds \
+                 none there. {}",
+                at + 1,
+                crate::sentence::Recourse("pick a piece the source holds")
             ),
-            Self::CopiesShareAKey { key } => write!(
-                f,
-                "two of the placement's shapes read {key}, so two copies would be keyed alike. {}",
-                crate::sentence::Recourse(
-                    "copy the family whole, or place each member by its own placement"
-                )
-            ),
-            Self::CopyShape { input, key, family } => {
+            Self::PieceShape { pick, family } => {
                 if *family {
                     write!(
                         f,
-                        "the copy keyed {key} of {} is a family. {}",
-                        by.node(*input),
+                        "the piece {pick} picks is a family. {}",
                         crate::sentence::Recourse("read one member of it by index")
                     )
                 } else {
                     write!(
                         f,
-                        "the copy keyed {key} of {} is one body. {}",
-                        by.node(*input),
+                        "the piece {pick} picks is one body. {}",
                         crate::sentence::Recourse("read it without an index")
                     )
                 }
@@ -3910,6 +3894,12 @@ fn resolve_appearance<T: Decide>(
     let reads = appearance::Reads {
         ports: doc.output_ports(),
         feeds: doc.feeds(),
+        parted: doc
+            .appearance()
+            .keys()
+            .map(|key| key.at)
+            .filter(|&body| doc.reaches_instance(body))
+            .collect(),
     };
     appearance::resolve(doc.appearance(), order, &states, &reads)
 }
@@ -4188,6 +4178,7 @@ where
         node,
         &crate::param_source::definitions_of(doc),
         &|var| doc.selection(var),
+        &|var| doc.pick(var),
         &slot_values,
         &nominal_values,
         input.payload(),
@@ -4257,6 +4248,9 @@ where
                 cited_inputs: out.cited_inputs,
                 parts: out.parts,
                 motion: out.motion,
+                pieces: out.pieces,
+                census: out.census,
+                censused: out.censused,
                 verdicts: Arc::new(recorded.verdicts),
                 escalations,
                 witness: WitnessSlot {},
@@ -4376,11 +4370,14 @@ mod tag {
         /// Keys are process-internal and never persisted, so a bump
         /// costs one whole-memo invalidation and no migration.
         format {
-            /// v21: a mate writes its orientation, by where the copy's
+            /// v22: a mate writes its orientation, by where the copy's
             /// `x` and `z` lie, and a spin beside a mate fixing a
             /// direction is its own word (`value_coord::SPIN`), the turn
-            /// about the mated direction. v20: a mate writes no class, nor does an interface
-            /// crossing. v19: a value names no mate, and a spin's word is the
+            /// about the target's own direction. v21: a placement copies
+            /// one source, a read of one piece of a copy is a pick, keyed
+            /// by its path, and the assemble is a node. v20: a mate
+            /// writes no class, nor does an interface crossing. v19: a
+            /// value names no mate, and a spin's word is the
             /// axis it turns about; a mate's `to` is a pose read, with
             /// no target word and no world read. v18: a placement reads the space it places into, which
             /// it does not key (its copy's value is its source moved by
@@ -4410,7 +4407,7 @@ mod tag {
             /// operation. v9: an extrude writes its side. v8: a mate
             /// frame writes its arm word before its payload, and a mate
             /// writes the parts its face frames resolve against.)
-            VERSION = 21,
+            VERSION = 22,
         }
         /// The first word of every naming key: the naming-key domain,
         /// which keeps a naming key's stream apart from a content key's.
@@ -4483,14 +4480,12 @@ mod tag {
         index {
             READS = 1,
         }
-        /// The word before a node's keyed reads ([`crate::BodyRead::key`]),
-        /// written only by a node holding one; then each keyed read's
-        /// place among the node's body seats and its key, segment by
-        /// segment: a part's placement, then the read that ends it.
-        copy_key {
+        /// The word before a node's picked reads ([`crate::VarDef::Pick`]),
+        /// written only by a node holding one; then each picked read's
+        /// place among the node's body seats, its path's length and the
+        /// path, step by step.
+        pick {
             READS = 1,
-            PART = 2,
-            READ = 3,
         }
         /// What a constraint states: a mate or a value
         /// ([`crate::mate::ConstraintKind`]).
@@ -4781,6 +4776,7 @@ fn content_key<'d, T>(
     node: &crate::node::Node<ProfileProgram>,
     defs: crate::param_source::Definitions<'_, '_>,
     selections: &dyn Fn(crate::VarId) -> Option<&'d crate::var::Select>,
+    picks: &dyn Fn(crate::VarId) -> Option<&'d crate::var::Pick>,
     slot_values: &slots::SlotValues<T>,
     nominal_values: &slots::SlotValues<f64>,
     payload_values: Option<&Payload<T>>,
@@ -4903,6 +4899,9 @@ where
         Node::Space => 42,
         // A fresh word: a mirror and its source are different bodies.
         Node::Mirror { .. } => 43,
+        // A fresh word: the assemble keeps its members apart, so it
+        // and a union of the same members are different bodies.
+        Node::Assemble { .. } => 44,
     };
     // NODE-KIND-VOCABULARY END
     h.write_tag(kind);
@@ -5114,20 +5113,16 @@ where
                 feed_stable_name(&mut h, inner);
             }
         }
-        // A placement's shapes are input edges; their count and its
-        // bundle feed here.
+        // A placement's source is an input edge; its bundle feeds here.
         Node::Place {
-            shapes,
+            source: _,
             target: _,
             constraints,
-        } => {
-            h.write_u64(shapes.len() as u64);
-            feed_bundle(&mut h, defs, constraints);
-        }
+        } => feed_bundle(&mut h, defs, constraints),
         Node::World | Node::Space => {}
         // The operands and the members are input edges.
         Node::Subtract { from: _, tool: _ } => {}
-        Node::Union { members } | Node::Intersect { members } => {
+        Node::Union { members } | Node::Intersect { members } | Node::Assemble { members } => {
             h.write_tag(match members {
                 crate::Bodies::Family(_) => tag::bodies::FAMILY,
                 crate::Bodies::Spelled(_) => tag::bodies::SPELLED,
@@ -5343,30 +5338,20 @@ where
             h.write_u64(rank as u64);
         }
     }
-    let keyed: Vec<(usize, &crate::CopyKey)> = node
+    let picked: Vec<(usize, &crate::var::Pick)> = node
         .body_reads()
         .into_iter()
         .enumerate()
-        .filter_map(|(place, (_, read))| read.key.as_ref().map(|key| (place, key)))
+        .filter_map(|(place, (_, read))| picks(read.read).map(|pick| (place, pick)))
         .collect();
-    if !keyed.is_empty() {
-        h.write_tag(tag::copy_key::READS);
-        h.write_u64(keyed.len() as u64);
-        for (place, mut key) in keyed {
+    if !picked.is_empty() {
+        h.write_tag(tag::pick::READS);
+        h.write_u64(picked.len() as u64);
+        for (place, pick) in picked {
             h.write_u64(place as u64);
-            loop {
-                match key {
-                    crate::CopyKey::Part { placement, within } => {
-                        h.write_tag(tag::copy_key::PART);
-                        h.write_id(placement.0);
-                        key = within;
-                    }
-                    crate::CopyKey::Read(var) => {
-                        h.write_tag(tag::copy_key::READ);
-                        h.write_id(var.0);
-                        break;
-                    }
-                }
+            h.write_u64(pick.of.len() as u64);
+            for step in &pick.of {
+                h.write_id(step.0);
             }
         }
     }
@@ -6127,8 +6112,8 @@ fn seg_content_tag(tag: SegTag) -> u8 {
         S::Rim => 43,
         S::HoleRim => 44,
         S::Instance => 26,
-        S::InPart => 40,
-        S::Placed => 51,
+        // 40 was a part's entity qualifier's and 51 a placed copy's,
+        // retired with them: a copy's names are its source's.
     }
 }
 
@@ -6333,9 +6318,6 @@ fn feed_role_seg<'a>(h: &mut SegFeed<'a>, seg: &'a crate::names::RoleSeg) {
             feed_sense(h, sense);
         }
         RoleSeg::OnToolVertex { of } => {
-            h.name(of);
-        }
-        RoleSeg::InPart { of } | RoleSeg::Placed { of } => {
             h.name(of);
         }
         RoleSeg::Instance { i, of } => {

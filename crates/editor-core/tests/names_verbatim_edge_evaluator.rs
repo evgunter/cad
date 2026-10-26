@@ -16,15 +16,18 @@
 //! |------------------|------------------------------------------|
 //! | `Some(Selected)` | at least one row, and every row foreign  |
 //! | `Some(Intact)`   | at least one foreign and one own row     |
+//! | `Some(Copied)`   | at least one foreign row                 |
 //! | `None`           | no foreign row                           |
 //!
 //! A part mints nothing, so one own row there is a partial re-mint
 //! the walks would carry a name across wrongly. A split publishes its intact entities under their original minters and its
-//! cut faces under its own id, so it carries both.
+//! cut faces under its own id, so it carries both. A copy (a placement's,
+//! or an instance's of its part's product) carries its source's names
+//! and, where it is one body, its own body row.
 //!
 //! **Why the head.** An op that re-mints by WRAPPING a foreign name
-//! inside a role argument (a blend's `FromTarget`, an instance's
-//! `InPart`, a boolean's operand segments) heads the wrapped row
+//! inside a role argument (a blend's `FromTarget`, a boolean's
+//! operand segments) heads the wrapped row
 //! itself, so only the head is compared: a walk into role arguments
 //! would read those ops as pass-throughs.
 //!
@@ -84,6 +87,7 @@ test_utils::f6_variants! {
         Intersect,
         Subtract,
         Union,
+        Assemble,
         Place,
         World,
         Space,
@@ -125,9 +129,9 @@ fn block(label: &str) -> (ProfileDoc, RecipeNodeId) {
 /// **Two instanced blocks, one seated on the other by a mate** — the
 /// assembly kind the Band 4 corpus does not author (`InstantiatePart`,
 /// with a constraint in its bundle).
-/// An instance's rows wrap its part's names in `InPart` under the
-/// instance's own head, which is the shape the head comparison exists
-/// to read correctly.
+/// An instance's rows carry its part's names as they are, read at the
+/// instance, which is the shape the head comparison exists to read
+/// correctly.
 fn stacked_blocks() -> (ProfileDoc, EvalOptions) {
     let mut store = PartStore::new();
     let (base, base_body) = store.insert_part(block("vedge-base"), Tol::witness());
@@ -141,8 +145,8 @@ fn stacked_blocks() -> (ProfileDoc, EvalOptions) {
     let (doc, _) = fixture::constrain_with(
         doc,
         fixture::rest(
-            fixture::head(in_part(top, top_body, CapEnd::Start)),
-            fixture::head(in_part(base, base_body, CapEnd::End)),
+            fixture::head_at(top, in_part(top, top_body, CapEnd::Start)),
+            fixture::head_at(base, in_part(base, base_body, CapEnd::End)),
         ),
         &[
             (Coord::Slide(TargetAxis::X), len(0.0)),
@@ -225,6 +229,7 @@ fn disagreement(s: &Sample) -> Option<String> {
     let (foreign, own) = (s.foreign.is_some(), s.own.is_some());
     let wanted = match s.edge {
         Some(VerbatimKind::Selected) if !foreign || own => "every row headed by another node",
+        Some(VerbatimKind::Copied) if !foreign => "rows headed by another node",
         Some(VerbatimKind::Intact) if !foreign || !own => {
             "rows headed by another node AND rows headed by itself"
         }

@@ -151,9 +151,8 @@ const UNMARKED_RECOURSE: &[&str] = &[
 /// Place …". The longest full name, in `nested_islands_106_depth2`, is
 /// a piece of a lateral edge between two crossings, whose ends say the
 /// edge again: each extra placement read is said three times over in
-/// it. Filed as `name-words-budget-grew-under-placed-copy-wrapping`;
-/// retiring `RoleSeg::Placed` and `InPart` in D′ is expected to bring
-/// them back, and D′ re-tightens this pin.
+/// it. Filed as `name-words-budget-grew-under-placed-copy-wrapping`,
+/// which D′3 closed (below).
 ///
 /// The full total rose by 11 970 and its p99 by seven, and the scoped
 /// total by 200, with a seam's sides and a crossing's edge and face named
@@ -170,6 +169,14 @@ const UNMARKED_RECOURSE: &[&str] = &[
 /// name says it at each of its ends; the growth is the same placed-copy
 /// wrapping `name-words-budget-grew-under-placed-copy-wrapping` files.
 ///
+/// D′3 retired that wrapping, so no name spells a placement: a copy
+/// carries its source's names as they are, so full p99 135 → 122, max
+/// 396 → 196 (main's before D's wrapping), total 461129 → 342994, and
+/// scoped total 60241 → 46933. Scoped p99 grew 43 → 45: a product that
+/// reads a `⊔` keys each copy's faces by the read they came through
+/// (`From { read }`), so a face scoped to the product says that read,
+/// where the gather's table said the copy's wrapped name.
+///
 /// A pair boolean's `Borders` wall came to cite its parent as the
 /// boolean's own table names it, the `From` it came in through: each
 /// wall of `crossing_slots`' pieces now says its read ("… through
@@ -181,9 +188,18 @@ const UNMARKED_RECOURSE: &[&str] = &[
 /// says the things it enters along ("…, entering along …, crosses …").
 /// Full p99 135 → 137, total 461339 → 461547; scoped faces held. No
 /// outcome moved.
+///
+/// 461129 → 461339. No outcome moved. Main's merge into D′3 at
+/// `1235f4c050` (these walls and stage 4 I) moves D′3's scoped total
+/// 46933 → 47003 and full total 342994 → 343104; the percentiles held.
+///
+/// Measured again for D′3 over main's merge at `4c341b9225`, which
+/// brings the run line's bare sense (above) beneath D′3's names: full
+/// total 343104 → 343208, the percentiles and scoped faces held. No
+/// outcome moved.
 const NAME_WORDS: [(&str, [usize; 4]); 2] = [
-    ("scoped faces", [16, 45, 57, 60_371]),
-    ("full", [19, 137, 396, 461_547]),
+    ("scoped faces", [16, 45, 57, 47_003]),
+    ("full", [19, 122, 196, 343_208]),
 ];
 
 /// **A digest of every word the corpus's names say** — each name a
@@ -341,6 +357,10 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// seam face plainly, so its node tags moved too; the words that moved
 /// are the node tags.
 ///
+/// Re-pinned for D′3: no name says a placement layer, a
+/// product's names say the `⊔` read they came through, and node tags
+/// moved with the ids.
+///
 /// Re-pinned with [`NAME_WORDS`] when a pair boolean's `Borders` walls
 /// came to say the read each came in through: the words that moved are
 /// those walls'.
@@ -349,7 +369,12 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// never chosen: the words that moved are the senses of a union's seams
 /// in a run and of lines of several things, which say what they enter
 /// along.
-const SAID_DIGEST: u64 = 0x080b_5d60_49fc_4463;
+///
+/// Measured again for D′3 over main's merge at `1235f4c050`, with the
+/// `Borders` walls' reads under D′3's names.
+///
+/// Measured again with [`NAME_WORDS`] over main's merge at `4c341b9225`.
+const SAID_DIGEST: u64 = 0x96f4_fccc_7bb3_0d9e;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a
@@ -1190,6 +1215,15 @@ fn two_copies_of_one_body_read_apart_where_a_sentence_names_both() {
     );
 }
 
+/// How many faces `node`'s table names that `node` itself heads.
+fn own_faces(ev: &editor_core::Evaluation<f64>, node: editor_core::RecipeNodeId) -> usize {
+    ev.table_at(node).map_or(0, |t| {
+        t.iter()
+            .filter(|(name, _)| name.node == node && name.kind == EntityKind::Face)
+            .count()
+    })
+}
+
 /// **A failed row said within the largest corpus table costs no search
 /// again**: the tree says a failed node's row every frame, and the
 /// detail each name is said at is worked out once per table. Measured
@@ -1209,10 +1243,12 @@ fn a_failed_row_said_within_the_largest_table_is_cheap_again() {
                 .iter()
                 .copied()
                 .filter(|&id| ev.value(id).is_some())
-                .max_by_key(|&id| ev.table_at(id).map_or(0, |t| t.iter().count()))?;
+                .max_by_key(|&id| own_faces(&ev, id))?;
             Some((doc, ev, node))
         })
-        .max_by_key(|(_, ev, node)| ev.table_at(*node).map_or(0, |t| t.iter().count()))
+        // The largest table of faces a node names itself: a copy's
+        // table is its source's names (D′3), which it does not head.
+        .max_by_key(|(_, ev, node)| own_faces(ev, *node))
         .expect("the corpus evaluates");
     let faces: Vec<StableName> = ev
         .table_at(node)

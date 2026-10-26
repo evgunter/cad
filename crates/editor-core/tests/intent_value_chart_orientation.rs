@@ -86,10 +86,10 @@ fn hung_doc(tilt: f64, about: TargetAxis, orient: Orientation) -> (ProfileDoc, R
     );
     let (doc, placement) = insert(
         doc,
-        fixture::stood(vec![editor_core::BodyRead::plain(Operand::from(boss))]),
+        fixture::stood(editor_core::BodyRead::plain(Operand::from(boss))),
     );
     let top = fixture::fname(boss, RoleSeg::Cap(CapEnd::End));
-    let mut mate = fixture::rest(head(top), head_at(b, bottom.in_copy(b)));
+    let mut mate = fixture::rest(head(top), head_at(b, bottom));
     mate.orient = orient;
     let placed = Placed {
         mates: vec![mate],
@@ -223,7 +223,7 @@ fn a_floor_swept_through_a_quarter_turn_moves_its_copy_continuously() {
         );
         let (doc, placement) = insert(
             doc,
-            fixture::stood(vec![editor_core::BodyRead::plain(Operand::from(body))]),
+            fixture::stood(editor_core::BodyRead::plain(Operand::from(body))),
         );
         let bottom = fixture::fname(body, RoleSeg::Cap(CapEnd::Start));
         let mate = fixture::mate(fixture::plane(head(bottom)), fixture::flip(floor));
@@ -282,7 +282,7 @@ fn a_rest_spins_the_same_way_whichever_side_carries_its_flip() {
         let (doc, floor, _) = fixture::floor(doc, Vec::new());
         let (doc, placement) = insert(
             doc,
-            fixture::stood(vec![editor_core::BodyRead::plain(Operand::from(body))]),
+            fixture::stood(editor_core::BodyRead::plain(Operand::from(body))),
         );
         let bottom = fixture::plane(head(fixture::fname(body, RoleSeg::Cap(CapEnd::Start))));
         let mate = if copy_side {

@@ -34,7 +34,6 @@ fn vertices(doc: &ProfileDoc, node: RecipeNodeId) -> Vec<[f64; 3]> {
     let body = match &value.payload {
         ValuePayload::Body(b) => b.clone(),
         ValuePayload::Boolean(editor_core::BooleanValue::Body { body, .. }) => body.clone(),
-        ValuePayload::Copies(copies) if copies.bodies.len() == 1 => copies.bodies[0].clone(),
         other => panic!("{node} is a body: {other:?}"),
     };
     let mut points: Vec<[f64; 3]> = body
@@ -76,7 +75,7 @@ fn placed(
     values: Vec<(Coord, Formula)>,
 ) -> (ProfileDoc, RecipeNodeId) {
     let read = fixture::body_read(&doc, body.into());
-    let (doc, placement) = insert(doc, crate::fixture::stood(vec![BodyRead::plain(read)]));
+    let (doc, placement) = insert(doc, crate::fixture::stood(BodyRead::plain(read)));
     (
         fixture::with_values(doc, placement, mate, values),
         placement,
@@ -121,7 +120,7 @@ fn floor(
 ) -> (ProfileDoc, RecipeNodeId) {
     let (doc, at) = insert(
         doc,
-        crate::fixture::stood(vec![BodyRead::plain(Operand::from(box_))]),
+        crate::fixture::stood(BodyRead::plain(Operand::from(box_))),
     );
     let placed = editor_core::Placed::of(&doc, Vec::new(), values);
     (fixture::written(doc, at, placed), at)
@@ -204,7 +203,7 @@ fn every_copy_stands_by_the_identity_bundle() {
             "{body}: each the constant zero: {:?}",
             stood.values
         );
-        let (next, placement) = insert(doc, crate::fixture::stood(vec![BodyRead::plain(read)]));
+        let (next, placement) = insert(doc, crate::fixture::stood(BodyRead::plain(read)));
         doc = fixture::written(next, placement, stood);
         assert_eq!(
             vertices(&doc, placement),
@@ -237,7 +236,7 @@ fn unmated(values: Vec<(Coord, Formula)>) -> (ProfileDoc, RecipeNodeId, RecipeNo
     let (doc, b) = unit_box(doc);
     let (doc, placement) = insert(
         doc,
-        crate::fixture::stood(vec![BodyRead::plain(Operand::from(b))]),
+        crate::fixture::stood(BodyRead::plain(Operand::from(b))),
     );
     let applied = doc
         .apply(&unmated_whole(placement, values), Tol::witness())
@@ -357,11 +356,11 @@ fn the_door_admits_a_bundle_with_no_mate_only_whole() {
     let (doc, b) = unit_box(doc);
     let (doc, base) = insert(
         doc,
-        crate::fixture::stood(vec![BodyRead::plain(Operand::from(b))]),
+        crate::fixture::stood(BodyRead::plain(Operand::from(b))),
     );
     let (doc, p) = insert(
         doc,
-        crate::fixture::stood(vec![BodyRead::plain(Operand::from(b))]),
+        crate::fixture::stood(BodyRead::plain(Operand::from(b))),
     );
     let tol = Tol::witness();
     let one = unmated_whole(p, vec![(Coord::Slide(X), len(1.0))]);
@@ -410,7 +409,7 @@ fn the_door_admits_a_bundle_with_no_mate_only_whole() {
     // the world: a plane fixes the tilts and the lift, so the chain's
     // tilt and the slide along z go, and the in-plane slides and the
     // first spin about z stay, now on the plane's chart.
-    let top = fixture::fname(b, editor_core::RoleSeg::Cap(editor_core::CapEnd::End)).in_copy(base);
+    let top = fixture::fname(b, editor_core::RoleSeg::Cap(editor_core::CapEnd::End));
     let mate = Mate {
         on: start_cap(b),
         to: fixture::plane(Operand::select(Operand::output(base, 0), vec![top])),
@@ -744,7 +743,6 @@ fn vertex_bounds<T: editor_core::EvalScalar>(
     };
     let body = match &value.payload {
         ValuePayload::Body(b) => b.clone(),
-        ValuePayload::Copies(copies) if copies.bodies.len() == 1 => copies.bodies[0].clone(),
         other => panic!("{node} is a body: {other:?}"),
     };
     let mut points: Vec<[(f64, f64); 3]> = body
@@ -810,7 +808,7 @@ fn a_block_placed_upright_by_a_written_quarter_turn_stands_on_the_worlds_planes(
     unmated.push((Coord::Spin(Some(Z)), zero(editor_core::Dimension::Angle)));
     let (by_values, p_values) = insert(
         doc.clone(),
-        crate::fixture::stood(vec![BodyRead::plain(Operand::from(b))]),
+        crate::fixture::stood(BodyRead::plain(Operand::from(b))),
     );
     let by_values = by_values
         .apply(&unmated_whole(p_values, unmated), Tol::witness())
@@ -862,13 +860,10 @@ fn a_block_placed_upright_by_a_written_quarter_turn_stands_on_the_worlds_planes(
     );
     let line = fixture::axis(Operand::select(
         Operand::output(post, 0),
-        vec![
-            fixture::ename(
-                b,
-                editor_core::RoleSeg::LateralEdge(fixture::vpiece(&doc, b, 0, 0)),
-            )
-            .in_copy(post),
-        ],
+        vec![fixture::ename(
+            b,
+            editor_core::RoleSeg::LateralEdge(fixture::vpiece(&doc, b, 0, 0)),
+        )],
     ));
     let (by_axis, p_axis) = placed(
         lined,
@@ -926,7 +921,6 @@ fn read_copy<T: editor_core::EvalScalar>(
     };
     let bodies = match &value.payload {
         ValuePayload::Body(b) => std::slice::from_ref(b),
-        ValuePayload::Copies(copies) => copies.bodies.as_slice(),
         other => panic!("{node} is a placement: {other:?}"),
     };
     let mut points: Vec<[(f64, f64); 3]> = bodies
@@ -1060,7 +1054,7 @@ fn a_retyped_form_moves_the_key_and_the_memo_serves_the_fresh_run() {
     values.push((Coord::Spin(Some(Z)), zero(editor_core::Dimension::Angle)));
     let (before, p) = insert(
         doc.clone(),
-        crate::fixture::stood(vec![BodyRead::plain(Operand::from(b))]),
+        crate::fixture::stood(BodyRead::plain(Operand::from(b))),
     );
     let before = before
         .apply(&unmated_whole(p, values), Tol::witness())
@@ -1147,10 +1141,7 @@ fn a_retyped_form_moves_the_key_and_the_memo_serves_the_fresh_run() {
     // it apart).
     let read = fixture::body_read(&doc, b.into());
     let stood = editor_core::stand();
-    let (next, p) = insert(
-        doc.clone(),
-        crate::fixture::stood(vec![BodyRead::plain(read)]),
-    );
+    let (next, p) = insert(doc.clone(), crate::fixture::stood(BodyRead::plain(read)));
     let before = fixture::written(next, p, stood);
     let slot = value_slot(&before, p, Coord::Spin(Some(Z)));
     let after = retyped(&before, p, slot, SlotValue::Formula(ang(0.0)));

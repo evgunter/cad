@@ -325,8 +325,8 @@ def die_tool_document():
         Node.subtract(cube, tool)
     )
     # The pipped die is the product: placed once, last, as the corpus
-    # document places it.
-    doc.place(pipped, doc.world)
+    # document places it, and its copy the slot reads.
+    doc.set_product(doc.place(pipped, doc.world))
     return doc, master, tool, pipped
 
 

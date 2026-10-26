@@ -1227,10 +1227,7 @@ pub(crate) fn on_reads_the_copy<P>(
 ) -> bool {
     let reached = doc.read_ports(on);
     let copied: Vec<RecipeNodeId> = match doc.node(placement) {
-        Some(Node::Place { shapes, .. }) => shapes
-            .iter()
-            .filter_map(|shape| doc.operation_of(shape.read))
-            .collect(),
+        Some(Node::Place { source, .. }) => doc.operation_of(source.read).into_iter().collect(),
         Some(Node::InstantiatePart { .. }) => vec![placement],
         _ => return false,
     };

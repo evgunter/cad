@@ -148,15 +148,9 @@ fn at_rest() -> Vec<(editor_core::Coord, Formula)> {
 }
 
 /// The plane of `body`'s `end` cap, read at `site` (the body itself, or
-/// a placement of it, whose copy wears the cap's name under its
-/// `Placed` layer).
+/// a placement of it, whose copy carries the cap's name as it is).
 fn cap_plane(site: RecipeNodeId, body: RecipeNodeId, end: CapEnd) -> editor_core::Operand {
     let name = fixture::fname(body, RoleSeg::Cap(end));
-    let name = if site == body {
-        name
-    } else {
-        crate::m10_5_clearance_interval::in_placement(site, name)
-    };
     fixture::plane(editor_core::Operand::select(site, vec![name]))
 }
 
@@ -169,9 +163,9 @@ fn seated_as(
     to: editor_core::Operand,
     orient: editor_core::Orientation,
 ) -> RecipeNodeId {
-    let placement = r.insert(crate::fixture::stood(vec![editor_core::BodyRead::plain(
+    let placement = r.insert(crate::fixture::stood(editor_core::BodyRead::plain(
         editor_core::Operand::from(body),
-    )]));
+    )));
     r.constrain(
         placement,
         editor_core::Mate {

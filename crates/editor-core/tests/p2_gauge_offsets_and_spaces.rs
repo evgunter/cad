@@ -17,8 +17,7 @@ use crate::p2_gauges::{body_of, pinned, seat, seat_on, set_pin};
 
 use editor_core::{
     CapEnd, Dimension, DocEdit, DocRef, DocumentId, EvalOptions, Evaluation, Formula, Frame,
-    FreeValue, FreeVar, Node, NodeErrorKind, ProfileDoc, RecipeNodeId, StableName, VarName,
-    evaluate,
+    FreeValue, FreeVar, Node, NodeErrorKind, ProfileDoc, RecipeNodeId, VarName, evaluate,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{ang, head, insert, len, on_frame, run, solve, step};
@@ -77,13 +76,13 @@ impl Parts {
     fn opts(&self) -> EvalOptions {
         with_resolver(self.store.clone())
     }
-    fn base_cap(&self, base: RecipeNodeId) -> StableName {
+    fn base_cap(&self, base: RecipeNodeId) -> crate::fixture::resolver::PartName {
         in_part(base, self.base_body, CapEnd::End)
     }
-    fn top_cap(&self, top: RecipeNodeId) -> StableName {
+    fn top_cap(&self, top: RecipeNodeId) -> crate::fixture::resolver::PartName {
         in_part(top, self.top_body, CapEnd::Start)
     }
-    fn top_upper_cap(&self, top: RecipeNodeId) -> StableName {
+    fn top_upper_cap(&self, top: RecipeNodeId) -> crate::fixture::resolver::PartName {
         in_part(top, self.top_body, CapEnd::End)
     }
 }
@@ -464,8 +463,8 @@ fn a_measure_reused_across_a_pin_removal_refuses_across_spaces() {
     let (doc, top) = pinned(doc, p.top, Frame::translation([0.0, 0.0, 1.0]), &o);
     let measure = Node::Measure {
         primitive: editor_core::MeasurePrimitive::Distance {
-            a: editor_core::SitedRef::at_mint(p.base_cap(base)).into(),
-            b: editor_core::SitedRef::at_mint(p.top_cap(top)).into(),
+            a: crate::fixture::sited_ref(p.base_cap(base)).into(),
+            b: crate::fixture::sited_ref(p.top_cap(top)).into(),
         },
     };
     let (doc, m) = insert(doc, measure);
@@ -620,9 +619,7 @@ fn a_document_of_copies_in_another_space_has_an_empty_world() {
     let (doc, space) = fixture::into_new_space(doc, x);
     let ev = run(&doc, &o);
     match editor_core::product(&doc, &ev, Tol::witness()) {
-        Err(editor_core::ProductError::EmptyProduct { unplaced, .. }) => {
-            assert!(unplaced.is_empty(), "{unplaced:?}");
-        }
+        Err(editor_core::ProductError::EmptyProduct) => {}
         other => panic!("the world gather refuses empty: {other:?}"),
     }
     let said = editor_core::product(&doc, &ev, Tol::witness())
@@ -632,7 +629,7 @@ fn a_document_of_copies_in_another_space_has_an_empty_world() {
     assert!(said.contains("Recourse:"), "{said}");
     match editor_core::assemble(&doc, &ev, Tol::witness()) {
         Err(editor_core::AssemblyError::Product(e)) => assert!(
-            matches!(*e, editor_core::ProductError::EmptyProduct { .. }),
+            matches!(*e, editor_core::ProductError::EmptyProduct),
             "{e:?}"
         ),
         other => panic!("the gate raises the world's refusal: {other:?}"),
@@ -649,6 +646,8 @@ fn a_document_of_copies_in_another_space_has_an_empty_world() {
     for id in [a, b] {
         assert!(ev.value(id).is_some(), "{:?}", ev.node_error(id));
     }
+    // The space's copies, assembled in it.
+    let (doc, group) = assembled_in_space(doc, &[x, a, b]);
     // With pinned material far off in the world, the world gathers that
     // alone, and the gate over it certifies.
     let (doc, _) = pinned(doc, p.base, Frame::translation([100.0, 0.0, 0.0]), &o);
@@ -657,9 +656,9 @@ fn a_document_of_copies_in_another_space_has_an_empty_world() {
         editor_core::product_recorded(&doc, &ev, Tol::witness()).expect("the world gathers");
     assert_eq!(product.solid_copies.len(), 1, "the world's copy alone");
     assert_eq!(
-        product.spaces.iter().map(|g| g.space).collect::<Vec<_>>(),
-        vec![space],
-        "the other space is gathered by itself"
+        product.assembles.iter().map(|g| g.var).collect::<Vec<_>>(),
+        vec![doc.output(group, 0).expect("the `⊔`'s body")],
+        "the other space's `⊔` is gathered by itself"
     );
     let assembly = editor_core::assemble_gathered(product, Tol::witness())
         .unwrap_or_else(|e| panic!("an overlap is a finding: {e}"));
@@ -810,6 +809,7 @@ fn an_inline_at_a_turned_pose_over_two_pinned_instances_moves_nothing() {
     let (sub, _) = fixture::insert_pinned(sub, crate::fixture::mated_instance(p.base), &po);
     let (sub, _) = pinned(sub, p.base, Frame::translation([10.0, 0.0, 0.0]), &po);
     let mut store = p.store.clone();
+    let sub = crate::fixture::assemble_world_copies(sub);
     let sub_ref = store.insert(sub, Tol::witness());
     let o = with_resolver(store.clone());
     let pose = Frame::rotate_then_translate([0.0, 0.0, 1.0], 0.3, [2.0, 5.0, 0.0], band()).unwrap();
@@ -879,8 +879,14 @@ fn two_instances_pinned_to_the_world_are_one_component_with_no_mate() {
     let of = |components: &[Vec<RecipeNodeId>], id| {
         components.iter().position(|comp| comp.contains(&id))
     };
+    // The product's `⊔` reads both world copies, and joins their
+    // component.
+    let product = doc
+        .product()
+        .and_then(|var| doc.operation_of(var))
+        .expect("the world's product is a `⊔`");
     assert!(
-        components.iter().any(|comp| comp == &vec![a, b]),
+        components.iter().any(|comp| comp == &vec![a, b, product]),
         "one world, one component: {components:?}"
     );
     assert!(
@@ -920,6 +926,7 @@ fn a_touch_between_copies_in_a_new_space_reaches_the_coincidence_check() {
     let (doc, b) = insert(doc, fixture::mated_instance(p.top));
     let (doc, _) = seat_on(doc, a, head(p.top_cap(a)), head(p.base_cap(x)), [0.5, 1.0]);
     let (doc, _) = seat_on(doc, b, head(p.top_cap(b)), head(p.base_cap(x)), [1.5, 1.0]);
+    let (doc, _) = assembled_in_space(doc, &[x, a, b]);
     // Pinned material far off, so the world gathers and the check runs.
     let (doc, _) = pinned(doc, p.base, Frame::translation([100.0, 0.0, 0.0]), &o);
     for id in [x, a, b] {
@@ -933,10 +940,10 @@ fn a_touch_between_copies_in_a_new_space_reaches_the_coincidence_check() {
         "{:?}",
         product.coincidences
     );
-    let [gathered] = product.spaces.as_slice() else {
-        panic!("one space beside the world: {:?}", product.spaces.len())
+    let [gathered] = product.assembles.as_slice() else {
+        panic!("one space beside the world: {:?}", product.assembles.len())
     };
-    assert_eq!(gathered.space, space);
+    assert_eq!(doc.space_of(gathered.var), Some(space));
     let copies = gathered
         .gather
         .as_ref()
@@ -975,29 +982,51 @@ fn a_touch_between_copies_in_a_new_space_reaches_the_coincidence_check() {
     );
 }
 
-/// **The at-rest gate checks each `new_space()` whatever the world
-/// holds** (D10, Spaces): two tops seated at one spot on a base standing
-/// in a `new_space()` interpenetrate there, and the gate reports their
-/// overlap as a loud interference finding though the world beside them
-/// certifies; with the world emptied the space is still checked before
-/// the gather's `EmptyProduct`, which names where the copies went.
+/// **The `⊔` of `copies`, in their space** (D10 `[operations]`): the
+/// space's assembly, whose census the gate runs whatever the world
+/// holds. Answers the document, the world's product written again over
+/// what the world still holds, and the `⊔`.
+fn assembled_in_space(doc: ProfileDoc, copies: &[RecipeNodeId]) -> (ProfileDoc, RecipeNodeId) {
+    let doc = fixture::assemble_world_copies(doc);
+    let members = copies
+        .iter()
+        .map(|&copy| {
+            editor_core::BodyRead::plain(editor_core::Operand::Var(
+                doc.output(copy, 0).expect("a copy"),
+            ))
+        })
+        .collect();
+    insert(
+        doc,
+        Node::Assemble {
+            members: editor_core::Bodies::Spelled(members),
+        },
+    )
+}
+
+/// **The at-rest gate checks each `⊔` whatever the world holds** (D10,
+/// `[operations]`): two tops seated at one spot on a base standing in a
+/// `new_space()`, assembled there, interpenetrate, and the gate reports
+/// their overlap as a loud interference finding though the world beside
+/// them certifies; with the world empty the `⊔` is still checked before
+/// the gather's `EmptyProduct`.
 #[test]
 fn the_gate_checks_each_new_space_whatever_the_world_holds() {
     let p = crate::p2_gauges::parts("r2-space-gate");
     let o = p.opts();
     let doc = ProfileDoc::empty(DocumentId::derive("r2-space-gate"), Tol::witness());
     let (doc, x) = insert(doc, fixture::mated_instance(p.base));
-    let (doc, space) = fixture::into_new_space(doc, x);
+    let (doc, _space) = fixture::into_new_space(doc, x);
     let (doc, a) = insert(doc, fixture::mated_instance(p.top));
     let (doc, _) = seat_on(doc, a, head(p.top_cap(a)), head(p.base_cap(x)), [0.5, 1.0]);
+    let (doc, group) = assembled_in_space(doc, &[x, a]);
     // The space alone, nothing in the world: the gather names where the
     // copies went, and the space, holding no clash, is no refusal.
     let ev = run(&doc, &o);
     match editor_core::assemble(&doc, &ev, Tol::witness()) {
         Err(editor_core::AssemblyError::Product(e)) => match *e {
-            editor_core::ProductError::EmptyProduct { ref elsewhere, .. } => {
-                assert_eq!(elsewhere, &vec![(x, space), (a, space)]);
-                assert!(e.to_string().contains("placed into another space"), "{e}");
+            editor_core::ProductError::EmptyProduct => {
+                assert!(e.to_string().contains("reads nothing"), "{e}");
             }
             ref other => panic!("the gather names where the copies went: {other:?}"),
         },
@@ -1008,6 +1037,21 @@ fn the_gate_checks_each_new_space_whatever_the_world_holds() {
     // same.
     let (doc, b) = insert(doc, fixture::mated_instance(p.top));
     let (doc, _) = seat_on(doc, b, head(p.top_cap(b)), head(p.base_cap(x)), [0.5, 1.0]);
+    let members = [x, a, b]
+        .iter()
+        .map(|&copy| {
+            editor_core::BodyRead::plain(editor_core::Operand::Var(
+                doc.output(copy, 0).expect("a copy"),
+            ))
+        })
+        .collect();
+    let (doc, _) = step(
+        doc,
+        DocEdit::SetMembers {
+            node: group,
+            members: editor_core::Bodies::Spelled(members),
+        },
+    );
     let (doc, _) = pinned(doc, p.base, Frame::translation([100.0, 0.0, 0.0]), &o);
     let ev = run(&doc, &o);
     let assembly = editor_core::assemble(&doc, &ev, Tol::witness())

@@ -326,6 +326,13 @@ fn sans_epsilon(t: &str) -> String {
 /// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
 /// held unmoved.
 ///
+/// **Re-pinned for D′3** (a placement copies one source, the product is
+/// a slot): a copy carries its source's names verbatim, with no layer
+/// naming a placement, each product reads a `⊔` of its world copies, and
+/// every id drawn after one moved. Names and ids only:
+/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// holds with the `⊔` nodes set aside.
+///
 /// **Re-pinned for a pair boolean's walls** (a `Borders` wall cites its
 /// parent as the boolean's own table names it, the `From` it came in
 /// through): `crossing_slots`' name table only, its second subtract's
@@ -336,77 +343,53 @@ fn sans_epsilon(t: &str) -> String {
 /// never chosen): `corner_table`'s and `crossing_slots`' name tables
 /// only, their `EdgeCrossing` names spelling each line's sense bare.
 /// Their persisted text, and every other document, held.
+///
+/// Measured again for D′3 over main's merge at `1235f4c050`, which
+/// brings stage 4 I's id moves (`f077063267`) and the walls above
+/// beneath D′3's names and ids; the ids-masked fence held.
+///
+/// Measured again for D′3 over main's merge at `4c341b9225`, which
+/// brings the run line's bare sense (above) beneath D′3's names and ids;
+/// the ids-masked fence held.
 const PINNED: &[(&str, u64, u64)] = &[
-    ("die", 0x90ee_bc53_1859_5ce8, 0xe605_474c_e843_d439),
-    ("corner_table", 0x5651_3f86_db83_b0ec, 0x09ba_da53_48ce_287b),
-    ("heat_sink", 0xc9d6_ab7c_fe9c_dac6, 0xd9df_155d_dd34_cbe1),
-    (
-        "crossing_slots",
-        0xedd9_410c_77e6_bbcd,
-        0xe252_b89e_973e_009b,
-    ),
-    (
-        "nested_islands_105",
-        0x9d8a_cdc0_bfc3_232d,
-        0x1a0f_868e_1cf3_9e6c,
-    ),
+    ("die", 0xa9a96a98aa049f06, 0x8eba03dc9b203383),
+    ("corner_table", 0xe77d93f93c0b53ab, 0xc79f739e7787cff1),
+    ("heat_sink", 0x8fb573954b1c99f2, 0x4328cb68f5d3d5e6),
+    ("crossing_slots", 0xcd505c47edd39b05, 0xa94f7117fd2a1626),
+    ("nested_islands_105", 0xa6c11cf0e5335f60, 0x724d8aba8033f2e4),
     (
         "nested_islands_106_depth1",
-        0x3dbc_dec0_c089_79fb,
-        0xa0dd_a9c9_aeb3_55ca,
+        0xc55c6dfa20025dee,
+        0x0192106b2eee8df5,
     ),
     (
         "nested_islands_106_depth2",
-        0x11df_943b_660a_cc74,
-        0x2278_6dae_49e3_1836,
+        0xfa53a6b52e55a9ff,
+        0x38b2647fd1458fb6,
     ),
-    (
-        "declared_tangency",
-        0x0f1a_56af_1d35_9d16,
-        0xe344_9eb2_7d01_600d,
-    ),
-    ("kitchen_sink", 0xb49a_9220_1192_8096, 0x38e5_bcba_99e2_ff55),
-    ("cut_cylinder", 0x2033_5ac8_0734_c844, 0x68e5_f094_6346_24eb),
-    ("measured_web", 0x9096_6a88_b382_46bb, 0xf1e1_669b_8d3c_717a),
-    ("boss_union", 0x7661_a08e_f0f8_abde, 0x1791_76bb_6f49_0f1c),
-    ("die_fillet", 0x2571_0906_00df_286f, 0xfac5_6c71_5600_5aa8),
-    ("die_chamfer", 0x2efa_0b3d_589c_d87a, 0x724e_1784_726a_446d),
-    ("die_pips", 0x9785_0b13_e88e_1685, 0xc9b2_0f0c_10db_fae5),
-    (
-        "heat_sink_fins",
-        0xcd82_b125_1173_9a7f,
-        0x3ab6_e515_6813_9bab,
-    ),
-    ("die_tool", 0xd462_00ea_2e02_a89b, 0xdcfd_577a_9eb2_c376),
-    ("face_sketch", 0x7fea_6ada_2c4c_e560, 0x1daf_ab33_b198_71d3),
-    ("part_select", 0x3795_abab_e686_f2a5, 0x9034_8956_c219_2a74),
-    (
-        "symmetric_plate",
-        0x1ca4_3500_c37e_8201,
-        0x997f_e593_5881_90fb,
-    ),
-    ("loft_prism", 0x6054_6f73_2a16_865d, 0xdd01_9b65_b09c_11c5),
-    ("die_composed", 0x96a6_df4f_32c5_60c9, 0x51c5_eede_775a_f680),
-    (
-        "die_composed_tour",
-        0x94bc_9b66_b9fb_ff69,
-        0x52e3_9bf4_8b68_495f,
-    ),
-    ("plate_param", 0xec8d_35fc_d6e9_569e, 0x0c95_993c_7b29_c627),
-    ("kiss_carry", 0x3270_325a_ee5e_ddc0, 0x1a62_e040_c2ed_c2db),
-    ("tube_ring", 0x0cc8_7654_ef5e_03c5, 0x8735_3734_8389_4d74),
-    ("tube_arc", 0x26df_770a_4728_3036, 0x0256_f383_784a_eb85),
-    (
-        "hollow_tube_elbow",
-        0x559b_3d69_14a2_31d0,
-        0xae1d_7169_f1f2_6065,
-    ),
-    (
-        "hollow_tube_ring",
-        0xf6ef_d2d8_5fbc_40cc,
-        0x2ed2_a048_99a3_024f,
-    ),
-    ("reshaped_rod", 0x1d82_40fb_b40c_757c, 0xeabc_396a_48e0_fb93),
+    ("declared_tangency", 0x0e962063407e3b05, 0x0634581982b9dfd5),
+    ("kitchen_sink", 0xbf0b7a522104eab6, 0x125aa34601eb9f05),
+    ("cut_cylinder", 0x35a106126dc3aca0, 0xf746b3c7d6dda1f9),
+    ("measured_web", 0x92d963a0b0c04554, 0x0b7a5091987a190e),
+    ("boss_union", 0xa50ceb8146c40776, 0x477aab235f02011c),
+    ("die_fillet", 0x8ddc8e8e4cc1cc18, 0x44273f0b972dadee),
+    ("die_chamfer", 0x4d9e144d4e8be9b4, 0xed273f48cb5ca907),
+    ("die_pips", 0xa180f1b2d2ba3823, 0xb279e653c26c1e72),
+    ("heat_sink_fins", 0x9c34cfa0fb53a7b7, 0x08d941cbe7d15871),
+    ("die_tool", 0xdf24f3c1feac2b4a, 0x5a2a5c6c11411ad3),
+    ("face_sketch", 0xffb8f9e0baebb992, 0xff46a1b03296a07f),
+    ("part_select", 0x1e9dd41792e566e6, 0xececff8c053acde3),
+    ("symmetric_plate", 0x4481fd1b6f905ec1, 0xd50cfd94a5cbf8ea),
+    ("loft_prism", 0xf84090b7955f6cd0, 0x9d1660151c8302a0),
+    ("die_composed", 0x9f105c5b2326856f, 0x8603ed9435b8717a),
+    ("die_composed_tour", 0xe8c2b53943e90b8a, 0x3c53a7b6736bdcb4),
+    ("plate_param", 0x615374567a0fdd3c, 0x88812789ea6a6723),
+    ("kiss_carry", 0xdceba3460d420e96, 0xf296df439c395d5b),
+    ("tube_ring", 0x56fd2415a347d921, 0xab53801334f7ed9b),
+    ("tube_arc", 0x3bcb162e9e7923d5, 0x299b0f3445b95489),
+    ("hollow_tube_elbow", 0xdbf97cdac2df4d30, 0x88b19605f5015b9c),
+    ("hollow_tube_ring", 0xf0a59d29f0a5ef21, 0x743a5c3e6051831a),
+    ("reshaped_rod", 0xd37dd1691945dda0, 0x40e1518b88d07303),
 ];
 
 #[test]

@@ -101,9 +101,7 @@ fn translated(
     let at = editor_core::Frame::translation([0.0, 0.0, SENTINEL]);
     // With no target, the copy stands in the world by its three slides.
     let Some(target) = target else {
-        let placement = r.insert(crate::fixture::stood(vec![editor_core::BodyRead::plain(
-            body,
-        )]));
+        let placement = r.insert(crate::fixture::stood(editor_core::BodyRead::plain(body)));
         r.write(
             placement,
             editor_core::Placed::unmated(vec![
@@ -163,9 +161,7 @@ fn translated(
             _ => (coord, by),
         })
         .collect();
-    let placement = r.insert(crate::fixture::stood(vec![editor_core::BodyRead::plain(
-        body,
-    )]));
+    let placement = r.insert(crate::fixture::stood(editor_core::BodyRead::plain(body)));
     r.constrain(placement, mate, values);
     placement
 }

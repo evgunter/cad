@@ -171,7 +171,7 @@ fn deepest_pose_document(levels: usize) -> Recorder {
     // A recorded edit applies or the recorder panics: the chain at the
     // bound is admitted.
     r.push(DocEdit::place(
-        vec![editor_core::BodyRead::plain(Operand::from(extrude))],
+        editor_core::BodyRead::plain(Operand::from(extrude)),
         Operand::Var(space),
         placed.bundle(),
     ));

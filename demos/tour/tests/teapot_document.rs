@@ -122,7 +122,7 @@ fn place_in_world(doc: &mut Doc<ProfileProgram>, body: RecipeNodeId, tol: Tol) {
     insert(
         doc,
         Node::place(
-            vec![body.into()],
+            body,
             pncad::document::Operand::Var(pncad::document::VarId::WORLD),
             stand().bundle(),
         ),

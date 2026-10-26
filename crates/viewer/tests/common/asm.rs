@@ -66,11 +66,6 @@ pub struct Bench {
     pub post: DocRef,
     /// The shelf document's reference.
     pub shelf: DocRef,
-    /// The key the post part's one copy is delivered under by an
-    /// instance of it ([`copy`]).
-    pub post_key: pncad::document::CopyKey,
-    /// The key the shelf part's one copy is delivered under.
-    pub shelf_key: pncad::document::CopyKey,
     /// The two part documents, held as a resolver: what a row that pins
     /// an instance of its own reads the copy's geometry through
     /// ([`Bench::opts`]).
@@ -97,17 +92,6 @@ fn box_part(label: &str, width: f64, depth: f64, height: f64, tol: Tol) -> Profi
     super::placed(&doc, extrude, tol).0
 }
 
-/// **The key a part's one copy is delivered under**: the part's
-/// placement of its body, and the read it copies the body through.
-fn copy_key(part: &ProfileDoc) -> pncad::document::CopyKey {
-    use pncad::document::CopyKey;
-    let placement = *part.placements().first().expect("the part places its body");
-    let Some(Node::Place { shapes, .. }) = part.node(placement) else {
-        panic!("the part's placement is a `Place`")
-    };
-    CopyKey::part(placement, CopyKey::Read(shapes[0].read))
-}
-
 /// A part's own cap-face name at `end`, selected structurally from
 /// its evaluated body (the demo's `cap_of` shape), as its placement's
 /// copy carries it — the part's product name.
@@ -120,11 +104,7 @@ fn cap_of(doc: &ProfileDoc, end: CapEnd, tol: Tol) -> StableName {
         Selector::of(NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Cap).side(end)));
     let found = pncad::select::select(&ev, body, &sel);
     assert_eq!(found.len(), 1, "one {end:?} cap: {found:?}");
-    found
-        .into_iter()
-        .next()
-        .expect("checked non-empty")
-        .in_copy(placement)
+    found.into_iter().next().expect("checked non-empty")
 }
 
 /// Author the workspace into a fresh per-test directory and return
@@ -157,6 +137,8 @@ pub fn bench(tag: &str, tol: Tol) -> Bench {
     let post_a = instance_at(&mut asm, post_ref, [0.0; 3], &opts, tol);
     let shelf_i = instance_at(&mut asm, shelf_ref, SHELF_AT, &opts, tol);
     let post_b = instance_at(&mut asm, post_ref, POST_B_AT, &opts, tol);
+    // What the assembly makes: its three copies.
+    let asm = crate::fixture::assemble_world_copies(asm);
     let asm_path = ws.create(&asm, tol).expect("the assembly stores");
 
     Bench {
@@ -167,8 +149,6 @@ pub fn bench(tag: &str, tol: Tol) -> Bench {
         post_b,
         post: post_ref,
         shelf: shelf_ref,
-        post_key: copy_key(&post),
-        shelf_key: copy_key(&shelf),
         store,
         post_top: cap_of(&post, CapEnd::End, tol),
         shelf_bottom: cap_of(&shelf, CapEnd::Start, tol),
@@ -238,21 +218,20 @@ pub fn where_b_stood(frame: Frame) -> Frame {
     frame.compose(&Frame::translation(POST_B_AT))
 }
 
-/// **The read of `instance`'s one copy**, as a seat that reads one body
-/// takes it: the instance's copies, keyed by its part's copy. `instance`
-/// is one of the bench's posts or its shelf, or another instance of
-/// the same parts.
+/// **The read of `instance`'s copy**, as a seat that reads one body
+/// takes it: an instance defines one body, a copy of its part's
+/// product. `instance` is one of the bench's posts or its shelf, or
+/// another instance of the same parts.
 pub fn copy(
-    bench: &Bench,
+    _bench: &Bench,
     doc: &ProfileDoc,
     instance: RecipeNodeId,
 ) -> pncad::document::BodyRead<Formula> {
-    let key = match doc.node(instance) {
-        Some(Node::InstantiatePart { doc_ref, .. }) if *doc_ref == bench.shelf => &bench.shelf_key,
-        Some(Node::InstantiatePart { .. }) => &bench.post_key,
-        other => panic!("{instance:?} is an instance, got {other:?}"),
-    };
-    pncad::document::BodyRead::keyed(pncad::document::Operand::Node(instance), key.clone())
+    assert!(
+        matches!(doc.node(instance), Some(Node::InstantiatePart { .. })),
+        "{instance:?} is an instance"
+    );
+    pncad::document::BodyRead::plain(pncad::document::Operand::Node(instance))
 }
 
 /// **A union of `members`' copies written into the bench's stored
@@ -294,15 +273,15 @@ pub fn open_bench(bench: &Bench, tol: Tol) -> DocSession {
     session
 }
 
-/// The instance-qualified spelling of a part-local face (the GQ4
-/// wrapper), for rows that author a mate directly — the kernel's own
-/// wrapper (`FaceName::in_part`), the inverse of the strip a face
-/// frame reads its head's face by.
-pub fn in_part(instance: RecipeNodeId, local: &StableName) -> StableName {
-    pncad::document::FaceName::new(local.clone())
-        .expect("a mate head is a face")
-        .in_part(instance)
-        .into_name()
+/// **A part-local face, read at `instance`**: a copy carries its
+/// part's names as they are, so the name is the part's and the site
+/// is the instance whose copy carries it — for rows that author a mate
+/// directly.
+pub fn in_part(instance: RecipeNodeId, local: &StableName) -> crate::fixture::resolver::PartName {
+    crate::fixture::resolver::PartName {
+        at: instance,
+        name: local.clone(),
+    }
 }
 
 /// **The part-local face a mate side reads**: the side walked to its

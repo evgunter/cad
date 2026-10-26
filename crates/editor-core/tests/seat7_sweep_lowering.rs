@@ -443,6 +443,16 @@ fn both_sweeps_evaluate_in_one_document() {
 /// tokens this digest feeds; `m10_p_fence`'s ids-masked geometry fence
 /// held, so no point moved.
 ///
+/// RE-BLESSED for D′3 (a placement copies one source, and the product is
+/// a slot reading a `⊔`): a copy carries its source's names with no
+/// `Placed` layer, and a `⊔` keys each member's names by its read, so
+/// the name tables this digest feeds moved, and the `⊔` node moved the
+/// ids after it. No point moved: `m10_p_fence`'s ids-masked row, with
+/// the corpus's `⊔` nodes set aside, is main's pin. `cut_cylinder` and
+/// `kitchen_sink` were measured again with main's plane pose merged in
+/// (main, `34a2e26e61`, which reds both rows on its own), and carry both
+/// changes.
+///
 /// RE-BLESSED, every row, for a certificate that keeps its turn: the
 /// digest feeds each edge curve's `Debug`, which now spells the
 /// certificate's `turn`. No outcome or point moved.
@@ -450,14 +460,24 @@ fn both_sweeps_evaluate_in_one_document() {
 /// RE-BLESSED, `corner_table` only, for a run line's sense that is no
 /// longer optional: its `EdgeCrossing` names spell each line's sense
 /// bare. No outcome or point moved.
+///
+/// RE-BLESSED, the rows that moved, over main's merge into D′3 at
+/// `1235f4c050`: D′2's moves (main red, filed as
+/// `main-red-the-seat-and-name-table-goldens-moved-at-dprime2`),
+/// stage 4 I's ids and the walls' reads, beneath
+/// D′3's names and ids. `m10_p_fence`'s ids-masked row held.
+///
+/// Measured again for D′3 over main's merge at `4c341b9225`, which
+/// brings the run line's bare sense (above) beneath D′3's names and ids;
+/// the ids-masked fence held.
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
-        ("die", 0xb26a_7fbe_e123_9fd7),
-        ("corner_table", 0x0266_f9bc_c740_b97e),
-        ("cut_cylinder", 0x687e_0fa1_7407_124c),
-        ("boss_union", 0x9eec_0659_7505_54e1),
-        ("kitchen_sink", 0x56d3_1220_fc13_65d5),
+        ("die", 0x4a25_14f2_42c7_0ffe),
+        ("corner_table", 0x252b_1c7f_90e8_0be6),
+        ("cut_cylinder", 0xd82f_d380_9e2e_8e5e),
+        ("boss_union", 0x7d7f_3a11_1c98_1b33),
+        ("kitchen_sink", 0x4f64_6f46_1d52_45eb),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {

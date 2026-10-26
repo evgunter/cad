@@ -61,7 +61,7 @@ fn rig(label: &str) -> Rig {
     let (doc, t) = unit_box(doc, 3.0);
     let (doc, copy) = insert(
         doc,
-        crate::fixture::stood(vec![editor_core::BodyRead::plain(Operand::Node(b))]),
+        crate::fixture::stood(editor_core::BodyRead::plain(Operand::Node(b))),
     );
     Rig { doc, b, t, copy }
 }
@@ -139,8 +139,8 @@ fn c4_poses_of_another_document_reaches_no_row() {
             doc,
             upper,
             fixture::rest(
-                fixture::head(in_part(upper, body, CapEnd::Start)),
-                fixture::head(in_part(lower, body, CapEnd::End)),
+                fixture::head_at(upper, in_part(upper, body, CapEnd::Start)),
+                fixture::head_at(lower, in_part(lower, body, CapEnd::End)),
             ),
             vec![
                 (Coord::Slide(TargetAxis::X), len(0.0)),

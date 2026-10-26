@@ -230,7 +230,20 @@ fn label(
             .map(|c| label(ev, doc, labels, c))
             .collect::<Vec<_>>()
             .join("+"),
-        _ => format!("{}:{}", labels[&n.node], plane_label(ev, n.node, n)),
+        _ => {
+            // A placement's copy carries its source's names verbatim,
+            // so a name a labelled copy holds is minted at its source.
+            let at = labels
+                .keys()
+                .copied()
+                .find(|&id| {
+                    id == n.node
+                        || matches!(doc.node(id), Some(editor_core::Node::Place { source, .. })
+                            if doc.operation_of(source.read) == Some(n.node))
+                })
+                .unwrap_or_else(|| panic!("no labelled member holds {n:?}"));
+            format!("{}:{}", labels[&at], plane_label(ev, at, n))
+        }
     }
 }
 

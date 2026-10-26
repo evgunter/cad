@@ -102,7 +102,7 @@ fn on_floor(
     let (doc, floor, _) = fixture::floor(doc, moves);
     let (doc, placement) = insert(
         doc,
-        fixture::stood(vec![editor_core::BodyRead::plain(Operand::from(body))]),
+        fixture::stood(editor_core::BodyRead::plain(Operand::from(body))),
     );
     let bottom = fixture::fname(body, RoleSeg::Cap(CapEnd::Start));
     let mut mate = if direction {
@@ -181,10 +181,10 @@ fn hung(chain: Vec<(Coord, Formula)>, orient: Orientation, values: Vec<(Coord, F
     let (doc, b) = fixture::in_world_by(doc, plate, Placed::unmated(chain).values);
     let (doc, placement) = insert(
         doc,
-        fixture::stood(vec![editor_core::BodyRead::plain(Operand::from(boss))]),
+        fixture::stood(editor_core::BodyRead::plain(Operand::from(boss))),
     );
     let top = fixture::fname(boss, RoleSeg::Cap(CapEnd::End));
-    let mut mate = fixture::rest(head(top), head_at(b, bottom.in_copy(b)));
+    let mut mate = fixture::rest(head(top), head_at(b, bottom));
     mate.orient = orient;
     place(
         doc,
@@ -397,7 +397,7 @@ fn wedge_sweep(orients: &[Orientation], pairs: &[&str], steps: u32) {
         let (doc, floor, _) = fixture::floor(doc, rx(t));
         let (doc, placement) = insert(
             doc,
-            fixture::stood(vec![editor_core::BodyRead::plain(Operand::from(wedge))]),
+            fixture::stood(editor_core::BodyRead::plain(Operand::from(wedge))),
         );
         let mut mate = fixture::mate(fixture::plane(head(slope)), fixture::flip(floor));
         mate.orient = o;

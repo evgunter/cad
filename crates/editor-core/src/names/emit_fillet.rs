@@ -17,7 +17,7 @@ use crate::node::RecipeNodeId;
 /// Names one fillet result.
 ///
 /// `target` is the fillet's single operand's table (body index 0 —
-/// `body_operand` admits only single-body values), `body` the fillet
+/// `read_body` admits only single-body values), `body` the fillet
 /// output, `rec` its birth records.
 ///
 /// # Errors

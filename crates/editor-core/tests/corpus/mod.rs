@@ -166,13 +166,12 @@ pub fn place_pattern_to(doc: ProfileDoc, count: i64) -> ProfileDoc {
         .placements()
         .into_iter()
         .filter(|&p| match doc.node(p) {
-            Some(Node::Place { shapes, .. }) => shapes.iter().any(|shape| {
-                doc.operation_of(shape.read)
-                    .and_then(|picked| doc.node(picked))
-                    .is_some_and(|picked| {
-                        matches!(picked, Node::Part { of, .. } if doc.operation_of(*of) == Some(pattern))
-                    })
-            }),
+            Some(Node::Place { source, .. }) => doc
+                .operation_of(source.read)
+                .and_then(|picked| doc.node(picked))
+                .is_some_and(|picked| {
+                    matches!(picked, Node::Part { of, .. } if doc.operation_of(*of) == Some(pattern))
+                }),
             _ => false,
         })
         .collect();
@@ -437,7 +436,6 @@ pub fn body_of<T: Decide>(ev: &Evaluation<T>, id: RecipeNodeId) -> &Body<T> {
     match &ev.value(id).expect("node evaluated to a value").payload {
         ValuePayload::Body(b) => b,
         ValuePayload::Boolean(BooleanValue::Body { body, .. }) => body,
-        ValuePayload::Copies(copies) if copies.bodies.len() == 1 => &copies.bodies[0],
         other => panic!("expected a single body, got {}", other.kind_name()),
     }
 }
@@ -491,7 +489,7 @@ pub const BESIDE_THE_REGISTRY: [&str; 1] = ["Shell"];
 ///
 /// Hand-written, not welded to `Node`, and without `InstantiatePart`
 /// or `Mate`: `work/tint/corpus-node-kinds-roster-is-hand-written`.
-pub const NODE_KINDS: [&str; 23] = [
+pub const NODE_KINDS: [&str; 24] = [
     "Profile",
     "Extrude",
     "Revolve",
@@ -511,6 +509,9 @@ pub const NODE_KINDS: [&str; 23] = [
     "Union",
     "Intersect",
     "Subtract",
+    // D′3's fourth operator — COVERED, by every document whose product
+    // reads several world copies.
+    "Assemble",
     "Pattern",
     // DOCM-2's projection node — COVERED, by `part_select`.
     "Part",
@@ -570,6 +571,7 @@ pub const NODE_KINDS: [&str; 23] = [
 /// either: no corpus document authors one, its placements being
 /// written whole.
 /// `SetConstraints` is listed: a placement's bundle is written whole.
+/// `SetProduct` is listed: every document says its product.
 /// `SetProgram` is
 /// listed: `reshaped_rod` authors one, the first persisted in the
 /// tree. What guards the
@@ -581,7 +583,7 @@ pub const NODE_KINDS: [&str; 23] = [
 /// `m4_pr8_corpus`'s `vocabulary_coverage_is_total` reads this list and
 /// the tally in both directions, so a kind listed and never exercised
 /// is as red as a kind exercised and never listed.
-pub const EDIT_KINDS: [&str; 21] = [
+pub const EDIT_KINDS: [&str; 22] = [
     "InsertNode",
     "DeleteNode",
     "SetProgram",
@@ -603,6 +605,7 @@ pub const EDIT_KINDS: [&str; 21] = [
     "ClearAppearanceMeta",
     "SetLabel",
     "SetConstraints",
+    "SetProduct",
 ];
 
 /// The node SUB-kinds the corpus must also cover in full: both pattern
@@ -637,7 +640,10 @@ pub const SUB_KINDS: [&str; 9] = [
 /// The sub-kind tally names a node contributes (possibly none).
 pub fn sub_kinds<P, S: editor_core::Slot>(node: &Node<P, S>) -> Vec<&'static str> {
     match node {
-        Node::Union { .. } | Node::Intersect { .. } | Node::Subtract { .. } => Vec::new(),
+        Node::Union { .. }
+        | Node::Intersect { .. }
+        | Node::Assemble { .. }
+        | Node::Subtract { .. } => Vec::new(),
         Node::Pattern { kind, .. } => vec![match kind {
             PatternKind::Linear { .. } => "Pattern::Linear",
             PatternKind::Circular { .. } => "Pattern::Circular",
@@ -712,6 +718,7 @@ pub fn node_kind<P, S: editor_core::Slot>(node: &Node<P, S>) -> &'static str {
         Node::Split { .. } => "Split",
         Node::Mirror { .. } => "Mirror",
         Node::Union { .. } => "Union",
+        Node::Assemble { .. } => "Assemble",
         Node::Intersect { .. } => "Intersect",
         Node::Subtract { .. } => "Subtract",
         Node::Place { .. } => "Place",
@@ -734,6 +741,7 @@ pub fn edit_kind(edit: &DocEdit<ProfileProgram>) -> &'static str {
         DocEdit::InsertNode { .. } => "InsertNode",
         DocEdit::DeleteNode { .. } => "DeleteNode",
         DocEdit::SetMembers { .. } => "SetMembers",
+        DocEdit::SetProduct { .. } => "SetProduct",
         DocEdit::SetLoftSections { .. } => "SetLoftSections",
         DocEdit::SetProgram { .. } => "SetProgram",
         DocEdit::SetParam { .. } => "SetParam",

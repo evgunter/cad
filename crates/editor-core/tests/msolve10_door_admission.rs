@@ -81,7 +81,7 @@ fn instances(label: &str, n: usize) -> (ProfileDoc, Vec<RecipeNodeId>, EvalOptio
 
 /// A face of instance `of`'s copy of the part whose body is `body`.
 fn cap(of: RecipeNodeId, body: RecipeNodeId, end: CapEnd) -> editor_core::SitedFace {
-    fixture::head(in_part(of, body, end))
+    fixture::head_at(of, in_part(of, body, end))
 }
 
 /// `b`'s bottom cap resting on `a`'s top cap, both instances of the

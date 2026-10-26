@@ -95,14 +95,14 @@ fn leaf_cap(leaf: &ProfileDoc, block: RecipeNodeId, end: CapEnd) -> editor_core:
         .placements()
         .into_iter()
         .filter_map(|copy| match leaf.node(copy) {
-            Some(Node::Place { shapes, .. }) => leaf
-                .operation_of(shapes[0].read)
+            Some(Node::Place { source, .. }) => leaf
+                .operation_of(source.read)
                 .filter(|&read| matches!(leaf.node(read), Some(Node::Union { .. })))
                 .map(|union| (copy, union)),
             _ => None,
         })
         .collect();
-    let [(copy, union)] = worlds[..] else {
+    let [(_copy, union)] = worlds[..] else {
         panic!("a leaf places its union once");
     };
     let read = leaf.output(block, 0).expect("the block defines its output");
@@ -119,7 +119,7 @@ fn leaf_cap(leaf: &ProfileDoc, block: RecipeNodeId, end: CapEnd) -> editor_core:
             .into(),
         }],
     };
-    editor_core::FaceName::new(cap.in_copy(copy)).expect("a cap is a face")
+    editor_core::FaceName::new(cap).expect("a cap is a face")
 }
 
 /// A document whose one instance, of `below`, is loose: what the
@@ -308,7 +308,7 @@ fn instantiating_all(label: &str, below: &[DocRef]) -> (ProfileDoc, Vec<RecipeNo
         doc = d;
         ids.push(id);
     }
-    (doc, ids)
+    (crate::fixture::assemble_world_copies(doc), ids)
 }
 
 /// [`instantiating_all`], each instance [`world_pinned`].
@@ -466,7 +466,7 @@ fn first_pinned(
     let doc = fixture::pinned(doc, ids[0], authoring);
     let (doc, placed) = insert(doc, fixture::mated_instance(second));
     ids.push(placed);
-    (doc, ids)
+    (crate::fixture::assemble_world_copies(doc), ids)
 }
 
 /// A document instantiating `first` and `second` — each a reference
@@ -481,15 +481,13 @@ fn mated(
 ) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let (doc, ids) = first_pinned(label, first, second, authoring);
     let mate = fixture::rest(
-        fixture::head(
-            leaf_cap(&second_doc, second_block, CapEnd::Start)
-                .in_part(ids[1])
-                .into_name(),
+        fixture::head_at(
+            ids[1],
+            leaf_cap(&second_doc, second_block, CapEnd::Start).into_name(),
         ),
-        fixture::head(
-            leaf_cap(&first_doc, first_block, CapEnd::End)
-                .in_part(ids[0])
-                .into_name(),
+        fixture::head_at(
+            ids[0],
+            leaf_cap(&first_doc, first_block, CapEnd::End).into_name(),
         ),
     );
     let (doc, _mate) = crate::fixture::mated(
@@ -517,15 +515,13 @@ fn rested_on_first(
 ) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let (doc, ids) = first_pinned(label, first, second, authoring);
     let mate = fixture::rest(
-        fixture::head(
-            leaf_cap(&second_doc, second_block, CapEnd::Start)
-                .in_part(ids[1])
-                .into_name(),
+        fixture::head_at(
+            ids[1],
+            leaf_cap(&second_doc, second_block, CapEnd::Start).into_name(),
         ),
-        fixture::head(
-            leaf_cap(&first_doc, first_block, CapEnd::End)
-                .in_part(ids[0])
-                .into_name(),
+        fixture::head_at(
+            ids[0],
+            leaf_cap(&first_doc, first_block, CapEnd::End).into_name(),
         ),
     );
     let (doc, _) = fixture::constrain_at(doc, ids[1], mate);
@@ -549,6 +545,7 @@ fn below_the_top_the_mate_solve_and_the_instances_find_the_rows_the_descent_ente
         second,
         &with_resolver(store.clone()),
     );
+    let assembly = crate::fixture::assemble_world_copies(assembly);
     let assembly_ref = store.insert(assembly.clone(), Tol::witness());
     let opts = with_resolver(store);
     let (top, top_ids) = instantiating_all("part-descent-mated-top", &[assembly_ref]);

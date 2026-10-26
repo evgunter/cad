@@ -2982,7 +2982,15 @@ pub(super) fn finish_output<T: Decide + crate::props::AtRestPolicy>(
         desc.substitute(row)?;
     }
     seam_edges.retain(|e| !closed.iter().any(|c| c.edge == *e));
-    let merged = body.merge_coplanar_faces_unjoined(declared, tol)?;
+    // The closing sweeps the arena, so a declared surface no face held
+    // (a dropped copy's) is gone now: its pair licenses nothing, as a
+    // consumed side does at `declared_surface_pairs`.
+    let declared: Vec<(SurfaceKey, SurfaceKey)> = declared
+        .iter()
+        .copied()
+        .filter(|&(a, b)| body.get_surface(a).is_some() && body.get_surface(b).is_some())
+        .collect();
+    let merged = body.merge_coplanar_faces_unjoined(&declared, tol)?;
     super::edge_join::record_killed_lineage(
         &mut killed_lineage,
         &split_from,
@@ -7936,6 +7944,7 @@ fn fallback_fates<T: Decide + AtRestPolicy>(
             edges.push(fe);
         }
     }
+    let across = std::mem::take(&mut red.fates.across);
     let mut corners = Vec::new();
     for fc in std::mem::take(&mut red.fates.corners) {
         if owed(fc.holder, fc.kept.face(), fc.dropped.face)? {
@@ -7966,6 +7975,7 @@ fn fallback_fates<T: Decide + AtRestPolicy>(
                 .filter(|fc| fc.dropped.face == face)
                 .copied()
                 .collect(),
+            across: across.iter().filter(|a| a.1 == face).copied().collect(),
         };
         // A face no fate edge lies in is held whole, and its cut divides
         // nothing; any other is kept as it stands, for a cut that meets a
@@ -7999,7 +8009,11 @@ fn fallback_fates<T: Decide + AtRestPolicy>(
             }
         }
     }
-    red.fates = super::fate::Fates { edges, corners };
+    red.fates = super::fate::Fates {
+        edges,
+        corners,
+        across,
+    };
     cuts.substituted.sort();
     cuts.substituted.dedup();
     uncut.sort_by_key(|u: &super::UncutFace| (u.operand, u.face, u.by));

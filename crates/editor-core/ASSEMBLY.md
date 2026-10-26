@@ -27,8 +27,8 @@ lands; where they disagree with DESIGN, DESIGN is the design.
 | A6 improper frames | `src/placement.rs` (`Frame`); `Node::Mirror` in `src/node.rs`, `wire_mirror` in `src/eval/wire.rs`, `mirror_body` in `crates/topo/src/mirror.rs` |
 | A7, A8 interchange | `PlacedInstance` in `crates/step-import/src/lib.rs` |
 | A9 partitions | `relative_freedom_components` in `src/mate/solve.rs` |
-| A11 (2) bundles, spaces | `solve_bundle`, `fold_bundle`, `overconstrained`, `pins` in `src/mate/solve.rs`; the space derivation (`Doc::space_of`, `node_space`, `space_fault`) in `src/doc.rs`; the one cross-space predicate `Doc::across_spaces`; an instance's copies (`ValuePayload::Copies`, `CopyKey`) in `src/eval/wire.rs` and `src/eval/parts.rs` |
-| A10 the world and the gather | `Node::Place`, `Node::World` in `src/node.rs`, `Doc::placements`/`Doc::unplaced` in `src/doc.rs`, `src/product.rs`, `DocEdit::place` in `src/edit.rs`, `mate::Placed` and `mate::stand` |
+| A11 (2) bundles, spaces | `solve_bundle`, `fold_bundle`, `overconstrained`, `pins` in `src/mate/solve.rs`; the space derivation (`Doc::space_of`, `node_space`, `space_fault`) in `src/doc.rs`; the one cross-space predicate `Doc::across_spaces`; an instance's copy in `src/eval/wire.rs` and `src/eval/parts.rs`; picks (`VarDef::Pick`, `pick_fault`) in `src/var.rs` and `src/edit.rs` |
+| A10 the product slot and the gather | `Node::Place`, `Node::World`, `Node::Assemble` in `src/node.rs`, `Doc::product` in `src/doc.rs`, `src/product.rs` (`product_recorded`, `assemble_gathers`), `DocEdit::SetProduct` and `DocEdit::place` in `src/edit.rs`, `mate::Placed` and `mate::stand` |
 | Store (AQ1) | `Workspace` in `crates/pncad/src/workspace.rs` |
 
 ## Scope
@@ -46,9 +46,9 @@ numerically solved mates (SE(3) witnesses under the witness contract in
 instantiate node resolves its `DocRef` through the evaluation's
 `PartResolver` (`EvalOptions::resolver`; with none, instantiate nodes
 refuse typed), evaluates the pinned document at the ambient ε, takes its
-world (A10), one `Body` per world placement, all in one space (no body
-has world coordinates: the world sets only the coordinates export
-writes), and materializes it through `topo::transform_rigid`
+product (A10), the one `Body` its product slot reads, a `⊔`'s pieces
+side by side (no body has world coordinates: the world sets only the
+coordinates export writes), and materializes it through `topo::transform_rigid`
 (rigidity carried by the witness or decided at the door, every
 carrier re-certified) and the disjoint graft. A resolved document whose recorded ε disagrees refuses
 `ResolveFault::EpsilonSeam`. An evaluation enters each `(DocRef, ε)` it
@@ -171,19 +171,21 @@ directions into a new document with a caller-supplied id, leaving one
 identity bundle, no mate and the constant `0` on every freedom); a severed
 edge refuses. A cut takes whole placements: a placement's constraints are
 its own, so a cut placement whose bundle reads a kept copy severs that
-read. The part's world is the cut's world placements, so the instance's
-copies stand where the cut's did. A remainder read of the cut crosses
-only where the instance carries what it reads: a selection each of whose
+read. The part's product is the cut's one world copy, or the `⊔` of
+its world copies in document order, so the instance's copy stands
+where the cut's copies did. A remainder read of the cut crosses only
+where the instance carries what it reads: a selection each of whose
 names one cut world placement's copy holds, re-authored on the
-instance's copies; a read of one copy of a cut world placement, or of a
-body one cut world `Place` copies at the identity, re-pointed to that
-copy of the instance by its key in the part. A kept mate whose pose reads
-a cut copy's geometry crosses with its pose written afresh over the
-instance's copies, each selection in it re-authored as a crossing
-selection is; a body's face read through a cut placement crosses only
-where that copy stands at the identity, decided by evaluation.
-Remainder-side names re-anchor through the instance qualifier by
-recorded `Rebind`s. A variable moves with its readers: its side is the
+instance's copy; a read of a cut world placement's copy, or of a body
+one cut world `Place` copies at the identity, re-pointed to a pick of
+the instance's copy (the member of the part's `⊔` that copy is, or the
+copy whole). A kept mate whose pose reads a cut copy's geometry crosses
+with its pose written afresh over the instance's copy, each selection
+in it re-authored as a crossing selection is; a body's face read
+through a cut placement crosses only where that copy stands at the
+identity, decided by evaluation. A remainder-side name re-anchors to
+the name the part's product spells it by, which the instance's copy
+carries verbatim, by a recorded `Rebind`. A variable moves with its readers: its side is the
 union of its readers' — a node slot, or another variable's definition —
 and one with no reader follows what it reads. One whose side is the
 cut's is declared in the part and deleted from the remainder.
@@ -191,14 +193,14 @@ cut's is declared in the part and deleted from the remainder.
 *Inline.* `refactor::inline` is the inverse, by one rule. It mints a
 `new_space()`, copies the other document's nodes into the host
 verbatim with that document's world read as the new space, and
-rewrites the instance as one placement of the spliced copies of that
-document's world placements, as a list, into the instance's target
-under the instance's own bundle, verbatim (`InlineOutcome::placement`,
-its new space `InlineOutcome::space`). No motion is composed, every
-variable keeps driving its copy, and no landing refuses for its
-numbers. A host mate reading the instance's copy reads that
-placement's copy. It refuses a document whose world places nothing,
-and one whose world placements cannot be listed one copy each.
+rewrites the instance as one placement of the spliced product body
+into the instance's target under the instance's own bundle, verbatim
+(`InlineOutcome::placement`, its new space `InlineOutcome::space`). No
+motion is composed, every variable keeps driving its copy, and no
+landing refuses for its numbers. A host read of the instance's copy
+reads that placement's copy, and a pick of it a pick of that copy; a
+host mate reading it is written afresh over the spliced copy its names
+land on. It refuses a document with no product.
 
 *Flatten.* Flattening an identity placement into its target is an edit
 of its own, not a case of inline's: `refactor::flatten` takes a `Place`
@@ -215,8 +217,8 @@ values plus edit lists.
 
 *Acceptance.* Split-then-evaluate equals unsplit evaluation at
 structural and name-resolution identity, not bit identity, up to the
-order of copies: the cut's world placements become the part's, and the
-remainder holds one instance of it. Inline-of-split, with the identity
+order of copies: the cut's world placements become the part's, its
+product their `⊔`, and the remainder holds one instance of it. Inline-of-split, with the identity
 placement it lands flattened into its target, returns the document
 split was given, up to minted ids and order.
 
@@ -276,21 +278,26 @@ pose, so the world is one body. A copy in another space (A11 (2)), a
 it, and is not part of that body. The viewer's free-move probe is display state, never persisted
 (`crates/viewer/src/display.rs`).
 
-**A10 — The product is the world.** The product is the copies the
-document's placements define whose space reaches the world, in the
-document order of those placements. A placement (`Place`, or an
-instance) is an operation reading the shapes it copies and defining
-their copies as one output, so two placements of one body are two
-copies. Its constraints relate the copy to the world, directly or
-through the copies it is pinned against, and only the gather, export and
-a constraint read the world. Nothing else places: no edit places or
-unplaces as a side effect, and nothing derives a placement from what
-reads what. An empty world is a valid document with an empty product; a
-door needing a product refuses `EmptyProduct`, naming the bodies no
-placement copies. A placement whose body is deleted
-is a stranded reader (D10), and the gather refuses naming it. Split and
-inline move placements with their bodies (A4). `product::product`
-gathers the copies in placement order.
+**A10 — The product is a slot.** A document's product is the body its
+product slot reads (`Doc::product`, set by `DocEdit::SetProduct`), a
+body in the world: one copy, or a `⊔` (`Node::Assemble`) of several,
+each operand one arrival of the census. A placement (`Place`, or an
+instance) is an operation reading one source and defining one copy, so
+two placements of one body are two copies; an instance's copy is a copy
+of its part's product. Its constraints relate the copy to the world,
+directly or through the copies it is pinned against, and only the
+gather, export and a constraint read the world. Nothing else places: no
+edit places or unplaces as a side effect, and nothing derives a
+placement or a product from what reads what. A slot that reads nothing
+is a valid document with no product; a door needing a product refuses
+`EmptyProduct`. The door refuses a product read that is no body in the
+world (`EditError::ProductRead`), and a product read whose body is
+deleted is a stranded reader (D10): the gather refuses
+`StrandedProduct`. Split and inline move placements with their bodies
+and re-point the slot where they take what it reads (A4).
+`product::product` gathers the slot's body, a `⊔`'s pieces each its own
+source; a `⊔` the slot does not read is gathered by itself
+(`product::assemble_gathers`) and checked at the gate (A5).
 
 ## The constructive-solve boundary
 
@@ -432,13 +439,15 @@ unit that retires it lands.
 
 **A3 — The node vocabulary; mates place copies.**
 `Node::InstantiatePart { doc_ref, interface, constraints }` instantiates
-a pinned document, and is a placement: its one output `copies` is the
-part's world copies, each keyed by its identity in the part
-(`CopyKey`), moved together by the motion its constraints pin. A reader
-of one copy reads it by its key (`BodyRead::key`); a selection names a
-face of it by the part-local name path, wrapped at the instance.
-`Node::Place { shapes, constraints }` copies the bodies it reads, one
-output of their shape. The world, `Node::World`, is minted with every
+a pinned document, and is a placement: its one output is a copy of the
+part's product, moved by the motion its constraints pin. A copy carries
+its source's names as they are, so a selection names a face of it by the
+part's own name, read at the instance. A reader of one piece of a copy
+reads a pick (`VarDef::Pick { placement, of }`): the path through the
+source's placements and `⊔` operands to the piece's variable, which the
+door refuses through any other operator (`EditError::PickPath`).
+`Node::Place { source, target, constraints }` copies the one body it
+reads. The world, `Node::World`, is minted with every
 document, defines no variable, and is read only by a placement's
 constraints and by export. Repetition is an index variable (D10,
 Repetition): a placement whose reads reach an index places one copy per
@@ -454,8 +463,8 @@ is the primitive: `Frame`–`Frame` coincides, `Axis`–`Axis` is coaxial,
 `Direction`–`Direction` is parallel, each pinning the relative pose to a
 coset of the kind's `Subgroup` (A11 (1)).
 
-- `on` is a pose read off the copied shapes' geometry (a `Place`'s
-  shapes, an instance's own copies; else `MateFault::NotOnTheCopy`).
+- `on` is a pose read off the copied source's geometry (a `Place`'s
+  source, an instance's own copy; else `MateFault::NotOnTheCopy`).
 - `to` is a pose read off geometry of the space the copy joins. No
   space has roles a mate can read: there is no world frame and no part
   frame to read.
@@ -549,33 +558,32 @@ assembly certifies as a multi-solid tier-3 body.
 graft through the graft's own descendant map. Nothing is re-verified
 across the seam: verification runs once, at the outermost gate.
 
-*A part's own census findings.* A part crosses the seam as one copy, so
-the census over the instantiating product finds the part's own findings
-again inside that copy. The part's verdict crosses with it instead, the
-at-rest stage of its own gate over its world (`assembly::seam_verdict`,
-at the part store): each overlap between two of its copies rides
-`PartValue::interference`, and a refusal of its gate's rides
-`PartValue::at_rest` whole, each finding routed (`Route`: the
-instantiating node, the document that found it, and the instances
+*A part's own census findings.* A part crosses the seam as one copy,
+whose meetings its own census decided. The part's verdict crosses with
+it, the at-rest stage of its own gate over its product
+(`assembly::seam_verdict`, at the part store): each overlap between two
+of its copies rides `PartValue::interference`, and a refusal of its
+gate's rides `PartValue::at_rest` whole, each finding routed (`Route`:
+the instantiating node, the document that found it, and the instances
 below). A part whose gate refuses before that stage (an at-rest refusal
 carried from below) crosses no census finding of its own: what refuses
-it crosses on its own rows. The pairs of solids the crossing findings
-are about ride `PartValue::census_pairs`, re-keyed through every graft
-by the graft's own solid order (`Product::census_pairs`). At the gate,
-each verdict about one of those pairs is the part's, and is not a
-finding of this document's (`checks::at_rest::less_carried`). Each
-carried finding is reported once per part row, by the first route in
-gather order, so a part placed twice, or in the world and in another
-space, reports its overlap once. A carried overlap is reported on
-`Assembly::carried_interference` and never refuses (D10). A carried
-refusal refuses the outer gate as the part's
-(`AssemblyError::CarriedAtRest`), before this document's own refusals:
-a placement carries its source's census findings, which stay the
-source's, and a finding is reported once, as the deciding space's (D10,
-`[placement.placement]`). A finding that names no pair of solids (a census
-escalation, a pair it had no lane for, a stale record of a vertex or an
-edge) matches nothing when the outer census finds it again inside the
-copy (`work/contacthold/an-escalated-census-finding-names-no-pair.md`).
+it crosses on its own rows. An instance's copy is censused
+(`NodeValue::censused`): a census reading it as one arrival discards
+what it finds inside it (`product::gather_sources`), as it discards
+what it finds inside any arrival a door already censused (a `⊔`, or a
+copy of one). The kernel's census has no group scope, so it still
+computes inside such an arrival, and the door discards what it found.
+Each carried finding is reported once per part row, by the first route
+in gather order, so a part placed twice reports its overlap once. A
+carried overlap is reported on `Assembly::carried_interference` and
+never refuses (D10). A carried refusal refuses the outer gate as the
+part's (`AssemblyError::CarriedAtRest`), before this document's own
+refusals: a placement carries its source's census findings, which stay
+the source's, and a finding is reported once, as the deciding door's
+(D10, `[placement.placement]`). A finding that names no pair of solids
+(a census escalation, a pair it had no lane for, a stale record of a
+vertex or an edge) is inside no one arrival, and is kept
+(`work/contacthold/an-escalated-census-finding-names-no-pair.md`).
 What does not cross: the census of a part's spaces other than its
 world, and the rows
 of a part read one member at a time rather than whole
