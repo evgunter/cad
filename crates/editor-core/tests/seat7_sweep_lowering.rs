@@ -450,14 +450,19 @@ fn both_sweeps_evaluate_in_one_document() {
 /// RE-BLESSED, `corner_table` only, for a run line's sense that is no
 /// longer optional: its `EdgeCrossing` names spell each line's sense
 /// bare. No outcome or point moved.
+///
+/// RE-BLESSED, every row, when check 2's `turn` moved off the
+/// certificate onto the edge curve (PR 5728): the edge curve's `Debug`
+/// spells it in another place. Rewritten to the old shape, every row
+/// reproduces its old digest, so nothing else moved.
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
-        ("die", 0xcce3_bc80_9945_6069),
-        ("corner_table", 0x3a58_01fe_f60a_b936),
-        ("cut_cylinder", 0x687e_0fa1_7407_124c),
-        ("boss_union", 0x6a62_8956_3b55_e92e),
-        ("kitchen_sink", 0xf86d_b45d_276f_b984),
+        ("die", 0xe1e3_3578_2f19_5ee1),
+        ("corner_table", 0x8ab0_0e11_0ae6_5336),
+        ("cut_cylinder", 0x2eb2_36de_bafc_7154),
+        ("boss_union", 0xa0c1_6da2_b280_b6de),
+        ("kitchen_sink", 0xc18b_bd44_d236_ea30),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {

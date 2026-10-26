@@ -368,13 +368,18 @@ fn a_split_document_read_by_port_round_trips_byte_identical() {
 /// RE-BLESSED, every row, for a certificate that keeps its turn: the
 /// digest feeds each edge curve's `Debug`, which now spells the
 /// certificate's `turn`. No outcome or point moved.
+///
+/// RE-BLESSED, every row, when that `turn` moved off the certificate
+/// onto the edge curve (PR 5728): the edge curve's `Debug` spells it in
+/// another place. Rewritten to the old shape, every row reproduces its
+/// old digest, so nothing else moved.
 #[test]
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("cut_cylinder", 0x687e_0fa1_7407_124c_u64),
-        ("part_select", 0x2a17_d08e_c893_f400),
-        ("kitchen_sink", 0xf86d_b45d_276f_b984),
+        ("cut_cylinder", 0x2eb2_36de_bafc_7154_u64),
+        ("part_select", 0x0da7_db52_d4d9_a058),
+        ("kitchen_sink", 0xc18b_bd44_d236_ea30),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()
@@ -526,8 +531,12 @@ fn a_split_with_an_empty_side_evaluates_to_its_committed_digest() {
     );
     let got = digest(&ev);
     println!("seat8 empty_side: {got:#018x}");
+    // The edge curve's `Debug` feeds the digest; it moved when check 2's
+    // turn moved off the certificate onto the edge (PR 5728). Rewritten
+    // to the old shape, the evaluation reproduces the old digest
+    // (`0x6514_aa34_b3e7_b9ae`), so nothing else moved.
     assert_eq!(
-        got, 0x6514_aa34_b3e7_b9ae,
+        got, 0x95b6_b099_d57e_e9be,
         "the empty-side evaluation moved — side token, body or name table"
     );
 }

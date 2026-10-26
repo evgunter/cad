@@ -1405,7 +1405,7 @@ pub fn analytic_rung3<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
         limb2(
             operand,
             crate::pcurve_cache::limb2_offset_sup(&curve, params, operand, band),
-            false,
+            None,
             band,
         )?;
     }
@@ -1442,7 +1442,7 @@ pub fn analytic_rung3<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
 /// one ([`analytic_rung3`], which is this door for a `Curve3::Nurbs`).
 ///
 /// A line, circle, ellipse or spiric is read through its certified
-/// enclosing net ([`crate::pcurve_cache::closed_form_offset_sup`]): the
+/// enclosing net ([`crate::pcurve_cache::limb2_offset_sup`]): the
 /// operand's canonical implicit form composed along it, converted to
 /// metres per part as for a spline, its parts halved under limb 2's
 /// budget, and decided as [`analytic_rung3`] decides its limb 2. Limb 1,
@@ -1474,7 +1474,7 @@ pub fn analytic_edge_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
         limb2(
             operand,
             crate::pcurve_cache::limb2_offset_sup(carrier, params, operand, band),
-            matches!(carrier, Curve3::Line { .. }) && matches!(operand, Surface::Plane { .. }),
+            line_plane_ends(carrier, params, operand),
             band,
         )?;
     }
@@ -1487,18 +1487,16 @@ pub fn analytic_edge_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
 /// which clears the band or is the kernel's approximation limit
 /// ([`AnalyticRung3Refusal::KernelLimit`]) and never a miss.
 ///
-/// `attained` says the bound is a measured value: a line against a
-/// plane composes to a function linear in the parameter, whose
-/// Bernstein bound is its value at an end of the span. Where such a
-/// bound lies far above the net's own rounding (past
-/// [`KERNEL_LIMIT_ROUNDING_FACTOR`] times its width), it is that end's
-/// distance from the plane, the chord's vertex offset, and is decided
-/// as the measured miss it is; within the rounding it is the rounding,
-/// the kernel's limit.
+/// `ends` are a line's distances from a plane at its ends
+/// ([`line_plane_ends`]): there the sup is attained at an end, so a
+/// reading that neither clears the band nor shows a measured miss — a
+/// bound that does not clear, or a break whose value the band cannot
+/// decide — defers to those measured values ([`measured_ends`]) rather
+/// than refusing as the kernel's limit or escalating short of the sup.
 fn limb2<T: Decide>(
     operand: &Surface<T>,
     read: Result<crate::pcurve_cache::projected::OffsetRead<T>, crate::PcurveCertifyError>,
-    attained: bool,
+    ends: Option<[(T, T); 2]>,
     band: Band,
 ) -> Result<(), AnalyticRung3Refusal> {
     use crate::pcurve_cache::projected::{Offset, OffsetRead};
@@ -1509,17 +1507,67 @@ fn limb2<T: Decide>(
         size,
         upper,
     } = read.map_err(refused)?;
-    let bound = match offset {
-        Offset::Bound(bound) => bound,
-        Offset::Miss { floor, bound } => {
-            measured_miss(kind, floor, band)?;
-            bound.map_err(refused)?
-        }
+    let decided = match offset {
+        Offset::Bound(bound) => upper_bound(kind, bound, upper, size, band),
+        Offset::Miss { floor, bound } => measured_miss(kind, floor, band)
+            .and_then(|()| upper_bound(kind, bound.map_err(refused)?, upper, size, band)),
     };
-    if attained && upper > KERNEL_LIMIT_ROUNDING_FACTOR * size.width {
-        return measured_miss(kind, bound, band);
+    match (decided, ends) {
+        (Err(AnalyticRung3Refusal::Limb { .. }), _) | (_, None) | (Ok(()), _) => decided,
+        (Err(_), Some(ends)) => measured_ends(kind, ends, band),
     }
-    upper_bound(kind, bound, upper, size, band)
+}
+
+/// **Limb 2 at a line's ends against a plane**, where the composite
+/// bound did not clear the band: the carrier's distance from the plane
+/// is affine in the parameter, so its magnitude is convex and its sup
+/// over the interval is attained at an end. Each end's distance is
+/// measured in certification arithmetic, `(p − o)·n` over `|n|`, and
+/// decided as the measured value it is: both ends in the band certify
+/// the whole edge, an end past it is a measured miss
+/// ([`AnalyticRung3Refusal::Limb`]), and an end the band cannot decide
+/// escalates on that reading. No ratio over the net's width enters.
+fn measured_ends<T: Decide>(
+    operand: geom::SurfaceKind,
+    ends: [(T, T); 2],
+    band: Band,
+) -> Result<(), AnalyticRung3Refusal> {
+    for (measure, lever) in ends {
+        let end = geom_core::Margin::over_lever(measure.abs(), lever);
+        match crate::dihedral::decide_reported("ssi_hull_value", end, band) {
+            Ok(Decided {
+                sign: Sign::Zero, ..
+            }) => {}
+            Ok(Decided { margin, .. }) => {
+                return Err(AnalyticRung3Refusal::Limb { operand, margin });
+            }
+            Err(cause) => {
+                return Err(AnalyticRung3Refusal::Escalated {
+                    operand: Some(operand),
+                    limb: Rung3Limb::HullValue,
+                    cause,
+                });
+            }
+        }
+    }
+    Ok(())
+}
+
+/// A line's distance from a plane at the ends of `params`, as the
+/// `(measure, lever)` pair `(p − o)·n`, `|n|` per end
+/// ([`measured_ends`]); `None` for any other pair of kinds.
+fn line_plane_ends<T: Decide>(
+    carrier: &Curve3<T>,
+    params: (T, T),
+    operand: &Surface<T>,
+) -> Option<[(T, T); 2]> {
+    match (carrier, operand) {
+        (Curve3::Line { .. }, Surface::Plane { origin, normal, .. }) => {
+            let lever = normal.norm();
+            Some([params.0, params.1].map(|t| ((carrier.eval(t) - *origin).dot(*normal), lever)))
+        }
+        _ => None,
+    }
 }
 
 /// Limb 2's measured miss at a break: a certified floor on the
@@ -1924,9 +1972,9 @@ impl core::fmt::Display for AnalyticRung3Refusal {
             } => write!(
                 f,
                 "{} bounds the carrier's distance from the {} by {bound:e} m over {extent:e} m \
-                 of it, which does not clear the run tolerance; the carrier's own rounding \
-                 there is {width:e} m, and an upper bound shows no miss, so the certificate \
-                 cannot show the carrier stays on that surface at this tolerance",
+                 of it, which does not clear the run tolerance; the carrier's own enclosure \
+                 width there is {width:e} m, and an upper bound shows no miss, so the \
+                 certificate cannot show the carrier stays on that surface at this tolerance",
                 Rung3Limb::HullSup.name(),
                 operand.name()
             ),
@@ -1979,29 +2027,29 @@ impl core::fmt::Display for AnalyticRung3Refusal {
     }
 }
 
-/// How far above the carrier's own rounding limb 2's bound may lie and
-/// still read as that rounding ([`AnalyticRung3Refusal::KernelLimit`]'s
-/// ending): within this factor the input's extent is the limit, past it
-/// the composite's conditioning. An order of magnitude: the composite's
-/// arithmetic adds a few roundings at the net's scale to the net's own.
+/// How far above the carrier's own enclosure width limb 2's bound may lie
+/// and still read as that width ([`AnalyticRung3Refusal::KernelLimit`]'s
+/// ending). An order of magnitude: the composite's arithmetic adds a few
+/// roundings at the net's scale to the net's own.
 pub const KERNEL_LIMIT_ROUNDING_FACTOR: f64 = 16.0;
 
-/// How far above `extent · 2⁻⁵²` the carrier's own rounding may lie and
-/// still be its extent's ([`AnalyticRung3Refusal::KernelLimit`]'s
-/// ending): past it the net rounds at its distance from the operand's
-/// own origin (a large radius), not at its own size.
+/// How far above `extent · 2⁻⁵²` the carrier's own enclosure width may
+/// lie and still be its extent's rounding
+/// ([`AnalyticRung3Refusal::KernelLimit`]'s ending): past it the width
+/// is set by something other than the edge's length — its distance from
+/// the operand's origin, or the width of its inputs' own enclosures —
+/// and the story does not say which.
 pub const KERNEL_LIMIT_EXTENT_FACTOR: f64 = 64.0;
 
 /// **The one story of limb 2's kernel limit** ([tolerance.recourse] (i),
 /// (iv)), its recourse read off the data: a bound within
 /// [`KERNEL_LIMIT_ROUNDING_FACTOR`] of the carrier's own rounding `width`
-/// is that rounding; where that rounding is the edge's own extent's
+/// is that width; where that width is the edge's own extent's rounding
 /// (within [`KERNEL_LIMIT_EXTENT_FACTOR`] of `extent · 2⁻⁵²`), the extent
 /// is the limit at this tolerance and shorter edges are the lever. A
-/// rounding set by the carrier's distance from the operand's origin, or
-/// a bound far above the rounding (the composite's conditioning), names
-/// no lever, so it names loosening as the last resort and the kernel bug
-/// it may be.
+/// wider enclosure, or a bound far above it, has a cause the story
+/// cannot know from these numbers, so it claims none: it names
+/// loosening as the last resort and the kernel bug it may be.
 fn kernel_limit_ending(bound: f64, width: f64, extent: f64) -> String {
     let rounding = bound <= KERNEL_LIMIT_ROUNDING_FACTOR * width;
     if rounding && width <= KERNEL_LIMIT_EXTENT_FACTOR * extent * f64::EPSILON {
@@ -2010,12 +2058,12 @@ fn kernel_limit_ending(bound: f64, width: f64, extent: f64) -> String {
             .to_owned()
     } else if rounding {
         format!(
-            "The bound is the curve's rounding at a large radius, not at its length. {}",
+            "The bound is the curve's own enclosure width, wider than its length's rounding. {}",
             geom_core::KERNEL_LIMIT_RECOURSE
         )
     } else {
         format!(
-            "The bound is far above the curve's own rounding, the kernel's conditioning. {}",
+            "The bound lies far above the curve's own enclosure width. {}",
             geom_core::KERNEL_LIMIT_RECOURSE
         )
     }
@@ -2927,5 +2975,65 @@ mod tests {
                 })
         };
         assert!(encloses(piece.control()), "{:?}", piece.control());
+    }
+
+    /// **A line against a plane is decided on its measured end value**
+    /// (`measured_ends`): a line on one plane whose far end strays `d`
+    /// from a second plane certifies at `d = 0`, escalates on the measured
+    /// limb with `d` inside the band, and is a measured miss
+    /// ([`AnalyticRung3Refusal::Limb`]) with `d` just past `Kε`. Red under
+    /// a rule that reads the bound as the kernel's limit, or that decides
+    /// on a ratio of the bound over the net's width.
+    #[test]
+    fn a_line_against_a_plane_is_decided_on_its_measured_end_value() {
+        use geom::{Curve3, Surface};
+        use geom_core::Interval;
+        use geom_core::{Point3, Vec3};
+        let band = geom_core::Band::new(1e-9, 1e-8).unwrap();
+        let lift = Interval::from_f64;
+        let floor = Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            normal: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        }
+        .map_scalar(lift);
+        let wall = Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            normal: Vec3::new(0.0, 1.0, 0.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        }
+        .map_scalar(lift);
+        let edge = |d: f64| {
+            let line = Curve3::Line {
+                origin: Point3::new(0.0, 0.0, 0.0),
+                dir: Vec3::new(1.0, d, 0.0),
+            }
+            .map_scalar(lift);
+            analytic_edge_limbs(&line, (lift(0.0), lift(1.0)), &floor, &wall, band)
+        };
+        assert_eq!(edge(0.0), Ok(()));
+        assert!(
+            matches!(
+                edge(5e-9),
+                Err(AnalyticRung3Refusal::Escalated {
+                    operand: Some(geom::SurfaceKind::Plane),
+                    limb: Rung3Limb::HullValue,
+                    ..
+                })
+            ),
+            "{:?}",
+            edge(5e-9)
+        );
+        assert!(
+            matches!(
+                edge(1.0001e-8),
+                Err(AnalyticRung3Refusal::Limb {
+                    operand: geom::SurfaceKind::Plane,
+                    ..
+                })
+            ),
+            "{:?}",
+            edge(1.0001e-8)
+        );
     }
 }

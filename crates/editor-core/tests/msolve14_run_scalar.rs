@@ -991,10 +991,15 @@ fn run_at<T: editor_core::EvalScalar>(
 /// And, all three rows, when a certificate came to keep its turn: the
 /// evaluation digest feeds each edge curve's `Debug`, which now spells
 /// it. No pose, fault or point moved.
+///
+/// And, all three rows, when that turn moved off the certificate onto
+/// the edge curve (PR 5728): the edge curve's `Debug` spells it in
+/// another place. Rewritten to the old shape, every row reproduces its
+/// old digest, so nothing else moved.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0x56ec_a0b8_2662_e3c9),
-    (1e-6, 0xfc0f_2d40_8c90_1d43),
-    (1e-12, 0x5b91_d653_e6de_b52a),
+    (1e-9, 0x5f9e_310a_9d41_16a4),
+    (1e-6, 0xe3b7_efdd_8bea_9b78),
+    (1e-12, 0xf18f_7b44_4656_749b),
 ];
 
 /// **Each seat of the corpus stands on what it is seated on**: in the

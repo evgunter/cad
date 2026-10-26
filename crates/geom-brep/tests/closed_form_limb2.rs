@@ -419,14 +419,14 @@ fn kernel_limit(
     }
 }
 
-/// **A long edge's own rounding is the limit**: a 12 km line where two
-/// skew planes cross, at the gate's finest band, rounds at about
-/// `ulp(12000)` in each plane's frame, so limb 2's bound cannot clear
-/// `1e-12` m. It refuses as the kernel's approximation limit, never as a
-/// miss, with a bound within [`geom_brep::KERNEL_LIMIT_ROUNDING_FACTOR`]
-/// of the net's own width, and its story names shorter edges.
+/// **A long line between two planes is decided on its measured ends**:
+/// a 12 km line where two skew planes cross, at the gate's finest band.
+/// Its distance from each plane is affine along it, so the sup is at an
+/// end, and each end's distance measured in certification arithmetic
+/// clears `1e-12` m though the framed net rounds at about `ulp(12000)`.
+/// Red under a rule that reads the net's bound as the kernel's limit.
 #[test]
-fn a_twelve_kilometre_edge_refuses_as_the_kernel_limit_at_its_extent() {
+fn a_twelve_kilometre_line_between_planes_certifies_on_its_ends() {
     let unit = |v: Vec3<f64>| v / v.norm();
     let at = Point3::new(0.3, -0.2, 0.1);
     let (n1, n2) = (
@@ -443,9 +443,42 @@ fn a_twelve_kilometre_edge_refuses_as_the_kernel_limit_at_its_extent() {
         dir: unit(n1.cross(n2)),
     };
     let got = certify(&plane(n1), &plane(n2), &line, (0.0, 12_000.0), fine_band());
-    let Some((_, bound, width, extent)) = kernel_limit(&got) else {
+    assert!(got.is_ok(), "{got:?}");
+}
+
+/// **A long edge's own rounding is the limit**: a 12 km ruling of a
+/// skew cylinder, where a plane through its axis cuts it, at the gate's
+/// finest band, rounds at about `ulp(12000)` in the cylinder's frame, so
+/// limb 2's bound cannot clear `1e-12` m. It refuses as the kernel's
+/// approximation limit, never as a miss, with a bound within
+/// [`geom_brep::KERNEL_LIMIT_ROUNDING_FACTOR`] of the net's own width,
+/// and its story names shorter edges.
+#[test]
+fn a_twelve_kilometre_edge_refuses_as_the_kernel_limit_at_its_extent() {
+    let unit = |v: Vec3<f64>| v / v.norm();
+    let at = Point3::new(0.3, -0.2, 0.1);
+    let axis = unit(Vec3::new(1.0, 2.0, 3.0));
+    let across = unit(axis.cross(Vec3::unit_z()));
+    let cylinder = Surface::Cylinder {
+        origin: at,
+        axis,
+        radius: 1.0,
+        u_ref: across,
+    };
+    let plane = Surface::Plane {
+        origin: at,
+        normal: unit(axis.cross(across)),
+        u_ref: axis,
+    };
+    let line = Curve3::Line {
+        origin: at + across,
+        dir: axis,
+    };
+    let got = certify(&cylinder, &plane, &line, (0.0, 12_000.0), fine_band());
+    let Some((operand, bound, width, extent)) = kernel_limit(&got) else {
         panic!("the kernel's limit: {got:?}");
     };
+    assert_eq!(operand, geom::SurfaceKind::Cylinder);
     assert!(
         bound > 1e-12,
         "the bound does not clear the band: {bound:e}"
@@ -470,7 +503,8 @@ fn a_twelve_kilometre_edge_refuses_as_the_kernel_limit_at_its_extent() {
 /// **A torus's composite is the limit**: a circle where a level plane
 /// cuts a torus with `R/r = 50`, at the gate's finest band, reads a bound far above the
 /// net's own rounding (the quartic composite's conditioning). It refuses
-/// as the kernel's approximation limit with the last-resort story.
+/// as the kernel's approximation limit with the last-resort story, which
+/// claims no cause it cannot read off the bound and the width.
 #[test]
 fn a_thin_torus_circle_refuses_as_the_kernel_limit_of_its_composite() {
     let torus = Surface::Torus {
@@ -503,9 +537,9 @@ fn a_thin_torus_circle_refuses_as_the_kernel_limit_of_its_composite() {
     assert!(extent > 1.0 && extent < 20.0, "the extent: {extent}");
     let ending = got.unwrap_err().ending(geom_brep::recourse::Reading::Build);
     assert!(
-        ending
-            .as_deref()
-            .is_some_and(|e| e.contains("conditioning") && e.contains("last resort")),
+        ending.as_deref().is_some_and(|e| e.contains("far above")
+            && !e.contains("conditioning")
+            && e.contains("last resort")),
         "{ending:?}"
     );
 }

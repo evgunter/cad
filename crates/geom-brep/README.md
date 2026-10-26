@@ -131,10 +131,15 @@ reading is an upper bound, and an upper bound shows no miss: a bound that ends a
 measured miss past it refuses as a kernel approximation limit
 ([tolerance.recourse]; `AnalyticRung3Refusal::KernelLimit`), carrying the bound, the extent it was read over
 and the carrier's own enclosure width there, so the one story can name
-the input's extent (the bound near that width) or the kernel's
-conditioning (the bound far above it); it is never an ambiguity of the
-input and never a definite miss. Only the measured value at a break
-refuses as a miss. At a parameter-family scalar a bound that stalls is
+the input's extent where the bound is near that width and the width is
+the extent's own rounding, and claims no cause otherwise; it is never
+an ambiguity of the input and never a definite miss. Only the measured
+value at a break refuses as a miss. A line against a plane is distant
+from it by a function affine along it, whose sup is at an end, so a
+reading that neither clears nor shows a miss there is decided on the
+two ends' measured distances, `(p − o)·n` over `|n|` in certification
+arithmetic: both in the band certify the edge, one past it is a miss,
+and one the band cannot decide escalates. At a parameter-family scalar a bound that stalls is
 undecided at that leaf, and the drive bisects it (E6); the refusal
 carries the enclosure and claims no cause and no terminality. Against
 an analytic operand

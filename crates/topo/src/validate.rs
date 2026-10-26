@@ -17198,10 +17198,9 @@ mod certify_escalation_rows {
                     },
                 )),
                 "the check's certified bound on how far it strays from its faces does not clear \
-                 the tolerance, the kernel's approximation limit. The bound is far above the \
-                 curve's own rounding, the kernel's conditioning. Recourse: loosen the \
-                 tolerance, as a last resort; this refusal may indicate a kernel bug worth \
-                 reporting",
+                 the tolerance, the kernel's approximation limit. The bound lies far above the \
+                 curve's own enclosure width. Recourse: loosen the tolerance, as a last resort; \
+                 this refusal may indicate a kernel bug worth reporting",
             ),
             // A span shorter than the tolerance is a length a user may
             // intend; one of no length, or reversed, is one no
