@@ -519,8 +519,11 @@ BOUNDS_ALLOWLIST=(
   # `census::collinear_overlaps`, the edge-edge pass's tree over the
   # line edges' boxes: `reverted_lines_disjoint` (the seamed result's
   # lines) and `no_unjoined_line` (the fallbacks'). Neither reads a
-  # bracket of its own. 21 + 2 = 23.
-  'crates/topo/src/boolean/ops.rs 23 2026-07-29 (M5 PR 8), the driver amendment'
+  # bracket of its own. 21 + 2 = 23. One more is `boolean_op_given`,
+  # `boolean_op_with`'s body with a fold step's given pairs, which the
+  # n-ary door (`nary.rs`) calls; it forwards to `boolean_door` and
+  # reads no bracket of its own. 23 + 1 = 24.
+  'crates/topo/src/boolean/ops.rs 24 2026-07-29 (M5 PR 8), the driver amendment'
   # reduce.rs's four are the sweep's own doors (`first_unsupported_pair`,
   # `gate_operand_pairs`, `face_tree`, `sweep_direction`); the fifth,
   # `sweep_and_settle`, is the one driver every boolean sweeps through,
@@ -529,6 +532,13 @@ BOUNDS_ALLOWLIST=(
   # Three more ride to `carrier_touch::off_face` the same way:
   # `curved_face_arm`, `wall_crossing` and `settle_deferred`. 5 + 3 = 8.
   'crates/topo/src/boolean/reduce.rs 8 2026-07-29 (M5 PR 8), the driver amendment'
+  # nary.rs's one is `nary_boolean`, the n-ary union and intersect: it
+  # reads each member's box through `Separation::of` and runs every
+  # judgement and fold step through the boolean door
+  # (`boolean_op_given`), and reads no bracket of its own. It is the
+  # fold `editor-core`'s `wire_combine` ran under the same amendment,
+  # moved into the kernel (`work/flush/a-glue-verdict-is-not-bound-to-the-bodies-it-judged.md`).
+  'crates/topo/src/boolean/nary.rs 1 2026-07-29 (M5 PR 8), the driver amendment'
   # `separation.rs` is FOUR and the ledger entry enumerates THREE
   # (`Separation::of`, `Separation::certify`, `image`). The fourth,
   # `SolidSeparation::of`, is argued in that struct's own doc as
