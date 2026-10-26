@@ -708,16 +708,10 @@ pub(crate) fn leaves(left: SubgroupFamily, coord: super::Coord) -> bool {
     }
 }
 
-/// **How many slides the residual `left` leaves**: the dimension of
-/// the translations it frees.
+/// **How many slides the residual `left` leaves**
+/// ([`SubgroupFamily::slides`]).
 pub(crate) fn slides_left(left: SubgroupFamily) -> usize {
-    use SubgroupFamily as F;
-    match left {
-        F::Se3 | F::Parallel | F::Translation => 3,
-        F::Planar | F::PlaneTranslation => 2,
-        F::Cylindrical | F::Prismatic => 1,
-        F::Spherical | F::Revolute | F::Trivial => 0,
-    }
+    left.slides()
 }
 
 /// Whether a mate of `family` leaves `coord`'s whole class of freedom:

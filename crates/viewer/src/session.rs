@@ -2799,37 +2799,17 @@ impl DocSession {
     ) -> OpOutcome {
         let doc = self.committed_doc();
         let (at, port, name) = crate::world::on_body(doc, face.node, face.body, &face.name);
-        // The body the face is on, and where the face is read: the
-        // node's output by its port where it holds several.
-        let (body, read_at) = match crate::world::seat_read(doc, at, Some(port)) {
-            (at, Some(port)) => (
-                Operand::output(at, port),
-                doc.output(at, port)
-                    .map_or(editor_core::At::Node(at), editor_core::At::Read),
-            ),
-            (at, None) => (body_of(doc, at), editor_core::At::Node(at)),
+        // The body the face is on: the node's output by its port where
+        // it holds several.
+        let body = match crate::world::seat_read(doc, at, Some(port)) {
+            (at, Some(port)) => Operand::output(at, port),
+            (at, None) => body_of(doc, at),
         };
         if let Err(refusal) = self.require_read(&body, NodeKindWanted::Body) {
             return OpOutcome::refused(refusal);
         }
         let over = self.placements_of(&body);
-        // The profile's `z` looks up the face's outward normal: the
-        // orientation nearest it, read where the face stands.
-        let ev: Evaluation<f64> = pncad::document::evaluate(
-            doc,
-            None,
-            &pncad::document::CancelToken::new(),
-            &self.eval_options(),
-            self.tol,
-        );
-        let orient = pncad::select::face_frame(&ev, read_at, &name).map_or(
-            pncad::document::Orientation::IDENTITY,
-            |pose| {
-                let outward = if pose.sense { pose.axis } else { -pose.axis };
-                pncad::document::Orientation::IDENTITY
-                    .toward(pncad::geom_core::Vec3::new(0.0, 0.0, 1.0), outward)
-            },
-        );
+        let opts = self.eval_options();
         let taken = crate::world::read_var(doc, &body);
         if let Err(refusal) = stranded_pick(doc, &over, taken) {
             return OpOutcome::refused(refusal);
@@ -2844,7 +2824,8 @@ impl DocSession {
                 },
                 distance,
                 spin,
-                orient,
+                None,
+                &opts,
             )?;
             repoint(run, over, taken, sketched.union)
         })

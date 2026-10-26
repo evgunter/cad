@@ -1667,12 +1667,11 @@ impl Doc {
     /// face body's own and turned `spin` about the normal — and the
     /// face's body and the copy fused. `face` is one of the opaque
     /// texts `Evaluation.all_faces` / `select` answered with. `orient=`
-    /// is the mate's `Orientation`, the identity unless written: where
-    /// the profile's axes lie among the face body's space's, so a face
-    /// whose outward normal is that space's `-z` takes one putting the
-    /// profile's `z` along `-z` (`Orientation("+x", "-z")`), since the
-    /// identity there is the orientation written backwards
-    /// (`mate_backwards`).
+    /// is the mate's `Orientation`: where the profile's axes lie among
+    /// the face body's space's. Unwritten, it is the one nearest where
+    /// the copy stands, the profile's `z` along the face's outward
+    /// normal, read off the face; one putting `z` opposite the normal is
+    /// the orientation written backwards (`mate_backwards`).
     ///
     /// One action: the four nodes, the mate and its values all land or
     /// none does, and the first door that refuses raises its
@@ -1712,7 +1711,8 @@ impl Doc {
                 profile,
                 distance,
                 spin,
-                orient.map_or(d::Orientation::IDENTITY, |o| o.0),
+                orient.map(|o| o.0),
+                &d::EvalOptions::default(),
             )
             .map_err(edit_failed)?;
         if let Some(label) = label {

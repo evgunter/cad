@@ -4035,11 +4035,10 @@ class Doc:
         body's own, turned `spin` about the normal; zero when `None`),
         and `body` and the copy fused. `face` is opaque name text from
         `Evaluation.all_faces` / `select`. `orient=` is the mate's
-        `Orientation`, the identity when `None`: a face looking down its
-        space's `-z` takes one putting the profile's `z` there,
-        `Orientation("+x", "-z")`, since the identity is then written
-        backwards (`mate_backwards`). One action; `label=` labels the
-        union."""
+        `Orientation`; when `None`, the one nearest where the copy
+        stands, the profile's `z` along the face's outward normal. One
+        putting `z` opposite the normal is written backwards
+        (`mate_backwards`). One action; `label=` labels the union."""
 
     @property
     def node_count(self) -> int: ...

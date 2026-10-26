@@ -165,7 +165,7 @@ def identity():
 def zeros():
     """The three values a plane mate leaves, the bundle's first entry,
     each the constant zero: its slides along the chart's `x` and `y` and
-    its spin about the mated direction."""
+    its spin about the target's own direction."""
     return [MateValue(coord, 0) for coord in (Coord.slide("x"), Coord.slide("y"), Coord.spin())]
 
 

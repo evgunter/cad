@@ -45,8 +45,8 @@ impl Placed {
     /// then `moves` in the order written, then the constant `0` on each
     /// freedom the mates leave that no move names — a slide along each
     /// of the target space's (carried) `x`, `y` and `z` until the slides
-    /// are as many as the mates leave, and the spin about the mated
-    /// direction, or, where no direction is fixed, the
+    /// are as many as the mates leave, and the spin about the target's
+    /// own direction, or, where no direction is fixed, the
     /// chain's missing turns about the target space's `x`, `y` and `z`
     /// appended until it turns three times. The freedoms the mates
     /// leave are read off their kinds in the recipe of `doc`, nothing

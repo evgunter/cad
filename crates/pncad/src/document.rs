@@ -401,7 +401,7 @@ pub use editor_core::{
 // into, with the `Orientation` a mate fixing a direction carries — or
 // a `Value` setting one freedom (`Coord`: a slide along one of the
 // target space's axes as `TargetAxis` names it, the spin about the
-// mated direction, or a spin about an axis of a chain), which names no
+// target's own direction, or a spin about an axis of a chain), which names no
 // mate: the bundle's mates together leave it, and it charts on the
 // target space's axes carried onto the one mated direction by the least
 // turn from where the orientation puts the copy's. The solve's outcome (`SolvedPoses`, each copy's target

@@ -6595,15 +6595,20 @@ impl Recording<'_, crate::ProfileProgram> {
     /// (the two slides the plane leaves the constant `0`) and turned
     /// `spin` about the face's normal — and the face's body and the copy
     /// fused. `orient` is the mate's orientation: where the profile's
-    /// axes lie among the target space's. The profile's `z` lies along
-    /// the target axis `orient` puts it on, so the plane fixes that slide
-    /// and the bundle writes the other two; an `orient` putting `z`
-    /// opposite the face's normal refuses [`crate::MateFault::Backwards`],
-    /// naming the orientation to write.
+    /// axes lie among the target space's. `None` is the one nearest
+    /// where the copy stands, the profile's `z` along the face's outward
+    /// normal ([`crate::Orientation::toward`]), read off the face under
+    /// `opts`; a face that does not read takes the identity, which the
+    /// solve then judges. The profile's `z` lies along the target axis
+    /// the orientation puts it on, so the plane fixes that slide and the
+    /// bundle writes the other two; an `orient` putting `z` opposite the
+    /// face's normal refuses [`crate::MateFault::Backwards`], naming the
+    /// orientation to write.
     ///
     /// # Errors
     ///
     /// As [`Self::apply`]'s: the first door that refuses ends the action.
+    #[allow(clippy::too_many_arguments)] // the gesture's own arguments, each a seat
     pub fn sketch_on_face(
         &mut self,
         body: crate::Operand,
@@ -6611,9 +6616,11 @@ impl Recording<'_, crate::ProfileProgram> {
         profile: crate::ProfileProgram<Formula>,
         distance: Formula,
         spin: Formula,
-        orient: crate::Orientation,
+        orient: Option<crate::Orientation>,
+        opts: &crate::EvalOptions,
     ) -> Result<SketchedOnFace, EditError> {
         use crate::pose::{PoseDef, RoleRead};
+        let orient = orient.unwrap_or_else(|| self.nearest_to_face(&body, &face, opts));
         let profile = self.insert(Node::Profile(profile))?;
         let extrude = self.insert(Node::Extrude {
             profile: profile.into(),
@@ -6681,6 +6688,37 @@ impl Recording<'_, crate::ProfileProgram> {
             union,
         })
     }
+
+    /// **The orientation nearest where a sketch on `face` of `body`
+    /// stands**: the profile's `z` along the face's outward normal, read
+    /// off the face as it stands now under `opts`; the identity where
+    /// the face does not read.
+    fn nearest_to_face(
+        &self,
+        body: &crate::Operand,
+        face: &crate::StableName,
+        opts: &crate::EvalOptions,
+    ) -> crate::Orientation {
+        let doc = self.doc();
+        let at = match body {
+            crate::Operand::Output { node, port } => doc
+                .output(*node, *port)
+                .map_or(crate::At::Node(*node), crate::At::Read),
+            crate::Operand::Node(node) => crate::At::Node(*node),
+            crate::Operand::Var(var) => crate::At::Read(*var),
+            _ => return crate::Orientation::IDENTITY,
+        };
+        let ev: crate::Evaluation<f64> =
+            crate::evaluate(doc, None, &crate::CancelToken::new(), opts, self.tol);
+        crate::names::interrogate::face_frame(&ev, at, face).map_or(
+            crate::Orientation::IDENTITY,
+            |pose| {
+                let outward = if pose.sense { pose.axis } else { -pose.axis };
+                crate::Orientation::IDENTITY
+                    .toward(geom_core::linalg::Vec3::new(0.0, 0.0, 1.0), outward)
+            },
+        )
+    }
 }
 
 /// [`fn@sketch_on_face`]'s outcome: the action applied, and what it
@@ -6710,11 +6748,12 @@ pub fn sketch_on_face(
     profile: crate::ProfileProgram<Formula>,
     distance: Formula,
     spin: Formula,
-    orient: crate::Orientation,
+    orient: Option<crate::Orientation>,
+    opts: &crate::EvalOptions,
     tol: Tol,
 ) -> Result<SketchOutcome, EditError> {
     let mut action = Recording::start(doc, tol);
-    let sketched = action.sketch_on_face(body, face, profile, distance, spin, orient)?;
+    let sketched = action.sketch_on_face(body, face, profile, distance, spin, orient, opts)?;
     let Recorded {
         doc,
         edits,

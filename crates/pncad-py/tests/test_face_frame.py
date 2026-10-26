@@ -330,15 +330,23 @@ class TestSketchOnAFace(unittest.TestCase):
             evaluate(self.doc).value(sketched.placement)
 
 
+# A pad with no symmetry: a turn or a mirror of it is another set of
+# corners, so where its corners land says how the boss is turned.
+SKEW = loop([(0.1, 0.05), (0.4, 0.05), (0.4, 0.25), (0.1, 0.15)])
+
+AXES = {"+x": (1.0, 0.0, 0.0), "-x": (-1.0, 0.0, 0.0), "+y": (0.0, 1.0, 0.0),
+        "-y": (0.0, -1.0, 0.0), "+z": (0.0, 0.0, 1.0), "-z": (0.0, 0.0, -1.0)}
+
+
 class TestSketchOnEveryFace(unittest.TestCase):
     """A sketch on each of the plate's six faces, the orientation left
-    as the identity. The profile's `z` is put on the target's `+z`, and
-    the least turn carries it onto the face's outward normal: the boss
-    starts on the face and grows 0.3 along that normal, whichever face
-    it is. The one face it cannot reach that way is the bottom, whose
-    outward normal is `-z` itself: there the identity puts the profile's
-    `z` opposite the face, and the solve refuses `mate_backwards`,
-    naming the orientation to write, which then places the boss."""
+    to the gesture: the one nearest where the copy stands, the profile's
+    `z` along the face's outward normal. So the least turn is the
+    identity, the boss's own axes are the orientation's, its origin
+    stands on the face over the plate's own, and it grows 0.3 along the
+    outward normal, whichever face it is, the bottom included. An
+    orientation written backwards still refuses, naming the one to
+    write."""
 
     def faces(self):
         doc = Doc()
@@ -346,40 +354,63 @@ class TestSketchOnEveryFace(unittest.TestCase):
         ev = evaluate(doc)
         return doc, node, {outward(ev, node, f): f for f in ev.all_faces(node)}
 
-    def test_the_boss_grows_out_of_every_face_but_the_bottom(self):
+    def test_the_boss_stands_on_every_face_turned_by_the_nearest_orientation(self):
         """Breaks if the gesture writes the slide the face's plane fixes
-        (a side face refuses `slides_do_not_span`), or places the boss
-        anywhere but on the face, growing along its outward normal."""
+        (a side face refuses `slides_do_not_span`), leaves the bottom to a
+        refusal, or places the boss anywhere but on the face: its corners
+        are the skewed pad's, turned by the orientation the placement
+        carries and set on the face over the plate's origin."""
         _, _, faces = self.faces()
         self.assertEqual(len(faces), 6, "a plate has six faces, one per outward normal")
         for normal in faces:
-            if normal == (0.0, 0.0, -1.0):
-                continue
             with self.subTest(normal=normal):
                 doc, node, by_normal = self.faces()
-                sketched = doc.sketch_on_face(node, by_normal[normal], PAD, 0.3 * m)
-                ev = evaluate(doc)
-                boss = positions(ev, sketched.placement)
+                sketched = doc.sketch_on_face(node, by_normal[normal], SKEW, 0.3 * m)
+                self.assertIsNone(solve_document(doc).fault(sketched.placement))
+                (orient,) = [c.orient for _, c in doc.bundle(sketched.placement) if isinstance(c, Mate)]
+                cols = [AXES[orient.x], AXES[orient.y], AXES[orient.z]]
+                self.assertEqual(cols[2], normal, "the profile's z looks out of the face")
+                # The nearest: no orientation putting z on the normal has
+                # a greater trace, and a tie keeps the author's `+x`.
+                trace = cols[0][0] + cols[1][1] + cols[2][2]
+                rivals = [
+                    Orientation(x, orient.z)
+                    for x in AXES
+                    if x[1] != orient.z[1]
+                ]
+                best = max(AXES[o.x][0] + AXES[o.y][1] + AXES[o.z][2] for o in rivals)
+                self.assertEqual(trace, best, f"{orient} is the nearest")
+                if sum(AXES[o.x][0] + AXES[o.y][1] + AXES[o.z][2] == best for o in rivals) > 1:
+                    self.assertEqual(orient.x, "+x", "a tie keeps the author's x")
                 k = max(range(3), key=lambda i: abs(normal[i]))
-                face_at = 0.2 if k == 2 else (1.0 if normal[k] > 0 else 0.0)
-                reach = [p[k] * normal[k] for p in boss]
-                self.assertAlmostEqual(min(reach), face_at * normal[k], delta=1e-12)
-                self.assertAlmostEqual(max(reach), face_at * normal[k] + 0.3, delta=1e-12)
+                face_at = (0.2 if k == 2 else 1.0) if normal[k] > 0 else 0.0
+                at = tuple(face_at if i == k else 0.0 for i in range(3))
+                corners = [(0.1, 0.05), (0.4, 0.05), (0.4, 0.25), (0.1, 0.15)]
+                want = sorted(
+                    tuple(at[i] + u * cols[0][i] + v * cols[1][i] + h * cols[2][i] for i in range(3))
+                    for u, v in corners
+                    for h in (0.0, 0.3)
+                )
+                got = sorted(positions(evaluate(doc), sketched.placement))
+                self.assertEqual(len(got), len(want))
+                for g, w in zip(got, want, strict=True):
+                    for a, b in zip(g, w, strict=True):
+                        self.assertAlmostEqual(a, b, delta=1e-12)
 
-    def test_the_bottom_refuses_naming_the_orientation_to_write(self):
-        """Breaks if the identity on the bottom face is answered by a half
-        turn about an arbitrary axis, or the refusal names an orientation
-        that does not place the boss under the plate."""
+    def test_an_orientation_written_backwards_refuses_naming_the_one_to_write(self):
+        """Breaks if the identity written on the bottom face is answered
+        by a half turn about an arbitrary axis, or the refusal names an
+        orientation that does not place the boss under the plate."""
         doc, node, faces = self.faces()
         bottom = faces[(0.0, 0.0, -1.0)]
-        sketched = doc.sketch_on_face(node, bottom, PAD, 0.3 * m)
+        sketched = doc.sketch_on_face(node, bottom, SKEW, 0.3 * m, orient=Orientation.identity())
         fault = solve_document(doc).fault(sketched.placement)
         self.assertIsNotNone(fault)
         self.assertEqual(fault.variant, "mate_backwards")
         self.assertEqual(fault.orient, Orientation.identity())
         write = fault.write
         doc, node, faces = self.faces()
-        sketched = doc.sketch_on_face(node, faces[(0.0, 0.0, -1.0)], PAD, 0.3 * m, orient=write)
+        sketched = doc.sketch_on_face(node, faces[(0.0, 0.0, -1.0)], SKEW, 0.3 * m, orient=write)
         zs = [p[2] for p in positions(evaluate(doc), sketched.placement)]
         self.assertAlmostEqual(max(zs), 0.0, delta=1e-12)
         self.assertAlmostEqual(min(zs), -0.3, delta=1e-12)

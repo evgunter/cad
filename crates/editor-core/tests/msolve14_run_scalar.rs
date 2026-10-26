@@ -943,9 +943,9 @@ fn run_at<T: editor_core::EvalScalar>(
 ///
 /// And for D′2 (a value charts on the target space, all three rows):
 /// every bundle is spelled in the new vocabulary and the content key's
-/// `VERSION` moved, so the ids moved; and a seat's values are charted
-/// on its target space's axes swung onto the mated normal rather than
-/// on the target body's frame. The two seats whose target stands off
+/// `VERSION` moved, so the ids moved; and a seat's values came to be
+/// charted on its target space's axes (then swung onto the mated
+/// normal) rather than on the target body's frame. The two seats whose target stands off
 /// its space's identity are written as the motion they mean: the
 /// pinned chain's bolts at the point `(1, 1)` along the slab's sides
 /// from its corner reads on the new chart
@@ -982,6 +982,15 @@ fn run_at<T: editor_core::EvalScalar>(
 /// evaluation digest feeds each edge curve's `Debug`, which now spells
 /// it. No pose, fault or point moved. Re-measured with both merged, at
 /// all three ε.
+///
+/// And when the value chart came to read a written orientation (D10
+/// `[placement.values]`, all three rows): every mate carries its
+/// orientation and the content key's `VERSION` moved to 22, so every
+/// id and value token moved; and the pinned chain's two seats on the
+/// turned slab are turned by the least turn where the swing turned
+/// them, so their rotations' off-diagonal entries no longer agree bit
+/// for bit, one translation entry (`z`) moved by an ulp, and five of
+/// their vertices by an ulp each. Every other pose is main's.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
     (1e-9, 0xaa45_2c35_08a5_7082),
     (1e-6, 0x12ee_6451_f129_634c),

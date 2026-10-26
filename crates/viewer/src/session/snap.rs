@@ -18,7 +18,7 @@
 
 use editor_core::mate::LeastTurn;
 use editor_core::mate::turn::across;
-use editor_core::{Coord, Formula, Orientation, TargetAxis};
+use editor_core::{Coord, Formula, Orientation, SubgroupFamily, TargetAxis};
 use pncad::document::pose::{PoseValue, RoleRead};
 use pncad::document::{
     Constraint, ConstraintKind, Dimension, Doc, Evaluation, Frame, OperandSlot, ProfileProgram,
@@ -95,13 +95,15 @@ impl Hold {
         }
     }
 
-    /// How many slides the mate leaves.
+    /// How many slides the mate leaves: its residual's
+    /// ([`SubgroupFamily::slides`]).
     fn slides(&self) -> usize {
         match self {
-            Self::Plane(_) => 2,
-            Self::Line(_) => 1,
-            Self::Free => 3,
+            Self::Plane(_) => SubgroupFamily::Planar,
+            Self::Line(_) => SubgroupFamily::Cylindrical,
+            Self::Free => SubgroupFamily::Parallel,
         }
+        .slides()
     }
 }
 

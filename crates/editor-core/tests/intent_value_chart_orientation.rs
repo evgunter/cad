@@ -265,7 +265,7 @@ fn a_floor_swept_through_a_quarter_turn_moves_its_copy_continuously() {
 /// **A rest turns the same way whichever side spells its flip.** A unit
 /// box rests on a level floor at values `(3, 4, 0.5)`, its contact
 /// spelled twice: the flip on the floor's plane (as the viewer's mate
-/// tool and the façade's `rest` write it), and the flip on the box's
+/// tool and Python's `Mate` docs write it), and the flip on the box's
 /// bottom (as sketch-on-face writes it). Both stand the box at one pose,
 /// and the positive spin turns it counter-clockwise seen from `+z`: its
 /// `x` lies at `(cos 0.5, sin 0.5, 0)`.

@@ -697,7 +697,7 @@ fn a_cap_at_the_antipode_places_without_a_turn() {
 /// bundle written whole again): the box on the floor loses its plane
 /// mate and keeps its two slides, now on the world's axes, the lift and
 /// the chain's three turns written the constant `0` — its spin was the
-/// turn about the mated direction, which no chain link is; a value taken
+/// turn about the floor's own normal, which no chain link is; a value taken
 /// out leaves the mate and the other two, and the constant `0` in its
 /// place. Either way the copy stays pinned.
 ///

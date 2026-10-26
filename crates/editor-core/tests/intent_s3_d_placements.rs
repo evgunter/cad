@@ -583,7 +583,8 @@ fn a_sketch_on_a_face_stands_on_the_face_it_names() {
         boss,
         len(0.5),
         Formula::zero(editor_core::Dimension::Angle),
-        editor_core::Orientation::IDENTITY,
+        None,
+        &EvalOptions::default(),
         Tol::witness(),
     )
     .expect("the gesture lands");

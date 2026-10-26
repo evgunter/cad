@@ -600,8 +600,8 @@ fn removing_a_chain_link_writes_zero_in_its_place() {
 /// **A mate added over written values reports each value it drops.**
 /// A rest on the floor's top fixes the block's `z` slide and its turns
 /// off the floor's normal. The chain `Z(0.1), X(tilt), Z(0.3)` turns
-/// about the world's axes, and no link of it is the spin about the mated
-/// direction, so the door drops all three (the `x` link read the named
+/// about the world's axes, and no link of it is the spin about the
+/// floor's own normal, so the door drops all three (the `x` link read the named
 /// `tilt`, still declared) and writes `0` on the spin; and it drops the
 /// `z` slide. Each drop is a `ValueDropped` row naming its freedom and
 /// the variable it read.

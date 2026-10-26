@@ -547,7 +547,7 @@ pub(crate) fn settle<T: SolveScalar>(
     // turns about the target's own direction.
     assert!(
         spins.iter().all(|v: &&ReadValue<T>| v.coord == Coord::SPIN),
-        "a mate's chart is spun about its mated direction alone"
+        "a mate's chart is spun about the target's own direction alone"
     );
     let along = |v: &ReadValue<T>| match v.coord {
         Coord::Slide(a) => a.index(),

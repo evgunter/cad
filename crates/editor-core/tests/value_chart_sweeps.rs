@@ -111,11 +111,9 @@ fn on_floor(
                 pose: RoleRead::through(p, PoseRole::Normal),
             }))
         };
-        // copy's bottom normal (−z) flipped = +z, onto the floor's up
-        // normal flipped... use the floor's normal and the copy's
-        // bottom-normal flipped twice-avoiding: on = flip(normal(bottom)),
-        // to = flip(normal(flip floor)) is a double flip; use to = the
-        // floor normal via a plain role read wrapped as a pose slide 0.
+        // A direction mate: the bottom's normal flipped (`+z`) on the
+        // flipped floor's normal flipped back (the floor's `+z`), so the
+        // copy stands upright as the plane rest stands it.
         let to = Operand::Pose(Box::new(PoseDef::Flip {
             pose: RoleRead::through(fixture::flip(floor), PoseRole::Normal),
         }));
@@ -425,14 +423,25 @@ fn wedge_sweep(orients: &[Orientation], pairs: &[&str], steps: u32) {
         .into_iter()
         .filter(|(label, _)| pairs.contains(label))
         {
+            // The pair spans what the plane leaves iff the copy's mated
+            // direction, where the orientation puts it, has a component
+            // along the axis the pair leaves out.
+            let n = o.apply(geom_core::linalg::Vec3::new(0.6, 0.8, 0.0));
+            let out = ["y,z", "x,z", "x,y"]
+                .iter()
+                .position(|p| p == &label)
+                .expect("a pair of two slides");
+            let admitted = [n.x, n.y, n.z][out] != 0.0;
             let mut last: Option<Frame> = None;
             let mut worst = 0.0_f64;
             let mut first = None;
+            let mut placed = 0;
             for k in 0..=steps {
                 let t = -1.5 + h * f64::from(k);
                 match run(t, vals.clone(), o) {
                     Ok(f) => {
-                        // a point of the slope (2,0,0) on the floor plane
+                        placed += 1;
+                        // A point of the slope, `(4, 0, 0)`, on the floor's plane.
                         let off = dot(apply(&f, [4.0, 0.0, 0.0]), up_x(t));
                         let nrm = lin(&f, [0.6, 0.8, 0.0]);
                         let anti = dot(nrm, up_x(t)) + 1.0;
@@ -445,12 +454,18 @@ fn wedge_sweep(orients: &[Orientation], pairs: &[&str], steps: u32) {
                         last = Some(f);
                     }
                     Err(e) => {
+                        if admitted || !e.contains("SlidesDoNotSpan") {
+                            bad.push(format!("{o} {label} t={t}: refused {e}"));
+                        }
                         if first.is_none() {
                             first = Some(format!("t={t}: {}", &e[..e.len().min(140)]));
                         }
                         last = None;
                     }
                 }
+            }
+            if admitted && placed == 0 {
+                bad.push(format!("{o} {label}: admitted, and placed nowhere"));
             }
             println!("wedge {o} {label}: worst rate {worst:.2}, first refusal {first:?}");
             if worst > 40.0 {

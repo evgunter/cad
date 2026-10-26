@@ -557,7 +557,7 @@ fn spin_z(n: u64, turn: f64) -> editor_core::Constraint<Formula> {
     )
 }
 
-/// A spin about the mated direction turning by `turn` of a turn.
+/// A spin about the target's own direction turning by `turn` of a turn.
 fn spin_mated(n: u64, turn: f64) -> editor_core::Constraint<Formula> {
     value(
         n,
