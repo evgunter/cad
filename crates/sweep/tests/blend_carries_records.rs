@@ -272,7 +272,7 @@ fn a_turns_third_edge_lands_a_resting_corners_record_on_the_surviving_piece() {
 /// record lands on no pair and is consumed while the kiss carries. Red
 /// where the support face's division is read as exhaustive: the record
 /// is then refused stale. The blend refuses a real touch inside its
-/// strip before any carry (`work/band/a-blend-refuses-a-touch-in-its-strip-so-no-real-touch-reaches-its-consumption.md`).
+/// strip before any carry (`work/bandrule/a-blend-refuses-a-touch-in-its-strip-so-no-real-touch-reaches-its-consumption.md`).
 #[test]
 fn a_record_on_a_support_face_is_consumed() {
     let base = kiss();

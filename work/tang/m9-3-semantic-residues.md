@@ -41,7 +41,7 @@ Every site named is `crates/topo/src/boolean/rest.rs` or its neighbours in S-MAT
    a wide slab). Measured per bound, both of the wall sector's bounds
    read `On`: the ruling exactly, and the arc because the band-edge split
    leaves it a 2.1e-8 m arm
-   (`work/hone/an-arc-tangent-to-a-face-at-its-end-is-split-at-the-edge-of-the-band.md`).
+   (`work/honeroot/an-arc-tangent-to-a-face-at-its-end-is-split-at-the-edge-of-the-band.md`).
    Two consecutive `On`s refuse, so per bound turned all three ops into
    `ClassificationInvariant`, where the whole-sector lump answers them
    right. One `On` would not refuse (`resolve_on_entries` settles an

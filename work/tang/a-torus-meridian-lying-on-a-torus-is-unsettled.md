@@ -70,4 +70,4 @@ rim: `a-torus-seam-graze-needs-the-rim-root-deflated`, parked on
 
 Filed by the F ≡ 0 sweep:
 `work/roots/an-oblique-cone-section-reads-a-zero-floor` and
-`work/hone/a-villarceau-circle-lying-on-a-torus-is-unsettled`.
+`work/honeroot/a-villarceau-circle-lying-on-a-torus-is-unsettled`.

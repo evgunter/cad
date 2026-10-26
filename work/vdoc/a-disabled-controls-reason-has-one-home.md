@@ -93,7 +93,7 @@ Three things about that text:
   sweep rule that produces its population at the sentence* (#2143).
   The existing `prefs::Unusable` clause already models exactly this.
 - **The 30 is a measurement with nothing reading it.** Filed as
-  `work/guard/viewer-disabled-control-population-has-no-gate`; if that
+  `work/unread/viewer-disabled-control-population-has-no-gate`; if that
   gate lands, the clause cites it the way the `platform` row cites
   `scripts/gates/no-ambient-env.sh`.
 
@@ -135,5 +135,5 @@ closed: `work/vnews/undo-and-redo-are-disabled-in-silence-over-a-refusal-that-ha
 `…/a-disabled-control-says-why-in-four-shapes`. So the *Sequencing*
 section's "the clause waits for them" has been met. Re-derive the 30
 `add_enabled` sites and the third arm's instance against the tree
-before writing the clause. `work/guard/viewer-disabled-control-population-has-no-gate`
+before writing the clause. `work/unread/viewer-disabled-control-population-has-no-gate`
 is still open.
