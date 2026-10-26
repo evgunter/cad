@@ -41,3 +41,4 @@
   - **Q3:** a `Gap` assertion never quiets a flush pair (D10's flush clause; Ev on #5555: "a mate that additionally indicates that it is flush").
   - **Q4:** C leaves the lint's knob as it is.
   - `stage5-contact-finding-and-the-unproven-row-report-one-contact-twice` closes with the spec. `an-instance-carries-its-parts-coincidences` is re-cut (a part's unproven rows reach the host's report as the part's, by route, quieted only by the part's assertions) and parked on D′3.
+- 2026-10-26 — Dispatched `gap-reads-vertex-and-edge-cells` (P0 M) to `session_01LAxLQNJFwzHwRxtDMG2LZX` on `atrest/gap-reads-vertex-and-edge-cells`. Tier: single FULL review, for the sign conventions per cell pair. It is FLUXHOLD's ground (`measure.rs`), so the PR carries the seam note.
