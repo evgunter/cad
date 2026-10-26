@@ -22,13 +22,12 @@
 use crate::fixture;
 
 use editor_core::{
-    AssemblyError, CapEnd, Coord, DocumentId, EntityKind, Entry, EvalOptions, Evaluation, Formula,
-    MateFault, MateRef, MateSide, Node, NodeErrorKind, NodeResult, NodeStanding, PartFault,
-    PatternKind, ProductError, ProfileDoc, RecipeNodeId, RoleSeg, SitedFace, StableName,
-    TargetAxis,
+    CapEnd, Coord, DocumentId, EntityKind, Entry, EvalOptions, Evaluation, Formula, MateFault,
+    MateRef, MateSide, Node, NodeErrorKind, NodeResult, NodeStanding, PartFault, PatternKind,
+    ProductError, ProfileDoc, RecipeNodeId, RoleSeg, SitedFace, StableName, TargetAxis,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
-use fixture::{ang, gate, insert, len, on_frame, run, scl};
+use fixture::{ang, insert, len, on_frame, run, scl};
 use geom_core::Tol;
 
 // ---- the scene ----
@@ -186,12 +185,14 @@ fn assert_on_selection_refuses(ev: &Evaluation<f64>, mate: MateRef, what: &str) 
 /// `⊔`, poisoned through the block's failed placement, before any mate
 /// is read.
 fn assert_refused_at_the_block(doc: &ProfileDoc, ev: &Evaluation<f64>, top: RecipeNodeId) {
-    let err = gate(doc, ev).expect_err("the block's refusal refuses the product");
+    let err = editor_core::product_recorded(doc, ev, Tol::witness())
+        .map(|_| ())
+        .expect_err("the block's refusal refuses the product");
     assert!(
         matches!(
             &err,
-            AssemblyError::Product(e)
-                if matches!(**e, ProductError::Root(NodeStanding::Poisoned { through, .. }) if through == top)
+            e
+                if matches!(*e, ProductError::Root(NodeStanding::Poisoned { through, .. }) if through == top)
         ),
         "{err:?}"
     );
@@ -369,12 +370,14 @@ fn a_poisoned_operand_never_reaches_the_gate() {
     // The block is a member of the product's `⊔`, failed on its part,
     // so the gather refuses the `⊔` poisoned through THAT placement,
     // before any reference is read.
-    let err = gate(&doc, &ev).expect_err("the gather refuses");
+    let err = editor_core::product_recorded(&doc, &ev, Tol::witness())
+        .map(|_| ())
+        .expect_err("the gather refuses");
     assert!(
         matches!(
             &err,
-            AssemblyError::Product(e)
-                if matches!(**e, ProductError::Root(NodeStanding::Poisoned { through, .. }) if through == top)
+            e
+                if matches!(*e, ProductError::Root(NodeStanding::Poisoned { through, .. }) if through == top)
         ),
         "the gather refuses at the failed placement before any reference is read: {err:?}"
     );

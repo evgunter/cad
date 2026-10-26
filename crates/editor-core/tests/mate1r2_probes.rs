@@ -19,7 +19,7 @@ use crate::fixture;
 
 use editor_core::{
     CapEnd, Coord, DocEdit, DocumentId, EvalOptions, Formula, Frame, MateRef, MateSide, Node,
-    NodeErrorKind, PatternKind, ProfileDoc, RecipeNodeId, TargetAxis, VarId, assemble,
+    NodeErrorKind, PatternKind, ProfileDoc, RecipeNodeId, TargetAxis, VarId,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{ang, in_copy, insert, len, on_frame, run, scl, solve, step};
@@ -361,9 +361,8 @@ fn r2_a_seat_still_verifies_under_a_pinned_world_frame() {
     // ŷ even though the leg is rotated; the top must land so the seat
     // holds.
     let ev = run(&doc, &o);
-    let result = assemble(&doc, &ev, Tol::witness());
-    if let Err(refusal) = &result {
-        panic!("the seat under a placed leg verifies; the gate said: {refusal}");
+    if let Err(refusal) = crate::fixture::could_look(&doc, &ev) {
+        panic!("the seat under a placed leg verifies; the at-rest check said: {refusal}");
     }
 }
 

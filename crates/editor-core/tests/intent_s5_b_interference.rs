@@ -2,7 +2,7 @@
 //! (`docs/INTENT-STAGE5-SPEC.md` §3, §6 rows 5–10; D10, Assertions).
 //!
 //! At rest, an overlap of two copies' material is an
-//! [`editor_core::InterferenceFinding`] on the assembly, one per
+//! [`editor_core::InterferenceFinding`] of the at-rest check, one per
 //! connected overlap, never a refusal. A holding assertion quiets one
 //! only when it reads a `Gap` directly over an opposed pair of the two
 //! copies' faces, admits only negative values, its two faces bound the
@@ -14,8 +14,8 @@ use crate::corpus;
 use crate::fixture::{fname, insert, len, on_frame, place, square, wall};
 
 use editor_core::{
-    Assembly, AssertionRelation, Formula, InterferenceFinding, MeasurePrimitive, Node, Overlap,
-    ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName, assemble,
+    AssertionRelation, Formula, InterferenceFinding, MeasurePrimitive, Node, Overlap, ProfileDoc,
+    RecipeNodeId, RoleSeg, SitedRef, StableName,
 };
 use geom_core::Tol;
 use topo::{CensusContact, ValidationError};
@@ -77,9 +77,28 @@ fn slab_overlap() -> (
     (doc, a, b, p, q)
 }
 
-fn assembled(doc: &ProfileDoc) -> Assembly<f64> {
+/// **What the at-rest check reports**: its interference findings, and
+/// every finding beside them.
+struct AtRest {
+    interference: Vec<InterferenceFinding>,
+    findings: Vec<editor_core::CheckFinding>,
+}
+
+/// The at-rest check over `doc` at `run`.
+fn at_rest(
+    doc: &ProfileDoc,
+    run: &editor_core::Evaluation<f64>,
+) -> Result<AtRest, editor_core::ChecksError> {
+    let findings = crate::fixture::at_rest(doc, run)?;
+    Ok(AtRest {
+        interference: crate::fixture::interference(&findings),
+        findings,
+    })
+}
+
+fn assembled(doc: &ProfileDoc) -> AtRest {
     let run = corpus::eval::<f64>(doc);
-    assemble(doc, &run, Tol::witness()).unwrap_or_else(|e| panic!("the gate refused: {e}"))
+    at_rest(doc, &run).unwrap_or_else(|e| panic!("the check could not run: {e}"))
 }
 
 /// The faces a bounded finding names, as `(placement, the body's own
@@ -100,13 +119,13 @@ fn sites(finding: &InterferenceFinding, doc: &ProfileDoc) -> Vec<(RecipeNodeId, 
         .collect()
 }
 
-/// **(B, test 5) An overlap is a finding, not a refusal.** The gate
-/// returns `Ok` with one loud finding, whose evidence is the census's
-/// decided `InstanceInterference` (what the gate refused before) and
+/// **(B, test 5) An overlap is a finding, not a refusal.** The at-rest
+/// check reports one loud finding, whose evidence is the census's
+/// decided `InstanceInterference` and
 /// whose site names `a`'s +x wall and `b`'s −x wall among the faces
 /// bounding it.
 #[test]
-fn two_overlapping_copies_gate_ok_with_one_loud_finding() {
+fn two_overlapping_copies_report_one_loud_finding() {
     let (doc, a, b, p, q) = slab_overlap();
     let assembly = assembled(&doc);
     let [finding] = assembly.interference.as_slice() else {
@@ -141,7 +160,7 @@ fn two_overlapping_copies_gate_ok_with_one_loud_finding() {
 
 /// **(B, test 8) A pierce is interference.** A bar through a plate's
 /// two side walls, every vertex of each outside the other's material:
-/// the census sees only edges piercing faces, and the gate reports one
+/// the census sees only edges piercing faces, and the check reports one
 /// finding for the pair rather than refusing an unrecorded contact.
 #[test]
 fn a_bar_through_a_plate_with_no_vertex_inside_is_one_finding() {
@@ -255,7 +274,7 @@ fn a_holding_gap_over_the_unplaced_bodies_quiets_nothing() {
         ),
         "the assertion holds over the bodies (gap −0.05 ≤ −0.01)"
     );
-    let assembly = assemble(&doc, &run, Tol::witness()).expect("the gate reports");
+    let assembly = at_rest(&doc, &run).expect("the check reports");
     let [finding] = assembly.interference.as_slice() else {
         panic!("one finding: {:?}", assembly.interference)
     };
@@ -446,8 +465,8 @@ fn an_overlap_with_a_sunk_flange_stays_loud() {
 
 /// **(B, test 10) A failed requirement gates nothing.** The quieting
 /// assertion's measure names a face its copy does not hold, so the
-/// measure refuses and the assertion has no verdict: the gate still
-/// answers `Ok`, the finding is loud, and the assertion reports its
+/// measure refuses and the assertion has no verdict: the finding is
+/// loud, and the assertion reports its
 /// own failure.
 #[test]
 fn a_gap_whose_face_vanished_quiets_nothing_and_gates_nothing() {
@@ -471,7 +490,7 @@ fn a_gap_whose_face_vanished_quiets_nothing_and_gates_nothing() {
         ),
         "the assertion has no verdict"
     );
-    let assembly = assemble(&doc, &run, Tol::witness()).expect("a failed assertion gates nothing");
+    let assembly = at_rest(&doc, &run).expect("a failed assertion gates nothing");
     let [finding] = assembly.interference.as_slice() else {
         panic!("one finding: {:?}", assembly.interference)
     };
@@ -681,30 +700,32 @@ fn a_pin_bottoming_through_a_blind_bore_stays_loud() {
     );
 }
 
-/// **(B) A clearance fit the census cannot decide still refuses.** A
+/// **(B) A clearance fit the census cannot decide is could-not-look.** A
 /// pin one box pad (`topo::test_support::sweep_pad`) inside the same bore: wide
 /// enough that every vertex and edge reads definitely clear of the
 /// other part, so the census decides no contact and no overlap, and
 /// narrower than the two pads the depth gap takes, so it cannot part
-/// the curved pairs either. The gate refuses them as it always did.
+/// the curved pairs either. Each is a could-not-look finding, which
+/// refuses nothing.
 ///
 /// Red if undecided pairs between copies are reported as interference
 /// without a decided overlap.
 #[test]
-fn a_clearance_fit_the_census_cannot_decide_stays_refused() {
+fn a_clearance_fit_the_census_cannot_decide_is_could_not_look() {
     let band = geom_core::Band::linear(Tol::witness()).unwrap();
     let (doc, ..) = bore_and_pin(0.5 - topo::test_support::sweep_pad(band));
     let run = corpus::eval::<f64>(&doc);
-    match assemble(&doc, &run, Tol::witness()) {
-        Err(editor_core::AssemblyError::AtRest { findings }) => assert!(
-            !findings.is_empty()
-                && findings
-                    .iter()
-                    .all(|f| matches!(f.error, ValidationError::CensusUndecidable { .. })),
-            "the census's undecided pairs: {findings:?}"
-        ),
-        other => panic!("the undecided pair refuses: {other:?}"),
-    }
+    let checked = at_rest(&doc, &run).expect("the check runs");
+    let blind = crate::fixture::could_not_look(&checked.findings);
+    assert!(
+        checked.interference.is_empty()
+            && !blind.is_empty()
+            && blind.iter().all(|f| matches!(
+                f,
+                editor_core::AtRestEvidence::NoLane(ValidationError::CensusUndecidable { .. })
+            )),
+        "the census's undecided pairs: {blind:?}"
+    );
 }
 
 /// **(B) A clearance fit apart past the band assembles.** A pin of

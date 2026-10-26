@@ -11,9 +11,8 @@
 
 use crate::fixture;
 use editor_core::{
-    AssemblyError, CapEnd, Coord, DocEdit, DocumentId, Formula, Mate, MateRef, Node, OperandSlot,
-    ProfileDoc, RecipeNodeId, SplitError, TargetAxis, assemble, product_recorded,
-    relative_freedom_components,
+    CapEnd, Coord, DocEdit, DocumentId, Formula, Mate, MateRef, Node, OperandSlot, ProfileDoc,
+    RecipeNodeId, SplitError, TargetAxis, product_recorded, relative_freedom_components,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{insert, len, on_frame, run, step};
@@ -193,7 +192,7 @@ fn a_mate_between_placed_instances_seats_their_copies() {
         product.contacts
     );
     assert!(
-        assemble(&doc, &ev, Tol::witness()).is_ok(),
+        crate::fixture::could_look(&doc, &ev).is_ok(),
         "the seat certifies"
     );
 }
@@ -244,10 +243,10 @@ fn a_mate_on_unplaced_operands_states_nothing_of_the_world() {
         ev.node_error(mate.placement).is_some(),
         "the evaluation refuses the side"
     );
-    match assemble(&doc, &ev, Tol::witness()) {
-        Err(AssemblyError::Product(refusal)) => assert!(
+    match product_recorded(&doc, &ev, Tol::witness()).map(|_| ()) {
+        Err(refusal) => assert!(
             matches!(
-                *refusal,
+                refusal,
                 editor_core::ProductError::Root(editor_core::NodeStanding::Poisoned {
                     through,
                     ..
@@ -399,10 +398,10 @@ fn a_mate_whose_side_no_longer_resolves_refuses_and_the_gate_says_so() {
     );
     // The placement's copy is in the product's `⊔`, so the gather
     // refuses it typed, poisoned through the placement.
-    match assemble(&doc, &ev, Tol::witness()) {
-        Err(AssemblyError::Product(refusal)) => assert!(
+    match product_recorded(&doc, &ev, Tol::witness()).map(|_| ()) {
+        Err(refusal) => assert!(
             matches!(
-                *refusal,
+                refusal,
                 editor_core::ProductError::Root(editor_core::NodeStanding::Poisoned {
                     through,
                     ..

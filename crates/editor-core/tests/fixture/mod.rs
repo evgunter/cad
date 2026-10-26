@@ -56,10 +56,10 @@ pub mod value_channel;
 
 use editor_core::AuthoredNode;
 use editor_core::{
-    AssemblyError, CancelToken, CapEnd, Dimension, DocEdit, EntityKey, EntityKind, Entry,
-    EvalOptions, Evaluation, Formula, FreeVar, LoopProgram, NameTable, Node, ProfileDoc,
-    ProfileEdgeRef, ProfilePieces, ProfileProgram, ProfileVertexRef, RecipeNodeId, RoleSeg,
-    SitedRef, SolvedPoses, StableName, VarId, VarName, assemble, evaluate, solve_document,
+    CancelToken, CapEnd, Dimension, DocEdit, EntityKey, EntityKind, Entry, EvalOptions, Evaluation,
+    Formula, FreeVar, LoopProgram, NameTable, Node, ProfileDoc, ProfileEdgeRef, ProfilePieces,
+    ProfileProgram, ProfileVertexRef, RecipeNodeId, RoleSeg, SitedRef, SolvedPoses, StableName,
+    VarId, VarName, evaluate, solve_document,
 };
 use geom_core::{Point3, Tol};
 use std::collections::HashSet;
@@ -677,14 +677,74 @@ pub fn insert_pinned(
     (assemble_world_copies(pinned(doc, id, o)), id)
 }
 
-/// **The at-rest gate's verdict**, as a mate row wants to read it:
-/// whether the assembly mints, with the minted records dropped.
+/// **The at-rest check alone** over `doc`'s product and every `⊔`
+/// beside it: its findings, in report order.
 ///
 /// # Errors
 ///
-/// The gate's own refusal, unaltered.
-pub fn gate(doc: &editor_core::ProfileDoc, ev: &Evaluation<f64>) -> Result<(), AssemblyError> {
-    assemble(doc, ev, Tol::witness()).map(|_| ())
+/// The registry's own refusal: the product did not gather.
+pub fn at_rest<T>(
+    doc: &editor_core::ProfileDoc,
+    ev: &Evaluation<T>,
+) -> Result<Vec<editor_core::CheckFinding>, editor_core::ChecksError>
+where
+    T: editor_core::checks::at_rest::LocalizeLane
+        + geom_core::CertifiedBounds
+        + editor_core::ChartCoherenceLane,
+{
+    let cfg = editor_core::ChecksConfig {
+        connectedness: editor_core::Severity::Off,
+        unproven_coincidence: editor_core::Advisory::Off,
+        ..editor_core::ChecksConfig::default()
+    };
+    editor_core::run_checks(doc, ev, &cfg, Tol::witness()).map(|report| report.findings)
+}
+
+/// **Whether the at-rest check could look at every pair**, as a mate
+/// row wants to read it: the product gathers, and the check reports no
+/// pair it could not look at.
+///
+/// # Errors
+///
+/// The gather's refusal, or the could-not-look findings, said.
+pub fn could_look(doc: &editor_core::ProfileDoc, ev: &Evaluation<f64>) -> Result<(), String> {
+    let findings = at_rest(doc, ev).map_err(|e| e.to_string())?;
+    let blind: Vec<String> = findings
+        .iter()
+        .filter(|f| f.evidence.could_not_look())
+        .map(ToString::to_string)
+        .collect();
+    if blind.is_empty() {
+        Ok(())
+    } else {
+        Err(blind.join("\n"))
+    }
+}
+
+/// **The interference findings the at-rest check reports**, in report
+/// order: the `⊔`s' own, a part's carried ones aside.
+pub fn interference(
+    findings: &[editor_core::CheckFinding],
+) -> Vec<editor_core::InterferenceFinding> {
+    findings
+        .iter()
+        .filter_map(|f| match &f.evidence {
+            editor_core::CheckEvidence::Interference { finding } => Some((**finding).clone()),
+            _ => None,
+        })
+        .collect()
+}
+
+/// **The could-not-look evidence the at-rest check reports**, in report
+/// order.
+pub fn could_not_look(findings: &[editor_core::CheckFinding]) -> Vec<editor_core::AtRestEvidence> {
+    findings
+        .iter()
+        .filter_map(|f| match &f.evidence {
+            editor_core::CheckEvidence::AtRest { evidence } => Some(evidence.clone()),
+            _ => None,
+        })
+        .collect()
 }
 
 /// A mate side over a name this fixture built as a face, read at its

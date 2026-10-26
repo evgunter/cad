@@ -123,11 +123,13 @@ pub(crate) struct PartValue<T: Decide> {
     /// its own rows first and then those it carried up: the overlaps
     /// between its copies, reported and never refused, as its gate
     /// reports them.
-    pub interference:
-        Arc<Vec<PartRow<crate::checks::at_rest::Pinned<crate::checks::at_rest::InterferenceFinding>>>>,
+    pub interference: Arc<
+        Vec<PartRow<crate::checks::at_rest::Pinned<crate::checks::at_rest::InterferenceFinding>>>,
+    >,
     /// The census findings its gate refuses, its own first: inner
     /// at-rest health is the outermost gate's business.
-    pub at_rest: Arc<Vec<PartRow<crate::checks::at_rest::Pinned<crate::checks::at_rest::AtRestEvidence>>>>,
+    pub at_rest:
+        Arc<Vec<PartRow<crate::checks::at_rest::Pinned<crate::checks::at_rest::AtRestEvidence>>>>,
     /// How many parts the referenced document's product is: its
     /// placements' copies ([`crate::product::Product::solid_copies`]),
     /// each counted at its own value's `parts`, so a sub-assembly's

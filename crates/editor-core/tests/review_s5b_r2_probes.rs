@@ -157,8 +157,8 @@ mod interference {
     use crate::corpus;
     use crate::fixture::{fname, insert, len, on_frame, place, square, wall};
     use editor_core::{
-        Assembly, AssertionRelation, Formula, MeasurePrimitive, Node, ProfileDoc, RecipeNodeId,
-        RoleSeg, SitedRef, StableName, assemble,
+        AssertionRelation, Formula, InterferenceFinding, MeasurePrimitive, Node, ProfileDoc,
+        RecipeNodeId, RoleSeg, SitedRef, StableName,
     };
     use geom_core::Tol;
 
@@ -201,9 +201,11 @@ mod interference {
         crate::fixture::in_world(doc, body, &editor_core::Frame::translation([0.0, 0.0, z]))
     }
 
-    fn assembled(doc: &ProfileDoc) -> Assembly<f64> {
+    fn assembled(doc: &ProfileDoc) -> Vec<InterferenceFinding> {
         let run = corpus::eval::<f64>(doc);
-        assemble(doc, &run, Tol::witness()).unwrap_or_else(|e| panic!("the gate refused: {e}"))
+        let findings = crate::fixture::at_rest(doc, &run)
+            .unwrap_or_else(|e| panic!("the check could not run: {e}"));
+        crate::fixture::interference(&findings)
     }
 
     /// A `Gap` over two faces read at `sites`, and an assertion bounding it
@@ -316,9 +318,8 @@ mod interference {
 
     fn report(doc: &ProfileDoc) -> Vec<(bool, String)> {
         let run = corpus::eval::<f64>(doc);
-        match assemble(doc, &run, Tol::witness()) {
-            Ok(a) => a
-                .interference
+        match crate::fixture::at_rest(doc, &run) {
+            Ok(findings) => crate::fixture::interference(&findings)
                 .iter()
                 .map(|f| (f.is_loud(), format!("{:?}", f.overlap)))
                 .collect(),
@@ -525,8 +526,8 @@ mod interference {
         let (doc, _) = place(doc, pin);
         let _ = piece;
         let run = corpus::eval::<f64>(&doc);
-        match assemble(&doc, &run, Tol::witness()) {
-            Ok(a) => eprintln!("FLUSH: Ok, {} finding(s)", a.interference.len()),
+        match crate::fixture::at_rest(&doc, &run) {
+            Ok(a) => eprintln!("FLUSH: Ok, {} finding(s)", a.len()),
             Err(e) => eprintln!(
                 "FLUSH: refused: {}",
                 e.to_string()

@@ -867,7 +867,11 @@ fn interference_words(
                 at_rest::Unlocalized::Refused { refusal }
                 | at_rest::Unlocalized::Containment { refusal } => f.write_str(refusal),
                 at_rest::Unlocalized::Invalid { errors } => {
-                    write!(f, "a copy is not a valid body ({} finding(s))", errors.len())
+                    write!(
+                        f,
+                        "a copy is not a valid body ({} finding(s))",
+                        errors.len()
+                    )
                 }
                 at_rest::Unlocalized::Empty => {
                     f.write_str("it is thinner than the boolean's tolerance")
@@ -1886,11 +1890,14 @@ fn at_rest<P: crate::ProfilePayload, T: at_rest::LocalizeLane>(
         evidence,
         quiet,
     };
-    let gathers = world.map(|(read, product)| (read, Ok(product))).into_iter().chain(
-        assembles
-            .iter()
-            .map(|a| (a.var, a.gather.as_ref().map(|p| &**p))),
-    );
+    let gathers = world
+        .map(|(read, product)| (read, Ok(product)))
+        .into_iter()
+        .chain(
+            assembles
+                .iter()
+                .map(|a| (a.var, a.gather.as_ref().map(|p| &**p))),
+        );
     for (read, gather) in gathers {
         let product = match gather {
             Ok(product) => product,
@@ -1929,7 +1936,10 @@ fn at_rest<P: crate::ProfilePayload, T: at_rest::LocalizeLane>(
             report.findings.push(finding(read, evidence, quiet));
         }
         let earlier = carried_at_rest.len();
-        at_rest::once_per_part_row(&mut carried_at_rest, product.carried_at_rest.iter().cloned());
+        at_rest::once_per_part_row(
+            &mut carried_at_rest,
+            product.carried_at_rest.iter().cloned(),
+        );
         for row in &carried_at_rest[earlier..] {
             let evidence = at_rest::AtRestEvidence::Carried(Box::new(row.clone()));
             report

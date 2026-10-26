@@ -1348,7 +1348,10 @@ fn gather_sources<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
             &mut carried_interference,
             rows.interference.iter().cloned(),
         );
-        crate::checks::at_rest::once_per_part_row(&mut carried_at_rest, rows.at_rest.iter().cloned());
+        crate::checks::at_rest::once_per_part_row(
+            &mut carried_at_rest,
+            rows.at_rest.iter().cloned(),
+        );
     }
     // The name carry's second half, after the last source: every
     // carried row, narrowed ONCE over all of them (`carry_names`). A tie

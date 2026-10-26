@@ -708,8 +708,7 @@ fn a_loose_copy_is_gathered_and_measured_against_nothing_outside_it() {
         world(base).to_bits(),
         "the product is the world's material alone"
     );
-    editor_core::assemble(&doc, &ev, Tol::witness())
-        .expect("the gate certifies the world and the top's own space");
+    crate::fixture::could_look(&doc, &ev).expect("the world and the top's own space are at rest");
     // The measure across the two spaces is refused at the edit door,
     // before any evaluation (D′1).
     let error = fixture::insert_refused(&doc, measure());

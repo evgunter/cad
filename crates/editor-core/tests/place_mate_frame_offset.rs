@@ -25,7 +25,9 @@ use editor_core::{
 };
 use fixture::resolver::with_resolver;
 use fixture::round_trip::{composed, same_up_to_ids};
-use fixture::{ang, flip, gate, head, insert, insert_pinned, len, plane, rest, run, solve, step};
+use fixture::{
+    ang, could_look, flip, head, insert, insert_pinned, len, plane, rest, run, solve, step,
+};
 use geom_core::Tol;
 
 // ---- substrate ----
@@ -150,7 +152,11 @@ fn a_rest_with_an_in_plane_value_follows_the_face_through_a_part_edit() {
         "slid along the face"
     );
     let ev = run(&doc, &o);
-    assert!(gate(&doc, &ev).is_ok(), "{:?}", gate(&doc, &ev).err());
+    assert!(
+        could_look(&doc, &ev).is_ok(),
+        "{:?}",
+        could_look(&doc, &ev).err()
+    );
 
     // The base part grows on disk; its names hold, its pin moves.
     let (base_doc, base_body) = block(&format!("{label}-base"), 3.0, 1.0);
@@ -181,7 +187,11 @@ fn a_rest_with_an_in_plane_value_follows_the_face_through_a_part_edit() {
         "the top follows the grown face, still slid"
     );
     let ev = run(&doc, &o);
-    assert!(gate(&doc, &ev).is_ok(), "{:?}", gate(&doc, &ev).err());
+    assert!(
+        could_look(&doc, &ev).is_ok(),
+        "{:?}",
+        could_look(&doc, &ev).err()
+    );
 }
 
 // ---- Row 2: a parameter drives a value ----
@@ -322,7 +332,11 @@ fn a_standoff_places_the_copy_and_declares_no_contact() {
         "placed as asked"
     );
     let ev = run(&doc, &o);
-    assert!(gate(&doc, &ev).is_ok(), "{:?}", gate(&doc, &ev).err());
+    assert!(
+        could_look(&doc, &ev).is_ok(),
+        "{:?}",
+        could_look(&doc, &ev).err()
+    );
 }
 
 // ---- Row 4: a value's parameter across the seam ----

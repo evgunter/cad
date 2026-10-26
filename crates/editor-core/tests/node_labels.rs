@@ -868,7 +868,7 @@ fn a_report_rendered_from_another_document_fails_loud() {
 }
 
 /// **A checks report holds ids and speaks them from the document the
-/// checks ran over**: a separation finding names both placements, and
+/// checks ran over**: an interference finding names both copies, and
 /// the refusal `enforce_checks` raises names its placement, each as the
 /// document holds it, while the report's own `Display` (no document at
 /// hand) says each by its tag.
@@ -897,22 +897,31 @@ fn a_checks_report_and_its_refusal_speak_the_labelled_roots() {
         ..ChecksConfig::default()
     };
     let report = run_checks(&doc, &ev, &strict, tol).expect("the checks run");
+    let (base_out, boss_out) = (doc.output(base, 0), doc.output(boss, 0));
+    let interference = report
+        .findings
+        .iter()
+        .find(|finding| {
+            matches!(
+                &finding.evidence,
+                CheckEvidence::Interference { finding: overlap }
+                    if (Some(overlap.a.var), Some(overlap.b.var)) == (base_out, boss_out)
+            )
+        })
+        .unwrap_or_else(|| {
+            panic!("the two overlapping copies are an interference finding: {report}")
+        });
+    let _ = interference;
+    let all = report.spoken(&doc);
+    let spoken = all
+        .lines()
+        .find(|line| line.contains("check at-rest"))
+        .unwrap_or_else(|| panic!("an at-rest line: {all}"));
     assert!(
-        report.findings.iter().any(|finding| matches!(
-            finding.evidence,
-            CheckEvidence::NotSeparated { other_root, .. }
-                if finding.subject == editor_core::FindingSubject::Output { root: base, output_ix: 0 } && other_root == boss
-        )),
-        "the two overlapping placements are a separation finding: {report}"
+        spoken.contains("\"base\"") && spoken.contains("\"boss\"") && spoken.contains("overlap"),
+        "the interference finding speaks both copies from the document: {spoken}"
     );
     let spoken = report.spoken(&doc);
-    assert!(
-        spoken.contains(&format!(
-            "check separation: Place \"base\" ({b}) output 0: not certifiably \
-             disjoint from Place \"boss\" ({o}) output 0"
-        )),
-        "the separation finding speaks both placements from the document: {spoken}"
-    );
     assert!(
         !spoken.contains(&format!("placement {b}")) && !spoken.contains(&format!("placement {o}")),
         "no placement is left at its bare tag: {spoken}"

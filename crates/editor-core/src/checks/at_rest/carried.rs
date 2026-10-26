@@ -11,7 +11,6 @@
 
 use std::sync::Arc;
 
-
 use super::{AtRestEvidence, InterferenceFinding, LocalizeLane};
 use crate::doc::Doc;
 use crate::node::RecipeNodeId;
@@ -334,10 +333,7 @@ pub(crate) fn seam_verdict<T: LocalizeLane>(product: &Product<T>, tol: Tol) -> S
 pub struct AtRestRow {
     /// The two copies whose pair the census decided, earlier in gather
     /// order first.
-    pub copies: (
-        super::CopyRef,
-        super::CopyRef,
-    ),
+    pub copies: (super::CopyRef, super::CopyRef),
     /// The decision, each cell named as the copy the census read it in
     /// reads it: the copy's placement output, and its name there.
     pub row: crate::coincide::NamedCoincidence,
