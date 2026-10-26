@@ -325,11 +325,17 @@ fn sans_epsilon(t: &str) -> String {
 /// seam face plainly, so its ids moved too. Ids only:
 /// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
 /// held unmoved.
+///
+/// **Re-pinned for a pair boolean's walls** (a `Borders` wall cites its
+/// parent as the boolean's own table names it, the `From` it came in
+/// through): `crossing_slots`' name table only, its second subtract's
+/// divided pieces' walls gaining their read. Its persisted text, and
+/// every other document, held.
 const PINNED: &[(&str, u64, u64)] = &[
     ("die", 0xdc846f5f9155e5bd, 0xd01338a3985ddb51),
     ("corner_table", 0xf77d789ea1c04044, 0x255232f74b555158),
     ("heat_sink", 0x3282865c55da4b17, 0xfdeb3e58c8a10021),
-    ("crossing_slots", 0x244079501a5a494c, 0x7ba67321e479912d),
+    ("crossing_slots", 0xd1eddaef1ff398d0, 0x7ba67321e479912d),
     ("nested_islands_105", 0x6abf8ce391d386db, 0x5a9f22f4eba0b1a2),
     (
         "nested_islands_106_depth1",
