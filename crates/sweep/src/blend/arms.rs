@@ -474,7 +474,7 @@ pub fn plane_sphere_blend<T: Real>(
     let side = convexity.ball_side(sphere_convex);
     // The offset sphere the ball centre rides, selected STRUCTURALLY.
     let offset = sphere_r - sided(side, radius);
-    let s2 = offset.powi(2) - h.powi(2);
+    let s2 = (offset - h) * (offset + h);
     // No gate here (see the two degenerate cases in the doc above):
     // `s² < 0` yields poison and escalates at predicate 3, `0 < s ≤ r`
     // yields a finite curvature predicate 3 refuses `SpineIrregular`
@@ -483,7 +483,7 @@ pub fn plane_sphere_blend<T: Real>(
     let spine_center = sphere_c - n * h;
     let u_ref = perp_unit(plane_u_ref, n);
     // The rim circle the blend replaces: the sphere ∩ plane locus.
-    let rim2 = sphere_r.powi(2) - depth.powi(2);
+    let rim2 = (sphere_r - depth) * (sphere_r + depth);
     let rim = rim2.max(T::zero()).sqrt();
     // The contact circle on the sphere: the sphere point along the
     // line from its centre to the spine, scaled to radius R.

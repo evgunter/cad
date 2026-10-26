@@ -53,3 +53,13 @@ retires the declared-contact seats ("CONTACT-DESIGN C4's
 are a ratified companion page, so their rewording is the owner's
 (the program retiring the declared-contact seats under D10), not this
 row's.
+
+## Duplication triage (INTENT, 2026-10-26)
+
+Classified on Ev's ask, via the CLEAVE note on INTENT's log, against main `e92fb951` and DESIGN `[one-way.places]` / `[one-way.readings]`. The four classes:
+- **design signal:** DESIGN names no single home, so a design conversation is owed;
+- **mechanical:** DESIGN names the home; delete the off-home copy and repoint its users;
+- **D10 debris:** a D10 stage retires one copy;
+- **not duplication.**
+
+**D10 debris** (stage 4 F, landed). It is vocabulary only: about 134 declared/undeclared hits in `reduce.rs`, `on_declared_shared_carrier`, and the module docs of `carrier_cross` and `carrier_eq`. It is a rename. DESIGN home: the State-of-the-build retirement list.

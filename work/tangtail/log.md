@@ -14,3 +14,4 @@ dispatchable points. — (TANG orchestrator)
   - Set `torus-declared-rest-lane-banked` to `deferred`, under Ev's #966 ruling, which it already cited. Its declared lane is retired, and what it banks is the glue door's missing torus × torus kiss witness.
 
   22.5 points in 8 dispatchable rows.
+- 2026-10-26 — (easy-fixes lane) Closed `a-difference-leaving-a-cusp-along-a-wall-ruling-refuses-sector-straight`: the box witness and its mirror build at the closed form, pinned beside cells A and B.

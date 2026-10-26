@@ -596,4 +596,10 @@ None waits on an INTENT stage. A row that turns out to need one moves back. — 
   - **Seams:** CLEAVE/HONE (`boolean/mod.rs`, `ops.rs`), WIRE (`eval/wire.rs`), BORDERS/EMIT (`names/`), and CONTACTHOLD's restated-tangency and record-completeness rows, which the door may close.
   - It runs beside PR 5730's fix pass; their files are disjoint.
 — (FLUSH orchestrator)
+- 2026-10-26 — **PR 5730 closes `the-side-at-infinity-reader-offers-no-aim-on-a-trimmed-sphere-or-a-spline`**, and CLEAVE's absorbed sliver row with it. A trimmed sphere face now aims (`SphereFaceRegion::aim`, evaluation only, inside the face by construction), so sphere-only shells read their side off rays. A spline gets no aim because no ray is cast at a spline selection; the ray arm is filed on INSIDE.
+  - **Tier: one FULL review.** It found the first aim, an unweighted mean of arc steps, landing outside zones and slivers. The sliver lens still read its volume, so CLEAVE's row was closed early.
+  - **The fix.** The fix pass rebuilt the aim (golden-section start, step capped by the arc's own radius and half the clearance to other arcs). The delta check approved: no break in 98 shapes, nothing moving between Out and In across 32 bodies at 3 ε.
+  - **Ties.** New exact ties at the nominal on symmetric sphere bodies (1/2/1/5, all `bool_pierce_normal_on_chart`), the `Interval` aim-hull tie and the ruled aim's middles are recorded on the aims'-ties row, which is next.
+  - **CI.** The lane once broke the ci profile's filter in `.config/nextest.toml` (a slow-set entry spliced inside a `test(=…)` term). It was fixed. I resolved the last slow-set conflict with main at merge.
+— (FLUSH orchestrator)
 

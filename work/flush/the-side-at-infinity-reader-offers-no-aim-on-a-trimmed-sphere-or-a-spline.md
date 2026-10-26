@@ -2,12 +2,13 @@
 id: the-side-at-infinity-reader-offers-no-aim-on-a-trimmed-sphere-or-a-spline
 kind: issue
 title: The side-at-infinity reader offers no aim on a trimmed sphere, an untrimmable cone or a spline, so a shell of only those falls back to its volume
-status: review
+status: closed
 opened: 2026-10-14
 priority: P2
 cost: M
 branch: flush/sphere-spline-aims
 pr: 5730
+closed: 2026-10-26
 ---
 
 
@@ -125,3 +126,17 @@ CLEAVE's absorbed sliver row stays closed. Still on the volume:
 - a selection with a sphere face bounded by a non-circle edge
   (`PartialSphereFace`, appended to RESTFRONT's
   `check-10-is-silent-where-point-in-solid-refuses`).
+
+## Resolution
+
+Closed by PR 5730 (2026-10-26). A trimmed sphere face (`FaceGeo::SpherePatch`) now offers an aim (`SphereFaceRegion::aim`), so a shell or solid made only of trimmed spheres reads its side off aimed rays instead of its volume.
+- **How the aim is built.** It is evaluation only, and it lands inside the face by construction. From the golden section of each boundary arc, it steps along the great circle into the face. The step is capped by half the arc's own circle's angular radius and by half a lower bound on the distance to every other arc. The deepest step is the aim.
+- **Why no certificate is needed.** An aim only steers: the ray starts beyond every face.
+- **What does not aim.**
+  - A spline gets no aim, because `cast_aims` casts no ray at a selection holding a spline face. The ray arm is filed on INSIDE as `point-containments-ray-test-has-no-spline-arm`.
+  - An untrimmable cone or wall keeps the volume.
+  - A sphere face with a non-circle edge is appended to RESTFRONT's `check-10-is-silent-where-point-in-solid-refuses`.
+- **CLEAVE's absorbed row closes with this one.** That is `a-sliver-operands-orientation-falls-back-to-its-volume-where-it-has-no-planar-face`: the sliver lens now reads off rays.
+
+One FULL review. The first head's aim, an unweighted mean of arc steps, landed outside zones and slivers, and the sliver lens still read its volume. The fix pass rebuilt it; the delta check approved, finding no break in 98 shapes and nothing moving between Out and In across 32 bodies at 3 ε. The new exact ties at the nominal on symmetric sphere bodies (all `bool_pierce_normal_on_chart`) are recorded on `the-side-readers-aims-decide-exact-ties-at-a-documents-nominal`. Batteries: 0 lines moved, though they hold no trimmed sphere.
+

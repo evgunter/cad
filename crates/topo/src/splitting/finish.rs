@@ -28,9 +28,9 @@
 //!
 //! The book's "the 'inner' loop should appear in the part Above, and
 //! the 'outer' loop in the part Below" is list-position convention
-//! chasing; here the roles are the F9 keys
-//! (`NullFacePair::Split { above_loop, below_loop }`), so promotion
-//! reads the record, never the loop list.
+//! chasing; here the roles are the F9 keys, which promotion reads off
+//! the join's `CompletedSection` (`above_loop`, `below_loop`), never
+//! off the loop list.
 //!
 //! # Component classification and the degenerate net
 //!
@@ -1150,7 +1150,6 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
         // nested below as a ring of the section face containing it.
         if let SectionKind::Slit { strut } = section.kind {
             let promoted = body.mfkrh(ring, FaceSurface::Inherit)?;
-            body.clear_null_face_pair(section.face);
             let (trace, slit) = if ring == strut {
                 (promoted.face, section.face)
             } else {
@@ -1203,7 +1202,6 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
         let mut restated = section_plane_restatements(&body, promoted.face, &stranded)?;
         restated.extend(section_plane_restatements(&body, section.face, &stranded)?);
         rechart_section(&mut body, charts, &restated, tol)?;
-        body.clear_null_face_pair(section.face);
         section_side.insert(promoted.face, ring_side);
         section_side.insert(section.face, other_side);
         naming.sections.push((promoted.face, ring_side));

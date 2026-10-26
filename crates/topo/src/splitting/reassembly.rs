@@ -176,7 +176,10 @@ fn reassembly_oracle_generic_cube() {
     } else {
         (section.face, promoted.face)
     };
-    body.clear_null_face_pair(section.face);
+    assert!(
+        body.null_face_pair(section.face).is_none(),
+        "mfkrh drops the record naming the ring it promotes"
+    );
     let shells: Vec<_> = body.shells().map(|(k, _)| k).collect();
     for shell in shells {
         body.movefac(shell).unwrap();

@@ -6,7 +6,7 @@ status: open
 priority: P3
 cost: M
 opened: 2026-10-26
-refs: [mesh-sizes-each-lane-by-its-worst-admissible-triangle, the-trimmed-cylinder-lane-has-no-worst-triangle-theorem]
+refs: [the-trimmed-cylinder-lane-has-no-worst-triangle-theorem]
 ---
 
 Found in PR 5717's fix pass (PRED). That pass drops the curved cone's

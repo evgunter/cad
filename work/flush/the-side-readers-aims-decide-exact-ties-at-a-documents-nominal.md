@@ -112,3 +112,9 @@ and `curve_foot_branch` ties (the in-face walk of the aim's crossing on
 the symmetric plane through an arc's middle) went when the aim moved off
 the middle to the golden section of the arc. None moves a reading:
 every aim of every body reads the same side. What is left is this row's.
+
+## Measured: from PR 5730's review (2026-10-26)
+
+- **At `Interval`, two arcs that tie for the deepest step hull their aims into one box.** The tie is on `SphereFaceRegion::aim`'s pick of the deepest step. The symmetric quarter lune's aim is an x/y box [0.535, 0.787], off the sphere, and the on-chart normal check likely refuses it. So a symmetric face offers no aim at `Interval` and falls back to its volume; no side changes. This is an exact tie at a symmetric point, so it belongs to this row.
+- **The ruled aim still steps from its arcs' middles.** `RuledFaceRegion::aim` (`ruled_region.rs`) uses `mid_param` and the meridian fallback. Moving the sphere aim off the middle (the golden section) removed its symmetric-middle ties (`bool_sphere_region_order`, `curve_foot_branch`). The same move was not tried on the ruled aim, where `cut_cylinder`'s `curve_foot_branch` ties live.
+
