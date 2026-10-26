@@ -2,10 +2,12 @@
 id: the-measurement-door-refines-until-a-predicate-resolves
 kind: unit
 title: Build [tolerance.measure]: one measurement door refines until the caller's predicate over the enclosure resolves, refinement stops paying, or one weighted work wall; no default; the round caps and QuadratureBudget go
-status: spec
+status: closed
 opened: 2026-10-22
 priority: P1
 cost: H
+closed: 2026-10-26
+pr: 5741
 ---
 
 
@@ -62,3 +64,14 @@ review is DUAL.
 - **C (public doors):** no default, and every consumer states its predicate. Single FULL.
 
 It also carries the orchestrator's rulings R1–R11.
+
+## Closed
+
+Built in three units: A (the lanes, PR 5589), B (the door and the
+deciders, PR 5628) and C (no default, PR 5741). Every public number
+door takes a required `Settle` and answers `MassMeasurement { enclosure,
+stop }`; `QuadratureBudget`, `TargetUnreached`, `budget_exit`, the
+round caps and the interim sites are gone; an unmet resolution is the
+bracket, with its stop; a sign still open at the wall is check 7's
+`VolumeSignUnresolved`, carrying the walk's bracket. The acceptance walk
+(items 1–8) is in PR 5741's body.
