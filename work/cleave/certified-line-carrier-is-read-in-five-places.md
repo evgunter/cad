@@ -31,3 +31,13 @@ fitted line) is admitted or refused in one place.
 ## Found by
 
 CLEAVE DR-4098's delta review (Style 5).
+
+## Duplication triage (INTENT, 2026-10-26)
+
+Classified on Ev's ask, via the CLEAVE note on INTENT's log, against main `e92fb951` and DESIGN `[one-way.places]` / `[one-way.readings]`. The four classes:
+- **design signal:** DESIGN names no single home, so a design conversation is owed;
+- **mechanical:** DESIGN names the home; delete the off-home copy and repoint its users;
+- **D10 debris:** a D10 stage retires one copy;
+- **not duplication.**
+
+**Mechanical** (cluster D). It is now about 20 `matches!(…, Curve3::Line{..})` sites across topo, geom-brep, sweep and step-import. No copy disagrees. Fix: one predicate on `Curve3`/`EdgeCurve`. DESIGN home: `[one-way.readings]`. **Cluster D, carrier readings re-spelled outside their named home.** DESIGN names the home. Ev (2026-10-26): the first fix is making the canonical reading the path of least resistance (the API consumers need), with a gate only as a backstop. 

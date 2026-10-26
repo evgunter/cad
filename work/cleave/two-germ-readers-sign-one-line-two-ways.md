@@ -30,3 +30,13 @@ One method and one story for both readers. That means either deriving the
 crossing germ from the record's codes (`sa`/`sb` after `recl`), as the
 pierce germ is, or saying why a crossing record's membership is the
 better datum there.
+
+## Duplication triage (INTENT, 2026-10-26)
+
+Classified on Ev's ask, via the CLEAVE note on INTENT's log, against main `e92fb951` and DESIGN `[one-way.places]` / `[one-way.readings]`. The four classes:
+- **design signal:** DESIGN names no single home, so a design conversation is owed;
+- **mechanical:** DESIGN names the home; delete the off-home copy and repoint its users;
+- **D10 debris:** a D10 stage retires one copy;
+- **not duplication.**
+
+**Mechanical, plus debris.** Both readers sit on the boolean's shared `sectors.rs` layer, so this is a choice of method. The third path beside them (`tangent_locus` for a declared Tangent pair) is D10 stage 4 debris that survived F. DESIGN home: `[one-way.readings]`.

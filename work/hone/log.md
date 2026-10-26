@@ -82,3 +82,15 @@ cleave-tangency)
   - `analytic-exact-elevations-have-inline-homes`, superseded by `point-to-carrier-distance-is-spelled-seven-times`, its unique sites merged there.
 
   The track is still far over budget (116 points against 30) and should split on its priority seam: the P2 rows against the P3/P4 rows. Eight rows carry no band or cost: the four D3 pair-audit rows, `sweep-trace-…`, `a-driver-carried-…`, `plane-parallel-…` and the band-less `a-short-ruling-…`.
+- 2026-10-26 — (split) Cut on the priority seam (`work/README.md`, Track size): HONE carried 118.5 budget points against 30. HONE keeps its eleven open P2 rows and the one parked P2 (24.5 points), all of them margins and error propagation. The 46 P3, P4 and unbanded rows moved by `git mv`, ids and bodies unchanged, into five new programs cut by territory and kind, because the P3 band alone (66 points) was itself twice a budget:
+  - HONEROOT (`work/honeroot/`, 19): the root doors and the sector and rim readers deciding on uncharged or mis-dimensioned margins — ten rows.
+  - HONEJOIN (`work/honejoin/`, 18.5): the curved, chord and split joins' missing arms, argued invariants and misfiled refusals — eight rows.
+  - HONEONE (`work/honeone/`, 23.5): one reading per question (D3) — the pair-table audit's four unbanded rows and six duplicate readers.
+  - HONEWORD (`work/honeword/`, 15): refusal text and payloads — operand, margin, ending, audience, stated reason; nine rows, including the unbanded driver-carried-recourse and planes-parallel-ending rows.
+  - HONESPLIT (`work/honesplit/`, 18): split and carve bookkeeping and reads nothing reaches — nine rows, including the unbanded sweep-trace row.
+  Path citations to the moved rows in other programs' items and in code comments are re-pointed; earlier log entries are left as written (append-only).
+- 2026-10-26 — (easy-fixes lane) `reach-refusals-short-of-the-shape-guard`: `Boolean/Join/Section` and `Split/Join/Section` were fixed at the source (`SectionError::WrongLane` now ends in a recourse), and their admissions were removed.
+- 2026-10-26 — (easy-fixes lane) Closed `section-promotion-clears-a-null-face-record-mfkrh-already-dropped`: the three clears are deleted, the oracle asserts the record is gone, and the module docs name the struct promotion reads.
+- 2026-10-26 — (easy-fixes lane) `a-kef-of-a-completed-null-face-is-ruled-out-by-a-debug-assert`: the guard is an `unreachable!` in every build. The row stays open on its proof or witness.
+- 2026-10-26 — (easy-fixes lane) Filed `topo-test-frames-hand-roll-the-across-axis-reference` (P4 E): four topo test fixtures hand-roll an across-axis reference beside `Vec3::orthonormal_basis`.
+- 2026-10-26 — `topo-test-frames-hand-roll-the-across-axis-reference` moved to PROBE, beside its sibling (HONE is now the P2 margins track).

@@ -28,3 +28,13 @@ None of these changes behaviour for positive semi-axes.
 - Route each site through `semi_axes_by_size`, or state at the site why its reading is ordered.
 - Rename the bind.
 - Re-sweep, matching by data shape (`.min(`/`.max(` on two semi-axis values) rather than by name.
+
+## Duplication triage (INTENT, 2026-10-26)
+
+Classified on Ev's ask, via the CLEAVE note on INTENT's log, against main `e92fb951` and DESIGN `[one-way.places]` / `[one-way.readings]`. The four classes:
+- **design signal:** DESIGN names no single home, so a design conversation is owed;
+- **mechanical:** DESIGN names the home; delete the off-home copy and repoint its users;
+- **D10 debris:** a D10 stage retires one copy;
+- **not duplication.**
+
+**Mechanical, partly stale**: the mechanical half of cluster B. Two sites now go through `speed_floor`. Keep `Curve3::semi_axes_by_size` and repoint `ring_path` (≈669, ≈1494), the `containment.rs` levers and `extent.rs` (including the `semi_u: major` bind). DESIGN home: `[one-way.readings]` (geom).

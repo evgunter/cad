@@ -62,3 +62,13 @@ loop guard is the next door.
   to building at its closed forms (`vol A = 3π`, `vol B = (3 − x0)π`,
   and the shared volume in `shared`). Its `NO_ELLIPSE_COPY` acceptance
   comes out at the same time.
+
+## Duplication triage (INTENT, 2026-10-26)
+
+Classified on Ev's ask, via the CLEAVE note on INTENT's log, against main `e92fb951` and DESIGN `[one-way.places]` / `[one-way.readings]`. The four classes:
+- **design signal:** DESIGN names no single home, so a design conversation is owed;
+- **mechanical:** DESIGN names the home; delete the off-home copy and repoint its users;
+- **D10 debris:** a D10 stage retires one copy;
+- **not duplication.**
+
+**Not duplication.** "Copies" here means copying an edge's geometry: `chord_join::along_edge_spec` is missing its Ellipse lane. DESIGN home: `[edges]`. This row belongs off the duplication track.

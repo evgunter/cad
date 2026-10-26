@@ -350,10 +350,7 @@ impl core::fmt::Display for FrameError {
                 input,
                 indeterminate: Some(i),
             } => i
-                .undecided(
-                    input.subject(),
-                    crate::predicate::lever_recourse(COINCIDENCE_RECOURSE, None),
-                )
+                .undecided(input.subject(), i.lever_ending(COINCIDENCE_RECOURSE))
                 .fmt(f),
             FrameError::NonFiniteLength { input } => write!(
                 f,
@@ -1278,5 +1275,40 @@ mod tests {
         assert!(s.contains("no finite length"), "{s}");
         assert!(s.contains(crate::predicate::RANGE_RECOURSE), "{s}");
         assert!(!s.contains(crate::predicate::COINCIDENCE_RECOURSE), "{s}");
+    }
+
+    /// **A degenerate input's escalation ends in the lever, and notes a
+    /// poisoned margin.** The input's length is a gauge, so an in-band
+    /// margin carries the lever alone; an unreadable one adds the note
+    /// that the margin itself could not be read.
+    #[test]
+    fn a_degenerate_escalation_ends_in_the_lever_and_notes_a_poisoned_margin() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let render = |margin: f64| {
+            let i = crate::k_stats::decide(
+                "frame_test_aim",
+                crate::predicate::Margin::of(margin),
+                band,
+            )
+            .unwrap_err();
+            FrameError::Degenerate {
+                input: FrameInput::Aim,
+                indeterminate: Some(i),
+            }
+            .to_string()
+        };
+        let in_band = render(0.5 * (band.zero() + band.escalate()));
+        assert!(
+            in_band.ends_with(&format!(". Recourse: {COINCIDENCE_RECOURSE}")),
+            "in band: the lever alone: {in_band}"
+        );
+        let poisoned = render(f64::NAN);
+        assert!(
+            poisoned.ends_with(&format!(
+                ". Recourse: {COINCIDENCE_RECOURSE}; {}",
+                crate::predicate::UNREADABLE_MARGIN_NOTE
+            )),
+            "poisoned: the lever, then the note: {poisoned}"
+        );
     }
 }

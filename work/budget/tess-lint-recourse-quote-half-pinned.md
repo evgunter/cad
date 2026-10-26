@@ -2,11 +2,12 @@
 id: tess-lint-recourse-quote-half-pinned
 kind: issue
 title: the recourse quote is pinned from the binary's side only, and docs/TESS-BUDGET.md is the unpinned half
-status: open
+status: closed
 opened: 2026-09-08
 refs: [2179]
 priority: P3
 cost: E
+closed: 2026-10-26
 ---
 
 
@@ -78,3 +79,7 @@ the claim. This row is one of the twenty on INSTR's opening slate.
 ## Refs at METER's sweep (2026-09-09)
 
 METER closed and its item files left the tracker (`docs/DOC-LEDGER.md`, sweep 10); `tess-lint-twinned-csv-fixture` is now cited by its closing PR 2179 — which this row's `refs:` already carried, so the dying id was dropped rather than substituted into a duplicate.
+
+## Closed (2026-10-26, easy-fixes lane)
+
+`tools/tess-lint/tests/cli_contract.rs` holds the quoted sentence once, as `RECOURSE_QUOTE`. The existing stderr assert reads it, and the new `the_budget_document_carries_the_sentence_the_recourse_quotes` asserts `include_str!("../../../docs/TESS-BUDGET.md").contains(RECOURSE_QUOTE)`, so a reword or reflow of the document's sentence reds. The module header no longer says only half is pinned. `tools/tess-lint/src/main.rs`'s emitted copy is still a separate literal, held by the stderr assert. Verified: `(cd tools/tess-lint && cargo test)`: 59 + 9 + 16 + 5 + 4 passed. `cargo clippy --all-targets -- -D warnings` and `cargo fmt -- --check` are clean.
