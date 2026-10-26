@@ -295,8 +295,12 @@ pub enum MassPropsError {
     /// predicate's threshold. A [`Settle::Resolution`] left unmet is no
     /// refusal; it is the bracket, with its stop.
     Undecided {
-        /// The volume enclosure the walk stopped on, its ends `(lo, hi)`
-        /// read outward (m³): the true volume lies between them.
+        /// The volume's outward bracket `(lo, hi)` (m³) where the walk
+        /// stopped: the true volume lies between them. It is
+        /// `SignCertificate::outward_volume`, the one check 7's
+        /// unresolved sign reports too — the faces' interval
+        /// re-derivation, falling back to the walk's own enclosure stepped
+        /// outward where no lane re-derives it.
         volume: (f64, f64),
         /// Why no face could refine further: [`Stop::Wall`] or
         /// [`Stop::Floor`].
@@ -468,10 +472,10 @@ pub(crate) mod raw_door {
     ) -> Result<MassMeasurement<T>, MassPropsError> {
         let band = Band::linear(tol).map_err(|error| MassPropsError::Band { error })?;
         let deciding = !matches!(settle, Settle::Resolution(_));
-        undecided_refused(
-            deciding,
-            mass_properties_with(body, band, tol, Some(QuadLane::certified()), settle)?,
-        )
+        let faces = crate::query::all_faces(body);
+        let lane = Some(QuadLane::certified());
+        let (stop, certificate) = measure_to(body, &faces, band, tol, (lane, lane), settle)?;
+        certificate.answer(deciding, stop)
     }
 
     /// [`mass_properties_structural`]'s closed-form walk over any body
@@ -579,33 +583,6 @@ pub(crate) fn mass_properties_with<T: Decide>(
         enclosure: certificate.props(),
         stop,
     })
-}
-
-/// **A deciding predicate run out is the refusal** (`[tolerance.measure]`):
-/// where `deciding` and the walk stopped at [`Stop::Wall`] or
-/// [`Stop::Floor`], [`MassPropsError::Undecided`] carrying the enclosure
-/// read outward; any other measurement passes. A resolution decides
-/// nothing, so its unmet stop is the bracket and passes.
-///
-/// # Errors
-///
-/// [`MassPropsError::Undecided`], as above.
-fn undecided_refused<T: geom_core::Bounds>(
-    deciding: bool,
-    measured: MassMeasurement<T>,
-) -> Result<MassMeasurement<T>, MassPropsError> {
-    match measured.stop {
-        stop @ (Stop::Wall | Stop::Floor) if deciding => {
-            let e = &measured.enclosure;
-            let lo = geom_core::Bounds::lo(e.volume) - geom_core::Bounds::hi(e.volume_pad);
-            let hi = geom_core::Bounds::hi(e.volume) + geom_core::Bounds::hi(e.volume_pad);
-            Err(MassPropsError::Undecided {
-                volume: (lo.next_down(), hi.next_up()),
-                stop,
-            })
-        }
-        _ => Ok(measured),
-    }
 }
 
 /// **A resolution the model defines**: `len` meters, refused typed where
@@ -2173,25 +2150,18 @@ impl<'b, T: Decide> SignCertificate<'b, T> {
             .map(|r| (r.volume.lo(), r.volume.hi()))
     }
 
-    /// [`Self::measure`]'s walk at any scalar: the faces sized to a
-    /// resolution, or a deciding predicate walked on, with no refusal
-    /// for a predicate run out.
-    pub(crate) fn continued(
-        mut self,
-        settle: Settle<T>,
-    ) -> Result<MassMeasurement<T>, MassPropsError> {
-        let stop = match settle {
+    /// The faces walked on under `settle` from where they stand: sized to
+    /// a resolution, or walked until a deciding predicate settles or
+    /// no face can refine, answering why the walk stopped.
+    fn settle_to(&mut self, settle: Settle<T>) -> Result<Stop, MassPropsError> {
+        match settle {
             Settle::Resolution(len) => {
                 let len = resolution_len(len, self.tol)?;
                 self.resume_to(len);
-                resolution_stop(&self, len)?
+                resolution_stop(self, len)
             }
-            settle => self.settle_on(self.quad, settle)?,
-        };
-        Ok(MassMeasurement {
-            enclosure: self.props(),
-            stop,
-        })
+            settle => self.settle_on(self.quad, settle),
+        }
     }
 
     /// The certificate's parts without its borrow of the body, for
@@ -2299,9 +2269,57 @@ impl<T: Decide + geom_core::Bounds> SignCertificate<'_, T> {
     /// [`MassPropsError`], as [`crate::mass_properties`]: a deciding
     /// predicate still undecided where no face can refine is
     /// [`MassPropsError::Undecided`].
-    pub fn measure(self, settle: Settle<T>) -> Result<MassMeasurement<T>, MassPropsError> {
+    pub fn measure(mut self, settle: Settle<T>) -> Result<MassMeasurement<T>, MassPropsError> {
         let deciding = !matches!(settle, Settle::Resolution(_));
-        undecided_refused(deciding, self.continued(settle)?)
+        let stop = self.settle_to(settle)?;
+        self.answer(deciding, stop)
+    }
+
+    /// **The walk's answer where it stopped at `stop`**: a deciding
+    /// predicate run out at [`Stop::Wall`] or [`Stop::Floor`] is the
+    /// refusal, [`MassPropsError::Undecided`] carrying
+    /// [`Self::outward_volume`] and the stop (`[tolerance.measure]`);
+    /// anything else is the measurement. A resolution decides nothing,
+    /// so its unmet stop is the bracket and passes.
+    ///
+    /// # Errors
+    ///
+    /// [`MassPropsError::Undecided`], as above.
+    pub(crate) fn answer(
+        &self,
+        deciding: bool,
+        stop: Stop,
+    ) -> Result<MassMeasurement<T>, MassPropsError> {
+        match stop {
+            Stop::Wall | Stop::Floor if deciding => Err(MassPropsError::Undecided {
+                volume: self.outward_volume(),
+                stop,
+            }),
+            _ => Ok(MassMeasurement {
+                enclosure: self.props(),
+                stop,
+            }),
+        }
+    }
+
+    /// **The volume's one outward bracket**, `(lo, hi)` (m³), the one a
+    /// refusal reports — [`MassPropsError::Undecided`]'s `volume` and
+    /// check 7's [`crate::ValidationError::VolumeSignUnresolved`] read
+    /// it alike. It is the faces' interval re-derivation
+    /// ([`Self::interval_volume`]), whose ends are directed outward over
+    /// the stored geometry. Where the certificate holds no lane to
+    /// re-derive through, or the re-derivation refuses, it FALLS BACK to
+    /// the walk's own enclosure, `volume ∓ pad` with each end stepped one
+    /// ulp outward. Either way the volume lies between the ends: the
+    /// fallback is as sound as the lane the walk ran on, and no tighter.
+    pub(crate) fn outward_volume(&self) -> (f64, f64) {
+        self.interval_volume().unwrap_or_else(|| {
+            let enclosure = self.enclosure();
+            (
+                geom_core::Bounds::lo(enclosure.volume_lo).next_down(),
+                geom_core::Bounds::hi(enclosure.volume_hi).next_up(),
+            )
+        })
     }
 }
 

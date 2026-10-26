@@ -71,7 +71,7 @@ fn a_sliver_just_off_the_rim_vertex_builds_and_the_halves_hold_the_volume() {
             pad += props.volume_pad;
         }
         assert!(
-            (volume - core::f64::consts::PI).abs() <= pad + 1e-12,
+            (volume - core::f64::consts::PI).abs() <= pad,
             "d = {d:e}: the halves sum to {volume} ± {pad}, not π"
         );
     }
@@ -116,7 +116,7 @@ fn at_1e_12_the_sliver_builds_and_its_wall_stops_at_its_floor() {
             "d = {d:e}: the sliver stops at its floor, the thick half meets the resolution"
         );
         assert!(
-            (volume - core::f64::consts::PI).abs() <= pad + 1e-12,
+            (volume - core::f64::consts::PI).abs() <= pad,
             "d = {d:e}: the halves sum to {volume} ± {pad}, not π"
         );
     }

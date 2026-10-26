@@ -1582,8 +1582,12 @@ pub enum ValidationError {
         solid: SolidKey,
         /// What left it unresolved.
         limit: crate::props::SignLimit,
-        /// The volume enclosure where the sign walk stopped, its ends
-        /// `(lo, hi)` read outward: the true volume lies between them. A
+        /// The volume's outward bracket `(lo, hi)` where the sign walk
+        /// stopped, the true volume between them: the one a refusal
+        /// reports (`SignCertificate::outward_volume`, as
+        /// `MassPropsError::Undecided` does), the faces' interval
+        /// re-derivation, falling back to the walk's own enclosure stepped
+        /// outward where no lane re-derives it. A
         /// body refused here never reaches a number door, so this is
         /// where its bracket surfaces. `None` only from the gate of an
         /// operand that carries no verdict
@@ -5628,20 +5632,11 @@ fn structural_via<'b, T: geom_core::Decide + geom_core::Bounds + crate::props::A
 type Bracket<'f, 'b, T> = &'f dyn Fn(&crate::props::SignCertificate<'b, T>) -> Option<(f64, f64)>;
 
 /// The outward volume bracket of a certificate, at a door holding
-/// `geom_core::Bounds` (the [`Bracket`] reader): the certificate's
-/// interval re-derivation where it holds a lane, which encloses the
-/// volume over the stored geometry, else its enclosure's ends.
+/// `geom_core::Bounds` (the [`Bracket`] reader): the one bracket a
+/// refusal reports, [`crate::props::SignCertificate::outward_volume`].
 macro_rules! outward_volume {
     () => {
-        &|certificate| {
-            certificate.interval_volume().or_else(|| {
-                let enclosure = certificate.enclosure();
-                Some((
-                    geom_core::Bounds::lo(enclosure.volume_lo),
-                    geom_core::Bounds::hi(enclosure.volume_hi),
-                ))
-            })
-        }
+        &|certificate| Some(certificate.outward_volume())
     };
 }
 

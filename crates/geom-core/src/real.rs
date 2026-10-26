@@ -1640,20 +1640,8 @@ pub mod bounds_allowlist {
     //! last act is that entry.
     //!
     //! **What it owes "brackets never decide", stated at the substance and
-    //! not at the grep.** THREE bracket reads appear in `validate.rs`, and
-    //! they are disclosed here rather than left to be discovered. Two are
-    //! check 7's REPORT of an unresolved sign: where the sign walk stops
-    //! with the volume's enclosure still holding zero, the refusal
-    //! (`ValidationError::VolumeSignUnresolved`) carries that enclosure
-    //! read outward — [`Bounds::lo`](super::Bounds::lo) of its low end and
-    //! [`Bounds::hi`](super::Bounds::hi) of its high end, in the
-    //! `outward_volume!` reader — because a body refused there never
-    //! reaches a number door and the refusal is where its bracket
-    //! surfaces. They are reported and never branched on: the verdict was
-    //! already the walk's, read through `decide`, before the reader runs,
-    //! and the reader is handed only by doors that already spell `Bounds`
-    //! (the unverdicted operand gate, which does not, hands a reader
-    //! answering `None`). The third is check 1's
+    //! not at the grep.** ONE `lo` call appears in `validate.rs`, and it is
+    //! disclosed here rather than left to be discovered: check 1's
     //! [`Bounds::lo`](super::Bounds::lo) of each representability margin an
     //! analytic surface's or edge carrier's conventions state (`geom`'s
     //! `Surface::representability_margins` — a cylinder's, sphere's or
@@ -1678,12 +1666,12 @@ pub mod bounds_allowlist {
     //! bracket read behind a renamed accessor) has no instance here any
     //! more: the accessor is gone and the read is spelled `Bounds::lo`
     //! where a grep sees it. What this entry discloses is a different
-    //! shape — a bracket read that DECIDES NOTHING — with its in-fence
-    //! instances written down, and the count is not left to prose:
+    //! shape — a bracket read that DECIDES NOTHING — with its one in-fence
+    //! instance written down, and the count is not left to prose:
     //! `scripts/gates/bounds-allowlist.sh` pins compound BOUNDS per file,
     //! not reads, so `crates/topo/tests/r1_lane1_bracket_read_census.rs`
     //! counts the file's bracket reads over the code view against the
-    //! three disclosed here and reds on a fourth. The weakest bound that works is this one, checked
+    //! one disclosed here and reds on a second. The weakest bound that works is this one, checked
     //! against the next tighter spelling rather than asserted: `Decide + `[`CertifiedEnclosure`](super::CertifiedEnclosure)
     //! alone does NOT compile, because the certified quadrature reads
     //! [`Bounds`](super::Bounds) as well.

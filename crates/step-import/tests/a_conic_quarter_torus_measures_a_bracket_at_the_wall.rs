@@ -299,9 +299,11 @@ fn the_conic_quarter_torus_answers_a_bracket_holding_pappus() {
         e.volume,
         e.volume_pad
     );
-    assert!(
-        matches!(measured.stop, topo::Stop::Wall | topo::Stop::Met),
-        "the stop is the wall or the resolution met, never the floor: {measured:?}"
+    assert_eq!(
+        measured.stop,
+        topo::Stop::Wall,
+        "the costly face stops at its wall, short of the resolution: that is the witness \
+         (a face that met it would no longer be the review's case): {measured:?}"
     );
     eprintln!(
         "ACCEPTANCE-5 conic quarter torus @ ε = {:e}, resolution 1.024e-6 m: stop {:?}, V = {} ± {:e} (Pappus {pappus})",

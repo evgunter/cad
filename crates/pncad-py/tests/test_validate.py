@@ -728,9 +728,13 @@ class TestGateAndMeasureInOneQuadrature(unittest.TestCase):
         r = refused.exception
         self.assertEqual(r.measure_refusal, "undecided")
         self.assertIn(r.stop, ("wall", "floor"))
+        # The refusal's bracket is the body's, held to the same frustum
+        # oracle as the measurement's above.
         rlo, rhi = r.volume
-        self.assertLessEqual(rlo, e.volume)
-        self.assertGreaterEqual(rhi, e.volume)
+        self.assertLess(rlo, rhi)
+        self.assertGreater(rlo, 0.0, "the refusal's bracket is definitely positive")
+        self.assertLess(rlo, frustum)
+        self.assertGreater(rhi, frustum)
 
 
 class TestSettle(unittest.TestCase):
