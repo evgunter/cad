@@ -181,10 +181,12 @@ const UNMARKED_RECOURSE: &[&str] = &[
 /// boolean's own table names it, the `From` it came in through: each
 /// wall of `crossing_slots`' pieces now says its read ("… through
 /// <read>"). Scoped p99 43 → 45, total 60241 → 60371; full total
-/// 461129 → 461339. No outcome moved.
+/// 461129 → 461339. No outcome moved. Main's merge into D′3 at
+/// `1235f4c050` (these walls and stage 4 I) moves D′3's scoped total
+/// 46933 → 47003 and full total 342994 → 343104; the percentiles held.
 const NAME_WORDS: [(&str, [usize; 4]); 2] = [
-    ("scoped faces", [16, 45, 57, 46_933]),
-    ("full", [19, 122, 196, 342_994]),
+    ("scoped faces", [16, 45, 57, 47_003]),
+    ("full", [19, 122, 196, 343_104]),
 ];
 
 /// **A digest of every word the corpus's names say** — each name a
@@ -349,7 +351,10 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// Re-pinned with [`NAME_WORDS`] when a pair boolean's `Borders` walls
 /// came to say the read each came in through: the words that moved are
 /// those walls'.
-const SAID_DIGEST: u64 = 0xea0f_1a37_b898_f6d0;
+///
+/// Measured again for D′3 over main's merge at `1235f4c050`, with the
+/// `Borders` walls' reads under D′3's names.
+const SAID_DIGEST: u64 = 0x64cc_6dcd_efc6_bfd6;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a
