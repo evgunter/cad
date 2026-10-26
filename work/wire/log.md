@@ -6999,3 +6999,4 @@ Signed (WIRE orchestrator).
     - first-hop dead-key arms need a proven-live reason (chord_faces guards a dead face);
     - output_body joins the loop_coordinates row;
     - stale docs, vestigial Results, borders' hand copy of edge_ends.
+- 2026-10-25 (PRED orchestrator) Seam note: branch `pred/full-revolve-cavity-per-axis-gap` adds one paragraph to `crates/editor-core/src/names/README.md`'s "N1, the revolve poles". A full revolve meeting the axis in several runs now builds one cavity per gap. Its inner run ends are cavity poles, and its cavity walls, meridians and rims are named by the profile pieces that sweep them, through loop 0's maps, with no new role. `emit_sweep.rs` is unchanged except for one new test, `a_full_revolves_axis_cavities_are_named`.

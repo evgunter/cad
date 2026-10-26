@@ -4,7 +4,7 @@ kind: issue
 title: a click on a full-revolve rim picks one half-arc, so the blend tool's fillet refuses SeamVertex and its recourse is a kernel-only query
 status: open
 opened: 2026-10-02
-priority: P2
+priority: P1
 cost: M
 ---
 
@@ -51,3 +51,18 @@ seam-split rim, extend the held set to the whole rim (`rim_of` on the
 evaluated body, mapped back to names). Or offer that as a one-click
 action on the refusal. Either way the panel should show a rim as one
 pick.
+
+## Re-banded P2 → P1 (on request in chat, 2026-10-25)
+
+Measured again on the lily's lantern (`demos/tour/src/lily.rs`): its
+mouth, the sphere zone × pucker cone circle, refuses
+`UnsupportedCorner { SeamVertex }` at r = 0.005, 0.01 and 0.02 when
+either half-arc is asked for alone, and builds tier-3 valid at all
+three when both halves are asked for together. Lily wall 6 had read
+that refusal as a frontier ("the kernel cannot fillet a curved body")
+for as long as it stood, which is the cost of this row in one
+example: rounding a visible circle is an everyday request, and the
+one pick a person makes for it refuses. The scene now asks for both
+halves (`lily::roll_the_mouth`). The upstream cause, that a full
+revolve leaves every circle as two edges, is
+`work/profile/lower-profiles-to-carrier-and-interval-not-vertex-and-bulge.md`.
