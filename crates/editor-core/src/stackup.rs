@@ -23,7 +23,7 @@
 //!
 //! 1. **The build identity.** The report takes the `f64` evaluation and
 //!    the seeded `Dual64` passes and refuses typed
-//!    ([`PairingViolation`]) unless every pass, and the unseeded dual
+//!    ([`BindingViolation`]) unless every pass, and the unseeded dual
 //!    run the passes reuse, read exactly the inputs the `f64`
 //!    evaluation read: the same document
 //!    ([`crate::DocumentId`]) at the same revision
@@ -200,9 +200,10 @@ pub enum SensitivityOutcome {
     /// The measured value has no value in this pass — its measure
     /// refused through its own doors, or a node under it did not build
     /// at the pass's scalar — a per-entry refusal, not a driver
-    /// failure. Re-evaluating the document hands back the typed error
-    /// itself (`NodeErrorKind` is neither `Clone` nor `PartialEq`, so
-    /// this entry carries its node and its rendering).
+    /// failure. Re-evaluating the document at `Dual64` with this
+    /// entry's parameter as the seed hands back the typed error itself
+    /// (`NodeErrorKind` is neither `Clone` nor `PartialEq`, so this
+    /// entry carries its node and its rendering).
     MeasureRefused {
         /// The refusing node — a measure under the value, or the
         /// failed ancestor it was poisoned through; `None` for a value
@@ -210,6 +211,11 @@ pub enum SensitivityOutcome {
         node: Option<RecipeNodeId>,
         /// The node error, rendered.
         cause: String,
+        /// What the `f64` build of record read for the value.
+        /// [`RecordReading::Measured`] says the refusal is the dual's
+        /// alone: a door DUAL-DESIGN DL3 leaves unrun at a dual, or a
+        /// decision the two scalars took differently (a D9 break).
+        record: RecordReading,
     },
     /// The seed could not reach the measure: the lift refused typed at
     /// a node under the measured value (module docs). The derivative is
@@ -221,6 +227,36 @@ pub enum SensitivityOutcome {
         /// The typed limit.
         refusal: LiftRefusal,
     },
+}
+
+/// **What the `f64` build of record read for the measured value** —
+/// its nominal's three states, kept apart so a pass that disagrees with
+/// it says which it disagreed with.
+#[derive(Debug, Clone, PartialEq)]
+pub enum RecordReading {
+    /// The build of record measured the value.
+    Measured(f64),
+    /// The measure has no value at `f64` by its own door (a
+    /// `min_clearance`, answered by an engine that needs an enclosure).
+    Unavailable(crate::measure::MeasureUnavailableAt),
+    /// The value refused in the build of record: its measure, or a
+    /// node under it, did not build.
+    Refused {
+        /// The refusal, rendered with the node it came from.
+        cause: String,
+    },
+}
+
+impl core::fmt::Display for RecordReading {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Measured(v) => write!(f, "the f64 build of record measured {v:e}"),
+            Self::Unavailable(reason) => {
+                write!(f, "the f64 build of record has no value: {reason}")
+            }
+            Self::Refused { cause } => write!(f, "the f64 build of record refused it: {cause}"),
+        }
+    }
 }
 
 /// One continuous parameter's sensitivity entry.
@@ -239,10 +275,18 @@ pub struct Sensitivity {
 /// a pass did not read the same inputs, so the pass's tangents are not
 /// of the validated build. Never a warning — the driver refuses.
 #[derive(Debug, Clone, PartialEq)]
-pub enum PairingViolation {
+pub enum BindingViolation {
     /// The `f64` evaluation (or a pass) did not run to completion — a
     /// canceled prefix validates nothing.
     Incomplete,
+    /// The `f64` evaluation (or a pass) refused before building
+    /// anything ([`Evaluation::refused_whole`]): it was asked for a
+    /// seed or a parameter box its scalar cannot carry, or its
+    /// tolerance conflicts with the document's. It reports itself
+    /// complete, but it read no inputs — its environment is the
+    /// nominal one whatever it was asked to bind — so there is no
+    /// build to bind. A build of record is a build-path evaluation.
+    NotABuild,
     /// The `f64` evaluation carries no content pin, so which revision
     /// it read cannot be said: it was not asked for one
     /// ([`crate::EvalOptions::pin`]; `refusal` is `None`), or the
@@ -274,15 +318,20 @@ pub enum PairingViolation {
     Parts,
 }
 
-impl core::fmt::Display for PairingViolation {
+impl core::fmt::Display for BindingViolation {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Incomplete => f.write_str(
-                "the paired f64 evaluation is a canceled prefix — an incomplete run \
+                "the f64 build of record is a canceled prefix — an incomplete run \
                  validates nothing, so there is no build of record to differentiate",
             ),
+            Self::NotABuild => f.write_str(
+                "the f64 build of record refused every node before building anything (a \
+                 seed or parameter box its scalar cannot carry, or a tolerance conflict) \
+                 — it is no build; hand a build-path evaluation",
+            ),
             Self::Unpinned { refusal: None } => f.write_str(
-                "the paired f64 evaluation records no content pin, so which revision it \
+                "the f64 build of record records no content pin, so which revision it \
                  read cannot be said; evaluate it with `EvalOptions::pin`",
             ),
             Self::Unpinned {
@@ -294,25 +343,25 @@ impl core::fmt::Display for PairingViolation {
             ),
             Self::EvaluationOfAnotherDocument { expected, found } => write!(
                 f,
-                "the paired f64 evaluation is of document {found}, not of {expected}, the \
+                "the f64 build of record is of document {found}, not of {expected}, the \
                  document asked about"
             ),
             Self::Revision => f.write_str(
-                "the paired f64 evaluation read another revision of the document — it \
+                "the f64 build of record read another revision of the document — it \
                  changed since that build, so differentiating now would report a \
                  sensitivity of a build nobody validated",
             ),
             Self::Tolerance => f.write_str(
-                "the paired f64 evaluation decided at another tolerance than the \
+                "the f64 build of record decided at another tolerance than the \
                  sensitivity passes",
             ),
             Self::Binding { var } => write!(
                 f,
-                "the paired f64 evaluation bound {var} to other bits than the \
+                "the f64 build of record bound {var} to other bits than the \
                  sensitivity passes did"
             ),
             Self::Parts => f.write_str(
-                "the paired f64 evaluation resolved other parts than the sensitivity \
+                "the f64 build of record resolved other parts than the sensitivity \
                  passes did — a part that resolves in one and not the other, or at \
                  another pin",
             ),
@@ -320,9 +369,9 @@ impl core::fmt::Display for PairingViolation {
     }
 }
 
-impl core::error::Error for PairingViolation {}
+impl core::error::Error for BindingViolation {}
 
-impl From<crate::Mispaired> for PairingViolation {
+impl From<crate::Mispaired> for BindingViolation {
     fn from(m: crate::Mispaired) -> Self {
         Self::EvaluationOfAnotherDocument {
             expected: m.expected,
@@ -363,7 +412,7 @@ pub enum SensitivityRefusal {
     },
     /// The binding fired (module docs): no sensitivity of an
     /// unvalidated build.
-    Pairing(PairingViolation),
+    Binding(BindingViolation),
     /// A pass's measured value is not the `f64` evaluation's, bit for
     /// bit, over inputs the binding found equal — a D9 break between
     /// the scalars (module docs).
@@ -372,9 +421,9 @@ pub enum SensitivityRefusal {
         param: SpokenVar,
         /// The value half of the pass's measured value.
         pass: f64,
-        /// The `f64` evaluation's measured value; `None` when it has
-        /// none where the pass has one.
-        base: Option<f64>,
+        /// What the `f64` evaluation read for the value: another
+        /// number, or no value where the pass has one (and which).
+        base: RecordReading,
     },
 }
 
@@ -429,21 +478,12 @@ impl core::fmt::Display for SensitivityRefusal {
                  a different content key at {node} — the document changed since the \
                  drive, or the verdict is another document's; drive again"
             ),
-            Self::Pairing(v) => write!(f, "pairing violation: {v}"),
-            Self::MeasuredValueDrift { param, pass, base } => match base {
-                Some(base) => write!(
-                    f,
-                    "the sensitivity pass for {param} measured {pass:e} where the validated \
-                     build measured {base:e} — the dual's value channel is not the f64 build's \
-                     (a D9 break)"
-                ),
-                None => write!(
-                    f,
-                    "the sensitivity pass for {param} measured {pass:e} where the validated \
-                     build has no value — the dual's value channel is not the f64 build's \
-                     (a D9 break)"
-                ),
-            },
+            Self::Binding(v) => write!(f, "binding violation: {v}"),
+            Self::MeasuredValueDrift { param, pass, base } => write!(
+                f,
+                "the sensitivity pass for {param} measured {pass:e} where {base} — the \
+                 dual's value channel is not the f64 build's (a D9 break)"
+            ),
         }
     }
 }
@@ -456,7 +496,7 @@ impl core::error::Error for SensitivityRefusal {}
 /// the analysis and has no entry: nobody asks a sensitivity to a value
 /// that carries no tolerance (VR8).
 ///
-/// `paired` is the caller's validated f64 build of record — a
+/// `of_record` is the caller's validated f64 build of record — a
 /// build-path evaluation (`EvalOptions::default()`) of `doc`, asked for
 /// its pin ([`EvalOptions::pin`]) — bound to the passes as the module
 /// docs describe; `None` makes the driver's own fresh f64 build the
@@ -472,12 +512,12 @@ impl core::error::Error for SensitivityRefusal {}
 /// `resolver` resolves the parts a document instantiates, in every pass
 /// and replay, as [`EvalOptions::resolver`] does an evaluation's: an
 /// assembly's mates solve at each pass's own scalar (`ASSEMBLY.md` A11
-/// (5)), so ∂m/∂pᵢ crosses a mate. A `paired` build that resolved other
+/// (5)), so ∂m/∂pᵢ crosses a mate. An `of_record` build that resolved other
 /// parts — over another resolver, or none — fails the binding.
 ///
 /// Pure: `doc` is shared, the result is a value, nothing on this path
 /// writes. Cost: one canonicalization of `doc` for its pin, one f64
-/// build when no `paired` is handed, one unseeded and n seeded `Dual64`
+/// build when no `of_record` is handed, one unseeded and n seeded `Dual64`
 /// passes, plus one `Interval` leaf replay when a chamber is handed.
 ///
 /// # Errors
@@ -488,13 +528,13 @@ impl core::error::Error for SensitivityRefusal {}
 pub fn sensitivities(
     doc: &Doc<ProfileProgram>,
     value: VarId,
-    paired: Option<&Evaluation<f64>>,
+    of_record: Option<&Evaluation<f64>>,
     chamber: Option<&ParamBoxVerdict>,
     parallel: bool,
     resolver: Option<&Arc<dyn crate::part::PartResolver>>,
     tol: Tol,
 ) -> Result<Vec<Sensitivity>, SensitivityRefusal> {
-    driver(doc, value, paired, chamber, parallel, resolver, tol).map(|d| d.entries)
+    driver(doc, value, of_record, chamber, parallel, resolver, tol).map(|d| d.entries)
 }
 
 /// What the driver's shared core hands back: the build of record's
@@ -510,7 +550,7 @@ struct Driven {
 fn driver(
     doc: &Doc<ProfileProgram>,
     value: VarId,
-    paired: Option<&Evaluation<f64>>,
+    of_record: Option<&Evaluation<f64>>,
     chamber: Option<&ParamBoxVerdict>,
     parallel: bool,
     resolver: Option<&Arc<dyn crate::part::PartResolver>>,
@@ -532,12 +572,12 @@ fn driver(
     // driver's own runs are of `doc` by construction and are stamped
     // with it rather than each canonicalizing `doc` again.
     let pin = crate::persist::content_pin(doc, tol).map_err(|refusal| {
-        SensitivityRefusal::Pairing(PairingViolation::Unpinned {
+        SensitivityRefusal::Binding(BindingViolation::Unpinned {
             refusal: Some(refusal),
         })
     })?;
     let own: Evaluation<f64>;
-    let record = match paired {
+    let record = match of_record {
         Some(handed) => handed,
         None => {
             own = stamped(
@@ -556,7 +596,7 @@ fn driver(
             &own
         }
     };
-    let record = Record::new(doc, record, value).map_err(SensitivityRefusal::Pairing)?;
+    let record = Record::new(doc, record, value).map_err(SensitivityRefusal::Binding)?;
 
     // The variables, in declaration order (deterministic in both schedules).
     let names: Vec<VarId> = toleranced_params(doc).collect();
@@ -582,7 +622,7 @@ fn driver(
     );
     BuildIdentity::of(&base)
         .and_then(|identity| record.identity.bind(doc, &identity))
-        .map_err(SensitivityRefusal::Pairing)?;
+        .map_err(SensitivityRefusal::Binding)?;
 
     let one = |name: &VarId| -> Result<Sensitivity, SensitivityRefusal> {
         let pass = stamped(
@@ -598,7 +638,7 @@ fn driver(
         let outcome = record
             .read(doc, &pass, value, &chamber)
             .map_err(|e| match e {
-                Unread::Binding(v) => SensitivityRefusal::Pairing(v),
+                Unread::Binding(v) => SensitivityRefusal::Binding(v),
                 Unread::Drift(Drift { pass, base }) => SensitivityRefusal::MeasuredValueDrift {
                     param: doc.spoken_var(*name),
                     pass,
@@ -613,8 +653,12 @@ fn driver(
     };
 
     // D9 idiom 1: an indexed map over the name list — results land by
-    // position, never accumulated — so the schedule cannot leak.
-    let entries: Result<Vec<Sensitivity>, SensitivityRefusal> = if parallel {
+    // position, never accumulated — so the schedule cannot leak. Every
+    // pass's result is collected BEFORE any error is chosen: rayon's
+    // short-circuiting `collect` into a `Result` hands back whichever
+    // error arrives first in time, so the refusal would depend on the
+    // schedule. The error reported is the first in parameter order.
+    let results: Vec<Result<Sensitivity, SensitivityRefusal>> = if parallel {
         use rayon::prelude::*;
         names.par_iter().map(one).collect()
     } else {
@@ -623,7 +667,7 @@ fn driver(
     Ok(Driven {
         nominal: record.nominal,
         chamber,
-        entries: entries?,
+        entries: results.into_iter().collect::<Result<_, _>>()?,
     })
 }
 
@@ -715,13 +759,13 @@ struct BuildIdentity {
     pin: crate::ContentPin,
     /// `(ε, K)` as bits.
     tolerance: (u64, u64),
-    bindings: BTreeMap<VarId, Binding>,
+    bindings: BTreeMap<VarId, BoundBits>,
     parts: BTreeSet<(crate::DocRef, u64)>,
 }
 
 /// One parameter binding as bits: a continuous value by its value half.
 #[derive(Debug, PartialEq)]
-enum Binding {
+enum BoundBits {
     Continuous(crate::Dimension, u64),
     Count(i64),
 }
@@ -746,18 +790,21 @@ impl ValueBits for Dual64 {
 
 impl BuildIdentity {
     /// `ev`'s identity, or why it has none to bind by.
-    fn of<T: ValueBits>(ev: &Evaluation<T>) -> Result<Self, PairingViolation> {
+    fn of<T: ValueBits>(ev: &Evaluation<T>) -> Result<Self, BindingViolation> {
         if ev.outcome != EvalOutcome::Completed {
-            return Err(PairingViolation::Incomplete);
+            return Err(BindingViolation::Incomplete);
+        }
+        if ev.refused_whole() {
+            return Err(BindingViolation::NotABuild);
         }
         let pin = match &ev.pin {
             Some(Ok(pin)) => *pin,
             Some(Err(refusal)) => {
-                return Err(PairingViolation::Unpinned {
+                return Err(BindingViolation::Unpinned {
                     refusal: Some(refusal.clone()),
                 });
             }
-            None => return Err(PairingViolation::Unpinned { refusal: None }),
+            None => return Err(BindingViolation::Unpinned { refusal: None }),
         };
         let bindings = ev
             .env
@@ -766,9 +813,9 @@ impl BuildIdentity {
             .map(|(&var, binding)| {
                 let bits = match binding {
                     crate::expr::ParamValue::Continuous { dim, value } => {
-                        Binding::Continuous(*dim, value.value_bits())
+                        BoundBits::Continuous(*dim, value.value_bits())
                     }
-                    crate::expr::ParamValue::Count(n) => Binding::Count(*n),
+                    crate::expr::ParamValue::Count(n) => BoundBits::Count(*n),
                 };
                 (var, bits)
             })
@@ -784,27 +831,27 @@ impl BuildIdentity {
 
     /// The first input `pass` read differently from `self`, the build
     /// of record's, said from `doc`.
-    fn bind(&self, doc: &Doc<ProfileProgram>, pass: &Self) -> Result<(), PairingViolation> {
+    fn bind(&self, doc: &Doc<ProfileProgram>, pass: &Self) -> Result<(), BindingViolation> {
         if let Some(m) = crate::ident::mispaired(pass.document, self.document) {
             return Err(m.into());
         }
         if self.pin != pass.pin {
-            return Err(PairingViolation::Revision);
+            return Err(BindingViolation::Revision);
         }
         if self.tolerance != pass.tolerance {
-            return Err(PairingViolation::Tolerance);
+            return Err(BindingViolation::Tolerance);
         }
         let vars: BTreeSet<&VarId> = self.bindings.keys().chain(pass.bindings.keys()).collect();
         if let Some(var) = vars
             .into_iter()
             .find(|var| self.bindings.get(var) != pass.bindings.get(var))
         {
-            return Err(PairingViolation::Binding {
+            return Err(BindingViolation::Binding {
                 var: doc.spoken_var(*var),
             });
         }
         if self.parts != pass.parts {
-            return Err(PairingViolation::Parts);
+            return Err(BindingViolation::Parts);
         }
         Ok(())
     }
@@ -824,7 +871,7 @@ struct Record {
 /// value drifted.
 #[derive(Debug)]
 enum Unread {
-    Binding(PairingViolation),
+    Binding(BindingViolation),
     Drift(Drift),
 }
 
@@ -833,7 +880,7 @@ enum Unread {
 #[derive(Debug)]
 struct Drift {
     pass: f64,
-    base: Option<f64>,
+    base: RecordReading,
 }
 
 impl Record {
@@ -842,7 +889,7 @@ impl Record {
         doc: &Doc<ProfileProgram>,
         ev: &Evaluation<f64>,
         value: VarId,
-    ) -> Result<Self, PairingViolation> {
+    ) -> Result<Self, BindingViolation> {
         if let Some(m) = crate::ident::mispaired(doc.id(), ev.document) {
             return Err(m.into());
         }
@@ -852,11 +899,14 @@ impl Record {
         })
     }
 
-    /// The build of record's measured value, when it has one.
-    fn measured(&self) -> Option<f64> {
+    /// What the build of record read for the measured value.
+    fn reading(&self) -> RecordReading {
         match &self.nominal {
-            Ok(Ok(v)) => Some(*v),
-            Ok(Err(_)) | Err(_) => None,
+            Ok(Ok(v)) => RecordReading::Measured(*v),
+            Ok(Err(reason)) => RecordReading::Unavailable(*reason),
+            Err((_, cause)) => RecordReading::Refused {
+                cause: cause.clone(),
+            },
         }
     }
 
@@ -881,16 +931,19 @@ impl Record {
         BuildIdentity::of(pass)
             .and_then(|identity| self.identity.bind(doc, &identity))
             .map_err(Unread::Binding)?;
+        let base = self.reading();
         let measured = match measure_of(doc, pass, value) {
             Ok(measured) => measured,
-            Err((node, cause)) => return Ok(unread_measure(pass, node, cause)),
+            Err((node, cause)) => return Ok(unread_measure(pass, node, cause, base)),
         };
-        let base = self.measured();
-        if base.map(f64::to_bits) != Some(measured.value_bits()) {
-            return Err(Unread::Drift(Drift {
-                pass: measured.value,
-                base,
-            }));
+        match base {
+            RecordReading::Measured(v) if v.to_bits() == measured.value_bits() => {}
+            base => {
+                return Err(Unread::Drift(Drift {
+                    pass: measured.value,
+                    base,
+                }));
+            }
         }
         let tangent = measured.deriv;
         Ok(if tangent.is_finite() {
@@ -911,6 +964,7 @@ fn unread_measure(
     pass: &Evaluation<Dual64>,
     node: Option<RecipeNodeId>,
     cause: String,
+    record: RecordReading,
 ) -> SensitivityOutcome {
     if let Some(id) = node
         && let Some(NodeResult::Failed(e)) = pass.result(id)
@@ -924,7 +978,11 @@ fn unread_measure(
             },
         };
     }
-    SensitivityOutcome::MeasureRefused { node, cause }
+    SensitivityOutcome::MeasureRefused {
+        node,
+        cause,
+        record,
+    }
 }
 
 // ------------------------------------------------- the verdict's tie
@@ -1044,10 +1102,19 @@ pub enum Unavailable {
         var: SpokenVar,
     },
     /// The parameter's pass could not read the measure (its doors
-    /// refused).
+    /// refused) — [`SensitivityOutcome::MeasureRefused`], carried.
     MeasureRefused {
         /// The variable.
         var: SpokenVar,
+        /// The refusing node, spoken from the document asked about;
+        /// `None` for a value no measure is under.
+        node: Option<SpokenNode>,
+        /// The node error, rendered.
+        cause: String,
+        /// What the `f64` build of record read for the value —
+        /// [`RecordReading::Measured`] marks a refusal the dual alone
+        /// made.
+        record: RecordReading,
     },
     /// The parameter's seed could not reach the measure — the lift's
     /// typed limit ([`SensitivityOutcome::Unliftable`]).
@@ -1069,7 +1136,7 @@ impl Unavailable {
     pub fn var(&self) -> &SpokenVar {
         match self {
             Self::TangentDegraded { var }
-            | Self::MeasureRefused { var }
+            | Self::MeasureRefused { var, .. }
             | Self::Unliftable { var }
             | Self::BandHasNoMeasure { var } => var,
         }
@@ -1083,9 +1150,14 @@ impl Unavailable {
         let mut again = self.clone();
         match &mut again {
             Self::TangentDegraded { var }
-            | Self::MeasureRefused { var }
             | Self::Unliftable { var }
             | Self::BandHasNoMeasure { var } => *var = var.respoken(doc),
+            Self::MeasureRefused { var, node, .. } => {
+                *var = var.respoken(doc);
+                if let Some(node) = node {
+                    *node = node.respoken(doc);
+                }
+            }
         }
         again
     }
@@ -1099,8 +1171,28 @@ impl core::fmt::Display for Unavailable {
                 "parameter {var}'s tangent degraded at the nominal (E9: forfeits its \
                  advisory uses, refuses nothing)"
             ),
-            Self::MeasureRefused { var } => {
-                write!(f, "parameter {var}'s pass could not read the measure")
+            Self::MeasureRefused {
+                var,
+                node,
+                cause,
+                record,
+            } => {
+                write!(f, "parameter {var}'s pass could not read the measure")?;
+                if let Some(node) = node {
+                    write!(f, " at {node}")?;
+                }
+                write!(f, ": {cause}")?;
+                match record {
+                    RecordReading::Measured(_) => write!(
+                        f,
+                        " — but {record}, so the refusal is the dual's alone: a door DL3 \
+                         leaves unrun at a dual, or a decision the two scalars took \
+                         differently (a D9 break)"
+                    ),
+                    RecordReading::Unavailable(_) | RecordReading::Refused { .. } => {
+                        write!(f, " ({record})")
+                    }
+                }
             }
             Self::Unliftable { var } => write!(
                 f,
@@ -1204,8 +1296,9 @@ pub struct Stackup {
     pub document: crate::DocumentId,
     /// The measured value the report is about ([`crate::Doc::observed`]).
     pub measurement: VarId,
-    /// The f64 build's measured value — re-derived from the anchored
-    /// evaluation, never handed in — or the typed reason there is none.
+    /// The f64 build of record's measured value — read from the
+    /// evaluation the passes were bound to (the handed one, or the
+    /// driver's own build) — or the typed reason there is none.
     ///
     /// **Absent rather than missing** (M10-6, R2's MINOR-3). The
     /// nominal is an ADVISORY column: E5 puts the certified worst case
@@ -1500,12 +1593,19 @@ fn sensitivity_text(outcome: &SensitivityOutcome, node: impl Fn(RecipeNodeId) ->
             format!("degraded tangent ({tangent})")
         }
         SensitivityOutcome::MeasureRefused {
-            node: Some(id),
+            node: refusing,
             cause,
+            record,
         } => {
-            format!("refused at {}: {cause}", node(*id))
+            let at = refusing.map_or(String::new(), |id| format!(" at {}", node(id)));
+            let alone = match record {
+                RecordReading::Measured(v) => {
+                    format!(" (the f64 build of record measured {v:e}: the dual's refusal alone)")
+                }
+                RecordReading::Unavailable(_) | RecordReading::Refused { .. } => String::new(),
+            };
+            format!("refused{at}: {cause}{alone}")
         }
-        SensitivityOutcome::MeasureRefused { node: None, cause } => format!("refused: {cause}"),
         // Spelled out rather than `Debug`-printed: this string is read
         // by a person in `render` and compared by a golden in
         // `serialize`, and `Debug` is a form neither of those wants.
@@ -1555,7 +1655,7 @@ fn coverage_bits(coverage: &MeasureAccounting) -> String {
 /// learn it carries what the drive and the driver did produce.
 #[derive(Debug, Clone, PartialEq)]
 pub enum StackupRefusal {
-    /// The sensitivity driver refused (measure, pairing, or a verdict
+    /// The sensitivity driver refused (measure, binding, or a verdict
     /// that is foreign or not of this build).
     Sensitivity(SensitivityRefusal),
     /// The analyzed box is not the box the verdict was driven over —
@@ -1663,7 +1763,7 @@ impl core::error::Error for StackupRefusal {}
 /// `analyzed` and `verdict` must be the same analysis: the verdict's
 /// root box must be `ParamBox::of(analyzed)` (checked, typed), and the
 /// verdict's leaves must be of THIS build (content-tied, module docs).
-/// `paired` is the validated f64 build of record, bound exactly as
+/// `of_record` is the validated f64 build of record, bound exactly as
 /// [`sensitivities`] binds it. `parallel` runs the sensitivity passes
 /// and the per-leaf worst-case evaluations under rayon idiom 1; the
 /// report is schedule-independent (D9).
@@ -1693,7 +1793,7 @@ pub fn stackup(
     value: VarId,
     analyzed: &AnalyzedBox,
     verdict: &ParamBoxVerdict,
-    paired: Option<&Evaluation<f64>>,
+    of_record: Option<&Evaluation<f64>>,
     parallel: bool,
     resolver: Option<&Arc<dyn crate::part::PartResolver>>,
     tol: Tol,
@@ -1705,8 +1805,16 @@ pub fn stackup(
         nominal,
         chamber,
         entries,
-    } = driver(doc, value, paired, Some(verdict), parallel, resolver, tol)
-        .map_err(StackupRefusal::Sensitivity)?;
+    } = driver(
+        doc,
+        value,
+        of_record,
+        Some(verdict),
+        parallel,
+        resolver,
+        tol,
+    )
+    .map_err(StackupRefusal::Sensitivity)?;
 
     // **The nominal, read from the build of record — and
     // FORFEITED rather than fatal when the measure has no f64 value**
@@ -1766,8 +1874,15 @@ pub fn stackup(
             SensitivityOutcome::TangentDegraded { .. } => Err(Unavailable::TangentDegraded {
                 var: spoken.clone(),
             }),
-            SensitivityOutcome::MeasureRefused { .. } => Err(Unavailable::MeasureRefused {
+            SensitivityOutcome::MeasureRefused {
+                node,
+                cause,
+                record,
+            } => Err(Unavailable::MeasureRefused {
                 var: spoken.clone(),
+                node: node.map(|node| doc.spoken(node)),
+                cause: cause.clone(),
+                record: record.clone(),
             }),
             SensitivityOutcome::Unliftable { .. } => Err(Unavailable::Unliftable {
                 var: spoken.clone(),
@@ -1895,13 +2010,16 @@ fn worst_case(
     // the collected brackets, so the hull is the same bits in either
     // schedule. The brackets are certified (no NaN reaches the fold),
     // so min/max are exact lattice operations here.
-    let brackets: Result<Vec<(f64, f64)>, StackupRefusal> = if parallel {
+    // Every leaf's result is collected before an error is chosen, so
+    // the refusal is the first in the verdict's leaf order whatever the
+    // schedule (the driver's own collection says why).
+    let results: Vec<Result<(f64, f64), StackupRefusal>> = if parallel {
         use rayon::prelude::*;
         leaves.par_iter().map(one).collect()
     } else {
         leaves.iter().map(one).collect()
     };
-    let brackets = brackets?;
+    let brackets = results.into_iter().collect::<Result<Vec<_>, _>>()?;
     let mut lo = f64::INFINITY;
     let mut hi = f64::NEG_INFINITY;
     for (l, h) in &brackets {
@@ -1919,8 +2037,8 @@ fn worst_case(
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::{
-        BuildIdentity, Chamber, Drift, PairingViolation, RSS_BLOCKER_LEAD, Record, Rss,
-        SensitivityOutcome, Unavailable, Unread, pass_opts, render_rss, stamped,
+        BindingViolation, BuildIdentity, Chamber, Drift, RSS_BLOCKER_LEAD, Record, RecordReading,
+        Rss, SensitivityOutcome, Unavailable, Unread, pass_opts, render_rss, stamped,
     };
     use crate::eval::{CancelToken, Evaluation, NodeResult, evaluate};
     use crate::program::{ProfileDoc, ProfileProgram};
@@ -1946,7 +2064,12 @@ mod tests {
             crate::SpokenVar::new(crate::VarId::new(0, 1), Some(VarName::from_static(param)));
         let all = vec![
             Unavailable::TangentDegraded { var: param.clone() },
-            Unavailable::MeasureRefused { var: param.clone() },
+            Unavailable::MeasureRefused {
+                var: param.clone(),
+                node: None,
+                cause: "a refusal".to_owned(),
+                record: RecordReading::Measured(1.0),
+            },
             Unavailable::Unliftable { var: param.clone() },
             Unavailable::BandHasNoMeasure { var: param },
         ];
@@ -2157,10 +2280,67 @@ mod tests {
         match record.read(&doc, &pass, thickness, &Chamber::LocalOnly) {
             Err(Unread::Drift(Drift { pass, base: got })) => {
                 assert_eq!(pass.to_bits(), perturbed.to_bits(), "the pass's value half");
-                assert_eq!(got.map(f64::to_bits), Some(base.to_bits()), "the record's");
+                match got {
+                    RecordReading::Measured(got) => {
+                        assert_eq!(got.to_bits(), base.to_bits(), "the record's");
+                    }
+                    other => panic!("the record measured: {other:?}"),
+                }
             }
             other => panic!("a perturbed measured value must refuse as drift: {other:?}"),
         }
+    }
+
+    /// **A refusal only the dual made says so.** The pass's measure is
+    /// planted as refused while the build of record measured it: the
+    /// entry carries the node, the rendered cause and the record's
+    /// value, and the stackup's blocker built from it names the
+    /// refusal as the dual's alone — the shape a D9 break in a decision
+    /// takes when it surfaces as a refusal.
+    #[test]
+    fn a_refusal_only_the_dual_made_carries_the_records_value() {
+        let (doc, depth, thickness) = slab(1.0);
+        let built = record_run(&doc);
+        let record = Record::new(&doc, &built, thickness).expect("binds");
+        let RecordReading::Measured(base) = record.reading() else {
+            panic!("the record measures the thickness");
+        };
+        let mut pass = pass_run(&doc, depth);
+        let (node, _) = pass.read_port(thickness).expect("a measure's output");
+        pass.nodes.insert(
+            node,
+            NodeResult::Failed(crate::eval::NodeError {
+                node,
+                kind: crate::eval::NodeErrorKind::ToleranceConflict {
+                    document_eps: 1.0,
+                    process_eps: 2.0,
+                },
+                escalations: std::sync::Arc::new(Vec::new()),
+            }),
+        );
+        let outcome = record
+            .read(&doc, &pass, thickness, &Chamber::LocalOnly)
+            .expect("a refused measure is an entry, not a refusal");
+        let SensitivityOutcome::MeasureRefused {
+            node: Some(at),
+            cause,
+            record: RecordReading::Measured(measured),
+        } = &outcome
+        else {
+            panic!("the dual's refusal, with the record's value: {outcome:?}");
+        };
+        assert_eq!(*at, node);
+        assert_eq!(measured.to_bits(), base.to_bits());
+        assert!(!cause.is_empty());
+        let blocker = Unavailable::MeasureRefused {
+            var: doc.spoken_var(depth),
+            node: Some(doc.spoken(node)),
+            cause: cause.clone(),
+            record: RecordReading::Measured(*measured),
+        };
+        let text = blocker.to_string();
+        assert!(text.contains(cause.as_str()), "{text}");
+        assert!(text.contains("the dual's alone"), "{text}");
     }
 
     /// **A pass from another revision, tolerance or parts set refuses
@@ -2183,13 +2363,13 @@ mod tests {
         let (other, _, _) = slab(1.5);
         assert_eq!(
             refused(&pass_run(&other, depth)),
-            PairingViolation::Revision
+            BindingViolation::Revision
         );
 
         // Another tolerance, restamped (one process holds one ε).
         let mut pass = pass_run(&doc, depth);
         pass.tolerance.k *= 2.0;
-        assert_eq!(refused(&pass), PairingViolation::Tolerance);
+        assert_eq!(refused(&pass), BindingViolation::Tolerance);
 
         // Another parts set: a reference the pass resolved and the
         // record did not, written into the pass's identity (a document
@@ -2206,13 +2386,13 @@ mod tests {
         ));
         assert_eq!(
             record.identity.bind(&doc, &identity),
-            Err(PairingViolation::Parts)
+            Err(BindingViolation::Parts)
         );
 
         // An unpinned pass cannot be bound.
         let mut pass = pass_run(&doc, depth);
         pass.pin = None;
-        assert_eq!(refused(&pass), PairingViolation::Unpinned { refusal: None });
+        assert_eq!(refused(&pass), BindingViolation::Unpinned { refusal: None });
     }
 
     /// A document holding no variable, so a blocker is said as it was

@@ -52,10 +52,23 @@ from another revision, ε or parts set must refuse at the binding.
 Built in PR 5720. `stackup.rs` binds the `f64` build of record to the
 unseeded dual base and to every pass by `BuildIdentity` (document id,
 content pin, binding bits, tolerance, resolved parts), refusing a
-typed `PairingViolation`; each pass's measured value half is compared
+typed `BindingViolation`; each pass's measured value half is compared
 bit for bit (`SensitivityRefusal::MeasuredValueDrift`); the lift valve
 reads the pass's own `ProfileLaneReplay`. The anchor walk and the
 value-channel digest are gone. `EvalOptions::pin` asks a run for its
 `Evaluation::pin`. The resolved parts' pin already exists as
 `DocRef.pin` (A4); the carried part rows are the identity's parts set,
 so no new pin and no filed gap.
+
+The review's fix pass on the same PR made these changes:
+- the driver picks the first error in parameter order whatever the
+  schedule;
+- a record that refused every node is `BindingViolation::NotABuild`;
+- a dual-only refusal carries its node, its cause and the record's
+  reading (`RecordReading`) into the `Stackup` blocker;
+- `PairingViolation` is renamed `BindingViolation`;
+- `Evaluation::pin` and `Evaluation::tolerance` are crate-private
+  behind getters.
+
+`EvalOutcome::Completed` on a whole refusal is filed as
+`a-whole-evaluation-refusal-reports-completed`.

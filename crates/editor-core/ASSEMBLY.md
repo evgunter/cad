@@ -94,7 +94,7 @@ The doors that refuse:
   `NodePick::boundary_names` and `pick_face`
   (`HitTestError::EvaluationOfAnotherDocument`), below;
 - `stackup::sensitivities` and `stackup::stackup`
-  (`PairingViolation::EvaluationOfAnotherDocument`), for the handed
+  (`BindingViolation::EvaluationOfAnotherDocument`), for the handed
   build of record, which DUAL-DESIGN DL3 binds by revision as well.
 
 The memo reads the stamp too, and since `evaluate` returns no `Result`

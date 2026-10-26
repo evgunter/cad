@@ -85,17 +85,25 @@ pub struct Evaluation<T: Decide> {
     /// not check it yet, is `crates/editor-core/ASSEMBLY.md`'s A2a —
     /// one place for a set that grows as each door is built.
     ///
-    /// The field is `pub` like every other field of this struct, so a
+    /// The field is `pub` like most fields of this struct, so a
     /// caller CAN restamp it. That is a deliberate act, not a slip, and
     /// nothing downstream re-derives it.
     pub document: crate::ident::DocumentId,
-    /// **Which version of the document this run read**: its content pin,
-    /// when the run was asked for one ([`EvalOptions::pin`]), or the
-    /// document's refusal to canonicalize. `None` for a run that was not
-    /// asked. Restampable like [`Self::document`], and as deliberately.
-    pub pin: Option<Result<crate::ident::ContentPin, crate::persist::PersistError>>,
-    /// The tolerance every predicate of this run decided at.
-    pub tolerance: geom_core::Tolerance,
+    /// **Which version of the document this run read** ([`Self::pin`]).
+    /// Not `pub`, unlike [`Self::document`]: the E4/E5 report binds a
+    /// build of record by it (DUAL-DESIGN DL3), so only an evaluation
+    /// door sets it.
+    pub(crate) pin: Option<Result<crate::ident::ContentPin, crate::persist::PersistError>>,
+    /// The tolerance every predicate of this run decided at
+    /// ([`Self::tolerance`]); crate-private for the same reason.
+    pub(crate) tolerance: geom_core::Tolerance,
+    /// **The run refused before building anything** ([`Self::refused_whole`]):
+    /// every node carries one refusal the run raised up front — a
+    /// tolerance conflict, a parameter box or a seed its scalar cannot
+    /// carry — and its `env` is the nominal one, not what it was asked
+    /// to bind. Such a run reports [`EvalOutcome::Completed`], so this
+    /// is the one place that says it is no build.
+    pub(crate) whole_refusal: bool,
     /// **A prior of another document, refused** (DI3): `Some` when
     /// `evaluate` was handed a `prior` whose [`Evaluation::document`]
     /// is not this document's, in which case the run had NO memo —
@@ -163,6 +171,40 @@ pub struct Evaluation<T: Decide> {
 }
 
 impl<T: Decide> Evaluation<T> {
+    /// **Which version of the document this run read**: its content pin,
+    /// when the run was asked for one ([`EvalOptions::pin`]), or the
+    /// document's refusal to canonicalize; `None` for a run that was not
+    /// asked.
+    #[must_use]
+    pub fn pin(&self) -> Option<&Result<crate::ident::ContentPin, crate::persist::PersistError>> {
+        self.pin.as_ref()
+    }
+
+    /// The tolerance every predicate of this run decided at.
+    #[must_use]
+    pub fn tolerance(&self) -> geom_core::Tolerance {
+        self.tolerance
+    }
+
+    /// **Whether the run refused before building anything**: every node
+    /// carries the one refusal the run raised up front (a tolerance
+    /// conflict, a parameter box or a seed its scalar cannot carry).
+    /// Such a run still reports [`EvalOutcome::Completed`].
+    #[must_use]
+    pub fn refused_whole(&self) -> bool {
+        self.whole_refusal
+    }
+
+    /// This evaluation restamped as having decided at `tolerance` — a
+    /// test's stand-in for a run of another process's ε, which no run
+    /// of this process can be.
+    #[cfg(any(test, feature = "test-support"))]
+    #[must_use]
+    pub fn restamped_tolerance(mut self, tolerance: geom_core::Tolerance) -> Self {
+        self.tolerance = tolerance;
+        self
+    }
+
     /// **The parts this run resolved**: each reference it entered and
     /// evaluated, with the ε it was entered at — the pin says which
     /// content (A4), so this is which part versions the build read.
@@ -946,6 +988,7 @@ impl Evaluation<f64> {
             document,
             pin: None,
             tolerance: tolerance_of(tol),
+            whole_refusal: false,
             prior_refused: None,
             recomputed: order.len(),
             order,
@@ -3183,7 +3226,7 @@ pub fn evaluate_running_pass_two<T: EvalScalar>(
     opts: &EvalOptions,
     tol: Tol,
 ) -> Evaluation<T> {
-    evaluate_at_descent(
+    let mut ev = evaluate_at_descent(
         doc,
         None,
         &CancelToken::new(),
@@ -3191,7 +3234,11 @@ pub fn evaluate_running_pass_two<T: EvalScalar>(
         None,
         PassTwo::Run,
         tol,
-    )
+    );
+    if opts.pin {
+        ev.pin = Some(crate::persist::content_pin(doc, tol));
+    }
+    ev
 }
 
 /// The interval lane's solve: a refusal quotes an enclosure's midpoint,
@@ -3681,6 +3728,7 @@ where
         document: doc.id(),
         pin: None,
         tolerance: tolerance_of(tol),
+        whole_refusal: false,
         prior_refused,
         order,
         nodes,
@@ -3811,6 +3859,7 @@ where
         document: doc.id(),
         pin: None,
         tolerance: tolerance_of(tol),
+        whole_refusal: true,
         prior_refused,
         order,
         nodes,

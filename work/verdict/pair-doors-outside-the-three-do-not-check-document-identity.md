@@ -207,7 +207,7 @@ that door's own error vocabulary.
 
 `stackup::sensitivities` and `stackup::stackup` now check their handed
 build of record, in the shape above: one arm,
-`PairingViolation::EvaluationOfAnotherDocument`, over
+`BindingViolation::EvaluationOfAnotherDocument`, over
 `ident::mispaired`, built by OFFSET's
 `the-sensitivity-report-binds-by-build-identity-and-checks-the-measured-value`
 (branch `offset/sensitivity-build-identity`), where the report binds

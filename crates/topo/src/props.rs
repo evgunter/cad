@@ -6214,9 +6214,9 @@ mod wiring_rows {
 /// BESIDE a base-scalar evaluation of the same recipe, whose value
 /// channel is bit-identical (the dual contract) and which these same
 /// gates validate. Nothing in the type system enforces that pairing
-/// at the public doors today; the E4 driver's content-key equality
-/// assertion (DL3's soundness hook) is a NAMED banked obligation of
-/// M10-4's driver. That is sound because
+/// at the public doors today; the E4/E5 report enforces it where a
+/// dual's numbers are read, binding each pass to the validated base
+/// build by build identity (DL3). That is sound because
 /// a dual evaluation's value channel is bit-identical to the base
 /// scalar's run of the same recipe (the dual contract), which the
 /// base-scalar evaluation it rides beside already validates;

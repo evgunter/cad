@@ -1,5 +1,5 @@
 //! **M10-4 review probes (R2)** — an INDEPENDENT derivation of what the
-//! E4 seed door, the n-pass driver, the pairing hook and the E5
+//! E4 seed door, the n-pass driver, the build-of-record binding and the E5
 //! stackup claim, written from `docs/M10-4-SPEC.md` and
 //! `docs/ERROR-DESIGN.md` E4/E5/E9 rather than from the unit's own rows.
 //!
@@ -43,7 +43,7 @@ use editor_core::UnitSym;
 use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box};
 use editor_core::drive::{DriveConfig, ParamBoxVerdict, drive};
 use editor_core::stackup::{
-    Chamber, PairingViolation, Rss, Sensitivity, SensitivityOutcome, SensitivityRefusal,
+    BindingViolation, Chamber, Rss, Sensitivity, SensitivityOutcome, SensitivityRefusal,
     Unavailable, sensitivities, stackup,
 };
 use editor_core::{
@@ -742,13 +742,13 @@ fn the_binding_binds_only_the_build_of_record() {
     );
     assert_eq!(
         r.err(),
-        Some(SensitivityRefusal::Pairing(PairingViolation::Revision)),
+        Some(SensitivityRefusal::Binding(BindingViolation::Revision)),
         "an annotation edit is another revision"
     );
 }
 
 /// **RED AT `fc8de0ac` — a STALE CHAMBER VERDICT certifies an edited
-/// document's sensitivity.** The pairing hook guards the handed f64
+/// document's sensitivity.** The binding guards the handed f64
 /// build; nothing guards the handed verdict. Drive the slab at
 /// `w = 2.0`, edit `w` to `2.5` (a value edit, no node-set change),
 /// and hand the old verdict to the driver: `ForeignVerdict` checks
