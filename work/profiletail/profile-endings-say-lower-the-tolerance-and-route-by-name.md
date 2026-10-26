@@ -2,10 +2,12 @@
 id: profile-endings-say-lower-the-tolerance-and-route-by-name
 kind: issue
 title: profile: the path door's turn refusal and FILLET_OFFSET_LEVER_RECOURSE say 'lower the tolerance', and PathError::Escalated routes its ending by predicate name
-status: open
+status: parked
 opened: 2026-09-28
 priority: P3
 cost: M
+blocked_on: [profile-refusals-say-what-they-mean]
+rides_with: profile-refusals-say-what-they-mean
 ---
 
 (ENCL implementer, from the §5 sweep of PR 3382.) The rule is D4 ¶1 (i)
@@ -50,3 +52,7 @@ the path door's rendered-text rows.
 ## Re-homed at PATHS's close (2026-10-21)
 
 Moved from `work/paths/` to PROFILEPROSE (`work/profileprose/`) when PATHS closed. PATHS's live rows went to four programs opened at this close and cut along the priority seam (PROFILE, PROFILEREST, PROFILETAIL, PROFILEPROSE; `docs/doc-ledger/paths-leaves-the-tracker.md`). The item's id, content and history are unchanged.
+
+## Rides with `profile-refusals-say-what-they-mean` (2026-10-26)
+
+PROFILEPROSE folded into PROFILETAIL; its refusal-text rows travel as one unit. This row is that unit's spec for its part and closes with its own evidence when the unit lands.

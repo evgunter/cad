@@ -2,11 +2,13 @@
 id: constructed-tangent-joint-refusals-are-typed-kernel-defects
 kind: issue
 title: profile: four path refusals name the kernel alone; a test-support fixture or an elaborator backstop reaches three, and a fillet leg's definite arm may be input's
-status: open
+status: parked
 opened: 2026-10-20
 parent: a-typed-kernel-defect-ending-may-launder-a-bug-d2-forbids
 priority: P3
 cost: E
+blocked_on: [profile-refusals-say-what-they-mean]
+rides_with: profile-refusals-say-what-they-mean
 ---
 
 A child of the census in `work/encl/a-typed-kernel-defect-ending-may-launder-a-bug-d2-forbids.md` (as of main 5df6e6c854); why a typed `KERNEL_DEFECT_ENDING` is wrong in either D2 class is that row's "What" and "Shape of the work".
@@ -54,3 +56,7 @@ pair above. Today both arms end in "(a kernel bug)"
 (this slate) is the wrong-cause half of the same two arms: if they
 panic, its sentences go with them; if one is class 1, its cause
 sentence is that row's.
+
+## Rides with `profile-refusals-say-what-they-mean` (2026-10-26)
+
+PROFILEPROSE folded into PROFILETAIL; its refusal-text rows travel as one unit. This row is that unit's spec for its part and closes with its own evidence when the unit lands.

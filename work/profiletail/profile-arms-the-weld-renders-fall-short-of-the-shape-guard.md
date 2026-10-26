@@ -2,10 +2,12 @@
 id: profile-arms-the-weld-renders-fall-short-of-the-shape-guard
 kind: issue
 title: ProfileError's ArcBelowSceneResolution renders 117 words, and InconsistentArc states its repair unlabelled
-status: open
+status: parked
 opened: 2026-10-20
 priority: P4
 cost: E
+blocked_on: [profile-refusals-say-what-they-mean]
+rides_with: profile-refusals-say-what-they-mean
 ---
 
 
@@ -48,3 +50,7 @@ renders 85 words and stands on `OVER_BUDGET` at 85, still over the
 ## Re-homed at PATHS's close (2026-10-21)
 
 Moved from `work/paths/` to PROFILEPROSE (`work/profileprose/`) when PATHS closed. PATHS's live rows went to four programs opened at this close and cut along the priority seam (PROFILE, PROFILEREST, PROFILETAIL, PROFILEPROSE; `docs/doc-ledger/paths-leaves-the-tracker.md`). The item's id, content and history are unchanged.
+
+## Rides with `profile-refusals-say-what-they-mean` (2026-10-26)
+
+PROFILEPROSE folded into PROFILETAIL; its refusal-text rows travel as one unit. This row is that unit's spec for its part and closes with its own evidence when the unit lands.

@@ -104,7 +104,7 @@ const KERNEL_KEYED: &[&str] = &[
 /// renders today and filed with its owner: a row over its ceiling, or
 /// under it with the ceiling standing, is red.
 const OVER_BUDGET: &[(&str, usize)] = &[
-    // work/profileprose/profile-arms-the-weld-renders-fall-short-of-the-shape-guard.md
+    // work/profiletail/profile-arms-the-weld-renders-fall-short-of-the-shape-guard.md
     ("Profile/ArcBelowSceneResolution", 85),
     // work/hone/split-finish-arms-the-weld-renders-fall-short-of-the-shape-guard.md
     ("Split/Finish/ResultEscalated", 90),
@@ -325,7 +325,7 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "MeasureClearanceRefused/ToleranceHasNoBand",
     "MeasureClearanceRefused/Unsupported",
     "MeasureClearanceRefused/WitnessUnverified",
-    // work/profileprose/profile-arms-the-weld-renders-fall-short-of-the-shape-guard.md
+    // work/profiletail/profile-arms-the-weld-renders-fall-short-of-the-shape-guard.md
     "Profile/InconsistentArc",
     // work/hone/split-finish-arms-the-weld-renders-fall-short-of-the-shape-guard.md
     "Split/Finish/Merge",
