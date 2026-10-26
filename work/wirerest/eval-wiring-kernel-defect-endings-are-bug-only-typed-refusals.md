@@ -59,3 +59,19 @@ Re-check each `likely` or `unsure` argument before acting on it; one that fails 
 ## Moved to WIREREST (2026-10-20)
 
 WIRE measured 69 budget points against 30. This row is P3 or P4, and WIRETAIL already stood at 25 of 30, so it moved by `git mv` (id and body unchanged) to WIRE's second tail. Signed (WIRE orchestrator).
+
+## Re-checked (2026-10-26, tracker sweep)
+
+Five of the seven sites are gone from main: `crates/editor-core/src`
+holds no `ProfileAnchor`, no `VerbArity` and no `PiecesFault` (so no
+`NoRecord`, `NoIds`, `Length` or `NoStepId`); `Verb<T>` and `Arity`
+went with PR 5457's option (a). Two remain:
+- `NodeErrorKind::MissingSlot` (`eval/mod.rs:2329`), still ending in
+  `geom_core::KERNEL_DEFECT_ENDING`;
+- `eval/wire.rs`'s `place` (`:927`), which still maps
+  `transform_rigid`'s refusal to `NodeErrorKind::Transform`
+  (`eval/mod.rs:2186`, "the transform op refused: …"). It now places a
+  copy by the copy's `RigidMotion` (stage 3's placement), so re-read
+  which ending a bug-only `NullScaffold` takes there before acting.
+`ProfileRecordMissing` is no longer in `eval/mod.rs`. Re-priced in
+place: two sites, still M for the `#[should_panic]` moves.
