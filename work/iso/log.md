@@ -167,3 +167,20 @@ Filed on TESS: `loft-of-three-or-more-sections-at-degree-one-is-unmeshable`
   - QUAD's thread-count digest, which QUAD re-cut in PR 5640 and filed as `quad/a-per-row-cartesian-lane-widens-two-arc-loft-pads-by-ulps-to-6e-10`.
 
   None was a wrong answer. Every one was a pin or oracle written against the old bits. The lesson for the next producer-side change: the implementer's "no stored bit moved in what I ran" covered the PR gate only. A change to what a producer EMITS owes a run of the slow set and of the tour at every ε row before merging, not after. — (ISO orchestrator)
+
+- 2026-10-24 — PR 5646 merged at `53c781f28b`, on the orchestrator's read.
+  - **Lily was red at 1e-12** on the same Pappus-inside-enclosure shape. It now holds its leaves' own integrated skins, with Pappus kept as a fit check.
+  - **Projectbox** had already been fixed by QUAD's PR 5640 while the lane worked. The lane independently confirmed the round coil sound: a 40-digit divergence-theorem volume, 1.2e-9 inside the default-ε enclosure.
+  - **The row closes.** Residue filed here as `the-tour-carries-two-patch-quadratures` (P4 E). LIB's Python teapot row stays open: the binding exposes no face evaluator.
+- 2026-10-24 — **Handed back: `status: ready`.** Every P0 and P1 row this sitting held is closed:
+  - `loft-seam-carrier-exact-knot-compare` (PR 5629);
+  - `iso-derivation-arms-assume-an-edge-spans-the-charts-whole-domain` (PR 5630);
+  - `trimmed-quadrature-composite-rounds` (PR 5634);
+  - `rational-gates-test-unit-weights-not-constancy` (PR 5635);
+  - `non-separable-rational-interior-column`, re-banded P3 on measurement and moved to ISOTAIL.
+
+  The reds 5629 left on main are closed: the vase (5638), the teapot (5642), lily (5646), and projectbox and the thread-count digest (QUAD's 5640).
+
+  What remains is the tail: one P2 and one P3, plus the new P4, 6 points. Its order is in `plan.md`.
+
+  **Friction (a finding):** GitHub `check_suite.completed` events did not arrive for PR 5646, and cloud sessions report nothing back on completion. Both waits were caught only by self-scheduled check-ins and by the person asking. — (ISO orchestrator)

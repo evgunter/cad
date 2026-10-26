@@ -838,8 +838,8 @@ fn the_cut_cylinders_ellipse_face_takes_nothing_away() {
 /// rectangle their boundary VERTICES span: that rectangle reaches past
 /// the section where it stands high, and a ray from just across the cut
 /// plane would count a hit there as a crossing and read `In`. The wall
-/// arm reads each wall as the azimuth window cut by its two planes
-/// (`wall_outline`), which is the face exactly.
+/// arm reads each wall's region from its boundary edges
+/// (`topo::boolean::ruled_region`), which is the face exactly.
 #[test]
 fn the_cut_cylinder_reads_its_truth() {
     let band = Band::linear(tol()).expect("the witness band");
@@ -1242,16 +1242,13 @@ fn every_tilted_cut_section_face_is_counter_clockwise() {
 /// answer.
 /// An escalation this row admits: a trim row's margin strictly inside
 /// the band's gap `(ε, K·ε)` — a probe's ray landing within the band of
-/// a boundary edge, which is a typed refusal and not an answer. Two rows
-/// only: the wall's own (`bool_wall_trim`), and a planar face's arc
-/// window (`point_in_arc_loop_conic_window`, which the cuts' ellipse
-/// faces reach). Each shape's count is capped at what was measured.
+/// a boundary edge, which is a typed refusal and not an answer. One row
+/// only: a planar face's arc window (`point_in_arc_loop_conic_window`,
+/// which the cuts' ellipse faces reach). Each shape's count is capped at what was measured.
 fn in_the_trim_band(diag: &geom_core::Indeterminate) -> bool {
     let (eps, k) = (tol().eps(), tol().k());
-    matches!(
-        diag.predicate,
-        Some("bool_wall_trim" | "point_in_arc_loop_conic_window")
-    ) && matches!(diag.margin.diagnostic_f64_for_error_text(), geom_core::ErrorTextReading::Value(v) if v.abs() > eps && v.abs() < k * eps)
+    matches!(diag.predicate, Some("point_in_arc_loop_conic_window"))
+        && matches!(diag.margin.diagnostic_f64_for_error_text(), geom_core::ErrorTextReading::Value(v) if v.abs() > eps && v.abs() < k * eps)
 }
 
 /// Each shape's answered-count floor and escalation cap. The floor is

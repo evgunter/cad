@@ -693,7 +693,7 @@ impl<P: crate::ProfilePayload> DocEdit<P> {
     }
 
     /// **Whether this edit writes a constraint** — what the per-
-    /// constraint admission decides on: its poses' kinds, its class.
+    /// constraint admission decides on: its `on`, its poses' kinds.
     /// Four edits do, and each asks the admission of what it wrote: the
     /// insert of a placement holding constraints, an `AddConstraint`, a
     /// `SetConstraints`, and a re-point at one of a mate's poses
@@ -3098,9 +3098,8 @@ pub enum EditError {
     /// The mate solve refuses this mate on its OWN datum — a fact
     /// about the mate alone, which the solve records against it
     /// whenever it reads the datum: its head does not resolve to a
-    /// member, it names one member twice, its class is outside the
-    /// vocabulary, a frame has no definite direction, the coset table
-    /// has no row for it. The same admission the
+    /// member, it names one member twice, a frame has no definite
+    /// direction, the coset table has no row for it. The same admission the
     /// solve makes (`ASSEMBLY.md` A11 rule 1), asked at the insert
     /// door, so the insert is refused; the recourse is the fault's
     /// own. A mate on a pair the fold never reads — two members over
@@ -6477,7 +6476,6 @@ impl Recording<'_, crate::ProfileProgram> {
             mates: vec![crate::Mate {
                 on,
                 to: plane(body.clone(), face),
-                class: crate::ContactClass::Rest,
             }],
             values: vec![
                 (
@@ -7148,7 +7146,6 @@ fn rebundle<P: Clone + crate::ProfilePayload>(
             kind: ConstraintKind::Mate(Mate {
                 on: crate::Operand::Var(m.on),
                 to: crate::Operand::Var(m.to),
-                class: m.class,
             }),
         })
     });
@@ -7333,7 +7330,7 @@ fn add_constraints<P: Clone + crate::ProfilePayload>(
 /// **The admission of a constraint an edit just wrote** (A11 rule 1),
 /// asked of the document it now stands in: what the recipe decides of
 /// a mate alone ([`crate::mate::solve::admit_mate`]) — its `on` reads
-/// the copy, its two poses are of one kind, its class is admitted. The
+/// the copy, and its two poses are of one kind. The
 /// bundle as a whole, every value's freedom included, is
 /// [`admit_bundle_make_up`]'s. The one call every edit that writes a
 /// constraint (`DocEdit::writes_a_mates_datum`, a test roster) makes.
@@ -8641,7 +8638,6 @@ mod tests {
         let mate = crate::mate::Mate {
             on: plane(crate::node::RecipeNodeId::new(0, 3)),
             to: plane(crate::node::RecipeNodeId::new(0, 2)),
-            class: crate::mate::ContactClass::Rest,
         };
         let constraint = crate::node::ConstraintId(crate::MintId::new(0, 4));
         let writing: [DocEdit<ProfileProgram>; 3] = [

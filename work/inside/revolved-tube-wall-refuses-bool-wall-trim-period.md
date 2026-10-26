@@ -2,11 +2,12 @@
 id: revolved-tube-wall-refuses-bool-wall-trim-period
 kind: issue
 title: point_in_solid refuses most probes of a fully revolved tube: bool_wall_trim_period escalates Invalid on a wall face
-status: open
+status: closed
 opened: 2026-09-25
 priority: P1
 cost: D
 refs: [3204]
+closed: 2026-10-24
 ---
 
 Measured by an ATREST-9 dual reviewer (PR #3204) and re-measured in
@@ -81,3 +82,14 @@ longer pins them as `Known::Operand`. The aimed rays still meet this
 row's `bool_wall_trim_period` refusal at the wall face; the quadrature
 reads the side before that matters. A query whose ray crosses the wall
 is not affected and still meets the guard.
+
+## Closed by CHART (2026-10-24)
+
+On branch `chart/ringed-curved-doors`
+(`curved-face-containment-answers-none-on-a-ringed-face`), a cylinder wall
+is read from its boundary edges (`topo::boolean::ruled_region`), with no
+window and no period guard. The repro is now a row,
+`sweep/tests/a_plane_across_a_one_face_wall.rs`'s
+`a_full_revolved_tube_answers_every_grid_point`: all 729 grid points
+answer their truth at ε `1e-9`, `1e-6` and `1e-12`. `germ_coplanar_conic`'s
+notched full-turn wall no longer refuses, and its row is strict.

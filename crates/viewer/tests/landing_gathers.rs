@@ -32,7 +32,6 @@ use pncad::document::{
     ProfileProgram, SitedRef, gathers_on_this_thread,
 };
 use pncad::geom_core::Tol;
-use pncad::select::ContactClass;
 use pncad::workspace::Workspace;
 use viewer::evalseam::EvalDone;
 use viewer::session::{AtRestBadge, DocSession, Landing, SessionOp};
@@ -173,16 +172,15 @@ fn a_refused_a5_gate_eats_the_body_and_says_so_by_its_absence() {
     let tol = Tol::witness();
     let bench = common::asm::bench("landed-body-refused-gate", tol);
     let mut session = common::asm::open_bench(&bench, tol);
-    common::asm::unpin(&mut session, bench.post_b);
-    common::commit_mate(
-        &mut session,
-        common::asm::seat_op(
-            &bench,
-            bench.post_b,
-            ContactClass::Tangent,
-            common::asm::middle_seat_values(),
-        ),
-    );
+    // Both posts seated at one spot under the shelf: they interpenetrate,
+    // and the gate refuses.
+    for post in [bench.post_a, bench.post_b] {
+        common::asm::unpin(&mut session, post);
+        common::commit_mate(
+            &mut session,
+            common::asm::seat_op(&bench, post, common::asm::middle_seat_values()),
+        );
+    }
     assert!(
         matches!(session.at_rest(), Some(AtRestBadge::Refused { .. })),
         "this row's premise is a refused gate: {:?}",

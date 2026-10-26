@@ -2,11 +2,11 @@
 id: the-census-reads-each-mated-patchs-decision-twice
 kind: issue
 title: The at-rest census decides each mated patch's carrier pair twice: once to record its CensusAtRest row, once as the gate
-status: parked
-blocked_on: [mates-declare-no-contact]
+status: closed
 opened: 2026-10-10
 priority: P4
 cost: M
+closed: 2026-10-23
 ---
 
 
@@ -32,3 +32,15 @@ between copies once, and the gate reads that decision rather than
 re-deciding it. Then the mint-time read retires and one decision
 remains per pair. If I lands without it, the gate reads the rows'
 decisions for the records that cite them.
+
+## Closed
+
+2026-10-23, by `mates-declare-no-contact` (stage 4 I). The mint and its
+mint-time Door 1 read are gone; a mated patch is decided where every
+other touch between copies is, by `topo::record_at_rest`, and the gate
+reads the census findings the gather kept (`Product::census`) without
+deciding anything again. What remains is `record_at_rest`'s own confirm
+pass, which re-runs the census over the records it wrote (at most four
+passes, `census.rs` `record_at_rest`): that is the door's design for
+every recorded touch, the unmated ones included since before this unit,
+and not a second site deciding the mated pair.

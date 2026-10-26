@@ -45,10 +45,9 @@ use editor_core::AuthoredNode;
 use crate::wire::doctored;
 use editor_core::CapEnd;
 use editor_core::{
-    ContactClass, Dimension, DocEdit, DocRef, DocumentId, EditError, EntityKind, FaceName, Formula,
-    Frame, FrameSite, FreeVar, InterfaceCrossing, InterfaceRecord, Mate, MateRef, Node,
-    PersistError, ProfileDoc, RecipeNodeId, RoleSeg, SnapshotError, StableName, VarName, apply,
-    load, save,
+    Dimension, DocEdit, DocRef, DocumentId, EditError, EntityKind, FaceName, Formula, Frame,
+    FrameSite, FreeVar, InterfaceCrossing, InterfaceRecord, Mate, MateRef, Node, PersistError,
+    ProfileDoc, RecipeNodeId, RoleSeg, SnapshotError, StableName, VarName, apply, load, save,
 };
 use editor_core::{VarNameReason, parse_formula};
 use fixture::resolver::{PartStore, in_part};
@@ -314,7 +313,6 @@ fn mate(body: RecipeNodeId, on: RecipeNodeId, placed: RecipeNodeId) -> Mate<Form
     fixture::rest(
         fixture::head_at(placed, in_part(placed, body, CapEnd::Start)),
         fixture::head_at(on, in_part(on, body, CapEnd::Start)),
-        ContactClass::Rest,
     )
 }
 
@@ -442,7 +440,6 @@ fn saved_crossing(label: &str) -> (String, RecipeNodeId) {
     let (doc, doc_ref, ids, body) = instances_and_ref_of_a_stored_part(label, 2);
     let record = InterfaceRecord {
         crossings: vec![InterfaceCrossing::Mate {
-            class: ContactClass::Rest,
             // An `outer` is a remainder name: spelled on a node this
             // document holds.
             outer: face(crate::fixture::resolver::in_world(ids[0], CapEnd::Start)),
@@ -575,7 +572,6 @@ fn a_crossings_references_are_bare_names_on_the_wire() {
         path: vec![RoleSeg::Cap(editor_core::CapEnd::Start)],
     };
     let crossing = InterfaceCrossing::Mate {
-        class: ContactClass::Rest,
         outer: face(reference(3)),
         inner: face(reference(5)),
     };
@@ -583,7 +579,6 @@ fn a_crossings_references_are_bare_names_on_the_wire() {
         serde_json::to_value(&crossing).expect("a crossing serializes"),
         serde_json::json!({
             "Mate": {
-                "class": "rest",
                 "outer": { "kind": "Face", "node": "0:0000000000000003", "path": [{ "Cap": "Start" }] },
                 "inner": { "kind": "Face", "node": "0:0000000000000005", "path": [{ "Cap": "Start" }] },
             }
@@ -619,7 +614,6 @@ fn a_constraint_on_a_non_placement_is_refused_at_the_edit_door() {
     let on_the_world = Mate {
         on: cap.clone(),
         to: cap,
-        class: ContactClass::Rest,
     };
     match apply(
         &doc,

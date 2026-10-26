@@ -17,9 +17,9 @@ use crate::fixture::{
 use editor_core::eval::bound_pose;
 use editor_core::pose::PoseDef;
 use editor_core::{
-    BodyRead, CapEnd, ContactClass, DocEdit, DocumentId, EditError, EvalOptions, Formula, Frame,
-    MateFault, MateRef, Node, NodeErrorKind, NodeResult, Operand, OperandSlot, PoseValue,
-    ProductError, ProfileDoc, RecipeNodeId, RoleSeg, VarId,
+    BodyRead, CapEnd, DocEdit, DocumentId, EditError, EvalOptions, Formula, Frame, MateFault,
+    MateRef, Node, NodeErrorKind, NodeResult, Operand, OperandSlot, PoseValue, ProductError,
+    ProfileDoc, RecipeNodeId, RoleSeg, VarId,
 };
 use geom_core::Tol;
 use geom_core::UnitVec3;
@@ -67,7 +67,6 @@ fn rest_on(body: RecipeNodeId, a: RecipeNodeId, b: RecipeNodeId) -> editor_core:
     fixture::rest(
         fixture::head(face_in(b, body, RoleSeg::Cap(CapEnd::Start))),
         fixture::head(face_in(a, body, RoleSeg::Cap(CapEnd::End))),
-        ContactClass::Rest,
     )
 }
 
@@ -254,7 +253,6 @@ fn a_copy_pinned_against_a_body_of_another_space_is_in_that_space() {
                 RoleSeg::Cap(CapEnd::Start),
             ))),
             fixture::plane(target),
-            ContactClass::Rest,
         );
         fixture::write_bundle(doc, at, zeroed(mate)).0
     };
@@ -343,7 +341,6 @@ fn a_place_copy_resting_on_the_world_asks_no_lever() {
             RoleSeg::Cap(CapEnd::Start),
         ))),
         to: fixture::flip(top),
-        class: ContactClass::Rest,
     };
     let (doc, place) = step(
         doc,
@@ -466,7 +463,6 @@ fn an_instance_reads_its_own_copy_on_the_copy_side_alone() {
     let own = fixture::rest(
         fixture::head(face_in(b, body, RoleSeg::Cap(CapEnd::Start))),
         fixture::head(face_in(b, body, RoleSeg::Cap(CapEnd::End))),
-        ContactClass::Rest,
     );
     match editor_core::apply(&doc, &whole(own), Tol::witness()) {
         Err(EditError::WouldCycle { at }) => assert_eq!(at.id(), b),
@@ -582,8 +578,8 @@ fn a_bundle_of_two_targets_refuses() {
         }))
     };
     let bundle = [
-        fixture::mate(point(c), point(a), ContactClass::Rest),
-        fixture::mate(normal(c), normal(b), ContactClass::Rest),
+        fixture::mate(point(c), point(a)),
+        fixture::mate(normal(c), normal(b)),
     ]
     .into_iter()
     .zip(1..)
@@ -648,11 +644,11 @@ fn a_slide_beside_a_ball_refuses_as_having_no_chart() {
             constraints: vec![
                 editor_core::Constraint::of_mate(
                     editor_core::ConstraintId::placeholder(1),
-                    fixture::mate(point(c), point(a), ContactClass::Rest),
+                    fixture::mate(point(c), point(a)),
                 ),
                 editor_core::Constraint::of_mate(
                     editor_core::ConstraintId::placeholder(2),
-                    fixture::mate(normal(c), normal(a), ContactClass::Rest),
+                    fixture::mate(normal(c), normal(a)),
                 ),
                 editor_core::Constraint::of_value(
                     editor_core::ConstraintId::placeholder(3),

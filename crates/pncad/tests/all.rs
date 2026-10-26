@@ -3964,7 +3964,7 @@ fn asm_r2a_mated_assembly(
     Vec<pncad::document::RecipeNodeId>,
 ) {
     use pncad::document::{Coord, Formula, Mate, Operand, TargetAxis, pose::PoseDef};
-    use pncad::select::{CapEnd, ContactClass};
+    use pncad::select::CapEnd;
     let doc = pncad::document::ProfileDoc::empty(
         pncad::document::DocumentId::derive(label),
         Tol::witness(),
@@ -4005,7 +4005,6 @@ fn asm_r2a_mated_assembly(
         Mate {
             on: plane(ids[1]),
             to: plane(ids[0]),
-            class: ContactClass::Rest,
         },
         values,
     );
@@ -4116,7 +4115,7 @@ const ASM_R2B_PROBE_OUT: &str = "ASM_R2B_PROBE_OUT";
 #[test]
 fn asm_r2b_child_crossing_probe() {
     use pncad::prelude::FaceName;
-    use pncad::select::{CapEnd, ContactClass};
+    use pncad::select::CapEnd;
     let Ok(out) = std::env::var(ASM_R2B_PROBE_OUT) else {
         return; // not the child — nothing to do
     };
@@ -4135,7 +4134,6 @@ fn asm_r2b_child_crossing_probe() {
         .expect("a crossing's references are face names");
     let record = pncad::document::InterfaceRecord {
         crossings: vec![pncad::document::InterfaceCrossing::Mate {
-            class: ContactClass::Rest,
             outer,
             inner: face(CapEnd::Start),
         }],
@@ -4917,9 +4915,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   rule this list's own `NodeRefusal` entry states, and `crate::document`
 ///   and `crate::select` carry them now. `BifurcationKind` stays: its
 ///   carrier arm is not constructed before the M6 solver, so nothing
-///   can hold one to name. (`ClassAdmission`/`class_admission` left this family
-///   at GUI-4: a mate-authoring consumer needs the admission table
-///   BEFORE committing, so `crate::document` carries them now.)
+///   can hold one to name.
 ///
 ///   **`AttrKind` and `ExprPath` were in it too, and the reading did
 ///   not hold for them either.** Both are `EditError` payloads —
@@ -4946,8 +4942,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///
 ///   **The A5 gate used to be in this family and was wrong to be.**
 ///   `assemble` and its vocabulary (`Assembly`, `AssemblyError`,
-///   `AtRestFinding`, `Attribution`, `MintedDeclaration`,
-///   `RefusedRef`) had no curated door of their own and were not
+///   `AtRestFinding`) had no curated door of their own and were not
 ///   machinery behind one: they ARE the door that answers whether an
 ///   assembly is valid at rest, and the façade carried the whole
 ///   authoring vocabulary that constructs one. A consumer could build
@@ -4962,20 +4957,13 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   cannot serve that one — a caller who cannot name `Product`
 ///   cannot hold one.
 ///
-///   **`MintRefusal` and `CarriedRefusal` came with them**, and the
-///   reason is what the gate's two mint arms now answer with: each
-///   raises EVERY row it holds, so `AssemblyError::Mint` is a
-///   `Vec<MintRefusal>` and `AssemblyError::CarriedMintRefusal` a
-///   `Vec<CarriedRefusal>`. They were held out while each arm was one
-///   refusal flattened into the enum's own fields — the gate's answer
-///   then named no row type, so a consumer matching it never had to,
-///   and a consumer who cannot name a row cannot read the answer.
-///   `CarriedDeclaration`, `CarriedDeclarations`, `Route` and
-///   `Relation` ARE carried,
-///   because nothing else states them: the first is what
-///   `Product::carried` and `Assembly::carried` hold, and the last two
-///   are fields of `Attribution::Carried`, which a consumer matching
-///   the gate's answer must name.
+///   **`CarriedAtRestFinding`, `CarriedFindings` and `Route` came with
+///   them**, because nothing else states them: the gate's
+///   `AssemblyError::CarriedAtRest` raises EVERY finding a part's own
+///   gate refused, each a `CarriedAtRestFinding` with the `Route` it
+///   arrived by, and a consumer who cannot name a row cannot read the
+///   answer. `CarriedFindings` is what an instantiated value carries
+///   up.
 ///   **The hit-test service's NAMED half left this list at GUI-2**
 ///   (`NodePick`, `NodePickError`, `PickHit`, `PickTarget`,
 ///   `pick_face`, `HitTestError`, and `Ray` — a `bvh` re-export riding

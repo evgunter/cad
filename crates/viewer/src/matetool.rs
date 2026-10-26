@@ -6,7 +6,7 @@
 //!
 //! The tool holds **two sequential face picks in tool state** — the
 //! GUI-2 single-select vocabulary ([`FaceSelection`]) consumed twice —
-//! then a choice of class, kind, flip and values ([`MateChoice`]), then
+//! then a choice of kind, flip and values ([`MateChoice`]), then
 //! ONE committed action: the bundle of the copy it places written whole
 //! with the mate and its values, the copy re-targeted into the space the
 //! `to` pick is in where it was placed elsewhere. Everything
@@ -47,16 +47,6 @@
 //! fixes leave it, each freedom it leaves keeps its value, and a
 //! freedom left unset is written `0`.
 //!
-//! # What the class admits
-//!
-//! The class choice is exposed through the kernel's own vocabulary
-//! ([`admitted_classes`]): the class LIST is [`ContactClass::ALL`] and
-//! the verdicts are the [`ClassAdmission`] table — both read, neither
-//! restated. `Rest` mints, `Tangent` solves but carries no at-rest
-//! record, and everything the vocabulary cannot name is the
-//! [`pncad::document::CLASS_DEFERRAL`] deferral, refused typed at
-//! [`MateTool::proposal`].
-//!
 //! # Survival
 //!
 //! Tool state survives a picked reference vanishing (GQ7's recorded
@@ -82,11 +72,10 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
-    CLASS_DEFERRAL, ClassAdmission, Coord, Doc, Evaluation, Formula, Mate, MateSide, Node,
-    NotAFaceName, ProfileProgram, RecipeNodeId, SitedFace, SpokenNode, TargetAxis, VarKind,
-    class_admission, member_of, pose,
+    Coord, Doc, Evaluation, Formula, Mate, MateSide, Node, NotAFaceName, ProfileProgram,
+    RecipeNodeId, SitedFace, SpokenNode, TargetAxis, VarKind, member_of, pose,
 };
-use pncad::select::{ContactClass, Resolution};
+use pncad::select::Resolution;
 
 use crate::session::select::resolves;
 use crate::session::{FaceSelection, SessionOp};
@@ -195,34 +184,6 @@ partial_mirror! {
     ],
 }
 
-/// One contact class and how far the vocabulary carries it — the
-/// admission exposure, verbatim from the kernel's table.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct MateAdmission {
-    /// The class.
-    pub class: ContactClass,
-    /// The kernel's own verdict on it.
-    pub admission: ClassAdmission,
-}
-
-/// Every contact class the vocabulary can NAME, with the kernel's
-/// admission verdict for each — what the tool's class choice offers.
-///
-/// Both halves come from the kernel: the class list is
-/// [`ContactClass::ALL`] (the enum is `#[non_exhaustive]`, so no list
-/// written here could see a variant land) and the verdicts are
-/// [`class_admission`]. A class the kernel grows appears here carrying
-/// whatever verdict the table gives it.
-pub fn admitted_classes() -> Vec<MateAdmission> {
-    ContactClass::ALL
-        .iter()
-        .map(|&class| MateAdmission {
-            class,
-            admission: class_admission(class),
-        })
-        .collect()
-}
-
 /// A typed mate-tool refusal (closed enum, D4 ¶3).
 #[derive(Debug)]
 pub enum MateToolError {
@@ -269,13 +230,6 @@ pub enum MateToolError {
         /// The kind asked for.
         kind: VarKind,
     },
-    /// The chosen class is outside the vocabulary
-    /// ([`ClassAdmission::NotAdmitted`]): refused HERE, before any
-    /// edit exists, with the kernel's own deferral sentence.
-    ClassRefused {
-        /// The refused class.
-        class: ContactClass,
-    },
     /// A value sets a freedom the mate's kind does not leave
     /// ([`MateFreedom::left_by`]).
     NotAFreedom {
@@ -312,13 +266,6 @@ impl core::fmt::Display for MateToolError {
             Self::KindNotOffered { kind } => {
                 write!(f, "a face pick reads a plane or an axis, not a {}", kind)
             }
-            Self::ClassRefused { class } => {
-                write!(
-                    f,
-                    "class {} is not admitted — {CLASS_DEFERRAL}",
-                    class.name()
-                )
-            }
             Self::NotAFreedom { coord, kind } => {
                 write!(f, "a {} mate leaves no {} to set", kind, coord.name())
             }
@@ -349,7 +296,6 @@ impl MateToolError {
             unspoken @ (Self::NotTwoPicks
             | Self::PickIsNotAFace { .. }
             | Self::KindNotOffered { .. }
-            | Self::ClassRefused { .. }
             | Self::NotAFreedom { .. }) => unspoken,
         }
     }
@@ -449,8 +395,6 @@ impl core::fmt::Display for MateToolEvent {
 /// picks and commit.
 #[derive(Debug, Clone, PartialEq)]
 pub struct MateChoice {
-    /// The declared contact class.
-    pub class: ContactClass,
     /// The kind both picks are read as ([`MATE_KINDS`]): the mate's
     /// primitive.
     pub kind: VarKind,
@@ -463,8 +407,7 @@ pub struct MateChoice {
 }
 
 /// The derived, ready-to-commit mate: the placement it joins, the two
-/// sides, the mate and its values, plus the class's admission verdict
-/// for the chrome to show beside the commit.
+/// sides, the mate and its values.
 #[derive(Debug, Clone)]
 pub struct MateProposal {
     /// The placement whose bundle the mate joins: the `on` pick's copy.
@@ -477,9 +420,6 @@ pub struct MateProposal {
     pub mate: Mate<Formula>,
     /// Its values, written naming the mate in the same bundle.
     pub values: Vec<(Coord, Formula)>,
-    /// The kernel's admission verdict for the mate's class (never
-    /// `NotAdmitted` — that refuses at [`MateTool::proposal`]).
-    pub admission: ClassAdmission,
 }
 
 impl MateProposal {
@@ -667,15 +607,9 @@ impl MateTool {
         let MateToolState::Two { on, to } = &self.state else {
             return Err(MateToolError::NotTwoPicks);
         };
-        // The choice's doors FIRST, before any pick is read: the class
-        // in the kernel's own table, the kind among those a face
-        // reads, each value against the freedoms the kind leaves.
-        let admission = class_admission(choice.class);
-        if let ClassAdmission::NotAdmitted = admission {
-            return Err(MateToolError::ClassRefused {
-                class: choice.class,
-            });
-        }
+        // The choice's doors FIRST, before any pick is read: the kind
+        // among those a face reads, each value against the freedoms the
+        // kind leaves.
         if !MATE_KINDS.iter().any(|(kind, _)| *kind == choice.kind) {
             return Err(MateToolError::KindNotOffered { kind: choice.kind });
         }
@@ -742,12 +676,10 @@ impl MateTool {
             mate: Mate {
                 on: pose_of(choice.kind, &on_face),
                 to: target,
-                class: choice.class,
             },
             on: on_face,
             to: picked_to,
             values: choice.values,
-            admission,
         })
     }
 }

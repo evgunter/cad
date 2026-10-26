@@ -23,10 +23,10 @@ use crate::fixture;
 use crate::wire::doctored;
 
 use editor_core::{
-    CapEnd, ContactClass, Coord, Dimension, DocEdit, DocRef, DocumentId, EvalOptions, Evaluation,
-    Formula, Frame, FreeValue, FreeVar, Maintenance, MateRef, MeasurePrimitive, Node, PartResolver,
-    PersistError, ProfileDoc, ProfileProgram, RecipeNodeId, SitedFace, StableName, TargetAxis,
-    ValuePayload, VarId, VarName, apply, apply_replayed, evaluate, load, product, save,
+    CapEnd, Coord, Dimension, DocEdit, DocRef, DocumentId, EvalOptions, Evaluation, Formula, Frame,
+    FreeValue, FreeVar, Maintenance, MateRef, MeasurePrimitive, Node, PartResolver, PersistError,
+    ProfileDoc, ProfileProgram, RecipeNodeId, SitedFace, StableName, TargetAxis, ValuePayload,
+    VarId, VarName, apply, apply_replayed, evaluate, load, product, save,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{ang, head, head_at, insert, len, offset_of, on_frame, run, solve, step};
@@ -184,7 +184,7 @@ pub(crate) fn seat_edits(
     at: [f64; 2],
 ) -> (ProfileDoc, MateRef, Vec<DocEdit<ProfileProgram>>) {
     let placed = editor_core::Placed {
-        mates: vec![fixture::rest(mover, onto, ContactClass::Rest)],
+        mates: vec![fixture::rest(mover, onto)],
         values: vec![
             (Coord::Slide(TargetAxis::X), len(at[0])),
             (Coord::Slide(TargetAxis::Y), len(at[1])),
@@ -221,7 +221,7 @@ pub(crate) fn seat_turned(
     turn: f64,
 ) -> (ProfileDoc, MateRef) {
     let placed = editor_core::Placed {
-        mates: vec![fixture::rest(mover, onto, ContactClass::Rest)],
+        mates: vec![fixture::rest(mover, onto)],
         values: vec![
             (Coord::Slide(TargetAxis::X), len(at[0])),
             (Coord::Slide(TargetAxis::Y), len(at[1])),

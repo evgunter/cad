@@ -1063,7 +1063,7 @@ fn a_touch_clears_only_out_of_a_face_on_a_silent_pair() {
     });
     let tan = Err(Refusal::Tangent("section_sphere_plane_reach"));
     let rule = |evented: bool, place: [Option<FaceContainment>; 2]| {
-        certify(&s, evented, |_| false, |_| place)
+        certify(&s, evented, |_| Sheet::Not, |_| place)
     };
     assert_eq!(rule(false, [OUT, IN]), Ok(vec![Cleared::TouchOut(Side::F)]));
     assert_eq!(rule(false, [IN, OUT]), Ok(vec![Cleared::TouchOut(Side::G)]));
@@ -1105,7 +1105,7 @@ pub(super) const OUT: Option<FaceContainment> = Some(FaceContainment::Out);
 #[test]
 fn the_no_event_decision_reads_one_point() {
     let s = lone_at(p(0.0, 0.0, 0.0));
-    let ok = |r| certify(&s, false, |_| false, r);
+    let ok = |r| certify(&s, false, |_| Sheet::Not, r);
     assert_eq!(ok(at(OUT, IN)), Ok(vec![Cleared::Out(Side::F)]));
     assert_eq!(ok(at(IN, OUT)), Ok(vec![Cleared::Out(Side::G)]));
     assert_eq!(ok(at(IN, IN)), Err(Refusal::Loop));
@@ -1129,7 +1129,7 @@ fn the_no_event_decision_reads_one_point() {
 fn w4_clears_only_a_certified_single_component() {
     let s = lone_at(p(0.0, 0.0, 0.0));
     assert_eq!(
-        certify(&s, true, |_| false, at(IN, IN)),
+        certify(&s, true, |_| Sheet::Not, at(IN, IN)),
         Ok(vec![Cleared::LoneEvented])
     );
     let c = Component {
@@ -1143,7 +1143,7 @@ fn w4_clears_only_a_certified_single_component() {
         single: false,
     };
     assert_eq!(
-        certify(&two, true, |_| false, at(IN, IN)),
+        certify(&two, true, |_| Sheet::Not, at(IN, IN)),
         Err(Refusal::Undecided)
     );
     let uncounted = Section::Components {
@@ -1151,26 +1151,46 @@ fn w4_clears_only_a_certified_single_component() {
         single: false,
     };
     assert_eq!(
-        certify(&uncounted, true, |_| false, at(IN, IN)),
+        certify(&uncounted, true, |_| Sheet::Not, at(IN, IN)),
         Err(Refusal::Undecided)
     );
 }
 
 /// **W2 asks the face, and only for the side the component is
-/// essential on.**
+/// essential on.** A face whose walk is unread refuses under its own
+/// name, R-unread, not R-undec (mutant: folding `Unread` into `Not`).
 #[test]
 fn w2_clears_only_where_the_face_describes() {
     let s = classify(
         &cylinder(p(0.0, 0.0, 0.0), Vec3::unit_z(), 1.0),
         &plane(p(0.0, 0.0, 0.5), v(0.2, 0.0, 1.0)),
     );
+    let only = |on: Side, other: Sheet| move |side| if side == on { Sheet::One } else { other };
     assert_eq!(
-        certify(&s, false, |side| side == Side::F, at(None, None)),
+        certify(&s, false, only(Side::F, Sheet::Not), at(None, None)),
         Ok(vec![Cleared::Essential(Side::F)])
     );
     assert_eq!(
-        certify(&s, false, |side| side == Side::G, at(None, None)),
+        certify(&s, false, only(Side::G, Sheet::Not), at(None, None)),
         Err(Refusal::Undecided)
+    );
+    assert_eq!(
+        certify(&s, false, only(Side::G, Sheet::Unread), at(None, None)),
+        Err(Refusal::Unread)
+    );
+    let witnessed = Section::Components {
+        parts: vec![Component {
+            unbounded: false,
+            essential_f: true,
+            essential_g: false,
+            witness: Some(p(1.0, 0.0, 0.5)),
+        }],
+        single: false,
+    };
+    assert_eq!(
+        certify(&witnessed, false, |_| Sheet::Unread, at(None, OUT)),
+        Ok(vec![Cleared::Out(Side::G)]),
+        "an unread face leaves W3 to clear the component"
     );
 }
 
@@ -1542,20 +1562,131 @@ fn the_chart_cache_does_not_share_a_key_across_operands() {
             .clone()
     };
     let mut cache = ops::ChartCache::default();
-    assert!(cache.describes(
-        Operand::A,
-        &wall_body,
-        band_face,
-        &surface(&wall_body, band_face),
-        band()
+    assert!(matches!(
+        cache.describes(
+            Operand::A,
+            &wall_body,
+            band_face,
+            &surface(&wall_body, band_face),
+            band()
+        ),
+        Ok(Sheet::One)
     ));
-    assert!(!cache.describes(
-        Operand::B,
-        &band_body,
-        band_face,
-        &surface(&band_body, band_face),
-        band()
+    assert!(matches!(
+        cache.describes(
+            Operand::B,
+            &band_body,
+            band_face,
+            &surface(&band_body, band_face),
+            band()
+        ),
+        Ok(Sheet::Not)
     ));
+}
+
+/// The unit sphere cut into two faces along the circle the plane through
+/// `c`, normal to the unit `k`, meets it in: the seed face and the face
+/// the cut splits off, both on the sphere, and the sphere.
+fn sphere_cut(c: Point3<f64>, k: Vec3<f64>) -> (Body<f64>, [FaceKey; 2], Surface<f64>) {
+    let tol = Tol::witness();
+    let surface = sphere(p(0.0, 0.0, 0.0), 1.0);
+    let (u_ref, _) = k.orthonormal_basis();
+    let rho = (1.0 - (c - p(0.0, 0.0, 0.0)).norm_squared()).sqrt();
+    let start = c + u_ref * rho;
+    let mut body = Body::<f64>::new();
+    let seed = body.mvfs(start, true).unwrap();
+    let key = body
+        .set_face_surface(
+            seed.face,
+            FaceSurface::New {
+                surface: surface.clone(),
+                sense: true,
+            },
+        )
+        .unwrap();
+    let cut_plane = body.add_surface(plane(c, k));
+    let rim = EdgeCurveSpec {
+        description: EdgeDescriptionSpec::Intersection {
+            pair: SurfacePair::new(key, cut_plane),
+            witness: c - u_ref * rho,
+        },
+        carrier: Curve3::Circle {
+            center: c,
+            axis: k,
+            radius: rho,
+            u_ref,
+        },
+        param_start: 0.0,
+        param_end: TAU,
+    };
+    let other = body
+        .mef(
+            MefSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            rim,
+            FaceSurface::Shared { key, sense: true },
+            tol,
+        )
+        .unwrap();
+    (body, [seed.face, other.face], surface)
+}
+
+/// **W2 is not asked of a face on which no arm marks a component
+/// essential.** A sphere face (the unit sphere cut along `z = 0.5`),
+/// and a face asked in a plane chart, are each a kernel defect to ask,
+/// not a face that does or does not lift: S² is simply connected, so a
+/// latitude winding round the axis is null there, and the walk's
+/// windings would not say which side holds the poles. The mutant that
+/// reads a sphere face's walk lifts the small side of a cut away from
+/// the poles and the polar cap alike.
+#[test]
+fn w2_asked_of_a_sphere_or_a_plane_face_is_a_defect() {
+    let (body, faces, surface) = sphere_cut(p(0.0, 0.0, 0.5), Vec3::unit_z());
+    for face in faces {
+        assert!(
+            matches!(
+                ops::ChartCache::default().describes(Operand::A, &body, face, &surface, band()),
+                Err(crate::boolean::BooleanError::ClassificationInvariant { .. })
+            ),
+            "sphere face {face:?}"
+        );
+    }
+    let flat = plane(p(0.0, 0.0, 0.5), Vec3::unit_z());
+    assert!(matches!(
+        ops::ChartCache::default().describes(Operand::A, &body, faces[0], &flat, band()),
+        Err(crate::boolean::BooleanError::ClassificationInvariant { .. })
+    ));
+}
+
+/// **W2's loop clauses, row by row**: a loop off the singular set lifts
+/// only when it winds nothing, and one loop at most may meet the set:
+/// two loops through the apex leave neither out of the homology sum.
+/// The mutant that drops the count lifts such a face.
+#[test]
+fn at_most_one_loop_meets_the_singular_set() {
+    use crate::pcurves::LoopWinding;
+    let off = |zero| LoopWinding {
+        r#loop: crate::LoopKey::default(),
+        singular: false,
+        zero,
+    };
+    let on = LoopWinding {
+        r#loop: crate::LoopKey::default(),
+        singular: true,
+        zero: false,
+    };
+    for (loops, lifts) in [
+        (vec![], true),
+        (vec![off(true)], true),
+        (vec![off(false)], false),
+        (vec![on], true),
+        (vec![on, off(true), off(true)], true),
+        (vec![on, off(false)], false),
+        (vec![on, on], false),
+    ] {
+        assert_eq!(ops::loops_lift(&loops), lifts, "{loops:?}");
+    }
 }
 
 /// **A witness placed OFF a face's carrier is no verdict, never `Out`.**
@@ -1572,6 +1703,7 @@ fn an_off_carrier_witness_places_nowhere() {
         (-1.0, 1.0),
         Tol::witness(),
     );
+    crate::test_support_fixtures::set_sheet_sense(&mut body, wall, true, Tol::witness());
     assert_eq!(
         ops::place_witness(&body, wall, p(0.0, 1.5, 0.0), band()),
         None,
@@ -1768,14 +1900,13 @@ fn cone_bow_tie() -> (Body<f64>, FaceKey, FaceKey) {
     (body, seed.face, sector)
 }
 
-/// **A face through the apex twice has no single lift, and does not
-/// describe.** Its two sectors' gap lies between them on the cone, and
-/// no one window can exclude it. A single sector cut from the same
-/// sheet does describe. The mutant that relaxes "exactly one apex
-/// visit" lifts the bow-tie from its first visit and clears W2 on it.
+/// **A face through the apex twice lifts to one sheet.** The face is two
+/// sectors meeting at the apex, each a disc off it, so no closed curve
+/// in its interior winds. A single sector cut
+/// from the same sheet lifts too. The mutant that reads a loop through
+/// the apex as winding refuses both.
 #[test]
-fn a_bow_tie_through_the_apex_twice_does_not_describe() {
-    use crate::chord_join::{ApexClosure, cone_apex_closure};
+fn a_bow_tie_through_the_apex_twice_lifts_to_one_sheet() {
     let (body, bow_tie, sector) = cone_bow_tie();
     let cone = unit_cone();
     let crate::LoopBoundary::Cycle { first } = body
@@ -1798,25 +1929,20 @@ fn a_bow_tie_through_the_apex_twice_does_not_describe() {
         apex_visits, 2,
         "the fixture's outline visits the apex twice"
     );
-    assert!(matches!(
-        cone_apex_closure(&body, &cone, bow_tie, band()).unwrap(),
-        ApexClosure::Open
-    ));
     let mut charts = ops::ChartCache::default();
     assert!(
-        !charts.describes(Operand::A, &body, bow_tie, &cone, band()),
-        "the bow-tie must not describe"
+        matches!(
+            charts.describes(Operand::A, &body, bow_tie, &cone, band()),
+            Ok(Sheet::One)
+        ),
+        "the bow-tie lifts to one sheet"
     );
     assert!(
         matches!(
-            cone_apex_closure(&body, &cone, sector, band()).unwrap(),
-            ApexClosure::Closed { .. }
+            charts.describes(Operand::A, &body, sector, &cone, band()),
+            Ok(Sheet::One)
         ),
-        "one sector visits the apex once"
-    );
-    assert!(
-        charts.describes(Operand::A, &body, sector, &cone, band()),
-        "a single sector describes"
+        "a single sector lifts to one sheet"
     );
 }
 
@@ -1841,7 +1967,9 @@ pub(super) fn cone_at(h: f64, t: f64) -> Point3<f64> {
 /// key, i)` is the `i`-th edge: its end point, and its spec (`None` for
 /// a straight edge). `close(body, key, end)` is the closing edge, which
 /// runs from `start` to the chain's last vertex `end`, as `mef` states
-/// it. The face returned is the one the chain bounds in its own order.
+/// it. The face returned is the region the chain bounds, its sense
+/// `true` with the loop that agrees with it
+/// ([`crate::test_support_fixtures::set_sheet_sense`]).
 fn chain_sheet(
     surface: Surface<f64>,
     start: Point3<f64>,
@@ -1897,6 +2025,7 @@ fn chain_sheet(
         )
         .unwrap()
         .face;
+    crate::test_support_fixtures::set_sheet_sense(&mut body, face, true, tol);
     (body, face)
 }
 
@@ -1950,16 +2079,15 @@ pub(super) fn contain_at(
     crate::curved_face_containment(body, face, q, band()).unwrap()
 }
 
-/// **An L-shaped cone face refuses, never trims by its hull.** The face
-/// covers `z < 1` over `[0, w]` and `z < 2` over `[w, 2w]`; the notch
-/// `1 < z < 2` over `[0, w]` has the same hull, so a window read off the
-/// hull answers `In` there. `bool_cone_chart_box` sees the notch (the
-/// notch's inner sides lie inside its box) and the face door answers
-/// `None`. Narrow (`w = π/8`, the nearest-branch walk's class) and wide
-/// (`w = 3π/4`, the apex closure's), and one clear of the apex (the
-/// notch cut from a frustum band).
+/// **An L-shaped cone face reads its notch out, never trims by its
+/// hull.** The face covers `z < 1` over `[0, w]` and `z < 2` over
+/// `[w, 2w]`; the notch `1 < z < 2` over `[0, w]` has the same hull, so
+/// a window read off the hull answers `In` there. The region, read from
+/// the boundary edges, puts the notch outside and the L's two arms
+/// inside. Narrow (`w = π/8`) and wide (`w = 3π/4`), and one clear of
+/// the apex (the notch cut from a frustum band), with the band itself.
 #[test]
-fn an_l_shaped_cone_face_refuses_rather_than_trim_by_its_hull() {
+fn an_l_shaped_cone_face_reads_its_notch_out() {
     let o = p(0.0, 0.0, 0.0);
     for w in [PI / 8.0, 0.75 * PI] {
         let (body, face) = cone_sheet(
@@ -1971,11 +2099,13 @@ fn an_l_shaped_cone_face_refuses_rather_than_trim_by_its_hull() {
                 Step::Arc(2.0, w, 2.0 * w),
             ],
         );
-        assert_eq!(
-            contain_at(&body, face, cone_at(1.5, 0.5 * w)),
-            None,
-            "w {w}: the notch"
-        );
+        for (at, want, what) in [
+            (cone_at(1.5, 0.5 * w), FaceContainment::Out, "the notch"),
+            (cone_at(0.5, 0.5 * w), FaceContainment::In, "the low arm"),
+            (cone_at(1.5, 1.5 * w), FaceContainment::In, "the high arm"),
+        ] {
+            assert_eq!(contain_at(&body, face, at), Some(want), "w {w}: {what}");
+        }
     }
     let (body, face) = cone_sheet(
         cone_at(0.5, 0.0),
@@ -1987,12 +2117,17 @@ fn an_l_shaped_cone_face_refuses_rather_than_trim_by_its_hull() {
             Step::Arc(1.0, PI / 4.0, 0.0),
         ],
     );
-    assert_eq!(
-        contain_at(&body, face, cone_at(1.5, 0.1)),
-        None,
-        "the frustum L's notch"
-    );
-    // The same frustum band without its notch trims: the rectangle.
+    for (at, want, what) in [
+        (
+            cone_at(1.5, 0.1),
+            FaceContainment::Out,
+            "the frustum L's notch",
+        ),
+        (cone_at(0.75, 0.1), FaceContainment::In, "its low arm"),
+        (cone_at(1.5, 1.2), FaceContainment::In, "its high arm"),
+    ] {
+        assert_eq!(contain_at(&body, face, at), Some(want), "{what}");
+    }
     let (body, face) = cone_sheet(
         cone_at(0.5, 0.0),
         &[
@@ -2004,17 +2139,17 @@ fn an_l_shaped_cone_face_refuses_rather_than_trim_by_its_hull() {
     assert_eq!(
         contain_at(&body, face, cone_at(1.5, 0.1)),
         Some(FaceContainment::In),
-        "the rectangle holds the point"
+        "the band holds the point"
     );
     assert_eq!(
         contain_at(&body, face, cone_at(1.5, PI / 2.0 + 0.1)),
         Some(FaceContainment::Out),
-        "the rectangle trims past its window"
+        "the band ends at its generator"
     );
 }
 
 /// The face door's answer at `q`, an escalation included: the
-/// small-notch rows require a definite refusal, not an in-band one.
+/// small-notch rows require a definite answer, not an in-band one.
 fn door(
     body: &Body<f64>,
     face: FaceKey,
@@ -2365,16 +2500,16 @@ fn a_gap_in_the_torus_boundary_refuses() {
 /// cone.
 const FRUSTA: [(f64, f64); 2] = [(1.0, 2.0), (10.0, 20.0)];
 
-/// **A small notch in a cone face refuses at every size the band
+/// **A small notch in a cone face reads out at every size the band
 /// reads.** Each notch is `s` metres on a side (`s/√2` of height on the
 /// unit cone, whose slant is `h·√2`; `s/h1` of azimuth at the top
 /// rim), cut from the frustum `[h0, h1] × [0, π/4]` as an L at its
 /// top-right corner and as a U from the middle of its top rim, and from
 /// the apex sector `[0, h1] × [0, π/4]` as an L, which the apex closure
-/// walks. Each is asked at the notch's centre: a definite refusal,
-/// never `In`, never an escalation.
+/// walks. Each is asked at the notch's centre, `5·K·ε` or more from its
+/// edges: definitely `Out`, never `In`, never an escalation.
 #[test]
-fn a_small_notch_in_a_cone_face_refuses_at_every_size() {
+fn a_small_notch_in_a_cone_face_reads_out_at_every_size() {
     let eps = Tol::witness().eps();
     let mut bad = Vec::new();
     let w = PI / 4.0;
@@ -2405,13 +2540,16 @@ fn a_small_notch_in_a_cone_face_refuses_at_every_size() {
                     Step::Arc(h1, m - 0.5 * dt, 0.0),
                 ],
             );
+            // Counter-clockwise about the chart normal: the flux lane reads
+            // no side off a loop through the apex at every size, so the
+            // chain's own order is the face's side.
             let apex = cone_sheet(
                 p(0.0, 0.0, 0.0),
                 &[
-                    Step::Line(cone_at(h1, 0.0)),
-                    Step::Arc(h1, 0.0, w - dt),
-                    Step::Line(cone_at(h1 - dh, w - dt)),
-                    Step::Arc(h1 - dh, w - dt, w),
+                    Step::Line(cone_at(h1 - dh, w)),
+                    Step::Arc(h1 - dh, w, w - dt),
+                    Step::Line(cone_at(h1, w - dt)),
+                    Step::Arc(h1, w - dt, 0.0),
                 ],
             );
             for (what, (body, face), q) in [
@@ -2420,7 +2558,7 @@ fn a_small_notch_in_a_cone_face_refuses_at_every_size() {
                 ("apex L", apex, centre),
             ] {
                 let got = door(&body, face, q);
-                if !matches!(got, Ok(None)) {
+                if !matches!(got, Ok(Some(FaceContainment::Out))) {
                     bad.push(format!("frustum {h0}..{h1}, {what} notch {s:e} m: {got:?}"));
                 }
             }
@@ -2447,36 +2585,46 @@ fn a_small_notch_in_a_cone_face_refuses_at_every_size() {
     }
     assert!(
         bad.is_empty(),
-        "ε {eps:e}: {} cells answer other than a refusal:\n{}",
+        "ε {eps:e}: {} cells answer other than Out:\n{}",
         bad.len(),
         bad.join("\n")
     );
 }
 
-/// **The smallest notch the builders mint pins the arms' direction.**
-/// A notch `1.5·K·ε` on a side, on the cone at its top rim (the azimuth
-/// arm is that rim's radius; slant is exact). The notch's inner sides
-/// are then `1.5·K·ε` from the box's in metres, past the band, so the
-/// TRIM refuses definitely (`PartialConeFace`). An arm that understated
-/// its rate would bring that margin into the band (an escalation) or
-/// under it (a window), and this row reads either as a failure. The
-/// torus rides along at the outer equator, where its region reads the
-/// notch on its edges' own carriers. The face door at either notch's
-/// centre, `0.75·K·ε` from the face, may escalate on that graze; it
-/// must never answer `In`.
+/// **The smallest notch the builders mint never reads `In`.**
+/// A notch `1.5·K·ε` on a side, on the cone at its top rim and on the
+/// torus at its outer equator, where each region reads the notch on its
+/// edges' own carriers. The face door at either notch's centre,
+/// `0.75·K·ε` from the face, escalates on that graze, in the boundary
+/// pass; the direction is pinned beside it: two notch-widths past the
+/// notch, off the face, reads `Out`, and two into the face past the
+/// notch's inner corner reads `In`. A probe may escalate where the
+/// band does not resolve a far ring's own rows (the ring `(100, 1)` at
+/// `ε = 10⁻¹²`), but each side reads definitely somewhere, and never
+/// the other way.
 #[test]
-fn the_smallest_notch_refuses_definitely() {
-    use super::super::solid_contain::{PointInSolidError, cone_face_trim};
+fn the_smallest_notch_never_reads_in() {
     let tol = Tol::witness();
     let s = 1.5 * tol.k() * tol.eps();
     let mut bad = Vec::new();
-    let mut door_reads =
-        |what: String, got: Result<Option<FaceContainment>, crate::ContainError>| {
-            if matches!(got, Ok(Some(FaceContainment::In))) {
-                bad.push(format!("{what}: the door answers In"));
-            }
-        };
-    let mut trims = Vec::new();
+    let (mut outs, mut ins) = (0, 0);
+    let mut door_reads = |what: String,
+                          [notch, out, inside]: [Result<Option<FaceContainment>, crate::ContainError>;
+                              3]| {
+        if !matches!(notch, Err(crate::ContainError::Escalated { .. })) {
+            bad.push(format!("{what}: the notch reads {notch:?}"));
+        }
+        match out {
+            Ok(Some(FaceContainment::Out)) => outs += 1,
+            Err(crate::ContainError::Escalated { .. }) => {}
+            other => bad.push(format!("{what}: past the notch reads {other:?}")),
+        }
+        match inside {
+            Ok(Some(FaceContainment::In)) => ins += 1,
+            Err(crate::ContainError::Escalated { .. }) => {}
+            other => bad.push(format!("{what}: inside the notch's corner reads {other:?}")),
+        }
+    };
     for ring in RINGS {
         let (du, dv) = (s / (ring.0 + ring.1), s / ring.1);
         let (w, a) = (PI / 2.0, PI / 4.0);
@@ -2491,7 +2639,12 @@ fn the_smallest_notch_refuses_definitely() {
         let (body, face) = torus_sheet(ring, &corners);
         door_reads(
             format!("ring {ring:?}"),
-            door(&body, face, torus_at(ring, (w - 0.5 * du, -0.5 * dv))),
+            [
+                (w - 0.5 * du, -0.5 * dv),
+                (w - 0.5 * du, 2.0 * dv),
+                (w - 3.0 * du, -3.0 * dv),
+            ]
+            .map(|at| door(&body, face, torus_at(ring, at))),
         );
     }
     let w = PI / 4.0;
@@ -2509,21 +2662,18 @@ fn the_smallest_notch_refuses_definitely() {
         );
         door_reads(
             format!("frustum {h0}..{h1}"),
-            door(&body, face, cone_at(h1 - 0.5 * dh, w - 0.5 * dt)),
+            [
+                (h1 - 0.5 * dh, w - 0.5 * dt),
+                (h1 + 2.0 * dh, w - 0.5 * dt),
+                (h1 - 3.0 * dh, w - 3.0 * dt),
+            ]
+            .map(|(h, u)| door(&body, face, cone_at(h, u))),
         );
-        let got = cone_face_trim(
-            &body,
-            face,
-            p(0.0, 0.0, 0.0),
-            Vec3::unit_z(),
-            PI / 4.0,
-            band(),
-        );
-        if !matches!(got, Err(PointInSolidError::PartialConeFace { .. })) {
-            trims.push(format!("frustum {h0}..{h1}: the trim answers {got:?}"));
-        }
     }
-    bad.extend(trims);
+    assert!(
+        outs > 0 && ins > 0,
+        "no definite side: {outs} Out, {ins} In"
+    );
     assert!(
         bad.is_empty(),
         "notch {s:e} m at ε {:e}:\n{}",
@@ -2532,20 +2682,17 @@ fn the_smallest_notch_refuses_definitely() {
     );
 }
 
-/// **A ringed apex-closed face has no single lift.** The quarter sector
-/// with a lone-vertex ring closes `Open`; without the ring it closes.
+/// **A ringed apex-closed face still lifts to one sheet.** W2 reads the
+/// quarter sector's lone-vertex ring as a point off the apex, about
+/// which no circle winds. The pair refuses on the ring
+/// before W2 is asked (`Refusal::LoneVertex`).
 #[test]
-fn a_ringed_apex_face_does_not_close() {
-    use crate::chord_join::{ApexClosure, cone_apex_closure};
+fn a_ringed_apex_face_lifts_to_one_sheet() {
     let (mut body, face) = cone_sheet(
         p(0.0, 0.0, 0.0),
         &[Step::Line(cone_at(1.0, 0.0)), Step::Arc(1.0, 0.0, PI / 2.0)],
     );
     let cone = unit_cone();
-    assert!(matches!(
-        cone_apex_closure(&body, &cone, face, band()).unwrap(),
-        ApexClosure::Closed { .. }
-    ));
     let crate::LoopBoundary::Cycle { first } = body
         .get_loop(body.get_face(face).unwrap().outer)
         .unwrap()
@@ -2569,20 +2716,19 @@ fn a_ringed_apex_face_does_not_close() {
         "the kill leaves a ring"
     );
     assert!(matches!(
-        cone_apex_closure(&body, &cone, face, band()).unwrap(),
-        ApexClosure::Open
+        ops::ChartCache::default().describes(Operand::A, &body, face, &cone, band()),
+        Ok(Sheet::One)
     ));
-    assert!(!ops::ChartCache::default().describes(Operand::A, &body, face, &cone, band()));
 }
 
-/// **An apex face reaching both nappes has no single lift.** Its
+/// **An apex face reaching both nappes does not lift to one sheet.** Its
 /// outline leaves the apex on the upper nappe, crosses to the mirror
 /// nappe along one straight line through the apex (no vertex there), and
-/// returns: one apex visit, vertices on both nappes. It closes `Open`
-/// and does not describe.
+/// returns: one apex visit, vertices on both nappes. W2 does not clear
+/// it: the line crosses the apex inside an edge,
+/// so its loop's winding is not a winding about the apex.
 #[test]
-fn an_apex_face_on_both_nappes_does_not_close() {
-    use crate::chord_join::{ApexClosure, cone_apex_closure};
+fn an_apex_face_on_both_nappes_does_not_lift() {
     let (body, face) = cone_sheet(
         p(0.0, 0.0, 0.0),
         &[
@@ -2594,19 +2740,17 @@ fn an_apex_face_on_both_nappes_does_not_close() {
     );
     let cone = unit_cone();
     assert!(matches!(
-        cone_apex_closure(&body, &cone, face, band()).unwrap(),
-        ApexClosure::Open
+        ops::ChartCache::default().describes(Operand::A, &body, face, &cone, band()),
+        Ok(Sheet::Not)
     ));
-    assert!(!ops::ChartCache::default().describes(Operand::A, &body, face, &cone, band()));
 }
 
-/// **A face wound past a full turn neither describes nor trims.** Its
-/// rim runs `[0, 5π/2]` in two arcs, so the closure lifts it to a window
-/// wider than a period: `describes` refuses it (`bool_cone_closure_period`)
-/// and the face door answers `None`.
+/// **A face wound past a full turn lifts to one sheet.** Its rim runs
+/// `[0, 5π/2]` in two arcs, a sector that overlaps itself. Its interior
+/// less its edges is two sectors, so no closed curve in it winds. It is
+/// no face a region reading serves, so no containment is pinned here.
 #[test]
-fn an_apex_face_wound_past_a_turn_neither_describes_nor_trims() {
-    use crate::chord_join::{ApexClosure, cone_apex_closure};
+fn an_apex_face_wound_past_a_turn_lifts_to_one_sheet() {
     let (body, face) = cone_sheet(
         p(0.0, 0.0, 0.0),
         &[
@@ -2616,13 +2760,10 @@ fn an_apex_face_wound_past_a_turn_neither_describes_nor_trims() {
         ],
     );
     let cone = unit_cone();
-    let ApexClosure::Closed { window, .. } = cone_apex_closure(&body, &cone, face, band()).unwrap()
-    else {
-        panic!("one apex visit, no ring: the closure lifts it");
-    };
-    assert!(window.1 - window.0 > TAU, "{window:?}");
-    assert!(!ops::ChartCache::default().describes(Operand::A, &body, face, &cone, band()));
-    assert_eq!(contain_at(&body, face, cone_at(0.5, 0.25 * PI)), None);
+    assert!(matches!(
+        ops::ChartCache::default().describes(Operand::A, &body, face, &cone, band()),
+        Ok(Sheet::One)
+    ));
 }
 
 // -------------------------------------------------------------------

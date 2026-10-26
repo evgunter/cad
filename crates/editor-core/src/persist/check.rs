@@ -1483,9 +1483,8 @@ pub enum SnapshotError {
     },
     /// A constraint the edit door would refuse on what the recipe
     /// decides of it ([`crate::mate::solve::admit_mate`]): its `on` reads
-    /// no copy, its world read is no pose, its two poses are of two
-    /// kinds, or its class is not admitted. A file holding one is
-    /// corrupt.
+    /// no copy, its world read is no pose, or its two poses are of two
+    /// kinds. A file holding one is corrupt.
     MateRefused {
         /// The placement holding it.
         node: SpokenNode,

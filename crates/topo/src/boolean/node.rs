@@ -188,7 +188,7 @@ pub(super) fn bisectors<T: Decide>(
 /// a wall of radius `r` read against its own radius is `±r`, which the
 /// section table decided definite on this band before it served the
 /// pair (`geom`'s `ellipse_minor_positive`, the minor semi-axis `r`). An
-/// undecided margin escalates [`Coincide::Sectors`].
+/// undecided margin escalates [`super::Coincide::Sectors`].
 pub(super) fn wall_sense<T: Decide>(
     n: geom_core::Vec3<T>,
     radial: geom_core::Vec3<T>,
@@ -230,7 +230,7 @@ pub(super) fn wall_sense<T: Decide>(
 /// - [`BooleanError::NodeUnbuilt`] (`GermOnNode`) where `p` lies on both
 ///   planes, a node of the pair;
 /// - either plane distance in band escalates
-///   [`Coincide::VertexOnCurvedFace`], the sweep's own decision of it;
+///   [`super::Coincide::VertexOnCurvedFace`], the sweep's own decision of it;
 /// - the pierced wall's sense, as [`wall_sense`] refuses it;
 /// - [`BooleanError::ClassificationInvariant`] for a pierced surface
 ///   that is no cylinder, which [`bisectors`] never serves.

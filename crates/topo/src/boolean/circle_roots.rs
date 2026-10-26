@@ -212,13 +212,26 @@ impl<T: Decide> FirstHarmonic<T> {
     /// cut.
     pub(super) fn circle_off_plane(
         (center, axis, radius, u_ref): (Point3<T>, Vec3<T>, T, Vec3<T>),
+        plane: (Point3<T>, Vec3<T>),
+    ) -> Self {
+        Self::conic_off_plane((center, axis, (radius, radius), u_ref), plane)
+    }
+
+    /// **A conic's signed distance off a plane**: the ellipse
+    /// `center + a·û cos θ + b·v̂ sin θ`, `v̂ = axis × û` (a circle where
+    /// `a = b`), against the plane through `on` of unit normal `n` — the
+    /// residual `n·(center − on) + a(n·û) cos θ + b(n·v̂) sin θ`, charged
+    /// as [`Self::circle_off_plane`] charges a circle, at the larger
+    /// semi-axis.
+    pub(super) fn conic_off_plane(
+        (center, axis, (a, b), u_ref): (Point3<T>, Vec3<T>, (T, T), Vec3<T>),
         (on, n): (Point3<T>, Vec3<T>),
     ) -> Self {
         let offset = center - on;
         let d = n.dot(offset);
-        let (cos_part, sin_part) = (radius * n.dot(u_ref), radius * n.dot(axis.cross(u_ref)));
+        let (cos_part, sin_part) = (a * n.dot(u_ref), b * n.dot(axis.cross(u_ref)));
         let amplitude = (cos_part.powi(2) + sin_part.powi(2)).sqrt();
-        let noise = geom_core::rounding_charge(offset.norm() + radius);
+        let noise = geom_core::rounding_charge(offset.norm() + a.max(b));
         Self {
             lo: d - amplitude,
             hi: d + amplitude,

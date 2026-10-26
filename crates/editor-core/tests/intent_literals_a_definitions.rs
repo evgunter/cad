@@ -1113,7 +1113,6 @@ fn measure_of_translation(r: &mut Recorder, param: &str) -> RecipeNodeId {
         editor_core::Mate {
             on: cap(),
             to: cap(),
-            class: editor_core::ContactClass::Rest,
         },
         vec![
             (

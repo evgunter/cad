@@ -762,12 +762,9 @@ impl core::fmt::Debug for LandedRun {
 /// [`DocSession::product_fault`]'s, and `frame::badge_site` routes it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum AtRestBadge {
-    /// The gate certified the assembled product; how many declarations
-    /// its mates minted, and how many overlaps between copies it
-    /// reported, loud and quiet.
+    /// The gate certified the assembled product, and how many overlaps
+    /// between copies it reported, loud and quiet.
     Certified {
-        /// The minted declaration count.
-        minted: usize,
         /// The interference findings no assertion quiets.
         loud: usize,
         /// The interference findings an assertion quiets.
@@ -4310,7 +4307,7 @@ fn puts_an_instance(node: &Node<ProfileProgram>) -> bool {
 }
 
 /// One A5 verdict as the badge that shows it — the gate's own
-/// vocabulary either way: a certification with its minted count, or
+/// vocabulary either way: a certification with its overlap counts, or
 /// the typed refusal with its nodes spoken from `doc`, the landed
 /// document the gate judged — **and the aggregate the gate hands back
 /// with it**.
@@ -4327,7 +4324,6 @@ fn badge(
     match verdict {
         Ok(assembly) => (
             AtRestBadge::Certified {
-                minted: assembly.minted.len(),
                 loud: assembly.interference.iter().filter(|f| f.is_loud()).count(),
                 quiet: assembly
                     .interference

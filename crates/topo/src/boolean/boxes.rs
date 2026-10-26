@@ -3004,6 +3004,11 @@ pub(crate) mod tests {
     /// cut by the plane at that height, which is the same circle
     /// whatever surface the face ends up carrying: the description
     /// certifies the CARRIER, and a cone's own rim is that circle.
+    ///
+    /// The face's loop runs clockwise about the chart normal and its
+    /// sense is `true`, so the side its loop bounds is the sense-false
+    /// one: a row that reads which points the face holds gives it a side
+    /// with [`crate::test_support_fixtures::set_sheet_sense`].
     fn revolved_wall(
         rho: &dyn Fn(f64) -> f64,
         u0: f64,
@@ -4347,8 +4352,9 @@ pub(crate) mod tests {
     fn a_cone_band_places_the_mirror_nappe_on_its_carrier() {
         use crate::boolean::contain::{CurvedPlacement, FaceContainment, curved_face_placement};
         let alpha = 30.0_f64.to_radians();
-        let (body, face) = cone_wall(alpha, 0.0, 1.0, 0.5, 1.0);
+        let (mut body, face) = cone_wall(alpha, 0.0, 1.0, 0.5, 1.0);
         let band = Band::linear(Tol::witness()).unwrap();
+        crate::test_support_fixtures::set_sheet_sense(&mut body, face, true, Tol::witness());
         let at = |u: f64, z: f64, off: f64| {
             let rho = z.abs() * alpha.tan() + off;
             Point3::new(rho * u.cos(), rho * u.sin(), z)

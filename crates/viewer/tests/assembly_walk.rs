@@ -4,8 +4,7 @@
 //!
 //! open → resolve → the tree shows the instances → hide one →
 //! free-move an unconstrained one (visibly distinct, asserted as a
-//! value) → two face picks → the admitted class chosen → ONE
-//! committed mate edit → the placement solved → the free-move
+//! value) → two face picks → ONE committed mate edit → the placement solved → the free-move
 //! superseded → save/reopen round-trips the document with every piece
 //! of layer-3 state gone.
 //!
@@ -40,11 +39,11 @@
 use crate::common;
 
 use common::asm;
-use pncad::document::{ClassAdmission, Frame};
+use pncad::document::Frame;
 use pncad::geom_core::{Tol, Vec3};
-use pncad::select::{ContactClass, face_frame};
+use pncad::select::face_frame;
 use viewer::display::AdmissionFault;
-use viewer::matetool::{MateTool, MateToolState, admitted_classes};
+use viewer::matetool::{MateTool, MateToolState};
 use viewer::scene::SceneMesh;
 use viewer::session::SessionOp;
 use viewer::tree::RowStatus;
@@ -167,17 +166,7 @@ fn the_exit_demo_walk() {
     tool.pick(session.doc(), shelf_bottom.clone());
     assert!(matches!(tool.state(), MateToolState::Two { .. }));
 
-    // ── 7. The ADMITTED CLASS, exposed through the kernel's own
-    // table: Rest mints; Tangent solves but has no at-rest record.
-    let classes = admitted_classes();
-    assert_eq!(classes[0].class, ContactClass::Rest);
-    assert_eq!(classes[0].admission, ClassAdmission::Mints);
-    assert!(matches!(
-        classes[1].admission,
-        ClassAdmission::NoAtRestRecord { .. }
-    ));
-
-    // ── 8. ONE COMMITTED MATE ACTION. The proposal reads each picked
+    // ── 7. ONE COMMITTED MATE ACTION. The proposal reads each picked
     // face as a plane — post_b's top cap `on`, the shelf's underside
     // `to`, flipped — and the seat's values; the session commits, as one
     // action, post_b re-targeted into the shelf's space (the world) and
@@ -224,7 +213,7 @@ fn the_exit_demo_walk() {
     assert!(session.display().free_move_of(own).is_none());
     session.pump();
 
-    // ── 9. The PLACEMENT IS SOLVED: the two picked FACES coincide in
+    // ── 8. The PLACEMENT IS SOLVED: the two picked FACES coincide in
     // world space as the seat says — the planes rest: the faces' normals
     // oppose and the cap lies in the underside's plane — and post_b
     // stands where the values put it, unturned. The mate carries the
@@ -270,25 +259,17 @@ fn the_exit_demo_walk() {
     );
     for row in session.tree_rows() {
         assert_eq!(row.status, RowStatus::Ok, "{row:?}");
-        assert!(
-            row.note.is_none(),
-            "a Rest mate carries no standing caveat: {row:?}"
-        );
     }
     // …and the A5 at-rest verdict landed with the evaluation: the
-    // seated Rest declaration is minted and certified — the
-    // verification does not die at the commit.
+    // seat is recorded at the door and certified — the verification
+    // does not die at the commit.
     assert_eq!(
         session.at_rest(),
-        Some(&viewer::session::AtRestBadge::Certified {
-            minted: 1,
-            loud: 0,
-            quiet: 0,
-        }),
-        "the mated assembly certifies at rest with its one declaration"
+        Some(&viewer::session::AtRestBadge::Certified { loud: 0, quiet: 0 }),
+        "the mated assembly certifies at rest"
     );
 
-    // ── 10. SAVE and REOPEN. The document round-trips WITH the mate.
+    // ── 9. SAVE and REOPEN. The document round-trips WITH the mate.
     //
     // "Layer-3 state is gone" is scoped honestly here: the persistence
     // schema has NO field that could carry display state, so the
@@ -324,7 +305,7 @@ fn the_exit_demo_walk() {
         common::row_of(&rows, bench.post_b)
             .constraints
             .iter()
-            .any(|child| child.said.ends_with("Rest mate"))
+            .any(|child| child.said.ends_with(": mate"))
     );
     for row in &rows {
         assert_eq!(row.status, RowStatus::Ok, "{row:?}");

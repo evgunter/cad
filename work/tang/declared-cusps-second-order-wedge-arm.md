@@ -2,13 +2,12 @@
 id: declared-cusps-second-order-wedge-arm
 kind: issue
 title: Implementation - declared cusps, the second-order wedge arm (#131 ruling)
-status: parked
+status: open
 opened: 2026-08-23
 github: 941
 refs: [131, 1423, 1439]
 priority: P1
 cost: H
-blocked_on: [intent-stage4-is-built]
 ---
 
 ## From GitHub issue 941

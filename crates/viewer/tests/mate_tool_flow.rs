@@ -1,6 +1,5 @@
 //! **The mate tool, replayed headlessly** (GUI-4 deliverable 4): two
-//! sequential picks through the real cursor path, the admission
-//! exposure, the typed refusals, one committed action (the mate and
+//! sequential picks through the real cursor path, the typed refusals, one committed action (the mate and
 //! its values), and the pick-vanish degradation.
 
 // Panicking is a test's failure mechanism (workspace lint note).
@@ -11,27 +10,11 @@ use crate::common;
 
 use common::asm;
 use common::{ang, len, scl};
-use pncad::document::{ClassAdmission, MateSide, RecipeNodeId};
+use pncad::document::{MateSide, RecipeNodeId};
 use pncad::geom_core::Tol;
-use pncad::select::{ContactClass, RoleSeg, face_frame};
-use viewer::matetool::{MateTool, MateToolError, MateToolEvent, MateToolState, admitted_classes};
+use pncad::select::{RoleSeg, face_frame};
+use viewer::matetool::{MateTool, MateToolError, MateToolEvent, MateToolState};
 use viewer::session::{DocSession, FaceSelection, PatternRuleSpec, SessionOp};
-
-#[test]
-fn the_admission_exposure_is_the_kernels_own_table() {
-    let classes = admitted_classes();
-    assert_eq!(classes.len(), 2, "the two nameable classes");
-    assert_eq!(classes[0].class, ContactClass::Rest);
-    assert_eq!(classes[0].admission, ClassAdmission::Mints);
-    assert_eq!(classes[1].class, ContactClass::Tangent);
-    assert!(
-        matches!(
-            classes[1].admission,
-            ClassAdmission::NoAtRestRecord { why } if why.contains("at rest")
-        ),
-        "Tangent solves but carries no at-rest record, in the table's own words"
-    );
-}
 
 #[test]
 fn two_picks_one_choice_one_committed_edit() {
@@ -57,8 +40,6 @@ fn two_picks_one_choice_one_committed_edit() {
     let proposal = tool
         .proposal(doc, asm::seat_choice())
         .expect("the seat proposes");
-    assert_eq!(proposal.mate.class, ContactClass::Rest);
-    assert_eq!(proposal.admission, ClassAdmission::Mints);
     assert_eq!(proposal.placement, bench.post_b, "the on pick's copy");
     assert_eq!(proposal.values, asm::middle_seat_values());
     // The on pick is post_b's top cap: the side names the POST's own
@@ -75,7 +56,7 @@ fn two_picks_one_choice_one_committed_edit() {
     );
     assert_eq!(
         proposal.mate,
-        crate::fixture::rest(proposal.on.clone(), proposal.to.clone(), ContactClass::Rest),
+        crate::fixture::rest(proposal.on.clone(), proposal.to.clone()),
         "two planes, the target flipped: the faces rest against each other"
     );
 

@@ -22,7 +22,7 @@ use crate::fixture::{self, ang, len};
 use editor_core::mate::coset::{Coset, Subgroup, intersect};
 use editor_core::pose::{PoseDef, RoleRead};
 use editor_core::{
-    BodyRead, ContactClass, Coord, DocEdit, EditError, EvalOptions, Formula, Mate, MateFault, Node,
+    BodyRead, Coord, DocEdit, EditError, EvalOptions, Formula, Mate, MateFault, Node,
     NodeErrorKind, NodeResult, Operand, ProfileDoc, RecipeNodeId, StableName, TargetAxis,
 };
 use geom_core::Tol;
@@ -380,7 +380,6 @@ fn box_resting_on(
     let written = Mate {
         on: plane_of(on_body(body, bottom)),
         to: fixture::flip(top),
-        class: ContactClass::Rest,
     };
     let coords = [
         Coord::Slide(TargetAxis::X),
@@ -503,7 +502,6 @@ fn a_slide_set_twice_refuses_though_a_turn_is_free() {
     let written = Mate {
         on: plane_of(on_body(body, bottom)),
         to: floor,
-        class: ContactClass::Rest,
     };
     let twice = editor_core::Placed {
         mates: vec![written],
@@ -557,11 +555,7 @@ fn box_on_the_wall(draft: f64, roll: f64) -> Affine3<f64> {
             Formula::turn_over(4).expect("a quarter turn"),
         )],
     );
-    let written = Mate {
-        on: face,
-        to: wall,
-        class: ContactClass::Rest,
-    };
+    let written = Mate { on: face, to: wall };
     let doc = doc;
     let doc = seat(
         doc,
@@ -694,7 +688,6 @@ fn a_cap_at_the_antipode_places_without_a_turn() {
     let written = Mate {
         on: plane_of(on_body(body, bottom)),
         to: down,
-        class: ContactClass::Rest,
     };
     let doc = seat(
         doc,
@@ -731,7 +724,6 @@ fn a_cap_at_the_antipode_places_without_a_turn() {
     let written = Mate {
         on: tilted,
         to: down,
-        class: ContactClass::Rest,
     };
     let doc = seat(
         doc,
@@ -1024,7 +1016,6 @@ fn box_slid_by_a_parameter(nominal: f64) -> (ProfileDoc, RecipeNodeId, EvalOptio
     let written = Mate {
         on: plane_of(on_body(body, bottom)),
         to: floor,
-        class: ContactClass::Rest,
     };
     let slide = Formula::named(
         editor_core::VarName::new("s").expect("a name"),
@@ -1193,7 +1184,6 @@ fn a_seeded_copy_at_rest_has_the_value_lanes_bits_and_its_tangent() {
     let written = Mate {
         on: plane_of(on_body(body, bottom)),
         to: floor,
-        class: ContactClass::Rest,
     };
     let turn = Formula::named(
         editor_core::VarName::new("t").expect("a name"),
@@ -1273,7 +1263,6 @@ fn a_box_spanning_the_band_encloses_the_value_lane_at_its_corners() {
     let written = Mate {
         on: plane_of(on_body(body, bottom)),
         to: floor,
-        class: ContactClass::Rest,
     };
     let turn = Formula::named(
         editor_core::VarName::new("t").expect("a name"),

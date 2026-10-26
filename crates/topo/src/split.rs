@@ -262,7 +262,7 @@ impl<T: Decide> Body<T> {
     /// tangent child stores what the must-carry rule over the CHILD
     /// demands ([`geom_brep::must_carry_over_edge`]): the rule reads
     /// the child's own stations, levered at its faces' extent
-    /// ([`crate::wedge_reach`]) read from the child's middle, so a child
+    /// ([`fn@crate::wedge_reach`]) read from the child's middle, so a child
     /// can read under-determined, or in band, where its parent read
     /// jet-determinate.
     ///

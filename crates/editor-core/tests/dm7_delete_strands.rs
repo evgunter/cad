@@ -29,9 +29,8 @@ use crate::fixture;
 use crate::fixture::resolver::PartStore;
 use editor_core::Formula;
 use editor_core::{
-    Attr, AttrKind, CapEnd, ContactClass, DocEdit, DocumentId, EntityKind, Maintenance,
-    MeasurePrimitive, Node, ProfileDoc, RecipeNodeId, Rgba8, RoleSeg, SitedRef, StableName, apply,
-    cascade_delete_order,
+    Attr, AttrKind, CapEnd, DocEdit, DocumentId, EntityKind, Maintenance, MeasurePrimitive, Node,
+    ProfileDoc, RecipeNodeId, Rgba8, RoleSeg, SitedRef, StableName, apply, cascade_delete_order,
 };
 use fixture::{fname, insert, len, wall};
 use geom_core::Tol;
@@ -359,7 +358,7 @@ fn rest(
     to: impl crate::fixture::Sited,
     on: impl crate::fixture::Sited,
 ) -> editor_core::Mate<Formula> {
-    fixture::rest(fixture::head(on), fixture::head(to), ContactClass::Rest)
+    fixture::rest(fixture::head(on), fixture::head(to))
 }
 
 fn instance_face(

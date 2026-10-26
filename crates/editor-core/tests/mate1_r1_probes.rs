@@ -14,8 +14,8 @@
 use crate::fixture;
 
 use editor_core::{
-    CapEnd, ContactClass, DocEdit, DocumentId, EntityKind, EvalOptions, Formula, Frame, MateRef,
-    MateSide, Node, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, StableName, VarId,
+    CapEnd, DocEdit, DocumentId, EntityKind, EvalOptions, Formula, Frame, MateRef, MateSide, Node,
+    PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, StableName, VarId,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{
@@ -445,7 +445,6 @@ fn r1_no_mate_can_give_one_copy_a_pose_apart_from_its_siblings() {
             mate: Box::new(editor_core::Mate {
                 on: plane(head(in_copy(pattern, 0, leg_part.cap(leg, CapEnd::End)))),
                 to: plane(head(in_copy(pattern, 1, leg_part.cap(leg, CapEnd::End)))),
-                class: ContactClass::Rest,
             }),
             fresh: Vec::new(),
         },
@@ -525,7 +524,6 @@ fn r1_pattern_free_solves_are_bit_identical() {
                 mates: vec![rest(
                     head(c_part.cap(c, CapEnd::Start)),
                     head(b_part.cap(b, CapEnd::End)),
-                    ContactClass::Rest,
                 )],
                 values: vec![
                     (
@@ -637,7 +635,6 @@ fn r1_an_underqualified_nested_name_refuses_and_a_pattern_of_a_placed_copy_place
         rest(
             head(top_part.cap(top, CapEnd::Start)),
             head(in_copy(outer, 1, leg_part.cap(leg, CapEnd::End))),
-            ContactClass::Rest,
         ),
     );
     let poses = solve(&doc, &o, Tol::witness());

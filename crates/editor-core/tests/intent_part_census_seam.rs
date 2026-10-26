@@ -238,10 +238,7 @@ fn a_parts_own_census_refusal_refuses_the_outer_gate_as_the_parts() {
     let Err(AssemblyError::AtRest { findings: own }) = gate(&part, &EvalOptions::default()) else {
         panic!("the part's own gate refuses the undecided pair")
     };
-    assert!(
-        own.iter().all(|f| f.attribution.is_none()) && own.len() > 1,
-        "the premise: several findings, no declaration of the part's named"
-    );
+    assert!(own.len() > 1, "the premise: several findings: {own:?}");
     let (doc, ids, opts) = instantiating("seam-in-band", &part, 1);
     let err = gate(&doc, &opts).expect_err("the part is not at rest, so neither is this");
     let AssemblyError::CarriedAtRest { findings } = &err else {

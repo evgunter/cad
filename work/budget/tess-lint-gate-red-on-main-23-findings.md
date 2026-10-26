@@ -46,3 +46,10 @@ The gate read 23 findings on every nightly from 2026-10-17 through
 `lily_leaf_a` and `lily_sepal_a` face 2 (nu 1 -> 21, 2 -> 15); and
 `nonuniform_loft` growing again (19736 -> 20384). The lily rows arrived
 in the merges between `8c7db2ae37` and `0ffab3663d`; not bisected further.
+
+## 2026-10-24 (INTENT nightly triage)
+
+Nightly run 40066431545 (main `3dfb96b91c`), `k-lint (release-budget)`:
+`tess-lint: GATE FAILED — 30 finding(s)`. These are the same 30
+`FINDING` lines as 2026-10-23's run 39906156937, diffed line for line,
+so nothing new has entered the window. Not re-derived here.

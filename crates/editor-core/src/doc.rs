@@ -2913,7 +2913,6 @@ mod tests {
     use super::{Carrier, Doc, NameCarrier};
     use crate::appearance::AppearanceRecord;
     use crate::ident::{ContentPin, DocRef, DocumentId};
-    use crate::mate::ContactClass;
     use crate::names::{EntityKind, FaceName, StableName};
     use crate::node::{InterfaceCrossing, InterfaceRecord, Node, RecipeNodeId};
     use crate::program::ProfileDoc;
@@ -3026,7 +3025,6 @@ mod tests {
                 },
                 interface: InterfaceRecord {
                     crossings: vec![InterfaceCrossing::Mate {
-                        class: ContactClass::Rest,
                         outer: FaceName::new(crossed.clone()).expect("the fixture spells a face"),
                         inner: FaceName::new(name(12, EntityKind::Face))
                             .expect("the fixture spells a face"),
