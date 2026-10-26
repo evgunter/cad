@@ -22,7 +22,7 @@
 use geom::{CurveKind, SurfaceKind};
 use geom_core::{Band, Decide, Indeterminate, Point3};
 
-use crate::curve_pair::{Hit, MeetFault, Span, meet};
+use crate::curve_pair::{Hit, MeetFault, Meetings, Span, meet};
 
 /// The door that reads a span against a face's interior, once its
 /// boundary has left the span undecided.
@@ -44,7 +44,8 @@ pub enum Door {
     /// Any span against a spline face: enclosures on the span's pieces
     /// and the surface's cells, a Krawczyk contraction for one meeting.
     SplineFace,
-    /// A spiric span: no producer reaches a boolean with one.
+    /// A spiric span against an analytic face: no producer reaches a
+    /// boolean with one.
     Spiric,
 }
 
@@ -98,28 +99,26 @@ pub fn route(curve: CurveKind, surface: SurfaceKind) -> Route {
             "the face's residual composed along the spline span \
              (work/splice/nurbs-edge-crossing-rung-is-the-ring-composite)",
         ),
-        (Line | Circle | Ellipse | Nurbs, SurfaceKind::Nurbs | Approx) => unbuilt(
+        (Line | Circle | Ellipse | Spiric | Nurbs, SurfaceKind::Nurbs | Approx) => unbuilt(
             Door::SplineFace,
             "enclosures of the span's pieces against the surface's cells \
              (work/splice/an-analytic-edge-against-a-nurbs-face-has-no-crossing-lane)",
         ),
-        (Spiric, Plane | Cylinder | Cone | Sphere | Torus | SurfaceKind::Nurbs | Approx) => {
-            unbuilt(
-                Door::Spiric,
-                "a spiric operand edge, deferred until its first producer \
-                 (work/reachhold/spiric-operand-edges-reopen-with-their-first-producer)",
-            )
-        }
+        (Spiric, Plane | Cylinder | Cone | Sphere | Torus) => unbuilt(
+            Door::Spiric,
+            "a spiric operand edge, deferred until its first producer \
+             (work/reachhold/spiric-operand-edges-reopen-with-their-first-producer)",
+        ),
     }
 }
 
 /// What the boundary pass makes of a span ([`boundary`]).
 #[derive(Clone, Copy, Debug)]
 pub enum Boundary<T: geom_core::Real> {
-    /// The span meets the boundary strictly inside itself, first at `t`
-    /// in the boundary's walk order, at `point`: a meeting on the face's
-    /// boundary, where both edges are split. `edge` is the boundary
-    /// edge's index in the walk.
+    /// The span meets the boundary strictly inside itself, at `t` and
+    /// `point`: a meeting on the face's boundary, where both edges are
+    /// split. Of several, the one the walk reaches first, which need not
+    /// be the least `t`. `edge` is the boundary edge's index in the walk.
     Meets {
         /// The parameter on the span.
         t: T,
@@ -193,17 +192,9 @@ pub fn boundary<T: Decide>(
             Ok(Some(Hit::End(_)) | None) => {}
             Err(refusal) => return Err(carrier(refusal)),
         }
-        let met = meet(span, edge, band).map_err(|refusal| match refusal.fault {
-            MeetFault::Escalated(diag) => BoundaryRefusal::Escalated(diag),
-            fault @ (MeetFault::Unsettled(_) | MeetFault::Unsupported { .. }) => {
-                BoundaryRefusal::Unread(fault)
-            }
-            fault @ (MeetFault::Desync | MeetFault::Contradiction { .. }) => {
-                BoundaryRefusal::Fault(fault)
-            }
-        })?;
+        let met = meet(span, edge, band).map_err(|refusal| BoundaryRefusal::of(refusal.fault))?;
         if met.shared.is_some() {
-            if met.points.iter().any(|m| matches!(m.on_a, Hit::On { .. })) {
+            if shares_a_run(&met) {
                 along.get_or_insert(i);
             }
             continue;
@@ -221,6 +212,27 @@ pub fn boundary<T: Decide>(
     Ok(first.unwrap_or(along.map_or(Boundary::Clear, |edge| Boundary::Along { edge })))
 }
 
+impl BoundaryRefusal {
+    /// A meeting reading's refusal, as the pass types it.
+    #[must_use]
+    pub fn of(fault: MeetFault) -> Self {
+        match fault {
+            MeetFault::Escalated(diag) => Self::Escalated(diag),
+            MeetFault::Unsettled(_) | MeetFault::Unsupported { .. } => Self::Unread(fault),
+            MeetFault::Desync | MeetFault::Contradiction { .. } => Self::Fault(fault),
+        }
+    }
+}
+
+/// **Whether two spans share a run of positive length**: the pose read
+/// them as one curve, and a witness of the run lies strictly inside the
+/// first span. Spans on one curve that share only an end (the rest of a
+/// rim's circle) have witnesses at that end alone.
+#[must_use]
+pub fn shares_a_run<T: geom_core::Real>(met: &Meetings<T>) -> bool {
+    met.shared.is_some() && met.points.iter().any(|m| matches!(m.on_a, Hit::On { .. }))
+}
+
 /// A point-on-span refusal of a vertex reading.
 fn carrier(refusal: geom::CarrierRefusal) -> BoundaryRefusal {
     match crate::curve_pair::carrier_fault(refusal) {
@@ -230,6 +242,6 @@ fn carrier(refusal: geom::CarrierRefusal) -> BoundaryRefusal {
 }
 
 #[cfg(test)]
-mod rows;
-#[cfg(test)]
 mod review_rows;
+#[cfg(test)]
+mod rows;

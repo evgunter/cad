@@ -111,13 +111,21 @@ fn ellipse(axis: Vec3<f64>) -> Curve3<f64> {
 
 #[test]
 fn the_rest_of_an_ellipse_is_clear() {
-    let r = read_on(&quarter_ellipse(), &ellipse(Vec3::unit_z()), (FRAC_PI_2, TAU));
+    let r = read_on(
+        &quarter_ellipse(),
+        &ellipse(Vec3::unit_z()),
+        (FRAC_PI_2, TAU),
+    );
     assert!(matches!(r, Ok(Boundary::Clear)), "{r:?}");
 }
 
 #[test]
 fn an_ellipse_arc_reversed_lies_along() {
-    let r = read_on(&quarter_ellipse(), &ellipse(-Vec3::unit_z()), (-FRAC_PI_2, 0.0));
+    let r = read_on(
+        &quarter_ellipse(),
+        &ellipse(-Vec3::unit_z()),
+        (-FRAC_PI_2, 0.0),
+    );
     assert!(matches!(r, Ok(Boundary::Along { edge: 1 })), "{r:?}");
 }
 
@@ -172,7 +180,11 @@ fn a_line_sub_run_lies_along_and_one_across_the_corner_meets() {
 /// at a corner: a touch at the corner, never a run.
 #[test]
 fn an_overlap_inside_the_zero_is_no_run() {
-    let r = read_on(&rim(), &circle(Vec3::unit_z()), (FRAC_PI_2 - 0.3 * ZERO, PI));
+    let r = read_on(
+        &rim(),
+        &circle(Vec3::unit_z()),
+        (FRAC_PI_2 - 0.3 * ZERO, PI),
+    );
     assert!(
         !matches!(r, Ok(Boundary::Along { .. }) | Ok(Boundary::Meets { .. })),
         "{r:?}"

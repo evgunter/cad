@@ -78,8 +78,8 @@ fn every_kind_pair_routes_to_its_door() {
     for c in curves {
         for s in surfaces {
             let want = match (c, s) {
-                (Spiric, _) => (Door::Spiric, false),
                 (_, SurfaceKind::Nurbs | Approx) => (Door::SplineFace, false),
+                (Spiric, _) => (Door::Spiric, false),
                 (Nurbs, _) => (Door::SplineComposite, false),
                 (_, Plane) => (Door::PlaneCrossing, true),
                 (Line, _) => (Door::LineRoots, true),
@@ -173,13 +173,15 @@ fn a_corner_in_the_gap_escalates() {
     }
 }
 
-/// **A boundary vertex within the band of a thin ellipse is read on it.**
-/// An ellipse of semi-axes `a/b` from 100 to 1000, and a boundary edge
+/// **A boundary vertex within the band of a thin ellipse meets it.** An
+/// ellipse of semi-axes `a/b` from 100 to 1000, and a boundary edge
 /// starting half the band's zero off it along its in-plane normal, at
-/// three parameters across the span, and leaving along that normal. Read
-/// at the ellipse's foot the vertex is on it; read at the angle of its
-/// unit-coordinate image (`param_near`) its gap is about `(1 + a/b)` times
-/// that, which the band decides off.
+/// three parameters across the span, and leaving along that normal: the
+/// pass reads a meeting there, at the vertex's own parameter. Both of its
+/// readings find it (the vertex reading, and the meeting reading's end
+/// candidate), each at the point's foot on the ellipse; an angle read as
+/// the point's unit-coordinate image (`param_near`) would put it about
+/// `(1 + a/b)` times further off, which the band decides off.
 #[test]
 fn a_vertex_in_the_band_of_a_thin_ellipse_is_on_it() {
     let band = Band::linear(geom_core::Tol::witness()).unwrap();
@@ -274,9 +276,15 @@ mod review_r2 {
     #[test]
     fn a_closed_ellipse_through_the_rim_meets_at_its_far_vertex() {
         let got = read_ellipse(&ellipse(Vec3::unit_z()), (2.0, 2.0 + 2.0 * PI), false);
-        assert!(matches!(got, Ok(Boundary::Meets { edge: 0, .. })), "{got:?}");
+        assert!(
+            matches!(got, Ok(Boundary::Meets { edge: 0, .. })),
+            "{got:?}"
+        );
         let got = read_ellipse(&ellipse(Vec3::unit_z()), (2.0, 2.0 + 2.0 * PI), true);
-        assert!(matches!(got, Ok(Boundary::Meets { .. })), "endless: {got:?}");
+        assert!(
+            matches!(got, Ok(Boundary::Meets { .. })),
+            "endless: {got:?}"
+        );
     }
 
     /// Collinear segments touching end to end share no run.
@@ -303,7 +311,10 @@ mod review_r2 {
             .map(|(c, (t0, t1))| (c.eval(t0), Span::new(c, (t0, t1))))
             .collect();
         let got = boundary(&Span::new(&c, (0.0, 2.0 * PI)).endless(), &edges, band());
-        assert!(matches!(got, Ok(Boundary::Meets { .. })), "endless: {got:?}");
+        assert!(
+            matches!(got, Ok(Boundary::Meets { .. })),
+            "endless: {got:?}"
+        );
     }
 
     /// A line lying on the x axis rim edge but running past both ends
@@ -328,5 +339,31 @@ mod review_r2 {
         let rest = read(&round, (FRAC_PI_2, 2.0 * PI));
         eprintln!("round along {along:?}; rest {rest:?}");
         assert!(!matches!(rest, Ok(Boundary::Along { .. })), "{rest:?}");
+    }
+}
+
+/// **A vertex between two boundary edges the span runs along is found
+/// by the vertex reading alone.** The boundary's rim is two arcs of one
+/// circle, `[0, ½]` and `[½, π/2]`, and the span is the whole of
+/// `[0, π/2]`: each arc shares a run with it, and the meeting reading
+/// gives a shared pose no point, so only the second arc's start vertex,
+/// read on the span, puts the joint at `t = ½`. Read `Along` without it,
+/// and the joint vertex of the face's body is never recorded on the
+/// span.
+#[test]
+fn a_joint_between_two_runs_meets_the_span() {
+    let circle = unit_circle(Vec3::unit_z());
+    let [x_axis, _, y_axis] = rim();
+    let edges = [
+        (x_axis.eval(0.0), Span::new(&x_axis, (0.0, 1.0))),
+        (circle.eval(0.0), Span::new(&circle, (0.0, 0.5))),
+        (circle.eval(0.5), Span::new(&circle, (0.5, FRAC_PI_2))),
+        (y_axis.eval(0.0), Span::new(&y_axis, (0.0, 1.0))),
+    ];
+    match boundary(&Span::new(&circle, (0.0, FRAC_PI_2)), &edges, band()) {
+        Ok(Boundary::Meets { t, edge: 2, .. }) => {
+            assert!((t - 0.5).abs() < 1e-12, "at the joint: {t}");
+        }
+        other => panic!("two runs and their joint: {other:?}"),
     }
 }

@@ -60,7 +60,10 @@ pub(super) enum BoundaryCrossing<T: geom_core::Real> {
         /// The margin that decided `p` on that boundary entity.
         margin: geom_core::MarginDiag,
     },
-    /// Certified: the edge's interior meets the face's boundary nowhere.
+    /// Certified: no boundary vertex or crossing lies strictly inside the
+    /// edge. Its interior meets the boundary nowhere, or runs along one
+    /// boundary edge over the whole span ([`Boundary::Along`]), whose
+    /// ends are the edge's own.
     Clear,
     /// No reading answers: nothing is known about the interior (module
     /// docs).
@@ -94,17 +97,13 @@ pub(super) fn boundary_crossing<T: Decide>(
     band: Band,
 ) -> Result<BoundaryCrossing<T>, BooleanError> {
     let swept = Span::new(carrier, (t0, t1));
-    let Some(edges) = boundary_spans(y, face)? else {
-        return Ok(BoundaryCrossing::Unread);
-    };
-    let edges: Vec<_> = edges
-        .iter()
-        .map(|(start, curve)| (*start, Span::new(curve.carrier(), curve.params())))
-        .collect();
-    let t = match curve_face::boundary(&swept, &edges, band) {
-        Ok(Boundary::Meets { t, .. }) => t,
-        Ok(Boundary::Along { .. } | Boundary::Clear) => return Ok(BoundaryCrossing::Clear),
-        Err(refusal) => return boundary_refusal(refusal).map(|()| BoundaryCrossing::Unread),
+    let t = match read_boundary(y, face, &swept, band)? {
+        Some(Ok(Boundary::Meets { t, .. })) => t,
+        Some(Ok(Boundary::Along { .. } | Boundary::Clear)) => return Ok(BoundaryCrossing::Clear),
+        Some(Err(refusal)) => {
+            return boundary_refusal(refusal).map(|()| BoundaryCrossing::Unread);
+        }
+        None => return Ok(BoundaryCrossing::Unread),
     };
     let p = carrier.eval(t);
     Ok(
@@ -117,15 +116,12 @@ pub(super) fn boundary_crossing<T: Decide>(
     )
 }
 
-/// A boundary edge as the boundary pass reads it: its half-edge's start
-/// point and its certified curve.
-pub(super) type BoundaryEdge<T> = (Point3<T>, geom_brep::EdgeCurve<T>);
-
-/// `face`'s boundary edges in its walk order, each as its half-edge's
-/// start point and its certified curve: the boundary pass's input
-/// ([`curve_face::boundary`]). `None` where the boundary holds a lone
-/// vertex (a pierce ring) or an edge with no certified curve, which the
-/// pass cannot read.
+/// **The boundary pass over `face`'s boundary** ([`curve_face::boundary`]),
+/// read against `swept`: its answer or refusal, or `None` where the
+/// boundary holds a lone vertex (a pierce ring) or an edge with no
+/// certified curve, which the pass cannot read. Such a face answers
+/// `None` before any decision of the pass is made, so it never
+/// escalates.
 ///
 /// # Errors
 ///
@@ -135,10 +131,32 @@ pub(super) type BoundaryEdge<T> = (Point3<T>, geom_brep::EdgeCurve<T>);
 /// # Panics
 ///
 /// As [`boundary_crossing`]'s.
-pub(super) fn boundary_spans<T: Decide>(
+pub(super) fn read_boundary<T: Decide>(
     y: &Body<T>,
     face: FaceKey,
-) -> Result<Option<Vec<BoundaryEdge<T>>>, BooleanError> {
+    swept: &Span<'_, T>,
+    band: Band,
+) -> Result<Option<Result<Boundary<T>, BoundaryRefusal>>, BooleanError> {
+    Ok(boundary_spans(y, face)?.map(|edges| {
+        let edges: Vec<_> = edges
+            .iter()
+            .map(|(start, curve)| (*start, Span::new(curve.carrier(), curve.params())))
+            .collect();
+        curve_face::boundary(swept, &edges, band)
+    }))
+}
+
+/// A boundary edge as the pass reads it: its half-edge's start point and
+/// its certified curve.
+type BoundaryEdge<'a, T> = (Point3<T>, &'a geom_brep::EdgeCurve<T>);
+
+/// `face`'s boundary edges in its walk order, each as its half-edge's
+/// start point and its certified curve; `None` as [`read_boundary`]
+/// says.
+fn boundary_spans<T: Decide>(
+    y: &Body<T>,
+    face: FaceKey,
+) -> Result<Option<Vec<BoundaryEdge<'_, T>>>, BooleanError> {
     let face_data = y
         .get_face(face)
         .ok_or(BooleanError::ClassificationInvariant {
@@ -153,7 +171,7 @@ pub(super) fn boundary_spans<T: Decide>(
         let CurveGeom::Certified(curve) = y.edge_curve_linked(ek, edge) else {
             return Ok(None);
         };
-        edges.push((start, curve.clone()));
+        edges.push((start, curve));
     }
     Ok(Some(edges))
 }

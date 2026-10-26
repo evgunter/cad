@@ -72,7 +72,9 @@ fn blade(
 /// operand A meets operand B's base cap: a spline edge of A, against a
 /// plane face of B, in the planar lane. Before the boundary pass, each
 /// refused at the contact, `CurvedBooleanUnsupported { kind: Nurbs }`
-/// on a wall of B.
+/// on a wall of B. The shared rim takes the `Along` reading: read
+/// `Clear`, it would be an edge of B bounding the face it is read
+/// against, which the twin-edge reading refuses as a contradiction.
 #[test]
 fn a_sheath_on_its_blade_unions_past_the_shared_rim() {
     let tol = Tol::witness();

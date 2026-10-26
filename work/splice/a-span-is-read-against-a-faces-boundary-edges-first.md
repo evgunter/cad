@@ -74,7 +74,11 @@ Built on `splice/boundary-first`.
   (`MintedRule::Along` places a later split's vertex the same way);
   `Clear` refuses as before, unless the span is an edge of the
   face's body (`reduce::twin_edge`), whose incidence with a face it
-  does not bound is its ends.
+  does not bound is its ends: the boolean's no-self-intersection
+  precondition, not a check. The sweep reaches `spline_face` through
+  `route`; the analytic doors are not yet dispatched through it
+  (`the-analytic-crossing-doors-are-not-dispatched-through-the-curve-face-table`,
+  filed here).
 - `carrier_cross::boundary_crossing` reads through the pass and keeps
   only its placement.
 
