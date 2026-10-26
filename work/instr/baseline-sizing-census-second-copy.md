@@ -210,7 +210,7 @@ reads.** No live figure from either census is restated outside
   and the tracker rows under `work/instr/` and `work/meta/`, which are
   deleted with their program and would red the test on an ordinary
   edit. The guard shape is recorded on
-  `work/unseen/doc-citations-no-gate-checks-rot-silently`, whose arm B is
+  `work/unread/doc-citations-no-gate-checks-rot-silently`, whose arm B is
   the class it answers.
 - **The residue now has a row.** Nothing reds when an unlabelled
   current figure arrives in the document, nothing counts the

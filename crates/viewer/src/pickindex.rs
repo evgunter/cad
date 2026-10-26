@@ -1281,7 +1281,7 @@ impl PickIndex {
     /// units of `|dir|` means the same world distance in every group);
     /// a moved instance's hit crosses back with its point converted
     /// and its interval carried, which is
-    /// `work/fit/a-moved-copys-pick-span-crosses-its-frame-unconverted.md`.
+    /// `work/vgeom/a-moved-copys-pick-span-crosses-its-frame-unconverted.md`.
     ///
     /// # Errors
     ///
@@ -1343,7 +1343,7 @@ impl PickIndex {
                 // caller compares against the picture is world. The
                 // interval rides across unconverted, which is the
                 // rigid-frame argument above and
-                // `work/fit/a-moved-copys-pick-span-crosses-its-frame-unconverted.md`.
+                // `work/vgeom/a-moved-copys-pick-span-crosses-its-frame-unconverted.md`.
                 candidates.push(PickHit {
                     point: map.transform_point(hit.point),
                     ..hit
@@ -1934,7 +1934,7 @@ impl PickIndex {
             // unconverted, while `own` is the world ray's: comparable
             // because the display admits only rigid probe frames,
             // which is
-            // `work/fit/a-moved-copys-pick-span-crosses-its-frame-unconverted.md`.
+            // `work/vgeom/a-moved-copys-pick-span-crosses-its-frame-unconverted.md`.
             let mut spans: Vec<TSpan> = self
                 .front_of(eval, &ray, display)
                 .map_err(PickError::HitTest)?

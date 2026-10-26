@@ -2,7 +2,7 @@
 id: tess
 kind: program
 title: TESS — the tessellation kernel: crates/mesh and the body-side coherence examination
-status: active
+status: ready
 opened: 2026-09-16
 area: kernel
 prefix: tess/

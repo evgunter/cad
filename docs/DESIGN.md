@@ -2256,7 +2256,7 @@ the project publishes with one still in the shipped state.
   runs every row-5 postcondition. That is the right posture for a
   kernel nobody depends on yet; deleting the stanza is a real reduction
   in what a release build checks, so it is a decision to take at
-  publish rather than a chore (**S65**, `work/pred/S65.md`, is
+  publish rather than a chore (**S65**, `work/predtail/S65.md`, is
   the worked example).
 - **The name ([open.name]).**
 - **Post-publish schema discipline for the verb tags** (VERB-SEAT-DESIGN

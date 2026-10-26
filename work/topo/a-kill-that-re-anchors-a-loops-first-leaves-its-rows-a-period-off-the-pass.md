@@ -247,6 +247,6 @@ derivation in another chart, not a gauge.
 
 **Residue, filed rather than disclosed here:**
 - `work/topotail/a-kill-bridging-joints-that-straddle-the-pole-lever-band-writes-a-reset-the-pass-decides-a-shift`;
-- `work/topo/kef-minting-clears-a-complete-face-whose-merged-loop-it-cannot-chart`:
+- `work/restate/kef-minting-clears-a-complete-face-whose-merged-loop-it-cannot-chart`:
   404 faces `kef_minting` leaves wholly unminted, none half-minted, as
   the merge base does.
