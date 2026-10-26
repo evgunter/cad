@@ -98,17 +98,26 @@ in the scalar's own outward-rounded arithmetic. The edge certificate
 reads it per part of the carrier's knot spans, through one reader for
 every carrier (`pcurve_cache::limb2_offset_sup`): the carrier's net
 (`carrier_net::framed_carrier_net`: a spline is its own net, a closed
-form its enclosing net), framed at each operand in certification
-arithmetic, so the bound rounds at the part's own scale and never at
+form its enclosing net), framed at each operand in the scalar's
+arithmetic (C9's backend at the numeric channel), so the bound rounds at the part's own scale and never at
 its distance from the world origin,
 and on the cone a part the lever does not decide positive (one reaching
 the apex) reads `√|f|` instead: `f` is the product of the distances
 from the meridian half-plane's two generator lines, both on the implicit
 cone; the search's limbs do not
-yet, which is why their rung-3 arms are unretired. Where the bound does
+yet, which is why their rung-3 arms are unretired. At a
+parameter-family scalar the limb is decided by the scalar like any
+margin (E12): its symbolic identity is the residual of the carrier's own
+description against the operand, per span, with the carrier's parameter
+left free, formed by the limb from the operands' own values, and its
+numeric channel is the composite's enclosure `[floor, upper]`; an
+identity certifies every member of the box at every parameter of the
+carrier. Where the bound does
 not clear the band, the composite's uncleared spans are halved round by
 round, each piece cut from its Bézier segment's own row so no cut
-compounds another's width: the limb passes once the bound clears;
+compounds another's width, and the rounds stop once the bound is within
+the rounding factor of the net's own width: the limb passes once the
+bound clears;
 refuses on the composite's certified value at a break where that lies
 past the band's zero, since no bound over a span holding the break can
 clear; and otherwise refuses on the lowest bound any round reached
@@ -117,15 +126,18 @@ own units: `SSI_HULL_WORK` spans recomputed over the rounds,
 `SSI_HULL_CUTS` breaks added) — so a first composite already over
 `SSI_HULL_WORK` spans is never subdivided and refuses on its first
 hull, and a later round whose bound is NaN stops on the lowest certified
-bound before it rather than escalating. Limb 2's reading is an upper bound, and an
-upper bound shows no miss: a bound that ends above the band with no
+bound before it rather than escalating. At a point input, limb 2's
+reading is an upper bound, and an upper bound shows no miss: a bound that ends above the band with no
 measured miss past it refuses as a kernel approximation limit
 ([tolerance.recourse]; `AnalyticRung3Refusal::KernelLimit`), carrying the bound, the extent it was read over
 and the carrier's own enclosure width there, so the one story can name
 the input's extent (the bound near that width) or the kernel's
 conditioning (the bound far above it); it is never an ambiguity of the
 input and never a definite miss. Only the measured value at a break
-refuses as a miss. Against an analytic operand
+refuses as a miss. At a parameter-family scalar a bound that stalls is
+undecided at that leaf, and the drive bisects it (E6); the refusal
+carries the enclosure and claims no cause and no terminality. Against
+an analytic operand
 the value at a break is limb 1's residual, a measured miss: at the edge
 certificate it is the carrier's distance from the surface, bounded
 below by `|f|` over an upper bound on the factor that divides it to
