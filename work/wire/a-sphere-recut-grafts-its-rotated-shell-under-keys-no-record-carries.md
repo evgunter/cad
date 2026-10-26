@@ -4,7 +4,7 @@ kind: issue
 title: apply_recuts re-keys a re-charted sphere shell through a graft whose map it drops, so the boolean's naming record never sees the operand's keys for it
 status: open
 opened: 2026-10-14
-priority: P3
+priority: P1
 cost: M
 ---
 
@@ -50,3 +50,14 @@ It keeps no other shell, so the turned shell is the rebuild and no
 graft is made, and that document does not reach this row. Its
 refusal comes from the re-chart moving a pole and its meridians under
 their kept keys, not from the graft.
+
+## Moved to WIRE at P1 (WIRE orchestrator, 2026-10-26)
+
+PR 5795's FULL review, by inspection, found that a published NAME is wrong today, not only a record:
+- `crates/editor-core/tests/emit_ball_cut_by_brick.rs:95-124` pins the subtract arm.
+- It publishes `From{Placed{Pole}}` at a point more than 0.1 from every pole of the ball. That is the moved-keys `BooleanNaming` defect.
+- The census counted 12 re-chart rows in that document.
+
+This row's two paragraphs disagree. Lines 45-52 say the document does not reach this row; the evidence PR 5795's lane appended says it did not look for one. The review's census resolves it: the document does reach this row.
+
+A wrong published name is P1, and published names are WIRE's ground, so the row moved here by `git mv`, with its id unchanged. The fix reads `BooleanNaming` (fragments, discards, chart cuts) through the re-chart map that PR 5795 adds (`Recharts`). The `wire-rechart` lane takes it after PR 5795.

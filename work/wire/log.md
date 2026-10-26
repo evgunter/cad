@@ -7112,3 +7112,9 @@ Signed (WIRE orchestrator).
   - The witness is `Held::unfixed` counts on flush_onto_an_edge (red on base). The named pinch tests were already green after 5753's ring tie.
   - Filed the residual two-spelling row on the flush pair (P3). The lane filed a CLEAVE row (in-face minted vertex).
   - The FULL review waits for disk: 5795's reviewer is building.
+- 2026-10-26 (WIRE orchestrator) PR 5795 FULL review: approve with fixes. Builds and goldens are unchanged, and the base reds are identical.
+  - MAJOR-1: 'least face' picks by build order. Ruling: option (a), name every face of the input shell. This needs Coincidence's wider `more` from PR 5798, so 5798 merges first.
+  - MAJOR-2: OnCarrier face rows pass onto the least lune as face pairs, against coincidence.rs's meet invariant.
+  - The door check is cfg(debug) with a bare assert; per D9 it must run in release with row-4's why.
+  - Pre-existing and wrong today: emit_ball_cut_by_brick publishes a pole name nowhere near a pole. The ORBIT row moves to WIRE at P1, and rechart takes it next.
+  - PR 5798's FULL review is dispatched.

@@ -47,7 +47,7 @@ every op in both orders:
   op and order. The ball is one shell, so `apply_recuts` keeps no other
   shell and the turned shell is the rebuild itself. No
   `graft_solids_disjoint` call is made, so
-  `work/orbit/a-sphere-recut-grafts-its-rotated-shell-under-keys-no-record-carries.md`
+  `work/wire/a-sphere-recut-grafts-its-rotated-shell-under-keys-no-record-carries.md`
   is not reached here and is not this row's cause.
 - The re-chart turns the ball about its centre until its poles lie on
   the brick's axis, ±(0.2408, 0.9272, 0.2870). Each pole and meridian

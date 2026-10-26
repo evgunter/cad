@@ -20,3 +20,9 @@ unchanged. Rows dispatchable: 8, for 25 points.
 
 - 2026-10-26 — **Seam (QUAD):** measure door unit C (`quad/measure-c-no-default`) touches this program's ground. Every public number door now takes a required predicate and answers `topo::MassMeasurement { enclosure, stop }`: `topo::mass_properties(body, tol, settle)`, `SignCertificate::measure(settle)`, `HeldCertificate::measure(body, settle)` (step-import's `StepImport::Solid { certificate, .. }` replaces `enclosure`), and Python's `Body.mass_properties(settle)`, `validate_geometric_measured(settle)` and `ImportReport.measure(settle)` (`pncad.Settle`, `pncad.MassMeasurement`). `PropsError::QuadratureBudget`, `TargetUnreached`, `VolumeReading`, `refine_to_target`, `PropsCheck::Converged` and `QUAD_TARGET_LEN_FACTOR` are gone; an unmet resolution is a bracket with `stop` `Floor`/`Wall`, not a refusal. `ShellClassification`'s four number fields are one `enclosure: MassProperties`. Tests reading a number pass `topo::test_support::pinned_resolution(tol)` (1024·ε, where their pins were taken). (QUAD unit C lane)
 - 2026-10-25 — **Re-cut (refold approved in chat):** moved `the-lilys-stem-and-arch-walls-have-no-certificate-arm` to SECT, `delete-the-boolean-operand-edge-gate` to SPLICE by `git mv`, ids and bodies unchanged, each with a dated Moved note. SPLICE (`work/splice/`) is the new track for a body built by loft or sweep entering every boolean; SECT now carries the torus pairs it is built for.
+
+## 2026-10-26 — a row moved to WIRE (WIRE orchestrator)
+
+`a-sphere-recut-grafts-its-rotated-shell-under-keys-no-record-carries` moved to `work/wire/` by `git mv`, with its id unchanged, at P1. PR 5795's review found it misnames a published name (`emit_ball_cut_by_brick`'s pole). The fix reads naming through PR 5795's `Recharts` map, which is WIRE's lane.
+
+Signed (WIRE orchestrator).
