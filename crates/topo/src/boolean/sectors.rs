@@ -577,9 +577,11 @@ pub(super) fn orbit_corners<T: Decide>(
 /// sector walk. What stays here is this lane's
 /// adaptation of it: the boolean error type, whose every arm carries
 /// the [`Operand`] the shared walk has no notion of, and the cone's
-/// apex. All five wired arms — `Plane`, `Cylinder`, `Sphere`, `Torus`,
-/// `Cone` — are live on this side; kinds without one refuse typed
-/// (C12.1, per arm).
+/// apex. All six wired arms — `Plane`, `Cylinder`, `Sphere`, `Torus`,
+/// `Cone`, `Spline` — are live on this side; kinds without one refuse
+/// typed (C12.1, per arm), and a spline face refuses
+/// [`BooleanError::NormalAtSplineCrease`] at a vertex on a crease or a
+/// pole of its chart, where it has no one normal.
 ///
 /// **A sector based at a cone's apex refuses**
 /// ([`BooleanError::NormalAtConeApex`]). The walk mints the cone's
@@ -605,11 +607,25 @@ pub(super) fn sector_face<T: Decide>(
     he: HalfEdgeKey,
     band: Band,
 ) -> Result<(FaceKey, OutwardNormal<T>), BooleanError> {
-    let resolved = crate::sector_face::resolve(body, vertex, he).map_err(|e| match e {
+    let resolved = crate::sector_face::resolve(body, vertex, he, band).map_err(|e| match e {
         SectorFaceError::Unsupported { face, kind } => BooleanError::CurvedBooleanUnsupported {
             operand,
             face,
             kind,
+        },
+        SectorFaceError::Crease { face } => BooleanError::NormalAtSplineCrease {
+            operand,
+            face,
+            band,
+        },
+        // A spline face whose rows are not owed (C4's exemption) stores
+        // no chart image of the edge, which the arm reads the vertex at.
+        SectorFaceError::Unplaced { face } => BooleanError::CurvedBooleanUnsupported {
+            operand,
+            face,
+            kind: body
+                .face_surface_linked(face, proven(&body.faces, face, EntityId::Face))
+                .kind(),
         },
     })?;
     // Exhaustive on purpose, exactly as the splitting wrapper is: a
@@ -620,7 +636,8 @@ pub(super) fn sector_face<T: Decide>(
         SectorCarrier::Plane
         | SectorCarrier::Cylinder
         | SectorCarrier::Sphere
-        | SectorCarrier::Torus => {}
+        | SectorCarrier::Torus
+        | SectorCarrier::Spline(_) => {}
         SectorCarrier::Cone => {
             let geom::Surface::Cone { apex, axis, .. } = *body.face_surface_linked(
                 resolved.face,

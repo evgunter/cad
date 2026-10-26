@@ -2823,6 +2823,23 @@ pub enum BooleanError {
         /// The band the distance off the axis was classified against.
         band: Band,
     },
+    /// A vertex the sector walk reads sits within the band of a crease
+    /// or an irregular point of a spline face of `operand`: a line its
+    /// chart's normal is not continuous across (an interior knot run of
+    /// multiplicity at least the degree, a closed chart's seam), where
+    /// the face has a normal on each side and the sector's side of the
+    /// line is not read, or a point where `S_u × S_v` vanishes (a pole),
+    /// where it has none. The definite half: an in-band distance refuses
+    /// the same way, with no tolerance named.
+    NormalAtSplineCrease {
+        /// The operand the spline face belongs to.
+        operand: Operand,
+        /// The spline face.
+        face: FaceKey,
+        /// The band the vertex's distance from the crease was classified
+        /// against.
+        band: Band,
+    },
     /// A lane met an edge whose carrier is a spiric or a spline, and has
     /// no row for either kind; `site` names the lane. At a crossing lane
     /// the edge's endpoints' sides neither find its crossings (it can
@@ -4049,6 +4066,8 @@ pub enum BooleanErrorKind {
     CrossingAtConeApex,
     /// [`BooleanError::NormalAtConeApex`].
     NormalAtConeApex,
+    /// [`BooleanError::NormalAtSplineCrease`].
+    NormalAtSplineCrease,
     /// [`BooleanError::EdgeCarrierUnsupported`].
     EdgeCarrierUnsupported,
     /// [`BooleanError::SplineCrossingUnsettled`].
@@ -4334,6 +4353,7 @@ impl BooleanError {
             Self::CurvedPierceUnsupported { .. } => BooleanErrorKind::CurvedPierceUnsupported,
             Self::CrossingAtConeApex { .. } => BooleanErrorKind::CrossingAtConeApex,
             Self::NormalAtConeApex { .. } => BooleanErrorKind::NormalAtConeApex,
+            Self::NormalAtSplineCrease { .. } => BooleanErrorKind::NormalAtSplineCrease,
             Self::EdgeCarrierUnsupported { .. } => BooleanErrorKind::EdgeCarrierUnsupported,
             Self::SplineCrossingUnsettled { .. } => BooleanErrorKind::SplineCrossingUnsettled,
             Self::PointSplitCarrierUnsupported { .. } => {
@@ -4553,6 +4573,14 @@ impl core::fmt::Display for BooleanError {
                 "a corner of one part sits at the tip of a cone face of the {} operand, \
                  where the face has no direction to read the other part's side by. \
                  Recourse: move the parts so nothing meets the cone's tip",
+                operand_word(*operand),
+            ),
+            Self::NormalAtSplineCrease { operand, .. } => write!(
+                f,
+                "a corner of one part sits on a crease or a pinch of a curved face of \
+                 the {} operand, where the face has no single direction to read the \
+                 other part's side by. Recourse: move the parts so the corner lies \
+                 clear of the crease",
                 operand_word(*operand),
             ),
             Self::CurvedSectorSideUnsupported { verdict } => write!(
@@ -8933,6 +8961,11 @@ mod tests {
                 face,
                 band,
             },
+            BooleanError::NormalAtSplineCrease {
+                operand: Operand::B,
+                face,
+                band,
+            },
             BooleanError::EdgeCarrierUnsupported {
                 operand: Operand::B,
                 edge,
@@ -9288,6 +9321,7 @@ mod tests {
                 BooleanErrorKind::CurvedPierceUnsupported => "CurvedPierceUnsupported",
                 BooleanErrorKind::CrossingAtConeApex => "CrossingAtConeApex",
                 BooleanErrorKind::NormalAtConeApex => "NormalAtConeApex",
+                BooleanErrorKind::NormalAtSplineCrease => "NormalAtSplineCrease",
                 BooleanErrorKind::EdgeCarrierUnsupported => "EdgeCarrierUnsupported",
                 BooleanErrorKind::SplineCrossingUnsettled => "SplineCrossingUnsettled",
                 BooleanErrorKind::PointSplitCarrierUnsupported => "PointSplitCarrierUnsupported",

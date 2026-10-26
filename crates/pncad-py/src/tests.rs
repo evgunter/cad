@@ -4433,6 +4433,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "non_manifold_result",
             "non_maximal_faces",
             "normal_at_cone_apex",
+            "normal_at_spline_crease",
             "nurbs_extent_unsupported",
             "pairing_mismatch",
             "partner_along_face",

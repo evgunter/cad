@@ -73,12 +73,13 @@ use crate::validate::decide;
 /// implementation, called from here and from the boolean lane's sector
 /// walk. What stays here is this lane's adaptation of
 /// it, and only that: the split lane's error type, the planar flag
-/// `rules::apply_rule_a` branches on, and the `Sphere` refusal.
+/// `rules::apply_rule_a` branches on, and the `Sphere`, `Torus` and
+/// `Spline` refusals.
 ///
-/// **`Sphere` refuses here rather than there.** The shared walk has a
-/// wired sphere arm — the boolean lane executes it (M5 PR 9) — and
-/// this lane does not, so the refusal is typed here (C12.1, per arm)
-/// rather than left to the gate.
+/// **`Sphere` refuses here rather than there**, as `Torus` and `Spline`
+/// do. The shared walk has a wired arm for each — the boolean lane
+/// executes it — and this lane does not, so the refusal is typed here
+/// (C12.1, per arm) rather than left to the gate.
 ///
 /// It is worth being exact about WHY the arm is unreachable, because
 /// the obvious answer is wrong: it is not that the F5 carrier gate
@@ -105,11 +106,19 @@ pub(super) fn sector_face<T: Decide>(
     body: &Body<T>,
     vertex: VertexKey,
     he: HalfEdgeKey,
+    band: Band,
 ) -> Result<(FaceKey, OutwardNormal<T>, bool), SplitReduceError> {
-    let resolved = crate::sector_face::resolve(body, vertex, he).map_err(|e| match e {
+    let unsupported = |face| SplitReduceError::CurvedBooleanUnsupported {
+        face,
+        kind: body
+            .face_surface_linked(face, proven(&body.faces, face, EntityId::Face))
+            .kind(),
+    };
+    let resolved = crate::sector_face::resolve(body, vertex, he, band).map_err(|e| match e {
         SectorFaceError::Unsupported { face, kind } => {
             SplitReduceError::CurvedBooleanUnsupported { face, kind }
         }
+        SectorFaceError::Crease { face } | SectorFaceError::Unplaced { face } => unsupported(face),
     })?;
     match resolved.carrier {
         SectorCarrier::Plane => Ok((resolved.face, resolved.normal, true)),
@@ -123,6 +132,10 @@ pub(super) fn sector_face<T: Decide>(
         SectorCarrier::Torus => Err(SplitReduceError::CurvedBooleanUnsupported {
             face: resolved.face,
             kind: geom::SurfaceKind::Torus,
+        }),
+        SectorCarrier::Spline(kind) => Err(SplitReduceError::CurvedBooleanUnsupported {
+            face: resolved.face,
+            kind,
         }),
     }
 }
@@ -353,7 +366,7 @@ pub(super) fn classify_neighborhood_rays<T: Decide>(
         )
         .map_err(|fault| match fault {
             EntryFault::Walk(e) | EntryFault::Far(e) => e,
-            EntryFault::Undecided(diag) => match sector_face(body, vertex, he) {
+            EntryFault::Undecided(diag) => match sector_face(body, vertex, he, band) {
                 Ok((face, _, _)) => SplitReduceError::SliverSector {
                     vertex,
                     face,
@@ -380,7 +393,7 @@ pub(super) fn classify_neighborhood_rays<T: Decide>(
         // shared body implements.
         let next_he = orbit[(i + 1) % orbit.len()];
         let (_, dir_b, _) = chord(body, vertex, next_he)?;
-        let (face, n_face, _) = sector_face(body, vertex, he)?;
+        let (face, n_face, _) = sector_face(body, vertex, he, band)?;
         let wide = wide_entry(
             (vertex, face),
             (dir_a, dir_b),
@@ -448,7 +461,12 @@ mod tests {
         };
         let orbit_he = body.mate(first).unwrap();
         let vertex = body.get_half_edge(orbit_he).unwrap().start;
-        match sector_face(&body, vertex, orbit_he) {
+        match sector_face(
+            &body,
+            vertex,
+            orbit_he,
+            Band::linear(Tol::witness()).unwrap(),
+        ) {
             Err(SplitReduceError::CurvedBooleanUnsupported { face: f, kind }) => {
                 assert_eq!(f, face);
                 assert_eq!(kind, geom::SurfaceKind::Sphere);

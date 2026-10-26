@@ -6731,10 +6731,11 @@ mod wavy_loft {
     //!
     //! No body the kernel builds puts a face across such an edge yet: the
     //! boolean's sweep splits the corners where a face of the other
-    //! operand crosses them, and the union refuses one step on, at the
-    //! sector walk
-    //! ([`a_union_across_a_nurbs_edge_refuses_at_the_sector_walk`], which
-    //! reds the day the walk reads a spline face).
+    //! operand crosses them, the sector walk reads the spline walls
+    //! around each crossing vertex, and the union refuses one step on,
+    //! where a spline wall's trim cannot place a pierce point
+    //! ([`a_union_across_a_nurbs_edge_refuses_at_a_spline_walls_held_pierce`],
+    //! which reds the day that site reads one).
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
     use crate::edit::DocEdit;
@@ -6868,17 +6869,19 @@ mod wavy_loft {
     /// one sense (asserted on the carriers). The boolean's sweep reads
     /// each corner against the face through the curve × face table's
     /// ring-composite arm and splits it at all three (`sweep`'s
-    /// `a_face_across_a_wavy_corner` pins the splits), and the union
-    /// refuses one step on: the sector walk around a crossing vertex has
-    /// no arm for the spline walls it lies between,
-    /// `CurvedBooleanUnsupported` on a spline face of the loft.
+    /// `a_face_across_a_wavy_corner` pins the splits), the sector walk
+    /// reads the spline walls each crossing vertex lies between
+    /// (`topo::sector_face`'s spline arm), and the union refuses one step
+    /// on: `vtxfac::faces_holding_pierce` asks a spline wall of the loft
+    /// whether it holds a pierce point of the face `x = 1`, and the
+    /// wall's trim cannot say (`HeldPierceUnbuilt`, `placed: false`).
     ///
-    /// It reds the day the sector walk reads a spline face. The
+    /// It reds the day that site places a point in a spline face. The
     /// end-to-end row, the crossings named through the boolean (the
     /// first and third, of one sense, tie), is
-    /// `work/splice/the-sector-walk-reads-no-nurbs-face-at-a-crossing-vertex.md`'s.
+    /// `work/splice/a-spline-wall-cannot-say-whether-it-holds-a-pierce-point.md`'s.
     #[test]
-    fn a_union_across_a_nurbs_edge_refuses_at_the_sector_walk() {
+    fn a_union_across_a_nurbs_edge_refuses_at_a_spline_walls_held_pierce() {
         let (doc, loft) = wavy_doc(0.3);
         let (doc, profile) = ins(
             doc,
@@ -6942,42 +6945,47 @@ mod wavy_loft {
         }
         let Some(crate::eval::NodeError {
             kind:
-                crate::eval::NodeErrorKind::Boolean(topo::BooleanError::CurvedBooleanUnsupported {
+                crate::eval::NodeErrorKind::Boolean(topo::BooleanError::HeldPierceUnbuilt {
                     operand: topo::Operand::A,
                     face,
+                    pierced,
                     kind: geom::SurfaceKind::Nurbs,
+                    pierced_kind: geom::SurfaceKind::Plane,
+                    placed: false,
                 }),
             ..
         }) = ev.node_error(union)
         else {
             panic!(
-                "the union refuses at the sector walk on a spline face of the loft, got {:?}",
+                "the union refuses where a spline wall of the loft cannot place a pierce \
+                 point of the box, got {:?}",
                 ev.node_error(union).map(|e| &e.kind)
             );
         };
         // The recipe mints both bodies fresh, so their keys collide and
-        // `operand` is what states the owner; read in the loft, the key
-        // is a spline wall bounding one of the corners `x = 1` crosses,
-        // which is where the crossing vertices lie. The refusal names no
-        // site, so the row cannot tell the sector walk from another site
-        // raising the same variant on that wall.
+        // `operand` is what states the owner: `face` is read in the loft,
+        // `pierced` in the box.
         assert!(
             matches!(
                 body.get_face(*face)
                     .and_then(|f| body.get_surface(f.surface)),
                 Some(geom::Surface::Nurbs(_))
             ),
-            "the refusal names a spline face of the loft"
+            "the refusal names a spline wall of the loft"
         );
-        let walls: Vec<_> = near
-            .iter()
-            .filter_map(|&e| body.get_edge(e))
-            .flat_map(|e| [e.he_plus, e.he_minus])
-            .filter_map(|he| body.face_of_half_edge(he))
-            .collect();
+        let block = ev
+            .value(copy)
+            .expect("the box evaluates")
+            .payload
+            .output_body(0)
+            .expect("the placed box");
         assert!(
-            walls.contains(face),
-            "the refusal names a wall on a crossed corner: {face:?} of {walls:?}"
+            matches!(
+                block.get_face(*pierced).and_then(|f| block.get_surface(f.surface)),
+                Some(geom::Surface::Plane { origin, normal, .. })
+                    if (origin.x - 1.0).abs() < 1e-9 && normal.x.abs() > 1.0 - 1e-9
+            ),
+            "the pierced face is the box's face x = 1"
         );
     }
 }
