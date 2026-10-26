@@ -1,7 +1,7 @@
 //! **Certification's winding check is the turn rule** (`geom_core::period`):
 //! an ellipse's extent is a whole turn only where the sup rate over the
-//! turn's defect reads it within the band, and over one only where the
-//! speed floor reads it definitely past.
+//! turn's defect reads it within the band, and short of one or over one
+//! only where the inf rate over the defect reads it definitely past.
 //!
 //! The fixture is the plane `z = 0` cutting a unit cylinder leaning
 //! `acos(1/ratio)` in xz: the ellipse `a = ratio`, `b = 1` about the
@@ -100,9 +100,10 @@ fn winding_escalation(
 /// certify** (`certify-admits-an-ellipse-wound-past-its-period-on-the-slow-rate`).
 /// At ε = 1e-9 the doubled stretch, centred at `θ = π/2` where the edge runs
 /// at speed 20, is about `1.8e-8` m long, definitely past the band; read at
-/// the speed floor `b = 1` it is `0.9e-9`, within it. The two readings
-/// straddle the band, so the winding escalates on its straddle row instead
-/// of certifying a doubled stretch as one that is not there.
+/// the speed floor `b = 1` it is `0.9e-9`, within it. The inf over the
+/// stretch itself is within `20·0.9e-9` of the speed at its middle, so it
+/// reads the stretch definitely past the band, and the edge is refused as
+/// over a turn.
 #[test]
 fn an_ellipse_wound_past_its_period_on_the_fast_side_does_not_certify() {
     let band = Band::new(1e-9, 1e-8).unwrap();
@@ -110,16 +111,11 @@ fn an_ellipse_wound_past_its_period_on_the_fast_side_does_not_certify() {
     let over = 0.9e-9;
     let t0 = HALF_PI - 0.5 * over;
     let got = fixture.certify(t0, t0 + TAU + over, band);
-    let Some(cause) = winding_escalation(&got) else {
-        panic!(
-            "the over-wound edge certifies or refuses otherwise: {:?}",
-            got.map(|_| "certified")
-        );
-    };
     assert_eq!(
-        cause.predicate,
-        Some("interval_span_winding_straddle"),
-        "the escalation is the straddle of the two readings: {cause:?}"
+        new_winding(&got),
+        (Winding::Exceeded, None),
+        "the over-wound edge is refused as over a turn: {:?}",
+        got.map(|_| "certified")
     );
 }
 
@@ -173,12 +169,24 @@ fn new_winding(
 /// at its fast and its slow side; and a certified edge keeps the turn it
 /// reached.
 ///
-/// **The expected deltas**, each listed: on the ellipse's fast side, where
-/// the speed floor reads `Zero` and the sup over the turn's defect reads
-/// the defect definitely past the band, or in it, the edge certified and
-/// now escalates — over-wound (the rider) and short alike, since neither
-/// bound settles whether the extent is a whole turn or short of one. No
-/// case moves between certified and over; the circle does not move.
+/// **The expected deltas**, each listed, all on the ellipse's fast side,
+/// where the speed floor `1` reads the defect sixteen times short of its
+/// length and the inf over the defect reads it at about its length:
+/// - over by `0.9·ε` of the floor's length: the floor read it `Zero` and
+///   certified; the inf over the defect reads its `14.4·ε` definitely past
+///   the band, so the edge is refused as over a turn (the rider);
+/// - `3·ε` of the floor's length and `20·ε` of the sup's, either way: the
+///   floor read it in the band and escalated; the inf over the defect
+///   reads it definitely past, so the edge certifies short of a turn or is
+///   refused as over one;
+/// - `0.5·ε` of the floor's length and `3·ε` of the sup's, either way: the
+///   floor read it `Zero` and certified; the defect, `8·ε` and `3·ε` long,
+///   is in the band at either bound over it, so the edge escalates.
+///
+/// Short by `0.9·ε` of the floor's length does not move: it certified
+/// whole at the floor, and certifies short now.
+///
+/// The slow side and the circle do not move.
 #[test]
 fn certification_agrees_with_the_old_winding_check() {
     let band = Band::linear(geom_core::Tol::witness()).unwrap();
@@ -203,14 +211,18 @@ fn certification_agrees_with_the_old_winding_check() {
         ("ellipse fast", &certify_ellipse, HALF_PI, 1.0, 16.0),
         ("ellipse slow", &certify_ellipse, 0.0, 1.0, 1.0),
     ];
-    let moved = (Winding::Certified, Winding::Escalated);
+    use Winding::{Certified, Escalated, Exceeded};
+    // (case, the old winding, the new)
     let deltas = [
-        ("ellipse fast", "inf", 0.5, true),
-        ("ellipse fast", "inf", 0.5, false),
-        ("ellipse fast", "inf", 0.9, true),
-        ("ellipse fast", "inf", 0.9, false),
-        ("ellipse fast", "sup", 3.0, true),
-        ("ellipse fast", "sup", 3.0, false),
+        (("ellipse fast", "inf", 0.5, true), (Certified, Escalated)),
+        (("ellipse fast", "inf", 0.5, false), (Certified, Escalated)),
+        (("ellipse fast", "inf", 0.9, true), (Certified, Exceeded)),
+        (("ellipse fast", "inf", 3.0, true), (Escalated, Exceeded)),
+        (("ellipse fast", "inf", 3.0, false), (Escalated, Certified)),
+        (("ellipse fast", "sup", 3.0, true), (Certified, Escalated)),
+        (("ellipse fast", "sup", 3.0, false), (Certified, Escalated)),
+        (("ellipse fast", "sup", 20.0, true), (Escalated, Exceeded)),
+        (("ellipse fast", "sup", 20.0, false), (Escalated, Certified)),
     ];
     let mut seen = 0;
     for (name, door, centre, floor, sup) in fixtures {
@@ -241,7 +253,7 @@ fn certification_agrees_with_the_old_winding_check() {
                     let old = old_winding(floor, span, band);
                     let (new, turn) = new_winding(&door(span));
                     let case = (name, rate_name, k, over);
-                    if deltas.contains(&case) {
+                    if let Some(&(_, moved)) = deltas.iter().find(|(c, _)| *c == case) {
                         seen += 1;
                         assert_eq!((old, new), moved, "{case:?}: the listed delta");
                     } else {
