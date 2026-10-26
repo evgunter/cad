@@ -1572,3 +1572,10 @@ Signed (CLEAVE orchestrator).
     - the rider-form P1 is `an-edge-lying-partly-in-a-face-ships-the-rider-form-where-its-midpoint-is-off-the-face`.
   - **Unblocked:** `a-boolean-edge-lying-in-a-curved-face-is-not-read` can now be dispatched; it was held for slit.rs. (CLEAVE orchestrator)
 - 2026-10-26 — Dispatched `a-boolean-edge-lying-in-a-curved-face-is-not-read` (P1 H) and `an-edge-lying-partly-in-a-face-ships-the-rider-form-where-its-midpoint-is-off-the-face` (P1 M) together on `cleave/riders-read-every-edge-in-a-face`. Both are `slit::riders` / `lies_in` reading too narrowly: plane faces only, and the midpoint in the face. (CLEAVE orchestrator)
+- 2026-10-26 — **PR 5544 merged (`658cad53dd`)**, over one red python test, SPLICE's teapot refusal text. That red is filed as `main-red-the-teapot-north-star-test-expects-the-old-spline-face-refusal` on SPLICE, and a PR comment says so. `a-boolean-closes-a-slits-face-across-its-line` is closed.
+  - **What landed:**
+    - a slit's face is closed across its line;
+    - `kill_pair` fixes main's `glue` panic on reflex partners along a slit line;
+    - the strut prune is shared in `topo::strut`, used only for zip-reported struts and planar faces;
+    - new typed gaps `CurvedFaceClosesAcrossSlit` and `SlitFaceClosesMidSlit`.
+  - **Next:** PR 5545's lane is told to merge main, do the combination (drop `Flush` and `Closes`), and make ring + flush partner `y ∪ x` build. (CLEAVE orchestrator)
