@@ -785,3 +785,171 @@ mod review_rows {
         );
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod review_rows_b {
+    use super::*;
+    use geom_core::spline::KnotVector;
+    use geom_core::{Tol, Vec3};
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
+
+    /// Two `x`-ruled rows of `(y, z)` profile points, degree 1 in `u`.
+    fn ruled(kv: KnotVector, profile: &[(f64, f64)]) -> Surface<f64> {
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let control = [-1.0, 1.0]
+            .into_iter()
+            .flat_map(|s| profile.iter().map(move |&(y, z)| Point3::new(s, y, z)))
+            .collect();
+        let n = 2 * profile.len();
+        Surface::Nurbs(std::sync::Arc::new(
+            NurbsSurface::new(ku, kv, control, vec![1.0; n]).unwrap(),
+        ))
+    }
+
+    fn plane(origin: Point3<f64>, normal: Vec3<f64>) -> Surface<f64> {
+        Surface::Plane {
+            origin,
+            normal: normal.normalize(),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        }
+    }
+
+    fn side(
+        dep: &Surface<f64>,
+        against: &Surface<f64>,
+        p: Point3<f64>,
+        t: Vec3<f64>,
+    ) -> Result<FaceSide, SideEscalation> {
+        dihedral_side(
+            SideFace {
+                surface: dep,
+                sense: true,
+            },
+            SideFace {
+                surface: against,
+                sense: true,
+            },
+            p,
+            EdgeWalk::of_half(t, true),
+            1.0,
+            Some(crate::NurbsLane::certified()),
+            band(),
+        )
+        .map(|(s, _)| s)
+    }
+
+    const X: Vec3<f64> = Vec3::new(1.0, 0.0, 0.0);
+
+    /// Claim 1: a C⁰ line need not be a knot run of multiplicity ≥ degree.
+    /// Degree 2 in `v`, a SIMPLE knot at `½`, the middle two control rows
+    /// coincident: the chart is the same fold as `review_rows::creased`
+    /// (straight halves `(s, −a, a)` and `(s, a, a)`), but `crease_runs`
+    /// lists nothing, so a foot within the band of the fold on the upper
+    /// half is read for the lower face with the upper half's normal.
+    #[test]
+    fn a_kink_from_coincident_control_rows_escalates_like_a_knot_crease() {
+        let kinked = ruled(
+            KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).unwrap(),
+            &[(-1.0, 1.0), (0.0, 0.0), (0.0, 0.0), (1.0, 1.0)],
+        );
+        let knot = ruled(
+            KnotVector::clamped(vec![0.0, 0.0, 0.5, 1.0, 1.0], 1).unwrap(),
+            &[(-1.0, 1.0), (0.0, 0.0), (1.0, 1.0)],
+        );
+        let floor = plane(Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
+        // On the upper half, a tenth of the band from the fold: within
+        // the band of the lower face too, so a point of its rim edge.
+        let a = band().zero() / 10.0;
+        let p = Point3::new(0.3, a, a);
+        // The lower face, walking −x: rising off the floor, so Outside
+        // if it is read at all.
+        let reference = side(&knot, &floor, p, -X);
+        let got = side(&kinked, &floor, p, -X);
+        assert!(
+            matches!(reference, Err(SideEscalation::Crease { .. })),
+            "the knot-run fold read {reference:?}"
+        );
+        assert!(
+            matches!(
+                got,
+                Err(SideEscalation::Crease { .. }) | Ok(FaceSide::Outside)
+            ),
+            "the coincident-row fold read {got:?} for the lower face"
+        );
+    }
+
+    /// The same coincident-row fold: a point ON the upper half, 1.4 mm
+    /// from the fold, is refused as decided off the face, because
+    /// `NurbsSurface::project` accepts the zero-speed knot as a foot.
+    #[test]
+    fn a_point_on_a_kinked_chart_is_not_refused_off_it() {
+        let kinked = ruled(
+            KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).unwrap(),
+            &[(-1.0, 1.0), (0.0, 0.0), (0.0, 0.0), (1.0, 1.0)],
+        );
+        let floor = plane(Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
+        let on = Point3::new(0.3, 1e-3, 1e-3);
+        let got = side(&kinked, &floor, on, X);
+        assert!(
+            !matches!(got, Err(SideEscalation::OffFace { .. })),
+            "a point on the chart read {got:?}"
+        );
+    }
+
+    /// Claim 2: the residual is not bounded by a shallow fold. A hairpin
+    /// carrier, degree 1 in `v` with its C⁰ knot at `½`: the half `v < ½`
+    /// is the floor strip `y ∈ [0, 1]`, the half `v > ½` folds back over it
+    /// at a rise of `h` over the unit run, `h` far inside the band. A face
+    /// on the lower half, its edge the line `y = 3/7`, at a point on the
+    /// upper half `3h/7` off it (inside the band): the foot is the upper
+    /// half's, 0.43 m from the crease, and its normal is the lower half's reversed.
+    #[test]
+    fn a_hairpin_carrier_reads_the_face_half_not_the_overlying_half() {
+        let h = band().zero() / 100.0;
+        let hairpin = ruled(
+            KnotVector::clamped(vec![0.0, 0.0, 0.5, 1.0, 1.0], 1).unwrap(),
+            &[(1.0, 0.0), (0.0, 0.0), (1.0, h)],
+        );
+        let flat = ruled(
+            KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+            &[(1.0, 0.0), (0.0, 0.0)],
+        );
+        // `(1/7, 3/7)` is a seed of `NurbsSurface::project`'s sweep on
+        // both halves (8 per span), so the tie is broken by the distance.
+        let y = 3.0 / 7.0;
+        let cut = plane(Point3::new(0.0, y, 0.0), Vec3::new(0.0, 1.0, 1.0));
+        let p = Point3::new(1.0 / 7.0, y, h * y);
+        let reference = side(&flat, &cut, p, -X);
+        let got = side(&hairpin, &cut, p, -X);
+        assert!(reference.is_ok(), "the lone half read {reference:?}");
+        assert!(
+            got == reference || got.is_err(),
+            "the hairpin read {got:?}, its face half alone {reference:?}"
+        );
+    }
+
+    /// Claim 1, last bullet: a closed chart whose seam is tangent
+    /// continuous has one normal there, so a foot on it should read it.
+    /// Degree 2 in `v`, closed with the end tangent along the start's.
+    #[test]
+    fn a_c1_seam_reads_its_side() {
+        let loop_ = ruled(
+            KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.25, 0.5, 0.75, 1.0, 1.0, 1.0], 2).unwrap(),
+            &[
+                (0.0, 0.0),
+                (1.0, 0.0),
+                (1.0, 1.0),
+                (-1.0, 1.0),
+                (-1.0, 0.0),
+                (0.0, 0.0),
+            ],
+        );
+        let cut = plane(Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 1.0));
+        let got = side(&loop_, &cut, Point3::new(0.3, 0.0, 0.0), X);
+        assert!(got.is_ok(), "the C1 seam read {got:?}");
+    }
+}
