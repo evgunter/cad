@@ -454,7 +454,7 @@ impl PickHit {
     /// answers, which is always on the triangle. The parameter is the
     /// caller's own ray's: a hit carried across a transform converts
     /// all three or none, which is the viewer's own row
-    /// (`work/fit/a-moved-copys-pick-span-crosses-its-frame-unconverted.md`)
+    /// (`work/vgeom/a-moved-copys-pick-span-crosses-its-frame-unconverted.md`)
     /// where a display frame moves an instance.
     #[getter]
     fn t_lo(&self) -> f64 {

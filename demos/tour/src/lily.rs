@@ -2316,15 +2316,14 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    so the mate is exact rather than tolerated, and the union
     //    decides it on its zero.
     //
-    //    It still refuses, and the refusal is the interesting part: it
-    //    names a CURVED EDGE, not the contact. Both operands are
-    //    skinned bodies whose wall-wall seams are NURBS iso-curves,
-    //    and the boolean lane is planar-complete with curved work
-    //    wired per germ class. The conformal join is C7
-    //    (CONTACT-DESIGN, ratified #178) and is M8's one row in the
-    //    modeling-verb register, with this rebuild named as its
-    //    consumer — so this wall is not a gap in the plan, it is the
-    //    plan, probed.
+    //    It still refuses, on the contact: the sweep reads the blade's
+    //    base rim, a circle on the shared section, against one of the
+    //    sheath's NURBS walls rising from that same rim, and the
+    //    Boolean has no crossing layer for a spline face. No curved
+    //    section is asked for; what is missing is reading an edge that
+    //    bounds the mate against a spline wall beside it, and the flush
+    //    reading along the two bodies' NURBS edges behind that
+    //    (`work/splice/a-unions-flush-reading-cannot-follow-a-nurbs-carrier`).
     let sheath = {
         let base_section = leaf_a_plan().base;
         // Runs back out of the leaf's base along -dir, so its bottom
@@ -2354,15 +2353,16 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         8,
         "graft the leaf's sheath onto its blade at their shared section",
         crate::booleans::try_union(leaf_a, &sheath, tol),
-        // The KIND is the claim, as in wall 1: a curved EDGE stops
-        // this, not a curved face and not the planar contact. If this
-        // ever starts refusing on the contact instead, the sentence
-        // above is wrong and must be re-derived before it is believed.
+        // The KIND is the claim, as in wall 1: a NURBS wall of the
+        // sheath, operand B, met at the contact. If this ever refuses
+        // elsewhere, the sentence above is wrong and must be re-derived
+        // before it is believed.
         |e| {
             matches!(
                 e,
-                BooleanError::CurvedEdgeUnsupported {
-                    operand: Operand::A,
+                BooleanError::CurvedBooleanUnsupported {
+                    operand: Operand::B,
+                    kind: pncad::prelude::SurfaceKind::Nurbs,
                     ..
                 }
             )

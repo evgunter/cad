@@ -134,10 +134,11 @@ pub(super) fn sector_face<T: Decide>(
 /// - **Line** carriers: the chord `p(final) − p(base)` — the M3 path,
 ///   bit-identical (the chord IS the direction, and its length the
 ///   extent).
-/// - **Conic** carriers: the departure [`geom_brep::ConicDeparture`]
-///   reads, the outgoing unit tangent scaled by
-///   [`geom_brep::edge_extent`] (the chord collapses on near-closed
-///   arcs), with the edge's [`geom_brep::ConicBend`] there.
+/// - **Curved** carriers (a conic, a spiric or a spline): the departure
+///   [`geom_brep::ConicDeparture`] reads, the outgoing unit tangent
+///   scaled by [`geom_brep::edge_extent`] (the chord collapses on
+///   near-closed arcs, and is not a spline's direction), with the
+///   edge's [`geom_brep::ConicBend`] there.
 #[allow(clippy::type_complexity)] // (far vertex, scaled dir, conic bend) — one internal tuple
 pub(super) fn chord<T: Decide>(
     body: &Body<T>,
@@ -162,12 +163,11 @@ pub(super) fn chord<T: Decide>(
         },
     )?;
     match curve.carrier() {
-        geom::Curve3::Line { .. } | geom::Curve3::Nurbs(_) => {
-            Ok((final_vertex, p_final - p_base, None))
-        }
+        geom::Curve3::Line { .. } => Ok((final_vertex, p_final - p_base, None)),
         geom::Curve3::Circle { .. }
         | geom::Curve3::Ellipse { .. }
-        | geom::Curve3::Spiric { .. } => {
+        | geom::Curve3::Spiric { .. }
+        | geom::Curve3::Nurbs(_) => {
             let departure =
                 geom_brep::ConicDeparture::of(curve, he == edge.he_plus, p_final.distance(p_base));
             Ok((final_vertex, departure.dir, Some(departure.bend)))
@@ -455,5 +455,34 @@ mod tests {
             }
             other => panic!("expected the typed sphere refusal, got {other:?}"),
         }
+    }
+}
+
+/// **A spline leaves a vertex along its tangent, not its chord**: the
+/// boolean sweep rows' Bézier sheet, whose arc leaves `(0, 0, 0)` along
+/// `(1, 2, 0)` while its chord runs along `x̂`
+/// (`boolean::sectors::spline_departure_rows`, the boolean walk's twin).
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod spline_departure_rows {
+    use crate::boolean::reduce::planar_lane_carrier_rows::arc_sheet;
+    use geom_core::Vec3;
+
+    #[test]
+    fn the_split_walk_reads_a_splines_tangent() {
+        let (body, edge) = arc_sheet(1.0, 1.0);
+        let he = body.get_edge(edge).unwrap().he_plus;
+        let vertex = body.get_half_edge(he).unwrap().start;
+        let (_, dir, bend) = super::chord(&body, vertex, he).unwrap();
+        let tangent = Vec3::new(1.0, 2.0, 0.0).normalize();
+        assert!(
+            (dir.normalize() - tangent).norm() < 1e-12,
+            "the arc leaves along its tangent (1, 2, 0)/√5, got {dir:?}"
+        );
+        assert!(
+            (dir.norm() - 2.0).abs() < 1e-12,
+            "levered at its extent, the chord's length 2: {dir:?}"
+        );
+        assert!(bend.is_some(), "a curved edge carries its bend");
     }
 }

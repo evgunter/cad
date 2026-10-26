@@ -64,7 +64,7 @@
 //! overrun arm (c) reads the far band's whole sliver on the near band's
 //! support, a bound larger than the overrun, so a chamfer's also
 //! refuses some features the overrun clears
-//! (`work/band/a-turns-overrun-meters-the-whole-cut-off-sliver.md`).
+//! (`work/bandmeter/a-turns-overrun-meters-the-whole-cut-off-sliver.md`).
 //! A face at another link's end bounds nothing here and is metered like
 //! any other; a circular link's window has no ends. A support of
 //! another chain of the request is metered by what survives that
@@ -745,7 +745,7 @@ struct Reach<T: Real> {
     /// extent, and on the trimline's side of it where the face comes back
     /// across — that is the support's strip where [`screened`] reads
     /// no other vertex of the face there, a reading of vertices and not
-    /// edges (`work/band/the-strip-screen-reads-a-supports-vertices-not-its-edges.md`); for a
+    /// edges (`work/bandreach/the-strip-screen-reads-a-supports-vertices-not-its-edges.md`); for a
     /// circular link, the disk of that chord about the edge in the
     /// meridian sheet; for a corner patch, its bounds but the supports'
     /// sides.
@@ -906,7 +906,7 @@ fn half_space<T: Decide + Bounds>(o: Point3<T>, n: Vec3<T>, inside: Point3<T>) -
 /// the request's possibly inside it. That is a reading of the face's
 /// vertices, not its edges: a curved edge can cross `region` with both
 /// its ends outside
-/// (`work/band/the-strip-screen-reads-a-supports-vertices-not-its-edges.md`).
+/// (`work/bandreach/the-strip-screen-reads-a-supports-vertices-not-its-edges.md`).
 #[must_use = "the vacancy decides whether a straight strip keeps both sides"]
 fn screened<T: Decide + Bounds>(
     body: &Body<T>,

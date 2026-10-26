@@ -42,7 +42,9 @@
 //! designed here: overlap iff some bound of one lies strictly within
 //! the other, or the two sectors' bounds are pairwise parallel (the
 //! identical / identical-reversed region cases); touch-only sharing of
-//! a single bound is NOT overlap.
+//! a single bound is NOT overlap. Where the shared bound is a conic, the
+//! two can overlap one order down, in a crescent from the vertex, which
+//! a union of two plane faces refuses ([`crescent_refusal`]).
 
 #[cfg(test)]
 use geom_brep::enters_material;
@@ -76,11 +78,12 @@ pub(super) enum Reach<T: geom_core::Real> {
         /// The edge's other end.
         far: Point3<T>,
     },
-    /// A fitted (NURBS) edge: its end-to-end chord, levered at the
-    /// chord's length.
+    /// A probe direction with no edge behind it, levered at a stated
+    /// arm (`vtxfac`'s interior probes).
     Extent(T),
-    /// A conic edge: its departure tangent at the base vertex, levered
-    /// at the edge's own extent, and how it bends off that tangent
+    /// A curved edge — a conic, a spiric or a spline: its departure
+    /// tangent at the base vertex, levered at the edge's own extent,
+    /// and how it bends off that tangent
     /// ([`ConicBend`]), which [`pierce_side`] reads where the tangent lies in
     /// a plane face.
     Conic {
@@ -179,6 +182,18 @@ impl FaceShape {
             geom::SurfaceKind::Plane => Self::Plane,
             _ => Self::Curved,
         }
+    }
+
+    /// The shape of `face` of `body`. A face the classification reached
+    /// has a carrier, so one without is the invariant `what` names.
+    pub(super) fn of_face<T: geom_core::Real>(
+        body: &Body<T>,
+        face: FaceKey,
+        what: &'static str,
+    ) -> Result<Self, BooleanError> {
+        crate::readback::face_carrier_kind(body, face)
+            .map(Self::of_kind)
+            .map_err(|_| BooleanError::ClassificationInvariant { what })
     }
 }
 
@@ -490,11 +505,10 @@ pub(super) fn orbit_corners<T: Decide>(
         );
     }
     // The outgoing direction of an orbit half-edge, scaled to the
-    // edge's honest extent — the M3 chord for `Line` carriers
-    // (bit-identical), the carrier's outgoing TANGENT at the base
-    // vertex scaled by `edge_extent` for conic carriers (M5 PR 9: the
-    // ON-set machinery consumes curved carrier tangents instead of
-    // assuming straight edges — the splitting lane's C12.2 idiom).
+    // edge's honest extent: the chord for a `Line` carrier, the
+    // carrier's outgoing tangent at the base vertex scaled by
+    // `edge_extent` for every curved one, a spline's included (its
+    // chord is not where it leaves).
     let chord = move |he: HalfEdgeKey| -> (Vec3<T>, Reach<T>) {
         let end = body.proven_half_edge_end(he);
         let p_base = body.resolve_vertex_point(vertex, Proven);
@@ -528,13 +542,10 @@ pub(super) fn orbit_corners<T: Decide>(
                     far: p_end,
                 },
             ),
-            geom::Curve3::Nurbs(_) => {
-                let d = p_end - p_base;
-                (d, Reach::Extent(d.norm()))
-            }
             geom::Curve3::Circle { .. }
             | geom::Curve3::Ellipse { .. }
-            | geom::Curve3::Spiric { .. } => {
+            | geom::Curve3::Spiric { .. }
+            | geom::Curve3::Nurbs(_) => {
                 let ConicDeparture { dir, extent, bend } =
                     ConicDeparture::of(curve, he == edge.he_plus, p_end.distance(p_base));
                 (dir, Reach::Conic { extent, bend })
@@ -679,16 +690,13 @@ pub(super) fn NO_CURVATURE<T: Decide>() -> T {
 ///   within the band of the plane. A direction levered at the SHORTER
 ///   chord of the sector would read Zero while a long edge's far end
 ///   stood thousands of bands off.
-/// - [`Reach::Conic`] (a conic edge): the departure tangent levered at
+/// - [`Reach::Conic`] (a curved edge): the departure tangent levered at
 ///   the edge's own extent. A definite sign is exact (the sign of
 ///   `t̂·n̂`). A Zero is a first-order tangency, and reads `On` here:
 ///   the sector passes that call this key their coincidence and
 ///   tangent machinery on first-order ties. The vertex-on-face pass
 ///   reads it one order down ([`pierce_side`], [`conic_side`]).
-/// - [`Reach::Extent`] (a fitted edge): the end-to-end chord levered at
-///   its length, so a Zero puts the far end within the band of the
-///   plane; the chord is a secant, and where the edge goes between its
-///   ends is not read here.
+/// - [`Reach::Extent`] (a probe): the direction levered at its arm.
 /// - [`Reach::Bisector`]: a subdivision direction has no point behind
 ///   it, so it is levered at its sector's arm. Its Zero is not read as
 ///   a verdict where it could decide anything: a bisector's code only
@@ -1548,7 +1556,10 @@ fn one_segment<T: Decide>(
             _ => {
                 return Err(BooleanError::GermEdgeCarrierUnsupported {
                     operand: side.operand,
-                    edge: e.edge,
+                    edge: side
+                        .body
+                        .split_root(e.edge, |_| false)
+                        .map_err(BooleanError::SplitLineage)?,
                 });
             }
         }
@@ -1832,6 +1843,140 @@ fn sector_overlap<T: Decide>(
     Ok(straight || crossed)
 }
 
+/// **A crescent the union cannot build.** Two plane faces, one of each
+/// operand, lie on each other with opposed normals at a vertex pair,
+/// and their sectors there share one bound direction from opposite
+/// sides of it: at first order they only touch, so [`pair_search`]
+/// records them as `touching`, while one order down they overlap
+/// ([`crescent`]). The union glues the two faces over that crescent, a
+/// region of the plane narrowing to the vertex between two curves
+/// tangent there. Every germ the sector passes produce runs along a
+/// bound or a face–face intersection direction of a pair they record,
+/// and a region of zero angle at the vertex has neither, so the section
+/// cannot reach the crescent and the union would keep both faces whole.
+/// The intersection keeps neither face there and each difference one
+/// face whole, so they build, and the reading runs under union alone:
+/// its own decisions refuse no op that builds.
+pub(super) fn crescent_refusal<T: Decide>(
+    bodies: [&Body<T>; 2],
+    sectors: [&[BoolSector<T>]; 2],
+    touching: &[(usize, usize)],
+    band: Band,
+) -> Result<(), BooleanError> {
+    let what = "a sector's face has no carrier";
+    for &(i, j) in touching {
+        let (sa, sb) = (&sectors[0][i], &sectors[1][j]);
+        if FaceShape::of_face(bodies[0], sa.face, what)? != FaceShape::Plane
+            || FaceShape::of_face(bodies[1], sb.face, what)? != FaceShape::Plane
+        {
+            continue;
+        }
+        let arm = sa.arm.min(sb.arm);
+        if !direction_sense(sa.normal.vec(), sb.normal.vec(), arm, band)? && crescent(sa, sb, band)?
+        {
+            return Err(BooleanError::TangentCrescentUnsupported {
+                a_face: sa.face,
+                b_face: sb.face,
+            });
+        }
+    }
+    Ok(())
+}
+
+/// A bound's curvature vector at the base vertex, where the sector
+/// reads one, with the bound's reach: a conic's, and a line edge's zero.
+fn bound_bend<T: Decide>(reach: Reach<T>) -> Option<(Vec3<T>, T)> {
+    match reach {
+        Reach::Conic { extent, bend } => Some((bend.curvature, extent)),
+        Reach::Chord { .. } => Some((Vec3::new(T::zero(), T::zero(), T::zero()), reach.length())),
+        Reach::Extent(_) | Reach::Bisector(_) => None,
+    }
+}
+
+/// **Whether two coplanar sectors that share one bound direction, from
+/// opposite sides of it, overlap past it one order down**: the crescent
+/// between two curves tangent at the vertex. Let `d̂` be the shared
+/// direction and `û` the unit in-plane direction square to it into `a`.
+/// At arc length `s` along `d̂`, `a`'s bound stands `κ_a·û·s²/2 + O(s³)`
+/// off the tangent line toward `û`, with `a` on the `û` side of it, and
+/// `b`'s bound `κ_b·û·s²/2 + O(s³)`, with `b` on the other side; so the
+/// two overlap from the vertex iff `(κ_b − κ_a)·û > 0`. A line edge
+/// bends by zero, so two line edges read none; a fitted edge or a
+/// bisector reads no bend, and a pair holding one reads no crescent.
+/// Equal bends (one circle bounding both) read none.
+///
+/// The verdict is the second-order term's sign at the vertex, read off
+/// the two carriers' point curvatures, which is exact as a claim that
+/// the crescent exists: near enough the vertex that term dominates
+/// whatever the carriers do further out. The size it is decided at,
+/// the term at the shorter bound's reach with its own ½, answers only
+/// whether the band resolves that sign there, which is why it is the
+/// leading term and not a bound: `read_side`'s sagitta drops the ½
+/// because it needs an upper bound on a departure, and a refusal gate
+/// that misjudges a crescent's width at its reach refuses a sliver the
+/// band would have read as a touch, never ships a body. A spiric
+/// section certifies no bend, and refuses as
+/// [`geom_brep::conic_bend_side`] does.
+fn crescent<T: Decide>(
+    a: &BoolSector<T>,
+    b: &BoolSector<T>,
+    band: Band,
+) -> Result<bool, BooleanError> {
+    let arm = a.arm.min(b.arm);
+    let escalate = |diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag);
+    for (da, ra) in [(a.start, a.start_reach), (a.end, a.end_reach)] {
+        for (db, rb) in [(b.start, b.start_reach), (b.end, b.end_reach)] {
+            let (Some((ka, la)), Some((kb, lb))) = (bound_bend(ra), bound_bend(rb)) else {
+                continue;
+            };
+            if !matches!(ra, Reach::Conic { .. }) && !matches!(rb, Reach::Conic { .. }) {
+                continue;
+            }
+            if !parallel_same(da, db, arm, band)? {
+                continue;
+            }
+            for reach in [ra, rb] {
+                if let Reach::Conic { bend, .. } = reach
+                    && matches!(bend.bounds, geom_brep::BendBounds::Unbounded)
+                {
+                    let diag = match crate::validate::decide_positive(
+                        "bool_sector_crescent",
+                        Margin::of(T::zero()),
+                        band,
+                    ) {
+                        Err(diag) => diag,
+                        Ok(()) => unreachable!("a zero margin is never decided positive"),
+                    };
+                    return Err(BooleanError::Escalated {
+                        decision: BooleanDecision::ConicBend,
+                        diag,
+                    });
+                }
+            }
+            let d = da.normalize();
+            let square = |v: Vec3<T>| v - d * v.dot(d);
+            let u = square(a.middle()).normalize();
+            // `pair_search` reads two sectors sharing a bound from one
+            // side as overlapping, so a touching pair lies across it;
+            // this reads that premise where the claim rests on it.
+            let across = Margin::levered(square(b.middle()).normalize().dot(u), arm);
+            if decide("bool_sector_crescent_across", across, band).map_err(escalate)?
+                != Sign::Negative
+            {
+                continue;
+            }
+            let l = la.min(lb);
+            let opened = (kb - ka).dot(u) * l.powi(2) / (T::one() + T::one());
+            if decide("bool_sector_crescent", Margin::of(opened), band).map_err(escalate)?
+                == Sign::Positive
+            {
+                return Ok(true);
+            }
+        }
+    }
+    Ok(false)
+}
+
 /// A sector bound's side code against a face's PLANE ([`side_code`]
 /// with [`NO_CURVATURE`]): what the sector passes read a bound against.
 pub(super) fn plane_side_code<T: Decide>(
@@ -1866,6 +2011,15 @@ pub(super) fn pair_codes<T: Decide>(
     ))
 }
 
+/// What [`pair_search`] read of a vertex pair's sectors.
+pub(super) struct PairSearch {
+    /// Every intersecting (A-sector, B-sector) pair, in A-major order.
+    pub records: Vec<PairRecord>,
+    /// The coplanar pairs read as not overlapping, by index: sectors
+    /// that share at most a bound ([`crescent_refusal`] reads them).
+    pub touching: Vec<(usize, usize)>,
+}
+
 /// The all-pairs search (15.7): every intersecting (A-sector, B-sector)
 /// pair becomes a [`PairRecord`] with its four side codes, in
 /// deterministic A-major order.
@@ -1873,8 +2027,9 @@ pub(super) fn pair_search<T: Decide>(
     a_sectors: &[BoolSector<T>],
     b_sectors: &[BoolSector<T>],
     band: Band,
-) -> Result<Vec<PairRecord>, BooleanError> {
+) -> Result<PairSearch, BooleanError> {
     let mut records = Vec::new();
+    let mut touching = Vec::new();
     for (i, sa) in a_sectors.iter().enumerate() {
         for (j, sb) in b_sectors.iter().enumerate() {
             let int = sa.normal.vec().cross(sb.normal.vec());
@@ -1914,6 +2069,9 @@ pub(super) fn pair_search<T: Decide>(
                     || (within(sa, -d, false, moot, band)? && within(sb, -d, false, moot, band)?)
             };
             if !hit {
+                if coplanar {
+                    touching.push((i, j));
+                }
                 continue;
             }
             let on = (SideCode::On, SideCode::On);
@@ -1931,7 +2089,7 @@ pub(super) fn pair_search<T: Decide>(
             });
         }
     }
-    Ok(records)
+    Ok(PairSearch { records, touching })
 }
 
 /// What [`wedge_classes`] read: each edge's class, and which side of
@@ -6459,7 +6617,7 @@ mod tests {
             arm: 10.0,
             ..sector([1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0])
         };
-        let recs = pair_search(&[tilted], &[top], band()).unwrap();
+        let recs = pair_search(&[tilted], &[top], band()).unwrap().records;
         assert_eq!(recs.len(), 1, "the sectors overlap");
         let on = (SideCode::On, SideCode::On);
         assert_eq!((recs[0].sa, recs[0].sb), (on, on), "a coincidence record");
@@ -6474,7 +6632,7 @@ mod tests {
         // +z → +x CCW around +y. They share the boundary ray +x.
         let a = sector([1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]);
         let bsec = sector([0.0, 0.0, 1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]);
-        let recs = pair_search(&[a], &[bsec], band()).unwrap();
+        let recs = pair_search(&[a], &[bsec], band()).unwrap().records;
         assert_eq!(recs.len(), 1);
         let r = recs[0];
         // A's start (+x) lies in B's face plane: On; A's end (+y) has
@@ -6932,3 +7090,41 @@ mod tests {
 
 #[cfg(test)]
 mod cone_fuzz;
+
+/// **A spline leaves a vertex along its tangent, not its chord.** The
+/// sweep rows' Bézier sheet (`reduce::planar_lane_carrier_rows`): the
+/// arc from `(0, 0, 0)` through the control point `(1, 2, 0)` to
+/// `(2, 0, 0)` leaves its start along `(1, 2, 0)`, the first leg of its
+/// control net, where its chord runs along `x̂`, in the plane `y = 0`
+/// that holds both its ends.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod spline_departure_rows {
+    use super::super::Operand;
+    use super::{Reach, orbit_corners};
+    use crate::boolean::reduce::planar_lane_carrier_rows::arc_sheet;
+    use geom_core::{Band, Tol, Vec3};
+
+    #[test]
+    fn the_sector_walk_reads_a_splines_tangent() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let (body, edge) = arc_sheet(1.0, 1.0);
+        let he = body.get_edge(edge).unwrap().he_plus;
+        let vertex = body.get_half_edge(he).unwrap().start;
+        let corner = orbit_corners(&body, Operand::A, vertex, band)
+            .map(Result::unwrap)
+            .find(|c| c.he == he)
+            .expect("the arc's half leaves its start vertex");
+        let tangent = Vec3::new(1.0, 2.0, 0.0).normalize();
+        assert!(
+            (corner.end.normalize() - tangent).norm() < 1e-12,
+            "the arc leaves along its tangent (1, 2, 0)/√5, got {:?}",
+            corner.end
+        );
+        assert!(
+            matches!(corner.end_reach, Reach::Conic { extent, .. } if (extent - 2.0).abs() < 1e-12),
+            "levered at its extent, the chord's length 2: {:?}",
+            corner.end_reach
+        );
+    }
+}

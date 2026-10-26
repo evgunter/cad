@@ -3302,12 +3302,12 @@ class TestTeapot(unittest.TestCase):
         )
 
         # spout union vessel: PAST the pair rung, because a loft's
-        # walls are Nurbs and that arm exists — and dead one door in,
-        # at the operand gate's edge rule, on a NURBS seam of the
-        # spout: the join and section lanes behind the sweep have no
-        # row for a spline edge. Making the spout the shape a potter
-        # draws did not make it joinable; it moved the refusal off a
-        # pair nobody modelled and onto the body's own edges.
+        # walls are Nurbs and that arm exists — and dead in the sweep,
+        # which meets the belly's revolve seam (a meridian, where the
+        # spout leaves the belly) with one of the spout's NURBS walls
+        # and has no crossing layer for a spline face. Making the spout the shape a potter draws did not make
+        # it joinable; it moved the refusal off a pair nobody modelled
+        # and onto the meeting itself.
         self.assertFalse(ev.succeeded(spout_join))
         with self.assertRaises(EvaluationError) as caught:
             ev.value(spout_join)
@@ -3315,7 +3315,7 @@ class TestTeapot(unittest.TestCase):
         self.assertEqual(refusal.kind, "boolean")
         text = str(refusal)
         self.assertIn(
-            "an edge of the second operand is a spiric or spline (NURBS) curve", text
+            "cannot yet work out where one solid's spline (NURBS) face meets", text
         )
         # NOT the pair rung any more, and this is the half that would
         # go quietly wrong if it were only asserted positively.

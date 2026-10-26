@@ -15,7 +15,7 @@ A `Sign::Zero` from `decide` is a band-decided reading — an exact zero, a stra
 
 ## What
 
-`crates/geom-brep/src/pcurve_cache.rs`, the `decide("pcurve_cone_chart_nappe", Margin::of(h), band)` call (the rim's height above the apex), `Sign::Zero` arm: "the apex plane meets the cone only at the apex, so no rim lies there". A rim at a height inside the zero band is a real circle of sub-tolerance radius, not the apex plane. `work/pred/cone-nappe-is-decided-in-five-places.md` covers where the nappe is decided, not this wording.
+`crates/geom-brep/src/pcurve_cache.rs`, the `decide("pcurve_cone_chart_nappe", Margin::of(h), band)` call (the rim's height above the apex), `Sign::Zero` arm: "the apex plane meets the cone only at the apex, so no rim lies there". A rim at a height inside the zero band is a real circle of sub-tolerance radius, not the apex plane. `work/predtail/cone-nappe-is-decided-in-five-places.md` covers where the nappe is decided, not this wording.
 
 ## Repair shape
 
