@@ -2928,16 +2928,22 @@ mod review_probes {
     fn finding_13_tessellation_table_reproduces() {
         use pncad::mesh::validate::{signed_volume, triangle_count};
         let ps = pieces();
+        // RE-BASELINED (PRED, `[mesh.sizing]`): each mesher lane sizes
+        // its worst triangle at δ by its own theorem rather than at δ/2,
+        // so the stem's and arch's tori and the lantern's sphere zone
+        // and cones coarsen — stem 392 -> 188 and 828 -> 476, arch
+        // 2_960 -> 1_472, lantern 1_080 -> 724 and 2_556 -> 1_844. The
+        // leaves are NURBS, whose lattice did not move.
         let table = [
-            ("lily_stem", 5e-3, 392usize),
-            ("lily_stem", 2e-3, 828),
-            ("lily_arch", 2e-3, 2_960),
+            ("lily_stem", 5e-3, 188usize),
+            ("lily_stem", 2e-3, 476),
+            ("lily_arch", 2e-3, 1_472),
             // RE-BASELINED (BAND, one wall per run): a full revolve
             // sweeps the lantern's two planar caps whole, and each cap
             // as one disc meshes two triangles fewer than as two
             // half-discs — 1_084 -> 1_080 and 2_560 -> 2_556.
-            ("lily_lantern", 5e-3, 1_080),
-            ("lily_lantern", 2e-3, 2_556),
+            ("lily_lantern", 5e-3, 724),
+            ("lily_lantern", 2e-3, 1_844),
             // RE-BASELINED: the swept leaves are fitted at the cubic
             // degree along the path (wall 15 retired) — 6_468 -> 5_576
             // and 5_992 -> 5_164. RE-BASELINED again (PR 4984, one
@@ -2998,7 +3004,11 @@ mod review_probes {
             })
             .collect();
         println!("lantern volume error, measured: {rels:?}");
-        for ((delta, rel), (lo, hi)) in rels.into_iter().zip([(0.0120, 0.0130), (0.0050, 0.0056)]) {
+        // Measured 0.0167 and 0.0067 since `[mesh.sizing]` (0.0125 and
+        // 0.0053 at the δ/2 sizing): the chords' inscribed deficit grows
+        // with the coarser grid, inside the `area·δ` a mesh within δ
+        // allows.
+        for ((delta, rel), (lo, hi)) in rels.into_iter().zip([(0.0160, 0.0175), (0.0063, 0.0071)]) {
             assert!(rel > lo && rel < hi, "lantern @ {delta:e}: rel {rel}");
         }
         // A swept blade has no analytic wall to compare against, but it
