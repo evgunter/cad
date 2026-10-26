@@ -9869,6 +9869,40 @@ mod tests {
         );
     }
 
+    /// **The live-body link and the census's snapshot link agree**: at
+    /// each corner of a unit cube, `Link::at_point` off the body and
+    /// `Link::touch_at_point` off the census's snapshot (the corner's own
+    /// key, no ties) hold the same sectors, each its outward normal and
+    /// its wedges' real points, bit for bit. The two builders spell the
+    /// incidence two ways (the vertex's face orbit, the snapshot's
+    /// vertex-to-face index) and share `Sector::of_face`. Red if one
+    /// gathers a face, a corner or a loop the other does not.
+    #[test]
+    fn the_body_link_and_the_snapshot_link_agree() {
+        let band = Band::linear(Tol::witness()).expect("a band");
+        let cube = crate::test_support_fixtures::geometric_cube::<f64>(Tol::witness());
+        let body = &cube.body;
+        let geo = snapshot(body);
+        let held = |link: &Link<f64>| {
+            let mut sectors: Vec<String> = link
+                .sectors
+                .iter()
+                .map(|s| format!("{:?} {:?} {:?}", s.outward, s.apex, s.wedges))
+                .collect();
+            sectors.sort();
+            sectors
+        };
+        for (v, vertex) in &body.vertices {
+            let solid = census_entity_solid(body, EntityId::Vertex(v)).expect("the vertex's solid");
+            let p = geo.vmap[&v];
+            let keys = BTreeSet::from([vertex.point]);
+            let snap = Link::touch_at_point(body, &geo, &Ties::default(), solid, &keys, p, band)
+                .expect("the snapshot's link");
+            let live = Link::at_point(body, v, band).expect("the body's link");
+            assert_eq!(held(&live), held(&snap), "corner {p:?}");
+        }
+    }
+
     /// Two overlapping opposed-sense wall sheets on one cylinder key.
     fn conformal_pair() -> (Body<f64>, FaceKey, FaceKey) {
         let mut body = Body::<f64>::new();

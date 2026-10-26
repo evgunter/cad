@@ -1,6 +1,6 @@
 //! **The polygon-cone reader against an exact oracle**: random cones
 //! nobody chose, read by [`cone_side`] and [`wedge_classes`], and by the
-//! census's link reader (`census::bare_cone_reads`), each decided class
+//! census's link reader (`link::bare_cone_reads`), each decided class
 //! checked against an exact rational reading of the same cone.
 //!
 //! **What it certifies.** Every `cone_side`, every `wedge_classes` and

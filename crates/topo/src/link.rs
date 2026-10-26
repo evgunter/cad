@@ -17,14 +17,16 @@
 //! gathered across the keys a touch ties to its point.
 //!
 //! **Every sign decided here is a point's signed distance from a
-//! plane**, in metres, and it comes through ONE door: [`metric`], whose
+//! plane**, in metres, and it comes through one door: [`metric`], whose
 //! [`metric::Distance`] is built only from a point and a plane (a point
 //! on it and its unit normal). Directions — face normals, ray
-//! directions, their bisectors — only PROPOSE planes. One other decision
-//! stays, named where it is made: [`pairing`], a sign of unit normals of
-//! magnitude about 1. `link::tests::
-//! the_link_decides_only_through_its_doors` holds that by reading this
-//! file's source, and the census's touch analysis beside it.
+//! directions, their bisectors — only PROPOSE planes. One other sign
+//! stays, named where it is made: [`pairing`], of unit normals of
+//! magnitude about 1. Beside the signs, [`Link::lowest_on`] branches on
+//! structure alone: a candidate that is not a bounded number is skipped.
+//! `link::tests::the_link_decides_only_through_its_doors` holds the signs
+//! to the doors by reading this file's source, and the census's touch
+//! analysis beside it, and says what such a reading cannot see.
 //!
 //! Each face is read through its PIECE at the point `p`: the part of the
 //! face visible from `p` ([`face_piece`]). The piece is star-shaped from
@@ -1044,8 +1046,7 @@ impl<T: Decide> Link<T> {
             let side = match self.side(s, q, rd) {
                 Some(side) => side,
                 None if wide && s.place(p, q, rd) == Some(Place::Outside) => {
-                    let o = s.outward.dot(q - p);
-                    reach[k] = Some(o.max(-o) + rd.slack());
+                    reach[k] = Some(s.outward.dot(q - p).abs() + rd.slack());
                     sides.push(None);
                     continue;
                 }
@@ -1209,7 +1210,7 @@ impl<T: Decide> Link<T> {
         for f in body.faces_of_vertex(v).ok_or(TouchUnread::Corrupt)? {
             sectors.extend(Sector::of_body_face(body, f, p, &[Hold::Corner(v)], band)?);
         }
-        Self::of(p, sectors)
+        Self::of(p, sectors)?.closed(band)
     }
 
     /// **The link at a point `p` inside the line edge `e` of `body`**:
@@ -1249,7 +1250,7 @@ impl<T: Decide> Link<T> {
                 band,
             )?);
         }
-        Self::of(p, sectors)
+        Self::of(p, sectors)?.closed(band)
     }
 
     /// **The link at a point `p` inside the planar face `f` of `body`**:
@@ -1265,7 +1266,19 @@ impl<T: Decide> Link<T> {
         p: Point3<T>,
         band: Band,
     ) -> Result<Self, TouchUnread> {
-        Self::of(p, Sector::of_body_face(body, f, p, &[Hold::Inside], band)?)
+        Self::of(p, Sector::of_body_face(body, f, p, &[Hold::Inside], band)?)?.closed(band)
+    }
+
+    /// The link where it closes ([`Link::closes`]): its sectors bound a
+    /// region of directions, so the parity reading reads it.
+    /// `Unanalysed` where they do not pair up at their bounds, `InBand`
+    /// where a bound's reading is in band.
+    fn closed(self, band: Band) -> Result<Self, TouchUnread> {
+        match self.closes(Reading { band, slack: None }) {
+            Some(true) => Ok(self),
+            Some(false) => Err(TouchUnread::Unanalysed),
+            None => Err(TouchUnread::InBand),
+        }
     }
 
     /// The point the link is about.
@@ -1406,7 +1419,7 @@ impl<T: Decide> Link<T> {
         let mut planes: Vec<([T; 2], Option<Point3<T>>)> = Vec::new();
         // Each ray's line, the planes it lies in, and where the segment's
         // line meets it within the band.
-        let mut rays: Vec<([T; 3], Vec<usize>, Option<Point3<T>>)> = Vec::new();
+        let mut rays: Vec<RayPiece<T>> = Vec::new();
         // The point of the segment at `t`, where it meets the piece whose
         // nearest point to it `foot` gives within the band; `None` where
         // it stands decidedly off.
@@ -1561,8 +1574,7 @@ impl<T: Decide> Link<T> {
             };
             for &(a, b) in &s.wedges {
                 let rays = ray(a).min(ray(b));
-                let o = m.dot(q - c);
-                let plane = o.max(-o).min(rays);
+                let plane = m.dot(q - c).abs().min(rays);
                 let d = match (side(a), side(b)) {
                     (Some(Sign::Negative), _) | (_, Some(Sign::Positive)) => rays,
                     (Some(Sign::Positive), Some(Sign::Negative)) => plane,
@@ -1583,6 +1595,11 @@ impl<T: Decide> Link<T> {
         })
     }
 }
+
+/// A ray's line as [`Link::lowest_on`] reads it along a segment: its
+/// squared distance's `[t², t, 1]` coefficients, the sectors whose planes
+/// hold it, and where the segment's line meets it within the band.
+type RayPiece<T> = ([T; 3], Vec<usize>, Option<Point3<T>>);
 
 /// **`lo` and `hi` taken together**: their hull where the scalar holds
 /// an enclosure, and `lo` where it holds a point, the caller passing as
@@ -2126,6 +2143,62 @@ mod tests {
         );
     }
 
+    /// **A link built off a live body reads its cell**: a unit cube's
+    /// corner at the origin (material `x, y, z ≥ 0`), inside its edge
+    /// along `z` at `(0, 0, 0.5)`, and inside its top face at
+    /// `(0.5, 0.5, 1)`, each reading the offset of the cube's own
+    /// material. Red if a builder gathers a wrong face, a face's sense
+    /// flips the material, or a builder refuses a cube.
+    #[test]
+    fn a_link_off_a_body_reads_its_cell() {
+        let cube = crate::test_support_fixtures::geometric_cube::<f64>(geom_core::Tol::witness());
+        let body = &cube.body;
+        let at = |q: Point3<f64>| {
+            body.vertices
+                .keys()
+                .find(|&v| position(body, v).is_ok_and(|x| (x - q).norm() < 1e-12))
+                .expect("a vertex there")
+        };
+        let corner = Link::at_point(body, at(O), band()).expect("the corner's link");
+        close(
+            offset(&corner, p(-0.01, 0.02, 0.03)),
+            0.01,
+            "off the corner",
+        );
+        close(offset(&corner, p(0.01, 0.02, 0.03)), -0.01, "in the cube");
+        let (v0, v1) = (at(O), at(p(0.0, 0.0, 1.0)));
+        let strut = body
+            .edges
+            .iter()
+            .find(|(_, e)| {
+                let ends = [
+                    body.half_edges[e.he_plus].start,
+                    body.half_edges[e.he_minus].start,
+                ];
+                ends.contains(&v0) && ends.contains(&v1)
+            })
+            .map(|(k, _)| k)
+            .expect("the strut along z");
+        let edge = Link::on_edge(body, strut, p(0.0, 0.0, 0.5), band()).expect("the strut's link");
+        close(offset(&edge, p(-0.01, 0.2, 0.9)), 0.01, "off the strut");
+        close(
+            offset(&edge, p(0.03, 0.02, 0.9)),
+            -0.02,
+            "beside the strut, in the cube",
+        );
+        let top = body
+            .faces()
+            .map(|(k, _)| k)
+            .find(|&f| {
+                crate::face_normal::face_outward_normal(body, f)
+                    .is_some_and(|n| (n.vec() - v(0.0, 0.0, 1.0)).norm() < 1e-12)
+            })
+            .expect("the top face");
+        let face = Link::in_face(body, top, p(0.5, 0.5, 1.0), band()).expect("the top's link");
+        close(offset(&face, p(0.9, 0.1, 1.02)), 0.02, "over the top");
+        close(offset(&face, p(0.9, 0.1, 0.97)), -0.03, "under it");
+    }
+
     /// **The census's `reads` refuses a point in band of a sector's plane
     /// that lies decidedly outside the sector, and `offset` reads it**:
     /// over a block's corner, a point half a metre off both side faces and
@@ -2171,28 +2244,36 @@ mod tests {
     /// - every `Margin` door and every `decide` call lies inside `mod
     ///   metric` (one `Margin::of`);
     /// - the classifier of unit normals is called only from `pairing`;
-    /// - nothing reads a bare sign: no `sign_within`, no comparison of a
-    ///   real against zero (`< T::zero()`, `> T::zero()`), no
+    /// - nothing reads a bare sign: no `sign_within`, no
+    ///   `definitely_positive(` (`validate`'s unnamed door), no
+    ///   `enclosure_probe(` (an instrument nothing may branch on), no
     ///   `is_sign_negative`, `is_sign_positive`, `signum`, `copysign`,
-    ///   `abs(`, `partial_cmp` or `total_cmp`, and no `classify_dihedral` (a levered
-    ///   classifier of its own). No construction code needs one today, so
-    ///   the list has no exemption; one added for code whose outcome only
-    ///   shrinks a piece must be named here;
+    ///   `select_le_zero`, `partial_cmp` or `total_cmp`, and no
+    ///   `classify_dihedral` (a levered classifier of its own). No code
+    ///   needs one today, so the list has no exemption;
     /// - `Distance` is built in exactly one place: its field is private,
     ///   `mod metric` holds exactly one `Self(` — inside `Distance::of` —
     ///   and no `Distance(`, and `of` is the module's only function
     ///   returning a `Distance`. So a product or a lever has no way to
     ///   become one, not even through a second constructor beside `of`.
     ///
-    /// **What it cannot see.** `Distance::of` takes the plane's normal
-    /// on trust: a normal scaled by a length is a lever spelled as a
-    /// plane, and a point built as `p + (q − p)·k` is a product spelled
-    /// as a point. Every caller passes a face's outward normal or a
-    /// normalized direction, and a real face point, a point interpolated
-    /// on a face's edge or a point of a segment `offset` is asked about;
-    /// that is checked by reading, not by this row. Nor does it see a
-    /// caller outside topo: `Gap`'s cell arms only call [`Link::offset`]
-    /// and [`Link::lowest_on`].
+    /// **What it cannot see.**
+    /// - A comparison of two reals: `Real` has no order, so `<` on a `T`
+    ///   does not compile and needs no needle, but a value read out to
+    ///   `f64` and compared would, and no needle names every way out.
+    /// - What `Distance::of` is handed. It takes the plane's normal on
+    ///   trust: a normal scaled by a length is a lever spelled as a plane,
+    ///   and a point built as `p + (q − p)·k` is a product spelled as a
+    ///   point. Every caller passes a face's outward normal or a
+    ///   normalized direction, and a real face point, a point
+    ///   interpolated on a face's edge, a point of a segment `offset` is
+    ///   asked about, or the point a refused candidate's ball reaches
+    ///   toward a read one (`lowest_on`); that is checked by reading.
+    /// - A branch on structure rather than sign (`is_poison`,
+    ///   `is_bounded`, `Option` and `Vec` bookkeeping), which
+    ///   `lowest_on` uses to skip a candidate that is not a number.
+    /// - A caller outside topo: `Gap`'s cell arms only call
+    ///   [`Link::offset`] and [`Link::lowest_on`].
     #[test]
     fn the_link_decides_only_through_its_doors() {
         use test_utils::source::{balanced_end, code_only};
@@ -2242,16 +2323,16 @@ mod tests {
         stray.extend(outside(module, "classify_material_pairing", &[&pairing]));
         for needle in [
             "sign_within",
+            "definitely_positive(",
+            "enclosure_probe(",
             "classify_dihedral",
-            "< T::zero()",
-            "> T::zero()",
             "is_sign_negative",
             "is_sign_positive",
             "signum",
             "partial_cmp",
             "total_cmp",
             "copysign",
-            "abs(",
+            "select_le_zero",
         ] {
             stray.extend(outside(module, needle, &[]));
             stray.extend(outside(touch, needle, &[]));

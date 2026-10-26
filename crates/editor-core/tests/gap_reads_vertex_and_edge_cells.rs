@@ -514,24 +514,22 @@ mod real_bodies {
         }
     }
 
-    /// **The Interval lane reads the new arms soundly**: on the real convex
-    /// corner (vertex x vertex, edge x vertex in both seats) and the real
-    /// crossing ridges (edge x edge, through `gap_wedge_crossing`'s
-    /// division), the enclosure contains the f64 value, or refuses typed.
+    /// **The Interval lane reads the cell arms, and encloses the f64
+    /// value**: on the real convex corner (vertex x vertex, edge x vertex
+    /// in both seats) and the real crossing ridges (edge x edge, through
+    /// `lowest_on`'s candidates, at contact too), every reading reads and
+    /// its enclosure contains the f64 value. Red if one refuses, or misses.
+    /// (An enclosure over a box of inputs is `topo::link`'s
+    /// `an_interval_offset_encloses_its_box`.)
     #[test]
     fn interval_lane_encloses_the_f64_gap() {
+        let read = core::cell::Cell::new(0);
         let check = |doc: &ProfileDoc, o: &SitedRef, i: &SitedRef, what: &str| {
             let f = gap(doc, o, i).expect("f64 reads");
-            match gap_interval(doc, o, i) {
-                Ok((lo, hi)) => {
-                    eprintln!("{what}: f64 {f}, interval [{lo}, {hi}]");
-                    assert!(lo <= f && f <= hi, "{what}: [{lo}, {hi}] misses {f}");
-                }
-                Err(e) => {
-                    eprintln!("{what}: interval refused {e}");
-                    assert!(!e.contains("panic"), "{what}: {e}");
-                }
-            }
+            let (lo, hi) =
+                gap_interval(doc, o, i).unwrap_or_else(|e| panic!("{what}: refused {e}"));
+            assert!(lo <= f && f <= hi, "{what}: [{lo}, {hi}] misses {f}");
+            read.set(read.get() + 1);
         };
         for dx in [0.01, -0.01, 0.0] {
             let (doc, a, b, pa, pb) = two_blocks([1.0 + dx, 0.98, 0.98]);
@@ -570,5 +568,6 @@ mod real_bodies {
             check(&doc, &strut, &ridge, &format!("strut/ridge h {h}"));
             check(&doc, &ridge, &strut, &format!("ridge/strut h {h}"));
         }
+        assert_eq!(read.get(), 15, "every reading read");
     }
 }
