@@ -3106,7 +3106,10 @@ fn name_boolean_vertices<T: Decide>(
     }
     // A corner held as one vertex is that corner; one held as several
     // is fragments of it, `Fragment(Borders)` over each copy's divider
-    // walls (N2), and copies with equal sets tie.
+    // walls (N2), and copies with equal sets tie. The union's twin is
+    // `emit_union::name_corner_copies`, which keys a corner by its
+    // candidate where this pass keys it by name
+    // (`work/wire/a-pair-booleans-tied-corner-is-split-as-one-corner.md`).
     for (name, (from_tie, parent, sides, copies)) in corners {
         let ents = |vs: &[VertexKey]| vs.iter().map(|&v| ent(0, EntityKey::Vertex(v))).collect();
         rec.record(&name, ents(&copies), parent);
