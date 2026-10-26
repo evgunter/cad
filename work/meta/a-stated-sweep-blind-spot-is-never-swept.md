@@ -56,7 +56,7 @@ not the sweeps that were sloppy. The rule got what it asked for.
 
 ## Why this is not the row beside it
 
-`work/meta/an-items-stated-sweep-pattern-may-not-match-its-own-instance.md`
+`work/brief/an-items-stated-sweep-pattern-may-not-match-its-own-instance.md`
 is a different defect: a pattern that fails to match the instance it
 was derived FROM, so the next lane looks with the wrong instrument.
 Here the pattern matches its instance correctly and the lane says

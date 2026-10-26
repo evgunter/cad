@@ -20,7 +20,7 @@ last resort `work/README.md` says it is. That rule is in `work/README.md`
 and in `docs/prompts/implementer-discipline.md` §6. Two standing practices
 the walk recorded — *route from the instrument* and *the pin question* —
 have no home outside this note and are carried to Ev on
-`work/meta/four-lane-practices-have-no-home-outside-the-ledger.md`.
+`work/brief/four-lane-practices-have-no-home-outside-the-ledger.md`.
 
 Sweep SHA `6f0e04ce1534f1c7d25e5dfbe09751b992f8492e`.
 

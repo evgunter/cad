@@ -50,7 +50,7 @@ that runs the stated pattern gets a **clean result over the very defect
 it was dispatched to fix**, and a clean sweep reads as a negative
 result rather than as a wrong instrument.
 
-`work/meta/doc-citations-no-gate-checks-rot-silently.md` is the
+`work/unseen/doc-citations-no-gate-checks-rot-silently.md` is the
 neighbouring shape for citations; this is the same failure for
 patterns, and unlike a citation a pattern has no referent for anything
 to resolve.
