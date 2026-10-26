@@ -237,7 +237,7 @@ fn r1_nested_assemble_interference_reported_once() {
         Ok(_) => 0,
     };
     eprintln!("AT-REST findings: flat {} nested {}", count(&flat_res), count(&res));
-    eprintln!("CHECKS flat: {} | nested: {}", all_findings(&flat, &run(&flat, &EvalOptions::default())).lines().next().unwrap(), all_findings(&nested, &ev).lines().next().unwrap());
+    eprintln!("CHECKS flat: {} | nested: {}", all_findings(&flat, &run(&flat, &EvalOptions::default())), all_findings(&nested, &ev));
     let s = match &res {
         Err(e) => format!("{e:?}"),
         Ok(_) => "ok".into(),
@@ -451,11 +451,11 @@ fn r1_instance_of_an_overlapping_part_reports_once() {
     let hp = editor_core::product_recorded(&host, &ev, Tol::witness());
     match &hp {
         Ok(p) => eprintln!(
-            "HOST product: census {} carried_interference {} carried_at_rest {} census_pairs {}",
+            "HOST product: census {} carried_interference {} carried_at_rest {} (census_pairs retired) {}",
             p.census.len(),
             p.carried_interference.len(),
             p.carried_at_rest.len(),
-            p.census_pairs.len()
+            0usize
         ),
         Err(e) => eprintln!("HOST product refused {e:?}"),
     }
@@ -605,4 +605,72 @@ fn r1_main_documents_refuse_at_load() {
             ),
         }
     }
+}
+
+/// Delta: a union that kept a seat's pieces (a bead on the bolt only),
+/// placed once in the world and made the product: the seat's record
+/// rides the union, so nothing re-finds the bolt–plate touch.
+#[test]
+fn r1_a_placed_union_over_a_seat_is_at_rest() {
+    let d = doc("r1-placed-union-seat");
+    let (d, plate) = block(d, [0.0; 2], 1.0, 0.2);
+    let (d, bolt) = beside(d, plate, [0.0, 0.0, 0.2], 0.2, 1.0);
+    let (d, seat) = put(
+        d,
+        Node::Assemble {
+            members: spelled(&[bolt, plate]),
+        },
+    );
+    let (d, side) = beside(d, plate, [0.25, 0.0, 0.6], 0.1, 0.2);
+    let (d, kept) = put(
+        d,
+        Node::Union {
+            members: spelled(&[seat, side]),
+        },
+    );
+    let (d, placed) = in_world(d, kept);
+    let d = set_product(&d, Some(Operand::Node(placed)));
+    let ev = run(&d, &EvalOptions::default());
+    eprintln!("UNION-SEAT solids: {:?}", solids_at(&ev, kept));
+    let res = editor_core::assemble(&d, &ev, Tol::witness());
+    eprintln!(
+        "UNION-SEAT assemble: {:?}",
+        res.as_ref().err().map(|e| format!("{e:?}").chars().take(700).collect::<String>())
+    );
+    eprintln!("UNION-SEAT checks: {}", all_findings(&d, &ev));
+    assert!(res.is_ok(), "a placed union that kept a seat is at rest");
+}
+
+/// Delta: the same seat, reached through a cut that kept both pieces,
+/// placed and made the product.
+#[test]
+fn r1_a_placed_cut_of_a_seat_is_at_rest() {
+    let d = doc("r1-placed-cut-seat");
+    let (d, plate) = block(d, [0.0; 2], 1.0, 0.2);
+    let (d, bolt) = beside(d, plate, [0.0, 0.0, 0.2], 0.2, 1.0);
+    let (d, seat) = put(
+        d,
+        Node::Assemble {
+            members: spelled(&[bolt, plate]),
+        },
+    );
+    let (d, through) = beside(d, plate, [0.17, 0.03, -0.37], 0.07, 2.9);
+    let (d, cut) = put(
+        d,
+        Node::Subtract {
+            from: seat.into(),
+            tool: through.into(),
+        },
+    );
+    let (d, placed) = in_world(d, cut);
+    let d = set_product(&d, Some(Operand::Node(placed)));
+    let ev = run(&d, &EvalOptions::default());
+    eprintln!("CUT-SEAT solids: {:?}", solids_at(&ev, cut));
+    let res = editor_core::assemble(&d, &ev, Tol::witness());
+    eprintln!(
+        "CUT-SEAT assemble: {:?}",
+        res.as_ref().err().map(|e| format!("{e:?}").chars().take(700).collect::<String>())
+    );
+    eprintln!("CUT-SEAT checks: {}", all_findings(&d, &ev));
+    assert!(res.is_ok(), "a placed cut that kept a seat is at rest");
 }
