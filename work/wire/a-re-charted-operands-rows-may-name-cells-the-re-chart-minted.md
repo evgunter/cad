@@ -4,7 +4,7 @@ kind: issue
 title: A boolean over re-charted sphere operands may emit rows naming cells the re-chart minted, which no input holds
 status: open
 opened: 2026-10-19
-priority: P3
+priority: P1
 cost: E
 ---
 
@@ -37,3 +37,50 @@ Signed (WIRE implementer, wire-citerows).
 ## Slate triage (2026-10-26, CLEAVE)
 
 - Moved to WIRE (`work/wire/`) by `git mv`, id and body unchanged: whose lane filed it: the rows a node publishes and the lineage they are carried by. CLEAVE measured 270.5 budget points against 30 and split on its priority seam (Ev, in chat, 2026-10-26).
+
+## Measured (CLEAVE, PR 5753, 2026-10-26)
+
+PR 5753 adds a debug-build check at `boolean/ops.rs` `boolean_op_with`'s
+exit (`rows_name_input_cells`): every input cell a row names must be
+held by its input (`records::holds`). Two `sweep` tests trip it:
+- `m5_s13_pips::two_pips_cut_under_the_group_arm`
+- `review_pr12_probes::probe_h_door_a_closed_tool`
+
+Both subtract a two-ball union from a slab, and the row is
+`Meet {A Face(1v1), B Edge(3v3)}`, `VertexFusion`.
+
+`through_the_join`'s containment re-cut re-charts both of B's balls
+(`apply_recuts`). Each ball is two lunes, two meridians and two poles
+(`sweep::test_support::ball_about_origin`). Each ball is carved, turned
+rigidly about its centre (`transform_rigid`), and rebuilt:
+- **No shell is kept, so the first turned ball becomes the rebuilt
+  body with its input keys unchanged.** Its cells keep the input's keys,
+  but they now stand elsewhere on the sphere. A row naming one of them
+  passes the check and names the wrong input cell. Nothing detects this
+  case.
+- **The second turned ball is grafted** (`graft_solids_disjoint`), and
+  its cells get new keys: faces 3v1/4v1 become 4v3/3v3, and so on. The
+  turned meridian 3v3 crosses the slab's top, and the vertex minted
+  there is decided on face 1. `ChartCuts::input_cell` maps cut-ins only,
+  so the row names 3v3, which no input holds.
+
+This is not the ring tie's class, a vertex minted inside one input cell
+that reads back to it. A turned cell lies across the group's input
+cells: a turned meridian generally crosses both input lunes and a
+meridian of the input chart. So it has no one input cell to read back
+to.
+
+What it needs is a ruling on how a re-charted cell is spelled. The
+options I see:
+- by the input cells its place lies in, which is a geometric decision
+  per cell;
+- by the group's carrier, every face of the input group in one `Meet`,
+  which needs `Coincidence` to hold a list once a group has more than
+  two faces;
+- or a typed refusal, which would turn both tests from builds into
+  refusals.
+
+Whichever is chosen also has to cover the first ball, whose keys are
+unchanged. The check stays in, so the two tests stay red until this is
+fixed.
+
