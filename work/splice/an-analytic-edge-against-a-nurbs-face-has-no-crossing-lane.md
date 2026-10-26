@@ -6,7 +6,6 @@ status: open
 opened: 2026-10-26
 priority: P0
 cost: H
-design: true
 refs: [delete-the-boolean-operand-edge-gate, nurbs-edge-crossing-rung-is-the-ring-composite, a-nurbs-face-against-a-cone-or-sphere-has-no-section-arm, nurbs-plane-section-has-no-component-arm, 5723]
 ---
 
@@ -25,8 +24,10 @@ contact**, and at the same site:
   face is one of the loop's four NURBS walls and rises from that rim.
 - **lily wall 8**: the blade's base-section rim circle, against a
   sheath NURBS wall rising from the same rim.
-- **teapot wall 3**: a belly latitude circle (sphere | sphere), against
-  a spout NURBS wall.
+- **teapot wall 3**: edge 9v1, a quarter MERIDIAN of the belly sphere
+  (its revolve seam at azimuth π, in z = 0), against a spout NURBS
+  wall. The spout's axis leaves the belly on that meridian. (Measured
+  by PR 5723's review; the PR's first account called it a latitude.)
 
 So the first thing each join needs is an analytic edge (line, circle)
 of one operand read against a NURBS face of the other, and no crossing
@@ -60,3 +61,58 @@ the question. One Opus and one Fable designer weigh it
 (`memories/orchestration-model.md`) before a lane builds.
 
 Reachable once PR 5723 merges.
+
+## Weighed (2026-10-26)
+
+Two designers, A and B, weighed it and converged (design-fork log row
+198). The recommendation to Ev is to give C5 a curve × face clause:
+- one exhaustive `(CurveKind, SurfaceKind)` meeting table in geom-brep,
+  whose arms are the boolean's root doors;
+- the converse spline-edge rung
+  (`nurbs-edge-crossing-rung-is-the-ring-composite`) is another arm of
+  that table;
+- a span is read against the face's boundary edges first, so a shared
+  rim is a coincidence glued at the coincidence door;
+- the interior is decided by enclosure or a Krawczyk contraction;
+- a NURBS face gets no signed residual, only a margined foot.
+
+**Corrections to this row's premise**, both designers:
+- The three walls are not one case. Lily 8's blade rim IS the sheath
+  wall's boundary rim: a shared run, decided by the curve-pair table
+  with no spline arithmetic. Klein 3's seam line ends on the wall's rim
+  circle, with the wall tangent there (it leaves the rim straight up).
+  Teapot 3 is a transverse pierce of the spout's wall by the belly's meridian seam,
+  not a rim contact.
+- Klein 3 is also held by the loop's 3.99e-4 rad cap tilt (the rims are
+  up to 1.1e-4 m apart, not Zero at any ε the demos run), which goes
+  with `carvetail/a-half-turn-spine-sweeps-only-off-its-exact-tangents`.
+
+The pieces the design implies, each to be its own row once Ev rules:
+the boundary-first span reading; the interior arm; point-in-face for a
+NURBS chart (`contain::curved_interior_placement` answers `Trim(None)`
+for `Nurbs`); a NURBS arm for the dihedral side reading (with the
+SEAMRANK flush rows); and `CurvedBooleanUnsupported` carrying the edge.
+Lily 8 needs only the first and the flush rows.
+
+## Decided (2026-10-26)
+
+Ev took the converged design on PR 5727 (fork log row 198). C5
+(`crates/geom-brep/README.md`) now has the curve × face clause. This
+row is now the table and its interior arm. An analytic span against a
+spline face is settled by enclosure, or by a Krawczyk contraction on
+the piece × cell. Whether that runs in (t, u, v) on C − S, or in
+(u, v) on the curve's two implicits composed with S, is the lane's
+choice. The pieces the design implies are their own rows:
+- `a-span-is-read-against-a-faces-boundary-edges-first` (P0): the
+  boundary-first reading. Lily wall 8 needs only it and the flush
+  rows.
+- `a-point-has-no-place-in-a-nurbs-faces-trim` (P1): point-in-face
+  for a spline chart.
+- `the-side-of-a-spline-face-is-read-by-no-dihedral` (P1): the
+  dihedral side reading on a spline face.
+- `curved-boolean-unsupported-names-no-edge` (P3): the refusal names
+  its edge.
+
+The converse arm (a spline span against an analytic face) is
+`nurbs-edge-crossing-rung-is-the-ring-composite`, now an arm of the
+same table. Build the two against one brief, or one after the other.
