@@ -368,13 +368,18 @@ fn a_split_document_read_by_port_round_trips_byte_identical() {
 /// RE-BLESSED, every row, for a certificate that keeps its turn: the
 /// digest feeds each edge curve's `Debug`, which now spells the
 /// certificate's `turn`. No outcome or point moved.
+///
+/// RE-BLESSED when the value chart came to read a written orientation:
+/// a mate carries its orientation, which the minting edits' bytes hold,
+/// so the ids after it and the names under them moved in `kitchen_sink`. No
+/// point moved (`m10_p_fence`'s ids-masked row).
 #[test]
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
         ("cut_cylinder", 0x687e_0fa1_7407_124c_u64),
         ("part_select", 0x2a17_d08e_c893_f400),
-        ("kitchen_sink", 0xf86d_b45d_276f_b984),
+        ("kitchen_sink", 0x56d3_1220_fc13_65d5),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()

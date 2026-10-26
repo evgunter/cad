@@ -446,14 +446,19 @@ fn both_sweeps_evaluate_in_one_document() {
 /// RE-BLESSED, every row, for a certificate that keeps its turn: the
 /// digest feeds each edge curve's `Debug`, which now spells the
 /// certificate's `turn`. No outcome or point moved.
+///
+/// RE-BLESSED when the value chart came to read a written orientation:
+/// a mate carries its orientation, which the minting edits' bytes hold,
+/// so the ids after it and the names under them moved in `die`, `corner_table`, `boss_union` and `kitchen_sink`. No
+/// point moved (`m10_p_fence`'s ids-masked row).
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
-        ("die", 0xcce3_bc80_9945_6069),
-        ("corner_table", 0x52f5_b074_394d_558a),
+        ("die", 0xb26a_7fbe_e123_9fd7),
+        ("corner_table", 0x1340_a036_ad32_4a96),
         ("cut_cylinder", 0x687e_0fa1_7407_124c),
-        ("boss_union", 0x6a62_8956_3b55_e92e),
-        ("kitchen_sink", 0xf86d_b45d_276f_b984),
+        ("boss_union", 0x9eec_0659_7505_54e1),
+        ("kitchen_sink", 0x56d3_1220_fc13_65d5),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {
