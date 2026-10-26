@@ -135,8 +135,8 @@ fn two_blocks(
 /// **An overlap with flush sides records nothing.** Two blocks of two
 /// groups overlapping by half their height, their side faces flush:
 /// no edge pierces a face, and the census reads the overlap off the
-/// touches between them (`CensusUndecidable`, "one passes into the
-/// other where they touch"). Recording those touches would erase that
+/// flush sides, which share interior facing the same way
+/// (`SameSideInterference`). Recording those touches would erase that
 /// evidence and certify the pair with its volume counted twice, so the
 /// pair has nothing recorded and its findings stay. Red if the
 /// overlapping pair records a touch or comes back clean.
@@ -163,7 +163,7 @@ fn an_overlap_with_flush_sides_records_nothing_and_stays_loud() {
         recorded
             .findings
             .iter()
-            .any(|e| matches!(e, ValidationError::CensusUndecidable { .. })),
+            .any(|e| matches!(e, ValidationError::SameSideInterference { .. })),
         "{:?}",
         recorded.findings
     );

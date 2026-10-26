@@ -85,12 +85,13 @@ wherever the face stands, and never reaches the crossings. This rung is
 the first that can. The fixture stands ready:
 
 - the wavy loft of `editor-core` `emit_topo`'s
-  `nurbs_crossings_rank_by_parameter` (`a = 0.3`), united through the
+  `wavy_loft` (`a = 0.3`), united through the
   recipe with a box over `x ∈ [1, 3]`, `z ∈ [−½, 3½]`;
 - its face `x = 1` crosses each corner edge at `x = dx + 1` three times,
   the first and third with one sense;
-- the row asserts those crossings reach `emit_topo::rank_crossings`
-  through the boolean, ranked by parameter.
+- the row asserts those crossings are named through the boolean: no
+  crossing is ranked (N2, *Vertices*, PR 5758), so the first and third,
+  of one sense, tie.
 
 `…::a_union_across_a_nurbs_edge_refuses_until_a_crossing_rung_builds_it`
 is the tripwire that reds when this rung lands; replace it with that row.
@@ -147,7 +148,7 @@ Witness rows:
 - The end-to-end row: the boolean's sweep splits each wavy corner at
   its three crossings with the box's face (`sweep`'s
   `a_face_across_a_wavy_corner`), and the union stops one step on, at
-  the sector walk. The ranking row moves with that refusal to
+  the sector walk. The naming row moves with that refusal to
   `the-sector-walk-reads-no-nurbs-face-at-a-crossing-vertex`, and
   `emit_topo`'s `a_union_across_a_nurbs_edge_refuses_at_the_sector_walk`
   is its tripwire.

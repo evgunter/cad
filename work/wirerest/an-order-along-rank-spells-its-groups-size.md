@@ -2,13 +2,13 @@
 id: an-order-along-rank-spells-its-groups-size
 kind: issue
 title: Qualifier::OrderAlong { rank, of } spells the group's size in the name, so a third same-sense crossing renames the first two
-status: parked
+status: closed
 opened: 2026-10-20
 priority: P3
 cost: M
 refs: [naming-has-no-single-strategy-and-each-fork-patches-one-entity]
 design: true
-blocked_on: [a-unions-line-of-several-edges-is-oriented-by-its-least-edge]
+closed: 2026-10-26
 ---
 
 
@@ -76,3 +76,12 @@ main (`role.rs`'s `Qualifier::OrderAlong`, `canonical.rs`'s
 builds the ruling. This row closes as superseded when that build
 removes `OrderAlong`, and opens again only if a ranked spelling survives
 it.
+
+
+## Closed by PR 5758 (2026-10-26)
+
+`wire/nothing-is-ranked` builds Ev's PR 5705 rule: an orientation is read,
+never chosen, and nothing is ranked. `Qualifier::OrderAlong` is deleted with its `of`; N5's group-size rung reads the recorded group and stays. The status change is the
+orchestrator's.
+
+Closed by PR 5758 (2026-10-26, "nothing is ranked", Ev's ruling on PR 5705). `OrderAlong` and its `of` are deleted, and canonical's `RankRule::Reverse` with them. The fork dissolved.

@@ -67,7 +67,7 @@ yet"); an in-band reading is `Escalated { LineWedges }`. ∖'s
 reverted-line check (PR 5106) is folded in: every overlap it found the
 gate finds, so it and `RevertError::WedgesOverlap`/`NoSheet` are gone.
 A wedge end on the line (a cusp or slit edge, which the reader has no
-interior direction for) refuses typed `WedgeEnd` rather than as an
+interior direction for) refuses typed (`LineWedgeFault::Unread`, `Degenerate`) rather than as an
 in-band escalation.
 
 Census (topo, sweep, editor-core, slow set included, ε default, 1e-6,

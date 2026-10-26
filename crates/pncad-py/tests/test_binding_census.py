@@ -976,6 +976,9 @@ BOUND_AS = {
     # `StepIdFault` is what `EditError::StepIdsRefused` carries, and
     # its arms cross at the carrier's second word.
     "StepIdFault": "EditError.inner_variant",
+    # `LoftFault` is what `EditError::LoftShape` carries, and its arms
+    # cross at the carrier's second word.
+    "LoftFault": "EditError.inner_variant",
     # Which primitive a measure is, without its references: Python reads
     # it as the primitive's verb word.
     "MeasureVerb": "MeasurePrimitive.verb",
@@ -3662,6 +3665,8 @@ MEMBERS_BOUND_AS = {
     "EditError::PoseShape": "EditError.variant",
     "EditError::IndexedRead": "EditError.variant",
     "EditError::SetMembersOnNonList": "EditError.variant",
+    "EditError::SetLoftSectionsOnNonLoft": "EditError.variant",
+    "EditError::LoftShape": "EditError.variant",
     "EditError::LoftSectionsSpelled": "EditError.variant",
     "EditError::SetProgramOnNonProfile": "EditError.variant",
     "EditError::LoftSectionCount": "EditError.variant",
@@ -3771,7 +3776,6 @@ MEMBERS_BOUND_AS = {
     "InlineError::StrandedPartName": "InlineError.variant",
     "InlineError::StrandedPartRead": "InlineError.variant",
     "InlineError::NameOnDroppedStep": "InlineError.variant",
-    "InlineError::RankedRunReordered": "InlineError.variant",
     "InlineError::Edit": "InlineError.variant",
     "FlattenError::UnknownNode": "FlattenError.variant",
     "FlattenError::NotAPlacement": "FlattenError.variant",
@@ -3894,12 +3898,12 @@ MEMBERS_BOUND_AS = {
     "SplitError::RemainderReadUncarried": "SplitError.variant",
     "SplitError::NoMaterial": "SplitError.variant",
     "SplitError::UncutVarReference": "SplitError.variant",
+    "SplitError::SpaceStraddlesCut": "SplitError.variant",
     "SplitError::DefinitionStraddlesCut": "SplitError.variant",
     "SplitError::UnresolvedVarCrossesCut": "SplitError.variant",
     "SplitError::PartNameReachesRemainder": "SplitError.variant",
     "SplitError::NameStraddlesCut": "SplitError.variant",
     "SplitError::NameOnDroppedStep": "SplitError.variant",
-    "SplitError::RankedRunReordered": "SplitError.variant",
     "SplitError::BodyNameCrossesCut": "SplitError.variant",
     "SplitError::NameOutsidePartWorld": "SplitError.variant",
     "SplitError::Pin": "SplitError.variant",
@@ -4015,8 +4019,11 @@ MEMBERS_BOUND_AS = {
     "ValidationError::CensusUndecidable": "ValidationFinding.variant",
     "ValidationError::FaceThroughEdgeWedge": "ValidationFinding.variant",
     "ValidationError::FaceThroughEdgeWedgeUndecided": "ValidationFinding.variant",
+    "ValidationError::CoincidentWedgesOverlap": "ValidationFinding.variant",
+    "ValidationError::CoincidentWedgesOverlapUndecided": "ValidationFinding.variant",
     "ValidationError::ArcEndOffCorner": "ValidationFinding.variant",
     "ValidationError::InstanceInterference": "ValidationFinding.variant",
+    "ValidationError::SameSideInterference": "ValidationFinding.variant",
     "ValidationError::CuspEdgesMissing": "ValidationFinding.variant",
     "ValidationError::DanglingTopology": "ValidationFinding.variant",
     "ValidationError::DanglingGeometry": "ValidationFinding.variant",

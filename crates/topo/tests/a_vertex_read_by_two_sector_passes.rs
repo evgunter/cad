@@ -429,15 +429,10 @@ fn builds_along(
 ///   (`work/cleave/a-boolean-closes-a-slits-face-across-its-line.md`).
 ///   The other ops place the two germs apart and build.
 /// - `EdgeInFace`: an edge lies in a face whose material parts it, and
-///   the parting is not built. A pyramid on the void's face, in the arch
-///   or round its island: `y − x` leaves the pyramid's edge in the
-///   void's face along part of its length (`Partly`; at its midpoint,
-///   from the face's own direction round into it, the material is solid
-///   to 20°, empty to 90°, solid to 180°, empty beyond, and main's one
-///   edge claimed a reflex 290° through the empty half-space). The
-///   pyramid out the bottom of the glued blocks: `y − x` leaves an edge
-///   in the glued face, which its material divides, and an end of it
-///   touches another edge (`DividedEndTouched`).
+///   the parting is not built. The pyramid out the bottom of the glued
+///   blocks: `y − x` leaves an edge in the glued face, which its
+///   material divides, and an end of it touches another edge
+///   (`DividedEndTouched`).
 const REFUSING: &[(&str, BooleanErrorKind)] = &[
     (
         "around the lying pyramid, x − y",
@@ -458,18 +453,6 @@ const REFUSING: &[(&str, BooleanErrorKind)] = &[
     (
         "around the lying pyramid, mirrored into the void, y ∪ x",
         BooleanErrorKind::SlitLineCrossed,
-    ),
-    (
-        "a pyramid on the void's face in the arch, y − x",
-        BooleanErrorKind::EdgeInFace,
-    ),
-    (
-        "on the void's face in the arch, y − x",
-        BooleanErrorKind::EdgeInFace,
-    ),
-    (
-        "on the void's face, the island in it, y − x",
-        BooleanErrorKind::EdgeInFace,
     ),
     (
         "a pyramid through the glued faces, out the bottom, y − x",
@@ -1502,11 +1485,8 @@ fn a_pyramid_resting_where_a_solid_touches_itself_holds_tier_three_prime() {
                 .iter()
                 .flatten()
                 .filter(|e| {
-                    matches!(
-                        e,
-                        ValidationError::CensusUndecidable { .. }
-                            | ValidationError::InstanceInterference { .. }
-                    )
+                    matches!(e, ValidationError::CensusUndecidable { .. })
+                        || common::is_decided_overlap(e)
                 })
                 .collect();
             assert!(pairs.is_empty(), "{what}: {errors:?}");

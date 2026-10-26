@@ -20,7 +20,7 @@ against a plane face and splits it at every crossing. `sweep`'s
 `a_face_across_a_wavy_corner` pins this on the wavy loft's corners,
 three crossings each, against the face `x = 1` of a box. The union of
 that loft and box (`editor-core` `emit_topo`'s
-`nurbs_crossings_rank_by_parameter::a_union_across_a_nurbs_edge_refuses_at_the_sector_walk`)
+`wavy_loft::a_union_across_a_nurbs_edge_refuses_at_the_sector_walk`)
 then refuses `CurvedBooleanUnsupported { operand: A, face, kind: Nurbs }`
 from `boolean/sectors.rs`. There, the sector face resolution
 (`sector_face::resolve`, its `_ => SectorFaceError::Unsupported` arm)
@@ -30,8 +30,6 @@ faces of its sectors are splines.
 
 ## Owed
 
-The end-to-end row the crossing rung could not write: the two
-crossings of one sense of each corner reach
-`emit_topo::rank_crossings` through the boolean, under one name, ranked
-along the corner by its parameter, the lesser first. Replace that
-tripwire with it.
+The end-to-end row the crossing rung could not write: the crossings of
+each corner named through the boolean, the first and third, of one
+sense, tied. Replace that tripwire with it.

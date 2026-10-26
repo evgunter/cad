@@ -899,6 +899,14 @@ The boolean declare surface is gone at every layer. A boolean's one input beside
 
   (CLEAVE orchestrator)
 - 2026-10-26 — Note for INTENT: INLANE is handed back `ready` (Ev, in chat). Nothing was dispatched on it after 10-19, and its resume point is the C6 slices item's `## Handoff`. INTENT keeps the stage-3 chain.
+- 2026-10-26 — **The duplication track is ONEHOME** (`work/onehome/`, P1, 19 rows, 32.5 of a 35-point budget), chartered by CLEAVE's slate triage. Its `program.md` and `plan.md` carry the sort INTENT was asked for: design signal (`design: true`, a sentence on what is unclear) or mechanical (one line), on the row, without taking on the design conversations. Against the list above:
+  - 18 of the 20 moved there by `git mv`, ids kept, each re-banded P1 with a line on the row.
+  - `the-edge-plane-lane-copies-no-ellipse-edge` went to HONEJOIN at P1 instead: it is a missing ellipse copy in the join (an arm the gate admits), not two copies.
+  - `reduce-and-carrier-cross-still-speak-of-declared-pairs` went to CLEAVETAIL at P4: a rename with no design content.
+  - Added from other bands: `identity-data-reads-its-ladder-from-geom-brep` (filed P4: `identity_data` spells out `geom_brep::ladder::read_identity` by hand).
+  - Two rows of the class went to CHARTTAIL with the chart rows, and are worth the same sort: `torus-face-region-reads-a-points-torus-chart-by-its-own-atan2` and `frame-lanes-still-pick-their-atan2-formula-across-a-landmark-cut`.
+  - HONEONE (`work/honeone/`) holds rows of the same class filed at P3 on boolean ground.
+  (CLEAVE orchestrator, slate-triage lane)
 - 2026-10-26 — **Duplication triage done** (Ev's ask, via CLEAVE's note in #5761). A read-only lane (`session_01NuZCMv75H9b7rrHeRnzvYB`) checked 24 rows against main `e92fb951` and DESIGN `[one-way.places]`/`[one-way.readings]`. Each row now carries a "Duplication triage" section, and the design-signal rows carry `design: true`.
   - **Design signal (6), in four clusters:**
     - A, the vertex-neighbourhood reading against a surface: `run-loops-…`, `the-split-walk-…bounds-side…`, the strongest signal;
@@ -919,3 +927,23 @@ The boolean declare surface is gone at every layer. A boolean's one input beside
     - D as a "why was the wrong place easier?" pass over its hot spots.
 
     These go to the duplication track once it is chartered; INTENT does not hold the design conversations.
+- 2026-10-26 12:50 —
+  - **Main is red in the CI profile** on RESTREAD's `CoincidentWedgesOverlap` since PR 5529: nine rows across topo, editor-core, viewer and python. Filed P0 on RESTREAD's slate (`main-red-coincident-wedges-overlap-refuses-flush-copies`) and flagged on their PR 5704.
+  - **Loft (#5748):** the fix pass was read and accepted, and the lane is archived. Its only reds are exactly that set. The merge over the inherited red was refused by the session's auto-mode classifier, so it waits for RESTREAD's fix, or for Ev to say to merge over it.
+  - **Value chart (#5742, MSOLVE-held):** review 1 is NOT-MERGEABLE. The MAJOR: sketch-on-face is unevaluable on side faces. A fix pass is sent, and review 2 follows on the sequential arm. The spin sense on a rest is put to Ev on the PR (`[ev]` in the title, and this session is subscribed). Reviewer `session_01Uays4fae5gRCSFbxgwS38i`.
+  - **Split (#5763):** fix pass in progress (now dirty against main).
+- 2026-10-26 14:30 —
+  - **Main is green again**: ATREST PR 5779 fixed RESTREAD's P0 rows.
+  - **Split (#5763) merged.** I read and accepted the fix pass (`SpaceStraddlesCut`, with `Doc::spaces_read` as the one home). Merged on green at `134acf3e`. Single review, so no review-log row.
+  - **Loft (#5748):** I merged main into the branch myself (`d1f528a7cf`; its lane is archived). It merges when CI is green.
+  - **D′3 (#5636):** both delta reads (R1, R2) on `220ba3f855` are APPROVE-WITH-FIXES, and every original finding is resolved by execution. The census-discard mutant is killed. The fix pass is sent:
+    - the `finding_solids` mapper goes exhaustive (R1 m-A, MINOR);
+    - the PR body answers the OnceLock sharing question (N-B);
+    - `Product::fresh` destructures, and the "at the door" wording is fixed;
+    - a P2 is filed for `Separation` missing a nested ⊔'s overlap.
+    The delta read on the fix pass is mine. Then the row, the merge, and E.
+  - **ONEHOME:** Ev clarified that duplication design rows which turn out to be INTENT's are INTENT's to do. Of the design rows:
+    - `coincidence-intent-has-too-many-spellings` is INTENT's (the coincidence door). It is answered, so closed, with its residue pointed at ATREST 5 C and COINCIDE.
+    - Cluster E (the at-rest gate's typing) touches INTENT's editor-core and census seams, but the gate is ATREST's. INTENT weighs in on its design fork rather than leading it.
+    - A, B and C are kernel rows and stay ONEHOME's.
+- 2026-10-26 14:35 — **Loft (#5748) merged** on green at `d1f528a7cf`. **The ONEHOME close (#5783) merged.** The loft and split items close.

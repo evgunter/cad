@@ -73,3 +73,7 @@ PR 4981 adds one more representation for that closure to retire:
 directed view derived from `null_edges`, carried beside
 `Descendants::null_copies`, `NullCopies::of_operand`, `null_copy_rows`
 and `BooleanNaming.null_copies`.
+
+## Partly moot (WIRE orchestrator, 2026-10-26)
+
+Closed by PR 5758 (2026-10-26, "nothing is ranked", Ev's ruling on PR 5705). The `flip_senses` bullet is moot: the function is deleted. The other bullets stand.

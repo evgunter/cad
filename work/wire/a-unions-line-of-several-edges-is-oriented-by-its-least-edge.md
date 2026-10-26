@@ -2,10 +2,12 @@
 id: a-unions-line-of-several-edges-is-oriented-by-its-least-edge
 kind: issue
 title: A union orients a line by its least edge, so where flush edges or a seam's sides run opposite ways a crossing's sense and a group's ranks read which was minted first
-status: open
+status: closed
 opened: 2026-10-20
 priority: P2
 cost: M
+branch: wire/nothing-is-ranked
+closed: 2026-10-26
 ---
 
 Filed by WIRE's `wire-mintfirst` lane (branch
@@ -86,3 +88,12 @@ The code is not built that way yet (verified on main at `d621f67e`):
 RefuseRun}` and `flip_senses` (`crates/editor-core/src/names/canonical.rs:70`,
 `:276`) and `rank_crossings` (`crates/editor-core/src/names/emit_topo.rs:5231`)
 all stand. This row is that build.
+
+
+## Closed by PR 5758 (2026-10-26)
+
+`wire/nothing-is-ranked` builds Ev's PR 5705 rule: an orientation is read,
+never chosen, and nothing is ranked. A `Merged` line of flush member edges crosses `Through { entering }` the edges, or seam sides, whose direction enters; `line_head` and the least-edge reading are gone, and `name_invariance`'s admission for "plate pinch, p2 extruded down" is removed (`ADMITTED_HISTORY` is empty). The status change is the
+orchestrator's.
+
+Closed by PR 5758 (2026-10-26, "nothing is ranked", Ev's ruling on PR 5705). An orientation is read, never chosen: `Through { entering }` on a line of several things, a seam in a run carries its sense, and nothing is ranked. `ADMITTED_HISTORY` is empty.

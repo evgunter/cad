@@ -2,10 +2,11 @@
 id: a-band-decided-order-of-off-curve-feet-needs-k-above-two
 kind: issue
 title: Ordering two points' feet by a band-decided reading is sound only for K > 2, and the K configuration admits any K > 1
-status: open
+status: closed
 opened: 2026-10-07
 priority: P3
 cost: E
+closed: 2026-10-26
 ---
 
 
@@ -31,3 +32,7 @@ been changed there.
 ## Re-homed from FLUX to SCALAR (2026-10-10)
 
 (FLUX orchestrator) FLUX measured 125.5 budget points against 30 and was cut on its priority seam: FLUX kept the curved closed-form arms. SCALAR collects the scalar doors and the readers over them: the certified-door family, the margin and recourse readers, the unit-direction doors, and the box driver's readings. The id and the body above are unchanged; the move may have set `priority`, `cost` or `status` in the header.
+
+## Moot (WIRE orchestrator, 2026-10-26)
+
+Closed by PR 5758 (2026-10-26, "nothing is ranked", Ev's ruling on PR 5705). The code this row is about is deleted: ranks, `RankRule`, canonical's rank rewrite and the carrier-parameter rank readers. PR 5758's FULL review checked that no premise of this row remains in editor-core.

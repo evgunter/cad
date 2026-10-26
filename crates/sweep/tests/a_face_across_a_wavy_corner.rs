@@ -11,7 +11,7 @@
 //! crossings, in either operand order. The union itself stops one step
 //! on, at the sector walk around a crossing vertex between two spline
 //! walls (`work/splice/the-sector-walk-reads-no-nurbs-face-at-a-crossing-vertex.md`),
-//! which owes the row that ranks the crossings through the boolean.
+//! which owes the row that names the crossings through the boolean.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Point2, Point3, Tol};

@@ -2,10 +2,11 @@
 id: split-sides-are-not-finished-bodies
 kind: issue
 title: The split's sides are plain bodies: its door takes a finished operand but hands back sides no at-rest gate read
-status: open
+status: closed
 opened: 2026-10-06
 priority: P2
 cost: M
+closed: 2026-10-26
 ---
 
 
@@ -102,3 +103,7 @@ Every consumer pays tier 3 again: `editor-core`'s `finished_operand`
 5100's review at 0.15–0.39 s per side on `revalue_cut_cylinder`. Handing the
 sides back as `AtRestBody`, so the verdict rides with them, is the only
 cheaper gate that stays honest.
+
+## Closed (2026-10-26)
+
+Fixed by PR 5590 (FLUX F1, merge `84ce01a580`): `SplitPart::Body` holds an `AtRestBody` the split's own gate reached (`T::gate_at_rest_kept` in `splitting::split`), as a Boolean's result does. The tier-3′ half of the bar is `the-splits-at-rest-gate-reads-tier-3-where-a-finished-body-owes-tier-3-prime`. (CLEAVE slate triage)

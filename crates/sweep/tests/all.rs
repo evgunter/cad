@@ -64,6 +64,8 @@ mod a_circle_of_one_radius_elsewhere_is_no_rim;
 mod a_curved_keel_in_the_plane;
 #[path = "a_curved_keel_on_the_floor_refuses_its_slit_form.rs"]
 mod a_curved_keel_on_the_floor_refuses_its_slit_form;
+#[path = "a_cylinder_split_just_off_its_rim_vertex.rs"]
+mod a_cylinder_split_just_off_its_rim_vertex;
 #[path = "a_face_across_a_wavy_corner.rs"]
 mod a_face_across_a_wavy_corner;
 #[path = "a_face_off_the_tangent_ruling.rs"]
@@ -152,6 +154,8 @@ mod an_arc_rim_picks_the_row_it_lies_on;
 mod an_arc_tangent_at_a_boolean_vertex;
 #[path = "an_arcs_sweep_structure_is_certified_for_every_member.rs"]
 mod an_arcs_sweep_structure_is_certified_for_every_member;
+#[path = "an_edge_running_past_a_face_reads_its_crossings.rs"]
+mod an_edge_running_past_a_face_reads_its_crossings;
 #[path = "an_inside_out_thin_tube_operand.rs"]
 mod an_inside_out_thin_tube_operand;
 #[path = "at_rest_pcurve_faces.rs"]
@@ -344,10 +348,14 @@ mod torax_interval;
 mod torus_region_probe;
 #[path = "transform_nurbs_walls.rs"]
 mod transform_nurbs_walls;
+#[path = "trimmed_sphere_aims.rs"]
+mod trimmed_sphere_aims;
 #[path = "tube_rim_touch_rows.rs"]
 mod tube_rim_touch_rows;
 #[path = "two_tubes_in_the_zero_band.rs"]
 mod two_tubes_in_the_zero_band;
+#[path = "two_wedge_ends_on_one_line.rs"]
+mod two_wedge_ends_on_one_line;
 #[path = "unjoined_operand_at_a_dual.rs"]
 mod unjoined_operand_at_a_dual;
 #[path = "verbs_offc_consumer.rs"]
