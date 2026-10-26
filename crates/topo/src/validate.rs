@@ -1577,6 +1577,13 @@ pub enum ValidationError {
         solid: SolidKey,
         /// What left it unresolved.
         limit: crate::props::SignLimit,
+        /// The volume enclosure's lower end where the sign walk stopped,
+        /// read outward. The true volume lies between the two ends. A
+        /// body refused here never reaches a number door, so this is
+        /// where its bracket surfaces.
+        volume_lo: f64,
+        /// The enclosure's upper end, read outward.
+        volume_hi: f64,
     },
     /// Tier 3, check 7 — **no reading decides which side of the solid's
     /// faces infinity lies on**: a ray aimed at one of its faces met two
@@ -4197,9 +4204,15 @@ impl fmt::Display for ValidationError {
                 "a solid holds {outer} separate pieces of material, and a solid is one piece. \
                  {DEFECT}"
             ),
-            Self::VolumeSignUnresolved { limit, .. } => write!(
+            Self::VolumeSignUnresolved {
+                limit,
+                volume_lo,
+                volume_hi,
+                ..
+            } => write!(
                 f,
-                "the sign of a solid's volume cannot be read: {}. {}",
+                "the sign of a solid's volume cannot be read: {}; the volume lies in \
+                 [{volume_lo:e}, {volume_hi:e}] m³. {}",
                 limit.words(),
                 limit.ending()
             ),
@@ -5603,7 +5616,7 @@ fn validate_geometric_certified<
 /// asserts — and `Err` is check 7's verdicts, never empty (it is built
 /// only when one was pushed). There is no state where the check came
 /// back clean without a certificate to hand on.
-fn plus_v_by_sign<'b, T: geom_core::Decide>(
+fn plus_v_by_sign<'b, T: geom_core::Decide + geom_core::Bounds>(
     body: &'b Body<T>,
     band: Band,
     tol: Tol,
@@ -5634,7 +5647,16 @@ fn plus_v_by_sign<'b, T: geom_core::Decide>(
             parts.iter_mut().collect();
         crate::props::role_walk_set(&mut members, quad, PLUS_V_SIGN)
     };
-    let mut roles = roles.into_iter();
+    // Each solid's enclosure where its walk stopped, read outward: an
+    // unresolved sign carries it.
+    let brackets: Vec<(f64, f64)> = parts
+        .iter()
+        .map(|certificate| {
+            let enclosure = certificate.enclosure();
+            (enclosure.volume_lo.lo(), enclosure.volume_hi.hi())
+        })
+        .collect();
+    let mut roles = roles.into_iter().zip(brackets);
     let mut errors = Vec::new();
     for ((solid, faces), unmeasured) in subjects.into_iter().zip(unmeasured) {
         let verdict = match unmeasured {
@@ -5642,7 +5664,9 @@ fn plus_v_by_sign<'b, T: geom_core::Decide>(
                 errors.push(ValidationError::VolumeUncomputable { solid, source });
                 None
             }
-            None => roles.next().map(plus_v_verdict),
+            None => roles
+                .next()
+                .map(|(role, volume)| plus_v_verdict(role, volume)),
         };
         errors.extend(plus_v_errors(body, solid, faces, verdict.as_ref(), band));
     }
@@ -5697,7 +5721,9 @@ fn census_finding(
 /// ([`ValidationError::SolidOuterShells`]) is a piece count, not an
 /// orientation, and its winding is not read. Premise: tier 1 is clean
 /// ([`check7_subjects`]).
-pub(crate) fn wound_negative<T: geom_core::Decide + crate::props::AtRestPolicy>(
+pub(crate) fn wound_negative<
+    T: geom_core::Decide + geom_core::Bounds + crate::props::AtRestPolicy,
+>(
     body: &Body<T>,
     band: Band,
     tol: Tol,
@@ -5980,7 +6006,13 @@ pub(crate) enum PlusVVerdict {
     Uncomputable(crate::props::MassPropsError),
     /// The sign is unresolved by a limit of the measurement, not by the
     /// body ([`crate::props::SignLimit`]).
-    Unresolved(crate::props::SignLimit),
+    Unresolved {
+        /// What left the sign unresolved.
+        limit: crate::props::SignLimit,
+        /// The volume enclosure the walk stopped on, its ends read
+        /// outward.
+        volume: (f64, f64),
+    },
     /// The sign is undecided about the body itself: in band, carrying
     /// its escalation, or straddling zero by the body's own rounding.
     Undecided(Option<Indeterminate>),
@@ -6046,6 +6078,7 @@ pub(crate) fn plus_v_read<T: geom_core::Decide>(
 /// unresolved, and otherwise it is undecided about the body.
 fn plus_v_verdict(
     role: Result<crate::props::ShellRole, crate::props::RoleWalkRefusal>,
+    volume: (f64, f64),
 ) -> PlusVVerdict {
     use crate::props::{RoleWalkRefusal, ShellRole};
     match role {
@@ -6054,7 +6087,7 @@ fn plus_v_verdict(
         Err(RoleWalkRefusal::Refused(source)) => PlusVVerdict::Uncomputable(source),
         Err(RoleWalkRefusal::Unread {
             limit: Some(limit), ..
-        }) => PlusVVerdict::Unresolved(limit),
+        }) => PlusVVerdict::Unresolved { limit, volume },
         Err(RoleWalkRefusal::Poisoned(last) | RoleWalkRefusal::Unread { last, .. }) => {
             PlusVVerdict::Undecided(last.escalation())
         }
@@ -6107,7 +6140,7 @@ fn plus_v_errors<T: Decide>(
     let volume = || match walked {
         Some(PlusVVerdict::Pass) => Ok(SolidContainment::Out),
         Some(PlusVVerdict::Refuse) => Ok(SolidContainment::In),
-        Some(PlusVVerdict::Unresolved(limit)) => Err(Some(Err(*limit))),
+        Some(PlusVVerdict::Unresolved { limit, .. }) => Err(Some(Err(*limit))),
         Some(PlusVVerdict::Undecided(reading)) => Err(Some(Ok(*reading))),
         Some(PlusVVerdict::Uncomputable(_)) | None => Err(None),
     };
@@ -6123,7 +6156,18 @@ fn plus_v_errors<T: Decide>(
         Ok(Err(SideUnread::Fallback {
             volume: Some(Err(limit)),
             ..
-        })) => errors.push(ValidationError::VolumeSignUnresolved { solid, limit }),
+        })) => {
+            let (volume_lo, volume_hi) = match walked {
+                Some(PlusVVerdict::Unresolved { volume, .. }) => *volume,
+                _ => unreachable!("an unresolved limit is read off the walk's Unresolved verdict"),
+            };
+            errors.push(ValidationError::VolumeSignUnresolved {
+                solid,
+                limit,
+                volume_lo,
+                volume_hi,
+            });
+        }
         Ok(Err(SideUnread::Fallback {
             volume: Some(Ok(margin)),
             aimed,
@@ -9819,7 +9863,7 @@ impl<T: Real> AtRestBody<T> {
         tol: Tol,
     ) -> Result<(), Unfinished>
     where
-        T: Decide + crate::props::AtRestPolicy,
+        T: Decide + geom_core::Bounds + crate::props::AtRestPolicy,
     {
         if self.outcome == AtRestOutcome::Validated {
             return Ok(());
@@ -10866,11 +10910,14 @@ mod tests {
                 Certified::Unresolved(unread, limit) => (unread, Some(limit)),
                 _ => unreachable!("only an open round runs the schedule out"),
             };
-            plus_v_verdict(Err(crate::props::RoleWalkRefusal::Unread {
-                last: Box::new(last),
-                limit,
-                in_band: false,
-            }))
+            plus_v_verdict(
+                Err(crate::props::RoleWalkRefusal::Unread {
+                    last: Box::new(last),
+                    limit,
+                    in_band: false,
+                }),
+                (-1.0, 1.0),
+            )
         };
         assert!(
             matches!(
@@ -10894,13 +10941,15 @@ mod tests {
             assert!(
                 matches!(
                     at_target(Certified::Unresolved(unread(0.0), limit)),
-                    PlusVVerdict::Unresolved(l) if l == limit
+                    PlusVVerdict::Unresolved { limit: l, volume } if l == limit && volume == (-1.0, 1.0)
                 ),
                 "unresolved by {limit:?}"
             );
             let text = ValidationError::VolumeSignUnresolved {
                 solid: SolidKey::default(),
                 limit,
+                volume_lo: -1.0,
+                volume_hi: 1.0,
             }
             .to_string();
             assert!(

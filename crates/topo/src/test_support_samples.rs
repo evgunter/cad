@@ -1548,6 +1548,8 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
         ValidationError::VolumeSignUnresolved {
             solid,
             limit: crate::props::SignLimit::Scalar,
+            volume_lo: -1e-9,
+            volume_hi: 1e-9,
         },
     ));
     s.push((

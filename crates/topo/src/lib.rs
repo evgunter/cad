@@ -712,7 +712,9 @@ pub mod test_support {
     /// # Errors
     ///
     /// The reduction's or the join's refusal.
-    pub fn split_through_the_join<T: geom_core::Decide + crate::props::AtRestPolicy>(
+    pub fn split_through_the_join<
+        T: geom_core::Decide + geom_core::Bounds + crate::props::AtRestPolicy,
+    >(
         operand: &crate::AtRestBody<T>,
         plane: &crate::SplitPlane<T>,
         tol: geom_core::Tol,

@@ -328,7 +328,7 @@ fn fillet_edges_inner<T: Decide + Bounds + topo::AtRestPolicy>(
 /// read at, and the operand read through
 /// [`AtRestBody::gate_unverdicted`] where it carries no verdict. One
 /// home, for the reason the preamble below gives.
-fn operand_gate<T: Decide + topo::AtRestPolicy>(
+fn operand_gate<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     body: &AtRestBody<T>,
     verb: BlendKind,
     tol: Tol,

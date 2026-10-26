@@ -157,11 +157,28 @@ fn an_undecided_sign_with_the_schedule_run_out_refuses() {
             );
             let Ok(cert) = gated else {
                 let errors = plain.expect_err("the doors agree");
+                // The refusal carries the enclosure the walk stopped on,
+                // and it holds the strip's closed form: the two bulges
+                // cancel, so V = ±2·s·delta·s (the loft is `s` tall).
+                let truth = if reversed { -1.0 } else { 1.0 } * 2.0 * s * (rel * s) * s;
+                let bracket = errors.iter().find_map(|e| match e {
+                    topo::ValidationError::VolumeSignUnresolved {
+                        limit: topo::SignLimit::Quadrature,
+                        volume_lo,
+                        volume_hi,
+                        ..
+                    } => Some((*volume_lo, *volume_hi)),
+                    _ => None,
+                });
+                let (lo, hi) = bracket.unwrap_or_else(|| {
+                    panic!(
+                        "{label}: a sign still open at the wall is CHECK 7's quadrature \
+                         refusal: {errors:?}"
+                    )
+                });
                 assert!(
-                    errors
-                        .iter()
-                        .any(|e| matches!(e, topo::ValidationError::VolumeSignUnresolved { .. })),
-                    "{label}: a sign still open at the wall is CHECK 7's refusal: {errors:?}"
+                    lo <= truth && truth <= hi,
+                    "{label}: the refusal's bracket [{lo:e}, {hi:e}] holds V = {truth:e}"
                 );
                 refused += 1;
                 continue;

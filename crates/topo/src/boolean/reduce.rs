@@ -587,7 +587,9 @@ pub(super) fn gate_operand<T: Decide>(
 /// runs before the pipeline reads a several-solid operand as one solid
 /// (`ops::one_solid`), since the orientation read's subjects are the
 /// solid and, within it, the shell.
-pub(super) fn gate_unverdicted_operand<T: Decide + crate::props::AtRestPolicy>(
+pub(super) fn gate_unverdicted_operand<
+    T: Decide + geom_core::Bounds + crate::props::AtRestPolicy,
+>(
     body: &crate::AtRestBody<T>,
     operand: Operand,
     band: Band,
