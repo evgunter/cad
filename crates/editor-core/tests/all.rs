@@ -245,6 +245,8 @@ mod resolve_piece_ladder;
 mod resolve_upstream_scope;
 #[path = "revalue_corpus.rs"]
 mod revalue_corpus;
+#[path = "review_atrest_gap_cells_r1_probes.rs"]
+mod review_atrest_gap_cells_r1_probes;
 #[path = "rv_dm7_probes.rs"]
 mod rv_dm7_probes;
 
