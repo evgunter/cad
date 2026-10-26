@@ -6,6 +6,7 @@ status: open
 opened: 2026-10-02
 priority: P3
 cost: M
+refs: [direction-doors-refuse-finite-directions-normalize-now-answers]
 ---
 
 
@@ -69,3 +70,27 @@ scales is the row that can fail.
 ## Re-homed from FLUX to FLUXHOLD (2026-10-10)
 
 (FLUX orchestrator) FLUX measured 125.5 budget points against 30 and was cut on its priority seam: FLUX kept the curved closed-form arms. FLUXHOLD holds FLUX's rows on the D10 hold (`work/intent/d10-one-way-to-say-intent-is-unbuilt.md`). Each waits on the INTENT unit that rebuilds its ground, named in `blocked_on`. The id and the body above are unchanged; the move may have set `priority`, `cost` or `status` in the header.
+
+## Hit list re-read and moved to FRAME (2026-10-26, tracker sweep)
+
+Moved from FLUXHOLD by `mv`, id kept: the row is no longer on the D10
+hold (INTENT set it `open` when stage 3 D merged, `work/fluxhold/log.md`
+2026-10-21), and its sibling
+`direction-doors-refuse-finite-directions-normalize-now-answers` (the
+same doors, asked what a direction's length is measured in at the
+format's ends) is FRAME's. The hit list against main `bb25fa4f`:
+
+- `DATUM_UNIT_NORM` is gone with `Datum`. Its successor is
+  `topo::query::POSE_UNIT_NORM` (`crates/topo/src/query.rs:264-274`),
+  whose doc still claims "Its comparand is a genuine length". It is
+  decided at `editor-core`'s `pose.rs`, `verbs/split.rs`,
+  `names/geompred.rs`, `mate/value.rs`, `mate/unobservable.rs`,
+  `eval/wire.rs` and `eval/wire/pose.rs`.
+- `mate/solve.rs`'s `derived_direction` is gone.
+- Still standing as listed: `eval/wire.rs`'s `EVAL_DIRECTION_NORM`
+  (`:1199`); `frame.rs`'s `frame_point_at_aim`,
+  `frame_path_start_tangent` and `frame_mirror_normal` (`:443`, `:487`,
+  `:607`); `sweep/src/revolve/axis.rs`'s `REVOLVE_AXIS_DIRECTION`
+  (`UnitVec3::new` at `:120`); `demos/tour/src/scalar.rs`'s
+  `TOUR_FRAME_AXIS`; `topo/src/test_support_fixtures.rs`'s
+  `FIXTURE_SPLIT_NORMAL`.
