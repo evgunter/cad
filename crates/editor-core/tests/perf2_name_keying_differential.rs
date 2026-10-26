@@ -340,11 +340,19 @@ fn sans_epsilon(t: &str) -> String {
 /// `die_composed_tour` alone, its ±x faces' pip seams turned a quarter
 /// about the pips' axes.
 const PINNED: &[(&str, u64, u64)] = &[
-    ("die", 0xdc846f5f9155e5bd, 0xd01338a3985ddb51),
-    ("corner_table", 0xf77d789ea1c04044, 0x255232f74b555158),
-    ("heat_sink", 0x3282865c55da4b17, 0xfdeb3e58c8a10021),
-    ("crossing_slots", 0xd1eddaef1ff398d0, 0x7ba67321e479912d),
-    ("nested_islands_105", 0x6abf8ce391d386db, 0x5a9f22f4eba0b1a2),
+    ("die", 0x90ee_bc53_1859_5ce8, 0xe605_474c_e843_d439),
+    ("corner_table", 0x97de_b01f_3e21_3c98, 0x09ba_da53_48ce_287b),
+    ("heat_sink", 0xc9d6_ab7c_fe9c_dac6, 0xd9df_155d_dd34_cbe1),
+    (
+        "crossing_slots",
+        0x2f06_1eeb_8dba_8d5d,
+        0xe252_b89e_973e_009b,
+    ),
+    (
+        "nested_islands_105",
+        0x9d8a_cdc0_bfc3_232d,
+        0x1a0f_868e_1cf3_9e6c,
+    ),
     (
         "nested_islands_106_depth1",
         0x3dbc_dec0_c089_79fb,

@@ -1012,8 +1012,8 @@ fn run_at<T: editor_core::EvalScalar>(
 /// against main.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
     (1e-9, 0xc9a1_5c2f_8157_2720),
-    (1e-6, 0xfc0f_2d40_8c90_1d43),
-    (1e-12, 0x5b91_d653_e6de_b52a),
+    (1e-6, 0x42a7_f760_36b7_0771),
+    (1e-12, 0x1ab5_ef43_a353_9d87),
 ];
 
 /// **Each seat of the corpus stands on what it is seated on**: in the

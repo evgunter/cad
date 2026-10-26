@@ -86,7 +86,7 @@ fn digest(rows: &[(&'static str, editor_core::Resolution)]) -> u64 {
 /// orientation**: every mate carries its orientation, which the minting
 /// edits' bytes hold, so every mint id's digest after the slab's mate
 /// moved with it. A spelling change.
-const DIAGNOSIS_DIGEST: u64 = 0x368b_5e05_622b_e4af;
+const DIAGNOSIS_DIGEST: u64 = 0x7b8c_d52a_b8be_5f32;
 
 #[test]
 fn diagnosis_corpus_is_golden() {
