@@ -1684,3 +1684,72 @@ fn a_cursor_on_a_chord_end_over_a_grazed_face_picks_an_edge_through_it() {
          nothing"
     );
 }
+
+/// REVIEW PROBE (PR 5717): the silhouette witness's subject count over
+/// δ factors of the plate δ, at the default framing — does the class
+/// live at the full δ or near it, or only at the halved δ the re-pin
+/// chose?
+#[test]
+fn review_pr5717_silhouette_witness_over_delta() {
+    let tol = Tol::witness();
+    let (session, copy) = plate_session(tol);
+    let aspect = pane().aspect().expect("a positive aspect");
+    let camera = common::framed(aspect);
+    let eval = eval_of(&session);
+    let [width, depth, thickness] = PLATE_EXTENT;
+    let (cx, cy) = (width * 0.5, depth * 0.5);
+    for factor in [
+        1.0, 0.97, 0.94, 0.9, 0.87, 0.84, 0.8, 0.77, 0.74, 0.7, 0.67, 0.64, 0.6, 0.57, 0.54, 0.5,
+        1.1, 1.25, 1.5, 2.0,
+    ] {
+        let d = viewer::scene::DisplayTolerance::new(common::plate_delta().get() * factor)
+            .expect("a positive delta");
+        let index = common::index_of(&session, d);
+        let part = index
+            .parts()
+            .iter()
+            .find(|part| part.node() == copy)
+            .expect("the plate is drawn");
+        let mesh = part.mesh();
+        let (mut subjects, mut missed, mut rim_chords) = (0usize, 0usize, 0usize);
+        for (id, points) in drawn_edges(&index, copy) {
+            let rim = points.iter().all(|p| {
+                (p.z - thickness).abs() < 1.0e-9
+                    && ((p.x - cx).powi(2) + (p.y - cy).powi(2)).sqrt() < PLATE_HOLE_RADIUS * 1.05
+            });
+            if !rim {
+                continue;
+            }
+            let chord_points = &mesh.boundaries[id.boundary].points;
+            for (segment, pair) in points.windows(2).enumerate() {
+                rim_chords += 1;
+                let cursor = pixel_of(&camera, lerp(pair[0], pair[1], 0.5));
+                let ray = camera.ray_through(cursor, pane()).expect("un-projects");
+                let (from, to) = (chord_points[segment], chord_points[segment + 1]);
+                let crosses_a_face = mesh
+                    .patches
+                    .iter()
+                    .flat_map(|patch| &patch.triangles)
+                    .filter(|tri| tri.contains(&from) && tri.contains(&to))
+                    .any(|tri| {
+                        let corners = tri.map(|i| mesh.positions[i as usize]);
+                        editor_core::resolve::ray_triangle(&ray, &corners).is_some()
+                    });
+                if crosses_a_face || nearest_surface(&index, eval, &ray).is_none() {
+                    continue;
+                }
+                subjects += 1;
+                let picked = index
+                    .edge_at(eval, &camera, pane(), cursor)
+                    .expect("un-projects")
+                    .map(|pick| pick.id());
+                if picked != Some(id) {
+                    missed += 1;
+                }
+            }
+        }
+        println!(
+            "REVIEW silhouette factor {factor}: rim chords {rim_chords}, subjects {subjects}, missed {missed}"
+        );
+    }
+}

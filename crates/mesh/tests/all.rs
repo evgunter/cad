@@ -169,6 +169,8 @@ mod review_m2_pr6_errors;
 mod review_m2_pr6_walk_shapes;
 #[path = "review_m3_pr1_mesh.rs"]
 mod review_m3_pr1_mesh;
+#[path = "review_pr5717_probes.rs"]
+mod review_pr5717_probes;
 #[path = "revolves.rs"]
 mod revolves;
 #[path = "wedge.rs"]

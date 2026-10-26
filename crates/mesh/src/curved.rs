@@ -1089,6 +1089,10 @@ fn grid_counts(
                 // `cone_face_rho_max`'s close off upstream.
                 return Ok((1, 1));
             }
+            if std::env::var_os("CAD_REVIEW_CONE_NO_ROWS").is_some() {
+                // REVIEW PROBE (PR 5717): the strip lemma alone, no rows.
+                return Ok((nu, 1));
+            }
             Ok((nu, ceil_count(vspan, rho_max * hu)?))
         }
         ChartKind::Sphere { r } => {

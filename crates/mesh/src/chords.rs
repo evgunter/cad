@@ -181,6 +181,9 @@ pub(crate) fn compute_chords(
             bounds,
             n,
         )?;
+        if std::env::var_os("CAD_REVIEW_NURBS_PROBE").is_some() {
+            review_probe_main_count(body, ek, curve, (t0, t1), delta, bounds, n)?;
+        }
         let (vs, ve) = edge_vertices(body, ek)?;
         let start_id = *vids.get(&vs).ok_or(TessellateError::MissingEntity {
             what: "start vertex",
@@ -601,6 +604,70 @@ fn general_uv_speeds(
         });
     }
     Ok((su, sv))
+}
+
+/// REVIEW PROBE (PR 5717): main's chord count for this edge (δ/2 on
+/// every carrier, torus-only grid tightening, NURBS tightening at δ/2),
+/// reported where it differs from this branch's and a NURBS/Approx face
+/// is adjacent.
+fn review_probe_main_count(
+    body: &Body<f64>,
+    ek: EdgeKey,
+    curve: &geom_brep::EdgeCurve<f64>,
+    (t0, t1): (f64, f64),
+    delta: f64,
+    bounds: &mut FaceBounds,
+    branch_n: usize,
+) -> Result<(), TessellateError> {
+    let ds = delta * 0.5;
+    let span = t1 - t0;
+    let n = match *curve.carrier() {
+        Curve3::Line { .. } => 1,
+        Curve3::Circle { .. } => {
+            let mut n = ceil_count(span, sagitta_step(ds, circle_radius(curve.carrier())))?;
+            for fk in adjacent_faces(body, ek)? {
+                let s = adjacent_surface(body, fk)?;
+                if matches!(s, geom::Surface::Torus { .. })
+                    && let Some(h) = grid_boundary_step(body, fk, s, curve, ek, ds)?
+                {
+                    n = n.max(ceil_count(span, h)?);
+                }
+            }
+            n
+        }
+        Curve3::Ellipse { semi_u, semi_v, .. } => ceil_count(span, ellipse_step(ds, semi_u, semi_v))?,
+        Curve3::Spiric { major_radius, minor_radius, offset, .. } => {
+            ceil_count(span, spiric_step(ds, major_radius, minor_radius, offset))?
+        }
+        Curve3::Nurbs(ref nn) => nurbs_chord_count(nn, span, ds, ek)?,
+    };
+    let main_n = nurbs_tighten(body, ek, (t0, t1), ds, bounds, n)?;
+    let mut kinds = Vec::new();
+    let mut nurbs_adj = false;
+    for fk in adjacent_faces(body, ek)? {
+        let s = adjacent_surface(body, fk)?;
+        nurbs_adj |= matches!(s, geom::Surface::Nurbs(_) | geom::Surface::Approx(_));
+        kinds.push(match s {
+            geom::Surface::Nurbs(_) => "nurbs",
+            geom::Surface::Approx(_) => "approx",
+            geom::Surface::Plane { .. } => "plane",
+            geom::Surface::Cylinder { .. } => "cyl",
+            geom::Surface::Cone { .. } => "cone",
+            geom::Surface::Sphere { .. } => "sphere",
+            geom::Surface::Torus { .. } => "torus",
+        });
+    }
+    if nurbs_adj {
+        if main_n == branch_n {
+            eprintln!("REVIEW-NURBS-SAME edge {ek:?} n {branch_n} {kinds:?}");
+        } else {
+            eprintln!(
+                "REVIEW-NURBS-MOVED edge {ek:?} main {main_n} branch {branch_n} own_main {n} {kinds:?} carrier {:?}",
+                std::mem::discriminant(curve.carrier())
+            );
+        }
+    }
+    Ok(())
 }
 
 /// The deviation target an edge's own carrier is chorded at: δ, or
