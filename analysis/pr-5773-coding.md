@@ -1,6 +1,6 @@
 # PR 5773 dual review — blind coding inputs
 
-Byte 99 (drawn 2026-10-26T13:10:58Z), odd, so A = R2 and B = R1. Do not read this mapping before coding: it lives here only so the orchestrator can un-blind at merge.
+The A/B labels were assigned by a recorded byte; the mapping is held by the orchestrator, not in this file.
 
 Frozen head: ee528ff3057f52caf95c70f0a3c73b2b1da07195. Arm: concurrent, letter H. Both reviewers were dispatched at 12:24Z with one brief. Neither was interrupted, and both report that lane isolation held.
 
