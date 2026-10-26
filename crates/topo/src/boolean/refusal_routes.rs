@@ -196,6 +196,12 @@ pub enum BooleanDecision {
     SplitPointOnCircle,
     /// Whether an arc stays short of a full turn.
     ArcSpan,
+    /// Which way a ring that a fate cut closes in a dropped coincident
+    /// face winds about the face's normal (`fate::ring_winding`, its
+    /// signed area over its length): either definite sign passes, and a
+    /// ring that reads in band refuses rather than divide the face the
+    /// wrong way round.
+    RingWinding,
     /// Whether the result's volume agrees with its operands': the
     /// kernel checking its own result.
     VolumeBackstop,
@@ -961,6 +967,12 @@ const PARTNER_FACES: SizedDecision = SizedDecision {
 /// [`CORNER_SENSE`], [`BooleanDecision::BisectorSide`]).
 pub(crate) const CORNER_EDGES: &str = corner_edges!();
 
+/// The lever of a ring a fate cut cannot wind
+/// ([`BooleanDecision::RingWinding`]): the ring bounds the region the
+/// kept face holds of the dropped one, so moving the parts widens it.
+const RING_WINDING: &str = "move the parts so the region one coincident face holds of the other spans clearly more than \
+     the tolerance";
+
 /// **Which question the curved-extent scan asks of a sphere face**
 /// ([`BooleanDecision::Sphere`]). The scan takes no declarations; each
 /// question's pass set is its own, and each decided refusal ends as its
@@ -1438,6 +1450,7 @@ impl BooleanDecision {
             Self::VertexOnVertex => "whether two vertices coincide",
             Self::SplitPointOnCircle => "whether a split point lies on the circle it was placed on",
             Self::ArcSpan => "whether an arc stays short of a full turn",
+            Self::RingWinding => "which way a ring that the cut of a coincident face closes winds",
             Self::VolumeBackstop => "whether the result's volume agrees with its operands'",
             Self::LeverArm(gate) => gate.subject(),
             Self::Radius(radius) => radius.subject(),
@@ -1590,6 +1603,7 @@ impl BooleanDecision {
             // undecided, is the kernel's. It ends as its definite
             // sibling, a broken classification invariant, does.
             Self::ArcSpan => Ending::Unsized(Unsized::Defect),
+            Self::RingWinding => Ending::Lever(RING_WINDING),
             Self::VolumeBackstop => Ending::Unsized(Unsized::Defect),
             // The arm passes on a positive length, and a zero-band one
             // is a size a smaller tolerance decides positive
@@ -2009,6 +2023,7 @@ pub(in crate::boolean) mod tests {
                     vec![BooleanDecision::SplitPointOnCircle]
                 }
                 BooleanDecisionKind::ArcSpan => vec![BooleanDecision::ArcSpan],
+                BooleanDecisionKind::RingWinding => vec![BooleanDecision::RingWinding],
                 BooleanDecisionKind::VolumeBackstop => vec![BooleanDecision::VolumeBackstop],
                 BooleanDecisionKind::LeverArm => {
                     LeverArm::iter().map(BooleanDecision::LeverArm).collect()
@@ -2589,6 +2604,13 @@ pub(in crate::boolean) mod tests {
             BooleanDecision::ArcSpan => {
                 ("whether an arc stays short of a full turn", Ending::Defect)
             }
+            BooleanDecision::RingWinding => (
+                "which way a ring that the cut of a coincident face closes winds",
+                Ending::Lever(
+                    "Recourse: move the parts so the region one coincident face holds of the \
+                     other spans clearly more than the tolerance",
+                ),
+            ),
             BooleanDecision::VolumeBackstop => (
                 "whether the result's volume agrees with its operands'",
                 Ending::Defect,

@@ -108,7 +108,7 @@ A closed chord carries the kept edge's restated description, since a
 whole-turn scaffold circle reads as a null edge's.
 
 Each dropped face is cut on its own. Where a face's cut meets one of
-the cut's placement limits (`fate::is_placement_limit`, which names
+the cut's placement limits (`fate::Limit`, which names
 each), that face alone is restored and recorded in
 `BooleanNaming::uncut` (`UncutFace`), with neither a substituted nor a
 discard row. Every other refusal of the cut propagates. The limit is

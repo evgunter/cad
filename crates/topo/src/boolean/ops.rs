@@ -303,9 +303,9 @@ pub struct BooleanNaming {
     pub reduction_contacts: ReductionContacts,
     /// Every face an operand lost to the result, with the kept faces it
     /// bordered (`boolean::discard`, which says how each path records
-    /// its rows), and every face the
-    /// material divided along an edge lying in it, which lost the line
-    /// between its pieces (`boolean::slit`).
+    /// its rows), but the dropped coincident faces in [`Self::uncut`];
+    /// and every face the material divided along an edge lying in it,
+    /// which lost the line between its pieces (`boolean::slit`).
     pub discards: Vec<super::DiscardRow>,
     /// Every fragment of a coincident face the result holds through the
     /// other operand's copy ([`super::SubstitutedFace`]), sorted and
@@ -7602,7 +7602,7 @@ struct FallbackFates {
 /// fragment.
 ///
 /// Each dropped face is cut on its own. Where its cut meets one of the
-/// cut's placement limits (`fate::is_placement_limit`), that face alone
+/// cut's placement limits (`fate::Limit`), that face alone
 /// is restored as it stood and recorded as uncut
 /// ([`super::UncutFace`]), with neither a substituted nor a discard row;
 /// the result holds nothing of the dropped clone, so no body moves.
@@ -7688,10 +7688,11 @@ fn fallback_fates<T: Decide + AtRestPolicy>(
                 cuts.substituted.extend(c.substituted);
                 cuts.chords.extend(c.chords);
             }
-            (Err(e), Some((b, div_b))) if super::fate::is_placement_limit(&e) => {
+            (Err(super::fate::CutError::Limit(limit)), Some((b, div_b))) => {
                 red.b.leave_surgery();
                 red.b = b;
                 divisions[1] = div_b;
+                let e = BooleanError::from(super::fate::CutError::Limit(limit));
                 uncut.extend(red.fates.edges.iter().map(|fe| super::UncutFace {
                     operand: Operand::B,
                     face,
@@ -7702,7 +7703,7 @@ fn fallback_fates<T: Decide + AtRestPolicy>(
             }
             (Err(e), _) => {
                 red.b.leave_surgery();
-                return Err(e);
+                return Err(e.into());
             }
         }
     }

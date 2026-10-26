@@ -16,7 +16,7 @@ FLUSH's PR 5706 has the containment fallback divide each dropped
 coincident face where the region its kept face holds ends
 (`crates/topo/src/boolean/ops.rs`, `fallback_fates`). Where that face's
 cut meets one of `fate::cut`'s placement limits
-(`crates/topo/src/boolean/fate.rs`, `is_placement_limit`), the face is
+(`crates/topo/src/boolean/fate.rs`, `Limit`), the face is
 recorded in `BooleanNaming::uncut` (`topo::UncutFace`, with the cut's
 refusal) and in no other row: neither `substituted` nor `discards`
 names any part of it.

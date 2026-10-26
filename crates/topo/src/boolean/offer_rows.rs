@@ -2527,6 +2527,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ),
     ("fate.rs", "contained", "BooleanDecision::Containment", 1),
     ("fate.rs", "places", "BooleanDecision::of_normal", 1),
+    ("fate.rs", "ring_winding", "BooleanDecision::RingWinding", 1),
     ("fate.rs", "sign", "Coincide::Sectors", 1),
     ("glue.rs", "tangency", "Coincide::Rim", 1),
     ("insert.rs", "germ_dir", "BooleanDecision::SelfCheck", 1),

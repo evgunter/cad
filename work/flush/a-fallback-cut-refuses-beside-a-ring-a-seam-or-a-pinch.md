@@ -15,7 +15,7 @@ PR 5706 has the containment fallback divide its dropped coincident
 faces through the section path's own `fate::cut`
 (`crates/topo/src/boolean/ops.rs`, `fallback_fates`), one face at a
 time. Where a face's cut meets one of the cut's placement limits
-(`fate::is_placement_limit`), the result is left as built, since the
+(`fate::Limit`), the result is left as built, since the
 fallback's body never reads the dropped clone. That face alone is
 restored: no `BooleanNaming::substituted` or `discards` row names it,
 and a `BooleanNaming::uncut` row carries the refusal. The naming then
