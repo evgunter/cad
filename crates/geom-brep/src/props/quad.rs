@@ -550,7 +550,7 @@ pub(super) fn rotate(c: Interval, s: Interval, ch: Interval, sh: Interval) -> (I
 
 /// `(cos a, sin a)` at the limit `a` a trim edge's bracket `t` is
 /// integrated from or to (its midpoint, as [`TrimEdgeQ`] takes it), by
-/// [`trig_at`] from the exact `(1, 0)` at `a = 0`: transcendental-free,
+/// `trig_at` from the exact `(1, 0)` at `a = 0`: transcendental-free,
 /// at most about 1e-14 wide for `|a|` up to a full period. Refused for a
 /// refused bracket.
 #[must_use]
