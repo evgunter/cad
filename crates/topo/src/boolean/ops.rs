@@ -1541,7 +1541,6 @@ fn walk_refusal(e: &crate::pcurves::PcurveMintError) -> WalkRefusal {
         M::Certify { error, .. } => match error {
             C::PlaceholderChart
             | C::CarrierOffChart { .. }
-            | C::CarrierGrazesChart { .. }
             | C::ChartRow { .. }
             | C::ImageMismatch { .. }
             | C::ChannelKindMismatch { .. }
@@ -1553,6 +1552,7 @@ fn walk_refusal(e: &crate::pcurves::PcurveMintError) -> WalkRefusal {
             C::UnsupportedChart { .. }
             | C::IsoUnsupported { .. }
             | C::ChartWindingUnsupported
+            | C::NoGeneralLane { .. }
             | C::SectorRefused { .. }
             | C::FittedLaneUnsupported { .. }
             | C::CarrierDomain(_)
