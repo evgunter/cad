@@ -213,10 +213,6 @@ fn bodies(tol: Tol) -> Vec<(String, Body<f64>, Truth)> {
         (2, 0.3, 30.0 * eps, "bored sliver plate 30eps"),
         (2, 0.3, 0.05, "bored thin plate"),
     ] {
-        // A gap of 30ε is tangential contact in a sketch at the coarse ε.
-        if (what.ends_with("30eps") && eps > 1e-8) || (0.5 - r) < 100.0 * eps {
-            continue;
-        }
         let body = bored_block_of_arcs(n, 1.0, h, r, tol);
         out.push((
             what.into(),
@@ -786,6 +782,51 @@ fn review_5781_seam_tilt_aims() {
                     }
                 }
             }
+        }
+    }
+}
+
+/// The seam-tilt split at chosen poses, its refusal in full: run with
+/// `REVIEW_TRACE` on the instrumented mutant to see check 7's readings.
+#[test]
+#[ignore = "review probe for PR 5781: run by hand"]
+fn review_5781_seam_tilt_finding() {
+    use geom_core::Affine3;
+    let tol = Tol::witness();
+    let poses: Vec<(f64, f64, f64, f64)> = vec![
+        (5.5, 1e-5, 0.0, 1.0),
+        (5.5, 1e-5, 0.18, 1.0),
+        (2.2, 1e-7, 0.0, 1.0),
+    ];
+    for (phi, psi, l, sign) in poses {
+        let circle = vec![(Point2::new(1.0, 0.0), 1.0), (Point2::new(-1.0, 0.0), 1.0)];
+        let body = topo::AtRestBody::validate(sweep::test_support::prism(circle, 1.0, tol), tol)
+            .expect("the unit cylinder");
+        let turn = Affine3::rotation_about_axis(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            phi,
+        );
+        let turned = topo::transform_rigid(&body, &geom_core::test_support::rigid(&turn, tol), tol)
+            .expect("a rigid turn");
+        let cyl = topo::AtRestBody::validate(turned, tol).expect("the turned cylinder");
+        let (c, s) = (phi.cos(), phi.sin());
+        let v = Point3::new(c, s, 0.0);
+        let along = Vec3::new(-s, c, 0.0);
+        let n = Vec3::new(c * psi.cos(), s * psi.cos(), psi.sin()) * sign;
+        let plane = topo::test_support::split_plane(v + along * l, n, tol);
+        eprintln!("REVIEW-TRACE pose φ {phi} ψ {psi:e} L {l} sign {sign}");
+        match topo::splitting::split(&cyl, &plane, tol) {
+            Ok(r) => {
+                let mut volume = 0.0;
+                for part in [&r.above, &r.below] {
+                    if let topo::splitting::SplitPart::Body(b) = part {
+                        volume += topo::mass_properties(b, tol).map_or(f64::NAN, |m| m.volume);
+                    }
+                }
+                println!("FINDING eps={:e} φ {phi} ψ {psi:e} L {l} sign {sign}: Ok, volume {volume}", tol.eps());
+            }
+            Err(e) => println!("FINDING eps={:e} φ {phi} ψ {psi:e} L {l} sign {sign}: {e:?}", tol.eps()),
         }
     }
 }
