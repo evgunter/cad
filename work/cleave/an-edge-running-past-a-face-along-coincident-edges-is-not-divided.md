@@ -15,14 +15,14 @@ face (`cleave/boolean-parts-an-edge-running-past-its-face`, the row
 
 ## What
 
-`topo::boolean::slit::divide` (`crates/topo/src/boolean/slit.rs:1041`)
+`topo::boolean::slit::divide` (`crates/topo/src/boolean/slit.rs:1034`)
 divides an edge lying in a face along part of its length where it
 crosses the face's boundary: at an edge of the loops an edge-edge record
 names, or at a vertex of them a vertex-on-edge record names. It places
 each vertex-on-edge record of a divided edge on the piece holding the
 vertex. Any other record naming the edge or a crossed edge refuses
 `BooleanError::EdgeInFace { gap: EdgeInFaceGap::Unplaced }`
-(`slit.rs:1203`), since which piece holds it is not read; an
+(`slit.rs:1196`), since which piece holds it is not read; an
 edge-edge record with an edge of the face's own boundary on the edge's
 line refuses `Overlap` before any division.
 

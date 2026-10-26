@@ -60,7 +60,7 @@ decides; each is a construction gap, with no lever. An arc refuses
 `Curved` (`a-curved-slit-fails-tier-3-prime-on-its-two-coincident-arcs`).
 
 An edge running past the face is divided where it crosses the face's
-boundary (`slit::divide`, `crates/topo/src/boolean/slit.rs:1041`, built
+boundary (`slit::divide`, `crates/topo/src/boolean/slit.rs:1034`, built
 with `a-boolean-edge-running-past-the-face-it-lies-in-is-not-parted`).
 Its refusals: `Overlap`, a boundary edge running along it
 (`crates/sweep/tests/an_edge_running_past_a_face_reads_its_crossings.rs`);
@@ -75,6 +75,13 @@ that is no line; the curved lane's), `AtACrossing` and the escalation of
 along the line), `Unjoined` (a division point bounding no piece in the
 face, as an edge touching a corner from outside), and the defect
 `Redivided` (`slit.rs:353`).
+
+`Unjoined` fires because `divide` takes every vertex-on-edge record of
+a corner of the same face as a crossing. A corner that bounds no piece
+lying in the face could stay a resting record instead, as the review's
+probe `s19` already does where the touching apex lies on a separate
+face. Witness: the review's `s19b`, a connected non-convex wall whose
+protrusion's apex touches the hole's edge from outside at `z = 0.75`.
 
 ## Fix
 

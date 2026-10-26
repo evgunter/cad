@@ -40,7 +40,7 @@ witnesses:
 
 ## Where it stands
 
-`slit::divide` (`crates/topo/src/boolean/slit.rs:1041`) divides the
+`slit::divide` (`crates/topo/src/boolean/slit.rs:1034`) divides the
 edge where it crosses the face's loops at a crossing a record names,
 read where the two lines meet (`geom_brep::curve_pair::meet`): at an
 edge of the loops (an edge-edge record; both edges split onto the
@@ -51,7 +51,7 @@ vertex-on-edge record of a divided edge moves to the piece holding the
 vertex, ordered along the line by `BooleanDecision::PartingOrder`.
 `riders` (`slit.rs:599`) reads an end tied by a vertex-vertex record
 to a vertex of the face's loops as on the face, and `part`
-(`slit.rs:856`) joins each such end to that vertex with a zero-length
+(`slit.rs:849`) joins each such end to that vertex with a zero-length
 joint (`zip::fuse_by_joint`, through `zip::Joint::between`): one vertex
 per crossing, the material there one cone. The fusions ride on
 `BooleanNaming::vertex_merges`.
@@ -69,6 +69,15 @@ Built, sound against the closed forms at tiers 3 and 3′:
 - `crates/sweep/tests/an_edge_running_past_a_face_reads_its_crossings.rs`:
   a crossing at a shallow angle builds or refuses typed at every ε, and
   a boundary edge on the edge's own line refuses `Overlap`.
+
+A shallow crossing's lever is honest but long: a boundary line at angle
+θ to the edge stays within the band of it for about `2·band/θ` either
+side of the crossing, so moving the crossing along the edge walks
+through escalations before it builds. At θ = 1e-4, ε = 1e-6, the
+crossing at `z = 0.6` refuses `Containment`, at 0.64 vertex-on-face, at
+0.7 `Containment` again, and builds at 0.749 and 0.75. Moving it out of
+the face instead (0.3) ships the rider form at 1e-9 and 1e-12
+(`an-edge-lying-partly-in-a-face-ships-the-rider-form-where-its-midpoint-is-off-the-face`).
 
 Carried elsewhere:
 

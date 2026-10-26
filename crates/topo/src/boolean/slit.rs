@@ -88,7 +88,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use geom_brep::curve_pair::{Hit, MeetFault, Span, SpanEnd, meet};
 use geom_core::{Band, Decide, Margin, Point3, Sign, Tol};
 
-use super::ops::{PieceRead, piece_holds};
+use super::ops::{DoorInBand, PieceRead, piece_reading};
 use super::{BooleanDecision, BooleanError, Coincide, DeclarationRead};
 use crate::Cell;
 use crate::body::Body;
@@ -687,19 +687,12 @@ fn lies_in<T: Decide>(
         }
         _ => return Ok(false),
     };
-    match piece_holds(body, f, mid, band) {
-        Ok(read) => Ok(matches!(read, PieceRead::In)),
-        // In band, the question is whether the face holds the edge's
-        // midpoint, not the carry's check `piece_holds` names.
-        Err(BooleanError::Escalated { diag, .. }) => Err(BooleanError::Escalated {
-            decision: BooleanDecision::Containment {
-                decision: None,
-                escalation: crate::splitting::Escalation::Margin,
-            },
-            diag,
-        }),
-        Err(refusal) => Err(refusal),
-    }
+    // Whether the face holds the midpoint is read here first, so the
+    // door's margin in band is the operands' geometry.
+    Ok(matches!(
+        piece_reading(body, f, mid, band, DoorInBand::Containment)?,
+        PieceRead::In
+    ))
 }
 
 /// Whether both faces of edge `e` leave its line on the material side of

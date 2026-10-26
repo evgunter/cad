@@ -3794,6 +3794,35 @@ pub(super) fn piece_holds<T: Decide>(
     q: Point3<T>,
     band: Band,
 ) -> Result<PieceRead, BooleanError> {
+    piece_reading(body, face, q, band, DoorInBand::SelfCheck)
+}
+
+/// How [`piece_reading`] types an in-band margin of the containment door.
+#[derive(Clone, Copy)]
+pub(super) enum DoorInBand {
+    /// The carry's check: the door re-reads a cell a record already
+    /// placed, so a margin in band is the kernel disagreeing with itself.
+    SelfCheck,
+    /// A first reading of a point against the face: the door's own
+    /// decision, whose margin is the operands' geometry.
+    Containment,
+}
+
+/// [`piece_holds`], typing an in-band margin of the containment door as
+/// `door` says. The on-plane margin re-reads a plane the census already
+/// put the point on, so it escalates as the carry's check either way.
+///
+/// # Errors
+///
+/// [`BooleanError::Escalated`] on a margin in band: `SelfCheck(CarriedLineage)`
+/// for the on-plane one, `door`'s for the door's.
+pub(super) fn piece_reading<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    q: Point3<T>,
+    band: Band,
+    door: DoorInBand,
+) -> Result<PieceRead, BooleanError> {
     use super::contain::{CurvedPlacement, PlacementError};
     let in_band = |diag| BooleanError::Escalated {
         decision: BooleanDecision::SelfCheck(SelfCheck::CarriedLineage),
@@ -3808,10 +3837,21 @@ pub(super) fn piece_holds<T: Decide>(
             )),
         ) => Ok(PieceRead::NotIn),
         Ok(CurvedPlacement::Trim(None)) => Ok(PieceRead::Unread(None)),
-        Err(
-            PlacementError::OnPlane(diag)
-            | PlacementError::Door(ContainError::Escalated { diag, .. }),
-        ) => Err(in_band(diag)),
+        Err(PlacementError::OnPlane(diag)) => Err(in_band(diag)),
+        Err(PlacementError::Door(ContainError::Escalated {
+            decision,
+            escalation,
+            diag,
+        })) => Err(match door {
+            DoorInBand::SelfCheck => in_band(diag),
+            DoorInBand::Containment => BooleanError::Escalated {
+                decision: BooleanDecision::Containment {
+                    decision,
+                    escalation,
+                },
+                diag,
+            },
+        }),
         Err(PlacementError::Door(ContainError::StaleFace(face))) => {
             super::contain::driver_face_stale(face)
         }
