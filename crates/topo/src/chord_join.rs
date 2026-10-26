@@ -506,7 +506,7 @@ pub enum SplitJoinError {
     RunEdgeCarrierUnsupported {
         /// The face whose loop the run is on.
         face: FaceKey,
-        /// The edge.
+        /// The edge: its split pieces' root.
         edge: EdgeKey,
     },
     /// Whether a split plane is tangent to a curved face along the
@@ -804,7 +804,8 @@ impl core::fmt::Display for SplitJoinError {
                 f,
                 "a cut joins two points of a face's boundary across a spiric or spline \
                  (NURBS) edge, and the join cannot yet tell whether such an edge lies in the \
-                 cut. Recourse: rebuild that solid so its edges are lines, circles or ellipses"
+                 cut. Recourse: {}",
+                crate::boolean::CONIC_EDGES_RECOURSE
             ),
             Self::TangentChordEscalated { diag, .. } => write!(
                 f,
@@ -2865,7 +2866,9 @@ fn between_edge_is_section<T: Decide>(
                     .get_loop(he_data.parent_loop)
                     .map(|l| l.face)
                     .ok_or_else(|| corrupt_loop(he_data.parent_loop))?,
-                edge: he_data.edge,
+                edge: body
+                    .split_root(he_data.edge, |_| false)
+                    .map_err(|_| corrupt_edge(he_data.edge))?,
             })
         }
         geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. } => {

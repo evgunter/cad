@@ -1542,7 +1542,10 @@ fn one_segment<T: Decide>(
             _ => {
                 return Err(BooleanError::GermEdgeCarrierUnsupported {
                     operand: side.operand,
-                    edge: e.edge,
+                    edge: side
+                        .body
+                        .split_root(e.edge, |_| false)
+                        .map_err(BooleanError::SplitLineage)?,
                 });
             }
         }

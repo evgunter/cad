@@ -72,6 +72,11 @@ and is raised:
   edge, before any closing reads it — planar, wall chart or quadric;
 - by both crossing arms (`PlanarCrossing`, `CurvedCrossing`).
 
+Every site names the operand's own edge (its split pieces' root) and
+the face as the site holds it, and states that face's owner
+(`face_of`: the other operand at a crossing arm, the edge's own at the
+join).
+
 The chord joiner's run-edge reading (`chord_join::between_edge_is_section`)
 is shared with the split, so it refuses its own
 `SplitJoinError::RunEdgeCarrierUnsupported { face, edge }`, which the

@@ -3303,9 +3303,9 @@ class TestTeapot(unittest.TestCase):
 
         # spout union vessel: PAST the pair rung, because a loft's
         # walls are Nurbs and that arm exists — and dead in the sweep,
-        # which meets a circle of the vessel's belly with one of the
-        # spout's NURBS walls and has no crossing layer for a spline
-        # face. Making the spout the shape a potter draws did not make
+        # which meets the belly's revolve seam (a meridian, where the
+        # spout leaves the belly) with one of the spout's NURBS walls
+        # and has no crossing layer for a spline face. Making the spout the shape a potter draws did not make
         # it joinable; it moved the refusal off a pair nobody modelled
         # and onto the meeting itself.
         self.assertFalse(ev.succeeded(spout_join))

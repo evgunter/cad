@@ -2741,10 +2741,13 @@ pub enum BooleanError {
     EdgeCarrierUnsupported {
         /// The operand whose edge it is.
         operand: Operand,
-        /// The edge.
+        /// The edge: the operand's own, its split pieces' root.
         edge: EdgeKey,
-        /// The face the lane read it against.
+        /// The face the lane read it against, as the lane holds it.
         face: FaceKey,
+        /// The operand whose face it is: the other at a crossing lane,
+        /// `operand` itself at the join.
+        face_of: Operand,
         /// The lane.
         site: EdgeCarrierSite,
     },
@@ -2757,7 +2760,7 @@ pub enum BooleanError {
     PointSplitCarrierUnsupported {
         /// The offending operand and edge.
         operand: Operand,
-        /// The edge.
+        /// The edge: the operand's own, its split pieces' root.
         edge: EdgeKey,
     },
     /// **Two edges along one germ whose identity no rule decides.**
@@ -2770,7 +2773,7 @@ pub enum BooleanError {
     GermEdgeCarrierUnsupported {
         /// The operand whose edge is neither a line nor a circle.
         operand: Operand,
-        /// The edge.
+        /// The edge: the operand's own, its split pieces' root.
         edge: EdgeKey,
     },
     /// **Point-in-face on a loop no walk expresses at the point.** The
@@ -4268,7 +4271,8 @@ impl From<EulerOpError> for BooleanError {
 
 /// The recourse of every refusal of a spiric or spline edge: the kinds
 /// every lane reads are the line and the two conics.
-const CONIC_EDGES_RECOURSE: &str = "rebuild that solid so its edges are lines, circles or ellipses";
+pub(crate) const CONIC_EDGES_RECOURSE: &str =
+    "rebuild that solid so its edges are lines, circles or ellipses";
 
 /// How a refusal names an operand to the person who built it: by its
 /// place in the operation, never by the enum spelling.
@@ -8728,12 +8732,14 @@ mod tests {
                 operand: Operand::B,
                 edge,
                 face,
+                face_of: Operand::B,
                 site: EdgeCarrierSite::RingRun,
             },
             BooleanError::EdgeCarrierUnsupported {
                 operand: Operand::A,
                 edge,
                 face,
+                face_of: Operand::B,
                 site: EdgeCarrierSite::PlanarCrossing,
             },
             BooleanError::PointSplitCarrierUnsupported {

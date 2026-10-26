@@ -62,3 +62,38 @@ consumer-side half.
 ## Moved to SPLICE (2026-10-25)
 
 From REACHHOLD. Moved by `git mv` in the chat-approved refold that opened SPLICE (`work/splice/program.md`), the track for a body built by loft or sweep entering every boolean. Re-banded P1 → P0 and UN-PARKED (was `blocked_on: [cylinder-sphere-germ-pair-has-no-join-lane]`). That park waited for a first PRODUCER of spline edges between faces, and every loft and sweep already is one: the klein loop's four longitudinal seams are `Curve3::Nurbs` edges between two NURBS walls (measured on main, 2026-10-25, `work/splice/delete-the-boolean-operand-edge-gate.md`), and once the gate is gone they cross the bulb's cone. Klein wall 3 and teapot wall 3 reach this rung.
+
+## The end-to-end row this rung owes (2026-10-26)
+
+From `delete-the-boolean-operand-edge-gate` (closed), whose emit note
+(2026-10-07) reads: *"Retiring this gate, or the spline crossing-root
+arm it waits on, owes an end-to-end row: a face crossing one NURBS edge
+twice with one sense, named through the boolean."* The gate's deletion
+could not write it: a spline edge claims no box, so the boolean refuses
+the first spline edge it reads against the first face it reads,
+wherever the face stands, and never reaches the crossings. This rung is
+the first that can. The fixture stands ready:
+
+- the wavy loft of `editor-core` `emit_topo`'s
+  `nurbs_crossings_rank_by_parameter` (`a = 0.3`), united through the
+  recipe with a box over `x ∈ [1, 3]`, `z ∈ [−½, 3½]`;
+- its face `x = 1` crosses each corner edge at `x = dx + 1` three times,
+  the first and third with one sense;
+- the row asserts those crossings reach `emit_topo::rank_crossings`
+  through the boolean, ranked by parameter.
+
+`…::a_union_across_a_nurbs_edge_refuses_until_a_crossing_rung_builds_it`
+is the tripwire that reds when this rung lands; replace it with that row.
+
+## A far spline edge refuses naming a pair that does not meet (2026-10-26)
+
+Measured on the gate's deletion (PR 5723's review). With the gate gone,
+`EdgeBoxRule::NoSoundBox` is the de facto gate: a spline edge's box is
+the whole space, so the sweep meets it with every plane face of the
+other operand, and the planar arm refuses it there. The loft prism
+against a brick at `[5, 6]³` refuses
+`EdgeCarrierUnsupported { site: PlanarCrossing }` on face `1v1`, a pair
+that does not meet. The recourse it gives, rebuilding the solid with
+conic edges, cannot be acted on for any loft or sweep. The control-hull
+box in "What to build" (`nurbs_curve_aabb`) is the fix: with it, a far
+spline edge is pruned before any arm and a disjoint operand builds.

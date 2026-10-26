@@ -142,8 +142,9 @@
 //!    — and it is not any more. A loft's walls are `Nurbs`, and the
 //!    pair gate has an arm for `Nurbs`, so the request gets PAST the
 //!    pair rung and into the sweep, where it stops at the crossing
-//!    layer: a latitude circle of the pot's belly sphere, read against
-//!    one of the spout's NURBS walls that the belly's box meets, refuses
+//!    layer: the belly's revolve seam — a quarter meridian of its
+//!    sphere, on which the spout's axis leaves the belly — read against
+//!    one of the spout's NURBS walls rising there, refuses
 //!    `CurvedBooleanUnsupported { operand: B, kind: Nurbs }` — the
 //!    Boolean cannot yet find where an edge meets a spline face. That
 //!    is the pierce the join actually needs, the spout's walls entering
@@ -1508,8 +1509,9 @@ fn wall_probes(ev: &Evaluation<f64>, r: &Recipe) {
     // dies: `CurvedPairUnsupported`, on a face-kind pair with no arm.
     // A loft's walls are `Nurbs` and the pair gate HAS an arm for
     // `Nurbs`, so the request gets past that rung and into the sweep,
-    // which meets a circle of the pot's belly with one of the spout's
-    // NURBS walls and has no crossing layer for a spline face.
+    // which meets the belly's revolve seam, a quarter meridian on which
+    // the spout's axis leaves the belly, with one of the spout's NURBS
+    // walls, and has no crossing layer for a spline face.
     //
     // The predicate matches on the operand and the kind, deliberately
     // not the face: an arena key moves whenever the model is re-authored
@@ -2564,8 +2566,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
              at the maximal-faces precondition on the VESSEL, whose full revolve mints \
              its planar walls split in two. spout ∪ vessel: {spout_refusal} — and THIS one moved when the spout became \
              a canal. A loft's walls are Nurbs and the pair rung HAS a Nurbs arm, so the \
-             request now gets past it into the sweep, which meets a circle of the \
-             vessel's belly with one of the spout's NURBS walls and cannot yet find where \
+             request now gets past it into the sweep, which meets the belly's revolve seam \
+             (a meridian, where the spout leaves the belly) with one of the spout's NURBS walls and cannot yet find where \
              an edge meets a spline face: the pierce the join needs. The shape a potter \
              draws did not become joinable; the refusal moved off a pair nobody modelled \
              and onto the meeting itself. The schedule is the banked germ-chord \

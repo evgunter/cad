@@ -7314,8 +7314,8 @@ mod nurbs_crossings_rank_by_parameter {
     //! face across a NURBS edge: the split refuses a plane that may meet
     //! one, and the boolean refuses the edge where it meets a face of
     //! the other operand (`EdgeCarrierUnsupported`,
-    //! [`a_face_across_a_nurbs_edge_refuses_through_the_boolean`], the
-    //! row that reds the day a crossing rung builds one).
+    //! [`a_union_across_a_nurbs_edge_refuses_until_a_crossing_rung_builds_it`],
+    //! which reds the day a crossing rung builds one).
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
     use super::{Crossed, CrossedEdge, param_span, rank_crossings};
@@ -7517,18 +7517,25 @@ mod nurbs_crossings_rank_by_parameter {
         one
     }
 
-    /// **A face crossing one NURBS edge twice with one sense, through
-    /// the boolean.** The wavy loft (`a = 0.3`) united with a box over
-    /// `x ∈ [1, 3]`, `z ∈ [−½, 3½]`: the box's face `x = 1` crosses each
-    /// of the loft's two corner edges at `x = dx + 1` three times, the
-    /// first and third with one sense. No rung reads a spline edge's crossings, and a
-    /// spline claims no box, so the union refuses at the sweep's planar
-    /// arm on a spline edge of the loft, named in the loft's own table,
-    /// against a plane face of the box. The day a crossing rung builds
-    /// this union, the two crossings reach [`super::rank_crossings`]
-    /// through the boolean and this row reds.
+    /// **A tripwire, not the end-to-end row**: the wavy loft (`a = 0.3`)
+    /// united through the recipe with a box over `x ∈ [1, 3]`,
+    /// `z ∈ [−½, 3½]`, whose face `x = 1` crosses each of the loft's two
+    /// corner edges at `x = dx + 1` three times, the first and third with
+    /// one sense (asserted on the carriers). The union refuses at the
+    /// sweep's planar arm on a spline edge the loft's table names,
+    /// against a plane face of the box.
+    ///
+    /// It cannot witness the crossings it is placed for. A spline edge
+    /// claims no box (`boxes::EdgeBoxRule::NoSoundBox`), so the sweep
+    /// refuses the first spline edge it reads against the first face it
+    /// reads, wherever the box stands: neither the corner nor the face
+    /// `x = 1` is what it names, and the row asserts no more than the
+    /// refusal's kind and owners. It reds the day a crossing rung builds
+    /// this union; the end-to-end row that rung owes, the two crossings
+    /// reaching [`super::rank_crossings`] through the boolean, is
+    /// `work/splice/nurbs-edge-crossing-rung-is-the-ring-composite.md`'s.
     #[test]
-    fn a_face_across_a_nurbs_edge_refuses_through_the_boolean() {
+    fn a_union_across_a_nurbs_edge_refuses_until_a_crossing_rung_builds_it() {
         let (doc, loft) = wavy_doc(0.3);
         let (doc, profile) = ins(
             doc,
@@ -7595,20 +7602,21 @@ mod nurbs_crossings_rank_by_parameter {
             );
         }
         let block_body = body_of(ev.value(copy).expect("the box's copy evaluates"));
-        let Some(crate::eval::NodeResult::Failed(crate::eval::NodeError {
+        let Some(crate::eval::NodeError {
             kind:
                 crate::eval::NodeErrorKind::Boolean(topo::BooleanError::EdgeCarrierUnsupported {
                     operand: topo::Operand::A,
                     edge,
                     face,
+                    face_of: topo::Operand::B,
                     site: topo::EdgeCarrierSite::PlanarCrossing,
                 }),
             ..
-        })) = ev.result(union)
+        }) = ev.node_error(union)
         else {
             panic!(
                 "the union refuses at the planar crossing arm, got {:?}",
-                ev.result(union).map(|r| r.value().is_some())
+                ev.node_error(union).map(|e| &e.kind)
             );
         };
         assert_eq!(
@@ -7625,6 +7633,9 @@ mod nurbs_crossings_rank_by_parameter {
                 .is_some(),
             "the loft's table names the refused edge"
         );
+        // The recipe mints both bodies fresh, so their keys collide and
+        // `face_of` is what states the owner; read in the box, the key
+        // is a plane face.
         assert!(
             matches!(
                 block_body

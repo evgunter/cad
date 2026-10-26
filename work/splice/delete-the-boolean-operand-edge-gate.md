@@ -128,24 +128,32 @@ NURBS or `Approx` face of `y` naming `x_is`, the edge's operand, so
 every wall below read operand A. It now names `x_is.other()`, witnessed
 by the census's face-ownership check.
 
-**The end-to-end row the emit note owes.** It is
-`editor-core` `names::emit_topo::nurbs_crossings_rank_by_parameter::a_face_across_a_nurbs_edge_refuses_through_the_boolean`:
-the wavy loft united, through the recipe, with a box whose face `x = 1`
-crosses each corner edge three times (first and third with one sense).
-It refuses `EdgeCarrierUnsupported { PlanarCrossing }` on a spline edge
-the loft's table names, against a plane face of the box. It reds the day
-a crossing rung builds that union.
+**The emit note's end-to-end row is the crossing rung's.** A spline
+edge claims no box, so the boolean refuses the first spline edge it
+reads against the first face it reads, wherever the other operand
+stands: no row here can witness a face crossing one NURBS edge twice.
+`editor-core`
+`names::emit_topo::nurbs_crossings_rank_by_parameter::a_union_across_a_nurbs_edge_refuses_until_a_crossing_rung_builds_it`
+is the tripwire that reds the day a rung builds that union. The row
+itself moved, dated, to `nurbs-edge-crossing-rung-is-the-ring-composite`.
 
-**The census.** `sweep` `spline_spiric_operands::no_spline_or_spiric_operand_builds_wrong`
-runs the loft prism, the lofted cylinder and the spiric-rimmed vessel
-cavity through all four ops, in both orders, against bricks. Measured
-at ε 1e-9, 1e-6 and 1e-12:
+**The census.** `sweep` `spline_spiric_operands`. It runs the loft
+prism, the lofted cylinder and the spiric-rimmed vessel cavity through
+all four ops, in both orders, against bricks. Each `Ok` is held to its
+closed form, or for a cut to inclusion–exclusion (every op that builds
+implies one shared `V(O ∩ B)`). Measured at ε 1e-9, 1e-6 and 1e-12:
 
-- every spline outcome refuses typed and names its own face;
-- the cavity builds 12 ops (far and enclosing bricks) on its
-  additivity oracle, where the gate refused them;
-- the slab through the cavity refuses at the planar arm on a spiric
-  rim.
+- every spline outcome refuses typed and names a face of the operand
+  its site says owns it; the bricks are fresh-keyed
+  (`topo::test_support::brick_with_fresh_keys`), so a face key read in
+  the wrong body resolves nowhere;
+- the cavity builds **30 ops, pinned**: far, enclosing and inside
+  bricks, a poke through its neck wall and a peg through its mouth, all
+  clear of the spiric rims. Re-adding a spiric refusal at the operand
+  gate reds the row;
+- a poke into the torus band between the two spiric rims refuses
+  `GermSectionSpiric { section: RoutesToGeneralRung }`, pinned by
+  `a_poke_into_the_cavitys_torus_band_refuses_typed`.
 
 **The demo walls**, measured with the gate off on main and re-pinned:
 
@@ -161,8 +169,11 @@ at ε 1e-9, 1e-6 and 1e-12:
   planar cap, is read against a NURBS wall of the sheath rising from
   that same rim.
 - **teapot wall 3** refuses the same variant, on the spout, operand B.
-  A latitude circle between two of the belly's sphere faces is read
-  against a NURBS wall of the spout.
+  The belly's revolve seam — edge `9v1`, a quarter meridian in z = 0
+  on the circle of centre (0, 4/64) and radius 5/64, between two of the
+  belly's sphere faces, on which the spout's axis leaves the belly at
+  about (−0.076, 0.080, 0) — is read against a NURBS wall of the spout
+  rising there.
 
 The prose in each scene, `demos/README.md` and the Python north-star
 row says so.

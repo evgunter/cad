@@ -2249,10 +2249,18 @@ fn boundary_hull<T: Decide + Bounds>(
 ///   [`FaceBoxRule::ControlNet`] does one dimension up. Taking it
 ///   would TIGHTEN this box — it would start pruning pairs that are
 ///   examined today — and tightening is a different obligation from
-///   soundness: a crossing rung has to read the kind first.
-///   Claiming nothing is already the conservative answer, so nothing
-///   is unsound while it waits. (It also carries the same trim ⊆ knot
-///   domain premise the surface arm states.)
+///   soundness. Claiming nothing is the conservative answer, so nothing
+///   is unsound while it waits, and it carries one thing more: with no
+///   operand edge gate, this box is what keeps every spline edge out
+///   of the lanes behind the sweep. It meets every plane face of the
+///   other operand, so the planar arm refuses the edge at the first one
+///   it reads ([`super::BooleanError::EdgeCarrierUnsupported`]), a pair
+///   that may not meet, and no operand with a spline edge builds,
+///   however far apart the two stand. Taking the hull is the crossing
+///   rung's (`work/splice/nurbs-edge-crossing-rung-is-the-ring-composite`),
+///   with the lanes a pruned-past spline edge would then reach. (It
+///   also carries the same trim ⊆ knot domain premise the surface arm
+///   states.)
 pub(crate) enum EdgeBoxRule<'c, T: Real> {
     /// The chord between the endpoints — see the type docs.
     Chord,

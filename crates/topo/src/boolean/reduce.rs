@@ -1198,8 +1198,11 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     PlaneCrossingLane::Unlaned => {
                         return Err(BooleanError::EdgeCarrierUnsupported {
                             operand: x_is,
-                            edge: edge_key,
+                            edge: x
+                                .split_root(edge_key, |_| false)
+                                .map_err(BooleanError::SplitLineage)?,
                             face,
+                            face_of: x_is.other(),
                             site: super::EdgeCarrierSite::PlanarCrossing,
                         });
                     }
@@ -2342,8 +2345,11 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
         (None, _) => {
             return Err(BooleanError::EdgeCarrierUnsupported {
                 operand: x_is,
-                edge: edge_key,
+                edge: x
+                    .split_root(edge_key, |_| false)
+                    .map_err(BooleanError::SplitLineage)?,
                 face,
+                face_of: x_is.other(),
                 site: super::EdgeCarrierSite::CurvedCrossing,
             });
         }
@@ -4383,7 +4389,9 @@ fn split_other_at_point<T: Decide + crate::props::AtRestPolicy>(
         .param_near(p, geom::mid_param(t0, t1))
         .ok_or(BooleanError::PointSplitCarrierUnsupported {
             operand: y_is,
-            edge,
+            edge: y
+                .split_root(edge, |_| false)
+                .map_err(BooleanError::SplitLineage)?,
         })?;
     split_logged(y, y_is, edge, t, Some(p), tol, contacts)
 }

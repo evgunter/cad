@@ -2923,12 +2923,13 @@ pub enum DraftedIntersection<T: Real> {
 ///   `g′ = ρ/f ≥ 1` never shrinks a distance — so the spiric arc's
 ///   point-set diameter dominates the r-circle arc's, and the circle
 ///   bound below applies to that circle verbatim.
-/// - **Nurbs** — the chord: a certified lower bound on the point-set
-///   diameter for the open fitted branches the zip mints (M5 PR 9);
-///   closed rung-3 loops are split at crossing vertices before they
-///   become edges, so the collapsing-chord case does not arise at
-///   rest — and a smaller arm only escalates more (the safe
-///   direction), never definitely misclassifies.
+/// - **Nurbs** — the chord: the distance between two of the edge's
+///   points, so a lower bound on its point-set diameter whatever the
+///   spline — a fitted branch the zip mints, or a loft's or a sweep's
+///   seam or section edge on a boolean operand. It collapses toward
+///   zero on a closed or nearly closed spline edge, and there a smaller
+///   arm only escalates more (the safe direction), never definitely
+///   misclassifies.
 ///
 /// Total and comparison-free (`max` is the [`Real`] lattice operation).
 pub fn edge_extent<T: Real>(carrier: &Curve3<T>, t0: T, t1: T, chord: T) -> T {

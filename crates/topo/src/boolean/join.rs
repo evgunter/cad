@@ -2534,6 +2534,7 @@ fn germ_section_loops<T: Decide>(
                         Operand::A => germ.a_face,
                         Operand::B => germ.b_face,
                     },
+                    face_of: along.on,
                     site: super::EdgeCarrierSite::GermFrame,
                 })
             }
@@ -4550,6 +4551,7 @@ fn ring_run_ccw<T: crate::props::AtRestPolicy>(
             operand,
             edge,
             face,
+            face_of: operand,
             site: super::EdgeCarrierSite::RingRun,
         });
     }
@@ -4613,11 +4615,15 @@ fn run_spline_edge<T: Decide>(
             .get_half_edge(he)
             .ok_or(desync("ring-run half no longer resolves"))?
             .edge;
-        let spline = body
+        let curve = body
             .get_edge(edge)
             .and_then(|e| body.get_curve_geom(e.curve))
-            .and_then(crate::null::CurveGeom::certified)
-            .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Nurbs(_)));
+            .ok_or(desync("a ring-run edge carries no curve"))?;
+        // A null edge is scaffolding, wound as its chord.
+        let spline = match curve {
+            crate::null::CurveGeom::Certified(c) => matches!(c.carrier(), geom::Curve3::Nurbs(_)),
+            crate::null::CurveGeom::NullScaffold(_) => false,
+        };
         if spline {
             return body
                 .split_root(edge, |_| false)

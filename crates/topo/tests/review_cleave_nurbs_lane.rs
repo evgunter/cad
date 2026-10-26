@@ -256,7 +256,7 @@ fn a_disjoint_union_with_the_m7_8_cube_refuses_before_the_graft() {
     let cube = finished_m7_8_cube(tol);
     let brick = common::finished(
         "the far brick",
-        common::brick::<f64>((4.0, 5.0), (4.0, 5.0), (4.0, 5.0), tol),
+        topo::test_support::brick_with_fresh_keys::<f64>((4.0, 5.0), (4.0, 5.0), (4.0, 5.0), tol),
         tol,
     );
     match topo::union(&brick, &cube, Tol::witness()) {
@@ -264,15 +264,18 @@ fn a_disjoint_union_with_the_m7_8_cube_refuses_before_the_graft() {
             operand: topo::Operand::B,
             edge,
             face,
+            face_of: topo::Operand::A,
             site: topo::EdgeCarrierSite::PlanarCrossing,
         }) => {
             assert!(
                 topo::query::edge_carrier_kind(&cube, edge) == Some(topo::query::CurveKind::Nurbs),
                 "the refusal names a spline edge of the cube: {edge:?}"
             );
+            // The brick is fresh-keyed, so a face read in the wrong body
+            // resolves in neither.
             assert!(
-                brick.get_face(face).is_some(),
-                "the refusal names a face of the brick: {face:?}"
+                brick.get_face(face).is_some() && cube.get_face(face).is_none(),
+                "the refusal names a face of the brick, not of the cube: {face:?}"
             );
         }
         Err(e) => panic!("expected the planar crossing refusal, got {e:?}"),
