@@ -11,6 +11,9 @@
 //! coordinate along the target axis the least turn carries — the values
 //! that place the copy where the snap stands it (D10
 //! `[placement.values]`).
+//!
+//! Module kind: **vocabulary** — it names no driver type and no
+//! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use editor_core::{Coord, Formula, Orientation, TargetAxis};
 use pncad::document::pose::{PoseValue, RoleRead};
