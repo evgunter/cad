@@ -792,6 +792,8 @@ mod intent_dprime1_target_space;
 mod intent_dprime2_mates_read_geometry;
 #[path = "intent_dprime3_assemble_product_slot.rs"]
 mod intent_dprime3_assemble_product_slot;
+#[path = "intent_e_operation_frame_of_reads.rs"]
+mod intent_e_operation_frame_of_reads;
 #[path = "intent_literals_a_definitions.rs"]
 mod intent_literals_a_definitions;
 #[path = "intent_literals_b_door.rs"]

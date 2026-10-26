@@ -976,10 +976,19 @@ fn run_at<T: editor_core::EvalScalar>(
 /// evaluation digest feeds each edge curve's `Debug`, which now spells
 /// it. No pose, fault or point moved. Re-measured with both merged, at
 /// all three ε.
+///
+/// And, all three rows, when a body value came to be its body in its own
+/// coordinates under a frame (INTENT stage 3 E): a copy is its source's
+/// body, so the evaluation digest's bodies are in their computing frames.
+/// Compared id-free against main (`29110056e8`) at 1e-9, every fault and
+/// space is main's, and two of the 47 solved poses moved, each by one
+/// ulp in one translation entry and every rotation entry bit-identical:
+/// a mate's `to` read off a copy is the pose read off the source moved
+/// by the copy's frame, where it was read off the mapped body.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0x7b0f_be4e_b4f4_e5d1),
-    (1e-6, 0x01ef_f0e0_9fde_7c4e),
-    (1e-12, 0x6429_efaa_9430_4fd7),
+    (1e-9, 0x42f1_6eb9_c0cc_b7e2),
+    (1e-6, 0x1cb5_11cb_3805_1724),
+    (1e-12, 0xbf22_2057_8d0a_a9e7),
 ];
 
 /// **Each seat of the corpus stands on what it is seated on**: in the

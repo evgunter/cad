@@ -18,7 +18,7 @@ lands; where they disagree with DESIGN, DESIGN is the design.
 
 | Decisions | Modules |
 |---|---|
-| A2 evaluation seam, memo | `src/part.rs` (`PartResolver`, `ResolveFault`), `src/eval/parts.rs` (`PartStore`, `Reached`, `PartFault`); `transform_rigid`, `graft_disjoint_all_keyed` in `crates/topo/src/instance.rs` |
+| A2 evaluation seam, memo | `src/part.rs` (`PartResolver`, `ResolveFault`), `src/eval/parts.rs` (`PartStore`, `Reached`, `PartFault`); `graft_disjoint_all_keyed` in `crates/topo/src/instance.rs`; the copy's frame in `src/eval/framed.rs` |
 | A2a pairing doors | `mispaired`, `Mispaired` in `src/ident.rs`; the doors in `src/product.rs`, `src/assembly.rs`, `src/mate/solve.rs`, `src/checks.rs`, `src/resolve/mod.rs`, `src/resolve/pick.rs`, `src/stackup.rs`; the memo's drop in `src/eval/mod.rs` |
 | A3, A11 placements, mates, solve | `Node::Place`, `Node::World`, `InstantiatePart`'s `constraints` in `src/node.rs`; `src/mate.rs` (`Constraint`, `Mate`, `Value`, `Coord`, `MateRef`, `MateFault`, `reference_about`), `src/mate/coset.rs`, `src/mate/solve.rs`, `src/mate/value.rs`, `src/mate/pin.rs` (`Placed`, `stand`), `src/mate/corner.rs` (`corner_frame`), `src/mate/unobservable.rs`; the fold in `src/eval/wire.rs` (`fold_with`); `DocEdit::SetConstraints`/`AddConstraint`/`RemoveConstraint` in `src/edit.rs` |
 | A4, A13 identity, pins, update | `src/ident.rs`, `src/update.rs`, `DocEdit::UpdateReference` in `src/edit.rs` |
@@ -48,9 +48,9 @@ instantiate node resolves its `DocRef` through the evaluation's
 refuse typed), evaluates the pinned document at the ambient ε, takes its
 product (A10), the one `Body` its product slot reads, a `⊔`'s pieces
 side by side (no body has world coordinates: the world sets only the
-coordinates export writes), and materializes it through `topo::transform_rigid`
-(rigidity carried by the witness or decided at the door, every
-carrier re-certified) and the disjoint graft. A resolved document whose recorded ε disagrees refuses
+coordinates export writes), and its copy is that body, shared, under the
+instance's map composed onto the product's frame (D10 `[placement.frame]`):
+nothing is rebuilt, and export composes the frame into the world. A resolved document whose recorded ε disagrees refuses
 `ResolveFault::EpsilonSeam`. An evaluation enters each `(DocRef, ε)` it
 instantiates at most once (`PartStore`), before its mate solve and node
 map read it (`Reached`); a part the prior evaluation carried under the

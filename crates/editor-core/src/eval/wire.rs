@@ -236,11 +236,10 @@ impl<T> Copy for LaneEnv<'_, T> {}
 /// table, and the lane environment — everything ambient to the
 /// run, as opposed to the op's inputs and slots.
 pub(crate) struct OpEnv<'a, T: Decide> {
-    /// **A second computing frame** (`test-support`,
-    /// [`super::EvalOptions::computing_twist`]): each construction's body
+    /// **A second computing frame**
+    /// ([`super::EvalOptions::computing_twist`]): each construction's body
     /// built, then mapped by it, its frame the inverse, so every
     /// operation downstream computes in a frame the twist turned.
-    #[cfg(any(test, feature = "test-support"))]
     pub twist: Option<RigidMotion<T>>,
     pub boolean_sweep: topo::SweepStrategy,
     pub parts: &'a super::parts::Reached<T>,
@@ -614,16 +613,11 @@ where
 /// evaluation asks for one ([`OpEnv::twist`]): its body mapped by the
 /// twist, its frame the twist's inverse, so it stands where it did in
 /// its space. Itself everywhere else.
-#[cfg_attr(
-    not(any(test, feature = "test-support")),
-    allow(clippy::unnecessary_wraps)
-)]
 fn twisted<T: Decide + topo::AtRestPolicy>(
     out: OpOut<T>,
     env: &OpEnv<'_, T>,
     tol: Tol,
 ) -> OpResult<T> {
-    #[cfg(any(test, feature = "test-support"))]
     if let (Some(twist), ValuePayload::Body(body)) = (env.twist.as_ref(), &out.payload) {
         let turned = transform_rigid(body.body(), twist, tol).map_err(NodeErrorKind::Transform)?;
         let back = super::Frame::Own
@@ -634,8 +628,6 @@ fn twisted<T: Decide + topo::AtRestPolicy>(
             ..out
         });
     }
-    #[cfg(not(any(test, feature = "test-support")))]
-    let _ = (env, tol);
     Ok(out)
 }
 
@@ -837,10 +829,10 @@ where
 /// ASM-2A D-3: materialize an instance through the shipped doors.
 ///
 /// Read the part the evaluation entered, take the referenced document's A10
-/// PRODUCT, place it with the kernel's own `transform_rigid`, and hand
-/// back a body-denoting value. The placed body is an ordinary `Body` —
-/// one solid or N, under ONE rigid map — so the root gather and the
-/// export door consume it with no new arms.
+/// PRODUCT, and hand back a body-denoting value: the product's body,
+/// shared, under its frame moved by the instance's map. The copy is an
+/// ordinary `Body` value — one solid or N, under ONE rigid map — so the
+/// root gather and the export door consume it with no new arms.
 fn wire_instantiate_part<T>(
     id: RecipeNodeId,
     doc_ref: &crate::ident::DocRef,

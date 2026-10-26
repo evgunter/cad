@@ -253,11 +253,6 @@ fn output<T: crate::mate::SolveScalar>(
     tol: Tol,
 ) -> Result<Posed<T>, NodeErrorKind> {
     let value = value_of(results, node)?;
-    // In the frame of the body it is the output of.
-    let frame = match &value.payload {
-        ValuePayload::Body(body) => body.frame().clone(),
-        _ => Frame::Own,
-    };
     match (&value.payload, doc.node(node)) {
         (_, Some(revolve @ Node::Revolve { profile, .. })) if port == 1 => {
             let at = super::super::read_at(doc, OperandSlot::Profile, *profile)?;
@@ -279,9 +274,11 @@ fn output<T: crate::mate::SolveScalar>(
                 band(tol)?,
             )
             .map_err(DirectionRefusal::node_error)?;
+            // In the revolve's own coordinates, the ones its profile is
+            // drawn in, whatever frame its body was then read into.
             Ok(Posed {
                 value: PoseValue::axis_through(plane.to_world(origin), plane.frame().turn(sketch)),
-                frame,
+                frame: Frame::Own,
             })
         }
         // A read the door would have refused, in a document built past

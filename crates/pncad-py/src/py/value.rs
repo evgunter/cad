@@ -2471,6 +2471,7 @@ pub(crate) fn evaluate(
         seed: defaults.seed,
         symbols: defaults.symbols,
         pin: defaults.pin,
+        computing_twist: defaults.computing_twist,
     };
     let token = cancel.map_or_else(d::CancelToken::new, CancelToken::token);
     let recipe = &doc.inner;

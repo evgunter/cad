@@ -135,15 +135,13 @@ pub use edit::{
     SketchOutcome, SketchedOnFace, SlotValue, Took, apply, apply_replayed, cascade_delete_order,
     measure, sketch_on_face,
 };
-#[cfg(any(test, feature = "test-support"))]
-pub use eval::ComputingTwist;
 pub use eval::measure::{Observed, ObservedRefusal};
 pub use eval::{
     At, BooleanValue, CancelToken, CanonicalSegment, CarriedChain, CarriedIn, CarriedLevel,
-    ContentBits, ContentKey, DirectionRefusal, Epoch, EvalCounters, EvalOptions, EvalOutcome,
-    EvalScalar, Evaluation, Framed, NamingKey, NodeError, NodeErrorClass, NodeErrorKind,
-    NodeRefusal, NodeResult, NodeStanding, NodeValue, PartFault, Piece, Pieces, PoseValue,
-    ProfileLane, ProfilePieces, SplitSide, StepTurns, ValuePayload, evaluate,
+    ComputingTwist, ContentBits, ContentKey, DirectionRefusal, Epoch, EvalCounters, EvalOptions,
+    EvalOutcome, EvalScalar, Evaluation, Framed, NamingKey, NodeError, NodeErrorClass,
+    NodeErrorKind, NodeRefusal, NodeResult, NodeStanding, NodeValue, PartFault, Piece, Pieces,
+    PoseValue, ProfileLane, ProfilePieces, SplitSide, StepTurns, ValuePayload, evaluate,
 };
 pub use refusal::Refusal;
 pub use sentence::{Labelled, Labels, PASS_A_RESOLVER, Recourse, Staged};

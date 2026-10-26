@@ -1126,7 +1126,7 @@ pub(crate) fn flat_body_index(placement: u32, per: u32, body: u32) -> Result<u32
 
 /// Wraps a pattern master's table per structural placement index
 /// (A8/N1 `Instance(j)`): placement `j` holds the master's keys
-/// verbatim (`transform_rigid` key-stability).
+/// verbatim (a copy is its source's body under its frame).
 ///
 /// **The wrapping is uniform** (ASM-2K D-2): `Instance(j)` wraps EVERY
 /// name of the master, whatever the master's body holds. A master with
@@ -1281,7 +1281,8 @@ pub(crate) fn name_placed_union<T: geom_core::Real>(
 /// copying node, since the copy is that node's output; a family's rows,
 /// body rows included, pass through whole.
 ///
-/// Keys hold verbatim, because `transform_rigid` is key-stable.
+/// Keys hold verbatim, because a copy is its source's body under its
+/// frame.
 pub(crate) fn name_copy<T: geom_core::Real>(
     node: RecipeNodeId,
     source: &NameTable,

@@ -7022,3 +7022,109 @@ fn a_facade_slot_shares_an_unnamed_variable_only_once_it_is_named() {
     let b = shared.record.minted.expect("minted");
     assert_eq!(shared.doc.slot(b, SlotId::Distance), Some(x));
 }
+
+/// **Moving a document's only world placement moves no body bit and no
+/// measured bit, and moves the STEP bytes** (INTENT stage 3 E, D10
+/// `[placement.frame]` and `[placement.world]`, test 13). The box's copy
+/// is the box's own body under its frame, so moving it moves the frame
+/// and nothing computed in it: every node's body, the product's and a
+/// distance measured between the copy's two caps keep their bits. Export
+/// alone composes the frame into the world (`in_space`), so the STEP
+/// bytes are where the move shows.
+///
+/// *Breaks if* a placement maps its source's body (every bit of the copy
+/// and of the product moves), or export writes a body in its own frame
+/// (the STEP bytes stay put).
+#[test]
+fn moving_the_only_world_placement_moves_no_body_bit_and_moves_the_step_bytes() {
+    use pncad::document::{
+        Coord, Dimension, Formula, MeasurePrimitive, Node, SitedRef, TargetAxis, ValuePayload,
+    };
+    let (doc, _, body) = box_doc("e-world-move");
+    let placement = doc
+        .product()
+        .and_then(|var| doc.operation_of(var))
+        .expect("the copy is the product");
+    let cap = |end| pncad::prelude::StableName {
+        kind: pncad::select::EntityKind::Face,
+        node: body,
+        path: vec![pncad::select::RoleSeg::Cap(end)],
+    };
+    let (doc, measure) = insert(
+        doc,
+        Node::measure(&MeasurePrimitive::Distance {
+            a: SitedRef::new(placement, cap(pncad::select::CapEnd::Start)),
+            b: SitedRef::new(placement, cap(pncad::select::CapEnd::End)),
+        }),
+    );
+    let mut moved = pncad::document::stand();
+    moved.values = vec![
+        (Coord::Slide(TargetAxis::X), len(3.25)),
+        (Coord::Slide(TargetAxis::Y), len(-1.5)),
+        (Coord::Slide(TargetAxis::Z), len(0.75)),
+        (
+            Coord::Spin(TargetAxis::X),
+            Formula::literal(0.0, Dimension::Angle).unwrap(),
+        ),
+        (
+            Coord::Spin(TargetAxis::Y),
+            Formula::literal(0.0, Dimension::Angle).unwrap(),
+        ),
+        (
+            Coord::Spin(TargetAxis::Z),
+            Formula::literal(std::f64::consts::FRAC_1_SQRT_2, Dimension::Angle).unwrap(),
+        ),
+    ];
+    let elsewhere = applied(&doc, moved.write(placement)).doc;
+    // Every node's body bits, the product's and the measure's.
+    let bits = |doc: &pncad::document::ProfileDoc| {
+        let ev = pncad::document::evaluate::<f64>(
+            doc,
+            None,
+            &pncad::document::CancelToken::new(),
+            &pncad::document::EvalOptions::default(),
+            Tol::witness(),
+        );
+        let mut out: Vec<u64> = Vec::new();
+        for id in doc.ids() {
+            match ev.value(id).map(|v| &v.payload) {
+                Some(ValuePayload::Body(b)) => out.extend(
+                    b.body()
+                        .points()
+                        .flat_map(|(_, p)| [p.x.to_bits(), p.y.to_bits(), p.z.to_bits()]),
+                ),
+                Some(ValuePayload::Measure { value, .. }) => out.push(value.to_bits()),
+                _ => {}
+            }
+        }
+        let product =
+            pncad::document::product_recorded(doc, &ev, Tol::witness()).expect("the box gathers");
+        out.extend(
+            product
+                .body
+                .points()
+                .flat_map(|(_, p)| [p.x.to_bits(), p.y.to_bits(), p.z.to_bits()]),
+        );
+        let step =
+            pncad::export::export_document_step(&ev, doc, &StepOptions::default(), Tol::witness())
+                .expect("the box exports");
+        let measured = match ev.value(measure).map(|v| &v.payload) {
+            Some(ValuePayload::Measure { value, .. }) => *value,
+            other => panic!("the measure has a value: {other:?}"),
+        };
+        (out, step, measured)
+    };
+    let (here, here_step, here_measured) = bits(&doc);
+    let (there, there_step, there_measured) = bits(&elsewhere);
+    assert_eq!(here_measured, 1.5, "the caps stand the box's height apart");
+    assert_eq!(
+        here, there,
+        "moving the only world placement moves no body bit and no measured bit"
+    );
+    assert_ne!(here_step, there_step, "and it moves the STEP bytes");
+    assert_eq!(
+        here_measured.to_bits(),
+        there_measured.to_bits(),
+        "the distance between the copy's caps is the same bits"
+    );
+}

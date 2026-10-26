@@ -3104,20 +3104,20 @@ pub struct EvalOptions {
     /// costs a sizeable fraction of a build and the memo needs no pin.
     /// The run a sensitivity report is bound to asks for it (DL3).
     pub pin: bool,
-    /// **A second computing frame** (`test-support`; D10
-    /// `[placement.frame]`, test 13): each construction's body mapped by
-    /// this rotation and translation and framed by its inverse, so every
-    /// operation computes in a frame the twist turned while every body
-    /// stands where it did in its space. `None` — the default — is the
+    /// **A second computing frame** (D10 `[placement.frame]`, test 13):
+    /// each construction's body mapped by this rotation and translation
+    /// and framed by its inverse, so every operation computes in a frame
+    /// the twist turned while every body stands where it did in its
+    /// space. Answer-preserving up to the rounding of the frames, and
+    /// test-facing as [`Self::parallel`] is: the row that holds the frame
+    /// no part of meaning compares both. `None` — the default — is the
     /// evaluation as built.
-    #[cfg(any(test, feature = "test-support"))]
     pub computing_twist: Option<ComputingTwist>,
 }
 
 /// **A rigid motion stated in `f64`**, lifted to an evaluation's scalar
 /// ([`EvalOptions::computing_twist`]): a turn of `angle` radians about
 /// the unit `axis` through the origin, then the translation `by`.
-#[cfg(any(test, feature = "test-support"))]
 #[derive(Debug, Clone, Copy)]
 pub struct ComputingTwist {
     /// The turn's axis, unit.
@@ -3128,7 +3128,6 @@ pub struct ComputingTwist {
     pub by: [f64; 3],
 }
 
-#[cfg(any(test, feature = "test-support"))]
 impl ComputingTwist {
     /// The motion at scalar `T`.
     ///
@@ -3415,7 +3414,6 @@ impl Default for EvalOptions {
             seed: None,
             symbols: false,
             pin: false,
-            #[cfg(any(test, feature = "test-support"))]
             computing_twist: None,
         }
     }
@@ -3670,7 +3668,6 @@ where
     // this run, at its scalar over the lane environment (A11 (5)), so a
     // seed or a box that binds what a mate reads moves the copy with it.
     let op_env = wire::OpEnv {
-        #[cfg(any(test, feature = "test-support"))]
         twist: opts.computing_twist.map(|twist| twist.at(tol)),
         boolean_sweep: opts.boolean_sweep,
         parts: &entry.reached,

@@ -742,7 +742,6 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
             pin: false,
             // A part's product computes in its own frames: the host's
             // second frame reaches it through the instance's copy.
-            #[cfg(any(test, feature = "test-support"))]
             computing_twist: None,
         };
         let evaluation =
