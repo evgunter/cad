@@ -82,3 +82,8 @@ is META's by `work/meta/program.md`'s `paths`, so a META unit takes it.
 Where it belongs is the question the unit answers — a `scripts/gates/`
 member, or an arm of `scripts/work.py --selftest`'s neighbours — but it
 is a docs-tier input, so it must run in a job the docs tier reaches.
+
+## Moved (2026-10-26)
+
+UNSEEN folded into UNREAD (Ev, in chat, 2026-10-26): a reference no gate
+reads and a claim no gate reads are one kind of work. Id and body unchanged.

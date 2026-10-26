@@ -78,3 +78,8 @@ this row asks.
 Cited as a fourth blind spot from the doc comment on
 `every_document_layer_root_export_is_carried_or_listed` in
 `crates/pncad/tests/all.rs`, so a reader of that guard meets it there.
+
+## Moved (2026-10-26)
+
+UNSEEN folded into UNREAD (Ev, in chat, 2026-10-26): a reference no gate
+reads and a claim no gate reads are one kind of work. Id and body unchanged.

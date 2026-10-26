@@ -54,3 +54,8 @@ rather than to the empty set.
 
 Until then the discipline is stateable and unenforced: **resolve, then
 commit; author in a separate commit.**
+
+## Moved (2026-10-26)
+
+UNSEEN folded into UNREAD (Ev, in chat, 2026-10-26): a reference no gate
+reads and a claim no gate reads are one kind of work. Id and body unchanged.

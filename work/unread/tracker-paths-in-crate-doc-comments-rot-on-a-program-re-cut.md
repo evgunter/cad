@@ -58,3 +58,8 @@ about. Alternatively the convention changes: cite rows by bare id
 `refs:` and `parent:` already do inside `work/`, and the reader runs
 `work.py` to find it. That is a decision about how crates cite the
 tracker, so this row is filed rather than fixed.
+
+## Moved (2026-10-26)
+
+UNSEEN folded into UNREAD (Ev, in chat, 2026-10-26): a reference no gate
+reads and a claim no gate reads are one kind of work. Id and body unchanged.

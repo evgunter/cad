@@ -178,3 +178,8 @@ cannot cross. The second arm is only available where the citing text is
 prose the guarding file may read. If this row's "inversion" lands as a
 general instrument, the split between those two is the thing to carry
 over.
+
+## Moved (2026-10-26)
+
+UNSEEN folded into UNREAD (Ev, in chat, 2026-10-26): a reference no gate
+reads and a claim no gate reads are one kind of work. Id and body unchanged.

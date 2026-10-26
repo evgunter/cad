@@ -87,3 +87,8 @@ not find the file, and reported what that looked like. `git log
 makes the wrong conclusion the easy one — so `docs/DOC-LEDGER.md`'s
 recovery section now says to run `--all --full-history` before
 concluding a document is gone, with this as the worked example.
+
+## Moved (2026-10-26)
+
+UNSEEN folded into UNREAD (Ev, in chat, 2026-10-26): a reference no gate
+reads and a claim no gate reads are one kind of work. Id and body unchanged.
