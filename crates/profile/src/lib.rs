@@ -158,6 +158,8 @@ pub mod structure;
 mod sugar;
 #[cfg(any(test, feature = "test-support"))]
 pub mod test_support;
+#[cfg(test)]
+mod turn_rows;
 mod validate;
 
 use geom_core::spline::SpanLocate;

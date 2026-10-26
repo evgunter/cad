@@ -1030,3 +1030,4 @@ Ev, in chat: split TANG into multiple programs. TANG measured 142.5 budget point
 - **TANGTAIL** (P3, 30): the contact-line and ring corners, the banked torus rest lane, Approx and offset readings, fixtures.
 
 TANG keeps the pinch machinery (U2b, U2c), the declared-tangency arms parked on the D10 hold, and the contact corners nearest them: 28 points, 20 live rows. Four rows that carried no band were banded at the cut: `a-lone-unread-partner-has-no-class-rule` P2; `an-iso-arc-certificate-…`, `a-carrier-pair-tangency-…` and `chord-join-serves-lines-…` P3. Every in-tree citation of a moved row's path is re-pointed.
+- 2026-10-25 — **Band rule (work/README.md, Priority):** `a-torus-meridian-rims-span-bound-is-wider-than-the-band` re-banded P2→P1, it gates `a-torus-seam-graze-needs-the-rim-root-deflated` (P1): until the meridian rim's seam verifies, the G1 tube chain escalates at the witness lane and never reaches the graze. (band-rule triage)

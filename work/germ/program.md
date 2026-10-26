@@ -21,9 +21,8 @@ plane × cylinder/cone section is the exact Ellipse (Ev, PR 5156).
 
 What is left here is P1 and P2:
 
-- `c5-plane-torus-cone-cylinder-arms` (P1, H, design) is the C5 table's
-  missing plane × torus and cone × cylinder arms, which block the Klein
-  wall pair. Its touching poses wait on D10.
+- `c5-plane-torus-cone-cylinder-arms` moved to SECT on 2026-10-25,
+  beside the torus frames the section-first join reads it for.
 - The P2 rows are Interval and band reach on the conic sections: an
   oblique rod clear of a cone refuses the extent scan at 1e-12; a conic
   section just past its band fails certification downstream; and a

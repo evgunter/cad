@@ -14,19 +14,16 @@ against 30 with its six charter rows closed. Nothing dispatched.
 
 | pri | item | cost | title |
 |---|---|---|---|
-| P3 | `a-nurbs-edges-sector-departure-is-its-chord` | E | both sector walks take a NURBS edge's chord as its departure direction at an ON vertex |
 | P3 | `an-approx-face-on-line-edges-has-no-finished-fixture` | M | The operand gate's Approx × Plane germ-pair refusal is reached by no finished body through the public door |
 | P3 | `boundary-crossing-cuts-cannot-see-an-over-tight-face-box` | E | Only crest cuts and direct box rows can see a face box tighter than its face; boundary-crossing cuts cannot |
 | P3 | `census-touch-guard-needles-miss-a-point-free-call` | E | the census touch-analysis guard's needles all end in '(', so a point-free decide/abs/Self/Distance goes unseen |
 | P3 | `cut-in-refusals-no-probe-reaches` | M | Four of the cut-in's refusals have no row: a pole inside the circle, a hole inside it, ends on two loops, uncertified roots |
 | P3 | `gate-maximal-faces-may-miss-coincident-curved-faces-on-different-keys` | M | gate_maximal_faces checks planar pairs and same-key curved pairs; coincident adjacent curved faces on different surface keys may pass the F7 gate unseen |
 | P3 | `no-row-asserts-the-operand-gate-and-the-sweep-agree` | E | No row asserts that the operand gate and the sweep's curved arm agree on the pairs the narrow phase parts |
-| P3 | `section-area-skips-a-spiric-or-nurbs-section-edge` | E | certify_section_area reads a spiric or NURBS section edge as its chord |
 | P3 | `split-gate-approx-arm-has-no-whole-split-row` | M | The split gate's Approx arm is read at the gate only: no public door builds a body with an Approx face to split whole |
 | P3 | `split-gate-spiric-edge-arm-has-no-row` | M | The split gate's spiric-edge arm has no row: no public door builds a split operand with a spiric edge |
 | P3 | `split-gate-torus-ring-fallback-has-no-door` | E | The split gate's torus fallback for R <= r has no public door: revolve refuses the spindle torus |
 | P3 | `split-section-area-spells-the-planar-winding-sum-a-third-time` | M | the planar-region signed-area sum (Newell / shoelace + conic correction, 2A/P) has several spellings outside crate::loop_winding — split_section_area, chart_region, and geom-brep's loop_vector_area among them |
-| P3 | `split-section-boundary-curved-arm-untested-past-the-edge-gate` | E | The section-boundary describer's Spiric/Nurbs arm has no test, because the split operand gate refuses those edge kinds first |
 | P3 | `the-boolean-operand-gate-re-runs-tiers-1-and-2-on-finished-operands` | M | The boolean's operand gate re-runs tiers 1 and 2 on operands the door's type already guarantees finished |
 | P3 | `the-ruled-section-tables-carry-their-rulings-as-any-curve` | M | The plane×cylinder and plane×cone tables carry their rulings as Curve3, so every reader of a two-ruling section re-checks that it is a line |
 | P3 | `the-sphere-recut-recharts-operand-clones-outside-the-kept-verdict` | E | The no-crossings sphere re-cut re-charts operand clones inside the door, which the operands' kept verdict never saw: unprobed |
