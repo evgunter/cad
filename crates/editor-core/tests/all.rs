@@ -834,6 +834,8 @@ mod intent_s5_b_interference;
 mod intent_vars_2_table;
 #[path = "intent_vars_3_readers.rs"]
 mod intent_vars_3_readers;
+#[path = "review_dprime3_r2.rs"]
+mod review_dprime3_r2;
 #[path = "review_s5b_r2_probes.rs"]
 mod review_s5b_r2_probes;
 #[path = "run_wall_offers.rs"]
