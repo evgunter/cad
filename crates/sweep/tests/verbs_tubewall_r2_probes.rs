@@ -34,12 +34,13 @@ fn c() -> Point3<f64> {
 }
 
 /// The ε rows a case may refuse at as limb 2's kernel limit: a ring
-/// forty times its tube or more bounds its torus walls' circles near
+/// twenty times its thinnest tube (`tube`, the inner wall's radius for a
+/// hollow tube) or more bounds its torus walls' circles near
 /// the finest band, the torus composite's conditioning over the circles'
 /// own rounding
 /// (`work/offset/the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding.md`).
-fn kernel_limit_rows(major: f64, minor: f64) -> &'static [f64] {
-    if major >= 40.0 * minor { &[1e-12] } else { &[] }
+fn kernel_limit_rows(major: f64, tube: f64) -> &'static [f64] {
+    if major >= 20.0 * tube { &[1e-12] } else { &[] }
 }
 
 fn build(
@@ -122,7 +123,7 @@ fn r2_inner_radius_is_the_callers_own_rounding() {
             let Some(t) = test_utils::kernel_limit::may_refuse(
                 build(major, window, minor, wall),
                 Tol::witness().eps(),
-                kernel_limit_rows(major, minor),
+                kernel_limit_rows(major, minor - wall),
                 "the tube",
             ) else {
                 continue;
@@ -351,7 +352,7 @@ fn r2_closed_forms_over_varied_radii_walls_and_windows() {
         let Some(t) = test_utils::kernel_limit::may_refuse(
             build(major, window, minor, wall),
             Tol::witness().eps(),
-            kernel_limit_rows(major, minor),
+            kernel_limit_rows(major, minor - wall),
             &what,
         ) else {
             continue;
@@ -823,7 +824,7 @@ mod certified {
             let Some(t) = test_utils::kernel_limit::may_refuse(
                 hollow_iv(major, window, minor, wall),
                 Tol::witness().eps(),
-                super::kernel_limit_rows(major, minor),
+                super::kernel_limit_rows(major, minor - wall),
                 &what,
             ) else {
                 continue;

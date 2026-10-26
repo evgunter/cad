@@ -203,35 +203,45 @@ fn an_overlap_inside_the_rounding_refuses_at_the_result_gate_on_the_precision() 
 /// contacts too; the row reads only the census's precision findings.)
 #[test]
 fn an_overlap_inside_the_rounding_escalates_at_validation_on_the_precision() {
-    let tol = t();
-    if stood_down(tol) {
-        return;
-    }
-    let pose = turned();
-    let mut body = Body::<f64>::new();
-    for [(x0, x1), (y0, y1), z] in end_to_end(BACK) {
-        prism_ops(
-            &mut body,
-            &[(x0, y0), (x1, y0), (x1, y1), (x0, y1)],
-            z,
-            |x, y, z| pose.at([x, y, z]),
-            FaceGeometry::Certified,
-            tol,
-        );
-    }
-    describe_as_intersections(&mut body, tol);
-    let errors = validate_pseudomanifold(&body, &ContactRecords::default(), tol)
-        .expect_err("validation escalates");
-    let precision: Vec<String> = errors
-        .iter()
-        .filter(|e| matches!(e, ValidationError::CensusEscalated { .. }))
-        .map(ToString::to_string)
-        .filter(|said| said.contains(RECOURSE))
-        .collect();
-    assert!(!precision.is_empty(), "{errors:?}");
-    for said in &precision {
-        assert!(!said.contains("apart"), "{said}");
-    }
+    // Pinned to limb 2's kernel limit at ε = 1e-12: the kilometre bars round at their own
+    // extent past the band, outside the session box
+    // (`work/offset/the-session-box-is-not-enforced-at-construction.md`).
+    test_utils::kernel_limit::pinned_row(
+        geom_core::Tol::witness().eps(),
+        &[1e-12],
+        "an_overlap_inside_the_rounding_escalates_at_validation_on_the_precision",
+        || {
+            let tol = t();
+            if stood_down(tol) {
+                return;
+            }
+            let pose = turned();
+            let mut body = Body::<f64>::new();
+            for [(x0, x1), (y0, y1), z] in end_to_end(BACK) {
+                prism_ops(
+                    &mut body,
+                    &[(x0, y0), (x1, y0), (x1, y1), (x0, y1)],
+                    z,
+                    |x, y, z| pose.at([x, y, z]),
+                    FaceGeometry::Certified,
+                    tol,
+                );
+            }
+            describe_as_intersections(&mut body, tol);
+            let errors = validate_pseudomanifold(&body, &ContactRecords::default(), tol)
+                .expect_err("validation escalates");
+            let precision: Vec<String> = errors
+                .iter()
+                .filter(|e| matches!(e, ValidationError::CensusEscalated { .. }))
+                .map(ToString::to_string)
+                .filter(|said| said.contains(RECOURSE))
+                .collect();
+            assert!(!precision.is_empty(), "{errors:?}");
+            for said in &precision {
+                assert!(!said.contains("apart"), "{said}");
+            }
+        },
+    );
 }
 
 /// **At validation, bars that meet exactly read their touch as one point.**
@@ -245,30 +255,40 @@ fn an_overlap_inside_the_rounding_escalates_at_validation_on_the_precision() {
 /// undeclared touch of two solids is.)
 #[test]
 fn bars_meeting_exactly_raise_no_precision_escalation_at_validation() {
-    let tol = t();
-    if stood_down(tol) {
-        return;
-    }
-    let pose = turned();
-    let mut body = Body::<f64>::new();
-    for [(x0, x1), (y0, y1), z] in end_to_end(0.0) {
-        prism_ops(
-            &mut body,
-            &[(x0, y0), (x1, y0), (x1, y1), (x0, y1)],
-            z,
-            |x, y, z| pose.at([x, y, z]),
-            FaceGeometry::Certified,
-            tol,
-        );
-    }
-    describe_as_intersections(&mut body, tol);
-    let errors = validate_pseudomanifold(&body, &ContactRecords::default(), tol)
-        .expect_err("the undeclared touch refuses");
-    let precision: Vec<String> = errors
-        .iter()
-        .filter(|e| matches!(e, ValidationError::CensusEscalated { .. }))
-        .map(ToString::to_string)
-        .filter(|said| said.contains(RECOURSE))
-        .collect();
-    assert!(precision.is_empty(), "{precision:?}");
+    // Pinned to limb 2's kernel limit at ε = 1e-12: the kilometre bars round at their own
+    // extent past the band, outside the session box
+    // (`work/offset/the-session-box-is-not-enforced-at-construction.md`).
+    test_utils::kernel_limit::pinned_row(
+        geom_core::Tol::witness().eps(),
+        &[1e-12],
+        "bars_meeting_exactly_raise_no_precision_escalation_at_validation",
+        || {
+            let tol = t();
+            if stood_down(tol) {
+                return;
+            }
+            let pose = turned();
+            let mut body = Body::<f64>::new();
+            for [(x0, x1), (y0, y1), z] in end_to_end(0.0) {
+                prism_ops(
+                    &mut body,
+                    &[(x0, y0), (x1, y0), (x1, y1), (x0, y1)],
+                    z,
+                    |x, y, z| pose.at([x, y, z]),
+                    FaceGeometry::Certified,
+                    tol,
+                );
+            }
+            describe_as_intersections(&mut body, tol);
+            let errors = validate_pseudomanifold(&body, &ContactRecords::default(), tol)
+                .expect_err("the undeclared touch refuses");
+            let precision: Vec<String> = errors
+                .iter()
+                .filter(|e| matches!(e, ValidationError::CensusEscalated { .. }))
+                .map(ToString::to_string)
+                .filter(|said| said.contains(RECOURSE))
+                .collect();
+            assert!(precision.is_empty(), "{precision:?}");
+        },
+    );
 }

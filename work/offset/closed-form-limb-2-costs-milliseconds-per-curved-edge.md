@@ -75,3 +75,13 @@ About 14.5× in all. A dual pass pays none of it (its door only mints);
 an `f64` pass pays it at the attach door and again at rest, where every
 at-rest door's check 2 now runs the scalar's edge door. Nothing in the
 door split cut it; the candidate cuts above stand.
+
+## Measured on the one reader (2026-10-26)
+
+Same 13 rows and method, after fork row 200's fix (one limb-2 reader
+framed in certification arithmetic, PR 5728). Twelve of the rows are in
+the tree under the same names, and they total **10.7 s**, against
+12.4 s on the door split. The thirteenth,
+`a_boss_over_a_hole_tangent_inside_its_rim`, is now main's
+`a_boss_over_a_hole_by_pose` (23 s, a pose sweep), and is not comparable.
+The candidate cuts above stand.

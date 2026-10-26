@@ -30,8 +30,9 @@
 //! [`framed_carrier_net`] is the same net written in a [`Frame`] (an
 //! analytic operand's chart frame) in certification arithmetic, the
 //! frame applied to the carrier's own data before anything is expanded:
-//! a closed form's centre and axes, a line's origin and direction, a
-//! spline's controls. Each control then rounds at its distance from the
+//! a closed form's centre and axes, a spline's controls, a line's points
+//! at the breaks (evaluated, then framed: a line has no expansion to
+//! spare, and its point's channels stay together). Each control then rounds at its distance from the
 //! frame's origin, never at its distance from the world origin.
 
 use geom::Curve3;
@@ -492,7 +493,7 @@ pub(crate) fn carrier_net<T: CertifiedBounds>(
 
 /// **[`carrier_net`] written in `frame`**, the frame applied to the
 /// carrier's own data first (module docs): a spline's controls, a
-/// line's origin and direction, a closed form's centre and axes, then
+/// line's points at the breaks, a closed form's centre and axes, then
 /// the closed form expanded span by span as [`carrier_net`] expands it.
 /// The one place limb 2's reader frames a carrier at an operand.
 ///
@@ -589,14 +590,19 @@ fn enclosing_net<T: CertifiedBounds>(
         return Err(refuse(whole));
     }
     if let Curve3::Line { origin, dir } = carrier {
-        let (o, d) = match frame {
-            Some(f) => (f.point(lift_p(*origin)), f.vector(lift_v(*dir))),
-            None => (lift_p(*origin), lift_v(*dir)),
-        };
+        // A line's controls are its points at the breaks, evaluated in
+        // place and then framed: there is no expansion for a frame to
+        // spare, and an origin and direction framed apart lose what an
+        // interval point's channels share (measured: a widened extrude's
+        // edge bounds 1.2e-9 framed apart and under 1e-9 framed after).
+        let (o, d) = (lift_p(*origin), lift_v(*dir));
         let mut knots = vec![first];
         knots.extend_from_slice(breaks);
         knots.push(last);
-        let at = |t: f64| o + d * Interval::from_f64(t);
+        let at = |t: f64| {
+            let p = o + d * Interval::from_f64(t);
+            frame.map_or(p, |f| f.point(p))
+        };
         let points: Vec<Vec3<Interval>> = breaks.iter().map(|&t| at(t)).collect();
         for (pair, ends) in breaks.windows(2).zip(points.windows(2)) {
             if !span_certifies(&[

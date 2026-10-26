@@ -99,7 +99,7 @@ Ev approved the designers' answer on PR 5728 ("this seems good",
     `crates/geom-brep/src/carrier_net.rs` `framed_carrier_net`, framed at
     each operand in certification arithmetic. The frame is applied to the
     carrier's own data before anything is combined: a closed form's
-    centre and axes, a line's origin and direction, a spline's controls.
+    centre and axes, a line's points at the breaks, a spline's controls.
   - `closed_form_offset_sup` and `projected::net_offset_sup` are gone.
   - The spline path's `f64` framing, which was unenclosed, is gone with
     them. The row `carrier_net::tests::a_spline_framed_at_an_operand_encloses_its_exact_framed_controls`

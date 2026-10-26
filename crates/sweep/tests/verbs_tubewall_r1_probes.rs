@@ -429,7 +429,14 @@ mod certified {
                 // The measured envelope edge (fn docs): km scale,
                 // sub-femto band, TYPED — and shared: the solid
                 // door must refuse the identical fixture.
-                Err(TubeError::Revolve(_)) if major >= 1000.0 && eps <= 1e-12 => {
+                // At the default ε too, the 1.3 km ring's torus walls bound
+                // past the band at the interval scalar: limb 2's kernel
+                // limit, the torus composite's conditioning
+                // (`work/offset/the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding.md`).
+                Err(e @ TubeError::Revolve(_))
+                    if major >= 1000.0
+                        && (eps <= 1e-12 || test_utils::kernel_limit::is_kernel_limit(&e)) =>
+                {
                     let solid = tube_along_arc::<Interval>(
                         tube_frame(
                             p3(0.0, 0.0, 0.0),
