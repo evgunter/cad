@@ -27,7 +27,7 @@
 
 use geom::Curve3;
 use geom::Surface;
-use geom_core::period::{Bounded, Exact, Extent, NotForward, TurnRate, TurnRows};
+use geom_core::period::{Exact, Extent, NotForward, TurnRate, TurnRows};
 use geom_core::{
     Band, Decide, InfSpeed, LeveredUnitError, Margin, Point3, Real, RigidMotion, Sign,
     UNIT_DIRECTION_ARM, UnitVec3, UnitVec3Error, Vec3,
@@ -2391,8 +2391,9 @@ fn radial_sag<T: Real>(q0: Vec3<T>, q1: Vec3<T>) -> T {
 /// under the rim's names at its own radius ([`require_rim_span`]). An
 /// ellipse arc is no rim: its span is decided under its own names,
 /// `props_cone_ellipse_span_forward` / `props_cone_ellipse_span_winding`,
-/// at certification's ellipse rates (the speed floor, and the sup over
-/// the turn's defect), refusing as [`PropsError::ConeLoop`].
+/// at certification's ellipse rates (the speed floor forward, and the inf
+/// and sup over the turn's defect for the turn), refusing as
+/// [`PropsError::ConeLoop`].
 fn require_cone_conic_spans<T: Decide>(
     edges: &[LoopEdge<T>],
     band: Band,
@@ -2414,8 +2415,8 @@ fn require_cone_conic_spans<T: Decide>(
                     (e.t0, e.t1),
                     floor,
                     |extent| {
-                        let sup = geom::carrier_speed::turn_defect_speed_hi(ellipse, e.t0, extent);
-                        (Bounded::new(floor, sup), rows)
+                        let rate = geom::carrier_speed::turn_defect_rate(ellipse, e.t0, extent);
+                        (rate, rows)
                     },
                     "props_cone_ellipse_span_forward",
                     band,
@@ -4818,7 +4819,12 @@ fn torus_lift<T: Decide>(at: T, angle: T, minor: T, band: Band) -> Result<(i32, 
     let name = "props_torus_lift_turns";
     let period = Period::new(T::tau());
     period
-        .decide(name, at - angle, |g| Margin::levered(g, minor), band)
+        .decide(
+            name,
+            at - angle,
+            |g| Margin::metered(g, InfSpeed::new(minor)),
+            band,
+        )
         .map(|k| (k, angle + period.times(k)))
         .map_err(|stop| match stop.miss {
             BranchMiss::Undecided(cause) => PropsError::Escalated {

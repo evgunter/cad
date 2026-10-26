@@ -2,11 +2,13 @@
 id: turn-rule-reads-short-at-the-global-speed-floor
 kind: issue
 title: The turn rule's Short and Over read an ellipse's global speed floor, so a near-whole arc on its fast side escalates where a local inf over the defect would decide it
-status: dispatched
+status: closed
 opened: 2026-10-25
 priority: P3
 cost: E
 branch: pred/turn-rule-follow-ups
+pr: 5724
+closed: 2026-10-26
 ---
 
 
@@ -69,3 +71,7 @@ spans the inf cannot settle:
   reads the headroom definitely positive answers it; the site admits
   only the both-decided straddle, since `TurnUndecided` does not say
   whether a sup reading it carries is decided.
+
+## Closed (PRED orchestrator, 2026-10-26, PR 5724)
+
+Done in PR 5724, after a full single review (APPROVE-WITH-FIXES, nothing falsified on soundness) and its fix pass. The remaining cases are filed as `f64-turn-rule-measures-headroom-against-f64-tau`, `spiric-turn-defect-inf-stays-global` and `parameter-span-levered-sites-outside-period-decide`.
