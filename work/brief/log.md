@@ -15,3 +15,4 @@ and headers unchanged (`needs_ev` included). Band 15100–15199 is
 claimed in the same commit (`docs/MODEL-AB-LOG.md`). Nothing
 dispatched; the program is `ready` at 7 points.
 - 2026-10-26 — `four-lane-practices-have-no-home-outside-the-ledger` closed: Ev declined all four proposals in chat (words on the row); `needs_ev` cleared.
+- 2026-10-26 — The remaining three rows close on Ev's rulings in chat (words on each row), and the program closes (`docs/doc-ledger/brief-leaves-the-tracker.md`).

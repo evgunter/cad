@@ -2,10 +2,11 @@
 id: an-items-stated-sweep-pattern-may-not-match-its-own-instance
 kind: issue
 title: an item's stated sweep pattern can fail to match the instance it was derived from, so a lane re-running it faithfully finds nothing
-status: open
+status: closed
 opened: 2026-09-16
 priority: P3
 cost: D
+closed: 2026-10-26
 ---
 
 
@@ -83,3 +84,7 @@ adjudication rather than filed by the lane, because `docs/prompts/*` is
 META's territory and the finding is about the discipline rather than
 about the census. The unit's own item is being corrected in that PR;
 this row is the class the correction is an instance of.
+
+## Closed (2026-10-26, Ev in chat)
+
+Declined. Ev, in chat, 2026-10-26: "yeah, close". This is the same shape as the pin question Ev called "way too general" the same day: a discipline sentence generalised from one instance. Nothing goes into `docs/prompts/`.

@@ -2,10 +2,11 @@
 id: unit-numbered-test-suite-prefixes-collide-across-program-generations
 kind: issue
 title: sweep: unit-numbered test-suite prefixes collide across program generations (blend6_ names two units)
-status: open
+status: closed
 opened: 2026-09-08
 priority: P3
 cost: E
+closed: 2026-10-26
 ---
 
 
@@ -45,3 +46,7 @@ line naming the generation. Either way the rule belongs in
 `work/blend/program.md` and in `docs/prompts/implementer-discipline.md`'s
 suite-naming sentence if it has one. Not a unit; settled by the
 orchestrator when unit 7's suite is named.
+
+## Closed (2026-10-26, Ev in chat)
+
+Superseded (Ev, in chat, 2026-10-26: "yep, close"). Unit 6's instance was renamed by subject at the time. The open question was a naming rule for BLEND's remaining units, and BLEND has since closed (no `work/blend/`). Every `blend6_*` / `review_blend6_*` file left in `crates/sweep/tests/` is S-BLEND's, so no live collision remains and no program is left to need the rule.

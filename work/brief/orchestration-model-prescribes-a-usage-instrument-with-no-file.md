@@ -2,10 +2,11 @@
 id: orchestration-model-prescribes-a-usage-instrument-with-no-file
 kind: issue
 title: memories/orchestration-model.md prescribes the two-window usage check by a path that does not exist on at least two agent layouts, so the rule reads as followed when it cannot be
-status: open
+status: closed
 opened: 2026-09-15
 priority: P4
 cost: E
+closed: 2026-10-26
 ---
 
 
@@ -70,3 +71,7 @@ Filed by the WIRE orchestrator under `docs/prompts/implementer-discipline.md`
 §6. `memories/` is in no program's `paths` (`work.py territory --files -`
 returns no owner), and this is a process instrument that binds every
 session by path, which is META's charter. Re-home if that call is wrong.
+
+## Closed (2026-10-26, Ev in chat)
+
+Fixed by deletion (Ev, in chat, 2026-10-26, choosing "b": delete the instruction rather than give it a fallback). `memories/orchestration-model.md`'s usage-alert bullet loses its "read the truth from `events/claude/usage/events.jsonl`" half. That file does not exist on hosted layouts, and CLAUDE.md already says to ignore 7-day warnings. The bullet's first half (act only on alerts naming your own account) stays.
