@@ -3449,6 +3449,7 @@ impl DocSession {
             DocEdit::InsertNode { .. }
             | DocEdit::DeleteNode { .. }
             | DocEdit::SetMembers { .. }
+            | DocEdit::SetLoftSections { .. }
             // What the document makes: structure, not a panel field.
             | DocEdit::SetProduct { .. }
             // A profile's program replaced whole: structure, not a

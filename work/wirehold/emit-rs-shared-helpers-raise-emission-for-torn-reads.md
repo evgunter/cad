@@ -2,11 +2,12 @@
 id: emit-rs-shared-helpers-raise-emission-for-torn-reads
 kind: issue
 title: names/emit.rs's shared helpers (to_u32, output_body, Incidence::of, the rim consts, vertex_point, face_half_edges, edge_ends) still raise NamingError::Emission for torn-body reads and u32 narrowings no body reaches
-status: dispatched
+status: parked
 opened: 2026-10-20
 priority: P2
 cost: M
 refs: [names-emission-raises-panic-or-take-their-true-ending]
+blocked_on: [patterns-are-index-variables]
 ---
 
 
@@ -40,3 +41,13 @@ Left by all three lanes of `names-emission-raises-panic-or-take-their-true-endin
 
 They are listed here so the parent row can close. Convert them when the D10 hold lifts, under the same ladder.
 - `output_body` (added 2026-10-21 by PR 5530's lane): it counts output bodies, which a pattern count sets with no arena cap, so there is no row-4 bound. All its callers are on D10 ground. It stays fallible.
+
+## Partly closed by PR 5530 (2026-10-26)
+
+PR 5530 converted all 11 non-D10 raises to row 4. Each one's why is either `TIER1` (a link a record holds) or `LIVE_ARGUMENT` (a key the caller read off a live record of the same body). Row 0 was answered "no": a live-key brand would spread into every emitter signature.
+
+What remains here is the D10-held list above: `flat_body_index` ×2, `name_placed_union` and `name_in_part`. `output_body` moved to `loop-coordinates-narrowing-has-no-bound`. This row parks on the D10 hold.
+
+## Moved to WIREHOLD (2026-10-26)
+
+What is left is D10-held, so the row parks with WIRE's other D10 rows. Signed (WIRE orchestrator).

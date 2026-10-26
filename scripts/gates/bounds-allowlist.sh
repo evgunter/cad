@@ -655,7 +655,13 @@ BOUNDS_ALLOWLIST=(
   # reached only from `cut_face_rounds`, under `QuadLane::certified`'s
   # first field, so it is the same plumbing at the same door and is
   # never formed at a dual.
-  'crates/topo/src/props/quad_lane.rs 18 M5 PR 11, the certified-quadrature plumbing'
+  # 18 -> 14 (FLUX, PR 5734): `trig_at_start` and `start_point`
+  # (`Decide + Bounds + CertifiedEnclosure`, two occurrences each) are
+  # gone: the cylinder lane forms each trim end's trig at its parameter
+  # (`geom_brep::props::quad::trig_at_limit`) and reads no vertex, and
+  # the carrier-kind refusals they carried are `harmonic_carrier`'s, at
+  # plain `Decide`.
+  'crates/topo/src/props/quad_lane.rs 14 M5 PR 11, the certified-quadrature plumbing'
   # M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery.
   # 15 -> 17: `chain_turns` is predicate 4's loop moved out of
   # `run_battery_for` whole (its junction-end pick the one bracket read,

@@ -490,7 +490,7 @@ pub(super) fn compare<T: Decide>(row: &'static str, s: T, t: T) -> Option<geom_c
 /// A point-on-span refusal as the meeting's: an escalation as itself, a
 /// spline's walk past its budget as unsettled, and a spline with no
 /// speed bound as a pose the reader does not serve.
-fn carrier_fault(refusal: geom::CarrierRefusal) -> MeetFault {
+pub(crate) fn carrier_fault(refusal: geom::CarrierRefusal) -> MeetFault {
     match refusal {
         geom::CarrierRefusal::Escalated(diag) | geom::CarrierRefusal::Straddle(diag) => {
             MeetFault::Escalated(diag)

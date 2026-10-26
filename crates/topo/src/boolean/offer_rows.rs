@@ -2261,6 +2261,8 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::EdgeInFace
         | BooleanErrorKind::SlitLineCrossed
         | BooleanErrorKind::SlitFaceGlued
+        | BooleanErrorKind::CurvedFaceClosesAcrossSlit
+        | BooleanErrorKind::SlitFaceClosesMidSlit
         | BooleanErrorKind::LineWedges => Vec::new(),
     }
 }
@@ -2785,6 +2787,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("reduce.rs", "read_lying_in", "Coincide::VertexOnFace", 1),
+    (
+        "reduce.rs",
+        "twin_edge",
+        "BooleanDecision::VertexOnVertex",
+        1,
+    ),
     (
         "reduce.rs",
         "split_other_at_point",

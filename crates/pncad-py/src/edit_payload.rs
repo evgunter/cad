@@ -278,6 +278,7 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             ..none
         },
         EditError::SetMembersOnNonList { node }
+        | EditError::SetLoftSectionsOnNonLoft { node }
         | EditError::LoftSectionsSpelled { node }
         | EditError::SetProgramOnNonProfile { node }
         | EditError::WitnessOnNonSketch { node }
@@ -519,6 +520,24 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         | EditError::DefinitionUnresolvedVar { var, read: _ } => EditPayload {
             param: var.name(),
             ..none
+        },
+        EditError::LoftShape { node, fault } => match fault {
+            pncad::document::LoftFault::TooFewSections { have } => EditPayload {
+                node: Some(node.id()),
+                count: Some(*have),
+                ..none
+            },
+            pncad::document::LoftFault::EmptyStation { section } => EditPayload {
+                node: Some(node.id()),
+                index: Some(*section),
+                ..none
+            },
+            pncad::document::LoftFault::DegreeOutOfRange { degree, sections } => EditPayload {
+                node: Some(node.id()),
+                count: Some(*sections),
+                given: usize::try_from(*degree).ok(),
+                ..none
+            },
         },
         EditError::LoftSectionCount {
             node,

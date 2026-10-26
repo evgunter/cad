@@ -80,16 +80,17 @@
 // `StepId` is what `DocEdit::SetProgram` keeps a step by — a caller
 // who cannot spell it cannot author the edit — and `StepIdFault` is
 // what `EditError::StepIdsRefused` carries, so a consumer matching that
-// arm can name what it caught.
+// arm can name what it caught; `LoftFault` is the same for
+// `EditError::LoftShape`.
 // `AuthoredStep` is how an author who recorded a step reaches its id
 // and its pieces (`ProfileProgram::step`, `ProfileProgram::piece`) and
 // keeps it across a reshaping (`keep_grid`); `StepHandleRefusal` is
 // what those doors refuse with, and the shape types are what an
 // `AuthoredStep` is made of.
 pub use editor_core::{
-    Applied, AttrKind, CarryForwardDoor, Doc, DocEdit, EditError, EditRecord, Maintenance,
-    MaintenanceNet, MetaVersionError, ProductReadFault, ProgramRefusal, Recorded, Recording,
-    SlotValue, StepId, StepIdFault, Took, apply, apply_replayed,
+    Applied, AttrKind, CarryForwardDoor, Doc, DocEdit, EditError, EditRecord, LoftFault,
+    Maintenance, MaintenanceNet, MetaVersionError, ProductReadFault, ProgramRefusal, Recorded,
+    Recording, SlotValue, StepId, StepIdFault, Took, apply, apply_replayed,
 };
 pub use editor_core::{
     ArcShape, AuthoredStep, StepHandleRefusal, StepShape, TargetShape, keep_grid,

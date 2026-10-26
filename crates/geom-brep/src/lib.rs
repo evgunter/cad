@@ -57,10 +57,12 @@ mod carrier_net;
 pub mod carrier_resolution;
 pub mod certify;
 pub mod conic_bend;
+pub mod curve_face;
 pub mod curve_pair;
 pub(crate) mod descent;
 pub mod description;
 pub mod dihedral;
+pub mod dihedral_side;
 pub mod edge_nurbs;
 pub mod enters;
 #[cfg(test)]
@@ -114,6 +116,9 @@ pub use dihedral::{
     classify_material_pairing, classify_material_pairing_as, folded_lever_arm, interior_stations,
     material_kappa_rel, must_carry_description, must_carry_over_edge, reask_chart, reask_pair,
     second_order_walk, tangent_second_order,
+};
+pub use dihedral_side::{
+    EdgeHalf, EdgeWalk, FaceSide, SideEscalation, SideFace, SideRole, dihedral_side,
 };
 pub use edge_nurbs::{
     AnalyticRung3Refusal, CARRIER_DOMAIN_RECOURSE, CarrierDomainFault, CarrierDomainRefusal,
