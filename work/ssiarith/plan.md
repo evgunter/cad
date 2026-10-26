@@ -6,11 +6,11 @@ dispatched.
 
 ## The slate
 
-**24.5 budget points** of dispatchable work against a ceiling of 30.
+**33 budget points** of dispatchable work against a ceiling of 30: over,
+with the rows filed since the cut that the table below does not list.
 
 | pri | item | cost | title |
 |---|---|---|---|
-| P3 | `chart-point-signs-are-f64-evaluations` | M | the chart lane's point signs are f64 evaluations read as certified, so a zero within rounding of a window corner or cut can take a sign |
 | P3 | `limb3-carrier-ends-read-at-f64-points` | E | limb 3's end checks read the carrier's ends as f64 point evaluations, not enclosures of the exact ends |
 | P3 | `limb-2-frame-drift-is-a-third-of-its-floor-and-hides-sub-floor-frame-reading-at-eps-1e-12` | M | plane × NURBS limb 2 moves ~1e-14 m under a rotation (a third of its 3.2e-14 floor, every eps), so at eps 1e-12 the rigid-map row passes a frame-reading defect under ~3% of the bound; limb 1 resolves ~0.15% there |
 | P3 | `plane-nurbs-limb-2-floor-has-an-absolute-part-that-does-not-shrink-with-the-model` | M | plane × NURBS limb 2's delta = 0 floor reads 5.0e-14 m on a 1 mm model, about 1500x what scaling the 1 m reading gives, so the bound carries an absolute part that does not shrink with the part |
@@ -28,9 +28,9 @@ The units rows (`ssi-closure-pair-reads-both-charts-as-metres`,
 `ssi-a-chart-rung-can-be-narrower-than-eps-in-metres`,
 `the-march-domain-diagonal-mixes-state-units-on-the-chart-lane`) share
 one question, what a chart length is in metres, and run together. The
-f64-read rows (`chart-point-signs-are-f64-evaluations`,
-`limb3-carrier-ends-read-at-f64-points`) are the same repair in two
-places. The three limb 2 floor rows are one measurement and go last.
+f64-read row (`limb3-carrier-ends-read-at-f64-points`) is the repair
+`chart-point-signs-are-f64-evaluations` (closed) made in `rect_box`,
+at the carrier's ends. The three limb 2 floor rows are one measurement and go last.
 
 ## Review posture
 

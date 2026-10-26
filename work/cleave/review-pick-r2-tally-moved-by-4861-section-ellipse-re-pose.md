@@ -2,8 +2,9 @@
 id: review-pick-r2-tally-moved-by-4861-section-ellipse-re-pose
 kind: issue
 title: review_pick_r2's pinned tally moved at PR 4861's merge; main is red on the slow set
-status: open
+status: closed
 opened: 2026-10-14
+closed: 2026-10-26
 ---
 
 
@@ -42,3 +43,7 @@ This fits #4861 re-posing the ellipse carrier (`u_ref` on a principal axis), whi
 The owner decides whether the 60 lost aimed-vertex answers are acceptable, and re-pins with that reading stated, or fixes what lost them. Until then, every program's downstream run sees this row red on main.
 
 **Re-pinned, then moved again (2026-10-19).** INTENT stage 3 C (PR 5267) re-pinned the row to A′'s tally (441198, 141763, 12306, 6534). PR 5225 (`pcert/azimuth-placement`) then moved it to (441198, 141805, 13524, 6936), and the 2026-10-19 nightly is red at every ε. That movement is filed on PCERT's slate as `review-pick-r2-tally-moved-at-5225-azimuth-placement`. The question above about PR 4861's lost answers is still open.
+
+## Closed (2026-10-26)
+
+Stale: the red this row carried is gone. `crates/viewer/tests/review_pick_r2.rs` has been re-pinned three times since (PR 5267, PR 5068, PR 5370), each re-pin recording that no genuine crossing is refused either way; the 4861 movement measured here (60 fewer aimed-vertex answers, fewer refusals, no genuine crossing refused, an ulp re-pose) is of the class those re-pins accepted. The 5225 movement is PCERT's `review-pick-r2-tally-moved-at-5225-azimuth-placement`, and PR 5370's pin starts from its tally. (CLEAVE slate triage)

@@ -2,11 +2,12 @@
 id: pickkinds-doc-states-its-disclaimer-twice
 kind: issue
 title: PickKinds' doc says it is not a filter vocabulary twice, one paragraph per tool that arrived
-status: open
+status: closed
 opened: 2026-09-21
 priority: P4
 cost: E
 refs: [3007]
+closed: 2026-10-26
 ---
 
 Found by the whole-file read (`docs/prompts/reviewer-style-lane.md`
@@ -43,3 +44,7 @@ its prose.
 and VIEW's; the sentence is VDOC's per this program's `keep_out` — *a
 prose or citation defect lands wherever the sentence is* — and a unit
 here announces the edit to the owners.
+
+## Closed (2026-10-26, tracker sweep)
+
+**Fixed in this sweep.** `PickKinds`' doc (`crates/viewer/src/pickindex.rs`, ~`:149-166`) now states the disclaimer once, after the blend paragraph. The stale *two answers* paragraph is deleted, and the surviving one says each variant is one answer, one per shape of tool shipped, so no count is written beside it. The vocabulary question stays with `work/vseam/pick-priority-filter-vocabulary`.

@@ -8,7 +8,7 @@ against 30 with its six charter rows closed. Nothing dispatched.
 
 ## The slate
 
-**29.5 budget points** of dispatchable work against a ceiling of 30.
+**27 budget points** of dispatchable work against a ceiling of 30, in 10 rows (2026-10-26).
 
 | pri | item | cost | title |
 |---|---|---|---|

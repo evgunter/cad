@@ -119,3 +119,23 @@ branches on and the sentence is what a reader reads).
 WIRE's priority-seam cut moved this row, keeping its id and body: WIRE keeps its P0–P2 rows and the E rows that ride with them.
 
 Signed (WIRE orchestrator).
+
+## Merged in: STACK's `stackup-measure-refused-carries-its-node-error-rendered` (2026-10-26, tracker sweep)
+
+That row was this row's stackup door on its own, and it closed into
+this one. What it added:
+- `stackup.rs`'s `MeasureRefused { node, cause: String }` (`:207`, and
+  `SensitivityOutcome::MeasureRefused`, `:981`, `:1106`) states its
+  reason as `NodeErrorKind` being neither `Clone` nor `PartialEq`.
+- The drive's sibling is typed: `drive::RefusalReason::MeasureRefused`
+  carries a `MeasureRefusalClass` (`drive.rs:633`, `:1777`). So a third
+  carriage is on the table beside the two above: the stackup carries
+  the same `MeasureRefusalClass`, narrowed to what its own producer can
+  refuse with; or `NodeErrorKind` gains `Clone` and `PartialEq`.
+
+Still rendering on main: `drive.rs`'s `WitnessDoesNotBuild { cause:
+String }` (`:1223`, built from `e.kind_spoken(doc)` at `:1346`),
+`mc.rs`'s `NominalDoesNotBuild` (`:114`), and `stackup.rs`'s `cause:
+String` fields (`:213`, `:246`, `:966`, `:1113`, `:1674`, `:1708`).
+`stackup.rs` is STACK's ground; a lane taking this announces the seam
+on `work/stack/log.md`.

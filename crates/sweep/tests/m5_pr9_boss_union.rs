@@ -217,7 +217,7 @@ fn r1_cradle(bulge: f64) -> Body<f64> {
 /// same-key conformal arm can see it. Pre-fix this probe pinned the
 /// silent Ok(()) (the R1 review's core finding); the conservative
 /// loudness backstop now refuses the pair as UNDECIDABLE, naming the
-/// C9-ring class.
+/// conformal-rest class the C9 exclusion ring would certify.
 #[test]
 fn r1_probe_conformal_touch_between_instances_refuses_undecidable() {
     let b60 = (15f64).to_radians().tan(); // bulge of a 60-degree arc
@@ -268,7 +268,7 @@ fn r1_probe_conformal_touch_between_instances_refuses_undecidable() {
     let faces = cyl_faces(&body);
     assert_eq!(faces.len(), 4, "bite wall + three pin walls: {faces:?}");
     // The union fix (F1): the conservative loudness backstop refuses
-    // the cross-solid curved pair as UNDECIDABLE — the C9-ring class,
+    // the cross-solid curved pair as UNDECIDABLE — the conformal-rest class,
     // named — instead of validating silently. (Pre-fix this probe
     // pinned the silent Ok(()) the R1 review found.)
     let errs =

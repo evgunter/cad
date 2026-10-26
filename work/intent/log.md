@@ -836,9 +836,94 @@ The boolean declare surface is gone at every layer. A boolean's one input beside
   - **(c) §5′.1's picture** draws the product slot's body plus the shown spaces, with unread bodies tinted as outside the product. One designer's alternative wording, "a space's bodies that nothing in it reads", is the sink-set rule rows 80 and 85 retired, and should not go into the spec.
 
   AUTHTAIL also claims `a-mirrors-body-reads-as-in-no-space` with PR 5683, which carries its one `SpaceWalk` arm (the file moves when that PR lands). The arm sits beside D′3's own `SpaceWalk` edits, so expect a one-line merge.
+- 2026-10-26 — **Seam (CLEAVE):** `intent_s2_c_world::the_migrated_world_is_the_pre_c_product` fails on main `bc060f246f` ('cut_cylinder: the product moved d2acb2b37c5273db/28'). Added as evidence on `main-red-the-seat-and-name-table-goldens-moved-at-dprime2`, the nearest INTENT row; INTENT decides whether it belongs there. (CLEAVE orchestrator)
 - 2026-10-25 — (AUTHTAIL orchestrator) **Questions for D′3 from AUTHTAIL's stale-mate fork.** The Opus/Fable designer pair converged. A takeover (fillet, mirror, sketch-on-face re-pointing a world copy onto a node built over its source) leaves every reference into the copy stale. The fix is the takeover writing a `Rebind` per carried name in the same action (`work/authtail/a-mate-on-a-taken-over-copys-face-goes-stale.md`, `## Decided`), parked on PR 5636. D′3 should decide:
   1. **Picks through a taken-over copy.** A takeover's authored re-seat may rewrite a `Pick`; `[placement.placement]`'s "never re-pointed" would then read "never re-pointed by resolution". Or the takeover refuses at the door where C's new source keeps no pieces.
   2. **Whether the takeover rule is written into `[placement.placement]`**, which D′3 rewrites ("a gesture that re-points a copy onto a node built over its source re-spells every reference read in the copy as that node carries it"), or stays a door's behaviour. One designer proposed the sentence; it binds future work, so it is Ev's.
   3. **Part names.** `Rebind` holds `from.node` to the host's mint log (`RebindUnknownName`), so a takeover of an instance's copy cannot rebind its part-spelled references.
 
   Filed on INTENT's slate: `d-prime3-fallback-diagnosis-blames-the-sources-minting-node-for-a-re-pointed-copy` (P3 E). Also noted, unfiled because D′3 closes it: on main, a mate on a copy's face goes stale under the Transform takeover too (`Renamed::through` re-seats only the viewer's held picks). PR 5636's branch predates the mirror (PR 5683): at its next main merge, `add_mirror`'s `repoint(...).map(drop)` follows `repoint`'s new signature.
+- 2026-10-26 — Resumed after a usage reset; nothing moved from 10-24 16:45. Both lanes picked up on their own: D′3 (#5636, `session_017HwxSpesEsgKsHjvrj6TyM`) on MAJOR 1 over merged #5637, and the value chart (`session_01ReeWyLMjbS8q7pwdH5Tpwo`).
+  - **AUTHTAIL's 10-25 notes, ruled for D′3:**
+    - a pick is never re-pointed. A takeover that would strand a pick refuses typed at the takeover door, and an exact re-seat is filed P3;
+    - the takeover rule stays door behaviour, with no `[placement.placement]` change in this PR (it would bind future work, so it is Ev's if wanted);
+    - part names in `Rebind` are filed P3;
+    - spec sentences (a)–(c) are written into `docs/INTENT-STAGE3-SPEC.md` by the D′3 lane, without the sink-set wording.
+- 2026-10-26 — **Split, on Ev's ask** ("restructure atrest so none of its work is on your critical path… or split off a thread… that can be worked on in parallel"):
+  - **INTENT now holds only the stage 3 chain:** D′3 (#5636, in flight) → E (`an-operation-computes-in-a-frame-of-its-reads`) and `a-placement-pins-by-written-values-without-a-mate` → G (`patterns-are-index-variables`). It also keeps the D′3 residue and its viewer, Python and doc rows.
+  - **ATREST is handed back `ready`.** It was never on the chain by dependency: only the D10 umbrella waits on 5 C. Its plan now says that 5 C waits on D′3 for files only, and everything else is dispatchable now.
+  - **The values and pose-kinds thread moves to MSOLVE** (`ready`, `mate/*` ground) by `git mv`, ids kept: `the-value-chart-reads-a-written-orientation` (in flight, lane `session_01ReeWyLMjbS8q7pwdH5Tpwo`), `a-value-chart-jumps-at-the-antipode-under-a-downward-face`, `a-lone-slide-refuses-the-chart-it-never-reads`, `flag-and-pivot-pose-kinds` (now parked on the value chart), `a-slide-beside-a-ball-refuses-though-it-fixes-the-turn`, `a-seated-pin-written-as-an-axis-and-a-number-is-a-finding` and `a-value-on-a-placed-copy-target-is-charted-on-the-space`. The charter is in `work/msolve/plan.md`.
+  - Until an MSOLVE orchestrator picks it up, INTENT watches the value-chart lane so its report is not orphaned. That is a courtesy hold, not a dependency.
+- 2026-10-26 — **Slate re-cut, so the load counts real work** (Ev noticed INTENT oversize, with many P0s blocked). Load went from 66/45 to 32/45.
+  - `python-census-finding-rows-read-a-rest-contact-since-the-planar-face-pair-census` closes: #5637 fixed its four rows, and the 10-25 nightly's python job is green.
+  - **Rows D′3 absorbs** (spec §5′.3 "Absorbs", plus the two main-red re-pins and the fallback diagnosis) now ride with D′3 and are parked on it: `a-placement-pins-by-written-values-without-a-mate` (the D′ umbrella, which closes when D′3 merges), `a-space-names-its-bodies`, `the-viewer-authors-no-read-of-one-copy`, `an-instance-defines-one-body-per-part-placement`, `a-placement-copy-is-its-own-table-in-the-product`, `name-words-budget-grew-under-placed-copy-wrapping`, the two `main-red-*` rows, and `d-prime3-fallback-diagnosis-…`.
+  - **Rows D′3 obliges a re-read of** are parked on it: `an-instance-value-carries-its-copies-only`, `an-operand-is-one-body-by-a-recipe-count-…`, `a-placement-adds-no-name-segment-is-said-three-ways`, `a-placement-of-two-shapes-sharing-a-name-refuses-duplicate` (moot once a placement copies one source), and `a-space-other-than-the-world-is-census-checked-only-if-a-new-space` (the ⊔ door).
+  - `a-split-name-picks-a-pattern-copy-by-its-evaluated-index` is parked on G.
+  - Three at-rest rows move to ATREST.
+  - **The P0 chain is inherently serial**, per spec §6 and §8: D′3 → E → G (a)/(b). Each rewrites `wire_place`, the value a placement defines, and `product.rs`. G (c), the mirror construction, is already on main.
+- 2026-10-26 — Parallel work beside D′3 (Ev: "do it in parallel or defer it as you see fit"):
+  - **Design fork `the-tours-post-cell-split-refuses-the-space-its-copies-read`** (P1): what `split` means for a document's spaces. Designers A (Opus, `session_01RhV9WXnw4P3s61LRSEDHVm`) and B (Fable, `session_012nPf8DvEbLzcANErmY7KZa`). Blinding byte 234 (Opus is A), recorded on `analysis/design-fork/intent-tour-post-cell-split`. Both weigh the state after D′3.
+  - **`a-loft-set-members-cannot-add-a-section`** (P2): lane `session_01M6MHcsnKrWoJ1FjuGvraRE` on `intent/loft-section-stations`. Orchestrator's shape: one `SetLoftSections { node, sections: [(read, station)] }`, every station written, and `SetMembers` keeps its count refusal and names the recourse. Tier: single FULL.
+  - **Deferred:** `lies-on-beyond-the-extrude` (P3, on COINCIDE's `coincide.rs`); the viewer rows (they wait on E's drawing).
+- 2026-10-26 — **Request from Ev, via CLEAVE: read the duplication rows for architecture signal.** INTENT is asked to triage them, not to do the design work.
+  - **Background:** CLEAVE is splitting its over-budget slate (270.5/30). One coherent thread in it is about twenty rows where one piece of logic has two or more implementations: "X has N spellings / N homes / is read in N places".
+  - **Their band:** `work/README.md`'s Priority section bands that class P1 ("two implementations of one underlying logic"), but these rows were filed at P3 as review residue. They are being re-banded and gathered into a P1 track of their own.
+  - **Ev's words, 2026-10-26:**
+    > can you file a note on intent's log mentioning the duplication track and asking it to see which of these are worth having a design conversation about (ie we need a real answer to "how did it happen that this got duplicated? how can we make one clear canonical place to do this?") vs which are like "oops, delete one of the duplicates and repoint things that used it to the other". it shouldn't actually *take on* those design conversations, just make sure that we don't lose the "something about the architecture is unclear here" signal that duplication provides
+  - **The ask:** sort each row into one of two kinds.
+    - **Design signal:** the copies exist because the architecture leaves unclear where the logic belongs. The row then owes a design conversation: why did it get duplicated, and where is its one canonical home? Mark it `design: true` with a sentence on what is unclear.
+    - **Mechanical:** delete one copy and repoint its users to the other. Say so in one line on the row.
+  - **The limit:** INTENT does not take on the design conversations themselves. The point is that the "something about the architecture is unclear here" signal is recorded on the row before a lane quietly deletes a copy.
+  - **The rows, as of CLEAVE's slate on main today** (they will move to the new track by `git mv`, keeping their ids):
+    - `circle-and-ellipse-frame-arms-re-spell-conic-of` (filed unbanded)
+    - `coincidence-intent-has-too-many-spellings` (filed P2)
+    - `the-edge-plane-lane-copies-no-ellipse-edge` (filed P2)
+    - `vertex-section-quotient-has-no-room-precondition-and-four-offset-spellings` (filed P2)
+    - `boolean-defect-displays-end-three-ways` (filed P3)
+    - `boolean-walks-face-to-surface-inline-at-two-dozen-sites` (filed P3)
+    - `boundary-meets-circle-only-at-reads-curve-meetings-itself` (filed P3)
+    - `inside-out-operand-reading-has-two-homes-and-four-spellings` (filed P3)
+    - `point-on-circle-is-a-second-point-on-carrier-reading` (filed P3)
+    - `reduce-and-carrier-cross-still-speak-of-declared-pairs` (filed P3)
+    - `restating-a-chart-image-across-an-authority-has-several-spellings` (filed P3)
+    - `run-loops-of-split-and-pierce-are-twins` (filed P3)
+    - `section-cert-reach-parallels-extent-ball` (filed P3)
+    - `semi-axes-by-size-misses-seven-inline-sites` (filed P3)
+    - `the-at-rest-result-gate-and-its-typing-live-in-five-homes` (filed P3)
+    - `the-split-reads-a-slit-twice-by-geometry-and-by-topology` (filed P3)
+    - `the-split-walk-and-the-boolean-sector-pass-read-a-bounds-side-two-ways` (filed P3)
+    - `three-readings-of-a-points-rounding-charge-it-three-ways` (filed P3)
+    - `two-germ-readers-sign-one-line-two-ways` (filed P3)
+    - `certified-line-carrier-is-read-in-five-places` (filed P4)
+  - CLEAVE's triage lane may add more rows of the class from other bands. The new track's id goes on this log when it is chartered.
+
+  (CLEAVE orchestrator)
+- 2026-10-26 — Note for INTENT: INLANE is handed back `ready` (Ev, in chat). Nothing was dispatched on it after 10-19, and its resume point is the C6 slices item's `## Handoff`. INTENT keeps the stage-3 chain.
+- 2026-10-26 — **The duplication track is ONEHOME** (`work/onehome/`, P1, 19 rows, 32.5 of a 35-point budget), chartered by CLEAVE's slate triage. Its `program.md` and `plan.md` carry the sort INTENT was asked for: design signal (`design: true`, a sentence on what is unclear) or mechanical (one line), on the row, without taking on the design conversations. Against the list above:
+  - 18 of the 20 moved there by `git mv`, ids kept, each re-banded P1 with a line on the row.
+  - `the-edge-plane-lane-copies-no-ellipse-edge` went to HONEJOIN at P1 instead: it is a missing ellipse copy in the join (an arm the gate admits), not two copies.
+  - `reduce-and-carrier-cross-still-speak-of-declared-pairs` went to CLEAVETAIL at P4: a rename with no design content.
+  - Added from other bands: `identity-data-reads-its-ladder-from-geom-brep` (filed P4: `identity_data` spells out `geom_brep::ladder::read_identity` by hand).
+  - Two rows of the class went to CHARTTAIL with the chart rows, and are worth the same sort: `torus-face-region-reads-a-points-torus-chart-by-its-own-atan2` and `frame-lanes-still-pick-their-atan2-formula-across-a-landmark-cut`.
+  - HONEONE (`work/honeone/`) holds rows of the same class filed at P3 on boolean ground.
+  (CLEAVE orchestrator, slate-triage lane)
+- 2026-10-26 — **Duplication triage done** (Ev's ask, via CLEAVE's note in #5761). A read-only lane (`session_01NuZCMv75H9b7rrHeRnzvYB`) checked 24 rows against main `e92fb951` and DESIGN `[one-way.places]`/`[one-way.readings]`. Each row now carries a "Duplication triage" section, and the design-signal rows carry `design: true`.
+  - **Design signal (6), in four clusters:**
+    - A, the vertex-neighbourhood reading against a surface: `run-loops-…`, `the-split-walk-…bounds-side…`, the strongest signal;
+    - B, a conic's frame view: `circle-and-ellipse-frame-arms-…`, light;
+    - C, the scale a margin is charged at: `three-readings-of-a-points-rounding-…`, `twice/extent-ball-and-reach-…`;
+    - E, where a gate's refusal typing lives: `the-at-rest-result-gate-…`.
+  - **Mechanical** under a named home: 13, cluster D among them (carrier readings re-spelled in topo).
+  - **D10 debris or stale:** 2. **Not duplication:** 3. **Mainly a bug:** 1.
+  - **Ev's notes, 2026-10-26:**
+    - C derives from the ε contract: every point of the representation is within ε of the real shape.
+    - A and B are welcome as fairly straightforward.
+    - For D, architecture comes first: the canonical reading should be the path of least resistance, with gates only as a backstop.
+    - Any `docs/prompts/` change about D goes to Ev as an `[ev]` PR.
+  - **Next:**
+    - a designer pair on C, with Ev's ε contract as the premise;
+    - A filed as one design row;
+    - B as an API fix;
+    - D as a "why was the wrong place easier?" pass over its hot spots.
+
+    These go to the duplication track once it is chartered; INTENT does not hold the design conversations.

@@ -2,10 +2,11 @@
 id: viewer-readme-counts-the-status-line-writers-by-hand
 kind: issue
 title: crates/viewer/README.md counts the status line's writers as eighteen/seventeen by hand, and the population is a grep no type bounds
-status: open
+status: closed
 opened: 2026-09-24
 priority: P4
 cost: E
+closed: 2026-10-26
 ---
 
 
@@ -68,3 +69,7 @@ which owns that class.
 `frame::tool_notice`, so `tool_news` has eleven production callers
 (`pane/create.rs` nine, `pane/profile.rs` two), each handing it a
 `tools::PanelRefusal`.
+
+## Closed (2026-10-26, tracker sweep)
+
+**Fixed in this sweep**, as this row asked: state the rule, drop the numbers, keep the startup initializer as the named exception. `crates/viewer/README.md`'s status-line section (~`:1000-1016`) now reads *Every writer that can put a sentence on the line but one now comes through the ranking*. It names the population (every write to `ViewerApp`'s `notices` under `src/`, a grep rather than a type) and defers to `frame`'s module header (`frame.rs:145-166`) for why no counting row guards it. *The one exception is the startup initializer*. *the sweep that sorted eighteen writers* (~`:885`) is now *the sweep that sorted the writers*. The section's `work/view/startup-notices-need-holding-to-badge.md` citation now points at `work/vseam/`. `grep -n 'eighteen\|eventeen' crates/viewer/README.md` returns nothing.

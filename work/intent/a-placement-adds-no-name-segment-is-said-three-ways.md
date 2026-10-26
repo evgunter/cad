@@ -2,10 +2,11 @@
 id: a-placement-adds-no-name-segment-is-said-three-ways
 kind: issue
 title: N1's scope clause, N4 and the open placement-copy row say three different things about RoleSeg::Placed and whether a placement adds a name segment
-status: open
+status: parked
 opened: 2026-10-20
 priority: P3
 cost: E
+blocked_on: [assemble-is-an-operator-and-the-product-is-a-slot]
 ---
 
 

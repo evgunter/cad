@@ -43,6 +43,6 @@ whatever #678's fan does with that polygon.
 
 Whether a face through one vertex twice on a narrow span needs the
 `pole_columns` treatment, or the assert's premise is just wrong for
-pinched faces (and what the mesh then is). Ruling S65 (`work/pred/S65.md`)
+pinched faces (and what the mesh then is). Ruling S65 (`work/predtail/S65.md`)
 is about whether the #678 backstop stays debug-only; this row is a
 witness that the case it guards is reachable.

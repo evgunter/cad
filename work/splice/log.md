@@ -192,3 +192,102 @@ tree is not run by a PR that changes what it inventories. Evidence
 added to `ciw/a-diff-that-moves-corpus-ids-runs-none-of-the-slow-set-id-pins`.
 From here on, SPLICE implementer briefs say to run the touched crates'
 slow set (`cargo nextest run -p <crate>`) before reporting green.
+
+## 2026-10-26 — PR 5715 (touch doors) merges
+
+The second fix pass (d8d52d0d) answered the re-review:
+- the boxes inventory pin;
+- the reviewer's negative-floor row, re-written without the commit;
+- an Interval creased-touch row, red without the `is_finite_length`
+  guard;
+- the cornered meet row asserts exactly one meeting;
+- the prose for Interval's straddling floor.
+
+Filed on this slate:
+- `a-creased-spline-gets-no-second-order-clearing` (P1 M). The lane
+  measured no crease in the klein loop's or the lily sheath's NURBS
+  edges (all interior multiplicity 1);
+- `the-touch-floor-reads-a-curved-arc-apart-from-the-pieced-arc`
+  (P2 M), the fourth point-against-arc walk, left apart because folding
+  it would move certified decisions.
+
+After main (with PR 5719) merged in, the cell-door pin moved to
+(121, 407), with `wrong` 0: the in-plane walk now crosses the spline
+edge and the touch floor clears the cells beside it. The S4 guard
+still reds under an always-clear floor.
+
+The lane's topo slow set had one red, the lattice discard pin, which is
+main's: it was bisected to PRED 5724 meeting FLUSH 5706, and is filed
+in `work/issues/` (PR 5735). The orchestrator read the delta and merged
+on green `gate ok`.
+
+## 2026-10-26 — C5 gains the curve × face clause (PR 5727)
+
+Ev took the converged design (fork log row 198) after asking about
+dimensionality. Answered on the PR: a span × face meets in isolated
+points; A and B differ only in eliminating the curve parameter; and a
+boundary meeting is non-generic, so it is a coincidence. Ev's reply:
+"if it is actually for the point then it's fine".
+
+Filed on this slate:
+- `a-span-is-read-against-a-faces-boundary-edges-first` (P0 H);
+- `a-point-has-no-place-in-a-nurbs-faces-trim` (P1 M);
+- `the-side-of-a-spline-face-is-read-by-no-dihedral` (P1 M);
+- `curved-boolean-unsupported-names-no-edge` (P3 E).
+
+The crossing rung is now an arm of the same table. SECT's row got a
+correction: klein's join pair is cylinder × NURBS, tangent along the
+rim.
+
+Lily wall 8's path is now:
+1. the boundary-first reading;
+2. the dihedral side reading;
+3. the two flush rows.
+
+No interior arm is needed for it.
+
+## 2026-10-26 — PR 5723 (the gate) merges
+
+The operand edge gate is gone: a body built by loft or sweep now enters
+every boolean, and each site refuses a spline or spiric edge typed. The
+review (sequential arm, no MAJOR, so it was the unit's only review)
+found no wrong reader. Fix pass `7b654b1100`:
+- the census pins its builds, on fresh-keyed bodies;
+- `face_of` is carried on the refusal;
+- the refusals name the operand's own edge;
+- the emit e2e obligation and the `NoSoundBox` finding moved to the
+  crossing-rung row;
+- the teapot's contact edge is the belly's meridian seam.
+
+The dual-review row is `docs/dual-review-log/rows/PR-5723.md`.
+
+The lane's slow sets found 16 rows red on bare main, none of them this
+PR's. A nightly triage lane took them
+(`session_014vYCa4XAZmPgeKRwfJrvFt`, run 40274924857).
+
+Next on this track: `a-span-is-read-against-a-faces-boundary-edges-first`
+(P0 H), lily wall 8's first step.
+
+## 2026-10-26 — lily wall 8's first two steps dispatched
+
+- `splice/boundary-first` (`session_01FNsFT2VKj6yRjpeBz5nY9P`):
+  `a-span-is-read-against-a-faces-boundary-edges-first`. This is the
+  curve × face table's skeleton, its ends, and its boundary pass through
+  `curve_pair`; a shared rim glues at the coincidence door. Tier: dual,
+  letter H, so a concurrent pair (the table's first pass is new
+  incidence under every boolean, and the table's shape is hard to change
+  later).
+- `splice/spline-dihedral` (`session_01PXJ7h4STwjpmR9pXfHA6KH`):
+  `the-side-of-a-spline-face-is-read-by-no-dihedral`. Tier: single,
+  full.
+
+Held until boundary-first lands, since they build on the table:
+- the interior arm (`an-analytic-edge-…`) together with the converse
+  rung (`nurbs-edge-crossing-rung-…`), as one brief;
+- point-in-face for a spline chart;
+- the two flush rows, which lily reaches after the side reading.
+
+Lane briefs now ask for the touched crates' slow set before green, with
+every red split against `origin/main`. Editor-core is the exception:
+its full slow set takes hours on a 4-vCPU box, so lanes run only the
+rows their diff can move.

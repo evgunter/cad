@@ -3,7 +3,7 @@ id: circle-lowers-to-one-segment
 kind: unit
 title: circle and circle_split(n ≥ 1) lower to one full-turn segment per arc; lily migrates; re-baseline
 status: parked
-blocked_on: [a-boss-over-a-hole-tangent-inside-its-rim-at-its-vertex-unites-as-two-shells]
+blocked_on: [one-segment-tangent-rims-refuse-where-their-two-arc-forms-build]
 opened: 2026-09-25
 priority: P1
 cost: H
@@ -70,6 +70,10 @@ crescent, silently (tier 3′ fails; production does not run it). Today
 that needs both circles phased alike by hand; once `circle()` lowers
 to one segment every circle's vertex sits at azimuth 0, so a boss over
 a pocket tangent inside it on the `+x` side builds the wrong body.
+That union refuses typed `TangentCrescentUnsupported` since PR 5687, in
+both forms. What this unit still turns from a build into a refusal is
+the one-segment tangent forms whose two-arc forms build:
+`work/cleave/one-segment-tangent-rims-refuse-where-their-two-arc-forms-build.md`.
 
 ## Re-homed at PATHS's close (2026-10-21)
 

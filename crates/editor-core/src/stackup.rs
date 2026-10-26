@@ -2073,15 +2073,22 @@ mod tests {
             Unavailable::Unliftable { var: param.clone() },
             Unavailable::BandHasNoMeasure { var: param },
         ];
-        let mut made: Vec<String> = all.iter().map(test_utils::f6::variant_identifier).collect();
-        made.sort();
-        let mut welded: Vec<String> = UNAVAILABLE
-            .identifiers()
-            .iter()
-            .map(|s| (*s).to_owned())
-            .collect();
-        welded.sort();
-        assert_eq!(made, welded, "one example per Unavailable arm, no more");
+        let made: Vec<String> = all.iter().map(test_utils::f6::variant_identifier).collect();
+        let made: Vec<&str> = made.iter().map(String::as_str).collect();
+        if let Some(report) = test_utils::census::set_difference(
+            UNAVAILABLE.identifiers(),
+            &made,
+            "`every_arm`'s examples and the `Unavailable` roster disagree",
+            "made here and absent from the roster: weld the arm into `UNAVAILABLE`",
+            "in the roster with no example here: add one to `every_arm`",
+        ) {
+            panic!("{report}");
+        }
+        assert_eq!(
+            made.len(),
+            UNAVAILABLE.identifiers().len(),
+            "one example per Unavailable arm, no more: an arm is made twice in {made:?}"
+        );
         all
     }
 
