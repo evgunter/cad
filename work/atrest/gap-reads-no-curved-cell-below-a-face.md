@@ -2,7 +2,8 @@
 id: gap-reads-no-curved-cell-below-a-face
 kind: issue
 title: Gap has no arm for a curved edge, a vertex or an edge beside or against a curved face, a saddle vertex, or a near-flat edge
-status: open
+status: parked
+blocked_on: [material-and-convexity-are-read-three-ways]
 priority: P1
 cost: M
 opened: 2026-10-26
@@ -22,3 +23,12 @@ refs: [gap-reads-vertex-and-edge-cells]
 - **a near-flat edge**: `gap_edge_convexity` escalates where an edge's dihedral, levered by its faces' reach, lies in the band's sliver, and every edge–vertex, edge–edge or vertex–vertex `Gap` reading that wedge refuses `Escalated`. The crossing decision of an edge–edge `Gap` (`gap_wedge_crossing`) never refuses.
 
 Each such contact stays loud under stage 5 C's quieting rule, since no `Gap` over its cells evaluates. The fix is an arm per case. A curved face's tangent plane at the cell stands in for a plane face's, and a saddle is read sector by sector. Each arm keeps the sign convention the module states: zero at rest, positive apart, negative inside.
+
+## Re-cut (2026-10-26, ATREST orchestrator)
+
+Under the decision on `material-and-convexity-are-read-three-ways`:
+- The saddle and near-flat-edge cases retire with the half-space fold.
+- A vertex or edge against a sphere or cylinder face becomes one point-to-carrier arm in `topo::link`'s metric door. It is shared with the census's curved-face touch refusal ("cannot yet read which side of a curved face material lies on"), and both close together.
+- Still refused after that arm: cone, torus and NURBS faces (no closed-form metre), and a curved inner edge (its extremal points belong to `geom_brep`'s curve machinery).
+
+Parked on the link build.

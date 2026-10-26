@@ -388,6 +388,12 @@ pub mod test_support {
         crate::side_reader::aimed_rays_report(body, band)
     }
 
+    /// What each shell's aimed rays read before the volume, as text
+    /// (`side_reader`): the trimmed-sphere aims' pin reads it.
+    pub fn shell_aims(body: &Body<f64>, band: geom_core::Band) -> Vec<String> {
+        crate::side_reader::shell_aims_report(body, band)
+    }
+
     /// Each face's aimed ray's own reading, every face aimed at
     /// (`side_reader`): the curved edge-meeting ray's probes read it.
     pub fn each_aim(body: &Body<f64>, band: geom_core::Band) -> Vec<String> {

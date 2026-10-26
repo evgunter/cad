@@ -446,11 +446,15 @@ fn both_sweeps_evaluate_in_one_document() {
 /// RE-BLESSED, every row, for a certificate that keeps its turn: the
 /// digest feeds each edge curve's `Debug`, which now spells the
 /// certificate's `turn`. No outcome or point moved.
+///
+/// RE-BLESSED, `corner_table` only, for a run line's sense that is no
+/// longer optional: its `EdgeCrossing` names spell each line's sense
+/// bare. No outcome or point moved.
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
         ("die", 0xcce3_bc80_9945_6069),
-        ("corner_table", 0x52f5_b074_394d_558a),
+        ("corner_table", 0x3a58_01fe_f60a_b936),
         ("cut_cylinder", 0x687e_0fa1_7407_124c),
         ("boss_union", 0x6a62_8956_3b55_e92e),
         ("kitchen_sink", 0xf86d_b45d_276f_b984),

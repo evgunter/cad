@@ -26,7 +26,7 @@ test that fails without it.
 
 ## The slate
 
-**19 budget points** of dispatchable work against a ceiling of 30.
+**30 budget points** of dispatchable work against a ceiling of 30.
 
 | pri | item | cost | title |
 |---|---|---|---|
@@ -40,6 +40,18 @@ test that fails without it.
 | P3 | `root-slack-meters-roots-outside-the-arc` | M | The subdivision's root-slack meter charges every root round the turn, so a root off the arc that it cannot place refuses an arc it does not touch |
 | P3 | `ruling-root-order-compares-raw-parameters-across-the-seam` | M | the section ruling's root order compares raw parameters, so two roots ε apart across its ±π seam read a turn apart |
 | P3 | `subdivision-width-row-has-no-row-that-fails-without-it` | E | certified_subdivision's width row can be disabled and every topo and sweep row stays green |
+
+### Arrived from CLEAVE (2026-10-26)
+
+Moved by CLEAVE's priority-seam cut, ids and bodies unchanged, each with a dated `## Slate triage` note (11 points of the total above):
+
+| pri | item | cost | title |
+|---|---|---|---|
+| P2 | `boolean-in-span-readings-of-grazing-roots-are-levered-by-arc-length` | M | boolean: bool_wall_root_in_span (line × cylinder or sphere) and bool_carrier_cross_in_span read a near-graze root's span by arc length, with no root-slack bound |
+| P2 | `circle-torus-root-slack-divides-by-a-spread-sine-read-off-its-cosine` | E | The circle x torus root slack divides by sin_spread = sqrt(1 - c^2), whose own rounding floors at sqrt(2u) near a tangent root, where the acos linearisation it serves has already failed |
+| P2 | `rim-identity-decides-centre-radius-and-axis-one-at-a-time` | M | rim_wedge's same_circle decides a rim's centre, radius and axis one at a time, not their sum |
+| P2 | `section-cert-equal-aperture-cones-read-the-plane-conic-beside-tilt-and-aperture` | M | section_cert's equal-aperture cone pair serves the plane conic beside the tilt and the aperture gap one at a time |
+| P2 | `section-cert-square-wall-reads-its-trace-beside-the-square-tilt` | M | section_cert's square-wall arm reads its trace and fold drift beside the square tilt one term at a time |
 
 ## Exit criteria
 
