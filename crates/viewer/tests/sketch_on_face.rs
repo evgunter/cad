@@ -270,9 +270,16 @@ fn a_face_on_a_splits_lower_half_is_sketched_on_that_half() {
     );
 }
 
-/// R1 probe: sketch on each of the box's six faces.
+/// **A boss sketched on each of the box's six faces lands on it**: the
+/// gesture writes the orientation whose `z` is the face's outward normal
+/// and the two slides that plane leaves, so every face takes the boss,
+/// the union holding the box and the boss whole.
+///
+/// *Breaks if* the gesture writes the slide the face's plane fixes (a
+/// side face refuses `SlidesDoNotSpan`), or an orientation putting the
+/// profile's `z` opposite the face.
 #[test]
-fn r1_sketch_on_every_face() {
+fn a_boss_sketched_on_each_of_the_six_faces_lands() {
     let tol = Tol::witness();
     let mut bad = Vec::new();
     for (label, from, dir) in [

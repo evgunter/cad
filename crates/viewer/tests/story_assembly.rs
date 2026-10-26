@@ -741,7 +741,7 @@ fn the_windmill_story() {
     tool.pick(session.doc(), back_wall.clone());
     let sail_b_proposal = {
         let (doc, _) = session.landed_pair().expect("landed");
-        tool.proposal(doc, sail_choice(core::f64::consts::FRAC_PI_2))
+        tool.proposal(doc, sail_choice(-core::f64::consts::FRAC_PI_2))
             .expect("the second sail proposes")
     };
     let outcome = session.perform(sail_b_proposal.op_into_target_space());

@@ -140,13 +140,6 @@ use editor_core::Node;
 /// and a split reads the plane's point nearest the origin rather than
 /// the face's stored point, so its halves' section points moved at the
 /// rounding level; every other row held its word.
-///
-/// **Re-pinned when the value chart came to read a written
-/// orientation**: every mate carries its orientation, which the minting
-/// edits' bytes hold, so the ids after a mate, and the names spelled
-/// with them, moved in the seventeen documents holding a mate. The
-/// ids-masked fence moved in `die_composed_tour` alone, its ±x faces'
-/// pip seams turned a quarter about the pips' axes.
 const PINNED: &[(&str, u32, u64)] = &[
     ("die", 160, 0xa846f87f516b0715),
     ("die", 196, 0xf003f9b6c61ce70a),

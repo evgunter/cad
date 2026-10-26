@@ -6268,11 +6268,14 @@ impl Recording<'_, crate::ProfileProgram> {
     /// the extrude's copy placed against `face` of `body` — a `Plane`
     /// mate from its start cap, flipped to look up its own `z`, to the
     /// face's plane, with the copy's origin over the face body's own
-    /// (the two slides the constant `0`) and turned `spin` about the
-    /// face's normal — and the face's body and the copy fused. `orient`
-    /// is the mate's orientation: where the profile's axes lie among the
-    /// target space's, which a gesture writes nearest the face so its
-    /// `z` is not put opposite the face's normal.
+    /// (the two slides the plane leaves the constant `0`) and turned
+    /// `spin` about the face's normal — and the face's body and the copy
+    /// fused. `orient` is the mate's orientation: where the profile's
+    /// axes lie among the target space's. The profile's `z` lies along
+    /// the target axis `orient` puts it on, so the plane fixes that slide
+    /// and the bundle writes the other two; an `orient` putting `z`
+    /// opposite the face's normal refuses [`crate::MateFault::Backwards`],
+    /// naming the orientation to write.
     ///
     /// # Errors
     ///
@@ -6318,17 +6321,17 @@ impl Recording<'_, crate::ProfileProgram> {
                 to: plane(body.clone(), face),
                 orient,
             }],
-            values: vec![
-                (
-                    crate::Coord::Slide(crate::TargetAxis::X),
-                    Formula::zero(crate::expr::Dimension::Length),
-                ),
-                (
-                    crate::Coord::Slide(crate::TargetAxis::Y),
-                    Formula::zero(crate::expr::Dimension::Length),
-                ),
-                (crate::Coord::SPIN, spin),
-            ],
+            values: crate::TargetAxis::ALL
+                .into_iter()
+                .filter(|axis| axis.index() != orient.z().index())
+                .map(|axis| {
+                    (
+                        crate::Coord::Slide(axis),
+                        Formula::zero(crate::expr::Dimension::Length),
+                    )
+                })
+                .chain([(crate::Coord::SPIN, spin)])
+                .collect(),
         };
         let placement = self.insert(Node::place(
             vec![crate::BodyRead::plain(crate::Operand::Output {

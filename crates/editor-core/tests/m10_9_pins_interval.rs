@@ -190,12 +190,6 @@ pub(crate) struct Study {
 /// pad 1546/1324 -> 1546/1260. `symbolic` holds. Measured identical with
 /// a written fraction of a turn read as its rounded radian, so exact
 /// turns move none of these.
-///
-/// The value chart reading a written orientation takes the swing's two
-/// `mate_chart_reference_antipode` theorems off each mated placement:
-/// the plate and the bracket (two placements each) 1253 -> 1249 and
-/// 1625 -> 1621, the annulus and the pad (one each) 632 -> 630 and
-/// 1546 -> 1544, and the link (one) 924 -> 922.
 pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
     [
         Study {

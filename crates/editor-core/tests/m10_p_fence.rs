@@ -466,7 +466,10 @@ fn r1_per_document_id_free() {
                 Outcome::Failed => "failed",
                 Outcome::Ok { kind } => kind,
             };
-            docs.last_mut().unwrap().1.insert(id, (outcome.to_owned(), Vec::new()));
+            docs.last_mut()
+                .unwrap()
+                .1
+                .insert(id, (outcome.to_owned(), Vec::new()));
         }
         Seen::Point { id, p, .. } => docs
             .last_mut()
@@ -496,6 +499,11 @@ fn r1_per_document_id_free() {
                 }
             }
         }
-        println!("R1DOC {name} nodes={} points={n} {:016x}{:016x}", held.len(), d.lo, d.hi);
+        println!(
+            "R1DOC {name} nodes={} points={n} {:016x}{:016x}",
+            held.len(),
+            d.lo,
+            d.hi
+        );
     }
 }

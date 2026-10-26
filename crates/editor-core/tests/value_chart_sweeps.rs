@@ -1,5 +1,9 @@
-//! Reviewer R1 probes of PR 5742 (the value chart reads a written
-//! orientation). Each prints what it saw; the asserts are the claims.
+//! **The value chart over whole sweeps** (D10 `[placement.values]`):
+//! a copy hung under a plate the chart reads through every tilt short of
+//! the pole, every orientation written backwards against a level plate,
+//! a source face on no axis of its own, and the door's count of the
+//! slides a rest leaves. Each row prints what it saw; the asserts are
+//! the claims.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -66,23 +70,13 @@ fn ori(x: SignedAxis, z: SignedAxis) -> Orientation {
     Orientation::new(x, z).unwrap()
 }
 
-fn apply(f: &Frame, p: [f64; 3]) -> [f64; 3] {
-    let mut o = f.translation;
-    for c in 0..3 {
-        for r in 0..3 {
-            o[r] += f.columns[c][r] * p[c];
-        }
-    }
-    o
-}
 fn lin(f: &Frame, v: [f64; 3]) -> [f64; 3] {
-    let mut o = [0.0; 3];
-    for c in 0..3 {
-        for r in 0..3 {
-            o[r] += f.columns[c][r] * v[c];
-        }
-    }
-    o
+    [0, 1, 2].map(|r| (0..3).map(|c| f.columns[c][r] * v[c]).sum())
+}
+
+fn apply(f: &Frame, p: [f64; 3]) -> [f64; 3] {
+    let moved = lin(f, p);
+    [0, 1, 2].map(|r| f.translation[r] + moved[r])
 }
 fn dot(a: [f64; 3], b: [f64; 3]) -> f64 {
     a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
@@ -97,7 +91,12 @@ fn dist(a: &Frame, b: &Frame) -> f64 {
 /// A floor turned by `moves`, a unit box resting on it by its bottom.
 /// Returns the floor's top normal and a point on it in the world (the
 /// floor's own frame is read off a bare copy at the same moves).
-fn on_floor(moves: Vec<(Coord, Formula)>, values: Vec<(Coord, Formula)>, orient: Orientation, direction: bool) -> Out {
+fn on_floor(
+    moves: Vec<(Coord, Formula)>,
+    values: Vec<(Coord, Formula)>,
+    orient: Orientation,
+    direction: bool,
+) -> Out {
     let doc = ProfileDoc::empty(DocumentId::derive("r1-floor"), Tol::witness());
     let (doc, body) = block(doc, 1.0, 1.0, 1.0);
     let (doc, floor, _) = fixture::floor(doc, moves);
@@ -125,7 +124,15 @@ fn on_floor(moves: Vec<(Coord, Formula)>, values: Vec<(Coord, Formula)>, orient:
         fixture::mate(fixture::plane(head(bottom)), fixture::flip(floor))
     };
     mate.orient = orient;
-    place(doc, placement, Placed { mates: vec![mate], values }).0
+    place(
+        doc,
+        placement,
+        Placed {
+            mates: vec![mate],
+            values,
+        },
+    )
+    .0
 }
 
 fn rx(t: f64) -> Vec<(Coord, Formula)> {
@@ -139,13 +146,23 @@ fn up_x(t: f64) -> [f64; 3] {
 
 /// P1: every bundle pins its copy, so the settle's count dispatch only
 /// ever sees as many slides as the mate leaves: fewer refuse at the door.
+/// **A rest written with one slide refuses at the door**, level or
+/// tilted, mated by a plane or by a direction: a plane leaves two slides
+/// and a direction three, and the one unwritten is named.
+///
+/// *Breaks if* the door admits a bundle short of pinning its copy.
 #[test]
-fn r1_p1_partial_slides_refuse_at_the_door() {
+fn a_rest_written_with_one_slide_refuses_at_the_door() {
     let x = |v| (Coord::Slide(TargetAxis::X), len(v));
     let sp = (Coord::SPIN, fixture::ang(0.0));
     for t in [0.0, 0.5] {
         for direction in [false, true] {
-            let got = on_floor(rx(t), vec![x(3.0), sp.clone()], Orientation::IDENTITY, direction);
+            let got = on_floor(
+                rx(t),
+                vec![x(3.0), sp.clone()],
+                Orientation::IDENTITY,
+                direction,
+            );
             assert!(
                 matches!(&got, Err(e) if e.starts_with("door:") && e.contains("unwritten")),
                 "t={t} direction={direction}: {got:?}"
@@ -157,7 +174,7 @@ fn r1_p1_partial_slides_refuse_at_the_door() {
 /// The boss hung under a plate tilted by a chain (as in the PR's row),
 /// generalised: any chain, any orientation.
 fn hung(chain: Vec<(Coord, Formula)>, orient: Orientation, values: Vec<(Coord, Formula)>) -> Out {
-    let doc = ProfileDoc::empty(DocumentId::derive("r1-hung"), Tol::witness());
+    let doc = ProfileDoc::empty(DocumentId::derive("value-chart-sweep-hung"), Tol::witness());
     let (doc, plate) = block(doc, 20.0, 10.0, 2.0);
     let (doc, boss) = block(doc, 1.0, 1.0, 1.0);
     let bottom = face(&doc, plate, [10.0, 5.0, 0.0], [0.0, 0.0, -1.0]);
@@ -169,7 +186,15 @@ fn hung(chain: Vec<(Coord, Formula)>, orient: Orientation, values: Vec<(Coord, F
     let top = fixture::fname(boss, RoleSeg::Cap(CapEnd::End));
     let mut mate = fixture::rest(head(top), head_at(b, bottom.in_copy(b)));
     mate.orient = orient;
-    place(doc, placement, Placed { mates: vec![mate], values }).0
+    place(
+        doc,
+        placement,
+        Placed {
+            mates: vec![mate],
+            values,
+        },
+    )
+    .0
 }
 
 fn std_values_for(o: Orientation) -> Vec<(Coord, Formula)> {
@@ -184,12 +209,16 @@ fn std_values_for(o: Orientation) -> Vec<(Coord, Formula)> {
     v
 }
 
-/// P2: continuity. A sweep of the plate's tilt from −(π−δ) to π−δ
-/// about x, y, and an oblique chain, under several orientations; the
-/// copy's frame moves by at most lever·step between steps, and only the
-/// band about the pole may refuse.
+/// **A plate swept through all but the pole moves its hung copy
+/// continuously**: the plate's tilt from −(π−δ) to π−δ about `x`, `y`
+/// and an oblique chain, under five orientations; between steps the
+/// copy's frame moves by at most the lever times the step, and nothing
+/// refuses.
+///
+/// *Breaks if* the chart has a branch short of the pole (a jump), or
+/// refuses short of its band.
 #[test]
-fn r1_p2_continuity_sweeps() {
+fn a_plate_swept_through_all_but_the_pole_moves_its_hung_copy_continuously() {
     let orients = [
         Orientation::IDENTITY,
         ori(SignedAxis::PlusY, SignedAxis::PlusZ),
@@ -251,10 +280,16 @@ fn r1_p2_continuity_sweeps() {
     assert!(bad.is_empty(), "jumps or refusals:\n{}", bad.join("\n"));
 }
 
-/// P3: the pole. The boss's orientation written backwards against a
-/// plate tilted near the half turn; the `write` named fixes it.
+/// **Every orientation written backwards refuses, and its `write`
+/// places**: under a level plate, of the 24 orientations each one
+/// putting the boss's `z` on `−z` refuses `Backwards`, naming the
+/// orientation `toward` picks, which then places the boss; every other
+/// orientation places.
+///
+/// *Breaks if* the pole is answered, a refusal names an orientation that
+/// still refuses, or an orientation short of the pole refuses.
 #[test]
-fn r1_p3_pole_and_write() {
+fn every_orientation_written_backwards_refuses_and_its_write_places() {
     let mut bad = Vec::new();
     for o in Orientation::all() {
         // The pole for this orientation is where O·z = −d, d the plate's
@@ -263,7 +298,10 @@ fn r1_p3_pole_and_write() {
         let backwards = o.z() == SignedAxis::MinusZ;
         match (&level, backwards) {
             (Err(e), true) if e.contains("Backwards") => {
-                let w = o.toward(geom_core::linalg::Vec3::new(0.0, 0.0, 1.0), geom_core::linalg::Vec3::new(0.0, 0.0, 1.0));
+                let w = o.toward(
+                    geom_core::linalg::Vec3::new(0.0, 0.0, 1.0),
+                    geom_core::linalg::Vec3::new(0.0, 0.0, 1.0),
+                );
                 println!("{o}: refuses, write {w}: {e}");
                 if !e.contains(&format!("write: {w:?}")) {
                     bad.push(format!("{o}: the fault does not name {w:?}: {e}"));
@@ -280,14 +318,22 @@ fn r1_p3_pole_and_write() {
     assert!(bad.is_empty(), "{}", bad.join("\n"));
 }
 
-/// P4: an oblique source face — a wedge resting on its sloped face on a
-/// level floor and on a tilted one; the copy stays on the plane and is
-/// continuous in the floor's tilt.
+/// **A wedge resting on its sloped face stays on a tilting floor**: the
+/// source face on no axis of its own, under three orientations and each
+/// pair of written slides, the floor tilted through 3 rad; where the
+/// slides span, the wedge's slope lies on the floor, antiparallel, and
+/// moves continuously with the tilt.
+///
+/// *Breaks if* the span check admits a pair that cannot place the
+/// wedge, or the chart jumps on an oblique source.
 #[test]
-fn r1_p4_oblique_source() {
+fn a_wedge_resting_on_its_sloped_face_stays_on_a_tilting_floor() {
     let mut bad = Vec::new();
     let run = |t: f64, values: Vec<(Coord, Formula)>, o: Orientation| -> Out {
-        let doc = ProfileDoc::empty(DocumentId::derive("r1-wedge"), Tol::witness());
+        let doc = ProfileDoc::empty(
+            DocumentId::derive("value-chart-sweep-wedge"),
+            Tol::witness(),
+        );
         let (doc, wedge) = prism(doc, vec![(0.0, 0.0), (4.0, 0.0), (0.0, 3.0)], 1.0);
         let slope = face(&doc, wedge, [2.0, 1.5, 0.5], [0.6, 0.8, 0.0]);
         let (doc, floor, _) = fixture::floor(doc, rx(t));
@@ -297,13 +343,25 @@ fn r1_p4_oblique_source() {
         );
         let mut mate = fixture::mate(fixture::plane(head(slope)), fixture::flip(floor));
         mate.orient = o;
-        place(doc, placement, Placed { mates: vec![mate], values }).0
+        place(
+            doc,
+            placement,
+            Placed {
+                mates: vec![mate],
+                values,
+            },
+        )
+        .0
     };
     let x = |v| (Coord::Slide(TargetAxis::X), len(v));
     let y = |v| (Coord::Slide(TargetAxis::Y), len(v));
     let z = |v| (Coord::Slide(TargetAxis::Z), len(v));
     let sp = (Coord::SPIN, fixture::ang(0.3));
-    for o in [Orientation::IDENTITY, ori(SignedAxis::PlusY, SignedAxis::PlusZ), ori(SignedAxis::PlusX, SignedAxis::MinusY)] {
+    for o in [
+        Orientation::IDENTITY,
+        ori(SignedAxis::PlusY, SignedAxis::PlusZ),
+        ori(SignedAxis::PlusX, SignedAxis::MinusY),
+    ] {
         for (label, vals) in [
             ("x,y", vec![x(3.0), y(4.0), sp.clone()]),
             ("x,z", vec![x(3.0), z(4.0), sp.clone()]),

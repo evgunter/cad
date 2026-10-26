@@ -471,8 +471,9 @@ fn bolted(label: &str) -> Bolted {
 
 /// **The bolt on a parametric standoff**: seated on the slab `gap`
 /// above its top cap — a slide of the cap's plane along its own normal
-/// — with its origin at `(2, 3)` and turned 0.4 rad, so the bolt moves
-/// by `e_z` per unit of `gap`.
+/// — with its origin at `(2, 3)` and turned 0.4 rad about the world's
+/// `z`, a spin of −0.4 about the mated `−z`, so the bolt moves by `e_z`
+/// per unit of `gap`.
 struct Lifted {
     doc: ProfileDoc,
     opts: EvalOptions,
@@ -492,7 +493,7 @@ fn lifted(label: &str) -> Lifted {
         p.bolt_foot(bolt),
         p.slab_top(slab),
         named(gap(), Dimension::Length),
-        at(2.0, 3.0, 0.4),
+        at(2.0, 3.0, -0.4),
     );
     Lifted {
         doc,
@@ -997,23 +998,10 @@ fn run_at<T: editor_core::EvalScalar>(
 /// And, all three rows, when a certificate came to keep its turn: the
 /// evaluation digest feeds each edge curve's `Debug`, which now spells
 /// it. No pose, fault or point moved.
-///
-/// And when the value chart came to read a written orientation (all
-/// three rows, `work/msolve/the-value-chart-reads-a-written-orientation.md`):
-/// every mate carries its orientation, which the content key and the
-/// minting edits' bytes hold, so every id minted after a mate moved; and
-/// a seat's spin turns about the mated direction rather than the
-/// target's normal, so the second seat's turn is written `−0.3` about
-/// the mated `−z`, the turn `0.3` about `z` it was. The slides' chart
-/// is the least turn from the bolt's mated `−z` onto the mated
-/// direction, the same turn the swing of `z` onto the slab's normal
-/// was. Re-blessed at all three ε, the fence's poses and seats checked
-/// by [`each_seat_stands_on_what_it_is_seated_on`]; not compared id-free
-/// against main.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0xc9a1_5c2f_8157_2720),
-    (1e-6, 0x42a7_f760_36b7_0771),
-    (1e-12, 0x1ab5_ef43_a353_9d87),
+    (1e-9, 0x6ca5_86ce_ed45_c343),
+    (1e-6, 0x546a_affc_73c3_a2e3),
+    (1e-12, 0xd201_680c_86ae_71c0),
 ];
 
 /// **Each seat of the corpus stands on what it is seated on**: in the
@@ -1550,7 +1538,7 @@ struct Slid {
 }
 
 const SLIDE: f64 = 2.0;
-const SPIN: f64 = 0.3;
+const SPIN: f64 = -0.3;
 
 fn slide() -> VarName {
     VarName::from_static("slide")
@@ -2385,29 +2373,4 @@ fn a5_certified_clearance_runs_over_a_seated_mate() {
         (lo, hi),
         "the clearance leaf",
     );
-}
-
-#[test]
-fn r1_dump_corpus_poses() {
-    for (label, doc, opts) in corpus() {
-        let poses = solve(&doc, &opts, Tol::witness());
-        for (k, id) in doc.ids().iter().copied().enumerate() {
-            if !matches!(doc.node(id), Some(Node::InstantiatePart { .. } | Node::Place { .. })) {
-                continue;
-            }
-            match poses.placement(&doc, id) {
-                Ok(f) => {
-                    let bits: Vec<String> = f
-                        .columns
-                        .iter()
-                        .flatten()
-                        .chain(f.translation.iter())
-                        .map(|v| format!("{v:.17e}"))
-                        .collect();
-                    println!("R1POSE {label} #{k} {}", bits.join(" "));
-                }
-                Err(e) => println!("R1POSE {label} #{k} refused {:?}", std::mem::discriminant(&e)),
-            }
-        }
-    }
 }

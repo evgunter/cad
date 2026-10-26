@@ -414,7 +414,7 @@ fn saved_with_a_bundle(label: &str) -> (ProfileDoc, String) {
             fixture::plane(name(ids[1], CapEnd::Start)),
             standoff(name(ids[0], CapEnd::End), 0.5),
         ),
-        &[(Coord::SPIN, ang(0.25))],
+        &[(Coord::SPIN, ang(-0.25))],
     );
     let text = save(&doc, &[], Tol::witness()).expect("saves");
     (doc, text)

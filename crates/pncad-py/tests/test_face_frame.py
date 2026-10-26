@@ -42,6 +42,7 @@ from pncad import (
     Formula,
     Node,
     Open,
+    Orientation,
     Pose,
     ReadbackError,
     Start,
@@ -50,6 +51,7 @@ from pncad import (
     evaluate,
     m,
     rad,
+    solve_document,
 )
 
 SQUARE = [
@@ -315,6 +317,66 @@ class TestSketchOnAFace(unittest.TestCase):
         self.assertIn(sketched.placement, stranded)
         with self.assertRaises(EvaluationError):
             evaluate(self.doc).value(sketched.placement)
+
+
+class TestSketchOnEveryFace(unittest.TestCase):
+    """A sketch on each of the plate's six faces, the orientation left
+    as the identity. The profile's `z` is put on the target's `+z`, and
+    the least turn carries it onto the face's outward normal: the boss
+    starts on the face and grows 0.3 along that normal, whichever face
+    it is. The one face it cannot reach that way is the bottom, whose
+    outward normal is `-z` itself: there the identity puts the profile's
+    `z` opposite the face, and the solve refuses `mate_backwards`,
+    naming the orientation to write, which then places the boss."""
+
+    def outward(self, ev, node, face):
+        frame = ev.face_frame(node, face)
+        sign = 1.0 if frame.sense else -1.0
+        return tuple(sign * a for a in frame.axis)
+
+    def faces(self):
+        doc = Doc()
+        node = plate(doc, 0.2 * m)
+        ev = evaluate(doc)
+        return doc, node, {self.outward(ev, node, f): f for f in ev.all_faces(node)}
+
+    def test_the_boss_grows_out_of_every_face_but_the_bottom(self):
+        """Breaks if the gesture writes the slide the face's plane fixes
+        (a side face refuses `slides_do_not_span`), or places the boss
+        anywhere but on the face, growing along its outward normal."""
+        _, _, faces = self.faces()
+        self.assertEqual(len(faces), 6, "a plate has six faces, one per outward normal")
+        for normal in faces:
+            if normal == (0.0, 0.0, -1.0):
+                continue
+            with self.subTest(normal=normal):
+                doc, node, by_normal = self.faces()
+                sketched = doc.sketch_on_face(node, by_normal[normal], PAD, 0.3 * m)
+                ev = evaluate(doc)
+                boss = positions(ev, sketched.placement)
+                k = max(range(3), key=lambda i: abs(normal[i]))
+                face_at = 0.2 if k == 2 else (1.0 if normal[k] > 0 else 0.0)
+                reach = [p[k] * normal[k] for p in boss]
+                self.assertAlmostEqual(min(reach), face_at * normal[k], delta=1e-12)
+                self.assertAlmostEqual(max(reach), face_at * normal[k] + 0.3, delta=1e-12)
+
+    def test_the_bottom_refuses_naming_the_orientation_to_write(self):
+        """Breaks if the identity on the bottom face is answered by a half
+        turn about an arbitrary axis, or the refusal names an orientation
+        that does not place the boss under the plate."""
+        doc, node, faces = self.faces()
+        bottom = faces[(0.0, 0.0, -1.0)]
+        sketched = doc.sketch_on_face(node, bottom, PAD, 0.3 * m)
+        fault = solve_document(doc).fault(sketched.placement)
+        self.assertIsNotNone(fault)
+        self.assertEqual(fault.variant, "mate_backwards")
+        self.assertEqual(fault.orient, Orientation.identity())
+        write = fault.write
+        doc, node, faces = self.faces()
+        sketched = doc.sketch_on_face(node, faces[(0.0, 0.0, -1.0)], PAD, 0.3 * m, orient=write)
+        zs = [p[2] for p in positions(evaluate(doc), sketched.placement)]
+        self.assertAlmostEqual(max(zs), 0.0, delta=1e-12)
+        self.assertAlmostEqual(min(zs), -0.3, delta=1e-12)
 
 
 class TestSketchOnAFaceRefuses(unittest.TestCase):

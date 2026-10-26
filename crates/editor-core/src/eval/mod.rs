@@ -4510,6 +4510,17 @@ mod tag {
             SPIN_Z = 7,
             SPIN = 8,
         }
+        /// Where an orientation puts one of the copy's axes
+        /// ([`crate::mate::SignedAxis`]), written for its `x` and its
+        /// `z`.
+        signed_axis {
+            PLUS_X = 1,
+            MINUS_X = 2,
+            PLUS_Y = 3,
+            MINUS_Y = 4,
+            PLUS_Z = 5,
+            MINUS_Z = 6,
+        }
         /// **The word before a slot's NOMINAL — the one home of why a
         /// key holds one, and of every exception.** It is written
         /// after that slot's bits at the evaluation scalar, and it
@@ -5929,10 +5940,17 @@ fn feed_bundle(
     }
 }
 
-/// A signed axis as a content key's word: its letter and its sense.
+/// A signed axis as a content key's word.
 fn axis_word(axis: crate::mate::SignedAxis) -> u8 {
-    let index = u8::try_from(axis.index()).unwrap_or(u8::MAX);
-    2 * index + u8::from(axis.negative())
+    use crate::mate::SignedAxis;
+    match axis {
+        SignedAxis::PlusX => tag::signed_axis::PLUS_X,
+        SignedAxis::MinusX => tag::signed_axis::MINUS_X,
+        SignedAxis::PlusY => tag::signed_axis::PLUS_Y,
+        SignedAxis::MinusY => tag::signed_axis::MINUS_Y,
+        SignedAxis::PlusZ => tag::signed_axis::PLUS_Z,
+        SignedAxis::MinusZ => tag::signed_axis::MINUS_Z,
+    }
 }
 
 /// The names the selection `var` holds, as a content key feeds them:

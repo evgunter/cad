@@ -336,20 +336,20 @@ fn sans_epsilon(t: &str) -> String {
 /// never chosen): `corner_table`'s and `crossing_slots`' name tables
 /// only, their `EdgeCrossing` names spelling each line's sense bare.
 /// Their persisted text, and every other document, held.
-///
-/// Re-pinned when the value chart came to read a written orientation:
-/// every mate carries its orientation, which the minting edits' bytes
-/// hold, so the ids after a mate, the names spelled with them and the
-/// persisted text (an `orient` on every mate) moved in the seventeen
-/// documents holding a mate. The ids-masked fence moved in
-/// `die_composed_tour` alone, its ±x faces' pip seams turned a quarter
-/// about the pips' axes.
 const PINNED: &[(&str, u64, u64)] = &[
-    ("die", 0xdc846f5f9155e5bd, 0xd01338a3985ddb51),
-    ("corner_table", 0xde55200c79a4cddc, 0x255232f74b555158),
-    ("heat_sink", 0x3282865c55da4b17, 0xfdeb3e58c8a10021),
-    ("crossing_slots", 0x1377208cb0cba264, 0x7ba67321e479912d),
-    ("nested_islands_105", 0x6abf8ce391d386db, 0x5a9f22f4eba0b1a2),
+    ("die", 0x90ee_bc53_1859_5ce8, 0xe605_474c_e843_d439),
+    ("corner_table", 0x5651_3f86_db83_b0ec, 0x09ba_da53_48ce_287b),
+    ("heat_sink", 0xc9d6_ab7c_fe9c_dac6, 0xd9df_155d_dd34_cbe1),
+    (
+        "crossing_slots",
+        0xedd9_410c_77e6_bbcd,
+        0xe252_b89e_973e_009b,
+    ),
+    (
+        "nested_islands_105",
+        0x9d8a_cdc0_bfc3_232d,
+        0x1a0f_868e_1cf3_9e6c,
+    ),
     (
         "nested_islands_106_depth1",
         0x3dbc_dec0_c089_79fb,

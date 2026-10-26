@@ -93,11 +93,7 @@ enum Seat<T: geom_core::Real> {
     Free,
 }
 
-/// **Whether `x` is zero exactly**: a point zero at every lane, read
-/// off its value channel at a dual's.
-fn zero<T: SolveScalar>(x: T) -> bool {
-    x.exactly_zero() || (x.quoted() == 0.0 && x.upper() == 0.0)
-}
+use super::turn::zero;
 
 /// `v` turned by the angle whose sine and cosine are given about the
 /// unit direction `d`.
@@ -157,18 +153,10 @@ impl<T: SolveScalar> Chart<T> {
         let n = orient.apply(copy_d.get());
         let dv = d.get();
         let one = T::one();
-        let k = n.cross(dv);
-        let c = n.dot(dv);
-        // Which formula is a choice of arithmetic, not a verdict: the two
-        // are one number, and the first loses no digit near the pole.
-        let one_plus_c = if c.quoted() < 0.0 {
-            k.dot(k) / (one - c)
-        } else {
-            one + c
-        };
+        let least = super::turn::LeastTurn::between(n, dv);
         // The chord from the pole: |n + d| = √(2(1 + c)), levered over
         // the arm.
-        let chord = ((one + one) * one_plus_c).sqrt();
+        let chord = ((one + one) * least.one_plus_c()).sqrt();
         let backwards = || {
             let q = |v: Vec3<T>| Vec3::new(v.x.quoted(), v.y.quoted(), v.z.quoted());
             NodeErrorKind::Mate(Box::new(MateFault::Backwards {
@@ -192,10 +180,7 @@ impl<T: SolveScalar> Chart<T> {
         let carried = if [n.x - dv.x, n.y - dv.y, n.z - dv.z].into_iter().all(zero) {
             axes
         } else {
-            // The least turn, `S = c·I + [k]× + k kᵀ / (1 + c)`, column by
-            // column.
-            let column = |e: Vec3<T>| e * c + k.cross(e) + k * (k.dot(e) / one_plus_c);
-            let mut carried = axes.map(column);
+            let mut carried = axes.map(|e| least.apply(e));
             // Each carried axis is a turn of a unit vector, so unit over
             // the reals at every point a box spans: a frame lane keeps each
             // as it is, which a normalization would widen by its own norm's
@@ -208,20 +193,10 @@ impl<T: SolveScalar> Chart<T> {
             }
             carried
         };
-        let aligned = match [n.x, n.y, n.z].map(zero) {
-            [false, true, true] => Some(0),
-            [true, false, true] => Some(1),
-            [true, true, false] => Some(2),
-            _ => None,
-        };
+        let aligned = super::turn::aligned(n);
         let across = match aligned {
-            Some(j) => axes[(j + 1) % 3],
-            None => {
-                let q = [n.x.quoted().abs(), n.y.quoted().abs(), n.z.quoted().abs()];
-                let least = (0..3).fold(0, |b, i| if q[i] < q[b] { i } else { b });
-                let e = axes[least];
-                unit(e - n * n.dot(e))?.get()
-            }
+            Some(_) => super::turn::across(n),
+            None => unit(super::turn::across(n))?.get(),
         };
         Ok(Some(Self {
             d,

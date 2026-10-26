@@ -276,16 +276,22 @@ impl Orientation {
     /// **The orientation nearest `self` that puts the source direction
     /// `from` closest to the target direction `to`** — the one a refusal
     /// at the pole names: the greatest `(O·from)·to`, then the nearest
-    /// to `self`, then the first in [`Self::all`]'s order.
+    /// to `self`, then one keeping `self`'s `x` where it is, then its
+    /// `y`, then the first in [`Self::all`]'s order.
     #[must_use]
     pub fn toward(self, from: Vec3<f64>, to: Vec3<f64>) -> Self {
         let own = self.matrix::<f64>();
         let mut best = self;
-        let mut top = (f64::NEG_INFINITY, f64::NEG_INFINITY);
+        let mut top = (f64::NEG_INFINITY, f64::NEG_INFINITY, false, false);
         for o in Self::all() {
             let m = o.matrix::<f64>();
             let near = m.c0.dot(own.c0) + m.c1.dot(own.c1) + m.c2.dot(own.c2);
-            let s = (o.apply(from).dot(to), near);
+            let s = (
+                o.apply(from).dot(to),
+                near,
+                o.x == self.x,
+                o.y() == self.y(),
+            );
             if s > top {
                 best = o;
                 top = s;
@@ -305,6 +311,23 @@ impl core::fmt::Display for Orientation {
 #[allow(clippy::expect_used)]
 mod tests {
     use super::*;
+
+    /// **A tie keeps the author's `x`.** The upended `(x: +y, z: −z)`
+    /// turned toward `+z`: every quarter turn about `z` puts `z` there
+    /// and is equally near, and the one kept is the one leaving the
+    /// author's `x` on `+y`. Breaks if the tie falls to [`Orientation::all`]'s
+    /// order, which names the identity.
+    #[test]
+    fn a_tie_keeps_the_authors_x() {
+        let upended = Orientation::new(SignedAxis::PlusY, SignedAxis::MinusZ)
+            .expect("y and z lie along two axes");
+        let z = Vec3::new(0.0, 0.0, 1.0);
+        let got = upended.toward(z, z);
+        assert_eq!(
+            got,
+            Orientation::new(SignedAxis::PlusY, SignedAxis::PlusZ).expect("y and z")
+        );
+    }
 
     /// Every orientation is a proper rotation whose `apply` is its
     /// matrix and whose `unapply` undoes it. Breaks if `cross` takes a

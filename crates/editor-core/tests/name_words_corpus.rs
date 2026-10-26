@@ -349,11 +349,7 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// never chosen: the words that moved are the senses of a union's seams
 /// in a run and of lines of several things, which say what they enter
 /// along.
-///
-/// **Re-pinned when the value chart came to read a written
-/// orientation**: the ids after a mate moved with the mate's
-/// orientation, and the words that moved are the node tags.
-const SAID_DIGEST: u64 = 0x254a_ffa5_d163_ea3c;
+const SAID_DIGEST: u64 = 0x080b_5d60_49fc_4463;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a

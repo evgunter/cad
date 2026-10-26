@@ -35,6 +35,7 @@ pub mod orient;
 pub mod pin;
 pub mod reach;
 pub mod solve;
+pub mod turn;
 pub mod unobservable;
 pub(crate) mod value;
 
@@ -48,6 +49,7 @@ pub use solve::{
     Atan2Branch, PoseRefusal, SolveScalar, SolvedPoses, mate_coset, relative_freedom_components,
     solve_document, solve_document_at,
 };
+pub use turn::LeastTurn;
 pub use unobservable::{Unobservable, unobservable};
 
 /// Which side of a mate a diagnostic is about.

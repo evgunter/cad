@@ -81,11 +81,6 @@ fn digest(rows: &[(&'static str, editor_core::Resolution)]) -> u64 {
 /// through): the ambiguous row's piece's wall moved from the tool's bare
 /// face name to that `From`. Every row keeps its shape: a spelling
 /// change.
-///
-/// **Re-pinned when the value chart came to read a written
-/// orientation**: every mate carries its orientation, which the minting
-/// edits' bytes hold, so every mint id's digest after the slab's mate
-/// moved with it. A spelling change.
 const DIAGNOSIS_DIGEST: u64 = 0x7b8c_d52a_b8be_5f32;
 
 #[test]

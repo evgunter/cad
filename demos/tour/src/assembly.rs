@@ -1377,8 +1377,9 @@ fn placed_as_composed(
 ///
 /// The translation is the far post's pose in the turntable, one shelf
 /// length minus a section along, turned about [`PIVOT`]. The rotation
-/// is the half a translation check cannot see: both seats' spins are
-/// zero, so the post turns by the swing and no more — a solve that
+/// is the half a translation check cannot see: each seat's spin is the
+/// swing about its mated direction, so the post turns by the swing and
+/// no more — a solve that
 /// rotated it further and still landed its seating point would pass
 /// the translation check and put the part in sideways.
 fn far_post_solved(doc: &ProfileDoc, stand: &Stand, opts: &EvalOptions, swing: f64, tol: Tol) {

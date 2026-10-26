@@ -235,15 +235,6 @@ use crate::m10_8_harness::{assert_split, split_at_the_nominal};
 /// validation, which the tree D′2 branched from (`6652164d`) already
 /// decided and this table did not list: this row was red there, in the
 /// slow set, before D′2 touched it.
-///
-/// **The value chart reads a written orientation**
-/// (`work/msolve/the-value-chart-reads-a-written-orientation.md`): the
-/// swing onto the mated direction retires with its two reference
-/// decisions (`mate_chart_reference_antipode` 2/0 leaves), and the
-/// least turn from the oriented copy direction onto the mated one is
-/// polynomial in the two, so the chart normalizes two directions fewer
-/// (`pose_unit_norm` 0/4 -> 0/2) and decides its one pole band
-/// numerically (`mate_chart_pole`, new at 0/1). Nothing else moved.
 const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     ("arc_apex_identity", [0, 1]),
     ("arc_diameter_clearance", [0, 6]),
@@ -415,10 +406,6 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
 /// takes the mated direction back through the target body's motion, so
 /// the chart decides one direction fewer (`pose_unit_norm` 0/5 -> 0/4).
 /// Nothing else moved.
-///
-/// **The value chart reads a written orientation**, as on the D-tab:
-/// `mate_chart_reference_antipode` 2/0 leaves, `pose_unit_norm` 0/4 ->
-/// 0/2, and `mate_chart_pole` is new at 0/1. Nothing else moved.
 #[test]
 fn m10_bulge_the_bosss_split_at_the_nominal() {
     let tol = Tol::witness();

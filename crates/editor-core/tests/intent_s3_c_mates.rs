@@ -477,7 +477,7 @@ fn every_order_places_the_copy_to_the_bit_on_a_tilted_target() {
     let maps: Vec<String> = orders
         .iter()
         .map(|&order| {
-            let (doc, p) = box_resting_on(tilted.clone(), [3.3, 4.7, 0.9], order);
+            let (doc, p) = box_resting_on(tilted.clone(), [3.3, 4.7, -0.9], order);
             format!("{:?}", solved(&doc, p))
         })
         .collect();
@@ -706,7 +706,7 @@ fn a_cap_at_the_antipode_places_without_a_turn() {
 #[test]
 fn a_constraint_taken_out_leaves_its_bundle_pinned() {
     use editor_core::TargetAxis::{X, Y, Z};
-    let (doc, p) = box_on_the_floor([0.0, 0.0, 0.5], [2, 0, 1]);
+    let (doc, p) = box_on_the_floor([0.0, 0.0, -0.5], [2, 0, 1]);
     let bundle = fixture::bundle(&doc, p);
     let mate = bundle
         .iter()

@@ -1081,22 +1081,44 @@ fn a_face_on_a_splits_lower_half_is_mated_on_that_half() {
     );
 }
 
-/// R1 probe: the snap under turns that need a turn of their own and a
-/// non-identity orientation.
+/// **The snap moves a turned copy only by the snap**, wherever it is
+/// turned: post_b turned about `z` and tilted about `x` by nine pairs,
+/// some needing a turn of their own onto the shelf and an orientation
+/// other than the identity, then rested by its top cap on the shelf's
+/// underside with no value named. It keeps everything the mate leaves.
+///
+/// *Breaks if* the gesture writes an orientation or spin the chart reads
+/// back as another turn, or slides it reads along other axes.
 #[test]
-fn r1_snap_under_tilts_and_orientations() {
+fn the_snap_moves_a_turned_copy_only_by_the_snap() {
     use pncad::document::{Coord, Dimension, Node, SlotId, TargetAxis};
     let tol = Tol::witness();
     let mut bad = Vec::new();
-    for (zt, xt) in [(100.0_f64, 0.0_f64), (10.0, 20.0), (100.0, 20.0), (190.0, -35.0), (45.0, 50.0), (-80.0, 10.0), (0.0, 170.0), (30.0, 120.0), (30.0, 180.0)] {
-        let bench = asm::bench(&format!("r1snap{zt}{xt}"), tol);
+    for (zt, xt) in [
+        (100.0_f64, 0.0_f64),
+        (10.0, 20.0),
+        (100.0, 20.0),
+        (190.0, -35.0),
+        (45.0, 50.0),
+        (-80.0, 10.0),
+        (0.0, 170.0),
+        (30.0, 120.0),
+        (30.0, 180.0),
+    ] {
+        let bench = asm::bench(&format!("matetool-snap-{zt}-{xt}"), tol);
         let mut session = asm::open_bench(&bench, tol);
         let (post_top, shelf_bottom) = asm::seat_picks(&session, &bench);
         let mut ok = true;
         for (coord, value) in [
             (Coord::Slide(TargetAxis::Y), (Dimension::Length, 0.02)),
-            (Coord::Spin(Some(TargetAxis::Z)), (Dimension::Angle, zt.to_radians())),
-            (Coord::Spin(Some(TargetAxis::X)), (Dimension::Angle, xt.to_radians())),
+            (
+                Coord::Spin(Some(TargetAxis::Z)),
+                (Dimension::Angle, zt.to_radians()),
+            ),
+            (
+                Coord::Spin(Some(TargetAxis::X)),
+                (Dimension::Angle, xt.to_radians()),
+            ),
         ] {
             let constraint = match session.committed_doc().node(bench.post_b) {
                 Some(Node::InstantiatePart { constraints, .. }) => constraints
@@ -1154,17 +1176,21 @@ fn r1_snap_under_tilts_and_orientations() {
         let f = r0[2];
         let (c, k) = (f[2], [f[1], -f[0], 0.0]); // f × z
         let s = |e: [f64; 3]| -> [f64; 3] {
-            let kxe = [k[1] * e[2] - k[2] * e[1], k[2] * e[0] - k[0] * e[2], k[0] * e[1] - k[1] * e[0]];
+            let kxe = [
+                k[1] * e[2] - k[2] * e[1],
+                k[2] * e[0] - k[0] * e[2],
+                k[0] * e[1] - k[1] * e[0],
+            ];
             let kd = k[0] * e[0] + k[1] * e[1] + k[2] * e[2];
             [0, 1, 2].map(|i| e[i] * c + kxe[i] + k[i] * kd / (1.0 + c))
         };
         let want: Vec<[f64; 3]> = r0.iter().map(|&col| s(col)).collect();
-        let mut dcol = 0.0_f64;
-        for j in 0..3 {
-            for i in 0..3 {
-                dcol = dcol.max((after.columns[j][i] - want[j][i]).abs());
-            }
-        }
+        let dcol = after
+            .columns
+            .iter()
+            .zip(&want)
+            .flat_map(|(got, want)| got.iter().zip(want).map(|(g, w)| (g - w).abs()))
+            .fold(0.0_f64, f64::max);
         let h = asm::POST_HEIGHT;
         let p = |fr: &pncad::document::Frame| -> [f64; 3] {
             [0, 1, 2].map(|i| fr.translation[i] + fr.columns[2][i] * h)
@@ -1172,9 +1198,9 @@ fn r1_snap_under_tilts_and_orientations() {
         let (pb, pa) = (p(&before), p(&after));
         let dxy = (pa[0] - pb[0]).abs().max((pa[1] - pb[1]).abs());
         let orient = match session.committed_doc().node(bench.post_b) {
-            Some(Node::InstantiatePart { constraints, .. }) => constraints
-                .iter()
-                .find_map(|c| c.mate().map(|m| m.orient)),
+            Some(Node::InstantiatePart { constraints, .. }) => {
+                constraints.iter().find_map(|c| c.mate().map(|m| m.orient))
+            }
             _ => None,
         };
         println!("snap z={zt} x={xt}: orient {orient:?} turn err {dcol:e} point xy err {dxy:e}");

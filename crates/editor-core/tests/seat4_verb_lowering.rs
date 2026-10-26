@@ -516,19 +516,13 @@ fn a_boolean_document_round_trips_byte_identical() {
 /// longer optional (an orientation is read, never chosen): the
 /// subtracts' `EdgeCrossing` names spell each line's sense bare. No
 /// outcome or point moved.
-///
-/// RE-BLESSED when the value chart came to read a written orientation:
-/// a mate carries its orientation, which the minting edits' bytes hold,
-/// so the ids after it and the names under them moved in
-/// `crossing_slots`, `heat_sink` and `kiss_carry`. No point moved
-/// (`m10_p_fence`'s ids-masked row).
 #[test]
 fn the_boolean_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("crossing_slots", 0x444a_8d81_c8c1_8e3f_u64),
-        ("heat_sink", 0x0ec3_4ebe_7178_d688),
-        ("kiss_carry", 0x0a0b_0ddb_99f9_abb9),
+        ("crossing_slots", 0xdbec_d552_71a7_cfa6_u64),
+        ("heat_sink", 0x53d4_e3e1_8845_2724),
+        ("kiss_carry", 0x8d80_addd_16e1_0bec),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -623,11 +617,6 @@ fn the_boolean_documents_evaluate_to_their_committed_digests() {
 /// RE-BLESSED for a certificate that keeps its turn: the digest feeds
 /// each edge curve's `Debug`, which now spells the certificate's `turn`.
 /// No outcome or point moved.
-///
-/// RE-BLESSED when the value chart came to read a written orientation:
-/// a mate carries its orientation, which the minting edits' bytes hold,
-/// so the ids after it and the names under them moved in the second operand. No
-/// point moved (`m10_p_fence`'s ids-masked row).
 #[test]
 fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let mut r = corpus::Recorder::new();

@@ -589,14 +589,7 @@ fn m10_the_derived_frame_extrude_agrees_with_its_authored_twin_below_that_width(
 /// whose `newell_plane_residual` was a clause-1 `Invalid` while the
 /// placement's map widened its cross-sum to zero, is decided under D's
 /// placement solve. With every rule off, the plain
-/// tier freezes twelve forms (sixteen while the boss's seat was charted
-/// on the target space's axes swung onto the mated direction, whose
-/// swing the plain tier read over the box's unknowns, from D′2 until the
-/// chart came to read a written orientation, whose least turn onto the
-/// mated direction is no swing; twelve before D′2; twenty-one before
-/// a plane pose held its offset and the seat's translation was set in
-/// closed form from the mate's two offsets) and refuses
-/// earlier, at the boss extrude's
+/// tier freezes twelve forms and refuses earlier, at the boss extrude's
 /// start-endpoint certification over an enclosure of [0, 0.32]; whether
 /// those freezes are what widens it is
 /// `work/carve/the-guided-derived-frame-extrude-escalates-as-a-kernel-defect.md`. The ten forms that used to freeze at A0's rung sat
