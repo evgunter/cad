@@ -78,7 +78,7 @@ use geom::{Curve3, Surface};
 use geom_brep::OutwardNormal;
 use geom_core::k_stats::decide;
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
-use topo::{Body, Link, TouchUnread};
+use topo::{Body, Link, LinkRefusal, TouchUnread};
 
 use crate::measure::MeasurePrimitive;
 use crate::names::{EntityKey, EntityRef};
@@ -222,9 +222,6 @@ pub(crate) enum CellOf<'b, T: geom_core::Real> {
     Vertex(&'b Body<T>, topo::entity::VertexKey),
     /// Line edge `e` of `body`.
     Edge(&'b Body<T>, topo::entity::EdgeKey),
-    /// A unit row's cell, with no body to read a link off.
-    #[cfg(test)]
-    Bare,
 }
 
 impl<T: Decide> CellOf<'_, T> {
@@ -233,8 +230,6 @@ impl<T: Decide> CellOf<'_, T> {
         match self {
             Self::Vertex(body, v) => Link::at_point(body, *v, band),
             Self::Edge(body, e) => Link::on_edge(body, *e, at, band),
-            #[cfg(test)]
-            Self::Bare => Err(TouchUnread::Unreadable),
         }
     }
 }
@@ -884,16 +879,16 @@ fn gap<T: Decide>(
             line @ Carrier::Line { .. },
             face @ (Carrier::Plane { .. } | Carrier::Cylinder { .. }),
         ) => face_reads_edge(face, line, outer, inner, band),
-        // A line edge and a vertex: the edge's link reads the vertex.
-        (line @ Carrier::Line { .. }, vertex @ Carrier::Point { .. })
-        | (vertex @ Carrier::Point { .. }, line @ Carrier::Line { .. }) => {
-            link_reads(line, vertex, band)
-        }
-        // Two vertices, or two line edges: the outer's link reads the
-        // inner.
-        (Carrier::Point { .. }, Carrier::Point { .. })
-        | (Carrier::Line { .. }, Carrier::Line { .. }) => link_reads(outer, inner, band),
-        _ => unsupported("gap", outer, inner),
+        // A vertex or a line edge and another: an edge reads a vertex in
+        // either seat, and of two edges or two vertices the outer reads
+        // the inner, through its link.
+        _ => match (Cell::of(outer), Cell::of(inner)) {
+            (Some(vertex @ Cell::Vertex(..)), Some(edge @ Cell::Edge(..))) => {
+                link_reads(edge, vertex, band)
+            }
+            (Some(reading), Some(read)) => link_reads(reading, read, band),
+            _ => unsupported("gap", outer, inner),
+        },
     }
 }
 
@@ -939,49 +934,85 @@ fn face_reads_edge<T: Decide>(
     }
 }
 
+/// **A vertex, or a line edge whose ends read**, as a cell arm of
+/// [`gap`] reads it: where it is, and where its link is read.
+#[derive(Clone, Copy)]
+enum Cell<'c, 'b, T: geom_core::Real> {
+    Vertex(Point3<T>, &'c CellOf<'b, T>),
+    Edge([Point3<T>; 2], &'c CellOf<'b, T>),
+}
+
+impl<'c, 'b, T: Decide> Cell<'c, 'b, T> {
+    fn of(c: &'c Carrier<'b, T>) -> Option<Self> {
+        match c {
+            Carrier::Point { at, cell } => Some(Self::Vertex(*at, cell)),
+            Carrier::Line {
+                ends: Some(ends),
+                cell,
+                ..
+            } => Some(Self::Edge(*ends, cell)),
+            _ => None,
+        }
+    }
+
+    fn class(self) -> &'static str {
+        match self {
+            Self::Vertex(..) => "a vertex",
+            Self::Edge(..) => "a line edge",
+        }
+    }
+}
+
 /// **`reading`'s link reading `read`**: a vertex's link at the vertex,
 /// an edge's at its middle, reading a vertex by [`topo::Link::offset`]
-/// and an edge by [`topo::Link::lowest_on`]. A link that does not read
-/// refuses typed, naming why as the reading cell's class.
+/// and an edge by [`topo::Link::lowest_on`]. A reading in band refuses
+/// escalated, carrying the reading; a link that does not read refuses
+/// typed, naming why as the reading cell's class.
 fn link_reads<T: Decide>(
-    reading: &Carrier<'_, T>,
-    read: &Carrier<'_, T>,
+    reading: Cell<'_, '_, T>,
+    read: Cell<'_, '_, T>,
     band: Band,
 ) -> Result<T, PrimitiveRefusal> {
     let link = match reading {
-        Carrier::Point { at, cell } => cell.link(*at, band),
-        Carrier::Line {
-            ends: Some([start, end]),
-            cell,
-            ..
-        } => cell.link(*start + (*end - *start) * T::from_f64(0.5), band),
-        _ => unreachable!("gap matched a vertex or a line edge whose ends read"),
+        Cell::Vertex(at, cell) => cell.link(at, band),
+        Cell::Edge([start, end], cell) => cell.link(start + (end - start) * T::from_f64(0.5), band),
     };
-    let got = link.and_then(|link| match read {
-        Carrier::Point { at, .. } => link.offset(*at, band),
-        Carrier::Line {
-            ends: Some([start, end]),
-            ..
-        } => link.lowest_on((*start, *end), band),
-        _ => unreachable!("gap matched a vertex or a line edge whose ends read"),
+    let got = link.map_err(LinkRefusal::from).and_then(|link| match read {
+        Cell::Vertex(at, _) => link.offset(at, band),
+        Cell::Edge(ends, _) => link.lowest_on((ends[0], ends[1]), band),
     });
     got.or_else(|why| {
         let class = match why {
-            TouchUnread::Unreadable => match reading {
-                Carrier::Point { .. } => NO_CORNER,
-                _ => NO_WEDGE,
+            LinkRefusal::Undecided(source) => {
+                return Err(PrimitiveRefusal::Escalated {
+                    predicate: source.predicate.unwrap_or(GAP_LINK),
+                    source,
+                });
+            }
+            LinkRefusal::Unread(TouchUnread::Unreadable) => match reading {
+                Cell::Vertex(..) => NO_CORNER,
+                Cell::Edge(..) => NO_WEDGE,
             },
-            TouchUnread::InBand | TouchUnread::PieceInBand => {
+            LinkRefusal::Unread(TouchUnread::InBand | TouchUnread::PieceInBand) => {
                 "a cell whose material does not read at this tolerance"
             }
-            TouchUnread::Unanalysed => "a cell whose faces do not close around it",
-            TouchUnread::Degenerate => "a cell where two of its faces lie on each other",
-            TouchUnread::ChordScale => "a cell with an edge too long or too short to measure",
-            TouchUnread::Corrupt => "a cell whose topology does not read",
+            LinkRefusal::Unread(TouchUnread::Unanalysed) => {
+                "a cell whose faces do not close around it"
+            }
+            LinkRefusal::Unread(TouchUnread::Degenerate) => {
+                "a cell where two of its faces lie on each other"
+            }
+            LinkRefusal::Unread(TouchUnread::ChordScale) => {
+                "a cell with an edge too long or too short to measure"
+            }
+            LinkRefusal::Unread(TouchUnread::Corrupt) => "a cell whose topology does not read",
         };
         unsupported_as("gap", class, read.class())
     })
 }
+
+/// The predicate a link's escalation names where its reading named none.
+const GAP_LINK: &str = "gap_link_reading";
 
 /// **How far `at` stands out of a face's material**, along its outward
 /// normal: the signed offset from a plane, and from a sphere or a
@@ -1318,18 +1349,24 @@ mod tests {
         }
     }
 
+    /// A body holding nothing, so a cell's link off it refuses: the face
+    /// arms read no cell's link.
+    fn nobody() -> &'static Body<f64> {
+        Box::leak(Box::new(Body::new()))
+    }
+
     fn line(start: Point3<f64>, end: Point3<f64>) -> Carrier<'static, f64> {
         Carrier::Line {
             dir: (end - start) / (end - start).norm(),
             ends: Some([start, end]),
-            cell: CellOf::Bare,
+            cell: CellOf::Edge(nobody(), topo::entity::EdgeKey::default()),
         }
     }
 
     fn vertex(at: Point3<f64>) -> Carrier<'static, f64> {
         Carrier::Point {
             at,
-            cell: CellOf::Bare,
+            cell: CellOf::Vertex(nobody(), topo::entity::VertexKey::default()),
         }
     }
 
@@ -1411,9 +1448,9 @@ mod tests {
         );
     }
 
-    /// **A vertex or an edge with no link to read refuses typed**,
+    /// **A vertex or an edge whose link does not read refuses typed**,
     /// naming the reading cell: an edge reading a vertex in either seat,
-    /// and a vertex reading a vertex. The links themselves are
+    /// and a vertex reading a vertex, each off a body holding neither. The links themselves are
     /// `topo::link`'s rows, and the real bodies' are
     /// `gap_reads_vertex_and_edge_cells`. Red if a cell with no link reads
     /// a number, or an edge stops reading a vertex in the vertex's seat.
@@ -1428,7 +1465,10 @@ mod tests {
             };
         assert_eq!(refused(&edge, &tip), NO_WEDGE, "the edge reads the vertex");
         assert_eq!(refused(&tip, &edge), NO_WEDGE, "in either seat");
-        assert_eq!(refused(&tip, &vertex(p(0.0, 0.0, 0.0))), NO_CORNER);
+        assert_eq!(
+            refused(&tip, &vertex(p(0.0, 0.0, 0.0))),
+            "a cell whose topology does not read"
+        );
         assert_eq!(
             refused(&edge, &line(p(1.0, 0.0, 0.0), p(2.0, 0.0, 0.0))),
             NO_WEDGE
@@ -1443,7 +1483,7 @@ mod tests {
         let bare = |dir| Carrier::<f64>::Line {
             dir,
             ends: None,
-            cell: CellOf::Bare,
+            cell: CellOf::Edge(nobody(), topo::entity::EdgeKey::default()),
         };
         let got = angle(&bare(v(1.0, 0.0, 0.0)), &bare(v(0.0, 1.0, 0.0)))
             .unwrap_or_else(|e| panic!("the angle reads: {e:?}"));

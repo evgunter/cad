@@ -370,6 +370,63 @@ mod real_bodies {
         }
     }
 
+    /// **Two real ridges whose lines meet read, in both seats, about any
+    /// axis.** The wedge prism turned a quarter turn about 24 axes off the
+    /// coordinate ones, placed so its apex ridge passes through
+    /// `(1, 1, 0.5)` on the block's strut. Each inner edge passes through
+    /// a point of the outer's boundary, so its lowest offset is zero or
+    /// below (below where its line enters the outer's cone, as a generic
+    /// line through a convex edge does). Every other row here is
+    /// axis-aligned, which hid the double roots rounding scatters about a
+    /// contact. Red if a seat refuses or reads above zero.
+    #[test]
+    fn real_ridges_whose_lines_meet_read_about_any_axis() {
+        let mut bad = Vec::new();
+        for k in 0..24 {
+            let kf = f64::from(k);
+            let a = [
+                1.0 + 0.37 * kf.sin(),
+                0.6 * (1.3 * kf).cos(),
+                0.25 + 0.5 * (0.7 * kf).sin(),
+            ];
+            let n = (a[0] * a[0] + a[1] * a[1] + a[2] * a[2]).sqrt();
+            let a = [a[0] / n, a[1] / n, a[2] / n];
+            // The quarter turn about `a` takes `+z` to `a × z + a·a_z`.
+            let d = [a[1] + a[0] * a[2], -a[0] + a[1] * a[2], a[2] * a[2]];
+            let doc = ProfileDoc::empty_derived("gap-cells-real-turned", Tol::witness());
+            let (doc, blk) = extrude(doc, vec![poly(&SQUARE)], 1.0);
+            let (doc, w) = extrude(doc, vec![poly(&[(0.0, 0.0), (1.0, -0.3), (1.0, 0.3)])], 2.0);
+            let (doc, pa) = place(doc, blk);
+            let frame = Frame::rotate_by_turns_then_translate(
+                a,
+                Turns::new(1, 4).expect("a quarter"),
+                [1.0 - d[0], 1.0 - d[1], 0.5 - d[2]],
+                crate::fixture::band(),
+            )
+            .expect("a unit axis");
+            let (doc, pw) = in_world(doc, w, &frame);
+            let ca = vpiece(&doc, blk, 0, 2);
+            let apex = vpiece(&doc, w, 0, 0);
+            let strut = SitedRef::new(pa, ename(blk, RoleSeg::LateralEdge(ca)).in_copy(pa));
+            let ridge = SitedRef::new(pw, ename(w, RoleSeg::LateralEdge(apex)).in_copy(pw));
+            for (o, i, seat) in [
+                (&strut, &ridge, "strut outer"),
+                (&ridge, &strut, "ridge outer"),
+            ] {
+                match gap(&doc, o, i) {
+                    Ok(g) if g <= 1e-9 => {}
+                    got => bad.push(format!("axis {k} {a:.3?}, {seat}: {got:?}")),
+                }
+            }
+        }
+        assert!(
+            bad.is_empty(),
+            "{} of 48 seats:\n{}",
+            bad.len(),
+            bad.join("\n")
+        );
+    }
+
     /// **A real pin and a real bore read a vertex by their sense.** A disc
     /// extrude's wall (a pin, radius 0.5) and a plate's circular hole (a
     /// bore, radius 0.5), each about the z axis; a cube corner at

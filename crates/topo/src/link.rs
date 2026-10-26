@@ -36,7 +36,7 @@
 //! A link holds planar faces bounded by line edges only: a curved face
 //! or edge at the point refuses ([`TouchUnread::Unreadable`]).
 
-use geom_core::{Band, Decide, Margin, Point3, Real, Sign, Vec3};
+use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec3};
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, VertexKey};
@@ -66,6 +66,14 @@ const TOUCH_PIECE_REACH: &str = "census_touch_piece_reach";
 /// meets the gap's edge, read against that edge's ends along it, in
 /// metres — on the edge, or past an end.
 const TOUCH_PIECE_MEET: &str = "census_touch_piece_meet";
+/// K name: a read point of a segment against the ball a refused
+/// point's distance from the boundary clears, in metres — its side of
+/// the ball's tangent plane toward it ([`Link::lowest_on`]).
+const LINK_BALL: &str = "link_offset_ball";
+/// K name: a point of a segment against the piece of a link's boundary
+/// it is nearest, along the line to it, and two such points against each
+/// other along the segment, in metres ([`Link::lowest_on`]'s ties).
+const LINK_TIE: &str = "link_offset_tie";
 /// K name: two coplanar faces' outward normals, one of each link,
 /// aligned or opposed ([`geom_brep::classify_material_pairing_as`]).
 const TOUCH_NORMAL: &str = "census_touch_normal";
@@ -81,7 +89,7 @@ const TOUCH_NORMAL: &str = "census_touch_normal";
 /// normal scaled by a length would be a lever spelled as a plane; the
 /// source row states that blind spot.
 pub(crate) mod metric {
-    use super::{Band, Decide, Margin, Point3, Real, Sign, Vec3, decide};
+    use super::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec3, decide};
 
     /// A point's signed distance from a plane, in metres.
     pub(crate) struct Distance<T>(T);
@@ -145,8 +153,22 @@ pub(crate) mod metric {
         }
     }
 
+    /// The distance's escalation under the run band, as the K row
+    /// `name`, where it reads in band: what a refusal carries.
+    pub(crate) fn why<T: Decide>(
+        name: &'static str,
+        d: Distance<T>,
+        band: Band,
+    ) -> Option<Indeterminate> {
+        decided(name, d.0, band).err()
+    }
+
     fn read<T: Decide>(name: &'static str, v: T, band: Band) -> Option<Sign> {
-        decide(name, Margin::of(v), band).ok()
+        decided(name, v, band).ok()
+    }
+
+    fn decided<T: Decide>(name: &'static str, v: T, band: Band) -> Result<Sign, Indeterminate> {
+        decide(name, Margin::of(v), band)
     }
 }
 
@@ -1002,12 +1024,34 @@ impl<T: Decide> Link<T> {
     /// none reads, or where `q` itself is in band of a plane or on a
     /// bound.
     pub(crate) fn reads_over(&self, q: Point3<T>, rd: Reading<T>) -> Option<Material> {
+        self.parity(q, rd, false)
+    }
+
+    /// [`Link::reads_over`], and where `wide`, a plane `q` lies in band
+    /// of but decidedly outside its sector is read as one it lies on
+    /// outside its sector, its crossing stretch widened from the band's
+    /// zero to `q`'s own distance from the plane ([`Link::offset`]'s
+    /// reading; the census reads without it).
+    fn parity(&self, q: Point3<T>, rd: Reading<T>, wide: bool) -> Option<Material> {
         let p = self.p;
         // `q`'s strict side of each plane; `None` for a plane `q` lies
         // on outside its sector, which no arc from `q` crosses inside it.
         let mut sides = Vec::with_capacity(self.sectors.len());
+        // Where such a plane was read in band, how far `q` may stand
+        // off it.
+        let mut reach: Vec<Option<T>> = vec![None; self.sectors.len()];
         for (k, s) in self.sectors.iter().enumerate() {
-            sides.push(match self.side(s, q, rd)? {
+            let side = match self.side(s, q, rd) {
+                Some(side) => side,
+                None if wide && s.place(p, q, rd) == Some(Place::Outside) => {
+                    let o = s.outward.dot(q - p);
+                    reach[k] = Some(o.max(-o) + rd.slack());
+                    sides.push(None);
+                    continue;
+                }
+                None => return None,
+            };
+            sides.push(match side {
                 Sign::Zero => match s.place(p, q, rd)? {
                     Place::Inside => return Some(Material::On(k)),
                     Place::Bound => return None,
@@ -1042,7 +1086,7 @@ impl<T: Decide> Link<T> {
                     };
                     let (oq, ow) = (s.outward.dot(q - p), s.outward.dot(w - p));
                     // A Zero reads within the band's zero, the slack added.
-                    let zero = T::from_computed(rd.band.zero()) + rd.slack();
+                    let zero = reach[k].unwrap_or(T::from_computed(rd.band.zero()) + rd.slack());
                     let at = |t: T| q + (w - q) * t;
                     // An end read Zero lies within `zero` of the plane on
                     // either side, so a crossing, if any, lies on the
@@ -1237,127 +1281,268 @@ impl<T: Decide> Link<T> {
     }
 
     /// **`q`'s signed distance from the cone's boundary**, in metres:
-    /// negative where [`Link::reads`] says In, the distance itself where
-    /// it says Out or On. The cone is the link's sectors carried out
-    /// from their apexes without end, so this is a statement about the
-    /// material near the point, not about the faces' far extent.
+    /// negative where the parity reading says In, the distance itself
+    /// where it says Out or On. The cone is the link's sectors carried
+    /// out from their apexes without end, so this is a statement about
+    /// the material near the point carried out, not about the faces' far
+    /// extent.
     ///
     /// The distance is a closed form over the sectors
-    /// ([`Link::distance`]), and the sign is the parity reading's. Where
-    /// that reading is in band but `q` lies on a sector within the band
-    /// ([`Link::touches`]), membership does not matter at the band's
-    /// resolution and the distance is the answer.
+    /// ([`Link::distance`]), and the sign is the parity reading's, with a
+    /// plane read in band outside its sector read as off it
+    /// ([`Link::parity`]). Where the parity reading is in band but `q`
+    /// lies on a sector within the band ([`Link::touches`]), membership
+    /// does not matter at the band's resolution: a point scalar reads the
+    /// distance, and an enclosure reads both signs of it.
     ///
     /// # Errors
     ///
-    /// [`TouchUnread::InBand`] where the parity reading is in band and
-    /// `q` stands off every sector: its magnitude is definite and its
-    /// sign is not.
-    pub fn offset(&self, q: Point3<T>, band: Band) -> Result<T, TouchUnread> {
+    /// Where the parity reading is in band and `q` stands off every
+    /// sector, so its magnitude is definite and its sign is not:
+    /// [`LinkRefusal::Undecided`] with the reading that was in band, or
+    /// [`LinkRefusal::Unread`] where none of `q`'s own readings was.
+    pub fn offset(&self, q: Point3<T>, band: Band) -> Result<T, LinkRefusal> {
         let rd = Reading { band, slack: None };
-        let d = self.distance(q, rd).ok_or(TouchUnread::Corrupt)?;
-        match self.reads_over(q, rd) {
-            Some(Material::In) => Ok(-d),
-            Some(Material::Out | Material::On(_)) => Ok(d),
-            None if self.touches(q, rd) => Ok(d),
-            None => Err(TouchUnread::InBand),
+        match self.reading(q, rd)? {
+            (d, Some(true)) => Ok(-d),
+            (d, _) => Ok(d),
         }
+    }
+
+    /// `q`'s distance from the boundary and whether the material holds
+    /// it: `Some(true)` In, `Some(false)` Out or On, `None` where `q`
+    /// lies on a sector within the band (the distance then the reading
+    /// at the band's resolution, [`Link::offset`]).
+    fn reading(&self, q: Point3<T>, rd: Reading<T>) -> Result<(T, Option<bool>), LinkRefusal> {
+        let d = self
+            .distance(q, rd)
+            .ok_or(LinkRefusal::Unread(TouchUnread::Corrupt))?;
+        match self.parity(q, rd, true) {
+            Some(Material::In) => Ok((d, Some(true))),
+            Some(Material::Out | Material::On(_)) => Ok((d, Some(false))),
+            None if self.touches(q, rd) => Ok((either(d, -d), None)),
+            None => Err(self.refusal(q, rd)),
+        }
+    }
+
+    /// Why `q`'s parity reading refused: the first of its plane readings,
+    /// then of its sector-bound readings, that is in band.
+    fn refusal(&self, q: Point3<T>, rd: Reading<T>) -> LinkRefusal {
+        let planes = self
+            .sectors
+            .iter()
+            .map(|s| Distance::of(q, self.p, s.outward));
+        let bounds = self.sectors.iter().flat_map(|s| {
+            s.bounds()
+                .into_iter()
+                .flatten()
+                .map(move |r| Distance::of(q, s.apex, s.outward.cross((r - s.apex).normalize())))
+        });
+        planes
+            .map(|d| metric::why(TOUCH_PLANE, d, rd.band))
+            .chain(bounds.map(|d| metric::why(TOUCH_WEDGE, d, rd.band)))
+            .find_map(|why| why)
+            .map_or(
+                LinkRefusal::Unread(TouchUnread::InBand),
+                LinkRefusal::Undecided,
+            )
     }
 
     /// **The lowest [`Link::offset`] along the segment `x0`–`x1`**, over
     /// a finite closed-form candidate set, with no sampling.
     ///
-    /// Along the segment, `x(t) = x0 + t·(x1 − x0)`, each piece of the
-    /// cone's boundary (a sector's plane, an apex, a ray's line) is at a
-    /// squared distance quadratic in `t`, and the distance to the
-    /// boundary is the least of those over the pieces that apply. Off
-    /// the material the offset is that distance, lowest at an end, at
-    /// some piece's nearest point (a plane's nearest is its crossing),
-    /// or where the boundary is met; in it the offset is minus the
-    /// distance, lowest at an end or where two pieces stand equally far.
-    /// So the candidates are the ends, each piece's nearest point and
-    /// every root in `[0, 1]` of two pieces' squared distances equated,
-    /// each root in both of its forms so that one of them is stable. A
-    /// ray two sectors share is one piece ([`on_ray`]), and the apex is
-    /// the link's point.
-    /// A candidate is a real point of the segment, read in full by
-    /// [`Link::offset`]; one that does not apply only reads higher.
+    /// Along the segment, `x(t) = x0 + t·(x1 − x0)`, the distance from
+    /// the boundary is the least of the distances from the cone's
+    /// wedges, each convex. Each wedge's distance is in turn the least
+    /// of its pieces' (its plane where `x` stands over it, its two rays'
+    /// lines ahead of the apex, the apex behind them), each squared a
+    /// quadratic in `t`, and it is C1, so where two pieces of ONE wedge
+    /// meet nothing turns. Off the material the offset is the distance,
+    /// lowest at an end, at a piece's nearest point (a plane's nearest
+    /// is its crossing) or where the boundary is met; in it the offset
+    /// is minus the distance, lowest at an end or where two wedges stand
+    /// equally far. So the candidates are:
+    /// - the ends, and each piece's nearest point;
+    /// - where two planes stand equally far, the two roots of their
+    ///   offsets equal and opposed;
+    /// - where a ray and a plane it does not lie in, or two rays, stand
+    ///   equally far, every root in `[0, 1]` of their squared distances
+    ///   equated, each in both of its forms so that one is stable.
+    ///
+    /// Two pieces of one wedge are never paired: the apex with anything
+    /// (it is a point of every wedge, and nearer than none of them), and
+    /// a plane with a ray lying in it. Their squared distances differ by
+    /// a square, so the pair's root is double, and only rounding would
+    /// read it ([`on_ray`] and the plane reading decide what lies in
+    /// what; a ray two sectors share is one piece).
+    ///
+    /// Every candidate is a real point of the segment, read in full by
+    /// [`Link::reading`], so the least value read is a value the segment
+    /// takes, and no candidate the minimum is not at can pull it down.
+    /// A candidate whose parity refuses takes the membership of a read
+    /// candidate inside the ball its distance clears (nothing of the
+    /// boundary is in it), read through the door as the read point's
+    /// side of the ball's tangent plane toward it; it refuses the
+    /// segment only where no read candidate is that near.
     ///
     /// # Errors
     ///
-    /// The first refusal of [`Link::offset`] at a candidate.
+    /// A candidate's refusal of [`Link::offset`] that no nearer reading
+    /// settles.
     pub fn lowest_on(
         &self,
         (x0, x1): (Point3<T>, Point3<T>),
         band: Band,
-    ) -> Result<T, TouchUnread> {
+    ) -> Result<T, LinkRefusal> {
         let e = x1 - x0;
-        // Each piece's squared distance from x(t), as [t², t, 1]
-        // coefficients.
-        let mut forms: Vec<[T; 3]> = Vec::new();
         let two = T::from_f64(2.0);
         let rd = Reading { band, slack: None };
-        // Each ray once: an edge's ray is a bound of both its faces'
-        // sectors, and two near copies of one form would only add roots
-        // of their rounding.
-        let mut kept: Vec<(Point3<T>, Vec3<T>, Point3<T>)> = Vec::new();
-        // The apex once, at the link's point: every sector stands on it,
-        // or within the link's tie of it.
+        // Each piece's squared distance from x(t), as [t², t, 1]
+        // coefficients.
         let w = x0 - self.p;
-        forms.push([e.norm_squared(), two * w.dot(e), w.norm_squared()]);
+        let apex = [e.norm_squared(), two * w.dot(e), w.norm_squared()];
+        // Each plane's offset from x(t), as [t, 1], and where the
+        // segment's line meets it within the band.
+        let mut planes: Vec<([T; 2], Option<Point3<T>>)> = Vec::new();
+        // Each ray's line, the planes it lies in, and where the segment's
+        // line meets it within the band.
+        let mut rays: Vec<([T; 3], Vec<usize>, Option<Point3<T>>)> = Vec::new();
+        // The point of the segment at `t`, where it meets the piece whose
+        // nearest point to it `foot` gives within the band; `None` where
+        // it stands decidedly off.
+        let meets = |t: T, foot: &dyn Fn(Point3<T>) -> Point3<T>| {
+            let x = x0 + e * t.max(T::zero()).min(T::one());
+            let f = foot(x);
+            let off = metric::sign(LINK_TIE, Distance::of(x, f, (x - f).normalize()), band);
+            (off != Some(Sign::Positive)).then_some(x)
+        };
+        // Each ray once: an edge's ray is a bound of both its faces'
+        // sectors.
+        let mut kept: Vec<(Point3<T>, Vec3<T>, Point3<T>)> = Vec::new();
         for s in &self.sectors {
             let w = x0 - s.apex;
-            let (o0, o1) = (s.outward.dot(w), s.outward.dot(e));
-            forms.push([o1.powi(2), two * o0 * o1, o0.powi(2)]);
+            let (o1, o0) = (s.outward.dot(e), s.outward.dot(w));
+            let foot = |x: Point3<T>| x - s.outward * s.outward.dot(x - s.apex);
+            planes.push(([o1, o0], meets(-o0 / o1, &foot)));
             let last = s.wedges.len().saturating_sub(1);
             for (k, &(a, b)) in s.wedges.iter().enumerate() {
-                let rays = if k == last { vec![a, b] } else { vec![a] };
-                for r in rays {
+                let ends = if k == last { vec![a, b] } else { vec![a] };
+                for r in ends {
                     if kept.iter().any(|&(c, m, q)| on_ray(c, m, q, r, rd)) {
                         continue;
                     }
                     kept.push((s.apex, s.outward, r));
+                    let lies_in = self
+                        .sectors
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, t)| {
+                            metric::sign_over(TOUCH_PLANE, Distance::of(r, t.apex, t.outward), rd)
+                                == Some(Sign::Zero)
+                        })
+                        .map(|(j, _)| j)
+                        .collect();
                     let u = (r - s.apex).normalize();
                     let (wp, ep) = (w - u * u.dot(w), e - u * u.dot(e));
-                    forms.push([ep.norm_squared(), two * wp.dot(ep), wp.norm_squared()]);
+                    let f = [ep.norm_squared(), two * wp.dot(ep), wp.norm_squared()];
+                    let foot = |x: Point3<T>| s.apex + u * u.dot(x - s.apex);
+                    rays.push((f, lies_in, meets(-f[1] / (two * f[0]), &foot)));
                 }
             }
         }
-        let mut ts = vec![T::zero(), T::one()];
-        for f in &forms {
+        let squared = |[o1, o0]: [T; 2]| [o1.powi(2), two * o0 * o1, o0.powi(2)];
+        let along = e.normalize();
+        // Two pieces the segment's line meets at one point within the
+        // band tie only there, a double root already a candidate (where
+        // each meets it), which rounding would scatter about it.
+        let apart = |x: Option<Point3<T>>, y: Option<Point3<T>>| match (x, y) {
+            (Some(x), Some(y)) => matches!(
+                metric::sign(LINK_TIE, Distance::of(x, y, along), band),
+                Some(Sign::Positive | Sign::Negative)
+            ),
+            _ => true,
+        };
+        let mut ts = vec![T::zero(), T::one(), -apex[1] / (two * apex[0])];
+        for &([o1, o0], _) in &planes {
+            ts.push(-o0 / o1);
+        }
+        for (f, _, _) in &rays {
             ts.push(-f[1] / (two * f[0]));
         }
-        for (i, f) in forms.iter().enumerate() {
-            for g in &forms[i + 1..] {
-                let (a, b, c) = (f[0] - g[0], f[1] - g[1], f[2] - g[2]);
-                let r = (b.powi(2) - T::from_f64(4.0) * a * c).max(T::zero()).sqrt();
-                ts.extend([
-                    (-b + r) / (two * a),
-                    (-b - r) / (two * a),
-                    two * c / (-b + r),
-                    two * c / (-b - r),
-                ]);
+        for (i, &([a1, a0], _)) in planes.iter().enumerate() {
+            for &([b1, b0], _) in &planes[i + 1..] {
+                ts.extend([-(a0 - b0) / (a1 - b1), -(a0 + b0) / (a1 + b1)]);
             }
         }
-        let mut lowest: Option<T> = None;
+        let mut quadratics: Vec<([T; 3], [T; 3])> = Vec::new();
+        for (j, &(plane, at)) in planes.iter().enumerate() {
+            for (f, lies_in, meets) in &rays {
+                if !lies_in.contains(&j) && apart(at, *meets) {
+                    quadratics.push((squared(plane), *f));
+                }
+            }
+        }
+        for (i, (f, _, x)) in rays.iter().enumerate() {
+            for (g, _, y) in &rays[i + 1..] {
+                if apart(*x, *y) {
+                    quadratics.push((*f, *g));
+                }
+            }
+        }
+        for (f, g) in quadratics {
+            let (a, b, c) = (f[0] - g[0], f[1] - g[1], f[2] - g[2]);
+            let r = (b.powi(2) - T::from_f64(4.0) * a * c).max(T::zero()).sqrt();
+            ts.extend([
+                (-b + r) / (two * a),
+                (-b - r) / (two * a),
+                two * c / (-b + r),
+                two * c / (-b - r),
+            ]);
+        }
+        let mut read: Vec<(Point3<T>, T, Option<bool>)> = Vec::new();
+        let mut refused: Vec<(Point3<T>, T, LinkRefusal)> = Vec::new();
         for t in ts {
             if t.is_poison() || !t.is_bounded() {
                 continue;
             }
-            let t = t.max(T::zero()).min(T::one());
-            let at = self.offset(x0 + e * t, band)?;
-            lowest = Some(lowest.map_or(at, |l| l.min(at)));
+            let x = x0 + e * t.max(T::zero()).min(T::one());
+            match self.reading(x, rd) {
+                Ok((d, Some(true))) => read.push((x, -d, Some(true))),
+                Ok((d, held)) => read.push((x, d, held)),
+                Err(why) => refused.push((x, self.distance(x, rd).unwrap_or(T::zero()), why)),
+            }
         }
-        lowest.ok_or(TouchUnread::Corrupt)
+        for (x, d, why) in refused {
+            let held = read.iter().find_map(|&(y, _, held)| {
+                let n = (y - x).normalize();
+                let inside = metric::sign(LINK_BALL, Distance::of(y, x + n * d, n), band)
+                    == Some(Sign::Negative);
+                if inside { held } else { None }
+            });
+            match held {
+                Some(true) => read.push((x, -d, held)),
+                Some(false) => read.push((x, d, held)),
+                None => return Err(why),
+            }
+        }
+        read.into_iter()
+            .map(|(_, v, _)| v)
+            .reduce(T::min)
+            .ok_or(LinkRefusal::Unread(TouchUnread::Corrupt))
     }
 
     /// **`q`'s distance from the cone's boundary**: the least, over every
     /// wedge `(c, a, b)` of every sector, of `q`'s distance from the
-    /// wedge's two rays from `c` and, where `q` stands over the wedge
-    /// (not decidedly beyond either ray, [`wedge_side`]), from its plane.
-    /// A wedge is convex, so off its rays its nearest point is the foot
-    /// on its plane exactly where `q` stands over it; a reading in band
-    /// takes the plane too, which is the nearer by at most the band.
+    /// wedge. A wedge is convex: where `q` stands over it (left of its
+    /// ray `a`, right of its ray `b`, about its outward normal) its
+    /// nearest point is the foot on its plane, and elsewhere a point of
+    /// its two closed rays. Which side of a ray `q` stands on is read at
+    /// `q`'s own distance through the door (`TOUCH_WEDGE`, the plane
+    /// through the ray normal to the face), so where it is in band `q`
+    /// stands within the band of the ray's line and the two branches
+    /// differ by at most the band: a point scalar takes the plane, and an
+    /// enclosure takes both ([`either`]). The plane is taken first in
+    /// every tie, so a derivative at contact is a face's one-sided one.
     /// `None` for a link with no wedge.
     fn distance(&self, q: Point3<T>, rd: Reading<T>) -> Option<T> {
         let mut least: Option<T> = None;
@@ -1367,28 +1552,62 @@ impl<T: Decide> Link<T> {
                 let (u, v) = ((r - c).normalize(), q - c);
                 (v - u * u.dot(v).max(T::zero())).norm()
             };
+            let side = |r: Point3<T>| {
+                metric::sign_over(
+                    TOUCH_WEDGE,
+                    Distance::of(q, c, m.cross((r - c).normalize())),
+                    rd,
+                )
+            };
             for &(a, b) in &s.wedges {
-                let mut d = ray(a).min(ray(b));
-                let beyond = wedge_side(c, m, a, q, rd) == Some(Sign::Negative)
-                    || wedge_side(c, m, b, q, rd) == Some(Sign::Positive);
-                if !beyond {
-                    let o = m.dot(q - c);
-                    d = d.min(o.max(-o));
-                }
+                let rays = ray(a).min(ray(b));
+                let o = m.dot(q - c);
+                let plane = o.max(-o).min(rays);
+                let d = match (side(a), side(b)) {
+                    (Some(Sign::Negative), _) | (_, Some(Sign::Positive)) => rays,
+                    (Some(Sign::Positive), Some(Sign::Negative)) => plane,
+                    _ => either(plane, rays),
+                };
                 least = Some(least.map_or(d, |l| l.min(d)));
             }
         }
         least
     }
 
-    /// **Whether `q` lies on a sector within the band**: on its plane
-    /// ([`Link::side`] Zero) and not decidedly outside it
-    /// ([`Sector::place`]).
+    /// **Whether `q` lies on a sector within the band**: on its plane, or
+    /// in band of it, and not decidedly outside it ([`Sector::place`]).
     fn touches(&self, q: Point3<T>, rd: Reading<T>) -> bool {
         self.sectors.iter().any(|s| {
-            self.side(s, q, rd) == Some(Sign::Zero)
+            matches!(self.side(s, q, rd), Some(Sign::Zero) | None)
                 && s.place(self.p, q, rd) != Some(Place::Outside)
         })
+    }
+}
+
+/// **`lo` and `hi` taken together**: their hull where the scalar holds
+/// an enclosure, and `lo` where it holds a point, the caller passing as
+/// `lo` the branch a point reads (one within the band of the other).
+fn either<T: Decide>(lo: T, hi: T) -> T {
+    let both = lo.enclosure_hull(hi);
+    if both.is_poison() && !hi.is_poison() {
+        lo
+    } else {
+        both
+    }
+}
+
+/// **Why a link's reading of a point refused**.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum LinkRefusal {
+    /// The link refused for a reason it names.
+    Unread(TouchUnread),
+    /// A reading of the point was in band: the escalation, unaltered.
+    Undecided(Indeterminate),
+}
+
+impl From<TouchUnread> for LinkRefusal {
+    fn from(why: TouchUnread) -> Self {
+        Self::Unread(why)
     }
 }
 
@@ -1706,6 +1925,9 @@ pub(crate) mod rest {
 }
 
 #[cfg(test)]
+mod oracle_rows;
+
+#[cfg(test)]
 mod tests {
     #![allow(clippy::expect_used, clippy::panic)]
 
@@ -1904,29 +2126,36 @@ mod tests {
         );
     }
 
-    /// **`reads` over-refuses a point in band of a sector's plane that
-    /// lies decidedly outside the sector** (pinned, not wanted): over a
-    /// block's corner, a point half a metre off both side faces and in the
-    /// band's sliver of the top face's plane is far outside the material,
-    /// but the top face's side of it reads in band before its place in the
-    /// face is asked, so the parity reading refuses, and with it `offset`.
-    /// Red when it is sharpened: then this row says what it reads.
+    /// **The census's `reads` refuses a point in band of a sector's plane
+    /// that lies decidedly outside the sector, and `offset` reads it**:
+    /// over a block's corner, a point half a metre off both side faces and
+    /// in the band's sliver of the top face's plane is far outside the
+    /// material. The census's parity reading takes the top face's side of
+    /// it before its place in the face, and refuses (pinned, so that
+    /// sharpening it is a decision the census goldens see). `offset`'s
+    /// reading reads such a plane as off it ([`Link::parity`]). Red if
+    /// `offset` refuses a point its magnitude settles, or the census's
+    /// reading moves unannounced.
     #[test]
-    fn reads_refuses_a_point_in_band_of_a_plane_outside_its_sector() {
+    fn a_point_in_a_planes_sliver_outside_its_sector_reads_its_offset() {
         let b = band();
         let z = 0.5 * (b.zero() + b.escalate());
         let q = p(0.5, 0.5, z);
         let block = corner(false);
-        assert_eq!(block.reads(q, b), None, "the parity reading refuses");
         assert_eq!(
-            block.offset(q, b),
-            Err(TouchUnread::InBand),
-            "and so does the offset, its magnitude definite"
+            block.reads(q, b),
+            None,
+            "the census's parity reading refuses"
+        );
+        close(
+            offset(&block, q),
+            0.5_f64.hypot(0.5).hypot(z),
+            "the offset reads the distance from the apex, outside",
         );
         assert_eq!(
             block.reads(p(0.5, 0.5, 2.0 * b.escalate()), b),
             Some(Material::Out),
-            "off the band it reads"
+            "off the band the census reads it too"
         );
     }
 
