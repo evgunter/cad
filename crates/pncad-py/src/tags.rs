@@ -2468,6 +2468,7 @@ pub fn split_error_tag(err: &SplitError) -> &'static str {
         SplitError::CutsTheWorld => "cuts_the_world",
         SplitError::NoMaterial { .. } => "no_material",
         SplitError::UncutVarReference { .. } => "uncut_var_reference",
+        SplitError::SpaceStraddlesCut { .. } => "space_straddles_cut",
         SplitError::DefinitionStraddlesCut { .. } => "definition_straddles_cut",
         SplitError::UnresolvedVarCrossesCut { .. } => "unresolved_var_crosses_cut",
         SplitError::PartNameReachesRemainder { .. } => "part_name_reaches_remainder",

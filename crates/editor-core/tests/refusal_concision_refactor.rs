@@ -51,7 +51,7 @@ fn var() -> editor_core::SpokenVar {
 test_utils::f6_variants! {
     const SPLIT: SplitError = [
         EmptyCut, UnknownCutNode, CutsTheWorld, PartIdCollides, RemainderReadUncarried,
-        SeveredEdge, NoMaterial, UncutVarReference, DefinitionStraddlesCut,
+        SeveredEdge, NoMaterial, UncutVarReference, SpaceStraddlesCut, DefinitionStraddlesCut,
         UnresolvedVarCrossesCut, PartNameReachesRemainder, NameStraddlesCut, NameOnDroppedStep,
         BodyNameCrossesCut, NameOutsidePartWorld, Pin, PartEdit, RemainderEdit,
     ];
@@ -117,6 +117,11 @@ fn split_refusals() -> Vec<SplitError> {
             var: Box::new(var()),
             cut_node: s(4, "Extrude"),
             kept_node: s(6, "Extrude"),
+        },
+        SplitError::SpaceStraddlesCut {
+            space: Box::new(s(3, "Space")),
+            cut_node: s(4, "Place"),
+            kept_node: s(6, "Place"),
         },
         SplitError::DefinitionStraddlesCut {
             var: Box::new(var()),

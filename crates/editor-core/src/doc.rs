@@ -1937,6 +1937,21 @@ impl<P> Doc<P> {
         }
     }
 
+    /// **The spaces `node` reads**, each as the slot reading it and the
+    /// node defining the space: a `new_space()`, the construction whose
+    /// own space it is, or the world ([`RecipeNodeId::WORLD`]). A space
+    /// read reaches no operation ([`Self::read_ports`]), yet it is an
+    /// edge for what goes with a node: a cascade, a cut.
+    pub fn spaces_read(&self, node: &Node<P>) -> Vec<(crate::OperandSlot, RecipeNodeId)>
+    where
+        P: crate::ProfilePayload,
+    {
+        node.operand_rows()
+            .into_iter()
+            .filter_map(|(slot, var)| Some((slot, space_definer(self.vars.get(&var)?)?)))
+            .collect()
+    }
+
     /// **The operations and ports a read reaches** (D10: reading is the
     /// only dependency): an output's own, a selection's body's, and for
     /// a pose definition every one its reads reach, through nested
@@ -1964,8 +1979,8 @@ impl<P> Doc<P> {
         let at = match held.def() {
             // A space holds nothing, so reading one reaches no
             // operation: a placement depends on its target by name
-            // alone.
-            VarDef::Output { .. } if held.kind() == crate::VarKind::Space => None,
+            // alone ([`Self::spaces_read`]).
+            _ if space_definer(held).is_some() => None,
             VarDef::Output { node, port } => Some((*node, *port)),
             VarDef::Select(select) => self.defined_by(select.body),
             VarDef::Pick(pick) => self.defined_by(pick.placement),
@@ -3181,6 +3196,15 @@ pub(crate) enum ReadFault {
     },
 }
 
+/// **The node defining the space `held` is**, if it is one: its
+/// `Space` output's node.
+fn space_definer(held: &Var) -> Option<RecipeNodeId> {
+    match held.def() {
+        VarDef::Output { node, .. } if held.kind() == crate::VarKind::Space => Some(*node),
+        _ => None,
+    }
+}
+
 /// **The space derivation's walk** ([`Doc::space_of`]): each node's
 /// space memoized, and each construction's own space read off one
 /// index of the `Space` outputs, so a walk over every node reads the
@@ -3196,12 +3220,7 @@ impl<'d, P> SpaceWalk<'d, P> {
         let own = doc
             .vars
             .iter()
-            .filter_map(|(&var, held)| match held.def() {
-                VarDef::Output { node, .. } if held.kind() == crate::VarKind::Space => {
-                    Some((*node, var))
-                }
-                _ => None,
-            })
+            .filter_map(|(&var, held)| Some((space_definer(held)?, var)))
             .collect();
         Self {
             doc,
@@ -3213,7 +3232,7 @@ impl<'d, P> SpaceWalk<'d, P> {
     fn var(&mut self, var: VarId) -> Option<VarId> {
         let held = self.doc.vars.get(&var)?;
         match held.def() {
-            VarDef::Output { .. } if held.kind() == crate::VarKind::Space => None,
+            _ if space_definer(held).is_some() => None,
             VarDef::Output { node, .. } => self.node(*node),
             VarDef::Select(select) => self.var(select.body),
             // A piece of a copy is where the copy is.

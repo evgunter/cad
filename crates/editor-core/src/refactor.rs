@@ -73,6 +73,16 @@
 //! holds ([`InlineError::VarNameConflict`]): two variables are never
 //! one because their values agree (VR1).
 //!
+//! A space is read as a variable is. Every read of a space is an edge
+//! to the node that defines it, though it reaches no operation
+//! ([`Doc::read_ports`]). A `new_space()` goes where its readers go: one
+//! whose readers are all cut joins the cut, whether the selection names
+//! it or not; one read on both sides refuses
+//! ([`SplitError::SpaceStraddlesCut`]); an unread one stays unless the
+//! selection names it. A construction's own space is its output and
+//! goes with it, so a placement into it on the other side of the cut
+//! is severed ([`SplitError::SeveredEdge`]). The world is no side's.
+//!
 //! So `inline(split(d))` is `d` up to minted ids — node, step,
 //! variable and constraint — and order, on every cut split admits
 //! (A4): split appends its instance to the remainder and inline appends
@@ -350,6 +360,11 @@ fn in_id_order(old: &[Vec<StepId>], minted: &[Vec<StepId>]) -> Vec<Vec<StepId>> 
 /// after its insert, so a refusal raised while a later node is carried
 /// speaks the carried ones with their labels.
 ///
+/// **A `new_space()` is dealt before every other node**: it reads
+/// nothing, and a placement into it may precede it in document order
+/// (a space reads no operation, so nothing orders its readers after
+/// it).
+///
 /// **A placement is carried under the identity bundle, and its own
 /// bundle written whole once every node is in**
 /// ([`DocEdit::SetConstraints`], placements in document order): a
@@ -389,6 +404,13 @@ fn carry<E>(
     out_map.insert(VarId::WORLD, world);
     let mut step_map = StepMap::new();
     let mut bundles: Vec<(RecipeNodeId, RecipeNodeId, Vec<crate::mate::Constraint>)> = Vec::new();
+    let is_space = |id: &RecipeNodeId| matches!(source.node(*id), Some(Node::Space));
+    let olds: Vec<RecipeNodeId> = olds
+        .iter()
+        .copied()
+        .filter(is_space)
+        .chain(olds.iter().copied().filter(|id| !is_space(id)))
+        .collect();
     for (k, &old) in olds.iter().enumerate() {
         let Some(node) = source.node(old) else {
             continue;
@@ -822,6 +844,17 @@ pub enum SplitError {
         /// A kept node referencing it.
         kept_node: SpokenNode,
     },
+    /// A `new_space()` is read by a cut placement and by a kept one: it
+    /// cannot go with both — refused naming one reader on each side.
+    SpaceStraddlesCut {
+        /// The shared space's node, boxed so the refusal stays a small
+        /// `Err`.
+        space: Box<SpokenNode>,
+        /// A cut node placed into it.
+        cut_node: SpokenNode,
+        /// A kept node placed into it.
+        kept_node: SpokenNode,
+    },
     /// A variable no node reads is tied by definitions both to a
     /// variable the cut moves and to one that stays, so it can go with
     /// neither document — refused naming one of each.
@@ -1003,6 +1036,19 @@ impl core::fmt::Display for SplitError {
                 Recourse(&format!(
                     "put {cut_node} and {kept_node} on one side of the cut, or give one of \
                      them a variable of its own (DeclareVar, SetParam)"
+                ))
+            ),
+            Self::SpaceStraddlesCut {
+                space,
+                cut_node,
+                kept_node,
+            } => write!(
+                f,
+                "split: {cut_node}, which is cut, and {kept_node}, which is kept, are both \
+                 placed into {space}, and one space cannot go with both documents. {}",
+                Recourse(&format!(
+                    "cut {kept_node} too, or re-target one of them into a new_space() of its \
+                     own"
                 ))
             ),
             Self::DefinitionStraddlesCut {
@@ -2475,6 +2521,51 @@ pub fn split(
             return Err(SplitError::PartIdCollides { id: part_id });
         }
     }
+    // Each node's space reads, the world's left out: the world is no
+    // cut's.
+    let node_spaces: BTreeMap<RecipeNodeId, Vec<(crate::OperandSlot, RecipeNodeId)>> = doc
+        .ids()
+        .into_iter()
+        .filter_map(|id| {
+            let reads: Vec<_> = doc
+                .spaces_read(doc.node(id)?)
+                .into_iter()
+                .filter(|&(_, at)| at != RecipeNodeId::WORLD)
+                .collect();
+            (!reads.is_empty()).then_some((id, reads))
+        })
+        .collect();
+    // A `new_space()` goes where its readers go (module docs): one every
+    // reader of which is cut joins the cut, named or not.
+    let mut space_readers: BTreeMap<RecipeNodeId, Vec<RecipeNodeId>> = BTreeMap::new();
+    for (&id, reads) in &node_spaces {
+        for &(_, space) in reads {
+            if matches!(doc.node(space), Some(Node::Space)) {
+                space_readers.entry(space).or_default().push(id);
+            }
+        }
+    }
+    // One read on both sides is refused beside the variables, once the
+    // closure has spoken.
+    let mut joined = cut.clone();
+    let mut shared: BTreeMap<RecipeNodeId, (RecipeNodeId, RecipeNodeId)> = BTreeMap::new();
+    for (&space, readers) in &space_readers {
+        let cut_reader = readers.iter().find(|r| cut.contains(r));
+        let kept_reader = readers.iter().find(|r| !cut.contains(r));
+        match (cut_reader, kept_reader) {
+            (Some(&cut_node), Some(&kept_node)) => {
+                shared.insert(space, (cut_node, kept_node));
+            }
+            (Some(_), None) => {
+                joined.insert(space);
+            }
+            _ => {}
+        }
+    }
+    // A joined space is no node the author chose, so the cut's first
+    // node a refusal names is the selection's.
+    let selected = cut;
+    let cut = &joined;
     // Which copies are the world's: a part delivers only its world
     // (A10), so a cut copy in another space crosses nowhere.
     let opts = crate::eval::EvalOptions {
@@ -2757,13 +2848,29 @@ pub fn split(
                 }
             }
         }
-        for input in doc.upstream_of(consumer, node) {
-            if consumer_is_cut != cut.contains(&input) && !carried.contains(&input) {
-                let slot = node.operand_rows().into_iter().find_map(|(slot, var)| {
-                    doc.read_ports(var)
-                        .iter()
-                        .any(|&(at, _)| at == input)
-                        .then_some(slot)
+        // A space read crosses nowhere: no copy carries a space.
+        let reads = doc
+            .upstream_of(consumer, node)
+            .into_iter()
+            .filter(|input| !carried.contains(input))
+            .map(|input| (None, input))
+            .chain(
+                node_spaces
+                    .get(&consumer)
+                    .into_iter()
+                    .flatten()
+                    .filter(|(_, at)| !shared.contains_key(at))
+                    .map(|&(slot, input)| (Some(slot), input)),
+            );
+        for (space_slot, input) in reads {
+            if consumer_is_cut != cut.contains(&input) {
+                let slot = space_slot.or_else(|| {
+                    node.operand_rows().into_iter().find_map(|(slot, var)| {
+                        doc.read_ports(var)
+                            .iter()
+                            .any(|&(at, _)| at == input)
+                            .then_some(slot)
+                    })
                 });
                 return Err(SplitError::SeveredEdge {
                     consumer: doc.spoken(consumer),
@@ -2832,6 +2939,13 @@ pub fn split(
                 kept_node: doc.spoken(kept_node),
             });
         }
+    }
+    if let Some((&space, &(cut_node, kept_node))) = shared.first_key_value() {
+        return Err(SplitError::SpaceStraddlesCut {
+            space: Box::new(doc.spoken(space)),
+            cut_node: doc.spoken(cut_node),
+            kept_node: doc.spoken(kept_node),
+        });
     }
     let moving = moving_vars(doc, &cut_refs, &kept_refs)?;
     // Each selection's readers, by node.
@@ -3040,7 +3154,7 @@ pub fn split(
             doc.node(id),
             Some(Node::Place { .. } | Node::InstantiatePart { .. })
         ) && world(id)
-    }) && let Some(&first) = in_order.first()
+    }) && let Some(&first) = doc.ids().iter().find(|id| selected.contains(id))
     {
         return Err(SplitError::NoMaterial {
             node: doc.spoken(first),
