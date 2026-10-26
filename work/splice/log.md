@@ -344,3 +344,44 @@ Also in the fix pass:
   (`.project(` then `.ders(`) filed.
 
 The orchestrator reads the delta.
+
+## 2026-10-26 — PR 5768 (boundary-first) dual-reviewed
+
+Concurrent pair (letter H), both on 98ee1373, dispatched together at
+11:29Z with identical briefs:
+- R1 `session_01QGkdu4DiX62671SWzvo6iZ`, evidence `splice/review-5768-r1` @ c4e4fad;
+- R2 `session_01DAybgkUR3a16QpYg3izStL`, evidence `splice/review-5768-r2` @ b27f4c5c.
+
+Both read APPROVE-WITH-FIXES, and both report no glimpse of the other.
+
+**Correspondence pre-note** (DUAL-REVIEW-PROTOCOL rule 7):
+- Bilateral:
+  - `twin_edge`'s validity premise is assumed, not checked
+    (`validate.rs` defers clearance);
+  - `twin_edge`'s gate survives mutation;
+  - the `MintedRule::Along` / `read_lying_in` arms and the Along split
+    are unreached;
+  - an ellipse `param_near` may misplace on the new split path;
+  - `twin_edge` swallows kernel faults;
+  - the shared-run predicate and the span closure are duplicated;
+  - `route()` is a table, not a dispatch;
+  - the `boundary_spans` precedence changes.
+- Unilateral R1:
+  - `BoundaryCrossing::Clear` conflates Along;
+  - "readings disagree" is a frontier refusal, not an invariant;
+  - the coincidence door is unbuilt;
+  - `census::boundary_crossings` is a third reader;
+  - the sweep row cannot tell the paths apart.
+- Unilateral R2:
+  - the vertex reading has no row that reds without it;
+  - C5's ends-first order;
+  - `twin_edge` deciding a Clear span from topology as a possible C5
+    departure.
+- Tally candidates: none. Neither review raised a MAJOR.
+
+The union fix list went to the lane. The orchestrator reads the
+fix-pass delta. **Open to Ev:** whether `twin_edge` (deciding a Clear
+span's interior from y's topology under the boolean's
+non-self-intersection precondition) is consistent with C5's "only what
+the boundary leaves undecided is read against the face's interior", or
+needs a sentence in C5.
