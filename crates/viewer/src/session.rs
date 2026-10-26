@@ -2790,6 +2790,9 @@ impl DocSession {
         }
         let over = self.placements_of(&body);
         let taken = crate::world::read_var(doc, &body);
+        if let Err(refusal) = stranded_pick(doc, &over, taken) {
+            return OpOutcome::refused(refusal);
+        }
         self.commit_run(|run| {
             let sketched = run.sketch_on_face(
                 body,
@@ -2941,6 +2944,14 @@ impl DocSession {
                 return OpOutcome::refused(refusal);
             }
         }
+        // The first operand's copies are taken over by the combine.
+        if let Some(first) = spec.operands().first() {
+            let doc = self.committed_doc();
+            let over = crate::world::placements_of_read(doc, first);
+            if let Err(refusal) = stranded_pick(doc, &over, crate::world::read_var(doc, first)) {
+                return OpOutcome::refused(refusal);
+            }
+        }
         // A node spelled twice is not refused: a repeated read glues
         // (A∪A = A∩A = A, A−A the typed empty body), so it is a
         // document like any other.
@@ -3001,6 +3012,9 @@ impl DocSession {
         };
         let over = self.placements_of(&body);
         let taken = crate::world::read_var(doc, &body);
+        if let Err(refusal) = stranded_pick(doc, &over, taken) {
+            return OpOutcome::refused(refusal);
+        }
         let node = combine::mirror_node(body.clone(), on, face);
         self.commit_run(|run| {
             let image = run.insert(node)?;
@@ -3291,6 +3305,9 @@ impl DocSession {
         taken: Option<VarId>,
         node: AuthoredNode,
     ) -> OpOutcome {
+        if let Err(refusal) = stranded_pick(self.committed_doc(), &over, taken) {
+            return OpOutcome::refused(refusal);
+        }
         self.commit_run(|run| {
             let result = run.insert(node)?;
             repoint(run, over, taken, result)
@@ -3737,6 +3754,43 @@ impl DocSession {
             resolver: self.requested_resolver.clone(),
         });
     }
+}
+
+/// **A takeover onto a body holding no pieces refuses where it would
+/// strand a pick** ([`Refusal::StrandedPick`]): of the copies in `over`
+/// that [`repoint`] would re-point (each copying `taken`), the first
+/// one a pick reads. A feature's result, a mirror's or a sketch's union
+/// and a combine hold no pieces, and a pick is never re-pointed, so
+/// re-pointing that copy would leave the pick naming a piece its copy
+/// no longer holds. The transform's takeover places the body it took,
+/// whose pieces its copy carries, and asks nothing here.
+fn stranded_pick(
+    doc: &Doc<ProfileProgram>,
+    over: &[RecipeNodeId],
+    taken: Option<VarId>,
+) -> Result<(), Refusal> {
+    let picks: Vec<(VarId, VarId)> = doc
+        .vars()
+        .iter()
+        .filter_map(|(&var, held)| match held.def() {
+            pncad::document::VarDef::Pick(pick) => Some((var, pick.placement)),
+            _ => None,
+        })
+        .collect();
+    for &copy in over {
+        if !matches!(doc.node(copy), Some(Node::Place { source, .. }) if Some(source.read) == taken)
+        {
+            continue;
+        }
+        let outputs = doc.outputs(copy);
+        if let Some(&(pick, _)) = picks.iter().find(|(_, read)| outputs.contains(read)) {
+            return Err(Refusal::StrandedPick {
+                copy: doc.spoken(copy),
+                pick: doc.spoken_var(pick),
+            });
+        }
+    }
+    Ok(())
 }
 
 /// **Re-point each of `placements` to `result`** (A10, Ev's residue

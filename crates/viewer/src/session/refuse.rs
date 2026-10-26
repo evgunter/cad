@@ -414,6 +414,17 @@ pub enum Refusal {
         /// The profile node, as the document held it at the refusal.
         node: SpokenNode,
     },
+    /// A takeover would re-point a copy a pick reads onto a body that
+    /// holds no pieces — a feature's result, a mirror's or a sketch's
+    /// union, a combine. A pick is never re-pointed (D10
+    /// `[placement.placement]`), so it would name a piece its copy no
+    /// longer holds; the takeover refuses rather than strand it.
+    StrandedPick {
+        /// The copy the takeover would re-point.
+        copy: SpokenNode,
+        /// The pick reading it.
+        pick: SpokenVar,
+    },
 }
 
 impl Refusal {
@@ -437,6 +448,10 @@ impl Refusal {
                 wanted,
             },
             Self::ProfileEditStale { node } => Self::ProfileEditStale { node: again(node) },
+            Self::StrandedPick { copy, pick } => Self::StrandedPick {
+                copy: again(copy),
+                pick: pick.respoken(doc),
+            },
             Self::ConstantRefused { var, source } => Self::ConstantRefused {
                 var: var.respoken(doc),
                 source,
@@ -510,7 +525,8 @@ impl Refusal {
             | Self::NoDocumentDirectory
             | Self::Workspace(_)
             | Self::SelfInstance { .. }
-            | Self::ProfileEditStale { .. } => None,
+            | Self::ProfileEditStale { .. }
+            | Self::StrandedPick { .. } => None,
         }
     }
 
@@ -551,6 +567,7 @@ impl Refusal {
             | Self::Workspace(_)
             | Self::SelfInstance { .. }
             | Self::ProfileEditStale { .. }
+            | Self::StrandedPick { .. }
             | Self::Io(_) => 1,
             // The ONE arm whose rank is a per-payload decision: the
             // three gesture-order faults rank with their document
@@ -856,6 +873,12 @@ impl core::fmt::Display for Refusal {
                 f,
                 "{node} changed since the editor loaded it; the editor's program was not \
                  written — the editor now shows the profile as it is"
+            ),
+            Self::StrandedPick { copy, pick } => write!(
+                f,
+                "{pick} picks a piece of {copy}, and what would take {copy} over holds no \
+                 pieces: a pick is never re-pointed, so the takeover would leave it naming a \
+                 piece its copy no longer holds"
             ),
         }
     }

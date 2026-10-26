@@ -3575,3 +3575,59 @@ fn taking_over_one_half_of_a_split_leaves_the_other() {
         "the upper half kept, the lower half taken over by the transform"
     );
 }
+
+/// **A combine that would strand a pick refuses at the takeover door,
+/// typed, and records nothing.** A `⊔` of two placed boxes is placed in
+/// the world, and a pick of its first piece is placed beside it. The
+/// union of the `⊔` with the second box takes the `⊔`'s world copy over
+/// onto the union, which holds no pieces; a pick is never re-pointed,
+/// so the takeover refuses rather than leave the pick naming a piece
+/// its copy no longer holds.
+#[test]
+fn a_combine_that_would_strand_a_pick_refuses_typed() {
+    use pncad::document::{BodyRead, VarId};
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let a = common::xy_box_in(&mut session, A);
+    let b = common::xy_box_in(&mut session, B);
+    let doc = session.committed_doc().clone();
+    let copy = |body| {
+        doc.output(common::copy_of(&doc, body), 0)
+            .expect("a world copy")
+    };
+    let (a_copy, b_copy) = (copy(a), copy(b));
+    let place = |read: Operand| {
+        Node::place(
+            BodyRead::plain(read),
+            Operand::Var(VarId::WORLD),
+            pncad::document::stand().bundle(),
+        )
+    };
+    let (doc, seat) = crate::fixture::insert(
+        doc.clone(),
+        Node::Assemble {
+            members: Bodies::Spelled(vec![
+                BodyRead::plain(Operand::Var(a_copy)),
+                BodyRead::plain(Operand::Var(b_copy)),
+            ]),
+        },
+    );
+    let (doc, held) = crate::fixture::insert(doc, place(Operand::Node(seat)));
+    let (doc, _) =
+        crate::fixture::insert(doc, place(Operand::pick(Operand::Node(held), vec![a_copy])));
+    let mut session = crate::common::inline_without_door(doc, tol);
+    session.pump();
+    let steps = session.history().len();
+    let out = session.perform(SessionOp::AddBoolean {
+        spec: BooleanSpec::Union(vec![seat.into(), b.into()]),
+    });
+    assert!(
+        matches!(
+            &out.refusal,
+            Some(Refusal::StrandedPick { copy, .. }) if copy.id() == held
+        ),
+        "{:?}",
+        out.refusal
+    );
+    assert_eq!(session.history().len(), steps, "nothing recorded");
+}
