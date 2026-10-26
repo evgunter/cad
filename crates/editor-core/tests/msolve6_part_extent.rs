@@ -133,6 +133,7 @@ fn instances(
 ) -> (ProfileDoc, Vec<RecipeNodeId>, EvalOptions, RecipeNodeId) {
     let body = body_node(&part);
     let mut store = PartStore::new();
+    let part = crate::fixture::assemble_world_copies(part);
     let doc_ref = store.insert(part, Tol::witness());
     let opts = EvalOptions {
         resolver: Some(Arc::new(store)),
@@ -166,8 +167,8 @@ fn seat(
         doc,
         upper,
         fixture::rest(
-            fixture::head(in_part(upper, upper_body, CapEnd::Start)),
-            fixture::head(in_part(lower, lower_body, CapEnd::End)),
+            fixture::head_at(upper, in_part(upper, upper_body, CapEnd::Start)),
+            fixture::head_at(lower, in_part(lower, lower_body, CapEnd::End)),
         ),
     )
 }
@@ -396,8 +397,8 @@ fn seated(
         .unwrap();
     // The rest and its three values, each 0, written whole.
     let rest = fixture::rest(
-        fixture::head(in_part(b, body, CapEnd::Start)),
-        fixture::head(in_part(a, body, CapEnd::End)),
+        fixture::head_at(b, in_part(b, body, CapEnd::Start)),
+        fixture::head_at(a, in_part(a, body, CapEnd::End)),
     );
     let squared = fixture::squared(&doc, rest, &[]);
     let seat = push(&mut doc, squared.write(b))
@@ -443,8 +444,8 @@ fn a6_a_mate_graph_edit_on_an_unresolvable_part_is_not_refused() {
         doc,
         lost,
         fixture::rest(
-            fixture::head(in_part(lost, lost_body, CapEnd::Start)),
-            fixture::head(in_part(ids[0], body, CapEnd::End)),
+            fixture::head_at(lost, in_part(lost, lost_body, CapEnd::Start)),
+            fixture::head_at(ids[0], in_part(ids[0], body, CapEnd::End)),
         ),
     );
     let remove = unseat(mate.placement);
@@ -492,8 +493,8 @@ fn a6_no_edit_asks_the_store() {
     let seat_c = fixture::squared(
         &doc,
         fixture::rest(
-            fixture::head(in_part(c, body, CapEnd::Start)),
-            fixture::head(in_part(b, body, CapEnd::End)),
+            fixture::head_at(c, in_part(c, body, CapEnd::Start)),
+            fixture::head_at(b, in_part(b, body, CapEnd::End)),
         ),
         &[],
     );
@@ -522,7 +523,7 @@ fn a6_no_edit_asks_the_store() {
         .apply(
             &DocEdit::SetAppearance {
                 body: doc.read_of_node(a).expect("the instance's one output"),
-                name: in_part(a, body, CapEnd::End),
+                name: in_part(a, body, CapEnd::End).name,
                 attr: editor_core::Attr::Color(editor_core::Rgba8::opaque(200, 30, 30)),
             },
             tol,
@@ -878,13 +879,14 @@ fn a6_a_mate_chained_to_a_refused_one_removes_like_any_other() {
     let part = box_part("msolve6-p3c-part", 5.0, 10.0);
     let body = body_node(&part);
     let mut store = PartStore::new();
+    let part = crate::fixture::assemble_world_copies(part);
     let doc_ref = store.insert(part, Tol::witness());
     let opts = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive("msolve6-p3c"), Tol::witness());
     let (doc, b) = insert(doc, fixture::mated_instance(doc_ref));
     let (doc, c) = insert(doc, fixture::mated_instance(doc_ref));
     let rest_on = |to| Mate {
-        on: fixture::plane(fixture::head(in_part(b, body, CapEnd::Start))),
+        on: fixture::plane(fixture::head_at(b, in_part(b, body, CapEnd::Start))),
         to: fixture::flip(to),
     };
     // A floor's top, and a second turned `0.25` about the world's `x`.
@@ -905,8 +907,8 @@ fn a6_a_mate_chained_to_a_refused_one_removes_like_any_other() {
         doc,
         c,
         fixture::rest(
-            fixture::head(in_part(c, body, CapEnd::Start)),
-            fixture::head(in_part(b, body, CapEnd::End)),
+            fixture::head_at(c, in_part(c, body, CapEnd::Start)),
+            fixture::head_at(b, in_part(b, body, CapEnd::End)),
         ),
     );
     assert!(
@@ -985,7 +987,9 @@ fn a5_two_mated_parts_evaluate_once_each() {
     let mut store = PartStore::new();
     let (pa, pb) = (box_part("msolve6-p8-a", 0.5, 1.0), block("msolve6-p8-b"));
     let (a_body, b_body) = (body_node(&pa), body_node(&pb));
+    let pa = crate::fixture::assemble_world_copies(pa);
     let ra = store.insert(pa, Tol::witness());
+    let pb = crate::fixture::assemble_world_copies(pb);
     let rb = store.insert(pb, Tol::witness());
     let opts = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive("msolve6-p8"), Tol::witness());

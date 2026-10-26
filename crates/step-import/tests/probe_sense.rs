@@ -17,17 +17,22 @@ fn fixture(rel: &str) -> String {
 fn probe(tag: &str, text: &str, base_vol: f64) {
     match import_step(text, &ImportOptions::default(), Tol::witness()) {
         Ok(StepImport::Solid { body, .. }) => {
-            let t1 = topo::validate(&body);
-            let t2 = topo::validate_closed(&body);
-            let t3 = topo::validate_geometric(&body, Tol::witness());
+            let t1 = topo::validate(body.body());
+            let t2 = topo::validate_closed(body.body());
+            let t3 = topo::validate_geometric(body.body(), Tol::witness());
             let v = topo::mass_properties(
-                &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
+                &topo::test_support::finished(
+                    "the measured body",
+                    body.body().clone(),
+                    Tol::witness(),
+                ),
                 Tol::witness(),
+                topo::test_support::pinned_resolution(Tol::witness()),
             )
-            .map(|m| m.volume);
+            .map(|m| m.enclosure.volume);
             println!(
                 "{tag}: IMPORTED census={:?} t1={t1:?} t2={t2:?} t3ok={} vol={v:?}",
-                arena_census(&body),
+                arena_census(body.body()),
                 t3.is_ok()
             );
             // Silent misgeometry = imports, all tiers green, volume moved.
@@ -52,11 +57,11 @@ fn flipped_sense_is_never_silent_misgeometry() {
     else {
         panic!()
     };
-    let v0 = topo::mass_properties(
-        &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
+    let v0 = topo::test_support::pinned_volume(
+        "the measured body",
+        &topo::test_support::finished("the measured body", body.body().clone(), Tol::witness()),
         Tol::witness(),
     )
-    .unwrap()
     .volume;
 
     // Box: flip one EDGE_CURVE sense only.
@@ -74,11 +79,11 @@ fn flipped_sense_is_never_silent_misgeometry() {
     else {
         panic!()
     };
-    let vs = topo::mass_properties(
-        &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
+    let vs = topo::test_support::pinned_volume(
+        "the measured body",
+        &topo::test_support::finished("the measured body", body.body().clone(), Tol::witness()),
         Tol::witness(),
     )
-    .unwrap()
     .volume;
     let m2 = sg1.replace(
         "#46=EDGE_CURVE('',#43,#45,#41,.F.) ;",

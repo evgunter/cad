@@ -208,6 +208,8 @@ struct SnapshotWire {
     appearance: crate::appearance::AppearanceMap,
     #[serde(default, with = "strict::labels")]
     labels: BTreeMap<RecipeNodeId, crate::Label>,
+    #[serde(default)]
+    product: Option<VarId>,
 }
 
 impl SnapshotWire {
@@ -226,6 +228,7 @@ impl SnapshotWire {
             metadata,
             appearance,
             labels,
+            product,
         } = self;
         crate::Doc {
             id,
@@ -238,6 +241,7 @@ impl SnapshotWire {
             metadata,
             appearance,
             labels,
+            product,
         }
     }
 }

@@ -90,7 +90,8 @@ fn past_the_pinned_radius_the_door_refuses_or_meters_exactly() {
                 eprintln!("r = {r}: refused at {e:?}");
             }
             Ok(topo::BooleanResult::Body(bb)) => {
-                let v = topo::mass_properties(&bb.body, tol).unwrap().volume;
+                let v =
+                    topo::test_support::pinned_volume("the measured body", &bb.body, tol).volume;
                 let expect =
                     (80.0 * 40.0 - r * r * (4.0 - core::f64::consts::PI)) * 8.0 - 20.0 * 20.0 * 5.0;
                 assert!(
@@ -121,7 +122,7 @@ fn the_tangential_radius_ten_refuses_or_meters_exactly() {
     match topo::subtract(&plate, &pocket, tol) {
         Err(e) => eprintln!("r = 10: refused at {e:?}"),
         Ok(topo::BooleanResult::Body(bb)) => {
-            let v = topo::mass_properties(&bb.body, tol).unwrap().volume;
+            let v = topo::test_support::pinned_volume("the measured body", &bb.body, tol).volume;
             let expect = (80.0 * 40.0 - 100.0 * (4.0 - core::f64::consts::PI)) * 8.0 - 2000.0;
             assert!(
                 (v - expect).abs() < 1e-9,

@@ -1043,11 +1043,15 @@ reads as an interference between two copies at rest, so no bool may
 stand there. `Undecided` escalates
 `CensusEscalated`. The side is read by handing both faces' `Face::sense`
 bits to `geom_brep::classify_material_pairing` after `classify_dihedral`
-establishes the smooth precondition. The census reads sides in two
-other places, both through the touch analysis's `rest::judge`: pass 4,
-of an edge lying in a face of its own solid (`edge_in_own_face`), and
-arm 2's touches between two solids (`TouchSite::verdict`). Every other
-use of a face's normal in the coincidence sweeps is sense-invariant.
+establishes the smooth precondition. The census reads sides in three
+other places, all through the touch analysis's `rest` module: pass 4,
+of an edge lying in a face of its own solid (`edge_in_own_face`, by
+`rest::judge`); arm 2's touches between two solids
+(`TouchSite::verdict`, by `rest::judge`); and every point where one
+solid touches itself, its whole link there (`sweep_self_touch_points`,
+by `rest::one_material`), a link holding a curved face or edge left
+unread. Every other use of a face's normal in the coincidence sweeps is
+sense-invariant.
 
 **Confirmed pairs.** Every face-pair rung (`Declared::confine` around the
 vertex–vertex, vertex–edge, vertex–face and edge–edge lanes,
@@ -1072,6 +1076,33 @@ whose pair does not confirm answers for nothing. The crossing rung's side test r
 recorded pairs as well as the confirmed ones, so a declared pair holding
 a crossing with the materials on one side names `SameSide`; it backs only
 through a confirmed pair.
+
+**Unread pairs.** Two planar faces of two solids whose carriers Door 1
+reads in band are one pair too, which the census cannot look at
+(`planar_face_pairs`): an escalation the sweeps find of a touch of a
+cell bounding one of its faces against a cell bounding the other is
+the pair's one `CensusUndecidable`, naming the two faces, and nothing
+of the cells' escalations is reported (`Declared::absorb`); a decided
+finding of them stands. An escalation of two other cells is dropped
+as a reading of such a touch (`drop_shadows`) only where their
+closures hold the touch's two cells, they meet at one point in band of
+both, and each end of either is in band of both too or decidedly off
+the other cell; two cells with no one meeting point (an edge along a
+face) may have escalated anywhere along them, and that escalation
+stands. The finding's reason says whether the
+pair may hide an overlap. An opposed pair in band hides none thicker
+than the band: its two materials lie on either side
+(`Undecidable::ThinInBand`). An aligned pair has both materials behind
+both faces, so where the two share area the solids overlap: it is an
+overlap where the region door reads a positive area, `ThinInBand` only
+where they share no area thicker than the band (`thin_overlap`), and
+otherwise `Undecidable::MayOverlap`, as is a pair whose Door 1
+escalated; the flush arm's own in-band findings of an aligned pair read
+the same (`aligned_unread`). Arm 2 reads a `ThinInBand` finding as blocking nothing, its
+material test does not refuse on a vertex of such a pair's touch, and
+`census_uncleared_solids` leaves the solids' other touches to be
+recorded at rest; a `MayOverlap` finding blocks them. The flush arm
+leaves Door 1's in-band pairs to the census.
 
 The edge-on-face lane cuts an edge at every boundary vertex on it and
 every place a boundary edge crosses it, each placed in metres along

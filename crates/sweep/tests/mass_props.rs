@@ -38,10 +38,11 @@ fn check(body: &Body<f64>, what: &str, volume: f64, area: f64) {
     let props = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(body), Tol::witness()),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("mass properties must compute");
-    assert_close(&format!("{what} volume"), props.volume, volume);
-    assert_close(&format!("{what} area"), props.surface_area, area);
+    assert_close(&format!("{what} volume"), props.enclosure.volume, volume);
+    assert_close(&format!("{what} area"), props.enclosure.surface_area, area);
 }
 
 // ---- extrusions -------------------------------------------------------
@@ -118,7 +119,8 @@ fn washer_matches_closed_forms() {
     // V = π(2² − 1²)·1 = 3π; A = 4π + 2π + 2·3π = 12π.
     check(&t.body, "washer", 3.0 * PI, 12.0 * PI);
     let pappus = full_pappus_y(&t);
-    let v = topo::mass_properties(
+    let v = topo::test_support::pinned_volume(
+        "the measured body",
         &topo::test_support::finished(
             "the measured body",
             topo::Body::clone(&t.body),
@@ -126,7 +128,6 @@ fn washer_matches_closed_forms() {
         ),
         Tol::witness(),
     )
-    .unwrap()
     .volume;
     assert!(
         (v - pappus).abs() < 1e-3 * v,
@@ -149,7 +150,8 @@ fn ball_matches_closed_forms() {
     .unwrap();
     check(&t.body, "ball", 4.0 * PI / 3.0, 4.0 * PI);
     let pappus = full_pappus_y(&t);
-    let v = topo::mass_properties(
+    let v = topo::test_support::pinned_volume(
+        "the measured body",
         &topo::test_support::finished(
             "the measured body",
             topo::Body::clone(&t.body),
@@ -157,7 +159,6 @@ fn ball_matches_closed_forms() {
         ),
         Tol::witness(),
     )
-    .unwrap()
     .volume;
     assert!(
         (v - pappus).abs() < 1e-3 * v,
@@ -182,7 +183,8 @@ fn cone_matches_closed_forms() {
     // r = h = 1: V = π/3; A = πr√(r²+h²) + πr² = π(√2 + 1).
     check(&t.body, "cone", PI / 3.0, PI * (SQRT_2 + 1.0));
     let pappus = full_pappus_y(&t);
-    let v = topo::mass_properties(
+    let v = topo::test_support::pinned_volume(
+        "the measured body",
         &topo::test_support::finished(
             "the measured body",
             topo::Body::clone(&t.body),
@@ -190,7 +192,6 @@ fn cone_matches_closed_forms() {
         ),
         Tol::witness(),
     )
-    .unwrap()
     .volume;
     assert!(
         (v - pappus).abs() < 1e-3 * v,
@@ -210,7 +211,8 @@ fn donut_matches_closed_forms() {
     // R = 2, r = 1/2: V = 2π²Rr² = π²; A = 4π²Rr = 4π².
     check(&t.body, "donut", PI * PI, 4.0 * PI * PI);
     let pappus = full_pappus_y(&t);
-    let v = topo::mass_properties(
+    let v = topo::test_support::pinned_volume(
+        "the measured body",
         &topo::test_support::finished(
             "the measured body",
             topo::Body::clone(&t.body),
@@ -218,7 +220,6 @@ fn donut_matches_closed_forms() {
         ),
         Tol::witness(),
     )
-    .unwrap()
     .volume;
     assert!(
         (v - pappus).abs() < 1e-3 * v,

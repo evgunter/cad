@@ -2,12 +2,13 @@
 id: main-red-node-standing-readers-census-trails-the-dprime2-mate-split
 kind: issue
 title: main red: node_standing's READERS census trails PR 5613 (D′2): mate/corner.rs and viewer/src/session.rs read node results unlisted, mate/pin.rs is listed and gone, wire.rs reads one fewer
-status: parked
+status: closed
 opened: 2026-10-25
 priority: P1
 cost: E
 rides_with: assemble-is-an-operator-and-the-product-is-a-slot
 blocked_on: [assemble-is-an-operator-and-the-product-is-a-slot]
+closed: 2026-10-26
 ---
 
 
@@ -38,3 +39,12 @@ added `mate/corner.rs`.
 Each new reader reads through `Evaluation::usable` or gets its `READERS`
 line with a reason. The `pin.rs` line goes, and the `wire.rs` count moves
 to the count the census finds.
+
+## Closed by D′3 (PR 5636)
+
+`READERS` in `crates/editor-core/tests/node_standing.rs` now matches the census:
+- `mate/corner.rs` and `viewer/src/session.rs` have their lines with reasons;
+- the `mate/pin.rs` line is gone;
+- `eval/wire.rs` reads 9.
+
+Main's merge brought one more trailing line: `stackup.rs`, listed at 23 and read 6 times since the offset unit's fix pass (`c7708f734a`). It is re-counted with the reason its one live read has, `unread_measure`. The row passes at default ε over D′3's head.

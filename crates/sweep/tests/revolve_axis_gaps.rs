@@ -30,9 +30,10 @@ fn props(t: &Revolved<f64>) -> (f64, f64) {
     let p = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(&t.body), tol),
         tol,
+        topo::test_support::pinned_resolution(tol),
     )
     .unwrap();
-    (p.volume, p.surface_area)
+    (p.enclosure.volume, p.enclosure.surface_area)
 }
 
 fn assert_near(what: &str, got: f64, want: f64) {

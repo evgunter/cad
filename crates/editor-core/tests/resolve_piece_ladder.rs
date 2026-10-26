@@ -83,7 +83,6 @@ impl Slot {
                 crate::fixture::piece(&self.doc, self.bar.body, 0, segment as usize).into(),
             )],
         }
-        .in_copy(self.bar.placement)
     }
 
     /// The bar's wall `segment` as the cut's table carries it in,

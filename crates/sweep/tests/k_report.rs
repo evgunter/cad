@@ -97,7 +97,12 @@ fn run_shape(build: impl FnOnce() -> topo::Body<Probe>) -> Vec<MarginSample> {
     validate(&body).expect("tier 1");
     validate_closed(&body).expect("tier 2");
     let body = topo::AtRestBody::validate(body, Tol::witness()).expect("tier 3");
-    mass_properties(&body, Tol::witness()).expect("mass properties");
+    mass_properties(
+        &body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .expect("mass properties");
     k_stats::take_samples()
 }
 

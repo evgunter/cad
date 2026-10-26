@@ -49,6 +49,7 @@ from pncad import (
 )
 
 from placing import against, own_frame
+from measuring import pinned
 
 
 def slab(doc, x, y, z):
@@ -85,7 +86,7 @@ def mass_of(doc, node):
     assert ev.succeeded(node), "the group evaluated"
     body = ev.value(node).body()
     body.validate()
-    return body.mass_properties()
+    return pinned(body)
 
 
 # The heat-sink fin, constant for constant with the corpus document
@@ -321,8 +322,8 @@ def die_tool_document():
         Node.subtract(cube, tool)
     )
     # The pipped die is the product: placed once, last, as the corpus
-    # document places it.
-    doc.place(pipped, doc.world)
+    # document places it, and its copy the slot reads.
+    doc.set_product(doc.place(pipped, doc.world))
     return doc, master, tool, pipped
 
 
@@ -401,7 +402,7 @@ class TestTheDieTool(unittest.TestCase):
         cap = math.pi * PIP_H ** 2 * (3.0 * PIP_R - PIP_H) / 3.0
         want = DIE_L ** 3 - 6.0 * cap
         self.assertAlmostEqual(
-            body.mass_properties().volume, want, delta=1e-12 * want
+            pinned(body).volume, want, delta=1e-12 * want
         )
 
     def test_every_cavity_face_is_one_instance_segment_deep(self):

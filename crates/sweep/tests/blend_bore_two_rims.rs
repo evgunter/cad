@@ -40,10 +40,11 @@ fn volume(body: &Body<f64>) -> f64 {
     let p = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
         tol(),
+        topo::test_support::pinned_resolution(tol()),
     )
     .expect("mass properties");
-    assert_eq!(p.volume_pad, 0.0, "closed-form faces only");
-    p.volume
+    assert_eq!(p.enclosure.volume_pad, 0.0, "closed-form faces only");
+    p.enclosure.volume
 }
 
 /// The convex plane–cylinder corner torus a bore rim's band removes:

@@ -93,6 +93,8 @@ pub fn admits_read(doc: &Doc<ProfileProgram>, read: &Operand, wanted: NodeKindWa
         Operand::Output { node, port } => doc.output(*node, *port),
         Operand::Var(var) => Some(*var),
         Operand::Name(name) => doc.var_named(name.as_str()),
+        // A pick reads one piece of a copy: a body.
+        Operand::Pick { .. } => return wanted == NodeKindWanted::Body,
         Operand::Select { .. } | Operand::Pose(_) => return false,
     };
     let kind = match wanted {
@@ -127,6 +129,7 @@ pub(crate) fn seat_kind(node: &Node<ProfileProgram>) -> Option<NodeKindWanted> {
         | Node::Subtract { .. }
         | Node::Union { .. }
         | Node::Intersect { .. }
+        | Node::Assemble { .. }
         | Node::Part { .. }
         | Node::PlacedUnion { .. }
         | Node::InstantiatePart { .. }
@@ -411,6 +414,17 @@ pub enum Refusal {
         /// The profile node, as the document held it at the refusal.
         node: SpokenNode,
     },
+    /// A takeover would re-point a copy a pick reads onto a body that
+    /// holds no pieces — a feature's result, a mirror's or a sketch's
+    /// union, a combine. A pick is never re-pointed (D10
+    /// `[placement.placement]`), so it would name a piece its copy no
+    /// longer holds; the takeover refuses rather than strand it.
+    StrandedPick {
+        /// The copy the takeover would re-point.
+        copy: SpokenNode,
+        /// The pick reading it.
+        pick: SpokenVar,
+    },
 }
 
 impl Refusal {
@@ -434,6 +448,10 @@ impl Refusal {
                 wanted,
             },
             Self::ProfileEditStale { node } => Self::ProfileEditStale { node: again(node) },
+            Self::StrandedPick { copy, pick } => Self::StrandedPick {
+                copy: again(copy),
+                pick: pick.respoken(doc),
+            },
             Self::ConstantRefused { var, source } => Self::ConstantRefused {
                 var: var.respoken(doc),
                 source,
@@ -507,7 +525,8 @@ impl Refusal {
             | Self::NoDocumentDirectory
             | Self::Workspace(_)
             | Self::SelfInstance { .. }
-            | Self::ProfileEditStale { .. } => None,
+            | Self::ProfileEditStale { .. }
+            | Self::StrandedPick { .. } => None,
         }
     }
 
@@ -548,6 +567,7 @@ impl Refusal {
             | Self::Workspace(_)
             | Self::SelfInstance { .. }
             | Self::ProfileEditStale { .. }
+            | Self::StrandedPick { .. }
             | Self::Io(_) => 1,
             // The ONE arm whose rank is a per-payload decision: the
             // three gesture-order faults rank with their document
@@ -854,6 +874,12 @@ impl core::fmt::Display for Refusal {
                 "{node} changed since the editor loaded it; the editor's program was not \
                  written — the editor now shows the profile as it is"
             ),
+            Self::StrandedPick { copy, pick } => write!(
+                f,
+                "{pick} picks a piece of {copy}, and what would take {copy} over holds no \
+                 pieces: a pick is never re-pointed, so the takeover would leave it naming a \
+                 piece its copy no longer holds"
+            ),
         }
     }
 }
@@ -955,7 +981,7 @@ impl core::fmt::Display for GestureFrameFault {
 impl core::error::Error for GestureFrameFault {}
 
 /// **The one body an evaluated value IS, if it is one** — the
-/// evaluator's single-body operand door (`eval::wire::body_operand`)
+/// evaluator's single-body operand door (`eval::wire::read_body`)
 /// asked of a value the viewer is holding.
 ///
 /// The same two shapes that door takes: a `Body` payload, or a
@@ -979,7 +1005,6 @@ pub(crate) fn one_body(payload: &ValuePayload<f64>) -> Option<&Body<f64>> {
         | ValuePayload::Profile(_)
         | ValuePayload::Split { .. }
         | ValuePayload::Instances(_)
-        | ValuePayload::Copies(_)
         | ValuePayload::Measure { .. }
         | ValuePayload::MeasureUnavailable { .. }
         | ValuePayload::Assertion(_) => None,

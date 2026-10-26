@@ -551,7 +551,15 @@ BOUNDS_ALLOWLIST=(
   # now reads its sections' profile values
   # (`a-loft-is-the-nominal-surface-in-every-generic-lane`), and none of
   # the three read a bound, so the headers go with the seam.
-  'crates/editor-core/src/eval/wire.rs 14 2026-07-29 (M5 PR 8), the driver amendment'
+  # 14 -> 17: `−` and `∩` distribute over `⊔` (D′3,
+  # `eval/wire/distribute.rs`). The subtract's and the union's
+  # lowerings each split in two around the per-piece recursion:
+  # `wire_subtract` calls `subtract_from`, and `wire_combine` calls
+  # `combine_members`, which calls `fold_members`. The three new
+  # headers are the boolean lane's own, ratified for the sweep's BVH
+  # brackets, and each is a caller spelling the pair verb's header
+  # (`run_pair`); none of them reads a bound.
+  'crates/editor-core/src/eval/wire.rs 17 2026-07-29 (M5 PR 8), the driver amendment'
   # M5 PR 11, the certified-quadrature plumbing.
   #
   # 19 -> 23 (TRIM-2 PR-1, the trimmed-region quadrature). The seam is
@@ -623,7 +631,13 @@ BOUNDS_ALLOWLIST=(
   # beneath it as `raw_door::classify_body_of` (`Decide +
   # CertifiedBounds`), the same certified lane `classify_shells_through`
   # reads; the `_structural` twins it moved with are plain `Decide`.
-  'crates/topo/src/props.rs 12 M5 PR 11, the certified-quadrature plumbing'
+  # 12 -> 13 (QUAD measure door unit C, PR 5741): `SignCertificate::measure`
+  # is the door at `Decide + Bounds`. A deciding predicate the walk runs
+  # out on is its refusal, and the refusal carries the enclosure's ends
+  # read outward (`undecided_refused`, at `T: Bounds` alone): a bracket
+  # REPORTED, never branched on. The walk beneath it
+  # (`SignCertificate::continued`) stays plain `Decide`.
+  'crates/topo/src/props.rs 13 M5 PR 11, the certified-quadrature plumbing'
   # quad_lane.rs 14 -> 15: `closed_form` re-derives a closed-form
   # face's flux at the interval scalar, lifting the face's geometry
   # through `Interval::from_certified` (`Decide + CertifiedBounds`), and

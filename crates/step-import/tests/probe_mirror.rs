@@ -17,17 +17,17 @@ fn twobody() -> String {
 
 fn solid(text: &str) -> topo::Body<f64> {
     match import_step(text, &ImportOptions::default(), Tol::witness()) {
-        Ok(StepImport::Solid { body, .. }) => body,
+        Ok(StepImport::Solid { body, .. }) => body.into_body(),
         other => panic!("expected a solid, got {other:?}"),
     }
 }
 
 fn vol(b: &topo::Body<f64>) -> f64 {
-    topo::mass_properties(
+    topo::test_support::pinned_volume(
+        "the measured body",
         &topo::test_support::finished("the measured body", (b).clone(), Tol::witness()),
         Tol::witness(),
     )
-    .unwrap()
     .volume
 }
 
@@ -145,7 +145,7 @@ fn mirror_smuggling_and_rigid_roundtrip() {
         Ok(StepImport::Solid { body, .. }) => {
             // If it imports, the composed map must have been rigid:
             // volume is the witness.
-            let v = vol(&body);
+            let v = vol(body.body());
             println!("sloppy dirs imported: vol={v}");
             assert!(
                 (v0 - v).abs() <= 1e-9 * v0.abs(),

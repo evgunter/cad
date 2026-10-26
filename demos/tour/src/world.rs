@@ -21,6 +21,10 @@
 //! A placement is one edit, the insert of the placement holding its
 //! whole bundle; [`Placed::edits`] is that edit, so a scene that
 //! exports its edit log replays exactly what it applied.
+//!
+//! **The product** is what a document says it is about, and the scene
+//! says it ([`set_product`]): one copy, or a `⊔` of several. Nothing
+//! is its product until the scene sets it.
 
 use pncad::document::pose::{PoseDef, PoseRole, RoleRead};
 use pncad::document::{
@@ -37,6 +41,81 @@ pub struct Placed {
     pub doc: Doc<ProfileProgram>,
     pub placement: RecipeNodeId,
     pub edits: Vec<DocEdit<ProfileProgram>>,
+}
+
+/// What setting the product left: the document and the edits it
+/// applied, in order.
+pub struct Producted {
+    pub doc: Doc<ProfileProgram>,
+    pub edits: Vec<DocEdit<ProfileProgram>>,
+}
+
+/// **The product set to `bodies`**: the one body itself, or a `⊔` of
+/// several in the order given — the "this is what the document makes"
+/// gesture.
+///
+/// # Panics
+///
+/// If `bodies` is empty or an edit refuses.
+pub fn set_product(doc: &Doc<ProfileProgram>, bodies: &[Operand], tol: Tol) -> Producted {
+    let mut doc = doc.clone();
+    let mut edits = Vec::new();
+    let product = match bodies {
+        [] => panic!("a product is at least one body"),
+        [one] => one.clone(),
+        several => {
+            let insert = DocEdit::InsertNode {
+                node: Box::new(pncad::document::Node::Assemble {
+                    members: pncad::document::Bodies::Spelled(
+                        several.iter().cloned().map(BodyRead::plain).collect(),
+                    ),
+                }),
+                fresh: Vec::new(),
+            };
+            let applied = apply(&doc, &insert, tol)
+                .unwrap_or_else(|err| panic!("the product's bodies assemble: {err}"));
+            doc = applied.doc;
+            edits.push(insert);
+            Operand::Node(applied.record.minted.expect("an insert mints an id"))
+        }
+    };
+    let set = DocEdit::SetProduct {
+        product: Some(product),
+    };
+    doc = apply(&doc, &set, tol)
+        .unwrap_or_else(|err| panic!("the product is set: {err}"))
+        .doc;
+    edits.push(set);
+    Producted { doc, edits }
+}
+
+/// **The product said anew** as `bodies` ([`set_product`]): the `⊔` the
+/// product read before is deleted first, so the product is set anew
+/// rather than beside it.
+///
+/// # Panics
+///
+/// If `bodies` is empty or an edit refuses.
+pub fn replace_product(doc: &Doc<ProfileProgram>, bodies: &[Operand], tol: Tol) -> Producted {
+    let held = doc
+        .product()
+        .and_then(|var| doc.operation_of(var))
+        .filter(|&at| matches!(doc.node(at), Some(pncad::document::Node::Assemble { .. })));
+    let mut edits = Vec::new();
+    let mut doc = doc.clone();
+    if let Some(id) = held {
+        let delete = DocEdit::DeleteNode { id };
+        doc = apply(&doc, &delete, tol)
+            .unwrap_or_else(|err| panic!("the old product's `⊔` deletes: {err}"))
+            .doc;
+        edits.push(delete);
+    }
+    let set = set_product(&doc, bodies, tol);
+    edits.extend(set.edits);
+    Producted {
+        doc: set.doc,
+        edits,
+    }
 }
 
 /// One copy of `body` in the world where it stands ([`stand`]).
@@ -189,7 +268,7 @@ fn written(
     placed: Answer,
     tol: Tol,
 ) -> Placed {
-    let edit = DocEdit::place(vec![BodyRead::plain(body)], space, placed.bundle());
+    let edit = DocEdit::place(BodyRead::plain(body), space, placed.bundle());
     let applied =
         apply(doc, &edit, tol).unwrap_or_else(|err| panic!("the placement applies: {err}"));
     let placement = applied.record.minted.expect("an insert mints an id");

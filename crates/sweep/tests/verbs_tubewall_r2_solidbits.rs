@@ -54,12 +54,13 @@ fn r2_solid_door_bits_dump() {
                 Tol::witness(),
             ),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .expect("mass properties");
         println!(
             "R2SOLIDBITS\t{major:?}\t{minor:?}\t{arc:?}\tV={:?}\tA={:?}\tcav={}\t{:?}",
-            props.volume,
-            props.surface_area,
+            props.enclosure.volume,
+            props.enclosure.surface_area,
             t.cavities.len(),
             t.body
         );

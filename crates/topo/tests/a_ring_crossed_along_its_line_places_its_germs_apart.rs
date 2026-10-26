@@ -26,9 +26,10 @@
 //! A partner grooved along the ring, its reflex edge on the ring's line,
 //! unites with the plate in either order: the zip keeps that edge
 //! between the void's two walls.
-//! A partner with a face flush with the top beside the ring refuses
-//! `Flush` where the op keeps one of the two flush faces
-//! (`work/cleave/a-boolean-cuts-a-flush-face-kept-once-along-a-slits-line.md`).
+//! A partner with a face flush with the top beside the ring builds in
+//! every op: where the op keeps one of the two flush faces, the dropped
+//! one is cut along the line, the cut ending in the full turn the ring
+//! leaves at its tip.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
@@ -36,9 +37,8 @@ use crate::common;
 use common::meeting::{MEET, PLATE, Pose, apex_pyramid, bearing, lying, posed_box, poses};
 use geom_core::{Band, Point3, Tol, Vec3};
 use topo::{
-    AtRestBody, BooleanError, BooleanResult, SlitLineGap, SolidContainment, intersect,
-    mass_properties, point_in_solid, readback, subtract, union, validate_geometric,
-    validate_pseudomanifold,
+    AtRestBody, BooleanError, BooleanResult, SolidContainment, intersect, mass_properties,
+    point_in_solid, readback, subtract, union, validate_geometric, validate_pseudomanifold,
 };
 
 fn t() -> Tol {
@@ -53,7 +53,11 @@ fn built(what: &str, r: Result<BooleanResult<f64>, BooleanError>) -> AtRestBody<
 }
 
 fn volume(b: &AtRestBody<f64>) -> f64 {
-    mass_properties(b, t()).unwrap().volume
+    mass_properties(b, t(), topo::test_support::pinned_resolution(t()))
+        .unwrap()
+        .met()
+        .expect("the pinned resolution is met")
+        .volume
 }
 
 /// `q`'s side of `b`, `None` on its boundary or within the band of it.
@@ -304,16 +308,17 @@ fn an_edge_along_a_ring_places_its_germs_apart_and_the_union_closes_the_ring() {
     }
 }
 
-/// **A partner flush with the ring's face, kept once, refuses typed.**
-/// The partner's edge runs along the ring, one of its faces lies on the
-/// top beside it and the other in the far wall's wedge, on either side
-/// of the ray. Where the op keeps one copy of the two flush faces and
-/// the line holds two germs (`x ∩ y`, `y ∪ x`), the cut in the dropped
-/// copy has no corner to end in: `SlitLineCrossed` `Flush`, no lever.
-/// The other ops build, tier 3 and 3′, their edges on the line the
-/// material's creases, their volumes adding up.
+/// **A partner flush with the ring's face, kept once, builds.** The
+/// partner's edge runs along the ring, one of its faces lies on the top
+/// beside it and the other in the far wall's wedge, on either side of
+/// the ray. Where the op keeps one copy of the two flush faces and the
+/// line holds two germs, the dropped copy is cut along the line, the cut
+/// ending at the ring's tip in the full turn the ring leaves there.
+/// Every op builds, in either order, tier 3 and 3′, its edges on the
+/// line the material's creases, the two orders alike and the volumes
+/// adding up; the unions close the top across the line.
 #[test]
-fn a_partner_flush_with_the_rings_face_refuses_typed_where_one_copy_is_kept() {
+fn a_partner_flush_with_the_rings_face_builds_where_one_copy_is_kept() {
     let poses = poses();
     let below = |b: [[f64; 3]; 3]| b.map(|[x, y, z]| [x, y, -z]);
     for (side, base) in [
@@ -355,20 +360,6 @@ fn a_partner_flush_with_the_rings_face_refuses_typed_where_one_copy_is_kept() {
             let mut vol = Vec::new();
             for (op, keep, r) in ops {
                 let what = format!("flush {side}, {}, {op}", pose.label);
-                if op == "x ∩ y" || op == "y ∪ x" {
-                    assert!(
-                        matches!(
-                            r,
-                            Err(BooleanError::SlitLineCrossed {
-                                gap: SlitLineGap::Flush,
-                                ..
-                            })
-                        ),
-                        "{what}: refuses the flush gap, got {:?}",
-                        r.map(|_| ())
-                    );
-                    continue;
-                }
                 let r = match r {
                     Ok(BooleanResult::Body(r)) => r,
                     other => panic!("{what}: builds, got {:?}", other.map(|_| ())),
@@ -394,11 +385,13 @@ fn a_partner_flush_with_the_rings_face_refuses_typed_where_one_copy_is_kept() {
                     assert_eq!(held, want, "{what}: the result's own material at {at}");
                 }
             }
-            let [xy, yx, i, u] = vol[..] else {
-                unreachable!("four ops build")
+            let [xy, yx, i, u, i2, u2] = vol[..] else {
+                unreachable!("six ops build")
             };
             let (vx, vy) = (volume(&x), volume(&y));
             let what = format!("flush {side}, {}", pose.label);
+            assert!((i - i2).abs() < 1e-9, "{what}: |x ∩ y| in both orders");
+            assert!((u - u2).abs() < 1e-9, "{what}: |x ∪ y| in both orders");
             assert!(
                 (xy + i - vx).abs() < 1e-9,
                 "{what}: |x − y| + |x ∩ y| = |x|"

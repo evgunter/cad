@@ -57,7 +57,7 @@ use pncad::topo::{AtRestBody, Body, BooleanBody, BooleanError, BooleanResult, Ed
 
 use crate::booleans::finished;
 
-use crate::{SceneBody, Stop, View};
+use crate::{SceneBody, TourStop, View};
 
 /// The bottom ball's radius, centred at the origin.
 const R1: f64 = 0.3;
@@ -196,10 +196,14 @@ fn band_delta_v() -> f64 {
 /// The body's volume against `expected`, read off closed-form faces
 /// only; returns the relative residual.
 fn assert_volume(what: &str, body: &Body<f64>, expected: f64, tol: Tol) -> f64 {
-    let p = pncad::topo::mass_properties(&crate::booleans::at_rest(body, tol), tol)
-        .unwrap_or_else(|e| panic!("{what}: mass properties, got {e:?}"));
-    assert_eq!(p.volume_pad, 0.0, "{what}: closed-form faces only");
-    let v = p.volume;
+    let p =
+        pncad::topo::mass_properties(&crate::booleans::at_rest(body, tol), tol, crate::printed())
+            .unwrap_or_else(|e| panic!("{what}: mass properties, got {e:?}"));
+    assert_eq!(
+        p.enclosure.volume_pad, 0.0,
+        "{what}: closed-form faces only"
+    );
+    let v = p.enclosure.volume;
     let residual = (v - expected).abs() / expected;
     assert!(
         residual <= SLACK,
@@ -266,7 +270,7 @@ fn scene_body(name: &str, color: [f64; 3], bb: BooleanBody<f64>, slot: f64, tol:
     }
 }
 
-pub fn stops(tol: Tol) -> Vec<Stop> {
+pub fn stops(tol: Tol) -> Vec<TourStop> {
     let (bottom, head) = (ball(R1, 0.0, tol), ball(R2, D, tol));
     let snowman = seamed("bottom ∪ head", pncad::topo::union(&bottom, &head, tol));
     let bitten = seamed("bottom ∖ head", pncad::topo::subtract(&bottom, &head, tol));
@@ -334,7 +338,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     );
 
     let snow = [0.86, 0.89, 0.94];
-    vec![Stop {
+    vec![TourStop {
         name: "snowman",
         caption: "snowman: ∪ rolled, ∪, ∖, ∩".to_string(),
         montage: true,

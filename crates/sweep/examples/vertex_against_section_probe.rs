@@ -41,7 +41,8 @@ fn turned(body: &AtRestBody<f64>, about: Point3<f64>, axis: Vec3<f64>, a: f64) -
 
 fn vol(b: Option<&AtRestBody<f64>>) -> f64 {
     b.map_or(0.0, |b| {
-        mass_properties(b, tol()).map_or(f64::NAN, |m| m.volume)
+        mass_properties(b, tol(), topo::test_support::pinned_resolution(tol()))
+            .map_or(f64::NAN, |m| m.enclosure.volume)
     })
 }
 

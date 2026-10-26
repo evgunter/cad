@@ -42,16 +42,21 @@ fn translation_is_exact_and_key_stable() {
         mass_properties(
             &topo::test_support::finished("the measured body", b.clone(), Tol::witness()),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap(),
         mass_properties(
             &topo::test_support::finished("the measured body", t.clone(), Tol::witness()),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap(),
     );
-    assert_eq!(m0.volume.to_bits(), m1.volume.to_bits());
-    assert_eq!(m0.surface_area.to_bits(), m1.surface_area.to_bits());
+    assert_eq!(m0.enclosure.volume.to_bits(), m1.enclosure.volume.to_bits());
+    assert_eq!(
+        m0.enclosure.surface_area.to_bits(),
+        m1.enclosure.surface_area.to_bits()
+    );
 }
 
 #[test]
@@ -93,16 +98,18 @@ fn quarter_turn_recertifies_and_preserves_mass_properties_close() {
         mass_properties(
             &topo::test_support::finished("the measured body", b.clone(), Tol::witness()),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap(),
         mass_properties(
             &topo::test_support::finished("the measured body", t.clone(), Tol::witness()),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap(),
     );
-    assert!((m0.volume - m1.volume).abs() < 1e-12);
-    assert!((m0.surface_area - m1.surface_area).abs() < 1e-12);
+    assert!((m0.enclosure.volume - m1.enclosure.volume).abs() < 1e-12);
+    assert!((m0.enclosure.surface_area - m1.enclosure.surface_area).abs() < 1e-12);
 }
 
 #[test]
@@ -135,7 +142,15 @@ fn transformed_tool_subtracts_exactly() {
         BooleanResult::Empty => panic!("nonempty subtract"),
     };
     tiers_ok(&out);
-    let vol = mass_properties(&out, Tol::witness()).unwrap().volume;
+    let vol = mass_properties(
+        &out,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap()
+    .met()
+    .expect("the pinned resolution is met")
+    .volume;
     assert_eq!(vol, 8.0 - 0.25 * 0.25 * 0.25);
 }
 

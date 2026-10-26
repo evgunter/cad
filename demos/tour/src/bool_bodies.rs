@@ -27,7 +27,7 @@ use pncad::topo::{AtRestBody, BooleanResultKind};
 
 use crate::booleans::{Verdict, check, describe, expect_seamed, finished};
 use crate::scalar::Scalar;
-use crate::{SceneBody, Stop, View};
+use crate::{SceneBody, TourStop, View};
 use pncad::geom_core::{RigidMotion, Tol};
 
 /// The one box builder: axis-aligned `[x0,x1] x [y0,y1] x [z0,z1]`,
@@ -285,11 +285,11 @@ pub(crate) fn voidbox<S: Scalar>(tol: Tol) -> pncad::topo::BooleanBody<S> {
 }
 
 /// The classic boolean stops, in tour order.
-pub fn stops(tol: Tol) -> Vec<Stop> {
+pub fn stops(tol: Tol) -> Vec<TourStop> {
     let (die_bb, die_note) = die::<f64>(tol);
     let (table_bb, table_note) = table::<f64>(tol);
     vec![
-        Stop {
+        TourStop {
             name: "die",
             caption: String::new(),
             // Montage cell RETIRED by the M6 curation unit. Its unique
@@ -316,7 +316,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                 die_bb.contacts,
             )],
         },
-        Stop {
+        TourStop {
             name: "table",
             caption: String::new(),
             // Montage cell RETIRED by the montage-v3 curation (Ev,

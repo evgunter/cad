@@ -24,12 +24,10 @@
     clippy::useless_vec
 )]
 
-use crate::shared::patch::{Unmet, at_target, patch_net, to_target};
+use crate::shared::patch::{QUAD_TARGET_LEN_FACTOR, Unmet, at_target, patch_net, to_target};
 use core::num::NonZeroUsize;
 use geom_brep::props::PropsError;
-use geom_brep::props::quad::{
-    LaneEnd, LaneRun, QUAD_TARGET_LEN_FACTOR, mean_boundary_displacement, nurbs_patch_face,
-};
+use geom_brep::props::quad::{LaneEnd, LaneRun, mean_boundary_displacement, nurbs_patch_face};
 use geom_core::Bounds;
 use geom_core::Interval;
 use geom_core::Tol;

@@ -316,8 +316,12 @@ fn probe() {
                                 let oracle = half_volume(&f, s, n * sign, d * sign);
                                 let got = match part {
                                     SplitPart::Body(b) => {
-                                        match topo::props::mass_properties(b, Tol::witness()) {
-                                            Ok(p) => (p.volume, p.volume_pad),
+                                        match topo::props::mass_properties(
+                                            b,
+                                            Tol::witness(),
+                                            topo::test_support::pinned_resolution(Tol::witness()),
+                                        ) {
+                                            Ok(p) => (p.enclosure.volume, p.enclosure.volume_pad),
                                             Err(e) => {
                                                 t.props_refused += 1;
                                                 println!(
@@ -393,12 +397,17 @@ fn split_posed(
             );
             continue;
         };
-        let p = topo::props::mass_properties(b, Tol::witness()).unwrap();
+        let p = topo::props::mass_properties(
+            b,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
+        )
+        .unwrap();
         assert!(
-            (p.volume - oracle).abs() <= p.volume_pad + 1e-7 * s * s * s,
+            (p.enclosure.volume - oracle).abs() <= p.enclosure.volume_pad + 1e-7 * s * s * s,
             "{what}, {side}: {} ± {} against the oracle {oracle}",
-            p.volume,
-            p.volume_pad
+            p.enclosure.volume,
+            p.enclosure.volume_pad
         );
     }
     Ok(())

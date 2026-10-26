@@ -152,16 +152,11 @@ fn slide_placement(doc: ProfileDoc, placement: RecipeNodeId, tx: f64) -> Profile
 /// The body `placement` copies.
 fn placed_body(doc: &ProfileDoc, placement: RecipeNodeId) -> RecipeNodeId {
     match doc.node(placement) {
-        Some(Node::Place { shapes, .. }) => doc
-            .operation_of(shapes[0].read)
+        Some(Node::Place { source, .. }) => doc
+            .operation_of(source.read)
             .expect("the copied body is live"),
         other => panic!("{placement} is a placement, not {other:?}"),
     }
-}
-
-/// `name`, as the copy `placement` makes wears it.
-fn worn(placement: RecipeNodeId, name: StableName) -> StableName {
-    crate::m10_5_clearance_interval::in_placement(placement, name)
 }
 
 fn slide_union(tx: f64) -> Slide {
@@ -232,10 +227,7 @@ fn union_names_resolve_uniquely_and_pass_through_transforms() {
             of: cap.clone().into(),
         },
     );
-    let cap_b = worn(
-        s.placement,
-        minted(EntityKind::Face, s.b0, RoleSeg::Cap(CapEnd::End)),
-    );
+    let cap_b = minted(EntityKind::Face, s.b0, RoleSeg::Cap(CapEnd::End));
     let wrapped_b = minted(
         EntityKind::Face,
         s.union,
@@ -937,7 +929,6 @@ fn occurs(hay: &StableName, needle: &StableName, partners: Partners) -> bool {
         | RoleSeg::SplitFragment { parent: x, .. }
         | RoleSeg::OnToolVertex { of: x, .. }
         | RoleSeg::Instance { of: x, .. }
-        | RoleSeg::Placed { of: x }
         | RoleSeg::BlendFace(x)
         | RoleSeg::CornerFace(x)
         | RoleSeg::Mitre { vertex: x }
@@ -975,10 +966,6 @@ fn occurs(hay: &StableName, needle: &StableName, partners: Partners) -> bool {
         RoleSeg::BandCross { edge, band } | RoleSeg::BandSlit { edge, band } => {
             under(edge) || (partners == Partners::Include && band.iter().any(under))
         }
-        // ANOTHER document's id space: a local name and a part-local
-        // name that print alike are different names, so a walk that
-        // descended here would report occurrences that are not.
-        RoleSeg::InPart { .. } => false,
         // Discrimination, not derivation: the fragment is classified
         // AGAINST these, not built from them.
         RoleSeg::Fragment(Qualifier::Borders(v) | Qualifier::Keeps(v) | Qualifier::Ends(v)) => {
@@ -1185,13 +1172,10 @@ fn repointed_input_diagnoses_recipe_edit_on_path() {
         node: bl,
         path: vec![RoleSeg::From {
             read: fixture::out(&doc1, m),
-            of: worn(
-                m,
-                minted(
-                    EntityKind::Face,
-                    placed_body(&doc1, m),
-                    RoleSeg::Cap(CapEnd::End),
-                ),
+            of: minted(
+                EntityKind::Face,
+                placed_body(&doc1, m),
+                RoleSeg::Cap(CapEnd::End),
             )
             .into(),
         }],
@@ -1284,10 +1268,11 @@ fn grandparent_repoint_rederives_the_grandchild_names() {
     use editor_core::{NodeResult, ValuePayload};
     let doc = ProfileDoc::empty_derived("m4_pr4_resolve", Tol::witness());
     let (doc, b) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
-    let (doc, c) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, twin) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
     let (doc, d) = block(doc, (5.0, 6.0), (0.0, 1.0), 1.0);
-    // `c` and `d` join `b`'s space where they stand.
-    let (doc, c) = fixture::slid(doc, b, c, [0.0; 3]);
+    // `c` and `d` join `b`'s space where they stand; a copy carries its
+    // source's names, so `c`'s are the twin's.
+    let (doc, c) = fixture::slid(doc, b, twin, [0.0; 3]);
     let (doc, d) = fixture::slid(doc, b, d, [0.0; 3]);
     let (doc, x) = insert(
         doc,
@@ -1333,7 +1318,7 @@ fn grandparent_repoint_rederives_the_grandchild_names() {
             .any(|(name, _)| editor_core::derivation_nodes(name).contains(&m))
     };
     assert!(
-        mentions(c),
+        mentions(twin),
         "the memo-transferred grandchild table must embed the twin's names"
     );
     assert!(

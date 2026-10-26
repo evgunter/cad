@@ -23,7 +23,7 @@ fn tol() -> Tol {
 }
 
 fn volume(body: &AtRestBody<f64>) -> f64 {
-    topo::mass_properties(body, tol()).unwrap().volume
+    topo::test_support::pinned_volume("the measured body", body, tol()).volume
 }
 
 fn body<'r>(
@@ -58,6 +58,7 @@ pub fn only_curved_within_reach(body: &AtRestBody<f64>, errs: &[ValidationError]
                 a: EntityId::Face(a),
                 b: EntityId::Face(b),
                 what,
+                ..
             } if what.starts_with(CURVED_WITHIN_REACH)
                 && solid(*a).is_some()
                 && solid(*a) != solid(*b)
@@ -70,6 +71,7 @@ pub fn only_curved_within_reach(body: &AtRestBody<f64>, errs: &[ValidationError]
                 a: EntityId::Solid(a),
                 b: EntityId::Solid(b),
                 what,
+                ..
             } if what.starts_with(UNEXAMINED) && a != b
         )
     };

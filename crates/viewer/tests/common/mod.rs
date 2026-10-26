@@ -210,9 +210,7 @@ pub fn broken_document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNo
     let (doc, moved) = inserted(
         &doc,
         Node::place(
-            vec![pncad::document::BodyRead::plain(
-                pncad::document::Operand::from(extrude),
-            )],
+            pncad::document::BodyRead::plain(pncad::document::Operand::from(extrude)),
             pncad::document::Operand::Var(pncad::document::VarId::WORLD),
             pncad::document::stand().bundle(),
         ),
@@ -229,7 +227,7 @@ pub fn broken_document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNo
         &pncad::document::EvalOptions::default(),
         tol,
     );
-    (doc, extrude, moved)
+    (crate::fixture::assemble_world_copies(doc), extrude, moved)
 }
 
 /// **`doc` with `body` placed in the world at `at`** — a placement of
@@ -245,9 +243,7 @@ pub fn placed_at(
     let (doc, placement) = inserted(
         doc,
         Node::place(
-            vec![pncad::document::BodyRead::plain(
-                pncad::document::Operand::from(body),
-            )],
+            pncad::document::BodyRead::plain(pncad::document::Operand::from(body)),
             pncad::document::Operand::Var(pncad::document::VarId::WORLD),
             pncad::document::stand().bundle(),
         ),
@@ -264,7 +260,7 @@ pub fn placed_at(
         &pncad::document::EvalOptions::default(),
         tol,
     );
-    (doc, placement)
+    (crate::fixture::assemble_world_copies(doc), placement)
 }
 
 /// The gallery ring document as `demo-tour gallery` saved it (the
@@ -384,7 +380,7 @@ pub fn session_insert(session: &mut DocSession, op: SessionOp) -> RecipeNodeId {
             ) || matches!(
                 edit,
                 DocEdit::SetParam {
-                    slot: pncad::document::SlotId::Operand(pncad::document::OperandSlot::Shape(_)),
+                    slot: pncad::document::SlotId::Operand(pncad::document::OperandSlot::Source),
                     ..
                 } | DocEdit::SetParam {
                     slot: pncad::document::SlotId::Operand(pncad::document::OperandSlot::Space),
@@ -799,4 +795,21 @@ pub fn inline_without_door(
     tol: pncad::geom_core::Tol,
 ) -> viewer::session::DocSession {
     viewer::session::DocSession::inline(doc, tol).with_door(Box::new(NoDoor))
+}
+
+/// **The session's product said as `copies`**, through the session's
+/// own door ([`SessionOp::SetProduct`]), and landed: what a row about a
+/// GUI-authored document's product says it makes.
+///
+/// # Panics
+///
+/// If the door refuses.
+pub fn product_is(session: &mut DocSession, copies: &[RecipeNodeId]) {
+    let bodies = copies
+        .iter()
+        .map(|&copy| pncad::document::Operand::Node(copy))
+        .collect();
+    let outcome = session.perform(SessionOp::SetProduct { bodies });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    session.pump();
 }

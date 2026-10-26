@@ -20,7 +20,7 @@ use pncad::topo::BooleanBody;
 use crate::bool_bodies::slab;
 use crate::booleans::{check, expect_seamed, try_subtract, try_union};
 use crate::scalar::Scalar;
-use crate::{SceneBody, Stop, View};
+use crate::{SceneBody, TourStop, View};
 use pncad::geom_core::Tol;
 
 /// Beam cross-section 0.5 x 0.5, length 4; notches half-depth (0.25),
@@ -88,7 +88,7 @@ pub(crate) fn build<S: Scalar>(
     (a, b, glued, b_lifted)
 }
 
-pub fn stops(tol: Tol) -> Vec<Stop> {
+pub fn stops(tol: Tol) -> Vec<TourStop> {
     let (a, _b, glued, b_lifted) = build::<f64>(tol);
     let note = format!(
         "each beam is a boolean RESULT (notch subtract, volume {} — observed \
@@ -99,7 +99,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         2.0 * (BEAM_VOL - NOTCH_VOL)
     );
     vec![
-        Stop {
+        TourStop {
             name: "crosslap",
             caption: "cross-lap (glued)".to_string(),
             // Off the sheet: `twopeg` shows this cell's whole claim —
@@ -127,7 +127,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                 glued.contacts.clone(),
             )],
         },
-        Stop {
+        TourStop {
             name: "crosslap_exploded",
             caption: "cross-lap (exploded)".to_string(),
             // Off the sheet with its own glued cell (see above);

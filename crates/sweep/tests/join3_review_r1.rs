@@ -69,9 +69,10 @@ fn volume(b: &Body<f64>) -> Option<f64> {
     topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(b), tol()),
         tol(),
+        topo::test_support::pinned_resolution(tol()),
     )
     .ok()
-    .map(|m| m.volume)
+    .map(|m| m.enclosure.volume)
 }
 
 fn verdict(r: Result<topo::BooleanResult<f64>, topo::BooleanError>, want: f64) -> String {
