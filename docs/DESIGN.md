@@ -595,7 +595,11 @@ A consumer that hands the number on passes a resolution, the width
 predicate: the mean boundary displacement it needs. That is a sizing,
 decides nothing against ε ([intrinsic.epsilon]), and is not recorded.
 The model defines its measures only to ε of boundary displacement, so no
-finer resolution is offered. There is no default: every caller states
+finer resolution is offered. The enclosure covers what the
+representation leaves undefined: a face whose boundary stands off its
+carrier, within its certified residual ([tolerance.residuals]),
+contributes that standoff over its area to the width, so a body whose
+boundary lies on its carriers measures exactly. There is no default: every caller states
 its predicate, a resolution included, at the call, so the precision a
 measurement buys is always the one its consumer asked for.
 
@@ -618,14 +622,17 @@ forms are the levered door applied at named arms; there is no raw
 construction door. Consistency backstops between integral results
 decide on bare `T` through `k_stats::decide_invariant`, no Margin
 minted, and a certified violation is a Corrupt-class kernel-invariant
-error, never a validity refusal. A site where no door honestly fits
+error, never a validity refusal. A backstop between a result and its operands
+compares the result with the operands as the operation decided them, a
+glued face on its kept carrier ([topology]). A site where no door honestly fits
 is a finding, not a cast. The vector/linalg interior stays bare `T`.
 (ii) **No dimensionally-heterogeneous uniform payloads**: a field
 whose dimension depends on a runtime kind tag is illegal;
 kind-dependent data lives in per-kind enum variants. (iii)
 **Parameter-space values cross to model space only through per-kind
 metric doors.** (iv) **Inequality gates split sign from magnitude**:
-a certified sign-certain violation refuses with no ε involved; the
+a certified sign-certain violation (certain past the measurement's
+enclosure, [tolerance.measure]) refuses with no ε involved; the
 banded comparison governs only the near-zero region, and both arms
 consume the same metered comparand. Extension is opportunistic as
 signatures get touched; the migration ledger is
@@ -852,7 +859,12 @@ tiers".
 - **No snapping.** Every reduction comparison is a trilean
   ([verdicts]), and nothing beyond a Zero verdict moves geometry: a
   merged face keeps one operand's description, and nothing in the
-  sliver band is moved. Booleans on independently modelled
+  sliver band is moved. Which description is kept is one decision,
+  taken once at the glue for each pair it decides Zero: the other face
+  takes the kept carrier and its boundary is re-derived on it before
+  the operation builds, so the operation runs on its operands as
+  decided and a glued face holds one description, its carrier and its
+  boundary alike. Booleans on independently modelled
   nearly-touching bodies fail loudly rather than guess; the resolution
   is one construction or an explicit repair or adoption ([import]).
 - **Maximal faces and maximal edges.** Merging is never silent: a
