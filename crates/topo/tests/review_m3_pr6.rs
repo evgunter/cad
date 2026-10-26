@@ -568,11 +568,18 @@ fn straddle_scenario<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy
         }
     }
     eprintln!("R5 delta={delta}: {und} findings, {esc} escalations");
+    // A touch the band decides is read for sides too, and a side read in
+    // band refuses as loudly as an escalation.
     for e in &errors {
         assert!(
             matches!(
                 e,
-                ValidationError::UnrecordedContact { .. } | ValidationError::CensusEscalated { .. }
+                ValidationError::UnrecordedContact { .. }
+                    | ValidationError::CensusEscalated { .. }
+                    | ValidationError::BoundaryCrossesItselfUndecided {
+                        why: topo::TouchUnread::InBand | topo::TouchUnread::PieceInBand,
+                        ..
+                    }
             ),
             "unexpected error class: {e:?}"
         );

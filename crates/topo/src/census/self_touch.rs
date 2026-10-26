@@ -1010,7 +1010,11 @@ fn nested_cones_and_sheets_read_by_their_winding() {
             );
         }
     }
-    for (t, crosses) in [(1e-2, true), (1e-6, true), (1e-8, true), (1e-12, false)] {
+    // The tilt in band zeros over the floor's 2 m lever: lifted well past
+    // the band at its far corners, or well inside it.
+    let zero = band().zero();
+    for (k, crosses) in [(1e3, true), (10.0, true), (1e-3, false)] {
+        let t = k * zero;
         let n = Vec3::new(0.0, -t, 1.0).normalize();
         let verts = vec![
             P::new(-2.0, -2.0, -2.0 * t),
