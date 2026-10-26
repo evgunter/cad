@@ -498,3 +498,88 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod review_rows {
+    use super::*;
+    use geom_core::spline::KnotVector;
+    use geom_core::{Tol, Vec3};
+
+    /// A carrier folded along the `x` axis at the interior knot `v = ½`
+    /// (degree 1 in `v`, so C0 there): the half `v < ½` rises toward
+    /// `−y`, the half `v > ½` toward `+y`. A face trimmed to either half
+    /// has the crease as its rim, which is no chart boundary.
+    fn creased() -> Surface<f64> {
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.5, 1.0, 1.0], 1).unwrap();
+        let control = [-1.0, 1.0]
+            .into_iter()
+            .flat_map(|s| {
+                [
+                    Point3::new(s, -1.0, 1.0),
+                    Point3::new(s, 0.0, 0.0),
+                    Point3::new(s, 1.0, 1.0),
+                ]
+            })
+            .collect();
+        Surface::Nurbs(std::sync::Arc::new(
+            NurbsSurface::new(ku, kv, control, vec![1.0; 6]).unwrap(),
+        ))
+    }
+
+    fn plane(normal: Vec3<f64>) -> Surface<f64> {
+        Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            normal: normal.normalize(),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        }
+    }
+
+    fn side(
+        dep: &Surface<f64>,
+        against: &Surface<f64>,
+        t: Vec3<f64>,
+    ) -> Result<FaceSide, SideEscalation> {
+        dihedral_side(
+            SideFace {
+                surface: dep,
+                sense: true,
+            },
+            SideFace {
+                surface: against,
+                sense: true,
+            },
+            Point3::new(0.3, 0.0, 0.0),
+            t,
+            1.0,
+            Some(crate::NurbsLane::certified()),
+            Band::linear(Tol::witness()).unwrap(),
+        )
+        .map(|(s, _)| s)
+    }
+
+    /// Each half of the creased carrier, as a face whose rim is the
+    /// crease, reads the side the plane it coincides with reads.
+    #[test]
+    fn each_half_of_a_creased_carrier_reads_its_own_halfs_side() {
+        let (c, floor) = (creased(), plane(Vec3::new(0.0, 0.0, 1.0)));
+        // The half v < ½: chart normal x × (0, 2, −2) ∝ (0, 1, 1); its
+        // interior (toward −y) lies left of a walk along −x.
+        let lower = plane(Vec3::new(0.0, 1.0, 1.0));
+        // The half v > ½: chart normal ∝ (0, −1, 1); interior (toward
+        // +y) lies left of a walk along +x.
+        let upper = plane(Vec3::new(0.0, -1.0, 1.0));
+        let x = Vec3::new(1.0, 0.0, 0.0);
+        assert_eq!(
+            side(&c, &floor, -x),
+            side(&lower, &floor, -x),
+            "the lower half"
+        );
+        assert_eq!(
+            side(&c, &floor, x),
+            side(&upper, &floor, x),
+            "the upper half"
+        );
+    }
+}
