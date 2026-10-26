@@ -422,3 +422,72 @@ fn a_pinwheel_resting_on_confirmed_face_pairs_refuses_its_doubled_core() {
         }
     }
 }
+
+/// Review probe (PR 5779 post-merge): two thin bars on the z-axis whose
+/// wedges overlap by an angle `θ` decided at the edge's length (1) but
+/// whose faces reach only `w` from the line, so the material overlap is
+/// at most `w θ`, inside the band.
+#[test]
+fn review_probe_thin_bars_overlap_within_the_band_at_their_reach() {
+    use topo::test_support::{FaceGeometry, describe_as_intersections, finished, prism_ops};
+    let tol = t();
+    for (w, th) in [(1e-3, 1e-7), (1.0, 1e-7)] {
+        let what = format!("w {w}, θ {th}");
+        let (c, s) = (f64::cos(th), f64::sin(th));
+        let rot = |(x, y): (f64, f64)| (x * c + y * s, -x * s + y * c);
+        let mk = |profile: &[(f64, f64)], name: &str| {
+            let mut b = Body::<f64>::new();
+            prism_ops(
+                &mut b,
+                profile,
+                (0.0, 1.0),
+                geom_core::Point3::new,
+                FaceGeometry::Certified,
+                tol,
+            );
+            describe_as_intersections(&mut b, tol);
+            finished(name, b, tol)
+        };
+        let a = mk(&[(0.0, 0.0), (w, 0.0), (w, w), (0.0, w)], "A");
+        let bp: Vec<_> = [(0.0, 0.0), (0.0, w), (-w, w), (-w, 0.0)]
+            .into_iter()
+            .map(rot)
+            .collect();
+        let b = mk(&bp, "B");
+        let mut body = a.into_body();
+        topo::graft_disjoint(&mut body, &b).unwrap();
+        let errs = recorded_verdict(&what, &body);
+        eprintln!("PROBE {what}: {errs:?}");
+        if let Err(errs) = &errs {
+            for e in errs {
+                eprintln!(
+                    "PROBE {what}: interference {:?} uncleared {:?} <- {e:?}",
+                    topo::census_interference_solids(&body, e),
+                    topo::census_uncleared_solids(&body, e)
+                );
+            }
+        }
+    }
+}
+
+/// Review probe: two bricks overlapping over half their length, so the
+/// caps and walls are aligned pairs whose overlap closure holds the
+/// four x-lines' spans; and the same bricks offset so the lines meet
+/// only at a point.
+#[test]
+fn review_probe_bricks_overlapping_by_half() {
+    for pose in poses() {
+        let what = format!("{}, half", pose.label);
+        let b = posed_boxes(
+            &what,
+            &[
+                [(0.0, 2.0), (0.0, 1.0), (0.0, 1.0)],
+                [(1.0, 3.0), (0.0, 1.0), (0.0, 1.0)],
+            ],
+            &pose,
+            t(),
+        );
+        let errs = recorded_verdict(&what, &b);
+        eprintln!("PROBE {what}: {errs:?}");
+    }
+}
