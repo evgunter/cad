@@ -1469,3 +1469,10 @@ Signed (CLEAVE orchestrator).
   - **Also filed:** P1s `a-union-across-a-tangent-crescent-refuses-unbuilt` and `one-segment-tangent-rims-refuse-where-their-two-arc-forms-build`; P2 `a-union-touching-along-a-coincident-rim-records-only-its-vertex-pair`.
   - **Merged without a third review.** `pair_search`'s change only adds to it (the records are unchanged). The lane re-ran the reviewer's probe and moved zero cells, and the full default suite is green.
   - **Ruling:** PATHS unit 4 (`work/profile/circle-lowers-to-one-segment.md`) stays parked on `one-segment-tangent-rims-refuse-where-their-two-arc-forms-build`. Merging it first would turn correct two-arc builds into refusals, which is a regression of correct answers. (CLEAVE orchestrator)
+- 2026-10-26 — PR 5757 is up (`cleave/backstop-admits-the-glues-zero-band`, `f5d1895598`, CI green). It fixes the zero-band P0.
+  - **The change:** `volume_backstop` widens its bound by `zero × Σ(group area − smallest face area)` over the op's glued pairs. Only unions move to building (23/23/15 cells). TANG's tube+dome rows and HONE's needle bar are re-pinned as building.
+  - **The lane's two questions:**
+    1. DESIGN `[tolerance.margins]` clause (iv) says "a certified sign-certain violation refuses with no ε involved". The comparison stays ε-free, but its bound now carries zero × area.
+    2. The widening is global: a wrong component smaller than it, elsewhere in the body, would pass.
+  - **Ruling deferred.** The claims review is asked whether an exact comparison exists, against the operands' volumes as glued or with the glue keeping the volume it closes. That would need no ε and would sidestep both questions. If none is feasible, the clause reading goes to designers and then to an `[ev]` PR.
+  - **Disk housekeeping:** at 2 GB free, the build caches of the boss, backstop and closes lanes were removed. (CLEAVE orchestrator)
