@@ -53,3 +53,7 @@
   - **What it changes:** a same-oriented planar face pair of two solids meeting over an area is `SameSideInterference`, where it was `CensusUndecidable`. Localization reads `Bounded`.
   - **Filed:** `a-touch-the-analysis-decides-crossing-is-read-as-undecidable` (P1 M) and `curved-copies-filling-one-volume-read-as-undecidable` (P1 H).
   - **Review:** single FULL review, `session_01TBuRwPQ3Z1LEBQPwSzVjtA`. Its claims include that an in-band near-flush pair never becomes interference.
+- 2026-10-26 — #5745 review R1 (`session_01TBuRwPQ3Z1LEBQPwSzVjtA`, probes on `review/atrest-coincident-copies-R1` @ 66f4911f96): APPROVE-WITH-FIXES, 0/3/3. Soundness and the in-band case were executed at three ε and hold. Census cost is about +4%.
+  - **Class finding (MINOR 3):** the placement-findings filter is hand-copied across six topo test files and two in-module filters, so none of their "clears" asserts can go red on a false SSI. The fix pass gives it one home.
+  - **MINOR 1:** an aligned overlap's boundary touches are not absorbed into the pair, so the stage 5 B quieting cannot reach it (`[assertions]`: "part of that pair where it lies in the closure of their overlap"). It is built in the fix pass if it reuses the opposed pair's absorption, and filed P1 otherwise.
+  - The fix list went to the lane. The tier is single, so the PR merges on green after the orchestrator reads the fix pass.
