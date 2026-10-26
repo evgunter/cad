@@ -1,4 +1,4 @@
-# tess-budget-cut: 70413a1e4466 2026-10-25T22:40:12+00:00
+# tess-budget-cut: ce0f7ed311fe 2026-10-26T01:22:06+00:00
 scene,face,name,chart,delta,triangles,u0,u1,v0,v1,nu,nv,muu,muv,mvv,mu1,mv1,cells,grid_cells,patch_cells,opt_cells,span_opt_cells,worst_cert,worst_dev,dev_samples,bands,cap_bands,snap_bands,realized_aspect
 bracket/bracket,0,{"kind":"Face";"node":"66:23adb4c07072fa50";"path":[{"From":{"read":"59:28d325f9a0442383";"of":{"kind":"Face";"node":"57:43d7e8658e3a38bf";"path":[{"SplitFragment":{"parent":{"kind":"Face";"node":"28:f512b23d2919ce40";"path":[{"Cap":"Start"}]}}}]}}}]},plane,1e-2,8,,,,,,,,,,,,,,,,,,,,,,,
 bracket/bracket,1,{"kind":"Face";"node":"66:23adb4c07072fa50";"path":[{"From":{"read":"59:28d325f9a0442383";"of":{"kind":"Face";"node":"57:43d7e8658e3a38bf";"path":[{"SplitFragment":{"parent":{"kind":"Face";"node":"28:f512b23d2919ce40";"path":[{"Lateral":{"Piece":{"step":"18:385cad9623b8cdaf";"role":"Leg"}}}]}}}]}}}]},plane,1e-2,4,,,,,,,,,,,,,,,,,,,,,,,
@@ -387,13 +387,14 @@ lily/lily_pedicel,1,,plane,2e-3,14,,,,,,,,,,,,,,,,,,,,,,,
 lily/lily_pedicel,2,,torus,2e-3,320,,,,,,,,,,,,,,,,,,,,,,,
 lily/lily_pedicel,3,,torus,2e-3,320,,,,,,,,,,,,,,,,,,,,,,,
 lily/lily_lantern,0,,plane,2e-3,20,,,,,,,,,,,,,,,,,,,,,,,
-lily/lily_lantern,1,,cone,2e-3,95,,,,,,,,,,,,,,,,,,,,,,,
-lily/lily_lantern,2,,sphere,2e-3,768,,,,,,,,,,,,,,,,,,,,,,,
+lily/lily_lantern,1,,cone,2e-3,88,,,,,,,,,,,,,,,,,,,,,,,
+lily/lily_lantern,2,,sphere,2e-3,781,,,,,,,,,,,,,,,,,,,,,,,
 lily/lily_lantern,3,,cone,2e-3,43,,,,,,,,,,,,,,,,,,,,,,,
 lily/lily_lantern,4,,plane,2e-3,12,,,,,,,,,,,,,,,,,,,,,,,
-lily/lily_lantern,5,,cone,2e-3,95,,,,,,,,,,,,,,,,,,,,,,,
-lily/lily_lantern,6,,sphere,2e-3,768,,,,,,,,,,,,,,,,,,,,,,,
+lily/lily_lantern,5,,cone,2e-3,88,,,,,,,,,,,,,,,,,,,,,,,
+lily/lily_lantern,6,,sphere,2e-3,781,,,,,,,,,,,,,,,,,,,,,,,
 lily/lily_lantern,7,,cone,2e-3,43,,,,,,,,,,,,,,,,,,,,,,,
+lily/lily_lantern,8,,torus,2e-3,148,,,,,,,,,,,,,,,,,,,,,,,
 lily/lily_leaf_a,0,,plane,5e-3,38,,,,,,,,,,,,,,,,,,,,,,,
 lily/lily_leaf_a,1,,plane,5e-3,38,,,,,,,,,,,,,,,,,,,,,,,
 lily/lily_leaf_a,2,,nurbs,5e-3,8502,0e0,1e0,0e0,1e0,2.1e1,1.19e2,2.770898725882169e-1,1.384157209134167e0,9.55961080506726e0,4.1994724929083443e-1,5.215450472626618e0,3584,4.07e3,2.499e3,2.484e3,3.616e3,5.188889399308879e-4,1.768889574938984e-4,238056,224,0,0,1.7074264087686817e1
