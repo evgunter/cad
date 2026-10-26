@@ -1081,50 +1081,56 @@ fn loft_doc() -> (ProfileDoc, RecipeNodeId, Vec<RecipeNodeId>) {
     (doc, loft, profiles)
 }
 
-/// **A ONE-SECTION loft is accepted at the insert door** (DM4: the
-/// list floor is retired), and the loft itself refuses it when it
-/// evaluates — a single section has nothing to loft between.
+/// **The load door does not ask a loft's shape**: a snapshot whose loft
+/// stands in a shape the edit doors refuse loads, and evaluation
+/// refuses the loft. The shape here is a degree the sections cannot
+/// carry, reached through a variable moved after the insert (the edit
+/// doors refuse a degree past the sections as written, and a section
+/// count below two in any form). The load validator asks
+/// `input_fault`, which carries no list floor, so a document saved
+/// under an older door loads as it was written.
 #[test]
-fn a_one_section_loft_is_accepted_at_the_insert_door() {
-    let (doc, _, profiles) = loft_doc();
-    let (doc, loft) = insert(
-        doc,
-        Node::Loft {
-            first: profiles[0].into(),
-            then: Vec::new(),
-            v_degree: editor_core::Formula::count(1),
-        },
-    );
-    let ev = run(&doc);
-    assert!(
-        ev.value(loft).is_none(),
-        "a one-section loft has no second section to loft to: {:?}",
-        ev.nodes.get(&loft)
-    );
-}
-
-/// The LOAD-door twin: the same one-section loft in a SNAPSHOT loads,
-/// since the load validator asks `input_fault`, which carries no
-/// floor. The snapshot is the saved document itself, so its root set
-/// is the one the document holds.
-#[test]
-fn a_snapshot_carrying_a_one_section_loft_loads() {
+fn a_snapshot_carrying_a_loft_the_doors_refuse_loads() {
     let tol = Tol::witness();
     let (doc, _, profiles) = loft_doc();
+    let skin = editor_core::VarName::from_static("skin");
+    let (doc, _) = crate::fixture::step(
+        doc,
+        DocEdit::DeclareVar {
+            name: skin.clone(),
+            def: editor_core::VarDecl::Free(editor_core::FreeVar::Count { value: 1 }),
+        },
+    );
     let (doc, loft) = insert(
         doc,
         Node::Loft {
             first: profiles[0].into(),
-            then: Vec::new(),
-            v_degree: editor_core::Formula::count(1),
+            then: vec![editor_core::LoftSection {
+                profile: profiles[1].into(),
+                station: vec![editor_core::StationMove::Slide {
+                    along: editor_core::Axis3::Z,
+                    by: len(1.0),
+                }],
+            }],
+            v_degree: editor_core::Formula::named(skin, editor_core::Dimension::Count),
+        },
+    );
+    let var = doc.var_named("skin").expect("declared");
+    let (doc, _) = crate::fixture::step(
+        doc,
+        DocEdit::SetVarValue {
+            var: var.into(),
+            value: editor_core::FreeValue::Count(2),
         },
     );
     let text = editor_core::persist::save(&doc, &[], tol).expect("the document saves");
-    let loaded = editor_core::persist::load(&text, tol).expect("a one-section loft loads");
-    let Some(Node::Loft { then, .. }) = loaded.doc.node(loft) else {
-        panic!("the loft loaded as something else")
-    };
-    assert!(then.is_empty(), "the loft keeps its one section");
+    let loaded = editor_core::persist::load(&text, tol).expect("the loft loads");
+    let ev = run(&loaded.doc);
+    assert!(
+        ev.value(loft).is_none(),
+        "degree 2 through two sections refuses at evaluation: {:?}",
+        ev.nodes.get(&loft)
+    );
 }
 
 // ---------------------------------------------------------------------

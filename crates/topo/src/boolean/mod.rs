@@ -680,24 +680,30 @@ pub(crate) struct EdgeSplit {
     pub(crate) child: crate::entity::EdgeKey,
 }
 
-/// A Boolean reduction's edge splits ([`EdgeSplit`]), each operand's
-/// in split order: its `(child, parent)` rows checked where each split
-/// is recorded ([`crate::lineage::EdgeDivisions`]), and beside each row
-/// the vertex the split minted between them. A split mints its child, so
-/// the rows cannot cycle, and the walk from a piece back to the operand
-/// edge it lies on ([`Self::root`]) ends.
+/// **Where a Boolean reduction minted each vertex off its operands'
+/// cells**, each operand's: on an edge it split ([`EdgeSplit`]), or
+/// inside a face where a held pierce stands
+/// (`vtxfac::faces_holding_pierce`). The splits are in split order, their
+/// `(child, parent)` rows checked where each is recorded
+/// ([`crate::lineage::EdgeDivisions`]), and beside each row the vertex
+/// the split minted between them. A split mints its child, so the rows
+/// cannot cycle, and the walk from a piece back to the operand edge it
+/// lies on ([`Self::root`]) ends.
 #[derive(Clone, Debug)]
-pub(crate) struct EdgeSplits {
+pub(crate) struct Mints {
     divisions: [crate::lineage::EdgeDivisions; 2],
-    /// Each operand's minted vertices, one per row of its divisions and
-    /// in the same order: [`Self::push`] is the one writer of both, and
-    /// pushes the vertex only once the division's row is in, so the
-    /// `i`-th vertex is the one minted between the `i`-th row's two
-    /// edges (asserted where they are read together, [`Self::of`]).
+    /// Each operand's vertices minted on edges, one per row of its
+    /// divisions and in the same order: [`Self::push`] is the one writer
+    /// of both, and pushes the vertex only once the division's row is
+    /// in, so the `i`-th vertex is the one minted between the `i`-th
+    /// row's two edges (asserted where they are read together,
+    /// [`Self::of`]).
     vertices: [Vec<VertexKey>; 2],
+    /// Each operand's vertices minted inside faces, each with its face.
+    in_faces: [Vec<(VertexKey, FaceKey)>; 2],
 }
 
-impl Default for EdgeSplits {
+impl Default for Mints {
     fn default() -> Self {
         let of = |operand| {
             crate::lineage::EdgeDivisions::new(crate::lineage::LineageRows::EdgeDivisions(Some(
@@ -707,11 +713,12 @@ impl Default for EdgeSplits {
         Self {
             divisions: [of(Operand::A), of(Operand::B)],
             vertices: [Vec::new(), Vec::new()],
+            in_faces: [Vec::new(), Vec::new()],
         }
     }
 }
 
-impl EdgeSplits {
+impl Mints {
     /// Records `split`.
     ///
     /// # Errors
@@ -753,6 +760,19 @@ impl EdgeSplits {
         edge: crate::entity::EdgeKey,
     ) -> crate::entity::EdgeKey {
         self.divisions[usize::from(operand == Operand::B)].root(edge)
+    }
+
+    /// Records `v`, minted inside face `face` of `operand`'s clone.
+    pub(crate) fn push_in_face(&mut self, operand: Operand, v: VertexKey, face: FaceKey) {
+        self.in_faces[usize::from(operand == Operand::B)].push((v, face));
+    }
+
+    /// The face of `operand`'s clone `v` was minted inside, where it was.
+    pub(crate) fn minted_in(&self, operand: Operand, v: VertexKey) -> Option<FaceKey> {
+        self.in_faces[usize::from(operand == Operand::B)]
+            .iter()
+            .find(|&&(w, _)| w == v)
+            .map(|&(_, face)| face)
     }
 
     /// The edge of `operand`'s clone a split minted `v` on, where one did.
@@ -2282,8 +2302,9 @@ pub struct BooleanReduction<T: Real> {
     /// deduplicated. The whole-shell `On` verdict reads these
     /// (`shell_witness::on_verdict`).
     pub(crate) coincident: Vec<SettledPair>,
-    /// Every edge split the reduction made, both clones, split order.
-    pub(crate) edge_splits: EdgeSplits,
+    /// Every vertex the reduction minted off its operands' cells, both
+    /// clones ([`Mints`]).
+    pub(crate) mints: Mints,
     /// Every operand edge piece the sector passes classified beside a
     /// vertex ([`EdgePieceClass`]), sorted.
     pub edge_classes: Vec<EdgePieceClass>,
@@ -2514,7 +2535,7 @@ pub enum RefusedRow {
 /// **Which construction a slit's line lacks**
 /// ([`BooleanError::SlitLineCrossed`]): the other solid has an edge
 /// along an operand's slit or ring, and the germs on the line are not
-/// placed where
+/// placed where the case says.
 ///
 /// **NOT carried to the façade's curated list, and that is a decision
 /// rather than an omission** (`scripts/payload-rung-sweep.py` names
@@ -2530,10 +2551,6 @@ pub enum RefusedRow {
 /// and the disposition row with it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SlitLineGap {
-    /// The result keeps only the slit's face on the line, on both
-    /// sides: it closes that face across the line, which the join does
-    /// not build.
-    Closes,
     /// A flank of a wedge on the line lies in a flank's plane of the
     /// other's, flush with a face of the other solid there, and the op
     /// keeps one of the two flush faces: the cut the germs make in the
@@ -2548,10 +2565,6 @@ impl SlitLineGap {
     /// The gap in the refusal's words.
     pub(super) const fn words(self) -> &'static str {
         match self {
-            Self::Closes => {
-                "the result keeps only that face on the line, on both sides, so it closes the \
-                 face across the line"
-            }
             Self::Flush => {
                 "a face of the other solid lies flush with a face on the line, and the op keeps \
                  one of the two"
@@ -3844,6 +3857,30 @@ pub enum BooleanError {
         /// The face carrying it, a key of the operand's working copy.
         face: FaceKey,
     },
+    /// The result keeps a curved face on both sides of an operand's
+    /// slit or zero-area ring, whose two edges the zip glued into one
+    /// edge of that face, and deleting that edge from a curved face is
+    /// not built (`slit::close_struts`): the lone ring's bridge is a
+    /// line chord, which lies in no curved face. A construction gap,
+    /// with no lever.
+    CurvedFaceClosesAcrossSlit {
+        /// The curved face, in the result's keys.
+        face: FaceKey,
+        /// The edge it lies on both sides of.
+        edge: crate::entity::EdgeKey,
+    },
+    /// The result keeps a face on both sides of part of an operand's
+    /// slit or zero-area ring, between stretches of it the result keeps:
+    /// the zip glues the slit's two edges into one edge of that face
+    /// there, with the slit's edges running on past both its ends, and
+    /// deleting it parts the slit in two, which is not built
+    /// (`slit::close_struts`). A construction gap, with no lever.
+    SlitFaceClosesMidSlit {
+        /// The face, in the result's keys.
+        face: FaceKey,
+        /// The edge it lies on both sides of.
+        edge: crate::entity::EdgeKey,
+    },
     /// **The result's edges on one line, where two or more lie, bound
     /// material the result gate cannot admit** ([`crate::census::line_wedges`]):
     /// each such edge classifies its own wedge (D1's
@@ -4079,6 +4116,10 @@ pub enum BooleanErrorKind {
     SlitLineCrossed,
     /// [`BooleanError::SlitFaceGlued`].
     SlitFaceGlued,
+    /// [`BooleanError::CurvedFaceClosesAcrossSlit`].
+    CurvedFaceClosesAcrossSlit,
+    /// [`BooleanError::SlitFaceClosesMidSlit`].
+    SlitFaceClosesMidSlit,
     /// [`BooleanError::LineWedges`].
     LineWedges,
 }
@@ -4293,6 +4334,8 @@ impl BooleanError {
             Self::EdgeInFace { .. } => BooleanErrorKind::EdgeInFace,
             Self::SlitLineCrossed { .. } => BooleanErrorKind::SlitLineCrossed,
             Self::SlitFaceGlued { .. } => BooleanErrorKind::SlitFaceGlued,
+            Self::CurvedFaceClosesAcrossSlit { .. } => BooleanErrorKind::CurvedFaceClosesAcrossSlit,
+            Self::SlitFaceClosesMidSlit { .. } => BooleanErrorKind::SlitFaceClosesMidSlit,
             Self::LineWedges { .. } => BooleanErrorKind::LineWedges,
         }
     }
@@ -5144,6 +5187,21 @@ impl core::fmt::Display for BooleanError {
                 operand_word(*operand),
                 geom_core::NOT_YET_ENDING
             ),
+            Self::CurvedFaceClosesAcrossSlit { face, edge } => write!(
+                f,
+                "the result keeps curved face {face:?} on both sides of edge {edge:?}, where an \
+                 operand's slit or zero-area ring lay, so the face closes across it, and \
+                 deleting an edge from a curved face is not built. {}",
+                geom_core::NOT_YET_ENDING
+            ),
+            Self::SlitFaceClosesMidSlit { face, edge } => write!(
+                f,
+                "the result keeps face {face:?} on both sides of edge {edge:?}, part of an \
+                 operand's slit or zero-area ring whose edges run on past both its ends, so the \
+                 face closes across that part and parts the slit in two, which the Boolean does \
+                 not yet build. {}",
+                geom_core::NOT_YET_ENDING
+            ),
             Self::LineWedges { fault, from, to } => match fault {
                 LineWedgeFault::Overlap { .. } => write!(
                     f,
@@ -5611,7 +5669,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         [None, None],
         tol,
     )?;
-    let edge_splits = core::mem::take(&mut acc.splits);
+    let mut mints = core::mem::take(&mut acc.splits);
     let mut branches = acc.take_branches();
     if FORGET_BRANCHES.with(core::cell::Cell::get) {
         branches.clear();
@@ -5750,7 +5808,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                     operand,
                     c.vertex,
                     &out.classes,
-                    &edge_splits,
+                    &mints,
                 )?);
             }
         }
@@ -5790,8 +5848,11 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             band,
             tol,
         )?;
-        let held_on: std::collections::BTreeMap<_, _> =
+        let held_margin: std::collections::BTreeMap<_, _> =
             held.iter().map(|h| (h.plan.contact.vertex, h.on)).collect();
+        for h in &held {
+            mints.push_in_face(operand, h.plan.contact.vertex, h.face);
+        }
         minted.extend(held.into_iter().map(|h| (vec![h.strut], Some(h.plan))));
         // Each ring is minted, and its records read, where its first
         // pierce was: a face pierced at one point alone mints as it
@@ -5818,7 +5879,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                 operand,
                 a: only[i].contact.vertex,
                 b: only[j].contact.vertex,
-                margin: held_on
+                margin: held_margin
                     .get(&only[j].contact.vertex)
                     .copied()
                     .unwrap_or(margin),
@@ -6010,13 +6071,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             Operand::A => &a,
             Operand::B => &b,
         };
-        edge_classes.extend(piece_classes(
-            body,
-            operand,
-            vertex,
-            &classes,
-            &edge_splits,
-        )?);
+        edge_classes.extend(piece_classes(body, operand, vertex, &classes, &mints)?);
     }
     // An edge of a shared vertex that two crossing pairs' edge-edge
     // germs run along folds Out in each of them (`recl::Reversed`).
@@ -6132,7 +6187,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     let kept = glue::touched(
         &declared.verified.coincidences,
         &pending,
-        &edge_splits,
+        &mints,
         [a_operand, b_operand],
     );
     let coincidences = kept
@@ -6170,7 +6225,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         fates,
         rest_contacts,
         coincident,
-        edge_splits,
+        mints,
         edge_classes,
         unread_partners,
         coincidences,
@@ -6402,7 +6457,7 @@ fn piece_classes<T: Real>(
     operand: Operand,
     vertex: VertexKey,
     classes: &[(HalfEdgeKey, SideCode)],
-    splits: &EdgeSplits,
+    splits: &Mints,
 ) -> Result<Vec<EdgePieceClass>, BooleanError> {
     let desync = |what| BooleanError::ClassificationInvariant { what };
     let mut out = Vec::with_capacity(classes.len());
@@ -6649,6 +6704,7 @@ fn tangent_row(fa: FaceKey, fb: FaceKey, margin: MarginDiag) -> crate::Coinciden
             crate::RowCell::face(Operand::A, fa),
             crate::RowCell::face(Operand::B, fb),
         ],
+        third: None,
         relation: crate::Relation::SurfaceTangent,
         site: crate::DecisionSite::TangentWitness,
         margin,
@@ -6691,6 +6747,7 @@ fn verify_one_carrier_declaration<T: Decide>(
                 crate::RowCell::face(Operand::A, fa),
                 crate::RowCell::face(Operand::B, fb),
             ],
+            third: None,
             relation,
             site: declared_site(a, fa, b, fb),
             margin,
@@ -9186,6 +9243,8 @@ mod tests {
                 BooleanErrorKind::EdgeInFace => "EdgeInFace",
                 BooleanErrorKind::SlitLineCrossed => "SlitLineCrossed",
                 BooleanErrorKind::SlitFaceGlued => "SlitFaceGlued",
+                BooleanErrorKind::CurvedFaceClosesAcrossSlit => "CurvedFaceClosesAcrossSlit",
+                BooleanErrorKind::SlitFaceClosesMidSlit => "SlitFaceClosesMidSlit",
                 BooleanErrorKind::LineWedges => "LineWedges",
             }
         }

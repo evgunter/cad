@@ -163,12 +163,16 @@ pub(super) fn fuse_by_joint<T: Decide + crate::props::AtRestPolicy>(
 pub(super) struct ZipReport {
     /// Vertex fusions in zip order: `(dead, kept)` per zipped pair.
     pub vertex_merges: Fusions,
-    /// The seam edges surviving the zip: each A section half-edge's
-    /// edge, in the order the zip was given them.
+    /// The seam edges surviving the zip, one per seam pair in the order
+    /// the zip was given them: the A section half-edge's edge, or the B
+    /// one's where that is a section strut ([`kill_pair`]).
     pub seam_edges: Vec<crate::entity::EdgeKey>,
-    /// Edge fusions, `(dead, kept)`: each B section edge the zip kills
-    /// and the A seam edge on its segment, which survives in its place.
+    /// Edge fusions, `(dead, kept)`, one per seam pair: the B section
+    /// edge the zip kills and the A edge on its segment, which survives
+    /// in its place; or, where B's is a section strut, A's onto it.
     pub edge_merges: Vec<(crate::entity::EdgeKey, crate::entity::EdgeKey)>,
+    /// The section struts the zip kept ([`kill_pair`]), each once.
+    pub struts: Vec<crate::entity::EdgeKey>,
 }
 
 impl Default for ZipReport {
@@ -178,6 +182,7 @@ impl Default for ZipReport {
             vertex_merges: Fusions::new(crate::lineage::LineageRows::Fusions),
             seam_edges: Default::default(),
             edge_merges: Default::default(),
+            struts: Default::default(),
         }
     }
 }
@@ -966,7 +971,7 @@ fn glue<T: Decide + crate::props::AtRestPolicy>(
                 && !killed[k]
                 && pair(body, k)? == Pair::Alone
             {
-                body.kef_minting(edges[k].1, tol)?;
+                kill_pair(body, edges, &pair_of, k, &mut report, tol)?;
                 killed[k] = true;
             }
         }
@@ -993,11 +998,68 @@ fn glue<T: Decide + crate::props::AtRestPolicy>(
                     body.mfkrh_minting(l, FaceSurface::Inherit, tol)?;
                 }
             }
-            body.kef_minting(edges[k].1, tol)?;
+            kill_pair(body, edges, &pair_of, k, &mut report, tol)?;
             killed[k] = true;
         }
     }
     Ok(report)
+}
+
+/// **Kills seam pair `k`'s loop of two** with `kef`, across B's edge,
+/// whose A partner survives in its place; or across A's, where B's edge
+/// is a section strut.
+///
+/// A section strut is an operand's edge along a line where the op
+/// drops both its faces, so its section loop runs it both ways and both
+/// its halves are paired: with the other operand's two coincident edges
+/// on that line, a slit's or ring's. Killing it would kill the other
+/// pair's half too, so it survives, between the two faces the other
+/// operand's edges bounded on the far sides: the slit's face twice where
+/// the result keeps it on both sides of the line (closed in the output
+/// stage, `slit::close_struts`), or the two walls, a reflex edge, where
+/// the result keeps them. `report` names it among its struts and, where
+/// it is B's, as the pair's seam edge in place of A's.
+///
+/// # Errors
+///
+/// [`BooleanError::ZipCorrespondence`] where the pair's two edges are
+/// both section struts; [`BooleanError::Euler`] where `kef` refuses.
+fn kill_pair<T: Decide + crate::props::AtRestPolicy>(
+    body: &mut Body<T>,
+    edges: &[(HalfEdgeKey, HalfEdgeKey)],
+    pair_of: &BTreeMap<HalfEdgeKey, usize>,
+    k: usize,
+    report: &mut ZipReport,
+    tol: Tol,
+) -> Result<(), BooleanError> {
+    let (ob, r) = edges[k];
+    let strut = |h: HalfEdgeKey| {
+        body.mate(h)
+            .and_then(|m| pair_of.get(&m))
+            .is_some_and(|&j| j != k)
+    };
+    let edge = |h: HalfEdgeKey| proven(&body.half_edges, h, EntityId::HalfEdge).edge;
+    let (dying, kept_strut) = match (strut(ob), strut(r)) {
+        (false, false) => (r, None),
+        (true, false) => (r, Some(edge(ob))),
+        (false, true) => {
+            report.seam_edges[k] = edge(r);
+            report.edge_merges[k] = (edge(ob), edge(r));
+            (ob, Some(edge(r)))
+        }
+        (true, true) => {
+            return Err(BooleanError::ZipCorrespondence {
+                what: "both edges of a seam pair are section struts",
+            });
+        }
+    };
+    if let Some(e) = kept_strut
+        && !report.struts.contains(&e)
+    {
+        report.struts.push(e);
+    }
+    body.kef_minting(dying, tol)?;
+    Ok(())
 }
 
 /// The half-edge cycle of a section face's loop `l`.

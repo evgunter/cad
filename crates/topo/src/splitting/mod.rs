@@ -907,6 +907,7 @@ pub(crate) fn reduce<T: geom_core::Decide + crate::props::AtRestPolicy>(
                     },
                     crate::RowCell::Tool,
                 ],
+                third: None,
                 relation: crate::Relation::OnCarrier,
                 site: crate::DecisionSite::SplitOn,
                 margin,

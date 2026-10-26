@@ -9064,6 +9064,7 @@ pub fn census_rest_decision<T: Decide>(
     };
     Ok(crate::Coincidence {
         cells: [cell(face_a), cell(face_b)],
+        third: None,
         relation: crate::Relation::SameOpposite,
         site: crate::DecisionSite::CensusAtRest,
         margin,
@@ -9358,6 +9359,7 @@ pub(crate) fn flush_at_rest<T: Decide + Bounds>(
                 cells: [fa.key, fb.key].map(|face| crate::RowCell::Result {
                     cell: crate::Cell::Face(face),
                 }),
+                third: None,
                 relation: crate::Relation::SameOriented,
                 site: crate::DecisionSite::CensusAtRest,
                 margin,
@@ -9620,6 +9622,7 @@ pub fn census_contact_row(finding: &ValidationError) -> Option<crate::Coincidenc
     };
     Some(crate::Coincidence {
         cells: cells.map(|cell| crate::RowCell::Result { cell }),
+        third: None,
         relation,
         site: crate::DecisionSite::CensusAtRest,
         margin: *margin,
