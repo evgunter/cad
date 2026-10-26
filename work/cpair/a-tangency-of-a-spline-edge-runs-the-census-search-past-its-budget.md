@@ -2,7 +2,8 @@
 id: a-tangency-of-a-spline-edge-runs-the-census-search-past-its-budget
 kind: issue
 title: A spline bounds no acceleration for the census's second-order clear and tangency floor, so an edge-edge record at a tangency of a spline edge refuses on the budget
-status: open
+status: closed
+closed: 2026-10-26
 opened: 2026-10-13
 priority: P3
 cost: M
@@ -34,3 +35,16 @@ degree) still reads no finite bound and still walks to the band. That
 is filed as `work/splice/a-creased-spline-gets-no-second-order-clearing.md`.
 Whether the census's edge-edge record at an uncreased spline's
 tangency now stays within the budget is unmeasured. Status left as is.
+
+## Closed (2026-10-26, tracker sweep)
+
+**Superseded.** The row's premise, that a spline bounds no
+acceleration, is gone on main: `geom::carrier_speed::accel_hi`
+(`crates/geom/src/carrier_speed.rs:165`) reads
+`NurbsCurve3::accel_upper_bound` (`crates/geom/src/curves/nurbs.rs:1240`),
+SPLICE's PR 5715, so an uncreased spline gets the walk's second-order
+clear and its tangency floor (the 2026-10-26 note above). The creased
+case, where the bound is still infinite, is owned by
+`work/splice/a-creased-spline-gets-no-second-order-clearing.md`. No
+census row is known to run past its budget on an uncreased spline; a
+lane that meets one files it with the measurement.

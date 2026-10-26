@@ -2,10 +2,11 @@
 id: torus-walk-steps-over-null-edges-where-the-cone-refuses
 kind: issue
 title: The torus chart walk steps over an uncertified boundary edge and guards the gap, while the cone walk refuses the same shape as CorruptFace
-status: open
+status: closed
 opened: 2026-10-08
 priority: P3
 cost: E
+closed: 2026-10-26
 ---
 
 Found by CONTACT-11's review (Style 3).
@@ -30,3 +31,19 @@ null scaffolding should get from a containment trim, and whether the
 two walks share it. Either way the rows are
 `section_cert_rows.rs` `a_gap_in_the_torus_walk_refuses` and the cone's
 equivalent, which does not exist yet.
+
+## Closed (2026-10-26, tracker sweep)
+
+Fixed by `6f920b62` ("topo: fold the sphere ray, the circle leg, the leg
+end and the restricted carrier into the region skeleton"), which gave
+every containment trim one boundary gather: `region::boundary` with its
+`Scaffolding` choice (`crates/topo/src/boolean/region.rs:224-262`).
+The torus and the ruled (cylinder and cone) region readers now answer
+the shape alike. Each steps over null scaffolding (a zero-length copy of
+a vertex), and each reads an uncertified edge between two points as a
+gap with no region (`torus_region.rs:254-258`, `ruled_region.rs:372-374`;
+the torus pin is `torus_region.rs:1251`,
+`a_walls_null_edge_bounds_nothing`). The two walks the row named,
+`solid_contain::torus_chart_windows` (with `bool_torus_chart_closure`)
+and the cone trim under `cone_trimmed_window`, are gone from
+containment, and so is the pin `a_gap_in_the_torus_walk_refuses`.

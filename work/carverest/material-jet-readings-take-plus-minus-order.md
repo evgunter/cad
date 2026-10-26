@@ -37,6 +37,17 @@ certificate's at the same station.
 `contact_edge_must_carry::the_rule_reads_every_corpus_contact_the_same_in_both_orders_at_interval`
 measured no difference on the carving corpus.
 
+Re-read on main 2026-10-26 (tracker sweep): the finding stands, now
+through one walk. Tier 3 and `rim_wedge` both hand
+`geom_brep::second_order_walk` (`crates/geom-brep/src/dihedral.rs:656`)
+the pair as `(s_plus, s_minus)`, at `crates/topo/src/validate.rs:7323`
+and `crates/topo/src/boolean/rim_wedge.rs:1117`. The walk reads
+`tangent_jet(s1, s2, ..)` and `folded_lever_arm(s1, s2, ..)` in that
+order, and the material sign is read off `sense_plus`
+(`validate.rs:6226`). `contact_verify.rs:612` still reads
+`tangent_jet(s1, s2, ..)`, now for the glue door's undeclared tangency
+as well (its module doc).
+
 ## The question
 
 Should the must-carry margin read the jet in key order, with the

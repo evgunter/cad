@@ -8410,8 +8410,8 @@ fn backstop_apart<T: Decide>(
 /// arm yet, and both fire a typed [`ValidationError::CensusUndecidable`]
 /// here instead of passing silently:
 ///
-/// 1. **Proximity** (the C9-ring conformal-rest / partial-embedding
-///    class): a pair of faces from DIFFERENT solids, not
+/// 1. **Proximity** (the conformal-rest / partial-embedding class the
+///    C9 exclusion ring would certify): a pair of faces from DIFFERENT solids, not
 ///    vertex-adjacent, whose reach boxes cannot be definitely
 ///    separated, and which the exact sweeps cannot see — every pair
 ///    with a curved side (F5: curved × planar included, since a

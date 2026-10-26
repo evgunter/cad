@@ -2,11 +2,11 @@
 id: an-instance-carries-its-parts-coincidences
 kind: issue
 title: An instance carries its part's coincidence rows, so the lint on a product document reports its parts' unproven glue
-status: open
+status: parked
 opened: 2026-10-08
 priority: P1
 cost: M
-blocked_on: [coincidences-are-recorded-at-one-door]
+blocked_on: [assemble-is-an-operator-and-the-product-is-a-slot]
 ---
 
 
@@ -66,3 +66,11 @@ The row that pins it: a product instancing a part whose union declares
 a `Rest` reports one unproven-coincidence finding about the instance,
 naming the part's two caps by the part's labels; one whose part's row
 is proven reports none.
+
+## Re-cut (2026-10-26, ATREST orchestrator)
+
+The row's first blocker (`coincidences-are-recorded-at-one-door`, PR 4354) is closed. It is re-parked on D′3 (`assemble-is-an-operator-and-the-product-is-a-slot`, PR 5636), which rewrites `wire_instantiate_part` and what an instance defines (one body, the copy of its part's product, with its census decisions carried).
+
+**The premise, restated against D10.** `[assertions]` says a finding belongs to the `⊔` whose census decided it and is reported once there. `[placement.world]` says an instance's decisions are reported once, as that document's. So a part's unproven rows are the part's findings, and the host has nothing to re-decide or re-report. What still stands is the reading of the report: the host's lint is silent about its parts, and under `CheckKind::Certified` silence reads as "proven".
+
+**What closing it takes.** The host's report carries each of a part's unproven rows **as the part's**: once per part row, with its `Route`, judged by the part's own door and quieted only by the part's assertions. No assertion of the host quiets it. This is the shape J (PR 5325) and stage 5 C keep for carried interference (`CarriedInterference`, `once_per_part_row`). The design sketch above stands, except that the finding is the part's, reached through the instance, and is not the instance's own finding. Read the sketch's `FindingSubject::Node(instance)` as the route's first hop, not as the owner.

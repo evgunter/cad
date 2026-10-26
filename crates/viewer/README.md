@@ -275,6 +275,11 @@ are never overridden here.
 
 ## Where in the code
 
+A file may appear under more than one decision; each row lists only
+that decision's members of it, not the file's whole inventory (so
+`src/camera.rs` is under G1 layer 3 for `Camera`, `CameraOp` and
+`camera::apply`, and under GQ7 for `camera::cursor_projection`).
+
 | Decision | Modules |
 |---|---|
 | G1 layer 2 (document as a value, `DocEdit` + pure `apply`, evaluation service, hit-testing) | `crates/editor-core` (`crates/editor-core/README.md`) |
@@ -396,7 +401,7 @@ vocabulary is not a forbidden import path.
 | Module | Holds |
 |---|---|
 | `session::select` | `Selection`, `FaceSelection`, `EdgeSelection`, `Hovered`, `Standing` — what is selected and whether it still denotes anything |
-| `session::refuse` | **every refusal vocabulary a session door raises**, each with its `Display`, the payloads and predicates that decide it, and the recourse text it spends — the rule, so that the next one sorts itself. Today that is two: `Refusal`, with its `rank`/`preferred` ladder and the composers `affordance`/`exists_wording`/`offer_wording`, plus the `NodeKindWanted` payload and its predicate `admits`; and `GestureFrameFault`, why a gesture's frame — the transform's placement, a split's plane, a circular pattern's axis — could not be made from its numbers. Beside them is the one offer no door refused: `VersionOffer`, the accept a pin-mismatched instance's failure makes, worded by `version_question` |
+| `session::refuse` | **every refusal vocabulary a session door raises**, each with its `Display`, the payloads and predicates that decide it, and the recourse text it spends — the rule, so that the next one sorts itself. Today that is two: `Refusal`, with its `rank`/`preferred` ladder, the composers `affordance`/`exists_wording`/`offer_wording` and the constructors that decide a refusal before its door runs (`self_instance`, `nothing_to_step`, `new_document_name`), plus the `NodeKindWanted` payload and its predicates `admits`/`admits_read` and the `Step` payload `nothing_to_step` reads; and `GestureFrameFault`, why a gesture's frame — the transform's placement, a split's plane, a circular pattern's axis — could not be made from its numbers. Beside them is the one offer no door refused: `VersionOffer`, the accept a pin-mismatched instance's failure makes, worded by `version_question` |
 | `session::op` | `SessionOp` and `OpOutcome`, with the gesture names `SessionOp` is keyed by — `ValueGestureName`, `FreeMoveName`, `GestureName` — and `CancelDoor`; already the crate's shared vocabulary, named in **27** of this crate's files, which `rg -l -e SessionOp -e OpOutcome crates/viewer/src` lists — drivers, panes and tool modules alike |
 | `session::author` | `BooleanSpec`, `PatternRuleSpec`, `PartSelectSpec`, the `ProfileShape` re-export — the authoring specs and their lowering to nodes, which hold no session state at all |
 | `session::delete` | `DeleteAffordance` and `kind_census` — the cascade's wording |
@@ -877,7 +882,7 @@ provenance wins because it is the only one a reader can SEE, in whether
 the sentence exists on a frame where nobody acted.
 
 **"Held state" is the mechanical shadow of that, a strong indicator and
-not a decision procedure**, and the sweep that sorted eighteen writers
+not a decision procedure**, and the sweep that sorted the writers
 on this rule needed the three ways it falls short. It is a property of the FACT and not of a
 signature — `frame::unindexed_refusal` takes a `&NotIndexed`, and what
 makes it an outcome is that `pickcache::unindexed` raises it for a `Select`
@@ -992,24 +997,27 @@ message (made once) at the next act or the next time it is said. The
 `frame::acts` argument above covers sentences spoken from the committed
 document only.
 
-**Seventeen of the eighteen writers that can put a sentence on the line
-now come through the ranking.** All eighteen used to reach the field
-without it —
-sixteen assignments, one struct-literal initializer at startup, and
-`frame::fold_status`, which answers in the vocabulary and applied its
-verdict at `pane::viewport` without asking. Each named its subject —
-`Message` is the only spelling there is — but naming a subject is not
-asking the ranking. Seventeen now push onto the frame's `notices`,
-which is why `ViewerBehavior` carries that field.
+**Every writer that can put a sentence on the line but one now comes
+through the ranking.** Before the ranking sweep every one of them
+reached the field without it — field assignments, one struct-literal
+initializer at startup, and `frame::fold_status`, which answers in the
+vocabulary and applied its verdict at `pane::viewport` without asking.
+Each named its subject — `Message` is the only spelling there is — but
+naming a subject is not asking the ranking. The rest now push onto the
+frame's `notices`, which is why `ViewerBehavior` carries that field.
+The writers are every write to `ViewerApp`'s `notices` under `src/`, a
+grep rather than a type, so no number is kept here and no row counts
+them (`frame`'s module header says why a counting row would guard the
+wrong thing).
 
-**The eighteenth is the startup initializer**, `app::ViewerApp::new`'s
+**The one exception is the startup initializer**, `app::ViewerApp::new`'s
 `status: frame::startup_notices(…)`: the preferences file's complaints
 written into the field before the first frame, where the session's
 first accepted act silently deletes them. Joining the notices is not
 the fix — a complaint about the file as it stands is a read of held
 state, so it wants a badge, and badging it means holding it and
 deciding what retires it. That is
-`work/view/startup-notices-need-holding-to-badge.md`.
+`work/vseam/startup-notices-need-holding-to-badge.md`.
 
 **Delivering a retirement outside the ranking is not the same as
 writing a sentence**, and the difference is what the count turns on. A retirement has

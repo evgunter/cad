@@ -5901,6 +5901,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "pinch_wedge",
             "resolution_overflow",
             "ring_on_curved_face",
+            "rounding_unresolved",
             "self_touching_trim_loop",
             "single_column_curved_face",
             "step_not_positive",

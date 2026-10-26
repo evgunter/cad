@@ -71,3 +71,11 @@ The sweep's residue (§5, "a spelling of the foot or of the carrier gap outside 
 - **Fixed in the PR:** `offset_derive.rs` `nearest` read `param_near` as a foot to choose the section branch nearest the old middle. On an ellipse that is the defect class, so it now reads the gap at `Curve3::foot`.
 
   None of these decides on-carrier at that parameter here. Each is a foot only where the point is on the carrier, which is not where the unit-coordinate angle fails. On an ellipse they read the unit-coordinate angle, which is not the foot of a point off the curve: each site owes a check that its point is on the carrier.
+
+## Merged from `analytic-exact-elevations-have-inline-homes` (2026-10-26, tracker sweep)
+
+That row, closed into this one, asked for the EXACT signed distance (not `implicit_residual`'s linearized `(q² − r²)/2r`) of the cylinder, sphere and torus to get one home each beside `geom_brep::cone_elevation` (`crates/geom-brep/src/implicit.rs:136`, PR 3322, which `implicit_residual`'s cone arm, `offset_axial::surface_residual`, the solid door and the face door all call). Sites it listed that this row does not:
+- cylinder `ρ − r`: `contain.rs` `curved_face_placement`'s carrier test, `validate.rs`'s `radial` read, `geom-brep/src/props/curved.rs`;
+- sphere `|p − c| − r`: `contain.rs` `sphere_face_containment`.
+
+When the reading lands, check bit-identity per site: the torus copies (`solid_contain::torus_elevation` against `offset_axial::surface_residual`, spelled through `Vec3::norm`) differ in operation order.

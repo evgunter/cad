@@ -2,8 +2,9 @@
 id: no-ambient-env-does-not-match-current-dir
 kind: issue
 title: no-ambient-env's pattern does not match std::env::current_dir, which two files read
-status: open
+status: closed
 opened: 2026-09-19
+closed: 2026-10-26
 priority: P3
 cost: E
 ---
@@ -34,3 +35,14 @@ Whether to widen the pattern to `\benv::current_dir\s*\(` (and
 `set_current_dir`). Both current hits sit in allowlisted homes, so
 widening it goes green on the tree as it stands and would catch a
 third one.
+
+## Closed (2026-10-26, tracker sweep)
+
+**Duplicate.** `no-ambient-env-gate-cannot-see-temp-dir` (opened
+2026-10-02) asks for the same widening of the same pattern and more —
+`env::temp_dir(`, `env::current_dir(` and `env::home_dir(` — and is the
+survivor. This row's two facts (the viewer's `launch_dir` and
+test-utils' `crate_dir` as the `current_dir` readers, and
+`set_current_dir` as a member) were merged into it. The gate's pattern
+is unchanged at main (`scripts/gates/no-ambient-env.sh`, still
+`\benv::vars?(_os)?\s*\(`).
