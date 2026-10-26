@@ -30,16 +30,17 @@ fn measured(doc: &ProfileDoc, node: RecipeNodeId) -> ([f64; 2], f64) {
         panic!("{node} is a body: {:?}", value.payload);
     };
     let mut zs: Vec<f64> = body
+        .body()
         .vertices()
         .map(|(v, _)| {
-            topo::readback::vertex_point(body, v)
+            topo::readback::vertex_point(body.body(), v)
                 .expect("a vertex point")
                 .z
         })
         .collect();
     zs.sort_by(|a, b| a.partial_cmp(b).expect("finite"));
     let volume = topo::mass_properties(
-        &topo::test_support::finished("the loft", topo::Body::clone(body), Tol::witness()),
+        &topo::test_support::finished("the loft", topo::Body::clone(body.body()), Tol::witness()),
         Tol::witness(),
     )
     .expect("mass properties")

@@ -360,7 +360,7 @@ fn union_with_far_cube(
     match ev.value(union).map(|v| &v.payload) {
         Some(editor_core::ValuePayload::Boolean(editor_core::BooleanValue::Body {
             body, ..
-        })) => Ok(body.solids().count()),
+        })) => Ok(body.body().solids().count()),
         other => panic!("a union of bodies is a body: {other:?}"),
     }
 }

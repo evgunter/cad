@@ -775,6 +775,7 @@ fn vertex_bits(ev: &editor_core::Evaluation<f64>, id: RecipeNodeId) -> Vec<[u64;
         other => panic!("not a body: {other:?} / {:?}", ev.node_error(id)),
     };
     let mut bits: Vec<[u64; 3]> = body
+        .body()
         .points()
         .map(|(_, p)| p.to_array().map(f64::to_bits))
         .collect();

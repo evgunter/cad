@@ -21,6 +21,8 @@
 
 mod anchor;
 mod class;
+mod counters;
+mod framed;
 pub mod measure;
 mod memo;
 pub(crate) mod parts;
@@ -38,6 +40,9 @@ pub(crate) use wire::unit as unit_direction;
 pub use anchor::{CanonicalSegment, LoopAnchor, ProfileNaming, ProfilePieces, ProfileValue};
 pub(crate) use anchor::{derive_naming, validated_naming};
 pub use class::NodeErrorClass;
+pub use counters::EvalCounters;
+pub(crate) use framed::Frame;
+pub use framed::Framed;
 pub use memo::{ContentBits, ContentKey, KeyHasher, NamingKey};
 pub use wire::DirectionRefusal;
 
@@ -50,7 +55,7 @@ use profile::ProfileError;
 use sweep::{ExtrudeError, RevolveError, SkinError, TubeError};
 use topo::splitting::SplitError;
 use topo::transform::TransformError;
-use topo::{Body, BooleanError, BooleanResultKind, ContactRecords};
+use topo::{BooleanError, BooleanResultKind, ContactRecords};
 
 use crate::appearance::{self, AppearanceResolution};
 use crate::doc::Doc;
@@ -304,7 +309,7 @@ impl<T: Decide> Evaluation<T> {
         &self,
         var: crate::VarId,
         index: u32,
-    ) -> Result<Result<&Body<T>, crate::InterrogateError>, NodeStanding> {
+    ) -> Result<Result<&Framed<T>, crate::InterrogateError>, NodeStanding> {
         let Some((node, port)) = self.read_port(var) else {
             return Ok(Err(crate::InterrogateError::NoSuchBody { index }));
         };
@@ -1063,7 +1068,7 @@ pub enum ValuePayload<T: Decide> {
     /// `Part`) and a `Place` of one body — a placement over one shape
     /// has that shape's shape, so a placement of instances is
     /// [`Self::Instances`].
-    Body(Arc<Body<T>>),
+    Body(Framed<T>),
     /// A boolean's result: a body with its contact records, or the
     /// typed empty success (F8; D3).
     Boolean(BooleanValue<T>),
@@ -1094,7 +1099,7 @@ pub enum ValuePayload<T: Decide> {
     /// blend of N bodies is N blends, and the recipe does not guess
     /// which (D3), so the asymmetry between the placers and the rest
     /// is the decision, not an omission.
-    Instances(Vec<Arc<Body<T>>>),
+    Instances(Vec<Framed<T>>),
     /// A `Measure` node's typed F1 quantity (E3): the measured value
     /// in kernel units with the dimension it was measured in. Not
     /// body-denoting — the product gather skips it exactly as it skips
@@ -1257,7 +1262,7 @@ impl<T: Decide> ValuePayload<T> {
     /// [`crate::InterrogateError::NoSuchBody`] for an index the value
     /// has no body at (an empty half among them),
     /// [`crate::InterrogateError::NoBodies`] for a value that holds none.
-    pub fn output_body(&self, index: u32) -> Result<&Body<T>, crate::InterrogateError> {
+    pub fn output_body(&self, index: u32) -> Result<&Framed<T>, crate::InterrogateError> {
         crate::names::interrogate::output_body(self, index)
     }
 
@@ -1290,7 +1295,7 @@ pub enum BooleanValue<T: Decide> {
     /// A real result body.
     Body {
         /// The result body.
-        body: Arc<Body<T>>,
+        body: Framed<T>,
         /// How the kernel produced it.
         kind: BooleanResultKind,
         /// Contacts, declared or glued on a decided Zero, surviving into
@@ -1320,9 +1325,10 @@ pub struct Pieces<T: Decide> {
 pub struct Piece<T: Decide> {
     /// The variable the `⊔` read it through.
     pub read: crate::VarId,
-    /// Its bodies where the `⊔` read them: one, or until patterns are
-    /// index variables a pattern's family.
-    pub bodies: Vec<Arc<Body<T>>>,
+    /// Its bodies in the holder's space: one, or until patterns are
+    /// index variables a pattern's family. A copy holds its source's
+    /// pieces under its own map ([`Framed::moved`]).
+    pub bodies: Vec<Framed<T>>,
     /// Whether it is a family, whatever its count.
     pub family: bool,
     /// The parts it delivers ([`NodeValue::parts`]).
@@ -1343,10 +1349,6 @@ pub struct Piece<T: Decide> {
     /// Whether a door already decided the meetings inside it
     /// ([`NodeValue::censused`]).
     pub censused: bool,
-    /// **The motion a reader moves `bodies` by**: a copy holds its
-    /// source's pieces where the source put them, placed when a pick
-    /// reads one. `None` for pieces that stand where they are read.
-    pub motion: Option<geom_core::RigidMotion<T>>,
 }
 
 impl<T: Decide> Pieces<T> {
@@ -1368,7 +1370,7 @@ pub enum SplitSide<T: Decide> {
     /// No material on this side.
     Empty,
     /// This side's material as an independent body.
-    Body(Arc<Body<T>>),
+    Body(Framed<T>),
 }
 
 // An evaluated pose lives in the pose module (`crate::pose`), beside

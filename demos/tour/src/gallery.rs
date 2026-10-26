@@ -423,8 +423,8 @@ mod tests {
             .expect("the cut part evaluated")
             .payload
         {
-            ValuePayload::Body(b) => (**b).clone(),
-            ValuePayload::Boolean(BooleanValue::Body { body, .. }) => (**body).clone(),
+            ValuePayload::Body(b) => b.body().clone(),
+            ValuePayload::Boolean(BooleanValue::Body { body, .. }) => body.body().clone(),
             other => panic!("the cut part is a body, got {other:?}"),
         };
         assert_eq!(product.solids().count(), 1, "the product is one body");

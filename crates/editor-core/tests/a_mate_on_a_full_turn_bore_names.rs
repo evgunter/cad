@@ -58,7 +58,7 @@ fn eval(doc: &ProfileDoc) -> Evaluation<f64> {
 fn operand(ev: &Evaluation<f64>, n: RecipeNodeId) -> topo::AtRestBody<f64> {
     match &ev.value(n).expect("the sweep evaluates").payload {
         ValuePayload::Body(b) => {
-            sweep::test_support::finished("the operand", (**b).clone(), Tol::witness())
+            sweep::test_support::finished("the operand", b.body().clone(), Tol::witness())
         }
         other => panic!("a sweep's payload is a body, got {}", other.kind_name()),
     }

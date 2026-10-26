@@ -172,7 +172,7 @@ fn eval(doc: &Doc<ProfileProgram>, tol: Tol) -> Evaluation<f64> {
 
 fn body_at(ev: &Evaluation<f64>, id: RecipeNodeId) -> Body<f64> {
     match &ev.value(id).expect("the node evaluated").payload {
-        ValuePayload::Body(b) => (**b).clone(),
+        ValuePayload::Body(b) => b.body().clone(),
         other => panic!("expected a body, got {other:?}"),
     }
 }

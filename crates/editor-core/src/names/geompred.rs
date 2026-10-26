@@ -63,7 +63,7 @@
 //! public API is far more expensive than a follow-up unit.
 
 use geom_core::{Band, BandError, Decide, Sign};
-use topo::{Body, query};
+use topo::query;
 
 use crate::eval::{Evaluation, PoseValue};
 use crate::expr::{Dimension, VarEnv};
@@ -460,13 +460,19 @@ pub(crate) fn prepare<T: Decide>(
                     Ok(Ok(body)) => body,
                     _ => return Err(unresolved()),
                 };
-                let kind = topo::readback::face_carrier_kind(body, f).map_err(|_| unresolved())?;
+                let kind =
+                    topo::readback::face_carrier_kind(body.body(), f).map_err(|_| unresolved())?;
                 if kind != geom::SurfaceKind::Plane {
                     return Err(SelectRefusal::NotAPlane {
                         face: Box::new(face.clone()),
                     });
                 }
-                let at = topo::readback::face_pose(body, f).map_err(|_| unresolved())?;
+                // In its space, where a candidate is measured from it.
+                let at = topo::readback::face_pose(body.body(), f).map_err(|_| unresolved())?;
+                let at = match body.frame().map() {
+                    None => at,
+                    Some(map) => super::interrogate::InItsSpace::moved_by(at, map),
+                };
                 let normal = geom_brep::OutwardNormal::from_chart(at.axis, at.sense).vec();
                 let band = Band::linear(tol)?;
                 let normal = geom_core::UnitVec3::new(normal, query::POSE_UNIT_NORM, band)
@@ -494,12 +500,13 @@ pub(crate) fn prepare<T: Decide>(
 /// carrier, a wrong entity kind or an unreadable adjacency is an
 /// honest NO, which is what makes a purely-exact filter total.
 pub(crate) fn candidate_matches<T: Decide>(
-    body: &Body<T>,
+    framed: &crate::eval::Framed<T>,
     key: EntityKey,
     atoms: &[Prepared<T>],
     band: Band,
     name: &StableName,
 ) -> Result<bool, SelectRefusal> {
+    let body = framed.body();
     for atom in atoms {
         let ok = match atom {
             // The kinds an atom does not apply to answer an honest NO,
@@ -519,12 +526,13 @@ pub(crate) fn candidate_matches<T: Decide>(
                 EntityKey::Body | EntityKey::Face(_) | EntityKey::Vertex(_) => false,
             },
             Prepared::Distance { plane, cmp, value } => {
-                let point = super::interrogate::entity_point(body, key).map_err(|error| {
-                    SelectRefusal::Unreadable {
+                // Where it stands in its space, as the plane is read.
+                let point = super::interrogate::entity_point(body, key)
+                    .map(|point| framed.point_in_space(point))
+                    .map_err(|error| SelectRefusal::Unreadable {
                         name: Box::new(name.clone()),
                         error,
-                    }
-                })?;
+                    })?;
                 let sign = crate::pose::pose_distance_sign(plane, point, *value, band)
                     .unwrap_or_else(|| unreachable!("`prepare` admits no direction"));
                 match sign {

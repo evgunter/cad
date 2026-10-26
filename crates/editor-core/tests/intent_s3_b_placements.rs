@@ -870,7 +870,7 @@ fn a_nested_instances_copy_is_placed_outer_after_inner() {
         other => panic!("one copy reads one body, not {other:?}"),
     };
     let (mut lo, mut hi) = ([f64::INFINITY; 3], [f64::NEG_INFINITY; 3]);
-    for (_, p) in body.points() {
+    for (_, p) in body.body().points() {
         for (k, c) in p.to_array().into_iter().enumerate() {
             lo[k] = lo[k].min(c);
             hi[k] = hi[k].max(c);

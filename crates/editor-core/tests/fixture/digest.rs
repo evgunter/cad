@@ -72,7 +72,7 @@ pub fn digest(ev: &Evaluation<f64>) -> u64 {
         // produces, and a wildcard would silently unfeed the next one
         // that is.
         match &value.payload {
-            ValuePayload::Body(body) => feed_body(&mut feed, body),
+            ValuePayload::Body(body) => feed_body(&mut feed, body.body()),
             ValuePayload::Boolean(bv) => match bv {
                 BooleanValue::Body {
                     body,
@@ -80,7 +80,7 @@ pub fn digest(ev: &Evaluation<f64>) -> u64 {
                     contacts,
                 } => {
                     feed(format!("{kind:?}{contacts:?}").as_bytes());
-                    feed_body(&mut feed, body);
+                    feed_body(&mut feed, body.body());
                 }
                 BooleanValue::Empty => feed(b"empty"),
             },
@@ -88,7 +88,7 @@ pub fn digest(ev: &Evaluation<f64>) -> u64 {
                 for (role, side) in [("above", above), ("below", below)] {
                     feed(role.as_bytes());
                     match side {
-                        SplitSide::Body(body) => feed_body(&mut feed, body),
+                        SplitSide::Body(body) => feed_body(&mut feed, body.body()),
                         SplitSide::Empty => feed(b"empty-side"),
                     }
                 }

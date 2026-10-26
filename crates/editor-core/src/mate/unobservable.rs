@@ -184,13 +184,14 @@ fn spin_moves_nothing(
         }
         _ => return false,
     };
-    let bodies: Vec<&topo::Body<f64>> = match &value.payload {
-        ValuePayload::Body(b) => vec![b.as_ref()],
+    let bodies: Vec<&crate::eval::Framed<f64>> = match &value.payload {
+        ValuePayload::Body(b) => vec![b],
         _ => return false,
     };
+    // Each body's reach in its space, from the space's origin.
     let Some(arm) = bodies
         .iter()
-        .filter_map(|b| super::part_reach(b).ok())
+        .filter_map(|b| super::part_reach_from(b.body(), b.space_origin().ok()?).ok())
         .fold(None, |held: Option<f64>, r| {
             Some(held.map_or(r, |h| h.max(r)))
         })
@@ -198,9 +199,16 @@ fn spin_moves_nothing(
     else {
         return false;
     };
-    bodies
-        .iter()
-        .all(|body| round_about(body, point, dir, band, arm))
+    // Each body's turn is read in its own frame: the line, stated in
+    // the space, read into it.
+    bodies.iter().all(|body| {
+        let (point, dir) = match body.frame().map().map(|map| map.inverse()) {
+            None => (point, dir),
+            Some(Ok(back)) => (back.transform_point(point), back.turn(dir)),
+            Some(Err(_)) => return false,
+        };
+        round_about(body.body(), point, dir, band, arm)
+    })
 }
 
 /// Whether every face of `body` is carried onto itself by a turn about

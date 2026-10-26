@@ -198,7 +198,7 @@ fn a_second_crossing_by_the_same_face_keeps_the_first_crossing_and_its_pieces_na
     let below_crossings = |ev: &editor_core::Evaluation<f64>| {
         let below = match &ev.value(cut).unwrap().payload {
             editor_core::ValuePayload::Split { below, .. } => match below {
-                editor_core::SplitSide::Body(b) => std::sync::Arc::clone(b),
+                editor_core::SplitSide::Body(b) => std::sync::Arc::clone(b.shared()),
                 editor_core::SplitSide::Empty => panic!("a Below half"),
             },
             _ => panic!("a split value"),

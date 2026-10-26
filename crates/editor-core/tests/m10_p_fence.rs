@@ -162,7 +162,7 @@ pub(crate) fn walk<T: editor_core::EvalScalar>(mut seen: impl FnMut(Seen<'_, T>)
             if let NodeResult::Ok(v) = result
                 && let ValuePayload::Body(b) = &v.payload
             {
-                for (i, (key, p)) in b.points().enumerate() {
+                for (i, (key, p)) in b.body().points().enumerate() {
                     seen(Seen::Point {
                         doc: doc.name,
                         id: id.0,

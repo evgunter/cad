@@ -99,7 +99,7 @@ fn split_volumes(session: &mut DocSession, split: RecipeNodeId, tol: Tol) -> (f6
     let volume_of = |side: &SplitSide<f64>| match side {
         SplitSide::Body(body) => {
             pncad::topo::mass_properties(
-                &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(body), tol)
+                &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(body.body()), tol)
                     .expect("the measured body passes tier 3"),
                 tol,
             )

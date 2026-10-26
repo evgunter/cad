@@ -2423,7 +2423,7 @@ fn a_recorded_paths_chain_becomes_a_profile_program_node() {
         &pncad::topo::AtRestBody::validate(
             pncad::topo::Body::clone(
                 match &evaluated.value(body).expect("the plate evaluated").payload {
-                    ValuePayload::Body(b) => b,
+                    ValuePayload::Body(b) => b.body(),
                     other => panic!("expected a body, got {other:?}"),
                 },
             ),
@@ -2461,7 +2461,7 @@ fn the_persist_doors_round_trip_through_the_facade() {
         &pncad::topo::AtRestBody::validate(
             pncad::topo::Body::clone(
                 match &before.value(body_node).expect("the box evaluated").payload {
-                    pncad::document::ValuePayload::Body(b) => b,
+                    pncad::document::ValuePayload::Body(b) => b.body(),
                     other => panic!("expected a body, got {}", other.kind_name()),
                 },
             ),
@@ -2499,7 +2499,7 @@ fn the_persist_doors_round_trip_through_the_facade() {
                     .expect("the box re-evaluated")
                     .payload
                 {
-                    pncad::document::ValuePayload::Body(b) => b,
+                    pncad::document::ValuePayload::Body(b) => b.body(),
                     other => panic!("expected a body, got {}", other.kind_name()),
                 },
             ),
@@ -2958,7 +2958,7 @@ fn plate_param_authors_facade_only_and_its_saved_text_is_pinned() {
         panic!("a union yields a body");
     };
     let volume = mass_properties(
-        &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(body.as_ref()), Tol::witness())
+        &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(body.body()), Tol::witness())
             .expect("the measured body passes tier 3"),
         Tol::witness(),
     )
@@ -3780,6 +3780,7 @@ fn asm2a_row1_two_instances_through_a_real_workspace() {
     // ten units along +x.
     let x_of = |node| match ev.value(node).map(|v| &v.payload) {
         Some(pncad::document::ValuePayload::Body(b)) => b
+            .body()
             .vertex_points()
             .map(|(_, p)| p.x)
             .fold(f64::INFINITY, f64::min),
@@ -4314,8 +4315,17 @@ fn asm2b_row2_sub_assembly_through_a_real_workspace() {
     // and x = 10 (B's own spacing), instance 1's ten further along.
     let xs = |node| match ev.value(node).map(|v| &v.payload) {
         Some(pncad::document::ValuePayload::Body(b)) => {
-            assert_eq!(b.solids().count(), 2, "an instance carries both solids");
-            let mut v: Vec<f64> = b.vertex_points().map(|(_, p)| p).map(|p| p.x).collect();
+            assert_eq!(
+                b.body().solids().count(),
+                2,
+                "an instance carries both solids"
+            );
+            let mut v: Vec<f64> = b
+                .body()
+                .vertex_points()
+                .map(|(_, p)| p)
+                .map(|p| p.x)
+                .collect();
             v.sort_by(f64::total_cmp);
             (v[0], v[v.len() - 1])
         }
@@ -6745,8 +6755,11 @@ mod the_hollowed_box_through_the_facade {
             panic!("the shell's payload is not a body");
         };
         let props = pncad::topo::mass_properties(
-            &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(body), Tol::witness())
-                .expect("the measured body passes tier 3"),
+            &pncad::topo::AtRestBody::validate(
+                pncad::topo::Body::clone(body.body()),
+                Tol::witness(),
+            )
+            .expect("the measured body passes tier 3"),
             Tol::witness(),
         )
         .expect("the cup measures");

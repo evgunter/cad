@@ -318,11 +318,15 @@ pub use editor_core::DocParamField;
 // the refusal itself cannot be.
 // `StepTurns` rides with `NodeErrorKind`: it is `FullRangeStep`'s
 // `turns`, how the copies of a step a turn or more would land.
+// `Framed` is a body value: its body in its own coordinates and the
+// frame it computed in, which a payload holds wherever it holds a body;
+// `EvalCounters` counts what an evaluation built (a copy builds
+// nothing).
 pub use editor_core::{
     BooleanValue, CancelToken, CarriedChain, CarriedIn, CarriedLevel, DirectionRefusal,
-    EvalOptions, EvalOutcome, Evaluation, Mispaired, NodeError, NodeErrorClass, NodeErrorKind,
-    NodeRefusal, NodeResult, NodeStanding, NodeValue, PoseValue, SplitSide, StepTurns,
-    ValuePayload, evaluate,
+    EvalCounters, EvalOptions, EvalOutcome, Evaluation, Framed, Mispaired, NodeError,
+    NodeErrorClass, NodeErrorKind, NodeRefusal, NodeResult, NodeStanding, NodeValue, PoseValue,
+    SplitSide, StepTurns, ValuePayload, evaluate,
 };
 // The pieces a body holds (`NodeValue::pieces`): what a `⊔` grafted,
 // each by its read, which a pick reads one of.
@@ -417,7 +421,9 @@ pub use editor_core::{
 // name it reached at the member's instance, and `head_face` the face
 // of the member's part a head names. `OVERCONSTRAINED_RECOURSE` and
 // `UNPINNED_RECOURSE` are the recourse sentences a bundle's refusals
-// end on.
+// end on. `in_space` is the one door that composes a body's frame into
+// its space's coordinates (`Composing` is what it takes), for export
+// and the viewer's picture alone.
 /// Why a mate could not form its lever, which
 /// [`MateFault::Unleverable`] carries — by the payload rule this list
 /// states at `NodeRefusal`.
@@ -438,12 +444,12 @@ pub use editor_core::{
 /// here rather than being spelled on a list that owns its vocabulary.
 pub use editor_core::LeverRefusal;
 pub use editor_core::{
-    Constraint, ConstraintKind, Coord, FrameMove, Mate, MateFault, MateRef, MateSide, Member,
-    NoChartWhy, OVERCONSTRAINED_RECOURSE, PinRefusal, Placed, Placing, PoseRefusal, PoseSymmetry,
-    ReachRefusal, SolvedPoses, Subgroup, SubgroupFamily, TargetAxis, UNPINNED_RECOURSE,
-    Unobservable, Value, corner_frame, corner_frame_in, head_face, head_of, member_of,
-    member_reading, moved_frame, reference_about, relative_freedom_components, solve_document,
-    stand, unobservable,
+    Composing, Constraint, ConstraintKind, Coord, FrameMove, Mate, MateFault, MateRef, MateSide,
+    Member, NoChartWhy, OVERCONSTRAINED_RECOURSE, PinRefusal, Placed, Placing, PoseRefusal,
+    PoseSymmetry, ReachRefusal, SolvedPoses, Subgroup, SubgroupFamily, TargetAxis,
+    UNPINNED_RECOURSE, Unobservable, Value, corner_frame, corner_frame_in, head_face, head_of,
+    in_space, member_of, member_reading, moved_frame, reference_about, relative_freedom_components,
+    solve_document, stand, unobservable,
 };
 
 // **The assembly at-rest gate** (A5): `assemble` gathers a document's

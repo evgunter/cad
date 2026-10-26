@@ -790,6 +790,9 @@ pub struct NodePick {
     document: DocumentId,
     node: RecipeNodeId,
     body: u32,
+    /// The frame the mesh is in: the body's (D10 `[placement.frame]`),
+    /// composed into its space by [`crate::mate::in_space`] alone.
+    pub(crate) frame: crate::eval::Frame<f64>,
     mesh: Arc<Mesh>,
     pick: Arc<MeshPick>,
     chords: Arc<ChordFaces>,
@@ -1123,12 +1126,14 @@ impl NodePick {
         else {
             return Err(NodePickError::NoSuchBody { node, body });
         };
-        let mesh = mesh::tessellate(&body_arc, delta, tol).map_err(NodePickError::Tessellate)?;
+        let mesh =
+            mesh::tessellate(body_arc.body(), delta, tol).map_err(NodePickError::Tessellate)?;
         let pick = MeshPick::build_every_table(&mesh).map_err(NodePickError::Index)?;
         Ok(Self {
             document: eval.document,
             node,
             body,
+            frame: body_arc.frame().clone(),
             chords: Arc::new(ChordFaces::of(&mesh)),
             mesh: Arc::new(mesh),
             pick: Arc::new(pick),
@@ -1178,7 +1183,7 @@ impl NodePick {
             return Ok(pick);
         }
         memo.node_misses += 1;
-        let tessellation = tessellate_with(&body_arc, delta, tol, &mut memo.patches)
+        let tessellation = tessellate_with(body_arc.body(), delta, tol, &mut memo.patches)
             .map_err(NodePickError::Tessellate)?;
         let pick = MeshPick::build_with(&tessellation.mesh, &tessellation.keys, memo)
             .map_err(NodePickError::Index)?;
@@ -1186,6 +1191,7 @@ impl NodePick {
             document: eval.document,
             node,
             body,
+            frame: body_arc.frame().clone(),
             chords: Arc::new(ChordFaces::of(&tessellation.mesh)),
             mesh: Arc::new(tessellation.mesh),
             pick: Arc::new(pick),

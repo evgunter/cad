@@ -283,6 +283,7 @@ fn solidify<S: Scalar>(r: &Recipe, ev: &Evaluation<S>, n: usize, tol: Tol) -> pn
     let ValuePayload::Body(body) = &value.payload else {
         panic!("fillet payload: {:?}", value.payload);
     };
+    let body = &crate::world::in_its_space(body, tol);
     let want = volume(n);
     let got = pncad::topo::mass_properties(&crate::booleans::at_rest(body, tol), tol)
         .expect("mass properties")
@@ -294,7 +295,7 @@ fn solidify<S: Scalar>(r: &Recipe, ev: &Evaluation<S>, n: usize, tol: Tol) -> pn
     );
     pncad::topo::validate_geometric(body, tol)
         .unwrap_or_else(|e| panic!("the {n}-fin solid is tier-3 valid, got {e:?}"));
-    (**body).clone()
+    body.clone()
 }
 
 /// The rounded plate's closed form plus `n` fins.

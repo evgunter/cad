@@ -1275,9 +1275,11 @@ pub fn duplicate_step(
     }
     .ok_or_else(|| DuplicateFault::NotOneBody { input: spoken() })?;
     let measured = |chord: f64| {
-        pncad::mesh::tessellate(body, chord, tol).map_err(|error| DuplicateFault::Unmeasured {
-            input: spoken(),
-            error,
+        pncad::mesh::tessellate(body.body(), chord, tol).map_err(|error| {
+            DuplicateFault::Unmeasured {
+                input: spoken(),
+                error,
+            }
         })
     };
     let floor = measured(crate::scene::SCALE_PROBE_DELTA)?;

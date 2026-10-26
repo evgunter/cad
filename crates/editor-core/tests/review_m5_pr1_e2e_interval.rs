@@ -113,12 +113,12 @@ fn rotated_cutter_boolean_at_interval_certifies_end_to_end() {
     else {
         panic!("expected boolean body");
     };
-    assert_eq!(validate(body), Ok(()));
-    assert_eq!(validate_closed(body), Ok(()));
+    assert_eq!(validate(body.body()), Ok(()));
+    assert_eq!(validate_closed(body.body()), Ok(()));
     let vol = topo::mass_properties(
         &topo::test_support::finished(
             "the measured body",
-            topo::Body::clone(&**body),
+            topo::Body::clone(body.body()),
             Tol::witness(),
         ),
         Tol::witness(),

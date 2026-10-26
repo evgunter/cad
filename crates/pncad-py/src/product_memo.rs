@@ -217,35 +217,17 @@ pub fn body_and_names(
     })
 }
 
-/// A product copied field for field, its `⊔`s gathered again.
-///
-/// Spelled out rather than derived: [`d::Product`] is the kernel's
-/// type and a `Clone` on it is the kernel's decision, while a struct
-/// literal here fails to compile the day the gather grows a field —
-/// which is the loud version of the same guarantee. The `⊔`s are the
-/// kernel's own gather of them ([`d::assemble_gathers`]) rather than a
-/// copy: a refused `⊔` holds a gather refusal, which is not `Clone`.
+/// A product copied, its `⊔`s gathered again: the kernel's own copy
+/// ([`d::Product::fresh`]), and the `⊔`s the kernel's own gather of
+/// them ([`d::assemble_gathers`]) rather than a copy: a refused `⊔`
+/// holds a gather refusal, which is not `Clone`.
 fn clone_product(
     product: &d::Product<f64>,
     doc: &d::ProfileDoc,
     evaluation: &d::Evaluation<f64>,
     tol: Tol,
 ) -> d::Product<f64> {
-    d::Product {
-        document: product.document,
-        body: product.body.clone(),
-        names: product.names.clone(),
-        contacts: product.contacts.clone(),
-        coincidences: product.coincidences.clone(),
-        cited_inputs: product.cited_inputs.clone(),
-        census: product.census.clone(),
-        solid_copies: product.solid_copies.clone(),
-        copies: product.copies.clone(),
-        gap_assertions: product.gap_assertions.clone(),
-        carried_interference: product.carried_interference.clone(),
-        carried_at_rest: product.carried_at_rest.clone(),
-        assembles: d::assemble_gathers(doc, evaluation, tol, doc.product()),
-        pieces: product.pieces.clone(),
-        parts: product.parts,
-    }
+    let mut copy = product.fresh();
+    copy.assembles = d::assemble_gathers(doc, evaluation, tol, doc.product());
+    copy
 }

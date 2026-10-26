@@ -757,6 +757,16 @@ pub enum SelectionRefusal {
         /// The other's.
         b: crate::VarId,
     },
+    /// The second selection's body could not be read into the first's
+    /// frame, the frame the question is asked in (D10
+    /// `[placement.frame]`).
+    Frame {
+        /// The second selection's node.
+        node: RecipeNodeId,
+        /// The refusal, as an operation reading the same operand would
+        /// raise it.
+        refusal: crate::NodeRefusal,
+    },
 }
 
 // Memoized inside `NodeErrorKind::MeasureClearanceRefused`, so it holds
@@ -799,6 +809,12 @@ impl crate::spoken::Say for SelectionRefusal {
                 crate::sentence::ONLY_A_PLACEMENT_RELATES_TWO_SPACES,
                 crate::sentence::Recourse(crate::sentence::place_into_one_space("measure within"))
             ),
+            Self::Frame { node, refusal } => write!(
+                f,
+                "{}'s body could not be read into the frame the clearance is asked in: {}",
+                by.node(*node),
+                refusal.kind()
+            ),
         }
     }
 }
@@ -840,6 +856,9 @@ impl SelectionRefusal {
                     s => format!("space={}", s.full()),
                 };
                 format!("across_spaces {} {}", space(a), space(b))
+            }
+            Self::Frame { node, refusal } => {
+                format!("frame node={} {:?}", node.full(), refusal.kind())
             }
         }
     }
@@ -1265,7 +1284,25 @@ pub fn clearance_with(
             SelectionRefusal::AcrossSpaces { a, b },
         ));
     }
-    let windows_a = match windows_of(&ev, a, Some(band)) {
+    // The two selections are in one space: the question is asked in
+    // the first's frame, the second's body read into it through
+    // `relative`.
+    let (framed_a, framed_b) = match (framed_of(&ev, a), framed_of(&ev, b)) {
+        (Ok(fa), Ok(fb)) => (fa, fb),
+        (Err(r), _) | (_, Err(r)) => return ClearanceReport::refused(r),
+    };
+    let body_b = match framed_a.read_in(framed_b, query.tol) {
+        Ok(body) => body,
+        Err(kind) => {
+            return ClearanceReport::refused(ClearanceRefusal::Selection(
+                SelectionRefusal::Frame {
+                    node: b.at,
+                    refusal: crate::NodeRefusal::from(kind),
+                },
+            ));
+        }
+    };
+    let windows_a = match windows_of(&ev, a, framed_a.body(), Some(band)) {
         Ok(w) => w,
         Err(r) => return ClearanceReport::refused(r),
     };
@@ -1276,7 +1313,7 @@ pub fn clearance_with(
     let windows_b = if a == b {
         windows_a.clone()
     } else {
-        match windows_of(&ev, b, Some(band)) {
+        match windows_of(&ev, b, &body_b, Some(band)) {
             Ok(w) => w,
             Err(r) => return ClearanceReport::refused(r),
         }
@@ -2244,22 +2281,33 @@ impl RegionMemo {
     }
 }
 
-/// Reads a selection's faces out of the leaf's replay, one window each.
-fn windows_of<'e>(
-    ev: &'e Evaluation<Interval>,
+/// **The body a selection reads**, out of the leaf's replay, in its own
+/// frame.
+fn framed_of<'e, T: geom_core::Decide>(
+    ev: &'e Evaluation<T>,
     sel: &Selection,
-    band: Option<Band>,
-) -> Result<Vec<Window<'e>>, ClearanceRefusal> {
+) -> Result<&'e crate::eval::Framed<T>, ClearanceRefusal> {
     let refuse = ClearanceRefusal::Selection;
     let value = ev
         .usable(sel.at)
         .map_err(|standing| refuse(SelectionRefusal::NodeDidNotBuild(standing)))?;
-    let body = crate::names::interrogate::output_body(&value.payload, sel.body).map_err(|_| {
+    crate::names::interrogate::output_body(&value.payload, sel.body).map_err(|_| {
         refuse(SelectionRefusal::NoSuchBody {
             node: sel.at,
             index: sel.body,
         })
-    })?;
+    })
+}
+
+/// Reads a selection's faces out of `body`, the selection's body in the
+/// frame the question is asked in, one window each.
+fn windows_of<'e>(
+    ev: &Evaluation<Interval>,
+    sel: &Selection,
+    body: &'e Body<Interval>,
+    band: Option<Band>,
+) -> Result<Vec<Window<'e>>, ClearanceRefusal> {
+    let refuse = ClearanceRefusal::Selection;
     let keys: Vec<FaceKey> = match &sel.faces {
         // Arena order — the deterministic order every derived list in
         // this kernel inherits (D9).
@@ -3072,13 +3120,23 @@ fn verify_witness(
             ));
         }
     }
-    let surface_at = |w: &Window<'_>| -> Option<Surface<f64>> {
+    let framed_at = |w: &Window<'_>| -> Option<&crate::eval::Framed<f64>> {
         let value = ev.value(w.at)?;
-        let body = crate::names::interrogate::output_body(&value.payload, w.body).ok()?;
+        crate::names::interrogate::output_body(&value.payload, w.body).ok()
+    };
+    // In `x`'s frame, as the interval pass asked it.
+    let in_frame = framed_at(x).zip(framed_at(y)).and_then(|(fx, fy)| {
+        let by = fx.read_in(fy, tol).ok()?;
+        Some((Arc::clone(fx.shared()), by))
+    });
+    let surface_at = |body: &Body<f64>, w: &Window<'_>| -> Option<Surface<f64>> {
         let f = body.get_face(w.face)?;
         Some(body.get_surface(f.surface)?.clone())
     };
-    let (Some(sa), Some(sb)) = (surface_at(x), surface_at(y)) else {
+    let (Some(sa), Some(sb)) = (
+        in_frame.as_ref().and_then(|(bx, _)| surface_at(bx, x)),
+        in_frame.as_ref().and_then(|(_, by)| surface_at(by, y)),
+    ) else {
         return Err(
             "the f64 rebuild does not carry both faces of the violating pair — the leaf's \
              key identity did not survive the replay"

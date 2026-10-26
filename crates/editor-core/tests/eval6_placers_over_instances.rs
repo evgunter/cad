@@ -107,7 +107,7 @@ pub(crate) fn instances_of<T: geom_core::Decide>(
         .unwrap_or_else(|| panic!("{id:?} evaluated: {:?}", ev.node_error(id)))
         .payload
     {
-        ValuePayload::Instances(v) => v.clone(),
+        ValuePayload::Instances(v) => v.iter().map(|b| Arc::clone(b.shared())).collect(),
         other => panic!("{id:?} is a {}, not instances", other.kind_name()),
     }
 }
@@ -122,7 +122,7 @@ pub(crate) fn body_of<T: geom_core::Decide>(
         .unwrap_or_else(|| panic!("{id:?} evaluated: {:?}", ev.node_error(id)))
         .payload
     {
-        ValuePayload::Body(b) => Arc::clone(b),
+        ValuePayload::Body(b) => Arc::clone(b.shared()),
         other => panic!("{id:?} is a {}, not a body", other.kind_name()),
     }
 }

@@ -42,7 +42,7 @@ fn a_rim_arc_crossed_twice_names_its_pieces_by_their_ends_and_its_crossings_by_t
         panic!("a split value");
     };
     let body = |s: &SplitSide<f64>| match s {
-        SplitSide::Body(b) => std::sync::Arc::clone(b),
+        SplitSide::Body(b) => std::sync::Arc::clone(b.shared()),
         SplitSide::Empty => panic!("both halves carry material"),
     };
     let halves = [body(above), body(below)];

@@ -45,7 +45,7 @@ use std::collections::BTreeMap;
 
 use geom_core::sym::deferred;
 use geom_core::{Band, BandError, Sym, SymBudget, SymRules, Tol};
-use topo::{Body, CarrierRelation, FaceKey};
+use topo::{CarrierRelation, FaceKey};
 
 use super::{Canceled, NamedCell, NamedCoincidence, Recourse, Rung, Unreplayed};
 use crate::eval::{EvalOptions, EvalOutcome, Evaluation};
@@ -198,7 +198,7 @@ pub(super) fn rungs(
                                 &*ev.insert(replayed)
                             }
                         };
-                        Some(prove_row(ev, node, row, at, band, cancel)?)
+                        Some(prove_row(ev, node, row, at, (band, tol), cancel)?)
                     }
                 });
             }
@@ -251,7 +251,7 @@ fn prove_row(
     node: RecipeNodeId,
     row: &NamedCoincidence,
     at: usize,
-    band: Result<Band, BandError>,
+    (band, tol): (Result<Band, BandError>, Tol),
     cancel: &crate::CancelToken,
 ) -> Result<Result<Rung, Left>, Canceled> {
     if cancel.is_canceled() {
@@ -268,7 +268,7 @@ fn prove_row(
         let Ok(band) = band else {
             return left(Unreplayed::Refused);
         };
-        return Ok(match carrier_verdict(ev, row, band) {
+        return Ok(match carrier_verdict(ev, row, band, tol) {
             Some(Ok(())) => Ok(Rung::CarrierVerdict),
             Some(Err(why)) => Err(numeric(why)),
             None => Err((Unreplayed::OtherDecisions, Recourse::Assert)),
@@ -287,7 +287,7 @@ fn prove_row(
         return left(Unreplayed::OtherDecisions);
     };
     if let Ok(band) = band
-        && let Some(Ok(())) = carrier_verdict(ev, row, band)
+        && let Some(Ok(())) = carrier_verdict(ev, row, band, tol)
     {
         return Ok(Ok(Rung::CarrierVerdict));
     }
@@ -355,6 +355,7 @@ fn carrier_verdict(
     ev: &Evaluation<Lane>,
     row: &NamedCoincidence,
     band: Band,
+    tol: Tol,
 ) -> Option<Result<(), deferred::Undischarged>> {
     let wanted = match row.relation {
         topo::Relation::SameOriented => CarrierRelation::SameOriented,
@@ -365,7 +366,9 @@ fn carrier_verdict(
         return None;
     };
     let ((a, fa), (b, fb)) = (face_of(ev, a)?, face_of(ev, b)?);
-    match topo::boolean::carrier_pair_decided(a, fa, b, fb, band) {
+    // Decided in the first cell's frame, the second read into it.
+    let b = a.read_in(b, tol).ok()?;
+    match topo::boolean::carrier_pair_decided(a.body(), fa, &b, fb, band) {
         Ok(Ok((relation, Some(margin)))) if relation == wanted => {
             Some(deferred::discharge_or_why(margin))
         }
@@ -377,7 +380,10 @@ fn carrier_verdict(
 /// it came in through and its key there, read in that read's own table.
 /// A product `⊔`'s name of the read's entity, keyed by that read, is
 /// the read's own name there.
-fn face_of<'e>(ev: &'e Evaluation<Lane>, cell: &NamedCell) -> Option<(&'e Body<Lane>, FaceKey)> {
+fn face_of<'e>(
+    ev: &'e Evaluation<Lane>,
+    cell: &NamedCell,
+) -> Option<(&'e crate::eval::Framed<Lane>, FaceKey)> {
     let NamedCell::Entity { input, name } = cell else {
         return None;
     };

@@ -218,12 +218,12 @@ fn feed_node<T: Decide + ValueChannelBits>(d: &mut Digest, ev: &Evaluation<T>, i
                 }
                 ValuePayload::Body(b) => {
                     d.u64(14);
-                    d.body(b);
+                    d.body(b.body());
                 }
                 ValuePayload::Boolean(BooleanValue::Empty) => d.u64(15),
                 ValuePayload::Boolean(BooleanValue::Body { body, .. }) => {
                     d.u64(16);
-                    d.body(body);
+                    d.body(body.body());
                 }
                 ValuePayload::Split { above, below } => {
                     d.u64(17);
@@ -232,7 +232,7 @@ fn feed_node<T: Decide + ValueChannelBits>(d: &mut Digest, ev: &Evaluation<T>, i
                             SplitSide::Empty => d.u64(0),
                             SplitSide::Body(b) => {
                                 d.u64(1);
-                                d.body(b);
+                                d.body(b.body());
                             }
                         }
                     }
@@ -241,7 +241,7 @@ fn feed_node<T: Decide + ValueChannelBits>(d: &mut Digest, ev: &Evaluation<T>, i
                     d.u64(18);
                     d.u64(bodies.len() as u64);
                     for b in bodies {
-                        d.body(b);
+                        d.body(b.body());
                     }
                 }
                 // 20 and 25 were a mate's and a gauge's, and 28 a

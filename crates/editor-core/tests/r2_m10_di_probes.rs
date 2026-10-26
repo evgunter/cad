@@ -291,12 +291,12 @@ fn deep_digest<T: Decide + Bounds>(ev: &Evaluation<T>) -> u64 {
                     }
                     ValuePayload::Body(b) => {
                         d.u64(14);
-                        d.body(b);
+                        d.body(b.body());
                     }
                     ValuePayload::Boolean(BooleanValue::Empty) => d.u64(15),
                     ValuePayload::Boolean(BooleanValue::Body { body, .. }) => {
                         d.u64(16);
-                        d.body(body);
+                        d.body(body.body());
                     }
                     ValuePayload::Split { above, below } => {
                         d.u64(17);
@@ -305,7 +305,7 @@ fn deep_digest<T: Decide + Bounds>(ev: &Evaluation<T>) -> u64 {
                                 SplitSide::Empty => d.u64(0),
                                 SplitSide::Body(b) => {
                                     d.u64(1);
-                                    d.body(b);
+                                    d.body(b.body());
                                 }
                             }
                         }
@@ -314,7 +314,7 @@ fn deep_digest<T: Decide + Bounds>(ev: &Evaluation<T>) -> u64 {
                         d.u64(18);
                         d.u64(bodies.len() as u64);
                         for b in bodies {
-                            d.body(b);
+                            d.body(b.body());
                         }
                     }
                     // The measured quantity IS a lane value, so it is

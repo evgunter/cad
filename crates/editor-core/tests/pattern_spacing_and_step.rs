@@ -145,9 +145,12 @@ impl Built {
         bodies
             .iter()
             .map(|body| {
-                let (n, sum) = body.points().fold((0.0, [0.0; 3]), |(n, c), (_, p)| {
-                    (n + 1.0, [c[0] + p.x, c[1] + p.y, c[2] + p.z])
-                });
+                let (n, sum) = body
+                    .body()
+                    .points()
+                    .fold((0.0, [0.0; 3]), |(n, c), (_, p)| {
+                        (n + 1.0, [c[0] + p.x, c[1] + p.y, c[2] + p.z])
+                    });
                 sum.map(|c| c / n)
             })
             .collect()
@@ -159,7 +162,7 @@ impl Built {
         assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
         match &ev.value(self.node).expect("the node builds").payload {
             ValuePayload::Instances(bodies) => bodies.len(),
-            ValuePayload::Body(body) => body.shells().count(),
+            ValuePayload::Body(body) => body.body().shells().count(),
             other => panic!("a pattern builds bodies, got {other:?}"),
         }
     }

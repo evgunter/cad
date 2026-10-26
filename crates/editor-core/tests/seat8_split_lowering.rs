@@ -604,14 +604,14 @@ fn a_read_of_a_half_reads_the_two_sided_value_by_role() {
     };
     assert_eq!(
         (
-            read.faces().count(),
-            read.edges().count(),
-            read.vertices().count()
+            read.body().faces().count(),
+            read.body().edges().count(),
+            read.body().vertices().count()
         ),
         (
-            side.faces().count(),
-            side.edges().count(),
-            side.vertices().count()
+            side.body().faces().count(),
+            side.body().edges().count(),
+            side.body().vertices().count()
         ),
         "the reader holds the split's own side"
     );

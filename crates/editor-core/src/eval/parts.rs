@@ -71,7 +71,6 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use geom_core::Decide;
-use topo::Body;
 
 use crate::ProfileDoc;
 use crate::assembly::PartRow;
@@ -106,7 +105,8 @@ pub(crate) const MAX_DEPTH: usize = 1024;
 /// nodes it names. Instantiation adds its own instance to the route;
 /// nothing below is re-read.
 pub(crate) struct PartValue<T: Decide> {
-    pub body: Arc<Body<T>>,
+    /// The product body, in the frame the part's product computed in.
+    pub body: super::Framed<T>,
     pub names: Arc<NameTable>,
     /// The pieces the product holds ([`super::Pieces`]), in the part's
     /// frame: what a pick of one piece of an instance reads.
@@ -138,7 +138,7 @@ pub(crate) struct PartValue<T: Decide> {
 impl<T: Decide> Clone for PartValue<T> {
     fn clone(&self) -> Self {
         Self {
-            body: Arc::clone(&self.body),
+            body: self.body.clone(),
             names: Arc::clone(&self.names),
             pieces: self.pieces.clone(),
             contacts: Arc::clone(&self.contacts),
@@ -498,6 +498,7 @@ fn product_recourse(kind: crate::product::ProductErrorKind) -> ProductRecourse {
         | K::RootInvalid
         | K::ProductInvalid => ProductRecourse::Carried,
         K::ContactLineage
+        | K::Frame
         | K::EvaluationOfAnotherDocument
         | K::UnknownNode
         | K::RootFailed
@@ -821,7 +822,7 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
             ),
             parts,
             pieces,
-            body: Arc::new(product.body.into_body()),
+            body: super::Framed::in_frame(Arc::new(product.body.into_body()), product.frame),
             names: Arc::new(product.names),
             contacts: Arc::new(product.contacts),
             coincidences: Arc::new(product.coincidences),

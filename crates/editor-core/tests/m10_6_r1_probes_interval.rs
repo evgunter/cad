@@ -345,14 +345,14 @@ fn a_convex_pair_brackets_the_built_gap_at_every_budget() {
             &MinSepSelection {
                 at: a,
                 index: 0,
-                body: ba,
-                faces: all(ba),
+                body: ba.body(),
+                faces: all(ba.body()),
             },
             &MinSepSelection {
                 at: b,
                 index: 0,
-                body: bb,
-                faces: all(bb),
+                body: bb.body(),
+                faces: all(bb.body()),
             },
             MinSeparationConfig {
                 max_cell_pairs: pairs,
@@ -408,11 +408,11 @@ fn min_clearance_of_a_body_against_itself_is_the_selections_self_clearance() {
     let ValuePayload::Body(body) = &v.payload else {
         panic!("a body")
     };
-    let faces: Vec<_> = body.faces().map(|(k, _)| k).collect();
+    let faces: Vec<_> = body.body().faces().map(|(k, _)| k).collect();
     let sel = || MinSepSelection {
         at: solid,
         index: 0,
-        body,
+        body: body.body(),
         faces: faces.clone(),
     };
     let m = min_separation(&sel(), &sel(), MinSeparationConfig::default()).expect("admitted");

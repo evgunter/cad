@@ -589,11 +589,12 @@ fn i1_inline_at_a_pose_places_the_parts_world_under_the_instances_bundle() {
         let o = with_resolver(store);
         let ev = run(&out.doc, &o);
         let stood = match &ev.value(out.placement).expect("the copy evaluates").payload {
-            editor_core::ValuePayload::Body(body) => {
-                body.vertex_points().fold([f64::INFINITY; 3], |m, (_, p)| {
+            editor_core::ValuePayload::Body(body) => body
+                .body()
+                .vertex_points()
+                .fold([f64::INFINITY; 3], |m, (_, p)| {
                     [m[0].min(p.x), m[1].min(p.y), m[2].min(p.z)]
-                })
-            }
+                }),
             other => panic!(
                 "{what}: the new placement holds a copy: {}",
                 other.kind_name()

@@ -66,6 +66,10 @@ pub enum ExportError {
         /// The gate's findings, verbatim.
         errors: Vec<topo::ValidationError>,
     },
+    /// The body could not be composed into its space's coordinates: the
+    /// kernel refused the rigid map of its frame
+    /// ([`editor_core::in_space`]).
+    Compose(topo::TransformError),
     /// The body was denoted but the STEP writer refused it.
     Step(StepExportError),
     /// The whole-document door's gather refused: an empty world
@@ -100,6 +104,10 @@ impl Say for ExportError {
                 errors
                     .first()
                     .map_or_else(|| "none".to_owned(), ToString::to_string)
+            ),
+            ExportError::Compose(e) => write!(
+                f,
+                "export: the body could not be composed into its space's coordinates: {e}"
             ),
             ExportError::Step(e) => write!(f, "export: the STEP writer refused: {e}"),
             ExportError::Product(e) => write!(f, "export: {}", Said(e, by)),
@@ -161,9 +169,32 @@ pub fn step_for_node(
             });
         }
     };
-    let body = AtRestBody::validate(Body::clone(body), tol)
+    let body = in_its_space(body.body(), &editor_core::in_space(body), tol)?;
+    let body = AtRestBody::validate(body, tol)
         .map_err(|errors| ExportError::BodyInvalid { node, errors })?;
     step_string(&body, options, tol).map_err(ExportError::Step)
+}
+
+/// **`body` composed into its space** by `map`, the frame
+/// [`editor_core::in_space`] answers: itself where the frame is the
+/// identity, so a body computed in its space's coordinates is written
+/// as it was built.
+fn in_its_space(
+    body: &Body<f64>,
+    map: &geom_core::RigidMotion<f64>,
+    tol: Tol,
+) -> Result<Body<f64>, ExportError> {
+    if is_identity(map) {
+        return Ok(body.clone());
+    }
+    topo::transform_rigid(body, map, tol).map_err(ExportError::Compose)
+}
+
+/// Whether `map` is the identity, bit for bit.
+fn is_identity(map: &geom_core::RigidMotion<f64>) -> bool {
+    let (u, v, w, o) = (map.u().get(), map.v().get(), map.w().get(), map.origin());
+    [u.x, u.y, u.z, v.x, v.y, v.z, w.x, w.y, w.z, o.x, o.y, o.z]
+        == [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0]
 }
 
 /// Serializes the WHOLE DOCUMENT's product — the body its product slot
@@ -192,5 +223,15 @@ pub fn export_document_step(
 ) -> Result<String, ExportError> {
     let product =
         editor_core::product_recorded(doc, evaluation, tol).map_err(ExportError::Product)?;
-    step_string(&product.body, options, tol).map_err(ExportError::Step)
+    // The product is in the frame its gather computed in; it is written
+    // in the world's coordinates.
+    let map = editor_core::in_space(&product);
+    if is_identity(&map) {
+        return step_string(&product.body, options, tol).map_err(ExportError::Step);
+    }
+    let body = in_its_space(&product.body, &map, tol)?;
+    let body = AtRestBody::validate(body, tol).map_err(|errors| {
+        ExportError::Product(editor_core::ProductError::ProductInvalid { errors })
+    })?;
+    step_string(&body, options, tol).map_err(ExportError::Step)
 }

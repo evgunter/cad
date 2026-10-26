@@ -136,11 +136,11 @@ fn touches(
     let ValuePayload::Boolean(BooleanValue::Body { body, contacts, .. }) = &value.payload else {
         panic!("{what}: not a boolean body");
     };
-    assert_eq!(body.solids().count(), solids, "{what}: solids");
+    assert_eq!(body.body().solids().count(), solids, "{what}: solids");
     let v = topo::mass_properties(
         &topo::test_support::finished(
             "the measured body",
-            topo::Body::clone(&**body),
+            topo::Body::clone(body.body()),
             Tol::witness(),
         ),
         Tol::witness(),
@@ -152,8 +152,8 @@ fn touches(
         "{what}: volume {v}, want {volume}"
     );
     let kind = |f: topo::FaceKey| {
-        let face = body.get_face(f).unwrap();
-        body.get_surface(face.surface).unwrap().kind()
+        let face = body.body().get_face(f).unwrap();
+        body.body().get_surface(face.surface).unwrap().kind()
     };
     let ff: Vec<_> = contacts
         .rows()

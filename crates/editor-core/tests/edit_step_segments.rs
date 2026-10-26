@@ -456,7 +456,7 @@ fn assert_steps_bound_their_walls(id: &str, points: Vec<(f64, f64)>, want: Perm)
             let face = lateral(&ev, ext, &pv.pieces, *e)
                 .unwrap_or_else(|| panic!("{id}: step {step}'s ref {e:?} names no wall"));
             walls.insert(face);
-            let pts = face_vertex_points(body, face);
+            let pts = face_vertex_points(body.body(), face);
             let s = r.prog(0, e);
             for end in [r.verts[0][s].0, r.verts[0][(s + 1) % n].0] {
                 assert!(
@@ -724,7 +724,7 @@ fn assert_sections_bound_their_walls(
                         panic!("{id}: section {si} loop {li} step {step}: {e:?} names no wall")
                     });
                     walls.insert(face);
-                    let pts = face_vertex_points(body, face);
+                    let pts = face_vertex_points(body.body(), face);
                     let ends = [r.verts[li][s].0, r.verts[li][(s + 1) % n].0];
                     for end in ends {
                         let p = place(end);
@@ -752,8 +752,11 @@ fn assert_sections_bound_their_walls(
                                 "{id}: section {si} step {step}'s ref {e:?} names no {cap:?} rim"
                             )
                         });
-                        let [a, b] = fixture::ends(body, edge);
-                        let got = [fixture::point(body, a), fixture::point(body, b)];
+                        let [a, b] = fixture::ends(body.body(), edge);
+                        let got = [
+                            fixture::point(body.body(), a),
+                            fixture::point(body.body(), b),
+                        ];
                         for end in ends {
                             assert!(
                                 touches(&got, place(end), 1e-9),
@@ -775,7 +778,7 @@ fn assert_sections_bound_their_walls(
     }
     assert_eq!(
         every_wall.len(),
-        body.faces().count() - 2,
+        body.body().faces().count() - 2,
         "{id}: every section names the same walls — the loft's, and no others"
     );
 }
@@ -1067,8 +1070,11 @@ fn a_twisted_loft_takes_the_twist_the_author_wrote() {
             ),
         );
         let strut = fixture::edge_of(ev.table_at(loft).unwrap(), "strut", &name);
-        let [a, b] = fixture::ends(body, strut);
-        let got = [fixture::point(body, a), fixture::point(body, b)];
+        let [a, b] = fixture::ends(body.body(), strut);
+        let got = [
+            fixture::point(body.body(), a),
+            fixture::point(body.body(), b),
+        ];
         for want in [
             geom_core::Point3::new(x0, y0, 0.0),
             geom_core::Point3::new(x1, y1, 1.0),
@@ -1081,7 +1087,7 @@ fn a_twisted_loft_takes_the_twist_the_author_wrote() {
         }
     }
     let volume = topo::mass_properties(
-        &topo::test_support::finished("the measured body", topo::Body::clone(&**body), tol()),
+        &topo::test_support::finished("the measured body", topo::Body::clone(body.body()), tol()),
         tol(),
     )
     .expect("mass properties")
@@ -1593,7 +1599,10 @@ fn wall_radius(
     let ValuePayload::Body(body) = &ev.value(ext)?.payload else {
         return None;
     };
-    match body.get_surface(body.get_face(face)?.surface)? {
+    match body
+        .body()
+        .get_surface(body.body().get_face(face)?.surface)?
+    {
         geom::Surface::Cylinder { radius, .. } => Some(*radius),
         _ => None,
     }

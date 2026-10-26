@@ -231,7 +231,7 @@ fn placed_nominally(doc: ProfileDoc, body: RecipeNodeId) -> (ProfileDoc, RecipeN
 /// The one product body an instance's copies carry.
 fn copies_body(ev: &Evaluation<f64>, node: RecipeNodeId) -> &topo::Body<f64> {
     match ev.value(node).map(|v| &v.payload) {
-        Some(editor_core::ValuePayload::Body(b)) => b,
+        Some(editor_core::ValuePayload::Body(b)) => b.body(),
         other => panic!("an instance's value is its part's product body, got {other:?}"),
     }
 }

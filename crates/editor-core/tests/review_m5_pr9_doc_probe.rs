@@ -83,8 +83,8 @@ fn union_body<T: geom_core::Decide>(
     id: RecipeNodeId,
 ) -> &topo::Body<T> {
     match &ev.value(id).expect("union evaluated").payload {
-        ValuePayload::Boolean(BooleanValue::Body { body, .. }) => body,
-        ValuePayload::Body(b) => b,
+        ValuePayload::Boolean(BooleanValue::Body { body, .. }) => body.body(),
+        ValuePayload::Body(b) => b.body(),
         other => panic!("expected a body, got {}", other.kind_name()),
     }
 }
@@ -215,10 +215,12 @@ fn tangent_intersection_edges_survive_save_load_at_rest() {
             ValuePayload::Body(b) => b.clone(),
             other => panic!("expected a body, got {}", other.kind_name()),
         };
-        body.edges()
+        body.body()
+            .edges()
             .filter(|(_, e)| {
                 matches!(
-                    body.get_curve_geom(e.curve)
+                    body.body()
+                        .get_curve_geom(e.curve)
                         .and_then(|g| g.certified())
                         .map(topo::EdgeCurve::description),
                     Some(topo::EdgeDescription::TangentIntersection { .. })

@@ -199,7 +199,7 @@ fn face_on(ev: &Evaluation<f64>, node: RecipeNodeId, p: [f64; 3], n: [f64; 3]) -
         ValuePayload::Body(b) => b.clone(),
         other => panic!("expected a body, got {other:?}"),
     };
-    face_of(ev, node, &body, 0, p, n)
+    face_of(ev, node, body.body(), 0, p, n)
 }
 
 /// [`face_on`] on one half of `split`, read off the split's own value:
@@ -221,7 +221,7 @@ fn half_face_on(
     let editor_core::SplitSide::Body(body) = side else {
         panic!("{half:?} holds material")
     };
-    face_of(ev, split, body, half.output_body(), p, n)
+    face_of(ev, split, body.body(), half.output_body(), p, n)
 }
 
 /// The face of output `index` of `node`, a plane through `p` facing `n`.
@@ -462,16 +462,21 @@ fn edge_named(ev: &Evaluation<f64>, node: RecipeNodeId, a: [f64; 3], b: [f64; 3]
         ValuePayload::Boolean(editor_core::BooleanValue::Body { body, .. }) => body.clone(),
         other => panic!("expected a body, got {other:?}"),
     };
-    let point = |v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+    let point = |v| {
+        *body
+            .body()
+            .get_point(body.body().get_vertex(v).unwrap().point)
+            .unwrap()
+    };
     let at = |p: Point3<f64>, q: [f64; 3]| (p - Point3::new(q[0], q[1], q[2])).norm() < 1e-12;
     table(ev, node)
         .iter()
         .find_map(|(n, entry)| match entry {
             Entry::Unique(r) => match r.key {
                 EntityKey::Edge(e) => {
-                    let he = body.get_edge(e).unwrap().he_plus;
-                    let s = point(body.get_half_edge(he).unwrap().start);
-                    let t = point(body.half_edge_end(he).unwrap());
+                    let he = body.body().get_edge(e).unwrap().he_plus;
+                    let s = point(body.body().get_half_edge(he).unwrap().start);
+                    let t = point(body.body().half_edge_end(he).unwrap());
                     ((at(s, a) && at(t, b)) || (at(s, b) && at(t, a))).then(|| n.clone())
                 }
                 _ => None,
@@ -1356,16 +1361,21 @@ fn rim_named(ev: &Evaluation<f64>, node: RecipeNodeId, z: f64) -> Vec<StableName
         ValuePayload::Body(b) => b.clone(),
         other => panic!("expected a body, got {other:?}"),
     };
-    let height = |v| body.get_point(body.get_vertex(v).unwrap().point).unwrap().z;
+    let height = |v| {
+        body.body()
+            .get_point(body.body().get_vertex(v).unwrap().point)
+            .unwrap()
+            .z
+    };
     let mut rim: Vec<StableName> = table(ev, node)
         .iter()
         .filter_map(|(n, entry)| match entry {
             Entry::Unique(r) => match r.key {
                 EntityKey::Edge(e) => {
-                    let he = body.get_edge(e).unwrap().he_plus;
+                    let he = body.body().get_edge(e).unwrap().he_plus;
                     let ends = [
-                        body.get_half_edge(he).unwrap().start,
-                        body.half_edge_end(he).unwrap(),
+                        body.body().get_half_edge(he).unwrap().start,
+                        body.body().half_edge_end(he).unwrap(),
                     ];
                     ends.iter()
                         .all(|&v| (height(v) - z).abs() < 1e-12)

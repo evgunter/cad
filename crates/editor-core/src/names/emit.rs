@@ -1154,7 +1154,7 @@ pub(crate) fn name_pattern<T: geom_core::Real>(
     master: &NameTable,
     n: i64,
     per: usize,
-    instances: &[Arc<Body<T>>],
+    instances: &[&Body<T>],
 ) -> Result<Arc<NameTable>, NamingError> {
     let per = output_body(per)?;
     // An operand table read WHOLE seals here, exactly as one read an
@@ -1812,8 +1812,14 @@ mod pattern_tests {
         let n = 3_i64;
         let bodies = instances(&master_body, n, 5.0);
         let node = RecipeNodeId::new(0, test_utils::refusal::tagged(9));
-        let t =
-            name_pattern(node, &master, n, 1, &bodies).expect("a multi-solid master is admitted");
+        let t = name_pattern(
+            node,
+            &master,
+            n,
+            1,
+            &bodies.iter().map(AsRef::as_ref).collect::<Vec<_>>(),
+        )
+        .expect("a multi-solid master is admitted");
 
         let times = usize::try_from(n).unwrap();
         assert_eq!(t.len(), master.len() * times, "census: N × the master's");
@@ -1854,7 +1860,14 @@ mod pattern_tests {
         let (n, step) = (3_i64, 5.0);
         let bodies = instances(&master_body, n, step);
         let node = RecipeNodeId::new(0, test_utils::refusal::tagged(9));
-        let t = name_pattern(node, &master, n, 1, &bodies).expect("admitted");
+        let t = name_pattern(
+            node,
+            &master,
+            n,
+            1,
+            &bodies.iter().map(AsRef::as_ref).collect::<Vec<_>>(),
+        )
+        .expect("admitted");
 
         let mut checked = 0;
         for i in 0..n {
@@ -1912,7 +1925,7 @@ mod pattern_tests {
             &master,
             2,
             1,
-            &[Arc::new(body)],
+            &[&body],
         )
         .expect_err("a row past the master's body count must refuse");
         assert!(
@@ -1955,7 +1968,14 @@ mod pattern_tests {
             }
         }
         let node = RecipeNodeId::new(0, test_utils::refusal::tagged(9));
-        let t = name_pattern(node, &master, n, per, &bodies).expect("admitted");
+        let t = name_pattern(
+            node,
+            &master,
+            n,
+            per,
+            &bodies.iter().map(AsRef::as_ref).collect::<Vec<_>>(),
+        )
+        .expect("admitted");
         assert_eq!(t.len(), master.len() * 3, "census: N × the master's");
         for j in 0..n {
             let ju = u32::try_from(j).unwrap();

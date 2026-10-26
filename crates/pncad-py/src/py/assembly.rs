@@ -100,7 +100,7 @@ fn product_fields(py: Python<'_>, err: &d::ProductError) -> (Py<PyAny>, Py<PyAny
             standing.through().map_or_else(none, |through| id(&through)),
             none(),
         ),
-        E::Graft { node, .. } => (id(node), none(), none()),
+        E::Frame { node, .. } | E::Graft { node, .. } => (id(node), none(), none()),
         // The first failing placement, in gather order; every failing
         // placement and output is in the message.
         E::RootInvalid { findings } => (

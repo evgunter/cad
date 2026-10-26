@@ -66,8 +66,8 @@ fn cut_cylinder_gains_tessellation_and_props_columns() {
     // exactly πr²H/2.
     let half = core::f64::consts::PI * 0.5f64.powi(2) * 1.0 / 2.0;
     for (label, body) in [
-        ("cut_cylinder/above", &**above),
-        ("cut_cylinder/below", &**below),
+        ("cut_cylinder/above", above.body()),
+        ("cut_cylinder/below", below.body()),
     ] {
         let (ms, tris) = tess_column(label, body);
         let m = topo::mass_properties(

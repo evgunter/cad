@@ -42,7 +42,7 @@ fn volume(side: &SplitSide<f64>) -> Option<f64> {
             topo::mass_properties(
                 &topo::test_support::finished(
                     "the measured body",
-                    topo::Body::clone(&**b),
+                    topo::Body::clone(b.body()),
                     Tol::witness(),
                 ),
                 Tol::witness(),

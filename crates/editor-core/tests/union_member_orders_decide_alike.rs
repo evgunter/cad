@@ -270,9 +270,9 @@ pub(crate) fn cells_are_held(ev: &Evaluation<f64>, union: RecipeNodeId, order: &
                 .expect("the read holds the cell's body");
             let live = match e.key {
                 EntityKey::Body => true,
-                EntityKey::Face(k) => body.faces().any(|(f, _)| f == k),
-                EntityKey::Edge(k) => body.edges().any(|(f, _)| f == k),
-                EntityKey::Vertex(k) => body.vertices().any(|(f, _)| f == k),
+                EntityKey::Face(k) => body.body().faces().any(|(f, _)| f == k),
+                EntityKey::Edge(k) => body.body().edges().any(|(f, _)| f == k),
+                EntityKey::Vertex(k) => body.body().vertices().any(|(f, _)| f == k),
             };
             assert!(live, "{}", at("denotes no entity of its read's body"));
             held.cells += 1;
@@ -316,22 +316,26 @@ fn carrier(ev: &Evaluation<f64>, cell: &editor_core::NamedCell) -> Option<Carrie
     };
     let body = ev.read_body(*input, e.body).ok()?.ok()?;
     match e.key {
-        editor_core::EntityKey::Vertex(v) => Some(Carrier::Point(crate::fixture::point(body, v))),
+        editor_core::EntityKey::Vertex(v) => {
+            Some(Carrier::Point(crate::fixture::point(body.body(), v)))
+        }
         editor_core::EntityKey::Edge(k) => {
-            let edge = body.get_edge(k)?;
+            let edge = body.body().get_edge(k)?;
             let straight = body
+                .body()
                 .get_curve_geom(edge.curve)
                 .and_then(|g| g.certified())
                 .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Line { .. }));
             if !straight {
                 return None;
             }
-            let [u, w] = crate::fixture::ends(body, k).map(|v| crate::fixture::point(body, v));
+            let [u, w] =
+                crate::fixture::ends(body.body(), k).map(|v| crate::fixture::point(body.body(), v));
             Some(Carrier::Line(u, w - u))
         }
         editor_core::EntityKey::Face(f) => {
-            let (_, face) = body.faces().find(|&(k, _)| k == f)?;
-            match body.get_surface(face.surface)? {
+            let (_, face) = body.body().faces().find(|&(k, _)| k == f)?;
+            match body.body().get_surface(face.surface)? {
                 topo::Surface::Plane { origin, normal, .. } => {
                     Some(Carrier::Plane(*origin, *normal))
                 }

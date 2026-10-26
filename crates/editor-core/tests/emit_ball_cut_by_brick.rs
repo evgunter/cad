@@ -58,8 +58,8 @@ fn document(op: &str, ball_first: bool) -> (ProfileDoc, [RecipeNodeId; 3]) {
 
 fn body_of(payload: &ValuePayload<f64>) -> &topo::Body<f64> {
     match payload {
-        ValuePayload::Body(b) => b,
-        ValuePayload::Boolean(BooleanValue::Body { body, .. }) => body,
+        ValuePayload::Body(b) => b.body(),
+        ValuePayload::Boolean(BooleanValue::Body { body, .. }) => body.body(),
         other => panic!("expected a body, got {other:?}"),
     }
 }

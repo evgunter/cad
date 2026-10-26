@@ -239,6 +239,48 @@ impl core::fmt::Display for PoseRefusal {
 
 impl core::error::Error for PoseRefusal {}
 
+/// **What [`in_space`] composes**: a body value ([`crate::Framed`]), a
+/// gathered product ([`crate::Product`]), or a picked body
+/// ([`crate::NodePick`]), each by the frame it holds.
+pub struct Composing<'a, T: geom_core::Real>(&'a crate::eval::Frame<T>);
+
+impl<'a, T: geom_core::Decide> From<&'a crate::eval::Framed<T>> for Composing<'a, T> {
+    fn from(value: &'a crate::eval::Framed<T>) -> Self {
+        Self(value.frame())
+    }
+}
+
+impl<'a, T: geom_core::Decide> From<&'a crate::Product<T>> for Composing<'a, T> {
+    fn from(product: &'a crate::Product<T>) -> Self {
+        Self(&product.frame)
+    }
+}
+
+impl<'a> From<&'a crate::NodePick> for Composing<'a, f64> {
+    fn from(pick: &'a crate::NodePick) -> Self {
+        Self(&pick.frame)
+    }
+}
+
+/// **The one composing door** (D10 `[placement.world]`): the map from a
+/// body's own coordinates into those of its space — the world's, for a
+/// product. Export and the viewer's picture compose a body through it,
+/// and nothing else does (`scripts/gates/in-space-composes-for-export-and-picture.sh`):
+/// every operation computes in a frame of its reads and relates two
+/// operands through [`crate::Framed::relative`], so what this answers
+/// never re-enters the model.
+#[must_use]
+pub fn in_space<'a, T: geom_core::Decide>(
+    value: impl Into<Composing<'a, T>>,
+) -> geom_core::RigidMotion<T> {
+    value
+        .into()
+        .0
+        .map()
+        .copied()
+        .unwrap_or_else(geom_core::RigidMotion::identity)
+}
+
 impl<T: SolveScalar> SolvedPoses<T> {
     /// **Which document this solve is of** (DI3).
     pub fn document(&self) -> crate::ident::DocumentId {

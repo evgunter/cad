@@ -6661,7 +6661,7 @@ mod split_edge_lineage {
         };
         let table = ev.table_at(ext).expect("the extrude's table");
         let out = topo::split(
-            &topo::test_support::finished("the extrude", (**body).clone(), Tol::witness()),
+            &topo::test_support::finished("the extrude", body.body().clone(), Tol::witness()),
             &SplitPlane {
                 origin: PoseValue::plane_foot(normal, offset),
                 normal,
@@ -6824,7 +6824,7 @@ mod wavy_loft {
         let ValuePayload::Body(body) = &value.payload else {
             panic!("a body");
         };
-        body
+        body.body()
     }
 
     fn carrier(body: &Body<f64>, e: EdgeKey) -> &geom::Curve3<f64> {
@@ -7100,17 +7100,18 @@ mod edge_pieces_of_one_line_tie {
         // The two half circles of the top rim, and a table holding only
         // the vertex rows, where their pieces are minted.
         let top_rim: Vec<topo::EdgeKey> = body
+            .body()
             .edges()
             .map(|(e, _)| e)
             .filter(|&e| {
-                let (v0, v1) = super::edge_ends(body, e);
-                let z = |v| super::vertex_point(body, v).z;
+                let (v0, v1) = super::edge_ends(body.body(), e);
+                let z = |v| super::vertex_point(body.body(), v).z;
                 v0 != v1 && (z(v0) - 1.0).abs() < 1e-9 && (z(v1) - 1.0).abs() < 1e-9
             })
             .collect();
         assert_eq!(top_rim.len(), 2, "the rim is two half circles: {top_rim:?}");
         let ends = |e| {
-            let (v0, v1) = super::edge_ends(body, e);
+            let (v0, v1) = super::edge_ends(body.body(), e);
             let mut vs = [v0, v1];
             vs.sort();
             vs
@@ -7157,7 +7158,15 @@ mod edge_pieces_of_one_line_tie {
         let mut pieces = EdgePieces::default();
         let mut tie = TieRows::default();
         for (base, e) in [(&p1, top_rim[0]), (&p2, top_rim[1])] {
-            name_edge_pieces(&mut pieces, &t, false, base, (body, 0), &[e], Lone::Piece);
+            name_edge_pieces(
+                &mut pieces,
+                &t,
+                false,
+                base,
+                (body.body(), 0),
+                &[e],
+                Lone::Piece,
+            );
         }
         pieces.mint(&mut t, &mut tie).unwrap();
         tie.flush(&mut t).unwrap();
@@ -8414,16 +8423,18 @@ mod rim_holding_rows {
             panic!("the loft is a body");
         };
         let splines: Vec<EdgeKey> = body
+            .body()
             .edges()
             .map(|(k, _)| k)
             .filter(|&k| {
-                topo::query::edge_carrier_kind(body, k) == Some(topo::query::CurveKind::Nurbs)
+                topo::query::edge_carrier_kind(body.body(), k)
+                    == Some(topo::query::CurveKind::Nurbs)
             })
             .collect();
         assert!(splines.len() >= 2, "the loft has spline edges: {splines:?}");
         let lines: Vec<EdgeCarrier<f64>> = splines
             .iter()
-            .map(|&k| EdgeCarrier::of_edge(body, k).unwrap())
+            .map(|&k| EdgeCarrier::of_edge(body.body(), k).unwrap())
             .collect();
         assert!(
             lines.iter().all(|l| matches!(l, EdgeCarrier::Unread)),
@@ -8436,7 +8447,7 @@ mod rim_holding_rows {
         );
         let kept = sets_per_line(
             0..splines.len(),
-            |&i| EdgeCarrier::of_edge(body, splines[i]).map(Some),
+            |&i| EdgeCarrier::of_edge(body.body(), splines[i]).map(Some),
             bnd,
         )
         .unwrap();

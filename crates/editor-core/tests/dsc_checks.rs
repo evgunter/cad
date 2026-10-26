@@ -385,7 +385,7 @@ fn a_findings_attribution_resolves_to_its_subject() {
     // The flagged body IS the disjoint union: the two shells the
     // finding counted (their grouping into solids is the kernel's
     // business, not pinned here).
-    assert_eq!(body.shells().count(), 2);
+    assert_eq!(body.body().shells().count(), 2);
     // The subject's DECLARATIONS travel with it, so the tier-3′ gate
     // reached through an attribution asks about the same body the
     // producer minted. This union carries no records (no member holds one,
@@ -832,7 +832,7 @@ fn the_chart_coherence_resident_carries_the_whole_kernel_report() {
         .expect("the examination reads the evaluation and needs no product");
 
     let (body, _) = subject_body(&ev, root, 0).expect("the revolve denotes one body");
-    let door = topo::examine_chart_coherence(body.as_ref(), Tol::witness());
+    let door = topo::examine_chart_coherence(body.body(), Tol::witness());
 
     let measured = report
         .findings
@@ -1014,10 +1014,12 @@ fn a_root_tier_3_refuses_is_reported_not_at_rest() {
     let ValuePayload::Body(body) = &value.payload else {
         panic!("a placed slab is a body");
     };
-    let reverted = topo::Body::clone(body).revert().expect("the slab reverts");
+    let reverted = topo::Body::clone(body.body())
+        .revert()
+        .expect("the slab reverts");
     let errors = topo::validate_geometric(&reverted, Tol::witness())
         .expect_err("tier 3 refuses the inside-out slab");
-    value.payload = ValuePayload::Body(std::sync::Arc::new(reverted));
+    value.payload = ValuePayload::Body(editor_core::Framed::own(std::sync::Arc::new(reverted)));
 
     // The separation and coincidence residents read the gathered
     // product, whose own at-rest gate refuses this root first; off, the

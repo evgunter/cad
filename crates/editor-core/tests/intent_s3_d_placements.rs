@@ -37,9 +37,10 @@ fn vertices(doc: &ProfileDoc, node: RecipeNodeId) -> Vec<[f64; 3]> {
         other => panic!("{node} is a body: {other:?}"),
     };
     let mut points: Vec<[f64; 3]> = body
+        .body()
         .vertices()
         .map(|(v, _)| {
-            let p = topo::readback::vertex_point(&body, v).expect("a vertex point");
+            let p = topo::readback::vertex_point(body.body(), v).expect("a vertex point");
             [p.x, p.y, p.z]
         })
         .collect();
@@ -744,9 +745,10 @@ fn vertex_bounds<T: editor_core::EvalScalar>(
         other => panic!("{node} is a body: {other:?}"),
     };
     let mut points: Vec<[(f64, f64); 3]> = body
+        .body()
         .vertices()
         .map(|(v, _)| {
-            let p = topo::readback::vertex_point(&body, v).expect("a vertex point");
+            let p = topo::readback::vertex_point(body.body(), v).expect("a vertex point");
             [p.x, p.y, p.z].map(|c| (c.lo(), c.hi()))
         })
         .collect();
@@ -922,8 +924,8 @@ fn read_copy<T: editor_core::EvalScalar>(
     let mut points: Vec<[(f64, f64); 3]> = bodies
         .iter()
         .flat_map(|body| {
-            body.vertices().map(|(v, _)| {
-                let p = topo::readback::vertex_point(body, v).expect("a vertex point");
+            body.body().vertices().map(|(v, _)| {
+                let p = topo::readback::vertex_point(body.body(), v).expect("a vertex point");
                 [p.x, p.y, p.z].map(|c| (c.lo(), c.hi()))
             })
         })

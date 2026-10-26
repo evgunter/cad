@@ -1493,7 +1493,8 @@ fn a_part_inlined_twice_lands_at_the_composed_pose() {
     let own = match fixture::run(&part, &EvalOptions::default()).result(body) {
         Some(NodeResult::Ok(v)) => match &v.payload {
             editor_core::ValuePayload::Body(b) => sorted(
-                b.vertex_points()
+                b.body()
+                    .vertex_points()
                     .map(|(_, p)| Vec3::new(p.x, p.y, p.z))
                     .collect(),
             ),

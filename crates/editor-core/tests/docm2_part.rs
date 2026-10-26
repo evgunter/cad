@@ -106,7 +106,7 @@ fn lift(r: &mut Recorder, input: impl Into<Operand>, dz: f64) -> RecipeNodeId {
 /// the Arc it holds.
 fn body_arc(ev: &Evaluation<f64>, id: RecipeNodeId) -> &Arc<Body<f64>> {
     match &ev.value(id).expect("a value").payload {
-        ValuePayload::Body(b) => b,
+        ValuePayload::Body(b) => b.shared(),
         other => panic!("node {} is a {}, not a body", id.0, other.kind_name()),
     }
 }
@@ -123,7 +123,7 @@ fn sides(ev: &Evaluation<f64>, split: RecipeNodeId) -> (Arc<Body<f64>>, Arc<Body
         panic!("a split value");
     };
     let body = |s: &SplitSide<f64>| match s {
-        SplitSide::Body(b) => Arc::clone(b),
+        SplitSide::Body(b) => Arc::clone(b.shared()),
         SplitSide::Empty => panic!("both halves carry material"),
     };
     (body(above), body(below))
@@ -134,7 +134,7 @@ fn instances(ev: &Evaluation<f64>, pattern: RecipeNodeId) -> Vec<Arc<Body<f64>>>
     let ValuePayload::Instances(v) = &ev.value(pattern).expect("the pattern").payload else {
         panic!("an instances value");
     };
-    v.clone()
+    v.iter().map(|b| Arc::clone(b.shared())).collect()
 }
 
 fn error_of(ev: &Evaluation<f64>, id: RecipeNodeId) -> &NodeErrorKind {

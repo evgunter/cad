@@ -125,7 +125,7 @@ fn a_zero_glued_union_passes_tier_three_prime() {
         panic!("the union is a body");
     };
     assert_eq!(
-        topo::validate_pseudomanifold(body, contacts, Tol::witness()),
+        topo::validate_pseudomanifold(body.body(), contacts, Tol::witness()),
         Ok(()),
         "tier 3′"
     );

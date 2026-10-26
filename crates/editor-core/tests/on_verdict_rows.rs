@@ -93,14 +93,14 @@ fn answer(ev: &Evaluation<f64>, id: RecipeNodeId) -> Option<(f64, usize, Boolean
             let volume = topo::mass_properties(
                 &topo::test_support::finished(
                     "the measured body",
-                    topo::Body::clone(&**body),
+                    topo::Body::clone(body.body()),
                     Tol::witness(),
                 ),
                 Tol::witness(),
             )
             .unwrap()
             .volume;
-            Some((volume, body.shells().count(), *kind))
+            Some((volume, body.body().shells().count(), *kind))
         }
         other => panic!("node {} is a {}, not a boolean", id.0, other.kind_name()),
     }

@@ -277,7 +277,7 @@ fn a_measured_and_asserted_block_placed_is_the_product() {
     };
     assert_eq!(
         body_digest(&body),
-        body_digest(own),
+        body_digest(own.body()),
         "the product is the measured block's body"
     );
 }
@@ -799,7 +799,7 @@ fn inline_carries_a_reader_of_an_instance_whose_part_places_at_a_pose() {
         else {
             panic!("the boolean is a body")
         };
-        body_digest(body)
+        body_digest(body.body())
     };
     assert_eq!(
         body(&ev(&inlined.doc)),

@@ -463,22 +463,16 @@ pub fn placed_against_in(
     // The first planar face by id on the body's own xy, as the sign of
     // its outward normal's z there.
     let own_plane = |shape: &crate::Operand| {
-        let (_, solid, table, motion) =
+        // A copy's body is its source's, in the source's coordinates.
+        let (_, framed, table, _) =
             crate::mate::corner::read_of(doc, &ev, shape).expect("the body has a value");
-        let motion = motion.map(|m| m.to_affine());
+        let solid = framed.body();
         solid.faces().find_map(|(face, _)| {
-            let kind = topo::readback::face_carrier_kind(&solid, face).ok()?;
+            let kind = topo::readback::face_carrier_kind(solid, face).ok()?;
             (kind == geom::SurfaceKind::Plane).then_some(())?;
-            let pose = topo::readback::face_pose(&solid, face).ok()?;
+            let pose = topo::readback::face_pose(solid, face).ok()?;
             let n = geom_brep::OutwardNormal::from_chart(pose.axis, pose.sense).vec();
             let o = pose.origin - geom_core::linalg::Point3::origin();
-            let (o, n) = match motion {
-                None => (o, n),
-                Some(m) => {
-                    let back = m.linear.transpose();
-                    (back * (o - m.translation), back * n)
-                }
-            };
             let name = table.name_of(&crate::names::EntityRef {
                 body: 0,
                 key: crate::names::EntityKey::Face(face),
@@ -618,22 +612,19 @@ pub fn plane_on(
         &crate::EvalOptions::default(),
         tol,
     );
-    let (node, solid, table, motion) =
+    // A copy's body is its source's, in the source's coordinates.
+    let (node, framed, table, _) =
         crate::mate::corner::read_of(doc, &ev, &body).expect("the body has a value");
-    let motion = motion.map(|m| m.to_affine());
+    let solid = framed.body();
     let n = V::new(normal[0], normal[1], normal[2]);
     let n = n * (1.0 / n.norm());
     let o = Point3::new(origin[0], origin[1], origin[2]);
-    let (n, o) = match motion {
-        None => (n, o),
-        Some(m) => (m.linear * n, m.transform_point(o)),
-    };
     let parallel: Vec<_> = solid
         .faces()
         .filter_map(|(face, _)| {
-            let kind = topo::readback::face_carrier_kind(&solid, face).ok()?;
+            let kind = topo::readback::face_carrier_kind(solid, face).ok()?;
             (kind == geom::SurfaceKind::Plane).then_some(())?;
-            let pose = topo::readback::face_pose(&solid, face).ok()?;
+            let pose = topo::readback::face_pose(solid, face).ok()?;
             let out = geom_brep::OutwardNormal::from_chart(pose.axis, pose.sense).vec();
             let sense = if out.to_array() == n.to_array() {
                 1.0
@@ -760,21 +751,23 @@ pub fn frame_on_in(
     let band = geom_core::predicate::Band::linear(tol).expect("a band");
     let ev: crate::Evaluation<f64> =
         crate::evaluate(doc, None, &crate::CancelToken::new(), opts, tol);
-    let (node, solid, table, motion) =
+    // A copy's body is its source's, in the source's coordinates.
+    let (node, framed, table, _) =
         crate::mate::corner::read_of(doc, &ev, body).expect("the body has a value");
+    let solid = framed.body();
     let name = |key| table.name_of(&EntityRef { body: 0, key }).cloned();
     let picked = solid.edges().find_map(|(edge, _)| {
-        let kind = topo::readback::edge_carrier_kind(&solid, edge).ok()?;
+        let kind = topo::readback::edge_carrier_kind(solid, edge).ok()?;
         matches!(
             kind,
             geom::CurveKind::Line | geom::CurveKind::Circle | geom::CurveKind::Ellipse
         )
         .then_some(())?;
-        let line = topo::readback::edge_pose(&solid, edge).ok()?;
+        let line = topo::readback::edge_pose(solid, edge).ok()?;
         let dir = UnitVec3::new(line.axis, topo::query::POSE_UNIT_NORM, band).ok()?;
         let edge_name = name(EntityKey::Edge(edge))?;
         solid.vertices().find_map(|(vertex, _)| {
-            let point = topo::readback::vertex_point(&solid, vertex).ok()?;
+            let point = topo::readback::vertex_point(solid, vertex).ok()?;
             let off = point - line.origin;
             let across = off - dir.get() * off.dot(dir.get());
             UnitVec3::new(across, "frame_vertex_off_the_line", band).ok()?;
@@ -793,7 +786,7 @@ pub fn frame_on_in(
     });
     let (edge_name, vertex_name, frame) =
         picked.unwrap_or_else(|| panic!("{node} offers a frame to read"));
-    let at = motion.map_or_else(|| at.affine(), |m| m.to_affine() * at.affine());
+    let at = at.affine();
     let read = |def: PoseDef<crate::Operand, Formula>| {
         RoleRead::plain(crate::Operand::Pose(Box::new(def)))
     };

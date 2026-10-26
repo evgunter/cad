@@ -4270,10 +4270,12 @@ fn frame_off(
     let Some(NodeResult::Ok(value)) = ev.result(node) else {
         return Err(PinRefusal::Unevaluated { node });
     };
+    // A copy's body is its source's, in the source's coordinates: the
+    // frame is read there, as `at` states it.
     let solid = match &value.payload {
         ValuePayload::Body(b)
         | ValuePayload::Boolean(pncad::document::BooleanValue::Body { body: b, .. }) => {
-            std::sync::Arc::clone(b)
+            std::sync::Arc::clone(b.shared())
         }
         _ => return Err(PinRefusal::NotABody { node }),
     };
@@ -4319,9 +4321,7 @@ fn frame_off(
         })
     });
     let (edge_name, vertex_name, frame) = picked.ok_or(PinRefusal::NoFrame { node })?;
-    let at = value
-        .motion
-        .map_or_else(|| at.affine(), |m| m.to_affine() * at.affine());
+    let at = at.affine();
     use pncad::document::pose::PoseDef;
     let read = |def: PoseDef<Operand, Formula>| RoleRead::plain(Operand::Pose(Box::new(def)));
     let base = Operand::Pose(Box::new(PoseDef::Through {

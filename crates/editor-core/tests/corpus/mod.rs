@@ -428,8 +428,8 @@ pub fn failures<T: Decide>(ev: &Evaluation<T>) -> Vec<String> {
 /// nonempty body, or an instance's copies read as its part product).
 pub fn body_of<T: Decide>(ev: &Evaluation<T>, id: RecipeNodeId) -> &Body<T> {
     match &ev.value(id).expect("node evaluated to a value").payload {
-        ValuePayload::Body(b) => b,
-        ValuePayload::Boolean(BooleanValue::Body { body, .. }) => body,
+        ValuePayload::Body(b) => b.body(),
+        ValuePayload::Boolean(BooleanValue::Body { body, .. }) => body.body(),
         other => panic!("expected a single body, got {}", other.kind_name()),
     }
 }
@@ -445,11 +445,12 @@ pub fn read_body<'e, T: Decide>(
         .var(read)
         .and_then(|var| var.def().output())
         .expect("a read of a live output");
-    ev.value(node)
+    (ev.value(node)
         .expect("node evaluated to a value")
         .payload
         .output_body(u32::from(port))
-        .unwrap_or_else(|e| panic!("the read holds one body: {e}"))
+        .unwrap_or_else(|e| panic!("the read holds one body: {e}")))
+    .body()
 }
 
 /// **The node kinds no document can evaluate to a value** — the

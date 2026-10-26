@@ -335,7 +335,7 @@ fn published_in(
                 .expect("the read evaluated")
                 .expect("the read holds the body");
             let at = |v| {
-                let p = point(body, v);
+                let p = point(body.body(), v);
                 (micro(p.x), micro(p.y), micro(p.z))
             };
             let named = |k: EntityKey| -> Vec<String> {
@@ -344,34 +344,34 @@ fn published_in(
             let (kind, mut geo, adjacent): (char, Vec<_>, Vec<EntityKey>) = match r.key {
                 EntityKey::Vertex(v) => {
                     let mut adj = Vec::new();
-                    for (e, _) in body.edges() {
-                        if ends(body, e).contains(&v) {
+                    for (e, _) in body.body().edges() {
+                        if ends(body.body(), e).contains(&v) {
                             adj.push(EntityKey::Edge(e));
                         }
                     }
-                    for (f, _) in body.faces() {
-                        if face_vertices(body, f).contains(&v) {
+                    for (f, _) in body.body().faces() {
+                        if face_vertices(body.body(), f).contains(&v) {
                             adj.push(EntityKey::Face(f));
                         }
                     }
                     ('v', vec![at(v)], adj)
                 }
                 EntityKey::Edge(e) => {
-                    let [a, b] = ends(body, e);
+                    let [a, b] = ends(body.body(), e);
                     let mut adj = vec![EntityKey::Vertex(a), EntityKey::Vertex(b)];
-                    for (f, _) in body.faces() {
-                        if face_edges(body, f).contains(&e) {
+                    for (f, _) in body.body().faces() {
+                        if face_edges(body.body(), f).contains(&e) {
                             adj.push(EntityKey::Face(f));
                         }
                     }
                     ('e', vec![at(a), at(b)], adj)
                 }
                 EntityKey::Face(f) => {
-                    let mut adj: Vec<EntityKey> = face_edges(body, f)
+                    let mut adj: Vec<EntityKey> = face_edges(body.body(), f)
                         .into_iter()
                         .map(EntityKey::Edge)
                         .collect();
-                    let vs = face_vertices(body, f);
+                    let vs = face_vertices(body.body(), f);
                     let geo = vs.iter().map(|&v| at(v)).collect();
                     adj.extend(vs.into_iter().map(EntityKey::Vertex));
                     ('f', geo, adj)
@@ -1200,9 +1200,9 @@ fn split(
         for port in 0..2 {
             let var = ev.output_var(sp, port)?;
             let body = ev.read_body(var, 0).ok()?.ok()?;
-            c[0] += body.faces().count();
-            c[1] += body.edges().count();
-            c[2] += body.vertices().count();
+            c[0] += body.body().faces().count();
+            c[1] += body.body().edges().count();
+            c[2] += body.body().vertices().count();
         }
         Some(c)
     })();
@@ -1379,9 +1379,9 @@ fn posed_union(posed: Posed, deg: f64) -> (Published, Option<[usize; 3]>) {
     let ev = run(&doc);
     let counts = ev.value(u).and_then(|v| match &v.payload {
         ValuePayload::Boolean(BooleanValue::Body { body, .. }) => Some([
-            body.faces().count(),
-            body.edges().count(),
-            body.vertices().count(),
+            body.body().faces().count(),
+            body.body().edges().count(),
+            body.body().vertices().count(),
         ]),
         _ => None,
     });

@@ -946,7 +946,8 @@ impl Value {
     /// "output body 0" names nothing there), so `Instances` and
     /// `Split` halves are plain — no home to read from, and none is
     /// invented.
-    fn recorded_body(&self, body: &Arc<topo::Body<f64>>) -> Body {
+    fn recorded_body(&self, body: &d::Framed<f64>) -> Body {
+        let body = body.shared();
         match &self.payload {
             d::ValuePayload::Body(_) => {
                 Body::recorded(Arc::clone(body), Arc::clone(&self.contacts))
@@ -999,7 +1000,7 @@ impl Value {
     /// whole list for `Instances`, both sides for a
     /// `Split`.
     fn bodies(&self) -> Vec<Body> {
-        let wrap = |body: &Arc<topo::Body<f64>>| self.recorded_body(body);
+        let wrap = |body: &d::Framed<f64>| self.recorded_body(body);
         let side = |s: &d::SplitSide<f64>| match s {
             d::SplitSide::Body(body) => Some(wrap(body)),
             d::SplitSide::Empty => None,
@@ -1018,7 +1019,7 @@ impl Value {
     /// A split's two sides, `(above, below)`; `None` where empty.
     fn split(&self, py: Python<'_>) -> PyResult<(Option<Body>, Option<Body>)> {
         let side = |s: &d::SplitSide<f64>| match s {
-            d::SplitSide::Body(body) => Some(Body::plain(Arc::clone(body))),
+            d::SplitSide::Body(body) => Some(Body::plain(Arc::clone(body.shared()))),
             d::SplitSide::Empty => None,
         };
         match &self.payload {
@@ -1811,7 +1812,11 @@ fn export_err(
         // the world's placements, not this call's node, so it adds no field
         // here. The arm is spelled out because the match
         // is exhaustive on purpose — the tripwire, not a wildcard.
-        E::EmptyBoolean { .. } | E::BodyInvalid { .. } | E::Step(_) | E::Product(_) => {}
+        E::EmptyBoolean { .. }
+        | E::BodyInvalid { .. }
+        | E::Compose(_)
+        | E::Step(_)
+        | E::Product(_) => {}
     }
     typed_err(py, ErrorClass::Export, err.spoken(doc), &fields)
 }
