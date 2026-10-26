@@ -105,5 +105,12 @@ of `prism and cube` + far, `pinch and far` and `pinch and cap` builds
 and publishes the table the other orders publish:
 `union_member_orders_decide_alike::a_vertex_row_is_the_unions_once_in_every_member_order`
 and the four `name_invariance` cases above no longer admit this row.
-`Intersect [prism, cube, big]` and `split_pinch_keeps`'s `moat_split`
-were not re-run.
+`Intersect [prism, cube, big]` was not re-run.
+
+The pair-subtract witness above is still live. On that branch,
+`split_pinch_keeps`'s `moat_split` (the diamond pocket, then the
+diamond moat round the pin `[1.5, 2.5]²`, from `y = 1` and
+`y = 0.5`) still refuses
+`Emission("a copy of a corner held as several meets no recorded discard between them")`
+at the second subtract, as on main. So the candidate keying fixes the
+fold cases only, and this row stays open for the pair subtract.

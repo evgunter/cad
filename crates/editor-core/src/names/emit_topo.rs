@@ -2038,7 +2038,9 @@ pub(super) struct CornerCopies {
 }
 
 /// **Operand corners, each by the vertices it is held as** (N2, N4). A
-/// corner is one candidate of its name, keyed by `K`. One held as one
+/// corner is keyed by `K`, what tells it from every other corner: at
+/// the pair boolean the operand keys of one candidate of its name, at
+/// the union the member corners it sits at. One held as one
 /// vertex is its name, a tied one joining its name's tie with the other
 /// undivided candidates. One held as several is fragments of it: each
 /// copy is `Fragment(Borders)` over the divider walls `split` finds for
@@ -2806,7 +2808,11 @@ fn name_boolean_vertices<T: Decide>(
     // (null copies, and the zip's copies per cone,
     // `BooleanNaming::cone_splits`). A tied name's candidates are
     // corners apart, wherever they lie.
-    type Corner = (Parent, BTreeSet<OpSide<VertexKey>>, CornerCopies);
+    struct Corner {
+        parent: Parent,
+        sides: BTreeSet<OpSide<VertexKey>>,
+        held: CornerCopies,
+    }
     let mut corners: BTreeMap<(StableName, Candidate), Corner> = BTreeMap::new();
     for (v, _) in body.vertices() {
         // A vertex that is one of an operand's own vertices is that
@@ -2839,17 +2845,20 @@ fn name_boolean_vertices<T: Decide>(
             identity = Some(identity_of(side, u));
         }
         if let Some((name, tied, candidate, parent, side)) = identity {
-            let at = corners.entry((name.clone(), candidate)).or_insert_with(|| {
-                let held = CornerCopies {
-                    name,
-                    tied,
-                    copies: Vec::new(),
-                };
-                (parent, BTreeSet::new(), held)
-            });
-            at.1.insert(side);
-            at.2.tied |= tied;
-            at.2.copies.push((v, ent(0, EntityKey::Vertex(v))));
+            let at = corners
+                .entry((name.clone(), candidate))
+                .or_insert_with(|| Corner {
+                    parent,
+                    sides: BTreeSet::new(),
+                    held: CornerCopies {
+                        name,
+                        tied,
+                        copies: Vec::new(),
+                    },
+                });
+            at.sides.insert(side);
+            at.held.tied |= tied;
+            at.held.copies.push((v, ent(0, EntityKey::Vertex(v))));
             continue;
         }
         // What the boolean classified here: the senses a crossing is
@@ -3170,12 +3179,12 @@ fn name_boolean_vertices<T: Decide>(
         slot.1.push((v, along));
     }
     let mut held = Vec::with_capacity(corners.len());
-    for (parent, sides, copies) in corners.into_values() {
-        let members = copies.copies.iter().map(|&(_, e)| e).collect();
-        rec.record(&copies.name, members, parent);
-        held.push((sides, copies));
+    for c in corners.into_values() {
+        let members = c.held.copies.iter().map(|&(_, e)| e).collect();
+        rec.record(&c.held.name, members, c.parent);
+        held.push((c.sides, c.held));
     }
-    name_corner_copies(t, tie, held, |sides, copies| corner_walls(sides, copies))?;
+    name_corner_copies(t, tie, held, corner_walls)?;
     for (seg, (from_tie, verts)) in groups {
         let base = name1(EntityKind::Vertex, node, seg);
         rec.record_by_name(

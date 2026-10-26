@@ -1868,7 +1868,7 @@ fn cite_member_edges<T: geom_core::Decide>(
         rank_crossings(&mut out, &mut tie, false, &base, &crossings, bnd)?;
     }
     name_corner_copies(&mut out, &mut tie, corners, |at, keys| {
-        split_corner(at, keys, body, (flush, fold))
+        member_corner_walls(at, keys, body, (flush, fold))
     })?;
     tie.flush(&mut out)?;
     Ok(out)
@@ -1878,7 +1878,7 @@ fn cite_member_edges<T: geom_core::Decide>(
 /// corners `at` are held as, meets: read over the fold's discards as a
 /// face piece's are ([`Obstacles::split_corner`]), each wall cited by
 /// its parent.
-fn split_corner<T: geom_core::Decide>(
+fn member_corner_walls<T: geom_core::Decide>(
     at: &BTreeSet<(usize, topo::VertexKey)>,
     keys: &[topo::VertexKey],
     body: &topo::Body<T>,
@@ -3294,9 +3294,9 @@ fn orient<'s>(
         .flatten()
     {
         path.push(match seg {
-            // The walls are OPERAND-space names (N2) — this node's
-            // space, like every other embedded name here — so they
-            // collapse the same way.
+            // The walls are the fold step's own names, each wall's
+            // parent as the step's table names it (N3), as a seam's
+            // sides are, so they collapse the same way.
             RoleSeg::Fragment(Qualifier::Borders(walls)) => RoleSeg::Fragment(Qualifier::Borders(
                 walls
                     .iter()
