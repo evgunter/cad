@@ -2,11 +2,10 @@
 id: a-moved-copys-pick-span-crosses-its-frame-unconverted
 kind: issue
 title: A moved copy's pick hit converts its point across the display frame and carries t, t_lo and t_hi over unconverted
-status: parked
+status: open
 opened: 2026-10-22
 priority: P1
 cost: E
-blocked_on: [a-placement-pins-by-written-values-without-a-mate]
 ---
 
 
@@ -59,3 +58,7 @@ picks through world coordinates, the row closes as overtaken.
 FIT folded back into VGEOM (Ev, in chat, 2026-10-26): FIT was cut from
 VGEOM on 2026-09-20 to run in parallel, a reason that is gone at FIT's
 size. Id and body unchanged.
+
+## Released (INTENT, 2026-10-26)
+
+This row was parked on the stage-3 placement pivot (`a-placement-pins-by-written-values-without-a-mate`). All three of its PRs are merged: D′1 (PR 5592), D′2 (PR 5613) and D′3 (PR 5636, `29110056e8`). Re-check this row against main, then fix, narrow or close it. That is the owning track's call.
