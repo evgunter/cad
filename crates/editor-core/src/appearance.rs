@@ -335,6 +335,10 @@ pub(crate) struct Reads {
     pub(crate) ports: BTreeMap<crate::VarId, (RecipeNodeId, u8)>,
     /// Each read and the output reads of the operations that read it.
     pub(crate) feeds: BTreeMap<crate::VarId, Vec<crate::VarId>>,
+    /// The body reads that reach an instance, whose tables may carry
+    /// its part's names, spelled in the part's ids
+    /// ([`crate::Doc::reaches_instance`]).
+    pub(crate) parted: std::collections::BTreeSet<crate::VarId>,
 }
 
 impl Reads {
@@ -411,9 +415,15 @@ pub(crate) fn resolve(
             resolution.losses.push(loss(AppearanceLossCause::ReadGone));
             continue;
         };
-        let Some(target) = states.get(&name.node) else {
-            resolution.losses.push(loss(AppearanceLossCause::NodeGone));
-            continue;
+        // A part's name is no node of this document: its node is the
+        // part's, and the body read is the one rung it has.
+        let target = match states.get(&name.node) {
+            Some(target) => target,
+            None if reads.parted.contains(&body) => at,
+            None => {
+                resolution.losses.push(loss(AppearanceLossCause::NodeGone));
+                continue;
+            }
         };
         if let Err(standing) = target.as_ref().and(at.as_ref()) {
             resolution
@@ -542,6 +552,7 @@ mod tests {
                 .map(|&node| (crate::VarId(node.0), (node, 0)))
                 .collect(),
             feeds: BTreeMap::new(),
+            parted: std::collections::BTreeSet::new(),
         }
     }
 

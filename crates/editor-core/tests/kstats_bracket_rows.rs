@@ -66,7 +66,7 @@ fn assembly(label: &str, refs: &[DocRef]) -> (ProfileDoc, Vec<RecipeNodeId>) {
         doc = next;
         ids.push(id);
     }
-    (doc, ids)
+    (crate::fixture::assemble_world_copies(doc), ids)
 }
 
 /// The part's one Profile node.
@@ -166,6 +166,7 @@ fn a_part_inside_a_part_keeps_the_outer_log_its_own_under_both_schedules() {
     let leaf = store.insert(part("kstats-nest-leaf", 0.0, 1.0), Tol::witness());
     let (mid, mid_ids) = assembly("kstats-nest-mid", &[leaf, leaf]);
     let mid = placed(mid, &mid_ids, &with_resolver(store.clone()));
+    let mid = crate::fixture::assemble_world_copies(mid);
     let mid_ref = store.insert(mid, Tol::witness());
     let (top, top_ids) = assembly("kstats-nest-top", &[mid_ref, mid_ref]);
     let opts = with_resolver(store);

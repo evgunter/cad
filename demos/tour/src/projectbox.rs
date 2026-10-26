@@ -195,7 +195,8 @@ const FINE_GAP: f64 = 5e-4;
 ///
 /// Round wire is the natural section, and it is wall 1: the swept
 /// `circle_split` wire builds, and finer than the default ε its volume
-/// refuses `QuadratureBudget` (at ε = 1e-12, an enclosure 2.74e-8 m
+/// refuses short of its target, `QuadratureBudget` or, where the lane
+/// stopped at its floor, `QuadratureFloor` (at ε = 1e-12, an enclosure 2.74e-8 m
 /// wide against the 1024·ε target, after 7 rounds;
 /// `work/quad/a-swept-circle-section-loop-decides-its-volume-sign-only-at-the-origin`).
 /// At the default ε and looser the wall is RETIRED, kept live: the
@@ -268,7 +269,8 @@ fn standing_spring(tol: Tol) -> (pncad::topo::Body<f64>, f64) {
                 matches!(
                     e,
                     pncad::topo::MassPropsError::Face {
-                        source: pncad::geom_brep::PropsError::QuadratureBudget { .. },
+                        source: pncad::geom_brep::PropsError::QuadratureBudget { .. }
+                            | pncad::geom_brep::PropsError::QuadratureFloor { .. },
                         ..
                     }
                 )

@@ -2,13 +2,12 @@
 id: one-failed-root-refuses-the-whole-pick-index
 kind: issue
 title: one failed root refuses the whole pick index, so every healthy body loses picking and the picture stops following the document
-status: parked
+status: open
 opened: 2026-09-25
 priority: P2
 cost: M
 refs: [a-derived-pick-index-failure-outshouts-its-cause]
 design: true
-blocked_on: [a-placement-pins-by-written-values-without-a-mate]
 ---
 
 
@@ -80,3 +79,7 @@ against the walk D′ leaves, and not before.
 FIT folded back into VGEOM (Ev, in chat, 2026-10-26): FIT was cut from
 VGEOM on 2026-09-20 to run in parallel, a reason that is gone at FIT's
 size. Id and body unchanged.
+
+## Released (INTENT, 2026-10-26)
+
+This row was parked on the stage-3 placement pivot (`a-placement-pins-by-written-values-without-a-mate`). All three of its PRs are merged: D′1 (PR 5592), D′2 (PR 5613) and D′3 (PR 5636, `29110056e8`). Re-check this row against main, then fix, narrow or close it. That is the owning track's call.

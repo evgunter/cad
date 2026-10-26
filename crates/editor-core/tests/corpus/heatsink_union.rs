@@ -5,7 +5,7 @@
 //! `Instances` payload no `Boolean` can consume, and BESIDE it the
 //! explicit placement + union chain that assembles the fins. The demo
 //! tour says the same thing in demo code, "honestly outside the
-//! document", because `body_operand` refuses `Instances`.
+//! document", because a boolean operand refuses `Instances`.
 //!
 //! `PlacedUnion(fin, Linear{..})` is the fin group said once: ONE node,
 //! ONE body out, the count still riding the `fins` document parameter

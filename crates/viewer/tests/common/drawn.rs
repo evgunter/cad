@@ -158,12 +158,12 @@ pub fn split_box(size: [f64; 3], tol: Tol) -> (DocSession, RecipeNodeId, RecipeN
     (session, body, split)
 }
 
-/// **One placement into the world drawing `halves` of `split`**, pinned
+/// **One placement into the world drawing `half` of `split`**, pinned
 /// at `pose`: the landed session and the placement.
-pub fn halves_placed(
+pub fn half_placed(
     session: &DocSession,
     split: RecipeNodeId,
-    halves: &[pncad::select::SplitHalf],
+    half: pncad::select::SplitHalf,
     pose: &Frame,
     tol: Tol,
 ) -> (DocSession, RecipeNodeId) {
@@ -171,10 +171,7 @@ pub fn halves_placed(
     let (doc, placement) = crate::fixture::insert(
         session.committed_doc().clone(),
         Node::place(
-            halves
-                .iter()
-                .map(|half| BodyRead::plain(Operand::output(split, half.port())))
-                .collect(),
+            BodyRead::plain(Operand::output(split, half.port())),
             Operand::Var(VarId::WORLD),
             pncad::document::stand().bundle(),
         ),

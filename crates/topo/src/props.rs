@@ -509,9 +509,10 @@ fn interim_resolution(tol: Tol) -> f64 {
 
 /// **INTERIM: a face its resolution `len` left unmet, as the number
 /// doors refuse it** until they hand back the bracket:
-/// [`PropsError::QuadratureBudget`], carrying the kept enclosure's width
-/// and the rounds the lane ran. `None` for a face that met it, or whose
-/// lane can still refine.
+/// [`PropsError::QuadratureFloor`] where the lane stopped at its floor and
+/// [`PropsError::QuadratureBudget`] at the work wall, carrying the kept
+/// enclosure's width and the rounds the lane ran. `None` for a face that
+/// met it, or whose lane can still refine.
 fn interim_budget<T: Real>(run: &FaceRun<T>, len: f64) -> Option<PropsError> {
     let FaceState::Quad {
         ran,
@@ -526,6 +527,11 @@ fn interim_budget<T: Real>(run: &FaceRun<T>, len: f64) -> Option<PropsError> {
     }
     match run.width_len() {
         Ok(width_len) if width_len <= len => None,
+        Ok(width_len) if stop == LaneStop::Floor => Some(PropsError::QuadratureFloor {
+            width_len,
+            target_len: len,
+            rounds: ran + 1,
+        }),
         Ok(width_len) => Some(PropsError::QuadratureBudget {
             width_len,
             target_len: len,
@@ -2300,7 +2306,8 @@ impl<'b, T: Decide> SignCertificate<'b, T> {
     ///
     /// A continuation refuses in two ways that a consumer must tell
     /// apart. The schedule running out (a face's
-    /// [`PropsError::QuadratureBudget`]) is the case this certificate
+    /// [`PropsError::QuadratureBudget`], or its
+    /// [`PropsError::QuadratureFloor`]) is the case this certificate
     /// exists for: the sign was decided, the body is valid, and its
     /// volume is not measurable at this ε — so a bracket is the whole
     /// of what the quadrature is entitled to say, and it comes back in
@@ -2368,8 +2375,9 @@ pub struct TargetUnreached<T: Real> {
     /// read). Every face of it is sound at the round it was kept, a face
     /// a round refused outright included (it keeps the enclosure it
     /// held), so the volume lies in this bracket whatever `refusal` is.
-    /// Where `refusal` is a face's [`PropsError::QuadratureBudget`] it is
-    /// the whole of what the quadrature is entitled to say
+    /// Where `refusal` is a face's [`PropsError::QuadratureBudget`] or
+    /// [`PropsError::QuadratureFloor`] it is the whole of what the
+    /// quadrature is entitled to say
     /// ([`VolumeReading::of`]).
     pub bracket: VolumeEnclosure<T>,
 }
@@ -2397,7 +2405,7 @@ impl<T: Real> VolumeReading<T> {
     /// # Errors
     ///
     /// The refusal of a [`TargetUnreached`] that is not a face's
-    /// [`PropsError::QuadratureBudget`].
+    /// [`PropsError::QuadratureBudget`] or [`PropsError::QuadratureFloor`].
     pub fn of(
         measured: Result<MassProperties<T>, TargetUnreached<T>>,
     ) -> Result<Self, MassPropsError> {
@@ -2406,7 +2414,8 @@ impl<T: Real> VolumeReading<T> {
             Err(TargetUnreached {
                 refusal:
                     MassPropsError::Face {
-                        source: PropsError::QuadratureBudget { .. },
+                        source:
+                            PropsError::QuadratureBudget { .. } | PropsError::QuadratureFloor { .. },
                         ..
                     },
                 bracket,
@@ -2436,7 +2445,7 @@ impl<T: Real> fmt::Display for TargetUnreached<T> {
         if matches!(
             self.refusal,
             MassPropsError::Face {
-                source: PropsError::QuadratureBudget { .. },
+                source: PropsError::QuadratureBudget { .. } | PropsError::QuadratureFloor { .. },
                 ..
             }
         ) {
@@ -2793,6 +2802,33 @@ mod face_walk_composition_tests {
         }
         assert_eq!(taken(&run), 4);
         assert_eq!(run.next_round(), None, "and refines no further");
+    }
+
+    /// **A face stopped at its floor refuses as one**, with the kept
+    /// enclosure's width as at the wall: a wider round that floors keeps
+    /// the narrower held enclosure, and the arm is `QuadratureFloor`
+    /// however close that width is to the resolution.
+    #[test]
+    fn a_floor_stop_refuses_at_its_floor_with_the_kept_width() {
+        for over in [2.0, 1.0 + 1e-6] {
+            let mut run = round_run(4, over, LaneStop::Refinable);
+            run.advance(Ok(round_run(5, 2.0 * over, LaneStop::Floor)));
+            match interim_budget(&run, len_of(1.0)) {
+                Some(PropsError::QuadratureFloor {
+                    width_len, rounds, ..
+                }) => {
+                    assert_eq!(
+                        width_len,
+                        len_of(over),
+                        "the payload is the held round's width"
+                    );
+                    assert_eq!(rounds, 6, "the receipt is the rounds run");
+                }
+                other => panic!(
+                    "{over}× the resolution: the floored face refuses at its floor: {other:?}"
+                ),
+            }
+        }
     }
 
     /// **A round that met the resolution keeps its number** when the

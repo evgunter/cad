@@ -2,13 +2,12 @@
 id: name-words-budget-grew-under-placed-copy-wrapping
 kind: issue
 title: The corpus's name words grew under D's placed-copy wrapping: the full max 196 → 366 and the CrossingUnverified admission 80 → 92
-status: parked
+status: closed
 opened: 2026-10-19
 priority: P2
 cost: M
 parent: assemble-is-an-operator-and-the-product-is-a-slot
-rides_with: assemble-is-an-operator-and-the-product-is-a-slot
-blocked_on: [assemble-is-an-operator-and-the-product-is-a-slot]
+closed: 2026-10-23
 ---
 
 INTENT stage 3 D (`transform-retires-into-a-placement`) re-blessed `name_words_corpus::every_corpus_name_reads_apart_and_forwards_within_the_refusal_budget` at grown numbers (the orchestrator's ruling: re-bless at the measured values, do not hide the growth).
@@ -22,3 +21,4 @@ Why. Under D every construction is the root of its own space, so each operand af
 
 Expected resolution. Retiring `RoleSeg::Placed` and `InPart` in D′ (PR 5315's picks) should bring the budget back; D′ re-tightens `NAME_WORDS` and `OVER_BUDGET` (both are ratchets: a number that shrinks lowers the pin, so the re-tightening is forced by the row itself).
 
+Absorbed by D′3 (`assemble-is-an-operator-and-the-product-is-a-slot`). `RoleSeg::Placed` and `InPart` retired; `NAME_WORDS` and `OVER_BUDGET` (`crates/editor-core/tests/name_words_corpus.rs`) are re-pinned at the measured values, which the D′3 PR body reports.

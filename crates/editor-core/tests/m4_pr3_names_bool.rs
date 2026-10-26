@@ -1,6 +1,6 @@
 //! M4 PR 3 naming tests, part 2 (spec D3/D5/D6): boolean roles
 //! (FromA/FromB/Seam), N2 discriminators (`Borders` wall sets,
-//! OrderAlong sub-edge ranks), the genuine-tie fixture, and
+//! `Ends` edge pieces), the genuine-tie fixture, and
 //! discriminator-flip localization (counted).
 #![allow(
     clippy::unwrap_used,
@@ -73,12 +73,7 @@ fn block_on(
     (doc, b, placed)
 }
 
-/// `name`, as the copy `placement` makes wears it.
-fn worn(placement: RecipeNodeId, name: StableName) -> StableName {
-    crate::m10_5_clearance_interval::in_placement(placement, name)
-}
-
-// ---- From + Seam + OrderAlong on the overlapping union. ----
+// ---- From + Seam + Ends on the overlapping union. ----
 
 #[test]
 fn union_names_operand_descent_seams_and_rim_pieces_by_their_ends() {
@@ -115,7 +110,7 @@ fn union_names_operand_descent_seams_and_rim_pieces_by_their_ends() {
             u,
             RoleSeg::From {
                 read: out(&doc, pb),
-                of: worn(pb, minted(EntityKind::Face, b, RoleSeg::Cap(CapEnd::End))).into(),
+                of: minted(EntityKind::Face, b, RoleSeg::Cap(CapEnd::End)).into(),
             },
         ),
     ];
@@ -156,7 +151,7 @@ fn union_names_operand_descent_seams_and_rim_pieces_by_their_ends() {
         } else {
             RoleSeg::From {
                 read: out(&doc, pb),
-                of: worn(pb, inner).into(),
+                of: inner.into(),
             }
         };
         assert!(
@@ -241,7 +236,7 @@ fn slot_subtract_names_cap_fragments_by_the_walls_they_border() {
     let doc = ProfileDoc::empty_derived("m4_pr3_names_bool", Tol::witness());
     // A: 3×3×1 block; B: a slot crossing the top cap fully in y.
     let (doc, a) = block(doc, (0.0, 3.0), (0.0, 3.0), 1.0);
-    let (doc, _, b) = block_on(doc, a, (1.0, 2.0), (-1.0, 4.0), 0.5, 1.0);
+    let (doc, slot, b) = block_on(doc, a, (1.0, 2.0), (-1.0, 4.0), 0.5, 1.0);
     let (doc, sub) = insert(
         doc,
         Node::Subtract {
@@ -275,7 +270,7 @@ fn slot_subtract_names_cap_fragments_by_the_walls_they_border() {
     assert_ne!(frags[0], frags[1]);
     // The walls are B's lateral faces as the subtract carries them in
     // (recipe-covariant references), one per piece: the slot wall on
-    // its side.
+    // its side, the slot's own name, which B's copy carries as it is.
     let b_read = out(&doc, b);
     for f in frags {
         let Some(RoleSeg::Fragment(Qualifier::Borders(walls))) = f.path.get(1) else {
@@ -285,7 +280,7 @@ fn slot_subtract_names_cap_fragments_by_the_walls_they_border() {
         for wall in walls {
             assert!(
                 matches!(wall.path.as_slice(), [RoleSeg::From { read, of }]
-                    if *read == b_read && of.node == b),
+                    if *read == b_read && of.node == slot),
                 "a wall is not a B-operand face as the subtract carries it in: {wall:?}"
             );
         }

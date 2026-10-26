@@ -37,12 +37,10 @@
 //! same recipe, same construction, a handful of margins re-classified)
 //! the residual IS the exact flip list. The documented blind spot:
 //! two instances of one predicate trading opposite signs in one node
-//! cancel — a pure exchange has no net population change. WITHIN one
-//! qualifier group such an exchange swaps no name STRINGS (order
-//! qualifiers keep their rank vocabulary); ACROSS groups it CAN
-//! re-rank names while this engine reports no flip (two groups'
-//! `name_frag_order_along` probes flipping in opposite directions cancel
-//! exactly, yet both groups' names change). A `Vanished` attribution
+//! cancel — a pure exchange has no net population change, yet it CAN
+//! change names while this engine reports no flip (two
+//! `name_frag_on_member_edge` probes flipping in opposite directions
+//! cancel exactly, yet the names they decide change). A `Vanished` attribution
 //! then sees an empty [`FlipSet`] and rests on the later ladder rungs —
 //! the border delta for a face piece, which reads the names rather than
 //! the log (`super::border_delta`), the group-size rung

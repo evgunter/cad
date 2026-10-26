@@ -95,13 +95,13 @@ use std::sync::Arc;
 use pncad::document::coincidence::Relation;
 use pncad::document::pose::{PoseDef, PoseRole, RoleRead};
 use pncad::document::{
-    Assembly, CancelToken, CheckEvidence, CheckId, ChecksConfig, Constraint, Coord, Dimension,
-    DocEdit, DocRef, DocumentId, EvalOptions, Evaluation, Formula, Frame, FreeValue, FreeVar,
-    InlineError, LoopProgram, Mate, MateFault, MateRef, Node, OVERCONSTRAINED_RECOURSE, Operand,
+    Assembly, BodyRead, CancelToken, CheckEvidence, CheckId, ChecksConfig, Constraint, Coord,
+    Dimension, DocEdit, DocRef, DocumentId, EvalOptions, Evaluation, Formula, Frame, FreeValue,
+    FreeVar, LoopProgram, Mate, MateFault, MateRef, Node, OVERCONSTRAINED_RECOURSE, Operand,
     PartResolver, PartSelect, PatternKind, Placed, ProfileDoc, ProfileProgram, RecipeNodeId,
     SitedFace, TargetAxis, UNPINNED_RECOURSE, ValuePayload, VarId, VarName, apply, assemble,
-    content_pin, evaluate, inline, load, mixed_pins, parse_formula, product_named, run_checks,
-    save, solve_document, split, stand,
+    content_pin, evaluate, flatten, inline, load, mixed_pins, parse_formula, product_named,
+    run_checks, save, solve_document, split, stand,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
@@ -213,13 +213,12 @@ fn pe(src: &str, params: &BTreeMap<VarName, Dimension>) -> Formula {
 /// for a mesh report; this one is a `StableName` whose kind is
 /// `Face`.
 ///
-/// The head is the part-local face as the instance names it — the
-/// kernel's own wrapper (`FaceName::in_part`), the inverse of the
-/// unwrap a face frame reads its face through.
+/// The head is the part's own face, read at the instance whose copy
+/// carries it: a copy carries its source's names as they are.
 fn head(instance: RecipeNodeId, local: &StableName) -> SitedFace {
     let name = pncad::document::FaceName::new(local.clone())
         .unwrap_or_else(|err| panic!("a mate head names a face: {err}"));
-    SitedFace::at_mint(name.in_part(instance))
+    SitedFace::new(instance, name)
 }
 
 /// The plane of the face `local` of `instance`'s part, outward normal
@@ -341,7 +340,7 @@ fn place(doc: &mut ProfileDoc, body: RecipeNodeId, tol: Tol) -> RecipeNodeId {
     insert(
         doc,
         Node::place(
-            vec![body.into()],
+            BodyRead::plain(body),
             Operand::Var(VarId::WORLD),
             stand().bundle(),
         ),
@@ -363,21 +362,6 @@ fn instance(doc: &mut ProfileDoc, part: DocRef, space: Operand, tol: Tol) -> Rec
 fn edit(doc: &mut ProfileDoc, e: &DocEdit<ProfileProgram>, tol: Tol) {
     let applied = apply(doc, e, tol).unwrap_or_else(|err| panic!("edit refused: {err:?}"));
     *doc = applied.doc;
-}
-
-/// A part-local name of ANY kind, wrapped at the instance that placed
-/// it — the instance-qualified form every cross-document reference
-/// takes (the GQ4 wrapper × N1–N7). A face goes through the kernel's
-/// own `FaceName::in_part` ([`head`]); this spells the wrapper for the
-/// edges and vertices a whole-table walk meets too.
-fn in_part(instance: RecipeNodeId, local: &StableName) -> StableName {
-    StableName {
-        kind: local.kind,
-        node: instance,
-        path: vec![RoleSeg::InPart {
-            of: local.clone().into(),
-        }],
-    }
 }
 
 /// The evaluation options that carry the store: an evaluation with no
@@ -482,8 +466,9 @@ fn prism_part(
         },
         tol,
     );
-    place(&mut doc, prism, tol);
-    doc
+    let copy = place(&mut doc, prism, tol);
+    // What the part makes: its one copy.
+    crate::world::set_product(&doc, &[Operand::Node(copy)], tol).doc
 }
 
 /// The post: a square section, standing.
@@ -528,9 +513,9 @@ fn crate_part(tol: Tol) -> ProfileDoc {
 }
 
 /// A part's own cap-face name at `end`, as its PRODUCT answers to it —
-/// the name a mate on that face refers to, before the instance
-/// qualifier wraps it: the cap selected on the placed body, wrapped
-/// in the part's one placement.
+/// the name a mate on that face refers to, read at the instance: the
+/// cap selected on the placed body, which the part's one placement
+/// carries as it is.
 ///
 /// Selected structurally (`Cap`, side `end`) rather than hand-built:
 /// the naming vocabulary is what a user reaches for, and a selector
@@ -538,7 +523,7 @@ fn crate_part(tol: Tol) -> ProfileDoc {
 /// moved.
 fn cap_of(doc: &ProfileDoc, end: CapEnd, tol: Tol) -> StableName {
     let ev = run(doc, &EvalOptions::default(), tol);
-    let (placement, body) = placed_body(doc);
+    let (_, body) = placed_body(doc);
     let sel =
         Selector::of(NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Cap).side(end)));
     let found = pncad::select::select(&ev, body, &sel);
@@ -547,20 +532,13 @@ fn cap_of(doc: &ProfileDoc, end: CapEnd, tol: Tol) -> StableName {
         1,
         "an extruded prism has exactly one {end:?} cap; got {found:?}"
     );
-    found
-        .into_iter()
-        .next()
-        .expect("checked non-empty")
-        .in_copy(placement)
+    found.into_iter().next().expect("checked non-empty")
 }
 
 /// The node a `Place` over one shape copies.
 fn placed_shape(doc: &ProfileDoc, placement: RecipeNodeId) -> Option<RecipeNodeId> {
     match doc.node(placement) {
-        Some(Node::Place { shapes, .. }) => match &shapes[..] {
-            [shape] => doc.operation_of(shape.read),
-            _ => None,
-        },
+        Some(Node::Place { source, .. }) => doc.operation_of(source.read),
         _ => None,
     }
 }
@@ -598,25 +576,6 @@ fn on_the_world(doc: &ProfileDoc, placement: RecipeNodeId) -> bool {
     }
 }
 
-/// **`name`, a part's name, as the inline's host spells it**: its
-/// minting node and each copy it wraps mapped through `map`.
-fn hosted(name: &StableName, map: &pncad::document::NodeMap) -> StableName {
-    StableName {
-        kind: name.kind,
-        node: map.get(&name.node).copied().unwrap_or(name.node),
-        path: name
-            .path
-            .iter()
-            .map(|seg| match seg {
-                RoleSeg::Placed { of } => RoleSeg::Placed {
-                    of: hosted(of, map).into(),
-                },
-                other => other.clone(),
-            })
-            .collect(),
-    }
-}
-
 /// `placement`'s bundle, in bundle order.
 fn bundle(doc: &ProfileDoc, placement: RecipeNodeId) -> Vec<Constraint> {
     match doc.node(placement) {
@@ -627,19 +586,11 @@ fn bundle(doc: &ProfileDoc, placement: RecipeNodeId) -> Vec<Constraint> {
     }
 }
 
-/// The one body an instance's copies gather into: its part's product.
+/// The one body an instance defines: a copy of its part's product.
 fn instance_body(ev: &Evaluation<f64>, instance: RecipeNodeId, what: &str) -> Arc<Body<f64>> {
     match &ev.value(instance).expect("the instance evaluates").payload {
-        ValuePayload::Copies(copies) => {
-            let [body] = &copies.bodies[..] else {
-                panic!("{what}'s part gathers into one body")
-            };
-            Arc::clone(body)
-        }
-        other => panic!(
-            "{what} is a {}, not an instance's copies",
-            other.kind_name()
-        ),
+        ValuePayload::Body(body) => Arc::clone(body),
+        other => panic!("{what} is a {}, not an instance's copy", other.kind_name()),
     }
 }
 
@@ -695,6 +646,7 @@ fn layout_doc(post: DocRef, shelf: DocRef, tol: Tol) -> (ProfileDoc, RecipeNodeI
         tol,
     );
     // The world: each patterned post, laid down.
+    let mut posts = Vec::with_capacity(2);
     for i in 0..2 {
         let post = insert(
             &mut doc,
@@ -707,13 +659,14 @@ fn layout_doc(post: DocRef, shelf: DocRef, tol: Tol) -> (ProfileDoc, RecipeNodeI
         let placement = insert(
             &mut doc,
             Node::place(
-                vec![post.into()],
+                BodyRead::plain(post),
                 Operand::Var(VarId::WORLD),
                 stand().bundle(),
             ),
             tol,
         );
         place_in_world(&mut doc, placement, lying(), tol);
+        posts.push(placement);
     }
     // The shelf, placed in the world beside them: the last placement,
     // as the instance a split of it leaves behind is.
@@ -724,6 +677,13 @@ fn layout_doc(post: DocRef, shelf: DocRef, tol: Tol) -> (ProfileDoc, RecipeNodeI
         crate::world::slides([FLAT_PACK_GAP, 0.9, 0.0]),
         tol,
     );
+    // What the flat-pack is: its two posts and its shelf.
+    let made: Vec<Operand> = posts
+        .into_iter()
+        .chain([shelf_i])
+        .map(Operand::Node)
+        .collect();
+    let doc = crate::world::set_product(&doc, &made, tol).doc;
     (doc, pattern, shelf_i)
 }
 
@@ -867,6 +827,9 @@ fn stand_doc(parts: &Parts, tol: Tol) -> Stand {
         under(post_b_at),
         tol,
     );
+    // What the stand is: its two posts and its shelf.
+    let made = [post_a, shelf_i, post_b].map(Operand::Node);
+    let doc = crate::world::set_product(&doc, &made, tol).doc;
     Stand {
         doc,
         post_a,
@@ -916,6 +879,9 @@ fn bench(stand: &Stand, parts: &Parts, tol: Tol) -> Bench {
         seated_at(x, y, pe("swing", &scope)),
         tol,
     );
+    // The stand's product, the crate with it.
+    let made = [stand.post_a, stand.shelf_i, stand.post_b, crate_i].map(Operand::Node);
+    let doc = crate::world::replace_product(&doc, &made, tol).doc;
     Bench {
         doc,
         crate_i,
@@ -1022,24 +988,17 @@ fn layout_scene(ws: &Workspace, doc: &ProfileDoc, pattern: RecipeNodeId, tol: To
     // name away — the pattern's `Instance(i)` segment wrapping the
     // part's own cap name (N1 x the GQ4 wrapper).
     // The name NESTS rather than concatenating: `Instance(i)` carries
-    // the instance's own name as its argument, which carries the
-    // part's product name as ITS argument, and that is the part's cap
-    // in the copy its placement puts in the part's world. So the
-    // pattern reads as four wrappers deep — pattern index, then
-    // instance, then the part's placement, then the part's own cap.
+    // the instance's own name as its argument, and a copy carries its
+    // source's names as they are, so the instance's name is the part's
+    // product name, which is the part's cap in the one copy its
+    // placement puts in the part's world. So the pattern reads as one
+    // wrapper deep — pattern index, then the part's own cap.
     let face = || NamePat::of_kind(EntityKind::Face);
     let cap_of_part = face().seg(SegPat::tag(SegTag::Cap).side(CapEnd::End));
     let caps = pncad::select::select(
         &ev,
         pattern,
-        &Selector::of(
-            face().seg(
-                SegPat::tag(SegTag::Instance).of([face().seg(
-                    SegPat::tag(SegTag::InPart)
-                        .of([face().seg(SegPat::tag(SegTag::Placed).of([cap_of_part]))]),
-                )]),
-            ),
-        ),
+        &Selector::of(face().seg(SegPat::tag(SegTag::Instance).of([cap_of_part]))),
     );
     let indexed: Vec<&StableName> = caps
         .iter()
@@ -1257,7 +1216,12 @@ fn poses(
         // key the edit moved. The near post's pin reads `swing`,
         // and a placement's key carries the copies its bundle's mates
         // read (D10), so the shelf, the far post and the crate re-key
-        // with the post they stand on.
+        // with the post they stand on, and the product's `⊔` with the
+        // four it reads.
+        let product = doc
+            .product()
+            .and_then(|var| doc.operation_of(var))
+            .expect("the bench sets its product");
         let moved: BTreeSet<RecipeNodeId> = doc
             .ids()
             .iter()
@@ -1268,8 +1232,14 @@ fn poses(
             .collect();
         assert_eq!(
             moved,
-            BTreeSet::from([stand.post_a, stand.shelf_i, stand.post_b, bench.crate_i]),
-            "a swing re-keys the four instances on the turntable, and nothing else"
+            BTreeSet::from([
+                stand.post_a,
+                stand.shelf_i,
+                stand.post_b,
+                bench.crate_i,
+                product
+            ]),
+            "a swing re-keys the four instances on the turntable and the product, and nothing else"
         );
         assert_eq!(
             (ev.recomputed, ev.reused),
@@ -1587,26 +1557,36 @@ fn refactorings(ws: &mut Workspace, layout: &ProfileDoc, shelf_i: RecipeNodeId, 
     );
 
     // Name-resolution identity, over the WHOLE table rather than a
-    // sample: kept names verbatim, cut names re-anchored under the
-    // remainder's new instance. An instance is its own copy, so the
-    // shelf's product names are the shelf instance's own; across the
-    // seam they are the part's names for the same entities — the shelf
-    // instance's, now in the part — wrapped in the remainder instance.
-    let mapped = out.node_map[&shelf_i];
+    // sample: kept names verbatim, cut names re-read through the
+    // remainder's new instance. The product is a `⊔` of the layout's
+    // copies, naming each copy's entities by the read it takes them
+    // through; a copy carries its source's names, so the shelf's are
+    // the shelf part's own on either side of the seam, and what moves
+    // is the read: the shelf instance's copy before, the remainder
+    // instance's after.
+    let (was, now) = (
+        layout
+            .output(shelf_i, 0)
+            .expect("the shelf instance's copy"),
+        out.remainder
+            .output(out.instance, 0)
+            .expect("the remainder instance's copy"),
+    );
     let mut crossed = 0usize;
     for (name, _) in before_names.iter() {
-        let expected = if name.node == shelf_i {
-            crossed += 1;
-            in_part(
-                out.instance,
-                &StableName {
+        let expected = match name.path.as_slice() {
+            [RoleSeg::From { read, of }] if *read == was => {
+                crossed += 1;
+                StableName {
                     kind: name.kind,
-                    node: mapped,
-                    path: name.path.clone(),
-                },
-            )
-        } else {
-            name.clone()
+                    node: name.node,
+                    path: vec![RoleSeg::From {
+                        read: now,
+                        of: of.clone(),
+                    }],
+                }
+            }
+            _ => name.clone(),
         };
         assert!(
             after_names.lookup(&expected).is_some(),
@@ -1670,22 +1650,39 @@ fn refactorings(ws: &mut Workspace, layout: &ProfileDoc, shelf_i: RecipeNodeId, 
         volume_bits(&back_body, tol),
         "and the volume bits"
     );
-    let restored = back.node_map[&mapped];
+    // The shelf instance comes back as the node the part's own maps to,
+    // and the `⊔` reads, in the shelf's seat, the copy the inline lands.
+    let restored = back.node_map[&out.node_map[&shelf_i]];
+    let members = |doc: &ProfileDoc| match doc
+        .product()
+        .and_then(|var| doc.operation_of(var))
+        .and_then(|at| doc.node(at))
+    {
+        Some(Node::Assemble {
+            members: pncad::document::Bodies::Spelled(members),
+        }) => members.iter().map(|member| member.read).collect::<Vec<_>>(),
+        other => panic!("the layout's product is a `⊔`, got {other:?}"),
+    };
+    let seat = members(layout)
+        .iter()
+        .position(|&read| read == was)
+        .expect("the `⊔` reads the shelf's copy");
+    let again = members(&back.doc)[seat];
     let mut returned = 0usize;
     for (name, _) in before_names.iter() {
-        let expected = if name.node == shelf_i {
-            returned += 1;
-            hosted(
-                &StableName {
+        let expected = match name.path.as_slice() {
+            [RoleSeg::From { read, of }] if *read == was => {
+                returned += 1;
+                StableName {
                     kind: name.kind,
-                    node: mapped,
-                    path: name.path.clone(),
-                },
-                &back.node_map,
-            )
-            .in_copy(back.placement)
-        } else {
-            name.clone()
+                    node: name.node,
+                    path: vec![RoleSeg::From {
+                        read: again,
+                        of: of.clone(),
+                    }],
+                }
+            }
+            _ => name.clone(),
         };
         assert!(
             back_names.lookup(&expected).is_some(),
@@ -1739,17 +1736,13 @@ fn refactorings(ws: &mut Workspace, layout: &ProfileDoc, shelf_i: RecipeNodeId, 
         before_names.iter().count()
     );
 
-    // THE SECOND CUT, probed rather than assumed: the patterned posts.
-    //
-    // The invariant under test is that split and inline are INVERSES
-    // for every legal cut, and the shape most likely to break it is
-    // this one: `inline` refuses an instance whose part's placements it
-    // cannot carry into the host (`UnplaceablePart`), and these place a
-    // pattern's copies of an instance. The cut moves as selected
-    // and leaves the instance pinned at the identity, so the pattern
-    // lands back verbatim; the arms below say which answer
-    // this tree gave rather than asserting one, so a change in either
-    // direction is reported at the scene instead of passing silently.
+    // THE SECOND CUT: the patterned posts. Split and inline are
+    // INVERSES for every legal cut, and the shape most likely to break
+    // that is this one: these place a pattern's copies of an instance,
+    // and the post instance stands in a `new_space()` the cell does not
+    // name, which goes with its readers. The cut leaves the instance
+    // pinned at the identity, so inline then flatten gives the layout
+    // back up to minted ids and order (A4).
     //
     // The cell is the post instance, its pattern, and each copy's
     // `Part` and the placement that puts it in the world.
@@ -1775,28 +1768,54 @@ fn refactorings(ws: &mut Workspace, layout: &ProfileDoc, shelf_i: RecipeNodeId, 
         cell.insert(placement_reading(layout, copy));
     }
     let store: Arc<dyn PartResolver> = Arc::new(ws.clone());
-    match split(layout, &cell, posts_id, tol, Some(&store)) {
-        Ok(posts) => {
-            ws.create(&posts.part, tol)
-                .expect("the posts cell is stored");
-            let store: Arc<dyn PartResolver> = Arc::new(ws.clone());
-            match inline(&posts.remainder, posts.instance, &store, tol) {
-                Ok(_) => println!(
-                    "   second cut: the patterned-post cell splits out AND inlines back \
-                     (the cut moved as selected, so the pattern lands back verbatim)"
-                ),
-                Err(e @ InlineError::UnplaceablePart { .. }) => println!(
-                    "   second cut (gap): the patterned-post cell splits out but does NOT \
-                     inline back — a subtree a user can cut is then not one they can put \
-                     back: {e:?}"
-                ),
-                Err(other) => panic!("unexpected inline refusal: {other:?}"),
-            }
-        }
-        Err(e) => {
-            println!("   second cut (gap): the patterned-post cell does not split at all — {e:?}")
-        }
-    }
+    let posts = split(layout, &cell, posts_id, tol, Some(&store))
+        .unwrap_or_else(|e| panic!("the patterned-post cell splits out: {e}"));
+    ws.create(&posts.part, tol)
+        .expect("the posts cell is stored");
+    let store: Arc<dyn PartResolver> = Arc::new(ws.clone());
+    let back = inline(&posts.remainder, posts.instance, &store, tol)
+        .unwrap_or_else(|e| panic!("the patterned-post cell inlines back: {e}"));
+    let flat = flatten(&back.doc, back.placement, tol)
+        .unwrap_or_else(|e| panic!("the inlined cell's identity placement flattens: {e}"))
+        .doc;
+    let kinds = |doc: &ProfileDoc| {
+        let mut kinds: Vec<&'static str> = doc
+            .ids()
+            .into_iter()
+            .filter(|&id| doc.node(id).is_some())
+            .filter_map(|id| doc.spoken(id).kind())
+            .collect();
+        kinds.sort_unstable();
+        kinds
+    };
+    assert_eq!(
+        kinds(&flat),
+        kinds(layout),
+        "the round trip holds the layout's nodes, kind for kind"
+    );
+    let (flat_body, _) = product_of(&flat, &run(&flat, &with_store(ws), tol), tol);
+    assert_eq!(
+        census(&flat_body),
+        census(&before),
+        "the round trip keeps the census"
+    );
+    // The same pieces, gathered in another order: the volumes agree to
+    // the rounding of their sum, not bit for bit.
+    let (round_tripped, original) = (
+        f64::from_bits(volume_bits(&flat_body, tol)),
+        f64::from_bits(volume_bits(&before, tol)),
+    );
+    let drift = (round_tripped - original).abs() / original.abs();
+    assert!(
+        drift <= 64.0 * f64::EPSILON,
+        "and the volume, to its sum's rounding: {round_tripped:e} against {original:e}"
+    );
+    println!(
+        "   second cut: the patterned-post cell, its space with it, splits out and inlines \
+         back; flattened, it is the layout up to minted ids and order ({} nodes, the same \
+         census, the volume within {drift:.1e} relative)",
+        kinds(&flat).len()
+    );
 }
 
 // ---- The update door (A13) ----

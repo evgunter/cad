@@ -66,7 +66,7 @@ fn two_named_faces(doc: &ProfileDoc) -> (ProfileDoc, [SitedRef; 2]) {
 fn name(node: RecipeNodeId) -> SitedRef {
     // Read at the minting node: these fixtures are about the WIRE, and
     // none of them places geometry.
-    SitedRef::at_mint(StableName {
+    crate::fixture::sited_ref(StableName {
         kind: EntityKind::Face,
         node,
         path: vec![RoleSeg::Cap(editor_core::CapEnd::End)],

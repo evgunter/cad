@@ -152,16 +152,11 @@ fn slide_placement(doc: ProfileDoc, placement: RecipeNodeId, tx: f64) -> Profile
 /// The body `placement` copies.
 fn placed_body(doc: &ProfileDoc, placement: RecipeNodeId) -> RecipeNodeId {
     match doc.node(placement) {
-        Some(Node::Place { shapes, .. }) => doc
-            .operation_of(shapes[0].read)
+        Some(Node::Place { source, .. }) => doc
+            .operation_of(source.read)
             .expect("the copied body is live"),
         other => panic!("{placement} is a placement, not {other:?}"),
     }
-}
-
-/// `name`, as the copy `placement` makes wears it.
-fn worn(placement: RecipeNodeId, name: StableName) -> StableName {
-    crate::m10_5_clearance_interval::in_placement(placement, name)
 }
 
 fn slide_union(tx: f64) -> Slide {
@@ -232,10 +227,7 @@ fn union_names_resolve_uniquely_and_pass_through_transforms() {
             of: cap.clone().into(),
         },
     );
-    let cap_b = worn(
-        s.placement,
-        minted(EntityKind::Face, s.b0, RoleSeg::Cap(CapEnd::End)),
-    );
+    let cap_b = minted(EntityKind::Face, s.b0, RoleSeg::Cap(CapEnd::End));
     let wrapped_b = minted(
         EntityKind::Face,
         s.union,
@@ -334,78 +326,6 @@ fn tied_name_resolves_ambiguous_with_the_tie_witness() {
             assert_eq!(tie.at, tied);
             assert_eq!(tie.width, 2);
             assert!(f.offers.is_empty(), "a tie offers nothing to auto-pick");
-        }
-        other => panic!("expected Failed(Ambiguous), got {other:?}"),
-    }
-}
-
-// ---- Ambiguous: the `rank_by` over-tie widening (hand-built
-// table — the emitter's over-tie row is the widened BASE name; a
-// reference to a RANKED name must widen to it, never mis-bind) ----
-
-#[test]
-fn ranked_reference_widens_to_the_tied_base_row() {
-    // Real edge keys to populate the synthetic table with.
-    let src = ProfileDoc::empty_derived("m4_pr4_resolve", Tol::witness());
-    let (src, ext) = block(src, (0.0, 1.0), (0.0, 1.0), 1.0);
-    let sev = run(&src, None);
-    let mut edges = sev.table_at(ext).unwrap().iter().filter_map(|(n, e)| {
-        if n.kind != EntityKind::Edge {
-            return None;
-        }
-        match e {
-            Entry::Unique(r) => Some(*r),
-            Entry::Tied(_) => None,
-        }
-    });
-    let (e1, e2) = (edges.next().unwrap(), edges.next().unwrap());
-
-    // A one-node doc whose table we hand-build.
-    let (doc, node) = insert(
-        ProfileDoc::empty_derived("m4_pr4_resolve", Tol::witness()),
-        leaf(),
-    );
-    let base = StableName {
-        kind: EntityKind::Edge,
-        node,
-        path: vec![RoleSeg::AxisEdge(crate::fixture::no_piece().into())],
-    };
-    let mut table = NameTable::new();
-    table.insert_tied(base.clone(), vec![e1, e2]).unwrap();
-    let mut nodes = std::collections::BTreeMap::new();
-    nodes.insert(
-        node,
-        editor_core::NodeResult::Ok(editor_core::NodeValue::hand_built(
-            table,
-            editor_core::FragmentGroups::default(),
-            vec![],
-        )),
-    );
-    let ev = Evaluation::<f64>::hand_built(doc.id(), vec![node], nodes, Tol::witness());
-    let mut ranked = base.clone();
-    ranked
-        .path
-        .push(RoleSeg::Fragment(Qualifier::OrderAlong { rank: 1, of: 2 }));
-    match crate::fixture::resolve_at_mint(
-        RunCtx {
-            doc: &doc,
-            eval: &ev,
-        },
-        &ranked,
-    ) {
-        Resolution::Failed(f) => {
-            let ResolveError::Ambiguous {
-                name,
-                candidates,
-                tie,
-            } = &f.error
-            else {
-                panic!("expected widened Ambiguous, got {:?}", f.error);
-            };
-            assert_eq!(*name, ranked, "the error names the REFERENCE");
-            assert_eq!(candidates, &vec![base.clone()], "candidates = widened base");
-            assert_eq!(tie.at, base);
-            assert_eq!(tie.width, 2);
         }
         other => panic!("expected Failed(Ambiguous), got {other:?}"),
     }
@@ -992,16 +912,23 @@ enum Partners {
 /// PHANTOM for a phantom of exactly the new shape, and the row below
 /// would pass while the property it names had failed.
 fn occurs(hay: &StableName, needle: &StableName, partners: Partners) -> bool {
+    fn sensed(sense: &editor_core::Sense, under: &dyn Fn(&StableName) -> bool) -> bool {
+        match sense {
+            editor_core::Sense::Through { entering } => entering.iter().any(|n| under(n)),
+            editor_core::Sense::Enters
+            | editor_core::Sense::Leaves
+            | editor_core::Sense::Outside
+            | editor_core::Sense::Inside => false,
+        }
+    }
     let under = |n: &StableName| n == needle || occurs(n, needle, partners);
     hay.path.iter().any(|seg| match seg {
         // One embedded operand name: the entity derives from it.
         RoleSeg::From { of: x, .. }
         | RoleSeg::SectionEdge { face: x, .. }
         | RoleSeg::SplitFragment { parent: x, .. }
-        | RoleSeg::CrossingVertex { edge: x, .. }
         | RoleSeg::OnToolVertex { of: x, .. }
         | RoleSeg::Instance { of: x, .. }
-        | RoleSeg::Placed { of: x }
         | RoleSeg::BlendFace(x)
         | RoleSeg::CornerFace(x)
         | RoleSeg::Mitre { vertex: x }
@@ -1012,11 +939,14 @@ fn occurs(hay: &StableName, needle: &StableName, partners: Partners) -> bool {
         | RoleSeg::Inner(x)
         | RoleSeg::Rim(x)
         | RoleSeg::HoleRim { of: x, .. } => under(x),
+        // A crossing: its line, its face, and the things its sense
+        // names on the line.
+        RoleSeg::CrossingVertex { edge, sense } => under(edge) || sensed(sense, &under),
+        RoleSeg::Crossing { edge, face, sense } => {
+            under(edge) || under(face) || sensed(sense, &under)
+        }
         // Two.
         RoleSeg::Seam { a: x, b: y }
-        | RoleSeg::Crossing {
-            edge: x, face: y, ..
-        }
         | RoleSeg::TrimEdge {
             edge: x,
             support: y,
@@ -1027,23 +957,20 @@ fn occurs(hay: &StableName, needle: &StableName, partners: Partners) -> bool {
         }
         | RoleSeg::EndArc { vertex: x, edge: y } => under(x) || under(y),
         // A set.
-        RoleSeg::EdgeCrossing(run) => run.iter().any(|l| under(&l.line)),
+        RoleSeg::EdgeCrossing(run) => run
+            .iter()
+            .any(|l| under(&l.line) || sensed(&l.sense, &under)),
         RoleSeg::Merged(v) | RoleSeg::BandFace(v) => v.iter().any(under),
         // A source edge (derivation) and the band that crossed or slit
         // it (a discriminator, like a piece's wall).
         RoleSeg::BandCross { edge, band } | RoleSeg::BandSlit { edge, band } => {
             under(edge) || (partners == Partners::Include && band.iter().any(under))
         }
-        // ANOTHER document's id space: a local name and a part-local
-        // name that print alike are different names, so a walk that
-        // descended here would report occurrences that are not.
-        RoleSeg::InPart { .. } => false,
         // Discrimination, not derivation: the fragment is classified
         // AGAINST these, not built from them.
         RoleSeg::Fragment(Qualifier::Borders(v) | Qualifier::Keeps(v) | Qualifier::Ends(v)) => {
             partners == Partners::Include && v.iter().any(under)
         }
-        RoleSeg::Fragment(Qualifier::OrderAlong { .. }) => false,
         // Segments that embed no name.
         RoleSeg::OutputBody
         | RoleSeg::Cap(_)
@@ -1245,13 +1172,10 @@ fn repointed_input_diagnoses_recipe_edit_on_path() {
         node: bl,
         path: vec![RoleSeg::From {
             read: fixture::out(&doc1, m),
-            of: worn(
-                m,
-                minted(
-                    EntityKind::Face,
-                    placed_body(&doc1, m),
-                    RoleSeg::Cap(CapEnd::End),
-                ),
+            of: minted(
+                EntityKind::Face,
+                placed_body(&doc1, m),
+                RoleSeg::Cap(CapEnd::End),
             )
             .into(),
         }],
@@ -1344,10 +1268,11 @@ fn grandparent_repoint_rederives_the_grandchild_names() {
     use editor_core::{NodeResult, ValuePayload};
     let doc = ProfileDoc::empty_derived("m4_pr4_resolve", Tol::witness());
     let (doc, b) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
-    let (doc, c) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, twin) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
     let (doc, d) = block(doc, (5.0, 6.0), (0.0, 1.0), 1.0);
-    // `c` and `d` join `b`'s space where they stand.
-    let (doc, c) = fixture::slid(doc, b, c, [0.0; 3]);
+    // `c` and `d` join `b`'s space where they stand; a copy carries its
+    // source's names, so `c`'s are the twin's.
+    let (doc, c) = fixture::slid(doc, b, twin, [0.0; 3]);
     let (doc, d) = fixture::slid(doc, b, d, [0.0; 3]);
     let (doc, x) = insert(
         doc,
@@ -1393,7 +1318,7 @@ fn grandparent_repoint_rederives_the_grandchild_names() {
             .any(|(name, _)| editor_core::derivation_nodes(name).contains(&m))
     };
     assert!(
-        mentions(c),
+        mentions(twin),
         "the memo-transferred grandchild table must embed the twin's names"
     );
     assert!(

@@ -238,7 +238,7 @@ fn annihilated() -> (ProfileDoc, RecipeNodeId) {
     // placement is a loose copy: placed, in no product.
     insert(
         doc,
-        crate::fixture::stood(vec![editor_core::BodyRead::plain(result)]),
+        crate::fixture::stood(editor_core::BodyRead::plain(result)),
     )
 }
 
@@ -585,19 +585,15 @@ fn failed_placement_world(id: &str) -> (ProfileDoc, EvalOptions, RecipeNodeId) {
     let (doc, placed) = insert(doc, fixture::mated_instance(part_ref));
     let nowhere = StableName {
         kind: EntityKind::Face,
-        node: base,
-        path: vec![RoleSeg::InPart {
-            of: StableName {
-                kind: EntityKind::Face,
-                node: RecipeNodeId::new(0, 99),
-                path: vec![RoleSeg::Cap(CapEnd::End)],
-            }
-            .into(),
-        }],
+        node: RecipeNodeId::new(0, 99),
+        path: vec![RoleSeg::Cap(CapEnd::End)],
     };
     let mate = fixture::rest(
-        fixture::head(fixture::resolver::in_part(placed, body, CapEnd::Start)),
-        fixture::head(nowhere),
+        fixture::head_at(
+            placed,
+            fixture::resolver::in_part(placed, body, CapEnd::Start),
+        ),
+        fixture::head_at(base, nowhere),
     );
     let (doc, _) = fixture::constrain_at(doc, placed, mate);
     (doc, opts, placed)

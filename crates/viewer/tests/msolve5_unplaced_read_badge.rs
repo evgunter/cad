@@ -82,7 +82,7 @@ fn read_below_pattern(bench: &asm::Bench, tol: Tol) -> std::path::PathBuf {
         node: lift,
         path: vec![pncad::prelude::RoleSeg::Instance {
             i: 1,
-            of: pncad::prelude::NameRef::new(asm::in_part(shelf, &bench.shelf_bottom)),
+            of: pncad::prelude::NameRef::new(bench.shelf_bottom.clone()),
         }],
     };
     common::mate_into(

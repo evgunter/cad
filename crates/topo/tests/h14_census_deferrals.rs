@@ -98,6 +98,7 @@ fn any_solid_pair_undecidable(errors: &[ValidationError], pick: impl Fn(&str) ->
                 a: EntityId::Solid(_),
                 b: EntityId::Solid(_),
                 what,
+                ..
             } if pick(what)
         )
     })
@@ -110,9 +111,7 @@ fn any_solid_pair_undecidable(errors: &[ValidationError], pick: impl Fn(&str) ->
 /// Not a `CensusUndecidable` of any wording — the arm decides this
 /// placement.
 fn interference_decided(errors: &[ValidationError]) -> bool {
-    errors
-        .iter()
-        .any(|e| matches!(e, ValidationError::InstanceInterference { .. }))
+    errors.iter().any(common::is_decided_overlap)
 }
 
 /// **The embedded-instance fixture.** A 1 m cube sitting wholly inside

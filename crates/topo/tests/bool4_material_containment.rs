@@ -19,6 +19,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
+use common::placement_findings;
 use geom_core::{Band, Point3, Tol};
 use topo::{
     Body, CensusContact, ContactRecords, EntityId, FaceKey, SolidContainment, SolidKey,
@@ -211,31 +212,6 @@ fn all_on_boundary() -> Body<f64> {
     assembly(&container, &part)
 }
 
-/// The arm-2 findings among `errors`: every `CensusUndecidable` naming
-/// two SOLIDS, and every `InstanceInterference`.
-fn placement_findings(errors: &[ValidationError]) -> Vec<&ValidationError> {
-    errors
-        .iter()
-        .filter(|e| {
-            matches!(
-                e,
-                ValidationError::CensusUndecidable {
-                    a: EntityId::Solid(_),
-                    b: EntityId::Solid(_),
-                    ..
-                } | ValidationError::InstanceInterference { .. }
-            )
-        })
-        .collect()
-}
-
-fn undecidable_what(e: &ValidationError) -> Option<&'static str> {
-    match e {
-        ValidationError::CensusUndecidable { what, .. } => Some(what),
-        _ => None,
-    }
-}
-
 /// Declared, the L-bracket certifies: the part is inside the bracket's
 /// box and outside its material, every vertex of each instance is
 /// outside-or-on the other, and the declared face pair confirms.
@@ -355,39 +331,38 @@ fn a_part_in_a_planar_pocket_clears() {
 }
 
 /// An instance whose every vertex lies on the container's boundary is
-/// not a placement its vertices decide, and never an interference
-/// verdict. The slab IS inside the cube's material, and the touch
-/// analysis says so: with the probe undecided, the findings are read,
-/// and their reason — a touch whose cones overlap — is the one
-/// refusal, beside the sixteen touch findings.
+/// not a placement its vertices decide. The slab IS inside the cube's
+/// material, and its two end faces say so: each lies on a wall of the
+/// cube, facing the same way, so both solids hold the material behind
+/// it. That decided interference is the one finding: the sixteen
+/// touches of the two boundaries all lie in the closure of an aligned
+/// pair's shared area, and are the pair's.
 #[test]
-fn every_vertex_on_the_boundary_refuses_typed() {
+fn every_vertex_on_the_boundary_is_a_same_side_interference() {
     let body = all_on_boundary();
     let errors = validate_pseudomanifold(&body, &ContactRecords::default(), Tol::witness())
         .expect_err("refuses");
     let placements = placement_findings(&errors);
-    assert_eq!(placements.len(), 1, "{errors:?}");
-    let what = undecidable_what(placements[0]).expect("the typed refusal");
     assert!(
-        what.contains("one passes into the other where they touch"),
-        "{what}"
+        matches!(
+            placements[..],
+            [ValidationError::SameSideInterference { .. }]
+        ),
+        "the one decided interference: {errors:?}"
     );
-    assert_eq!(errors.len(), 17, "{errors:?}");
+    assert_eq!(errors.len(), 1, "{errors:?}");
 }
 
 /// **The witness at the band edge**: the part shifted off the wall by
 /// a distance inside the run's ambiguity band — within ε of the
-/// container's boundary, not on it. The vertex-face and edge-face
-/// sweeps escalate on that residual, and the material test's own
-/// boundary pre-pass escalates on it in BOTH orderings — the part's
-/// vertices against the wall's plane, and the wall's vertices against
-/// the part's near face's plane (the pre-pass decides a plane residual
-/// before it asks the region) — so neither ordering decides, and with
-/// the probe undecided the findings are read: the sweeps' escalations
-/// stand, so the one refusal is the pair's boundaries left unchecked,
-/// with no clear and no interference. `delta`
-/// is taken from the run's band, so the row is the same statement at
-/// every `CAD_TOLERANCE_EPS` row of the matrix (default, 1e-6, 1e-12).
+/// container's boundary, not on it. The part's near face and the wall
+/// read one carrier in band, so they are one face pair the census cannot
+/// look at (`[assertions]`): the one finding names the two faces, and
+/// nothing of their cells escalates. It is no evidence the two solids
+/// overlap, so no refusal of the pair of solids stands beside it.
+/// `delta` is taken from the run's band, so the row is the same
+/// statement at every `CAD_TOLERANCE_EPS` row of the matrix (default,
+/// 1e-6, 1e-12).
 #[test]
 fn a_witness_at_the_band_edge_refuses_typed_at_this_eps() {
     let tol = Tol::witness();
@@ -397,18 +372,21 @@ fn a_witness_at_the_band_edge_refuses_typed_at_this_eps() {
     let (body, _) = lbracket(false, delta);
     let errors = validate_pseudomanifold(&body, &ContactRecords::default(), tol)
         .expect_err("in band refuses");
+    let [
+        ValidationError::CensusUndecidable {
+            a: EntityId::Face(a),
+            b: EntityId::Face(b),
+            reason: topo::Undecidable::ThinInBand,
+            ..
+        },
+    ] = errors[..]
+    else {
+        panic!("one finding, the in-band pair's: {errors:?}");
+    };
+    let solids = (body.solid_of_face(a), body.solid_of_face(b));
     assert!(
-        errors
-            .iter()
-            .any(|e| matches!(e, ValidationError::CensusEscalated { .. })),
-        "the sweeps escalate on the in-band residual: {errors:?}"
-    );
-    let placements = placement_findings(&errors);
-    assert_eq!(placements.len(), 1, "{errors:?}");
-    let what = undecidable_what(placements[0]).expect("the typed refusal");
-    assert!(
-        what.contains("another finding left their boundaries unchecked"),
-        "{what}"
+        solids.0.is_some() && solids.1.is_some() && solids.0 != solids.1,
+        "the pair is a face of each solid: {solids:?}"
     );
     // And just past the band the part floats in the concavity and
     // clears — the refusal above is the band's, not the placement's.
@@ -486,7 +464,9 @@ fn split_straddle() -> (Body<f64>, ContactRecords) {
     );
     let body = assembly(&l.body, &part.body);
     // Every touch the sweeps report, declared as the v-on-f records it
-    // is: all true (each vertex IS in that face's region).
+    // is: all true (each vertex IS in that face's region). The four at
+    // `x = 0` lie in the closure of the aligned pair there and are that
+    // pair's; the four on the wall `x = 1` are reported.
     let errors = validate_pseudomanifold(&body, &ContactRecords::default(), Tol::witness())
         .expect_err("undeclared touches refuse");
     let mut records = ContactRecords::default();
@@ -503,21 +483,21 @@ fn split_straddle() -> (Body<f64>, ContactRecords) {
             )]);
         }
     }
-    assert_eq!(records.vertex_face().count(), 8, "{errors:?}");
+    assert_eq!(records.vertex_face().count(), 4, "{errors:?}");
     (body, records)
 }
 
 /// **A mixed-side touch is a crossing at a lower-dimensional feature,
-/// and it BLOCKS.** At each vertex on the wall the part's edges leave
-/// the wall's plane to `x < 1` (the bracket's material) and to `x > 1`
-/// (the concavity); the vertical edges in the wall have their two
-/// adjacent faces on both sides. Undeclared, the sweeps report the
-/// touches and the cone analysis refuses the clear typed; declared,
-/// the same analysis runs over the records and refuses the same way —
-/// a record certifies a coincidence, never a side. No interference is
-/// claimed (no vertex is inside) and nothing clears.
+/// and it never clears.** At each vertex on the wall the part's edges
+/// leave the wall's plane to `x < 1` (the bracket's material) and to
+/// `x > 1` (the concavity); the vertical edges in the wall have their
+/// two adjacent faces on both sides. No vertex is inside and nothing
+/// pierces, but the part's `x = 0` face lies on the bracket's outer
+/// face, facing the same way: the overlap is decided there, as one
+/// `SameSideInterference`, declared or not — a record certifies a
+/// coincidence, never a side.
 #[test]
-fn a_mixed_side_touch_blocks_the_clear_declared_or_not() {
+fn a_mixed_side_touch_beside_a_coplanar_face_is_a_same_side_interference() {
     let (body, records) = split_straddle();
     for (name, recs) in [
         ("undeclared", ContactRecords::default()),
@@ -526,18 +506,12 @@ fn a_mixed_side_touch_blocks_the_clear_declared_or_not() {
         let Err(errors) = validate_pseudomanifold(&body, &recs, Tol::witness()) else {
             panic!("{name}: the straddle must not certify");
         };
-        let placements = placement_findings(&errors);
-        assert_eq!(placements.len(), 1, "{name}: {errors:?}");
-        let what = undecidable_what(placements[0]).expect("the typed refusal");
         assert!(
-            what.contains("one passes into the other where they touch"),
-            "{name}: {what}"
-        );
-        assert!(
-            !errors
-                .iter()
-                .any(|e| matches!(e, ValidationError::InstanceInterference { .. })),
-            "{name}: {errors:?}"
+            matches!(
+                placement_findings(&errors)[..],
+                [ValidationError::SameSideInterference { .. }]
+            ),
+            "{name}: the one decided interference: {errors:?}"
         );
     }
 }

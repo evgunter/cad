@@ -927,3 +927,32 @@ The boolean declare surface is gone at every layer. A boolean's one input beside
     - D as a "why was the wrong place easier?" pass over its hot spots.
 
     These go to the duplication track once it is chartered; INTENT does not hold the design conversations.
+- 2026-10-26 12:50 —
+  - **Main is red in the CI profile** on RESTREAD's `CoincidentWedgesOverlap` since PR 5529: nine rows across topo, editor-core, viewer and python. Filed P0 on RESTREAD's slate (`main-red-coincident-wedges-overlap-refuses-flush-copies`) and flagged on their PR 5704.
+  - **Loft (#5748):** the fix pass was read and accepted, and the lane is archived. Its only reds are exactly that set. The merge over the inherited red was refused by the session's auto-mode classifier, so it waits for RESTREAD's fix, or for Ev to say to merge over it.
+  - **Value chart (#5742, MSOLVE-held):** review 1 is NOT-MERGEABLE. The MAJOR: sketch-on-face is unevaluable on side faces. A fix pass is sent, and review 2 follows on the sequential arm. The spin sense on a rest is put to Ev on the PR (`[ev]` in the title, and this session is subscribed). Reviewer `session_01Uays4fae5gRCSFbxgwS38i`.
+  - **Split (#5763):** fix pass in progress (now dirty against main).
+- 2026-10-26 14:30 —
+  - **Main is green again**: ATREST PR 5779 fixed RESTREAD's P0 rows.
+  - **Split (#5763) merged.** I read and accepted the fix pass (`SpaceStraddlesCut`, with `Doc::spaces_read` as the one home). Merged on green at `134acf3e`. Single review, so no review-log row.
+  - **Loft (#5748):** I merged main into the branch myself (`d1f528a7cf`; its lane is archived). It merges when CI is green.
+  - **D′3 (#5636):** both delta reads (R1, R2) on `220ba3f855` are APPROVE-WITH-FIXES, and every original finding is resolved by execution. The census-discard mutant is killed. The fix pass is sent:
+    - the `finding_solids` mapper goes exhaustive (R1 m-A, MINOR);
+    - the PR body answers the OnceLock sharing question (N-B);
+    - `Product::fresh` destructures, and the "at the door" wording is fixed;
+    - a P2 is filed for `Separation` missing a nested ⊔'s overlap.
+    The delta read on the fix pass is mine. Then the row, the merge, and E.
+  - **ONEHOME:** Ev clarified that duplication design rows which turn out to be INTENT's are INTENT's to do. Of the design rows:
+    - `coincidence-intent-has-too-many-spellings` is INTENT's (the coincidence door). It is answered, so closed, with its residue pointed at ATREST 5 C and COINCIDE.
+    - Cluster E (the at-rest gate's typing) touches INTENT's editor-core and census seams, but the gate is ATREST's. INTENT weighs in on its design fork rather than leading it.
+    - A, B and C are kernel rows and stay ONEHOME's.
+- 2026-10-26 14:35 — **Loft (#5748) merged** on green at `d1f528a7cf`. **The ONEHOME close (#5783) merged.** The loft and split items close.
+- 2026-10-26 16:10 — **Value chart (#5742): Ev ruled (b).** The spin is read about the target's own direction, whatever the flip. Working it out showed my question was too broad: a rest's spin sense depended on which side the `Flip` was written, so the viewer's mate tool and the Python idiom (flip on the target) turned clockwise, and sketch-on-face (flip on the copy) counter-clockwise. The lane folds (b) into its fix pass, re-wording `[placement.values]` and pinning that both spellings agree. `[ev]` is off the title. Ev also ruled that "the python facade should never have code that's not just calling the rust facade". Filed P1 on BIND: `the-python-facade-holds-code-that-is-not-a-call-to-the-rust-facade` (a façade rest gesture, which INTENT builds; then the audit).
+- 2026-10-26 18:15 —
+  - **D′3 (#5636) merged** as `29110056e8`. Both delta reads came back APPROVE-WITH-FIXES on `220ba3f855`; I read and accepted the fix pass (`cd9669b462`). The merge was over main's teapot fix, `da328bbc60`, green, with the row `PR-5636.md` (concurrent H, tally 0) as the last commit. The teapot python row was main's red, filed by CLEAVE for SPLICE: INTENT re-pinned it to its refusal's arm in #5792, since it blocked #5636 and #5742.
+  - **Released by D′3:**
+    - closed as resolved: `a-placement-adds-no-name-segment-is-said-three-ways`, `a-placement-of-two-shapes-sharing-a-name-refuses-duplicate`, `an-instance-value-carries-its-copies-only`, `an-operand-is-one-body-by-a-recipe-count-the-kernel-does-not-read` and `a-space-other-than-the-world-is-census-checked-only-if-a-new-space` (each's symbol is gone from `crates/`), plus the D′ umbrella `a-placement-pins-by-written-values-without-a-mate`;
+    - opened: `d-prime3-fallback-diagnosis-…` (INTENT, P3) and ATREST's `an-instance-carries-its-parts-coincidences`, to re-check;
+    - FRAME's three rows and VGEOM's two that were parked on the umbrella are opened for their owners;
+    - the carry and G stay parked on E.
+  - **E dispatched:** `an-operation-computes-in-a-frame-of-its-reads`, implementer `session_01VTwWeVZSEt1FF4QH3bM1Jo` on `intent/e-operation-frame-of-reads`, review dual H (concurrent) on a frozen head after the report.

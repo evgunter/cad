@@ -144,10 +144,12 @@
 //!    pair rung and into the sweep, where it stops at the crossing
 //!    layer: the belly's revolve seam — a quarter meridian of its
 //!    sphere, on which the spout's axis leaves the belly — read against
-//!    one of the spout's NURBS walls rising there, refuses
-//!    `CurvedBooleanUnsupported { operand: B, kind: Nurbs }` — the
-//!    Boolean cannot yet find where an edge meets a spline face. That
-//!    is the pierce the join actually needs, the spout's walls entering
+//!    one of the spout's NURBS walls rising there, meets that wall's
+//!    boundary, since the meridian and the spout's seams lie in the
+//!    pot's one plane of symmetry. A meeting on a boundary edge splits
+//!    both edges, and the spout's seam is a spline with no point
+//!    parameter to split at: `PointSplitCarrierUnsupported { operand: B }`.
+//!    That is the pierce the join actually needs, the spout's walls entering
 //!    the belly, and it is the NURBS face against a curved face that
 //!    the section object's rung 3 builds. Making the spout the shape a
 //!    potter draws did not make it joinable; it moved the refusal off a
@@ -242,7 +244,7 @@
 //!    enclosure is chased to a reporting target derived from ε. Every
 //!    ε the tour runs meets that target: at ε = 1e-12 the volume's
 //!    half-width is 8.1e-12 m³. Where a tighter ε refuses
-//!    `QuadratureBudget`, tier 3 still certifies the body on the
+//!    `QuadratureBudget` or `QuadratureFloor`, tier 3 still certifies the body on the
 //!    enclosure's SIGN — the tier's own docs say deciding that sign "is
 //!    an act of certification rather than a measurement" — and the
 //!    scene measures through the certificate the tier hands back, so it
@@ -401,7 +403,7 @@ const _: () = assert!(SPOUT_STATIONS == 7);
 /// is chased to `QUAD_TARGET_LEN_FACTOR·ε`. Every ε the tour runs meets
 /// that target, and the scene holds the enclosure to the skin's own
 /// integrated volume (`patch_quadrature`). Where a tighter ε refuses
-/// `QuadratureBudget`, tier 3 still certifies the body on the
+/// `QuadratureBudget` or `QuadratureFloor`, tier 3 still certifies the body on the
 /// enclosure's SIGN, and the scene holds the same reference to the
 /// bracket the certificate keeps.
 const SPOUT_ARCS: u32 = 4;
@@ -1056,7 +1058,8 @@ pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
                 .expect("nothing reads it, so it deletes")
                 .doc
         });
-    [
+    let mut copies = Vec::new();
+    let placed = [
         (r.handle_body, handle_values()),
         (r.lid, Vec::new()),
         (r.cup, Vec::new()),
@@ -1064,8 +1067,12 @@ pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
     ]
     .into_iter()
     .fold(tidied, |doc, (body, values)| {
-        crate::world::in_world_by(&doc, body, values, tol).doc
-    })
+        let placed = crate::world::in_world_by(&doc, body, values, tol);
+        copies.push(pncad::document::Operand::Node(placed.placement));
+        placed.doc
+    });
+    // What the pot is: its four copies.
+    crate::world::set_product(&placed, &copies, tol).doc
 }
 
 /// The body a node evaluated to.
@@ -1511,13 +1518,18 @@ fn wall_probes(ev: &Evaluation<f64>, r: &Recipe) {
     // `Nurbs`, so the request gets past that rung and into the sweep,
     // which meets the belly's revolve seam, a quarter meridian on which
     // the spout's axis leaves the belly, with one of the spout's NURBS
-    // walls, and has no crossing layer for a spline face.
+    // walls. The sweep reads the meridian against that wall's boundary
+    // first, and the meridian meets it there: the meridian and the
+    // spout's seams lie in the pot's one plane of symmetry, so where
+    // the meridian pierces the wall it crosses a seam. A meeting on a
+    // boundary edge splits both edges, and a spline seam has no point
+    // parameter to split at
+    // (`work/splice/a-meeting-on-a-spline-boundary-edge-has-no-split-parameter`).
     //
-    // The predicate matches on the operand and the kind, deliberately
-    // not the face: an arena key moves whenever the model is re-authored
-    // (wall 3's face key already did once), and a probe that pinned one
-    // would red on a rename. What is pinned is the class and the side:
-    // a NURBS wall of operand B, the spout.
+    // The predicate matches on the operand and the class, deliberately
+    // not the edge: an arena key moves whenever the model is re-authored,
+    // and a probe that pinned one would red on a rename. What is pinned
+    // is the class and the side: an edge of operand B, the spout.
     crate::walls::wall(
         "teapot",
         3,
@@ -1526,9 +1538,8 @@ fn wall_probes(ev: &Evaluation<f64>, r: &Recipe) {
         |e| {
             matches!(
                 e,
-                BooleanError::CurvedBooleanUnsupported {
+                BooleanError::PointSplitCarrierUnsupported {
                     operand: Operand::B,
-                    kind: SurfaceKind::Nurbs,
                     ..
                 }
             )
@@ -2009,7 +2020,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // binary-exact angle, so what the residual costs is MEASURED — off
     // the placed BODY, never re-derived from the same trigonometry the
     // placement used. The subjects are the loft's caps, named at the
-    // loft and read at the placement under its `Placed` segment.
+    // loft and read at the placement, which carries them as they are.
     //
     // TWO subjects, the root annulus and the tip one, and the guard
     // below is why there are two and why neither is the spout's own
@@ -2040,14 +2051,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         face_frame(&ev, r.spout_body, &tip_name).expect("the tip annulus, before the placement");
     let unplaced =
         face_frame(&ev, r.spout_body, &root_name).expect("the root annulus, before the placement");
-    // A copy's face is named under its placement.
-    let copied = |name: &StableName| StableName {
-        kind: name.kind,
-        node: r.spout,
-        path: vec![pncad::prelude::RoleSeg::Placed {
-            of: pncad::prelude::NameRef::new(name.clone()),
-        }],
-    };
+    // A copy carries its source's names as they are.
+    let copied = |name: &StableName| name.clone();
     let tip_placed =
         face_frame(&ev, r.spout, &copied(&tip_name)).expect("the tip annulus, after it");
     let placed = face_frame(&ev, r.spout, &copied(&root_name)).expect("the root annulus, after it");
@@ -2265,7 +2270,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             bracket: b,
             refusal:
                 refusal @ pncad::topo::MassPropsError::Face {
-                    source: pncad::geom_brep::PropsError::QuadratureBudget { .. },
+                    source:
+                        pncad::geom_brep::PropsError::QuadratureBudget { .. }
+                        | pncad::geom_brep::PropsError::QuadratureFloor { .. },
                     ..
                 },
         }) => {
@@ -2571,8 +2578,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
              its planar walls split in two. spout ∪ vessel: {spout_refusal} — and THIS one moved when the spout became \
              a canal. A loft's walls are Nurbs and the pair rung HAS a Nurbs arm, so the \
              request now gets past it into the sweep, which meets the belly's revolve seam \
-             (a meridian, where the spout leaves the belly) with one of the spout's NURBS walls and cannot yet find where \
-             an edge meets a spline face: the pierce the join needs. The shape a potter \
+             (a meridian, where the spout leaves the belly) with one of the spout's NURBS walls, on that wall's seam, \
+             and cannot yet split a spline seam at a point: the pierce the join needs. The shape a potter \
              draws did not become joinable; the refusal moved off a pair nobody modelled \
              and onto the meeting itself. The schedule is the banked germ-chord \
              lanes (DESIGN frontier (d)) and #1057's two C5 arms. BOTH REFUSALS NOW \

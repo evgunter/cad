@@ -60,17 +60,6 @@ fn block_at(
     (doc, b, at)
 }
 
-/// `of` as the copy at `placement` names it.
-fn placed(placement: RecipeNodeId, of: StableName) -> StableName {
-    StableName {
-        kind: of.kind,
-        node: placement,
-        path: vec![RoleSeg::Placed {
-            of: editor_core::NameRef::new(of),
-        }],
-    }
-}
-
 fn boolean_value(ev: &editor_core::Evaluation<f64>, node: RecipeNodeId) -> &BooleanValue<f64> {
     match &ev.value(node).expect("boolean evaluated").payload {
         ValuePayload::Boolean(b) => b,
@@ -220,7 +209,7 @@ fn crossing_slots_recipe_document_evaluates_and_resolves() {
         s1,
         RoleSeg::From {
             read: fixture::out(&doc, b1),
-            of: placed(b1, fname(b1_block, RoleSeg::Cap(CapEnd::Start))).into(),
+            of: fname(b1_block, RoleSeg::Cap(CapEnd::Start)).into(),
         },
     );
     let (doc, _, b2) = block_at(doc, slab, (-1.0, 4.0), (1.0, 2.0), 0.5, 1.0);
@@ -442,9 +431,9 @@ fn crossing_slots_swapped_order_names_the_floor_corner_for_both_edges() {
                 [x, y] if x.line.kind == EntityKind::Edge
                     && y.line.kind == EntityKind::Edge
                     && matches!(
-                        (x.sense, y.sense),
-                        (Some(s), Some(editor_core::Sense::Inside))
-                            | (Some(editor_core::Sense::Inside), Some(s)) if s.crosses()
+                        (&x.sense, &y.sense),
+                        (s, editor_core::Sense::Inside)
+                            | (editor_core::Sense::Inside, s) if s.crosses()
                     )
             )
         ),

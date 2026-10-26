@@ -529,6 +529,44 @@ pub(crate) fn decide_nonzero<T: Decide>(
     geom_core::k_stats::decide_nonzero(name, margin, band)
 }
 
+/// **What a [`ValidationError::CensusUndecidable`] leaves open**: whether
+/// the two solids it names may interpenetrate, or only one face pair's
+/// own reading in band. `census_uncleared_solids` reads it: the first leaves
+/// the two solids uncleared, the second does not.
+///
+/// **NOT carried to the façade's curated list, and that is a decision
+/// rather than an omission** (`scripts/payload-rung-sweep.py` names this
+/// rung; the disposition table cites this paragraph as its home). A Rust
+/// caller can already name and match this type — `pncad` re-exports
+/// `topo` whole — and the Python door already says the arm
+/// (`census_undecidable`) and carries the sentence, which says whether
+/// the pair read in band. Publishing the name owes the CUR3 property row
+/// `carried_refusal_payloads_are_matchable_through_the_prelude` and a
+/// Python word per arm, both the façade crate's to write.
+///
+/// **The falsifier is a Python caller who must tell a pair hiding no
+/// overlap (move one face clear of the band) from a pair the census
+/// cannot clear (the solids may overlap)** without reading the sentence.
+/// When the façade carries the reason, delete this paragraph and the
+/// disposition row with it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Undecidable {
+    /// The census cannot clear the two of interpenetrating past the
+    /// band: a pair it cannot examine, a crossing or a touch it could
+    /// not read, a containment its material test could not answer.
+    MayOverlap,
+    /// Two planar faces of different solids whose carriers, or whose
+    /// lying flush, read within the band, and which hide no overlap
+    /// thicker than the band: the pair's one could-not-look finding
+    /// (`[assertions]`). An opposed pair: its two materials lie on
+    /// either side, so any overlap it hides is thinner than the band,
+    /// which the representation cannot tell from contact. An aligned
+    /// pair has both materials behind both faces, so it is this only
+    /// where the two share no area thicker than the band. It is no
+    /// evidence the two solids interpenetrate.
+    ThinInBand,
+}
+
 /// **What a census refusal is ABOUT** — the whole of the subject the
 /// refusing arm was examining.
 ///
@@ -1946,7 +1984,8 @@ pub enum ValidationError {
     /// refused, a container whose extent no sound box claims, or an
     /// instance whose every vertex lies on the container's boundary.
     /// A decided interference is
-    /// [`ValidationError::InstanceInterference`], never this.
+    /// [`ValidationError::InstanceInterference`] or
+    /// [`ValidationError::SameSideInterference`], never this.
     CensusUndecidable {
         /// One side of the pair the census cannot clear.
         a: EntityId,
@@ -1954,6 +1993,8 @@ pub enum ValidationError {
         b: EntityId,
         /// The not-yet-supported class, named.
         what: &'static str,
+        /// What the refusal leaves open.
+        reason: Undecidable,
     },
     /// **Tier 3′: a face passes through an edge's material wedge.** An
     /// edge lies in a face of its own solid, and on decided readings the
@@ -1978,6 +2019,34 @@ pub enum ValidationError {
         edge: EdgeKey,
         /// The face it lies in.
         face: FaceKey,
+        /// Where the two were read, as coordinates.
+        witness: String,
+        /// Why the reading was not taken; the finding renders it with
+        /// its recourse.
+        why: crate::census::TouchUnread,
+    },
+    /// **Tier 3′: two coincident edges' material wedges overlap.** Two
+    /// line edges overlap along their line, the overlap backed, and on
+    /// decided readings at the middle of their shared span a sheet or
+    /// the interior of one wedge lies strictly inside the other. The
+    /// material sectors on one line are disjoint (D1,
+    /// `crates/topo/README.md` tier 3), so no record makes this valid.
+    CoincidentWedgesOverlap {
+        /// The two edges, in arena order.
+        edges: [EdgeKey; 2],
+        /// Where the two were read, as coordinates.
+        witness: String,
+    },
+    /// **Tier 3′: whether two coincident edges' material wedges overlap
+    /// is undecided.** The overlap is backed, and the side reading of
+    /// the two ([`Self::CoincidentWedgesOverlap`]'s) could not be taken:
+    /// `why` says why.
+    CoincidentWedgesOverlapUndecided {
+        /// The two edges, in arena order.
+        edges: [EdgeKey; 2],
+        /// The one of them whose wedge has no reading; `None` where a
+        /// sign comparing the two landed in band.
+        unread: Option<EdgeKey>,
         /// Where the two were read, as coordinates.
         witness: String,
         /// Why the reading was not taken; the finding renders it with
@@ -2017,6 +2086,25 @@ pub enum ValidationError {
         /// `inner`'s first vertex in arena order found strictly inside
         /// `outer`'s material.
         witness: VertexKey,
+    },
+    /// Tier 3′ (the census's instance-containment arm): a face of one
+    /// instance and a face of another lie on one carrier, facing the same
+    /// way, and their interiors meet over an area — an interference fit
+    /// DECIDED by the faces, and not undecidable. Each face has its
+    /// solid's material on its inner side, so both solids hold the
+    /// material under every interior point the faces share: the two
+    /// materials overlap there, though no vertex of either need lie
+    /// strictly inside the other (two coincident copies, or one nested
+    /// flush in another). The touches of cells bounding the two faces
+    /// that lie in the closure of their shared area are the pair's, and
+    /// report nothing of their own. No record answers for this finding;
+    /// between two copies at rest the assembly layer reports it as an
+    /// interference finding.
+    SameSideInterference {
+        /// The face of one instance.
+        a: FaceKey,
+        /// The face of the other, on `a`'s carrier and facing its way.
+        b: FaceKey,
     },
     /// Tier 3′ (D1 tier 3, C4): two faces of one solid that share no
     /// edge, on carriers whose closed-form tangent line runs strictly
@@ -3352,6 +3440,11 @@ pub(crate) fn classify_mass_props(e: &crate::props::MassPropsError) -> MassProps
                 geom_brep::props::quadrature_budget_recourse(*width_len).into(),
                 false,
             ),
+            P::QuadratureFloor { width_len, .. } => reading(
+                "a face's contribution is at its quadrature's floor, over the tolerance",
+                geom_brep::props::quadrature_budget_recourse(*width_len).into(),
+                false,
+            ),
             P::Unimplemented
             | P::NotIsoRectangle { .. }
             | P::NappeSpanning
@@ -4322,7 +4415,7 @@ impl fmt::Display for ValidationError {
                 "a face's boundary reads an arc's end off its corner where certification pinned \
                  it: {gaps}. {DEFECT}"
             ),
-            Self::CensusUndecidable { a, b, what } => write!(
+            Self::CensusUndecidable { a, b, what, .. } => write!(
                 f,
                 "{} can be neither examined nor cleared: {what}",
                 match (a, b) {
@@ -4341,13 +4434,30 @@ impl fmt::Display for ValidationError {
                 f,
                 "an edge lies in a face of its own part at {witness}, and whether the face \
                  passes through the material the edge bounds is undecided: {}",
-                why.in_own_face()
+                why.sentence()
+            ),
+            Self::CoincidentWedgesOverlap { witness, .. } => write!(
+                f,
+                "two edges lie along one line at {witness}, and the material each bounds \
+                 overlaps the other's, so the line holds material twice. {DEFECT}"
+            ),
+            Self::CoincidentWedgesOverlapUndecided { witness, why, .. } => write!(
+                f,
+                "two edges lie along one line at {witness}, and whether the material each \
+                 bounds overlaps the other's is undecided: {}",
+                why.sentence_on_line()
             ),
             Self::InstanceInterference { .. } => write!(
                 f,
                 "two instances overlap: a corner of one lies inside the other \
                  (an interference fit), which no declaration can make valid. Recourse: move \
                  the instances apart"
+            ),
+            Self::SameSideInterference { .. } => write!(
+                f,
+                "two instances overlap: a face of each lies on one plane facing the same way, \
+                 sharing an area that both hold material under (an interference fit), which no \
+                 declaration can make valid. Recourse: move the instances apart"
             ),
             Self::CuspEdgesMissing { witness, .. } => write!(
                 f,

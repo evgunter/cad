@@ -1,22 +1,19 @@
 //! **Which seam pair a name lies on.**
 //!
-//! A seam vertex group's `Fragment(OrderAlong)` rank is a place along
-//! the edge it crosses. Where that edge lies on a SEAM line, it runs as
-//! the loop of the pair's first side runs along it (N2), whichever step
-//! cut it, so a rank needs the pair the edge's name records.
+//! A crossing of a seam edge is read along each of the seam's two
+//! sides, whose loops run along it opposite ways (N2), so the reader
+//! needs the pair the edge's name records, and which of the edge's two
+//! faces is which side.
 //!
 //! This module holds the one answer to "is this name on a seam line,
-//! and which pair", for the readers that know a seam only by its NAME.
-//! The pair emitter reads it to orient a crossed edge
-//! (`emit_topo::crossed_edge_orientation`); the canonical form
-//! (`names::canonical`) reads it, in a name's earlier and later
-//! spelling, to decide whether a rewrite — the union's collapse, or a
-//! re-map of a published name — reversed that orientation. Both read the
-//! same answer through the same wrappers, so they cannot disagree about
-//! which ranks lie on a seam line.
+//! and which pair", for the readers that know a seam only by its NAME:
+//! the pair emitter's and the union's reading of a crossed edge
+//! (`emit_topo::edge_reading`), the union's reading of its own seams in
+//! a run (`emit_union::Flush::seam_sense`), and a Split crossing's other
+//! half (`role::Sense::other_half`).
 
 use super::role::{EntityKind, Qualifier};
-use super::role::{RoleSeg, RunLine, StableName, name_free_seg};
+use super::role::{RoleSeg, StableName, name_free_seg};
 
 /// What a name's HEAD segment means to a walk looking for a seam pair.
 /// ONE exhaustive match over [`RoleSeg`]: a new segment variant is a
@@ -24,11 +21,10 @@ use super::role::{RoleSeg, RunLine, StableName, name_free_seg};
 /// through.
 enum Head<'a> {
     /// A seam: the pair itself. A crossing vertex is read as one too:
-    /// its edge and the face or edge it meets, which is the pair a rank
-    /// along its edge is measured against.
+    /// its edge and the face it meets.
     Seam(&'a StableName, &'a StableName),
-    /// A vertex where several lines meet: its run.
-    Run(&'a [RunLine]),
+    /// A vertex where several lines meet.
+    Run,
     /// The same entity carried through one op, or a piece of it: the
     /// argument is its name one level down.
     Through(&'a StableName),
@@ -44,17 +40,13 @@ fn head(seg: &RoleSeg) -> Head<'_> {
         | RoleSeg::Crossing {
             edge: a, face: b, ..
         } => Head::Seam(a, b),
-        RoleSeg::EdgeCrossing(run) => Head::Run(run),
+        RoleSeg::EdgeCrossing(_) => Head::Run,
         // An entity carried in from an input, a split's fragment, a
         // pattern's or part's instance: the same entity (or a piece of
-        // it) under one more op. A member's seam keeps the orientation
-        // its own table read, so a rewrite that reorders the member's
-        // pair re-reads a rank along it as it would below.
+        // it) under one more op.
         RoleSeg::From { of: n, .. }
         | RoleSeg::SplitFragment { parent: n, .. }
-        | RoleSeg::Instance { of: n, .. }
-        | RoleSeg::InPart { of: n }
-        | RoleSeg::Placed { of: n } => Head::Through(n),
+        | RoleSeg::Instance { of: n, .. } => Head::Through(n),
         RoleSeg::Merged(set) => Head::Merged(set),
         // New entities an op minted FROM a source — a blend face, a
         // shell's cavity twin (an offset line, not the source's), a
@@ -79,60 +71,64 @@ fn head(seg: &RoleSeg) -> Head<'_> {
         | RoleSeg::SectionEdge { .. }
         | RoleSeg::CrossingVertex { .. }
         | RoleSeg::OnToolVertex { .. }
-        | RoleSeg::Fragment(
-            Qualifier::Borders(_)
-            | Qualifier::Keeps(_)
-            | Qualifier::Ends(_)
-            | Qualifier::OrderAlong { .. },
-        )
+        | RoleSeg::Fragment(Qualifier::Borders(_) | Qualifier::Keeps(_) | Qualifier::Ends(_))
         | name_free_seg!() => Head::Stop,
     }
 }
 
-/// The seam pair `(a, b)` whose line an EDGE name lies on, if any.
-///
-/// A seam edge is `Seam { a, b }`; a piece or pass-through of one keeps
-/// it through the wrappers [`head`] lists as `Through`, with any
+/// The two sides `(a, b)` of the seam an EDGE name lies on, if any: a
+/// seam edge is `Seam { a, b }`, and a piece or pass-through of one
+/// keeps it through the wrappers [`head`] lists as `Through`, with any
 /// `Fragment` tail after it. A pair whose two sides carry the SAME name
-/// (two placements of one prototype, N1) names no side, so it is not a
-/// sided line: it is answered `None` — the union's collapse, which never
-/// swaps an equal pair, agrees.
-pub(super) fn seam_line_pair(name: &StableName) -> Option<(&StableName, &StableName)> {
-    seam_through(name).filter(|(a, b)| a != b)
-}
-
-/// The two sides `(a, b)` of the seam an EDGE name lies on, if any,
-/// found as [`seam_line_pair`] finds them, an equal pair included.
+/// (two placements of one prototype, N1) is answered too.
 pub(super) fn seam_edge_sides(name: &StableName) -> Option<(&StableName, &StableName)> {
     seam_through(name)
 }
 
-/// The lines a seam VERTEX name is minted on, if it is one: a vertex
-/// minted as `Seam { a, b }` or `Crossing { edge: a, face: b, .. }` is
-/// the pair, an `EdgeCrossing` its run, read through a pass-through of
-/// one the way [`seam_line_pair`] finds an edge's pair. A junction (a
-/// run of `Seam` segments) answers its first line; it carries no rank.
-pub(super) fn seam_vertex_parents(name: &StableName) -> Option<VertexLines<'_>> {
+/// **The two sides of the seam an EDGE name lies on, each named in the
+/// edge name's own space**: a side carried out through every wrapper the
+/// edge's name passes through to its `Seam`, as that wrapper carries the
+/// side's face (a `From`'s read, a split's fragment, an instance's or a
+/// part's copy), the edge's piece qualifiers dropped. Where the name is
+/// the `Seam` itself the sides are its own. `None` where
+/// [`seam_edge_sides`] is.
+pub(super) fn seam_edge_sides_carried(name: &StableName) -> Option<(StableName, StableName)> {
+    let (a, b) = seam_through(name)?;
+    let mut wrappers = Vec::new();
     let mut at = name;
-    loop {
-        if at.kind != EntityKind::Vertex {
-            return None;
-        }
-        match head(at.path.first()?) {
-            Head::Seam(a, b) => return Some(VertexLines::Pair(a, b)),
-            Head::Run(run) => return Some(VertexLines::Run(run)),
-            Head::Merged(_) | Head::Stop => return None,
-            Head::Through(inner) => at = inner,
-        }
+    while let Some(seg) = at.path.first() {
+        let Head::Through(inner) = head(seg) else {
+            break;
+        };
+        wrappers.push((at.node, seg));
+        at = inner;
     }
-}
-
-/// What a seam vertex is minted on ([`seam_vertex_parents`]).
-pub(super) enum VertexLines<'a> {
-    /// A seam's two sides, or a crossing's edge and face.
-    Pair(&'a StableName, &'a StableName),
-    /// An `EdgeCrossing`'s run.
-    Run(&'a [RunLine]),
+    let carry = |side: &StableName| {
+        wrappers
+            .iter()
+            .rev()
+            .fold(side.clone(), |inner, &(node, seg)| {
+                let inner = super::role::NameRef::new(inner);
+                let seg = match seg {
+                    RoleSeg::From { read, .. } => RoleSeg::From {
+                        read: *read,
+                        of: inner,
+                    },
+                    RoleSeg::SplitFragment { .. } => RoleSeg::SplitFragment { parent: inner },
+                    RoleSeg::Instance { i, .. } => RoleSeg::Instance { i: *i, of: inner },
+                    other => unreachable!(
+                        "{other:?} is no wrapper `head` passes through: the walk above kept \
+                         only `Head::Through` segments"
+                    ),
+                };
+                StableName {
+                    kind: EntityKind::Face,
+                    node,
+                    path: vec![seg],
+                }
+            })
+    };
+    Some((carry(a), carry(b)))
 }
 
 /// The `Seam` an EDGE name is minted as, through the wrappers [`head`]
@@ -145,7 +141,7 @@ fn seam_through(name: &StableName) -> Option<(&StableName, &StableName)> {
         }
         match head(at.path.first()?) {
             Head::Seam(a, b) => return Some((a, b)),
-            Head::Run(_) | Head::Merged(_) | Head::Stop => return None,
+            Head::Run | Head::Merged(_) | Head::Stop => return None,
             Head::Through(inner) => at = inner,
         }
     }
@@ -171,7 +167,7 @@ pub(crate) fn face_descends_from(n: &StableName, x: &StableName) -> bool {
         match n.path.first().map(head) {
             Some(Head::Through(p)) => names.push(p),
             Some(Head::Merged(cs)) => names.extend(cs.iter().rev()),
-            Some(Head::Seam(..) | Head::Run(_) | Head::Stop) | None => {}
+            Some(Head::Seam(..) | Head::Run | Head::Stop) | None => {}
         }
     }
     false
@@ -292,8 +288,10 @@ mod tests {
         assert_eq!(a_side_is_first(&frag, &fb, &a, &b), Some(true));
     }
 
+    /// **A seam edge's sides are found through what carries it**, an
+    /// equal pair included: a crossing of one reads alike along either.
     #[test]
-    fn an_equal_pair_is_not_a_sided_line() {
+    fn a_seam_edges_sides_are_found_through_its_carriers() {
         let x = cap(1, CapEnd::End);
         let edge = |a: &StableName, b: &StableName| StableName {
             kind: EntityKind::Edge,
@@ -303,13 +301,13 @@ mod tests {
                 b: b.clone().into(),
             }],
         };
-        assert!(seam_line_pair(&edge(&x, &x)).is_none());
+        assert_eq!(seam_edge_sides(&edge(&x, &x)), Some((&x, &x)));
         let y = cap(2, CapEnd::End);
-        assert!(seam_line_pair(&edge(&x, &y)).is_some());
+        assert_eq!(seam_edge_sides(&edge(&x, &y)), Some((&x, &y)));
         // Through an entity carried in, a fold side's and a member's
         // read alike.
         let seam = edge(&x, &y);
-        assert!(seam_line_pair(&wrap(from_a, seam.clone())).is_some());
+        assert!(seam_edge_sides(&wrap(from_a, seam.clone())).is_some());
         let member = StableName {
             kind: EntityKind::Edge,
             node: RecipeNodeId::new(0, 9),
@@ -318,6 +316,6 @@ mod tests {
                 of: seam.into(),
             }],
         };
-        assert!(seam_line_pair(&member).is_some());
+        assert!(seam_edge_sides(&member).is_some());
     }
 }

@@ -169,21 +169,18 @@ fn a_flip_at_a_node_the_name_does_not_depend_on_is_not_its_cause() {
     );
     // The first bar's walls (`block`'s profile runs counter-clockwise
     // from `(x0, y0)`: wall 0 is y = y0, 1 is x = x1, 3 is x = x0).
-    let Some(Node::Place { shapes, .. }) = doc.node(tr1.placement) else {
+    let Some(Node::Place { source, .. }) = doc.node(tr1.placement) else {
         panic!("slot() places the bar");
     };
     let bar1 = &doc
-        .operation_of(shapes[0].read)
+        .operation_of(source.read)
         .expect("the placement reads a live bar");
-    let wall = |segment| {
-        StableName {
-            kind: EntityKind::Face,
-            node: *bar1,
-            path: vec![RoleSeg::Lateral(
-                crate::fixture::piece(&doc, *bar1, 0, segment).into(),
-            )],
-        }
-        .in_copy(tr1.placement)
+    let wall = |segment| StableName {
+        kind: EntityKind::Face,
+        node: *bar1,
+        path: vec![RoleSeg::Lateral(
+            crate::fixture::piece(&doc, *bar1, 0, segment).into(),
+        )],
     };
     let Some(Node::Subtract {
         tool: tool_read, ..
@@ -721,7 +718,7 @@ fn hand_eval(
 }
 
 /// Hand-built tables at `cut` for a fragment group that stops being
-/// divided: before, two ranked fragments of the cut's output body —
+/// divided: before, two fragments of the cut's output body —
 /// names that mention no partner, so nothing but `cut` is on their
 /// derivation path (the carry is through `cut`'s own read) — and after,
 /// the undivided base. Returns the tables and the first fragment.
@@ -739,10 +736,16 @@ fn collapsing_group(doc: &ProfileDoc, cut: RecipeNodeId) -> (NameTable, NameTabl
             of: f.clone().into(),
         }],
     };
-    let ranked = |rank| {
+    let ranked = |k: u64| {
         let mut name = base.clone();
-        name.path
-            .push(RoleSeg::Fragment(Qualifier::OrderAlong { rank, of: 2 }));
+        // Told apart by how many times they cite the cut's own body.
+        let own = fixture::minted(EntityKind::Body, cut, RoleSeg::OutputBody);
+        name.path.push(RoleSeg::Fragment(Qualifier::Ends(vec![
+            own;
+            usize::try_from(k)
+                .expect("small")
+                + 1
+        ])));
         name
     };
     let mut before = NameTable::new();

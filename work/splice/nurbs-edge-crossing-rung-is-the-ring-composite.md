@@ -2,11 +2,12 @@
 id: nurbs-edge-crossing-rung-is-the-ring-composite
 kind: unit
 title: a NURBS operand edge gets one crossing rung keyed on the carrier: the spline::compose ring composite
-status: open
+status: dispatched
 opened: 2026-10-03
 priority: P0
 cost: H
 refs: [3984]
+branch: splice/converse-arm
 ---
 
 
@@ -83,12 +84,13 @@ wherever the face stands, and never reaches the crossings. This rung is
 the first that can. The fixture stands ready:
 
 - the wavy loft of `editor-core` `emit_topo`'s
-  `nurbs_crossings_rank_by_parameter` (`a = 0.3`), united through the
+  `wavy_loft` (`a = 0.3`), united through the
   recipe with a box over `x ∈ [1, 3]`, `z ∈ [−½, 3½]`;
 - its face `x = 1` crosses each corner edge at `x = dx + 1` three times,
   the first and third with one sense;
-- the row asserts those crossings reach `emit_topo::rank_crossings`
-  through the boolean, ranked by parameter.
+- the row asserts those crossings are named through the boolean: no
+  crossing is ranked (N2, *Vertices*, PR 5758), so the first and third,
+  of one sense, tie.
 
 `…::a_union_across_a_nurbs_edge_refuses_until_a_crossing_rung_builds_it`
 is the tripwire that reds when this rung lands; replace it with that row.
@@ -105,3 +107,14 @@ that does not meet. The recourse it gives, rebuilding the solid with
 conic edges, cannot be acted on for any loft or sweep. The control-hull
 box in "What to build" (`nurbs_curve_aabb`) is the fix: with it, a far
 spline edge is pruned before any arm and a disjoint operand builds.
+
+## Lily wall 8 reaches this arm (2026-10-26)
+
+Measured on `splice/boundary-first`: with the boundary pass reading the
+shared rim, lily wall 8 refuses
+`EdgeCarrierUnsupported { operand: A, edge: 3v1, face: 1v1, face_of: B, site: PlanarCrossing }`:
+a NURBS tip seam of the blade, rising from the shared section, against
+the sheath's base cap in that plane. The plane case of this arm is what
+it needs next. `sweep`'s
+`a_sheath_grafted_on_its_blade::a_sheath_on_its_blade_unions_past_the_shared_rim`
+pins the refusal in miniature and reds when this arm lands.

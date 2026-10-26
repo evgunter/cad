@@ -104,7 +104,7 @@ fn rest_mate(body: RecipeNodeId, a: RecipeNodeId, b: RecipeNodeId, seat: f64) ->
 /// and stale configurations both live off the axis): `origin`'s x and
 /// y are the in-plane slides, its z the seat.
 fn rest_mate_at(body: RecipeNodeId, a: RecipeNodeId, b: RecipeNodeId, origin: [f64; 3]) -> Seat {
-    let top = fixture::plane(fixture::head(in_part(a, body, CapEnd::End)));
+    let top = fixture::plane(fixture::head_at(a, in_part(a, body, CapEnd::End)));
     let top = if origin[2] == 1.0 {
         top
     } else {
@@ -116,7 +116,7 @@ fn rest_mate_at(body: RecipeNodeId, a: RecipeNodeId, b: RecipeNodeId, origin: [f
     };
     Seat {
         mate: fixture::mate(
-            fixture::plane(fixture::head(in_part(b, body, CapEnd::Start))),
+            fixture::plane(fixture::head_at(b, in_part(b, body, CapEnd::Start))),
             fixture::flip(top),
         ),
         slide: [origin[0], origin[1]],
@@ -193,7 +193,7 @@ fn seated_pair(
         &with_resolver(store.clone()),
     );
     let (doc, seated) = insert(doc, fixture::mated_instance(doc_ref));
-    (doc, vec![base, seated])
+    (fixture::assemble_world_copies(doc), vec![base, seated])
 }
 
 /// `instance` standing on its bottom: by the identity bundle, its part's
@@ -280,14 +280,10 @@ fn names_of(table: &editor_core::NameTable, key: EntityKey) -> Option<StableName
         })
 }
 
-/// Unwraps one seam: the assembly's product name for a part entity is
-/// the part's own product name, wrapped at the instance — itself the
-/// placement that copies it.
+/// One seam: the assembly's product name for a part entity is the
+/// part's own product name, which the instance's copy carries verbatim.
 fn unwrap_in_part(name: &StableName) -> StableName {
-    match &name.path[..] {
-        [RoleSeg::InPart { of }] => (**of).clone(),
-        _ => panic!("an instance's name is InPart-wrapped: {name:?}"),
-    }
+    name.clone()
 }
 
 // ---- Row 1: the contacts channel (D-1) ----
@@ -408,23 +404,35 @@ fn row3_b_the_mated_touching_pair_is_recorded_as_the_unmated_one_is() {
     );
     let (fa, fb) = contacts.face_face().next().unwrap();
     let assembly = result.as_ref().expect("the seat certifies");
-    let named = [fa, fb].map(|f| names_of(&assembly.names, EntityKey::Face(f)));
+    // The product's `⊔` keys each copy's names by the read it came
+    // through; what each wraps is the instance's copy's own name.
+    let named = [fa, fb].map(|f| {
+        names_of(&assembly.names, EntityKey::Face(f)).map(|n| match n.path.as_slice() {
+            [RoleSeg::From { of, .. }] => (**of).clone(),
+            _ => n,
+        })
+    });
     for want in [
         in_part(ids[1], body, CapEnd::Start),
         in_part(ids[0], body, CapEnd::End),
     ] {
         assert!(
-            named.contains(&Some(want.clone())),
+            named.contains(&Some(want.clone().into())),
             "keyed to the seated caps: {named:?} lacks {want:?}"
         );
     }
 }
 
-/// INVARIANT (spec row 4's in-band clause; C4's escalation rail): a
-/// seat whose gap is AUTHORED INTO THE BAND — a standoff off the base's
-/// top, which places the cube and declares nothing — is neither
-/// certified nor contradicted: it escalates TYPED, and the escalation
-/// carries the kernel's predicate name.
+/// INVARIANT (spec row 4's in-band clause): a seat whose gap is
+/// AUTHORED INTO THE BAND — a standoff off the base's top, which places
+/// the cube and declares nothing — is neither certified nor
+/// contradicted. The two caps read one carrier in band, so they are one
+/// face pair the census cannot look at (`[assertions]`), which hides no
+/// overlap: the gate refuses on that pair's typed finding, once. Each
+/// pair of side walls lies flush with its boundaries a band apart, the
+/// flush door's finding, once; and the cube's vertical edges lying
+/// along those walls escalate where they end in band of the base's top,
+/// a reading no one point locates, so it stands.
 ///
 /// The gap is DERIVED FROM THE COMMITTED BAND, never spelled as a
 /// literal: the hosted matrix runs ε = 1e-12 and 1e-6 as well as the
@@ -436,7 +444,7 @@ fn row3_b_the_mated_touching_pair_is_recorded_as_the_unmated_one_is() {
 /// (Row adopted from the review's probe; the band-relative derivation
 /// is the repo's own precedent for literal-ε rows.)
 #[test]
-fn row4_b_an_in_band_authored_gap_escalates_typed_and_predicate_named() {
+fn row4_b_an_in_band_authored_gap_refuses_on_its_in_band_pairs() {
     let band =
         geom_core::predicate::Band::linear(Tol::witness()).expect("the committed band builds");
     let gap = (band.zero() * band.escalate()).sqrt();
@@ -447,25 +455,44 @@ fn row4_b_an_in_band_authored_gap_escalates_typed_and_predicate_named() {
         band.zero(),
         band.escalate()
     );
-    let (doc, _, mate, store, _) = stacked("asm-r2b-row4b", 1.0 + gap);
+    let (doc, _, _, store, _) = stacked("asm-r2b-row4b", 1.0 + gap);
     let ev = run(&doc, &with_resolver(store));
-    let result = assemble(&doc, &ev, Tol::witness());
-    let errs = findings(&result);
+    let Err(AssemblyError::AtRest { findings }) = assemble(&doc, &ev, Tol::witness()) else {
+        panic!("an in-band authored gap refuses at rest");
+    };
+    let mut pairs: Vec<[topo::FaceKey; 2]> = findings
+        .iter()
+        .filter_map(|f| match f.error {
+            topo::ValidationError::CensusUndecidable {
+                a: topo::EntityId::Face(a),
+                b: topo::EntityId::Face(b),
+                ..
+            } => Some([a.min(b), a.max(b)]),
+            _ => None,
+        })
+        .collect();
     assert!(
-        errs.iter().any(|e| e.contains("CensusEscalated")),
-        "an in-band authored gap is the Err(Indeterminate) rail, not a \
-         verdict either way: {errs:?}"
+        findings.iter().any(|f| matches!(
+            f.error,
+            topo::ValidationError::CensusUndecidable {
+                reason: topo::Undecidable::ThinInBand,
+                ..
+            }
+        )),
+        "the caps' pair hides no overlap: {findings:?}"
     );
     assert!(
-        errs.iter().any(|e| e.contains("predicate")),
-        "and the escalation names the PREDICATE that could not decide: \
-         {errs:?}"
+        findings.iter().all(|f| matches!(
+            f.error,
+            topo::ValidationError::CensusUndecidable { .. }
+                | topo::ValidationError::CensusEscalated { .. }
+        )),
+        "nothing is decided, either way: {findings:?}"
     );
-    assert!(
-        matches!(result, Err(AssemblyError::AtRest { .. })),
-        "the escalation surfaces through the assembly gate"
-    );
-    let _ = mate;
+    let found = pairs.len();
+    pairs.sort();
+    pairs.dedup();
+    assert_eq!(pairs.len(), found, "each pair is one finding: {pairs:?}");
 }
 
 // ---- Rows 5 and 6: the crossing record ----
@@ -541,7 +568,9 @@ fn remainder_with_a_neighbour(
     let (doc, ids) = seated_pair(label, doc_ref, store);
     let neighbour = ids[0];
     let (doc, _) = seat(doc, ids[1], rest_mate(body, neighbour, ids[1], 1.0));
-    let outer = FaceName::new(in_part(neighbour, body, CapEnd::End))
+    // A remainder name, spelled on the live neighbour: an instance's
+    // copy carries its part's names, in the part's id space.
+    let outer = FaceName::new(fixture::resolver::in_world(neighbour, CapEnd::End))
         .expect("a crossing's references are face names");
     (doc, outer)
 }
@@ -628,7 +657,7 @@ fn row5_b_a_pin_move_that_breaks_a_crossing_refuses_at_evaluation() {
     // apart.
     assert!(
         err.contains(&format!(
-            "in the part of node {} on the remainder",
+            "the end cap of node {} on the remainder",
             test_utils::refusal::tag(outer_probe.node.0.digest())
         )),
         "the refusal names the crossing by its `outer`: {err}"
@@ -859,7 +888,7 @@ fn a_crossing_record_keys_on_each_of_its_fields() {
     let (host, outer) = remainder_with_a_neighbour("asm-r2b-row6-fields", doc_ref, body, &store);
     // The SAME live node, a different face of it: only the `outer`
     // moves between the two records below.
-    let other_outer = FaceName::new(in_part(outer.node, body, CapEnd::Start))
+    let other_outer = FaceName::new(in_part(outer.node, body, CapEnd::Start).into())
         .expect("a crossing's references are face names");
     let record = |outer: FaceName, inner: FaceName| editor_core::InterfaceRecord {
         crossings: vec![InterfaceCrossing::Mate { outer, inner }],
@@ -924,21 +953,17 @@ fn a_mate_reference_that_names_nothing_refuses_typed() {
         let (doc, ids) = seated_pair("asm-r2b-vanish", doc_ref, &store);
         // The target keeps its KIND — a face name that answers to
         // nothing, read at the base instance as a real cap is.
-        let nothing = StableName {
-            kind: EntityKind::Face,
-            node: ids[0],
-            path: vec![RoleSeg::InPart {
-                of: StableName {
-                    kind: EntityKind::Face,
-                    node: RecipeNodeId::new(0, tagged(99)),
-                    path: vec![RoleSeg::Cap(CapEnd::End)],
-                }
-                .into(),
-            }],
+        let nothing = fixture::resolver::PartName {
+            at: ids[0],
+            name: StableName {
+                kind: EntityKind::Face,
+                node: RecipeNodeId::new(0, tagged(99)),
+                path: vec![RoleSeg::Cap(CapEnd::End)],
+            },
         };
         let mut seating = rest_mate(body, ids[0], ids[1], 1.0);
         seating.mate = fixture::rest(
-            fixture::head(in_part(ids[1], body, CapEnd::Start)),
+            fixture::head_at(ids[1], in_part(ids[1], body, CapEnd::Start)),
             fixture::head(nothing),
         );
         let (doc, mate) = seat(doc, ids[1], seating);
@@ -957,14 +982,17 @@ fn a_mate_reference_that_names_nothing_refuses_typed() {
         "the target's selection refuses: {:?}",
         ev.node_error(mate.placement)
     );
-    // The constraint's placement is the copy it would place, so the
-    // gather meets the failed placement first and refuses it typed.
+    // The product's `⊔` reads the copy the constraint's placement would
+    // place, so the gather meets the `⊔` poisoned through the failed
+    // placement and refuses it typed.
     match assemble(&doc, &ev, Tol::witness()) {
         Err(AssemblyError::Product(refusal)) => assert!(
             matches!(
                 *refusal,
-                editor_core::ProductError::Root(editor_core::NodeStanding::Failed { node })
-                    if node == mate.placement
+                editor_core::ProductError::Root(editor_core::NodeStanding::Poisoned {
+                    through,
+                    ..
+                }) if through == mate.placement
             ),
             "the failed placement is the gather's refusal: {refusal:?}"
         ),
@@ -1032,9 +1060,15 @@ fn slab_part(label: &str, x: (f64, f64), y: (f64, f64), dz: f64) -> (ProfileDoc,
 /// numbers agree by construction and are deliberately not shared —
 /// each layer's fixture reads as the thing that layer is about.
 fn flush_seat(label: &str) -> (ProfileDoc, MateRef, PartStore) {
+    seat_off_the_end(label, 0.0)
+}
+
+/// [`flush_seat`] with the post's end standing `off` in from the
+/// shelf's end plane.
+fn seat_off_the_end(label: &str, off: f64) -> (ProfileDoc, MateRef, PartStore) {
     let mut store = PartStore::default();
     let (post, post_body) = store.insert_part(
-        slab_part(&format!("{label}-post"), (0.0, 0.12), (0.09, 0.21), 0.5),
+        slab_part(&format!("{label}-post"), (off, 0.12), (0.09, 0.21), 0.5),
         Tol::witness(),
     );
     let (shelf, shelf_body) = store.insert_part(
@@ -1048,13 +1082,14 @@ fn flush_seat(label: &str) -> (ProfileDoc, MateRef, PartStore) {
         &with_resolver(store.clone()),
     );
     let (doc, shelf_id) = insert(doc, fixture::mated_instance(shelf));
+    let doc = fixture::assemble_world_copies(doc);
     let (doc, mate) = seat(
         doc,
         shelf_id,
         Seat {
             mate: fixture::rest(
-                fixture::head(in_part(shelf_id, shelf_body, CapEnd::Start)),
-                fixture::head(in_part(post_id, post_body, CapEnd::End)),
+                fixture::head_at(shelf_id, in_part(shelf_id, shelf_body, CapEnd::Start)),
+                fixture::head_at(post_id, in_part(post_id, post_body, CapEnd::End)),
             ),
             slide: [0.0, 0.0],
         },
@@ -1081,6 +1116,42 @@ fn a_flush_seat_certifies_at_the_gate() {
         1,
         "the seat is recorded once, at face granularity"
     );
+}
+
+/// **A near-flush end is one finding.** The same seat with the post's
+/// end standing in from the shelf's by a distance inside the band: the
+/// two ends read one carrier in band, so they are one face pair the
+/// census cannot look at (`[assertions]`), and the gate, which refuses
+/// every census verdict that is not an interference, refuses on that
+/// one finding. Nothing of the two ends' cells escalates beside it, and
+/// the seat's own pair is recorded. Red if the gate certifies, or
+/// refuses on anything but the one in-band pair.
+#[test]
+fn a_near_flush_seat_refuses_on_its_one_in_band_pair() {
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
+    let off = 0.5 * (band.zero() + band.escalate());
+    let (doc, _, store) = seat_off_the_end("asm-r2b-near-flush", off);
+    let ev = run(&doc, &with_resolver(store));
+    match assemble(&doc, &ev, Tol::witness()) {
+        Err(AssemblyError::AtRest { findings }) => {
+            let [
+                editor_core::AtRestFinding {
+                    error:
+                        topo::ValidationError::CensusUndecidable {
+                            a: topo::EntityId::Face(_),
+                            b: topo::EntityId::Face(_),
+                            reason: topo::Undecidable::ThinInBand,
+                            ..
+                        },
+                },
+            ] = findings.as_slice()
+            else {
+                panic!("one finding, the in-band pair's: {findings:?}");
+            };
+        }
+        Ok(_) => panic!("the near-flush seat refuses at rest"),
+        Err(other) => panic!("expected an at-rest verdict, got {other}"),
+    }
 }
 
 /// **Discovery is never a record** (F1/F2(iii)), and between copies
@@ -1215,8 +1286,8 @@ fn the_gather_refusals_render_prose_never_debug_guts() {
                 ],
             }],
         },
-        ProductError::StrandedPlacement {
-            placement: RecipeNodeId::new(0, tagged(2)),
+        ProductError::StrandedProduct {
+            read: editor_core::VarId::new(0, tagged(2)),
         },
         ProductError::Graft {
             node: RecipeNodeId::new(0, tagged(5)),
@@ -1232,7 +1303,7 @@ fn the_gather_refusals_render_prose_never_debug_guts() {
             "\n  placement 000000000003 output 1: a solid encloses negative volume, so it is \
              inside-out",
         ],
-        &["placement 000000000002 reads a body that is gone"],
+        &["the product reads", "a body that is gone"],
         &["the kernel could not graft placement 000000000005's body: the band's "],
     ];
     for (error, needles) in cases.into_iter().zip(expected) {
@@ -1449,4 +1520,107 @@ fn a_mate_proves_its_faces_only_in_the_sense_it_states() {
         proofs[0][1], first_rung,
         "the mate does not prove its caps on the same side"
     );
+}
+
+/// The seating mate with its flip stripped: a plain plane mate, which
+/// equates the two caps' outward normals and so turns the copy over.
+fn unflip(mate: &mut Mate<Formula>) {
+    if let Operand::Pose(p) = &mate.to
+        && let PoseDef::Flip { pose } = &**p
+    {
+        mate.to = pose.read.clone();
+    }
+}
+
+/// **A seat written without its flip turns the copy over beside its
+/// base, and the two abut.** The copy's start cap is set facing up on
+/// the base's top plane, so the copy turns over about x and lands at
+/// y in [-1, 0], sharing the base's y = 0 wall face to face. That is a
+/// rest (one opposed row) beside four flush pairs (the caps and the
+/// x walls, facing the same way with only their edges meeting), and no
+/// overlap: the gate certifies it with no interference, mated or pinned
+/// where it solved. Red if the copy lands anywhere else, or if a flush
+/// pair's shared boundary is read as shared material.
+#[test]
+fn a_seat_without_its_flip_turns_the_copy_over_beside_its_base() {
+    let (doc, _ids, _mate, store, _) = stacked_as("unflipped", [0.0, 0.0, 1.0], unflip);
+    let o = with_resolver(store);
+    let pinned = pinned_where_solved(doc.clone(), &o);
+    for (label, doc) in [("mated", doc), ("pinned", pinned)] {
+        let ev = run(&doc, &o);
+        let product = product_recorded(&doc, &ev, Tol::witness()).expect("the pair gathers");
+        let ys: Vec<f64> = product.body.vertex_points().map(|(_, p)| p.y).collect();
+        assert!(
+            ys.contains(&-1.0) && ys.iter().all(|&y| (-1.0..=1.0).contains(&y)),
+            "{label}: the copy lies at y in [-1, 0], beside the base: {ys:?}"
+        );
+        let count = |relation| {
+            product
+                .coincidences
+                .iter()
+                .filter(|r| r.row.relation == relation)
+                .count()
+        };
+        assert_eq!(
+            (
+                count(topo::Relation::SameOpposite),
+                count(topo::Relation::SameOriented)
+            ),
+            (1, 4),
+            "{label}: the y = 0 walls rest, and the caps and x walls lie flush"
+        );
+        let assembly = assemble(&doc, &ev, Tol::witness()).expect("abutting copies certify");
+        assert!(
+            assembly.interference.is_empty(),
+            "{label}: abutting copies do not interfere: {:?}",
+            assembly.interference
+        );
+    }
+}
+
+/// **Copies whose material coincides over an area are one interference.**
+/// A seat at height 0 is a standoff that sets the copy exactly on the
+/// base: the two copies fill one volume, with no vertex of either
+/// strictly inside the other and nothing piercing, mated or pinned where
+/// it solved. The seat without its flip at (0.5, 0.5, 1) turns the copy
+/// over half across the base, the two caps of each sharing a quarter.
+/// Each pair is one finding on `Assembly::interference`, bounded by the
+/// intersection of the two copies, loud, and its evidence carries the
+/// census's decided `SameSideInterference` and no `CensusUndecidable`.
+/// Red if the census reports such a pair as could-not-look.
+#[test]
+fn copies_filling_one_volume_are_one_interference() {
+    let (doc, _ids, _mate, store, _) = stacked_as("coincident", [0.0, 0.0, 0.0], |_| {});
+    let o = with_resolver(store);
+    let pinned = pinned_where_solved(doc.clone(), &o);
+    let (overhang, _ids, _mate, store, _) = stacked_as("overhang", [0.5, 0.5, 1.0], unflip);
+    let overhang_o = with_resolver(store);
+    for (label, doc, o) in [
+        ("mated", doc, &o),
+        ("pinned", pinned, &o),
+        ("overhang", overhang, &overhang_o),
+    ] {
+        let ev = run(&doc, o);
+        let assembly = assemble(&doc, &ev, Tol::witness())
+            .unwrap_or_else(|e| panic!("{label}: an interference is a finding: {e}"));
+        let [finding] = &assembly.interference[..] else {
+            panic!("{label}: one interference: {:?}", assembly.interference);
+        };
+        assert!(
+            matches!(finding.overlap, editor_core::Overlap::Bounded { .. }) && finding.is_loud(),
+            "{label}: bounded and loud: {finding:?}"
+        );
+        assert!(
+            finding
+                .evidence
+                .iter()
+                .any(|e| matches!(e, topo::ValidationError::SameSideInterference { .. }))
+                && !finding
+                    .evidence
+                    .iter()
+                    .any(|e| matches!(e, topo::ValidationError::CensusUndecidable { .. })),
+            "{label}: decided by the coincident faces: {:?}",
+            finding.evidence
+        );
+    }
 }

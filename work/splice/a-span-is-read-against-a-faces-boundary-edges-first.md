@@ -2,8 +2,9 @@
 id: a-span-is-read-against-a-faces-boundary-edges-first
 kind: issue
 title: An operand edge is read against the other face's carrier, never first against that face's boundary edges, so a rim it shares with a NURBS wall cannot glue
-status: dispatched
+status: closed
 opened: 2026-10-26
+closed: 2026-10-26
 priority: P0
 cost: H
 refs: [an-analytic-edge-against-a-nurbs-face-has-no-crossing-lane, a-unions-flush-reading-cannot-follow-a-nurbs-carrier, a-flush-reading-finds-no-point-on-a-nurbs-member-edge]
@@ -50,3 +51,54 @@ lies on the face's carrier.
   (`carvetail/a-half-turn-spine-sweeps-only-off-its-exact-tangents`).
 
 Serves every face kind, analytic ones included.
+
+## Closed (2026-10-26)
+
+Built on `splice/boundary-first`.
+- **The table**: `geom_brep::curve_face::route`, one exhaustive
+  `(CurveKind, SurfaceKind)` match with no wildcard. The analytic arms
+  name the sweep's existing root doors; every arm with a spline side,
+  and every spiric arm, is unbuilt and names what it lacks
+  (`curve_face::rows::every_kind_pair_routes_to_its_door`).
+- **The pass**: `geom_brep::curve_face::boundary`, each boundary
+  vertex on the span, then each boundary edge through
+  `curve_pair::meet`: `Meets` (a meeting strictly inside the span),
+  `Along` (a shared run), or `Clear`. Rows in `curve_face::rows`:
+  shared run in both senses, the rest of the rim's circle (no run), a
+  run shorter than the span, a crossing, an end on the rim, a far
+  span, a corner in the band's gap (escalates), a vertex in the band
+  of a thin ellipse.
+- **The sweep**: `topo` `reduce::spline_face` reads a spline face
+  through the pass ahead of any carrier reading. `Meets` is a pierce
+  on the boundary; `Along` records the edge's ends on the boundary
+  (`MintedRule::Along` places a later split's vertex the same way);
+  `Clear` refuses as before, unless the span is an edge of the
+  face's body (`reduce::twin_edge`), whose incidence with a face it
+  does not bound is its ends: the boolean's no-self-intersection
+  precondition, not a check. The sweep reaches `spline_face` through
+  `route`; the analytic doors are not yet dispatched through it
+  (`the-analytic-crossing-doors-are-not-dispatched-through-the-curve-face-table`,
+  filed here).
+- `carrier_cross::boundary_crossing` reads through the pass and keeps
+  only its placement.
+
+Witnesses: `sweep` `a_sheath_grafted_on_its_blade` (both operand
+orders), lily wall 8, teapot wall 3.
+
+**What the witnesses reached.** Lily wall 8 needed more than the
+shared run: the blade's rim is also read against the sheath's other
+wall, which it meets only at the lens's tips, and that is settled by
+the twin-edge certificate above. It now refuses
+`EdgeCarrierUnsupported { operand: A, site: PlanarCrossing }` on a
+NURBS tip seam of the blade against the sheath's base cap: the
+converse arm, `nurbs-edge-crossing-rung-is-the-ring-composite`.
+Teapot wall 3 moved too: the belly meridian pierces the spout's wall
+on the wall's seam, so the pass finds a boundary meeting and the split
+of the spline seam refuses
+(`a-meeting-on-a-spline-boundary-edge-has-no-split-parameter`, filed
+here). Klein wall 3 does not move: the seam line's end is not on the
+rim at the demos' ε (the cap tilt,
+`carvetail/a-half-turn-spine-sweeps-only-off-its-exact-tangents`), so
+the pass reads it `Clear`; the sector certificate at that end has no
+subject until the tilt is fixed
+(`a-span-ending-on-a-faces-rim-has-no-sector-clearance`, filed here).

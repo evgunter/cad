@@ -236,6 +236,7 @@ pub(crate) mod side_reader;
 pub mod split;
 pub mod splitting;
 pub(crate) mod stands;
+pub(crate) mod strut;
 pub mod surgery;
 // Existence and visibility are two questions, gated separately; the
 // module's own docs are the statement of both. EXISTENCE: the items
@@ -313,6 +314,44 @@ pub mod test_support {
         wedge_on_a_block_top,
     };
     pub use crate::test_support_impl::ArenaCounts;
+
+    /// **A placement the census decided overlaps**: arm 2's decided
+    /// verdicts on a pair of solids, a vertex of one strictly inside the
+    /// other's material ([`crate::ValidationError::InstanceInterference`])
+    /// or a face of each on one carrier, facing the same way and sharing
+    /// interior ([`crate::ValidationError::SameSideInterference`]). The
+    /// one home of the test that a row asserting a placement clears, or
+    /// refuses undecided, reads, so a new decided verdict reaches all of
+    /// them.
+    #[must_use]
+    pub fn is_decided_overlap(e: &crate::ValidationError) -> bool {
+        matches!(
+            e,
+            crate::ValidationError::InstanceInterference { .. }
+                | crate::ValidationError::SameSideInterference { .. }
+        )
+    }
+
+    /// **The census's verdicts on where two solids sit**: each decided
+    /// overlap ([`is_decided_overlap`]) and each
+    /// [`crate::ValidationError::CensusUndecidable`] naming two solids.
+    #[must_use]
+    pub fn placement_findings(errors: &[crate::ValidationError]) -> Vec<&crate::ValidationError> {
+        errors
+            .iter()
+            .filter(|e| {
+                is_decided_overlap(e)
+                    || matches!(
+                        e,
+                        crate::ValidationError::CensusUndecidable {
+                            a: crate::EntityId::Solid(_),
+                            b: crate::EntityId::Solid(_),
+                            ..
+                        }
+                    )
+            })
+            .collect()
+    }
 
     /// **The raw measurement door**: [`crate::mass_properties`]' walk over
     /// a body that has not passed tier 3. The public door takes a
@@ -463,6 +502,31 @@ pub mod test_support {
         body.surfaces.get_mut(key).map(|s| *s = surface).is_some()
     }
 
+    /// `host` holding `cavity` as [`crate::insert_void`] would graft it,
+    /// without the revert's refusal: `cavity`'s every face side reversed
+    /// and no sheet re-paired, so coincident edges on one line land each
+    /// bounding the complement of its own wedge.
+    ///
+    /// # Panics
+    ///
+    /// Where `solid` does not resolve in `host`, or `cavity` holds other
+    /// than one solid.
+    #[must_use]
+    #[allow(clippy::panic)]
+    pub fn grafted_reverted_unrefused<T: geom_core::Decide>(
+        host: &Body<T>,
+        solid: crate::SolidKey,
+        cavity: &Body<T>,
+    ) -> Body<T> {
+        let mut out = host.clone();
+        if let Err(e) =
+            crate::boolean::combine::graft_solids_disjoint(&mut out, &[solid], &cavity.reverted())
+        {
+            panic!("the graft refused: {e:?}");
+        }
+        out
+    }
+
     /// A test's hand-built contact records: each pair of `body`'s cells
     /// as a record citing row 0 of the producing op's coincidences.
     ///
@@ -533,6 +597,49 @@ pub mod test_support {
             Ok(body) => body,
             Err(e) => panic!("{what} is not a finished body: {e:?}"),
         }
+    }
+
+    /// **What of `body` lies along a line**: the line through `origin`
+    /// along the unit `dir`, and each edge both of whose ends lie on it
+    /// (within 1e-9) as their parameters along it, the lesser first, and
+    /// each vertex on it as its parameter, each list sorted and rounded
+    /// to 1e-6. Two coincident edges read as one span twice.
+    ///
+    /// # Panics
+    ///
+    /// Where an edge's half or end, or a vertex's point, does not
+    /// resolve: a torn body.
+    #[must_use]
+    #[allow(clippy::expect_used)]
+    pub fn along_line(
+        body: &Body<f64>,
+        origin: geom_core::Point3<f64>,
+        dir: geom_core::Vec3<f64>,
+    ) -> (Vec<(f64, f64)>, Vec<f64>) {
+        let at = |v: crate::entity::VertexKey| {
+            let p = crate::readback::vertex_point(body, v).expect("a vertex's point");
+            let t = (p - origin).dot(dir);
+            let off = (p - origin - dir * t).norm();
+            (off < 1e-9).then_some((t * 1e6).round() / 1e6)
+        };
+        let mut spans: Vec<(f64, f64)> = body
+            .edges()
+            .filter_map(|(_, edge)| {
+                let start = body.get_half_edge(edge.he_plus).expect("a half").start;
+                let end = body.half_edge_end(edge.he_plus).expect("an end");
+                let (a, b) = (at(start)?, at(end)?);
+                Some((a.min(b), a.max(b)))
+            })
+            .collect();
+        spans.sort_by(f64_pair_order);
+        let mut vertices: Vec<f64> = body.vertices().filter_map(|(v, _)| at(v)).collect();
+        vertices.sort_by(f64::total_cmp);
+        (spans, vertices)
+    }
+
+    /// Two pairs of floats in order, first by first.
+    fn f64_pair_order(x: &(f64, f64), y: &(f64, f64)) -> core::cmp::Ordering {
+        x.0.total_cmp(&y.0).then(x.1.total_cmp(&y.1))
     }
 
     /// Which bridge a graft ran ([`take_graft_bridges`]).
@@ -1056,14 +1163,14 @@ pub use boolean::{
     OperandRecords, PairFace, PairRefusalSite, PairSite, PairUnread, PierceRingRecord, PlaneDesc,
     PlaneEqError, PlaneIdentity, PlaneRelation, PlaneRung, PointInSolidError, ReductionContacts,
     RefusedRow, SectorRead, SectorRung, SelfCheck, SettleError, Settler, Settling,
-    ShellOrientation, SideCode, SlitLineGap, SolidContainment, SolidFaces, SphereQuestion,
-    SpiricLoops, SubstitutedFace, SweepStrategy, SweepTrace, TorusConvention, UncutFace,
-    UnreadNeighbourhood, UnreadPartner, VeContact, VfContact, VoidContainment, VoidEvidence,
-    VoidInsertError, VoidInserted, VvContact, WallRung, boolean_op_with, boolean_reduce,
-    carrier_eq, contfp, curved_face_containment, decision_words, face_carrier, flush_pair_relation,
-    insert_void, insert_voids, intersect, is_conventional_vertex, join_covers, joinable_vertices,
-    joined_cell, joined_edge, oriented_plane_eq, point_in_solid, point_in_solid_faces,
-    point_in_solid_of, rest_locus, subtract, tangent_pair_relation, union,
+    ShellOrientation, SideCode, SlitFaceGap, SlitLineGap, SolidContainment, SolidFaces,
+    SphereQuestion, SpiricLoops, SubstitutedFace, SweepStrategy, SweepTrace, TorusConvention,
+    UncutFace, UnreadNeighbourhood, UnreadPartner, VeContact, VfContact, VoidContainment,
+    VoidEvidence, VoidInsertError, VoidInserted, VvContact, WallRung, boolean_op_with,
+    boolean_reduce, carrier_eq, contfp, curved_face_containment, decision_words, face_carrier,
+    flush_pair_relation, insert_void, insert_voids, intersect, is_conventional_vertex, join_covers,
+    joinable_vertices, joined_cell, joined_edge, oriented_plane_eq, point_in_solid,
+    point_in_solid_faces, point_in_solid_of, rest_locus, subtract, tangent_pair_relation, union,
 };
 pub use joint::{Deck, JointElement};
 pub use lineage::{
@@ -1193,8 +1300,8 @@ pub use transform::{TransformError, transform_rigid};
 pub use validate::{
     AtRestBody, CensusContact, CensusSubject, CensusUnsupportedCause, ContactMark,
     CrossingSideVerdict, OrientationUnread, RingContact, RingPairContact, StaleDeclaration,
-    Unfinished, ValidationError, WedgeCheck, contact_marks, contact_marks_structural, validate,
-    validate_closed, validate_geometric, validate_geometric_certificate,
+    Undecidable, Unfinished, ValidationError, WedgeCheck, contact_marks, contact_marks_structural,
+    validate, validate_closed, validate_geometric, validate_geometric_certificate,
     validate_geometric_certificate_structural, validate_geometric_structural,
     validate_pseudomanifold, validate_pseudomanifold_certificate,
     validate_pseudomanifold_certificate_structural, validate_pseudomanifold_structural,

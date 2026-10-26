@@ -24,8 +24,8 @@ use crate::emit_union_rim_piece_ranks::{Case, cases, runs, signature};
 use crate::fixture::{face_vertices, insert, table};
 
 use editor_core::{
-    EntityKey, EntityKind, Entry, Evaluation, Node, NodeErrorKind, RecipeNodeId, RoleSeg,
-    StableName, VarId,
+    EntityKey, EntityKind, Entry, Evaluation, NameTable, Node, NodeErrorKind, RecipeNodeId,
+    RoleSeg, StableName, VarId,
 };
 
 /// The member faces a published face name cites, each with the read it
@@ -333,21 +333,23 @@ fn a_union_cites_only_what_the_finished_body_holds() {
 }
 
 /// The read member `m` comes through, as the union's table spells it:
-/// the read of any carried name whose entity `m` minted. (An
-/// evaluation holds no map from a node to its read; `m` minting its own
-/// names — no pass-through between it and the union — is the premise.)
+/// the read of any carried name `m`'s own table holds. (An evaluation
+/// holds no map from a node to its read; a copy carries its source's
+/// names, so `m`'s table, not `m`'s id, says which names are its own,
+/// and no two members holding one name is the premise.)
 fn read_of(ev: &Evaluation<f64>, union: RecipeNodeId, m: RecipeNodeId) -> VarId {
-    fn find(name: &StableName, m: RecipeNodeId) -> Option<VarId> {
+    fn find(name: &StableName, own: &NameTable) -> Option<VarId> {
         name.path.iter().find_map(|seg| match seg {
-            RoleSeg::From { read, of } if of.node == m => Some(*read),
-            RoleSeg::Merged(set) => set.iter().find_map(|c| find(c, m)),
+            RoleSeg::From { read, of } if own.lookup(of).is_some() => Some(*read),
+            RoleSeg::Merged(set) => set.iter().find_map(|c| find(c, own)),
             _ => None,
         })
     }
+    let own = table(ev, m);
     table(ev, union)
         .iter()
-        .find_map(|(name, _)| find(name, m))
-        .unwrap_or_else(|| panic!("the union carries a name {m:?} minted"))
+        .find_map(|(name, _)| find(name, own))
+        .unwrap_or_else(|| panic!("the union carries a name {m:?} holds"))
 }
 
 /// The union-space name of member `m`'s face whose vertices all lie on

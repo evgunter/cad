@@ -71,7 +71,11 @@ fn two_instance_assembly(label: &str) -> (PartStore, ProfileDoc, Vec<RecipeNodeI
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, first) = pinned(doc, doc_ref, &o);
     let (doc, second) = pinned_at(doc, doc_ref, [5.0, 0.0, 0.0], &o);
-    (store, doc, vec![first, second])
+    (
+        store,
+        fixture::assemble_world_copies(doc),
+        vec![first, second],
+    )
 }
 
 /// **An instance of `doc_ref` pinned to the world at the identity**
@@ -123,26 +127,22 @@ fn same_volume(a: &topo::Body<f64>, b: &topo::Body<f64>, what: &str) {
     assert_eq!(volume_bits(a), volume_bits(b), "{what}");
 }
 
-/// Wraps a part-local name under an instance — the bridge's own form.
-fn wrap(instance: RecipeNodeId, of: &StableName) -> StableName {
-    StableName {
-        kind: of.kind,
-        node: instance,
-        path: vec![RoleSeg::InPart {
-            of: of.clone().into(),
-        }],
+/// The member read a `⊔`'s name is keyed by: the copy its entity came
+/// from.
+fn member_read(name: &StableName) -> Option<editor_core::VarId> {
+    match name.path.as_slice() {
+        [RoleSeg::From { read, .. }] => Some(*read),
+        _ => None,
     }
 }
 
-/// **The key of the one copy a [`part`] document delivers**: its one
-/// placement on its world, and the read that placement copies the body
-/// through ([`editor_core::CopyKey`]).
-fn plain_copy_key(part_doc: &ProfileDoc) -> editor_core::CopyKey {
-    let placement = part_doc.placements()[0];
-    let Some(Node::Place { shapes, .. }) = part_doc.node(placement) else {
-        panic!("the part places its body")
-    };
-    editor_core::CopyKey::part(placement, editor_core::CopyKey::Read(shapes[0].read))
+/// `name`, a `⊔`'s name, keyed by the member read `to` instead.
+fn rekeyed(name: &StableName, to: editor_core::VarId) -> StableName {
+    let mut name = name.clone();
+    if let [RoleSeg::From { read, .. }] = name.path.as_mut_slice() {
+        *read = to;
+    }
+    name
 }
 
 /// What `doc` places, in its placements' document order — the order
@@ -153,12 +153,9 @@ fn placed_bodies(doc: &ProfileDoc) -> Vec<RecipeNodeId> {
         .into_iter()
         .map(|p| match doc.node(p) {
             Some(Node::InstantiatePart { .. }) => p,
-            Some(Node::Place { shapes, .. }) => match shapes.as_slice() {
-                [one] => doc
-                    .operation_of(one.read)
-                    .expect("a placement reads a body"),
-                other => panic!("a placement of one shape, got {other:?}"),
-            },
+            Some(Node::Place { source, .. }) => doc
+                .operation_of(source.read)
+                .expect("a placement reads a body"),
             other => panic!("a placement, got {other:?}"),
         })
         .collect()
@@ -247,27 +244,19 @@ fn row1_split_one_instance_preserves_structure_and_names() {
 
     // NAME-RESOLUTION identity: every product name of the unsplit
     // evaluation resolves after the split — kept names verbatim, cut
-    // names through the instance qualifier (probing the WHOLE table is
-    // the strongest form of "probe several"). An instance is its own
-    // placement, so the product names its entities as it does.
-    let cut_instance = ids[1];
-    let mapped = out.node_map[&cut_instance];
-    // The cut name, re-anchored: the part's own name of the instance's
-    // entity, under the remainder instance.
-    let across = |name: &StableName| -> StableName {
-        wrap(
-            out.instance,
-            &StableName {
-                kind: name.kind,
-                node: mapped,
-                path: name.path.clone(),
-            },
-        )
-    };
+    // names re-keyed to the remainder instance's copy (probing the
+    // WHOLE table is the strongest form of "probe several"). The
+    // product is the `⊔` of the two copies, which keys each name by
+    // the copy it came from; a copy carries its part's names verbatim.
+    let cut_copy = doc.output(ids[1], 0).expect("the cut instance's copy");
+    let new_copy = out
+        .remainder
+        .output(out.instance, 0)
+        .expect("the remainder instance's copy");
     let mut probed_cut = 0usize;
     for (name, _) in names1.iter() {
-        if name.node == cut_instance {
-            let expected = across(name);
+        if member_read(name) == Some(cut_copy) {
+            let expected = rekeyed(name, new_copy);
             assert!(
                 names2.iter().any(|(n, _)| *n == expected),
                 "cut name {name:?} re-resolves as {expected:?}"
@@ -287,13 +276,15 @@ fn row1_split_one_instance_preserves_structure_and_names() {
     // bit-identical coordinates.
     let sample = names1
         .iter()
-        .find(|(n, _)| n.node == cut_instance && n.kind == editor_core::EntityKind::Vertex)
+        .find(|(n, _)| {
+            member_read(n) == Some(cut_copy) && n.kind == editor_core::EntityKind::Vertex
+        })
         .map(|(n, _)| n.clone())
         .expect("a cut vertex name");
     let before = editor_core::vertex_position(&ev1, sample.node, &sample).expect("resolves");
-    let after_name = across(&sample);
+    let after_name = rekeyed(&sample, new_copy);
     let after =
-        editor_core::vertex_position(&ev2, out.instance, &after_name).expect("resolves after");
+        editor_core::vertex_position(&ev2, after_name.node, &after_name).expect("resolves after");
     assert_eq!(before.x.to_bits(), after.x.to_bits());
     assert_eq!(before.y.to_bits(), after.y.to_bits());
     assert_eq!(before.z.to_bits(), after.z.to_bits());
@@ -418,13 +409,14 @@ fn row2_inline_inverts_split_and_undo_restores() {
     // The cut instance came back as a fresh node; its names correspond
     // through the two maps (split's, then inline's).
     let back = inlined.node_map[&out.node_map[&ids[1]]];
+    let cut_copy = doc.output(ids[1], 0).expect("the cut instance's copy");
+    let back_copy = flat
+        .doc
+        .output(back, 0)
+        .expect("the returned instance's copy");
     for (name, _) in names1.iter() {
-        let expected = if name.node == ids[1] {
-            StableName {
-                kind: name.kind,
-                node: back,
-                path: name.path.clone(),
-            }
+        let expected = if member_read(name) == Some(cut_copy) {
+            rekeyed(name, back_copy)
         } else {
             name.clone()
         };
@@ -459,7 +451,7 @@ fn row2_appearance_rides_the_bridge_both_ways() {
         .map(|(n, _)| n.clone())
         .find(|n| n.kind == editor_core::EntityKind::Face)
         .expect("a face name");
-    let read = crate::fixture::painted_in(&doc, &face);
+    let read = doc.read_of_node(ids[1]).expect("the instance's copy");
     let (doc, _) = step(
         doc,
         DocEdit::SetAppearance {
@@ -483,23 +475,26 @@ fn row2_appearance_rides_the_bridge_both_ways() {
         opts.resolver.as_ref(),
     )
     .expect("legal");
-    // The instance's name, now the part's name of it, under the
-    // remainder's instance.
-    let expected = wrap(
-        out.instance,
-        &StableName {
-            kind: face.kind,
-            node: out.node_map[&ids[1]],
-            path: face.path.clone(),
-        },
-    );
+    // The instance's name is its part's, and the remainder instance's
+    // copy carries it verbatim: the key keeps its name and moves onto
+    // that copy.
+    let keyed = |doc: &ProfileDoc, at: editor_core::VarId| {
+        doc.appearance()
+            .keys()
+            .any(|key| key.at == at && key.name == face)
+    };
+    let held = out
+        .remainder
+        .output(out.instance, 0)
+        .expect("the remainder instance's copy");
     assert!(
-        crate::fixture::painted(&out.remainder, &face).is_none(),
-        "the local key is gone from the remainder"
+        keyed(&out.remainder, held),
+        "the record re-anchored on the instance's copy, its name verbatim"
     );
-    assert!(
-        crate::fixture::painted(&out.remainder, &expected).is_some(),
-        "the record re-anchored to the instance-qualified key"
+    assert_eq!(
+        out.remainder.appearance().len(),
+        1,
+        "and nowhere else in the remainder"
     );
     assert!(
         out.part.appearance().is_empty(),
@@ -515,16 +510,12 @@ fn row2_appearance_rides_the_bridge_both_ways() {
         &(Arc::new(store2) as Arc<dyn editor_core::PartResolver>),
     );
     let back = node_map[&out.node_map[&ids[1]]];
-    let restored = StableName {
-        kind: face.kind,
-        node: back,
-        path: face.path.clone(),
-    };
+    let restored = flat.output(back, 0).expect("the returned instance's copy");
     assert!(
-        crate::fixture::painted(&flat, &restored).is_some(),
-        "inline and flatten restore the local (re-minted) key"
+        keyed(&flat, restored),
+        "inline and flatten restore the key on the returned instance's copy"
     );
-    assert!(crate::fixture::painted(&flat, &expected).is_none());
+    assert_eq!(flat.appearance().len(), 1, "and nowhere else");
 }
 
 // ---- Row 3: refusals ----
@@ -730,10 +721,9 @@ fn row3_further_typed_refusals() {
         host,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![
-                editor_core::BodyRead::keyed(
-                    editor_core::Operand::Node(inst),
-                    plain_copy_key(&part("asm4-r3f-part", 0.0, 1.0)),
-                ),
+                // The part's product is its one copy: the instance's copy
+                // is read whole.
+                editor_core::BodyRead::plain(editor_core::Operand::Node(inst)),
                 block.into(),
             ]),
         },
@@ -1035,15 +1025,28 @@ fn a_separated_cut_comes_back_after_the_kept_placements_and_the_round_trip_keeps
     let (body3, names3) = product_named(&flat, &ev3, Tol::witness()).expect("gathers");
     assert_eq!(census(&body1), census(&body3));
     assert_eq!(volume_bits(&body1), volume_bits(&body3));
+    // The product's `⊔` keys each copy's names by the copy's read, so a
+    // cut copy's names come back read through its round-tripped copy.
+    let moved = |read: editor_core::VarId| {
+        [i0, i2]
+            .into_iter()
+            .find(|&i| doc.output(i, 0) == Some(read))
+            .and_then(|i| flat.output(back(i), 0))
+    };
     for (name, _) in names1.iter() {
-        let expected = if name.node == i0 || name.node == i2 {
-            StableName {
-                kind: name.kind,
-                node: back(name.node),
-                path: name.path.clone(),
-            }
-        } else {
-            name.clone()
+        let expected = match name.path.as_slice() {
+            [editor_core::RoleSeg::From { read, of }] => match moved(*read) {
+                Some(read) => StableName {
+                    kind: name.kind,
+                    node: name.node,
+                    path: vec![editor_core::RoleSeg::From {
+                        read,
+                        of: of.clone(),
+                    }],
+                },
+                None => name.clone(),
+            },
+            _ => name.clone(),
         };
         assert!(
             names3.iter().any(|(n, _)| *n == expected),
@@ -1363,6 +1366,7 @@ fn inline_param_epsilon_and_metadata_refusals_fire_typed() {
             )),
         },
     );
+    let part_doc = crate::fixture::assemble_world_copies(part_doc);
     let doc_ref = store.insert(part_doc, Tol::witness());
     let host = ProfileDoc::empty(DocumentId::derive("asm4-min2-param-host"), Tol::witness());
     let (host, _) = step(
@@ -1401,6 +1405,7 @@ fn inline_param_epsilon_and_metadata_refusals_fire_typed() {
     let host = ProfileDoc::empty(DocumentId::derive("asm4-min2-eps-host"), Tol::witness());
     let moved_eps = host.epsilon() * 0.5;
     let (part_doc, _) = step(part_doc, DocEdit::SetTolerance { eps: moved_eps });
+    let part_doc = crate::fixture::assemble_world_copies(part_doc);
     let doc_ref = store.insert(part_doc, Tol::witness());
     let (host, inst) = insert(host, crate::fixture::mated_instance(doc_ref));
     match inline(
@@ -1436,6 +1441,7 @@ fn inline_param_epsilon_and_metadata_refusals_fire_typed() {
         .expect("the carrying document loads")
         .doc;
     assert_eq!(carrying.metadata().len(), 1);
+    let carrying = crate::fixture::assemble_world_copies(carrying);
     let doc_ref = store.insert(carrying, Tol::witness());
     let host = ProfileDoc::empty(DocumentId::derive("asm4-min2-meta-host"), Tol::witness());
     let (host, inst) = insert(host, crate::fixture::mated_instance(doc_ref));
@@ -1463,54 +1469,6 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
     let doc_ref = store.insert(part("asm4-min2-name-part", 0.0, 1.0), Tol::witness());
     let o = with_resolver(store.clone());
     let resolver: Arc<dyn editor_core::PartResolver> = Arc::new(store);
-
-    // ForeignInstanceName: a host reference DERIVES from the instance
-    // but is not the bridge's own wrapped form.
-    let host = part("asm4-min2-name-host", 5.0, 1.0);
-    let kept_e = host.ids()[BODY_POSITION];
-    let (host, inst) = pinned(host, doc_ref, &o);
-    let foreign = StableName {
-        kind: EntityKind::Face,
-        node: kept_e,
-        path: vec![RoleSeg::From {
-            read: crate::fixture::out(&host, inst),
-            of: wrap(
-                inst,
-                &StableName {
-                    kind: EntityKind::Face,
-                    node: RecipeNodeId::new(0, 0),
-                    path: vec![RoleSeg::OutputBody],
-                },
-            )
-            .into(),
-        }],
-    };
-    let read = crate::fixture::painted_in(&host, &foreign);
-    let (host, _) = step(
-        host,
-        DocEdit::SetAppearance {
-            body: read,
-            name: foreign.clone(),
-            attr: editor_core::Attr::Visibility(false),
-        },
-    );
-    let host = labelled(host, kept_e, "host plate");
-    match inline(&host, inst, &resolver, Tol::witness()) {
-        Err(InlineError::ForeignInstanceName { name }) => {
-            assert_eq!(name.name(), &foreign);
-            assert_eq!(
-                minter_label(&name),
-                Some("host plate"),
-                "a host name is spoken from the host: {name}"
-            );
-            let msg = format!("{}", InlineError::ForeignInstanceName { name });
-            assert!(
-                msg.contains("InPart"),
-                "the message states the expected form: {msg}"
-            );
-        }
-        other => panic!("expected ForeignInstanceName, got {other:?}"),
-    }
 
     // InstanceBodyNameReferenced: the instance's own output-body name
     // has no spliced correspondent.
@@ -1607,6 +1565,7 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
         );
         let (part_doc, _) = step(part_doc, DocEdit::DeleteNode { id: extra });
         let part_doc = labelled(part_doc, body, "part body");
+        let part_doc = crate::fixture::assemble_world_copies(part_doc);
         let doc_ref = store.insert(part_doc, Tol::witness());
         let o = with_resolver(store.clone());
         let resolver: Arc<dyn editor_core::PartResolver> = Arc::new(store);
@@ -1842,6 +1801,7 @@ fn a_name_on_a_dropped_step_refuses_a_split_and_an_inline() {
     }
 
     let mut store = PartStore::default();
+    let doc = crate::fixture::assemble_world_copies(doc);
     let doc_ref = store.insert(doc, Tol::witness());
     let host = ProfileDoc::empty(DocumentId::derive("asm4-dropped-host"), Tol::witness());
     let (host, instance) = pinned(host, doc_ref, &with_resolver(store.clone()));
@@ -1879,7 +1839,7 @@ fn a_split_reattaches_an_appearance_key_onto_the_instances_body() {
         .map(|(n, _)| n.clone())
         .find(|n| n.kind == editor_core::EntityKind::Face)
         .expect("a face name");
-    let read = crate::fixture::painted_in(&doc, &face);
+    let read = doc.read_of_node(ids[1]).expect("the instance's copy");
     let (doc, _) = step(
         doc,
         DocEdit::SetAppearance {
@@ -1991,29 +1951,30 @@ fn lateral_edge(body: RecipeNodeId, step: editor_core::StepId) -> StableName {
     }
 }
 
-/// A pair boolean's ranked `EdgeCrossing` run over two lateral edges of
-/// `body`, told apart by the steps `a` and `b`, in name order.
-fn ranked_run(
+/// A pair boolean's `EdgeCrossing` run over two lateral edges of
+/// `body`, told apart by the steps `a` and `b`, in name order: `a`'s
+/// line entering and `b`'s leaving.
+fn run_over(
     body: RecipeNodeId,
     minter: RecipeNodeId,
     a: editor_core::StepId,
     b: editor_core::StepId,
 ) -> StableName {
-    let mut run: Vec<editor_core::RunLine> = [a, b]
-        .into_iter()
-        .map(|step| editor_core::RunLine {
-            line: editor_core::NameRef::new(lateral_edge(body, step)),
-            sense: Some(editor_core::Sense::Outside),
-        })
-        .collect();
+    let mut run: Vec<editor_core::RunLine> = [
+        (a, editor_core::Sense::Enters),
+        (b, editor_core::Sense::Leaves),
+    ]
+    .into_iter()
+    .map(|(step, sense)| editor_core::RunLine {
+        line: editor_core::NameRef::new(lateral_edge(body, step)),
+        sense,
+    })
+    .collect();
     run.sort();
     StableName {
         kind: editor_core::EntityKind::Vertex,
         node: minter,
-        path: vec![
-            RoleSeg::EdgeCrossing(run),
-            RoleSeg::Fragment(editor_core::Qualifier::OrderAlong { rank: 0, of: 2 }),
-        ],
+        path: vec![RoleSeg::EdgeCrossing(run)],
     }
 }
 
@@ -2028,11 +1989,11 @@ fn run_lines(name: &StableName) -> Vec<StableName> {
 /// **A split and an inline keep a profile's step ids in name order,
 /// however a `SetProgram` left them in the program.** The reshaping
 /// re-mints step 2 after every other step, so the source program holds
-/// its ids out of order. A ranked run over two lateral edges of one
-/// extrude, told apart by those steps, is ranked along its least line;
-/// the part and the host spell it with the same line least and the same
-/// rank, so it is the name their emitters mint (ASSEMBLY.md A4,
-/// *Acceptance*: name-resolution identity, up to minted ids).
+/// its ids out of order. A run over two lateral edges of one extrude,
+/// told apart by those steps, comes through the part and the host in the
+/// order it had, each sense with its line, so it is the name their
+/// emitters mint (ASSEMBLY.md A4, *Acceptance*: name-resolution
+/// identity, up to minted ids).
 #[test]
 fn a_split_and_an_inline_keep_a_reordered_profiles_step_order() {
     let (doc, [p2, e2], _) = reshaped_component("asm4-order", 2, false);
@@ -2041,7 +2002,7 @@ fn a_split_and_an_inline_keep_a_reordered_profiles_step_order() {
         old[2] > old[3],
         "the fixture holds its ids out of program order: {old:?}"
     );
-    let was = ranked_run(e2, e2, old[2], old[3]);
+    let was = run_over(e2, e2, old[2], old[3]);
     assert_eq!(
         run_lines(&was)[0],
         lateral_edge(e2, old[3]),
@@ -2074,22 +2035,23 @@ fn a_split_and_an_inline_keep_a_reordered_profiles_step_order() {
     let e2_part = out.node_map[&e2];
     assert_eq!(
         crossed,
-        ranked_run(
+        run_over(
             e2_part,
             e2_part,
             out.step_map[&old[2]],
             out.step_map[&old[3]]
         ),
-        "the part spells the run with its least line and its rank as the source did"
+        "the part spells the run as the source did, each sense with its line"
     );
     assert_eq!(
         run_lines(&crossed)[0],
         editor_core::remap_name(&run_lines(&was)[0], &out.node_map, &out.step_map, &reds)
             .expect("covered"),
-        "the least line is the image of the least line"
+        "the run keeps its order"
     );
 
     let mut store = PartStore::default();
+    let doc = crate::fixture::assemble_world_copies(doc);
     let doc_ref = store.insert(doc, Tol::witness());
     let host = ProfileDoc::empty(DocumentId::derive("asm4-order-host"), Tol::witness());
     let (host, instance) = pinned(host, doc_ref, &with_resolver(store.clone()));
@@ -2109,28 +2071,28 @@ fn a_split_and_an_inline_keep_a_reordered_profiles_step_order() {
     assert_eq!(
         editor_core::remap_name(&was, &inlined.node_map, &inlined.step_map, &reds)
             .expect("the inline's maps cover the run"),
-        ranked_run(
+        run_over(
             e2_host,
             e2_host,
             inlined.step_map[&old[2]],
             inlined.step_map[&old[3]]
         ),
-        "the host spells the run with its least line and its rank as the part did"
+        "the host spells the run as the part did, each sense with its line"
     );
 }
 
-/// **Across two profiles the order is not kept, and a name it would
-/// break refuses the inline.** The part's first profile has a step
+/// **Across two profiles the order is not kept, and a name it reorders
+/// is put back in name order.** The part's first profile has a step
 /// re-minted after the second profile was inserted, so the two
 /// profiles' ids interleave. The host mints the first profile's ids
 /// before the second's, so each profile keeps its own order and the
 /// re-minted step falls below the second profile's steps
-/// (`refactor::in_id_order` says why no dealing can do better). A
-/// name embedding a ranked run whose lines are told apart by those two
-/// steps would change the run's least line, so the inline refuses it,
-/// typed, rather than carry a reference that no longer resolves.
+/// (`refactor::in_id_order` says why no dealing can do better). A name
+/// embedding a run whose lines are told apart by those two steps comes
+/// out with its lines in the other order, each sense still with its
+/// line.
 #[test]
-fn an_inline_keeps_each_profiles_order_and_refuses_a_run_across_two() {
+fn an_inline_keeps_each_profiles_order_and_re_sorts_a_run_across_two() {
     let (doc, [p2, _], _) = reshaped_component("asm4-two", 2, false);
     let order = doc.ids();
     let (p1, e1) = (order[PROFILE_POSITION], order[BODY_POSITION]);
@@ -2165,6 +2127,7 @@ fn an_inline_keeps_each_profiles_order_and_refuses_a_run_across_two() {
     );
     let inline_into = |part: ProfileDoc, label: &str| {
         let mut store = PartStore::default();
+        let part = crate::fixture::assemble_world_copies(part);
         let doc_ref = store.insert(part, Tol::witness());
         let host = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
         let (host, instance) = pinned(host, doc_ref, &with_resolver(store.clone()));
@@ -2187,12 +2150,12 @@ fn an_inline_keeps_each_profiles_order_and_refuses_a_run_across_two() {
         inlined.step_map
     );
 
-    // A face name embedding a ranked run told apart by those two steps
-    // (an appearance is keyed by a face).
+    // A face name embedding a run told apart by those two steps (an
+    // appearance is keyed by a face).
     let crossing = StableName {
         kind: editor_core::EntityKind::Face,
         node: e1,
-        path: vec![RoleSeg::CornerFace(editor_core::NameRef::new(ranked_run(
+        path: vec![RoleSeg::CornerFace(editor_core::NameRef::new(run_over(
             e1, e1, late, second[0],
         )))],
     };
@@ -2210,12 +2173,27 @@ fn an_inline_keeps_each_profiles_order_and_refuses_a_run_across_two() {
             }),
         },
     );
-    match inline_into(doc, "asm4-two-host") {
-        Err(InlineError::RankedRunReordered { name }) => {
-            assert_eq!(name.name(), &crossing, "the refusal names the run");
-        }
-        other => panic!("expected RankedRunReordered, got {other:?}"),
-    }
+    let inlined = inline_into(doc, "asm4-two-host").expect("legal");
+    let e1_host = inlined.node_map[&e1];
+    let keys: Vec<_> = inlined.doc.appearance().keys().cloned().collect();
+    let [key] = keys.as_slice() else {
+        panic!("one appearance key: {keys:?}")
+    };
+    let Some(RoleSeg::CornerFace(run)) = key.name.path.first() else {
+        panic!("the key's name holds the run: {key:?}")
+    };
+    let want = run_over(
+        e1_host,
+        e1_host,
+        inlined.step_map[&late],
+        inlined.step_map[&second[0]],
+    );
+    assert_eq!(**run, want, "the run re-sorted, each sense with its line");
+    assert_eq!(
+        run_lines(run)[0],
+        lateral_edge(e1_host, inlined.step_map[&late]),
+        "the lines came out in the other order: the re-minted step's line is now least"
+    );
 }
 
 /// **Inline at a pose carries a copy seated on a construction with
@@ -2254,9 +2232,9 @@ fn inline_at_a_pose_carries_a_copy_seated_on_a_construction() {
     let (part, body) = extrude(part, 0.25);
     let (part, seat) = insert(
         part,
-        crate::fixture::stood(vec![editor_core::BodyRead::from(
-            editor_core::Operand::Node(body),
-        )]),
+        crate::fixture::stood(editor_core::BodyRead::from(editor_core::Operand::Node(
+            body,
+        ))),
     );
     let cap = |node, end| StableName {
         kind: EntityKind::Face,
@@ -2276,6 +2254,7 @@ fn inline_at_a_pose_carries_a_copy_seated_on_a_construction() {
     let seat_bundle = fixture::bundle(&part, seat);
     let world_offset = fixture::offset_of(&part, world);
     let mut store = PartStore::default();
+    let part = crate::fixture::assemble_world_copies(part);
     let doc_ref = store.insert(part, Tol::witness());
     let o = with_resolver(store.clone());
     let resolver: Arc<dyn editor_core::PartResolver> = Arc::new(store);

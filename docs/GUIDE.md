@@ -182,8 +182,9 @@ cross-check is not optional decoration**: the exact B-rep measure and
 the tessellated mesh are computed by independent code paths, and
 comparing them is how you find out that one of them is wrong.
 
-An **assembly** runs this same ladder — on its gathered *product*,
-the bodies its world places — with two rungs of its own in front:
+An **assembly** runs this same ladder — on its *product*, the body
+its product slot reads (`Doc.set_product`) — with two rungs of its own
+in front:
 solving the mates for where each instance sits, and the at-rest gate
 that certifies the parts really meet as the mates declare.
 `docs/guide/assembly.md` is those two rungs, and the workspace store
@@ -502,7 +503,7 @@ that one `set_var_value` moves — at degree 1 the same three sections
 enclose 8.75 m³ rather than 9.
 
 ```python
-from pncad import Doc, Formula, Node, StationMove, evaluate, m
+from pncad import Doc, EditError, Formula, Node, StationMove, evaluate, m
 
 SQUARE = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]
 TRAPEZOID = [(-1.375, -1.0), (1.375, -1.0), (1.0, 1.0), (-1.0, 1.0)]
@@ -532,9 +533,14 @@ assert props.volume_pad < 1e-6
 
 # The kernel's rule, not the binding's: 1 <= v_degree <= n - 1. Three
 # sections cannot carry degree 3, and nothing here pre-checks that —
-# it refuses at evaluation, where the kernel refuses.
-overdegree = doc.insert(Node.loft(first, then, Formula.count(3)))
-assert not evaluate(doc).succeeded(overdegree)
+# the kernel's edit door refuses it, typed.
+try:
+    doc.insert(Node.loft(first, then, Formula.count(3)))
+except EditError as refused:
+    assert refused.variant == "loft_shape"
+    assert refused.inner_variant == "degree_out_of_range"
+else:
+    raise AssertionError("degree 3 through three sections inserted")
 ```
 
 A profile becomes usable by turning it into a body. `validated` is
@@ -1894,7 +1900,7 @@ let placed = Placed::unmated(vec![(Coord::Slide(TargetAxis::Z), lit(0.125))]);
 let in_plate = Operand::Var(doc.node_space(plate).expect("a construction is in its own space"));
 let (next, tab_on_plate) = insert(
     &doc,
-    Node::place(vec![BodyRead::plain(Operand::from(tab))], in_plate, placed.bundle()),
+    Node::place(BodyRead::plain(Operand::from(tab)), in_plate, placed.bundle()),
 );
 doc = next;
 let (next, solid) = insert(&doc, Node::Union {

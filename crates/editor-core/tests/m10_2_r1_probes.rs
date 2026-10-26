@@ -64,7 +64,7 @@ fn faces_of_kind(
     ev: &Evaluation<f64>,
     body: RecipeNodeId,
     kind: geom::SurfaceKind,
-) -> Vec<StableName> {
+) -> Vec<(RecipeNodeId, StableName)> {
     let mut faces = select_where(
         ev,
         body,
@@ -75,7 +75,7 @@ fn faces_of_kind(
     )
     .expect("surface-kind selection is exact");
     faces.sort();
-    faces
+    faces.into_iter().map(|name| (body, name)).collect()
 }
 
 fn measured(ev: &Evaluation<f64>, id: RecipeNodeId) -> (f64, Dimension) {
@@ -154,7 +154,7 @@ fn slab() -> (ProfileDoc, RecipeNodeId) {
 fn caps(ev: &Evaluation<f64>, slab: RecipeNodeId) -> [StableName; 2] {
     let mut z_faces: Vec<(f64, StableName)> = faces_of_kind(ev, slab, geom::SurfaceKind::Plane)
         .into_iter()
-        .filter_map(|name| {
+        .filter_map(|(_, name)| {
             let pose = face_frame(ev, slab, &name).expect("a plane face has a frame");
             (pose.axis.z.abs() > 0.99).then_some((pose.origin.z, name))
         })
@@ -285,7 +285,7 @@ fn r1_plane_angles_have_the_authored_values() {
     let x_wall = all_planes
         .iter()
         .find(|n| {
-            face_frame(&ev, slab, n)
+            face_frame(&ev, slab, &n.1)
                 .map(|p| p.axis.x.abs() > 0.99)
                 .unwrap_or(false)
         })
@@ -294,7 +294,7 @@ fn r1_plane_angles_have_the_authored_values() {
     let y_wall = all_planes
         .iter()
         .find(|n| {
-            face_frame(&ev, slab, n)
+            face_frame(&ev, slab, &n.1)
                 .map(|p| p.axis.y.abs() > 0.99)
                 .unwrap_or(false)
         })
@@ -500,16 +500,21 @@ fn cylinders(bore_r: f64, pin_r: f64, off: f64) -> (ProfileDoc, RecipeNodeId, Re
 /// Each is the selection of its name in its minting node's body port
 /// (a revolve also defines its axis); the rows and their oracles are
 /// unchanged.
-fn at_mint<const N: usize>(names: [StableName; N]) -> Vec<editor_core::Operand> {
+/// Each name read where it is read ([`fixture::Sited`]): at its mint,
+/// or at the node a `(node, name)` pair names.
+fn at_mint<T: fixture::Sited, const N: usize>(names: [T; N]) -> Vec<editor_core::Operand> {
     names
         .into_iter()
         .map(|name| {
-            editor_core::Operand::select(editor_core::Operand::output(name.node, 0), vec![name])
+            let at = name.site();
+            editor_core::Operand::select(editor_core::Operand::output(at, 0), vec![name.name()])
         })
         .collect()
 }
 
-fn wall(ev: &Evaluation<f64>, node: RecipeNodeId) -> StableName {
+/// `node`'s cylinder wall, read at `node`: a placement's copy carries
+/// its source's name for it.
+fn wall(ev: &Evaluation<f64>, node: RecipeNodeId) -> (RecipeNodeId, StableName) {
     faces_of_kind(ev, node, geom::SurfaceKind::Cylinder)
         .first()
         .expect("a circular extrude mints a cylinder wall")
@@ -839,9 +844,7 @@ fn r1_ops_refuse_measurement_operands_typed() {
     // A placement of the MEASURE: a measured length is not placeable.
     let refusal = crate::fixture::insert_refused(
         &doc,
-        crate::fixture::stood(vec![editor_core::BodyRead::plain(
-            editor_core::Operand::from(m),
-        )]),
+        crate::fixture::stood(editor_core::BodyRead::plain(editor_core::Operand::from(m))),
     );
     assert!(
         matches!(
