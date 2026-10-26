@@ -44,8 +44,8 @@ recorded in a dated section at the end. VIEW's re-scope of 2026-09-17 moved rows
 | `crates/viewer/src/pane/viewport.rs:1488` | `viewer-suites-hold-hand-written-complete-variant-lists` | `work/vdoc/` |
 | `crates/viewer/README.md:1754` | the same | `work/vdoc/` |
 | `crates/viewer/README.md:656` | `viewer-readme-multi-field-write-sweep-count-does-not-reproduce` | `work/vdoc/` |
-| `crates/viewer/src/vocab.rs:92` | `vocabulary-macro-bodies-are-outside-rustfmt` | `work/guard/` |
-| `crates/viewer/README.md:1645` | the same | `work/guard/` |
+| `crates/viewer/src/vocab.rs:92` | `vocabulary-macro-bodies-are-outside-rustfmt` | `work/unread/` |
+| `crates/viewer/README.md:1645` | the same | `work/unread/` |
 | `crates/viewer/README.md:1860` | `renderer-free-cross-crate-links-are-ungated-off-the-seed-set` | `work/ciw/` |
 | `crates/viewer/README.md:1915` | `wasm-only-doc-comments-are-checked-by-nothing` | `work/ciw/` |
 | `crates/test-utils/src/f6.rs:6` | `f6-display-predicate-is-spelled-three-times-with-no-home` | `work/dup/` |

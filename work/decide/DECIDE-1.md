@@ -45,7 +45,7 @@ section and in the DECIDE log. `Vec::dot`, `powi` and
 - `work/shell/check-rigid-squares-a-column-by-multiplying-two-copies-of-it`
   — the one production self-dot at `Sym<Interval>` the census found,
   off every measured path.
-- `work/guard/self-dot-has-no-gate-the-interval-square-one-cannot-see-it`
+- `work/blind/self-dot-has-no-gate-the-interval-square-one-cannot-see-it`
   — the interval-square gate cannot see `x.dot(x)`, so the static
   census is a one-shot nothing re-takes.
 - `work/helper/per-predicate-fold-over-decisionshape-has-four-spellings`

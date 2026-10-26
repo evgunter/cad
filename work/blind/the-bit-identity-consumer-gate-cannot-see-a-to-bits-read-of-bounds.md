@@ -49,3 +49,9 @@ gone, and `rim_of` compares no carrier. The gate concern stands — the
 spelling still passes every gate — so the widened tripwire now has no
 live instance to land red on, and only the planted selftest helper
 exercises it.
+
+## Moved to BLIND (2026-10-26, GUARD's split)
+
+GUARD measured 43 points against 30 and split three ways. This row is a
+spelling a kernel-discipline gate's matcher misses (or refuses wrongly),
+which is BLIND's charter (`work/blind/plan.md`). Id and body unchanged.

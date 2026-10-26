@@ -674,3 +674,9 @@ class is a dispatch estimate made by reading the row against the tree on
 2026-09-11, not a verdict on the finding, and a lane that finds it wrong
 says so in its PR. The id, the `track:` letter where the row carries
 one, and the body above are unchanged by the move.
+
+## Moved to UNREAD (2026-10-26, GUARD's split)
+
+GUARD measured 43 points against 30 and split three ways. This row is a
+claim the tree carries with no gate reading it at all, which is UNREAD's
+charter (`work/unread/plan.md`). Id and body unchanged.

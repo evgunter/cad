@@ -59,3 +59,9 @@ The gate that already catches this ONE LEVEL UP is
 `scripts/gates/viewer-module-kinds.sh`'s check 2: a module header that
 contradicts what the module does is refused, because rustdoc publishes
 it. The same argument applies to item headers and nothing enforces it.
+
+## Moved to UNREAD (2026-10-26, GUARD's split)
+
+GUARD measured 43 points against 30 and split three ways. This row is a
+claim the tree carries with no gate reading it at all, which is UNREAD's
+charter (`work/unread/plan.md`). Id and body unchanged.

@@ -40,3 +40,9 @@ mint sites. A type-level route would be to drop `PartialEq` from the
 reading and give tests a separate pinning comparator. State what the
 grep cannot match: a comparison through a generic `T: PartialEq` bound,
 or a derive on a wrapper.
+
+## Moved to BLIND (2026-10-26, GUARD's split)
+
+GUARD measured 43 points against 30 and split three ways. This row is a
+spelling a kernel-discipline gate's matcher misses (or refuses wrongly),
+which is BLIND's charter (`work/blind/plan.md`). Id and body unchanged.
