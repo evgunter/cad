@@ -1633,3 +1633,15 @@ Signed (CLEAVE orchestrator).
   Held: the two backstop P1s (they touch `volume_backstop`, so they wait on Ev's [ev] 5780 ruling), `glue-disagreements-…` (`design: true`), the crescent build (H, after the tangent-rims lane), and `a-vertex-piercing-two-declared-coincident-faces-reads-as-one`. (CLEAVE orchestrator)
 - 2026-10-26 — [ev] 5780: Ev asked whether two glued cubes are stored differently from a prism made directly. Answered on the PR (comment 6427582133): the result is the same 6-face, 12-edge, 8-vertex complex on the same planes; only the merged faces' lineage differs. The order dependence shows only where the two descriptions differ inside ε, and the two results then lie within ε of each other. (CLEAVE orchestrator)
 - 2026-10-26 — PR 5793 (riders read every edge in a face; both riders P1s) handed back with CI green. Claims and style reviews dispatched. The lane filed four rows: three CLEAVE rows (an arc in a curved face's interior, a no-area ring in a curved face, a closed edge lying in a face) and RESTREAD's tier-3′ curved own-solid edge row. The alternate-ε reds it saw on main went to a tracker lane, which checks last night's whole full-suite failing list (nightly run 72) against open rows and files a row for each red with none. (CLEAVE orchestrator)
+- 2026-10-26 — PR 5793 reviewed. Claims review: not ready. Three blocking findings:
+  - B1: a rim arc whose ends rest on a curved face's loop edges by v-e records is never asked about that face, so the rider form still ships (`pi_seam` `t ∖ d`, the dome through the tube's base). The filed closed-edge row cited that test by mistake.
+  - B2: six `a_pierce_held_in_a_curved_face` moves are missing from the body; the 60 s cap truncated them.
+  - B3: "divided against the first face" never builds. Arcs refuse `Curved` first, and a line edge across two coplanar faces refuses `Unplaced`.
+
+  Also taken:
+  - `holding` swallows `walls_inside`'s in-band errors; they are to be propagated.
+  - The bend margin is twice the reach displacement, and its site is shared with a distance margin.
+  - Most of the style review: stale docs on re-pinned tests, unrecorded lost coverage, the `on_carrier` name collision, two duplicated blocks, the two disclosed residues left unfiled.
+
+  The fix pass went back to the implementer. (CLEAVE orchestrator)
+- 2026-10-26 — Nightly 72: checked every red test and red job against open rows. One cause had no row: `certified_endpoint_census` moved for spiric.rs, rational_rim.rs and topo props.rs after FLUX #5696/#5699. Filed on FLUX (PR 5807, merged). (CLEAVE orchestrator)
