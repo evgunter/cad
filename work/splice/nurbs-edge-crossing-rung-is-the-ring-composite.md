@@ -106,3 +106,14 @@ that does not meet. The recourse it gives, rebuilding the solid with
 conic edges, cannot be acted on for any loft or sweep. The control-hull
 box in "What to build" (`nurbs_curve_aabb`) is the fix: with it, a far
 spline edge is pruned before any arm and a disjoint operand builds.
+
+## Lily wall 8 reaches this arm (2026-10-26)
+
+Measured on `splice/boundary-first`: with the boundary pass reading the
+shared rim, lily wall 8 refuses
+`EdgeCarrierUnsupported { operand: A, edge: 3v1, face: 1v1, face_of: B, site: PlanarCrossing }`:
+a NURBS tip seam of the blade, rising from the shared section, against
+the sheath's base cap in that plane. The plane case of this arm is what
+it needs next. `sweep`'s
+`a_sheath_grafted_on_its_blade::a_sheath_on_its_blade_unions_past_the_shared_rim`
+pins the refusal in miniature and reds when this arm lands.

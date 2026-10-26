@@ -599,6 +599,49 @@ pub mod test_support {
         }
     }
 
+    /// **What of `body` lies along a line**: the line through `origin`
+    /// along the unit `dir`, and each edge both of whose ends lie on it
+    /// (within 1e-9) as their parameters along it, the lesser first, and
+    /// each vertex on it as its parameter, each list sorted and rounded
+    /// to 1e-6. Two coincident edges read as one span twice.
+    ///
+    /// # Panics
+    ///
+    /// Where an edge's half or end, or a vertex's point, does not
+    /// resolve: a torn body.
+    #[must_use]
+    #[allow(clippy::expect_used)]
+    pub fn along_line(
+        body: &Body<f64>,
+        origin: geom_core::Point3<f64>,
+        dir: geom_core::Vec3<f64>,
+    ) -> (Vec<(f64, f64)>, Vec<f64>) {
+        let at = |v: crate::entity::VertexKey| {
+            let p = crate::readback::vertex_point(body, v).expect("a vertex's point");
+            let t = (p - origin).dot(dir);
+            let off = (p - origin - dir * t).norm();
+            (off < 1e-9).then_some((t * 1e6).round() / 1e6)
+        };
+        let mut spans: Vec<(f64, f64)> = body
+            .edges()
+            .filter_map(|(_, edge)| {
+                let start = body.get_half_edge(edge.he_plus).expect("a half").start;
+                let end = body.half_edge_end(edge.he_plus).expect("an end");
+                let (a, b) = (at(start)?, at(end)?);
+                Some((a.min(b), a.max(b)))
+            })
+            .collect();
+        spans.sort_by(f64_pair_order);
+        let mut vertices: Vec<f64> = body.vertices().filter_map(|(v, _)| at(v)).collect();
+        vertices.sort_by(f64::total_cmp);
+        (spans, vertices)
+    }
+
+    /// Two pairs of floats in order, first by first.
+    fn f64_pair_order(x: &(f64, f64), y: &(f64, f64)) -> core::cmp::Ordering {
+        x.0.total_cmp(&y.0).then(x.1.total_cmp(&y.1))
+    }
+
     /// Which bridge a graft ran ([`take_graft_bridges`]).
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     pub enum GraftBridge {

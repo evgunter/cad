@@ -43,3 +43,15 @@ that `census_interference_solids` reads, naming the touch's two cells,
 and keep `MixedTouch` for nothing else, or retire it. Check first that
 `Crossing` is never minted from an in-band reading (its doc says
 decided readings only).
+
+## A second path: two solids' wedges on one line (2026-10-26)
+
+Arm 2's `Named::of` maps a cross-solid `CoincidentWedgesOverlap` to
+`Said::Wedges(None)`, and so to `MixedTouch` too. The census now reads
+that finding as the pair's interference (`census_interference_solids`),
+so arm 2 reports one pair decided and undecidable at once. Witness:
+`coincident_line_wedges::a_pinwheel_resting_on_confirmed_face_pairs_refuses_its_doubled_core`,
+four decided wedge overlaps plus `MixedTouch`. Between two copies at
+rest the door folds both into one finding, which stays loud, because
+`localize`'s `covered` holds a solid-pair `CensusUndecidable` uncovered.
+Closing this row should retire this mapping with the `Crossing` one.
