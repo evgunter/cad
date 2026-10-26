@@ -64,10 +64,12 @@ ending for the arms that are a decision's refused arm: `Escalated`,
 `Image` arm nor `JoinRefusal`'s calls it. `chart_iso_family` reaches
 `derive_harmonic`, which reaches `derive_class`, and a read of
 `derive_class` shows `Escalated` is reachable through that path:
-- `winding_escalated`, at four sites;
-- `incidence_escalated`, through `chart_incidence`,
-  `sphere_circle_incidence`, `torus_oblique_circle` and
-  `cone_conic_incidence`.
+- `incidence::class_escalated` (`PcurveCheck::ChartClass`, PCERT E1's
+  rename of `winding_escalated`), where a class reading is in band on a
+  carrier the incidence test does not show off the chart;
+- `incidence_escalated`, through `chart_incidence`, `incidence::incident`
+  (which every general-lane arm runs since PCERT E1),
+  `torus_oblique_circle` and `cone_conic_incidence`.
 
 So an incidence or winding margin in the band arrives at the join as
 `Image(Escalated)`. Today it renders as "undecided" with the bare

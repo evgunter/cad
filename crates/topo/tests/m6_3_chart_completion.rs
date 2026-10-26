@@ -211,10 +211,12 @@ fn pole_circle() -> (Curve3<f64>, Surface<f64>) {
 
 /// **The pole fence is the ARC's, and it is loud at the mint.** On the
 /// circle through the pole, an arc that crosses the pole has no
-/// one-branch image — the azimuth has no value there — so the
-/// derivation refuses `SectorRefused` and the mint propagates it rather
-/// than leaving the face uncached (red if the class's exemption comes
-/// back). An arc
+/// one-branch image — the azimuth has no value there — so the projected
+/// lane's partition refuses its sector, which the lane choice that sent
+/// the circle there reads as the lane's own gap, "not yet" with the
+/// pose's lever (`NoGeneralLane { gap: LaneGap::Pose }`, PCERT E1's P3),
+/// and the mint propagates it rather than leaving the face uncached (red
+/// if the class's exemption comes back). An arc
 /// of the SAME circle that stays clear of the pole mints and
 /// re-certifies (red if the fence reads the circle's plane instead of
 /// the arc).
@@ -229,8 +231,11 @@ fn the_pole_fence_refuses_the_arc_over_the_pole_and_mints_the_arc_clear_of_it() 
         matches!(
             err,
             topo::pcurves::PcurveMintError::Certify {
-                error: geom_brep::PcurveCertifyError::SectorRefused {
-                    channel: geom_brep::SectorChannel::Azimuth,
+                error: geom_brep::PcurveCertifyError::NoGeneralLane {
+                    gap: geom_brep::LaneGap::Pose {
+                        channel: geom_brep::SectorChannel::Azimuth,
+                        ..
+                    },
                     ..
                 },
                 ..
