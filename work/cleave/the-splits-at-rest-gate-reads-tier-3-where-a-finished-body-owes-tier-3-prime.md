@@ -4,7 +4,7 @@ kind: issue
 title: The split's at-rest gate reads tier 3, where a finished body owes tier 3′: a curved one-end slit ships Ok and tier 3′ refuses it
 status: open
 opened: 2026-10-19
-priority: P2
+priority: P1
 cost: M
 ---
 
@@ -41,3 +41,7 @@ one-end curved slit starts refusing at the gate. Measure what else the
 before landing it.
 
 A second witness: `a-hole-in-an-elliptic-section-keeps-a-face-of-its-own-that-tier-3-prime-refuses` (a hole left on a face of its own ships `Ok`; 3′ refuses).
+
+## Slate triage (2026-10-26, CLEAVE)
+
+- Re-banded P2 → P1: the Boolean pays tier 3′ at its door and the split does not, so the split ships finished bodies 3′ refuses: a special case that should be handled uniformly, P1 by `work/README.md` Priority.
