@@ -37,5 +37,5 @@ default, 1e-6 and 1e-12. At the default ε it escalates
 `bool_ruled_region_span`
 (`Containment { decision: None, escalation: Margin }`). Bisected at the
 default ε to #5664 (`80a6f77af3`). The widening is filed on CHART's
-slate, at `work/chart/main-red-ringed-curved-doors-reds-four-sweep-rows.md`.
+slate, at `work/charttail/main-red-ringed-curved-doors-reds-four-sweep-rows.md`.
 The 1e-12 red this row names predates #5664.

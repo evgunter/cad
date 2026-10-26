@@ -141,4 +141,4 @@ Both halves of the premise are gone.
 
 Pinned by `sweep`'s `a_rim_covering_part_of_its_row_re_mints_the_rows_arc` suite, including the quarter-point families for both arms. Residues filed:
 - `work/tess/a-split-arc-rim-meshes-no-chord-point-on-its-sub-arc-joints.md`;
-- `work/topo/the-describing-door-refuses-a-wall-re-charted-reversed-in-u.md`.
+- `work/restate/the-describing-door-refuses-a-wall-re-charted-reversed-in-u.md`.

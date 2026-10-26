@@ -267,3 +267,27 @@ PR's. A nightly triage lane took them
 
 Next on this track: `a-span-is-read-against-a-faces-boundary-edges-first`
 (P0 H), lily wall 8's first step.
+
+## 2026-10-26 — lily wall 8's first two steps dispatched
+
+- `splice/boundary-first` (`session_01FNsFT2VKj6yRjpeBz5nY9P`):
+  `a-span-is-read-against-a-faces-boundary-edges-first`. This is the
+  curve × face table's skeleton, its ends, and its boundary pass through
+  `curve_pair`; a shared rim glues at the coincidence door. Tier: dual,
+  letter H, so a concurrent pair (the table's first pass is new
+  incidence under every boolean, and the table's shape is hard to change
+  later).
+- `splice/spline-dihedral` (`session_01PXJ7h4STwjpmR9pXfHA6KH`):
+  `the-side-of-a-spline-face-is-read-by-no-dihedral`. Tier: single,
+  full.
+
+Held until boundary-first lands, since they build on the table:
+- the interior arm (`an-analytic-edge-…`) together with the converse
+  rung (`nurbs-edge-crossing-rung-…`), as one brief;
+- point-in-face for a spline chart;
+- the two flush rows, which lily reaches after the side reading.
+
+Lane briefs now ask for the touched crates' slow set before green, with
+every red split against `origin/main`. Editor-core is the exception:
+its full slow set takes hours on a 4-vCPU box, so lanes run only the
+rows their diff can move.

@@ -6,7 +6,6 @@ status: open
 priority: P2
 cost: M
 opened: 2026-10-25
-refs: [mesh-sizes-each-lane-by-its-worst-admissible-triangle, S29]
 ---
 
 Filed by PRED's `mesh-sizes-each-lane-by-its-worst-admissible-triangle`
