@@ -81,11 +81,7 @@ fn resting(rest: Rest, lift: f64) -> (ProfileDoc, SitedRef, SitedRef) {
         Rest::Vertex => vname(prism, RoleSeg::CapVertex(CapEnd::End, apex)),
     };
     let top = fname(block, RoleSeg::Cap(CapEnd::End));
-    (
-        doc,
-        SitedRef::new(p, top),
-        SitedRef::new(q, cell),
-    )
+    (doc, SitedRef::new(p, top), SitedRef::new(q, cell))
 }
 
 /// A `Gap(outer, inner)` and a `Gap = 0` over it: the document after
@@ -250,14 +246,8 @@ mod real_bodies {
             let (doc, a, b, pa, pb) = two_blocks([1.0 + dx, 0.98, 0.98]);
             let ca = vpiece(&doc, a, 0, 2);
             let cb = vpiece(&doc, b, 0, 0);
-            let corner = SitedRef::new(
-                pa,
-                vname(a, RoleSeg::CapVertex(CapEnd::End, ca)),
-            );
-            let tip = SitedRef::new(
-                pb,
-                vname(b, RoleSeg::CapVertex(CapEnd::Start, cb)),
-            );
+            let corner = SitedRef::new(pa, vname(a, RoleSeg::CapVertex(CapEnd::End, ca)));
+            let tip = SitedRef::new(pb, vname(b, RoleSeg::CapVertex(CapEnd::Start, cb)));
             near(
                 gap(&doc, &corner, &tip),
                 want,
@@ -303,10 +293,7 @@ mod real_bodies {
             let reflex = vpiece(&doc, l, 0, 3);
             let cb = vpiece(&doc, b, 0, 0);
             let strut = SitedRef::new(pl, ename(l, RoleSeg::LateralEdge(reflex)));
-            let tip = SitedRef::new(
-                pb,
-                vname(b, RoleSeg::CapVertex(CapEnd::Start, cb)),
-            );
+            let tip = SitedRef::new(pb, vname(b, RoleSeg::CapVertex(CapEnd::Start, cb)));
             near(
                 gap(&doc, &strut, &tip),
                 want,
@@ -317,10 +304,7 @@ mod real_bodies {
                 want,
                 &format!("reflex strut seat, y {y}"),
             );
-            let top = SitedRef::new(
-                pl,
-                vname(l, RoleSeg::CapVertex(CapEnd::End, reflex)),
-            );
+            let top = SitedRef::new(pl, vname(l, RoleSeg::CapVertex(CapEnd::End, reflex)));
             let refused = gap(&doc, &top, &tip).expect_err("a saddle refuses");
             assert!(
                 refused.contains("MeasureUnsupported") && refused.contains("a saddle vertex"),
@@ -418,10 +402,7 @@ mod real_bodies {
             // The cube's start-cap vertex 0, local (0, −0.1, 0), stands at
             // (0.5 + d, 0, 0.25).
             let cb = vpiece(&doc, b, 0, 0);
-            let tip = SitedRef::new(
-                pb,
-                vname(b, RoleSeg::CapVertex(CapEnd::Start, cb)),
-            );
+            let tip = SitedRef::new(pb, vname(b, RoleSeg::CapVertex(CapEnd::Start, cb)));
             near(gap(&doc, &wall, &tip), want, &format!("bore {bore}, d {d}"));
             near(
                 gap(&doc, &tip, &wall),
@@ -476,14 +457,8 @@ mod real_bodies {
             let (doc, a, b, pa, pb) = two_blocks([1.0 + dx, 0.98, 0.98]);
             let ca = vpiece(&doc, a, 0, 2);
             let cb = vpiece(&doc, b, 0, 0);
-            let corner = SitedRef::new(
-                pa,
-                vname(a, RoleSeg::CapVertex(CapEnd::End, ca)),
-            );
-            let tip = SitedRef::new(
-                pb,
-                vname(b, RoleSeg::CapVertex(CapEnd::Start, cb)),
-            );
+            let corner = SitedRef::new(pa, vname(a, RoleSeg::CapVertex(CapEnd::End, ca)));
+            let tip = SitedRef::new(pb, vname(b, RoleSeg::CapVertex(CapEnd::Start, cb)));
             let strut = SitedRef::new(pa, ename(a, RoleSeg::LateralEdge(ca)));
             check(&doc, &corner, &tip, &format!("corner/vertex dx {dx}"));
             check(&doc, &strut, &tip, &format!("strut/vertex dx {dx}"));

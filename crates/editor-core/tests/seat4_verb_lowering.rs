@@ -542,13 +542,17 @@ fn a_boolean_document_round_trips_byte_identical() {
 /// `main-red-the-seat-and-name-table-goldens-moved-at-dprime2`),
 /// stage 4 I's ids and the walls' reads, beneath
 /// D′3's names and ids. `m10_p_fence`'s ids-masked row held.
+///
+/// Measured again for D′3 over main's merge at `4c341b9225`, which
+/// brings the run line's bare sense (above) beneath D′3's names and ids;
+/// the ids-masked fence held.
 #[test]
 fn the_boolean_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("crossing_slots", 0x444a_8d81_c8c1_8e3f_u64),
-        ("heat_sink", 0x0ec3_4ebe_7178_d688),
-        ("kiss_carry", 0x0a0b_0ddb_99f9_abb9),
+        ("crossing_slots", 0x6e1f_9e35_ee29_9c2f_u64),
+        ("heat_sink", 0x6ece_8456_1f08_4fd6),
+        ("kiss_carry", 0x4a5f_c225_42ec_5a68),
     ] {
         let doc = corpus::documents()
             .into_iter()

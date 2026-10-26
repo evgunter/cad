@@ -192,9 +192,14 @@ const UNMARKED_RECOURSE: &[&str] = &[
 /// 461129 → 461339. No outcome moved. Main's merge into D′3 at
 /// `1235f4c050` (these walls and stage 4 I) moves D′3's scoped total
 /// 46933 → 47003 and full total 342994 → 343104; the percentiles held.
+///
+/// Measured again for D′3 over main's merge at `4c341b9225`, which
+/// brings the run line's bare sense (above) beneath D′3's names: full
+/// total 343104 → 343208, the percentiles and scoped faces held. No
+/// outcome moved.
 const NAME_WORDS: [(&str, [usize; 4]); 2] = [
-    ("scoped faces", [16, 45, 57, 60_371]),
-    ("full", [19, 137, 396, 461_547]),
+    ("scoped faces", [16, 45, 57, 47_003]),
+    ("full", [19, 122, 196, 343_208]),
 ];
 
 /// **A digest of every word the corpus's names say** — each name a
@@ -367,7 +372,9 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 ///
 /// Measured again for D′3 over main's merge at `1235f4c050`, with the
 /// `Borders` walls' reads under D′3's names.
-const SAID_DIGEST: u64 = 0x254a_ffa5_d163_ea3c;
+///
+/// Measured again with [`NAME_WORDS`] over main's merge at `4c341b9225`.
+const SAID_DIGEST: u64 = 0x96f4_fccc_7bb3_0d9e;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a

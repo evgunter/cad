@@ -466,14 +466,18 @@ fn both_sweeps_evaluate_in_one_document() {
 /// `main-red-the-seat-and-name-table-goldens-moved-at-dprime2`),
 /// stage 4 I's ids and the walls' reads, beneath
 /// D′3's names and ids. `m10_p_fence`'s ids-masked row held.
+///
+/// Measured again for D′3 over main's merge at `4c341b9225`, which
+/// brings the run line's bare sense (above) beneath D′3's names and ids;
+/// the ids-masked fence held.
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
-        ("die", 0xcce3_bc80_9945_6069),
-        ("corner_table", 0x3a58_01fe_f60a_b936),
-        ("cut_cylinder", 0x687e_0fa1_7407_124c),
-        ("boss_union", 0x6a62_8956_3b55_e92e),
-        ("kitchen_sink", 0xf86d_b45d_276f_b984),
+        ("die", 0x4a25_14f2_42c7_0ffe),
+        ("corner_table", 0x252b_1c7f_90e8_0be6),
+        ("cut_cylinder", 0xd82f_d380_9e2e_8e5e),
+        ("boss_union", 0x7d7f_3a11_1c98_1b33),
+        ("kitchen_sink", 0x4f64_6f46_1d52_45eb),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {
