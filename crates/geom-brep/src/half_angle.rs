@@ -435,7 +435,8 @@ fn ladder_roots<T: Decide>(
                 | Unsettled::Exhausted
                 | Unsettled::ImpossibleCount
                 | Unsettled::AtApex
-                | Unsettled::Degenerate,
+                | Unsettled::Degenerate
+                | Unsettled::Crease,
             )) => Ok(()),
         };
     }

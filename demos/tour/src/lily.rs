@@ -2320,11 +2320,14 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    sheath's rim, a run of one circle the curve-pair reading
     //    decides, and against the sheath's other wall it is that rim
     //    edge of the sheath, meeting the wall at the lens's two tips
-    //    only. It still refuses, one step on: one of the blade's NURBS
-    //    seams rises from a tip, and the sweep reads it against the
-    //    sheath's base cap, in the blade's own cap plane, where the
-    //    planar lane has no crossing reading for a spline edge
-    //    (`work/splice/nurbs-edge-crossing-rung-is-the-ring-composite`).
+    //    only. The blade's NURBS seams rise from the tips, and the sweep
+    //    reads each against the sheath's base cap, in the blade's own cap
+    //    plane, through the ring composite of the cap's plane along the
+    //    seam: no crossing inside it, its start on the cap being its end
+    //    vertex's meeting. It still refuses, one step on: an edge of the
+    //    blade against a NURBS wall of the sheath whose boundary leaves
+    //    it undecided, where the spline-face door has no interior reading
+    //    (`work/splice/an-analytic-edge-against-a-nurbs-face-has-no-crossing-lane`).
     //    The flush reading along the two bodies' NURBS edges is behind
     //    that (`work/splice/a-unions-flush-reading-cannot-follow-a-nurbs-carrier`).
     let sheath = {
@@ -2356,17 +2359,16 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         8,
         "graft the leaf's sheath onto its blade at their shared section",
         crate::booleans::try_union(leaf_a, &sheath, tol),
-        // The LANE is the claim: an edge of the blade, operand A, read
-        // against a plane face of the sheath by the planar crossing
-        // lane. If this ever refuses elsewhere, the sentence above is
-        // wrong and must be re-derived before it is believed.
+        // The DOOR is the claim: a NURBS wall of the sheath, operand B,
+        // whose boundary leaves an edge of the blade undecided. If this
+        // ever refuses elsewhere, the sentence above is wrong and must be
+        // re-derived before it is believed.
         |e| {
             matches!(
                 e,
-                BooleanError::EdgeCarrierUnsupported {
-                    operand: Operand::A,
-                    face_of: Operand::B,
-                    site: pncad::topo::EdgeCarrierSite::PlanarCrossing,
+                BooleanError::CurvedBooleanUnsupported {
+                    operand: Operand::B,
+                    kind: SurfaceKind::Nurbs,
                     ..
                 }
             )

@@ -6166,20 +6166,41 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
             diag,
         }
     };
-    // The NURBS re-gate (M5 S13, pinned): ANY fallback entry with a
-    // NURBS face refuses before a vertex is probed — the extent test
-    // is unwritable for the kind (variant docs).
-    for (operand, body) in [(Operand::A, a), (Operand::B, b)] {
-        for (face, fd) in body.faces() {
-            if matches!(body.face_surface_linked(face, fd), geom::Surface::Nurbs(_)) {
-                return Err(BooleanError::NurbsExtentUnsupported { operand, face });
-            }
-        }
-    }
     let pad = boxes::sweep_pad(band);
     let axes = super::separating::OperandAxes::new(boxes::axis_key);
     let mut section_charts = ChartCache::default();
     let rows = [face_rows(a, band)?, face_rows(b, band)?];
+    // The NURBS re-gate (M5 S13, pinned), REACH FIRST: a NURBS face
+    // whose certified box (its control net's hull) meets no face of the
+    // other operand is certified disjoint from it, and every other
+    // fallback entry with a NURBS face refuses before a vertex is
+    // probed — the extent test is unwritable for the kind (variant docs).
+    for (operand, x, x_rows, y, y_rows) in [
+        (Operand::A, a, &rows[0], b, &rows[1]),
+        (Operand::B, b, &rows[1], a, &rows[0]),
+    ] {
+        for row in x_rows {
+            if !matches!(row.surface, geom::Surface::Nurbs(_)) {
+                continue;
+            }
+            let reaches = y_rows.iter().any(|y_row| {
+                row.bbox.overlaps(&y_row.bbox)
+                    && !super::separating::apart(
+                        (x, super::separating::Item::Face(row.face)),
+                        (y, super::separating::Item::Face(y_row.face)),
+                        axes.of(a, b, band),
+                        pad,
+                        band,
+                    )
+            });
+            if reaches {
+                return Err(BooleanError::NurbsExtentUnsupported {
+                    operand,
+                    face: row.face,
+                });
+            }
+        }
+    }
     let mut out: Vec<SphereRecut<T>> = Vec::new();
     let mut cut_ins: Vec<SphereCutIn<T>> = Vec::new();
     for (x_is, x, x_rows, y, y_rows) in [
@@ -6492,13 +6513,10 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                             }
                         }
                     }
-                    geom::Surface::Nurbs(_) => {
-                        // Unreachable: the re-gate above runs first.
-                        return Err(BooleanError::NurbsExtentUnsupported {
-                            operand: x_is.other(),
-                            face: yf,
-                        });
-                    }
+                    // The re-gate above certified the face clear of
+                    // every face of this operand, the sphere's among
+                    // them, or refused.
+                    geom::Surface::Nurbs(_) => {}
                     // `Approx` joins the no-wired-arm refusal, not the
                     // NURBS lane: the pair-scoped operand gate refuses
                     // it by kind before this scan runs.
@@ -9067,13 +9085,12 @@ mod tests {
             assert_eq!(uncertifiable, faces, "{what}: every face named: {errors:?}");
         }
 
-        // Door 2 — the fallback's own re-gate, at the mechanism: any
-        // fallback entry carrying a NURBS face refuses BEFORE a vertex
-        // is probed. NO end-to-end path reaches it today (a lofted
-        // operand is refused at its NURBS EDGES first, a placeholder at
-        // the at-rest gate) — `sweep`'s `s16_box_soundness` pins the
-        // first and Door 1 above the second, so the day one lifts is
-        // loud.
+        // Door 2 — the fallback's own re-gate, at the mechanism: a
+        // fallback entry carrying a NURBS face whose box may meet a face
+        // of the other operand refuses BEFORE a vertex is probed. A
+        // placeholder's net is poison, so its box meets every face, far
+        // or not. `sweep`'s `s16_box_soundness` pins the re-gate end to
+        // end on a lofted operand.
         let band = Band::linear(Tol::witness()).unwrap();
         let Err(err) = super::sphere_extent_scan(&a, &b, &[], band) else {
             panic!("the NURBS fallback must be re-gated, never vertex-probed");

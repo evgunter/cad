@@ -172,6 +172,18 @@ fn names_its_own_face(e: &BooleanError, [a, b]: [&AtRestBody<f64>; 2]) -> Result
             ) && owned(face_of, face),
             format!("{edge:?} of {operand:?} against {face:?} of {face_of:?}"),
         ),
+        BooleanError::SplineCrossingUnsettled {
+            operand,
+            edge,
+            face,
+            face_of,
+            ..
+        } => check(
+            topo::query::edge_carrier_kind(body(operand), edge)
+                == Some(topo::query::CurveKind::Nurbs)
+                && owned(face_of, face),
+            format!("{edge:?} of {operand:?} against {face:?} of {face_of:?}"),
+        ),
         _ => Ok(()),
     }
 }

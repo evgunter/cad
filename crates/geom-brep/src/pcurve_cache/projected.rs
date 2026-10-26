@@ -883,6 +883,14 @@ pub(crate) fn chart_frame<T: Real>(surface: &Surface<T>) -> Option<(Point3<T>, [
     })
 }
 
+/// **The `f64` structure a ring composite of `net` is formed on** (C6's
+/// interim): its knot vector and weights, which
+/// `geom_core::spline::compose::CurveCertData` takes. Every composite
+/// this crate forms of a curve net reads them here.
+pub(crate) fn composite_structure<T: Real>(net: &NurbsCurve3<T>) -> (&KnotVector, &[f64]) {
+    (net.knots_f64_interim(), net.weights_f64_interim())
+}
+
 fn to_frame<T: Real>(v: Vec3<T>, e: &[Vec3<T>; 3]) -> Vec3<T> {
     Vec3::new(v.dot(e[0]), v.dot(e[1]), v.dot(e[2]))
 }
