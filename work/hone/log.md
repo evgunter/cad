@@ -73,3 +73,11 @@ cleave-tangency)
 - 2026-10-23 — **Seam (QUAD):** PR 5589 (`quad/measure-a-lanes`, measure door unit A) re-words one doc in `topo/src/boolean/ops.rs` (the lane's stop is its floor or its work wall). No code change. (QUAD orchestrator's lane)
 
 - 2026-10-25 — **Re-cut (refold approved in chat):** moved `joining-a-spline-carrier-is-unbuilt` to SPLICE by `git mv`, ids and bodies unchanged, each with a dated Moved note. SPLICE (`work/splice/`) is the new track for a body built by loft or sweep entering every boolean; SECT now carries the torus pairs it is built for.
+- 2026-10-26 — (tracker sweep) Closed five rows, each checked against main at `bb25fa4f`:
+  - `a-coplanar-sector-offers-a-rest-the-door-contradicts-across-the-faces`, superseded: INTENT F retired the declare surface, and the sector refusal now offers no declaration (`reduce.rs:5573`, `:5638`);
+  - `splitting-face-extent-lever-reads-vertices-not-arcs`, fixed: `face_extent` levers each edge's span reach (`splitting/rules.rs:615`–`:636`);
+  - `boolean-face-walks-hop-to-a-mates-face-without-proving-it-lists-the-loop`, fixed or superseded: `rest.rs` is gone, and `surface_group::unmated_boundary` hops through `proven_mate` and `face_of_linked`, which asserts the face lists the loop;
+  - `sphere-region-root-slack-crowds-the-zero-band-at-1e-12`, fixed by PR 4567's ruling: k-lint's zero arm is a tally (`tools/k-lint/src/lib.rs`), and the sibling GERM row closed;
+  - `analytic-exact-elevations-have-inline-homes`, superseded by `point-to-carrier-distance-is-spelled-seven-times`, its unique sites merged there.
+
+  The track is still far over budget (116 points against 30) and should split on its priority seam: the P2 rows against the P3/P4 rows. Eight rows carry no band or cost: the four D3 pair-audit rows, `sweep-trace-…`, `a-driver-carried-…`, `plane-parallel-…` and the band-less `a-short-ruling-…`.
