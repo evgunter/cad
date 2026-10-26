@@ -1507,5 +1507,3 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
 - 2026-10-20 05:15Z — **Seam note from NURBS: main red after PR #5156.** `geom curves::tests::ellipse_constructor_trios` is red on main since `53967a14d2`: a NaN minor semi-axis now refuses as `SemiAxisNotFinite` before the row's expected `EllipseInvalid::Escalated`. Filed as `main-red-ellipse-constructor-trios-reads-a-nan-semi-axis-refusal-earlier` (GERM's; bisected by NURBS build C). NURBS PRs cite it as a base red until it's fixed.
 
 - 2026-10-25 — **Re-cut (refold approved in chat):** moved `c5-plane-torus-cone-cylinder-arms` to SECT by `git mv`, ids and bodies unchanged, each with a dated Moved note. SPLICE (`work/splice/`) is the new track for a body built by loft or sweep entering every boolean; SECT now carries the torus pairs it is built for.
-
-- 2026-10-26 — (INTENT nightly triage) `main-red-the-meeting-axes-pose-refuses-its-endpoint-at-1e-12` is now hidden behind an earlier refusal from #5664, red at every ε. That refusal is filed on CHART. The row's note says so.
