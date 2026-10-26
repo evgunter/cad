@@ -5985,6 +5985,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "census_lane_unsupported",
             "census_undecidable",
             "census_unsupported",
+            "coincident_wedges_overlap",
+            "coincident_wedges_overlap_undecided",
             "component_euler_violation",
             "contact_contradicted",
             "curved_sense_inverted",

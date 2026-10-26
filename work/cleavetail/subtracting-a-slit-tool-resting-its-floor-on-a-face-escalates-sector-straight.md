@@ -47,7 +47,7 @@ review's witness in its own words: the cusp result is a `tool ∖ line`
 cell of sweep's `a_difference_leaving_a_cusp_along_the_ruling_builds`
 (not traced further here). It is the same mis-typing that PR 5357
 fixed in the line reader (`census::line_wedges` now types `sector_straight`'s
-definite rejection of a cusp as `WedgeRefusal::WedgeEnd`, not as an
+definite rejection of a cusp as `WedgeRefusal::Unread(_, TouchUnread::Degenerate)`, not as an
 escalation). Here the `Corner(Straight)` decision reaches the
 Boolean's sector reading (`sector_shape` rung 3) and is reported as
 `Escalated`, so its lever offers a move no tolerance answers. Type the

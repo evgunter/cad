@@ -1984,6 +1984,34 @@ pub enum ValidationError {
         /// its recourse.
         why: crate::census::TouchUnread,
     },
+    /// **Tier 3′: two coincident edges' material wedges overlap.** Two
+    /// line edges overlap along their line, the overlap backed, and on
+    /// decided readings at the middle of their shared span a sheet or
+    /// the interior of one wedge lies strictly inside the other. The
+    /// material sectors on one line are disjoint (D1,
+    /// `crates/topo/README.md` tier 3), so no record makes this valid.
+    CoincidentWedgesOverlap {
+        /// The two edges, in arena order.
+        edges: [EdgeKey; 2],
+        /// Where the two were read, as coordinates.
+        witness: String,
+    },
+    /// **Tier 3′: whether two coincident edges' material wedges overlap
+    /// is undecided.** The overlap is backed, and the side reading of
+    /// the two ([`Self::CoincidentWedgesOverlap`]'s) could not be taken:
+    /// `why` says why.
+    CoincidentWedgesOverlapUndecided {
+        /// The two edges, in arena order.
+        edges: [EdgeKey; 2],
+        /// The one of them whose wedge has no reading; `None` where a
+        /// sign comparing the two landed in band.
+        unread: Option<EdgeKey>,
+        /// Where the two were read, as coordinates.
+        witness: String,
+        /// Why the reading was not taken; the finding renders it with
+        /// its recourse.
+        why: crate::census::TouchUnread,
+    },
     /// Tier 3′: the census read a point at an arc's end that lies
     /// definitely off both of its edge's corners, on a body tier 3 passed
     /// at the same band, which pins every carrier end within the zero
@@ -4341,7 +4369,18 @@ impl fmt::Display for ValidationError {
                 f,
                 "an edge lies in a face of its own part at {witness}, and whether the face \
                  passes through the material the edge bounds is undecided: {}",
-                why.in_own_face()
+                why.sentence()
+            ),
+            Self::CoincidentWedgesOverlap { witness, .. } => write!(
+                f,
+                "two edges lie along one line at {witness}, and the material each bounds \
+                 overlaps the other's, so the line holds material twice. {DEFECT}"
+            ),
+            Self::CoincidentWedgesOverlapUndecided { witness, why, .. } => write!(
+                f,
+                "two edges lie along one line at {witness}, and whether the material each \
+                 bounds overlaps the other's is undecided: {}",
+                why.sentence_on_line()
             ),
             Self::InstanceInterference { .. } => write!(
                 f,

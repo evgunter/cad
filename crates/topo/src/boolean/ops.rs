@@ -837,8 +837,8 @@ pub(super) fn collinear_escalated(
 ///
 /// [`BooleanError::LineWedges`]: an overlap, whose re-pairing is not
 /// built; or a wedge the reading cannot take, a face with no sheet on
-/// the line or a cusp or slit edge (D1: a consumer with no wedge-end
-/// answer refuses typed).
+/// the line, a cusp or slit edge (D1: a consumer with no wedge-end
+/// answer refuses typed), or an edge too long or short to measure.
 /// [`BooleanError::Escalated`]: a reading in band, of whether two of the
 /// result's straight edges lie on one line ([`BooleanDecision::LineEdges`])
 /// or of their wedges ([`BooleanDecision::LineWedges`]). Both read where
@@ -868,11 +868,8 @@ fn coincident_wedges_disjoint<T: Decide + Bounds>(
                 diag,
             });
         }
-        Err((i, crate::census::WedgeRefusal::NoSheet(edge))) => {
-            (i, LineWedgeFault::NoSheet { edge })
-        }
-        Err((i, crate::census::WedgeRefusal::WedgeEnd(edge))) => {
-            (i, LineWedgeFault::WedgeEnd { edge })
+        Err((i, crate::census::WedgeRefusal::Unread(edge, why))) => {
+            (i, LineWedgeFault::Unread { edge, why })
         }
     };
     Err(BooleanError::LineWedges {
@@ -5929,6 +5926,8 @@ fn finding_arm(finding: &ValidationError) -> Option<InBand> {
         | V::CensusUndecidable { .. }
         | V::FaceThroughEdgeWedge { .. }
         | V::FaceThroughEdgeWedgeUndecided { .. }
+        | V::CoincidentWedgesOverlap { .. }
+        | V::CoincidentWedgesOverlapUndecided { .. }
         | V::ArcEndOffCorner { .. }
         | V::InstanceInterference { .. }
         | V::CuspEdgesMissing { .. } => None,
