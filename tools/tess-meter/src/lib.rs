@@ -1188,7 +1188,7 @@ pub fn unfloored_worst_excess(decades: f64, samples: usize) -> f64 {
 /// tree does not record — distribution, count and seed all unwritten —
 /// so a re-take cannot be compared with it and no figure from one is
 /// quoted here. `D206`'s residue
-/// `work/meter/tess-meter-sampled-retune-figure-unreproducible` owns
+/// `work/budget/tess-meter-sampled-retune-figure-unreproducible` owns
 /// what this crate should do about that; until it is answered, the
 /// argument above stands on the derivation and on the argmax member,
 /// both of which the suite re-takes.

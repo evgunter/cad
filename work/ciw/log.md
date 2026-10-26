@@ -3030,5 +3030,6 @@ The track goes back to `ready` with no orchestrator. Next on the slate by levera
 - 2026-10-22 — **Seam (QUAD):** `ci.yml`'s `tools` row now also fires on `crates/geom-brep/src/props/quad.rs`, the k-lint predicate roster's one `MINT_SOURCES` file, which it reads as text; a PR editing only that file had never run the roster (nightly 39728496598 went red that way). Branch `quad/k-lint-roster-skips-tests`. (QUAD fix lane)
 
 - 2026-10-23 — **Seam (QUAD):** PR 5589 (`quad/measure-a-lanes`, measure door unit A) edits `.github/workflows/ci.yml`: the tools flag also triggers on `crates/topo/src/props/quad_lane.rs`, the second k-lint mint source. (QUAD orchestrator's lane)
+- 2026-10-26 — (tracker sweep) Closed `loop-boundary-discards-loses-an-fn-whose-signature-holds-a-semicolon`, a duplicate of GUARD's row fixed today.
 
 - 2026-10-23 — **Seam (QUAD):** PR 5628 (`quad/measure-b-door`, measure door unit B) edits `.github/workflows/ci.yml`: the `tools` trigger drops `crates/topo/src/props/quad_lane.rs`, which no longer holds a k-lint mint. (QUAD unit B lane)

@@ -2,10 +2,11 @@
 id: refusal-nothingtodo-pattern-sites-took-a-payload
 kind: issue
 title: Four viewer suites' NothingToDo patterns took a payload from a VNEWS unit
-status: open
+status: closed
 opened: 2026-09-20
 priority: P4
 cost: E
+closed: 2026-10-26
 ---
 
 **Announcement, not a defect.** `crates/viewer/tests/*` is this
@@ -52,3 +53,13 @@ tree, so the announcement could not be filed on its slate; this row and
 its twin `nothingtodo-pattern-sites-took-a-payload-tint` on `work/tint/` are the whole of it.
 
 **Correction 2026-09-28 (`vnews/a-ranked-verdict-is-its-own-type`):** `frame::batch_status` is now private to `frame`; the two `frame_policy.rs` sites feed `frame::frame_status(&[], ops, refusal)`, which gives the same answer.
+
+## Closed (2026-10-26, tracker sweep)
+
+**Nothing to do.** This row was an announcement and named no work. The
+change it announced is on main: `Refusal::NothingToDo { direction }` is
+matched with its direction at `crates/viewer/tests/creation_ops.rs:359`,
+`frame_policy.rs:109` and the rest. The README says the tracker exists so
+that work is not forgotten, and a received announcement leaves none.
+Its twin `work/tint/nothingtodo-pattern-sites-took-a-payload-tint` is
+TINT's to close.

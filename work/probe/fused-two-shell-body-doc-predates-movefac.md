@@ -2,12 +2,13 @@
 id: fused-two-shell-body-doc-predates-movefac
 kind: issue
 title: fused_two_shell_body says its shape is not publicly constructible, but movefac builds it
-status: open
+status: closed
 opened: 2026-09-06
 track: P
 refs: [S69, 2014]
 priority: P4
 cost: E
+closed: 2026-10-26
 ---
 
 ## What
@@ -53,3 +54,7 @@ Rebuild `fused_two_shell_body` through `mfkrh` + `movefac` (or state
 in-file why the raw write is still wanted — e.g. that the corruption
 rows want a shell whose provenance is NOT `Provenance::Movefac`), and
 delete the sentence that says the shape is not publicly constructible.
+
+## Closed (2026-10-26, tracker sweep)
+
+Fixed by this sweep, by the row's second option. The false sentence is gone: `fused_two_shell_body`'s doc (`crates/topo/src/euler_ring.rs`, ~`:3640`) now says the public operators reach the shape (`Body::movefac` re-shells a detached component inside its solid, as `movefac`'s `cross_shell_kfmrh_fuses_shells` does), that the fixture takes the shorter raw route through `crate::fixtures::refile_shells` instead, and that the two rows below plant their corruption on top of it. The fixture itself is not rebuilt through `movefac`; doing so is an optional cleanup, not owed by this row.

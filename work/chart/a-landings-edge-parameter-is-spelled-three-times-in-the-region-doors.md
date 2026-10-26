@@ -5,6 +5,7 @@ title: A landing's edge parameter is spelled three times in the region doors
 status: open
 opened: 2026-10-24
 priority: P2
+cost: M
 ---
 
 ## What

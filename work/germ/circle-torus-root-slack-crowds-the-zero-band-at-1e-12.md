@@ -245,7 +245,7 @@ output). The full dumps still exit 2 on findings this change does not
 touch: `chart_bound_outer_span`'s rule-1 poison
 (`work/chart/chart-bound-outer-span-decides-a-poisoned-margin.md`),
 `bool_pair_gap`'s ε-coupled margins
-(`work/cleave/bool-pair-gap-is-eps-coupled-and-flags-74-rows-per-eps-under-k-lint.md`,
+(`work/instr/bool-pair-gap-is-eps-coupled-and-flags-74-rows-per-eps-under-k-lint.md`,
 filed by this unit), `props_quad_*` on the cutaway and the lily
 (`work/quad/`) and `demo/table`'s `volume_backstop`
 (`work/tally/table-union-backstop-margin-sits-under-the-k-lint-floor.md`).

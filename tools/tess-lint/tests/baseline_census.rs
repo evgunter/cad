@@ -119,8 +119,9 @@
 //! on this paragraph:
 //!
 //! * `lib.rs`'s module docs — FIXED, they now point here.
-//! * `work/meter/C15.md` — FIXED, points here.
-//! * `work/meter/D201.md` — FIXED, points here.
+//! * `work/instr/C15.md` — FIXED, points here.
+//! * `D201` — FIXED, pointed here; it closed with METER and is
+//!   recoverable at `2723839067e8` (`docs/DOC-LEDGER.md`, sweep 10).
 //! * `work/code-quality/logs/SMELL-KPW-LOG.md` — **NOT FIXED, and
 //!   deliberately.** It is a dated unit record in `logs/`, and a log
 //!   entry is what the unit reported on the day it reported it. Its
@@ -131,12 +132,13 @@
 //!
 //! **The FIGURES in that list are frozen; the PATHS are not.** The
 //! first two rows were re-homed from `work/code-quality/` to
-//! `work/meter/` in the tracker-wide cut of 2026-09-06 and the
-//! pointers here followed them. A dated record may keep the numbers
-//! it reported on the day it reported them — that is what makes it a
-//! record — but a pointer that no longer resolves has stopped being a
-//! record of anything, which is the same one-home doctrine this
-//! paragraph is about, applied to the pointer rather than the count.
+//! `work/meter/` in the tracker-wide cut of 2026-09-06, and `C15` on
+//! to `work/instr/` when METER closed; the pointers here followed
+//! them. A dated record may keep the numbers it reported on the day
+//! it reported them — that is what makes it a record — but a
+//! pointer that no longer resolves has stopped being a record of
+//! anything, which is the same one-home doctrine this paragraph is
+//! about, applied to the pointer rather than the count.
 //!
 //! The cure the three took is the one-home rule above: each points
 //! here rather than carrying a count of its own.
@@ -183,7 +185,7 @@
 //! PRINTED report comes back byte-identical for all seven pairs is a
 //! separate thing — a measurement over one corpus, which survives in
 //! part because that last-bit move dies at the `{:.1}x` the column
-//! prints at. `work/meter/C15.md` carries the method.
+//! prints at. `work/instr/C15.md` carries the method.
 //!
 //! `worst_dev` does reach a reader, through `SceneTotals::total_slack`
 //! — which is `measured_triangles / extrapolated_triangles`,
@@ -224,7 +226,7 @@
 //! because each names the cut it reads — but nothing re-reads them,
 //! and nothing sees a new UNLABELLED absolute arrive. That second
 //! half is stated at the head of this file and carries its own row,
-//! `work/instr/no-guard-reds-on-an-unlabelled-figure-in-the-budget-doc`.
+//! `work/budget/no-guard-reds-on-an-unlabelled-figure-in-the-budget-doc`.
 //!
 //! It does not fire on everything a re-cut can move.
 //! `docs/TESS-BUDGET.md`'s "Re-cutting the baseline" says what the two
@@ -325,7 +327,7 @@
 //! close it**, which is the thing to read carefully: what landed is
 //! `parse` REFUSING what those columns may not say, and what this
 //! census needs is a COMPARISON of them across two cuts, which does
-//! not exist. `work/instr/tess-lint-re-cut-folds-uncompared-columns`
+//! not exist. `work/budget/tess-lint-re-cut-folds-uncompared-columns`
 //! is the row for that. Until it lands the fourth category is a thing
 //! a reader has to verify by diffing the file, not a thing this census
 //! can certify.

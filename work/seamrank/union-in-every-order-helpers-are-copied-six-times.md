@@ -30,3 +30,14 @@ One helper in `tests/fixture/mod.rs` (the union over `members` in each
 order through `fixture::union_over`, evaluated, with its order label),
 and the six suites read it. `tests/fixture/` is compiled by
 `crates/viewer` by path, so the viewer must still build.
+
+## Re-counted (2026-10-26, tracker sweep)
+
+The copies have grown. `grep -ln 'fn every_order\|fn orders\|fn permutations' crates/editor-core/tests/*.rs`
+now lists twelve suites beyond `intent_s3_c_mates.rs` (whose hit is a
+test name); besides the six above, `emit_seam_junction.rs`,
+`emit_union_seam_rank.rs`, `emit_nested_union_flat.rs`,
+`emit_seam_edge_merged.rs`, `docm8_flat_merged.rs`,
+`union_member_orders_decide_alike.rs` and `remap_reorders_ids.rs` each
+write a permutation helper of their own (not each checked to be a union
+member order). `tests/fixture/mod.rs` still has none.

@@ -2,8 +2,9 @@
 id: gates-readme-cites-a-deleted-memory
 kind: issue
 title: scripts/gates/README.md cites memories/interval-square-poison.md, deleted 2026-08-18
-status: open
+status: closed
 opened: 2026-09-24
+closed: 2026-10-26
 priority: P3
 cost: E
 ---
@@ -23,3 +24,11 @@ at nothing, in a page the companion table marks Ratified.
 The repair is to drop the citation or repoint it at the gate's own
 header. That is a re-wording of a pointer that moved, which
 `CLAUDE.md` says lands with the change and is not a second decision.
+
+## Closed (2026-10-26, tracker sweep)
+
+**Fixed in this sweep.** `scripts/gates/README.md:106` (§Which greps are
+the right tool) no longer cites `memories/interval-square-poison.md`; it
+points at `interval-square-allowlist.sh`'s own header, which carries the
+argument and the "four live bugs" figure the sentence quotes. A pointer
+re-worded because its target moved, per CLAUDE.md.

@@ -2,8 +2,9 @@
 id: tess-budget-baseline-names-predate-piece-naming
 kind: issue
 title: the tess-budget baseline's name column still spells rims and walls by index, not by the minted piece steps #3223 introduced
-status: open
+status: closed
 opened: 2026-09-25
+closed: 2026-10-26
 ---
 
 
@@ -43,3 +44,17 @@ and `baseline_census.rs`'s totals as well (1605 → 1591 rows, 308 392 →
 "re-cut on main" half of this row is done. The other half is still
 open: the gate does not read the `name` column, and nothing says that
 it is informational.
+
+## Closed (2026-10-26, tracker sweep)
+
+**Fixed on main, both halves.**
+- **The re-cut half.** The committed baseline is now cut at
+  `24f02a376460` (2026-10-02), after BAND's PR #3736 re-cut. Its `name`
+  cells carry the piece-step spelling (`"Lateral":{"Piece":{"step":…}}`),
+  and `grep -c loop_index docs/tess-budget-data/tess-budget-baseline.csv`
+  is 0.
+- **The informational half.** `docs/TESS-BUDGET.md:624-627` says the
+  CSV's `name` column is carried "but no rule keys on it yet", which is
+  the disclosure this row asked for.
+
+Re-keying on `name` is `C15` / `c15-is-dischargeable-…`, not this row.

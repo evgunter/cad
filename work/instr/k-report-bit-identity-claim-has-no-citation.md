@@ -2,10 +2,11 @@
 id: k-report-bit-identity-claim-has-no-citation
 kind: issue
 title: K-REPORT's decisions-bit-identical-to-f64 claim can now cite the differential that checks it
-status: open
+status: closed
 opened: 2026-09-15
 priority: P3
 cost: E
+closed: 2026-10-26
 ---
 
 
@@ -41,3 +42,19 @@ the registered corpus — not the demo scenes the same sweep dumps, and
 not `cup`/`vessel`.
 
 Filed by SUITE/D114.
+
+## Closed (2026-10-26, tracker sweep)
+
+**Fixed in this sweep.** `docs/K-REPORT.md`'s Methodology bullet
+(`:24-35`) now cites
+`crates/editor-core/tests/m4_pr8_k_probe.rs::probe_agrees_with_f64_bit_for_bit_over_the_corpus`.
+It keeps the two limits this row asked for: the differential does not
+read carriers, surface geometry or pcurves, and it does not cover the
+demo scenes or `cup`/`vessel`. The two sibling sentences, in
+`crates/geom-core/src/k_stats.rs` and `crates/editor-core/src/eval/memo.rs`,
+are other programs' ground and were not edited.
+
+That differential is one of the two rows recorded as red on main in
+`work/tcost/main-reds-editor-core-slow-set-and-the-k-probe-sweep`. The
+citation names the check. Whether the check passes today is that row's
+question.

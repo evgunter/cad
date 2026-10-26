@@ -30,8 +30,9 @@
 //! 2. **Reduction sweep** (`reduce`): edge×face, BOTH directions,
 //!    candidate generation through the `bvh` tree since M5 PR 8 (the
 //!    tree prunes, predicates decide — `reduce` module docs; the
-//!    brute-force scan survives as [`SweepStrategy::Idealized`] under
-//!    the differential suite), with `contfv`/`contfp` as typed
+//!    brute-force scan survives as `SweepStrategy::Idealized` under
+//!    the differential suite, behind the `sweep-testing` feature, so
+//!    the name is not a link), with `contfv`/`contfp` as typed
 //!    trilean case codes. Proper
 //!    crossings insert vertices via the certified `split_edge` lane;
 //!    edge-on-edge crossings are discovered as edge-face events landing

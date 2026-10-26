@@ -98,7 +98,7 @@ fn swap_first_edge_for_a_chord_net(
 /// **A projected row's box against its `eval`**: why a reader of a
 /// projected row's chart extent reads `Pcurve::chart_box` rather than
 /// `Pcurve::eval` over the walked interval, as the closed forms do
-/// (`work/knot/nurbs-curve-interval-eval-loses-the-partition-of-unity-over-a-wide-t.md`).
+/// (`work/nurbs/nurbs-curve-interval-eval-loses-the-partition-of-unity-over-a-wide-t.md`).
 ///
 /// The spline's interval evaluation encloses each basis function on its
 /// own, so its sums lose the partition of unity. On a degree-1 chord `u = 0.5`, `v ∈ [−0.5, 0.5]` on a plane chart:

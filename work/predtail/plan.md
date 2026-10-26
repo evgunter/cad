@@ -19,4 +19,10 @@ there, not from the body above it.
    Both are design questions with homes on D10-held ground. Take them
    after INTENT's stage 4.
 
+5. `D46`, slice 2: the 188 unverdicted funnel names, cut by file in
+   count order (its Slice 1 table). The `carrier_eq` and
+   `contact_verify` names wait for INTENT's stage 4.
+6. `the-aspect-cap-stands-in-for-the-sliver-criterion`: a designer
+   question first (Ev, PR 5708).
+
 No exit criteria are set: the program closes when its rows do.

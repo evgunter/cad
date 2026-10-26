@@ -308,3 +308,9 @@ plan names them.
 - Three friction findings from today stand: disk, infra re-runs and
   `setsid`. See the 2026-10-22 log entry. CIW holds the re-run row.
 (FIT orchestrator)
+- 2026-10-26 — (tracker sweep) Every live row re-read against main `bb25fa4f`. All five stand, and none closes:
+  - `mispaired-ids-exempts-the-empty-window`: the guard is unchanged at `scene.rs:561`. Its `scene.rs:445` and "`pick.rs`'s unit tests" citations were re-pointed (VDOC's `renamed-module-leaves-citations-in-two-other-programs` routed them here).
+  - The two budget-probe rows: `fit_from_probes`, `PROBE_FACTOR` and `trimmed.rs`'s `MAX_GRID_RETRIES` refinement are as described.
+  - The two rows parked on D′ (`a-placement-pins-by-written-values-without-a-mate`, P0, riding with D′3) still read code D′3 rewrites (`pick_for`'s `..hit`, `assemble`'s `NotABody`-only skip). The parking is real and the blocker's band is higher.
+
+  `paths` gains `crates/viewer/src/scene.rs`, where three of the five rows sit (`fit_from_probes`, `fit_delta`'s Flat paragraph, the `MispairedIds` guard). The sweep proposes merging FIT back into VGEOM, the program it was cut from, since the parallel-track reason for the cut is spent at 6 points of P3. That is a proposal only: VGEOM is outside this sweep.

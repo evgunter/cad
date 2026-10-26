@@ -9,7 +9,7 @@ Nothing dispatched.
 
 ## The slate
 
-**28 budget points** of dispatchable work against a ceiling of 30, in 13 rows.
+**27 budget points** of dispatchable work against a ceiling of 30, in 12 rows (2026-10-26).
 
 | pri | item | cost | status | title |
 |---|---|---|---|---|
@@ -17,12 +17,11 @@ Nothing dispatched.
 | P3 | `decided-coincidence-carries-a-synthetic-invalid-margin` | M | open | A coincidence decided Zero on every datum is reported with a synthetic MarginDiag::Invalid margin, as if a measurement had failed |
 | P3 | `great-arc-parity-is-read-twice-with-two-degeneracy-rules` | M | open | Crossing parity along a path is read twice, by ring_path's path_parity and sectors' cone_side, under two different degeneracy rules |
 | P3 | `split-cyl-ellipse-quarter-bound-overshoots-the-tilt-at-the-band-edge` | M | open | A split row on an ellipse-bounded cylinder face serves against an in-band truth: the quarter-parallelogram bound overshoots the tilt at the band edge |
-| P3 | `the-wedge-reach-counts-a-faces-run-along-its-edge` | M | open | The wedge reach is measured from the edge's middle, so a face's run along the edge counts as lever |
+| P2 | `the-wedge-reach-counts-a-faces-run-along-its-edge` | M | open | The wedge reach is measured from the edge's middle, so a face's run along the edge counts as lever |
 | P3 | `the-wedge-reach-reads-each-faces-vertices-once-per-edge` | M | open | The wedge reach reads every vertex of both faces once per edge: O(deg²) per face over a pass, and each door builds a fresh reader |
 | P3 | `three-readers-of-one-point-along-a-carrier` | M | open | Three readers decide whether points are one point, each its own way, and splitting/order.rs keeps the sub-ε chain residual the carrier cluster now escalates |
 | P4 | `decide-across-and-carrier-eq-floor-are-two-spellings` | M | open | the section rows' decide_across and carrier_eq's reach floor are two spellings of one bracket |
 | P4 | `extent-ball-and-reach-are-two-statements-of-one-extent` | M | open | ExtentBall and Reach are two types for the consumed extent |
-| P4 | `geom-brep-has-more-than-one-decide-wrapper` | E | open | geom-brep: three decide funnels where its docs promise one per crate (dihedral, enters, props/quad) |
 | P4 | `measure-curve-reach-restates-the-span-lever` | E | open | editor-core's measure curve_reach restates the edge span lever, and has drifted from it |
 | P4 | `point-to-axis-rejection-is-spelled-by-hand-at-each-site` | E | open | the point-to-axis rejection is spelled by hand at each classifier site, beside Vec3::reject_from |
 | P4 | `spiric-and-spline-axial-levers-read-past-the-span` | M | open | a spiric edge's axial lever is its torus's support and a spline's its whole control net, past the span the edge holds |

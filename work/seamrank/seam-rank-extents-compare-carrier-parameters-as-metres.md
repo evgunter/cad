@@ -2,10 +2,11 @@
 id: seam-rank-extents-compare-carrier-parameters-as-metres
 kind: issue
 title: The crossing ranks compare a curved carrier's parameter extents against a band in metres
-status: open
+status: parked
 opened: 2026-10-19
 priority: P3
 cost: M
+blocked_on: [a-unions-line-of-several-edges-is-oriented-by-its-least-edge]
 ---
 
 ## What
@@ -30,3 +31,14 @@ Meter the extent comparisons the same way, or compare arc length.
 Then pin it on a large and a small circle: crossings that just separate
 at the band should rank, and crossings that just fail to should
 escalate, alike at both radii.
+
+## Parked (2026-10-26, tracker sweep)
+
+The comparisons this row is about (`discriminate::extent_before`, read
+by `emit_topo::rank_reads` for `rank_crossings` and `rank_along_track`)
+exist only to rank, and FORK-ORIENT (fork-log row 197; Ev, 2026-10-26;
+PR 5705) rules that nothing is ranked. The build that retires the
+rankers is WIRE's `a-unions-line-of-several-edges-is-oriented-by-its-least-edge`,
+so this row waits on it: if that build deletes the rank reads, it
+closes as superseded; if any metered extent comparison survives it,
+the row opens again for that.
