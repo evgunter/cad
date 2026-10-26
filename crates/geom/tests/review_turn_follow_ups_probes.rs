@@ -156,7 +156,11 @@ fn check_verdict<E>(
     *tally.verdicts.entry(format!("{lane} {v}")).or_default() += 1;
     match v {
         "over" | "short" => {
-            let sign_ok = if v == "over" { d.lo() > 0.0 } else { d.hi() < 0.0 };
+            let sign_ok = if v == "over" {
+                d.lo() > 0.0
+            } else {
+                d.hi() < 0.0
+            };
             if !sign_ok || len.0 <= eps {
                 tally
                     .bad_verdicts
@@ -222,7 +226,11 @@ fn conic_defect_bounds_and_verdicts_against_the_true_defect() {
             let (hi_ax, lo_ax) = (a0.max(b0), a0.min(b0));
             // Centres: the vertices, the flank where |s′| ≈ the ceiling
             // (a few b/a off the slow vertex), and generic angles.
-            let slow = if a0 >= b0 { 0.0 } else { core::f64::consts::FRAC_PI_2 };
+            let slow = if a0 >= b0 {
+                0.0
+            } else {
+                core::f64::consts::FRAC_PI_2
+            };
             let q = lo_ax / hi_ax;
             let mut centres = vec![0.0, core::f64::consts::FRAC_PI_2, 0.3, 2.5, -1.2];
             for k in [0.5, 1.0, 2.0, 5.0, 20.0, 100.0, 1e3] {
@@ -233,9 +241,14 @@ fn conic_defect_bounds_and_verdicts_against_the_true_defect() {
                 for &c in &centres {
                     let centre = shift + c;
                     let s_c = ellipse_speed(a, b, centre, Interval::zero()).lo();
-                    let mut widths: Vec<f64> = (0..=30).map(|i| 10f64.powf(-16.0 + 0.5 * f64::from(i))).collect();
+                    let mut widths: Vec<f64> = (0..=30)
+                        .map(|i| 10f64.powf(-16.0 + 0.5 * f64::from(i)))
+                        .collect();
                     for eps in [1e-6, 1e-9, 1e-12] {
-                        for k in [0.5, 0.9, 0.99, 1.0, 1.01, 1.1, 9.0, 9.9, 9.99, 10.0, 10.01, 10.1, 11.0, 20.0] {
+                        for k in [
+                            0.5, 0.9, 0.99, 1.0, 1.01, 1.1, 9.0, 9.9, 9.99, 10.0, 10.01, 10.1,
+                            11.0, 20.0,
+                        ] {
                             widths.push(k * eps / s_c);
                             widths.push(k * eps / lo_ax);
                         }
@@ -254,19 +267,27 @@ fn conic_defect_bounds_and_verdicts_against_the_true_defect() {
                             let lo = turn_defect_speed_lo(&ellipse(a, b), t0, extent).get();
                             let hi = turn_defect_speed_hi(&ellipse(a, b), t0, extent).get();
                             let civ = ellipse(a, b).map_scalar(Interval::from_f64);
-                            let ext_iv = Extent::hull([Interval::from_f64(t0), Interval::from_f64(t1)]).unwrap();
-                            let lo_iv_v = turn_defect_speed_lo(&civ, Interval::from_f64(t0), ext_iv);
-                            let hi_iv_v = turn_defect_speed_hi(&civ, Interval::from_f64(t0), ext_iv);
+                            let ext_iv =
+                                Extent::hull([Interval::from_f64(t0), Interval::from_f64(t1)])
+                                    .unwrap();
+                            let lo_iv_v =
+                                turn_defect_speed_lo(&civ, Interval::from_f64(t0), ext_iv);
+                            let hi_iv_v =
+                                turn_defect_speed_hi(&civ, Interval::from_f64(t0), ext_iv);
                             let (lo_iv, hi_iv) = (lo_iv_v.get().lo(), hi_iv_v.get().hi());
                             let d = true_defect(t0, t1);
                             let tr = truth(|x| ellipse_speed(a, b, t0, x), d);
                             tally.cases += 1;
                             let case = format!("a {a} b {b} t0 {t0:e} t1 {t1:e} hf {hf:e} m {m:e}");
                             if lo > tr.min_hi {
-                                tally.lo_violations.push(format!("lo {lo} > min_hi {}: {case}", tr.min_hi));
+                                tally
+                                    .lo_violations
+                                    .push(format!("lo {lo} > min_hi {}: {case}", tr.min_hi));
                             }
                             if lo_iv > tr.min_hi {
-                                tally.lo_iv_violations.push(format!("lo_iv {lo_iv} > min_hi {}: {case}", tr.min_hi));
+                                tally
+                                    .lo_iv_violations
+                                    .push(format!("lo_iv {lo_iv} > min_hi {}: {case}", tr.min_hi));
                             }
                             if hi < tr.max_lo {
                                 tally.hi_underreads.push(format!(
@@ -276,7 +297,9 @@ fn conic_defect_bounds_and_verdicts_against_the_true_defect() {
                                 ));
                             }
                             if hi_iv < tr.max_lo {
-                                tally.hi_iv_underreads.push(format!("hi_iv {hi_iv} < max_lo {}: {case}", tr.max_lo));
+                                tally
+                                    .hi_iv_underreads
+                                    .push(format!("hi_iv {hi_iv} < max_lo {}: {case}", tr.max_lo));
                             }
                             let allowance = hi_ax * (1.0 + m.abs()) * (1.0 / (1u64 << 46) as f64);
                             if lo > lo_ax {
@@ -290,10 +313,14 @@ fn conic_defect_bounds_and_verdicts_against_the_true_defect() {
                                 let got = Period::new(TAU).turn(
                                     rows,
                                     extent,
-                                    Bounded::new(geom_core::InfSpeed::new(lo), geom_core::SupSpeed::new(hi)),
+                                    Bounded::new(
+                                        geom_core::InfSpeed::new(lo),
+                                        geom_core::SupSpeed::new(hi),
+                                    ),
                                     band,
                                 );
-                                let ce = format!("eps {eps} sub-ulp {} {case}", hi_ax * 2.5e-16 > eps);
+                                let ce =
+                                    format!("eps {eps} sub-ulp {} {case}", hi_ax * 2.5e-16 > eps);
                                 check_verdict(&mut tally, "f64", &got, d, tr.len, eps, &ce);
                                 let got_iv = Period::new(Interval::tau()).turn(
                                     rows,
@@ -312,28 +339,55 @@ fn conic_defect_bounds_and_verdicts_against_the_true_defect() {
     let mut cats = std::collections::BTreeMap::<String, (usize, f64, String)>::new();
     for b in &tally.bad_verdicts {
         let key: String = b.split(" but").next().unwrap().to_string()
-            + if b.contains("sub-ulp true") { " sub-ulp" } else { " sane" };
+            + if b.contains("sub-ulp true") {
+                " sub-ulp"
+            } else {
+                " sane"
+            };
         // worst ratio: len.lo / eps
-        let lenlo: f64 = b.split("len (").nth(1).and_then(|r| r.split(',').next()).and_then(|x| x.parse().ok()).unwrap_or(0.0);
-        let eps: f64 = b.split("eps ").nth(1).and_then(|r| r.split(' ').next()).and_then(|x| x.parse().ok()).unwrap_or(1.0);
+        let lenlo: f64 = b
+            .split("len (")
+            .nth(1)
+            .and_then(|r| r.split(',').next())
+            .and_then(|x| x.parse().ok())
+            .unwrap_or(0.0);
+        let eps: f64 = b
+            .split("eps ")
+            .nth(1)
+            .and_then(|r| r.split(' ').next())
+            .and_then(|x| x.parse().ok())
+            .unwrap_or(1.0);
         let e = cats.entry(key).or_insert((0, 0.0, String::new()));
         e.0 += 1;
-        if lenlo / eps > e.1 { e.1 = lenlo / eps; e.2 = b.clone(); }
+        if lenlo / eps > e.1 {
+            e.1 = lenlo / eps;
+            e.2 = b.clone();
+        }
     }
     for (k, v) in &cats {
         eprintln!("BAD {k}: {} worst len/eps {:.4} :: {}", v.0, v.1, v.2);
     }
-    let sane: Vec<_> = tally.bad_verdicts.iter().filter(|s| s.contains("sub-ulp false") && !s.contains("over") && !s.contains("short")).collect();
+    let sane: Vec<_> = tally
+        .bad_verdicts
+        .iter()
+        .filter(|s| s.contains("sub-ulp false") && !s.contains("over") && !s.contains("short"))
+        .collect();
     eprintln!("bad verdicts outside the sub-ulp regime: {}", sane.len());
     for s in sane.iter().take(12) {
         eprintln!("  {s}");
     }
     eprintln!("cases {}", tally.cases);
     eprintln!("verdicts {:?}", tally.verdicts);
-    eprintln!("least slack in allowance units {:?}", tally.least_slack_units);
+    eprintln!(
+        "least slack in allowance units {:?}",
+        tally.least_slack_units
+    );
     eprintln!("least decided len/10eps {:?}", tally.least_decided_ratio);
     eprintln!("most whole len/eps {:?}", tally.most_whole_ratio);
-    eprintln!("sane least decided len/10eps {:?}", tally.sane_least_decided);
+    eprintln!(
+        "sane least decided len/10eps {:?}",
+        tally.sane_least_decided
+    );
     eprintln!("sane most whole len/eps {:?}", tally.sane_most_whole);
     for (name, v) in [
         ("lo violations", &tally.lo_violations),
@@ -369,7 +423,18 @@ fn spiric_defect_sup_against_the_true_defect() {
         (100.0, 1e-3, 99.999 - 1e-12),
     ] {
         for shift in [0.0, 2.0 * pi * 1e5, -2.0 * pi * 3e5] {
-            for c in [0.0, 1.0, 2.5, pi - 0.1, pi - 1e-4, pi - 1e-8, pi, pi + 1e-8, pi + 1e-4, 4.0] {
+            for c in [
+                0.0,
+                1.0,
+                2.5,
+                pi - 0.1,
+                pi - 1e-4,
+                pi - 1e-8,
+                pi,
+                pi + 1e-8,
+                pi + 1e-4,
+                4.0,
+            ] {
                 let centre = shift + c;
                 for w in [0.0, 1e-15, 1e-12, 1e-9, 1e-6, 1e-3, 0.1, 1.0, 3.0] {
                     for sign in [1.0, -1.0] {
@@ -380,11 +445,15 @@ fn spiric_defect_sup_against_the_true_defect() {
                         let curve = spiric(major, minor, offset);
                         let hi = turn_defect_speed_hi(&curve, t0, extent).get();
                         let civ = curve.map_scalar(Interval::from_f64);
-                        let ext_iv = Extent::hull([Interval::from_f64(t0), Interval::from_f64(t1)]).unwrap();
-                        let hi_iv = turn_defect_speed_hi(&civ, Interval::from_f64(t0), ext_iv).get();
+                        let ext_iv =
+                            Extent::hull([Interval::from_f64(t0), Interval::from_f64(t1)]).unwrap();
+                        let hi_iv =
+                            turn_defect_speed_hi(&civ, Interval::from_f64(t0), ext_iv).get();
                         let d = true_defect(t0, t1);
                         n += 1;
-                        let case = format!("R {major} r {minor} d {offset} centre {centre} w {h:e}: hi {hi} hi_iv {hi_iv:?}");
+                        let case = format!(
+                            "R {major} r {minor} d {offset} centre {centre} w {h:e}: hi {hi} hi_iv {hi_iv:?}"
+                        );
                         if !hi.is_finite() || !hi_iv.is_certified() {
                             nan += 1;
                         }
