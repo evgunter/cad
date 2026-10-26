@@ -569,3 +569,5 @@ None waits on an INTENT stage. A row that turns out to need one moves back. — 
   - **At merge** I resolved one conflict with main (`BooleanDecision::ArcSpan` had left main); the lane named the new decision `CutRingWinding`, apart from main's `SelfCheck::RingWinding`.
   - **No body moved.** Batteries identical; the `boss/holedlow ∩` refusal's words changed (the cut now goes one step further before it stops).
 — (FLUSH orchestrator)
+- 2026-10-26 — **Dispatched the three-way coincident names** (`an-intersect-of-an-intersect-names-a-three-way-coincident-face-apart-in-one-member-order`, P2 M, branch `flush/three-way-coincident-names`). One of the silhouette letters' four member orders names a piece of the y 3 face with an extra wall. The lane re-measures first, since PR 5706 made both operand orders write the same rows, then finds the first record that differs. A cause in the boolean's rows is FLUSH's to fix; one in the names layer's chase is filed on BORDERS. **Tier: one FULL review** if code changes; a diagnosis and a filing I read myself. Seam: WIRE's `[ev]` PR 5705 (the names layer).
+— (FLUSH orchestrator)
