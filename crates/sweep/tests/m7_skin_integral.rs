@@ -31,7 +31,7 @@
 // Panicking is a test's failure mechanism (workspace lint policy).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use core::f64::consts::FRAC_PI_2;
+use core::f64::consts::{FRAC_PI_2, PI};
 use profile::SketchPlane;
 use profile::test_support::bulge_loop;
 
@@ -623,6 +623,58 @@ fn a_rational_section_on_a_curved_path_meters_at_the_span_meter() {
         seen > 0,
         "the rational sweep produced no NURBS carrier at all — the fixture stopped \
          exercising the thing it pins"
+    );
+}
+
+/// **The rational quarter torus answers a bracket, never a refusal**
+/// (`docs/QUAD-MEASURE-SPEC.md` acceptance 5): the circle-section elbow
+/// above, whose rational walls stop short of `1024·ε` at the default ε,
+/// measured at a resolution of 1.024e-6 m. It answers its enclosure with
+/// the stop that says why, at the wall or met, and the enclosure holds
+/// the torus's Pappus volume within the walls' v-interpolation gap
+/// (≈ 4e-6 of it at nine stations, the square elbow's measure).
+///
+/// Through the raw door, because the subject is the measurement and not
+/// the gate. The stop is pinned at the default ε, where the spec states
+/// it; at every ε the answer is an enclosure, not a refusal.
+#[test]
+fn a_rational_quarter_torus_answers_a_bracket_at_the_wall_not_a_refusal() {
+    let tol = Tol::witness();
+    let swept = sweep_body::<f64>(
+        &circle_section(ELBOW_H),
+        SketchPlane::xy(),
+        &elbow_path(),
+        ELBOW_STATIONS,
+        ELBOW_V_DEGREE,
+        tol,
+    )
+    .expect("the rational elbow builds");
+    let measured = topo::test_support::unmigrated_measure(
+        &swept.body,
+        tol,
+        topo::test_support::pinned_resolution(tol),
+    )
+    .unwrap_or_else(|e| panic!("the quarter torus measures, never refuses: {e:?}"));
+    assert!(
+        tol.eps() != geom_core::tolerance::DEFAULT_EPS
+            || matches!(measured.stop, topo::Stop::Wall | topo::Stop::Met),
+        "the stop is the wall or the resolution met: {measured:?}"
+    );
+    let e = measured.enclosure;
+    let pappus = PI * ELBOW_H * ELBOW_H * ELBOW_R * FRAC_PI_2;
+    let gap = 1e-5 * pappus;
+    assert!(
+        (e.volume - pappus).abs() <= e.volume_pad + gap,
+        "the bracket {} ± {:e} holds Pappus's {pappus} within the fit's {gap:e}",
+        e.volume,
+        e.volume_pad
+    );
+    eprintln!(
+        "ACCEPTANCE-5 quarter torus @ ε = {:e}, resolution 1.024e-6 m: stop {:?}, V = {} ± {:e}",
+        tol.eps(),
+        measured.stop,
+        e.volume,
+        e.volume_pad
     );
 }
 

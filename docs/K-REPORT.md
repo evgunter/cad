@@ -854,6 +854,14 @@ that is a removed population, not a threshold move. A deciding
 measurement now records its own predicate instead, under its call
 site's names, every round it is asked.
 
+**The factor goes too (2026-10-26, measure door unit C).** No lane and
+no number door reads `QUAD_TARGET_LEN_FACTOR` any more: every caller
+states its own resolution, so the constant left `props/quad.rs`, and
+`predicate_roster`'s pin that it is a finite positive literal went with
+it. The rule (2) spelling it checks a rostered mint's `target_len`
+against, `QUAD_TARGET_LEN_FACTOR * eps`, stays the spelling the next
+ε-coupled family is held to.
+
 **Roster addition (TRIM-3): the chart-boundary outside test.** Six
 names, in the crate scan's blind spot #4 — four of them are a
 `ray_walk::ParityRows` value, the carrier this document already
