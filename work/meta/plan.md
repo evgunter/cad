@@ -25,12 +25,13 @@ budget points against 30:
   `docs/prompts/*` is this program's again; a change to it is an `[ev]`
   PR, and CIW keeps its standing right to amend
   `implementer-discipline.md` §2 for its own runs.
-- **UNSEEN** holds the checkers whose subject is a hand-written
+- **UNSEEN** took the checkers whose subject is a hand-written
   reference or a surface across the whole tree (citations, tracker
   paths in crates, ledger recovery commands, the public-method census,
-  merge-commit content). Where such a checker is built as an arm of
-  `scripts/work.py lint`, the code lands here by announced seam and
-  the row stays on UNSEEN.
+  merge-commit content), and folded into **UNREAD** the same day
+  (`docs/doc-ledger/unseen-leaves-the-tracker.md`). Where such a
+  checker is built as an arm of `scripts/work.py lint`, the code lands
+  here by announced seam and the row stays on UNREAD.
 
 ## The fence
 

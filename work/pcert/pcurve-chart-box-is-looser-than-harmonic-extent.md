@@ -4,7 +4,7 @@ kind: issue
 title: Pcurve::chart_box is p0 +- |pl|*max|t| - twice the true span of a Harmonic image and what the mint's check 5 reads
 status: closed
 opened: 2026-09-06
-refs: [torus-operand-boxes-span-whole-ring, 1907]
+refs: [1907]
 priority: P1
 cost: H
 branch: pcert/chart-box-harmonic-extent

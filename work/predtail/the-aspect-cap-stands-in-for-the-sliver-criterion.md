@@ -7,7 +7,6 @@ opened: 2026-10-25
 priority: P3
 cost: M
 design: true
-refs: [S29]
 ---
 
 Ev on PR 5708 (2026-10-25), on `ASPECT_CAP` (A = 16, ratified on #568):
