@@ -529,6 +529,24 @@ pub(crate) fn decide_nonzero<T: Decide>(
     geom_core::k_stats::decide_nonzero(name, margin, band)
 }
 
+/// **What a [`ValidationError::CensusUndecidable`] leaves open**: whether
+/// the two solids it names may interpenetrate, or one face pair's own
+/// reading in band. `census_uncleared_solids` reads it: the first leaves
+/// the two solids uncleared, the second does not.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Undecidable {
+    /// The census cannot clear the two of interpenetrating past the
+    /// band: a pair it cannot examine, a crossing or a touch it could
+    /// not read, a containment its material test could not answer.
+    MayOverlap,
+    /// Two planar faces of different solids whose carriers, or whose
+    /// lying flush, read within the band: the pair's one could-not-look
+    /// finding (`[assertions]`). Any overlap it hides is thinner than
+    /// the band, which the representation cannot tell from contact, so
+    /// it is no evidence the two solids interpenetrate.
+    InBandPair,
+}
+
 /// **What a census refusal is ABOUT** — the whole of the subject the
 /// refusing arm was examining.
 ///
@@ -1955,6 +1973,8 @@ pub enum ValidationError {
         b: EntityId,
         /// The not-yet-supported class, named.
         what: &'static str,
+        /// What the refusal leaves open.
+        reason: Undecidable,
     },
     /// **Tier 3′: a face passes through an edge's material wedge.** An
     /// edge lies in a face of its own solid, and on decided readings the
@@ -4370,7 +4390,7 @@ impl fmt::Display for ValidationError {
                 "a face's boundary reads an arc's end off its corner where certification pinned \
                  it: {gaps}. {DEFECT}"
             ),
-            Self::CensusUndecidable { a, b, what } => write!(
+            Self::CensusUndecidable { a, b, what, .. } => write!(
                 f,
                 "{} can be neither examined nor cleared: {what}",
                 match (a, b) {

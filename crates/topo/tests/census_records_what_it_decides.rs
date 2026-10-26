@@ -394,19 +394,16 @@ fn coplanar_faces_meeting_only_along_a_line_are_no_face_pair() {
     );
 }
 
-/// **A near-flush side: the seat is one face pair, and the side's own
-/// pair is the flush door's finding.** A block on the base, its x = 0
-/// side standing off the base's by a distance inside the band. The seat
-/// is confirmed, one face pair, which answers for the cells bounding it:
-/// the bottom edge along x = off, in band of the base's top
-/// edge, no longer escalates. The x = 0 side's carrier reads in band, so
-/// it is no flush row, and the flush door's finding names that pair.
-///
-/// What stays: the census still reads the in-band side walls' own
-/// boundary cells against each other and escalates them, so the seat is
-/// not recorded (`work/intent/an-in-band-face-pair-at-rest-is-not-one-finding.md`).
-/// Red if the seat's pair is not found, if the near-flush pair is
-/// decided, or if its finding names another pair.
+/// **A near-flush side: the seat is one face pair, and the side is one
+/// finding.** A block on the base, its x = 0 side standing off the
+/// base's by a distance inside the band. The seat is confirmed, one face
+/// pair, recorded and confirming. The x = 0 sides' carriers read in band,
+/// so that pair is one could-not-look finding naming the two faces
+/// (`[assertions]`), its cells asked nothing: no escalation stands, and
+/// the finding is no evidence the two blocks overlap, so the seat is
+/// still recorded. Red if any escalation stands, if the in-band pair is
+/// reported more than once or names another pair, or if the seat is not
+/// recorded.
 #[test]
 fn a_near_flush_side_is_its_pairs_finding_and_the_seat_is_one_pair() {
     let band = geom_core::Band::linear(Tol::witness()).unwrap();
@@ -416,34 +413,19 @@ fn a_near_flush_side_is_its_pairs_finding_and_the_seat_is_one_pair() {
         ((off, 1.0), (0.5, 1.5), (1.0, 2.0)),
     );
     let (recorded, flush) = at_rest(&body);
-    let seats: Vec<_> = recorded
-        .findings
-        .iter()
-        .filter_map(|e| match e {
-            ValidationError::UnrecordedContact {
-                contact: topo::CensusContact::ConformalPatch { finding },
-                ..
-            } => Some([finding.pair.a, finding.pair.b]),
-            _ => None,
-        })
-        .collect();
-    let [[a, b]] = seats[..] else {
-        panic!("one face pair: {:?}", recorded.findings);
-    };
-    assert!(
-        outward(&body, a).z.abs() == 1.0 && outward(&body, a).z == -outward(&body, b).z,
-        "the seat is the block's bottom on the base's top"
-    );
-    assert!(flush.rows.is_empty(), "{:?}", flush.rows);
     let [
         ValidationError::CensusUndecidable {
             a: topo::EntityId::Face(a),
             b: topo::EntityId::Face(b),
+            reason: topo::Undecidable::InBandPair,
             ..
         },
-    ] = flush.findings.as_slice()
+    ] = recorded.findings.as_slice()
     else {
-        panic!("one finding, the near-flush pair's: {:?}", flush.findings);
+        panic!(
+            "one finding, the near-flush pair's: {:?}",
+            recorded.findings
+        );
     };
     for face in [*a, *b] {
         assert!(
@@ -451,4 +433,18 @@ fn a_near_flush_side_is_its_pairs_finding_and_the_seat_is_one_pair() {
             "the finding names the two x = 0 sides"
         );
     }
+    let [seat] = recorded.rows[..] else {
+        panic!("one row, the seat's: {:?}", recorded.rows);
+    };
+    assert_eq!(seat.relation, topo::Relation::SameOpposite);
+    let [a, b] = faces_of(&seat).expect("the seat's row names two faces");
+    assert!(
+        outward(&body, a).z.abs() == 1.0 && outward(&body, a).z == -outward(&body, b).z,
+        "the seat is the block's bottom on the base's top"
+    );
+    assert_eq!(recorded.records.rows().len(), 1, "one record, the seat's");
+    assert!(
+        flush.rows.is_empty() && flush.findings.is_empty(),
+        "the in-band pair is the census's, not the flush door's: {flush:?}"
+    );
 }

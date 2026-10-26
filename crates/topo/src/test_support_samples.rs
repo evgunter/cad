@@ -1674,9 +1674,14 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
                 a,
                 b,
                 what: why.what(),
+                reason: crate::validate::Undecidable::MayOverlap,
             },
         ));
     }
+    s.push((
+        "CensusUndecidable/InBandPair".to_owned(),
+        crate::census::in_band_finding(face, face),
+    ));
     s.push((
         "FaceThroughEdgeWedge".to_owned(),
         ValidationError::FaceThroughEdgeWedge {
