@@ -291,3 +291,26 @@ Lane briefs now ask for the touched crates' slow set before green, with
 every red split against `origin/main`. Editor-core is the exception:
 its full slow set takes hours on a 4-vCPU box, so lanes run only the
 rows their diff can move.
+
+## 2026-10-26 — PR 5764 (spline dihedral side) reviewed: one MAJOR
+
+Single full review (`session_01QgwBdDPBpAwPsCKJFCbcHZ`, on 39e05242):
+NOT-MERGEABLE. The MAJOR, shown by a red row, is a face trimmed along
+an interior C0 knot line of its carrier. The foot lands on the knot,
+the derivative is evaluated on the span convention's side, and the
+door reads the other half's normal, deciding a wrong side.
+
+The sign convention held under mutation. The other findings: the κ
+fold and `FootUndecided` are unpinned; the walk direction is a bare
+`Vec3` held by convention; `splitting::rules::edge_wedge` is an analytic
+copy of the door; and there are three spellings of "into the face =
+n × t". All of it went to the lane. The same tier re-reviews the fix
+pass.
+
+**Class, the second instance in one day:** a derivative read across a
+spline crease (an interior knot of multiplicity ≥ degree). The first
+was PR 5715's curvature bound across a C0 curve knot; this is a surface
+normal at a foot on a C0 knot line. One statement of where a spline has
+no derivative (`KnotStructure::crease_runs`) must be consulted by every
+reader that takes a derivative at a point on a spline. The
+boundary-first lane was told while still building.
