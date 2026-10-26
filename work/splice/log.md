@@ -385,3 +385,23 @@ span's interior from y's topology under the boolean's
 non-self-intersection precondition) is consistent with C5's "only what
 the boundary leaves undecided is read against the face's interior", or
 needs a sentence in C5.
+
+## 2026-10-26 — the converse arm dispatched, stacked
+
+`splice/converse-arm` (`session_01GJUH1SbY5bRWRdPiwDHdvq`):
+`nurbs-edge-crossing-rung-is-the-ring-composite`. This is the
+curve × face table's spline-span × analytic-face arm, with the edge's
+control-hull box, the end-to-end crossing row, and the crease rule.
+Tier: dual, letter H.
+
+It is **stacked on `splice/boundary-first`** (PR 5768: reviewed,
+accepted, held only by main's RESTREAD red). Stacking was chosen over
+waiting, because lily wall 8's next refusal is exactly this arm and
+5768's table is final. The PR targets main and merges main once 5768
+lands. The interior arm (`an-analytic-edge-…`) follows on the same
+table after this one, rather than in parallel, so two lanes don't
+collide in the new module.
+
+PR 5764 (spline dihedral) and PR 5768 are both read and accepted, and
+both wait only on RESTREAD's main red
+(`work/restread/main-red-coincident-wedges-overlap-refuses-flush-copies.md`).

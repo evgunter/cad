@@ -2,11 +2,12 @@
 id: nurbs-edge-crossing-rung-is-the-ring-composite
 kind: unit
 title: a NURBS operand edge gets one crossing rung keyed on the carrier: the spline::compose ring composite
-status: open
+status: dispatched
 opened: 2026-10-03
 priority: P0
 cost: H
 refs: [3984]
+branch: splice/converse-arm
 ---
 
 
