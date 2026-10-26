@@ -30,8 +30,9 @@
 //! 2. **Reduction sweep** (`reduce`): edge×face, BOTH directions,
 //!    candidate generation through the `bvh` tree since M5 PR 8 (the
 //!    tree prunes, predicates decide — `reduce` module docs; the
-//!    brute-force scan survives as [`SweepStrategy::Idealized`] under
-//!    the differential suite), with `contfv`/`contfp` as typed
+//!    brute-force scan survives as `SweepStrategy::Idealized` under
+//!    the differential suite, behind the `sweep-testing` feature, so
+//!    the name is not a link), with `contfv`/`contfp` as typed
 //!    trilean case codes. Proper
 //!    crossings insert vertices via the certified `split_edge` lane;
 //!    edge-on-edge crossings are discovered as edge-face events landing
@@ -2366,6 +2367,44 @@ pub enum PairRefusalSite {
     InteriorLoopGuard,
 }
 
+/// Which lane raised [`BooleanError::EdgeCarrierUnsupported`]. Each
+/// reads an edge's carrier and has a row for a line, a circle and an
+/// ellipse; the site says what it could not do with a spiric or a
+/// spline.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum EdgeCarrierSite {
+    /// The sweep's crossing lane against a plane face of the other
+    /// operand.
+    PlanarCrossing,
+    /// The sweep's crossing lane against a curved face of the other
+    /// operand.
+    CurvedCrossing,
+    /// The join's section frame for a germ that runs along an edge of
+    /// either solid.
+    GermFrame,
+    /// The join's ring lane, winding the run of a face's loop that a new
+    /// face is walled off along.
+    RingRun,
+}
+
+impl EdgeCarrierSite {
+    /// What the lane could not do with the edge, completing "the
+    /// Boolean cannot yet".
+    #[must_use]
+    pub const fn clause(self) -> &'static str {
+        match self {
+            Self::PlanarCrossing => {
+                "find whether or where such an edge crosses a plane face of the other operand"
+            }
+            Self::CurvedCrossing => {
+                "find whether or where such an edge crosses a curved face of the other operand"
+            }
+            Self::GermFrame => "join the two solids along such an edge",
+            Self::RingRun => "orient a new face whose boundary runs along such an edge",
+        }
+    }
+}
+
 /// One sector read of a vertex, named in
 /// [`BooleanError::VertexReadTwice`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -2698,49 +2737,38 @@ pub enum BooleanError {
         /// The band the distance off the axis was classified against.
         band: Band,
     },
-    /// The operand gate (F5) refused a spiric or spline (`Nurbs`)
-    /// carrier in an INPUT operand: no crossing lane reads either kind,
-    /// and the join and section lanes behind the sweep have no row for
-    /// them either (`reduce::gate_operand_edges` names which).
-    CurvedEdgeUnsupported {
-        /// The offending operand and edge.
-        operand: Operand,
-        /// The edge.
-        edge: EdgeKey,
-    },
-    /// The sweep read an edge whose carrier is a spiric or a spline
-    /// against a face of the other operand, and no lane finds whether or
-    /// where such a carrier crosses a face: its endpoints' sides neither
-    /// find its crossings (it can cross and come back between same-side
-    /// ends) nor place them (a parameter interpolated between them is not
-    /// a point on the face). Raised by the sweep's planar and curved arms
-    /// alike, at the first face whose box the edge's box meets (a
-    /// spline's box is the whole space).
-    ///
-    /// **No public door raises it while the operand gate stands**: the
-    /// gate refuses every such edge first, as
-    /// [`Self::CurvedEdgeUnsupported`]. It is the sweep's own refusal,
-    /// pinned by `reduce::planar_lane_carrier_rows`, and the one a
-    /// narrowed gate exposes (`work/splice/delete-the-boolean-operand-edge-gate.md`).
-    CrossingCarrierUnsupported {
+    /// A lane met an edge whose carrier is a spiric or a spline, and has
+    /// no row for either kind; `site` names the lane. At a crossing lane
+    /// the edge's endpoints' sides neither find its crossings (it can
+    /// cross a face and come back between same-side ends) nor place them
+    /// (a parameter interpolated between them is not a point on the
+    /// face), and the face is the first of the other operand's whose box
+    /// the edge's box meets (a spline's box is the whole space). At the
+    /// join, the face is the one of `operand` the germ or the ring runs
+    /// on.
+    EdgeCarrierUnsupported {
         /// The operand whose edge it is.
         operand: Operand,
-        /// The edge.
+        /// The edge: the operand's own, its split pieces' root.
         edge: EdgeKey,
-        /// The face of the other operand it met.
+        /// The face the lane read it against, as the lane holds it.
         face: FaceKey,
+        /// The operand whose face it is: the other at a crossing lane,
+        /// `operand` itself at the join.
+        face_of: Operand,
+        /// The lane.
+        site: EdgeCarrierSite,
     },
     /// The both-edges-split point lane needs a carrier with a point
     /// parameter ([`geom::Curve3::param_near`]) and got a spline, which
-    /// has none. The operand gate refuses a spline edge first, as
-    /// [`Self::CurvedEdgeUnsupported`], so no public door raises this
-    /// while the gate stands; it is the split lane's own precondition,
-    /// which is why it is its own variant. One doc and one message
-    /// covering both could name neither.
+    /// has none. It is the split lane's own precondition, narrower than
+    /// a crossing lane's ([`Self::EdgeCarrierUnsupported`]), which is why
+    /// it is its own variant: one doc and one message covering both
+    /// could name neither.
     PointSplitCarrierUnsupported {
         /// The offending operand and edge.
         operand: Operand,
-        /// The edge.
+        /// The edge: the operand's own, its split pieces' root.
         edge: EdgeKey,
     },
     /// **Two edges along one germ whose identity no rule decides.**
@@ -2753,7 +2781,7 @@ pub enum BooleanError {
     GermEdgeCarrierUnsupported {
         /// The operand whose edge is neither a line nor a circle.
         operand: Operand,
-        /// The edge.
+        /// The edge: the operand's own, its split pieces' root.
         edge: EdgeKey,
     },
     /// **Point-in-face on a loop no walk expresses at the point.** The
@@ -3079,6 +3107,18 @@ pub enum BooleanError {
         operand: Operand,
         /// The pierced face, a key of the other operand's working copy.
         face: FaceKey,
+    },
+    /// Under union, a plane face of each operand lies on the other's
+    /// with opposed normals at a pair of their vertices, and the two
+    /// faces' outlines leave the vertex tangent, one curving inside the
+    /// other: the faces overlap in a crescent that narrows to the vertex,
+    /// which the section cannot reach (`sectors::crescent_refusal` says
+    /// why).
+    TangentCrescentUnsupported {
+        /// A's face, a key of A's working copy.
+        a_face: FaceKey,
+        /// B's face, a key of B's working copy.
+        b_face: FaceKey,
     },
     /// A vertex of `operand` is read by two sector passes where the
     /// first read cannot be taken with the second: it pierces two faces
@@ -3878,10 +3918,8 @@ pub enum BooleanErrorKind {
     CrossingAtConeApex,
     /// [`BooleanError::NormalAtConeApex`].
     NormalAtConeApex,
-    /// [`BooleanError::CurvedEdgeUnsupported`].
-    CurvedEdgeUnsupported,
-    /// [`BooleanError::CrossingCarrierUnsupported`].
-    CrossingCarrierUnsupported,
+    /// [`BooleanError::EdgeCarrierUnsupported`].
+    EdgeCarrierUnsupported,
     /// [`BooleanError::PointSplitCarrierUnsupported`].
     PointSplitCarrierUnsupported,
     /// [`BooleanError::GermEdgeCarrierUnsupported`].
@@ -3928,6 +3966,8 @@ pub enum BooleanErrorKind {
     SharedVertexCrossings,
     /// [`BooleanError::PinchRaysInAFace`].
     PinchRaysInAFace,
+    /// [`BooleanError::TangentCrescentUnsupported`].
+    TangentCrescentUnsupported,
     /// [`BooleanError::CrossingsAlongAContactLine`].
     CrossingsAlongAContactLine,
     /// [`BooleanError::VertexReadTwice`].
@@ -4157,8 +4197,7 @@ impl BooleanError {
             Self::CurvedPierceUnsupported { .. } => BooleanErrorKind::CurvedPierceUnsupported,
             Self::CrossingAtConeApex { .. } => BooleanErrorKind::CrossingAtConeApex,
             Self::NormalAtConeApex { .. } => BooleanErrorKind::NormalAtConeApex,
-            Self::CurvedEdgeUnsupported { .. } => BooleanErrorKind::CurvedEdgeUnsupported,
-            Self::CrossingCarrierUnsupported { .. } => BooleanErrorKind::CrossingCarrierUnsupported,
+            Self::EdgeCarrierUnsupported { .. } => BooleanErrorKind::EdgeCarrierUnsupported,
             Self::PointSplitCarrierUnsupported { .. } => {
                 BooleanErrorKind::PointSplitCarrierUnsupported
             }
@@ -4188,6 +4227,7 @@ impl BooleanError {
             Self::PairingMismatch { .. } => BooleanErrorKind::PairingMismatch,
             Self::SharedVertexCrossings { .. } => BooleanErrorKind::SharedVertexCrossings,
             Self::PinchRaysInAFace { .. } => BooleanErrorKind::PinchRaysInAFace,
+            Self::TangentCrescentUnsupported { .. } => BooleanErrorKind::TangentCrescentUnsupported,
             Self::CrossingsAlongAContactLine { .. } => BooleanErrorKind::CrossingsAlongAContactLine,
             Self::VertexReadTwice { .. } => BooleanErrorKind::VertexReadTwice,
             Self::PartnerAlongFace { .. } => BooleanErrorKind::PartnerAlongFace,
@@ -4253,7 +4293,8 @@ impl From<EulerOpError> for BooleanError {
 
 /// The recourse of every refusal of a spiric or spline edge: the kinds
 /// every lane reads are the line and the two conics.
-const CONIC_EDGES_RECOURSE: &str = "rebuild that solid so its edges are lines, circles or ellipses";
+pub(crate) const CONIC_EDGES_RECOURSE: &str =
+    "rebuild that solid so its edges are lines, circles or ellipses";
 
 /// How a refusal names an operand to the person who built it: by its
 /// place in the operation, never by the enum spelling.
@@ -4372,20 +4413,12 @@ impl core::fmt::Display for BooleanError {
                 refusal_routes::PIERCE_CURVATURE
                     .recourse(verdict.arm(), geom_brep::recourse::Reading::Build)
             ),
-            Self::CurvedEdgeUnsupported { operand, .. } => write!(
+            Self::EdgeCarrierUnsupported { operand, site, .. } => write!(
                 f,
                 "an edge of the {} operand is a spiric or spline (NURBS) curve, and the \
-                 Boolean cannot yet take a solid with such edges as an input. Recourse: \
-                 {CONIC_EDGES_RECOURSE}",
+                 Boolean cannot yet {}. Recourse: {CONIC_EDGES_RECOURSE}",
                 operand_word(*operand),
-            ),
-            Self::CrossingCarrierUnsupported { operand, .. } => write!(
-                f,
-                "an edge of the {} operand is a spiric or spline (NURBS) curve whose box \
-                 meets a face of the other operand, and the Boolean cannot yet find \
-                 whether or where such an edge crosses a face. Recourse: \
-                 {CONIC_EDGES_RECOURSE}",
-                operand_word(*operand),
+                site.clause(),
             ),
             Self::PointSplitCarrierUnsupported { operand, .. } => write!(
                 f,
@@ -4741,6 +4774,14 @@ impl core::fmt::Display for BooleanError {
                  the other solid, in a way the Boolean cannot yet join. There is no \
                  way through this in the kernel yet",
                 operand_word(*operand)
+            ),
+            Self::TangentCrescentUnsupported { .. } => write!(
+                f,
+                "a flat face of each part lies on the other's, and their outlines touch at a \
+                 point where one curves inside the other, so the faces share a sliver that \
+                 narrows to that point, which a union cannot yet join (subtract and \
+                 intersect can). Recourse: move one part so the two outlines cross or stay \
+                 clear of each other there"
             ),
             Self::CrossingsAlongAContactLine { .. } => write!(
                 f,
@@ -5861,7 +5902,13 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                     .push(pair),
             }
         }
-        let mut records = sectors::pair_search(&a_sectors, &b_sectors, band)?;
+        let sectors::PairSearch {
+            mut records,
+            touching,
+        } = sectors::pair_search(&a_sectors, &b_sectors, band)?;
+        if op == BooleanOp::Union {
+            sectors::crescent_refusal([&a, &b], [&a_sectors, &b_sectors], &touching, band)?;
+        }
         // The layering beside a partner along the face reads no sector
         // pair on one plane: it refuses before `recl_sectors` reads one.
         if let Some(refusal) = along
@@ -5911,13 +5958,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             Operand::A => &b,
             Operand::B => &a,
         };
-        move |face| {
-            crate::readback::face_carrier_kind(body, face)
-                .map(sectors::FaceShape::of_kind)
-                .map_err(|_| BooleanError::ClassificationInvariant {
-                    what: "a partner's face has no carrier",
-                })
-        }
+        move |face| sectors::FaceShape::of_face(body, face, "a partner's face has no carrier")
     };
     let mut read = Vec::with_capacity(touches.len() + paired.len());
     for (&(operand, vertex), touch) in &touches {
@@ -8717,14 +8758,19 @@ mod tests {
                 face,
                 band,
             },
-            BooleanError::CurvedEdgeUnsupported {
+            BooleanError::EdgeCarrierUnsupported {
                 operand: Operand::B,
                 edge,
+                face,
+                face_of: Operand::B,
+                site: EdgeCarrierSite::RingRun,
             },
-            BooleanError::CrossingCarrierUnsupported {
+            BooleanError::EdgeCarrierUnsupported {
                 operand: Operand::A,
                 edge,
                 face,
+                face_of: Operand::B,
+                site: EdgeCarrierSite::PlanarCrossing,
             },
             BooleanError::PointSplitCarrierUnsupported {
                 operand: Operand::A,
@@ -8823,6 +8869,10 @@ mod tests {
             BooleanError::PinchRaysInAFace {
                 operand: Operand::A,
                 face,
+            },
+            BooleanError::TangentCrescentUnsupported {
+                a_face: face,
+                b_face: face,
             },
             BooleanError::CrossingsAlongAContactLine {
                 a_vertex: VertexKey::default(),
@@ -9057,8 +9107,7 @@ mod tests {
                 BooleanErrorKind::CurvedPierceUnsupported => "CurvedPierceUnsupported",
                 BooleanErrorKind::CrossingAtConeApex => "CrossingAtConeApex",
                 BooleanErrorKind::NormalAtConeApex => "NormalAtConeApex",
-                BooleanErrorKind::CurvedEdgeUnsupported => "CurvedEdgeUnsupported",
-                BooleanErrorKind::CrossingCarrierUnsupported => "CrossingCarrierUnsupported",
+                BooleanErrorKind::EdgeCarrierUnsupported => "EdgeCarrierUnsupported",
                 BooleanErrorKind::PointSplitCarrierUnsupported => "PointSplitCarrierUnsupported",
                 BooleanErrorKind::GermEdgeCarrierUnsupported => "GermEdgeCarrierUnsupported",
                 BooleanErrorKind::ArcLoopContainmentUnsupported => "ArcLoopContainmentUnsupported",
@@ -9082,6 +9131,7 @@ mod tests {
                 BooleanErrorKind::PairingMismatch => "PairingMismatch",
                 BooleanErrorKind::SharedVertexCrossings => "SharedVertexCrossings",
                 BooleanErrorKind::PinchRaysInAFace => "PinchRaysInAFace",
+                BooleanErrorKind::TangentCrescentUnsupported => "TangentCrescentUnsupported",
                 BooleanErrorKind::CrossingsAlongAContactLine => "CrossingsAlongAContactLine",
                 BooleanErrorKind::VertexReadTwice => "VertexReadTwice",
                 BooleanErrorKind::PartnerAlongFace => "PartnerAlongFace",

@@ -2,10 +2,11 @@
 id: a-pair-booleans-tied-corner-is-split-as-one-corner
 kind: issue
 title: The pair boolean groups an operand corner's copies by name, so a tied corner's candidates are split as one corner
-status: open
+status: closed
 opened: 2026-10-25
 priority: P2
 cost: M
+closed: 2026-10-26
 ---
 
 
@@ -43,3 +44,20 @@ member corners it sits at, so each candidate is its own corner.
   `name_corner_copies` where that is possible.
 - The union side has no witness either: the same fixture, met through a
   union, would be one.
+
+## Closed (2026-10-26, sweep follow-up)
+
+Fixed by PR 5732 (merge `94f46f49`, commit `5b3c7c96`: "its corner pass
+keys a corner by candidate"). On main `name_boolean_vertices` keys
+`corners` by `(StableName, Candidate)`
+(`crates/editor-core/src/names/emit_topo.rs:2816`, the entry at
+`:2849`), so a tied name's candidates are corners apart, and the pass
+shares its body with the union's end pass (`name_corner_copies`). The
+fixture the row asked for is
+`a_tied_corners_candidates_are_named_apart_wherever_they_lie`
+(`emit_topo.rs:8604`), in `x − y` over a void, both of the row's cases:
+two whole corners tied in `x`'s table name one tied row under the bare
+name, and with the apex (held as two vertices) tied to a whole corner,
+the apex's copies are `Fragment(Borders)` and the whole corner keeps the
+bare name. The union-side witness the row also asked for was not built; the
+union already keyed by member corner before this row was filed.

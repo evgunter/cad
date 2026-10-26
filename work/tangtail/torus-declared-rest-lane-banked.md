@@ -2,7 +2,7 @@
 id: torus-declared-rest-lane-banked
 kind: issue
 title: Banked - the torus declared-Rest lane (lily wall 1's retirement path), deferred by ruling on #966
-status: open
+status: deferred
 opened: 2026-08-23
 github: 968
 refs: [966, 1477, 1488, 1489]
@@ -63,3 +63,18 @@ Waits on `intent-stage4-is-built`, not on the whole program: the remainder is th
 ## Released by INTENT stage 4 E (`intent/s4-e-glue-on-zero`) (2026-10-09)
 
 E makes torus pairs glue on their verdicts. A torus pair the carrier ladder decides one carrier is declared by the glue door (`crates/topo/src/boolean/glue.rs:72`–`:78`; `face_carrier` reads a torus, `crates/topo/src/boolean/carrier_pair.rs:230`). A G1 rim verifies as a seam through `rim_wedge::shared_rim` (`glue.rs:98`). The kissing arm this row banks is still unbuilt. Away from a shared rim, the glue door asks the witness lane of plane and cylinder pairs only (`glue.rs:113`), so a torus × torus kiss has no witness and nothing glues it. The lily's stem waits on `a-torus-seam-graze-needs-the-rim-root-deflated`. Still banked under Ev's #966 ruling.
+
+## Deferred (2026-10-26, tracker sweep)
+
+Set `deferred`, which is what this row has been since it was filed. Ev's
+ruling on #966 is the ratification ("we can defer for now, assuming
+this remains recorded to pick up later"), and the plan already listed the
+row as deferred by that ruling. Its "declared-Rest lane" no longer
+exists: stage 4 E and F retired boolean declarations. What it still
+banks is the torus × torus kissing arm away from a shared rim. The glue
+door has no witness for it: its tangency witness reads plane and
+cylinder pairs, plus pairs ending on one circle
+(`crates/topo/src/boolean/glue.rs:110-141`, `ruled` at `:145`). Reopen
+the row when a consumer claims that arm. The lily's stem is the standing
+demand.
+

@@ -510,20 +510,15 @@ pub enum PropsError {
         check: PropsCheck,
     },
     /// The certified quadrature's enclosure did not tighten to the
-    /// reporting target before its lane stopped at the work wall (M5 PR
-    /// 11; the [`quad`] module docs give the rule and the stop, and
-    /// `topo`'s reporting adapter the target's metering). A lane that
-    /// stopped at its floor is [`Self::QuadratureFloor`].
-    /// Certified bounds or typed refusal — never a silently wide
-    /// answer. Both payloads are LENGTHS (mean boundary displacement),
-    /// the same metering as tier 3's volume check.
-    ///
-    /// Two-tolerance shape, stated: the in-band twin of this refusal is
-    /// [`PropsError::Escalated`] on `props_quad_converged` (a margin
-    /// close to the target at the round the lane stops escalates
-    /// through the funnel); this arm is the *definite* "the enclosure
-    /// sits above the target" outcome. The recourse is the ε knob: the
-    /// target scales with the run's ε.
+    /// reporting resolution before its lane stopped at the work wall (M5
+    /// PR 11; the [`quad`] module docs give the rule and the stop, and
+    /// `topo`'s number doors the resolution). A lane that stopped at its
+    /// floor is [`Self::QuadratureFloor`]. Certified bounds or typed
+    /// refusal — never a silently wide answer. Both payloads are LENGTHS
+    /// (mean boundary displacement), the same metering as tier 3's volume
+    /// check. A resolution is a sizing, so the width is compared with it
+    /// and nothing is decided: there is no in-band twin. The recourse is
+    /// the ε knob: the resolution scales with the run's ε.
     QuadratureBudget {
         /// The width of the narrowest enclosure the lane reached, as a
         /// length (m). The narrowest round is chosen by flux width, so
@@ -979,41 +974,6 @@ mod tests {
         for msg in [&definite, &in_band] {
             assert!(!msg.contains("declare"), "{msg}");
         }
-    }
-
-    /// **A last round's zero, which the convergence gate rejects, ends in
-    /// the last resort at rest.** `converged` re-asks a last-round `Zero`
-    /// through `decide_positive`, so the escalation carries the gate's
-    /// rejected zero; the meter is the enclosure's own width, so that
-    /// rejection is the kernel's approximation limit
-    /// ([`PropsCheck::Converged`]), never a stored contradiction. Red if
-    /// [`Unsized::Fit`] ends a gate's rejected zero as its definite arm.
-    #[test]
-    fn a_last_rounds_rejected_zero_ends_in_the_last_resort() {
-        let band = geom_core::Band::new(1e-9, 1e-8).unwrap();
-        let cause = geom_core::k_stats::decide_positive(
-            "props_quad_converged",
-            geom_core::Margin::of(5e-10),
-            band,
-        )
-        .unwrap_err();
-        assert_eq!(
-            cause.margin.rejected_sign(),
-            Some(geom_core::Sign::Zero),
-            "tagged"
-        );
-        assert_eq!(
-            PropsError::Escalated {
-                cause,
-                check: PropsCheck::Converged,
-            }
-            .to_string(),
-            format!(
-                "whether the quadrature's enclosure has converged is undecided: margin 5e-10 lies \
-                 within the zero band (±1e-9). {}",
-                geom_core::KERNEL_LIMIT_RECOURSE
-            )
-        );
     }
 
     /// **The in-band arm's ending follows its CHECK, not its predicate

@@ -352,7 +352,7 @@ fn violations_against(
 /// asked to accept — that one re-exec per adopting file is affordable —
 /// and the order of magnitude is what that decision turns on, which is
 /// why an exact byte count is not written down here. This is the third
-/// case in `work/guard/measurements-have-no-mechanical-guard.md`:
+/// case in `work/unread/measurements-have-no-mechanical-guard.md`:
 /// unguardable, with the reason written down.
 ///
 /// # Where the row's name comes from

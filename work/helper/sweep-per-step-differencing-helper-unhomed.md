@@ -51,4 +51,4 @@ consumer under either — but whoever settles it should settle it in the
 module header rather than per-fixture, because the module's current
 population is evidence that the looser reading is the one in force.
 
-Related, on this slate: `work/tint/sweep-boolean-suite-brick-and-prism-copies.md`.
+Related: `work/fixture/sweep-boolean-suite-brick-and-prism-copies.md`.

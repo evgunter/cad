@@ -74,5 +74,5 @@ both scalars under the reference. The frontier row moved: the degree-5
 near-cusp frontier is re-cut at y = 0.1.
 
 The sweep's other "has weights ⇒ rational" sites went onto
-`work/iso/rational-gates-test-unit-weights-not-constancy.md`; the
+`work/isotail/rational-gates-test-unit-weights-not-constancy.md`; the
 `Dual` residue is `the-integral-speed-meter-drops-a-dual-weights-tangent`.

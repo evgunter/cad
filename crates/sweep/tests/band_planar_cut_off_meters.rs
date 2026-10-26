@@ -532,7 +532,7 @@ fn far_walled_request(
 /// outside the tube. So `reach::screened`, which reads vertices, finds
 /// the far side vacant although an edge of the face lies across the
 /// line within the tube: the witness of
-/// `work/band/the-strip-screen-reads-a-supports-vertices-not-its-edges.md`'s
+/// `work/bandreach/the-strip-screen-reads-a-supports-vertices-not-its-edges.md`'s
 /// premise. Alone and with a second tab's tip a chain apart, pocket and
 /// boss, both verbs, the band builds at the prism closed form at apex
 /// `0.09`; at `0.08` the sampled screen reads the bump off its two

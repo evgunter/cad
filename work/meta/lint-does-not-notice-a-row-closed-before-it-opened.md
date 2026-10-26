@@ -2,8 +2,9 @@
 id: lint-does-not-notice-a-row-closed-before-it-opened
 kind: issue
 title: work.py lint resolves references and measures territory but never compares closed against opened, so a row closed before it opened passes
-status: open
+status: closed
 opened: 2026-09-13
+closed: 2026-10-26
 priority: P3
 cost: E
 ---
@@ -75,3 +76,18 @@ and `dt.date.today()` is already imported for `work.py new`), and
 whether `opened` should be checked against the file's add-date in git
 — which would have caught this one at filing, but couples lint to
 history and is a different, heavier instrument.
+
+## Closed (2026-10-26, tracker sweep)
+
+**Fixed in this sweep.** `scripts/work.py` `lint` now errors on
+`closed < opened`, naming both dates (~:600: "closed X is before opened
+Y — one of the two dates is wrong"), and `--selftest` gains a
+`("closed before opened", …)` mutation on the fixture's `T-1` (~:1225).
+Mutation-checked: with the comparison disabled the selftest reds on it.
+The tree has no such row today.
+
+The two adjacent questions, answered rather than inherited: a FUTURE
+date is not checked (lint runs on every box with that box's clock, and
+nothing has gone wrong that way), and `opened` is not checked against
+the file's git add-date (that couples lint to history and reads wrong in
+the shallow clones every agent works in).

@@ -2,11 +2,12 @@
 id: edge-cost-claims-name-a-search-that-is-gone
 kind: issue
 title: Two cost paragraphs describe a name search the window index replaced
-status: open
+status: closed
 opened: 2026-09-04
 refs: [1768]
 priority: P4
 cost: E
+closed: 2026-10-26
 ---
 
 Found by CHROME's style lane on PR 1768. The Q4 case: the code moved
@@ -90,3 +91,7 @@ argument `edge_segments` used to point at.
 
 **Renamed (AUTH-14, 2026-09-30):** the walk is `marks::HeldEdges::mark`,
 which also carries the index's refusal for a drawn edge with no name.
+
+## Closed (2026-10-26, tracker sweep)
+
+**Fixed in this sweep.** `blend.rs`'s paragraph went with `BlendTool::mark_segments` (AUTH-10). The surviving sentence is `marks::HeldEdges::mark`'s doc (`crates/viewer/src/marks.rs`, ~`:215`). It said each `edge_segments` search was *`O(E²)` name comparisons*. It now says the search looks the name up in the index's name map and then scans the body's edge window for its ids, so it costs `O(E²)` **id** comparisons. That is `PartWindows::of_target` (`pickindex.rs:841`): `of_name` (a `BTreeMap` get), then `scope.contains` over the window. `edge_segments`'s own doc (`marks.rs`, ~`:506`) now says it searches the target's edge window for the name's ids, not for the name. The conclusion, one walk for a set, is unchanged.

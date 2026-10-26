@@ -2,11 +2,12 @@
 id: the-readme-splits-camera-rs-across-two-decision-rows
 kind: issue
 title: crates/viewer/README.md now describes src/camera.rs in two Where-in-the-code rows and neither inventory is complete
-status: open
+status: closed
 opened: 2026-09-06
 refs: [2089]
 priority: P4
 cost: E
+closed: 2026-10-26
 ---
 
 
@@ -53,3 +54,7 @@ this is worth a sentence in the table's preamble — *"a file may appear
 under more than one decision and each row lists only that decision's
 members"* — rather than an edit to either row. `unsure` whether anyone
 but a reviewer reads the table this way.
+
+## Closed (2026-10-26, tracker sweep)
+
+**Fixed in this sweep**, in the shape this row's *Confidence* section preferred: one sentence in the table's preamble instead of an edit to either row. `crates/viewer/README.md`'s *Where in the code* now opens by saying that a file may appear under more than one decision and that each row lists only that decision's members of it. It takes `src/camera.rs` under G1 layer 3 and GQ7 as its example.

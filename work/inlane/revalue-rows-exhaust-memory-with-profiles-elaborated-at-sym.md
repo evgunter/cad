@@ -2,12 +2,13 @@
 id: revalue-rows-exhaust-memory-with-profiles-elaborated-at-sym
 kind: issue
 title: With the pinned lift retired, revalue_corpus's boss_union row exhausts a 16 GB runner at Sym, and five other rows hold several GB each
-status: review
+status: closed
 pr: 5068
 opened: 2026-10-15
 priority: P1
 cost: M
 refs: [the-pinned-profile-lift-launders-at-sym, the-top-residual-reduction-dominates-a-discharging-session-over-symbolic-frames]
+closed: 2026-10-26
 ---
 
 
@@ -111,3 +112,7 @@ the lane, the profiles move:
 - `boss_union` decides `chart_bound_outer_span` three times on a NaN
   margin. A NaN margin is a domain violation, which no session
   discharges.
+
+## Closed (2026-10-26)
+
+Fixed by PR 5068, merged 2026-10-19 (`paths/sketch-plane-is-its-frame`). This row stayed in `review` after that merge. Its `## The fix` section is what that PR landed: the row records its builds in a deferring session, the session `coincide/replay.rs` replays in, with no escalation over a real margin. Every row runs in at most 3 s and about 110 MB, and the parting rows are re-pinned (`revalue_plate_param_apart_to_its_parting`, `revalue_boss_union_apart_to_its_parting`, named in the PR's M2). The `revalue_corpus` rows stand in editor-core's slow set (`.config/nextest.toml:32`), which the nightly runs.

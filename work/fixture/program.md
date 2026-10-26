@@ -1,7 +1,7 @@
 ---
 id: fixture
 kind: program
-title: FIXTURE — one body, box or cube spelled n times across the suites
+title: FIXTURE — one body, fixture or helper spelled n times across the suites
 status: ready
 opened: 2026-09-20
 area: infra
@@ -17,7 +17,11 @@ five; the bare-topology ops cube at four; `prism_z`'s construction
 written out again elsewhere; the four-box `notched_beams` fixture
 verbatim in two files; the two-vertex bulge-1 circle section
 hand-written in eight sweep suites; three crates' `tests/common` each
-carrying the same six body fixtures.
+carrying the same six body fixtures. Since 2026-10-26 it also holds
+SUITE's last three rows (SUITE folded in; `docs/doc-ledger/suite-leaves-the-tracker.md`):
+a `fn band()` wrapper per suite, nine copies of one assertion block, and
+four hand-copied seam wait loops. These are test helpers copied instead
+of shared, the same class one level up from a fixture.
 
 P4 and cheap, and that is the point of gathering them: they are a
 standing tax on every suite that grows, none of them is urgent, and

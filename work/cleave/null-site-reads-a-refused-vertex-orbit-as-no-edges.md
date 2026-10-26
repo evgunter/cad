@@ -2,11 +2,12 @@
 id: null-site-reads-a-refused-vertex-orbit-as-no-edges
 kind: issue
 title: null_site reads a vertex whose orbit the door refuses as a vertex with no edges, and drops that vertex's null ties without a word
-status: open
+status: closed
 opened: 2026-10-03
 priority: P3
 cost: E
 refs: [vertex-orbit-reads-no-start-vertex]
+closed: 2026-10-26
 ---
 
 
@@ -42,3 +43,7 @@ error type), so that each caller refuses with its own corrupt-operand
 error when a vertex of the site cannot be read. That is a signature
 change in `chord_join.rs` and `boolean/join.rs`. It was filed rather
 than done because neither file is topo's ground.
+
+## Closed (2026-10-26)
+
+Fixed by PR 4056 (`c5d12a9fc7`): `chord_join::null_site` returns `Result<Vec<VertexKey>, StaleSite>`, reads `edges_of_vertex_linked`, and each caller refuses a vertex that does not resolve under its own invariant kind with `StaleSite::WHAT`, the shape this row asked for. (CLEAVE slate triage)

@@ -2,10 +2,11 @@
 id: viewer-lib-marker-claims-the-log-carries-its-sentence
 kind: issue
 title: viewer/src/lib.rs's loud-skip marker says to read it as a sentence the log carries; the gating log carries its name, not its sentence
-status: open
+status: closed
 opened: 2026-09-15
 priority: P4
 cost: E
+closed: 2026-10-26
 ---
 
 
@@ -55,3 +56,7 @@ reach, so the tenth can match:
 The `#[cfg]`-gated markers as a class are
 `work/tint/loud-skip-marker-is-a-hand-kept-idiom`; the channel itself is
 `work/ciw/gating-nextest-jobs-discard-every-passing-tests-stdout`.
+
+## Closed (2026-10-26, tracker sweep)
+
+**Fixed in this sweep.** `crates/viewer/src/lib.rs`'s doc on `app_lane_skipped_no_app_feature_coverage_here` (~`:128`) no longer says *Read it as a sentence the log carries*. It now says only the row's NAME travels, because every gating `cargo nextest run` discards a passing test's stdout, so the line is read on a local run and nowhere else. That matches TINT-2's wording on the other markers.

@@ -252,3 +252,40 @@ fn a_difference_leaving_a_cusp_along_the_ruling_builds() {
         );
     }
 }
+
+/// **The same cusp against a box tangent to the wall builds.** The line
+/// body is the rod with the box `x ∈ [1, 1.5]`, `y ∈ [0, 0.5]`,
+/// `z ∈ [0.5, 1.5]`, whose face `x = 1` is the wall's tangent plane
+/// along the ruling; the tool is `60°..120°` over `z ∈ [0.2, 1.8]`.
+/// `tool ∖ line` keeps the tool outside the disc over its height, less
+/// its part at `x ≥ 1` (all of it inside the box, and outside the disc)
+/// over the box's: that part runs from the ruling to the `60°` side, up
+/// to the tool's far side at `y = LEN·sin 60°`.
+#[test]
+fn a_difference_leaving_a_cusp_beside_a_tangent_box_builds() {
+    let top = LEN * 60f64.to_radians().sin();
+    let outside = 0.5 * LEN * LEN * 60f64.to_radians().sin() - area_in_disc(60.0, 120.0);
+    let in_box = top * top / (2.0 * 60f64.to_radians().tan());
+    // The pose and its mirror in `y = 0`, each box wound counter-clockwise.
+    for (pose, (y0, y1), (ta, tb)) in [
+        ("above", (0.0, 0.5), (60.0, 120.0)),
+        ("mirror", (-0.5, 0.0), (-120.0, -60.0)),
+    ] {
+        let v = |x: f64, y: f64| (Point2::new(x, y), 0.0);
+        let block = prism_at(
+            vec![v(1.0, y0), v(1.5, y0), v(1.5, y1), v(1.0, y1)],
+            0.5,
+            1.0,
+            t(),
+        );
+        let line = match topo::union(&rod(), &finished("the box", block, t()), t()).unwrap() {
+            BooleanResult::Body(r) => r.body,
+            other => panic!("{pose}: the line body: {other:?}"),
+        };
+        builds_at(
+            &format!("{pose}: tool ∖ line"),
+            topo::subtract(&wedge(ta, tb, 0.2, 1.6), &line, t()),
+            outside * 1.6 - in_box * 1.0,
+        );
+    }
+}

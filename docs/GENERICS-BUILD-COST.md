@@ -401,8 +401,9 @@ Shape of the change, for anyone doing something similar:
 * `docs/DESIGN.md` Q1 ratifies the instantiation set as "`f64`,
   `Interval`, `Dual<f64>`, `Dual<Interval>`" — **`Probe` is not in it**,
   so the gate reopened no ratified decision.
-* The consumer is `scripts/k_probe_sweep.sh` (feeding the live `k-lint`
-  gate against the committed baselines in `docs/k-report-data/`); it opts
+* The consumer is `scripts/k_probe_sweep.sh` (feeding the `k-lint`
+  rows, which lint the fresh sweep and compare it against no committed
+  file — `docs/k-report-data/README.md`, rule 2); it opts
   in. `demos/tour` gained the feature too, gating its `k-probe` mode —
   that is where a real share of the win is, since `render.yml` builds the
   tour at `--release` twice per run and never invokes it.

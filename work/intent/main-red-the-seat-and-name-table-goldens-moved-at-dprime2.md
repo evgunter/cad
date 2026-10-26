@@ -2,10 +2,12 @@
 id: main-red-the-seat-and-name-table-goldens-moved-at-dprime2
 kind: issue
 title: main red: five committed goldens (seat4 blend and boolean, seat7 sweep, seat8 split digests; m4_pr3 die name-table digest) moved at PR 5613 (D′2) and were not re-pinned
-status: open
+status: parked
 opened: 2026-10-25
 priority: P1
 cost: E
+rides_with: assemble-is-an-operator-and-the-product-is-a-slot
+blocked_on: [assemble-is-an-operator-and-the-product-is-a-slot]
 ---
 
 
@@ -45,3 +47,7 @@ Two cases:
   and the PR that does it says what moved and why.
 - If it did not, the body or the name table it changed is found and
   fixed.
+
+## One more failure on main (CLEAVE, 2026-10-26)
+
+`crates/editor-core/tests/intent_s2_c_world.rs`, `the_migrated_world_is_the_pre_c_product`, fails on main at `bc060f246f` with "cut_cylinder: the product moved d2acb2b37c5273db/28". CLEAVE's PR 5545 lane measured it while running editor-core in full, and it fails the same on main without the branch. The same lane saw `m4_pr3_names_ci::die_name_tables_are_golden` at digest `0x7fb3623b41caf7c9`, which this row already lists. This row does not yet say whether the cut-cylinder golden moved for the same reason as the name tables.

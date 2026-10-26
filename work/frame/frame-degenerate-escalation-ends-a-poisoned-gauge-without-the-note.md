@@ -2,10 +2,11 @@
 id: frame-degenerate-escalation-ends-a-poisoned-gauge-without-the-note
 kind: issue
 title: geom-core frame: FrameError::Degenerate's escalation ends a poisoned margin in the lever with no unreadable-margin note
-status: open
+status: closed
 opened: 2026-10-13
 priority: P3
 cost: E
+closed: 2026-10-26
 ---
 
 
@@ -22,3 +23,7 @@ The decision is a frame input's direction length, a gauge and no size the user c
 ## Repair shape
 
 Switch it to `i.lever_ending(COINCIDENCE_RECOURSE)`. Pin it on a poisoned margin, at an enclosure if one is constructible, else through `k_stats::decide`, as `rigid_motion.rs`'s `an_undecided_check_ends_in_the_lever_and_notes_a_poisoned_margin` does.
+
+## Closed (2026-10-26, easy-fixes lane)
+
+`crates/geom-core/src/linalg/frame.rs` `FrameError`'s `Display`, the `Degenerate { indeterminate: Some(i), .. }` arm, now ends in `i.lever_ending(COINCIDENCE_RECOURSE)`. Pinned by `frame::tests::a_degenerate_escalation_ends_in_the_lever_and_notes_a_poisoned_margin`, through `k_stats::decide` as the row allows: an in-band margin ends in the lever alone, and a NaN margin ends in the lever followed by `UNREADABLE_MARGIN_NOTE`. No enclosure fixture was built. Verified: `cargo nextest run -p geom-core --lib -E 'test(/poisoned_margin|frame::|unit_vec::/)'`, 27 passed.
