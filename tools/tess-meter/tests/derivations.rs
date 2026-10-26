@@ -694,9 +694,11 @@ fn the_split_scan_resolves_the_aspect_ratios_its_constants_promise() {
         "the split scan's sampling step leaves up to {:.5}% on the unfloored class, \
          over the {:.5}% a tenth of the slack gate's margin allows — \
          SPLIT_SCAN_DECADES = {SPLIT_SCAN_DECADES} over SPLIT_SCAN_SAMPLES = \
-         {SPLIT_SCAN_SAMPLES} is too coarse a step",
+         {SPLIT_SCAN_SAMPLES} is too coarse a step ({:.17e} against {:.17e})",
         100.0 * closed,
-        100.0 * unfloored_ceiling()
+        100.0 * unfloored_ceiling(),
+        closed,
+        unfloored_ceiling()
     );
     for (name, shape, muu, muv, mvv) in SPLIT_SCAN_FAMILY {
         let b = unseeded(muu, muv, mvv);
@@ -832,17 +834,22 @@ fn the_shipped_sample_count_is_the_smallest_whose_envelope_fits() {
         here <= growth_margin(),
         "the one-sided envelope at ({SPLIT_SCAN_DECADES}, {SPLIT_SCAN_SAMPLES}) is \
          {:.4}%, over the {:.4}% the slack gate allows in whole — the sample count \
-         no longer buys the resolution its own docs license it by",
+         no longer buys the resolution its own docs license it by ({:.17e} against \
+         {:.17e})",
         100.0 * here,
-        100.0 * growth_margin()
+        100.0 * growth_margin(),
+        here,
+        growth_margin()
     );
     let coarser = one_sided_envelope(SPLIT_SCAN_DECADES, SPLIT_SCAN_SAMPLES - 1);
     assert!(
         coarser > growth_margin(),
-        "one sample FEWER would also fit ({:.4}% against {:.4}%): \
-         SPLIT_SCAN_SAMPLES is documented as the smallest count that fits and is not",
+        "one sample FEWER would also fit ({:.4}% against {:.4}%, {:.17e} against \
+         {:.17e}): SPLIT_SCAN_SAMPLES is documented as the smallest count that fits and is not",
         100.0 * coarser,
-        100.0 * growth_margin()
+        100.0 * growth_margin(),
+        coarser,
+        growth_margin()
     );
 }
 
@@ -905,17 +912,21 @@ fn the_ceild_excess_can_exceed_the_one_sided_envelope() {
         excess > envelope,
         "the exhibit leaves {:.4}% on the `ceil`'d count, inside the {:.4}% one-sided \
          envelope — the envelope would then be a bound on the quantity the gate reads, \
-         and SPLIT_SCAN_DECADES' docs say it is not",
+         and SPLIT_SCAN_DECADES' docs say it is not ({:.17e} against {:.17e})",
         100.0 * excess,
-        100.0 * envelope
+        100.0 * envelope,
+        excess,
+        envelope
     );
     assert!(
         excess > growth_margin(),
         "the exhibit leaves {:.4}% on the `ceil`'d count, inside the slack gate's whole \
          {:.4}% margin — D206 is recorded as having left that reachable by the \
-         instrument alone, and this row is the exhibit for it",
+         instrument alone, and this row is the exhibit for it ({:.17e} against {:.17e})",
         100.0 * excess,
-        100.0 * growth_margin()
+        100.0 * growth_margin(),
+        excess,
+        growth_margin()
     );
 }
 
@@ -956,9 +967,11 @@ fn the_split_scan_guard_reds_on_a_narrow_range_and_on_a_coarse_step() {
     assert!(
         coarse > unfloored_ceiling(),
         "claim 2 no longer reds: 40 decades at {SPLIT_SCAN_SAMPLES} samples leaves \
-         {:.5}%, which the {:.5}% ceiling should refuse",
+         {:.5}%, which the {:.5}% ceiling should refuse ({:.17e} against {:.17e})",
         100.0 * coarse,
-        100.0 * unfloored_ceiling()
+        100.0 * unfloored_ceiling(),
+        coarse,
+        unfloored_ceiling()
     );
 }
 

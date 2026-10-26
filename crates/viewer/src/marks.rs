@@ -213,8 +213,9 @@ impl HeldEdges<'_> {
     /// pass over the body's drawn edges testing membership per edge —
     /// and the index's refusal when some of those edges have no name.
     ///
-    /// Not one [`edge_segments`] search per held name, which scans the
-    /// body's whole edge run each time — `O(E²)` name comparisons every
+    /// Not one [`edge_segments`] search per held name, which looks the
+    /// name up in the index's name map and then scans the body's whole
+    /// edge window for its ids each time — `O(E²)` id comparisons every
     /// frame on a body with `E` edges. The narrowing is a single
     /// selection's: scoped to (node, body), empty for a body this index
     /// does not draw or the display hides, and silent about a held name
@@ -503,9 +504,9 @@ pub fn edge_overlay(
 /// renderer consumes — the conversion [`edge_overlay`] is built from.
 ///
 /// Scoped to the selection's own (node, body), empty for a name this
-/// index does not draw there. It SEARCHES the target's edge run for
-/// the name, so a SET is marked through [`HeldEdges::mark`], which
-/// walks the run once.
+/// index does not draw there. It SEARCHES the target's edge window
+/// for the name's ids, so a SET is marked through
+/// [`HeldEdges::mark`], which walks the run once.
 pub fn edge_segments(
     index: &PickIndex,
     display: &DisplayView,

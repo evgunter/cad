@@ -113,7 +113,9 @@ use geom_core::spline::{
 };
 
 /// The fixed piece count of the RATIONAL arm: every nonempty span of
-/// every direction is read on this many equal pieces (module docs). A
+/// every direction is read on this many equal pieces (module docs).
+/// **Certificate resolution** (`crates/mesh/README.md`): it sets how
+/// tight the rational bound is, and sizes no mesh directly. A
 /// CONSTANT (D9: structure, never a data-dependent iteration), and this
 /// arm's own: `geom::curves`' rational meters count their pieces by
 /// their own constant, which prices one curve bound against the

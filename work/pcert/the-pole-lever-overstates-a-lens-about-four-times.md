@@ -44,9 +44,10 @@ times:
 over-levered pair lands in the band or decides correctly.
 
 **Why nothing rides on it today.** A non-meridian circle's chart image
-on a sphere is projected (`geom_brep::chart_pcurve`'s `SphereGeneral`
-path), and the walk refuses a FITTED image
-(`run_azimuth_images`, after `chart_azimuth_range`). So no answer
+on a sphere is projected (`geom_brep::chart_pcurve`'s general lane,
+`Underived::General` since PCERT E1), and the walk refuses a projected
+image as "not yet" (`run_azimuth_images`, after `chart_azimuth_range`,
+`SplitJoinError::RunImageNotYet`). So no answer
 depends on the meter's curved-edge reading.
 
 **The design question, if curved pole edges ever become reachable.**

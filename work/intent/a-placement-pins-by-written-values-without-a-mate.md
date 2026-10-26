@@ -8,6 +8,7 @@ priority: P0
 cost: H
 refs: [transform-retires-into-a-placement]
 blocked_on: [assemble-is-an-operator-and-the-product-is-a-slot]
+rides_with: assemble-is-an-operator-and-the-product-is-a-slot
 ---
 
 **Spec:** `docs/INTENT-STAGE3-SPEC.md` §5′, restated on PR 5494's rulings against main at `4a4bb23608`; where this body and §5′ differ, §5′ governs. The design is ruled: PR 5494 (fork-log rows 189–191; Ev 2026-10-22, "it looks good!!") answered §5′'s Q1, Q2, Q3 and Q5, and the orchestrator's helpers ruling (2026-10-20, `work/intent/log.md`) answered Q4. This row is D′'s umbrella and closes when its three PRs have merged:

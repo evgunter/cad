@@ -27,7 +27,7 @@ RETIRED") has not been decided:
 
 `scripts/gates/bit-identity-consumer.sh` sees neither (it matches
 `bit_identity::|repr_bits|eq_bits`), and
-`work/guard/the-bit-identity-consumer-gate-cannot-see-a-to-bits-read-of-bounds.md`
+`work/blind/the-bit-identity-consumer-gate-cannot-see-a-to-bits-read-of-bounds.md`
 widens it to `Bounds` accessors only.
 
 ## Not these
