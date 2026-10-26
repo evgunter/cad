@@ -106,9 +106,11 @@ Pads across rotations of the stored face list, measured, and pinned at
 | | 1e-9 | | 1.0000067× |
 | | 1e-12 | | 1.0077× |
 
-A body these rules do not reach is filed as
+What these rules do not reach is filed as
 `work/flux/a-long-plane-face-cut-by-a-torus-reads-a-wide-pad-about-a-point-off-its-plane.md`:
-a torus astride the bar's end edge reads 1170× across rotations at
-1e-12, all of it one long plane face's area width levered by the shell's
-point's distance off its plane.
+a long plane face that takes the quadrature, read about a point off its
+plane. That covers one region still spanning a bar, as two tori on its
+top face 890 m apart make it (B2 of PR 5801's review, 74.6× at 1e-12), as
+well as a single torus on the top face near home (B6, 69.9×) and one
+astride the bar's end edge (1170×).
 

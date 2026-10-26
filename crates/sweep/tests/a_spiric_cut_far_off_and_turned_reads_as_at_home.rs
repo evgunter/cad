@@ -434,6 +434,52 @@ fn a_shell_joined_along_a_long_face_reads_alike_whichever_face_it_stores_first()
     }
 }
 
+/// B5: the home torus, one astride the bar's end edge at `(−0.7, 0, 5)`,
+/// cutting the end cap and the top face, and one on the top face near the
+/// far end, `torus(2, 0.5)` each.
+fn a_torus_astride_the_end_edge_and_one_far_on_top() -> topo::Body<f64> {
+    tori_on_the_bar(&[
+        (2.0, 0.5, Vec3::new(0.0, 0.0, 0.0)),
+        (2.0, 0.5, Vec3::new(-0.7, 0.0, 5.0)),
+        (2.0, 0.5, Vec3::new(-895.0, 0.0, 5.7)),
+    ])
+}
+
+/// **The faces a circle joins stay regions of their own** (review of PR
+/// 5801's B5). A torus astride the bar's end edge cuts the end cap and the
+/// top face, and the home torus's walls meet each other along circles. A
+/// region joined across those circles too spans the bar with the far
+/// torus's: pads 186× apart across the 16 rotations at 1e-6. Joined only
+/// across what `loop_vector_area` does not read, the pads are 2.52×,
+/// 2.83× and 80.8× apart at 1e-6, 1e-9 and 1e-12, the widest 8.55e-5,
+/// 3.35e-5 and 8.53e-7. What is left is the end-edge torus's long top
+/// face read about a point off its plane
+/// (`work/flux/a-long-plane-face-cut-by-a-torus-reads-a-wide-pad-about-a-point-off-its-plane.md`).
+/// Pinned within 1.1× of both.
+#[test]
+fn a_shell_whose_tori_meet_along_circles_keeps_each_torus_a_region() {
+    let tol = Tol::witness();
+    let (apart, widest) = match tol.eps() {
+        1e-6 => (2.52, 8.55e-5),
+        1e-9 => (2.83, 3.35e-5),
+        1e-12 => (80.8, 8.53e-7),
+        _ => {
+            test_utils::vacuity::stood_down(
+                "non-matrix eps",
+                "the pads are measured at the matrix rows",
+            );
+            return;
+        }
+    };
+    let pads = pads_over_rotations(&a_torus_astride_the_end_edge_and_one_far_on_top());
+    let max = pads.iter().copied().fold(0.0, f64::max);
+    let ratio = max / pads.iter().copied().fold(f64::INFINITY, f64::min);
+    assert!(
+        ratio <= 1.1 * apart && max <= 1.1 * widest,
+        "B5: pads {pads:?}, {ratio}× apart (pinned {apart}×), widest {max:e} (pinned {widest:e})"
+    );
+}
+
 /// The two tori on a bar's one shell, its two quadrature regions, and the
 /// far one's carry.
 fn far_region(body: &topo::Body<f64>) -> (Vec<topo::FaceKey>, geom_core::Interval) {
