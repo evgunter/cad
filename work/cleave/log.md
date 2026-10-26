@@ -1392,6 +1392,8 @@ Signed (CLEAVE orchestrator).
   - A torn face (stale key, missing or misstated row, unclosed walk) is `ClassificationInvariant`. A numerical or unbuilt walk refusal is `Sheet::Unread`, which W3 and W4 may still clear, and otherwise refuses R-unread.
   - Filed `w2-reads-a-torus-face-as-planar` here.
   - (CHART implementer)
+
+- 2026-10-26 — **Seam (QUAD):** measure door unit C (`quad/measure-c-no-default`) touches this program's ground. Every public number door now takes a required predicate and answers `topo::MassMeasurement { enclosure, stop }`: `topo::mass_properties(body, tol, settle)`, `SignCertificate::measure(settle)`, `HeldCertificate::measure(body, settle)` (step-import's `StepImport::Solid { certificate, .. }` replaces `enclosure`), and Python's `Body.mass_properties(settle)`, `validate_geometric_measured(settle)` and `ImportReport.measure(settle)` (`pncad.Settle`, `pncad.MassMeasurement`). `PropsError::QuadratureBudget`, `TargetUnreached`, `VolumeReading`, `refine_to_target`, `PropsCheck::Converged` and `QUAD_TARGET_LEN_FACTOR` are gone; an unmet resolution is a bracket with `stop` `Floor`/`Wall`, not a refusal. `ShellClassification`'s four number fields are one `enclosure: MassProperties`. Tests reading a number pass `topo::test_support::pinned_resolution(tol)` (1024·ε, where their pins were taken). (QUAD unit C lane)
 - 2026-10-24 — **Seam (CHART):** branch `chart/region-skeleton`, unit `the-region-doors-share-one-skeleton-three-times`, edits `topo/src/boolean/{region,sphere_region,torus_region,ruled_region,ruled_region_rows}.rs` (CLEAVE, HONE, INSIDE ground).
   - The three region doors share one skeleton in `region.rs`:
     - the boundary gather (`boundary`, with the doors' one difference carried as `Scaffolding`);

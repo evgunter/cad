@@ -183,7 +183,11 @@ fn phase_one_reread_and_the_rotation_claim_on_every_arc() {
 #[test]
 fn the_refusals_own_text_names_the_door_and_following_it_carves() {
     let source = sweep::test_support::finished("source", waisted(tol()), tol());
-    let before = mass_properties(&source, tol()).unwrap().volume;
+    let before = mass_properties(&source, tol(), topo::test_support::pinned_resolution(tol()))
+        .unwrap()
+        .met()
+        .expect("the pinned resolution is met")
+        .volume;
     let seed = arcs_at(&source, 1.0, 0.0)[0];
     let Err(refusal) = fillet_edges(&source, &[seed], 0.05, tol()) else {
         panic!("one arc stops at the seam vertex")
@@ -202,11 +206,11 @@ fn the_refusals_own_text_names_the_door_and_following_it_carves() {
     let out = fillet_edges(&source, &rim, 0.05, tol()).expect("the door's answer carves");
     assert_eq!(out.band_faces.len(), 1);
     validate_geometric(&out.body, tol()).unwrap();
-    let after = topo::mass_properties(
+    let after = topo::test_support::pinned_volume(
+        "the measured body",
         &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol()),
         tol(),
     )
-    .unwrap()
     .volume;
     assert!(after < before, "convex: material removed");
 }

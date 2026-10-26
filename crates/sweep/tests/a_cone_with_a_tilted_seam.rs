@@ -152,8 +152,7 @@ fn a_cone_with_a_tilted_seam_builds_its_true_body_or_refuses_typed() {
                     Ok(()),
                     "{what}: tier 3"
                 );
-                let v = topo::mass_properties(b, Tol::witness())
-                    .unwrap_or_else(|e| panic!("{what}: the volume: {e:?}"))
+                let v = topo::test_support::pinned_volume("the measured body", b, Tol::witness())
                     .volume;
                 assert!(
                     (v - want).abs() <= volume_tol(want),

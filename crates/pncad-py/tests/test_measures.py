@@ -65,6 +65,7 @@ from pncad import (
 )
 
 from placing import against, placed, assemble_world_copies
+from measuring import pinned
 
 SQUARE = [
     (Formula.length_in(0, m), Formula.length_in(0, m)),
@@ -855,14 +856,14 @@ class TestTheDocumentCarriesIt(unittest.TestCase):
         placements = doc.placements()
         self.assertIn(placed, placements)
         assemble_world_copies(doc)
-        before = pncad.product(doc, evaluate(doc)).mass_properties().volume
+        before = pinned(pncad.product(doc, evaluate(doc))).volume
         ev = evaluate(doc)
         doc.insert(
             Node.measure(MeasurePrimitive.distance((left, wall(ev, left)), (right, wall(ev, right))))
         )
         self.assertEqual(doc.placements(), placements)
         self.assertAlmostEqual(
-            pncad.product(doc, evaluate(doc)).mass_properties().volume,
+            pinned(pncad.product(doc, evaluate(doc))).volume,
             before,
             places=12,
         )
@@ -877,7 +878,7 @@ class TestTheDocumentCarriesIt(unittest.TestCase):
         placed = doc.placements()
         self.assertEqual(placed, [left, right])
         assemble_world_copies(doc)
-        before = pncad.product(doc, evaluate(doc)).mass_properties().volume
+        before = pinned(pncad.product(doc, evaluate(doc))).volume
         self.assertGreater(before, 0.0)
         ev = evaluate(doc)
         doc.insert(
@@ -885,7 +886,7 @@ class TestTheDocumentCarriesIt(unittest.TestCase):
         )
         self.assertEqual(doc.placements(), placed)
         self.assertEqual(
-            pncad.product(doc, evaluate(doc)).mass_properties().volume, before
+            pinned(pncad.product(doc, evaluate(doc))).volume, before
         )
 
 

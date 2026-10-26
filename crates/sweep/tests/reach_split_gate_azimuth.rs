@@ -382,7 +382,11 @@ fn split_and_check(
             );
             continue;
         };
-        let p = match topo::props::mass_properties(b, Tol::witness()) {
+        let p = match topo::props::mass_properties(
+            b,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
+        ) {
             Ok(p) => p,
             // The quadrature's own convergence decision in band: the
             // volume lane's limit, not the split's.
@@ -394,10 +398,10 @@ fn split_and_check(
             Err(e) => panic!("{what}, {side}: the half's volume refused: {e}"),
         };
         assert!(
-            (p.volume - oracle).abs() <= p.volume_pad + 1e-7 * s * s * s,
+            (p.enclosure.volume - oracle).abs() <= p.enclosure.volume_pad + 1e-7 * s * s * s,
             "{what}, {side}: {} ± {} against the slice integral's {oracle}",
-            p.volume,
-            p.volume_pad
+            p.enclosure.volume,
+            p.enclosure.volume_pad
         );
     }
     Ok(())

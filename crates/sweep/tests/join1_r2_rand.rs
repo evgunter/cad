@@ -188,7 +188,12 @@ fn r2_rand_seed2_case390() {
                         let t3 = topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol());
                         println!(
                             "[r2-390] {ord} {op}: BUILDS vol {:?} want {want}; t2 {:?}; t3' {:?}; cert {:?}",
-                            topo::mass_properties(&bb.body, tol()).map(|m| m.volume),
+                            topo::mass_properties(
+                                &bb.body,
+                                tol(),
+                                topo::test_support::pinned_resolution(tol())
+                            )
+                            .map(|m| m.enclosure.volume),
                             topo::validate_closed(&bb.body),
                             topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol()),
                             topo::validate_geometric_certificate(&bb.body, tol()).map(|_| ()),

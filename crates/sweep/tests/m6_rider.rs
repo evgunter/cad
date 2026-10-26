@@ -30,11 +30,12 @@ fn union(a: &Body<f64>, b: &Body<f64>, strategy: SweepStrategy) -> Result<f64, B
         strategy,
         Tol::witness(),
     )?;
-    Ok(
-        topo::mass_properties(&out.body().expect("a body").body, Tol::witness())
-            .unwrap()
-            .volume,
+    Ok(topo::test_support::pinned_volume(
+        "the measured body",
+        &out.body().expect("a body").body,
+        Tol::witness(),
     )
+    .volume)
 }
 
 /// **Definite miss, both strategies**: two far disjoint balls union

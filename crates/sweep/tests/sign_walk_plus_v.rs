@@ -96,6 +96,46 @@ fn strip_loft(s: f64, delta: f64, reversed: bool) -> Option<Body<f64>> {
     .map(|l| l.body)
 }
 
+/// **A deciding predicate run out at the wall is THE refusal, and it
+/// carries the enclosure** (`[tolerance.measure]`; PR 5741's review,
+/// n6). The thin strip of the row below, at `delta/s = 1e-10`: every
+/// wall runs to its work wall with the enclosure still straddling the
+/// strip's own volume, so `V ≤ V_true` cannot be decided. The door
+/// answers [`topo::MassPropsError::Undecided`] — not `Ok` with a stop
+/// and no verdict, which a caller reading only the verdict would take
+/// for a decision — and its bracket holds the closed form
+/// `V = 2·s·delta·s`. Through the raw door: tier 3 refuses this body
+/// (check 7's own undecided sign), which is the row below.
+#[test]
+fn a_relation_run_out_at_the_wall_is_the_refusal_carrying_the_bracket() {
+    let tol = Tol::witness();
+    let s = 1.0e14 * tol.get().eps;
+    let delta = 1e-10 * s;
+    let body = strip_loft(s, delta, false).expect("the strip lofts at every ε row");
+    let truth = 2.0 * s * delta * s;
+    let asked = topo::Settle::AtMost {
+        bound: truth,
+        name: "sign_walk_plus_v_undecided",
+    };
+    // Raw door: tier 3 refuses the strip (VolumeSignUnresolved), and the measurement's own refusal is the subject.
+    match topo::test_support::measure_unvalidated(&body, tol, asked) {
+        Err(topo::MassPropsError::Undecided {
+            volume: (lo, hi),
+            stop,
+        }) => {
+            assert!(
+                matches!(stop, topo::Stop::Wall | topo::Stop::Floor),
+                "the walk stops at a face's own stop: {stop:?}"
+            );
+            assert!(
+                lo <= truth && truth <= hi,
+                "the refusal's bracket [{lo:e}, {hi:e}] holds V = {truth:e}"
+            );
+        }
+        other => panic!("V ≤ V_true is undecided at the wall, so it is the refusal: {other:?}"),
+    }
+}
+
 /// **UNDECIDED IS NOT A PASS** — the hole an early exit opens, and the
 /// reason this unit's loop returns a VERDICT rather than a stopping
 /// condition.
@@ -122,8 +162,8 @@ fn strip_loft(s: f64, delta: f64, reversed: bool) -> Option<Body<f64>> {
 /// at any ε (each stops at the work wall after 11 rounds, 2.489e-5 m
 /// against 1.024e-6 m at ε = 1e-9), so the sign walk runs the schedule
 /// out wherever the sign stays open: at `delta/s = 1e-1` it settles and
-/// the number is refused, and at `1e-10` it does not settle and check 7
-/// refuses `VolumeUncomputable` (measured at 1e-9; `1e-8` settles, so
+/// the number is a bracket, and at `1e-10` it does not settle and check 7
+/// refuses `VolumeSignUnresolved` (measured at 1e-9; `1e-8` settles, so
 /// the refusing arm sits two decades past it). The scale was `1e12·ε`
 /// and the thin arm `1e-8` while every lane stopped at its round cap
 /// and refused a face at round 0 on a predicted last round: the walls
@@ -157,43 +197,57 @@ fn an_undecided_sign_with_the_schedule_run_out_refuses() {
             );
             let Ok(cert) = gated else {
                 let errors = plain.expect_err("the doors agree");
+                // The refusal carries the enclosure the walk stopped on,
+                // and it holds the strip's closed form: the two bulges
+                // cancel, so V = ±2·s·delta·s (the loft is `s` tall).
+                let truth = if reversed { -1.0 } else { 1.0 } * 2.0 * s * (rel * s) * s;
+                let bracket = errors.iter().find_map(|e| match e {
+                    topo::ValidationError::VolumeSignUnresolved {
+                        limit: topo::SignLimit::Quadrature,
+                        volume,
+                        ..
+                    } => *volume,
+                    _ => None,
+                });
+                let (lo, hi) = bracket.unwrap_or_else(|| {
+                    panic!(
+                        "{label}: a sign still open at the wall is CHECK 7's quadrature \
+                         refusal: {errors:?}"
+                    )
+                });
                 assert!(
-                    errors
-                        .iter()
-                        .any(|e| matches!(e, topo::ValidationError::VolumeUncomputable { .. })),
-                    "{label}: an undecided sign with the schedule run out is CHECK 7's \
-                     refusal, the same one the reporting door makes: {errors:?}"
+                    lo <= truth && truth <= hi,
+                    "{label}: the refusal's bracket [{lo:e}, {hi:e}] holds V = {truth:e}"
                 );
                 refused += 1;
                 continue;
             };
             let e = cert.enclosure();
-            match cert.measure() {
-                Err(topo::TargetUnreached { refusal, .. }) => {
-                    assert!(
-                        e.volume_lo > 0.0,
-                        "{label}: tier 3 admitted a body whose number is refused \
-                         ({refusal}) and whose volume enclosure [{}, {}] does not \
-                         exclude zero — an undecided sign is not a pass",
-                        e.volume_lo,
-                        e.volume_hi
-                    );
-                    admitted += 1;
-                }
-                Ok(props) => panic!(
-                    "{label}: at s = 1e14·ε no wall reaches the reporting target, yet the \
-                     number measured: {props:?}"
-                ),
-            }
+            let measured = cert
+                .measure(topo::test_support::pinned_resolution(tol))
+                .unwrap_or_else(|refusal| panic!("{label}: the certificate measures: {refusal}"));
+            assert_ne!(
+                measured.stop,
+                topo::Stop::Met,
+                "{label}: at s = 1e14·ε no wall reaches the resolution, yet the number \
+                 measured: {measured:?}"
+            );
+            assert!(
+                e.volume_lo > 0.0,
+                "{label}: tier 3 admitted a body whose number is open and whose volume \
+                 enclosure [{}, {}] does not exclude zero — an undecided sign is not a pass",
+                e.volume_lo,
+                e.volume_hi
+            );
+            admitted += 1;
         }
     }
     assert_eq!(
         (admitted, refused),
         (2, 2),
         "STRIP: the family must straddle the decision — two thicknesses admitted on a \
-         decided sign with the number still refused (the false refusal this unit \
-         removed), two refused on an undecided one (the false acceptance it must not \
-         open), and each in both traversal senses"
+         decided sign with the number still open, two refused on an undecided one (the \
+         false acceptance it must not open), and each in both traversal senses"
     );
 }
 
@@ -232,14 +286,26 @@ fn the_gate_certifies_a_sign_and_the_continuation_certifies_the_number() {
 
         // The continuation, and the measurement door beside it.
         let mut continued = None;
-        let refine = quad_rounds(|| continued = Some(gated.refine_to_target()));
-        let continued = continued.expect("the closure ran");
+        let refine = quad_rounds(|| {
+            continued = Some(gated.measure(topo::test_support::pinned_resolution(tol)));
+        });
+        let continued = continued
+            .expect("the closure ran")
+            .unwrap_or_else(|e| panic!("{label}: the continuation measures: {e}"));
         // Finished outside the count: the count is the one measurement's.
         let finished =
             topo::test_support::finished("the measured body", topo::Body::clone(&body), tol);
         let mut measured = None;
-        let one = quad_rounds(|| measured = Some(topo::mass_properties(&finished, tol)));
-        let measured = measured.expect("the closure ran");
+        let one = quad_rounds(|| {
+            measured = Some(topo::mass_properties(
+                &finished,
+                tol,
+                topo::test_support::pinned_resolution(tol),
+            ))
+        });
+        let measured = measured
+            .expect("the closure ran")
+            .unwrap_or_else(|e| panic!("{label}: the measurement measures: {e}"));
 
         // REUSE: none skipped — on EVERY roster body, in the form that
         // body can carry.
@@ -249,7 +315,7 @@ fn the_gate_certifies_a_sign_and_the_continuation_certifies_the_number() {
             "REUSE {label}: this roster is about the certified quadrature, so a body that \
              pays none of it is a body this row did not test"
         );
-        if measured.is_ok() {
+        if measured.stop == topo::Stop::Met {
             // The sign walk refines every face its lane can refine while
             // the sign straddles, past the number's resolution included,
             // so the pair can run MORE rounds than the measurement; never
@@ -265,43 +331,31 @@ fn the_gate_certifies_a_sign_and_the_continuation_certifies_the_number() {
                 strictly_early += 1;
             }
         } else {
-            // THE REFUSING BODY, which is the body this unit exists
-            // for and which the identity above cannot be stated on
-            // unchanged: the measurement stops at the first face whose
-            // schedule ran out, while the gate must read every face to
-            // have a sum at all. What IS claimable, and is claimed:
-            // the continuation adds nothing at all — every face the
-            // gate read is already at the round it will die at — so
-            // the pair costs exactly the gate, and the gate costs at
-            // least the measurement because it read a superset of its
-            // faces.
-            assert_eq!(
-                refine, 0,
-                "REUSE {label}: the measurement refuses, so every face is already at the \
-                 round its schedule ends on and the continuation has nothing to run — \
-                 {refine} verdicts says it re-entered a lane"
-            );
+            // THE BODY SHORT OF THE RESOLUTION, which is the body this
+            // unit exists for: every face runs to its own stop, so the
+            // pair still runs no fewer rounds than the measurement.
             assert!(
-                gate >= one,
-                "REUSE {label}: the gate reads every face and the measurement stops at its \
-                 first refusing one, so the gate's {gate} cannot be under the \
-                 measurement's {one}"
+                gate + refine >= one,
+                "REUSE {label}: the gate's {gate} rounds plus the continuation's {refine} \
+                 cannot fall short of the measurement's {one}"
             );
         }
 
         // AGREEMENT: the two doors are the same quadrature at two
         // levels, so where both measure, the continuation is never wider
         // than the measurement and is the measurement wherever it ran the
-        // measurement's rounds; and where the measurement refuses, so
-        // does the continuation, with the same typed refusal.
-        match (&continued, &measured) {
-            (Ok(c), Ok(m)) => {
+        // measurement's rounds; and where the measurement stops short,
+        // so does the continuation.
+        let c = &continued.enclosure;
+        let m = &measured;
+        match (continued.stop, measured.stop) {
+            (topo::Stop::Met, topo::Stop::Met) => {
                 assert!(
-                    c.volume_pad <= m.volume_pad,
+                    c.volume_pad <= m.enclosure.volume_pad,
                     "AGREEMENT {label}: the continuation keeps every face's narrowest \
                      enclosure, so its pad {:e} is never over the measurement's {:e}",
                     c.volume_pad,
-                    m.volume_pad
+                    m.enclosure.volume_pad
                 );
                 if gate + refine == one {
                     assert_eq!(
@@ -312,10 +366,10 @@ fn the_gate_certifies_a_sign_and_the_continuation_certifies_the_number() {
                             c.area_pad.to_bits()
                         ),
                         (
-                            m.volume.to_bits(),
-                            m.surface_area.to_bits(),
-                            m.volume_pad.to_bits(),
-                            m.area_pad.to_bits()
+                            m.enclosure.volume.to_bits(),
+                            m.enclosure.surface_area.to_bits(),
+                            m.enclosure.volume_pad.to_bits(),
+                            m.enclosure.area_pad.to_bits()
                         ),
                         "AGREEMENT {label}: the gate took no face past the round the number \
                          stops it at, so the continuation ran the measurement's rounds and \
@@ -326,25 +380,28 @@ fn the_gate_certifies_a_sign_and_the_continuation_certifies_the_number() {
                 // round its sign became certain, contains the value
                 // the reporting door eventually computed.
                 assert!(
-                    enclosure.volume_lo <= m.volume && m.volume <= enclosure.volume_hi,
+                    enclosure.volume_lo <= m.enclosure.volume
+                        && m.enclosure.volume <= enclosure.volume_hi,
                     "AGREEMENT {label}: the sign-level bracket [{}, {}] must contain the \
                      reported volume {}",
                     enclosure.volume_lo,
                     enclosure.volume_hi,
-                    m.volume
+                    m.enclosure.volume
                 );
                 assert!(
-                    m.volume > 0.0,
+                    m.enclosure.volume > 0.0,
                     "AGREEMENT {label}: the gate certified a positive sign, so the number \
                      must be positive too, got {}",
-                    m.volume
+                    m.enclosure.volume
                 );
             }
-            (Err(c), Err(m)) => assert_eq!(
-                format!("{c:?}"),
-                format!("{m:?}"),
-                "AGREEMENT {label}: both doors refuse, and with the same refusal"
-            ),
+            (topo::Stop::Floor | topo::Stop::Wall, topo::Stop::Floor | topo::Stop::Wall) => {
+                assert!(
+                    c.volume_pad <= m.enclosure.volume_pad,
+                    "AGREEMENT {label}: the continuation's bracket is never wider than the \
+                     measurement's"
+                );
+            }
             (c, m) => panic!(
                 "AGREEMENT {label}: the continuation and the measurement are the same \
                  quadrature, so they cannot disagree about whether it converged: \
@@ -357,8 +414,8 @@ fn the_gate_certifies_a_sign_and_the_continuation_certifies_the_number() {
         // to produce this arm; the assertion above (`tier 3 must admit
         // it`) is what carries it, and this is the record of which
         // rows exercised it.
-        if continued.is_err() {
-            eprintln!("FALSE-REFUSAL {label}: tier 3 passed, the number refused");
+        if continued.stop != topo::Stop::Met {
+            eprintln!("FALSE-REFUSAL {label}: tier 3 passed, the number is a bracket");
         }
     }
     assert!(
@@ -395,24 +452,25 @@ fn the_sign_walks_narrower_bracket_holds_the_closed_form() {
     let reported = topo::mass_properties(
         &topo::test_support::finished("the strip", body.clone(), tol),
         tol,
+        topo::test_support::pinned_resolution(tol),
     )
     .unwrap_or_else(|e| panic!("the reporting door measures the strip: {e}"));
     let measured = cert
-        .measure()
-        .unwrap_or_else(|e| panic!("the certificate measures the strip: {}", e.refusal));
+        .measure(topo::test_support::pinned_resolution(tol))
+        .unwrap_or_else(|e| panic!("the certificate measures the strip: {e}"));
     assert!(
-        measured.volume_pad < reported.volume_pad,
+        measured.enclosure.volume_pad < reported.enclosure.volume_pad,
         "the sign walk refined the walls past the resolution, so the certificate's pad \
          {:e} must be under the reporting door's {:e}",
-        measured.volume_pad,
-        reported.volume_pad
+        measured.enclosure.volume_pad,
+        reported.enclosure.volume_pad
     );
     for (door, p) in [("certificate", &measured), ("reporting door", &reported)] {
         assert!(
-            (p.volume - want).abs() <= p.volume_pad,
+            (p.enclosure.volume - want).abs() <= p.enclosure.volume_pad,
             "the {door}'s bracket {:e} ± {:e} must hold the closed form {want:e}",
-            p.volume,
-            p.volume_pad
+            p.enclosure.volume,
+            p.enclosure.volume_pad
         );
     }
 }
@@ -520,6 +578,7 @@ fn the_backstop_reads_from_round_zero() {
         topo::mass_properties(
             &topo::test_support::finished("the loft", result.clone(), tol),
             tol,
+            topo::test_support::pinned_resolution(tol),
         )
         .expect("the loft measures");
     });
@@ -579,7 +638,7 @@ fn the_backstop_reads_from_round_zero() {
 /// refine record more of it than the one that settles at round 0.
 #[test]
 fn a_relation_refines_a_quadrature_face_and_settles_or_stops_in_the_band() {
-    use topo::{RelOp, Settle, Stop, Verdict};
+    use topo::{Settle, SettleVerdict, Stop};
     let tol = Tol::witness();
     let s = 1.0e7 * tol.get().eps;
     let body = loft_body::<f64>(
@@ -590,25 +649,17 @@ fn a_relation_refines_a_quadrature_face_and_settles_or_stops_in_the_band() {
     )
     .expect("the arc loft lofts")
     .body;
-    let v = topo::mass_properties(
+    let v = topo::test_support::pinned_volume(
+        "the arc loft measures",
         &topo::test_support::finished("the loft", body.clone(), tol),
         tol,
     )
-    .expect("the arc loft measures")
     .volume;
     let name = "sign_walk_plus_v_relation";
     let ask = |bound: f64| {
         let bracket = geom_core::k_stats::Bracket::open();
-        let measured = topo::test_support::measure_to(
-            &body,
-            Settle::Relation {
-                op: RelOp::Le,
-                bound,
-                name,
-            },
-            tol,
-        )
-        .unwrap_or_else(|refusal| panic!("the door measures the loft: {refusal}"));
+        let measured = topo::test_support::measure_to(&body, Settle::AtMost { bound, name }, tol)
+            .unwrap_or_else(|refusal| panic!("the door measures the loft: {refusal}"));
         let recorded = bracket.finish();
         let asked = recorded
             .verdicts
@@ -626,13 +677,13 @@ fn a_relation_refines_a_quadrature_face_and_settles_or_stops_in_the_band() {
     let (stop, round_zero, asked_once) = ask(10.0 * v);
     assert_eq!(
         stop,
-        Stop::Settled(Verdict::Holds(true)),
+        Stop::Settled(SettleVerdict::Holds(true)),
         "a bound ten times over"
     );
     let (stop, near, asked_near) = ask(v * (1.0 + 1.0e-5));
     assert_eq!(
         stop,
-        Stop::Settled(Verdict::Holds(true)),
+        Stop::Settled(SettleVerdict::Holds(true)),
         "a bound just above the volume settles once refined"
     );
     assert!(

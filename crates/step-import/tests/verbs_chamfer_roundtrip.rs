@@ -80,14 +80,14 @@ fn the_chamfered_cube_round_trips_through_step() {
     };
 
     assert_eq!(
-        arena_census(&back),
+        arena_census(back.body()),
         arena_census(&native),
         "census across the trip"
     );
-    assert_eq!(topo::validate(&back), Ok(()), "tier 1");
-    assert_eq!(topo::validate_closed(&back), Ok(()), "tier 2");
+    assert_eq!(topo::validate(back.body()), Ok(()), "tier 1");
+    assert_eq!(topo::validate_closed(back.body()), Ok(()), "tier 2");
     assert_eq!(
-        topo::validate_geometric(&back, Tol::witness()),
+        topo::validate_geometric(back.body(), Tol::witness()),
         Ok(()),
         "tier 3"
     );
@@ -95,17 +95,19 @@ fn the_chamfered_cube_round_trips_through_step() {
     let want = topo::mass_properties(
         &topo::test_support::finished("the measured body", native.clone(), Tol::witness()),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("native props");
     let got = topo::mass_properties(
-        &topo::test_support::finished("the measured body", back.clone(), Tol::witness()),
+        &topo::test_support::finished("the measured body", back.body().clone(), Tol::witness()),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("imported props");
     assert!(
-        (got.volume - want.volume).abs() <= 1e-12 * want.volume,
+        (got.enclosure.volume - want.enclosure.volume).abs() <= 1e-12 * want.enclosure.volume,
         "volume across the trip: {} vs {}",
-        got.volume,
-        want.volume
+        got.enclosure.volume,
+        want.enclosure.volume
     );
 }

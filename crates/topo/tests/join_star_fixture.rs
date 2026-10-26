@@ -90,7 +90,11 @@ fn the_star_fixture_folds_in_every_member_order() {
         // 1.2 and 2.2 are not dyadic, so 2.7 is the nearest double to
         // the exact volume; the divergence sum lands within 4 ulps of
         // it (an ulp at 2.7 is 2·EPSILON).
-        let volume = mass_properties(&acc, tol).unwrap().volume;
+        let volume = mass_properties(&acc, tol, topo::test_support::pinned_resolution(tol))
+            .unwrap()
+            .met()
+            .expect("the pinned resolution is met")
+            .volume;
         assert!(
             (volume - 2.7).abs() <= 8.0 * f64::EPSILON,
             "{order:?}: volume {volume}"

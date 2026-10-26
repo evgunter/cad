@@ -169,8 +169,7 @@ fn run_cell(cell: &Cell, outdir: &str, tol: Tol) -> String {
         )
     });
     let StepImport::Solid {
-        body,
-        enclosure,
+        body: certified,
         eps_in,
         normalizations,
         ..
@@ -179,7 +178,8 @@ fn run_cell(cell: &Cell, outdir: &str, tol: Tol) -> String {
         panic!("{name}: expected a solid import, got a wireframe");
     };
 
-    let counts = euler_counts(&body);
+    let body = certified.body();
+    let counts = euler_counts(body);
     let genus = counts
         .genus()
         .unwrap_or_else(|refusal| panic!("{name}: {refusal}"));
@@ -196,8 +196,9 @@ fn run_cell(cell: &Cell, outdir: &str, tol: Tol) -> String {
         }
     }
 
-    // Exact B-rep mass properties — the import gate's own enclosure,
-    // continued to the number — then the kernel's own tessellation
+    // Exact B-rep mass properties — measured through the import gate's
+    // own certificate at the precision the row prints, 1.024 µm of mean
+    // boundary displacement — then the kernel's own tessellation
     // with a chordal tolerance sized off the body's real extent (bbox
     // of the body's stored points — vertex points and control points,
     // whose hull bounds every NURBS patch). The wild has no closed
@@ -205,9 +206,16 @@ fn run_cell(cell: &Cell, outdir: &str, tol: Tol) -> String {
     // sanity ribbon the tour prints. A pinned cell measures a NUMBER:
     // one that comes back a bracket at this ε has drifted as surely as
     // one that stops importing.
-    let props = enclosure.unwrap_or_else(|unreached| {
-        panic!("{name}: a PINNED montage cell has no volume number at this eps: {unreached}")
-    });
+    let printed = pncad::topo::Settle::Resolution(pncad::quantity::Length::from_meters(1.024e-6));
+    let measured = certified
+        .measure(printed)
+        .unwrap_or_else(|e| panic!("{name}: a PINNED montage cell does not measure: {e}"));
+    assert_eq!(
+        measured.stop,
+        pncad::topo::Stop::Met,
+        "{name}: a PINNED montage cell has no volume number at this eps: {measured:?}"
+    );
+    let props = measured.enclosure;
     let (lo, hi) = body.points().fold(
         ([f64::INFINITY; 3], [f64::NEG_INFINITY; 3]),
         |(lo, hi), (_, p)| {
@@ -220,7 +228,7 @@ fn run_cell(cell: &Cell, outdir: &str, tol: Tol) -> String {
     let diag = ((hi[0] - lo[0]).powi(2) + (hi[1] - lo[1]).powi(2) + (hi[2] - lo[2]).powi(2)).sqrt();
     assert!(diag.is_finite() && diag > 0.0, "{name}: degenerate bbox");
     let delta = diag * cell.delta_frac;
-    let mesh = pncad::mesh::tessellate(&body, delta, tol)
+    let mesh = pncad::mesh::tessellate(body, delta, tol)
         .unwrap_or_else(|e| panic!("{name}: tessellation at delta {delta:e} failed: {e:?}"));
     check_mesh(&mesh).unwrap_or_else(|e| panic!("{name}: check_mesh failed: {e:?}"));
     let v_mesh = signed_volume(&mesh);

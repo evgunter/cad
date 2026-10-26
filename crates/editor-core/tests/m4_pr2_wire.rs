@@ -74,7 +74,8 @@ fn revolve_wires_its_axis_through_the_sketch_plane() {
     };
     assert_eq!(validate(body), Ok(()));
     assert_eq!(validate_closed(body), Ok(()));
-    let vol = topo::mass_properties(
+    let vol = topo::test_support::pinned_volume(
+        "the measured body",
         &topo::test_support::finished(
             "the measured body",
             topo::Body::clone(&**body),
@@ -82,7 +83,6 @@ fn revolve_wires_its_axis_through_the_sketch_plane() {
         ),
         Tol::witness(),
     )
-    .unwrap()
     .volume;
     assert!((vol - PI).abs() < 1e-9, "cylinder volume π, got {vol}");
 }
@@ -105,10 +105,11 @@ fn rotational_placement_wires_and_preserves_volume() {
             Tol::witness(),
         ),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap();
-    assert!((m.volume - 1.0).abs() < 1e-12);
-    assert!((m.surface_area - 6.0).abs() < 1e-12);
+    assert!((m.enclosure.volume - 1.0).abs() < 1e-12);
+    assert!((m.enclosure.surface_area - 6.0).abs() < 1e-12);
 }
 
 #[test]
@@ -134,7 +135,8 @@ fn linear_pattern_evaluates_instances_as_data() {
     for (i, inst) in instances.iter().enumerate() {
         assert_eq!(validate(inst), Ok(()));
         assert_eq!(
-            topo::mass_properties(
+            topo::test_support::pinned_volume(
+                "the measured body",
                 &topo::test_support::finished(
                     "the measured body",
                     topo::Body::clone(&**inst),
@@ -142,7 +144,6 @@ fn linear_pattern_evaluates_instances_as_data() {
                 ),
                 Tol::witness()
             )
-            .unwrap()
             .volume,
             1.0
         ); // dyadic exact
@@ -201,7 +202,8 @@ fn circular_pattern_rotates_about_an_axis_read_off_the_body() {
     for inst in instances {
         assert_eq!(validate(inst), Ok(()));
         assert!(
-            (topo::mass_properties(
+            (topo::test_support::pinned_volume(
+                "the measured body",
                 &topo::test_support::finished(
                     "the measured body",
                     topo::Body::clone(&**inst),
@@ -209,7 +211,6 @@ fn circular_pattern_rotates_about_an_axis_read_off_the_body() {
                 ),
                 Tol::witness()
             )
-            .unwrap()
             .volume
                 - 1.0)
                 .abs()

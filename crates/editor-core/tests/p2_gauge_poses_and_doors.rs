@@ -439,7 +439,8 @@ fn a_copy_in_another_space_below_stays_out_of_the_outer_product() {
     );
     let ev = run(&outer, &with_resolver(store));
     let vol = |b: &Body<f64>| {
-        topo::mass_properties(
+        topo::test_support::pinned_volume(
+            "mass",
             &topo::test_support::finished(
                 "the measured body",
                 topo::Body::clone(b),
@@ -447,7 +448,6 @@ fn a_copy_in_another_space_below_stays_out_of_the_outer_product() {
             ),
             Tol::witness(),
         )
-        .expect("mass")
         .volume
     };
     let gathered = editor_core::product(&outer, &ev, Tol::witness()).expect("the world gathers");

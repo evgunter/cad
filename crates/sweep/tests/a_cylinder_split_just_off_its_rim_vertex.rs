@@ -55,7 +55,7 @@ fn a_sliver_just_off_the_rim_vertex_builds_and_the_halves_hold_the_volume() {
     if eps < 1e-9 {
         test_utils::vacuity::stood_down(
             "ε below 1e-9",
-            "at 1e-12 the sliver's wall floors over the target: the next row",
+            "at 1e-12 the sliver's wall stops at its floor: the next row",
         );
         return;
     }
@@ -66,62 +66,58 @@ fn a_sliver_just_off_the_rim_vertex_builds_and_the_halves_hold_the_volume() {
             let body = part
                 .body()
                 .unwrap_or_else(|| panic!("d = {d:e}: a side is empty"));
-            let props = topo::mass_properties(body, tol).unwrap();
+            let props = topo::test_support::pinned_volume("a half", body, tol);
             volume += props.volume;
             pad += props.volume_pad;
         }
         assert!(
-            (volume - core::f64::consts::PI).abs() <= pad + 1e-12,
+            (volume - core::f64::consts::PI).abs() <= pad,
             "d = {d:e}: the halves sum to {volume} ± {pad}, not π"
         );
     }
 }
 
-/// **At 1e-12 the sliver's wall is at its floor, over the target**, and
-/// says so: the split refuses at rest with the wall's
-/// `QuadratureFloor` after one round: the lane stopped at its floor,
-/// not at the work wall. The width left is the part refinement does not
-/// aim at, `4.68e-6` at `d = 5e-11` and `2.36e-7` at `d = 1e-9`, against
-/// the `1.024e-9` this ε targets; before the ends were read at their
-/// parameters it was `1.05e-4` and `5.2e-6`, after 13 rounds. Pinned
-/// within 1.1×.
+/// **At 1e-12 the sliver builds, and its wall's measurement stops at
+/// its floor with the bracket.** The at-rest gate decides the halves'
+/// signs and reads no number, so the sliver is no longer refused at rest
+/// (it was, `QuadratureFloor` after one round, while a number door's
+/// unmet resolution was a refusal). Measured at the suites' pinned
+/// resolution, the thick half meets it and the sliver stops at
+/// [`topo::Stop::Floor`]: its wall's width is the part refinement does
+/// not aim at, over the `1024·ε` resolution. The two brackets together
+/// hold the cylinder's `π`.
 #[test]
-fn at_1e_12_the_slivers_wall_refuses_at_its_floor() {
+fn at_1e_12_the_sliver_builds_and_its_wall_stops_at_its_floor() {
     let tol = Tol::witness();
     if (tol.eps() - 1e-12).abs() > 1e-15 {
         test_utils::vacuity::stood_down(
             "ε other than 1e-12",
-            "the sliver builds at 1e-9 and 1e-6: the previous row",
+            "the sliver meets the resolution at 1e-9 and 1e-6: the previous row",
         );
         return;
     }
-    for (d, width) in [(5e-11, 4.68e-6), (1e-9, 2.36e-7)] {
-        match sliver_split(d, tol) {
-            Err(SplitError::Finish(topo::SplitFinishError::ResultNotAtRest { errors, .. })) => {
-                let [
-                    topo::ValidationError::VolumeUncomputable {
-                        source:
-                            topo::MassPropsError::Face {
-                                source:
-                                    geom_brep::props::PropsError::QuadratureFloor {
-                                        width_len,
-                                        target_len,
-                                        rounds: 1,
-                                    },
-                                ..
-                            },
-                        ..
-                    },
-                ] = &errors[..]
-                else {
-                    panic!("d = {d:e}: {errors:?}");
-                };
-                assert!(
-                    *width_len <= 1.1 * width && *width_len > *target_len,
-                    "d = {d:e}: floored at {width_len:e} against {target_len:e}, pinned {width:e}"
-                );
-            }
-            other => panic!("d = {d:e}: {:?}", other.map(|_| "built")),
+    for d in [5e-11, 1e-9] {
+        let parts = sliver_split(d, tol).unwrap_or_else(|e| panic!("d = {d:e}: {e:?}"));
+        let (mut volume, mut pad, mut stops) = (0.0, 0.0, Vec::new());
+        for part in [&parts.above, &parts.below] {
+            let body = part
+                .body()
+                .unwrap_or_else(|| panic!("d = {d:e}: a side is empty"));
+            let m = topo::mass_properties(body, tol, topo::test_support::pinned_resolution(tol))
+                .unwrap_or_else(|e| panic!("d = {d:e}: a half measures, never refuses: {e:?}"));
+            volume += m.enclosure.volume;
+            pad += m.enclosure.volume_pad;
+            stops.push(m.stop);
         }
+        stops.sort_by_key(|s| s.word());
+        assert_eq!(
+            stops,
+            [topo::Stop::Floor, topo::Stop::Met],
+            "d = {d:e}: the sliver stops at its floor, the thick half meets the resolution"
+        );
+        assert!(
+            (volume - core::f64::consts::PI).abs() <= pad,
+            "d = {d:e}: the halves sum to {volume} ± {pad}, not π"
+        );
     }
 }

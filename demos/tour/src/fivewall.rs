@@ -63,7 +63,7 @@ use pncad::profile::{ArcSweep, Center, ConstructedLoop, SketchPlane};
 use pncad::sweep::{Revolution, RevolveAxis, revolve};
 use pncad::topo::{AtRestBody, Body, FaceKey};
 
-use crate::{SceneBody, Stop, View};
+use crate::{SceneBody, TourStop, View};
 use pncad::authoring::validated;
 
 /// One 64th of a metre — the grid every station stands on.
@@ -212,7 +212,7 @@ fn radii<F: Fn(&Surface<f64>) -> Option<f64>>(body: &Body<f64>, read: F) -> Vec<
 
 /// The scene: the vessel hollowed, and the same vessel opened at its
 /// mouth, in one cell.
-pub fn stops(tol: Tol) -> Vec<Stop> {
+pub fn stops(tol: Tol) -> Vec<TourStop> {
     let solid = sleeve(tol);
 
     // The operand: five kinds, seven faces, and one of them is the
@@ -385,7 +385,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     .expect("a finite offset");
     let apart = pncad::topo::transform_rigid(&cup, &beside, tol).expect("a translation is rigid");
 
-    vec![Stop {
+    vec![TourStop {
         name: "fivewall",
         caption: "FIVE WALL KINDS, ONE `shell` CALL (a bored sleeve, sealed and opened)"
             .to_string(),

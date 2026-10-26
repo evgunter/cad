@@ -159,7 +159,8 @@ fn op_fates(op: &str, x: &AtRestBody<f64>, y: &AtRestBody<f64>) -> OpFates {
     lost.sort();
     OpFates {
         kind: Some(out.kind),
-        volume: (topo::mass_properties(&out.body, tol).expect("mass").volume * 1e6).round() as i64,
+        volume: (topo::test_support::pinned_volume("mass", &out.body, tol).volume * 1e6).round()
+            as i64,
         rows: out.naming.substituted.len(),
         held: out
             .naming

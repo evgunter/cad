@@ -436,9 +436,15 @@ fn the_props_lanes_verdict_is_the_same_either_side_of_the_map() {
                 Tol::witness(),
             ),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .expect("the props lane measures the body");
-        (m.volume, m.surface_area, m.volume_pad, m.area_pad)
+        (
+            m.enclosure.volume,
+            m.enclosure.surface_area,
+            m.enclosure.volume_pad,
+            m.enclosure.area_pad,
+        )
     };
     let ((v0, a0, vp0, ap0), (v1, a1, vp1, ap1)) = (read(&body), read(&moved));
     let dust = 1e-12;
@@ -929,12 +935,20 @@ fn the_walls_a_placed_approx_capped_part_still_meets() {
             Tol::witness(),
         ),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("the operand weighs");
-    let props = topo::mass_properties(&placed, Tol::witness()).expect("the placed part weighs");
+    let props = topo::mass_properties(
+        &placed,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .expect("the placed part weighs");
     assert!(
-        (props.volume - here.volume).abs() <= props.volume_pad + here.volume_pad
-            && (props.surface_area - here.surface_area).abs() <= props.area_pad + here.area_pad,
+        (props.enclosure.volume - here.enclosure.volume).abs()
+            <= props.enclosure.volume_pad + here.enclosure.volume_pad
+            && (props.enclosure.surface_area - here.enclosure.surface_area).abs()
+                <= props.enclosure.area_pad + here.enclosure.area_pad,
         "a rigid map moves neither volume nor area: {here:?} -> {props:?}"
     );
 

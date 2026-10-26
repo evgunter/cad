@@ -22,7 +22,11 @@ fn a_cylinder_flush_inside_a_block_unions_to_the_block() {
     else {
         panic!("a union of non-empty bodies cannot be empty");
     };
-    let volume = mass_properties(&union.body, tol).unwrap().volume;
+    let volume = mass_properties(&union.body, tol, topo::test_support::pinned_resolution(tol))
+        .unwrap()
+        .met()
+        .expect("the pinned resolution is met")
+        .volume;
     assert!(
         (volume - 4.0).abs() < 1e-9,
         "the cylinder adds nothing to the 2 × 2 × 1 block: {volume}"

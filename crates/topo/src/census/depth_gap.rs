@@ -235,7 +235,7 @@ pub(super) fn face_read<T: Decide>(body: &Body<T>, f: FaceKey, band: Band) -> Op
             BoundaryMember::Edge { ek, edge, .. } => {
                 let end = |he, field| edge_end_point(body, ek, he, field);
                 match edge_box_rule(body.edge_curve_linked(ek, edge).certified()) {
-                    EdgeBoxRule::NoSoundBox => None,
+                    EdgeBoxRule::NoSoundBox | EdgeBoxRule::ControlHull(_) => None,
                     EdgeBoxRule::Chord => Some(Piece::Segment(
                         end(edge.he_plus, "he_plus"),
                         end(edge.he_minus, "he_minus"),

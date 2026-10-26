@@ -29,8 +29,8 @@
 
 use geom_brep::props::PropsError;
 use geom_brep::props::quad::{
-    FaceCutBounds, LaneEnd, LaneRun, LaneStop, PatchNet, QUAD_TARGET_LEN_FACTOR,
-    mean_boundary_displacement, nurbs_patch_face,
+    FaceCutBounds, LaneEnd, LaneRun, LaneStop, PatchNet, mean_boundary_displacement,
+    nurbs_patch_face,
 };
 use geom_core::Bounds;
 use geom_core::Interval;
@@ -308,6 +308,10 @@ pub(crate) fn oracle_patch(
         cp,
     }
 }
+
+/// The resolution these suites stand their targets at, as a multiple of
+/// ε: 1024·ε, the one `topo`'s suites read their pinned numbers at.
+pub(crate) const QUAD_TARGET_LEN_FACTOR: f64 = 1024.0;
 
 /// The reporting target as these suites ask for it: a round is
 /// accepted when its mean boundary displacement is at most

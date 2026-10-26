@@ -1,4 +1,7 @@
-//! **A curved carrier with no crossing lane, at the sweep's two arms.**
+//! **A spline or spiric carrier at the sweep's two arms**: the plane
+//! arm reads a spline edge through the curve × face table's
+//! ring-composite arm, and every other pairing here has no crossing lane
+//! and refuses.
 //!
 //! Two operands, each a planar sheet bounded by one curved edge and the
 //! chord back:
@@ -10,8 +13,8 @@
 //!
 //! The partner is a brick with a side face across the curve, or a
 //! cylinder wall. `A`'s direction of the sweep runs directly, so the
-//! rows read what the sweep's arms themselves do with it, and which arm
-//! refused (`EdgeCarrierSite`). Each sheet is built fresh-keyed
+//! rows read what the sweep's arms themselves do with it: where it split
+//! the edge, or which arm refused (`EdgeCarrierSite`). Each sheet is built fresh-keyed
 //! (`fresh_keyed_body`), so the face a refusal names resolves in one
 //! operand only.
 //!
@@ -255,9 +258,8 @@ fn bezier(mx: f64, h: f64, t: f64) -> (f64, f64) {
     )
 }
 
-/// The refusal every row expects: the curved edge, at a face of `b`.
-/// The face named is the first one whose box the edge's box meets (a
-/// spline's box is the whole space, a spiric's its whole-period box),
+/// The refusal a row with no lane expects: the curved edge, at a face of
+/// `b`. The face named is the first one whose box the edge's box meets,
 /// and a carrier with no lane cannot be cleared of any face.
 fn assert_refused(
     got: Result<(Body<f64>, crate::boolean::ReductionContacts), BooleanError>,
@@ -286,15 +288,45 @@ fn assert_refused(
     }
 }
 
-/// **An arc that dips through a plane face and back refuses.** Its ends
-/// both lie at `y = 0`, below the brick's face `y = ½`, and the arc
-/// (`mx = 1`, `h = 1`) crosses that face twice, at
+/// The points at which the sweep put a vertex of `A` on `face` of `B`.
+fn on_face(
+    got: Result<(Body<f64>, crate::boolean::ReductionContacts), BooleanError>,
+    face: FaceKey,
+) -> Vec<Point3<f64>> {
+    let (x, contacts) = got.unwrap_or_else(|e| panic!("the sweep reads the arc: {e:?}"));
+    contacts
+        .a_on_b
+        .iter()
+        .filter(|c| c.record.face == face)
+        .map(|c| {
+            x.vertex_points()
+                .find_map(|(v, p)| (v == c.record.vertex).then_some(p))
+                .expect("a contact's vertex is in the swept sheet")
+        })
+        .collect()
+}
+
+/// Whether `got` holds a point within `1e-9` of each of `want`, and no
+/// other.
+fn lands_at(got: &[Point3<f64>], want: &[(f64, f64)]) -> bool {
+    got.len() == want.len()
+        && want.iter().all(|&(x, y)| {
+            got.iter()
+                .any(|p| (p.x - x).abs() < 1e-9 && (p.y - y).abs() < 1e-9 && p.z.abs() < 1e-9)
+        })
+}
+
+/// **An arc that dips through a plane face and back is split at both
+/// crossings.** Its ends both lie at `y = 0`, below the brick's face
+/// `y = ½`, and the arc (`mx = 1`, `h = 1`) crosses that face twice, at
 /// `t = (1 ± √½)/2`, inside the face. Read as a line, same-side ends are
-/// no crossing, and the sweep recorded none.
+/// no crossing; read through the ring composite, the sweep puts a vertex
+/// of the arc on the face at each.
 #[test]
-fn an_arc_dipping_through_a_plane_face_refuses() {
+fn an_arc_dipping_through_a_plane_face_is_split_at_both_crossings() {
     let (mx, h) = (1.0, 1.0);
-    let (b, _) = brick_face((0.2, 1.8), (0.5, 3.5), Vec3::new(0.0, -1.0, 0.0));
+    let (b, face) = brick_face((0.2, 1.8), (0.5, 3.5), Vec3::new(0.0, -1.0, 0.0));
+    let mut want = Vec::new();
     for t in [(1.0 - 0.5f64.sqrt()) / 2.0, (1.0 + 0.5f64.sqrt()) / 2.0] {
         let (x, y) = bezier(mx, h, t);
         assert!(
@@ -305,26 +337,24 @@ fn an_arc_dipping_through_a_plane_face_refuses() {
             0.2 < x && x < 1.8,
             "the oracle root t = {t} lands inside the face: x = {x}"
         );
+        want.push((x, y));
     }
-    let (a, e) = arc_sheet(mx, h);
-    assert_refused(
-        sweep_a(&a, &b),
-        e,
-        [&a, &b],
-        EdgeCarrierSite::PlanarCrossing,
-    );
+    let (a, _) = arc_sheet(mx, h);
+    let got = on_face(sweep_a(&a, &b), face);
+    assert!(lands_at(&got, &want), "on the face at {want:?}: {got:?}");
 }
 
-/// **An arc crossing a plane face once refuses, rather than land its
-/// crossing off the face.** Its ends straddle the brick's face
+/// **An arc crossing a plane face once is split where it crosses, not
+/// where its ends interpolate.** Its ends straddle the brick's face
 /// `x = 1.5`; the arc (`mx = 0.4`, `h = 1`) crosses it at `t = 5/6`, the
 /// root of `1.2t² + 0.8t − 1.5`. The endpoint interpolation puts the
 /// crossing at `t = 3/4`, which the closed form places `0.225` off the
-/// face's plane, and the sweep recorded a vertex there as on the face.
+/// face's plane. The sheet's chord back crosses the face too, at
+/// `(1.5, 0)`.
 #[test]
-fn an_arc_crossing_a_plane_face_once_refuses() {
+fn an_arc_crossing_a_plane_face_once_is_split_where_it_crosses() {
     let (mx, h) = (0.4, 1.0);
-    let (b, _) = brick_face((1.5, 4.5), (-1.0, 3.0), Vec3::new(-1.0, 0.0, 0.0));
+    let (b, face) = brick_face((1.5, 4.5), (-1.0, 3.0), Vec3::new(-1.0, 0.0, 0.0));
     let (x, y) = bezier(mx, h, 5.0 / 6.0);
     assert!(
         (x - 1.5).abs() < 1e-12,
@@ -339,13 +369,10 @@ fn an_arc_crossing_a_plane_face_once_refuses() {
         (x_interp - 1.5).abs() > 0.2,
         "the endpoint interpolation lands off the plane: x = {x_interp}"
     );
-    let (a, e) = arc_sheet(mx, h);
-    assert_refused(
-        sweep_a(&a, &b),
-        e,
-        [&a, &b],
-        EdgeCarrierSite::PlanarCrossing,
-    );
+    let (a, _) = arc_sheet(mx, h);
+    let got = on_face(sweep_a(&a, &b), face);
+    let want = [(x, y), (1.5, 0.0)];
+    assert!(lands_at(&got, &want), "on the face at {want:?}: {got:?}");
 }
 
 /// **The same arc against a cylinder wall refuses with the same
