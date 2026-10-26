@@ -214,8 +214,9 @@ carry that cost on top of its own. So the chain goes, not the link:
 
 - **The node.** A union or an intersect reads its `Bodies` and defines one
   body. A union of two is `Union([a, b])`; there is no second spelling of
-  it. It evaluates as a fold of the kernel's pair verb in member order: the
-  order is the list's, the author's statement. What the node decides is
+  it. It evaluates through the kernel's own n-ary union or intersect, which
+  judges the member pairs and folds the members in order: the order is the
+  list's, the author's statement. What the node decides is
   defined over its members, not over the fold: every coincidence between two members is judged once, pairwise,
   before the fold (below); the fold reads those verdicts through each
   face's member parents and decides no carrier pair again; and a name is

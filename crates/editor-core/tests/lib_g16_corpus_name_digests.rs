@@ -291,6 +291,12 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 /// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
 /// held unmoved.
 ///
+/// Re-pinned, `crossing_slots` alone, when a pair boolean's `Borders`
+/// wall came to cite its parent as the boolean's own table names it,
+/// the `From { read, of }` it came in through, as a seam side does: the
+/// second subtract's divided pieces' walls gained their read. No
+/// outcome moved, and every other document held.
+///
 /// **Re-pinned when the value chart came to read a written
 /// orientation**: every mate carries its orientation, which the minting
 /// edits' bytes hold, so the ids after a mate, and the names spelled
@@ -298,13 +304,13 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 /// ids-masked fence moved in `die_composed_tour` alone, its ±x faces'
 /// pip seams turned a quarter about the pips' axes.
 const PINNED: &[(&str, u64)] = &[
-    ("die", 0x10059d4cd2321a83),
-    ("corner_table", 0xde6ef64e9c7f89ea),
-    ("heat_sink", 0x7c03a5b3a87b6fd0),
-    ("crossing_slots", 0x05c096513677d9ec),
-    ("nested_islands_105", 0xc4601cc2eec6456c),
-    ("nested_islands_106_depth1", 0x5a89806615efd197),
-    ("nested_islands_106_depth2", 0x12538e107691ee32),
+    ("die", 0x7edd9af875ab8a41),
+    ("corner_table", 0x7b26284bc1febf4a),
+    ("heat_sink", 0xa73720bc22f28026),
+    ("crossing_slots", 0x0e26537c1371045d),
+    ("nested_islands_105", 0xccb5f0610256c3b0),
+    ("nested_islands_106_depth1", 0xe0e0e0478a1875fc),
+    ("nested_islands_106_depth2", 0x2f5fb3d31d8f6f6c),
     ("declared_tangency", 0xd108b6ffec69bb96),
     ("kitchen_sink", 0x27c1cfbe35126b49),
     ("cut_cylinder", 0x3a27171be80eccde),

@@ -383,3 +383,26 @@ MSOLVE-1, -2 and -3 all move kernel answers. No A/B rows; the band is
 claimed for bookkeeping only. This orchestrator runs on a remote box:
 `[ev]` PRs get a PR subscription rather than the local away-channel
 monitor.
+
+## The values and pose-kinds thread (arrived from INTENT, 2026-10-26)
+
+Ev asked INTENT to split off work that does not block its stage 3 chain
+(D′3 → E and the written-values pin → G, which is all that
+`intent-stage3-is-built` waits on). The value chart and the pose kinds
+are on `mate/*` ground and off that chain, so they move here, keeping
+their ids:
+
+1. **`the-value-chart-reads-a-written-orientation`** (P1, in flight).
+   - It builds `[placement.values]` as Ev ratified it on PR 5621 (decision F; design-fork row 192).
+   - The lane is `session_01ReeWyLMjbS8q7pwdH5Tpwo` on `intent/value-chart-orientation`. It keeps its branch name; a prefix rename is a natural-seam fold, not required.
+   - **Tier: dual, letter M.** Draw the arm byte when the lane reports (`docs/DUAL-REVIEW-PROTOCOL.md` rule 1).
+   - `a-value-chart-jumps-at-the-antipode-under-a-downward-face` and `a-lone-slide-refuses-the-chart-it-never-reads` close with it.
+2. **`flag-and-pivot-pose-kinds`** (P1 H), parked on 1.
+   - A pivot's spin takes the residual-about-axis rule.
+   - A flag leaves one slide and needs no chart.
+3. **The residue.** Check each against the new chart before dispatch:
+   - `a-slide-beside-a-ball-refuses-though-it-fixes-the-turn`;
+   - `a-seated-pin-written-as-an-axis-and-a-number-is-a-finding`, which re-mates pins as pivots after 2;
+   - `a-value-on-a-placed-copy-target-is-charted-on-the-space`.
+
+**The seam with INTENT.** D′3 (#5636) reshapes `Place` (one source), picks and the product slot. This thread changes `mate/value.rs`, the bundle wire and the viewer's mate tool. Neither waits on the other. Whichever lands second merges the other, and both announce their changes to `mate/pin.rs` and the viewer's `session.rs` on their PRs.

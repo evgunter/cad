@@ -124,9 +124,10 @@ use crate::names::emit::{
     check_total, edge_ends, ent, face_half_edges, vertex_point,
 };
 use crate::names::emit_topo::{
-    Cover, CrossedEdge, EdgeCarrier, EdgePieces, FaceDescent, Lone, Segment, UNORIENTED,
-    carrier_arc, crossed_edge_orientation, edge_holds, edges_holding, is_straight, joined_along,
-    joined_candidates, name_edge_pieces, name_parent_faces, rank_along_track, rank_crossings,
+    CornerCopies, Cover, CrossedEdge, EdgeCarrier, EdgePieces, FaceDescent, Lone, Segment,
+    UNORIENTED, carrier_arc, crossed_edge_orientation, edge_holds, edges_holding, is_straight,
+    joined_along, joined_candidates, name_corner_copies, name_edge_pieces, name_parent_faces,
+    rank_along_track, rank_crossings,
 };
 use crate::names::groups::Rederived;
 use crate::names::least_root::LeastRoot;
@@ -135,7 +136,7 @@ use crate::names::role::{
     Carry, EntityKind, NameRef, Qualifier, RoleSeg, RunLine, SegRewrite, Sense, StableName,
     edge_line, is_fold_side, never_in_a_boolean_table,
 };
-use crate::names::table::{EntityKey, EntityRef, Entry, NameTable};
+use crate::names::table::{EntityKey, Entry, NameTable};
 use crate::node::RecipeNodeId;
 use crate::var::VarId;
 
@@ -1693,7 +1694,7 @@ fn cite_member_edges<T: geom_core::Decide>(
     let mut tie = TieRows::default();
     // The member corners a finished vertex sits at → its name, whether
     // a member ties it, and the finished vertices sitting there.
-    let mut corners: BTreeMap<BTreeSet<(usize, topo::VertexKey)>, Copies> = BTreeMap::new();
+    let mut corners: BTreeMap<BTreeSet<(usize, topo::VertexKey)>, CornerCopies> = BTreeMap::new();
     // base → (name as it stands, entry, whether the rewrite moved it)
     let mut vertices: BTreeMap<StableName, Vec<(StableName, Entry, bool)>> = BTreeMap::new();
     // The bases of groups a seam cited by its head moved.
@@ -1723,7 +1724,7 @@ fn cite_member_edges<T: geom_core::Decide>(
         };
         let cited = match (member_vertex, crossing) {
             (Some((m, v, e)), _) => {
-                let held = corners.entry(m.corners).or_insert_with(|| Copies {
+                let held = corners.entry(m.corners).or_insert_with(|| CornerCopies {
                     name: m.name,
                     tied: m.tied,
                     copies: Vec::new(),
@@ -1866,101 +1867,50 @@ fn cite_member_edges<T: geom_core::Decide>(
         }
         rank_crossings(&mut out, &mut tie, false, &base, &crossings, bnd)?;
     }
-    name_corner_copies(&mut out, &mut tie, corners, body, (flush, fold))?;
+    name_corner_copies(&mut out, &mut tie, corners, |at, keys| {
+        member_corner_walls(at, keys, body, (flush, fold))
+    })?;
     tie.flush(&mut out)?;
     Ok(out)
 }
 
-/// The finished vertices at one member corner ([`cite_member_edges`]).
-struct Copies {
-    name: StableName,
-    /// Whether a member's table ties the corner's name.
-    tied: bool,
-    copies: Vec<(topo::VertexKey, EntityRef)>,
-}
-
-/// **The member corners, each by the finished vertices it is held as**
-/// (N2, N4). A corner held as one vertex is its name; a tied one joins
-/// its name's tie, with the other undivided candidates. A corner held
-/// as several is fragments of it: each copy `Fragment(Borders)` over the
-/// divider walls it meets, read over the fold's discards as a face
-/// piece's are ([`Obstacles::split_corner`]), each wall cited by its
-/// parent. Each candidate of a tied name is its own corner, so only
-/// the divided candidate's copies take `Borders`, and pieces with one
-/// name, of one candidate or several, tie. The pair boolean's twin of
-/// this rule is `emit_topo::name_boolean_vertices`'s corner pass.
-fn name_corner_copies<T: geom_core::Decide>(
-    out: &mut NameTable,
-    tie: &mut TieRows,
-    corners: BTreeMap<BTreeSet<(usize, topo::VertexKey)>, Copies>,
+/// The divider walls each of `keys`, the finished vertices member
+/// corners `at` are held as, meets: read over the fold's discards as a
+/// face piece's are ([`Obstacles::split_corner`]), each wall cited by
+/// its parent.
+fn member_corner_walls<T: geom_core::Decide>(
+    at: &BTreeSet<(usize, topo::VertexKey)>,
+    keys: &[topo::VertexKey],
     body: &topo::Body<T>,
     (flush, fold): (&Flush<'_, T>, &Fold),
-) -> Result<(), NamingError> {
-    let mut pieces: BTreeMap<StableName, (bool, Vec<EntityRef>)> = BTreeMap::new();
-    for (at, held) in corners {
-        match held.copies[..] {
-            [(_, one)] if held.tied => {
-                tie.push(held.name, one);
-                continue;
-            }
-            [(_, one)] => {
-                put_entry(out, held.name, &Entry::Unique(one))?;
-                continue;
-            }
-            _ => {}
-        }
-        let mut parent: BTreeSet<MemberFace> = BTreeSet::new();
-        for &(i, w) in &at {
-            let faces = flush
-                .member_by_index(i)
-                .body
-                .faces_of_vertex(w)
-                .unwrap_or_else(|| {
-                    unreachable!(
-                        "member {i}'s corner {w:?} has no faces: `Flush::member_vertices` read \
-                         it off a live face's loop"
-                    )
-                });
-            parent.extend(faces.into_iter().map(|f| (i, f)));
-        }
-        let faces: BTreeSet<topo::FaceKey> = flush
-            .face_ents
-            .iter()
-            .filter(|(_, ents)| !ents.is_disjoint(&parent))
-            .map(|(&f, _)| f)
-            .collect();
-        let keys: Vec<topo::VertexKey> = held.copies.iter().map(|&(v, _)| v).collect();
-        let wall = |g: topo::FaceKey| {
-            Ok(flush.face_names.get(&g).cloned().unwrap_or_else(|| {
+) -> Result<BTreeMap<Vec<StableName>, Vec<topo::VertexKey>>, NamingError> {
+    let mut parent: BTreeSet<MemberFace> = BTreeSet::new();
+    for &(i, w) in at {
+        let faces = flush
+            .member_by_index(i)
+            .body
+            .faces_of_vertex(w)
+            .unwrap_or_else(|| {
                 unreachable!(
-                    "finished face {g:?} has no parent: `Parents::of` gives every face one"
+                    "member {i}'s corner {w:?} has no faces: `Flush::member_vertices` read it \
+                     off a live face's loop"
                 )
-            }))
-        };
-        for (walls, vs) in fold
-            .obstacles
-            .split_corner(body, &parent, &keys, &faces, wall)?
-        {
-            let mut piece = held.name.clone();
-            piece
-                .path
-                .push(RoleSeg::Fragment(Qualifier::Borders(walls)));
-            let slot = pieces
-                .entry(canonical::minted(piece))
-                .or_insert((false, Vec::new()));
-            slot.0 |= held.tied;
-            slot.1.extend(
-                held.copies
-                    .iter()
-                    .filter(|(v, _)| vs.contains(v))
-                    .map(|&(_, e)| e),
-            );
-        }
+            });
+        parent.extend(faces.into_iter().map(|f| (i, f)));
     }
-    for (name, (from_tie, ents)) in pieces {
-        mint_candidates(out, tie, from_tie, name, ents)?;
-    }
-    Ok(())
+    let faces: BTreeSet<topo::FaceKey> = flush
+        .face_ents
+        .iter()
+        .filter(|(_, ents)| !ents.is_disjoint(&parent))
+        .map(|(&f, _)| f)
+        .collect();
+    let wall = |g: topo::FaceKey| {
+        Ok(flush.face_names.get(&g).cloned().unwrap_or_else(|| {
+            unreachable!("finished face {g:?} has no parent: `Parents::of` gives every face one")
+        }))
+    };
+    fold.obstacles
+        .split_corner(body, &parent, keys, &faces, wall)
 }
 
 /// **Vertices ranked along a union seam they lie on**: along the first
@@ -3344,9 +3294,9 @@ fn orient<'s>(
         .flatten()
     {
         path.push(match seg {
-            // The walls are OPERAND-space names (N2) — this node's
-            // space, like every other embedded name here — so they
-            // collapse the same way.
+            // The walls are the fold step's own names, each wall's
+            // parent as the step's table names it (N3), as a seam's
+            // sides are, so they collapse the same way.
             RoleSeg::Fragment(Qualifier::Borders(walls)) => RoleSeg::Fragment(Qualifier::Borders(
                 walls
                     .iter()

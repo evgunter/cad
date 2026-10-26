@@ -507,17 +507,23 @@ fn a_boolean_document_round_trips_byte_identical() {
 /// digest feeds each edge curve's `Debug`, which now spells the
 /// certificate's `turn`. No outcome or point moved.
 ///
+/// RE-BLESSED, `crossing_slots` only, for a pair boolean's `Borders`
+/// walls citing their parent as the boolean's own table names it (the
+/// `From` each came in through): the second subtract's divided pieces'
+/// names moved. No outcome or point moved.
+///
 /// RE-BLESSED when the value chart came to read a written orientation:
 /// a mate carries its orientation, which the minting edits' bytes hold,
-/// so the ids after it and the names under them moved in `crossing_slots`, `heat_sink` and `kiss_carry`. No
-/// point moved (`m10_p_fence`'s ids-masked row).
+/// so the ids after it and the names under them moved in
+/// `crossing_slots`, `heat_sink` and `kiss_carry`. No point moved
+/// (`m10_p_fence`'s ids-masked row).
 #[test]
 fn the_boolean_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("crossing_slots", 0x6404_5f10_5c1d_127c_u64),
-        ("heat_sink", 0x53d4_e3e1_8845_2724),
-        ("kiss_carry", 0x8d80_addd_16e1_0bec),
+        ("crossing_slots", 0x45d7_a6e9_356c_41b1_u64),
+        ("heat_sink", 0x0ec3_4ebe_7178_d688),
+        ("kiss_carry", 0x0a0b_0ddb_99f9_abb9),
     ] {
         let doc = corpus::documents()
             .into_iter()
