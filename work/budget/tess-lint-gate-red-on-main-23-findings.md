@@ -79,3 +79,22 @@ not:
   `heatsink` and `projectbox` plane ↔ cylinder and sphere ↔ plane swaps
   look like a face-order change rather than a mesh change. Check that
   first, and do not coarsen delta.
+
+## 2026-10-26 (SPLICE nightly triage)
+
+Nightly run 40274924857 (main `38f1a24ed3`), `k-lint (release-budget)`:
+`tess-lint: GATE FAILED — 31 finding(s)`. Diffed line for line against
+2026-10-25's run 40165703340 (main `9f5b44561d`, 30 findings, the same
+30 as 10-23 and 10-24), one is new:
+
+    FINDING lily/lily_lantern: triangles 2556 -> 3038 (1.19x)
+
+with the note `lily/lily_lantern face 8: in this sweep, absent from the
+baseline`. The one merge in the window that touches `demos/tour/src/lily.rs`
+is #5722 (`22b1a8fc2c`, "roll the lantern's mouth in the scene and retire
+wall 6"). It fillets the sphere-zone × pucker-cone rim into a torus band,
+which adds a face to the lantern. So this one is a GEOMETRY change by
+recourse item 1: a new face, not a sizing regression. That attribution
+comes from reading the diff; no sweep was run at the merge. It still
+waits on the same re-cut as the other 30, and the re-cut is not taken
+until the rest have been read (recourse item 4).
