@@ -1,0 +1,1 @@
+- 2026-10-26 — (tracker sweep) Every live row checked against main `bb25fa4f` and kept. Refreshed rotted `seg.rs` and `family.rs` line citations in `circle-side-reads-a-far-segment-ends-rim-uncharged`, `computed-points-read-uncharged-where-err-means-no-contact` and `radius-arrival-has-no-start-anchored-close`. This program had no `log.md` until this entry.

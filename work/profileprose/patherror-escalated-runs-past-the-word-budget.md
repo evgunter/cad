@@ -2,7 +2,8 @@
 id: patherror-escalated-runs-past-the-word-budget
 kind: issue
 title: PathError::Escalated renders 65 words, over the 75-word budget once a payload lands
-status: open
+status: closed
+closed: 2026-10-26
 opened: 2026-10-01
 priority: P4
 cost: M
@@ -47,3 +48,24 @@ not move with the constants.
 ## Re-homed at PATHS's close (2026-10-21)
 
 Moved from `work/paths/` to PROFILEPROSE (`work/profileprose/`) when PATHS closed. PATHS's live rows went to four programs opened at this close and cut along the priority seam (PROFILE, PROFILEREST, PROFILETAIL, PROFILEPROSE; `docs/doc-ledger/paths-leaves-the-tracker.md`). The item's id, content and history are unchanged.
+
+## Closed (2026-10-26, tracker sweep)
+
+**The word count: fixed.** `PathError::Escalated`'s `Display`
+(`crates/profile/src/path.rs:2062`–`2166` as main stands at `bb25fa4f`)
+is no longer one 65-word arm: it routes to the fillet gates' own
+sentences (`fillet_recourse_for`), three short per-name sentences, the
+stored-form arm and a fall-through that opens with
+`validate::decision_subject` and ends through `validate::EscalationEnding`.
+The rendered `ProfileReplay/Path/Escalated` row is in the feature-tree
+census (`crates/editor-core/tests/refusal_concision_chains.rs`'s
+`PATH_ERROR` roster, ~:967) and is not on `OVER_BUDGET` (~:106), whose
+check reds any row over `test_utils::refusal::BUDGET` (75) that it does
+not admit — so it renders within the budget.
+
+**The unvalued tolerance arm: a duplicate.** `JunctionTangent`'s "(or
+lower the tolerance)" (`path.rs:1722`) and
+`FILLET_OFFSET_LEVER_RECOURSE` (`validate.rs:548`) are carried by
+`profile-endings-say-lower-the-tolerance-and-route-by-name` on this
+slate, which has both and the repair shape. `JunctionCusp` no longer
+ends that way.

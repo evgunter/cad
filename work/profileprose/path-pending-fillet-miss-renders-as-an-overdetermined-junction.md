@@ -6,6 +6,7 @@ status: open
 opened: 2026-10-13
 priority: P3
 cost: E
+refs: [constructed-tangent-joint-refusals-are-typed-kernel-defects]
 ---
 
 

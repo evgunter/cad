@@ -43,3 +43,14 @@ Re-check each `likely` or `unsure` argument before acting on it; one that fails 
 ## Re-homed at PATHS's close (2026-10-21)
 
 Moved from `work/paths/` to PROFILEPROSE (`work/profileprose/`) when PATHS closed. PATHS's live rows went to four programs opened at this close and cut along the priority seam (PROFILE, PROFILEREST, PROFILETAIL, PROFILEPROSE; `docs/doc-ledger/paths-leaves-the-tracker.md`). The item's id, content and history are unchanged.
+
+## Absorbed (2026-10-26, tracker sweep)
+
+`path-kernel-bug-refusals-end-in-a-tag` closed into this row: its
+repair was the shape ENCL retired, and its subject is the second-pass
+pair above. Today both arms end in "(a kernel bug)"
+(`crates/profile/src/path.rs:2174`, `:2179`), with no recourse marker.
+`path-pending-fillet-miss-renders-as-an-overdetermined-junction`
+(this slate) is the wrong-cause half of the same two arms: if they
+panic, its sentences go with them; if one is class 1, its cause
+sentence is that row's.

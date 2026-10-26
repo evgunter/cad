@@ -2,7 +2,8 @@
 id: path-kernel-bug-refusals-end-in-a-tag
 kind: issue
 title: profile: PathError UnderdeterminedLeg and OverdeterminedJunction end in '(a kernel bug)', not the shared kernel-defect ending
-status: open
+status: closed
+closed: 2026-10-26
 opened: 2026-09-28
 priority: P3
 cost: E
@@ -48,3 +49,16 @@ the constant.
 ## Re-homed at PATHS's close (2026-10-21)
 
 Moved from `work/paths/` to PROFILEPROSE (`work/profileprose/`) when PATHS closed. PATHS's live rows went to four programs opened at this close and cut along the priority seam (PROFILE, PROFILEREST, PROFILETAIL, PROFILEPROSE; `docs/doc-ledger/paths-leaves-the-tracker.md`). The item's id, content and history are unchanged.
+
+## Closed (2026-10-26, tracker sweep)
+
+**Superseded by `constructed-tangent-joint-refusals-are-typed-kernel-defects`**
+(this slate). This row's own repair (end the arms in
+`KERNEL_DEFECT_ENDING`) was retired by ENCL on 2026-10-20 (the section
+above), and what remains — classify `UnderdeterminedLeg` and
+`OverdeterminedJunction` under `[failure.taxonomy]`, panic if class 2,
+name a lever if class 1 — is that row's "Second-pass sites", with the
+raisers counted and the `map_refusal`/`FILLET_LEG_EXTENT_RECOURSE` probe
+it owes. The "(a kernel bug)" tags still stand at
+`crates/profile/src/path.rs:2174` and `:2179`, and go with that row's
+fix.

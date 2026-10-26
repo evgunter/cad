@@ -7,6 +7,7 @@ opened: 2026-09-12
 refs: [2359, 2415]
 priority: P4
 cost: E
+design: true
 ---
 
 Disclosed by the `fix/arc-fillet-underflow` lane (PR 2415) while
@@ -86,3 +87,15 @@ you except where this note says Ev answered it.
 Moved from `work/paths/` to PROFILEPROSE (`work/profileprose/`) when PATHS closed. PATHS's live rows went to four programs opened at this close and cut along the priority seam (PROFILE, PROFILEREST, PROFILETAIL, PROFILEPROSE; `docs/doc-ledger/paths-leaves-the-tracker.md`). The item's id, content and history are unchanged.
 
 **Its design half waits on a ratification, not on an item.** Whether `docs/PATHS-DESIGN.md`'s typed-refusal register is checked at all, or says in prose that it is not a claim, is a change to a ratified page and goes to Ev on an `[ev]` PR. The cheap half (the two arms and the sentence telling them from `ZeroDirection`) does not wait on it.
+
+## The cheap half done (2026-10-26, tracker sweep)
+
+The register (`docs/PATHS-DESIGN.md`, §3's Refusals paragraph, ~:1064
+now) names `NonFiniteDirection` and `UnderflowedDirection` after
+`ZeroDirection`, with the sentence that tells them from it. What is
+left is the design half: whether the register is checked against
+`PathErrorKind` or says it is prose. It is not complete today in other
+ways too: `ArcMissesAuthoredPoint` and `ArcMissBelowSceneResolution`
+(`crates/profile/src/path.rs`, `PathErrorKind`) are not in it either.
+The Fence above is stale: `docs/PATHS-DESIGN.md` is in this program's
+`paths`.

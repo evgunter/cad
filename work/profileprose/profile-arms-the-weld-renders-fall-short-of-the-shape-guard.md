@@ -11,12 +11,12 @@ cost: E
 
 Found by `wire-census2`, whose PR welds the feature-tree census's
 `Profile/` rows to `profile::ProfileError`'s arms
-(`every_forwarded_arm_has_a_row`, `crates/editor-core/tests/refusal_concision_chains.rs:1389`). The arms the
+(`every_forwarded_arm_has_a_row`, `crates/editor-core/tests/refusal_concision_chains.rs:1366`). The arms the
 roster turned up with no row render short of the standard
 (`crates/profile/src/validate.rs`, `ProfileError`'s `Display`):
 
-- **`ArcBelowSceneResolution`** (`validate.rs:1226`, `Display` at
-  `:1357`) renders 117 words through the feature
+- **`ArcBelowSceneResolution`** (`validate.rs:1338`, `Display` at
+  `:1469`) renders 117 words through the feature
   tree, over the 75-word budget, on `at` loop 0 segment 1,
   `ArcCheck::Landing`, margin 3e-10 and headroom 1e-9. Most of it is
   the recourse: "Recourse: move the profile nearer the origin, or
@@ -26,9 +26,9 @@ roster turned up with no row render short of the standard
   loop with that provenance (a `ConstructedProfile`,
   `pncad::validated`) does not re-read it". The opening also reads
   "an arc whose its sweep does not carry …", a doubled determiner. The
-  row stands on `OVER_BUDGET` (`crates/editor-core/tests/refusal_concision_chains.rs:104`) at a ceiling of 117 words,
+  row stands on `OVER_BUDGET` (`crates/editor-core/tests/refusal_concision_chains.rs:106`) at a ceiling of 117 words,
   citing this file.
-- **`InconsistentArc`** (`validate.rs:1215`, `Display` at `:1369`) states its repair without the label: "… its
+- **`InconsistentArc`** (`validate.rs:1327`, `Display` at `:1481`) states its repair without the label: "… its
   start vertex is off its carrier circle — author the arc through the
   path lattice, which stores a carrier consistent with its ends". On
   `FILED_NO_RECOURSE` under a comment citing this file.

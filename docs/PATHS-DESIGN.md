@@ -1061,7 +1061,10 @@ the M8 conditioning gate `FilletOffsetLeverTooShort`;
 side 1 — closing onto a carrier while keeping the entry vertex is
 `fillet_arc(r, Center { c, winding, p: Start })`);
 `TangencyContradicted` from the verify layer as today. From §2a and the spec family:
-`NonpositiveCircleRadius`; `ZeroDirection`; `ArcViaCollinear`;
+`NonpositiveCircleRadius`; `ZeroDirection`; `NonFiniteDirection` and
+`UnderflowedDirection` (a direction whose length the FORMAT lost, by
+overflow or underflow: not a coincidence at any tolerance, so the
+recourse is scale, not ε); `ArcViaCollinear`;
 `DegenerateArcChord`; `DegenerateArcSpec` (a zero bulge, a
 non-positive sweep/arc-length); `ArcCenterNotEquidistant`;
 `DegenerateArcCenter`; `FarEndAnchorWithoutFillet`;
