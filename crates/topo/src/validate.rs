@@ -533,6 +533,22 @@ pub(crate) fn decide_nonzero<T: Decide>(
 /// the two solids it names may interpenetrate, or one face pair's own
 /// reading in band. `census_uncleared_solids` reads it: the first leaves
 /// the two solids uncleared, the second does not.
+///
+/// **NOT carried to the façade's curated list, and that is a decision
+/// rather than an omission** (`scripts/payload-rung-sweep.py` names this
+/// rung; the disposition table cites this paragraph as its home). A Rust
+/// caller can already name and match this type — `pncad` re-exports
+/// `topo` whole — and the Python door already says the arm
+/// (`census_undecidable`) and carries the sentence, which says whether
+/// the pair read in band. Publishing the name owes the CUR3 property row
+/// `carried_refusal_payloads_are_matchable_through_the_prelude` and a
+/// Python word per arm, both the façade crate's to write.
+///
+/// **The falsifier is a Python caller who must tell an in-band pair (move
+/// one face clear of the band, no overlap read) from a pair the census
+/// cannot clear (the solids may overlap)** without reading the sentence.
+/// When the façade carries the reason, delete this paragraph and the
+/// disposition row with it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Undecidable {
     /// The census cannot clear the two of interpenetrating past the
