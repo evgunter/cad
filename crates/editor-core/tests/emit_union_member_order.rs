@@ -4,9 +4,9 @@
 //! sees an A side and a B side, and the union's collapse rewrites every
 //! fold-space name into member space. A name the collapse makes
 //! order-independent — a `Seam` pair, canonicalized by name — must carry
-//! a tail that is order-independent too: a seam chain's `OrderAlong`
-//! rank was taken along the pair emitter's A-first line, so wherever
-//! canonicalization swaps the pair, the rank is read from the other end.
+//! a tail that is order-independent too: its pieces are told apart by
+//! their ends, and a crossing of it names the side it enters along,
+//! whichever way canonicalization writes the pair.
 //!
 //! The rows:
 //! - two members in both orders, over the boolean suite's fixtures and a
