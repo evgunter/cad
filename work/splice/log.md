@@ -386,6 +386,45 @@ non-self-intersection precondition) is consistent with C5's "only what
 the boundary leaves undecided is read against the face's interior", or
 needs a sentence in C5.
 
+## 2026-10-26 — PR 5768 (boundary-first) merges
+
+The fix pass `76d5bbcfd5` answered the dual pair's union. The
+orchestrator read the delta: no second review, since the pair is
+concurrent and raised no MAJOR. Dual-review row:
+`docs/dual-review-log/rows/PR-5768.md`.
+
+The curve × face table now exists in geom-brep, with its boundary
+pass. Where the demos stand:
+- lily wall 8: reaches the converse arm (a blade NURBS seam against the
+  sheath's planar base cap);
+- teapot wall 3: reaches `PointSplitCarrierUnsupported` on the spout's
+  NURBS seam (`a-meeting-on-a-spline-boundary-edge-has-no-split-parameter`);
+- klein wall 3: unchanged, behind the cap tilt.
+
+Next on lily's path: the table's interior arm together with the
+converse rung, as one brief. `twin_edge`'s fit with C5 is put to Ev in
+chat. The code is kept, and its premise is stated as the boolean's
+non-self-intersection precondition.
+
+## 2026-10-26 — PR 5764 (spline dihedral side) merges
+
+The second fix pass, `49e19569`:
+- the door's contract now says the foot is the CARRIER's, and a caller
+  may consume the side only once the foot is placed in the face; the
+  wiring row is parked on point-in-face, with the hairpin fixture as its
+  witness;
+- a regularity check (`irregular_reach`) runs before any side, so a
+  foot near an irregular point (a kink or a pole) escalates `Crease`;
+- `EdgeWalk`'s public mint takes an `EdgeHalf`.
+
+Filed:
+- the zero-speed foot in geom's `project`;
+- seam continuity (P3);
+- the foot-reader class `a-derivative-is-read-at-a-foot-no-one-placed`.
+
+The orchestrator read the delta. It merged after main's RESTREAD red
+was fixed (ATREST PR 5779).
+
 ## 2026-10-26 — the converse arm dispatched, stacked
 
 `splice/converse-arm` (`session_01GJUH1SbY5bRWRdPiwDHdvq`):
@@ -405,3 +444,21 @@ collide in the new module.
 PR 5764 (spline dihedral) and PR 5768 are both read and accepted, and
 both wait only on RESTREAD's main red
 (`work/restread/main-red-coincident-wedges-overlap-refuses-flush-copies.md`).
+
+## 2026-10-26 — two rulings for the converse-arm lane
+
+- **Witness 3** (the far loft prism against the `[5,6]^3` brick)
+  stops past the hull at two more refusals. One is
+  `sphere_extent_scan`'s NURBS re-gate. The lane scopes it
+  reach-first, in ops.rs, on this PR, as an announced seam. The other
+  is `point_in_solid`'s `KindUnsupported`. A box exit rides this PR
+  only in its sound form: q outside the selection's overall certified
+  box. "Outside every face's box" is unsound, since a box solid's
+  centre is outside every face slab yet inside the solid. A row must
+  pin that. If the sound form does not build the far case, the exit is
+  filed on the owning slate and the rows are re-pinned.
+- **The end-to-end row** stops at `sectors.rs`'s `sector_face::resolve`,
+  which has no NURBS arm. The lane pins a tripwire there, adds a
+  sweep-level witness, and files
+  `the-sector-walk-reads-no-nurbs-face-at-a-crossing-vertex`, which
+  carries the owed ranking row and the spline-crease caution.
