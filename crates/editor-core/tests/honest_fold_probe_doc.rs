@@ -134,3 +134,58 @@ fn pairwise_fold_of_a_covered_in_band_gap_in_every_order() {
         println!("covered order {order:?}: {out}");
     }
 }
+
+#[test]
+fn pairwise_fold_of_a_rolled_plate_in_every_order() {
+    let eps = Tol::witness().eps();
+    for frac in [0.2, 0.4, 3.0] {
+        let th: f64 = frac * eps;
+        for order in [
+            [0, 1, 2],
+            [0, 2, 1],
+            [1, 0, 2],
+            [1, 2, 0],
+            [2, 0, 1],
+            [2, 1, 0],
+        ] {
+            let doc = ProfileDoc::empty(DocumentId::derive("probe-roll"), Tol::witness());
+            let (doc, a) = box_at(doc, (0.0, 10.0), (0.0, 1.0), 0.0, 1.0);
+            let (doc, b) = box_at(doc, (10.0, 11.0), (0.0, 1.0), 0.0, 1.0);
+            let (doc, c) = box_at(doc, (11.0, 12.0), (0.0, 1.0), 0.0, 1.0);
+            let roll = editor_core::Frame::rotate_then_translate(
+                [1.0, 0.0, 0.0],
+                th,
+                [0.0, th.sin(), 1.0 - th.cos()],
+                geom_core::Band::linear(Tol::witness()).unwrap(),
+            )
+            .unwrap();
+            let (doc, c) = fixture::against(doc, a, c, &roll);
+            let (doc, b) = fixture::slid(doc, a, b, [0.0, 0.0, 0.0]);
+            let ids = [a, b, c];
+            let (doc, u) = insert(
+                doc,
+                Node::Union {
+                    members: editor_core::Bodies::Spelled(
+                        order.iter().map(|&k| ids[k].into()).collect(),
+                    ),
+                },
+            );
+            let ev = run(&doc, &EvalOptions::default());
+            let out = match ev.result(u) {
+                Some(NodeResult::Ok(_)) => "built".to_string(),
+                Some(NodeResult::Failed(e)) => {
+                    let s = format!("{e:?}");
+                    let k = s.find("kind:").map_or(0, |i| i);
+                    let m = s.find("margin").map_or("", |i| &s[i..]);
+                    format!(
+                        "failed {} | {}",
+                        s[k..].chars().take(110).collect::<String>(),
+                        m.chars().take(50).collect::<String>()
+                    )
+                }
+                other => format!("{:?}", other.map(|_| ())),
+            };
+            println!("roll {frac}ε order {order:?}: {out}");
+        }
+    }
+}
