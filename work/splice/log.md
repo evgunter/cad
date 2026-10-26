@@ -152,3 +152,12 @@ Orchestrator's read of the delta (no second review: the delta changes
 certified decisions only within the items asked). One comment-only
 drive-by: a history line in the fuzz header removed. Merged on green
 `gate ok`.
+
+## 2026-10-26 — PR 5723 (the gate) goes to review
+
+Green at b0860ea4 (main b6588d2c merged; the render moved no cell,
+since all three walls refuse before and after, at different sites).
+Tier: dual, letter M (both main rows cost M). Arm drawn at dispatch:
+`/dev/urandom` byte 169, mod 3 = 1, so **SEQUENTIAL**. One review now
+(`session_01XsRqThr5DVNjqpXVWs9hj7`, dispatched 01:28Z); a second runs
+on the fix-pass head only if this one raises a MAJOR.
