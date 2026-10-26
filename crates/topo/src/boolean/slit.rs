@@ -137,7 +137,8 @@ pub enum EdgeInFaceGap {
     /// the copies.
     DividedEndTouched,
     /// An end of the edge lies on the face's loops more than once, or
-    /// the edge's faces go into the material of two faces it lies in.
+    /// the edge's faces go into the material of two faces it lies in,
+    /// wholly in one of them.
     Shared,
     /// The edge lies in the face along part of its length and runs on
     /// past the face's boundary, and no record names a crossing of the
@@ -348,6 +349,10 @@ pub(super) fn part_riders<T: Decide + crate::props::AtRestPolicy>(
         let (face, flat, partly) = match parting[..] {
             [] => continue,
             [one] => one,
+            // Pieces of the edge lie in several faces, across their
+            // boundaries: divided against the first, its pieces are read
+            // again.
+            [first, ..] if parting.iter().all(|&(.., partly)| partly) => first,
             [(face, ..), ..] => {
                 return Err(BooleanError::EdgeInFace {
                     edge,
@@ -762,7 +767,12 @@ fn holding<T: Decide>(
     match on_carrier(body, &carrier, (t0, t1), f, band) {
         Ok(true) => {}
         Ok(false) => return Ok(None),
-        Err(read) => return unplaced(read),
+        // Whether the edge lies on the surface matters only where both
+        // its faces go into the face's material.
+        Err(read) if matches!(walls_inside(body, e, f, band), Ok(Some(_))) => {
+            return unplaced(read);
+        }
+        Err(_) => return Ok(None),
     }
     let along = Span::new(&carrier, (t0, t1));
     let at = match cuts(body, contacts, e, f, &along, band) {

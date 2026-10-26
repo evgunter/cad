@@ -683,7 +683,18 @@ fn p11_the_new_rows_in_the_other_order() {
         [Some(66.0 - pi), Some(30.0), Some(30.0 - pi), Some(6.0)],
         &grid(),
     );
-    all_answer("p11 p4 swapped", &got);
+    // B ∖ A here is p4's `A ∖ B`, the doubled cusp: it refuses as there.
+    assert!(
+        matches!(
+            topo::subtract(&hole, &cut, tol()),
+            Err(topo::BooleanError::EdgeInFace {
+                gap: topo::EdgeInFaceGap::Tangent,
+                ..
+            })
+        ),
+        "p11 p4 swapped B ∖ A: {got:#?}"
+    );
+    all_answer("p11 p4 swapped", &[0, 1, 3].map(|k| got[k].clone()));
     let fat = ext("fat", vec![circle(0.0, 0.0, 2.0)], 0.0, 1.0);
     let thin = ext("thin long", vec![circle(1.0, 0.0, 1.0)], -1.0, 3.0);
     let got = four(

@@ -1191,6 +1191,26 @@ fn a_ball_seated_in_its_own_bore_refuses_at_the_crossing_layer() {
     }
 }
 
+/// **An arc lying in a curved face refuses `EdgeInFace` (`Curved`)**
+/// where its two faces both leave it into the face's material: the
+/// material parts it into two coincident arcs
+/// (`work/splitdoor/a-curved-slit-fails-tier-3-prime-on-its-two-coincident-arcs.md`).
+/// The bowl a sunk dome leaves meets the tube's wall so along the rim's
+/// arcs, and a rod's top rim on the dome's sphere meets the sphere so.
+fn refuses_the_rims_slit(label: &str, r: Result<BooleanResult<f64>, BooleanError>) {
+    assert!(
+        matches!(
+            r,
+            Err(BooleanError::EdgeInFace {
+                gap: topo::EdgeInFaceGap::Curved,
+                ..
+            })
+        ),
+        "{label}: refuses the rim's slit: {:?}",
+        r.map(|_| ())
+    );
+}
+
 /// A spherical cap's volume: height `h` on a sphere of radius `rho`.
 fn cap_volume(rho: f64, h: f64) -> f64 {
     PI * h * h * (3.0 * rho - h) / 3.0
@@ -1434,6 +1454,10 @@ fn a_dome_sunk_across_the_tubes_seam_rulings_builds_every_op_undeclared() {
                 ),
             ] {
                 let label = format!("{walls}, dz = {dz}, turn {turn}: {op}");
+                if op == "t ∖ d" {
+                    refuses_the_rims_slit(&label, r);
+                    continue;
+                }
                 let (v, c, k) = built(&label, r);
                 assert!(
                     (v - want).abs() <= 1e-12 * want,
@@ -2010,6 +2034,10 @@ fn a_turned_rim_on_a_wall_bounded_by_an_ellipse_builds_every_op_undeclared() {
                 ),
             ] {
                 let label = format!("dz = {dz}, turn {turn}: {op}");
+                if op == "t ∖ d" {
+                    refuses_the_rims_slit(&label, r);
+                    continue;
+                }
                 let pad = match &r {
                     Ok(BooleanResult::Body(bb)) => {
                         topo::mass_properties(&bb.body, tol).unwrap().volume_pad
@@ -2118,6 +2146,10 @@ fn a_rod_rim_on_the_dome_across_its_seam_meridian_builds_every_op_undeclared() {
             ),
         ] {
             let label = format!("α {alpha}°, θ {theta}°, own {own}°: {op}");
+            if op == "d ∖ a" {
+                refuses_the_rims_slit(&label, res);
+                continue;
+            }
             let (v, c, k) = built(&label, res);
             assert!(
                 (v - want).abs() <= reach,

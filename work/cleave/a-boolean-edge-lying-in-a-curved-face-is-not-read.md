@@ -73,4 +73,23 @@ the edge's midpoint, so it carries over.
   refuses `CurvedPierceUnsupported` in every op at every ε, at the
   reduction, on main and here; past it the parting refuses `Curved`.
   Filed as `work/cleave/an-arc-lying-in-a-curved-faces-interior-refuses-at-the-reduction.md`.
-- Not read: an edge lying in a torus or spline face.
+- Moved from main's one edge (the rider form, which tiers 3 and 3′
+  pass on a curved face) to a typed refusal, each re-pinned: the box
+  corner edge resting in a pipe's wall (`a_ruling_through_a_box_corner_edge.rs`,
+  both tests, `CurvedRing`); the prism edge inside one tube wall face
+  (`a_ruling_lying_on_a_wall.rs`, `CurvedRing`); the sunk dome's rim
+  arcs on the tube's wall and a rod's top rim on the dome's sphere
+  (`pi_seam_and_kiss_through_the_boolean.rs`, three tests, `Curved`).
+  Moved from the rider form to the slit form: the prism edge running
+  down the wall from the rim, and the ruling across the wall's
+  ellipse (`a_ruling_lying_on_a_wall.rs`), one edge and one vertex
+  more, tiers 3 and 3′ at the closed form.
+- Where an edge lies partly in several faces across their boundaries
+  (a rim arc crossing a seam ruling of a two-face tube), it is divided
+  against the first and its pieces read again (`slit::part_riders`).
+- An in-band reading of whether the edge's carrier lies on the face is
+  raised only where both its faces go into the face's material, and
+  a face only a crossing record names is not asked where its reading
+  is in band (`slit::holding`).
+- Not read: an edge lying in a torus or spline face, and a closed edge
+  (`work/cleave/a-closed-edge-lying-in-a-face-is-never-read-by-the-parting.md`).

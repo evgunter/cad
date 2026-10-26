@@ -9,8 +9,11 @@
 //! - `∩` keeps the edge and the wall's far piece: the rest left with
 //!   the near piece, and the result records nothing.
 //! - wall `∖` box keeps the edge and the near piece, the two wedges of
-//!   wall material beside the box touching along the edge: two v-f
-//!   records, each on the piece that holds its vertex.
+//!   wall material beside the box touching along the edge. The material
+//!   parts the edge into two, a ring of no area in the near piece, which
+//!   the measure of a curved face does not read: it refuses
+//!   `EdgeInFace` (`CurvedRing`,
+//!   `work/cleave/a-ring-of-no-area-in-a-curved-face-is-not-measured.md`).
 //! - `∪` and box `∖` wall lose the edge, and record nothing.
 //!
 //! A cone's ruling along a square prism's edge is the same pose on a
@@ -118,7 +121,8 @@ type Run = (
 );
 
 /// Every op of the wall `w` and the box `b` in both orders, with the
-/// number of v-f records each owes: two for `w ∖ b`, none for the rest.
+/// number of v-f records each owes: none, and `w ∖ b` refuses
+/// ([`refuses_the_ring`]).
 fn six(w: &AtRestBody<f64>, b: &AtRestBody<f64>) -> [Run; 6] {
     let t = tol();
     [
@@ -126,9 +130,26 @@ fn six(w: &AtRestBody<f64>, b: &AtRestBody<f64>) -> [Run; 6] {
         ("b ∩ w", topo::intersect(b, w, t), 0),
         ("w ∪ b", topo::union(w, b, t), 0),
         ("b ∪ w", topo::union(b, w, t), 0),
-        ("w ∖ b", topo::subtract(w, b, t), 2),
+        ("w ∖ b", topo::subtract(w, b, t), 0),
         ("b ∖ w", topo::subtract(b, w, t), 0),
     ]
+}
+
+/// **`w ∖ b` refuses `EdgeInFace` (`CurvedRing`)**: the box's faces at
+/// the corner edge both leave it into the near wall piece's material,
+/// so the edge is two, a ring of no area in that piece.
+fn refuses_the_ring(what: &str, r: Result<BooleanResult<f64>, BooleanError>) {
+    assert!(
+        matches!(
+            r,
+            Err(BooleanError::EdgeInFace {
+                gap: topo::EdgeInFaceGap::CurvedRing,
+                ..
+            })
+        ),
+        "{what}: refuses the curved ring: {:?}",
+        r.map(|_| ())
+    );
 }
 
 /// The result's volume, after checking it passes tiers 2 and 3′ against
@@ -181,11 +202,10 @@ fn checked(what: &str, r: Result<BooleanResult<f64>, BooleanError>, vf: usize) -
 }
 
 /// **A cylinder's ruling along each of the box's twelve edges**: every
-/// op in both orders builds at its closed form, passes tier 3′ against
-/// its own records, and records the rest exactly where the result
-/// keeps it. Before the records were carried through the wall's
-/// division, `∩` named the far piece, which holds neither end, and
-/// `w ∖ b` dropped both rests with the piece that kept the key.
+/// op in both orders but `w ∖ b` builds at its closed form, passes tier
+/// 3′ against its own records, and records nothing, `∩` naming no rest
+/// on the far piece, which holds neither end; `w ∖ b` refuses the ring
+/// its edge would part into ([`refuses_the_ring`]).
 #[test]
 fn a_wall_through_a_box_edge_records_the_rest_on_the_piece_that_holds_it() {
     let b = the_box();
@@ -201,6 +221,10 @@ fn a_wall_through_a_box_edge_records_the_rest_on_the_piece_that_holds_it() {
                 let common = (PI + 2.0) * C * C * len;
                 for (op, r, vf) in six(&w, &b) {
                     let what = format!("{axis:?} edge at ({u}, {v}): {op}");
+                    if op == "w ∖ b" {
+                        refuses_the_ring(&what, r);
+                        continue;
+                    }
                     let want = match op {
                         "w ∩ b" | "b ∩ w" => common,
                         "w ∪ b" | "b ∪ w" => vw + vb - common,
@@ -291,11 +315,9 @@ fn post(axis: Axis, (u, v): (f64, f64), (su, sv): (f64, f64)) -> AtRestBody<f64>
 /// **A post through the near wall piece** (the review r1 pose): wall
 /// `∖` (box `∪` post), the post fused to the box and crossing the wall
 /// beside the ruling, at each of the box's twelve edges. The section of
-/// the post divides the wall again, and the rests at the corner edge's
-/// ends still land on the piece that holds them: two v-f records, tier 3′
-/// against them, each face holding its vertex. The post's section loop
-/// leaves no curved piece with a ring (the join bridges it into the
-/// piece's boundary), so every piece's trim reads.
+/// the post divides the wall again, and the corner edge still lies in
+/// the near piece with both ends in its interior: it refuses the ring
+/// as `w ∖ b` does ([`refuses_the_ring`]).
 #[test]
 fn a_post_through_the_near_wall_piece_keeps_the_rests_on_their_piece() {
     let t = tol();
@@ -312,7 +334,7 @@ fn a_post_through_the_near_wall_piece_keeps_the_rests_on_their_piece() {
                     Ok(BooleanResult::Body(bb)) => bb.body,
                     other => panic!("{what}: box ∪ post builds: {other:?}"),
                 };
-                checked(&what, topo::subtract(&w, &b, t), 2);
+                refuses_the_ring(&what, topo::subtract(&w, &b, t));
             }
         }
     }
