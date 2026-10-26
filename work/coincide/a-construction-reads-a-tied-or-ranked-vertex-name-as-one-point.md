@@ -19,3 +19,7 @@ Found by PR 5624's review (MSOLVE; probes on `review/msolve-plane-pose-R1`), fil
 One class: a vertex name whose qualifiers are what tell two points apart, read by the walk as one point. A row needs both cells at once for this to matter, and every row the kernel records is a coincidence it decided, so no wrong proof is known today. The walk claims more than the names support, though.
 
 **Done when** the walk reads a tied vertex name as no construction (or one per candidate), and keeps a ranked vertex's ordering qualifiers. A row should pin each case.
+
+## Partly moot (WIRE orchestrator, 2026-10-26)
+
+Closed by PR 5758 (2026-10-26, "nothing is ranked", Ev's ruling on PR 5705). Nothing is ranked any more, so the ranked half is moot. The tied half stands: a construction still reads a tied vertex name as one point.

@@ -790,6 +790,8 @@ mod glue_on_zero_rows;
 mod intent_dprime1_target_space;
 #[path = "intent_dprime2_mates_read_geometry.rs"]
 mod intent_dprime2_mates_read_geometry;
+#[path = "intent_dprime3_assemble_product_slot.rs"]
+mod intent_dprime3_assemble_product_slot;
 #[path = "intent_literals_a_definitions.rs"]
 mod intent_literals_a_definitions;
 #[path = "intent_literals_b_door.rs"]
@@ -798,6 +800,8 @@ mod intent_literals_b_door;
 mod intent_literals_c_slots;
 #[path = "intent_literals_d_constants.rs"]
 mod intent_literals_d_constants;
+#[path = "intent_loft_set_sections.rs"]
+mod intent_loft_set_sections;
 #[path = "intent_part_census_seam.rs"]
 mod intent_part_census_seam;
 #[path = "intent_part_split_half.rs"]

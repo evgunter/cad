@@ -45,3 +45,7 @@ oracles. A fix in the shape of `arc_window` — re-read at `T::pi()`
 when the seam's read spans half a turn or more — keeps each read a
 function of the point and the carrier; a measured witness per site
 comes first.
+
+## Partly moot (WIRE orchestrator, 2026-10-26)
+
+Closed by PR 5758 (2026-10-26, "nothing is ranked", Ev's ruling on PR 5705). The `param_along` bullet is moot: the rank readers are deleted. The rest stands.

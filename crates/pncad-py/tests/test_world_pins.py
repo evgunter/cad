@@ -44,7 +44,7 @@ from pncad import (
 )
 
 import bench_scene
-from placing import moves
+from placing import moves, assemble_world_copies
 
 
 def lifted(z):
@@ -201,14 +201,16 @@ class WorldPins(unittest.TestCase):
         self.assertEqual(doc.space(shelf), doc.output(aside))
         self.assertEqual(doc.space(post), doc.output(doc.world))
 
-    def test_the_gate_checks_each_new_space_by_itself(self):
+    def test_the_gate_checks_each_assemble_by_itself(self):
         """`pncad.assemble` reaches the kernel's one gate, which checks
-        a new space's copies by themselves: two posts seated at one spot
-        under a shelf placed into a space of its own interpenetrate
-        there, and the gate reports their overlap as one loud
-        interference finding though the world beside them certifies."""
+        each `⊔` between its own members, whether or not the product
+        reads it: two posts seated at one spot under a shelf in a space
+        of their own, gathered by a `⊔` there, interpenetrate, and the
+        gate reports their overlap as one loud interference finding
+        though the world's product beside them certifies."""
         doc = Doc("py-pin-gate")
         self.pinned(doc, self.post_ref, Frame.translation((1 * m, 0 * m, 0 * m)))
+        assemble_world_copies(doc)
         aside = doc.new_space()
         shelf = doc.insert(Node.instantiate_part(self.shelf_ref, aside))
         posts = []
@@ -222,10 +224,12 @@ class WorldPins(unittest.TestCase):
                 bench_scene.post_under_shelf(bench_scene.SEAT_A),
             )
             posts.append(post)
-            if len(posts) == 1:
-                # One post under the shelf: nothing clashes anywhere.
-                pncad.assemble(doc, evaluate(doc, resolver=self.ws))
         self.assertEqual({doc.space(p) for p in posts}, {doc.output(aside)})
+        # One post under the shelf: nothing clashes anywhere.
+        doc.assemble([shelf, posts[0]])
+        assembly = pncad.assemble(doc, evaluate(doc, resolver=self.ws))
+        self.assertEqual(len(assembly.interference), 0)
+        doc.assemble([shelf, *posts])
         assembly = pncad.assemble(doc, evaluate(doc, resolver=self.ws))
         self.assertEqual(len(assembly.interference), 1)
         (finding,) = assembly.interference

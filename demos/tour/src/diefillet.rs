@@ -512,7 +512,9 @@ pub fn corpus_text(tol: Tol) -> String {
     // the mate by the id that mate's own edit mints.
     let placed = crate::world::place_in_world(&replay, die.composed, tol);
     edits.extend(placed.edits);
-    replay = placed.doc;
+    let product = crate::world::set_product(&placed.doc, &[placed.placement.into()], tol);
+    edits.extend(product.edits);
+    replay = product.doc;
     assert_eq!(
         replay,
         gallery_document(tol),
@@ -536,8 +538,8 @@ pub fn corpus_text(tol: Tol) -> String {
 /// [`Die::blank`] is a second fillet of the same cube, consumed by
 /// nothing — a narration body.
 ///
-/// A document's product is the world: the copies its placements
-/// define, and nothing else (A10). The file places the scene's
+/// A document's product is what it sets its product to: here the
+/// one copy of the die (A10). The file places the scene's
 /// SUBJECT — "the composed die, which remains the sheet's die" (Ev's
 /// montage curation, #218 follow-up, which ruled the two partial dice
 /// out of the sheet for reading as near-duplicates) — and nothing
@@ -550,10 +552,12 @@ pub fn corpus_text(tol: Tol) -> String {
 /// The product is one copy of the die: 89 faces, V = 0.952915, no
 /// separation finding. The 21 pips are the members of ONE
 /// `Node::Union`, so the node count is the pips, the blank, the two
-/// blends and the placement — not a chain length.
+/// blends and the placement — not a chain length — and the product
+/// slot reads the placement's copy.
 pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
     let die = build(tol);
-    crate::world::place_in_world(&die.doc, die.composed, tol).doc
+    let placed = crate::world::place_in_world(&die.doc, die.composed, tol);
+    crate::world::set_product(&placed.doc, &[placed.placement.into()], tol).doc
 }
 
 pub fn stops(tol: Tol) -> Vec<Stop> {

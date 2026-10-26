@@ -190,6 +190,10 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
     # line lacks.
     "SlitLineGap": ("argued", "non-carriage with its falsifier, beside the declaration "
                     "in crates/topo/src/boolean/mod.rs"),
+    # `BooleanError::SlitFaceGlued`'s gap: which construction along a
+    # glued slit is not built.
+    "SlitFaceGap": ("argued", "non-carriage with its falsifier, beside the declaration "
+                    "in crates/topo/src/boolean/mod.rs"),
     # `BooleanError::GermSectionSpiric`'s loops: `WedgeCheck`'s shape,
     # argued beside the declaration.
     "SpiricLoops": ("argued", "non-carriage with its falsifier, beside the declaration "

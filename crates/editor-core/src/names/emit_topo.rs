@@ -2980,22 +2980,28 @@ fn name_boolean_vertices<T: Decide>(
             })
         };
         let sense = |side, edge: &NameRef| sense_of(v, &at_v, side, edge);
-        // A crossing of operand `o`'s edge `e` by the face across it.
-        let crossing = |o: topo::Operand, e: &NameRef, face: NameRef| {
-            Ok::<_, NamingError>(RoleSeg::Crossing {
-                edge: carried(o, e),
-                sense: sense(o, e)?,
-                face,
-            })
+        // The line of operand `o`'s edges `on`, flush on one line, with
+        // its sense: one edge's line, or `Merged` of the several, read
+        // along each of them.
+        let line = |o: topo::Operand, on: &[NameRef]| -> Result<(NameRef, Sense), NamingError> {
+            let mut read = Vec::with_capacity(on.len());
+            for e in on {
+                read.push((carried(o, e), sense(o, e)?));
+            }
+            let name = line_name(node, read.iter().map(|(l, _)| l.clone()));
+            Ok((name, sense_along_line(v, read)?))
         };
-        // Several operand edges' lines meeting: their run, in name order.
-        let run = |lines: &[(topo::Operand, &NameRef)]| -> Result<RoleSeg, NamingError> {
+        // A crossing of operand `o`'s line `on` by the face across it.
+        let crossing = |o: topo::Operand, on: &[NameRef], face: NameRef| {
+            let (edge, sense) = line(o, on)?;
+            Ok::<_, NamingError>(RoleSeg::Crossing { edge, sense, face })
+        };
+        // Several operand lines meeting: their run, in name order.
+        let run = |lines: &[(topo::Operand, &[NameRef])]| -> Result<RoleSeg, NamingError> {
             let mut run = Vec::with_capacity(lines.len());
-            for &(o, e) in lines {
-                run.push(RunLine {
-                    line: carried(o, e),
-                    sense: sense(o, e)?,
-                });
+            for &(o, on) in lines {
+                let (line, sense) = line(o, on)?;
+                run.push(RunLine { line, sense });
             }
             run.sort();
             Ok(RoleSeg::EdgeCrossing(run))
@@ -3024,7 +3030,10 @@ fn name_boolean_vertices<T: Decide>(
             &a_across,
             &b_across,
         ) {
-            ([ae], [be], ..) => run(&[(topo::Operand::A, ae), (topo::Operand::B, be)])?,
+            ([ae], [be], ..) => run(&[
+                (topo::Operand::A, core::slice::from_ref(ae)),
+                (topo::Operand::B, core::slice::from_ref(be)),
+            ])?,
             // A pure seam-junction vertex (M4 PR 5: declared merges
             // can consume every operand-descended edge at a crossing
             // vertex): the incident seam edges' sides determine it when
@@ -3033,8 +3042,12 @@ fn name_boolean_vertices<T: Decide>(
                 a: s0.clone(),
                 b: s1.clone(),
             },
-            ([ae], [], _, Some(face), _) => crossing(topo::Operand::A, ae, face.clone())?,
-            ([], [be], _, _, Some(face)) => crossing(topo::Operand::B, be, face.clone())?,
+            ([ae], [], _, Some(face), _) => {
+                crossing(topo::Operand::A, core::slice::from_ref(ae), face.clone())?
+            }
+            ([], [be], _, _, Some(face)) => {
+                crossing(topo::Operand::B, core::slice::from_ref(be), face.clone())?
+            }
             // A seam JUNCTION (M4 PR 5: declared merges can consume
             // every operand-descended edge at a crossing): the vertex
             // where k ≥ 2 seam LINES meet and no operand edge does. N2
@@ -3060,8 +3073,8 @@ fn name_boolean_vertices<T: Decide>(
             // the parentage: a pinch, where several edges of one operand
             // pierce a face of the other, or a point edges of both
             // operands run through, one of them on one side. N2 names it
-            // by its lines: each side's edges, those on one straight line
-            // once as the least ([`flush_lines`]). One line and one face
+            // by its lines: each side's edges, those flush on one line as
+            // the set of them ([`flush_lines`]). One line and one face
             // of the other operand is that line's `Crossing`; two or more
             // lines are their run.
             (aes, bes, ..)
@@ -3078,10 +3091,10 @@ fn name_boolean_vertices<T: Decide>(
                     ([ae], [], Some(face), _) => crossing(topo::Operand::A, ae, face.clone())?,
                     ([], [be], _, Some(face)) => crossing(topo::Operand::B, be, face.clone())?,
                     (al, bl, ..) if al.len() + bl.len() >= 2 => {
-                        let lines: Vec<(topo::Operand, &NameRef)> = al
+                        let lines: Vec<(topo::Operand, &[NameRef])> = al
                             .iter()
-                            .map(|e| (topo::Operand::A, e))
-                            .chain(bl.iter().map(|e| (topo::Operand::B, e)))
+                            .map(|on| (topo::Operand::A, on.as_slice()))
+                            .chain(bl.iter().map(|on| (topo::Operand::B, on.as_slice())))
                             .collect();
                         run(&lines)?
                     }
@@ -3148,15 +3161,15 @@ fn name_boolean_vertices<T: Decide>(
     Ok(())
 }
 
-/// **The lines of one operand's edges at a seam vertex** (N2), least
-/// first ([`least_per_line`]). An edge whose table does not name it
-/// once is a line of its own.
+/// **The lines of one operand's edges at a seam vertex** (N2), each the
+/// set of its flush edges ([`sets_per_line`]). An edge whose table does
+/// not name it once is a line of its own.
 fn flush_lines<T: Decide>(
     edges: &[NameRef],
     op: &OperandCtx<'_, T>,
     bnd: geom_core::Band,
-) -> Result<Vec<NameRef>, NamingError> {
-    least_per_line(
+) -> Result<Vec<Vec<NameRef>>, NamingError> {
+    sets_per_line(
         edges.iter().cloned(),
         |e| match crossed_edge(e, op.table) {
             Some(k) => EdgeCarrier::of_edge(op.body, k).map(Some),
@@ -3166,37 +3179,145 @@ fn flush_lines<T: Decide>(
     )
 }
 
-/// **Edges that run flush on one line, counted once as the least of
-/// them** (N2's lines at a vertex), least first: each of `edges` in
-/// order, except one that lies on the line of a lesser one's, through
-/// [`ON_MEMBER_EDGE`]: a straight edge on its straight line, a curved
-/// one on its certified carrier ([`EdgeCarrier::runs_with`]). `line`
-/// reads an edge's carrier; an edge it answers `None` for (the pair's
-/// edge its operand's table does not name once, `flush_lines`), and an
-/// [`EdgeCarrier::Unread`] one, is a line of its own. The pair
-/// boolean's collapse (`flush_lines`); the union names such a line for
-/// the set of its edges (`emit_union::Flush::sets_per_line`).
-pub(super) fn least_per_line<E: Ord, T: Decide>(
+/// **Edges grouped by the line they lie on** (N2's lines at a vertex),
+/// each line the set of its edges in order, the lines in the order of
+/// their least edges: an edge lies on a line where it runs along the
+/// carrier of the line's least edge through [`ON_MEMBER_EDGE`], a
+/// straight edge on its straight line, a curved one on its certified
+/// carrier ([`EdgeCarrier::runs_with`]). `line` reads an edge's carrier;
+/// an edge it answers `None` for (the pair's edge its operand's table
+/// does not name once, `flush_lines`), and an [`EdgeCarrier::Unread`]
+/// one, is a line of its own. No edge on a line is chosen over another:
+/// the pair boolean (`flush_lines`) and the union
+/// (`emit_union::Flush::meeting`) cite each line as the set of them.
+pub(super) fn sets_per_line<E: Ord, T: Decide>(
     edges: impl IntoIterator<Item = E>,
     mut line: impl FnMut(&E) -> Result<Option<EdgeCarrier<T>>, NamingError>,
     bnd: geom_core::Band,
-) -> Result<Vec<E>, NamingError> {
+) -> Result<Vec<Vec<E>>, NamingError> {
     let mut sorted: Vec<E> = edges.into_iter().collect();
     sorted.sort();
-    let mut kept: Vec<(E, Option<EdgeCarrier<T>>)> = Vec::with_capacity(sorted.len());
+    let mut lines: Vec<(Vec<E>, Option<EdgeCarrier<T>>)> = Vec::with_capacity(sorted.len());
     for e in sorted {
         let on_line = line(&e)?;
-        let mut flush = false;
-        if let Some(on_line) = &on_line {
-            for on in kept.iter().filter_map(|(_, on)| on.as_ref()) {
-                flush |= on.runs_with(on_line, ON_MEMBER_EDGE, bnd)?.is_some();
+        let mut on = None;
+        if let Some(carrier) = &on_line {
+            for (i, (_, of)) in lines.iter().enumerate() {
+                let Some(of) = of else { continue };
+                if of.runs_with(carrier, ON_MEMBER_EDGE, bnd)?.is_some() {
+                    on = Some(i);
+                    break;
+                }
             }
         }
-        if !flush {
-            kept.push((e, on_line));
+        match on {
+            Some(i) => lines[i].0.push(e),
+            None => lines.push((vec![e], on_line)),
         }
     }
-    Ok(kept.into_iter().map(|(e, _)| e).collect())
+    Ok(lines.into_iter().map(|(line, _)| line).collect())
+}
+
+/// **The name of a line of things flush on it** (N2): the one thing's
+/// line, or `Merged` of the several, flat and in name order
+/// ([`merged::edge_set`]). The pair boolean's lines of operand edges
+/// and the union's of member edges are both named here. A line holds
+/// one thing or more ([`sets_per_line`]).
+pub(super) fn line_name(node: RecipeNodeId, on: impl IntoIterator<Item = NameRef>) -> NameRef {
+    let mut on = on.into_iter();
+    match (on.next(), on.next()) {
+        (Some(one), None) => one,
+        (first, second) => NameRef::new(merged::edge_set(
+            node,
+            first
+                .into_iter()
+                .chain(second)
+                .chain(on)
+                .map(|l| (*l).clone()),
+        )),
+    }
+}
+
+/// **The sense of a line at vertex `v`** (N2), from each thing on it,
+/// by its line name, with its sense as [`EdgeReading::read`] reads it:
+/// a flush edge's as its body stores the edge, a seam edge's crossing
+/// as `Through` the side it enters along. A line of one thing reads as
+/// that thing. A transversal crossing of several is `Through` every
+/// thing whose direction runs into the body, in name order, and a touch
+/// of several is their one touch.
+///
+/// # Errors
+///
+/// [`NamingError::BandVerdictsDisagree`] where one thing crosses and
+/// another touches, or two touch from opposite sides. Each thing's
+/// sense is its own band judgement, and the things are flush with each
+/// other only within [`ON_MEMBER_EDGE`]. Exactly flush, they cannot
+/// disagree: an operand edge's sense is the classes of its pieces on
+/// either side of `v` ([`senses_at`]), and the boolean classes a piece
+/// by where its points lie against the other operand's closed body (an
+/// edge lying on the crossing face is `On`, so in it, whichever faces
+/// the edge bounds). Two exactly coincident pieces beside `v` hold the
+/// same points, so they read the same touch, or cross the same way up
+/// to their stored directions, which a `Through` reads apart. A
+/// union's member edge is read from pairwise judgements of the same
+/// kind (`emit_union`'s `Flush::sense_against`). Only the band, which
+/// can decide two nearly coincident pieces differently, splits them.
+///
+/// # Panics
+///
+/// Where `read` is empty: a line holds an edge or more
+/// ([`sets_per_line`]).
+pub(super) fn sense_along_line(
+    v: VertexKey,
+    read: impl IntoIterator<Item = (NameRef, Sense)>,
+) -> Result<Sense, NamingError> {
+    let disagree = || NamingError::BandVerdictsDisagree {
+        vertex: v,
+        shape: DisagreeShape::FlushSensesDisagree,
+    };
+    let mut read = read.into_iter();
+    let Some(first) = read.next() else {
+        unreachable!(
+            "a line at vertex {v:?} holds nothing: `sets_per_line` makes each line of one edge or \
+             more"
+        )
+    };
+    let Some(second) = read.next() else {
+        return Ok(first.1);
+    };
+    let mut touch: Option<Sense> = None;
+    let mut crosses = false;
+    let mut entering = Vec::new();
+    for (line, sense) in [first, second].into_iter().chain(read) {
+        match sense {
+            t @ (Sense::Outside | Sense::Inside) => {
+                if touch.as_ref().is_some_and(|was| *was != t) {
+                    return Err(disagree());
+                }
+                touch = Some(t);
+            }
+            Sense::Enters => {
+                crosses = true;
+                entering.push(line);
+            }
+            Sense::Leaves => crosses = true,
+            Sense::Through { entering: sides } => {
+                crosses = true;
+                entering.extend(sides);
+            }
+        }
+    }
+    // Each thing either touches or crosses, so a line with no touch
+    // crosses.
+    match touch {
+        Some(t) if !crosses => Ok(t),
+        Some(_) => Err(disagree()),
+        None => {
+            entering.sort();
+            entering.dedup();
+            Ok(Sense::Through { entering })
+        }
+    }
 }
 
 /// What a boolean fused, read once per boolean: each result vertex's
@@ -8119,7 +8240,7 @@ mod rim_holding_rows {
 
     /// **Two arcs lie on one line when they lie on one circle, and run
     /// the way their tangents agree** (`EdgeCarrier::runs_with`), so the
-    /// lines at a vertex count coincident arcs once (`least_per_line`):
+    /// lines at a vertex count coincident arcs once (`sets_per_line`):
     /// an arc of the unit circle runs with a disjoint arc of it the
     /// same way, and with a clockwise one (carried by the circle about
     /// −z) the other way; an arc of another circle through both ends of
@@ -8127,7 +8248,7 @@ mod rim_holding_rows {
     /// not on its line.
     #[test]
     fn arcs_of_one_circle_are_one_line_either_way_along_it() {
-        use super::{EdgeCarrier, least_per_line};
+        use super::{EdgeCarrier, sets_per_line};
         use crate::names::discriminate::ON_MEMBER_EDGE;
         let bnd = band(Tol::witness()).unwrap();
         let line = |(b, e): (Body<f64>, EdgeKey)| EdgeCarrier::of_edge(&b, e).unwrap();
@@ -8170,7 +8291,7 @@ mod rim_holding_rows {
             arc_on(&clockwise, -60.0 * DEG, -10.0 * DEG),
             chord_arc(200.0, 250.0),
         ];
-        let lines = least_per_line(
+        let lines = sets_per_line(
             0..edges.len(),
             |&i| EdgeCarrier::of_edge(&edges[i].0, edges[i].1).map(Some),
             bnd,
@@ -8178,8 +8299,8 @@ mod rim_holding_rows {
         .unwrap();
         assert_eq!(
             lines,
-            vec![0],
-            "three arcs of one circle are one line, the least"
+            vec![vec![0, 1, 2]],
+            "three arcs of one circle are one line, the set of them"
         );
     }
 
@@ -8285,7 +8406,7 @@ mod rim_holding_rows {
     /// it where it meets the other operand (`EdgeCarrierUnsupported`).
     #[test]
     fn a_spline_edge_is_a_line_of_its_own() {
-        use super::{EdgeCarrier, least_per_line};
+        use super::{EdgeCarrier, sets_per_line};
         use crate::names::discriminate::ON_MEMBER_EDGE;
         let bnd = band(Tol::witness()).unwrap();
         let (_, value, _) = super::wavy_loft::wavy(0.3);
@@ -8313,7 +8434,7 @@ mod rim_holding_rows {
             None,
             "a spline edge runs with nothing, itself included"
         );
-        let kept = least_per_line(
+        let kept = sets_per_line(
             0..splines.len(),
             |&i| EdgeCarrier::of_edge(body, splines[i]).map(Some),
             bnd,
@@ -8321,8 +8442,205 @@ mod rim_holding_rows {
         .unwrap();
         assert_eq!(
             kept,
-            (0..splines.len()).collect::<Vec<_>>(),
+            (0..splines.len()).map(|i| vec![i]).collect::<Vec<_>>(),
             "each spline edge is a line of its own"
+        );
+    }
+}
+
+#[cfg(test)]
+mod a_pairs_flush_line {
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+    use std::collections::BTreeSet;
+
+    use super::{OperandCtx, name_boolean};
+    use crate::names::emit::{edge_ends, ent, name1, vertex_point};
+    use crate::names::role::{CapEnd, EntityKind, RoleSeg, Sense, StableName};
+    use crate::names::table::{EntityKey, Entry, NameTable};
+    use crate::names::{PieceRole, PieceRun, ProfileEdgeRef, ProfileVertexRef};
+    use crate::node::{RecipeNodeId, StepId};
+    use geom_core::Tol;
+    use topo::test_support::meeting::{Pose, posed_box};
+    use topo::{AtRestBody, BooleanResult, EdgeKey, union};
+
+    fn t() -> Tol {
+        Tol::witness()
+    }
+
+    /// A name for every entity of `body`, the `k`th of its kind by key
+    /// named for piece `k`, except that `swap`'s two edges trade names.
+    fn table(body: &AtRestBody<f64>, node: RecipeNodeId, swap: [EdgeKey; 2]) -> NameTable {
+        let at = |k: usize| ProfileVertexRef::Piece {
+            step: StepId::new(0, k as u64),
+            role: PieceRole::Leg,
+        };
+        let name = |k: usize| name1(EntityKind::Edge, node, RoleSeg::LateralEdge(at(k)));
+        let keys: Vec<EdgeKey> = body.edges().map(|(e, _)| e).collect();
+        let index = |e: EdgeKey| keys.iter().position(|&k| k == e).unwrap();
+        let mut t = NameTable::new();
+        t.insert(
+            name1(EntityKind::Body, node, RoleSeg::OutputBody),
+            ent(0, EntityKey::Body),
+        )
+        .unwrap();
+        for &e in &keys {
+            let k = match swap {
+                [x, y] if e == x => index(y),
+                [x, y] if e == y => index(x),
+                _ => index(e),
+            };
+            t.insert(name(k), ent(0, EntityKey::Edge(e))).unwrap();
+        }
+        for (k, (f, _)) in body.faces().enumerate() {
+            let lateral = RoleSeg::Lateral(PieceRun::one(ProfileEdgeRef::Piece {
+                step: StepId::new(0, k as u64),
+                role: PieceRole::Leg,
+            }));
+            t.insert(
+                name1(EntityKind::Face, node, lateral),
+                ent(0, EntityKey::Face(f)),
+            )
+            .unwrap();
+        }
+        for (k, (v, _)) in body.vertices().enumerate() {
+            let corner = RoleSeg::CapVertex(CapEnd::End, at(k));
+            t.insert(
+                name1(EntityKind::Vertex, node, corner),
+                ent(0, EntityKey::Vertex(v)),
+            )
+            .unwrap();
+        }
+        t
+    }
+
+    /// The operand edges a carried line name cites, by key: the one edge
+    /// or each of a `Merged` set.
+    fn cited(line: &StableName, twins: &NameTable) -> BTreeSet<EdgeKey> {
+        let one = |n: &StableName| {
+            let [RoleSeg::From { of, .. }] = n.path.as_slice() else {
+                panic!("a carried operand edge: {n:?}");
+            };
+            match twins.lookup(of) {
+                Some(Entry::Unique(r)) => match r.key {
+                    EntityKey::Edge(e) => e,
+                    other => panic!("{of:?} names {other:?}"),
+                },
+                other => panic!("{of:?} is no one edge of the twins: {other:?}"),
+            }
+        };
+        match line.path.as_slice() {
+            [RoleSeg::Merged(set)] => set.iter().map(one).collect(),
+            _ => BTreeSet::from([one(line)]),
+        }
+    }
+
+    /// **A pair boolean reads a line of several flush operand edges
+    /// along each of them, whichever is least** (N2): two blocks kissing
+    /// along the line x = 1.5, y = 1, one turned over so their edges on
+    /// it run opposite ways, united with a lid whose floor crosses the
+    /// line at z = 1.25. The crossing cites both edges and is `Through`
+    /// the one running up into the lid, whichever of the two holds the
+    /// lesser name, so trading their names changes nothing by key.
+    #[test]
+    fn a_crossing_of_two_flush_edges_running_opposite_ways_reads_each() {
+        let rest = Pose::rest();
+        let flip = Pose::turn("flipped", [1.0, 0.0, 0.0], core::f64::consts::PI, [0.0; 3]);
+        let left = posed_box("left", [(1.0, 1.5), (0.5, 1.0), (0.5, 2.0)], &rest, t());
+        let right = posed_box(
+            "right",
+            [(1.5, 2.0), (-1.5, -1.0), (-2.0, -0.5)],
+            &flip,
+            t(),
+        );
+        let Ok(BooleanResult::Body(twins)) = union(&left, &right, t()) else {
+            panic!("the twins unite");
+        };
+        let twins = twins.body;
+        let lid = posed_box("lid", [(0.5, 2.5), (0.0, 2.0), (1.25, 2.75)], &rest, t());
+        let on_line =
+            |p: geom_core::Point3<f64>| (p.x - 1.5).abs() < 1e-9 && (p.y - 1.0).abs() < 1e-9;
+        let line: Vec<(EdgeKey, bool)> = twins
+            .edges()
+            .filter_map(|(e, _)| {
+                let (s, f) = edge_ends(&twins, e);
+                let (s, f) = (vertex_point(&twins, s), vertex_point(&twins, f));
+                (on_line(s) && on_line(f)).then_some((e, f.z > s.z))
+            })
+            .collect();
+        let [(x, x_up), (y, y_up)] = line.as_slice() else {
+            panic!("the twins hold two edges on their shared line: {line:?}");
+        };
+        assert_ne!(x_up, y_up, "the twins' edges on the line run opposite ways");
+        let up = if *x_up { *x } else { *y };
+        let Ok(BooleanResult::Body(r)) = union(&lid, &twins, t()) else {
+            panic!("the lid and the twins unite");
+        };
+        let (an, bn) = (RecipeNodeId::new(0, 1), RecipeNodeId::new(0, 2));
+        let lid_table = table(&lid, an, [EdgeKey::default(); 2]);
+        let mut read = Vec::new();
+        for swap in [false, true] {
+            let twins_table = table(&twins, bn, if swap { [*x, *y] } else { [*x; 2] });
+            let a = OperandCtx {
+                node: an,
+                read: crate::names::FOLD_A,
+                table: &lid_table,
+                body: &lid,
+            };
+            let b = OperandCtx {
+                node: bn,
+                read: crate::names::FOLD_B,
+                table: &twins_table,
+                body: &twins,
+            };
+            let named = name_boolean(
+                RecipeNodeId::new(0, 9),
+                topo::BooleanOp::Union,
+                &r.body,
+                &r.naming,
+                &a,
+                &b,
+                t(),
+            )
+            .expect("the union names");
+            let mut at = Vec::new();
+            for (n, e) in named.table.iter() {
+                let Entry::Unique(row) = e else { continue };
+                let EntityKey::Vertex(v) = row.key else {
+                    continue;
+                };
+                let p = vertex_point(&r.body, v);
+                if !on_line(p) || (p.z - 1.25).abs() > 1e-9 {
+                    continue;
+                }
+                let [RoleSeg::Crossing { edge, sense, .. }] = n.path.as_slice() else {
+                    panic!("swap {swap}: the crossing of the lid's floor: {n:?}");
+                };
+                let edges = cited(edge, &twins_table);
+                let entering = match sense {
+                    Sense::Enters => edges.clone(),
+                    Sense::Leaves => BTreeSet::new(),
+                    Sense::Through { entering } => entering
+                        .iter()
+                        .flat_map(|n| cited(n, &twins_table))
+                        .collect(),
+                    other => panic!("swap {swap}: a crossing reads {other:?}"),
+                };
+                at.push((edges, entering));
+            }
+            let [one] = at.as_slice() else {
+                panic!("swap {swap}: one vertex at the crossing: {at:?}");
+            };
+            read.push(one.clone());
+        }
+        assert_eq!(
+            read[0], read[1],
+            "trading the edges' names moves the crossing's reading"
+        );
+        assert_eq!(
+            read[0],
+            (BTreeSet::from([*x, *y]), BTreeSet::from([up])),
+            "the crossing cites both edges and enters along the one running up"
         );
     }
 }

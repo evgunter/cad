@@ -564,17 +564,15 @@ fn dropping_a_member_leaves_the_others_names_alone() {
 /// **Two placements of ONE prototype are two members, and their names
 /// are distinct.** This is the row the member EDGE exists for.
 ///
-/// A placement names its copy's entities under its own node, each over
-/// the prototype's name (`RoleSeg::Placed`), so two placements of one
-/// body carry tables equal under that layer, and a wrapper keyed on the
-/// prototype's name alone would map their corresponding faces onto one
-/// name and refuse.
+/// A copy carries its source's names as they are, so two placements of
+/// one body carry one table, and a wrapper keyed on the prototype's name
+/// alone would map their corresponding faces onto one name and refuse.
 ///
 /// The segment keys on the member's read instead, so the two members
 /// are told apart by the DAG edge that makes them two. The first
-/// assertion is the mechanism — the tables really are equal under the
-/// placement layer — and the second is what the union does with it. The
-/// die's 21 pips are exactly this shape, at scale.
+/// assertion is the mechanism — the two tables are one — and the second
+/// is what the union does with it. The die's 21 pips are exactly this
+/// shape, at scale.
 #[test]
 fn two_placements_of_one_prototype_are_two_members() {
     let doc = ProfileDoc::empty_derived("docm3_union", Tol::witness());
@@ -590,21 +588,11 @@ fn two_placements_of_one_prototype_are_two_members() {
     );
     let ev = run(&doc);
 
-    // The mechanism: the two members' tables are the same table under
-    // the placement layer.
-    let prototype = |faces: Vec<StableName>| -> Vec<StableName> {
-        faces
-            .into_iter()
-            .map(|n| match n.path.as_slice() {
-                [RoleSeg::Placed { of }] => (**of).clone(),
-                _ => panic!("a placed copy's face is named under its placement: {n:?}"),
-            })
-            .collect()
-    };
+    // The mechanism: the two members carry one table, the body's.
     assert_eq!(
-        prototype(all_faces(&ev, left)),
-        prototype(all_faces(&ev, right)),
-        "two placements of one body carry the body's names, each under its own placement"
+        all_faces(&ev, left),
+        all_faces(&ev, right),
+        "two placements of one body carry the body's names as they are"
     );
     // The consequence: twelve distinct face names under the union, six
     // per member, told apart by the member edge and by nothing else.
@@ -621,15 +609,11 @@ fn two_placements_of_one_prototype_are_two_members() {
         );
     }
     // And the prototype's names alone would NOT have told them apart:
-    // strip the member edge and the placement layer and the twelve
-    // collapse to six.
+    // strip the member edge and the twelve collapse to six.
     let inner: std::collections::BTreeSet<StableName> = faces
         .iter()
         .filter_map(|n| match n.path.first() {
-            Some(RoleSeg::From { of, .. }) => match of.path.as_slice() {
-                [RoleSeg::Placed { of }] => Some((**of).clone()),
-                _ => None,
-            },
+            Some(RoleSeg::From { of, .. }) => Some((**of).clone()),
             _ => None,
         })
         .collect();
@@ -688,8 +672,8 @@ fn removing_any_pip_leaves_both_die_fillets_resolving() {
         .collect();
     let rim_blend = match in_world.as_slice() {
         [placement] => match doc.node(*placement) {
-            Some(Node::Place { shapes, .. }) if shapes.len() == 1 => doc
-                .operation_of(shapes[0].read)
+            Some(Node::Place { source, .. }) => doc
+                .operation_of(source.read)
                 .expect("the placement reads the die"),
             other => panic!("a placement, got {other:?}"),
         },
@@ -1081,50 +1065,56 @@ fn loft_doc() -> (ProfileDoc, RecipeNodeId, Vec<RecipeNodeId>) {
     (doc, loft, profiles)
 }
 
-/// **A ONE-SECTION loft is accepted at the insert door** (DM4: the
-/// list floor is retired), and the loft itself refuses it when it
-/// evaluates — a single section has nothing to loft between.
+/// **The load door does not ask a loft's shape**: a snapshot whose loft
+/// stands in a shape the edit doors refuse loads, and evaluation
+/// refuses the loft. The shape here is a degree the sections cannot
+/// carry, reached through a variable moved after the insert (the edit
+/// doors refuse a degree past the sections as written, and a section
+/// count below two in any form). The load validator asks
+/// `input_fault`, which carries no list floor, so a document saved
+/// under an older door loads as it was written.
 #[test]
-fn a_one_section_loft_is_accepted_at_the_insert_door() {
-    let (doc, _, profiles) = loft_doc();
-    let (doc, loft) = insert(
-        doc,
-        Node::Loft {
-            first: profiles[0].into(),
-            then: Vec::new(),
-            v_degree: editor_core::Formula::count(1),
-        },
-    );
-    let ev = run(&doc);
-    assert!(
-        ev.value(loft).is_none(),
-        "a one-section loft has no second section to loft to: {:?}",
-        ev.nodes.get(&loft)
-    );
-}
-
-/// The LOAD-door twin: the same one-section loft in a SNAPSHOT loads,
-/// since the load validator asks `input_fault`, which carries no
-/// floor. The snapshot is the saved document itself, so its root set
-/// is the one the document holds.
-#[test]
-fn a_snapshot_carrying_a_one_section_loft_loads() {
+fn a_snapshot_carrying_a_loft_the_doors_refuse_loads() {
     let tol = Tol::witness();
     let (doc, _, profiles) = loft_doc();
+    let skin = editor_core::VarName::from_static("skin");
+    let (doc, _) = crate::fixture::step(
+        doc,
+        DocEdit::DeclareVar {
+            name: skin.clone(),
+            def: editor_core::VarDecl::Free(editor_core::FreeVar::Count { value: 1 }),
+        },
+    );
     let (doc, loft) = insert(
         doc,
         Node::Loft {
             first: profiles[0].into(),
-            then: Vec::new(),
-            v_degree: editor_core::Formula::count(1),
+            then: vec![editor_core::LoftSection {
+                profile: profiles[1].into(),
+                station: vec![editor_core::StationMove::Slide {
+                    along: editor_core::Axis3::Z,
+                    by: len(1.0),
+                }],
+            }],
+            v_degree: editor_core::Formula::named(skin, editor_core::Dimension::Count),
+        },
+    );
+    let var = doc.var_named("skin").expect("declared");
+    let (doc, _) = crate::fixture::step(
+        doc,
+        DocEdit::SetVarValue {
+            var: var.into(),
+            value: editor_core::FreeValue::Count(2),
         },
     );
     let text = editor_core::persist::save(&doc, &[], tol).expect("the document saves");
-    let loaded = editor_core::persist::load(&text, tol).expect("a one-section loft loads");
-    let Some(Node::Loft { then, .. }) = loaded.doc.node(loft) else {
-        panic!("the loft loaded as something else")
-    };
-    assert!(then.is_empty(), "the loft keeps its one section");
+    let loaded = editor_core::persist::load(&text, tol).expect("the loft loads");
+    let ev = run(&loaded.doc);
+    assert!(
+        ev.value(loft).is_none(),
+        "degree 2 through two sections refuses at evaluation: {:?}",
+        ev.nodes.get(&loft)
+    );
 }
 
 // ---------------------------------------------------------------------
@@ -1208,14 +1198,16 @@ fn list_input_and_set_list_input_agree_on_every_node_kind() {
     );
 }
 
-/// The list a node carries, as the reads it holds — a union's or an
-/// intersect's members, or a loft's sections — or `None` for a node
+/// The list a node carries, as the reads it holds — a union's, an
+/// intersect's or a `⊔`'s members, or a loft's sections — or `None` for a node
 /// with no list. The test-side twin of the retired `Node::list_input`.
 fn list_input(
     node: &editor_core::Node<editor_core::ProfileProgram>,
 ) -> Option<editor_core::Bodies<editor_core::BodyRead<editor_core::Formula>>> {
     match node {
-        Node::Union { members, .. } | Node::Intersect { members, .. } => Some(
+        Node::Union { members, .. }
+        | Node::Intersect { members, .. }
+        | Node::Assemble { members } => Some(
             members
                 .try_map(|_, m| {
                     Ok::<_, std::convert::Infallible>(editor_core::BodyRead::plain(m.read))

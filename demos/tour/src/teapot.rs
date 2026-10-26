@@ -244,7 +244,7 @@
 //!    enclosure is chased to a reporting target derived from ε. Every
 //!    ε the tour runs meets that target: at ε = 1e-12 the volume's
 //!    half-width is 8.1e-12 m³. Where a tighter ε refuses
-//!    `QuadratureBudget`, tier 3 still certifies the body on the
+//!    `QuadratureBudget` or `QuadratureFloor`, tier 3 still certifies the body on the
 //!    enclosure's SIGN — the tier's own docs say deciding that sign "is
 //!    an act of certification rather than a measurement" — and the
 //!    scene measures through the certificate the tier hands back, so it
@@ -403,7 +403,7 @@ const _: () = assert!(SPOUT_STATIONS == 7);
 /// is chased to `QUAD_TARGET_LEN_FACTOR·ε`. Every ε the tour runs meets
 /// that target, and the scene holds the enclosure to the skin's own
 /// integrated volume (`patch_quadrature`). Where a tighter ε refuses
-/// `QuadratureBudget`, tier 3 still certifies the body on the
+/// `QuadratureBudget` or `QuadratureFloor`, tier 3 still certifies the body on the
 /// enclosure's SIGN, and the scene holds the same reference to the
 /// bracket the certificate keeps.
 const SPOUT_ARCS: u32 = 4;
@@ -1058,7 +1058,8 @@ pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
                 .expect("nothing reads it, so it deletes")
                 .doc
         });
-    [
+    let mut copies = Vec::new();
+    let placed = [
         (r.handle_body, handle_values()),
         (r.lid, Vec::new()),
         (r.cup, Vec::new()),
@@ -1066,8 +1067,12 @@ pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
     ]
     .into_iter()
     .fold(tidied, |doc, (body, values)| {
-        crate::world::in_world_by(&doc, body, values, tol).doc
-    })
+        let placed = crate::world::in_world_by(&doc, body, values, tol);
+        copies.push(pncad::document::Operand::Node(placed.placement));
+        placed.doc
+    });
+    // What the pot is: its four copies.
+    crate::world::set_product(&placed, &copies, tol).doc
 }
 
 /// The body a node evaluated to.
@@ -2015,7 +2020,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // binary-exact angle, so what the residual costs is MEASURED — off
     // the placed BODY, never re-derived from the same trigonometry the
     // placement used. The subjects are the loft's caps, named at the
-    // loft and read at the placement under its `Placed` segment.
+    // loft and read at the placement, which carries them as they are.
     //
     // TWO subjects, the root annulus and the tip one, and the guard
     // below is why there are two and why neither is the spout's own
@@ -2046,14 +2051,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         face_frame(&ev, r.spout_body, &tip_name).expect("the tip annulus, before the placement");
     let unplaced =
         face_frame(&ev, r.spout_body, &root_name).expect("the root annulus, before the placement");
-    // A copy's face is named under its placement.
-    let copied = |name: &StableName| StableName {
-        kind: name.kind,
-        node: r.spout,
-        path: vec![pncad::prelude::RoleSeg::Placed {
-            of: pncad::prelude::NameRef::new(name.clone()),
-        }],
-    };
+    // A copy carries its source's names as they are.
+    let copied = |name: &StableName| name.clone();
     let tip_placed =
         face_frame(&ev, r.spout, &copied(&tip_name)).expect("the tip annulus, after it");
     let placed = face_frame(&ev, r.spout, &copied(&root_name)).expect("the root annulus, after it");
@@ -2271,7 +2270,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             bracket: b,
             refusal:
                 refusal @ pncad::topo::MassPropsError::Face {
-                    source: pncad::geom_brep::PropsError::QuadratureBudget { .. },
+                    source:
+                        pncad::geom_brep::PropsError::QuadratureBudget { .. }
+                        | pncad::geom_brep::PropsError::QuadratureFloor { .. },
                     ..
                 },
         }) => {

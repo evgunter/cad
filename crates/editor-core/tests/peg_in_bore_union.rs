@@ -83,7 +83,6 @@ fn peg_in_bore(bore_r: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
 fn body_of(ev: &Evaluation<f64>, n: RecipeNodeId) -> &Body<f64> {
     match &ev.value(n).expect("the node evaluates").payload {
         ValuePayload::Body(b) => b,
-        ValuePayload::Copies(copies) if copies.bodies.len() == 1 => &copies.bodies[0],
         other => panic!("{n}'s payload is one body, got {}", other.kind_name()),
     }
 }

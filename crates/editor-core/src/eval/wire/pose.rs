@@ -164,7 +164,7 @@ fn eval_pose_as<T: crate::mate::SolveScalar>(
     let value = match held.def() {
         VarDef::Output { node, port } => output(doc, results, admits, *node, *port, env, tol)?,
         VarDef::Pose(def) => definition(doc, results, slot, def, env, tol)?,
-        VarDef::Free(_) | VarDef::Defined(_) | VarDef::Select(_) => {
+        VarDef::Free(_) | VarDef::Defined(_) | VarDef::Select(_) | VarDef::Pick(_) => {
             return Err(NodeErrorKind::UnresolvedRead { slot, var });
         }
     };
@@ -615,7 +615,12 @@ fn walk<T: Decide>(
     match def {
         Some(VarDef::Select(select)) => {
             out.push(PoseWord::Tag(w::SELECTION));
-            out.push(port_word(doc.defined_by(select.body)));
+            out.push(port_word(doc.read_ports(select.body).first().copied()));
+            // A selection in a pick is in that piece: its path keys it.
+            if let Some(pick) = doc.pick(select.body) {
+                out.push(PoseWord::Count(pick.of.len() as u64));
+                out.extend(pick.of.iter().map(|step| PoseWord::Count(step.0.digest())));
+            }
             out.push(PoseWord::Count(select.names.len() as u64));
             out.extend(select.names.iter().cloned().map(PoseWord::Name));
         }
@@ -655,7 +660,7 @@ fn walk<T: Decide>(
             out.push(PoseWord::Tag(w::OUTPUT));
             out.push(port_word(Some((*node, *port))));
         }
-        Some(VarDef::Free(_) | VarDef::Defined(_)) | None => {
+        Some(VarDef::Free(_) | VarDef::Defined(_) | VarDef::Pick(_)) | None => {
             out.push(PoseWord::Tag(w::OUTPUT));
             out.push(port_word(None));
         }

@@ -405,15 +405,12 @@ mod tests {
                 world_placements(&cut.doc, &evaluation)
             )
         };
-        let Some(Node::Place { shapes, .. }) = cut.doc.node(placement) else {
+        let Some(Node::Place { source, .. }) = cut.doc.node(placement) else {
             unreachable!("the placement is a Place")
-        };
-        let [body] = &shapes[..] else {
-            panic!("the placement copies one body: {shapes:?}")
         };
         let part_node = cut
             .doc
-            .operation_of(body.read)
+            .operation_of(source.read)
             .expect("the placed body is live");
         assert!(
             matches!(cut.doc.node(part_node), Some(Node::Subtract { .. })),

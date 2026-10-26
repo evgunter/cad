@@ -2,13 +2,14 @@
 id: the-tours-post-cell-split-refuses-the-space-its-copies-read
 kind: issue
 title: the tour's second cut (the patterned-post cell) no longer splits: the cell's placements read a Space node outside it, so the gui lane drops a cell
-status: review
+status: closed
 opened: 2026-10-23
 priority: P1
 cost: M
 refs: [5592]
 pr: 5763
 branch: intent/split-carries-spaces
+closed: 2026-10-26
 ---
 
 
