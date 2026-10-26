@@ -2,12 +2,13 @@
 id: main-red-the-seat-and-name-table-goldens-moved-at-dprime2
 kind: issue
 title: main red: five committed goldens (seat4 blend and boolean, seat7 sweep, seat8 split digests; m4_pr3 die name-table digest) moved at PR 5613 (D′2) and were not re-pinned
-status: parked
+status: closed
 opened: 2026-10-25
 priority: P1
 cost: E
 rides_with: assemble-is-an-operator-and-the-product-is-a-slot
 blocked_on: [assemble-is-an-operator-and-the-product-is-a-slot]
+closed: 2026-10-26
 ---
 
 
@@ -47,3 +48,11 @@ Two cases:
   and the PR that does it says what moved and why.
 - If it did not, the body or the name table it changed is found and
   fixed.
+
+## Closed by D′3 (PR 5636)
+
+D′3 re-pins these rows over its own moves and main's merge at `1235f4c050`, with `m10_p_fence`'s ids-masked row holding on its head, so no point moved under D′3 or the merge:
+- the five goldens (`seat4` blend and boolean, `seat7` sweep, `seat8` split, and `m4_pr3_names_ci`'s table and names-only die digests);
+- `seat7`'s `boss_union` and `kitchen_sink`, which moved with them.
+
+Each pin's note names the move. Whether each of D′2's own moves was meant is PR 5613's record; the digests here do not separate a body move from a name move.

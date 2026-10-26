@@ -288,12 +288,18 @@ fn both_blends_evaluate_in_one_document() {
 /// RE-BLESSED, both rows, for a certificate that keeps its turn: the
 /// digest feeds each edge curve's `Debug`, which now spells the
 /// certificate's `turn`. No outcome or point moved.
+///
+/// RE-BLESSED, the rows that moved, over main's merge into D′3 at
+/// `1235f4c050`: D′2's moves (main red, filed as
+/// `main-red-the-seat-and-name-table-goldens-moved-at-dprime2`),
+/// stage 4 I's ids and the walls' reads, beneath
+/// D′3's names and ids. `m10_p_fence`'s ids-masked row held.
 #[test]
 fn the_blend_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("die_fillet", 0x667a_24f5_58a7_c451_u64),
-        ("die_chamfer", 0x6bf1_4879_2210_4af5),
+        ("die_fillet", 0xddf0_a0f0_e60d_6605_u64),
+        ("die_chamfer", 0x6538_8256_a1f3_ec21),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -525,13 +531,19 @@ fn a_boolean_document_round_trips_byte_identical() {
 /// walls citing their parent as the boolean's own table names it (the
 /// `From` each came in through): the second subtract's divided pieces'
 /// names moved. No outcome or point moved.
+///
+/// RE-BLESSED, the rows that moved, over main's merge into D′3 at
+/// `1235f4c050`: D′2's moves (main red, filed as
+/// `main-red-the-seat-and-name-table-goldens-moved-at-dprime2`),
+/// stage 4 I's ids and the walls' reads, beneath
+/// D′3's names and ids. `m10_p_fence`'s ids-masked row held.
 #[test]
 fn the_boolean_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("crossing_slots", 0xe9b0_fe94_61b3_4401_u64),
-        ("heat_sink", 0xc792_69ae_ec01_db99),
-        ("kiss_carry", 0xb2cb_1a2e_eedf_27dd),
+        ("crossing_slots", 0xe71e_82c9_48ad_ddb7_u64),
+        ("heat_sink", 0x6ece_8456_1f08_4fd6),
+        ("kiss_carry", 0x4a5f_c225_42ec_5a68),
     ] {
         let doc = corpus::documents()
             .into_iter()

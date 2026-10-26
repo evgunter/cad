@@ -378,13 +378,19 @@ fn a_split_document_read_by_port_round_trips_byte_identical() {
 /// RE-BLESSED, every row, for a certificate that keeps its turn: the
 /// digest feeds each edge curve's `Debug`, which now spells the
 /// certificate's `turn`. No outcome or point moved.
+///
+/// RE-BLESSED, the rows that moved, over main's merge into D′3 at
+/// `1235f4c050`: D′2's moves (main red, filed as
+/// `main-red-the-seat-and-name-table-goldens-moved-at-dprime2`),
+/// stage 4 I's ids and the walls' reads, beneath
+/// D′3's names and ids. `m10_p_fence`'s ids-masked row held.
 #[test]
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("cut_cylinder", 0x20ca_6b63_c85d_acc0_u64),
-        ("part_select", 0x2580_ef71_c7cb_f8af),
-        ("kitchen_sink", 0x0cd1_65be_fdec_84b3),
+        ("cut_cylinder", 0xd82f_d380_9e2e_8e5e_u64),
+        ("part_select", 0x4540_8c74_d757_704f),
+        ("kitchen_sink", 0x4f64_6f46_1d52_45eb),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()

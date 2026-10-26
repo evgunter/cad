@@ -456,14 +456,20 @@ fn both_sweeps_evaluate_in_one_document() {
 /// RE-BLESSED, every row, for a certificate that keeps its turn: the
 /// digest feeds each edge curve's `Debug`, which now spells the
 /// certificate's `turn`. No outcome or point moved.
+///
+/// RE-BLESSED, the rows that moved, over main's merge into D′3 at
+/// `1235f4c050`: D′2's moves (main red, filed as
+/// `main-red-the-seat-and-name-table-goldens-moved-at-dprime2`),
+/// stage 4 I's ids and the walls' reads, beneath
+/// D′3's names and ids. `m10_p_fence`'s ids-masked row held.
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
-        ("die", 0x1e87_92c1_fe88_e020),
-        ("corner_table", 0x6912_c7dc_dfd3_41fe),
-        ("cut_cylinder", 0x20ca_6b63_c85d_acc0),
-        ("boss_union", 0x813b_130f_93ab_a1a5),
-        ("kitchen_sink", 0x0cd1_65be_fdec_84b3),
+        ("die", 0x4a25_14f2_42c7_0ffe),
+        ("corner_table", 0x8f2f_e5f1_026f_ce20),
+        ("cut_cylinder", 0xd82f_d380_9e2e_8e5e),
+        ("boss_union", 0x7d7f_3a11_1c98_1b33),
+        ("kitchen_sink", 0x4f64_6f46_1d52_45eb),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {
