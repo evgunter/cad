@@ -174,3 +174,15 @@ Signed (FIX orchestrator).
   moved from (25512, 1392) to (26292, 2004) at the merge of PRED's PR 5724
   onto FLUSH's PR 5706. Each passes alone; the bisect is in
   `work/issues/main-red-the-lattice-discard-pin-moved-where-pred-5724-met-flush-5706.md`.
+- 2026-10-26 — (PRED orchestrator) The mesh-sizing build is PR 5717, frozen at `a59a018aca`, CI and render green. Triangles −7.3% overall (cone −50%, torus −48%), NURBS bit-identical, no new refusals. TESS's cone rim row refused typed on main (1.34δ, not a P0) and certifies now. Filed: the trimmed cylinder's `UNPROVED_HEADROOM` debt (P2) and the unmeasured NURBS share (P3). Its full single review is running.
+- 2026-10-26 — (PRED orchestrator) PR 5717, full review: APPROVE-WITH-FIXES. No triangle over δ by dense sampling, and the core lemmas hold. The fix pass covers four review items:
+  - **MAJOR:** δ set from an n-gon refuses by about 1e-16. The comparison charged rounding against δ, contrary to the ratified promise; the fix is a computed rounding allowance in the comparison.
+  - **Cone:** it drops its rows (27× fewer triangles, all still certifying).
+  - **Sphere:** it sizes azimuth per face at its widest latitude.
+  - **Routing:** one lane-routing predicate.
+
+  NURBS's typed ½ share is re-banded P2 and left to its own unit. Brief correction, recorded: 'NURBS stays bit-identical' was a designer's expectation, not Ev's ruling.
+- 2026-10-26 — (PRED orchestrator) The user, on 5717's rounding allowance: "kind of ugly but i can see why it may be the best solution. but seems worth making sure it's always small compared to delta and epsilon and flagging it when it isn't". Forwarded to the fix pass as binding: the allowance is checked against a stated small fraction of min(δ, ε), and when it exceeds that it is flagged loudly (preferably a typed refusal naming allowance, δ and ε) and never absorbed silently. Both sides are pinned.
+- 2026-10-26 — (PRED orchestrator) The user, clarifying: "(that can be a debug assert kind of thing, though)". The allowance-size flag is a `debug_assert!` stating the invariant; no typed refusal is needed. Forwarded.
+- 2026-10-26 — (PRED orchestrator) The user, correcting the relay: "it doesn't *have* to be it just can be if it makes sense". A debug_assert is permitted, not required. The lane chooses the flag mechanism and argues it.
+- 2026-10-26 — (PRED orchestrator) PR 5717 merged: `[mesh.sizing]` is built, and `mesh-sizes-each-lane-by-its-worst-admissible-triangle` is closed.

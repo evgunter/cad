@@ -243,9 +243,9 @@ fn a_sized_lane_face_with_no_measurement_refuses() {
 /// The chordal tolerance every row in this file is measured at.
 const ROW_DELTA: f64 = 6e-3;
 
-/// The sizing target a tessellation at chordal tolerance `delta` sizes
-/// against — `mesh::sizing::sizing_target`'s documented halving, which
-/// is a kernel rule and not a meter one.
+/// The lattice budget the NURBS lane sizes against at chordal tolerance
+/// `delta` — `mesh::nurbs_cert::lattice_budget`, the lane's
+/// `LATTICE_SHARE` of δ, which is a kernel rule and not a meter one.
 ///
 /// **This is the independent handle the composition assertion below
 /// rests on.** It restates the kernel's rule rather than reading
@@ -310,7 +310,7 @@ fn recomposed_cells(m: &FaceMeasure, delta_s: f64) -> (f64, f64) {
 /// bit, at a `δ_s` it derives from [`ROW_DELTA`] through
 /// [`sizing_target`] rather than reading off the measurement. The
 /// recomposition supplies the SHAPE — which bound, which box, which
-/// per-cell clip — and the kernel's halving rule supplies the
+/// per-cell clip — and the kernel's lattice share supplies the
 /// tolerance, which is the half a call-site retune moves.
 ///
 /// The tally is the tightness check the equality needs: an equality
@@ -341,7 +341,7 @@ fn the_reported_cells_are_the_split_derivation_at_the_calls_sizing_target() {
         assert_eq!(
             m.delta_s.to_bits(),
             delta_s.to_bits(),
-            "the lane sized face {ordinal} against {} and not against δ/2 = {delta_s}",
+            "the lane sized face {ordinal} against {} and not against its lattice budget {delta_s}",
             m.delta_s
         );
 
