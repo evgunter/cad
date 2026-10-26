@@ -69,6 +69,6 @@ deep (no flush pair, so B ⊄ A and this bound is slack) still refuse
 the `1e-9` whole box, `FlipCrossing` with `chart_bound_outer_span`
 diverging 0 → 2 on both boolean nodes — a second certified-lane
 frontier, independent of this tie, filed as
-`work/chart/an-overshooting-subtract-flips-chart-bound-outer-span-over-a-tiny-box.md`.
+`work/charttail/an-overshooting-subtract-flips-chart-bound-outer-span-over-a-tiny-box.md`.
 Overshoot is not the plate's spelling (its holes are its depth); it is
 evidence that clearing the tie alone would not certify a cut part.
