@@ -647,12 +647,26 @@ fn riders<T: Decide>(
             .chain(vf.iter().filter(|&&(w, _)| w == v).map(|&(_, f)| f))
             .collect()
     };
+    // The records naming a crossing of each edge: an edge-edge record
+    // of it, or a vertex-on-edge record on it.
+    let mut crossing: BTreeMap<EdgeKey, Vec<&Contact>> = BTreeMap::new();
+    for row in contacts.rows() {
+        match row.record.kind() {
+            ContactKind::EdgeEdge(x, y) => {
+                crossing.entry(x).or_default().push(&row.record);
+                crossing.entry(y).or_default().push(&row.record);
+            }
+            ContactKind::VertexEdge(_, g) => crossing.entry(g).or_default().push(&row.record),
+            _ => {}
+        }
+    }
     let mut out = Vec::new();
     for (e, _) in body.edges() {
         let (a, b) = crate::query::edge_ends(body, e);
         if a == b {
             continue;
         }
+        let named = crossing.get(&e).map_or(&[][..], Vec::as_slice);
         let Ok(sides) = crate::readback::edge_sides(body, e) else {
             continue;
         };
@@ -665,7 +679,7 @@ fn riders<T: Decide>(
             .collect();
         let mut faces = both.clone();
         faces.extend(recorded.iter().copied());
-        faces.extend(crossed_faces(body, contacts, e));
+        faces.extend(crossed_faces(body, named, e));
         faces.remove(&fa);
         faces.remove(&fb);
         // A face on the surface one of the edge's own faces lies on is
@@ -679,7 +693,7 @@ fn riders<T: Decide>(
                 ends: both.contains(&f),
                 record: recorded.contains(&f),
             };
-            if let Some(partly) = holding(body, contacts, e, f, names, band)? {
+            if let Some(partly) = holding(body, named, e, f, names, band)? {
                 holding_faces.push((f, partly));
             }
         }
@@ -690,17 +704,13 @@ fn riders<T: Decide>(
     Ok(out)
 }
 
-/// The faces a record names a crossing of edge `e` with: each face of
-/// an edge an edge-edge record pairs with `e`, and of a vertex a
-/// vertex-on-edge record rests on `e`.
-fn crossed_faces<T: Decide>(
-    body: &Body<T>,
-    contacts: &ContactRecords,
-    e: EdgeKey,
-) -> BTreeSet<FaceKey> {
+/// The faces the records `named`, those naming a crossing of edge `e`,
+/// name it with: each face of an edge an edge-edge record pairs with
+/// `e`, and of a vertex a vertex-on-edge record rests on `e`.
+fn crossed_faces<T: Decide>(body: &Body<T>, named: &[&Contact], e: EdgeKey) -> BTreeSet<FaceKey> {
     let mut out = BTreeSet::new();
-    for row in contacts.rows() {
-        match row.record.kind() {
+    for record in named {
+        match record.kind() {
             ContactKind::EdgeEdge(x, y) if x == e || y == e => {
                 let g = if x == e { y } else { x };
                 if let Ok(sides) = crate::readback::edge_sides(body, g) {
@@ -747,7 +757,7 @@ struct Names {
 /// pair.
 fn holding<T: Decide>(
     body: &Body<T>,
-    contacts: &ContactRecords,
+    named: &[&Contact],
     e: EdgeKey,
     f: FaceKey,
     names: Names,
@@ -775,7 +785,7 @@ fn holding<T: Decide>(
         Err(_) => return Ok(None),
     }
     let along = Span::new(&carrier, (t0, t1));
-    let at = match cuts(body, contacts, e, f, &along, band) {
+    let at = match cuts(body, named, e, f, &along, band) {
         Ok(at) => at,
         Err(read) => return unplaced(read),
     };
@@ -803,14 +813,14 @@ fn holding<T: Decide>(
     in_band.map_or(Ok(None), unplaced)
 }
 
-/// Where along `along`, edge `e`'s span, the records place a crossing
+/// Where along `along`, edge `e`'s span, the records `named` place a crossing
 /// of `e` with `f`'s loops, from its far end back, each read as
 /// [`divide`] reads it ([`crossing_named`]). A record [`divide`] would
 /// refuse is no cut here: where the edge is found lying in `f`,
 /// [`divide`] reads it again and refuses.
 fn cuts<T: Decide>(
     body: &Body<T>,
-    contacts: &ContactRecords,
+    named: &[&Contact],
     e: EdgeKey,
     f: FaceKey,
     along: &Span<'_, T>,
@@ -818,8 +828,8 @@ fn cuts<T: Decide>(
 ) -> Result<Vec<T>, BooleanError> {
     let boundary = face_edges(body, f);
     let mut at: Vec<T> = Vec::new();
-    for row in contacts.rows() {
-        let crossings = match crossing_named(body, &row.record, e, f, &boundary, along, band) {
+    for record in named {
+        let crossings = match crossing_named(body, record, e, f, &boundary, along, band) {
             Ok(crossings) => crossings,
             Err(BooleanError::EdgeInFace { .. }) => continue,
             Err(other) => return Err(other),
