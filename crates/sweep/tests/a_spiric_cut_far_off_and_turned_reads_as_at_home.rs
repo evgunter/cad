@@ -775,7 +775,7 @@ fn every_door_reads_a_carried_region_about_its_own_point() {
 /// differential over the sweep and step-import suites against the merge
 /// base shows, not this row.
 #[test]
-fn a_shell_of_one_quadrature_region_reads_as_about_one_point_bit_for_bit() {
+fn a_shell_whose_regions_all_lie_near_its_point_reads_as_about_one_point_bit_for_bit() {
     let tol = Tol::witness();
     let home = topo::union(
         &torus(2.0, 0.5),

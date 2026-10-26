@@ -3136,16 +3136,24 @@ mod region_carry_tests {
         );
     }
 
-    /// **A region is far only at [`CARRY_REACH`] times its own extent**:
-    /// the unit square's edges read as a curved face's, about its corner,
-    /// whose greatest distance from it is `√2`, are far from a point
-    /// 1.01 × 16√2 below its centre and not from one 0.99 × 16√2 below it.
-    /// Read as a plane's, the corner lies on the plane, so the lever about
-    /// it is nothing and a point one unit below is already far.
+    /// **A region is far only at 16 times its own extent**: the unit
+    /// square's edges read as a curved face's, about its corner, whose
+    /// greatest distance from it is `√2`, are far from a point 1.01 × 16√2
+    /// below its centre and not from one 0.99 × 16√2 below it. (The reach
+    /// is spelled 16 here, not read off [`CARRY_REACH`], so the row says
+    /// what it is: two tori 900 m apart on one bar read about 53, every
+    /// multi-region shell of the sweep and step-import suites under 8.)
+    /// Read as a plane's, about its corner, the corner lies on the plane, so
+    /// the lever about it is nothing and a point one unit below is already
+    /// far. About a point half a unit above the plane, the plane's extent is
+    /// that half unit, squared: a point 10 below is far (`10² ≥ 16²·½²`)
+    /// and one 7 below is not (`7² < 16²·½²`). A lever left unsquared
+    /// would read the first as near too (`10 < 16²·½`).
     #[test]
     fn a_region_is_far_only_past_its_reach() {
+        assert_eq!(CARRY_REACH, 16.0, "the reach this row argues for");
         let c_g = iv(Point3::origin());
-        let reach = CARRY_REACH * 2.0_f64.sqrt();
+        let reach = 16.0 * 2.0_f64.sqrt();
         let face = |plane: Option<geom_core::Vec3<Interval>>| -> Vec<_> {
             square(true).into_iter().map(|e| (e, plane)).collect()
         };
@@ -3162,6 +3170,14 @@ mod region_carry_tests {
                 far,
                 "a point {off} below the square, as a plane: {}",
                 edges[0].1.is_some()
+            );
+        }
+        let above = iv(Point3::new(0.0, 0.0, 0.5));
+        for (off, far) in [(10.0, true), (7.0, false)] {
+            assert_eq!(
+                far_from(&plane, above, iv(Point3::new(0.5, 0.5, -off))),
+                far,
+                "a point {off} below the plane, about one half a unit above it"
             );
         }
     }
@@ -4297,13 +4313,13 @@ fn quadrature_loops<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<Vec<Flat
 
 /// **A shell's quadrature regions**: its faces that take the quadrature
 /// ([`quadrature_loops`]), grouped by sharing an edge whose vector area
-/// [`loop_vector_area`](geom_brep::props::loop_vector_area) cannot read
-/// exactly (a spiric or a rational rim, [`curved_rim`]), each region in
+/// [`loop_vector_area`](geom_brep::props::loop_vector_area) does not read
+/// ([`vector_area_reads`](geom_brep::props::vector_area_reads): a spiric,
+/// a rational spline, or a polynomial one past degree 5), each region in
 /// the shell's stored order and the regions in the order their first
 /// faces are stored ([`References`] says why the join stops at the other
-/// edges). The partition itself is
-/// the stored order's no more than the body's edges are; only which face
-/// of a region is first is.
+/// edges). The partition itself is the stored order's no more than the
+/// body's edges are; only which face of a region is first is.
 fn quadrature_regions<T: Decide>(body: &Body<T>, shell: ShellKey) -> Vec<Vec<FaceKey>> {
     use crate::entity::EntityId;
     let shell = crate::live::proven(&body.shells, shell, EntityId::Shell);
@@ -4323,7 +4339,7 @@ fn quadrature_regions<T: Decide>(body: &Body<T>, shell: ShellKey) -> Vec<Vec<Fac
     for (i, (_, loops)) in quadrature.iter().enumerate() {
         let edges = loops.iter().flat_map(|(edges, hes)| edges.iter().zip(hes));
         for (e, &he) in edges {
-            if !curved_rim(&e.carrier) {
+            if geom_brep::props::vector_area_reads(&e.carrier) {
                 continue;
             }
             if let Some(&j) = body
@@ -4413,15 +4429,17 @@ fn reference_of<T: Decide>(body: &Body<T>, shell: ShellKey, regions: &[Vec<FaceK
 ///
 /// Two quadrature faces are one region only where they share an edge
 /// whose vector area
-/// [`loop_vector_area`](geom_brep::props::loop_vector_area) cannot read
-/// exactly: a spiric or a rational rim ([`curved_rim`],
-/// [`quadrature_regions`]). Across any
-/// other edge (a line, a conic arc, a polynomial spline) each side is its
-/// own region, and the edge lies on both boundaries, traversed once each
-/// way, so the two carries read it exactly and the sum is the region's
-/// whole. So every region's `∂g` reads exactly by construction, and a
-/// region is no wider than its curved faces and the rims that hold them
-/// together. Joined across every shared edge, a long plane taking the
+/// [`loop_vector_area`](geom_brep::props::loop_vector_area) does not read
+/// ([`vector_area_reads`](geom_brep::props::vector_area_reads), the one
+/// spelling of its refusals: a spiric, a rational spline, or a polynomial
+/// one past the degree 5 its Gauss inventory covers;
+/// [`quadrature_regions`]). Across any other edge (a line, a conic arc, a
+/// polynomial spline it covers) each side is its own region, and the edge
+/// lies on both boundaries, traversed once each way, so the two carries
+/// read it and the sum is the region's whole. So every edge between two
+/// regions reads, and a region is no wider than its curved faces and the
+/// rims that hold them together. (An edge to a closed-form face that does
+/// not read leaves its region uncarried: [`carry_of`] refuses, below.) Joined across every shared edge, a long plane taking the
 /// quadrature (a bar's top face cut by a torus) joined everything it
 /// touched across its straight edges into one region spanning the bar:
 /// a torus on that face and a torus at the bar's far end read pads 456×
@@ -4429,20 +4447,25 @@ fn reference_of<T: Decide>(body: &Body<T>, shell: ShellKey, regions: &[Vec<FaceK
 /// ends, 83×
 /// (`work/flux/a-shells-pad-still-depends-on-face-order-where-one-quadrature-region-spans-the-lever.md`).
 ///
-/// **Its point** is the stored start of its first curved face, in the
-/// shell's stored order ([`region_point`]): a curved face's width is
-/// levered by its distance from the point, a plane's only by the point's
-/// distance off the plane, and the curved face's start lies on its rims,
-/// so on the planes they bound. The long top face's own start may lie a
-/// bar's length from the torus it carries.
+/// **Its point** is the stored start of a curved face of it ([`region_point`]),
+/// not of a plane: a curved face's width is levered by its distance from
+/// the point, and the long top face's own start may lie a bar's length
+/// from the torus it carries. Measured, that choice is what matters: read
+/// about its first face's start, the tori on a bar's top face read pads
+/// more than 1.1× apart across rotations
+/// (`a_shell_joined_along_a_long_face_reads_alike_whichever_face_it_stores_first`
+/// goes red), and about a curved face's, within 1.008× at each ε. Which
+/// curved face is not: its last one's start reads every row's pads
+/// within their pins too. The first, in the shell's stored order, is taken
+/// so that the point is a function of that order alone.
 ///
-/// **The first region is read about `c`**, the start of its first face. It
-/// may be a long plane's, a bar's length from the region's torus, but the
-/// torus's rims lie on that plane, and a lever within it barely moves a
-/// curved face's width. Read about its own point and carried, the first
-/// region pads the same as about `c` to six digits, across every rotation
-/// of a torus on a bar's top face, one midway on it, and one astride the
-/// bar's end edge, at each ε.
+/// **The first region is read about `c`**, the start of its first face,
+/// which may be a long plane's. That rests on measurement, not on an
+/// argument: read about its own point and carried, the first region pads
+/// the same as about `c` to six digits across every rotation of a torus on
+/// a bar's top face, one midway on it, and one astride the bar's end edge
+/// (whose rims lie on two planes, the end cap's and the top face's), at
+/// each ε.
 ///
 /// # Only where it narrows
 ///
@@ -4652,8 +4675,7 @@ fn region_carries<T: Decide>(
 /// start vertex of its first face, in the shell's stored order, that is
 /// not a plane, or of its first face where every face is one. A curved
 /// face's width is levered by its distance from the point, a plane's only
-/// by the point's distance off its plane, and the curved face's start lies
-/// on its rims, so on the planes they bound.
+/// by the point's distance off its plane.
 fn region_point<T: Decide>(body: &Body<T>, faces: &[FaceKey]) -> Point3<T> {
     let curved = faces
         .iter()
@@ -4670,8 +4692,15 @@ fn region_point<T: Decide>(body: &Body<T>, faces: &[FaceKey]) -> Point3<T> {
 /// levered by its distance from the point, or, on a plane face (its unit
 /// normal beside it), by the point's distance off the plane along it:
 /// that is all a plane's width scales with. The least lever is read over
-/// the samples of the region's curved faces where it has any, since a
-/// plane through `c` reads no wider about `c` than about `c_g`.
+/// the samples of the region's curved faces where it has any, every plane
+/// dropped, not only one through `c`. The gate decides width, not
+/// soundness: a carried region's enclosure is as sound as an uncarried
+/// one's, so dropping samples (which can only raise the least lever, and
+/// carry more) risks only a wider pad. The planes are dropped because a
+/// region's planes are held to it by its curved faces' rims, so the curved
+/// faces are what reading about `c_g` narrows. Measured over sweep and
+/// step-import at each ε, every reading these rules move traces to the
+/// partition or the point, none to the drop.
 fn far_from(
     every: &[(LoopEdge<Interval>, Option<geom_core::Vec3<Interval>>)],
     c_g: Point3<Interval>,
