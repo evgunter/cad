@@ -11787,13 +11787,14 @@ mod tests {
     }
 
     /// **A line in the cone's apex plane over a sub-band span is not
-    /// called off its face.** Over `1e-10` of its length about the apex,
+    /// called off its face.** Over a fifth of the zero band of its length
+    /// about the apex (`2e-10` at the default ε),
     /// the incidence test does not show the line off the cone, and the
     /// apex-plane reading lands its band-decided Zero: at this tolerance
     /// the line sits where the apex plane meets the cone only at the apex.
     /// The refusal carries that in-band margin ([`OffMargin::InBand`]), and
     /// its Display does not say the edge is off its face. At `f64` and at
-    /// `Interval`.
+    /// `Interval`, at every ε.
     #[test]
     fn an_apex_plane_line_on_a_sub_band_span_is_not_called_off_its_face() {
         fn read<T: Decide>(at: impl Fn(f64) -> T) -> PcurveCertifyError {
@@ -11809,7 +11810,8 @@ mod tests {
                 dir: Vec3::unit_x(),
             }
             .map_scalar(&at);
-            chart_pcurve_over(&line, at(-5e-11), at(5e-11), &cone, band())
+            let half = 0.1 * band().zero();
+            chart_pcurve_over(&line, at(-half), at(half), &cone, band())
                 .expect_err("the apex plane meets the cone only at the apex")
         }
         for (lane, err) in [
