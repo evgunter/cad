@@ -590,4 +590,10 @@ None waits on an INTENT stage. A row that turns out to need one moves back. — 
 — (FLUSH orchestrator)
 - 2026-10-26 — **PR 5737, round 3 and Ev's ruling on angles.** Ev asked whether the 0.4ε tilt refusal (one designer's round-2 evidence) was even wrong. Both designers said yes: the undeclared plane reading prices the angle at a ball around both faces. That is a pair-boolean defect, now measured on LEVER's lever row. Both withdrew the tilt as evidence, and the n-ary recommendation stands on the covered touch and the covered gap. One designer found a fold step reading a vertex against a carrier the pass never judged, so today's union is order-dependent there; it is filed as `work/issues/a-fold-step-reads-a-vertex-against-a-carrier-the-pass-never-judged.md`. Ev then ruled "tolerance.epsilon should meter an angle in whatever way is required to make all geometry correct to within epsilon", now in `[tolerance.epsilon]`, with no objection to the n-ary door, so I merged. Blinding slip: I committed the A/B mapping before Ev's follow-up question; it is recorded on the analysis branch.
 — (FLUSH orchestrator)
+- 2026-10-26 — **Dispatched the n-ary union door** (`a-glue-verdict-is-not-bound-to-the-bodies-it-judged`, P2 H, branch `flush/nary-union-door`), as Ev adopted it on PR 5737. `topo` gets the n-ary union and intersect: pass, fold and lineage. The given channel goes crate-private, and `editor-core` names from the door's output.
+  - **Operand order:** the door takes a per-member rank, and `editor-core` passes today's lesser-read order (PR 5303), so the move changes no behaviour. List order with a symmetric margin is left as a possible follow-up.
+  - **Tier: dual review** (architectural, hard to change later).
+  - **Seams:** CLEAVE/HONE (`boolean/mod.rs`, `ops.rs`), WIRE (`eval/wire.rs`), BORDERS/EMIT (`names/`), and CONTACTHOLD's restated-tangency and record-completeness rows, which the door may close.
+  - It runs beside PR 5730's fix pass; their files are disjoint.
+— (FLUSH orchestrator)
 
