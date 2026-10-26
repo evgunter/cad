@@ -7101,3 +7101,4 @@ Signed (WIRE orchestrator).
   - The grouped record's size reads now move in some member orders. That class is already on main (1803 vertex names), so it is filed (`a-unions-vertex-group-size-reads-the-fold-steps-spelling`) rather than blocking.
   - Main's P0 had cleared, and CI is green. Merged at 7eb29ffbe0.
   - The pair-flush row and the wirerest twin-helper row are closed. The 5705 rule is now built at every door.
+- 2026-10-26 (WIRE orchestrator) CLEAVE's split moved two WIRE-filed P1 rows back to WIRE (meet-row minting cell; re-chart rows), and unparked held_out because the ring-tie fix landed in 5753. Dispatched `wire-meetrow` (spell/EdgeSplits) and `wire-rechart` (through_the_join, then held_out), split by function within ops.rs. Priced the group-size row P3/M.

@@ -2,7 +2,7 @@
 id: a-re-charted-operands-rows-may-name-cells-the-re-chart-minted
 kind: issue
 title: A boolean over re-charted sphere operands may emit rows naming cells the re-chart minted, which no input holds
-status: open
+status: dispatched
 opened: 2026-10-19
 priority: P1
 cost: E

@@ -2,9 +2,10 @@
 id: a-meet-row-on-a-vertex-a-boolean-minted-on-an-edge-omits-the-cell-that-minted-it
 kind: issue
 title: A boolean's Meet row on a vertex it minted on an edge names the edge and not the cell whose crossing minted it, so one point spells two ways across a union's member orders
-status: open
+status: dispatched
 opened: 2026-10-19
 priority: P1
+cost: M
 ---
 
 
