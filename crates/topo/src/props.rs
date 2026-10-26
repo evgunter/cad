@@ -3009,18 +3009,31 @@ mod region_carry_tests {
     }
 
     /// **A region is far only at [`CARRY_REACH`] times its own extent**:
-    /// the unit square read about its corner, whose greatest distance from
-    /// it is `√2`, is far from a point 1.01 × 16√2 below its centre and not
-    /// from one 0.99 × 16√2 below it.
+    /// the unit square's edges read as a curved face's, about its corner,
+    /// whose greatest distance from it is `√2`, are far from a point
+    /// 1.01 × 16√2 below its centre and not from one 0.99 × 16√2 below it.
+    /// Read as a plane's, the corner lies on the plane, so the lever about
+    /// it is nothing and a point one unit below is already far.
     #[test]
     fn a_region_is_far_only_past_its_reach() {
         let c_g = iv(Point3::origin());
         let reach = CARRY_REACH * 2.0_f64.sqrt();
-        for (off, far) in [(1.01 * reach, true), (0.99 * reach, false)] {
+        let face = |plane: Option<geom_core::Vec3<Interval>>| -> Vec<_> {
+            square(true).into_iter().map(|e| (e, plane)).collect()
+        };
+        let curved = face(None);
+        let plane = face(Some(iv(Point3::new(0.0, 0.0, 1.0)) - Point3::origin()));
+        for (edges, off, far) in [
+            (&curved, 1.01 * reach, true),
+            (&curved, 0.99 * reach, false),
+            (&curved, 1.0, false),
+            (&plane, 1.0, true),
+        ] {
             assert_eq!(
-                far_from(&square(true), c_g, iv(Point3::new(0.5, 0.5, -off))),
+                far_from(edges, c_g, iv(Point3::new(0.5, 0.5, -off))),
                 far,
-                "a point {off} below the square"
+                "a point {off} below the square, as a plane: {}",
+                edges[0].1.is_some()
             );
         }
     }
@@ -3468,8 +3481,7 @@ pub enum DoorOutcome {
 
 /// Every shell's quadrature regions ([`quadrature_regions`]), in arena
 /// order, with each carried region's point and carry
-/// ([`References`]; `None` for the first region, which is not carried,
-/// and for one that is not carried at all), read through the scalar's own
+/// ([`References`]; `None` for one that is not carried), read through the scalar's own
 /// certified lane ([`AtRestPolicy::quad_lane`]; none carried at a scalar
 /// with none). Test vocabulary.
 #[cfg(any(test, feature = "test-support"))]
@@ -3957,10 +3969,13 @@ fn quadrature_loops<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<Vec<Flat
 }
 
 /// **A shell's quadrature regions**: its faces that take the quadrature
-/// ([`quadrature_loops`]), grouped by sharing an edge, each region in the
-/// shell's stored order and the regions in the order their first faces
-/// are stored. The partition itself is the stored order's no more than
-/// the body's edges are; only which face of a region is first is.
+/// ([`quadrature_loops`]), grouped by sharing an edge whose vector area
+/// [`loop_vector_area`] cannot read exactly (a spiric or a rational rim,
+/// [`curved_rim`]), each region in the shell's stored order and the
+/// regions in the order their first faces are stored ([`References`]
+/// says why the join stops at the other edges). The partition itself is
+/// the stored order's no more than the body's edges are; only which face
+/// of a region is first is.
 fn quadrature_regions<T: Decide>(body: &Body<T>, shell: ShellKey) -> Vec<Vec<FaceKey>> {
     use crate::entity::EntityId;
     let shell = crate::live::proven(&body.shells, shell, EntityId::Shell);
@@ -3978,7 +3993,11 @@ fn quadrature_regions<T: Decide>(body: &Body<T>, shell: ShellKey) -> Vec<Vec<Fac
     // least index, so each region's first face is its root.
     let mut roots = crate::boolean::zip::Roots::new();
     for (i, (_, loops)) in quadrature.iter().enumerate() {
-        for &he in loops.iter().flat_map(|(_, hes)| hes) {
+        let edges = loops.iter().flat_map(|(edges, hes)| edges.iter().zip(hes));
+        for (e, &he) in edges {
+            if !curved_rim(&e.carrier) {
+                continue;
+            }
             if let Some(&j) = body
                 .mate(he)
                 .and_then(|m| body.face_of_half_edge(m))
@@ -4010,8 +4029,8 @@ fn quadrature_regions<T: Decide>(body: &Body<T>, shell: ShellKey) -> Vec<Vec<Fac
 /// faces lie a kilometre apart reads pads up to 90× apart across
 /// rotations of its face list at 1e-6
 /// (`work/flux/a-shells-pad-still-depends-on-which-quadrature-face-it-stores-first.md`).
-/// That is the first quadrature region's point: a region far from it is
-/// read about a point of its own and carried here ([`References`]).
+/// A region far from it, the first among them, is read about a point of
+/// its own and carried here ([`References`]).
 #[cfg_attr(not(any(test, feature = "test-support")), expect(dead_code))]
 fn shell_reference<T: Decide>(body: &Body<T>, shell: ShellKey) -> Point3<T> {
     reference_of(body, shell, &quadrature_regions(body, shell))
@@ -4044,9 +4063,9 @@ fn reference_of<T: Decide>(body: &Body<T>, shell: ShellKey, regions: &[Vec<FaceK
 /// that lies far from the shell's first quadrature face
 /// (`work/flux/a-shells-pad-still-depends-on-which-quadrature-face-it-stores-first.md`:
 /// two tori 900 m apart on one bar read pads 90× apart across rotations of
-/// the stored face list at 1e-6). So a region `g` after the first may be
-/// read about `c_g`, the stored start vertex of its first face, and its
-/// sum carried to the shell's point `c`. For each face,
+/// the stored face list at 1e-6). So a region `g` may be read about a
+/// point of its own, `c_g` ([`region_point`]), and its sum carried to the
+/// shell's point `c`. For each face,
 /// `∫(p − c)·n dA = ∫(p − c_g)·n dA + (c_g − c)·A⃗_f`, with `A⃗_f = ∫n dA`
 /// its outward vector area, so the region's faces sum about `c` to their
 /// sum about `c_g` plus `(c_g − c)·Σ_f A⃗_f`.
@@ -4062,22 +4081,54 @@ fn reference_of<T: Decide>(body: &Body<T>, shell: ShellKey, regions: &[Vec<FaceK
 /// ([`carry_of`]), and folded into the region's first face's enclosure
 /// ([`FaceRun::carried`]).
 ///
+/// # What a region is
+///
+/// Two quadrature faces are one region only where they share an edge
+/// whose vector area [`loop_vector_area`] cannot read exactly: a spiric or
+/// a rational rim ([`curved_rim`], [`quadrature_regions`]). Across any
+/// other edge (a line, a conic arc, a polynomial spline) each side is its
+/// own region, and the edge lies on both boundaries, traversed once each
+/// way, so the two carries read it exactly and the sum is the region's
+/// whole. So every region's `∂g` reads exactly by construction, and a
+/// region is no wider than its curved faces and the rims that hold them
+/// together. Joined across every shared edge, a long plane taking the
+/// quadrature (a bar's top face cut by a torus) joined everything it
+/// touched across its straight edges into one region spanning the bar:
+/// a torus on that face and a torus at the bar's far end read pads 456×
+/// apart across rotations at 1e-6, and a torus midway, joining both
+/// ends, 83×
+/// (`work/flux/a-shells-pad-still-depends-on-face-order-where-one-quadrature-region-spans-the-lever.md`).
+///
+/// **Its point** is the stored start of its first curved face, in the
+/// shell's stored order ([`region_point`]): a curved face's width is
+/// levered by its distance from the point, a plane's only by the point's
+/// distance off the plane, and the curved face's start lies on its rims,
+/// so on the planes they bound. The long top face's own start may lie a
+/// bar's length from the torus it carries.
+///
+/// **The first region is carried too.** The shell's point `c` is the start
+/// of its first quadrature face, which may be that long face's, and the
+/// region holding it then holds a torus a bar's length off. Each region,
+/// the first among them, is read about its own point where that is far
+/// from `c` and the gate below admits it.
+///
 /// # Only where it narrows
 ///
 /// The carry is not free: its interval rounds at `|c_g − c|·|A⃗(∂g)|`,
 /// and the region's faces read about `c_g` round at their own extent
 /// from it. Where the region lies near `c` those are the widths the faces
-/// had about `c`, and the carry only adds to them: across the sweep and
-/// step-import corpora, where every shell's regions lie within 0.1–8 of
-/// their own extent of `c`, an ungated carry read pads up to 5.2× wider.
-/// So a region is carried only where the least distance from `c` to the
-/// samples of its faces' edges is at least [`CARRY_REACH`] times the
-/// greatest from `c_g` ([`far_from`]): two tori 900 apart on one bar
-/// read about 53. Every door reads the same [`References`], so all of
-/// them carry the same regions.
+/// had about `c`, and the carry only adds to them: carried ungated, four
+/// step-import shells read pads up to 5.2× wider than before regions. So
+/// a region is carried only where its least lever from `c` is at least
+/// [`CARRY_REACH`] times its greatest from `c_g` ([`far_from`]), over the
+/// samples of its faces' edges: a curved face's sample levered by its
+/// distance, a plane's by the point's distance off the plane, and the
+/// least lever read over the curved faces where the region has any. Two
+/// tori 900 apart on one bar read about 53. Every door reads the same
+/// [`References`], so all of them carry the same regions.
 ///
-/// A region is read about `c`, uncarried, where it is the first, where it
-/// is not that far, where the door does not hold every face of it or
+/// A region is read about `c`, uncarried, where it is not that far, where
+/// the door does not hold every face of it or
 /// holds no quadrature lane (a carry stands for the whole region, and only
 /// a lane encloses it), where its boundary does not resolve, and where
 /// its boundary's vector area does not read or its carry does not certify
@@ -4215,9 +4266,10 @@ impl<T: Real> ReadAbout<T> {
 }
 
 /// The carried regions among a shell's quadrature regions `quadrature`
-/// ([`References`]): each region after the first whose every face is
-/// `held` and that lies far from the shell's point `c` ([`far_from`]),
-/// with its point and its carry to `c`, read through `lane`.
+/// ([`References`]): each region, the first among them, whose every face
+/// is `held` and that lies far from the shell's point `c` ([`far_from`]),
+/// with its point ([`region_point`]) and its carry to `c`, read through
+/// `lane`.
 fn region_carries<T: Decide>(
     body: &Body<T>,
     c: Point3<T>,
@@ -4236,15 +4288,18 @@ fn region_carries<T: Decide>(
         end: e.end,
     };
     let mut out = Vec::new();
-    for faces in quadrature.into_iter().skip(1) {
+    for faces in quadrature {
         if !faces.iter().all(|f| held.contains(f)) {
             continue;
         }
         let Some((boundary, every)) = region_edges(body, &faces) else {
             continue;
         };
-        let point = face_start(body, faces[0]);
-        let every: Vec<LoopEdge<Interval>> = every.iter().map(lift_edge).collect();
+        let point = region_point(body, &faces);
+        let every: Vec<(LoopEdge<Interval>, Option<geom_core::Vec3<Interval>>)> = every
+            .iter()
+            .map(|(e, plane)| (lift_edge(e), plane.map(|n| n.map(lane.lift))))
+            .collect();
         if !far_from(&every, lift(point), lift(c)) {
             continue;
         }
@@ -4261,24 +4316,60 @@ fn region_carries<T: Decide>(
     out
 }
 
+/// **The point a region is read about** ([`References`]): the stored
+/// start vertex of its first face, in the shell's stored order, that is
+/// not a plane, or of its first face where every face is one. A curved
+/// face's width is levered by its distance from the point, a plane's only
+/// by the point's distance off its plane, and the curved face's start lies
+/// on its rims, so on the planes they bound.
+fn region_point<T: Decide>(body: &Body<T>, faces: &[FaceKey]) -> Point3<T> {
+    let curved = faces
+        .iter()
+        .copied()
+        .find(|&f| !matches!(resolve_face(body, f).1, Surface::Plane { .. }));
+    face_start(body, curved.unwrap_or(faces[0]))
+}
+
 /// **Whether a region lies far enough from its shell's point `c` to be
 /// carried** ([`References`]): over its faces' edges `every`, each read
-/// at its two ends and its middle parameter, the least squared distance
-/// from `c` at least [`CARRY_REACH`]² times the greatest from `c_g`, each
-/// read at the end of its interval that makes it hardest to meet.
-fn far_from(every: &[LoopEdge<Interval>], c_g: Point3<Interval>, c: Point3<Interval>) -> bool {
+/// at its two ends and its middle parameter, the least squared lever from
+/// `c` at least [`CARRY_REACH`]² times the greatest from `c_g`, each read
+/// at the end of its interval that makes it hardest to meet. A sample is
+/// levered by its distance from the point, or, on a plane face (its unit
+/// normal beside it), by the point's distance off the plane along it:
+/// that is all a plane's width scales with. The least lever is read over
+/// the samples of the region's curved faces where it has any, since a
+/// plane through `c` reads no wider about `c` than about `c_g`.
+fn far_from(
+    every: &[(LoopEdge<Interval>, Option<geom_core::Vec3<Interval>>)],
+    c_g: Point3<Interval>,
+    c: Point3<Interval>,
+) -> bool {
     use geom_core::Bounds as _;
+    let lever =
+        |p: Point3<Interval>, x: Point3<Interval>, plane: Option<geom_core::Vec3<Interval>>| {
+            plane.map_or_else(
+                || p.distance_squared(x),
+                |n| {
+                    let d = (p - x).dot(n);
+                    d * d
+                },
+            )
+        };
+    let curved = every.iter().any(|(_, plane)| plane.is_none());
     let (mut near, mut extent) = (f64::INFINITY, 0.0_f64);
-    for e in every {
+    for (e, plane) in every {
         let mid = (e.t0 + e.t1) * Interval::from_f64(0.5);
         for t in [e.t0, mid, e.t1] {
             let p = e.carrier.eval(t);
-            let (to_c, to_g) = (p.distance_squared(c).lo(), p.distance_squared(c_g).hi());
+            let (to_c, to_g) = (lever(p, c, *plane).lo(), lever(p, c_g, *plane).hi());
             // A sample that does not read leaves the region near.
             if to_c.is_nan() || to_g.is_nan() {
                 return false;
             }
-            near = near.min(to_c);
+            if plane.is_none() || !curved {
+                near = near.min(to_c);
+            }
             extent = extent.max(to_g);
         }
     }
@@ -4301,23 +4392,32 @@ fn carry_of(
 
 /// A region's edges: its boundary `∂g`, the loop edges of its faces whose
 /// half-edge's mate lies on a face outside it, each in its own face's
-/// traversal sense ([`References`]), and every loop edge of its faces.
-/// `None` where a face's loops do not flatten or a mate does not resolve.
+/// traversal sense ([`References`]), and every loop edge of its faces,
+/// each with its face's unit normal where the face is a plane
+/// ([`far_from`]). `None` where a face's loops do not flatten or a mate
+/// does not resolve.
 #[allow(clippy::type_complexity)]
 fn region_edges<T: Decide>(
     body: &Body<T>,
     faces: &[FaceKey],
-) -> Option<(Vec<LoopEdge<T>>, Vec<LoopEdge<T>>)> {
+) -> Option<(
+    Vec<LoopEdge<T>>,
+    Vec<(LoopEdge<T>, Option<geom_core::Vec3<T>>)>,
+)> {
     let (mut boundary, mut every) = (Vec::new(), Vec::new());
     for &key in faces {
-        let (face, _) = resolve_face(body, key);
+        let (face, surface) = resolve_face(body, key);
+        let plane = match *surface {
+            Surface::Plane { normal, .. } => Some(normal),
+            _ => None,
+        };
         for (edges, hes) in flat_loops(body, face).ok()? {
             for (e, he) in edges.into_iter().zip(hes) {
                 let mate_face = body.mate(he).and_then(|m| body.face_of_half_edge(m))?;
                 if !faces.contains(&mate_face) {
                     boundary.push(e.clone());
                 }
-                every.push(e);
+                every.push((e, plane));
             }
         }
     }
