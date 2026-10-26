@@ -1534,40 +1534,27 @@ enum KeySpace {
     Graft,
 }
 
-/// **The one read of a boolean result's key layout**: which operand a
-/// result-arena key belongs to, its key in that operand's space, and
-/// where that key lives. A result key is an A key only where A's clone
-/// is the arena, and a B key either through the graft rows (`inv`,
-/// destination → source) or because B's clone is the arena itself — so
-/// "not grafted" means "A" only in the grafted layout. Every pass reads
-/// keys through here, and the side and its key space come out of one
-/// match rather than being re-derived from the layout.
+/// **A boolean result's key layout**, read once
+/// ([`topo::BooleanNaming::operand_of`]): which operand a result-arena
+/// key belongs to, its key in that operand's space, and where that key
+/// lives. Every pass reads keys through here.
 ///
 /// # Panics
 ///
-/// On any other layout: `topo`'s boolean builds its result as A's clone
-/// with B grafted in, or as one operand's clone with the other absent,
-/// and records which in `BooleanNaming::a_keys` and `b_keys`.
+/// As [`topo::BooleanNaming::operand_of`].
 #[track_caller]
 fn operand_key<K: Copy + Ord>(
     naming: &topo::BooleanNaming,
     inv: &BTreeMap<K, K>,
     k: K,
 ) -> (OpSide<K>, KeySpace) {
-    use topo::OperandKeys;
-    match (naming.a_keys, naming.b_keys) {
-        (OperandKeys::Direct, OperandKeys::Grafted) => match inv.get(&k) {
-            Some(&kb) => (OpSide::B(kb), KeySpace::Graft),
-            None => (OpSide::A(k), KeySpace::Arena),
-        },
-        (OperandKeys::Direct, OperandKeys::Absent) => (OpSide::A(k), KeySpace::Arena),
-        (OperandKeys::Absent, OperandKeys::Direct) => (OpSide::B(k), KeySpace::Arena),
-        (a_keys, b_keys) => unreachable!(
-            "a boolean's naming records operand keys {a_keys:?} and {b_keys:?}: `topo`'s boolean \
-             builds its result as A's clone with B grafted in, or as one operand's clone with the \
-             other absent"
-        ),
-    }
+    let (operand, key, grafted) = naming.operand_of(inv, k);
+    let space = if grafted {
+        KeySpace::Graft
+    } else {
+        KeySpace::Arena
+    };
+    (OpSide::on(operand, key), space)
 }
 
 /// Names a boolean result (spec D2's boolean vocabulary; N2/N3).

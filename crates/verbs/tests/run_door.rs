@@ -281,17 +281,15 @@ fn a_boolean_refusal_crosses_the_dispatch_unaltered() {
     assert_eq!(door.to_string(), carried.to_string());
 }
 
-/// What the kernel's n-ary door and the dispatch each returned.
-type BothWays = (
-    Result<topo::NaryResult<f64>, topo::NaryRefusal>,
-    Result<topo::NaryResult<f64>, VerbError<f64>>,
-);
-
-/// Three members, each with its rank its place, run through the n-ary
-/// dispatch and through the kernel's door.
-fn members_both_ways(bodies: [&AtRestBody<f64>; 3]) -> BothWays {
-    let inputs: Vec<topo::MemberInputs> = (0..3)
-        .map(|rank| topo::MemberInputs {
+/// Three members with ranks `ranks`, run through the n-ary dispatch and
+/// through the kernel's door: (door, dispatch).
+fn members_both_ways(
+    bodies: [&AtRestBody<f64>; 3],
+    ranks: [u32; 3],
+) -> (topo::NaryRun<f64>, topo::NaryRun<f64>) {
+    let inputs: Vec<topo::MemberInputs> = ranks
+        .iter()
+        .map(|&rank| topo::MemberInputs {
             rank,
             ..topo::MemberInputs::default()
         })
@@ -315,22 +313,33 @@ fn members_both_ways(bodies: [&AtRestBody<f64>; 3]) -> BothWays {
     (door, via)
 }
 
-/// **The n-ary dispatch is the n-ary door**: three overlapping cubes
-/// united both ways judge the same pairs and build the same body.
+/// **The n-ary dispatch is the n-ary door, members, ranks and all**:
+/// three overlapping cubes ranked against their list order (2, 0, 1)
+/// run both ways to the same run, judgement for judgement and step for
+/// step, and the dispatch judges each pair with its lesser rank as
+/// operand A, so a dispatch that dropped or reordered the members'
+/// inputs differs.
 #[test]
 fn the_members_dispatch_is_the_nary_door() {
     let [a, b, c] = [0.0, 0.5, 1.0].map(|x| shifted_cube(Vec3::new(x, 0.0, 0.0)));
-    let (door, via) = members_both_ways([&a, &b, &c]);
-    let (Ok(topo::NaryResult::Body(door)), Ok(topo::NaryResult::Body(via))) = (door, via) else {
-        panic!("the fixture's union is a body both ways");
-    };
-    let pairs =
-        |n: &topo::NaryBody<f64>| n.judgements.iter().map(|j| (j.a, j.b)).collect::<Vec<_>>();
-    assert_eq!(pairs(&door), pairs(&via), "the same pairs are judged");
+    let (door, via) = members_both_ways([&a, &b, &c], [2, 0, 1]);
+    assert!(
+        matches!(via.end, topo::NaryEnd::Built),
+        "the fixture's union builds: {:?}",
+        via.end
+    );
     assert_eq!(
-        dump(&door.result().body),
-        dump(&via.result().body),
-        "the same body is built"
+        via.judgements
+            .iter()
+            .map(|j| (j.a, j.b))
+            .collect::<Vec<_>>(),
+        [(1, 0), (2, 0), (1, 2)],
+        "each pair is judged with its lesser rank as operand A"
+    );
+    assert_eq!(
+        format!("{door:?}"),
+        format!("{via:?}"),
+        "the dispatch's run is the door's"
     );
 }
 
@@ -341,20 +350,17 @@ fn a_members_refusal_crosses_the_dispatch_unaltered() {
     let a = unit_cube();
     let b = shifted_cube(Vec3::new(1.0 + 2.0 * tol().eps(), 0.0, 0.0));
     let far = shifted_cube(Vec3::new(10.0, 0.0, 0.0));
-    let (door, via) = members_both_ways([&a, &b, &far]);
-    let door = door.unwrap_err();
-    let Err(VerbError::Members(carried)) = via else {
-        panic!(
-            "an n-ary refusal crossed as something else: {:?}",
-            via.map(|_| ())
-        );
+    let (door, via) = members_both_ways([&a, &b, &far], [0, 1, 2]);
+    let topo::NaryEnd::Refused(carried) = &via.end else {
+        panic!("an n-ary refusal crossed as something else: {:?}", via.end);
     };
     assert!(
-        matches!(carried, topo::NaryRefusal::Judgement { a: 0, b: 1, .. }),
-        "the pair's judgement refused: {carried:?}"
+        matches!(carried, topo::NaryRefusal::Judgement { a: 0, b: 1, .. })
+            && via.judgements.is_empty()
+            && via.steps.is_empty(),
+        "the pair's judgement refused, first: {carried:?}"
     );
-    assert_eq!(format!("{door:?}"), format!("{carried:?}"));
-    assert_eq!(door.to_string(), carried.to_string());
+    assert_eq!(format!("{door:?}"), format!("{via:?}"));
 }
 
 /// The two sides' dumps, in order, with an empty side as its own

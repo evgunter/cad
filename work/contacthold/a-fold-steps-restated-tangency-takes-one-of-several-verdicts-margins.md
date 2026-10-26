@@ -36,18 +36,26 @@ decided rather than one of the decisions.
 
 ## Measured (FLUSH, 2026-10-26)
 
-FLUSH's `flush/nary-union-door` moved the fold into the kernel
+FLUSH's `flush/nary-union-door` (PR 5772) moved the fold into the kernel
 (`topo::nary_boolean`, `crates/topo/src/boolean/nary.rs`), and with it
 `given_pairs` and `restated_given` (now `given_pairs` and
-`restated_rows` there). The move keeps their logic: a step is still
-handed one given pair per (accumulation face, member face), under the
-first verdict's decision, and the step's restated row maps to the rows
-of every verdict on the pair (`topo::NaryStep::restates`). So this row
-is not fixed by the move. What changed is where the fix goes: the door
-holds every verdict and every step, so handing a step one pair per
-verdict or restating on each decision is local to `nary.rs`, with no
-channel between two crates. A probe of the brief's pose through the
-door (P1, P2 flush, a rod at x = 0.25 tangent to P2's y = 2 face) gave
-only one tangency verdict on the merged face, (P2, R); (P1, R) recorded
-no face-pair row, so that pose does not reach the defect.
+`restated_rows` there). The move keeps their logic, so this row is not
+fixed by it: a step is still handed one given pair per (accumulation
+face, member face), under the first verdict's decision (`given_pairs`'
+`or_insert`), while the step's restated row maps to the rows of every
+verdict on the pair (`topo::NaryStep::restates`).
 
+It is reachable through the door (PR 5772's review, R1's probe): two
+plates overlapping in z whose y = 2 faces are coplanar and merge, the
+second raised by 1e-11, and a rod along x tangent to the merged face
+along z = 0.75, through both faces' interiors. The pass decides the
+rod's tangency against the first plate at margin 0.0 and against the
+second at 1.0e-11; the step's restated row carries 0.0 and stands for
+both. It is pinned as it stands, so a fix flips it:
+`crates/sweep/tests/face_face_touch.rs`,
+`contacthold_m2_a_restated_tangency_carries_the_first_of_two_verdicts_margins`.
+
+Where the fix goes changed: the door holds every verdict and every
+step, so handing a step one pair per verdict or restating on each
+decision is local to `nary.rs`. Which verdict's margin a restated row
+carries is this row's question.

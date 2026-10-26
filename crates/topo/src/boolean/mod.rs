@@ -189,8 +189,8 @@ pub use edge_join::{
 };
 pub use join::CompletedPolygonPair;
 pub use nary::{
-    FaceDescent, JudgedRow, MemberFace, MemberInputs, MemberLineage, NaryBody, NaryJudgement,
-    NaryMember, NaryOp, NaryRefusal, NaryResult, NaryStep, nary_boolean,
+    FaceDescent, JudgedRow, MemberFace, MemberInputs, MemberLineage, NaryEnd, NaryJudgement,
+    NaryMember, NaryOp, NaryRefusal, NaryRun, NaryStep, nary_boolean,
 };
 pub use ops::{
     BooleanBody, BooleanNaming, BooleanResult, BooleanResultKind, OperandKeys, SettleError,

@@ -185,8 +185,9 @@ Each verb owns:
 - **its run door.** `Blend::run` (one body in, `VerbOut`),
   `Boolean::run_pair` (two bodies in, `PairOut` — the typed empty is part
   of the boolean's contract, F8), `Members::run_members` (a list of
-  bodies in, the kernel's `NaryResult`: every judgement's and fold
-  step's pair-boolean body and record), `Sweep::run_profile` (one borrowed
+  bodies in, the kernel's `NaryRun`: every judgement's and fold step's
+  pair-boolean body and record, and how the operation ended, a refusal
+  included, so it has no `VerbError` arm), `Sweep::run_profile` (one borrowed
   `ValidatedProfile`, the door's whole bundle back as the record),
   `Split::run_split` (`SplitOut`, two sides each a body or the typed
   empty) and `Shell::run_shell`. Every check,

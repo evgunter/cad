@@ -4,13 +4,14 @@
 //! public input states a glue, so a glue no record over the bodies it
 //! joins states cannot be written
 //! (`work/flush/a-glue-verdict-is-not-bound-to-the-bodies-it-judged.md`).
+//! That no public route states one is pinned by `nary_boolean`'s
+//! `compile_fail` doctests.
 #![allow(clippy::panic, clippy::expect_used, clippy::unwrap_used)]
 
 use crate::common;
 use common::{brick, finished};
 use geom_core::Tol;
-use test_utils::source;
-use topo::{Body, FaceKey, MemberInputs, NaryMember, NaryOp, NaryResult, Relation, Surface};
+use topo::{Body, FaceKey, MemberInputs, NaryEnd, NaryMember, NaryOp, Relation, Surface};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -57,15 +58,17 @@ fn a_rest_touch_is_the_unions_one_verdict_and_glues_as_given() {
         .zip(&inputs)
         .map(|(body, inputs)| NaryMember { body, inputs })
         .collect();
-    let NaryResult::Body(built) = topo::nary_boolean(
+    let built = topo::nary_boolean(
         NaryOp::Union,
         &members,
         topo::SweepStrategy::Realized,
         tol(),
-    )
-    .unwrap() else {
-        panic!("a union of three bodies is not empty");
-    };
+    );
+    assert!(
+        matches!(built.end, NaryEnd::Built) && built.pairwise,
+        "a union of three bodies builds, judged pairwise: {:?}",
+        built.end
+    );
     let [judged] = &built.judgements[..] else {
         panic!(
             "one judgement, the cube and the brick, whose boxes alone meet: {:?}",
@@ -123,70 +126,5 @@ fn a_rest_touch_is_the_unions_one_verdict_and_glues_as_given() {
         (volume(&step.body), step.body.body.faces().count()),
         (volume(&judged.body), judged.body.body.faces().count()),
         "the given glue builds the judged body"
-    );
-}
-
-/// Whether the item head whose `fn` or `struct` is at `at` is `pub`
-/// with no restriction: `pub` (and `const`) before it on its line.
-fn plainly_public(code: &str, at: usize) -> bool {
-    let mut before = code[source::line_start(code, at)..at].split_whitespace();
-    before.clone().any(|w| w == "pub") && before.all(|w| w == "pub" || w == "const")
-}
-
-/// Every whole-word offset of `word` in `code`.
-fn words<'a>(code: &'a str, word: &'a str) -> impl Iterator<Item = usize> + 'a {
-    code.match_indices(word)
-        .map(|(at, _)| at)
-        .filter(move |&at| source::word_at(code, at, word))
-}
-
-/// **No public door states a given pair**: `GluedPair` is not a public
-/// type, `GlueVerdict::given_at` is not a public function, and
-/// `BooleanInputs` carries no `given` field, so the only code that
-/// hands a boolean a glue it did not measure is the n-ary door, over
-/// member bodies it holds.
-#[test]
-fn no_public_door_states_a_given_pair() {
-    let src = source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("src");
-    let mut seen = [0usize; 3];
-    for file in source::rust_sources(&src) {
-        let code = source::code_only(&std::fs::read_to_string(&file).unwrap());
-        for at in words(&code, "struct") {
-            let name_at = source::skip_ws(&code, at + "struct".len());
-            if source::word_at(&code, name_at, "GluedPair") {
-                seen[0] += 1;
-                assert!(
-                    !plainly_public(&code, at),
-                    "{}: GluedPair is a public type",
-                    file.display()
-                );
-            }
-            if source::word_at(&code, name_at, "BooleanInputs") {
-                seen[1] += 1;
-                let source::ItemBody::Body(body) = source::item_body(&code, at) else {
-                    panic!("BooleanInputs has fields");
-                };
-                assert!(
-                    words(&code[body], "given").next().is_none(),
-                    "{}: BooleanInputs carries a given field",
-                    file.display()
-                );
-            }
-        }
-        for at in words(&code, "fn") {
-            if source::word_at(&code, source::skip_ws(&code, at + "fn".len()), "given_at") {
-                seen[2] += 1;
-                assert!(
-                    !plainly_public(&code, at),
-                    "{}: given_at is a public function",
-                    file.display()
-                );
-            }
-        }
-    }
-    assert_eq!(
-        seen,
-        [1, 1, 1],
-        "the census sees GluedPair, BooleanInputs and given_at once each"
     );
 }

@@ -1836,23 +1836,6 @@ fn verb_refused<T: geom_core::Bounds>(refusal: verbs::VerbError<T>) -> NodeError
             NodeErrorKind::Blend { verb, error }
         }
         verbs::VerbError::Boolean(error) => NodeErrorKind::Boolean(error),
-        // A step's refusal names its member where the lowering reads
-        // the member list (`wire_combine`); every other n-ary refusal is
-        // the pair boolean's own.
-        verbs::VerbError::Members(refusal) => match refusal {
-            topo::NaryRefusal::Hull { error, .. }
-            | topo::NaryRefusal::Judgement { error, .. }
-            | topo::NaryRefusal::Step { error, .. } => NodeErrorKind::Boolean(*error),
-            topo::NaryRefusal::VerdictsDisagree { .. } => {
-                NodeErrorKind::Naming(names::NamingError::Emission {
-                    what: UNION_VERDICTS_DISAGREE,
-                })
-            }
-            topo::NaryRefusal::Arity { members } => unreachable!(
-                "the n-ary door refused {members} members, though the lowering runs it over two \
-                 or more"
-            ),
-        },
         verbs::VerbError::Extrude(error) => NodeErrorKind::Extrude(error),
         verbs::VerbError::Revolve(error) => NodeErrorKind::Revolve(error),
         verbs::VerbError::Split(error) => NodeErrorKind::Split(error),
@@ -3301,34 +3284,35 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         ),
     };
     let bodies: Vec<&topo::AtRestBody<T>> = members.iter().map(|m| m.body.as_ref()).collect();
+    // The kernel runs every judgement and step first, and the run holds
+    // what it ran before it stopped. Each is named here in the order it
+    // ran, so the first defect in that order is the one announced: a
+    // naming refusal of an earlier judgement or step comes before a
+    // later one's refusal or empty result (`[failure.taxonomy]`).
+    let topo::NaryRun {
+        judgements,
+        steps,
+        pairwise,
+        end,
+    } = (verb.members)(nary, inputs).run_members(&bodies, boolean_sweep, tol);
     // Two members are one pair: its one fold step IS its judgement, and
     // its refusals the pair's own. Three or more are judged pairwise
     // first, and a refusal only a step raises names the member that
     // step folds in.
-    let pairwise = members.len() > 2;
-    let built = match (verb.members)(nary, inputs)
-        .run_members(&bodies, boolean_sweep, tol)
-        .map_err(|refusal| match refusal {
-            verbs::VerbError::Members(topo::NaryRefusal::Step { member, error }) => {
-                NodeErrorKind::UnionFoldStep {
-                    member: u32::try_from(member).unwrap_or(u32::MAX),
-                    read: members[member].read,
-                    refusal: Box::new(NodeErrorKind::Boolean(*error)),
-                }
-            }
-            other => verb_refused(other),
-        })? {
-        topo::NaryResult::Empty => return empty(),
-        topo::NaryResult::Body(built) => built,
-    };
     // The judgements' rows, whole, each named in its two members' own
     // tables: the node's coincidences are its member pairs' (DM4), each
     // pair's in the order the kernel judged it. The faces each judgement
     // consumed are the node's face links (N2, [`names::UnionLinks`]).
     let mut links = names::UnionLinks::default();
     let mut judged: Vec<Vec<crate::coincide::NamedCoincidence>> =
-        Vec::with_capacity(built.judgements.len());
-    for j in &built.judgements {
+        Vec::with_capacity(judgements.len());
+    for (k, j) in judgements.iter().enumerate() {
+        #[cfg(any(test, feature = "test-support"))]
+        if let Some(fault) = crate::test_support::judgement_naming_fault(k) {
+            return Err(NodeErrorKind::Naming(fault));
+        }
+        #[cfg(not(any(test, feature = "test-support")))]
+        let _ = k;
         judged.push(
             crate::coincide::name_rows(
                 &j.body.coincidences,
@@ -3345,18 +3329,24 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             .map_err(NodeErrorKind::Naming)?;
     }
     // One row per statement: two pairs that state one thing (a member
-    // read twice, beside a third) publish it once.
+    // read twice, beside a third) publish it once. `published[j][r]` is
+    // where judgement `j`'s row `r` is published.
     let mut coincidences = Vec::new();
-    for (j, rows) in built.judgements.iter().zip(&judged) {
+    let mut published: Vec<Vec<usize>> = Vec::with_capacity(judged.len());
+    for (j, rows) in judgements.iter().zip(&judged) {
         let place = |m: usize| u32::try_from(m).unwrap_or(u32::MAX);
         let pair = [place(j.a.min(j.b)), place(j.a.max(j.b))];
-        for row in rows {
-            let row = crate::coincide::NamedCoincidence {
-                origin: crate::coincide::RowOrigin::Judged { pair },
-                ..row.clone()
-            };
-            judged_at(&mut coincidences, row);
-        }
+        published.push(
+            rows.iter()
+                .map(|row| {
+                    let row = crate::coincide::NamedCoincidence {
+                        origin: crate::coincide::RowOrigin::Judged { pair },
+                        ..row.clone()
+                    };
+                    judged_at(&mut coincidences, row)
+                })
+                .collect(),
+        );
     }
     let judged_rows = coincidences.len();
     let mut last: Option<(topo::BooleanResultKind, Arc<topo::ContactRecords>)> = None;
@@ -3365,8 +3355,9 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     let mut fold = names::UnionFold::new(0, &first.body);
     // The accumulation's own records in the node's terms: each cites a
     // fold row (`fold_rows`) or a member's record, by its place in the
-    // member list. The kernel carried them into each step as the
-    // accumulation's own, in the same list order.
+    // member list. Row for row, they are the records the kernel carried
+    // into the next step as the accumulation's own (checked at each
+    // step), so a step's `Carried { input: 0, record }` indexes them.
     let mut acc_records = Arc::new(first.records.carried_from(0));
     let mut acc_body: &topo::AtRestBody<T> = &first.body;
     let mut acc_table = Arc::clone(&views[0]);
@@ -3374,8 +3365,8 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     // the `k`-th until the records are recited onto the published rows.
     let mut fold_rows: Vec<FoldRow> = Vec::new();
     // Each step's fragment groups, in fold order (`FragmentGroups::folded`).
-    let mut step_groups = Vec::with_capacity(built.steps.len());
-    for (step, stepped) in built.steps.iter().enumerate() {
+    let mut step_groups = Vec::with_capacity(steps.len());
+    for (step, stepped) in steps.iter().enumerate() {
         let joined = stepped.member;
         let member_body: &topo::AtRestBody<T> = &members[joined].body;
         let member_table = Arc::clone(&views[joined]);
@@ -3425,23 +3416,7 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 if let Some(restated) = stepped.restates(k) {
                     let mut at = Vec::new();
                     for r in restated {
-                        let verdict = &judged[r.judgement][r.row];
-                        let i = coincidences[..judged_rows]
-                            .iter()
-                            .position(|p| {
-                                *p == crate::coincide::NamedCoincidence {
-                                    origin: p.origin,
-                                    ..verdict.clone()
-                                }
-                            })
-                            .unwrap_or_else(|| {
-                                unreachable!(
-                                    "union {id:?}'s fold step {step} restates judgement {}'s row \
-                                     {}, which the node did not publish, though it publishes \
-                                     every judged row",
-                                    r.judgement, r.row
-                                )
-                            });
+                        let i = published[r.judgement][r.row];
                         if !at.contains(&i) {
                             at.push(i);
                         }
@@ -3479,6 +3454,16 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 crate::test_support::record_fold_row(&as_named, &spelled);
                 fold_rows.push(FoldRow::Decided(spelled));
             }
+        }
+        let carried_in = steps[..step]
+            .last()
+            .map_or_else(|| first.records.carried(), |s| s.body.contacts.carried());
+        if acc_records.carried() != carried_in {
+            unreachable!(
+                "union {id:?}'s fold step {step} was carried records that are not the \
+                 accumulation's the node holds, row for row, though the kernel carries each \
+                 step's records into the next"
+            );
         }
         let held = Arc::clone(&acc_records);
         let contacts = out
@@ -3550,6 +3535,19 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         acc_table = emitted.table;
         step_groups.push(emitted.groups);
         acc_body = &out.body;
+    }
+    // Every judgement and step the kernel ran is named; now how it ended.
+    match end {
+        topo::NaryEnd::Built => {}
+        topo::NaryEnd::Empty => return empty(),
+        topo::NaryEnd::Refused(topo::NaryRefusal::Step { member, error }) => {
+            return Err(NodeErrorKind::UnionFoldStep {
+                member: u32::try_from(member).unwrap_or(u32::MAX),
+                read: members[member].read,
+                refusal: Box::new(NodeErrorKind::Boolean(*error)),
+            });
+        }
+        topo::NaryEnd::Refused(refusal) => return Err(nary_refused(refusal)),
     }
     // The members' own bodies and tables: where each member edge the
     // published table names pieces of is defined (`name_union`).
@@ -3686,6 +3684,26 @@ fn member_ranks(reads: &[crate::VarId]) -> Vec<u32> {
             u32::try_from(at).unwrap_or(u32::MAX)
         })
         .collect()
+}
+
+/// **An n-ary refusal other than a fold step's**, which names no member
+/// ([`wire_combine`] names a step's): the pair boolean's or the box
+/// door's own, or two verdicts that disagree.
+fn nary_refused(refusal: topo::NaryRefusal) -> NodeErrorKind {
+    match refusal {
+        topo::NaryRefusal::Hull { error, .. }
+        | topo::NaryRefusal::Judgement { error, .. }
+        | topo::NaryRefusal::Step { error, .. } => NodeErrorKind::Boolean(*error),
+        topo::NaryRefusal::VerdictsDisagree { .. } => {
+            NodeErrorKind::Naming(names::NamingError::Emission {
+                what: UNION_VERDICTS_DISAGREE,
+            })
+        }
+        topo::NaryRefusal::Arity { members } => unreachable!(
+            "the n-ary door refused {members} members, though the lowering runs it over two or \
+             more"
+        ),
+    }
 }
 
 /// Two of a union's pairwise verdicts glue one accumulation face to one

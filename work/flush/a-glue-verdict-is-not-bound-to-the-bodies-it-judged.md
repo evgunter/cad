@@ -159,6 +159,17 @@ runs it and names what it returns; `judge_pairwise_contact`,
 `member_lineage` and `debug_assert_given` are gone, and `names::Fold`
 reads the kernel's lineage instead of building its own.
 
+**CONTACTHOLD's m2 stays open**, though this row's `## Design` says it
+closes with the door
+(`work/contacthold/a-fold-steps-restated-tangency-takes-one-of-several-verdicts-margins.md`).
+The door keeps the moved `given_pairs` logic, one given pair per
+(accumulation face, member face) under the first verdict, because
+closing it changes which margin a step's restated row carries, a
+decision this move does not take: it is CONTACTHOLD's. The door makes
+the fix local to `nary.rs`, and the defect is pinned as it stands
+(`crates/sweep/tests/face_face_touch.rs`,
+`contacthold_m2_a_restated_tangency_carries_the_first_of_two_verdicts_margins`).
+
 Re-measured on the branch: every one of the 11,427 evaluations gives
 the same body, names, records, cited inputs and refusal. Rows are
 identical except in one test's four evaluations

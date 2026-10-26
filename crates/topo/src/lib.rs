@@ -1159,7 +1159,7 @@ pub use boolean::{
     EdgeInFaceGap, EdgeJoin, EdgePieceClass, EeContact, EfContact, FaceContainment, FaceDescent,
     FfContact, Fusions, GlueVerdict, JOIN_LEVER, JOIN_SUBJECT, JoinReading, JoinRefusal,
     JoinUndecided, JudgedRow, LeverArm, LineWedgeFault, MemberFace, MemberInputs, MemberLineage,
-    NaryBody, NaryJudgement, NaryMember, NaryOp, NaryRefusal, NaryResult, NaryStep, NodeWhy,
+    NaryEnd, NaryJudgement, NaryMember, NaryOp, NaryRefusal, NaryRun, NaryStep, NodeWhy,
     NullEdgePairRecord, Operand, OperandKeys, OperandRecords, PairFace, PairRefusalSite, PairSite,
     PairUnread, PierceRingRecord, PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, PlaneRung,
     PointInSolidError, ReductionContacts, RefusedRow, SectorRead, SectorRung, SelfCheck,

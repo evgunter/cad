@@ -9,6 +9,11 @@
 //! own; it carries the accumulation's records and the joining member's.
 //! Two members are one pair: their one step is the judgement.
 //!
+//! Where the operation stops, at a refusal or an intersect's empty
+//! result, the door returns what it built up to there
+//! ([`NaryRun::end`]), so a caller that reads each judgement and step in
+//! turn meets the operation's events in the order they happened.
+//!
 //! A verdict is handed to a step only here, over member bodies the door
 //! holds, so no caller states a glue no record over those bodies states.
 
@@ -19,7 +24,7 @@ use geom_core::{Bounds, Decide, Real, Tol};
 use super::ops::boolean_op_given;
 use super::{
     BooleanBody, BooleanError, BooleanInputs, BooleanNaming, BooleanOp, BooleanResult, GlueVerdict,
-    GluedPair, Operand, OperandKeys, OperandRecords, SweepStrategy,
+    GluedPair, Operand, OperandRecords, SweepStrategy,
 };
 use crate::AtRestBody;
 use crate::body::Body;
@@ -47,8 +52,9 @@ impl NaryOp {
 
 /// **What one member carries besides its body**: its own contact
 /// records, carried into the step that joins it, and its rank, which
-/// orders a judgement's two operands: the member of the lesser rank is
-/// operand A, the earlier listed on a tie.
+/// orders a pairwise judgement's two operands: the member of the lesser
+/// rank is operand A, the earlier listed on a tie. With two members no
+/// rank is read: their one step is `m0 ∘ m1`, in list order.
 #[derive(Clone, Debug, Default)]
 pub struct MemberInputs {
     /// The member's own contact records.
@@ -112,14 +118,32 @@ impl MemberLineage {
         })
     }
 
+    /// **The member faces an operand face of the step joining `member`
+    /// to this accumulation descends from**: an accumulation face's
+    /// lineage for operand A, the member's own face for operand B. `f`
+    /// is a root face in that operand's keys ([`FaceDescent`]).
+    ///
+    /// # Panics
+    ///
+    /// Where an operand-A face has no lineage here.
+    #[track_caller]
+    pub fn operand_faces(
+        &self,
+        member: usize,
+        operand: Operand,
+        f: FaceKey,
+    ) -> BTreeSet<MemberFace> {
+        match operand {
+            Operand::A => self.of(f).clone(),
+            Operand::B => BTreeSet::from([(member, f)]),
+        }
+    }
+
     /// The lineage of `result`, the step that joined member `member` to
     /// this accumulation with the naming `naming`.
     fn step<T: Real>(&self, member: usize, naming: &BooleanNaming, result: &Body<T>) -> Self {
         let descent = FaceDescent::of(naming);
-        let from = |(operand, f): (Operand, FaceKey)| match operand {
-            Operand::A => self.of(f).clone(),
-            Operand::B => BTreeSet::from([(member, f)]),
-        };
+        let from = |(operand, f): (Operand, FaceKey)| self.operand_faces(member, operand, f);
         let merged = descent.merged();
         let faces = result
             .faces()
@@ -158,23 +182,10 @@ impl<'n> FaceDescent<'n> {
     ///
     /// # Panics
     ///
-    /// On an operand-key layout the boolean never records: it builds its
-    /// result as A's clone with B grafted in, or as one operand's clone
-    /// with the other absent.
+    /// As [`BooleanNaming::operand_of`].
+    #[track_caller]
     pub fn result_face(&self, f: FaceKey) -> (Operand, FaceKey) {
-        let (operand, k) = match (self.naming.a_keys, self.naming.b_keys) {
-            (OperandKeys::Direct, OperandKeys::Grafted) => match self.inv_faces.get(&f) {
-                Some(&kb) => (Operand::B, kb),
-                None => (Operand::A, f),
-            },
-            (OperandKeys::Direct, OperandKeys::Absent) => (Operand::A, f),
-            (OperandKeys::Absent, OperandKeys::Direct) => (Operand::B, f),
-            (a_keys, b_keys) => unreachable!(
-                "a boolean's naming records operand keys {a_keys:?} and {b_keys:?}: the boolean \
-                 builds its result as A's clone with B grafted in, or as one operand's clone with \
-                 the other absent"
-            ),
-        };
+        let (operand, k, _) = self.naming.operand_of(&self.inv_faces, f);
         (operand, self.clone_face(operand, k))
     }
 
@@ -213,12 +224,15 @@ pub struct NaryJudgement<T: Real> {
     pub a: usize,
     /// Operand B's member.
     pub b: usize,
-    /// The pair boolean's result.
+    /// The pair boolean's result. It is run with no records carried in,
+    /// so its contacts are the touches it decided between the two
+    /// members, complete relative to no member records: the members'
+    /// own records reach the result through the fold steps.
     pub body: BooleanBody<T>,
 }
 
 /// **A judged row**: a row of one judgement's coincidences, by the
-/// judgement's place in [`NaryBody::judgements`] and the row's in its
+/// judgement's place in [`NaryRun::judgements`] and the row's in its
 /// [`BooleanBody::coincidences`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct JudgedRow {
@@ -256,43 +270,46 @@ impl<T: Real> NaryStep<T> {
     }
 }
 
-/// **What an n-ary operation built**: its judgements, then its fold
-/// steps; the last step's body is the result. With two members there
-/// is no judgement apart from the one step, which is the pair's.
+/// **What an n-ary operation ran**: its judgements, then its fold
+/// steps, each in the order run, and how it ended. Where it built, the
+/// last step's body is the result; where it stopped, these are what it
+/// ran before the stop. With two members there is no judgement apart
+/// from the one step, which is the pair's.
 #[derive(Debug)]
-pub struct NaryBody<T: Real> {
+pub struct NaryRun<T: Real> {
     /// Each judgement, in the order judged: every member pair whose
     /// boxes meet, in list order.
     pub judgements: Vec<NaryJudgement<T>>,
     /// Each fold step, in fold order: step `k` joins member `k + 1`.
     pub steps: Vec<NaryStep<T>>,
+    /// Whether the members were judged pairwise before the fold: three
+    /// or more were; two are one pair, judged by their one step.
+    pub pairwise: bool,
+    /// How the operation ended.
+    pub end: NaryEnd,
 }
 
-impl<T: Real> NaryBody<T> {
-    /// The last step's result.
-    ///
-    /// # Panics
-    ///
-    /// Never for a body the door built: two or more members make one
-    /// step or more.
-    pub fn result(&self) -> &BooleanBody<T> {
-        &self
-            .steps
-            .last()
-            .unwrap_or_else(|| unreachable!("an n-ary body of two or more members has a step"))
-            .body
-    }
-}
-
-/// An n-ary operation's result: the typed empty one, or its body.
-// Size skew vs `Empty` is inherent (same posture as `BooleanResult`).
-#[allow(clippy::large_enum_variant)]
+/// **How an n-ary operation ended**, after the judgements and steps its
+/// [`NaryRun`] holds.
 #[derive(Debug)]
-pub enum NaryResult<T: Real> {
-    /// An intersect whose judgement or step is empty.
+pub enum NaryEnd {
+    /// The last step's body is the result.
+    Built,
+    /// An intersect whose next judgement or step is empty: the typed
+    /// empty result.
     Empty,
-    /// The operation's judgements and steps.
-    Body(NaryBody<T>),
+    /// The next judgement or step refused.
+    Refused(NaryRefusal),
+}
+
+impl<T: Real> NaryRun<T> {
+    /// The result, where the operation built: the last step's body.
+    pub fn result(&self) -> Option<&BooleanBody<T>> {
+        match self.end {
+            NaryEnd::Built => self.steps.last().map(|s| &s.body),
+            NaryEnd::Empty | NaryEnd::Refused(_) => None,
+        }
+    }
 }
 
 /// **Why an n-ary operation refused**, and where.
@@ -311,8 +328,9 @@ pub enum NaryRefusal {
         /// The box door's refusal.
         error: Box<BooleanError>,
     },
-    /// A pair's judgement refused, or, with two members, their one step:
-    /// the pair's refusal, the same in every member order.
+    /// A pair's judgement refused, or, with two members, their one step
+    /// (`a` 0 and `b` 1, in list order, no rank read): the pair's
+    /// refusal, the same in every member order.
     Judgement {
         /// Operand A's member.
         a: usize,
@@ -343,8 +361,9 @@ pub enum NaryRefusal {
 }
 
 impl NaryRefusal {
-    /// The pair boolean's refusal, wherever it was raised; `None` for
-    /// an arity refusal.
+    /// The pair boolean's or the box door's refusal, wherever it was
+    /// raised; `None` for an arity refusal and for verdicts that
+    /// disagree, which no boolean raised.
     pub fn error(&self) -> Option<&BooleanError> {
         match self {
             Self::Arity { .. } | Self::VerdictsDisagree { .. } => None,
@@ -404,9 +423,44 @@ struct PairVerdict<T: Real> {
 /// to the accumulation, given each verdict on that member between its
 /// face and every accumulation face whose lineage holds the verdict's
 /// other face, carrying the accumulation's records and the member's.
+/// Two members are one step, `m0 ∘ m1`, and no rank is read.
 ///
-/// An intersect whose judgement or step is empty is the typed empty
-/// result.
+/// The operation stops at the first refusal, and an intersect at the
+/// first empty judgement or step (the typed empty result); the run
+/// holds what came before ([`NaryRun::end`]).
+///
+/// # The given channel is this door's own
+///
+/// A step's glue is handed to it only here, over the members the door
+/// holds. Outside the crate no route states one: there is no public
+/// given pair,
+///
+/// ```compile_fail,E0603
+/// let _: Option<topo::boolean::GluedPair> = None;
+/// ```
+///
+/// no public way to make one from a verdict,
+///
+/// ```compile_fail,E0624
+/// fn forge(v: &topo::GlueVerdict<f64>) {
+///     let _ = v.given_at(topo::Operand::A, v.a());
+/// }
+/// ```
+///
+/// no field of a boolean's inputs to hand one in,
+///
+/// ```compile_fail,E0560
+/// let _ = topo::BooleanInputs {
+///     given: None,
+///     ..topo::BooleanInputs::default()
+/// };
+/// ```
+///
+/// and no public door that takes one.
+///
+/// ```compile_fail,E0603
+/// let _ = topo::boolean::ops::boolean_op_given::<f64>;
+/// ```
 ///
 /// # Panics
 ///
@@ -414,43 +468,65 @@ struct PairVerdict<T: Real> {
 /// members being finished non-empty bodies; a step's face-pair row that
 /// restates none of its given pairs (debug builds); the pair boolean's
 /// own.
-///
-/// # Errors
-///
-/// [`NaryRefusal`], naming where the operation refused.
 pub fn nary_boolean<T: Decide + Bounds + AtRestPolicy>(
     op: NaryOp,
     members: &[NaryMember<'_, T>],
     sweep: SweepStrategy,
     tol: Tol,
-) -> Result<NaryResult<T>, NaryRefusal> {
+) -> NaryRun<T> {
+    // Two members are one pair: its one step is its judgement.
+    let pairwise = members.len() > 2;
+    let mut run = NaryRun {
+        judgements: Vec::new(),
+        steps: Vec::new(),
+        pairwise,
+        end: NaryEnd::Built,
+    };
+    run.end = match run_members(op, members, sweep, tol, &mut run.judgements, &mut run.steps) {
+        Ok(()) => NaryEnd::Built,
+        Err(end) => end,
+    };
+    run
+}
+
+/// [`nary_boolean`]'s body, filling `judgements` and `steps` as it runs
+/// and ending early with how it stopped.
+fn run_members<T: Decide + Bounds + AtRestPolicy>(
+    op: NaryOp,
+    members: &[NaryMember<'_, T>],
+    sweep: SweepStrategy,
+    tol: Tol,
+    judgements: &mut Vec<NaryJudgement<T>>,
+    steps: &mut Vec<NaryStep<T>>,
+) -> Result<(), NaryEnd> {
     if members.len() < 2 {
-        return Err(NaryRefusal::Arity {
+        return Err(NaryEnd::Refused(NaryRefusal::Arity {
             members: members.len(),
-        });
+        }));
     }
+    let refused = NaryEnd::Refused;
     let hulls = members
         .iter()
         .enumerate()
         .map(|(member, m)| {
             crate::Separation::of(m.body, tol)
                 .map(|s| s.hull())
-                .map_err(|error| NaryRefusal::Hull {
-                    member,
-                    error: Box::new(error),
+                .map_err(|error| {
+                    refused(NaryRefusal::Hull {
+                        member,
+                        error: Box::new(error),
+                    })
                 })
         })
         .collect::<Result<Vec<_>, _>>()?;
     let empty = |what: &str| match op {
-        NaryOp::Intersect => Ok(NaryResult::Empty),
+        NaryOp::Intersect => Err(NaryEnd::Empty),
         NaryOp::Union => unreachable!(
             "a union's {what} returned empty, though both operands are finished non-empty \
              bodies and their union holds each"
         ),
     };
-    // Two members are one pair: its one step is its judgement.
     let pairwise = members.len() > 2;
-    let mut judgements = Vec::new();
     let mut verdicts = Vec::new();
     if pairwise {
         let ranks: Vec<u32> = members.iter().map(|m| m.inputs.rank).collect();
@@ -464,10 +540,12 @@ pub fn nary_boolean<T: Decide + Bounds + AtRestPolicy>(
                 sweep,
                 tol,
             )
-            .map_err(|error| NaryRefusal::Judgement {
-                a,
-                b,
-                error: Box::new(error),
+            .map_err(|error| {
+                refused(NaryRefusal::Judgement {
+                    a,
+                    b,
+                    error: Box::new(error),
+                })
             })?;
             let BooleanResult::Body(body) = judged else {
                 return empty("pairwise judgement");
@@ -487,11 +565,10 @@ pub fn nary_boolean<T: Decide + Bounds + AtRestPolicy>(
     }
     let mut lineage = MemberLineage::of_member(0, members[0].body);
     let mut records_a = members[0].inputs.records.clone();
-    let mut steps: Vec<NaryStep<T>> = Vec::with_capacity(members.len() - 1);
     for member in 1..members.len() {
         let acc = steps.last().map_or(members[0].body, |s| &s.body.body);
         let given = if pairwise {
-            Some(given_pairs(&verdicts, member, &lineage, acc)?)
+            Some(given_pairs(&verdicts, member, &lineage, acc).map_err(refused)?)
         } else {
             None
         };
@@ -510,11 +587,11 @@ pub fn nary_boolean<T: Decide + Bounds + AtRestPolicy>(
         )
         .map_err(|error| {
             let error = Box::new(error);
-            if pairwise {
+            refused(if pairwise {
                 NaryRefusal::Step { member, error }
             } else {
                 NaryRefusal::Judgement { a: 0, b: 1, error }
-            }
+            })
         })?;
         let BooleanResult::Body(body) = stepped else {
             return empty("fold step");
@@ -532,7 +609,7 @@ pub fn nary_boolean<T: Decide + Bounds + AtRestPolicy>(
             lineage: lineage.clone(),
         });
     }
-    Ok(NaryResult::Body(NaryBody { judgements, steps }))
+    Ok(())
 }
 
 /// **The member pairs judged, as (operand A, operand B), in the order

@@ -356,7 +356,7 @@ fn a_cap_circles_point_touch_is_read_and_lands_on_the_piece_holding_it() {
 
 /// The n-ary union of `bodies`, ranked in list order: its judgements
 /// and its steps.
-fn nary_union(what: &str, bodies: &[&AtRestBody<f64>]) -> topo::NaryBody<f64> {
+fn nary_union(what: &str, bodies: &[&AtRestBody<f64>]) -> topo::NaryRun<f64> {
     let inputs: Vec<topo::MemberInputs> = (0..bodies.len())
         .map(|rank| topo::MemberInputs {
             rank: u32::try_from(rank).unwrap(),
@@ -368,15 +368,18 @@ fn nary_union(what: &str, bodies: &[&AtRestBody<f64>]) -> topo::NaryBody<f64> {
         .zip(&inputs)
         .map(|(&body, inputs)| topo::NaryMember { body, inputs })
         .collect();
-    match topo::nary_boolean(
+    let run = topo::nary_boolean(
         topo::NaryOp::Union,
         &members,
         topo::SweepStrategy::Realized,
         tol(),
-    ) {
-        Ok(topo::NaryResult::Body(built)) => built,
-        other => panic!("{what}: {:?}", other.map(|_| ())),
-    }
+    );
+    assert!(
+        matches!(run.end, topo::NaryEnd::Built),
+        "{what}: {:?}",
+        run.end
+    );
+    run
 }
 
 /// **A step handed its tangency records the touch as the op that
@@ -1280,5 +1283,96 @@ fn a_rod_touching_a_notch_edge_off_its_tangent_run_is_its_own_pair() {
     assert!(
         found.iter().all(|(_, w)| w.contains("0.6")),
         "and the only one: the run's own touches are the pair's: {errors:?}"
+    );
+}
+
+/// A rod along +x from `x0`, of length `len`, radius 0.5, its axis at
+/// y = 2.5 and height `z`: tangent to the plane y = 2 along that height.
+fn rod_along_x(x0: f64, len: f64, z: f64) -> AtRestBody<f64> {
+    // A quarter turn about y maps the sketch's (u, v) to (0, v, -u) and
+    // its normal to +x.
+    let plane = SketchPlane::from_frame(RigidMotion::turned(
+        geom_core::Point3::new(x0, 0.0, 0.0),
+        UnitVec3::exact_y(),
+        Turns::quarters(1),
+    ));
+    let body = sweep::test_support::extruded(plane, vec![circle(-z, 2.5, 0.5, 0.0)], len, tol());
+    finished("rod", body, tol())
+}
+
+/// **CONTACTHOLD's open m2, pinned as it stands**
+/// (`work/contacthold/a-fold-steps-restated-tangency-takes-one-of-several-verdicts-margins.md`):
+/// two plates overlapping in z whose y = 2 faces are coplanar (the
+/// second raised 1e-11 off it, inside the band) and merge, and a rod
+/// along x tangent to the merged face along z = 0.75, through both
+/// faces' interiors. The pass decides the rod's tangency against each
+/// plate on its own margin; the step joining the rod is handed one
+/// given pair for (merged face, rod wall), under the first verdict, so
+/// its restated row carries that verdict's margin alone while it stands
+/// for both judged rows. Fixing m2 flips the margin assertion.
+#[test]
+fn contacthold_m2_a_restated_tangency_carries_the_first_of_two_verdicts_margins() {
+    let p1 = finished(
+        "p1",
+        brick::<f64>((-2.0, 2.0), (-2.0, 2.0), (0.0, 1.0), tol()),
+        tol(),
+    );
+    let p2 = finished(
+        "p2",
+        brick::<f64>((-2.0, 2.0), (-2.0, 2.0 + 1e-11), (0.5, 1.5), tol()),
+        tol(),
+    );
+    let rod = rod_along_x(-1.0, 2.0, 0.75);
+    let run = nary_union("p1 ∪ p2 ∪ rod", &[&p1, &p2, &rod]);
+    let tangency = |j: &topo::NaryJudgement<f64>| {
+        let row = j
+            .body
+            .coincidences
+            .iter()
+            .position(|r| r.relation == topo::Relation::SurfaceTangent)
+            .unwrap_or_else(|| panic!("judgement ({}, {}) decides a tangency", j.a, j.b));
+        (row, j.body.coincidences[row].margin)
+    };
+    let judged: Vec<(usize, usize, geom_core::MarginDiag)> = run
+        .judgements
+        .iter()
+        .enumerate()
+        .filter(|(_, j)| j.b == 2)
+        .map(|(k, j)| {
+            let (row, margin) = tangency(j);
+            (k, row, margin)
+        })
+        .collect();
+    let [(j0, r0, m0), (j1, r1, m1)] = judged[..] else {
+        panic!("two judgements decide the rod's tangency: {judged:?}");
+    };
+    assert!(
+        m0 != m1,
+        "the two verdicts are decided on two margins: {m0:?} and {m1:?}"
+    );
+    let step = &run.steps[1];
+    let restated: Vec<(usize, &[topo::JudgedRow])> = (0..step.body.coincidences.len())
+        .filter_map(|k| step.restates(k).map(|r| (k, r)))
+        .collect();
+    let [(k, rows)] = restated[..] else {
+        panic!("the step joining the rod restates one row: {restated:?}");
+    };
+    assert_eq!(
+        rows,
+        [
+            topo::JudgedRow {
+                judgement: j0,
+                row: r0
+            },
+            topo::JudgedRow {
+                judgement: j1,
+                row: r1
+            }
+        ],
+        "the restated row stands for both judged tangencies"
+    );
+    assert_eq!(
+        step.body.coincidences[k].margin, m0,
+        "m2 (open): the restated row carries the first verdict's margin alone"
     );
 }

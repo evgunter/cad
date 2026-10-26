@@ -11,9 +11,8 @@ use sweep::{ExtrudeError, Extruded, RevolveError, Revolved};
 use topo::splitting::SplitNaming;
 use topo::{
     AtRestBody, Body, BooleanError, BooleanNaming, BooleanResult, BooleanResultKind,
-    ContactRecords, GlueVerdict, NaryMember, NaryRefusal, NaryResult, ShellDoor, ShellError,
-    ShellNaming, Shelled, SplitError, SplitPart, SplitResult, SweepStrategy, boolean_op_with,
-    nary_boolean, split,
+    ContactRecords, GlueVerdict, NaryMember, NaryRun, ShellDoor, ShellError, ShellNaming, Shelled,
+    SplitError, SplitPart, SplitResult, SweepStrategy, boolean_op_with, nary_boolean, split,
 };
 
 use crate::verb::{Blend, Boolean, Members, Shell, Split, Sweep};
@@ -188,8 +187,6 @@ pub enum VerbError<T: Real> {
     Blend(BlendRefusal),
     /// The boolean pipeline refused.
     Boolean(BooleanError),
-    /// The n-ary union or intersect refused, naming where.
-    Members(NaryRefusal),
     /// The extrude door refused.
     Extrude(ExtrudeError),
     /// The revolve door refused.
@@ -209,7 +206,6 @@ impl<T: Real> fmt::Display for VerbError<T> {
         match self {
             Self::Blend(refusal) => write!(f, "{refusal}"),
             Self::Boolean(refusal) => write!(f, "{refusal}"),
-            Self::Members(refusal) => write!(f, "{refusal}"),
             Self::Extrude(refusal) => write!(f, "{refusal}"),
             Self::Revolve(refusal) => write!(f, "{refusal}"),
             Self::Split(refusal) => write!(f, "{refusal}"),
@@ -318,15 +314,12 @@ impl Members {
     /// order, one body per member of the payload.
     ///
     /// The bodies come in borrowed and finished, as at
-    /// [`Boolean::run_pair`]. What comes back is the kernel's own
-    /// n-ary product (`topo::NaryResult`): every judgement and every
-    /// fold step, each a pair boolean's body and record, which a
-    /// consumer names from.
-    ///
-    /// # Errors
-    ///
-    /// [`VerbError::Members`] carrying the door's [`NaryRefusal`]
-    /// verbatim (`topo::nary_boolean` enumerates the cases).
+    /// [`Boolean::run_pair`]. What comes back is the kernel's own run
+    /// (`topo::NaryRun`): every judgement and every fold step, each a
+    /// pair boolean's body and record, which a consumer names from, and
+    /// how the operation ended. A refusal is carried there verbatim
+    /// (`NaryEnd::Refused`), after what ran before it, so this door has
+    /// no refusal of its own.
     ///
     /// # Panics
     ///
@@ -336,7 +329,7 @@ impl Members {
         bodies: &[&AtRestBody<T>],
         sweep: SweepStrategy,
         tol: Tol,
-    ) -> Result<NaryResult<T>, VerbError<T>> {
+    ) -> NaryRun<T> {
         let Self { op, members } = self;
         if bodies.len() != members.len() {
             unreachable!(
@@ -350,7 +343,7 @@ impl Members {
             .zip(members)
             .map(|(&body, inputs)| NaryMember { body, inputs })
             .collect();
-        nary_boolean(*op, &members, sweep, tol).map_err(VerbError::Members)
+        nary_boolean(*op, &members, sweep, tol)
     }
 }
 
