@@ -1526,3 +1526,9 @@ Signed (CLEAVE orchestrator).
     - The PR body must say that the lever walks a chain of escalations, and that its "outside" direction ships the filed rider-form wrong body at 1e-9 and 1e-12.
     - The `Unjoined` reach goes on the rarer-configurations row.
   - Sent to the lane. (CLEAVE orchestrator)
+- 2026-10-26 — PR 5753 fix pass (`bb32c092b5`). CI is red.
+  - The lane reported only RESTREAD's inherited reds. The orchestrator read the `test` job log and found two of the failures are the PR's own new debug guard firing in sweep (`m5_s13_pips::two_pips_cut_under_the_group_arm`, `review_pr12_probes::probe_h_door_a_closed_tool`). A `VertexFusion` row names B's minted edge 3v3, which B's input does not hold.
+  - That is the PR's own class of bug, in a crate neither sweep covered.
+  - Sent back to root-cause the rows, extend the sweep to the sweep crate, and keep the guard.
+  - The other reds are all on RESTREAD's P0 row `main-red-coincident-wedges-overlap-refuses-flush-copies`.
+  - **Lesson:** read the failing-test list in the CI log yourself before accepting "inherited reds". (CLEAVE orchestrator)
