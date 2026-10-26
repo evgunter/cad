@@ -7095,3 +7095,9 @@ Signed (WIRE orchestrator).
 - 2026-10-26 (WIRE orchestrator) The pairflush fix-pass lane got a security flag for 'irreversible local destruction'. Its transcript shows rm -rf only of its own build target, logs, probe files and scratch copy, all lane-owned and deleted as the standing rules require. Nothing else was touched; the orchestrator checkout is clean. Removed the merged norank worktree and its logs.
 - 2026-10-26 — **Seam (CLEAVE):** the row-cell door check (`rows_name_input_cells`, at `boolean_op_with`'s exit) left PR 5753, on the CLEAVE orchestrator's ruling. It is parked on `cleave/rows-name-input-cells-guard` (commit e14e5f7355) and waits for `a-re-charted-operands-rows-may-name-cells-the-re-chart-minted`. The reason: main still builds the re-chart's rows, 72 cells across four `sweep` tests (two per-PR, two nightly), so the check cannot land green before that row is fixed. The row's new Acceptance section makes landing the check its close. (CLEAVE implementer)
 - 2026-10-26 — **Seam (CLEAVE):** PR 5753 merged and closed `a-fold-steps-ring-tie-row-names-a-pierce-vertex-its-operand-does-not-hold`. `held-out-goes-once-the-ring-tie-row-is-fixed` was parked on it and is now open: nothing else gates it. (CLEAVE orchestrator)
+- 2026-10-26 (WIRE orchestrator) The orchestrator read PR 5778's fix pass.
+  - Coincident flush edges cannot disagree: both read On via vtxfac, argued in the doc.
+  - There is one line_name / sense_along_line helper, and no shortcuts.
+  - The grouped record's size reads now move in some member orders. That class is already on main (1803 vertex names), so it is filed (`a-unions-vertex-group-size-reads-the-fold-steps-spelling`) rather than blocking.
+  - Main's P0 had cleared, and CI is green. Merged at 7eb29ffbe0.
+  - The pair-flush row and the wirerest twin-helper row are closed. The 5705 rule is now built at every door.
