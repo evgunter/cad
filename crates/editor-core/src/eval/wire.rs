@@ -82,6 +82,13 @@ pub(crate) struct OpOut<T: Decide> {
     pub cited_inputs: Arc<[crate::coincide::CitedInput]>,
     /// A placement's solved motion (`NodeValue::motion`).
     pub motion: Option<RigidMotion<T>>,
+    /// The pieces its body holds (`NodeValue::pieces`).
+    pub pieces: Option<Arc<super::Pieces<T>>>,
+    /// The census of the door that assembled them (`NodeValue::census`).
+    pub census: Option<Arc<crate::product::Census<T>>>,
+    /// Whether a door already decided its meetings
+    /// (`NodeValue::censused`).
+    pub censused: bool,
 }
 
 impl<T: Decide> OpOut<T> {
@@ -96,6 +103,9 @@ impl<T: Decide> OpOut<T> {
             coincidences: Arc::new([]),
             cited_inputs: Arc::new([]),
             motion: None,
+            pieces: None,
+            census: None,
+            censused: false,
         }
     }
 
@@ -364,6 +374,7 @@ where
         Node::Subtract { .. }
             | Node::Union { .. }
             | Node::Intersect { .. }
+            | Node::Assemble { .. }
             | Node::Measure { .. }
             | Node::Place { .. }
     );
@@ -460,6 +471,7 @@ where
                 id,
                 (from.read, at(O::From, from.read)?, ra),
                 (tool.read, at(O::Cut, tool.read)?, rb),
+                doc,
                 env.boolean_sweep,
                 tol,
             )
@@ -481,17 +493,32 @@ where
             )
         }
         Node::Place {
-            shapes,
+            source,
             target: _,
             constraints,
         } => {
-            // Each shape projected by itself: two halves of one split
-            // are two bodies, which one map keyed by the split cannot
-            // hold.
-            let rows: Vec<(O, crate::VarId)> = shapes
-                .iter()
-                .enumerate()
-                .map(|(i, shape)| (O::Shape(u32::try_from(i).unwrap_or(u32::MAX)), shape.read))
+            let each = project_each(&[(O::Source, source.read)])?;
+            let values = each[0].as_ref().unwrap_or(unprojected);
+            let of = at(O::Source, source.read)?;
+            let reach = copy_reach(values, of);
+            let placed = fold_with(
+                doc,
+                unprojected,
+                unprojected,
+                id,
+                constraints,
+                reach,
+                env,
+                tol,
+            )?;
+            wire_place(id, (of, source.read, values), placed.as_ref(), tol)
+                .map(|out| out.moved(placed))
+        }
+        Node::Assemble { members } => {
+            let rows: Vec<(O, crate::VarId)> = members
+                .rows()
+                .into_iter()
+                .map(|(seat, read)| (seat, read.read))
                 .collect();
             let each = project_each(&rows)?;
             let reads = rows
@@ -505,21 +532,7 @@ where
                     ))
                 })
                 .collect::<Result<Vec<_>, NodeErrorKind>>()?;
-            let reach = reads
-                .iter()
-                .map(|&(at, _, values)| copy_reach(values, at))
-                .try_fold(0.0_f64, |held, r| r.map(|r| held.max(r)));
-            let placed = fold_with(
-                doc,
-                unprojected,
-                unprojected,
-                id,
-                constraints,
-                reach,
-                env,
-                tol,
-            )?;
-            wire_place(id, &reads, placed.as_ref(), tol).map(|out| out.moved(placed))
+            wire_assemble(id, &reads)
         }
         // A space DENOTES NO BODY.
         Node::World | Node::Space => {
@@ -613,7 +626,6 @@ fn payload_reach<T: crate::mate::SolveScalar>(
         ValuePayload::Body(body) | ValuePayload::Boolean(BooleanValue::Body { body, .. }) => {
             body_reach(body, at)
         }
-        ValuePayload::Copies(copies) => farthest(&mut copies.bodies.iter().map(|b| &**b)),
         ValuePayload::Instances(bodies) => farthest(&mut bodies.iter().map(|b| &**b)),
         ValuePayload::Split { above, below } => farthest(
             &mut [above, below].into_iter().filter_map(|side| match side {
@@ -834,7 +846,7 @@ where
     // ([`place`]); `transform_rigid` decides whether any other map
     // keeps it rigid.
     let placed = place(&part.body, map.as_ref(), tol)?;
-    let table = names::name_in_part(id, &part.names, &placed).map_err(NodeErrorKind::Naming)?;
+    let table = names::name_copy(id, &part.names, &[&placed]).map_err(NodeErrorKind::Naming)?;
     // ASM-R2b D-1: the part's OWN contact records survive
     // instantiation with their cells UNCHANGED, because
     // `transform_rigid` is key-stable and the identity fast path clones
@@ -871,41 +883,9 @@ where
             })
             .collect(),
         // Keyed in the part's body, which the placement moves without
-        // re-minting a key (`place`), so they key the placed copy too.
-        census_pairs: part.census_pairs.as_ref().clone(),
     };
-    // The same material copy by copy, under the same map, for a reader
-    // of one copy: each named as the instance names it, and placed when
-    // that reader reads it (`KeyedCopy::motion`). A rigid map is
-    // key-stable, so the table names the bodies wherever they stand.
-    let members = part
-        .copies
-        .iter()
-        .map(|copy| {
-            let table = names::name_in_part_copy(id, &copy.table, &copy.bodies)
-                .map_err(NodeErrorKind::Naming)?;
-            let motion = match (map, copy.motion) {
-                (None, inner) => inner,
-                (Some(outer), None) => Some(outer),
-                (Some(outer), Some(inner)) => {
-                    Some(outer.compose(inner).map_err(NodeErrorKind::Motion)?)
-                }
-            };
-            Ok(super::KeyedCopy {
-                key: copy.key.clone(),
-                bodies: copy.bodies.clone(),
-                family: copy.family,
-                parts: copy.parts,
-                table,
-                motion,
-            })
-        })
-        .collect::<Result<Vec<_>, NodeErrorKind>>()?;
     Ok(OpOut {
-        payload: ValuePayload::Copies(Arc::new(super::Copies {
-            bodies: vec![Arc::new(placed)],
-            members,
-        })),
+        payload: ValuePayload::Body(Arc::new(placed)),
         outputs: vec![super::OutputNames::new(table, Arc::default())],
         contacts: Arc::new(part.contacts.carried_from(0)),
         carried: Arc::new(carried),
@@ -913,6 +893,11 @@ where
         // The part's own rows are its document's, read there.
         coincidences: Arc::new([]),
         cited_inputs: Arc::new([crate::coincide::CitedInput::Part(*doc_ref)]),
+        pieces: moved_pieces(part.pieces.as_ref(), map.as_ref())?,
+        // The part's census decided the meetings inside its product,
+        // and its records ride `contacts`: no door here holds them.
+        census: None,
+        censused: true,
         motion: None,
     })
 }
@@ -932,19 +917,6 @@ fn place<T: Decide + topo::AtRestPolicy>(
     match map {
         None => Ok(body.clone()),
         Some(map) => transform_rigid(body, map, tol).map_err(NodeErrorKind::Transform),
-    }
-}
-
-/// **One copy's bodies, where its reader reads them**: placed by the
-/// copy's motion ([`super::KeyedCopy::motion`]), here, in the reader's
-/// frame.
-fn member_bodies<T: Decide + topo::AtRestPolicy>(
-    member: &super::KeyedCopy<T>,
-    tol: Tol,
-) -> Result<Vec<Arc<Body<T>>>, NodeErrorKind> {
-    match &member.motion {
-        None => Ok(member.bodies.clone()),
-        Some(motion) => place_each(&member.bodies, motion, tol),
     }
 }
 
@@ -973,6 +945,23 @@ fn value_of<T: Decide>(
         node: input,
     })
     .map_err(|_| NodeErrorKind::MissingInput { input })
+}
+
+/// **The records a boolean reads off its operand**: where a door
+/// censused the operand's pieces (a `⊔`, or a copy of one), the records
+/// that door kept, the touches between its pieces among them, so a
+/// meeting inside the operand is carried and never decided again; else
+/// the value's own ([`records_of`]).
+fn operand_records<T: Decide + topo::AtRestPolicy>(
+    value: &super::NodeValue<T>,
+    doc: &crate::doc::Doc<ProfileProgram>,
+    tol: Tol,
+) -> Arc<topo::ContactRecords> {
+    value
+        .census
+        .as_ref()
+        .and_then(|census| census.records(doc, tol))
+        .unwrap_or_else(|| records_of(value))
 }
 
 /// The contact records `value` holds for its output body 0: a
@@ -1043,30 +1032,8 @@ fn wrong_operand<T: Decide>(
 
 // OPERAND-DOOR END
 
-/// **A body that becomes material of the result**: what every consumer
-/// that combines or reshapes ONE body reads through (a blend, a shell,
-/// a split's target, a boolean's and a union's members, a placed
-/// union's prototype). It is [`read_body`] that also refuses a PRODUCT,
-/// a body of several parts ([`NodeErrorKind::ProductOperand`];
-/// `NodeValue::parts`): a solid is one piece of material, so material
-/// is fused or reshaped one part at a time. The placers read
-/// [`placeable_operand`] instead and carry a product through.
-fn body_operand<T: Decide>(
-    results: &Results<T>,
-    input: RecipeNodeId,
-) -> Result<Arc<Body<T>>, NodeErrorKind> {
-    let v = value_of(results, input)?;
-    if v.parts > 1 {
-        return Err(NodeErrorKind::ProductOperand {
-            input,
-            parts: v.parts,
-        });
-    }
-    read_body(results, input)
-}
-
 /// **A body operand, finished** for a door that takes finished bodies
-/// (the Boolean's, the split's, the shell's and the blends'): [`body_operand`]'s
+/// (the Boolean's, the split's, the shell's and the blends'): [`read_body`]'s
 /// body through the at-rest gate
 /// ([`topo::AtRestPolicy::gate_at_rest_kept`]), once per operand of the
 /// node. The evaluator holds the bodies its nodes built with no verdict
@@ -1074,14 +1041,14 @@ fn body_operand<T: Decide>(
 ///
 /// # Errors
 ///
-/// [`body_operand`]'s; [`NodeErrorKind::UnfinishedOperand`] where the
+/// [`read_body`]'s; [`NodeErrorKind::UnfinishedOperand`] where the
 /// gate refuses the body.
 fn finished_operand<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     results: &Results<T>,
     input: RecipeNodeId,
     tol: Tol,
 ) -> Result<topo::AtRestBody<T>, NodeErrorKind> {
-    let body = body_operand(results, input)?;
+    let body = read_body(results, input)?;
     T::gate_at_rest_kept((*body).clone(), tol)
         .map_err(|errors| NodeErrorKind::UnfinishedOperand { input, errors })
 }
@@ -1089,14 +1056,7 @@ fn finished_operand<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
 /// **A body read for its geometry**: a Body value, or a boolean's
 /// non-empty result — [`placeable_operand`]'s `Body` arm, refusing the
 /// other in its own one-body word. A reader consumes no material (a
-/// pose read off a face reads a face), so a product is read as it is;
-/// the product refusal is [`body_operand`]'s.
-///
-/// An instance's copies are read as its part product, one body, where
-/// a selection names a face of it by the part-local name path: that is
-/// how a selection reads one copy until it holds a member read (stage
-/// G's question). A seat reading the copies whole refuses at its door,
-/// by kind.
+/// pose read off a face reads a face).
 fn read_body<T: Decide>(
     results: &Results<T>,
     input: RecipeNodeId,
@@ -1104,11 +1064,7 @@ fn read_body<T: Decide>(
     let v = value_of(results, input)?;
     match placeable_operand(v, input) {
         Ok(Placeable::Body(b)) => Ok(b),
-        Ok(Placeable::Copies(copies)) if copies.bodies.len() == 1 => {
-            Ok(Arc::clone(&copies.bodies[0]))
-        }
-        Ok(Placeable::Instances(_) | Placeable::Copies(_))
-        | Err(NodeErrorKind::WrongOperand { .. }) => {
+        Ok(Placeable::Instances(_)) | Err(NodeErrorKind::WrongOperand { .. }) => {
             Err(wrong_operand(v, input, super::family::BODY))
         }
         Err(other) => Err(other),
@@ -1117,7 +1073,7 @@ fn read_body<T: Decide>(
 
 /// **The body a resolved name lives in**: [`read_body`] for a value of
 /// one body, else the output body the name's row indexes — copy `i` of
-/// a pattern's instances, one copy of a placement's — since a selection
+/// a pattern's instances — since a selection
 /// names an entity of one body of the value it reads.
 pub(super) fn read_named_body<T: Decide>(
     results: &Results<T>,
@@ -1129,11 +1085,6 @@ pub(super) fn read_named_body<T: Decide>(
         Ok(Placeable::Instances(bodies)) => usize::try_from(body)
             .ok()
             .and_then(|k| bodies.get(k))
-            .cloned()
-            .ok_or_else(|| wrong_operand(v, input, super::family::BODY)),
-        Ok(Placeable::Copies(copies)) if copies.bodies.len() > 1 => usize::try_from(body)
-            .ok()
-            .and_then(|k| copies.bodies.get(k))
             .cloned()
             .ok_or_else(|| wrong_operand(v, input, super::family::BODY)),
         _ => read_body(results, input),
@@ -1149,9 +1100,6 @@ enum Placeable<T: Decide> {
     /// Several placed bodies, in the input's own instance order; the
     /// input's name table indexes them by that order.
     Instances(Vec<Arc<Body<T>>>),
-    /// A placement's copies, keyed: moved whole, each copy by the same
-    /// map, the keys and every table kept.
-    Copies(Arc<super::Copies<T>>),
 }
 
 impl<T: Decide> Placeable<T> {
@@ -1161,7 +1109,6 @@ impl<T: Decide> Placeable<T> {
         match self {
             Self::Body(b) => core::slice::from_ref(b),
             Self::Instances(bs) => bs,
-            Self::Copies(copies) => &copies.bodies,
         }
     }
 }
@@ -1181,7 +1128,6 @@ fn placeable_operand<T: Decide>(
         }
         ValuePayload::Boolean(BooleanValue::Empty) => Err(NodeErrorKind::EmptyOperand { input }),
         ValuePayload::Instances(bodies) => Ok(Placeable::Instances(bodies.clone())),
-        ValuePayload::Copies(copies) => Ok(Placeable::Copies(Arc::clone(copies))),
         _ => Err(wrong_operand(v, input, super::phrase::BODY_OR_INSTANCES)),
     }
 }
@@ -2007,7 +1953,11 @@ mod ladder {
     pub(super) fn live<'n>(
         name: &'n StableName,
         doc: &crate::doc::Doc<ProfileProgram>,
+        read: crate::VarId,
     ) -> Result<Live<'n>, Box<ResolveError>> {
+        if ResolveError::part_name(name, read, doc) {
+            return Ok(Live(name));
+        }
         match ResolveError::node_gone(name, doc) {
             None => Ok(Live(name)),
             Some(gone) => Err(Box::new(gone)),
@@ -2027,10 +1977,11 @@ mod ladder {
     pub(super) fn resolve_key<K: Denoted>(
         name: &StableName,
         doc: &crate::doc::Doc<ProfileProgram>,
+        read: crate::VarId,
         table: &NameTable,
         refuse: impl Fn(Box<ResolveError>) -> super::NodeErrorKind,
     ) -> Result<(u32, K), super::NodeErrorKind> {
-        let live = live(name, doc).map_err(&refuse)?;
+        let live = live(name, doc, read).map_err(&refuse)?;
         key_in::<K>(table, live.0).map_err(|refusal| match refusal {
             TableRefusal::NoSuchName => refuse(vanished(&live)),
             TableRefusal::Ambiguous { candidates } => refuse(tied(&live, candidates)),
@@ -2177,11 +2128,13 @@ fn resolve_selection<K: names::interrogate::Denoted>(
         .iter()
         .enumerate()
         .map(|(reference, name)| {
-            ladder::resolve_key(name, doc, table, |error| NodeErrorKind::SelectResolve {
-                slot,
-                var,
-                reference,
-                error,
+            ladder::resolve_key(name, doc, selection.body, table, |error| {
+                NodeErrorKind::SelectResolve {
+                    slot,
+                    var,
+                    reference,
+                    error,
+                }
             })
         })
         .collect::<Result<_, _>>()?;
@@ -2479,7 +2432,7 @@ fn wire_mirror<T: Decide + topo::AtRestPolicy>(
     results: &Results<T>,
     tol: Tol,
 ) -> OpResult<T> {
-    let body = body_operand(results, source)?;
+    let body = read_body(results, source)?;
     let PoseValue::Plane { normal, offset } = plane else {
         unreachable!(
             "the door admits a plane alone at a mirror's plane, not {}",
@@ -2631,14 +2584,15 @@ fn reads_projected<T: Decide + topo::AtRestPolicy>(
 ) -> Result<Option<Results<T>>, NodeErrorKind> {
     let mut replaced: Vec<(RecipeNodeId, u32, super::NodeValue<T>)> = Vec::new();
     for &(seat, var) in rows {
-        if let Some(read) = node.body_read(seat)
-            && let Some(key) = &read.key
-        {
+        if let Some(pick) = doc.pick(var) {
             let placement = super::read_at(doc, seat, var)?;
-            replaced.push(copy_of(
+            let indexed = node
+                .body_read(seat)
+                .is_some_and(crate::BodyRead::is_indexed);
+            replaced.push(pick_of(
+                (var, pick),
                 placement,
-                key,
-                read.is_indexed(),
+                indexed,
                 seat,
                 (results, vals),
                 tol,
@@ -2668,65 +2622,69 @@ fn reads_projected<T: Decide + topo::AtRestPolicy>(
     Ok(with_replaced(results, replaced))
 }
 
-/// **One copy of a placement's copies, read by its key**
-/// ([`crate::BodyRead::key`]): the copy alone with its own table, or for
-/// a copy that is a family, the member at the read's index. A key that
-/// names no copy, and a read at the other shape, refuse typed: whether
-/// the key exists, and what it holds, is this evaluation's to answer.
-fn copy_of<T: Decide + topo::AtRestPolicy>(
+/// **One piece of a copy, read by its pick** ([`crate::VarDef::Pick`]):
+/// the copy's pieces walked by the pick's path, the piece reached placed
+/// where its holder stands, with its own names and pieces; for a piece
+/// that is a family, the member at the read's index. A path naming no
+/// piece, and a read at the other shape, refuse typed: which pieces a
+/// copy holds is this evaluation's to answer.
+fn pick_of<T: Decide + topo::AtRestPolicy>(
+    (var, pick): (crate::VarId, &crate::var::Pick),
     placement: RecipeNodeId,
-    key: &crate::CopyKey,
     indexed: bool,
     seat: crate::OperandSlot,
     (results, vals): (&Results<T>, &SlotValues<T>),
     tol: Tol,
 ) -> Result<(RecipeNodeId, u32, super::NodeValue<T>), NodeErrorKind> {
     let value = value_of(results, placement)?;
-    let ValuePayload::Copies(copies) = &value.payload else {
-        return Err(wrong_operand(value, placement, super::family::COPIES));
+    let mut pieces = value.pieces.as_ref();
+    let mut reached: Option<&super::Piece<T>> = None;
+    for (at, &step) in pick.of.iter().enumerate() {
+        let piece = pieces
+            .and_then(|held| held.piece(step))
+            .ok_or(NodeErrorKind::NoSuchPiece { pick: var, at })?;
+        pieces = piece.pieces.as_ref();
+        reached = Some(piece);
+    }
+    let Some(piece) = reached else {
+        return Err(NodeErrorKind::NoSuchPiece { pick: var, at: 0 });
     };
-    let Some((position, member)) = copies
-        .members
-        .iter()
-        .enumerate()
-        .find(|(_, member)| &member.key == key)
-    else {
-        return Err(NodeErrorKind::NoSuchCopy {
-            input: placement,
-            key: Box::new(key.clone()),
-        });
-    };
-    if member.family != indexed {
-        return Err(NodeErrorKind::CopyShape {
-            input: placement,
-            key: Box::new(key.clone()),
-            family: member.family,
+    if piece.family != indexed {
+        return Err(NodeErrorKind::PieceShape {
+            pick: var,
+            family: piece.family,
         });
     }
-    let bodies = member_bodies(member, tol)?;
+    let bodies = match &piece.motion {
+        None => piece.bodies.clone(),
+        Some(motion) => place_each(&piece.bodies, motion, tol)?,
+    };
     let (body, table) = if indexed {
         let (body, index) = instance_of(placement, &bodies, vals, SlotId::Index { seat, k: 0 })?;
-        let table = member
+        let table = piece
             .table
             .project(index)
             .map_err(|dup| NodeErrorKind::Naming(names::NamingError::from(dup)))?;
         (body, table)
     } else {
         let Some(body) = bodies.first() else {
-            unreachable!("a copy that is a body holds one")
+            unreachable!("a piece that is a body holds one")
         };
-        (Arc::clone(body), member.table.as_ref().clone())
+        (Arc::clone(body), piece.table.as_ref().clone())
     };
     names::check_total(&table, &body, 0).map_err(NodeErrorKind::Naming)?;
     Ok((
         placement,
-        u32::try_from(position).unwrap_or(u32::MAX),
+        u32::MAX - var.0.ordinal(),
         super::NodeValue {
             payload: ValuePayload::Body(body),
             outputs: Arc::new([super::OutputNames::new(Arc::new(table), Arc::default())]),
             contacts: Arc::default(),
             carried: Arc::default(),
-            parts: member.parts,
+            parts: piece.parts,
+            pieces: moved_pieces(piece.pieces.as_ref(), piece.motion.as_ref())?,
+            census: piece.census.clone(),
+            censused: piece.censused,
             ..value.clone()
         },
     ))
@@ -2841,6 +2799,7 @@ fn with_replaced<T: Decide>(
 /// **One member of a union or an intersect, as the fold reads it**:
 /// the read it came through (its names' key), its finished body and its
 /// own table.
+#[derive(Clone)]
 struct Member<T: Decide> {
     read: crate::VarId,
     body: Arc<topo::AtRestBody<T>>,
@@ -2848,6 +2807,9 @@ struct Member<T: Decide> {
     /// The member's own contact records, carried into the fold step
     /// that joins it (D1 (ii)).
     records: Arc<topo::ContactRecords>,
+    /// The member as an intersect distributes over it, where it holds
+    /// pieces ([`distribute`]).
+    pieces: Option<Arc<distribute::Operand<T>>>,
 }
 
 // `Bounds` rides along for the boolean lane only: the sweep's BVH
@@ -2859,26 +2821,67 @@ struct Member<T: Decide> {
 // otherwise become runtime arity.
 /// **The subtract's lowering** (DM4): `from` cut by `tool`, through the
 /// pair verb, each seat's entities named by its read
-/// ([`names::RoleSeg::From`]).
+/// ([`names::RoleSeg::From`]). A `from` that holds pieces is cut piece
+/// by piece ([`distribute`]).
 fn wire_subtract<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     verb: &crate::verbs::boolean::PairVerb<T>,
     id: RecipeNodeId,
     (a_read, a, results_a): (crate::VarId, RecipeNodeId, &Results<T>),
     (b_read, b, results_b): (crate::VarId, RecipeNodeId, &Results<T>),
+    doc: &crate::doc::Doc<ProfileProgram>,
     boolean_sweep: topo::SweepStrategy,
     tol: Tol,
 ) -> OpResult<T> {
-    let a_table = read_table(value_of(results_a, a)?);
-    let b_table = read_table(value_of(results_b, b)?);
+    let from = distribute::Operand::read(results_a, a, a_read, doc, tol)?;
+    let tool = distribute::Operand::read(results_b, b, b_read, doc, tol)?;
+    // A body with pieces is finished piece by piece.
+    let body_a = match from.pieces {
+        None => Some(from.finished(tol)?),
+        Some(_) => None,
+    };
+    let body_b = tool.finished(tol)?;
+    subtract_from(
+        verb,
+        id,
+        (&from, body_a),
+        (&tool, &body_b),
+        boolean_sweep,
+        tol,
+    )
+}
+
+/// `from` cut by `tool`, by piece where `from` holds pieces; `from`'s
+/// body finished where the caller has finished it.
+fn subtract_from<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
+    verb: &crate::verbs::boolean::PairVerb<T>,
+    id: RecipeNodeId,
+    (from, body_a): (&distribute::Operand<T>, Option<topo::AtRestBody<T>>),
+    (b, body_b): (&distribute::Operand<T>, &topo::AtRestBody<T>),
+    boolean_sweep: topo::SweepStrategy,
+    tol: Tol,
+) -> OpResult<T> {
+    if from.pieces.is_some() {
+        let outs = from
+            .units(tol)?
+            .iter()
+            .map(|unit| {
+                let out = subtract_from(verb, id, (unit, None), (b, body_b), boolean_sweep, tol)?;
+                Ok((unit.read, out))
+            })
+            .collect::<Result<Vec<_>, NodeErrorKind>>()?;
+        return distribute::assembled(id, outs);
+    }
+    let body_a = match body_a {
+        Some(body) => body,
+        None => from.finished(tol)?,
+    };
     let inputs = BooleanInputs {
         given: None,
-        records_a: records_of(value_of(results_a, a)?).carried(),
-        records_b: records_of(value_of(results_b, b)?).carried(),
+        records_a: from.records.carried(),
+        records_b: b.records.carried(),
     };
-    let body_a = finished_operand(results_a, a, tol)?;
-    let body_b = finished_operand(results_b, b, tol)?;
     match (verb.build)(BooleanOp::Subtract, inputs)
-        .run_pair(&body_a, &body_b, boolean_sweep, tol)
+        .run_pair(&body_a, body_b, boolean_sweep, tol)
         .map_err(verb_refused)?
     {
         verbs::PairOut::Empty => Ok(OpOut::plain(
@@ -2899,16 +2902,16 @@ fn wire_subtract<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 &out.body,
                 &naming,
                 &names::OperandCtx {
-                    node: a,
-                    read: a_read,
-                    table: &a_table,
+                    node: from.node,
+                    read: from.read,
+                    table: &from.table,
                     body: &body_a,
                 },
                 &names::OperandCtx {
-                    node: b,
-                    read: b_read,
-                    table: &b_table,
-                    body: &body_b,
+                    node: b.node,
+                    read: b.read,
+                    table: &b.table,
+                    body: body_b,
                 },
                 tol,
             )
@@ -2924,14 +2927,14 @@ fn wire_subtract<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             )
             .grouped(Arc::new(names::FragmentGroups::minted(&emitted.groups)))
             .citing(vec![
-                crate::coincide::CitedInput::Read(a_read),
-                crate::coincide::CitedInput::Read(b_read),
+                crate::coincide::CitedInput::Read(from.read),
+                crate::coincide::CitedInput::Read(b.read),
             ])
             .recording(
                 &out.coincidences,
                 &crate::coincide::RowInputs {
-                    a: (a_read, &a_table),
-                    b: Some((b_read, &b_table)),
+                    a: (from.seat, from.spelled()?.as_ref()),
+                    b: Some((b.read, &b.table)),
                     tool: None,
                 },
             )
@@ -3193,11 +3196,18 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 let at = super::read_at(doc, slot, read)?;
                 let projected = reads_projected(node, &[(slot, read)], doc, (results, vals), tol)?;
                 let results = projected.as_ref().unwrap_or(results);
+                let pieces = match op {
+                    BooleanOp::Intersect if value_of(results, at)?.pieces.is_some() => Some(
+                        Arc::new(distribute::Operand::read(results, at, read, doc, tol)?),
+                    ),
+                    _ => None,
+                };
                 Ok::<_, NodeErrorKind>(Member {
                     read,
                     body: Arc::new(finished_operand(results, at, tol)?),
                     table: read_table(value_of(results, at)?),
-                    records: records_of(value_of(results, at)?),
+                    records: operand_records(value_of(results, at)?, doc, tol),
+                    pieces,
                 })
             })
             .collect::<Result<Vec<_>, NodeErrorKind>>(),
@@ -3235,12 +3245,85 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                         // A family's records are the family's, not one
                         // member's: a member read whole cites none.
                         records: Arc::default(),
+                        pieces: None,
                     })
                 })
                 .collect::<Result<Vec<_>, NodeErrorKind>>()
         }
     }?;
-    let members = members.as_slice();
+    // The node's own read: the space a fold step's rows are read in.
+    let Some(own_read) = doc.output(id, 0) else {
+        unreachable!(
+            "union {id:?} defines no output variable, though the doors that insert an \
+             operation define its outputs with it"
+        )
+    };
+    combine_members(verb, op, id, own_read, members, boolean_sweep, tol)
+}
+
+/// **An intersect distributes over a member that holds pieces**
+/// ([`distribute`]): the first such member's pieces each take its place
+/// in turn, and what each intersect made is assembled. Every other
+/// combine folds its members ([`fold_members`]).
+fn combine_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
+    verb: &crate::verbs::boolean::PairVerb<T>,
+    op: BooleanOp,
+    id: RecipeNodeId,
+    own_read: crate::VarId,
+    members: Vec<Member<T>>,
+    boolean_sweep: topo::SweepStrategy,
+    tol: Tol,
+) -> OpResult<T> {
+    let held = members
+        .iter()
+        .enumerate()
+        .find_map(|(i, m)| m.pieces.clone().map(|whole| (i, whole)));
+    let Some((i, whole)) = held else {
+        return fold_members(verb, op, id, own_read, &members, boolean_sweep, tol);
+    };
+    let outs = whole
+        .units(tol)?
+        .into_iter()
+        .map(|unit| {
+            let mut replaced = members.clone();
+            let unit = Arc::new(unit);
+            replaced[i] = Member {
+                read: unit.read,
+                body: Arc::new(unit.finished(tol)?),
+                table: Arc::clone(&unit.table),
+                records: Arc::clone(&unit.records),
+                pieces: unit.pieces.is_some().then(|| Arc::clone(&unit)),
+            };
+            let out = combine_members(verb, op, id, own_read, replaced, boolean_sweep, tol)?;
+            // A row names the piece's cells as the member's read spells
+            // them, unless another member is read through the piece's
+            // own read, whose cells a row could not tell apart.
+            let shared = members
+                .iter()
+                .enumerate()
+                .any(|(j, m)| j != i && m.read == unit.read);
+            let out = if shared {
+                out
+            } else {
+                let rows = unit.respelled(&out.coincidences)?;
+                out.with_coincidences(rows)
+            };
+            Ok((unit.read, out))
+        })
+        .collect::<Result<Vec<_>, NodeErrorKind>>()?;
+    distribute::assembled(id, outs)
+}
+
+/// The fold of a union's or an intersect's members ([`wire_combine`]).
+fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
+    verb: &crate::verbs::boolean::PairVerb<T>,
+    op: BooleanOp,
+    id: RecipeNodeId,
+    own_read: crate::VarId,
+    members: &[Member<T>],
+    boolean_sweep: topo::SweepStrategy,
+    tol: Tol,
+) -> OpResult<T> {
     let empty = || {
         Ok(OpOut::plain(
             ValuePayload::Boolean(BooleanValue::Empty),
@@ -3254,13 +3337,6 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     };
     let own: Vec<(crate::VarId, &NameTable)> =
         members.iter().map(|m| (m.read, m.table.as_ref())).collect();
-    // The node's own read: the space a fold step's rows are read in.
-    let Some(own_read) = doc.output(id, 0) else {
-        unreachable!(
-            "union {id:?} defines no output variable, though the doors that insert an \
-             operation define its outputs with it"
-        )
-    };
     // Every member's read-keyed view, taken once for the pairwise
     // judgement and the fold. The FIRST member enters read-keyed too,
     // so every operand of every step is already in this node's name
@@ -4035,230 +4111,192 @@ pub(crate) const PLANE_NORMAL_ROLE: &str = "plane normal";
 /// [`unit()`]).
 pub(crate) const AXIS_DIRECTION_ROLE: &str = "axis direction";
 
-/// **A placement's copies** (D10): each shape read, projected to the
-/// value it reads (a split's half, one copy of a placement's copies, a
-/// family's member), placed at the one motion `map` its bundle solved
-/// to (`None` for the identity bundle) and named under this node.
-///
-/// Over one shape the copy has the shape's shape: a body is one copy
-/// ([`names::name_placed`]), a family is a family, and a placement's
-/// copies are those copies, keyed as they were. A boolean's empty result
-/// places as itself: an empty copy, a typed success (F8) the gather
-/// finds no solid in. Over several shapes the copies are keyed by read
-/// ([`ValuePayload::Copies`], [`names::name_placed_copies`]), a family
-/// among them a family under its key; two reads of one variable key
-/// alike and refuse (FORK-DM4).
-///
-/// A copy of one body carries the body's declared contact records and
-/// the declaration rows keyed with them (ASM-R2b D-1) with their cells
-/// verbatim: a rigid placement keeps every arena key
-/// (`transform_rigid`), so they key the copy as they keyed the body.
-/// Each record cites the body's record it is, through the shape's read.
-/// A split's half carries none, as its value carries none.
+/// **A placement's copy** (D10 `[placement.placement]`): its source
+/// under the solved map, one body (or, until patterns are index
+/// variables, a pattern's family whole), named as the source names it
+/// ([`names::name_copy`]), carrying the source's records, census
+/// decisions and pieces, the pieces moved by the same map.
 fn wire_place<T: Decide + topo::AtRestPolicy>(
     id: RecipeNodeId,
-    shapes: &[(RecipeNodeId, crate::VarId, &Results<T>)],
+    (of, read, results): (RecipeNodeId, crate::VarId, &Results<T>),
     map: Option<&RigidMotion<T>>,
     tol: Tol,
 ) -> OpResult<T> {
-    let placed = |body: &Body<T>| place(body, map, tol).map(Arc::new);
-    let projected = |table: &names::NameTable, index: u32| {
-        table
-            .project(index)
-            .map_err(|dup| NodeErrorKind::Naming(names::NamingError::from(dup)))
-    };
-    let citing: Vec<crate::coincide::CitedInput> = shapes
-        .iter()
-        .map(|&(_, read, _)| crate::coincide::CitedInput::Read(read))
-        .collect();
-    if let [(of, read, results)] = shapes {
-        let value = value_of(results, *of)?;
-        let (body, contacts) = match &value.payload {
-            ValuePayload::Boolean(BooleanValue::Empty) => {
-                return Ok(OpOut::plain(
-                    ValuePayload::Boolean(BooleanValue::Empty),
-                    names::empty(),
-                ));
-            }
-            ValuePayload::Boolean(BooleanValue::Body { body, contacts, .. }) => {
-                (body, Arc::clone(contacts))
-            }
-            ValuePayload::Body(body) => (body, Arc::clone(&value.contacts)),
-            ValuePayload::Instances(bodies) => {
-                let bodies = bodies
-                    .iter()
-                    .map(|b| placed(b))
-                    .collect::<Result<Vec<_>, _>>()?;
-                let table = name_family(id, &read_table(value), &bodies)?;
-                return Ok(OpOut::plain(ValuePayload::Instances(bodies), table)
-                    .carrying(value.parts)
-                    .citing(citing));
-            }
-            ValuePayload::Copies(copies) => {
-                let bodies = copies
-                    .bodies
-                    .iter()
-                    .map(|b| placed(b))
-                    .collect::<Result<Vec<_>, _>>()?;
-                let table = name_family(id, &read_table(value), &bodies)?;
-                let members = copies
-                    .members
-                    .iter()
-                    .map(|member| {
-                        let bodies = member_bodies(member, tol)?
-                            .iter()
-                            .map(|b| placed(b))
-                            .collect::<Result<Vec<_>, _>>()?;
-                        Ok(super::KeyedCopy {
-                            key: member.key.clone(),
-                            table: name_family(id, &member.table, &bodies)?,
-                            family: member.family,
-                            parts: member.parts,
-                            bodies,
-                            motion: None,
-                        })
-                    })
-                    .collect::<Result<Vec<_>, NodeErrorKind>>()?;
-                // The records ride the one body that keys them.
-                let whole = bodies.len() == 1;
-                return Ok(OpOut {
-                    contacts: if whole {
-                        Arc::new(value.contacts.carried_from(0))
-                    } else {
-                        Arc::default()
-                    },
-                    carried: if whole {
-                        Arc::clone(&value.carried)
-                    } else {
-                        Arc::default()
-                    },
-                    ..OpOut::plain(
-                        ValuePayload::Copies(Arc::new(super::Copies { bodies, members })),
-                        table,
-                    )
-                    .carrying(value.parts)
-                    .citing(citing)
-                });
-            }
-            _ => return Err(wrong_operand(value, *of, super::phrase::BODY_OR_INSTANCES)),
-        };
-        let table = projected(&read_table(value), 0)?;
-        let copy = place(body, map, tol)?;
-        let table = names::name_placed(id, &table, &copy).map_err(NodeErrorKind::Naming)?;
-        return Ok(OpOut {
-            contacts: Arc::new(contacts.carried_from(0)),
-            carried: Arc::clone(&value.carried),
-            ..OpOut::plain(ValuePayload::Body(Arc::new(copy)), table)
-                .carrying(value.parts)
-                .citing(vec![crate::coincide::CitedInput::Read(*read)])
-        });
-    }
-    // Several shapes: each copy keyed by its read, its bodies flat in
-    // list order, each with the table its value names it by.
-    let mut keys: Vec<crate::CopyKey> = Vec::with_capacity(shapes.len());
-    let mut flat: Vec<(names::NameTable, Arc<Body<T>>)> = Vec::new();
-    let mut spans: Vec<(core::ops::Range<u32>, bool, usize)> = Vec::with_capacity(shapes.len());
-    let mut parts = 0;
-    for &(of, read, results) in shapes {
-        let key = crate::CopyKey::Read(read);
-        if keys.contains(&key) {
-            return Err(NodeErrorKind::CopiesShareAKey { key: Box::new(key) });
+    let value = value_of(results, of)?;
+    let citing = vec![crate::coincide::CitedInput::Read(read)];
+    let (body, contacts) = match &value.payload {
+        ValuePayload::Boolean(BooleanValue::Empty) => {
+            return Ok(OpOut::plain(
+                ValuePayload::Boolean(BooleanValue::Empty),
+                names::empty(),
+            ));
         }
-        keys.push(key);
-        let value = value_of(results, of)?;
-        let start = u32::try_from(flat.len()).unwrap_or(u32::MAX);
-        let family = match &value.payload {
-            ValuePayload::Boolean(BooleanValue::Empty) => {
-                return Err(NodeErrorKind::EmptyOperand { input: of });
-            }
-            ValuePayload::Boolean(BooleanValue::Body { body, .. }) | ValuePayload::Body(body) => {
-                flat.push((projected(&read_table(value), 0)?, placed(body)?));
-                false
-            }
-            ValuePayload::Instances(bodies) => {
-                for (i, body) in bodies.iter().enumerate() {
-                    let index = names::output_body(i).map_err(NodeErrorKind::Naming)?;
-                    flat.push((projected(&read_table(value), index)?, placed(body)?));
-                }
-                true
-            }
-            // An instance's copies, read whole: a family of its bodies,
-            // as an inline places the spliced copies of a part's world.
-            ValuePayload::Copies(copies) => {
-                for (i, body) in copies.bodies.iter().enumerate() {
-                    let index = names::output_body(i).map_err(NodeErrorKind::Naming)?;
-                    flat.push((projected(&read_table(value), index)?, placed(body)?));
-                }
-                true
-            }
-            _ => return Err(wrong_operand(value, of, super::phrase::BODY_OR_INSTANCES)),
-        };
-        parts += value.parts;
-        spans.push((
-            start..u32::try_from(flat.len()).unwrap_or(u32::MAX),
-            family,
-            value.parts,
-        ));
+        ValuePayload::Boolean(BooleanValue::Body { body, contacts, .. }) => {
+            (body, Arc::clone(contacts))
+        }
+        ValuePayload::Body(body) => (body, Arc::clone(&value.contacts)),
+        ValuePayload::Instances(bodies) => {
+            let bodies = place_each_by(bodies, map, tol)?;
+            let placed: Vec<&Body<T>> = bodies.iter().map(AsRef::as_ref).collect();
+            let table =
+                names::name_copy(id, &read_table(value), &placed).map_err(NodeErrorKind::Naming)?;
+            return Ok(OpOut::plain(ValuePayload::Instances(bodies), table)
+                .carrying(value.parts)
+                .citing(citing));
+        }
+        _ => return Err(wrong_operand(value, of, super::phrase::BODY_OR_INSTANCES)),
+    };
+    let table = read_table(value)
+        .project(0)
+        .map_err(|dup| NodeErrorKind::Naming(names::NamingError::from(dup)))?;
+    let copy = place(body, map, tol)?;
+    let table = names::name_copy(id, &table, &[&copy]).map_err(NodeErrorKind::Naming)?;
+    Ok(OpOut {
+        contacts: Arc::new(contacts.carried_from(0)),
+        carried: Arc::clone(&value.carried),
+        pieces: moved_pieces(value.pieces.as_ref(), map)?,
+        // A placement moves its source and re-mints no key, so the
+        // census its source's door kept keys this copy too.
+        census: value.census.clone(),
+        censused: value.censused,
+        ..OpOut::plain(ValuePayload::Body(Arc::new(copy)), table)
+            .carrying(value.parts)
+            .citing(citing)
+    })
+}
+
+/// Every body of `bodies` under `map`, or the bodies themselves where
+/// the identity bundle places them by no map.
+fn place_each_by<T: Decide + topo::AtRestPolicy>(
+    bodies: &[Arc<Body<T>>],
+    map: Option<&RigidMotion<T>>,
+    tol: Tol,
+) -> Result<Vec<Arc<Body<T>>>, NodeErrorKind> {
+    match map {
+        None => Ok(bodies.to_vec()),
+        Some(map) => place_each(bodies, map, tol),
     }
-    let named: Vec<(&names::NameTable, &Body<T>)> = flat
+}
+
+/// **A value's pieces, moved by `map`** with the value: every piece at
+/// every depth stands where its holder stands after its own motion, so
+/// `map` composes onto each. `None` where there are no pieces.
+fn moved_pieces<T: Decide>(
+    pieces: Option<&Arc<super::Pieces<T>>>,
+    map: Option<&RigidMotion<T>>,
+) -> Result<Option<Arc<super::Pieces<T>>>, NodeErrorKind> {
+    let Some(pieces) = pieces else {
+        return Ok(None);
+    };
+    let Some(map) = map else {
+        return Ok(Some(Arc::clone(pieces)));
+    };
+    let moved = pieces
+        .pieces
         .iter()
-        .map(|(table, body)| (table, body.as_ref()))
-        .collect();
-    let table = names::name_placed_copies(id, &named).map_err(NodeErrorKind::Naming)?;
-    let members = keys
-        .into_iter()
-        .zip(spans)
-        .map(|(key, (span, family, parts))| {
-            let bodies = flat[span.start as usize..span.end as usize]
-                .iter()
-                .map(|(_, body)| Arc::clone(body))
-                .collect();
-            let table = table
-                .reindex(|b| span.contains(&b).then(|| b - span.start))
-                .map_err(|dup| NodeErrorKind::Naming(names::NamingError::from(dup)))?;
-            Ok(super::KeyedCopy {
-                key,
-                bodies,
-                family,
-                parts,
-                table: Arc::new(table),
-                motion: None,
+        .map(|piece| {
+            Ok(super::Piece {
+                motion: Some(match &piece.motion {
+                    None => *map,
+                    Some(inner) => map.compose(*inner).map_err(NodeErrorKind::Motion)?,
+                }),
+                pieces: moved_pieces(piece.pieces.as_ref(), Some(map))?,
+                ..piece.clone()
             })
         })
         .collect::<Result<Vec<_>, NodeErrorKind>>()?;
-    Ok(OpOut::plain(
-        ValuePayload::Copies(Arc::new(super::Copies {
-            bodies: flat.into_iter().map(|(_, body)| body).collect(),
-            members,
-        })),
-        table,
-    )
-    .carrying(parts)
-    .citing(citing))
+    Ok(Some(Arc::new(super::Pieces {
+        by: pieces.by,
+        pieces: moved,
+    })))
 }
 
-/// **A placed family, named**: body `i` of `bodies` is body `i` of the
-/// value `table` names, each of its names qualified by the placement
-/// ([`names::name_placed_copies`]).
-fn name_family<T: Decide>(
+/// **The assemble** (`⊔`, D10 `[operations.operators]`): each member
+/// grafted beside the others as a piece of one body, in member order,
+/// none decided against another. Its names are each member's keyed by
+/// the member's read ([`names::name_assemble`]); its records are each
+/// member's, carried through the graft and citing that member by its
+/// read; its pieces are its members, each with its own body, names and
+/// pieces. A member that is a pattern's family is a piece of several
+/// bodies.
+fn wire_assemble<T: Decide + topo::AtRestPolicy>(
     id: RecipeNodeId,
-    table: &names::NameTable,
-    bodies: &[Arc<Body<T>>],
-) -> Result<Arc<names::NameTable>, NodeErrorKind> {
-    let tables = (0..bodies.len())
-        .map(|i| {
-            let index = names::output_body(i).map_err(NodeErrorKind::Naming)?;
-            table
-                .project(index)
-                .map_err(|dup| NodeErrorKind::Naming(names::NamingError::from(dup)))
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    let named: Vec<(&names::NameTable, &Body<T>)> = tables
-        .iter()
-        .zip(bodies)
-        .map(|(t, b)| (t, b.as_ref()))
-        .collect();
-    names::name_placed_copies(id, &named).map_err(NodeErrorKind::Naming)
+    members: &[(RecipeNodeId, crate::VarId, &Results<T>)],
+) -> OpResult<T> {
+    let mut fused = Body::new();
+    let mut named: Vec<(crate::VarId, Arc<NameTable>, Vec<topo::GraftKeys>)> =
+        Vec::with_capacity(members.len());
+    let mut pieces: Vec<super::Piece<T>> = Vec::with_capacity(members.len());
+    let mut contacts = topo::ContactRecords::default();
+    let mut citing: Vec<crate::coincide::CitedInput> = Vec::with_capacity(members.len());
+    let mut parts = 0;
+    for &(of, read, results) in members {
+        let value = value_of(results, of)?;
+        let (bodies, family, records) = match &value.payload {
+            ValuePayload::Boolean(BooleanValue::Empty) => {
+                return Err(NodeErrorKind::EmptyOperand { input: of });
+            }
+            ValuePayload::Boolean(BooleanValue::Body { body, contacts, .. }) => {
+                (vec![Arc::clone(body)], false, Arc::clone(contacts))
+            }
+            ValuePayload::Body(body) => {
+                (vec![Arc::clone(body)], false, Arc::clone(&value.contacts))
+            }
+            ValuePayload::Instances(bodies) => (bodies.clone(), true, Arc::default()),
+            _ => return Err(wrong_operand(value, of, super::phrase::BODY_OR_INSTANCES)),
+        };
+        let table = read_table(value);
+        let mut bridges = Vec::with_capacity(bodies.len());
+        for body in &bodies {
+            let keys = topo::graft_disjoint_all_keyed(&mut fused, body.as_ref())
+                .map_err(NodeErrorKind::Boolean)?;
+            bridges.push(keys);
+        }
+        // A member's own records ride the piece it is, re-keyed through
+        // its graft, citing the member by its read.
+        let input = u32::try_from(citing.len()).unwrap_or(u32::MAX);
+        if let Some(keys) = bridges.first() {
+            crate::product::carry_contacts(
+                &fused,
+                &mut contacts,
+                &records.carried_from(input),
+                keys,
+            )
+            .map_err(|what| NodeErrorKind::Naming(names::NamingError::Emission { what }))?;
+        }
+        citing.push(crate::coincide::CitedInput::Read(read));
+        parts += value.parts;
+        pieces.push(super::Piece {
+            read,
+            bodies,
+            family,
+            parts: value.parts,
+            table: Arc::clone(&table),
+            contacts: Arc::clone(&records),
+            carried: Arc::clone(&value.carried),
+            pieces: value.pieces.clone(),
+            census: value.census.clone(),
+            censused: value.censused,
+            motion: None,
+        });
+        named.push((read, table, bridges));
+    }
+    let table = names::name_assemble(id, &named, &fused).map_err(NodeErrorKind::Naming)?;
+    let pieces = Arc::new(super::Pieces { by: id, pieces });
+    Ok(OpOut {
+        contacts: Arc::new(contacts),
+        // The census at this door, over its pieces: run where a reader
+        // first asks for its verdict ([`crate::product::Census`]).
+        census: Some(Arc::new(crate::product::Census::new(
+            id,
+            Arc::clone(&pieces),
+        ))),
+        censused: true,
+        pieces: Some(pieces),
+        ..OpOut::plain(ValuePayload::Body(Arc::new(fused)), table)
+            .carrying(parts)
+            .citing(citing)
+    })
 }
 
 /// **What `node`'s slots read as written** ([`crate::Doc::slot_expansion`]),
@@ -4275,6 +4313,7 @@ pub(crate) fn written<P: crate::ProfilePayload>(
     }
 }
 
+mod distribute;
 pub(crate) mod pose;
 mod stepped;
 pub(crate) use stepped::{
@@ -4455,7 +4494,7 @@ fn wire_placed_union<T: crate::mate::SolveScalar + geom_core::Bounds + topo::AtR
     vals: &SlotValues<T>,
     tol: Tol,
 ) -> OpResult<T> {
-    let body = body_operand(results, input)?;
+    let body = read_body(results, input)?;
     let maps: Vec<RigidMotion<T>> = match kind.placements() {
         // Listed frames are literal: each is admitted at the decided
         // door.

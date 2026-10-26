@@ -704,24 +704,23 @@ class AssemblyError(PncadError):
     through: Optional[NodeId]
 
 class ProductError(PncadError):
-    """The whole-document gather refused. A product is every copy the
-    world's placements define or none of them — there are no partial
-    products.
+    """The whole-document gather refused. A product is the body the
+    document's product slot reads (`Doc.set_product`), gathered whole
+    or not at all — there are no partial products.
 
     Its message names each node as the evaluation's own document holds
     it (kind, label and tag): the document the gather was taken of.
     `node` and `through` carry the full ids: a failed or poisoned
-    placement and the failed node that poisoned it, and on
-    `stranded_placement` the placement whose body is gone.
-    `empty_product` is the world holding no placement; `unplaced_bodies`
-    is then the bodies nothing places, each its output variable — the
-    handle `Doc.place` takes — in document order, and `None` on every
-    other arm."""
+    operation and the failed node that poisoned it. `empty_product` is
+    a slot reading nothing; `stranded_product` a slot whose body is
+    gone and `product_outside_world` one an edit moved out of the
+    world, `read` then the variable it reads, and `None` on every other
+    arm."""
 
     variant: str
     node: Optional[NodeId]
     through: Optional[NodeId]
-    unplaced_bodies: Optional[list[Var]]
+    read: Optional[Var]
 
 class SplitError(PncadError):
     """The `split` refactoring refused."""
@@ -753,16 +752,13 @@ class InlineError(PncadError):
 
     variant: str
     node: Optional[NodeId]
-    by: Optional[NodeId]
-    """`instance_read_uncarried`: the host node reading the instance."""
     name: Optional[str]
     param: Optional[str]
     key: Optional[str]
     host_epsilon: Optional[float]
     part_epsilon: Optional[float]
-    """`unplaceable_part`: `node` is the instance whose part's world
-    places no list of copies — none, or several placements one of which
-    copies several bodies."""
+    """`unplaceable_part`: `node` is the instance whose part has no
+    product: its slot reads nothing, or a body that is gone."""
 
 class FlattenError(PncadError):
     """The `flatten` refactoring refused: `not_a_placement`,
@@ -1873,6 +1869,13 @@ class NodeId:
         """One member of the family this node's output is (a pattern's),
         at `index`: `xs[i]`, taken at every body seat."""
 
+class PickRead:
+    """One piece of a copy (`Doc.pick`): the placement's copy and the
+    path to the piece's variable in its source. Taken at every operand
+    seat; the insert mints it as an anonymous variable."""
+
+    def __repr__(self) -> str: ...
+
 class IndexedRead:
     """One member of a family, read by index: `xs[i]`, written on the
     family's operand (`NodeId` or `Var`) with a count. It reads the
@@ -2320,21 +2323,33 @@ class Node:
 
     @staticmethod
     def place(
-        shapes: _BodyArg | Sequence[_BodyArg],
+        source: _BodyArg,
         target: _SpaceArg,
         constraints: _BundleArg,
     ) -> Node:
-        """One copy of `shapes` placed into `target` by `constraints`:
-        the operation whose output is a copy. Inserting it is
+        """One copy of `source` placed into `target` by `constraints`:
+        the operation whose output is a copy, one body. Inserting it is
         `Doc.place`.
 
-        `shapes` is one body argument or a sequence of them: over one,
-        the copy has that shape's kind (a body over a body); over
-        several, its output is a keyed enumeration of copies. `target`
-        is the space it places into (`Doc.place`'s). `constraints` is
-        the bundle, written whole: a `Placed`, or `Mate`s and
-        `MateValue`s. Every bundle pins its copy: the insert refuses one
-        that leaves a freedom unwritten (`mate_unpinned`)."""
+        `source` is one body argument; several bodies are placed
+        together by placing their `⊔` (`Node.assemble`). `target` is
+        the space it places into (`Doc.place`'s). `constraints` is the
+        bundle, written whole: a `Placed`, or `Mate`s and `MateValue`s.
+        Every bundle pins its copy: the insert refuses one that leaves a
+        freedom unwritten (`mate_unpinned`)."""
+
+    @staticmethod
+    def assemble(members: Sequence[_BodyArg] | _Operand) -> Node:
+        """The ASSEMBLE (`⊔`): the members side by side as the pieces of
+        one body, none decided against another. Its door runs the
+        at-rest census over the pieces, one arrival per member, once:
+        a placement of the `⊔` carries its verdict, so its meetings are
+        decided and reported once, at the `⊔`, however often it is
+        placed or read. Inserting it is `Doc.assemble`.
+
+        Its result reads like any body. A `subtract` cutting it, or an
+        `intersect` meeting it, acts on each piece and keeps what it
+        made as pieces: `(p ⊔ q) − t` is `(p − t) ⊔ (q − t)`."""
 
     @staticmethod
     def space() -> Node:
@@ -2384,7 +2399,9 @@ class Node:
         member is that body, none is the typed empty body, and
         `[a, a]` is `a`. A fold step whose members share no material
         is the typed empty body, not a refusal. `DocEdit.set_members`
-        rewrites the list on the live node."""
+        rewrites the list on the live node. A member that is an
+        `assemble`, or a copy of one, is met piece by piece, and the
+        result keeps each piece's meet as a piece."""
 
     @staticmethod
     def subtract(from_: _BodyArg, tool: _BodyArg) -> Node:
@@ -2396,7 +2413,9 @@ class Node:
         `tool` (slot word `cut`). Several tools are one subtract of
         their union, `Node.subtract(body, Node.union([t1, t2]))`. A
         body cut by itself, `Node.subtract(a, a)`, is the typed empty
-        body."""
+        body. A `from_` that is an `assemble`, or a copy of one, is cut
+        piece by piece, and the result keeps each piece's cut as a
+        piece; a piece the cut empties drops out."""
 
     @staticmethod
     def pattern(input: _Operand, count: _CountArg, kind: PatternKind) -> Node:
@@ -2561,12 +2580,12 @@ _LengthArg: TypeAlias = Var | Formula | WrittenLength | Length
 _AngleArg: TypeAlias = Var | Formula | WrittenAngle | Angle
 _ScalarArg: TypeAlias = Var | Formula | float
 _CountArg: TypeAlias = Var | Formula | int
-_Operand: TypeAlias = NodeId | Var | PoseDef
+_Operand: TypeAlias = NodeId | Var | PoseDef | PickRead
 """What an operand takes: a node, read at its one output (a node with
 several, a revolve's body and axis or a split's two halves, refuses
 `ambiguous_output`: read its port with `Doc.output(node, port)`), a
-variable — an output by `Doc.output`, or a named one — or a pose
-defined at the seat (`PoseDef`). The slot admits one kind, and a read
+variable — an output by `Doc.output`, or a named one — a pose defined
+at the seat (`PoseDef`), or one piece of a copy (`Doc.pick`). The slot admits one kind, and a read
 of another refuses `slot_var_kind`."""
 
 _PoseRead: TypeAlias = _Operand | RoleRead
@@ -3785,9 +3804,9 @@ class Doc:
     def placements(self) -> list[NodeId]:
         """The placements, in document order: every `Place` and
         `InstantiatePart` node, the nodes whose copies a bundle of
-        constraints places. Those placed into the world are the product
-        (`product` and `assemble` gather them in this order); the rest
-        place into other spaces (`Doc.space`). Written through `place` and
+        constraints places, into the world or another space
+        (`Doc.space`). Which body is the product is the product slot's
+        (`Doc.set_product`), never derived from these. Written through `place` and
         `Node.instantiate_part`, and nothing else: no edit places as a
         side effect."""
 
@@ -3871,9 +3890,9 @@ class Doc:
 
         The vocabulary, in full: `profile`, `extrude`, `revolve`,
         `tube`, `hollow_tube`, `loft`, `sweep`, `fillet`, `chamfer`,
-        `shell`, `split`, `mirror`, `union`, `intersect`, `subtract`,
-        `place`, `world`, `space`, `pattern`, `part`, `placed_union`,
-        `instantiate_part`, `measure`, `assertion`.
+        `shell`, `split`, `mirror`, `union`, `intersect`, `assemble`,
+        `subtract`, `place`, `world`, `space`, `pattern`, `part`,
+        `placed_union`, `instantiate_part`, `measure`, `assertion`.
 
         This is the NODE's kind, never its VALUE's: an extrude, a
         placement and a placed union all evaluate to a value whose
@@ -3916,19 +3935,19 @@ class Doc:
         action and answered with the outputs."""
     def place(
         self,
-        shapes: _BodyArg | Sequence[_BodyArg],
+        source: _BodyArg,
         target: _SpaceArg,
         constraints: Optional[_BundleArg] = None,
         *,
         label: Optional[str] = None,
     ) -> NodeId:
-        """Place one copy of `shapes` into `target`, placed by
+        """Place one copy of `source` into `target`, placed by
         `constraints`, and return the placement's id: the insert of
-        `Node.place(shapes, target, constraints)`.
+        `Node.place(source, target, constraints)`.
 
-        `shapes` is one body argument or a sequence of them; over
-        several the copy is a keyed enumeration. `target` is the space
-        the copy is placed into, always written: the world
+        `source` is one body argument; several bodies are placed
+        together by placing their `⊔` (`Doc.assemble`). `target` is the
+        space the copy is placed into, always written: the world
         (`Doc.world`), a `Doc.new_space()`, or a construction's own
         space (the construction, or `Doc.space`'s `Var`).
         `constraints` is the bundle, written whole: a `Placed` (its one
@@ -3940,12 +3959,45 @@ class Doc:
         `target` where its body's own coordinates put it — the "place
         part" gesture.
 
-        The one door that puts a body in the product: nothing places as
-        a side effect, so a boolean of two placed bodies leaves both
-        placed and the boolean unplaced until it is placed here. A
-        split's half is placed by its output, `place(doc.output(split,
-        1), doc.world)`. Two placements of one body are two copies. `label=`
-        labels the placement in the same call, as `insert`'s does."""
+        Nothing places as a side effect, and nothing a placement does
+        puts its copy in the product: the product is the body
+        `Doc.set_product` names. A split's half is placed by its output,
+        `place(doc.output(split, 1), doc.world)`. Two placements of one
+        body are two copies. `label=` labels the placement in the same
+        call, as `insert`'s does."""
+
+    def assemble(
+        self,
+        members: Sequence[_BodyArg] | _Operand,
+        *,
+        label: Optional[str] = None,
+    ) -> NodeId:
+        """**The assemble** (`⊔`): `members` side by side as the pieces
+        of one body, none decided against another, and return its id:
+        the insert of `Node.assemble(members)`. Its door runs the
+        at-rest census over the pieces, one arrival per member; its
+        result is a body like any other, which a boolean cuts or joins
+        piece by piece, and which `Doc.set_product` makes the
+        document's product."""
+
+    def pick(self, placement: _Operand, of: Sequence[Var]) -> PickRead:
+        """**One piece of the copy `placement` reads**: `of` is the path
+        to the piece's variable in the source, each step an operand of
+        the `⊔` the walk reaches through the placements before it —
+        `[bolt]` for the bolt of a copy of `bolt ⊔ plate`. Read at a
+        seat; a path through any other operator raises `EditError`
+        (`pick_path`) at the insert."""
+
+    def set_product(self, body: Optional[_Operand]) -> None:
+        """**Set the product**: the one body the document delivers, read
+        in the world, or `None` for an empty product. What export writes
+        and an instance of the document copies. A body in another space
+        raises `EditError` (`product_read`)."""
+
+    @property
+    def product(self) -> Optional[Var]:
+        """**The product** (`Doc.set_product`): the variable the slot
+        reads, `None` for an empty product."""
 
     def corner_frame(
         self,
@@ -4387,8 +4439,6 @@ class SegTag:
     Rim: Final[SegTag]
     HoleRim: Final[SegTag]
     Instance: Final[SegTag]
-    InPart: Final[SegTag]
-    Placed: Final[SegTag]
 
 class OpGroup:
     """The op group a role segment belongs to (`SegPat.group`).
@@ -4408,8 +4458,6 @@ class OpGroup:
     Split: Final[OpGroup]
     Fillet: Final[OpGroup]
     Pattern: Final[OpGroup]
-    InstantiatePart: Final[OpGroup]
-    Place: Final[OpGroup]
     Shell: Final[OpGroup]
 
 class CapEnd:
@@ -5994,6 +6042,11 @@ class Maintenance:
     `space_mismatch` at evaluation until an edit puts its reads back in
     one space.
 
+    A `product_outside_world` says an edit moved the body the product
+    slot reads out of the world (a re-target of its copy). The edit is
+    legal, and the product refuses `product_outside_world` until an
+    edit puts the body back in the world or the slot reads another.
+
     A `value_dropped` names, on `node`, a placement whose bundle an edit
     wrote whole (`add_constraint`, `remove_constraint`) without one of
     its values: a freedom the new mates fix, or a turn its chain already
@@ -6002,8 +6055,8 @@ class Maintenance:
     @property
     def variant(self) -> str:
         """`strand`, `stranded_read`, `stranded_selection`,
-        `stranded_space`, `stranded_appearance`, `value_dropped`, or
-        `anonymous_var_removed`."""
+        `stranded_space`, `product_outside_world`, `stranded_appearance`,
+        `value_dropped`, or `anonymous_var_removed`."""
 
     @property
     def node(self) -> Optional[NodeId]: ...
@@ -6013,27 +6066,26 @@ class Maintenance:
 # --- the gather and the at-rest gate ----------------------------------
 
 def product(doc: Doc, evaluation: Evaluation) -> Body:
-    """The document's PRODUCT: its world — every copy a placement
-    defines, in the placements' document order — gathered into one
-    body.
+    """The document's PRODUCT: the body its product slot reads
+    (`Doc.set_product`), a `⊔`'s copies side by side in its members'
+    order.
 
-    What a document IS — and for an assembly the only useful reading,
-    because an assembly's nodes are placements and no single
-    node's value is the assembly. A pure function of the placements
-    and the evaluation; nothing is in it that `Doc.place` did not put
-    there.
+    What a document IS — and for an assembly the only useful reading.
+    A pure function of the slot and the evaluation; nothing is in it
+    that `Doc.set_product` did not name.
 
     `evaluation` must be an evaluation OF `doc`, and the door checks
     it: an evaluation carries the id of the document it was run on,
     and a foreign one raises ProductError with tag
-    `evaluation_of_another_document` before the first placement is
-    read. Node ids alone could not decide this — they are minted by a
-    per-document counter, so two documents built from one recipe
-    carry the same ids for the same nodes and a gather over the wrong
-    one would succeed, in full, about other geometry. Raises
-    ProductError, typed: `empty_product` naming the unplaced bodies,
-    `stranded_placement` naming a placement whose body is gone, a
-    failed or poisoned placement, a graft or validity refusal."""
+    `evaluation_of_another_document` before the slot is read. Node ids
+    alone could not decide this — they are minted by a per-document
+    counter, so two documents built from one recipe carry the same ids
+    for the same nodes and a gather over the wrong one would succeed,
+    in full, about other geometry. Raises ProductError, typed:
+    `empty_product` for a slot reading nothing, `stranded_product`
+    naming the read whose body is gone, `product_outside_world` the
+    read an edit moved out of the world, a failed or poisoned
+    operation, a graft or validity refusal."""
 
 def product_named(doc: Doc, evaluation: Evaluation) -> tuple[Body, list[str]]:
     """The product with the stable names its entities answer to —
@@ -6276,10 +6328,10 @@ def split(
     (`severed_edge`). A part delivers only its world: the cut's world
     placements are the part's, and the remainder holds ONE instance of
     the part stood where its world stands (the kernel's `stand`, the
-    identity bundle, which reads nothing of the part), so its copies
-    stand where the cut's did. A remainder read of the cut crosses
-    only where the instance's copies carry what it reads, re-pointed to that copy
-    of the instance; any other is severed (`severed_edge`,
+    identity bundle, which reads nothing of the part), so its copy
+    stands where the cut's world did. A remainder read of the cut
+    crosses only where the instance's copy carries what it reads,
+    re-pointed to a pick of that copy; any other is severed (`severed_edge`,
     `remainder_read_uncarried`), as is a name reaching material the
     part's world does not hold once (`name_outside_part_world`). Pure —
     `doc` is untouched. Raises SplitError, typed, naming the offending
@@ -6290,7 +6342,7 @@ def split(
     parts the document's instances reference.
 
     A kept constraint whose pose reads a cut copy's geometry reads it
-    in the instance: its pose is re-written over the instance's copies.
+    in the instance: its pose is re-written over the instance's copy.
     A cut holding no body refuses (`no_material`), and a cut naming the
     world `cuts_the_world`."""
 
@@ -6329,14 +6381,12 @@ def inline(doc: Doc, instance: NodeId, resolver: Workspace) -> InlineOutcome:
 
     One rule (A4): the part's recipe is copied verbatim into a new
     space (`Doc.new_space()`, the outcome's `space`), and a placement
-    of what the part's world placed is put where the instance stood,
-    under the instance's own bundle (the outcome's `placement`), so
-    nothing moves and a variable the bundle reads keeps driving it. A
-    part whose world places no list of copies — none, or several
-    placements one of which copies several bodies — refuses
-    `unplaceable_part` (`node` the instance). A host node that read the
-    instance reads the placement's copy; a read keyed at no copy it
-    makes refuses `instance_read_uncarried` (`by` the reader).
+    of the part's product body is put where the instance stood, under
+    the instance's own bundle (the outcome's `placement`), so nothing
+    moves and a variable the bundle reads keeps driving it. A part with
+    no product refuses `unplaceable_part` (`node` the instance). A host
+    node that read the instance reads the placement's copy, and a pick
+    of the instance's copy a pick of the placement's.
     `flatten` folds the placement away where its bundle is the
     identity."""
 

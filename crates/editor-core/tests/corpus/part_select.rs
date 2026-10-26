@@ -130,9 +130,9 @@ pub fn document() -> CorpusDoc {
     // The middle copy stands `LIFT` up the world's z, its other values
     // the constant zero: a placement with no mate states its motion on
     // the world's axes.
-    let lifted = r.insert(crate::fixture::stood(vec![editor_core::BodyRead::plain(
+    let lifted = r.insert(crate::fixture::stood(editor_core::BodyRead::plain(
         editor_core::Operand::from(middle),
-    )]));
+    )));
     let placed = editor_core::Placed::of(
         &r.doc,
         Vec::new(),

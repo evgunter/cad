@@ -244,14 +244,8 @@ fn feed_node<T: Decide + ValueChannelBits>(d: &mut Digest, ev: &Evaluation<T>, i
                         d.body(b);
                     }
                 }
-                // 20 and 25 were a mate's and a gauge's, retired.
-                ValuePayload::Copies(copies) => {
-                    d.u64(28);
-                    d.u64(copies.bodies.len() as u64);
-                    for b in &copies.bodies {
-                        d.body(b);
-                    }
-                }
+                // 20 and 25 were a mate's and a gauge's, and 28 a
+                // placement's keyed copies, retired.
                 // The measured quantity IS a lane value, so it is
                 // digested through the same value-channel bracket
                 // every coordinate takes.

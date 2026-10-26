@@ -51,14 +51,15 @@ fn the_mate_door_commits_through_undo_redo_and_replay() {
     );
 }
 
-/// **The at-rest badge checks a space of its own** — the one gate the
-/// kernel's `assemble` runs, reached through `assemble_gathered`. Two
-/// posts seated at one spot under the shelf fill one volume in the
-/// world, and the kernel reports one loud interference. With the shelf
-/// placed into a space of its own, the three live in that space beside
-/// one world instance; the world alone has no overlap, the gate checks
-/// the space by itself and reports the posts' overlap there, and the
-/// badge counts it rather than certify the world clean.
+/// **The at-rest badge checks a `⊔` the product does not read** — the
+/// one gate the kernel's `assemble` runs, reached through
+/// `assemble_gathered`. Two posts seated at one spot under the shelf
+/// fill one volume in the world, and the kernel reports one loud
+/// interference. With the shelf placed into a space of its own, the
+/// three live in that space beside one world instance, and a `⊔` of the
+/// three is authored there; the product has no overlap, the gate checks
+/// the `⊔` by itself and reports the posts' overlap there, and the badge
+/// counts it rather than certify the product clean.
 #[test]
 fn the_at_rest_badge_checks_a_space_of_its_own() {
     use pncad::document::{CancelToken, EvalOptions, assemble, evaluate, load, save};
@@ -110,12 +111,27 @@ fn the_at_rest_badge_checks_a_space_of_its_own() {
             "the post joins the shelf"
         );
     }
+    let three = [bench.shelf_i, bench.post_a, bench.post_b]
+        .into_iter()
+        .map(|copy| {
+            pncad::document::BodyRead::plain(pncad::document::Operand::Var(
+                doc.output(copy, 0).expect("a copy"),
+            ))
+        })
+        .collect();
+    doc = crate::fixture::insert(
+        doc,
+        pncad::document::Node::Assemble {
+            members: pncad::document::Bodies::Spelled(three),
+        },
+    )
+    .0;
     let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &opts, tol);
     let kernel = assemble(&doc, &ev, tol);
     assert_eq!(
         loud(&kernel),
         Some(1),
-        "the gate checks the shelf's space by itself: {:?}",
+        "the gate checks the shelf's `⊔` by itself: {:?}",
         kernel.err()
     );
     std::fs::write(&bench.asm_path, save(&doc, &[], tol).unwrap()).unwrap();

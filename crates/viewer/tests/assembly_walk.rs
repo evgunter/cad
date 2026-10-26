@@ -70,7 +70,11 @@ fn the_exit_demo_walk() {
     // ── 3. RESOLVE: the tree shows the three instances, each its own
     // placement, every row ok.
     let rows = session.tree_rows();
-    assert_eq!(rows.len(), 3, "three instances, each its own placement");
+    assert_eq!(
+        rows.len(),
+        4,
+        "three instances, each its own placement, and the product's ⊔"
+    );
     for row in &rows {
         assert_eq!(row.status, RowStatus::Ok, "{row:?}");
     }
@@ -294,8 +298,8 @@ fn the_exit_demo_walk() {
     let rows = reopened.tree_rows();
     assert_eq!(
         rows.len(),
-        3,
-        "three instances, the mate a child of post_b's row"
+        4,
+        "three instances, the mate a child of post_b's row, and the product's ⊔"
     );
     assert!(
         common::row_of(&rows, bench.post_b)
