@@ -554,6 +554,12 @@ fn certify_errors() -> Vec<CertifyError> {
             sample: geom_brep::certify::NOT_A_SAMPLE,
             cause: diag(),
         },
+        // A declared carrier's incidence in band at the edge certificate.
+        CertifyError::Escalated {
+            check: CertCheck::DeclaredIncidence,
+            sample: geom_brep::certify::NOT_A_SAMPLE,
+            cause: diag(),
+        },
         // A gate's rejected negative, routed as undecided: a stored
         // contradiction's definite reading, and one the lever reaches.
         CertifyError::Escalated {
@@ -660,6 +666,19 @@ fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
             margin: Some(geom_brep::OffMargin::InBand(geom_core::MarginDiag::value(
                 4e-10,
             ))),
+        },
+        PcurveCertifyError::CarrierOffChart {
+            chart: geom::SurfaceKind::Torus,
+            carrier: geom::CurveKind::Circle,
+            why: "the circle is no section of the torus",
+            margin: Some(geom_brep::OffMargin::Past(geom_core::MarginDiag::value(
+                3e-7,
+            ))),
+        },
+        PcurveCertifyError::Escalated {
+            check: geom_brep::PcurveCheck::ChartIncidence,
+            sample: 0,
+            cause: diag(),
         },
         PcurveCertifyError::ImageMismatch {
             image: geom_brep::PcurveKind::General,

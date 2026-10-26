@@ -12304,6 +12304,56 @@ mod tests {
         }
     }
 
+    /// **An edge certificate's declared incidence refusal at rest takes
+    /// the reason of what was read** ([`incidence_reason`]): decided off,
+    /// "does not lie on its face"; read in band at a pose, "sits, within
+    /// the band"; undecided, the undecided reason. Each ends in the
+    /// modeler's lever for that read, with no defect.
+    #[test]
+    fn a_declared_edge_certificate_at_rest_reads_its_incidence() {
+        use geom_brep::{CertCheck, OffMargin};
+        use geom_core::MarginDiag;
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let off = |margin| CertifyError::DeclaredOffChart {
+            chart: geom::SurfaceKind::Cone,
+            carrier: geom::CurveKind::Circle,
+            margin,
+        };
+        let rows = [
+            (off(None), DECLARED_OFF, "onto the face it bounds"),
+            (
+                off(Some(OffMargin::Past(MarginDiag::value(4e-7)))),
+                DECLARED_OFF,
+                "onto the face it bounds",
+            ),
+            (
+                off(Some(OffMargin::InBand(MarginDiag::value(4e-10)))),
+                DECLARED_AT_POSE,
+                "clear of that pose",
+            ),
+            (
+                CertifyError::Escalated {
+                    check: CertCheck::DeclaredIncidence,
+                    sample: 0,
+                    cause: Indeterminate {
+                        margin: MarginDiag::value(5e-9),
+                        band,
+                        predicate: Some("pcurve_sphere_chart_incident"),
+                        terminal_sliver: false,
+                    },
+                },
+                DECLARED_CLOSE,
+                "is not shown on the face it bounds",
+            ),
+        ];
+        for (error, reason, lever) in rows {
+            let (why, ending) = classify_certify(&error);
+            assert_eq!(why, reason, "{error:?}");
+            assert!(ending.contains(lever), "{error:?}: {ending}");
+            assert!(!ending.contains("defect"), "{error:?}: {ending}");
+        }
+    }
+
     /// Each own-close refusal ends as its decision gives the arm it
     /// reports, read at rest: a sized decision's lever with the tolerance
     /// its in-band margin gives, a residual's last resort or defect, and

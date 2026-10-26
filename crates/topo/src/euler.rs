@@ -6119,14 +6119,14 @@ mod tests {
                                    chart",
                         },
                         // The split's circle is scaffolding, whose
-                        // pushforward is its declaration.
-                        authority: body
-                            .get_edge(created.edge)
-                            .and_then(|e| body.get_curve_geom(e.curve))
-                            .and_then(crate::CurveGeom::certified)
-                            .unwrap()
-                            .authority()
-                            .kind(),
+                        // pushforward is its declaration: the stamp the
+                        // finding must carry is spelled here, not read off
+                        // the body the way the stamp is.
+                        authority: {
+                            let declared = crate::test_support_samples::authorities()[1];
+                            assert!(declared.is_declared());
+                            declared
+                        },
                     },
                 },
             ],
