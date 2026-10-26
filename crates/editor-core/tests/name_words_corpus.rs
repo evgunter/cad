@@ -169,9 +169,15 @@ const UNMARKED_RECOURSE: &[&str] = &[
 /// read as well as the `Placed` copy it came through, and the longest
 /// name says it at each of its ends; the growth is the same placed-copy
 /// wrapping `name-words-budget-grew-under-placed-copy-wrapping` files.
+///
+/// A pair boolean's `Borders` wall came to cite its parent as the
+/// boolean's own table names it, the `From` it came in through: each
+/// wall of `crossing_slots`' pieces now says its read ("… through
+/// <read>"). Scoped p99 43 → 45, total 60241 → 60371; full total
+/// 461129 → 461339. No outcome moved.
 const NAME_WORDS: [(&str, [usize; 4]); 2] = [
-    ("scoped faces", [16, 43, 57, 60_241]),
-    ("full", [19, 135, 396, 461_129]),
+    ("scoped faces", [16, 45, 57, 60_371]),
+    ("full", [19, 135, 396, 461_339]),
 ];
 
 /// **A digest of every word the corpus's names say** — each name a
@@ -328,7 +334,11 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// and this PR's `test_support::plane_on` reads `symmetric_plate`'s
 /// seam face plainly, so its node tags moved too; the words that moved
 /// are the node tags.
-const SAID_DIGEST: u64 = 0x84aa_4c5d_d24d_3960;
+///
+/// Re-pinned with [`NAME_WORDS`] when a pair boolean's `Borders` walls
+/// came to say the read each came in through: the words that moved are
+/// those walls'.
+const SAID_DIGEST: u64 = 0x4413_b8cd_2aca_1a3c;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a

@@ -861,11 +861,7 @@ fn a_member_order_moves_no_name() {
 }
 
 /// The member-order cases that move today.
-const ADMITTED_MEMBER_ORDER: &[Admitted] = &[
-    ("bridging / union", 6, BRIDGE_FOLDED_LAST),
-    ("pinch and cap / intersect", 2, decide_alike::CARRIED_PINCH),
-    ("pinch and far / union", 2, decide_alike::CARRIED_PINCH),
-];
+const ADMITTED_MEMBER_ORDER: &[Admitted] = &[("bridging / union", 6, BRIDGE_FOLDED_LAST)];
 
 /// The member-order cases that compare no table today.
 const VACUOUS_MEMBER_ORDER: &[Vacuous] = &[];
@@ -944,14 +940,6 @@ const VACUOUS_OPERAND_ORDER: &[Vacuous] = &[
     (
         "bridging / union / m3 against the rest",
         pinch_order::TWO_GERMS,
-    ),
-    (
-        "pinch and cap / intersect / m2 against the rest",
-        decide_alike::CARRIED_PINCH,
-    ),
-    (
-        "pinch and far / union / m2 against the rest",
-        decide_alike::CARRIED_PINCH,
     ),
 ];
 
@@ -1774,10 +1762,6 @@ const ADMITTED_HISTORY: &[Admitted] = &[(
 const VACUOUS_HISTORY: &[Vacuous] = &[
     ("bridging / after an unrelated node", BRIDGE_FOLDED_LAST),
     (
-        "pinch and far / after an unrelated node",
-        decide_alike::CARRIED_PINCH,
-    ),
-    (
         "the plate less the pinch's blocks / authored in another order",
         LINE_WEDGES,
     ),
@@ -1944,14 +1928,7 @@ fn a_far_feature_moves_no_other_name() {
 }
 
 /// The far-feature cases that move today.
-const ADMITTED_FAR: &[Admitted] = &[(
-    "prism and cube / a far member",
-    1,
-    decide_alike::CARRIED_PINCH,
-)];
+const ADMITTED_FAR: &[Admitted] = &[];
 
 /// The far-feature cases that compare no table today.
-const VACUOUS_FAR: &[Vacuous] = &[
-    ("bridging / a far member", BRIDGE_FOLDED_LAST),
-    ("pinch and far / a far member", decide_alike::CARRIED_PINCH),
-];
+const VACUOUS_FAR: &[Vacuous] = &[("bridging / a far member", BRIDGE_FOLDED_LAST)];
