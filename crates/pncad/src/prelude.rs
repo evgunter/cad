@@ -571,9 +571,20 @@ pub use topo::{
 // `StepImport::Solid::certificate`: the curated-type rule (the
 // `coherence` note below) says a caller able to hold it must be able to
 // spell it. `MassMeasurement` is what a measurement answers, the one
-// name in Rust and Python. A deciding predicate's `topo::Verdict` is
-// spelled through `pncad::topo`: its name is an assertion's `Verdict`
-// on the Python surface the prelude is censused against.
+// name in Rust and Python.
+//
+// **`Verdict`, `Stop::Settled`'s payload, is NOT here, and that is a
+// decision.** A caller does branch on it (a role, or whether a claim
+// holds), so it is reachable one hop away, at `pncad::topo::Verdict`,
+// which is the façade's own path to it. What it may not do is sit on the
+// glob surface: there the name `Verdict` is censused against Python's,
+// and Python's `Verdict` is an `Assertion` node's three-state report — a
+// different fact. Carried here, one name would spell two facts, which
+// the one-name rule (Rust and Python spell a door type identically) rules
+// out; on the Python side the same payload crosses as
+// `MassMeasurement.verdict`. Falsifier: a program written against the
+// prelude that matches `Stop::Settled(v)` and cannot name `v`'s type
+// without naming a kernel crate — `pncad::topo::Verdict` is that name.
 pub use topo::{
     HeldCertificate, MassMeasurement, MassProperties, MassPropsError, RelOp, RoleNames, Settle,
     SignNames, Stop, VolumeEnclosure, mass_properties,
