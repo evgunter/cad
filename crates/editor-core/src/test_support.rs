@@ -1199,7 +1199,7 @@ pub fn past_the_load_door(text: &str) -> ProfileDoc {
 #[derive(Clone, Debug)]
 pub struct FoldRowNames {
     /// The cells' collapsed names, in the order the step read them: two,
-    /// or a meeting's three (`topo::Coincidence::third`).
+    /// or a meeting's more (`topo::Coincidence::more`).
     pub cells: Vec<crate::names::StableName>,
     /// What the step decided between them.
     pub relation: topo::Relation,

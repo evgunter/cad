@@ -4825,13 +4825,13 @@ fn cite_rows(
             "decision {k} is tied against two pierced faces: {:?}",
             ledger.pierced
         );
-        let (cells, third, relation) = spell(row.cells, through, row.relation, |end| {
-            input_end(end, &ledger.mints)
+        let (cells, more, relation) = spell(row.cells, through.as_slice(), row.relation, |end| {
+            input_read(end, &ledger.mints)
         })?;
         used.push(k);
         if let Some(&(_, c)) = ledger.glued.iter().find(|&&(p, _)| p == k) {
             let recorded = &coincidences[c as usize];
-            if recorded.cells != cells || recorded.third != third || recorded.relation != relation {
+            if recorded.cells != cells || recorded.more != more || recorded.relation != relation {
                 return Err(BooleanError::JoinDesync {
                     what: "a decision the op recorded already names other cells than its row",
                 });
@@ -4842,7 +4842,7 @@ fn cite_rows(
         at.push(super::reduce::index(coincidences.len()));
         coincidences.push(crate::Coincidence {
             cells,
-            third,
+            more,
             relation,
             site: crate::DecisionSite::VertexFusion,
             margin,
@@ -4861,32 +4861,35 @@ fn cite_rows(
 type Carried = (ContactRecords, Vec<crate::Coincidence>);
 
 /// **The one door a decision's cells pass to become a row's**: `read`
-/// takes each cell to the cell of the op's input it lies in, and a
-/// cell read as one of higher dimension (a vertex minted on an edge
-/// read as that edge, a vertex minted inside a face read as that face,
-/// a chart cut read as the face it runs in) is widened. The row keeps
-/// the relation decided where widening cannot change what it says: no
-/// cell widened; or, for a cell decided on another's carrier, the
-/// second widened under a first that is a point, which lies on whatever
-/// the second lies in; or two points decided one with the first
-/// widened, spelled the other way round. Any other spelling of a point
-/// decided on a cell states the point as the [`crate::Relation::Meet`]
-/// of the cells read and of `through` where the decision has one (the
-/// face a ring tie's two pierces pierced, which it was decided
-/// against), sorted. Every spelling drops the cell whose crossing
-/// minted a vertex widened onto an edge, which the reduction does not
-/// keep
-/// (`work/wire/a-meet-row-on-a-vertex-a-boolean-minted-on-an-edge-omits-the-cell-that-minted-it.md`).
+/// takes each cell to the cell of the op's input it lies in, and, for a
+/// vertex the op minted on an edge, to the cell of the other input whose
+/// crossing minted it ([`input_read`]). A cell read as one of higher
+/// dimension (a vertex minted on an edge read as that edge, a vertex
+/// minted inside a face read as that face, a chart cut read as the face
+/// it runs in) is widened. The row keeps the relation decided where
+/// widening cannot change what it says: no cell widened; or no minting
+/// cell beyond the two read and, for a cell decided on another's
+/// carrier, the second widened under a first that is a point, which
+/// lies on whatever the second lies in, or two points decided one with
+/// the first widened, spelled the other way round. Any other spelling
+/// of a point decided on a cell states the point as the
+/// [`crate::Relation::Meet`] of the cells read, of the cells whose
+/// crossings minted them, and of `through` (the face a ring tie's two
+/// pierces pierced, which it was decided against, or a meeting's cells
+/// read again), each once and sorted.
 ///
 /// # Errors
 ///
 /// [`BooleanError::JoinDesync`] for a widened cell of any other
-/// relation: only a point is decided on a cell.
+/// relation: only a point is decided on a cell; and for a meeting of
+/// more cells than a row holds, which no reading makes: two cells read
+/// with a minting cell each and one `through`, or two read with none
+/// and a meeting's three.
 fn spell(
     cells: [End; 2],
-    through: Option<End>,
+    through: &[End],
     relation: crate::Relation,
-    read: impl Fn(End) -> End,
+    read: impl Fn(End) -> Read,
 ) -> Result<Spelled, BooleanError> {
     let dim = |c: Cell| match c {
         Cell::Vertex(_) => 0,
@@ -4894,45 +4897,71 @@ fn spell(
         Cell::Face(_) => 2,
     };
     let row_cell = |(input, cell): End| crate::RowCell::Input { input, cell };
-    let read_cells = cells.map(&read);
+    let reads = cells.map(&read);
+    let read_cells = reads.map(|(at, _)| at);
     let widened = [0, 1].map(|i| dim(read_cells[i].1) > dim(cells[i].1));
-    let row = |[x, y]: [End; 2]| ([x, y].map(row_cell), None, relation);
+    let row = |[x, y]: [End; 2]| Ok(([x, y].map(row_cell), [None; 3], relation));
     let point = |c: Cell| matches!(c, Cell::Vertex(_));
-    // A meeting is unordered: its cells sorted, `through` once.
-    let meet = || {
-        let mut two = read_cells.map(row_cell);
-        two.sort();
-        match through
-            .map(|end| row_cell(read(end)))
-            .filter(|c| !two.contains(c))
-        {
-            None => (two, None, crate::Relation::Meet),
-            Some(third) => {
-                let mut all = [two[0], two[1], third];
-                all.sort();
-                let [x, y, z] = all;
-                ([x, y], Some(z), crate::Relation::Meet)
-            }
+    let two = read_cells.map(row_cell);
+    let bys = reads.iter().filter_map(|&(_, by)| by);
+    let minted = bys.clone().any(|by| !two.contains(&row_cell(by)));
+    let throughs = through.iter().flat_map(|&end| {
+        let (at, by) = read(end);
+        std::iter::once(at).chain(by)
+    });
+    let mut further: Vec<crate::RowCell> = Vec::new();
+    for c in bys.chain(throughs).map(row_cell) {
+        if !two.contains(&c) && !further.contains(&c) {
+            further.push(c);
         }
+    }
+    // A meeting is unordered: its cells sorted, each beyond the two read
+    // once.
+    let meet = || {
+        let mut all: Vec<crate::RowCell> = two.into_iter().chain(further.iter().copied()).collect();
+        all.sort();
+        let (x, y, rest) = match all.as_slice() {
+            [x, y, rest @ ..] if rest.len() <= 3 => (*x, *y, rest),
+            _ => {
+                return Err(BooleanError::JoinDesync {
+                    what: "a meeting holds more cells than a row does",
+                });
+            }
+        };
+        let mut more = [None; 3];
+        for (slot, &c) in more.iter_mut().zip(rest) {
+            *slot = Some(c);
+        }
+        Ok(([x, y], more, crate::Relation::Meet))
     };
     let on = relation == crate::Relation::OnCarrier;
     match widened {
-        _ if relation == crate::Relation::Meet => Ok(meet()),
-        [false, false] => Ok(row(read_cells)),
-        [false, true] if on && point(cells[0].1) => Ok(row(read_cells)),
+        _ if relation == crate::Relation::Meet => meet(),
+        [false, false] => row(read_cells),
+        _ if on && minted => meet(),
+        [false, true] if on && point(cells[0].1) => row(read_cells),
         [true, false] if on && point(cells[0].1) && point(cells[1].1) => {
-            Ok(row([read_cells[1], read_cells[0]]))
+            row([read_cells[1], read_cells[0]])
         }
-        _ if on => Ok(meet()),
+        _ if on => meet(),
         _ => Err(BooleanError::JoinDesync {
             what: "a decision other than a point's on a cell reads a cell it lies in",
         }),
     }
 }
 
-/// What [`spell`] makes of a decision: its row's two cells, its third
-/// ([`crate::Coincidence::third`]) and its relation.
-type Spelled = ([crate::RowCell; 2], Option<crate::RowCell>, crate::Relation);
+/// What [`spell`]'s `read` makes of a cell: the cell of the op's input
+/// it lies in, and the cell of the other input whose crossing minted it,
+/// where the op minted it on an edge.
+type Read = (End, Option<End>);
+
+/// What [`spell`] makes of a decision: its row's two cells, its further
+/// ones ([`crate::Coincidence::more`]) and its relation.
+type Spelled = (
+    [crate::RowCell; 2],
+    [Option<crate::RowCell>; 3],
+    crate::Relation,
+);
 
 /// A pending row's cell as the deciding op's input holds it
 /// ([`super::Mints`]): a vertex the reduction minted by splitting an
@@ -4942,6 +4971,19 @@ type Spelled = ([crate::RowCell; 2], Option<crate::RowCell>, crate::Relation);
 pub(super) fn input_cell(end: End, mints: &super::Mints) -> crate::RowCell {
     let (input, cell) = input_end(end, mints);
     crate::RowCell::Input { input, cell }
+}
+
+/// [`input_end`], and for a vertex the reduction minted on an edge the
+/// cell of the other operand whose crossing minted it
+/// ([`super::Mints::minted_by`]), read the same way.
+fn input_read((input, cell): End, mints: &super::Mints) -> Read {
+    let by = match cell {
+        Cell::Vertex(v) => mints
+            .minted_by(input, v)
+            .map(|by| input_end((input.other(), by), mints)),
+        Cell::Edge(_) | Cell::Face(_) => None,
+    };
+    (input_end((input, cell), mints), by)
 }
 
 /// [`input_cell`], as an operand and its cell.
@@ -7517,10 +7559,8 @@ fn respell_through_cuts<T: Real>(
     cuts: &CutsPerOperand,
 ) -> Result<(), BooleanError> {
     let read = |(input, cell): End| {
-        (
-            input,
-            cuts[usize::from(input == Operand::B)].input_cell(cell),
-        )
+        let cell = cuts[usize::from(input == Operand::B)].input_cell(cell);
+        ((input, cell), None)
     };
     let end = |cell| match cell {
         crate::RowCell::Input { input, cell } => Some((input, cell)),
@@ -7530,13 +7570,17 @@ fn respell_through_cuts<T: Real>(
         let [Some(x), Some(y)] = row.cells.map(end) else {
             continue;
         };
-        let through = match row.third {
-            None => None,
-            Some(third) => Some(end(third).ok_or(BooleanError::JoinDesync {
-                what: "a meeting's third cell is no cell of the op's input",
-            })?),
-        };
-        (row.cells, row.third, row.relation) = spell([x, y], through, row.relation, read)?;
+        let through = row
+            .more
+            .into_iter()
+            .flatten()
+            .map(|cell| {
+                end(cell).ok_or(BooleanError::JoinDesync {
+                    what: "a meeting's further cell is no cell of the op's input",
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        (row.cells, row.more, row.relation) = spell([x, y], &through, row.relation, read)?;
     }
     Ok(())
 }

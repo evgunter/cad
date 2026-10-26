@@ -3031,8 +3031,8 @@ fn judged_at(
 ///
 /// For a row whose cells are not named in the node's own space, the
 /// only space a fold step's rows are named in; for a row other than a
-/// `Meet` that is not two cells, as only a `Meet` holds a third
-/// (`topo::Coincidence::third`); or for a decision other than a
+/// `Meet` that is not two cells, as only a `Meet` holds more
+/// (`topo::Coincidence::more`); or for a decision other than a
 /// point's on a cell whose cells are not one member cell each: a fold
 /// step runs with the pairwise verdicts given (`topo::Verdicts::Given`),
 /// so a carrier pair's row is the judgement's and no step returns one.
@@ -3083,7 +3083,7 @@ fn in_member_space(
             origin,
         )
     };
-    // A meeting is every member cell its cells are made of, two or three.
+    // A meeting is every member cell its cells are made of.
     if row.relation == topo::Relation::Meet {
         return meet(spelled);
     }
@@ -3091,7 +3091,7 @@ fn in_member_space(
     let (Some(p), Some(x), None) = (spelled.next(), spelled.next(), spelled.next()) else {
         unreachable!(
             "union fold step {step}'s {:?} row holds {} cells, though `name_rows` names a \
-             kernel row's two, and its third only on a `Meet`",
+             kernel row's two, and more only on a `Meet`",
             row.relation,
             row.cells.len()
         )

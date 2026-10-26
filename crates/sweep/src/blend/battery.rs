@@ -1125,7 +1125,7 @@ fn row(
 ) -> topo::Coincidence {
     topo::Coincidence {
         cells,
-        third: None,
+        more: [None; 3],
         relation,
         site,
         margin,
