@@ -371,3 +371,69 @@ fn a_document_whose_mates_carry_no_orientation_refuses_naming_it() {
         other => panic!("a mate with no orientation refuses unreadable, got {other:?}"),
     }
 }
+
+/// A unit box resting its `−x` face on a wall's `+x` face under
+/// `orient`, written with `slides` (each `0`) and the spin `0`: the
+/// placement's fault, or its frame.
+fn on_the_wall(orient: Orientation, slides: [TargetAxis; 2]) -> Hung {
+    let doc = ProfileDoc::empty(DocumentId::derive("value-chart-wall"), Tol::witness());
+    let (doc, body) = block(doc, 1.0, 1.0, 1.0);
+    let (doc, wall) = block(doc, 2.0, 10.0, 10.0);
+    let wall_face = face(&doc, wall, [2.0, 5.0, 5.0], [1.0, 0.0, 0.0]);
+    let (doc, w) = fixture::in_world_by(doc, wall, Placed::unmated(Vec::new()).values);
+    let (doc, placement) = insert(
+        doc,
+        fixture::stood(editor_core::BodyRead::plain(Operand::from(body))),
+    );
+    let side = face(&doc, body, [0.0, 0.5, 0.5], [-1.0, 0.0, 0.0]);
+    let mut mate = fixture::rest(head(side), head_at(w, wall_face));
+    mate.orient = orient;
+    let placed = Placed {
+        mates: vec![mate],
+        values: slides
+            .into_iter()
+            .map(|a| (Coord::Slide(a), len(0.0)))
+            .chain([(Coord::SPIN, fixture::ang(0.0))])
+            .collect(),
+    };
+    let (doc, _) = fixture::write_bundle(doc, placement, placed.bundle());
+    let poses = solve(&doc, &EvalOptions::default(), Tol::witness());
+    match poses.fault(placement) {
+        Some(fault) => Err(fault.clone()),
+        None => Ok(poses.relative(placement).expect("the box is placed")),
+    }
+}
+
+/// **Slides that do not span what a plane leaves refuse, naming the
+/// pair to write.** The box rests on the wall under `(x: +y, z: +z)`,
+/// which puts its mated `−x` on the target's `−y`: the plane fixes the
+/// slide along `y`, so `y` and `z` written refuse `SlidesDoNotSpan`,
+/// naming `y` as the slide the mate fixes and `x` and `z` as the pair to
+/// write, and the sentence says so. Written, that pair places the box
+/// flush on the wall.
+///
+/// *Breaks if* the refusal names no pair, or a pair that does not place.
+#[test]
+fn slides_that_do_not_span_refuse_naming_the_pair_to_write() {
+    use editor_core::{NoChartWhy, SlideAxes};
+    let orient = oriented(SignedAxis::PlusY, SignedAxis::PlusZ);
+    match on_the_wall(orient, [TargetAxis::Y, TargetAxis::Z]) {
+        Err(
+            fault @ MateFault::NoChart {
+                why: NoChartWhy::SlidesDoNotSpan { along, write },
+                ..
+            },
+        ) => {
+            assert_eq!(along, Some(TargetAxis::Y), "the plane fixes y");
+            assert_eq!(write, SlideAxes::of([TargetAxis::X, TargetAxis::Z]));
+            let said = fault.to_string();
+            assert!(said.contains("write the slides along x and z"), "{said}");
+        }
+        other => panic!("y and z do not span the wall: {other:?}"),
+    }
+    let placed = on_the_wall(orient, [TargetAxis::X, TargetAxis::Z])
+        .unwrap_or_else(|f| panic!("the pair named places: {f}"));
+    // The box's `−x` face passes through its own origin, so the origin
+    // lies on the wall's face, at `x = 2`.
+    assert_eq!(placed.translation[0], 2.0, "flush on the wall: {placed:?}");
+}

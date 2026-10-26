@@ -566,6 +566,7 @@ pub(crate) fn settle<T: SolveScalar>(
             value: slides[0].value,
             why: NoChartWhy::SlidesDoNotSpan {
                 along: chart.aligned.map(TargetAxis::of_index),
+                write: super::turn::slides_left_along(written.len(), chart.n),
             },
         })));
     }

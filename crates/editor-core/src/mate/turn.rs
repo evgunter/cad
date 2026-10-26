@@ -5,7 +5,7 @@
 
 use geom_core::linalg::{Mat3, Vec3};
 
-use super::SolveScalar;
+use super::{SlideAxes, SolveScalar, TargetAxis};
 
 /// **The least turn carrying the unit `from` onto the unit `to`**,
 /// `S = c·I + [k]× + k kᵀ / (1 + c)` with `c = from · to` and
@@ -77,6 +77,27 @@ pub fn aligned<T: SolveScalar>(n: Vec3<T>) -> Option<usize> {
         [true, true, false] => Some(2),
         _ => None,
     }
+}
+
+/// **The slides a mate leaving `count` of them leaves**, given `n`,
+/// where the mate's orientation puts the copy's mated direction among
+/// the target axes: all three beside a lone direction; beside a plane,
+/// the two other than the axis `n` lies most along, whose slide the
+/// plane fixes; beside an axis, that one, which it leaves. Where `n`
+/// lies on an axis exactly that is the axis; otherwise the greatest
+/// component wins, a tie going to the earlier axis. The pair it names
+/// beside a plane spans what the plane leaves, as the chart's span check
+/// reads it, wherever any pair does.
+#[must_use]
+pub fn slides_left_along<T: SolveScalar>(count: usize, n: Vec3<T>) -> SlideAxes {
+    let q = [n.x.quoted().abs(), n.y.quoted().abs(), n.z.quoted().abs()];
+    let most = aligned(n).unwrap_or_else(|| (0..3).fold(0, |b, i| if q[i] > q[b] { i } else { b }));
+    SlideAxes::of(TargetAxis::ALL.into_iter().filter(|a| match count {
+        3 => true,
+        2 => a.index() != most,
+        1 => a.index() == most,
+        _ => false,
+    }))
 }
 
 /// **A direction across the unit `n`**, the reference a spin about `n`

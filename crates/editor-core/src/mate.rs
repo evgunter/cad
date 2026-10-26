@@ -49,7 +49,7 @@ pub use solve::{
     Atan2Branch, PoseRefusal, SolveScalar, SolvedPoses, mate_coset, relative_freedom_components,
     solve_document, solve_document_at,
 };
-pub use turn::LeastTurn;
+pub use turn::{LeastTurn, slides_left_along};
 pub use unobservable::{Unobservable, unobservable};
 pub use value::flipped;
 
@@ -513,6 +513,60 @@ impl TargetAxis {
     }
 }
 
+/// **A set of slides, by the target axes they run along**: the slides
+/// a mate leaves ([`turn::slides_left_along`]), and the ones a refusal
+/// names to write ([`NoChartWhy::SlidesDoNotSpan`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub struct SlideAxes([bool; 3]);
+
+impl SlideAxes {
+    /// The set of `axes`.
+    #[must_use]
+    pub fn of(axes: impl IntoIterator<Item = TargetAxis>) -> Self {
+        let mut set = [false; 3];
+        for axis in axes {
+            set[axis.index()] = true;
+        }
+        Self(set)
+    }
+
+    /// Whether the set holds the slide along `axis`.
+    #[must_use]
+    pub fn contains(self, axis: TargetAxis) -> bool {
+        self.0[axis.index()]
+    }
+
+    /// The axes, in order.
+    pub fn axes(self) -> impl Iterator<Item = TargetAxis> {
+        TargetAxis::ALL
+            .into_iter()
+            .filter(move |&a| self.contains(a))
+    }
+
+    /// How many.
+    #[must_use]
+    pub fn len(self) -> usize {
+        self.axes().count()
+    }
+
+    /// Whether the set is empty.
+    #[must_use]
+    pub fn is_empty(self) -> bool {
+        self.len() == 0
+    }
+}
+
+impl core::fmt::Display for SlideAxes {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let names: Vec<&str> = self.axes().map(axis_name).collect();
+        match names.as_slice() {
+            [] => f.write_str("none"),
+            [one] => f.write_str(one),
+            [rest @ .., last] => write!(f, "{} and {last}", rest.join(", ")),
+        }
+    }
+}
+
 impl Coord {
     /// The spin about the target's own direction.
     pub const SPIN: Self = Self::Spin(None);
@@ -560,6 +614,9 @@ pub enum NoChartWhy {
         /// where the source's mated direction lies on a target axis
         /// exactly: the one a plane mate fixes and an axis mate leaves.
         along: Option<TargetAxis>,
+        /// The slides to write, which span what the mate leaves
+        /// ([`turn::slides_left_along`]).
+        write: SlideAxes,
     },
 }
 
@@ -993,7 +1050,7 @@ impl crate::spoken::Say for MateFault {
             ),
             Self::NoChart {
                 value,
-                why: NoChartWhy::SlidesDoNotSpan { along },
+                why: NoChartWhy::SlidesDoNotSpan { along, write },
             } => {
                 let along = match along {
                     Some(axis) => format!(
@@ -1006,9 +1063,8 @@ impl crate::spoken::Say for MateFault {
                 write!(
                     f,
                     "{}'s slides do not span what its mate leaves{along}. Recourse: write the \
-                     slides across the mated direction beside a plane mate and the one along it \
-                     beside an axis mate, or an orientation that puts the copy's mated direction \
-                     where the slides written meet it",
+                     slides along {write} instead, or an orientation that puts the copy's mated \
+                     direction where the slides written meet it",
                     mate_(*value)
                 )
             }

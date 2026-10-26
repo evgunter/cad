@@ -442,10 +442,10 @@ pub use editor_core::LeverRefusal;
 pub use editor_core::{
     Constraint, ConstraintKind, Coord, FrameMove, Mate, MateFault, MateRef, MateSide, Member,
     NoChartWhy, OVERCONSTRAINED_RECOURSE, Orientation, PinRefusal, Placed, Placing, PoseRefusal,
-    PoseSymmetry, ReachRefusal, SignedAxis, SolvedPoses, Subgroup, SubgroupFamily, TargetAxis,
-    UNPINNED_RECOURSE, Unobservable, Value, corner_frame, corner_frame_in, head_face, head_of,
-    member_of, member_reading, moved_frame, relative_freedom_components, solve_document, stand,
-    unobservable,
+    PoseSymmetry, ReachRefusal, SignedAxis, SlideAxes, SolvedPoses, Subgroup, SubgroupFamily,
+    TargetAxis, UNPINNED_RECOURSE, Unobservable, Value, corner_frame, corner_frame_in, head_face,
+    head_of, member_of, member_reading, moved_frame, relative_freedom_components, solve_document,
+    stand, unobservable,
 };
 
 // **The assembly at-rest gate** (A5): `assemble` gathers a document's

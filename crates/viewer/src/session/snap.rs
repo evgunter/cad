@@ -16,8 +16,8 @@
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
-use editor_core::mate::LeastTurn;
 use editor_core::mate::turn::across;
+use editor_core::mate::{LeastTurn, slides_left_along};
 use editor_core::{Coord, Formula, Orientation, SubgroupFamily, TargetAxis};
 use pncad::document::pose::{PoseValue, RoleRead};
 use pncad::document::{
@@ -236,19 +236,8 @@ pub(crate) fn snapped(
     // spells the contact's sense.
     let about = if to_flipped { -d } else { d };
     let spin = f64::atan2(to.cross(copy).dot(about), to.dot(copy));
-    // The slides the mate leaves: the carried axes most across `d` for a
-    // plane, the one most along it for a line, all three for a direction.
-    let mut axes = TargetAxis::ALL.to_vec();
-    let along = |a: &TargetAxis| [n.x, n.y, n.z][a.index()].abs();
-    axes.sort_by(|a, b| along(a).total_cmp(&along(b)));
-    let slid: Vec<TargetAxis> = match seat.hold.slides() {
-        1 => axes.last().copied().into_iter().collect(),
-        k => {
-            let mut kept: Vec<TargetAxis> = axes.into_iter().take(k).collect();
-            kept.sort();
-            kept
-        }
-    };
+    // The slides the mate leaves, by the one rule every gesture writes.
+    let slid: Vec<TargetAxis> = slides_left_along(seat.hold.slides(), n).axes().collect();
     let carried = [s.c0, s.c1, s.c2];
     let mut values: Vec<(Coord, Formula)> = slid
         .iter()

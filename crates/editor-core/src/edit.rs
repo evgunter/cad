@@ -6652,17 +6652,19 @@ impl Recording<'_, crate::ProfileProgram> {
                 to: plane(body.clone(), face),
                 orient,
             }],
-            values: crate::TargetAxis::ALL
-                .into_iter()
-                .filter(|axis| axis.index() != orient.z().index())
-                .map(|axis| {
-                    (
-                        crate::Coord::Slide(axis),
-                        Formula::zero(crate::expr::Dimension::Length),
-                    )
-                })
-                .chain([(crate::Coord::SPIN, spin)])
-                .collect(),
+            values: crate::mate::slides_left_along(
+                crate::SubgroupFamily::Planar.slides(),
+                orient.apply(geom_core::linalg::Vec3::<f64>::unit_z()),
+            )
+            .axes()
+            .map(|axis| {
+                (
+                    crate::Coord::Slide(axis),
+                    Formula::zero(crate::expr::Dimension::Length),
+                )
+            })
+            .chain([(crate::Coord::SPIN, spin)])
+            .collect(),
         };
         let placement = self.insert(Node::place(
             crate::BodyRead::plain(crate::Operand::Output {
