@@ -76,3 +76,10 @@
   - The row is now the build (P1 H). `gap-reads-no-curved-cell-below-a-face` is re-cut to the curved-carrier arm and parked on it.
   - The designers' reports are on `analysis/design-fork/atrest-material-reader`. No fork-log row: nothing went to Ev.
 - 2026-10-26 — Dispatched the link build (`material-and-convexity-are-read-three-ways`, P1 H) to `session_019wGbSrLfmrqDKVBwjrputi` on `atrest/topo-link-one-material-reader`. Tier: dual review. It is an architectural change of broad reach: a new public `topo::link` that four consumers will read. The protocol is read at review.
+- 2026-10-26 — **`two-copies-filling-one-volume-certify-at-rest` merges** (#5745, head `78e81547`), after its single FULL review and fix pass.
+  - **The new reading:** copies whose material coincides over an aligned face pair are `SameSideInterference`, where they were "undecidable". An aligned pair now absorbs its boundary touches the way an opposed pair does, so one finding carries the pair and the stage 5 B quieting reaches it.
+  - **The hand-copied placement-findings filter** has one home, `topo::test_support`.
+  - **The slow census golden moved** (`perf12_census_goldens`, heat_sink 105 → 5 findings, at three ε). The fin-top touches became the aligned cap pair's, and the interference verdicts are unchanged. It was re-blessed. The PR gate selected none of it; that is added as evidence on CIW's `a-diff-that-moves-corpus-ids-runs-none-of-the-slow-set-id-pins`.
+  - **Filed by the lane:** `a-touch-the-analysis-decides-crossing-is-read-as-undecidable` (P1) and `curved-copies-filling-one-volume-read-as-undecidable` (P1 H).
+  - **Rule for this track:** any census change runs the `perf12_census_*` rows at three ε before merge.
+- 2026-10-26 — Dispatched `an-in-band-face-pair-at-rest-is-not-one-finding` (P1 M) to `session_01UWU4a87BcXbv7xxWyxber3` on `atrest/in-band-face-pair-one-finding`. Tier: single FULL review. It stays out of the touch analysis, which the link lane is lifting. `a-touch-the-analysis-decides-crossing-is-read-as-undecidable` waits for the link PR, because its `TouchVerdict` mapping is in the code being lifted.
