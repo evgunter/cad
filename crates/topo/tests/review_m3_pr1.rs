@@ -960,16 +960,11 @@ fn annulus_top_cube() -> (common::CubeOps<f64>, topo::FaceKey, [topo::VertexKey;
 fn merge_coplanar_annulus_and_value_equal_center_make_one_face() {
     let build = || annulus_top_cube();
     let (mut cube, center, _) = build();
-    // Raw door: the measured body is a body still carrying construction scaffolding, which tier 3 refuses (ScaffoldAtRest).
     assert_eq!(cube.body.faces().count(), 10); // 5 cube sides + 5 top
-    let vol0 = topo::test_support::measure_unvalidated(
-        &cube.body,
-        Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
-    )
-    .unwrap()
-    .enclosure
-    .volume;
+    // Raw door: the measured body is a body still carrying construction scaffolding, which tier 3 refuses (ScaffoldAtRest).
+    let vol0 = topo::test_support::measure_unvalidated(&cube.body, Tol::witness())
+        .unwrap()
+        .volume;
     let outcome = cube.body.merge_coplanar_faces(Tol::witness()).unwrap();
     assert_eq!(outcome.groups.len(), 1, "expected exactly one merged run");
     let g = &outcome.groups[0];

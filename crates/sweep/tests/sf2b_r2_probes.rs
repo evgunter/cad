@@ -110,30 +110,29 @@ fn r2_both_cone_nappes_hollow_to_their_closed_forms() {
             4.0 / 64.0,
         ),
     ] {
-        let body = frustum(r0, r1, h);
+        let body = topo::test_support::finished("body", frustum(r0, r1, h), tol);
         describe_cones(what, &body);
-        let v_out = topo::test_support::unmigrated_measure(
-            &body,
+        let v_out = topo::mass_properties(&body, tol).expect("props").volume;
+        match topo::shell(
+            &finished("the operand", topo::Body::clone(&body.clone()), tol),
+            T,
             tol,
-            topo::test_support::pinned_resolution(tol),
-        )
-        .expect("props")
-        .enclosure
-        .volume;
-        match topo::shell(&finished("the operand", body.clone(), tol), T, tol) {
+        ) {
             Ok(topo::Shelled { body: hollow, .. }) => {
                 assert_eq!(
                     topo::validate_geometric(&hollow, tol),
                     Ok(()),
                     "{what}: tier 3"
                 );
-                let v = topo::test_support::unmigrated_measure(
-                    &hollow,
+                let v = topo::mass_properties(
+                    &topo::test_support::finished(
+                        "the measured body",
+                        topo::Body::clone(&hollow),
+                        tol,
+                    ),
                     tol,
-                    topo::test_support::pinned_resolution(tol),
                 )
                 .expect("props")
-                .enclosure
                 .volume;
                 let want = frustum_wall(r0, r1, h);
                 println!(
@@ -182,57 +181,51 @@ fn r2_per_chart_door_on_a_mirror_nappe_cone() {
     }
 }
 
-/// **A CONICAL wedge: `meridian plane ∩ cone`.** The PR body's edge
-/// table claims that posture is an EXACT translation ("direction kept
-/// (axis-parallel or generator), re-anchored from the corner — yes").
-/// A plane parallel to a cone's axis cuts it in a HYPERBOLA, not a
-/// line, so the offset edge is not the old line moved. This row asks
-/// what actually happens: a refusal (the midpoint/endpoint meters doing
-/// their job) or a body.
+/// **A CONICAL wedge: `meridian plane ∩ cone`.** A cavity moves the
+/// wedge's meridian caps off the axis, and a plane parallel to a cone's
+/// axis that misses its apex cuts it in a HYPERBOLA, not a line: the
+/// moved pair's section is a rational-quadratic NURBS arc on a cone,
+/// which no tube certifies yet. The axial door refuses it at its gate,
+/// naming the conic, at a quarter turn and at a 1/12 turn alike, before
+/// any corner is solved (where the quarter turn's ends used to come
+/// back 0.64 mm apart and the 1/12 turn's window to read backwards).
 #[test]
 fn r2_a_conical_wedge_meridian_edge() {
     let tol = Tol::witness();
     let (r0, r1, h) = (4.0 / 64.0, 2.0 / 64.0, 8.0 / 64.0);
     for (what, turn) in [("a quarter turn", PI / 2.0), ("a 1/12 turn", PI / 6.0)] {
-        let body = revolved(
-            bulge_loop(vec![
-                (Point2::new(0.0, 0.0), 0.0),
-                (Point2::new(r0, 0.0), 0.0),
-                (Point2::new(r1, h), 0.0),
-                (Point2::new(0.0, h), 0.0),
-            ]),
-            Revolution::Partial(turn),
-        );
-        let v0 = topo::test_support::unmigrated_measure(
-            &body,
+        let body = topo::test_support::finished(
+            "body",
+            revolved(
+                bulge_loop(vec![
+                    (Point2::new(0.0, 0.0), 0.0),
+                    (Point2::new(r0, 0.0), 0.0),
+                    (Point2::new(r1, h), 0.0),
+                    (Point2::new(0.0, h), 0.0),
+                ]),
+                Revolution::Partial(turn),
+            ),
             tol,
-            topo::test_support::pinned_resolution(tol),
+        );
+        let err = topo::shell(
+            &finished("the operand", topo::Body::clone(&body.clone()), tol),
+            T,
+            tol,
         )
-        .expect("props")
-        .enclosure
-        .volume;
-        match topo::shell(&finished("the operand", body.clone(), tol), T, tol) {
-            Ok(topo::Shelled { body: hollow, .. }) => {
-                let v = topo::test_support::unmigrated_measure(
-                    &hollow,
-                    tol,
-                    topo::test_support::pinned_resolution(tol),
-                )
-                .expect("props")
-                .enclosure
-                .volume;
-                println!(
-                    "[r2] conical wedge {what}: HOLLOWS operand {v0} wall {v} tier3 {:?} shells {}",
-                    topo::validate_geometric(&hollow, tol).is_ok(),
-                    hollow.shells().count()
-                );
-                assert!(
-                    v < v0,
-                    "conical wedge {what}: a wall cannot exceed its operand"
-                );
-            }
-            Err(e) => println!("[r2] conical wedge {what}: REFUSED {e}"),
-        }
+        .expect_err("the conical wedge's moved caps cut its cone in a hyperbola");
+        let topo::ShellError::Face { error, .. } = &err else {
+            panic!("conical wedge {what}: expected the axial door's refusal, got {err}");
+        };
+        assert!(
+            matches!(
+                **error,
+                topo::ReplaceFaceError::TogetherConicArc {
+                    conic: geom_brep::OpenConic::Hyperbola,
+                    ..
+                }
+            ),
+            "conical wedge {what}: the gate names the hyperbola, got {error}"
+        );
     }
 }
 
@@ -257,32 +250,35 @@ fn r2_wedge_at_degenerate_turns() {
         ("a HALF turn (coplanar caps)", PI),
         ("a 3/4 turn (reflex)", 3.0 * PI / 2.0),
     ] {
-        let body = revolved(
-            bulge_loop(vec![
-                (Point2::new(0.0, 0.0), 0.0),
-                (Point2::new(r, 0.0), 0.0),
-                (Point2::new(r, h), 0.0),
-                (Point2::new(0.0, h), 0.0),
-            ]),
-            Revolution::Partial(turn),
-        );
-        let v0 = topo::test_support::unmigrated_measure(
-            &body,
+        let body = topo::test_support::finished(
+            "body",
+            revolved(
+                bulge_loop(vec![
+                    (Point2::new(0.0, 0.0), 0.0),
+                    (Point2::new(r, 0.0), 0.0),
+                    (Point2::new(r, h), 0.0),
+                    (Point2::new(0.0, h), 0.0),
+                ]),
+                Revolution::Partial(turn),
+            ),
             tol,
-            topo::test_support::pinned_resolution(tol),
-        )
-        .expect("props")
-        .enclosure
-        .volume;
-        match topo::shell(&finished("the operand", body.clone(), tol), T, tol) {
+        );
+        let v0 = topo::mass_properties(&body, tol).expect("props").volume;
+        match topo::shell(
+            &finished("the operand", topo::Body::clone(&body.clone()), tol),
+            T,
+            tol,
+        ) {
             Ok(topo::Shelled { body: hollow, .. }) => {
-                let v = topo::test_support::unmigrated_measure(
-                    &hollow,
+                let v = topo::mass_properties(
+                    &topo::test_support::finished(
+                        "the measured body",
+                        topo::Body::clone(&hollow),
+                        tol,
+                    ),
                     tol,
-                    topo::test_support::pinned_resolution(tol),
                 )
                 .expect("props")
-                .enclosure
                 .volume;
                 let valid = topo::validate_geometric(&hollow, tol);
                 println!(
@@ -367,10 +363,9 @@ fn r2_the_carried_azimuth_survives_both_surfaces_moving() {
         .collect();
     match topo::shell_open(&finished("the operand", pot.clone(), tol), T, &mouth, tol) {
         Ok(topo::Shelled { body: cup, .. }) => {
-            let props = topo::test_support::unmigrated_measure(
-                &cup,
+            let props = topo::mass_properties(
+                &topo::test_support::finished("the measured body", topo::Body::clone(&cup), tol),
                 tol,
-                topo::test_support::pinned_resolution(tol),
             )
             .expect("props");
             println!(

@@ -14,10 +14,10 @@ own assertions are the oracle: the layout's three disjoint solids of
 `PATTERN_COUNT x post + shelf`, the stand's near post pinned to the
 world and each other instance placed by the one mate its bundle holds
 and that mate's values, the far post's solved translation, the identity
-rotation two face-on-face rests compose to, two minted declarations, and
+rotation two face-on-face rests compose to, two recorded seats, and
 a gate that certifies. Every number below is that scene's, re-derived from the
 same base dimensions rather than copied as a total. The tour's bench
-also stands on a turntable and carries a crate, whose declaration is a
+also stands on a turntable and carries a crate, whose seat is a
 third; this scene authors neither (`bench_scene.py`'s header).
 
 The constants, the two part shapes and the two assembly recipes live
@@ -42,15 +42,11 @@ TWO THINGS THIS FILE CANNOT SAY, AND THEY ARE NOT DEFECTS OF IT
 
 WHAT THE GATE SAYS OF A MATE READ BELOW A PLACER, AND WHY
 ---------------------------------------------------------
-A mate's pose is read off the body it names, and the gate mints its
-declaration on the world copy of that body. A pose may read a node
+A mate's pose is read off the body it names. A pose may read a node
 that a `placed_union` consumes: no placement reads that node, so the
-mate is no statement about the product, and the seat it would have
-declared is a touch between two copies, which the
-`unproven-coincidence` check reports against them (the gather's rule,
-pinned in editor-core). `RefusedRef`'s one arm, `ref_ambiguous`, is a side whose body two
-placements copy; it is bound and tagged, and the kernel's own row
-(`intent_s2_f_mates`) reaches it.
+mate states nothing about the product, and the seat is a touch between
+two copies, which the `unproven-coincidence` check reports against
+them (the gather's rule, pinned in editor-core).
 
 A plane read off a name that is NOT A FACE is built and admitted —
 the door is structural — and refused where its placement evaluates
@@ -101,7 +97,6 @@ from bench_scene import (
 )
 from pncad import (
     CapEnd,
-    ContactClass,
     Coord,
     Doc,
     DocEdit,
@@ -188,11 +183,10 @@ class TestBenchLayout(BenchWorkspace):
     """Row 44's flat-pack: The posts on their side and the shelf
     beside them, nothing touching — A5's disjoint half.
 
-    The layout has no mates, so the bundles, the solve and the minted
-    declarations are `TestBenchStand`'s expectations and not this
-    document's; what this one is held to is the material, the
-    placements, the names and a gate that passes OUTRIGHT with nothing
-    minted."""
+    The layout has no mates, so the bundles and the solve are
+    `TestBenchStand`'s expectations and not this document's; what this
+    one is held to is the material, the placements, the names and a gate
+    that passes OUTRIGHT with nothing recorded."""
 
     def layout(self, posts=Node.pattern):
         doc, post_i, family, shelf_i = bench_scene.layout(
@@ -237,13 +231,12 @@ class TestBenchLayout(BenchWorkspace):
             with self.subTest(posts=name):
                 doc, _, _, _ = self.layout(posts)
                 assembly = assemble(doc, evaluate(doc, resolver=self.ws))
-                # No mate declares anything and nothing touches, so the
-                # kernel's at-rest door passes with nothing minted.
-                # That is exactly what "disjoint assemblies validate
-                # today" means — and it is what a PLURAL value reaching
-                # the gate had to be measured against rather than
-                # assumed: the gate takes the family either way.
-                self.assertEqual(assembly.minted, [])
+                # Nothing touches, so the kernel's at-rest door passes
+                # with nothing recorded. That is exactly what "disjoint
+                # assemblies validate today" means — and it is what a
+                # PLURAL value reaching the gate had to be measured
+                # against rather than assumed: the gate takes the family
+                # either way.
                 self.assertGreater(len(assembly.names), 0)
                 self.assertAlmostEqual(
                     pinned(assembly.body).volume,
@@ -459,8 +452,8 @@ class TestBenchStand(BenchWorkspace):
     SEATED on the posts by mates — only the near post is pinned to the
     world, and the other two poses are solved."""
 
-    def stand(self, class_=ContactClass.Rest):
-        return bench_scene.stand(self.ws, self.post_ref, self.shelf_ref, class_)
+    def stand(self):
+        return bench_scene.stand(self.ws, self.post_ref, self.shelf_ref)
 
     def assertSeated(self, doc, node, mate):
         """`node`'s bundle is `mate`, which reads another copy, then
@@ -559,7 +552,7 @@ class TestBenchStand(BenchWorkspace):
         # reads another copy pins nothing of this one.
         doc.apply(DocEdit.delete_node(upper))
         stranded = [m.variant for m in doc.last_maintenance]
-        elsewhere = Mate(PoseDef.plane(shelf_i, s_bottom), PoseDef.plane(shelf_i, s_bottom), ContactClass.Rest)
+        elsewhere = Mate(PoseDef.plane(shelf_i, s_bottom), PoseDef.plane(shelf_i, s_bottom))
         with self.assertRaises(pncad.EditError) as caught:
             doc.set_constraints(post_b, [elsewhere, *zeros()])
         self.assertEqual(caught.exception.inner_variant, "mate_not_on_the_copy")
@@ -693,15 +686,8 @@ class TestBenchStand(BenchWorkspace):
             self.assertAlmostEqual(got.meters, want, delta=1e-12)
 
     def test_the_flush_seated_stand_certifies_at_the_at_rest_gate(self):
-        doc, _, (mate_1, mate_2) = self.stand()
+        doc, _, _ = self.stand()
         assembly = assemble(doc, evaluate(doc, resolver=self.ws))
-        # One record per solved mate, at face granularity, in the
-        # alphabet the mates were authored in.
-        self.assertEqual([d.mate for d in assembly.minted], [mate_1, mate_2])
-        self.assertEqual(
-            [d.class_ for d in assembly.minted],
-            [ContactClass.Rest, ContactClass.Rest],
-        )
         self.assertAlmostEqual(
             pinned(assembly.body).volume,
             2 * POST_VOLUME + SHELF_VOLUME,
@@ -756,7 +742,6 @@ class TestAssemblyRefusals(BenchWorkspace):
                     Mate(
                         PoseDef.plane(shelf_i, s_bottom),
                         PoseDef.flip(PoseDef.plane(post_a, a_top)),
-                        ContactClass.Rest,
                     )
                 ],
             )
@@ -786,8 +771,8 @@ class TestAssemblyRefusals(BenchWorkspace):
             doc.set_constraints(
                 shelf_i,
                 [
-                    Mate(PoseDef.plane(shelf_i, s_bottom), seat, ContactClass.Rest),
-                    Mate(PoseDef.plane(shelf_i, s_bottom), lower, ContactClass.Rest),
+                    Mate(PoseDef.plane(shelf_i, s_bottom), seat),
+                    Mate(PoseDef.plane(shelf_i, s_bottom), lower),
                 ],
             )
         fault = caught.exception.fault
@@ -818,7 +803,6 @@ class TestAssemblyRefusals(BenchWorkspace):
                     Mate(
                         PoseDef.plane(post_i, face),
                         PoseDef.flip(PoseDef.plane(post_i, face)),
-                        ContactClass.Rest,
                     ),
                     *zeros(),
                 ],
@@ -854,7 +838,6 @@ class TestAssemblyRefusals(BenchWorkspace):
                 Mate(
                     PoseDef.plane(post_a, a_top),
                     PoseDef.flip(PoseDef.plane(lifted, s_bottom)),
-                    ContactClass.Rest,
                 ),
                 *zeros(),
             ],
@@ -894,7 +877,6 @@ class TestAssemblyRefusals(BenchWorkspace):
                     Mate(
                         PoseDef.plane(post_i, top),
                         PoseDef.flip(PoseDef.plane(dead, bottom)),
-                        ContactClass.Rest,
                     ),
                     *zeros(),
                 ],
@@ -918,16 +900,16 @@ class TestAssemblyRefusals(BenchWorkspace):
             return caught.exception.fault
 
         kinds = refused(
-            Mate(PoseDef.plane(post_i, top), PoseDef.axis(shelf_i, edge), ContactClass.Rest)
+            Mate(PoseDef.plane(post_i, top), PoseDef.axis(shelf_i, edge))
         )
         self.assertEqual(kinds.variant, "mate_kinds_differ")
         self.assertEqual((kinds.on_kind, kinds.to_kind), ("plane", "axis"))
         self.assertEqual(kinds.mate.placement, post_i)
         elsewhere = refused(
-            Mate(PoseDef.plane(shelf_i, bottom), PoseDef.plane(shelf_i, bottom), ContactClass.Rest)
+            Mate(PoseDef.plane(shelf_i, bottom), PoseDef.plane(shelf_i, bottom))
         )
         self.assertEqual(elsewhere.variant, "mate_not_on_the_copy")
-        seat = Mate(PoseDef.plane(post_i, top), PoseDef.flip(PoseDef.plane(shelf_i, bottom)), ContactClass.Rest)
+        seat = Mate(PoseDef.plane(post_i, top), PoseDef.flip(PoseDef.plane(shelf_i, bottom)))
         fixed = refused(seat, *zeros(), MateValue(Coord.slide("z"), 0.1 * m))
         self.assertEqual(fixed.variant, "mate_overconstrained")
         self.assertEqual(fixed.placement, post_i)
@@ -936,67 +918,8 @@ class TestAssemblyRefusals(BenchWorkspace):
         with self.assertRaises(ValueError):
             MateValue(Coord.slide("x"), 0.1 * rad)
 
-    def test_a_class_the_gate_cannot_mint_refuses_at_the_gate(self):
-        doc, _, (mate_1, mate_2) = TestBenchStand.stand(self, class_=ContactClass.Tangent)
-        with self.assertRaises(pncad.AssemblyError) as caught:
-            assemble(doc, evaluate(doc, resolver=self.ws))
-        # A Tangent mate SOLVES and mints nothing at rest: the two
-        # doors admit different sets, which is the whole reason the
-        # admission table is one value both read.
-        self.assertEqual(caught.exception.variant, "unminted_mates")
-        # EVERY mate that did not mint, in document order. The stand
-        # declares TWO Tangent mates, and both are named: an
-        # expectation built from the answer's own length could not red
-        # on a dropped row, which is the one thing this unit exists to
-        # prevent, so both mates and both words are written out.
-        rows = caught.exception.refusals
-        self.assertEqual(
-            [(r.variant, r.mate, r.class_) for r in rows],
-            [
-                ("no_at_rest_record", mate_1, ContactClass.Tangent),
-                ("no_at_rest_record", mate_2, ContactClass.Tangent),
-            ],
-        )
-        # And it says what to do about it: `Rest` is the one class v1
-        # carries all the way to the gate.
-        self.assertIn(
-            pncad.NO_AT_REST_RECORD_RECOURSE, str(caught.exception)
-        )
-
-    def test_the_gate_speaks_each_unminted_mate_from_the_document(self):
-        # The gate holds the document, so the message and each row's
-        # `str` say a mate's placement by its kind, label and tag;
-        # `mate` keeps the address.
-        doc, (_, shelf_i, post_b), (mate_1, mate_2) = TestBenchStand.stand(
-            self, class_=ContactClass.Tangent
-        )
-        doc.apply(DocEdit.set_label(shelf_i, "left seat"))
-        with self.assertRaises(pncad.AssemblyError) as caught:
-            assemble(doc, evaluate(doc, resolver=self.ws))
-        rows = caught.exception.refusals
-        self.assertEqual([r.mate for r in rows], [mate_1, mate_2])
-        labelled = f'InstantiatePart "left seat" ({tag(shelf_i)})'
-        self.assertIn(labelled, str(rows[0]))
-        self.assertIn(f"InstantiatePart {tag(post_b)}", str(rows[1]))
-        self.assertNotIn("left seat", str(rows[1]))
-        self.assertIn(labelled, str(caught.exception))
-
-    def test_the_admission_table_says_so_before_the_edit_lands(self):
-        rest = pncad.class_admission(ContactClass.Rest)
-        tangent = pncad.class_admission(ContactClass.Tangent)
-        self.assertEqual(rest.variant, "mints")
-        self.assertTrue(rest.mints and rest.solves)
-        self.assertIsNone(rest.why)
-        # The gap the table exists to state: solved by one door,
-        # mintable by neither.
-        self.assertEqual(tangent.variant, "no_at_rest_record")
-        self.assertTrue(tangent.solves)
-        self.assertFalse(tangent.mints)
-        self.assertIn("at rest", tangent.why)
-
     def test_a_plane_read_off_an_edge_refuses_where_the_mate_is_added(self):
-        """A mate's declaration is a FACE-PAIR contact, and a plane is
-        read off a face. Python holds names as opaque text, so a plane
+        """A mate rests two FACES, and a plane is read off a face. Python holds names as opaque text, so a plane
         read off an EDGE's name is built, and the edit door refuses it:
         a selection's kind is the name's own, held where the selection
         is written (`selection_name_kind`), with the side and the
@@ -1009,7 +932,7 @@ class TestAssemblyRefusals(BenchWorkspace):
             doc.set_constraints(
                 post_i,
                 [
-                    Mate(PoseDef.plane(post_i, edge), PoseDef.flip(PoseDef.plane(shelf_i, bottom)), ContactClass.Rest),
+                    Mate(PoseDef.plane(post_i, edge), PoseDef.flip(PoseDef.plane(shelf_i, bottom))),
                     *zeros(),
                 ],
             )
@@ -1040,7 +963,6 @@ class TestAssemblyRefusals(BenchWorkspace):
             assemble(doc, evaluate(doc))
         self.assertEqual(caught.exception.variant, "root_failed")
         self.assertIsNotNone(caught.exception.node)
-        self.assertIsNone(caught.exception.refusals)
         with self.assertRaises(pncad.ProductError) as gather:
             product(doc, evaluate(doc))
         self.assertEqual(gather.exception.variant, "root_failed")
@@ -1121,8 +1043,8 @@ class TestMateFaultPayload(BenchWorkspace):
             doc.set_constraints(
                 post,
                 [
-                    Mate(facing(post, (0.0, 0.0, -1.0)), PoseDef.flip(facing(floor, (0.0, 0.0, 1.0))), ContactClass.Rest),
-                    Mate(facing(post, (0.0, 0.0, 1.0)), facing(floor, (0.0, 0.0, 1.0)), ContactClass.Rest),
+                    Mate(facing(post, (0.0, 0.0, -1.0)), PoseDef.flip(facing(floor, (0.0, 0.0, 1.0)))),
+                    Mate(facing(post, (0.0, 0.0, 1.0)), facing(floor, (0.0, 0.0, 1.0))),
                 ],
             )
         fault = caught.exception.fault
@@ -1518,42 +1440,18 @@ class TestTheWorld(BenchWorkspace):
         self.assertEqual(caught.exception.unplaced_bodies, [], "a profile is no body to place")
 
 
-#: A seat a metre past the shelf's near end: resting there, the shelf
-#: lies in the post's top plane clear of the post.
-OFF_THE_POST = (-1.0, SEAT_A[1], 0.0)
+class TestNestedAcrossTheSeam(BenchWorkspace):
+    """An inner document's seats, at the OUTER document's gate.
 
+    The census over the inner stand records its seat as a row and a
+    record, and the record crosses the instantiation seam with the
+    stand's geometry, so the outer census confirms the seat inside each
+    copy rather than reading it as a touch no record backs."""
 
-class TestCarriedAcrossTheSeam(BenchWorkspace):
-    """What an inner document's mates say, at the OUTER document's
-    gate.
-
-    A part's declared contacts cross the instantiation seam with its
-    geometry, and so does the bookkeeping that names them. Three things
-    a Python author sees because of that: a refuted carried declaration
-    names the mate that authored it, a declined one reaches the
-    frontier arm under the same name, and an inner part whose own mate
-    could not be minted refuses the OUTER gate rather than passing
-    silently.
-
-    ONE RULE at every door here: where a value carries a FOREIGN mate,
-    it carries `of` (the document that mate is in) and `via` (the
-    instances this document reached it through), and its `mate` is an
-    address in `of`'s space. A bare address with no document is not
-    something a caller can look up."""
-
-    def stand_doc(self, seed, class_=ContactClass.Rest, b_seat=None):
+    def stand_doc(self, seed):
         """The bench stand as its OWN document, so it can be
-        instantiated.
-
-        The shelf rests on the post's top where `b_seat` — a point of
-        its underside, `SEAT_A` unless given — meets the top's centre.
-        A seat a metre beyond the shelf's end puts the shelf in the
-        post's top plane clear of the post: the shelf seats where the
-        mate says and the declared rest is definite counter-evidence
-        (`OFF_THE_POST`). A seat moved out to the shelf's edge is the
-        GRAZING case: the post's top square lies outside the shelf's
-        footprint and shares one edge with it, so the census can decide
-        the pair in neither direction."""
+        instantiated: the shelf resting on the post's top where `SEAT_A`
+        meets the top's centre."""
         doc = Doc(seed)
         post_a = self.pinned(
             doc, self.post_ref, Frame.translation((0 * m, bench_scene.ROOT_OFFSET_Y * m, 0 * m))
@@ -1563,14 +1461,13 @@ class TestCarriedAcrossTheSeam(BenchWorkspace):
         shelf_i = doc.insert(Node.instantiate_part(self.shelf_ref, doc.world))
         a_top = self.instance_face(doc, post_a, CapEnd.End)
         s_bottom = self.instance_face(doc, shelf_i, CapEnd.Start)
-        slide = bench_scene.shelf_on_post(b_seat or SEAT_A)
-        mate, *_ = doc.set_constraints(
+        slide = bench_scene.shelf_on_post(SEAT_A)
+        doc.set_constraints(
             shelf_i,
             [
                 Mate(
                     PoseDef.plane(shelf_i, s_bottom),
                     PoseDef.flip(PoseDef.plane(post_a, a_top)),
-                    class_,
                 ),
                 MateValue(Coord.slide("x"), slide[0] * m),
                 MateValue(Coord.slide("y"), slide[1] * m),
@@ -1578,165 +1475,15 @@ class TestCarriedAcrossTheSeam(BenchWorkspace):
             ],
         )
         self.ws.create(doc)
-        return doc, mate, DocRef(doc.id, content_pin(doc))
+        return DocRef(doc.id, content_pin(doc))
 
-    def instantiated_pinned(self, seed, ref):
-        doc = Doc(seed)
-        instance = self.pinned(doc, ref)
-        return doc, instance
-
-    def instantiated(self, seed, ref):
-        return self.instantiated_pinned(seed, ref)
-
-    def carried(self, findings, relation):
-        return [f for f in findings if f.attribution and f.attribution.relation == relation]
-
-    def test_a_refuted_carried_declaration_names_its_mate_and_route(self):
-        # The shelf's seat is a metre past its end, so it rests in the
-        # post's top plane clear of the post and the declared rest is
-        # definite counter-evidence. A mate holds its two planes
-        # together, so an angle can no longer refute a rest: the offset
-        # is what is left to.
-        inner, inner_mate, ref = self.stand_doc("carried-refuted", b_seat=OFF_THE_POST)
-        outer, instance = self.instantiated("carried-refuted-outer", ref)
-        with self.assertRaises(pncad.AssemblyError) as caught:
-            assemble(outer, evaluate(outer, resolver=self.ws))
-        err = caught.exception
-        # A refuted declaration is a verdict against the document,
-        # whichever document authored it.
-        self.assertEqual(err.variant, "at_rest")
-        refuted = self.carried(err.findings, "carried_refuted")
-        self.assertTrue(refuted, [str(f) for f in err.findings])
-        for finding in refuted:
-            a = finding.attribution
-            # The mate is a constraint of the INNER document, and `of`
-            # and `via` are what make that address usable.
-            self.assertEqual(a.declaration.mate, inner_mate)
-            self.assertEqual(a.of, str(inner.id))
-            self.assertEqual(a.via, [instance])
-
-    def test_a_carried_decline_reaches_the_frontier_arm(self):
-        # The post moved out to the shelf's end: its top square lies
-        # beside the shelf's footprint and shares one edge with it, so
-        # the declared rest is decidable in neither direction —
-        # nothing refuted, nothing undeclared, nothing decided.
-        inner, inner_mate, ref = self.stand_doc(
-            "carried-declined", b_seat=(-POST_SECTION / 2, SEAT_A[1], 0.0)
-        )
-        outer, instance = self.instantiated("carried-declined-outer", ref)
-        with self.assertRaises(pncad.AssemblyError) as caught:
-            assemble(outer, evaluate(outer, resolver=self.ws))
-        err = caught.exception
-        self.assertEqual(err.variant, "uncertified")
-        declined = self.carried(err.findings, "carried_declined")
-        self.assertTrue(declined, [str(f) for f in err.findings])
-        for finding in declined:
-            a = finding.attribution
-            self.assertEqual(a.declaration.mate, inner_mate)
-            self.assertEqual(a.of, str(inner.id))
-            self.assertEqual(a.via, [instance])
-
-    def test_an_inner_mate_that_cannot_be_minted_refuses_the_outer_gate(self):
-        # A `Tangent` mate solves and mints no record at rest, so the
-        # stand refuses its own gate — and an outer document is not at
-        # rest over a part whose contact nothing verified.
-        inner, inner_mate, ref = self.stand_doc(
-            "carried-unmintable", class_=ContactClass.Tangent
-        )
-        outer, instance = self.instantiated("carried-unmintable-outer", ref)
-        outer.apply(DocEdit.set_label(instance, "left bracket"))
-        with self.assertRaises(pncad.AssemblyError) as caught:
-            assemble(outer, evaluate(outer, resolver=self.ws))
-        err = caught.exception
-        self.assertEqual(err.variant, "carried_mint_refusal")
-        # Every carried row travels, each with its own route:
-        # `through` is the instantiating node of the document that was
-        # asked about; the row's `refusal.mate` is the inner
-        # document's, and `of` and `via` are what make it a mate a
-        # caller can go and find.
-        (row,) = err.refusals
-        self.assertEqual(row.through, instance)
-        self.assertEqual(row.refusal.mate, inner_mate)
-        self.assertEqual(row.refusal.variant, "no_at_rest_record")
-        self.assertEqual(row.of, str(inner.id))
-        self.assertEqual(row.via, [instance])
-        self.assertIn("at rest", str(err))
-        # The route's first instance is the outer document's, so the
-        # row says it as that document holds it; the inner mate is
-        # said as the inner document holds it.
-        through = f'through InstantiatePart "left bracket" ({tag(instance)})'
-        self.assertIn(through, str(row))
-        self.assertIn(f"InstantiatePart {tag(inner_mate.placement)}", str(row))
-        self.assertIn(through, str(err))
-
-    def test_a_carried_row_says_the_parts_label_where_the_outer_holds_its_id(self):
-        # The outer document is the same stand, so it mints the same
-        # ids: it holds the inner mate's placement's id as its own,
-        # labelled apart. Every spelling of the carried row says the
-        # inner document's label, and the outer's never.
-        inner, inner_mate, _ = self.stand_doc(
-            "carried-twin", class_=ContactClass.Tangent
-        )
-        inner.apply(DocEdit.set_label(inner_mate.placement, "inner seat"))
-        self.ws.resave(inner)
-        ref = DocRef(inner.id, content_pin(inner))
-        outer, outer_mate, _ = self.stand_doc(
-            "carried-twin-outer", class_=ContactClass.Tangent
-        )
-        self.assertEqual(outer_mate, inner_mate, "both stands mint from the zero chain")
-        outer.apply(DocEdit.set_label(outer_mate.placement, "outer seat"))
-        instance = self.pinned(outer, ref)
-        outer.apply(DocEdit.set_label(instance, "left bracket"))
-        with self.assertRaises(pncad.AssemblyError) as caught:
-            assemble(outer, evaluate(outer, resolver=self.ws))
-        err = caught.exception
-        self.assertEqual(err.variant, "carried_mint_refusal")
-        (row,) = err.refusals
-        self.assertEqual(row.refusal.mate, inner_mate)
-        labelled = f'InstantiatePart "inner seat" ({tag(inner_mate.placement)})'
-        for said in (str(err), str(row), str(row.refusal)):
-            self.assertIn(labelled, said)
-            self.assertNotIn("outer seat", said)
-
-    def test_a_carried_finding_says_the_parts_label_where_the_outer_holds_its_id(self):
-        # Both stands seat the shelf off the post, so both declared
-        # rests are refuted; the outer document holds the inner mate's
-        # placement's id as its own.
-        inner, inner_mate, _ = self.stand_doc("carried-twin-refuted", b_seat=OFF_THE_POST)
-        inner.apply(DocEdit.set_label(inner_mate.placement, "inner seat"))
-        self.ws.resave(inner)
-        ref = DocRef(inner.id, content_pin(inner))
-        outer, outer_mate, _ = self.stand_doc("carried-twin-refuted-outer", b_seat=OFF_THE_POST)
-        self.assertEqual(outer_mate, inner_mate, "both stands mint from the zero chain")
-        outer.apply(DocEdit.set_label(outer_mate.placement, "outer seat"))
+    def test_two_nested_stands_assemble_in_the_outer_document(self):
+        ref = self.stand_doc("nested-stands")
+        outer = Doc("nested-stands-outer")
+        self.pinned(outer, ref)
         self.pinned(outer, ref, Frame.translation((5 * m, 0 * m, 0 * m)))
-        with self.assertRaises(pncad.AssemblyError) as caught:
-            assemble(outer, evaluate(outer, resolver=self.ws))
-        refuted = self.carried(caught.exception.findings, "carried_refuted")
-        self.assertTrue(refuted, [str(f) for f in caught.exception.findings])
-        for finding in refuted:
-            self.assertEqual(finding.attribution.declaration.mate, inner_mate)
-            for said in (str(finding), str(finding.attribution)):
-                self.assertIn(f'InstantiatePart "inner seat" ({tag(inner_mate.placement)})', said)
-                self.assertNotIn("outer seat", said)
-
-    def test_a_certified_assembly_names_the_carried_mates_it_certified_over(self):
-        # Two stands side by side, each certifying: the assembly keeps
-        # the rows, so it can say which inner mates its verdict
-        # answered for.
-        inner, inner_mate, ref = self.stand_doc("carried-certified")
-        outer = Doc("carried-certified-outer")
-        first = self.pinned(outer, ref)
-        second = self.pinned(outer, ref, Frame.translation((5 * m, 0 * m, 0 * m)))
         assembly = assemble(outer, evaluate(outer, resolver=self.ws))
-        self.assertEqual(assembly.minted, [])
-        self.assertEqual(
-            [(c.declaration.mate, c.of, c.via) for c in assembly.carried],
-            [
-                (inner_mate, str(inner.id), [first]),
-                (inner_mate, str(inner.id), [second]),
-            ],
-        )
+        self.assertGreater(len(assembly.names), 0)
 
 
 class TestAPoseFollowsItsFace(BenchWorkspace):
@@ -1766,7 +1513,6 @@ class TestAPoseFollowsItsFace(BenchWorkspace):
                 Mate(
                     PoseDef.plane(shelf_i, s_bottom),
                     PoseDef.flip(PoseDef.plane(post_i, a_top)),
-                    ContactClass.Rest,
                 ),
                 *(
                     MateValue(Coord.slide(axis), by if isinstance(by, Formula) else by * m)

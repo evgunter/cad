@@ -54,13 +54,11 @@ fn rings(half: &Body<f64>) -> usize {
 }
 
 fn volume(half: &Body<f64>) -> f64 {
-    topo::test_support::unmigrated_measure(
-        half,
+    topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(half), tol()),
         tol(),
-        topo::test_support::pinned_resolution(tol()),
     )
     .unwrap()
-    .enclosure
     .volume
 }
 
@@ -236,11 +234,26 @@ fn a_bored_brick_splits_at_every_tilt_and_offset() {
                 let what = format!("rod ({cx}, {cy}) at tilt {t}, flipped {flip}");
                 let plane = tilted(1.25, t, flip);
                 let [below, above] = halves_at_rest(&what, &body, &plane);
-                let [b, a] = [&below, &above].map(|h| {
-                    topo::test_support::unmigrated_measure(
-                        h,
+                // A tilted ellipse wall's quadrature may escalate at a
+                // tight ε (`props_quad_converged`); that pose's volume is
+                // then not read, and the count below says how many were.
+                let volumes = [&below, &above].map(|h| {
+                    topo::mass_properties(
+                        &topo::test_support::finished(
+                            "the measured body",
+                            topo::Body::clone(h),
+                            tol(),
+                        ),
                         tol(),
-                        topo::test_support::pinned_resolution(tol()),
+                    )
+                });
+                let quadrature = |r: &Result<topo::MassProperties<f64>, topo::MassPropsError>| {
+                    matches!(
+                        r,
+                        Err(topo::MassPropsError::Face {
+                            source: geom_brep::PropsError::Escalated { cause, .. },
+                            ..
+                        }) if cause.predicate == Some("props_quad_converged")
                     )
                     .unwrap_or_else(|e| panic!("{what}: volume refused: {e:?}"))
                 });
@@ -621,13 +634,11 @@ fn a_plane_through_a_notch_tip_splits_exactly() {
     let second = [(0.5, 4.5), (1.0, 2.0), (1.5, 4.5)].map(|(x, y)| Point2::new(x, y));
     let two = cut("second notch", &v, &prism(&second, -1.0, 3.0));
     for (name, body) in [("one notch", &v), ("two notches", &two)] {
-        let whole = topo::test_support::unmigrated_measure(
-            body,
+        let whole = topo::mass_properties(
+            &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
             tol(),
-            topo::test_support::pinned_resolution(tol()),
         )
         .unwrap()
-        .enclosure
         .volume;
         if name == "one notch" {
             // The notch's part inside the block is the triangle
@@ -1465,14 +1476,13 @@ fn a_split_across_a_ringed_wall_mints_each_segment_on_one_curve() {
     let pocket =
         2.0 * half * ((half * (1.0 - half * half).sqrt() + half.asin()) - 2.0 * half * 0.5);
     let [pb, pa] = [&below, &above].map(|h| {
-        topo::test_support::unmigrated_measure(
-            h,
+        topo::mass_properties(
+            &topo::test_support::finished("the measured body", topo::Body::clone(h), tol()),
             tol(),
-            topo::test_support::pinned_resolution(tol()),
         )
         .unwrap()
     });
-    let total = pb.enclosure.volume + pa.enclosure.volume;
+    let total = pb.volume + pa.volume;
     assert!(
         (total - (2.0 * PI - pocket)).abs() <= pb.enclosure.volume_pad + pa.enclosure.volume_pad,
         "the halves hold {total} ± {}, the drum less the pocket {}",

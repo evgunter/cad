@@ -59,17 +59,16 @@ fn exact_mass_pins_hold() {
     for d in documents() {
         let Some(result) = d.result else { continue };
         let ev = eval::<f64>(&d.doc);
-        let body = body_of(&ev, result);
-        assert_eq!(validate(body), Ok(()), "{}: tier 1", d.name);
-        assert_eq!(validate_closed(body), Ok(()), "{}: closed", d.name);
+        let body = topo::test_support::finished(
+            "body",
+            topo::Body::clone(body_of(&ev, result)),
+            Tol::witness(),
+        );
+        assert_eq!(validate(&body), Ok(()), "{}: tier 1", d.name);
+        assert_eq!(validate_closed(&body), Ok(()), "{}: closed", d.name);
         let Some(pin) = d.pin else { continue };
         pinned += 1;
-        let m = topo::test_support::unmigrated_measure(
-            body,
-            Tol::witness(),
-            topo::test_support::pinned_resolution(Tol::witness()),
-        )
-        .expect("mass properties");
+        let m = topo::mass_properties(&body, Tol::witness()).expect("mass properties");
         assert_eq!(
             m.enclosure.volume, pin.volume,
             "{}: volume {} != exact oracle {} (derivation in the document's module docs)",

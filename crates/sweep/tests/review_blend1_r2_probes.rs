@@ -98,14 +98,13 @@ fn bored_lantern() -> Body<f64> {
 }
 
 fn volume(body: &Body<f64>) -> f64 {
-    let props = topo::test_support::unmigrated_measure(
-        body,
+    let props = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
         tol(),
-        topo::test_support::pinned_resolution(tol()),
     )
     .expect("mass properties must compute");
-    assert_eq!(props.enclosure.volume_pad, 0.0, "closed-form inventory");
-    props.enclosure.volume
+    assert_eq!(props.volume_pad, 0.0, "closed-form inventory");
+    props.volume
 }
 
 // ------------------------------------------------------------------
@@ -418,10 +417,9 @@ fn fingerprint(source: &Body<f64>, arcs: &[EdgeKey], r: f64) -> String {
     let out =
         fillet_edges(&sweep::test_support::at_rest(source, tol()), arcs, r, tol()).expect("carves");
     let rec = out.naming.as_ref().expect("names");
-    let props = topo::test_support::unmigrated_measure(
-        &out.body,
+    let props = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol()),
         tol(),
-        topo::test_support::pinned_resolution(tol()),
     )
     .expect("mass properties");
     format!(

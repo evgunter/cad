@@ -48,10 +48,13 @@ fn r1_sections() -> (Vec<Section>, Vec<SketchPlane<f64>>) {
 fn r1_e2e_gauge_is_silent_on_an_honest_body_through_the_public_door() {
     let (sections, places) = r1_sections();
     let lofted = loft_body::<f64>(&sections, &places, 2, Tol::witness()).expect("r1 loft builds");
-    let m = topo::test_support::unmigrated_measure(
-        &lofted.body,
+    let m = topo::mass_properties(
+        &topo::test_support::finished(
+            "the measured body",
+            topo::Body::clone(&lofted.body),
+            Tol::witness(),
+        ),
         Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("mass properties");
     // Report the honest widths so the run is a measurement, not just a
@@ -111,11 +114,8 @@ fn r1_e2e_gauge_is_silent_at_the_interval_lane() {
         Tol::witness(),
     )
     .expect("r1 loft builds");
-    match topo::test_support::unmigrated_measure(
-        &lofted.body,
-        Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
-    ) {
+    // Raw door: the measured body is a body tier 3 cannot measure (VolumeUncomputable), whose typed refusal is the subject.
+    match topo::test_support::measure_unvalidated(&lofted.body, Tol::witness()) {
         Ok(m) => println!(
             "R1-E2E(interval) area_pad {:?} surface {:?}",
             m.enclosure.area_pad, m.enclosure.surface_area

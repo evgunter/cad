@@ -113,10 +113,13 @@ fn points(body: &Body<f64>) -> Vec<Point3<f64>> {
 fn report(what: &str, r: Result<Body<f64>, topo::ShellError<f64>>) -> Option<Body<f64>> {
     match r {
         Ok(b) => {
-            let props = topo::test_support::unmigrated_measure(
-                &b,
+            let props = topo::mass_properties(
+                &topo::test_support::finished(
+                    "the measured body",
+                    topo::Body::clone(&b),
+                    Tol::witness(),
+                ),
                 Tol::witness(),
-                topo::test_support::pinned_resolution(Tol::witness()),
             )
             .expect("props");
             println!(
@@ -227,13 +230,15 @@ fn r1b_the_unpinned_oblique_fixtures_against_their_closed_forms() {
             Tol::witness(),
         ) {
             Ok(topo::Shelled { body: b, .. }) => {
-                let got = topo::test_support::unmigrated_measure(
-                    &b,
+                let got = topo::mass_properties(
+                    &topo::test_support::finished(
+                        "the measured body",
+                        topo::Body::clone(&b),
+                        Tol::witness(),
+                    ),
                     Tol::witness(),
-                    topo::test_support::pinned_resolution(Tol::witness()),
                 )
                 .expect("props")
-                .enclosure
                 .volume;
                 println!(
                     "[r1b] {what}: BUILDS volume={got:.17e} closed form={want:.17e} \
@@ -345,13 +350,15 @@ fn r1d_the_straight_footprint_vertex_through_shell() {
         )
         .map(|shelled| shelled.body),
     ) {
-        let got = topo::test_support::unmigrated_measure(
-            &b,
+        let got = topo::mass_properties(
+            &topo::test_support::finished(
+                "the measured body",
+                topo::Body::clone(&b),
+                Tol::witness(),
+            ),
             Tol::witness(),
-            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .expect("props")
-        .enclosure
         .volume;
         println!(
             "[r1d] volume={got:.17e} want={want:.17e} delta={:.3e}",
@@ -500,13 +507,15 @@ fn r1e_conditioning_verdict_moves_with_the_offset_alone() {
                 Tol::witness(),
             ) {
                 Ok(topo::Shelled { body: b, .. }) => {
-                    let got = topo::test_support::unmigrated_measure(
-                        &b,
+                    let got = topo::mass_properties(
+                        &topo::test_support::finished(
+                            "the measured body",
+                            topo::Body::clone(&b),
+                            Tol::witness(),
+                        ),
                         Tol::witness(),
-                        topo::test_support::pinned_resolution(Tol::witness()),
                     )
                     .expect("props")
-                    .enclosure
                     .volume;
                     println!(
                         "[r1e] delta={delta:e} t={t:e}: BUILDS rel_err={:.3e}",
@@ -592,13 +601,15 @@ fn r1g_box_control() {
         )
         .map(|shelled| shelled.body),
     ) {
-        let got = topo::test_support::unmigrated_measure(
-            &b,
+        let got = topo::mass_properties(
+            &topo::test_support::finished(
+                "the measured body",
+                topo::Body::clone(&b),
+                Tol::witness(),
+            ),
             Tol::witness(),
-            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .expect("props")
-        .enclosure
         .volume;
         println!(
             "[r1g] volume bits={:x} closed form={want:.17e} delta={:.3e}",
@@ -680,10 +691,9 @@ fn wide_dump(body: &Body<f64>) -> String {
     for line in pc {
         let _ = writeln!(s, "{line}");
     }
-    let props = topo::test_support::unmigrated_measure(
-        body,
+    let props = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), Tol::witness()),
         Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap();
     let _ = writeln!(

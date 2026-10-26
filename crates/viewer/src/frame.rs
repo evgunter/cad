@@ -797,6 +797,7 @@ pub fn acts(op: &SessionOp) -> bool {
         | SessionOp::AddRevolve { .. }
         | SessionOp::AddBoolean { .. }
         | SessionOp::AddSplit { .. }
+        | SessionOp::AddMirror { .. }
         | SessionOp::AddTransform { .. }
         | SessionOp::AddPattern { .. }
         | SessionOp::AddPlacedUnion { .. }
@@ -907,6 +908,7 @@ fn replaces_the_document(op: &SessionOp) -> bool {
         | SessionOp::AddRevolve { .. }
         | SessionOp::AddBoolean { .. }
         | SessionOp::AddSplit { .. }
+        | SessionOp::AddMirror { .. }
         | SessionOp::AddTransform { .. }
         | SessionOp::AddPattern { .. }
         | SessionOp::AddPlacedUnion { .. }
@@ -2200,6 +2202,7 @@ pub fn tool_notice(
 ) -> Message {
     let retold = match notice {
         ToolNotice::Mate(MateToolEvent::PickLost { .. }) => Retold::Never,
+        ToolNotice::Mirror(crate::combine::MirrorEvent::PlaneLost { .. }) => Retold::Never,
         ToolNotice::Seated {
             event: SeatEvent::PickLost { .. },
             ..
@@ -2268,30 +2271,17 @@ pub fn tool_news(refusal: &PanelRefusal) -> Message {
 /// badge naming itself.
 pub fn at_rest_badge(at_rest: Option<&AtRestBadge>) -> Option<Badge> {
     Some(match at_rest? {
-        AtRestBadge::Certified {
-            minted,
-            loud,
-            quiet,
-        } => {
+        AtRestBadge::Certified { loud, quiet } => {
             // A loud overlap leads: it is what the reader acts on, and
             // "certified" before it would read as nothing to do.
             let (text, tone) = match (loud, quiet) {
-                (0, 0) => (
-                    format!("at rest: certified ({minted} declaration(s))"),
-                    Tone::Advisory,
-                ),
+                (0, 0) => ("at rest: certified".to_owned(), Tone::Advisory),
                 (0, quiet) => (
-                    format!(
-                        "at rest: certified ({minted} declaration(s), interference: 0 loud, \
-                         {quiet} quiet)"
-                    ),
+                    format!("at rest: certified (interference: 0 loud, {quiet} quiet)"),
                     Tone::Advisory,
                 ),
                 (loud, quiet) => (
-                    format!(
-                        "at rest: interference: {loud} loud, {quiet} quiet \
-                         ({minted} declaration(s) certified)"
-                    ),
+                    format!("at rest: interference: {loud} loud, {quiet} quiet"),
                     Tone::Actionable,
                 ),
             };

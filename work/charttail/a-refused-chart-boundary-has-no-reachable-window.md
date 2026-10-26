@@ -2,10 +2,11 @@
 id: a-refused-chart-boundary-has-no-reachable-window
 kind: issue
 title: window_of's chart_boundary Err arm is unreachable from any fixture on this tree
-status: open
+status: closed
 opened: 2026-09-14
 priority: P3
 cost: E
+closed: 2026-10-24
 ---
 
 
@@ -53,3 +54,10 @@ rather than as zero-because-nothing-refuses.
 ## Home
 
 TRIM — the arm is PR-2's, in the announced seam.
+
+## Closed
+
+Closed 2026-10-24 by `clearance-cells-are-decided-in-model-space`
+(CHART): `topo/src/chart_bound.rs` and `pcurves::chart_boundary` left the
+tree, and clearance decides its cells off each face's edges in model
+space (`topo::cell_region`). The code this row is about no longer exists.

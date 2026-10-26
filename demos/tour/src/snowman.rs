@@ -34,7 +34,7 @@
 //! concave edge (SELECT-DESIGN GS-Q2 reserves `Convex`/`Reflex`
 //! unbuilt), so the scene separates them through `query::rim_of`,
 //! which refuses a co-surface seed by name. That residue is a library
-//! finding (`work/tquery/adjacent-kinds-cannot-tell-a-crease-from-a-co-surface-seam.md`).
+//! finding (`work/wiretail/adjacent-kinds-cannot-tell-a-crease-from-a-co-surface-seam.md`).
 //!
 //! **Every oracle here is closed-form, not bit-exact.** The radii are
 //! the ones a person picks, so the volumes are irrational and are held
@@ -159,7 +159,7 @@ fn roll_centre() -> (f64, f64) {
 /// `p` to `q`, the short way round. With `ρ = a + s cos θ` and
 /// `y = b + s sin θ` the integrand is a polynomial in `cos θ`, and its
 /// antiderivative is closed-form.
-fn arc_rho2_dy(c: (f64, f64), s: f64, p: (f64, f64), q: (f64, f64)) -> f64 {
+pub(crate) fn arc_rho2_dy(c: (f64, f64), s: f64, p: (f64, f64), q: (f64, f64)) -> f64 {
     let a = c.0;
     let f = |t: f64| {
         a * a * s * t.sin()

@@ -198,10 +198,9 @@ fn r2a_valence4_concurring_corner_builds_in_closed_form() {
     topo::offset_planes_together(&mut chamfered, &moves, band(), tol)
         .expect("24 four-valent corners, every fourth plane verified Zero");
     assert_eq!(topo::validate_geometric(&chamfered, tol), Ok(()), "tier 3");
-    let props = topo::test_support::unmigrated_measure(
-        &chamfered,
+    let props = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(&chamfered), tol),
         tol,
-        topo::test_support::pinned_resolution(tol),
     )
     .expect("props");
     let want = chamfered_cube_volume(a - 2.0 * t, d + s * core::f64::consts::SQRT_2 - 2.0 * t);
@@ -248,10 +247,9 @@ fn r2a_bevel_kite_triangle_walls_in_closed_form() {
         let hollow = topo::shell(&finished("the operand", body.clone(), tol), t, tol)
             .unwrap_or_else(|e| panic!("{what} hollows, got {e}"))
             .body;
-        let props = topo::test_support::unmigrated_measure(
-            &hollow,
+        let props = topo::mass_properties(
+            &topo::test_support::finished("the measured body", topo::Body::clone(&hollow), tol),
             tol,
-            topo::test_support::pinned_resolution(tol),
         )
         .expect("props");
         let want = shoelace(&pts) * h - shoelace(&inset(&pts, t)) * (h - 2.0 * t);
@@ -299,24 +297,21 @@ fn r2a_a_face_named_twice_across_moves() {
         faces: moves[0].faces.clone(),
         distance: moves[0].distance,
     });
-    let before = topo::test_support::unmigrated_measure(
-        &body,
+    let before = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(&body), tol),
         tol,
-        topo::test_support::pinned_resolution(tol),
     )
     .expect("props")
-    .enclosure
     .volume;
     match topo::offset_planes_together(&mut body, &moves, band(), tol) {
         Err(e) => println!("[r2a] duplicate face: refused, {e}"),
         Ok(_) => {
             let tier3 = topo::validate_geometric(&body, tol);
-            let vol = topo::test_support::unmigrated_measure(
-                &body,
+            let vol = topo::mass_properties(
+                &topo::test_support::finished("the measured body", topo::Body::clone(&body), tol),
                 tol,
-                topo::test_support::pinned_resolution(tol),
             )
-            .map(|p| p.enclosure.volume);
+            .map(|p| p.volume);
             println!(
                 "[r2a] duplicate face: BUILT (operand was volume {before}); tier3 = {tier3:?}, \
                  volume = {vol:?} (a correct inset would be 1.5·2.5·3.5 = 13.125)"
@@ -391,16 +386,20 @@ fn r2a_one_curved_face_among_oblique_planes_takes_the_axial_door() {
     let profile = Profile::new(SketchPlane::xy(), vec![outer])
         .validate(tol)
         .expect("a one-arc hexagon validates");
-    let body = extrude(
-        &profile,
-        Extrusion::Distance {
-            depth,
-            side: ExtrudeSide::Along,
-        },
+    let body = topo::test_support::finished(
+        "body",
+        extrude(
+            &profile,
+            Extrusion::Distance {
+                depth,
+                side: ExtrudeSide::Along,
+            },
+            tol,
+        )
+        .expect("a one-arc hexagon extrudes")
+        .body,
         tol,
-    )
-    .expect("a one-arc hexagon extrudes")
-    .body;
+    );
     let curved = body
         .faces()
         .filter(|(_, f)| !matches!(body.get_surface(f.surface), Some(Surface::Plane { .. })))
@@ -410,14 +409,7 @@ fn r2a_one_curved_face_among_oblique_planes_takes_the_axial_door() {
         topo::is_axial(&body, band()).expect("the axis gate decides"),
         "sides parallel to the arc's axis, ends normal to it"
     );
-    let operand = topo::test_support::unmigrated_measure(
-        &body,
-        tol,
-        topo::test_support::pinned_resolution(tol),
-    )
-    .expect("props")
-    .enclosure
-    .volume;
+    let operand = topo::mass_properties(&body, tol).expect("props").volume;
     let area = bulge_loop_area(&hex);
     assert!(
         (operand - area * depth).abs() <= 1e-15,
@@ -425,17 +417,19 @@ fn r2a_one_curved_face_among_oblique_planes_takes_the_axial_door() {
         area * depth
     );
     let want = area * depth - bulge_loop_area(&eroded_bulge_loop(&hex, t)) * (depth - 2.0 * t);
-    let hollow = topo::shell(&finished("the operand", body.clone(), tol), t, tol)
-        .unwrap_or_else(|e| panic!("the one-arc hexagon hollows: {e}"))
-        .body;
-    assert_eq!(topo::validate_geometric(&hollow, tol), Ok(()), "tier 3");
-    let got = topo::test_support::unmigrated_measure(
-        &hollow,
+    let hollow = topo::shell(
+        &finished("the operand", topo::Body::clone(&body.clone()), tol),
+        t,
         tol,
-        topo::test_support::pinned_resolution(tol),
+    )
+    .unwrap_or_else(|e| panic!("the one-arc hexagon hollows: {e}"))
+    .body;
+    assert_eq!(topo::validate_geometric(&hollow, tol), Ok(()), "tier 3");
+    let got = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(&hollow), tol),
+        tol,
     )
     .expect("props")
-    .enclosure
     .volume;
     println!("[r2a] one-arc hexagon hollow: {got}, closed form {want}");
     assert!((got - want).abs() <= 1e-15, "hollow {got}, want {want}");
@@ -460,10 +454,9 @@ fn r2a_straight_vertex_prism_through_shell_at_head() {
     );
     match topo::shell(&finished("the operand", body.clone(), tol), 0.05, tol) {
         Ok(topo::Shelled { body: hollow, .. }) => {
-            let props = topo::test_support::unmigrated_measure(
-                &hollow,
+            let props = topo::mass_properties(
+                &topo::test_support::finished("the measured body", topo::Body::clone(&hollow), tol),
                 tol,
-                topo::test_support::pinned_resolution(tol),
             )
             .expect("props");
             println!(

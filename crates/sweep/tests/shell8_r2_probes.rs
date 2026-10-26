@@ -30,11 +30,14 @@ fn points(body: &Body<f64>) -> Vec<(topo::VertexKey, (u64, u64, u64))> {
 }
 
 fn roles(body: &Body<f64>) -> Vec<(topo::ShellKey, ShellRole)> {
-    topo::test_support::unmigrated_classify(body, tol())
-        .expect("classifies")
-        .into_iter()
-        .map(|c| (c.shell, c.role))
-        .collect()
+    topo::classify_shells(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
+        tol(),
+    )
+    .expect("classifies")
+    .into_iter()
+    .map(|c| (c.shell, c.role))
+    .collect()
 }
 
 /// Compare the bit patterns of every vertex of `solid` between two
@@ -310,10 +313,9 @@ fn r2_lift_on_the_vessels_void_ceiling_alone_and_beside_a_box() {
         tol(),
     )
     .expect("the void ceiling opens");
-    let props = topo::test_support::unmigrated_measure(
-        &alone.body,
+    let props = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(&alone.body), tol()),
         tol(),
-        topo::test_support::pinned_resolution(tol()),
     )
     .unwrap();
     let want = hollow_vessel_want(t1, t, 1.0, 2.0, true);
@@ -374,10 +376,9 @@ fn r2_lift_on_the_vessels_void_ceiling_alone_and_beside_a_box() {
     }
     println!("[r2] box beside opened vessel: box vertices same={same} moved={moved}");
     assert_eq!((same, moved), (8, 0));
-    let props = topo::test_support::unmigrated_measure(
-        &opened.body,
+    let props = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(&opened.body), tol()),
         tol(),
-        topo::test_support::pinned_resolution(tol()),
     )
     .unwrap();
     let want = (box_volume(2.0, 3.0, 4.0)
@@ -538,10 +539,13 @@ fn r2_e2e_consumer_seat() {
     )
     .expect("both parts hollow in one call");
     let want = one_wall(0.05) + PI * (1.0 * 2.0 - 0.95 * 0.95 * 1.9);
-    let props = topo::test_support::unmigrated_measure(
-        &hollowed.body,
+    let props = topo::mass_properties(
+        &topo::test_support::finished(
+            "the measured body",
+            topo::Body::clone(&hollowed.body),
+            tol(),
+        ),
         tol(),
-        topo::test_support::pinned_resolution(tol()),
     )
     .unwrap();
     println!(
@@ -653,10 +657,9 @@ fn r2_e2e_consumer_seat() {
     let want = (box_volume(2.0, 3.0, 4.0) - box_volume(1.96, 2.96, 3.96))
         + (box_volume(1.94, 2.94, 3.94) - box_volume(1.9, 2.9, 3.9))
         + hollow_vessel_want(0.05, 0.02, 1.0, 2.0, true);
-    let props = topo::test_support::unmigrated_measure(
-        &opened.body,
+    let props = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(&opened.body), tol()),
         tol(),
-        topo::test_support::pinned_resolution(tol()),
     )
     .unwrap();
     println!(
@@ -967,12 +970,12 @@ fn opposed_pair() -> (Body<f64>, SolidKey, SolidKey, FaceKey, FaceKey) {
 
 /// `body`'s volume is `want` to the exact-volume pad.
 fn assert_volume(body: &Body<f64>, want: f64, what: &str) {
-    let props = topo::test_support::unmigrated_measure(
-        body,
-        tol(),
-        topo::test_support::pinned_resolution(tol()),
-    )
-    .unwrap();
+    let props = topo::mass_properties(&finished(what, Body::clone(body), tol()), tol()).unwrap();
+    assert_near_volume(&props, want, what);
+}
+
+/// [`assert_volume`] over measured `props`.
+fn assert_near_volume(props: &topo::MassProperties<f64>, want: f64, what: &str) {
     assert!(
         (props.enclosure.volume - want).abs() <= 1e-9 + props.enclosure.volume_pad,
         "{what}: volume {} want {want}",
@@ -1205,12 +1208,20 @@ fn r2_replace_faces_offset_scopes_to_the_solid_across_shells_and_solids() {
         matches!(e, topo::ReplaceFaceError::SharedSurfaceKey { .. }),
         "one shell's wearer of the solid's chart: {e}"
     );
-    let before = volume(&one);
+    // Raw door: `one` files two pieces under one solid, which tier 3 refuses (SolidOuterShells).
+    let before = topo::test_support::measure_unvalidated(&one, tol())
+        .unwrap()
+        .volume;
     topo::replace_faces_offset(&mut one, &tops, -0.1, tol()).expect("both of the solid's wearers");
     // Two pieces under one solid is tier 3's refusal by count; tiers 1
     // and 2 hold.
     assert_eq!(topo::validate_closed(&one), Ok(()));
-    assert_volume(&one, before - 2.0 * 2.5 * 0.1, "one solid, both tops");
+    assert_near_volume(
+        // Raw door: `one`, offset, still files two pieces under one solid (SolidOuterShells).
+        &topo::test_support::measure_unvalidated(&one, tol()).unwrap(),
+        before - 2.0 * 2.5 * 0.1,
+        "one solid, both tops",
+    );
 
     let mut two = split_slab(true);
     let solids: Vec<SolidKey> = two.solids().map(|(k, _)| k).collect();

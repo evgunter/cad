@@ -234,13 +234,13 @@ fn a_bar_through_the_cone_wall_refuses_at_every_pose() {
                 assert!(
                     matches!(
                         out,
-                        Err(BooleanError::GermSectionOutsideInventory {
-                            conic: geom_brep::OutsideConic::Hyperbola,
+                        Err(BooleanError::GermSectionOpenConic {
+                            conic: geom_brep::OpenConic::Hyperbola,
                             ..
                         })
                     ),
                     "{label}, {op}: the bar's faces parallel to the axis cut the cone wall \
-                     in hyperbolas, refused by decision: {:?}",
+                     in hyperbolas, refused at the frame: {:?}",
                     out.map(|r| r.body().is_some())
                 );
             }

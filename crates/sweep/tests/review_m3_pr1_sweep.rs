@@ -272,20 +272,17 @@ fn revert_extruded_prism_posture() {
         Tol::witness(),
     )
     .unwrap();
-    let body: Body<f64> = out.body;
+    let body = topo::test_support::finished("body", out.body, Tol::witness());
     assert_eq!(validate_geometric(&body, Tol::witness()), Ok(()));
-    let original = format!("{body:?}");
-    let vol = topo::test_support::unmigrated_measure(
-        &body,
-        Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
-    )
-    .unwrap()
-    .enclosure
-    .volume;
+    let original = format!("{:?}", *body);
+    let vol = topo::mass_properties(&body, Tol::witness()).unwrap().volume;
     assert!(vol > 0.0);
     let reverted = body.revert().unwrap();
-    assert_eq!(format!("{body:?}"), original, "revert mutated its operand");
+    assert_eq!(
+        format!("{:?}", *body),
+        original,
+        "revert mutated its operand"
+    );
     assert_eq!(validate_closed(&reverted), Ok(()));
     assert_eq!(
         validate_geometric(&reverted, Tol::witness()),
@@ -294,14 +291,10 @@ fn revert_extruded_prism_posture() {
         }]),
         "tier 3 on a reverted prism must be exactly NegativeVolume"
     );
-    let rvol = topo::test_support::unmigrated_measure(
-        &reverted,
-        Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
-    )
-    .unwrap()
-    .enclosure
-    .volume;
+    // Raw door: `reverted` is an inside-out body, which tier 3 refuses (NegativeVolume).
+    let rvol = topo::test_support::measure_unvalidated(&reverted, Tol::witness())
+        .unwrap()
+        .volume;
     assert_eq!(rvol.to_bits(), (-vol).to_bits());
     // Involution + determinism, bitwise through the Debug channel.
     assert_eq!(format!("{:?}", reverted.revert().unwrap()), original);
@@ -332,17 +325,10 @@ fn revert_curved_body_reverts_via_the_sense_bit() {
         Tol::witness(),
     )
     .unwrap();
-    let body: Body<f64> = out.body;
+    let body = topo::test_support::finished("body", out.body, Tol::witness());
     assert_eq!(validate_geometric(&body, Tol::witness()), Ok(()));
-    let before = format!("{body:?}");
-    let vol = topo::test_support::unmigrated_measure(
-        &body,
-        Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
-    )
-    .unwrap()
-    .enclosure
-    .volume;
+    let before = format!("{:?}", *body);
+    let vol = topo::mass_properties(&body, Tol::witness()).unwrap().volume;
     assert!(vol > 0.0);
     // There really is a non-plane surface here (the arc wall).
     let curved: Vec<_> = body
@@ -358,7 +344,7 @@ fn revert_curved_body_reverts_via_the_sense_bit() {
     assert!(!curved.is_empty(), "the D-body has a cylinder wall");
 
     let reverted = body.revert().unwrap();
-    assert_eq!(format!("{body:?}"), before, "revert mutated its operand");
+    assert_eq!(format!("{:?}", *body), before, "revert mutated its operand");
     // Exactly the curved faces flipped, and they flipped from their
     // OWN bit (not stamped to a constant).
     for (k, was) in &curved {
@@ -377,14 +363,10 @@ fn revert_curved_body_reverts_via_the_sense_bit() {
         }]),
         "tier 3 on a reverted curved body must be exactly NegativeVolume"
     );
-    let rvol = topo::test_support::unmigrated_measure(
-        &reverted,
-        Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
-    )
-    .unwrap()
-    .enclosure
-    .volume;
+    // Raw door: `reverted` is an inside-out body, which tier 3 refuses (NegativeVolume).
+    let rvol = topo::test_support::measure_unvalidated(&reverted, Tol::witness())
+        .unwrap()
+        .volume;
     assert_eq!(rvol.to_bits(), (-vol).to_bits());
     assert_eq!(format!("{:?}", reverted.revert().unwrap()), before);
     assert_eq!(
@@ -410,13 +392,15 @@ fn split_then_null_lifecycle_on_prism() {
     )
     .unwrap();
     let mut body: Body<f64> = out.body;
-    let vol0 = topo::test_support::unmigrated_measure(
-        &body,
+    let vol0 = topo::mass_properties(
+        &topo::test_support::finished(
+            "the measured body",
+            topo::Body::clone(&body),
+            Tol::witness(),
+        ),
         Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .enclosure
     .volume;
     // Split some line edge mid-span.
     let (edge, curve) = body
@@ -434,16 +418,12 @@ fn split_then_null_lifecycle_on_prism() {
         vertex: split.vertex,
     }]);
     assert_eq!(validate_geometric(&body, Tol::witness()), joinable);
+    // Raw door: the measured body is construction state whose joinable vertices tier 3 refuses (JoinableVertexAtRest).
     assert_eq!(
-        topo::test_support::unmigrated_measure(
-            &body,
-            Tol::witness(),
-            topo::test_support::pinned_resolution(Tol::witness())
-        )
-        .unwrap()
-        .enclosure
-        .volume
-        .to_bits(),
+        topo::test_support::measure_unvalidated(&body, Tol::witness())
+            .unwrap()
+            .volume
+            .to_bits(),
         vol0.to_bits(),
         "split changed the prism's exact volume"
     );
@@ -456,13 +436,9 @@ fn split_then_null_lifecycle_on_prism() {
             topo::NewVertexSide::Below,
         )
         .unwrap();
+    // Raw door: the measured body carries a null scaffolding strut, which tier 3 refuses (ScaffoldingStrutVertex), and the door's typed refusal of it is the subject.
     assert!(matches!(
-        topo::test_support::unmigrated_measure(
-            &body,
-            Tol::witness(),
-            topo::test_support::pinned_resolution(Tol::witness())
-        )
-        .unwrap_err(),
+        topo::test_support::measure_unvalidated(&body, Tol::witness()).unwrap_err(),
         topo::MassPropsError::NullScaffoldEdge { .. }
     ));
     assert!(validate_closed(&body).is_err());

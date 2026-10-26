@@ -30,13 +30,15 @@ fn symmetric_double_rim_split_volume_at_base() {
     .unwrap()
     .body;
     let true_vol = std::f64::consts::PI * 0.25 * 1.0;
-    let v0 = topo::test_support::unmigrated_measure(
-        &body,
+    let v0 = topo::mass_properties(
+        &topo::test_support::finished(
+            "the measured body",
+            topo::Body::clone(&body),
+            Tol::witness(),
+        ),
         Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .enclosure
     .volume;
     assert!((v0 - true_vol).abs() < 1e-9, "pre-split volume sane");
     // Find one cylinder wall face and its two circle-carrier edges.
@@ -74,11 +76,8 @@ fn symmetric_double_rim_split_volume_at_base() {
             .expect("rim split at rest");
     }
     let tier3 = topo::validate_geometric(&body, Tol::witness());
-    match topo::test_support::unmigrated_measure(
-        &body,
-        Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
-    ) {
+    // Raw door: the measured body is construction state whose joinable vertices tier 3 refuses (JoinableVertexAtRest).
+    match topo::test_support::measure_unvalidated(&body, Tol::witness()) {
         Err(e) => eprintln!("BASE: props refused typed ({e:?}) — main honest"),
         Ok(p) => {
             eprintln!(

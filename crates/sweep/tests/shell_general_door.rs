@@ -291,10 +291,13 @@ fn tangent_charts_shell_onto_their_closed_forms() {
         for t in [0.1, 0.05] {
             let shelled = topo::shell(&at_rest, t, Tol::witness())
                 .unwrap_or_else(|e| panic!("eps {eps:e}, {name} at {t}: the shell builds: {e}"));
-            let props = topo::test_support::unmigrated_measure(
-                &shelled.body,
+            let props = topo::mass_properties(
+                &topo::test_support::finished(
+                    "the measured body",
+                    topo::Body::clone(&shelled.body),
+                    Tol::witness(),
+                ),
                 Tol::witness(),
-                topo::test_support::pinned_resolution(Tol::witness()),
             )
             .unwrap_or_else(|e| panic!("eps {eps:e}, {name} at {t}: the thin solid weighs: {e}"));
             let want = closed(t);

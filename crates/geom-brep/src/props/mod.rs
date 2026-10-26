@@ -129,7 +129,9 @@ mod closure;
 mod curved;
 mod loop_area;
 pub mod quad;
+pub mod rational_rim;
 pub mod spiric;
+pub(crate) mod taylor;
 
 use geom::Curve3;
 use geom_core::spline::SpanLocate;
@@ -142,7 +144,7 @@ pub use curved::{
     cone_face_closed_form, curved_face, curved_face_loops, require_iso_rectangle,
     require_one_chart_branch, seam_loops, sphere_region_cover, sphere_region_material_sign,
 };
-pub use loop_area::{arc_segment_term, chord_bulge, loop_vector_area};
+pub use loop_area::{arc_segment_term, chord_bulge, is_rational, loop_vector_area};
 
 /// One traversed boundary edge of a face loop: a key-free view of
 /// (carrier, certified `he_plus`-forward parameter interval, traversal
@@ -738,9 +740,10 @@ impl std::error::Error for PropsError {}
 ///
 /// # Errors
 ///
-/// [`PropsError::Unimplemented`] on a rational `Nurbs` carrier
-/// (non-rational spline boundaries integrate exactly through
-/// [`loop_vector_area`]'s per-span Gauss closed form — the reachable
+/// [`PropsError::Unimplemented`] on a rational `Nurbs` carrier, which
+/// the certified lane reads instead ([`rational_rim`]); non-rational
+/// spline boundaries integrate exactly through
+/// [`loop_vector_area`]'s per-span Gauss closed form (the reachable
 /// at-rest case is a stage-1-promoted plane keeping its parsed spline
 /// boundary carriers).
 pub fn planar_face<T: SpanLocate>(

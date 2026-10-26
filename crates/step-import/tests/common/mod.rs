@@ -14,7 +14,14 @@
 use std::path::PathBuf;
 
 use geom_core::Tol;
-use topo::Body;
+use topo::{AtRestBody, Body};
+
+/// `body` finished through the at-rest gate: what the export door
+/// takes. An imported body passed the gate already; the export door's
+/// type asks for the verdict, so it is taken again here.
+pub fn at_rest(body: &Body<f64>) -> AtRestBody<f64> {
+    topo::test_support::finished("the exported body", body.clone(), Tol::witness())
+}
 
 /// The committed solid corpus, in `fixture_corpus()` file order.
 /// `loft_prism` joined at M7-3 (14 → 15): the first NURBS-walled

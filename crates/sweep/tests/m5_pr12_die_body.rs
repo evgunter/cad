@@ -77,10 +77,13 @@ fn filleting_every_edge_of_a_box_yields_a_tier3_valid_rounded_solid() {
         + 12.0 * (PI * r * r / 4.0) * core
         + (4.0 / 3.0) * PI * r.powi(3);
     let area = 6.0 * core.powi(2) + 12.0 * (PI * r / 2.0) * core + 4.0 * PI * r * r;
-    let props = topo::test_support::unmigrated_measure(
-        &f.body,
+    let props = topo::mass_properties(
+        &topo::test_support::finished(
+            "the measured body",
+            topo::Body::clone(&f.body),
+            Tol::witness(),
+        ),
         Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap();
     assert!(
@@ -144,10 +147,13 @@ fn the_die_is_tier3_valid_at_a_second_radius() {
         + 6.0 * r * core.powi(2)
         + 12.0 * (PI * r * r / 4.0) * core
         + (4.0 / 3.0) * PI * r.powi(3);
-    let props = topo::test_support::unmigrated_measure(
-        &f.body,
+    let props = topo::mass_properties(
+        &topo::test_support::finished(
+            "the measured body",
+            topo::Body::clone(&f.body),
+            Tol::witness(),
+        ),
         Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap();
     assert!(

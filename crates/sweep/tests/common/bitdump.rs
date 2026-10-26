@@ -85,10 +85,9 @@ pub fn dump(body: &Body<f64>) -> String {
             let _ = writeln!(s);
         }
     }
-    let props = topo::test_support::unmigrated_measure(
-        body,
+    let props = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), Tol::witness()),
         Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap();
     let _ = writeln!(

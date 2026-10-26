@@ -178,7 +178,7 @@ pub use mesh;
 /// kernel-internal classify-seam margin type — different things, and
 /// only the former is prelude surface.
 pub use quantity;
-/// STEP AP242 export.
+/// STEP AP214 export.
 pub use step_export;
 /// STEP import and its adoption diagnostics.
 pub use step_import;

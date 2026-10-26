@@ -56,8 +56,13 @@ fn one_call_hollow_ring() {
     // boundary and the cavity, and the handle bundle names both.
     assert_eq!(t.body.shells().count(), 2);
     assert_eq!(t.cavities.len(), 1);
-    assert_ne!(t.cavities[0], t.shell);
-    let cavity = t.body.get_shell(t.cavities[0]).unwrap();
+    assert_eq!(
+        t.cavities[0].origin,
+        sweep::CavityOrigin::Hole { loop_index: 1 },
+        "the cavity is keyed by the hole loop it revolves"
+    );
+    assert_ne!(t.cavities[0].shell, t.shell);
+    let cavity = t.body.get_shell(t.cavities[0].shell).unwrap();
     let outer = t.body.get_shell(t.shell).unwrap();
     assert_eq!(cavity.solid, t.solid);
     assert_eq!(outer.solid, t.solid);
@@ -99,10 +104,13 @@ fn one_call_hollow_ring() {
     //   outer walls: 2π(1.5 + 2 + 1.5 + 1)  = 2π·6
     //   hole walls:  2π·0.5·(1.5+1.75+1.5+1.25) = 2π·3
     let pi = core::f64::consts::PI;
-    let props = topo::test_support::unmigrated_measure(
-        &t.body,
+    let props = topo::mass_properties(
+        &topo::test_support::finished(
+            "the measured body",
+            topo::Body::clone(&t.body),
+            Tol::witness(),
+        ),
         Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap();
     let v_expect = 2.0 * pi * (1.5 - 0.375);
@@ -152,10 +160,9 @@ fn hollow_torus_runs_no_crossing_machinery() {
     // Torus closed forms (independent): V = 2π²·Rc·(ro² − ri²),
     // A = 4π²·Rc·(ro + ri).
     let pi = core::f64::consts::PI;
-    let props = topo::test_support::unmigrated_measure(
-        &t.body,
+    let props = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(&t.body), tol),
         tol,
-        topo::test_support::pinned_resolution(tol),
     )
     .unwrap();
     let v_expect = 2.0 * pi * pi * rc * (ro * ro - ri * ri);
@@ -191,16 +198,24 @@ fn two_holes_two_cavities() {
     assert_all_tiers(&t.body);
     assert_eq!(t.body.shells().count(), 3);
     assert_eq!(t.cavities.len(), 2);
-    assert_ne!(t.cavities[0], t.cavities[1]);
+    assert_ne!(t.cavities[0].shell, t.cavities[1].shell);
+    assert_eq!(
+        t.cavities.iter().map(|c| c.origin).collect::<Vec<_>>(),
+        [1, 2].map(|loop_index| sweep::CavityOrigin::Hole { loop_index }),
+        "one cavity per hole loop, in canonical order"
+    );
     assert_eq!(t.walls().len(), 3);
 
     // Pappus, hole by hole: outer 2·3 at r̄ 2; h1 1·0.5 at r̄ 2;
     // h2 0.5·1 at r̄ 1.75.
     let pi = core::f64::consts::PI;
-    let props = topo::test_support::unmigrated_measure(
-        &t.body,
+    let props = topo::mass_properties(
+        &topo::test_support::finished(
+            "the measured body",
+            topo::Body::clone(&t.body),
+            Tol::witness(),
+        ),
         Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap();
     let v_expect = 2.0 * pi * (6.0 * 2.0 - 0.5 * 2.0 - 0.5 * 1.75);
@@ -245,10 +260,13 @@ fn wire_outer_with_hole_cavity() {
 
     // Pappus: outer cylinder solid 2·3 at r̄ 1 minus hole 1·1 at r̄ 1.
     let pi = core::f64::consts::PI;
-    let props = topo::test_support::unmigrated_measure(
-        &t.body,
+    let props = topo::mass_properties(
+        &topo::test_support::finished(
+            "the measured body",
+            topo::Body::clone(&t.body),
+            Tol::witness(),
+        ),
         Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap();
     let v_expect = 2.0 * pi * (6.0 * 1.0 - 1.0 * 1.0);
@@ -272,21 +290,24 @@ fn holed_full_revolve_replays() {
     };
     let (a, b) = (build(), build());
     assert_eq!(counts(&a.body), counts(&b.body));
-    let pa = topo::test_support::unmigrated_measure(
-        &a.body,
+    let pa = topo::mass_properties(
+        &topo::test_support::finished(
+            "the measured body",
+            topo::Body::clone(&a.body),
+            Tol::witness(),
+        ),
         Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap();
-    let pb = topo::test_support::unmigrated_measure(
-        &b.body,
+    let pb = topo::mass_properties(
+        &topo::test_support::finished(
+            "the measured body",
+            topo::Body::clone(&b.body),
+            Tol::witness(),
+        ),
         Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap();
-    assert_eq!(pa.enclosure.volume.to_bits(), pb.enclosure.volume.to_bits());
-    assert_eq!(
-        pa.enclosure.surface_area.to_bits(),
-        pb.enclosure.surface_area.to_bits()
-    );
+    assert_eq!(pa.volume.to_bits(), pb.volume.to_bits());
+    assert_eq!(pa.surface_area.to_bits(), pb.surface_area.to_bits());
 }

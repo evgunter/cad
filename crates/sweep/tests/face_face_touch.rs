@@ -959,7 +959,7 @@ fn a_bridged_rods_unrecorded_tangent_line_refuses_and_its_carried_record_passes(
         );
         assert_eq!(
             found[0].pair.class,
-            topo::ContactClass::Tangent,
+            topo::GlueClass::Tangent,
             "{label}: a Tangent finding"
         );
         let r = bridged_rod(0.0, rod_first, true);

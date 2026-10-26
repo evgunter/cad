@@ -345,8 +345,8 @@ pub enum NormalizationKind {
     /// seam generator between them (Open CASCADE never splits a
     /// periodic face on export). The kernel's face model has one outer
     /// loop plus rings, and a ring that winds the chart's period is a
-    /// loop tier 3's pcurve mint refuses (`topo::PcurveMintError::LoopWraps`),
-    /// so the band cannot adopt as stated. Re-minted as the kernel's
+    /// loop whose chart walk does not close on its start
+    /// (`topo::loop_windings`), so the band cannot adopt as stated. Re-minted as the kernel's
     /// own shape for the same locus:
     /// ONE single-loop face whose loop walks one rim, the minted seam
     /// generator (the surface's u_ref ruling for a cylinder, its u_ref

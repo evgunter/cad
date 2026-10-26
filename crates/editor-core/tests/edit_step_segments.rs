@@ -1080,13 +1080,11 @@ fn a_twisted_loft_takes_the_twist_the_author_wrote() {
             );
         }
     }
-    let volume = topo::test_support::unmigrated_measure(
-        body,
+    let volume = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(&**body), tol()),
         tol(),
-        topo::test_support::pinned_resolution(tol()),
     )
     .expect("mass properties")
-    .enclosure
     .volume;
     let c15 = (core::f64::consts::PI / 12.0).cos();
     let want = (8.0 + 16.0 * c15 * c15) / 6.0;

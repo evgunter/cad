@@ -79,13 +79,12 @@ fn tiers<T: geom_core::Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>
 /// contributes a quadrature enclosure converged to an ε-scaled target,
 /// so the closed form is only certified within `volume ± pad`.
 fn volume(body: &Body<f64>) -> (f64, f64) {
-    let m = topo::test_support::unmigrated_measure(
-        body,
+    let m = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
         tol(),
-        topo::test_support::pinned_resolution(tol()),
     )
     .unwrap();
-    (m.enclosure.volume, m.enclosure.volume_pad)
+    (m.volume, m.volume_pad)
 }
 
 fn close((got, pad): (f64, f64), want: f64, what: &str) {
@@ -250,13 +249,15 @@ fn one_segment_circles_extrude_at_interval() {
                         is_wrap(&t.body, walls[0].strut),
                         "{what}: the strut is the wall's seam"
                     );
-                    let v = topo::test_support::unmigrated_measure(
-                        &t.body,
+                    let v = topo::mass_properties(
+                        &topo::test_support::finished(
+                            "the measured body",
+                            topo::Body::clone(&t.body),
+                            tol(),
+                        ),
                         tol(),
-                        topo::test_support::pinned_resolution(tol()),
                     )
                     .unwrap()
-                    .enclosure
                     .volume;
                     assert!(
                         v.lo() <= want && want <= v.hi(),
@@ -562,13 +563,15 @@ fn one_segment_circles_revolve_at_interval() {
                 tiers(&t.body, &what);
                 assert_eq!(census(&t.body), counts, "{what}");
                 let want = theta * moment;
-                let v = topo::test_support::unmigrated_measure(
-                    &t.body,
+                let v = topo::mass_properties(
+                    &topo::test_support::finished(
+                        "the measured body",
+                        topo::Body::clone(&t.body),
+                        tol(),
+                    ),
                     tol(),
-                    topo::test_support::pinned_resolution(tol()),
                 )
                 .unwrap()
-                .enclosure
                 .volume;
                 assert!(
                     v.lo() <= want && want <= v.hi(),
@@ -720,8 +723,12 @@ fn a_lofted_one_segment_wall_measures_as_the_two_arc_wall() {
     let measure = |what: &str, [a, b]: [ProfileLoop<f64>; 2]| {
         let lofted = sweep::loft_body::<f64>(&[vec![a], vec![b]], &places, 1, tol())
             .unwrap_or_else(|e| panic!("{what}: the loft builds: {e}"));
-        let m = topo::test_support::unmigrated_measure(
-            &lofted.body,
+        let m = topo::mass_properties(
+            &topo::test_support::finished(
+                "the measured body",
+                topo::Body::clone(&lofted.body),
+                tol(),
+            ),
             tol(),
             topo::test_support::pinned_resolution(tol()),
         )

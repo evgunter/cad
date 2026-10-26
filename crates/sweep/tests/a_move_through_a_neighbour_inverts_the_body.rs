@@ -52,13 +52,11 @@ fn face_where(body: &Body<f64>, want: impl Fn(&Surface<f64>) -> bool) -> FaceKey
 }
 
 fn volume(body: &Body<f64>) -> f64 {
-    topo::test_support::unmigrated_measure(
-        body,
+    topo::mass_properties(
+        &AtRestBody::validate(Body::clone(body), Tol::witness()).expect("the body is finished"),
         Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .enclosure
     .volume
 }
 
@@ -112,7 +110,10 @@ fn the_door_builds_the_inverted_body_and_the_gate_refuses_it() {
             .unwrap_or_else(|e| panic!("{what}: the door builds through the neighbour, got {e}"));
         topo::validate_closed(&moved)
             .unwrap_or_else(|e| panic!("{what}: the result is tier 2, got {e:?}"));
-        let v = volume(&moved);
+        // Raw door: the move through the neighbour inverts the body, which tier 3 refuses (RingOutsideOuter), and its signed volume is the subject.
+        let v = topo::test_support::measure_unvalidated(&moved, tol)
+            .unwrap()
+            .volume;
         assert!(
             want_v < 0.0 && (v - want_v).abs() <= 1e-12,
             "{what}: signed volume {v}, want the moved meridian's {want_v}"

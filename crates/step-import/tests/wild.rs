@@ -444,8 +444,9 @@ fn wild_bodies_are_a_fixed_point_of_our_own_dialect() {
             product_name: name.to_owned(),
             ..step_export::StepOptions::default()
         };
-        let first = step_export::step_string(&body, &options, Tol::witness())
-            .unwrap_or_else(|e| panic!("{name}: {e}"));
+        let first =
+            step_export::step_string(&crate::common::at_rest(&body), &options, Tol::witness())
+                .unwrap_or_else(|e| panic!("{name}: {e}"));
         let Ok(StepImport::Solid { body: again, .. }) =
             import_step(&first, &ImportOptions::default(), Tol::witness())
         else {
@@ -491,7 +492,9 @@ fn wild_bodies_are_a_fixed_point_of_our_own_dialect() {
             (v1 - v2).abs() <= 4.0 * f64::EPSILON * v1.abs(),
             "{name}: volume across the wire, to summation order: {v1} vs {v2}"
         );
-        let second = step_export::step_string(&again, &options, Tol::witness()).unwrap();
+        let second =
+            step_export::step_string(&crate::common::at_rest(&again), &options, Tol::witness())
+                .unwrap();
         assert_eq!(
             first, second,
             "{name}: the second export must be byte-identical"
@@ -564,7 +567,7 @@ fn wild_refusals_are_typed_and_name_their_class() {
 /// two full-period rim circles with no seam generator between them,
 /// and in the kernel's face model (one outer loop plus rings) the ring
 /// adoption would make of the second rim winds the chart's period, a
-/// loop tier 3's pcurve mint refuses (`topo::PcurveMintError::LoopWraps`).
+/// loop whose chart walk does not close on its start (`topo::loop_windings`).
 /// Until M7-5 that was a NAMED refusal on
 /// both fixtures here; the band seam re-mint (`normalize::band_seam`)
 /// retired it by minting the seam generator at the surface's own

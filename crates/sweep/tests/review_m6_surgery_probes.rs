@@ -231,13 +231,15 @@ fn p2_ring_touch_trio_through_the_front_door() {
             "tier 3"
         );
         let want = blank_volume() - cap(PIP_R, PIP_H) - rim_fillet_extra(PIP_R, PIP_H, RIM_R);
-        let v = topo::test_support::unmigrated_measure(
-            &out.body,
+        let v = topo::mass_properties(
+            &topo::test_support::finished(
+                "the measured body",
+                topo::Body::clone(&out.body),
+                Tol::witness(),
+            ),
             Tol::witness(),
-            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
-        .enclosure
         .volume;
         assert!((v - want).abs() <= 1e-9 * want, "volume {v} vs {want}");
         println!("P2a: +1cm passes, volume ok");
@@ -328,9 +330,9 @@ fn p3_one_and_two_pip_ladders_and_tight_pair() {
         )
         .expect("rim");
         assert_eq!(out.band_faces.len(), 1);
-        let die = &out.body;
+        let die = topo::test_support::finished("die", topo::Body::clone(&out.body), Tol::witness());
         assert_eq!(
-            topo::validate_geometric(die, Tol::witness()),
+            topo::validate_geometric(&die, Tol::witness()),
             Ok(()),
             "tier 3"
         );
@@ -366,19 +368,12 @@ fn p3_one_and_two_pip_ladders_and_tight_pair() {
         }
         assert_eq!(doubled, 1, "exactly one double-traversed edge (the slit)");
         let want = blank_volume() - per_pip;
-        let v = topo::test_support::unmigrated_measure(
-            die,
-            Tol::witness(),
-            topo::test_support::pinned_resolution(Tol::witness()),
-        )
-        .unwrap()
-        .enclosure
-        .volume;
+        let v = topo::mass_properties(&die, Tol::witness()).unwrap().volume;
         assert!(
             (v - want).abs() <= 1e-9 * want,
             "one-pip volume {v} vs {want}"
         );
-        let mesh = mesh::tessellate(die, 5e-3, Tol::witness()).expect("tessellates");
+        let mesh = mesh::tessellate(&die, 5e-3, Tol::witness()).expect("tessellates");
         mesh::validate::check_mesh(&mesh).expect("watertight");
     }
     // Two adjacent pips, die spacing (0.22 apart => ring-ring margin 2s-gap).
@@ -434,13 +429,15 @@ fn p3_one_and_two_pip_ladders_and_tight_pair() {
             "tier 3"
         );
         let want = blank_volume() - 2.0 * per_pip;
-        let v = topo::test_support::unmigrated_measure(
-            &out.body,
+        let v = topo::mass_properties(
+            &topo::test_support::finished(
+                "the measured body",
+                topo::Body::clone(&out.body),
+                Tol::witness(),
+            ),
             Tol::witness(),
-            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
-        .enclosure
         .volume;
         assert!(
             (v - want).abs() <= 1e-9 * want,
@@ -582,13 +579,15 @@ fn p5_seam_azimuth_rotation_certifies_identically() {
             Ok(()),
             "tier 3 at theta {theta}"
         );
-        let v = topo::test_support::unmigrated_measure(
-            &out.body,
+        let v = topo::mass_properties(
+            &topo::test_support::finished(
+                "the measured body",
+                topo::Body::clone(&out.body),
+                Tol::witness(),
+            ),
             Tol::witness(),
-            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
-        .enclosure
         .volume;
         assert!(
             (v - want).abs() <= 1e-9 * want,

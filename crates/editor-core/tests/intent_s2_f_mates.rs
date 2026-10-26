@@ -4,16 +4,16 @@
 //! placement whose bundle holds the mate depends on what it reads as
 //! every reader does: A9's partition runs over reads, a cut separating
 //! a mate from a body it reads is the ordinary severed read, and the
-//! at-rest gate mints a mate's declaration on the world copies of the
-//! bodies its sides read.
+//! at-rest census records the seat a mate makes between the world
+//! copies of the bodies its sides read.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
 use editor_core::{
-    AssemblyError, CapEnd, ContactClass, Coord, DocEdit, DocumentId, Formula, Mate, MateRef,
-    MintRefusal, Node, OperandSlot, ProfileDoc, RecipeNodeId, RefusedRef, SplitError, TargetAxis,
-    assemble, product_recorded, relative_freedom_components,
+    AssemblyError, CapEnd, Coord, DocEdit, DocumentId, Formula, Mate, MateRef, Node, OperandSlot,
+    ProfileDoc, RecipeNodeId, SplitError, TargetAxis, assemble, product_recorded,
+    relative_freedom_components,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{insert, len, on_frame, run, step};
@@ -48,7 +48,6 @@ fn seat(
     fixture::rest(
         fixture::head_at(on_at, in_part(on, body, CapEnd::Start)),
         fixture::head_at(to_at, in_part(to, body, CapEnd::End)),
-        ContactClass::Rest,
     )
 }
 
@@ -178,33 +177,33 @@ fn a_cut_severing_a_mates_read_refuses_as_a_severed_read() {
     );
 }
 
-/// **Test 22 (minting on placed copies).** A mate between two
-/// instances in the world mints its declaration on their two world
-/// copies, and the gate certifies it.
+/// **Test 22 (a seat between placed copies).** A mate between two
+/// instances in the world seats their two world copies, the census
+/// records the seat, and the gate certifies it.
 #[test]
-fn a_mate_between_placed_instances_mints_on_their_copies() {
+fn a_mate_between_placed_instances_seats_their_copies() {
     let (doc, [a, b], store, body) = pair("f-mint");
-    let (doc, mate) = seated(doc, seat(body, (b, b), (a, a)));
+    let (doc, _) = seated(doc, seat(body, (b, b), (a, a)));
     let ev = run(&doc, &with_resolver(store));
-    let (minted, unminted) = fixture::mate_mints(&doc, &ev);
+    let product = product_recorded(&doc, &ev, Tol::witness()).expect("the pair gathers");
     assert_eq!(
-        minted.iter().map(|d| d.mate).collect::<Vec<_>>(),
-        vec![mate],
-        "{unminted:?}"
+        product.contacts.face_face().count(),
+        1,
+        "{:?}",
+        product.contacts
     );
-    assert!(unminted.is_empty(), "{unminted:?}");
     assert!(
         assemble(&doc, &ev, Tol::witness()).is_ok(),
-        "the declared rest certifies"
+        "the seat certifies"
     );
 }
 
 /// **Test 22 (a member of no world copy).** A mate seating one instance
-/// on another in a space of its own, whose copies a boolean reads, mints nothing: the
+/// on another in a space of its own, whose copies a boolean reads, states nothing of the world: the
 /// copies are in the first's own space, not the world, the mate relates
 /// them there, and the product is the boolean's copy alone.
 #[test]
-fn a_mate_on_unplaced_operands_mints_nothing() {
+fn a_mate_on_unplaced_operands_states_nothing_of_the_world() {
     let mut store = PartStore::default();
     let (doc_ref, body) = store.insert_part(cube_part("f-unplaced-part"), Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive("f-unplaced"), Tol::witness());
@@ -224,7 +223,6 @@ fn a_mate_on_unplaced_operands_mints_nothing() {
     let (doc, placed) = insert(doc, crate::fixture::stood(vec![fused.into()]));
     let doc = fixture::pinned(doc, placed, &with_resolver(store.clone()));
     let ev = run(&doc, &with_resolver(store.clone()));
-    fixture::assert_mints_nothing(&doc, &ev, mate);
     assert_eq!(
         product_recorded(&doc, &ev, Tol::witness())
             .expect("the union gathers")
@@ -239,7 +237,7 @@ fn a_mate_on_unplaced_operands_mints_nothing() {
     // Its side stopping resolving is the evaluation's refusal (review
     // R1, MINOR-1): it fails the mate's placement, and the union reading
     // that copy is poisoned through it, so the gate refuses the union's
-    // placement poisoned there rather than mint anything of the mate.
+    // placement poisoned there.
     let doc = ghost_side(doc, mate, b);
     let ev = run(&doc, &with_resolver(store));
     assert!(
@@ -259,46 +257,6 @@ fn a_mate_on_unplaced_operands_mints_nothing() {
         ),
         other => panic!("the gate refuses the poisoned product: {other:?}"),
     }
-}
-
-/// **An instance copied twice has two world copies holding its face**:
-/// its own, and a placement copying its copies by the identity bundle.
-/// A face read in it answers two faces where the mate reads it, and a
-/// declaration names one pair: the gate refuses `Ambiguous` rather than
-/// pick a copy. A copy another bundle moves (one up, where the seat
-/// puts it, pinned against the world) holds the face where the mate
-/// does not read it, so it is no second candidate: the mate mints on
-/// its own copy.
-#[test]
-fn a_side_whose_body_is_placed_twice_refuses_ambiguous() {
-    let (doc, [a, b], store, body) = pair("f-twice");
-    let opts = with_resolver(store);
-    let (doc, mate) = seated(doc, seat(body, (b, b), (a, a)));
-    // `again` stands where `b` stands, by the identity bundle; values
-    // move a second copy of it one up, where the seat puts it.
-    let (doc, again) = insert(doc, crate::fixture::stood(vec![b.into()]));
-    let moved = fixture::pin(
-        doc.clone(),
-        again,
-        &editor_core::Frame::translation([0.0, 0.0, 1.0]),
-        &opts,
-    );
-    let (minted, unminted) = fixture::mate_mints(&moved, &run(&moved, &opts));
-    assert!(
-        unminted.is_empty() && minted.iter().any(|m| m.mate == mate),
-        "a moved copy is no second candidate: {minted:?} {unminted:?}"
-    );
-    let ev = run(&doc, &opts);
-    let (_, unminted) = fixture::mate_mints(&doc, &ev);
-    assert_eq!(
-        unminted,
-        vec![MintRefusal::Reference {
-            mate,
-            side: editor_core::MateSide::On,
-            name: Box::new(in_part(b, body, CapEnd::Start)),
-            why: RefusedRef::Ambiguous { width: 2 },
-        }]
-    );
 }
 
 /// **A mate's `on` side is read in its own placement's copy alone.**
@@ -325,18 +283,28 @@ fn a_mates_on_side_is_read_in_its_own_placements_copy_alone() {
         &opts,
     );
     let (doc, p) = insert(doc, crate::fixture::stood(vec![b.into()]));
-    // The seat and a zero on each freedom it leaves, written whole.
-    let (doc, mate) = fixture::constrain_at(doc, p, seat(body, (b, b), (a, a)));
+    // The seat, slid back over `a` from where `b`'s pin stands its copy,
+    // so `p`'s copy rests on `a` and clear of `b`'s own.
+    let (doc, mate) = fixture::mated(
+        doc,
+        p,
+        seat(body, (b, b), (a, a)),
+        &[
+            (Coord::Slide(TargetAxis::X), len(-5.0)),
+            (Coord::Slide(TargetAxis::Y), len(0.0)),
+            (Coord::Spin(editor_core::TargetAxis::Z), fixture::ang(0.0)),
+        ],
+    );
     let ev = run(&doc, &opts);
     let product = product_recorded(&doc, &ev, Tol::witness()).expect("the cubes gather");
     let Some(seat) = product
         .coincidences
         .iter()
-        .find(|row| row.by == editor_core::AtRestBy::Mate(mate))
+        .find(|row| row.row.relation == topo::Relation::SameOpposite)
     else {
         panic!(
-            "the premise: the census decided the seat: {:?} {:?}",
-            product.coincidences, product.unminted
+            "the premise: the census decided the seat: {:?}",
+            product.coincidences
         )
     };
     let door = |row: &editor_core::coincide::NamedCoincidence| {
@@ -530,7 +498,6 @@ fn a_side_selection_of_a_patterns_copies_is_read_by_sides_alone() {
                 2,
                 in_part(instance, leg, CapEnd::End),
             )),
-            ContactClass::Rest,
         ),
     );
     let target = fixture::constraint(&doc, mate).to;

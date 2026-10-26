@@ -34,8 +34,8 @@ use crate::fixture;
 use std::collections::BTreeSet;
 
 use editor_core::{
-    CapEnd, ContactClass, DocRef, DocumentId, EvalOptions, Formula, MateRef, Node, PatternKind,
-    ProfileDoc, RecipeNodeId, RoleSeg, StableName,
+    CapEnd, DocRef, DocumentId, EvalOptions, Formula, MateRef, Node, PatternKind, ProfileDoc,
+    RecipeNodeId, RoleSeg, StableName,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{in_copy, insert, len, on_frame, scl};
@@ -291,13 +291,7 @@ fn a_pattern_headed_mate_edge_crosses_a_cut_of_its_target_and_severs_a_cut_of_it
     )
     .expect("a cut of the pattern side splits");
     let record = crossings(&across.remainder, across.instance);
-    let [
-        editor_core::InterfaceCrossing::Mate {
-            class,
-            outer,
-            inner,
-        },
-    ] = record.crossings.as_slice()
+    let [editor_core::InterfaceCrossing::Mate { outer, inner }] = record.crossings.as_slice()
     else {
         panic!("the kept constraint is one crossing: {record:?}");
     };
@@ -305,7 +299,6 @@ fn a_pattern_headed_mate_edge_crosses_a_cut_of_its_target_and_severs_a_cut_of_it
     let [top_side] = fixture::face_reads(&doc, mate.on)[..] else {
         panic!("the seat reads the top's face");
     };
-    assert_eq!(*class, ContactClass::Rest, "the crossing keeps its class");
     assert_eq!(
         *outer,
         editor_core::head_of(&doc, top_side)
@@ -557,7 +550,6 @@ fn a_stranded_operand_over_an_instance_head_resolves_to_no_member() {
         fixture::rest(
             fixture::head(in_part(top, top_body, CapEnd::Start)),
             stranded,
-            ContactClass::Rest,
         ),
     );
     assert_eq!(
@@ -587,7 +579,7 @@ fn a_top_seated_on_a_pattern_copy_is_proven_by_its_mate() {
         product
             .coincidences
             .iter()
-            .any(|row| row.by == editor_core::AtRestBy::Mate(mate)),
+            .any(|row| row.row.relation == topo::Relation::SameOpposite),
         "the premise: the census decided the seat: {:?}",
         product.coincidences
     );
@@ -613,8 +605,7 @@ fn a_top_seated_on_a_pattern_copy_is_proven_by_its_mate() {
 /// it, which is where the mate reads its target. Here that copy's
 /// placement is re-pinned half a unit along by a frame mate of its own
 /// rather than the identity bundle, so the copy no longer stands where
-/// the mate reads its face: the mate states nothing about it. The gather
-/// mints the mate no record and attributes it no census row, and the
+/// the mate reads its face: the mate states nothing about it. The
 /// door's first rung does not read the seat's row (the top's cap on the
 /// copy's) as the mate's statement.
 ///
@@ -630,7 +621,7 @@ fn a_seat_on_a_copy_its_own_pin_moves_is_not_the_mates_statement() {
     let Some(seat) = product
         .coincidences
         .iter()
-        .find(|row| row.by == editor_core::AtRestBy::Mate(mate))
+        .find(|row| row.row.relation == topo::Relation::SameOpposite)
     else {
         panic!(
             "the premise: the census decided the seat: {:?}",
@@ -641,17 +632,6 @@ fn a_seat_on_a_copy_its_own_pin_moves_is_not_the_mates_statement() {
     let shifted = editor_core::Frame::translation([0.5, 0.0, 0.0]);
     let doc = fixture::pin(doc, q, &shifted, &o);
     let ev = fixture::run(&doc, &o);
-    fixture::assert_mints_nothing(&doc, &ev, mate);
-    let product =
-        editor_core::product_recorded(&doc, &ev, Tol::witness()).expect("the legs gather");
-    assert!(
-        product
-            .coincidences
-            .iter()
-            .all(|row| row.by != editor_core::AtRestBy::Mate(mate)),
-        "the gather attributes no row to the mate: {:?}",
-        product.coincidences
-    );
     let proof = editor_core::coincide::prove(
         &doc,
         &[(mate.placement, std::slice::from_ref(&seat.row))],

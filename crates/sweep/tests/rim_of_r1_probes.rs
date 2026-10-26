@@ -205,13 +205,11 @@ fn the_refusals_own_text_names_the_door_and_following_it_carves() {
     let out = fillet_edges(&source, &rim, 0.05, tol()).expect("the door's answer carves");
     assert_eq!(out.band_faces.len(), 1);
     validate_geometric(&out.body, tol()).unwrap();
-    let after = topo::test_support::unmigrated_measure(
-        &out.body,
+    let after = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol()),
         tol(),
-        topo::test_support::pinned_resolution(tol()),
     )
     .unwrap()
-    .enclosure
     .volume;
     assert!(after < before, "convex: material removed");
 }

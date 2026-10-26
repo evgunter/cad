@@ -84,10 +84,9 @@ fn the_hostless_rim_carves_at_the_certified_scalar_on_both_material_sides() {
     ] {
         let arcs = rim_arcs_at(&source, rim.0, rim.1);
         assert_full_revolve_rim(&arcs, name);
-        let p0 = topo::test_support::unmigrated_measure(
-            &source,
+        let p0 = topo::mass_properties(
+            &topo::test_support::finished("the measured body", topo::Body::clone(&source), tol()),
             tol(),
-            topo::test_support::pinned_resolution(tol()),
         )
         .expect("interval props");
 
@@ -101,10 +100,9 @@ fn the_hostless_rim_carves_at_the_certified_scalar_on_both_material_sides() {
         assert_eq!(out.band_faces.len(), 1, "{name}: one annulus band");
         validate_geometric(&out.body, tol())
             .unwrap_or_else(|e| panic!("{name}: tier-3 valid at Interval, got {e:?}"));
-        let p1 = topo::test_support::unmigrated_measure(
-            &out.body,
+        let p1 = topo::mass_properties(
+            &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol()),
             tol(),
-            topo::test_support::pinned_resolution(tol()),
         )
         .expect("interval props");
         assert_eq!(
@@ -157,18 +155,17 @@ fn the_hostless_rim_carves_at_the_certified_scalar_on_both_material_sides() {
 #[test]
 fn the_plane_sphere_hostless_carve_brackets_its_closed_form_at_the_certified_scalar() {
     let r = 0.05;
-    let source = repaired(hemisphere_on_flat_base_at::<Interval>(
-        Interval::from_f64(1.0),
+    let source = topo::test_support::finished(
+        "source",
+        repaired(hemisphere_on_flat_base_at::<Interval>(
+            Interval::from_f64(1.0),
+            tol(),
+        )),
         tol(),
-    ));
+    );
     let arcs = rim_arcs_at(&source, 1.0, 0.0);
     assert_full_revolve_rim(&arcs, "the repaired equator");
-    let p0 = topo::test_support::unmigrated_measure(
-        &source,
-        tol(),
-        topo::test_support::pinned_resolution(tol()),
-    )
-    .expect("interval props");
+    let p0 = topo::mass_properties(&source, tol()).expect("interval props");
     assert!(
         p0.enclosure.volume.hi() - p0.enclosure.volume.lo() < 1e-12,
         "the source's own enclosure is a point"
@@ -183,13 +180,12 @@ fn the_plane_sphere_hostless_carve_brackets_its_closed_form_at_the_certified_sca
     .unwrap_or_else(|e| panic!("the repaired equator carves at Interval, got {e:?}"));
     assert_eq!(out.band_faces.len(), 1, "one annulus band");
     validate_geometric(&out.body, tol()).expect("tier-3 valid at Interval");
-    let p1 = topo::test_support::unmigrated_measure(
-        &out.body,
+    let p1 = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol()),
         tol(),
-        topo::test_support::pinned_resolution(tol()),
     )
     .expect("interval props");
-    assert_eq!(p1.enclosure.volume_pad, 0.0, "closed-form faces only");
+    assert_eq!(p1.volume_pad, 0.0, "closed-form faces only");
 
     let removed = plane_sphere_cut(1.0, r);
     assert_brackets(

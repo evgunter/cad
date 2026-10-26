@@ -104,13 +104,21 @@ fn every_donut_split_meshes_and_measures_as_the_donut() {
                 body.split_edge(ek, t0 + f * (t1 - t0), tol).unwrap();
             }
             let got = mesh::tessellate(&body, 0.1, tol).map(|m| m.positions.len());
-            // Raw door: these witness bodies are read alike, and tier 3 refuses the ones whose joinable vertices are still at rest (JoinableVertexAtRest).
-            let vol = topo::test_support::measure_unvalidated(
-                &body,
-                tol,
-                topo::test_support::pinned_resolution(tol),
-            )
-            .map(|m| m.enclosure.volume);
+            let mp = match topo::AtRestBody::validate(body.clone(), tol) {
+                Ok(finished) => topo::mass_properties(&finished, tol),
+                Err(errors) => {
+                    assert!(
+                        errors.iter().all(|e| matches!(
+                            e,
+                            topo::ValidationError::JoinableVertexAtRest { .. }
+                        )),
+                        "edge {i}, pattern {pi}: tier 3 refuses the split body for more than its joinable vertices: {errors:?}"
+                    );
+                    // Raw door: a split that leaves joinable vertices at rest, which tier 3 refuses (JoinableVertexAtRest), as the assert above admits.
+                    topo::test_support::measure_unvalidated(&body, tol)
+                }
+            };
+            let vol = mp.map(|m| m.volume);
             println!("edge {i} (r = {radius}), pattern {pi}: {got:?}, V = {vol:?}");
             if got.is_err() || vol.as_ref().map(|v| v.to_bits()) != Ok(v0) {
                 wrong.push((i, pi, format!("{got:?} / {vol:?}")));

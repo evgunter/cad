@@ -707,8 +707,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     vec![
         Stop {
             name: "torusvessel",
-            caption: "THE TORUS-WALLED VESSEL, HOLLOWED (a donut band in the wall)"
-                .to_string(),
+            caption: "THE TORUS-WALLED VESSEL, HOLLOWED (a donut band in the wall)".to_string(),
             // Montage membership is CURATED (Ev, montage-v3,
             // 2026-08-30), and this scene has not been through that
             // pass. Everything it pins is a number, an export or a
@@ -776,9 +775,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                  the moved caps' off-centre sections, circles tilted against the \
                  sphere's chart — measures by Gauss–Bonnet over its arcs \
                  (`torax_the_sphere_lune_hollows_to_its_closed_form`). THE \
-                 SEALED BODY'S OWN WALL IS STEP: the writer's outward/void classifier \
-                 has closed forms for planar faces only, so this multi-shell CURVED \
-                 solid refuses CurvedShellClassification — declared at the body and \
+                 SEALED BODY'S OWN WALL IS STEP: the writer reads the cavity as a void \
+                 and refuses it (VoidShellUnsupported: no BREP_WITH_VOIDS yet) — \
+                 declared at the body and \
                  probed on every pass, the same standing gate klein's wall 6, the ring \
                  scene and `hollowtorus` name. The cup panel next door is ONE shell and \
                  exports",
@@ -815,10 +814,10 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                         |e| {
                             matches!(
                                 e,
-                                pncad::step_export::StepExportError::CurvedShellClassification { .. }
+                                pncad::step_export::StepExportError::VoidShellUnsupported { .. }
                             )
                         },
-                        "the writer's outward/void classifier has grown a curved arm. Say \
+                        "the writer writes BREP_WITH_VOIDS now. Say \
                          so in klein's findings entry 7 and in docs/KERNEL-VERBS.md's \
                          hollow-ring STEP row, and retire ALL FOUR probes of this one \
                          gate together: klein's WALL 6, the `ring` scene's \
@@ -850,9 +849,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                  V = {:.9} m³ against the sealed wall's closed form less the plug the \
                  lift opens (a cylinder of the cavity's neck radius, one wall tall). \
                  A = {:.9} m². THE CUP LEAVES AS STEP, which the sealed panel next door \
-                 cannot: the writer's outward/void classifier refuses a multi-shell \
-                 CURVED solid, and a cup is ONE shell",
-                props_c.enclosure.volume, props_c.enclosure.surface_area,
+                 cannot: the writer refuses a void shell, and a cup is ONE shell",
+                props_c.volume, props_c.surface_area,
             )),
             // Ten degrees higher than the sealed panel and swung round
             // to the other quadrant: the subject here is the annular

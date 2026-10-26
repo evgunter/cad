@@ -187,10 +187,13 @@ fn tier3_admits_the_rational_wall_body_and_its_volume_brackets_the_extrusion() {
         Tol::witness(),
     )
     .expect("extrude");
-    let want = topo::test_support::unmigrated_measure(
-        &oracle.body,
+    let want = topo::mass_properties(
+        &topo::test_support::finished(
+            "the measured body",
+            topo::Body::clone(&oracle.body),
+            Tol::witness(),
+        ),
         Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("analytic mass properties");
     assert_eq!(

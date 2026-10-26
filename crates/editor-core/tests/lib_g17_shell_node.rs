@@ -86,10 +86,9 @@ fn blank_of(doc: &ProfileDoc) -> RecipeNodeId {
 
 /// Exact mass equality against a dyadic oracle.
 fn assert_exact(body: &topo::Body<f64>, pin: corpus::MassPin, what: &str) {
-    let m = topo::test_support::unmigrated_measure(
-        body,
+    let m = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), Tol::witness()),
         Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("mass properties");
     assert_eq!(
@@ -752,19 +751,18 @@ fn a_sealed_shell_over_a_revolved_ball_is_the_difference_of_two_balls() {
     let ev = eval::<f64>(&doc);
     let bad = failures(&ev);
     assert!(bad.is_empty(), "shelled ball:\n{}", bad.join("\n"));
-    let body = body_of(&ev, sealed);
+    let body = topo::test_support::finished(
+        "body",
+        topo::Body::clone(body_of(&ev, sealed)),
+        Tol::witness(),
+    );
     assert_eq!(
-        topo::validate_geometric(body, Tol::witness()),
+        topo::validate_geometric(&body, Tol::witness()),
         Ok(()),
         "tier 3"
     );
     assert_eq!(body.shells().count(), 2, "an outer and a cavity shell");
-    let m = topo::test_support::unmigrated_measure(
-        body,
-        Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
-    )
-    .expect("mass properties");
+    let m = topo::mass_properties(&body, Tol::witness()).expect("mass properties");
     let want = 4.0 / 3.0 * std::f64::consts::PI * (PIP_R.powi(3) - (PIP_R - t).powi(3));
     // `sweep`'s `pole_ball_shells` rule: rounding scales with R³, the
     // pad is the quadrature's own bound.

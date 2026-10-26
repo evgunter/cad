@@ -374,10 +374,13 @@ fn interval_the_klein_elbow_hollows_to_its_measured_volume() {
     .body;
     match topo::shell(&finished("the operand", body.clone(), tol), iv(0.05), tol) {
         Ok(hollow) => {
-            let props = topo::test_support::unmigrated_measure(
-                &hollow.body,
+            let props = topo::mass_properties(
+                &topo::test_support::finished(
+                    "the measured body",
+                    topo::Body::clone(&hollow.body),
+                    tol,
+                ),
                 tol,
-                topo::test_support::pinned_resolution(tol),
             )
             .unwrap_or_else(|e| panic!("the interval hollow measures, got {e:?}"));
             let theta = core::f64::consts::FRAC_PI_2;

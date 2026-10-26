@@ -84,13 +84,15 @@ fn sub_period_wall_pieces_remerge_structurally() {
     // Volume exact: the halves hold the operand's (the merge is pure
     // structure), and a second merge finds nothing.
     let vol = |b: &Body<f64>| {
-        topo::test_support::unmigrated_measure(
-            b,
+        topo::mass_properties(
+            &topo::test_support::finished(
+                "the measured body",
+                topo::Body::clone(b),
+                Tol::witness(),
+            ),
             Tol::witness(),
-            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
-        .enclosure
         .volume
     };
     let halves = vol(&part) + vol(parts.above.body().expect("an above part exists"));
@@ -120,13 +122,15 @@ fn full_period_closure_skips_loudly() {
     // — recorded as a LOUD skip naming the period closure; the body
     // is untouched and its volume stays exact.
     let mut body = disc_cylinder();
-    let vol_before = topo::test_support::unmigrated_measure(
-        &body,
+    let vol_before = topo::mass_properties(
+        &topo::test_support::finished(
+            "the measured body",
+            topo::Body::clone(&body),
+            Tol::witness(),
+        ),
         Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .enclosure
     .volume;
     let out = body
         .merge_coplanar_faces(Tol::witness())
@@ -141,13 +145,15 @@ fn full_period_closure_skips_loudly() {
         "the skip carries the period-closure refusal itself: {:?}",
         out.skipped[0].reason
     );
-    let vol_after = topo::test_support::unmigrated_measure(
-        &body,
+    let vol_after = topo::mass_properties(
+        &topo::test_support::finished(
+            "the measured body",
+            topo::Body::clone(&body),
+            Tol::witness(),
+        ),
         Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .enclosure
     .volume;
     assert!((vol_after - vol_before).abs() == 0.0, "body untouched");
     topo::validate_closed(&body).unwrap();

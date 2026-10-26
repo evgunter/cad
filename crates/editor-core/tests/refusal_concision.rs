@@ -15,7 +15,7 @@ use editor_core::{LoopProgram, Node, NodeResult, ProfileProgram};
 
 /// A cone frustum (a full revolve about `y`) unioned with a block that
 /// straddles its slanted wall: the block's faces along the axis cut the
-/// cone face in hyperbolas, which the Boolean refuses by decision, so
+/// cone face in hyperbolas, which the Boolean refuses at the frame, so
 /// this is the refusal the sentence below is about.
 fn cone_block_union_refusal() -> String {
     let mut r = Recorder::new();
@@ -156,7 +156,7 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
     use geom_brep::MaterialWedge;
     use geom_core::{Band, Indeterminate, MarginDiag, Tol};
     use topo::{
-        BooleanError, BooleanOp, ContactClass, DeclaredContact, EdgeKey, FaceKey, LoopKey, Operand,
+        BooleanError, BooleanOp, DeclaredContact, EdgeKey, FaceKey, LoopKey, Operand,
         PointInSolidError, SectorRead, SolidKey, VertexKey,
     };
 
@@ -184,7 +184,7 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
     let declaration = DeclaredContact {
         a: face,
         b: face,
-        class: ContactClass::Tangent,
+        class: topo::GlueClass::Rest,
     };
     let boolean: Vec<(&'static str, BooleanError)> = vec![
         (
@@ -380,17 +380,13 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             },
         ),
         (
-            "GermSectionOutsideInventory",
-            BooleanError::GermSectionOutsideInventory {
+            "GermSectionOpenConic",
+            BooleanError::GermSectionOpenConic {
                 a_face: face,
                 a_kind: SurfaceKind::Plane,
                 b_face: face,
                 b_kind: SurfaceKind::Cone,
-                conic: geom_brep::OutsideConic::Hyperbola,
-                section: geom_brep::SectionError::RoutesToGeneralRung {
-                    pair: "plane×cone",
-                    why: "the plane meets both nappes, so the section is a HYPERBOLA",
-                },
+                conic: geom_brep::OpenConic::Hyperbola,
             },
         ),
         (

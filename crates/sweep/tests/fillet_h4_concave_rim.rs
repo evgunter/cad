@@ -55,10 +55,9 @@ fn census(b: &Body<f64>) -> (usize, usize, usize) {
 /// torus — so the pad is exactly zero, not merely small (the revolve's
 /// iso-rectangle argument, `verbs_arms1_annulus.rs`).
 fn volume(body: &Body<f64>) -> f64 {
-    let props = topo::test_support::unmigrated_measure(
-        body,
+    let props = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
         tol(),
-        topo::test_support::pinned_resolution(tol()),
     )
     .expect("mass properties compute");
     assert_eq!(

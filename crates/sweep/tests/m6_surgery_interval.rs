@@ -191,20 +191,13 @@ mod certified {
         )
         .expect("the rim torus band decides definitely at Interval");
         assert_eq!(out.band_faces.len(), 1);
-        let die = out.body;
+        let die = topo::test_support::finished("die", out.body, Tol::witness());
         assert_eq!(
             topo::validate_geometric(&die, Tol::witness()),
             Ok(()),
             "tier 3"
         );
-        let vol = topo::test_support::unmigrated_measure(
-            &die,
-            Tol::witness(),
-            topo::test_support::pinned_resolution(Tol::witness()),
-        )
-        .unwrap()
-        .enclosure
-        .volume;
+        let vol = topo::mass_properties(&die, Tol::witness()).unwrap().volume;
         let want = blank_volume() - cap(PIP_R, PIP_H) - rim_fillet_extra(PIP_R, PIP_H, RIM_R);
         assert!(
             vol.lo() <= want && want <= vol.hi(),

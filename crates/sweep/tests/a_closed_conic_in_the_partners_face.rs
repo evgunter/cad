@@ -306,6 +306,109 @@ fn a_boss_beside_a_ring_and_over_a_hole() {
     );
 }
 
+/// **The containment fallback cuts a closed rim, or says why not.** The
+/// boss `r = 0.3` less the plate is the boss, by the fallback, which
+/// divides the plate's top along the boss's rim, one closed edge whose
+/// vertex touches the top with no surgery, with a circular edge from a
+/// lone vertex: the disc is held by the boss's floor, and the rest of the
+/// top is a discard.
+///
+/// Over the hole `r = 0.1` the cut meets a placement limit, the rim's
+/// vertex reading in no corner of the top beside the hole's ring
+/// (`work/flush/a-fallback-cut-refuses-beside-a-ring-a-seam-or-a-pinch.md`):
+/// this half pins that known limit, not a target. The top is uncut, with
+/// that reason, and no row names any part of it, neither held nor
+/// discarded. With a lid standing on the boss as well, the lid's bottom is
+/// cut along the boss's top rim and held there, beside the uncut top: each
+/// face is cut on its own, and only the face whose cut refused is uncut.
+/// The body is the boss throughout. Red before the fallback cut: the plain
+/// top was one whole row; before the per-face record, the lid's bottom
+/// was uncut with the plate's reason.
+#[test]
+fn the_fallback_cuts_a_closed_rim_or_records_why_not() {
+    let boss = fin(
+        "the boss",
+        extruded(vec![circle(0.0, 0.0, 0.3, 0.0)], 0.0, 1.0),
+    );
+    let square = || {
+        RawLoop::polygon([
+            Point2::new(-1.0, -1.0),
+            Point2::new(1.0, -1.0),
+            Point2::new(1.0, 1.0),
+            Point2::new(-1.0, 1.0),
+        ])
+    };
+    let holed = || {
+        fin(
+            "the holed plate",
+            extruded(vec![square(), circle(0.0, 0.0, 0.1, 0.0)], -0.5, 0.5),
+        )
+    };
+    let lid = fin("the lid", extruded(vec![square()], 1.0, 0.5));
+    let lidded = united(&holed(), &lid);
+    // Each case: the plate's top cut, then whether a lid's bottom is.
+    let cases = [
+        ("the plate", plate(), (true, false)),
+        ("the holed plate", holed(), (false, false)),
+        ("the holed plate and a lid", lidded, (false, true)),
+    ];
+    for (label, other, (top_cut, lid_held)) in cases {
+        let Ok(BooleanResult::Body(out)) = topo::subtract(&boss, &other, tol()) else {
+            panic!("{label}: the boss less it builds");
+        };
+        assert_eq!(
+            out.kind,
+            topo::BooleanResultKind::OperandA,
+            "{label}: the fallback"
+        );
+        let n = &out.naming;
+        let root = |f| n.face_fragments_b.root(f);
+        // The rows by the plane of the B face they name: the top at z 0,
+        // the lid's bottom at z 1.
+        let level = |f: topo::FaceKey| match topo::face_carrier(&other, root(f)) {
+            Some(topo::CarrierDesc::Plane { origin, .. }) => (origin.z * 2.0).round() as i8,
+            c => panic!("{label}: a plane face, {c:?}"),
+        };
+        let held: Vec<i8> = n.substituted.iter().map(|s| level(s.face)).collect();
+        let uncut: Vec<(i8, &str)> = n
+            .uncut
+            .iter()
+            .map(|u| (level(u.face), u.what.as_str()))
+            .collect();
+        let want: Vec<i8> = [(top_cut, 0), (lid_held, 2)]
+            .into_iter()
+            .filter_map(|(on, z)| on.then_some(z))
+            .collect();
+        assert_eq!(held, want, "{label}: the faces held in part, by level");
+        for s in &n.substituted {
+            assert!(
+                n.discards.iter().any(|r| r.operand == s.operand
+                    && r.face != s.face
+                    && root(r.face) == root(s.face)),
+                "{label}: the rest of a cut face is a discard"
+            );
+        }
+        if top_cut {
+            assert_eq!(uncut, vec![], "{label}: nothing left uncut");
+            continue;
+        }
+        let [(0, why)] = uncut.as_slice() else {
+            panic!("{label}: the top alone is uncut, {:?}", n.uncut);
+        };
+        assert!(
+            why.contains("lies in no corner")
+                && n.uncut[0].kind == topo::BooleanErrorKind::ClassificationInvariant,
+            "{label}: the top's own reason, {why}"
+        );
+        assert!(
+            n.discards
+                .iter()
+                .all(|r| (r.operand, root(r.face)) != (n.uncut[0].operand, n.uncut[0].face)),
+            "{label}: no discard row names the uncut top"
+        );
+    }
+}
+
 /// **A plug in an annulus's bore**: the plate united with the tube
 /// `r ∈ [0.3, 0.5]`, `z ∈ [0, 1]`, and the cylinder `r = 0.3` of the
 /// same height filling its bore, every vertex at one azimuth, at two.

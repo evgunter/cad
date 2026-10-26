@@ -68,12 +68,8 @@ fn probe_overthick_box_fails_loud() {
         Ok(topo::Shelled { body, .. }) => panic!(
             "overthick box returned Ok — silent wrong answer; shells = {}, volume = {:?}",
             body.shells().count(),
-            topo::test_support::unmigrated_measure(
-                &body,
-                Tol::witness(),
-                topo::test_support::pinned_resolution(Tol::witness())
-            )
-            .map(|p| p.enclosure.volume)
+            // Raw door: a failure message, reading the body the shell should have refused whatever tier 3 says of it.
+            topo::test_support::measure_unvalidated(&body, Tol::witness()).map(|p| p.volume)
         ),
     }
 }
@@ -92,12 +88,8 @@ fn probe_overhalf_slab_fails_loud() {
         Ok(topo::Shelled { body, .. }) => panic!(
             "over-half slab returned Ok — silent wrong answer; shells = {}, volume = {:?}",
             body.shells().count(),
-            topo::test_support::unmigrated_measure(
-                &body,
-                Tol::witness(),
-                topo::test_support::pinned_resolution(Tol::witness())
-            )
-            .map(|p| p.enclosure.volume)
+            // Raw door: a failure message, reading the body the shell should have refused whatever tier 3 says of it.
+            topo::test_support::measure_unvalidated(&body, Tol::witness()).map(|p| p.volume)
         ),
     }
 }
@@ -115,12 +107,8 @@ fn probe_exact_half_slab_fails_loud() {
         Ok(topo::Shelled { body, .. }) => panic!(
             "exact-half slab returned Ok — degenerate cavity; shells = {}, volume = {:?}",
             body.shells().count(),
-            topo::test_support::unmigrated_measure(
-                &body,
-                Tol::witness(),
-                topo::test_support::pinned_resolution(Tol::witness())
-            )
-            .map(|p| p.enclosure.volume)
+            // Raw door: a failure message, reading the body the shell should have refused whatever tier 3 says of it.
+            topo::test_support::measure_unvalidated(&body, Tol::witness()).map(|p| p.volume)
         ),
     }
 }
@@ -152,12 +140,8 @@ fn probe_lshape_colliding_cavity_fails_loud() {
         Ok(topo::Shelled { body, .. }) => panic!(
             "L-shape returned Ok — colliding cavity; shells = {}, volume = {:?}",
             body.shells().count(),
-            topo::test_support::unmigrated_measure(
-                &body,
-                Tol::witness(),
-                topo::test_support::pinned_resolution(Tol::witness())
-            )
-            .map(|p| p.enclosure.volume)
+            // Raw door: a failure message, reading the body the shell should have refused whatever tier 3 says of it.
+            topo::test_support::measure_unvalidated(&body, Tol::witness()).map(|p| p.volume)
         ),
     }
 }
@@ -243,8 +227,12 @@ fn probe_shell_of_a_hollow_thickens_every_boundary() {
         "one thin solid per operand shell"
     );
     assert_eq!(shelled.shells().count(), 4, "two shells per thin solid");
-    let roles =
-        topo::test_support::unmigrated_classify(&shelled, Tol::witness()).expect("classifies");
+    let shelled_at_rest = topo::test_support::finished(
+        "the measured body",
+        topo::Body::clone(&shelled),
+        Tol::witness(),
+    );
+    let roles = topo::classify_shells(&shelled_at_rest, Tol::witness()).expect("classifies");
     for (solid, _) in shelled.solids() {
         let mut kinds: Vec<topo::ShellRole> = roles
             .iter()
@@ -258,12 +246,7 @@ fn probe_shell_of_a_hollow_thickens_every_boundary() {
             "{solid:?}: one outer boundary and one cavity"
         );
     }
-    let props = topo::test_support::unmigrated_measure(
-        &shelled,
-        Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
-    )
-    .expect("props");
+    let props = topo::mass_properties(&shelled_at_rest, Tol::witness()).expect("props");
     let v = |w: f64, d: f64, h: f64| w * d * h;
     let want = (v(2.0, 3.0, 4.0) - v(1.9, 2.9, 3.9)) + (v(1.6, 2.6, 3.6) - v(1.5, 2.5, 3.5));
     assert!(
@@ -346,10 +329,13 @@ fn probe_adjacent_two_face_opening() {
                 Ok(()),
                 "adjacent-pair opening returned an INVALID body"
             );
-            let props = topo::test_support::unmigrated_measure(
-                &open,
+            let props = topo::mass_properties(
+                &topo::test_support::finished(
+                    "the measured body",
+                    topo::Body::clone(&open),
+                    Tol::witness(),
+                ),
                 Tol::witness(),
-                topo::test_support::pinned_resolution(Tol::witness()),
             )
             .expect("props");
             // Cavity runs to the top AND to the x = w side.
@@ -462,10 +448,13 @@ fn probe_opened_vessel_cup() {
                     panic!("the vessel cup must triangulate at delta = {delta}, got {err:?}")
                 });
             }
-            let props = topo::test_support::unmigrated_measure(
-                &cup,
+            let props = topo::mass_properties(
+                &topo::test_support::finished(
+                    "the measured body",
+                    topo::Body::clone(&cup),
+                    Tol::witness(),
+                ),
                 Tol::witness(),
-                topo::test_support::pinned_resolution(Tol::witness()),
             )
             .expect("props");
             let want = core::f64::consts::PI * (r * r * h - (r - t) * (r - t) * (h - t));

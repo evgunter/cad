@@ -360,13 +360,11 @@ fn r1_the_d_bore_crease_carves_in_its_caps_ring() {
     // The concave band adds back what the same ball rolling inside the
     // D-rod removes: `ΔV = +A·L` for the one crease.
     let vol = |b: &Body<f64>| {
-        topo::test_support::unmigrated_measure(
-            b,
+        topo::mass_properties(
+            &topo::test_support::finished("the measured body", topo::Body::clone(b), tol()),
             tol(),
-            topo::test_support::pinned_resolution(tol()),
         )
         .expect("closed-form props")
-        .enclosure
         .volume
     };
     let dv = vol(&out.body) - vol(&body);

@@ -940,8 +940,7 @@ fn r2_annular_mouth_anatomy() {
 }
 
 /// **R2-11: the STEP frontier the scene declares.** A sealed hollow
-/// CYLINDER-and-PLANE pot must refuse `CurvedShellClassification`, and
-/// the register row names `kind: "circle"`.
+/// CYLINDER-and-PLANE pot refuses as the void its cavity is.
 #[test]
 fn r2_step_frontier_kind() {
     let tol = Tol::witness();
@@ -963,7 +962,7 @@ fn r2_step_frontier_kind() {
     .expect("hollows")
     .body;
     let e = pncad::step_export::step_string(
-        &hollow,
+        &AtRestBody::validate(hollow, tol).expect("the hollow pot is at rest"),
         &pncad::step_export::StepOptions {
             product_name: "r2pot".to_string(),
             ..Default::default()
@@ -972,6 +971,13 @@ fn r2_step_frontier_kind() {
     )
     .err();
     println!("[r2-11] STEP on a sealed hollow revolve: {e:?}");
+    assert!(
+        matches!(
+            e,
+            Some(pncad::step_export::StepExportError::VoidShellUnsupported { .. })
+        ),
+        "[r2-11] the cavity refuses as a void: {e:?}"
+    );
 }
 
 /// **R2-12: the scene's own vessel, rebuilt from its stations**, to

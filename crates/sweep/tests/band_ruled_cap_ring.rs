@@ -43,13 +43,11 @@ fn tol() -> Tol {
 }
 
 fn volume(body: &Body<f64>) -> f64 {
-    topo::test_support::unmigrated_measure(
-        body,
+    topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
         tol(),
-        topo::test_support::pinned_resolution(tol()),
     )
     .expect("closed-form props")
-    .enclosure
     .volume
 }
 
@@ -715,13 +713,11 @@ fn a_hole_whose_edge_leaves_the_slivers_enclosure_by_two_faces_carves_at_interva
             .unwrap_or_else(|e| panic!("{what}: both creases carve at Interval, got {e:?}"));
         validate_geometric(&out.body, tol).unwrap_or_else(|e| panic!("{what}: tier 3, {e:?}"));
         let vol = |b: &Body<Interval>| {
-            topo::test_support::unmigrated_measure(
-                b,
+            topo::mass_properties(
+                &topo::test_support::finished("the measured body", topo::Body::clone(b), tol),
                 tol,
-                topo::test_support::pinned_resolution(tol),
             )
             .expect("interval props")
-            .enclosure
             .volume
         };
         let dv = vol(&out.body) - vol(&body);

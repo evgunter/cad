@@ -281,7 +281,7 @@ fn the_plane_sphere_fold_is_an_xnor_in_all_four_quadrants() {
 #[test]
 fn the_fourth_quadrant_is_built_and_its_floor_rim_carves() {
     let (big_r, floor, r) = (0.5_f64, 0.3_f64, 0.05_f64);
-    let body = domed_cavity(tol());
+    let body = topo::test_support::finished("body", domed_cavity(tol()), tol());
     validate_geometric(&body, tol()).unwrap_or_else(|e| panic!("valid at rest, got {e:?}"));
     let mut spheres = 0;
     for (_, f) in body.faces() {
@@ -366,22 +366,14 @@ fn the_fourth_quadrant_is_built_and_its_floor_rim_carves() {
     );
 
     // The carve, and the fill by Pappus.
-    let v0 = topo::test_support::unmigrated_measure(
-        &body,
-        tol(),
-        topo::test_support::pinned_resolution(tol()),
-    )
-    .expect("props")
-    .enclosure
-    .volume;
+    let v0 = topo::mass_properties(&body, tol()).expect("props").volume;
     let out = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &arcs, r, tol())
         .unwrap_or_else(|e| panic!("the floor rim carves, got {e:?}"));
     assert_eq!(out.band_faces.len(), 1, "one band");
     validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("tier-3 valid, got {e:?}"));
-    let p1 = topo::test_support::unmigrated_measure(
-        &out.body,
+    let p1 = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol()),
         tol(),
-        topo::test_support::pinned_resolution(tol()),
     )
     .expect("props");
     assert_eq!(

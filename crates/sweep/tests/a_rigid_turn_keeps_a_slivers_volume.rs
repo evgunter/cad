@@ -24,8 +24,8 @@
 
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use test_utils::vacuity::Exposure;
+use topo::AtRestBody;
 use topo::splitting::split;
-use topo::{AtRestBody, Body};
 
 use crate::common::oracles::volume_slack;
 
@@ -90,24 +90,20 @@ fn a_turned_sliver_validates_and_measures_its_own_volume() {
         let axis = Vec3::new(x, y, z);
         let turn =
             Affine3::rotation_about_axis(Point3::new(0.3, -0.2, 0.5), axis / axis.norm(), angle);
-        let turned: Body<f64> =
+        let turned = topo::test_support::finished(
+            "turned",
             topo::transform_rigid(&sliver, &geom_core::test_support::rigid(&turn, tol), tol)
-                .unwrap();
+                .unwrap(),
+            tol,
+        );
         assert_eq!(
             topo::validate_geometric(&turned, tol),
             Ok(()),
             "{pose}: the turned sliver validates"
         );
         let truth = sliver_volume(psi);
-        let before =
-            topo::mass_properties(&sliver, tol, topo::test_support::pinned_resolution(tol))
-                .unwrap();
-        let after = topo::test_support::unmigrated_measure(
-            &turned,
-            tol,
-            topo::test_support::pinned_resolution(tol),
-        )
-        .unwrap();
+        let before = topo::mass_properties(&sliver, tol).unwrap();
+        let after = topo::mass_properties(&turned, tol).unwrap();
         assert!(
             (after.enclosure.volume - truth).abs() <= after.enclosure.volume_pad,
             "{pose}: the turned sliver's enclosure {:e} ± {:e} misses its volume {truth:e}",

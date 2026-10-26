@@ -1212,13 +1212,11 @@ fn a_near_tangent_two_run_pierce_builds_with_edges_in_band_only_at_its_copies() 
     );
     let cube = finished("the cube", cube_at(v, f, lo));
     let vol = |b: &Body<f64>| {
-        topo::test_support::unmigrated_measure(
-            b,
+        topo::mass_properties(
+            &topo::test_support::finished("the measured body", topo::Body::clone(b), tol()),
             tol(),
-            topo::test_support::pinned_resolution(tol()),
         )
         .unwrap()
-        .enclosure
         .volume
     };
     let common: f64 = shallow_pieces()

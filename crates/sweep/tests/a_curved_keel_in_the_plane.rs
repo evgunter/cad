@@ -58,15 +58,8 @@ fn a_curved_keel_in_the_plane_splits_sound_and_sections_with_no_spur() {
     for turn in [-20.0, 160.0, -160.0] {
         for s in [0.0, 0.6, -0.6, 0.9, -0.9] {
             let what = format!("the V turned {turn}°, its tip {s} ε off the plane");
-            let body = keeled(s, turn);
-            let whole = topo::test_support::unmigrated_measure(
-                &body,
-                tol(),
-                topo::test_support::pinned_resolution(tol()),
-            )
-            .unwrap()
-            .enclosure
-            .volume;
+            let body = topo::test_support::finished("body", keeled(s, turn), tol());
+            let whole = topo::mass_properties(&body, tol()).unwrap().volume;
             for up in [1.0, -1.0] {
                 let what = format!("{what}, the plane's normal {up} y");
                 let plane = topo::test_support::split_plane(
@@ -78,13 +71,15 @@ fn a_curved_keel_in_the_plane_splits_sound_and_sections_with_no_spur() {
                 let sum: f64 = halves
                     .iter()
                     .map(|h| {
-                        topo::test_support::unmigrated_measure(
-                            h,
+                        topo::mass_properties(
+                            &topo::test_support::finished(
+                                "the measured body",
+                                topo::Body::clone(h),
+                                tol(),
+                            ),
                             tol(),
-                            topo::test_support::pinned_resolution(tol()),
                         )
                         .unwrap()
-                        .enclosure
                         .volume
                     })
                     .sum();
@@ -92,8 +87,12 @@ fn a_curved_keel_in_the_plane_splits_sound_and_sections_with_no_spur() {
                     (sum - whole).abs() < 1e-9 * whole,
                     "{what}: the halves hold {sum}, the body {whole}"
                 );
-                let cut = plane_section(&finished("the body", body.clone(), tol()), &plane, tol())
-                    .unwrap_or_else(|e| panic!("{what}: the section refused: {e:?}"));
+                let cut = plane_section(
+                    &finished("the body", topo::Body::clone(&body.clone()), tol()),
+                    &plane,
+                    tol(),
+                )
+                .unwrap_or_else(|e| panic!("{what}: the section refused: {e:?}"));
                 let [region] = cut.regions.as_slice() else {
                     panic!("{what}: {} regions, not one", cut.regions.len());
                 };

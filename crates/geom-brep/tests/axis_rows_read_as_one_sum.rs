@@ -35,7 +35,7 @@ use geom_brep::intersect::{
     plane_cylinder_section, plane_torus_section,
 };
 use geom_brep::{
-    ExtentBall, OutsideConic, Reach, SectionError, TangentLocus, TangentLocusError, tangent_locus,
+    ExtentBall, OpenConic, Reach, SectionError, TangentLocus, TangentLocusError, tangent_locus,
 };
 use geom_core::{Band, Point3, Vec3};
 
@@ -554,7 +554,7 @@ fn plane_torus_reads_the_cap_where_the_plane_crosses_the_axis() {
 /// served the line pair or the apex point). At `K + 0.9` the `0.6` gap
 /// cuts, on the dipping side, a hyperbola whose far branch starts
 /// `0.6/(K + 0.9)` of the extent from the apex, far past the band, so it
-/// refuses naming the hyperbola and not the line pair; on the clearing
+/// is served the hyperbola and not the line pair; on the clearing
 /// side, an ellipse reaching as far, served and not the apex point.
 #[test]
 fn plane_cone_decides_the_apex_gap_and_the_discriminant_as_one_sum() {
@@ -597,7 +597,7 @@ fn plane_cone_decides_the_apex_gap_and_the_discriminant_as_one_sum() {
         );
         let got = at(SWING * z, past_edge(side, FLOOR_OUT));
         let served = if side > 0.0 {
-            matches!(&got, Err(e) if e.outside_conic() == Some(OutsideConic::Hyperbola))
+            matches!(&got, Ok(PlaneConeSection::OpenConic(s)) if s.conic() == OpenConic::Hyperbola)
         } else {
             matches!(got, Ok(PlaneConeSection::TiltedEllipse(_)))
         };

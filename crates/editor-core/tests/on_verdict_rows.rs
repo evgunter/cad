@@ -90,13 +90,15 @@ fn answer(ev: &Evaluation<f64>, id: RecipeNodeId) -> Option<(f64, usize, Boolean
     match &ev.value(id).expect("a value").payload {
         ValuePayload::Boolean(BooleanValue::Empty) => None,
         ValuePayload::Boolean(BooleanValue::Body { body, kind, .. }) => {
-            let volume = topo::test_support::unmigrated_measure(
-                body,
+            let volume = topo::mass_properties(
+                &topo::test_support::finished(
+                    "the measured body",
+                    topo::Body::clone(&**body),
+                    Tol::witness(),
+                ),
                 Tol::witness(),
-                topo::test_support::pinned_resolution(Tol::witness()),
             )
             .unwrap()
-            .enclosure
             .volume;
             Some((volume, body.shells().count(), *kind))
         }
@@ -177,10 +179,13 @@ fn two_parts_of_one_copy_answer_under_every_op() {
             ),
         }
     }
-    let copy = topo::test_support::unmigrated_measure(
-        crate::corpus::body_of(&ev, union),
+    let copy = topo::mass_properties(
+        &topo::test_support::finished(
+            "the measured body",
+            topo::Body::clone(crate::corpus::body_of(&ev, union)),
+            Tol::witness(),
+        ),
         Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap();
     assert!(

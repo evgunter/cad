@@ -30,13 +30,11 @@ use topo::boolean::{SolidContainment, point_in_solid};
 use topo::{Body, FaceKey};
 
 fn vol(body: &Body<f64>) -> f64 {
-    topo::test_support::unmigrated_measure(
-        body,
+    topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), Tol::witness()),
         Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .enclosure
     .volume
 }
 

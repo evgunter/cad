@@ -185,10 +185,9 @@ fn assert_body(label: &str, body: &Body<f64>, expected: f64) {
         Ok(()),
         "{label}: a closed manifold mesh"
     );
-    let p = topo::test_support::unmigrated_measure(
-        body,
+    let p = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), tol),
         tol,
-        topo::test_support::pinned_resolution(tol),
     )
     .unwrap_or_else(|e| panic!("{label}: mass properties, got {e:?}"));
     assert!(

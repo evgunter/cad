@@ -70,16 +70,16 @@ fn dump(label: &str, body: &Body<f64>) {
     for (k, p) in body.vertex_points() {
         println!("[r1diff] {label}: vertex {k:?} point={:?}", p);
     }
-    match topo::test_support::unmigrated_measure(
-        body,
-        tol(),
-        topo::test_support::pinned_resolution(tol()),
-    ) {
-        Ok(p) => println!(
-            "[r1diff] {label}: volume={:?} pad={:?} area={:?}",
-            p.enclosure.volume, p.enclosure.volume_pad, p.enclosure.surface_area
-        ),
-        Err(e) => println!("[r1diff] {label}: props Err {e:?}"),
+    // A body tier 3 refuses prints its refusal and is not measured.
+    match topo::AtRestBody::validate(topo::Body::clone(body), tol()) {
+        Err(errors) => println!("[r1diff] {label}: not at rest {errors:?}"),
+        Ok(finished) => match topo::mass_properties(&finished, tol()) {
+            Ok(p) => println!(
+                "[r1diff] {label}: volume={:?} pad={:?} area={:?}",
+                p.volume, p.volume_pad, p.surface_area
+            ),
+            Err(e) => println!("[r1diff] {label}: props Err {e:?}"),
+        },
     }
     println!(
         "[r1diff] {label}: tier3={:?}",

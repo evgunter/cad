@@ -91,7 +91,7 @@ fn a_box_beside_a_vessel_takes_one_door_each() {
     );
     let s = topo::shell(&finished("the operand", pair.clone(), tol()), t, tol())
         .expect("each solid takes its own door");
-    let body = &s.body;
+    let body = topo::test_support::finished("body", topo::Body::clone(&s.body), tol());
     let want = (box_volume(2.0, 3.0, 4.0)
         - box_volume(2.0 - 2.0 * t, 3.0 - 2.0 * t, 4.0 - 2.0 * t))
         + PI * (r * r * h - (r - t) * (r - t) * (h - 2.0 * t));
@@ -99,18 +99,13 @@ fn a_box_beside_a_vessel_takes_one_door_each() {
         "[8] box+vessel: solids={} shells={} volume={} want={want}",
         body.solids().count(),
         body.shells().count(),
-        volume(body)
+        volume(&body)
     );
-    assert_eq!(topo::validate_geometric(body, tol()), Ok(()), "tier 3");
+    assert_eq!(topo::validate_geometric(&body, tol()), Ok(()), "tier 3");
     assert_eq!(body.solids().count(), 2);
     assert_eq!(body.shells().count(), 4);
-    let props = topo::test_support::unmigrated_measure(
-        body,
-        tol(),
-        topo::test_support::pinned_resolution(tol()),
-    )
-    .expect("props");
-    assert!((props.enclosure.volume - want).abs() <= 1e-9 + props.enclosure.volume_pad);
+    let props = topo::mass_properties(&body, tol()).expect("props");
+    assert!((props.volume - want).abs() <= 1e-9 + props.volume_pad);
 }
 
 /// **A box beside a full torus** — SHELL-7's door, on one solid of two.
@@ -135,7 +130,7 @@ fn a_box_beside_a_full_torus_takes_one_door_each() {
     let pair = beside(&block(2.0, 3.0, 4.0, Tol::witness()), &torus, 20.0);
     let s = topo::shell(&finished("the operand", pair.clone(), tol()), t, tol())
         .expect("each solid takes its own door");
-    let body = &s.body;
+    let body = topo::test_support::finished("body", topo::Body::clone(&s.body), tol());
     let want = (box_volume(2.0, 3.0, 4.0)
         - box_volume(2.0 - 2.0 * t, 3.0 - 2.0 * t, 4.0 - 2.0 * t))
         + 2.0 * PI * PI * big_r * (r * r - (r - t) * (r - t));
@@ -143,17 +138,12 @@ fn a_box_beside_a_full_torus_takes_one_door_each() {
         "[8] box+torus: solids={} shells={} volume={} want={want}",
         body.solids().count(),
         body.shells().count(),
-        volume(body)
+        volume(&body)
     );
-    assert_eq!(topo::validate_geometric(body, tol()), Ok(()), "tier 3");
+    assert_eq!(topo::validate_geometric(&body, tol()), Ok(()), "tier 3");
     assert_eq!(body.solids().count(), 2);
-    let props = topo::test_support::unmigrated_measure(
-        body,
-        tol(),
-        topo::test_support::pinned_resolution(tol()),
-    )
-    .expect("props");
-    assert!((props.enclosure.volume - want).abs() <= 1e-9 + props.enclosure.volume_pad);
+    let props = topo::mass_properties(&body, tol()).expect("props");
+    assert!((props.volume - want).abs() <= 1e-9 + props.volume_pad);
 }
 
 // ---------------------------------------------------------------------

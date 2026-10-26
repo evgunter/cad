@@ -35,13 +35,11 @@ use topo::boolean::{BooleanOp, boolean_op_with};
 use topo::{Body, SweepStrategy};
 
 fn vol(body: &Body<f64>) -> f64 {
-    topo::test_support::unmigrated_measure(
-        body,
+    topo::mass_properties(
+        &finished("the measured body", Body::clone(body), Tol::witness()),
         Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .enclosure
     .volume
 }
 
@@ -317,7 +315,11 @@ fn probe_involution_on_a_boolean_result_body() {
     let v = vol(&holed);
     let original = format!("{holed:?}");
     let rev = holed.revert().unwrap();
-    assert_eq!(vol(&rev).to_bits(), (-v).to_bits(), "volume bit-negated");
+    // Raw door: `rev` is the reverted, inside-out body, which tier 3 refuses (NegativeVolume).
+    let rev_v = topo::test_support::measure_unvalidated(&rev, Tol::witness())
+        .unwrap()
+        .volume;
+    assert_eq!(rev_v.to_bits(), (-v).to_bits(), "volume bit-negated");
     assert_eq!(
         topo::validate_geometric(&rev, Tol::witness()),
         Err(vec![topo::ValidationError::NegativeVolume {

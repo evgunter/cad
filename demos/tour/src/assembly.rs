@@ -46,11 +46,10 @@
 //! using the library is actually like. Each of these is commented at
 //! the site that meets it and filed where it can be fixed:
 //!
-//! - **#943 / #1063 — CLOSED, and the accommodation retired.** A mate
-//!   declares a FACE PAIR; the census backs the vertex-on-edge and
-//!   edge-edge events a flush seat induces from that one declaration,
-//!   and the declared pair itself now certifies on the two
-//!   descriptions' shared world carrier. The stand's posts are seated
+//! - **#943 / #1063 — CLOSED, and the accommodation retired.** A seat
+//!   is a FACE PAIR the census records; it backs the vertex-on-edge and
+//!   edge-edge events a flush seat induces, and the pair itself
+//!   certifies on the two descriptions' shared world carrier. The stand's posts are seated
 //!   FLUSH with the shelf's ends — the obvious way to draw it — where
 //!   they had to be inset while the chart-identity door declined every
 //!   cross-instance pair (`SEAT_A`).
@@ -61,12 +60,10 @@
 //!   it and the seat still certifies.
 //! - **#945** — mates and patterns do not compose at all, which is
 //!   why this file has two assembly documents rather than one.
-//! - **#946** — a sub-assembly's mate declarations do not cross the
-//!   instantiation seam.
 //! - **#947 — the doubled recourse is CLOSED.** The pin-mismatch
 //!   recourse now reaches the author exactly once, from the store's
 //!   own `Display`; `update_door` is what holds that count down.
-//!   All four refusals the walk prints end on a recourse sentence,
+//!   All three refusals the walk prints end on a recourse sentence,
 //!   each asserted here against the library's own constant
 //!   (`refusals`).
 //! - **#948** — no parametric loop constructor (`rect`).
@@ -87,11 +84,6 @@
 //!   is that one writes its `y` slide negated, and nothing an author
 //!   reads at the seat says so short of `reference_about`'s
 //!   documentation (`stand_doc`).
-//!
-//! The declared direction's frontier — a mated assembly's gate can
-//! neither certify nor refute — is not new here; it is the census
-//! Door-2 gap steered to M9 on #591, and `at_rest` states what this
-//! scene can and cannot say about it.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -103,20 +95,17 @@ use std::sync::Arc;
 use pncad::document::coincidence::Relation;
 use pncad::document::pose::{PoseDef, PoseRole, RoleRead};
 use pncad::document::{
-    Assembly, AssemblyError, CancelToken, CheckEvidence, CheckId, ChecksConfig, Constraint, Coord,
-    Dimension, DocEdit, DocRef, DocumentId, EvalOptions, Evaluation, Formula, Frame, FreeValue,
-    FreeVar, InlineError, LoopProgram, Mate, MateFault, MateRef, MintRefusal,
-    NO_AT_REST_RECORD_RECOURSE, Node, OVERCONSTRAINED_RECOURSE, Operand, PartResolver, PartSelect,
-    PatternKind, Placed, ProfileDoc, ProfileProgram, RecipeNodeId, SitedFace, TargetAxis,
-    UNPINNED_RECOURSE, ValuePayload, VarId, VarName, apply, assemble, content_pin, evaluate,
-    inline, load, mixed_pins, parse_formula, product_named, run_checks, save, solve_document,
-    split, stand,
+    Assembly, CancelToken, CheckEvidence, CheckId, ChecksConfig, Constraint, Coord, Dimension,
+    DocEdit, DocRef, DocumentId, EvalOptions, Evaluation, Formula, Frame, FreeValue, FreeVar,
+    InlineError, LoopProgram, Mate, MateFault, MateRef, Node, OVERCONSTRAINED_RECOURSE, Operand,
+    PartResolver, PartSelect, PatternKind, Placed, ProfileDoc, ProfileProgram, RecipeNodeId,
+    SitedFace, TargetAxis, UNPINNED_RECOURSE, ValuePayload, VarId, VarName, apply, assemble,
+    content_pin, evaluate, inline, load, mixed_pins, parse_formula, product_named, run_checks,
+    save, solve_document, split, stand,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
-use pncad::select::{
-    CapEnd, ContactClass, EntityKind, NamePat, NameTable, RoleSeg, SegPat, SegTag, Selector,
-};
+use pncad::select::{CapEnd, EntityKind, NamePat, NameTable, RoleSeg, SegPat, SegTag, Selector};
 use pncad::topo::Body;
 use pncad::topo::EulerCounts;
 use pncad::topo::readback::euler_counts;
@@ -208,8 +197,8 @@ fn pe(src: &str, params: &BTreeMap<VarName, Dimension>) -> Formula {
 
 /// A mate head, read at the instance the name is qualified by.
 ///
-/// A mate declares a contact between two FACES, and the kernel says so
-/// in the type: a mate's face side is read through a `SitedFace`, whose
+/// A mate rests two FACES, and the kernel says so in the type: a mate's
+/// face side is read through a `SitedFace`, whose
 /// names are
 /// `pncad::document::FaceName`s. A caller holding a `StableName` from
 /// a selection door asks for one and handles the refusal — which for
@@ -260,11 +249,10 @@ fn standoff(plane: Operand, by: f64) -> Operand {
 /// A face of the copy resting against a face of what it joins: the
 /// copy's plane equated with the other's FLIPPED, so the two outward
 /// normals face each other. `on` reads the copy the mate places.
-fn rest(on: Operand, against: Operand, class: ContactClass) -> Mate<Formula> {
+fn rest(on: Operand, against: Operand) -> Mate<Formula> {
     Mate {
         on,
         to: flipped(against),
-        class,
     }
 }
 
@@ -767,20 +755,6 @@ fn swing() -> VarName {
     VarName::from_static("swing")
 }
 
-/// How the stand's two seats are authored: each a rest with its three
-/// freedoms — the two slides in the seating plane and the spin about it
-/// — set by values.
-#[derive(Clone, Copy)]
-struct Seating {
-    /// The class the shelf's seat on the near post declares.
-    class: ContactClass,
-}
-
-/// The stand as it is built: two rests, each with its freedoms set.
-const SEATED: Seating = Seating {
-    class: ContactClass::Rest,
-};
-
 /// **`spot`, on the turntable, where the swing turns it**: the point
 /// turned about [`PIVOT`] by the document's `swing`, as two formulas on
 /// the world's `x` and `y` — `p + R(swing)·(spot − p)`.
@@ -822,7 +796,7 @@ fn on_the_turntable(spot: [f64; 3], scope: &BTreeMap<VarName, Dimension>) -> Pla
     ])
 }
 
-/// Builds the stand, its seats authored as `seating` says.
+/// Builds the stand.
 ///
 /// The seats' values are where the posts meet the shelf, [`SEAT_A`]
 /// and [`SEAT_B`]: each copy's origin at swing zero, turned about the
@@ -833,7 +807,7 @@ fn on_the_turntable(spot: [f64; 3], scope: &BTreeMap<VarName, Dimension>) -> Pla
 /// the chart of a downward direction is the world's axes turned half
 /// about `x`, so its `y` runs along the world's `-y` and its spin
 /// turns the other way.
-fn stand_doc(parts: &Parts, seating: Seating, tol: Tol) -> Stand {
+fn stand_doc(parts: &Parts, tol: Tol) -> Stand {
     let (post, shelf) = (parts.post, parts.shelf);
     let (post_top, shelf_bottom) = (&parts.post_top, &parts.shelf_bottom);
     let mut doc = ProfileDoc::empty(DocumentId::derive("pncad-demo-stand"), tol);
@@ -883,22 +857,14 @@ fn stand_doc(parts: &Parts, seating: Seating, tol: Tol) -> Stand {
     let mate_1 = constrain(
         &mut doc,
         shelf_i,
-        rest(
-            plane(shelf_i, shelf_bottom),
-            plane(post_a, post_top),
-            seating.class,
-        ),
+        rest(plane(shelf_i, shelf_bottom), plane(post_a, post_top)),
         on_top(shelf_at),
         tol,
     );
     let mate_2 = constrain(
         &mut doc,
         post_b,
-        rest(
-            plane(post_b, post_top),
-            plane(shelf_i, shelf_bottom),
-            ContactClass::Rest,
-        ),
+        rest(plane(post_b, post_top), plane(shelf_i, shelf_bottom)),
         under(post_b_at),
         tol,
     );
@@ -947,7 +913,6 @@ fn bench(stand: &Stand, parts: &Parts, tol: Tol) -> Bench {
         rest(
             plane(crate_i, &parts.crate_bottom),
             plane(stand.shelf_i, &parts.shelf_top),
-            ContactClass::Rest,
         ),
         seated_at(x, y, pe("swing", &scope)),
         tol,
@@ -1104,16 +1069,16 @@ fn layout_scene(ws: &Workspace, doc: &ProfileDoc, pattern: RecipeNodeId, tol: To
     );
 
     // A5's disjoint half: the at-rest gate over the gathered product.
-    // No mate declares anything here and nothing touches, so the
-    // kernel's tier-3' door passes outright — which is exactly what
-    // "disjoint assemblies validate today" means.
+    // Nothing touches, so the kernel's tier-3' door passes outright and
+    // records nothing — which is exactly what "disjoint assemblies
+    // validate today" means.
     let assembly = assemble(doc, &ev, tol)
         .unwrap_or_else(|e| panic!("the disjoint layout must pass the at-rest gate: {e}"));
     assert!(
-        assembly.minted.is_empty(),
-        "a mate-less assembly mints no declarations"
+        assembly.contacts.is_empty(),
+        "a disjoint assembly records no contact"
     );
-    println!("   [layout] A5 at-rest gate: PASSED (disjoint, per-solid checks, 0 declarations)");
+    println!("   [layout] A5 at-rest gate: PASSED (disjoint, per-solid checks, 0 contacts)");
 
     SceneBody::seamed(
         "benchlayout",
@@ -1125,8 +1090,7 @@ fn layout_scene(ws: &Workspace, doc: &ProfileDoc, pattern: RecipeNodeId, tol: To
 
 /// The assembled bench at its authored swing: the near post's world
 /// mate places it through the turntable, the mates place the rest onto
-/// it, the mates mint their declarations, and the gate reports what it
-/// could decide.
+/// it, the census records the seats, and the gate certifies them.
 fn stand_scene(ws: &Workspace, stand: &Stand, bench: &Bench, tol: Tol) -> Evaluation<f64> {
     let doc = &bench.doc;
     let ev = run(doc, &with_store(ws), tol);
@@ -1212,26 +1176,16 @@ fn stand_scene(ws: &Workspace, stand: &Stand, bench: &Bench, tol: Tol) -> Evalua
         props.enclosure.volume
     );
 
-    let gate = at_rest(doc, &ev, tol);
-    println!(
-        "   [stand] the mates minted {} declaration(s) into the product's contact record \
-         set, at FACE granularity; A5 at-rest gate: {}",
-        gate.minted(),
-        gate.verdict.describe()
-    );
-    assert_eq!(
-        gate.minted(),
-        3,
-        "one record per solved mate (A3's minting)"
-    );
     // ASSERTED, not merely printed: the stand is the natural drawing of
     // a bench — two posts seated FLUSH with the shelf's ends — with a
     // crate resting on its shelf; it certifies.
-    assert!(
-        matches!(gate.verdict, AtRestVerdict::Certified),
-        "the flush-seated bench CERTIFIES at the A5 gate: {}",
-        gate.verdict.describe()
+    let gate = at_rest(doc, &ev, tol);
+    let seats = gate.contacts.face_face().count();
+    println!(
+        "   [stand] the census recorded {seats} seat(s) between the copies, at FACE \
+         granularity; A5 at-rest gate: PASSED"
     );
+    assert_eq!(seats, 3, "one record per seat the mates make");
     // Each seat is the at-rest census's row of its mate's two faces,
     // which the mate states are one construction: the coincidence door
     // proves all three. Each post's outer face is in the plane of the
@@ -1345,11 +1299,6 @@ fn poses(
             "a swing moves material and makes none: {BENCH_VOLUME} m^3, measured {volume}"
         );
         let gate = at_rest(&doc, &ev, tol);
-        assert!(
-            matches!(gate.verdict, AtRestVerdict::Certified),
-            "the bench certifies at a swing of {degrees} deg: {}",
-            gate.verdict.describe()
-        );
         out.push((degrees, gate, counters));
         prior = ev;
     }
@@ -1497,100 +1446,19 @@ fn points(body: &Body<f64>) -> Vec<[f64; 3]> {
     body.points().map(|(_, p)| [p.x, p.y, p.z]).collect()
 }
 
-/// What the A5 gate decided — the two arms a caller must tell apart,
-/// as a value the scenes match on.
-///
-/// A verdict is NOT a count. The gate's two non-refusing arms carry
-/// different things (`Ok` carries the minted declarations; the
-/// frontier carries findings and no minted list), so a single number
-/// standing for "how many" would mean something different per arm —
-/// and the number a scene wants for MINTING is neither: it is the
-/// record set's own size, which both arms carry.
-enum AtRestVerdict {
-    /// Every declaration certified.
-    Certified,
-    /// Nothing refuted and nothing certified: the census declined
-    /// every declared face. Carries how many it declined.
-    Uncertified { declined: usize },
-}
-
-impl AtRestVerdict {
-    /// The sentence a scene prints.
-    fn describe(&self) -> String {
-        match self {
-            Self::Certified => "PASSED (every declaration certified)".to_string(),
-            Self::Uncertified { declined } => format!(
-                "UNCERTIFIED — {declined} declared face(s) neither certified nor refuted \
-                 (the declared direction's frontier: nothing was decided about this \
-                 geometry either way)"
-            ),
-        }
-    }
-}
-
-/// The gate's product, its record set, and its verdict.
+/// The certified product and its record set.
 struct AtRest {
     body: Body<f64>,
     contacts: pncad::topo::ContactRecords,
-    verdict: AtRestVerdict,
 }
 
-impl AtRest {
-    /// **How many declarations were minted** — the size of the record
-    /// set the gate was handed, which is what a mate's minting
-    /// produces (A3) and the one quantity both arms carry.
-    fn minted(&self) -> usize {
-        self.contacts.face_face().count()
-    }
-}
-
-/// Runs the A5 gate.
-///
-/// `Ok` and `Uncertified` are BOTH accepted, and the difference is
-/// reported rather than asserted. Since #1063 a declared PLANAR
-/// cross-instance pair certifies on its shared world carrier, so this
-/// stand returns `Ok`; the `Uncertified` arm stays because it is still
-/// the honest answer for everything the carrier arm does not reach — a
-/// declared CURVED cross-instance pair, or a planar pair whose two
-/// descriptions disagree over the pair's own extent. What is NOT
-/// accepted is `AtRest` — a finding AGAINST the document — which is
-/// the arm that means the declarations do not hold, and which the
-/// update walk deliberately provokes.
-///
-/// # What the frontier's observable does and does not say
-///
-/// The finding that arm carries is `CensusUnsupported` naming a face.
-/// The declared-patch loop emits that from MORE THAN ONE door — the
-/// carrier-identity check, the chart-region inventory and the carrier
-/// tilt row all decline through it — so the observable a caller sees
-/// does NOT say which of them declined, and this demo does not claim
-/// to know. What holds either way is the whole content of the
-/// frontier: nothing was decided about the geometry, in either
-/// direction. Separating the doors would take a probe against the
-/// census, which is the census's unit to write, not this scene's.
+/// Runs the A5 gate over a stand the scene means to certify, and panics
+/// on any refusal: every caller (the stand, the instanced stand, and the
+/// updated bench the update walk re-seats) asserts it is at rest.
 fn at_rest(doc: &ProfileDoc, ev: &Evaluation<f64>, tol: Tol) -> AtRest {
     match assemble(doc, ev, tol) {
-        Ok(Assembly { body, contacts, .. }) => AtRest {
-            body,
-            contacts,
-            verdict: AtRestVerdict::Certified,
-        },
-        // Every finding here is a `Declined` by the arm's own
-        // construction (`assembly.rs` routes a refusal to `AtRest` the
-        // moment one finding is not), so re-checking that would be
-        // asserting the constructor rather than the geometry. The arm
-        // SPLIT is the check.
-        Err(AssemblyError::Uncertified { contacts, findings }) => {
-            let (body, _) = product_of(doc, ev, tol);
-            AtRest {
-                body,
-                contacts: *contacts,
-                verdict: AtRestVerdict::Uncertified {
-                    declined: findings.len(),
-                },
-            }
-        }
-        Err(other) => panic!("the stand's declarations must not be refuted: {other}"),
+        Ok(Assembly { body, contacts, .. }) => AtRest { body, contacts },
+        Err(other) => panic!("the stand must be at rest: {other}"),
     }
 }
 
@@ -1604,19 +1472,18 @@ fn at_rest(doc: &ProfileDoc, ev: &Evaluation<f64>, tol: Tol) -> AtRest {
 /// ending on its recourse breaks this walk.
 fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
     let (post, shelf) = (parts.post, parts.shelf);
-    println!("\n-- the v1 boundary, walked: four refusals an author actually hits --");
+    println!("\n-- the v1 boundary, walked: three refusals an author actually hits --");
 
     // (1) UNDER-DETERMINED. One planar rest between two parts fixes
     // the seating plane and nothing else — the shelf could still slide
     // and spin in it. Every bundle pins its copy, so a bundle that pins
     // less is refused at the door, naming the freedoms it leaves, and
     // the recourse is the values that set them.
-    let under = stand_doc(parts, SEATED, tol);
+    let under = stand_doc(parts, tol);
     let alone = Placed {
         mates: vec![rest(
             plane(under.shelf_i, &parts.shelf_bottom),
             plane(under.post_a, &parts.post_top),
-            ContactClass::Rest,
         )],
         values: Vec::new(),
     };
@@ -1645,7 +1512,6 @@ fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
         plane(under.shelf_i, &parts.shelf_bottom),
         // The same pair, seated 10 mm apart.
         standoff(plane(under.post_a, &parts.post_top), 0.01),
-        ContactClass::Rest,
     );
     let fault = match apply(&under.doc, &add_constraint(under.shelf_i, again), tol) {
         Err(pncad::document::EditError::MateRefused { fault, .. }) => *fault,
@@ -1662,43 +1528,7 @@ fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
     );
     println!("   (2) overconstrained, at the door: {fault}");
 
-    // (3) OUTSIDE v1's VOCABULARY. `Tangent` solves — a tangency pins
-    // a coset like any other primitive — and then has nowhere to go
-    // at rest: its kernel record is a face–face pair on two carriers,
-    // and the census at rest decides nothing along their locus for the
-    // record to cite. The mint door refuses typed and says so in the
-    // class's own terms. The stand is authored with the shelf's seat
-    // declared a tangency, and the far post goes, its bundle with it.
-    let mut swapped = stand_doc(
-        parts,
-        Seating {
-            class: ContactClass::Tangent,
-        },
-        tol,
-    );
-    edit(
-        &mut swapped.doc,
-        &DocEdit::DeleteNode { id: swapped.post_b },
-        tol,
-    );
-    let swapped = swapped.doc;
-    let ev = run(&swapped, &with_store(ws), tol);
-    let err = assemble(&swapped, &ev, tol).expect_err("a Tangent mate has no at-rest record");
-    assert!(
-        matches!(&err, AssemblyError::Mint { refusals }
-            if !refusals.is_empty()
-                && refusals
-                    .iter()
-                    .all(|r| matches!(r, MintRefusal::NoAtRestRecord { .. }))),
-        "the class table's mint half is what refuses, got {err}"
-    );
-    assert!(
-        err.to_string().contains(NO_AT_REST_RECORD_RECOURSE),
-        "the refusal carries its recourse verbatim"
-    );
-    println!("   (3) outside v1's at-rest vocabulary: {err}");
-
-    // (4) A REFERENCE PINNING THE WRONG VERSION. An assembly is a
+    // (3) A REFERENCE PINNING THE WRONG VERSION. An assembly is a
     // self-contained reproducible value: a part that changed on disk
     // does not retarget it. Asking the store for a version it no
     // longer holds is the typed pin refusal, and its recourse names
@@ -1708,7 +1538,7 @@ fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
     // one document's id with another's pin is a `DocRef` nobody would
     // author. It is here because it reaches the refusal in one line
     // with no store mutation, so the walk can state the refusal's
-    // shape beside the other three. The USER-REACHABLE instance of the
+    // shape beside the other two. The USER-REACHABLE instance of the
     // same refusal is in `update_door`, where a part legitimately
     // changes on disk and the un-updated assembly stops resolving —
     // that is the one that says what this costs an author.
@@ -1727,7 +1557,7 @@ fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
         err.to_string().contains(PIN_MISMATCH_RECOURSE),
         "the refusal carries its recourse verbatim"
     );
-    println!("   (4) wrong pin: {err}");
+    println!("   (3) wrong pin: {err}");
 }
 
 // ---- The recorded refactorings (A4) ----
@@ -2065,10 +1895,7 @@ fn update_door(ws: &mut Workspace, stand: &Stand, bench: &Bench, shelf: DocRef, 
 
     let after = run(&updated, &with_store(ws), tol);
     // A13 clause 4: the pin move triggers ordinary re-evaluation, and
-    // the crossing declarations go back through the gate against the
-    // NEW geometry. What the gate then decides is its own business —
-    // saying "re-verified" and reporting the frontier in one breath
-    // would claim a verdict the frontier explicitly does not give.
+    // the census records the seats again against the NEW geometry.
     // The posts' seats name the shelf's UNDERSIDE, which a thicker
     // board leaves where it was, so they hold. The crate rests on the
     // shelf's TOP face, so it rides up with the board by exactly the
@@ -2086,12 +1913,8 @@ fn update_door(ws: &mut Workspace, stand: &Stand, bench: &Bench, shelf: DocRef, 
         crate_before.columns, crate_after.columns,
         "the crate's orientation is untouched by a thickness edit"
     );
-    let thicker_gate = at_rest(&updated, &after, tol);
-    assert!(
-        matches!(thicker_gate.verdict, AtRestVerdict::Certified),
-        "the bench with a thicker shelf CERTIFIES, the crate on its top: {}",
-        thicker_gate.verdict.describe()
-    );
+    // The gate certifies the thicker bench, the crate on its top.
+    at_rest(&updated, &after, tol);
     let (after_body, _) = product_of(&updated, &after, tol);
     let after_volume = pncad::topo::mass_properties(
         &crate::booleans::at_rest(&after_body, tol),
@@ -2107,7 +1930,7 @@ fn update_door(ws: &mut Workspace, stand: &Stand, bench: &Bench, shelf: DocRef, 
     );
     println!(
         "   after {} recorded UpdateReference edit(s): V {:.6} -> {:.6} m^3; the \
-         declarations were re-minted against the new geometry and put back through the \
+         seats were recorded again against the new geometry and put back through the \
          gate, which certifies: the crate rode up {risen:.3} m with the shelf's top",
         edits.len(),
         before_volume,
@@ -2207,9 +2030,9 @@ fn update_door(ws: &mut Workspace, stand: &Stand, bench: &Bench, shelf: DocRef, 
     // And now the mates do their job. Both posts are 40 mm short, and
     // each seat's pose is the plane of the post's top cap FACE, read
     // off the post's own evaluation at every solve — so the shelf
-    // comes down 40 mm with the posts, the declared rest between each
-    // cap and the shelf's underside still holds, and the gate refutes
-    // neither seat. The face name is the state; the pose is derived.
+    // comes down 40 mm with the posts, the rest between each cap and
+    // the shelf's underside still holds, and the gate certifies both
+    // seats. The face name is the state; the pose is derived.
     let ev = run(&migrated, &with_store(ws), tol);
     let shelf_after = solve_document(&migrated, &with_store(ws), tol)
         .placement(&migrated, stand.shelf_i)
@@ -2234,12 +2057,8 @@ fn update_door(ws: &mut Workspace, stand: &Stand, bench: &Bench, shelf: DocRef, 
         (crate_dropped - 0.04).abs() < 1e-12,
         "the crate comes down with the shelf by the height change: {crate_dropped} m"
     );
-    let migrated_gate = at_rest(&migrated, &ev, tol);
-    assert!(
-        matches!(migrated_gate.verdict, AtRestVerdict::Certified),
-        "the migrated bench CERTIFIES, the crate on its shelf: {}",
-        migrated_gate.verdict.describe()
-    );
+    // The gate certifies the migrated bench, the crate on its shelf.
+    at_rest(&migrated, &ev, tol);
     println!(
         "   \"does it actually fit\": after the migration the shelf came down {dropped:.3} m with \
          the shortened posts and the crate {crate_dropped:.3} m with the shelf — each mate names \
@@ -2392,7 +2211,7 @@ pub fn stops(work: &Path, tol: Tol) -> Vec<Stop> {
 
     let (layout, pattern, shelf_i) = layout_doc(parts.post, parts.shelf, tol);
     ws.create(&layout, tol).expect("the layout is stored");
-    let stand = stand_doc(&parts, SEATED, tol);
+    let stand = stand_doc(&parts, tol);
     let bench = bench(&stand, &parts, tol);
     ws.create(&bench.doc, tol).expect("the bench is stored");
 

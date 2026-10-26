@@ -64,13 +64,11 @@ fn slack() -> f64 {
 }
 
 fn vol(body: &Body<f64>) -> f64 {
-    topo::test_support::unmigrated_measure(
-        body,
+    topo::mass_properties(
+        &finished("the measured body", Body::clone(body), Tol::witness()),
         Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .enclosure
     .volume
 }
 
@@ -238,7 +236,11 @@ fn revert_uses_the_plane_normal_for_planes_and_the_sense_bit_for_charts() {
         }]),
         "a reverted body bounds the complement: tier 3 is exactly NegativeVolume"
     );
-    assert_eq!(vol(&rev).to_bits(), (-v).to_bits(), "volume is bit-negated");
+    // Raw door: `rev` is inside out, which tier 3 refuses (NegativeVolume), as asserted above.
+    let rev_v = topo::test_support::measure_unvalidated(&rev, Tol::witness())
+        .unwrap()
+        .volume;
+    assert_eq!(rev_v.to_bits(), (-v).to_bits(), "volume is bit-negated");
 }
 
 /// Involution and determinism on a curved body, both BITWISE — the D1

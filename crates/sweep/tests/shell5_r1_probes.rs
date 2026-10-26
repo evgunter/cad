@@ -133,7 +133,11 @@ fn face_on(body: &Body<f64>, shell: ShellKey, n: (f64, f64, f64), c: f64) -> Fac
 }
 
 fn roles(body: &Body<f64>) -> (ShellKey, Vec<ShellKey>) {
-    let rows = topo::test_support::unmigrated_classify(body, tol()).expect("classifies");
+    let rows = topo::classify_shells(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
+        tol(),
+    )
+    .expect("classifies");
     let outer: Vec<ShellKey> = rows
         .iter()
         .filter(|c| c.role == ShellRole::Outer)
@@ -301,27 +305,22 @@ fn r1p1_cylindrical_void_in_a_box_through_the_axial_door() {
     let t = 0.1;
     let s = topo::shell(&finished("the operand", hollow.clone(), tol()), t, tol())
         .unwrap_or_else(|e| panic!("box with cylindrical void at t={t} hollows: {e:?}"));
-    let out = &s.body;
-    let tier3 = topo::validate_geometric(out, tol());
-    let props = topo::test_support::unmigrated_measure(
-        out,
-        tol(),
-        topo::test_support::pinned_resolution(tol()),
-    )
-    .expect("props");
+    let out = topo::test_support::finished("out", topo::Body::clone(&s.body), tol());
+    let tier3 = topo::validate_geometric(&out, tol());
+    let props = topo::mass_properties(&out, tol()).expect("props");
     let pi = core::f64::consts::PI;
     let want = (64.0 - 3.8f64.powi(3)) + pi * (1.1 * 1.1 * 2.2 - 2.0);
     println!(
         "[measured] box with cylindrical void at t={t}: BUILDS solids={} shells={} tier3={tier3:?} roles={:?} volume={} (pad {}) want={want}",
         out.solids().count(),
         out.shells().count(),
-        roles_by_solid(out),
-        props.enclosure.volume,
-        props.enclosure.volume_pad
+        roles_by_solid(&out),
+        props.volume,
+        props.volume_pad
     );
     assert_eq!(tier3, Ok(()));
     assert_eq!(out.solids().count(), 2);
-    for (_, kinds) in roles_by_solid(out) {
+    for (_, kinds) in roles_by_solid(&out) {
         assert_eq!(kinds, vec![ShellRole::Outer, ShellRole::Void]);
     }
     assert!((props.enclosure.volume - want).abs() <= 1e-9 + props.enclosure.volume_pad);
@@ -405,13 +404,9 @@ fn r1p6_open_a_void_ceiling_with_a_pillar_through_it() {
     match topo::shell_open(&body, t, &[ceiling], tol()) {
         Err(e) => println!("[measured] open the holed void ceiling at t={t}: refuses {e}"),
         Ok(s) => {
-            let out = &s.body;
-            let tier3 = topo::validate_geometric(out, tol());
-            let props = topo::test_support::unmigrated_measure(
-                out,
-                tol(),
-                topo::test_support::pinned_resolution(tol()),
-            );
+            let out = topo::test_support::finished("out", topo::Body::clone(&s.body), tol());
+            let tier3 = topo::validate_geometric(&out, tol());
+            let props = topo::mass_properties(&out, tol());
             // A = 4³ − 3.8³; B = V′ − V where V = 2²·2 − 0.4²·2 and
             // V′ = 2.2³ − 0.2²·2.2; the removed slab is the counterpart's
             // footprint (2.2² − 0.2²) × t.
@@ -430,10 +425,10 @@ fn r1p6_open_a_void_ceiling_with_a_pillar_through_it() {
                 s.naming.dead.shells
             );
             if let Some(r) = s.naming.rims.first() {
-                let (_, n) = plane_of(out, r.rim);
+                let (_, n) = plane_of(&out, r.rim);
                 println!("[measured] rim {:?} outward normal {n:?}", r.rim);
                 for h in &r.holes {
-                    let (_, n) = plane_of(out, h.face);
+                    let (_, n) = plane_of(&out, h.face);
                     println!(
                         "[measured] hole rim {:?} outward normal {n:?} rings={}",
                         h.face,
@@ -441,7 +436,7 @@ fn r1p6_open_a_void_ceiling_with_a_pillar_through_it() {
                     );
                 }
             }
-            let mesh = mesh::tessellate(out, 0.01, tol());
+            let mesh = mesh::tessellate(&out, 0.01, tol());
             println!(
                 "[measured] tessellates: {:?}",
                 mesh.as_ref().map(|m| m.patches.len())
@@ -454,9 +449,9 @@ fn r1p6_open_a_void_ceiling_with_a_pillar_through_it() {
             assert!((volume - want).abs() <= 1e-12, "got {volume}, want {want}");
             let r = &s.naming.rims[0];
             assert_eq!(r.holes.len(), 1);
-            assert!(plane_of(out, r.rim).1.z > 0.5, "the rim faces the gap");
+            assert!(plane_of(&out, r.rim).1.z > 0.5, "the rim faces the gap");
             assert!(
-                plane_of(out, r.holes[0].face).1.z > 0.5,
+                plane_of(&out, r.holes[0].face).1.z > 0.5,
                 "the hole rim faces the gap"
             );
             assert!(out.get_face(ceiling).is_none());
@@ -506,10 +501,9 @@ fn r1_e2e_hollow_twice_then_open_the_inner_wall() {
         twice.naming.thickened,
         roles_by_solid(&twice.body)
     );
-    let props = topo::test_support::unmigrated_measure(
-        &twice.body,
+    let props = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(&twice.body), tol()),
         tol(),
-        topo::test_support::pinned_resolution(tol()),
     )
     .expect("props");
     println!(
@@ -528,10 +522,9 @@ fn r1_e2e_hollow_twice_then_open_the_inner_wall() {
         tol(),
     )
     .expect("hollow, hollow, open is three verbs");
-    let props = topo::test_support::unmigrated_measure(
-        &three.body,
+    let props = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(&three.body), tol()),
         tol(),
-        topo::test_support::pinned_resolution(tol()),
     )
     .expect("props");
     println!(
@@ -586,20 +579,15 @@ fn r1_e2e_hollow_twice_then_open_the_inner_wall() {
         tol(),
     )
     .expect("open the inner wall");
-    let out = &opened.body;
+    let out = topo::test_support::finished("out", topo::Body::clone(&opened.body), tol());
     println!(
         "[e2e] opened inner wall: solids={} shells={} tier3={:?} roles={:?}",
         out.solids().count(),
         out.shells().count(),
-        topo::validate_geometric(out, tol()),
-        roles_by_solid(out)
+        topo::validate_geometric(&out, tol()),
+        roles_by_solid(&out)
     );
-    let props = topo::test_support::unmigrated_measure(
-        out,
-        tol(),
-        topo::test_support::pinned_resolution(tol()),
-    )
-    .expect("props");
+    let props = topo::mass_properties(&out, tol()).expect("props");
     let want = (box_volume(2.0, 3.0, 4.0) - box_volume(1.9, 2.9, 3.9))
         + (box_volume(1.6, 2.6, 3.6) - box_volume(1.5, 2.5, 3.5))
         - 1.6 * 2.6 * 0.05;
@@ -612,7 +600,7 @@ fn r1_e2e_hollow_twice_then_open_the_inner_wall() {
     assert!((props.enclosure.volume - want).abs() < 1e-12);
 
     // 4. mesh it.
-    match mesh::tessellate(out, 0.01, tol()) {
+    match mesh::tessellate(&out, 0.01, tol()) {
         Ok(m) => println!(
             "[e2e] mesh: positions={} patches={} triangles={}",
             m.positions.len(),
@@ -623,7 +611,7 @@ fn r1_e2e_hollow_twice_then_open_the_inner_wall() {
     }
     // 5. export it (STEP is the only exporter in the workspace).
     match step_export::step_string(
-        out,
+        &out,
         &step_export::StepOptions {
             product_name: "opened inner wall".into(),
             ..Default::default()
@@ -638,7 +626,7 @@ fn r1_e2e_hollow_twice_then_open_the_inner_wall() {
         Err(e) => println!("[e2e] STEP refuses: {e}"),
     }
     match step_export::step_string(
-        &first.body,
+        &topo::test_support::finished("the exported body", first.body.clone(), tol()),
         &step_export::StepOptions {
             product_name: "hollow once".into(),
             ..Default::default()
@@ -652,7 +640,7 @@ fn r1_e2e_hollow_twice_then_open_the_inner_wall() {
         Err(e) => println!("[e2e] STEP (hollow once, pre-existing shape) refuses: {e}"),
     }
     match step_export::step_string(
-        &twice.body,
+        &topo::test_support::finished("the exported body", twice.body.clone(), tol()),
         &step_export::StepOptions {
             product_name: "hollow twice".into(),
             ..Default::default()

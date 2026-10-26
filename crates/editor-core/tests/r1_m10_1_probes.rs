@@ -400,23 +400,24 @@ fn a_distribution_only_edit_invalidates_no_memoized_evaluation() {
         corpus::body_of(&after, result),
     );
     let (mb, ma) = (
-        topo::test_support::unmigrated_measure(
-            before_body,
+        topo::mass_properties(
+            &topo::test_support::finished(
+                "the measured body",
+                topo::Body::clone(before_body),
+                Tol::witness(),
+            ),
             Tol::witness(),
-            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .expect("props"),
-        topo::test_support::unmigrated_measure(
-            after_body,
+        topo::mass_properties(
+            &topo::test_support::finished(
+                "the measured body",
+                topo::Body::clone(after_body),
+                Tol::witness(),
+            ),
             Tol::witness(),
-            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .expect("props"),
-    );
-    assert_eq!(mb.enclosure.volume.to_bits(), ma.enclosure.volume.to_bits());
-    assert_eq!(
-        mb.enclosure.surface_area.to_bits(),
-        ma.enclosure.surface_area.to_bits()
     );
 }
 

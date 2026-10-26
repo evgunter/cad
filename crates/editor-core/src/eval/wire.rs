@@ -69,10 +69,9 @@ pub(crate) struct OpOut<T: Decide> {
     /// fragment groups beside them empty for an op that forms none.
     pub outputs: Vec<super::OutputNames>,
     pub contacts: Arc<topo::ContactRecords>,
-    /// Whose mate authored each of those records, and which mates of
-    /// the documents below could not be minted at all; same arena, same
+    /// The at-rest findings of the documents below; same arena, same
     /// one op.
-    pub carried: Arc<crate::assembly::CarriedDeclarations>,
+    pub carried: Arc<crate::assembly::CarriedFindings>,
     /// How many parts each output body is (`NodeValue::parts`).
     pub parts: usize,
     /// The coincidences the op decided from values, named in its
@@ -86,13 +85,13 @@ pub(crate) struct OpOut<T: Decide> {
 }
 
 impl<T: Decide> OpOut<T> {
-    /// An op that declares no contact — every op but instantiate.
+    /// An op that carries no part's records — every op but instantiate.
     fn plain(payload: ValuePayload<T>, names: Arc<NameTable>) -> Self {
         Self {
             payload,
             outputs: vec![super::OutputNames::new(names, Arc::default())],
             contacts: Arc::new(topo::ContactRecords::default()),
-            carried: Arc::new(crate::assembly::CarriedDeclarations::default()),
+            carried: Arc::new(crate::assembly::CarriedFindings::default()),
             parts: 1,
             coincidences: Arc::new([]),
             cited_inputs: Arc::new([]),
@@ -836,7 +835,7 @@ where
     // keeps it rigid.
     let placed = place(&part.body, map.as_ref(), tol)?;
     let table = names::name_in_part(id, &part.names, &placed).map_err(NodeErrorKind::Naming)?;
-    // ASM-R2b D-1: the part's OWN declared contacts survive
+    // ASM-R2b D-1: the part's OWN contact records survive
     // instantiation with their cells UNCHANGED, because
     // `transform_rigid` is key-stable and the identity fast path clones
     // keys verbatim. Re-deriving them from the placed geometry is the
@@ -845,32 +844,7 @@ where
     // The bookkeeping rows ride unchanged for the same reason; what is
     // added here is each row's first hop, this instance
     // ([`crate::assembly::PartRow::through`]).
-    let carried = crate::assembly::CarriedDeclarations {
-        refused: part.refused.as_ref().clone(),
-        minted: part
-            .minted
-            .iter()
-            .map(|row| {
-                let (route, declaration, held) = row.through(id);
-                crate::assembly::CarriedDeclaration {
-                    route,
-                    declaration,
-                    held,
-                }
-            })
-            .collect(),
-        unminted: part
-            .unminted
-            .iter()
-            .map(|row| {
-                let (route, refusal, held) = row.through(id);
-                crate::assembly::CarriedRefusal {
-                    route,
-                    refusal,
-                    held,
-                }
-            })
-            .collect(),
+    let carried = crate::assembly::CarriedFindings {
         interference: part
             .interference
             .iter()
@@ -1468,12 +1442,11 @@ pub(crate) fn frame_axes<T: Decide>(
 /// not fit: past `u32::MAX` a loop's coordinate would name another
 /// loop's.
 fn loop_coordinates(n: usize) -> Result<core::ops::Range<u32>, NodeErrorKind> {
-    names::to_u32(
-        n,
-        "a profile holds more loops than a u32 loop index addresses",
-    )
-    .map(|n| 0..n)
-    .map_err(NodeErrorKind::Naming)
+    u32::try_from(n).map(|n| 0..n).map_err(|_| {
+        NodeErrorKind::Naming(names::NamingError::Emission {
+            what: "a profile holds more loops than a u32 loop index addresses",
+        })
+    })
 }
 
 /// The profile node's F64 PRECOMPUTE (LIB-SWITCH §4b): the resolved
@@ -1806,7 +1779,7 @@ fn wire_tube<T: Decide + topo::AtRestPolicy>(
     let built = sweep::tube_along_arc(a.frame, a.major_radius, a.window, a.minor_radius, tol)
         .map_err(|e| NodeErrorKind::Tube(Box::new(e)))?;
     let table =
-        names::name_revolve(id, &built, &tube_pieces(&built)?).map_err(NodeErrorKind::Naming)?;
+        names::name_revolve(id, &built, &tube_pieces(&built)).map_err(NodeErrorKind::Naming)?;
     Ok(OpOut::plain(
         ValuePayload::Body(Arc::new(built.body)),
         table,
@@ -1818,11 +1791,9 @@ fn wire_tube<T: Decide + topo::AtRestPolicy>(
 /// named by its place in that construction under the tube node
 /// (`names/README.md`, "N1, the profile pieces") — the shape the node
 /// kind fixes, which nothing can renumber.
-fn tube_pieces<T: Decide>(
-    built: &sweep::Revolved<T>,
-) -> Result<super::ProfilePieces, NodeErrorKind> {
+fn tube_pieces<T: Decide>(built: &sweep::Revolved<T>) -> super::ProfilePieces {
     let counts: Vec<usize> = built.rims.iter().map(Vec::len).collect();
-    super::ProfilePieces::section(&counts).map_err(NodeErrorKind::Naming)
+    super::ProfilePieces::section(&counts)
 }
 
 /// **A hollow tube** — `sweep::tube_along_arc_hollow`, the OTHER
@@ -1846,7 +1817,7 @@ fn wire_hollow_tube<T: Decide + topo::AtRestPolicy>(
         sweep::tube_along_arc_hollow(a.frame, a.major_radius, a.window, a.minor_radius, wall, tol)
             .map_err(|e| NodeErrorKind::Tube(Box::new(e)))?;
     let table =
-        names::name_revolve(id, &built, &tube_pieces(&built)?).map_err(NodeErrorKind::Naming)?;
+        names::name_revolve(id, &built, &tube_pieces(&built)).map_err(NodeErrorKind::Naming)?;
     Ok(OpOut::plain(
         ValuePayload::Body(Arc::new(built.body)),
         table,
@@ -4004,12 +3975,13 @@ fn member_lineage(
     fold: &names::UnionFold,
     f: topo::FaceKey,
 ) -> &std::collections::BTreeSet<(usize, topo::FaceKey)> {
-    fold.member_faces(f).unwrap_or_else(|| {
+    let Some(lineage) = fold.member_faces(f) else {
         unreachable!(
             "union fold accumulation face {f:?} has no member-face lineage, though the fold \
              records one for every face of every accumulation it builds"
         )
-    })
+    };
+    lineage
 }
 
 /// **A fold step's face-pair rows restate its given pairs** (DM4, the

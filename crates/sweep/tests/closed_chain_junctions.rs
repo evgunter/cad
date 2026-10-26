@@ -96,17 +96,13 @@ fn census(b: &Body<f64>) -> (usize, usize, usize) {
 /// these bodies is a plane, a cylinder or the band's torus, so the pad
 /// is exactly zero.
 fn volume(body: &Body<f64>, what: &str) -> f64 {
-    let props = topo::test_support::unmigrated_measure(
-        body,
+    let props = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
         tol(),
-        topo::test_support::pinned_resolution(tol()),
     )
     .expect("mass properties compute");
-    assert_eq!(
-        props.enclosure.volume_pad, 0.0,
-        "{what}: closed-form faces only"
-    );
-    props.enclosure.volume
+    assert_eq!(props.volume_pad, 0.0, "{what}: closed-form faces only");
+    props.volume
 }
 
 /// Three consecutive edges of the unit cube's top face: an OPEN

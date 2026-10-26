@@ -60,13 +60,15 @@ fn least_x(ev: &Evaluation<f64>, id: RecipeNodeId) -> f64 {
 }
 
 fn volume(ev: &Evaluation<f64>, id: RecipeNodeId) -> f64 {
-    topo::test_support::unmigrated_measure(
-        crate::corpus::body_of(ev, id),
+    topo::mass_properties(
+        &topo::test_support::finished(
+            "the measured body",
+            topo::Body::clone(crate::corpus::body_of(ev, id)),
+            Tol::witness(),
+        ),
         Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("mass properties")
-    .enclosure
     .volume
 }
 

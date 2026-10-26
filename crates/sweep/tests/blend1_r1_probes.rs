@@ -100,14 +100,13 @@ fn faces_of(body: &Body<f64>, e: EdgeKey) -> (FaceKey, FaceKey) {
 }
 
 fn volume(body: &Body<f64>) -> f64 {
-    let props = topo::test_support::unmigrated_measure(
-        body,
+    let props = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
         tol(),
-        topo::test_support::pinned_resolution(tol()),
     )
     .expect("mass properties compute");
-    assert_eq!(props.enclosure.volume_pad, 0.0, "closed-form faces only");
-    props.enclosure.volume
+    assert_eq!(props.volume_pad, 0.0, "closed-form faces only");
+    props.volume
 }
 
 // ------------------------------------------------------------------
@@ -293,10 +292,9 @@ fn p3_a_petrie_hexagon_cycle_never_assembles_into_a_closed_chain() {
     let r: f64 = 0.1;
     let removed = 6.0 * (1.0 - core::f64::consts::PI / 4.0) * r * r
         - 6.0 * (5.0 / 3.0 - core::f64::consts::FRAC_PI_2) * r.powi(3);
-    let props = topo::test_support::unmigrated_measure(
-        &out.body,
+    let props = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol()),
         tol(),
-        topo::test_support::pinned_resolution(tol()),
     )
     .expect("certified props");
     assert!(
@@ -373,10 +371,9 @@ fn p4_the_lantern_neck_rim_carves_and_one_arc_refuses_followably() {
         .expect("the whole neck rim carves through the hostless-crossing annulus");
     validate_geometric(&out.body, tol()).expect("the neck carve is tier-3 valid");
     assert_eq!(out.band_faces.len(), 1, "ONE band over both arcs");
-    let props = topo::test_support::unmigrated_measure(
-        &out.body,
+    let props = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol()),
         tol(),
-        topo::test_support::pinned_resolution(tol()),
     )
     .expect("mass properties compute");
     assert_eq!(

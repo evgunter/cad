@@ -164,10 +164,13 @@ fn a_general_box_matches_an_independent_closed_form() {
         // box, and at a = b = c it must agree with that form — that it
         // can fail to is the detection value of this row.
         let want = a * b * c - 2.0 * d * d * (a + b + c) + 16.0 / 3.0 * d.powi(3);
-        let props = topo::test_support::unmigrated_measure(
-            &out.body,
+        let props = topo::mass_properties(
+            &topo::test_support::finished(
+                "the measured body",
+                topo::Body::clone(&out.body),
+                Tol::witness(),
+            ),
             Tol::witness(),
-            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .expect("props");
         assert!(
@@ -230,10 +233,13 @@ fn a_skewed_wedge_chamfers_with_every_face_outward() {
         .unwrap_or_else(|e| panic!("the wedge chamfers at {d}: {e}"));
         assert_chamfer_shape(&out.body, (18, 36, 20));
         assert_every_face_outward(&out.body);
-        let props = topo::test_support::unmigrated_measure(
-            &out.body,
+        let props = topo::mass_properties(
+            &topo::test_support::finished(
+                "the measured body",
+                topo::Body::clone(&out.body),
+                Tol::witness(),
+            ),
             Tol::witness(),
-            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .expect("props");
         let uncut = 0.5 * base * t * h;
@@ -401,10 +407,13 @@ fn a_dimpled_spacer_carries_its_ring_through_the_chamfer() {
     );
     assert_eq!(out.blend_faces.len(), 12, "a strip per box edge");
     assert_eq!(out.corner_faces.len(), 8, "a patch per corner");
-    let props = topo::test_support::unmigrated_measure(
-        &out.body,
+    let props = topo::mass_properties(
+        &topo::test_support::finished(
+            "the measured body",
+            topo::Body::clone(&out.body),
+            Tol::witness(),
+        ),
         Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("props");
     // The cube term is spelled out here, deliberately
@@ -469,10 +478,13 @@ fn an_overrunning_sliver_corner_refuses_or_stays_valid() {
                 Ok(()),
                 "tier 3"
             );
-            let props = topo::test_support::unmigrated_measure(
-                &out.body,
+            let props = topo::mass_properties(
+                &topo::test_support::finished(
+                    "the measured body",
+                    topo::Body::clone(&out.body),
+                    Tol::witness(),
+                ),
                 Tol::witness(),
-                topo::test_support::pinned_resolution(Tol::witness()),
             )
             .expect("props");
             let uncut = 0.5 * 2.0 * 0.4 * 1.0;

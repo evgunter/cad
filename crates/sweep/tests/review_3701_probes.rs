@@ -82,10 +82,12 @@ fn chamfered(a: f64, b: f64, c: f64, d: f64) -> f64 {
 }
 
 fn vol(b: &Body<f64>, t: Tol) -> f64 {
-    topo::test_support::unmigrated_measure(b, t, topo::test_support::pinned_resolution(t))
-        .unwrap()
-        .enclosure
-        .volume
+    topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(b), t),
+        t,
+    )
+    .unwrap()
+    .volume
 }
 
 /// The hand-split prism is construction state — the at-rest gate

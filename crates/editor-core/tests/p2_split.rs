@@ -151,7 +151,11 @@ fn inline(doc: &ProfileDoc, instance: RecipeNodeId, store: &PartStore) -> Inline
 
 /// The whole document's product: its corners and volume.
 fn extent(doc: &ProfileDoc, o: &EvalOptions) -> ([f64; 3], [f64; 3], f64) {
-    let body = product(doc, &run(doc, o), Tol::witness()).expect("gathers");
+    let body = topo::test_support::finished(
+        "body",
+        product(doc, &run(doc, o), Tol::witness()).expect("gathers"),
+        Tol::witness(),
+    );
     let pts = points(&body);
     let lo = pts.iter().fold([f64::INFINITY; 3], |m, p| {
         [m[0].min(p[0]), m[1].min(p[1]), m[2].min(p[2])]
@@ -159,14 +163,9 @@ fn extent(doc: &ProfileDoc, o: &EvalOptions) -> ([f64; 3], [f64; 3], f64) {
     let hi = pts.iter().fold([f64::NEG_INFINITY; 3], |m, p| {
         [m[0].max(p[0]), m[1].max(p[1]), m[2].max(p[2])]
     });
-    let volume = topo::test_support::unmigrated_measure(
-        &body,
-        Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
-    )
-    .expect("mass properties")
-    .enclosure
-    .volume;
+    let volume = topo::mass_properties(&body, Tol::witness())
+        .expect("mass properties")
+        .volume;
     (lo, hi, volume)
 }
 

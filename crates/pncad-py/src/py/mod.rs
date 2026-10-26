@@ -3,7 +3,6 @@
 mod analysis;
 mod assembly;
 pub(crate) mod checks;
-mod contact;
 pub(crate) mod doc;
 mod expr;
 mod mate;
@@ -328,17 +327,12 @@ pyo3::create_exception!(
     PncadError,
     "The at-rest assembly gate refused. Carries `variant`, the stable \
      tag of the refusing arm, plus the arm's payload as attributes \
-     (`mate`, `side`, `name`, `why`, `class_`, `findings`), each \
+     (`node`, `through`, `of`, `via`, `name`, `findings`), each \
      present on every arm and `None` where that arm does not carry \
      it.\n\n\
-     **The two verdict arms are NOT interchangeable.** `at_rest` is a \
-     finding AGAINST the document — a refuted declaration or an \
-     unrecorded contact. `uncertified` is the declared direction's \
-     FRONTIER: nothing was refuted and nothing was undeclared, the \
-     census simply has no certifier lane for the faces a declaration \
-     names, so nothing was decided about the geometry either way. A \
-     caller who catches this class must say which of the two they \
-     mean.\n\n\
+     `at_rest` is the census's verdict against the product, \
+     `findings` every one of its findings; `carried_at_rest` is the \
+     same for a document below this one.\n\n\
      A gather refusal arrives here under the gather's OWN tag \
      (`empty_product`, `root_poisoned`, ...), not a wrapper tag: which \
      invariant broke is what a caller branches on."
@@ -957,7 +951,6 @@ fn pncad_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     mate::register(m)?;
     assembly::register(m)?;
     refactor::register(m)?;
-    contact::register(m)?;
     checks::register(m)?;
     mesh::register(m)?;
     value::register(m)?;

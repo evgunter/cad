@@ -43,11 +43,9 @@ from pncad import (
     ChecksConfig,
     ChecksReport,
     Cmp,
-    ContactClass,
     ContentPin,
     CurveKind,
     CheckFinding,
-    ClassAdmission,
     Maintenance,
     FreeVar,
     Denotation,
@@ -122,7 +120,6 @@ from pncad import (
     assemble,
     canonical_bytes,
     circle,
-    class_admission,
     content_pin,
     deg,
     rad,
@@ -586,11 +583,10 @@ after_edit: list[Maintenance] = doc.last_maintenance
 # The authored mate: two poses of one kind, each read off geometry,
 # and the values that set what the mates leave free.
 floor: PoseDef = PoseDef.flip(PoseDef.plane(plate, "c-name"))
-mate: Mate = Mate(PoseDef.plane(instance, "a-name"), floor, ContactClass.Rest)
+mate: Mate = Mate(PoseDef.plane(instance, "a-name"), floor)
 between: Mate = Mate(
-    PoseDef.plane(instance, "a-name"), PoseDef.flip(PoseDef.plane(sideways, "b-name")), ContactClass.Rest
+    PoseDef.plane(instance, "a-name"), PoseDef.flip(PoseDef.plane(sideways, "b-name"))
 )
-mate_class: ContactClass = mate.class_
 mate_on: PoseDef = mate.on
 mate_to: PoseDef = mate.to
 pinned_on: DocEdit = DocEdit.add_constraint(instance, mate)
@@ -614,14 +610,12 @@ faulted_mate: MateRef | None = refusal.mate if refusal is not None else None
 relative: Frame | None = poses.pose(instance)
 world_pose: Frame = poses.placement(doc, instance)
 partition: list[list[NodeId]] = relative_freedom_components(doc)
-admission: ClassAdmission = class_admission(ContactClass.Rest)
-mintable: bool = admission.mints
 
 # The gather and the gate.
 gathered: Body = product(doc, seamed)
 named_gather: tuple[Body, list[str]] = product_named(doc, seamed)
 checked: Assembly = assemble(doc, seamed)
-declared: int = len(checked.minted)
+assembled: Body = checked.body
 
 # The refactorings and the pin-update door.
 cut: SplitOutcome = split(doc, [instance], minted)

@@ -38,14 +38,20 @@ fn drum(ccw: bool) -> Body<f64> {
     revolved_about_y(meridian, Revolution::Full, Tol::witness())
 }
 
-fn volume(body: &Body<f64>) -> f64 {
-    topo::test_support::unmigrated_measure(
-        body,
-        Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
-    )
+/// `body`'s signed volume: through the typed door for the right-way
+/// drum, and through the raw door for the reverted one, which tier 3
+/// refuses ([`finishes_iff`] pins which).
+fn volume(body: &Body<f64>, right_way: bool) -> f64 {
+    if right_way {
+        topo::mass_properties(
+            &AtRestBody::validate(body.clone(), Tol::witness()).expect("the drum is finished"),
+            Tol::witness(),
+        )
+    } else {
+        // Raw door: the reverted drum, which tier 3 refuses (NegativeVolume, as `finishes_iff` pins); its signed volume is the subject.
+        topo::test_support::measure_unvalidated(body, Tol::witness())
+    }
     .unwrap()
-    .enclosure
     .volume
 }
 
@@ -95,7 +101,7 @@ fn offset_charts_together_moves_the_charts_in_either_winding() {
     ];
     for (what, mut body, right_way, want) in rows {
         caps_face_alike(what, &body);
-        let before = volume(&body);
+        let before = volume(&body, right_way);
         let want_before = core::f64::consts::PI * R * R * H;
         assert!(
             (before - if right_way { want_before } else { -want_before }).abs() < 1e-15,
@@ -110,7 +116,7 @@ fn offset_charts_together_moves_the_charts_in_either_winding() {
             Tol::witness(),
         )
         .expect("every chart offsets");
-        let delta = volume(&body) - before;
+        let delta = volume(&body, right_way) - before;
         assert!(
             (delta - want).abs() < 1e-15,
             "{what}: signed ΔV {delta}, want {want}"

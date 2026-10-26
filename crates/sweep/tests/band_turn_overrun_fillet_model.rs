@@ -386,13 +386,12 @@ fn build(
 }
 
 fn vol(body: &Body<f64>) -> (f64, f64) {
-    let p = topo::test_support::unmigrated_measure(
-        body,
+    let p = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
         tol(),
-        topo::test_support::pinned_resolution(tol()),
     )
     .expect("props");
-    (p.enclosure.volume, p.enclosure.volume_pad)
+    (p.volume, p.volume_pad)
 }
 
 fn edge_points(body: &Body<f64>, e: EdgeKey) -> (V, V) {

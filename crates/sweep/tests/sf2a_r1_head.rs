@@ -98,13 +98,15 @@ fn h1_valence_four_concurring_corners_must_solve() {
     let mut body = chamfered_cube();
     let c = centroid(&body);
     let before = sorted_points(&body);
-    let vol0 = topo::test_support::unmigrated_measure(
-        &body,
+    let vol0 = topo::mass_properties(
+        &topo::test_support::finished(
+            "the measured body",
+            topo::Body::clone(&body),
+            Tol::witness(),
+        ),
         Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .enclosure
     .volume;
     let lambda = 0.9;
     let moves: Vec<ChartMove<f64>> = charts(&body)
@@ -118,13 +120,15 @@ fn h1_valence_four_concurring_corners_must_solve() {
     let r = topo::offset_planes_together(&mut body, &moves, band(), Tol::witness());
     match r {
         Ok(_) => {
-            let vol = topo::test_support::unmigrated_measure(
-                &body,
+            let vol = topo::mass_properties(
+                &topo::test_support::finished(
+                    "the measured body",
+                    topo::Body::clone(&body),
+                    Tol::witness(),
+                ),
                 Tol::witness(),
-                topo::test_support::pinned_resolution(Tol::witness()),
             )
             .unwrap()
-            .enclosure
             .volume;
             let after = sorted_points(&body);
             // Every vertex must be the λ-scaled original.
@@ -251,23 +255,27 @@ fn h4_a_face_named_twice() {
         distance: moves[0].distance,
     };
     moves.push(dup);
-    let vol0 = topo::test_support::unmigrated_measure(
-        &body,
+    let vol0 = topo::mass_properties(
+        &topo::test_support::finished(
+            "the measured body",
+            topo::Body::clone(&body),
+            Tol::witness(),
+        ),
         Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .enclosure
     .volume;
     match topo::offset_planes_together(&mut body, &moves, band(), Tol::witness()) {
         Ok(_) => {
-            let vol = topo::test_support::unmigrated_measure(
-                &body,
+            let vol = topo::mass_properties(
+                &topo::test_support::finished(
+                    "the measured body",
+                    topo::Body::clone(&body),
+                    Tol::witness(),
+                ),
                 Tol::witness(),
-                topo::test_support::pinned_resolution(Tol::witness()),
             )
             .unwrap()
-            .enclosure
             .volume;
             println!(
                 "[h4] a face named TWICE was accepted: V0={vol0:.17e} V={vol:.17e}; \

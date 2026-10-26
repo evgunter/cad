@@ -54,13 +54,11 @@ fn audit(body: &Body<f64>, expect_vol: f64, expect_seam_arcs: usize, seam_z: f64
     if let Err(errs) = topo::validate_geometric(body, Tol::witness()) {
         panic!("tier-3 validity: {errs:?}");
     }
-    let vol = topo::test_support::unmigrated_measure(
-        body,
+    let vol = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), Tol::witness()),
         Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .enclosure
     .volume;
     assert!(
         (vol - expect_vol).abs() < 1e-9,

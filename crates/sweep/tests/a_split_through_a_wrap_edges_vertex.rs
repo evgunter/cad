@@ -295,10 +295,9 @@ fn check(
     if !volume {
         return Ok(());
     }
-    let m = match topo::test_support::unmigrated_measure(
-        body,
+    let m = match topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
         tol(),
-        topo::test_support::pinned_resolution(tol()),
     ) {
         Ok(m) => m,
         Err(e) if near && in_band(&e) => return Ok(()),
@@ -476,7 +475,7 @@ fn a_split_through_a_hole_walls_strut_vertex_keeps_one_face_where_the_piece_goes
 ///   round (phase π/2, tilt 0.4) refuses
 ///   `Join(SingleSiteSectionLoop { count: 1 })`, where `split` builds
 ///   the same pose
-///   (`work/sect/a-plane-tangent-to-a-rim-at-its-wrap-edges-vertex-has-no-join-arm.md`);
+///   (`work/secttail/a-plane-tangent-to-a-rim-at-its-wrap-edges-vertex-has-no-join-arm.md`);
 /// - the result's quadrature reads its convergence in the band on some
 ///   poses at some ε (`VolumeUnmeasured`;
 ///   `work/quad/quadrature-convergence-test-escalates-instead-of-refining.md`).

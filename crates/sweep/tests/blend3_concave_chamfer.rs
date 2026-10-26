@@ -69,7 +69,7 @@ fn the_chamfered_cavity() {
         Tol::witness(),
     )
     .expect("the cavity's twelve concave edges chamfer");
-    let out_body = out.body;
+    let out_body = topo::test_support::finished("out_body", out.body, Tol::witness());
 
     assert_eq!(validate(&out_body), Ok(()), "tier 1");
     assert_eq!(validate_closed(&out_body), Ok(()), "tier 2");
@@ -96,12 +96,7 @@ fn the_chamfered_cavity() {
     );
 
     let want = chamfered_cavity_volume(2.0, D);
-    let props = topo::test_support::unmigrated_measure(
-        &out_body,
-        Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
-    )
-    .expect("closed-form props");
+    let props = topo::mass_properties(&out_body, Tol::witness()).expect("closed-form props");
     assert!(
         (props.enclosure.volume - want).abs() <= 1e-12 * want,
         "volume {} vs closed form {want}",

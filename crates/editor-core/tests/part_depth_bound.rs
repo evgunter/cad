@@ -27,9 +27,9 @@ use crate::fixture;
 use std::collections::BTreeMap;
 
 use editor_core::{
-    CapEnd, ContactClass, ContentPin, Coord, DocRef, DocumentId, EvalOptions, Node, NodeErrorKind,
-    NodeResult, PartFault, PartResolver, ProfileDoc, RecipeNodeId, ResolveFailure, ResolveFault,
-    TargetAxis, product,
+    CapEnd, ContentPin, Coord, DocRef, DocumentId, EvalOptions, Node, NodeErrorKind, NodeResult,
+    PartFault, PartResolver, ProfileDoc, RecipeNodeId, ResolveFailure, ResolveFault, TargetAxis,
+    product,
 };
 use fixture::resolver::{PartStore, with_resolver};
 use fixture::{insert, len, run, square};
@@ -248,13 +248,15 @@ fn the_refused_chain_flattened_by_one_level_evaluates_at_the_bound() {
         let leaf_body = product(&leaf, &run(&leaf, &EvalOptions::default()), Tol::witness())
             .expect("the leaf's product gathers");
         let volume = |b: &topo::Body<f64>| {
-            topo::test_support::unmigrated_measure(
-                b,
+            topo::mass_properties(
+                &topo::test_support::finished(
+                    "the measured body",
+                    topo::Body::clone(b),
+                    Tol::witness(),
+                ),
                 Tol::witness(),
-                topo::test_support::pinned_resolution(Tol::witness()),
             )
             .expect("mass properties")
-            .enclosure
             .volume
         };
         assert_eq!(
@@ -489,7 +491,6 @@ fn mated(
                 .in_part(ids[0])
                 .into_name(),
         ),
-        ContactClass::Rest,
     );
     let (doc, _mate) = crate::fixture::mated(
         doc,
@@ -526,7 +527,6 @@ fn rested_on_first(
                 .in_part(ids[0])
                 .into_name(),
         ),
-        ContactClass::Rest,
     );
     let (doc, _) = fixture::constrain_at(doc, ids[1], mate);
     (doc, ids)
@@ -568,8 +568,12 @@ fn below_the_top_the_mate_solve_and_the_instances_find_the_rows_the_descent_ente
         "the mated assembly evaluates below the top"
     );
     let volume = |doc: &ProfileDoc, ev| {
-        topo::test_support::unmigrated_measure(
-            &product(doc, ev, Tol::witness()).expect("the product gathers"),
+        topo::mass_properties(
+            &topo::test_support::finished(
+                "the measured body",
+                topo::Body::clone(&product(doc, ev, Tol::witness()).expect("the product gathers")),
+                Tol::witness(),
+            ),
             Tol::witness(),
             topo::test_support::pinned_resolution(Tol::witness()),
         )

@@ -264,13 +264,11 @@ fn copy_in(
 }
 
 fn volume(body: &topo::Body<f64>) -> f64 {
-    topo::test_support::unmigrated_measure(
-        body,
+    topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), Tol::witness()),
         Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("mass properties")
-    .enclosure
     .volume
 }
 
@@ -633,7 +631,6 @@ fn row4_the_world_pin_moves_undoes_and_refuses() {
     let pin = editor_core::Mate {
         on: cap.clone(),
         to: cap,
-        class: editor_core::ContactClass::Rest,
     };
     match editor_core::apply(
         &part_doc,

@@ -2,10 +2,11 @@
 id: a-dimensionless-computed-value-reads-with-a-trailing-space
 kind: issue
 title: a dimensionless computed value reads with a trailing space
-status: open
+status: closed
 opened: 2026-09-30
 priority: P4
 cost: E
+closed: 2026-10-25
 ---
 
 
@@ -24,3 +25,7 @@ Visually it is a stray space. In a sentence that quotes the value, it
 is a double space. The fix is to leave out the separator when the
 symbol is empty, in `written_text`, the one home, with a row pinning
 the scalar case.
+
+## Closed
+
+2026-10-25. `props::written_text` leaves out the separator when the symbol is empty. `props::no_reading`, its sibling over the same `UnitDef`, had the same double space ("no  reading") and now reads "no reading". Pinned by `props::written_tests::a_dimensionless_value_reads_with_no_trailing_space`. Swept every `unit.symbol()` format in `crates/viewer/src`. The other sites format a `LengthUnit` or `AngleUnit`, whose symbols are never empty.

@@ -117,14 +117,17 @@ fn hollow_elbow_is_valid_with_pappus_mass_properties() {
     let v_expect = theta * R * area;
     let a_expect = theta * R * 2.0 * PI * (OUTER + INNER) + 2.0 * area;
 
-    let props = topo::test_support::unmigrated_measure(
-        &t.body,
+    let props = topo::mass_properties(
+        &topo::test_support::finished(
+            "the measured body",
+            topo::Body::clone(&t.body),
+            Tol::witness(),
+        ),
         Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("mass properties");
-    assert_close(props.enclosure.volume, v_expect, "elbow volume");
-    assert_close(props.enclosure.surface_area, a_expect, "elbow area");
+    assert_close(props.volume, v_expect, "elbow volume");
+    assert_close(props.surface_area, a_expect, "elbow area");
 
     // The elbow really is hollow: the solid tube of the same window
     // is heavier by exactly the bore, which is the same Pappus form
@@ -142,10 +145,13 @@ fn hollow_elbow_is_valid_with_pappus_mass_properties() {
         Tol::witness(),
     )
     .expect("the solid elbow builds");
-    let solid_props = topo::test_support::unmigrated_measure(
-        &solid.body,
+    let solid_props = topo::mass_properties(
+        &topo::test_support::finished(
+            "the measured body",
+            topo::Body::clone(&solid.body),
+            Tol::witness(),
+        ),
         Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("mass properties");
     assert_close(
@@ -169,8 +175,8 @@ fn hollow_torus_carries_its_cavity() {
     assert_eq!(t.body.solids().count(), 1);
     assert_eq!(t.body.shells().count(), 2, "outer boundary + the cavity");
     assert_eq!(t.cavities.len(), 1);
-    assert_ne!(t.cavities[0], t.shell);
-    let cavity = t.body.get_shell(t.cavities[0]).unwrap();
+    assert_ne!(t.cavities[0].shell, t.shell);
+    let cavity = t.body.get_shell(t.cavities[0].shell).unwrap();
     let outer = t.body.get_shell(t.shell).unwrap();
     assert_eq!(cavity.solid, t.solid);
     assert_eq!(outer.solid, t.solid);
@@ -184,10 +190,13 @@ fn hollow_torus_carries_its_cavity() {
     assert!(t.poles[1].iter().all(Option::is_none));
 
     // Torus closed forms: V = 2π²R(ro² − ri²), A = 4π²R(ro + ri).
-    let props = topo::test_support::unmigrated_measure(
-        &t.body,
+    let props = topo::mass_properties(
+        &topo::test_support::finished(
+            "the measured body",
+            topo::Body::clone(&t.body),
+            Tol::witness(),
+        ),
         Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("mass properties");
     assert_close(
@@ -410,22 +419,26 @@ fn hollow_wall_and_shared_refusal_doors() {
         "the normalized axis builds the same hollow torus"
     );
     assert_eq!(
-        topo::test_support::unmigrated_measure(
-            &scaled.body,
-            Tol::witness(),
-            topo::test_support::pinned_resolution(Tol::witness())
+        topo::mass_properties(
+            &topo::test_support::finished(
+                "the measured body",
+                topo::Body::clone(&scaled.body),
+                Tol::witness()
+            ),
+            Tol::witness()
         )
         .expect("mass properties")
-        .enclosure
         .volume
         .to_bits(),
-        topo::test_support::unmigrated_measure(
-            &unit.body,
-            Tol::witness(),
-            topo::test_support::pinned_resolution(Tol::witness())
+        topo::mass_properties(
+            &topo::test_support::finished(
+                "the measured body",
+                topo::Body::clone(&unit.body),
+                Tol::witness()
+            ),
+            Tol::witness()
         )
         .expect("mass properties")
-        .enclosure
         .volume
         .to_bits(),
         "the normalized axis builds it bit for bit"
@@ -496,10 +509,13 @@ mod certified {
             "tier 3"
         );
         assert_eq!(t.body.shells().count(), 2);
-        let m = topo::test_support::unmigrated_measure(
-            &t.body,
+        let m = topo::mass_properties(
+            &topo::test_support::finished(
+                "the measured body",
+                topo::Body::clone(&t.body),
+                Tol::witness(),
+            ),
             Tol::witness(),
-            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .expect("mass properties");
         encloses(
@@ -540,10 +556,13 @@ mod certified {
             Ok(()),
             "tier 3"
         );
-        let m = topo::test_support::unmigrated_measure(
-            &t.body,
+        let m = topo::mass_properties(
+            &topo::test_support::finished(
+                "the measured body",
+                topo::Body::clone(&t.body),
+                Tol::witness(),
+            ),
             Tol::witness(),
-            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .expect("mass properties");
         encloses(

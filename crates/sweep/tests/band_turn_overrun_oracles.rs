@@ -859,21 +859,15 @@ fn the_bracket_corners_carve_at_the_certified_scalar() {
         let out = chamfer_edges(&body, &edges, iv(D), tol())
             .unwrap_or_else(|e| panic!("lean {s}: builds at Interval, got {:?}", e.error));
         validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("lean {s}: tier 3, {e:?}"));
-        let before =
-            topo::mass_properties(&body, tol(), topo::test_support::pinned_resolution(tol()))
-                .expect("mass properties")
-                .enclosure
-                .volume;
-        let after = topo::test_support::unmigrated_measure(
-            &out.body,
+        let before = topo::mass_properties(&body, tol())
+            .expect("mass properties")
+            .volume;
+        let after = topo::mass_properties(
+            &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol()),
             tol(),
-            topo::test_support::pinned_resolution(tol()),
         )
         .expect("mass properties");
-        let (removed, pad) = (
-            before - after.enclosure.volume,
-            after.enclosure.volume_pad.hi(),
-        );
+        let (removed, pad) = (before - after.volume, after.volume_pad.hi());
         assert!(
             removed.lo() - pad <= want && want <= removed.hi() + pad,
             "lean {s}: ΔV {removed:?} ± {pad} misses the clip oracle's {want}"

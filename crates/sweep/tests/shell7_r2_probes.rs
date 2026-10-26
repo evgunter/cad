@@ -58,10 +58,13 @@ fn p2_the_torus_at_a_thickness_approaching_its_minor_radius() {
         let body = tube_torus(R, SMALL_R);
         match topo::shell(&finished("the operand", body.clone(), tol()), t, tol()) {
             Ok(out) => {
-                let props = topo::test_support::unmigrated_measure(
-                    &out.body,
+                let props = topo::mass_properties(
+                    &topo::test_support::finished(
+                        "the measured body",
+                        topo::Body::clone(&out.body),
+                        tol(),
+                    ),
                     tol(),
-                    topo::test_support::pinned_resolution(tol()),
                 )
                 .expect("props");
                 let want = 2.0 * PI * PI * R * (SMALL_R * SMALL_R - (SMALL_R - t) * (SMALL_R - t));
@@ -130,10 +133,13 @@ fn p3b_a_band_scale_major_radius_through_the_revolve_door() {
             .unwrap_or_else(|e| panic!("R = {major:e}: the torus validates at rest, got {e:?}"));
         match topo::shell(&operand, minor * 0.1, tol()) {
             Ok(out) => {
-                let props = topo::test_support::unmigrated_measure(
-                    &out.body,
+                let props = topo::mass_properties(
+                    &topo::test_support::finished(
+                        "the measured body",
+                        topo::Body::clone(&out.body),
+                        tol(),
+                    ),
                     tol(),
-                    topo::test_support::pinned_resolution(tol()),
                 );
                 eprintln!("[p3b] R = {major:e}: SHELLS — volume {props:?}");
             }
@@ -170,10 +176,13 @@ fn p3_the_seam_decide_at_small_major_radii() {
         let t = minor * 0.1;
         match topo::shell(&finished("the operand", rev.body.clone(), tol()), t, tol()) {
             Ok(out) => {
-                let props = topo::test_support::unmigrated_measure(
-                    &out.body,
+                let props = topo::mass_properties(
+                    &topo::test_support::finished(
+                        "the measured body",
+                        topo::Body::clone(&out.body),
+                        tol(),
+                    ),
                     tol(),
-                    topo::test_support::pinned_resolution(tol()),
                 )
                 .expect("props");
                 let want = 2.0 * PI * PI * major * (minor * minor - (minor - t) * (minor - t));
@@ -339,15 +348,11 @@ fn e2e_a_consumer_shells_classifies_measures_and_tessellates_tori() {
     let shelled = topo::shell(&finished("the operand", solid.clone(), tol()), t, tol())
         .expect("the solid torus shells");
     assert_eq!(topo::validate_geometric(&shelled.body, tol()), Ok(()));
-    let cls =
-        topo::test_support::unmigrated_classify(&shelled.body, tol()).expect("shells classify");
+    let shelled_at_rest =
+        topo::test_support::finished("the measured body", topo::Body::clone(&shelled.body), tol());
+    let cls = topo::classify_shells(&shelled_at_rest, tol()).expect("shells classify");
     let roles: Vec<String> = cls.iter().map(|c| format!("{:?}", c.role)).collect();
-    let props = topo::test_support::unmigrated_measure(
-        &shelled.body,
-        tol(),
-        topo::test_support::pinned_resolution(tol()),
-    )
-    .expect("props");
+    let props = topo::mass_properties(&shelled_at_rest, tol()).expect("props");
     let want = 2.0 * PI * PI * R * (SMALL_R * SMALL_R - (SMALL_R - t) * (SMALL_R - t));
     eprintln!(
         "[e2e] solid torus shelled: {} shells {roles:?}, volume {} want {want} err {:e}",
@@ -386,10 +391,9 @@ fn e2e_a_consumer_shells_classifies_measures_and_tessellates_tori() {
     let hs = topo::shell(&finished("the operand", hollow.clone(), tol()), t, tol())
         .expect("the hollow torus shells");
     assert_eq!(topo::validate_geometric(&hs.body, tol()), Ok(()));
-    let hp = topo::test_support::unmigrated_measure(
-        &hs.body,
+    let hp = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(&hs.body), tol()),
         tol(),
-        topo::test_support::pinned_resolution(tol()),
     )
     .expect("props");
     let hwant = 2.0
@@ -464,10 +468,9 @@ fn dump(what: &str, body: &Body<f64>) {
         })
         .collect();
     es.sort();
-    let props = topo::test_support::unmigrated_measure(
-        body,
+    let props = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
         tol(),
-        topo::test_support::pinned_resolution(tol()),
     );
     println!(
         "[r2dump] {what} | V {} E {} F {} S {} | vol {:?}",

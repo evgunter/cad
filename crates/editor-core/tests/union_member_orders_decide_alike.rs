@@ -423,20 +423,19 @@ fn built(
             "{n} binds two entities"
         );
     }
-    let body = body_of(ev, union);
+    let body = topo::test_support::finished(
+        "body",
+        topo::Body::clone(body_of(ev, union)),
+        Tol::witness(),
+    );
     let topology = (
         body.faces().count(),
         body.edges().count(),
         body.vertices().count(),
     );
-    let volume = topo::test_support::unmigrated_measure(
-        body,
-        Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
-    )
-    .expect("a built union measures")
-    .enclosure
-    .volume;
+    let volume = topo::mass_properties(&body, Tol::witness())
+        .expect("a built union measures")
+        .volume;
     Decided::Built {
         rows,
         names,

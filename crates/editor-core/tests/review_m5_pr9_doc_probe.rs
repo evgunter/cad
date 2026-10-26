@@ -99,15 +99,12 @@ fn the_boss_union_document_row_f64_volume_and_roundtrip() {
         &EvalOptions::default(),
         Tol::witness(),
     );
-    let body = union_body(&ev, union);
-    let vol = topo::test_support::unmigrated_measure(
-        body,
+    let body = topo::test_support::finished(
+        "body",
+        topo::Body::clone(union_body(&ev, union)),
         Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
-    )
-    .unwrap()
-    .enclosure
-    .volume;
+    );
+    let vol = topo::mass_properties(&body, Tol::witness()).unwrap().volume;
     let expect = 7.2 + std::f64::consts::PI * 0.35 * 0.35 * 0.5;
     assert!(
         (vol - expect).abs() < 1e-9,
@@ -159,15 +156,12 @@ fn the_boss_union_document_row_interval_bit_replay() {
             bad.join("\n")
         );
         // The union body's volume enclosure must bracket the truth.
-        let body = union_body(&ev, union);
-        let vol = topo::test_support::unmigrated_measure(
-            body,
+        let body = topo::test_support::finished(
+            "body",
+            topo::Body::clone(union_body(&ev, union)),
             Tol::witness(),
-            topo::test_support::pinned_resolution(Tol::witness()),
-        )
-        .unwrap()
-        .enclosure
-        .volume;
+        );
+        let vol = topo::mass_properties(&body, Tol::witness()).unwrap().volume;
         let expect = 7.2 + std::f64::consts::PI * 0.35 * 0.35 * 0.5;
         assert!(
             geom_core::Bounds::lo(vol) <= expect && expect <= geom_core::Bounds::hi(vol),

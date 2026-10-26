@@ -40,13 +40,11 @@ fn reading(m: &sweep::blend::ClassifiedMargin) -> f64 {
 }
 
 fn volume(body: &Body<f64>) -> f64 {
-    topo::test_support::unmigrated_measure(
-        body,
+    topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
         tol(),
-        topo::test_support::pinned_resolution(tol()),
     )
     .expect("mass properties")
-    .enclosure
     .volume
 }
 

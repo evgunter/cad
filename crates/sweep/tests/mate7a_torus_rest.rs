@@ -185,13 +185,15 @@ fn peg_in_socket_union_holds(s: &AtRestBody<f64>, p: &AtRestBody<f64>) {
         "the at-rest certificate"
     );
     let vol = |b: &Body<f64>| {
-        topo::test_support::unmigrated_measure(
-            b,
+        topo::mass_properties(
+            &topo::test_support::finished(
+                "the measured body",
+                topo::Body::clone(b),
+                Tol::witness(),
+            ),
             Tol::witness(),
-            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
-        .enclosure
         .volume
     };
     let (v, want) = (vol(&bb.body), vol(s) + vol(p));

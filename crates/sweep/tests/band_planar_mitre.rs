@@ -456,13 +456,12 @@ fn the_mitre_carves_at_the_certified_scalar() {
         );
         validate_geometric(&out.body, tol).unwrap_or_else(|e| panic!("{verb:?}: tier 3, {e:?}"));
         assert_naming_totality(&body, &out, &edges, "two adjacent top edges at Interval");
-        let p = topo::test_support::unmigrated_measure(
-            &out.body,
+        let p = topo::mass_properties(
+            &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol),
             tol,
-            topo::test_support::pinned_resolution(tol),
         )
         .expect("interval props");
-        let removed = v0 - p.enclosure.volume;
+        let removed = v0 - p.volume;
         let truth = verb.section() * 3.5 - overlap(verb);
         let pad = p.enclosure.volume_pad.hi();
         assert!(

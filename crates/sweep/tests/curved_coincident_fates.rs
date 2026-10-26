@@ -186,14 +186,10 @@ fn op_fates(op: &str, x: &AtRestBody<f64>, y: &AtRestBody<f64>) -> OpFates {
 }
 
 /// `x` and `y` in every op say alike in either order (`x ∖ y` against
-/// itself across the orders), and no row is held by a discard. Where one
-/// order takes the containment fallback and the other the section path,
-/// only the latter records discards
-/// (`work/flush/a-containment-fallback-substitutes-a-partly-held-dropped-face-whole.md`):
-/// there the fallback is asserted to record none, and the discards are
-/// not compared. With `seam`, the operands' coincident curved walls meet
-/// where operand A's ends, so the union's discards border that circle in
-/// one order and the other's in the other
+/// itself across the orders), and no row is held by a discard, whichever
+/// path each order takes. With `seam`, the operands' coincident curved
+/// walls meet where operand A's ends, so the union's discards border
+/// that circle in one order and the other's in the other
 /// ([`coaxial_rods_border_the_seam_circle_only_where_the_result_holds_it`]),
 /// and the union's discards are not compared.
 fn assert_alike(label: &str, x: &AtRestBody<f64>, y: &AtRestBody<f64>, seam: bool) {
@@ -214,20 +210,11 @@ fn assert_alike(label: &str, x: &AtRestBody<f64>, y: &AtRestBody<f64>, seam: boo
             (0, 0),
             "{label} {op}: rows held by a discard"
         );
-        let fallback = |f: &OpFates| {
-            matches!(
-                f.kind,
-                Some(BooleanResultKind::OperandA | BooleanResultKind::OperandB)
-            )
-        };
-        match (fallback(&p), fallback(&q)) {
-            (true, false) => assert_eq!(p.lost, vec![], "{label} {op}: the fallback's discards"),
-            (false, true) => assert_eq!(q.lost, vec![], "{label} {op}: the fallback's discards"),
-            _ if seam && op == "∪" => {}
-            _ => assert_eq!(
+        if !(seam && op == "∪") {
+            assert_eq!(
                 p.lost, q.lost,
                 "{label} {op}: the discards and their borders"
-            ),
+            );
         }
     }
 }
@@ -265,6 +252,29 @@ fn a_hemisphere_base_and_a_brick_bottom_are_cut_alike_in_either_order() {
     }
     let slab = fin("slab", brick((-2.0, 2.0), (0.0, 0.5), (-2.0, 2.0), tol));
     assert_eq!(op_fates("∩", &hemi, &slab).volume, 1_439_897, "hemi ∩ slab");
+}
+
+/// **A brick on a hemisphere's base, inside it, is cut alike by the
+/// containment fallback.** The brick x, z −0.3..0.3, y 0..0.5 stands on
+/// the base disc inside the hemisphere of radius 1, so `hemi ∪ brick` and
+/// `brick ∩ hemi` keep operand A whole, by the fallback, and the other
+/// order of each takes the section path. The fallback cuts the disc along
+/// the brick's bottom in the ∩ and records each face it drops as a
+/// discard, as the section path does. Red before the fallback cut: it
+/// recorded no discard, and the ∩'s row held the whole disc.
+#[test]
+fn a_brick_inside_on_a_hemispheres_base_is_cut_alike_by_the_fallback() {
+    let tol = Tol::witness();
+    let hemi = fin("hemi", hemisphere_on_flat_base(1.0, tol));
+    let brick = fin("brick", brick((-0.3, 0.3), (0.0, 0.5), (-0.3, 0.3), tol));
+    for (op, x, y) in [("∪", &hemi, &brick), ("∩", &brick, &hemi)] {
+        assert_eq!(
+            op_fates(op, x, y).kind,
+            Some(BooleanResultKind::OperandA),
+            "{op}: operand A whole, by the fallback"
+        );
+    }
+    assert_alike("inside, on the disc", &hemi, &brick, false);
 }
 
 /// **A slanted rod and a coaxial rod are cut alike in either order.**

@@ -26,7 +26,7 @@ fn export(body: &topo::Body<f64>, name: &str) -> String {
         product_name: name.to_owned(),
         ..step_export::StepOptions::default()
     };
-    step_export::step_string(body, &options, Tol::witness()).unwrap()
+    step_export::step_string(&crate::common::at_rest(body), &options, Tol::witness()).unwrap()
 }
 
 /// A1: a consistently perturbed radius must flow through import into

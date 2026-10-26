@@ -72,16 +72,12 @@ fn assert_solid(label: &str, body: &Body<f64>, expected: f64) {
         Ok(()),
         "{label}: validate_geometric"
     );
-    let p = topo::test_support::unmigrated_measure(
-        body,
+    let p = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), Tol::witness()),
         Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap_or_else(|e| panic!("{label}: mass properties, got {e:?}"));
-    assert_eq!(
-        p.enclosure.volume_pad, 0.0,
-        "{label}: closed-form faces only"
-    );
+    assert_eq!(p.volume_pad, 0.0, "{label}: closed-form faces only");
     assert!(
         // Relative to the result, floored at the operands' unit scale:
         // the divergence sum rounds against the whole spheres' terms.

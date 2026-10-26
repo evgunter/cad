@@ -41,15 +41,10 @@ fn assert_brackets(got: Interval, truth: f64, what: &str) {
 fn the_waist_carves_at_the_certified_scalar_and_brackets_the_pappus_fill() {
     let tol = Tol::witness();
     let r = 0.05;
-    let source = waisted_at::<Interval>(tol);
+    let source = topo::test_support::finished("source", waisted_at::<Interval>(tol), tol);
     let arcs = rim_arcs_at(&source, 0.5, 0.5);
     assert_eq!(arcs.len(), 2, "the waist rim is seam-split into two arcs");
-    let p0 = topo::test_support::unmigrated_measure(
-        &source,
-        tol,
-        topo::test_support::pinned_resolution(tol),
-    )
-    .expect("interval props");
+    let p0 = topo::mass_properties(&source, tol).expect("interval props");
     let v0 = 7.0 * PI / 12.0;
     assert_brackets(p0.enclosure.volume, v0, "the source");
 
@@ -62,10 +57,9 @@ fn the_waist_carves_at_the_certified_scalar_and_brackets_the_pappus_fill() {
     .unwrap_or_else(|e| panic!("the concave waist carves at Interval, got {e:?}"));
     assert_eq!(out.band_faces.len(), 1, "one annulus band");
     validate_geometric(&out.body, tol).unwrap_or_else(|e| panic!("tier-3 valid, got {e:?}"));
-    let p1 = topo::test_support::unmigrated_measure(
-        &out.body,
+    let p1 = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol),
         tol,
-        topo::test_support::pinned_resolution(tol),
     )
     .expect("interval props");
     assert_eq!(

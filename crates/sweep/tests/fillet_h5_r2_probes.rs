@@ -450,14 +450,10 @@ fn a_curved_single_face_carrying_both_arcs_is_construction_state() {
             image,
             "repair = {repair}, order = {order}: the survivor wraps"
         );
-        let volume = topo::test_support::unmigrated_measure(
-            &body,
-            tol(),
-            topo::test_support::pinned_resolution(tol()),
-        )
-        .unwrap()
-        .enclosure
-        .volume;
+        // Raw door: the measured body is construction state whose joinable vertices tier 3 refuses (JoinableVertexAtRest).
+        let volume = topo::test_support::measure_unvalidated(&body, tol())
+            .unwrap()
+            .volume;
         assert!(
             (volume - core::f64::consts::PI).abs() < 1e-9,
             "repair = {repair}, order = {order}: the wall meters π, got {volume}"
@@ -497,16 +493,16 @@ fn compose_two_rims(
     validate_geometric(&one_call.body, tol())
         .map_err(|e| format!("{what}: one-call result not tier-3 valid: {e:?}"))?;
     assert_eq!(one_call.band_faces.len(), 2, "{what}: one band per rim");
-    let one = topo::test_support::unmigrated_measure(
-        &one_call.body,
+    let one = topo::mass_properties(
+        &topo::test_support::finished(
+            "the measured body",
+            topo::Body::clone(&one_call.body),
+            tol(),
+        ),
         tol(),
-        topo::test_support::pinned_resolution(tol()),
     )
     .unwrap();
-    assert_eq!(
-        one.enclosure.volume_pad, 0.0,
-        "{what}: closed-form faces only"
-    );
+    assert_eq!(one.volume_pad, 0.0, "{what}: closed-form faces only");
     for order in [[rims[0], rims[1]], [rims[1], rims[0]]] {
         let mut body = source.clone();
         for (rr, ry) in order {
@@ -517,10 +513,9 @@ fn compose_two_rims(
         }
         validate_geometric(&body, tol())
             .map_err(|e| format!("{what}: sequential result not tier-3 valid: {e:?}"))?;
-        let seq = topo::test_support::unmigrated_measure(
-            &body,
+        let seq = topo::mass_properties(
+            &topo::test_support::finished("the measured body", topo::Body::clone(&body), tol()),
             tol(),
-            topo::test_support::pinned_resolution(tol()),
         )
         .unwrap();
         // The same body, not the same history: each carve ends with the
@@ -654,23 +649,19 @@ fn the_hostless_closed_forms_match_an_independent_derivation() {
     ];
     for (name, body, rim, want) in cases {
         let arcs = rim_arcs_at(&body, rim.0, rim.1);
-        let before = topo::test_support::unmigrated_measure(
-            &body,
+        let before = topo::mass_properties(
+            &topo::test_support::finished("the measured body", topo::Body::clone(&body), tol()),
             tol(),
-            topo::test_support::pinned_resolution(tol()),
         )
         .unwrap()
-        .enclosure
         .volume;
         let out = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &arcs, r, tol())
             .unwrap_or_else(|e| panic!("{name} carves, got {e:?}"));
-        let after = topo::test_support::unmigrated_measure(
-            &out.body,
+        let after = topo::mass_properties(
+            &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol()),
             tol(),
-            topo::test_support::pinned_resolution(tol()),
         )
         .unwrap()
-        .enclosure
         .volume;
         let delta = after - before;
         assert!(

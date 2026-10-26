@@ -6,7 +6,7 @@
 
 use crate::common;
 
-use common::{SOLID_FIXTURES, arena_census, expect_sidecar, fixture, import_body};
+use common::{SOLID_FIXTURES, arena_census, at_rest, expect_sidecar, fixture, import_body};
 use geom_core::Tol;
 
 /// Row 1 per fixture: census against the sidecar's `KERNEL_*` fields
@@ -149,7 +149,7 @@ fn fixed_point() {
             ..step_export::StepOptions::default()
         };
         let (body1, _) = import_body(name);
-        let export1 = step_export::step_string(&body1, &options, Tol::witness())
+        let export1 = step_export::step_string(&at_rest(&body1), &options, Tol::witness())
             .unwrap_or_else(|e| panic!("{name}: re-export 1: {e}"));
         // STEP has no native contact concept, so export drops the kiss
         // record and the re-import's gate records the touch again.
@@ -210,7 +210,7 @@ fn fixed_point() {
             v2.to_bits(),
             "{name}: certified volume bit-identical across the adoption pass"
         );
-        let export2 = step_export::step_string(&body2, &options, Tol::witness())
+        let export2 = step_export::step_string(&at_rest(&body2), &options, Tol::witness())
             .unwrap_or_else(|e| panic!("{name}: re-export 2: {e}"));
         if line_promotions == 0 {
             assert_eq!(
@@ -244,7 +244,7 @@ fn fixed_point() {
             .unwrap_or_else(|e| panic!("{name}: re-import 2: {e}")) else {
                 panic!("{name}: re-import 2 lost the solid");
             };
-            let export3 = step_export::step_string(&body3, &options, Tol::witness())
+            let export3 = step_export::step_string(&at_rest(&body3), &options, Tol::witness())
                 .unwrap_or_else(|e| panic!("{name}: re-export 3: {e}"));
             assert_eq!(
                 export2, export3,

@@ -47,10 +47,13 @@ fn r2_solid_door_bits_dump() {
             Tol::witness(),
         )
         .expect("the solid tube builds");
-        let props = topo::test_support::unmigrated_measure(
-            &t.body,
+        let props = topo::mass_properties(
+            &topo::test_support::finished(
+                "the measured body",
+                topo::Body::clone(&t.body),
+                Tol::witness(),
+            ),
             Tol::witness(),
-            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .expect("mass properties");
         println!(

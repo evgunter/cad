@@ -145,7 +145,10 @@ profile vertex revolves to, looked up in the sweep's `poles` export.
   no body entity and the export answers `None`. So does a tip where a plane
   wall meets the axis: the full revolve builds that disc whole, its centre no
   vertex. The tips a cone or a curved wall ends on are the named on-axis
-  vertices.
+  vertices. A loop meeting the axis in several runs is no exception: the
+  inner run ends are the poles of the cavities the gaps close, and those
+  cavities' walls, meridians and rims are named by the profile pieces that
+  sweep them, as the outer shell's are, with no role of their own.
 
 Totality checks that silence: `check_total` refuses a table leaving a LIVE body
 vertex unnamed, so a `None` standing over surviving geometry cannot pass.

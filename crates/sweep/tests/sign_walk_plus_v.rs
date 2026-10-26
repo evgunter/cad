@@ -236,10 +236,13 @@ fn the_gate_certifies_a_sign_and_the_continuation_certifies_the_number() {
         let continued = continued
             .expect("the closure ran")
             .unwrap_or_else(|e| panic!("{label}: the continuation measures: {e}"));
+        // Finished outside the count: the count is the one measurement's.
+        let finished =
+            topo::test_support::finished("the measured body", topo::Body::clone(&body), tol);
         let mut measured = None;
         let one = quad_rounds(|| {
-            measured = Some(topo::test_support::unmigrated_measure(
-                &body,
+            measured = Some(topo::mass_properties(
+                &finished,
                 tol,
                 topo::test_support::pinned_resolution(tol),
             ))

@@ -15,12 +15,7 @@
 //! normalisations D7 forbids the kernel to mirror, so the two censuses
 //! legitimately differ on several fixtures). `scripts/check_step.sh`
 //! consumes `EXPECT_*` only; `crates/step-import`'s committed-corpus
-//! row consumes `KERNEL_*`. The one structural divergence beyond edge
-//! normalisation is `kiss_assembly`: natively ONE solid with TWO
-//! shells, but STEP has no way to group two closed shells into one
-//! solid (`MANIFOLD_SOLID_BREP` carries exactly one), so both the OCC
-//! and the kernel-import readings are 2 solids / 2 shells — the
-//! documented divergence IS the semantics, see the sidecar's comment.
+//! row consumes `KERNEL_*`.
 //!
 //! `KERNEL_VOLUME_MM3` / `KERNEL_VOLUME_PAD_MM3` are FULL precision:
 //! each committed literal must be byte-identical to

@@ -60,17 +60,12 @@ fn census(body: &Body<Interval>) -> (usize, usize, usize) {
 fn the_rod_carves_at_the_certified_scalar_and_brackets_the_prism_closed_form() {
     let tol = Tol::witness();
     let r = ROD_FILLET;
-    let source = rod_d_profile_at::<Interval>(tol);
+    let source = topo::test_support::finished("source", rod_d_profile_at::<Interval>(tol), tol);
     let creases = rod_creases(&source);
     assert_eq!(creases.len(), 2, "two ruling creases");
     let (v0, e0, f0) = census(&source);
-    let p0 = topo::test_support::unmigrated_measure(
-        &source,
-        tol,
-        topo::test_support::pinned_resolution(tol),
-    )
-    .expect("interval props");
-    assert_eq!(p0.enclosure.volume_pad, 0.0, "the source is closed-form");
+    let p0 = topo::mass_properties(&source, tol).expect("interval props");
+    assert_eq!(p0.volume_pad, 0.0, "the source is closed-form");
     assert!(
         p0.enclosure.volume.hi() - p0.enclosure.volume.lo() < 1e-12,
         "the source's own enclosure is a claim: width {}",
@@ -169,10 +164,9 @@ fn the_rod_carves_at_the_certified_scalar_and_brackets_the_prism_closed_form() {
     }
     assert_naming_totality(&source, &out, &creases, "the rod at Interval");
 
-    let p1 = topo::test_support::unmigrated_measure(
-        &out.body,
+    let p1 = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol),
         tol,
-        topo::test_support::pinned_resolution(tol),
     )
     .expect("interval props");
     assert_eq!(

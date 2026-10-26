@@ -135,13 +135,15 @@ fn doc_param_edit_recomputes_the_param_cone() {
         .doc;
     let memo = run(&edited, Some(&full), false);
     assert_eq!((memo.recomputed, memo.reused), (48, 8));
-    let vol = topo::test_support::unmigrated_measure(
-        final_body(&memo, d.final_node),
+    let vol = topo::mass_properties(
+        &topo::test_support::finished(
+            "the measured body",
+            topo::Body::clone(final_body(&memo, d.final_node)),
+            Tol::witness(),
+        ),
         Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .enclosure
     .volume;
     assert_eq!(vol, 8.0 - 21.0 * 0.25 * 0.25 * 0.0625); // 7.91796875
 }
@@ -451,24 +453,28 @@ fn split_evaluates_both_parts_role_tagged() {
                 panic!("both sides carry material");
             };
             assert_eq!(
-                topo::test_support::unmigrated_measure(
-                    above,
-                    Tol::witness(),
-                    topo::test_support::pinned_resolution(Tol::witness())
+                topo::mass_properties(
+                    &topo::test_support::finished(
+                        "the measured body",
+                        topo::Body::clone(&**above),
+                        Tol::witness()
+                    ),
+                    Tol::witness()
                 )
                 .unwrap()
-                .enclosure
                 .volume,
                 2.0 * 2.0 * 1.5
             );
             assert_eq!(
-                topo::test_support::unmigrated_measure(
-                    below,
-                    Tol::witness(),
-                    topo::test_support::pinned_resolution(Tol::witness())
+                topo::mass_properties(
+                    &topo::test_support::finished(
+                        "the measured body",
+                        topo::Body::clone(&**below),
+                        Tol::witness()
+                    ),
+                    Tol::witness()
                 )
                 .unwrap()
-                .enclosure
                 .volume,
                 2.0 * 2.0 * 0.5
             );

@@ -626,11 +626,7 @@ pub fn prove<P: crate::ProfilePayload>(
         .map(|((_, rows), walked)| {
             rows.iter()
                 .zip(walked)
-                .map(|(row, constructions)| {
-                    !(one_construction(constructions)
-                        || on_by_construction(doc, row, constructions, tol)
-                        || stated_by_a_mate(doc, row, constructions, tol))
-                })
+                .map(|(row, constructions)| !first_rung(doc, row, constructions, tol))
                 .collect()
         })
         .collect();
@@ -668,6 +664,31 @@ pub fn prove<P: crate::ProfilePayload>(
                 .collect()
         })
         .collect())
+}
+
+/// **Whether the door's first rung proves `row`**, with no replay
+/// ([`first_rung`]).
+pub(crate) fn first_rung_proves<P: crate::ProfilePayload>(
+    doc: &crate::doc::Doc<P>,
+    row: &NamedCoincidence,
+    tol: geom_core::Tol,
+) -> bool {
+    first_rung(doc, row, &constructions(doc, row, tol), tol)
+}
+
+/// **The door's first rung**, over `row`'s cells walked to their
+/// constructions: one construction read twice, a cell its face's minter
+/// built on it ([`on_by_construction`]), or the two faces a mate rests on
+/// each other ([`stated_by_a_mate`]).
+fn first_rung<P: crate::ProfilePayload>(
+    doc: &crate::doc::Doc<P>,
+    row: &NamedCoincidence,
+    constructions: &[Result<Construction, Unwalked>],
+    tol: geom_core::Tol,
+) -> bool {
+    one_construction(constructions)
+        || on_by_construction(doc, row, constructions, tol)
+        || stated_by_a_mate(doc, row, constructions, tol)
 }
 
 /// Each cell of a row walked to its construction, or why it was not.
@@ -966,7 +987,7 @@ fn plane<P: crate::ProfilePayload>(
 /// the face the selection `face` names, walked from its body
 /// ([`construction`]), in each copy of that body that holds it where
 /// a mate of `placement` reads it ([`crate::mate::reads_in`], the
-/// rule the gather mints the mate's record by): the body itself where
+/// rule the door reads the mate by): the body itself where
 /// it is that copy's output, else under the `Place` that copies it, or
 /// a `Part` picking one of its copies (the walk's own `Instance` says
 /// which). A body no placement copies is read where it stands, which is

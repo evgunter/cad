@@ -155,9 +155,10 @@ placed into the world is in the product, because a placement is what
 the product gathers: nothing else has to place it. `Doc.place(body,
 target)` is the same gesture over a body of this document.
 
-`Mate(on, to, class_)` is one value carrying both halves of "these two
-parts meet here": the placement constraint the solve folds, and the
-contact declaration the gate mints. A mate is not a node. It is a
+`Mate(on, to)` is a placement constraint the solve folds: it says where
+a copy sits, and declares nothing about contact — whether two copies
+touch is the geometry's to say, and the at-rest gate records every
+touch between copies it finds (section 4). A mate is not a node. It is a
 constraint in the bundle of the copy it places, and it equates two
 poses of one kind: `on`, read off that copy's geometry, and `to`, a
 pose of the placement's target space read off geometry there —
@@ -209,7 +210,6 @@ import tempfile
 
 from pncad import (
     CapEnd,
-    ContactClass,
     Coord,
     Doc,
     DocRef,
@@ -302,7 +302,7 @@ def rest(placement, on, to, slides):
     set where on `to` it rests: two slides, and no spin. The bundle is
     written whole."""
     mate, *_ = stand.set_constraints(placement, [
-        Mate(PoseDef.plane(*on), PoseDef.flip(PoseDef.plane(*to)), ContactClass.Rest),
+        Mate(PoseDef.plane(*on), PoseDef.flip(PoseDef.plane(*to))),
         MateValue(Coord.slide("x"), slides[0] * m),
         MateValue(Coord.slide("y"), slides[1] * m),
         MateValue(Coord.spin("z"), 0),
@@ -385,17 +385,15 @@ numbers are lengths and angles. The solve reads each pose off the
 evaluation at every evaluation, so nothing is stored twice and the
 mate follows the face when the part is edited, when the name is
 rebound, and across a split or an inline. A value's number may read a
-document parameter, so a parameter can drive where a copy sits. The
-mate's contact class says what is declared: a `Rest` on two faces
-declares they touch, and where the values set them apart, the at-rest
-gate refutes it. The solve constructs each copy's pose from its mates
+document parameter, so a parameter can drive where a copy sits. A
+mate claims no contact: where its values set two faces apart, they
+are apart, and nothing is refuted. The solve constructs each copy's pose from its mates
 and values, checking nothing and fitting nothing, and its inputs are
 the document plus its mated parts' evaluations.
 
 **The constraint door is structural.** A mate whose `on` does not read
 the copy it places (`mate_not_on_the_copy`), whose two poses are of
-two kinds (`mate_kinds_differ`), or whose class is outside the
-vocabulary is refused where it is added; so is a constraint any of
+two kinds (`mate_kinds_differ`) is refused where it is added; so is a constraint any of
 whose equations the rest of its bundle already fixes, pinned or not
 (`mate_overconstrained`): two plane mates fix a normal twice, whatever
 their faces' angle, and a value on a freedom the mates fix is one
@@ -410,25 +408,6 @@ spaces, and that is decided from the recipe, before anything is
 evaluated. What needs the poses' values — a face that is gone
 (`mate_side_unevaluated`), a chart the band cannot swing — is the
 placement's own refusal where it evaluates, met as below.
-
-**Ask `class_admission` before you author a class.** The solve and the
-gate admit different sets, and the table is one value both read:
-
-```python
-from pncad import ContactClass, class_admission
-
-rest = class_admission(ContactClass.Rest)
-assert rest.variant == "mints" and rest.mints and rest.solves
-assert rest.why is None
-
-# The gap the table exists to state: a class the SOLVE folds, that
-# the at-rest gate can mint no record for. Asking here costs nothing;
-# discovering it after the edit lands costs a round trip.
-tangent = class_admission(ContactClass.Tangent)
-assert tangent.variant == "no_at_rest_record"
-assert tangent.solves and not tangent.mints
-assert "at rest" in tangent.why
-```
 
 ## 3. Evaluating across the seam: `resolver=`
 
@@ -653,21 +632,19 @@ space is compared with another's, so only the copies placed into the
 world are in the product.
 
 `assemble(doc, evaluation)` is the **at-rest gate**: it gathers the
-product, mints every solved mate's declaration into contact records,
-and runs the kernel's own at-rest door over the two together. This is
-the check the authoring vocabulary can otherwise construct and never
-make — the assembly answer to the undeclared-coincidence refusal the
-fail-loud tour walks through for a single-document boolean. There, two
-slabs sharing a plane refuse until you *declare* the contact. Here, a
-mate **is** the declaration, and the gate is where it gets verified
-against the geometry it claims.
+product, records every touch between two copies the census finds — a
+seat a mate set up and a touch no mate relates alike, each a row of
+the product proven from the copies' own cells — and runs the kernel's
+own at-rest door over the product and those records together. A
+mate declares nothing: whether two faces meet is the geometry's to
+say, and an overlap between two copies' material is reported as
+interference, never recorded as a touch.
 
 ```python
 import tempfile
 
 from pncad import (
     CapEnd,
-    ContactClass,
     Coord,
     Doc,
     DocRef,
@@ -716,13 +693,13 @@ def instance_cap(ev, instance, side):
     return found
 
 
-def rest(doc, placement, on, to, slides, class_=ContactClass.Rest):
+def rest(doc, placement, on, to, slides):
     """`placement`'s face `on` resting on the face `to`, flipped so the
     two face each other, and two slide values and no spin setting where
     on `to` it rests, written whole as its bundle. `on` and `to` are
     (node, face name) pairs."""
     mate, *_ = doc.set_constraints(placement, [
-        Mate(PoseDef.plane(*on), PoseDef.flip(PoseDef.plane(*to)), class_),
+        Mate(PoseDef.plane(*on), PoseDef.flip(PoseDef.plane(*to))),
         MateValue(Coord.slide("x"), slides[0] * m),
         MateValue(Coord.slide("y"), slides[1] * m),
         MateValue(Coord.spin("z"), 0),
@@ -739,7 +716,7 @@ post_ref = DocRef(post.id, content_pin(post))
 shelf_ref = DocRef(shelf.id, content_pin(shelf))
 
 
-def bench(class_=ContactClass.Rest):
+def bench():
     """The stand: two posts, a shelf seated on them by two mates."""
     doc = Doc("bench-stand")
     a = doc.insert(Node.instantiate_part(post_ref, doc.world))
@@ -752,9 +729,9 @@ def bench(class_=ContactClass.Rest):
     # put each post's top centre under the shelf's seat, flush with the
     # shelf's ends.
     m_a = rest(doc, s, underside, (a, instance_cap(ev, a, CapEnd.End)),
-               (0.0, INSET + HALF - SHELF_DEPTH / 2), class_)
+               (0.0, INSET + HALF - SHELF_DEPTH / 2))
     m_b = rest(doc, b, (b, instance_cap(ev, b, CapEnd.End)), underside,
-               (SHELF_LENGTH - 2 * HALF, HALF - SHELF_DEPTH / 2), class_)
+               (SHELF_LENGTH - 2 * HALF, HALF - SHELF_DEPTH / 2))
     return doc, (a, s, b), (m_a, m_b)
 
 
@@ -789,20 +766,16 @@ columns = solved.placement(stand, post_b).columns
 identity = ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0))
 assert all(abs(g - w) < 1e-12 for c, i in zip(columns, identity) for g, w in zip(c, i))
 
-# The gate: the flush-seated stand CERTIFIES, and hands back one
-# minted declaration per solved mate, at face granularity, in the
-# alphabet the mates were authored in — each naming its mate by its
-# address.
+# The gate: the flush-seated stand CERTIFIES. Its two seats are
+# touches between copies, recorded at the door; nothing overlaps.
 assembly = assemble(stand, ev)
-assert [d.mate for d in assembly.minted] == list(mates)
-assert [d.class_ for d in assembly.minted] == [ContactClass.Rest] * 2
+assert assembly.interference == []
 expected = (2 * POST_SECTION**2 * POST_HEIGHT
             + SHELF_LENGTH * SHELF_DEPTH * SHELF_THICKNESS)
 assert abs(assembly.body.mass_properties(Settle.resolution(1e-6 * m)).enclosure.volume - expected) < 1e-12
 
 # `assemble` IS the gather plus the check, so its body is the gathered
-# body — and a mate-less, disjoint layout passes the same gate
-# outright, with nothing minted.
+# body.
 gathered = product(stand, ev)
 assert gathered.mass_properties(Settle.resolution(1e-6 * m)).enclosure.volume == assembly.body.mass_properties(Settle.resolution(1e-6 * m)).enclosure.volume
 ```
@@ -810,8 +783,8 @@ assert gathered.mass_properties(Settle.resolution(1e-6 * m)).enclosure.volume ==
 ## 5. The refusals an assembly author actually meets
 
 Each of these is reached by authoring the mistake. They are the
-product working: the kernel declining to pick a pose, invent a record,
-or widen a declaration you did not make.
+product working: the kernel declining to pick a pose or to read a
+pose off what does not carry one.
 
 ```python
 import tempfile
@@ -819,7 +792,6 @@ import tempfile
 from pncad import (
     AssemblyError,
     CapEnd,
-    ContactClass,
     Coord,
     Doc,
     DocRef,
@@ -890,7 +862,7 @@ def two_instances():
     return doc, a, s
 
 
-def post_under_shelf(doc, post_i, shelf_i, class_, values=True):
+def post_under_shelf(doc, post_i, shelf_i, values=True):
     """The post's top resting on the shelf's underside, the post's
     side first, and — unless `values` is false — the values that set it
     flush under the shelf's near end, written whole as the post's
@@ -899,7 +871,6 @@ def post_under_shelf(doc, post_i, shelf_i, class_, values=True):
     bundle = [Mate(
         PoseDef.plane(post_i, instance_cap(ev, post_i, CapEnd.End)),
         PoseDef.flip(PoseDef.plane(shelf_i, instance_cap(ev, shelf_i, CapEnd.Start))),
-        class_,
     )]
     if values:
         bundle += [MateValue(Coord.slide("x"), 0 * m),
@@ -918,7 +889,7 @@ def post_under_shelf(doc, post_i, shelf_i, class_, values=True):
 doc, post_i, shelf_i = two_instances()
 held = doc.bundle(post_i)
 try:
-    post_under_shelf(doc, post_i, shelf_i, ContactClass.Rest, values=False)
+    post_under_shelf(doc, post_i, shelf_i, values=False)
     raise AssertionError("expected a typed refusal")
 except EditError as refusal:
     fault = refusal.fault
@@ -949,11 +920,11 @@ def facing(node, normal):
     return PoseDef.plane(node, name)
 
 
-floor = Mate(facing(post_i, (0.0, 0.0, -1.0)), PoseDef.flip(facing(base, (0.0, 0.0, 1.0))), ContactClass.Rest)
+floor = Mate(facing(post_i, (0.0, 0.0, -1.0)), PoseDef.flip(facing(base, (0.0, 0.0, 1.0))))
 try:
     doc.set_constraints(post_i, [
         floor,
-        Mate(facing(post_i, (-1.0, 0.0, 0.0)), PoseDef.flip(facing(base, (1.0, 0.0, 0.0))), ContactClass.Rest),
+        Mate(facing(post_i, (-1.0, 0.0, 0.0)), PoseDef.flip(facing(base, (1.0, 0.0, 0.0)))),
     ])
     raise AssertionError("expected a typed refusal")
 except EditError as refusal:
@@ -968,24 +939,7 @@ assert OVERCONSTRAINED_RECOURSE in str(fault)
 doc.set_constraints(post_i, Placed.of(doc, [floor], []))
 assert solve_document(doc, resolver=store).fault(post_i) is None
 
-# 3. A CLASS THE GATE CANNOT MINT. `Tangent` solves and mints nothing
-#    at rest — exactly what `class_admission` said before the edit
-#    landed.
-doc, post_i, shelf_i = two_instances()
-mate = post_under_shelf(doc, post_i, shelf_i, ContactClass.Tangent)
-try:
-    assemble(doc, evaluate(doc, resolver=store))
-    raise AssertionError("expected a typed refusal")
-except AssemblyError as refusal:
-    # `refusals` is EVERY mate that did not mint, in document order,
-    # so two broken mates are two repairs from one call.
-    assert refusal.variant == "unminted_mates"
-    (row,) = refusal.refusals
-    assert row.variant == "no_at_rest_record"
-    assert row.mate == mate
-    assert row.class_ == ContactClass.Tangent
-
-# 4. A PLANE READ OFF AN EDGE. A plane is read off a face, and Python
+# 3. A PLANE READ OFF AN EDGE. A plane is read off a face, and Python
 #    holds names as opaque text, so a plane read off an edge's name is
 #    built, and the edit door refuses it: a selection's kind is the
 #    name's own, held where the selection is written, and the sentence
@@ -997,7 +951,6 @@ try:
     doc.set_constraints(post_i, [Mate(
         PoseDef.plane(post_i, edge),
         PoseDef.flip(PoseDef.plane(shelf_i, instance_cap(ev, shelf_i, CapEnd.Start))),
-        ContactClass.Rest,
     )])
 except EditError as err:
     assert err.variant == "selection_name_kind"
@@ -1005,7 +958,7 @@ except EditError as err:
 else:
     raise AssertionError("an edge-read plane is refused at the door")
 
-# 5. NOTHING TO GATHER. Evaluated with no resolver, the instances —
+# 4. NOTHING TO GATHER. Evaluated with no resolver, the instances —
 #    placements into the world — produced no copies, so the GATHER
 #    refuses before the gate runs — and it refuses under the gather's
 #    own tag, not a wrapper's, because which invariant broke is what
@@ -1017,7 +970,7 @@ try:
     raise AssertionError("expected a typed refusal")
 except AssemblyError as refusal:
     assert refusal.variant == "root_failed"
-    assert refusal.node == post_i and refusal.refusals is None
+    assert refusal.node == post_i
 try:
     product(doc, evaluate(doc))
     raise AssertionError("expected a typed refusal")
@@ -1028,32 +981,14 @@ except ProductError as refusal:
 
 Read an `AssemblyError`'s `variant` first, and read it as three
 groups. `at_rest` is a verdict **against** the document, and it
-carries the findings: each `AtRestFinding`'s `attribution` is the
-declaration it names, `None` where it names none, and
-`attribution.relation` says which of two things happened — `refuted`
-(the faces do not meet as the declaration claims) or `declined` (no
-certifier lane for a face the declaration names, so nothing was
-decided either way). `attribution.declaration` names the minted
-declaration, by the two stable names the mate was authored in — the
-recourse is in the error. Two copies that touch where no mate relates
-them refuse nothing: the touch is a row of the product, and
-`run_checks` reports it as an `unproven_coincidence` finding whose
-`copies` are the two. `uncertified` is the declared direction's
-**frontier**: nothing refuted, the census simply declined to certify,
-so nothing was decided either way.
-Everything else refuses before any verdict exists:
-`unminted_mates` (this document's own mates that did not mint),
-`carried_mint_refusal` (the same for mates of documents below it), and
-the gather's own tags. The two mint arms carry `refusals` — **every**
-mate that did not mint, in document order, never just the first — and
-each row carries its own word, `mate_reference_refused` or
-`no_at_rest_record`.
-
-That middle group is worth internalising, because it is the one place
-on this page where a refusal is not a statement about your model. A
-frontier is the library telling you what it cannot yet decide, which
-is a different sentence from "your assembly is wrong", and it is
-spelled differently on purpose.
+carries the findings: `str(finding)` is the kernel's own finding, with
+its recourse — a pair the census could not decide, or a touch it could
+not record. Two copies that touch refuse nothing: the touch is a row of
+the product, mated or not, and two copies whose material overlaps are
+reported on `Assembly.interference`, never raised. `carried_at_rest`
+is the same verdict from a document BELOW this one, crossing whole and
+raised first, because that part is the file to open. Everything else is
+the gather's own tag, refusing before any verdict exists.
 
 ## 6. Moving a part in or out: `split`, `inline`, and the pin door
 

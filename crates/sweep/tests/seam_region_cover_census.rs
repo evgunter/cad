@@ -57,11 +57,8 @@ fn one_flipped_sibling_is_check_4s_lamina_and_not_the_census() {
             matches!(errs.as_slice(), [ValidationError::LaminaWedge { .. }]),
             "{f:?} flipped alone is check 4's lamina, and only that: {errs:?}"
         );
-        let door = topo::test_support::unmigrated_measure(
-            &flipped(&body, &[f]),
-            tol,
-            topo::test_support::pinned_resolution(tol),
-        );
+        // Raw door: the measured body is a lamina (a flipped band), which tier 3 refuses (LaminaWedge).
+        let door = topo::test_support::measure_unvalidated(&flipped(&body, &[f]), tol);
         assert!(
             matches!(
                 door,
@@ -133,11 +130,8 @@ fn a_flipped_ringed_member_is_named_by_its_own_read_and_not_the_census() {
         !errs.iter().any(census),
         "the census reads the region once: {errs:?}"
     );
-    let door = topo::test_support::unmigrated_measure(
-        &flipped(&body, &faces),
-        tol,
-        topo::test_support::pinned_resolution(tol),
-    );
+    // Raw door: the measured body is a body with a curved face flipped, which tier 3 refuses (CurvedSenseInverted).
+    let door = topo::test_support::measure_unvalidated(&flipped(&body, &faces), tol);
     assert!(
         matches!(
             door,

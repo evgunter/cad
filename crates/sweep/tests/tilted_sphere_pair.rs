@@ -61,16 +61,12 @@ fn assert_body(label: &str, body: &Body<f64>, expected: f64) {
         Ok(()),
         "{label}: validate_geometric"
     );
-    let p = topo::test_support::unmigrated_measure(
-        body,
+    let p = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), Tol::witness()),
         Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap_or_else(|e| panic!("{label}: mass properties, got {e:?}"));
-    assert_eq!(
-        p.enclosure.volume_pad, 0.0,
-        "{label}: closed-form faces only"
-    );
+    assert_eq!(p.volume_pad, 0.0, "{label}: closed-form faces only");
     assert!(
         (p.enclosure.volume - expected).abs() <= 1e-9 * expected.max(1.0),
         "{label}: volume {} against the lens closed form {expected}",
@@ -343,7 +339,8 @@ fn a_flipped_tilted_face_is_refused_by_name() {
             );
             assert!(
                 matches!(
-                    topo::test_support::unmigrated_measure(&inverted, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())),
+                    // Raw door: `inverted` is a body with a curved face flipped, which tier 3 refuses (CurvedSenseInverted).
+                    topo::test_support::measure_unvalidated(&inverted, Tol::witness()),
                     Err(topo::MassPropsError::Face {
                         face,
                         source: geom_brep::props::PropsError::SenseContradicted,
@@ -402,7 +399,8 @@ fn a_flipped_remnant_with_a_pole_off_its_loop_is_refused_by_name() {
         );
         assert!(
             matches!(
-                topo::test_support::unmigrated_measure(&inverted, tol, topo::test_support::pinned_resolution(tol)),
+                // Raw door: `inverted` is a lamina (a flipped band), which tier 3 refuses (LaminaWedge).
+                topo::test_support::measure_unvalidated(&inverted, tol),
                 Err(topo::MassPropsError::Face {
                     face,
                     source: geom_brep::props::PropsError::SenseContradicted,

@@ -762,12 +762,9 @@ impl core::fmt::Debug for LandedRun {
 /// [`DocSession::product_fault`]'s, and `frame::badge_site` routes it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum AtRestBadge {
-    /// The gate certified the assembled product; how many declarations
-    /// its mates minted, and how many overlaps between copies it
-    /// reported, loud and quiet.
+    /// The gate certified the assembled product, and how many overlaps
+    /// between copies it reported, loud and quiet.
     Certified {
-        /// The minted declaration count.
-        minted: usize,
         /// The interference findings no assertion quiets.
         loud: usize,
         /// The interference findings an assertion quiets.
@@ -1814,6 +1811,7 @@ impl DocSession {
                 origin,
                 normal,
             } => self.add_split(target, &origin, &normal),
+            SessionOp::AddMirror { body, plane } => self.add_mirror(body, &plane),
             SessionOp::AddTransform {
                 input,
                 translation,
@@ -1837,7 +1835,7 @@ impl DocSession {
                 selection,
             } => self.add_blend(target, distance, selection, BlendKindChoice::Chamfer),
             SessionOp::AddPart { of, select } => self.add_part(of, select),
-            SessionOp::Duplicate { input } => self.add_duplicate(input),
+            SessionOp::Duplicate { input, beside } => self.add_duplicate(input, beside),
             SessionOp::AddInstance { id } => self.add_instance(id),
             SessionOp::AcceptPartVersion { id } => self.accept_part_version(id),
             SessionOp::SetLabel { node, label } => {
@@ -2782,12 +2780,16 @@ impl DocSession {
         spin: Formula,
     ) -> OpOutcome {
         let doc = self.committed_doc();
-        let (at, _, name) = crate::world::on_body(doc, face.node, face.body, &face.name);
-        if let Err(refusal) = self.require_kind(at, NodeKindWanted::Body) {
+        let (at, port, name) = crate::world::on_body(doc, face.node, face.body, &face.name);
+        let body = match crate::world::seat_read(doc, at, Some(port)) {
+            (at, Some(port)) => Operand::output(at, port),
+            (at, None) => body_of(doc, at),
+        };
+        if let Err(refusal) = self.require_read(&body, NodeKindWanted::Body) {
             return OpOutcome::refused(refusal);
         }
-        let body = body_of(doc, at);
         let over = self.placements_of(&body);
+        let taken = crate::world::read_var(doc, &body);
         self.commit_run(|run| {
             let sketched = run.sketch_on_face(
                 body,
@@ -2799,7 +2801,7 @@ impl DocSession {
                 distance,
                 spin,
             )?;
-            repoint(run, over, sketched.union).map(drop)
+            repoint(run, over, taken, sketched.union).map(drop)
         })
     }
 
@@ -2981,6 +2983,35 @@ impl DocSession {
         })
     }
 
+    /// **Mirror a body across the plane of a picked face**
+    /// ([`SessionOp::AddMirror`]): the image, and — where the world
+    /// draws the body — the symmetric part, the body and its image
+    /// unioned, taking over the body's drawn copies through the feature
+    /// takeover's re-point ([`repoint`]). An unplaced body's image is
+    /// written alone.
+    fn add_mirror(&mut self, body: Operand, plane: &FaceSelection) -> OpOutcome {
+        if let Err(refusal) = self.require_read(&body, NodeKindWanted::Body) {
+            return OpOutcome::refused(refusal);
+        }
+        let doc = self.committed_doc();
+        let (at, port, face) = crate::world::on_body(doc, plane.node, plane.body, &plane.name);
+        let on = match crate::world::seat_read(doc, at, Some(port)) {
+            (at, Some(port)) => Operand::output(at, port),
+            (at, None) => body_of(doc, at),
+        };
+        let over = self.placements_of(&body);
+        let taken = crate::world::read_var(doc, &body);
+        let node = combine::mirror_node(body.clone(), on, face);
+        self.commit_run(|run| {
+            let image = run.insert(node)?;
+            if over.is_empty() {
+                return Ok(());
+            }
+            let part = run.insert(BooleanSpec::Union(vec![body, image.into()]).node())?;
+            repoint(run, over, taken, part).map(drop)
+        })
+    }
+
     /// **A pose read off the geometry of `body`'s space**: the frame
     /// standing at `origin` with `z` along `direction` (in the
     /// coordinates of the space `body` lives in, at the numbers' nominal
@@ -3056,6 +3087,7 @@ impl DocSession {
             Err(refusal) => return OpOutcome::refused(refusal),
         };
         let over = self.placements_of(&input);
+        let taken = crate::world::read_var(doc, &input);
         let staged = self.stage_run(|run| {
             // Into the space the body is in, on that space's axes.
             let target = run.doc().operand_space(&input).unwrap_or(VarId::WORLD);
@@ -3064,7 +3096,7 @@ impl DocSession {
                 Operand::Var(target),
                 pncad::document::Placed::unmated(moves).bundle(),
             ))?;
-            let copies = repoint(run, over, placement)?;
+            let copies = repoint(run, over, taken, placement)?;
             Ok(Renamed::through(copies, placement))
         });
         match staged {
@@ -3117,6 +3149,7 @@ impl DocSession {
             }),
             PatternOutputChoice::Fused => self.feature_over(
                 self.placements_of(&input),
+                crate::world::read_var(self.committed_doc(), &input),
                 combine::placed_union_node(input, count, kind),
             ),
         }
@@ -3132,15 +3165,14 @@ impl DocSession {
     }
 
     /// Duplicate one body ([`SessionOp::Duplicate`]): a pattern of two
-    /// stepped clear, and its second copy's projection placed in the
-    /// world.
+    /// stepped clear, and its second copy's projection placed beside
+    /// the original where it is drawn.
     ///
-    /// **Three inserts as ONE action and therefore one undo.** The
-    /// original stays placed where it was; the copy is a creation, so
-    /// it is placed where the person can see it, and it is a body of
-    /// its own — a feature authored on it re-points the copy's
-    /// placement alone.
-    fn add_duplicate(&mut self, input: Operand) -> OpOutcome {
+    /// **One action and therefore one undo.** The original stays placed
+    /// where it was; the copy is a creation, so it is placed where the
+    /// person can see it, and it is a body of its own — a feature
+    /// authored on it re-points the copy's placements alone.
+    fn add_duplicate(&mut self, input: Operand, beside: Option<RecipeNodeId>) -> OpOutcome {
         if let Err(refusal) = self.require_read(&input, NodeKindWanted::Body) {
             return OpOutcome::refused(refusal);
         }
@@ -3151,13 +3183,14 @@ impl DocSession {
         // the committed one, so an edit or a document replacement that
         // has not landed yet is refused here rather than measured off
         // the value it replaced.
-        let step = match self.landed_pair() {
+        let landed = match self.landed_pair() {
             None => Err(DuplicateFault::NotLanded),
             Some(_) if self.busy() => Err(DuplicateFault::Stale),
-            Some((doc, eval)) => combine::duplicate_step(doc, eval, &input, self.tol),
+            Some((doc, eval)) => combine::duplicate_step(doc, eval, &input, self.tol)
+                .and_then(|step| Ok((step, duplicate_seats(doc, eval, &input, beside)?))),
         };
-        let step = match step {
-            Ok(step) => step,
+        let (step, seats) = match landed {
+            Ok(landed) => landed,
             Err(fault) => return OpOutcome::refused(Refusal::Duplicate(fault)),
         };
         let pattern = match combine::duplicate_rule(step) {
@@ -3170,7 +3203,17 @@ impl DocSession {
                 pattern,
                 PartSelectSpec::Instance(combine::DUPLICATE_COUNT - 1),
             ))?;
-            place_in_world(run, copy.into()).map(drop)
+            if seats.is_empty() {
+                return place_in_world(run, copy.into()).map(drop);
+            }
+            for (target, moves) in seats {
+                run.insert(Node::place(
+                    vec![pncad::document::BodyRead::plain(Operand::from(copy))],
+                    Operand::Var(target),
+                    pncad::document::Placed::unmated(moves).bundle(),
+                ))?;
+            }
+            Ok(())
         })
     }
 
@@ -3221,11 +3264,12 @@ impl DocSession {
                 selection,
             ),
         };
+        let taken = crate::world::read_var(doc, &read);
         let node = match kind {
             BlendKindChoice::Fillet => Node::fillet(read, size, selection),
             BlendKindChoice::Chamfer => Node::chamfer(read, size, selection),
         };
-        self.feature_over(over, node)
+        self.feature_over(over, taken, node)
     }
 
     /// **A creation gesture's one action** (A10): the new body, and its
@@ -3248,10 +3292,15 @@ impl DocSession {
     /// re-pointed to it through the slot door — so the world shows the
     /// result where it showed the target, and one undo restores both.
     /// A target nothing places places nothing.
-    fn feature_over(&mut self, over: Vec<RecipeNodeId>, node: AuthoredNode) -> OpOutcome {
+    fn feature_over(
+        &mut self,
+        over: Vec<RecipeNodeId>,
+        taken: Option<VarId>,
+        node: AuthoredNode,
+    ) -> OpOutcome {
         self.commit_run(|run| {
             let result = run.insert(node)?;
-            repoint(run, over, result).map(drop)
+            repoint(run, over, taken, result).map(drop)
         })
     }
 
@@ -3651,18 +3700,20 @@ impl DocSession {
 }
 
 /// **Re-point each of `placements` to `result`** (A10, Ev's residue
-/// 1): the slot door on each shape of each placement that copies the
-/// output of a node `result` reads, in the action that authored
+/// 1): the slot door on each shape of each placement that copies
+/// `taken`, the body `result` takes over, in the action that authored
 /// `result` — so a placement of the target copies the result in its
-/// place. Answers the placements it re-pointed, each once.
+/// place, and a shape copying another body, even another output of the
+/// same operation, keeps it. Answers the placements it re-pointed,
+/// each once.
 fn repoint(
     run: &mut Recording<'_, ProfileProgram>,
     placements: Vec<RecipeNodeId>,
+    taken: Option<VarId>,
     result: RecipeNodeId,
 ) -> Result<Vec<RecipeNodeId>, EditError> {
     let doc = run.doc();
-    let read = doc.upstream(result);
-    let copies_read = |var: VarId| doc.operation_of(var).is_some_and(|at| read.contains(&at));
+    let copies_read = |var: VarId| Some(var) == taken;
     let edits: Vec<(RecipeNodeId, u32)> = placements
         .into_iter()
         .flat_map(|placement| {
@@ -3796,15 +3847,21 @@ fn combine_in_world(
     }
     let mut placed = distinct
         .into_iter()
-        .map(|operand| crate::world::placements_of_read(run.doc(), operand))
-        .filter(|placements| !placements.is_empty())
+        .map(|operand| {
+            let doc = run.doc();
+            (
+                crate::world::read_var(doc, operand),
+                crate::world::placements_of_read(doc, operand),
+            )
+        })
+        .filter(|(_, placements)| !placements.is_empty())
         .collect::<Vec<_>>()
         .into_iter();
-    let Some(first) = placed.next() else {
+    let Some((taken, first)) = placed.next() else {
         return Ok(());
     };
-    repoint(run, first, result)?;
-    for placement in placed.flatten() {
+    repoint(run, first, taken, result)?;
+    for placement in placed.flat_map(|(_, placements)| placements) {
         run.apply(DocEdit::DeleteNode { id: placement })?;
     }
     Ok(())
@@ -4219,6 +4276,53 @@ fn space_evaluation<'a>(derived: &'a Derived, history: &History) -> Option<&'a E
     (*run.doc == *committed || *run.doc == *shown).then(|| run.evaluation.as_ref())
 }
 
+/// One placement of a duplicate: the space it copies into, and its
+/// values there.
+type DuplicateSeat = (VarId, Vec<(pncad::document::Coord, Formula)>);
+
+/// **Where a duplicate of `input` is placed** ([`SessionOp::Duplicate`]):
+/// for `beside`, or else for each drawn copy of `input`, that copy's
+/// target space and the values standing a copy at its evaluated motion
+/// ([`combine::copy_motion`], [`moves_of`]). Empty for a body nothing
+/// draws.
+///
+/// # Errors
+///
+/// [`DuplicateFault::NotACopy`] for a `beside` that is not a drawn
+/// copy of `input`; [`DuplicateFault::NoValue`] for a copy `eval`
+/// holds no value for.
+fn duplicate_seats(
+    doc: &Doc<ProfileProgram>,
+    eval: &Evaluation<f64>,
+    input: &Operand,
+    beside: Option<RecipeNodeId>,
+) -> Result<Vec<DuplicateSeat>, DuplicateFault> {
+    let drawn = crate::world::placements_of_read(doc, input);
+    let copies = match beside {
+        Some(copy) if drawn.contains(&copy) => vec![copy],
+        Some(copy) => {
+            let input = crate::world::read_output(doc, input)
+                .map_or_else(|| doc.spoken(copy), |(node, _)| doc.spoken(node));
+            return Err(DuplicateFault::NotACopy {
+                copy: doc.spoken(copy),
+                input,
+            });
+        }
+        None => drawn,
+    };
+    copies
+        .into_iter()
+        .map(|copy| {
+            let target = match doc.node(copy) {
+                Some(Node::Place { target, .. }) => *target,
+                _ => unreachable!("a drawn copy of a body read is a `Place`"),
+            };
+            let at = combine::copy_motion(doc, eval, copy)?;
+            Ok((target, moves_of(&at)))
+        })
+        .collect()
+}
+
 /// **`body` placed in the world**: a `Place` of it into the world,
 /// standing where its body stands ([`editor_core::stand`], the identity
 /// bundle).
@@ -4287,7 +4391,7 @@ fn puts_an_instance(node: &Node<ProfileProgram>) -> bool {
 }
 
 /// One A5 verdict as the badge that shows it — the gate's own
-/// vocabulary either way: a certification with its minted count, or
+/// vocabulary either way: a certification with its overlap counts, or
 /// the typed refusal with its nodes spoken from `doc`, the landed
 /// document the gate judged — **and the aggregate the gate hands back
 /// with it**.
@@ -4304,7 +4408,6 @@ fn badge(
     match verdict {
         Ok(assembly) => (
             AtRestBadge::Certified {
-                minted: assembly.minted.len(),
                 loud: assembly.interference.iter().filter(|f| f.is_loud()).count(),
                 quiet: assembly
                     .interference

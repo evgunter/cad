@@ -62,7 +62,6 @@ from pncad import (
     import_step,
     run_checks,
     subject_body,
-    ContactClass,
     Mate,
     MateValue,
     PoseDef,
@@ -308,7 +307,7 @@ doc.place(solid, doc.world, (0 * m, 0 * m, 1 * m))  # ty: error
 
 # A mate equates two POSES, each read off geometry. Name text where a
 # pose goes names nothing.
-Mate("a-name", PoseDef.plane(solid, "a-name"), ContactClass.Rest)  # ty: error
+Mate("a-name", PoseDef.plane(solid, "a-name"))  # ty: error
 
 # Which freedom a value sets is a `Coord`, never its word.
 MateValue("slide_x", 1 * m)  # ty: error
