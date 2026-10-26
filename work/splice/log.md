@@ -192,3 +192,31 @@ tree is not run by a PR that changes what it inventories. Evidence
 added to `ciw/a-diff-that-moves-corpus-ids-runs-none-of-the-slow-set-id-pins`.
 From here on, SPLICE implementer briefs say to run the touched crates'
 slow set (`cargo nextest run -p <crate>`) before reporting green.
+
+## 2026-10-26 — PR 5715 (touch doors) merges
+
+The second fix pass (d8d52d0d) answered the re-review:
+- the boxes inventory pin;
+- the reviewer's negative-floor row, re-written without the commit;
+- an Interval creased-touch row, red without the `is_finite_length`
+  guard;
+- the cornered meet row asserts exactly one meeting;
+- the prose for Interval's straddling floor.
+
+Filed on this slate:
+- `a-creased-spline-gets-no-second-order-clearing` (P1 M). The lane
+  measured no crease in the klein loop's or the lily sheath's NURBS
+  edges (all interior multiplicity 1);
+- `the-touch-floor-reads-a-curved-arc-apart-from-the-pieced-arc`
+  (P2 M), the fourth point-against-arc walk, left apart because folding
+  it would move certified decisions.
+
+After main (with PR 5719) merged in, the cell-door pin moved to
+(121, 407), with `wrong` 0: the in-plane walk now crosses the spline
+edge and the touch floor clears the cells beside it. The S4 guard
+still reds under an always-clear floor.
+
+The lane's topo slow set had one red, the lattice discard pin, which is
+main's: it was bisected to PRED 5724 meeting FLUSH 5706, and is filed
+in `work/issues/` (PR 5735). The orchestrator read the delta and merged
+on green `gate ok`.
