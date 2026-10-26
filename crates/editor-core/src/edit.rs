@@ -6465,11 +6465,8 @@ pub fn cascade_delete_order<P: crate::ProfilePayload>(
     let spaces_read = |n: RecipeNodeId| -> Vec<RecipeNodeId> {
         doc.node(n)
             .into_iter()
-            .flat_map(Node::operand_rows)
-            .filter_map(|(_, var)| match doc.var(var).map(|v| (v.kind(), v.def())) {
-                Some((VarKind::Space, VarDef::Output { node, .. })) => Some(*node),
-                _ => None,
-            })
+            .flat_map(|node| doc.spaces_read(node))
+            .map(|(_, at)| at)
             .collect()
     };
     let order = crate::eval::schedule::schedule(doc).order;
