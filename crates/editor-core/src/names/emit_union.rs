@@ -122,8 +122,9 @@ use crate::names::emit::{
 };
 use crate::names::emit_topo::{
     CornerCopies, Cover, EdgeCarrier, EdgePieces, EdgeReading, FaceDescent, Lone, UNSIDED,
-    edge_reading, edges_holding, is_straight, joined_along, joined_candidates, line_of_several,
-    name_corner_copies, name_edge_pieces, name_parent_faces, sets_per_line,
+    edge_reading, edges_holding, is_straight, joined_along, joined_candidates,
+    line_name as line_name_of, name_corner_copies, name_edge_pieces, name_parent_faces,
+    sense_along_line, sets_per_line,
 };
 use crate::names::groups::Rederived;
 use crate::names::least_root::LeastRoot;
@@ -556,17 +557,15 @@ fn names_no_edge(member: VarId, row: &StableName, key: EntityKey) -> String {
 /// for them are, read first.
 type MemberEntity = (VarId, NameRef);
 
-/// The union's name for the line of member edges `line`: the one edge's
-/// line, or `Merged` of the several flush on it, flat and in name order.
-fn line_name(union: RecipeNodeId, line: &BTreeSet<MemberEntity>) -> NameRef {
-    let one = |e| edge_line(&NameRef::new(entity_name(union, e)));
-    match line.iter().collect::<Vec<_>>().as_slice() {
-        [e] => one(e),
-        several => NameRef::new(crate::names::merged::edge_set(
-            union,
-            several.iter().map(|e| (*one(e)).clone()),
-        )),
-    }
+/// The union's name for the line of member edges `line`, each edge
+/// named for its member ([`entity_name`]) and the line as the pair
+/// boolean names its lines ([`line_name_of`]).
+fn line_name<'a>(union: RecipeNodeId, line: impl IntoIterator<Item = &'a MemberEntity>) -> NameRef {
+    line_name_of(
+        union,
+        line.into_iter()
+            .map(|e| edge_line(&NameRef::new(entity_name(union, e)))),
+    )
 }
 
 /// The union's name for member entity `(member, of)`, sharing the
@@ -881,7 +880,7 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
     ///
     /// Its lines are the member edges the finished edges at `v` lie on,
     /// those that run flush on one line once as the set of them
-    /// ([`Flush::sets_per_line`], [`Flush::line_sense`]), and each seam
+    /// ([`sets_per_line`], [`Flush::line_sense`]), and each seam
     /// at `v` whose two faces descend from no face of those member edges,
     /// cited by its group's base ([`EdgeLines`]). One member edge and no
     /// seam is the `Crossing` of that edge and the one face at `v` that
@@ -937,7 +936,14 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
         }
         // Member edges that run flush on one line are that line once,
         // as the set of them.
-        let cited: BTreeSet<BTreeSet<MemberEntity>> = self.sets_per_line(&along)?;
+        let cited = sets_per_line(
+            along.iter().cloned(),
+            |e| {
+                let (body, edge) = member_edge(self.members, e.0, e.1.name())?;
+                EdgeCarrier::of_edge(body, edge).map(Some)
+            },
+            self.bnd,
+        )?;
         let sides = self.sides(&along)?;
         let bounds = |f: &topo::FaceKey| {
             self.face_ents
@@ -959,10 +965,7 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
         if cited.is_empty() && seams.len() < 2 {
             return Ok(None);
         }
-        if let ([line], true) = (
-            cited.iter().collect::<Vec<_>>().as_slice(),
-            seams.is_empty(),
-        ) {
+        if let ([line], true) = (cited.as_slice(), seams.is_empty()) {
             let mut faces = BTreeMap::new();
             for k in at {
                 for f in self.inc.edge_faces.get(k).into_iter().flatten() {
@@ -1147,26 +1150,6 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
         })
     }
 
-    /// **Member edges `edges` grouped by the line they lie on**
-    /// ([`sets_per_line`]), each line the set of its edges.
-    fn sets_per_line(
-        &self,
-        edges: &BTreeSet<MemberEntity>,
-    ) -> Result<BTreeSet<BTreeSet<MemberEntity>>, NamingError> {
-        let lines = sets_per_line(
-            edges.iter().cloned(),
-            |e| {
-                let (body, edge) = member_edge(self.members, e.0, e.1.name())?;
-                EdgeCarrier::of_edge(body, edge).map(Some)
-            },
-            self.bnd,
-        )?;
-        Ok(lines
-            .into_iter()
-            .map(|line| line.into_iter().collect())
-            .collect())
-    }
-
     /// **The sense at finished vertex `v` of the line of member edges
     /// `line`** against the closed bodies of members `others`: each
     /// edge's own ([`Flush::sense_against`]), composed over the line
@@ -1175,14 +1158,14 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
     /// # Errors
     ///
     /// As [`Flush::sense_against`] and [`Flush::compose`].
-    fn line_sense(
+    fn line_sense<'e>(
         &self,
         v: topo::VertexKey,
-        line: &BTreeSet<MemberEntity>,
+        line: impl IntoIterator<Item = &'e MemberEntity>,
         others: &BTreeSet<VarId>,
         links: &Links<T>,
     ) -> Result<Sense, NamingError> {
-        let mut read = Vec::with_capacity(line.len());
+        let mut read = Vec::new();
         for e in line {
             let (stored, reading) = self.sense_against(v, e, others, links)?;
             read.push((e, stored, reading));
@@ -1366,13 +1349,11 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
 
     /// **The sense at finished vertex `v` of a line of member edges,
     /// each with its sense along it as its member stores it and how a
-    /// crossing of it reads** (N2): a line of one edge reads as that
-    /// edge ([`EdgeReading::read`]), a line of several as
-    /// [`line_of_several`] reads it.
+    /// crossing of it reads** (N2), as [`sense_along_line`] reads it.
     ///
     /// # Errors
     ///
-    /// As [`EdgeReading::read`] and [`line_of_several`]: there the
+    /// As [`EdgeReading::read`] and [`sense_along_line`]: there the
     /// senses are independent pairwise judgements of edges flush only
     /// within `ON_MEMBER_EDGE`.
     fn compose(
@@ -1380,9 +1361,6 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
         v: topo::VertexKey,
         read: Vec<(&MemberEntity, Sense, EdgeReading)>,
     ) -> Result<Sense, NamingError> {
-        if let [(e, stored, reading)] = read.as_slice() {
-            return reading.read(stored.clone(), |s| self.member_side(e.0, s));
-        }
         let mut senses = Vec::with_capacity(read.len());
         for (e, stored, reading) in read {
             senses.push((
@@ -1390,7 +1368,7 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
                 reading.read(stored, |s| self.member_side(e.0, s))?,
             ));
         }
-        line_of_several(v, senses)
+        sense_along_line(v, senses)
     }
 
     /// Whether member edge `of` runs the same way as member edge `like`:

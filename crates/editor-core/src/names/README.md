@@ -390,12 +390,13 @@ The qualifier depends on what was split:
   A vertex where two or more lines meet is an `EdgeCrossing` over the run of
   those lines, each with its sense, in name order. Its lines are the edges cut
   at the vertex, edges that run flush on one line counted once, as the
-  `Merged` set of them, flat and in name order, and, at a union, each seam through the vertex whose two faces bound
-  none of those edges, cited by its faces' parents as a seam edge is. So a
-  union vertex no member edge reaches is the run of its seams, and a lone
-  member edge through a seam is the run of the edge and the seam. A face
-  through the vertex that bounds none of its lines is not in its name: the
-  lines locate the vertex, as a corner resting on a face cites no face.
+  `Merged` set of them, flat and in name order, and, at a union, each seam
+  through the vertex whose two faces bound none of those edges, cited by its
+  faces' parents as a seam edge is. So a union vertex no member edge reaches
+  is the run of its seams, and a lone member edge through a seam is the run
+  of the edge and the seam. A face through the vertex that bounds none of its
+  lines is not in its name: the lines locate the vertex, as a corner resting
+  on a face cites no face.
   Each edge in the name carries its sense, read against the closed bodies of
   the members the name's other entries belong to, other than the edge's own:
   the crossing face's member for a `Crossing`, the other lines' members for a

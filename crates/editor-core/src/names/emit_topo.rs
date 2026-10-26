@@ -2984,15 +2984,12 @@ fn name_boolean_vertices<T: Decide>(
         // its sense: one edge's line, or `Merged` of the several, read
         // along each of them.
         let line = |o: topo::Operand, on: &[NameRef]| -> Result<(NameRef, Sense), NamingError> {
-            if let [e] = on {
-                return Ok((carried(o, e), sense(o, e)?));
-            }
             let mut read = Vec::with_capacity(on.len());
             for e in on {
                 read.push((carried(o, e), sense(o, e)?));
             }
-            let name = merged::edge_set(node, read.iter().map(|(l, _)| (**l).clone()));
-            Ok((NameRef::new(name), line_of_several(v, read)?))
+            let name = line_name(node, read.iter().map(|(l, _)| l.clone()));
+            Ok((name, sense_along_line(v, read)?))
         };
         // A crossing of operand `o`'s line `on` by the face across it.
         let crossing = |o: topo::Operand, on: &[NameRef], face: NameRef| {
@@ -3221,25 +3218,56 @@ pub(super) fn sets_per_line<E: Ord, T: Decide>(
     Ok(lines.into_iter().map(|(line, _)| line).collect())
 }
 
-/// **The sense of a line of several things at vertex `v`** (N2): each
-/// thing's line name with its sense read as its body stores it
-/// ([`EdgeReading::read`]), a flush edge one thing and a seam edge,
-/// read as the side it enters along, its sides. A transversal crossing
-/// is `Through` the things whose direction runs into the body, in name
-/// order; a touch is each thing's touch.
+/// **The name of a line of things flush on it** (N2): the one thing's
+/// line, or `Merged` of the several, flat and in name order
+/// ([`merged::edge_set`]). The pair boolean's lines of operand edges
+/// and the union's of member edges are both named here. A line holds
+/// one thing or more ([`sets_per_line`]).
+pub(super) fn line_name(node: RecipeNodeId, on: impl IntoIterator<Item = NameRef>) -> NameRef {
+    let mut on = on.into_iter();
+    match (on.next(), on.next()) {
+        (Some(one), None) => one,
+        (first, second) => NameRef::new(merged::edge_set(
+            node,
+            first
+                .into_iter()
+                .chain(second)
+                .chain(on)
+                .map(|l| (*l).clone()),
+        )),
+    }
+}
+
+/// **The sense of a line at vertex `v`** (N2), from each thing on it,
+/// by its line name, with its sense as [`EdgeReading::read`] reads it:
+/// a flush edge's as its body stores the edge, a seam edge's crossing
+/// as `Through` the side it enters along. A line of one thing reads as
+/// that thing. A transversal crossing of several is `Through` every
+/// thing whose direction runs into the body, in name order, and a touch
+/// of several is their one touch.
 ///
 /// # Errors
 ///
 /// [`NamingError::BandVerdictsDisagree`] where one thing crosses and
-/// another touches, or two touch from opposite sides: each thing's
-/// sense is its own judgement, flush with the others' only within
-/// [`ON_MEMBER_EDGE`], and nothing makes them agree.
+/// another touches, or two touch from opposite sides. Each thing's
+/// sense is its own band judgement, and the things are flush with each
+/// other only within [`ON_MEMBER_EDGE`]. Exactly flush, they cannot
+/// disagree: an operand edge's sense is the classes of its pieces on
+/// either side of `v` ([`senses_at`]), and the boolean classes a piece
+/// by where its points lie against the other operand's closed body (an
+/// edge lying on the crossing face is `On`, so in it, whichever faces
+/// the edge bounds). Two exactly coincident pieces beside `v` hold the
+/// same points, so they read the same touch, or cross the same way up
+/// to their stored directions, which a `Through` reads apart. A
+/// union's member edge is read from pairwise judgements of the same
+/// kind (`emit_union`'s `Flush::sense_against`). Only the band, which
+/// can decide two nearly coincident pieces differently, splits them.
 ///
 /// # Panics
 ///
 /// Where `read` is empty: a line holds an edge or more
 /// ([`sets_per_line`]).
-pub(super) fn line_of_several(
+pub(super) fn sense_along_line(
     v: VertexKey,
     read: impl IntoIterator<Item = (NameRef, Sense)>,
 ) -> Result<Sense, NamingError> {
@@ -3247,10 +3275,20 @@ pub(super) fn line_of_several(
         vertex: v,
         shape: DisagreeShape::FlushSensesDisagree,
     };
+    let mut read = read.into_iter();
+    let Some(first) = read.next() else {
+        unreachable!(
+            "a line at vertex {v:?} holds nothing: `sets_per_line` makes each line of one edge or \
+             more"
+        )
+    };
+    let Some(second) = read.next() else {
+        return Ok(first.1);
+    };
     let mut touch: Option<Sense> = None;
     let mut crosses = false;
     let mut entering = Vec::new();
-    for (line, sense) in read {
+    for (line, sense) in [first, second].into_iter().chain(read) {
         match sense {
             t @ (Sense::Outside | Sense::Inside) => {
                 if touch.as_ref().is_some_and(|was| *was != t) {
@@ -3269,18 +3307,16 @@ pub(super) fn line_of_several(
             }
         }
     }
-    match (touch, crosses) {
-        (Some(t), false) => Ok(t),
-        (None, true) => {
+    // Each thing either touches or crosses, so a line with no touch
+    // crosses.
+    match touch {
+        Some(t) if !crosses => Ok(t),
+        Some(_) => Err(disagree()),
+        None => {
             entering.sort();
             entering.dedup();
             Ok(Sense::Through { entering })
         }
-        (Some(_), true) => Err(disagree()),
-        (None, false) => unreachable!(
-            "a line at vertex {v:?} holds nothing: `sets_per_line` makes each line of one edge or \
-             more"
-        ),
     }
 }
 
