@@ -124,3 +124,4 @@ noted above (PR 3161's fix pass).
   - **Notes added:** `D284`, `flush-pair-relation-has-no-caller` (its code citation re-pointed to `work/probe/`) and `join-probe-charts-hand-roll-the-across-axis-reference` (half fixed).
 - 2026-10-26 — (easy-fixes lane) Closed `merge-faces-should-panic-rows-on-a-debug-assert-fail-in-release`: both rows are gated on `debug_assertions`.
 - 2026-10-26 — (easy-fixes lane) Closed `join-probe-charts-hand-roll-the-across-axis-reference`: `cylinder_at` and the coaxial-circles probe read `orthonormal_basis`. Four siblings are filed on HONE.
+- 2026-10-26 — `topo-test-frames-hand-roll-the-across-axis-reference` (P4 E) arrives from HONE, where the easy-fixes lane filed it; its sibling `join-probe-charts-hand-roll-the-across-axis-reference` is here.
