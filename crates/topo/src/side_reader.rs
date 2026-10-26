@@ -264,12 +264,16 @@ type Aim<T> = (Point3<T>, Vec3<T>);
 /// face aims at a point certified strictly inside it
 /// ([`crate::stands::planar_interior_point`]), and offers none where no
 /// candidate certifies. A cylinder or cone face aims at its region's own
-/// aim (its boundary's middle points carried onto the surface), a torus
-/// and a closed sphere at a fixed point of their charts; none of these
-/// needs to lie inside the face: the ray's start lies beyond every face
-/// whatever it aims at, so its count reads the side wherever it lands,
-/// and an aim off the face only steers it. A trimmed sphere, a cylinder
-/// or cone face whose region cannot be read and a spline offer none.
+/// aim (its boundary's middle points carried onto the surface), a
+/// trimmed sphere at its region's own (its arcs' middles stepped toward
+/// the face), a torus and a closed sphere at a fixed point of their
+/// charts; none of these needs to lie inside the face: the ray's start
+/// lies beyond every face whatever it aims at, so its count reads the
+/// side wherever it lands, and an aim off the face only steers it. A
+/// cylinder or cone face whose region cannot be read
+/// ([`FaceGeo::PartialWall`], [`FaceGeo::PartialCone`]) has no window to
+/// aim in and offers none. A spline offers none: a selection holding one
+/// casts no ray ([`side_at_infinity`]).
 ///
 /// # Errors
 ///
@@ -304,6 +308,10 @@ fn aim_at<T: Decide>(
                 None => return Ok(None),
             }
         }
+        FaceGeo::SpherePatch { ref region, .. } => match region.aim() {
+            Some(aim) => aim,
+            None => return Ok(None),
+        },
         // A torus face, whole or trimmed, is aimed at one point of its
         // surface: the ray starts beyond every face whatever it aims at.
         FaceGeo::Torus { .. } | FaceGeo::TorusPatch { .. } => surface.eval(T::pi(), T::pi()),
@@ -477,9 +485,9 @@ fn aim_turn() -> (f64, f64) {
 ///
 /// **The volume only where no face offers an aim that reads.**
 /// Where no aimed ray decided and none read in band, `volume` reads
-/// the side: a selection all of whose faces are trimmed spheres, untrimmable
-/// cones or splines, or whose rays all grazed, met a limit, a corner or
-/// a wedge. A selection holding a face the ray test has no
+/// the side: a selection all of whose faces are cylinders or cones whose
+/// region cannot be read, or whose rays all grazed, met a limit, a
+/// corner or a wedge. A selection holding a face the ray test has no
 /// arm for ([`crate::boolean::solid_contain::ray_crosses`]: a spline) casts no ray at all: every ray
 /// would fault on that face, whatever it aimed at, so the volume reads
 /// with it as the limit.
@@ -712,6 +720,20 @@ pub(crate) fn aimed_rays_report<T: Decide>(body: &Body<T>, band: Band) -> Vec<St
         .map(|(solid, _)| match SolidFaces::of(body, solid) {
             Ok(sel) => format!("{:?}", cast_aims(body, &sel, band)),
             Err(e) => format!("no selection: {e:?}"),
+        })
+        .collect()
+}
+
+/// **What each shell's aimed rays read**, before the volume, as text:
+/// a shell's role is read off its own faces (`SolidFaces::of_shell`).
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn shell_aims_report<T: Decide>(body: &Body<T>, band: Band) -> Vec<String> {
+    body.shells()
+        .map(|(shell, _)| {
+            format!(
+                "{:?}",
+                cast_aims(body, &SolidFaces::of_shell(body, shell), band)
+            )
         })
         .collect()
 }

@@ -87,3 +87,34 @@ nominal:
    curved face's region that way yet.
 
 The row is H for the second half; the first could land alone.
+
+## Measured on the trimmed-sphere aim (FLUSH, PR 5730, 2026-10-26)
+
+PR 5730 gives a trimmed sphere face an aim (`sphere_region.rs`
+`SphereFaceRegion::aim`), which no corpus document casts, so
+`revalue_corpus::reader_ties_at_the_nominal` cannot see it. Its review
+recorded `Sym<f64>` builds of trimmed-sphere bodies (PR 5730's review
+probe `review_sphere_aims_sym_ties`, on `flush/sphere-aims-review` @
+`6f5073f6`) and counted the decisions under `SIDE_READER_FAMILY` whose
+margin is exactly 0. Lens = unit ball ∩ 0.8 ball at `z = 0.9`; the
+symmetric pair is two unit balls at `z = ±0.5`; block = a 4-cube.
+
+| body | main | first aim (mean of steps) | PR 5730 aim (golden-section step) |
+|---|---|---|---|
+| symmetric lens | 0 | 2 | 1 |
+| lens | 1 | 2 | 2 |
+| symmetric bite | 0 | 1 | 1 |
+| block less the symmetric lens | 0 | 13 | 5 |
+
+The same counts at ε 1e-9, 1e-6 and 1e-12. Every tie left is
+`bool_pierce_normal_on_chart`. The first aim's `bool_sphere_region_order`
+and `curve_foot_branch` ties (the in-face walk of the aim's crossing on
+the symmetric plane through an arc's middle) went when the aim moved off
+the middle to the golden section of the arc. None moves a reading:
+every aim of every body reads the same side. What is left is this row's.
+
+## Measured: from PR 5730's review (2026-10-26)
+
+- **At `Interval`, two arcs that tie for the deepest step hull their aims into one box.** The tie is on `SphereFaceRegion::aim`'s pick of the deepest step. The symmetric quarter lune's aim is an x/y box [0.535, 0.787], off the sphere, and the on-chart normal check likely refuses it. So a symmetric face offers no aim at `Interval` and falls back to its volume; no side changes. This is an exact tie at a symmetric point, so it belongs to this row.
+- **The ruled aim still steps from its arcs' middles.** `RuledFaceRegion::aim` (`ruled_region.rs`) uses `mid_param` and the meridian fallback. Moving the sphere aim off the middle (the golden section) removed its symmetric-middle ties (`bool_sphere_region_order`, `curve_foot_branch`). The same move was not tried on the ruled aim, where `cut_cylinder`'s `curve_foot_branch` ties live.
+
