@@ -152,3 +152,43 @@ Orchestrator's read of the delta (no second review: the delta changes
 certified decisions only within the items asked). One comment-only
 drive-by: a history line in the fuzz header removed. Merged on green
 `gate ok`.
+
+## 2026-10-26 — PR 5723 (the gate) goes to review
+
+Green at b0860ea4 (main b6588d2c merged; the render moved no cell,
+since all three walls refuse before and after, at different sites).
+Tier: dual, letter M (both main rows cost M). Arm drawn at dispatch:
+`/dev/urandom` byte 169, mod 3 = 1, so **SEQUENTIAL**. One review now
+(`session_01XsRqThr5DVNjqpXVWs9hj7`, dispatched 01:28Z); a second runs
+on the fix-pass head only if this one raises a MAJOR.
+
+## 2026-10-26 — PR 5715 (touch doors) re-reviewed: one MAJOR, a pin
+
+Re-review of the whole unit (`session_01YLh5gFkY6a5rytfMtr81zz`, on
+9fbe827e). NOT-MERGEABLE on one MAJOR, a slow-set red the PR gate does
+not select: a new test-side `edge_box(` caller missing from
+`boxes::tests::every_door_that_reads_a_box_is_inventoried`'s pins.
+Every soundness claim held:
+- the crease rule is exactly `m ≥ p`;
+- the near-crease bounds are tight to about 1e-12 at both scalars;
+- `point_walk` reproduces the old walk bit for bit;
+- the cornered rows read a real meeting.
+
+The fix pass goes to the lane:
+- the pin;
+- the reviewer's negative-floor row, re-written rather than
+  cherry-picked, since its commit message names a model (at f64 the
+  `max(floor, 0)` clamp is load-bearing: a spline floor reads negative
+  on 205 of 4000 random nets);
+- an Interval creased-touch row for the `is_finite_length(bend)` guard;
+- the crease cost filed on this slate. A creased spline, which includes
+  lofted nets, loses the second-order clear, so a `PIECE_BUDGET`
+  refusal is expected back once the gate is gone.
+
+The orchestrator reads the delta.
+
+**Class noted at adjudication:** a slow-set row that inventories the
+tree is not run by a PR that changes what it inventories. Evidence
+added to `ciw/a-diff-that-moves-corpus-ids-runs-none-of-the-slow-set-id-pins`.
+From here on, SPLICE implementer briefs say to run the touched crates'
+slow set (`cargo nextest run -p <crate>`) before reporting green.
