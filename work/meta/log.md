@@ -282,3 +282,9 @@ re-opening rule leaves it deferred and no `[ev]` PR was opened for it.
 Two things about it were new and are recorded there — the blast radius
 (it fed a lane's reading of hosted CI rather than a draft) and the
 half-settling of its "per-session or wider" unknown.
+
+- 2026-10-26 — (tracker sweep) Read every live row against main `bb25fa4f`.
+  - **Fixed and closed here**: `ci-pin-quoted-branch-skips-the-bare-branch-rejection` (`scripts/ci-pin.py` refuses whitespace inside quotes; selftest fixture); `lint-does-not-notice-a-row-closed-before-it-opened` (`scripts/work.py` lint errors on `closed < opened`; selftest mutation); `ledger-recovery-recipe-misses-renamed-then-deleted-docs` (the rename note is in `docs/doc-ledger/five-closed-programs-leave-the-tracker.md`).
+  - **Closed, superseded or duplicate**: `lane-scratchpad-is-shared-between-worktrees` (Ev's `[ev]` PR 3237 adopted shape 1, `docs/prompts/implementer-discipline.md` §2); `the-file-level-carve-out-cannot-express-a-row-whose-work-crosses-a-call-site` (the instance landed, VIEW is gone); `territory-base-main-reads-a-stale-local-ref-and-answers-confidently-wrong` (merged into `territory-base-main-is-stale-in-every-agent-checkout`).
+  - **Deferred**: `ab-log-sample-numbers-collide-under-branch-side-block-records`, citing the protocol suspension (Ev, 2026-09-23): no sample number is drawn while it stands.
+  - **Notes added**: `ab-log-v6-stream-is-past-its-stopping-rule-unadjudicated` (v7 answered part 2; the readout is still owed), `decide-flagged-dimensional-debt-inventory` (re-surveyed: F10, F13, F14, F16, F22; F2 and F15 gone), `lint-passes-front-matter-fields-fallen-into-the-body` (the check was written and finds a live VSEAM instance, so it was not landed).

@@ -31,19 +31,16 @@ successor on that ground and takes them back.
 ## Territory and the seams
 
 Territory: **`scripts/gates/*` whole**, which no live program's `paths`
-covered at this cut. Four seams are stated rather than discovered, and
+covered at this cut. Three seams are stated rather than discovered, and
 each is in `program.md`'s `keep_out`:
 
 - **The Rust side of a shell-side fix** — `crates/geom-core/tests/bounds_census.rs`
   and `crates/test-utils/src/source.rs` are S-TCOST's and S-TINT's. The
   bound-list row lands its shell half here and files the Rust half on the
   owner; it does not edit across.
-- **`tools/*` is INSTR's.** `S115` carries four unrelated members and two
-  of them are instrument members; those route to INSTR and are struck
-  from `S115` here when they land there.
-- **The parity fence** is a `keep_out` clause in CIW's or GATES' old
-  `program.md`, and the row that asks for it WRITES PROSE — it edits no
-  workflow and no script.
+- **`tools/*` is INSTR's.** `S115`'s two instrument members have since
+  been resolved on the instrument side; its one remaining member is the
+  prelude's import census, which is not `tools/` ground.
 - **`G4`'s ~49 `crates/profile` sites** are S-BOOL's glob, edited by
   announced seam, which `G4`'s own body already says.
 
@@ -51,30 +48,26 @@ each is in `program.md`'s `keep_out`:
 
 | item | class | what it is | where the work lands |
 | --- | --- | --- | --- |
-| `gate-rust-reader-splits-an-array-type-at-its-semicolon` | **M** | New `--items` mode with bracket depth and `<>`/item anchoring; shared reader, many consumers | `scripts/gates/lib.sh:318-324` (`gate_rust_code`), `scripts/gates/viewer-vocab-declared-once.sh:212` workaround reader, 17 gate consumers |
-| `gate-selftest-cannot-observe-the-identity-a-gate-names` | **M** | New `want` affordance to assert file:line+identifier, then a one-line convention per gate. | `scripts/gates/lib.sh` (`gate_selftest_case` ~:1798-1829), selftest case lists in `scripts/gates/*.sh` (22 gates) |
-| `gate-roster-and-probe-census-have-no-reader-guards` | **M** | Fix shape precedented by PR 2282, but owes per-stage negative controls and a directory census. | `scripts/gates/gate-roster.sh`, `scripts/gates/probe-suite-census.sh`, `scripts/gates/lib.sh`, sweep over `scripts/gates/*` (24 files) |
-| `gate-wiring-fence-is-undrawn-for-the-parity-entry` | **E** | One clause extended in one program.md; the argument is already written out. | `work/ciw/program.md` or `work/gates/program.md` (one `keep_out` clause); names `.github/workflows/*`, `local-scripts/*`, `scripts/check-ci-mirror-parity.py` |
+| `gate-rust-reader-splits-an-array-type-at-its-semicolon` | **M** | New `--items` mode with bracket depth and `<>`/item anchoring; shared reader, many consumers | `scripts/gates/lib.sh:318-324` (`gate_rust_code`), `scripts/gates/viewer-vocab-declared-once.sh` workaround reader, every gate that calls `gate_rust_code` |
+| `gate-selftest-cannot-observe-the-identity-a-gate-names` | **M** | New `want` affordance to assert file:line+identifier, then a one-line convention per gate. | `scripts/gates/lib.sh` (`gate_selftest_case` ~:1798-1829), selftest case lists in `scripts/gates/*.sh` |
+| `gate-roster-and-probe-census-have-no-reader-guards` | **M** | Fix shape precedented by PR 2282, but owes per-stage negative controls and a directory census. `gate-roster.sh` itself is deleted; the census half stands. | `scripts/gates/probe-suite-census.sh`, `scripts/gates/lib.sh`, sweep over every gate in `scripts/gates/` |
 | `bound-list-readers-have-three-homes` | **M** | Cross-citation is cheap, but the real fix is a shell-vs-Rust shared-reader design call | `scripts/gates/bounds-allowlist.sh`, `crates/geom-core/tests/bounds_census.rs`, `crates/test-utils/src/source.rs` |
 | `D212` | **M** | Three mechanical deletions in one script, but must land inside Track V's G4 diff | `scripts/gates/bounds-allowlist.sh` (GAP 3 text, `BOUNDS_ALIAS_ROSTER` entry, `arc_fillet.rs` filter, `plant_alias_uses_invisible` fixture) |
 | `G4` | **M** | Collapse proven mechanical by PR 1453; gate entry, roster and breaking re-export remain | `crates/profile/src/path/arc_fillet.rs` + ~49 `profile` sites, `crates/pncad/src/lib.rs` re-export, `scripts/gates/bounds-allowlist.sh`, `BOUNDS_ALIAS_ROSTER` census |
 | `S41` | **H** | Three unlinted disciplines across tracks M/R plus a gate matcher that must reach certified doors. | `crates/geom-core/src/ring_interval.rs` (`clamped_to`), `crates/geom-brep/src/props/quad.rs` (`sqrt_enclosure`), `crates/bvh/src/tree.rs:209-210`, `scripts/gates/bounds-allowlist.sh` |
 | `S210` | **H** | Spans four tracks plus unowned bvh; real option is a rustc/RA driver; orchestrator's to place | `scripts/gates/bounds-allowlist.sh`, `crates/geom-core/tests/bounds_census.rs`, `crates/{profile,geom-brep,mesh,bvh}/src/**`, `Enclosure` (#701) |
-| `S115` | **H** | Four unrelated sub-items; schema change, re-cut baseline, new CI census, several territories | `tools/tess-lint/src/lib.rs`, `tools/tess-meter/src/lib.rs` (+ re-cut baselines), `scripts/doc-gate.sh`, `.github/workflows/ci.yml` (import-census row), `crates/pncad/src/prelude.rs`, `crates/topo/src/euler.rs` |
+| `S115` | **M** | One sub-item left of four (2026-10-26): the prelude's minimality has no guard; an import-census re-run would be one | `crates/pncad/src/prelude.rs`, `.github/workflows/ci.yml` (import-census row) |
 | `measurements-have-no-mechanical-guard` | **H** | Cross-cutting sweep over every surface the instrument cannot see; instrument must be re-cut per surface | remainder outside `crates/*/src`: `crates/*/tests/*`, `tools/*`, `scripts/*`, `demos/*`, `benches/*`, `docs/*`, `.github/workflows/*`, `Cargo.toml`, `crates/pncad-py/**`, `interval-transcendentals/src/*` |
 
 ## Order
 
-The shared reader first (`gate-rust-reader-…`), because seventeen gates
+The shared reader first (`gate-rust-reader-…`), because most gates
 call `gate_rust_code` and every later row reads better against a reader
 that parses items correctly. Then the selftest affordance, which is what
-makes the rest of the slate checkable. Then the two ungated censuses.
-`gate-wiring-fence-…` is a one-clause prose row and can go at any point.
+makes the rest of the slate checkable. Then the ungated census.
 
-**Two parks to resolve before anything else is dispatched.** `G4` is
-parked on #1647, which merged, and `D212` rides `G4`; the first act of
-this program is to verify that park and open or re-park it. Nothing here
-depends on the answer except `D212`.
+`G4` is open: its trigger, #1647, merged on 2026-09-03, and `D212` rides
+it.
 
 `S41`, `S210` and `measurements-have-no-mechanical-guard` are the H tail
 and each widens what a gate can see rather than fixing one; `S210`'s own
