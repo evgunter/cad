@@ -6563,6 +6563,56 @@ pub(crate) fn face_reach_in<T: Decide>(
     }
 }
 
+/// [`face_reach_in`], with a sphere face's first row read off what the
+/// face holds: at each end of that row, where the face does not hold
+/// the sphere's pole along it, no further than its boundary reaches.
+///
+/// A linear coordinate `d·p` on a sphere about `c` of radius `r` has
+/// its only critical points at the poles `c ± r·d̂`, so over a face of
+/// the sphere it is greatest either on the face's boundary or at the
+/// pole `c + r·d̂`, and least on the boundary or at `c − r·d̂`. A pole
+/// the face's region places definitely `Out`
+/// ([`crate::boolean::curved_face_placement`]) is neither, so that end
+/// of the row is the boundary's ([`boundary_reach`], which bounds every
+/// boundary edge's locus). A pole placed anywhere else, or not placed,
+/// keeps the carrier's end. The other rows, and every other kind, are
+/// [`face_reach_in`]'s.
+///
+/// # Panics
+///
+/// As [`face_reach_in`].
+fn held_reach_in<T: Decide>(
+    body: &Body<T>,
+    f: FaceKey,
+    band: Band,
+    frame: &crate::boolean::boxes::BoxFrame<T>,
+) -> Option<(Point3<T>, Point3<T>)> {
+    let (lo, hi) = face_reach_in(body, f, band, frame)?;
+    let face = proven(&body.faces, f, EntityId::Face);
+    let geom::Surface::Sphere { center, radius, .. } = *body.face_surface_linked(f, face) else {
+        return Some((lo, hi));
+    };
+    let Some((blo, bhi)) = boundary_reach(body, f, face, frame) else {
+        return Some((lo, hi));
+    };
+    let d = frame.rows()[0];
+    let out = |s: T| {
+        matches!(
+            crate::boolean::curved_face_placement(body, f, center + d * (radius.abs() * s), band),
+            Ok(crate::boolean::CurvedPlacement::Trim(Some(
+                FaceContainment::Out
+            )))
+        )
+    };
+    let lo_x = if out(-T::one()) {
+        lo.x.max(blo.x)
+    } else {
+        lo.x
+    };
+    let hi_x = if out(T::one()) { hi.x.min(bhi.x) } else { hi.x };
+    Some((Point3::new(lo_x, lo.y, lo.z), Point3::new(hi_x, hi.y, hi.z)))
+}
+
 /// A torus face's CHART WINDOW at this lane's scalar — the SAME walk
 /// the boolean lane runs, not a mirror of it: both enter
 /// [`crate::boolean::boxes::face_window_steps`] and
@@ -9581,56 +9631,6 @@ fn backstop_apart<T: Decide>(
         band,
         &|body, f, frame| held_reach_in(body, f, band, frame),
     )
-}
-
-/// [`face_reach_in`], with a sphere face's first row read off what the
-/// face holds: at each end of that row, where the face does not hold
-/// the sphere's pole along it, no further than its boundary reaches.
-///
-/// A linear coordinate `d·p` on a sphere about `c` of radius `r` has
-/// its only critical points at the poles `c ± r·d̂`, so over a face of
-/// the sphere it is greatest either on the face's boundary or at the
-/// pole `c + r·d̂`, and least on the boundary or at `c − r·d̂`. A pole
-/// the face's region places definitely `Out`
-/// ([`crate::boolean::curved_face_placement`]) is neither, so that end
-/// of the row is the boundary's ([`boundary_reach`], which bounds every
-/// boundary edge's locus). A pole placed anywhere else, or not placed,
-/// keeps the carrier's end. The other rows, and every other kind, are
-/// [`face_reach_in`]'s.
-///
-/// # Panics
-///
-/// As [`face_reach_in`].
-fn held_reach_in<T: Decide>(
-    body: &Body<T>,
-    f: FaceKey,
-    band: Band,
-    frame: &crate::boolean::boxes::BoxFrame<T>,
-) -> Option<(Point3<T>, Point3<T>)> {
-    let (lo, hi) = face_reach_in(body, f, band, frame)?;
-    let face = proven(&body.faces, f, EntityId::Face);
-    let geom::Surface::Sphere { center, radius, .. } = *body.face_surface_linked(f, face) else {
-        return Some((lo, hi));
-    };
-    let Some((blo, bhi)) = boundary_reach(body, f, face, frame) else {
-        return Some((lo, hi));
-    };
-    let d = frame.rows()[0];
-    let out = |s: T| {
-        matches!(
-            crate::boolean::curved_face_placement(body, f, center + d * (radius.abs() * s), band),
-            Ok(crate::boolean::CurvedPlacement::Trim(Some(
-                FaceContainment::Out
-            )))
-        )
-    };
-    let lo_x = if out(-T::one()) {
-        lo.x.max(blo.x)
-    } else {
-        lo.x
-    };
-    let hi_x = if out(T::one()) { hi.x.min(bhi.x) } else { hi.x };
-    Some((Point3::new(lo_x, lo.y, lo.z), Point3::new(hi_x, hi.y, hi.z)))
 }
 
 /// **The conservative loudness backstop** (M9-2 union fix F1): the
