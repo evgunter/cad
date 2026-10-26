@@ -557,3 +557,4 @@ if it is ever revisited.
   - The slate table is re-generated. **Load:** 23.5/30.
 
 - 2026-10-23 — **Seam (QUAD):** PR 5628 (`quad/measure-b-door`, measure door unit B) edits `tools/k-lint`. `EPS_COUPLED_PREDICATES` is empty: `props_quad_converged` is no longer minted. The committed eras are read through `ERA_EPS_COUPLED_PREDICATES`/`lint_sample_under`, `MINT_SOURCES` is `props/quad.rs` alone, and `docs/K-REPORT.md` has the retirement note. The thread-count digests are re-cut (verdict counts only). (QUAD unit B lane)
+- 2026-10-26 — (easy-fixes lane) Closed `derivation-ceiling-asserts-print-percentages-to-five-decimals`: six bare ceiling asserts in `derivations.rs` print `{:.17e}` beside their percentages.

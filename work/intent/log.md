@@ -836,6 +836,7 @@ The boolean declare surface is gone at every layer. A boolean's one input beside
   - **(c) §5′.1's picture** draws the product slot's body plus the shown spaces, with unread bodies tinted as outside the product. One designer's alternative wording, "a space's bodies that nothing in it reads", is the sink-set rule rows 80 and 85 retired, and should not go into the spec.
 
   AUTHTAIL also claims `a-mirrors-body-reads-as-in-no-space` with PR 5683, which carries its one `SpaceWalk` arm (the file moves when that PR lands). The arm sits beside D′3's own `SpaceWalk` edits, so expect a one-line merge.
+- 2026-10-26 — **Seam (CLEAVE):** `intent_s2_c_world::the_migrated_world_is_the_pre_c_product` fails on main `bc060f246f` ('cut_cylinder: the product moved d2acb2b37c5273db/28'). Added as evidence on `main-red-the-seat-and-name-table-goldens-moved-at-dprime2`, the nearest INTENT row; INTENT decides whether it belongs there. (CLEAVE orchestrator)
 - 2026-10-25 — (AUTHTAIL orchestrator) **Questions for D′3 from AUTHTAIL's stale-mate fork.** The Opus/Fable designer pair converged. A takeover (fillet, mirror, sketch-on-face re-pointing a world copy onto a node built over its source) leaves every reference into the copy stale. The fix is the takeover writing a `Rebind` per carried name in the same action (`work/authtail/a-mate-on-a-taken-over-copys-face-goes-stale.md`, `## Decided`), parked on PR 5636. D′3 should decide:
   1. **Picks through a taken-over copy.** A takeover's authored re-seat may rewrite a `Pick`; `[placement.placement]`'s "never re-pointed" would then read "never re-pointed by resolution". Or the takeover refuses at the door where C's new source keeps no pieces.
   2. **Whether the takeover rule is written into `[placement.placement]`**, which D′3 rewrites ("a gesture that re-points a copy onto a node built over its source re-spells every reference read in the copy as that node carries it"), or stays a door's behaviour. One designer proposed the sentence; it binds future work, so it is Ev's.
@@ -864,4 +865,57 @@ The boolean declare surface is gone at every layer. A boolean's one input beside
   - **Design fork `the-tours-post-cell-split-refuses-the-space-its-copies-read`** (P1): what `split` means for a document's spaces. Designers A (Opus, `session_01RhV9WXnw4P3s61LRSEDHVm`) and B (Fable, `session_012nPf8DvEbLzcANErmY7KZa`). Blinding byte 234 (Opus is A), recorded on `analysis/design-fork/intent-tour-post-cell-split`. Both weigh the state after D′3.
   - **`a-loft-set-members-cannot-add-a-section`** (P2): lane `session_01M6MHcsnKrWoJ1FjuGvraRE` on `intent/loft-section-stations`. Orchestrator's shape: one `SetLoftSections { node, sections: [(read, station)] }`, every station written, and `SetMembers` keeps its count refusal and names the recourse. Tier: single FULL.
   - **Deferred:** `lies-on-beyond-the-extrude` (P3, on COINCIDE's `coincide.rs`); the viewer rows (they wait on E's drawing).
+- 2026-10-26 — **Request from Ev, via CLEAVE: read the duplication rows for architecture signal.** INTENT is asked to triage them, not to do the design work.
+  - **Background:** CLEAVE is splitting its over-budget slate (270.5/30). One coherent thread in it is about twenty rows where one piece of logic has two or more implementations: "X has N spellings / N homes / is read in N places".
+  - **Their band:** `work/README.md`'s Priority section bands that class P1 ("two implementations of one underlying logic"), but these rows were filed at P3 as review residue. They are being re-banded and gathered into a P1 track of their own.
+  - **Ev's words, 2026-10-26:**
+    > can you file a note on intent's log mentioning the duplication track and asking it to see which of these are worth having a design conversation about (ie we need a real answer to "how did it happen that this got duplicated? how can we make one clear canonical place to do this?") vs which are like "oops, delete one of the duplicates and repoint things that used it to the other". it shouldn't actually *take on* those design conversations, just make sure that we don't lose the "something about the architecture is unclear here" signal that duplication provides
+  - **The ask:** sort each row into one of two kinds.
+    - **Design signal:** the copies exist because the architecture leaves unclear where the logic belongs. The row then owes a design conversation: why did it get duplicated, and where is its one canonical home? Mark it `design: true` with a sentence on what is unclear.
+    - **Mechanical:** delete one copy and repoint its users to the other. Say so in one line on the row.
+  - **The limit:** INTENT does not take on the design conversations themselves. The point is that the "something about the architecture is unclear here" signal is recorded on the row before a lane quietly deletes a copy.
+  - **The rows, as of CLEAVE's slate on main today** (they will move to the new track by `git mv`, keeping their ids):
+    - `circle-and-ellipse-frame-arms-re-spell-conic-of` (filed unbanded)
+    - `coincidence-intent-has-too-many-spellings` (filed P2)
+    - `the-edge-plane-lane-copies-no-ellipse-edge` (filed P2)
+    - `vertex-section-quotient-has-no-room-precondition-and-four-offset-spellings` (filed P2)
+    - `boolean-defect-displays-end-three-ways` (filed P3)
+    - `boolean-walks-face-to-surface-inline-at-two-dozen-sites` (filed P3)
+    - `boundary-meets-circle-only-at-reads-curve-meetings-itself` (filed P3)
+    - `inside-out-operand-reading-has-two-homes-and-four-spellings` (filed P3)
+    - `point-on-circle-is-a-second-point-on-carrier-reading` (filed P3)
+    - `reduce-and-carrier-cross-still-speak-of-declared-pairs` (filed P3)
+    - `restating-a-chart-image-across-an-authority-has-several-spellings` (filed P3)
+    - `run-loops-of-split-and-pierce-are-twins` (filed P3)
+    - `section-cert-reach-parallels-extent-ball` (filed P3)
+    - `semi-axes-by-size-misses-seven-inline-sites` (filed P3)
+    - `the-at-rest-result-gate-and-its-typing-live-in-five-homes` (filed P3)
+    - `the-split-reads-a-slit-twice-by-geometry-and-by-topology` (filed P3)
+    - `the-split-walk-and-the-boolean-sector-pass-read-a-bounds-side-two-ways` (filed P3)
+    - `three-readings-of-a-points-rounding-charge-it-three-ways` (filed P3)
+    - `two-germ-readers-sign-one-line-two-ways` (filed P3)
+    - `certified-line-carrier-is-read-in-five-places` (filed P4)
+  - CLEAVE's triage lane may add more rows of the class from other bands. The new track's id goes on this log when it is chartered.
+
+  (CLEAVE orchestrator)
 - 2026-10-26 — Note for INTENT: INLANE is handed back `ready` (Ev, in chat). Nothing was dispatched on it after 10-19, and its resume point is the C6 slices item's `## Handoff`. INTENT keeps the stage-3 chain.
+- 2026-10-26 — **Duplication triage done** (Ev's ask, via CLEAVE's note in #5761). A read-only lane (`session_01NuZCMv75H9b7rrHeRnzvYB`) checked 24 rows against main `e92fb951` and DESIGN `[one-way.places]`/`[one-way.readings]`. Each row now carries a "Duplication triage" section, and the design-signal rows carry `design: true`.
+  - **Design signal (6), in four clusters:**
+    - A, the vertex-neighbourhood reading against a surface: `run-loops-…`, `the-split-walk-…bounds-side…`, the strongest signal;
+    - B, a conic's frame view: `circle-and-ellipse-frame-arms-…`, light;
+    - C, the scale a margin is charged at: `three-readings-of-a-points-rounding-…`, `twice/extent-ball-and-reach-…`;
+    - E, where a gate's refusal typing lives: `the-at-rest-result-gate-…`.
+  - **Mechanical** under a named home: 13, cluster D among them (carrier readings re-spelled in topo).
+  - **D10 debris or stale:** 2. **Not duplication:** 3. **Mainly a bug:** 1.
+  - **Ev's notes, 2026-10-26:**
+    - C derives from the ε contract: every point of the representation is within ε of the real shape.
+    - A and B are welcome as fairly straightforward.
+    - For D, architecture comes first: the canonical reading should be the path of least resistance, with gates only as a backstop.
+    - Any `docs/prompts/` change about D goes to Ev as an `[ev]` PR.
+  - **Next:**
+    - a designer pair on C, with Ev's ε contract as the premise;
+    - A filed as one design row;
+    - B as an API fix;
+    - D as a "why was the wrong place easier?" pass over its hot spots.
+
+    These go to the duplication track once it is chartered; INTENT does not hold the design conversations.
