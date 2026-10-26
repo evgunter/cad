@@ -41,7 +41,7 @@ containment reads and the piece sort.
   found into its own solid. `pieces.rs` is in no program's territory,
   and HONE's charter is the nearest.
 
-`work/hone/kernel-bug-refusals-end-without-the-shared-ending.md` covers
+`work/honeword/kernel-bug-refusals-end-without-the-shared-ending.md` covers
 the same files' "(kernel bug)" tags. Its repair, which appends this
 constant, is the shape this row retires; see the note there.
 

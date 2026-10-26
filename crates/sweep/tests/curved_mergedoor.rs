@@ -605,7 +605,7 @@ fn frustum() -> Body<f64> {
 /// (`face_carrier` is `None` for a cone). The door refuses it typed,
 /// naming the pair, where it used to read the unread pair as "no glue"
 /// and return `Ok` with the declaration silently unhonoured
-/// (`hone/carrier-coincidence-is-decided-by-seven-readings`).
+/// (`honeone/carrier-coincidence-is-decided-by-seven-readings`).
 #[test]
 fn a_declared_cone_pair_refuses_typed_rather_than_reading_no_glue() {
     let mut body = frustum();

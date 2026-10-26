@@ -22,4 +22,4 @@ Neither is reachable today. The constraint builder refuses Nurbs/Approx charts `
 Re-aimed to D3 "One reading per question": no arm answers a default value, and an unlisted arm refuses typed, naming what it lacks.
 
 - Both wildcards become exhaustive matches whose unlisted kinds refuse typed, so admitting a kind upstream is a compile error here rather than a zero.
-- `surface_residual` is one of the point-to-carrier spellings on `hone/point-to-carrier-distance-is-spelled-seven-times`. Once that reading lands, this door reads it rather than keeping its own; until then the exhaustive match above is what is owed here.
+- `surface_residual` is one of the point-to-carrier spellings on `honeone/point-to-carrier-distance-is-spelled-seven-times`. Once that reading lands, this door reads it rather than keeping its own; until then the exhaustive match above is what is owed here.

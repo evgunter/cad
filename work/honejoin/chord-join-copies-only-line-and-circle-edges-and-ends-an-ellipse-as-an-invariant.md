@@ -30,7 +30,7 @@ as a kernel-invariant break.
   loop of its section a chord's site rides is a structural act, but a
   Zero there refuses `SectionInvariant` rather than the decision's own
   lever. The sibling in-band straddle of `split_conic_inplane_mid` is
-  `work/hone/join-adjacency-escalation-surfaces-as-a-section-invariant.md`.
+  `work/honejoin/join-adjacency-escalation-surfaces-as-a-section-invariant.md`.
 
 ## Fix
 
