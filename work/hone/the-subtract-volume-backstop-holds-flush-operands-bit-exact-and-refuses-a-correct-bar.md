@@ -39,3 +39,17 @@ rounding over the area the result glued or dropped, or skip the arm
 where the margin lies within that charge (the backstop is a kernel
 self-check, so an uncharged margin it calls certain is a false
 `ResultVolumeImplausible`). Then pin the turned ε 1e-6 30ε bar.
+
+## Covered by the glue's widening (CLEAVE, 2026-10-26)
+
+`cleave/backstop-admits-the-glues-zero-band` (PR 5757) widens each
+backstop bound by what the op's one-carrier glue admits: the band's
+zero times each group of glued faces' area less its smallest face's
+(`glue_admits`, `crates/topo/src/boolean/ops.rs`). The fill's five
+flush faces glue on one carrier at Zero, so the 1.06e-17 deficit lies
+far inside that widening. The turned 30ε `slab ∖ fill` now builds at
+ε 1e-6, both upright and with the fill face leaning, and
+`shell_role_reader.rs` pins it as built (`Want::Backstop` is gone).
+The widening is the zero over the glued area, not the operands'
+positional rounding this row asks for, so a flush pair that does not
+glue is not covered by it.
