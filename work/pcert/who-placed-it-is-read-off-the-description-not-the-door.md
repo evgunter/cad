@@ -90,3 +90,14 @@ E1b routes every incidence ending through one map
 (`IncidenceRead::ending`) keyed by `authority_of`; changing what
 `authority_of` reads changes every ending at once, which is why it
 waits for the ruling.
+
+### S10: a declared on-pair arc rim
+
+The `OnPairNurbs` lane's arc rim (`CertifyError::OnPairArcRim`,
+`crates/geom-brep/src/certify.rs:727`) reads an on-pair edge's rim
+against its wall; an exact image's `ChartIncidence` folds into the
+pair's SSI limb (`arc_rim_check`, `certify.rs:786`), so the refusal
+ends as the pair's residual even when the description carries
+`declared_by`. E1b routes only the chart mint's incidence; whether a
+declared on-pair edge's miss is the modeler's belongs with the
+question above.
