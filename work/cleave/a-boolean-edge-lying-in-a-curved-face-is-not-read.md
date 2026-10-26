@@ -2,10 +2,11 @@
 id: a-boolean-edge-lying-in-a-curved-face-is-not-read
 kind: issue
 title: The Boolean's parting reads edges lying in plane faces only; an edge lying in a curved face keeps the rider form
-status: open
+status: dispatched
 opened: 2026-10-19
 priority: P1
 cost: H
+branch: cleave/riders-read-every-edge-in-a-face
 ---
 
 

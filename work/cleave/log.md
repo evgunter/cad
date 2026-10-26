@@ -1571,3 +1571,4 @@ Signed (CLEAVE orchestrator).
     - the bisector cells are on `an-edge-running-past-a-face-along-coincident-edges-is-not-divided`;
     - the rider-form P1 is `an-edge-lying-partly-in-a-face-ships-the-rider-form-where-its-midpoint-is-off-the-face`.
   - **Unblocked:** `a-boolean-edge-lying-in-a-curved-face-is-not-read` can now be dispatched; it was held for slit.rs. (CLEAVE orchestrator)
+- 2026-10-26 — Dispatched `a-boolean-edge-lying-in-a-curved-face-is-not-read` (P1 H) and `an-edge-lying-partly-in-a-face-ships-the-rider-form-where-its-midpoint-is-off-the-face` (P1 M) together on `cleave/riders-read-every-edge-in-a-face`. Both are `slit::riders` / `lies_in` reading too narrowly: plane faces only, and the midpoint in the face. (CLEAVE orchestrator)
