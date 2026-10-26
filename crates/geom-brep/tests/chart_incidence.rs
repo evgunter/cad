@@ -675,7 +675,15 @@ fn a_declared_carrier_ends_by_its_incidence_read_at_the_edge_certificate() {
         vec: Vec3::unit_z(),
     });
     let line = |origin: Point3<f64>, dir: Vec3<f64>| Curve3::Line { origin, dir };
-    let rows: [(&str, Surface<f64>, Curve3<f64>, (f64, f64), &str); 3] = [
+    // (read, face, carrier, span, the ending's lever)
+    type Row = (
+        &'static str,
+        Surface<f64>,
+        Curve3<f64>,
+        (f64, f64),
+        &'static str,
+    );
+    let rows: [Row; 3] = [
         (
             "off",
             sphere.clone(),

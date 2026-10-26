@@ -11687,47 +11687,48 @@ mod tests {
     #[test]
     fn every_carrier_refusal_arm_names_its_pair_and_a_recourse() {
         use geom::{CurveKind, SurfaceKind};
-        let mut rows: Vec<(PcurveCertifyError, Vec<&str>)> = Vec::new();
-        rows.push((
-            PcurveCertifyError::CarrierOffChart {
-                chart: SurfaceKind::Sphere,
-                carrier: CurveKind::Line,
-                why: "WHY",
-                margin: None,
-            },
-            vec!["sphere", "line", "WHY"],
-        ));
-        rows.push((
-            PcurveCertifyError::CarrierOffChart {
-                chart: SurfaceKind::Cone,
-                carrier: CurveKind::Circle,
-                why: "WHY",
-                margin: Some(OffMargin::Past(geom_core::MarginDiag::value(4e-10))),
-            },
-            vec![
-                "cone",
-                "circle",
-                "WHY",
-                "(margin 4e-10 m)",
-                "not on its face",
-            ],
-        ));
-        rows.push((
-            PcurveCertifyError::CarrierOffChart {
-                chart: SurfaceKind::Cone,
-                carrier: CurveKind::Line,
-                why: "WHY",
-                margin: Some(OffMargin::InBand(geom_core::MarginDiag::value(4e-10))),
-            },
-            vec!["cone", "line", "WHY", "(margin 4e-10 m, within the band)"],
-        ));
-        rows.push((
-            PcurveCertifyError::ImageMismatch {
-                image: PcurveKind::Spiric,
-                why: "WHY",
-            },
-            vec!["Spiric", "WHY"],
-        ));
+        let rows: Vec<(PcurveCertifyError, Vec<&str>)> = vec![
+            (
+                PcurveCertifyError::CarrierOffChart {
+                    chart: SurfaceKind::Sphere,
+                    carrier: CurveKind::Line,
+                    why: "WHY",
+                    margin: None,
+                },
+                vec!["sphere", "line", "WHY"],
+            ),
+            (
+                PcurveCertifyError::CarrierOffChart {
+                    chart: SurfaceKind::Cone,
+                    carrier: CurveKind::Circle,
+                    why: "WHY",
+                    margin: Some(OffMargin::Past(geom_core::MarginDiag::value(4e-10))),
+                },
+                vec![
+                    "cone",
+                    "circle",
+                    "WHY",
+                    "(margin 4e-10 m)",
+                    "not on its face",
+                ],
+            ),
+            (
+                PcurveCertifyError::CarrierOffChart {
+                    chart: SurfaceKind::Cone,
+                    carrier: CurveKind::Line,
+                    why: "WHY",
+                    margin: Some(OffMargin::InBand(geom_core::MarginDiag::value(4e-10))),
+                },
+                vec!["cone", "line", "WHY", "(margin 4e-10 m, within the band)"],
+            ),
+            (
+                PcurveCertifyError::ImageMismatch {
+                    image: PcurveKind::Spiric,
+                    why: "WHY",
+                },
+                vec!["Spiric", "WHY"],
+            ),
+        ];
         let declared = crate::EdgeAuthority::Declared(crate::MappedCurve::whole(
             crate::MappedSource::ExtrudedPoint {
                 point: Point2::new(0.0, 0.0),
