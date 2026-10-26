@@ -303,32 +303,38 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 /// the `From { read, of }` it came in through, as a seam side does: the
 /// second subtract's divided pieces' walls gained their read. No
 /// outcome moved, and every other document held.
+///
+/// Measured again for D′3 over main's merge at `1235f4c050`, which
+/// brings both main moves above and stage 4 I's re-pin of the table
+/// (`f077063267`, names and ids only): D′3's names and ids land over
+/// main's, so every document that moved on either side moved here; the
+/// ids-masked fence held.
 const PINNED: &[(&str, u64)] = &[
-    ("die", 0xfbed65489a5bf5c2),
-    ("corner_table", 0x2c84ce36d490eac0),
-    ("heat_sink", 0x527d35a55c3aa395),
-    ("crossing_slots", 0x28ca8d2286d9f097),
-    ("nested_islands_105", 0xc31a094a7ab79868),
-    ("nested_islands_106_depth1", 0xe8be3886c8da4b31),
-    ("nested_islands_106_depth2", 0xd63b0ef5cceccb75),
+    ("die", 0x94611d72dec98188),
+    ("corner_table", 0x35d30a4f95f9d386),
+    ("heat_sink", 0x555102ea25331e7c),
+    ("crossing_slots", 0x265f562a29802b17),
+    ("nested_islands_105", 0x889dae7786609103),
+    ("nested_islands_106_depth1", 0xd9054769c83db031),
+    ("nested_islands_106_depth2", 0xe9a44710929f7401),
     ("declared_tangency", 0x10186938bc97ccdd),
-    ("kitchen_sink", 0xf6bfaec21fa331b1),
+    ("kitchen_sink", 0x2a55e6ef5a4bda11),
     ("cut_cylinder", 0xa78c6dd27d0a7322),
-    ("measured_web", 0xd00616d476b6aaf1),
-    ("boss_union", 0x2171a9b5a22b3666),
+    ("measured_web", 0x430b6ae7b629a828),
+    ("boss_union", 0x882069cae4268efc),
     ("die_fillet", 0xd97598cb5c09a14e),
     ("die_chamfer", 0x5cca19013fc9edde),
-    ("die_pips", 0xf9dfd87851ae7343),
+    ("die_pips", 0x21b2fa1b64e67b67),
     ("heat_sink_fins", 0xbbb376b7243edc3c),
-    ("die_tool", 0xdd14df2c85a1ced0),
-    ("face_sketch", 0x6e4aa75630165169),
+    ("die_tool", 0x3aba45f2f4057c74),
+    ("face_sketch", 0x12478e478d1f1185),
     ("part_select", 0x45677885db8b9601),
     ("symmetric_plate", 0xab53c12868591a5e),
     ("loft_prism", 0xae293089cc9c899a),
-    ("die_composed", 0x79aa5383083b0ebf),
-    ("die_composed_tour", 0x28f794a0ae1bc4f8),
-    ("plate_param", 0x748fc0229ca32c45),
-    ("kiss_carry", 0x61db3717d3076f18),
+    ("die_composed", 0x143e3f84a00776d9),
+    ("die_composed_tour", 0x13e3e90f7f64b3bf),
+    ("plate_param", 0x8b6328cabc28ce5d),
+    ("kiss_carry", 0x58e4b24452e59ebb),
     ("tube_ring", 0x36e4e9fd72573d79),
     ("tube_arc", 0x27e56612927be491),
     ("hollow_tube_elbow", 0x910cc66850c7e31f),
