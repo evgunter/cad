@@ -7017,3 +7017,8 @@ Signed (WIRE orchestrator).
   - The reviewer also reports main red at 4b7d569 on about 30 slow tests, goldens included, identical at base. The orchestrator is checking a sample on current main.
 - 2026-10-25 (WIRE orchestrator) Checked main (63230e1077). die_name_tables_are_golden, node_standing READERS and intent_s2_c_world are red, and name_words_rows' timing test failed under load. These are already filed by INTENT, against PR 5613 (D′2): `intent/main-red-the-seat-and-name-table-goldens-moved-at-dprime2` and `intent/main-red-node-standing-readers-census-trails-the-dprime2-mate-split`, including wire.rs's 9-vs-10 reader count. Not WIRE's; no action. Lanes are told not to count these as theirs.
 - 2026-10-25 (WIRE orchestrator) Measured on main 4a44083275 (probe only, no name changes). All 18 seam-run groups are told apart by per-side sense, including NO_START's 6 ties. The integration suite and corpus have no other ranked or tied group, so new ties are 0 there and 8 in rank unit tests. Posted on PR 5705. The diff is switched to the no-rank rule (head 473c5e886c), the body is updated in place, and the fork-log row is renumbered 197 after a collision with main's 195/196. Waiting on Ev's merge.
+- 2026-10-26 (WIRE orchestrator) PR 5535 fix pass at 198b36a630.
+  - The tied-corner arm was fixed by regrouping on member corners, with no witness (no fixture found).
+  - The Tied unreachable! is gone by construction. The SeamEdges helper is in, and the rows are re-worded.
+  - The lane filed a pair-boolean tied-corner row.
+  - Because the grouping key changed without a witness, a focused re-review of the delta is dispatched (`wire-bridges-rerev`), targeted tests only.
