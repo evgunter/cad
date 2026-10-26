@@ -2,7 +2,8 @@
 //! two or more edges on one line pass once their material wedges are
 //! read, every pose, and invalid ones refuse on the line, with arm 2
 //! reading the overlap between two solids as one passing into the
-//! other.
+//! other. A line in the closure of two faces' overlap, on one carrier
+//! and facing the same way, is that pair's: arm 2's one interference.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
@@ -262,12 +263,13 @@ fn asymmetric_keels_subtract_as_a_valid_slit() {
 
 /// The kiss of [`bricks_kissing_along_a_line_pass`] turned invalid: two
 /// bricks of one quadrant along the z-axis, the smaller inside the
-/// larger, grafted as two solids. Their faces lie on each other, so the
-/// body refuses on more than its lines, but every line the two share
-/// refuses its wedges decided, the z-axis among them, and arm 2 reads
-/// the two solids as one passing into the other.
+/// larger, grafted as two solids. Every line the two share, the z-axis
+/// among them, lies in the closure of an overlap of two of their faces
+/// on one carrier facing the same way (the caps, and the walls on the
+/// axes' planes), so each line's wedges are that pair's, and the pair is
+/// one interference: arm 2's, on one aligned face pair.
 #[test]
-fn bricks_sharing_a_quadrant_refuse_on_their_lines() {
+fn bricks_sharing_a_quadrant_are_one_interference() {
     let b = posed_boxes(
         "overlapping",
         &[
@@ -278,29 +280,24 @@ fn bricks_sharing_a_quadrant_refuse_on_their_lines() {
         t(),
     );
     let errs = recorded_verdict("overlapping", &b).expect_err("overlap refuses");
-    let wedges = wedge_findings(&errs);
-    assert!(
-        wedges
-            .iter()
-            .all(|e| matches!(e, ValidationError::CoincidentWedgesOverlap { .. })),
-        "every shared line's wedges overlap, decided: {wedges:?}"
-    );
-    assert!(
-        wedges.iter().any(|e| matches!(
-            e,
-            ValidationError::CoincidentWedgesOverlap { witness, .. } if witness == "(0.0, 0.0, 0.5)"
-        )),
-        "the z-axis refuses its wedges: {wedges:?}"
+    assert_same_side("overlapping", &errs);
+    assert_eq!(errs.len(), 1, "the lines are the pair's: {errs:?}");
+}
+
+/// Arm 2 decides the pair as one interference on a face pair, and says
+/// nothing undecided of it.
+fn assert_same_side(what: &str, errs: &[ValidationError]) {
+    assert_eq!(
+        errs.iter()
+            .filter(|e| matches!(e, ValidationError::SameSideInterference { .. }))
+            .count(),
+        1,
+        "{what}: arm 2 decides the overlap on one aligned face pair: {errs:?}"
     );
     assert_eq!(
-        wedges.len(),
-        5,
-        "the five lines the bricks share: {wedges:?}"
-    );
-    assert_eq!(
-        arm_2(&errs),
-        [MIXED_TOUCH],
-        "arm 2 reads the pair as one passing into the other: {errs:?}"
+        arm_2(errs),
+        [] as [&str; 0],
+        "{what}: and leaves nothing undecided: {errs:?}"
     );
 }
 
@@ -322,13 +319,13 @@ const MIXED_TOUCH: &str = "one passes into the other where they touch. Recourse:
 /// **A prism leaning into a brick on their shared line**: the brick
 /// over quadrant 1 and a prism over quadrant 2 whose wall leans `δ`
 /// into the brick, `δ` 40 ε and 4000 ε, each its own solid with every
-/// touch recorded. No face crosses another away from the lines: the
-/// three lines the two share each refuse their wedges decided, and arm
-/// 2 reads the overlap for the two solids as one passing into the
-/// other, the touch reading's own verdict, not as a crossing some other
-/// finding reports.
+/// touch recorded. The two caps lie on each other facing the same way
+/// over the sliver between the walls, so arm 2 decides the pair on
+/// them, and the two cap lines that bound the sliver are theirs. The
+/// z-axis meets the sliver's caps only at its ends, so its wedges are a
+/// pair of their own, and refuse decided.
 #[test]
-fn a_prism_leaning_into_a_brick_reads_as_passing_into_it() {
+fn a_prism_leaning_into_a_brick_refuses_the_axis_beside_its_caps() {
     use topo::test_support::{FaceGeometry, describe_as_intersections, finished, prism_ops};
     let tol = t();
     for k in [40.0, 4000.0] {
@@ -354,20 +351,16 @@ fn a_prism_leaning_into_a_brick_reads_as_passing_into_it() {
         let prism = finished("the leaning prism", b, tol);
         topo::graft_disjoint(&mut body, &prism).unwrap();
         let errs = recorded_verdict(&what, &body).expect_err("the lean refuses");
-        let wedges = wedge_findings(&errs);
         assert!(
-            wedges.len() == 3
-                && wedges
-                    .iter()
-                    .all(|e| matches!(e, ValidationError::CoincidentWedgesOverlap { .. })),
-            "{what}: the three shared lines' wedges overlap, decided: {errs:?}"
+            matches!(
+                wedge_findings(&errs)[..],
+                [ValidationError::CoincidentWedgesOverlap { witness, .. }]
+                    if witness == "(0.0, 0.0, 1.0)"
+            ),
+            "{what}: the z-axis alone refuses its wedges, decided: {errs:?}"
         );
-        assert_eq!(
-            arm_2(&errs),
-            [MIXED_TOUCH],
-            "{what}: arm 2 reads the pair as one passing into the other: {errs:?}"
-        );
-        assert_eq!(errs.len(), 4, "{what}: nothing else refuses: {errs:?}");
+        assert_same_side(&what, &errs);
+        assert_eq!(errs.len(), 2, "{what}: nothing else refuses: {errs:?}");
     }
 }
 

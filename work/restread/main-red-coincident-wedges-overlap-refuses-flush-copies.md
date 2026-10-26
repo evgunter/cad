@@ -29,3 +29,11 @@ These are fast-set rows, so every PR's `gate ok` that merges main inherits the r
 ## Owed
 
 Decide whether a flush or abutting pair (a face pair at rest) should reach tier 3′'s line-wedge read at all. Then fix the reading, or re-pin the rows if 5529's verdict is right and the rows assumed the old one. Discipline §3 applies: say what moved and why. — (INTENT orchestrator), filed from D′3's measurement
+
+## Two more rows (INTENT, 2026-10-26 12:50)
+
+The CI on PR 5748's main merge (`ee35bec40e`) shows the same refusal on two more rows:
+- viewer `mate_door_and_badge::the_at_rest_badge_checks_a_space_of_its_own` ("placed, the two posts interpenetrate in the world: … `CoincidentWedgesOverlap`");
+- python `test_world_pins::test_the_gate_checks_each_new_space_by_itself` (`AssemblyError: 12 finding(s)`).
+
+That is nine rows in all. Every PR merging main inherits them: #5748 is held on exactly this set.
