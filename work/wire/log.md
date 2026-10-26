@@ -7050,3 +7050,10 @@ Signed (WIRE orchestrator).
 - 2026-10-26 (WIRE orchestrator) Ruling for `wire-norank`: a union-minted seam in a run has no recorded class, and fold rows read order. Its sense is read from which of its pieces the result keeps at the vertex (order-free, off the finished body, NS2). Member and pair seams read edge_classes as stored. The rule is stated in N2's text, and the zero-pieces case goes typed or is argued impossible.
 - 2026-10-26 (WIRE orchestrator) The orchestrator read PR 5732's fix pass. Four corpus goldens were re-pinned, spelling only, checked against the base over 782 slow tests. The REFS claim is narrowed. The split's by-name chord grouping is filed (`a-splits-chords-of-tied-faces-pool-as-one-parent`), not fixed, since it would turn unique names into ties. Merged at 94f46f49ab; both rows closed.
 - 2026-10-26 (WIRE orchestrator) wire-norank: the seam-scene authoring cases go red to green. The subtract history case is green on both sides, because name_invariance's remap_name ran flip_senses on base and hid the raw flip. It is accepted as a pin, with the reason in the PR body, and an optional raw-table check if it is cheap.
+- 2026-10-26 (WIRE orchestrator) `wire-norank` opened PR 5758 (head 9acaee665e). CI is green, including python.
+  - Added: Through{entering}, the edge_reading home with a typed UNSIDED refusal, and Flush::seam_sense read from kept pieces.
+  - Deleted: OrderAlong, every ranker, RankRule and flip_senses.
+  - Witnesses: ADMITTED_HISTORY is empty; the two seam history cases go red to green; there is a raw-table check.
+  - Goldens re-pinned: lib_g16, perf2, seat4, seat7 and name_words.
+  - Seven open rows cite deleted code and need triage.
+  - A FULL review (`wire-norank-rev`) is dispatched.
