@@ -245,8 +245,9 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
         E::NameStraddlesCut { name, .. }
         | E::BodyNameCrossesCut { name }
         | E::NameOutsidePartWorld { name }
-        | E::NameOnDroppedStep { name, .. }
-        | E::RankedRunReordered { name } => (none(), none(), none(), none(), named(name), none()),
+        | E::NameOnDroppedStep { name, .. } => {
+            (none(), none(), none(), none(), named(name), none())
+        }
         E::Pin { .. } | E::PartEdit { .. } | E::RemainderEdit { .. } => {
             (none(), none(), none(), none(), none(), none())
         }
@@ -526,8 +527,7 @@ fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
         | E::ForeignInstanceName { name }
         | E::StrandedPartName { name, .. }
         | E::StrandedPartRead { name, .. }
-        | E::NameOnDroppedStep { name, .. }
-        | E::RankedRunReordered { name } => {
+        | E::NameOnDroppedStep { name, .. } => {
             (none(), none(), named(name), none(), none(), none(), none())
         }
         E::Edit { .. } => (none(), none(), none(), none(), none(), none(), none()),

@@ -339,7 +339,12 @@ straddle-hull treatment). Built as the document layer's
 `MeasurePrimitive::Gap { outer, inner }`
 (`crates/editor-core/src/measure.rs`, evaluated in
 `crates/editor-core/src/eval/measure.rs`), argument order the mating
-role, authored rather than inferred.
+role, authored rather than inferred. Between a vertex or an edge and
+another cell, g is how far one cell stands out of the other's
+material, read as the half-spaces of the face carriers the reading
+cell lies on. The higher-dimensional cell reads, and of two edges or
+two vertices the outer. g is zero where the cell rests on them and
+negative inside (the arms are that module's table).
 
 **C6 — Interference fits.** No class states a fit; what an
 interference fit asserts is stage 5's question.
@@ -347,9 +352,11 @@ interference fit asserts is stage 5's question.
 The backstop's containment arm decides the nested-instance class by a
 material test — a nested placement sharing no material clears; an
 instance with a vertex inside another's material is
-`ValidationError::InstanceInterference` — and no declaration admits an
-interference. Between two copies at rest the editor's gate reads that
-verdict, a pierce and a same-side crossing as interference evidence
+`ValidationError::InstanceInterference`, and a face of each on one plane,
+facing the same way and sharing interior, is
+`ValidationError::SameSideInterference` — and no declaration admits an
+interference. Between two copies at rest the editor's gate reads those
+verdicts, a pierce and a same-side crossing as interference evidence
 (ASSEMBLY A5 *Interference.*), quieted by a one-sided `Gap` assertion at
 the overlap, not by a declaration. Invariant: inside one body an interference is always a
 typed error, and at rest between two copies it is always a finding

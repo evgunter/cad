@@ -2,11 +2,12 @@
 id: recl-unbuilt-contact-line-refusals-are-classification-invariants
 kind: issue
 title: Three reachable recl.rs contact-line refusals are ClassificationInvariant (unbuilt) with no recourse
-status: open
+status: closed
 opened: 2026-10-13
 priority: P3
 cost: E
 refs: [an-edge-lying-in-a-face-at-a-pierce-refuses-ring-meets-ring]
+closed: 2026-10-26
 ---
 
 Filed by the TANG lane on PR 4967, from its review. That review moved
@@ -40,3 +41,7 @@ and its `Display` should end on a recourse a user can act on: fold the
 members in another order, or move the solid off the contact line. The
 two rows that assert the strings then match the variant instead.
 
+
+## Closed (2026-10-26)
+
+Fixed: the row records two of its three refusals as built, and PR 4987 (`6c42d047f1`, TANG) typed the third as `CrossingsAlongAContactLine`. None of the three `ClassificationInvariant` texts remains in `crates/topo/src/boolean/recl.rs`. (CLEAVE slate triage)

@@ -2,10 +2,12 @@
 id: a-sliver-beside-a-rest-stands-outside-the-band-below-the-default-k
 kind: issue
 title: The corpus's sliver beside a rest stands 2ε off, outside the band at K = 1.5, so the_corpus_reaches_its_classes reds at every K ≤ 2
-status: open
+status: closed
 priority: P3
 cost: E
 opened: 2026-10-21
+closed: 2026-10-26
+refs: [three-names-tests-fail-at-ambiguity-k-1-5]
 ---
 
 
@@ -36,3 +38,13 @@ for every K ≤ 2 that `Tolerance` accepts (the band is open at Kε). The rest o
 Place the sliver inside the band for every K > 1 (for example, a gap
 read from the ambient K, strictly between ε and Kε), or have the class
 test read which side of the band the gap falls on.
+
+## Closed (2026-10-26, sweep follow-up)
+
+A duplicate of `three-names-tests-fail-at-ambiguity-k-1-5`, which names
+the same red (`the_corpus_reaches_its_classes` at K = 1.5) beside two
+other fixtures that fail at the same K. That row survives because it
+holds all three; this row's diagnosis, its fix and its P3 band are
+carried into it. Still red on main `d621f67e`
+(`tests/union_member_orders_decide_alike.rs:553`, "a sliver beside a
+rest: Built").

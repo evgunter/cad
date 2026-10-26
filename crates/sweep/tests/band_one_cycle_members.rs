@@ -550,7 +550,7 @@ fn a_cups_head_a_hair_across_the_band_surface_crosses_and_one_inside_goes() {
 /// band's supports are a cylinder and a plane, whose reach has no exact
 /// core, so the pin's end is never read inside and its wall, which meets
 /// the end, is not certified through it
-/// (`work/band/a-ruled-bands-cup-has-no-core-to-read-its-far-faces-in.md`).
+/// (`work/bandrule/a-ruled-bands-cup-has-no-core-to-read-its-far-faces-in.md`).
 #[test]
 fn a_pin_inside_a_concave_ruled_creases_fill_refuses_as_a_bound() {
     let (body, crease) = d_pocket(None, 0.002);
@@ -749,7 +749,7 @@ fn a_cup_leaning_across_the_fillets_disk_crosses_and_the_chamfer_takes_it() {
 /// refuse `WhollyInside`**: the rule takes them (each lies inside the
 /// region, which goes whole), but `plan` admits only a disk on one cap
 /// or an annulus between two
-/// (`work/band/a-feature-inside-a-region-that-is-no-disk-or-annulus-is-not-carved.md`).
+/// (`work/bandrule/a-feature-inside-a-region-that-is-no-disk-or-annulus-is-not-carved.md`).
 /// - A square blind bore of half-side `0.004` with a square cross bar
 ///   spanning it at `x = 0.2`: one mouth, genus 1, so
 ///   `V − E + F − R = −1`, under both verbs.

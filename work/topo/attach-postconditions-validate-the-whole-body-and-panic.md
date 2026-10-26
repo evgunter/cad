@@ -63,7 +63,7 @@ refusal would launder a bug into a supported outcome. The one public
 path D9 itself names outside the property is `instance`'s raw graft
 (a spent, partially written destination after a discarded
 `JoinDesync`), and D9 routes that state class to the open ruling S14
-(`work/pipe/S14.md`, Ev's) — this row does not re-decide it. The cost
+(`work/topo/S14.md`, Ev's) — this row does not re-decide it. The cost
 half is PERF-4's. That the workspace's release profile keeps debug
 assertions on until the publish step is D9's own note. So the
 postcondition complies as it stands and the row closes on this

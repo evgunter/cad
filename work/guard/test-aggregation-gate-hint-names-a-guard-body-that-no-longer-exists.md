@@ -57,7 +57,7 @@ next taker does not re-check them:
 4. `crates/step-import/Cargo.toml:78` — "which all.rs's own
    `every_suite_file_is_aggregated` catches".
 5. `work/fix/band-helper-duplicated-across-suites.md:139`.
-6. `work/guard/measurements-have-no-mechanical-guard.md:98` — cites it
+6. `work/unread/measurements-have-no-mechanical-guard.md:98` — cites it
    as an in-house precedent for a manifest-text guard.
 
 Not in that six and deliberately: `work/tcost/`'s rows and the `log.md`

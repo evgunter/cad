@@ -5,7 +5,6 @@ title: The torus's rung-3 certificate runs root-free through its quartic: exclus
 status: open
 priority: P2
 cost: H
-refs: [torus-meters-blocker-is-the-arithmetic-or-c9s-root-rule]
 opened: 2026-09-29
 ---
 

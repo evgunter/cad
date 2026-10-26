@@ -37,40 +37,6 @@ fn name() -> SpokenName {
     )
 }
 
-/// A pair boolean's ranked `EdgeCrossing` vertex over two lateral
-/// edges of one extrude, as a refusal naming a ranked run speaks it.
-fn ranked() -> SpokenName {
-    let edge = |step| {
-        editor_core::NameRef::new(StableName {
-            kind: EntityKind::Edge,
-            node: n(3),
-            path: vec![RoleSeg::LateralEdge(editor_core::ProfileVertexRef::Piece {
-                step: StepId::new(0, test_utils::refusal::tagged(step)),
-                role: editor_core::PieceRole::Leg,
-            })],
-        })
-    };
-    editor_core::test_support::spoken_name(
-        StableName {
-            kind: EntityKind::Vertex,
-            node: n(5),
-            path: vec![
-                RoleSeg::EdgeCrossing(
-                    [1, 2]
-                        .into_iter()
-                        .map(|step| editor_core::RunLine {
-                            line: edge(step),
-                            sense: Some(editor_core::Sense::Outside),
-                        })
-                        .collect(),
-                ),
-                RoleSeg::Fragment(editor_core::Qualifier::OrderAlong { rank: 0, of: 2 }),
-            ],
-        },
-        s(5, "Subtract"),
-    )
-}
-
 fn param() -> VarName {
     VarName::from_static("width")
 }
@@ -86,7 +52,7 @@ test_utils::f6_variants! {
     const SPLIT: SplitError = [
         EmptyCut, UnknownCutNode, CutsTheWorld, PartIdCollides, RemainderReadUncarried,
         SeveredEdge, NoMaterial, UncutVarReference, SpaceStraddlesCut, DefinitionStraddlesCut,
-        UnresolvedVarCrossesCut, PartNameReachesRemainder, NameStraddlesCut, NameOnDroppedStep, RankedRunReordered,
+        UnresolvedVarCrossesCut, PartNameReachesRemainder, NameStraddlesCut, NameOnDroppedStep,
         BodyNameCrossesCut, NameOutsidePartWorld, Pin, PartEdit, RemainderEdit,
     ];
 }
@@ -95,7 +61,7 @@ test_utils::f6_variants! {
     const INLINE: InlineError = [
         UnknownNode, NotAnInstance, UnplaceablePart, InstanceReadUncarried, Unresolved,
         EpsilonSeam, PartCarriesMetadata, VarNameConflict,
-        UnresolvedVarCrossesCut, InstanceBodyNameReferenced, ForeignInstanceName, NameOnDroppedStep, RankedRunReordered,
+        UnresolvedVarCrossesCut, InstanceBodyNameReferenced, ForeignInstanceName, NameOnDroppedStep,
         StrandedPartName,
         StrandedPartRead, Edit,
     ];
@@ -207,7 +173,6 @@ fn split_refusals() -> Vec<SplitError> {
             name: name(),
             step: StepId::new(0, 4),
         },
-        SplitError::RankedRunReordered { name: ranked() },
         SplitError::BodyNameCrossesCut { name: name() },
         SplitError::NameOutsidePartWorld { name: name() },
         SplitError::Pin {
@@ -279,7 +244,6 @@ fn inline_refusals() -> Vec<InlineError> {
             name: name(),
             step: StepId::new(0, 4),
         },
-        InlineError::RankedRunReordered { name: ranked() },
         InlineError::StrandedPartName {
             name: name(),
             missing: s(6, "Extrude"),

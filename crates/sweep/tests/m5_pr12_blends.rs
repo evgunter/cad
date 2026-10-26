@@ -341,6 +341,47 @@ fn plane_sphere_blend_takes_the_inner_offset_against_a_convex_sphere() {
     );
 }
 
+/// **Near the pole, the spine and rim radii hold to a few ulps.** The
+/// pip configuration with the ball centre `2⁻³⁰` below the sphere's
+/// top: `s² = (R+r)² − (c+r)²` and `a² = R² − c²` are each about
+/// `2⁻²⁹`, so a difference of squares formed at the inputs' unit
+/// scale loses about 2²⁹ ulps of either. Every input, `h` and the
+/// offset are exact dyadics, so `(offset − h)(offset + h)` and
+/// `(R − c)(R + c)` are exact factors and the reference radii are one
+/// rounding each.
+#[test]
+fn plane_sphere_blend_radii_hold_near_the_pole() {
+    let (big_r, r) = (1.0_f64, 2.0_f64.powi(-10));
+    let gap = 2.0_f64.powi(-30);
+    let c = big_r - gap;
+    let b = plane_sphere_blend(
+        Point3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.0, 0.0, 1.0),
+        Vec3::new(1.0, 0.0, 0.0),
+        Point3::new(0.0, 0.0, c),
+        big_r,
+        r,
+        false,
+        Convexity::Convex,
+    );
+    let s = (gap * (2.0 * big_r + 2.0 * r - gap)).sqrt();
+    let a = (gap * (2.0 * big_r - gap)).sqrt();
+    let Surface::Torus { major_radius, .. } = b.surface else {
+        panic!("a plane–sphere blend is a torus");
+    };
+    let ulp = f64::EPSILON * s;
+    assert!(
+        (major_radius - s).abs() <= 4.0 * ulp,
+        "spine radius {major_radius:.17e} against {s:.17e}"
+    );
+    assert!(
+        (b.trim_a.1 - (s - a)).abs() <= 4.0 * ulp,
+        "plane setback {:.17e} against s − a = {:.17e}",
+        b.trim_a.1,
+        s - a
+    );
+}
+
 /// The rim blend's two trimlines are genuine TANGENCY loci with a
 /// second-order separation bounded away from zero: on the plane
 /// `|κ_rel| = 1/r` (the tube against a flat face), on the sphere

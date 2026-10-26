@@ -7,7 +7,7 @@ Opened 2026-10-10 by CARVE's third priority-seam cut
 
 ## The slate
 
-**15.5 budget points** of dispatchable work against a ceiling of 30.
+**21.5 budget points** of dispatchable work against a ceiling of 30.
 
 | pri | item | cost | title |
 |---|---|---|---|
@@ -18,6 +18,9 @@ Opened 2026-10-10 by CARVE's third priority-seam cut
 | P3 | `material-jet-readings-take-plus-minus-order` | M | tier 3, rim_wedge and contact_verify read the tangent jet in (plus, minus) order, a third order beside the certificate's key order |
 | P3 | `skin-union-mints-a-hairline-span-from-knots-an-ulp-apart` | M | make_compatible's knot union keeps two section knots an ulp apart as two knots |
 | P3 | `cap-plane-refusals-end-as-typed-kernel-defects` | E | CapPlaneError's Orientation and EdgeOn, and LoftError's SeamStructure and SectionStructure, name the kernel alone for states a validated input never reaches |
+| P3 | `corner-config-indeterminate-has-no-real-body-witness` | E | `CornerConfig::Indeterminate` has no real-body witness once a plane–plane end reads its end face first |
+| P3 | `open-rim-end-corner-of-a-partial-revolve-does-not-classify` | M | a partial revolve's open neck-flare rim ends in a corner `corner_at` reads as Indeterminate |
+| P3 | `blend-an-edge-in-another-shell-moves-predicate-4-at-a-cavity-corner` | M | one island edge added to a sealed cavity's request makes predicate 4 refuse `ChainNotG1` at a cavity corner |
 | P4 | `certify-residual-predicates-still-name-a-slot` | E | certify's residual predicate names still name a slot of the surface pair |
 
 ## Order
@@ -29,7 +32,14 @@ The rows pair up:
   and the valence readers beside it, found by the review of PR 4185.
   One reads a chain that closes at a corner as closed. The others
   count a self-closed edge once where the walk counts it twice. One
-  unit, since they must agree on one count.
+  unit, since they must agree on one count. Three rows from BAND's
+  2026-10-26 split read the same code:
+  `blend-an-edge-in-another-shell-moves-predicate-4-at-a-cavity-corner`
+  asks which two links `walk_chains` paired at a cavity corner
+  (measure first), and `corner-config-indeterminate-has-no-real-body-witness`
+  and `open-rim-end-corner-of-a-partial-revolve-does-not-classify` are
+  `corner_at`'s lossy fold of a neighbour's refusal into
+  `Indeterminate`. The walk unit's taker reads all five.
 - **The loft doors' input checks.**
   `loft-doors-take-a-non-finite-placement` and
   `loft-geometry-refuses-a-bad-parameter-vector-as-a-count-mismatch`.

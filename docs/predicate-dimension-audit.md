@@ -856,7 +856,7 @@ on D10 stage 4's ground and wait for it:
 **The hole is wider than this table.** At `9b882992` the code half of
 the instrument (above, read as multi-line calls, nineteen spellings,
 test modules cut) finds **475** names written as a literal at a funnel
-call, and **188** of them appear nowhere above this section. `work/pred/D46.md`
+call, and **188** of them appear nowhere above this section. `work/predtail/D46.md`
 carries them by file. A name leaves the hole only by acquiring a row in
 the `## geom-brep` or `## topo` table, with `site`, `predicate`,
 `comparand`, `dim` and `status` filled, plus a disposition entry in

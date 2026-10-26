@@ -24,3 +24,4 @@ dispatched.
     - `tess-gate-red-beyond-twopeg-since-the-10-02-cut` into `tess-lint-gate-red-on-main-23-findings`;
     - `tess-budget-baseline-drifts-from-mains-own-numbers-between-cuts` into `tess-lint-re-cut-folds-uncompared-columns`.
   - The slate table is re-generated. **Load:** 26/30.
+- 2026-10-26 — (easy-fixes lane) Closed `tess-lint-recourse-quote-half-pinned`: `cli_contract.rs` asserts `docs/TESS-BUDGET.md` still carries the sentence the recourse quotes.
