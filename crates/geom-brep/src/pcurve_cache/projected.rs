@@ -496,10 +496,7 @@ fn net_param<T: SpanLocate>(net: &NurbsCurve3<T>, v: f64) -> T {
 /// The span is the one `a` locates in. Inside one knot span's closure
 /// with `a < b` that is the span holding the piece; at `a == b` on a
 /// knot it is the span starting there, whose closure holds the point.
-pub(crate) fn piece_controls<T: SpanLocate>(
-    net: &NurbsCurve3<T>,
-    piece: ParamRange,
-) -> Vec<(Vec3<T>, T)> {
+pub fn piece_controls<T: SpanLocate>(net: &NurbsCurve3<T>, piece: ParamRange) -> Vec<(Vec3<T>, T)> {
     let ends = (piece.start(), piece.end());
     let (span, _) = net.knots_f64_interim().span_range(piece);
     let held = net.knot_values().values();

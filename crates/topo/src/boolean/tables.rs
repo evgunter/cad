@@ -185,7 +185,8 @@ mod tests {
 
     /// Where the lump keeps one copy, it keeps operand A's: B's copy is
     /// the one dropped in every op. So a containment fallback that keeps
-    /// B whole drops no copy of a pair it holds (`fate::uncut`).
+    /// B whole drops no copy of a pair it holds, and one that cuts a
+    /// dropped copy cuts B's (`ops::fallback_fates`).
     #[test]
     fn the_lump_keeps_operand_as_copy_where_it_keeps_one() {
         for op in [Union, Intersect, Subtract] {

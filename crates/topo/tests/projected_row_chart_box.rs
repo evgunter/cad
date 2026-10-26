@@ -228,12 +228,9 @@ fn a_projected_edge_on_part_of_its_net_reads_the_tighter_box() {
 /// Every cell of a grid over the square and its surround the door
 /// decides agrees with the square.
 ///
-/// The decided counts are pinned, and that pin is what stands against
-/// the ball row: `contfp` holds an uncrossable edge as a ball too and
-/// refuses a station inside it, so a door that called every spline
-/// edge clear never decides a cell the edge straddles here, and the
-/// soundness assertion cannot see it. It decides ten more cells inside,
-/// near the edge, and the count goes red.
+/// The decided counts are pinned: a door that read the spline edge in
+/// any other ball than its control net's decides other cells, and the
+/// count goes red.
 #[test]
 fn the_cell_door_reads_a_spline_edge_as_its_ball() {
     use topo::cell_region::{CellRegion, cell_region};
