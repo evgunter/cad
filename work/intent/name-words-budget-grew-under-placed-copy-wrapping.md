@@ -2,11 +2,13 @@
 id: name-words-budget-grew-under-placed-copy-wrapping
 kind: issue
 title: The corpus's name words grew under D's placed-copy wrapping: the full max 196 → 366 and the CrossingUnverified admission 80 → 92
-status: open
+status: parked
 opened: 2026-10-19
 priority: P2
 cost: M
 parent: assemble-is-an-operator-and-the-product-is-a-slot
+rides_with: assemble-is-an-operator-and-the-product-is-a-slot
+blocked_on: [assemble-is-an-operator-and-the-product-is-a-slot]
 ---
 
 INTENT stage 3 D (`transform-retires-into-a-placement`) re-blessed `name_words_corpus::every_corpus_name_reads_apart_and_forwards_within_the_refusal_budget` at grown numbers (the orchestrator's ruling: re-bless at the measured values, do not hide the growth).

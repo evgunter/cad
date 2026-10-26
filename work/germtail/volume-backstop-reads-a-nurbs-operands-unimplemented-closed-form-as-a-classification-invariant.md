@@ -2,11 +2,12 @@
 id: volume-backstop-reads-a-nurbs-operands-unimplemented-closed-form-as-a-classification-invariant
 kind: issue
 title: The volume backstop reports a NURBS operand's unimplemented closed form as a classification invariant on a planar body
-status: open
+status: closed
 priority: P4
 cost: E
 opened: 2026-09-29
 refs: [nurbs-plane-section-has-no-component-arm]
+closed: 2026-10-26
 ---
 
 ## What
@@ -52,3 +53,7 @@ round refuses `VolumeUndecided`.
 
 Still unmeasured end to end, for the reason above (the containment
 probe refuses first).
+
+## Closed (2026-10-26, tracker sweep)
+
+**Fixed on main, as the REACH note above records.** `volume_backstop` (`crates/topo/src/boolean/ops.rs` ~2449) measures each body through `crate::props::target_walk` (the certified quadrature, whose face dispatch sends every spline face to the NURBS-patch lane) and maps a refusal through `props_refusal` to `VolumeCorrupt`/`VolumeUnmeasured`, which name the operand and the typed source. It no longer reads the closed form, and no `ClassificationInvariant` is raised anywhere in it. The row's defect, a NURBS operand's unimplemented closed form reported as a classification invariant on a planar body, cannot arise. Verified against the code as it stands (the REACH commit is not reachable in this shallow checkout).

@@ -81,6 +81,6 @@ certifying outside.
 - T9 guards the verdict: it goes red with the arm switched to `eval`.
 
 The cause is filed for KNOT as
-`work/knot/nurbs-curve-interval-eval-loses-the-partition-of-unity-over-a-wide-t.md`.
+`work/nurbs/nurbs-curve-interval-eval-loses-the-partition-of-unity-over-a-wide-t.md`.
 It has two contributors: the sums losing the partition of unity, and
 `located_walk` evaluating each span past its knots.

@@ -2,7 +2,8 @@
 id: compensated-blocks-oracle-shifts-an-i128-past-its-width
 kind: issue
 title: compensated's blocks row overflows its own exact-integer oracle (an i128 shifted past 127 bits) at a seed the fuzz reaches
-status: open
+status: closed
+closed: 2026-10-26
 opened: 2026-10-17
 priority: P3
 cost: E
@@ -35,3 +36,12 @@ oracle would read as a verdict. The fuzz draws such an end at that seed.
 The oracle compares in a wider exact type (a big integer, or an
 exponent-aligned comparison that never shifts past the width), or
 bounds the draw so every end's exponent fits; and a row pins the seed.
+
+## Closed (2026-10-26, tracker sweep)
+
+**Fixed on main, and a duplicate** of
+`compensated-blocks-check-shifts-past-i128` (the same test, the same
+`ai << -e` panic in the oracle). The oracle now compares in
+`num_bigint::BigInt` (`crates/geom-brep/src/ssi/compensated.rs` ~:296-309
+at `bb25fa4f`), the first fix this row offered. Evidence is on that row's
+Closed section.

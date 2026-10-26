@@ -139,10 +139,9 @@ WINDOW=16
 
 # THE REGISTER — `<file>|<fn>|<fragment>|<count>|<disposition>`.
 REGISTER=(
-  "crates/editor-core/src/names/emit.rs|face_half_edges||1|unaudited"
+  "crates/editor-core/src/names/emit.rs|loop_half_edges||1|unaudited"
   "crates/mesh/src/trimmed.rs|trim_polygon||1|unaudited"
   "crates/mesh/src/walk.rs|loop_half_edges||1|unaudited"
-  "crates/step-export/src/volume.rs|shell_signed_volume||1|unaudited"
   "crates/step-export/src/writer.rs|face_bound||1|unaudited"
   "crates/step-import/src/adopt.rs|rotate_loop_firsts||1|unaudited"
   "crates/sweep/src/blend/battery.rs|screened_loop||1|audited: the discarded variant is refused by name, not passed over — a lone-vertex loop on a support face returns UnsupportedGeometry naming the loop, so predicate 2 never reports a face clear without having read it"
@@ -153,7 +152,7 @@ REGISTER=(
   "crates/topo/src/boolean/carrier_cross.rs|boundary_crossing||1|audited: the discarded variant is answered by name — a lone-vertex loop has no boundary pre-pass, so the crossing is Unread and the caller keeps its frontier door (the module docs state it)"
   "crates/topo/src/boolean/contain.rs|loop_cycle_points||1|unaudited"
   "crates/topo/src/boolean/discard.rs|discard_row||1|unaudited"
-  "crates/topo/src/boolean/join.rs|region_faces||1|unaudited"
+  "crates/topo/src/boolean/join.rs|region_halves||1|unaudited"
   "crates/topo/src/boolean/ops.rs|apply_cut_ins|else { return|1|audited: the discarded variant is refused by name — a lone-vertex loop on the face a cut crosses returns FallbackExtentUnsupported naming that face, so no boundary hit of the meridian goes unread"
   "crates/topo/src/boolean/ops.rs|apply_cut_ins|else { continue|1|audited: the walk above refused every lone-vertex loop of this face, and the edge splits between the two walks add half-edges to its cycles only, so no Empty loop reaches this one"
   "crates/topo/src/boolean/ops.rs|boundary_edges||1|unaudited"
@@ -323,13 +322,17 @@ gate() {
       # local `impl` — is not the enclosing item of anything after its
       # closing brace, and keying a discard on it names the wrong owner.
       # So the braces are counted and the innermost `fn` still open at
-      # the site is the answer.
+      # the site is the answer. A `;` ends a bodiless declaration only
+      # outside the signature brackets: the `;` of an array type in a
+      # parameter or return type (`[T; 2]`) sits inside a `[` the
+      # signature opened, so `sig` counts the `(`/`[` nesting since the
+      # `fn` and a `;` clears the pending name only at zero.
       phase == 1 {
-        if (file != curfile) { curfile = file; depth = 0; pending = ""; nfn = 0 }
+        if (file != curfile) { curfile = file; depth = 0; pending = ""; nfn = 0; sig = 0 }
         bare = txt; sub(/^[ \t]+/, "", bare)
         if (bare ~ ANCHOR) at[file ":" line] = (nfn > 0) ? fname[nfn] : "(no enclosing fn)"
         if (match(txt, /(^|[^A-Za-z0-9_])fn [A-Za-z_][A-Za-z0-9_]*/)) {
-          s = substr(txt, RSTART, RLENGTH); sub(/^[^f]*fn /, "", s); pending = s
+          s = substr(txt, RSTART, RLENGTH); sub(/^[^f]*fn /, "", s); pending = s; sig = 0
         }
         n = length(txt)
         for (k = 1; k <= n; k++) {
@@ -340,7 +343,9 @@ gate() {
           } else if (c == "}") {
             if (nfn > 0 && fdepth[nfn] == depth) nfn--
             depth--
-          } else if (c == ";") { pending = "" }
+          } else if (c == "(" || c == "[") { if (pending != "") sig++
+          } else if (c == ")" || c == "]") { if (pending != "") sig--
+          } else if (c == ";") { if (sig <= 0) pending = "" }
         }
         next
       }
@@ -419,7 +424,7 @@ gate() {
 # every entry MISCOUNTing at pinned+1. The pinned counts are what make
 # that a check rather than a hope.
 gate_plant_site() {
-  local file=$1 item=$2 form=$3
+  local file=$1 item=$2 form=$3 frag=${4-}
   {
     printf 'fn %s() {\n' "$item"
     printf '    for lk in loops {\n'
@@ -476,6 +481,14 @@ gate_plant_site() {
         printf '        Self::Empty { .. } => break,\n'
         printf '        Self::Cycle { first } => use_it(first),\n'
         printf '        }\n' ;;
+      arm-fragment)
+        # An entry whose fragment IS an arm (`<pattern> => return`):
+        # the arm is planted as the fragment says, so the head the
+        # matcher reads carries it verbatim.
+        printf '        match lp.boundary {\n'
+        printf '        %s false,\n' "$frag"
+        printf '        other => use_it(other),\n'
+        printf '        }\n' ;;
     esac
     printf '    }\n'
     printf '}\n'
@@ -484,9 +497,11 @@ gate_plant_site() {
 
 # The forms the cycle draws from. `wrapped-continue` and
 # `wrapped-return` are also what a fragment naming `continue` or
-# `return` selects, so an entry whose fragment names neither cannot be
-# planted and fails the self-test — which is the point: a fragment the
-# fixture cannot reproduce is one the tree may not reproduce either.
+# `return` selects, and a fragment that is itself an arm
+# (`<pattern> => return`) is planted as that arm (`arm-fragment`), so
+# an entry whose fragment names neither cannot be planted and fails
+# the self-test — which is the point: a fragment the fixture cannot
+# reproduce is one the tree may not reproduce either.
 GATE_PLANT_FORMS=(wrapped-continue oneline nested no-space arm-dotdot
   arm-underscore arm-named-underscore arm-or-pattern arm-self wrapped-return)
 
@@ -498,11 +513,12 @@ gate_plant_clean() {
     for ((i = 0; i < count; i++)); do
       case "$frag" in
         "") form=${GATE_PLANT_FORMS[$((n % ${#GATE_PLANT_FORMS[@]}))]}; n=$((n + 1)) ;;
+        *" => return") form=arm-fragment ;;
         *" continue") form=wrapped-continue ;;
         *" return") form=wrapped-return ;;
         *) form=unplantable ;;
       esac
-      gate_plant_site "$t/$file" "$item" "$form"
+      gate_plant_site "$t/$file" "$item" "$form" "$frag"
     done
   done
 }
@@ -539,6 +555,21 @@ plant_nested_helper_fn() {
     printf '    fn inner_helper() -> bool {\n'
     printf '        true\n'
     printf '    }\n'
+    printf '    for lk in loops {\n'
+    printf '        let LoopBoundary::Cycle { first } = lp.boundary else { continue; };\n'
+    printf '        use_it(first);\n'
+    printf '    }\n'
+    printf '}\n'
+  } > "$1/crates/planted/src/lib.rs"
+}
+
+# A discard in a `fn` whose signature holds an array type: the `;` of
+# `[T; 2]` is inside the signature, so it must not drop the pending name
+# and leave the site keyed to `(no enclosing fn)`.
+plant_array_type_signature() {
+  mkdir -p "$1/crates/planted/src"
+  {
+    printf 'fn arrayed_signature(ends: [VertexKey; 2]) -> [u8; 2] {\n'
     printf '    for lk in loops {\n'
     printf '        let LoopBoundary::Cycle { first } = lp.boundary else { continue; };\n'
     printf '        use_it(first);\n'
@@ -648,12 +679,13 @@ gate_selftest() {
   gate_selftest_case "$want" plant_unregistered_let
   gate_selftest_case "$want" plant_unregistered_arm
   gate_selftest_case "|outer_holder|let LoopBoundary::Cycle" plant_nested_helper_fn
+  gate_selftest_case "|arrayed_signature|let LoopBoundary::Cycle" plant_array_type_signature
   gate_selftest_case "UNREG|crates/planted/src/a:b.rs|" plant_unregistered_colon_path
   gate_selftest_case "$want" plant_registered_site_gone
   # A second discard under a one-site entry, and a second under an entry
   # a FRAGMENT narrows — the two shapes a key without a count absorbs.
   gate_selftest_case "matched 2" plant_extra_site \
-    crates/editor-core/src/names/emit.rs face_half_edges oneline
+    crates/editor-core/src/names/emit.rs loop_half_edges oneline
   gate_selftest_case "matched 2" plant_extra_site \
     crates/topo/src/census.rs face_cycles wrapped-return
   gate_selftest_malformed_register

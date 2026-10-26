@@ -64,7 +64,7 @@ fn chamfered_cube() -> topo::Body<f64> {
 fn the_chamfered_cube_round_trips_through_step() {
     let native = chamfered_cube();
     let text = step_export::step_string(
-        &native,
+        &crate::common::at_rest(&native),
         &step_export::StepOptions::default(),
         Tol::witness(),
     )

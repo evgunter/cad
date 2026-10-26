@@ -12,8 +12,8 @@ use geom::{Surface, SurfaceKind};
 use geom_brep::Reach;
 use geom_brep::implicit_residual;
 use geom_brep::intersect::{
-    CylinderSphereSection, EqualCylinderSection, PlaneConeSection, PlaneCylinderSection, Rung,
-    SectionError, cylinder_cylinder_section, cylinder_sphere_section, plane_cone_section,
+    CylinderSphereSection, EqualCylinderSection, OpenConic, PlaneConeSection, PlaneCylinderSection,
+    Rung, SectionError, cylinder_cylinder_section, cylinder_sphere_section, plane_cone_section,
     plane_cylinder_section, route,
 };
 use geom_brep::recourse::Refused;
@@ -698,25 +698,21 @@ fn plane_cone_tilted_is_the_exact_ellipse() {
 }
 
 /// A plane parallel to a generator cuts a parabola and a steeper one a
-/// hyperbola: both refuse typed, naming the conic (R1). A tilt `3ε`
-/// past the parabola escalates on the conic-type trilean — never
+/// hyperbola: both are served as the open conic they are (C1). A tilt
+/// `3ε` past the parabola escalates on the conic-type trilean — never
 /// snapped to either side.
 #[test]
-fn plane_cone_parabola_and_hyperbola_refuse_naming_the_conic() {
+fn plane_cone_parabola_and_hyperbola_are_served_as_their_conic() {
     let alpha = core::f64::consts::FRAC_PI_6;
     let cone = cone_z(alpha);
     let q = Point3::new(0.0, 0.0, 4.0);
     let parabola = core::f64::consts::FRAC_PI_2 - alpha;
-    for (phi, conic) in [(parabola, "PARABOLA"), (1.2, "HYPERBOLA")] {
-        let err = plane_cone_section(&tilted_plane(phi, q), &cone, &at_apex(&cone, 1.0), band())
-            .unwrap_err();
-        let SectionError::RoutesToGeneralRung { pair, why } = err else {
-            panic!("phi {phi}: expected the R1 refusal, got {err:?}");
+    for (phi, conic) in [(parabola, OpenConic::Parabola), (1.2, OpenConic::Hyperbola)] {
+        let got = plane_cone_section(&tilted_plane(phi, q), &cone, &at_apex(&cone, 1.0), band());
+        let Ok(PlaneConeSection::OpenConic(s)) = &got else {
+            panic!("phi {phi}: expected the open conic, got {got:?}");
         };
-        assert_eq!(pair, "plane×cone");
-        refusal_is_grounded(why, "plane x cone");
-        assert!(why.contains(conic), "phi {phi}: {why}");
-        assert!(why.contains("R1"), "phi {phi}: {why}");
+        assert_eq!(s.conic(), conic, "phi {phi}");
     }
     let near = tilted_plane(parabola - 3.0 * eps(), q);
     let err = plane_cone_section(&near, &cone, &at_apex(&cone, 1.0), band()).unwrap_err();
@@ -729,7 +725,7 @@ fn plane_cone_parabola_and_hyperbola_refuse_naming_the_conic() {
 /// **A plane's classification does not depend on where its origin
 /// sits.** A plane along the cone's axis, 0.03 off the apex, cuts a
 /// hyperbola wherever the point the plane stores as its origin lies on
-/// it, and refuses naming that conic. Stored level with the apex, the
+/// it, and is served as that conic. Stored level with the apex, the
 /// would-be circle's radius read off that point's axial height is zero,
 /// and a zero lever decided the axis-normal sine Zero: a radius-0
 /// "circle" at the apex, whose zero tangent poisoned the join's chord
@@ -749,10 +745,10 @@ fn a_plane_along_the_axis_is_a_hyperbola_wherever_its_origin_sits() {
             u_ref: Vec3::unit_y(),
         };
         let got = plane_cone_section(&plane, &cone, &at_apex(&cone, 1.0), band());
-        let Err(SectionError::RoutesToGeneralRung { why, .. }) = got else {
-            panic!("origin {origin:?}: expected the hyperbola's refusal, got {got:?}");
-        };
-        assert!(why.contains("HYPERBOLA"), "origin {origin:?}: {why}");
+        assert!(
+            matches!(&got, Ok(PlaneConeSection::OpenConic(s)) if s.conic() == OpenConic::Hyperbola),
+            "origin {origin:?}: expected the hyperbola, got {got:?}"
+        );
     }
 }
 
@@ -777,14 +773,12 @@ fn a_needle_cones_plane_along_the_axis_just_off_the_apex_is_a_hyperbola() {
                 u_ref: Vec3::unit_y(),
             };
             match plane_cone_section(&plane, &cone, &at_apex(&cone, 1.0), band()) {
-                Err(SectionError::RoutesToGeneralRung { why, .. }) if why.contains("HYPERBOLA") => {
-                    None
-                }
+                Ok(PlaneConeSection::OpenConic(s)) if s.conic() == OpenConic::Hyperbola => None,
                 got => Some(format!("origin at z = {z}: {got:?}")),
             }
         })
         .collect();
-    assert!(wrong.is_empty(), "not the hyperbola's refusal: {wrong:#?}");
+    assert!(wrong.is_empty(), "not the hyperbola: {wrong:#?}");
 }
 
 // ---------------------------------------------------------------------

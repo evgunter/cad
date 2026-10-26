@@ -418,8 +418,8 @@ pub(super) fn classify_loop<T: Decide>(
 /// Unreachable `Zero` signs on the LINE arms (a degenerate segment
 /// survives to here only as a kernel bug) keep the convex/outward arm,
 /// `sense: true` — the `turn_axis` totality posture.
-#[allow(clippy::too_many_arguments)] // one internal call site (classify_loop).
-fn classify_segment<T: Decide>(
+#[allow(clippy::too_many_arguments)] // classify_loop's, and a full revolve's pocket wire's.
+pub(super) fn classify_segment<T: Decide>(
     s: &SweptSeg<T>,
     va: &VertexClass<T>,
     vb: &VertexClass<T>,
@@ -561,7 +561,7 @@ fn classify_segment<T: Decide>(
     }
 }
 
-/// A full revolve's axis-contact run: the single maximal cyclic run of
+/// One of a full revolve's axis-contact runs: a maximal cyclic run of
 /// on-axis segments, in **swept** indices.
 #[derive(Clone, Copy, Debug)]
 pub(super) struct AxisRun {
@@ -571,25 +571,23 @@ pub(super) struct AxisRun {
     pub(super) len: usize,
 }
 
-/// Analyzes a full revolve's axis contact (module docs): no contact ⇒
-/// `None` (lamina case); one contiguous run whose closure accounts for
-/// every pinned vertex ⇒ `Some(run)` (wire case); anything else is a
-/// typed error.
+/// Analyzes a full revolve's axis contact (module docs): every maximal
+/// cyclic run of on-axis segments, in swept order of their first
+/// segment — none for the lamina case, one or more for the wire case —
+/// provided their closures account for every pinned vertex; an
+/// isolated pinned vertex is a typed error.
 pub(super) fn analyze_contact<T: Real>(
     segs: &[SweptSeg<T>],
     classes: &LoopClasses<T>,
     loop_index: usize,
-) -> Result<Option<AxisRun>, RevolveError> {
+) -> Result<Vec<AxisRun>, RevolveError> {
     let n = segs.len();
     let on_axis: Vec<bool> = classes
         .walls
         .iter()
         .map(|w| matches!(w, WallClass::OnAxis))
         .collect();
-    let count = on_axis.iter().filter(|&&b| b).count();
-    let run = if count == 0 {
-        None
-    } else if count == n {
+    if on_axis.iter().all(|&b| b) {
         // Every segment on-axis: a degenerate profile the validator
         // cannot produce (a loop needs area); surfaced as non-manifold
         // contact rather than trusted.
@@ -597,28 +595,25 @@ pub(super) fn analyze_contact<T: Real>(
             loop_index,
             vertex_index: segs[0].canonical_vertex,
         });
-    } else {
-        // The single maximal cyclic run starts at an on-axis segment
-        // whose predecessor is off-axis; a second such start means two
-        // runs.
-        let starts: Vec<usize> = (0..n)
-            .filter(|&j| on_axis[j] && !on_axis[(j + n - 1) % n])
-            .collect();
-        if starts.len() > 1 {
-            return Err(RevolveError::MultipleAxisRuns { loop_index });
-        }
-        let start = starts[0];
-        let len = (0..n).take_while(|k| on_axis[(start + k) % n]).count();
-        Some(AxisRun { start, len })
-    };
-    // Every pinned vertex must lie in the run's closed vertex range
+    }
+    // A run starts at an on-axis segment whose predecessor is off-axis.
+    let runs: Vec<AxisRun> = (0..n)
+        .filter(|&j| on_axis[j] && !on_axis[(j + n - 1) % n])
+        .map(|start| AxisRun {
+            start,
+            len: (0..n).take_while(|k| on_axis[(start + k) % n]).count(),
+        })
+        .collect();
+    // Every pinned vertex must lie in some run's closed vertex range
     // (run start vertex … run end vertex); an isolated pinned vertex
     // revolves to a non-manifold point (module docs).
     for (j, v) in classes.verts.iter().enumerate() {
         if !v.pinned {
             continue;
         }
-        let allowed = run.is_some_and(|r| (0..=r.len).any(|k| (r.start + k) % n == j));
+        let allowed = runs
+            .iter()
+            .any(|r| (0..=r.len).any(|k| (r.start + k) % n == j));
         if !allowed {
             return Err(RevolveError::NonManifoldAxisContact {
                 loop_index,
@@ -626,7 +621,7 @@ pub(super) fn analyze_contact<T: Real>(
             });
         }
     }
-    Ok(run)
+    Ok(runs)
 }
 
 #[cfg(test)]

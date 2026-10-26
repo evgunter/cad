@@ -792,9 +792,12 @@ reparents only within one shell (`EulerOpError::CrossShell`).
   SSI pipeline for provably-no-crossing cases with caller-certified
   containment. Four producers: boolean subtraction (its probe
   verdicts); `shell`'s sealed hollow (its offset margin, OFFSET-DESIGN
-  O4); the full revolve of a holed profile, DEFINED as
-  `revolve(outer) − revolve(hole-as-outer)` and executed through the
-  degenerate no-crossing arm (the profile's validated 2-D margins); and
+  O4); the full revolve of a profile, DEFINED as
+  `revolve(filled) − Σ revolve(pocket)`, where its pockets are its hole
+  loops and the region each gap between two of its axis runs closes, and
+  `filled` is the profile with its pockets added (one axis run, from the
+  lowest run's lower end to the highest run's upper end), executed through
+  the degenerate no-crossing arm (the profile's validated 2-D margins); and
   a concave blend's fill sealing a blind hole's mouth, DEFINED by the
   blend's Boolean semantics (`S ∪ F`) and executed by its surgery (the
   mouth's cycle on the face the fill covers).

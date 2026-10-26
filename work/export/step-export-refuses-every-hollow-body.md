@@ -4,7 +4,7 @@ kind: issue
 title: STEP export refuses every hollow body - a void shell is refused VoidShellUnsupported because the writer has no BREP_WITH_VOIDS
 status: open
 opened: 2026-09-28
-priority: P3
+priority: P1
 cost: M
 refs: [step-export-reclassifies-shell-roles-with-its-own-planar-flux]
 ---
@@ -57,3 +57,7 @@ the solid's own association, and the writer can emit
 `BREP_WITH_VOIDS(outer, (voids…))` per solid with the roles read by
 `topo::classify_shells_of`. The PR that landed the sort did not take
 the writer change; it is this row's whole remaining content.
+
+## Re-banded to P1 (on request in chat, 2026-10-25)
+
+Every hollow body the kernel builds is refused at export: klein wall 6 and the `ring`, `tubewall::hollowtorus`, `torusvessel` and `fivewall` scenes' `step_at_frontier` pins all stop here.

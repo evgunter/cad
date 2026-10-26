@@ -67,9 +67,9 @@ pub use editor_core::{
 /// a report whose fields cannot be named is a report a consumer can
 /// print and not read.
 pub use editor_core::{
-    Chamber, ChamberSpan, DivergedAt, LiftRefusal, PerParam, Rss, Sensitivity, SensitivityOutcome,
-    SensitivityRefusal, Stackup, StackupRefusal, Unavailable, WorstCase, render_sensitivity,
-    stackup,
+    Chamber, ChamberSpan, DivergedAt, LiftRefusal, PerParam, RecordReading, Rss, Sensitivity,
+    SensitivityOutcome, SensitivityRefusal, Stackup, StackupRefusal, Unavailable, WorstCase,
+    render_sensitivity, stackup,
 };
 
 /// **The recorded requirement, read back over one certified leaf.**

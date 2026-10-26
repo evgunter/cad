@@ -646,6 +646,7 @@ fn options_doors() -> Vec<Roster> {
         param_box: _,
         seed: _,
         symbols: _,
+        pin: _,
     } = &eval;
 
     vec![
@@ -763,6 +764,16 @@ fn options_doors() -> Vec<Roster> {
                                  symbol as its value, so the switch would change nothing \
                                  this door can show. The door's answers reach Python as each \
                                  row's rung",
+                    },
+                ),
+                (
+                    "pin",
+                    Spelling::NotBound {
+                        would_be: &["pin"],
+                        reason: "the content pin is what the E4/E5 report binds its build of \
+                                 record by, and that report is not bound (the certified \
+                                 analysis half's open decision); with no reader of the pin \
+                                 here, the switch would buy a canonicalization per run",
                     },
                 ),
             ],

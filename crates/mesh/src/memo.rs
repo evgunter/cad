@@ -27,8 +27,8 @@
 //! sequence numbered by first occurrence.
 //!
 //! Common to every lane:
-//! - δ (the chordal tolerance; δ_s and the certificates' δ derive from
-//!   it) and the ambient tolerance's ε and k (the lanes' `Eps` and the
+//! - δ (the chordal tolerance; every lane's step and the certificates'
+//!   bar derive from it) and the ambient tolerance's ε and k (the lanes' `Eps` and the
 //!   curved lane's shape band derive from those);
 //! - the surface's KIND (the dispatch reads it);
 //! - for each loop in face order (outer, then rings), for each edge in

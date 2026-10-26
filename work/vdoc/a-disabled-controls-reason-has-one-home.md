@@ -124,3 +124,16 @@ the dialog refusal is the environment's and precedes the operation,
 while a cancel door's is its operation's own. In the one-home shape
 list the chooser moved from *a named `&'static str` spent by more than
 one door* to *a composer on the vocabulary type*.
+
+## Sequencing check (2026-10-26, tracker sweep)
+
+The rows that made a present-tense clause false at six sites are all
+closed: `work/vnews/undo-and-redo-are-disabled-in-silence-over-a-refusal-that-has-words`,
+`…/the-range-button-re-mints-the-ratified-affordance`,
+`…/the-new-document-button-states-its-refusal-twice`,
+`…/three-spellings-say-a-parameter-is-not-declared` and the census
+`…/a-disabled-control-says-why-in-four-shapes`. So the *Sequencing*
+section's "the clause waits for them" has been met. Re-derive the 30
+`add_enabled` sites and the third arm's instance against the tree
+before writing the clause. `work/guard/viewer-disabled-control-population-has-no-gate`
+is still open.

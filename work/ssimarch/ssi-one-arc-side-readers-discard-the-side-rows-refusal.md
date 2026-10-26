@@ -2,7 +2,8 @@
 id: ssi-one-arc-side-readers-discard-the-side-rows-refusal
 kind: issue
 title: ssi: one_arc's side_readers discards side_row's SplineError as an undecided side
-status: open
+status: closed
+closed: 2026-10-26
 opened: 2026-10-07
 priority: P3
 ---
@@ -31,3 +32,14 @@ source }` now.
 carries it) instead of `Option`, so `ChartRow` reaches the caller. The
 `None` that a refused Bernstein form (`SectionReader::of`) yields is a
 separate question, and it is out of this row's scope.
+
+## Closed (2026-10-26, tracker sweep)
+
+**Superseded: the refusal it discarded no longer exists.**
+`side_readers` (`crates/geom-brep/src/ssi/one_arc.rs` ~:385-397 at
+`bb25fa4f`) no longer calls the fallible `boundary::side_row`; it reads
+`boundary::side_row_parts` (`ssi/boundary.rs` ~:931), which returns the
+side's knot vector, row and weights straight off the wall's net with no
+`SplineError` arm, and hands them to `SectionReader::of`. So there is no
+`SplineError` for the reader to drop. The `None` a refused Bernstein
+form yields is what remains, and this row put it out of scope.

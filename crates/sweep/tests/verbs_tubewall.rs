@@ -175,8 +175,8 @@ fn hollow_torus_carries_its_cavity() {
     assert_eq!(t.body.solids().count(), 1);
     assert_eq!(t.body.shells().count(), 2, "outer boundary + the cavity");
     assert_eq!(t.cavities.len(), 1);
-    assert_ne!(t.cavities[0], t.shell);
-    let cavity = t.body.get_shell(t.cavities[0]).unwrap();
+    assert_ne!(t.cavities[0].shell, t.shell);
+    let cavity = t.body.get_shell(t.cavities[0].shell).unwrap();
     let outer = t.body.get_shell(t.shell).unwrap();
     assert_eq!(cavity.solid, t.solid);
     assert_eq!(outer.solid, t.solid);

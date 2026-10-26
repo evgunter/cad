@@ -25,7 +25,9 @@ missing.
    `persist::wire`'s docs"; `PieceRun`'s hand-written `Deserialize`
    (`crates/editor-core/src/names/role.rs:786`) is a seventh and
    `persist/` does not list it. Re-count and list it, or state the
-   premise without a number.
+   premise without a number. (2026-10-26, tracker sweep: the gate still
+   says six, and `crates/editor-core/src` now holds 14
+   `impl Deserialize` blocks, one of them `persist/wire.rs`'s macro.)
 3. **A one-element array is a second spelling of a one-piece run.**
    `PieceRunVisitor::visit_seq` (`role.rs:775`) accepts `[locator]` and
    it reads back equal to the bare locator, which is the canonical form

@@ -135,18 +135,20 @@
 //! and the floor is again the whole of the shipped guard. Neither
 //! census reads a tolerance in any build.
 //!
-//! Grid sizing (heuristic; the certificates are the guarantee), from
-//! δ_s = δ/2 and φ = [`crate::sizing::sagitta_step`]:
-//! cylinder — hu = φ(δ_s, r), no interior rows (ruled in v);
-//! cone — hu = φ(δ_s, ρ_max), rows every ρ_max·hu slant meters (ruled
-//! in v, but rows keep triangles azimuth-local so the radius-scaled
-//! certificate stays tight; a single-column patch takes no rows —
-//! the decision is at [`grid_counts`]'s cone arm, issue 685);
-//! sphere — hu = hv = φ(δ_s, r); torus —
+//! Grid sizing: each kind's step is the coarsest its worst-triangle
+//! theorem grants at δ (`crates/mesh/README.md` `[mesh.sizing]`; each
+//! theorem is stated at its step function):
+//! cylinder — hu = [`crate::sizing::sagitta_step`]`(δ, r)`, no interior
+//! rows (ruled in v; its triangles are its rims' chords);
+//! cone — hu = [`crate::sizing::cone_grid_step`] at the face's largest
+//! rim, no interior rows (ruled in v; with both rims chorded on hu its
+//! triangles stay within one column, so rows would move no bound);
+//! sphere — `(hu, hv)` = [`crate::sizing::sphere_grid_steps`] at the
+//! face's widest latitude; torus —
 //! `(hu, hv)` = [`crate::sizing::torus_grid_steps`], one step per chart
-//! direction from the doubly-curved chord bound that function derives
-//! (matching the boundary chord tightening in [`crate::chords`], which
-//! sizes a rim edge against `hu` and a meridian against `hv`).
+//! direction from the doubly-curved chord bound that function derives.
+//! The boundary chord tightening in [`crate::chords`] puts the sphere's,
+//! cone's and torus's rims on the same steps.
 
 use std::collections::HashMap;
 
@@ -157,7 +159,10 @@ use topo::props::LoopEdgesError;
 use topo::{Body, EdgeKey, FaceKey, LoopKey};
 
 use crate::cert;
-use crate::sizing::{Eps, SizingTols, cap_angular, ceil_count, sagitta_step, torus_grid_steps};
+use crate::sizing::{
+    Eps, SizingTols, cap_angular, ceil_count, cone_face_rho_max, cone_grid_step, sagitta_step,
+    sphere_face_widest_cos, sphere_grid_steps, torus_grid_steps,
+};
 use crate::tessellate::{Patch, PatchVertex};
 use crate::types::TessellateError;
 use crate::walk::{Chart, ChartKind, UvPoint, gap_is_noise, loop_polygon};
@@ -268,16 +273,29 @@ pub(crate) fn tessellate_curved(
         .iter()
         .filter(|e| !e.pole && e.v > v0 && e.v < v1 && (e.u <= u0 || e.u >= u1))
         .count();
+    // Whether a meridian side carries any point between its rows, a
+    // pole or apex entry included: the cone's two-rim strip argument
+    // needs bare sides (`grid_counts`' cone arm).
+    let bare_sides = !polygon
+        .iter()
+        .any(|e| e.v > v0 && e.v < v1 && (e.u <= u0 || e.u >= u1));
 
-    // Grid counts per kind (module docs).
+    // Grid counts per kind (module docs). The cone's largest radius
+    // and the sphere's widest latitude are read where the chord pass
+    // reads them, so a face's rims and its grid come from one value.
+    let face_extent = match chart.kind {
+        ChartKind::Cone { .. } => cone_face_rho_max(body, fk)?,
+        ChartKind::Sphere { .. } => sphere_face_widest_cos(body, fk, surface)?,
+        _ => f64::NAN,
+    };
     let (nu, nv) = grid_counts(
         &chart,
-        tol.delta_s,
-        u1 - u0,
-        v1 - v0,
-        v0.abs().max(v1.abs()),
+        tol.delta,
+        (u1 - u0, v1 - v0),
+        face_extent,
         has_pole,
         meridian_interior,
+        bare_sides,
     )?;
 
     // CDT: boundary entries (fixed walk order) + constraints + grid.
@@ -373,6 +391,11 @@ pub(crate) fn tessellate_curved(
     // Emit: drop pole-degenerate triangles, certify the rest.
     let mut triangles = Vec::new();
     let mut worst: f64 = 0.0;
+    // The face's verdict, kept per triangle rather than read off
+    // `worst`: [`cert::verdict`] reads each bound at its own rounding
+    // magnitude. An exceeded triangle outranks an unresolved one.
+    let mut exceeded = false;
+    let mut unresolved: Option<f64> = None;
     for f in cdt.inner_faces() {
         let vs = f.vertices();
         let m: Vec<(f64, f64, PatchVertex, bool)> =
@@ -388,12 +411,31 @@ pub(crate) fn tessellate_curved(
         ];
         let uv = [[m[0].0, m[0].1], [m[1].0, m[1].1], [m[2].0, m[2].1]];
         let pole = [m[0].3, m[1].3, m[2].3];
-        let bound = match chart.kind {
-            ChartKind::Cylinder { r } => cert::cert_cylinder(chart.anchor(), chart.axis(), r, tri),
-            ChartKind::Sphere { r } => cert::cert_sphere(chart.anchor(), r, tri),
-            ChartKind::Cone { half_angle } => cert::cert_cone(half_angle, uv, pole),
-            ChartKind::Torus { major, minor } => cert::cert_torus(major, minor, uv),
+        let (bound, scale) = match chart.kind {
+            ChartKind::Cylinder { r } => (
+                cert::cert_cylinder(chart.anchor(), chart.axis(), r, tri),
+                cert::position_scale(chart.anchor(), tri),
+            ),
+            ChartKind::Sphere { r } => (
+                cert::cert_sphere(chart.anchor(), r, tri),
+                cert::position_scale(chart.anchor(), tri),
+            ),
+            ChartKind::Cone { half_angle } => (
+                cert::cert_cone(half_angle, uv, pole),
+                cert::cone_scale(half_angle, uv),
+            ),
+            ChartKind::Torus { major, minor } => {
+                let bound = cert::cert_torus(major, minor, uv);
+                (bound, cert::uv_scale(bound, uv))
+            }
         };
+        match cert::verdict(bound, tol.delta, scale, tol.eps) {
+            cert::Verdict::Certified => {}
+            cert::Verdict::Exceeded => exceeded = true,
+            cert::Verdict::Unresolved { allowance } => {
+                unresolved = Some(unresolved.map_or(allowance, |a: f64| a.max(allowance)));
+            }
+        }
         // Sticky-NaN accumulation: `f64::max` would silently drop a
         // poisoned bound.
         if bound.is_nan() || worst.is_nan() || bound > worst {
@@ -458,11 +500,19 @@ pub(crate) fn tessellate_curved(
         );
     }
 
-    if worst.is_nan() || worst > tol.delta {
+    if exceeded {
         return Err(TessellateError::CertificateExceeded {
             face: fk,
             bound: worst,
             requested: tol.delta,
+        });
+    }
+    if let Some(allowance) = unresolved {
+        return Err(TessellateError::RoundingUnresolved {
+            face: fk,
+            bound: worst,
+            requested: tol.delta,
+            allowance,
         });
     }
     Ok(patch)
@@ -835,12 +885,12 @@ fn require_swept_rectangle(
 /// rim and splits between them at one shared vertex. At `nu >= 3` each
 /// entry's nearest column occludes the other's.
 ///
-/// **Corrective on the cone.** A cone's meridian is a straight RULING
-/// carrying ZERO interior chord points (`npoly = 5` = 2 apex + 3 rim),
-/// so nothing sits between an apex entry and the rim and `nv` alone
-/// decides: clean at `nv <= 3`, dirty at `nv >= 4`.
-/// `cone_wedge(1, pi/4)` is clean at delta = 0.1 and dirty at
-/// delta = 0.05 — one delta-step from the defect.
+/// **Moot on the cone, which takes no rows.** A cone's meridian is a
+/// straight RULING carrying ZERO interior chord points, so nothing sits
+/// between an apex entry and the rim, and with interior rows the fan
+/// was dirty at `nv >= 4` (`cone_wedge(1, pi/4)` at delta = 0.05). The
+/// cone arm of [`grid_counts`] now emits no interior points at all, so
+/// there is no column to fan over and this rule is not applied there.
 ///
 /// **Prophylactic on the sphere, and not clean by luck.** A sphere's
 /// meridian is an ARC and always carries interior chord points, which
@@ -849,11 +899,9 @@ fn require_swept_rectangle(
 /// an overlap that could have held six edges, which is the observation
 /// the paragraph rests on and the one that makes this arm different
 /// from the cone's rather than a restatement of it. Dirty needs
-/// `nv >= 3`, and the meridian's
-/// chord step `phi(delta_s, r)` and the grid's
-/// `phi(delta_s / SPHERE_SIZING_MARGIN, r)` are never more than ~12%
-/// apart with both capped, so `nv >= 3` FORCES at least two of those
-/// points. The arm is kept (Ev, 2026-08-19) so the rule reads as one
+/// `nv >= 3`, and the meridian is chorded at the grid's own step
+/// (`chords`' adjacent-grid tightening), so `nv >= 3` FORCES at least
+/// two of those points. The arm is kept (Ev, 2026-08-19) so the rule reads as one
 /// sentence rather than one chart but not the other, and the mechanism
 /// it rests on — the occluding points EXIST — is asserted in
 /// [`grid_counts`]'s sphere arm rather than written down here.
@@ -985,24 +1033,19 @@ fn overused_identified_edge(
     crate::walk::overused_identified_edge_in(&identified, &triangles())
 }
 
-/// The sphere arm's extra sizing margin: it sizes at δ_s divided by
-/// this rather than at δ_s itself.
-///
-/// Near the equator a full-step grid triangle's true deviation
-/// approaches 2·δ_s = δ from below, so sizing at exactly δ_s would
-/// lean on [`ceil_count`]'s step-shrink (`span/⌈span/h⌉ < h`) as the
-/// only slack. The margin buys real headroom cheaply (≈12% more counts
-/// per axis) and keeps a future sizing change from silently landing on
-/// the certificate boundary; the certificate remains the backstop.
-const SPHERE_SIZING_MARGIN: f64 = 1.25;
-
 /// The interior grid counts `(nu, nv)` for the face's UV spans.
+///
+/// `face_extent` is the face-wide quantity a kind's step reads beyond
+/// its spans: the cone's largest rim radius
+/// ([`crate::sizing::cone_face_rho_max`]) and the sphere's widest
+/// latitude cosine ([`crate::sizing::sphere_face_widest_cos`]); the
+/// other kinds ignore it.
 ///
 /// `has_pole` and `meridian_interior` describe the boundary walk's
 /// chart singularity: whether it carries a pole/apex entry at all, and
 /// how many interior chord points its meridian sides carry between the
-/// pole row and the opposite row ([`pole_columns`]). Only the cone and
-/// sphere arms read them, and that is STRUCTURAL rather than an
+/// pole row and the opposite row ([`pole_columns`]). Only the sphere
+/// arm reads them, and that is STRUCTURAL rather than an
 /// oversight — [`Chart::poles`] returns an empty vector for a cylinder
 /// and for a torus, so `has_pole` is false on those two arms for every
 /// input there is, and the `debug_assert`s below say so in a form that
@@ -1011,92 +1054,60 @@ const SPHERE_SIZING_MARGIN: f64 = 1.25;
 /// KNOWN SIBLING CLASS, recorded and scheduled rather than decided
 /// here: a count of 1 on either axis empties the interior grid's
 /// `1..nu × 1..nv` ranges, so the OTHER axis' schedule is computed
-/// and dropped — the sphere and torus arms at `nu == 1`, every arm at
-/// `nv == 1` with `nu >= 2`, and `trimmed::uniform_candidates` are
-/// the members. Only the cone's `nu == 1` case had a ruling argument
-/// that decides it locally (issue 685, below); the rest stay
+/// and dropped — the sphere and torus arms at `nu == 1`, and
+/// `trimmed::uniform_candidates`, are the members. The cylinder and
+/// cone arms take no rows by their theorems, so their `nu` is the
+/// face's column count and nothing more; the rest stay
 /// certificate-backstopped (measured watertight and in-tolerance —
 /// PR 1507's class sweep) and are the follow-up issue's to decide.
 fn grid_counts(
     chart: &Chart,
-    delta_s: f64,
-    uspan: f64,
-    vspan: f64,
-    v_absmax: f64,
+    delta: f64,
+    (uspan, vspan): (f64, f64),
+    face_extent: f64,
     has_pole: bool,
     meridian_interior: usize,
+    bare_sides: bool,
 ) -> Result<(usize, usize), TessellateError> {
     match chart.kind {
         ChartKind::Cylinder { r } => {
             debug_assert!(!has_pole, "Chart::poles() is empty for a cylinder");
-            let hu = sagitta_step(delta_s, r);
+            let hu = sagitta_step(delta, r);
             // `(nu, 1)`: ruled in v at constant radius, so no rows in
-            // any column count. The cone arm's `nu == 1` early-out
-            // below lands on this same shape by decision (issue 685).
+            // any column count; the cone arm below has the same shape.
             Ok((ceil_count(uspan, hu)?, 1))
         }
         ChartKind::Cone { half_angle } => {
-            let rho_max = v_absmax * half_angle.sin();
-            let hu = sagitta_step(delta_s, rho_max);
+            let hu = cone_grid_step(delta, half_angle, face_extent);
+            if bare_sides {
+                // `(nu, 1)`, the cylinder's shape and for its reason: no
+                // rows. `cert::cert_cone` never reads v beyond the
+                // triangle's largest radius, and with both rims chorded
+                // on this step (`chords`' adjacent-grid tightening) and
+                // nothing on the sides between them, the strip argument
+                // at `sizing::sagitta_step` holds every triangle to one
+                // column, so the worst one is a rim-chord triangle on the
+                // largest rim at δ (`sizing::cone_grid_step`'s theorem).
+                // A row would add triangles and move no bound.
+                return Ok((ceil_count(uspan, hu)?, 1));
+            }
+            // A side carrying a point between the rims (a split ruling,
+            // or the apex between two nappes) is outside the strip
+            // argument: a triangle on two side points and a far rim
+            // point spans several columns (measured: 2δ). Such a face
+            // keeps the lattice — rows every `ρ_max·hu` slant metres,
+            // which put interior columns between the sides — and the
+            // certificate, not a theorem, is what holds it
+            // (`work/tess/a-cone-face-with-a-split-side-has-no-worst-triangle-theorem.md`).
             let nu = pole_columns(ceil_count(uspan, hu)?, has_pole);
             if nu == 1 {
-                // ONE COLUMN TAKES NO ROWS, and that is the sizing
-                // decision, not an omission (issue 685). The cone is
-                // ruled in v, and `cert::cert_cone` makes the
-                // argument structural, not just measured: the
-                // per-triangle bound is
-                // `cosα·sinα·v_max·(1 − cos(Δu/2))`, and on a
-                // single-column patch the worst triangle keeps the
-                // patch's `v_max` and its full `Δu` however many
-                // v-rows cut the strip — v-rows provably cannot move
-                // the certificate. `hu` is sized at `rho_max`, the
-                // patch's LARGEST radius, so that bound is within
-                // delta_s for the whole strip. Measured (the pi/6
-                // wedge delta-sweep, issue 685, corroborating): rows
-                // ALONE are deviation-identical to the strip; what
-                // the "honour the schedule" reading actually costs is
-                // the interior COLUMN it must mint before any row can
-                // emit, plus the issue-678 pole floor that column
-                // triggers — 5-9x the triangles at bitwise-identical
-                // densely sampled deviation. The rows exist to keep
-                // triangles azimuth-LOCAL when there are several
-                // columns to be local to; with one column there is
-                // nothing to localize, so the v-schedule is not
-                // computed rather than computed and discarded (the
-                // interior grid's `1..nu` range is empty at 1, so a
-                // computed `nv` could only ever have been dropped).
-                // This return is the cylinder arm's `(nu, 1)` shape
-                // above, reached by decision rather than by
-                // construction.
-                //
-                // DIRECTION of the one behavior change: the skipped
-                // `ceil_count(vspan, rho_max * hu)` could refuse
-                // typed — `ResolutionOverflow` when the patch's
-                // slant-extent-to-radius ASPECT puts
-                // `vspan/(rho_max·hu)` at/above 2^24 (the aspect is
-                // the binding parameter, not the half-angle: an
-                // ordinary-aspect patch at half-angle 1e-7 sized
-                // nv = 2), or on the NON-FINITE quotient at
-                // `rho_max·hu == 0`. Such a patch is now SERVED as a
-                // certified strip instead of refused; safe because
-                // `cert_cone` gates every build, and pinned by the
-                // adopted reach probe
-                // (`tess-meter/tests/r1_mesh5_reach.rs`), which mints
-                // the aspect class through `sweep::revolve`. The
-                // non-finite class is believed unmintable: a zero
-                // half-angle is classified a CYLINDER by
-                // `sweep::revolve`'s radial-delta band, and a patch
-                // with `v_absmax == 0` (its whole v extent at the
-                // apex) is a degenerate boundary that profile
-                // validation and this file's `polygon.len() < 3`
-                // refusal close off upstream.
                 return Ok((1, 1));
             }
-            Ok((nu, ceil_count(vspan, rho_max * hu)?))
+            Ok((nu, ceil_count(vspan, face_extent * hu)?))
         }
         ChartKind::Sphere { r } => {
-            let h = sagitta_step(delta_s / SPHERE_SIZING_MARGIN, r);
-            let (nu, nv) = (ceil_count(uspan, h)?, ceil_count(vspan, h)?);
+            let (hu, hv) = sphere_grid_steps(delta, r, face_extent);
+            let (nu, nv) = (ceil_count(uspan, hu)?, ceil_count(vspan, hv)?);
             // D2 addendum row 5 — and the whole warrant for calling
             // this arm PROPHYLACTIC rather than corrective
             // (`pole_columns`). Assert the MECHANISM, not the
@@ -1118,7 +1129,7 @@ fn grid_counts(
         }
         ChartKind::Torus { major, minor } => {
             debug_assert!(!has_pole, "Chart::poles() is empty for a torus");
-            let (hu, hv) = torus_grid_steps(delta_s, major, minor);
+            let (hu, hv) = torus_grid_steps(delta, major, minor);
             Ok((
                 ceil_count(uspan, cap_angular(hu))?,
                 ceil_count(vspan, cap_angular(hv))?,
@@ -2222,7 +2233,7 @@ mod tests {
     /// when it was written, and #653's walk fix is what changed that:
     /// the three sub-edges now share one column bitwise, so `worst`
     /// below is exactly `0.0` and an exact comparison would admit this
-    /// body too. Kept as the pre-guard triangle count's pin and as the
+    /// body too. Kept as a triangle-count pin and as the
     /// oblique-placement fixture; the band's own case is argued in
     /// [`require_swept_rectangle`].
     #[test]
@@ -2248,7 +2259,7 @@ mod tests {
         let mesh = crate::tessellate(&body, 0.1, Tol::witness()).expect("must not refuse");
         crate::validate::check_mesh(&mesh).expect("must mesh watertight");
         let n: usize = mesh.patches.iter().map(|p| p.triangles.len()).sum();
-        assert_eq!(n, 42, "the pre-guard triangle count, unchanged");
+        assert_eq!(n, 28, "the split+placed wedge's triangle count at δ = 0.1");
     }
 
     /// **What the refusal replaces**, replayed through this lane's own
@@ -2341,57 +2352,39 @@ mod tests {
         .unwrap()
     }
 
-    /// **The issue 685 decision: a single-column cone patch takes no
-    /// rows.** The inputs are the π/6 wedge's own at δ = 0.1
-    /// (δ_s = 0.05, ρ_max = 1, vspan = √2): hu ≈ 0.635 ≥ π/6, one
-    /// azimuth column — and the answer is `(1, 1)`, not `(1, 3)`:
-    /// the v-schedule the interior grid's empty `1..1` range could
-    /// only ever have dropped is not computed. The ruling argument
-    /// (the site comment) does not read the pole bit, so the
-    /// apex-free frustum case decides the same way.
-    ///
-    /// THIS PRIVATE ROW IS THE DECISION'S ONE MECHANICAL GUARD, and
-    /// that is the right home rather than a gap: the decision's
-    /// mesh-level content is "nothing changes" (reverting the site to
-    /// compute-and-discard reproduces every emitted byte, so no
-    /// integration row CAN discriminate), and its one observable
-    /// consequence — the extreme-aspect refusal now served — is
-    /// guarded at the public door by the adopted reach probe
-    /// (`tess-meter/tests/r1_mesh5_reach.rs`, red at the merge base).
-    /// What is only observable here is the schedule bookkeeping
-    /// itself, so here is where it is pinned.
+    /// **A cone patch with bare sides takes no rows, at any column
+    /// count** (the cone arm's theorem, `sizing::cone_grid_step`), and
+    /// one whose side carries a point keeps them: the π/6 wedge (ρ_max = 1,
+    /// α = π/4, vspan = √2) at δ = 0.1 (one column), 0.0125 (two) and
+    /// 0.001 (five), with and without an apex entry, sizes to `(nu, 1)`.
+    /// Rows reintroduced at any column count red here, and `nu` is the
+    /// column count the rims are chorded at.
     #[test]
-    fn a_single_column_cone_patch_takes_no_rows() {
+    fn a_cone_patch_takes_no_rows_at_any_column_count() {
         let chart = cone_chart();
         let (uspan, vspan) = (core::f64::consts::FRAC_PI_6, 2.0_f64.sqrt());
-        for has_pole in [true, false] {
-            assert_eq!(
-                grid_counts(&chart, 0.05, uspan, vspan, vspan, has_pole, 0).unwrap(),
-                (1, 1),
-                "one azimuth column takes no interior rows (has_pole = {has_pole})"
-            );
+        for (delta, nu) in [(0.1, 1), (0.0125, 2), (0.001, 5)] {
+            for has_pole in [true, false] {
+                assert_eq!(
+                    grid_counts(&chart, delta, (uspan, vspan), 1.0, has_pole, 0, true).unwrap(),
+                    (nu, 1),
+                    "δ {delta}, has_pole {has_pole}: {nu} columns and no rows"
+                );
+            }
         }
-    }
-
-    /// **The issue 678 fence: two-plus columns keep their row
-    /// schedule.** One δ step finer (δ_s = 0.025) the same wedge
-    /// sizes to two raw columns and the v-schedule is honoured —
-    /// `nv = 4` — with the pole floor lifting `nu` 2 → 3 exactly when
-    /// an apex entry exists. Reds if the `nu == 1` early-out ever
-    /// widens toward `pole_columns`' territory.
-    #[test]
-    fn a_two_column_cone_patch_keeps_its_row_schedule() {
-        let chart = cone_chart();
-        let (uspan, vspan) = (core::f64::consts::FRAC_PI_6, 2.0_f64.sqrt());
+        // A side carrying a point between the rims is outside the strip
+        // argument and keeps the lattice: at δ = 0.0125 two raw columns,
+        // the pole floor lifting them to three with an apex, and rows
+        // every `ρ_max·hu`.
         assert_eq!(
-            grid_counts(&chart, 0.025, uspan, vspan, vspan, true, 0).unwrap(),
+            grid_counts(&chart, 0.0125, (uspan, vspan), 1.0, true, 0, false).unwrap(),
             (3, 4),
-            "with an apex, the pole floor lifts nu = 2 to 3 and the rows stay"
+            "a split side keeps its rows, and the apex its pole floor"
         );
         assert_eq!(
-            grid_counts(&chart, 0.025, uspan, vspan, vspan, false, 0).unwrap(),
+            grid_counts(&chart, 0.0125, (uspan, vspan), 1.0, false, 0, false).unwrap(),
             (2, 4),
-            "without an apex, nu = 2 stands and the rows stay"
+            "a split side keeps its rows"
         );
     }
 

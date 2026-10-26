@@ -231,6 +231,8 @@ mod mesh8_coherence;
 mod missed_ray_side;
 #[path = "narrow_needle_containment.rs"]
 mod narrow_needle_containment;
+#[path = "needle_cavity_probe.rs"]
+mod needle_cavity_probe;
 #[path = "neighbours_across_a_closed_edge.rs"]
 mod neighbours_across_a_closed_edge;
 #[path = "ngon_prism_offset_scaling.rs"]
@@ -460,5 +462,7 @@ mod split_tangent_edge;
 mod split_through_an_apex;
 #[path = "tangent_touch_charges_both_sags.rs"]
 mod tangent_touch_charges_both_sags;
+#[path = "the_fin_crown_winds_as_a_solid.rs"]
+mod the_fin_crown_winds_as_a_solid;
 #[path = "three_solids_on_one_line.rs"]
 mod three_solids_on_one_line;
