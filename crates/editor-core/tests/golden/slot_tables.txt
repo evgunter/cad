@@ -67,7 +67,7 @@ Intersect { members: Spelled([@0, @1]) }
 Place { shapes: [@0], target: @1, constraints: [] }
   @0 Operand(Shape(0))
   @1 Operand(Space)
-Place { shapes: [@0], target: @1, constraints: [Constraint { id: ConstraintId(MintId { ordinal: 0, digest: 1 }), kind: Value(Value { coord: Slide(Z), by: #0 }) }, Constraint { id: ConstraintId(MintId { ordinal: 0, digest: 2 }), kind: Value(Value { coord: Spin(Z), by: #1 }) }] }
+Place { shapes: [@0], target: @1, constraints: [Constraint { id: ConstraintId(MintId { ordinal: 0, digest: 1 }), kind: Value(Value { coord: Slide(Z), by: #0 }) }, Constraint { id: ConstraintId(MintId { ordinal: 0, digest: 2 }), kind: Value(Value { coord: Spin(Some(Z)), by: #1 }) }] }
   #0 ValueSlide { constraint: ConstraintId(MintId { ordinal: 0, digest: 1 }) }
   #1 ValueSpin { constraint: ConstraintId(MintId { ordinal: 0, digest: 2 }) }
   @0 Operand(Shape(0))
@@ -120,7 +120,7 @@ Part { of: @0, select: Instance(#0) }
 InstantiatePart { doc_ref: DocRef { id: DocumentId(272522191089886152265255929154993748228), pin: ContentPin([205, 5, 221, 101, 178, 25, 73, 194, 233, 249, 132, 107, 246, 149, 121, 4, 119, 31, 132, 192, 233, 43, 185, 169, 63, 156, 228, 98, 7, 179, 48, 228]) }, interface: InterfaceRecord { crossings: [] }, target: @0, constraints: [Constraint { id: ConstraintId(MintId { ordinal: 0, digest: 1 }), kind: Value(Value { coord: Slide(Z), by: #0 }) }] }
   #0 ValueSlide { constraint: ConstraintId(MintId { ordinal: 0, digest: 1 }) }
   @0 Operand(Space)
-Place { shapes: [@0], target: @1, constraints: [Constraint { id: ConstraintId(MintId { ordinal: 0, digest: 2 }), kind: Mate(Mate { on: @2, to: @3 }) }, Constraint { id: ConstraintId(MintId { ordinal: 0, digest: 3 }), kind: Value(Value { coord: Spin(Z), by: #0 }) }, Constraint { id: ConstraintId(MintId { ordinal: 0, digest: 4 }), kind: Value(Value { coord: Slide(Z), by: #1 }) }] }
+Place { shapes: [@0], target: @1, constraints: [Constraint { id: ConstraintId(MintId { ordinal: 0, digest: 2 }), kind: Mate(Mate { on: @2, to: @3, orient: Orientation { x: PlusX, z: PlusZ } }) }, Constraint { id: ConstraintId(MintId { ordinal: 0, digest: 3 }), kind: Value(Value { coord: Spin(None), by: #0 }) }, Constraint { id: ConstraintId(MintId { ordinal: 0, digest: 4 }), kind: Value(Value { coord: Slide(Z), by: #1 }) }] }
   #0 ValueSpin { constraint: ConstraintId(MintId { ordinal: 0, digest: 3 }) }
   #1 ValueSlide { constraint: ConstraintId(MintId { ordinal: 0, digest: 4 }) }
   @0 Operand(Shape(0))
