@@ -808,9 +808,10 @@ fn a_vertex_row_is_the_unions_once_in_every_member_order() {
     // plate's corner: their two walls on that line, and each block's end
     // of the line on the other's edge. Folded last, in the first order
     // (the blocks, then the plate), the plate's step decides the points
-    // its top made on the two blocks' legs one: the legs' meeting.
+    // its top made on the two blocks' legs one: the legs' meeting with
+    // the top, which the legs alone meet along a line.
     const PLATE: &[&str] = &[
-        "fold 2 VertexFusion Meet Edge@m1 Edge@m2",
+        "fold 2 VertexFusion Meet Edge@m1 Edge@m2 Face@m0",
         "judged PlaneLadder SameOpposite Face@m1 Face@m2",
         "judged PlaneLadder SameOpposite Face@m1 Face@m2",
         "judged VertexFusion OnCarrier Edge@m1 Vertex@m2",
@@ -1157,18 +1158,20 @@ fn made_of(name: &editor_core::StableName, out: &mut Vec<editor_core::NamedCell>
 /// and otherwise the `Meet` of every member cell both are made of; any
 /// other relation is its two member cells as read. Over every order of
 /// the fixtures whose fold steps mint crossings, seams, junctions and
-/// merged edges; and each must log rows of three cells or more, so the
+/// merged edges, and the corner boss's, whose step decides a point in
+/// three cells; and each must log rows of three cells or more, so the
 /// check is not passed on two-cell rows alone.
 #[test]
 fn every_fold_row_names_every_member_cell_its_cells_are_made_of() {
     use editor_core::NamedCell;
-    let fixtures: [(&str, Members); 3] = [
+    let fixtures: [(&str, Members); 4] = [
         ("the plate pinch", crate::union_pinch_member_order::pinch),
         ("a flush pair on an edge", flush_onto_an_edge),
         (
             "a prism crossing one wedge",
             crate::union_pinch_member_order::crossing_one_wedge,
         ),
+        ("the corner boss", crate::emit_union_borders::corner_boss),
     ];
     let mut meetings = 0;
     for (what, fixture) in fixtures {
@@ -1196,7 +1199,12 @@ fn every_fold_row_names_every_member_cell_its_cells_are_made_of() {
                     cells.dedup();
                     cells
                 };
-                let [p, x] = r.cells.each_ref().map(resolve);
+                assert!(
+                    r.cells.len() == 2 || r.relation == topo::Relation::Meet,
+                    "{what}, {order:?}: only a meeting holds a third cell: {r:?}"
+                );
+                let resolved: Vec<_> = r.cells.iter().map(resolve).collect();
+                let (p, x) = (&resolved[0], &resolved[1]);
                 let vertex = |c: &NamedCell| {
                     matches!(c, NamedCell::Entity { name, .. }
                         if name.kind == editor_core::EntityKind::Vertex)
@@ -1207,13 +1215,13 @@ fn every_fold_row_names_every_member_cell_its_cells_are_made_of() {
                         (vec![v.clone(), c.clone()], topo::Relation::OnCarrier)
                     }
                     (topo::Relation::OnCarrier, _, _) if point => {
-                        let mut all: Vec<NamedCell> = p.iter().chain(&x).cloned().collect();
+                        let mut all: Vec<NamedCell> = p.iter().chain(x).cloned().collect();
                         all.sort();
                         all.dedup();
                         (all, topo::Relation::Meet)
                     }
                     (topo::Relation::Meet, _, _) => {
-                        let mut all: Vec<NamedCell> = p.iter().chain(&x).cloned().collect();
+                        let mut all: Vec<NamedCell> = resolved.concat();
                         all.sort();
                         all.dedup();
                         (all, topo::Relation::Meet)

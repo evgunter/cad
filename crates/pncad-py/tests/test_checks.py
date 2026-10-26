@@ -69,7 +69,7 @@ from pncad import (
     subject_body,
 )
 
-from placing import against
+from placing import against, assemble_world_copies
 from test_assembly_eval import identities, opened
 from measuring import pinned
 
@@ -124,6 +124,7 @@ def two_placed(x0):
 class TestTheConnectednessResident(unittest.TestCase):
     def test_a_disjoint_union_is_one_finding_naming_its_subject(self):
         doc, root, _ = disjoint_union()
+        assemble_world_copies(doc)
         report = run_checks(doc, evaluate(doc))
         self.assertEqual(len(report), 1)
         (finding,) = report.findings
@@ -146,6 +147,7 @@ class TestTheConnectednessResident(unittest.TestCase):
 
     def test_a_connected_body_is_clean(self):
         doc, _ = one_box()
+        assemble_world_copies(doc)
         report = run_checks(doc, evaluate(doc))
         self.assertEqual(report.findings, [])
         # The chart-coherence resident is Off by default and says so:
@@ -158,11 +160,13 @@ class TestTheConnectednessResident(unittest.TestCase):
         outer = slab(doc, 0.0, 3.0, 0.0, 3.0, 0.0, 3.0)
         inner = slab(doc, 1.0, 2.0, 1.0, 2.0, 1.0, 2.0, on=outer)
         doc.insert(Node.subtract(outer, inner))
+        assemble_world_copies(doc)
         self.assertEqual(run_checks(doc, evaluate(doc)).findings, [])
 
     def test_a_stated_expectation_is_the_acknowledgment(self):
         doc, root, _ = disjoint_union()
         cfg = ChecksConfig(expected_components=[(root, 0, 2)])
+        assemble_world_copies(doc)
         self.assertEqual(run_checks(doc, evaluate(doc), cfg).findings, [])
         self.assertEqual(cfg.expected_components, [(root, 0, 2)])
 
@@ -172,6 +176,7 @@ class TestTheConnectednessResident(unittest.TestCase):
         acknowledgment must not read as "checked and fine"."""
         doc, root, consumed = disjoint_union()
         cfg = ChecksConfig(expected_components=[(root, 0, 2), (consumed, 0, 1)])
+        assemble_world_copies(doc)
         report = run_checks(doc, evaluate(doc), cfg)
         (finding,) = report.findings
         self.assertEqual(finding.evidence.variant, "stale_expectation")
@@ -189,6 +194,7 @@ class TestTheConnectednessResident(unittest.TestCase):
 class TestTheSeparationResident(unittest.TestCase):
     def test_interpenetrating_copies_deny_the_certificate(self):
         doc, first, second = two_placed(0.5)
+        assemble_world_copies(doc)
         report = run_checks(doc, evaluate(doc))
         (finding,) = report.findings
         self.assertEqual(finding.check, CheckId.Separation)
@@ -200,6 +206,7 @@ class TestTheSeparationResident(unittest.TestCase):
 
     def test_copies_that_are_apart_are_clean(self):
         doc, _, _ = two_placed(5.0)
+        assemble_world_copies(doc)
         self.assertEqual(run_checks(doc, evaluate(doc)).findings, [])
 
     def test_the_separation_knob_cannot_express_error(self):
@@ -245,6 +252,7 @@ class TestTheReportGateSplit(unittest.TestCase):
 
     def test_the_default_configuration_can_never_refuse(self):
         doc, _, _ = disjoint_union()
+        assemble_world_copies(doc)
         report = run_checks(doc, evaluate(doc))
         self.assertEqual(len(report), 1)
         self.assertIsNone(enforce_checks(report))
@@ -318,6 +326,7 @@ class TestTheRegistryVocabulary(unittest.TestCase):
             first = doc.place(slab(doc, 0.0, 1.0), doc.world)
             doc.place(slab(doc, 0.5, 1.5), doc.world)
             doc.apply(DocEdit.set_label(first, text))
+            assemble_world_copies(doc)
             report = run_checks(doc, evaluate(doc))
             return first, report
 
@@ -332,9 +341,11 @@ class TestTheRegistryVocabulary(unittest.TestCase):
 
     def test_a_report_renders_itself(self):
         doc, _, _ = disjoint_union()
+        assemble_world_copies(doc)
         rendered = str(run_checks(doc, evaluate(doc)))
         self.assertIn("1 finding", rendered)
         clean, _ = one_box()
+        assemble_world_copies(clean)
         self.assertIn("no findings", str(run_checks(clean, evaluate(clean))))
 
 
@@ -411,6 +422,7 @@ class TestSubjectBodyCarriesItsDeclarations(unittest.TestCase):
         instance = doc.insert(
             Node.instantiate_part(DocRef(ident, store.current_pin(ident)), doc.world)
         )
+        doc.set_product(instance)
         return doc, instance, evaluate(doc, resolver=store)
 
     def test_the_subject_is_the_body_its_producer_minted(self):

@@ -64,7 +64,7 @@ fn assembly(
         doc = fixture::pin(next, id, &Frame::translation([dx, 0.0, 0.0]), &o);
         ids.push(id);
     }
-    (doc, ids)
+    (fixture::assemble_world_copies(doc), ids)
 }
 
 /// `placement`'s bundle replaced by one world mate at `translation`.
@@ -109,11 +109,13 @@ fn names_of(ev: &Evaluation<f64>, node: RecipeNodeId) -> Vec<StableName> {
 
 /// The 2B fixture family: part P (one solid), sub-assembly B (two
 /// instances of P), assembly A (two instances of B). A's product holds
-/// FOUR solids, and every name in it is doubly `InPart`-wrapped.
+/// FOUR solids, and every name in it is P's own, carried through both
+/// instances as B's product keys it.
 fn nested_fixture() -> (PartStore, ProfileDoc, ProfileDoc, DocRef, Vec<RecipeNodeId>) {
     let mut store = PartStore::default();
     let p = store.insert(part("asm2b-p", 0.0), Tol::witness());
     let (b_doc, _) = assembly("asm2b-b", &[p, p], 3.0, &store);
+    let b_doc = crate::fixture::assemble_world_copies(b_doc);
     let b = store.insert(b_doc.clone(), Tol::witness());
     let (a_doc, a_ids) = assembly("asm2b-a", &[b, b], 100.0, &store);
     (store, a_doc, b_doc, b, a_ids)
@@ -143,13 +145,7 @@ fn row2_a_sub_assembly_instantiates_into_four_solids() {
     // The instance value itself is the multi-solid body — the lift's
     // whole content: one rigid map over N solids, not N maps.
     let solids_of = |node: RecipeNodeId| match ev.value(node).map(|v| &v.payload) {
-        Some(editor_core::ValuePayload::Copies(c)) => match c.bodies.as_slice() {
-            [b] => b.solids().count(),
-            other => panic!(
-                "an instance's copies are one product body, got {}",
-                other.len()
-            ),
-        },
+        Some(editor_core::ValuePayload::Body(b)) => b.solids().count(),
         other => panic!("an instance's value is its copies, got {other:?}"),
     };
     assert_eq!(solids_of(a_ids[0]), 2, "each instance carries both solids");
@@ -175,12 +171,11 @@ fn row2_a_sub_assembly_instantiates_into_four_solids() {
 
 // ---- Row 3: names across all N solids, doubly wrapped ----
 
-/// Row 3 — every name of a doubly-nested instance is
-/// `InPart(InPart(Placed(part-local)))` minted at the OUTER
-/// instantiate node, each instance its own placement and the part's
-/// body named under the part's placement of it (A10);
-/// the four copies' name sets are pairwise disjoint; and each name
-/// resolves to its own copy (the cross-wiring probe).
+/// Row 3 — every name of a doubly-nested instance is the sub-assembly's
+/// product's: P's own name, keyed by the read B assembled it through,
+/// beside the instance's own body row; the four copies' name sets are
+/// pairwise disjoint read at their instances; and each name resolves to
+/// its own copy (the cross-wiring probe).
 #[test]
 fn row3_doubly_wrapped_names_are_distinct_and_resolve_to_their_own_copy() {
     let (store, a_doc, _, _, a_ids) = nested_fixture();
@@ -191,54 +186,52 @@ fn row3_doubly_wrapped_names_are_distinct_and_resolve_to_their_own_copy() {
     let b = names_of(&ev, a_ids[1]);
     assert!(!a.is_empty(), "an instance has names at all");
     assert_eq!(a.len(), b.len(), "the two instances name the same entities");
-    for name in &a {
-        assert!(!b.contains(name), "no name is shared between instances");
-    }
+    // A copy names its entities as its source does: the two instances
+    // carry the sub-assembly's product names, each its own body row.
+    let entities = |names: &[StableName]| -> Vec<StableName> {
+        names
+            .iter()
+            .filter(|n| n.kind != EntityKind::Body)
+            .cloned()
+            .collect()
+    };
+    assert_eq!(
+        entities(&a),
+        entities(&b),
+        "the two instances carry one table's names"
+    );
 
     // Shape: the body name is the instance's own output; every other
-    // name wraps the sub-assembly's name for it, which an inner
-    // instance — one of the sub-assembly's placements — minted over the
-    // part's own placed name.
-    let mut inner_nodes = std::collections::BTreeSet::new();
+    // name is the sub-assembly's product's, which keys each of its two
+    // pieces by the read it assembled.
+    let mut inner_reads = std::collections::BTreeSet::new();
     for (names, node) in [(&a, a_ids[0]), (&b, a_ids[1])] {
         for name in names {
-            assert_eq!(name.node, node, "names are minted at the outer instance");
             match &name.path[..] {
-                [RoleSeg::InPart { of }] => {
-                    assert_eq!(of.kind, name.kind, "the wrapper preserves the kind");
-                    match &of.path[..] {
-                        [RoleSeg::InPart { of: inner }] => {
-                            assert_eq!(inner.kind, name.kind);
-                            assert!(inner.copy_of().is_some(), "the part's copy: {inner:?}");
-                            inner_nodes.insert(of.node);
-                        }
-                        other => panic!("expected a doubly wrapped name, got {other:?}"),
-                    }
+                [RoleSeg::From { read, of }] => {
+                    assert_eq!(of.kind, name.kind, "the key preserves the kind");
+                    inner_reads.insert(*read);
                 }
-                [RoleSeg::OutputBody] => assert_eq!(name.kind, EntityKind::Body),
+                [RoleSeg::OutputBody] => {
+                    assert_eq!(name.kind, EntityKind::Body);
+                    assert_eq!(name.node, node, "the body row is the instance's own");
+                }
                 other => panic!("unexpected instance role path {other:?}"),
             }
         }
     }
     assert_eq!(
-        inner_nodes.len(),
+        inner_reads.len(),
         2,
         "the two solids come from the sub-assembly's two placements"
     );
 
-    // Cross-wiring probe: one part-local vertex name, wrapped under
-    // each of the four (outer, inner) pairs, lands in FOUR distinct
-    // positions — one per copy. The inner halves are the sub-assembly's
-    // two copies of that one part-local vertex.
-    let wrapped = |name: &StableName| -> StableName {
-        let [RoleSeg::InPart { of }] = &name.path[..] else {
-            panic!("wrapped: {name:?}");
-        };
-        (**of).clone()
-    };
-    let part_local = |inner: &StableName| -> StableName {
-        let [RoleSeg::InPart { of }] = &inner.path[..] else {
-            panic!("wrapped: {inner:?}");
+    // Cross-wiring probe: one part-local vertex name, keyed by each of
+    // the sub-assembly's two reads, lands in FOUR distinct positions
+    // across the two instances — one per copy.
+    let part_local = |name: &StableName| -> StableName {
+        let [RoleSeg::From { of, .. }] = &name.path[..] else {
+            panic!("keyed: {name:?}");
         };
         (**of).clone()
     };
@@ -246,39 +239,18 @@ fn row3_doubly_wrapped_names_are_distinct_and_resolve_to_their_own_copy() {
         .iter()
         .find(|n| n.kind == EntityKind::Vertex)
         .expect("a vertex name");
-    let core = part_local(&wrapped(vertex));
+    let core = part_local(vertex);
     let inners: Vec<StableName> = a
         .iter()
-        .filter(|n| n.kind == EntityKind::Vertex)
-        .map(wrapped)
-        .filter(|inner| part_local(inner) == core)
+        .filter(|n| n.kind == EntityKind::Vertex && part_local(n) == core)
+        .cloned()
         .collect();
-    assert_eq!(
-        inners
-            .iter()
-            .map(|inner| inner.node)
-            .collect::<std::collections::BTreeSet<_>>(),
-        inner_nodes,
-        "one copy of the vertex under each of the sub-assembly's placements"
-    );
+    assert_eq!(inners.len(), 2, "one key per piece: {inners:?}");
     let mut seen = std::collections::BTreeSet::new();
     for outer in &a_ids {
         for inner in &inners {
-            let name = StableName {
-                kind: vertex.kind,
-                node: *outer,
-                path: vec![RoleSeg::InPart {
-                    of: inner.clone().into(),
-                }],
-            };
-            let p = editor_core::vertex_position(&ev, *outer, &name).expect("resolves");
+            let p = editor_core::vertex_position(&ev, *outer, inner).expect("resolves");
             assert!(seen.insert(p.x.to_bits()), "each copy has its own position");
-            // A name minted under one instance is not the other's.
-            let other = a_ids.iter().find(|n| **n != *outer).expect("the other");
-            assert!(
-                editor_core::vertex_position(&ev, *other, &name).is_err(),
-                "identity is per instance, not per part"
-            );
         }
     }
     assert_eq!(seen.len(), 4, "four copies, four distinct positions");
@@ -296,7 +268,7 @@ fn row3_doubly_wrapped_names_round_trip_persistence() {
         .find(|n| n.kind == EntityKind::Face)
         .expect("a face name");
 
-    let read = crate::fixture::painted_in(&a_doc, &name);
+    let read = a_doc.read_of_node(a_ids[0]).expect("the instance's copy");
     let (doc, _) = step(
         a_doc,
         DocEdit::SetAppearance {
@@ -330,6 +302,7 @@ fn row4_a_placement_moves_every_solid_of_a_multi_solid_instance() {
     let mut store = PartStore::default();
     let p = store.insert(part("asm2b-r4-p", 0.0), Tol::witness());
     let (b_doc, _) = assembly("asm2b-r4-b", &[p, p], 3.0, &store);
+    let b_doc = crate::fixture::assemble_world_copies(b_doc);
     let b = store.insert(b_doc, Tol::witness());
     let (doc, ids) = assembly("asm2b-r4-a", &[b], 0.0, &store);
     let opts = with_resolver(store);
@@ -445,7 +418,20 @@ fn digest(ev: &Evaluation<f64>) -> u64 {
 /// world's axes rather than a mate read off its geometry, so its
 /// bundle's constraints, and every id and name drawn after them, moved;
 /// the volume bits and the solid count held.
-const SINGLE_SOLID_NAMES_DIGEST: u64 = 16_016_121_234_704_582_083;
+///
+/// D′3 moved the digest alone: an instance's copy carries its part's
+/// names verbatim, with no layer naming the instance, and the document's product
+/// is a `⊔` of its two copies, a node the ids after it count; the
+/// volume bits and the solid count held.
+///
+/// The digest is pinned per ε: a document's tolerance is part of what
+/// its ids are minted from, so each eps row mints its own (the
+/// msolve14 posture), and every row's volume bits are the same.
+const SINGLE_SOLID_NAMES_DIGEST: [(f64, u64); 3] = [
+    (1e-9, 17_614_411_536_504_555_015),
+    (1e-6, 16_222_653_049_492_933_193),
+    (1e-12, 720_102_748_755_875_421),
+];
 const SINGLE_SOLID_VOLUME_BITS: u64 = 4_611_686_018_427_387_904; // 2.0
 
 #[test]
@@ -461,9 +447,14 @@ fn row5_the_single_solid_path_is_bit_identical_across_the_lift() {
     let loaded = load(&text, Tol::witness()).expect("loads").doc;
     assert!(loaded.bit_eq(&doc), "the assembly round-trips");
 
+    let eps = Tol::witness().eps();
+    let (_, names) = SINGLE_SOLID_NAMES_DIGEST
+        .into_iter()
+        .find(|(e, _)| e.to_bits() == eps.to_bits())
+        .unwrap_or_else(|| panic!("no digest was measured at ε = {eps:e}"));
     assert_eq!(
         (digest(&ev), volume(&body).to_bits(), body.solids().count()),
-        (SINGLE_SOLID_NAMES_DIGEST, SINGLE_SOLID_VOLUME_BITS, 2),
+        (names, SINGLE_SOLID_VOLUME_BITS, 2),
         "the single-solid path is bit-identical across the lift"
     );
 }
@@ -491,6 +482,7 @@ fn the_at_rest_gate_does_not_see_instance_interference_single_or_multi() {
     // 2B's shape: two copies of a two-solid sub-assembly, placed so a
     // solid of each lands inside a solid of the other.
     let (b_doc, _) = assembly("asm2b-ov-b", &[p, p], 3.0, &store);
+    let b_doc = crate::fixture::assemble_world_copies(b_doc);
     let b = store.insert(b_doc, Tol::witness());
     let (multi, _) = assembly("asm2b-ov-multi", &[b, b], 3.25, &store);
     let opts = with_resolver(store);

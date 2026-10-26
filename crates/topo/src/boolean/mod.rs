@@ -322,7 +322,16 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         "split_edge_param_interior" | "split_conic_crossing_root" | "bool_wall_root_in_span" => {
             CrossingDecision::OnEdge.subject()
         }
-        "split_conic_root_order" => CrossingDecision::Order.subject(),
+        "split_conic_root_order" | "spline_composite_roots_apart" => {
+            CrossingDecision::Order.subject()
+        }
+        "spline_composite_root_at_end" | "spline_composite_root_at_crease" => {
+            CrossingDecision::OnEdge.subject()
+        }
+        "spline_composite_root_on" => {
+            "whether a crossing found along a spline edge lies on the face"
+        }
+        "bool_point_past_every_reach" => "whether a point stands past every face of the solid",
         // The point-on-span reading's two halves, which the on-carrier
         // crossing and the boundary pass read: `geom`'s one-carrier
         // reading and `geom_brep::curve_pair`'s span reading.
@@ -680,24 +689,30 @@ pub(crate) struct EdgeSplit {
     pub(crate) child: crate::entity::EdgeKey,
 }
 
-/// A Boolean reduction's edge splits ([`EdgeSplit`]), each operand's
-/// in split order: its `(child, parent)` rows checked where each split
-/// is recorded ([`crate::lineage::EdgeDivisions`]), and beside each row
-/// the vertex the split minted between them. A split mints its child, so
-/// the rows cannot cycle, and the walk from a piece back to the operand
-/// edge it lies on ([`Self::root`]) ends.
+/// **Where a Boolean reduction minted each vertex off its operands'
+/// cells**, each operand's: on an edge it split ([`EdgeSplit`]), or
+/// inside a face where a held pierce stands
+/// (`vtxfac::faces_holding_pierce`). The splits are in split order, their
+/// `(child, parent)` rows checked where each is recorded
+/// ([`crate::lineage::EdgeDivisions`]), and beside each row the vertex
+/// the split minted between them. A split mints its child, so the rows
+/// cannot cycle, and the walk from a piece back to the operand edge it
+/// lies on ([`Self::root`]) ends.
 #[derive(Clone, Debug)]
-pub(crate) struct EdgeSplits {
+pub(crate) struct Mints {
     divisions: [crate::lineage::EdgeDivisions; 2],
-    /// Each operand's minted vertices, one per row of its divisions and
-    /// in the same order: [`Self::push`] is the one writer of both, and
-    /// pushes the vertex only once the division's row is in, so the
-    /// `i`-th vertex is the one minted between the `i`-th row's two
-    /// edges (asserted where they are read together, [`Self::of`]).
+    /// Each operand's vertices minted on edges, one per row of its
+    /// divisions and in the same order: [`Self::push`] is the one writer
+    /// of both, and pushes the vertex only once the division's row is
+    /// in, so the `i`-th vertex is the one minted between the `i`-th
+    /// row's two edges (asserted where they are read together,
+    /// [`Self::of`]).
     vertices: [Vec<VertexKey>; 2],
+    /// Each operand's vertices minted inside faces, each with its face.
+    in_faces: [Vec<(VertexKey, FaceKey)>; 2],
 }
 
-impl Default for EdgeSplits {
+impl Default for Mints {
     fn default() -> Self {
         let of = |operand| {
             crate::lineage::EdgeDivisions::new(crate::lineage::LineageRows::EdgeDivisions(Some(
@@ -707,11 +722,12 @@ impl Default for EdgeSplits {
         Self {
             divisions: [of(Operand::A), of(Operand::B)],
             vertices: [Vec::new(), Vec::new()],
+            in_faces: [Vec::new(), Vec::new()],
         }
     }
 }
 
-impl EdgeSplits {
+impl Mints {
     /// Records `split`.
     ///
     /// # Errors
@@ -753,6 +769,19 @@ impl EdgeSplits {
         edge: crate::entity::EdgeKey,
     ) -> crate::entity::EdgeKey {
         self.divisions[usize::from(operand == Operand::B)].root(edge)
+    }
+
+    /// Records `v`, minted inside face `face` of `operand`'s clone.
+    pub(crate) fn push_in_face(&mut self, operand: Operand, v: VertexKey, face: FaceKey) {
+        self.in_faces[usize::from(operand == Operand::B)].push((v, face));
+    }
+
+    /// The face of `operand`'s clone `v` was minted inside, where it was.
+    pub(crate) fn minted_in(&self, operand: Operand, v: VertexKey) -> Option<FaceKey> {
+        self.in_faces[usize::from(operand == Operand::B)]
+            .iter()
+            .find(|&&(w, _)| w == v)
+            .map(|&(_, face)| face)
     }
 
     /// The edge of `operand`'s clone a split minted `v` on, where one did.
@@ -2282,8 +2311,9 @@ pub struct BooleanReduction<T: Real> {
     /// deduplicated. The whole-shell `On` verdict reads these
     /// (`shell_witness::on_verdict`).
     pub(crate) coincident: Vec<SettledPair>,
-    /// Every edge split the reduction made, both clones, split order.
-    pub(crate) edge_splits: EdgeSplits,
+    /// Every vertex the reduction minted off its operands' cells, both
+    /// clones ([`Mints`]).
+    pub(crate) mints: Mints,
     /// Every operand edge piece the sector passes classified beside a
     /// vertex ([`EdgePieceClass`]), sorted.
     pub edge_classes: Vec<EdgePieceClass>,
@@ -2514,7 +2544,8 @@ pub enum RefusedRow {
 /// **Which construction a slit's line lacks**
 /// ([`BooleanError::SlitLineCrossed`]): the other solid has an edge
 /// along an operand's slit or ring, and the germs on the line are not
-/// placed where the case says.
+/// built where the material places them, for the reason each case
+/// names.
 ///
 /// **NOT carried to the façade's curated list, and that is a decision
 /// rather than an omission** (`scripts/payload-rung-sweep.py` names
@@ -2525,16 +2556,11 @@ pub enum RefusedRow {
 /// `topo` whole.
 ///
 /// **The falsifier is a caller that acts on the case by itself**: a
-/// driver that tilts a part off the slit's face when it reads
-/// [`SlitLineGap::Flush`], say. Then carry it and delete this paragraph
+/// driver that moves a part off the slit's line when it reads
+/// [`SlitLineGap::CrossedTwice`], say. Then carry it and delete this paragraph
 /// and the disposition row with it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SlitLineGap {
-    /// A flank of a wedge on the line lies in a flank's plane of the
-    /// other's, flush with a face of the other solid there, and the op
-    /// keeps one of the two flush faces: the cut the germs make in the
-    /// dropped one has no corner to end in.
-    Flush,
     /// One solid's material about the line, a wedge with a face of its
     /// own folded in, crosses the other's twice at the slit's tip.
     CrossedTwice,
@@ -2544,12 +2570,60 @@ impl SlitLineGap {
     /// The gap in the refusal's words.
     pub(super) const fn words(self) -> &'static str {
         match self {
-            Self::Flush => {
-                "a face of the other solid lies flush with a face on the line, and the op keeps \
-                 one of the two"
-            }
             Self::CrossedTwice => {
                 "one solid's material about the line crosses the other's twice at the tip"
+            }
+        }
+    }
+}
+
+/// **Which of [`BooleanError::SlitFaceGlued`]'s constructions is not
+/// built**: the face carrying a slit or ring is glued to a face of the
+/// other solid, and the result along the slit is not built, for the
+/// reason each case names.
+///
+/// **NOT carried to the façade's curated list, and that is a decision
+/// rather than an omission** (`scripts/payload-rung-sweep.py` names
+/// this rung; the disposition table cites this paragraph as its home).
+/// Every case is a construction gap with no lever, so nothing a person
+/// does differs by case, and the refusal's sentence names it. A Rust
+/// caller can already name and match it, since `pncad` re-exports
+/// `topo` whole.
+///
+/// **The falsifier is a caller that acts on the case by itself**: a
+/// driver that flattens a curved face carrying a slit when it reads
+/// [`SlitFaceGap::TipUnread`], say. Then carry it and delete this
+/// paragraph and the disposition row with it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SlitFaceGap {
+    /// The join's ring run along the slit encloses no area, on a lane
+    /// that does not read the sliver between the slit's two edges (a
+    /// curved face's ring lane) (`join::pinch_ray_refusal`).
+    RingRun,
+    /// The join's run along the slit walls off the sliver from neither
+    /// side without separating a pending pair (`join::best_arc`).
+    ArcsSeparate,
+    /// A fate cut through the dropped one of the two flush faces ends at
+    /// the slit's tip, where the face's turn is not read: a curved face,
+    /// a curved edge on the tip's loop, or half-turns both ways
+    /// (`fate::tip_wraps`).
+    TipUnread,
+}
+
+impl SlitFaceGap {
+    /// The gap in the refusal's words.
+    pub(super) const fn words(self) -> &'static str {
+        match self {
+            Self::RingRun => {
+                "the join's run along it encloses no area on a lane that reads no sliver"
+            }
+            Self::ArcsSeparate => {
+                "the join's run along it walls off the sliver from neither side without \
+                 separating a pending pair"
+            }
+            Self::TipUnread => {
+                "a cut through the dropped flush face ends at its tip, where the face's turn is \
+                 not read"
             }
         }
     }
@@ -2770,6 +2844,28 @@ pub enum BooleanError {
         face_of: Operand,
         /// The lane.
         site: EdgeCarrierSite,
+    },
+    /// A spline edge of `operand` meets a face of `face_of` where the
+    /// curve × face table's ring-composite arm
+    /// ([`geom_brep::curve_face::composite::crossings`]) cannot count its
+    /// crossings (`why`): it comes within the band of the face's carrier
+    /// without a crossing the arm can tell apart (it touches it, runs
+    /// along it, or crosses it more than once within the band), it meets
+    /// it within the band of a crease of the spline, where the spline has
+    /// no tangent, or the point it located does not evaluate onto it. The
+    /// definite half: a decision the arm needs that falls in the band's
+    /// gap escalates as [`Self::Escalated`] instead.
+    SplineCrossingUnsettled {
+        /// The operand whose edge it is.
+        operand: Operand,
+        /// The edge: the operand's own, its split pieces' root.
+        edge: EdgeKey,
+        /// The face it was read against.
+        face: FaceKey,
+        /// The operand whose face it is.
+        face_of: Operand,
+        /// What the arm could not settle.
+        why: geom_brep::roots::Unsettled,
     },
     /// The both-edges-split point lane needs a carrier with a point
     /// parameter ([`geom::Curve3::param_near`]) and got a spline, which
@@ -3364,9 +3460,11 @@ pub enum BooleanError {
     /// projection-based extent argument — a foot point plus a bound on
     /// how far the patch can reach past it — which nothing has
     /// derived. The class stays RE-GATED at the fallback, explicitly
-    /// and pinned: a future NURBS body constructor inherits this typed
-    /// refusal, never the vertex-probe silence the S12 finding
-    /// executed.
+    /// and pinned, reach first: a NURBS face whose certified box (its
+    /// control net's hull) meets no face of the other operand is
+    /// certified disjoint from it by the box, and a NURBS face that may
+    /// meet one refuses here, never the vertex-probe silence the S12
+    /// finding executed.
     NurbsExtentUnsupported {
         /// The operand carrying the NURBS face.
         operand: Operand,
@@ -3823,18 +3921,16 @@ pub enum BooleanError {
         gap: SlitLineGap,
     },
     /// The face carrying an operand's slit or zero-area ring is glued to
-    /// a face of the other solid, and the join's run along the slit
-    /// encloses no area. Either the run walls off the sliver between the
-    /// slit's two edges from neither side without separating a pending
-    /// pair, or runs on a curved face's ring lane; or the op drops that
-    /// sliver and keeps one of the two flush faces, which carries the
-    /// slit on, through a cut in the dropped one that ends at the slit's
-    /// tip. A construction gap, with no lever.
+    /// a face of the other solid, and the result along the slit is not
+    /// built, where [`SlitFaceGap`] says. A construction gap, with no
+    /// lever.
     SlitFaceGlued {
         /// The operand holding the slit.
         operand: Operand,
         /// The face carrying it, a key of the operand's working copy.
         face: FaceKey,
+        /// Which construction is missing.
+        gap: SlitFaceGap,
     },
     /// The result keeps a curved face on both sides of an operand's
     /// slit or zero-area ring, whose two edges the zip glued into one
@@ -3955,6 +4051,8 @@ pub enum BooleanErrorKind {
     NormalAtConeApex,
     /// [`BooleanError::EdgeCarrierUnsupported`].
     EdgeCarrierUnsupported,
+    /// [`BooleanError::SplineCrossingUnsettled`].
+    SplineCrossingUnsettled,
     /// [`BooleanError::PointSplitCarrierUnsupported`].
     PointSplitCarrierUnsupported,
     /// [`BooleanError::GermEdgeCarrierUnsupported`].
@@ -4237,6 +4335,7 @@ impl BooleanError {
             Self::CrossingAtConeApex { .. } => BooleanErrorKind::CrossingAtConeApex,
             Self::NormalAtConeApex { .. } => BooleanErrorKind::NormalAtConeApex,
             Self::EdgeCarrierUnsupported { .. } => BooleanErrorKind::EdgeCarrierUnsupported,
+            Self::SplineCrossingUnsettled { .. } => BooleanErrorKind::SplineCrossingUnsettled,
             Self::PointSplitCarrierUnsupported { .. } => {
                 BooleanErrorKind::PointSplitCarrierUnsupported
             }
@@ -4336,6 +4435,25 @@ impl From<EulerOpError> for BooleanError {
 /// every lane reads are the line and the two conics.
 pub(crate) const CONIC_EDGES_RECOURSE: &str =
     "rebuild that solid so its edges are lines, circles or ellipses";
+
+/// What the spline arm could not settle, as a clause for
+/// [`BooleanError::SplineCrossingUnsettled`]'s sentence.
+fn unsettled_crossing(why: geom_brep::roots::Unsettled) -> &'static str {
+    use geom_brep::roots::Unsettled as U;
+    match why {
+        U::Tangency => {
+            "it comes within the tolerance of the face without a crossing the Boolean can \
+             tell apart: it touches the face, runs along it, or crosses it more than once \
+             within the tolerance"
+        }
+        U::Crease => "it meets the face at a corner of the curve",
+        U::SignInBand => {
+            "the point it located as a crossing does not evaluate onto the face within the \
+             tolerance"
+        }
+        _ => "its crossings could not be counted",
+    }
+}
 
 /// How a refusal names an operand to the person who built it: by its
 /// place in the operation, never by the enum spelling.
@@ -4460,6 +4578,14 @@ impl core::fmt::Display for BooleanError {
                  Boolean cannot yet {}. Recourse: {CONIC_EDGES_RECOURSE}",
                 operand_word(*operand),
                 site.clause(),
+            ),
+            Self::SplineCrossingUnsettled { operand, why, .. } => write!(
+                f,
+                "a spline (NURBS) edge of the {} operand meets a face of the other \
+                 where the Boolean cannot count its crossings: {}. Recourse: move the \
+                 parts so that edge crosses the face cleanly or stays clear of it",
+                operand_word(*operand),
+                unsettled_crossing(*why),
             ),
             Self::PointSplitCarrierUnsupported { operand, .. } => write!(
                 f,
@@ -5157,13 +5283,13 @@ impl core::fmt::Display for BooleanError {
                 gap.words(),
                 geom_core::NOT_YET_ENDING
             ),
-            Self::SlitFaceGlued { operand, face } => write!(
+            Self::SlitFaceGlued { operand, face, gap } => write!(
                 f,
                 "a face of the other solid lies flush on face {face:?} of the {} solid, which \
-                 carries a slit or zero-area ring: its two coincident edges would become one \
-                 edge between its two walls, or stay in the one of the two flush faces the op \
-                 keeps, and the join does not build that there. {}",
+                 carries a slit or zero-area ring, and the boolean does not build the result \
+                 along it there: {}. {}",
                 operand_word(*operand),
+                gap.words(),
                 geom_core::NOT_YET_ENDING
             ),
             Self::CurvedFaceClosesAcrossSlit { face, edge } => write!(
@@ -5648,7 +5774,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         [None, None],
         tol,
     )?;
-    let edge_splits = core::mem::take(&mut acc.splits);
+    let mut mints = core::mem::take(&mut acc.splits);
     let mut branches = acc.take_branches();
     if FORGET_BRANCHES.with(core::cell::Cell::get) {
         branches.clear();
@@ -5787,7 +5913,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                     operand,
                     c.vertex,
                     &out.classes,
-                    &edge_splits,
+                    &mints,
                 )?);
             }
         }
@@ -5827,8 +5953,11 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             band,
             tol,
         )?;
-        let held_on: std::collections::BTreeMap<_, _> =
+        let held_margin: std::collections::BTreeMap<_, _> =
             held.iter().map(|h| (h.plan.contact.vertex, h.on)).collect();
+        for h in &held {
+            mints.push_in_face(operand, h.plan.contact.vertex, h.face);
+        }
         minted.extend(held.into_iter().map(|h| (vec![h.strut], Some(h.plan))));
         // Each ring is minted, and its records read, where its first
         // pierce was: a face pierced at one point alone mints as it
@@ -5855,7 +5984,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                 operand,
                 a: only[i].contact.vertex,
                 b: only[j].contact.vertex,
-                margin: held_on
+                margin: held_margin
                     .get(&only[j].contact.vertex)
                     .copied()
                     .unwrap_or(margin),
@@ -6047,13 +6176,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             Operand::A => &a,
             Operand::B => &b,
         };
-        edge_classes.extend(piece_classes(
-            body,
-            operand,
-            vertex,
-            &classes,
-            &edge_splits,
-        )?);
+        edge_classes.extend(piece_classes(body, operand, vertex, &classes, &mints)?);
     }
     // An edge of a shared vertex that two crossing pairs' edge-edge
     // germs run along folds Out in each of them (`recl::Reversed`).
@@ -6140,7 +6263,11 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         records: null_edges,
         copies,
     } = null_edges;
-    let fates = fate::border_fates(fates, &covered, &null_edges, &a, &b)?;
+    let fates = fate::border_fates(fates, &covered, &null_edges, (&a, &b), |body| {
+        crate::census::collinear_overlaps(body, band)
+            .map(|lines| lines.into_iter().map(|line| line.edges).collect())
+            .map_err(ops::collinear_escalated)
+    })?;
     let rest_contacts = decls
         .pairs
         .iter()
@@ -6169,7 +6296,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     let kept = glue::touched(
         &declared.verified.coincidences,
         &pending,
-        &edge_splits,
+        &mints,
         [a_operand, b_operand],
     );
     let coincidences = kept
@@ -6207,7 +6334,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         fates,
         rest_contacts,
         coincident,
-        edge_splits,
+        mints,
         edge_classes,
         unread_partners,
         coincidences,
@@ -6439,7 +6566,7 @@ fn piece_classes<T: Real>(
     operand: Operand,
     vertex: VertexKey,
     classes: &[(HalfEdgeKey, SideCode)],
-    splits: &EdgeSplits,
+    splits: &Mints,
 ) -> Result<Vec<EdgePieceClass>, BooleanError> {
     let desync = |what| BooleanError::ClassificationInvariant { what };
     let mut out = Vec::with_capacity(classes.len());
@@ -6686,6 +6813,7 @@ fn tangent_row(fa: FaceKey, fb: FaceKey, margin: MarginDiag) -> crate::Coinciden
             crate::RowCell::face(Operand::A, fa),
             crate::RowCell::face(Operand::B, fb),
         ],
+        third: None,
         relation: crate::Relation::SurfaceTangent,
         site: crate::DecisionSite::TangentWitness,
         margin,
@@ -6728,6 +6856,7 @@ fn verify_one_carrier_declaration<T: Decide>(
                 crate::RowCell::face(Operand::A, fa),
                 crate::RowCell::face(Operand::B, fb),
             ],
+            third: None,
             relation,
             site: declared_site(a, fa, b, fb),
             margin,
@@ -8818,6 +8947,13 @@ mod tests {
                 face_of: Operand::B,
                 site: EdgeCarrierSite::PlanarCrossing,
             },
+            BooleanError::SplineCrossingUnsettled {
+                operand: Operand::A,
+                edge,
+                face,
+                face_of: Operand::B,
+                why: geom_brep::roots::Unsettled::Tangency,
+            },
             BooleanError::PointSplitCarrierUnsupported {
                 operand: Operand::A,
                 edge,
@@ -9153,6 +9289,7 @@ mod tests {
                 BooleanErrorKind::CrossingAtConeApex => "CrossingAtConeApex",
                 BooleanErrorKind::NormalAtConeApex => "NormalAtConeApex",
                 BooleanErrorKind::EdgeCarrierUnsupported => "EdgeCarrierUnsupported",
+                BooleanErrorKind::SplineCrossingUnsettled => "SplineCrossingUnsettled",
                 BooleanErrorKind::PointSplitCarrierUnsupported => "PointSplitCarrierUnsupported",
                 BooleanErrorKind::GermEdgeCarrierUnsupported => "GermEdgeCarrierUnsupported",
                 BooleanErrorKind::ArcLoopContainmentUnsupported => "ArcLoopContainmentUnsupported",

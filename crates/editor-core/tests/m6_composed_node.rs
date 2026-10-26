@@ -155,10 +155,7 @@ fn adding_a_cavity_meridian_still_refuses_tangential_at_zero_margin() {
     let ball = edge_names(&ev0, target)
         .into_iter()
         .find_map(|n| match n.path.first() {
-            Some(RoleSeg::From { read, of: inner }) if *read == tool => match inner.path.first() {
-                Some(RoleSeg::Placed { of }) => Some(of.node),
-                _ => None,
-            },
+            Some(RoleSeg::From { read, of: inner }) if *read == tool => Some(inner.node),
             _ => None,
         })
         .expect("the cavity contributes FromB edges");
@@ -227,8 +224,7 @@ fn the_selection_is_every_target_edge_except_the_cavity_meridians() {
         assert!(
             matches!(n.path.first(), Some(RoleSeg::From { read, of: inner })
                 if *read == tool
-                    && matches!(inner.path.first(), Some(RoleSeg::Placed { of })
-                        if matches!(of.path.first(), Some(RoleSeg::Meridian(..))))),
+                    && matches!(inner.path.first(), Some(RoleSeg::Meridian(..)))),
             "the excluded names are the cavity's meridians, got {n:?}"
         );
     }

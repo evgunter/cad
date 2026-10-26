@@ -485,8 +485,8 @@ fn the_memo_still_serves_a_same_document_re_evaluation() {
     );
     let after = run(&moved, Some(&warm), &opts);
     assert_eq!(
-        after.recomputed, 1,
-        "the moved instance re-keys: it is its own placement"
+        after.recomputed, 2,
+        "the moved instance re-keys: it is its own placement, and the product's `⊔` reads it"
     );
-    assert_eq!(after.reused, moved.len() - 1, "and nothing else does");
+    assert_eq!(after.reused, moved.len() - 2, "and nothing else does");
 }

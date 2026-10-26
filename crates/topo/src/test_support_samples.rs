@@ -1680,7 +1680,17 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
                 a,
                 b,
                 what: why.what(),
+                reason: crate::validate::Undecidable::MayOverlap,
             },
+        ));
+    }
+    for reason in [
+        crate::validate::Undecidable::ThinInBand,
+        crate::validate::Undecidable::MayOverlap,
+    ] {
+        s.push((
+            format!("CensusUndecidable/unread/{reason:?}"),
+            crate::census::unread_sample(face, face, reason),
         ));
     }
     s.push((

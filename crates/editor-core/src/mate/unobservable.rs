@@ -186,7 +186,6 @@ fn spin_moves_nothing(
     };
     let bodies: Vec<&topo::Body<f64>> = match &value.payload {
         ValuePayload::Body(b) => vec![b.as_ref()],
-        ValuePayload::Copies(copies) => copies.bodies.iter().map(AsRef::as_ref).collect(),
         _ => return false,
     };
     let Some(arm) = bodies

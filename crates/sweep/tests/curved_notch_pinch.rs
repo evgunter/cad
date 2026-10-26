@@ -395,7 +395,7 @@ fn curved_notch_pinch_one() {
     };
     if let Err(es) = topo::validate_pseudomanifold(body, &bb.contacts, tol()) {
         for e in &es {
-            if let topo::ValidationError::CensusUndecidable { a, b, what } = e {
+            if let topo::ValidationError::CensusUndecidable { a, b, what, .. } = e {
                 println!("undecidable {} | {} | {what}", face(a), face(b));
             } else {
                 println!("finding {e:?}");

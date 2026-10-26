@@ -419,7 +419,7 @@ let placed = Placed::unmated(vec![(Coord::Slide(TargetAxis::Z), len(1.0))]);
 let in_base = Operand::Var(doc.node_space(base).expect("a construction is in its own space"));
 let (doc, resting) = insert(
     &doc,
-    Node::place(vec![BodyRead::plain(Operand::from(block))], in_base, placed.bundle()),
+    Node::place(BodyRead::plain(Operand::from(block)), in_base, placed.bundle()),
 );
 
 // The union glues the rest its margin decides, and records it.

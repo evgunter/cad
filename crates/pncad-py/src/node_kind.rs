@@ -64,6 +64,7 @@ pub fn node_kind<P>(node: &Node<P>) -> &'static str {
         Node::Mirror { .. } => "mirror",
         Node::Union { .. } => "union",
         Node::Intersect { .. } => "intersect",
+        Node::Assemble { .. } => "assemble",
         Node::Subtract { .. } => "subtract",
         Node::Place { .. } => "place",
         Node::World => "world",

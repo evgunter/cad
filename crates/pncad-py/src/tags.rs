@@ -130,10 +130,10 @@ use pncad::document::{
     DimensionError, Distribution, DistributionFault, DistributionField, EditError, EvalError,
     FlattenError, InlineError, InterfaceCrossing, LeverRefusal, LoftFault, Maintenance, MateFault,
     MeasureUnavailableAt, MetaVersionError, NoChartWhy, NodeErrorClass, NodeErrorKind,
-    NodeStanding, ParseError, PersistError, PinRefusal, PlacementRuleFault, ProgramFault,
-    ProgramRefusal, ReachRefusal, RecordedProgramError, ResolveFault, ShellClassifyError, SlotId,
-    SnapshotError, SplitError, StepHandleRefusal, StepIdFault, TargetAxis, Unlocalized,
-    UpdateError,
+    NodeStanding, ParseError, PersistError, PinRefusal, PlacementRuleFault, ProductReadFault,
+    ProgramFault, ProgramRefusal, ReachRefusal, RecordedProgramError, ResolveFault,
+    ShellClassifyError, SlotId, SnapshotError, SplitError, StepHandleRefusal, StepIdFault,
+    TargetAxis, Unlocalized, UpdateError,
 };
 use pncad::geom_core::{BandError, BandField, FrameError, FrameInput, FrameVector};
 use pncad::mesh::TessellateError;
@@ -562,7 +562,7 @@ pub fn operand_slot_tag(slot: &pncad::document::OperandSlot) -> &'static str {
         S::Open => "open",
         S::Face => "face",
         S::Side { .. } => "side",
-        S::Shape(_) => "shape",
+        S::Source => "source",
         S::Measured(..) => "measured",
         S::Tool => "tool",
         S::From => "from",
@@ -616,7 +616,8 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::OperandUnresolved { .. } => "operand_unresolved",
         EditError::AmbiguousOutput { .. } => "ambiguous_output",
         EditError::DefinesNothing { .. } => "defines_nothing",
-        EditError::CopyReadOffBodySeat { .. } => "copy_read_off_body_seat",
+        EditError::PickPath { .. } => "pick_path",
+        EditError::ProductRead { .. } => "product_read",
         EditError::UnknownSlot { .. } => "unknown_slot",
         EditError::SlotDimensionMismatch { .. } => "slot_dimension_mismatch",
         EditError::StructuralSlotNeedsStructuralEdit { .. } => {
@@ -947,19 +948,16 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         // seed a free length, angle or scalar variable), not the box's.
         C::Seed => "seed",
         C::WrongOperand => "wrong_operand",
-        // A read of one copy of a placement's copies: a key naming no
-        // copy, an index at the copy's other shape, and two copies of
-        // one `Place` keyed alike.
-        C::NoSuchCopy => "no_such_copy",
-        C::CopyShape => "copy_shape",
-        C::CopiesShareAKey => "copies_share_a_key",
+        // A pick of one piece of a copy: a path naming no piece, and
+        // a read at the piece's other shape.
+        C::NoSuchPiece => "no_such_piece",
+        C::PieceShape => "piece_shape",
         // An operand reads a variable its operation no longer defines:
         // the delete that removed it reported the strand.
         C::UnresolvedRead => "unresolved_read",
         // A selection a node reads: a name the ladder refused.
         C::SelectResolve => "select_resolve",
         C::EmptyOperand => "empty_operand",
-        C::ProductOperand => "product_operand",
         C::UnfinishedOperand => "unfinished_operand",
         C::DegenerateDirection => "degenerate_direction",
         C::NonFiniteDirection => "non_finite_direction",
@@ -1097,13 +1095,11 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         NodeErrorKind::ParamBox { source } => Some(param_box_error_tag(source)),
         NodeErrorKind::Seed { source } => Some(seed_error_tag(source)),
         NodeErrorKind::WrongOperand { .. } => None,
-        NodeErrorKind::NoSuchCopy { .. } => None,
-        NodeErrorKind::CopyShape { .. } => None,
-        NodeErrorKind::CopiesShareAKey { .. } => None,
+        NodeErrorKind::NoSuchPiece { .. } => None,
+        NodeErrorKind::PieceShape { .. } => None,
         NodeErrorKind::UnresolvedRead { .. } => None,
         NodeErrorKind::SelectResolve { error, .. } => Some(resolve_error_tag(error)),
         NodeErrorKind::EmptyOperand { .. } => None,
-        NodeErrorKind::ProductOperand { .. } => None,
         NodeErrorKind::UnfinishedOperand { .. } => None,
         // `half` is WHICH side was empty, a value the caller asked
         // for — the payload question, not the fault one.
@@ -1203,7 +1199,9 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::OperandUnresolved { .. } => None,
         EditError::AmbiguousOutput { .. } => None,
         EditError::DefinesNothing { .. } => None,
-        EditError::CopyReadOffBodySeat { .. } => None,
+        EditError::PickPath { .. } => None,
+        // Why the read is no product is the arm.
+        EditError::ProductRead { fault, .. } => Some(product_read_fault_tag(fault)),
         EditError::UnknownSlot { .. } => None,
         EditError::SlotDimensionMismatch { .. } => None,
         EditError::StructuralSlotNeedsStructuralEdit { .. } => None,
@@ -1543,6 +1541,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::CrossingAtConeApex => "crossing_at_cone_apex",
         BooleanErrorKind::NormalAtConeApex => "normal_at_cone_apex",
         BooleanErrorKind::EdgeCarrierUnsupported => "edge_carrier_unsupported",
+        BooleanErrorKind::SplineCrossingUnsettled => "spline_crossing_unsettled",
         BooleanErrorKind::PointSplitCarrierUnsupported => "point_split_carrier_unsupported",
         BooleanErrorKind::GermEdgeCarrierUnsupported => "germ_edge_carrier_unsupported",
         BooleanErrorKind::ArcLoopContainmentUnsupported => "arc_loop_containment_unsupported",
@@ -2049,6 +2048,8 @@ pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
         SnapshotError::DefinitionVarKind { .. } => "definition_var_kind",
         SnapshotError::DefinitionCycle { .. } => "definition_cycle",
         SnapshotError::DefinitionTooLarge { .. } => "definition_too_large",
+        SnapshotError::ProductRead { .. } => "product_read",
+        SnapshotError::PickPath { .. } => "pick_path",
         SnapshotError::EpsilonInvalid { .. } => "epsilon_invalid",
         // A constraint whose id the mint log never minted, the
         // constraint's word for `node_not_minted`.
@@ -2273,7 +2274,8 @@ pub fn product_error_tag(err: &pncad::document::ProductError) -> &'static str {
         K::RootFailed => "root_failed",
         K::RootPoisoned => "root_poisoned",
         K::EmptyProduct => "empty_product",
-        K::StrandedPlacement => "stranded_placement",
+        K::StrandedProduct => "stranded_product",
+        K::ProductOutsideWorld => "product_outside_world",
         K::Graft => "graft_refused",
         K::RootInvalid => "root_invalid",
         K::ProductInvalid => "product_invalid",
@@ -2483,7 +2485,7 @@ pub fn assembly_error_tag(err: &AssemblyError) -> &'static str {
         AssemblyError::Product(inner) => product_error_tag(inner),
         AssemblyError::CarriedAtRest { .. } => "carried_at_rest",
         AssemblyError::AtRest { .. } => "at_rest",
-        AssemblyError::Space { .. } => "own_space",
+        AssemblyError::Assemble { .. } => "assemble",
     }
 }
 
@@ -2536,14 +2538,12 @@ pub fn inline_error_tag(err: &InlineError) -> &'static str {
         InlineError::UnknownNode { .. } => "unknown_node",
         InlineError::NotAnInstance { .. } => "not_an_instance",
         InlineError::UnplaceablePart { .. } => "unplaceable_part",
-        InlineError::InstanceReadUncarried { .. } => "instance_read_uncarried",
         InlineError::Unresolved { failure } => resolve_fault_tag(&failure.fault),
         InlineError::EpsilonSeam { .. } => "epsilon_seam",
         InlineError::PartCarriesMetadata { .. } => "part_carries_metadata",
         InlineError::VarNameConflict { .. } => "var_name_conflict",
         InlineError::UnresolvedVarCrossesCut { .. } => "unresolved_var_crosses_cut",
         InlineError::InstanceBodyNameReferenced { .. } => "instance_body_name_referenced",
-        InlineError::ForeignInstanceName { .. } => "foreign_instance_name",
         InlineError::StrandedPartName { .. } => "stranded_part_name",
         InlineError::StrandedPartRead { .. } => "stranded_part_read",
         InlineError::NameOnDroppedStep { .. } => "name_on_dropped_step",
@@ -3324,6 +3324,7 @@ pub fn maintenance_tag(maintenance: &Maintenance) -> &'static str {
         Maintenance::StrandedAppearance { .. } => "stranded_appearance",
         Maintenance::StrandedSelection { .. } => "stranded_selection",
         Maintenance::StrandedSpace { .. } => "stranded_space",
+        Maintenance::ProductOutsideWorld { .. } => "product_outside_world",
         Maintenance::ValueDropped { .. } => "value_dropped",
         Maintenance::AnonymousVarRemoved { .. } => "anonymous_var_removed",
     }
@@ -3340,6 +3341,17 @@ pub fn step_id_fault_tag(fault: &StepIdFault) -> &'static str {
         StepIdFault::NotThisProfiles { .. } => "not_this_profiles",
         StepIdFault::Repeated { .. } => "repeated",
         StepIdFault::NotMinted { .. } => "not_minted",
+    }
+}
+
+/// The stable tag for why a read is no product — the fault
+/// `EditError::ProductRead` carries, published on `inner_variant`
+/// beside the edit's own word.
+pub fn product_read_fault_tag(fault: &ProductReadFault) -> &'static str {
+    match fault {
+        ProductReadFault::Unresolved => "unresolved",
+        ProductReadFault::Kind { .. } => "kind",
+        ProductReadFault::Space { .. } => "space",
     }
 }
 

@@ -3140,19 +3140,16 @@ class TestTeapot(unittest.TestCase):
         # better handle than a segment index: the name asks for the end
         # rather than for a position in a meridian a re-order could
         # move. Both are annuli, because the sections are. Read at the
-        # placement, which names the copy's caps under itself: each is
-        # the loft's cap name worn under `Placed`.
-        def one_cap(node, end, placed=False):
+        # placement, whose copy carries the loft's cap names verbatim.
+        def one_cap(node, end):
             cap = NamePat.of_kind(EntityKind.Face).seg(SegPat.tag(SegTag.Cap).side(end))
-            if placed:
-                cap = NamePat.of_kind(EntityKind.Face).seg(SegPat.tag(SegTag.Placed).of([cap]))
             found = ev.select(node, Selector.of(cap))
             self.assertEqual(len(found), 1, "a loft has exactly one cap per end")
             return found[0]
 
         root, tip = one_cap(spout_body, CapEnd.Start), one_cap(spout_body, CapEnd.End)
-        placed_root = one_cap(spout, CapEnd.Start, placed=True)
-        placed_tip = one_cap(spout, CapEnd.End, placed=True)
+        placed_root = one_cap(spout, CapEnd.Start)
+        placed_tip = one_cap(spout, CapEnd.End)
         # The loft's own coordinates are its first section's; the
         # scene's view of the unplaced spout is `to_spout_frame` of them.
         before = self.to_spout_frame(ev.face_frame(spout_body, tip).origin)
@@ -3306,21 +3303,22 @@ class TestTeapot(unittest.TestCase):
         )
 
         # spout union vessel: PAST the pair rung, because a loft's
-        # walls are Nurbs and that arm exists — and dead in the sweep,
-        # which meets the belly's revolve seam (a meridian, where the
-        # spout leaves the belly) with one of the spout's NURBS walls
-        # and has no crossing layer for a spline face. Making the spout the shape a potter draws did not make
-        # it joinable; it moved the refusal off a pair nobody modelled
-        # and onto the meeting itself.
+        # walls are Nurbs and that arm exists — and dead where the
+        # spout leaves the belly: a spline (NURBS) edge of the spout
+        # has to be split where the solids meet, and the Boolean
+        # cannot yet find a point's parameter on a spline (SPLICE's
+        # `a-meeting-on-a-spline-boundary-edge-has-no-split-parameter`).
+        # Making the spout the shape a potter draws did not make it
+        # joinable; it moved the refusal off a pair nobody modelled
+        # and onto the meeting itself. Pinned by the refusal's arm, not
+        # a sentence of its text.
         self.assertFalse(ev.succeeded(spout_join))
         with self.assertRaises(EvaluationError) as caught:
             ev.value(spout_join)
         refusal = caught.exception
         self.assertEqual(refusal.kind, "boolean")
+        self.assertEqual(refusal.inner_kind, "point_split_carrier_unsupported")
         text = str(refusal)
-        self.assertIn(
-            "cannot yet work out where one solid's spline (NURBS) face meets", text
-        )
         # NOT the pair rung any more, and this is the half that would
         # go quietly wrong if it were only asserted positively.
         self.assertNotIn("may meet", text)
@@ -3990,10 +3988,14 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         # `mate` is no node: a mate is the `Mate` value a bundle holds
         # (INTENT stage 3). The positive form is
         # `tests/test_world_pins.py`.
+        #
+        # `assemble` JOINED it at D′3: the `⊔`, the fourth operator,
+        # whose result the product slot reads (`Doc.set_product`). The
+        # positive form is `tests/test_assembly_author.py`.
         self.assertEqual(
             sorted(n for n in dir(Node) if not n.startswith("_")),
             [
-                "assertion", "chamfer",
+                "assemble", "assertion", "chamfer",
                 "extrude", "fillet", "hollow_tube", "instantiate_part",
                 "intersect", "loft", "measure", "mirror", "part", "pattern",
                 "place", "placed_union", "placed_union_at",
@@ -4256,7 +4258,11 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         self.assertEqual(len(ev.all_vertices(cube)), 8)
         self.assertEqual(len(ev.all_bodies(cube)), 1)
 
-        pip = slab(doc, (0.4, 0.6), (0.4, 0.6), (0.9, 1.2), on=cube)
+        # The pip's own body, and its copy placed on the cube: a copy
+        # carries its source's names verbatim, so the pip's names are
+        # the ones its extrude minted.
+        pip_body = slab(doc, (0.4, 0.6), (0.4, 0.6), (0.9, 1.2))
+        pip = against(doc, cube, pip_body, 0.9)
         pipped = doc.insert(Node.subtract(cube, pip))
         ev = evaluate(doc)
         every_edge = ev.all_edges(pipped)
@@ -4270,14 +4276,14 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         self.assertEqual(ev.select_where(pipped, edges, []), every_edge)
 
         # Structural narrowing: the pocket's own edges came in through
-        # the subtraction's tool — names whose carried-in name `pip`
-        # minted — its 4 floor edges whole, and
+        # the subtraction's tool — names whose carried-in name the
+        # pip's extrude minted — its 4 floor edges whole, and
         # its 4 wall edges, each cut by the cap and kept as its one
         # piece below it, named by its ends. The 4 edges of the OPENING
         # are `Seam` (minted where the cap crosses a pocket wall,
         # belonging to neither operand alone), and the cube kept its
         # 12: 8 + 4 + 12 = 24.
-        from_tool = SegPat.tag(SegTag.From).of([NamePat.any().node(pip)])
+        from_tool = SegPat.tag(SegTag.From).of([NamePat.any().node(pip_body)])
         from_b = Selector.of(NamePat.of_kind(EntityKind.Edge).seg(from_tool))
         pocket = ev.select(pipped, from_b)
         self.assertEqual(len(pocket), 4)

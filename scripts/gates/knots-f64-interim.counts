@@ -2,7 +2,10 @@
 # A ratchet: lower a count when a slice moves readers; S5 deletes this file.
 crates/editor-core 5
 crates/geom 212
-crates/geom-brep 219
+# geom-brep 219 -> 221: curve_face/composite.rs's composite_rows reads a
+# spline span's knots and weights for CurveCertData, the spline × analytic
+# face crossing arm's ring composite (SPLICE, PR 5789).
+crates/geom-brep 221
 crates/geom-core 18
 crates/mesh 37
 crates/step-export 9

@@ -275,7 +275,9 @@ fn three_prime(
                 CensusContact::EdgeFaceOverlap { edge, .. } => along || on_ray(edge),
                 _ => false,
             },
-            ValidationError::CensusUndecidable { a, b, what: class } => {
+            ValidationError::CensusUndecidable {
+                a, b, what: class, ..
+            } => {
                 (class.starts_with("one passes into the other where they touch")
                     || class.starts_with(SLIT_TOUCH))
                     && touches_meet(a)

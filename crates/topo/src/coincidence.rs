@@ -1,9 +1,9 @@
 //! **The coincidence record** (D10): every coincidence an operation
 //! decides from values, one row per decision, in decision order.
 //!
-//! A row says which two cells were decided one, what relation was
-//! decided between them, at which decision, and the margin that
-//! decision read. It records; it proves nothing. Whether a row holds
+//! A row says which cells were decided one (two, or a meeting's
+//! three), what relation was decided between them, at which decision,
+//! and the margin that decision read. It records; it proves nothing. Whether a row holds
 //! across the family is decided at the document's one door
 //! (`editor-core`'s `coincide::prove`), which the `unproven-coincidence`
 //! lint reads.
@@ -71,7 +71,8 @@ impl RowCell {
     }
 }
 
-/// What was decided between a row's two cells.
+/// What was decided between a row's cells: two, or a
+/// [`Relation::Meet`]'s three.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Relation {
     /// One carrier, the two outward sides aligned: a continuation.
@@ -223,6 +224,11 @@ pub struct Coincidence {
     /// The two cells decided one, in the order the decision read them;
     /// a [`Relation::Meet`]'s sorted.
     pub cells: [RowCell; 2],
+    /// A [`Relation::Meet`]'s third cell: the face a ring tie's two
+    /// pierces pierced, which their decision was taken against, where
+    /// neither pierce is a vertex of its input. Sorted after `cells`;
+    /// `None` on every other row.
+    pub third: Option<RowCell>,
     /// What was decided between them.
     pub relation: Relation,
     /// Where it was decided.
@@ -235,6 +241,12 @@ pub struct Coincidence {
 }
 
 impl Coincidence {
+    /// Every cell of the row: `cells`, then `third` where it has one.
+    #[must_use = "the cells are only read through the iterator"]
+    pub fn every_cell(&self) -> impl Iterator<Item = RowCell> {
+        self.cells.into_iter().chain(self.third)
+    }
+
     /// The row's A-operand face and B-operand face, where it decided
     /// one face of each operand a carrier pair, in that order; `None`
     /// for any other pair of cells, and for a [`Relation::Meet`], which

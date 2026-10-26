@@ -173,8 +173,8 @@ fn a_refused_a5_gate_eats_the_body_and_says_so_by_its_absence() {
     let bench = common::asm::bench("landed-body-refused-gate", tol);
     let mut session = common::asm::open_bench(&bench, tol);
     // The two posts seated side by side under the shelf, three ε apart:
-    // inside the sliver band, so the census cannot say whether they
-    // touch, and the gate refuses.
+    // inside the sliver band, so the census cannot look at the faces
+    // they stand off over, and the gate refuses.
     let middle = common::asm::SHELF_LENGTH / 2.0;
     let beside = middle + common::asm::POST_SECTION + 3.0 * tol.eps();
     for (post, at) in [(bench.post_a, middle), (bench.post_b, beside)] {
@@ -188,9 +188,9 @@ fn a_refused_a5_gate_eats_the_body_and_says_so_by_its_absence() {
         matches!(
             session.at_rest(),
             Some(AtRestBadge::Refused { message })
-                if message.contains("whether two parts of the body touch is undecided")
+                if message.contains("whether they lie on one plane is within the tolerance band")
         ),
-        "this row's premise is a gate refused on the census escalating in the band: {:?}",
+        "this row's premise is a gate refused on an in-band face pair: {:?}",
         session.at_rest()
     );
 
@@ -251,19 +251,19 @@ fn a_gather_refusal_lands_with_a_fault_and_no_report() {
     assert!(session.at_rest().is_none(), "a part has no A5 badge");
 }
 
-/// **A4 — a gather refusal the empty-world reading does not claim
+/// **A4 — a gather refusal the empty-product reading does not claim
 /// lands with no report.**
 ///
 /// The row above uses a document whose placed body FAILED, and the
 /// registry refuses that on its own precondition — so it cannot see
 /// whether the landing's `EmptyProduct` filter is doing anything at
-/// all. This one can: the placed extrude is deleted, the delete is
-/// accepted and strands its placement (D10), and the gather refuses
-/// `StrandedPlacement` before it reads any value (spec §9 row 10).
-/// Widen the filter to `true` and this row goes red where the other
-/// stays green.
+/// all. This one can: the product's placement is deleted, the delete
+/// is accepted and strands the product slot's read (D10), and the
+/// gather refuses `StrandedProduct` before it reads any value. Widen
+/// the filter to `true` and this row goes red where the other stays
+/// green.
 #[test]
-fn a_stranded_placement_lands_with_a_fault_and_no_report() {
+fn a_stranded_product_lands_with_a_fault_and_no_report() {
     let tol = Tol::witness();
     let doc: Doc<ProfileProgram> = Doc::empty_derived("docm5-stranded-landing", tol);
     let (doc, profile) = common::inserted(&doc, common::square(0.02), tol);
@@ -276,9 +276,10 @@ fn a_stranded_placement_lands_with_a_fault_and_no_report() {
         tol,
     );
     let (doc, placement) = common::placed(&doc, extrude, tol);
+    let copy = doc.output(placement, 0).expect("the placement's copy");
     let (doc, _) = common::edited(
         &doc,
-        pncad::document::DocEdit::DeleteNode { id: extrude },
+        pncad::document::DocEdit::DeleteNode { id: placement },
         tol,
     );
 
@@ -289,9 +290,9 @@ fn a_stranded_placement_lands_with_a_fault_and_no_report() {
     assert!(
         matches!(
             session.product_fault(),
-            Some(ProductError::StrandedPlacement { placement: stranded }) if *stranded == placement
+            Some(ProductError::StrandedProduct { read }) if *read == copy
         ),
-        "the premise: the gather refuses naming the stranded placement: {:?}",
+        "the premise: the gather refuses naming the stranded read: {:?}",
         session.product_fault()
     );
     assert!(
@@ -299,15 +300,8 @@ fn a_stranded_placement_lands_with_a_fault_and_no_report() {
         "the registry has no subject and says so by reporting nothing"
     );
     assert!(
-        viewer::frame::product_badge(session.product_fault(), session.committed_doc()).is_none(),
-        "the placement's own row is the channel, not the frame"
-    );
-    assert!(
-        matches!(
-            common::status_of(&session.tree_rows(), placement),
-            RowStatus::Failed { .. }
-        ),
-        "and the tree draws that row failed, on its unresolved read"
+        viewer::frame::product_badge(session.product_fault(), session.committed_doc()).is_some(),
+        "no row holds the read, so the frame is the channel"
     );
     assert!(session.at_rest().is_none(), "a part has no A5 badge");
 }
@@ -327,10 +321,7 @@ fn a_document_with_no_body_lands_a_clean_report() {
 
     assert_eq!(gathers_of_one_landing(&mut session), 1);
     assert!(
-        matches!(
-            session.product_fault(),
-            Some(ProductError::EmptyProduct { unplaced, .. }) if unplaced.is_empty()
-        ),
+        matches!(session.product_fault(), Some(ProductError::EmptyProduct)),
         "the gather's own answer: {:?}",
         session.product_fault()
     );
@@ -365,7 +356,7 @@ fn a_body_less_assembly_takes_no_at_rest_badge() {
     let mut asm = ProfileDoc::empty(DocumentId::derive("body-less-assembly"), tol);
     let post = common::insert_into(&mut asm, crate::fixture::mated_instance(bench.post), tol);
     let mut asm = crate::fixture::into_new_space(asm, post).0;
-    let top = common::asm::in_part(post, &bench.post_top);
+    let top = bench.post_top.clone();
     common::insert_into(
         &mut asm,
         Node::measure(&MeasurePrimitive::Distance {
@@ -384,10 +375,7 @@ fn a_body_less_assembly_takes_no_at_rest_badge() {
     session.pump();
 
     assert!(
-        matches!(
-            session.product_fault(),
-            Some(ProductError::EmptyProduct { unplaced, .. }) if unplaced.is_empty()
-        ),
+        matches!(session.product_fault(), Some(ProductError::EmptyProduct)),
         "the premise: nothing is placed into the world: {:?}",
         session.product_fault()
     );
@@ -493,18 +481,33 @@ fn every_site_of_the_gather_counter_carries_the_debug_gate() {
     let source = test_utils::source::code_only(include_str!("../../editor-core/src/product.rs"));
     let gated = [
         "#[cfg(debug_assertions)]\nthread_local! {\n    static GATHERS",
-        "#[cfg(debug_assertions)]\n    GATHERS.with(",
         "#[cfg(debug_assertions)]\n#[must_use]\npub fn gathers_on_this_thread",
     ];
     for anchor in gated {
         assert!(
             source.contains(anchor),
-            "the counter's three sites are each behind the gate; missing: {anchor}"
+            "the cell and the reader are each behind the gate; missing: {anchor}"
         );
     }
+    // The increments: the gather's own, a door's census (each `⊔`'s,
+    // run once where it is first asked for), and the product door's
+    // where the slot reads nothing and no gather runs. Each at its own
+    // indentation, so counted line by line.
+    let lines: Vec<&str> = source.lines().collect();
+    let increments = lines
+        .windows(2)
+        .filter(|pair| {
+            pair[0].trim() == "#[cfg(debug_assertions)]"
+                && pair[1].trim_start().starts_with("GATHERS.with(")
+        })
+        .count();
+    assert_eq!(
+        increments, 3,
+        "the three increments are each behind the gate"
+    );
     assert_eq!(
         source.matches("GATHERS").count(),
-        gated.len(),
-        "and there is no fourth site the gate does not cover"
+        gated.len() + increments,
+        "and there is no site the gate does not cover"
     );
 }

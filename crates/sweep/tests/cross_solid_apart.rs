@@ -70,6 +70,7 @@ fn refuses_curved_within_reach(body: &AtRestBody<f64>, errs: &[ValidationError])
             a: EntityId::Face(a),
             b: EntityId::Face(b),
             what,
+            ..
         } => what.contains(CURVED_WITHIN_REACH) && body.solid_of_face(*a) != body.solid_of_face(*b),
         _ => false,
     })
@@ -143,6 +144,7 @@ fn a_rod_crossing_its_bore_refuses_its_caps() {
             a: EntityId::Face(a),
             b: EntityId::Face(b),
             what,
+            ..
         } => {
             what.contains(CURVED_WITHIN_REACH)
                 && ((plane(*a) && cylinder(*b)) || (cylinder(*a) && plane(*b)))
@@ -364,6 +366,7 @@ fn a_rod_wider_than_an_elliptical_rim_refuses_on_the_plate() {
             a: EntityId::Face(a),
             b: EntityId::Face(b),
             what,
+            ..
         } => {
             what.contains(CURVED_WITHIN_REACH)
                 && (top(*a) || top(*b))

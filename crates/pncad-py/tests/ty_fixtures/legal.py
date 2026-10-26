@@ -568,7 +568,10 @@ space_node: Node = Node.space()
 in_space: Var | None = doc.space(instance)
 repinned: DocEdit = DocEdit.update_reference(instance, pin)
 placed: NodeId = doc.place(sideways, doc.world, gesture, label="the post")
-twice: NodeId = doc.place([sideways, sideways], doc.world)
+pair: NodeId = doc.assemble([sideways, sideways])
+twice: NodeId = doc.place(pair, doc.world)
+doc.set_product(placed)
+the_product: Var | None = doc.product
 world: list[NodeId] = doc.placements()
 the_world: NodeId = doc.world
 held: list[tuple[MateRef, Mate | MateValue]] = doc.bundle(placed)

@@ -22,7 +22,14 @@
 //! - the loft prism (`sweep::test_support::loft_prism`): four NURBS
 //!   walls, two planar caps, NURBS seams, `V = 9 m³` exactly;
 //! - the lofted cylinder (`lofted_cylinder`): rational NURBS walls and
-//!   seams, `V = π·h`;
+//!   seams, `V = π·h`.
+//!
+//!   Each builds every op against a brick far off and a brick around it.
+//!   Its spline edges are boxed by their control nets and cross no face
+//!   of the brick, its NURBS faces' boxes meet none of the brick's, and
+//!   each vertex of the brick stands past every face of it, so the
+//!   containment fallback reads each side. A brick inside it, or cutting
+//!   it, refuses typed at a later site;
 //! - the vessel's cavity (`common::torus_walls::vessel_cavity`), a
 //!   quarter of the revolved vessel about `ŷ`: a neck cylinder under a
 //!   mouth plane, a torus band whose two rims on the quarter's cut
@@ -172,6 +179,18 @@ fn names_its_own_face(e: &BooleanError, [a, b]: [&AtRestBody<f64>; 2]) -> Result
             ) && owned(face_of, face),
             format!("{edge:?} of {operand:?} against {face:?} of {face_of:?}"),
         ),
+        BooleanError::SplineCrossingUnsettled {
+            operand,
+            edge,
+            face,
+            face_of,
+            ..
+        } => check(
+            topo::query::edge_carrier_kind(body(operand), edge)
+                == Some(topo::query::CurveKind::Nurbs)
+                && owned(face_of, face),
+            format!("{edge:?} of {operand:?} against {face:?} of {face_of:?}"),
+        ),
         _ => Ok(()),
     }
 }
@@ -310,8 +329,8 @@ fn loft_prism_census() -> Vec<String> {
         "loft prism",
         &prism,
         &[
-            far(((5.0, 6.0), (5.0, 6.0), (5.0, 6.0)), 9.0, false),
-            around(((-3.0, 3.0), (-3.0, 3.0), (-1.0, 3.0)), 9.0, false),
+            far(((5.0, 6.0), (5.0, 6.0), (5.0, 6.0)), 9.0, true),
+            around(((-3.0, 3.0), (-3.0, 3.0), (-1.0, 3.0)), 9.0, true),
             inside(((-0.5, 0.5), (-0.5, 0.5), (0.5, 1.5)), 9.0, false),
             cut(
                 "slab through the walls",
@@ -336,8 +355,8 @@ fn lofted_cylinder_census() -> Vec<String> {
         "lofted cylinder",
         &cylinder,
         &[
-            far(((5.0, 6.0), (5.0, 6.0), (5.0, 6.0)), v, false),
-            around(((-2.0, 2.0), (-2.0, 2.0), (-1.0, 3.0)), v, false),
+            far(((5.0, 6.0), (5.0, 6.0), (5.0, 6.0)), v, true),
+            around(((-2.0, 2.0), (-2.0, 2.0), (-1.0, 3.0)), v, true),
             inside(((-0.5, 0.5), (-0.5, 0.5), (0.5, 1.5)), v, false),
             cut(
                 "slab through the wall",

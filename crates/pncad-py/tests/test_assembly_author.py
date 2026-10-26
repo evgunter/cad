@@ -124,7 +124,7 @@ from pncad import (
     solve_document,
 )
 
-from placing import against, moves, placed
+from placing import against, moves, placed, assemble_world_copies
 from measuring import pinned
 
 
@@ -217,7 +217,7 @@ class TestBenchLayout(BenchWorkspace):
                 doc, family, _, _ = self.layout(posts)
                 ev = evaluate(doc, resolver=self.ws)
                 caps = ev.select(
-                    family, cap_selector(CapEnd.End, [SegTag.Instance, *PART_FACE])
+                    family, cap_selector(CapEnd.End, [SegTag.Instance])
                 )
                 # One per placement, and the name NESTS rather than
                 # concatenating: pattern index, then instance, then
@@ -230,6 +230,7 @@ class TestBenchLayout(BenchWorkspace):
         for name, posts in SPELLINGS.items():
             with self.subTest(posts=name):
                 doc, _, _, _ = self.layout(posts)
+                assemble_world_copies(doc)
                 assembly = assemble(doc, evaluate(doc, resolver=self.ws))
                 # Nothing touches, so the kernel's at-rest door passes
                 # with nothing recorded. That is exactly what "disjoint
@@ -304,7 +305,7 @@ class TestBenchLayout(BenchWorkspace):
         first = doc.insert(Node.part(family, pncad.PartSelect.instance(Formula.count(0))))
         shelf_i = doc.insert(Node.instantiate_part(self.shelf_ref, doc.world))
         ev = evaluate(doc, resolver=self.ws)
-        cap = one(ev.select(first, cap_selector(CapEnd.End, [SegTag.Instance, *PART_FACE])))
+        cap = one(ev.select(first, cap_selector(CapEnd.End, [SegTag.Instance])))
         bottom = one(ev.select(shelf_i, cap_selector(CapEnd.Start, PART_FACE)))
         joint, values = rest(
             doc, shelf_i, (shelf_i, bottom), (first, cap), SHELF_ON_POST
@@ -340,7 +341,7 @@ class TestBenchLayout(BenchWorkspace):
         # on the copy its one placement puts in its world.
         part_ev = evaluate(self.post)
         (placed,) = self.post.placements()
-        part_cap = one(part_ev.select(placed, cap_selector(CapEnd.End, [SegTag.Placed])))
+        part_cap = one(part_ev.select(placed, cap_selector(CapEnd.End)))
         local = part_ev.face_frame(placed, part_cap).origin
 
         for name, posts in SPELLINGS.items():
@@ -377,7 +378,7 @@ class TestBenchLayout(BenchWorkspace):
                 ]
 
                 caps = ev.select(
-                    family, cap_selector(CapEnd.End, [SegTag.Instance, *PART_FACE])
+                    family, cap_selector(CapEnd.End, [SegTag.Instance])
                 )
                 read = sorted(
                     tuple(c.meters for c in ev.face_frame(family, cap).origin)
@@ -409,7 +410,7 @@ class TestBenchLayout(BenchWorkspace):
                 doc, family, _, _ = self.layout(posts)
                 ev = evaluate(doc, resolver=self.ws)
                 caps = ev.select(
-                    family, cap_selector(CapEnd.End, [SegTag.Instance, *PART_FACE])
+                    family, cap_selector(CapEnd.End, [SegTag.Instance])
                 )
                 for cap in caps:
                     denotation = ev.denotation(family, cap)
@@ -687,6 +688,7 @@ class TestBenchStand(BenchWorkspace):
 
     def test_the_flush_seated_stand_certifies_at_the_at_rest_gate(self):
         doc, _, _ = self.stand()
+        assemble_world_copies(doc)
         assembly = assemble(doc, evaluate(doc, resolver=self.ws))
         self.assertAlmostEqual(
             pinned(assembly.body).volume,
@@ -960,10 +962,12 @@ class TestAssemblyRefusals(BenchWorkspace):
         # refuses with the gather's own tag, not a wrapper's, because
         # which invariant broke is what a caller branches on.
         with self.assertRaises(pncad.AssemblyError) as caught:
+            assemble_world_copies(doc)
             assemble(doc, evaluate(doc))
         self.assertEqual(caught.exception.variant, "root_failed")
         self.assertIsNotNone(caught.exception.node)
         with self.assertRaises(pncad.ProductError) as gather:
+            assemble_world_copies(doc)
             product(doc, evaluate(doc))
         self.assertEqual(gather.exception.variant, "root_failed")
 
@@ -971,6 +975,7 @@ class TestAssemblyRefusals(BenchWorkspace):
         doc = Doc("no-resolver-labelled")
         lonely = self.pinned(doc, self.post_ref)
         doc.apply(DocEdit.set_label(lonely, "lonely post"))
+        doc.set_product(lonely)
         ev = evaluate(doc)
         # The placement failed, and the message says it as the
         # evaluation's document holds it, label and all; said by tag it
@@ -1193,6 +1198,7 @@ class TestRefactorings(BenchWorkspace):
         doc = Doc("refactor-me")
         post_i = self.pinned(doc, self.post_ref)
         shelf_i = self.pinned(doc, self.shelf_ref, Frame.translation((0 * m, 0.9 * m, 0 * m)))
+        assemble_world_copies(doc)
         return doc, post_i, shelf_i
 
     def volume(self, doc):
@@ -1208,7 +1214,11 @@ class TestRefactorings(BenchWorkspace):
             cut.append(self.pinned(doc, self.post_ref, Frame.translation((i * m, 0 * m, 0 * m))))
         outcome = pncad.split(doc, cut, random_document_id(), resolver=self.ws)
         self.assertEqual([a for a, _ in outcome.node_map], cut)
-        self.assertEqual([b for _, b in outcome.node_map], outcome.part.order())
+        # The part's product is the `⊔` of its six copies, a node of the
+        # part's own that no cut node maps to, last.
+        (*carried, assembled) = outcome.part.order()
+        self.assertEqual(outcome.part.node_kind(assembled), "assemble")
+        self.assertEqual([b for _, b in outcome.node_map], carried)
 
         self.ws.create(outcome.part)
         spliced = pncad.inline(outcome.remainder, outcome.instance, self.ws)
@@ -1318,8 +1328,9 @@ class TestRefactorings(BenchWorkspace):
 
 
 class TestTheWorld(BenchWorkspace):
-    """`place` and `product`: a document's product is its world, every
-    copy a placement defines, and nothing places but `place`."""
+    """`place`, `set_product` and `product`: a document's product is the
+    body its product slot reads, and nothing sets it but `set_product`
+    — no placement joins it by being placed."""
 
     def volume(self, doc):
         return pinned(product(doc, evaluate(doc, resolver=self.ws))).volume
@@ -1337,59 +1348,70 @@ class TestTheWorld(BenchWorkspace):
         )
         return doc.insert(Node.extrude(profile, Formula.length_in(1, m)))
 
-    def test_the_placements_say_what_the_product_gathers_and_in_what_order(self):
+    def test_the_slot_says_what_the_product_is_and_in_what_order(self):
         doc = Doc("world")
         a = self.block(doc, 0.0)
         b = self.block(doc, 3.0)
-        # Nothing is placed by an insert, so the world is empty and the
-        # refusal names every unplaced body, in document order.
+        # Nothing is placed by an insert, and nothing is the product
+        # until the slot reads it.
         self.assertEqual(doc.placements(), [])
+        self.assertIsNone(doc.product)
         with self.assertRaises(pncad.ProductError) as empty:
             product(doc, evaluate(doc))
         self.assertEqual(empty.exception.variant, "empty_product")
-        self.assertEqual(empty.exception.unplaced_bodies, [doc.output(a), doc.output(b)])
         self.assertIsNone(empty.exception.node)
-        # The world is the placements in document order, whatever the
-        # order of the bodies they read.
+        # Placed, the copies are still no product: the slot reads the
+        # `⊔` of them, in its members' order.
         on_b = doc.place(b, doc.world)
         on_a = doc.place(a, doc.world)
         self.assertEqual(doc.placements(), [on_b, on_a])
         self.assertEqual(doc.node_kind(on_b), "place")
+        with self.assertRaises(pncad.ProductError):
+            product(doc, evaluate(doc))
+        both = doc.assemble([on_b, on_a])
+        self.assertEqual(doc.node_kind(both), "assemble")
+        doc.set_product(both)
+        self.assertEqual(doc.product, doc.output(both))
         self.assertEqual(self.volume(doc), 2.0)
 
     def test_an_instance_is_a_placement(self):
-        """An instance IS a placement: its part's world, moved by its
-        bundle — placed into the world, it is in the product with no
-        `place` of its own; placed into a space of its own, it is
-        not."""
+        """An instance IS a placement: its part's product, moved by its
+        bundle. Placed into the world, the slot can read it; placed
+        into a space of its own, it cannot."""
         doc = Doc("world-instances")
         post_i = self.pinned(doc, self.post_ref)
         aside = doc.new_space()
         shelf_i = doc.insert(Node.instantiate_part(self.shelf_ref, aside))
         self.assertEqual(doc.placements(), [post_i, shelf_i])
+        doc.set_product(post_i)
         self.assertAlmostEqual(self.volume(doc), POST_VOLUME, delta=1e-12)
         self.assertEqual(doc.space(shelf_i), doc.output(aside))
         self.assertNotEqual(doc.space(post_i), doc.space(shelf_i))
+        with self.assertRaises(pncad.EditError) as caught:
+            doc.set_product(shelf_i)
+        self.assertEqual(caught.exception.variant, "product_read")
+        self.assertEqual(doc.product, doc.output(post_i), "the refused edit changed nothing")
 
-    def test_a_placement_whose_body_is_deleted_strands_and_refuses_naming_it(self):
+    def test_a_product_whose_body_is_deleted_strands_and_refuses_naming_it(self):
         doc = Doc("world-stranded")
         body = self.block(doc, 0.0)
         placed = doc.place(body, doc.world)
-        # The delete is accepted: the placement is a reader left
-        # reading nothing, never silently re-pointed or dropped.
-        doc.apply(DocEdit.delete_node(body))
-        self.assertEqual(doc.placements(), [placed])
+        doc.set_product(placed)
+        # The delete is accepted: the placement and the slot are
+        # readers left reading nothing, never silently re-pointed or
+        # dropped.
+        doc.apply(DocEdit.delete_node(placed))
+        self.assertEqual(doc.placements(), [])
         with self.assertRaises(pncad.ProductError) as caught:
             product(doc, evaluate(doc))
-        self.assertEqual(caught.exception.variant, "stranded_placement")
-        self.assertEqual(caught.exception.node, placed)
-        self.assertIsNone(caught.exception.unplaced_bodies)
+        self.assertEqual(caught.exception.variant, "stranded_product")
+        self.assertEqual(caught.exception.read, doc.product)
+        self.assertIsNone(caught.exception.node)
 
-    def test_a_boolean_inserted_without_place_leaves_the_world_as_it_was(self):
-        """Nothing places as a side effect: a cut of two placed bodies
-        is a new body nobody placed, so the product is still the two
-        copies — the same door `DocEdit::place` is for the Rust
-        façade, with the same answer."""
+    def test_a_boolean_inserted_leaves_the_product_as_it_was(self):
+        """Nothing sets the product as a side effect: a cut of two
+        placed bodies is a new body the slot does not read, so the
+        product is still the two copies until the slot is set again."""
         doc = Doc("world-no-side-effect")
 
         def block(x0):
@@ -1406,28 +1428,28 @@ class TestTheWorld(BenchWorkspace):
             return doc.insert(Node.extrude(profile, Formula.length_in(1, m)))
 
         a, b = block(0.0), block(3.0)
-        doc.place(a, doc.world)
-        doc.place(b, doc.world)
+        copies = [doc.place(a, doc.world), doc.place(b, doc.world)]
+        doc.set_product(doc.assemble(copies))
         # The cut reads `b` in `a`'s coordinates, through a copy placed
         # against `a` where it was drawn.
         tool = against(doc, a, b, Frame.translation((0 * m, 0 * m, 0 * m)))
-        placed = doc.placements()
         cut = doc.insert(Node.subtract(a, tool))
-        self.assertEqual(doc.placements(), placed, "the boolean is not placed")
-        self.assertEqual(self.volume(doc), 2.0, "the world is still [a', b']")
-        # Placing it is what puts it in the world, beside the two.
-        doc.place(cut, doc.world)
+        self.assertEqual(self.volume(doc), 2.0, "the product is still a' ⊔ b'")
+        # The slot reading a `⊔` with the cut's copy beside the two is
+        # what puts it in the product.
+        doc.set_product(doc.assemble([*copies, doc.place(cut, doc.world)]))
         self.assertEqual(self.volume(doc), 3.0)
 
     def test_two_placements_of_one_body_are_two_copies(self):
         doc = Doc("world-two-copies")
         body = self.block(doc, 0.0)
-        doc.place(body, doc.world)
-        placed(doc, body, Frame.translation((2 * m, 0 * m, 0 * m)))
+        first = doc.place(body, doc.world)
+        second = placed(doc, body, Frame.translation((2 * m, 0 * m, 0 * m)))
         self.assertEqual(len(doc.placements()), 2)
+        doc.set_product(doc.assemble([first, second]))
         self.assertEqual(self.volume(doc), 2.0)
 
-    def test_a_document_with_no_body_has_an_empty_world(self):
+    def test_a_document_with_no_product_refuses_the_gather(self):
         doc = Doc("sketch-only")
         doc.insert(Node.polygon([
             (Formula.length_in(0, m), Formula.length_in(0, m)),
@@ -1437,7 +1459,6 @@ class TestTheWorld(BenchWorkspace):
         with self.assertRaises(pncad.ProductError) as caught:
             product(doc, evaluate(doc))
         self.assertEqual(caught.exception.variant, "empty_product")
-        self.assertEqual(caught.exception.unplaced_bodies, [], "a profile is no body to place")
 
 
 class TestNestedAcrossTheSeam(BenchWorkspace):
@@ -1474,6 +1495,7 @@ class TestNestedAcrossTheSeam(BenchWorkspace):
                 MateValue(Coord.spin("z"), 0),
             ],
         )
+        assemble_world_copies(doc)
         self.ws.create(doc)
         return DocRef(doc.id, content_pin(doc))
 
@@ -1482,6 +1504,7 @@ class TestNestedAcrossTheSeam(BenchWorkspace):
         outer = Doc("nested-stands-outer")
         self.pinned(outer, ref)
         self.pinned(outer, ref, Frame.translation((5 * m, 0 * m, 0 * m)))
+        assemble_world_copies(outer)
         assembly = assemble(outer, evaluate(outer, resolver=self.ws))
         self.assertGreater(len(assembly.names), 0)
 
@@ -1594,28 +1617,15 @@ class TestAPoseFollowsItsFace(BenchWorkspace):
         self.assertNotEqual(plus, MateValue(Coord.slide("y"), 0.1 * m))
 
     def test_a_vanished_face_refuses_where_the_placement_evaluates(self):
-        # The post's own cap, wrapped at the instance as a selection is,
-        # with the part-local name innermost — inside the copy the
-        # post's placement makes of it — re-headed at a node the post
-        # does not have: the shape of a name whose face an edit removed.
+        # The post's own cap, as the instance's copy carries it verbatim,
+        # re-headed at a node the post does not have: the shape of a
+        # name whose face an edit removed.
         import json
 
         probe = Doc("from-face-vanished-probe")
         probe_i = self.pinned(probe, self.post_ref)
         spelled = json.loads(self.instance_face(probe, probe_i, CapEnd.End))
-
-        def inner_names(value, depth=0):
-            if isinstance(value, dict):
-                if depth > 0 and "node" in value:
-                    yield value
-                for child in value.values():
-                    yield from inner_names(child, depth + 1)
-            elif isinstance(value, list):
-                for child in value:
-                    yield from inner_names(child, depth + 1)
-
-        (_copy, local) = list(inner_names(spelled))
-        local["node"] = "0:0000000000000063"
+        spelled["node"] = "0:0000000000000063"
         # The door is structural, so the mate is admitted; the pose it
         # reads does not evaluate, which is the placement's refusal.
         doc, _, shelf_i, mate, _ = self.seated(

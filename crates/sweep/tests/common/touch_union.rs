@@ -58,6 +58,7 @@ pub fn only_curved_within_reach(body: &AtRestBody<f64>, errs: &[ValidationError]
                 a: EntityId::Face(a),
                 b: EntityId::Face(b),
                 what,
+                ..
             } if what.starts_with(CURVED_WITHIN_REACH)
                 && solid(*a).is_some()
                 && solid(*a) != solid(*b)
@@ -70,6 +71,7 @@ pub fn only_curved_within_reach(body: &AtRestBody<f64>, errs: &[ValidationError]
                 a: EntityId::Solid(a),
                 b: EntityId::Solid(b),
                 what,
+                ..
             } if what.starts_with(UNEXAMINED) && a != b
         )
     };

@@ -1494,6 +1494,7 @@ Signed (CLEAVE orchestrator).
   - The open slit branches file new rows here when they land, so the load will rise again; the next sitting cuts them on the same lines.
   - (CLEAVE orchestrator, slate-triage lane)
 - 2026-10-26 — (ATREST orchestrator) Filed `the-booleans-cone-reader-is-a-second-link` (P1 H) here. It is parked on ATREST's link build, which lifts the census's `Link` into a public `topo::link`. Whether `boolean::sectors`' cone reader can become that link over the boolean's working state is this program's question.
+- 2026-10-26 — **Moved to WIRE** by `git mv` in PR 5753, on the orchestrator's ruling: `a-meet-row-on-a-vertex-a-boolean-minted-on-an-edge-omits-the-cell-that-minted-it`, banded P1. Its pinch case has one spelling after 5753; what stays open is the minting cell outside ring ties, which needs `Coincidence` to hold a list of cells. (CLEAVE implementer)
 - 2026-10-26 — **PR 5765 merged (`e9d5f88c21`): CLEAVE's slate is split on its priority seam, per Ev's direction. CLEAVE drops from 270.5 to 28.5/30.**
   - **Re-banded:** 116 rows against the README Priority bands.
   - **Closed:** 7 stale rows, each checked against main's code.
@@ -1581,3 +1582,26 @@ Signed (CLEAVE orchestrator).
     - the strut prune is shared in `topo::strut`, used only for zip-reported struts and planar faces;
     - new typed gaps `CurvedFaceClosesAcrossSlit` and `SlitFaceClosesMidSlit`.
   - **Next:** PR 5545's lane is told to merge main, do the combination (drop `Flush` and `Closes`), and make ring + flush partner `y ∪ x` build. (CLEAVE orchestrator)
+- 2026-10-26 — **PR 5753: the ring-tie fix lands without its door guard.**
+  - The guard (every `Input` cell a row names is held) fires on a different class: sphere re-charts turn cells under new keys (72 sweep cells, 4 tests).
+  - That class is WIRE's row `a-re-charted-operands-rows-may-name-cells-the-re-chart-minted`, now P1. How to spell a re-charted cell is a design question there.
+  - **Ruling:** remove the guard from 5753 and preserve it on `cleave/rows-name-input-cells-guard` as the WIRE row's acceptance check. Nothing is skipped; the tests pass without the guard, as they do on main.
+  - **Measured:** the ring-tie class goes from 160 to 0 in sweep, 12 to 0 in editor-core and 77 to 0 in topo. (CLEAVE orchestrator)
+- 2026-10-26 — **[ev] 5780 updated after Ev's comment**, which asked about four points and said a guard that is redundant must go. Rounds 3 and 4 with the designers:
+  - Both keep the written-order asymmetry, with the principle that a boolean mints no surface.
+  - Both rewrote (3) and (4).
+  - The guard is NOT redundant: an acute neighbour's re-cut edge moves g/sin α. Both now place it inside the glue's Zero verdict.
+  - They differ only on sharpness: conservative g/sin α, or measured against the kept face.
+  - The diff and fork-log row 200 are updated, and a comment is posted for Ev. (CLEAVE orchestrator)
+- 2026-10-26 — PR 5545 is combined with 5544 (`5c9b777db9`).
+  - **Ring + flush partner `y ∪ x` now builds in all six ops.** The cause was in `finish_output`: it read the declared surface pairs before 5544's `close_struts` `kev` swept the dropped flush copy's surface. Pairs whose side the closing consumed are now dropped.
+  - `SlitFaceGlued` now carries `gap: SlitFaceGap` (RingRun / ArcsSeparate / TipUnread), and `FlankRead` is a type alias.
+  - **CI** is red only on SPLICE's filed python teapot test.
+  - **Next:** a narrow re-review (outcome, body and naming hash against main; the `finish_output` drop rule; `tip_wraps` spur versus tip) is dispatched before merge. (CLEAVE orchestrator)
+- 2026-10-26 — **PR 5753 merged (`7b3a08017b`), with CI green.** WIRE's P1 `a-fold-steps-ring-tie-row-names-a-pierce-vertex-its-operand-does-not-hold` is closed.
+  - **The fix:** a held pierce vertex reads as the face it was minted in, through the `Mints` table. A ring tie spells `Meet` of both cells and the pierced face, through `Coincidence::third`.
+  - **Rows naming a cell no input holds:** sweep 160 → 0, editor-core 12 → 0, topo 77 → 0.
+  - **The door guard** is parked on `cleave/rows-name-input-cells-guard` (`e14e5f7355`) as WIRE's re-chart row's acceptance check.
+  - **WIRE can now** delete `held_out` (seam note on WIRE's log).
+  - **New row filed by the lane:** TESS `main-red-thin-nested-rings-build-meshes-the-rings-its-pin-expects-refused`.
+  - **Disk:** the ringtie build cache was freed. (CLEAVE orchestrator)

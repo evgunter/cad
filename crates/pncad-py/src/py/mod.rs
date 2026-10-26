@@ -342,13 +342,14 @@ pyo3::create_exception!(
     ProductError,
     PncadError,
     "The whole-document gather refused. Carries `variant`, the stable \
-     tag of the refusing arm, plus `node`, `through` and \
-     `unplaced_bodies` (`None` where the arm does not carry them).\n\n\
+     tag of the refusing arm, plus `node`, `through` and `read` (the \
+     product slot's read, on `stranded_product`; `None` where the arm \
+     does not carry them).\n\n\
      Its message names each node as the evaluation's own document \
      holds it (kind, label and tag): the document the gather was taken \
      of. `node` and `through` carry the full ids.\n\n\
-     A product is every copy the world's placements define or none of \
-     them — there are no partial products."
+     A product is the body the document's product slot reads, \
+     gathered whole or not at all — there are no partial products."
 );
 pyo3::create_exception!(
     pncad,

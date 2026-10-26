@@ -33,11 +33,10 @@ use editor_core::AuthoredNode;
 use editor_core::pose::{PoseDef, RoleRead};
 use editor_core::{
     CapEnd, Dimension, DocEdit, DocumentId, EvalOptions, Evaluation, Formula, FreeValue, FreeVar,
-    Mate, MateFault, MateRef, MateSide, NameRef, Node, NodeErrorKind, NodeResult, Operand,
-    PartSelect, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName, VarId,
-    VarName, product,
+    Mate, MateFault, MateRef, MateSide, Node, NodeErrorKind, NodeResult, Operand, PartSelect,
+    PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName, VarId, VarName, product,
 };
-use fixture::resolver::{PartStore, in_part, placement_of, with_resolver};
+use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::seat::{assert_seated as assert_seated_named, seat_map as seat_map_named};
 use fixture::{ang, gate, in_copy, insert, len, on_frame, run, scl, solve, step};
 use geom_core::Tol;
@@ -69,24 +68,6 @@ fn part_doc(label: &str, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
     )
 }
 
-/// **`name`, an entity of the part's body, as `instance` wears it**:
-/// under the placement the part's world copies the body by, inside the
-/// instance's `InPart` wrapper.
-fn worn(instance: RecipeNodeId, body: RecipeNodeId, name: StableName) -> StableName {
-    let placed = StableName {
-        kind: name.kind,
-        node: placement_of(body),
-        path: vec![RoleSeg::Placed {
-            of: NameRef::new(name),
-        }],
-    };
-    StableName {
-        kind: placed.kind,
-        node: instance,
-        path: vec![RoleSeg::InPart { of: placed.into() }],
-    }
-}
-
 /// The part's own names for what a seat reads: two lateral edges, at
 /// the profile's first two vertices, and the rim edges of the first
 /// two profile segments, whose lines run along the block's two sides.
@@ -113,7 +94,7 @@ fn world(
         let read = fixture::body_read(&doc, body.into());
         let (doc, placement) = insert(
             doc,
-            crate::fixture::stood(vec![editor_core::BodyRead::plain(read)]),
+            crate::fixture::stood(editor_core::BodyRead::plain(read)),
         );
         fixture::pinned(doc, placement, opts)
     };
@@ -126,54 +107,36 @@ fn world(
     })
 }
 
-/// **`name` as the product names it**: the name itself where the
-/// product's table holds it (an instance's own face), else the one
-/// name that is a copy of `name` ([`StableName::copy_of`]) — what the
-/// product names a placed member's face by, under the placement that
-/// put it in the world.
-fn world_name(
-    doc: &ProfileDoc,
-    ev: &editor_core::Evaluation<f64>,
-    name: &StableName,
-) -> StableName {
-    let (_, names) =
-        editor_core::product_named(doc, ev, Tol::witness()).expect("the product gathers");
-    if names.lookup(name).is_some() {
-        return name.clone();
-    }
-    let copies: Vec<StableName> = names
-        .iter()
-        .map(|(n, _)| n.clone())
-        .filter(|n| n.copy_of().is_some_and(|(_, of)| of == name))
-        .collect();
-    let [copy] = copies.as_slice() else {
-        panic!("{name:?} has one world copy, not {copies:?}");
-    };
-    copy.clone()
-}
-
-/// [`fixture::seat::assert_seated`] over the world names of `a` and
-/// `b` ([`world_name`]).
+/// [`fixture::seat::assert_seated`] over the product names of `a` and
+/// `b` ([`fixture::product_name`]).
 fn assert_seated(
     doc: &ProfileDoc,
     ev: &editor_core::Evaluation<f64>,
-    a: &StableName,
-    b: &StableName,
+    a: &(impl fixture::Sited + Clone),
+    b: &(impl fixture::Sited + Clone),
     control: &Affine3<f64>,
     what: &str,
 ) {
-    let (a, b) = (world_name(doc, ev, a), world_name(doc, ev, b));
+    let (a, b) = (
+        fixture::product_name(doc, ev, a.clone()),
+        fixture::product_name(doc, ev, b.clone()),
+    );
     assert_seated_named(doc, ev, &a, &b, control, what);
 }
 
-/// [`fixture::seat::seat_map`] over the world names of `a` and `b`.
+/// [`fixture::seat::seat_map`] over the product names of `a` and `b`.
 fn seat_map(
     doc: &ProfileDoc,
     ev: &editor_core::Evaluation<f64>,
-    a: &StableName,
-    b: &StableName,
+    a: &(impl fixture::Sited + Clone),
+    b: &(impl fixture::Sited + Clone),
 ) -> Affine3<f64> {
-    seat_map_named(doc, ev, &world_name(doc, ev, a), &world_name(doc, ev, b))
+    seat_map_named(
+        doc,
+        ev,
+        &fixture::product_name(doc, ev, a.clone()),
+        &fixture::product_name(doc, ev, b.clone()),
+    )
 }
 
 /// A linear pattern node over `input`.
@@ -258,18 +221,18 @@ struct Scene {
 
 impl Scene {
     /// The cap's bottom cap, as the copy side of its rest.
-    fn cap_bottom(&self) -> StableName {
+    fn cap_bottom(&self) -> crate::fixture::resolver::PartName {
         in_part(self.cap, self.top_body, CapEnd::Start)
     }
 
     /// The top's top cap, as a nested copy's chain wears it.
-    fn top_cap(&self) -> StableName {
+    fn top_cap(&self) -> crate::fixture::resolver::PartName {
         in_part(self.top, self.top_body, CapEnd::End)
     }
 
     /// `name`, an entity of the top's part, as the top wears it.
     fn on_top(&self, name: &StableName) -> StableName {
-        worn(self.top, self.top_body, name.clone())
+        name.clone()
     }
 
     /// **The seat of `cap` on the copy read at `at` under `wrap`**: one
@@ -285,7 +248,7 @@ impl Scene {
         wrap: &dyn Fn(StableName) -> StableName,
     ) -> Vec<Mate<Formula>> {
         let read = |name: &StableName| SitedRef::new(at, wrap(self.on_top(name)));
-        let own = |name: &StableName| SitedRef::new(cap, worn(cap, self.top_body, name.clone()));
+        let own = |name: &StableName| SitedRef::new(cap, name.clone());
         let slid = |pose: Operand, along: &StableName| {
             Operand::Pose(Box::new(PoseDef::Slide {
                 pose: RoleRead::plain(pose),
@@ -450,7 +413,7 @@ fn a1_a_nested_copy_seats_where_its_chain_stands() {
     assert_seated(
         &doc,
         &ev,
-        &wrap(s.top_cap()),
+        &wrap(s.top_cap().name),
         &s.cap_bottom(),
         &control,
         "A1 nested copy",
@@ -481,7 +444,7 @@ fn a2d_a_rotating_outer_map_seats() {
     assert_seated(
         &doc,
         &ev,
-        &wrap(s.top_cap()),
+        &wrap(s.top_cap().name),
         &s.cap_bottom(),
         &control,
         "A2′ rotating outer map",
@@ -511,7 +474,7 @@ fn a3a_a_part_selected_copy_read_at_the_part_seats() {
     assert_seated(
         &doc,
         &ev,
-        &wrap(s.top_cap()),
+        &wrap(s.top_cap().name),
         &s.cap_bottom(),
         &control,
         "A3(a) part-selected copy",
@@ -578,7 +541,7 @@ fn a1c_three_levels_deep_seat() {
     assert_seated(
         &doc,
         &ev,
-        &wrap(s.top_cap()),
+        &wrap(s.top_cap().name),
         &s.cap_bottom(),
         &control,
         "A1′(b) three levels",
@@ -666,7 +629,7 @@ fn a4c_the_part_index_is_evaluated_at_the_documents_bindings() {
     assert_seated(
         &doc,
         &ev,
-        &wrap(s.top_cap()),
+        &wrap(s.top_cap().name),
         &s.cap_bottom(),
         &control,
         "A4′(b) at k = 1",

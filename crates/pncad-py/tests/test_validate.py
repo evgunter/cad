@@ -72,7 +72,7 @@ from pncad import (
     rad,
 )
 
-from placing import against, placed
+from placing import against, placed, assemble_world_copies
 from test_assembly_eval import opened
 from measuring import PINNED, pinned
 
@@ -157,6 +157,7 @@ class TestTheFourthRungIsTheStrictest(unittest.TestCase):
         """
         doc, lower, upper = two_slabs_resting()
         place_resting(doc, lower, upper)
+        assemble_world_copies(doc)
         gathered = product(doc, evaluate(doc))
 
         gathered.validate()
@@ -176,6 +177,7 @@ class TestTheFourthRungIsTheStrictest(unittest.TestCase):
         b = slab(doc, (3 * m, 4 * m), (0 * m, 1 * m), 1 * m)
         doc.place(a, doc.world)
         doc.place(b, doc.world)
+        assemble_world_copies(doc)
         product(doc, evaluate(doc)).validate_pseudomanifold()
 
     def test_an_interpenetrating_union_has_no_coincidence_to_record(self):
@@ -294,6 +296,7 @@ class TestTheRefusalsShape(unittest.TestCase):
     def refusal(self):
         doc, lower, upper = two_slabs_resting()
         place_resting(doc, lower, upper)
+        assemble_world_copies(doc)
         gathered = product(doc, evaluate(doc))
         with self.assertRaises(ValidationError) as caught:
             gathered.validate_pseudomanifold()
@@ -463,6 +466,7 @@ class TestTheRefusalsShape(unittest.TestCase):
         post = cylinder(doc, (1 * m, 1 * m), 0.4 * m, 0.5 * m)
         doc.place(seat, doc.world)
         placed(doc, post, lift(1 * m))
+        assemble_world_copies(doc)
         gathered = product(doc, evaluate(doc))
         with self.assertRaises(ValidationError) as caught:
             gathered.validate_pseudomanifold()
@@ -536,6 +540,7 @@ class TestTheRefusalsShape(unittest.TestCase):
         doc.place(seat, doc.world)
         placed(doc, post, lift(1 * m))
         with self.assertRaises(ValidationError) as caught:
+            assemble_world_copies(doc)
             product(doc, evaluate(doc)).validate_pseudomanifold()
         reached = {f.variant for f in caught.exception.findings}
         self.assertNotIn("census_unsupported", reached)
@@ -676,6 +681,7 @@ class TestGateAndMeasureInOneQuadrature(unittest.TestCase):
         """
         doc, lower, upper = two_slabs_resting()
         place_resting(doc, lower, upper)
+        assemble_world_copies(doc)
         gathered = product(doc, evaluate(doc))
         with self.assertRaises(ValidationError):
             gathered.validate_pseudomanifold()
