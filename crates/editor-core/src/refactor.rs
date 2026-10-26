@@ -74,11 +74,10 @@
 //! ([`Doc::read_ports`]). A `new_space()` goes where its readers go: one
 //! whose readers are all cut joins the cut, whether the selection names
 //! it or not; one read on both sides refuses
-//! ([`SplitError::UncutVarReference`], naming its output); an unread
-//! one stays unless the selection names it. A construction's own space
-//! is its output and goes with it, so a placement into it on the other
-//! side of the cut is severed ([`SplitError::SeveredEdge`]). The world
-//! is no side's.
+//! ([`SplitError::SpaceStraddlesCut`]); an unread one stays unless the
+//! selection names it. A construction's own space is its output and
+//! goes with it, so a placement into it on the other side of the cut
+//! is severed ([`SplitError::SeveredEdge`]). The world is no side's.
 //!
 //! So `inline(split(d))` is `d` up to minted ids — node, step,
 //! variable and constraint — and order, on every cut split admits
@@ -864,6 +863,17 @@ pub enum SplitError {
         /// A kept node referencing it.
         kept_node: SpokenNode,
     },
+    /// A `new_space()` is read by a cut placement and by a kept one: it
+    /// cannot go with both — refused naming one reader on each side.
+    SpaceStraddlesCut {
+        /// The shared space's node, boxed so the refusal stays a small
+        /// `Err`.
+        space: Box<SpokenNode>,
+        /// A cut node placed into it.
+        cut_node: SpokenNode,
+        /// A kept node placed into it.
+        kept_node: SpokenNode,
+    },
     /// A variable no node reads is tied by definitions both to a
     /// variable the cut moves and to one that stays, so it can go with
     /// neither document — refused naming one of each.
@@ -1057,6 +1067,19 @@ impl core::fmt::Display for SplitError {
                 Recourse(&format!(
                     "put {cut_node} and {kept_node} on one side of the cut, or give one of \
                      them a variable of its own (DeclareVar, SetParam)"
+                ))
+            ),
+            Self::SpaceStraddlesCut {
+                space,
+                cut_node,
+                kept_node,
+            } => write!(
+                f,
+                "split: {cut_node}, which is cut, and {kept_node}, which is kept, are both \
+                 placed into {space}, and one space cannot go with both documents. {}",
+                Recourse(&format!(
+                    "cut {kept_node} too, or re-target one of them into a new_space() of its \
+                     own"
                 ))
             ),
             Self::DefinitionStraddlesCut {
@@ -2195,30 +2218,6 @@ fn remap_node(
     })
 }
 
-/// **The spaces `node` reads**, each as the slot reading it and the
-/// node defining the space: a `new_space()`, or the construction whose
-/// own space it is. A space read reaches no operation
-/// ([`Doc::read_ports`]), yet it is an edge for a cut. The world is no
-/// cut's, so it is left out.
-fn spaces_read(
-    doc: &ProfileDoc,
-    node: &Node<ProfileProgram>,
-) -> Vec<(crate::OperandSlot, RecipeNodeId)> {
-    node.operand_rows()
-        .into_iter()
-        .filter_map(
-            |(slot, var)| match doc.var(var).map(|v| (v.kind(), v.def())) {
-                Some((crate::VarKind::Space, VarDef::Output { node, .. }))
-                    if *node != RecipeNodeId::WORLD =>
-                {
-                    Some((slot, *node))
-                }
-                _ => None,
-            },
-        )
-        .collect()
-}
-
 /// The variables a node's slots and payload read. The expressions no
 /// slot addresses count too: a measured bound reading a variable is
 /// exactly as much a reason to carry that variable into a split part
@@ -2580,15 +2579,25 @@ pub fn split(
             return Err(SplitError::PartIdCollides { id: part_id });
         }
     }
+    // Each node's space reads, the world's left out: the world is no
+    // cut's.
+    let node_spaces: BTreeMap<RecipeNodeId, Vec<(crate::OperandSlot, RecipeNodeId)>> = doc
+        .ids()
+        .into_iter()
+        .filter_map(|id| {
+            let reads: Vec<_> = doc
+                .spaces_read(doc.node(id)?)
+                .into_iter()
+                .filter(|&(_, at)| at != RecipeNodeId::WORLD)
+                .collect();
+            (!reads.is_empty()).then_some((id, reads))
+        })
+        .collect();
     // A `new_space()` goes where its readers go (module docs): one every
     // reader of which is cut joins the cut, named or not.
     let mut space_readers: BTreeMap<RecipeNodeId, Vec<RecipeNodeId>> = BTreeMap::new();
-    for id in doc.ids() {
-        for (_, space) in doc
-            .node(id)
-            .map(|n| spaces_read(doc, n))
-            .unwrap_or_default()
-        {
+    for (&id, reads) in &node_spaces {
+        for &(_, space) in reads {
             if matches!(doc.node(space), Some(Node::Space)) {
                 space_readers.entry(space).or_default().push(id);
             }
@@ -2611,6 +2620,9 @@ pub fn split(
             _ => {}
         }
     }
+    // A joined space is no node the author chose, so the cut's first
+    // node a refusal names is the selection's.
+    let selected = cut;
     let cut = &joined;
     // Which copies are the world's: a part delivers only its world
     // (A10), so a cut copy in another space crosses nowhere.
@@ -2865,10 +2877,12 @@ pub fn split(
             .filter(|input| !carried.contains(input))
             .map(|input| (None, input))
             .chain(
-                spaces_read(doc, node)
+                node_spaces
+                    .get(&consumer)
                     .into_iter()
+                    .flatten()
                     .filter(|(_, at)| !shared.contains_key(at))
-                    .map(|(slot, input)| (Some(slot), input)),
+                    .map(|&(slot, input)| (Some(slot), input)),
             );
         for (space_slot, input) in reads {
             if consumer_is_cut != cut.contains(&input) {
@@ -2949,11 +2963,8 @@ pub fn split(
         }
     }
     if let Some((&space, &(cut_node, kept_node))) = shared.first_key_value() {
-        let Some(&var) = doc.outputs(space).first() else {
-            unreachable!("a space defines its one output")
-        };
-        return Err(SplitError::UncutVarReference {
-            var: Box::new(doc.spoken_var(var)),
+        return Err(SplitError::SpaceStraddlesCut {
+            space: Box::new(doc.spoken(space)),
             cut_node: doc.spoken(cut_node),
             kept_node: doc.spoken(kept_node),
         });
@@ -3152,7 +3163,7 @@ pub fn split(
             doc.node(id),
             Some(Node::Place { .. } | Node::InstantiatePart { .. })
         ) && world(id)
-    }) && let Some(&first) = in_order.first()
+    }) && let Some(&first) = doc.ids().iter().find(|id| selected.contains(id))
     {
         return Err(SplitError::NoMaterial {
             node: doc.spoken(first),

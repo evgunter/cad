@@ -100,7 +100,7 @@ use pncad::document::{
     LoopProgram, Mate, MateFault, MateRef, Node, OVERCONSTRAINED_RECOURSE, Operand, PartResolver,
     PartSelect, PatternKind, Placed, ProfileDoc, ProfileProgram, RecipeNodeId, SitedFace,
     TargetAxis, UNPINNED_RECOURSE, ValuePayload, VarId, VarName, apply, assemble, content_pin,
-    evaluate, inline, load, mixed_pins, parse_formula, product_named, run_checks, save,
+    evaluate, flatten, inline, load, mixed_pins, parse_formula, product_named, run_checks, save,
     solve_document, split, stand,
 };
 use pncad::geom_core::Tol;
@@ -1743,9 +1743,9 @@ fn refactorings(ws: &mut Workspace, layout: &ProfileDoc, shelf_i: RecipeNodeId, 
     // INVERSES for every legal cut, and the shape most likely to break
     // that is this one: these place a pattern's copies of an instance,
     // and the post instance stands in a `new_space()` the cell does not
-    // name, which goes with its readers. The cut moves as selected and
-    // leaves the instance pinned at the identity, so the pattern lands
-    // back verbatim.
+    // name, which goes with its readers. The cut leaves the instance
+    // pinned at the identity, so inline then flatten gives the layout
+    // back up to minted ids and order (A4).
     //
     // The cell is the post instance, its pattern, and each copy's
     // `Part` and the placement that puts it in the world.
@@ -1776,11 +1776,48 @@ fn refactorings(ws: &mut Workspace, layout: &ProfileDoc, shelf_i: RecipeNodeId, 
     ws.create(&posts.part, tol)
         .expect("the posts cell is stored");
     let store: Arc<dyn PartResolver> = Arc::new(ws.clone());
-    inline(&posts.remainder, posts.instance, &store, tol)
+    let back = inline(&posts.remainder, posts.instance, &store, tol)
         .unwrap_or_else(|e| panic!("the patterned-post cell inlines back: {e}"));
+    let flat = flatten(&back.doc, back.placement, tol)
+        .unwrap_or_else(|e| panic!("the inlined cell's identity placement flattens: {e}"))
+        .doc;
+    let kinds = |doc: &ProfileDoc| {
+        let mut kinds: Vec<&'static str> = doc
+            .ids()
+            .into_iter()
+            .filter(|&id| doc.node(id).is_some())
+            .filter_map(|id| doc.spoken(id).kind())
+            .collect();
+        kinds.sort_unstable();
+        kinds
+    };
+    assert_eq!(
+        kinds(&flat),
+        kinds(layout),
+        "the round trip holds the layout's nodes, kind for kind"
+    );
+    let (flat_body, _) = product_of(&flat, &run(&flat, &with_store(ws), tol), tol);
+    assert_eq!(
+        census(&flat_body),
+        census(&before),
+        "the round trip keeps the census"
+    );
+    // The same pieces, gathered in another order: the volumes agree to
+    // the rounding of their sum, not bit for bit.
+    let (round_tripped, original) = (
+        f64::from_bits(volume_bits(&flat_body, tol)),
+        f64::from_bits(volume_bits(&before, tol)),
+    );
+    let drift = (round_tripped - original).abs() / original.abs();
+    assert!(
+        drift <= 64.0 * f64::EPSILON,
+        "and the volume, to its sum's rounding: {round_tripped:e} against {original:e}"
+    );
     println!(
-        "   second cut: the patterned-post cell splits out AND inlines back \
-         (the cut moved as selected, its space with it, so the pattern lands back verbatim)"
+        "   second cut: the patterned-post cell, its space with it, splits out and inlines \
+         back; flattened, it is the layout up to minted ids and order ({} nodes, the same \
+         census, the volume within {drift:.1e} relative)",
+        kinds(&flat).len()
     );
 }
 

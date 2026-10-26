@@ -2,8 +2,9 @@
 //! module docs, "Variables go where their readers go"): a space read is
 //! an edge to the node defining the space. A `new_space()` whose readers
 //! are all cut joins the cut, named or not, in either mint order; one
-//! read on both sides refuses; a construction's own space goes with its
-//! construction, so a placement into it across the cut is severed.
+//! read on both sides refuses; an unread one stays unless named; a
+//! construction's own space goes with its construction, so a placement
+//! into it across the cut is severed.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -11,7 +12,7 @@ use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use crate::fixture;
-use crate::fixture::resolver::PartStore;
+use crate::fixture::resolver::{PartStore, with_resolver};
 use crate::fixture::round_trip::{composed, flat, same_up_to_ids};
 use editor_core::{
     DocEdit, DocumentId, Maintenance, Node, Operand, OperandSlot, PartResolver, ProfileDoc,
@@ -114,6 +115,19 @@ fn round_trips(doc: &ProfileDoc, out: &SplitOutcome, seed: &str) {
         .unwrap_or_else(|e| panic!("{seed}: inline(split(d)) is d up to ids:\n{e}"));
 }
 
+/// Neither side of the split strands a read.
+fn no_strand(out: &SplitOutcome, seed: &str) {
+    assert!(
+        !out.remainder_maintenance
+            .iter()
+            .chain(&out.part_maintenance)
+            .any(|m| matches!(m, Maintenance::StrandedRead { .. })),
+        "{seed}: nothing strands: {:?} / {:?}",
+        out.remainder_maintenance,
+        out.part_maintenance
+    );
+}
+
 /// **A `new_space()` whose readers are all cut goes with them**, named
 /// in the cut or not, minted before its reader or after it: the part
 /// holds the space and the placement into it, the remainder holds
@@ -150,14 +164,89 @@ fn a_space_read_only_by_the_cut_goes_with_it() {
             out.remainder.node(space).is_none(),
             "{seed}: the remainder keeps no space"
         );
-        assert!(
-            !out.remainder_maintenance
-                .iter()
-                .any(|m| matches!(m, Maintenance::StrandedRead { .. })),
-            "{seed}: nothing strands: {:?}",
-            out.remainder_maintenance
-        );
+        no_strand(&out, &seed);
         round_trips(&doc, &out, &seed);
+    }
+}
+
+/// **An unread `new_space()` stays, unless the selection names it**:
+/// it has no reader to follow, so the remainder keeps it; named, it goes
+/// with the cut. Either way the round trip is the document.
+///
+/// *Breaks if* an unread space is pulled into a cut that did not name it,
+/// or a named one is left behind.
+#[test]
+fn an_unread_space_stays_unless_named() {
+    let doc = ProfileDoc::empty(DocumentId::derive("split-space-unread"), Tol::witness());
+    let (doc, space, _) = new_space(doc);
+    let (doc, [_, kept]) = block(doc, 9.0);
+    let (doc, _) = fixture::place(doc, kept);
+    let (doc, [profile, a]) = block(doc, 0.0);
+    let (doc, world) = fixture::place(doc, a);
+    for named in [false, true] {
+        let seed = format!("split-space-unread-{named}");
+        let mut cut = vec![profile, a, world];
+        if named {
+            cut.push(space);
+        }
+        let out = split(&doc, &cut, &format!("{seed}-part"))
+            .unwrap_or_else(|e| panic!("{seed}: the split admits the cut: {e}"));
+        assert_eq!(
+            out.remainder.node(space).is_none(),
+            named,
+            "{seed}: the space goes only if named"
+        );
+        no_strand(&out, &seed);
+        round_trips(&doc, &out, &seed);
+    }
+}
+
+/// **Nested spaces go with their readers**: `a` into `S1`, that copy
+/// into `S2`, that copy into the world, every space minted before its
+/// reader or after every one, named or not. Both spaces are carried,
+/// neither is left, and the round trip is the document.
+///
+/// *Breaks if* the carry deals a space after a placement into it, or a
+/// space read only by a carried placement is left behind.
+#[test]
+fn nested_spaces_go_with_their_readers() {
+    for late in [false, true] {
+        for named in [false, true] {
+            let seed = format!("split-space-nested-{late}-{named}");
+            let doc = ProfileDoc::empty(DocumentId::derive(&seed), Tol::witness());
+            let (doc, [_, kept]) = block(doc, 20.0);
+            let (doc, _) = fixture::place(doc, kept);
+            let (doc, [profile, a]) = block(doc, 0.0);
+            let (doc, mut cut, spaces) = if late {
+                let (doc, p1) = place_into(doc, a, VarId::WORLD);
+                let (doc, p2) = place_into(doc, p1, VarId::WORLD);
+                let (doc, p3) = fixture::place(doc, p2);
+                let (doc, s1) = fixture::into_new_space(doc, p1);
+                let (doc, s2) = fixture::into_new_space(doc, p2);
+                let spaces = [s1, s2].map(|s| doc.operation_of(s).expect("a space's node"));
+                (doc, vec![profile, a, p1, p2, p3], spaces)
+            } else {
+                let (doc, n1, s1) = new_space(doc);
+                let (doc, p1) = place_into(doc, a, s1);
+                let (doc, n2, s2) = new_space(doc);
+                let (doc, p2) = place_into(doc, p1, s2);
+                let (doc, p3) = fixture::place(doc, p2);
+                (doc, vec![profile, a, p1, p2, p3], [n1, n2])
+            };
+            if named {
+                cut.extend(spaces);
+            }
+            let out = split(&doc, &cut, &format!("{seed}-part"))
+                .unwrap_or_else(|e| panic!("{seed}: the split admits the cut: {e}"));
+            for space in spaces {
+                assert!(
+                    out.node_map.contains_key(&space) && out.remainder.node(space).is_none(),
+                    "{seed}: {space:?} goes with the cut"
+                );
+            }
+            no_strand(&out, &seed);
+            round_trips(&doc, &out, &seed);
+        }
     }
 }
 
@@ -183,11 +272,12 @@ fn a_space_cut_from_under_its_kept_reader_refuses() {
     );
 }
 
-/// **A space read on both sides refuses**, naming one reader on each,
-/// whether the cut names the space or not.
+/// **A space read on both sides refuses**, naming the space and one
+/// reader on each side, whether the cut names the space or not, and
+/// with two of three readers cut.
 ///
 /// *Breaks if* a shared space is carried, left, or refused naming the
-/// wrong readers.
+/// wrong nodes.
 #[test]
 fn a_space_read_on_both_sides_refuses() {
     for named in [false, true] {
@@ -204,12 +294,35 @@ fn a_space_read_on_both_sides_refuses() {
         assert!(
             matches!(
                 &err,
-                SplitError::UncutVarReference { var: v, cut_node, kept_node }
-                    if v.id() == var && cut_node.id() == cut[2] && kept_node.id() == kept
+                SplitError::SpaceStraddlesCut { space: s, cut_node, kept_node }
+                    if s.id() == space && cut_node.id() == cut[2] && kept_node.id() == kept
             ),
             "{seed}: {err:?}"
         );
     }
+
+    // Three blocks placed into one space, each copy into the world; the
+    // first two cut.
+    let doc = ProfileDoc::empty(DocumentId::derive("split-space-three"), Tol::witness());
+    let (mut doc, space, var) = new_space(doc);
+    let mut rows = Vec::new();
+    for x in [0.0, 5.0, 10.0] {
+        let (d, [profile, b]) = block(doc, x);
+        let (d, inner) = place_into(d, b, var);
+        let (d, outer) = fixture::place(d, inner);
+        doc = d;
+        rows.push([profile, b, inner, outer]);
+    }
+    let cut: Vec<_> = rows[..2].iter().flatten().copied().collect();
+    let err = split(&doc, &cut, "split-space-three-part").expect_err("the space is shared");
+    assert!(
+        matches!(
+            &err,
+            SplitError::SpaceStraddlesCut { space: s, cut_node, kept_node }
+                if s.id() == space && cut_node.id() == rows[0][2] && kept_node.id() == rows[2][2]
+        ),
+        "two of three: {err:?}"
+    );
 }
 
 /// **A placement into a construction's own space is an edge to the
@@ -256,5 +369,63 @@ fn a_placement_into_a_constructions_space_across_the_cut_is_severed() {
                 if consumer.id() == into_a && input.id() == a
         ),
         "cut into kept: {err:?}"
+    );
+}
+
+/// **A placement into a construction's own space goes with it when both
+/// are cut**: the round trip is the document.
+///
+/// *Breaks if* a construction's space read is refused or left unmapped
+/// although its construction is carried.
+#[test]
+fn a_placement_into_a_constructions_space_goes_with_it() {
+    let doc = ProfileDoc::empty(DocumentId::derive("split-own-space-all"), Tol::witness());
+    let (doc, [_, kept]) = block(doc, 20.0);
+    let (doc, _) = fixture::place(doc, kept);
+    let (doc, [pa, a]) = block(doc, 0.0);
+    let (doc, world_a) = fixture::place(doc, a);
+    let (doc, [pb, b]) = block(doc, 5.0);
+    let own = fixture::space(&doc, a);
+    let (doc, into_a) = place_into(doc, b, own);
+    let out = split(
+        &doc,
+        &[pa, a, world_a, pb, b, into_a],
+        "split-own-space-all-part",
+    )
+    .unwrap_or_else(|e| panic!("the split admits the cut: {e}"));
+    no_strand(&out, "own-space-all");
+    round_trips(&doc, &out, "own-space-all");
+}
+
+/// **Inline carries a part's `new_space()` minted after its reader**:
+/// the carry deals spaces first in both directions.
+///
+/// *Breaks if* inline carries the placement before the space it targets.
+#[test]
+fn inline_carries_a_space_minted_after_its_reader() {
+    let part = ProfileDoc::empty(DocumentId::derive("split-space-late-part"), Tol::witness());
+    let (part, [_, a]) = block(part, 0.0);
+    let (part, inner) = place_into(part, a, VarId::WORLD);
+    let (part, _) = fixture::place(part, inner);
+    let (part, var) = fixture::into_new_space(part, inner);
+    let space = part.operation_of(var).expect("a space's node");
+    assert!(
+        part.ids().iter().position(|&id| id == space)
+            > part.ids().iter().position(|&id| id == inner),
+        "the space is minted after its reader"
+    );
+    let mut store = PartStore::default();
+    let doc_ref = store.insert(part, Tol::witness());
+    let o = with_resolver(store.clone());
+    let host = ProfileDoc::empty(DocumentId::derive("split-space-late-host"), Tol::witness());
+    let (host, instance) = fixture::insert_pinned(host, fixture::mated_instance(doc_ref), &o);
+    let store: Arc<dyn PartResolver> = Arc::new(store);
+    let back = editor_core::inline(&host, instance, &store, Tol::witness())
+        .unwrap_or_else(|e| panic!("the part inlines: {e}"));
+    let carried = back.node_map[&space];
+    assert!(
+        matches!(back.doc.node(carried), Some(Node::Space))
+            && back.doc.node_space(back.node_map[&inner]) == back.doc.output(carried, 0),
+        "the spliced placement reads the spliced space"
     );
 }

@@ -99,13 +99,15 @@ Designers A (Opus) and B (Fable), byte 234 (Opus is A), recorded on `analysis/de
 PR 5763. Split reads every `Space`-kind operand as an edge to the node
 defining the space (`refactor.rs` `spaces_read`), and a `new_space()`
 takes the variable regime: all readers cut joins the cut, named or
-not; readers on both sides refuses `UncutVarReference` naming the
-space's output and one reader each side, after the closure check (so
+not; readers on both sides refuses `SpaceStraddlesCut` naming the
+space's node and one reader each side, after the closure check (so
 `p2_face`'s `SeveredEdge` still speaks first); an unread one stays
-unless named. A placement across the cut from a construction's own
+unless named. The spaces a node reads have one home,
+`Doc::spaces_read`, which the cascade and split both read. A placement across the cut from a construction's own
 space is `SeveredEdge` naming the construction. `carry` deals
 `Node::Space` nodes first, for split and inline alike. A space named in
 the cut under a kept reader now refuses `SeveredEdge` instead of
 stranding. Rows: `tests/split_carries_spaces.rs`. The tour's second
-cut asserts split and inline; the posts cell re-rendered under
-`[render]`.
+cut asserts the round trip (inline then flatten is the layout by node
+kinds, census, and volume to its sum's rounding); the posts cell
+re-rendered under `[render]`.
