@@ -25,10 +25,10 @@ use editor_core::Formula;
 
 use editor_core::CapEnd;
 use editor_core::{
-    ContactClass, Coord, DocEdit, DocumentId, EditError, EntityKind, EvalOptions, Evaluation,
-    Frame, Maintenance, Mate, MateFault, MateRef, MateSide, NameRef, Node, NodeErrorKind,
-    NodeResult, Operand, ProfileDoc, ProfileVertexRef, RecipeNodeId, RoleSeg, StableName,
-    TargetAxis, Value, VarId, apply, load, product, relative_freedom_components, save,
+    Coord, DocEdit, DocumentId, EditError, EntityKind, EvalOptions, Evaluation, Frame, Maintenance,
+    Mate, MateFault, MateRef, MateSide, NameRef, Node, NodeErrorKind, NodeResult, Operand,
+    ProfileDoc, ProfileVertexRef, RecipeNodeId, RoleSeg, StableName, TargetAxis, Value, VarId,
+    apply, load, product, relative_freedom_components, save,
 };
 use fixture::resolver::{PartStore, in_part, placement_of, with_resolver};
 use fixture::{
@@ -197,7 +197,6 @@ fn lifted_rest(kit: &Kit, a: RecipeNodeId, b: RecipeNodeId, by: f64) -> Mate<For
     fixture::mate(
         plane(head(kit.cap(b, CapEnd::Start))),
         flip(standoff(head(kit.cap(a, CapEnd::End)), by)),
-        ContactClass::Rest,
     )
 }
 
@@ -206,7 +205,6 @@ fn plain_rest(kit: &Kit, a: RecipeNodeId, b: RecipeNodeId) -> Mate<Formula> {
     rest(
         head(kit.cap(b, CapEnd::Start)),
         head(kit.cap(a, CapEnd::End)),
-        ContactClass::Rest,
     )
 }
 
@@ -216,7 +214,6 @@ fn pin(kit: &Kit, a: RecipeNodeId, b: RecipeNodeId, va: usize, vb: usize) -> Mat
     fixture::mate(
         fixture::axis(read(kit.edge(b, vb))),
         fixture::axis(read(kit.edge(a, va))),
-        ContactClass::Rest,
     )
 }
 
@@ -274,7 +271,6 @@ fn stacked_pair(label: &str) -> (ProfileDoc, Vec<RecipeNodeId>, MateRef, Kit) {
         fixture::mate(
             corner_frame(&kit, ids[1], CapEnd::Start),
             corner_frame(&kit, ids[0], CapEnd::End),
-            ContactClass::Rest,
         ),
     );
     (doc, ids, joint, kit)
@@ -312,8 +308,12 @@ fn row1_a_coaxial_slid_and_clocked_pair_is_determined_and_evaluates() {
 
     let ev = run(&doc, &o);
     assert!(matches!(ev.result(ids[1]), Some(NodeResult::Ok(_))));
-    let body = product(&doc, &ev, Tol::witness()).expect("the product gathers");
-    let volume = topo::test_support::unmigrated_measure(&body, Tol::witness())
+    let body = topo::test_support::finished(
+        "body",
+        product(&doc, &ev, Tol::witness()).expect("the product gathers"),
+        Tol::witness(),
+    );
+    let volume = topo::mass_properties(&body, Tol::witness())
         .expect("mass properties")
         .volume;
     assert!(
@@ -337,8 +337,12 @@ fn row1_evaluation_and_save_bytes_are_bit_identical_across_runs() {
     let first = run(&doc, &o);
     let second = run(&doc, &o);
     let volume = |ev: &Evaluation<f64>| {
-        let body = product(&doc, ev, Tol::witness()).expect("gathers");
-        topo::test_support::unmigrated_measure(&body, Tol::witness())
+        let body = topo::test_support::finished(
+            "body",
+            product(&doc, ev, Tol::witness()).expect("gathers"),
+            Tol::witness(),
+        );
+        topo::mass_properties(&body, Tol::witness())
             .expect("props")
             .volume
     };
@@ -377,7 +381,6 @@ fn row2_a_v_block_refuses_and_one_wall_refuses_unpinned() {
             fixture::mate(
                 plane(head(kit.wall(ids[1], k))),
                 standoff(head(kit.wall(ids[0], k)), 0.0),
-                ContactClass::Rest,
             ),
         )
     };
@@ -567,7 +570,6 @@ fn two_pairs() -> (ProfileDoc, Vec<RecipeNodeId>, Kit) {
             fixture::mate(
                 corner_frame(&kit, ids[b], CapEnd::Start),
                 corner_frame(&kit, ids[a], CapEnd::End),
-                ContactClass::Rest,
             ),
         )
         .0;
@@ -793,8 +795,12 @@ fn row6c_the_gather_takes_the_placements_alone() {
     let (doc, ids, kit, _) = determined_pair();
     let ev = run(&doc, &kit.opts());
     assert_eq!(doc.len(), ids.len(), "the constraints are no nodes");
-    let body = product(&doc, &ev, Tol::witness()).expect("the product gathers");
-    let volume = topo::test_support::unmigrated_measure(&body, Tol::witness())
+    let body = topo::test_support::finished(
+        "body",
+        product(&doc, &ev, Tol::witness()).expect("the product gathers"),
+        Tol::witness(),
+    );
+    let volume = topo::mass_properties(&body, Tol::witness())
         .expect("props")
         .volume;
     assert!(
@@ -910,7 +916,6 @@ fn row6h_the_constraint_door_refuses_a_head_naming_no_node() {
                 mate: Box::new(rest(
                     head(kit.cap(ids[1], CapEnd::Start)),
                     head(kit.cap(ghost, CapEnd::End)),
-                    ContactClass::Rest,
                 )),
                 fresh: Vec::new(),
             },
@@ -981,11 +986,7 @@ fn row6j_the_name_door_reads_a_mates_heads_like_any_payload_name() {
     assert!(
         editor_core::apply_with_names(
             &doc,
-            &add(rest(
-                on.clone(),
-                head(kit.cap(ids[0], CapEnd::End)),
-                ContactClass::Rest
-            )),
+            &add(rest(on.clone(), head(kit.cap(ids[0], CapEnd::End)))),
             &ev,
             Tol::witness()
         )
@@ -1007,7 +1008,7 @@ fn row6j_the_name_door_reads_a_mates_heads_like_any_payload_name() {
     };
     let err = editor_core::apply_with_names(
         &doc,
-        &add(rest(on, head(bogus.clone()), ContactClass::Rest)),
+        &add(rest(on, head(bogus.clone()))),
         &ev,
         Tol::witness(),
     )
@@ -1039,7 +1040,6 @@ fn row7a_a_value_on_a_freedom_its_mate_fixes_refuses_typed() {
         fixture::mate(
             corner_frame(&kit, ids[1], CapEnd::Start),
             corner_frame(&kit, ids[0], CapEnd::End),
-            ContactClass::Rest,
         ),
     );
     // The rest written in the frame's place: every bundle pins its copy.
@@ -1096,44 +1096,6 @@ fn row7a_a_value_on_a_freedom_its_mate_fixes_refuses_typed() {
     }
 }
 
-/// The `Fit` class is not representable in this kernel — the variant is
-/// specified and not built — so the refusal is demonstrated at the WIRE
-/// door, where an unknown spelling arrives. The sentence it says is
-/// [`topo::FIT_DEFERRAL`], VERBATIM, and it is the same sentence the
-/// solve door says when a future class reaches it.
-///
-/// *Breaks if* an unknown class spelling loads, or its refusal
-/// paraphrases the kernel's sentence.
-#[test]
-fn row7c_an_unadmitted_class_refuses_naming_the_fit_deferral() {
-    let (doc, ids, kit) = assembly("asm-r2a-row7c", 2);
-    let (doc, _) = add(doc, ids[1], lifted_rest(&kit, ids[0], ids[1], 0.0));
-    let text = save(&doc, &[], Tol::witness()).expect("saves");
-    let doctored = text.replacen("\"rest\"", "\"fit\"", 1);
-    let message = match load(&doctored, Tol::witness()) {
-        Err(e) => e.to_string(),
-        Ok(_) => panic!("an unknown class spelling must refuse"),
-    };
-    assert!(
-        message.contains(topo::FIT_DEFERRAL),
-        "the refusal quotes the kernel's deferral sentence verbatim: {message}"
-    );
-    assert!(message.contains("fit"), "{message}");
-}
-
-/// The `Fit` deferral sentence a refusal steers to is the KERNEL's,
-/// quoted verbatim through the re-export chain — one wording, and the
-/// mate verification cites the same constant.
-///
-/// *Breaks if* the re-export chain carries another wording.
-#[test]
-fn the_fit_deferral_sentence_is_quoted_not_paraphrased() {
-    assert_eq!(editor_core::FIT_DEFERRAL, topo::FIT_DEFERRAL);
-    assert_eq!(editor_core::names::FIT_DEFERRAL, topo::FIT_DEFERRAL);
-    assert!(editor_core::FIT_DEFERRAL.contains("Fit { gap }"));
-    assert!(editor_core::FIT_DEFERRAL.contains("not yet built"));
-}
-
 /// A mate in one placement's bundle whose `on` reads another copy
 /// pins nothing of the placement: a fact about the constraint alone,
 /// which the constraint door refuses where it is authored.
@@ -1149,7 +1111,6 @@ fn row7e_a_mate_not_on_its_copy_refuses_at_the_door() {
         rest(
             head(kit.cap(ids[0], CapEnd::Start)),
             head(kit.cap(ids[0], CapEnd::End)),
-            ContactClass::Rest,
         ),
     );
     let Err((at, fault)) = refused else {
@@ -1195,7 +1156,6 @@ fn an_orientation_on_a_point_mate_refuses_at_the_door() {
     let ball = fixture::mate(
         point_of(read(kit.corner(ids[1], CapEnd::Start, 0))),
         point_of(read(kit.corner(ids[0], CapEnd::End, 2))),
-        ContactClass::Rest,
     );
     let write = |mate: editor_core::Mate<Formula>| {
         let values = [X, Y, Z].map(|a| (Coord::Spin(Some(a)), ang(0.0))).to_vec();
@@ -1246,7 +1206,6 @@ fn a_lone_point_mates_chain_turns_its_copy_in_the_order_written() {
     let ball = fixture::mate(
         point_of(read(kit.corner(ids[1], CapEnd::Start, 0))),
         point_of(read(kit.corner(ids[0], CapEnd::End, 2))),
-        ContactClass::Rest,
     );
     let (tz, tx, ty) = (0.3, 0.2, 0.1);
     let chain = |spins: &[(TargetAxis, f64)]| -> Vec<(Coord, Formula)> {

@@ -72,3 +72,13 @@ Each passes tier 3 and tier 3′, matches its closed-form volume, and matches th
 - A definite refusal at any face of any pierce outranks an escalation at another, as in the pierce pass this serves.
 
 **The lying-cylinder sibling** has a different root, and this does not close it. Over the cylinder's whole span, the folds that ring the wall before the second prism comes still refuse `CurvedPierceUnsupported`. There the ring is the first prism's footprint, a real hole in the wall at rest.
+
+## Note (2026-10-24, CHART)
+
+Both siblings above now build. PR 5664 reads a cylinder or cone face's
+region from its edges, rings included
+(`topo/src/boolean/ruled_region.rs`). The pocketed wall's row is now
+`a_ringed_wall_holding_the_pierce_builds_either_operand_first_and_pocketed_last`.
+The lying cylinder over its whole span builds in every member order of
+`a_plane_face_holding_the_pierce_over_a_cylinder_builds_in_every_op_and_order`,
+and each such body is sound against the row's closed forms.

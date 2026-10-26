@@ -300,8 +300,11 @@ pub fn two_void_box() -> (Body<f64>, f64) {
 /// A one-hollow body's `(outer, void)` shell keys, decided through the
 /// shell classifier on the body itself.
 pub fn outer_and_void(body: &Body<f64>) -> (ShellKey, ShellKey) {
-    let roles = topo::test_support::unmigrated_classify(body, Tol::witness())
-        .expect("the operand classifies");
+    let roles = topo::classify_shells(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), Tol::witness()),
+        Tol::witness(),
+    )
+    .expect("the operand classifies");
     let pick = |role: ShellRole| {
         let hits: Vec<ShellKey> = roles
             .iter()
@@ -318,8 +321,11 @@ pub fn outer_and_void(body: &Body<f64>) -> (ShellKey, ShellKey) {
 /// read as a flat multiset, because tier 3 does not check solid
 /// membership and the grouping is pinned here.
 pub fn roles_by_solid(body: &Body<f64>) -> Vec<(SolidKey, Vec<ShellRole>)> {
-    let roles =
-        topo::test_support::unmigrated_classify(body, Tol::witness()).expect("the shells classify");
+    let roles = topo::classify_shells(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), Tol::witness()),
+        Tol::witness(),
+    )
+    .expect("the shells classify");
     body.solids()
         .map(|(solid, _)| {
             let mut kinds: Vec<ShellRole> = roles

@@ -98,9 +98,9 @@ pub mod torus_convention;
 
 pub use carrier_net::CarrierEnclosureRefusal;
 pub use certify::{
-    CERT_SAMPLES, CertCheck, Certificate, CertifyError, DraftedIntersection, EdgeCurve,
-    EdgeCurveSpec, ForwardReading, IntersectionDraft, NurbsLane, StatedImage, StatedSpan,
-    WindingReading, edge_extent, folded_parallelism, sample_param, schedule_param,
+    CERT_SAMPLES, CertCheck, Certificate, CertifiedTurn, CertifyError, DraftedIntersection,
+    EdgeCurve, EdgeCurveSpec, ForwardReading, IntersectionDraft, NurbsLane, StatedImage,
+    StatedSpan, WindingReading, edge_extent, folded_parallelism, sample_param, schedule_param,
 };
 pub use conic_bend::{BendBounds, ConicBend, ConicDeparture, conic_bend_side};
 pub use description::{
@@ -144,13 +144,13 @@ pub use implicit::{
     implicit_residual, min_radius_of_curvature, min_radius_of_curvature_toward,
 };
 pub use intersect::{
-    ConeCylinderSection, CylinderSphereSection, EqualCylinderSection, OutsideConic, PairRoute,
-    ParallelAxes, PlaneConeSection, PlaneCylinderSection, PlaneSite, PlaneSphereSection,
-    PlaneTorusSection, Rung, SectionError, SectionPlane, SectionRadius, SphereSphereSection,
-    cone_cylinder_section, cylinder_axes_coplanar, cylinder_axes_parallel,
-    cylinder_cylinder_section, cylinder_sphere_section, parallel_axes_at, plane_cone_section,
-    plane_cylinder_section, plane_cylinder_section_read, plane_sphere_section, plane_torus_section,
-    route, route_pose, sphere_sphere_section, tilted_section_major,
+    ConeCylinderSection, ConicArcError, ConicBranch, CylinderSphereSection, EqualCylinderSection,
+    OpenConic, OpenConicSection, PairRoute, ParallelAxes, PlaneConeSection, PlaneCylinderSection,
+    PlaneSite, PlaneSphereSection, PlaneTorusSection, Rung, SectionError, SectionPlane,
+    SectionRadius, SphereSphereSection, cone_cylinder_section, cylinder_axes_coplanar,
+    cylinder_axes_parallel, cylinder_cylinder_section, cylinder_sphere_section, parallel_axes_at,
+    plane_cone_section, plane_cylinder_section, plane_cylinder_section_read, plane_sphere_section,
+    plane_torus_section, route, route_pose, sphere_sphere_section, tilted_section_major,
 };
 pub use keys::{CurveKey, PointKey, SurfaceKey, SurfacePair};
 pub use locus::{

@@ -433,9 +433,13 @@ mod composed {
                 edges: EdgeOverlay::default(),
             };
         };
-        let [a, b] = tools
-            .mate()
-            .map_or([None, None], |tool| tool.state().picks());
+        // One tool is open at a time, so the mate tool's two held faces
+        // and the mirror tool's plane share these two slots.
+        let [a, b] = match (tools.mate(), tools.mirror()) {
+            (Some(tool), _) => tool.state().picks(),
+            (None, Some(tool)) => [tool.plane(), None],
+            (None, None) => [None, None],
+        };
         let held = marks::Held {
             faces: [drafts.held_face(), a, b],
             edges: tools.blend().and_then(crate::blend::BlendTool::held_edges),

@@ -17,24 +17,13 @@
 //! with a frame or not at all — and it raises `MateError` carrying
 //! that same value under `fault`, so there is one payload vocabulary
 //! rather than a value type and an exception type that can disagree.
-//!
-//! # What Python cannot reach here, and why
-//!
-//! `MateFault`'s `mate_class_not_admitted` arm fires for a class
-//! outside v1's vocabulary. The kernel's contact vocabulary is `Rest`
-//! and `Tangent` today and the Python mirror carries both, so nothing
-//! Python can author reaches that arm — it is bound, tagged and
-//! unreachable until the kernel grows a class. `class_admission` is
-//! the door that says so BEFORE an edit lands.
 
 use pyo3::prelude::*;
 use pyo3::types::PyString;
 
 use crate::errors::ErrorClass;
 use crate::py::typed_err;
-use crate::tags::{
-    class_admission_tag, coord_tag, maintenance_tag, mate_fault_tag, no_chart_why_tag,
-};
+use crate::tags::{coord_tag, maintenance_tag, mate_fault_tag, no_chart_why_tag};
 use std::sync::Arc;
 
 use pncad::document as d;
@@ -67,8 +56,8 @@ impl MateSide {
 
 // ---- The authored payload ----
 
-/// **A mate**: two poses of one kind equated, with the contact class it
-/// declares. A mate is a constraint of the placement that holds it
+/// **A mate**: two poses of one kind equated.
+/// A mate is a constraint of the placement that holds it
 /// (`Doc.constrain`, `Doc.place(shapes, constraints)`), never a node:
 /// this is its payload as a value.
 ///
@@ -82,11 +71,10 @@ impl MateSide {
 /// outward normals, so two faces resting against each other carry a
 /// flip on the target (`PoseDef.flip`). A mate holds no number: what
 /// it leaves free is set by a `MateValue`, and a standoff is a slide of the
-/// target plane along its own normal.
+/// target plane along its own normal. A mate declares no contact: where
+/// the copies it places touch is the at-rest census's to record.
 ///
-/// `class_` is the declared contact class (trailing underscore:
-/// `class` is a Python keyword); `class_admission` says how far each
-/// class gets. `orient` is the mate's `Orientation`, where the copy's
+/// `orient` is the mate's `Orientation`, where the copy's
 /// axes lie along the target space's: the identity unless written, and
 /// read only beside a mate fixing a direction (a plane, an axis, a
 /// direction) — a point or a frame mate written with any other refuses
@@ -104,20 +92,17 @@ pub(crate) struct Mate(pub(crate) d::Mate<d::Formula>);
 #[pymethods]
 impl Mate {
     #[new]
-    #[pyo3(signature = (on, to, class_, *, orient=None))]
+    #[pyo3(signature = (on, to, *, orient=None))]
     fn new(
-        py: Python<'_>,
         on: super::doc::OperandArg,
         to: super::doc::OperandArg,
-        class_: super::contact::ContactClass,
         orient: Option<Orientation>,
-    ) -> PyResult<Self> {
-        Ok(Self(d::Mate {
+    ) -> Self {
+        Self(d::Mate {
             on: on.read(),
             to: to.read(),
-            class: class_.to_kernel(py)?,
             orient: orient.map_or(d::Orientation::IDENTITY, |o| o.0),
-        }))
+        })
     }
 
     /// The copy's pose, as written.
@@ -136,30 +121,22 @@ impl Mate {
         }
     }
 
-    /// The declared contact class.
-    #[getter]
-    fn class_(&self, py: Python<'_>) -> PyResult<super::contact::ContactClass> {
-        super::contact::contact_class(py, self.0.class)
-    }
-
     /// The orientation, as written.
     #[getter]
     fn orient(&self) -> Orientation {
         Orientation(self.0.orient)
     }
 
-    /// BIT-exact equality: the same poses, the same class, the same
-    /// orientation.
+    /// BIT-exact equality: the same poses, the same orientation.
     fn __eq__(&self, other: &Self) -> bool {
         self.0.bit_eq(&other.0)
     }
 
     fn __repr__(&self) -> String {
         format!(
-            "Mate(on={}, to={}, class_={:?}, orient={})",
+            "Mate(on={}, to={}, orient={})",
             self.0.on,
             self.0.to,
-            self.0.class,
             Orientation(self.0.orient).__repr__()
         )
     }
@@ -539,75 +516,6 @@ impl Placed {
 }
 
 // ---- The admission table ----
-
-/// **How far a contact class gets in v1**, as a value both enforcing
-/// doors read.
-///
-/// The two doors want different things of a class: the solve needs a
-/// coset the alignment table can fold, and the assembly gate's mint
-/// needs a kernel record type that can carry the declaration at rest.
-/// A class can satisfy the first and not the second — which is why a
-/// tool asks this table BEFORE committing an edit rather than
-/// discovering the refusal after it lands.
-#[pyclass(frozen, module = "pncad", skip_from_py_object)]
-#[derive(Clone)]
-pub(crate) struct ClassAdmission(d::ClassAdmission);
-
-#[pymethods]
-impl ClassAdmission {
-    /// The stable tag: `mints`, `no_at_rest_record` or
-    /// `not_admitted`, the three the stub lists for this attribute.
-    // The map is `crate::tags::class_admission_tag`, whose words
-    // `TAG_INVENTORY` pins.
-    #[getter]
-    fn variant(&self) -> &'static str {
-        class_admission_tag(&self.0)
-    }
-
-    /// Whether both doors admit the class: the solve folds it AND the
-    /// gate mints it into the product's record set.
-    #[getter]
-    fn mints(&self) -> bool {
-        matches!(self.0, d::ClassAdmission::Mints)
-    }
-
-    /// Whether the SOLVE admits it — `mints` or `no_at_rest_record`.
-    /// A class the solve refuses never reaches the gate at all.
-    #[getter]
-    fn solves(&self) -> bool {
-        !matches!(self.0, d::ClassAdmission::NotAdmitted)
-    }
-
-    /// Why the assembly gate carries nothing at rest for this class,
-    /// in the class's own terms. Present on every arm — the deferral
-    /// sentence for `not_admitted`, the table's own reason for
-    /// `no_at_rest_record`, and `None` for `mints`, which carries one.
-    #[getter]
-    fn why(&self) -> Option<&'static str> {
-        match self.0 {
-            d::ClassAdmission::Mints => None,
-            d::ClassAdmission::NoAtRestRecord { why } => Some(why),
-            d::ClassAdmission::NotAdmitted => Some(d::CLASS_DEFERRAL),
-        }
-    }
-
-    fn __repr__(&self) -> String {
-        format!("ClassAdmission({:?})", self.variant())
-    }
-}
-
-/// How far `class_` gets in v1 — the table, read.
-///
-/// The whole class policy as one value, so a mate-authoring tool can
-/// offer only what the vocabulary can execute. Nothing is restated
-/// here: `assemble` and `solve_document` read this same table.
-#[pyfunction]
-pub(crate) fn class_admission(
-    py: Python<'_>,
-    class_: super::contact::ContactClass,
-) -> PyResult<ClassAdmission> {
-    Ok(ClassAdmission(d::class_admission(class_.to_kernel(py)?)))
-}
 
 // ---- The solve's read side ----
 
@@ -1197,14 +1105,10 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Mate>()?;
     m.add_class::<MateFault>()?;
     m.add_class::<SolvedPoses>()?;
-    m.add_class::<ClassAdmission>()?;
     m.add_class::<Maintenance>()?;
     m.add_function(wrap_pyfunction!(solve_document, m)?)?;
     m.add_function(wrap_pyfunction!(relative_freedom_components, m)?)?;
-    m.add_function(wrap_pyfunction!(class_admission, m)?)?;
-    m.add("CLASS_DEFERRAL", d::CLASS_DEFERRAL)?;
     m.add("OVERCONSTRAINED_RECOURSE", d::OVERCONSTRAINED_RECOURSE)?;
     m.add("UNPINNED_RECOURSE", d::UNPINNED_RECOURSE)?;
-    m.add("NO_AT_REST_RECORD_RECOURSE", d::NO_AT_REST_RECORD_RECOURSE)?;
     Ok(())
 }

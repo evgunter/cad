@@ -312,8 +312,11 @@ fn validated_halves(
 fn assert_volume(what: &str, body: &Body<f64>, want: f64) {
     topo::validate_closed(body).unwrap_or_else(|e| panic!("{what}: tiers 1–2: {e:?}"));
     topo::validate_geometric(body, tol()).unwrap_or_else(|e| panic!("{what}: tier 3: {e:?}"));
-    let props = topo::test_support::unmigrated_measure(body, tol())
-        .unwrap_or_else(|e| panic!("{what}: the volume refused {e:?}"));
+    let props = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("{what}: the volume refused {e:?}"));
     let slack = props.volume_pad + 64.0 * f64::EPSILON * want.abs();
     assert!(
         (props.volume - want).abs() <= slack,

@@ -229,3 +229,44 @@ This was not a crossover, because only one designer moved, so reconciliation end
 - 2026-10-24 — **PR 5655 merged** (`40ea8d2114`), after main (including 5657) was merged in and CI re-ran. The three arms rows are closed.
 - 2026-10-24 — The DUAL review for `curved-face-containment-answers-none-on-a-ringed-face` uses difficulty letter **H**, the row's cost, and so per `docs/DUAL-REVIEW-PROTOCOL.md` rule 1 the arm is CONCURRENT: two Opus reviewers on one frozen head once the PR is green.
 - 2026-10-24 — **PR 5659 merged** (`8a6d97e661`). A point's chart coordinates are one reading, `geom::ChartInverse`; the cone reads the ruling foot.
+- 2026-10-24 — **PR 5664 (ringed doors): concurrent dual dispatched at 10:42Z** on frozen head `bc240215a3`. R1 is `session_01JushBJjozZNBkjbDQ7Dwu1` and R2 is `session_01SpvFwXDoHN5zxeA4PtM2Bs`. The briefs are identical apart from the lane label (template sha256 `74205e50…5fe99`). Both run in their own sessions with private target dirs. The PR base was retargeted to main.
+- 2026-10-24 — **PR 5664 dual delivered** (R1 at 11:27Z, R2 at 11:35Z). Both say APPROVE-WITH-FIXES with no MAJOR. Together they ran about 335k answers against oracles: 0 wrong and 0 refused. The UNION fix list went to the lane. Must-fix: two stale slow-set pins, the NaN `aim`, a seam row, `scale` understating its far bound, `reaches_nappe`, guards no row can redden, stale prose, the roster, a monotone test, and one row per question. Filed: a shared core for the region doors (P1), the nappe sites, and the check-6 exemption text. Coding and the row follow at merge (rules 6–8).
+- 2026-10-24 — **PR 5664 merged** (`80a6f77af3`), with its row (concurrent, letter H, 0 tallied). The ringed doors' row is closed, and the cell-verdict unit unparked.
+- 2026-10-24 — **Dispatched (14:47Z), CHART's last two P1 rows, in parallel:**
+  - `the-region-doors-share-one-skeleton-three-times`: `session_01YDSak6KqyAuLbmQXoSwbrJ`, branch `chart/region-skeleton`, single FULL review. It is a refactor held to a before/after verdict differential.
+  - `clearance-cells-are-decided-in-model-space`: `session_016hzZhTuVbKsWEjqw1UCw4H`, branch `chart/clearance-cells`, DUAL concurrent review (letter H). It lands the clearance sweep's half. `LowerBoundOnly` still waits on CLEAR's lane-split row.
+
+  The two lanes meet only at the region doors' public entry points, which the skeleton lane keeps stable.
+- 2026-10-24 — **PR 5673 (cell verdict): concurrent dual dispatched at 16:34Z** on frozen `54b5ab0bbf`. R1 is `session_01B1gnGAgkNUJmNnyscKVYNN` and R2 is `session_01NaowF8MD6eEXk3YKeuRA3N`. The briefs are identical modulo the label (template sha256 `06a7b6317ecdab11…`).
+- 2026-10-24 — **PR 5671 FULL review** (`session_01J532Ys65dyiV7cKHhAuvX7`): mergeable. The reviewer's own differential, about 2.27M records against base with extra probe points, matched byte for byte. One MINOR: the sphere ray loop's divergence would move a refusal (`Escalated` against `RayExhausted`), not just an order, and it had no `work/` item. The fix pass:
+  - Scaffolding pins on the sphere and the torus;
+  - the second leg built lazily again;
+  - the inline `turn` and the `Fault` alias;
+  - docs and a stale gate citation;
+  - the ruled `Carrier` rename;
+  - the residual skeleton duplication (the sphere ray, `Legs` under `Paths`, the circle-leg place written three times, the two `along`s, three restricted-curve spellings) filed as one P1 row.
+- 2026-10-24 — **PR 5671 merged** (`702feaba18`). The region doors share one skeleton in `region.rs`.
+- 2026-10-24 — I pushed `f5a9002319` with conflict markers in this item file: I committed during a merge that had not finished. Fixed in the next commit. From now on the rule INTENT logged applies here too: `git merge --no-commit`, grep for markers, then commit.
+- 2026-10-24 — **PR 5673 dual delivered** (R2 at 17:22Z, R1 at 19:04Z). Both say APPROVE-WITH-FIXES with no MAJOR, about 350k decided cells and 0 contradictions. The UNION fix list went to the lane:
+  - kill the ellipse and spline-ball mutants with fixtures;
+  - one reading for the line, mid-param, ellipse-arc, arc-guard and edge-vs-ball questions (`carrier_touch` has a drifted copy);
+  - the vacuous `windows().1`;
+  - anti-vacuity floors;
+  - links and stale prose;
+  - K names (`chart_bound_joint_room`, the pooled `cell_region_gap`);
+  - the apex premise made structural;
+  - the item scope stated honestly.
+- 2026-10-24 — **`clearance-cells-are-decided-in-model-space` lane** (branch `chart/clearance-cells`). `topo::cell_region` decides a cell `Inside`/`Outside`/`Undecided` off the face's edges on their carriers and its point door; `chart_bound.rs`, `chart_boundary`, `chart_edge`, `clearance::chart_arms` and the root cut retire, and with them the six error variants only they raised. `loop_windings` is the walk's one public reading now. The sweep's `Violated` witness admits only stations the point door places on the face. `min_separation` keeps `band: None` (CLEAR's lane-split row carries the measure's half). Crossings, all forced re-words or callers of the deleted names: `clearance.rs` (CLEAR, SHELL), `step-import` (EXCH), `boolean/ops.rs` and `splitting/containment.rs` (CLEAVE and others), `pcurves.rs` (CHARTTAIL), `ring_path.rs` (GERMTAIL), `validate.rs` (RESTFRONT). Three CHARTTAIL rows on the deleted code are closed; one (`an-overshooting-subtract-…`) carries a note.
+- 2026-10-24 — **PR 5673 merged** (`69434a4c21`) with its row (concurrent, letter H, 0 tallied): clearance cells are decided in model space, and `chart_bound.rs` and `chart_boundary` are gone. Dispatched CHART's last P1 row, `the-sphere-ray-and-the-circle-leg-stand-outside-the-region-skeleton`: `session_01VoJo4adLWZZjmFyfQka8XR`, branch `chart/region-skeleton-2`, single FULL review. When it lands, CHART has no P0/P1 row left, and the track goes back to `ready` or `blocked` (the sitting rule).
+- 2026-10-25 — **PR 5674 FULL review** (`session_01MZZvkYFSHFEV5q9pEwZyRd`, head `a0a0f2d9`). The reviewer's own differential (138,633 queries at each of three ε, refusals compared by full `Debug`) found 0 differences; fmt, clippy, topo `ci` and the region slow set are green. One MAJOR: a rustdoc link at `torus_region.rs:308` no longer resolves, and the PR gate does not run rustdoc, so the nightly would go red. One MINOR: ten mutants on the new skeleton survive every suite (`Round::reach`, `Round::arc`, `Line::reach`, `short_of_end`'s Zero arm, four of `along`'s arms, the second leg's offset). The fix list sent to the lane:
+  - the link;
+  - a row that reddens each surviving mutant, or the dead branch deleted;
+  - the copies the PR minted collapsed (`Line::reach`/`place`, `along`/`short_of_end`, `Round::place`/`arc`, the no-op `offset`);
+  - the `Course::reach` doc made true;
+  - `turn`/`angle` visibility and the module header;
+  - the body's reorder sentence stated as measured, with its reachable class;
+  - `Round`/`Line` as hand-written carriers beside `Curve3`, which predates the unit, filed as a P2 row.
+
+  Not asked: S6 (the admit list kept in step with the `unreachable!` arms by hand is the trade the unit asked for), S7 and S11 (unsure).
+- 2026-10-25 — **PR 5674 fix pass accepted, and the PR merged** (`768b325edc`). I read the diff: the rustdoc link is fixed; three unit rows in `region.rs` redden mutants 2, 4, 6, 10, 11, 14, 15 and 17; the code that mutants 7 and 19 changed is gone (`Line::reach`, `offer`'s offset); `turn` and `angle` are private. The lane's differential of the fixes against the reviewed head shows 0 differences. Main moved twice under the PR. The lane merged `8d7bc1f6` and `gate ok` ran green on `adff18c0`. The later move to `bc060f24` was docs and `work/` only (`crates/geom-brep/README.md`), so it could not change the build, and I merged on that green. The lane also filed `work/cleave/a-torus-twin-fuzz-row-draws-points-inside-the-band-at-1e-6.md`: a fuzz row red on main too, with the cause in the test's clearance filter.
+- 2026-10-25 — **Sitting closed.** CHART has no P0 or P1 row left, so the track goes back to `ready`. `a-landings-edge-parameter-…` is set to P2, beside `the-region-legs-spell-a-circle-and-a-line-beside-curve3` (P2). `plan.md` records where the track stands.

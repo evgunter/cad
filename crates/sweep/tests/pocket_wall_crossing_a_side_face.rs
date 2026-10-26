@@ -190,14 +190,12 @@ fn a_pocket_whose_wall_crosses_a_side_face_builds_at_its_closed_form_volume() {
     let v_blk = 4.0;
     let mut bad = Vec::new();
     for pose in poses() {
-        let cut = cutter(&pose);
-        let cut_op = finished("the cutter", cut.clone(), tol());
+        let cut = topo::test_support::finished("cut", cutter(&pose), tol());
+        let cut_op = finished("the cutter", topo::Body::clone(&cut.clone()), tol());
         // The cutter's own volume, closed form against the kernel's:
         // the oracle's disc is the profile the prism was built from.
         let v_cut = cutter_area(pose.flat) * pose.h;
-        let measured = topo::test_support::unmigrated_measure(&cut, tol())
-            .unwrap()
-            .volume;
+        let measured = topo::mass_properties(&cut, tol()).unwrap().volume;
         assert!(
             (measured - v_cut).abs() < 1e-9,
             "the D prism's closed form is its volume: flat={} h={} closed form {v_cut} vs \

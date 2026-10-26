@@ -144,7 +144,6 @@ pub(crate) fn boss_on_tilted(half: f64, derived: bool) -> ProfileDoc {
         editor_core::Mate {
             on: fixture::plane(start),
             to,
-            class: editor_core::ContactClass::Rest,
             // The start cap faces the plane's normal unflipped: the copy
             // stands upended, its `z` along `−z`.
             orient: editor_core::Orientation::new(

@@ -8,23 +8,21 @@
 //! every boundary edge through the C5 table.
 //!
 //! - **Face containment on a cone face** answered nothing. It now reads
-//!   the double-cone carrier first, then the face's OWN chart trim — the
-//!   solid door's slant window and azimuth window, asked about one face
-//!   rather than its surface group — and the rows hold what a wrong
+//!   the double-cone carrier first, then the face's OWN region, read from
+//!   its boundary edges (`topo::boolean::ruled_region`), never its
+//!   surface group's — and the rows hold what a wrong
 //!   answer would break: two half-bands of one frustum PARTITION their
 //!   wall, a quarter cone holds its quadrant and not the others, the
 //!   mirror nappe and the carrier past the slant window are outside,
 //!   and the apex-closed bands of one full cone partition their wall
-//!   too, their windows closed at the apex.
-//! - **The C5 gate** read `route(kind, kind).implemented`. A quarter
-//!   cone's wedge cap passes through the apex, which the plane×cone
-//!   arm serves; offset, it no longer does, and the pair cuts a
-//!   hyperbola the arm routes to the general rung. The gate admitted it
-//!   on the kind pair and the refusal came from the corner re-anchor
-//!   downstream (a `0.0354` m corner gap, measured before the fix, by
-//!   a refusal since retired: corners are derived by root now). The gate now asks the arm, and refuses the pose by the arm's
-//!   own grounds; an axis-normal cap, which the arm does serve, still
-//!   passes it.
+//!   too.
+//! - **The C5 gate** asks the arm about the pose, not only the kind
+//!   pair. A quarter cone's wedge cap passes through the apex, where the
+//!   plane×cone arm serves the generator pair; offset, it stands off the
+//!   apex and cuts a hyperbola, which the arm serves as an open conic
+//!   whose arc has no certificate on a cone yet. The edge's section
+//!   refuses naming the conic before any corner is re-anchored; an
+//!   axis-normal cap, whose circle the arm serves, still passes.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -377,20 +375,15 @@ fn wedge_caps(body: &Body<f64>) -> Vec<FaceKey> {
     )
 }
 
-/// **An offset wedge cap leaves the pose its arm serves, and the gate
+/// **An offset wedge cap cuts its cone in a hyperbola, and the door
 /// says so.** Each cap passes through the apex, which the plane×cone
 /// arm serves (the generator pair); moved by `±0.05` it stands off the
 /// apex and parallel to the axis, and cuts the cone in a hyperbola,
-/// which is outside the conic inventory (R1). The door refuses at the
-/// C5 gate by the arm's own grounds, naming the conic, before any
-/// corner is re-anchored, and the body is untouched.
-///
-/// Red before the gate asked about the pose: the kind pair passed and
-/// the refusal was a corner gap on the generator edge (a refusal
-/// since retired), `0.0354` m of corner error — a pose admitted as served and caught by the
-/// next gate down.
+/// whose arc is a rational-quadratic NURBS carrier that has no
+/// certificate on a cone yet. The edge's section refuses naming the
+/// conic, before any corner is re-anchored, and the body is untouched.
 #[test]
-fn an_offset_wedge_cap_refuses_at_the_pose_gate() {
+fn an_offset_wedge_cap_refuses_naming_the_hyperbola() {
     let body = quarter_cone();
     let caps = wedge_caps(&body);
     assert_eq!(caps.len(), 2);
@@ -400,20 +393,28 @@ fn an_offset_wedge_cap_refuses_at_the_pose_gate() {
             let before = format!("{work:?}");
             let e = topo::replace_face_offset(&mut work, cap, d, Tol::witness())
                 .expect_err("the moved cap cuts a hyperbola");
-            let ReplaceFaceError::NeighborPoseUnroutable {
+            let ReplaceFaceError::EdgeSection {
                 kind,
                 other_kind,
-                why,
+                verdict,
                 ..
             } = e
             else {
-                panic!("cap {cap:?}, d {d}: expected the pose refusal, got {e}");
+                panic!("cap {cap:?}, d {d}: expected the section refusal, got {e}");
             };
             assert_eq!(
                 (kind, other_kind),
                 (geom::SurfaceKind::Plane, geom::SurfaceKind::Cone)
             );
-            assert!(why.contains("HYPERBOLA"), "{why}");
+            assert!(
+                matches!(
+                    verdict,
+                    topo::SectionVerdict::OpenConic {
+                        conic: geom_brep::OpenConic::Hyperbola
+                    }
+                ),
+                "{verdict}"
+            );
             assert_eq!(before, format!("{work:?}"), "body moved across an Err");
         }
     }

@@ -144,9 +144,12 @@ fn a_blind_pocket_in_a_cylinder_cap_cuts_to_the_closed_form() {
             "{label}: tier 3"
         );
         let volume = |b: &topo::Body<f64>| {
-            topo::test_support::unmigrated_measure(b, tol)
-                .expect("mass properties")
-                .volume
+            topo::mass_properties(
+                &topo::test_support::finished("the measured body", topo::Body::clone(b), tol),
+                tol,
+            )
+            .expect("mass properties")
+            .volume
         };
         let tool_volume = volume(body_of(&ev, prism));
         assert!(
@@ -182,18 +185,18 @@ fn a_pocket_across_the_rim_cuts_to_the_closed_form() {
     if let Some(NodeResult::Failed(e)) = ev.nodes.get(&cut) {
         panic!("the rim-crossing pocket refused: {e}");
     }
-    let body = body_of(&ev, cut);
-    assert_eq!(topo::validate(body), Ok(()), "tier 1");
-    assert_eq!(topo::validate_closed(body), Ok(()), "closed");
+    let body = topo::test_support::finished("body", topo::Body::clone(body_of(&ev, cut)), tol);
+    assert_eq!(topo::validate(&body), Ok(()), "tier 1");
+    assert_eq!(topo::validate_closed(&body), Ok(()), "closed");
     assert_eq!(
-        topo::validate::validate_geometric(body, tol),
+        topo::validate::validate_geometric(&body, tol),
         Ok(()),
         "tier 3"
     );
     let d = 0.035;
     let segment = R * R * (d / R).acos() - d * (R * R - d * d).sqrt();
     let truth = PI * R * R * HEIGHT - segment * DEPTH;
-    let got = topo::test_support::unmigrated_measure(body, tol)
+    let got = topo::mass_properties(&body, tol)
         .expect("mass properties")
         .volume;
     assert!(

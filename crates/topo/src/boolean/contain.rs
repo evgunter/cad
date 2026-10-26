@@ -9,9 +9,8 @@
 //! typed (F6); definite margins walk on. Interior/exterior then comes
 //! from one walk over the outer loop and every ring, which reads each
 //! edge on its own CARRIER ([`crate::splitting::containment::carrier_loop_side`]): a line is its
-//! chord, a circle or ellipse arc is crossed on its conic, a spiric arc
-//! on its oval, and a spline edge, which has no crossing row, refuses
-//! typed wherever it could matter.
+//! chord, a circle or ellipse arc is crossed on its conic, and a spiric
+//! or spline arc piece by piece on its own carrier.
 
 use geom_brep::recourse::{LeverOnly, Reading, RefusedArm, SizedPass};
 use geom_core::k_stats::{Magnitude, decide_magnitude_reported};
@@ -26,7 +25,7 @@ use crate::splitting::containment::placement_sized;
 use crate::splitting::containment::{
     BoundaryRows, ConicRows, OffLoop, OnEdge, OnLoop, carrier_loop, carrier_loop_side,
 };
-use crate::splitting::spiric_arc::SpiricRows;
+use crate::splitting::pieced_arc::ArcRows;
 use crate::splitting::{Escalation, LoopDecision, PointInLoopError, Uncrossable};
 use crate::validate::decide;
 
@@ -70,10 +69,6 @@ pub enum ContainDecision {
     /// `reduce::wall_crossing`, a residual there). No one sign set is the
     /// decision's, so no margin gives a tolerance to tighten below.
     Carrier,
-    /// Whether a cylinder face's azimuth window sweeps clearly less than
-    /// a full turn: its gap to one, at the radius. Only a positive gap
-    /// gives the trim a window to read.
-    WindowPeriod,
 }
 
 impl From<LoopDecision> for ContainDecision {
@@ -93,9 +88,6 @@ pub const fn placement_subject(decision: Option<ContainDecision>) -> &'static st
         }
         Some(ContainDecision::OneCircle) => "whether a loop's arcs are arcs of one circle",
         Some(ContainDecision::Carrier) => "whether a point lies on the face's surface",
-        Some(ContainDecision::WindowPeriod) => {
-            "whether a cylinder face sweeps less than a full turn"
-        }
         None => "whether a point lies inside a face, on its boundary, or outside it",
     }
 }
@@ -116,7 +108,6 @@ pub const fn placement_lever(decision: Option<ContainDecision>) -> &'static str 
         Some(ContainDecision::Carrier) => {
             "move the point exactly onto the face's surface or clearly off it"
         }
-        Some(ContainDecision::WindowPeriod) => "keep the wall clearly short of a full turn",
         None => "move the point clearly inside or outside the face",
     }
 }
@@ -124,7 +115,7 @@ pub const fn placement_lever(decision: Option<ContainDecision>) -> &'static str 
 /// **The escalations each site raises**: every decision paired with each
 /// way its sites' readings can stand, and `None` for a refusal that names
 /// no decision. A pair not here is raised nowhere.
-pub const CONTAINMENT_RAISED: [(Option<ContainDecision>, Escalation); 11] = {
+pub const CONTAINMENT_RAISED: [(Option<ContainDecision>, Escalation); 10] = {
     use ContainDecision as C;
     use Escalation::{Margin, Straddle};
     use LoopDecision as L;
@@ -139,13 +130,12 @@ pub const CONTAINMENT_RAISED: [(Option<ContainDecision>, Escalation); 11] = {
         (Some(C::ArcEnd), Margin),
         (Some(C::OneCircle), Margin),
         (Some(C::Carrier), Margin),
-        (Some(C::WindowPeriod), Margin),
     ]
 };
 
 impl ContainDecision {
     /// Every decision, for the rows that sample them.
-    pub const ALL: [Self; 8] = [
+    pub const ALL: [Self; 7] = [
         Self::Loop(LoopDecision::Boundary),
         Self::Loop(LoopDecision::Ray),
         Self::Loop(LoopDecision::ArcSpan),
@@ -153,7 +143,6 @@ impl ContainDecision {
         Self::ArcEnd,
         Self::OneCircle,
         Self::Carrier,
-        Self::WindowPeriod,
     ];
 
     /// The one ending an escalation of this decision carries, read at
@@ -167,9 +156,6 @@ impl ContainDecision {
             Self::ArcEnd | Self::Carrier => LeverOnly { lever }.recourse(arm, reading),
             Self::OneCircle => placement_sized(lever, "gap between circles", SizedPass::AnySign)
                 .recourse(arm, reading),
-            Self::WindowPeriod => {
-                placement_sized(lever, "gap", SizedPass::Positive).recourse(arm, reading)
-            }
         }
     }
 
@@ -632,17 +618,16 @@ pub(super) fn curved_boundary_containment<T: Decide>(
 /// below) — then edge interiors over all loops, each edge on the row
 /// its carrier has: a `Line` is the distance to its closed segment
 /// ([`crate::ray_walk::on_segment`]), a circle or an ellipse is asked its
-/// own conic and trim, and a spiric is read piece by piece on its oval —
-/// all through
+/// own conic and trim, and a spiric or a spline is read piece by piece
+/// on its own carrier — all through
 /// [`crate::splitting::containment::LoopEdge::contact`], the one
 /// boundary reading the carrier walk runs too, so a point this pass
-/// places off an edge is off it for the walk. A spline edge gets no verdict: its
-/// chord is a different curve, and the region walk refuses inside a
-/// ball its locus lies in. This is [`contfp`]'s ONE boundary pass: the
-/// walk after it trusts it and runs none of its own. Rows, one home:
-/// `bool_contact_vertex`, `bool_contact_edge{,_length}`, — for the
-/// conic disposition — `bool_contact_arc{,_span,_end,_trim}`, and for
-/// the spiric `bool_contact_spiric{,_end,_clear,_leaf}`.
+/// places off an edge is off it for the walk. This is [`contfp`]'s ONE
+/// boundary pass: the walk after it trusts it and runs none of its own.
+/// Rows, one home: `bool_contact_vertex`, `bool_contact_edge{,_length}`,
+/// — for the conic disposition — `bool_contact_arc{,_span,_end,_trim}`,
+/// for the spiric `bool_contact_spiric{,_end,_clear,_leaf}`, and for the
+/// spline `bool_contact_spline{,_end,_clear,_leaf}`.
 fn boundary_pre_pass<T: Decide>(
     body: &Body<T>,
     loops: &[LoopKey],
@@ -681,9 +666,9 @@ fn boundary_pre_pass<T: Decide>(
             // Within the band of a curved edge's END, which the vertex
             // pass above placed definitely clear of both of this edge's
             // vertices. The end is read exactly (a circle through its
-            // radius, an ellipse or a spiric as a distance from `q`), so the two
-            // passes disagree only by as much as the carrier's ends
-            // sit off the stored vertices, on its own row
+            // radius, an ellipse, a spiric or a spline as a distance from
+            // `q`), so the two passes disagree only by as much as the
+            // carrier's ends sit off the stored vertices, on its own row
             // (`bool_contact_arc_end_vertex`). Certification pins each
             // carrier end within the run's zero band of its vertex
             // (`geom_brep`'s `carrier_endpoint_{start,end}` rows), and the
@@ -693,7 +678,7 @@ fn boundary_pre_pass<T: Decide>(
             // the finding carries them.
             OnEdge::End => {
                 let Some(carrier_ends) = lp.edges[i].carrier_ends() else {
-                    unreachable!("only a conic or spiric arc reads End")
+                    unreachable!("only a curved arc reads End")
                 };
                 let ([c0, c1], v0, v1) = (
                     carrier_ends,
@@ -726,10 +711,10 @@ enum PrePass<T: geom_core::Real> {
     Off(Vec<ReadLoop<T>>),
 }
 
-/// The distance from a conic or spiric edge's carrier end to one of the
-/// edge's stored vertices — a question about the body, apart from `q`'s
-/// own distance to that end (`bool_contact_arc_end`,
-/// `bool_contact_spiric_end`).
+/// The distance from a curved edge's carrier end to one of the edge's
+/// stored vertices — a question about the body, apart from `q`'s own
+/// distance to that end (`bool_contact_arc_end`,
+/// `bool_contact_spiric_end`, `bool_contact_spline_end`).
 const END_VERTEX: &str = "bool_contact_arc_end_vertex";
 
 /// The pre-pass's rows for a straight edge: [`crate::ray_walk::on_segment`]
@@ -746,75 +731,43 @@ const EDGE_ROWS: ParityRows = ParityRows {
 /// The pre-pass's rows ([`crate::splitting::containment::LoopEdge::contact`]).
 const ROWS: BoundaryRows = BoundaryRows {
     line: &EDGE_ROWS,
-    conic: ConicRows {
-        span: "bool_contact_arc_span",
-        straddle: "bool_contact_arc_straddle",
-    },
-    spiric: SpiricRows {
+    conic: ConicRows::bounded("bool_contact_arc_span", "bool_contact_arc_straddle"),
+    spiric: ArcRows {
         end: "bool_contact_spiric_end",
         clear: "bool_contact_spiric_clear",
         on: "bool_contact_spiric",
         leaf: "bool_contact_spiric_leaf",
     },
+    spline: ArcRows {
+        end: "bool_contact_spline_end",
+        clear: "bool_contact_spline_clear",
+        on: "bool_contact_spline",
+        leaf: "bool_contact_spline_leaf",
+    },
 };
 
-/// **Point-in-face containment on a CURVED chart** — the face-level
-/// analog of the solid door's chart trim
-/// ([`super::solid_contain::point_on_wall_in_face`]), and the door the
-/// curved sweep arm's frontier names.
+/// **Point-in-face containment on a CURVED face** — the face-level
+/// analog of the solid door's hit test, and the door the curved sweep
+/// arm's frontier names.
 ///
 /// The boundary walk runs first and unchanged
 /// ([`curved_boundary_containment`]): an ON verdict is an ON verdict
-/// whatever the chart is. Then the CARRIER: a face is a subset of its
-/// surface, so a point definitely off the surface is definitely
-/// outside the face, and saying so here is what keeps the
-/// parameter-domain trim below from answering about a point that is
-/// not on the chart at all.
+/// whatever the surface is. Then the CARRIER: a face is a subset of its
+/// surface, so a point definitely off the surface is definitely outside
+/// the face, and saying so here is what keeps the region reading below
+/// from answering about a point that is not on the surface at all.
 ///
-/// Only then does this ask the interior question, per chart: the
-/// sphere, torus and cone arms read their own chart windows
+/// Only then does this ask the interior question, of the face's region
+/// read from its boundary edges, rings included, by the one reading the
+/// ray lane takes too: [`super::sphere_region`], [`super::torus_region`]
+/// and, for a cylinder or a cone, [`super::ruled_region`]
 /// ([`sphere_face_containment`], [`torus_face_containment`],
-/// [`cone_face_containment`]), and a
-/// **cylinder wall of the ISO-BOUNDED class** answers it this way:
+/// [`ruled_face_containment`]). Nothing is read in a chart.
 ///
-/// - the face carries no rings (a ring is a hole the rectangle below
-///   does not model, and answering `In` inside one would be wrong);
-/// - every boundary edge is a RIM (a circle coaxial with the wall, at
-///   the wall's own radius — a height iso-line) or a MERIDIAN (a line
-///   parallel to the axis — an azimuth iso-line);
-/// - the rims sit on exactly two levels.
-///
-/// That is the rectangle class of the ray lane's
-/// ([`super::solid_contain::wall_outline`], asked here rather than
-/// restated), and it is what makes the chart trim EXACT: every ruling
-/// through the window crosses the boundary once on each level, so the
-/// face is exactly the rectangle `[az] × [h]` its boundary pins
-/// ([`super::solid_contain::cylinder_chart_trim`]). A third level is a
-/// stepped outline the rectangle over-covers.
-///
-/// A wall closed by a tilted section takes its height extreme inside an
-/// edge, so the rectangle would misstate it in BOTH directions; it is
-/// the ray lane's CHART outline instead (every boundary edge a meridian,
-/// a rim or a planar section, no ring, a window narrower than a period),
-/// and this door reads it the way the ray lane does: by parity along the
-/// point's ruling ([`super::solid_contain::point_on_wall_in_face`]).
-///
-/// A face that ALONE wraps the azimuth has no window to trim by, and is
-/// served as the full-turn BAND
-/// ([`super::solid_contain::full_turn_outline`], the route both doors
-/// ask first): membership is the height window alone.
-///
-/// `None` is therefore the honest remainder throughout — a chart with no
-/// arm (NURBS), a chart form the trim cannot express (a ringed face, a
-/// boundary outside the rectangle and chart outlines, a wrapped face
-/// outside the band class, or a window
-/// that reads a whole period on a face that does not wrap alone, whose
-/// cosine comparison is an equivalence only under a period), or a
-/// margin on a trim boundary — and the caller keeps its typed frontier
-/// door there. The period case is decided HERE rather than read out of
-/// the solid door's refusal: that door escalates, because a ray lane
-/// may not silently skip a wall, and this door's contract is the
-/// remainder.
+/// `None` is therefore the honest remainder — a surface with no region
+/// reading (NURBS), a boundary edge the reading has no closed form for,
+/// or a point on the region's boundary that the boundary walk did not
+/// place — and the caller keeps its typed frontier door there.
 ///
 /// # Errors
 ///
@@ -842,7 +795,7 @@ pub fn curved_face_containment<T: Decide>(
 ///   CONTRADICTS its own certificate, and the only honest answer is to
 ///   keep its typed door.
 /// - `Trim(Some(FaceContainment::Out))`: the point is on the surface and
-///   the face's chart trim excludes it — a sibling face's incidence.
+///   the face's region excludes it — a sibling face's incidence.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum CurvedPlacement {
     /// Definitely off the face's carrier surface.
@@ -857,9 +810,9 @@ pub(crate) enum CurvedPlacement {
 /// and in a boolean's carry onto the pieces of a divided face, and a
 /// section witness in its face. On a plane, `q` is first decided on the
 /// plane by `on_plane` (the caller's predicate) and `OffCarrier` is that
-/// decision's nonzero, then [`contfp`] places it; on a curved face the
-/// chart trim places it ([`curved_face_placement`]). `Trim(None)` is the
-/// curved trim's remainder, a face it does not read.
+/// decision's nonzero, then [`contfp`] places it; on a curved face its
+/// region places it ([`curved_face_placement`]). `Trim(None)` is the
+/// curved door's remainder, a face it does not read.
 ///
 /// # Errors
 ///
@@ -937,145 +890,54 @@ fn curved_interior_placement<T: Decide>(
     band: Band,
 ) -> Result<CurvedPlacement, ContainError> {
     let face_data = proven(&body.faces, face, EntityId::Face);
-    let surface = body.face_surface_linked(face, face_data);
-    // The sphere's and torus's region readings take rings in their
-    // stride; the chart trims below do not model them.
-    if !face_data.rings.is_empty()
-        && !matches!(
-            surface,
-            geom::Surface::Sphere { .. } | geom::Surface::Torus { .. }
-        )
-    {
-        return Ok(CurvedPlacement::Trim(None));
-    }
-    let (origin, axis, radius, u_ref) = match surface {
-        &geom::Surface::Cylinder {
+    match *body.face_surface_linked(face, face_data) {
+        geom::Surface::Cylinder {
             origin,
             axis,
             radius,
-            u_ref,
-        } => (origin, axis, radius, u_ref),
-        &geom::Surface::Sphere { center, radius, .. } => {
-            return sphere_face_containment(body, face, center, radius, q, band);
+            ..
+        } => {
+            let w = q - origin;
+            let radial = w - axis * w.dot(axis);
+            ruled_face_containment(body, face, radial.norm() - radius, q, band)
         }
-        &geom::Surface::Torus {
+        // The whole DOUBLE cone ([`geom_brep::cone_elevation`] with no
+        // nappe), because that is the surface the face's carrier states:
+        // a point on the mirror nappe is ON the carrier, and the face's
+        // region puts it outside the face.
+        geom::Surface::Cone {
+            apex,
+            axis,
+            half_angle,
+            ..
+        } => {
+            let elevation = geom_brep::cone_elevation(apex, axis, half_angle, None, q);
+            ruled_face_containment(body, face, elevation, q, band)
+        }
+        geom::Surface::Sphere { center, radius, .. } => {
+            sphere_face_containment(body, face, center, radius, q, band)
+        }
+        geom::Surface::Torus {
             center,
             axis,
             major_radius,
             minor_radius,
             ..
-        } => {
-            return torus_face_containment(
-                body,
-                face,
-                TorusCarrier {
-                    center,
-                    axis,
-                    major_radius,
-                    minor_radius,
-                },
-                q,
-                band,
-            );
-        }
-        &geom::Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            u_ref,
-        } => {
-            return cone_face_containment(
-                body,
-                face,
-                ConeChart {
-                    apex,
-                    axis,
-                    half_angle,
-                    u_ref,
-                },
-                q,
-                band,
-            );
-        }
+        } => torus_face_containment(
+            body,
+            face,
+            TorusCarrier {
+                center,
+                axis,
+                major_radius,
+                minor_radius,
+            },
+            q,
+            band,
+        ),
         geom::Surface::Plane { .. } | geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => {
-            return Ok(CurvedPlacement::Trim(None));
+            Ok(CurvedPlacement::Trim(None))
         }
-    };
-    // ON THE CHART FIRST. The trim below is parameter-domain work and
-    // premises an on-wall point (`point_on_wall_in_face` says so in its
-    // name): handed a point off the carrier it would answer from the
-    // azimuth and height alone and call it `In`. A face is a subset of
-    // its carrier, so a point definitely off the carrier is definitely
-    // outside the face — decided here, before the trim runs.
-    let w = q - origin;
-    let radial = w - axis * w.dot(axis);
-    match decide(
-        "bool_curved_contain_carrier",
-        Margin::of(radial.norm() - radius),
-        band,
-    ) {
-        Ok(Sign::Zero) => {}
-        Ok(Sign::Positive | Sign::Negative) => return Ok(CurvedPlacement::OffCarrier),
-        Err(diag) => return Err(ContainError::on(ContainDecision::Carrier, diag)),
-    }
-    let (az, h) = match super::solid_contain::cylinder_chart_trim(body, face, origin, axis, band) {
-        Ok(t) => t,
-        // A window this face cannot express is the honest remainder,
-        // not corruption of the caller's query.
-        Err(super::solid_contain::PointInSolidError::CorruptFace { .. }) => {
-            return Ok(CurvedPlacement::Trim(None));
-        }
-        Err(e) => return Err(solid_err(e)),
-    };
-    // The ray lane's class predicates, asked of the same face, the
-    // full-turn route first (`full_turn_outline`, the one home both
-    // doors call): this door serves the band, the rectangle, and the
-    // chart outline a planar section bounds (read by parity along the
-    // point's ruling, `point_on_wall_in_face`), never a wall it would
-    // have to read as its vertex rectangle.
-    let outline =
-        match super::solid_contain::full_turn_outline(body, face, origin, axis, radius, h, band)
-            .map_err(solid_err)?
-        {
-            Some(outline @ super::solid_contain::WallOutline::Band { .. }) => outline,
-            Some(_) => return Ok(CurvedPlacement::Trim(None)),
-            None => {
-                // THE cosine-window construction's period guard, third site
-                // (`point_on_wall_in_face` carries the argument). A face that
-                // does not wrap alone and still reads a whole period has no
-                // angular test to run; it is this door's remainder, caught
-                // here rather than read out of the rectangle class's
-                // escalation.
-                match decide(
-                    "bool_curved_contain_period",
-                    Margin::levered(T::tau() - (az.1 - az.0), radius),
-                    band,
-                ) {
-                    Ok(Sign::Positive) => {}
-                    Ok(Sign::Zero | Sign::Negative) => return Ok(CurvedPlacement::Trim(None)),
-                    Err(diag) => return Err(ContainError::on(ContainDecision::WindowPeriod, diag)),
-                }
-                let outline = super::solid_contain::wall_outline(
-                    body, face, origin, axis, radius, az, h, band,
-                )
-                .map_err(solid_err)?;
-                if !matches!(
-                    outline,
-                    super::solid_contain::WallOutline::Rectangle { .. }
-                        | super::solid_contain::WallOutline::Chart { .. }
-                ) {
-                    return Ok(CurvedPlacement::Trim(None));
-                }
-                outline
-            }
-        };
-    match super::solid_contain::point_on_wall_in_face(
-        face, origin, axis, radius, u_ref, az, &outline, q, band,
-    ) {
-        Ok(Some(true)) => Ok(CurvedPlacement::Trim(Some(FaceContainment::In))),
-        Ok(Some(false)) => Ok(CurvedPlacement::Trim(Some(FaceContainment::Out))),
-        Ok(None) => Ok(CurvedPlacement::Trim(None)),
-        Err(e) => Err(solid_err(e)),
     }
 }
 
@@ -1193,83 +1055,38 @@ fn torus_face_containment<T: Decide>(
     region_placement(face, region.contains(q, band))
 }
 
-/// One cone carrier's chart data, as [`cone_face_containment`] reads it.
-struct ConeChart<T: geom_core::Real> {
-    apex: Point3<T>,
-    axis: Vec3<T>,
-    half_angle: T,
-    u_ref: Vec3<T>,
-}
-
-/// The CONE chart's arm of [`curved_face_containment`], reached after
-/// the shared boundary walk and the ring test.
+/// The CYLINDER and CONE arm of [`curved_face_containment`], reached
+/// after the shared boundary walk.
 ///
-/// The same three steps as the other arms, in the same order and for
-/// the same reasons: the CARRIER first, then the chart trim, then
-/// membership in it. The carrier is the whole DOUBLE cone
-/// ([`geom_brep::cone_elevation`] with no nappe), because
-/// that is the surface the face's carrier states: a point on the
-/// mirror nappe is ON the carrier and outside this face's trim — a
-/// sibling face's incidence, `Trim(Out)`, never `OffCarrier` — and the
-/// slant window's signed bounds are what put it outside. The trim and
-/// the membership test are the solid door's own
-/// ([`super::solid_contain::cone_face_trim`],
-/// [`super::solid_contain::point_on_cone_in_face`]), so the face-level
-/// and solid-level doors cannot disagree about which chart points a
-/// cone face holds.
+/// The same steps as the sphere arm, in the same order and for the same
+/// reasons: the CARRIER first (`elevation`, the point's distance off the
+/// wall or the double cone), then the face's region, read from its
+/// boundary edges by the one reading the ray lane takes too
+/// ([`super::ruled_region`]). A cone's apex is read like any other point
+/// of it.
 ///
-/// **What differs from the solid door is the question**, as on the
-/// torus: this door is asked about ONE face, so a face that shares a
-/// wrapped group with siblings reads its own azimuth window rather
-/// than the group's.
-///
-/// The remainder, per case:
-///
-/// - A face whose own window the walk **cannot pin** — an apex-closed
-///   face beside a sibling, whose walk reports the apex junction's wrap
-///   as a full period — or cannot take at all, is the honest remainder.
-///   `None`.
-/// - **The apex** of a face whose slant window reaches it has no
-///   tangent plane and no azimuth; the boundary walk has already placed
-///   it where it is a vertex, and anywhere else it is `None`.
-/// - A **graze** on a window edge that the boundary walk did not place
-///   ON a vertex or an edge is `None`, as everywhere in this door.
-fn cone_face_containment<T: Decide>(
+/// `None` is the honest remainder: a boundary edge that is not a line, a
+/// circle or an ellipse, or a point on the region's boundary that the
+/// walk above did not place. A region no path settles refuses as a
+/// planar face's does.
+fn ruled_face_containment<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
-    chart: ConeChart<T>,
+    elevation: T,
     q: Point3<T>,
     band: Band,
 ) -> Result<CurvedPlacement, ContainError> {
-    let ConeChart {
-        apex,
-        axis,
-        half_angle,
-        u_ref,
-    } = chart;
-    let elevation = geom_brep::cone_elevation(apex, axis, half_angle, None, q);
     match decide("bool_curved_contain_carrier", Margin::of(elevation), band) {
         Ok(Sign::Zero) => {}
         Ok(Sign::Positive | Sign::Negative) => return Ok(CurvedPlacement::OffCarrier),
         Err(diag) => return Err(ContainError::on(ContainDecision::Carrier, diag)),
     }
-    let (az, v, nappe) =
-        match super::solid_contain::cone_face_trim(body, face, apex, axis, half_angle, band) {
-            Ok(t) => t,
-            Err(
-                super::solid_contain::PointInSolidError::PartialConeFace { .. }
-                | super::solid_contain::PointInSolidError::CorruptFace { .. },
-            ) => return Ok(CurvedPlacement::Trim(None)),
-            Err(e) => return Err(solid_err(e)),
-        };
-    match super::solid_contain::point_on_cone_in_face(
-        face, apex, axis, half_angle, u_ref, az, v, nappe, q, band,
-    ) {
-        Ok(Some(true)) => Ok(CurvedPlacement::Trim(Some(FaceContainment::In))),
-        Ok(Some(false)) => Ok(CurvedPlacement::Trim(Some(FaceContainment::Out))),
-        Ok(None) => Ok(CurvedPlacement::Trim(None)),
-        Err(e) => Err(solid_err(e)),
-    }
+    let region = match super::ruled_region::ruled_face_region(body, face) {
+        Ok(Some(region)) => region,
+        Ok(None) => return Ok(CurvedPlacement::Trim(None)),
+        Err(e) => return Err(solid_err(e)),
+    };
+    region_placement(face, region.contains(q, band))
 }
 
 pub(super) fn solid_err(e: super::solid_contain::PointInSolidError) -> ContainError {
@@ -1392,7 +1209,6 @@ mod tests {
         const END: &str = "Recourse: move the point clear of the arc's end";
         const CARRIER: &str =
             "Recourse: move the point exactly onto the face's surface or clearly off it";
-        const WALL: &str = "Recourse: keep the wall clearly short of a full turn";
         const UNNAMED: &str = "Recourse: move the point clearly inside or outside the face";
         let loop_ = |d| Some(ContainDecision::Loop(d));
         let tighten = |lever: &str, size: &str| {
@@ -1466,18 +1282,6 @@ mod tests {
                 Margin,
                 below,
                 CARRIER.to_owned(),
-            ),
-            (
-                Some(ContainDecision::WindowPeriod),
-                Margin,
-                above,
-                tighten(WALL, "gap"),
-            ),
-            (
-                Some(ContainDecision::WindowPeriod),
-                Margin,
-                below,
-                WALL.to_owned(),
             ),
             (None, Margin, above, UNNAMED.to_owned()),
             (None, Margin, poisoned, format!("{UNNAMED}; {NOTE}")),

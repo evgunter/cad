@@ -370,12 +370,12 @@ pub use editor_core::ContentBits;
 // the one door that places, and the one Python's `Doc.place` is.
 // `product` is the whole-document gather of those copies. `SpaceGather`
 // is one `new_space()`'s copies gathered by themselves for the at-rest
-// check, and `space_gathers` gathers every one. `AtRestRow` is one of the product's at-rest decisions,
-// beside whose pair it is (`AtRestBy`): a mate's, or two copies' the
-// census found touching.
+// check, and `space_gathers` gathers every one. `AtRestRow` is one of
+// the product's at-rest decisions, beside the two copies whose pair the
+// census decided.
 pub use editor_core::{
-    AtRestBy, AtRestRow, Product, ProductError, ProductErrorKind, ProductRefusal, Refusal,
-    SourceFinding, SpaceGather, product, product_recorded, space_gathers,
+    AtRestRow, Product, ProductError, ProductErrorKind, ProductRefusal, Refusal, SourceFinding,
+    SpaceGather, product, product_recorded, space_gathers,
 };
 
 // The gather's own witness, and only where `debug_assertions` are on:
@@ -451,48 +451,20 @@ pub use editor_core::{
     unobservable,
 };
 
-// The class-admission table (`ClassAdmission`, read through
-// `class_admission`, with `CLASS_DEFERRAL` as the deferral sentence its
-// refusals cite): HOW FAR each contact class gets in v1, as one value
-// both enforcement doors read. A mate-authoring consumer needs it
-// BEFORE committing — the table is what says a class will refuse at
-// the solve or mint door, so exposing it here is what lets a tool
-// offer only what the vocabulary can execute instead of discovering
-// the refusal after the edit lands.
-pub use editor_core::{CLASS_DEFERRAL, ClassAdmission, class_admission};
-
 // **The assembly at-rest gate** (A5): `assemble` gathers a document's
-// product, mints every solved mate's declaration into its contact
-// record set, and runs the kernel's own tier-3′ door over the two
-// together — the answer to "is this assembly valid at rest", which the
-// authoring vocabulary above can otherwise construct and not check.
-// `Assembly` is the validated result (body, names, certified records,
-// and one `MintedDeclaration` per mate); `AssemblyError` is the typed
-// refusal, and its arms are not interchangeable — a caller must tell a
-// verdict AGAINST the document (`AtRest`) from the declared
-// direction's frontier (`Uncertified`), which is what `AtRestFinding`
-// and `Attribution` carry per finding. `RefusedRef` says why a mate
-// reference named no product face.
-// `assemble_gathered` is that gate over a product the caller already
-// holds — the canonical door, of which `assemble` is the gather plus a
-// call to it. A caller with several consumers of one product gathers
-// once and finishes here, since this door CONSUMES the product.
-// A declaration a document BELOW this one authored crosses the
-// instantiation seam with its records: `CarriedDeclaration` is the row
-// that says whose mate it was, `Route` is by what path this document
-// reached it (one type, on every carrier of that fact), `Relation` is
-// what a finding says about a declaration it names — this document's
-// own or a part's — and `CarriedDeclarations` is what an instantiated
-// value carries up. `AssemblyError::CarriedMintRefusal` is the
-// outermost gate's refusal over inner mates that could not be minted
-// at all, and `CarriedRefusal` is one of its rows; `MintRefusal` is one
-// row of the gate's refusal over this document's own mates. Both arms
-// raise EVERY row they hold, so the row types are what the gate's
-// answer is made of and a consumer matching that answer must name
-// them. `NO_AT_REST_RECORD_RECOURSE` is the recourse sentence a
-// `NoAtRestRecord` row ends on, carried for the reason
-// `OVERCONSTRAINED_RECOURSE` is: a caller asserting that a refusal reaches its recourse must not
-// do it by re-typing the sentence.
+// product, whose census records every touch between copies as a row and
+// a record citing it, and reads the census's verdict — the answer to "is
+// this assembly valid at rest", which the authoring vocabulary above can
+// otherwise construct and not check. `Assembly` is the validated result
+// (body, names, certified records); `AssemblyError` is the typed
+// refusal, and `AtRestFinding` is one kernel finding of its `AtRest`
+// arm. `assemble_gathered` is that gate over a product the caller
+// already holds — the canonical door, of which `assemble` is the gather
+// plus a call to it. A caller with several consumers of one product
+// gathers once and finishes here, since this door CONSUMES the product.
+// `Route` is by what path a row of a document BELOW this one reached
+// this document (one type, on every carrier of that fact), and
+// `CarriedFindings` is what an instantiated value carries up.
 // An overlap between two copies' material is not a refusal but an
 // `InterferenceFinding` on `Assembly::interference` (D10): its copies
 // (`CopyRef`), its `Overlap` (the bounding faces as `FaceSite`s, or
@@ -503,10 +475,9 @@ pub use editor_core::{CLASS_DEFERRAL, ClassAdmission, class_admission};
 // `CarriedAtRestFinding` a row of `AssemblyError::CarriedAtRest`, the
 // outermost gate's refusal over what the part's own gate refuses.
 pub use editor_core::{
-    Assembly, AssemblyError, AtRestFinding, Attribution, CarriedAtRestFinding, CarriedDeclaration,
-    CarriedDeclarations, CarriedInterference, CarriedRefusal, CopyRef, FaceSite,
-    InterferenceFinding, MintRefusal, MintedDeclaration, NO_AT_REST_RECORD_RECOURSE, Overlap,
-    RefusedRef, Relation, Route, Unlocalized, assemble, assemble_gathered,
+    Assembly, AssemblyError, AtRestFinding, CarriedAtRestFinding, CarriedFindings,
+    CarriedInterference, CopyRef, FaceSite, InterferenceFinding, Overlap, Route, Unlocalized,
+    assemble, assemble_gathered,
 };
 
 // Split, inline and flatten: the first-class

@@ -2900,7 +2900,6 @@ mod tests {
     use super::{Carrier, Doc, NameCarrier};
     use crate::appearance::AppearanceRecord;
     use crate::ident::{ContentPin, DocRef, DocumentId};
-    use crate::mate::ContactClass;
     use crate::names::{EntityKind, FaceName, StableName};
     use crate::node::{InterfaceCrossing, InterfaceRecord, Node, RecipeNodeId};
     use crate::program::ProfileDoc;
@@ -3013,7 +3012,6 @@ mod tests {
                 },
                 interface: InterfaceRecord {
                     crossings: vec![InterfaceCrossing::Mate {
-                        class: ContactClass::Rest,
                         outer: FaceName::new(crossed.clone()).expect("the fixture spells a face"),
                         inner: FaceName::new(name(12, EntityKind::Face))
                             .expect("the fixture spells a face"),
@@ -3228,6 +3226,7 @@ impl<'d, P> SpaceWalk<'d, P> {
             }
             Node::Subtract { from, .. } => self.var(from.read),
             Node::Split { target, .. } => self.var(target.read),
+            Node::Mirror { body, .. } => self.var(body.read),
             Node::Fillet { selection, .. } | Node::Chamfer { selection, .. } => {
                 self.var(*selection)
             }

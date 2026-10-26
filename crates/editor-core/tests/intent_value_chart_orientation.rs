@@ -13,8 +13,8 @@
 use crate::fixture;
 use editor_core::pose::PoseDef;
 use editor_core::{
-    CapEnd, ContactClass, Coord, DocumentId, EvalOptions, Frame, MateFault, Node, Operand,
-    Orientation, Placed, ProfileDoc, RecipeNodeId, RoleSeg, SignedAxis, StableName, TargetAxis,
+    CapEnd, Coord, DocumentId, EvalOptions, Frame, MateFault, Node, Operand, Orientation, Placed,
+    ProfileDoc, RecipeNodeId, RoleSeg, SignedAxis, StableName, TargetAxis,
 };
 use fixture::{head, head_at, insert, len, on_frame, solve};
 use geom_core::Tol;
@@ -88,7 +88,7 @@ fn hung_doc(tilt: f64, about: TargetAxis, orient: Orientation) -> (ProfileDoc, R
         fixture::stood(vec![editor_core::BodyRead::plain(Operand::from(boss))]),
     );
     let top = fixture::fname(boss, RoleSeg::Cap(CapEnd::End));
-    let mut mate = fixture::rest(head(top), head_at(b, bottom.in_copy(b)), ContactClass::Rest);
+    let mut mate = fixture::rest(head(top), head_at(b, bottom.in_copy(b)));
     mate.orient = orient;
     let placed = Placed {
         mates: vec![mate],
@@ -225,11 +225,7 @@ fn a_floor_swept_through_a_quarter_turn_moves_its_copy_continuously() {
             fixture::stood(vec![editor_core::BodyRead::plain(Operand::from(body))]),
         );
         let bottom = fixture::fname(body, RoleSeg::Cap(CapEnd::Start));
-        let mate = fixture::mate(
-            fixture::plane(head(bottom)),
-            fixture::flip(floor),
-            ContactClass::Rest,
-        );
+        let mate = fixture::mate(fixture::plane(head(bottom)), fixture::flip(floor));
         let placed = Placed {
             mates: vec![mate],
             values: vec![

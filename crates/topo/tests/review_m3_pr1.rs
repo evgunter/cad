@@ -937,8 +937,8 @@ fn annulus_top_cube() -> (common::CubeOps<f64>, topo::FaceKey, [topo::VertexKey;
 fn merge_coplanar_annulus_and_value_equal_center_make_one_face() {
     let build = || annulus_top_cube();
     let (mut cube, center, _) = build();
-    // Raw door: the measured body is a body still carrying construction scaffolding, which tier 3 refuses (ScaffoldAtRest).
     assert_eq!(cube.body.faces().count(), 10); // 5 cube sides + 5 top
+    // Raw door: the measured body is a body still carrying construction scaffolding, which tier 3 refuses (ScaffoldAtRest).
     let vol0 = topo::test_support::measure_unvalidated(&cube.body, Tol::witness())
         .unwrap()
         .volume;

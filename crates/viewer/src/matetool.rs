@@ -6,7 +6,7 @@
 //!
 //! The tool holds **two sequential face picks in tool state** — the
 //! GUI-2 single-select vocabulary ([`FaceSelection`]) consumed twice —
-//! then a choice of class, kind, flip and values ([`MateChoice`]), then
+//! then a choice of kind, flip and values ([`MateChoice`]), then
 //! ONE committed action: the bundle of the copy it places written whole
 //! with the mate and its values, the copy re-targeted into the space the
 //! `to` pick is in where it was placed elsewhere. Everything
@@ -49,16 +49,6 @@
 //! it where the snap puts it, so a freshly mated copy moves only by the
 //! snap, and the values the person named over them.
 //!
-//! # What the class admits
-//!
-//! The class choice is exposed through the kernel's own vocabulary
-//! ([`admitted_classes`]): the class LIST is [`ContactClass::ALL`] and
-//! the verdicts are the [`ClassAdmission`] table — both read, neither
-//! restated. `Rest` mints, `Tangent` solves but carries no at-rest
-//! record, and everything the vocabulary cannot name is the
-//! [`pncad::document::CLASS_DEFERRAL`] deferral, refused typed at
-//! [`MateTool::proposal`].
-//!
 //! # Survival
 //!
 //! Tool state survives a picked reference vanishing (GQ7's recorded
@@ -84,11 +74,10 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
-    CLASS_DEFERRAL, ClassAdmission, Coord, Doc, Evaluation, Formula, Mate, MateSide, Node,
-    NotAFaceName, ProfileProgram, RecipeNodeId, SitedFace, SpokenNode, TargetAxis, VarKind,
-    class_admission, member_of, pose,
+    Coord, Doc, Evaluation, Formula, Mate, MateSide, Node, NotAFaceName, ProfileProgram,
+    RecipeNodeId, SitedFace, SpokenNode, TargetAxis, VarKind, member_of, pose,
 };
-use pncad::select::{ContactClass, Resolution};
+use pncad::select::Resolution;
 
 use crate::session::select::resolves;
 use crate::session::{FaceSelection, SessionOp};
@@ -207,34 +196,6 @@ partial_mirror! {
     ],
 }
 
-/// One contact class and how far the vocabulary carries it — the
-/// admission exposure, verbatim from the kernel's table.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct MateAdmission {
-    /// The class.
-    pub class: ContactClass,
-    /// The kernel's own verdict on it.
-    pub admission: ClassAdmission,
-}
-
-/// Every contact class the vocabulary can NAME, with the kernel's
-/// admission verdict for each — what the tool's class choice offers.
-///
-/// Both halves come from the kernel: the class list is
-/// [`ContactClass::ALL`] (the enum is `#[non_exhaustive]`, so no list
-/// written here could see a variant land) and the verdicts are
-/// [`class_admission`]. A class the kernel grows appears here carrying
-/// whatever verdict the table gives it.
-pub fn admitted_classes() -> Vec<MateAdmission> {
-    ContactClass::ALL
-        .iter()
-        .map(|&class| MateAdmission {
-            class,
-            admission: class_admission(class),
-        })
-        .collect()
-}
-
 /// A typed mate-tool refusal (closed enum, D4 ¶3).
 #[derive(Debug)]
 pub enum MateToolError {
@@ -281,13 +242,6 @@ pub enum MateToolError {
         /// The kind asked for.
         kind: VarKind,
     },
-    /// The chosen class is outside the vocabulary
-    /// ([`ClassAdmission::NotAdmitted`]): refused HERE, before any
-    /// edit exists, with the kernel's own deferral sentence.
-    ClassRefused {
-        /// The refused class.
-        class: ContactClass,
-    },
     /// A value sets a freedom the mate's kind does not leave, or a slide
     /// past as many as it leaves ([`MateFreedom::left_by`],
     /// [`MateFreedom::slides_left_by`]).
@@ -325,13 +279,6 @@ impl core::fmt::Display for MateToolError {
             Self::KindNotOffered { kind } => {
                 write!(f, "a face pick reads a plane or an axis, not a {}", kind)
             }
-            Self::ClassRefused { class } => {
-                write!(
-                    f,
-                    "class {} is not admitted — {CLASS_DEFERRAL}",
-                    class.name()
-                )
-            }
             Self::NotAFreedom { coord, kind } => {
                 write!(f, "a {} mate leaves no {} to set", kind, coord.name())
             }
@@ -362,7 +309,6 @@ impl MateToolError {
             unspoken @ (Self::NotTwoPicks
             | Self::PickIsNotAFace { .. }
             | Self::KindNotOffered { .. }
-            | Self::ClassRefused { .. }
             | Self::NotAFreedom { .. }) => unspoken,
         }
     }
@@ -417,9 +363,25 @@ impl MateToolState {
 /// **What this tool calls a held pick**: `face of Extrude 000000000003`
 /// — the face of the node whose body the pick was taken on, as the
 /// document speaks it. The panel item ([`MateToolState::line`]) and the
-/// drop notice ([`MateToolEvent`]) both say it.
-fn face_of(node: &SpokenNode) -> String {
+/// drop notice ([`MateToolEvent`]) both say it, and the mirror tool's
+/// plane is said in the same words (`crate::combine::MirrorTool`).
+pub(crate) fn face_of(node: &SpokenNode) -> String {
     format!("face of {node}")
+}
+
+/// **The sentence a dropped face pick is said in**: its role, and the
+/// face as [`face_of`] says it — the mate tool's drop and the mirror
+/// tool's (`crate::combine::MirrorEvent`).
+pub(crate) fn face_lost(
+    f: &mut core::fmt::Formatter<'_>,
+    role: impl core::fmt::Display,
+    node: &SpokenNode,
+) -> core::fmt::Result {
+    write!(
+        f,
+        "the {role} pick (a {}) no longer resolves; the tool dropped it",
+        face_of(node)
+    )
 }
 
 /// A typed tool event the chrome renders — every state change that
@@ -448,12 +410,7 @@ impl core::fmt::Display for MateToolEvent {
     /// full in the value; this is what a person reads.
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::PickLost { side, node, .. } => write!(
-                f,
-                "the {} pick (a {}) no longer resolves; the tool dropped it",
-                side.name(),
-                face_of(node)
-            ),
+            Self::PickLost { side, node, .. } => face_lost(f, side.name(), node),
         }
     }
 }
@@ -462,8 +419,6 @@ impl core::fmt::Display for MateToolEvent {
 /// picks and commit.
 #[derive(Debug, Clone, PartialEq)]
 pub struct MateChoice {
-    /// The declared contact class.
-    pub class: ContactClass,
     /// The kind both picks are read as ([`MATE_KINDS`]): the mate's
     /// primitive.
     pub kind: VarKind,
@@ -476,8 +431,7 @@ pub struct MateChoice {
 }
 
 /// The derived, ready-to-commit mate: the placement it joins, the two
-/// sides, the mate and its values, plus the class's admission verdict
-/// for the chrome to show beside the commit.
+/// sides, the mate and its values.
 #[derive(Debug, Clone)]
 pub struct MateProposal {
     /// The placement whose bundle the mate joins: the `on` pick's copy.
@@ -490,9 +444,6 @@ pub struct MateProposal {
     pub mate: Mate<Formula>,
     /// Its values, written naming the mate in the same bundle.
     pub values: Vec<(Coord, Formula)>,
-    /// The kernel's admission verdict for the mate's class (never
-    /// `NotAdmitted` — that refuses at [`MateTool::proposal`]).
-    pub admission: ClassAdmission,
 }
 
 impl MateProposal {
@@ -523,16 +474,18 @@ impl MateProposal {
 
 /// **A face read as a pose of `kind`**: its plane, or its carrier's
 /// axis.
-fn pose_of(kind: VarKind, face: &SitedFace) -> pncad::document::Operand {
-    let def = match kind {
-        VarKind::Axis => pose::PoseDef::Axis {
-            of: face.clone().into(),
-        },
-        _ => pose::PoseDef::Plane {
-            face: face.clone().into(),
-        },
-    };
-    pncad::document::Operand::Pose(Box::new(def))
+fn pose_of(kind: VarKind, face: pncad::document::Operand) -> pncad::document::Operand {
+    match kind {
+        VarKind::Axis => pncad::document::Operand::Pose(Box::new(pose::PoseDef::Axis { of: face })),
+        _ => plane_of(face),
+    }
+}
+
+/// **A face read as its plane**: `face`, a one-name face selection,
+/// read plainly as the plane of that face — a plane mate's side, and
+/// the plane a mirror reflects across (`crate::combine::mirror_node`).
+pub(crate) fn plane_of(face: pncad::document::Operand) -> pncad::document::Operand {
+    pncad::document::Operand::Pose(Box::new(pose::PoseDef::Plane { face }))
 }
 
 /// The placement whose copy a pick at `at` is on: `at` itself when it
@@ -693,15 +646,9 @@ impl MateTool {
         let MateToolState::Two { on, to } = &self.state else {
             return Err(MateToolError::NotTwoPicks);
         };
-        // The choice's doors FIRST, before any pick is read: the class
-        // in the kernel's own table, the kind among those a face
-        // reads, each value against the freedoms the kind leaves.
-        let admission = class_admission(choice.class);
-        if let ClassAdmission::NotAdmitted = admission {
-            return Err(MateToolError::ClassRefused {
-                class: choice.class,
-            });
-        }
+        // The choice's doors FIRST, before any pick is read: the kind
+        // among those a face reads, each value against the freedoms the
+        // kind leaves.
         if !MATE_KINDS.iter().any(|(kind, _)| *kind == choice.kind) {
             return Err(MateToolError::KindNotOffered { kind: choice.kind });
         }
@@ -747,21 +694,27 @@ impl MateTool {
             return Err(MateToolError::SamePick { head });
         }
         // A `Place`'s copy is read off the shape it copies, by the
-        // shape's own name for the face.
-        let on_face = match doc.node(on.node) {
+        // shape's own name for the face, on the output it copies where
+        // the shape's operation defines several (a split's halves).
+        let (on_face, on_read) = match doc.node(on.node) {
             Some(Node::Place { .. }) => {
-                let (at, _, own) = crate::world::on_body(doc, on.node, on.body, &on.name);
+                let (at, port, own) = crate::world::on_body(doc, on.node, on.body, &on.name);
                 let own = pncad::document::FaceName::new(own).map_err(|refusal| {
                     MateToolError::PickIsNotAFace {
                         side: MateSide::On,
                         refusal,
                     }
                 })?;
-                SitedFace::new(at, own)
+                let body = match crate::world::seat_read(doc, at, Some(port)) {
+                    (at, Some(port)) => pncad::document::Operand::output(at, port),
+                    (at, None) => pncad::document::Operand::Node(at),
+                };
+                let read = pncad::document::Operand::select(body, vec![own.clone().into_name()]);
+                (SitedFace::new(at, own), read)
             }
-            _ => picked_on,
+            _ => (picked_on.clone(), picked_on.into()),
         };
-        let target = pose_of(choice.kind, &picked_to);
+        let target = pose_of(choice.kind, picked_to.clone().into());
         let target = if choice.flip {
             pncad::document::Operand::Pose(Box::new(pose::PoseDef::Flip {
                 pose: pose::RoleRead::plain(target),
@@ -772,9 +725,8 @@ impl MateTool {
         Ok(MateProposal {
             placement,
             mate: Mate {
-                on: pose_of(choice.kind, &on_face),
+                on: pose_of(choice.kind, on_read),
                 to: target,
-                class: choice.class,
                 // The commit writes the orientation nearest where the
                 // copy stands ([`SessionOp::AddMate`]).
                 orient: pncad::document::Orientation::IDENTITY,
@@ -782,7 +734,6 @@ impl MateTool {
             on: on_face,
             to: picked_to,
             values: choice.values,
-            admission,
         })
     }
 }

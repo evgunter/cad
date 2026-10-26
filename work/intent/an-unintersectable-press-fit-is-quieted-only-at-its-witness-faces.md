@@ -47,5 +47,5 @@ remains, an overlap on a curved pair the join has no arm for, is DS6's
 capability frontier (loud, unquietable, never refusing), and the join's
 missing curved arms are already tracked on their own rows (for example
 `work/sect/cylinder-sphere-germ-pair-has-no-join-lane.md`,
-`work/sect/along-edge-ring-on-a-curved-face-has-no-join-arm.md`,
+`work/secttail/along-edge-ring-on-a-curved-face-has-no-join-arm.md`,
 `a-sphere-crossing-a-sphere-face-off-every-edge-refuses-spheres-meet` (JOIN, closed by PR 4344)).

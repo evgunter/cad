@@ -20,7 +20,6 @@ use pncad::document::Bodies;
 use common::asm;
 use pncad::document::{Frame, RecipeNodeId, SlotId, VarId, product};
 use pncad::geom_core::Tol;
-use pncad::select::ContactClass;
 use viewer::display::{self, AdmissionFault, DisplayFault};
 use viewer::frame;
 use viewer::marks;
@@ -443,45 +442,26 @@ fn a_fused_instances_section_is_drawn_and_its_display_controls_are_refused() {
 #[test]
 fn the_at_rest_badge_lands_with_the_evaluation() {
     // The A5 verdict lives past the commit: the mate-less assembly
-    // certifies with nothing minted; a Rest mate certifies WITH its
-    // declaration; a Tangent mate turns the badge into the gate's own
-    // refusal while its tree row carries the class's standing note.
+    // certifies, and so does a seated one — the seat is a touch between
+    // copies the census records at the door, never an overlap.
     let tol = Tol::witness();
     let bench = asm::bench("atrest", tol);
     let mut session = asm::open_bench(&bench, tol);
     assert_eq!(
         session.at_rest(),
-        Some(&viewer::session::AtRestBadge::Certified {
-            minted: 0,
-            loud: 0,
-            quiet: 0,
-        }),
+        Some(&viewer::session::AtRestBadge::Certified { loud: 0, quiet: 0 }),
         "disjoint instances certify outright (A5's disjoint half)"
     );
     asm::unpin(&mut session, bench.post_b);
     common::commit_mate(
         &mut session,
-        asm::seat_op(
-            &bench,
-            bench.post_b,
-            ContactClass::Tangent,
-            asm::middle_seat_values(),
-        ),
+        asm::seat_op(&bench, bench.post_b, asm::middle_seat_values()),
     );
-    match session.at_rest() {
-        Some(viewer::session::AtRestBadge::Refused { message }) => assert!(
-            message.contains("no at-rest kernel record"),
-            "the badge is the gate's own refusal: {message}"
-        ),
-        other => panic!("a Tangent mate must turn the badge red, got {other:?}"),
-    }
-    // …and the row of the placement holding the mate says why,
-    // independent of any run.
-    let note = common::row_of(&session.tree_rows(), bench.post_b)
-        .note
-        .clone()
-        .expect("a Tangent mate carries its standing note");
-    assert!(note.contains("Tangent"), "{note}");
+    assert_eq!(
+        session.at_rest(),
+        Some(&viewer::session::AtRestBadge::Certified { loud: 0, quiet: 0 }),
+        "a seated mate certifies, its touch recorded at rest"
+    );
 }
 
 /// **An id the document does not hold**, which is not the same
@@ -611,12 +591,7 @@ fn free_move_accepts_only_a_space_other_than_the_world() {
     asm::unpin(&mut session, bench.post_a);
     common::commit_mate(
         &mut session,
-        asm::seat_op(
-            &bench,
-            bench.post_a,
-            ContactClass::Rest,
-            asm::middle_seat_values(),
-        ),
+        asm::seat_op(&bench, bench.post_a, asm::middle_seat_values()),
     );
     session.pump();
     // The mated post, the shelf it is mated onto, and the post the
@@ -689,12 +664,7 @@ fn two_copies_in_one_space_free_move_as_one() {
     asm::unpin(&mut session, bench.shelf_i);
     common::commit_mate(
         &mut session,
-        asm::seat_op(
-            &bench,
-            bench.post_b,
-            ContactClass::Rest,
-            asm::own_space_seat_values(),
-        ),
+        asm::seat_op(&bench, bench.post_b, asm::own_space_seat_values()),
     );
     session.pump();
     let space = display::free_move_check(session.doc(), session.space_evaluation(), bench.post_b)
@@ -830,7 +800,6 @@ fn a_frame_whose_space_empties_into_another_goes_saying_so() {
     let outcome = session.perform(asm::seat_op(
         &bench,
         bench.post_b,
-        ContactClass::Rest,
         asm::own_space_seat_values(),
     ));
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
@@ -871,12 +840,7 @@ fn gesture_on_a_non_root_copy(name: &str, tol: Tol) -> (asm::Bench, DocSession, 
     asm::unpin(&mut session, bench.shelf_i);
     common::commit_mate(
         &mut session,
-        asm::seat_op(
-            &bench,
-            bench.post_b,
-            ContactClass::Rest,
-            asm::own_space_seat_values(),
-        ),
+        asm::seat_op(&bench, bench.post_b, asm::own_space_seat_values()),
     );
     session.pump();
     let space = display::free_move_check(session.doc(), session.space_evaluation(), bench.post_b)
@@ -976,12 +940,7 @@ fn a_replacement_takes_the_landings_untaken_report() {
             SessionOp::IntoOwnSpace {
                 placement: bench.post_b,
             },
-            asm::seat_op(
-                &bench,
-                bench.post_b,
-                ContactClass::Rest,
-                asm::middle_seat_values(),
-            ),
+            asm::seat_op(&bench, bench.post_b, asm::middle_seat_values()),
         ] {
             let outcome = session.perform(op.clone());
             assert!(outcome.refusal.is_none(), "{op:?}: {:?}", outcome.refusal);
@@ -1163,12 +1122,7 @@ fn a_refused_gestures_copy_waits_for_the_committed_landing() {
     asm::unpin(&mut session, bench.shelf_i);
     common::commit_mate(
         &mut session,
-        asm::seat_op(
-            bench,
-            bench.post_b,
-            ContactClass::Rest,
-            asm::own_space_seat_values(),
-        ),
+        asm::seat_op(bench, bench.post_b, asm::own_space_seat_values()),
     );
     let outcome = session.perform(SessionOp::BeginFreeMove {
         instance: bench.post_b,
@@ -1252,13 +1206,7 @@ fn an_undo_that_moves_a_gestures_copy_kills_it_at_the_edit() {
     let shelf_space = asm::unpin(&mut session, shelf);
     common::commit_mate(
         &mut session,
-        asm::seat_op_under(
-            &bench,
-            bench.post_b,
-            shelf,
-            ContactClass::Rest,
-            asm::middle_seat_values(),
-        ),
+        asm::seat_op_under(&bench, bench.post_b, shelf, asm::middle_seat_values()),
     );
     session.pump();
     assert_eq!(
@@ -1486,7 +1434,6 @@ fn a_mate_that_moves_the_copy_discards_the_probe_value() {
     let outcome = session.perform(asm::seat_op(
         &bench,
         bench.post_b,
-        ContactClass::Rest,
         asm::middle_seat_values(),
     ));
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);

@@ -212,7 +212,11 @@ fn degree_six_refuses_typed() {
     }
 }
 
-/// A rational carrier keeps the typed refusal (`Unimplemented`).
+/// A rational carrier keeps the closed form's typed refusal
+/// (`Unimplemented`) at `f64` and at `Dual`: what a door with no
+/// quadrature lane answers for it, the structural door and a
+/// derivative read. The certified lane (`geom_brep::props::rational_rim`)
+/// is where a plane it bounds measures.
 #[test]
 fn rational_carrier_refuses_typed() {
     let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
@@ -226,6 +230,7 @@ fn rational_carrier_refuses_typed() {
         vec![1.0, 2.0, 1.0],
     )
     .unwrap();
+    let dual = curve.map_scalar(geom_core::Dual64::constant);
     let edges = vec![LoopEdge::hand_built(
         Curve3::Nurbs(std::sync::Arc::new(curve)),
         0.0,
@@ -237,6 +242,23 @@ fn rational_carrier_refuses_typed() {
     match loop_vector_area(&edges, Point3::origin()) {
         Err(PropsError::Unimplemented) => {}
         other => panic!("rational must refuse typed: {other:?}"),
+    }
+    let edges = vec![LoopEdge::hand_built(
+        Curve3::Nurbs(std::sync::Arc::new(dual)),
+        geom_core::Dual64::variable(0.0),
+        geom_core::Dual64::constant(1.0),
+        true,
+        0,
+        0,
+    )];
+    let origin = Point3::new(
+        geom_core::Dual64::constant(0.0),
+        geom_core::Dual64::constant(0.0),
+        geom_core::Dual64::constant(0.0),
+    );
+    match loop_vector_area(&edges, origin) {
+        Err(PropsError::Unimplemented) => {}
+        other => panic!("rational must refuse typed at Dual: {other:?}"),
     }
 }
 

@@ -112,9 +112,12 @@ fn validate(what: &str, body: &Body<f64>) {
 }
 
 fn volume(body: &Body<f64>) -> f64 {
-    topo::test_support::unmigrated_measure(body, tol())
-        .unwrap()
-        .volume
+    topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
+        tol(),
+    )
+    .unwrap()
+    .volume
 }
 
 fn close(what: &str, got: f64, want: f64, rel: f64) {

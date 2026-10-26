@@ -18,9 +18,8 @@
 use crate::fixture;
 
 use editor_core::{
-    AssemblyError, CapEnd, ContactClass, Coord, DocEdit, DocumentId, EvalOptions, Formula, Frame,
-    MateRef, MateSide, Node, NodeErrorKind, PatternKind, ProfileDoc, RecipeNodeId, StableName,
-    TargetAxis, VarId, assemble,
+    CapEnd, Coord, DocEdit, DocumentId, EvalOptions, Formula, Frame, MateRef, MateSide, Node,
+    NodeErrorKind, PatternKind, ProfileDoc, RecipeNodeId, StableName, TargetAxis, VarId, assemble,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{ang, in_copy, insert, len, on_frame, run, scl, solve, step};
@@ -99,11 +98,7 @@ fn seat(
 ) -> (ProfileDoc, MateRef) {
     let to = fixture::plane(fixture::head(target));
     let to = if facing { fixture::flip(to) } else { to };
-    let mut mate = fixture::mate(
-        fixture::plane(fixture::head(placed)),
-        to,
-        ContactClass::Rest,
-    );
+    let mut mate = fixture::mate(fixture::plane(fixture::head(placed)), to);
     // Where the start cap faces the mated direction's opposite — unflipped
     // against an end cap, or flipped against one an upended copy holds
     // facing down — the copy stands upended, its `z` along `−z`.
@@ -381,17 +376,8 @@ fn r2_a_seat_still_verifies_under_a_pinned_world_frame() {
     // holds.
     let ev = run(&doc, &o);
     let result = assemble(&doc, &ev, Tol::witness());
-    match &result {
-        Ok(_) => {}
-        Err(AssemblyError::Uncertified { findings, .. }) => {
-            assert!(
-                findings
-                    .iter()
-                    .all(|f| matches!(f.attribution, Some(editor_core::Attribution::Declined(_)))),
-                "declines only: {findings:?}"
-            );
-        }
-        Err(other) => panic!("the seat under a placed leg verifies; the gate said: {other}"),
+    if let Err(refusal) = &result {
+        panic!("the seat under a placed leg verifies; the gate said: {refusal}");
     }
 }
 
@@ -427,7 +413,6 @@ fn r2_a_pattern_copy_of_the_placed_instance_is_not_its_copy() {
         fixture::rest(
             fixture::head(in_copy(pattern, 1, in_part(leg, leg_body, CapEnd::End))),
             fixture::head(in_part(top, top_body, CapEnd::Start)),
-            ContactClass::Rest,
         ),
     );
     match refused {

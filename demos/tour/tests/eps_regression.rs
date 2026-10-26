@@ -37,7 +37,9 @@
 //! undeclared refusal still panics. The forward obligation rides with
 //! whoever declares the first one: it must fail loudly when it stops
 //! refusing. `work/code-quality/demo-typed-refusal-exit-convention.md`
-//! holds the ruling.
+//! held the ruling; that directory left the tracker, and
+//! `docs/doc-ledger/code-quality-leaves-the-tracker.md` names the SHA
+//! that recovers it.
 //!
 //! The escalation that motivated this pin: the bracket fillet's via
 //! point was decimally rounded (1.146 vs the exact 1.5 − 0.5/√2 =

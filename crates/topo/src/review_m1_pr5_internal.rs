@@ -265,6 +265,13 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
          loop, face or shell is touched, so tier 1 holds as it found it",
     ),
     (
+        "set_sheet_sense",
+        "a test-support door that exchanges a sheet face's loop with its lamina twin's, \
+         each face's outer and each loop's face back-pointer together, which tier 1 reads \
+         as the same pairing; it flips two sense bits and re-mints the pcurve rows it \
+         dropped, and moves no cell",
+    ),
+    (
         "rotate_shell_faces",
         "a test-support door that rotates each shell's stored face list; tier 1 reads a \
          shell's faces as a set with back-pointers, which a rotation keeps",
@@ -282,18 +289,6 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
         "merge_unjoined",
         "test support: calls `merge_coplanar_faces_unjoined`, which runs \
          `merge_coplanar_faces_staged` and asserts tier 1 through its surgery scope",
-    ),
-    (
-        "join_edges",
-        "stages `kev_describing` kills on a clone, each asserting the tier-1 postcondition \
-         (the planar arm's re-description writes a curve and no topology), re-mints the \
-         clone's pcurves, then adopts the clone",
-    ),
-    (
-        "join_edges_within",
-        "a pipeline of `kev_describing` kills over the vertices the caller's scope holds, \
-         each asserting the tier-1 postcondition (the planar arm's re-description writes a \
-         curve and no topology), then a scoped re-mint, which writes rows and no topology",
     ),
     (
         "merge_coplanar_faces_declared",

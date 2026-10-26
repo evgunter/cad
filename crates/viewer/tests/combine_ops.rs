@@ -27,6 +27,7 @@ use pncad::topo::BooleanOp;
 use test_utils::refusal::tagged;
 use viewer::session::BooleanSpec;
 
+use common::drawn::spacing_of;
 use common::{ang, body_volume, len, len3, near, scl3, session_insert, shape};
 use pncad::document::BooleanValue;
 use pncad::document::SplitSide;
@@ -1564,6 +1565,7 @@ fn open_flags(tools: &Tools) -> [bool; ToolKind::ALL.len()] {
         ToolKind::Blend => tools.blend().is_some(),
         ToolKind::Part => tools.part().is_some(),
         ToolKind::Duplicate => tools.duplicate().is_some(),
+        ToolKind::Mirror => tools.mirror().is_some(),
     })
 }
 
@@ -1707,6 +1709,21 @@ fn every_seats_wanted_kind_is_the_one_its_door_refuses_by() {
             },
             Seat::DuplicateBody => SessionOp::Duplicate {
                 input: filled(Seat::DuplicateBody).into(),
+                beside: None,
+            },
+            // The plane a face of the right body, so the refusal is
+            // about the body seat.
+            Seat::MirrorBody => SessionOp::AddMirror {
+                body: filled(Seat::MirrorBody).into(),
+                plane: viewer::session::FaceSelection {
+                    name: pncad::prelude::StableName {
+                        kind: pncad::prelude::EntityKind::Face,
+                        node: body,
+                        path: vec![pncad::select::RoleSeg::Cap(pncad::select::CapEnd::End)],
+                    },
+                    node: body,
+                    body: 0,
+                },
             },
             Seat::PatternBody => SessionOp::AddPattern {
                 input: filled(Seat::PatternBody).into(),
@@ -2319,7 +2336,9 @@ fn each_tool_narrows_the_cursor_to_what_it_can_use() {
     for kind in ToolKind::ALL {
         tools.open(kind);
         let want = match kind {
-            ToolKind::Mate => PickKinds::FacesOnly,
+            // The mirror tool's plane is a face, and its body is
+            // picked by one too.
+            ToolKind::Mate | ToolKind::Mirror => PickKinds::FacesOnly,
             ToolKind::Blend => PickKinds::EdgesOnly,
             ToolKind::Revolve
             | ToolKind::Boolean
@@ -2543,7 +2562,10 @@ fn duplicating_a_body_places_its_patterned_copy_beside_it() {
     let one = A[0] * A[1] * A[2];
     assert!(near(drawn_volume(&mut session, tol), one), "one to start");
 
-    let outcome = session.perform(SessionOp::Duplicate { input: body.into() });
+    let outcome = session.perform(SessionOp::Duplicate {
+        input: body.into(),
+        beside: None,
+    });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(
         outcome.committed.len(),
@@ -2597,7 +2619,10 @@ fn duplicating_is_one_undo() {
     let before = session.committed_doc().clone();
     assert!(
         session
-            .perform(SessionOp::Duplicate { input: body.into() })
+            .perform(SessionOp::Duplicate {
+                input: body.into(),
+                beside: None,
+            })
             .refusal
             .is_none()
     );
@@ -2621,7 +2646,10 @@ fn a_duplicates_copy_moves_on_its_own() {
     let body = common::xy_box_in(&mut session, A);
     session.pump();
     let one = A[0] * A[1] * A[2];
-    let outcome = session.perform(SessionOp::Duplicate { input: body.into() });
+    let outcome = session.perform(SessionOp::Duplicate {
+        input: body.into(),
+        beside: None,
+    });
     let minted = outcome.minted.clone();
     let [_pattern, copy, _placement] = minted[..] else {
         panic!("three inserts mint three ids: {minted:?}");
@@ -2827,7 +2855,10 @@ fn the_part_and_duplicate_tools_close_on_their_own_edits() {
         of: node,
         select: PartSelectSpec::Instance(0),
     };
-    let duplicate = SessionOp::Duplicate { input: node.into() };
+    let duplicate = SessionOp::Duplicate {
+        input: node.into(),
+        beside: None,
+    };
     let mut tools = Tools::new();
 
     tools.open(ToolKind::Part);
@@ -2870,22 +2901,6 @@ fn step_of(session: &DocSession, pattern: RecipeNodeId) -> [f64; 3] {
     })
 }
 
-/// The pattern's spacing: the step's length along [`STEP_DIRECTION`].
-fn spacing_of(session: &DocSession, pattern: RecipeNodeId) -> f64 {
-    let Some(Node::Pattern {
-        kind: PatternKind::Linear { spacing, .. },
-        ..
-    }) = session.committed_doc().node(pattern)
-    else {
-        panic!("a duplicate is a linear pattern");
-    };
-    session
-        .committed_doc()
-        .written(&Expr::var(*spacing, Dimension::Length))
-        .literal_value()
-        .expect("the door authors a literal spacing")
-}
-
 /// The separation findings the landed checks report.
 fn separation_findings(session: &mut DocSession) -> usize {
     session.pump();
@@ -2904,7 +2919,10 @@ fn a_moved_copy(tol: Tol, lift: f64) -> (DocSession, RecipeNodeId, [f64; 2]) {
     let mut session = session(tol);
     let body = common::xy_box_in(&mut session, A);
     session.pump();
-    let outcome = session.perform(SessionOp::Duplicate { input: body.into() });
+    let outcome = session.perform(SessionOp::Duplicate {
+        input: body.into(),
+        beside: None,
+    });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let minted = outcome.minted.clone();
     let [pattern, copy, _placement] = minted[..] else {
@@ -2961,6 +2979,7 @@ fn a_viewport_pick_seats_the_drawn_body_in_every_body_seat() {
             ToolKind::Transform => tools.transform().and_then(|t| t.input()),
             ToolKind::Pattern => tools.pattern().and_then(|t| t.input()),
             ToolKind::Duplicate => tools.duplicate().and_then(|t| t.input()),
+            ToolKind::Mirror => tools.mirror().and_then(|t| t.input()),
             // Seats a split or a pattern, never a body: its own row
             // below picks one.
             ToolKind::Part => continue,
@@ -3047,7 +3066,10 @@ fn a_duplicate_lands_clear_of_its_original() {
     let mut session = session(tol);
     let body = common::xy_box_in(&mut session, A);
     session.pump();
-    let outcome = session.perform(SessionOp::Duplicate { input: body.into() });
+    let outcome = session.perform(SessionOp::Duplicate {
+        input: body.into(),
+        beside: None,
+    });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(
         separation_findings(&mut session),
@@ -3078,7 +3100,10 @@ fn a_duplicate_keeps_the_notes_promise() {
     let mut session = session(tol);
     let body = common::xy_box_in(&mut session, A);
     session.pump();
-    let outcome = session.perform(SessionOp::Duplicate { input: body.into() });
+    let outcome = session.perform(SessionOp::Duplicate {
+        input: body.into(),
+        beside: None,
+    });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let diagonal = (A[0] * A[0] + A[1] * A[1] + A[2] * A[2]).sqrt();
     let chord = diagonal * MEASURE_CHORD;
@@ -3101,7 +3126,10 @@ fn a_duplicate_keeps_the_notes_promise() {
     let mut session = self::session(tol);
     let body = common::xy_box_in(&mut session, plate);
     session.pump();
-    let outcome = session.perform(SessionOp::Duplicate { input: body.into() });
+    let outcome = session.perform(SessionOp::Duplicate {
+        input: body.into(),
+        beside: None,
+    });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let got = spacing_of(&session, outcome.minted[0]);
     assert!(
@@ -3142,6 +3170,7 @@ fn duplicating_a_several_body_value_is_refused() {
     let before = session.committed_doc().clone();
     let out = session.perform(SessionOp::Duplicate {
         input: placed.into(),
+        beside: None,
     });
     let said = out
         .refusal
@@ -3184,7 +3213,10 @@ fn duplicating_a_failed_body_says_its_standing() {
     );
     session.pump();
     let before = session.committed_doc().clone();
-    let out = session.perform(SessionOp::Duplicate { input: body.into() });
+    let out = session.perform(SessionOp::Duplicate {
+        input: body.into(),
+        beside: None,
+    });
     let standing = NodeStanding::Failed { node: body };
     let Some(Refusal::Duplicate(fault)) = &out.refusal else {
         panic!("a duplicate refusal, got {:?}", out.refusal);
@@ -3211,7 +3243,10 @@ fn duplicating_before_anything_has_landed_is_refused() {
     let tol = Tol::witness();
     let mut session = session(tol);
     let body = common::xy_box_in(&mut session, A);
-    let out = session.perform(SessionOp::Duplicate { input: body.into() });
+    let out = session.perform(SessionOp::Duplicate {
+        input: body.into(),
+        beside: None,
+    });
     assert!(
         matches!(
             out.refusal,
@@ -3297,6 +3332,7 @@ fn a_duplicate_is_not_measured_off_a_picture_older_than_the_document() {
     let before = session.committed_doc().clone();
     let out = session.perform(SessionOp::Duplicate {
         input: turned.into(),
+        beside: None,
     });
     assert!(
         matches!(out.refusal, Some(Refusal::Duplicate(DuplicateFault::Stale))),
@@ -3309,6 +3345,7 @@ fn a_duplicate_is_not_measured_off_a_picture_older_than_the_document() {
     session.pump();
     let out = session.perform(SessionOp::Duplicate {
         input: turned.into(),
+        beside: None,
     });
     assert!(out.refusal.is_none(), "{:?}", out.refusal);
     assert!(
@@ -3478,6 +3515,7 @@ fn a_body_read_by_variable_lands_and_a_selection_refuses_typed() {
         .expect("a box defines one body");
     let duplicated = session.perform(SessionOp::Duplicate {
         input: Operand::Var(var),
+        beside: None,
     });
     assert!(duplicated.refusal.is_none(), "{:?}", duplicated.refusal);
     let refused = session.perform(SessionOp::AddTransform {
@@ -3493,5 +3531,45 @@ fn a_body_read_by_variable_lands_and_a_selection_refuses_typed() {
         matches!(refused.refusal, Some(Refusal::NotABodyRead { .. })),
         "{:?}",
         refused.refusal
+    );
+}
+
+/// **Taking over one half of a two-half placement leaves the other**:
+/// one placement draws both halves of a split, `[Above, Below]`, and a
+/// transform of the lower half re-points that shape alone, so the
+/// upper half is still drawn and the lower half is drawn once.
+#[test]
+fn taking_over_one_half_of_a_two_half_placement_leaves_the_other() {
+    let tol = Tol::witness();
+    let (session, _, split) = common::drawn::split_box(A, tol);
+    let at = common::drawn::translated([0.1, 0.0, 0.0]);
+    let (mut session, placement) = common::drawn::halves_placed(
+        &session,
+        split,
+        &[SplitHalf::Above, SplitHalf::Below],
+        &at,
+        tol,
+    );
+    let doc = session.committed_doc();
+    let above = doc.output(split, SplitHalf::Above.port());
+    let below = Operand::output(split, SplitHalf::Below.port());
+    let moved = session_insert(
+        &mut session,
+        SessionOp::AddTransform {
+            input: below,
+            translation: len3([0.0, 0.0, -0.02]),
+            rotation_axis: scl3([0.0, 0.0, 1.0]),
+            rotation_angle: ang(0.0),
+        },
+    );
+    let doc = session.committed_doc();
+    let Some(Node::Place { shapes, .. }) = doc.node(placement) else {
+        panic!("the placement stands");
+    };
+    let reads: Vec<_> = shapes.iter().map(|shape| Some(shape.read)).collect();
+    assert_eq!(
+        reads,
+        [above, doc.output(moved, 0)],
+        "the upper half kept, the lower half taken over by the transform"
     );
 }

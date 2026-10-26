@@ -120,7 +120,7 @@ face is a recipe read, `prepare`, the tie trilean, the `SelectRefusal`
 payloads that name the candidate — and `candidate_matches` delegates
 atom by atom to `topo::query`, re-exporting the kind mirrors and
 kind-set comparands upward. One implementation of the geometry, two
-doors, the `ContactClass` layering precedent (SELECT-DESIGN §3(e)).
+doors, the layering precedent of SELECT-DESIGN §3(e).
 
 **S3 — no flush detector.** A boolean glues every coincidence its
 margins decide (D10), so there is nothing for a detector to offer and

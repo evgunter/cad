@@ -123,7 +123,7 @@ fn extrude_document(distance: Formula) -> (Recorder, RecipeNodeId) {
 /// other bracket of the chain.
 fn deepest_pose_document(levels: usize) -> Recorder {
     use editor_core::pose::{PoseDef, PoseRole, RoleRead};
-    use editor_core::{ContactClass, Mate, Operand};
+    use editor_core::{Mate, Operand};
     let (mut r, extrude) = extrude_document(len(0.5));
     let cap = |end| {
         fixture::plane(Operand::select(
@@ -164,7 +164,6 @@ fn deepest_pose_document(levels: usize) -> Recorder {
         vec![Mate {
             on: cap(editor_core::CapEnd::Start),
             to: fixture::flip(to),
-            class: ContactClass::Rest,
             orient: editor_core::Orientation::IDENTITY,
         }],
         Vec::new(),

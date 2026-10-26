@@ -139,10 +139,9 @@ WINDOW=16
 
 # THE REGISTER — `<file>|<fn>|<fragment>|<count>|<disposition>`.
 REGISTER=(
-  "crates/editor-core/src/names/emit.rs|face_half_edges||1|unaudited"
+  "crates/editor-core/src/names/emit.rs|loop_half_edges||1|unaudited"
   "crates/mesh/src/trimmed.rs|trim_polygon||1|unaudited"
   "crates/mesh/src/walk.rs|loop_half_edges||1|unaudited"
-  "crates/step-export/src/volume.rs|shell_signed_volume||1|unaudited"
   "crates/step-export/src/writer.rs|face_bound||1|unaudited"
   "crates/step-import/src/adopt.rs|rotate_loop_firsts||1|unaudited"
   "crates/sweep/src/blend/battery.rs|screened_loop||1|audited: the discarded variant is refused by name, not passed over — a lone-vertex loop on a support face returns UnsupportedGeometry naming the loop, so predicate 2 never reports a face clear without having read it"
@@ -153,21 +152,18 @@ REGISTER=(
   "crates/topo/src/boolean/carrier_cross.rs|boundary_crossing||1|audited: the discarded variant is answered by name — a lone-vertex loop has no boundary pre-pass, so the crossing is Unread and the caller keeps its frontier door (the module docs state it)"
   "crates/topo/src/boolean/contain.rs|loop_cycle_points||1|unaudited"
   "crates/topo/src/boolean/discard.rs|discard_row||1|unaudited"
-  "crates/topo/src/boolean/join.rs|region_faces||1|unaudited"
+  "crates/topo/src/boolean/join.rs|region_halves||1|unaudited"
   "crates/topo/src/boolean/ops.rs|apply_cut_ins|else { return|1|audited: the discarded variant is refused by name — a lone-vertex loop on the face a cut crosses returns FallbackExtentUnsupported naming that face, so no boundary hit of the meridian goes unread"
   "crates/topo/src/boolean/ops.rs|apply_cut_ins|else { continue|1|audited: the walk above refused every lone-vertex loop of this face, and the edge splits between the two walks add half-edges to its cycles only, so no Empty loop reaches this one"
   "crates/topo/src/boolean/ops.rs|boundary_edges||1|unaudited"
   "crates/topo/src/boolean/ops.rs|face_boundary_meets||1|unaudited"
   "crates/topo/src/boolean/rim_wedge.rs|face_boundary_arcs||1|unaudited"
   "crates/topo/src/stands.rs|face_loops||1|unaudited"
-  "crates/topo/src/boolean/solid_contain.rs|cone_slant_window||1|unaudited"
   "crates/topo/src/side_reader.rs|line_loop_mean||1|audited: an outer loop with no edge has no points to take the mean of, and the aim falls to planar_interior_point, which reads the same face's loops by name"
-  "crates/topo/src/boolean/solid_contain.rs|cone_window_premise||1|audited: the discarded variant is a lone-vertex ring, which holds no edge, so it has no carrier class to ask about; cone_slant_window, which reads the same face's outer loop right after, answers a non-cycle outer loop as CorruptFace"
-  "crates/topo/src/boolean/solid_contain.rs|cylinder_chart_trim||1|unaudited"
+  "crates/topo/src/boolean/solid_contain.rs|boundary_point||1|audited: the discarded variant is refused by name — an outer loop with no cycle has no boundary point, and the arm returns CorruptFace for the face"
   "crates/topo/src/boolean/solid_contain.rs|sphere_chart_trim||1|unaudited"
-  "crates/topo/src/boolean/sphere_region.rs|sphere_face_region||2|audited: a lone-vertex RING holds no edge, so it has no arc for a ray to cross and bounds no area (point_in_face skips it the same way); a lone-vertex OUTER loop bounds no face and is refused as CorruptFace, never passed over"
-  "crates/topo/src/boolean/torus_region.rs|torus_face_region||2|audited: a lone-vertex RING holds no edge, so it has no edge for a path to cross and bounds no area (point_in_face skips it the same way); a lone-vertex OUTER loop bounds no face and is refused as CorruptFace, never passed over"
-  "crates/topo/src/boolean/surface_group.rs|unmated_boundary||1|audited: a non-cycle outline answers None (not closed, not wrapping), which sends every caller to its per-face or windowed class; each of those reads the same outer loop in its own chart trim (cylinder_chart_trim, cone_slant_window, sphere_chart_trim, torus_face_region), and that walk is where a non-cycle is answered"
+  "crates/topo/src/boolean/region.rs|boundary||2|audited: a lone-vertex RING holds no edge, so it has no edge for a path to cross and bounds no area (point_in_face skips it the same way); a lone-vertex OUTER loop bounds no face and is refused as CorruptFace, never passed over"
+  "crates/topo/src/boolean/surface_group.rs|unmated_boundary||1|audited: a non-cycle outline answers None (not closed, not wrapping), which sends every caller to its per-face or windowed class; each of those reads the same outer loop in its own reading (sphere_chart_trim, region::boundary), and that walk is where a non-cycle is answered"
   "crates/topo/src/boolean/vtxfac.rs|ring_vertex_in||1|audited: the discarded variant is refused by name — a face whose outer loop is a lone vertex bounds no region a ring vertex could be minted in, and the arm returns ClassificationInvariant naming it, so no face is passed over"
   "crates/topo/src/boolean/zip.rs|section_cycle||1|unaudited"
   # The census's one loop walk: an unwalkable loop is handed back as
@@ -656,7 +652,7 @@ gate_selftest() {
   # A second discard under a one-site entry, and a second under an entry
   # a FRAGMENT narrows — the two shapes a key without a count absorbs.
   gate_selftest_case "matched 2" plant_extra_site \
-    crates/editor-core/src/names/emit.rs face_half_edges oneline
+    crates/editor-core/src/names/emit.rs loop_half_edges oneline
   gate_selftest_case "matched 2" plant_extra_site \
     crates/topo/src/census.rs face_cycles wrapped-return
   gate_selftest_malformed_register

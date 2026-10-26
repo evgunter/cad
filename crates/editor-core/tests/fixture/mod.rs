@@ -240,26 +240,19 @@ pub fn flip(pose: editor_core::Operand) -> editor_core::Operand {
 pub fn rest(
     on: impl Into<editor_core::Operand>,
     to: impl Into<editor_core::Operand>,
-    class: editor_core::ContactClass,
 ) -> editor_core::Mate<Formula> {
     editor_core::Mate {
         on: plane(on),
         to: flip(plane(to)),
-        class,
         orient: editor_core::Orientation::IDENTITY,
     }
 }
 
 /// **A mate equating two poses** as written, `on` reading the copy.
-pub fn mate(
-    on: editor_core::Operand,
-    to: editor_core::Operand,
-    class: editor_core::ContactClass,
-) -> editor_core::Mate<Formula> {
+pub fn mate(on: editor_core::Operand, to: editor_core::Operand) -> editor_core::Mate<Formula> {
     editor_core::Mate {
         on,
         to,
-        class,
         orient: editor_core::Orientation::IDENTITY,
     }
 }
@@ -691,30 +684,6 @@ pub fn insert_pinned(
 /// The gate's own refusal, unaltered.
 pub fn gate(doc: &editor_core::ProfileDoc, ev: &Evaluation<f64>) -> Result<(), AssemblyError> {
     assemble(doc, ev, Tol::witness()).map(|_| ())
-}
-
-/// **What the gather minted for `doc`'s own mates**: the declarations,
-/// and the rows it could not mint (`Product::minted`, `unminted`).
-pub fn mate_mints(
-    doc: &ProfileDoc,
-    ev: &Evaluation<f64>,
-) -> (
-    Vec<editor_core::MintedDeclaration>,
-    Vec<editor_core::MintRefusal>,
-) {
-    let p = editor_core::product_recorded(doc, ev, Tol::witness()).expect("the product gathers");
-    (p.minted, p.unminted)
-}
-
-/// **Asserts the gather minted nothing for `mate`** — no declaration and
-/// no refusal: a mate side whose body no world placement reads has no
-/// world copy, so the mate states nothing about the product.
-pub fn assert_mints_nothing(doc: &ProfileDoc, ev: &Evaluation<f64>, mate: editor_core::MateRef) {
-    let (minted, unminted) = mate_mints(doc, ev);
-    assert!(
-        minted.iter().all(|d| d.mate != mate) && unminted.iter().all(|r| r.mate() != mate),
-        "a mate whose side's body no placement reads mints nothing: {minted:?} {unminted:?}"
-    );
 }
 
 /// A mate side over a name this fixture built as a face, read at its
@@ -1178,7 +1147,6 @@ pub fn authored(
             editor_core::ConstraintKind::Mate(editor_core::Mate {
                 on: editor_core::Operand::Var(m.on),
                 to: editor_core::Operand::Var(m.to),
-                class: m.class,
                 orient: editor_core::Orientation::IDENTITY,
             })
         }
@@ -1806,7 +1774,6 @@ impl Recorder {
             editor_core::Mate {
                 on: cap(),
                 to: cap(),
-                class: editor_core::ContactClass::Rest,
                 orient: editor_core::Orientation::IDENTITY,
             },
             vec![
@@ -2004,7 +1971,6 @@ impl Recorder {
                 mates: vec![editor_core::Mate {
                     on: own,
                     to: frame,
-                    class: editor_core::ContactClass::Rest,
                     orient: editor_core::Orientation::IDENTITY,
                 }],
                 values: Vec::new(),
@@ -2042,7 +2008,6 @@ impl Recorder {
                         port: 1,
                     },
                     to,
-                    class: editor_core::ContactClass::Rest,
                     orient,
                 }],
                 values: vec![
@@ -3018,56 +2983,13 @@ pub fn member_face(union: RecipeNodeId, member: VarId, of: StableName) -> Stable
     member_entity(union, member, of, EntityKind::Face)
 }
 
-/// **What every at-rest finding says about a declaration, in one
-/// vocabulary** — the mate it names and the relation it bears, for a
-/// row that wants to compare a whole finding list at once.
-///
-/// One definition for every suite that asks the question. A CARRIED
-/// row's mate is a node of ANOTHER document, so it reports under its
-/// own words rather than joining the own-minted ones and reading as
-/// this document's.
-pub fn relations(
-    findings: &[editor_core::AtRestFinding],
-) -> Vec<(editor_core::MateRef, &'static str)> {
-    findings
-        .iter()
-        .map(|f| match &f.attribution {
-            Some(editor_core::Attribution::Refuted(m)) => (m.mate, "refuted"),
-            Some(editor_core::Attribution::Declined(m)) => (m.mate, "declined"),
-            Some(editor_core::Attribution::Carried {
-                declaration,
-                relation,
-                ..
-            }) => (
-                declaration.mate,
-                match relation {
-                    editor_core::Relation::Refuted => "carried_refuted",
-                    editor_core::Relation::Declined => "carried_declined",
-                },
-            ),
-            None => (
-                editor_core::MateRef::new(
-                    RecipeNodeId::new(0, u64::MAX),
-                    editor_core::ConstraintId(editor_core::MintId::new(0, u64::MAX)),
-                ),
-                "no declaration",
-            ),
-        })
-        .collect()
-}
-
-/// **The product's at-rest rows are all contacts between copies**, and
-/// there is at least one: a seat no mate speaks for is rows of the two
-/// copies it joins (D10), never a mate's.
+/// **The product holds at-rest rows**: a seat is rows of the two copies
+/// it joins (D10).
 pub fn assert_copies_rows_alone(doc: &ProfileDoc, ev: &editor_core::Evaluation<f64>) {
     let product =
         editor_core::product_recorded(doc, ev, geom_core::Tol::witness()).expect("it gathers");
     assert!(
-        !product.coincidences.is_empty()
-            && product
-                .coincidences
-                .iter()
-                .all(|r| matches!(r.by, editor_core::AtRestBy::Copies(..))),
+        !product.coincidences.is_empty(),
         "the seats are the copies' rows: {:?}",
         product.coincidences
     );
@@ -3474,9 +3396,5 @@ pub fn frame_seat(
     x: f64,
     y: f64,
 ) -> editor_core::Mate<Formula> {
-    mate(
-        top,
-        slid_across(base, x, y),
-        editor_core::ContactClass::Rest,
-    )
+    mate(top, slid_across(base, x, y))
 }

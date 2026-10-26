@@ -177,7 +177,6 @@ fn seated_as(
         editor_core::Mate {
             on: cap_plane(body, body, CapEnd::Start),
             to,
-            class: editor_core::ContactClass::Rest,
             orient,
         },
         at_rest(),

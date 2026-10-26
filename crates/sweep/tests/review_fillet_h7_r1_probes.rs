@@ -59,7 +59,11 @@ fn census(body: &Body<f64>) -> (usize, usize, usize) {
 }
 
 fn volume(body: &Body<f64>) -> f64 {
-    let p = topo::test_support::unmigrated_measure(body, tol()).expect("closed-form props");
+    let p = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
+        tol(),
+    )
+    .expect("closed-form props");
     assert_eq!(p.volume_pad, 0.0, "the inventory is closed-form");
     p.volume
 }
@@ -257,9 +261,12 @@ fn the_boolean_builds_the_groove_and_a_short_sunk_rod() {
 fn the_short_sunk_rod_agrees_with_its_intersection_and_difference() {
     let cyl = cylinder(0.2, 0.6);
     let v = |b: &Body<f64>| {
-        topo::test_support::unmigrated_measure(b, tol())
-            .unwrap()
-            .volume
+        topo::mass_properties(
+            &topo::test_support::finished("the measured body", topo::Body::clone(b), tol()),
+            tol(),
+        )
+        .unwrap()
+        .volume
     };
     let body = |r: Result<topo::BooleanResult<f64>, topo::BooleanError>| {
         r.unwrap().body().unwrap().body.clone()

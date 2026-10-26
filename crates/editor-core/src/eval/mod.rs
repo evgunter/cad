@@ -70,10 +70,9 @@ pub struct Evaluation<T: Decide> {
     /// stale-result discrimination hook.
     pub epoch: Epoch,
     /// **Which document this is an evaluation OF** (DI3): the id
-    /// [`Doc::id`] answered when the run started. Identity only, no
-    /// pin: within one document the per-node content keys decide
-    /// reuse, so the version half would cost a canonicalization per
-    /// run for a check the keys already make.
+    /// [`Doc::id`] answered when the run started. Identity only: the
+    /// version half is [`Self::pin`], recorded only when asked, since
+    /// within one document the per-node content keys decide reuse.
     ///
     /// The pairing doors read this field to refuse a mispairing typed,
     /// before reading anything of the value; the memo reads it too and
@@ -86,10 +85,25 @@ pub struct Evaluation<T: Decide> {
     /// not check it yet, is `crates/editor-core/ASSEMBLY.md`'s A2a —
     /// one place for a set that grows as each door is built.
     ///
-    /// The field is `pub` like every other field of this struct, so a
+    /// The field is `pub` like most fields of this struct, so a
     /// caller CAN restamp it. That is a deliberate act, not a slip, and
     /// nothing downstream re-derives it.
     pub document: crate::ident::DocumentId,
+    /// **Which version of the document this run read** ([`Self::pin`]).
+    /// Not `pub`, unlike [`Self::document`]: the E4/E5 report binds a
+    /// build of record by it (DUAL-DESIGN DL3), so only an evaluation
+    /// door sets it.
+    pub(crate) pin: Option<Result<crate::ident::ContentPin, crate::persist::PersistError>>,
+    /// The tolerance every predicate of this run decided at
+    /// ([`Self::tolerance`]); crate-private for the same reason.
+    pub(crate) tolerance: geom_core::Tolerance,
+    /// **The run refused before building anything** ([`Self::refused_whole`]):
+    /// every node carries one refusal the run raised up front — a
+    /// tolerance conflict, a parameter box or a seed its scalar cannot
+    /// carry — and its `env` is the nominal one, not what it was asked
+    /// to bind. Such a run reports [`EvalOutcome::Completed`], so this
+    /// is the one place that says it is no build.
+    pub(crate) whole_refusal: bool,
     /// **A prior of another document, refused** (DI3): `Some` when
     /// `evaluate` was handed a `prior` whose [`Evaluation::document`]
     /// is not this document's, in which case the run had NO memo —
@@ -157,6 +171,47 @@ pub struct Evaluation<T: Decide> {
 }
 
 impl<T: Decide> Evaluation<T> {
+    /// **Which version of the document this run read**: its content pin,
+    /// when the run was asked for one ([`EvalOptions::pin`]), or the
+    /// document's refusal to canonicalize; `None` for a run that was not
+    /// asked.
+    #[must_use]
+    pub fn pin(&self) -> Option<&Result<crate::ident::ContentPin, crate::persist::PersistError>> {
+        self.pin.as_ref()
+    }
+
+    /// The tolerance every predicate of this run decided at.
+    #[must_use]
+    pub fn tolerance(&self) -> geom_core::Tolerance {
+        self.tolerance
+    }
+
+    /// **Whether the run refused before building anything**: every node
+    /// carries the one refusal the run raised up front (a tolerance
+    /// conflict, a parameter box or a seed its scalar cannot carry).
+    /// Such a run still reports [`EvalOutcome::Completed`].
+    #[must_use]
+    pub fn refused_whole(&self) -> bool {
+        self.whole_refusal
+    }
+
+    /// This evaluation restamped as having decided at `tolerance` — a
+    /// test's stand-in for a run of another process's ε, which no run
+    /// of this process can be.
+    #[cfg(any(test, feature = "test-support"))]
+    #[must_use]
+    pub fn restamped_tolerance(mut self, tolerance: geom_core::Tolerance) -> Self {
+        self.tolerance = tolerance;
+        self
+    }
+
+    /// **The parts this run resolved**: each reference it entered and
+    /// evaluated, with the ε it was entered at — the pin says which
+    /// content (A4), so this is which part versions the build read.
+    pub(crate) fn resolved_parts(&self) -> impl Iterator<Item = (crate::ident::DocRef, u64)> + '_ {
+        self.parts.keys()
+    }
+
     /// **The resolver this run crossed the document seam with**
     /// ([`EvalOptions::resolver`]), `None` for a run that resolved no
     /// part.
@@ -756,14 +811,11 @@ pub struct NodeValue<T: Decide> {
     /// reconcile. Rides the value, so memo reuse transfers
     /// declarations with the geometry they are keyed into.
     pub contacts: Arc<topo::ContactRecords>,
-    /// The MATE BOOKKEEPING those records travel with (`ASSEMBLY.md`
-    /// A5): which mate of which document below authored each of them,
-    /// and which mates of those documents could not be minted at all.
-    /// Keyed in the same arena as `contacts` and filled at the same
-    /// one op, so the gather re-keys both through the graft's own
-    /// descendant map. Rides the value, so memo reuse transfers mate
-    /// identity with the geometry it is keyed into.
-    pub carried: Arc<crate::assembly::CarriedDeclarations>,
+    /// The at-rest findings of the documents below (`ASSEMBLY.md` A5),
+    /// keyed in the same arena as `contacts` and filled at the same one
+    /// op. Rides the value, so memo reuse transfers them with the
+    /// geometry they are keyed into.
+    pub carried: Arc<crate::assembly::CarriedFindings>,
     /// **The coincidences the node's op decided from values**
     /// ([`crate::coincide`]), in decision order, each cell named in the
     /// table of the input the decision read, so a row survives a later
@@ -889,7 +941,7 @@ impl NodeValue<f64> {
             payload: ValuePayload::Boolean(BooleanValue::Empty),
             outputs: vec![OutputNames::new(Arc::new(table), Arc::new(groups))].into(),
             contacts: Arc::new(topo::ContactRecords::default()),
-            carried: Arc::new(crate::assembly::CarriedDeclarations::default()),
+            carried: Arc::new(crate::assembly::CarriedFindings::default()),
             coincidences: Arc::new([]),
             cited_inputs: Arc::new([]),
             parts: 1,
@@ -917,14 +969,15 @@ impl NodeValue<f64> {
 
 #[cfg(any(test, feature = "test-support"))]
 impl Evaluation<f64> {
-    /// A completed evaluation of `document` holding `nodes` in `order`,
-    /// each node's one output read through the variable [`Self::hand_read`]
-    /// mints for it.
+    /// A completed evaluation of `document` at `tol`, holding `nodes` in
+    /// `order`, each node's one output read through the variable
+    /// [`Self::hand_read`] mints for it.
     #[must_use]
     pub fn hand_built(
         document: crate::DocumentId,
         order: Vec<RecipeNodeId>,
         nodes: BTreeMap<RecipeNodeId, NodeResult<f64>>,
+        tol: Tol,
     ) -> Self {
         let reads = nodes
             .keys()
@@ -933,6 +986,9 @@ impl Evaluation<f64> {
         Self {
             epoch: crate::Epoch::mint(),
             document,
+            pin: None,
+            tolerance: tolerance_of(tol),
+            whole_refusal: false,
             prior_refused: None,
             recomputed: order.len(),
             order,
@@ -3056,6 +3112,12 @@ pub struct EvalOptions {
     /// for both refuses every node. A part it resolves binds its own
     /// variables as symbols of its own document.
     pub symbols: bool,
+    /// **Record the document's content pin** ([`Evaluation::pin`]):
+    /// the run canonicalizes the document it read once, after the walk.
+    /// `false` — the default — records none, because a canonicalization
+    /// costs a sizeable fraction of a build and the memo needs no pin.
+    /// The run a sensitivity report is bound to asks for it (DL3).
+    pub pin: bool,
 }
 
 /// **Whether this scalar's lane IS the profile's first pass** — the
@@ -3164,7 +3226,7 @@ pub fn evaluate_running_pass_two<T: EvalScalar>(
     opts: &EvalOptions,
     tol: Tol,
 ) -> Evaluation<T> {
-    evaluate_at_descent(
+    let mut ev = evaluate_at_descent(
         doc,
         None,
         &CancelToken::new(),
@@ -3172,7 +3234,11 @@ pub fn evaluate_running_pass_two<T: EvalScalar>(
         None,
         PassTwo::Run,
         tol,
-    )
+    );
+    if opts.pin {
+        ev.pin = Some(crate::persist::content_pin(doc, tol));
+    }
+    ev
 }
 
 /// The interval lane's solve: a refusal quotes an enclosure's midpoint,
@@ -3317,6 +3383,7 @@ impl Default for EvalOptions {
             param_box: None,
             seed: None,
             symbols: false,
+            pin: false,
         }
     }
 }
@@ -3432,7 +3499,11 @@ pub fn evaluate<T>(
 where
     T: EvalScalar,
 {
-    evaluate_at_descent(doc, prior, cancel, opts, None, PassTwo::SkippedAtF64, tol)
+    let mut ev = evaluate_at_descent(doc, prior, cancel, opts, None, PassTwo::SkippedAtF64, tol);
+    if opts.pin {
+        ev.pin = Some(crate::persist::content_pin(doc, tol));
+    }
+    ev
 }
 
 /// **Whether an `f64` lane over the nominal takes the first pass's
@@ -3513,7 +3584,7 @@ where
     // ε — otherwise every predicate below would silently decide at
     // the wrong tolerance. Refuse loudly, per node, staying total.
     if !recorded_at_process_eps(doc, tol) {
-        return refuse_tolerance_conflict(doc, sched, opts, prior_refused, tol.eps());
+        return refuse_tolerance_conflict(doc, sched, opts, prior_refused, tol);
     }
     // The lane environment, built ONCE and shared by every reader
     // below (slot evaluation, the lift's second pass, the two profile
@@ -3530,7 +3601,7 @@ where
     };
     let env = match env {
         Ok(env) => env,
-        Err(source) => return refuse_param_box(doc, sched, opts, prior_refused, source),
+        Err(source) => return refuse_param_box(doc, sched, opts, prior_refused, source, tol),
     };
     // The E4 seed rides the SAME environment (a seed is a separate act
     // on the environment the box door built, never a property of the
@@ -3540,7 +3611,7 @@ where
         None => env,
         Some(var) => match crate::analysis::seed_env(doc, env, var) {
             Ok(env) => env,
-            Err(source) => return refuse_seed(doc, sched, opts, prior_refused, source),
+            Err(source) => return refuse_seed(doc, sched, opts, prior_refused, source, tol),
         },
     };
     // The NOMINAL environment, built beside the lane one and carried
@@ -3655,6 +3726,9 @@ where
     Evaluation {
         epoch: opts.epoch,
         document: doc.id(),
+        pin: None,
+        tolerance: tolerance_of(tol),
+        whole_refusal: false,
         prior_refused,
         order,
         nodes,
@@ -3689,13 +3763,14 @@ fn refuse_tolerance_conflict<T>(
     sched: schedule::Schedule,
     opts: &EvalOptions,
     prior_refused: Option<Mispaired>,
-    process_eps: f64,
+    tol: Tol,
 ) -> Evaluation<T>
 where
     T: Decide + ContentBits + geom_core::Bounds + Send + Sync,
 {
     let document_eps = doc.epsilon();
-    refuse_every_node(doc, sched, opts, prior_refused, move || {
+    let process_eps = tol.eps();
+    refuse_every_node(doc, sched, opts, prior_refused, tol, move || {
         NodeErrorKind::ToleranceConflict {
             document_eps,
             process_eps,
@@ -3714,11 +3789,12 @@ fn refuse_param_box<T>(
     opts: &EvalOptions,
     prior_refused: Option<Mispaired>,
     source: crate::analysis::ParamBoxError,
+    tol: Tol,
 ) -> Evaluation<T>
 where
     T: Decide + ContentBits + geom_core::Bounds + Send + Sync,
 {
-    refuse_every_node(doc, sched, opts, prior_refused, move || {
+    refuse_every_node(doc, sched, opts, prior_refused, tol, move || {
         NodeErrorKind::ParamBox {
             source: source.clone(),
         }
@@ -3736,11 +3812,12 @@ fn refuse_seed<T>(
     opts: &EvalOptions,
     prior_refused: Option<Mispaired>,
     source: crate::analysis::SeedError,
+    tol: Tol,
 ) -> Evaluation<T>
 where
     T: Decide + ContentBits + geom_core::Bounds + Send + Sync,
 {
-    refuse_every_node(doc, sched, opts, prior_refused, move || {
+    refuse_every_node(doc, sched, opts, prior_refused, tol, move || {
         NodeErrorKind::Seed {
             source: source.clone(),
         }
@@ -3755,6 +3832,7 @@ fn refuse_every_node<T>(
     sched: schedule::Schedule,
     opts: &EvalOptions,
     prior_refused: Option<Mispaired>,
+    tol: Tol,
     kind: impl Fn() -> NodeErrorKind,
 ) -> Evaluation<T>
 where
@@ -3779,6 +3857,9 @@ where
     Evaluation {
         epoch: opts.epoch,
         document: doc.id(),
+        pin: None,
+        tolerance: tolerance_of(tol),
+        whole_refusal: true,
         prior_refused,
         order,
         nodes,
@@ -3792,6 +3873,14 @@ where
         spaces: Arc::new(doc.spaces()),
         parts: parts::Carried::none(),
         resolver: opts.resolver.clone().map(std::panic::AssertUnwindSafe),
+    }
+}
+
+/// The tolerance `tol` witnesses, as the value an evaluation records.
+fn tolerance_of(tol: Tol) -> geom_core::Tolerance {
+    geom_core::Tolerance {
+        eps: tol.eps(),
+        k: tol.k(),
     }
 }
 
@@ -4217,8 +4306,7 @@ where
 /// - a function of a closed enum — [`verb_content_tag`] over
 ///   `VerbKind::ALL`, [`verb_tag`] over `profile::Verb::ALL`,
 ///   [`arc_mode_tag`] over `ArcMode::ALL`, [`seg_content_tag`] over
-///   `SegTag::ALL`,
-///   `ContactClass::content_tag` over `ContactClass::ALL`, and
+///   `SegTag::ALL`, and
 ///   [`winding_tag`], [`side_tag`], [`target_tag`] over a local closed
 ///   list that an exhaustive match forces to name every variant (their
 ///   enums are `crates/profile`'s and carry no `ALL`) — each with its
@@ -4288,10 +4376,11 @@ mod tag {
         /// Keys are process-internal and never persisted, so a bump
         /// costs one whole-memo invalidation and no migration.
         format {
-            /// v20: a mate writes its orientation, by where the copy's
+            /// v21: a mate writes its orientation, by where the copy's
             /// `x` and `z` lie, and a spin beside a mate fixing a
             /// direction is its own word (`value_coord::SPIN`), the turn
-            /// about the mated direction. v19: a value names no mate, and a spin's word is the
+            /// about the mated direction. v20: a mate writes no class, nor does an interface
+            /// crossing. v19: a value names no mate, and a spin's word is the
             /// axis it turns about; a mate's `to` is a pose read, with
             /// no target word and no world read. v18: a placement reads the space it places into, which
             /// it does not key (its copy's value is its source moved by
@@ -4321,7 +4410,7 @@ mod tag {
             /// operation. v9: an extrude writes its side. v8: a mate
             /// frame writes its arm word before its payload, and a mate
             /// writes the parts its face frames resolve against.)
-            VERSION = 20,
+            VERSION = 21,
         }
         /// The first word of every naming key: the naming-key domain,
         /// which keeps a naming key's stream apart from a content key's.
@@ -5009,12 +5098,7 @@ where
             feed_bundle(&mut h, defs, constraints);
             h.write_u64(interface.crossings.len() as u64);
             for crossing in &interface.crossings {
-                let crate::node::InterfaceCrossing::Mate {
-                    class,
-                    outer,
-                    inner,
-                } = crossing;
-                h.write_u64(class.content_tag());
+                let crate::node::InterfaceCrossing::Mate { outer, inner } = crossing;
                 feed_stable_name(&mut h, outer);
                 feed_stable_name(&mut h, inner);
             }
@@ -5789,11 +5873,6 @@ fn feed_doc_ref(h: &mut KeyHasher, doc_ref: &crate::ident::DocRef) {
     }
 }
 
-/// **A bundle's key**: each constraint's id and what it says that no
-/// other channel keys — its class, and its target's word, a world read
-/// by its arms and roles. The poses it reads are reads, keyed by the
-/// node's pose words and its upstream keys, and a world read's scalars
-/// are slots, fed with every slot.
 /// A scalar's turn form, under [`tag::slot`]'s `TURNS`.
 fn feed_turns(h: &mut KeyHasher, turns: Option<crate::expr::Ratio>) {
     h.write_tag(tag::slot::TURNS);
@@ -5807,6 +5886,10 @@ fn feed_turns(h: &mut KeyHasher, turns: Option<crate::expr::Ratio>) {
     }
 }
 
+/// **A bundle's key**: each constraint's id and what it says that no
+/// other channel keys — its kind, and a value's coordinate and form.
+/// The poses it reads are reads, keyed by the node's pose words and its
+/// upstream keys.
 fn feed_bundle(
     h: &mut KeyHasher,
     defs: crate::param_source::Definitions<'_, '_>,
@@ -5816,8 +5899,14 @@ fn feed_bundle(
     for c in constraints {
         h.write_u64(u64::from(c.id.0.ordinal()));
         h.write_u64(c.id.0.digest());
-        let mate = match &c.kind {
-            crate::mate::ConstraintKind::Mate(mate) => mate,
+        match &c.kind {
+            crate::mate::ConstraintKind::Mate(mate) => {
+                h.write_tag(tag::constraint_kind::MATE);
+                // The orientation, by where the copy's x and z lie.
+                for axis in [mate.orient.x(), mate.orient.z()] {
+                    h.write_tag(axis_word(axis));
+                }
+            }
             crate::mate::ConstraintKind::Value(value) => {
                 use crate::mate::{Coord, TargetAxis};
                 h.write_tag(tag::constraint_kind::VALUE);
@@ -5835,16 +5924,7 @@ fn feed_bundle(
                 } else {
                     tag::value_form::NUMBER
                 });
-                continue;
             }
-        };
-        h.write_tag(tag::constraint_kind::MATE);
-        // The class's word is `ContactClass::content_tag` — the one
-        // spelling the crossing record and the constraint both write.
-        h.write_u64(mate.class.content_tag());
-        // The orientation, by where the copy's x and z lie.
-        for axis in [mate.orient.x(), mate.orient.z()] {
-            h.write_tag(axis_word(axis));
         }
     }
 }
@@ -6766,24 +6846,6 @@ mod tag_vocabulary_tests {
             );
         }
     }
-
-    /// A contact class's tag — `topo::ContactClass::content_tag`, the
-    /// one spelling the mate, the crossing record and the declaration
-    /// write — is injective and non-zero over `ContactClass::ALL`: a
-    /// class that keyed as `0` would be a class with no word.
-    #[test]
-    fn contact_class_tags_are_injective_and_nonzero() {
-        let mut seen: Vec<(topo::ContactClass, u64)> = Vec::new();
-        for class in topo::ContactClass::ALL {
-            let t = class.content_tag();
-            assert_ne!(t, 0, "{class:?} keys as 0");
-            if let Some((other, _)) = seen.iter().find(|(_, u)| *u == t) {
-                panic!("{class:?} and {other:?} share content tag {t}");
-            }
-            seen.push((*class, t));
-        }
-        assert_eq!(seen.len(), topo::ContactClass::ALL.len());
-    }
 }
 
 #[cfg(test)]
@@ -6812,7 +6874,6 @@ mod bundle_key {
             Mate {
                 on: ON,
                 to,
-                class: crate::mate::ContactClass::Rest,
                 orient: crate::Orientation::IDENTITY,
             },
         )

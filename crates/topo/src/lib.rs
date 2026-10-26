@@ -127,9 +127,9 @@
 pub mod attach;
 pub mod body;
 pub mod boolean;
+pub mod cell_region;
 pub(crate) mod census;
 pub mod chart;
-pub mod chart_bound;
 pub(crate) mod chart_groups;
 pub mod chart_iso;
 pub mod chart_region;
@@ -297,7 +297,9 @@ pub mod test_support {
     // would be comparing that constant against itself.
     pub use crate::null::with_ring_root;
     pub use crate::props::{
-        FaceTerm, fold_order_bound, mass_properties_with_face_terms, quadrature_rounds,
+        DoorOutcome, DoorRead, FaceReading, FaceTerm, every_door, face_reading,
+        face_reading_structural, fold_order_bound, mass_properties_one_point,
+        mass_properties_with_face_terms, quadrature_rounds, read_points, region_carries_of,
         shell_references,
     };
     pub use crate::test_support_fixtures::{
@@ -362,28 +364,6 @@ pub mod test_support {
     /// As [`crate::classify_shells_of`].
     pub use crate::props::raw_door::classify_body_of as classify_unvalidated_of;
 
-    /// **The transitional measurement alias** (FLUX unit F1): the raw
-    /// walk under the name a NOT-YET-MIGRATED test site reads it by,
-    /// until F2 moves sweep's and editor-core's sites onto the typed
-    /// door ([`crate::mass_properties`], `&AtRestBody`) or, with a
-    /// reason, onto [`measure_unvalidated`]. It means "not yet
-    /// migrated", never "measures an invalid body on purpose". Its sites
-    /// may only fall: `scripts/gates/unmigrated-measure-sites.sh` pins
-    /// them, and F2 deletes the alias
-    /// (`work/flux/the-measurement-doors-test-sites-still-read-through-the-transitional-alias.md`).
-    ///
-    /// # Errors
-    ///
-    /// As [`crate::mass_properties`].
-    pub use crate::props::raw_door::measure_body as unmigrated_measure;
-
-    /// [`unmigrated_measure`] for [`crate::classify_shells`].
-    ///
-    /// # Errors
-    ///
-    /// As [`crate::classify_shells`].
-    pub use crate::props::raw_door::classify_body as unmigrated_classify;
-
     /// Every shell's stored face list rotated left by `k` (modulo its
     /// length): the same solid stored in another face order, which the
     /// tiers do not read. Each shell's face count, in arena order.
@@ -404,6 +384,57 @@ pub mod test_support {
     /// (`side_reader`): the edge-meeting ray's probes read it.
     pub fn aimed_rays(body: &Body<f64>, band: geom_core::Band) -> Vec<String> {
         crate::side_reader::aimed_rays_report(body, band)
+    }
+
+    /// Each face's aimed ray's own reading, every face aimed at
+    /// (`side_reader`): the curved edge-meeting ray's probes read it.
+    pub fn each_aim(body: &Body<f64>, band: geom_core::Band) -> Vec<String> {
+        crate::side_reader::each_aim_report(body, band)
+    }
+
+    /// One aimed ray at `aim` on `face`, at the aimed incidence to
+    /// `normal` (`side_reader`): the probes aim it at and about an edge.
+    pub fn ray_at(
+        body: &Body<f64>,
+        face: crate::FaceKey,
+        aim: geom_core::Point3<f64>,
+        normal: geom_core::Vec3<f64>,
+        band: geom_core::Band,
+    ) -> String {
+        crate::side_reader::ray_at_report(body, face, aim, normal, band)
+    }
+
+    pub use crate::side_reader::EdgeFrame;
+
+    /// Every crossing of the ray `q + s·d` with the solid holding `face`,
+    /// its faces in an order turned left by `turn` and reversed where
+    /// asked, as `(from, to, count, sideless)` (`side_reader`): the probes
+    /// read a whole ray's count off it.
+    pub fn ray_counts(
+        body: &Body<f64>,
+        face: crate::FaceKey,
+        ray: (geom_core::Point3<f64>, geom_core::Vec3<f64>),
+        band: geom_core::Band,
+        order: (usize, bool),
+    ) -> Result<Vec<(f64, f64, i32, bool)>, String> {
+        crate::side_reader::ray_counts(body, face, ray, band, order)
+    }
+
+    /// Each edge's frames on each of its faces, at each fraction of
+    /// `fractions` along it (`side_reader`): the probes aim at and about
+    /// an edge from them.
+    pub fn edge_frames(
+        body: &Body<f64>,
+        fractions: &[f64],
+        band: geom_core::Band,
+    ) -> Vec<EdgeFrame> {
+        crate::side_reader::edge_frames(body, fractions, band)
+    }
+
+    /// Rays aimed at and beside every edge, `offsets` into each face
+    /// (`side_reader`): the curved edge-meeting ray's probes read it.
+    pub fn edge_rays(body: &Body<f64>, offsets: &[f64], band: geom_core::Band) -> Vec<String> {
+        crate::side_reader::edge_rays_report(body, offsets, band)
     }
 
     /// The pad a face's reach box takes past the band, and each face's
@@ -448,11 +479,12 @@ pub mod test_support {
     /// ([`crate::test_support_meeting`]).
     pub mod meeting {
         pub use crate::test_support_meeting::{
-            Hole, MEET, PLATE, Point, Pose, along_lying_ray, apex_pyramid, apex_pyramid_kept, arch,
-            arch_cone, at, bearing, branching_cone, comb, corners, corners_disjoint, crown,
-            cycles_of, ell, ell_and_wedges, fin, four_wedges, inner_rows, leaned, lying, mix,
-            near_flat, nest, nest_polygon, notch, notch_rows, on_the_lying_faces, orders,
-            posed_box, posed_boxes, posed_crown, posed_prism, posed_pyramid, poses,
+            FIN_BOTTOM, Hole, MEET, PLATE, Point, Pose, along_lying_ray, apex_pyramid,
+            apex_pyramid_kept, arch, arch_cone, at, bearing, branching_cone, comb, corners,
+            corners_disjoint, crown, crown_body, cycles_of, ell, ell_and_wedges, fin,
+            fin_crown_body, four_wedges, inner_rows, leaned, lying, mix, near_flat, nest,
+            nest_polygon, notch, notch_rows, on_the_lying_faces, orders, posed_box, posed_boxes,
+            posed_crown, posed_crown_kept, posed_fin_crown, posed_prism, posed_pyramid, poses,
             pyramid_volumes, shape, single_arch, three_wedges, two_wedges, wedge,
             wedges_on_one_side, zigzag,
         };
@@ -970,6 +1002,8 @@ mod r2_probes;
 #[cfg(test)]
 mod tier3_tests;
 pub mod transform;
+#[cfg(test)]
+mod turn_rows;
 pub mod validate;
 mod wedge_reach;
 pub use wedge_reach::{WedgeReach, edge_faces, edge_wedge_reach, wedge_reach};
@@ -990,10 +1024,10 @@ pub use boolean::{
     PlaneIdentity, PlaneRelation, PlaneRung, PointInSolidError, ReductionContacts, RefusedRow,
     SectorRead, SectorRung, SelfCheck, SettleError, Settler, Settling, ShellOrientation, SideCode,
     SlitLineGap, SolidContainment, SolidFaces, SphereQuestion, SpiricLoops, SubstitutedFace,
-    SweepStrategy, SweepTrace, TorusConvention, UnreadNeighbourhood, UnreadPartner, VeContact,
-    VfContact, VoidContainment, VoidEvidence, VoidInsertError, VoidInserted, VvContact, WallRung,
-    boolean_op_with, boolean_reduce, carrier_eq, contfp, curved_face_containment, decision_words,
-    face_carrier, flush_pair_relation, insert_void, insert_voids, intersect,
+    SweepStrategy, SweepTrace, TorusConvention, UncutFace, UnreadNeighbourhood, UnreadPartner,
+    VeContact, VfContact, VoidContainment, VoidEvidence, VoidInsertError, VoidInserted, VvContact,
+    WallRung, boolean_op_with, boolean_reduce, carrier_eq, contfp, curved_face_containment,
+    decision_words, face_carrier, flush_pair_relation, insert_void, insert_voids, intersect,
     is_conventional_vertex, join_covers, joinable_vertices, joined_cell, joined_edge,
     oriented_plane_eq, point_in_solid, point_in_solid_faces, point_in_solid_of, rest_locus,
     subtract, tangent_pair_relation, union,
@@ -1026,9 +1060,8 @@ pub use census::{
 #[cfg(feature = "sweep-testing")]
 pub use census::{census_traces, census_traces_planted};
 pub use contact::{
-    CONTACT_RECOURSE, CONTRADICTION_REASON, CONTRADICTION_RECOURSE, ContactClass, ContactFinding,
-    ContactRefusal, ContactVerdict, DeclaredContact, FIT_DEFERRAL, FIT_DEFERRAL_FOR_USERS,
-    GlueClass,
+    CONTACT_RECOURSE, CONTRADICTION_REASON, CONTRADICTION_RECOURSE, ContactFinding, ContactRefusal,
+    ContactVerdict, DeclaredContact, GlueClass,
 };
 pub use entity::{
     Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, Loop, LoopBoundary,
@@ -1044,7 +1077,6 @@ pub use euler_ring::{KemrResult, KfmrhResult, MekrResult, MekrSite};
 // consumer of the ops needs no direct geom-* imports for the common
 // path (the full geometry vocabulary still lives in those crates).
 pub use chart::{Chart, ChartKind};
-pub use chart_bound::{ChartBound, ChartEdge, ChartLoop, MetredBound, MetredRect};
 pub use chart_iso::{TravKind, classify_kind, iso_side_starts, mid_azimuth, unwrap_near};
 pub use chart_region::{
     ChartOverlap, ChartRegionError, RegionLane, WITNESS_CELL_CAP, WITNESS_SEGMENT_CAP,
@@ -1078,7 +1110,8 @@ pub use offset_general::offset_surfaces_together;
 pub use offset_nappe::{Nappe, face_nappe, group_nappe};
 pub use offset_together::{ChartMove, offset_planes_together};
 pub use pcurves::{
-    PcurveMintError, SiteRowRefusal, chart_boundary, mint_pcurves, mint_pcurves_of, pcurve_of,
+    LoopWinding, PcurveMintError, SiteRowRefusal, loop_windings, mint_pcurves, mint_pcurves_of,
+    pcurve_of,
 };
 pub use props::{
     AtRestOutcome, AtRestPolicy, MassProperties, MassPropsError, QuadLane, ShellClassification,

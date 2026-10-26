@@ -150,7 +150,6 @@ pub fn on_axis(
     orient: pncad::document::Orientation,
     tol: Tol,
 ) -> Placed {
-    use pncad::prelude::ContactClass;
     let space = space_of(doc, &frame);
     let to = Operand::Pose(Box::new(PoseDef::Slide {
         pose: RoleRead::through(frame.clone(), PoseRole::Z),
@@ -163,7 +162,6 @@ pub fn on_axis(
             port: 1,
         },
         to,
-        class: ContactClass::Rest,
         orient,
     };
     // The slide an axis mate leaves, written; its spin is the constant 0.

@@ -477,8 +477,9 @@ fn cross_dialect_fixed_point() {
             ..step_export::StepOptions::default()
         };
         let (body1, _, _) = freecad_body(name);
-        let export1 = step_export::step_string(&body1, &options, Tol::witness())
-            .unwrap_or_else(|e| panic!("{name}: re-export 1: {e}"));
+        let export1 =
+            step_export::step_string(&crate::common::at_rest(&body1), &options, Tol::witness())
+                .unwrap_or_else(|e| panic!("{name}: re-export 1: {e}"));
         let reimport = import_step(&export1, &ImportOptions::default(), Tol::witness())
             .unwrap_or_else(|e| panic!("{name}: re-import of our own dialect: {e}"));
         let StepImport::Solid { body: body2, .. } = reimport else {
@@ -489,8 +490,9 @@ fn cross_dialect_fixed_point() {
             arena_census(&body2),
             "{name}: census identical across the adoption pass"
         );
-        let export2 = step_export::step_string(&body2, &options, Tol::witness())
-            .unwrap_or_else(|e| panic!("{name}: re-export 2: {e}"));
+        let export2 =
+            step_export::step_string(&crate::common::at_rest(&body2), &options, Tol::witness())
+                .unwrap_or_else(|e| panic!("{name}: re-export 2: {e}"));
         assert_eq!(
             export1, export2,
             "{name}: the second export must be byte-identical to the first"
@@ -837,7 +839,7 @@ fn negative_zeros_normalize_at_translation() {
         assert!(text.contains("-0."), "{name}: the source dialect has -0.");
         let (body, _, _) = freecad_body(name);
         let export = step_export::step_string(
-            &body,
+            &crate::common::at_rest(&body),
             &step_export::StepOptions {
                 product_name: name.to_owned(),
                 ..step_export::StepOptions::default()
@@ -1471,7 +1473,7 @@ fn freecad_oracle_reads_back_every_reexported_fixture() {
     for name in FREECAD_FIXTURES {
         let (body, _, _) = freecad_body(name);
         let text = step_export::step_string(
-            &body,
+            &crate::common::at_rest(&body),
             &step_export::StepOptions {
                 product_name: name.to_owned(),
                 ..step_export::StepOptions::default()

@@ -111,9 +111,12 @@ fn ball_volume(r: f64) -> f64 {
 }
 
 fn volume(b: &Body<f64>) -> f64 {
-    topo::test_support::unmigrated_measure(b, Tol::witness())
-        .expect("the volume integrates")
-        .volume
+    topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(b), Tol::witness()),
+        Tol::witness(),
+    )
+    .expect("the volume integrates")
+    .volume
 }
 
 fn close(got: f64, want: f64, what: &str) {

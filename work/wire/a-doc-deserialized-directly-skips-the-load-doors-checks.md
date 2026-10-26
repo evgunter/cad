@@ -2,10 +2,11 @@
 id: a-doc-deserialized-directly-skips-the-load-doors-checks
 kind: issue
 title: Doc derives a public serde::Deserialize, so a Doc built with serde_json::from_str skips the load door's checks and can reach panics the doors hold
-status: dispatched
+status: closed
 opened: 2026-10-20
 priority: P2
 cost: M
+closed: 2026-10-21
 ---
 
 
@@ -24,3 +25,5 @@ inspection, not by execution.
   the load door only), or have `Deserialize` validate as the load door
   does. Check pncad-py and the viewer for direct `serde` use of `Doc`
   first.
+
+Closed by PR 5514 (2026-10-21). `Doc` derives `Serialize` only, and the load door parses through a private `SnapshotWire`. A `compile_fail` doctest witnesses that `serde_json::from_str` into a `Doc` no longer compiles. The review showed that load is byte-identical across every saved file in the tree and 66 mutations of them.

@@ -55,8 +55,7 @@ use crate::fixture;
 
 use editor_core::test_support::{VerbatimKind, verbatim_kind};
 use editor_core::{
-    CapEnd, ContactClass, Coord, DocumentId, EvalOptions, Node, ProfileDoc, RecipeNodeId,
-    StableName, TargetAxis,
+    CapEnd, Coord, DocumentId, EvalOptions, Node, ProfileDoc, RecipeNodeId, StableName, TargetAxis,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{insert, len, on_frame};
@@ -144,7 +143,6 @@ fn stacked_blocks() -> (ProfileDoc, EvalOptions) {
         fixture::rest(
             fixture::head(in_part(top, top_body, CapEnd::Start)),
             fixture::head(in_part(base, base_body, CapEnd::End)),
-            ContactClass::Rest,
         ),
         &[
             (Coord::Slide(TargetAxis::X), len(0.0)),

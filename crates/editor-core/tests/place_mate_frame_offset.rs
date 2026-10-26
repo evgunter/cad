@@ -20,9 +20,8 @@ use crate::p2_gauges::{Parts, block, body_of, cut, min_corner, parts};
 
 use editor_core::pose::PoseRole;
 use editor_core::{
-    ContactClass, Coord, Dimension, DocEdit, DocumentId, EditError, EvalOptions, Formula,
-    FreeValue, FreeVar, Mate, MateRef, ProfileDoc, RecipeNodeId, SlotId, SplitError, TargetAxis,
-    Value, VarName, apply,
+    Coord, Dimension, DocEdit, DocumentId, EditError, EvalOptions, Formula, FreeValue, FreeVar,
+    Mate, MateRef, ProfileDoc, RecipeNodeId, SlotId, SplitError, TargetAxis, Value, VarName, apply,
 };
 use fixture::resolver::with_resolver;
 use fixture::round_trip::{composed, same_up_to_ids};
@@ -96,11 +95,7 @@ fn seated(
     let (doc, m, vx) = plane_seated(
         doc,
         top,
-        rest(
-            head(p.top_cap(top)),
-            head(p.base_cap(base)),
-            ContactClass::Rest,
-        ),
+        rest(head(p.top_cap(top)), head(p.base_cap(base))),
         x,
         y,
     );
@@ -265,11 +260,7 @@ fn a_parameter_drives_a_value_and_the_solved_pose_moves() {
             &unvalued,
             &fixture::squared(
                 &unvalued,
-                rest(
-                    head(p.top_cap(top)),
-                    head(p.base_cap(base)),
-                    ContactClass::Rest,
-                ),
+                rest(head(p.top_cap(top)), head(p.base_cap(base))),
                 &[(
                     Coord::Slide(TargetAxis::X),
                     Formula::named(VarName::from_static(name), Dimension::Length),
@@ -316,14 +307,10 @@ fn a_standoff_places_the_copy_and_declares_no_contact() {
         along: editor_core::pose::RoleRead::through(cap, PoseRole::Normal),
         by: len(0.25),
     }));
-    let (doc, m, _) = plane_seated(
+    let (doc, _, _) = plane_seated(
         doc,
         top,
-        fixture::mate(
-            plane(head(p.top_cap(top))),
-            flip(standoff),
-            ContactClass::Rest,
-        ),
+        fixture::mate(plane(head(p.top_cap(top))), flip(standoff)),
         len(1.0),
         len(1.0),
     );
@@ -335,7 +322,6 @@ fn a_standoff_places_the_copy_and_declares_no_contact() {
         "placed as asked"
     );
     let ev = run(&doc, &o);
-    fixture::assert_mints_nothing(&doc, &ev, m);
     assert!(gate(&doc, &ev).is_ok(), "{:?}", gate(&doc, &ev).err());
 }
 
@@ -366,11 +352,7 @@ fn a_value_and_its_parameter_cross_split_and_inline() {
         let (doc, _, vx) = plane_seated(
             doc,
             top,
-            rest(
-                head(p.top_cap(top)),
-                head(p.base_cap(base)),
-                ContactClass::Rest,
-            ),
+            rest(head(p.top_cap(top)), head(p.base_cap(base))),
             x,
             len(1.0),
         );
@@ -437,11 +419,7 @@ fn a_value_and_its_parameter_cross_split_and_inline() {
     let (doc, _, _) = plane_seated(
         doc,
         top,
-        rest(
-            head(p.top_cap(top)),
-            head(p.base_cap(base)),
-            ContactClass::Rest,
-        ),
+        rest(head(p.top_cap(top)), head(p.base_cap(base))),
         len(1.5),
         len(1.0),
     );

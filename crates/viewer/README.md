@@ -2026,11 +2026,16 @@ copies; a pick elsewhere is read through the member walk to the
 instance it places.
 
 **"Place part" writes the identity bundle.** Every gesture that puts a
-body or a part in the world — a creation, a duplicate, an inserted
-instance — inserts the placement into the world with the identity
-bundle (`editor_core::stand`): no mate, and the constant `0` on each
-slide and spin, so the copy stands where its body stands and can then
-be moved by its numbers. The transform gesture places a body into its
+body or a part in the world — a creation, an inserted instance —
+inserts the placement into the world with the identity bundle
+(`editor_core::stand`): no mate, and the constant `0` on each slide and
+spin, so the copy stands where its body stands and can then be moved by
+its numbers. A duplicate is placed beside the original as it is drawn:
+into each drawn copy's space (the one picked, or every one when the
+tree names the body), by values on every freedom at that copy's
+evaluated motion and no mate, so it stands where the person sees the
+original, one step along the original's own `x`, and does not follow
+it. The transform gesture places a body into its
 own space by values on that space's axes: the three slides as the
 person wrote them, and the spin about the axis the rotation names
 where it is one of the space's, else the chain of turns its frame

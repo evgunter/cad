@@ -75,7 +75,6 @@ fn rest_choice(
 ) -> viewer::matetool::MateChoice {
     use pncad::document::Coord;
     viewer::matetool::MateChoice {
-        class: pncad::select::ContactClass::Rest,
         kind: pncad::document::VarKind::Plane,
         flip: true,
         values: vec![
@@ -531,7 +530,7 @@ fn the_windmill_story() {
                 0.0,
             ),
         )
-            .expect("the seat proposes")
+        .expect("the seat proposes")
     };
     let outcome = session.perform(seat_proposal.op_into_target_space());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
@@ -599,12 +598,8 @@ fn the_windmill_story() {
     );
     assert_eq!(
         session.at_rest(),
-        Some(&AtRestBadge::Certified {
-            minted: 1,
-            loud: 0,
-            quiet: 0,
-        }),
-        "the seated base certifies with its one declaration"
+        Some(&AtRestBadge::Certified { loud: 0, quiet: 0 }),
+        "the seated base certifies, its seat recorded at rest"
     );
 
     // The seated hub lives in the world's space, so it refuses the
@@ -637,11 +632,7 @@ fn the_windmill_story() {
     }
     assert_eq!(
         session.at_rest(),
-        Some(&AtRestBadge::Certified {
-            minted: 1,
-            loud: 0,
-            quiet: 0,
-        }),
+        Some(&AtRestBadge::Certified { loud: 0, quiet: 0 }),
         "redo re-certifies what undo took away"
     );
 
@@ -833,11 +824,7 @@ fn the_windmill_story() {
     );
     assert_eq!(
         session.at_rest(),
-        Some(&AtRestBadge::Certified {
-            minted: 3,
-            loud: 0,
-            quiet: 0,
-        }),
+        Some(&AtRestBadge::Certified { loud: 0, quiet: 0 }),
         "the declared overhanging blades certify through the crossing rung"
     );
 
@@ -863,11 +850,7 @@ fn the_windmill_story() {
     assert!(crate::common::asm::frame_of(&reopened, hub_i).is_none());
     assert_eq!(
         reopened.at_rest(),
-        Some(&AtRestBadge::Certified {
-            minted: 3,
-            loud: 0,
-            quiet: 0,
-        }),
+        Some(&AtRestBadge::Certified { loud: 0, quiet: 0 }),
         "the reopened census reads the same design: {:?}",
         reopened.at_rest()
     );

@@ -264,7 +264,7 @@ fn start_class(start: f64) -> Start {
 /// a hyperbola whose branches start `0.9·ε/D` (`D = sin α ≈ 1/64`, so
 /// `≈ 58·ε`) from the apex, past the band. The cap's wall edge runs from
 /// the apex vertex, so the line pair through the apex is not its
-/// section there: the edge refuses typed, naming the hyperbola (R1),
+/// section there: the edge refuses typed, naming the hyperbola,
 /// where the door had planned the old generator. The cap's other edges,
 /// against planes, plan.
 #[test]
@@ -294,17 +294,14 @@ fn a_cap_moved_off_a_needle_apex_refuses_the_hyperbola() {
             let mut walls = 0;
             for (edge, plan) in topo::offset_edge_plans_for_tests(&body, face, d, tol) {
                 match plan {
-                    Err(topo::ReplaceFaceError::NeighborPoseUnroutable {
+                    Err(topo::ReplaceFaceError::EdgeSection {
                         other_kind: geom::SurfaceKind::Cone,
-                        why,
+                        verdict:
+                            topo::SectionVerdict::OpenConic {
+                                conic: geom_brep::OpenConic::Hyperbola,
+                            },
                         ..
-                    }) => {
-                        assert!(
-                            why.contains("HYPERBOLA"),
-                            "{face:?} by {d:e}, {edge:?}: refuses naming the hyperbola, got {why}"
-                        );
-                        walls += 1;
-                    }
+                    }) => walls += 1,
                     Ok(None) => {}
                     other => panic!("{face:?} by {d:e}, {edge:?}: got {other:?}"),
                 }
@@ -379,12 +376,9 @@ fn a_cap_moved_into_the_band_of_a_wedge_apex_escalates() {
 ///
 /// The moved body is right: its volume is `V + d·A` (`A` the cap's
 /// area) within `ε·A/4`, it passes tier 3, and `point_in_solid` agrees
-/// with the wedge's membership on a grid over its upper span.
-/// With the cap moved out, containment cannot read the wall's chart
-/// window, whose two rims now span different azimuths, and refuses
-/// `PartialConeFace` at up to 50 of the 216 grid points at the default
-/// ε and 60 at `1e-6`
-/// (`work/inside/a-cone-wall-whose-rims-span-different-azimuths-refuses-containment.md`).
+/// with the wedge's membership at every point of a grid over its upper
+/// span: the wall is read from its boundary edges, whatever azimuths its
+/// two rims span.
 #[test]
 fn a_cap_moved_off_a_frustum_wedge_apex_plans_its_wall_edge() {
     let tol = Tol::witness();
@@ -474,7 +468,6 @@ fn a_cap_moved_off_a_frustum_wedge_apex_plans_its_wall_edge() {
                 &|q| truth.depth(q),
                 &named,
                 &points,
-                60,
             );
         }
     }

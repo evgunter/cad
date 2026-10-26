@@ -22,8 +22,8 @@ use crate::fixture::{self, ang, len};
 use editor_core::mate::coset::{Coset, Subgroup, intersect};
 use editor_core::pose::{PoseDef, RoleRead};
 use editor_core::{
-    BodyRead, ContactClass, Coord, DocEdit, EditError, EvalOptions, Formula, Mate, MateFault, Node,
-    NodeResult, Operand, ProfileDoc, RecipeNodeId, StableName, TargetAxis,
+    BodyRead, Coord, DocEdit, EditError, EvalOptions, Formula, Mate, MateFault, Node, NodeResult,
+    Operand, ProfileDoc, RecipeNodeId, StableName, TargetAxis,
 };
 use geom_core::Tol;
 use geom_core::linalg::{Affine3, Mat3, Point3, UnitVec3, Vec3};
@@ -380,7 +380,6 @@ fn box_resting_on(
     let written = Mate {
         on: plane_of(on_body(body, bottom)),
         to: fixture::flip(top),
-        class: ContactClass::Rest,
         orient: editor_core::Orientation::IDENTITY,
     };
     let coords = [
@@ -505,7 +504,6 @@ fn a_slide_set_twice_refuses_though_a_turn_is_free() {
     let written = Mate {
         on: plane_of(on_body(body, bottom)),
         to: floor,
-        class: ContactClass::Rest,
         orient: editor_core::Orientation::IDENTITY,
     };
     let twice = editor_core::Placed {
@@ -563,7 +561,6 @@ fn box_on_the_wall(draft: f64, roll: f64) -> Affine3<f64> {
     let written = Mate {
         on: face,
         to: wall,
-        class: ContactClass::Rest,
         orient: editor_core::Orientation::IDENTITY,
     };
     let doc = doc;
@@ -647,7 +644,6 @@ fn a_cap_at_the_antipode_places_without_a_turn() {
     let written = Mate {
         on: plane_of(on_body(body, bottom)),
         to: down,
-        class: ContactClass::Rest,
         orient: editor_core::Orientation::IDENTITY,
     };
     let doc = seat(
@@ -685,7 +681,6 @@ fn a_cap_at_the_antipode_places_without_a_turn() {
     let written = Mate {
         on: tilted,
         to: down,
-        class: ContactClass::Rest,
         orient: editor_core::Orientation::IDENTITY,
     };
     let doc = seat(doc, placement, written, [(Coord::SPIN, ang(0.0))]);
@@ -974,7 +969,6 @@ fn box_slid_by_a_parameter(nominal: f64) -> (ProfileDoc, RecipeNodeId, EvalOptio
     let written = Mate {
         on: plane_of(on_body(body, bottom)),
         to: floor,
-        class: ContactClass::Rest,
         orient: editor_core::Orientation::IDENTITY,
     };
     let slide = Formula::named(
@@ -1145,7 +1139,6 @@ fn a_seeded_copy_at_rest_has_the_value_lanes_bits_and_its_tangent() {
     let written = Mate {
         on: plane_of(on_body(body, bottom)),
         to: floor,
-        class: ContactClass::Rest,
         orient: editor_core::Orientation::IDENTITY,
     };
     let turn = Formula::named(
@@ -1226,7 +1219,6 @@ fn a_box_spanning_the_band_encloses_the_value_lane_at_its_corners() {
     let written = Mate {
         on: plane_of(on_body(body, bottom)),
         to: floor,
-        class: ContactClass::Rest,
         orient: editor_core::Orientation::IDENTITY,
     };
     let turn = Formula::named(

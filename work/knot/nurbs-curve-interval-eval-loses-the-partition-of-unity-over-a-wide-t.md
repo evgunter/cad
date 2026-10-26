@@ -69,11 +69,13 @@ surface `ders` face of the same loss.
 ## What it costs
 
 Any consumer that reads a spline over a whole span gets the entire
-line, and inside a span it gets several times the true width. topo's
-`chart_edge` reads the per-piece control hull instead.
-`trim_3_chart_bound::t9b_…` pins this item's numbers; a red there means
-re-measure and decide. `t9c_…` pins the case where `eval` is finite and
-the box is still tighter.
+line, and inside a span it gets several times the true width. A reader
+of a projected row's chart extent reads the per-piece control hull
+(`Pcurve::chart_box`) instead.
+`projected_row_chart_box::a_projected_rows_eval_over_its_edge_is_entire_and_its_box_is_exact`
+pins this item's numbers; a red there means re-measure and decide.
+`a_projected_edge_on_part_of_its_net_reads_the_tighter_box` pins the case
+where `eval` is finite and the box is still tighter.
 
 ## What would close it
 

@@ -7,10 +7,10 @@
 //! annulus, only occurs on bodies that also carry curved walls). The
 //! two rows:
 //!
-//! 1. `.F.` is actually emitted — `same_sense` IS `topo::Face::sense`
-//!    verbatim (the writer's S10 contract), exercised through the
-//!    test-only hand-flip door on a planar body. Before S11 no test
-//!    had ever produced an `.F.` in real output.
+//! 1. A planar cube writes six `.T.`s, and a cube with one face's bit
+//!    flipped through the test-only hand-flip door is refused by the
+//!    at-rest gate, so the export door never sees a bit that disagrees
+//!    with its windings.
 //! 2. The mixed-sense NOTCHED body exports end to end, with exactly
 //!    one `.F.` `ADVANCED_FACE` — the concave wall's.
 //!
@@ -42,16 +42,15 @@ fn export(body: &topo::Body<f64>) -> String {
         uncertainty_m: Some(1e-9),
         ..StepOptions::default()
     };
-    step_string(body, &options, Tol::witness()).unwrap()
+    step_string(&common::at_rest(body), &options, Tol::witness()).unwrap()
 }
 
-/// **Row 1: `.F.` is real output.** Flip one cube face's bit through
-/// the S10 instrument; the emitted text must carry exactly one
-/// `same_sense = .F.` `ADVANCED_FACE` (and five `.T.`), because
-/// `same_sense` is the stored bit verbatim — not a re-derivation from
-/// the (unchanged) windings, which would print six `.T.`s.
+/// **Row 1: a lied bit cannot reach the file.** The honest cube writes
+/// six `same_sense = .T.` `ADVANCED_FACE`s; flip one face's bit through
+/// the S10 instrument and the at-rest gate refuses the cube, so the
+/// export door, which takes a finished body, is never handed it.
 #[test]
-fn flipped_face_emits_exactly_one_f_flag() {
+fn a_flipped_face_bit_refuses_at_the_gate() {
     let advanced_faces = |text: &str, flag: &str| {
         text.lines()
             .filter(|l| l.contains("= ADVANCED_FACE(") && l.contains(flag))
@@ -64,13 +63,10 @@ fn flipped_face_emits_exactly_one_f_flag() {
 
     let (face, _) = body.faces().next().unwrap();
     let flipped = body.flipped_face_sense_for_tests(face).unwrap();
-    let lied = export(&flipped);
-    assert_eq!(
-        advanced_faces(&lied, ".F."),
-        1,
-        "exactly the flipped face writes same_sense = .F."
+    assert!(
+        topo::AtRestBody::validate(flipped, Tol::witness()).is_err(),
+        "a face whose bit disagrees with its windings is not at rest"
     );
-    assert_eq!(advanced_faces(&lied, ".T."), 5);
 }
 
 /// **Row 2 (the PR 13 flip): the mixed-sense notched body exports, and

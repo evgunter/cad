@@ -1,6 +1,5 @@
 //! **The mate tool, replayed headlessly** (GUI-4 deliverable 4): two
-//! sequential picks through the real cursor path, the admission
-//! exposure, the typed refusals, one committed action (the mate and
+//! sequential picks through the real cursor path, the typed refusals, one committed action (the mate and
 //! its values), and the pick-vanish degradation.
 
 // Panicking is a test's failure mechanism (workspace lint note).
@@ -11,27 +10,11 @@ use crate::common;
 
 use common::asm;
 use common::{ang, len, scl};
-use pncad::document::{ClassAdmission, MateSide, RecipeNodeId};
+use pncad::document::{MateSide, RecipeNodeId};
 use pncad::geom_core::Tol;
-use pncad::select::{ContactClass, RoleSeg, face_frame};
-use viewer::matetool::{MateTool, MateToolError, MateToolEvent, MateToolState, admitted_classes};
+use pncad::select::{RoleSeg, face_frame};
+use viewer::matetool::{MateTool, MateToolError, MateToolEvent, MateToolState};
 use viewer::session::{DocSession, FaceSelection, PatternRuleSpec, SessionOp};
-
-#[test]
-fn the_admission_exposure_is_the_kernels_own_table() {
-    let classes = admitted_classes();
-    assert_eq!(classes.len(), 2, "the two nameable classes");
-    assert_eq!(classes[0].class, ContactClass::Rest);
-    assert_eq!(classes[0].admission, ClassAdmission::Mints);
-    assert_eq!(classes[1].class, ContactClass::Tangent);
-    assert!(
-        matches!(
-            classes[1].admission,
-            ClassAdmission::NoAtRestRecord { why } if why.contains("at rest")
-        ),
-        "Tangent solves but carries no at-rest record, in the table's own words"
-    );
-}
 
 #[test]
 fn two_picks_one_choice_one_committed_edit() {
@@ -57,8 +40,6 @@ fn two_picks_one_choice_one_committed_edit() {
     let proposal = tool
         .proposal(doc, asm::seat_choice())
         .expect("the seat proposes");
-    assert_eq!(proposal.mate.class, ContactClass::Rest);
-    assert_eq!(proposal.admission, ClassAdmission::Mints);
     assert_eq!(proposal.placement, bench.post_b, "the on pick's copy");
     assert_eq!(proposal.values, asm::middle_seat_values());
     // The on pick is post_b's top cap: the side names the POST's own
@@ -75,7 +56,7 @@ fn two_picks_one_choice_one_committed_edit() {
     );
     assert_eq!(
         proposal.mate,
-        crate::fixture::rest(proposal.on.clone(), proposal.to.clone(), ContactClass::Rest),
+        crate::fixture::rest(proposal.on.clone(), proposal.to.clone()),
         "two planes, the target flipped: the faces rest against each other"
     );
 
@@ -1037,7 +1018,6 @@ fn a_freshly_mated_copy_moves_only_by_the_snap() {
         .proposal(
             doc,
             viewer::matetool::MateChoice {
-                class: ContactClass::Rest,
                 kind: pncad::document::VarKind::Plane,
                 flip: true,
                 values: Vec::new(),
@@ -1064,4 +1044,38 @@ fn a_freshly_mated_copy_moves_only_by_the_snap() {
         );
     }
     assert_faces_rest(&session, &post_top, &shelf_bottom, "the snapped seat");
+}
+
+/// **A face on a split's second half is mated on that half**: a block
+/// split at mid-height, its lower half placed 0.1 m along x, rested by
+/// its underside on the whole block's top. The mate's `on` side reads
+/// the face on the split's LOWER output by its port — read alone, the
+/// split is two bodies and the commit refuses — and the half is drawn
+/// seated on the top.
+#[test]
+fn a_face_on_a_splits_lower_half_is_mated_on_that_half() {
+    let tol = Tol::witness();
+    let size = [0.04, 0.02, 0.01];
+    let (session, block, split) = common::drawn::split_box(size, tol);
+    let below = pncad::select::SplitHalf::Below;
+    let at = common::drawn::translated([0.1, 0.0, 0.0]);
+    let (mut session, half) = common::drawn::halves_placed(&session, split, &[below], &at, tol);
+    let underside = asm::pick_face(&session, &common::up_at(0.1, 0.0));
+    let top = asm::pick_face(&session, &common::down_at(0.0, 0.0));
+    assert_eq!(underside.node, half, "the ray met the lower half's copy");
+    assert_eq!(
+        top.node,
+        common::copy_of(session.committed_doc(), block),
+        "and the block's top"
+    );
+    common::drawn::rest_on(&mut session, underside, top);
+    let (x, y, z) = (size[0] / 2.0, size[1] / 2.0, size[2]);
+    common::drawn::assert_drawn(
+        &mut session,
+        half,
+        [0.1 - x, -y, z],
+        [0.1 + x, y, 1.5 * z],
+        size.iter().product::<f64>() / 2.0,
+        "the lower half, seated on the block's top",
+    );
 }

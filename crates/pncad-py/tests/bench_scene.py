@@ -51,7 +51,6 @@ disk.
 
 from pncad import (
     CapEnd,
-    ContactClass,
     Coord,
     Doc,
     DocEdit,
@@ -236,7 +235,7 @@ def face_facing(store, doc, node, normal):
     return one([name for name in ev.all_faces(node) if outward(name) == normal])
 
 
-def rest(doc, placement, on, to, at, class_=ContactClass.Rest):
+def rest(doc, placement, on, to, at):
     """`placement`'s copy seated by its face `on` resting on the face
     `to`: a plane mate, the target flipped so the two faces face each
     other, and the two slides and the spin that set where on `to` the
@@ -250,7 +249,7 @@ def rest(doc, placement, on, to, at, class_=ContactClass.Rest):
     mate, *values = doc.set_constraints(
         placement,
         [
-            Mate(PoseDef.plane(*on), PoseDef.flip(PoseDef.plane(*to)), class_),
+            Mate(PoseDef.plane(*on), PoseDef.flip(PoseDef.plane(*to))),
             MateValue(Coord.slide("x"), at[0] * m),
             MateValue(Coord.slide("y"), at[1] * m),
             MateValue(Coord.spin(), 0),
@@ -360,7 +359,7 @@ def layout(store, post_ref, shelf_ref, posts=Node.pattern):
     return doc, post_i, family, shelf_i
 
 
-def stand(store, post_ref, shelf_ref, class_=ContactClass.Rest):
+def stand(store, post_ref, shelf_ref):
     """The assembled bench: a post at each end of the shelf, the shelf
     SEATED on them by mates.
 
@@ -385,7 +384,6 @@ def stand(store, post_ref, shelf_ref, class_=ContactClass.Rest):
         (shelf_i, s_bottom),
         (post_a, a_top),
         SHELF_ON_POST,
-        class_,
     )
     mate_2, _ = rest(
         doc,
@@ -393,7 +391,6 @@ def stand(store, post_ref, shelf_ref, class_=ContactClass.Rest):
         (post_b, b_top),
         (shelf_i, s_bottom),
         POST_UNDER_SHELF,
-        class_,
     )
     return doc, (post_a, shelf_i, post_b), (mate_1, mate_2)
 

@@ -887,7 +887,7 @@ mod kernel {
             Band, NonFiniteAxis, UnderflowedAxis, DegenerateAxis, AxisEscalated, Turn,
             DegenerateAngle, FullRangeAngle, AngleEscalated, VertexCrossesAxis,
             SliverRadius, ArcCrossesAxis, SliverAxisClearance, UnsupportedToroid,
-            NonManifoldAxisContact, MultipleAxisRuns, HoleTouchesAxis, VoidInsertion,
+            NonManifoldAxisContact, AxisGapEscalated, HoleTouchesAxis, VoidInsertion,
             CosurfaceEscalated, SliverJoin, SliverRim, SmoothJoinRefuted,
             PinnedRunStation, CapPlane, Op, Pcurve,
         ];
@@ -1000,7 +1000,8 @@ mod kernel {
             OrderEscalated, Escalated, DegenerateSection, CurvedSlitTrace, RingHoming,
             RingHomingAmbiguous, UnpairedLooseEnds, SingleSiteSectionLoop,
             SectionLoopMixed, SectionLoopUndecided, CutInvariant, Corrupt, LineageRow,
-            Band, Euler, SectionEndEscalated, SectionUnresolved, Section, ApexUnlifted,
+            Band, Euler, SectionEndEscalated, SectionUnresolved, Section, OpenConicChord,
+            ApexUnlifted,
             PoleEdgesCoincide, SectionInvariant, SectionUnarmed, RingIslandUnread,
             TangentChordEscalated, TangentChordBendEscalated, TangentChordRefuted,
             SectionCrossings,
@@ -1041,7 +1042,8 @@ mod kernel {
             ReanchorInconclusive, NurbsLaneUnsupported, TogetherNonPlanar,
             TogetherPartialSet, TogetherCorner, TogetherChartMixed,
             TogetherFaceRepeated, TogetherEdgeDisagreement, TogetherAxialUnsupported,
-            TogetherNotAxial, TogetherAxialCorner, TogetherAxialEdge, DegenerateTorus,
+            TogetherNotAxial, TogetherAxialCorner, TogetherAxialEdge, TogetherConicArc,
+            DegenerateTorus,
             Escalated, Op, Pcurve, Join, ResultNotClosed,
         ];
     }
@@ -1052,7 +1054,7 @@ mod kernel {
             Escalated, RayExhausted, ZeroVolumeBody, InsideOut, Loop, CorruptFace,
             KindUnsupported, VolumeUncertified, PartialSphereFace, PartialConeFace,
             PartialTorusFace, EdgeCarrierUnsupported, WallOutlineUnsupported,
-            JunctionSidesDisagree, NarrowWindowUnread, RootCountDisagrees, NoSuchSolid,
+            RootCountDisagrees, NoSuchSolid,
         ];
     }
 
@@ -2203,12 +2205,19 @@ fn revolve_arms() -> Vec<(&'static str, sweep::RevolveError)> {
                 vertex_index: 3,
             },
         ),
-        ("MultipleAxisRuns", E::MultipleAxisRuns { loop_index: 0 }),
+        (
+            "AxisGapEscalated",
+            E::AxisGapEscalated {
+                loop_index: 0,
+                vertex_index: 3,
+                source: diag(),
+            },
+        ),
         ("HoleTouchesAxis", E::HoleTouchesAxis { loop_index: 1 }),
         (
             "VoidInsertion",
             E::VoidInsertion {
-                loop_index: 1,
+                cavity: sweep::CavityOrigin::Hole { loop_index: 1 },
                 source: topo::VoidInsertError::NotStrictlyContained {
                     shell: topo::ShellKey::default(),
                 },
@@ -2637,6 +2646,13 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                     source: geom_brep::SectionError::Carrier(geom::EllipseInvalid::Escalated(
                         payloads::named("ellipse_minor_positive"),
                     )),
+                },
+            ),
+            (
+                "OpenConicChord",
+                J::OpenConicChord {
+                    face,
+                    conic: geom_brep::OpenConic::Hyperbola,
                 },
             ),
             ("ApexUnlifted", J::ApexUnlifted { face }),
@@ -5329,7 +5345,6 @@ fn mate() -> Vec<(String, NodeErrorKind)> {
                 found: DocumentId::derive("b"),
             },
         ),
-        ("ClassNotAdmitted", M::ClassNotAdmitted { mate: r(9) }),
         (
             "Overconstrained",
             M::Overconstrained {
@@ -5783,6 +5798,13 @@ fn replace_face() -> Vec<(String, topo::ReplaceFaceError<f64>)> {
                 },
             ),
             (
+                "TogetherConicArc",
+                R::TogetherConicArc {
+                    edge,
+                    conic: geom_brep::OpenConic::Hyperbola,
+                },
+            ),
+            (
                 "DegenerateTorus/Undecided",
                 R::DegenerateTorus {
                     edge,
@@ -5961,7 +5983,7 @@ fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
             !text.contains("tolerance") && !text.contains("defect"),
             "{text}"
         );
-        let roles: Vec<topo::ShellRole> = topo::test_support::unmigrated_classify(body, tol)
+        let roles: Vec<topo::ShellRole> = topo::classify_shells(body, tol)
             .expect("the certifying door reads the cavity")
             .iter()
             .map(|c| c.role)
@@ -6253,21 +6275,6 @@ fn separation_reasons() -> Vec<(String, topo::PointInSolidError)> {
         (
             "WallOutlineUnsupported",
             PointInSolidError::WallOutlineUnsupported { face },
-        ),
-        (
-            "JunctionSidesDisagree",
-            PointInSolidError::JunctionSidesDisagree {
-                face,
-                sides: (
-                    geom_core::MarginDiag::value(2.0e-9),
-                    geom_core::MarginDiag::value(-1.6e-9),
-                ),
-                band: geom_core::Band::new(1e-9, 1.5e-9).unwrap(),
-            },
-        ),
-        (
-            "NarrowWindowUnread",
-            PointInSolidError::NarrowWindowUnread { face, diag: diag() },
         ),
         (
             "RootCountDisagrees",

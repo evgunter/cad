@@ -107,9 +107,12 @@ fn r1_the_bosss_base_rim_is_hostless_and_carves() {
     validate_geometric(&out.body, tol()).expect("tier-3 valid");
     assert_eq!(out.band_faces.len(), 1, "one band");
     assert_eq!(
-        topo::test_support::unmigrated_measure(&out.body, tol())
-            .unwrap()
-            .volume_pad,
+        topo::mass_properties(
+            &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol()),
+            tol()
+        )
+        .unwrap()
+        .volume_pad,
         0.0,
         "closed-form faces only"
     );
@@ -166,9 +169,12 @@ fn r1_a_hostless_rim_on_a_ringed_host_carves_under_the_recourse_that_promises_it
     validate_geometric(&out.body, tol()).expect("tier-3 valid");
     assert_eq!(out.band_faces.len(), 1, "one band");
     assert_eq!(
-        topo::test_support::unmigrated_measure(&out.body, tol())
-            .unwrap()
-            .volume_pad,
+        topo::mass_properties(
+            &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol()),
+            tol()
+        )
+        .unwrap()
+        .volume_pad,
         0.0,
         "closed-form faces only"
     );
@@ -208,7 +214,15 @@ fn r1_two_hostless_rims_of_one_body_compose_in_one_call() {
     .expect("two hostless rims carve in ONE call");
     validate_geometric(&one_call.body, tol()).expect("tier-3 valid");
     assert_eq!(one_call.band_faces.len(), 2, "one band per rim");
-    let one = topo::test_support::unmigrated_measure(&one_call.body, tol()).unwrap();
+    let one = topo::mass_properties(
+        &topo::test_support::finished(
+            "the measured body",
+            topo::Body::clone(&one_call.body),
+            tol(),
+        ),
+        tol(),
+    )
+    .unwrap();
     assert_eq!(one.volume_pad, 0.0, "closed-form faces only");
 
     for order in [[(1.0, 0.0), (0.2, 1.2)], [(0.2, 1.2), (1.0, 0.0)]] {
@@ -228,7 +242,11 @@ fn r1_two_hostless_rims_of_one_body_compose_in_one_call() {
             .unwrap_or_else(|e| panic!("the ({rr}, {ry}) rim carves alone, got {e:?}"))
             .body;
         }
-        let seq = topo::test_support::unmigrated_measure(&body, tol()).unwrap();
+        let seq = topo::mass_properties(
+            &topo::test_support::finished("the measured body", topo::Body::clone(&body), tol()),
+            tol(),
+        )
+        .unwrap();
         // The same body, not the same history: each carve ends with the
         // join, which kills the edge of the vertex's first half-edge in
         // arena order and extends the other's interval over it
