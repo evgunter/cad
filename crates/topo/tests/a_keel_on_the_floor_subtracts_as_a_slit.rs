@@ -231,6 +231,56 @@ fn floor_and_wall(body: &Body<f64>, pose: &Pose, edge: EdgeKey) -> (FaceKey, Fac
     }
 }
 
+/// The keel of a slit form of `row` in `b`: two distinct edges on one
+/// line, each between the floor and its own wall, carried by the floor
+/// as a ring, a slit of its outline, or across two floor faces.
+fn slit_form_keel(b: &Body<f64>, pose: &Pose, row: &Row, what: &str) {
+    let ends = row.ends();
+    let keel = keel_edges(b, pose, ends);
+    let [ka, kb] = keel[..] else {
+        panic!("{what}: the keel is {keel:?}, not two edges");
+    };
+    assert_ne!(ka, kb, "{what}: the keel's two edges are one");
+    assert_eq!(
+        ends_of(b, ka),
+        ends_of(b, kb),
+        "{what}: the keel's edges end on different points"
+    );
+    let ((fa, wa), (fb, wb)) = (floor_and_wall(b, pose, ka), floor_and_wall(b, pose, kb));
+    assert_ne!(wa, wb, "{what}: the keel's edges bound one wall");
+    let in_loop = |f: FaceKey, l: usize, edges: &[EdgeKey]| {
+        loops(b, f)
+            .get(l)
+            .is_some_and(|lp| edges.iter().all(|e| lp.contains(e)))
+    };
+    match row.solids {
+        2 => {
+            assert_ne!(fa, fb, "{what}: one floor face across the keel");
+            assert!(
+                in_loop(fa, 0, &[ka]) && in_loop(fb, 0, &[kb]),
+                "{what}: a keel edge off its floor's outline"
+            );
+        }
+        _ => {
+            assert_eq!(fa, fb, "{what}: the keel's edges in two floor faces");
+            let shape = loops(b, fa);
+            if row.at_ends == [1, 1] {
+                assert!(
+                    shape[1..]
+                        .iter()
+                        .any(|r| r.len() == 2 && r.contains(&ka) && r.contains(&kb)),
+                    "{what}: the floor's loops {shape:?}, no ring of the keel's edges"
+                );
+            } else {
+                assert!(
+                    in_loop(fa, 0, &[ka, kb]) && shape[1..].is_empty(),
+                    "{what}: the floor's loops {shape:?}, not a slit of its outline"
+                );
+            }
+        }
+    }
+}
+
 /// **Each extent subtracts as its slit form, at every pose and through
 /// every door**: tiers 1, 2, 3 and 3′ with no records, the closed-form
 /// volume and solid count, and the keel as two distinct edges on one
@@ -275,50 +325,7 @@ fn a_keel_on_the_floor_subtracts_as_its_slit_form() {
                         "{what}: vertices at the keel's end {p:?}"
                     );
                 }
-                let keel = keel_edges(b, &pose, ends);
-                let [ka, kb] = keel[..] else {
-                    panic!("{what}: the keel is {keel:?}, not two edges");
-                };
-                assert_ne!(ka, kb, "{what}: the keel's two edges are one");
-                assert_eq!(
-                    ends_of(b, ka),
-                    ends_of(b, kb),
-                    "{what}: the keel's edges end on different points"
-                );
-                let ((fa, wa), (fb, wb)) =
-                    (floor_and_wall(b, &pose, ka), floor_and_wall(b, &pose, kb));
-                assert_ne!(wa, wb, "{what}: the keel's edges bound one wall");
-                let in_loop = |f: FaceKey, l: usize, edges: &[EdgeKey]| {
-                    loops(b, f)
-                        .get(l)
-                        .is_some_and(|lp| edges.iter().all(|e| lp.contains(e)))
-                };
-                match row.solids {
-                    2 => {
-                        assert_ne!(fa, fb, "{what}: one floor face across the keel");
-                        assert!(
-                            in_loop(fa, 0, &[ka]) && in_loop(fb, 0, &[kb]),
-                            "{what}: a keel edge off its floor's outline"
-                        );
-                    }
-                    _ => {
-                        assert_eq!(fa, fb, "{what}: the keel's edges in two floor faces");
-                        let shape = loops(b, fa);
-                        if row.at_ends == [1, 1] {
-                            assert!(
-                                shape[1..]
-                                    .iter()
-                                    .any(|r| r.len() == 2 && r.contains(&ka) && r.contains(&kb)),
-                                "{what}: the floor's loops {shape:?}, no ring of the keel's edges"
-                            );
-                        } else {
-                            assert!(
-                                in_loop(fa, 0, &[ka, kb]) && shape[1..].is_empty(),
-                                "{what}: the floor's loops {shape:?}, not a slit of its outline"
-                            );
-                        }
-                    }
-                }
+                slit_form_keel(b, &pose, row, &what);
             }
         }
     }
@@ -474,7 +481,7 @@ struct Glued {
     keel: bool,
 }
 
-const GLUED: [Glued; 4] = [
+const GLUED: [Glued; 5] = [
     Glued {
         what: "slit ∪ the slab under",
         slab: (-1.0, 0.0),
@@ -511,6 +518,15 @@ const GLUED: [Glued; 4] = [
         counts: [(16, 24, 11), (16, 24, 10), (16, 24, 10)],
         keel: false,
     },
+    Glued {
+        what: "the slab inside ∪ slit",
+        slab: (0.0, 0.5),
+        op: topo::BooleanOp::Union,
+        slab_first: true,
+        volume: |l| 16.0 - 0.225 * l,
+        counts: [(16, 24, 11), (16, 24, 10), (16, 24, 10)],
+        keel: false,
+    },
 ];
 
 /// **A face glued to the slit floor merges the slit's two edges into
@@ -521,8 +537,8 @@ const GLUED: [Glued; 4] = [
 /// `[0, 4]² × [0, 0.5]` inside it, which ∖ the slit leaves as the
 /// trench's foot. The floor is glued away, so the material about the
 /// keel is the two walls' alone (tier 3: the material decides the
-/// edges), and the keel is one edge between them. The slit ∪ the slab
-/// inside fills the keel. At every extent and pose: tiers 1, 2, 3 and 3′ with
+/// edges), and the keel is one edge between them. ∪ the slab inside
+/// fills the keel. At every extent and pose: tiers 1, 2, 3 and 3′ with
 /// no records, one solid, the closed-form volume, the vertex, edge and
 /// face counts, and the keel one edge between two walls.
 #[test]
@@ -588,6 +604,192 @@ fn a_face_glued_to_the_slit_floor_merges_its_two_edges() {
                         "{what}: the keel bounds a face on the floor"
                     );
                 }
+            }
+        }
+    }
+}
+
+/// **A slab flush with the slit floor intersects it keeping the floor
+/// and its keel**: the slit form ∩ the slab `[0, 4]² × [0, 0.5]` inside
+/// it, in either order. The two floors coincide with one sense, and ∩
+/// keeps one of them; the material about the keel is the two wedges
+/// floor | wall a and wall b | floor, so the kept floor wraps the keel,
+/// and the dropped copy is substituted on both sides of it: no cut runs
+/// along the keel in it. At every extent and pose: tiers 1, 2, 3 and 3′
+/// against its records, the solids, the closed-form volume
+/// `8 − 0.075` per unit of the keel's length, the vertex, edge and face
+/// counts, and the keel the slit form's ([`slit_form_keel`]).
+#[test]
+fn a_slab_flush_with_the_slit_floor_intersects_it_keeping_the_keel() {
+    let tol = t();
+    let counts = [(14, 22, 10), (15, 23, 10), (16, 24, 12)];
+    for (k, row) in ROWS.iter().enumerate() {
+        let length = row.ends()[1][0] - row.ends()[0][0];
+        for pose in poses() {
+            let inside = slab(&pose, (0.0, 0.5));
+            for (origin, cut) in slit_operands(row, &pose) {
+                for (order, a, b) in [
+                    ("slit ∩ the slab inside", &cut, &inside),
+                    ("the slab inside ∩ slit", &inside, &cut),
+                ] {
+                    let what = format!("{}, {}, {origin}, {order}", row.what, pose.label);
+                    let r = match topo::boolean_op_with(
+                        topo::BooleanOp::Intersect,
+                        a,
+                        b,
+                        &topo::BooleanInputs::default(),
+                        topo::SweepStrategy::Realized,
+                        tol,
+                    ) {
+                        Ok(BooleanResult::Body(r)) => r,
+                        other => panic!("{what}: {other:?}"),
+                    };
+                    let b = &r.body;
+                    assert_eq!(validate(b), Ok(()), "{what}: tier 1");
+                    assert_eq!(validate_closed(b), Ok(()), "{what}: tier 2");
+                    assert_eq!(validate_geometric(b, tol), Ok(()), "{what}: tier 3");
+                    assert_eq!(
+                        validate_pseudomanifold(b, &r.contacts, tol),
+                        Ok(()),
+                        "{what}: tier 3′"
+                    );
+                    assert_eq!(b.solids().count(), row.solids, "{what}: solids");
+                    let v = topo::mass_properties(b, tol).unwrap().volume;
+                    let want = 8.0 - 0.075 * length;
+                    assert!(
+                        (v - want).abs() < 1e-9 * want,
+                        "{what}: volume {v}, closed form {want}"
+                    );
+                    assert_eq!(
+                        (b.vertices().count(), b.edges().count(), b.faces().count()),
+                        counts[k],
+                        "{what}: (v, e, f)"
+                    );
+                    slit_form_keel(b, &pose, row, &what);
+                }
+            }
+        }
+    }
+}
+
+/// **A partner flush beside the keel, its edge along the keel's line,
+/// unions with the slit at tier 3**: the slit form open at one end
+/// (the Boolean's), ∪ a part whose bottom lies on the floor on one side
+/// of the keel and whose edge runs along the keel's line: the box
+/// `[1, 3] × [2, 2.5] × [0, 0.5]`, and the prisms over the `(y, z)`
+/// triangles `(2, 0), (2, 0.8), (1.2, 0)` and its mirror over the keel,
+/// along x over `[1, 3]` and `[1.5, 2.5]`. The op keeps one of the two
+/// flush floors, and the cut through the dropped one ends at the keel's
+/// tip. Each builds, tiers 1, 2 and 3, one solid, at the closed-form
+/// volume: the slit's `16 − 0.3 · 2.5` and the part's share of the
+/// trench (`0.3 z` wide at height `z` for the box, `0.96 / 13` of the
+/// triangle's section for the prisms) along their x overlap. Tier 3′
+/// refuses an `EdgeEdgeOverlap` the result carries no record of
+/// (`work/cleave/a-union-beside-a-slit-misses-an-edge-overlap-record.md`);
+/// the Boolean door certifies tier 3, and 3′ waits on REACHHOLD's census
+/// over its result. At every pose.
+#[test]
+fn a_partner_flush_beside_the_keel_unions_with_the_slit_at_tier_three() {
+    let tol = t();
+    let row = &ROWS[1];
+    let trench_share = 0.96 / 13.0;
+    for pose in poses() {
+        let [(_, cut), _] = slit_operands(row, &pose);
+        let parts: [(&str, AtRestBody<f64>, f64); 5] = [
+            (
+                "the box",
+                prism(
+                    &pose,
+                    "the box",
+                    &[(1.0, 2.0), (3.0, 2.0), (3.0, 2.5), (1.0, 2.5)],
+                    (0.0, 0.5),
+                    &|x, y, z| [x, y, z],
+                ),
+                1.5 * 0.3 * 0.125,
+            ),
+            (
+                "the prism over [1, 3]",
+                prism(
+                    &pose,
+                    "the prism",
+                    &[(2.0, 0.0), (2.0, 0.8), (1.2, 0.0)],
+                    (1.0, 3.0),
+                    &|y, z, x| [x, y, z],
+                ),
+                1.5 * trench_share,
+            ),
+            (
+                "the prism over [1.5, 2.5]",
+                prism(
+                    &pose,
+                    "the prism",
+                    &[(2.0, 0.0), (2.0, 0.8), (1.2, 0.0)],
+                    (1.5, 2.5),
+                    &|y, z, x| [x, y, z],
+                ),
+                trench_share,
+            ),
+            (
+                "the mirrored prism over [1, 3]",
+                prism(
+                    &pose,
+                    "the prism",
+                    &[(2.0, 0.0), (2.8, 0.0), (2.0, 0.8)],
+                    (1.0, 3.0),
+                    &|y, z, x| [x, y, z],
+                ),
+                1.5 * trench_share,
+            ),
+            (
+                "the mirrored prism over [1.5, 2.5]",
+                prism(
+                    &pose,
+                    "the prism",
+                    &[(2.0, 0.0), (2.8, 0.0), (2.0, 0.8)],
+                    (1.5, 2.5),
+                    &|y, z, x| [x, y, z],
+                ),
+                trench_share,
+            ),
+        ];
+        for (part, x, share) in &parts {
+            let what = format!("{}, slit ∪ {part}", pose.label);
+            let r = match topo::boolean_op_with(
+                topo::BooleanOp::Union,
+                &cut,
+                x,
+                &topo::BooleanInputs::default(),
+                topo::SweepStrategy::Realized,
+                tol,
+            ) {
+                Ok(BooleanResult::Body(r)) => r,
+                other => panic!("{what}: {other:?}"),
+            };
+            let b = &r.body;
+            assert_eq!(validate(b), Ok(()), "{what}: tier 1");
+            assert_eq!(validate_closed(b), Ok(()), "{what}: tier 2");
+            assert_eq!(validate_geometric(b, tol), Ok(()), "{what}: tier 3");
+            assert_eq!(b.solids().count(), 1, "{what}: solids");
+            let v = topo::mass_properties(b, tol).unwrap().volume;
+            let want = row.volume + share;
+            assert!(
+                (v - want).abs() < 1e-9 * want,
+                "{what}: volume {v}, closed form {want}"
+            );
+            match validate_pseudomanifold(b, &r.contacts, tol) {
+                Err(errs) => assert!(
+                    errs.iter().all(|e| matches!(
+                        e,
+                        topo::ValidationError::UnrecordedContact {
+                            contact: topo::CensusContact::EdgeEdgeOverlap { .. },
+                            ..
+                        }
+                    )),
+                    "{what}: tier 3′ refuses {errs:?}, not only an unrecorded edge overlap"
+                ),
+                Ok(()) => panic!(
+                    "{what}: tier 3′ passes: the overlap is recorded now, so pin it and close the row"
+                ),
             }
         }
     }
@@ -667,21 +869,24 @@ fn a_keel_glued_to_a_face_from_outside_stays_one_edge() {
     }
 }
 
-/// **A box flush under a ringed top, the top kept once, refuses typed**:
-/// the plate less a pyramid lying under its top (`below(lying(0))`)
-/// holds the pyramid's ray as a zero-area ring of the top, and the box
+/// **A box flush under a ringed top builds in every op**: the plate less
+/// a pyramid lying under its top (`below(lying(0))`) holds the pyramid's
+/// ray as a zero-area ring of the top, and the box
 /// `[1, 2] × [0.5, 1.5] × [lo, 1]` lies flush under that top round it.
-/// `x ∩ y` keeps one of the two flush tops and the ring with it, which
-/// the join does not build: it refuses `SlitFaceGlued` before the fate
-/// stage, not a `ClassificationInvariant` there
-/// (`work/cleave/a-glued-slit-intersection-refuses-a-classification-invariant-since-5505.md`).
-/// `x − y`, the pyramid's part in the box, and `y ∪ x` drop the sliver
-/// the join cuts in the box's top and merge the ring's two edges: each
-/// builds, tier 3 and 3′, the difference within the pyramid (all of it
-/// where the box holds it) and the union the plate less the rest. At
-/// rest and turned.
+/// The join cuts the box's top along the ring, the sliver between the
+/// cuts outside the plate. Where the op keeps the sliver (`x − y`,
+/// `y ∪ x`) the ring's two edges merge across it; where it keeps the
+/// flush region (`x ∩ y`, `y ∩ x`, `x ∪ y`), one of the two flush tops
+/// is dropped and cut where its fate changes, a cut ending at the ring's
+/// tip in the full turn the ring leaves there. Each builds, tier 3 and
+/// 3′. The pyramid's part in the box `p` is the whole pyramid, `|det|/6`
+/// of its corners, where the box holds it, and is read off `x − y`
+/// where it does not; every other volume follows from `p` by
+/// additivity: `|x| − p` for `x ∩ y` and `y ∩ x`, `6 − pyramid − |x| + p`
+/// for `y − x`, and `6 − pyramid + p` for `x ∪ y` and `y ∪ x`. At rest
+/// and turned.
 #[test]
-fn a_box_flush_under_a_ringed_top_kept_once_refuses_typed() {
+fn a_box_flush_under_a_ringed_top_builds_in_every_op() {
     use common::meeting::{PLATE, apex_pyramid, lying, posed_box};
     let tol = t();
     let below = |b: [[f64; 3]; 3]| b.map(|[x, y, z]| [x, y, -z]);
@@ -693,18 +898,15 @@ fn a_box_flush_under_a_ringed_top_kept_once_refuses_typed() {
             panic!("{}: the plate less the pyramid", pose.label);
         };
         let y = y.body;
-        let pyramid = topo::mass_properties(&void, tol).unwrap().volume;
+        let [a, b, c] = below(lying(0.0));
+        let pyramid = (a[0] * (b[1] * c[2] - b[2] * c[1]) - a[1] * (b[0] * c[2] - b[2] * c[0])
+            + a[2] * (b[0] * c[1] - b[1] * c[0]))
+            .abs()
+            / 6.0;
         for (lo, holds) in [(0.0, true), (0.3, true), (0.6, false)] {
             let what = format!("{}, the box from {lo}", pose.label);
             let x = posed_box("the box", [(1.0, 2.0), (0.5, 1.5), (lo, 1.0)], pose, tol);
-            match intersect(&x, &y, tol) {
-                Err(e) => assert_eq!(
-                    e.kind(),
-                    topo::BooleanErrorKind::SlitFaceGlued,
-                    "{what}: x ∩ y: {e:?}"
-                ),
-                Ok(_) => panic!("{what}: x ∩ y builds, where it refuses typed"),
-            }
+            let boxed = 1.0 - lo;
             let built = |op: &str, r| match r {
                 Ok(BooleanResult::Body(r)) => {
                     let r: topo::BooleanBody<f64> = r;
@@ -733,12 +935,160 @@ fn a_box_flush_under_a_ringed_top_kept_once_refuses_typed() {
                     "{what}: x − y: volume {part}, the whole pyramid's {pyramid}"
                 );
             }
-            let whole = built("y ∪ x", topo::union(&y, &x, tol));
-            let want = 6.0 - pyramid + part;
-            assert!(
-                (whole - want).abs() < 1e-9,
-                "{what}: y ∪ x: volume {whole}, the plate less the pyramid's rest {want}"
+            for (op, r, want) in [
+                ("x ∩ y", intersect(&x, &y, tol), boxed - part),
+                ("y ∩ x", intersect(&y, &x, tol), boxed - part),
+                ("y − x", subtract(&y, &x, tol), 6.0 - pyramid - boxed + part),
+                ("x ∪ y", topo::union(&x, &y, tol), 6.0 - pyramid + part),
+                ("y ∪ x", topo::union(&y, &x, tol), 6.0 - pyramid + part),
+            ] {
+                let v = built(op, r);
+                assert!(
+                    (v - want).abs() < 1e-9,
+                    "{what}: {op}: volume {v}, closed form {want}"
+                );
+            }
+        }
+    }
+}
+
+/// **A flush partner whose outline crosses or meets the slit intersects
+/// it in either order**: the floor and the partner's bottom coincide,
+/// ∩ keeps one copy, and the dropped one is cut where its holder
+/// changes, not along the slit, where the kept face lies on both sides.
+/// - the slit form closed and open at one end ∩ `[0, 2] × [0, 4] × [0, 0.5]`,
+///   whose edge crosses the keel: `4 − 0.075 · 0.5`;
+/// - the slit form open at one end ∩ `[1, 5] × [1, 3] × [0, 0.5]`,
+///   overhanging the floor across the keel's open end, whose two
+///   vertices touch the partner's bottom at one point: `3 − 0.075 · 2.5`;
+/// - the plate less the pyramid lying under its top ∩ boxes flush under
+///   the top whose outline crosses the ring, has a corner on its middle
+///   (and the mirror box) or an edge through it: both orders alike, and
+///   `|x ∩ y| + |x − y| = |x|` (additivity);
+/// - the box `[0, 1]³` ∪ the wedge over the `(x, z)` triangle
+///   `(1, 1), (2, 0), (2, 1)`, touching along their coplanar tops' edge,
+///   ∩ `[−0.5, 2.5] × [−0.5, 1.5] × [0.5, 1]`: `0.5 + 0.375`. In the
+///   other order it refuses `PinchRaysInAFace`.
+///
+/// Each builds, tiers 3 and 3′, at rest, turned and flipped and turned.
+#[test]
+fn a_flush_partner_crossing_the_slit_intersects_it_in_either_order() {
+    use common::meeting::{MEET, PLATE, apex_pyramid, bearing, lying, posed_box};
+    let tol = t();
+    let built = |what: &str, r: Result<BooleanResult<f64>, topo::BooleanError>| match r {
+        Ok(BooleanResult::Body(r)) => {
+            assert_eq!(validate_geometric(&r.body, tol), Ok(()), "{what}: tier 3");
+            assert_eq!(
+                validate_pseudomanifold(&r.body, &r.contacts, tol),
+                Ok(()),
+                "{what}: tier 3′"
             );
+            topo::mass_properties(&r.body, tol).unwrap().volume
+        }
+        other => panic!("{what}: {:?}", other.map(|_| ())),
+    };
+    let both = |what: &str, a: &AtRestBody<f64>, b: &AtRestBody<f64>, want: Option<f64>| {
+        let v = [
+            built(&format!("{what}, a ∩ b"), intersect(a, b, tol)),
+            built(&format!("{what}, b ∩ a"), intersect(b, a, tol)),
+        ];
+        assert!(
+            (v[0] - v[1]).abs() < 1e-9,
+            "{what}: |a ∩ b| {v:?} in the two orders"
+        );
+        if let Some(want) = want {
+            assert!(
+                (v[0] - want).abs() < 1e-9,
+                "{what}: volume {}, closed form {want}",
+                v[0]
+            );
+        }
+        v[0]
+    };
+    let poses = poses();
+    for pose in [&poses[0], &poses[2], &poses[4]] {
+        let slab_box = |b: [(f64, f64); 3]| {
+            prism(
+                pose,
+                "the partner",
+                &[
+                    (b[0].0, b[1].0),
+                    (b[0].1, b[1].0),
+                    (b[0].1, b[1].1),
+                    (b[0].0, b[1].1),
+                ],
+                b[2],
+                &|x, y, z| [x, y, z],
+            )
+        };
+        for (k, partner, want) in [
+            (0, [(0.0, 2.0), (0.0, 4.0), (0.0, 0.5)], 4.0 - 0.075 * 0.5),
+            (1, [(0.0, 2.0), (0.0, 4.0), (0.0, 0.5)], 4.0 - 0.075 * 0.5),
+            (1, [(1.0, 5.0), (1.0, 3.0), (0.0, 0.5)], 3.0 - 0.075 * 2.5),
+        ] {
+            let [(_, slit), _] = slit_operands(&ROWS[k], pose);
+            let what = format!("{}, {}, {partner:?}", ROWS[k].what, pose.label);
+            both(&what, &slit, &slab_box(partner), Some(want));
+        }
+        let below = |b: [[f64; 3]; 3]| b.map(|[x, y, z]| [x, y, -z]);
+        let plate = posed_box("the plate", PLATE, pose, tol);
+        let void = apex_pyramid(&below(lying(0.0)), pose, tol);
+        let Ok(BooleanResult::Body(y)) = subtract(&plate, &void, tol) else {
+            panic!("{}: the plate less the pyramid", pose.label);
+        };
+        let y = y.body;
+        let mid = [0, 1, 2].map(|k| MEET[k] + bearing(60.0, 0.25, 0.0)[k]);
+        for bx in [
+            [(1.0, 1.65), (0.5, 1.5), (0.3, 1.0)],
+            [(1.0, 2.0), (0.5, 1.2), (0.3, 1.0)],
+            [(mid[0], 2.2), (mid[1], 1.8), (0.3, 1.0)],
+            [(1.0, mid[0]), (0.5, mid[1]), (0.3, 1.0)],
+            [(mid[0], 2.0), (0.5, 1.5), (0.3, 1.0)],
+        ] {
+            let what = format!("the ringed plate, {}, the box {bx:?}", pose.label);
+            let x = posed_box("the box", bx, pose, tol);
+            let i = both(&what, &y, &x, None);
+            let rest = built(&format!("{what}, x − y"), subtract(&x, &y, tol));
+            let vx = (bx[0].1 - bx[0].0) * (bx[1].1 - bx[1].0) * (bx[2].1 - bx[2].0);
+            assert!(
+                (i + rest - vx).abs() < 1e-9,
+                "{what}: |x ∩ y| {i} + |x − y| {rest} = |x| {vx}"
+            );
+        }
+        let cube = posed_box("the box", [(0.0, 1.0), (0.0, 1.0), (0.0, 1.0)], pose, tol);
+        let wedge = prism(
+            pose,
+            "the wedge",
+            &[(1.0, 2.0), (0.0, 2.0), (1.0, 1.0)],
+            (0.0, 1.0),
+            &|z, x, y| [x, y, z],
+        );
+        let Ok(BooleanResult::Body(lumps)) = topo::union(&cube, &wedge, tol) else {
+            panic!("{}: the box and the wedge", pose.label);
+        };
+        let lumps = lumps.body;
+        let partner = posed_box(
+            "the partner",
+            [(-0.5, 2.5), (-0.5, 1.5), (0.5, 1.0)],
+            pose,
+            tol,
+        );
+        let what = format!("the two lumps, {}", pose.label);
+        let v = built(
+            &format!("{what}, lumps ∩ partner"),
+            intersect(&lumps, &partner, tol),
+        );
+        assert!(
+            (v - 0.875).abs() < 1e-9,
+            "{what}: volume {v}, closed form 0.875"
+        );
+        match intersect(&partner, &lumps, tol) {
+            Err(e) => assert_eq!(
+                e.kind(),
+                topo::BooleanErrorKind::PinchRaysInAFace,
+                "{what}: partner ∩ lumps: {e:?}"
+            ),
+            Ok(_) => panic!("{what}: partner ∩ lumps builds: pin it"),
         }
     }
 }
