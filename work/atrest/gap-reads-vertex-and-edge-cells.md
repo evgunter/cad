@@ -2,7 +2,9 @@
 id: gap-reads-vertex-and-edge-cells
 kind: unit
 title: Gap reads vertex and edge cells, so an assertion quiets an at-rest contact at whatever dimension its cells are
-status: open
+status: closed
+closed: 2026-10-26
+branch: atrest/gap-reads-vertex-and-edge-cells
 opened: 2026-10-26
 priority: P0
 cost: M
@@ -22,3 +24,7 @@ Each arm is zero exactly at the contact, and its sign follows C5's strata. `Meas
 **The seam.** `measure.rs` and its evaluation (`crates/editor-core/src/eval/measure.rs`) are FLUXHOLD's territory (`work/fluxhold/program.md`), so the PR announces it there.
 
 The unit can be built beside C, because C's contact half is cell-generic. Done when a vertex resting on a face and an edge lying on a face, between two arrivals of a `⊔`, are each quiet under a holding `Gap = 0` over their two cells and loud under `Gap ≥ 0`.
+
+## Closed
+
+`MeasureVerb::admits` admits a face, an edge or a vertex for `Gap`, and `gap` (`crates/editor-core/src/eval/measure.rs`) has an arm per cell pair. A face reads a vertex or a line edge in either seat by its outward normal. An edge reads a vertex in either seat by its wedge. Of two edges or two vertices, the outer's wedge or corner reads the inner. The module's table states each convention. `a_vertex_and_an_edge_resting_on_a_face_read_their_gap` (`crates/editor-core/tests/gap_reads_vertex_and_edge_cells.rs`) is the acceptance: the prism's apex edge and its apex vertex, each resting on a block between two copies, hold `Gap = 0` at rest and read `+0.01` and `−0.01` when lifted and sunk, in either seat. The quieting half (quiet under `= 0`, loud under `≥ 0`) is stage 5 C's contact half and is not built here. The cells this convention cannot read refuse typed and are filed as `gap-reads-no-curved-cell-below-a-face`.

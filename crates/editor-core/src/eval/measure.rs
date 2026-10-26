@@ -21,6 +21,19 @@
 //! | `gap` | plane face x plane face | `(o_i − o_o)·ŵ_o` (SIGNED), `ŵ_o` the outer face's OUTWARD normal (S10 sense folded, not the chart normal) | `bool_plane_parallel` |
 //! | `gap` | sphere face x sphere face | `R − r − ‖Δc‖` | none |
 //! | `gap` | cylinder face x cylinder face | `r_bore − r_pin − d` | `carrier_cyl_axis_parallel` |
+//! | `gap` | vertex x plane, sphere or cylinder face, either seat | the vertex's signed offset from the face's carrier, positive away from its material | none |
+//! | `gap` | line edge x plane face, either seat | the lower end's offset `min((e − o)·ŵ)` | none |
+//! | `gap` | line edge x cylinder face, either seat | the edge's offset from the wall, `±(d − r)` | `carrier_cyl_axis_parallel` |
+//! | `gap` | line edge x vertex, either seat | the vertex's offset from the edge's wedge (below) | `gap_edge_convexity` |
+//! | `gap` | line edge x line edge | the inner's lowest offset from the outer's wedge | `gap_edge_convexity`, `gap_wedge_crossing` |
+//! | `gap` | vertex x vertex | the inner's offset from the outer's corner | `gap_edge_convexity` |
+//!
+//! A wedge is an edge's two plane faces, a corner a vertex's: the
+//! material is the intersection of the faces' half-spaces where every
+//! edge there is convex, their union where every one is concave, and a
+//! point's offset from it the largest, or the smallest, of its offsets
+//! from the faces' planes. A saddle vertex, and an edge or a vertex
+//! beside a curved face, has no such reading and refuses.
 //!
 //! Everything else — a cone, a torus, a NURBS patch, a curved edge, a
 //! whole body, and every mixed pair not listed — refuses.
@@ -37,14 +50,16 @@
 //!
 //! # Which trileans this module consumes
 //!
-//! Two, and both are EXISTING funnel predicates called at their
-//! existing margin shapes: `bool_plane_parallel`
-//! (`Margin::levered(‖n̂_a × n̂_b‖, arm)`, the sine of the normals'
-//! disagreement priced at a lever arm) and
-//! `carrier_cyl_axis_parallel` (the same shape on the axes). No third
-//! margined compare is minted here; a distance whose parallelism
-//! escalates refuses typed rather than reporting a number whose
-//! meaning depends on an undecided fact.
+//! Two EXISTING funnel predicates called at their existing margin
+//! shapes: `bool_plane_parallel` (`Margin::levered(‖n̂_a × n̂_b‖, arm)`,
+//! the sine of the normals' disagreement priced at a lever arm) and
+//! `carrier_cyl_axis_parallel` (the same shape on the axes). And two of
+//! `gap`'s own over a vertex's or an edge's material:
+//! `gap_edge_convexity` (the sine of a dihedral's departure from flat,
+//! levered by the edge's length) and `gap_wedge_crossing` (whether an
+//! edge's two face offsets differ anywhere along a segment). A measure
+//! whose decision escalates refuses typed rather than reporting a
+//! number whose meaning depends on an undecided fact.
 //!
 //! **That arm is an UPPER BOUND ON THE EXTENT of the two operands
 //! together, with no floor** (ERROR-DESIGN E3's amendment): the faces'
@@ -59,7 +74,7 @@
 //!
 //! The C5 sign convention is binding and lives in exactly one place:
 //! [`gap`]. `g > 0` is clearance, `g = 0` contact, `g < 0`
-//! interference, for all three carrier pairs.
+//! interference, for every pair of cells.
 
 use geom::{Curve3, Surface};
 use geom_brep::OutwardNormal;
@@ -444,7 +459,11 @@ fn unsupported_as<X>(
     a: &'static str,
     b: &'static str,
 ) -> Result<X, PrimitiveRefusal> {
-    Err(PrimitiveRefusal::Unsupported(MeasureUnsupported { verb, a, b }))
+    Err(PrimitiveRefusal::Unsupported(MeasureUnsupported {
+        verb,
+        a,
+        b,
+    }))
 }
 
 fn unsupported<T: geom_core::Real, X>(
@@ -556,7 +575,9 @@ fn reference<T: Decide>(c: &Carrier<T>) -> (Point3<T>, T) {
         // A sphere's own radius IS its reach, exactly.
         Carrier::Sphere { center, radius, .. } => (*center, *radius),
         // A segment's length bounds its reach from either end.
-        Carrier::Line { ends: [start, end], .. } => (*start, (*end - *start).norm()),
+        Carrier::Line {
+            ends: [start, end], ..
+        } => (*start, (*end - *start).norm()),
         // An unsupported carrier has no reference point to measure a
         // reach from. The world origin with reach zero is the DEFINED
         // answer for it, not a claim that one cannot arrive — see
@@ -883,21 +904,25 @@ fn gap<T: Decide>(
         ) => Ok(face_offset(face, *at)),
         // A line edge and a plane face, in either seat: the edge's
         // lowest end, for an offset is linear along it.
-        (Carrier::Line { ends, .. }, Carrier::Plane { origin, outward, .. })
-        | (Carrier::Plane { origin, outward, .. }, Carrier::Line { ends, .. }) => {
+        (
+            Carrier::Line { ends, .. },
+            Carrier::Plane {
+                origin, outward, ..
+            },
+        )
+        | (
+            Carrier::Plane {
+                origin, outward, ..
+            },
+            Carrier::Line { ends, .. },
+        ) => {
             let [start, end] = ends.map(|e| outward.dot(e - *origin));
             Ok(start.min(end))
         }
         // A line edge and a cylinder face, in either seat: a ruling
         // apart from the wall, so the axis must run along the edge.
-        (
-            line @ Carrier::Line { dir, ends, .. },
-            face @ Carrier::Cylinder { axis, .. },
-        )
-        | (
-            face @ Carrier::Cylinder { axis, .. },
-            line @ Carrier::Line { dir, ends, .. },
-        ) => {
+        (line @ Carrier::Line { dir, ends, .. }, face @ Carrier::Cylinder { axis, .. })
+        | (face @ Carrier::Cylinder { axis, .. }, line @ Carrier::Line { dir, ends, .. }) => {
             if !parallel(
                 "carrier_cyl_axis_parallel",
                 *axis,
@@ -922,7 +947,12 @@ fn gap<T: Decide>(
             Ok(fold.offset(&[wedge.plus, wedge.minus], ends[0], *at))
         }
         // Two line edges: the outer's wedge reads the inner's segment.
-        (Carrier::Line { wedge, ends: at, .. }, Carrier::Line { ends, .. }) => {
+        (
+            Carrier::Line {
+                wedge, ends: at, ..
+            },
+            Carrier::Line { ends, .. },
+        ) => {
             let Some(wedge) = wedge else {
                 return unsupported_as("gap", "a line edge beside a curved face", inner.class());
             };
@@ -1012,9 +1042,9 @@ impl Fold {
     /// with outward normals `normals` make.
     fn offset<T: Decide>(self, normals: &[Vec3<T>], at: Point3<T>, x: Point3<T>) -> T {
         let mut each = normals.iter().map(|w| w.dot(x - at));
-        let first = each.next().unwrap_or_else(|| {
-            unreachable!("an edge has two faces and a corner at least one")
-        });
+        let first = each
+            .next()
+            .unwrap_or_else(|| unreachable!("an edge has two faces and a corner at least one"));
         each.fold(first, |a, b| match self {
             Self::Max => a.max(b),
             Self::Min => a.min(b),
@@ -1039,7 +1069,9 @@ impl Fold {
         const PREDICATE: &str = "gap_wedge_crossing";
         let normals = [wedge.plus, wedge.minus];
         let [start, end] = ends;
-        let lowest = self.offset(&normals, at, start).min(self.offset(&normals, at, end));
+        let lowest = self
+            .offset(&normals, at, start)
+            .min(self.offset(&normals, at, end));
         if self == Self::Min {
             return Ok(lowest);
         }
@@ -1314,7 +1346,7 @@ pub(crate) fn certified<P>(doc: &crate::Doc<P>, var: crate::VarId) -> crate::mea
 
 #[cfg(test)]
 mod tests {
-    #![allow(clippy::expect_used)]
+    #![allow(clippy::expect_used, clippy::panic)]
 
     use super::*;
 
@@ -1345,5 +1377,236 @@ mod tests {
                 "({major}, {minor}): a point {far} out against a reach of {reach}"
             );
         }
+    }
+
+    fn band() -> Band {
+        Band::linear(geom_core::Tol::witness()).expect("the witness tolerance is a band")
+    }
+
+    fn p(x: f64, y: f64, z: f64) -> Point3<f64> {
+        Point3::new(x, y, z)
+    }
+
+    fn v(x: f64, y: f64, z: f64) -> Vec3<f64> {
+        Vec3::new(x, y, z)
+    }
+
+    fn plane(origin: Point3<f64>, outward: Vec3<f64>) -> Carrier<f64> {
+        Carrier::Plane {
+            origin,
+            normal: outward,
+            outward,
+            reach: 10.0,
+        }
+    }
+
+    fn line(start: Point3<f64>, end: Point3<f64>, wedge: Option<Wedge<f64>>) -> Carrier<f64> {
+        Carrier::Line {
+            dir: (end - start) / (end - start).norm(),
+            ends: [start, end],
+            wedge,
+        }
+    }
+
+    fn vertex(at: Point3<f64>, corner: Option<Corner<f64>>) -> Carrier<f64> {
+        Carrier::Point { at, corner }
+    }
+
+    fn read(outer: &Carrier<f64>, inner: &Carrier<f64>) -> f64 {
+        gap(outer, inner, band()).unwrap_or_else(|e| panic!("the gap reads: {e:?}"))
+    }
+
+    fn close(got: f64, want: f64, what: &str) {
+        assert!((got - want).abs() < 1e-12, "{what}: {got}, not {want}");
+    }
+
+    /// The convex edge along +y at the origin between the top face
+    /// (`+z`) and the side face (`+x`): material where `x ≤ 0` and
+    /// `z ≤ 0`. The plus face's normal turns into the minus face's
+    /// about `+y`, which is convex ([`Fold::of`]).
+    fn ridge() -> Wedge<f64> {
+        Wedge {
+            along: v(0.0, 2.0, 0.0),
+            plus: v(0.0, 0.0, 1.0),
+            minus: v(1.0, 0.0, 0.0),
+        }
+    }
+
+    /// A block's corner at the origin, its material where `x, y, z ≤ 0`
+    /// (`hole` false), or the corner of an octant hole cut into
+    /// material, its material wherever any coordinate is negative.
+    fn corner(hole: bool) -> Corner<f64> {
+        let s = if hole { -1.0 } else { 1.0 };
+        let (x, y, z) = (v(1.0, 0.0, 0.0), v(0.0, 1.0, 0.0), v(0.0, 0.0, 1.0));
+        Corner {
+            faces: vec![x, y, z],
+            edges: vec![
+                Wedge {
+                    along: x * s,
+                    plus: y,
+                    minus: z,
+                },
+                Wedge {
+                    along: y * s,
+                    plus: z,
+                    minus: x,
+                },
+                Wedge {
+                    along: z * s,
+                    plus: x,
+                    minus: y,
+                },
+            ],
+        }
+    }
+
+    /// **A vertex or a line edge on a face reads the face's signed
+    /// offset, in either seat**: zero on it, positive off its material,
+    /// negative in it, for a plane, a ball, a socket, a pin and a bore.
+    /// An edge reads at its lowest end. Red if a seat flips the sign, if
+    /// a concave face reads as a convex one, or if a tilted edge reads
+    /// at its higher end.
+    #[test]
+    fn a_face_reads_a_vertex_or_an_edge_by_its_outward_normal() {
+        let floor = plane(p(0.0, 0.0, 1.0), v(0.0, 0.0, 1.0));
+        for h in [0.0, 0.01, -0.01] {
+            let at = vertex(p(0.3, -0.2, 1.0 + h), None);
+            close(
+                read(&floor, &at),
+                h,
+                "a vertex over the floor, outer the face",
+            );
+            close(
+                read(&at, &floor),
+                h,
+                "a vertex over the floor, outer the vertex",
+            );
+            let tilted = line(p(0.0, 0.0, 1.0 + h), p(1.0, 0.0, 1.5 + h), None);
+            close(
+                read(&floor, &tilted),
+                h,
+                "a tilted edge reads at its lower end",
+            );
+            close(read(&tilted, &floor), h, "and in either seat");
+        }
+        let sphere = |convex| Carrier::Sphere {
+            center: p(0.0, 0.0, 0.0),
+            radius: 1.0,
+            convex,
+        };
+        let cylinder = |convex| Carrier::Cylinder {
+            origin: p(0.0, 0.0, 0.0),
+            axis: v(0.0, 0.0, 1.0),
+            radius: 1.0,
+            reach: 5.0,
+            convex,
+        };
+        let out = vertex(p(1.01, 0.0, 0.0), None);
+        close(read(&sphere(true), &out), 0.01, "outside a ball");
+        close(read(&sphere(false), &out), -0.01, "in a socket's material");
+        close(read(&cylinder(true), &out), 0.01, "outside a pin");
+        close(read(&out, &cylinder(false)), -0.01, "in a bore's material");
+        let ruling = line(p(0.99, 0.0, -1.0), p(0.99, 0.0, 1.0), None);
+        close(
+            read(&cylinder(true), &ruling),
+            -0.01,
+            "a ruling inside a pin",
+        );
+        close(
+            read(&ruling, &cylinder(false)),
+            0.01,
+            "a ruling inside a bore's hollow",
+        );
+        let skew = line(p(1.0, 0.0, -1.0), p(1.0, 0.5, 1.0), None);
+        assert!(
+            matches!(
+                gap(&cylinder(true), &skew, band()),
+                Err(PrimitiveRefusal::NotParallel {
+                    predicate: "carrier_cyl_axis_parallel",
+                    ..
+                })
+            ),
+            "an edge across a cylinder is no ruling of it"
+        );
+    }
+
+    /// **An edge's wedge reads a vertex in either seat, and the outer
+    /// edge's wedge reads the inner edge.** Over the ridge `x, z ≤ 0`, a
+    /// segment crossing it in the plane `x + z = h√2` reads `h/√2` at
+    /// the crossing, which is its lowest point, though both its ends
+    /// read near 1; an edge lying along the ridge reads its larger
+    /// offset. Red if the crossing is not a candidate, or the wedge
+    /// folds as a union.
+    #[test]
+    fn an_edge_reads_a_vertex_and_an_edge_by_its_wedge() {
+        let ridge = line(p(0.0, -1.0, 0.0), p(0.0, 1.0, 0.0), Some(ridge()));
+        let tip = vertex(p(0.01, 5.0, -0.5), None);
+        close(read(&ridge, &tip), 0.01, "a vertex beside the side face");
+        close(read(&tip, &ridge), 0.01, "in either seat");
+        let n = v(1.0, 0.0, 1.0) / 2.0_f64.sqrt();
+        for h in [0.0, 0.01, -0.01] {
+            let crossing = line(p(-1.0, 0.3, 1.0) + n * h, p(1.0, 0.3, -1.0) + n * h, None);
+            close(
+                read(&ridge, &crossing),
+                h / 2.0_f64.sqrt(),
+                "an edge crossing the ridge",
+            );
+            let along = line(p(h, -0.5, h), p(h, 0.5, h), None);
+            close(read(&ridge, &along), h, "an edge lying along the ridge");
+        }
+        let bare = line(p(0.0, -1.0, 0.0), p(0.0, 1.0, 0.0), None);
+        assert!(
+            matches!(
+                gap(&bare, &ridge, band()),
+                Err(PrimitiveRefusal::Unsupported(MeasureUnsupported {
+                    a: "a line edge beside a curved face",
+                    ..
+                }))
+            ),
+            "an outer edge with no wedge has no material to read the inner by"
+        );
+    }
+
+    /// **The outer vertex's corner reads the inner vertex**: the largest
+    /// offset over a block's corner, the smallest over a hole's, and a
+    /// saddle or a corner on a curved face refuses typed. Red if a hole's
+    /// corner reads its empty octant as material, or a saddle reads a
+    /// number.
+    #[test]
+    fn a_vertex_reads_a_vertex_by_its_corner() {
+        let block = vertex(p(0.0, 0.0, 0.0), Some(corner(false)));
+        let hole = vertex(p(0.0, 0.0, 0.0), Some(corner(true)));
+        let at = |x, y, z| vertex(p(x, y, z), None);
+        close(
+            read(&block, &at(0.0, 0.0, 0.0)),
+            0.0,
+            "a vertex on a vertex",
+        );
+        close(read(&block, &at(0.01, -0.02, -0.03)), 0.01, "off the block");
+        close(
+            read(&block, &at(-0.01, -0.02, -0.03)),
+            -0.01,
+            "in the block",
+        );
+        close(read(&hole, &at(0.01, 0.02, 0.03)), 0.01, "in the hole");
+        close(
+            read(&hole, &at(0.01, -0.02, 0.03)),
+            -0.02,
+            "in the hole's wall",
+        );
+        let mut saddle = corner(false);
+        saddle.edges[0].along = saddle.edges[0].along * -1.0;
+        let refused = |outer: &Carrier<f64>| match gap(outer, &at(0.0, 0.0, 0.0), band()) {
+            Err(PrimitiveRefusal::Unsupported(u)) => u.a,
+            other => panic!("refused typed: {other:?}"),
+        };
+        assert_eq!(
+            refused(&vertex(p(0.0, 0.0, 0.0), Some(saddle))),
+            "a saddle vertex"
+        );
+        assert_eq!(
+            refused(&vertex(p(0.0, 0.0, 0.0), None)),
+            "a vertex on a curved face"
+        );
     }
 }
