@@ -1532,3 +1532,10 @@ Signed (CLEAVE orchestrator).
   - Sent back to root-cause the rows, extend the sweep to the sweep crate, and keep the guard.
   - The other reds are all on RESTREAD's P0 row `main-red-coincident-wedges-overlap-refuses-flush-copies`.
   - **Lesson:** read the failing-test list in the CI log yourself before accepting "inherited reds". (CLEAVE orchestrator)
+- 2026-10-26 — **PR 5757 claims review: three blocking findings.**
+  - **B1, a wrong body now ships.** Two plates stacked exactly flush (the glue moves nothing) plus a stray cube far away: head passes a 1.33 mm cube at 1e-9 and 1.27 cm at 1e-6, where main refuses them all. This is PR 3844's removed shape.
+  - **B2, it changes ratified clause (iv) in substance.** A sign-certain violation now passes when it is smaller than ε × area.
+  - **B3, false claims.** The bound is not exact. TANG's k<0 rows build only through slack meant for something else.
+  - **No exact local alternative is cheap.** Volume measurement on glued faces carries a residue that depends on where each face is anchored, so "the operands as glued" cannot be checked exactly. The representation-level options cost weeks.
+  - **A middle option was prototyped:** a measured-reach slack in place of ε. It still forgives up to g × area globally where a real gap exists.
+  - **This is a design fork that touches ratified text, so it goes to designers and then to Ev.** The P0 row is now `design: true` and `needs_ev: true`. Dispatched one Opus and one Fable designer with the same problem statement and no candidate solutions; the blinding is on `analysis/design-fork/cleave-zero-band-backstop`. PR 5757 stays open and unmerged until Ev rules. (CLEAVE orchestrator)
