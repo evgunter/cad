@@ -539,7 +539,7 @@ pub(crate) fn cone_grid_step(target: f64, half_angle: f64, rho_max: f64) -> f64 
 pub(crate) fn sphere_grid_steps(target: f64, r: f64, widest: f64) -> (f64, f64) {
     let half = target * 0.5;
     let (hu, hv) = (
-        sagitta_step(half, r * widest * widest),
+        sagitta_step(half, r * widest.powi(2)),
         sagitta_step(half, r),
     );
     if hu <= SPHERE_CELL_ASPECT * hv {
@@ -547,7 +547,7 @@ pub(crate) fn sphere_grid_steps(target: f64, r: f64, widest: f64) -> (f64, f64) 
     }
     let hv = cap_angular(curvature_step(
         target,
-        r * SPHERE_CELL_ASPECT.mul_add(SPHERE_CELL_ASPECT * widest * widest, 1.0),
+        r * SPHERE_CELL_ASPECT.mul_add(SPHERE_CELL_ASPECT * widest.powi(2), 1.0),
     ));
     (cap_angular(SPHERE_CELL_ASPECT * hv), hv)
 }
@@ -586,7 +586,7 @@ pub(crate) fn sphere_face_widest_cos(
             hi = hi.max(v);
         }
     }
-    if !(lo <= hi) {
+    if lo.is_nan() || hi.is_nan() || lo > hi {
         return Err(TessellateError::MissingEntity {
             what: "sphere face vertex",
         });

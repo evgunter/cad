@@ -410,8 +410,22 @@ fn far_cylinder(x0: f64) -> Body<f64> {
 /// rounding, and that rounding is no longer small against ε: the face
 /// refuses `RoundingUnresolved`, naming the allowance, at `n = 10`
 /// (one of 49 such `n` in 9..=200), and never `CertificateExceeded`.
+/// At the default ε only; it says so loudly at any other.
 #[test]
 fn a_large_rounding_allowance_is_flagged_not_absorbed() {
+    // The witness is a property of the distance AND ε: the flag needs
+    // the allowance past a quarter of ε, so the same body certifies at
+    // a coarser ε and does not revolve at a much finer one. It is
+    // pinned at the default ε; `cert::tests::the_verdict_admits_its_own_
+    // rounding_only_while_it_is_small` holds the verdict's edges at every ε.
+    if common::eps().to_bits() != 1e-9_f64.to_bits() {
+        println!(
+            "SKIPPED (ε = {}): this row's witness is pinned at the default ε = 1e-9 and \
+             asserts NOTHING at this one",
+            common::eps()
+        );
+        return;
+    }
     let near = far_cylinder(1e5);
     for n in 9..=200 {
         #[allow(clippy::cast_precision_loss)]

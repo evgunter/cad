@@ -291,8 +291,7 @@ pub(crate) fn tessellate_curved(
     let (nu, nv) = grid_counts(
         &chart,
         tol.delta,
-        u1 - u0,
-        v1 - v0,
+        (u1 - u0, v1 - v0),
         face_extent,
         has_pole,
         meridian_interior,
@@ -1064,8 +1063,7 @@ fn overused_identified_edge(
 fn grid_counts(
     chart: &Chart,
     delta: f64,
-    uspan: f64,
-    vspan: f64,
+    (uspan, vspan): (f64, f64),
     face_extent: f64,
     has_pole: bool,
     meridian_interior: usize,
@@ -2368,7 +2366,7 @@ mod tests {
         for (delta, nu) in [(0.1, 1), (0.0125, 2), (0.001, 5)] {
             for has_pole in [true, false] {
                 assert_eq!(
-                    grid_counts(&chart, delta, uspan, vspan, 1.0, has_pole, 0, true).unwrap(),
+                    grid_counts(&chart, delta, (uspan, vspan), 1.0, has_pole, 0, true).unwrap(),
                     (nu, 1),
                     "δ {delta}, has_pole {has_pole}: {nu} columns and no rows"
                 );
@@ -2379,12 +2377,12 @@ mod tests {
         // the pole floor lifting them to three with an apex, and rows
         // every `ρ_max·hu`.
         assert_eq!(
-            grid_counts(&chart, 0.0125, uspan, vspan, 1.0, true, 0, false).unwrap(),
+            grid_counts(&chart, 0.0125, (uspan, vspan), 1.0, true, 0, false).unwrap(),
             (3, 4),
             "a split side keeps its rows, and the apex its pole floor"
         );
         assert_eq!(
-            grid_counts(&chart, 0.0125, uspan, vspan, 1.0, false, 0, false).unwrap(),
+            grid_counts(&chart, 0.0125, (uspan, vspan), 1.0, false, 0, false).unwrap(),
             (2, 4),
             "a split side keeps its rows"
         );
