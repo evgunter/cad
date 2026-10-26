@@ -21,3 +21,13 @@ Found by the sweep of stage (c) of `the-curve-pair-reader` (closed, PRs 5154, 51
 - a conic lying in the circle's plane is read here only through a parallel plane decided off.
 
 A route: build the circle's span from the arc, read each boundary edge against it with `meet`, and accept only meetings whose hit on the boundary edge is an `End` at one of `at`. The caller's `false` stays its frontier.
+
+## Duplication triage (INTENT, 2026-10-26)
+
+Classified on Ev's ask, via the CLEAVE note on INTENT's log, against main `e92fb951` and DESIGN `[one-way.places]` / `[one-way.readings]`. The four classes:
+- **design signal:** DESIGN names no single home, so a design conversation is owed;
+- **mechanical:** DESIGN names the home; delete the off-home copy and repoint its users;
+- **D10 debris:** a D10 stage retires one copy;
+- **not duplication.**
+
+**Mechanical** (cluster D). It disagrees with `meet`, and DESIGN names `geom_brep::curve_pair::meet` as the home (`[one-way.readings]`, C5). Repoint `reduce::boundary_meets_circle_only_at`. **Cluster D, carrier readings re-spelled outside their named home.** DESIGN names the home. Ev (2026-10-26): the first fix is making the canonical reading the path of least resistance (the API consumers need), with a gate only as a backstop. 
