@@ -7071,3 +7071,4 @@ Signed (WIRE orchestrator).
   - The seamrank no-first-side row is likely fixed, unwitnessed; it re-parks on D10.
   - The pair-boolean least-edge row returns to WIRE at P2, the one place the approved rule is unbuilt.
   - Filed the Through-walker residue row (P3/E).
+- 2026-10-26 (WIRE orchestrator) Dispatched `wire-pairflush` (wire/pair-flush-line-reads-each-edge). The pair boolean's flush line takes the set and Through, finishing the 5705 rule; it also repoints the README's citation of the moved row. FULL review.

@@ -2,7 +2,7 @@
 id: a-pair-booleans-seam-vertex-cites-the-least-of-several-flush-operand-edges
 kind: issue
 title: A pair boolean's seam vertex cites the least of several flush edges of one operand, which at a union operand is the member minted first
-status: open
+status: dispatched
 opened: 2026-10-20
 priority: P2
 cost: E
