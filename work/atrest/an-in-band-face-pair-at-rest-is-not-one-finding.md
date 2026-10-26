@@ -6,7 +6,6 @@ status: open
 opened: 2026-10-22
 priority: P1
 cost: M
-design: true
 refs: [the-at-rest-census-is-a-check, two-copies-filling-one-volume-certify-at-rest]
 ---
 
@@ -49,3 +48,16 @@ on the in-band walls' escalations rather than on its seat's edges.
 ## Triage (2026-10-26, ATREST orchestrator)
 
 P1: one pair reported as about thirty pair-less escalations is a special case handled non-uniformly against `[assertions]`'s "once, at the highest-dimensional cells that touch". `design: true` covers the recording side: whether an undecided pair between two arrivals blocks the arrivals' other records (`census_uncleared_solids`). That question shares ground with `two-copies-filling-one-volume-certify-at-rest` (PR 5745), which re-reads which undecided verdicts are really overlaps. Weigh it after 5745 lands. The vessel is stage 5 C's could-not-look finding (`docs/INTENT-STAGE5-SPEC.md` §4, `AtRestEvidence::NoLane`).
+
+## Decided (2026-10-26, ATREST orchestrator)
+
+The recording side follows from ratified text, so it needs no designers. `[assertions]` decides each pair between arrivals "once, at the highest-dimensional cells that touch". A pair the census has no lane for "is a finding too, saying it could not look". D1 says carried records are never re-derived.
+
+- **An in-band verdict on one face pair** (Door 1 `Undecided`/`Escalated` on a planar pair, or the flush door's face-pair `CensusUndecidable`) is that pair's one could-not-look finding. It names the two faces, and nothing of its boundary cells is asked. It does **not** block the records of the other pairs between the same two arrivals. Blocking them would leave a confirmed seat unrecorded, and a later census over the result would decide that seat again.
+  - An in-band face pair within ε is not evidence of an overlap past the band: any overlap it hides is thinner than the band, which the representation cannot tell from contact.
+- **A solid-level "cannot clear" verdict still blocks the pair of arrivals' records**: arm 2's mixed-touch undecidable ("one passes into the other where they touch"), or an undecided crossing side. That verdict is evidence the solids may interpenetrate past the band.
+- **`census_uncleared_solids`** therefore reads the solid-level verdicts and not the pair-naming in-band one. If `CensusUndecidable` does not distinguish the two today, it gains a typed reason that does. No bool, and no matching on rendered text.
+
+**Rows:**
+- `census_records_what_it_decides::a_near_flush_side_is_its_pairs_finding_and_the_seat_is_one_pair` reports one could-not-look finding for the near-flush wall pair, with no pair-less escalations. The seat's face pair is recorded.
+- The near-flush mated seat no longer refuses the product on its walls' escalations once stage 5 C retires the gate. Until then it refuses on one finding, not thirty.

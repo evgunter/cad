@@ -466,3 +466,5 @@ mod tangent_touch_charges_both_sags;
 mod the_fin_crown_winds_as_a_solid;
 #[path = "three_solids_on_one_line.rs"]
 mod three_solids_on_one_line;
+#[path = "two_copies_filling_one_volume.rs"]
+mod two_copies_filling_one_volume;
