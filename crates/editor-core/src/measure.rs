@@ -81,6 +81,14 @@ pub enum MeasurePrimitive<R = SitedRef> {
     /// ball, the pin). C5's formulas are asymmetric in exactly that
     /// way — `g = R − r − ‖Δc‖` is not `r − R − ‖Δc‖` — so the roles
     /// are authored rather than inferred from which radius is larger.
+    ///
+    /// Each reference is a face, an edge or a vertex, so a gap is taken
+    /// between two cells at whatever dimension they are
+    /// (`[assertions.quiet]`). Between a face and a lower-dimensional
+    /// cell, or an edge and a vertex, the higher-dimensional cell's
+    /// material reads the other in either seat; between two edges or
+    /// two vertices the outer's reads the inner
+    /// ([`mod@crate::eval::measure`]).
     Gap {
         /// The containing carrier.
         outer: R,
@@ -173,7 +181,7 @@ impl<R> MeasurePrimitive<R> {
 /// | `distance` | a `Face`, an `Edge` or a `Vertex` |
 /// | `angle` | a `Face` or an `Edge` |
 /// | `min_clearance` | a `Body` or a `Face` |
-/// | `gap` | a `Face` |
+/// | `gap` | a `Face`, an `Edge` or a `Vertex` |
 ///
 /// What stays at evaluation is the carrier CLASS (a cone face in a
 /// `distance`, a pair with no closed form): a surface class is not a
@@ -213,7 +221,7 @@ impl MeasureVerb {
             Self::Distance => matches!(kind, K::Face | K::Edge | K::Vertex),
             Self::Angle => matches!(kind, K::Face | K::Edge),
             Self::MinClearance => matches!(kind, K::Body | K::Face),
-            Self::Gap => matches!(kind, K::Face),
+            Self::Gap => matches!(kind, K::Face | K::Edge | K::Vertex),
         }
     }
 
