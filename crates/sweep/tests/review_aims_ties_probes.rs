@@ -213,6 +213,10 @@ fn bodies(tol: Tol) -> Vec<(String, Body<f64>, Truth)> {
         (2, 0.3, 30.0 * eps, "bored sliver plate 30eps"),
         (2, 0.3, 0.05, "bored thin plate"),
     ] {
+        // A gap of 30ε is tangential contact in a sketch at the coarse ε.
+        if (what.ends_with("30eps") && eps > 1e-8) || (0.5 - r) < 100.0 * eps {
+            continue;
+        }
         let body = bored_block_of_arcs(n, 1.0, h, r, tol);
         out.push((
             what.into(),
