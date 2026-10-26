@@ -973,10 +973,8 @@ Notes on the neighbouring names:
 - `point_in_arc_loop_conic_window` decides only where a ray crosses an
   arc, as `arc_trim`'s trim row (ATREST-12's distance trim, the one home
   check 9's `ring_outer_arc_{end,trim}` also read).
-- `point_in_arc_loop_reach` is a ray's clearance from a ball: an
-  uncrossable (spline) edge's, where a clearance in the band abandons
-  the ray rather than escalating, and a spiric piece's, where it halves
-  the piece.
+- `point_in_arc_loop_reach` is a ray's clearance from a spiric
+  piece's ball, where anything undecided halves the piece.
 
 Dimensions: `docs/predicate-dimension-audit.md`'s rows of the same
 names.

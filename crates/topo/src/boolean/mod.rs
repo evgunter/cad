@@ -2758,15 +2758,14 @@ pub enum BooleanError {
     },
     /// **Point-in-face on a loop no walk expresses at the point.** The
     /// in-plane walk reads each edge on its own carrier — a line as its
-    /// chord, a circle or ellipse arc on its conic — and has no crossing
-    /// row for a spiric or spline edge. It answers along any ray that
-    /// definitely misses a ball holding such an edge; a point where
-    /// every ray could meet one — a crossing of that edge could change
-    /// the answer — is refused here rather than guessed.
+    /// chord, a circle or ellipse arc on its conic, a spiric or spline
+    /// arc piece by piece. A point that a spiric's or spline's pieces
+    /// ran out of depth or budget before placing is refused here rather
+    /// than guessed.
     ArcLoopContainmentUnsupported {
         /// The operand whose face carries the loop.
         operand: Operand,
-        /// The loop, and the edge no ray got past.
+        /// The loop, and the edge whose reading ran out.
         cause: crate::splitting::Uncrossable,
     },
     /// **A point-in-face read of an operand face refused.** The

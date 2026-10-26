@@ -1290,9 +1290,11 @@ pub(crate) enum EdgeContact {
     On(MarginDiag),
     /// Within the band of one of a curved edge's two carrier ends.
     End,
-    /// The reading could not place the point: a conic's that did not
-    /// settle, or a spiric's or a spline's whose pieces ran out of depth
-    /// or budget, which the region walk refuses on ([`Uncrossable`]).
+    /// The reading could not place the point: a spiric's or a spline's
+    /// whose pieces ran out of depth or budget, which the region walk
+    /// refuses on ([`Uncrossable`]); or a conic's that did not settle,
+    /// which it does not, since a conic's crossing count reads its own
+    /// carrier.
     Unread,
 }
 
@@ -1562,8 +1564,8 @@ pub(crate) fn carrier_loop<T: Decide>(
                     },
                     curve.params(),
                 )),
-                // A certified edge's span is forward, at parameters its
-                // carrier's knots locate.
+                // A certified edge's span is forward, between point
+                // parameters.
                 geom::Curve3::Nurbs(ref n) => {
                     LoopEdge::Spline(SplineArc::new(n, curve.params()).ok_or_else(corrupt)?)
                 }
@@ -1892,8 +1894,8 @@ enum Boundary<'a> {
 /// # Errors
 ///
 /// [`PointInLoopError`] — an escalation, exhaustion, an unwalkable
-/// loop, an edge no ray got past, or a broken precondition
-/// ([`PointInLoopError::OffPlane`]).
+/// loop, a spiric or spline edge whose reading ran out, or a broken
+/// precondition ([`PointInLoopError::OffPlane`]).
 pub fn point_in_loop<T: Decide>(
     body: &Body<T>,
     r#loop: LoopKey,

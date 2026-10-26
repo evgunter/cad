@@ -9134,8 +9134,7 @@ fn window<T: Decide>(segment: MeetSegment<T>, p: geom_core::Point3<T>, band: Ban
 /// One condition: the surface is a `Plane`, because there is
 /// otherwise no plane for the arms to run in. The outer loop's CLASS
 /// is not gated on: [`crate::splitting::containment::point_in_loop`] reads
-/// every edge on its own carrier and answers every class it has a
-/// crossing row for, and refuses itself where it has none
+/// every edge on its own carrier and refuses itself where it cannot
 /// ([`crate::splitting::PointInLoopError::Uncrossable`]), so the gate
 /// has nothing of its own to add about which loops are walkable.
 ///

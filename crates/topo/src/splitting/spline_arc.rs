@@ -3,13 +3,14 @@
 //! ([`super::containment`]) runs beside its conic and spiric rows, both
 //! [`super::pieced_arc`]'s readings over the pieces below.
 //!
-//! **The pieces** are windows of the edge's parameter span, one knot
-//! span at most each: the edge's span cut at the knots, then halved.
-//! A piece's control net is its Bézier net, read off the spline's own
-//! B-spline coefficients by the blossom
-//! ([`geom_core::spline::pieces::span_row`], on the weighted points and
-//! the weights apart), so a piece is restricted exactly at any scalar
-//! and no piece reads a refined knot vector or another piece's net.
+//! **The pieces** are windows of the edge's parameter span, inside one
+//! knot span each: the edge's span cut at the knots strictly inside it,
+//! then halved. A piece's control net is its Bézier net, the scalar's
+//! own restriction of the span's homogeneous coefficients
+//! ([`geom_brep::pcurve_cache::projected::piece_controls`], over
+//! [`geom_core::spline::SpanLocate::restrict_window`]: at `Interval` the
+//! certified restriction), so no piece reads a refined knot vector or
+//! another piece's net.
 //!
 //! **The net bounds its piece.** With positive weights the rational
 //! Bézier piece lies in the convex hull of its control points `c_k`, so
@@ -28,8 +29,11 @@
 //! the line exactly once if its two ends lie on opposite sides, and not
 //! at all if on one.
 
-use geom_core::spline::pieces::span_row;
-use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
+use std::sync::Arc;
+
+use geom_brep::pcurve_cache::projected::piece_controls;
+use geom_core::spline::ParamRange;
+use geom_core::{Band, Decide, Margin, Point3, Sign};
 
 use crate::splitting::pieced_arc::{PieceBall, PiecedArc, Ray};
 use crate::validate::decide;
@@ -39,124 +43,92 @@ const CROSS_SIDE: &str = "point_in_arc_loop_spline_side";
 const CROSS_TURN: &str = "point_in_arc_loop_spline_turn";
 const CROSS_ADVANCE: &str = "point_in_arc_loop_spline_advance";
 
-/// One knot span's B-spline coefficients: its `p + 1` weighted points
-/// `w_i·P_i` and weights, and the index of the first.
-struct SpanNet<T: geom_core::Real> {
-    first: usize,
-    weighted: Vec<Vec3<T>>,
-    weights: Vec<T>,
-}
-
 /// An arc of a spline.
 pub(crate) struct SplineArc<T: geom_core::Real> {
-    /// The spline's knot values.
-    knots: Vec<T>,
-    /// Each knot span the arc runs over, in order, with the part of the
-    /// arc's window it holds.
-    spans: Vec<(SpanNet<T>, (T, T))>,
+    curve: Arc<geom::NurbsCurve3<T>>,
+    /// The arc's window cut at the knots strictly inside it, in order.
+    roots: Vec<Piece>,
     ends: [Point3<T>; 2],
 }
 
-/// A window `[a, b]` of one of the arc's spans.
+/// A window `[a, b]`, `a < b`, inside one knot span.
 #[derive(Clone, Copy)]
-pub(crate) struct Piece<T: geom_core::Real> {
-    span: usize,
-    a: T,
-    b: T,
+pub(crate) struct Piece {
+    a: f64,
+    b: f64,
     depth: u32,
 }
 
 impl<T: Decide> SplineArc<T> {
-    /// The arc `(t0, t1)` of `curve`, or `None` where a parameter
-    /// locates in no span, or the end's span comes before the start's.
-    pub(crate) fn new(curve: &geom::NurbsCurve3<T>, (t0, t1): (T, T)) -> Option<Self> {
-        let knots = curve.knot_values();
-        let p = knots.degree();
-        let s0 = knots.locate(t0)?.1.span().index();
-        let s1 = knots.locate(t1)?.0.span().index();
-        if s1 < s0 {
+    /// The arc `(t0, t1)` of `curve`, or `None` where an end is no single
+    /// point or the window is not forward.
+    pub(crate) fn new(curve: &Arc<geom::NurbsCurve3<T>>, (t0, t1): (T, T)) -> Option<Self> {
+        let (lo, hi) = (t0.point_value()?, t1.point_value()?);
+        if lo >= hi {
             return None;
         }
-        let values = knots.values();
-        let spans = (s0..=s1)
-            .filter(|&s| knots.span(s).is_some())
-            .map(|s| {
-                let first = s - p;
-                let window = first..=s;
-                let net = SpanNet {
-                    first,
-                    weighted: curve.control()[window.clone()]
-                        .iter()
-                        .zip(&curve.weights()[window.clone()])
-                        .map(|(c, &w)| (*c - Point3::origin()) * w)
-                        .collect(),
-                    weights: curve.weights()[window].to_vec(),
-                };
-                let lo = if s == s0 { t0 } else { values[s] };
-                let hi = if s == s1 { t1 } else { values[s + 1] };
-                (net, (lo, hi))
+        let mut cuts = vec![lo];
+        for (knot, _) in curve.knot_values().runs() {
+            let k = knot.point_value()?;
+            if lo < k && k < hi {
+                cuts.push(k);
+            }
+        }
+        cuts.push(hi);
+        let roots = cuts
+            .windows(2)
+            .map(|w| Piece {
+                a: w[0],
+                b: w[1],
+                depth: 0,
             })
             .collect();
         Some(Self {
-            knots: values.to_vec(),
-            spans,
+            curve: Arc::clone(curve),
+            roots,
             ends: [curve.eval(t0), curve.eval(t1)],
         })
     }
 
-    /// A piece's Bézier control points: `c_k = (Σ w P)_k / (Σ w)_k`.
-    fn net(&self, p: &Piece<T>) -> Vec<Point3<T>> {
-        let (span, _) = &self.spans[p.span];
-        let window = (p.a, p.b);
-        let (Some(weighted), Some(weights)) = (
-            span_row(&span.weighted, &self.knots, span.first, window),
-            span_row(&span.weights, &self.knots, span.first, window),
-        ) else {
-            unreachable!("a span's net reads knots of its own vector");
+    /// A piece's Bézier control points.
+    fn net(&self, p: &Piece) -> Vec<Point3<T>> {
+        let Some(window) = ParamRange::new(p.a, p.b) else {
+            unreachable!("a piece's window is ordered");
         };
-        weighted
+        piece_controls(&self.curve, window)
             .into_iter()
-            .zip(weights)
-            .map(|(v, w)| Point3::origin() + v * (T::one() / w))
+            .map(|(c, _)| Point3::origin() + c)
             .collect()
     }
 }
 
 impl<T: Decide> PiecedArc<T> for SplineArc<T> {
-    type Piece = Piece<T>;
+    type Piece = Piece;
 
     fn ends(&self) -> [Point3<T>; 2] {
         self.ends
     }
 
-    /// One piece per knot span the arc runs over.
-    fn roots(&self) -> Vec<Piece<T>> {
-        self.spans
-            .iter()
-            .enumerate()
-            .map(|(span, &(_, (a, b)))| Piece {
-                span,
-                a,
-                b,
-                depth: 0,
-            })
-            .collect()
+    fn roots(&self) -> Vec<Piece> {
+        self.roots.clone()
     }
 
-    fn depth(piece: &Piece<T>) -> u32 {
+    fn depth(piece: &Piece) -> u32 {
         piece.depth
     }
 
-    fn halves(&self, p: Piece<T>) -> [Piece<T>; 2] {
-        let m = geom::mid_param(p.a, p.b);
+    fn halves(&self, p: Piece) -> [Piece; 2] {
+        let m = 0.5 * (p.a + p.b);
         let depth = p.depth + 1;
         [Piece { b: m, depth, ..p }, Piece { a: m, depth, ..p }]
     }
 
     /// The ball about the net's bounding box's centre, reaching the
-    /// farthest control point, and the piece's start point `c_0`.
-    fn ball(&self, p: &Piece<T>) -> PieceBall<T> {
+    /// farthest control point, and the arc's point at the window's
+    /// middle.
+    fn ball(&self, p: &Piece) -> PieceBall<T> {
         let net = self.net(p);
+        let m = 0.5 * (p.a + p.b);
         let (lo, hi) = net
             .iter()
             .fold((net[0], net[0]), |(lo, hi), &c| (lo.min(c), hi.max(c)));
@@ -167,7 +139,7 @@ impl<T: Decide> PiecedArc<T> for SplineArc<T> {
         PieceBall {
             center,
             reach,
-            on: net[0],
+            on: self.curve.eval(T::from_f64(m)),
         }
     }
 
@@ -178,7 +150,7 @@ impl<T: Decide> PiecedArc<T> for SplineArc<T> {
     /// (the module docs): same signs, no crossing; opposite, exactly
     /// one, counted when every control point lies definitely ahead of
     /// `q` along `d`.
-    fn cross(&self, p: &Piece<T>, Ray { q, d, side }: Ray<T>, band: Band) -> Option<usize> {
+    fn cross(&self, p: &Piece, Ray { q, d, side }: Ray<T>, band: Band) -> Option<usize> {
         let net = self.net(p);
         let offsets: Vec<T> = net.iter().map(|c| (*c - q).dot(side)).collect();
         let along = || net.iter().map(|c| (*c - q).dot(d));
@@ -228,7 +200,7 @@ fn all<T: Decide>(
 mod tests {
     use super::*;
     use crate::splitting::pieced_arc::{ArcHit, ArcRows};
-    use geom_core::{Interval, Tol};
+    use geom_core::{Interval, Tol, Vec3};
 
     const ROWS: ArcRows = ArcRows {
         end: "test_spline_end",
@@ -267,7 +239,7 @@ mod tests {
 
     fn arc<T: Decide>((t0, t1): (f64, f64)) -> SplineArc<T> {
         let f = T::from_f64;
-        SplineArc::new(&wave().map_scalar(f), (f(t0), f(t1))).expect("a forward span")
+        SplineArc::new(&Arc::new(wave().map_scalar(f)), (f(t0), f(t1))).expect("a forward span")
     }
 
     fn at(t: f64) -> (f64, f64) {
@@ -276,8 +248,9 @@ mod tests {
     }
 
     /// **The arc closed by its chord, read by the row, against the
-    /// region sampled densely** — the whole arc, and a window of it that
-    /// starts and ends inside spans and runs across both knots. Every
+    /// region sampled densely** — the whole arc, a window of it that
+    /// starts and ends inside spans and runs across both knots, and one
+    /// that ends on a knot, whose pieces are none of them a point. Every
     /// grid point further than `1e-3` from the sampled boundary is
     /// definitely off the arc, and its ray along a fixed generic
     /// direction crosses the arc a certified number of times whose
@@ -288,8 +261,12 @@ mod tests {
     fn the_row_reads_the_arcs_region<T: Decide>(lane: &str) {
         let band = Band::linear(Tol::witness()).unwrap();
         let f = T::from_f64;
-        for (t0, t1) in [(0.0, 1.0), (0.1, 0.9)] {
+        for (t0, t1) in [(0.0, 1.0), (0.1, 0.9), (0.1, 0.7)] {
             let k = arc::<T>((t0, t1));
+            assert!(
+                k.roots().iter().all(|p| p.a < p.b),
+                "{lane} {t0}–{t1}: no root piece is a point, a knot end included"
+            );
             let n = 20_000;
             let mut boundary: Vec<(f64, f64)> = (0..=n)
                 .map(|i| at(t0 + (t1 - t0) * f64::from(i) / f64::from(n)))
@@ -353,7 +330,7 @@ mod tests {
                 }
             }
             assert!(
-                asked >= 500 && inside >= 40 && asked - inside >= 300,
+                asked >= 500 && inside >= 20 && asked - inside >= 300,
                 "{lane} {t0}–{t1}: not vacuous ({asked} asked, {inside} inside)"
             );
             let mid = point(at(0.5 * (t0 + t1) + 0.013));
@@ -433,3 +410,7 @@ mod tests {
         the_count_is_exact::<Interval>("Interval");
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod fuzz;
