@@ -57,25 +57,26 @@ an arc of the loops crossed is its `CrossedCurve` gap.
 
 ## 2026-10-26 — read by its crossings (CLEAVE, `cleave/riders-read-every-edge-in-a-face`)
 
-- `slit::riders` (`crates/topo/src/boolean/slit.rs:609`) asks a face
+- `slit::riders` (`crates/topo/src/boolean/slit.rs:631`) asks a face
   of an edge where both of the edge's ends lie on it, an edge-on-face
   record names the pair, or a record names a crossing of the edge with
   the face's loops: an edge-edge record with an edge of them, or a
   vertex-on-edge record of a vertex of them (`crossed_faces`,
-  `slit.rs:664`).
-- `slit::holding` (`slit.rs:715`) reads the edge as lying in the face
+  `slit.rs:691`).
+- `slit::holding` (`slit.rs:742`) reads the edge as lying in the face
   where its carrier lies on the face's surface (`on_carrier`,
-  `slit.rs:804`) and an edge-on-face record names the pair, or the face
+  `slit.rs:849`) and an edge-on-face record names the pair, or the face
   holds the midpoint of one of the pieces the recorded crossings cut it
-  into (`cuts`, `slit.rs:758`). The edge's own midpoint decides
+  into (`cuts`, `slit.rs:785`). The edge's own midpoint decides
   nothing. The edge is divided first unless both its ends lie on the
-  face and no record names a crossing.
-- `slit::divide` (`slit.rs:1221`) reads each crossing through
+  face and no record names a crossing. A face on the surface one of
+  the edge's own faces lies on is not asked: the edge bounds that sheet.
+- `slit::divide` (`slit.rs:1344`) reads each crossing through
   `curve_pair::meet` for any certified carrier of the loops
-  (`crossing_named`, `slit.rs:1420`), so an arc of the loops is divided
+  (`crossing_named`, `slit.rs:1548`), so an arc of the loops is divided
   where the edge crosses it, once or twice per arc; the resting
   vertices on a crossed edge go to the piece holding them, ordered
-  along it (`slot_from_far_end`, `slit.rs:1496`). A meeting the reader
+  along it (`slot_from_far_end`, `slit.rs:1623`). A meeting the reader
   does not settle refuses `CrossedCurve`.
 - Witnesses, `sweep/tests/edges_lying_in_a_face_part_wherever_they_lie.rs`:
   the cutter over `z ∈ [.6, .9]`, over `[.25, .5]` (the midpoint on the

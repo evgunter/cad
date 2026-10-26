@@ -32,16 +32,31 @@ the edge's midpoint, so it carries over.
 
 ## 2026-10-26 — read on cylinders, cones and quadrics (CLEAVE, `cleave/riders-read-every-edge-in-a-face`)
 
-- `slit::on_carrier` (`crates/topo/src/boolean/slit.rs:804`) reads a
+- `slit::on_carrier` (`crates/topo/src/boolean/slit.rs:849`) reads a
   line on a cylinder or cone face at its ends and midpoint, and a
   conic on a sphere, cylinder or cone face at its ends, midpoint and
   quarter points, each point's offset decided on the band
-  (`bool_rider_on_curved`); `slit::holding` (`slit.rs:715`) then reads
-  it as on a plane face. `walls_inside` (`slit.rs:892`) reads the
+  (`bool_rider_on_curved`); `slit::holding` (`slit.rs:742`) then reads
+  it as on a plane face. `walls_inside` (`slit.rs:951`) reads the
   face's outward normal at the edge's midpoint
   (`face_outward_normal_at`), first order as before. A wall tangent to
-  a curved face along the line refuses `Tangent` (`slit.rs:962`):
-  which side its sheet lies on is second order in both faces' bends.
+  a curved face along a line is read second order (`slit.rs:1026`):
+  its sheet lies in the face's material where its normal section bends
+  off the tangent plane further toward the material than the face's
+  does (`bend_across`, `slit.rs:1137`, under `bool_rider_wall_bend`);
+  bent alike, it is read as a plane wall in a plane face. A rod seated
+  in a bore along a ruling, its seam on the touching line
+  (`pi_seam_and_kiss_through_the_boolean.rs`
+  `a_rod_in_a_bore_refuses_at_the_crossing_layer`), reads its wall
+  bending away from the bore's material and keeps one edge.
+- Where neither end of the edge lies on the curved face's boundary the
+  parting would be a ring of no area in it, which the curved face's
+  measure does not read; it refuses `EdgeInFace` (`CurvedRing`,
+  `slit.rs:413`). The box with its rulings on a pipe's wall
+  (`verbs_ga_r2_probes.rs`
+  `r2_a_box_with_on_carrier_rulings_builds_every_op_undeclared`, `p ∖ b`)
+  moves there from main's one edge per ruling. Filed as
+  `work/cleave/a-ring-of-no-area-in-a-curved-face-is-not-measured.md`.
 - Witness, `sweep/tests/edges_lying_in_a_face_part_wherever_they_lie.rs`
   `a_keel_along_a_cylinder_floors_ruling_parts_in_every_op`: a
   tunnel's apex resting along the bottom ruling of a rod's wall, the
