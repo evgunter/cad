@@ -36,3 +36,9 @@ range reaches `v = π`), so a short sweep there may escalate where a
 window-tight inf would decide it. `certified_arms` makes the same
 choice deliberately ("a window-free bound cannot be wrong about a
 branch"); one home would make it once.
+
+## Moved (2026-10-26)
+
+CHART folded into CHARTTAIL (Ev, in chat, 2026-10-26): CHART had closed
+every P0 and P1 row, and its last rows are the chart boundary's tail.
+Id and body unchanged.

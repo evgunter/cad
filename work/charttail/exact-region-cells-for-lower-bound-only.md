@@ -68,3 +68,11 @@ The P0 band on the pole row was wrong, and both designers said so. Today's
 state is sound (the refusal stands), and clearance never asks on those
 kinds. Its live boolean cost, if it has one, is the probe on
 `w2-reads-a-one-sheet-predicate-off-the-walk`. (CHART orchestrator)
+
+## Moved (2026-10-26)
+
+CHART folded into CHARTTAIL (Ev, in chat, 2026-10-26). Kept although
+closed: CLEAR's `min-separation-tightening-crosses-the-drive` and
+`crates/editor-core/src/measure.rs` (`WINDOW_TIGHTENING`) cite this
+row's measurement as one of the two reasons
+`Certified::LowerBoundOnly` still refuses.

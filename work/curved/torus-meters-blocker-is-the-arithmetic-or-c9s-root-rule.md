@@ -63,7 +63,7 @@ Two designers (the design-fork protocol, row 30 of
 neither reading holds — the torus needs no root at all
 (`m = F / (2r·(A + 2Rρ))`, `A ≥ R² − r² > 0`), so its certification is
 ordinary work on CHART's `ssi/` ground, filed as
-`work/chart/torus-certificate-runs-root-free-through-its-quartic.md`.
+`work/charttail/torus-certificate-runs-root-free-through-its-quartic.md`.
 What remains for Ev is only C9's operation list: three certification
 files already take private outward-rounded square roots
 (`props/quad.rs:sqrt_enclosure`, `offset_meters.rs:sqrt_up/sqrt_down`,
@@ -74,6 +74,6 @@ files already take private outward-rounded square roots
 
 Ev approved PR #3517: C9's operation list admits `√` (IEEE-754 correctly
 rounded, outward) and still no transcendental. The torus's certificate
-needs no root either way (`work/chart/torus-certificate-runs-root-free-through-its-quartic.md`);
+needs no root either way (`work/charttail/torus-certificate-runs-root-free-through-its-quartic.md`);
 the door and the retirement of the three private roots is
 `work/linalg/certification-gains-a-sqrt-door.md`.

@@ -30,3 +30,9 @@ One reading of a point's parameter on a conic edge, which every region
 door calls (and the sphere door's landings, which take the root's own
 parameter, need not). If its bits move a margin, re-baseline it and say
 what moved.
+
+## Moved (2026-10-26)
+
+CHART folded into CHARTTAIL (Ev, in chat, 2026-10-26): CHART had closed
+every P0 and P1 row, and its last rows are the chart boundary's tail.
+Id and body unchanged.

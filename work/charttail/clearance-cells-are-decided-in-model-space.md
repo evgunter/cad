@@ -110,3 +110,10 @@ Residue: `cell-region-reads-an-ellipse-arc-as-its-whole-conic` is closed
 by this PR's review pass (an elliptic edge is read through its arc's
 floor); the per-cell costs are in the PR body.
 
+
+## Moved (2026-10-26)
+
+CHART folded into CHARTTAIL (Ev, in chat, 2026-10-26). Kept although
+closed: it is the design record of the model-space cell verdict, and
+CLEAR's `min-separation-tightening-crosses-the-drive` builds the
+measure's half of this design (`## Note (CHART, 2026-10-24)` there).

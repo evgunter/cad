@@ -30,3 +30,9 @@ bits, and every reading past them inherits whichever one it took.
 Let a leg's course carry its `Curve3` (and what a leg adds: its start,
 its run direction), and read `eval`/`deriv` and one inverse through it.
 Re-baseline any bit that moves.
+
+## Moved (2026-10-26)
+
+CHART folded into CHARTTAIL (Ev, in chat, 2026-10-26): CHART had closed
+every P0 and P1 row, and its last rows are the chart boundary's tail.
+Id and body unchanged.
