@@ -2358,3 +2358,33 @@ fn a5_certified_clearance_runs_over_a_seated_mate() {
         "the clearance leaf",
     );
 }
+
+/// Review 2: an id-free dump of the corpus's solved frames, faults and
+/// vertex positions, for a differential against the merge base.
+#[test]
+fn r2_id_free_corpus_dump() {
+    use std::fmt::Write as _;
+    let Ok(path) = std::env::var("R2_DUMP") else { return };
+    let mut out = String::new();
+    for (label, doc, opts) in corpus() {
+        let poses = solve(&doc, &opts, Tol::witness());
+        let ev = run_at::<f64>(&doc, &opts, None);
+        for (k, id) in doc.ids().into_iter().enumerate() {
+            let fault = poses.fault(id).map(|f| format!("{f:?}").split(['{', '(', ' ']).next().unwrap_or("").to_string());
+            write!(out, "{label} #{k} fault={fault:?}").unwrap();
+            if let Some(rel) = poses.relative(id) {
+                write!(out, " rel={:?} {:?}", rel.columns, rel.translation).unwrap();
+            }
+            write!(out, " err={}", ev.node_error(id).is_some()).unwrap();
+            let names = all_vertices(&ev, id);
+            let mut pts: Vec<String> = names
+                .iter()
+                .filter_map(|n| vertex_position(&ev, id, n).ok())
+                .map(|p| format!("{:?}", [p.x, p.y, p.z]))
+                .collect();
+            pts.sort();
+            writeln!(out, " v={}", pts.join(";")).unwrap();
+        }
+    }
+    std::fs::write(path, out).unwrap();
+}

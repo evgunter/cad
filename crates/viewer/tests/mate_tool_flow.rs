@@ -1207,3 +1207,42 @@ fn the_snap_moves_a_turned_copy_only_by_the_snap() {
     }
     assert!(bad.is_empty(), "{}", bad.join("\n"));
 }
+
+/// Review 2 probe: a spin the person names in the panel on a seat under
+/// the shelf's downward face turns about that face's own outward
+/// normal (`−z`), through the mate tool and the snap.
+#[test]
+fn r2_a_named_spin_under_a_downward_face_turns_about_its_outward_normal() {
+    use pncad::document::Coord;
+    let tol = Tol::witness();
+    let x_after = |spin: f64| {
+        let bench = asm::bench("matetool-r2-spin", tol);
+        let mut session = asm::open_bench(&bench, tol);
+        let (post_top, shelf_bottom) = asm::seat_picks(&session, &bench);
+        let mut tool = MateTool::new();
+        tool.pick(session.doc(), post_top.clone());
+        tool.pick(session.doc(), shelf_bottom.clone());
+        let (doc, _) = session.landed_pair().expect("landed");
+        let proposal = tool
+            .proposal(
+                doc,
+                viewer::matetool::MateChoice {
+                    kind: pncad::document::VarKind::Plane,
+                    flip: true,
+                    values: vec![(Coord::SPIN, ang(spin))],
+                },
+            )
+            .expect("the seat proposes");
+        common::commit_mate(&mut session, proposal.op());
+        let (doc, _) = session.landed_pair().expect("landed");
+        let f = common::solve(&session, doc, tol)
+            .placement(doc, bench.post_b)
+            .expect("post_b has a pose");
+        assert_faces_rest(&session, &post_top, &shelf_bottom, "the seat");
+        f.columns[0]
+    };
+    let (a, b) = (x_after(0.0), x_after(0.5));
+    let turn = f64::atan2(a[0] * b[1] - a[1] * b[0], a[0] * b[0] + a[1] * b[1]);
+    println!("x at spin 0: {a:?}; at spin 0.5: {b:?}; turn about +z {turn}");
+    assert!((turn + 0.5).abs() < 1e-9, "turns about −z by 0.5: {turn}");
+}
