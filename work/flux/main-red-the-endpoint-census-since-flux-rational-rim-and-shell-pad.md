@@ -2,11 +2,13 @@
 id: main-red-the-endpoint-census-since-flux-rational-rim-and-shell-pad
 kind: issue
 title: Main red: certified_endpoint_census moved at every ε for spiric.rs, rational_rim.rs and topo props.rs, from FLUX's PRs 5696 and 5699, beside the quad.rs move its open row names
-status: open
+status: closed
 opened: 2026-10-26
 priority: P1
 cost: E
 refs: [the-endpoint-census-miscounts-quad-rs-after-the-spout-bracket, 5696, 5699]
+closed: 2026-10-26
+pr: 5809
 ---
 
 
@@ -65,3 +67,7 @@ land before the row goes green. Do not raise the pins blindly.
 Reproduce (it reads source, so any ε): `cargo nextest run -p geom-core
 --profile ci --ignore-default-filter -E
 'test(=certified_endpoint_census::every_production_endpoint_read_is_counted_and_dispositioned)'`.
+
+## Closed
+
+PR 5809 re-pins all six moved rows in one go, beside the quad row. `spiric.rs` (12, 10): the second remainder is `composite`'s read, safe because `taylor::composite_by` hands it only certified `t`. `rational_rim.rs` (1, 1) and `taylor.rs` (3, 3) ask in-line. `topo/src/props.rs` is (5, 3): `far_from`'s read picks a reference point, and `carry_of` refuses the carry it selects. `interval_volume`'s ends are a refusal payload. `deciding_walk`'s three reads now ask by name, after an unsafe read there was fixed. `quad_lane.rs` is (9, 9) after #5734.
