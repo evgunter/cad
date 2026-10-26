@@ -2218,6 +2218,25 @@ pub(crate) fn one_vertex_at<T: Decide>(
     Ok((magnitude == geom_core::k_stats::Magnitude::Zero).then_some(margin))
 }
 
+/// **The vertex of `body` at `p`**, the first in arena order (D9) that
+/// [`one_vertex_at`] reads at `p`, with the margin that put it there.
+///
+/// # Errors
+///
+/// The band's escalation where a vertex sits in its gap.
+pub(crate) fn vertex_at<T: Decide>(
+    body: &crate::body::Body<T>,
+    p: Point3<T>,
+    band: Band,
+) -> Result<Option<(crate::entity::VertexKey, MarginDiag)>, Indeterminate> {
+    for (v, q) in body.vertex_points() {
+        if let Some(margin) = one_vertex_at(p, q, band)? {
+            return Ok(Some((v, margin)));
+        }
+    }
+    Ok(None)
+}
+
 /// The result of [`boolean_reduce`]: both operands' annotated clones
 /// plus every record the PR 5 joining step consumes.
 #[derive(Debug)]

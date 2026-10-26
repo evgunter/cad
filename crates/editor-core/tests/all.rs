@@ -798,6 +798,8 @@ mod intent_literals_b_door;
 mod intent_literals_c_slots;
 #[path = "intent_literals_d_constants.rs"]
 mod intent_literals_d_constants;
+#[path = "intent_loft_set_sections.rs"]
+mod intent_loft_set_sections;
 #[path = "intent_part_census_seam.rs"]
 mod intent_part_census_seam;
 #[path = "intent_part_split_half.rs"]
