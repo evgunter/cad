@@ -1073,6 +1073,21 @@ recorded pairs as well as the confirmed ones, so a declared pair holding
 a crossing with the materials on one side names `SameSide`; it backs only
 through a confirmed pair.
 
+**In-band pairs.** Two planar faces of two solids whose carriers Door 1
+reads in band, aligned or opposed, are one pair too, which the census
+cannot look at (`planar_face_pairs`): what the sweeps find of a touch of
+a cell bounding one of its faces against a cell bounding the other is
+the pair's one `CensusUndecidable`, naming the two faces
+(`Undecidable::InBandPair`), and nothing of the cells is reported
+(`Declared::absorb`). An escalation of two other cells whose closures
+hold such a touch reads it again and stands for nothing more, and so
+does arm 2's material test where it cannot place a vertex of such a
+touch. Any overlap the pair hides is thinner than the band, so the
+finding is no evidence the two solids interpenetrate: arm 2 reads it as
+blocking nothing, and `census_uncleared_solids` leaves the solids'
+other touches to be recorded at rest. The flush arm leaves such a pair
+to the census.
+
 The edge-on-face lane cuts an edge at every boundary vertex on it and
 every place a boundary edge crosses it, each placed in metres along
 both (a crossing within the band of an arc's end is that end's vertex),

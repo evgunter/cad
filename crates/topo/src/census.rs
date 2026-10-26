@@ -1007,6 +1007,7 @@ fn census_with<T: Decide + crate::props::AtRestPolicy + Bounds>(
         trace.as_deref_mut(),
         &mut errors,
     );
+    declared.settle(body, &geo, &mut errors);
     report_found_pairs(&found.opposed, &declared, &mut errors);
     sweep_conformal_patches(body, &geo, &declared, band, region, &mut errors);
     sweep_same_solid_tangent_lines(body, &declared, band, &cands, &mut errors);
@@ -1061,10 +1062,12 @@ struct Declared {
     /// bounding the other, as its one could-not-look finding
     /// ([`Declared::absorb`]).
     in_band: std::collections::BTreeMap<(FaceKey, FaceKey), (FaceKey, FaceKey)>,
-    /// The vertex events an in-band pair answered for, each the vertex
-    /// and the cell it touched, filled as the vertex passes run
-    /// ([`Declared::absorb`]).
-    absorbed: std::cell::RefCell<Vec<(VertexKey, EntityId)>>,
+    /// The touches an in-band pair answered for, each its two cells,
+    /// filled as the passes run ([`Declared::absorb`]).
+    absorbed: std::cell::RefCell<Vec<(EntityId, EntityId)>>,
+    /// The escalations of other touches, each with its two cells, held
+    /// for [`Declared::settle`].
+    unsettled: std::cell::RefCell<Vec<((EntityId, EntityId), ValidationError)>>,
 }
 
 impl Declared {
@@ -1079,6 +1082,7 @@ impl Declared {
             area: BTreeSet::new(),
             in_band: std::collections::BTreeMap::new(),
             absorbed: std::cell::RefCell::new(Vec::new()),
+            unsettled: std::cell::RefCell::new(Vec::new()),
         };
         // Every kind, by name: a new kind fails to compile here until
         // the census says what it backs.
@@ -1172,28 +1176,29 @@ impl Declared {
 
     /// **A touch an in-band face pair answers for** (`[assertions]`):
     /// where a face in `x` and one in `y` are an in-band pair
-    /// ([`Declared::in_band`]), what `lane` finds of the two `cells` is
+    /// ([`Declared::in_band`]), what `lane` finds of the touch of cells
+    /// `p` and `q` is
     /// that pair's one could-not-look finding ([`in_band_finding`]),
     /// pushed once however many of the two faces' cells meet, and nothing
     /// of the cells is reported. A lane that finds nothing reports
     /// nothing.
     ///
-    /// Every other touch is the lane's own, but for an escalation in
-    /// band of a vertex whose own touch an in-band pair answered for: a
-    /// vertex in the closure of one cell, its touch against the other
-    /// absorbed ([`Declared::absorbed`]). The escalation reads that
-    /// vertex's event again from a cell it bounds, so the pair's finding
-    /// already stands for it. The vertex passes run before the edge
-    /// passes, so every vertex event is in by then.
+    /// Every other touch is the lane's own, but for an escalation of two
+    /// cells whose closures hold the two cells of a touch an in-band pair
+    /// answered for ([`Declared::absorbed`]): a vertex or an edge of the
+    /// pair's faces seen again from a cell it bounds, where the reading
+    /// lands in band of it. The pair's finding already stands for that
+    /// touch. Such an escalation is held until every pass has run
+    /// ([`Declared::settle`]), since the touch it shadows may be read by a
+    /// later pass. The attribution is by closure, not by where the
+    /// escalated reading lies, so only an escalation is held, never a
+    /// decided finding.
     ///
     /// `lane` reads the touch whole, a confirmed pair's answer
     /// ([`Declared::confine`]) included, so a touch a seat holds is the
     /// seat's and no reason to report the in-band pair.
-    #[allow(clippy::too_many_arguments)] // the touch, its two sides, the lane and the run's state
-    fn absorb<T: Real, X: AsRef<[FaceKey]>, Y: AsRef<[FaceKey]>>(
+    fn absorb<X: AsRef<[FaceKey]>, Y: AsRef<[FaceKey]>>(
         &self,
-        body: &Body<T>,
-        geo: &Geo<T>,
         (p, q): (EntityId, EntityId),
         sides: impl FnOnce() -> (X, Y),
         errors: &mut Vec<ValidationError>,
@@ -1215,12 +1220,8 @@ impl Declared {
         });
         if let Some((a, b)) = pair {
             let mut absorbed = self.absorbed.borrow_mut();
-            for (cell, other) in [(p, q), (q, p)] {
-                if let EntityId::Vertex(v) = cell
-                    && !absorbed.contains(&(v, other))
-                {
-                    absorbed.push((v, other));
-                }
+            if !absorbed.contains(&(p, q)) {
+                absorbed.push((p, q));
             }
             let finding = in_band_finding(a, b);
             if !errors.contains(&finding) {
@@ -1228,14 +1229,33 @@ impl Declared {
             }
             return;
         }
-        let shadow = self.absorbed.borrow().iter().any(|&(v, other)| {
-            (other == q && in_closure(body, geo, v, p))
-                || (other == p && in_closure(body, geo, v, q))
-        });
-        if shadow {
-            found.retain(|e| !matches!(e, ValidationError::CensusEscalated { .. }));
-        }
-        errors.extend(found);
+        let (escalated, decided): (Vec<_>, Vec<_>) = found
+            .into_iter()
+            .partition(|e| matches!(e, ValidationError::CensusEscalated { .. }));
+        errors.extend(decided);
+        self.unsettled
+            .borrow_mut()
+            .extend(escalated.into_iter().map(|e| ((p, q), e)));
+    }
+
+    /// The escalations [`Declared::absorb`] held, once every pass has
+    /// run: each stands unless the closures of its two cells hold the
+    /// two cells of a touch an in-band pair answered for.
+    fn settle<T: Real>(&self, body: &Body<T>, geo: &Geo<T>, errors: &mut Vec<ValidationError>) {
+        let absorbed = self.absorbed.borrow();
+        let held = |c, cell| in_closure(body, geo, c, cell);
+        let shadow = |(p, q): (EntityId, EntityId)| {
+            absorbed
+                .iter()
+                .any(|&(c, d)| (held(c, p) && held(d, q)) || (held(c, q) && held(d, p)))
+        };
+        errors.extend(
+            self.unsettled
+                .take()
+                .into_iter()
+                .filter(|&(cells, _)| !shadow(cells))
+                .map(|(_, e)| e),
+        );
     }
 
     /// **Whether a confirmed pair holds a touch where it lies**
@@ -1367,15 +1387,24 @@ impl Declared {
     }
 }
 
-/// Whether `v` lies in the closure of `cell`: is it, ends it, or bounds it.
-fn in_closure<T: Real>(body: &Body<T>, geo: &Geo<T>, v: VertexKey, cell: EntityId) -> bool {
-    match cell {
-        EntityId::Vertex(w) => v == w,
-        EntityId::Edge(e) => body.edge_vertices(e).is_some_and(|(a, b)| v == a || v == b),
-        EntityId::Face(f) => geo
+/// Whether the cell `c` lies in the closure of `cell`: is it, or a
+/// vertex or an edge bounding it.
+fn in_closure<T: Real>(body: &Body<T>, geo: &Geo<T>, c: EntityId, cell: EntityId) -> bool {
+    match (c, cell) {
+        _ if c == cell => true,
+        (EntityId::Vertex(v), EntityId::Edge(e)) => {
+            body.edge_vertices(e).is_some_and(|(a, b)| v == a || v == b)
+        }
+        (EntityId::Vertex(v), EntityId::Face(f)) => geo
             .vertex_faces
             .get(&v)
             .is_some_and(|faces| faces.contains(&f)),
+        (EntityId::Edge(e), EntityId::Face(f)) => {
+            crate::readback::edge_sides(body, e).is_ok_and(|sides| {
+                let (x, y) = sides.faces();
+                f == x || f == y
+            })
+        }
         _ => false,
     }
 }
@@ -2569,8 +2598,6 @@ fn sweep_vertex_vertex<T: Decide>(
             let &(kb, pb) = candidate(&geo.verts, j);
             let before = errors.len();
             declared.absorb(
-                body,
-                geo,
                 (EntityId::Vertex(ka), EntityId::Vertex(kb)),
                 || (geo.faces_of(ka), geo.faces_of(kb)),
                 errors,
@@ -2648,8 +2675,6 @@ fn sweep_vertex_edge<T: Decide>(
             }
             let before = errors.len();
             declared.absorb(
-                body,
-                geo,
                 (EntityId::Vertex(vk), EntityId::Edge(e.key)),
                 || (geo.faces_of(vk), [e.f_plus, e.f_minus]),
                 errors,
@@ -2751,8 +2776,6 @@ fn sweep_vertex_curved_edge<T: Decide>(
             }
             let before = errors.len();
             declared.absorb(
-                body,
-                geo,
                 (EntityId::Vertex(vk), EntityId::Edge(ek)),
                 || (geo.faces_of(vk), [sides.0, sides.1]),
                 errors,
@@ -2995,8 +3018,6 @@ fn sweep_vertex_face<T: Decide>(
             }
             let before = errors.len();
             declared.absorb(
-                body,
-                geo,
                 (EntityId::Vertex(vk), EntityId::Face(f.key)),
                 || (geo.faces_of(vk), [f.key]),
                 errors,
@@ -3281,8 +3302,6 @@ fn sweep_edge_face<T: Decide>(
             }
             let before = errors.len();
             declared.absorb(
-                body,
-                geo,
                 (EntityId::Edge(e.key), EntityId::Face(f.key)),
                 || ([e.f_plus, e.f_minus], [f.key]),
                 errors,
@@ -4221,8 +4240,6 @@ fn sweep_edge_edge<T: Decide>(
             let eb = candidate(&geo.edges, j);
             let before = errors.len();
             declared.absorb(
-                body,
-                geo,
                 (EntityId::Edge(ea.key), EntityId::Edge(eb.key)),
                 || ([ea.f_plus, ea.f_minus], [eb.f_plus, eb.f_minus]),
                 errors,
@@ -4364,8 +4381,6 @@ fn sweep_curved_edge_edge<T: Decide>(
         for (b, sides_b) in others {
             let before = errors.len();
             declared.absorb(
-                body,
-                geo,
                 (EntityId::Edge(a), EntityId::Edge(b)),
                 || ([sides_a.0, sides_a.1], [sides_b.0, sides_b.1]),
                 errors,
@@ -5539,15 +5554,14 @@ pub(crate) fn in_band_finding(a: FaceKey, b: FaceKey) -> ValidationError {
 ///
 /// - **In band**: Door 1 reads the carriers' coincidence in band, or
 ///   escalates. The pair is its own could-not-look finding, where its
-///   faces' cells meet ([`Declared::absorb`]), with or without a region
-///   door.
+///   faces' cells meet ([`Declared::absorb`]).
 ///
 /// Any other pair the doors do not decide is not this arm's: a definite
 /// apart, a shared line and no area (the region door's
 /// `TouchingBoundary` with no interior witness), an overlap the faces'
-/// own reading does not decide, or a pass holding no region door. Its
-/// cells' meetings are read by the sweeps like any others, so it is
-/// never silent.
+/// own reading does not decide, or any pair of a pass holding no region
+/// door, which runs no part of this arm. Its cells' meetings are read
+/// by the sweeps like any others, so it is never silent.
 ///
 /// The pairs are found before the sweeps run, so each answers for its
 /// boundary cells' touches in the closure of its shared area
@@ -5561,6 +5575,9 @@ fn planar_face_pairs<T: Decide>(
     region: Option<RegionLane<T>>,
     cands: &Candidates,
 ) -> FacePairs {
+    let Some(lane) = region else {
+        return FacePairs::default();
+    };
     let mut found = FacePairs::default();
     for (i, fa) in geo.faces.iter().enumerate() {
         for j in cands.trees.faces.later(i) {
@@ -5586,9 +5603,6 @@ fn planar_face_pairs<T: Decide>(
                     }
                     _ => continue,
                 };
-            let Some(lane) = region else {
-                continue;
-            };
             match relation {
                 crate::boolean::CarrierRelation::SameOpposite => {
                     let area = |x, y| {
@@ -9641,11 +9655,11 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
         // and that pair's finding stands for it: a placement the door
         // refuses there hides no overlap thicker than the band.
         let in_band = |v: VertexKey| {
-            declared
-                .absorbed
-                .borrow()
-                .iter()
-                .any(|&(w, cell)| w == v && solid_of_entity(cell) == Some(outer))
+            let v = EntityId::Vertex(v);
+            declared.absorbed.borrow().iter().any(|&(x, y)| {
+                (x == v && solid_of_entity(y) == Some(outer))
+                    || (y == v && solid_of_entity(x) == Some(outer))
+            })
         };
         let (mut refused, mut out_seen, mut any) = (None, false, false);
         for &(v, p) in geo
@@ -11761,6 +11775,7 @@ mod tests {
                     a: EntityId::Solid(a),
                     b: EntityId::Solid(b),
                     what,
+                    ..
                 } => Some(format!("{a:?}~{b:?}: {what}")),
                 _ => None,
             })
@@ -11859,6 +11874,7 @@ mod tests {
                     a: EntityId::Solid(_),
                     b: EntityId::Solid(_),
                     what,
+                    ..
                 } => Some(*what),
                 _ => None,
             })
@@ -13087,7 +13103,7 @@ mod tests {
                 errs.iter().any(|e| {
                     matches!(
                         e,
-                        ValidationError::CensusUndecidable { a, b, what }
+                        ValidationError::CensusUndecidable { a, b, what, .. }
                             if ((*a, *b) == (x, y) || (!ordered && (*a, *b) == (y, x)))
                                 && *what == why.what()
                     )
@@ -13355,6 +13371,7 @@ mod tests {
                     a: EntityId::Edge(ea),
                     b: EntityId::Vertex(vertex_of(s1)),
                     what: "",
+                    reason: Undecidable::MayOverlap,
                 },
                 None,
                 pair,
@@ -13621,45 +13638,46 @@ mod tests {
         );
     }
 
-    /// **A plane residual in the band's edge escalates only where the
-    /// face can be touched.** A unit cube turned a quarter-right-angle
-    /// stands `5e-9` above another's top, in the band's edge of it
-    /// (`band()`), its bottom a diamond whose box overlaps the top's.
-    /// Where the diamond lies 0.32 clear of the top, the top's corner
-    /// (vertex–face) and the diamond's edges (edge–face) read nothing
-    /// whichever the residual is; where it covers the top's corner,
-    /// both escalate.
+    /// **A plane residual in the band's edge is read only where the face
+    /// can be touched.** A unit cube turned a quarter-right-angle stands
+    /// `5e-9` above another's top, in the band's edge of it (`band()`),
+    /// its bottom a diamond whose box overlaps the top's. The two faces
+    /// read one carrier in band, so what the sweeps find of their cells
+    /// is the pair's one finding (`[assertions]`). Where the diamond lies
+    /// 0.32 clear of the top, the top's corner (vertex–face) and the
+    /// diamond's edges (edge–face) read nothing whichever the residual
+    /// is, and no finding stands; where it covers the top's corner, the
+    /// pair's finding stands and no residual escalates beside it.
     #[test]
     fn a_plane_residual_in_band_escalates_only_where_the_face_can_be_touched() {
-        let residuals = |at: Vec3<f64>| -> Vec<&'static str> {
+        let findings = |at: Vec3<f64>| -> Vec<ValidationError> {
             let body = two_cubes_turned(at, core::f64::consts::FRAC_PI_4);
-            let (errors, _) = census_traces(
+            census_traces(
                 &body,
                 &ContactRecords::default(),
                 band(),
                 Tol::witness(),
                 Some(RegionLane::certified()),
                 CensusStrategy::Realized,
-            );
-            errors
-                .iter()
-                .filter_map(|e| match e {
-                    ValidationError::CensusEscalated { cause } => cause.predicate,
-                    _ => None,
-                })
-                .filter(|p| ["pm_census_ef_residual", "pm_census_vf_residual"].contains(p))
-                .collect()
+            )
+            .0
         };
         let lift = 1.0 + 5e-9;
-        let apart = residuals(Vec3::new(1.657, 0.793, lift));
+        let apart = findings(Vec3::new(1.657, 0.793, lift));
         assert!(apart.is_empty(), "the diamond clear of the top: {apart:?}");
-        let over = residuals(Vec3::new(1.157, 0.293, lift));
-        for p in ["pm_census_ef_residual", "pm_census_vf_residual"] {
-            assert!(
-                over.contains(&p),
-                "the diamond over the top's corner: {p} in {over:?}"
-            );
-        }
+        let over = findings(Vec3::new(1.157, 0.293, lift));
+        assert!(
+            matches!(
+                over[..],
+                [ValidationError::CensusUndecidable {
+                    a: EntityId::Face(_),
+                    b: EntityId::Face(_),
+                    reason: Undecidable::InBandPair,
+                    ..
+                }]
+            ),
+            "the diamond over the top's corner: {over:?}"
+        );
     }
 
     /// The predicates `errors` escalated.
@@ -14764,6 +14782,24 @@ mod tests {
 
     /// The placement findings of `body`: every solid-pair refusal and
     /// interference, rendered.
+    /// How many in-band face pairs the census over `body` refuses on.
+    fn in_band_pairs(body: &Body<f64>) -> usize {
+        crate::validate_pseudomanifold(body, &ContactRecords::default(), Tol::witness())
+            .err()
+            .unwrap_or_default()
+            .iter()
+            .filter(|e| {
+                matches!(
+                    e,
+                    ValidationError::CensusUndecidable {
+                        reason: Undecidable::InBandPair,
+                        ..
+                    }
+                )
+            })
+            .count()
+    }
+
     fn placements_of(body: &Body<f64>) -> Vec<String> {
         crate::validate_pseudomanifold(body, &ContactRecords::default(), Tol::witness())
             .err()
@@ -14935,8 +14971,9 @@ mod tests {
     /// (or into it) by the geometric mean of the band's two thresholds:
     /// the exact separating plane, `x = 1`, is read in band at those
     /// corners. The bracket's bottom and top faces reach back across
-    /// that plane. No touch reads as a rest and the pair does not
-    /// clear.
+    /// that plane. No touch reads as a rest, and the pair does not
+    /// clear: the block's face and the wall read one carrier in band, so
+    /// they are one pair the census cannot look at, its one refusal.
     #[test]
     fn a_wall_rest_off_by_a_band_width_never_rests() {
         let band = Band::linear(Tol::witness()).unwrap();
@@ -14950,7 +14987,7 @@ mod tests {
             );
             let got = sites(&body);
             assert!(got.iter().all(|(_, t)| !t.is_rest()), "{e}: {got:?}");
-            assert!(!placements_of(&body).is_empty(), "{e}: cleared");
+            assert_eq!(in_band_pairs(&body), 1, "{e}: cleared");
         }
     }
 
@@ -15833,8 +15870,9 @@ mod tests {
     /// times the zero threshold and sectors from 0.6° short of flat to
     /// a few hundred band widths short of it, a face dipping into the
     /// floor never clears: decidedly below the floor, its far corners
-    /// are inside the floor; in band, the sweeps escalate and the pair
-    /// is refused as left unchecked.
+    /// are inside the floor; in band, the one refusal is the in-band
+    /// pair of the part's bottom and the floor's top, or, where Door 1
+    /// decides them two carriers, the pair left unchecked.
     #[test]
     fn an_obtuse_sector_never_clears_a_dip_where_the_gate_separates() {
         let band = Band::linear(Tol::witness()).unwrap();
@@ -15849,6 +15887,7 @@ mod tests {
                         a: a @ EntityId::Solid(_),
                         b: b @ EntityId::Solid(_),
                         what,
+                        ..
                     } => Some((*a, *b, (*what).to_owned())),
                     e if crate::test_support::is_decided_overlap(e) => {
                         let (x, y) = census_interference_solids(body, e)?;
@@ -15884,20 +15923,25 @@ mod tests {
                 let solids: Vec<EntityId> =
                     body.solids().map(|(k, _)| EntityId::Solid(k)).collect();
                 let (floor, part) = (solids[0], solids[1]);
-                assert!(
-                    !got.is_empty(),
-                    "a dip of {times}·zero at δ = {delta} cleared"
-                );
                 if times > 10.0 {
                     // Decidedly below the floor: the far corners are in it.
-                    assert_eq!(got, [(floor, part, "interference".to_owned())]);
-                } else {
-                    // In band: the probe cannot place the far corners
-                    // and the sweeps escalate on them, so the pair's one
-                    // refusal is its boundaries left unchecked.
                     assert_eq!(
                         got,
-                        [(floor, part, Undecided::Unexamined.what().to_owned())]
+                        [(floor, part, "interference".to_owned())],
+                        "a dip of {times}·zero at δ = {delta}"
+                    );
+                } else {
+                    // In band: where Door 1 reads the bottom and the
+                    // floor's top one carrier in band, they are one pair
+                    // the census cannot look at, its one refusal; where
+                    // it decides two carriers, the probe cannot place the
+                    // far corners and the sweeps escalate on them, so the
+                    // pair's one refusal is its boundaries left unchecked.
+                    let unchecked = [(floor, part, Undecided::Unexamined.what().to_owned())];
+                    let in_band = in_band_pairs(&body);
+                    assert!(
+                        (got.is_empty() && in_band == 1) || (got == unchecked && in_band == 0),
+                        "a dip of {times}·zero at δ = {delta} cleared: {got:?}, {in_band} in band"
                     );
                 }
             }

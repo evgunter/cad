@@ -22,8 +22,9 @@ use crate::common;
 use common::placement_findings;
 use geom_core::{Band, Point3, Tol};
 use topo::{
-    Body, CensusContact, ContactRecords, FaceKey, SolidContainment, SolidKey, ValidationError,
-    VoidContainment, VoidEvidence, insert_void, point_in_solid_of, validate_pseudomanifold,
+    Body, CensusContact, ContactRecords, EntityId, FaceKey, SolidContainment, SolidKey,
+    ValidationError, VoidContainment, VoidEvidence, insert_void, point_in_solid_of,
+    validate_pseudomanifold,
 };
 
 /// The issue's L profile: counterclockwise from `+z`, reflex at (1, 1).
@@ -211,13 +212,6 @@ fn all_on_boundary() -> Body<f64> {
     assembly(&container, &part)
 }
 
-fn undecidable_what(e: &ValidationError) -> Option<&'static str> {
-    match e {
-        ValidationError::CensusUndecidable { what, .. } => Some(what),
-        _ => None,
-    }
-}
-
 /// Declared, the L-bracket certifies: the part is inside the bracket's
 /// box and outside its material, every vertex of each instance is
 /// outside-or-on the other, and the declared face pair confirms.
@@ -361,17 +355,14 @@ fn every_vertex_on_the_boundary_is_a_same_side_interference() {
 
 /// **The witness at the band edge**: the part shifted off the wall by
 /// a distance inside the run's ambiguity band — within ε of the
-/// container's boundary, not on it. The vertex-face and edge-face
-/// sweeps escalate on that residual, and the material test's own
-/// boundary pre-pass escalates on it in BOTH orderings — the part's
-/// vertices against the wall's plane, and the wall's vertices against
-/// the part's near face's plane (the pre-pass decides a plane residual
-/// before it asks the region) — so neither ordering decides, and with
-/// the probe undecided the findings are read: the sweeps' escalations
-/// stand, so the one refusal is the pair's boundaries left unchecked,
-/// with no clear and no interference. `delta`
-/// is taken from the run's band, so the row is the same statement at
-/// every `CAD_TOLERANCE_EPS` row of the matrix (default, 1e-6, 1e-12).
+/// container's boundary, not on it. The part's near face and the wall
+/// read one carrier in band, so they are one face pair the census cannot
+/// look at (`[assertions]`): the one finding names the two faces, and
+/// nothing of their cells escalates. It is no evidence the two solids
+/// overlap, so no refusal of the pair of solids stands beside it.
+/// `delta` is taken from the run's band, so the row is the same
+/// statement at every `CAD_TOLERANCE_EPS` row of the matrix (default,
+/// 1e-6, 1e-12).
 #[test]
 fn a_witness_at_the_band_edge_refuses_typed_at_this_eps() {
     let tol = Tol::witness();
@@ -381,18 +372,21 @@ fn a_witness_at_the_band_edge_refuses_typed_at_this_eps() {
     let (body, _) = lbracket(false, delta);
     let errors = validate_pseudomanifold(&body, &ContactRecords::default(), tol)
         .expect_err("in band refuses");
+    let [
+        ValidationError::CensusUndecidable {
+            a: EntityId::Face(a),
+            b: EntityId::Face(b),
+            reason: topo::Undecidable::InBandPair,
+            ..
+        },
+    ] = errors[..]
+    else {
+        panic!("one finding, the in-band pair's: {errors:?}");
+    };
+    let solids = (body.solid_of_face(a), body.solid_of_face(b));
     assert!(
-        errors
-            .iter()
-            .any(|e| matches!(e, ValidationError::CensusEscalated { .. })),
-        "the sweeps escalate on the in-band residual: {errors:?}"
-    );
-    let placements = placement_findings(&errors);
-    assert_eq!(placements.len(), 1, "{errors:?}");
-    let what = undecidable_what(placements[0]).expect("the typed refusal");
-    assert!(
-        what.contains("another finding left their boundaries unchecked"),
-        "{what}"
+        solids.0.is_some() && solids.1.is_some() && solids.0 != solids.1,
+        "the pair is a face of each solid: {solids:?}"
     );
     // And just past the band the part floats in the concavity and
     // clears — the refusal above is the band's, not the placement's.

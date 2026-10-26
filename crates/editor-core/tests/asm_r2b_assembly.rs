@@ -1032,9 +1032,15 @@ fn slab_part(label: &str, x: (f64, f64), y: (f64, f64), dz: f64) -> (ProfileDoc,
 /// numbers agree by construction and are deliberately not shared —
 /// each layer's fixture reads as the thing that layer is about.
 fn flush_seat(label: &str) -> (ProfileDoc, MateRef, PartStore) {
+    seat_off_the_end(label, 0.0)
+}
+
+/// [`flush_seat`] with the post's end standing `off` in from the
+/// shelf's end plane.
+fn seat_off_the_end(label: &str, off: f64) -> (ProfileDoc, MateRef, PartStore) {
     let mut store = PartStore::default();
     let (post, post_body) = store.insert_part(
-        slab_part(&format!("{label}-post"), (0.0, 0.12), (0.09, 0.21), 0.5),
+        slab_part(&format!("{label}-post"), (off, 0.12), (0.09, 0.21), 0.5),
         Tol::witness(),
     );
     let (shelf, shelf_body) = store.insert_part(
@@ -1081,6 +1087,42 @@ fn a_flush_seat_certifies_at_the_gate() {
         1,
         "the seat is recorded once, at face granularity"
     );
+}
+
+/// **A near-flush end is one finding.** The same seat with the post's
+/// end standing in from the shelf's by a distance inside the band: the
+/// two ends read one carrier in band, so they are one face pair the
+/// census cannot look at (`[assertions]`), and the gate, which refuses
+/// every census verdict that is not an interference, refuses on that
+/// one finding. Nothing of the two ends' cells escalates beside it, and
+/// the seat's own pair is recorded. Red if the gate certifies, or
+/// refuses on anything but the one in-band pair.
+#[test]
+fn a_near_flush_seat_refuses_on_its_one_in_band_pair() {
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
+    let off = 0.5 * (band.zero() + band.escalate());
+    let (doc, _, store) = seat_off_the_end("asm-r2b-near-flush", off);
+    let ev = run(&doc, &with_resolver(store));
+    match assemble(&doc, &ev, Tol::witness()) {
+        Err(AssemblyError::AtRest { findings }) => {
+            let [
+                editor_core::AtRestFinding {
+                    error:
+                        topo::ValidationError::CensusUndecidable {
+                            a: topo::EntityId::Face(_),
+                            b: topo::EntityId::Face(_),
+                            reason: topo::Undecidable::InBandPair,
+                            ..
+                        },
+                },
+            ] = findings.as_slice()
+            else {
+                panic!("one finding, the in-band pair's: {findings:?}");
+            };
+        }
+        Ok(_) => panic!("the near-flush seat refuses at rest"),
+        Err(other) => panic!("expected an at-rest verdict, got {other}"),
+    }
 }
 
 /// **Discovery is never a record** (F1/F2(iii)), and between copies

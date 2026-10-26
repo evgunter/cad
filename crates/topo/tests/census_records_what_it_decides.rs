@@ -443,6 +443,11 @@ fn a_near_flush_side_is_its_pairs_finding_and_the_seat_is_one_pair() {
         "the seat is the block's bottom on the base's top"
     );
     assert_eq!(recorded.records.rows().len(), 1, "one record, the seat's");
+    assert_eq!(
+        topo::validate_pseudomanifold(&body, &recorded.records, Tol::witness()).err(),
+        Some(recorded.findings.clone()),
+        "the seat's record confirms, and the in-band pair's finding is all that stands"
+    );
     assert!(
         flush.rows.is_empty() && flush.findings.is_empty(),
         "the in-band pair is the census's, not the flush door's: {flush:?}"
