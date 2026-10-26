@@ -1773,19 +1773,21 @@ pub fn selection_into<P>(
 #[track_caller]
 #[allow(clippy::expect_used)]
 pub fn pose_into<P>(doc: &mut Doc<P>, def: crate::pose::PoseDef) -> VarId {
-    let kind = def.kind().unwrap_or_else(|| {
-        let kept = def.kept().unwrap_or_else(|| {
-            unreachable!("every arm but a move, a flip and a carried pose states its kind")
-        });
-        kept.role.map_or_else(
-            || {
-                doc.var(kept.read)
+    let kind = match def.kind() {
+        Some(kind) => kind,
+        None => {
+            let Some(kept) = def.kept() else {
+                unreachable!("every arm but a move, a flip and a carried pose states its kind")
+            };
+            match kept.role {
+                Some(role) => crate::pose::PoseRole::kind(role),
+                None => doc
+                    .var(kept.read)
                     .map(Var::kind)
-                    .expect("a move, a flip or a carried pose reads a live pose")
-            },
-            crate::pose::PoseRole::kind,
-        )
-    });
+                    .expect("a move, a flip or a carried pose reads a live pose"),
+            }
+        }
+    };
     let def = WrittenDef::Pose(kind, def);
     let id = doc.mint.declare_anonymous(&def);
     doc.vars.insert(id, Var::written(def));

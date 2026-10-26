@@ -277,8 +277,9 @@ mod interval_r1 {
 /// slabs occupying the same z range. The census has no face-face
 /// sweep; the claim is the skeleton lanes catch it. Expect LOUD:
 /// EdgeEdgeCross (in-plane boundary crossings) and/or EdgeFaceOverlap.
-/// The instance arm reads those crossings as touches of two wedges
-/// whose interiors meet, and refuses the pair as a mixed touch.
+/// The two slabs' tops (and bottoms) lie on one plane facing the same
+/// way and share interior, so the instance arm decides the overlap as
+/// one `SameSideInterference`, and the edge×edge crossings answer to it.
 #[test]
 fn r2_coplanar_plus_overlap_detected() {
     let mut body = mapped_cube(|x, y, z| Point3::new(3.0 * x, 1.0 + y, z), Tol::witness());
@@ -289,29 +290,28 @@ fn r2_coplanar_plus_overlap_detected() {
     );
     let errors =
         validate_pseudomanifold(&body, &ContactRecords::default(), Tol::witness()).unwrap_err();
-    // Beside the findings, the instance arm's one refusal of the pair.
-    assert_eq!(
-        errors
-            .iter()
-            .filter(|e| !matches!(e, ValidationError::UnrecordedContact { .. }))
-            .map(|e| match e {
-                ValidationError::CensusUndecidable { what, .. } =>
-                    what.contains("one passes into the other where they touch"),
-                _ => false,
-            })
-            .collect::<Vec<_>>(),
-        [true],
+    // Beside the findings, the instance arm's one decided interference.
+    assert!(
+        matches!(
+            errors
+                .iter()
+                .filter(|e| !matches!(e, ValidationError::UnrecordedContact { .. }))
+                .collect::<Vec<_>>()[..],
+            [ValidationError::SameSideInterference { .. }]
+        ),
         "{errors:?}"
     );
+    // The in-plane crossings of the two tops (and bottoms) lie in the
+    // closure of that aligned pair's shared area, and are the pair's.
     assert!(
-        errors.iter().any(|e| matches!(
+        !errors.iter().any(|e| matches!(
             e,
             ValidationError::UnrecordedContact {
                 contact: topo::CensusContact::EdgeEdgeCross { .. },
                 ..
             }
         )),
-        "expected in-plane edge-edge crossings: {errors:?}"
+        "the crossings are the aligned pair's: {errors:?}"
     );
 }
 

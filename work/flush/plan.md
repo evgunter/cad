@@ -10,7 +10,7 @@ Ev approved the plan in chat on 2026-10-10). Every row here moved from
 
 ## The slate
 
-**25 points** of dispatchable work against a ceiling of 32 (2026-10-26, after Ev adopted the glue verdict's kernel n-ary door on PR 5737 and that row re-priced from M to H). FLUSH measured 41.5 when PR 5368 closed its P1, so it was cut along its priority seam: the eight P3 rows and the one P4 row moved to **FLUSHTAIL** (`work/flushtail/`) by `git mv`, with ids unchanged. Three older rows are unpriced and charged 2.5 each. `work/flush/program.md` states why the ceiling is not 30.
+**20 points** of dispatchable work against a ceiling of 32 (2026-10-26, after PR 5730 closed the trimmed-sphere aims and the glue verdict's n-ary door was dispatched). FLUSH measured 41.5 when PR 5368 closed its P1, so it was cut along its priority seam: the eight P3 rows and the one P4 row moved to **FLUSHTAIL** (`work/flushtail/`) by `git mv`, with ids unchanged. Three older rows are unpriced and charged 2.5 each. `work/flush/program.md` states why the ceiling is not 30.
 
 | pri | item | cost | title |
 |---|---|---|---|

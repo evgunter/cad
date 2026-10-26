@@ -38,3 +38,13 @@ always (the reads are cheap and each is a direct distance).
 ## Re-homed at PATHS's close (2026-10-21)
 
 Moved from `work/paths/` to PROFILEREST (`work/profilerest/`) when PATHS closed. PATHS's live rows went to four programs opened at this close and cut along the priority seam (PROFILE, PROFILEREST, PROFILETAIL, PROFILEPROSE; `docs/doc-ledger/paths-leaves-the-tracker.md`). The item's id, content and history are unchanged.
+
+## Note (2026-10-26, easy-fixes lane)
+
+Not one line. With `end_touches` made unconditional in `candidates`, `cargo nextest run -p profile` moves three pinned verdicts, none of them a duplicate contact:
+
+- `seg::pair_contact_tests::a_tangency_reads_at_the_midpoint_of_the_nearest_points`: the near-concentric nested and chord tangencies escalate on `circle_side` at both scalars, where they read `[Tangency]`;
+- `rejections::near_concentric_arcs_read_their_tangency_on_each_carrier` (`d = 17ε, g = −0.5ε`): `TangentialContact` becomes `Escalated` on `arc_span`. A held tangency's far ends sit in band of the other carrier and now escalate;
+- `rejections::a_tangent_cusps_far_end_draws_its_line`: the first `NonSimple` names segments 0 and 1 (the adjacent pair's own end read) where the pin names 0 and 2.
+
+The far-end read collides with the near-concentric tangency's own in-band ends. The fix needs the end reads to discount what the held candidate already decided, and that is ground the joint and tangency rulings cover. Reverted. `missed || adjacent` was not tried: the cusp row's pair is adjacent, so it would move the same way.

@@ -36,3 +36,7 @@ repo's fail-loud rule forbids.
   above, written against how `slivers` and `completed` are filled) or
   search for a witness: a pose where two section polygons share a face
   and one completes before the other's interior null edge is cut.
+
+## Note (2026-10-26, easy-fixes lane)
+
+The guard now runs in every build: `crates/topo/src/chord_join.rs` `ChordJoiner::cut_core`'s interior-null-edge arm checks `completed` against both sides and raises `unreachable!` with the argument as its message (DESIGN `[failure.taxonomy]` row 4: a kernel bug observable in a branch). It is not the typed refusal the first bullet asks for. `SplitJoinError::CutInvariant`'s text ("neither face … is a sliver") is false for this case, and a new variant reaches the refusal census rows. Which of the two the arm is depends on the second bullet, the proof or the witness, which is not done. Verified: `cargo nextest run -p topo --lib -E 'test(/chord_join|splitting|…/)'`, 367 passed.

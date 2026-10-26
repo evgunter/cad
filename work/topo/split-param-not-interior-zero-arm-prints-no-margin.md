@@ -2,10 +2,11 @@
 id: split-param-not-interior-zero-arm-prints-no-margin
 kind: issue
 title: topo: SplitParamNotInterior's Zero arm says the crossing lands on an end, and prints no margin
-status: open
+status: closed
 opened: 2026-10-13
 priority: P3
 cost: E
+closed: 2026-10-26
 ---
 
 (Filed by the ENCL implementer of `zero-arm-payloads-overclaim-and-print-no-margin`, from its sweep for Zero/collapse payload Displays.)
@@ -19,3 +20,7 @@ Since that unit, geom-brep's Zero-arm payloads print their margin and claim no s
 ## Repair shape
 
 Print `verdict.margin()` in the Zero arm's sentence; leave the ending to `split::split_param_ending`.
+
+## Closed (2026-10-26, easy-fixes lane)
+
+`crates/topo/src/euler.rs` `EulerOpError`'s `SplitParamNotInterior` Zero arm now reads "a crossing is not shown strictly inside its edge (margin {m} m from an end)", with the margin through `verdict.margin().readable()`. The ending is still `split::split_param_ending`. The margin is the metered sub-span from whichever end the gate refused first (`split_edge`), so the sentence says "an end", not "the nearer end". The Negative arm is unchanged. Pinned in `euler::tests::split_param_arms_tell_one_story`, which parses the printed margin and compares it to the payload's. Verified: `cargo nextest run -p topo --lib -E 'test(/…|euler::/)'`: 367 passed.

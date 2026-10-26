@@ -334,7 +334,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     // work/hone/reach-refusals-short-of-the-shape-guard.md
     "Boolean/Join/Corrupt",
     "Boolean/Join/CutInvariant",
-    "Boolean/Join/Section",
     "Boolean/Join/SectionInvariant",
     "Boolean/Join/SectionLoopMixed",
     "Boolean/Join/UnpairedLooseEnds",
@@ -344,7 +343,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "Split/Finish/UnclassifiableComponent",
     "Split/Join/Corrupt",
     "Split/Join/CutInvariant",
-    "Split/Join/Section",
     "Split/Join/SectionInvariant",
     "Split/Join/SectionLoopMixed",
     "Split/Join/UnpairedLooseEnds",
@@ -4654,7 +4652,7 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
             "UnsupportedUnionName",
             NamingError::UnsupportedUnionName {
                 name: Box::new(stable(EntityKind::Vertex, 3)),
-                shape: editor_core::UnionNameShape::SeamGroupNoMemberEdge,
+                shape: editor_core::UnionNameShape::SeveralParents,
             },
         ),
         (
@@ -4753,8 +4751,8 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
         (
             "Escalated",
             NamingError::Escalated {
-                predicate: "name_frag_order_along",
-                source: named("name_frag_order_along"),
+                predicate: "name_frag_on_member_edge",
+                source: named("name_frag_on_member_edge"),
             },
         ),
     ];

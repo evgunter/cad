@@ -16,3 +16,4 @@ unchanged. Rows dispatchable: 11, for 27.5 points.
   - Noted on `circle-plane-first-harmonic-has-three-hand-built-copies` that the one door (`FirstHarmonic::circle_off_plane`) exists, so what is left is its noise audit. The row is retitled to match.
   - Noted on `no-row-checks-the-ellipse-torus-door-certifies-at-eps-1e-12` that its swapped-axes bullet is moot.
   - Program body and plan slate refreshed (load 34.5/30). (tracker sweep)
+- 2026-10-26 — (easy-fixes lane) Closed `sphere-sphere-section-radius-cancels-at-unequal-radii`: `sphere_sphere_section` reads `geom_core::Circles`, pinned at radii `10⁶` and 1.
