@@ -11861,6 +11861,54 @@ mod tests {
         assert_eq!(errors, vec![escalation("along")]);
     }
 
+    /// **An edge collinear in band with an answered touch's edge is no
+    /// shadow** (`drop_shadows`). On the near-flush seat the pair answered
+    /// both of the block's bottom corners on the x = 0 side against the
+    /// base's top edge along x = 0. The block's bottom edge between them
+    /// runs collinear with that base edge, a band off it: both its ends
+    /// are answered touches, but two parallel lines meet at no one point,
+    /// so its escalation against the base edge could lie anywhere along
+    /// it, and it stands. Red if the ends alone drop it.
+    #[test]
+    fn an_edge_collinear_with_an_answered_touch_is_no_shadow() {
+        let (body, off) = near_flush_seat();
+        let geo = snapshot(&body);
+        let near =
+            |p: Point3<f64>, q: (f64, f64, f64)| (p - Point3::new(q.0, q.1, q.2)).norm() < 1e-12;
+        let vertex = |q| {
+            geo.verts
+                .iter()
+                .find(|&&(_, p)| near(p, q))
+                .map(|&(v, _)| v)
+                .unwrap()
+        };
+        let edge = |a, b| {
+            geo.edges
+                .iter()
+                .find(|e| (near(e.p0, a) && near(e.p1, b)) || (near(e.p0, b) && near(e.p1, a)))
+                .map(|e| e.key)
+                .unwrap()
+        };
+        let base_edge = edge((0.0, 0.0, 1.0), (0.0, 2.0, 1.0));
+        let wall_bottom = edge((off, 0.5, 1.0), (off, 1.5, 1.0));
+        let answered = [(off, 0.5, 1.0), (off, 1.5, 1.0)].map(|q| {
+            (
+                (EntityId::Vertex(vertex(q)), EntityId::Edge(base_edge)),
+                Undecidable::ThinInBand,
+            )
+        });
+        let mut pass = UnreadPass {
+            answered: answered.to_vec(),
+            held: vec![(
+                (EntityId::Edge(wall_bottom), EntityId::Edge(base_edge)),
+                escalation("collinear"),
+            )],
+        };
+        let mut errors = Vec::new();
+        drop_shadows(&body, &geo, band(), &mut pass, &mut errors);
+        assert_eq!(errors, vec![escalation("collinear")]);
+    }
+
     /// A face read through an edge's wedge under an undecided reading
     /// holds only where that branch lays the edge in the face, so the
     /// refusal beside the margin carries it undecided in band; an
