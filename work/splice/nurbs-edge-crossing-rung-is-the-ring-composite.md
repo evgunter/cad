@@ -125,10 +125,13 @@ pins the refusal in miniature and reds when this arm lands.
 The spline span × analytic face arm is
 `geom_brep::curve_face::composite::crossings`, reached through
 `NurbsLane::surface_crossings`. Its unit rows are in
-`curve_face/composite/rows.rs`: clear (with a pass under the zero band
-read by sign alone), one crossing, three crossings with the first and
+`curve_face/composite/rows.rs`: clear, a pass within the zero band
+inside the span refusing (an in-band pass is not clear: C5's "an in-band
+decision escalating and never pruning"), one crossing, three crossings with the first and
 third of one sense, a tangency refusing, a crossing on a knot, a meeting
-at a crease refusing next to an ordinary crossing off it, an end on the
+at a crease refusing next to an ordinary crossing off it, an in-band
+apex and an in-band dip at a crease and a crossing within the band of
+one refusing as the crease's, an end on the
 plane, a rational arc against a plane and a cylinder, an arc lying on
 its cylinder refusing, and a non-rational cubic against a sphere
 through the door. `curve_face::route` reads `(Nurbs, Plane)` as built.

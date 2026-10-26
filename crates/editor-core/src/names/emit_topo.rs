@@ -6836,7 +6836,10 @@ mod wavy_loft {
         };
         // The recipe mints both bodies fresh, so their keys collide and
         // `operand` is what states the owner; read in the loft, the key
-        // is a spline face.
+        // is a spline wall bounding one of the corners `x = 1` crosses,
+        // which is where the crossing vertices lie. The refusal names no
+        // site, so the row cannot tell the sector walk from another site
+        // raising the same variant on that wall.
         assert!(
             matches!(
                 body.get_face(*face)
@@ -6844,6 +6847,16 @@ mod wavy_loft {
                 Some(geom::Surface::Nurbs(_))
             ),
             "the refusal names a spline face of the loft"
+        );
+        let walls: Vec<_> = near
+            .iter()
+            .filter_map(|&e| body.get_edge(e))
+            .flat_map(|e| [e.he_plus, e.he_minus])
+            .filter_map(|he| body.face_of_half_edge(he))
+            .collect();
+        assert!(
+            walls.contains(face),
+            "the refusal names a wall on a crossed corner: {face:?} of {walls:?}"
         );
     }
 }

@@ -33,3 +33,20 @@ on the carrier (`vertex_on_curved_face`), the one-sided cover, each
 crossing placed against the face's trim (`curved_boundary_containment`)
 and on a cone's nappe (`face_nappe_reading`), and a span lying on the
 carrier, which the arm refuses as a tangency.
+
+## Owed with the dispatch (from PR 5789's review)
+
+- **The frame's rounding.** The composite is formed on the chart frame
+  crossed into certification arithmetic from the frame's stored
+  values. For a plane that is the plane itself. For a quadric or a
+  torus the frame is an orthonormal twin, unit only to rounding, so the
+  radial terms carry that rounding unmetered. Charge it, or form the
+  frame in certification arithmetic, before a curved face is
+  dispatched.
+- **A tangency off the face's trim.** The planar lane refuses
+  `SplineCrossingUnsettled` for any span the arm cannot settle, even
+  where the tangency lies outside the face's trim. The analytic doors
+  instead route an unsettled count through `carrier_touch::off_face`,
+  which places the meeting off the face and passes. Route the arm's
+  `Unsettled` the same way, for the plane too. This is over-refusal,
+  not unsoundness.

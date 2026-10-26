@@ -1,8 +1,9 @@
 //! [`super::crossings`] on Bézier and B-spline carriers against a plane,
-//! a cylinder and a sphere: clear, one crossing, three crossings (the
-//! first and third of one sense), a tangency, a crossing on a knot, a
-//! meeting at a crease and a crossing away from one, an end on the
-//! surface, and a rational arc.
+//! a cylinder and a sphere: clear, a pass within the band refusing, one
+//! crossing, three crossings (the first and third of one sense), a
+//! tangency, a crossing on a knot, a meeting at a crease, an in-band
+//! apex and dip there, a crossing within the band of one and one away
+//! from it, an end on the surface, and a rational arc.
 
 #![allow(clippy::unwrap_used, clippy::panic)]
 
@@ -77,11 +78,29 @@ fn a_carrier_above_the_plane_is_clear() {
         read(&cubic([1.0, 2.0, 2.0, 1.0]), &ground()).unwrap(),
         vec![]
     );
-    // Above it by less than the zero band at its lowest, and never on it:
-    // the composite's own sign, which no band reads.
+    // Within the band of the plane at both ends only: those are the end
+    // vertices' meetings, which the caller reads.
     assert_eq!(
         read(&cubic([1e-10, 1.0, 1.0, 1e-10]), &ground()).unwrap(),
         vec![]
+    );
+}
+
+/// `z = (1 − 2t)² + 10⁻¹⁰`: above the plane everywhere, but within the
+/// band of it about `t = ½`, inside the span. Not definitely apart there,
+/// so not clear: it refuses rather than read a near pass as a miss.
+#[test]
+fn an_in_band_pass_inside_the_span_refuses() {
+    let lift = 1e-10;
+    let net = spline(
+        2,
+        &[0.0, 0.0, 0.0, 1.0, 1.0, 1.0],
+        &[(0.0, 1.0 + lift), (0.5, -1.0 + lift), (1.0, 1.0 + lift)],
+    );
+    let got = read(&net, &ground());
+    assert!(
+        matches!(got, Err(CompositeRefusal::Unsettled(Unsettled::Tangency))),
+        "{got:?}"
     );
 }
 
@@ -271,4 +290,67 @@ fn a_cubic_leaves_a_sphere_through_the_door() {
         vec![],
         "the span's start on the sphere is its end vertex's"
     );
+}
+
+/// A V at a crease whose apex stands above the plane by less than the
+/// zero band: not definitely apart, so not clear, and the meeting is the
+/// crease's.
+#[test]
+fn an_in_band_apex_at_a_crease_is_not_read_clear() {
+    let got = read(&crease_v(1e-12), &ground());
+    assert!(
+        matches!(got, Err(CompositeRefusal::Unsettled(Unsettled::Crease))),
+        "{got:?}"
+    );
+}
+
+/// The same V, its apex just below the plane: two crossings, each
+/// within the band of the crease.
+#[test]
+fn an_in_band_dip_at_a_crease_refuses_crease() {
+    let got = read(&crease_v(-1e-12), &ground());
+    assert!(
+        matches!(got, Err(CompositeRefusal::Unsettled(Unsettled::Crease))),
+        "{got:?}"
+    );
+}
+
+/// A crossing within the band of a crease, not on it: the crease row's
+/// plane lifted by `10⁻¹¹`, so the crossing sits on the second piece a
+/// hair past the turn. It refuses as the crease's, read in metres from
+/// the crease's point, not by the knot's value.
+#[test]
+fn a_crossing_within_band_of_a_crease_refuses() {
+    let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
+    let control = vec![
+        Point3::new(0.0, 0.0, -1.0),
+        Point3::new(0.5, 0.0, -0.5),
+        Point3::new(1.0, 0.0, 0.0),
+        Point3::new(1.0, 0.5, 0.5),
+        Point3::new(1.0, 1.0, 1.0),
+    ];
+    let net = NurbsCurve3::new(kv, control, vec![1.0; 5]).unwrap();
+    let lifted = Surface::Plane {
+        origin: Point3::new(0.0, 0.0, 1e-11),
+        normal: Vec3::unit_z(),
+        u_ref: Vec3::unit_x(),
+    };
+    let got = read(&net, &lifted);
+    assert!(
+        matches!(got, Err(CompositeRefusal::Unsettled(Unsettled::Crease))),
+        "{got:?}"
+    );
+}
+
+/// A quadratic V with a crease at `t = ½`, its apex at `(1, 0, apex)`.
+fn crease_v(apex: f64) -> NurbsCurve3<f64> {
+    let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
+    let control = vec![
+        Point3::new(0.0, 0.0, 1.0),
+        Point3::new(0.5, 0.0, 0.5),
+        Point3::new(1.0, 0.0, apex),
+        Point3::new(1.5, 0.0, 0.5),
+        Point3::new(2.0, 0.0, 1.0),
+    ];
+    NurbsCurve3::new(kv, control, vec![1.0; 5]).unwrap()
 }

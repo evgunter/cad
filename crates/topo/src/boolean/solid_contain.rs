@@ -2000,31 +2000,34 @@ fn point_in_faces<T: Decide + crate::props::AtRestPolicy>(
     if faces.is_empty() {
         return Err(PointInSolidError::ZeroVolumeBody);
     }
-    // **A point past the whole selection's reach**, read only for a
-    // selection the ray test cannot cross: a point definitely outside the
-    // hull of every face's certified reach leaves along a straight path
-    // that meets no face, so it takes the side at infinity. Outside each
-    // face's own reach is not enough — the centre of a box solid lies
-    // outside every face's slab and inside the solid.
-    let mut crossable = true;
-    for &face in faces {
-        crossable &= uncrossable(body, face)?.is_none();
-    }
-    if !crossable && past_every_reach(body, faces, q, band) {
-        match missed_side(body, sel, band, tol, &MissedRead::new()) {
-            Ok(side) => return Ok(side),
-            Err(RayFault::InBand(e) | RayFault::Blocked(e) | RayFault::Fatal(e)) => return Err(e),
-            Err(RayFault::Graze | RayFault::Unread) => {}
-        }
-    }
-
     // ---- Boundary pre-pass: q on any face ⇒ OnBoundary. ----
     // Each face's geometry is built as the pass reaches it, so a point on
     // an earlier face answers before a later face is resolved.
     let mut geos: FaceGeos<T> = Vec::with_capacity(faces.len());
     for &face in faces {
         let escalate = |diag| PointInSolidError::Escalated { face, diag };
-        geos.push((face, face_geo(body, face, &sel.charts)?));
+        let geo = match face_geo(body, face, &sel.charts) {
+            Ok(geo) => geo,
+            // **A point past the whole selection's reach**, read only
+            // where the ray test cannot cross a face of it: definitely
+            // outside the hull of every face's certified reach, it
+            // leaves along a straight path that meets no face, and takes
+            // the side at infinity. Outside each face's own reach is not
+            // enough — the centre of a box solid lies outside every
+            // face's slab and inside the solid.
+            Err(refusal @ PointInSolidError::KindUnsupported { .. }) => {
+                if !past_every_reach(body, faces, q, band) {
+                    return Err(refusal);
+                }
+                return match missed_side(body, sel, band, tol, &MissedRead::new()) {
+                    Ok(side) => Ok(side),
+                    Err(RayFault::InBand(e) | RayFault::Blocked(e) | RayFault::Fatal(e)) => Err(e),
+                    Err(RayFault::Graze | RayFault::Unread) => Err(refusal),
+                };
+            }
+            Err(other) => return Err(other),
+        };
+        geos.push((face, geo));
         let geo = &geos[geos.len() - 1].1;
         match *geo {
             FaceGeo::Plane(origin, normal) => {

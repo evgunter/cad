@@ -72,8 +72,11 @@ fn blade(
 }
 
 /// **Both orders get past the contact and the shared cap**, and stop
-/// where an edge of operand A meets a NURBS wall of operand B that its
-/// boundary leaves undecided: the spline-face door's refusal. Before the
+/// where an edge of operand A meets B's ridge wall, a NURBS wall its
+/// boundary leaves undecided: the spline-face door's refusal. The row
+/// pins the operand and the wall; it cannot tell that door from another
+/// site raising the same variant on the same wall (the sector walk's, at
+/// a vertex on it), since the refusal names no site. Before the
 /// boundary pass, each refused at the contact,
 /// `CurvedBooleanUnsupported { kind: Nurbs }` on a wall of B; before the
 /// ring-composite arm, at the planar lane, `EdgeCarrierUnsupported` on a
@@ -82,6 +85,7 @@ fn blade(
 /// is read against, which the twin-edge reading refuses as a
 /// contradiction.
 #[test]
+#[allow(clippy::cast_precision_loss)]
 fn a_sheath_on_its_blade_unions_past_the_shared_rim() {
     let tol = Tol::witness();
     let base = [0.170, 0.028, 0.020];
@@ -112,6 +116,20 @@ fn a_sheath_on_its_blade_unions_past_the_shared_rim() {
             .and_then(|f| b.get_surface(f.surface))
             .map(geom::Surface::kind);
         assert_eq!(surface, Some(SurfaceKind::Nurbs), "{what}: a wall of B");
+        // Which wall: B's ridge wall, the higher of its two by the mean
+        // height of its control net, in either order.
+        let height = |f: &topo::entity::Face| match b.get_surface(f.surface) {
+            Some(geom::Surface::Nurbs(n)) => {
+                Some(n.control().iter().map(|p| p.z).sum::<f64>() / n.control().len() as f64)
+            }
+            _ => None,
+        };
+        let ridge = b
+            .faces()
+            .filter_map(|(k, f)| height(f).map(|h| (k, h)))
+            .max_by(|x, y| x.1.total_cmp(&y.1))
+            .map(|(k, _)| k);
+        assert_eq!(ridge, Some(face), "{what}: B's ridge wall");
         // The cap read on the way: every spline edge of A, against every
         // plane face of B, through the arm the planar lane reads, crosses
         // nothing inside itself.

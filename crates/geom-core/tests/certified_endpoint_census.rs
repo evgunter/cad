@@ -282,7 +282,7 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          that reached the fitted gate fails it, and `chart_image`'s domain door \
          refuses one in a span",
     ),
-    ("crates/geom-brep/src/curve_face/composite.rs", 5, 5, ""),
+    ("crates/geom-brep/src/curve_face/composite.rs", 8, 8, ""),
     (
         "crates/geom-brep/src/offset_fit.rs",
         10,

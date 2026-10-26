@@ -747,12 +747,13 @@ carrier for a spline face and through which its on-carrier crossing
 reading reads every face's boundary, and the spline span × plane arm
 (`curve_face::composite`, the boolean's planar lane reading it). That
 arm composes the face's canonical residual along the span (the ring
-composite) and reads its numerator piece by piece, a piece never
-straddling a knot: clear where every coefficient is one-signed, one
-crossing where every forward difference is, bisected on the row and
-read on the surface, and otherwise cut. A piece too short to cut, a
-meeting at a crease and two crossings within the band of each other
-refuse. The composite reads the curved analytic faces too, but the
+composite) and reads it piece by piece, a piece never straddling a
+knot: clear where the residual, metered, is definitely past the band
+over the piece; one crossing where it is monotone and its ends lie
+definitely on opposite sides, bisected and read on the surface; and
+otherwise cut where it is definitely past the band. A piece within the
+band that no cut parts, a meeting within the band of a crease and two
+crossings within the band of each other refuse. The composite reads the curved analytic faces too, but the
 curved lane does not dispatch a spline span to it, and every arm with a
 spline face is unbuilt. The analytic arms are the sweep's existing root
 doors.

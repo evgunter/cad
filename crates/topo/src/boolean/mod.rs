@@ -2804,11 +2804,13 @@ pub enum BooleanError {
     /// A spline edge of `operand` meets a face of `face_of` where the
     /// curve × face table's ring-composite arm
     /// ([`geom_brep::curve_face::composite::crossings`]) cannot count its
-    /// crossings: it touches the face's carrier without crossing it, it
-    /// meets it at a crease of the spline, where the spline has no
-    /// tangent, or two of its crossings lie within the band of each
-    /// other (`why`). The definite half: a crossing whose placement is
-    /// in the band's gap escalates as [`Self::Escalated`] instead.
+    /// crossings (`why`): it comes within the band of the face's carrier
+    /// without a crossing the arm can tell apart (it touches it, runs
+    /// along it, or crosses it more than once within the band), it meets
+    /// it within the band of a crease of the spline, where the spline has
+    /// no tangent, or the point it located does not evaluate onto it. The
+    /// definite half: a decision the arm needs that falls in the band's
+    /// gap escalates as [`Self::Escalated`] instead.
     SplineCrossingUnsettled {
         /// The operand whose edge it is.
         operand: Operand,
@@ -4397,9 +4399,16 @@ pub(crate) const CONIC_EDGES_RECOURSE: &str =
 fn unsettled_crossing(why: geom_brep::roots::Unsettled) -> &'static str {
     use geom_brep::roots::Unsettled as U;
     match why {
-        U::Tangency => "it touches the face, or runs along it, without crossing it",
+        U::Tangency => {
+            "it comes within the tolerance of the face without a crossing the Boolean can \
+             tell apart: it touches the face, runs along it, or crosses it more than once \
+             within the tolerance"
+        }
         U::Crease => "it meets the face at a corner of the curve",
-        U::SignInBand => "a crossing it found does not lie on the face",
+        U::SignInBand => {
+            "the point it located as a crossing does not evaluate onto the face within the \
+             tolerance"
+        }
         _ => "its crossings could not be counted",
     }
 }

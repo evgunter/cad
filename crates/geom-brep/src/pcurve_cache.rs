@@ -3142,9 +3142,12 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
     // ratios are formed in the scalar).
     let twin_net = lift(twin_net);
     let coords = twin_net.certified_coords();
-    let (knots, weights) = projected::composite_structure(&twin_net);
-    let data = CurveCertData::new(knots, weights, &coords)
-        .map_err(|_| refuse("the re-derived net's certification data is malformed"))?;
+    let data = CurveCertData::new(
+        twin_net.knots_f64_interim(),
+        twin_net.weights_f64_interim(),
+        &coords,
+    )
+    .map_err(|_| refuse("the re-derived net's certification data is malformed"))?;
     let composite_of = |data: &CurveCertData<'_>| {
         canonical_composite(data, &form)
             .map_err(|_| refuse("the canonical composite refused the re-derived net"))

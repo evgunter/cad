@@ -2,43 +2,60 @@
 //! ([`super::Door::SplineComposite`]): the face's canonical residual
 //! composed along the span's NURBS carrier, the ring composite `f ∘ C`
 //! ([`geom_core::spline::compose::canonical_composite`]), read piece by
-//! piece.
+//! piece. The boolean dispatches the plane alone (`super::route`); the
+//! arm reads a cylinder, cone, sphere or torus the same way, metered
+//! through the form's distance divisor.
 //!
 //! The carrier's net is written in the surface's chart frame in
 //! certification arithmetic, so the composite is a rational Bernstein
-//! form whose denominator is a power of the carrier's weight function:
-//! positive, so the composite has its numerator's zeros and signs, and
-//! the ladder reads the numerator's rows alone. **A piece never straddles
-//! a knot**: the pieces start as the carrier's knot spans cut at the
-//! span's ends, and every later piece is a part of one, so each row is
-//! one polynomial and a derivative read on it is the derivative there.
-//! On a piece:
+//! form `f = N / D`, `D` a power of the carrier's weight function and so
+//! positive: the carrier's door admits no other weight. An enclosure of
+//! `D` that reaches zero is no exception to read: the quotient it
+//! divides refuses, its piece reads nothing definite and is cut, and a
+//! piece still so at the floor refuses. Every
+//! reading is of `f` itself, metered: its enclosure over a part, divided
+//! by an upper bound on the form's distance divisor over the net's hull
+//! (the plane's is one), bounds the part's distance from the surface from
+//! below, and that is what is decided against the band `implicit_residual`
+//! is decided against. **A piece never straddles a knot**: the pieces
+//! start as the carrier's knot spans cut at the span's ends, and every
+//! later piece is a part of one, so each row is one polynomial and a
+//! derivative read on it is the derivative there. On a piece:
 //!
-//! - **clear**: every coefficient one-signed, so the form is nowhere
-//!   zero on it;
-//! - **monotone**: every forward difference of the row one-signed, so
-//!   the form has at most one zero on it, and one exactly where its ends'
-//!   signs differ; that zero is bisected on the row and must then read
-//!   ON the surface ([`crate::implicit_residual`]);
-//! - otherwise the piece is cut where the row's sign is definite; a piece
-//!   too short to cut, or with no cut whose sign reads definite, is a
-//!   tangency, refused.
+//! - **clear** where `f`'s enclosure over it is definitely past the band:
+//!   the carrier is definitely apart from the surface there. A piece
+//!   that is one-signed but not definitely apart is not clear;
+//! - **monotone** where `N′D − ND′`, which has `f′`'s sign, is one-signed:
+//!   `f` takes its extremes at the piece's ends, so the ends' readings
+//!   settle it. Ends definitely past the band on one side are clear; on
+//!   opposite sides, one crossing, bisected and read ON the surface
+//!   ([`crate::implicit_residual`]). An end within the band at the span's
+//!   end is that end's meeting, which the caller reads; one at a knot is
+//!   read with the piece on the knot's other side, a crossing where their
+//!   far ends lie on opposite sides and a touch otherwise;
+//! - otherwise the piece is cut where `f` is definitely past the band. A
+//!   piece too short to cut, or with no such cut, refuses: the carrier is
+//!   within the band of the surface along it, or crosses it within the
+//!   band of another crossing, and no reading parts the two.
 //!
-//! A knot where the row's own value holds zero is a meeting at the knot.
-//! At a **crease** (an interior knot of multiplicity at least the degree,
-//! `KnotStructure::crease_runs`) the carrier has no tangent and the
-//! meeting refuses; elsewhere it is a crossing when the pieces either side
-//! are monotone with far ends of opposite signs, and a tangency
-//! otherwise. A located crossing within the band of a crease refuses the
-//! same way. One within the band of an end of the span is that end's
-//! meeting, read by the caller, and two within the band of each other
+//! Every meeting is then placed. One within the band of a **crease** (an
+//! interior knot of multiplicity at least the degree,
+//! `KnotStructure::crease_runs`), where the carrier has no tangent,
+//! refuses, read in metres from the crease's point. A touch refuses. A
+//! crossing must read ON the surface; one within the band of an end of
+//! the span is that end's meeting, and two within the band of each other
 //! cannot be told apart, so they refuse.
+//!
+//! The walk is `geom_core::bisect::bisect`, with its piece budget.
 
 use geom::{NurbsCurve3, Surface};
+use geom_core::bisect::{Step, bisect};
 use geom_core::k_stats::decide;
 use geom_core::spline::compose::{CanonicalSurface, CurveCertData, canonical_composite};
 use geom_core::{Band, Bounds, Decide, Indeterminate, Interval, Margin, Point3, Real, Sign, Vec3};
 
+use crate::half_angle::SPLITS;
+use crate::pcurve_cache::projected::Meters;
 use crate::roots::Unsettled;
 
 /// Why [`crossings`] gave no answer.
@@ -48,16 +65,16 @@ pub enum CompositeRefusal {
     /// whether a located crossing lies ON the surface, or where it stands
     /// against an end of the span, a crease or the crossing before it.
     Escalated(Indeterminate),
-    /// The ladder could not settle the span: [`Unsettled::Tangency`] (a
-    /// piece too short to cut, or with no cut whose sign reads definite,
-    /// and neither clear nor monotone; a zero at a knot with one sign
-    /// either side; or two crossings within the band of each other),
-    /// [`Unsettled::Crease`], [`Unsettled::SignInBand`] (a located
-    /// crossing reads off the surface) or [`Unsettled::Exhausted`].
+    /// The walk could not settle the span: [`Unsettled::Tangency`] (the
+    /// carrier stays within the band of the surface along a piece too
+    /// short to cut, touches it at a knot, or crosses it twice within the
+    /// band, a double or a triple root among them), [`Unsettled::Crease`],
+    /// [`Unsettled::SignInBand`] (a located crossing does not read on the
+    /// surface) or [`Unsettled::Exhausted`].
     Unsettled(Unsettled),
     /// The composite could not be formed: the face has no canonical form
-    /// (a spline face), or a control point, a frame scalar or the net's
-    /// structure did not certify.
+    /// (a spline face), or a control point, a knot, a frame scalar or the
+    /// net's structure did not certify.
     Unread(&'static str),
 }
 
@@ -67,37 +84,54 @@ impl From<Unsettled> for CompositeRefusal {
     }
 }
 
-/// The most pieces one span is read in before the walk refuses
-/// [`Unsettled::Exhausted`].
-const PIECE_BUDGET: usize = 4096;
+/// K name: a part of the span read against the surface, metered, as
+/// definitely apart from it or not.
+const PAST_THE_BAND: &str = "spline_composite_past_the_band";
 
-/// The shortest piece cut, as a share of the span: below it a piece
-/// neither clear nor monotone is a tangency.
+/// The shortest piece cut, as a share of the span. It is a parameter
+/// length and not `geom_core::bisect::tangency_floor`'s metres because
+/// the arm holds no bound on the carrier's speed to meter one by. No
+/// answer but a refusal rests on it: a piece at the floor that is not
+/// clear refuses. `2⁻⁴⁰` leaves a piece about a thousand `f64` steps of
+/// its parameter wide on a unit span, so the de Casteljau cuts at its
+/// shares stay distinct points.
 const FLOOR_SHARE: f64 = 1.0 / 1_099_511_627_776.0;
 
 /// The bisection steps that close on a crossing in its monotone piece:
 /// enough to reach `f64` resolution from any piece.
 const BISECTIONS: u32 = 64;
 
-/// Where a piece is cut, as shares of its width, tried in order until
-/// the row's sign there is definite. No answer depends on their values,
-/// since every cut is a point whose sign was read definite; none is
-/// `1/2`, so a pose symmetric about a piece does not put its tangency on
-/// the first cut.
-const SPLITS: [f64; 7] = [0.472_135_954_999_579_4, 0.3, 0.618, 0.2, 0.8, 0.4, 0.55];
-
 /// One piece of the composite: the parameter interval `[a, b]` and the
-/// numerator's Bernstein row over it.
+/// numerator's and denominator's Bernstein rows over it.
 struct Piece {
     a: f64,
     b: f64,
-    row: Vec<Interval>,
+    num: Vec<Interval>,
+    den: Vec<Interval>,
+}
+
+/// What a meeting the walk found is, before it is placed.
+enum Meeting {
+    /// A crossing at the parameter.
+    Crossing(f64),
+    /// A touch at a knot: the carrier comes within the band there and
+    /// leaves on the side it came from.
+    Touch(f64),
+}
+
+/// An end of a piece, read: definitely past the band on a side, or not.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Reading {
+    Past(Sign),
+    Near,
 }
 
 /// **The crossings of a spline span with an analytic face's carrier**:
 /// the parameters strictly inside `params` where the carrier crosses
 /// `surface`, ascending, each read ON it (module docs). A meeting at an
-/// end of the span is not reported: it is the end vertex's.
+/// end of the span is not reported: it is the end vertex's. Each is a
+/// parameter whose point reads ON the surface, not an enclosure of the
+/// true crossing's parameter.
 ///
 /// `cross` takes a scalar of the body into certification arithmetic: it
 /// is the door's ([`crate::NurbsLane::surface_crossings`]), so only a
@@ -127,78 +161,94 @@ pub fn crossings<T: Decide>(
             "the span's ends do not certify forward",
         ));
     }
-    let pieces = numerator_rows(net, surface, (a, b), &cross)?;
-    let creases = creases(net, (a, b), &cross)?;
+    let (pieces, divisor) = composite_rows(net, surface, (a, b), &cross)?;
     let floor = (b - a) * FLOOR_SHARE;
-    // Each knot inside the span where a row's value holds zero, and the
-    // far signs of the monotone pieces either side, left then right.
-    let mut knot_zeros: Vec<(f64, Option<Sign>)> = Vec::new();
-    let mut found: Vec<f64> = Vec::new();
-    let mut stack: Vec<Piece> = pieces.into_iter().rev().collect();
-    let mut read = 0;
-    while let Some(piece) = stack.pop() {
-        read += 1;
-        if read > PIECE_BUDGET {
-            return Err(Unsettled::Exhausted.into());
-        }
-        let row = &piece.row;
-        if one_signed(row.iter().copied()).is_some() {
-            continue;
-        }
-        if one_signed(row.windows(2).map(|w| w[1] - w[0])).is_none() {
-            stack.extend(cut(piece, floor)?);
-            continue;
-        }
-        let (Some(&first), Some(&last)) = (row.first(), row.last()) else {
-            return Err(CompositeRefusal::Unread("a composite row is empty"));
+    let read = |f: Interval| match decide(PAST_THE_BAND, Margin::of(f / divisor), band) {
+        Ok(s @ (Sign::Positive | Sign::Negative)) => Reading::Past(s),
+        Ok(Sign::Zero) | Err(_) => Reading::Near,
+    };
+    let residual = |t: f64| -> Result<Sign, CompositeRefusal> {
+        let p = net.eval(T::from_computed(t));
+        decide(
+            "spline_composite_root_on",
+            Margin::of(crate::implicit_residual(surface, p)),
+            band,
+        )
+        .map_err(CompositeRefusal::Escalated)
+    };
+    // The knot at which a piece ended within the band, that piece, and
+    // its other end's side: read with the piece that starts there.
+    let mut open: Option<(f64, Piece, Sign)> = None;
+    let mut meetings: Vec<Meeting> = Vec::new();
+    let walked = bisect(pieces, |piece: Piece| {
+        let visit = || -> Result<Step<Piece, CompositeRefusal>, CompositeRefusal> {
+            if matches!(read(hull(&piece.num) / hull(&piece.den)), Reading::Past(_)) {
+                return Ok(Step::Settled);
+            }
+            if one_signed(slope_row(&piece.num, &piece.den).into_iter()).is_none() {
+                return cut(piece, floor, &read).map(Step::Halve);
+            }
+            let (fa, fb) = (end_value(&piece, true), end_value(&piece, false));
+            match (read(fa), read(fb)) {
+                (Reading::Past(l), Reading::Past(r)) if l == r => {}
+                (Reading::Past(l), Reading::Past(_)) => {
+                    meetings.push(Meeting::Crossing(bisect_row(&piece, l, &residual)?));
+                }
+                (Reading::Near, Reading::Near) => {
+                    return cut(piece, floor, &read).map(Step::Halve);
+                }
+                // Within the band at the span's own end: that end's
+                // meeting, `f` being monotone over the piece.
+                (Reading::Near, Reading::Past(_)) if piece.a == a => {}
+                (Reading::Past(_), Reading::Near) if piece.b == b => {}
+                (Reading::Past(far), Reading::Near) => {
+                    if open.is_some() {
+                        return Err(Unsettled::Tangency.into());
+                    }
+                    open = Some((piece.b, piece, far));
+                }
+                (Reading::Near, Reading::Past(far)) => {
+                    let Some((k, before, l)) = open.take() else {
+                        // The piece before this knot read definitely
+                        // past the band there, and this one not: they
+                        // part only by their enclosures' width.
+                        return Err(Unsettled::Tangency.into());
+                    };
+                    if k != piece.a {
+                        return Err(Unsettled::Tangency.into());
+                    }
+                    meetings.push(if l == far {
+                        Meeting::Touch(k)
+                    } else {
+                        Meeting::Crossing(knot_crossing(&before, &piece, l, &residual)?)
+                    });
+                }
+            }
+            Ok(Step::Settled)
         };
-        match (strict_sign(first), strict_sign(last)) {
-            (Some(l), Some(r)) if l == r => {}
-            (Some(l), Some(_)) => found.push(bisect_row(&piece, l)),
-            (None, None) => return Err(Unsettled::Tangency.into()),
-            // A zero at one end, so the monotone piece holds no other:
-            // the span's end is the end vertex's meeting, a knot's is the
-            // knot's (module docs).
-            (None, Some(far)) => {
-                if piece.a != a {
-                    knot_zero(
-                        &mut knot_zeros,
-                        &mut found,
-                        &creases,
-                        piece.a,
-                        Some(far),
-                        false,
-                    )?;
-                }
-            }
-            (Some(far), None) => {
-                if piece.b != b {
-                    knot_zero(
-                        &mut knot_zeros,
-                        &mut found,
-                        &creases,
-                        piece.b,
-                        Some(far),
-                        true,
-                    )?;
-                }
-            }
-        }
+        visit().unwrap_or_else(Step::Stop)
+    });
+    match walked {
+        Err(geom_core::bisect::Exhausted) => return Err(Unsettled::Exhausted.into()),
+        Ok(Some(refusal)) => return Err(refusal),
+        Ok(None) => {}
     }
-    if knot_zeros.iter().any(|(_, open)| open.is_some()) {
-        // A knot zero whose right-hand piece never read monotone.
+    if open.is_some() {
         return Err(Unsettled::Tangency.into());
     }
-    settle(net, params, surface, band, &creases, found)
+    let creases = creases(net, (a, b), &cross)?;
+    settle(net, params, band, &creases, meetings, &residual)
 }
 
-/// The composite's numerator rows over `[a, b]`, one per knot span.
-fn numerator_rows<T: Real>(
+/// The composite's rows over `[a, b]`, one piece per knot span, and an
+/// upper bound on the form's distance divisor over the net's hull
+/// (`projected::Meters::divisor`; one for the plane).
+fn composite_rows<T: Real>(
     net: &NurbsCurve3<T>,
     surface: &Surface<T>,
     (a, b): (f64, f64),
     cross: &impl Fn(T) -> Interval,
-) -> Result<Vec<Piece>, CompositeRefusal> {
+) -> Result<(Vec<Piece>, Interval), CompositeRefusal> {
     let unread = CompositeRefusal::Unread;
     let (origin, frame) = crate::pcurve_cache::projected::chart_frame(surface)
         .ok_or(unread("a spline face has no canonical form"))?;
@@ -227,72 +277,84 @@ fn numerator_rows<T: Real>(
         framed.iter().map(|g| g.y).collect(),
         framed.iter().map(|g| g.z).collect(),
     ];
-    let form = match *surface {
-        Surface::Plane { .. } => CanonicalSurface::Plane,
-        Surface::Cylinder { radius, .. } => CanonicalSurface::Cylinder {
-            radius: cross(radius),
-        },
-        Surface::Sphere { radius, .. } => CanonicalSurface::Sphere {
-            radius: cross(radius),
-        },
+    let (form, meters) = match *surface {
+        Surface::Plane { .. } => (CanonicalSurface::Plane, Meters::Plane),
+        Surface::Cylinder { radius, .. } => {
+            let radius = cross(radius);
+            (
+                CanonicalSurface::Cylinder { radius },
+                Meters::Cylinder { radius },
+            )
+        }
+        Surface::Sphere { radius, .. } => {
+            let radius = cross(radius);
+            (
+                CanonicalSurface::Sphere { radius },
+                Meters::Sphere { radius },
+            )
+        }
         Surface::Cone { half_angle, .. } => {
             let (sin, cos) = cross(half_angle).sin_cos();
-            CanonicalSurface::Cone {
-                cos2: cos.powi(2),
-                sin2: sin.powi(2),
-            }
+            (
+                CanonicalSurface::Cone {
+                    cos2: cos.powi(2),
+                    sin2: sin.powi(2),
+                },
+                // The divisor is the double cone's and reads no nappe.
+                Meters::Cone {
+                    sin,
+                    cos,
+                    nappe: crate::offset::Nappe::Opening,
+                },
+            )
         }
         Surface::Torus {
             major_radius,
             minor_radius,
             ..
-        } => CanonicalSurface::Torus {
-            major: cross(major_radius),
-            minor: cross(minor_radius),
-        },
+        } => {
+            let (major, minor) = (cross(major_radius), cross(minor_radius));
+            (
+                CanonicalSurface::Torus { major, minor },
+                Meters::Torus { major, minor },
+            )
+        }
         Surface::Nurbs(_) | Surface::Approx(_) => {
             return Err(unread("a spline face has no canonical form"));
         }
     };
-    let certified = match form {
-        CanonicalSurface::Plane => true,
-        CanonicalSurface::Cylinder { radius } | CanonicalSurface::Sphere { radius } => {
-            radius.is_certified()
-        }
-        CanonicalSurface::Cone { cos2, sin2 } => cos2.is_certified() && sin2.is_certified(),
-        CanonicalSurface::Torus { major, minor } => major.is_certified() && minor.is_certified(),
-    };
-    if !certified {
+    // The net's hull in the chart frame bounds every point of the span,
+    // so the divisor read over it bounds every point's.
+    let divisor = meters
+        .divisor(Vec3::new(
+            hull(&coords[0]),
+            hull(&coords[1]),
+            hull(&coords[2]),
+        ))
+        .abs();
+    if !(divisor.is_certified() && divisor.lo() > 0.0) {
         return Err(unread("a scalar of the surface does not certify"));
     }
+    let divisor = Interval::from_bounds(divisor.hi(), divisor.hi());
     let ends = [a, b];
-    let (knots, weights) = crate::pcurve_cache::projected::composite_structure(net);
-    let data = CurveCertData::new(knots, weights, &coords)
+    let data = CurveCertData::new(net.knots_f64_interim(), net.weights_f64_interim(), &coords)
         .map_err(|_| unread("the carrier's structure does not certify"))?
         .with_breaks(&ends);
     let composite =
         canonical_composite(&data, &form).map_err(|_| unread("the composite refused the net"))?;
-    if !composite
-        .den
-        .span_hulls()
-        .iter()
-        .all(|d| d.is_certified() && d.lo() > 0.0)
-    {
-        return Err(unread(
-            "the composite's denominator is not certified positive",
-        ));
-    }
     let breaks = composite.num.breaks();
-    Ok(breaks
+    let pieces = breaks
         .windows(2)
-        .zip(composite.num.spans())
+        .zip(composite.num.spans().iter().zip(composite.den.spans()))
         .filter(|(w, _)| w[0] >= a && w[1] <= b)
-        .map(|(w, row)| Piece {
+        .map(|(w, (num, den))| Piece {
             a: w[0],
             b: w[1],
-            row: row.clone(),
+            num: num.clone(),
+            den: den.clone(),
         })
-        .collect())
+        .collect();
+    Ok((pieces, divisor))
 }
 
 /// The carrier's creases strictly inside `(a, b)`, each at its held
@@ -319,6 +381,29 @@ fn creases<T: Real>(
         .map(|r| values[r])
         .filter(|&k| a < k && k < b)
         .collect())
+}
+
+/// The hull of a row's coefficients: by the convex hull property, an
+/// enclosure of its polynomial over the piece. Refused (NaN) for an
+/// empty row or a coefficient that does not certify.
+fn hull(row: &[Interval]) -> Interval {
+    if row.is_empty() || !row.iter().all(|v| v.is_certified()) {
+        return Interval::from_bounds(f64::NAN, f64::NAN);
+    }
+    let lo = row.iter().map(|v| v.lo()).fold(f64::INFINITY, f64::min);
+    let hi = row.iter().map(|v| v.hi()).fold(f64::NEG_INFINITY, f64::max);
+    Interval::from_bounds(lo, hi)
+}
+
+/// `f` at the piece's start (`at_start`) or end: the ratio of the rows'
+/// end coefficients, which a Bernstein row interpolates.
+fn end_value(piece: &Piece, at_start: bool) -> Interval {
+    let pick = |row: &[Interval]| {
+        if at_start { row.first() } else { row.last() }
+            .copied()
+            .unwrap_or_else(|| Interval::from_bounds(f64::NAN, f64::NAN))
+    };
+    pick(&piece.num) / pick(&piece.den)
 }
 
 /// The sign every value of `values` holds, by its enclosure alone: `None`
@@ -348,6 +433,63 @@ fn strict_sign(v: Interval) -> Option<Sign> {
     }
 }
 
+/// An exact small integer as a point enclosure.
+fn exact(k: usize) -> Interval {
+    #[allow(clippy::cast_precision_loss)]
+    let k = k as f64;
+    Interval::from_bounds(k, k)
+}
+
+/// `C(n, k)`, exact for the degrees a carrier reaches.
+fn binomial(n: usize, k: usize) -> usize {
+    (0..k).fold(1, |acc, i| acc * (n - i) / (i + 1))
+}
+
+/// The derivative's Bernstein row (over the piece's own unit parameter,
+/// whose positive scale changes no sign): `n·(c[i+1] − c[i])`.
+fn derivative(row: &[Interval]) -> Vec<Interval> {
+    let n = exact(row.len().saturating_sub(1));
+    row.windows(2).map(|w| n * (w[1] - w[0])).collect()
+}
+
+/// The product of two Bernstein rows, of degrees `p` and `q`, as a row
+/// of degree `p + q`, each weight a quotient of exact binomials taken in
+/// certification arithmetic.
+fn product(x: &[Interval], y: &[Interval]) -> Vec<Interval> {
+    let (Some(p), Some(q)) = (x.len().checked_sub(1), y.len().checked_sub(1)) else {
+        return Vec::new();
+    };
+    (0..=p + q)
+        .map(|k| {
+            let lo = k.saturating_sub(q);
+            (lo..=k.min(p))
+                .map(|i| {
+                    let w = exact(binomial(p, i) * binomial(q, k - i)) / exact(binomial(p + q, k));
+                    w * x[i] * y[k - i]
+                })
+                .reduce(|s, t| s + t)
+                .unwrap_or_else(|| Interval::from_bounds(0.0, 0.0))
+        })
+        .collect()
+}
+
+/// `N′D − ND′`, whose sign is `f′`'s (`D > 0`), as one Bernstein row of
+/// degree `n + m − 1`.
+fn slope_row(num: &[Interval], den: &[Interval]) -> Vec<Interval> {
+    let (dn, dd) = (derivative(num), derivative(den));
+    let left = product(&dn, den);
+    let right = product(num, &dd);
+    match (left.is_empty(), right.is_empty()) {
+        (false, false) => left.iter().zip(&right).map(|(l, r)| *l - *r).collect(),
+        (false, true) => left,
+        (true, false) => right
+            .iter()
+            .map(|r| Interval::from_bounds(0.0, 0.0) - *r)
+            .collect(),
+        (true, true) => Vec::new(),
+    }
+}
+
 /// The share of `[a, b]` at which `c` lies, enclosed.
 fn share(piece: &Piece, c: f64) -> Interval {
     let point = |x: f64| Interval::from_bounds(x, x);
@@ -374,105 +516,119 @@ fn split_row(row: &[Interval], s: Interval) -> (Vec<Interval>, Vec<Interval>) {
     (left, right)
 }
 
-/// The row's value at the share `s`; `None` for an empty row.
-fn value_at(row: &[Interval], s: Interval) -> Option<Interval> {
-    let (left, _) = split_row(row, s);
-    left.last().copied()
+/// `f` at the share `s` of the piece.
+fn value_at(piece: &Piece, s: Interval) -> Interval {
+    let at = |row: &[Interval]| {
+        split_row(row, s)
+            .0
+            .last()
+            .copied()
+            .unwrap_or_else(|| Interval::from_bounds(f64::NAN, f64::NAN))
+    };
+    at(&piece.num) / at(&piece.den)
 }
 
-/// A piece neither clear nor monotone, cut where its row's sign is
-/// definite, its parts in walk order for a stack (right first).
-fn cut(piece: Piece, floor: f64) -> Result<[Piece; 2], CompositeRefusal> {
+/// A piece not settled by its readings, cut at the first of
+/// `half_angle`'s shares (`SPLITS`) where `f` is definitely past the
+/// band, its parts in walk order. Every cut is such a point, so no
+/// crossing found depends on the shares' values; where a piece reaches
+/// the floor, and so whether a near pass refuses or parts from a
+/// crossing, can.
+fn cut(
+    piece: Piece,
+    floor: f64,
+    read: &impl Fn(Interval) -> Reading,
+) -> Result<[Piece; 2], CompositeRefusal> {
     if piece.b - piece.a <= floor {
         return Err(Unsettled::Tangency.into());
     }
     let Some((c, s)) = SPLITS.iter().find_map(|&k| {
         let c = piece.a + (piece.b - piece.a) * k;
         let s = share(&piece, c);
-        (piece.a < c && c < piece.b && value_at(&piece.row, s).and_then(strict_sign).is_some())
+        (piece.a < c && c < piece.b && matches!(read(value_at(&piece, s)), Reading::Past(_)))
             .then_some((c, s))
     }) else {
-        // The row is zero to its rounding at every cut: the carrier lies
-        // on the surface's form there, which only a tangency or a run
-        // along the surface does.
+        // Within the band at every share: the carrier runs along the
+        // surface here, or crosses it twice within the band.
         return Err(Unsettled::Tangency.into());
     };
-    let (left, right) = split_row(&piece.row, s);
+    let (num_l, num_r) = split_row(&piece.num, s);
+    let (den_l, den_r) = split_row(&piece.den, s);
     Ok([
-        Piece {
-            a: c,
-            b: piece.b,
-            row: right,
-        },
         Piece {
             a: piece.a,
             b: c,
-            row: left,
+            num: num_l,
+            den: den_l,
+        },
+        Piece {
+            a: c,
+            b: piece.b,
+            num: num_r,
+            den: den_r,
         },
     ])
 }
 
-/// The zero of a monotone piece whose ends' signs differ, `left` its
-/// sign at the piece's start: bisected on the row to a point where the
-/// row's value holds zero, or to adjacent `f64`s.
-fn bisect_row(piece: &Piece, left: Sign) -> f64 {
+/// The crossing of a piece over which `f` is monotone and changes sign,
+/// `left` its side at the piece's start: bisected on `f` while its
+/// enclosure reads a sign, and on the surface's residual at the point
+/// where it does not, until the point reads ON (`residual` deciding
+/// Zero) or the bracket closes on adjacent `f64`s.
+fn bisect_row(
+    piece: &Piece,
+    left: Sign,
+    residual: &impl Fn(f64) -> Result<Sign, CompositeRefusal>,
+) -> Result<f64, CompositeRefusal> {
     let (mut lo, mut hi) = (piece.a, piece.b);
     for _ in 0..BISECTIONS {
         let c = lo + (hi - lo) * 0.5;
         if !(lo < c && c < hi) {
             break;
         }
-        match value_at(&piece.row, share(piece, c)).and_then(strict_sign) {
-            Some(s) if s == left => lo = c,
-            Some(_) => hi = c,
-            None => return c,
+        let side = match strict_sign(value_at(piece, share(piece, c))) {
+            Some(s) => s,
+            None => match residual(c)? {
+                Sign::Zero => return Ok(c),
+                s => s,
+            },
+        };
+        if side == left {
+            lo = c;
+        } else {
+            hi = c;
         }
     }
-    lo + (hi - lo) * 0.5
+    Ok(lo + (hi - lo) * 0.5)
 }
 
-/// A row's zero at the knot `k`, read from the monotone piece on one side
-/// of it (`before`: the piece ends there), `far` that piece's sign at its
-/// other end. The right-hand reading settles it.
-fn knot_zero(
-    knot_zeros: &mut Vec<(f64, Option<Sign>)>,
-    found: &mut Vec<f64>,
-    creases: &[f64],
-    k: f64,
-    far: Option<Sign>,
-    before: bool,
-) -> Result<(), CompositeRefusal> {
-    if creases.contains(&k) {
-        return Err(Unsettled::Crease.into());
-    }
-    if before {
-        knot_zeros.push((k, far));
-        return Ok(());
-    }
-    let Some(entry) = knot_zeros.iter_mut().find(|(at, _)| *at == k) else {
-        // The piece before the knot read clear or met it with a definite
-        // sign, which a row holding zero there cannot do.
-        return Err(Unsettled::Tangency.into());
-    };
-    let left = entry.1.take();
-    match (left, far) {
-        (Some(l), Some(r)) if l != r => {
-            found.push(k);
-            Ok(())
-        }
-        _ => Err(Unsettled::Tangency.into()),
+/// The crossing of a knot's stretch: `before` ends at the knot within
+/// the band, its start on the side `left`, and `after` starts there,
+/// ending on the other side. It is in whichever piece's ends read
+/// opposite strict signs, or at the knot itself.
+fn knot_crossing(
+    before: &Piece,
+    after: &Piece,
+    left: Sign,
+    residual: &impl Fn(f64) -> Result<Sign, CompositeRefusal>,
+) -> Result<f64, CompositeRefusal> {
+    match strict_sign(end_value(after, true)) {
+        Some(s) if s == left => bisect_row(after, s, residual),
+        Some(_) => bisect_row(before, left, residual),
+        None => Ok(after.a),
     }
 }
 
-/// The located zeros, each read ON the surface and placed against the
-/// span's ends, the creases and the crossing before it, in metres.
+/// The meetings found, each placed in metres: against the creases, then
+/// on the surface, then against the span's ends and the crossing before
+/// it.
 fn settle<T: Decide>(
     net: &NurbsCurve3<T>,
     (t0, t1): (T, T),
-    surface: &Surface<T>,
     band: Band,
     creases: &[f64],
-    found: Vec<f64>,
+    meetings: Vec<Meeting>,
+    residual: &impl Fn(f64) -> Result<Sign, CompositeRefusal>,
 ) -> Result<Vec<T>, CompositeRefusal> {
     let apart =
         |row, p: Point3<T>, q: Point3<T>| match decide(row, Margin::of((p - q).norm()), band) {
@@ -485,18 +641,20 @@ fn settle<T: Decide>(
         .iter()
         .map(|&k| net.eval(T::from_computed(k)))
         .collect();
-    let mut roots: Vec<(T, Point3<T>)> = Vec::with_capacity(found.len());
-    for t in found {
-        let t = T::from_computed(t);
-        let p = net.eval(t);
-        match decide(
-            "spline_composite_root_on",
-            Margin::of(crate::implicit_residual(surface, p)),
-            band,
-        ) {
-            Ok(Sign::Zero) => {}
-            Ok(_) => return Err(Unsettled::SignInBand.into()),
-            Err(diag) => return Err(CompositeRefusal::Escalated(diag)),
+    let mut roots: Vec<(T, Point3<T>)> = Vec::with_capacity(meetings.len());
+    for meeting in meetings {
+        let (Meeting::Crossing(t) | Meeting::Touch(t)) = meeting;
+        let p = net.eval(T::from_computed(t));
+        for &crease in &creases {
+            if !apart("spline_composite_root_at_crease", p, crease)? {
+                return Err(Unsettled::Crease.into());
+            }
+        }
+        if matches!(meeting, Meeting::Touch(_)) {
+            return Err(Unsettled::Tangency.into());
+        }
+        if residual(t)? != Sign::Zero {
+            return Err(Unsettled::SignInBand.into());
         }
         let mut at_end = false;
         for end in ends {
@@ -505,17 +663,12 @@ fn settle<T: Decide>(
         if at_end {
             continue;
         }
-        for &crease in &creases {
-            if !apart("spline_composite_root_at_crease", p, crease)? {
-                return Err(Unsettled::Crease.into());
-            }
-        }
         if let Some(&(_, before)) = roots.last()
             && !apart("spline_composite_roots_apart", p, before)?
         {
             return Err(Unsettled::Tangency.into());
         }
-        roots.push((t, p));
+        roots.push((T::from_computed(t), p));
     }
     Ok(roots.into_iter().map(|(t, _)| t).collect())
 }

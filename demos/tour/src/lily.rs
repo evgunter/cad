@@ -2359,18 +2359,37 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         8,
         "graft the leaf's sheath onto its blade at their shared section",
         crate::booleans::try_union(leaf_a, &sheath, tol),
-        // The DOOR is the claim: a NURBS wall of the sheath, operand B,
+        // The DOOR is the claim: the sheath's ridge wall (operand B, the
+        // higher of its two NURBS walls by the mean height of its net),
         // whose boundary leaves an edge of the blade undecided. If this
         // ever refuses elsewhere, the sentence above is wrong and must be
-        // re-derived before it is believed.
+        // re-derived before it is believed. The refusal names no site, so
+        // the probe cannot tell that door from another raising the same
+        // variant on the same wall.
         |e| {
+            let ridge = sheath
+                .faces()
+                .filter_map(|(k, f)| match sheath.get_surface(f.surface) {
+                    Some(pncad::geom::Surface::Nurbs(n)) => {
+                        let z: f64 = n
+                            .control()
+                            .iter()
+                            .map(|p| pncad::geom_core::Bounds::lo(p.z))
+                            .sum();
+                        #[allow(clippy::cast_precision_loss)]
+                        Some((k, z / n.control().len() as f64))
+                    }
+                    _ => None,
+                })
+                .max_by(|x, y| x.1.total_cmp(&y.1))
+                .map(|(k, _)| k);
             matches!(
                 e,
                 BooleanError::CurvedBooleanUnsupported {
                     operand: Operand::B,
+                    face,
                     kind: SurfaceKind::Nurbs,
-                    ..
-                }
+                } if Some(*face) == ridge
             )
         },
         "grow the leaves out of the stem instead of standing them beside it",

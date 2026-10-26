@@ -6287,8 +6287,10 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
             diag,
         }
     };
-    // Every surface is read through its link first: a torn one panics
-    // here (D2 row 4), before any row of it is built.
+    // Every surface is read through its link first: a torn surface is a
+    // broken at-rest operand, which panics (D2 row 4), whereas
+    // `face_rows` reads surfaces by lookup and would answer it as a lost
+    // surface, a refusal.
     for body in [a, b] {
         for (face, fd) in body.faces() {
             let _ = body.face_surface_linked(face, fd);
