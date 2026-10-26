@@ -98,6 +98,7 @@ fn any_solid_pair_undecidable(errors: &[ValidationError], pick: impl Fn(&str) ->
                 a: EntityId::Solid(_),
                 b: EntityId::Solid(_),
                 what,
+                ..
             } if pick(what)
         )
     })

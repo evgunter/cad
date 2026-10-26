@@ -38,3 +38,23 @@ face's trim), `ray_crosses` growing `Nurbs`, and an aim at the face's
 chart window middle in `side_reader.rs` `aim_at`. Check 10's silence on
 such faces (`work/restfront/check-10-is-silent-where-point-in-solid-refuses.md`)
 closes with the same arm.
+
+## A box exit, and what it leaves (2026-10-26)
+
+From SPLICE's `nurbs-edge-crossing-rung-is-the-ring-composite`
+(branch `splice/converse-arm`). `point_in_faces` now reads a selection
+holding a face the ray test cannot cross where the query point stands
+definitely outside the hull of every face's certified reach
+(`solid_contain.rs`, `past_every_reach`): a straight path from it to
+infinity meets no face, so it takes the side at infinity. Outside each
+face's own reach is not enough, since a box solid's centre is outside
+every face's slab. `sweep`'s
+`a_point_past_a_spline_solids_reach` pins both halves on the loft
+prism. With that exit, a loft far from a brick, or inside one, builds
+(`spline_spiric_operands`, the far and around placements).
+
+Every point within the hull still refuses `KindUnsupported`, as this
+row says. Measured: the census's loft prism against a brick inside it,
+and against a peg through its top cap, refuse
+`Containment(KindUnsupported { kind: Nurbs })` at the fallback's
+vertex probe.
