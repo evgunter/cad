@@ -1535,6 +1535,22 @@ impl<S: Real> Meters<S> {
         })
     }
 
+    /// **The apex root**: on a cone, `√|f|` bounds the distance of a part
+    /// whose axial floor on the stored nappe is non-negative, wherever
+    /// the lever does not decide positive (a part reaching the apex).
+    /// `f = a·b` with `a = ρ cos α − σz sin α`, the distance in the
+    /// meridian half-plane from the generator line, which lies on the
+    /// cone, and `b = ρ cos α + σz sin α ≥ |a|` where `ρ ≥ 0` and
+    /// `σz ≥ 0`, so `a² ≤ |f|`. `None` off the cone, or where the floor
+    /// is negative (the other nappe).
+    pub(crate) fn apex_root(self, f: S, z: (f64, f64)) -> Option<S> {
+        let Self::Cone { nappe, .. } = self else {
+            return None;
+        };
+        let floor = if nappe == Nappe::Opening { z.0 } else { -z.1 };
+        (floor >= 0.0).then(|| f.sqrt())
+    }
+
     /// An upper bound in metres on the distance of a part whose `|f|` is
     /// at most `f`, whose `ρ` is at least `rho` and whose `z` ranges over
     /// `z`. The lever it divides by is `positive`'s answer on it first,
@@ -1714,7 +1730,8 @@ pub(crate) fn window_of<T: Decide>(
 /// [`PcurveCertifyError::ImageMismatch`] when no part meets the window,
 /// or one that does has no certified composite bound or floor; a cone's
 /// or a torus's lever that does not decide positive refuses
-/// [`SectorChannel::Lever`] at the part.
+/// [`SectorChannel::Lever`] at the part, except where `apex` reads such
+/// a cone part through [`Meters::apex_root`] (limb 2's reading).
 pub(super) fn net_incidence<T: Decide>(
     hull: &ProjectedHull,
     (t0, t1): (T, T),
@@ -1722,6 +1739,7 @@ pub(super) fn net_incidence<T: Decide>(
     twin: &Surface<T>,
     d: T,
     band: Band,
+    apex: bool,
 ) -> Result<(T, T), PcurveCertifyError> {
     let refuse = |why| PcurveCertifyError::ImageMismatch {
         image: PcurveKind::Projected,
@@ -1751,16 +1769,22 @@ pub(super) fn net_incidence<T: Decide>(
         let floor = (rho - d).max(T::zero());
         rho_floor = Some(rho_floor.map_or(floor, |m| m.min(floor)));
         let f = T::from_computed(span.f_sup);
-        let disp = meters.over(f, rho, span.z, |lever| {
-            require_positive(
-                "pcurve_projected_lever",
-                lever,
-                band,
-                PcurveCheck::Sector,
-                j,
-                sector_refused(j, SectorChannel::Lever),
-            )
-        })?;
+        let disp = meters
+            .over(f, rho, span.z, |lever| {
+                require_positive(
+                    "pcurve_projected_lever",
+                    lever,
+                    band,
+                    PcurveCheck::Sector,
+                    j,
+                    sector_refused(j, SectorChannel::Lever),
+                )
+            })
+            .or_else(|refusal| {
+                apex.then(|| meters.apex_root(f, span.z))
+                    .flatten()
+                    .ok_or(refusal)
+            })?;
         incidence = incidence.max(disp);
     }
     let Some(rho_floor) = rho_floor else {
@@ -1924,7 +1948,7 @@ pub(crate) fn offset_rounds<T: Decide>(
         })
     };
     let bound = |hull: &ProjectedHull| {
-        net_incidence(hull, window, chart, twin, d, band).map(|(incidence, _)| incidence)
+        net_incidence(hull, window, chart, twin, d, band, true).map(|(incidence, _)| incidence)
     };
     Ok(match subdivide(round, band)? {
         Subdivided::Bound(hull) => Offset::Bound(bound(&hull.data)?),
@@ -2021,7 +2045,7 @@ pub(super) fn projected_envelope<T: Decide>(
                 hull_sector::<T>(&hull.pieces[k], k, &image.chart, band)?;
             }
             let (incidence, rho_floor) =
-                net_incidence(&hull, (t0, t1), &image.chart, &twin, d, band)?;
+                net_incidence(&hull, (t0, t1), &image.chart, &twin, d, band, false)?;
             (incidence, d, rho_floor)
         }
         (FramedCarrier::Circle { centre, a, b, .. }, Curve3::Circle { .. }) => {
@@ -2432,6 +2456,7 @@ mod tests {
                 &plane,
                 S::from_f64(0.25),
                 band,
+                false,
             )
             .expect("the plane's part is certified");
             let z = [Nappe::Opening, Nappe::Mirror]

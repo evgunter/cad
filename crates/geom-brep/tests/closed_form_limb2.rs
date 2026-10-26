@@ -161,9 +161,10 @@ fn refused_on_limb2(got: &Result<EdgeCurve<f64>, CertifyError>, kind: geom::Surf
 }
 
 /// Every closed-form kind certifies through the lane on the pair that
-/// mints it — plane × cylinder ruling, plane × cone and plane × torus
-/// circles (the per-part axis lever), the tilted plane × cylinder
-/// ellipse and the axis-parallel plane × torus spiric.
+/// mints it — plane × cylinder ruling, a plane × cone ruling from the
+/// apex, plane × cone and plane × torus circles (the per-part axis
+/// lever), the tilted plane × cylinder ellipse and the axis-parallel
+/// plane × torus spiric.
 #[test]
 fn every_closed_form_kind_owes_limb_2_through_the_lane() {
     let cylinder = Surface::Cylinder {
@@ -208,8 +209,22 @@ fn every_closed_form_kind_owes_limb_2_through_the_lane() {
     };
     let equator = circle(0.0, 1.05);
     let (ecyl, eplane, ellipse) = ellipse_pair(PI / 5.0);
+    // A ruling of the cone from its apex, where the cone's metre lever
+    // vanishes: the parts near the apex read `√|f|` instead.
+    let (sin, cos) = (PI / 6.0).sin_cos();
+    let apex_ruling = Curve3::Line {
+        origin: Point3::origin(),
+        dir: Vec3::new(sin, 0.0, cos),
+    };
     let rows = [
-        ("ruling", cylinder.clone(), side, ruling, (0.0, 2.0)),
+        ("ruling", cylinder.clone(), side.clone(), ruling, (0.0, 2.0)),
+        (
+            "cone ruling from the apex",
+            cone.clone(),
+            side,
+            apex_ruling,
+            (0.0, 2.0),
+        ),
         ("cone circle", cone, level(2.0), cone_circle, (0.3, 2.9)),
         (
             "torus circle",
