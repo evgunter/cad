@@ -3108,6 +3108,18 @@ pub enum BooleanError {
         /// The pierced face, a key of the other operand's working copy.
         face: FaceKey,
     },
+    /// Under union, a plane face of each operand lies on the other's
+    /// with opposed normals at a pair of their vertices, and the two
+    /// faces' outlines leave the vertex tangent, one curving inside the
+    /// other: the faces overlap in a crescent that narrows to the vertex,
+    /// which the section cannot reach (`sectors::crescent_refusal` says
+    /// why).
+    TangentCrescentUnsupported {
+        /// A's face, a key of A's working copy.
+        a_face: FaceKey,
+        /// B's face, a key of B's working copy.
+        b_face: FaceKey,
+    },
     /// A vertex of `operand` is read by two sector passes where the
     /// first read cannot be taken with the second: it pierces two faces
     /// of the other solid, or pierces one and coincides with a vertex of
@@ -3954,6 +3966,8 @@ pub enum BooleanErrorKind {
     SharedVertexCrossings,
     /// [`BooleanError::PinchRaysInAFace`].
     PinchRaysInAFace,
+    /// [`BooleanError::TangentCrescentUnsupported`].
+    TangentCrescentUnsupported,
     /// [`BooleanError::CrossingsAlongAContactLine`].
     CrossingsAlongAContactLine,
     /// [`BooleanError::VertexReadTwice`].
@@ -4213,6 +4227,7 @@ impl BooleanError {
             Self::PairingMismatch { .. } => BooleanErrorKind::PairingMismatch,
             Self::SharedVertexCrossings { .. } => BooleanErrorKind::SharedVertexCrossings,
             Self::PinchRaysInAFace { .. } => BooleanErrorKind::PinchRaysInAFace,
+            Self::TangentCrescentUnsupported { .. } => BooleanErrorKind::TangentCrescentUnsupported,
             Self::CrossingsAlongAContactLine { .. } => BooleanErrorKind::CrossingsAlongAContactLine,
             Self::VertexReadTwice { .. } => BooleanErrorKind::VertexReadTwice,
             Self::PartnerAlongFace { .. } => BooleanErrorKind::PartnerAlongFace,
@@ -4759,6 +4774,14 @@ impl core::fmt::Display for BooleanError {
                  the other solid, in a way the Boolean cannot yet join. There is no \
                  way through this in the kernel yet",
                 operand_word(*operand)
+            ),
+            Self::TangentCrescentUnsupported { .. } => write!(
+                f,
+                "a flat face of each part lies on the other's, and their outlines touch at a \
+                 point where one curves inside the other, so the faces share a sliver that \
+                 narrows to that point, which a union cannot yet join (subtract and \
+                 intersect can). Recourse: move one part so the two outlines cross or stay \
+                 clear of each other there"
             ),
             Self::CrossingsAlongAContactLine { .. } => write!(
                 f,
@@ -5879,7 +5902,13 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                     .push(pair),
             }
         }
-        let mut records = sectors::pair_search(&a_sectors, &b_sectors, band)?;
+        let sectors::PairSearch {
+            mut records,
+            touching,
+        } = sectors::pair_search(&a_sectors, &b_sectors, band)?;
+        if op == BooleanOp::Union {
+            sectors::crescent_refusal([&a, &b], [&a_sectors, &b_sectors], &touching, band)?;
+        }
         // The layering beside a partner along the face reads no sector
         // pair on one plane: it refuses before `recl_sectors` reads one.
         if let Some(refusal) = along
@@ -5929,13 +5958,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             Operand::A => &b,
             Operand::B => &a,
         };
-        move |face| {
-            crate::readback::face_carrier_kind(body, face)
-                .map(sectors::FaceShape::of_kind)
-                .map_err(|_| BooleanError::ClassificationInvariant {
-                    what: "a partner's face has no carrier",
-                })
-        }
+        move |face| sectors::FaceShape::of_face(body, face, "a partner's face has no carrier")
     };
     let mut read = Vec::with_capacity(touches.len() + paired.len());
     for (&(operand, vertex), touch) in &touches {
@@ -8847,6 +8870,10 @@ mod tests {
                 operand: Operand::A,
                 face,
             },
+            BooleanError::TangentCrescentUnsupported {
+                a_face: face,
+                b_face: face,
+            },
             BooleanError::CrossingsAlongAContactLine {
                 a_vertex: VertexKey::default(),
                 b_vertex: VertexKey::default(),
@@ -9104,6 +9131,7 @@ mod tests {
                 BooleanErrorKind::PairingMismatch => "PairingMismatch",
                 BooleanErrorKind::SharedVertexCrossings => "SharedVertexCrossings",
                 BooleanErrorKind::PinchRaysInAFace => "PinchRaysInAFace",
+                BooleanErrorKind::TangentCrescentUnsupported => "TangentCrescentUnsupported",
                 BooleanErrorKind::CrossingsAlongAContactLine => "CrossingsAlongAContactLine",
                 BooleanErrorKind::VertexReadTwice => "VertexReadTwice",
                 BooleanErrorKind::PartnerAlongFace => "PartnerAlongFace",
