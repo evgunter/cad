@@ -56,6 +56,10 @@
 //! bound that is not a number, an escalation or a face with no claim
 //! leaves the pair to arm 1's refusal. A pair that touches has no gap
 //! and is never cleared here.
+//!
+//! The same depths also aim directions ([`toward`]): the offset from an
+//! axis or centre to the other face's nearest segment point, which arm
+//! 1's turned-direction test reads. That proposes; it decides nothing.
 
 use geom::Surface;
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3, is_finite_length};
@@ -77,6 +81,11 @@ pub(crate) const DEPTH_GAP: &str = "census_backstop_depth_gap";
 /// K name: the pierce or foot point's offset from a planar face's plane,
 /// read by the point placement before it places the point.
 pub(crate) const DEPTH_FOOT: &str = "census_backstop_depth_foot";
+
+/// K name: the offset from a depth's axis or centre to the other face's
+/// nearest boundary segment point (metres), before it is read as a unit
+/// direction ([`toward`]).
+pub(crate) const DEPTH_TOWARD: &str = "census_backstop_depth_toward";
 
 /// The points within `minor` of the circle about `center`, of radius
 /// `major`, in the plane normal to `normal` (any `normal` where
@@ -408,26 +417,7 @@ pub(super) fn sup_on<T: Decide>(depth: Depth<T>, piece: &Piece<T>) -> Option<T> 
 pub(super) fn inf_on<T: Decide>(depth: Depth<T>, piece: &Piece<T>) -> Option<T> {
     let ring = match *piece {
         Piece::Ring(ring) => ring,
-        Piece::Segment(p, q) => {
-            // The nearest point of the segment to the axis or centre, in
-            // the projection that depth reads.
-            let (u, w) = match depth {
-                Depth::Axis { origin, axis } => {
-                    let a = axis / axis.norm();
-                    (split(p - origin, a).0, split(q - p, a).0)
-                }
-                Depth::Center { center } => (p - center, q - p),
-                Depth::Core { .. } => return None,
-            };
-            // A point (`w = 0`) has no direction to slide along.
-            let s = -(u.dot(w)) / w.dot(w);
-            let s = if is_finite_length(s) {
-                s.max(T::zero()).min(T::one())
-            } else {
-                T::zero()
-            };
-            return Some((u + w * s).norm());
-        }
+        Piece::Segment(p, q) => return nearest_offset(depth, p, q).map(|o| o.norm()),
     };
     let circle = match depth {
         Depth::Axis { origin, axis } => swing(&ring, origin, axis).rho.0,
@@ -448,6 +438,29 @@ pub(super) fn inf_on<T: Decide>(depth: Depth<T>, piece: &Piece<T>) -> Option<T> 
         }
     };
     Some(circle - ring.minor)
+}
+
+/// The offset from `depth`'s axis or centre to the nearest point of the
+/// segment `p q`, in the projection that depth reads: off the axis, or
+/// from the centre. Its norm is the segment's least depth. `None` for a
+/// core depth.
+fn nearest_offset<T: Decide>(depth: Depth<T>, p: Point3<T>, q: Point3<T>) -> Option<Vec3<T>> {
+    let (u, w) = match depth {
+        Depth::Axis { origin, axis } => {
+            let a = axis / axis.norm();
+            (split(p - origin, a).0, split(q - p, a).0)
+        }
+        Depth::Center { center } => (p - center, q - p),
+        Depth::Core { .. } => return None,
+    };
+    // A point (`w = 0`) has no direction to slide along.
+    let s = -(u.dot(w)) / w.dot(w);
+    let s = if is_finite_length(s) {
+        s.max(T::zero()).min(T::one())
+    } else {
+        T::zero()
+    };
+    Some(u + w * s)
 }
 
 /// The exact depth of the point `x`.
@@ -589,6 +602,51 @@ pub(super) fn apart_in_depth<T: Decide>(
     })
 }
 
+/// **The directions the depths of `a` and `b` aim across the pair**:
+/// for each axis or centre one face proposes, the offset from it to the
+/// other face's nearest boundary segment point, off the axis or from
+/// the centre. Two convex sets lie either side of the plane normal to
+/// the offset between their nearest points, so where a curved face
+/// lies within its carrier's radius of that axis or centre and the
+/// other face's nearest point is on a segment, that offset is the
+/// direction that parts them; arm 1 reads both faces' reaches along it
+/// ([`crate::boolean::separating::apart_by`]), and the gap there, not
+/// the proposal, is the certificate. A face proposes nothing for a
+/// core depth or against a cover with no segment, and an offset the
+/// band cannot read as a direction proposes nothing.
+///
+/// # Panics
+///
+/// As [`face_read`].
+pub(super) fn toward<T: Decide>(
+    body: &Body<T>,
+    a: FaceKey,
+    b: FaceKey,
+    band: Band,
+) -> Vec<geom_core::UnitVec3<T>> {
+    let (Some(ra), Some(rb)) = (face_read(body, a, band), face_read(body, b, band)) else {
+        return Vec::new();
+    };
+    [(&ra, &rb), (&rb, &ra)]
+        .into_iter()
+        .flat_map(|(own, other)| {
+            own.depths.iter().filter_map(|proposed| {
+                let nearest = other
+                    .cover
+                    .pieces
+                    .iter()
+                    .filter_map(|piece| match *piece {
+                        Piece::Segment(p, q) => nearest_offset(proposed.depth, p, q),
+                        Piece::Ring(_) => None,
+                    })
+                    .filter(|o| is_finite_length(o.norm()))
+                    .reduce(|m, o| if o.norm() < m.norm() { o } else { m })?;
+                geom_core::UnitVec3::new(nearest, DEPTH_TOWARD, band).ok()
+            })
+        })
+        .collect()
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
@@ -666,6 +724,39 @@ mod tests {
             (inf_on(depth, &off).unwrap() - 0.8).abs() < 1e-15,
             "off the axis, below"
         );
+    }
+
+    /// **The offset to a segment runs off the axis to its nearest
+    /// point**, or from the centre to it, and a core depth proposes none.
+    /// Red where the offset keeps its part along the axis, or is read at
+    /// an end the segment is not nearest at.
+    #[test]
+    fn a_segments_offset_runs_to_its_nearest_point() {
+        let at = |depth, a, b| nearest_offset(depth, a, b).map(|o: Vec3<f64>| (o.x, o.y, o.z));
+        assert_eq!(
+            at(z_axis(), p(1.0, 1.0, 5.0), p(3.0, 1.0, 5.0)),
+            Some((1.0, 1.0, 0.0)),
+            "beside the axis, nearest at an end"
+        );
+        assert_eq!(
+            at(z_axis(), p(-2.0, 1.0, 5.0), p(2.0, 1.0, 7.0)),
+            Some((0.0, 1.0, 0.0)),
+            "across the axis, nearest inside"
+        );
+        let centre = Depth::Center {
+            center: p(0.0, 0.0, 0.0),
+        };
+        assert_eq!(
+            at(centre, p(-2.0, 1.0, 5.0), p(2.0, 1.0, 5.0)),
+            Some((0.0, 1.0, 5.0)),
+            "from a centre"
+        );
+        let core = Depth::Core {
+            center: p(0.0, 0.0, 0.0),
+            axis: v(0.0, 0.0, 1.0),
+            major: 2.0,
+        };
+        assert_eq!(at(core, p(0.0, 0.0, 0.0), p(1.0, 0.0, 0.0)), None, "a core");
     }
 
     /// **A torus core reads only a cover that holds the face.** The core

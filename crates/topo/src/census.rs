@@ -9546,36 +9546,85 @@ type WorldReach<T> = (Point3<T>, Point3<T>);
 
 /// Whether arm 1 of [`sweep_cross_solid_backstop`] may clear the face
 /// pair `a`, `b` along a direction that turns with the pair: the axis
-/// between the two faces' anchors, or either face's own normal where it
-/// is planar. Each face comes with its world reach, the lever its
-/// normal is read over.
+/// between the two faces' anchors, either face's own normal where it
+/// is planar, or the offset from an axis or centre either face proposes
+/// to the other's nearest boundary segment point ([`depth_gap::toward`]).
+/// Each face comes with its world reach, the lever its normal is read
+/// over.
 ///
-/// The test is the boolean's narrow phase ([`crate::boolean::separating::apart`]):
-/// both reaches are read in the frame the direction aims
-/// ([`face_reach_in`]), and the pair clears only on a gap, less both
-/// reaches' [`sweep_pad`], decided definitely positive at this lane's
-/// scalar. Each reach encloses its face's locus along that direction,
-/// so the gap proves the loci disjoint, as a world-axis gap does. The
-/// pad covers the aimed frame's rounding ([`crate::boolean::boxes::BoxFrame`]),
-/// so the clear does not rest on the user-set escalate threshold.
+/// The test is the boolean's narrow phase
+/// ([`crate::boolean::separating::apart_by`]): both reaches are read in
+/// the frame the direction aims ([`held_reach_in`]), and the pair clears
+/// only on a gap, less both reaches' [`sweep_pad`], decided definitely
+/// positive at this lane's scalar. Each reach encloses its face's locus
+/// along that direction, so the gap proves the loci disjoint, as a
+/// world-axis gap does. The pad covers the aimed frame's rounding
+/// ([`crate::boolean::boxes::BoxFrame`]), so the clear does not rest on
+/// the user-set escalate threshold.
 fn backstop_apart<T: Decide>(
     body: &Body<T>,
     (fa, ra): (FaceKey, WorldReach<T>),
     (fb, rb): (FaceKey, WorldReach<T>),
     band: Band,
 ) -> bool {
-    use crate::boolean::separating::{Item, apart, planar_axis};
-    let axes: Vec<_> = [(fa, ra), (fb, rb)]
+    use crate::boolean::separating::{Item, apart_by, planar_axis};
+    let mut axes: Vec<_> = [(fa, ra), (fb, rb)]
         .into_iter()
         .filter_map(|(f, r)| planar_axis(body, f, || Some(r), band))
         .collect();
-    apart(
+    axes.extend(depth_gap::toward(body, fa, fb, band));
+    apart_by(
         (body, Item::Face(fa)),
         (body, Item::Face(fb)),
         &axes,
         sweep_pad(band),
         band,
+        &|body, f, frame| held_reach_in(body, f, band, frame),
     )
+}
+
+/// [`face_reach_in`], with a sphere face's first row read off what the
+/// face holds: at each end of that row, where the face does not hold
+/// the sphere's pole along it, no further than its boundary reaches.
+///
+/// A linear coordinate `d·p` on a sphere about `c` of radius `r` has
+/// its only critical points at the poles `c ± r·d̂`, so over a face of
+/// the sphere it is greatest either on the face's boundary or at the
+/// pole `c + r·d̂`, and least on the boundary or at `c − r·d̂`. A pole
+/// the face's region places definitely `Out`
+/// ([`crate::boolean::curved_face_placement`]) is neither, so that end
+/// of the row is the boundary's ([`boundary_reach`], which bounds every
+/// boundary edge's locus). A pole placed anywhere else, or not placed,
+/// keeps the carrier's end. The other rows, and every other kind, are
+/// [`face_reach_in`]'s.
+///
+/// # Panics
+///
+/// As [`face_reach_in`].
+fn held_reach_in<T: Decide>(
+    body: &Body<T>,
+    f: FaceKey,
+    band: Band,
+    frame: &crate::boolean::boxes::BoxFrame<T>,
+) -> Option<(Point3<T>, Point3<T>)> {
+    let (lo, hi) = face_reach_in(body, f, band, frame)?;
+    let face = proven(&body.faces, f, EntityId::Face);
+    let geom::Surface::Sphere { center, radius, .. } = *body.face_surface_linked(f, face) else {
+        return Some((lo, hi));
+    };
+    let Some((blo, bhi)) = boundary_reach(body, f, face, frame) else {
+        return Some((lo, hi));
+    };
+    let d = frame.rows()[0];
+    let out = |s: T| {
+        matches!(
+            crate::boolean::curved_face_placement(body, f, center + d * (radius.abs() * s), band),
+            Ok(crate::boolean::CurvedPlacement::Trim(Some(FaceContainment::Out)))
+        )
+    };
+    let lo_x = if out(-T::one()) { lo.x.max(blo.x) } else { lo.x };
+    let hi_x = if out(T::one()) { hi.x.min(bhi.x) } else { hi.x };
+    Some((Point3::new(lo_x, lo.y, lo.z), Point3::new(hi_x, hi.y, hi.z)))
 }
 
 /// **The conservative loudness backstop** (M9-2 union fix F1): the
