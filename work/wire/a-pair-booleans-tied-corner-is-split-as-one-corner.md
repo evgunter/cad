@@ -43,3 +43,7 @@ member corners it sits at, so each candidate is its own corner.
   `name_corner_copies` where that is possible.
 - The union side has no witness either: the same fixture, met through a
   union, would be one.
+
+## Correction from PR 5535's re-review (2026-10-26)
+
+"No fixture has been built yet" is wrong. `union_member_orders_decide_alike::a_vertex_row_is_the_unions_once_in_every_member_order` (the prism-and-cube pinch) reaches the pair corner pass with a tied name held as 2 copies, twice, and it does not refuse. There the two candidates are copies of one point, split by real obstacles. The refusal claim narrows to tied candidates at *distinct points*, where no discard borders two copies (`borders.rs:691` refuses). That refusal is labelled `NamingError::Emission` although the input is legal.
