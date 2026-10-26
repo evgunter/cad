@@ -43,9 +43,15 @@
 //! docs: boundary vertices carry the kernel's ≤ ε carrier residual
 //! (they lie on certified carriers, not exactly on the surface), and
 //! f64 rounding of the evaluations. Sizing takes no margin for them
-//! (`crates/mesh/README.md` `[mesh.sizing]`), so a triangle they carry
-//! past δ refuses typed rather than certifies.
+//! (`crates/mesh/README.md` `[mesh.sizing]`), so a lane's worst
+//! triangle can certify at δ to the last bit. The verdict therefore
+//! charges a certificate's own rounding to the promise's "+ rounding"
+//! rather than to δ: [`verdict`] compares a bound against δ plus
+//! [`rounding_allowance`] of the magnitude the bound was computed
+//! from ([`position_scale`], [`uv_scale`], [`cone_scale`]), and refuses
+//! to absorb an allowance that is not small against δ and ε.
 
+use crate::sizing::Eps;
 use geom_core::{Point3, Vec3};
 
 /// Exact point–triangle distance (the standard closest-point-on-
@@ -220,10 +226,180 @@ fn abs_sin_max(v0: f64, v1: f64) -> f64 {
     }
 }
 
+/// The rounding a certificate is allowed beyond δ, in units of the
+/// f64 epsilon of the magnitude it was computed from. **Certificate
+/// resolution.**
+///
+/// A certificate is a few dozen f64 operations, each exact to half an
+/// ulp of its own result. The ones that matter are the subtractions
+/// that cancel: `r − dist(axis, T)` cancels two lengths of the size of
+/// the vertex coordinates, `1 − cos(Δu/2)` cancels at 1, and a UV
+/// extent `u₁ − u₀` cancels at `|u|`. Each such step carries at most an
+/// ulp or two of the cancelled magnitude, and 8 bounds their sum with
+/// room; the worst overshoot measured at a δ chosen to land a
+/// cylinder's worst triangle on δ exactly (an n-gon rim) is half an
+/// ulp. It is the promise's "+ rounding", not a margin on δ: no step
+/// reads it.
+pub(crate) const ROUNDING_ULPS: f64 = 8.0;
+
+/// How small the allowance must stay against both δ and the kernel ε
+/// for the verdict to apply it: a quarter of the smaller. **Certificate
+/// resolution.**
+///
+/// Applying the allowance says "this triangle is within δ, and f64
+/// cannot tell the last bits"; that is honest only while those bits are
+/// far below anything the promise or the model resolves. A quarter of
+/// the smaller of δ and ε keeps the absorbed rounding a minor term of
+/// both, while leaving every body of ordinary extent (coordinates up to
+/// ~1e2 m at the ε = 1e-12 row: 8·2.2e-16·100 ≈ 1.8e-13 = 0.18 ε) free
+/// to certify at the edge. Past it the coordinates are too large, or δ
+/// or ε too small, for f64 to certify the triangle at all, and the face
+/// refuses typed ([`TessellateError::RoundingUnresolved`]) rather than
+/// absorbing a rounding term that rivals what it certifies.
+///
+/// [`TessellateError::RoundingUnresolved`]: crate::types::TessellateError::RoundingUnresolved
+pub(crate) const ALLOWANCE_SHARE: f64 = 0.25;
+
+/// [`ROUNDING_ULPS`] epsilons of `scale`.
+pub(crate) fn rounding_allowance(scale: f64) -> f64 {
+    ROUNDING_ULPS * f64::EPSILON * scale
+}
+
+/// What the certificate verdict found for one triangle.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum Verdict {
+    /// Within δ, or past it only by its own rounding while that rounding
+    /// is small ([`ALLOWANCE_SHARE`]).
+    Certified,
+    /// Past δ by more than its rounding, or NaN.
+    Exceeded,
+    /// Past δ only by its rounding, but that rounding is not small
+    /// against δ or ε: f64 cannot certify this triangle honestly.
+    Unresolved {
+        /// The rounding allowance the verdict would have had to absorb.
+        allowance: f64,
+    },
+}
+
+/// **The one certificate verdict**: whether `bound`, computed at the
+/// magnitude `scale`, certifies the triangle within `delta`. The
+/// allowance is consulted only when the bound is past δ — a triangle
+/// within δ needs none — and it is applied only while it is small
+/// against both δ and `eps`; otherwise the verdict says so
+/// ([`Verdict::Unresolved`]) instead of absorbing it.
+pub(crate) fn verdict(bound: f64, delta: f64, scale: f64, eps: Eps) -> Verdict {
+    if bound.is_nan() {
+        return Verdict::Exceeded;
+    }
+    if bound <= delta {
+        return Verdict::Certified;
+    }
+    let allowance = rounding_allowance(scale);
+    if bound > delta + allowance {
+        return Verdict::Exceeded;
+    }
+    let measured = allowance / ALLOWANCE_SHARE;
+    if measured <= delta && eps.dominates(measured) {
+        Verdict::Certified
+    } else {
+        Verdict::Unresolved { allowance }
+    }
+}
+
+/// The magnitude a position certificate ([`cert_cylinder`],
+/// [`cert_sphere`]) rounds at: the largest coordinate norm among the
+/// chart's anchor and the triangle's corners, since every distance it
+/// takes is a difference of those.
+pub(crate) fn position_scale(anchor: Point3<f64>, tri: [Point3<f64>; 3]) -> f64 {
+    let norm = |p: Point3<f64>| (p - Point3::origin()).norm();
+    norm(anchor)
+        .max(norm(tri[0]))
+        .max(norm(tri[1]))
+        .max(norm(tri[2]))
+}
+
+/// The magnitude a UV-extent certificate ([`cert_torus`], the NURBS
+/// lane's) rounds at. The bound is a sum of non-negative products of
+/// the extents, so its own arithmetic is relative to it; what is not is
+/// each extent `Δ = x₁ − x₀`, exact only to an ulp of `|x|`, which moves
+/// a term quadratic in it by `2·|x|/Δ` of itself.
+pub(crate) fn uv_scale(bound: f64, uv: [[f64; 2]; 3]) -> f64 {
+    let mut scale = 1.0;
+    for axis in 0..2 {
+        let (lo, hi, big) = uv.iter().fold(
+            (f64::INFINITY, f64::NEG_INFINITY, 0.0_f64),
+            |(lo, hi, big), p| (lo.min(p[axis]), hi.max(p[axis]), big.max(p[axis].abs())),
+        );
+        if hi > lo {
+            scale += 2.0 * big / (hi - lo);
+        }
+    }
+    bound * scale
+}
+
+/// The magnitude [`cert_cone`] rounds at: `cos α·sin α·v_maxᵀ`, the
+/// factor `1 − cos(Δu/2)` multiplies, which cancels at 1, times
+/// `1 + π` for the azimuth extent's own rounding (at most `π·ε` of that
+/// factor over a span `Δu ≤ π`).
+pub(crate) fn cone_scale(half_angle: f64, uv: [[f64; 2]; 3]) -> f64 {
+    let v_max = uv.iter().fold(0.0_f64, |m, p| m.max(p[1].abs()));
+    half_angle.cos() * half_angle.sin() * v_max * (1.0 + core::f64::consts::PI)
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+
+    /// **The verdict's edges** ([`verdict`]): δ itself certifies; a
+    /// bound within [`ROUNDING_ULPS`] epsilons of its magnitude past δ
+    /// certifies while that allowance is small against δ and ε; one past
+    /// the allowance is exceeded; NaN and infinity never certify. And the
+    /// flag: at a magnitude whose allowance rivals ε (a body ~1e4 m from
+    /// the origin at ε = 1e-12), or rivals δ (δ = 1e-15 at unit scale),
+    /// the same overshoot is [`Verdict::Unresolved`], naming the
+    /// allowance, not certified.
+    #[test]
+    fn the_verdict_admits_its_own_rounding_only_while_it_is_small() {
+        let unit = f64::EPSILON;
+        let eps = Eps::exactly(1e-9);
+        assert_eq!(verdict(0.5, 1.0, 1.0, eps), Verdict::Certified);
+        assert_eq!(
+            verdict(1.0, 1.0, 1.0, eps),
+            Verdict::Certified,
+            "δ certifies"
+        );
+        assert_eq!(
+            verdict(1e-3 * (1.0 + 2.0 * unit), 1e-3, 1.0, eps),
+            Verdict::Certified,
+            "rounding past δ certifies while the allowance is small"
+        );
+        assert_eq!(
+            verdict(1e-3 + 16.0 * unit, 1e-3, 1.0, eps),
+            Verdict::Exceeded,
+            "past the allowance is exceeded"
+        );
+        assert_eq!(verdict(f64::NAN, 1.0, 1.0, eps), Verdict::Exceeded);
+        assert_eq!(verdict(f64::INFINITY, 1.0, 1.0, eps), Verdict::Exceeded);
+        // Far from the origin at a fine ε: the allowance (8·ε·1e4 ≈ 1.8e-11)
+        // is past a quarter of ε = 1e-12.
+        let fine = Eps::exactly(1e-12);
+        let far = 1e4;
+        assert_eq!(
+            verdict(1e-3 + 1e-12, 1e-3, far, fine),
+            Verdict::Unresolved {
+                allowance: rounding_allowance(far)
+            },
+            "a large allowance is flagged, not absorbed"
+        );
+        // A δ near the f64 floor at unit scale: the allowance rivals δ.
+        assert!(matches!(
+            verdict(1e-15 * (1.0 + 1e-3), 1e-15, 1.0, eps),
+            Verdict::Unresolved { .. }
+        ));
+        // The same overshoot at an ordinary magnitude certifies.
+        assert_eq!(verdict(1e-3 + 1e-18, 1e-3, 1.0, fine), Verdict::Certified);
+    }
     use core::f64::consts::PI;
 
     /// A torus on the z axis with `u_ref = x`, in the chart the

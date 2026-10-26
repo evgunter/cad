@@ -389,20 +389,26 @@ fn the_acceptance_exports_agree_are_honest_and_are_byte_identical() {
 
 // ---- typed refusals ---------------------------------------------------
 
-/// Finding (M2 PR 7): at a coarse δ (0.015 here) the cone's apex fan emits triangles
-/// whose three points are exactly collinear on a generator (apex +
-/// two stacked meridian chord points — distinct position indices, so
-/// the tessellator's id-degenerate drop does not catch them, and
-/// `check_mesh` is combinatorial-only). The writer's non-degeneracy
-/// contract makes this a typed refusal, never a bad file. Pinned here
-/// so a future mesh-side fix flips this test loudly.
+/// Finding (M2 PR 7), flipped by the mesh-side fix it was pinned to
+/// catch: the cone's apex fan used to emit triangles whose three points
+/// were exactly collinear on a generator (the apex and two stacked
+/// row points of one column — distinct indices, so neither the
+/// tessellator's id-degenerate drop nor the combinatorial `check_mesh`
+/// saw them), and the writer refused them typed. The curved cone now
+/// takes no interior rows (`mesh::sizing::cone_grid_step`'s theorem),
+/// so a column carries no stacked points, and the acceptance cone
+/// writes at every δ of a 400-step geometric sweep from 0.2 down. The
+/// writer's own refusal is pinned on a constructed mesh below.
 #[test]
-fn coarse_cone_apex_fan_is_refused_typed() {
-    let mesh = tessellate(&common::cone(), 0.015, Tol::witness()).unwrap();
-    let mut out = Vec::new();
-    match write_binary(&mesh, &BinaryOptions::default(), &mut out) {
-        Err(stl::StlError::DegenerateTriangle { .. }) => {}
-        other => panic!("expected DegenerateTriangle at coarse delta, got {other:?}"),
+fn coarse_cone_apex_fan_writes() {
+    for k in 0..400 {
+        let delta = 0.2 * 0.985f64.powi(k);
+        let mesh = tessellate(&common::cone(), delta, Tol::witness()).unwrap();
+        let mut out = Vec::new();
+        assert!(
+            write_binary(&mesh, &BinaryOptions::default(), &mut out).is_ok(),
+            "the cone at δ {delta} carries a degenerate triangle again"
+        );
     }
 }
 

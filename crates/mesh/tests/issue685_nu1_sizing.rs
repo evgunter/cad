@@ -1,21 +1,16 @@
-//! Issue 685 acceptance: the `nu == 1` sizing decision, pinned on the
-//! π/6 cone wedge at the δ values the MESH-5 measurement swept.
+//! Issue 685 acceptance, generalised: a cone face with bare sides takes
+//! no interior rows at any column count, pinned on the π/6 cone wedge
+//! and an apex-free frustum wedge.
 //!
-//! The decision (at `curved::grid_counts`' cone arm): one azimuth
-//! column takes no interior rows — the cone is ruled in v, `hu` is
-//! sized at the patch's largest radius, so the single strip already
-//! certifies, and the v-schedule the empty grid range would discard is
-//! not computed. The measurement behind it: emitting the scheduled
-//! rows multiplied the patch's triangles 5–9× at identical densely
-//! sampled deviation (2.409e-2 m wherever the rim is one chord — the rim
-//! chord's azimuthal sagitta, which rows in the ruling direction
-//! cannot touch).
-//!
-//! These rows pin BOTH sides of the decision boundary through the
-//! public door: the single-strip counts at `nu == 1` (which are also
-//! the D9 no-change pin — they are the counts the tree emitted before
-//! the decision), and the honoured schedule's counts at `nu >= 2`
-//! (issue 678's fence, one δ step finer). `check_mesh_acceptance`
+//! Issue 685 decided it for one column: the cone is ruled in v, so the
+//! single strip already certifies, and the rows only multiplied the
+//! patch's triangles (5–9× at identical densely sampled deviation,
+//! 2.409e-2 m wherever the rim is one chord). The cone's theorem
+//! (`mesh::sizing::cone_grid_step`) extends that to every column count:
+//! with both rims chorded on the column step and nothing on the sides,
+//! the strip argument holds every triangle to one column, so the patch
+//! is its rim chords fanned to the apex or zipped to the other rim, and
+//! its triangle count is the rims' chord count. `check_mesh_acceptance`
 //! carries the rest: watertight, certified by dense sampling against
 //! the exact cone, byte-identical rebuild.
 
@@ -45,12 +40,10 @@ fn cone_patch_triangles(body: &topo::Body<f64>, delta: f64) -> usize {
         .sum()
 }
 
-/// The decision boundary's δ sweep, pinned. The first four rows are the
-/// `nu == 1` regime (single column; the boundary sits at δ ≈ 0.0241,
-/// where `hu = 2·acos(1 − δ/(ρ_max·cos α))` meets the π/6 span, and at
-/// 0.025 the rim's own sagitta already cuts it in two chords); the rest
-/// are the honoured schedule, 678's pole floor included (`nu` = 3 at
-/// 0.024, then rising).
+/// The wedge's counts over the measured δ sweep: one column (one rim
+/// chord) down to δ ≈ 0.05, then the rim's chord count — its own
+/// sagitta at radius 1, or the column step `2·acos(1 − δ/(ρ_max·cos α))`,
+/// whichever is finer — fanned to the apex, with no row at any δ.
 #[test]
 fn the_pi6_cone_wedge_is_pinned_at_the_measured_deltas() {
     let body = cone_wedge(1.0, core::f64::consts::FRAC_PI_6);
@@ -59,10 +52,9 @@ fn the_pi6_cone_wedge_is_pinned_at_the_measured_deltas() {
         (0.1, 1),
         (0.05, 1),
         (0.025, 2),
-        (0.024, 10),
-        (0.01, 18),
-        (0.004, 27),
-        (0.001, 110),
+        (0.01, 2),
+        (0.004, 3),
+        (0.001, 6),
     ] {
         assert_eq!(
             cone_patch_triangles(&body, delta),
@@ -82,8 +74,8 @@ fn an_apex_free_single_column_cone_patch_is_the_same_strip() {
     // Triangle revolved π/6: cone face from (2, 0)–(1, 1), apex off
     // the profile at (0, 2), ρ_max = 2, α = π/4, vspan = √2. At
     // δ = 0.25, hu = 2·acos(1 − 0.25/√2) is the π/4 cap ≥ π/6: one
-    // column. At δ = 0.04, hu ≈ 0.477 < π/6: two columns, the schedule
-    // honoured (nv = 2, one interior point; both rims two chords).
+    // column. At δ = 0.04, hu ≈ 0.477 < π/6: two columns, both rims two
+    // chords, and no row: the two rims zip into four triangles.
     let lp = profile::ProfileLoop::polygon([
         Point2::new(1.0, 0.0),
         Point2::new(2.0, 0.0),
@@ -104,7 +96,7 @@ fn an_apex_free_single_column_cone_patch_is_the_same_strip() {
     );
     assert_eq!(
         cone_patch_triangles(&body, 0.04),
-        6,
-        "two columns at the finer delta: the honoured schedule"
+        4,
+        "two columns at the finer delta, and no row"
     );
 }

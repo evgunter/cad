@@ -217,7 +217,12 @@ struct Tally {
 /// grazes, and 12 576 more candidates refused at the determinant on
 /// 1 410 more rays — larger triangles put more of them edge-on to an
 /// aimed ray. No genuine crossing is refused.
-const PINNED: (usize, usize, usize, usize) = (397_512, 132_612, 26_058, 8_292);
+///
+/// It moved again when the cone stopped taking interior rows and the
+/// sphere sized its azimuth at each face's widest latitude, from
+/// `(397512, 132612, 26058, 8292)`: 5 400 fewer rays and 900 fewer
+/// grazes, the refusals unchanged.
+const PINNED: (usize, usize, usize, usize) = (392_112, 131_712, 26_058, 8_292);
 
 fn sweep(name: &str, step: &str, index: &PickIndex, tally: &mut Tally) {
     let reference = FlatReference::of(index);

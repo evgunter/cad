@@ -101,6 +101,18 @@ fn tessellate_err(py: Python<'_>, err: &mesh::TessellateError) -> PyErr {
             fields[2] = ("bound", b);
             float(*requested).map(|r| fields[3] = ("requested", r))
         }),
+        T::RoundingUnresolved {
+            bound,
+            requested,
+            allowance,
+            ..
+        } => float(*bound).and_then(|b| {
+            fields[2] = ("bound", b);
+            float(*requested).and_then(|r| {
+                fields[3] = ("requested", r);
+                float(*allowance).map(|a| fields[1] = ("value", a))
+            })
+        }),
         T::UnsupportedNurbsFace { note, .. } | T::UnsupportedCurve { note, .. } => {
             fields[4] = ("note", PyString::new(py, note).unbind().into_any());
             Ok(())

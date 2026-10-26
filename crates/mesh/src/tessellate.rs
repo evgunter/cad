@@ -248,13 +248,31 @@ pub(crate) enum Lane {
 /// (`walk::require_a_meridian` and `walk::require_two_columns`), which
 /// is why this dispatch can hand an iso boundary over without deciding
 /// anything about its shape.
-fn lane_of(body: &Body<f64>, fk: FaceKey, surface: &Surface<f64>) -> Result<Lane, TessellateError> {
+pub(crate) fn lane_of(
+    body: &Body<f64>,
+    fk: FaceKey,
+    surface: &Surface<f64>,
+) -> Result<Lane, TessellateError> {
     Ok(match *surface {
         Surface::Nurbs(_) | Surface::Approx(_) => Lane::Trimmed,
         Surface::Plane { .. } => Lane::Planar,
         _ if crate::trimmed::has_trim_carrier(body, fk)? => Lane::Trimmed,
         _ => Lane::Curved,
     })
+}
+
+/// A face's surface, the misses named as the tessellator names them.
+pub(crate) fn face_surface(
+    body: &Body<f64>,
+    fk: FaceKey,
+) -> Result<&Surface<f64>, TessellateError> {
+    let face = body
+        .get_face(fk)
+        .ok_or(TessellateError::MissingEntity { what: "face" })?;
+    body.get_surface(face.surface)
+        .ok_or(TessellateError::MissingEntity {
+            what: "face surface",
+        })
 }
 
 /// One face's slot in [`tessellate_impl`]'s indexed parallel map: the

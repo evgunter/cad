@@ -192,3 +192,60 @@ fn a_frustum_small_rim_joined_to_a_far_row_certifies() {
         check_mesh_acceptance(&body, delta, Some((volume, area)));
     }
 }
+
+/// **The sphere's azimuth step is sized at the face's widest latitude**
+/// (`sizing::sphere_grid_steps`, `sphere_face_widest_cos`). A polar cap
+/// above latitude 1.0 (a quarter-arc profile revolved fully) has
+/// `cos 1.0 ≈ 0.54` at its widest, so its azimuth step is the lattice's
+/// aspect bound `√2` times its latitude step, not the equal steps a
+/// sphere spanning the equator takes. Its sphere patch is pinned
+/// at two δ, and the count that equal steps would cut is computed
+/// beside it so the row reds if the face's latitude stops being read.
+#[test]
+fn a_polar_cap_sizes_its_azimuth_at_its_widest_latitude() {
+    use geom_core::Point2;
+    use profile::test_support::bulge_loop;
+    let lat = 1.0_f64;
+    let half = (core::f64::consts::FRAC_PI_2 - lat) / 2.0;
+    let lp = bulge_loop(vec![
+        (Point2::new(0.0, lat.sin()), 0.0),
+        (Point2::new(lat.cos(), lat.sin()), (half / 2.0).tan()),
+        (Point2::new(0.0, 1.0), 0.0),
+    ]);
+    let body = sweep::revolve(
+        &validated(vec![lp]),
+        axis_y(),
+        sweep::Revolution::Full,
+        Tol::witness(),
+    )
+    .unwrap()
+    .body;
+    for (delta, pinned) in [(0.01, 100), (0.002, 506)] {
+        let mesh = check_mesh_acceptance(&body, delta, None);
+        let tris: usize = mesh
+            .patches
+            .iter()
+            .filter(|p| {
+                matches!(
+                    body.get_surface(body.get_face(p.face).unwrap().surface),
+                    Some(geom::Surface::Sphere { .. })
+                )
+            })
+            .map(|p| p.triangles.len())
+            .sum();
+        assert_eq!(tris, pinned, "the cap's sphere patch at δ {delta}");
+        // Equal steps `2·acos(1 − δ/2)`: a pole fan of `nu` triangles and
+        // `nv − 1` full rows of `2·nu`.
+        let h = 2.0 * (1.0 - delta / 2.0).acos();
+        let (nu, nv) = (
+            (core::f64::consts::TAU / h).ceil(),
+            ((core::f64::consts::FRAC_PI_2 - lat) / h).ceil(),
+        );
+        #[allow(clippy::cast_precision_loss)]
+        let equal = nu * (2.0 * nv - 1.0);
+        assert!(
+            (tris as f64) < equal,
+            "δ {delta}: {tris} triangles, no coarser than equal steps' {equal}"
+        );
+    }
+}

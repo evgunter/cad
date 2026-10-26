@@ -47,15 +47,16 @@
 //!   parameter, `t₀ + Δt·geom_brep::sub_arc_joint(k, m)`, the expression
 //!   `sweep::skin::segment_curve` places the joint knot with.
 //!
-//! An adjacent surface reaches a chord count only through
-//! [`adjacent_surface`], and the tightenings above (not the crease
-//! joints, which round a count already tightened) are its three call
-//! sites — the `Circle` arm's grid boundary step, the headroom target
-//! ([`edge_target`]) and [`nurbs_tighten`].
-//! The claim is therefore about one function's callers, which a reader
-//! settles by grepping this file for the name. **Nothing in the tree
-//! checks it**: a fourth caller compiles green, and it would be a
-//! fourth way for a neighbour to enter the count.
+//! An adjacent face reaches a chord count only through the
+//! tightenings above (not the crease joints, which round a count
+//! already tightened): the `Circle` arm's
+//! `sizing::grid_boundary_step`, the headroom target ([`edge_target`])
+//! and [`nurbs_tighten`]. Each reads the face through
+//! `tessellate::face_surface`, and the first two through the dispatch
+//! itself (`tessellate::lane_of`), so a face tightens an edge only for
+//! the lane that will mesh it. **Nothing in the tree checks that these
+//! are the only three**: a fourth caller compiles green, and it would
+//! be a fourth way for a neighbour to enter the count.
 //!
 //! With that door held, chord points are a pure function of (carrier +
 //! interval, endpoint points, adjacent surface parameters, an adjacent
@@ -127,9 +128,7 @@ pub(crate) fn compute_chords(
             Curve3::Circle { .. } => {
                 let mut n = ceil_count(span, sagitta_step(target, circle_radius(curve.carrier())))?;
                 for fk in adjacent_faces(body, ek)? {
-                    if let Some(h) =
-                        grid_boundary_step(body, fk, adjacent_surface(body, fk)?, curve, ek, delta)?
-                    {
+                    if let Some(h) = grid_boundary_step(body, fk, curve, ek, delta)? {
                         n = n.max(ceil_count(span, h)?);
                     }
                 }
@@ -358,7 +357,7 @@ fn nurbs_tighten(
     let mut joints = 1;
     for side in [sides.plus, sides.minus] {
         let (hek, fk) = (side.half_edge, side.face);
-        let surface = adjacent_surface(body, fk)?;
+        let surface = crate::tessellate::face_surface(body, fk)?;
         // The UV step schedule is a statement about the chart, so both
         // spline kinds take it — an approximating surface's chart is
         // its fit's.
@@ -609,7 +608,7 @@ fn general_uv_speeds(
 /// its lattice at that headroom, and its trim polygon is these chords.
 fn edge_target(body: &Body<f64>, ek: EdgeKey, delta: f64) -> Result<f64, TessellateError> {
     for fk in adjacent_faces(body, ek)? {
-        if crate::trimmed::is_trimmed_cylinder(body, fk, adjacent_surface(body, fk)?)? {
+        if crate::trimmed::is_trimmed_cylinder(body, fk)? {
             return Ok(delta * crate::trimmed::UNPROVED_HEADROOM);
         }
     }
@@ -641,27 +640,6 @@ pub(crate) fn edge_vertices(
             what: "he_plus end",
         })?;
     Ok((he.start, end))
-}
-
-/// The door an adjacent face's surface reaches a chord count through.
-/// The module header's claim is a claim about this function's call
-/// sites, and it names them: the `Circle` arm's torus tightening and
-/// [`nurbs_tighten`].
-///
-/// **Nothing counts those call sites.** What the name buys is a token
-/// to grep for, which is what the claim lacked; a third caller still
-/// compiles green.
-fn adjacent_surface(
-    body: &Body<f64>,
-    fk: topo::FaceKey,
-) -> Result<&geom::Surface<f64>, TessellateError> {
-    let face = body
-        .get_face(fk)
-        .ok_or(TessellateError::MissingEntity { what: "face" })?;
-    body.get_surface(face.surface)
-        .ok_or(TessellateError::MissingEntity {
-            what: "face surface",
-        })
 }
 
 /// An edge's two sides, the edge's miss named as the tessellator names

@@ -674,10 +674,12 @@ impl BandCounts {
 /// (`a = 1`) certifies at `b/4`.
 ///
 /// So the sliver lands at δ exactly when `a²·LATTICE_SHARE/4 = 1`, and
-/// [`MAX_RESIDUAL_SQ`] is that solved for the aspect. Every point of
-/// that curve puts the worst triangle at δ; the share chooses between
-/// a coarser lattice and fewer raised rows, and is the lane's sizing
-/// split, not a margin. The only slack is the ceil (`s_u < 1`). The
+/// [`MAX_RESIDUAL_SQ`] is that solved for the aspect: a band at the
+/// residual line puts its worst triangle at δ at any share, and one
+/// under it lands below δ. The share chooses between a coarser lattice
+/// and fewer raised rows; it is the lane's sizing split, typed rather
+/// than measured
+/// (`work/tess/the-nurbs-lattice-share-is-not-chosen-by-measurement.md`). The only slack is the ceil (`s_u < 1`). The
 /// centroid retries of `trimmed::MAX_GRID_RETRIES` are a backstop,
 /// not part of the bound.
 ///

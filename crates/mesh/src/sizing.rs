@@ -12,9 +12,14 @@
 //!
 //! - a **target** — the metres of deviation a schedule aims at. It is
 //!   δ itself ([`SizingTols::delta`]), spent through the lane's own
-//!   worst-triangle theorem: the step each lane derives is the
-//!   coarsest one whose worst admissible triangle lands at δ
-//!   (`crates/mesh/README.md` `[mesh.sizing]`).
+//!   worst-triangle theorem (`crates/mesh/README.md` `[mesh.sizing]`).
+//!   The edge chords, the cylinder, cone, sphere and torus lanes take
+//!   the coarsest step whose worst admissible triangle lands at δ. Two
+//!   lanes do not land there: the NURBS lane spends its
+//!   `nurbs_cert::LATTICE_SHARE` of δ on its lattice (its sliver lands
+//!   at δ, its lattice cells at an eighth of it), and the trimmed
+//!   cylinder, which has no theorem, sizes at
+//!   `trimmed::UNPROVED_HEADROOM` of δ.
 //! - a **step** — an increment in a *parameter* (a curve parameter, a
 //!   chart angle, a UV coordinate), always `f64`. Steps come from a
 //!   closed-form deviation bound: [`sagitta_step`] and [`ellipse_step`]
@@ -70,10 +75,14 @@
 //! factor. Each theorem is stated at its step function and pinned by
 //! a test beside it — [`sagitta_step`] and [`curvature_step`] for an
 //! edge chord and the curved cylinder, [`cone_grid_step`],
-//! [`sphere_grid_step`], [`torus_grid_steps`], and
-//! `nurbs_cert::LATTICE_SHARE` for the NURBS lane's sliver. The one
-//! lane without its theorem, the trimmed cylinder, sizes at
-//! `trimmed::UNPROVED_HEADROOM` of δ and says so at its call sites.
+//! [`sphere_grid_steps`], [`torus_grid_steps`], and
+//! `nurbs_cert::LATTICE_SHARE` for the NURBS lane's sliver, whose share
+//! of δ is a typed choice nothing has measured as the coarsest
+//! (`work/tess/the-nurbs-lattice-share-is-not-chosen-by-measurement.md`).
+//! The lanes without a theorem say so at their call sites: the trimmed
+//! cylinder sizes at `trimmed::UNPROVED_HEADROOM` of δ, and a cone face
+//! whose side carries a point keeps the lattice `curved::grid_counts`
+//! names.
 //!
 //! **One sizing question has a separate ratified answer**:
 //! `docs/TESS-BUDGET.md`'s *split schedule's aspect policy*
@@ -245,13 +254,14 @@ impl Eps {
     /// to metres is small enough beside it to be float noise. Band
     /// excluded, so a zero band dominates nothing; false on a NaN.
     ///
-    /// **D2 addendum row 1**, for its one caller:
-    /// [`crate::curved`]'s swept-rectangle domain guard, which refuses
-    /// a face typed. Nothing else in this crate reads it, and in
-    /// particular nothing reads it to measure the quality of a body's
-    /// own coordinates: that question is `topo::coherence`'s, and it
-    /// carries its own band. So this operation has no deviation to
-    /// record.
+    /// **D2 addendum row 1**, for its two callers, each refusing a
+    /// face typed: [`crate::curved`]'s swept-rectangle domain guard,
+    /// and [`crate::cert::verdict`], which applies a certificate's
+    /// rounding allowance only while the band dominates it (four times
+    /// over, `cert::ALLOWANCE_SHARE`). Nothing reads it to measure the
+    /// quality of a body's own coordinates: that question is
+    /// `topo::coherence`'s, and it carries its own band. So this
+    /// operation has no deviation to record.
     pub(crate) fn dominates(self, scaled: f64) -> bool {
         scaled < self.0
     }
@@ -468,12 +478,12 @@ pub(crate) fn spiric_step(target: f64, major: f64, minor: f64, offset: f64) -> f
 /// [`crate::cert::cert_cone`] bounds a triangle by
 /// `cos α · ρ_maxᵀ · (1 − cos(Δu/2))`, with `ρ_maxᵀ` its largest
 /// radius and Δu its non-apex azimuth extent. The cone is ruled in v,
-/// so rows never enter the bound; what does is Δu, and the cone grid's
-/// rows and rims are rows of points at spacing at most the column
-/// step `h` (the rims through the chord pass's tightening,
+/// so rows never enter the bound, and the curved lane takes none: its
+/// only rows are the face's two rims (or a rim and the apex), both
+/// chorded within the column step `h` (the chord pass's tightening,
 /// [`crate::chords`]), so the strip argument at [`sagitta_step`]
 /// keeps every triangle's Δu within `h`. The worst triangle is then a
-/// cell-half on the largest radius, certifying at
+/// rim-chord triangle on the largest radius, certifying at
 /// `cos α · ρ_max · (1 − cos(h/2))`; this step solves that for δ,
 /// which is [`sagitta_step`] on the effective radius `ρ_max·cos α`
 /// (`cone_grid_step_lands_the_worst_triangle_at_delta`).
@@ -481,32 +491,111 @@ pub(crate) fn cone_grid_step(target: f64, half_angle: f64, rho_max: f64) -> f64 
     sagitta_step(target, rho_max * half_angle.cos())
 }
 
-/// The sphere chart's grid step `h`, used for both azimuth and
-/// latitude, capped at [`MAX_ANGULAR_STEP`].
+/// The sphere chart's two grid steps `(h_u, h_v)` — azimuth and
+/// latitude — for a face whose latitudes nearest the equator have
+/// cosine `widest` ([`sphere_face_widest_cos`]), capped at
+/// [`MAX_ANGULAR_STEP`].
 ///
 /// # The theorem
 ///
 /// Let a triangle's vertices lie on the sphere (radius r) inside a UV
-/// box of extents `Δu × Δv`, and let `m` be the box's centre point.
-/// The haversine law, `hav d = hav Δφ + cos φ₁·cos φ₂·hav Δθ`, puts
-/// every vertex within an angle `ψ` of `m` where
-/// `1 − cos ψ ≤ (1 − cos(Δv/2)) + (1 − cos(Δu/2))`. The half-space
+/// box of extents `Δu × Δv` within the face, and let `m` be the box's
+/// centre point. The haversine law,
+/// `hav d = hav Δφ + cos φ₁·cos φ₂·hav Δθ`, puts every vertex within an
+/// angle `ψ` of `m`, and both latitudes lie in the face's window, so
+/// `cos φ₁·cos φ₂ ≤ c²` with `c = widest`:
+/// `1 − cos ψ ≤ (1 − cos(Δv/2)) + c²·(1 − cos(Δu/2))`. The half-space
 /// `x·m̂ ≥ r·cos ψ` is convex and holds the three vertices, so it holds
 /// the triangle, and every point of the triangle is at least
 /// `r·cos ψ` from the centre: the deviation
 /// [`crate::cert::cert_sphere`] measures is at most
-/// `r·((1 − cos(Δu/2)) + (1 − cos(Δv/2)))`.
+/// `r·((1 − cos(Δv/2)) + c²·(1 − cos(Δu/2)))`.
 ///
-/// The grid's triangles are cell-halves (rims and meridians chorded on
-/// the grid's step through [`crate::chords`], so the strip argument at
-/// [`sagitta_step`] holds the off-lattice ones to one cell), and the
-/// product `h_u·h_v` under that bound is largest at `h_u = h_v`. The
-/// step is therefore the one that spends `δ/2` per direction,
-/// `2·acos(1 − δ/(2r))`, and the worst triangle — a cell-half on the
-/// equator, where the bound is attained to second order — lands at δ
-/// (`sphere_grid_step_lands_the_worst_triangle_at_delta`).
-pub(crate) fn sphere_grid_step(target: f64, r: f64) -> f64 {
-    sagitta_step(target * 0.5, r)
+/// The grid's triangles are cell-halves, and the off-lattice ones
+/// beside a rim or meridian chord point stay within one cell **while
+/// the lattice's UV aspect `h_u/h_v` is under `2√2`**: a triangle on
+/// two vertically adjacent lattice points and a boundary point a
+/// distance `x` along the row from their column has a circumcircle
+/// that holds the next column's point exactly when
+/// `h_u − x < 2·h_v²/x`, which holds for every `x` in `(0, h_u)` once
+/// `h_u² < 8·h_v²`. Past that aspect a Delaunay triangle can span two
+/// rows (measured: 1.5 δ on a polar cap at latitude 1.2). The `ceil`
+/// on the counts can shrink `h_v` by up to half, so the steps are
+/// chosen at aspect at most [`SPHERE_CELL_ASPECT`] = √2.
+///
+/// Within that, to second order the bound is
+/// `r·(h_v² + c²·h_u²)/8`, and the product `h_u·h_v` under it is
+/// largest where the two terms are equal (AM–GM), `h_u ≈ h_v/c`.
+/// Where `1/c ≤ √2` (the window reaches within 45° of the equator)
+/// each direction spends `δ/2` exactly: `h_v` is the sagitta step on
+/// `r` and `h_u` on `r·c²`, and the worst triangle — a cell-half at
+/// the face's widest latitude, where the bound is attained as the
+/// steps shrink — lands at δ. A face spanning the equator has `c = 1`
+/// and the two steps equal. Past 45° the aspect binds: `h_u = √2·h_v`, with
+/// `h_v` spending the whole second-order bound,
+/// `h_v = √(8δ/(r·(1 + 2c²)))`, which the exact bound meets from below
+/// and attains to second order. Both are pinned by
+/// `sphere_grid_steps_land_the_worst_triangle_at_delta`.
+pub(crate) fn sphere_grid_steps(target: f64, r: f64, widest: f64) -> (f64, f64) {
+    let half = target * 0.5;
+    let (hu, hv) = (
+        sagitta_step(half, r * widest * widest),
+        sagitta_step(half, r),
+    );
+    if hu <= SPHERE_CELL_ASPECT * hv {
+        return (hu, hv);
+    }
+    let hv = cap_angular(curvature_step(
+        target,
+        r * SPHERE_CELL_ASPECT.mul_add(SPHERE_CELL_ASPECT * widest * widest, 1.0),
+    ));
+    (cap_angular(SPHERE_CELL_ASPECT * hv), hv)
+}
+
+/// The largest UV aspect `h_u/h_v` [`sphere_grid_steps`] chooses: half
+/// of the `2√2` past which the off-lattice lemma fails, the other half
+/// spent on the `ceil` that can halve `h_v`. **Structural**: it keeps
+/// the lattice in the shape its theorem is stated for.
+pub(crate) const SPHERE_CELL_ASPECT: f64 = core::f64::consts::SQRT_2;
+
+/// The cosine of a sphere face's latitude nearest the equator: 1 when
+/// its latitude window holds the equator, else `cos` of the window's
+/// end nearest it. The window is read off the outer loop's vertices —
+/// a rim is a constant latitude and a meridian arc is monotone between
+/// its ends (the branch door, `require_one_chart_branch`) — so the
+/// chord pass and the curved lane read it from one place.
+pub(crate) fn sphere_face_widest_cos(
+    body: &topo::Body<f64>,
+    fk: topo::FaceKey,
+    surface: &geom::Surface<f64>,
+) -> Result<f64, TessellateError> {
+    let Some(chart) = topo::chart::Chart::of(surface) else {
+        unreachable!("Chart::of answers every sphere, and this surface is one: {surface:?}")
+    };
+    let face = body
+        .get_face(fk)
+        .ok_or(TessellateError::MissingEntity { what: "face" })?;
+    let (mut lo, mut hi) = (f64::INFINITY, f64::NEG_INFINITY);
+    for (_, ek, _) in crate::walk::loop_half_edges(body, face.outer, fk)? {
+        let (vs, ve) = crate::chords::edge_vertices(body, ek)?;
+        for vk in [vs, ve] {
+            let p = topo::readback::vertex_point(body, vk)
+                .map_err(|_| TessellateError::MissingEntity { what: "vertex" })?;
+            let v = chart.v_of(p);
+            lo = lo.min(v);
+            hi = hi.max(v);
+        }
+    }
+    if !(lo <= hi) {
+        return Err(TessellateError::MissingEntity {
+            what: "sphere face vertex",
+        });
+    }
+    Ok(if lo <= 0.0 && hi >= 0.0 {
+        1.0
+    } else {
+        lo.abs().min(hi.abs()).cos()
+    })
 }
 
 /// The torus chart's two grid steps `(h_u, h_v)` — azimuth θ and
@@ -632,69 +721,76 @@ pub(crate) fn torus_grid_steps(target: f64, major: f64, minor: f64) -> (f64, f64
 }
 
 /// The grid step a circle edge adjacent to face `fk` must be chorded
-/// within, if that face's lane sizes a lattice its rims have to sit
-/// on (`crates/mesh/README.md` `[mesh.sizing]`, *rim chords use the
-/// face's grid step*): the torus's `h_u` for a rim (its carrier
-/// parameter is the azimuth) or `h_v` for a meridian (the minor
-/// angle); the sphere's one step [`sphere_grid_step`] in either
-/// direction; the cone's [`cone_grid_step`] at the face's largest rim
-/// ([`cone_face_rho_max`]). Every other surface answers `None`.
+/// within, if that face is the curved lane's
+/// ([`crate::tessellate::lane_of`]) and its theorem is about a grid its
+/// rims have to sit on (`crates/mesh/README.md` `[mesh.sizing]`, *rim
+/// chords use the face's grid step*): the torus's
+/// [`torus_grid_steps`], the sphere's [`sphere_grid_steps`] at the
+/// face's widest latitude ([`sphere_face_widest_cos`]), each in the
+/// edge's own direction — `h_u` for a rim (its carrier parameter is
+/// the azimuth), `h_v` for a meridian (the minor angle or the
+/// latitude); and the cone's [`cone_grid_step`] at the face's largest
+/// rim ([`cone_face_rho_max`]), every circle a cone carries being a
+/// rim. Every other face answers `None`, a face another lane takes
+/// included: its theorem is not about this grid.
 ///
-/// The torus's rim/meridian rule is [`topo::chart_iso::classify_kind`]'s
-/// — the same rule the walk classifies the same edge with when it lays
-/// the boundary polygon on the face's grid, so the count sized here and
+/// The rim/meridian rule is [`topo::chart_iso::classify_kind`]'s — the
+/// same rule the walk classifies the same edge with when it lays the
+/// boundary polygon on the face's grid, so the count sized here and
 /// the grid row it lands on agree by construction rather than by a
 /// second copy of the threshold. That rule is total on circle
 /// carriers (`|n · axis| > 0.5` splits rim from meridian, every
 /// direction falling on one side), so nothing refuses HERE: a circle
-/// on a torus that is neither iso-curve — a Villarceau circle, which
-/// a face can carry (`Body::mef` mints one through its chart
-/// description) — is refused by the face
-/// door (`geom_brep::props::require_iso_rectangle`, through
+/// on a torus or a sphere that is neither iso-curve — a Villarceau
+/// circle, an oblique small circle — is refused by the face door
+/// (`geom_brep::props::require_iso_rectangle`, through
 /// [`crate::curved`]) before any grid is built on the face, and a
 /// whole-body refusal is what a mis-tightened count on such an edge
 /// could never outlive. The `None` the classifier reserves for conic
 /// and spline carriers is unreachable from a circle and is surfaced
 /// typed rather than defaulted, so a widened classifier cannot make
-/// this arm silently pick a direction. The sphere and the cone need no
-/// classification: the sphere's two steps are one, and every circle a
-/// cone carries is a rim.
+/// this arm silently pick a direction.
 pub(crate) fn grid_boundary_step(
     body: &topo::Body<f64>,
     fk: topo::FaceKey,
-    surface: &geom::Surface<f64>,
     curve: &geom_brep::EdgeCurve<f64>,
     edge: topo::EdgeKey,
     target: f64,
 ) -> Result<Option<f64>, TessellateError> {
-    match *surface {
+    let surface = crate::tessellate::face_surface(body, fk)?;
+    if crate::tessellate::lane_of(body, fk, surface)? != crate::tessellate::Lane::Curved {
+        return Ok(None);
+    }
+    let steps = match *surface {
         geom::Surface::Torus {
             major_radius,
             minor_radius,
             ..
-        } => {
-            let Some(chart) = topo::chart::Chart::of(surface) else {
-                unreachable!("Chart::of answers every torus, and this surface is one: {surface:?}")
-            };
-            let (hu, hv) = torus_grid_steps(target, major_radius, minor_radius);
-            match topo::chart_iso::classify_kind(&chart, curve) {
-                Some(topo::chart_iso::TravKind::Rim { .. }) => Ok(Some(hu)),
-                Some(topo::chart_iso::TravKind::Meridian { .. }) => Ok(Some(hv)),
-                None => Err(TessellateError::UnsupportedCurve {
-                    edge,
-                    note: "a circle edge on a torus that the iso-curve classifier left \
-                           unclassified — neither rim nor meridian, so no grid direction \
-                           sizes its chords",
-                }),
-            }
+        } => torus_grid_steps(target, major_radius, minor_radius),
+        geom::Surface::Sphere { radius, .. } => {
+            sphere_grid_steps(target, radius, sphere_face_widest_cos(body, fk, surface)?)
         }
-        geom::Surface::Sphere { radius, .. } => Ok(Some(sphere_grid_step(target, radius))),
-        geom::Surface::Cone { half_angle, .. } => Ok(Some(cone_grid_step(
-            target,
-            half_angle,
-            cone_face_rho_max(body, fk)?,
-        ))),
-        _ => Ok(None),
+        geom::Surface::Cone { half_angle, .. } => {
+            return Ok(Some(cone_grid_step(
+                target,
+                half_angle,
+                cone_face_rho_max(body, fk)?,
+            )));
+        }
+        _ => return Ok(None),
+    };
+    let Some(chart) = topo::chart::Chart::of(surface) else {
+        unreachable!("Chart::of answers every torus and sphere, and this is one: {surface:?}")
+    };
+    match topo::chart_iso::classify_kind(&chart, curve) {
+        Some(topo::chart_iso::TravKind::Rim { .. }) => Ok(Some(steps.0)),
+        Some(topo::chart_iso::TravKind::Meridian { .. }) => Ok(Some(steps.1)),
+        None => Err(TessellateError::UnsupportedCurve {
+            edge,
+            note: "a circle edge on a torus or sphere that the iso-curve classifier left \
+                   unclassified — neither rim nor meridian, so no grid direction sizes its \
+                   chords",
+        }),
     }
 }
 
@@ -1118,48 +1214,113 @@ mod tests {
                     "α {half_angle} ρ {rho_max} δ {delta}: the cell-half certifies at {cert}"
                 );
                 assert!(h > sagitta_step(delta, rho_max));
+                // The same triangle measured against the cone itself, so a
+                // wrong `cert_cone` reds here rather than agreeing with the
+                // step that inverts it: dense barycentric samples, each at
+                // its distance `|cos α·ρ − sin α·z|` from the generator
+                // through its azimuth.
+                let (sa, ca) = half_angle.sin_cos();
+                let at = |u: f64, v: f64| [v * sa * u.cos(), v * sa * u.sin(), v * ca];
+                let corners = [at(0.0, v_max), at(h, v_max), at(0.0, 0.9 * v_max)];
+                let mut worst = 0.0_f64;
+                for i in 0..=48 {
+                    for j in 0..=(48 - i) {
+                        let (l0, l1) = (f64::from(i) / 48.0, f64::from(j) / 48.0);
+                        let l2 = 1.0 - l0 - l1;
+                        let p: [f64; 3] = core::array::from_fn(|k| {
+                            l0 * corners[0][k] + l1 * corners[1][k] + l2 * corners[2][k]
+                        });
+                        worst = worst.max((ca * p[0].hypot(p[1]) - sa * p[2]).abs());
+                    }
+                }
+                assert!(
+                    worst <= cert * (1.0 + 1e-9) && worst >= cert * 0.99,
+                    "α {half_angle} ρ {rho_max} δ {delta}: sampled {worst} against the \
+                     certificate {cert}"
+                );
             }
         }
     }
 
-    /// **The sphere's theorem at [`sphere_grid_step`]**: the bound
-    /// `r·((1 − cos(h_u/2)) + (1 − cos(h_v/2)))` spends exactly δ at the
-    /// step; every cell-half of either diagonal, at every latitude band,
-    /// certifies (`cert::cert_sphere`) within it; and the equator's
-    /// cell-half attains it to second order (within `h²` of δ), so the
-    /// bound has no first-order slack to give back.
+    /// **The sphere's theorem at [`sphere_grid_steps`]**: the bound
+    /// `r·((1 − cos(h_v/2)) + c²·(1 − cos(h_u/2)))` spends exactly δ at
+    /// the steps, half in each direction; every cell-half of either
+    /// diagonal, in latitude bands across the face's window, certifies
+    /// (`cert::cert_sphere`) within δ; and the cell-half at the widest
+    /// latitude attains it as the steps shrink (to second order on the
+    /// equator, to within `tan φ·h_v` off it), so the bound has no slack
+    /// the steps could give back. The windows are a band spanning
+    /// the equator (`c = 1`, equal steps), one at [0.6, 1.0] (the equal
+    /// split, `h_u ≈ 1.2·h_v`), and two past 45° where the lattice's
+    /// aspect bound binds: [0.9, 1.5] and [1.45, 1.55].
     #[test]
-    fn sphere_grid_step_lands_the_worst_triangle_at_delta() {
+    fn sphere_grid_steps_land_the_worst_triangle_at_delta() {
         use geom_core::Point3;
+        let windows: [(f64, f64); 4] = [(-0.4, 0.4), (0.6, 1.0), (0.9, 1.5), (1.45, 1.55)];
         for (r, delta) in [(1.0_f64, 1e-2), (1.0, 1e-4), (0.02, 1e-5)] {
-            let h = sphere_grid_step(delta, r);
-            assert!(h < MAX_ANGULAR_STEP, "r {r} δ {delta}: the cap binds");
-            let spent = 2.0 * r * (1.0 - (0.5 * h).cos());
-            assert!(
-                ((spent - delta) / delta).abs() < 1e-6,
-                "r {r} δ {delta}: the step spends {spent} of the bound"
-            );
-            let at = |u: f64, v: f64| {
-                Point3::new(r * v.cos() * u.cos(), r * v.cos() * u.sin(), r * v.sin())
-            };
-            let mut equator = 0.0_f64;
-            for v0 in [-0.5 * h, 0.3, 1.0, 1.5 - h] {
-                let (a, b, c, d) = (at(0.0, v0), at(h, v0), at(0.0, v0 + h), at(h, v0 + h));
-                for tri in [[a, b, c], [b, d, c], [a, b, d], [a, d, c]] {
-                    let cert = crate::cert::cert_sphere(Point3::origin(), r, tri);
+            for (lo, hi) in windows {
+                let c = if lo <= 0.0 && hi >= 0.0 {
+                    1.0
+                } else {
+                    lo.abs().min(hi.abs()).cos()
+                };
+                let (hu, hv) = sphere_grid_steps(delta, r, c);
+                assert!(hv < MAX_ANGULAR_STEP, "r {r} δ {delta}: the cap binds");
+                let spent = r * ((1.0 - (0.5 * hv).cos()) + c * c * (1.0 - (0.5 * hu).cos()));
+                assert!(
+                    hu <= SPHERE_CELL_ASPECT * hv * (1.0 + 1e-12),
+                    "r {r} δ {delta} window [{lo}, {hi}]: aspect {} past the lemma's",
+                    hu / hv
+                );
+                if hu < MAX_ANGULAR_STEP {
+                    // Exactly δ where the equal split stands; from below,
+                    // to second order, where the aspect binds.
+                    let exact = hu < SPHERE_CELL_ASPECT * hv;
                     assert!(
-                        cert <= delta * (1.0 + 1e-9),
-                        "r {r} δ {delta} band {v0}: a cell-half certifies at {cert}"
+                        spent <= delta * (1.0 + 1e-6)
+                            && spent >= delta * if exact { 1.0 - 1e-6 } else { 1.0 - hv * hv },
+                        "r {r} δ {delta} window [{lo}, {hi}]: the steps spend {spent}"
                     );
-                    if v0 < 0.0 {
-                        equator = equator.max(cert);
+                }
+                let at = |u: f64, v: f64| {
+                    Point3::new(r * v.cos() * u.cos(), r * v.cos() * u.sin(), r * v.sin())
+                };
+                // Bands from the widest latitude across the window.
+                let widest = if c == 1.0 { -0.5 * hv } else { lo };
+                let mut at_widest = 0.0_f64;
+                let mut v0 = widest;
+                while v0 + hv <= hi.max(widest + hv) + 1e-12 {
+                    let (a, b, cc, d) =
+                        (at(0.0, v0), at(hu, v0), at(0.0, v0 + hv), at(hu, v0 + hv));
+                    for tri in [[a, b, cc], [b, d, cc], [a, b, d], [a, d, cc]] {
+                        let cert = crate::cert::cert_sphere(Point3::origin(), r, tri);
+                        assert!(
+                            cert <= delta * (1.0 + 1e-9),
+                            "r {r} δ {delta} band {v0}: a cell-half certifies at {cert}"
+                        );
+                        if v0 == widest {
+                            at_widest = at_widest.max(cert);
+                        }
                     }
+                    v0 += hv.max((hi - lo) / 7.0);
+                }
+                if hu < MAX_ANGULAR_STEP {
+                    // Off the equator the cell's own latitudes sit up to a
+                    // row inside the widest one, so the azimuth half falls
+                    // short by up to `tan φ·h_v` of itself; on it, only by
+                    // second order.
+                    let short = if c < 1.0 {
+                        lo.tan() * hv
+                    } else {
+                        2.0 * hu * hu
+                    };
+                    assert!(
+                        at_widest >= delta * (1.0 - short),
+                        "r {r} δ {delta} window [{lo}, {hi}]: the widest cell-half \
+                         certifies at only {at_widest}"
+                    );
                 }
             }
-            assert!(
-                equator >= delta * (1.0 - h * h),
-                "r {r} δ {delta}: the equator's cell-half certifies at only {equator}"
-            );
         }
     }
 

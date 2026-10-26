@@ -3,7 +3,7 @@ id: the-nurbs-lattice-share-is-not-chosen-by-measurement
 kind: issue
 title: the NURBS lane's LATTICE_SHARE = ½ picks a point on its sliver theorem's curve that nothing measured as the coarsest
 status: open
-priority: P3
+priority: P2
 cost: M
 opened: 2026-10-25
 refs: [mesh-sizes-each-lane-by-its-worst-admissible-triangle, S29]
@@ -33,3 +33,16 @@ sliver binds.
 triangle totals and refusals; the cheapest share that refuses nothing
 new is the lane's coarsest step under the rule. A share that moves the
 NURBS output re-cuts the baseline and the NURBS render cells.
+
+**Re-banded P2 (PR 5717's review, 2026-10-26).** NURBS is 84% of the
+tour's triangles, and its faces reach at most 0.061 δ, so the share is
+the largest coarsening left on the table. The reviewer adds two points:
+- `split_steps` scales only with the budget, so the cheapest share may
+  need no new machinery. A per-band coarsest `b = 4δ/a²`, read off each
+  band's own residual aspect `a`, puts that band's sliver at δ without
+  touching the schedule's shape.
+- `LATTICE_SHARE`'s doc says "every point of that curve puts the worst
+  triangle at δ". That holds only at the line. A band whose residual
+  aspect is under `√MAX_RESIDUAL_SQ` has its sliver below δ at any
+  share, so the curve's other points are not equivalent for it.
+
