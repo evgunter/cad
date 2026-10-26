@@ -531,7 +531,11 @@ fn reads_as(row: &str, r: Result<BooleanResult<f64>, BooleanError>, want: f64, r
                         && es.iter().all(|e| rim(e) || curved(e))),
                 "{row}: tier 3′ {t3p:?}"
             );
-            let v = topo::mass_properties(&b.body, tol()).unwrap().volume;
+            let v =
+                topo::mass_properties(&b.body, tol(), topo::test_support::pinned_resolution(tol()))
+                    .unwrap()
+                    .enclosure
+                    .volume;
             assert!((v - want).abs() < 1e-7, "{row}: volume {v} against {want}");
             let line = outcome(Ok(r), want, tol());
             assert!(
