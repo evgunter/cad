@@ -4972,7 +4972,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 /// - **The analysis lane's INTERIOR residue** (`FlipEvidence`,
 ///   `StructureFlip`, `AxisScalar`, `var_env_over`, `SeedScalar`,
 ///   `seed_env`, `std_deviation`, `sensitivities`,
-///   `PairingViolation`; the third lane seam `MinClearanceLane`
+///   `BindingViolation`; the third lane seam `MinClearanceLane`
 ///   with its `MinClearanceOperand`, which is how a `min_clearance`
 ///   measure asks the interval lane for the bracket only that lane
 ///   can carry; and `ProfileLane`, the sealed fact that the `f64`
@@ -5026,6 +5026,7 @@ const NOT_CARRIED: [&str; 98] = [
     "AttrSet",
     "AxisScalar",
     "BifurcationKind",
+    "BindingViolation",
     "BranchCertification",
     "BranchMarginEvidence",
     "CertifiedRange",
@@ -5057,7 +5058,6 @@ const NOT_CARRIED: [&str; 98] = [
     "NodeChange",
     "NodeVerdictDelta",
     "NodeVerdicts",
-    "PairingViolation",
     "ParamValue",
     "PredicateDivergence",
     "ProfileLane",

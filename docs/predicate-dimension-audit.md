@@ -26,11 +26,14 @@ not the workspace's predicate-name roster** — that is
 `docs/K-REPORT.md` § *"The inventory method, restated"*, whose seven
 orphans are all outside these two crates by construction (`profile`
 ×2, `sweep` ×2, `demos/tour` ×3), a fact *about* this bound and not a
-hole in it. **(2) Not complete inside them.** Of **255** funnel-reaching
-names in the two crates the tables and their prose reach **230**, carry
-an individual `dim` verdict for **128**, and miss **25** entirely; the
-25 are listed under *Uncovered names* below the tables and are §D's
-**D46**. The word *every* was this document's for a year and it was
+hole in it. **(2) Not complete inside them.** At `43e2998d`, of
+**255** funnel-reaching names in the two crates the tables and their
+prose reached **230**, carried an individual `dim` verdict for **128**,
+and missed **25** entirely, the 25 §D's **D46**. Those figures are
+dated, and the instrument that took them read calls line by line. At
+`9b882992`, read across lines, **475** names are written as a literal
+at a funnel call and **188** of them are recorded nowhere (*Uncovered
+names*, below the tables). The word *every* was this document's for a year and it was
 never true of the second bound; it is retired here rather than
 footnoted.
 
@@ -161,8 +164,11 @@ all stored surface axes/normals/`u_ref` unit; `implicit_residual` is
 
 ## Coverage of the two crates, measured
 
-**Against main at `43e2998d`** — carried explicitly, because this is a
-survey written into the tree it surveys (§D's D23). *(Taken three
+**Against main at `43e2998d`, and dated** — carried explicitly, because
+this is a survey written into the tree it surveys (§D's D23). Every
+figure in this section is that tree's, taken with the line-shaped grep
+below; the re-measurement at `9b882992` is in *Uncovered names*, and
+the figures here have not been re-derived on its reading. *(Taken three
 times: `f87b203`, then `a0a6e1a5` after main moved `census.rs` and
 `splitting/rules.rs` under it, then here after `topo` gained `live.rs`
 and rewrote `split.rs`. Every figure reproduced at all three.)*
@@ -241,7 +247,7 @@ retired (`bool_sector_*` / `split_sector_*`, unified to `sector_*` by
 #652). Re-deriving:
 
 ```sh
-# code half — every funnel site, all fifteen spellings, both crates.
+# code half — every funnel site, all nineteen spellings, both crates.
 # It also matches doc-comment prose and `fn` definitions; the ledger
 # above says which, and they are subtractions, not sites.
 # `decide_positive` / `decide_negative` / `decide_nonzero` / `decide_magnitude` are `decide`
@@ -249,18 +255,30 @@ retired (`bool_sector_*` / `split_sector_*`, unified to `sector_*` by
 # `decide` keeping the verdict for the refusal's words, so their sites
 # are rows of this table like any other; `gate_measured` is deliberately
 # absent — it classifies no margin and has no comparand to dimension.
-grep -rnE '\b(decide|decide_reported|decide_flagged|decide_invariant|decide_positive|decide_negative|decide_nonzero|decide_magnitude|check_residual|classify|classify_len|require_zero|require_extent|gap_is_zero|signed_is_zero)\s*(::<[^()]*>)?\s*\(' \
+# The `_reported` doors and `check_unlogged` (the F18–F25 door) are
+# the same decisions keeping their verdict or leaving the log.
+grep -rnE '\b(decide|decide_reported|decide_flagged|decide_flagged_reported|decide_invariant|decide_positive|decide_negative|decide_nonzero|decide_nonzero_reported|decide_magnitude|decide_magnitude_reported|check_unlogged|check_residual|classify|classify_len|require_zero|require_extent|gap_is_zero|signed_is_zero)\s*(::<[^()]*>)?\s*\(' \
   crates/geom-brep/src crates/topo/src
 # behavioural half — what the committed baseline emitted
 zcat docs/k-report-data/m7-eps-1e-9.csv.gz | tail -n +2 | cut -d, -f2 | sort -u
 # coverage — compare against THIS FILE WITH ITS TWO SELF-DESCRIBING
-# SECTIONS REMOVED. `Uncovered names` lists the 25 and this section
+# SECTIONS REMOVED. `Uncovered names` lists the uncovered and this section
 # names helpers that share spellings with predicates, so a re-derivation
 # that reads the whole file finds a hole of zero and calls it closed.
 sed -e '/^## Coverage of the two crates/,/^## geom-brep/d' \
     -e '/^### Uncovered names/,/^## Findings/d' \
     docs/predicate-dimension-audit.md
 ```
+
+**The `grep` is line-shaped, and the tree is not.** rustfmt puts a
+long call's first argument on the line after the `(`, and at
+`9b882992` a literal-first-argument reading of the line-shaped grep
+sees 283 names where a scan that lets the argument wrap sees 475. The
+grep also reads every `#[cfg(test)]` module and every test-only file.
+A re-derivation reads calls across lines, cuts each `#[cfg(test)] mod
+… { … }` by brace matching (an attribute may sit between the two),
+and drops each file a `#[cfg(test)] mod x;` declares; the figures
+dated `9b882992` in this document were taken that way.
 
 The first command is a **starting set, not an answer**: a site whose
 first argument is not a literal has to be read, and a spelling not in
@@ -397,16 +415,22 @@ which is what actually moves the number.
 | certify.rs (`gap_orientation`, the tangent arm) | tangent_gap_orientation | n̂₁·n̂₂ (unit implicit gradients) levered by the edge's extent (`edge_extent`); a decided zero refuses (`decide_nonzero`), renamed by a definite `tangent_normal_parallel` at the folded arm | m | OK |
 | certify.rs (the tangent arm) | tangent_gap / tangent_gap_hull_sup | `r₁ − σ·r₂`, two implicit residuals (/2r-normalized) under the decided orientation σ = ±1; its sampled max over both ends' σ per span plus `TangentSpanBounds::gap_sag`, `(Δt²/8)(sup\|f₁″\| + sup\|f₂″\|)` | m | OK |
 | certify.rs:1143/1151/1162 | witness_* | residuals / point distance | m | OK |
-| intersect.rs:949/953/892 (`plane_cylinder_ruled`, `plane_cylinder_section`) | pc_axis_plane_parallel / parallel_gap / parallel_gap_floor / rim_alignment | sin×lever, the lever over the reach from the rulings' hinge: the consumed region's axial distance from the hinge's station (`Reach::hinge_lever`) plus its distance across the wall from the hinge at second order, `abs(sin)/(1 + cos)` × a length (`Reach::turn_lever`: the face's reach from `at`, a conic edge read over the span it holds, `Reach::span_reach_from` (a circle arc exactly, an ellipse arc by its quarters), and `at`'s offset across the wall from the normal's own off-axis part; the germ frame and chord_join's cylinder lane serve only where that reach and the whole-turn one agree, `chord_join::agreed_section`); \|r−gap\| + \|sin×lever\| and r−gap shrunk toward zero by \|sin×lever\| (`decide_across`: the gap and the tilt as one sum, the floor deciding the definite side); sin×r | m | OK |
+| intersect.rs:949/953/892 (`plane_cylinder_ruled`, `plane_cylinder_section`) | pc_axis_plane_parallel / pc_parallel_gap / pc_parallel_gap_floor / pc_rim_alignment | sin×lever, the lever over the reach from the rulings' hinge: the consumed region's axial distance from the hinge's station (`Reach::hinge_lever`) plus its distance across the wall from the hinge at second order, `abs(sin)/(1 + cos)` × a length (`Reach::turn_lever`: the face's reach from `at`, a conic edge read over the span it holds, `Reach::span_reach_from` (a circle arc exactly, an ellipse arc by its quarters), and `at`'s offset across the wall from the normal's own off-axis part; the germ frame and chord_join's cylinder lane serve only where that reach and the whole-turn one agree, `chord_join::agreed_section`); \|r−gap\| + \|sin×lever\| and r−gap shrunk toward zero by \|sin×lever\| (`decide_across`: the gap and the tilt as one sum, the floor deciding the definite side); sin×r | m | OK |
 | intersect.rs:694 | ps_frame_seam | (sin−0.5)·r — deterministic frame tie-break, not a coincidence question | m | OK (note N5) |
+| intersect.rs `sphere_sphere_section` | ss_carrier_identity / ss_carrier_external / ss_carrier_internal | `d + \|r₁ − r₂\|`, `d − (r₁ + r₂)`, `d − \|r₁ − r₂\|`, `d` the centres' distance — lengths of the two carriers, bare | m | OK |
+| intersect.rs `ss_frame_seam` | ss_frame_seam | `(‖n̂ × û‖ − ½)·r`, a sine levered by operand A's radius — deterministic frame tie-break, not a coincidence question | m | OK (note N5, `ps_frame_seam`'s twin) |
+| intersect.rs `cylinder_sphere_section` | cs_coaxial / cs_cylinder_radius / cs_sphere_radius / cs_wall_reach | the sphere centre's distance from the cylinder's (unit) axis; `r`; `R` (the two radii a `(name, margin, …)` table decides); `R − r` | m | OK |
 | intersect.rs:705 | ps_center_gap | r − center-plane distance | m | OK |
-| intersect.rs:834–882 | cc_* (radius eq, axes parallel, coaxial and its floor, gap and its floor, coplanar) | lengths / sin×extent / common-perpendicular; the coaxial distance and the gap each summed with the axes' sin×lever (`decide_across`) | m | OK |
-| intersect.rs:2232/2246/2276/2327/2337 (`plane_cone_section`) | pn_apex_on_plane, pn_apex_section (and its floor), pn_apex_point_reach / pn_apex_pair_reach / pn_apex_tangent_reach, pn_axis_normal, pn_conic_type | m·unit, the apex gap (`pn_apex_on_plane`); trig diff×extent, summed with the apex gap (`pn_apex_section` and its floor, `decide_across`), and alone off the apex (`pn_conic_type`); the apex gap with its own rounding, \|δ̂\| + 2.5·EPSILON·Σ\|(apex − origin)ᵢ·nᵢ\| (m), levered by 1/\|D\|, the off-apex ellipse's farthest point from the apex (`pn_apex_point_reach`) and where the hyperbola's far branch starts (`pn_apex_pair_reach`, the lesser of that and a sum of lengths over the reach's window along the axis, `pair_bound`: a nappe's start less the window's least distance from the apex, clamped at zero, plus the apex gap levered by 2/(σ + √max(σ² − 2s\|δ\|/(ρ·sin α), 0)), plus the served lines' rounding, EPSILON/2·((3 cos α + 4 sin α + 6s·sin α)/σ + 5 sin α/s + 12 sin α + 3) levered by the window's farthest distance from the apex), and by 1/(sin α·s + cos α·\|c\|), where the section starts nearest the apex (`pn_apex_tangent_reach`); sin×rim r | m | OK |
+| intersect.rs:834–882 | cc_* (`cc_radius_equality`, `cc_axes_parallel`, `cc_coaxial` and `cc_coaxial_floor`, `cc_parallel_gap` and `cc_parallel_gap_floor`, `cc_axes_coplanar`) | lengths / sin×extent / common-perpendicular; the coaxial distance and the gap each summed with the axes' sin×lever (`decide_across`) | m | OK |
+| intersect.rs:2232/2246/2276/2327/2337 (`plane_cone_section`) | pn_apex_on_plane, pn_apex_section (and `pn_apex_section_floor`), pn_apex_point_reach / pn_apex_pair_reach / pn_apex_tangent_reach, pn_axis_normal, pn_conic_type | m·unit, the apex gap (`pn_apex_on_plane`); trig diff×extent, summed with the apex gap (`pn_apex_section` and its floor, `decide_across`), and alone off the apex (`pn_conic_type`); the apex gap with its own rounding, \|δ̂\| + 2.5·EPSILON·Σ\|(apex − origin)ᵢ·nᵢ\| (m), levered by 1/\|D\|, the off-apex ellipse's farthest point from the apex (`pn_apex_point_reach`) and where the hyperbola's far branch starts (`pn_apex_pair_reach`, the lesser of that and a sum of lengths over the reach's window along the axis, `pair_bound`: a nappe's start less the window's least distance from the apex, clamped at zero, plus the apex gap levered by 2/(σ + √max(σ² − 2s\|δ\|/(ρ·sin α), 0)), plus the served lines' rounding, EPSILON/2·((3 cos α + 4 sin α + 6s·sin α)/σ + 5 sin α/s + 12 sin α + 3) levered by the window's farthest distance from the apex), and by 1/(sin α·s + cos α·\|c\|), where the section starts nearest the apex (`pn_apex_tangent_reach`); sin×rim r | m | OK |
+| intersect.rs `plane_cone_section` (the aperture guards, a `(name, margin, what)` table decided before any pose trilean) | pn_aperture_sin / pn_aperture_cos / pn_seam_off_axis | `sin α`, `cos α` and the seam's sine off the axis (`geom::square_frame`'s `width`), each levered by the operand extent from the apex (`Reach::lever_from`) | m | OK (levered door; division guards and a convention clause, `coc_`'s three at this arm's lever) |
 | intersect/conic_arc.rs (`OpenConicSection::branch_at`) | pn_conic_branch | the seed's signed distance from the hyperbola's conjugate axis in the plane, `((P − F)·û − cδs/K)·sign(δσ)` | m | OK (new in OFFSET conic arc) |
 | intersect/conic_arc.rs (`ConicBranch::arc`) | pn_conic_window_on | a window end's distance from the branch's point at its height | m | OK (new in OFFSET conic arc) |
 | intersect/conic_arc.rs (`ConicBranch::arc`) | pn_conic_window_span | the distance between the window's two minted ends | m | OK (new in OFFSET conic arc) |
-| intersect.rs `plane_torus_section` | torus_tube_positive / ring_torus_convention (read from `geom::ring_torus`, the convention's one home) / axis_in_plane / axis_plane_gap (and its floor) / axis_normal / cap_gap (and its floor) | r; R−r; sin×extent; the stand-off `n·(q − c)`, summed with the meridian circles' lean `r·(a·n)` (`decide_across`): each circle stands at most that sum off the plane, at any extent; sin×(R + r); r − the depth `d/(a·n)` of the plane's crossing of the axis (independent of where its origin is stored), summed with sin×(R + r) (`decide_across`): each circle is minted at that crossing and stands at most sin×(R + r) off the plane | m | OK |
-| intersect.rs:2026/2047/2053/2068/2093/2111 | coc_cylinder_radius / coc_aperture_sin / coc_aperture_cos / coc_axes_parallel / coc_coaxial / coc_coaxial_floor / coc_station_reach | R; sin α×extent; cos α×extent; sin×extent; the apex's distance from the cylinder's axis plus sin×extent, and less it for the floor (`decide_across`); extent − |R·cot α| (extent measured from the apex) | m | OK — the family prefix is `coc_`, not `cc_`: `cc_*` is cylinder×cylinder's glob two rows above and would over-match. `coc_station_reach` is the arm's ADMISSION criterion; the two aperture clauses are a division guard and a convention clause, not conditioning questions |
+| intersect.rs `plane_torus_section` | torus_tube_positive / ring_torus_convention (read from `geom::ring_torus`, the convention's one home) / pt_axis_in_plane / pt_axis_plane_gap (and `pt_axis_plane_gap_floor`) / pt_axis_normal / pt_cap_gap (and `pt_cap_gap_floor`) | r; R−r; sin×extent; the stand-off `n·(q − c)`, summed with the meridian circles' lean `r·(a·n)` (`decide_across`): each circle stands at most that sum off the plane, at any extent; sin×(R + r); r − the depth `d/(a·n)` of the plane's crossing of the axis (independent of where its origin is stored), summed with sin×(R + r) (`decide_across`): each circle is minted at that crossing and stands at most sin×(R + r) off the plane | m | OK |
+| intersect.rs:2026/2047/2053/2068/2093/2111 | coc_cylinder_radius / coc_aperture_sin / coc_aperture_cos / coc_seam_off_axis / coc_axes_parallel / coc_coaxial / coc_coaxial_floor / coc_station_reach | R; sin α×extent; cos α×extent; the seam's sine off the axis (`geom::square_frame`'s `width`)×extent; sin×extent; the apex's distance from the cylinder's axis plus sin×extent, and less it for the floor (`decide_across`); extent − |R·cot α| (extent measured from the apex) | m | OK — the family prefix is `coc_`, not `cc_`: `cc_*` is cylinder×cylinder's glob two rows above and would over-match. `coc_station_reach` is the arm's ADMISSION criterion; the two aperture clauses are a division guard and a convention clause, not conditioning questions |
+| edge_nurbs.rs (`plane_nurbs_limbs`, the transversality hook on `chart_image`'s interior samples; through `dihedral::decide_reported`) | plane_nurbs_transversality | `sin θ` of the plane's normal against the wall's `du × dv` (`normal_angle_sine`, both normalised), levered by `ssi::point_arm`'s `extent / max(1, κ·extent)` = min(extent, 1/κ), κ the wall's largest principal curvature at the foot (1/m) | m | OK (levered door; `ssi_transversality`'s comparand at the plane × NURBS lane's own samples. The reported minimum is `plane_nurbs_transversality_reported`, a `gate_measured` name outside this table) |
+| edge_nurbs.rs (`probe_pick` through `first_within`; the label is `pick_arc_rim`'s) | pcurve_iso_arc_row_direction | the largest of the carrier's three 3-D distances from the chart's point at a candidate image's own parameter — at the edge's two ends and a quarter span in — over the four closed-form arc-rim images (two rows × two `u` directions), then the measured ones | m | OK (`Margin::of` a distance; as `pcurve_iso_line_rim`: only a decided `Zero` selects, an escalation is deferred, and the arc-rim certification follows the selection) |
 | pcurve_cache.rs (`Placement::turns`) | pcurve_chart_placement | (angle − mark)×the angle's lever, the half-period marks about the window's centre (`Period::decide`); one expression, the read's one cut being the window's (`pcurve_chart_cut_side`) | m | OK (levered door) |
 | pcurve_cache.rs:1268 | pcurve_map_residual | mapped point distance | m | OK |
 | pcurve_cache.rs:1964 | pcurve_interval_forward (harmonic) | span × param_rate | m | OK |
@@ -522,7 +546,7 @@ which is what actually moves the number.
 | boolean/sphere_region.rs (`SphereFaceRegion::contains`'s boundary pass, through `splitting::containment::ConicArc::hit` on the arc's circle) | bool_sphere_region_arc_span | `(τ − w)` through the turn rule (`Period::turn`), as `ConicArc::of` reads it (`point_in_arc_loop_conic_span`'s row); where the point sits against the arc is `ConicArc::hit`'s two readings (the row above) | m | OK |
 | boolean/sphere_region.rs (the rays) | bool_sphere_region_arm / bool_sphere_region_span / bool_sphere_region_at / bool_sphere_region_order / bool_sphere_region_cross | a ray direction's tangential fraction `\|raw\|/\|toward\|` × the sphere's radius; a root's parameter less a span end × the arc's radius (arc length); a crossing's angle along the great circle × the sphere's radius (geodesic length), and two such lengths' difference; the heading's sine against the face side × the sphere's radius | m | OK |
 | boolean/sphere_region.rs (`ray_roots`, through `circle_roots::first_harmonic_roots_in_band`) | bool_sphere_region_roots_noise / _coaxial / _extreme / _slack | the first-harmonic door's rows, as `bool_conic_quadric_first_*`'s: the arc's signed distance off the ray's plane through the centre, `ĝ·(C − c) + ρ(ĝ·û) cos θ + ρ(ĝ·v̂) sin θ`, its rounding charge, its extremes, and a root's arc slack at the arc's radius | m | OK |
-| boolean/torus_region.rs (`TorusFaceRegion::contains`'s boundary pass, through `splitting::containment::ConicArc::hit` on a circle edge and `SpiricArc::contact` on an oval arc) | bool_torus_region_arc_span / bool_torus_region_spiric_end / _clear / _on / _leaf | `(τ − w)` through the turn rule (`Period::turn`), as `ConicArc::of` reads it (`point_in_arc_loop_conic_span`'s row); an oval arc's end distance, a piece ball's clearance, a point distance and a ball radius | m | OK |
+| boolean/torus_region.rs (`TorusFaceRegion::contains`'s boundary pass, through `splitting::containment::ConicArc::hit` on a circle edge and `PiecedArc::contact` on an oval arc) | bool_torus_region_arc_span / bool_torus_region_spiric_end / _clear / _on / _leaf | `(τ − w)` through the turn rule (`Period::turn`), as `ConicArc::of` reads it (`point_in_arc_loop_conic_span`'s row); an oval arc's end distance, a piece ball's clearance, a point distance and a ball radius | m | OK |
 | boolean/torus_region.rs (the paths) | bool_torus_frame_radius / bool_torus_region_family / bool_torus_region_component / bool_torus_region_span / bool_torus_region_at / bool_torus_region_corner / bool_torus_region_order / bool_torus_region_cross | the point's distance from the axis; a circle edge's axis sine × its radius and its radius less `R` (class selection); a root's separation from the plane's other curve (`(y − c)·ρ̂` on a meridian plane, `ρ − R` on a parallel plane, a circle's distance from its mirror and from itself, `(y − c)·m` on an oval's plane), and an edge in a leg's plane against the leg's own circle (a meridian's centre against `ρ̂`, a parallel's radius less the leg's); a root's parameter less a span end × the circle's radius or the tube's (arc length, or a lower bound on it); a crossing's angle along its leg × the leg's radius, against the leg's start, its corner, or another crossing; the heading's sine against the face side × the tube's radius | m | OK |
 | boolean/torus_region.rs (`circle_roots`, `plane_roots`, through `circle_roots::first_harmonic_roots_in_band`) | bool_torus_region_roots_noise / _coaxial / _extreme / _slack | the first-harmonic door's rows: a circle edge's signed distance off a meridian leg's plane in its own parameter, or a leg's signed distance off an edge's plane in the leg's parameter; its rounding charge, its extremes, and a root's arc slack at the circle's radius | m | OK |
 | boolean/insert.rs (`strut_order`) | bool_strut_side | `n̂·(ĝ × ê)`: the sine of a strut germ's angle from the arrival edge, × the shared entry's arm — its distance at that arm from the arrival edge's line; a decided zero is placed by `bool_dir_same` (`sectors::direction_sense`) | m | OK (JOIN reflex corner) |
@@ -602,13 +626,31 @@ which is what actually moves the number.
 | boolean/ruled_region.rs (the paths) | bool_ruled_region_frame / bool_ruled_region_nappe / bool_ruled_region_component / bool_ruled_region_collinear / bool_ruled_region_span / bool_ruled_region_at / bool_ruled_region_end / bool_ruled_region_corner / bool_ruled_region_order / bool_ruled_region_cross | the point's distance from a cylinder's axis or a cone's apex; a point's height over the apex along the axis; a root's offset from the axis along the leg's radial (`2ρ` from the meridian plane's other point); a line edge's ends' larger distance from the leg's line; a root's parameter less a span end × the conic's smaller semi-axis or the line's unit speed; a crossing's place along its leg (arc length on a parallel, metres on a ruling) against the leg's start, its end, or another crossing; an aimed ruling's run to its corner; the heading's sine against the face side × the face's scale (the radius, or a bound on the cone face's reach from its apex, never under it) | m | OK |
 | boolean/ruled_region.rs (`landings`, through `circle_roots::first_harmonic_roots_in_band`) | bool_ruled_region_roots_noise / _coaxial / _extreme / _slack | the first-harmonic door's rows: a parallel leg's signed distance off an edge's plane in the leg's parameter, or a conic edge's off a ruling leg's meridian plane in its own; its rounding charge, its extremes, and a root's arc slack at the leg's radius or the conic's larger semi-axis | m | OK |
 | boolean/solid_contain.rs:538/562/587 | bool_point_in_solid_plane | plane residual; /2r linearizations | m | OK |
-| boolean/solid_contain.rs:645/655 | bool_point_in_solid_advance/order | ray parameters (m, unit dir) | m | OK |
-| boolean/solid_contain.rs (`cast_ray`, plane arm) | bool_point_in_solid_denom (plane) | cos(unit,unit) levered by the selection's reach (`selection_reach`): the ray's rise off the plane over every length at which it could meet the face | m | FIXED (F2) |
+| boolean/solid_contain.rs:645/655 (both `RayRows`) | bool_point_in_solid_advance/order / side_at_infinity_advance / side_at_infinity_order | ray parameters (m, unit dir) | m | OK |
+| boolean/solid_contain.rs (`ray_crossings`, plane arm; both `RayRows`) | bool_point_in_solid_denom / side_at_infinity_denom (plane) | cos(unit,unit) levered by the selection's reach (`selection_reach`): the ray's rise off the plane over every length at which it could meet the face | m | FIXED (F2) |
 | boolean/solid_contain.rs (`line_wall_roots`) | bool_point_in_solid_denom (cylinder) | `|d⊥|` levered by the run the caller reads (the ray: the selection's reach + 2r; an edge: its own span): the line's drift off its distance from the axis | m | FIXED (F2; was sin²/2r, 1/m) |
 | boolean/solid_contain.rs (`line_wall_roots`) | bool_ray_cylinder_disc | disc/|d⊥|² over 2r (over_lever), the sphere arm's form | m | FIXED (F2; was disc/(2r)², dimensionless) |
 | boolean/solid_contain.rs (`cast_ray`, wall arm) | (cylinder hit-outward) | read off the decided discriminant's root order, as the sphere lane reads it: no decision | — | FIXED (F2; was (unit·radial)/radius, dimensionless) |
 | boolean/solid_contain.rs (`sphere_chart_trim`, `trim_window_short`) | bool_sphere_trim_period | a face's azimuth hull against one turn through the turn rule (`Period::turn`'s row) at `Exact(R)`; only `Short` keeps a window. A meridian edge's own turn is its certificate's (`CertifiedTurn`, check 2's), read rather than re-decided | m | OK |
-| boolean/solid_contain.rs:850/903 | bool_ray_sphere_disc / at_infinity | disc/2r (over_lever); volume/area (V/A mean thickness, over_lever — a genuine containment decision, not a backstop) | m | OK |
+| boolean/solid_contain.rs (`sphere_chart_trim`, through its `zero` closure) | bool_sphere_iso_meridian | `n_c·â`, a cosine levered by the circle's radius; then `‖c_c − c‖` and `r_c − R`, bare | m | OK (a meridian great circle: square to the polar axis, centred at the sphere's centre, at its radius) |
+| boolean/solid_contain.rs (`sphere_chart_trim`, through its `zero` closure) | bool_sphere_iso_rim | `surface_group::coaxial_margins`: `‖n_c × â‖` levered by `r_c`, and the centre's distance off the axis; then `√(‖w‖² + r_c²) − R`, the rim's seat on the sphere | m | OK |
+| boolean/solid_contain.rs (`sphere_chart_trim`, a meridian edge whose turn is `Short`) | bool_sphere_trim_pole_interior | `p̂·m̂ − cos(w/2)`, the pole's direction against the edge's mid-direction less the half-span's cosine, levered by `R` — the cosine-window construction | m | FLAG F26 |
+| boolean/solid_contain.rs (`latitude_after`, `latitude_extremes`) | bool_sphere_trim_latitude / bool_sphere_trim_antipode | `R·sin(v_b − v_a)` (`latitude_sine`, levered by `R`: the arc between the two latitudes to first order, which does not collapse at a pole); on its `Zero`, the axial difference `h_a − h_b`, bare | m | OK (the fold's in-band arm is a deterministic tie-break, D9; the axial tie-break is asked only where the sine is Zero, at two equal latitudes or the two poles, where it does not cancel) |
+| boolean/solid_contain.rs (`sphere_chart_trim`'s wrapping arm; `latitude_extremes`' `resolve`) | bool_sphere_trim_pole_end | a level's radial distance `ρ` from the axis, then its axial height `h`, bare | m | OK |
+| boolean/solid_contain.rs (`point_in_faces`, `FaceGeo::Sphere` and `FaceGeo::SpherePatch`) | bool_point_in_solid_sphere | `(‖q − c‖² − R²)/2R` | m | OK (the /2r linearization) |
+| boolean/solid_contain.rs (`carrier_roots`' cone arm; `ray_crossings`' `PartialCone` arm; both through `line_cone_quadratic`) | bool_ray_cone_lead | `a₂ = (d·â)² − cos²α` (`d` unit), levered by a bound on the face's reach from its apex (`region.reach()`; `PartialCone`'s `reach`) | m | OK (`cos²β − cos²α ≈ sin 2α·(α − β)`: the ray's angle off the generator cone, to first order, times `sin 2α` — an under-read on a needle or near-flat cone, whose only consequence is a graze) |
+| boolean/solid_contain.rs (as `bool_ray_cone_lead`) | bool_ray_cone_disc | `(b₂² − a₂c₂)/reach` (`over_lever`, m²/m) | m | FLAG F27 |
+| boolean/solid_contain.rs (`root_outward`, cone) | bool_ray_cone_nappe / bool_ray_cone_incidence | the root's axial height above the apex, bare; `d·n̂`, the ray's cosine against the unit chart normal `r̂·cos α ∓ â·sin α`, levered by the root's radius `ρ` off the axis | m | OK (D4's θ·r; the nappe has put `ρ` definitely clear of the apex) |
+| boolean/solid_contain.rs (`root_outward`, torus) | bool_ray_torus_incidence | `d·∇̂F`, the ray's cosine against the tube's unit implicit gradient, levered by the minor radius | m | OK |
+| boolean/solid_contain.rs (`line_torus_roots`, the `RAY_TORUS_ROWS` const, through `geom_brep::quartic::depressed_quartic_roots`) | bool_ray_torus_disc / bool_ray_torus_shape / bool_ray_torus_depth / bool_ray_torus_odd / bool_ray_torus_split / bool_ray_torus_split_lead | the ladder's coefficients in `y = t + b` (a length: `d` is unit), each over the power of `ext = R + r` that makes it a length (`Δ`/ext¹¹, `p`/ext, `D`/ext³, `q̂`/ext², the factors' discriminants over ext or ext³, the resolvent root `z`/ext) | m | OK (the conic-quadric ladder's comparand, at the ray's own lever). `z` is `α²`, a squared length over a length, so `bool_ray_torus_split_lead` under-reads where `α ≪ ext`: decidedness, not correctness, and `work/inside/torus-split-lead-escalates-a-legitimately-small-resolvent-root.md`'s |
+| boolean/solid_contain.rs (`clear_of_carrier`, under the `RayRows` consts `SCHEDULE_ROWS` and `side_reader::AIMED_ROWS`) | bool_point_in_solid_clearance / side_at_infinity_clearance | `\|elev\|`: `q`'s signed distance from a plane, or a cylinder wall's `(ρ² − r²)/2r` (`wall_elevation`) | m | OK |
+| boolean/solid_contain.rs (`ray_passes_beside`, both `RayRows`) | bool_point_in_solid_beside / side_at_infinity_beside | the larger of the two sides' least signed distances from the plane through the ray spanned by `d` and the face normal, over the loop hull's vertices and its curved edges' balls less their radii (`splitting::containment::loop_hull`) | m | OK |
+| boolean/solid_contain.rs (`edge_meets`, both `RayRows`) | bool_point_in_solid_edge / bool_point_in_solid_edge_span / side_at_infinity_edge / side_at_infinity_edge_span | the ray line's enclosed distance from a line edge's line where they come closest (`census::LinePass::gap`); that closest point's distance along the edge from each of its ends (`LinePass::reach`) | m | OK |
+| boolean/solid_contain.rs (`EdgeMeets::vertex`, both `RayRows`) | bool_point_in_solid_vertex / side_at_infinity_vertex | a vertex's distance from the ray segment, less its rounding charge (`geom_core::rounding_charge`), clamped at zero | m | OK |
+| boolean/solid_contain.rs (`ray_crossings`' met-edge pass, both `RayRows`) | bool_point_in_solid_met_edge_represents / side_at_infinity_met_edge_represents | a crossing's advance off the met edge's span along the ray (`t`, `d` unit) | m | OK |
+| boolean/solid_contain.rs (`crosses_by_turn`, both `RayRows`) | bool_point_in_solid_winding / side_at_infinity_winding | `(\|turn\| − π)·reach`, through `k_stats::check_unlogged(.., "F23")` | m | OK (F23) |
+| boolean/solid_contain.rs (`at_infinity_side` → `props::role_walk` → `props::read_sign`, through the `AT_INFINITY` / `AT_INFINITY_ENCLOSURE` consts) | bool_point_in_solid_infinity / bool_point_in_solid_infinity_enclosure | the selection's volume, its certified enclosure's sign alone: `Margin::sign_of` against `Band::enclosure_sign()` (D10's bandless sign read) | — | OK (no length is held against the band, so there is no dimension to convert; the V/A reading this row's predecessor named is gone from the path) |
+| boolean/solid_contain.rs (`line_sphere_roots`) | bool_ray_sphere_disc | disc/2r (over_lever) | m | OK |
 | boolean/vtxfac.rs:106/113/453 | side_code / bool_sector_coplanar / bool_germ_line | side_code as in the sectors.rs row; `bool_sector_coplanar`: sin × sector arm, which only proposes coplanar (both bounds must also read On, in band too); `bool_germ_line` (`pierce_germ_dir`): sin × the sector's farther reach (`BoolSector::span`) | m | FIXED (CONTACT-9; the germ line was levered at the sector arm) |
 | boolean/vtxfac.rs (`faces_holding_pierce`) | bool_held_pierce_curved | the held run's curvature charge, `sectors::sagitta_charge` at the sine `|n × n_p|`, the curved face's bend `ρ` (one face of the two is a plane; both curved refuses) and the pierce's shortest arm: the half above the pierced face's least separation from it past the sagitta | m | OK |
 | boolean/vtxfac.rs (on-edge resolution) | bool_sector_bisector_side | refusal only: a bisector reading On between two readings definitely on one side, reachable only at K ≤ 2; the nonzero gate's rejection, as at `recl` | — | OK (CONTACT-9) |
@@ -616,6 +658,8 @@ which is what actually moves the number.
 | census.rs:614–746 | pm_census_span_* / ee_gap / ee_span / ee_overlap | span arithmetic (m) | m | OK |
 | census.rs:666 | pm_census_ee_parallel | sin(unit dirs) × min(edge lengths) | m | FIXED (was bare sine) |
 | census.rs:812/831 | pm_census_confirm_* | distances / residuals | m | OK |
+| census.rs (`edge_vertex_at`, from the edge-on-face and collinear-overlap bound backings) | pm_census_bound_end | `s` and `len − s`: a bound's position along the edge's unit direction from `v0`, and its distance from `v1` (`len` the chord length the direction was normalised by) | m | OK |
+| census.rs (`any_boundary_vertex_at`) | pm_census_bound_vertex | `‖p_w − q‖`, a boundary vertex's distance from the bound's point (`Margin::norm3`) | m | OK |
 | merge_faces.rs:924 | bool_ring_run_winding | (n̂ · Newell sum) / loop perimeter | m | FIXED (F4) |
 | pcurves.rs (`spline_gap_closes`: `chart_u_arm`, `v_meter`) | pcurve_loop_continuity | a SPLINE chart's (`Nurbs`/`Approx`) joint gap, on the sheet lifted by the joint's `u` and `v` periods where the net closes in each: Δu × `chart_u_arm` and Δv × `v_meter`, `geom_brep::chart_stretch_sup`'s `(sup \|S_u\|, sup \|S_v\|)`, the chart's own metre stretch | m | OK (`metered_sup` door: an escape metred through a certified upper bound can only refuse) |
 | pcurves.rs (`near_pole_gap_closes`: `joint_arm`) | pcurve_loop_pole_gap | at a joint whose orbit marks missed (undecided, or the gap on one) at a band-sized lever (`lever_periods`; a vertex near a pole, or off a narrow cone's apex by more than the band with its lever `|p − apex|·sin α` under it): (gap − m·step) × the vertex's own distance from the axis, for the offsets m of the joint's `Orbit` (`Periods`: 0, ±1 whole periods; `HalfPeriodsWithTwin` where the image has a sphere twin: 0, ±1, ±2 half periods), then the two branches astride the mark the marks' walk stopped on (`Period::decide`), each a lift of the one point. Zero takes m; an offset in band, where none closes, escalates over the marks' decided on-mark miss | m | OK (`metered_sup` door; the rate is the vertex's own distance from the axis, exact there, so an escape it admits is ≤ ε in metres at that vertex) |
@@ -624,8 +668,10 @@ which is what actually moves the number.
 | pcurves.rs (`decide_joint`: `joint_arm`) | pcurve_loop_branch | (gap − (m+½)·step) × the joint vertex's distance from the chart axis (analytic; `step` the orbit's: half a period on a sphere, whose twin sits half a period over, a whole one elsewhere) or `chart_u_arm` (spline); the second channel where the chart closes in it: (gap − (k+½)·τ) × its polar radius on a sphere or torus, (gap − (k+½)·p_v) × `v_meter` (the net's `sup \|S_v\|`) on a net closed in `v`, `p_v` its knot domain's length | m | OK (`metered_sup` door, both channels: the analytic charts' exact vertex lever and polar radius serve as both members of the pair, a net's stretch as its sup). NOT by the escape argument: a mark decision is not an escape claim, and a larger arm decides marks more readily. It is sound because the arm is positive, so a decided sign is the sign of `gap − mark` itself, and the cell between two decided marks holds exactly one orbit point; the arm's size only sets how near a mark a gap may sit and still decide. Where the margin `step/2 × lever` exceeds the joint bound (the chart ends `≤ 4ε` apart in metres, `decide_joint`'s docs), the decided integer is the joint's true deck element. It does not everywhere the incidence reads `Off`: `Off` only puts the vertex `K·ε` from the singular set, so near a pole at a small `K` the lever is about `K·ε`, and near a narrow cone's apex it is `p·sin α`, small even at `K = 10`. There a mark may decide a different orbit point, but only one equally near the joint; every orbit point lifts the same 3-D point, so the lift stays continuous in metres to the joint bound. Where a mark misses there, the near-pole read (`pcurve_loop_pole_gap`) tries the orbit's offsets about the image and the two branches astride the mark the walk stopped on, and takes one the gap meets within ε at the lever; one in band escalates; only a gap decided off every offset it tries refuses (on a mark): with both branches astride the mark decided off, `π·lever ≥ escalate` and every other orbit point is at least `3π·lever − ε` off, so none is within the band, at any `K > 1`. No decided integer names a different point |
 | pcurves.rs | pcurve_loop_pole_joint | the joint vertex's distance to the chart's singular set (a sphere's nearer pole, a cone's apex), or a spline net's `u` reach (`net_reach`): its `u` knot domain's length × `sup \|S_u\|` (`Margin::metered_sup`), the metres a whole `u` sweep moves a point at most; the stretch alone is a rate (m per parameter unit) and is not compared with the band | m | OK |
 | pcurves.rs (`decide_joint`) | pcurve_loop_v_stretch | a spline net closed in `v`: its `v` reach (`net_reach`), the `v` knot domain's length × `sup \|S_v\|` (`v_meter`, `Margin::metered_sup`), the `v` companion of `pcurve_loop_pole_joint`'s net-level read; a reach decided past the band reads the `v` marks, one decided under it is `kv = 0` on an ordinary joint, one in band refuses the joint (`PcurveMintError::NetStretchUndecided`) | m | OK |
-| pcurves.rs (`probe_pick`) | pcurve_iso_line_rim | a straight edge's carrier point a quarter span in, against the chart's point at a candidate iso image's own parameter there: the 3-D distance between the two, for a `Line` carrier described as a chart image or a scaffold | m | OK (`Margin::of` a distance; only a decided `Zero` selects a candidate, and the full iso certification follows the selection; an escalation is deferred and answered only when no candidate holds) |
-| pcurves.rs (`probe_pick`) | pcurve_iso_wall_seam | a seam's carrier point a quarter span in, against the chart's point at a candidate image's own parameter there: the 3-D distance between the two, for a seam stated as an iso line in another chart. The label decides every candidate the wall-seam arm hands the boundary-iso schedule: the stated columns (each chart boundary and the column the start's foot names), the closed-form columns and rows, and the measured maps | m | OK (as `pcurve_iso_line_rim`: `Margin::of` a distance, only a decided `Zero` selects, an escalation is deferred and answered only when no candidate holds, and the full iso certification follows the selection) |
+| pcurves.rs (`iso_schedule`, which names the label) → geom-brep edge_nurbs.rs `probe_pick` | pcurve_iso_line_rim | a straight edge's carrier points at both ends and a quarter span in, against the chart's point at a candidate iso image's own parameter there: the largest of the three 3-D distances, for a `Line` carrier described as a chart image or a scaffold | m | OK (`Margin::of` a distance; only a decided `Zero` selects a candidate, and the full iso certification follows the selection; an escalation is deferred and answered only when no candidate holds) |
+| pcurves.rs (`iso_schedule`, which names the label) → geom-brep edge_nurbs.rs `probe_pick` | pcurve_iso_wall_seam | a seam's carrier points at both ends and a quarter span in, against the chart's point at a candidate image's own parameter there: the largest of the three 3-D distances, for a seam stated as an iso line in another chart. The label decides every candidate the wall-seam arm hands the boundary-iso schedule: the stated columns (each chart boundary and the column the start's foot names), the closed-form columns and rows, and the measured maps | m | OK (as `pcurve_iso_line_rim`: `Margin::of` a distance, only a decided `Zero` selects, an escalation is deferred and answered only when no candidate holds, and the full iso certification follows the selection) |
+| pcurves.rs (`iso_schedule`, which names the label) → geom-brep edge_nurbs.rs `probe_pick` | pcurve_iso_seam_column | as `pcurve_iso_line_rim`, for an `Intersection` or `OnPair` seam on a spline chart: the largest of the carrier's 3-D distances from the chart at a candidate column's or row's own parameter, at both ends and a quarter span in, over the closed-form columns and rows and the measured maps | m | OK (as `pcurve_iso_line_rim`) |
+| pcurves.rs (`net_closes`, for `chart_u_period` and `chart_v_period`; the name rides a `(name, pairs)` tuple) | pcurve_chart_u_closed / pcurve_chart_v_closed | `‖P_first − P_last‖`, each control point of the net's first boundary column (row) against the matching one of its last, bare | m | OK (only a decided `Zero` at every pair closes the channel; the weights the test does not compare, and the in-band fold, are `work/pcert/chart-u-period-folds-an-in-band-net-closure-into-no-period.md`'s, neither a dimension question) |
 | split.rs:197 | split_edge_param_interior | param spans × per-kind rate (1 / radius / minor / speed bound) | m | OK (metered door; the rate is an `InfSpeed` on every kind — the three closed forms by being exact, the net by `speed_lower_bound`'s derivation — which is what an interiority claim needs) |
 | `geom-core` `linalg/rigid_motion.rs` (`RigidMotion::check_rigid`, the decided door a raw map is admitted at; a motion minted by construction asks none; the translation's finiteness is `Real::is_bounded`, as at the mints, and not a band decision) | transform_rigid_* (7 residuals) | unit-column/orthogonality/det residuals, no arm | dimensionless | FLAG F10 |
 | validate.rs:1662/1847 | planar_face/boundary_residual | plane residuals | m | OK |
@@ -644,10 +690,12 @@ which is what actually moves the number.
 | splitting/containment.rs (`certify_plane`) | point_in_loop_normal / point_in_loop_plane / point_in_loop_query | (\|n\| − 1) levered by the loop's reach from its first vertex; a vertex's, conic centre's or control point's offset `(p − o)·n̂` off the plane, and a conic's or spiric's plane tilt `\|axis × n̂\|` levered by its larger semi-axis (a spiric's by `R + r + \|offset\|`); the query's offset `(q − o)·n̂` | m | OK (CLEAVE) |
 | splitting/containment.rs (the frame gate) | point_in_loop_arm | sin(member, plane normal) × loop extent (the member's in-plane fraction) | m | FIXED (was dimensionless schedule norm) |
 | ray_walk.rs (via `containment.rs`'s `ARC_LOOP_ROWS`) | point_in_arc_loop_segment/boundary/side/advance | the point_in_loop rows over an arc-bearing loop's STRAIGHT edges (`on_segment` per chord edge, `ray_crossings` masked to chord edges): distances; m²/m advance | m | OK (ATREST-9) |
-| splitting/containment.rs (`point_in_loop`) | point_in_arc_loop_arm / point_in_arc_loop_reach | the frame gate, as point_in_loop_arm with the conics' reach in the extent; a ray's distance from an uncrossable edge's ball less its reach, `|w − d·max(w·d, 0)| − reach` (a length) | m | OK (ATREST-9; reach row CONTACT-4) |
+| splitting/containment.rs (`point_in_loop`) | point_in_arc_loop_arm / point_in_arc_loop_reach | the frame gate, as point_in_loop_arm with the curved edges' reach in the extent; the reach row is a spiric piece's (below) | m | OK (ATREST-9; reach row CONTACT-4) |
 | splitting/containment.rs (`ConicArc`, `conic_crossings`) | point_in_arc_loop_conic_span / _straddle / _window / _disc / _advance | `_span` / `_straddle`: (τ − width) through the turn rule (geom-brep's table, `Period::turn`) at `Exact(radius)` on a circle and `Bounded(speed_floor, turn_defect_speed_hi)` on an ellipse, read for "not over" (an undecided turn is kept as an arc only where `TurnUndecided::not_over_at_sup` admits it; any other escalates); the rest are unit-circle quantities levered by the conic's SMALLER semi-axis: `arc_trim`'s chordal-defect sum on a ray's crossing (with `_end` its step 1); (1 − h²)/2 — exact lengths for a circle (the last is (r² − h²)/2r, the perpendicular-offset form), a lower bound for an ellipse, where a `Zero` or an in-band margin only abandons the ray; the root's advance t is metres along a unit ray | m | OK (ATREST-9; window ATREST-12) |
-| splitting/spiric_arc.rs (`SpiricArc::contact`, through `LoopEdge::contact`) | point_in_arc_loop_spiric_end / _clear / _on / _leaf; bool_contact_spiric_end / _clear / bool_contact_spiric / _leaf | the distance from the point to an end of the arc; `|q − P(v_m)| − S·h`, a piece's ball's clearance from the point; `|q − P(v_m)|`; `S·h`, the ball's own radius | m | OK (CLEAVE) |
-| splitting/spiric_arc.rs (`SpiricArc::crossings`) | point_in_arc_loop_spiric_side / _turn / _advance (and point_in_arc_loop_reach) | `(P(v) − q)·n`, a piece end's offset from the ray line; `|s(v_b) − s(v_a)| − 2·A·h²` (A in m/rad², h in rad; `S` and `A` over the piece's own window, `geom::spiric_rate_bounds`); `(c − q)·d ∓ S·h`; the ball's in-plane clearance from the ray less `S·h` | m | OK (CLEAVE) |
+| splitting/spiric_arc.rs (`PiecedArc::contact` on a `SpiricArc`, through `LoopEdge::contact`) | point_in_arc_loop_spiric_end / _clear / _on / _leaf; bool_contact_spiric_end / _clear / bool_contact_spiric / _leaf | the distance from the point to an end of the arc; `|q − P(v_m)| − S·h`, a piece's ball's clearance from the point; `|q − P(v_m)|`; `S·h`, the ball's own radius | m | OK (CLEAVE) |
+| splitting/spiric_arc.rs (`PiecedArc::crossings` on a `SpiricArc`) | point_in_arc_loop_spiric_side / _turn / _advance (and point_in_arc_loop_reach) | `(P(v) − q)·n`, a piece end's offset from the ray line; `|s(v_b) − s(v_a)| − 2·A·h²` (A in m/rad², h in rad; `S` and `A` over the piece's own window, `geom::spiric_rate_bounds`); `(c − q)·d ∓ S·h`; the ball's in-plane clearance from the ray less `S·h` | m | OK (CLEAVE) |
+| splitting/spline_arc.rs (`PiecedArc::contact` on a `SplineArc`, through `LoopEdge::contact`) | point_in_arc_loop_spline_end / _clear / _on / _leaf; bool_contact_spline_end / _clear / bool_contact_spline / _leaf | the distance from the point to an end of the arc; `|q − c| − ρ`, a piece's control ball's clearance from the point (`c` its Bézier net's bounding-box centre, `ρ` its farthest control point's distance from `c`); `|q − c_0|`, the distance to the piece's start point; `ρ`, the ball's own radius | m | OK (SPLICE) |
+| splitting/spline_arc.rs (`PiecedArc::crossings` on a `SplineArc`) | point_in_arc_loop_spline_side / _turn / _advance | `(c_k − q)·n`, a control point's offset from the ray line; `s_{k+1} − s_k`, a step of those offsets along the control polygon; `(c_k − q)·d`, a control point's advance along the ray | m | OK (SPLICE) |
 | splitting/containment.rs (`LoopEdge::contact`, the boundary pre-pass) | curve_carrier_gap / curve_carrier_clear / curve_carrier_straddle / curve_pair_span_end_chord / curve_pair_span_end_side / curve_pair_span_end_straddle | a conic arc's boundary reading, `geom`'s on-carrier reading and the span's reading of its ends at the point's foot (the `bool_contact_arc_span` row above); every distance in metres, the side metered by the carrier's greatest speed | m | OK (CONTACT-4) |
 | splitting/neighborhood.rs:228–309 | split_conic_departure / split_bisector_side | tangent×extent projections; bisector·n̂ × arm | m | OK |
 | splitting/insert.rs (`section_chords`) | split_germ_line | `\|(\|ŵ·n̂\| û + \|û·n̂\| ŵ)\|`, the in-plane combination of a transition sector's unit bounds, levered by the shorter bound's reach (m): the sector meets the plane along a line. Not read where one bound lies in the plane (the germ is that bound) | m | OK (CLEAVE) |
@@ -788,33 +836,31 @@ tolerances and step-size control in ssi (documented structure
 parameters), `props.rs` trig pad (ε/radius, an enclosure pad, not a
 decision), test fixtures.
 
-### Uncovered names (measured at `43e2998d`; `contact_tangent_off_1`/`_2` added since, and `pcurve_chart_polar_affine`/`_polar_winding` retired since with the windings PCERT B2a stores)
+### Uncovered names (the D10 hold's twelve, of the 24 measured at `43e2998d`; re-measured at `9b882992`)
 
-Twenty-three names reach the funnel from `geom-brep` or `topo` and
-have **no row, no family cell and no mention** anywhere above this
-section. They are enumerated rather than audited: each wants its
-comparand read and a dimension verdict, which is a unit (§D's **D46**)
-and not a side errand of the measurement that found them. Three of the
-seven homes are files this document has never named at all —
-`edge_nurbs.rs`, `boolean/carrier_eq.rs`, `boolean/contact_verify.rs` —
-and the other four are named files whose rows predate these names.
-
-**Where the 23 verdicts land when D46 does them**: one row each in the
-`## geom-brep` or `## topo` table above, with `site`, `predicate`,
-`comparand`, `dim` and `status` filled the way every other row is —
-plus a disposition entry in *Findings* for any that come back FLAG, and
-its `F`-number. A name leaves this section only by acquiring that row;
-the section is empty when the two counts above meet at 255.
+Of the 24 names this section listed at `43e2998d` (with
+`contact_tangent_off_1`/`_2` added since), five reach no funnel site
+any more (`carrier_in_seam_halfplane`, `carrier_on_iso_curve`,
+`plane_nurbs_on_locus`, `plane_nurbs_hull_sup`, `props_band_coplanar`)
+and seven have rows above (`plane_nurbs_transversality`,
+`pcurve_iso_arc_row_direction`, `pcurve_chart_u_closed`,
+`pcurve_chart_v_closed`, `pcurve_iso_seam_column`,
+`pm_census_bound_end`, `pm_census_bound_vertex`). The twelve left sit
+on D10 stage 4's ground and wait for it:
 
 | home | names |
 |---|---|
-| `geom-brep/certify.rs` | `carrier_in_seam_halfplane`, `carrier_on_iso_curve`, `plane_nurbs_on_locus`, `plane_nurbs_hull_sup` |
-| `geom-brep/edge_nurbs.rs` | `plane_nurbs_transversality` |
-| `geom-brep/props/curved.rs` | `props_band_coplanar` (retired since, with the sphere's iso flux arm: the name reaches no funnel site) |
-| `topo/pcurves.rs` | `pcurve_chart_u_closed`, `pcurve_chart_v_closed` (`net_closes`, one rule for both channels), `pcurve_iso_arc_row_direction` (the arc rim's row and `u` direction, picked together), `pcurve_iso_seam_column` (the last two decide at `probe_pick`, the site of the `pcurve_iso_line_rim` and `pcurve_iso_wall_seam` rows above, on the same comparand; those rows cover their own labels alone, and these two still want theirs) |
-| `topo/census.rs` | `pm_census_bound_end`, `pm_census_bound_vertex` |
 | `topo/boolean/carrier_eq.rs` | `carrier_sphere_center`, `carrier_sphere_radius`, `carrier_cyl_axis_parallel`, `carrier_cyl_axis_offset`, `carrier_cyl_radius` (a `[(&'static str, Margin<T>)]` table — carried, so no literal at the funnel site) |
 | `topo/boolean/contact_verify.rs` | `contact_tangent_on_1`, `contact_tangent_on_2`, `contact_tangent_off_1`, `contact_tangent_off_2`, `contact_tangent_opposed`, `contact_tangent_parallel`, `contact_tangent_second_order` |
+
+**The hole is wider than this table.** At `9b882992` the code half of
+the instrument (above, read as multi-line calls, nineteen spellings,
+test modules cut) finds **475** names written as a literal at a funnel
+call, and **188** of them appear nowhere above this section. `work/pred/D46.md`
+carries them by file. A name leaves the hole only by acquiring a row in
+the `## geom-brep` or `## topo` table, with `site`, `predicate`,
+`comparand`, `dim` and `status` filled, plus a disposition entry in
+*Findings* for any that comes back FLAG.
 
 ## Findings (dispositions)
 
@@ -1302,6 +1348,39 @@ Flagged, NOT fixed here (dispositions):
   **Carried as `k_stats::check_unlogged(.., "F25")`**, the door F18, F20,
   F21, F23 and F24 use. Not a `decide_flagged` site;
   `LEDGER_FLAGGED_SITES` does not move.
+
+- **F26** (added by D46's first slice) `bool_sphere_trim_pole_interior`
+  — `topo/src/boolean/solid_contain.rs` `sphere_chart_trim`, on a
+  boundary meridian edge of a sphere face: `(p̂·m̂ − cos(w/2))·R`, the
+  cosine-window construction, asking whether a pole lies strictly inside
+  the edge's span `w`. A length, but levered wrongly: for a pole `δ`
+  inside an end the margin is about `R·sin(w/2)·δ`, not the arc `R·δ`,
+  so on a narrow edge (`w/2 ≲ √(Kε/R)`) or a near-whole one it reads
+  Zero for a pole definitely inside, the sibling F8 never named.
+  `Zero` is taken as "at an end or outside", so the latitude fold would
+  miss an interior pole and the window would stop short of it by up to
+  `R·w/2`. By reading, today's `chord_join::face_azimuth_window` refuses
+  a meridian edge through a pole (no closed-form chart image across it),
+  which sends the face out of the class first; unverified by a run. The
+  margin `geom_brep::props`' `span_membership` takes (the signed chord to
+  the nearer end) is the shape a fix would read. Filed as
+  `work/inside/sphere-trim-pole-interior-reads-a-collapsing-cosine-window.md`.
+- **F27** (added by D46's first slice) `bool_ray_cone_disc` —
+  `topo/src/boolean/solid_contain.rs` `carrier_roots` and the
+  `PartialCone` arm of `ray_crossings`: the ray × cone quadratic's
+  discriminant `b₂² − a₂c₂` over the face's reach (m²/m). A length, but
+  near a tangency it is about `|a₂|·sin 2α·(ρ/reach)·δ` for a ray `δ`
+  clear of the cone at radius `ρ`, so it under-reads by `|a₂|`, which
+  the lead row only holds above `Kε/reach`. Measured: `α = π/4`,
+  `ρ = reach = 1`, a ray 0.01 rad off the generator and 1e-6 m clear
+  reads 5e-11. The cylinder's discriminant was corrected for the same
+  missing division (F2, `bool_ray_cylinder_disc`'s `disc/|d⊥|²`); the
+  cone's was not. The under-read only grazes a ray that is definitely
+  clear or definitely crossing — decidedness, not correctness: a
+  definite sign is the discriminant's own. Where the tangency lies past
+  the reach the margin over-reads by `ρ/reach`, and every root there
+  is outside the face. Filed as
+  `work/inside/ray-cone-discriminant-under-reads-by-its-lead-coefficient.md`.
 
 **Every `props/curved.rs` row above is cited BY TARGET NAME, not by
 line** (S176(a)). The line numbers they carried were written against a

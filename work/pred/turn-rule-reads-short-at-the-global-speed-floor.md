@@ -2,10 +2,11 @@
 id: turn-rule-reads-short-at-the-global-speed-floor
 kind: issue
 title: The turn rule's Short and Over read an ellipse's global speed floor, so a near-whole arc on its fast side escalates where a local inf over the defect would decide it
-status: open
+status: dispatched
 opened: 2026-10-25
 priority: P3
 cost: E
+branch: pred/turn-rule-follow-ups
 ---
 
 

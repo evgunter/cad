@@ -462,8 +462,9 @@ impl core::error::Error for AssemblyError {}
 /// sound only BESIDE a certifying-scalar run of the same recipe,
 /// whose bit-identical value channel this same door validated; that
 /// paired run is the validation of record. Nothing in the type
-/// system enforces the pairing here; the E4 driver's content-key
-/// equality assertion is the named banked obligation (M10-4).
+/// system enforces the pairing here; the E4 report enforces it where
+/// a dual's numbers are read, binding each pass to the validated `f64`
+/// evaluation by build identity (`stackup`'s module docs).
 ///
 /// # Errors
 ///

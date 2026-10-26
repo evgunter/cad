@@ -9,7 +9,7 @@
 //! example: the two-hole plate's stackup (§6), the REQUIRED
 //! profile-dimension pin riding inside it (`hole_r` drives two circle
 //! profiles and its sensitivity is read through the guided lift), the
-//! pairing hook red on a planted stale build (§3), no third state (§5),
+//! binding red on a planted stale build (DUAL-DESIGN DL3), no third state (§5),
 //! E9 forfeiture on a domain-edge kink (§5), the curvature case where
 //! the hull and the linearized sum part company (claim 6), and RSS
 //! totality over bands (claim 7).
@@ -41,8 +41,8 @@ use editor_core::UnitSym;
 use editor_core::analysis::{AnalysisPolicy, analyzed_box};
 use editor_core::drive::{DriveConfig, SymbolicDials, drive};
 use editor_core::stackup::{
-    Chamber, DivergedAt, LiftRefusal, PairingViolation, Rss, Sensitivity, SensitivityOutcome,
-    SensitivityRefusal, StackupRefusal, Unavailable, sensitivities, stackup,
+    BindingViolation, Chamber, DivergedAt, LiftRefusal, RecordReading, Rss, Sensitivity,
+    SensitivityOutcome, SensitivityRefusal, StackupRefusal, Unavailable, sensitivities, stackup,
 };
 use editor_core::{
     AssertionRelation, AssertionVerdict, CancelToken, CapEnd, Dimension, Distribution, DocEdit,
@@ -145,6 +145,23 @@ fn eval(doc: &ProfileDoc) -> Evaluation<f64> {
         None,
         &CancelToken::new(),
         &EvalOptions::default(),
+        Tol::witness(),
+    )
+}
+
+/// The build of record a sensitivity report binds to: a build-path
+/// evaluation asked for its content pin.
+fn record(doc: &ProfileDoc) -> Evaluation<f64> {
+    record_with(doc, EvalOptions::default())
+}
+
+/// [`record`] over `opts`.
+fn record_with(doc: &ProfileDoc, opts: EvalOptions) -> Evaluation<f64> {
+    evaluate::<f64>(
+        doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions { pin: true, ..opts },
         Tol::witness(),
     )
 }
@@ -413,7 +430,7 @@ fn the_two_hole_plate_stackup() {
         "the ε-scale box must certify: {:?}",
         verdict.receipt()
     );
-    let handed = eval(&doc);
+    let handed = record(&doc);
     let t1 = Instant::now();
     let report = stackup(
         &doc,
@@ -842,12 +859,15 @@ fn tangent_poison_forfeits_its_uses_and_never_refuses() {
     assert_eq!(wc.leaves, verdict.certified().len());
 }
 
-/// **Claim 3 — the pairing hook is red-capable.** A STALE handed build
-/// — the document edited between builds — gets the typed violation and
-/// never a sensitivity; a fresh one passes; a node-set change and a
-/// canceled prefix are their own typed arms.
+/// **Claim 3 — the binding is red-capable.** A handed build of record
+/// that read other inputs than the passes — another revision (a value
+/// edit, a structural edit), another document, another tolerance, other
+/// parameter bits, no pin, a canceled prefix — gets its typed violation
+/// and never a sensitivity; a fresh pinned one binds. Every arm but
+/// `Parts` is here; `msolve14_run_scalar::a5_sensitivities_cross_a_seated_mate`
+/// has that one, over an assembly.
 #[test]
-fn the_pairing_hook_is_red_capable_on_a_stale_build() {
+fn the_binding_is_red_capable_on_a_stale_build() {
     let (doc, measure, assertion) = plate(None, None);
     // Named, so the web outlives the assertion the structural edit below
     // removes (VR7: an unnamed variable lives as long as its reader).
@@ -858,8 +878,203 @@ fn the_pairing_hook_is_red_capable_on_a_stale_build() {
             name: Some(name("web")),
         },
     );
-    let handed = eval(&doc);
-    let fresh = sensitivities(
+    let refusal = |doc: &ProfileDoc, handed: &Evaluation<f64>| {
+        sensitivities(
+            doc,
+            measure,
+            Some(handed),
+            None,
+            false,
+            None,
+            Tol::witness(),
+        )
+        .err()
+    };
+    let handed = record(&doc);
+    assert_eq!(refusal(&doc, &handed), None, "a fresh pinned build binds");
+
+    // No pin: which revision it read cannot be said.
+    let unpinned = eval(&doc);
+    let got = refusal(&doc, &unpinned);
+    assert_eq!(
+        got,
+        Some(SensitivityRefusal::Binding(BindingViolation::Unpinned {
+            refusal: None
+        }))
+    );
+    assert!(
+        got.is_some_and(|r| r.to_string().contains("EvalOptions::pin")),
+        "the refusal names the option that pins"
+    );
+
+    // Stale by a parameter edit: another revision.
+    let edited = push(
+        &doc,
+        &DocEdit::SetVarValue {
+            var: name("hole_r").into(),
+            value: FreeValue::Continuous(0.21),
+        },
+    );
+    let got = refusal(&edited, &handed);
+    assert_eq!(
+        got,
+        Some(SensitivityRefusal::Binding(BindingViolation::Revision))
+    );
+    assert_eq!(
+        got.map(|r| r.to_string()),
+        Some(
+            "binding violation: the f64 build of record read another revision of the \
+             document — it changed since that build, so differentiating now would report a \
+             sensitivity of a build nobody validated"
+                .to_owned()
+        )
+    );
+
+    // Stale by structure: a node removed.
+    let shrunk = push(&doc, &DocEdit::DeleteNode { id: assertion });
+    assert_eq!(
+        refusal(&shrunk, &handed),
+        Some(SensitivityRefusal::Binding(BindingViolation::Revision))
+    );
+
+    // Another document's build: refused by identity before its revision
+    // is read (DI3).
+    let mut foreign = record(&doc);
+    let other = editor_core::DocumentId::derive("m10-4-the-binding-foreign");
+    foreign.document = other;
+    assert_eq!(
+        refusal(&doc, &foreign),
+        Some(SensitivityRefusal::Binding(
+            BindingViolation::EvaluationOfAnotherDocument {
+                expected: doc.id(),
+                found: other,
+            }
+        ))
+    );
+
+    // Another tolerance. One process holds one ε, so no evaluation of
+    // this process decided at another; the stamp is restamped to stand
+    // for one that did.
+    let stamped = record(&doc).tolerance();
+    let coarser = record(&doc).restamped_tolerance(geom_core::Tolerance {
+        eps: 2.0 * stamped.eps,
+        ..stamped
+    });
+    assert_eq!(
+        refusal(&doc, &coarser),
+        Some(SensitivityRefusal::Binding(BindingViolation::Tolerance))
+    );
+
+    // Other parameter bits under the same revision: the f64 point
+    // sample of a box that moves `hole_r` off its nominal.
+    let hole_r = var(&doc, "hole_r");
+    let moved = record_with(
+        &doc,
+        EvalOptions {
+            param_box: Some(std::sync::Arc::new(editor_core::ParamBox::from_axes(
+                [(hole_r, editor_core::BoxAxis::Varying { lo: 1e-3, hi: 1e-3 })]
+                    .into_iter()
+                    .collect(),
+            ))),
+            ..EvalOptions::default()
+        },
+    );
+    assert_eq!(
+        refusal(&doc, &moved),
+        Some(SensitivityRefusal::Binding(BindingViolation::Binding {
+            var: doc.spoken_var(hole_r)
+        }))
+    );
+
+    // A record that refused before building is no build: it reports
+    // itself complete, but its environment is the nominal one whatever
+    // it was asked to bind. A seed (an f64 run carries no tangent) and
+    // a box of width (an f64 run carries no span) each refuse it whole.
+    let seeded = record_with(
+        &doc,
+        EvalOptions {
+            seed: Some(hole_r),
+            ..EvalOptions::default()
+        },
+    );
+    assert!(seeded.refused_whole(), "an f64 run refuses a seed whole");
+    assert_eq!(
+        refusal(&doc, &seeded),
+        Some(SensitivityRefusal::Binding(BindingViolation::NotABuild))
+    );
+    let spanned = record_with(
+        &doc,
+        EvalOptions {
+            param_box: Some(std::sync::Arc::new(editor_core::ParamBox::from_axes(
+                [(
+                    hole_r,
+                    editor_core::BoxAxis::Varying {
+                        lo: -1e-3,
+                        hi: 1e-3,
+                    },
+                )]
+                .into_iter()
+                .collect(),
+            ))),
+            ..EvalOptions::default()
+        },
+    );
+    assert!(
+        spanned.refused_whole(),
+        "an f64 run refuses a box of width whole"
+    );
+    assert_eq!(
+        refusal(&doc, &spanned),
+        Some(SensitivityRefusal::Binding(BindingViolation::NotABuild))
+    );
+    assert!(
+        !record(&doc).refused_whole() && !moved.refused_whole(),
+        "a build, and a point sample, are builds"
+    );
+
+    // A canceled prefix validates nothing.
+    let cancel = CancelToken::new();
+    cancel.cancel();
+    let partial = evaluate::<f64>(
+        &doc,
+        None,
+        &cancel,
+        &EvalOptions {
+            pin: true,
+            ..EvalOptions::default()
+        },
+        Tol::witness(),
+    );
+    assert_eq!(
+        refusal(&doc, &partial),
+        Some(SensitivityRefusal::Binding(BindingViolation::Incomplete))
+    );
+}
+
+/// **The measured value is checked bit for bit.** Every input of the
+/// handed build is the passes', and its measured value is perturbed by
+/// one ulp: each pass's value half now differs from the build of
+/// record's, and the driver refuses `MeasuredValueDrift` naming the
+/// first parameter's pass, never a sensitivity.
+#[test]
+fn a_drifted_measured_value_refuses() {
+    let (doc, measure) = slab(eps() / 8.0);
+    let mut handed = record(&doc);
+    let (node, _) = handed
+        .read_port(measure)
+        .expect("the thickness is a measure's output");
+    let measured = match handed.nodes.get_mut(&node) {
+        Some(NodeResult::Ok(v)) => match &mut v.payload {
+            ValuePayload::Measure { value, .. } => value,
+            other => panic!("a measure's payload: {other:?}"),
+        },
+        other => panic!("the measure built: {other:?}"),
+    };
+    // The pass measures the true value; the record is moved one ulp.
+    let pass = *measured;
+    *measured = f64::from_bits(pass.to_bits() + 1);
+    let base = *measured;
+    match sensitivities(
         &doc,
         measure,
         Some(&handed),
@@ -867,91 +1082,74 @@ fn the_pairing_hook_is_red_capable_on_a_stale_build() {
         false,
         None,
         Tol::witness(),
-    );
-    assert!(fresh.is_ok(), "{fresh:?}");
-
-    // Stale by a parameter edit: the radius cone re-keys. The edited
-    // document is relabelled too, so a node spoken from `doc` instead
-    // would say no label.
-    let edited = fixture::label_every_node(
-        push(
-            &doc,
-            &DocEdit::SetVarValue {
-                var: name("hole_r").into(),
-                value: FreeValue::Continuous(0.21),
-            },
-        ),
-        "edited",
-    );
-    match &sensitivities(
-        &edited,
-        measure,
-        Some(&handed),
-        None,
-        false,
-        None,
-        Tol::witness(),
     ) {
-        Err(SensitivityRefusal::Pairing(
-            violation @ PairingViolation::ContentKey {
-                node,
-                handed,
-                rebuilt,
-            },
-        )) => {
-            assert_ne!(handed, rebuilt);
+        Err(refusal @ SensitivityRefusal::MeasuredValueDrift { .. }) => {
             assert_eq!(
-                node.label().map(editor_core::Label::as_str),
-                Some("edited"),
-                "spoken from the edited document: {node}"
+                refusal,
+                SensitivityRefusal::MeasuredValueDrift {
+                    param: spoken(&doc, "depth"),
+                    pass,
+                    base: RecordReading::Measured(base),
+                }
             );
-            assert_eq!(*node, edited.spoken(node.id()));
-            assert_eq!(
-                violation.to_string(),
-                format!(
-                    "the paired f64 evaluation is STALE at {node}: its content key is not \
-                     the document's own build's, so differentiating now would report a \
-                     sensitivity of a build nobody validated"
-                )
-            );
-            assert!(node.to_string().contains("\"edited\""), "{node}");
+            assert!(refusal.to_string().contains("D9 break"), "{refusal}");
         }
-        other => panic!("a stale handed build must be a ContentKey violation: {other:?}"),
+        other => panic!("a drifted measured value must refuse: {other:?}"),
     }
+}
 
-    // Stale by structure: a node removed.
-    let shrunk = push(&doc, &DocEdit::DeleteNode { id: assertion });
-    assert_eq!(
+/// **A drift on every parameter refuses the same in either schedule.**
+/// The plate's record is moved one ulp, so both passes — `hole_r`'s
+/// and `depth`'s — drift. The refusal named is the first in parameter
+/// order, never whichever pass the parallel schedule finished first
+/// (D9): every result is collected before an error is chosen.
+#[test]
+fn a_drift_on_every_parameter_refuses_the_same_in_either_schedule() {
+    let (doc, measure, _) = plate(Some(uniform(1e-3)), Some(uniform(1e-3)));
+    let mut handed = record(&doc);
+    // Every measure under the web moved one ulp, so the web drifts in
+    // every pass.
+    let mut moved = 0;
+    for result in handed.nodes.values_mut() {
+        if let NodeResult::Ok(v) = result
+            && let ValuePayload::Measure { value, .. } = &mut v.payload
+        {
+            *value = f64::from_bits(value.to_bits() + 1);
+            moved += 1;
+        }
+    }
+    assert!(moved > 0, "the plate's web reads measures");
+    let run = |parallel: bool| {
         sensitivities(
-            &shrunk,
+            &doc,
             measure,
             Some(&handed),
             None,
-            false,
+            parallel,
             None,
-            Tol::witness()
+            Tol::witness(),
         )
-        .err(),
-        Some(SensitivityRefusal::Pairing(PairingViolation::NodeSet))
-    );
-
-    // A canceled prefix validates nothing.
-    let cancel = CancelToken::new();
-    cancel.cancel();
-    let partial = evaluate::<f64>(&doc, None, &cancel, &EvalOptions::default(), Tol::witness());
-    assert_eq!(
-        sensitivities(
-            &doc,
-            measure,
-            Some(&partial),
-            None,
-            false,
-            None,
-            Tol::witness()
-        )
-        .err(),
-        Some(SensitivityRefusal::Pairing(PairingViolation::Incomplete))
-    );
+        .err()
+    };
+    let sequential = run(false);
+    let first = doc
+        .free_vars()
+        .find(|(_, free)| editor_core::analysis::is_axis(free))
+        .map(|(id, _)| doc.spoken_var(id))
+        .expect("the plate has toleranced parameters");
+    match &sequential {
+        Some(SensitivityRefusal::MeasuredValueDrift { param, .. }) => {
+            assert_eq!(*param, first, "the first parameter's pass is named");
+        }
+        other => panic!("every pass drifts: {other:?}"),
+    }
+    for _ in 0..16 {
+        assert_eq!(
+            run(true),
+            sequential,
+            "the parallel schedule names the same"
+        );
+    }
 }
 
 /// **Claim 4 — no third state.** Without a drive every mark is
