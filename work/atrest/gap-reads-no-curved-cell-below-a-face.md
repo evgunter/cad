@@ -16,7 +16,7 @@ refs: [gap-reads-vertex-and-edge-cells, material-and-convexity-are-read-three-wa
 - **a vertex on a curved face, or on a curved edge,** as the reading side (`NO_CORNER`);
 - **a line edge against a sphere face**, and a line edge against a cylinder face whose axis does not run along it (`NotParallel`);
 - **a vertex or a line edge against a cone, torus or NURBS face**, in either seat (`Carrier::Other("a cone face")` and the like);
-- **a vertex against an edge or a vertex** where the reading cell's link refuses for another reason (`Link::at_point`, `Link::on_edge`): a face meeting the point twice, faces lying on each other, a piece in band, or the parity reading in band (`link-reads-refuses-a-point-in-a-planes-sliver-outside-its-sector`);
+- **a vertex against an edge or a vertex** where the reading cell's link refuses for another reason (`Link::at_point`, `Link::on_edge`): a face meeting the point twice, faces lying on each other, a piece in band, or the parity reading in band (`the-census-reads-its-link-without-the-wide-parity`);
 - **a line edge whose ends do not read** ("a line edge whose ends do not read"), a body the evaluation built wrong;
 
 Each such contact stays loud under stage 5 C's quieting rule, since no `Gap` over its cells evaluates. Each arm keeps the sign convention the module states: zero at rest, positive apart, negative inside.

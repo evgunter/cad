@@ -179,7 +179,10 @@ fn least(sd: Oracle, a: Point3<f64>, c: Point3<f64>) -> f64 {
 /// `[−1, 1]³` about five cones, against their written-down signed
 /// distance and a dense sample of it refined by a ternary search. A
 /// candidate that is a value the segment takes never reads below the
-/// least; one the least is at reads it within `1e-9`. Red if a reading
+/// least; one the least is at reads it within `1e-9`. Within the band of
+/// the boundary the sign is the band's: a point's offset may read either
+/// sign of its distance there, and a segment's least within two
+/// escalations. Red if a reading
 /// refuses, if a wedge's distance takes a plane it does not stand over,
 /// or if a candidate the least is at is missing (with the ties between
 /// two rays, or a ray and a plane, removed, the saddle and the ridge
@@ -195,8 +198,12 @@ fn offset_and_lowest_on_meet_the_written_down_distance() {
     for (name, link, sd) in cases() {
         for _ in 0..test_utils::fuzz::scaled(400) {
             let q = draw(&mut r);
+            // Within the band of the boundary the sign is the band's.
+            let band_sign = |got: f64, want: f64| {
+                (got.abs() - want.abs()).abs() <= 1e-12 && want.abs() <= b.escalate()
+            };
             match link.offset(q, b) {
-                Ok(got) if (got - sd(q)).abs() <= 1e-12 => {}
+                Ok(got) if (got - sd(q)).abs() <= 1e-12 || band_sign(got, sd(q)) => {}
                 got => bad.push(format!(
                     "{name}: offset at {q:?} reads {got:?}, not {}",
                     sd(q)
@@ -208,6 +215,8 @@ fn offset_and_lowest_on_meet_the_written_down_distance() {
             let want = least(sd, a, c);
             match link.lowest_on((a, c), b) {
                 Ok(got) if got >= want - 1e-12 && got <= want + 1e-9 => {}
+                Ok(got)
+                    if want.abs() <= b.escalate() && (got - want).abs() <= 2.0 * b.escalate() => {}
                 got => bad.push(format!(
                     "{name}: lowest on {a:?}–{c:?} reads {got:?}, not {want}"
                 )),
