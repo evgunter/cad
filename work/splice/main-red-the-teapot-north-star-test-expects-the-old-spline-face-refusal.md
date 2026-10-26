@@ -7,7 +7,6 @@ opened: 2026-10-26
 priority: P1
 cost: E
 closed: 2026-10-26
-branch: splice/converse-arm
 ---
 
 
@@ -23,10 +22,6 @@ The python suite runs only when a PR touches `pncad-py`, so the PR that moved th
 
 Re-pin the test to the refusal main gives, or, if SPLICE's open P1 fixes the split first, to whatever that fix gives. One line in the test. Either way, the test should name the refusal kind rather than a sentence of its text.
 
-## Closed
+## Closed (INTENT, 2026-10-26)
 
-`TestTeapot.test_both_joins_refuse_through_the_document` names the
-spout join's refusal by its kind, `point_split_carrier_unsupported`,
-the one main gives and the one the tour's teapot wall 3 pins, rather
-than by a sentence of its text. The crossing rung's branch carries it,
-because that branch touches `pncad-py` and so runs the python suite.
+Re-pinned by the refusal's arm, as owed: `refusal.inner_kind == "point_split_carrier_unsupported"` replaces the sentence of text, so SPLICE's fix for `a-meeting-on-a-spline-boundary-edge-has-no-split-parameter` moves this row loudly, by kind, rather than by wording. It was blocking INTENT's D′3 (#5636) and value-chart (#5742) PRs. `TestTeapot` passes locally (5 rows).
