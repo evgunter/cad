@@ -832,6 +832,111 @@ mod review_aim_probes {
         );
     }
 
+    /// The rebuilt aim at `Interval`: a tie between two arcs' steps.
+    #[test]
+    fn review_aim_interval() {
+        use geom_core::{Interval, Real};
+        let iv = |v: f64| Interval::from_f64(v);
+        let lift = |e: &Arc<f64>| -> Arc<Interval> {
+            let geom::Curve3::Circle { center, axis, radius, u_ref } = e.carrier else { unreachable!() };
+            RegionEdge {
+                edge: e.edge,
+                r#loop: e.r#loop,
+                carrier: geom::Curve3::Circle {
+                    center: Point3::new(iv(center.x), iv(center.y), iv(center.z)),
+                    axis: Vec3::new(iv(axis.x), iv(axis.y), iv(axis.z)),
+                    radius: iv(radius),
+                    u_ref: Vec3::new(iv(u_ref.x), iv(u_ref.y), iv(u_ref.z)),
+                },
+                t0: iv(e.t0),
+                t1: iv(e.t1),
+                turn: None,
+                forward: e.forward,
+            }
+        };
+        let x = Vec3::new(1.0, 0.0, 0.0);
+        let z = Vec3::new(0.0, 0.0, 1.0);
+        let lune_edges = |dw: f64| {
+            let m = |az: f64, forward: bool, key: u64| {
+                arc(Vec3::new(-az.sin(), az.cos(), 0.0), FRAC_PI_2, z, (0.0, PI), forward, key)
+            };
+            vec![m(0.0, true, 1), m(dw, false, 2)]
+        };
+        let mut zone = rim(0.6, x, 1, false, 1);
+        zone.extend(rim(PI - 0.6, x, 1, true, 10));
+        for (what, edges) in [("lune pi/2", lune_edges(FRAC_PI_2)), ("symmetric zone", zone)] {
+            let f = region(true, edges.clone());
+            let i = SphereFaceRegion::<Interval> {
+                center: Point3::new(iv(0.0), iv(0.0), iv(0.0)),
+                radius: iv(1.0),
+                sense: true,
+                outer: LoopKey::default(),
+                edges: edges.iter().map(lift).collect(),
+            };
+            println!("AIMPROBE interval {what}: f64 aim {:?}; interval aim {:?}", f.aim(), i.aim());
+        }
+    }
+
+    /// Break attempts on the rebuilt aim's clearance bound (delta check).
+    #[test]
+    fn review_aim_breakers() {
+        let x = Vec3::new(1.0, 0.0, 0.0);
+        let y = Vec3::new(0.0, 1.0, 0.0);
+        let z = Vec3::new(0.0, 0.0, 1.0);
+        for sense in [true, false] {
+            let f = |forward: bool| forward == sense;
+            let s = format!("sense={sense}");
+            // A ring hugging a cap's rim: centred 1e-3 inside the rim, of
+            // radius 0.9e-3, so it clears the rim by 1e-4.
+            for (gap, rr) in [(1e-3, 0.9e-3), (1e-5, 0.9e-5), (1e-2, 0.0099)] {
+                let hp = unit(at(1.0 - gap, 0.3) - Point3::origin());
+                let mut e = rim(1.0, x, 1, f(true), 1);
+                e.push(arc(hp, rr, z, (0.0, TAU), f(false), 20));
+                report(&format!("{s} ring hugging the rim gap {gap:e}"), &region(sense, e), at(0.5, 2.0));
+            }
+            // Slivers far narrower than the 32-sample spacing (2π/32 of a
+            // rim ≈ 0.17 rad), in many arcs, seams opposite.
+            for w in [1e-3, 1e-5, 1e-7, 1e-9] {
+                for n in [1usize, 2, 7, 64] {
+                    let mut e = rim(1.0, x, 1, f(false), 1);
+                    e.extend(rim(1.0 + w, -x, n, f(true), 100));
+                    report(&format!("{s} sliver w {w:e} lower rim in {n}"), &region(sense, e), at(1.0 + w / 2.0, 0.3));
+                }
+            }
+            // A thin lune between meridians 1e-6 apart, each split in 5.
+            let mer = |az: f64, forward: bool, key: u64| -> Vec<Arc<f64>> {
+                let pole = Vec3::new(-az.sin(), az.cos(), 0.0);
+                (0..5)
+                    .map(|i| {
+                        let a = PI * i as f64 / 5.0;
+                        let b = PI * (i + 1) as f64 / 5.0;
+                        arc(pole, FRAC_PI_2, z, (a, b), forward, key + i as u64)
+                    })
+                    .collect()
+            };
+            for dw in [1e-2, 1e-6] {
+                let mut e = mer(0.0, f(true), 1);
+                e.extend(mer(dw, f(false), 10));
+                report(&format!("{s} lune {dw:e} wide, 5+5 arcs"), &region(sense, e), at(1.0, dw / 2.0));
+            }
+            // A near-full sphere with a tiny hole, and with many tiny holes.
+            for r in [1e-3, 1e-6] {
+                let e = vec![arc(z, r, x, (0.0, TAU), f(false), 1)];
+                report(&format!("{s} sphere less a hole {r:e}"), &region(sense, e), at(2.0, 0.0));
+                let mut e = Vec::new();
+                for i in 0..12 {
+                    let hp = unit(at(0.3 + 0.2 * i as f64, i as f64) - Point3::origin());
+                    e.push(arc(hp, r, y, (0.0, TAU), f(false), 1 + i));
+                }
+                report(&format!("{s} sphere less 12 holes {r:e}"), &region(sense, e), at(2.9, 0.5));
+            }
+            // A cap whose rim is split in 200 arcs, with a ring at its pole.
+            let mut e = rim(0.5, x, 200, f(true), 1);
+            e.push(arc(z, 0.49, x, (0.0, TAU), f(false), 500));
+            report(&format!("{s} annulus 0.49..0.5 rim in 200"), &region(sense, e), at(0.495, 0.01));
+        }
+    }
+
     #[test]
     fn review_aim_probes() {
         let x = Vec3::new(1.0, 0.0, 0.0);
