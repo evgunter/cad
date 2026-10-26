@@ -720,7 +720,7 @@ fn every_standing_door_in_the_viewer_reads_the_trees_answer() {
         ),
         (
             "scene.rs",
-            "product(",
+            "product_recorded(",
             "`scene_of`'s headless path; no chrome surface draws its refusal",
         ),
         (

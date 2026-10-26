@@ -4809,6 +4809,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "export_error_tag",
         values: &[
             "body_invalid",
+            "compose_refused",
             "empty_boolean",
             "node_failed",
             "not_a_body",
@@ -5411,6 +5412,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "contact_lineage",
             "empty_product",
             "evaluation_of_another_document",
+            "frame_refused",
             "graft_refused",
             "product_invalid",
             "product_outside_world",

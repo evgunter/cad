@@ -184,6 +184,16 @@ fn split_at_the_nominal(rules: SymRules, tol: Tol) -> BTreeMap<&'static str, [u6
 /// `carrier_matches_mapped_source` gained the copies' 36 (196/56 ->
 /// 232/56, 288/0 with the algebra). `line_span`, a profile's, held.
 /// Every one the algebra took before it still takes.
+///
+/// **INTENT E** (a copy is its source's body under its frame): the
+/// holes' copies are no longer mapped and re-certified at their
+/// placements; the cut reads each hole into the plate's frame, so the
+/// rims are certified once more there and not at the copy:
+/// `carrier_on_surface` 360/144 -> 324/108 (432/0 with the algebra),
+/// `witness_on_surface` 40/16 -> 36/12 (48/0), `pcurve_map_residual`
+/// 0/72 -> 0/54 (54/0), `carrier_matches_mapped_source` 232/56 ->
+/// 214/56 (270/0). `line_span` held, and every one the algebra took
+/// before it still takes.
 #[test]
 fn m10_10_all_four_discharge_at_the_nominal_and_the_chart_phase_is_the_doors() {
     let tol = Tol::witness();
@@ -201,32 +211,32 @@ fn m10_10_all_four_discharge_at_the_nominal_and_the_chart_phase_is_the_doors() {
         core::array::from_fn::<u64, 2, _>(|i| a[i] + b[i])
     };
     // The split with the algebra off.
-    assert_eq!(row(&off, "carrier_matches_mapped_source"), [232, 56]);
-    assert_eq!(pair(&off, "carrier_on_surface"), [360, 144]);
-    assert_eq!(pair(&off, "witness_on_surface"), [40, 16]);
-    assert_eq!(row(&off, "pcurve_map_residual"), [0, 72]);
+    assert_eq!(row(&off, "carrier_matches_mapped_source"), [214, 56]);
+    assert_eq!(pair(&off, "carrier_on_surface"), [324, 108]);
+    assert_eq!(pair(&off, "witness_on_surface"), [36, 12]);
+    assert_eq!(row(&off, "pcurve_map_residual"), [0, 54]);
     // The algebra on.
     assert_eq!(
         row(&on, "carrier_matches_mapped_source"),
-        [288, 0],
+        [270, 0],
         "rule D meets the pushforward and the carrier at every sample, and the rim at a \
          vertex folds onto the authored |r|, so every one is a THEOREM"
     );
     assert_eq!(
         pair(&on, "carrier_on_surface"),
-        [504, 0],
+        [432, 0],
         "both residuals at the carrier's samples, the cylinder's by rule D with A/B: THEOREMS"
     );
     assert_eq!(
         pair(&on, "witness_on_surface"),
-        [56, 0],
+        [48, 0],
         "both residuals at the strut witness, the cylinder's by rule D with A/B: THEOREMS"
     );
     assert_eq!(
         row(&on, "pcurve_map_residual"),
-        [72, 0],
+        [54, 0],
         "the chart's phase `atan2(0, r²/sqrt(r²))` folds to the zero form (A1) and `cos π` \
-         on the negative frame to −1; the rim folds onto |r|, so every one of the 72 is a \
+         on the negative frame to −1; the rim folds onto |r|, so every one of the 54 is a \
          THEOREM"
     );
     assert_eq!(

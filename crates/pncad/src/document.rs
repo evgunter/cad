@@ -321,12 +321,13 @@ pub use editor_core::DocParamField;
 // `Framed` is a body value: its body in its own coordinates and the
 // frame it computed in, which a payload holds wherever it holds a body;
 // `EvalCounters` counts what an evaluation built (a copy builds
-// nothing).
+// nothing); `ComputingTwist` is `EvalOptions::computing_twist`'s type,
+// the second computing frame a test runs an evaluation in.
 pub use editor_core::{
-    BooleanValue, CancelToken, CarriedChain, CarriedIn, CarriedLevel, DirectionRefusal,
-    EvalCounters, EvalOptions, EvalOutcome, Evaluation, Framed, Mispaired, NodeError,
-    NodeErrorClass, NodeErrorKind, NodeRefusal, NodeResult, NodeStanding, NodeValue, PoseValue,
-    SplitSide, StepTurns, ValuePayload, evaluate,
+    BooleanValue, CancelToken, CarriedChain, CarriedIn, CarriedLevel, ComputingTwist,
+    DirectionRefusal, EvalCounters, EvalOptions, EvalOutcome, Evaluation, Framed, Mispaired,
+    NodeError, NodeErrorClass, NodeErrorKind, NodeRefusal, NodeResult, NodeStanding, NodeValue,
+    PoseValue, SplitSide, StepTurns, ValuePayload, evaluate,
 };
 // The pieces a body holds (`NodeValue::pieces`): what a `⊔` grafted,
 // each by its read, which a pick reads one of.

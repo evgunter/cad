@@ -3779,8 +3779,7 @@ fn asm2a_row1_two_instances_through_a_real_workspace() {
     // Solid order = placement order: instance 0 is at the origin, instance 1
     // ten units along +x.
     let x_of = |node| match ev.value(node).map(|v| &v.payload) {
-        Some(pncad::document::ValuePayload::Body(b)) => b
-            .body()
+        Some(pncad::document::ValuePayload::Body(b)) => standing(b)
             .vertex_points()
             .map(|(_, p)| p.x)
             .fold(f64::INFINITY, f64::min),
@@ -4315,17 +4314,9 @@ fn asm2b_row2_sub_assembly_through_a_real_workspace() {
     // and x = 10 (B's own spacing), instance 1's ten further along.
     let xs = |node| match ev.value(node).map(|v| &v.payload) {
         Some(pncad::document::ValuePayload::Body(b)) => {
-            assert_eq!(
-                b.body().solids().count(),
-                2,
-                "an instance carries both solids"
-            );
-            let mut v: Vec<f64> = b
-                .body()
-                .vertex_points()
-                .map(|(_, p)| p)
-                .map(|p| p.x)
-                .collect();
+            let b = standing(b);
+            assert_eq!(b.solids().count(), 2, "an instance carries both solids");
+            let mut v: Vec<f64> = b.vertex_points().map(|(_, p)| p).map(|p| p.x).collect();
             v.sort_by(f64::total_cmp);
             (v[0], v[v.len() - 1])
         }
@@ -7127,4 +7118,15 @@ fn moving_the_only_world_placement_moves_no_body_bit_and_moves_the_step_bytes() 
         there_measured.to_bits(),
         "the distance between the copy's caps is the same bits"
     );
+}
+
+/// **A copy where it stands in its space**: its body composed through
+/// [`pncad::document::in_space`], for a row that reads positions.
+fn standing(value: &pncad::document::Framed<f64>) -> pncad::topo::Body<f64> {
+    pncad::topo::transform_rigid(
+        value.body(),
+        &pncad::document::in_space(value),
+        Tol::witness(),
+    )
+    .expect("a copy composes into its space")
 }

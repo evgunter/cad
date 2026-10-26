@@ -831,10 +831,13 @@ struct PickEntry {
 /// the document's identity (node ids are minted per document) and
 /// `(δ, ε, k)`. Under that key the previous picture's `NodePick` IS this
 /// picture's, BVH included, because a `NodePick` is a pure function of
-/// what the key names. The content key may also be answered by the body
+/// what the key names. The two keys may also be answered by the body
 /// itself: a value holding the entry's very `Arc` (a copy whose values
-/// moved, D10 `[placement.frame]`) is that tessellation under the frame
-/// it stands in now, so a value edit moves a frame, not a mesh.
+/// moved, D10 `[placement.frame]`) holds the bits and the face keys the
+/// keys stood for — the naming key hashes the content key, so it moves
+/// with the value though the body did not — and is that tessellation
+/// under the frame it stands in now, so a value edit moves a frame, not
+/// a mesh.
 ///
 /// **The document comparison is this memo's DI3 refusal**, and it is
 /// the only half of the key that CAN refuse a prior of another
@@ -1148,8 +1151,9 @@ impl NodePick {
     }
 
     /// [`NodePick::build`] over `memo`: the previous picture's pick for
-    /// this (node, body) when the node's content and naming keys, the
-    /// document and `(delta, tol)` all match, else a build whose
+    /// this (node, body) when the node's content and naming keys (or the
+    /// body's very `Arc`), the document and `(delta, tol)` all match,
+    /// else a build whose
     /// tessellation goes through the patch memo. The answer is byte-identical to
     /// [`NodePick::build`]'s either way ([`PickMemo`]).
     ///
@@ -1177,9 +1181,8 @@ impl NodePick {
         let picture = memo.picture;
         if let Some(entry) = memo.nodes.get_mut(&(node, body))
             && entry.pick.document == eval.document
-            && (entry.content_key == value.content_key
+            && ((entry.content_key == value.content_key && entry.naming_key == value.naming_key)
                 || Arc::ptr_eq(&entry.body, body_arc.shared()))
-            && entry.naming_key == value.naming_key
             && entry.tolerances == tolerances
         {
             entry.picture = picture;
@@ -1193,6 +1196,7 @@ impl NodePick {
             };
             entry.pick = pick.clone();
             entry.content_key = value.content_key;
+            entry.naming_key = value.naming_key;
             memo.keep_tables(&keys);
             memo.node_hits += 1;
             return Ok(pick);

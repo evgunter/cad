@@ -353,3 +353,27 @@ pub fn value_digest_nodes<T: Decide + ValueChannelBits>(
         })
         .collect()
 }
+
+/// **A body node's word, its body where it stands**: the record
+/// [`value_digest_nodes`] feeds for a `Body` payload, with the body
+/// composed into its space ([`crate::fixture::in_space`]) first, and
+/// the words fed. `None` for a node whose value is not one body.
+///
+/// A placement's copy is its source's body under its frame (D10
+/// `[placement.frame]`), so the plain word digests the source's
+/// coordinates; this one digests where the copy stands.
+pub fn placed_body_digest(ev: &Evaluation<f64>, id: RecipeNodeId) -> Option<(u64, usize)> {
+    let Some(NodeResult::Ok(v)) = ev.result(id) else {
+        return None;
+    };
+    let ValuePayload::Body(b) = &v.payload else {
+        return None;
+    };
+    let mut d = Digest::new();
+    d.u64(u64::from(id.0.ordinal()));
+    d.u64(id.0.digest());
+    d.u64(3);
+    d.u64(14);
+    d.body(&crate::fixture::in_space(b));
+    Some((d.hash(), d.fed()))
+}

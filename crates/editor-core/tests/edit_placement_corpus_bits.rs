@@ -1,14 +1,16 @@
 //! **Every corpus placement places its body by the same bits** — the
 //! value channel of each `Node::Place` in the registry, pinned per node.
 //!
-//! The digest is the fixture's value channel (`value_digest_nodes`):
-//! the placed bodies' arena counts and every stored point, so a motion
-//! that moved one bit of one coordinate moves the word. A golden in the
+//! The digest is the fixture's value channel (`placed_body_digest`):
+//! the placed bodies' arena counts and every stored point where the
+//! copy stands, composed into its space through `in_space` (a copy is
+//! its source's body under its frame), so a motion that moved one bit
+//! of one coordinate moves the word. A golden in the
 //! ordinary sense: when one moves, the question is whether the new
 //! motion is right, never how to restore the old number.
 
 use crate::corpus;
-use crate::fixture::value_channel::value_digest_nodes;
+use crate::fixture::value_channel::placed_body_digest;
 use corpus::{eval, failures};
 use editor_core::Node;
 
@@ -91,6 +93,16 @@ use editor_core::Node;
 /// `turn/4`, its split's plane and its pattern's axis read off its faces
 /// (nine rows). Every other row held, across main's merge at
 /// `557e581a64` too.
+///
+/// **Read where each copy stands** (INTENT stage 3 E): a copy is its
+/// source's body under its frame, so the word digests the copy composed
+/// into its space through `in_space`. 118 of the 119 words held: each
+/// copy composes to the bits its rebuilt copy had. The tour die's last
+/// row (`1621`, the identity copy of the filleted die) moved: its 15
+/// pip-floor points read `0.04999999999999993` where they read
+/// `0.04999999999999996` (four ulps), because the subtract that cut the
+/// pips computes in the die's frame and reads each pip, a copy, through
+/// one composed map where each was rebuilt once per placement before.
 ///
 /// `die_tool`'s two rows moved again when its master ball came to
 /// stand on the cube's corner frame by an axis mate whose slide and
@@ -260,7 +272,7 @@ const PINNED: &[(&str, u32, u64)] = &[
     ("die_composed_tour", 1448, 0xc66115a1e4d305d5),
     ("die_composed_tour", 1523, 0x556594d2d46704dd),
     ("die_composed_tour", 1598, 0x999c5c5df88486f3),
-    ("die_composed_tour", 1621, 0xaa65fa8dc5e54bbc),
+    ("die_composed_tour", 1621, 0xa6651d59609d4ed0),
     ("plate_param", 57, 0x450f2054aa0c334b),
     ("plate_param", 71, 0x285ae066b3d4d3d8),
     ("kiss_carry", 50, 0xe7f91a43ad64c21d),
@@ -290,11 +302,17 @@ fn every_corpus_placement_places_its_body_by_the_pinned_bits() {
         let ev = eval::<f64>(&doc.doc);
         let bad = failures(&ev);
         assert!(bad.is_empty(), "{} failed to evaluate: {bad:?}", doc.name);
-        for (id, word, fed) in value_digest_nodes(&ev) {
-            if placements.contains(&id) {
-                assert!(fed > 0, "{} node {}: nothing was digested", doc.name, id);
-                got.push((doc.name, id.0.ordinal(), word));
-            }
+        for id in ev
+            .order
+            .iter()
+            .copied()
+            .filter(|id| placements.contains(id))
+        {
+            let (word, fed) = placed_body_digest(&ev, id).unwrap_or_else(|| {
+                panic!("{} node {id}: a placement's value is one body", doc.name)
+            });
+            assert!(fed > 0, "{} node {}: nothing was digested", doc.name, id);
+            got.push((doc.name, id.0.ordinal(), word));
         }
     }
     for (name, id, word) in &got {

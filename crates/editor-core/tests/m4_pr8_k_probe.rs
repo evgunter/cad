@@ -89,11 +89,7 @@ fn run_doc(d: &corpus::CorpusDoc) -> Vec<MarginSample> {
     // The finish (tier 3) runs between the two recording windows, so the
     // corpus holds what it held before the typed door: the evaluation,
     // tiers 1 and 2, and the measurement.
-    let body = topo::test_support::finished(
-        "body",
-        body_of(&ev, result),
-        Tol::witness(),
-    );
+    let body = topo::test_support::finished("body", body_of(&ev, result), Tol::witness());
     k_stats::start_recording();
     topo::mass_properties(&body, Tol::witness()).expect("mass properties");
     samples.extend(k_stats::take_samples());
@@ -476,19 +472,11 @@ fn probe_agrees_with_f64_bit_for_bit_over_the_corpus() {
         {
             let tol = Tol::witness();
             let mf = topo::mass_properties(
-                &topo::test_support::finished(
-                    "the measured body",
-                    body_of(&ev_f, result),
-                    tol,
-                ),
+                &topo::test_support::finished("the measured body", body_of(&ev_f, result), tol),
                 tol,
             );
             let mp = topo::mass_properties(
-                &topo::test_support::finished(
-                    "the measured body",
-                    body_of(&ev_p, result),
-                    tol,
-                ),
+                &topo::test_support::finished("the measured body", body_of(&ev_p, result), tol),
                 tol,
             );
             match (&mf, &mp) {

@@ -369,7 +369,7 @@ fn every_corpus_document_reads_alike_in_a_second_computing_frame() {
 /// tessellation it built for the copy's body, which the copy still
 /// shares, under the frame the copy stands in now.
 ///
-/// *Breaks if* the memo keys a copy by its content key alone (the edited
+/// *Breaks if* the memo keys a copy by its content and naming keys alone (the edited
 /// copy misses and is tessellated again), or serves the old frame.
 #[test]
 fn a_value_edit_moves_a_copys_frame_and_not_its_mesh() {
@@ -395,9 +395,10 @@ fn a_value_edit_moves_a_copys_frame_and_not_its_mesh() {
     let after = editor_core::NodePick::build_with(&second, copy, 0, 0.1, tol, &mut memo)
         .expect("the moved copy tessellates");
     memo.end_picture();
+    // The counts are the closed picture's: the second.
     assert_eq!(
         (memo.node_misses(), memo.node_hits()),
-        (1, 1),
+        (0, 1),
         "the moved copy is served the tessellation its body already has"
     );
     assert!(

@@ -163,6 +163,24 @@ impl<T: Decide> Framed<T> {
         self.frame.map().map_or(v, |map| map.transform_vec(v))
     }
 
+    /// **A heading stated in its space, in the body's coordinates**: what
+    /// a reader measuring the body along a direction of the space (a
+    /// duplicate's step) measures it along, computing in the body's
+    /// frame.
+    ///
+    /// # Errors
+    ///
+    /// The inverse's overflow.
+    pub fn heading_in_own(
+        &self,
+        v: geom_core::Vec3<T>,
+    ) -> Result<geom_core::Vec3<T>, RigidMotionError> {
+        Ok(match self.frame.map() {
+            None => v,
+            Some(map) => map.inverse()?.transform_vec(v),
+        })
+    }
+
     /// **The same body, its frame moved by `motion`**: a placement's
     /// copy, sharing its source's `Arc`.
     ///
