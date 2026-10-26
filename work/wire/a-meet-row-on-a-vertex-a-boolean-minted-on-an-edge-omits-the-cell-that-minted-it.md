@@ -4,6 +4,7 @@ kind: issue
 title: A boolean's Meet row on a vertex it minted on an edge names the edge and not the cell whose crossing minted it, so one point spells two ways across a union's member orders
 status: open
 opened: 2026-10-19
+priority: P1
 ---
 
 
@@ -53,3 +54,34 @@ decision, which put it where the edge crossed the minting cell. The fix
 above serves all three arms: with the minting cell kept, the second
 cell widens to the edge and that cell, so the row becomes a `Meet` of
 the point and both.
+
+## The ring tie's case (PR 5753, 2026-10-26)
+
+`topo::Coincidence::third` (`coincidence.rs`) carries a `Meet`'s third
+cell. `boolean/ops.rs` `spell` fills it with the pierced face where a
+ring tie's two cells both widen
+(`a-fold-steps-ring-tie-row-names-a-pierce-vertex-its-operand-does-not-hold`).
+The pinch measured above is that case. Folded last,
+`union_pinch_member_order::pinch` now spells
+`Meet {Edge@m1, Edge@m2, Face@m0}` too, so the point has one spelling in
+every member order
+(`union_member_orders_decide_alike::a_vertex_row_is_the_unions_once_in_every_member_order`).
+
+What stays open is the minting cell outside ring ties: the three arms
+above, for a vertex minted on an edge that no ring tie decides.
+
+**It needs `Coincidence` to hold a list of cells.** A ring tie whose
+pierce was minted on an edge meets in four cells: the edge, its minting
+cell, the face holding the strut and the pierced face. Where the pierced
+face is the minting cell, those are three. A fold row is already spelled
+as "the set of member cells that meet" (`crates/editor-core/REFERENCES.md`,
+DM4, "A row names member cells"), and `NamedCoincidence::cells` is a
+list. The kernel row's `[RowCell; 2]` plus `third` is the stopgap: it
+keeps `Copy` and reaches no four-cell case today.
+
+## Moved (2026-10-26)
+
+Moved from `work/cleave/` to WIRE by `git mv` in PR 5753, banded P1 (a
+cell the row omits is a misnamed row), on the CLEAVE orchestrator's
+ruling. PR 5765's triage had left it unbanded on CLEAVE while 5753 was
+editing it.
