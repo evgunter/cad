@@ -315,13 +315,14 @@ fn assert_volume(what: &str, body: &Body<f64>, want: f64) {
     let props = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
         tol(),
+        topo::test_support::pinned_resolution(tol()),
     )
     .unwrap_or_else(|e| panic!("{what}: the volume refused {e:?}"));
-    let slack = props.volume_pad + 64.0 * f64::EPSILON * want.abs();
+    let slack = props.enclosure.volume_pad + 64.0 * f64::EPSILON * want.abs();
     assert!(
-        (props.volume - want).abs() <= slack,
+        (props.enclosure.volume - want).abs() <= slack,
         "{what}: volume {:e} against {want:e} (± {slack:e})",
-        props.volume
+        props.enclosure.volume
     );
 }
 
@@ -581,16 +582,18 @@ fn a_frustums_zero_pad_carries_its_closed_forms_rounding() {
         let want = PI * scale / 3.0 * (f.r0 * f.r0 + f.r0 * f.r1 + f.r1 * f.r1);
         for (pose, map) in [("as built", Affine3::identity()), ("turned", turn())] {
             let body = moved_body(f.body.as_ref().expect("the frustum builds"), &map);
-            let props = topo::mass_properties(&body, tol()).expect("it measures");
+            let props =
+                topo::mass_properties(&body, tol(), topo::test_support::pinned_resolution(tol()))
+                    .expect("it measures");
             assert_eq!(
-                props.volume_pad, 0.0,
+                props.enclosure.volume_pad, 0.0,
                 "{scale:e} {pose}: every face is closed-form"
             );
-            let err = (props.volume - want).abs();
+            let err = (props.enclosure.volume - want).abs();
             assert!(
                 err <= 4.0 * u * want,
                 "{scale:e} {pose}: {} against {want}, off by {err:e}, {:.2} of u·|V|",
-                props.volume,
+                props.enclosure.volume,
                 err / (u * want)
             );
         }

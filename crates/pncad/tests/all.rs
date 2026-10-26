@@ -56,6 +56,13 @@ use pncad::prelude::*;
 use pncad::tolerance::Tol;
 use test_utils::source::{ItemBody, balanced_end, code_and_literals, code_only, item_body};
 
+/// The resolution these rows read a number at: `1024 ε`, read from its
+/// one home, `topo::test_support::pinned_resolution`, through the
+/// façade (this crate's self dev-dependency turns `test-support` on).
+fn pinned_resolution(tol: Tol) -> Settle<f64> {
+    pncad::topo::test_support::pinned_resolution(tol)
+}
+
 /// Consumes a value without executing anything — the sink that makes
 /// each payload's type appear in a signature.
 fn named<T>(_: T) {}
@@ -816,14 +823,15 @@ fn a_tube_is_minted_and_built_from_prelude_names_alone() {
         &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&built.body), tol)
             .expect("the measured body passes tier 3"),
         tol,
+        pinned_resolution(tol),
     )
     .expect("mass properties");
     // Pappus: V = 2 pi^2 R r^2.
     let want = 2.0 * core::f64::consts::PI * core::f64::consts::PI * major * minor * minor;
     assert!(
-        (props.volume - want).abs() <= 1e-6 * want,
+        (props.enclosure.volume - want).abs() <= 1e-6 * want,
         "the prelude-built torus has the closed-form volume: {} vs {want}",
-        props.volume
+        props.enclosure.volume
     );
 }
 
@@ -1212,11 +1220,12 @@ fn the_authoring_ladder_runs_on_one_dependency() {
     let finished =
         pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&built.body), Tol::witness())
             .expect("the measured body passes tier 3");
-    let props = mass_properties(&finished, Tol::witness()).expect("mass properties");
+    let props = mass_properties(&finished, Tol::witness(), pinned_resolution(Tol::witness()))
+        .expect("mass properties");
     assert!(
-        (props.volume - 3.0).abs() < 1e-12,
+        (props.enclosure.volume - 3.0).abs() < 1e-12,
         "volume {}",
-        props.volume
+        props.enclosure.volume
     );
 
     let mesh = tessellate(&built.body, 0.05, Tol::witness()).expect("tessellate");
@@ -1401,7 +1410,6 @@ fn the_import_answer_and_its_record_are_spellable_through_the_prelude() {
     // Every field of the arm, bound by name and typed from this list.
     let StepImport::Solid {
         body,
-        enclosure,
         eps_in,
         normalizations,
         curve_promotions,
@@ -1413,10 +1421,13 @@ fn the_import_answer_and_its_record_are_spellable_through_the_prelude() {
     else {
         panic!("the box re-imports as a solid, not a wireframe");
     };
-    named::<Body<f64>>(body.clone());
-    named::<Result<MassProperties<f64>, TargetUnreached<f64>>>(enclosure.clone());
-    // A box measures, so the refusal arm is spelled here and not taken.
-    let enclosure = enclosure.expect("a box's enclosure is measurable");
+    named::<CertifiedBody>(body.clone());
+    named::<&Body<f64>>(body.body());
+    let measured: pncad::topo::MassMeasurement<f64> = body
+        .measure(pinned_resolution(Tol::witness()))
+        .expect("a box measures through its certificate");
+    named::<Stop>(measured.stop);
+    let enclosure: MassProperties<f64> = measured.enclosure;
     named::<f64>(eps_in);
     named::<Vec<StructureNormalization>>(normalizations.clone());
     named::<Vec<CurvePromotion>>(curve_promotions.clone());
@@ -1452,18 +1463,25 @@ fn the_import_answer_and_its_record_are_spellable_through_the_prelude() {
 
     // "Not a second computation", as an equality rather than a claim.
     let again = mass_properties(
-        &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&body), Tol::witness())
+        &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(body.body()), Tol::witness())
             .expect("the measured body passes tier 3"),
         Tol::witness(),
+        pinned_resolution(Tol::witness()),
     )
     .expect("imported mass properties");
-    assert_eq!(enclosure.volume.to_bits(), again.volume.to_bits());
+    assert_eq!(enclosure.volume.to_bits(), again.enclosure.volume.to_bits());
     assert_eq!(
         enclosure.surface_area.to_bits(),
-        again.surface_area.to_bits()
+        again.enclosure.surface_area.to_bits()
     );
-    assert_eq!(enclosure.volume_pad.to_bits(), again.volume_pad.to_bits());
-    assert_eq!(enclosure.area_pad.to_bits(), again.area_pad.to_bits());
+    assert_eq!(
+        enclosure.volume_pad.to_bits(),
+        again.enclosure.volume_pad.to_bits()
+    );
+    assert_eq!(
+        enclosure.area_pad.to_bits(),
+        again.enclosure.area_pad.to_bits()
+    );
 
     // The assembly record is kept whether or not the file states an
     // assembly, so a one-solid box still carries one.
@@ -1564,11 +1582,16 @@ fn a_boolean_result_validates_at_tier_3_prime() {
     // empty set. This is what makes 3′ meaningful.
     ladder(&result.body, Some(&result.contacts));
 
-    let props = mass_properties(&result.body, Tol::witness()).expect("mass properties");
+    let props = mass_properties(
+        &result.body,
+        Tol::witness(),
+        pinned_resolution(Tol::witness()),
+    )
+    .expect("mass properties");
     assert!(
-        (props.volume - 7.0).abs() < 1e-12,
+        (props.enclosure.volume - 7.0).abs() < 1e-12,
         "6.0 + 1.5 - 0.5 overlap = 7.0, got {}",
-        props.volume
+        props.enclosure.volume
     );
 }
 
@@ -2165,7 +2188,7 @@ fn stood(
 ) -> pncad::document::AuthoredNode {
     use pncad::document::{Node, Operand, VarId};
     Node::place(
-        vec![body.into()],
+        body.into(),
         Operand::Var(VarId::WORLD),
         pncad::document::stand().bundle(),
     )
@@ -2173,7 +2196,7 @@ fn stood(
 
 /// A one-box document under the id `label` derives: square(2)
 /// extruded 1.5, volume exactly 6.0, the box placed once in the world
-/// standing where it stands. Returns (doc, profile id, body id) — the
+/// standing where it stands, and that copy the product. Returns (doc, profile id, body id) — the
 /// MINTED ids, so no caller couples to mint order.
 fn box_doc(
     label: &str,
@@ -2192,7 +2215,15 @@ fn box_doc(
             distance: len(1.5),
         },
     );
-    let (doc, _) = insert(doc, stood(body));
+    let (doc, placement) = insert(doc, stood(body));
+    // The copy is what the document makes.
+    let doc = applied(
+        &doc,
+        pncad::document::DocEdit::SetProduct {
+            product: Some(pncad::document::Operand::Node(placement)),
+        },
+    )
+    .doc;
     (doc, profile, body)
 }
 // END box-document fixture twin
@@ -2204,6 +2235,49 @@ fn place(
     body: impl Into<pncad::document::BodyRead<pncad::document::Formula>>,
 ) -> (pncad::document::ProfileDoc, pncad::document::RecipeNodeId) {
     insert(doc, stood(body))
+}
+
+/// **`doc` with its product said as `copies`**: the one copy, or a `⊔`
+/// of them in the order given, replacing a `⊔` the slot read before.
+fn product_is(
+    doc: pncad::document::ProfileDoc,
+    copies: &[pncad::document::RecipeNodeId],
+) -> pncad::document::ProfileDoc {
+    use pncad::document::{Bodies, BodyRead, DocEdit, Node, Operand};
+    let held = doc
+        .product()
+        .and_then(|var| doc.operation_of(var))
+        .filter(|&at| matches!(doc.node(at), Some(Node::Assemble { .. })));
+    let mut doc = applied(&doc, DocEdit::SetProduct { product: None }).doc;
+    if let Some(at) = held {
+        doc = applied(&doc, DocEdit::DeleteNode { id: at }).doc;
+    }
+    let product = match copies {
+        [] => return doc,
+        [one] => Operand::Node(*one),
+        several => {
+            let (next, at) = insert(
+                doc,
+                Node::Assemble {
+                    members: Bodies::Spelled(
+                        several
+                            .iter()
+                            .map(|&copy| BodyRead::plain(Operand::Node(copy)))
+                            .collect(),
+                    ),
+                },
+            );
+            doc = next;
+            Operand::Node(at)
+        }
+    };
+    applied(
+        &doc,
+        DocEdit::SetProduct {
+            product: Some(product),
+        },
+    )
+    .doc
 }
 
 /// **A copy of `body` placed into `target`'s space, slid by `by`**
@@ -2230,7 +2304,7 @@ fn placed_against(
     insert(
         doc,
         Node::place(
-            vec![pncad::document::BodyRead::plain(body)],
+            pncad::document::BodyRead::plain(body),
             Operand::Var(space),
             placed.bundle(),
         ),
@@ -2380,8 +2454,10 @@ fn a_recorded_paths_chain_becomes_a_profile_program_node() {
         )
         .expect("the measured body passes tier 3"),
         Tol::witness(),
+        pinned_resolution(Tol::witness()),
     )
     .expect("mass properties")
+    .enclosure
     .volume;
     // 40 x 30, less what the r = 6 round takes off, times 8 thick.
     let area = 40.0 * 30.0 - (36.0 - core::f64::consts::PI * 36.0 / 4.0);
@@ -2418,8 +2494,10 @@ fn the_persist_doors_round_trip_through_the_facade() {
         )
         .expect("the measured body passes tier 3"),
         Tol::witness(),
+        pinned_resolution(Tol::witness()),
     )
     .expect("mass properties")
+    .enclosure
     .volume;
     // Exact on purpose: every coordinate is dyadic and small, so each closed-form term and
     // their sum are exact in f64 (a zero pad states no rounding; here there is none).
@@ -2456,8 +2534,10 @@ fn the_persist_doors_round_trip_through_the_facade() {
         )
         .expect("the measured body passes tier 3"),
         Tol::witness(),
+        pinned_resolution(Tol::witness()),
     )
     .expect("mass properties")
+    .enclosure
     .volume;
     assert_eq!(
         volume.to_bits(),
@@ -2480,11 +2560,16 @@ fn the_export_door_serves_the_one_shot_journey() {
     match imported {
         pncad::step_import::StepImport::Solid { body, .. } => {
             let v = mass_properties(
-                &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&body), Tol::witness())
-                    .expect("the measured body passes tier 3"),
+                &pncad::topo::AtRestBody::validate(
+                    pncad::topo::Body::clone(body.body()),
+                    Tol::witness(),
+                )
+                .expect("the measured body passes tier 3"),
                 Tol::witness(),
+                pinned_resolution(Tol::witness()),
             )
             .expect("imported mass properties")
+            .enclosure
             .volume;
             assert!((v - 6.0).abs() < 1e-9, "imported volume {v} differs");
         }
@@ -2531,8 +2616,9 @@ fn the_document_export_door_ships_the_multi_solid_product() {
             distance: len(1.0),
         },
     );
-    let (doc, _) = place(doc, b0);
-    let (doc, _) = place(doc, b1);
+    let (doc, c0) = place(doc, b0);
+    let (doc, c1) = place(doc, b1);
+    let doc = product_is(doc, &[c0, c1]);
     let ev = doors_evaluate(&doc);
 
     // The per-node door speaks for ONE node, so no node in this
@@ -2544,13 +2630,18 @@ fn the_document_export_door_ships_the_multi_solid_product() {
         .expect("the export re-imports");
     match imported {
         pncad::step_import::StepImport::Solid { body, .. } => {
-            assert_eq!(body.solids().count(), 2, "two disjoint solids ship");
+            assert_eq!(body.body().solids().count(), 2, "two disjoint solids ship");
             let v = mass_properties(
-                &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&body), Tol::witness())
-                    .expect("the measured body passes tier 3"),
+                &pncad::topo::AtRestBody::validate(
+                    pncad::topo::Body::clone(body.body()),
+                    Tol::witness(),
+                )
+                .expect("the measured body passes tier 3"),
                 Tol::witness(),
+                pinned_resolution(Tol::witness()),
             )
             .expect("imported mass properties")
+            .enclosure
             .volume;
             assert!(
                 (v - (2.0 * 2.0 * 1.5 + 1.0)).abs() < 1e-9,
@@ -2561,13 +2652,13 @@ fn the_document_export_door_ships_the_multi_solid_product() {
     }
 }
 
-/// The same door's typed refusal on an EMPTY WORLD (A11 (2)): a
-/// document whose bodies nothing places has no product, and the
-/// refusal names every unplaced body in document order — the two
-/// extrudes' outputs, and not the profile's, which is no body. A
-/// profile-only document refuses the same with nothing to name.
+/// The same door's typed refusal of a document with NO PRODUCT (A11
+/// (2)): a document whose product slot reads nothing has no product,
+/// whatever bodies it holds — a profile, and then two extrudes nothing
+/// says the document makes — and the refusal says so rather than
+/// guessing one.
 #[test]
-fn the_document_export_door_refuses_an_empty_world_naming_the_unplaced() {
+fn the_document_export_door_refuses_an_empty_product() {
     use pncad::document::{Node, ProductError};
     use pncad::export::ExportError;
     let doc = pncad::document::ProfileDoc::empty_derived("world-doc-export-empty", Tol::witness());
@@ -2576,53 +2667,41 @@ fn the_document_export_door_refuses_an_empty_world_naming_the_unplaced() {
         let ev = doors_evaluate(doc);
         match pncad::export::export_document_step(&ev, doc, &StepOptions::default(), Tol::witness())
         {
-            Err(ExportError::Product(ProductError::EmptyProduct { unplaced, .. })) => unplaced,
-            other => panic!("an empty world must refuse EmptyProduct, got {other:?}"),
+            Err(ExportError::Product(ProductError::EmptyProduct)) => {}
+            other => panic!("a document with no product must refuse EmptyProduct, got {other:?}"),
         }
     };
-    assert_eq!(
-        refuses(&doc),
-        Vec::new(),
-        "a profile is not a body to place"
-    );
+    refuses(&doc);
     let extrude = |profile: pncad::document::RecipeNodeId| Node::Extrude {
         profile: profile.into(),
         distance: len(1.0),
     };
-    let (doc, b0) = insert(doc, extrude(p0));
+    let (doc, _) = insert(doc, extrude(p0));
     let (doc, p1) = insert(doc, square_at(1.0, 10.0));
-    let (doc, b1) = insert(doc, extrude(p1));
-    assert_eq!(
-        refuses(&doc),
-        vec![
-            doc.output(b0, 0).expect("the first extrude's output"),
-            doc.output(b1, 0).expect("the second extrude's output"),
-        ],
-        "every unplaced body, in document order"
-    );
+    let (doc, _) = insert(doc, extrude(p1));
+    refuses(&doc);
 }
 
-/// The same door's refusal of a STRANDED placement (A11 (2)): deleting
-/// a placed body is accepted, and the placement left reading nothing
-/// refuses the gather by name rather than leaving its copy out.
+/// The same door's refusal of a STRANDED product (A11 (2)): deleting
+/// the placement the product reads is accepted, and the slot left
+/// reading a body that is gone refuses the gather by its read rather
+/// than gathering nothing.
 #[test]
-fn the_document_export_door_refuses_a_stranded_placement() {
+fn the_document_export_door_refuses_a_stranded_product() {
     use pncad::document::{DocEdit, ProductError};
     use pncad::export::ExportError;
-    let (doc, _, body) = box_doc("world-doc-export-stranded");
+    let (doc, _, _) = box_doc("world-doc-export-stranded");
     let placement = doc.placements()[0];
-    let doc = pncad::document::apply(&doc, &DocEdit::DeleteNode { id: body }, Tol::witness())
-        .expect("deleting a placed body is accepted")
+    let copy = doc.output(placement, 0).expect("the placement's copy");
+    let doc = pncad::document::apply(&doc, &DocEdit::DeleteNode { id: placement }, Tol::witness())
+        .expect("deleting the product's placement is accepted")
         .doc;
     let ev = doors_evaluate(&doc);
     match pncad::export::export_document_step(&ev, &doc, &StepOptions::default(), Tol::witness()) {
-        Err(ExportError::Product(ProductError::StrandedPlacement { placement: at })) => {
-            assert_eq!(
-                at, placement,
-                "the refusal names the placement left stranded"
-            );
+        Err(ExportError::Product(ProductError::StrandedProduct { read })) => {
+            assert_eq!(read, copy, "the refusal names the read left stranded");
         }
-        other => panic!("a stranded placement must refuse StrandedPlacement, got {other:?}"),
+        other => panic!("a stranded product must refuse StrandedProduct, got {other:?}"),
     }
 }
 
@@ -2785,7 +2864,8 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
             members: pncad::document::Bodies::Spelled(vec![plate.into(), tab.into()]),
         },
     );
-    let (doc, _) = place(doc, solid);
+    let (doc, copy) = place(doc, solid);
+    let doc = product_is(doc, &[copy]);
     // A MEASURE and its ASSERTION (ERROR-DESIGN E3/E10), so the
     // fixture the Python audit loads carries the two node kinds whose
     // READING door Python ships (`Value.measure`, `Value.assertion`).
@@ -2893,6 +2973,11 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
 /// names no mate and a spin names its axis (`"spin": "z"`) on the wire.
 /// The tab stands where it stood — `(0, 0, 0.125)` up the plate, no
 /// turn — so the evaluated volume did not move.
+///
+/// Re-blessed for D′3 (a placement copies one source): the placement's
+/// `shapes` list is its one `source` on the wire, and the ids minted
+/// after it moved; the profile, the operations and the evaluated
+/// volume did not.
 #[test]
 fn plate_param_authors_facade_only_and_its_saved_text_is_pinned() {
     use pncad::document::BooleanValue;
@@ -2915,8 +3000,10 @@ fn plate_param_authors_facade_only_and_its_saved_text_is_pinned() {
         &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(body.as_ref()), Tol::witness())
             .expect("the measured body passes tier 3"),
         Tol::witness(),
+        pinned_resolution(Tol::witness()),
     )
     .expect("mass properties")
+    .enclosure
     .volume;
     // Plate + tab − their overlap − two cylinders of radius 0.25: the
     // same closed form `switch_plate_param.rs` asserts, tab included.
@@ -3009,34 +3096,29 @@ fn ws_doc_and_body(label: &str) -> (pncad::document::ProfileDoc, String, PartBod
             distance: len(1.5),
         },
     );
-    let (doc, placement) = place(doc, body);
+    let (doc, copy) = place(doc, body);
+    let doc = product_is(doc, &[copy]);
     let text = pncad::document::save(&doc, &[], Tol::witness()).expect("the document saves");
-    (doc, text, PartBody { body, placement })
+    (doc, text, PartBody { body })
 }
 
-/// A part's one body and the world placement whose copy is its product.
+/// A part's one body, whose one world copy is its product.
 #[derive(Clone, Copy)]
 struct PartBody {
     /// The extrude that is the body — the node a part-local name of
     /// its faces is minted by.
     body: pncad::document::RecipeNodeId,
-    /// Its one world placement.
-    placement: pncad::document::RecipeNodeId,
 }
 
 impl PartBody {
-    /// The body's `cap` face, part-local.
+    /// The body's `cap` face, part-local — and the part's product's
+    /// too: a copy carries its source's names as they are.
     fn cap(self, cap: pncad::select::CapEnd) -> pncad::prelude::StableName {
         pncad::prelude::StableName {
             kind: pncad::select::EntityKind::Face,
             node: self.body,
             path: vec![pncad::select::RoleSeg::Cap(cap)],
         }
-    }
-
-    /// The same face as the part's product names it: under its copy.
-    fn product_cap(self, cap: pncad::select::CapEnd) -> pncad::prelude::StableName {
-        self.cap(cap).in_copy(self.placement)
     }
 }
 
@@ -3678,6 +3760,7 @@ fn asm2a_assembly(
         doc = next;
         ids.push(id);
     }
+    let doc = product_is(doc, &ids);
     (doc, ids)
 }
 
@@ -3724,8 +3807,10 @@ fn asm2a_row1_two_instances_through_a_real_workspace() {
             &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(b), Tol::witness())
                 .expect("the measured body passes tier 3"),
             Tol::witness(),
+            pinned_resolution(Tol::witness()),
         )
         .expect("mass properties")
+        .enclosure
         .volume
     };
     assert_eq!(
@@ -3737,12 +3822,11 @@ fn asm2a_row1_two_instances_through_a_real_workspace() {
     // Solid order = placement order: instance 0 is at the origin, instance 1
     // ten units along +x.
     let x_of = |node| match ev.value(node).map(|v| &v.payload) {
-        Some(pncad::document::ValuePayload::Copies(copies)) => copies
-            .bodies
-            .iter()
-            .flat_map(|b| b.vertex_points().map(|(_, p)| p.x).collect::<Vec<_>>())
+        Some(pncad::document::ValuePayload::Body(b)) => b
+            .vertex_points()
+            .map(|(_, p)| p.x)
             .fold(f64::INFINITY, f64::min),
-        other => panic!("an instance's value is its copies, got {other:?}"),
+        other => panic!("an instance's value is its copy, got {other:?}"),
     };
     assert!((x_of(ids[0]) - 0.0).abs() < 1e-12);
     assert!((x_of(ids[1]) - 10.0).abs() < 1e-12);
@@ -3770,7 +3854,9 @@ fn step_export_writes_the_world_alone() {
     let (doc_ref, _) = asm2a_part_and_body(&dir, "part.pncad", "p2-step-unplaced-part");
     let ws = pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean");
     let (doc, ids) = asm2a_assembly("p2-step-unplaced", doc_ref, 2);
-    let doc = asm2a_set_aside(doc, ids[1]);
+    // The product is the world's copy: the instance set aside is not
+    // in it.
+    let doc = product_is(asm2a_set_aside(doc, ids[1]), &[ids[0]]);
     let ev = asm2a_eval(&doc, &ws);
     let opts = StepOptions::default();
     let world = pncad::export::export_document_step(&ev, &doc, &opts, Tol::witness())
@@ -3874,8 +3960,10 @@ fn asm2a_child_product_probe() {
         &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&body), Tol::witness())
             .expect("the measured body passes tier 3"),
         Tol::witness(),
+        pinned_resolution(Tol::witness()),
     )
     .expect("mass properties")
+    .enclosure
     .volume;
     std::fs::write(&out, format!("{}", v.to_bits())).expect("probe output writable");
 }
@@ -3906,9 +3994,9 @@ fn asm2a_spawn_probe(tag: &str) -> String {
 /// along the chart's x (the part spans 2, so the pair stays disjoint
 /// and the product is a clean two-solid gather).
 ///
-/// The instance names are an `InPart`-headed name whose HEAD is the
-/// instantiate node, wearing the part's product name of the face;
-/// `body` is the part's body. The second's bundle is the mate and its
+/// An instance's copy carries its part's product's names as they are,
+/// so the instance names the face by the part's own name; `body` is the
+/// part's body. The second's bundle is the mate and its
 /// values: its pose is solved from the first's, not stored.
 fn asm_r2a_mated_assembly(
     label: &str,
@@ -3919,8 +4007,7 @@ fn asm_r2a_mated_assembly(
     Vec<pncad::document::RecipeNodeId>,
 ) {
     use pncad::document::{Coord, Formula, Mate, Operand, TargetAxis, pose::PoseDef};
-    use pncad::prelude::StableName;
-    use pncad::select::{CapEnd, EntityKind, RoleSeg};
+    use pncad::select::CapEnd;
     let doc = pncad::document::ProfileDoc::empty(
         pncad::document::DocumentId::derive(label),
         Tol::witness(),
@@ -3935,18 +4022,14 @@ fn asm_r2a_mated_assembly(
         asm2a_instance(doc_ref, pncad::document::InterfaceRecord::default()),
     );
     let ids = vec![first, second];
-    let name = |node| StableName {
-        kind: EntityKind::Face,
-        node,
-        path: vec![RoleSeg::InPart {
-            of: body.product_cap(CapEnd::Start).into(),
-        }],
-    };
-    // The fixture's claim that the name it just built is a face is made
+    // The part's face, read at the instance whose copy carries it. The
+    // fixture's claim that the name it just built is a face is made
     // where the name is built.
-    let plane = |name: StableName| {
-        let face = pncad::document::SitedFace::at_mint(
-            pncad::document::FaceName::new(name).expect("the fixture names a face"),
+    let plane = |at: pncad::document::RecipeNodeId| {
+        let face = pncad::document::SitedFace::new(
+            at,
+            pncad::document::FaceName::new(body.cap(CapEnd::Start))
+                .expect("the fixture names a face"),
         );
         Operand::Pose(Box::new(PoseDef::Plane { face: face.into() }))
     };
@@ -3963,11 +4046,12 @@ fn asm_r2a_mated_assembly(
         doc,
         ids[1],
         Mate {
-            on: plane(name(ids[1])),
-            to: plane(name(ids[0])),
+            on: plane(ids[1]),
+            to: plane(ids[0]),
         },
         values,
     );
+    let doc = product_is(doc, &ids);
     (doc, ids)
 }
 
@@ -4020,8 +4104,10 @@ fn asm_r2a_child_mated_probe() {
         &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&body), Tol::witness())
             .expect("the measured body passes tier 3"),
         Tol::witness(),
+        pinned_resolution(Tol::witness()),
     )
     .expect("mass properties")
+    .enclosure
     .volume;
     let text = pncad::document::save(&doc, &[], Tol::witness()).expect("the document saves");
     std::fs::write(
@@ -4074,31 +4160,23 @@ const ASM_R2B_PROBE_OUT: &str = "ASM_R2B_PROBE_OUT";
 #[test]
 fn asm_r2b_child_crossing_probe() {
     use pncad::prelude::FaceName;
-    use pncad::prelude::StableName;
-    use pncad::select::{CapEnd, EntityKind, RoleSeg};
+    use pncad::select::CapEnd;
     let Ok(out) = std::env::var(ASM_R2B_PROBE_OUT) else {
         return; // not the child — nothing to do
     };
     let dir = WsDir::new("asm-r2b-probe");
     let (doc_ref, body) = asm2a_part_and_body(&dir, "part.pncad", "asm-r2b-probe-part");
-    // The part's product names its faces under its one copy.
-    let face =
-        |cap| FaceName::new(body.product_cap(cap)).expect("a crossing's references are face names");
+    // The part's product carries its faces' own names.
+    let face = |cap| FaceName::new(body.cap(cap)).expect("a crossing's references are face names");
     let ws = pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean");
 
     // A mated pair (the minting subject), then a THIRD instance
     // carrying an authored crossing record (the wire subject).
     let (doc, ids) = asm_r2a_mated_assembly("asm-r2b-probe-asm", doc_ref, body);
     // The `outer` is this document's name for a face: the first
-    // instance's end cap, worn under the instance that placed it.
-    let outer = FaceName::new(StableName {
-        kind: EntityKind::Face,
-        node: ids[0],
-        path: vec![RoleSeg::InPart {
-            of: (*face(CapEnd::End)).clone().into(),
-        }],
-    })
-    .expect("a crossing's references are face names");
+    // instance's end cap, the part's own name, carried by that instance's copy.
+    let outer = FaceName::new((*face(CapEnd::End)).clone())
+        .expect("a crossing's references are face names");
     let record = pncad::document::InterfaceRecord {
         crossings: vec![pncad::document::InterfaceCrossing::Mate {
             outer,
@@ -4134,8 +4212,10 @@ fn asm_r2b_child_crossing_probe() {
         &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&assembled), Tol::witness())
             .expect("the measured body passes tier 3"),
         Tol::witness(),
+        pinned_resolution(Tol::witness()),
     )
     .expect("mass properties")
+    .enclosure
     .volume;
     std::fs::write(
         &out,
@@ -4224,6 +4304,7 @@ fn asm2b_outer(
         doc = next;
         ids.push(id);
     }
+    let doc = product_is(doc, &ids);
     (doc, ids)
 }
 
@@ -4259,8 +4340,10 @@ fn asm2b_row2_sub_assembly_through_a_real_workspace() {
             &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(b), Tol::witness())
                 .expect("the measured body passes tier 3"),
             Tol::witness(),
+            pinned_resolution(Tol::witness()),
         )
         .expect("mass properties")
+        .enclosure
         .volume
     };
     let part_doc = ws.resolve(&p, Tol::witness()).expect("resolves");
@@ -4281,16 +4364,13 @@ fn asm2b_row2_sub_assembly_through_a_real_workspace() {
     // Solid order = placement order: instance 0's two solids sit at x = 0
     // and x = 10 (B's own spacing), instance 1's ten further along.
     let xs = |node| match ev.value(node).map(|v| &v.payload) {
-        Some(pncad::document::ValuePayload::Copies(copies)) => {
-            let [b] = copies.bodies.as_slice() else {
-                panic!("an instance's copies are its part's product, one body")
-            };
+        Some(pncad::document::ValuePayload::Body(b)) => {
             assert_eq!(b.solids().count(), 2, "an instance carries both solids");
             let mut v: Vec<f64> = b.vertex_points().map(|(_, p)| p).map(|p| p.x).collect();
             v.sort_by(f64::total_cmp);
             (v[0], v[v.len() - 1])
         }
-        other => panic!("an instance's value is its copies, got {other:?}"),
+        other => panic!("an instance's value is its copy, got {other:?}"),
     };
     let (lo0, hi0) = xs(ids[0]);
     let (lo1, hi1) = xs(ids[1]);
@@ -4333,8 +4413,10 @@ fn asm2b_child_product_probe() {
         &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&body), Tol::witness())
             .expect("the measured body passes tier 3"),
         Tol::witness(),
+        pinned_resolution(Tol::witness()),
     )
     .expect("mass properties")
+    .enclosure
     .volume;
     let text = format!("{}|{}", v.to_bits(), asm2b_signature(&body));
     std::fs::write(&out, text).expect("probe output writable");
@@ -4444,8 +4526,10 @@ fn asm4_split_and_inline_through_the_real_store() {
             &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(b), Tol::witness())
                 .expect("the measured body passes tier 3"),
             Tol::witness(),
+            pinned_resolution(Tol::witness()),
         )
         .expect("mass properties")
+        .enclosure
         .volume
         .to_bits()
     };
@@ -4607,8 +4691,10 @@ fn asm_upd_row3_update_to_store_picks_up_the_resaved_part() {
             &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(b), Tol::witness())
                 .expect("the measured body passes tier 3"),
             Tol::witness(),
+            pinned_resolution(Tol::witness()),
         )
         .expect("mass properties")
+        .enclosure
         .volume
     };
     let ev = asm2a_eval(&doc, &ws);
@@ -4745,8 +4831,10 @@ fn asm_upd_child_update_probe() {
         )
         .expect("the measured body passes tier 3"),
         Tol::witness(),
+        pinned_resolution(Tol::witness()),
     )
     .expect("mass properties")
+    .enclosure
     .volume;
     let text = format!(
         "{}\u{1e}{}",
@@ -6008,29 +6096,32 @@ fn first_arg_literals(code: &str, ident: &str) -> Vec<String> {
 /// (the safe direction — see [`tour_sources`]).
 fn tour_stop_roster() -> (std::collections::BTreeSet<String>, usize, Vec<String>) {
     const DECL: &str = "name: &'static str";
+    // The tour's scene struct (`TourStop`, so it is never read as the
+    // measurement's `topo::Stop`).
+    const STRUCT: &str = "TourStop";
     let mut names = std::collections::BTreeSet::new();
     let mut sites = 0usize;
     let mut complaints: Vec<String> = Vec::new();
 
     for (file, code) in tour_sources() {
         let mut from = 0usize;
-        while let Some(off) = code[from..].find("Stop") {
+        while let Some(off) = code[from..].find(STRUCT) {
             let at = from + off;
-            from = at + "Stop".len();
+            from = at + STRUCT.len();
             if !token_starts_at(&code, at) {
                 continue;
             }
-            let rest = &code[at + "Stop".len()..];
+            let rest = &code[at + STRUCT.len()..];
             let gap = rest.len() - rest.trim_start().len();
             if rest.as_bytes().get(gap) != Some(&b'{') {
                 continue;
             }
-            // `-> Stop {` opens a function body, not a literal.
+            // `-> TourStop {` opens a function body, not a literal.
             if code[..at].trim_end().ends_with("->") {
                 continue;
             }
             sites += 1;
-            let field = first_struct_field(&code, at + "Stop".len() + gap + 1);
+            let field = first_struct_field(&code, at + STRUCT.len() + gap + 1);
             let found: Vec<String> = if field == "name" {
                 // The shorthand: resolve the binding that dominates.
                 let Some(decl) = code[..at].rfind(DECL) else {
@@ -6719,13 +6810,17 @@ mod the_hollowed_box_through_the_facade {
             &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(body), Tol::witness())
                 .expect("the measured body passes tier 3"),
             Tol::witness(),
+            crate::pinned_resolution(Tol::witness()),
         )
         .expect("the cup measures");
         let inner: f64 = 1.0 - 0.25;
         let want = 1.0 - inner * inner * (1.0 - 0.125);
         // Exact on purpose: every coordinate is dyadic and small, so each closed-form term and
         // their sum are exact in f64 (a zero pad states no rounding; here there is none).
-        assert_eq!(props.volume, want, "the cup's volume is its closed form");
+        assert_eq!(
+            props.enclosure.volume, want,
+            "the cup's volume is its closed form"
+        );
     }
 
     /// At a dual the same document refuses at the shell node and

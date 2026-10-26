@@ -24,7 +24,7 @@ use pncad::topo::{AtRestBody, BooleanBody};
 
 use crate::booleans::{check, expect_seamed, finished, try_intersect};
 use crate::scalar::Scalar;
-use crate::{SceneBody, Stop, View};
+use crate::{SceneBody, TourStop, View};
 use pncad::authoring::{p3, polygon, validated};
 use pncad::geom_core::{RigidMotion, Tol};
 
@@ -118,7 +118,7 @@ pub(crate) fn build<S: Scalar>(tol: Tol) -> BooleanBody<S> {
     )
 }
 
-pub fn stops(tol: Tol) -> Vec<Stop> {
+pub fn stops(tol: Tol) -> Vec<TourStop> {
     let az = build::<f64>(tol);
     // The other order, Z x A, builds the same body's volume: intersection
     // is commutative.
@@ -131,7 +131,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         ),
         V_AZ,
     );
-    vec![Stop {
+    vec![TourStop {
         name: "az",
         caption: "A x Z (#93's letter pair)".to_string(),
         // Standalone render only: the montage carries the letterforms

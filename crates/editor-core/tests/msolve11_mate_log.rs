@@ -20,10 +20,10 @@ use crate::fixture;
 use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
     CancelToken, CapEnd, Coord, DocEdit, DocumentId, EvalOptions, Evaluation, Formula, Mate,
-    MateRef, NameRef, Node, NodeErrorKind, NodeResult, Operand, PatternKind, ProfileDoc,
-    RecipeNodeId, RoleSeg, SitedFace, SitedRef, StableName, TargetAxis, evaluate,
+    MateRef, Node, NodeErrorKind, NodeResult, Operand, PatternKind, ProfileDoc, RecipeNodeId,
+    RoleSeg, SitedFace, SitedRef, StableName, TargetAxis, evaluate,
 };
-use fixture::resolver::{PartStore, in_part, placement_of, with_resolver};
+use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{ang, in_copy, insert, len, on_frame, scl};
 use geom_core::Tol;
 
@@ -51,24 +51,6 @@ fn slab(label: &str, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
             distance: len(h),
         },
     )
-}
-
-/// **`name`, an entity of a part's body, as `instance` wears it**:
-/// under the placement the part's world copies the body by, inside the
-/// instance's `InPart` wrapper.
-fn worn(instance: RecipeNodeId, body: RecipeNodeId, name: StableName) -> StableName {
-    let placed = StableName {
-        kind: name.kind,
-        node: placement_of(body),
-        path: vec![RoleSeg::Placed {
-            of: NameRef::new(name),
-        }],
-    };
-    StableName {
-        kind: placed.kind,
-        node: instance,
-        path: vec![RoleSeg::InPart { of: placed.into() }],
-    }
 }
 
 /// **`face`'s plane slid `h` along its own outward normal and
@@ -168,11 +150,7 @@ impl Scene {
     fn copy_edge(&self) -> Operand {
         fixture::axis(SitedRef::new(
             self.copy1,
-            in_copy(
-                self.pattern,
-                1,
-                worn(self.block, self.block_body, self.edge.clone()),
-            ),
+            in_copy(self.pattern, 1, self.edge.clone()),
         ))
     }
 
@@ -183,10 +161,7 @@ impl Scene {
 
     /// A block's lateral edge, as an axis read at the block.
     fn block_edge(&self, block: RecipeNodeId) -> Operand {
-        fixture::axis(SitedRef::new(
-            block,
-            worn(block, self.block_body, self.edge.clone()),
-        ))
+        fixture::axis(SitedRef::new(block, self.edge.clone()))
     }
 
     /// Inserts `node` through the door.

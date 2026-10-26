@@ -94,11 +94,11 @@ fn plane(phi: f64, qy: f64) -> SplitPlane<f64> {
 }
 
 fn vol(b: &Body<f64>) -> f64 {
-    topo::mass_properties(
+    topo::test_support::pinned_volume(
+        "the measured body",
         &topo::test_support::finished("the measured body", topo::Body::clone(b), Tol::witness()),
         Tol::witness(),
     )
-    .unwrap()
     .volume
 }
 
@@ -333,19 +333,20 @@ fn a_plane_missing_the_cone_splits_the_body() {
                     Tol::witness(),
                 ),
                 Tol::witness(),
+                topo::test_support::pinned_resolution(Tol::witness()),
             )
             .unwrap()
         };
         let (pa, pb) = (props(&above), props(&below));
-        let slack = pa.volume_pad + pb.volume_pad + 1e-12;
+        let slack = pa.enclosure.volume_pad + pb.enclosure.volume_pad + 1e-12;
         assert!(
-            (pb.volume - PI / 2.0).abs() <= pb.volume_pad + 1e-12,
+            (pb.enclosure.volume - PI / 2.0).abs() <= pb.enclosure.volume_pad + 1e-12,
             "{what}: below {} ± {}",
-            pb.volume,
-            pb.volume_pad
+            pb.enclosure.volume,
+            pb.enclosure.volume_pad
         );
         assert!(
-            (pa.volume + pb.volume - total).abs() <= slack,
+            (pa.enclosure.volume + pb.enclosure.volume - total).abs() <= slack,
             "{what}: sum"
         );
     }
@@ -557,6 +558,7 @@ fn steep_frusta_in_a_generic_pose_split_at_a_shallow_tilt() {
             topo::mass_properties(
                 &topo::test_support::finished("the measured body", topo::Body::clone(b), tol),
                 tol,
+                topo::test_support::pinned_resolution(tol),
             )
             .unwrap()
         };
@@ -564,16 +566,16 @@ fn steep_frusta_in_a_generic_pose_split_at_a_shallow_tilt() {
         let whole = PI * h / 3.0 * (r0 * r0 + r0 * r1 + r1 * r1);
         let slack = 1e-12 * whole;
         assert!(
-            (pw.volume - whole).abs() <= pw.volume_pad + slack,
+            (pw.enclosure.volume - whole).abs() <= pw.enclosure.volume_pad + slack,
             "{what}: the uncut frustum {} ± {}, want {whole}",
-            pw.volume,
-            pw.volume_pad
+            pw.enclosure.volume,
+            pw.enclosure.volume_pad
         );
-        let sum = pa.volume + pb.volume;
+        let sum = pa.enclosure.volume + pb.enclosure.volume;
         assert!(
-            (sum - whole).abs() <= pa.volume_pad + pb.volume_pad + slack,
+            (sum - whole).abs() <= pa.enclosure.volume_pad + pb.enclosure.volume_pad + slack,
             "{what}: the halves sum to {sum} ± {}, want {whole}",
-            pa.volume_pad + pb.volume_pad
+            pa.enclosure.volume_pad + pb.enclosure.volume_pad
         );
     }
 }

@@ -663,15 +663,15 @@ fn a_placement_wraps_names_once_and_pattern_wraps_instances() {
         },
     );
     let ev = run(&doc);
-    // Placement: every name of the body worn under ONE `Placed`
-    // segment, at the same entity; the copy's body row is its own.
+    // Placement: every name of the body carried as it is, at the same
+    // entity; the copy's body row is its own.
     let (moved, master) = (table(&ev, tr), table(&ev, ext));
     assert_eq!(moved.len(), master.len());
     for (name, entry) in master.iter() {
         let worn = if name.kind == EntityKind::Body {
             minted(EntityKind::Body, tr, RoleSeg::OutputBody)
         } else {
-            crate::m10_5_clearance_interval::in_placement(tr, name.clone())
+            name.clone()
         };
         assert_eq!(
             moved.lookup(&worn),
@@ -682,10 +682,7 @@ fn a_placement_wraps_names_once_and_pattern_wraps_instances() {
     // Pattern: every master entry wrapped per instance, body = i.
     let tp = table(&ev, pat);
     assert_eq!(tp.len(), 27 * 3);
-    let master_end = crate::m10_5_clearance_interval::in_placement(
-        tr,
-        minted(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::End)),
-    );
+    let master_end = minted(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::End));
     for i in 0..3u32 {
         let wrapped = minted(
             EntityKind::Face,

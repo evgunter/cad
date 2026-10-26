@@ -68,7 +68,7 @@ fn meshed(name: &str) -> Rows {
     [2.0e-3, 5.0e-4]
         .into_iter()
         .map(|d| {
-            let m = tessellate(&body, d, Tol::witness())
+            let m = tessellate(body.body(), d, Tol::witness())
                 .unwrap_or_else(|e| panic!("{name} at δ={d}: {e:?}"));
             let n: usize = m.patches.iter().map(|p| p.triangles.len()).sum();
             (n, check_mesh(&m).map_err(|e| format!("{e:?}")))

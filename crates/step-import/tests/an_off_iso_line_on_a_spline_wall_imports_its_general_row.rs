@@ -183,14 +183,17 @@ fn the_tetrahedron_imports_and_its_diagonal_takes_a_general_row() {
         panic!("the tetrahedron is a solid")
     };
     let mut wall = Vec::new();
-    for (he, h) in body.half_edges() {
-        let face = body.face_of_half_edge(he).unwrap();
-        let surface = body.get_surface(body.get_face(face).unwrap().surface);
+    for (he, h) in body.body().half_edges() {
+        let face = body.body().face_of_half_edge(he).unwrap();
+        let surface = body
+            .body()
+            .get_surface(body.body().get_face(face).unwrap().surface);
         if !matches!(surface, Some(geom::Surface::Nurbs(_))) {
             continue;
         }
         let curve = body
-            .get_curve_geom(body.get_edge(h.edge).unwrap().curve)
+            .body()
+            .get_curve_geom(body.body().get_edge(h.edge).unwrap().curve)
             .and_then(topo::CurveGeom::certified)
             .unwrap();
         let line = matches!(curve.carrier(), geom::Curve3::Line { .. });
@@ -205,6 +208,7 @@ fn the_tetrahedron_imports_and_its_diagonal_takes_a_general_row() {
             );
         }
         let row = body
+            .body()
             .pcurve(he)
             .unwrap_or_else(|| panic!("{he:?}: every wall row is stored"));
         wall.push((line, matches!(row.pcurve(), topo::Pcurve::General(_))));
@@ -216,7 +220,7 @@ fn the_tetrahedron_imports_and_its_diagonal_takes_a_general_row() {
         "the wall's three rows: its two parabolas exact, its diagonal line General"
     );
     assert_eq!(
-        topo::validate_geometric(&body, Tol::witness()),
+        topo::validate_geometric(body.body(), Tol::witness()),
         Ok(()),
         "tier 3 re-certifies the imported body"
     );

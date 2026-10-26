@@ -33,6 +33,7 @@ from pncad import (
 )
 
 from placing import against
+from measuring import pinned
 
 # Three boxes of side 2, offset so that every pair overlaps in a
 # volume and NO two faces are coplanar: a flush pair would be a
@@ -82,7 +83,7 @@ def measured(doc, node):
     ev = evaluate(doc)
     body = ev.value(node).body()
     body.validate()
-    return body.mass_properties()
+    return pinned(body)
 
 
 def assert_volume(case, props, expected):

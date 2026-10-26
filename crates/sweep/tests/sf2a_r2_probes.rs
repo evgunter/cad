@@ -201,17 +201,18 @@ fn r2a_valence4_concurring_corner_builds_in_closed_form() {
     let props = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(&chamfered), tol),
         tol,
+        topo::test_support::pinned_resolution(tol),
     )
     .expect("props");
     let want = chamfered_cube_volume(a - 2.0 * t, d + s * core::f64::consts::SQRT_2 - 2.0 * t);
     println!(
         "[r2a] concurring valence-4 inset: volume {} want {want}",
-        props.volume
+        props.enclosure.volume
     );
     assert!(
-        (props.volume - want).abs() <= 1e-12,
+        (props.enclosure.volume - want).abs() <= 1e-12,
         "the inset chamfered cube's closed form is {want}, got {}",
-        props.volume
+        props.enclosure.volume
     );
 }
 
@@ -250,14 +251,15 @@ fn r2a_bevel_kite_triangle_walls_in_closed_form() {
         let props = topo::mass_properties(
             &topo::test_support::finished("the measured body", topo::Body::clone(&hollow), tol),
             tol,
+            topo::test_support::pinned_resolution(tol),
         )
         .expect("props");
         let want = shoelace(&pts) * h - shoelace(&inset(&pts, t)) * (h - 2.0 * t);
-        println!("[r2a] {what}: wall {} want {want}", props.volume);
+        println!("[r2a] {what}: wall {} want {want}", props.enclosure.volume);
         assert!(
-            (props.volume - want).abs() <= 1e-12,
+            (props.enclosure.volume - want).abs() <= 1e-12,
             "{what}: closed form {want}, got {}",
-            props.volume
+            props.enclosure.volume
         );
     }
 }
@@ -297,11 +299,11 @@ fn r2a_a_face_named_twice_across_moves() {
         faces: moves[0].faces.clone(),
         distance: moves[0].distance,
     });
-    let before = topo::mass_properties(
+    let before = topo::test_support::pinned_volume(
+        "props",
         &topo::test_support::finished("the measured body", topo::Body::clone(&body), tol),
         tol,
     )
-    .expect("props")
     .volume;
     match topo::offset_planes_together(&mut body, &moves, band(), tol) {
         Err(e) => println!("[r2a] duplicate face: refused, {e}"),
@@ -310,8 +312,9 @@ fn r2a_a_face_named_twice_across_moves() {
             let vol = topo::mass_properties(
                 &topo::test_support::finished("the measured body", topo::Body::clone(&body), tol),
                 tol,
+                topo::test_support::pinned_resolution(tol),
             )
-            .map(|p| p.volume);
+            .map(|p| p.enclosure.volume);
             println!(
                 "[r2a] duplicate face: BUILT (operand was volume {before}); tier3 = {tier3:?}, \
                  volume = {vol:?} (a correct inset would be 1.5·2.5·3.5 = 13.125)"
@@ -409,7 +412,7 @@ fn r2a_one_curved_face_among_oblique_planes_takes_the_axial_door() {
         topo::is_axial(&body, band()).expect("the axis gate decides"),
         "sides parallel to the arc's axis, ends normal to it"
     );
-    let operand = topo::mass_properties(&body, tol).expect("props").volume;
+    let operand = topo::test_support::pinned_volume("props", &body, tol).volume;
     let area = bulge_loop_area(&hex);
     assert!(
         (operand - area * depth).abs() <= 1e-15,
@@ -425,11 +428,11 @@ fn r2a_one_curved_face_among_oblique_planes_takes_the_axial_door() {
     .unwrap_or_else(|e| panic!("the one-arc hexagon hollows: {e}"))
     .body;
     assert_eq!(topo::validate_geometric(&hollow, tol), Ok(()), "tier 3");
-    let got = topo::mass_properties(
+    let got = topo::test_support::pinned_volume(
+        "props",
         &topo::test_support::finished("the measured body", topo::Body::clone(&hollow), tol),
         tol,
     )
-    .expect("props")
     .volume;
     println!("[r2a] one-arc hexagon hollow: {got}, closed form {want}");
     assert!((got - want).abs() <= 1e-15, "hollow {got}, want {want}");
@@ -457,11 +460,12 @@ fn r2a_straight_vertex_prism_through_shell_at_head() {
             let props = topo::mass_properties(
                 &topo::test_support::finished("the measured body", topo::Body::clone(&hollow), tol),
                 tol,
+                topo::test_support::pinned_resolution(tol),
             )
             .expect("props");
             println!(
                 "[r2a] straight-vertex prism at head: HOLLOWS, wall {} (closed form 0.157)",
-                props.volume
+                props.enclosure.volume
             );
         }
         Err(e) => println!("[r2a] straight-vertex prism at head: refuses, {e}"),

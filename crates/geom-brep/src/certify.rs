@@ -2338,15 +2338,41 @@ pub struct SplineFoot<T: Real> {
         Point3<T>,
         T,
     ) -> Result<geom::Projection3<T>, geom::ProjectionInconclusive>,
+    /// [`crate::curve_face::composite::crossings`] at `T`, its scalars
+    /// crossed by their certified enclosures.
+    composite: fn(
+        &geom::NurbsCurve3<T>,
+        (T, T),
+        &Surface<T>,
+        Band,
+    ) -> Result<Vec<T>, crate::curve_face::composite::CompositeRefusal>,
 }
 
-impl<T: geom_core::CertifiedBounds> SplineFoot<T> {
-    /// The foot, instantiated at `T`.
+impl<T: Decide + geom_core::CertifiedBounds> SplineFoot<T> {
+    /// The foot and the crossings, instantiated at `T`.
     #[must_use]
     pub const fn certified() -> Self {
         Self {
             foot: Self::seeded_foot,
+            composite: Self::composite_crossings,
         }
+    }
+
+    /// [`crate::curve_face::composite::crossings`], each scalar crossed
+    /// into certification arithmetic by its certified enclosure.
+    fn composite_crossings(
+        net: &geom::NurbsCurve3<T>,
+        params: (T, T),
+        surface: &Surface<T>,
+        band: Band,
+    ) -> Result<Vec<T>, crate::curve_face::composite::CompositeRefusal> {
+        crate::curve_face::composite::crossings(
+            net,
+            params,
+            surface,
+            band,
+            geom_core::Interval::from_certified,
+        )
     }
 
     /// [`geom::NurbsCurve3::project_from_seed`] seeded at the bracket
@@ -2453,6 +2479,25 @@ impl<T: Real> SplineFoot<T> {
         seed: T,
     ) -> Result<geom::Projection3<T>, geom::ProjectionInconclusive> {
         (self.foot)(carrier, point, seed)
+    }
+
+    /// **A spline span against an analytic face's carrier**: the
+    /// crossings strictly inside `params`, ascending, by the curve × face
+    /// table's ring-composite arm
+    /// ([`crate::curve_face::composite::crossings`]).
+    ///
+    /// # Errors
+    ///
+    /// [`crate::curve_face::composite::CompositeRefusal`], as its
+    /// variants say.
+    pub fn surface_crossings(
+        self,
+        net: &geom::NurbsCurve3<T>,
+        params: (T, T),
+        surface: &Surface<T>,
+        band: Band,
+    ) -> Result<Vec<T>, crate::curve_face::composite::CompositeRefusal> {
+        (self.composite)(net, params, surface, band)
     }
 }
 
@@ -4571,7 +4616,7 @@ mod wiring_rows {
         assert_eq!(
             holds_the_certified_nurbs_lane::<geom_core::Sym<f64>>(),
             Ok(()),
-            "`NurbsLane::<Sym<f64>>::certified()` holds something other than its four routines"
+            "`NurbsLane::<Sym<f64>>::certified()` holds something other than its routines"
         );
     }
 
@@ -4581,7 +4626,7 @@ mod wiring_rows {
         assert_eq!(
             holds_the_certified_nurbs_lane::<geom_core::Probe>(),
             Ok(()),
-            "`NurbsLane::<Probe>::certified()` holds something other than its four routines"
+            "`NurbsLane::<Probe>::certified()` holds something other than its routines"
         );
     }
 
@@ -4590,16 +4635,22 @@ mod wiring_rows {
         assert_eq!(
             holds_the_certified_nurbs_lane::<geom_core::interval::Interval>(),
             Ok(()),
-            "`NurbsLane::<Interval>::certified()` holds something other than its four routines"
+            "`NurbsLane::<Interval>::certified()` holds something other than its routines"
         );
     }
 
     /// `Ok(())` when the foot holds `SplineFoot::seeded_foot`.
-    fn holds_the_certified_spline_foot<T: geom_core::CertifiedBounds>() -> Result<(), &'static str>
-    {
+    fn holds_the_certified_spline_foot<T: geom_core::Decide + geom_core::CertifiedBounds>()
+    -> Result<(), &'static str> {
         let foot = SplineFoot::<T>::certified();
         if !std::ptr::fn_addr_eq(foot.foot, SplineFoot::<T>::seeded_foot as fn(_, _, _) -> _) {
             return Err("foot is not `SplineFoot::seeded_foot`");
+        }
+        if !std::ptr::fn_addr_eq(
+            foot.composite,
+            SplineFoot::<T>::composite_crossings as fn(_, _, _, _) -> _,
+        ) {
+            return Err("composite is not `SplineFoot::composite_crossings`");
         }
         Ok(())
     }

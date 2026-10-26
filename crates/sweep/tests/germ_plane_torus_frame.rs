@@ -695,8 +695,7 @@ fn a_band_pose_under_the_tubes_top_reaches_the_donuts_door() {
                     Ok(()),
                     "δ = {delta}, {name}, {op}: tier 3"
                 );
-                let v = topo::mass_properties(b, Tol::witness())
-                    .unwrap_or_else(|e| panic!("δ = {delta}, {name}, {op}: the volume: {e:?}"))
+                let v = topo::test_support::pinned_volume("the measured body", b, Tol::witness())
                     .volume;
                 assert!(
                     (v - truth).abs() <= volume_tol(truth),

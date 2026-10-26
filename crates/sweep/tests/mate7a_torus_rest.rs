@@ -187,7 +187,8 @@ fn peg_in_socket_union_holds(s: &AtRestBody<f64>, p: &AtRestBody<f64>) {
         "the at-rest certificate"
     );
     let vol = |b: &Body<f64>| {
-        topo::mass_properties(
+        topo::test_support::pinned_volume(
+            "the measured body",
             &topo::test_support::finished(
                 "the measured body",
                 topo::Body::clone(b),
@@ -195,7 +196,6 @@ fn peg_in_socket_union_holds(s: &AtRestBody<f64>, p: &AtRestBody<f64>) {
             ),
             Tol::witness(),
         )
-        .unwrap()
         .volume
     };
     let (v, want) = (vol(&bb.body), vol(s) + vol(p));
@@ -368,9 +368,12 @@ fn subtract_and_intersect_on_the_torus_rest_fixtures() {
         match (r, want) {
             (Ok(BooleanResult::Empty), None) => {}
             (Ok(BooleanResult::Body(bb)), Some(want)) => {
-                let v = topo::mass_properties(&bb.body, Tol::witness())
-                    .unwrap()
-                    .volume;
+                let v = topo::test_support::pinned_volume(
+                    "the measured body",
+                    &bb.body,
+                    Tol::witness(),
+                )
+                .volume;
                 assert!(
                     (v - want).abs() <= 1e-12 * want,
                     "{what}: volume {v} against Pappus {want}"

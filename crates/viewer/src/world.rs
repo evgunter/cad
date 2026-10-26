@@ -1,19 +1,19 @@
 //! **The world, as the viewer reads it** (A10): which bodies are
 //! placed, by which placements, and what a pick on a copy is a pick on.
 //!
-//! The product is the copies the document's placements (`Node::Place`,
-//! and an instance, which is a placement) define into the world's space,
-//! in their document order. Each placement names the space it copies
+//! The viewport draws the copies the document's placements (`Node::Place`,
+//! and an instance, which is a placement) define, in their document
+//! order; the product is what the document's product slot reads, a body
+//! of the world. Each placement names the space it copies
 //! into (its `target`), and the viewport draws a set of spaces (DI5):
 //! the world and every space no placement reads a source body of
 //! ([`shown_spaces`]). A placement into a body's own space — a body
 //! moved against its own geometry, an operand placed against a combine's
 //! first — is drawn through the copy that places that space's body, not
-//! on its own. A copy's names are its body's,
-//! each wrapped in one `Placed` qualifier headed at the placement
-//! (`StableName::in_copy`), so a pick on the picture names the copy; a
-//! gesture that authors against a body reads the placement's body and
-//! the body's own name ([`on_body`]).
+//! on its own. A copy carries its body's names as they are, so a pick
+//! on the picture names the body's entity; a gesture that authors
+//! against a body reads the placement's body under that name
+//! ([`on_body`]).
 //!
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
@@ -33,19 +33,16 @@ pub fn placed_var(doc: &Doc<ProfileProgram>, placement: RecipeNodeId) -> Option<
         return None;
     }
     match doc.node(placement)? {
-        Node::Place { shapes, .. } => match shapes.as_slice() {
-            [shape] => Some(shape.read),
-            _ => None,
-        },
+        Node::Place { source, .. } => Some(source.read),
         _ => None,
     }
 }
 
-/// **Every body `placement` copies**: a `Place`'s shapes' reads, in the
-/// order written; empty for any other node.
+/// **The body `placement` copies**: a `Place`'s source's read; empty
+/// for any other node.
 fn placed_vars(doc: &Doc<ProfileProgram>, placement: RecipeNodeId) -> Vec<VarId> {
     match doc.node(placement) {
-        Some(Node::Place { shapes, .. }) => shapes.iter().map(|shape| shape.read).collect(),
+        Some(Node::Place { source, .. }) => vec![source.read],
         _ => Vec::new(),
     }
 }
@@ -151,25 +148,19 @@ pub fn is_placed(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> bool {
 
 /// **A pick on a copy, read on its body**: the operation defining the
 /// body `node` places, that body's index within the operation's value,
-/// and the body's own name for the entity `name` names on the copy.
+/// and `name`, which a copy carries as its body does.
 ///
-/// A pick whose node is not a placement, or whose name is not
-/// the placement's wrap, is already on a body and comes back as it
-/// was. A placement whose body is gone keeps its own node: there is no
-/// body to read the pick on.
+/// A pick whose node is not a drawn copy is already on a body and
+/// comes back as it was. A placement whose body is gone keeps its own
+/// node: there is no body to read the pick on.
 pub fn on_body(
     doc: &Doc<ProfileProgram>,
     node: RecipeNodeId,
     body: u32,
     name: &StableName,
 ) -> (RecipeNodeId, u32, StableName) {
-    match name.copy_of() {
-        Some((placement, own)) if placement == node => {
-            let (operation, body) = body_of(doc, node, body);
-            (operation, body, own.clone())
-        }
-        _ => (node, body, name.clone()),
-    }
+    let (operation, body) = body_of(doc, node, body);
+    (operation, body, name.clone())
 }
 
 /// **The body a drawn copy is**: for a placement's copy, the
@@ -241,7 +232,7 @@ pub fn read_output(
         Operand::Output { node, port } => Some((*node, Some(*port))),
         Operand::Var(var) => defined(*var),
         Operand::Name(name) => defined(doc.var_named(name.as_str())?),
-        Operand::Select { .. } | Operand::Pose(_) => None,
+        Operand::Select { .. } | Operand::Pose(_) | Operand::Pick { .. } => None,
     }
 }
 
@@ -254,15 +245,15 @@ pub fn placements_of_read(doc: &Doc<ProfileProgram>, read: &Operand) -> Vec<Reci
 }
 
 /// **The body variable `read` names**: a node named alone reads its
-/// one output, a port the output it names. `None` for a selection or
-/// a pose, and for a read the document does not define.
+/// one output, a port the output it names. `None` for a selection, a
+/// pose or a pick, and for a read the document does not define.
 pub fn read_var(doc: &Doc<ProfileProgram>, read: &Operand) -> Option<VarId> {
     match read {
         Operand::Node(node) => doc.read_of_node(*node),
         Operand::Output { node, port } => doc.output(*node, *port),
         Operand::Var(var) => Some(*var),
         Operand::Name(name) => doc.var_named(name.as_str()),
-        Operand::Select { .. } | Operand::Pose(_) => None,
+        Operand::Select { .. } | Operand::Pose(_) | Operand::Pick { .. } => None,
     }
 }
 
@@ -278,4 +269,55 @@ pub fn made(doc: &Doc<ProfileProgram>, minted: &[RecipeNodeId]) -> Option<Recipe
         .copied()
         .find(|&node| !matches!(doc.node(node), Some(Node::Place { .. })))
         .or_else(|| minted.first().copied())
+}
+
+/// **The bodies the product reads** (D10 `[operations]`): the operands
+/// of the `⊔` the product slot reads, in order, or the one body it
+/// reads; empty where it reads nothing or a body that is gone.
+pub fn product_reads(doc: &Doc<ProfileProgram>) -> Vec<VarId> {
+    let Some(var) = doc.product().filter(|&var| doc.operation_of(var).is_some()) else {
+        return Vec::new();
+    };
+    match doc.operation_of(var).and_then(|at| doc.node(at)) {
+        Some(Node::Assemble { members }) => members
+            .rows()
+            .into_iter()
+            .map(|(_, read)| read.read)
+            .collect(),
+        _ => vec![var],
+    }
+}
+
+/// **The copy a world placement defines**, the body a product can read:
+/// its output where `node` is a `Place` or an instance standing in the
+/// world; `None` for any other node.
+pub fn world_copy(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Option<VarId> {
+    if !matches!(
+        doc.node(node),
+        Some(Node::Place { .. } | Node::InstantiatePart { .. })
+    ) {
+        return None;
+    }
+    doc.output(node, 0)
+        .filter(|&copy| doc.space_of(copy) == Some(VarId::WORLD))
+}
+
+/// **The product with `copy` in it**: what it reads, then `copy`, as
+/// the bodies a [`crate::session::SessionOp::SetProduct`] says.
+pub fn product_with(doc: &Doc<ProfileProgram>, copy: VarId) -> Vec<Operand> {
+    product_reads(doc)
+        .into_iter()
+        .filter(|&read| read != copy)
+        .chain([copy])
+        .map(Operand::Var)
+        .collect()
+}
+
+/// **The product with `copy` taken out**: what it reads, less `copy`.
+pub fn product_without(doc: &Doc<ProfileProgram>, copy: VarId) -> Vec<Operand> {
+    product_reads(doc)
+        .into_iter()
+        .filter(|&read| read != copy)
+        .map(Operand::Var)
+        .collect()
 }

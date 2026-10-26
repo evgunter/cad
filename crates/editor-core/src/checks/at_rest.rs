@@ -23,12 +23,13 @@
 //!
 //! Inside one copy's body an overlap stays the kernel's typed error:
 //! only verdicts between solids of two different copies are findings.
-//! A part is one copy of the document instantiating it, and the census
-//! over that document finds the part's own findings again inside the
-//! copy. Those are the part's, carried up and reported as the part's
-//! ([`crate::CarriedInterference`], [`crate::AssemblyError::CarriedAtRest`]),
-//! so the gate drops each verdict about a pair of solids the part
-//! already answered (`less_carried`).
+//! A part is one copy of the document instantiating it, and its own
+//! census decided the meetings inside that copy: those findings are the
+//! part's, carried up and reported as the part's
+//! ([`crate::CarriedInterference`], [`crate::AssemblyError::CarriedAtRest`]).
+//! A census reading a body some door already censused as one arrival
+//! (a `⊔`'s, or an instance's copy) discards what it finds inside it
+//! (`product::gather_sources`, [`finding_group`]).
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -181,10 +182,20 @@ pub(crate) fn gap_assertions<P, T: Decide>(
         let [name] = select.names.as_slice() else {
             return None;
         };
+        // The selection reads the copy, by the copy's own name; the
+        // product's `⊔` keys that name by the copy it read.
+        let entry = names.lookup(name).or_else(|| {
+            names.iter().find_map(|(held, entry)| {
+                matches!(held.path.as_slice(),
+                    [crate::names::RoleSeg::From { read, of }]
+                        if *read == select.body && **of == *name)
+                .then_some(entry)
+            })
+        });
         let Some(Entry::Unique(EntityRef {
             key: EntityKey::Face(face),
             ..
-        })) = names.lookup(name)
+        })) = entry
         else {
             return None;
         };
@@ -402,65 +413,184 @@ pub(crate) fn partition<T: LocalizeLane>(
 }
 
 /// **The two solids a census finding is about**, smaller key first:
-/// the pair an interference verdict decided
-/// ([`topo::census_interference_solids`]), the two entities an
-/// undecidable verdict names, or the two cells of an unrecorded touch.
+/// the pair an interference verdict decided, the two entities an
+/// undecidable verdict names, the two cells of an unrecorded touch, the
+/// two edges of a coincident-wedges verdict, the edge and face of a
+/// face-through-wedge verdict, the one solid (twice) of a solid
+/// crossing itself, the two faces of a contradicted
+/// declaration or of a pair the census had no lane for.
+///
 /// `None` for a finding that names no pair of solids: an escalation,
 /// which names no entity at all
 /// (`work/contacthold/an-escalated-census-finding-names-no-pair.md`), a
-/// pair the census had no lane for, a stale record of a vertex or an
-/// edge, a touch with a cell of an input or a tool.
+/// stale record, a lane subject that is one entity, a touch with a cell
+/// of an input or a tool, and every finding about one body's own
+/// topology. The match is exhaustive, so the in-arrival discard
+/// ([`finding_group`]) never keeps a finding it could not place by
+/// accident: a finding `topo` adds fails to compile here until it is
+/// placed.
 pub(crate) fn finding_solids<T: Decide>(
     body: &Body<T>,
     error: &ValidationError,
 ) -> Option<(SolidKey, SolidKey)> {
+    use ValidationError as E;
+    let edge = |e| topo::census_cell_solid(body, topo::Cell::Edge(e));
+    let face = |f| body.solid_of_face(f);
     let (x, y) = match error {
-        _ if let Some(pair) = topo::census_interference_solids(body, error) => pair,
-        ValidationError::CensusUndecidable { a, b, .. } => (
+        E::InstanceInterference { outer, inner, .. } => (*outer, *inner),
+        E::SameSideInterference { a, b } => (face(*a)?, face(*b)?),
+        E::CensusUndecidable { a, b, .. } => (
             topo::census_entity_solid(body, *a)?,
             topo::census_entity_solid(body, *b)?,
         ),
-        touch @ ValidationError::UnrecordedContact { .. } => {
-            let [x, y] = topo::census_contact_row(touch)?
-                .cells
-                .map(|cell| match cell {
-                    topo::RowCell::Result { cell } => topo::census_cell_solid(body, cell),
-                    topo::RowCell::Input { .. } | topo::RowCell::Tool => None,
-                });
-            (x?, y?)
+        touch @ E::UnrecordedContact { .. } => {
+            match topo::census_interference_solids(body, touch) {
+                Some(pair) => pair,
+                None => {
+                    let [x, y] = topo::census_contact_row(touch)?
+                        .cells
+                        .map(|cell| match cell {
+                            topo::RowCell::Result { cell } => topo::census_cell_solid(body, cell),
+                            topo::RowCell::Input { .. } | topo::RowCell::Tool => None,
+                        });
+                    (x?, y?)
+                }
+            }
         }
-        _ => return None,
+        E::CoincidentWedgesOverlap { edges: [a, b], .. }
+        | E::CoincidentWedgesOverlapUndecided { edges: [a, b], .. } => (edge(*a)?, edge(*b)?),
+        E::FaceThroughEdgeWedge {
+            edge: e, face: f, ..
+        }
+        | E::FaceThroughEdgeWedgeUndecided {
+            edge: e, face: f, ..
+        } => (edge(*e)?, face(*f)?),
+        // A solid crossing itself is about that one solid, placed as
+        // (s, s) as census `Named::of` reads it: inside an arrival a
+        // door already censused, it is that door's.
+        E::BoundaryCrossesItself { solid, .. }
+        | E::BoundaryCrossesItselfUndecided { solid, .. } => (*solid, *solid),
+        E::ContactContradicted { declaration, .. } => (face(declaration.a)?, face(declaration.b)?),
+        E::CensusUnsupported { subject, .. } | E::CensusLaneUnsupported { subject } => {
+            match subject {
+                topo::CensusSubject::FacePair(a, b) => (face(*a)?, face(*b)?),
+                topo::CensusSubject::Entity(_) => return None,
+            }
+        }
+        // Census findings that name no two solids: a stale record is
+        // about the record a door carried, not a meeting; an escalation
+        // names no entity at all
+        // (`work/contacthold/an-escalated-census-finding-names-no-pair.md`);
+        // an arc end off its corner names one face.
+        E::StaleContactDeclaration { .. }
+        | E::CensusEscalated { .. }
+        | E::ArcEndOffCorner { .. } => {
+            return None;
+        }
+        // Every other finding is about one body's own topology or
+        // geometry, never a pair of solids. Listed rather than a
+        // wildcard, so a finding topo adds is placed here by hand.
+        E::Band { .. }
+        | E::DanglingDescription { .. }
+        | E::UncertifiableSurface { .. }
+        | E::PoisonedSurfaceDescription { .. }
+        | E::ApproxCertification { .. }
+        | E::ApproxLaneUnsupported { .. }
+        | E::DegenerateTorus { .. }
+        | E::DegenerateTorusEscalated { .. }
+        | E::PoisonedSurfaceDatum { .. }
+        | E::UnrepresentableSurfaceDatum { .. }
+        | E::PoisonedCurveDatum { .. }
+        | E::UnrepresentableCurveDatum { .. }
+        | E::EdgeCertification { .. }
+        | E::DescriptionNotAdjacent { .. }
+        | E::PlanarFaceResidual { .. }
+        | E::PlanarFaceEscalated { .. }
+        | E::PlanarBoundaryResidual { .. }
+        | E::PlanarBoundaryEscalated { .. }
+        | E::SliverDihedral { .. }
+        | E::TransverseNotIntrinsic { .. }
+        | E::MixedDihedral { .. }
+        | E::ScaffoldAtRest { .. }
+        | E::JoinableVertexAtRest { .. }
+        | E::JoinUndecidedAtRest { .. }
+        | E::TangentNotIntrinsic { .. }
+        | E::LaminaWedge { .. }
+        | E::NoDihedralArm { .. }
+        | E::LoopRoleInverted { .. }
+        | E::CurvedSenseInverted { .. }
+        | E::SeamRegionOvercovered { .. }
+        | E::SeamRegionCoverUnresolved { .. }
+        | E::NegativeVolume { .. }
+        | E::SliverInsideOut { .. }
+        | E::VolumeUncomputable { .. }
+        | E::VolumeSignUnresolved { .. }
+        | E::OrientationUndecided { .. }
+        | E::Pcurve { .. }
+        | E::RingMeetsOuter { .. }
+        | E::RingContactEscalated { .. }
+        | E::RingOutsideOuter { .. }
+        | E::RingNestingUndecided { .. }
+        | E::RingMeetsRing { .. }
+        | E::RingPairContactEscalated { .. }
+        | E::PinchCornerCrossed { .. }
+        | E::PinchCornerEscalated { .. }
+        | E::ShellWinding { .. }
+        | E::SolidOuterShells { .. }
+        | E::ShellRoleUndecided { .. }
+        | E::CuspEdgesMissing { .. }
+        | E::DanglingTopology { .. }
+        | E::DanglingGeometry { .. }
+        | E::NextPrevMismatch { .. }
+        | E::LoopCycleOverrun { .. }
+        | E::ParentLoopMismatch { .. }
+        | E::UnreachableHalfEdge { .. }
+        | E::EdgeHalvesIdentical { .. }
+        | E::EdgeSlotBackpointerMismatch { .. }
+        | E::HalfEdgeUnclaimed { .. }
+        | E::HalfEdgeMultiplyClaimed { .. }
+        | E::EdgeNotAntiparallel { .. }
+        | E::EmanatingStartMismatch { .. }
+        | E::EmptyLoopVertexWithEmanating { .. }
+        | E::LoneVertexWithIncidence { .. }
+        | E::VertexOrbitOverrun { .. }
+        | E::OrbitForeignMember { .. }
+        | E::SplitVertexOrbit { .. }
+        | E::OuterListedAsRing { .. }
+        | E::BackPointerMismatch { .. }
+        | E::OrphanEntity { .. }
+        | E::MultiplyOwned { .. }
+        | E::OrphanGeometry { .. }
+        | E::SolidWithoutShells { .. }
+        | E::ShellWithoutFaces { .. }
+        | E::EdgeAcrossShells { .. }
+        | E::ComponentEulerViolation { .. }
+        | E::MissingProvenance { .. }
+        | E::LeakedProvenance { .. }
+        | E::ScaffoldingEmptyLoop { .. }
+        | E::ScaffoldingStrutVertex { .. }
+        | E::ShellDisconnected { .. }
+        | E::NullScaffoldShared { .. }
+        | E::LeakedNullFaceRecord { .. }
+        | E::StaleNullFaceLoop { .. }
+        | E::StaleNullFaceOwnership { .. }
+        | E::NullEdgeAtRest { .. }
+        | E::NullFaceAtRest { .. } => return None,
     };
     Some((x.min(y), x.max(y)))
 }
 
-/// **The census's verdicts less what a part already answered**: each
-/// verdict about a pair of solids a part's own census reported
-/// ([`Product::census_pairs`]) is the part's, carried up with it and
-/// reported as the part's ([`crate::assembly::CarriedInterference`],
-/// [`crate::AssemblyError::CarriedAtRest`]), so the census over this
-/// product re-finding it inside the copy says nothing new. A verdict
-/// inside one copy that answers to no carried pair is left, the copy's
-/// door's own unrecorded contact.
-// TRANSITIONAL: the final rule is that inside an arrival the census
-// reads nothing (D10, `[placement.placement]`), so this match of the
-// census's re-findings against a part's carried pairs is a check the
-// rule retires, with the in-copy census itself
-// (`work/intent/the-in-arrival-census-check-retires.md`).
-pub(crate) fn less_carried<T: Decide>(
-    product: &Product<T>,
-    errors: Vec<ValidationError>,
-) -> Vec<ValidationError> {
-    if product.census_pairs.is_empty() {
-        return errors;
-    }
-    let carried: BTreeSet<(SolidKey, SolidKey)> = product.census_pairs.iter().copied().collect();
-    errors
-        .into_iter()
-        .filter(|error| {
-            finding_solids(&product.body, error).is_none_or(|pair| !carried.contains(&pair))
-        })
-        .collect()
+/// **The one arrival a census finding is inside**: the group (in
+/// [`copy_groups`]'s numbering) holding both solids it is about, `None`
+/// for a finding between two arrivals or about no pair of solids.
+pub(crate) fn finding_group<T: Decide>(
+    body: &Body<T>,
+    groups: &BTreeMap<SolidKey, u32>,
+    error: &ValidationError,
+) -> Option<u32> {
+    let (a, b) = finding_solids(body, error)?;
+    let group = *groups.get(&a)?;
+    (groups.get(&b) == Some(&group)).then_some(group)
 }
 
 /// **Which copy each of the product's solids is**: the census's groups
@@ -632,10 +762,14 @@ fn localize(
             }) else {
                 return unlocalized(Unlocalized::Unnamed);
             };
-            faces.push(FaceSite {
-                copy: copy_ref(copy),
-                face: name.clone(),
-            });
+            let copy = copy_ref(copy);
+            // The product's `⊔` keys a copy's names by the copy it read;
+            // the site's name is the copy's own.
+            let face = match name.path.as_slice() {
+                [crate::names::RoleSeg::From { read, of }] if *read == copy.var => (**of).clone(),
+                _ => name.clone(),
+            };
+            faces.push(FaceSite { copy, face });
         }
         faces.sort();
         faces.dedup();

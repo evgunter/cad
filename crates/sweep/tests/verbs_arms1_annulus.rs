@@ -288,10 +288,11 @@ fn the_filleted_dome_matches_its_closed_form_volume_with_no_quadrature_pad() {
     let props = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol()),
         tol(),
+        topo::test_support::pinned_resolution(tol()),
     )
     .expect("mass properties must compute");
     assert_eq!(
-        props.volume_pad, 0.0,
+        props.enclosure.volume_pad, 0.0,
         "every face of the filleted dome is closed-form"
     );
 
@@ -315,9 +316,9 @@ fn the_filleted_dome_matches_its_closed_form_volume_with_no_quadrature_pad() {
 
     let expect = dome_volume - cut;
     assert!(
-        (props.volume - expect).abs() <= 1e-12 * expect.abs().max(1.0),
+        (props.enclosure.volume - expect).abs() <= 1e-12 * expect.abs().max(1.0),
         "filleted dome volume: got {}, closed form {expect}",
-        props.volume
+        props.enclosure.volume
     );
 }
 

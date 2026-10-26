@@ -83,7 +83,6 @@ fn peg_in_bore(bore_r: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
 fn body_of(ev: &Evaluation<f64>, n: RecipeNodeId) -> &Body<f64> {
     match &ev.value(n).expect("the node evaluates").payload {
         ValuePayload::Body(b) => b,
-        ValuePayload::Copies(copies) if copies.bodies.len() == 1 => &copies.bodies[0],
         other => panic!("{n}'s payload is one body, got {}", other.kind_name()),
     }
 }
@@ -97,7 +96,8 @@ fn a_peg_in_a_bore_of_its_own_radius_unions() {
     let ev = eval(&doc);
     let want = [peg, block]
         .map(|n| {
-            topo::mass_properties(
+            topo::test_support::pinned_volume(
+                "the measured body",
                 &topo::test_support::finished(
                     "the measured body",
                     topo::Body::clone(body_of(&ev, n)),
@@ -105,7 +105,6 @@ fn a_peg_in_a_bore_of_its_own_radius_unions() {
                 ),
                 Tol::witness(),
             )
-            .unwrap()
             .volume
         })
         .iter()
@@ -132,7 +131,8 @@ fn a_peg_in_a_bore_of_its_own_radius_unions() {
         Ok(()),
         "tier 3"
     );
-    let v = topo::mass_properties(
+    let v = topo::test_support::pinned_volume(
+        "the measured body",
         &topo::test_support::finished(
             "the measured body",
             topo::Body::clone(&**body),
@@ -140,7 +140,6 @@ fn a_peg_in_a_bore_of_its_own_radius_unions() {
         ),
         Tol::witness(),
     )
-    .unwrap()
     .volume;
     assert!(
         (v - want).abs() <= 1e-9 * want,

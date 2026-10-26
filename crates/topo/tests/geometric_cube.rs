@@ -97,16 +97,22 @@ fn tier_three_refuses_a_hand_flipped_face_sense() {
     );
 
     // Winding-derived, hence blind to a lone sense flip: same volume.
-    let cube = topo::mass_properties(
+    let cube = topo::test_support::pinned_volume(
+        "the measured body",
         &topo::test_support::finished("the cube", Body::clone(&body), Tol::witness()),
         Tol::witness(),
     )
-    .unwrap()
     .volume;
     // Raw door: the sense-flipped copy, which tier 3 refuses (LoopRoleInverted), as check 6 above asserts.
-    let copy = topo::test_support::measure_unvalidated(&flipped, Tol::witness())
-        .unwrap()
-        .volume;
+    let copy = topo::test_support::measure_unvalidated(
+        &flipped,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap()
+    .met()
+    .expect("the pinned resolution is met")
+    .volume;
     assert_eq!(
         cube.to_bits(),
         copy.to_bits(),
@@ -491,8 +497,10 @@ fn the_structural_certificate_continues_to_the_closed_form() {
     describe_as_intersections(&mut f.body, Tol::witness());
     let continued = topo::validate_geometric_certificate_structural(&f.body, tol)
         .expect("the cube passes the `_structural` door")
-        .refine_to_target()
-        .expect("a closed-form certificate's continuation cannot refuse");
+        .measure(topo::test_support::pinned_resolution(tol))
+        .expect("a closed-form certificate's continuation cannot refuse")
+        .met()
+        .expect("the pinned resolution is met");
     assert_eq!(
         (continued.volume_pad.to_bits(), continued.area_pad.to_bits()),
         (0, 0),
@@ -509,8 +517,10 @@ fn the_structural_certificate_continues_to_the_closed_form() {
     describe_as_intersections(&mut d.body, Tol::witness());
     let continued = topo::validate_geometric_certificate_structural(&d.body, tol)
         .expect("the cube passes the `_structural` door at a dual")
-        .refine_to_target()
-        .expect("a closed-form certificate's continuation cannot refuse at a dual");
+        .measure(topo::test_support::pinned_resolution(tol))
+        .expect("a closed-form certificate's continuation cannot refuse at a dual")
+        .met()
+        .expect("the pinned resolution is met");
     let measured = topo::mass_properties_structural(
         &topo::test_support::finished("the cube", d.body.clone(), tol),
         tol,

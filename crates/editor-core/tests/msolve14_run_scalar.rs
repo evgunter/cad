@@ -39,11 +39,11 @@ use std::sync::Arc;
 use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
     BoxAxis, CancelToken, CapEnd, Coord, Dimension, DocEdit, DocRef, DocumentId, EvalOptions,
-    Evaluation, Formula, FreeVar, MateRef, NameRef, Node, NodeResult, Operand, ParamBox,
-    PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName, TargetAxis, VarName,
-    all_vertices, evaluate, vertex_position,
+    Evaluation, Formula, FreeVar, MateRef, Node, NodeResult, Operand, ParamBox, PatternKind,
+    ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName, TargetAxis, VarName, all_vertices,
+    evaluate, vertex_position,
 };
-use fixture::resolver::{PartStore, in_part, placement_of, with_resolver};
+use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{ang, head, insert, len, on_frame, scl, solve, step};
 use geom_core::{Dual64, Interval, Tol};
 
@@ -155,24 +155,6 @@ fn parts(label: &str) -> Parts {
     }
 }
 
-/// **`name`, an entity of a part's body, as `instance` wears it**:
-/// under the placement the part's world copies the body by, inside the
-/// instance's `InPart` wrapper.
-fn worn(instance: RecipeNodeId, body: RecipeNodeId, name: &StableName) -> StableName {
-    let placed = StableName {
-        kind: name.kind,
-        node: placement_of(body),
-        path: vec![RoleSeg::Placed {
-            of: NameRef::new(name.clone()),
-        }],
-    };
-    StableName {
-        kind: placed.kind,
-        node: instance,
-        path: vec![RoleSeg::InPart { of: placed.into() }],
-    }
-}
-
 /// A pose slid `by` along a direction or an axis's direction.
 fn slid(pose: Operand, along: RoleRead<Operand>, by: Formula) -> Operand {
     Operand::Pose(Box::new(PoseDef::Slide {
@@ -204,30 +186,24 @@ impl Parts {
         with_resolver(self.store.clone())
     }
     /// The slab's top cap, as `slab` places it.
-    fn slab_top(&self, slab: RecipeNodeId) -> StableName {
+    fn slab_top(&self, slab: RecipeNodeId) -> crate::fixture::resolver::PartName {
         in_part(slab, self.slab_body, CapEnd::End)
     }
     /// The bolt's bottom cap, as `bolt` places it.
-    fn bolt_foot(&self, bolt: RecipeNodeId) -> StableName {
+    fn bolt_foot(&self, bolt: RecipeNodeId) -> crate::fixture::resolver::PartName {
         in_part(bolt, self.bolt_body, CapEnd::Start)
     }
     /// The bolt's top cap, as `bolt` places it.
-    fn bolt_head(&self, bolt: RecipeNodeId) -> StableName {
+    fn bolt_head(&self, bolt: RecipeNodeId) -> crate::fixture::resolver::PartName {
         in_part(bolt, self.bolt_body, CapEnd::End)
     }
     /// The bolt's lateral edge `k`, as an axis `bolt` places.
     fn bolt_edge(&self, bolt: RecipeNodeId, k: usize) -> Operand {
-        fixture::axis(SitedRef::new(
-            bolt,
-            worn(bolt, self.bolt_body, &self.bolt_names.lateral[k]),
-        ))
+        fixture::axis(SitedRef::new(bolt, self.bolt_names.lateral[k].clone()))
     }
     /// The slab's lateral edge `k`, as an axis `slab` places.
     fn slab_edge(&self, slab: RecipeNodeId, k: usize) -> Operand {
-        fixture::axis(SitedRef::new(
-            slab,
-            worn(slab, self.slab_body, &self.slab_names.lateral[k]),
-        ))
+        fixture::axis(SitedRef::new(slab, self.slab_names.lateral[k].clone()))
     }
     /// **One of the slab's two side directions**, as an axis: the `x`
     /// of the frame standing on its edge at canonical vertex 0 and aimed
@@ -237,10 +213,7 @@ impl Parts {
         RoleRead::through(
             through(
                 self.slab_edge(slab, 0),
-                fixture::point_of(SitedRef::new(
-                    slab,
-                    worn(slab, self.slab_body, &self.slab_names.corner[k]),
-                )),
+                fixture::point_of(SitedRef::new(slab, self.slab_names.corner[k].clone())),
             ),
             PoseRole::X,
         )
@@ -264,8 +237,8 @@ impl Parts {
 fn seat(
     doc: ProfileDoc,
     mover: RecipeNodeId,
-    foot: StableName,
-    onto: StableName,
+    foot: impl crate::fixture::Sited,
+    onto: impl crate::fixture::Sited,
     by: Formula,
     (x, y, spin): (Formula, Formula, Formula),
 ) -> (ProfileDoc, MateRef) {
@@ -647,10 +620,7 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
                 },
             ),
         };
-        through(
-            edge,
-            fixture::point_of(SitedRef::new(at, worn(at, body, &corner))),
-        )
+        through(edge, fixture::point_of(SitedRef::new(at, corner.clone())))
     };
     let (doc, _) = editor_core::test_support::beside_past_the_bundle_rule(
         &doc,
@@ -988,18 +958,33 @@ fn run_at<T: editor_core::EvalScalar>(
 /// entry bit-identical; every other solved pose of the corpus is main's
 /// bit for bit (each map dumped on main and on the branch).
 ///
+/// And for D′3 (the product is an authored `⊔`, a copy carries its
+/// source's names, all three rows): each corpus document writes its
+/// product as a `⊔` of its world copies, a node the digest walks, and
+/// its instances' copies name their faces as their parts do, so the
+/// evaluations' name tables and every id after the product moved.
+/// Re-blessed at all three ε; each seat still stands on what it is
+/// seated on ([`each_seat_stands_on_what_it_is_seated_on`]), and the
+/// solved poses were not compared id-free against main separately.
+/// Re-measured on main's plane pose merged in, at all three ε. Merged
+/// again over ATREST stage 4 I (PR 5637: a mate writes no class, and
+/// the census at a `⊔` keeps its verdict on the `⊔`'s value), the
+/// content key's `VERSION` moved to 21 and the mates' spelling with it,
+/// so every value token moved; re-measured at all three ε.
+///
 /// And, all three rows, when a certificate came to keep its turn: the
 /// evaluation digest feeds each edge curve's `Debug`, which now spells
-/// it. No pose, fault or point moved.
+/// it. No pose, fault or point moved. Re-measured with both merged, at
+/// all three ε.
 ///
 /// And, all three rows, when that turn moved off the certificate onto
 /// the edge curve (PR 5728): the edge curve's `Debug` spells it in
 /// another place. Rewritten to the old shape, every row reproduces its
 /// old digest, so nothing else moved.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0x5f9e_310a_9d41_16a4),
-    (1e-6, 0xe3b7_efdd_8bea_9b78),
-    (1e-12, 0xf18f_7b44_4656_749b),
+    (1e-9, 0x7b0f_be4e_b4f4_e5d1),
+    (1e-6, 0x01ef_f0e0_9fde_7c4e),
+    (1e-12, 0x6429_efaa_9430_4fd7),
 ];
 
 /// **Each seat of the corpus stands on what it is seated on**: in the

@@ -68,6 +68,7 @@ from pncad import (
 
 from placing import against as joined
 from placing import axes_at, own_frame, placed, plane_on
+from measuring import pinned
 
 
 SPINE_Z = (Formula.literal(0.0), Formula.literal(0.0), Formula.literal(1.0))
@@ -147,7 +148,7 @@ def volume_of(doc, node):
     assert ev.succeeded(node), "the scene evaluated"
     body = ev.value(node).body()
     body.validate()
-    return body.mass_properties().volume
+    return pinned(body).volume
 
 
 class TestChute(unittest.TestCase):
@@ -323,7 +324,7 @@ class TestHeatsinkFins(unittest.TestCase):
                 self.assertTrue(ev.succeeded(fins))
                 body = ev.value(fins).body()
                 body.validate()
-                mass = body.mass_properties()
+                mass = pinned(body)
                 # The corpus pins, exactly: both oracles are dyadic, so
                 # the comparison is `==`, not a tolerance.
                 self.assertEqual(mass.volume, count * self.FIN_VOLUME)
@@ -510,7 +511,7 @@ class TestPlateParam(unittest.TestCase):
 
         doc, solid = self.plate()
         ev = evaluate(doc)
-        with_volume = ev.value(solid).body().mass_properties().volume
+        with_volume = pinned(ev.value(solid).body()).volume
         with_web = ev.value(doc.order()[self.MEASURE]).measure().value
         verdict = ev.value(doc.order()[self.ASSERTION]).assertion()
         self.assertEqual(verdict.status, "Holds")
@@ -521,7 +522,7 @@ class TestPlateParam(unittest.TestCase):
         without.apply(DocEdit.delete_node(without.order()[self.ASSERTION]))
         ev2 = evaluate(without)
         self.assertEqual(
-            ev2.value(solid).body().mass_properties().volume,
+            pinned(ev2.value(solid).body()).volume,
             with_volume,
             "an assertion is report-only: the product cannot see it",
         )
@@ -636,8 +637,8 @@ class TestBracket(unittest.TestCase):
         assert offcuts is not None and corner is not None
 
         whole = volume_of(doc, bracket)
-        off = offcuts.mass_properties().volume
-        kept = corner.mass_properties().volume
+        off = pinned(offcuts).volume
+        kept = pinned(corner).volume
         self.assertAlmostEqual(off, 2 * 0.75 * ((3 - self.CUT) + 0.5), delta=1e-12)
         self.assertAlmostEqual(off + kept, whole, delta=1e-12)
 
@@ -846,7 +847,7 @@ class TestSnowman(unittest.TestCase):
     def assert_volume(self, ev, node, expected):
         body = ev.value(node).body()
         body.validate()
-        volume = body.mass_properties().volume
+        volume = pinned(body).volume
         self.assertLess(abs(volume - expected) / expected, self.SLACK, f"{volume} against {expected}")
 
     def test_the_snowman_meets_its_closed_forms(self):
@@ -977,7 +978,7 @@ class TestLoftPrism(unittest.TestCase):
         self.assertTrue(ev.succeeded(prism), "the loft evaluated")
         body = ev.value(prism).body()
         body.validate()
-        props = body.mass_properties()
+        props = pinned(body)
         # The Rust acceptance row's bracket (sweep/tests/
         # m6_loft_body.rs): a quadrature enclosure is not a closed
         # form, so 9 must lie inside the CERTIFIED pad, and the pad
@@ -1020,7 +1021,7 @@ class TestTheVDegreeParamBinding(unittest.TestCase):
     def volume(self, doc, node):
         ev = evaluate(doc)
         self.assertTrue(ev.succeeded(node), "the loft evaluated")
-        return ev.value(node).body().mass_properties()
+        return pinned(ev.value(node).body())
 
     def test_one_define_var_moves_the_skin(self):
         doc = Doc()
@@ -1118,7 +1119,7 @@ class TestNonuniformLoft(unittest.TestCase):
         self.assertTrue(ev.succeeded(loft), "the non-uniform loft evaluated")
         body = ev.value(loft).body()
         body.validate()
-        props = body.mass_properties()
+        props = pinned(body)
         # The scene's claim is "quadrature agrees at pad ~1e-13".
         self.assertLessEqual(abs(props.volume - expected), props.volume_pad + 1e-9)
         self.assertLess(props.volume_pad, 1e-6)
@@ -1131,8 +1132,8 @@ class TestNonuniformLoft(unittest.TestCase):
         prism = prism_loft(doc, [0.0, 1.0, 2.0])
         skewed = prism_loft(doc, [0.0, 0.15, 2.0])
         ev = evaluate(doc)
-        prism_v = ev.value(prism).body().mass_properties().volume
-        skewed_v = ev.value(skewed).body().mass_properties().volume
+        prism_v = pinned(ev.value(prism).body()).volume
+        skewed_v = pinned(ev.value(skewed).body()).volume
         self.assertGreater(skewed_v, prism_v, "the crowded spacing overshoots")
 
 
@@ -1233,7 +1234,7 @@ class TestSilhouette(unittest.TestCase):
         self.assertEqual(set(shadows.values()), {three}, "one node, three stops")
         for axis, node in shadows.items():
             with self.subTest(shadow=axis):
-                volume = ev.value(node).body().mass_properties().volume
+                volume = pinned(ev.value(node).body()).volume
                 self.assertAlmostEqual(volume, V_3WAY, delta=1e-9)
 
 
@@ -1902,7 +1903,7 @@ class TestTiltedcut(unittest.TestCase):
             with self.subTest(half=name):
                 self.assertIsNotNone(half)
                 half.validate()
-                props = half.mass_properties()
+                props = pinned(half)
                 # The pad bounds the wall's quadrature; the closed forms'
                 # floating-point rounding, which no pad states, needs a
                 # few ulps more.
@@ -2132,7 +2133,7 @@ class TestTable(unittest.TestCase):
         self.assertTrue(ev.succeeded(acc))
         body = ev.value(acc).body()
         body.validate()
-        props = body.mass_properties()
+        props = pinned(body)
         # Dyadic scene: both oracles hold EXACTLY, as the Rust corpus
         # pins them (4.0 / 35.5).
         self.assertEqual(props.volume, 4.0)
@@ -2174,7 +2175,7 @@ class TestCrosslapGlued(unittest.TestCase):
         body = ev.value(glued).body()
         body.validate()
         # Dyadic scene: the oracle holds EXACTLY, as the tour pins it.
-        self.assertEqual(body.mass_properties().volume, 1.875)
+        self.assertEqual(pinned(body).volume, 1.875)
 
 
 class TestCrosslapExploded(unittest.TestCase):
@@ -2252,7 +2253,7 @@ class TestHollowring(unittest.TestCase):
         ring = self.ring(doc)
         body = evaluate(doc).value(ring).body()
         body.validate()
-        props = body.mass_properties()
+        props = pinned(body)
         v_want = 2 * math.pi**2 * self.R * (self.RO**2 - self.RI**2)
         a_want = 4 * math.pi**2 * self.R * (self.RO + self.RI)
         self.assertLess(abs(props.volume - v_want) / v_want, 1e-12)
@@ -2461,7 +2462,7 @@ class TestBudfillet(unittest.TestCase):
         self.assertEqual(len(ev.all_vertices(sharp)), 5)
         self.assertEqual(len(ev.all_edges(sharp)), 8)
         self.assertEqual(len(ev.all_faces(sharp)), 5)
-        sharp_volume = ev.value(sharp).body().mass_properties().volume
+        sharp_volume = pinned(ev.value(sharp).body()).volume
 
         edges = Selector.of(NamePat.of_kind(EntityKind.Edge))
         mouth = ev.select_where(
@@ -2535,7 +2536,7 @@ class TestBudfillet(unittest.TestCase):
         # Proof 4: mass properties move, against the twin, inside the
         # scene's own bracket — a convex rim's roll REMOVES material,
         # and no more than Pappus over the three rims' own radii.
-        removed = sharp_volume - body.mass_properties().volume
+        removed = sharp_volume - pinned(body).volume
         cap = sum(
             2 * math.pi * r * self.ROLL**2
             for r in (self.MOUTH[0], self.LIP_R, self.BORE)
@@ -2997,7 +2998,7 @@ class TestTeapot(unittest.TestCase):
         # boundaries, and the two boundaries' areas.
         body = ev.value(sealed).body()
         body.validate()
-        props = body.mass_properties()
+        props = pinned(body)
         v_out, v_cav = self.pot_volume(0.0), self.pot_volume(self.WALL)
         self.close(props.volume, v_out - v_cav, "sealed pot V")
         self.close(
@@ -3018,7 +3019,7 @@ class TestTeapot(unittest.TestCase):
             return rr * rr * u - u**3 / 3.0
 
         plug = math.pi * (zone(self.Y_MOUTH) - zone(self.Y_MOUTH - self.WALL))
-        self.close(cup_body.mass_properties().volume, v_out - v_cav - plug, "cup V")
+        self.close(pinned(cup_body).volume, v_out - v_cav - plug, "cup V")
         # ONE rim face: the mouth disc comes back as one annulus.
         rim = ev.select(
             cup, Selector.of(NamePat.of_kind(EntityKind.Face).seg(SegPat.tag(SegTag.Rim)))
@@ -3081,7 +3082,7 @@ class TestTeapot(unittest.TestCase):
         )
         sharp_body = ev.value(sharp).body()
         sharp_body.validate()
-        sharp_props = sharp_body.mass_properties()
+        sharp_props = pinned(sharp_body)
         self.close(sharp_props.volume, v_lid, "sharp lid V")
         self.close(sharp_props.surface_area, a_lid, "sharp lid A")
         self.assertEqual(len(ev.all_faces(sharp)), 6, "one full wall per segment")
@@ -3119,7 +3120,7 @@ class TestTeapot(unittest.TestCase):
         )
         # Each convex rim's roll REMOVES material, and less than the
         # corner square swept round its own rim (Pappus).
-        removed = sharp_props.volume - rolled.mass_properties().volume
+        removed = sharp_props.volume - pinned(rolled).volume
         cap = sum(
             2 * math.pi * r * self.ROLL**2
             for r in (self.R_KNOB, self.R_FLANGE, self.R_NECK)
@@ -3139,19 +3140,16 @@ class TestTeapot(unittest.TestCase):
         # better handle than a segment index: the name asks for the end
         # rather than for a position in a meridian a re-order could
         # move. Both are annuli, because the sections are. Read at the
-        # placement, which names the copy's caps under itself: each is
-        # the loft's cap name worn under `Placed`.
-        def one_cap(node, end, placed=False):
+        # placement, whose copy carries the loft's cap names verbatim.
+        def one_cap(node, end):
             cap = NamePat.of_kind(EntityKind.Face).seg(SegPat.tag(SegTag.Cap).side(end))
-            if placed:
-                cap = NamePat.of_kind(EntityKind.Face).seg(SegPat.tag(SegTag.Placed).of([cap]))
             found = ev.select(node, Selector.of(cap))
             self.assertEqual(len(found), 1, "a loft has exactly one cap per end")
             return found[0]
 
         root, tip = one_cap(spout_body, CapEnd.Start), one_cap(spout_body, CapEnd.End)
-        placed_root = one_cap(spout, CapEnd.Start, placed=True)
-        placed_tip = one_cap(spout, CapEnd.End, placed=True)
+        placed_root = one_cap(spout, CapEnd.Start)
+        placed_tip = one_cap(spout, CapEnd.End)
         # The loft's own coordinates are its first section's; the
         # scene's view of the unplaced spout is `to_spout_frame` of them.
         before = self.to_spout_frame(ev.face_frame(spout_body, tip).origin)
@@ -3235,7 +3233,7 @@ class TestTeapot(unittest.TestCase):
         )
         placed = ev.value(spout).body()
         placed.validate()
-        props = placed.mass_properties()
+        props = pinned(placed)
 
         # **These walls are RATIONAL, so they are QUADRATURE faces and
         # the answer is an ENCLOSURE**, where every analytic body on
@@ -3277,8 +3275,8 @@ class TestTeapot(unittest.TestCase):
         )
         tube = ev.value(handle).body()
         tube.validate()
-        self.close(tube.mass_properties().volume, v_handle, "handle V")
-        self.close(tube.mass_properties().surface_area, a_handle, "handle A")
+        self.close(pinned(tube).volume, v_handle, "handle V")
+        self.close(pinned(tube).surface_area, a_handle, "handle A")
 
     def test_both_joins_refuse_through_the_document(self):
         doc = Doc()
@@ -3449,7 +3447,7 @@ class TestTorusvessel(unittest.TestCase):
         v_out, a_out = self.boundary(0.0)
         body = ev.value(operand).body()
         body.validate()
-        props = body.mass_properties()
+        props = pinned(body)
         self.assertLess(abs((props.volume - v_out) / v_out), 1e-12)
         self.assertLess(abs((props.surface_area - a_out) / a_out), 1e-12)
         self.assertEqual(props.volume_pad, 0.0, "closed forms need no pad")
@@ -3471,7 +3469,7 @@ class TestTorusvessel(unittest.TestCase):
         v_cav, a_cav = self.boundary(self.WALL)
         hollow = ev.value(sealed).body()
         hollow.validate()
-        props_s = hollow.mass_properties()
+        props_s = pinned(hollow)
         self.assertLess(abs((props_s.volume - (v_out - v_cav)) / (v_out - v_cav)), 1e-12)
         self.assertLess(
             abs((props_s.surface_area - (a_out + a_cav)) / (a_out + a_cav)), 1e-12
@@ -3553,7 +3551,7 @@ class TestTwopeg(unittest.TestCase):
             body = ev.value(node).body()
             body.validate()
             self.assertAlmostEqual(
-                body.mass_properties().volume, want, delta=1e-12
+                pinned(body).volume, want, delta=1e-12
             )
 
     def test_the_mate_glues_at_the_additive_oracle(self):
@@ -3568,7 +3566,7 @@ class TestTwopeg(unittest.TestCase):
         self.assertTrue(ev.succeeded(mated))
         body = ev.value(mated).body()
         body.validate()
-        self.assertAlmostEqual(body.mass_properties().volume, 48.0, delta=1e-12)
+        self.assertAlmostEqual(pinned(body).volume, 48.0, delta=1e-12)
 
 
 # ------------------------------------------------------------------
@@ -3613,7 +3611,7 @@ class TestMeshCrossCheck(unittest.TestCase):
 
         body = evaluate(doc).value(chute).body()
         body.validate()
-        exact = body.mass_properties().volume
+        exact = pinned(body).volume
         self.assertAlmostEqual(exact, (1287 / 2048) * math.pi, delta=1e-12)
 
         # Measured: 1.2e-4 relative at 0.5 mm, 2.4e-5 at 0.1 mm —
@@ -3635,7 +3633,7 @@ class TestMeshCrossCheck(unittest.TestCase):
 
         body = evaluate(doc).value(prism).body()
         body.validate()
-        self.assertAlmostEqual(body.mass_properties().volume, 5.5, delta=1e-12)
+        self.assertAlmostEqual(pinned(body).volume, 5.5, delta=1e-12)
 
         mesh = body.tessellate(1 * mm)
         self.assertEqual(unmatched_half_edges(mesh), [])
@@ -3708,7 +3706,7 @@ class TestTubeAndHollowTube(unittest.TestCase):
                 Formula.length_in(self.OUTER, m),
             )
         )
-        props = evaluate(doc).value(ring).body().mass_properties()
+        props = pinned(evaluate(doc).value(ring).body())
         self.assertAlmostEqual(
             props.volume, 2 * math.pi**2 * self.R * self.OUTER**2, places=9
         )
@@ -3729,7 +3727,7 @@ class TestTubeAndHollowTube(unittest.TestCase):
             )
         )
         inner = self.OUTER - self.WALL
-        props = evaluate(doc).value(torus).body().mass_properties()
+        props = pinned(evaluate(doc).value(torus).body())
         self.assertAlmostEqual(
             props.volume,
             2 * math.pi**2 * self.R * (self.OUTER**2 - inner**2),
@@ -3756,7 +3754,7 @@ class TestTubeAndHollowTube(unittest.TestCase):
         inner = self.OUTER - self.WALL
         theta = self.T1 - self.T0
         area = math.pi * (self.OUTER**2 - inner**2)
-        props = evaluate(doc).value(elbow).body().mass_properties()
+        props = pinned(evaluate(doc).value(elbow).body())
         self.assertAlmostEqual(props.volume, theta * self.R * area, places=9)
         self.assertAlmostEqual(
             props.surface_area,
@@ -3789,8 +3787,8 @@ class TestTubeAndHollowTube(unittest.TestCase):
         inner = self.OUTER - self.WALL
         bore = (self.T1 - self.T0) * self.R * math.pi * inner**2
         self.assertAlmostEqual(
-            ev.value(solid).body().mass_properties().volume
-            - ev.value(hollow).body().mass_properties().volume,
+            pinned(ev.value(solid).body()).volume
+            - pinned(ev.value(hollow).body()).volume,
             bore,
             places=9,
         )
@@ -3990,10 +3988,14 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         # `mate` is no node: a mate is the `Mate` value a bundle holds
         # (INTENT stage 3). The positive form is
         # `tests/test_world_pins.py`.
+        #
+        # `assemble` JOINED it at D′3: the `⊔`, the fourth operator,
+        # whose result the product slot reads (`Doc.set_product`). The
+        # positive form is `tests/test_assembly_author.py`.
         self.assertEqual(
             sorted(n for n in dir(Node) if not n.startswith("_")),
             [
-                "assertion", "chamfer",
+                "assemble", "assertion", "chamfer",
                 "extrude", "fillet", "hollow_tube", "instantiate_part",
                 "intersect", "loft", "measure", "mirror", "part", "pattern",
                 "place", "placed_union", "placed_union_at",
@@ -4256,7 +4258,11 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         self.assertEqual(len(ev.all_vertices(cube)), 8)
         self.assertEqual(len(ev.all_bodies(cube)), 1)
 
-        pip = slab(doc, (0.4, 0.6), (0.4, 0.6), (0.9, 1.2), on=cube)
+        # The pip's own body, and its copy placed on the cube: a copy
+        # carries its source's names verbatim, so the pip's names are
+        # the ones its extrude minted.
+        pip_body = slab(doc, (0.4, 0.6), (0.4, 0.6), (0.9, 1.2))
+        pip = against(doc, cube, pip_body, 0.9)
         pipped = doc.insert(Node.subtract(cube, pip))
         ev = evaluate(doc)
         every_edge = ev.all_edges(pipped)
@@ -4270,14 +4276,14 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         self.assertEqual(ev.select_where(pipped, edges, []), every_edge)
 
         # Structural narrowing: the pocket's own edges came in through
-        # the subtraction's tool — names whose carried-in name `pip`
-        # minted — its 4 floor edges whole, and
+        # the subtraction's tool — names whose carried-in name the
+        # pip's extrude minted — its 4 floor edges whole, and
         # its 4 wall edges, each cut by the cap and kept as its one
         # piece below it, named by its ends. The 4 edges of the OPENING
         # are `Seam` (minted where the cap crosses a pocket wall,
         # belonging to neither operand alone), and the cube kept its
         # 12: 8 + 4 + 12 = 24.
-        from_tool = SegPat.tag(SegTag.From).of([NamePat.any().node(pip)])
+        from_tool = SegPat.tag(SegTag.From).of([NamePat.any().node(pip_body)])
         from_b = Selector.of(NamePat.of_kind(EntityKind.Edge).seg(from_tool))
         pocket = ev.select(pipped, from_b)
         self.assertEqual(len(pocket), 4)

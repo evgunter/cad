@@ -149,7 +149,7 @@ fn place_pip(
         log,
         TEdit::InsertNode {
             node: Box::new(editor_core::Node::place(
-                vec![editor_core::BodyRead::plain(Operand::Node(pip))],
+                editor_core::BodyRead::plain(Operand::Node(pip)),
                 Operand::Var(space),
                 placed.bundle(),
             )),

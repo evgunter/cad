@@ -65,7 +65,7 @@ impl SpokenFrom {
 /// carry it — the `WorkspaceError` posture: handling reads
 /// `err.node` without first branching on `err.variant`.
 pub(crate) fn product_err(py: Python<'_>, err: &d::ProductError, doc: &d::ProfileDoc) -> PyErr {
-    let (node, through, unplaced) = product_fields(py, err);
+    let (node, through, read) = product_fields(py, err);
     typed_err(
         py,
         ErrorClass::Product,
@@ -79,13 +79,13 @@ pub(crate) fn product_err(py: Python<'_>, err: &d::ProductError, doc: &d::Profil
             ),
             ("node", node),
             ("through", through),
-            ("unplaced_bodies", unplaced),
+            ("read", read),
         ],
     )
 }
 
 /// The gather refusal's payload, flattened: the node it is about, the
-/// node it was reached through, and an empty world's unplaced bodies.
+/// node it was reached through, and a stranded product slot's read.
 fn product_fields(py: Python<'_>, err: &d::ProductError) -> (Py<PyAny>, Py<PyAny>, Py<PyAny>) {
     use d::ProductError as E;
     let id = |n: &d::RecipeNodeId| -> Py<PyAny> {
@@ -108,44 +108,40 @@ fn product_fields(py: Python<'_>, err: &d::ProductError) -> (Py<PyAny>, Py<PyAny
             none(),
             none(),
         ),
-        E::StrandedPlacement { placement } => (id(placement), none(), none()),
-        // The bodies to place, in document order, each its output
-        // variable — the handle `Doc.place` takes.
-        E::EmptyProduct { unplaced, .. } => (
+        // The read the product slot holds, as the handle
+        // `Doc.set_product` takes.
+        E::StrandedProduct { read } | E::ProductOutsideWorld { read } => (
             none(),
             none(),
-            unplaced
-                .iter()
-                .map(|&var| Var(var, Some(d::VarKind::Body)))
-                .collect::<Vec<_>>()
-                .into_pyobject(py)
-                .map_or_else(|_| py.None(), |list| list.unbind()),
+            Py::new(py, Var(*read, Some(d::VarKind::Body)))
+                .map_or_else(|_| py.None(), |v| v.into_any()),
         ),
         // The document-mismatch arm names two DOCUMENTS, which these
         // attributes cannot carry; the message states both.
-        E::ProductInvalid { .. }
+        E::EmptyProduct
+        | E::ProductInvalid { .. }
         | E::ContactLineage { .. }
         | E::EvaluationOfAnotherDocument { .. } => (none(), none(), none()),
     }
 }
 
-/// The document's **product**: the world — every copy a placement
-/// defines, in the placements' document order, gathered into one body.
+/// The document's **product**: the body its product slot reads
+/// (`Doc.set_product`), a `⊔`'s copies side by side in its members'
+/// order.
 ///
 /// This is what a document IS, and for an assembly it is the only
-/// useful reading: an assembly's nodes are placements, and no single
-/// node's value is the assembly. What is gathered is what the
-/// document places — read through `Doc.placements`, written through
-/// `Doc.place` — and nothing places as a side effect of another edit.
+/// useful reading: what is gathered is what the slot reads — read
+/// through `Doc.product`, written through `Doc.set_product` — and
+/// nothing enters it as a side effect of another edit.
 ///
-/// A pure function of the placements and the evaluation: no ambient
-/// state, so two evaluations of an edit that moves no placement yield
-/// the same solid order.
+/// A pure function of the slot and the evaluation: no ambient state,
+/// so two evaluations of an edit that moves no copy yield the same
+/// solid order.
 ///
 /// `evaluation` must be an evaluation OF `doc`, and the door CHECKS
 /// it: an evaluation carries the id of the document it was run on,
 /// and a foreign one raises `ProductError` with tag
-/// `evaluation_of_another_document` before the first placement is read.
+/// `evaluation_of_another_document` before the slot is read.
 /// Node ids alone could not decide this — they are minted by a
 /// per-document counter, so two documents built from one recipe carry
 /// the same ids for the same nodes, and a gather over the wrong one
@@ -158,12 +154,12 @@ fn product_fields(py: Python<'_>, err: &d::ProductError) -> (Py<PyAny>, Py<PyAny
 /// ([`crate::product_memo`]). Reusing an `Evaluation` is therefore
 /// how a caller asks several questions for the price of one gather.
 ///
-/// Raises `ProductError`, typed: a placement that failed, was poisoned
-/// or is absent from this evaluation; an empty world
-/// (`empty_product`, carrying the unplaced bodies); a placement whose
-/// body is gone (`stranded_placement`); the kernel's graft and
-/// validity refusals. All of the placements or none of them — there
-/// are no partial products.
+/// Raises `ProductError`, typed: an operation the slot reads that
+/// failed, was poisoned or is absent from this evaluation; an empty
+/// slot (`empty_product`); a slot whose body is gone
+/// (`stranded_product`, carrying the read); the kernel's graft and
+/// validity refusals. All of it or none of it — there are no partial
+/// products.
 #[pyfunction]
 pub(crate) fn product(py: Python<'_>, doc: &Doc, evaluation: &Evaluation) -> PyResult<Body> {
     let tol = Tol::witness();
@@ -640,9 +636,9 @@ fn assembly_err(py: Python<'_>, err: &d::AssemblyError, doc: Arc<d::ProfileDoc>)
                 ],
             );
         }
-        // The space is a variable, not a node: it and its own gather
-        // refusal are in the message.
-        E::Space { .. } => none(),
+        // The `⊔` is read by its output, not a node: it and its own
+        // gather refusal are in the message.
+        E::Assemble { .. } => none(),
         E::AtRest { findings } => obj(findings
             .iter()
             .map(|f| AtRestFinding(f.clone(), from.clone()))

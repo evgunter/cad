@@ -365,9 +365,25 @@ fn a_split_document_read_by_port_round_trips_byte_identical() {
 /// tokens this digest feeds; `m10_p_fence`'s ids-masked geometry fence
 /// held, so no point moved.
 ///
+/// RE-BLESSED for D′3 (a placement copies one source, and the product is
+/// a slot reading a `⊔`): a copy carries its source's names with no
+/// `Placed` layer, and a `⊔` keys each member's names by its read, so
+/// the name tables this digest feeds moved, and the `⊔` node moved the
+/// ids after it. No point moved: `m10_p_fence`'s ids-masked row, with
+/// the corpus's `⊔` nodes set aside, is main's pin. `cut_cylinder` and
+/// `kitchen_sink` were measured again with main's plane pose merged in
+/// (main, `34a2e26e61`, which reds both rows on its own), and carry both
+/// changes.
+///
 /// RE-BLESSED, every row, for a certificate that keeps its turn: the
 /// digest feeds each edge curve's `Debug`, which now spells the
 /// certificate's `turn`. No outcome or point moved.
+///
+/// RE-BLESSED, the rows that moved, over main's merge into D′3 at
+/// `1235f4c050`: D′2's moves (main red, filed as
+/// `main-red-the-seat-and-name-table-goldens-moved-at-dprime2`),
+/// stage 4 I's ids and the walls' reads, beneath
+/// D′3's names and ids. `m10_p_fence`'s ids-masked row held.
 ///
 /// RE-BLESSED, every row, when that `turn` moved off the certificate
 /// onto the edge curve (PR 5728): the edge curve's `Debug` spells it in
@@ -377,9 +393,9 @@ fn a_split_document_read_by_port_round_trips_byte_identical() {
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("cut_cylinder", 0x2eb2_36de_bafc_7154_u64),
-        ("part_select", 0x0da7_db52_d4d9_a058),
-        ("kitchen_sink", 0xc18b_bd44_d236_ea30),
+        ("cut_cylinder", 0xd82f_d380_9e2e_8e5e_u64),
+        ("part_select", 0x4540_8c74_d757_704f),
+        ("kitchen_sink", 0x4f64_6f46_1d52_45eb),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()
@@ -562,9 +578,10 @@ fn a_read_of_a_half_reads_the_two_sided_value_by_role() {
     let (mut r, split) = cube_split_at(5.0);
     // A copy of each half, loose: a reader of the half's value.
     let still = |half: SplitHalf| {
-        crate::fixture::stood(vec![editor_core::BodyRead::plain(
-            editor_core::Operand::output(split, half.port()),
-        )])
+        crate::fixture::stood(editor_core::BodyRead::plain(editor_core::Operand::output(
+            split,
+            half.port(),
+        )))
     };
     let above = r.insert(still(SplitHalf::Above));
     let below = r.insert(still(SplitHalf::Below));
@@ -586,9 +603,9 @@ fn a_read_of_a_half_reads_the_two_sided_value_by_role() {
     };
     let read = match ev.value(below).map(|v| &v.payload) {
         Some(ValuePayload::Body(body)) => body,
-        Some(ValuePayload::Copies(copies)) => {
-            let [read] = &copies.bodies[..] else {
-                panic!("one copy of the half: {}", copies.bodies.len());
+        Some(ValuePayload::Instances(copies)) => {
+            let [read] = &copies[..] else {
+                panic!("one copy of the half: {}", copies.len());
             };
             read
         }

@@ -225,14 +225,15 @@ fn sphere_grafted_body_is_tier_3_valid_before_and_after_the_closing_mint_which_s
     let props = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(&out), tol()),
         tol(),
+        topo::test_support::pinned_resolution(tol()),
     )
     .expect("props");
     let want = 4.0 / 3.0 * PI * (r * r * r - (r - t) * (r - t) * (r - t));
     assert!(
-        (props.volume - want).abs() <= 1e-9 + props.volume_pad,
+        (props.enclosure.volume - want).abs() <= 1e-9 + props.enclosure.volume_pad,
         "shell volume {} (pad {}), want {want}",
-        props.volume,
-        props.volume_pad
+        props.enclosure.volume,
+        props.enclosure.volume_pad
     );
     let shelled = topo::shell(&finished("the operand", body.clone(), tol()), t, tol())
         .expect("shell runs the closing mint");

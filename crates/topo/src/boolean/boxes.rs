@@ -541,7 +541,9 @@ fn poison_value<T: Real>() -> T {
 ///   rim PERPENDICULAR to the axis has `û·axis = v̂·axis = 0` and
 ///   collapses to a point, which is what it geometrically is. Hulled
 ///   with the chord so a poisoned extent cannot narrow the answer.
-/// - **NoSoundBox** — nothing is claimed: the poison span.
+/// - **ControlHull** and **NoSoundBox** — nothing is claimed: no axial
+///   image is written for a net's hull, and an edge with no sound box
+///   has none.
 pub(crate) enum AxialCarrier<T> {
     /// Nothing is certified about the locus — claim nothing.
     Unclaimable,
@@ -564,7 +566,9 @@ pub(crate) fn axial_carrier<'c, T: Real, S>(
     conic: impl FnOnce(&ConicArc<'c, T>) -> Span<S>,
 ) -> AxialCarrier<S> {
     match rule {
-        EdgeBoxRule::NoSoundBox | EdgeBoxRule::Spiric { .. } => AxialCarrier::Unclaimable,
+        EdgeBoxRule::NoSoundBox | EdgeBoxRule::ControlHull(_) | EdgeBoxRule::Spiric { .. } => {
+            AxialCarrier::Unclaimable
+        }
         EdgeBoxRule::Chord => AxialCarrier::Chord,
         EdgeBoxRule::ConicAmplitude(arc) => AxialCarrier::Conic(conic(&arc)),
     }
@@ -2238,29 +2242,20 @@ fn boundary_hull<T: Decide + Bounds>(
 ///   while a duplicated construction outlives every fix to either
 ///   copy, so the structural half is answered by naming the one home,
 ///   and the answer is what stops a further copy.
-/// - [`NoSoundBox`](Self::NoSoundBox) — **NURBS carriers**, and an
-///   edge whose carrier is null scaffolding. Nothing is certified
-///   about the locus, so nothing is claimed; the chord is NOT a bound
-///   for either.
-///
-///   The NURBS arm is the one place a sound cheap box exists and is
-///   deliberately not taken: `geom::curves::boxes::nurbs_curve_aabb`
-///   would give the control-net hull, exactly as
-///   [`FaceBoxRule::ControlNet`] does one dimension up. Taking it
-///   would TIGHTEN this box — it would start pruning pairs that are
-///   examined today — and tightening is a different obligation from
-///   soundness. Claiming nothing is the conservative answer, so nothing
-///   is unsound while it waits, and it carries one thing more: with no
-///   operand edge gate, this box is what keeps every spline edge out
-///   of the lanes behind the sweep. It meets every plane face of the
-///   other operand, so the planar arm refuses the edge at the first one
-///   it reads ([`super::BooleanError::EdgeCarrierUnsupported`]), a pair
-///   that may not meet, and no operand with a spline edge builds,
-///   however far apart the two stand. Taking the hull is the crossing
-///   rung's (`work/splice/nurbs-edge-crossing-rung-is-the-ring-composite`),
-///   with the lanes a pruned-past spline edge would then reach. (It
-///   also carries the same trim ⊆ knot domain premise the surface arm
-///   states.)
+/// - [`ControlHull`](Self::ControlHull) — **NURBS carriers**: the hull
+///   of the control net, hulled with the chord, as
+///   [`FaceBoxRule::ControlNet`] does one dimension up. A carrier's
+///   weights are positive, so every point of it is a convex combination
+///   of its control points, and the edge's interval lies in the knot
+///   domain (the trim ⊆ knot domain premise the surface arm states). It
+///   prunes every face the net's hull does not reach, which is sound
+///   because the crossing lanes read a spline edge against every face
+///   it does reach: the curve × face table's ring-composite arm at a
+///   plane, a typed refusal at a lane with no arm. No axial projection
+///   is written for it ([`AxialCarrier::Unclaimable`]).
+/// - [`NoSoundBox`](Self::NoSoundBox) — an edge whose carrier is null
+///   scaffolding. Nothing is certified about the locus, so nothing is
+///   claimed; the chord is NOT a bound.
 pub(crate) enum EdgeBoxRule<'c, T: Real> {
     /// The chord between the endpoints — see the type docs.
     Chord,
@@ -2268,6 +2263,9 @@ pub(crate) enum EdgeBoxRule<'c, T: Real> {
     /// chord — see the type docs. Every lane hands `carrier` and
     /// `params` to `geom`'s exact doors.
     ConicAmplitude(ConicArc<'c, T>),
+    /// The hull of a NURBS carrier's control net, hulled with the chord
+    /// — see the type docs.
+    ControlHull(&'c geom::NurbsCurve3<T>),
     /// No cheap superset exists — see the type docs.
     NoSoundBox,
     /// The spiric's whole-period box (`geom::spiric_period_box`, a C10
@@ -2339,6 +2337,10 @@ pub(crate) fn edge_rule_box<'c, T: Real, S: Real>(
     let arc = match rule {
         EdgeBoxRule::NoSoundBox => return None,
         EdgeBoxRule::Chord => return Some(chord),
+        EdgeBoxRule::ControlHull(net) => net
+            .control()
+            .iter()
+            .fold(chord, |hull, &p| hull.hull(enter(frame.point(p)))),
         EdgeBoxRule::ConicAmplitude(arc) => conic(&arc),
         EdgeBoxRule::Spiric {
             center,
@@ -2418,7 +2420,7 @@ pub(crate) fn edge_box_rule<T: Real>(
             minor_radius: *minor_radius,
             offset: *offset,
         },
-        geom::Curve3::Nurbs(_) => EdgeBoxRule::NoSoundBox,
+        geom::Curve3::Nurbs(net) => EdgeBoxRule::ControlHull(net),
     }
 }
 

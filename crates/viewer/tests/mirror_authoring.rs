@@ -196,10 +196,9 @@ fn a_body_mirrored_across_its_own_face_becomes_its_symmetric_part() {
     else {
         panic!("the plane is a picked face's plane, not {pose:?}")
     };
-    let (_, own) = wall
-        .name
-        .copy_of()
-        .expect("the pick is on the block's copy");
+    // A copy carries the block's own names, so the pick on the copy is
+    // the block's own name for the face.
+    let own = &wall.name;
     assert_eq!(
         names,
         &vec![own.clone()],
@@ -347,7 +346,7 @@ fn a_body_drawn_twice_is_its_symmetric_part_at_both_copies() {
     let (doc, second) = crate::fixture::insert(
         session.committed_doc().clone(),
         Node::place(
-            vec![pncad::document::BodyRead::plain(Operand::Node(block))],
+            pncad::document::BodyRead::plain(Operand::Node(block)),
             Operand::Var(pncad::document::VarId::WORLD),
             pncad::document::stand().bundle(),
         ),
@@ -806,10 +805,10 @@ fn a_face_on_a_splits_lower_half_reads_that_half() {
     let tol = Tol::witness();
     let (session, block, split) = drawn::split_box(BLOCK, tol);
     let below = pncad::select::SplitHalf::Below;
-    let (mut session, half) = drawn::halves_placed(
+    let (mut session, half) = drawn::half_placed(
         &session,
         split,
-        &[below],
+        below,
         &drawn::translated([0.1, 0.0, 0.0]),
         tol,
     );

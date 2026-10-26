@@ -123,13 +123,16 @@ fn assert_every_op(
             Ok(()),
             "{label}: tier 3′"
         );
-        let m = topo::mass_properties(&out.body, tol)
+        let m = topo::mass_properties(&out.body, tol, topo::test_support::pinned_resolution(tol))
             .unwrap_or_else(|e| panic!("{label}: mass properties {e:?}"));
-        assert_eq!(m.volume_pad, 0.0, "{label}: closed-form faces only");
+        assert_eq!(
+            m.enclosure.volume_pad, 0.0,
+            "{label}: closed-form faces only"
+        );
         assert!(
-            (m.volume - truth).abs() <= 1e-12 * truth.max(1.0),
+            (m.enclosure.volume - truth).abs() <= 1e-12 * truth.max(1.0),
             "{label}: volume {} against the closed form {truth}",
-            m.volume
+            m.enclosure.volume
         );
         census(&out.body)
     };
@@ -407,9 +410,9 @@ fn a_thin_bar_turned_about_two_axes_gets_through_the_join() {
             Ok(()),
             "turned thin bar, {op}: tier 3"
         );
-        let m = topo::mass_properties(&out.body, tol)
+        let m = topo::mass_properties(&out.body, tol, topo::test_support::pinned_resolution(tol))
             .unwrap_or_else(|e| panic!("turned thin bar, {op}: mass properties {e:?}"));
-        (m.volume, m.volume_pad)
+        (m.enclosure.volume, m.enclosure.volume_pad)
     };
     let (vi, pi) = measure("∩", topo::intersect(&pipe, &bar, tol));
     let (vd, pd) = measure("bar ∖ pipe", topo::subtract(&bar, &pipe, tol));
@@ -526,7 +529,7 @@ fn a_bar_clear_of_the_wall_still_answers() {
     };
     assert_eq!(out.body.shells().count(), 2);
     assert_eq!(topo::validate_geometric(&out.body, tol), Ok(()), "tier 3");
-    let v = topo::mass_properties(&out.body, tol).unwrap().volume;
+    let v = topo::test_support::pinned_volume("the measured body", &out.body, tol).volume;
     let truth = PI * 4.0 + 1.0 * 0.6 * 0.6;
     assert!((v - truth).abs() < 1e-12, "{v} vs {truth}");
 }
@@ -745,13 +748,13 @@ fn assert_turned_bar_through_the_pipe(theta: f64, (cx, cy): (f64, f64), ops: &[&
             Ok(()),
             "{pose}: tier 3"
         );
-        let m = topo::mass_properties(&out.body, tol)
+        let m = topo::mass_properties(&out.body, tol, topo::test_support::pinned_resolution(tol))
             .unwrap_or_else(|e| panic!("{pose}: mass properties {e:?}"));
         assert!(
-            (m.volume - exact).abs() <= m.volume_pad + 1e-9 * exact,
+            (m.enclosure.volume - exact).abs() <= m.enclosure.volume_pad + 1e-9 * exact,
             "{pose}: volume {} ± {} against the exact {exact}",
-            m.volume,
-            m.volume_pad
+            m.enclosure.volume,
+            m.enclosure.volume_pad
         );
     }
 }

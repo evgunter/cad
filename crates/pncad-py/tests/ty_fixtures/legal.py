@@ -6,12 +6,16 @@ the equivalent runtime assertions live in `tests/test_paths.py` and in
 the guide's own executed blocks.
 """
 
+from typing import Literal
+
 from pncad import (
     Var,
     IndexedRead,
     MeasurePrimitive,
     Measured,
     Measurement,
+    MassMeasurement,
+    Settle,
     AssertionRelation,
     Advisory,
     AnalysisPolicy,
@@ -197,7 +201,9 @@ plate_space: Var | None = doc.space(plate)
 assert plate_space is not None
 hole: NodeId = doc.place(hole_body, plate_space, Placed.unmated([MateValue(Coord.slide("z"), -1 * mm)]))
 lightened = doc.insert(Node.subtract(plate, hole))
-volume: float = evaluate(doc).value(lightened).body().mass_properties().volume
+volume: float = (
+    evaluate(doc).value(lightened).body().mass_properties(Settle.resolution(1.024e-6 * m)).enclosure.volume
+)
 
 # A profile is 2-D: its points are length pairs on its own xy, and a
 # world placement stands the construction where it goes, by values.
@@ -259,7 +265,16 @@ skinned = doc.insert(Node.loft(first_section, stations, Formula.count(2)))
 station: StationMove = stations[0][1][0]
 station_kind: str = station.kind
 station_axis: str = station.axis
-skinned_volume: float = evaluate(doc).value(skinned).body().mass_properties().volume
+# A deciding predicate's answer: why it stopped, and what it decided.
+_skinned: MassMeasurement = evaluate(doc).value(skinned).body().mass_properties(Settle.sign())
+skinned_stop: Literal["settled", "met", "floor", "wall", "band"] = _skinned.stop
+skinned_verdict: Literal["outer", "void"] | bool | None = _skinned.verdict
+skinned_volume: float = _skinned.enclosure.volume
+_asked: list[Settle] = [
+    Settle.at_most(1.0),
+    Settle.at_least(0.0),
+    Settle.contains(0.0, 1.0),
+]
 
 # LIB-PYBUNDLE: a multi-loop profile is a LIST of closed loops — the
 # outer boundary first, then the holes, in description order.
@@ -553,7 +568,10 @@ space_node: Node = Node.space()
 in_space: Var | None = doc.space(instance)
 repinned: DocEdit = DocEdit.update_reference(instance, pin)
 placed: NodeId = doc.place(sideways, doc.world, gesture, label="the post")
-twice: NodeId = doc.place([sideways, sideways], doc.world)
+pair: NodeId = doc.assemble([sideways, sideways])
+twice: NodeId = doc.place(pair, doc.world)
+doc.set_product(placed)
+the_product: Var | None = doc.product
 world: list[NodeId] = doc.placements()
 the_world: NodeId = doc.world
 held: list[tuple[MateRef, Mate | MateValue]] = doc.bundle(placed)
@@ -961,9 +979,9 @@ _report: ImportReport = import_step(
     evaluate(doc).step_string(lightened, product_name="plate")
 )
 imported_body: Body = _report.body
-# The gate's own enclosure — the same four fields `mass_properties`
-# answers, without running the quadrature a second time.
-enclosure: MassProperties = _report.enclosure
+# The gate's own certificate, measured — continuing its rounds rather
+# than running the quadrature a second time.
+enclosure: MassProperties = _report.measure(Settle.resolution(1.024e-6 * m)).enclosure
 imported_volume: float = enclosure.volume
 imported_area: float = enclosure.surface_area
 imported_volume_pad: float = enclosure.volume_pad
