@@ -273,15 +273,21 @@ fn slot_subtract_names_cap_fragments_by_the_walls_they_border() {
         .collect();
     assert_eq!(frags.len(), 2, "expected two Borders-qualified cap pieces");
     assert_ne!(frags[0], frags[1]);
-    // The walls are B lateral names (recipe-covariant references),
-    // one per piece: the slot wall on its side.
+    // The walls are B's lateral faces as the subtract carries them in
+    // (recipe-covariant references), one per piece: the slot wall on
+    // its side.
+    let b_read = out(&doc, b);
     for f in frags {
         let Some(RoleSeg::Fragment(Qualifier::Borders(walls))) = f.path.get(1) else {
             unreachable!()
         };
         assert_eq!(walls.len(), 1, "{f:?}");
         for wall in walls {
-            assert_eq!(wall.node, b, "a wall is not a B-operand face");
+            assert!(
+                matches!(wall.path.as_slice(), [RoleSeg::From { read, of }]
+                    if *read == b_read && of.node == b),
+                "a wall is not a B-operand face as the subtract carries it in: {wall:?}"
+            );
         }
     }
 }

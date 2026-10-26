@@ -132,9 +132,7 @@
 //! whole band ([`geom_core::k_stats::straddle`]).
 
 use geom_brep::recourse::{LeverOnly, Reading, RefusedArm, RefusedSide, SizedDecision, SizedPass};
-use geom_core::period::{
-    Bounded, Exact, Extent, Period, Turn, TurnRow, TurnRows, TurnUndecided, Within,
-};
+use geom_core::period::{Exact, Extent, Period, Turn, TurnRow, TurnRows, TurnUndecided, Within};
 use geom_core::{Band, Decide, Indeterminate, Margin, MarginDiag, Point3, Sign, Vec3};
 
 use crate::body::Body;
@@ -943,13 +941,13 @@ impl<T: Decide> ConicArc<T> {
         let Some(floor) = geom::carrier_speed::speed_floor(carrier) else {
             unreachable!("`speed_floor` answers a circle and an ellipse")
         };
-        // A circle's two levers are one, its radius. An ellipse's are the
-        // speed floor certification decides the span at and the speed
-        // over the overlap itself
-        // ([`geom::carrier_speed::turn_defect_speed_hi`]), never less than
-        // the speed anywhere on it and tight as it shrinks, so a
-        // certified window (its ends pinned within the band of its
-        // vertex) is never read as over-wound.
+        // A circle's two levers are one, its radius. An ellipse's are
+        // certification's: the inf and the sup of the speed over the
+        // turn's defect itself ([`geom::carrier_speed::turn_defect_rate`]),
+        // bounds on the
+        // speed anywhere on it and tight as it shrinks, so a certified
+        // window (its ends pinned within the band of its vertex) is never
+        // read as over-wound.
         let (turn, recording) = geom_core::k_stats::detached(|| match kind {
             ConicKind::Circle => one_turn.turn(
                 TurnRows::exact(rows.turn),
@@ -958,8 +956,8 @@ impl<T: Decide> ConicArc<T> {
                 band,
             ),
             ConicKind::Ellipse => {
-                let sup = geom::carrier_speed::turn_defect_speed_hi(carrier, t0, extent);
-                one_turn.turn(rows, extent, Bounded::new(floor, sup), band)
+                let rate = geom::carrier_speed::turn_defect_rate(carrier, t0, extent);
+                one_turn.turn(rows, extent, rate, band)
             }
         });
         // An arc kept on an unsettled turn rests on no escalation: its
@@ -1632,16 +1630,16 @@ pub(crate) fn carrier_ball<T: Decide>(
 /// that gave it ([`ArcFloor`]): a line's own segment; a circle's or an
 /// ellipse's own arc (`ring_path::Conic::distance_floor`, the arc of
 /// the circle over the same span less the conic's distance from it);
-/// any other carrier's ball ([`carrier_ball`]). A conic carries its
-/// whole annulus's floor beside its arc's. `None` for a spline
-/// with no control points. The one home of the question "is this edge
+/// any other carrier's ball ([`carrier_ball`]), and its arc's pieces
+/// past it ([`ArcPieces`]). A conic carries its whole annulus's floor
+/// beside its arc's. `None` for a spline with no control points. The one home of the question "is this edge
 /// clear of that point by more than a radius", which the clearance
 /// cell door and the boolean's touch gate both ask.
 pub(crate) fn arc_distance_floor<T: Decide>(
     carrier: &geom::Curve3<T>,
     (t0, t1): (T, T),
     q: Point3<T>,
-) -> Option<ArcFloor<T>> {
+) -> Option<ArcFloor<'_, T>> {
     Some(match *carrier {
         geom::Curve3::Line { .. } => ArcFloor::Segment(
             crate::sector_shape::point_segment_distance(carrier.eval(t0), carrier.eval(t1), q),
@@ -1674,7 +1672,14 @@ pub(crate) fn arc_distance_floor<T: Decide>(
         }
         geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => {
             let (center, reach) = carrier_ball(carrier, (t0, t1))?;
-            ArcFloor::Ball(((q - center).norm() - reach).max(T::zero()))
+            ArcFloor::Ball {
+                ball: ((q - center).norm() - reach).max(T::zero()),
+                pieces: ArcPieces {
+                    carrier,
+                    span: (t0, t1),
+                    q,
+                },
+            }
         }
     })
 }
@@ -1683,7 +1688,7 @@ pub(crate) fn arc_distance_floor<T: Decide>(
 /// bounds: each is its own question, so a caller deciding on them keeps
 /// them apart.
 #[derive(Clone, Copy, Debug)]
-pub(crate) enum ArcFloor<T> {
+pub(crate) enum ArcFloor<'c, T: geom_core::Real> {
     /// A line's distance to its segment.
     Segment(T),
     /// A conic's two floors: its whole annulus's, exact near its centre
@@ -1694,18 +1699,59 @@ pub(crate) enum ArcFloor<T> {
         /// The arc's own floor.
         arc: T,
     },
-    /// The distance to a ball holding the arc.
-    Ball(T),
+    /// A spiric's or a spline's: the distance to a ball holding the
+    /// arc, and the arc's pieces, read when the ball is not clear.
+    Ball {
+        /// The distance to the ball.
+        ball: T,
+        /// The arc, to read piece by piece.
+        pieces: ArcPieces<'c, T>,
+    },
 }
 
-impl<T> ArcFloor<T> {
+impl<T: Decide> ArcFloor<'_, T> {
     /// Whether `clear` decides any of the floors clear: either of a
-    /// conic's two, the annulus first.
+    /// conic's two, the annulus first; a ball's, or else every piece of
+    /// its arc's.
     pub(crate) fn clears(self, clear: impl Fn(T) -> bool) -> bool {
         match self {
-            Self::Segment(d) | Self::Ball(d) => clear(d),
+            Self::Segment(d) => clear(d),
             Self::Conic { annulus, arc } => clear(annulus) || clear(arc),
+            Self::Ball { ball, pieces } => clear(ball) || pieces.clear(clear),
         }
+    }
+}
+
+/// **An arc read piece by piece against a point `q`.** A piece `(a, b)`
+/// lies within [`geom_core::bisect::reach`] `ℓ` of its middle point `m`
+/// at the carrier's speed bound ([`geom::carrier_speed::speed_range`]),
+/// so `|q − m| − ℓ` is a floor on its distance from `q`. A piece whose
+/// floor is not clear is halved; one whose middle point is not clear
+/// answers that the arc is not, since no piece holding that point
+/// clears.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ArcPieces<'c, T: geom_core::Real> {
+    carrier: &'c geom::Curve3<T>,
+    span: (T, T),
+    q: Point3<T>,
+}
+
+impl<T: Decide> ArcPieces<'_, T> {
+    /// Whether `clear` decides every piece's floor clear on the
+    /// carrier's point walk ([`geom::Curve3::point_walk`]), within
+    /// [`geom_core::bisect::PIECE_BUDGET`].
+    fn clear(self, clear: impl Fn(T) -> bool) -> bool {
+        let hi = geom::carrier_speed::speed_range(self.carrier).1;
+        let walk = self.carrier.point_walk(self.q, self.span, hi, |p| {
+            if !clear(p.gap) {
+                return geom::PieceStep::Stop(());
+            }
+            if clear(p.gap - p.reach) {
+                return geom::PieceStep::Settled;
+            }
+            geom::PieceStep::Halve
+        });
+        matches!(walk, Ok(None))
     }
 }
 
@@ -2404,8 +2450,8 @@ mod tests {
     /// Levered by `b` alone the overlap read `2.1ε`, in band and not
     /// negative, so the window read as an arc and a point ON the doubled
     /// stretch — `15ε` from each end — read `Carrier`, off the edge. The
-    /// span now needs the LARGER lever for an arc: the overlap is `30ε`
-    /// there, definitely past the band, and the span escalates.
+    /// span is now read at the inf over the overlap itself, which reads
+    /// its `30ε` definitely past the band: wound past a period.
     #[test]
     fn an_over_wound_ellipse_window_is_not_an_arc() {
         let band = Band::linear(Tol::witness()).unwrap();
@@ -2426,8 +2472,8 @@ mod tests {
                 band,
             );
             assert!(
-                matches!(got, Err(ConicArcError::Escalated(_))),
-                "the repro reads as an arc"
+                matches!(got, Err(ConicArcError::WoundPastPeriod)),
+                "the repro is wound past a period"
             );
         }
         // The population: overlaps of 30ε and 100ε of arc, at a/b 14, 20 and
@@ -2491,33 +2537,35 @@ mod tests {
     }
 
     /// **The span rule tags what it can raise**: an elliptic window
-    /// over-wound by less than the band on the smaller lever, and
-    /// definitely on the larger, escalates on its in-band margin — always
-    /// negative, the refused side, so its ending is the lever alone; one
-    /// whose smaller lever reads zero while the larger reads definitely
-    /// negative is a straddle of the two bounds, which also ends in the
-    /// lever alone and carries no unreadable-margin note. Driven through
-    /// `ConicArc::of`; the walk's `carrier_loop` site maps both to
+    /// over-wound by an overlap in the band at both bounds over it
+    /// escalates on its in-band margin — always negative, the refused side,
+    /// so its ending is the lever alone; one whose inf over the overlap
+    /// reads zero while the sup reads it definitely negative is a straddle
+    /// of the two bounds, which also ends in the lever alone and carries no
+    /// unreadable-margin note. The bounds over a short overlap are within
+    /// the larger semi-axis times its width of each other, so a straddle
+    /// needs an overlap of `≈ √(Kε/a)` at a vertex slow enough that the
+    /// floor reads it zero: a needle ellipse at its slow vertex. Driven
+    /// through `ConicArc::of`; the walk's `carrier_loop` site maps both to
     /// `LoopDecision::ArcSpan` unchanged.
     #[test]
     fn the_span_rule_tags_an_over_wound_margin_and_a_straddle() {
         let band = Band::linear(Tol::witness()).unwrap();
         let eps = band.zero();
-        let ellipse = geom::Curve3::Ellipse {
+        let ellipse = |a: f64, b: f64| geom::Curve3::Ellipse {
             center: Point3::new(0.0, 0.0, 0.0),
             axis: Vec3::new(0.0, 0.0, 1.0),
-            semi_u: 100.0,
-            semi_v: 1.0,
+            semi_u: a,
+            semi_v: b,
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
-        // Centred at the minor vertex, where the edge's speed is `a`.
-        let over = |dt: f64| {
-            let at = core::f64::consts::FRAC_PI_2;
-            (at - 0.5 * dt, at - 0.5 * dt + core::f64::consts::TAU + dt)
-        };
+        let over = |at: f64, dt: f64| (at - 0.5 * dt, at - 0.5 * dt + core::f64::consts::TAU + dt);
+        // Centred at the minor vertex, where the edge's speed is `a`, by an
+        // overlap whose length there is mid-band.
         let m = 0.5 * (band.zero() + band.escalate());
         let lever = format!("Recourse: {}", LoopDecision::ArcSpan.lever());
-        match conic_of(&ellipse, over(m), WALK_ROWS.conic, band) {
+        let fast = over(core::f64::consts::FRAC_PI_2, m / 100.0);
+        match conic_of(&ellipse(100.0, 1.0), fast, WALK_ROWS.conic, band) {
             Err(ConicArcError::Escalated(ReadEscalation {
                 escalation: Escalation::Margin,
                 diag,
@@ -2535,33 +2583,31 @@ mod tests {
             }
             _ => panic!("expected an in-band span"),
         }
-        for (a, k) in [(100.0, 0.5), (100.0, 0.9), (20.0, 0.6), (20.0, 0.9)] {
-            let ellipse = geom::Curve3::Ellipse {
-                center: Point3::new(0.0, 0.0, 0.0),
-                axis: Vec3::new(0.0, 0.0, 1.0),
-                semi_u: a,
-                semi_v: 1.0,
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
-            };
+        // A needle `a = 1`, `b = ε/(2h)` at its slow vertex `θ = 0`, by an
+        // overlap `h`: the inf there is the floor `b`, reading `ε/2`, and
+        // the sup `b + h/2` reads past `10ε` once `h² ≥ 20ε`.
+        for k in [40.0, 80.0] {
+            let h = (k * eps).sqrt();
+            let carrier = ellipse(1.0, eps / (2.0 * h));
+            let span = over(0.0, h);
             let bracket = geom_core::k_stats::Bracket::open();
-            let got = conic_of(&ellipse, over(k * eps), WALK_ROWS.conic, band);
+            let got = conic_of(&carrier, span, WALK_ROWS.conic, band);
             let recorded = bracket.finish();
             let Err(ConicArcError::Escalated(got)) = got else {
-                panic!("a/b {a}, overlap {k}·ε: expected a straddle");
+                panic!("overlap √({k}ε): expected a straddle");
             };
-            // The window's signed gap to a period, levered by the edge's
-            // speed bound (the lower bound) and by its smaller semi-axis
-            // (the upper), as `ConicArc::of` reads them.
-            let (t0, t1) = over(k * eps);
-            let gap = core::f64::consts::TAU - (t1 - t0);
-            let (sm, cm) = (t0 - gap * 0.5).sin_cos();
-            let speed = ((a * sm).powi(2) + cm.powi(2)).sqrt() + a * gap.abs() * 0.5;
+            // The window's signed gap to a period, at the sup and at the
+            // inf over it, as `ConicArc::of` reads them.
+            let extent = Extent::between(span.0, span.1);
+            let gap = core::f64::consts::TAU - extent.get();
+            let sup = geom::carrier_speed::turn_defect_speed_hi(&carrier, span.0, extent).get();
+            let inf = geom::carrier_speed::turn_defect_speed_lo(&carrier, span.0, extent).get();
             assert_straddle(
                 got,
                 &recorded,
                 (LoopDecision::ArcSpan, WALK_ROWS.conic.straddle),
-                (gap * speed, gap * 1.0),
-                &format!("a/b {a}, {k}·ε"),
+                (gap * sup, gap * inf),
+                &format!("overlap √({k}ε)"),
             );
         }
     }
@@ -2935,11 +2981,12 @@ mod tests {
     /// (`0`) side. (At `a/b = 16` no case lands on a band edge.)
     ///
     /// **The expected deltas**, each listed below and nowhere hidden:
-    /// - on the ellipse's fast side, a short span whose inf reading is
-    ///   `Zero` while the sup reads it definitely positive (`0.9` of the
-    ///   inf's length) read as a whole turn and now reads as an arc whose
-    ///   turn is unsettled. Only a scaffold reads the turn, and escalates
-    ///   on it where it once read corrupt;
+    /// - on the ellipse's fast side, where the floor `1` reads the defect
+    ///   sixteen times short of its length and the inf over the defect
+    ///   reads it at about its length: an overlap of `0.9` and `3` of the
+    ///   floor's length and `20` of the sup's, which escalated, is wound
+    ///   past a period; a short span by as much, which read as a whole
+    ///   turn or an unsettled one, reads as an arc short of a turn;
     /// - every span the sup does not read definitely positive while no
     ///   reading settles a turn — a headroom in the band on a circle
     ///   (`3` of either rate, either side) and on the ellipse's slow side,
@@ -2980,15 +3027,23 @@ mod tests {
             ("ellipse slow", ellipse, 0.0, 1.0, 1.0),
         ];
         let arc_zero = SpanRead::Arc(Some(Sign::Zero));
+        let arc_short = SpanRead::Arc(Some(Sign::Positive));
         let unsettled = SpanRead::Arc(None);
+        let wound = SpanRead::Wound;
         // (fixture, rate, k, over) → (old, new)
         let escalated = SpanRead::Escalated(Escalation::Margin);
+        let straddle = SpanRead::Escalated(Escalation::Straddle);
         let mut deltas = vec![
             (("ellipse fast", "inf", 0.5, true), (arc_zero, escalated)),
             (("ellipse fast", "inf", 0.5, false), (arc_zero, escalated)),
-            (("ellipse fast", "inf", 0.9, false), (arc_zero, unsettled)),
+            (("ellipse fast", "inf", 0.9, true), (straddle, wound)),
+            (("ellipse fast", "inf", 0.9, false), (arc_zero, arc_short)),
+            (("ellipse fast", "inf", 3.0, true), (escalated, wound)),
+            (("ellipse fast", "inf", 3.0, false), (unsettled, arc_short)),
             (("ellipse fast", "sup", 3.0, true), (arc_zero, escalated)),
             (("ellipse fast", "sup", 3.0, false), (arc_zero, escalated)),
+            (("ellipse fast", "sup", 20.0, true), (escalated, wound)),
+            (("ellipse fast", "sup", 20.0, false), (unsettled, arc_short)),
         ];
         for name in ["circle r=1", "circle r=0.01", "ellipse slow"] {
             for rate in ["inf", "sup"] {
@@ -3059,10 +3114,15 @@ mod tests {
     /// or an arc — the class the old rule gave every forward span, at three
     /// bands, on circles and on ellipses from `a/b = 1.5` to `1000` stored
     /// either way round, the defect centred around the carrier and sized
-    /// in steps of `0.1ε` of three rates. The one move is the listed
-    /// delta of `the_turn_rule_agrees_with_the_old_conic_span_rule`: an
+    /// in steps of `0.1ε` of three rates. The moves are the listed deltas'
+    /// classes in `the_turn_rule_agrees_with_the_old_conic_span_rule`: an
     /// undecided turn the sup does not read definitely short, which the
-    /// old rule kept as an arc, escalates.
+    /// old rule kept as an arc, escalates on its margin; an overlap the
+    /// inf over the defect reads definitely past, which the floor read in
+    /// the band or `Zero`, is wound past a period rather than escalated;
+    /// and an overlap the floor read `Zero` and the inf over the defect
+    /// reads in the band escalates on its margin rather than a straddle.
+    /// Each move occurs.
     #[test]
     fn no_conic_span_moves_class_over_a_band_edge_sweep() {
         let class = |read: SpanRead| match read {
@@ -3121,14 +3181,27 @@ mod tests {
                 }
             }
         }
+        let (margin, straddle) = (
+            SpanRead::Escalated(Escalation::Margin),
+            SpanRead::Escalated(Escalation::Straddle),
+        );
+        let listed = [
+            (SpanRead::Arc(None), margin),
+            (margin, SpanRead::Wound),
+            (straddle, SpanRead::Wound),
+            (straddle, margin),
+        ];
         let other: Vec<_> = moved
             .iter()
-            .filter(|m| {
-                (m.6, m.7) != (SpanRead::Arc(None), SpanRead::Escalated(Escalation::Margin))
-            })
+            .filter(|m| !listed.contains(&(m.6, m.7)))
             .collect();
         assert!(other.is_empty(), "{:#?}", &other[..other.len().min(20)]);
-        assert!(!moved.is_empty(), "the listed move occurs");
+        for pair in listed {
+            assert!(
+                moved.iter().any(|m| (m.6, m.7) == pair),
+                "the listed move {pair:?} occurs"
+            );
+        }
     }
 }
 

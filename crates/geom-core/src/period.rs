@@ -621,9 +621,9 @@ impl<T: Real> Exact<T> {
     }
 }
 
-/// A rate known only between bounds: the least speed over the extent,
-/// and the greatest over the stretch the headroom measures (an ellipse,
-/// a spiric, a chart image).
+/// A rate known only between bounds: the least and the greatest speed
+/// over the stretch the headroom measures (an ellipse, a spiric, a chart
+/// image).
 #[derive(Clone, Copy, Debug)]
 pub struct Bounded<T> {
     inf: InfSpeed<T>,
@@ -631,9 +631,9 @@ pub struct Bounded<T> {
 }
 
 impl<T: Real> Bounded<T> {
-    /// A lower bound `inf` on the speed over the extent and an upper
-    /// bound `sup` over the headroom's stretch — the caller's premise,
-    /// which the rule's soundness rests on. Both are read as speeds: the
+    /// A lower bound `inf` and an upper bound `sup` on the speed over the
+    /// headroom's stretch — the caller's premise, which the rule's
+    /// soundness rests on. Both are read as speeds: the
     /// inf's magnitude, and the sup never below it (the larger of an
     /// upper and a lower bound on one speed is still an upper bound), so
     /// a pair with `sup < inf` is not representable.
@@ -669,7 +669,7 @@ pub trait TurnRate<T: Decide>: sealed::Sealed + Copy {
     /// What a caller names a straddle by: `()` where none can arise.
     type Straddle: Copy;
 
-    /// The lower bound, the rate an extent's forward decision reads at.
+    /// The lower bound, the rate `Over` and `Short` read the headroom at.
     fn inf(self) -> InfSpeed<T>;
 
     /// The rule at this rate, on the headroom [`Period::turn`] formed.
@@ -941,7 +941,7 @@ mod period_rows {
     test_utils::gated_to!["crates/geom-core/src/period.rs"];
 
     /// **The gallop answers as the step-by-step walk does at `Interval`,
-    /// levered** (a counterexample search: the seed varies). Enclosures
+    /// metered** (a counterexample search: the seed varies). Enclosures
     /// of every width from a point to two periods, centred out to 300
     /// periods, half of them within 1e-7 periods of a half-period mark,
     /// metered at a lever of 0.37: the answer, the miss and the pair
@@ -955,7 +955,7 @@ mod period_rows {
         let tau = Interval::tau();
         let arm = Interval::from_f64(0.37);
         let band = band();
-        let meter = |g| Margin::levered(g, arm);
+        let meter = |g| Margin::metered(g, crate::InfSpeed::new(arm));
         let step_walk = |gap: Interval| -> String {
             let half = Interval::from_f64(0.5);
             let mark = |k: i32, side: Interval| {

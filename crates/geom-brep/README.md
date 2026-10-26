@@ -735,6 +735,28 @@ readings a boolean takes are their `all()`, which no boolean reads yet
 the whole operation. Every other pair refuses, most blocked on the cone
 and torus metres conversion (C2 limb 2).
 
+The same rule governs a curve against a face. A carrier span and a face
+meet through one exhaustive `(CurveKind, SurfaceKind)` table, in the
+curve-pair vocabulary (stretches, meetings, an in-band decision
+escalating and never pruning), and the boolean's root doors are its
+arms: a spline span against an analytic face and an analytic span
+against a spline face are two arms of the one table. The span's ends are
+read first, then the span against each of the face's boundary edges
+through the curve-pair table. A shared run along a boundary edge is a
+coincidence, decided at the coincidence door (DESIGN `[coincidence]`)
+and never by surface arithmetic, and a point meeting there is a meeting
+on the face's boundary. Only what the boundary leaves undecided is read
+against the face's interior. An interior arm with no closed form settles
+each piece of the span against each cell of the surface by enclosures:
+clear when the two are definitely apart; exactly one transverse meeting
+when an interval Newton (Krawczyk) contraction on the piece and cell
+succeeds, its Jacobian enclosure definitely invertible; otherwise
+subdivided down to the tangency floor, where it escalates. A surface
+with no signed residual is given none: a point is decided on it by a
+certified foot within the band, and off it by a lower bound on its
+distance past the band. A meeting inside the chart is placed in or out
+of the face by the face's trim.
+
 ### Fitted-cache structure
 
 **C6 — Structure is combinatorial and certified for every member;

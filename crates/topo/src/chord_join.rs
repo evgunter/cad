@@ -3274,11 +3274,25 @@ fn pole_branch<T: Decide>(
     };
     let half = T::tau() * T::from_f64(0.5);
     let shifted = if advancing { gap + half } else { gap - half };
+    // **What the lever is.** Not a rate either edge has throughout: a
+    // point's azimuth rate is its distance from the axis, zero at the pole
+    // and at most the edge's reach, so over either edge the lever is that
+    // rate's sup, and its inf is zero. What the marks decide is the two
+    // edges' largest separation, which on the meridians that reach here is
+    // the chord `2ρ·sin(g/2)` at the reach `ρ` both share: `g·lever`
+    // overstates it by a relative `g²/24` at most, and where `g·ρ` is
+    // within a few bands of a mark that is a few bands squared over `ρ²`,
+    // beneath any band's resolution. So the lever is
+    // the decision's inf to that order, and the decision is the side of
+    // the mark the pair's separation lies on. It is no inf on a curved
+    // edge bending back (the lens, [`pole_lever`]'s four times), which
+    // never gets here: a non-meridian circle's chart image is projected,
+    // and the walk refuses it as FITTED.
     geom_brep::Period::new(T::tau())
         .decide(
             "split_sphere_pole_branch",
             shifted,
-            |g| Margin::levered(g, lever),
+            |g| Margin::metered(g, InfSpeed::new(lever)),
             band,
         )
         .map_err(|stop| match stop.miss {

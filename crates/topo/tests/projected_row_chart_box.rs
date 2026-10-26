@@ -224,13 +224,16 @@ fn a_projected_edge_on_part_of_its_net_reads_the_tighter_box() {
 /// **The cell door beside a spline edge.** The unit prism's bottom face
 /// with its first edge's carrier swapped for a degree-1 net along the
 /// same chord: the face is still the unit square, and the spline edge is
-/// read as the ball its control net lies in (`cell_region`'s ball row).
-/// Every cell of a grid over the square and its surround the door
-/// decides agrees with the square.
+/// read as the ball its control net lies in, and past it piece by piece
+/// (`cell_region`'s ball row). Every cell of a grid over the square and
+/// its surround the door decides agrees with the square.
 ///
 /// The decided counts are pinned: a door that read the spline edge in
-/// any other ball than its control net's decides other cells, and the
-/// count goes red.
+/// any other floor than its control net's ball and then its pieces
+/// decides other cells, and the count goes red. A door that called every
+/// spline edge clear is a different failure, and
+/// [`a_cell_crossing_only_the_spline_edge_is_undecided`] stands against
+/// it.
 #[test]
 fn the_cell_door_reads_a_spline_edge_as_its_ball() {
     use topo::cell_region::{CellRegion, cell_region};
@@ -281,7 +284,52 @@ fn the_cell_door_reads_a_spline_edge_as_its_ball() {
     assert_eq!(wrong, 0, "a decided cell contradicts the square");
     assert_eq!(
         (inside, outside),
-        (65, 407),
+        (121, 407),
         "the cells the door decides beside the spline edge, pinned"
+    );
+}
+
+/// **A cell crossing only the spline edge keeps it.** The prism of
+/// [`the_cell_door_reads_a_spline_edge_as_its_ball`], its first edge
+/// swapped for the chord net; the cell is the rectangle `1.3` deep
+/// across the edge (from `1.25` outside it to `0.05` inside the square)
+/// and `0.4` along it, about the edge's middle. Its centre, `0.6`
+/// outside the edge, lies outside the ball holding the net, and every
+/// other edge and every vertex lies past the cell's reach about it, so
+/// only the spline edge's floor keeps the cell: a
+/// floor that called the edge clear lets the door place the centre,
+/// outside the square, and read the cell `Outside` though it reaches
+/// into the face.
+#[test]
+fn a_cell_crossing_only_the_spline_edge_is_undecided() {
+    use topo::cell_region::{CellRegion, cell_region};
+    let square = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
+    let built = common::prism::<Interval>(&square, 1.0, geom_core::Tol::witness());
+    let mut body = built.body;
+    let face = built.bottom_face;
+    let net = swap_first_edge_for_a_chord_net(&mut body, face, (0.0, 1.0));
+    let mid = |p: Point3<Interval>| p.map(|x| 0.5 * (x.lo() + x.hi()));
+    let (q0, q1) = (mid(net.eval(iv(0.0))), mid(net.eval(iv(1.0))));
+    let m = q0.lerp(q1, 0.5);
+    let along = (q1 - q0).normalize();
+    let out = (m - Point3::new(0.5, 0.5, m.z)).normalize();
+    let chart = face_chart(&body, face).map_scalar(|x| 0.5 * (x.lo() + x.hi()));
+    let c0 = chart.eval(0.0, 0.0);
+    let (eu, ev) = (chart.eval(1.0, 0.0) - c0, chart.eval(0.0, 1.0) - c0);
+    let uv = |p: Point3<f64>| ((p - c0).dot(eu) / eu.dot(eu), (p - c0).dot(ev) / ev.dot(ev));
+    let corners = [(-0.05, -0.2), (-0.05, 0.2), (1.25, -0.2), (1.25, 0.2)]
+        .map(|(o, a)| uv(m + out * o + along * a));
+    let span = |pick: fn((f64, f64)) -> f64| {
+        let all = corners.map(pick);
+        (
+            all.iter().copied().fold(f64::INFINITY, f64::min),
+            all.iter().copied().fold(f64::NEG_INFINITY, f64::max),
+        )
+    };
+    let (cu, cv) = (span(|c| c.0), span(|c| c.1));
+    let got = cell_region(&body, face, cu, cv, band());
+    assert!(
+        matches!(got, CellRegion::Undecided),
+        "the cell reaches 0.05 into the face across the spline edge: {got:?}"
     );
 }
