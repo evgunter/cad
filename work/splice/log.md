@@ -133,3 +133,115 @@ is the face × face section. Filed
 design open). The plan's "lily wall 8 needs no curved section" still
 holds, but lily also needs this row. Designers weigh it once 5723 is
 in review.
+
+## 2026-10-26 — PR 5719 (carrier walk) merges
+
+The fix pass (77e42f67, 732ff87f) answered the review:
+- each piece's net now goes through `piece_controls` over
+  `restrict_window`, and `SpanNet` is gone;
+- roots are cut only at knots strictly inside the window;
+- the contact on-point is mid-piece (refusals at 0.9·z dropped from
+  1135 to 30 of 3000);
+- the review's fuzz is adopted as `spline_arc::fuzz::random_splines_at_*`.
+  Its first CI run found an oracle miscount, not a row one: an
+  8000-step polyline missed a narrow rational excursion. The oracle now
+  bisects to 2e-4 chords, and 11,981 + 2,395 rays came back with 0
+  wrong.
+
+Orchestrator's read of the delta (no second review: the delta changes
+certified decisions only within the items asked). One comment-only
+drive-by: a history line in the fuzz header removed. Merged on green
+`gate ok`.
+
+## 2026-10-26 — PR 5723 (the gate) goes to review
+
+Green at b0860ea4 (main b6588d2c merged; the render moved no cell,
+since all three walls refuse before and after, at different sites).
+Tier: dual, letter M (both main rows cost M). Arm drawn at dispatch:
+`/dev/urandom` byte 169, mod 3 = 1, so **SEQUENTIAL**. One review now
+(`session_01XsRqThr5DVNjqpXVWs9hj7`, dispatched 01:28Z); a second runs
+on the fix-pass head only if this one raises a MAJOR.
+
+## 2026-10-26 — PR 5715 (touch doors) re-reviewed: one MAJOR, a pin
+
+Re-review of the whole unit (`session_01YLh5gFkY6a5rytfMtr81zz`, on
+9fbe827e). NOT-MERGEABLE on one MAJOR, a slow-set red the PR gate does
+not select: a new test-side `edge_box(` caller missing from
+`boxes::tests::every_door_that_reads_a_box_is_inventoried`'s pins.
+Every soundness claim held:
+- the crease rule is exactly `m ≥ p`;
+- the near-crease bounds are tight to about 1e-12 at both scalars;
+- `point_walk` reproduces the old walk bit for bit;
+- the cornered rows read a real meeting.
+
+The fix pass goes to the lane:
+- the pin;
+- the reviewer's negative-floor row, re-written rather than
+  cherry-picked, since its commit message names a model (at f64 the
+  `max(floor, 0)` clamp is load-bearing: a spline floor reads negative
+  on 205 of 4000 random nets);
+- an Interval creased-touch row for the `is_finite_length(bend)` guard;
+- the crease cost filed on this slate. A creased spline, which includes
+  lofted nets, loses the second-order clear, so a `PIECE_BUDGET`
+  refusal is expected back once the gate is gone.
+
+The orchestrator reads the delta.
+
+**Class noted at adjudication:** a slow-set row that inventories the
+tree is not run by a PR that changes what it inventories. Evidence
+added to `ciw/a-diff-that-moves-corpus-ids-runs-none-of-the-slow-set-id-pins`.
+From here on, SPLICE implementer briefs say to run the touched crates'
+slow set (`cargo nextest run -p <crate>`) before reporting green.
+
+## 2026-10-26 — PR 5715 (touch doors) merges
+
+The second fix pass (d8d52d0d) answered the re-review:
+- the boxes inventory pin;
+- the reviewer's negative-floor row, re-written without the commit;
+- an Interval creased-touch row, red without the `is_finite_length`
+  guard;
+- the cornered meet row asserts exactly one meeting;
+- the prose for Interval's straddling floor.
+
+Filed on this slate:
+- `a-creased-spline-gets-no-second-order-clearing` (P1 M). The lane
+  measured no crease in the klein loop's or the lily sheath's NURBS
+  edges (all interior multiplicity 1);
+- `the-touch-floor-reads-a-curved-arc-apart-from-the-pieced-arc`
+  (P2 M), the fourth point-against-arc walk, left apart because folding
+  it would move certified decisions.
+
+After main (with PR 5719) merged in, the cell-door pin moved to
+(121, 407), with `wrong` 0: the in-plane walk now crosses the spline
+edge and the touch floor clears the cells beside it. The S4 guard
+still reds under an always-clear floor.
+
+The lane's topo slow set had one red, the lattice discard pin, which is
+main's: it was bisected to PRED 5724 meeting FLUSH 5706, and is filed
+in `work/issues/` (PR 5735). The orchestrator read the delta and merged
+on green `gate ok`.
+
+## 2026-10-26 — C5 gains the curve × face clause (PR 5727)
+
+Ev took the converged design (fork log row 198) after asking about
+dimensionality. Answered on the PR: a span × face meets in isolated
+points; A and B differ only in eliminating the curve parameter; and a
+boundary meeting is non-generic, so it is a coincidence. Ev's reply:
+"if it is actually for the point then it's fine".
+
+Filed on this slate:
+- `a-span-is-read-against-a-faces-boundary-edges-first` (P0 H);
+- `a-point-has-no-place-in-a-nurbs-faces-trim` (P1 M);
+- `the-side-of-a-spline-face-is-read-by-no-dihedral` (P1 M);
+- `curved-boolean-unsupported-names-no-edge` (P3 E).
+
+The crossing rung is now an arm of the same table. SECT's row got a
+correction: klein's join pair is cylinder × NURBS, tangent along the
+rim.
+
+Lily wall 8's path is now:
+1. the boundary-first reading;
+2. the dihedral side reading;
+3. the two flush rows.
+
+No interior arm is needed for it.

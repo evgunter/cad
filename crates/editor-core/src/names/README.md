@@ -373,8 +373,13 @@ The qualifier depends on what was split:
   that vertex is the name. Every other vertex where a face of one operand
   meets an edge of the other is a crossing, named by its sense: where the
   crossed edge's two sides at the vertex lie against the closed body the
-  crossing face belongs to, the edge oriented as the operand body stores it
-  (a seam edge as the loop of the pair's first side, the lesser name, runs along it). The sense
+  crossing face belongs to. An orientation is read, never chosen (N0 NS1):
+  a line of one edge is read as the operand body stores the edge, and a line
+  of several things (a `Merged` line of flush edges, or a seam, whose two
+  sides' loops run opposite ways) is read along each of them. A transversal
+  crossing of such a line is `Through { entering }`: the subset of its edges,
+  or its seam's sides, in name order, whose direction runs into the body. A
+  touch is `Outside` or `Inside` on any line. On a line of one edge the sense
   is `Enters` (outside, then inside), `Leaves` (inside, then outside),
   `Outside` (outside on both sides: a touch from outside) or `Inside` (inside
   on both sides: a touch from inside); a side lying on the face counts as
@@ -395,19 +400,14 @@ The qualifier depends on what was split:
   Each edge in the name carries its sense, read against the closed bodies of
   the members the name's other entries belong to, other than the edge's own:
   the crossing face's member for a `Crossing`, the other lines' members for a
-  run. A seam in a run carries none. A boolean reads the sense at the step
+  run. A seam in a run carries its sense as any line of several things does.
+  A boolean reads the sense at the step
   that mints the vertex. A union reads it from its members' pairwise
   judgements, a side being inside when any judgement classed it so; a side
-  no judgement classed refuses. A union's line of several flush edges carries
-  one sense, on which its edges all agree, read along one of its edges. Which
-  edge orients it is open
-  (`work/wire/a-unions-line-of-several-edges-is-oriented-by-its-least-edge.md`).
+  no judgement classed refuses.
   Reversing an edge swaps `Enters` and `Leaves` and keeps the other two.
-  Crossings of one line by one face with the same sense, and vertices with
-  the same run, are ranked along a line they share by its carrier's own
-  parameter, in its stored orientation: the run's least edge, or where the
-  run holds no edge, a seam in it whose pieces lie on one open carrier. An
-  equal pair, or a run with no such line, ties.
+  Nothing is ranked: crossings, and vertices of one run, that their names do
+  not tell apart tie (N4).
   Where the result holds an operand corner as several vertices, each is a
   fragment of it, qualified as the operation's face pieces are. At a boolean
   or a union it is `Fragment(Borders)` over the walls that divide the corner

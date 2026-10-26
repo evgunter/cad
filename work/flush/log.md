@@ -562,3 +562,25 @@ None waits on an INTENT stage. A row that turns out to need one moves back. — 
 — (FLUSH orchestrator)
 - 2026-10-25 — **Dispatched the trimmed-sphere and spline aims** (`the-side-at-infinity-reader-offers-no-aim-on-a-trimmed-sphere-or-a-spline`, P2 M, branch `flush/sphere-spline-aims`). The side reader offers no aim on a trimmed sphere or a spline, so a shell made only of those falls to its volume. The fix aims through the sphere region's own interior read and the spline chart's window middle; the untrimmable cone keeps the volume. **Tier: one FULL review**: one reader's aims, readable against the ratified "an aim only steers". It runs after PR 5697 so it does not share `solid_contain.rs` with the curved ray. The aims' ties (P2 H, same file) follow it. Seams: PRED 5710 and QUAD 5628 (`solid_contain.rs`).
 — (FLUSH orchestrator)
+- 2026-10-26 — **PR 5706 closes `a-containment-fallback-substitutes-a-partly-held-dropped-face-whole`**. The containment fallback cuts its dropped coincident faces and records its discards, so both operand orders write the same rows.
+  - **Tier: one FULL review.** The first head swallowed every refusal of the cut into a new `uncut` record and wrote the face as a whole discard bordering nothing (MAJOR); one refusal also uncut every partly held face (MINOR).
+  - **My ruling** (no Ev fork, within `[failure.taxonomy]`): defects propagate; only the cut's own placement limits are recorded, per face; an uncut face gets no row; the reader question is filed on BORDERS.
+  - **Check pass:** APPROVE-WITH-FIXES, both fixed by execution. A last pass typed the limit (`fate::Limit`), made an in-band ring winding escalate as `BooleanDecision::CutRingWinding` (it read as a broken invariant, here and at the older site), and corrected two docs that claimed every lost face is a discard.
+  - **At merge** I resolved one conflict with main (`BooleanDecision::ArcSpan` had left main); the lane named the new decision `CutRingWinding`, apart from main's `SelfCheck::RingWinding`.
+  - **No body moved.** Batteries identical; the `boss/holedlow ∩` refusal's words changed (the cut now goes one step further before it stops).
+— (FLUSH orchestrator)
+- 2026-10-26 — **Dispatched the three-way coincident names** (`an-intersect-of-an-intersect-names-a-three-way-coincident-face-apart-in-one-member-order`, P2 M, branch `flush/three-way-coincident-names`). One of the silhouette letters' four member orders names a piece of the y 3 face with an extra wall. The lane re-measures first, since PR 5706 made both operand orders write the same rows, then finds the first record that differs. A cause in the boolean's rows is FLUSH's to fix; one in the names layer's chase is filed on BORDERS. **Tier: one FULL review** if code changes; a diagnosis and a filing I read myself. Seam: WIRE's `[ev]` PR 5705 (the names layer).
+— (FLUSH orchestrator)
+- 2026-10-26 — **PR 5733 closes `an-intersect-of-an-intersect-names-a-three-way-coincident-face-apart-in-one-member-order` by moving it to BORDERS** as `a-direct-operands-own-split-lineage-climbs-to-a-live-sibling-seam` (P2 M). No code changed.
+  - **Measured on main after PR 5706:** the odd order (`T ∩ H`, then `two ∩ C`) still adds a z 2.5 wall to one y 3 piece, at all three ε. No fallback is involved, and the topo rows agree across orders.
+  - **The first difference is in the names layer:** `borders.rs` `Obstacles::up_lineage` climbs from a split piece of `two`'s own edge to its live sibling, a seam of C's discard. The three agreeing orders are right: no region of the merged y 3 face lies across that edge.
+  - **Tier:** a diagnosis and a filing, which I read myself. CI green.
+  - BORDERS stands at 34.5 of its 30 ceiling with this row; the split is BORDERS' call.
+— (FLUSH orchestrator)
+
+- 2026-10-26 — (SPLICE orchestrator) **Main is red on a slow-set row
+  between FLUSH and PRED.** The lattice corpus's bordered-discard pin
+  (`fused_into_live_cells::every_fused_vertex_of_the_lattice_corpus_settles_on_a_live_cell`)
+  moved from (25512, 1392) to (26292, 2004) at the merge of PRED's PR 5724
+  onto FLUSH's PR 5706. Each passes alone; the bisect is in
+  `work/issues/main-red-the-lattice-discard-pin-moved-where-pred-5724-met-flush-5706.md`.

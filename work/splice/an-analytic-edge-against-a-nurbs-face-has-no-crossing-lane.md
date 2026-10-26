@@ -6,9 +6,7 @@ status: open
 opened: 2026-10-26
 priority: P0
 cost: H
-design: true
 refs: [delete-the-boolean-operand-edge-gate, nurbs-edge-crossing-rung-is-the-ring-composite, a-nurbs-face-against-a-cone-or-sphere-has-no-section-arm, nurbs-plane-section-has-no-component-arm, 5723]
-needs_ev: true
 ---
 
 
@@ -67,7 +65,7 @@ Reachable once PR 5723 merges.
 ## Weighed (2026-10-26)
 
 Two designers, A and B, weighed it and converged (design-fork log row
-197). The recommendation to Ev is to give C5 a curve × face clause:
+198). The recommendation to Ev is to give C5 a curve × face clause:
 - one exhaustive `(CurveKind, SurfaceKind)` meeting table in geom-brep,
   whose arms are the boolean's root doors;
 - the converse spline-edge rung
@@ -95,3 +93,26 @@ NURBS chart (`contain::curved_interior_placement` answers `Trim(None)`
 for `Nurbs`); a NURBS arm for the dihedral side reading (with the
 SEAMRANK flush rows); and `CurvedBooleanUnsupported` carrying the edge.
 Lily 8 needs only the first and the flush rows.
+
+## Decided (2026-10-26)
+
+Ev took the converged design on PR 5727 (fork log row 198). C5
+(`crates/geom-brep/README.md`) now has the curve × face clause. This
+row is now the table and its interior arm. An analytic span against a
+spline face is settled by enclosure, or by a Krawczyk contraction on
+the piece × cell. Whether that runs in (t, u, v) on C − S, or in
+(u, v) on the curve's two implicits composed with S, is the lane's
+choice. The pieces the design implies are their own rows:
+- `a-span-is-read-against-a-faces-boundary-edges-first` (P0): the
+  boundary-first reading. Lily wall 8 needs only it and the flush
+  rows.
+- `a-point-has-no-place-in-a-nurbs-faces-trim` (P1): point-in-face
+  for a spline chart.
+- `the-side-of-a-spline-face-is-read-by-no-dihedral` (P1): the
+  dihedral side reading on a spline face.
+- `curved-boolean-unsupported-names-no-edge` (P3): the refusal names
+  its edge.
+
+The converse arm (a spline span against an analytic face) is
+`nurbs-edge-crossing-rung-is-the-ring-composite`, now an arm of the
+same table. Build the two against one brief, or one after the other.
