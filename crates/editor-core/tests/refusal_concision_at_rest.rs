@@ -46,6 +46,7 @@ const LABELS: &[(&str, &str)] = &[
     // A sentence whose clause carries no word the shape check reads as
     // a sentence's: a numeral subject and a bare verb.
     ("InstanceInterference", "two instances overlap"),
+    ("SameSideInterference", "two instances overlap"),
 ];
 
 /// The tier-1/2 structure arms: each reports a damaged body, where the

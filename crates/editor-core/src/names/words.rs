@@ -80,7 +80,7 @@ use crate::names::NameTable;
 use crate::names::attribute::{CarriedAs, SegOrigin, origin};
 use crate::names::role::{
     CapEnd, EntityKind, MeridianEnd, NameRef, PieceRun, ProfileEdgeRef, ProfileVertexRef,
-    Qualifier, RimSupport, RoleSeg, SectionCircle, StableName, fragment_tail_start,
+    Qualifier, RimSupport, RoleSeg, SectionCircle, Sense, StableName, fragment_tail_start,
 };
 use crate::node::RecipeNodeId;
 use crate::spoken::Carry;
@@ -591,7 +591,7 @@ fn expand<'n, 's>(
     let last = levels.len() - 1;
     let mut items: Vec<Item<'n, 's>> = Vec::new();
     for (k, (_, level)) in levels.iter().enumerate() {
-        items.extend(wraps(level).map(|w| text(prefix(w, name.kind))));
+        items.extend(wraps(level).map(|w| text(prefix(w))));
         if k < last {
             items.push(text("("));
         }
@@ -605,7 +605,6 @@ fn expand<'n, 's>(
         for wrap in wraps(level).rev() {
             if let Wrap::Part(q) = wrap {
                 let (word, names) = match q {
-                    Qualifier::OrderAlong { .. } => continue,
                     Qualifier::Borders(walls) => (" bordering ", walls),
                     Qualifier::Keeps(edges) => (" along ", edges),
                     Qualifier::Ends(ends) => (" between ", ends),
@@ -668,19 +667,12 @@ fn join_words(Join { at, read }: Join, by: Speaker<'_>) -> String {
 }
 
 /// The words a carry says before the leaf.
-fn prefix(wrap: &Wrap<'_>, kind: EntityKind) -> String {
+fn prefix(wrap: &Wrap<'_>) -> String {
     match wrap {
         Wrap::Split => "the split's part of ".to_owned(),
         Wrap::ToolCopy => "the split's copy of ".to_owned(),
         Wrap::Instance(i) => format!("instance {i}'s copy of "),
         Wrap::Cut => "the surviving part of ".to_owned(),
-        Wrap::Part(Qualifier::OrderAlong { rank, of }) => {
-            let what = match kind {
-                EntityKind::Vertex => "crossing",
-                EntityKind::Face | EntityKind::Edge | EntityKind::Body => "part",
-            };
-            format!("{what} {rank} of {of} of ")
-        }
         Wrap::Part(Qualifier::Borders(_) | Qualifier::Keeps(_) | Qualifier::Ends(_)) => {
             "the part of ".to_owned()
         }
@@ -802,21 +794,46 @@ fn head<'n, 's>(
     items
 }
 
-/// A crossing's sense as the verb its edge takes before the body it is
+/// A crossing's sense as the verb its line takes before what it is
 /// read against.
-fn sense_verb(sense: super::role::Sense) -> &'static str {
+fn sense_verb(sense: &Sense) -> &'static str {
     match sense {
-        super::role::Sense::Enters => "enters",
-        super::role::Sense::Leaves => "leaves",
-        super::role::Sense::Outside => "meets from outside",
-        super::role::Sense::Inside => "meets from inside",
+        Sense::Enters => "enters",
+        Sense::Leaves => "leaves",
+        Sense::Outside => "meets from outside",
+        Sense::Inside => "meets from inside",
+        Sense::Through { .. } => "crosses",
     }
 }
 
-/// What a vertex where edges meet a body is called: a crossing where
-/// any of its edges passes through, a touch where none does.
-fn meeting(senses: &[super::role::Sense]) -> &'static str {
-    if senses.iter().any(|s| s.crosses()) {
+/// What a `Through` sense says between its line and its verb: the
+/// things it enters along, each cited; nothing for any other sense.
+fn entering<'n, 's>(sense: &'n Sense, cites: &mut Cites<'_, '_, 's>) -> Vec<Item<'n, 's>> {
+    let Sense::Through { entering } = sense else {
+        return Vec::new();
+    };
+    if entering.is_empty() {
+        return vec![text(", entering along none of its things,")];
+    }
+    let mut out = vec![text(", entering along ")];
+    for (i, n) in entering.iter().enumerate() {
+        if i > 0 {
+            out.push(text(if i + 1 == entering.len() {
+                " and "
+            } else {
+                ", "
+            }));
+        }
+        out.push(cites.one(n));
+    }
+    out.push(text(","));
+    out
+}
+
+/// What a vertex where lines meet a body is called: a crossing where
+/// any of its lines passes through, a touch where none does.
+fn meeting<'a>(senses: impl IntoIterator<Item = &'a Sense>) -> &'static str {
+    if senses.into_iter().any(Sense::crosses) {
         "the crossing where "
     } else {
         "the touch where "
@@ -877,39 +894,33 @@ fn role<'n, 's>(
             text(" and "),
             cites.one(b),
         ],
-        RoleSeg::Crossing { edge, face, sense } => vec![
-            text(meeting(&[*sense])),
-            cites.one(edge),
-            text(format!(" {} the body of ", sense_verb(*sense))),
-            cites.one(face),
-        ],
+        RoleSeg::Crossing { edge, face, sense } => {
+            let mut out = vec![text(meeting([sense])), cites.one(edge)];
+            out.extend(entering(sense, cites));
+            out.push(text(format!(" {} the body of ", sense_verb(sense))));
+            out.push(cites.one(face));
+            out
+        }
         // A seam of this node in the run is said by its two faces, each
         // a citation of the run's own; a seam another node minted is
         // cited whole, as any other line is.
         RoleSeg::EdgeCrossing(run) => {
-            let senses: Vec<_> = run.iter().filter_map(|l| l.sense).collect();
-            let mut out = vec![text(meeting(&senses))];
+            let mut out = vec![text(meeting(run.iter().map(|l| &l.sense)))];
             for (i, l) in run.iter().enumerate() {
                 if i > 0 {
                     out.push(text(if i + 1 == run.len() { " and " } else { ", " }));
                 }
-                match (l.sense, l.line.path.as_slice()) {
-                    (Some(sense), _) => {
-                        out.push(cites.one(&l.line));
-                        out.push(text(format!(" {} the rest", sense_verb(sense))));
-                    }
-                    (None, [RoleSeg::Seam { a, b }]) if l.line.node == f => {
+                match l.line.path.as_slice() {
+                    [RoleSeg::Seam { a, b }] if l.line.node == f => {
                         out.push(text("the seam of "));
                         out.push(cites.one(a));
                         out.push(text(" and "));
                         out.push(cites.one(b));
-                        out.push(text(" runs through"));
                     }
-                    (None, _) => {
-                        out.push(cites.one(&l.line));
-                        out.push(text(" runs through"));
-                    }
+                    _ => out.push(cites.one(&l.line)),
                 }
+                out.extend(entering(&l.sense, cites));
+                out.push(text(format!(" {} the rest", sense_verb(&l.sense))));
             }
             out
         }
@@ -929,11 +940,12 @@ fn role<'n, 's>(
         RoleSeg::SectionEdge { face } => {
             vec![text("the split's section edge across "), cites.one(face)]
         }
-        RoleSeg::CrossingVertex { edge, sense } => vec![
-            text("the split's crossing where "),
-            cites.one(edge),
-            text(format!(" {} the half", sense_verb(*sense))),
-        ],
+        RoleSeg::CrossingVertex { edge, sense } => {
+            let mut out = vec![text("the split's crossing where "), cites.one(edge)];
+            out.extend(entering(sense, cites));
+            out.push(text(format!(" {} the half", sense_verb(sense))));
+            out
+        }
         RoleSeg::BlendFace(edge) => vec![text("the blend face over "), cites.one(edge)],
         RoleSeg::CornerFace(v) => vec![text("the corner face at "), cites.one(v)],
         RoleSeg::TrimEdge { edge, support } => vec![
@@ -1010,11 +1022,6 @@ fn role<'n, 's>(
         RoleSeg::BandCut(of) => vec![text("the surviving part of "), cites.one(of)],
         RoleSeg::Fragment(q) => {
             let (word, names) = match q {
-                Qualifier::OrderAlong { .. } => {
-                    return one(prefix(&Wrap::Part(q), leaf.kind)
-                        .trim_end_matches(" of ")
-                        .to_owned());
-                }
                 Qualifier::Borders(walls) => ("the part bordering ", walls),
                 Qualifier::Keeps(edges) => ("the part along ", edges),
                 Qualifier::Ends(ends) => ("the part between ", ends),
@@ -1103,7 +1110,7 @@ mod tests {
                 vec![RoleSeg::EdgeCrossing(vec![
                     RunLine {
                         line: NameRef::new(rim(1)),
-                        sense: Some(a_sense),
+                        sense: a_sense,
                     },
                     RunLine {
                         line: NameRef::new(rim(2)),
@@ -1126,29 +1133,42 @@ mod tests {
                 " meets from inside the body of ",
             ),
         ] {
-            let s = said(&crossing(sense));
+            let s = said(&crossing(sense.clone()));
             assert!(s.starts_with(head) && s.contains(verb), "{sense:?}: {s}");
         }
-        let touch = said(&edges(Sense::Outside, Some(Sense::Outside)));
+        let touch = said(&edges(Sense::Outside, Sense::Outside));
         assert!(
             touch.starts_with("the touch where ")
                 && touch.matches(" meets from outside the rest").count() == 2
                 && touch.contains(" the rest and "),
             "{touch}"
         );
-        let mixed = said(&edges(Sense::Enters, Some(Sense::Inside)));
+        let mixed = said(&edges(Sense::Enters, Sense::Inside));
         assert!(
             mixed.starts_with("the crossing where ")
                 && mixed.contains(" enters the rest and ")
                 && mixed.contains(" meets from inside the rest"),
             "{mixed}"
         );
-        let seam = said(&edges(Sense::Outside, None));
+        let through = said(&edges(
+            Sense::Outside,
+            Sense::Through {
+                entering: vec![NameRef::new(wall(2))],
+            },
+        ));
         assert!(
-            seam.starts_with("the touch where ")
-                && seam.contains(" meets from outside the rest and ")
-                && seam.contains(" runs through"),
-            "{seam}"
+            through.starts_with("the crossing where ")
+                && through.contains(" meets from outside the rest and ")
+                && through.contains(", entering along ")
+                && through.contains(", crosses the rest"),
+            "{through}"
+        );
+        let none = said(&crossing(Sense::Through {
+            entering: Vec::new(),
+        }));
+        assert!(
+            none.contains(", entering along none of its things, crosses the body of "),
+            "{none}"
         );
         assert_ne!(
             said(&crossing(Sense::Outside)),
@@ -1218,8 +1238,8 @@ mod tests {
         assert_ne!(said(&one), said(&two));
     }
 
-    /// The parts of one cut face differ in what they border, or in
-    /// their rank, and a split's two parts in their side: each is said.
+    /// The parts of one cut face differ in what they border, and a
+    /// split's two parts in their side: each is said.
     #[test]
     fn the_parts_of_one_face_are_told_apart() {
         let part = |q| {
@@ -1240,11 +1260,6 @@ mod tests {
             "the part of (the end cap of node 000000000001, through read 000000000000 at node \
              000000000003) bordering the side wall over the profile step 000000000001 of node \
              000000000001"
-        );
-        assert_eq!(
-            said(&part(Qualifier::OrderAlong { rank: 1, of: 3 })),
-            "part 1 of 3 of (the end cap of node 000000000001, through read 000000000000 at node \
-             000000000003)"
         );
         let piece = name(
             EntityKind::Face,
@@ -1532,12 +1547,13 @@ mod tests {
             )
         };
         let (first, second) = (
-            composite(Qualifier::OrderAlong { rank: 0, of: 2 }),
-            composite(Qualifier::OrderAlong { rank: 1, of: 2 }),
+            composite(Qualifier::Borders(vec![wall(1)])),
+            composite(Qualifier::Borders(vec![wall(2)])),
         );
-        assert_eq!(
-            said(&first),
-            "the composite role of part 0 of 2; the end cap of node 000000000003"
+        assert!(
+            said(&first).starts_with("the composite role of the part bordering "),
+            "{}",
+            said(&first)
         );
         assert_ne!(said(&first), said(&second));
         let seam = |a: StableName, b: StableName| RoleSeg::Seam {

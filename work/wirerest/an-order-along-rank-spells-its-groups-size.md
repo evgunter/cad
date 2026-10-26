@@ -76,3 +76,10 @@ main (`role.rs`'s `Qualifier::OrderAlong`, `canonical.rs`'s
 builds the ruling. This row closes as superseded when that build
 removes `OrderAlong`, and opens again only if a ranked spelling survives
 it.
+
+
+## Closed by PR 5758 (2026-10-26)
+
+`wire/nothing-is-ranked` builds Ev's PR 5705 rule: an orientation is read,
+never chosen, and nothing is ranked. `Qualifier::OrderAlong` is deleted with its `of`; N5's group-size rung reads the recorded group and stays. The status change is the
+orchestrator's.
