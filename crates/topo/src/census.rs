@@ -1053,6 +1053,9 @@ struct Declared {
     /// lies in the closure of their overlap, so incidence is their whole
     /// location test where the touch is inside a face.
     area: BTreeSet<(FaceKey, FaceKey)>,
+    /// The area pairs whose faces face the same way, both orientations:
+    /// each an overlap of its two solids' materials.
+    aligned: BTreeSet<(FaceKey, FaceKey)>,
 }
 
 impl Declared {
@@ -1065,6 +1068,7 @@ impl Declared {
             faces: BTreeSet::new(),
             confirmed: BTreeSet::new(),
             area: BTreeSet::new(),
+            aligned: BTreeSet::new(),
         };
         // Every kind, by name: a new kind fails to compile here until
         // the census says what it backs.
@@ -1138,12 +1142,13 @@ impl Declared {
         for (fa, fb) in both {
             self.confirmed.insert((fa, fb));
             self.confirmed.insert((fb, fa));
-            if matches!(
-                pair_contact(body, geo, fa, fb, band),
-                Some(PairContact::Area { .. })
-            ) {
+            if let Some(PairContact::Area { aligned }) = pair_contact(body, geo, fa, fb, band) {
                 self.area.insert((fa, fb));
                 self.area.insert((fb, fa));
+                if aligned {
+                    self.aligned.insert((fa, fb));
+                    self.aligned.insert((fb, fa));
+                }
             }
         }
     }
@@ -1178,6 +1183,29 @@ impl Declared {
             }
         }
         (!refused).then_some(false)
+    }
+
+    /// **Whether an aligned pair holds a touch where it lies**: some
+    /// aligned pair with one face in `x` and the other in `y` holds `q`
+    /// in the closure of its overlap. A reading that refuses holds
+    /// nothing.
+    #[allow(clippy::too_many_arguments)] // the touch, its two sides and the run's state
+    fn overlap_holds<T: Decide>(
+        &self,
+        body: &Body<T>,
+        geo: &Geo<T>,
+        cells: (EntityId, EntityId),
+        (x, y): (&[FaceKey], &[FaceKey]),
+        q: Point3<T>,
+        band: Band,
+    ) -> bool {
+        x.iter().any(|&fx| {
+            y.iter().any(|&fy| {
+                self.aligned.contains(&(fx, fy))
+                    && in_overlap_closure(body, geo, (fx, fy), cells, q, band, &mut Vec::new())
+                        == Some(true)
+            })
+        })
     }
 
     /// **A lane's reading of a touch of a cell bounding a face in `x`
@@ -4114,13 +4142,16 @@ fn pair_edge_edge<T: Decide>(
         Some(Some(Meeting::Overlap(span, margin))) => {
             // A confirmed pair answers for the overlap's record, never for
             // its sides: no record makes two wedges' overlap valid (D1).
+            // An aligned pair holding it is that overlap, reported once
+            // as the pair's interference.
             let q = ea.p0 + ea.dir * geom::mid_param(span.0, span.1);
             let mut certified = false;
             let answered = declared.confine(body, geo, cells, sides, q, band, errors, |errors| {
                 certified =
                     ee_collinear_lane(body, (ea, eb), (span, margin), geo, declared, band, errors);
             });
-            if certified || answered {
+            if (certified || answered) && !declared.overlap_holds(body, geo, cells, sides, q, band)
+            {
                 errors.extend(ee_overlap_sides(body, (ea, eb), span, band));
             }
         }
@@ -10775,8 +10806,9 @@ fn planar_interiors_meet<T: Decide>(
 
 /// **The two solids a finding decides interfere**: an instance's vertex
 /// inside the other's material, a face of each on one carrier facing the
-/// same way and sharing interior, an edge piercing a face, or a crossing
-/// whose side test read `SameSide`. `None` for every other finding,
+/// same way and sharing interior, an edge piercing a face, a crossing
+/// whose side test read `SameSide`, or an edge of each on one line whose
+/// wedges overlap. `None` for every other finding,
 /// including the ones that only fail to clear a pair
 /// ([`census_uncleared_solids`]). The gather localizes these pairs as
 /// interference; this is that reading's one home.
@@ -10804,14 +10836,26 @@ pub fn census_interference_solids<T: Real>(
                 },
             ..
         } => Some((edge(*a)?, edge(*b)?)),
+        ValidationError::CoincidentWedgesOverlap { edges: [a, b], .. } => {
+            two_solids(edge(*a)?, edge(*b)?)
+        }
         _ => None,
     }
 }
 
+/// `x` and `y` as a pair of solids, `None` when they are one.
+fn two_solids(
+    x: crate::SolidKey,
+    y: crate::SolidKey,
+) -> Option<(crate::SolidKey, crate::SolidKey)> {
+    (x != y).then_some((x, y))
+}
+
 /// **The two solids a finding does not clear of interpenetrating**:
 /// every pair [`census_interference_solids`] decides, and the two the
-/// census could not decide, a crossing whose side test did not decide
-/// and a pair it cannot look at (`CensusUndecidable`). `None` for every
+/// census could not decide, a crossing whose side test did not decide,
+/// two edges on one line whose wedges were not read, and a pair it
+/// cannot look at (`CensusUndecidable`). `None` for every
 /// other finding. [`record_at_rest`] records no touch between such a
 /// pair, since the census reads the pair's overlap off those touches.
 #[must_use]
@@ -10834,6 +10878,9 @@ pub fn census_uncleared_solids<T: Real>(
                 },
             ..
         } => Some((edge(*a)?, edge(*b)?)),
+        ValidationError::CoincidentWedgesOverlapUndecided { edges: [a, b], .. } => {
+            two_solids(edge(*a)?, edge(*b)?)
+        }
         decided => census_interference_solids(body, decided),
     }
 }
@@ -13056,12 +13103,13 @@ mod tests {
     /// **The two readings of an at-rest finding, side by side.** The gather
     /// localizes interference only where the census decided it:
     /// [`census_interference_solids`] reads an instance's vertex in the
-    /// other's material, a pierce and a `SameSide` crossing. The door
-    /// records no touch wherever the census did not clear the pair:
+    /// other's material, a pierce, a `SameSide` crossing and two
+    /// solids' wedges overlapping on one line. The door records no touch
+    /// wherever the census did not clear the pair:
     /// [`census_uncleared_solids`] reads those, plus an `Undecided`
-    /// crossing and a pair it cannot look at, whose entities may be
-    /// edges or vertices. A touch, and a crossing read `OppositeSides`,
-    /// is neither. Red if either reading drops a finding it owes, or if
+    /// crossing, two solids' wedges unread, and a pair it cannot look
+    /// at, whose entities may be edges or vertices. A touch, a crossing
+    /// read `OppositeSides`, and one solid's own wedges, are neither. Red if either reading drops a finding it owes, or if
     /// the decided reading takes in something the census left
     /// undecided.
     #[test]
@@ -13096,6 +13144,21 @@ mod tests {
             margin: None,
         };
         let cross = |side| touch(CensusContact::EdgeEdgeCross { a: ea, b: eb, side });
+        let wedges = |edges| ValidationError::CoincidentWedgesOverlap {
+            edges,
+            witness: String::new(),
+        };
+        let unread = |edges| ValidationError::CoincidentWedgesOverlapUndecided {
+            edges,
+            unread: None,
+            witness: String::new(),
+            why: TouchUnread::InBand,
+        };
+        let own = body
+            .edges()
+            .map(|(k, _)| k)
+            .find(|&e| e != ea && census_cell_solid(&body, crate::Cell::Edge(e)) == Some(s0))
+            .expect("a second edge of the solid");
         let pair = Some((s0, s1));
         // (finding, the decided reading, the uncleared reading)
         let rows = [
@@ -13128,6 +13191,10 @@ mod tests {
             (cross(Some(CrossingSideVerdict::Undecided)), None, pair),
             (cross(Some(CrossingSideVerdict::OppositeSides)), None, None),
             (cross(None), None, None),
+            (wedges([ea, eb]), pair, pair),
+            (unread([ea, eb]), None, pair),
+            (wedges([ea, own]), None, None),
+            (unread([ea, own]), None, None),
             (
                 ValidationError::CensusUndecidable {
                     a: EntityId::Edge(ea),

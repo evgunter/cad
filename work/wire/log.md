@@ -6999,7 +6999,64 @@ Signed (WIRE orchestrator).
     - first-hop dead-key arms need a proven-live reason (chord_faces guards a dead face);
     - output_body joins the loop_coordinates row;
     - stale docs, vestigial Results, borders' hand copy of edge_ends.
+- 2026-10-25 (WIRE orchestrator) FORK-ORIENT opened (draw 28, even: Opus is A, Fable is B) on `a-unions-line-of-several-edges-is-oriented-by-its-least-edge`. Opus and Fable designers are dispatched. The brief names the seamrank axis Ev turned down, and the canonical Reverse rule, as known traps. PR 5700 (state sync) merged.
+- 2026-10-25 (WIRE orchestrator) `wire-bridges` opened PR 5535 (head 727d143153).
+  - The union refusal was a kernel record duplicate: `seam_edges` listed an edge that two zips glue twice (ops.rs dedup, NS5).
+  - The intersect refusal was emit_union re-spelling N2's corner copies bare; the new `name_corner_copies` follows the rule N2 already states.
+  - `ADMITTED_OPERAND_ORDER` is empty. A sliver-below-default-K row was filed.
+  - A FULL review (`wire-bridges-rev`) is dispatched.
+- 2026-10-25 (WIRE orchestrator) FORK-ORIENT converged in one crossover round: an orientation is read, never chosen. Sense is `Through { entering }` on a line with no own direction. Ranks run along the entering side. Reverse, flip_senses, RefuseRun and `of` retire, and a seam in a run gains a sense. B moved to A on spelling and on rank-vs-tie. The residue is A's NS1 sentence, which B rejects and the PR does not add. [ev] PR 5705 is opened with the README edit and fork-log row 195; the row needs_ev.
+- 2026-10-25 (WIRE orchestrator) Ev on PR 5705 asked whether the method is simple, consistent and stable, or will need patches, and whether a simpler rule with a few worse cases exists. Both designers were asked to count the cases, weigh a no-orientation rule and a tie-instead-of-rank rule, and recommend one. The answer goes on the PR once reconciled.
+- 2026-10-25 (WIRE orchestrator) Reply on PR 5705 to Ev's simplicity question. Both designers recommend dropping ranks: sense along each thing on the line, else tie (two rules), replacing the joint method's 9–10 cases. This reverses row 73's rank half; no test reaches it, and the change is additive later. The 18 seam-run groups are unmeasured; a build checks them first. Waiting for Ev's yes before switching the diff.
+- 2026-10-25 (WIRE orchestrator) Ev on PR 5705: "this sounds good but do measure first". Dispatched `wire-orient-measure` (read-only instrumented probe over the suite and corpus). It counts every ranked or tied group, whether per-thing sense separates it, the tie count under the no-rank rule, and the 18 seam-run groups. The diff switches only after the numbers are reported to Ev.
+- 2026-10-25 (WIRE orchestrator) PR 5535 FULL review: mergeable with fixes.
+  - The ops.rs dedup is right. Instrumented, duplicates also appear in five topo families, and no reader depended on them.
+  - MAJOR: the tied-corner arm still collapses copies, against N4's divider rule. The pair boolean does it right.
+  - MINOR: a new unreachable! rests on two decisions agreeing, so it goes typed per the class rule.
+  - Fix pass sent: tied arm, typed refusal, dedup helper, territory line, row wording.
+  - The reviewer also reports main red at 4b7d569 on about 30 slow tests, goldens included, identical at base. The orchestrator is checking a sample on current main.
+- 2026-10-25 (WIRE orchestrator) Checked main (63230e1077). die_name_tables_are_golden, node_standing READERS and intent_s2_c_world are red, and name_words_rows' timing test failed under load. These are already filed by INTENT, against PR 5613 (D′2): `intent/main-red-the-seat-and-name-table-goldens-moved-at-dprime2` and `intent/main-red-node-standing-readers-census-trails-the-dprime2-mate-split`, including wire.rs's 9-vs-10 reader count. Not WIRE's; no action. Lanes are told not to count these as theirs.
+- 2026-10-25 (WIRE orchestrator) Measured on main 4a44083275 (probe only, no name changes). All 18 seam-run groups are told apart by per-side sense, including NO_START's 6 ties. The integration suite and corpus have no other ranked or tied group, so new ties are 0 there and 8 in rank unit tests. Posted on PR 5705. The diff is switched to the no-rank rule (head 473c5e886c), the body is updated in place, and the fork-log row is renumbered 197 after a collision with main's 195/196. Waiting on Ev's merge.
+- 2026-10-26 (WIRE orchestrator) PR 5535 fix pass at 198b36a630.
+  - The tied-corner arm was fixed by regrouping on member corners, with no witness (no fixture found).
+  - The Tied unreachable! is gone by construction. The SeamEdges helper is in, and the rows are re-worded.
+  - The lane filed a pair-boolean tied-corner row.
+  - Because the grouping key changed without a witness, a focused re-review of the delta is dispatched (`wire-bridges-rerev`), targeted tests only.
 - 2026-10-25 (PRED orchestrator) Seam note: branch `pred/full-revolve-cavity-per-axis-gap` adds one paragraph to `crates/editor-core/src/names/README.md`'s "N1, the revolve poles". A full revolve meeting the axis in several runs now builds one cavity per gap. Its inner run ends are cavity poles, and its cavity walls, meridians and rims are named by the profile pieces that sweep them, through loop 0's maps, with no new role. `emit_sweep.rs` is unchanged except for one new test, `a_full_revolves_axis_cavities_are_named`.
+- 2026-10-26 (WIRE orchestrator) The orchestrator read PR 5530's fix pass.
+  - Closures are gone, and there are two why-texts (TIER1, LIVE_ARGUMENT); row 0 was answered no.
+  - chord_faces' dead guard was removed, since its only caller iterates body.faces().
+  - Vestigial Results are gone, and borders and plane_pieces use the shared helpers.
+  - The test-only point-removal door sits under sweep-testing beside its sibling.
+  - Merged at c8a25fe0b4. The helpers row now holds only its 4 D10 raises: parked on patterns-are-index-variables and moved to WIREHOLD. No code cites its path.
+  - The lane filed a cross-program row (issues/track-caller-fns-panic-inside-closures-in-topo-and-sweep, 61 sites).
+- 2026-10-26 (WIRE orchestrator) PR 5535's focused re-review says mergeable: untied grouping is identical, SeamEdges matches the old behaviour, and the targeted suites are green. Merged at 354012bb8c, and both bridge rows are closed. Filed `a-unions-tied-fold-rows-at-a-member-corner-bypass-the-corner-rule` (P3/M) and corrected the pair-boolean tied-corner row's no-fixture claim.
+- 2026-10-26 (WIRE orchestrator) Dispatched `wire-paircorner` (wire/pair-boolean-walls-and-tied-corners) for the pair boolean's bare-name walls and its by-name tied-corner pass.
+  - Ruling: walls cite the boolean's own From name. N3 ('a wall cites its parent') with NS1(b) settles it; no fork.
+  - The end-to-end wall witness may wait on D10 copies.
+  - Priced the two unpriced lane rows (both P3).
+- 2026-10-26 (WIRE orchestrator) `wire-paircorner` opened PR 5732 (head 5b3c7c9649).
+  - Walls cite the boolean's own From. There is a unit witness only; a collision needs D10 copies.
+  - The corner pass is keyed by candidate, and one name_corner_copies body is now shared with the union.
+  - This also fixes the REFS carried-pinch refusal: CARRIED_PINCH admissions are removed.
+  - A FULL review (`wire-paircorner-rev`) is dispatched, including python, which CI skipped.
+- 2026-10-26 (WIRE orchestrator) PR 5732 FULL review: the code is right.
+  - Instrumented table dumps over 2700+431 tests show untied keying identical and the shared body identical; python 927 OK; the witnesses go red.
+  - MAJOR: two slow corpus goldens (lib_g16 digests, name_words_corpus) move with the wall spelling and were not disclosed. A fix pass re-pins them with a what-moved note.
+  - The REFS row's pair-subtract witness still refuses; Intersect [prism, cube, big] is fixed.
+  - A missed by-name grouping (the split's edge_groups) is sent too.
+- 2026-10-26 (WIRE orchestrator) Ev approved PR 5705 ("cool, seems good!"). Fork-log row 197 is filled: Ev took the round-3 joint no-rank answer, neither first recommendation; A/B was Opus A, Fable B. [ev] is dropped from the title, and the PR merges on green CI. The build is next.
+- 2026-10-26 (WIRE orchestrator) PR 5705 merged at 964083e53a. The row's needs_ev is cleared. Dispatched `wire-norank` (wire/nothing-is-ranked) to build the approved rule. It closes the orient row, the seamrank sided-axis row and the wirerest `of` row. FULL review.
+- 2026-10-26 (WIRE orchestrator) Ruling for `wire-norank`: a union-minted seam in a run has no recorded class, and fold rows read order. Its sense is read from which of its pieces the result keeps at the vertex (order-free, off the finished body, NS2). Member and pair seams read edge_classes as stored. The rule is stated in N2's text, and the zero-pieces case goes typed or is argued impossible.
+- 2026-10-26 (WIRE orchestrator) The orchestrator read PR 5732's fix pass. Four corpus goldens were re-pinned, spelling only, checked against the base over 782 slow tests. The REFS claim is narrowed. The split's by-name chord grouping is filed (`a-splits-chords-of-tied-faces-pool-as-one-parent`), not fixed, since it would turn unique names into ties. Merged at 94f46f49ab; both rows closed.
+- 2026-10-26 (WIRE orchestrator) wire-norank: the seam-scene authoring cases go red to green. The subtract history case is green on both sides, because name_invariance's remap_name ran flip_senses on base and hid the raw flip. It is accepted as a pin, with the reason in the PR body, and an optional raw-table check if it is cheap.
+- 2026-10-26 (WIRE orchestrator) `wire-norank` opened PR 5758 (head 9acaee665e). CI is green, including python.
+  - Added: Through{entering}, the edge_reading home with a typed UNSIDED refusal, and Flush::seam_sense read from kept pieces.
+  - Deleted: OrderAlong, every ranker, RankRule and flip_senses.
+  - Witnesses: ADMITTED_HISTORY is empty; the two seam history cases go red to green; there is a raw-table check.
+  - Goldens re-pinned: lib_g16, perf2, seat4, seat7 and name_words.
+  - Seven open rows cite deleted code and need triage.
+  - A FULL review (`wire-norank-rev`) is dispatched.
 - 2026-10-26 — (sweep follow-up, Ev's ask) The tracker sweep's (PR 5747) WIRE recommendations, each checked against main at `d621f67e`:
   - `a-unions-line-of-several-edges-is-oriented-by-its-least-edge` gains a `## Ruled` section: FORK-ORIENT (fork-log row 197, Ev 2026-10-26 "cool, seems good!", PR 5705, `964083e5`), the no-rank rule as N2 now reads. It stays open as the build: `Flush::line_sense`, `rank_along_seam`, `RankRule::{Reverse, RefuseRun}`, `flip_senses` and `rank_crossings` all still stand. It never carried `design: true`. The rows parked on it are untouched.
   - Closed as fixed by PR 5732 (`94f46f49`): `a-pair-booleans-borders-walls-cite-bare-operand-names` (the `wall` closure wraps the operand's name as this boolean's `From`, `emit_topo.rs:1823-1833`) and `a-pair-booleans-tied-corner-is-split-as-one-corner` (`corners` keyed by `(StableName, Candidate)`, `emit_topo.rs:2816`; fixture `a_tied_corners_candidates_are_named_apart_wherever_they_lie`, `:8604`).
@@ -7014,3 +7071,24 @@ Signed (WIRE orchestrator).
 - 2026-10-26 — **Moved here from CLEAVE** by `git mv` in PR 5753, on the CLEAVE orchestrator's ruling: `a-meet-row-on-a-vertex-a-boolean-minted-on-an-edge-omits-the-cell-that-minted-it`, banded P1 (a cell the row omits is a misnamed row).
   - PR 5765's triage left it unbanded on CLEAVE because 5753 edits it.
   - Its measured pinch case has one spelling after 5753. What stays open is the minting cell outside ring ties, which needs `Coincidence` to hold a list of cells. (CLEAVE implementer)
+- 2026-10-26 (WIRE orchestrator) PR 5758 FULL review: MERGEABLE.
+  - Instrumented tables, head vs base, over the ci profile and the slow naming set: 0 new ties and 0 outcome changes. The goldens are sense-spelling only. The raw-sense check goes red on base. UNSIDED never printed under K=1.5 or ε=1e-6. Python passes 927.
+  - Merged at bd36ab7b53.
+  - Closed: the orient row and the wirerest `of` row. Three other programs' rows are moot and closed with notes (doctail rank-rewrite, seamrank rank-extents, scalar K>2 feet).
+  - Re-pointed or partly moot: coincide, splice, issues/seam-anchored, seamrank null-copy, three-names.
+  - The seamrank no-first-side row is likely fixed, unwitnessed; it re-parks on D10.
+  - The pair-boolean least-edge row returns to WIRE at P2, the one place the approved rule is unbuilt.
+  - Filed the Through-walker residue row (P3/E).
+- 2026-10-26 (WIRE orchestrator) Dispatched `wire-pairflush` (wire/pair-flush-line-reads-each-edge). The pair boolean's flush line takes the set and Through, finishing the 5705 rule; it also repoints the README's citation of the moved row. FULL review.
+- 2026-10-26 (WIRE orchestrator) `wire-pairflush` opened PR 5778 (head 5043b1e764).
+  - The pair's flush line is Merged+Through via a shared line_of_several. least_per_line is deleted, and the union's grouping is an adapter, which closes the twin row.
+  - No published table reaches the pair arm (fold steps only), so the witness is emitter-level and goes red on base.
+  - gate ok is red, attributed to main's RESTREAD P0 CoincidentWedgesOverlap.
+  - A FULL review (`wire-pairflush-rev`) is dispatched; it verifies the red first.
+- 2026-10-26 (WIRE orchestrator) PR 5778 FULL review: mergeable once main's P0 clears.
+  - Reachability is confirmed (pair Union fold steps only). Every published table is identical, and the witness goes red.
+  - Fix pass sent:
+    - whether the Merged fold keys in the FragmentGroups grouped record move anything;
+    - the new fold-step refusal routes (coincident twins on the face, touch agreement);
+    - vocabulary; line_of_several's one-thing case, and one line-naming home.
+  - A state sync is owed so the README's work/wire path exists on main.
