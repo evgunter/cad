@@ -46,7 +46,6 @@ from pncad import (
     mm,
     rad,
 )
-from measuring import pinned
 
 
 def plate(width=0.1 * m, margin=3 * mm, holes=4):

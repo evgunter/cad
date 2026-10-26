@@ -4995,11 +4995,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
-        function: "mate_fault_tag",
-        values: &[],
-        delegates: &["node_error_tag"],
-    },
-    TagEntry {
         function: "mass_props_error_tag",
         values: &[
             "band",
@@ -5012,6 +5007,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "ring_on_curved_face",
         ],
         delegates: &[],
+    },
+    TagEntry {
+        function: "mate_fault_tag",
+        values: &[],
+        delegates: &["node_error_tag"],
     },
     TagEntry {
         function: "mc_refusal_tag",
@@ -6160,7 +6160,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("anonymous_var_unread", 2),
     ("approx_lane_unsupported", 2),
     ("assertion_dimension", 2),
-    ("band", 17),
+    ("band", 18),
     ("cap_plane", 3),
     ("certify", 2),
     // One fact: a ring meeting its outer loop and a ring meeting
@@ -6169,7 +6169,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("circle_circle", 2),
     ("contact_contradicted", 2),
     ("containment", 2),
-    ("corrupt", 2),
+    ("corrupt", 3),
     ("cosurface_escalated", 2),
     // One fact (VR3) at the edit and load doors: a definition that
     // reads its own variable back.
@@ -6215,7 +6215,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("evaluation_of_another_document", 5),
     // `face` is also the face frame's operand slot (`operand_slot_tag`):
     // the seat that reads one face, the entity's own word.
-    ("face", 3),
+    ("face", 4),
     // One fact (INTENT-LITERALS C) at the edit door and outside it: a
     // formula reads a fresh-table entry its edit does not hold, or at
     // another kind.
@@ -6248,7 +6248,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("non_finite_placement", 2),
     ("non_rigid_placement", 2),
     ("not_a_body", 2),
-    ("null_scaffold_edge", 2),
+    ("null_scaffold_edge", 3),
     ("op", 3),
     ("part_unresolved", 2),
     // A coincidence: a sweep's path operand and a replay's path fault.
@@ -6267,7 +6267,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("pieces", 2),
     ("placement_rule_mismatch", 2),
     ("plane", 2),
-    ("poisoned", 2),
+    ("poisoned", 3),
     // One fact at the edit and load doors: a pose definition of a shape
     // no door admits (`PoseFault`), refused at the seat and in a file.
     ("pose_shape", 2),
@@ -6283,6 +6283,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // set (`selection_fault_tag`) as a profile's kept step ids.
     ("repeated", 2),
     ("revolve", 2),
+    ("ring_on_curved_face", 2),
     // One fact, as `inside_out_operand`: `topo::Unfinished::Scaffolding`.
     ("scaffolding_operand", 2),
     // One fact at the edit and load doors: a selection not in its

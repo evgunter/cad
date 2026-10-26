@@ -44,7 +44,7 @@ fn main() {
                     &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&swept.body), tol)
                         .expect("the measured body passes tier 3"),
                     tol,
-                    topo::test_support::pinned_resolution(tol),
+                    pncad::topo::Settle::Resolution(pncad::quantity::Length::from_meters(1.024e-6)),
                 )
                 .expect("props");
                 println!(
@@ -103,7 +103,7 @@ fn main() {
         &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&loft.body), tol)
             .expect("the measured body passes tier 3"),
         tol,
-        topo::test_support::pinned_resolution(tol),
+        pncad::topo::Settle::Resolution(pncad::quantity::Length::from_meters(1.024e-6)),
     )
     .expect("props");
     println!(

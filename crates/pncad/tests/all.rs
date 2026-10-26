@@ -56,6 +56,15 @@ use pncad::prelude::*;
 use pncad::tolerance::Tol;
 use test_utils::source::{ItemBody, balanced_end, code_and_literals, code_only, item_body};
 
+/// The resolution these rows read a number at: `1024 ε`, the one
+/// `topo::test_support::pinned_resolution` states for the suites'
+/// pinned numbers. Spelled here because this file reaches the kernel
+/// only through the façade, which does not carry `topo`'s test
+/// support.
+fn pinned_resolution(tol: Tol) -> Settle<f64> {
+    Settle::Resolution(pncad::quantity::Length::from_meters(1024.0 * tol.eps()))
+}
+
 /// Consumes a value without executing anything — the sink that makes
 /// each payload's type appear in a signature.
 fn named<T>(_: T) {}
@@ -816,7 +825,7 @@ fn a_tube_is_minted_and_built_from_prelude_names_alone() {
         &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&built.body), tol)
             .expect("the measured body passes tier 3"),
         tol,
-        topo::test_support::pinned_resolution(tol),
+        pinned_resolution(tol),
     )
     .expect("mass properties");
     // Pappus: V = 2 pi^2 R r^2.
@@ -1213,12 +1222,8 @@ fn the_authoring_ladder_runs_on_one_dependency() {
     let finished =
         pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&built.body), Tol::witness())
             .expect("the measured body passes tier 3");
-    let props = mass_properties(
-        &finished,
-        Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
-    )
-    .expect("mass properties");
+    let props = mass_properties(&finished, Tol::witness(), pinned_resolution(Tol::witness()))
+        .expect("mass properties");
     assert!(
         (props.enclosure.volume - 3.0).abs() < 1e-12,
         "volume {}",
@@ -1422,7 +1427,7 @@ fn the_import_answer_and_its_record_are_spellable_through_the_prelude() {
     named::<Body<f64>>(body.clone());
     named::<HeldCertificate<f64>>(certificate.clone());
     let measured: pncad::topo::Measured<f64> = certificate
-        .measure(&body, topo::test_support::pinned_resolution(Tol::witness()))
+        .measure(&body, pinned_resolution(Tol::witness()))
         .expect("a box measures through its certificate");
     named::<Stop>(measured.stop);
     let enclosure: MassProperties<f64> = measured.enclosure;
@@ -1464,7 +1469,7 @@ fn the_import_answer_and_its_record_are_spellable_through_the_prelude() {
         &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&body), Tol::witness())
             .expect("the measured body passes tier 3"),
         Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
+        pinned_resolution(Tol::witness()),
     )
     .expect("imported mass properties");
     assert_eq!(enclosure.volume.to_bits(), again.enclosure.volume.to_bits());
@@ -1583,7 +1588,7 @@ fn a_boolean_result_validates_at_tier_3_prime() {
     let props = mass_properties(
         &result.body,
         Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
+        pinned_resolution(Tol::witness()),
     )
     .expect("mass properties");
     assert!(
@@ -2401,7 +2406,7 @@ fn a_recorded_paths_chain_becomes_a_profile_program_node() {
         )
         .expect("the measured body passes tier 3"),
         Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
+        pinned_resolution(Tol::witness()),
     )
     .expect("mass properties")
     .enclosure
@@ -2441,7 +2446,7 @@ fn the_persist_doors_round_trip_through_the_facade() {
         )
         .expect("the measured body passes tier 3"),
         Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
+        pinned_resolution(Tol::witness()),
     )
     .expect("mass properties")
     .enclosure
@@ -2481,7 +2486,7 @@ fn the_persist_doors_round_trip_through_the_facade() {
         )
         .expect("the measured body passes tier 3"),
         Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
+        pinned_resolution(Tol::witness()),
     )
     .expect("mass properties")
     .enclosure
@@ -2510,7 +2515,7 @@ fn the_export_door_serves_the_one_shot_journey() {
                 &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&body), Tol::witness())
                     .expect("the measured body passes tier 3"),
                 Tol::witness(),
-                topo::test_support::pinned_resolution(Tol::witness()),
+                pinned_resolution(Tol::witness()),
             )
             .expect("imported mass properties")
             .enclosure
@@ -2578,7 +2583,7 @@ fn the_document_export_door_ships_the_multi_solid_product() {
                 &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&body), Tol::witness())
                     .expect("the measured body passes tier 3"),
                 Tol::witness(),
-                topo::test_support::pinned_resolution(Tol::witness()),
+                pinned_resolution(Tol::witness()),
             )
             .expect("imported mass properties")
             .enclosure
@@ -2946,7 +2951,7 @@ fn plate_param_authors_facade_only_and_its_saved_text_is_pinned() {
         &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(body.as_ref()), Tol::witness())
             .expect("the measured body passes tier 3"),
         Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
+        pinned_resolution(Tol::witness()),
     )
     .expect("mass properties")
     .enclosure
@@ -3757,7 +3762,7 @@ fn asm2a_row1_two_instances_through_a_real_workspace() {
             &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(b), Tol::witness())
                 .expect("the measured body passes tier 3"),
             Tol::witness(),
-            topo::test_support::pinned_resolution(Tol::witness()),
+            pinned_resolution(Tol::witness()),
         )
         .expect("mass properties")
         .enclosure
@@ -3909,7 +3914,7 @@ fn asm2a_child_product_probe() {
         &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&body), Tol::witness())
             .expect("the measured body passes tier 3"),
         Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
+        pinned_resolution(Tol::witness()),
     )
     .expect("mass properties")
     .enclosure
@@ -4057,7 +4062,7 @@ fn asm_r2a_child_mated_probe() {
         &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&body), Tol::witness())
             .expect("the measured body passes tier 3"),
         Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
+        pinned_resolution(Tol::witness()),
     )
     .expect("mass properties")
     .enclosure
@@ -4173,7 +4178,7 @@ fn asm_r2b_child_crossing_probe() {
         &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&assembled), Tol::witness())
             .expect("the measured body passes tier 3"),
         Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
+        pinned_resolution(Tol::witness()),
     )
     .expect("mass properties")
     .enclosure
@@ -4300,7 +4305,7 @@ fn asm2b_row2_sub_assembly_through_a_real_workspace() {
             &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(b), Tol::witness())
                 .expect("the measured body passes tier 3"),
             Tol::witness(),
-            topo::test_support::pinned_resolution(Tol::witness()),
+            pinned_resolution(Tol::witness()),
         )
         .expect("mass properties")
         .enclosure
@@ -4376,7 +4381,7 @@ fn asm2b_child_product_probe() {
         &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&body), Tol::witness())
             .expect("the measured body passes tier 3"),
         Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
+        pinned_resolution(Tol::witness()),
     )
     .expect("mass properties")
     .enclosure
@@ -4489,7 +4494,7 @@ fn asm4_split_and_inline_through_the_real_store() {
             &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(b), Tol::witness())
                 .expect("the measured body passes tier 3"),
             Tol::witness(),
-            topo::test_support::pinned_resolution(Tol::witness()),
+            pinned_resolution(Tol::witness()),
         )
         .expect("mass properties")
         .enclosure
@@ -4654,7 +4659,7 @@ fn asm_upd_row3_update_to_store_picks_up_the_resaved_part() {
             &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(b), Tol::witness())
                 .expect("the measured body passes tier 3"),
             Tol::witness(),
-            topo::test_support::pinned_resolution(Tol::witness()),
+            pinned_resolution(Tol::witness()),
         )
         .expect("mass properties")
         .enclosure
@@ -4794,7 +4799,7 @@ fn asm_upd_child_update_probe() {
         )
         .expect("the measured body passes tier 3"),
         Tol::witness(),
-        topo::test_support::pinned_resolution(Tol::witness()),
+        pinned_resolution(Tol::witness()),
     )
     .expect("mass properties")
     .enclosure
@@ -6770,7 +6775,7 @@ mod the_hollowed_box_through_the_facade {
             &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(body), Tol::witness())
                 .expect("the measured body passes tier 3"),
             Tol::witness(),
-            topo::test_support::pinned_resolution(Tol::witness()),
+            crate::pinned_resolution(Tol::witness()),
         )
         .expect("the cup measures");
         let inner: f64 = 1.0 - 0.25;
