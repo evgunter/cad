@@ -29,9 +29,19 @@ is the same structure as a ring with one tip on the outline: the strut
 side runs out along a tree and back, and the slit side runs two edges
 over each tree edge. One topological reading could serve both, since
 copies share point keys, and would retire the geometric pairing and its
-straight-only limit (`work/hone/split-section-spur-guard-skips-curved-spurs.md`).
+straight-only limit (`work/honejoin/split-section-spur-guard-skips-curved-spurs.md`).
 
 ## Owed
 
 One slit reader: the topological one, extended to a tree hanging off an
 area polygon's loop, with `strip_spurs` and `drop_slits` reading it.
+
+## Duplication triage (INTENT, 2026-10-26)
+
+Classified on Ev's ask, via the CLEAVE note on INTENT's log, against main `e92fb951` and DESIGN `[one-way.places]` / `[one-way.readings]`. The four classes:
+- **design signal:** DESIGN names no single home, so a design conversation is owed;
+- **mechanical:** DESIGN names the home; delete the off-home copy and repoint its users;
+- **D10 debris:** a D10 stage retires one copy;
+- **not duplication.**
+
+**Mechanical, with one caveat.** Both readers are in `splitting/join.rs`. Keep the topological `section_kind` and drop `spur_tips`. The caveat: if a slit can come from two independently built coincident edges, the geometric read becomes coincidence-door work. DESIGN home: `[coincidence.structural]`.

@@ -544,19 +544,16 @@ pub(super) fn gate_operand_pairs<T: Decide + Bounds>(
     Ok(())
 }
 
-/// **The operand gate's BODY-scoped half**, in order:
+/// **The operand gate's BODY-scoped half**: a closed solid at rest, by
+/// the validator's own verdict ([`crate::validate_closed`]). Tier-2
+/// scaffolding — a strut, an empty loop, a null edge, a split shell —
+/// refuses as [`BooleanError::ScaffoldingOperand`], carrying the
+/// findings. A tier-1 finding panics naming the first: every public
+/// door keeps a body tier-1-valid, so only a kernel bug hands one in.
 ///
-/// 1. a closed solid at rest, by the validator's own verdict
-///    ([`crate::validate_closed`]): tier-2 scaffolding — a strut, an
-///    empty loop, a null edge, a split shell — refuses as
-///    [`BooleanError::ScaffoldingOperand`], carrying the findings. A
-///    tier-1 finding panics naming the first: every public door keeps
-///    a body tier-1-valid, so only a kernel bug hands one in;
-/// 2. the edge carriers ([`gate_operand_edges`]): `Line`/`Circle`/
-///    `Ellipse` pass (every lane reads all three; the both-split point
-///    lane still needs a `Line`, and says so where it refuses); a `Nurbs`
-///    or spiric edge refuses [`BooleanError::CurvedEdgeUnsupported`]
-///    wherever it sits;
+/// Edge carriers are not gated: a lane that reads one refuses a kind it
+/// has no row for at its own site, naming the edge and the face
+/// ([`BooleanError::EdgeCarrierUnsupported`]).
 ///
 /// Orientation is not read here: a `Validated` operand's tier-3 verdict
 /// includes check 7 per solid, and [`gate_unverdicted_operand`] reads it
@@ -573,7 +570,6 @@ pub(super) fn gate_operand<T: Decide>(
             errors: scaffolding,
         });
     }
-    gate_operand_edges(body, operand)?;
     Ok(())
 }
 
@@ -595,44 +591,6 @@ pub(super) fn gate_unverdicted_operand<T: Decide + crate::props::AtRestPolicy>(
 ) -> Result<(), BooleanError> {
     body.gate_unverdicted(format_args!("operand {operand:?}"), band, tol)
         .map_err(|unfinished| BooleanError::unfinished(operand, unfinished))
-}
-
-/// [`gate_operand`]'s edge carriers.
-///
-/// **What it still guards.** The sweep's two crossing arms refuse a
-/// spiric or spline edge typed on their own
-/// ([`BooleanError::CrossingCarrierUnsupported`]), so the gate is not
-/// what keeps them sound. Behind the sweep, these sites have no row for
-/// either kind and would answer one as a kernel invariant or read it
-/// wrong:
-///
-/// - the join's germ frame along an edge of either solid
-///   (`join::germ_section_frame`: `JoinDesync`);
-/// - the join's ring run and the chord joiner's run edges
-///   (`join::ring_run_ccw`, `chord_join`'s run-edge reading:
-///   `SectionInvariant`);
-/// - the sector walk at an ON vertex (`sectors::build_sectors`), which
-///   takes a spline's chord as its departure direction.
-///
-/// Retiring it is `work/orbit/delete-the-boolean-operand-edge-gate.md`.
-fn gate_operand_edges<T: Decide>(body: &Body<T>, operand: Operand) -> Result<(), BooleanError> {
-    for (edge_key, edge) in body.edges() {
-        match certified(body.get_curve_geom(edge.curve))?.carrier() {
-            geom::Curve3::Line { .. }
-            | geom::Curve3::Circle { .. }
-            | geom::Curve3::Ellipse { .. } => {}
-            // The sweep's arms read a spiric or a spline only to refuse
-            // it; the sites behind the sweep (docs above) cannot, so the
-            // operand refuses here.
-            geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => {
-                return Err(BooleanError::CurvedEdgeUnsupported {
-                    operand,
-                    edge: edge_key,
-                });
-            }
-        }
-    }
-    Ok(())
 }
 
 /// An operand edge's certified carrier. Tier 2 refuses a null edge and
@@ -1238,10 +1196,14 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     // A spiric or a spline: its endpoints' sides neither
                     // find its crossings nor place them.
                     PlaneCrossingLane::Unlaned => {
-                        return Err(BooleanError::CrossingCarrierUnsupported {
+                        return Err(BooleanError::EdgeCarrierUnsupported {
                             operand: x_is,
-                            edge: edge_key,
+                            edge: x
+                                .split_root(edge_key, |_| false)
+                                .map_err(BooleanError::SplitLineage)?,
                             face,
+                            face_of: x_is.other(),
+                            site: super::EdgeCarrierSite::PlanarCrossing,
                         });
                     }
                     PlaneCrossingLane::Conic(meet) => Some(meet),
@@ -1826,9 +1788,9 @@ pub(super) fn settle_deferred<T: Decide + Bounds + crate::props::AtRestPolicy>(
 /// clearance escalates (F6, the same margin's other half) — except an
 /// uncovered conic's against one of those four kinds, where the
 /// certified roots decide what the enclosures could not. Spiric and
-/// NURBS carriers have no enclosure and take the frontier door before
-/// any clearance test (behind the operand gate, which refuses them
-/// first). Never a silent fallback.
+/// NURBS carriers have no enclosure and refuse
+/// ([`BooleanError::EdgeCarrierUnsupported`]) before any clearance test.
+/// Never a silent fallback.
 ///
 /// **The carrier-identity rung** comes before any enclosure on a
 /// CIRCLE carrier: an edge whose parent face is declared one carrier with
@@ -2037,27 +1999,13 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
     // carrier decided `sign` lies where some parent's cover certifies it.
     let admitted = |sign| covers.iter().any(|c| c.admits(sign));
     let read = |which| edge_face_read(x, x_is, edge, face, declared, which);
-    // NURBS walls (shape (iii)'s substrate): the SECTION arm is
-    // certified since PR 7b (geom_brep::intersect::route says so),
-    // but the boolean's CROSSING layer for the kind — edge×NURBS-face
-    // sweep events and curved trim containment — does not exist. M5
-    // PR 9c was the banked unit for it and did NOT land it (M5-LOG
-    // PR 9c, deviation 5): the residual sides a crossing layer needs
-    // are `implicit_residual` and `classify_dihedral`, both poison on
-    // a NURBS surface, and the only non-poison substitute is a
-    // foot-point projection that exists at `f64` ONLY
-    // (`NurbsSurface::project` is an `impl NurbsSurface<f64>` block),
-    // so wiring it would kill the Interval lane. Refused typed HERE,
-    // before the residual sides — poison is not a refusal.
-    //
-    // **`Approx` refuses on the same terms, stated rather than
-    // inherited.** Its geometry is a spline fit, so `implicit_residual`
-    // and `classify_dihedral` are poison on it too. The operand gate
-    // does refuse the kind earlier, which makes this site unreachable
-    // in the pipeline as it stands — but that is a fact about the
-    // CALLER, and an unstated nesting invariant is exactly how a
-    // poison path gets re-entered when a gate later narrows. The arm
-    // is written for the same reason the extent scan's is.
+    // A NURBS or `Approx` face: the boolean has no crossing layer for
+    // either (edge × face sweep events, curved trim containment). The
+    // residual sides one would read, `implicit_residual` and
+    // `classify_dihedral`, are poison on a spline surface, and the one
+    // substitute, a foot-point projection, exists at `f64` only. Refused
+    // typed here, before the residual sides, naming the face — `y`'s,
+    // the other operand's.
     if let Some(kind) = match surface {
         geom::Surface::Nurbs(_) => Some(geom::SurfaceKind::Nurbs),
         geom::Surface::Approx(_) => Some(geom::SurfaceKind::Approx),
@@ -2068,7 +2016,7 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
         | geom::Surface::Torus { .. } => None,
     } {
         return Err(BooleanError::CurvedBooleanUnsupported {
-            operand: x_is,
+            operand: x_is.other(),
             face,
             kind,
         });
@@ -2395,10 +2343,14 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
         // one needs bounds on the carrier's speed and acceleration over
         // the span), so nothing finds its crossings, as at the planar arm.
         (None, _) => {
-            return Err(BooleanError::CrossingCarrierUnsupported {
+            return Err(BooleanError::EdgeCarrierUnsupported {
                 operand: x_is,
-                edge: edge_key,
+                edge: x
+                    .split_root(edge_key, |_| false)
+                    .map_err(BooleanError::SplitLineage)?,
                 face,
+                face_of: x_is.other(),
+                site: super::EdgeCarrierSite::CurvedCrossing,
             });
         }
     }
@@ -3483,8 +3435,9 @@ fn wall_crossing<T: Decide + Bounds>(
     // The wall and sphere quadratics take any non-zero `dir`; the torus
     // quartic ([`super::solid_contain::line_torus_roots`]) assumes it UNIT,
     // the `Line` carrier's convention, which nothing checks.
-    // `None`: a kind pair with no root lane, which takes the refusals'
-    // path below, as a door's refusal does.
+    // `None`: a kind pair with no root lane (a spiric or a spline
+    // against any carrier), which takes the refusals' path below, as a
+    // door's refusal does.
     let found = match *carrier {
         geom::Curve3::Line { origin, dir } => {
             match line_wall_roots_of(origin, dir, (t0, t1), surface, band)? {
@@ -3515,7 +3468,7 @@ fn wall_crossing<T: Decide + Bounds>(
             )?),
             _ => None,
         },
-        _ => return Ok(SpanVerdict::Unsettled),
+        geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => None,
     };
     let found = match found {
         Some(Ok(found)) => found,
@@ -4427,38 +4380,19 @@ fn split_other_at_point<T: Decide + crate::props::AtRestPolicy>(
             }
         }
         // A span of at most one period is what makes the MIDPOINT
-        // anchor's branch the right one, and it is CHECKED rather than
-        // assumed: past a period the azimuth aliases by 2π silently,
-        // and `split_edge`'s interiority gate cannot see it (an aliased
-        // parameter is still inside a span that long). The row is the
-        // period guard the boundary pre-pass's conic arm already spells,
-        // metered the same way; a full turn is `Zero` and passes.
-        match decide(
-            "bool_split_span_period",
-            Margin::levered(T::tau() - (t1 - t0), radius),
-            band,
-        ) {
-            Ok(Sign::Positive | Sign::Zero) => {}
-            Ok(Sign::Negative) => {
-                return Err(BooleanError::ClassificationInvariant {
-                    what: "circle edge span exceeds one period; the split azimuth \
-                           would alias by a turn",
-                });
-            }
-            Err(diag) => {
-                return Err(BooleanError::Escalated {
-                    decision: BooleanDecision::ArcSpan,
-                    diag,
-                });
-            }
-        }
+        // anchor's branch the right one (past a period the azimuth
+        // aliases by 2π silently, and `split_edge`'s interiority gate
+        // cannot see it): the edge's certificate holds its turn, which
+        // is never over one ([`geom_brep::CertifiedTurn`]).
     }
     let t = curve
         .carrier()
         .param_near(p, geom::mid_param(t0, t1))
         .ok_or(BooleanError::PointSplitCarrierUnsupported {
             operand: y_is,
-            edge,
+            edge: y
+                .split_root(edge, |_| false)
+                .map_err(BooleanError::SplitLineage)?,
         })?;
     split_logged(y, y_is, edge, t, Some(p), tol, contacts)
 }
@@ -4996,7 +4930,7 @@ pub(super) mod coplanar_conic_rows;
 
 #[cfg(test)]
 #[path = "planar_lane_carrier_rows.rs"]
-mod planar_lane_carrier_rows;
+pub(crate) mod planar_lane_carrier_rows;
 
 /// **A curved face's escalations read no declaration ahead of them, and
 /// offer none**, on the review's executed raises (its
@@ -5814,6 +5748,50 @@ mod edge_span_tests {
         assert!(
             matches!(got, Ok(SpanVerdict::Pierce { .. })),
             "the root is interior, and the half-wall's trim holds it: {got:?}"
+        );
+    }
+
+    /// **A spline span with no root lane is localized against the face,
+    /// not refused.** The quadratic in the plane `z = 1/2` through the
+    /// unit cylinder's point at azimuth `−1/2`, with offset
+    /// `(2s − 1)²/10` along its normal, touches the wall there from
+    /// outside, past the quarter sheet over azimuths `[0, π/2]`: no root
+    /// door reads a spline, so the touch is the carrier-touch door's,
+    /// and it lies off the face.
+    #[test]
+    fn a_spline_touch_past_the_face_is_off_it() {
+        use geom_core::spline::{KnotVector, Knots};
+        let band = Band::linear(Tol::witness()).expect("the witness band");
+        let mut y = Body::<f64>::new();
+        let frame = crate::test_support_fixtures::CylFrame::canonical(1.0);
+        let face = crate::test_support_fixtures::cyl_wall_sheet(
+            &mut y,
+            frame,
+            (0.0, core::f64::consts::FRAC_PI_2),
+            (0.0, 1.0),
+            Tol::witness(),
+        );
+        crate::test_support_fixtures::set_sheet_sense(&mut y, face, true, Tol::witness());
+        let (sin, cos) = (-0.5_f64).sin_cos();
+        let (p, n, t) = (
+            Point3::new(cos, sin, 0.5),
+            Vec3::new(cos, sin, 0.0),
+            Vec3::new(-sin, cos, 0.0),
+        );
+        let knots =
+            KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).expect("clamped knots");
+        let spline = geom::Curve3::Nurbs(std::sync::Arc::new(
+            geom::NurbsCurve3::new(
+                Knots::from(knots),
+                vec![p + n * 0.1 - t * 0.3, p - n * 0.1, p + n * 0.1 + t * 0.3],
+                vec![1.0; 3],
+            )
+            .expect("a quadratic Bézier"),
+        ));
+        let got = wall_crossing(&y, face, &frame.surface(), &spline, 0.0, 1.0, band);
+        assert!(
+            matches!(got, Ok(SpanVerdict::OffFace)),
+            "the touch lies past the sheet: {got:?}"
         );
     }
 }

@@ -9,3 +9,9 @@ scripts were written for is gone, so an armed monitor costs a re-arm turn every 
 and drops events in each gap (Ev, 2026-09-18). Until the issue is resolved,
 check what a monitor would have told you by hand, at the moments you are
 awake anyway — a lane's report, a merge.
+
+`usage-watch.sh` reads the local mngr agent layout (`$MNGR_AGENTS_ROOT`,
+default `~/.mngr/agents`), so it only works on Ev's machine. A hosted
+session has no such directory, and the script would find nothing to
+watch. Act only on its alerts that name your own account; its header
+says what each alert asks of you.

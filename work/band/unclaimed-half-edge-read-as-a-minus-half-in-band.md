@@ -32,6 +32,11 @@ addendum's silent-discard shape, not a wrong answer on valid input.
 
 ## This slate's sites
 
+Line numbers re-read on main 2026-10-26 (tracker sweep); all five
+sites stand, at `surgery.rs:2087`, `:2195`, `:3633`, `:4145` and
+`:5064`. The original citations follow.
+
+
 - `crates/sweep/src/blend/surgery.rs`, the rim mate, ~:1741 (shared with CARVE). The mate: `if ed.he_plus == host_half { he_minus } else { he_plus }`.
 - `crates/sweep/src/blend/surgery.rs`, the link mate, ~:1832. The mate: `if e.he_plus == link.he_plus { he_minus } else { he_plus }`.
 - `crates/sweep/src/blend/surgery.rs`, the rim arc record, ~:2372. The direction: `plus_on_host: ed.he_plus == host_half`.

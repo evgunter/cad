@@ -2,9 +2,10 @@
 id: a-census-contact-is-a-row-and-a-record
 kind: ruling
 title: A contact the at-rest census finds between groups no op joined is a row and a record citing it; what the quieting assertion reads
-status: open
+status: closed
 opened: 2026-10-11
 priority: P1
+closed: 2026-10-26
 ---
 
 
@@ -65,3 +66,7 @@ is unit `the-census-records-what-it-decides`, then J.
 **Sequencing (Ev, PR 4666, 2026-10-19: the confirmation inside an arrival "might be ok as a transitional state if explicitly scheduled to be removed when boolean etc are fixed").** D10 states the final rule: inside an arrival the census decides nothing and reads nothing. Until every door certifies its own result, `each-space-runs-its-census-between-arrivals` keeps a transitional check inside each arrival. It confirms the arrival's carried records, matches carried findings, and reports a touch matching neither as that arrival's door's defect, typed and never a panic. That check is removed by `the-in-arrival-census-check-retires`, which is blocked on the doors it stands in for. `an-escalated-census-finding-names-no-pair` is a prerequisite of matching an escalated carried finding while the check stands.
 
 **Ev (PR 4666, 2026-10-19).** Spaces that never reach the world are checked: "1. this is good". The in-arrival confirmation: transitional only, scheduled for removal (above).
+
+## Closed
+
+2026-10-26 (ATREST orchestrator). Every question on this ruling is answered: Ev approved the cell-reading quieting wording and the census per space on PR 4666 (2026-10-19, quoted above), and D10 `[assertions]` carries both. The units it names are filed and owned by INTENT (`each-space-runs-its-census-between-arrivals`, `a-placement-carries-its-sources-at-rest-result`, `the-in-arrival-census-check-retires`).

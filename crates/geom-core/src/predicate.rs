@@ -98,10 +98,18 @@
 //! home**; every door, type and conversion below points here rather
 //! than restating it:
 //!
-//! - **inf** for a "definitely apart" claim, where a certified LOWER
-//!   bound under-states the length and so cannot certify a sliver;
-//! - **sup** for an overshoot or an escape, where a certified UPPER
-//!   bound over-states the displacement and so can only refuse.
+//! - **sup certifies smallness**: a certified UPPER bound over-states
+//!   the length, so a `Zero` read through it — an overshoot within the
+//!   band, an escape that did not happen, an extent that is metrically
+//!   a whole turn — is sound, and a definite verdict through it can
+//!   only refuse;
+//! - **a definite verdict past the band needs inf**: a certified LOWER
+//!   bound under-states the length, so it is what certifies "definitely
+//!   apart" (and cannot certify a sliver);
+//! - **where the two disagree, the decision escalates** — a quantity
+//!   read through both whose readings straddle the band
+//!   ([`crate::k_stats::straddle`]; [`crate::period`]'s turn rule is the
+//!   shared form).
 //!
 //! Both are transparent tags rather than positivity witnesses: a rate
 //! of zero, infinity or poison means something different at each site
@@ -119,10 +127,13 @@
 //! error is the in-band verdict.
 //!
 //! Naming (see [`Indeterminate::with_predicate`]): a predicate's static
-//! name identifies the *decision* that classified the margin, and the leaf
-//! predicate function attaches it at its own definition site. Composite
-//! predicates do not rename — higher layers add context through their own
-//! typed error wrappers (D4 ¶3), never by overwriting the leaf's name.
+//! name identifies the *decision* that classified the margin, and the
+//! site that asks the decision attaches it — the leaf predicate at its
+//! own definition, or a caller of a shared rule, which passes its own
+//! name into the rule ([`crate::period::TurnRows`]) so each site's
+//! population stays separable. Composite predicates do not rename —
+//! higher layers add context through their own typed error wrappers
+//! (D4 ¶3), never by overwriting the name a decision was asked under.
 //!
 //! # Boundary and special-value semantics (f64)
 //!

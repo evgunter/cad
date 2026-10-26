@@ -94,6 +94,8 @@ mod a_plane_holding_a_conic_tangent_at_a_vertex;
 mod a_plane_moved_to_a_cone_apex;
 #[path = "a_pole_and_an_apex_join_nothing.rs"]
 mod a_pole_and_an_apex_join_nothing;
+#[path = "a_ray_meets_a_curved_edge_once_for_both_faces.rs"]
+mod a_ray_meets_a_curved_edge_once_for_both_faces;
 #[path = "a_rigid_turn_keeps_a_slivers_volume.rs"]
 mod a_rigid_turn_keeps_a_slivers_volume;
 #[path = "a_rim_covering_part_of_its_row_re_mints_the_rows_arc.rs"]
@@ -200,6 +202,10 @@ mod cone_operand_rows;
 mod continuation_pose;
 #[path = "crossing_equal_rods.rs"]
 mod crossing_equal_rods;
+#[path = "curved_edge_corpus.rs"]
+mod curved_edge_corpus;
+#[path = "curved_edge_ray_probes.rs"]
+mod curved_edge_ray_probes;
 #[path = "cylinder_sphere_frame.rs"]
 mod cylinder_sphere_frame;
 #[path = "four_crossings_on_one_section_circle.rs"]
@@ -334,6 +340,8 @@ mod torax_interval;
 mod torus_region_probe;
 #[path = "transform_nurbs_walls.rs"]
 mod transform_nurbs_walls;
+#[path = "trimmed_sphere_aims.rs"]
+mod trimmed_sphere_aims;
 #[path = "tube_rim_touch_rows.rs"]
 mod tube_rim_touch_rows;
 #[path = "two_tubes_in_the_zero_band.rs"]
@@ -707,6 +715,8 @@ mod review_s12_adv;
 mod review_s6_probe;
 #[path = "review_verbs_rim_lever_probes.rs"]
 mod review_verbs_rim_lever_probes;
+#[path = "revolve_axis_gaps.rs"]
+mod revolve_axis_gaps;
 #[path = "revolve_ball.rs"]
 mod revolve_ball;
 #[path = "revolve_cone.rs"]
@@ -1133,6 +1143,8 @@ mod shell8_r2_probes;
 mod shell7_seam_corner;
 #[path = "spiric_rim.rs"]
 mod spiric_rim;
+#[path = "spline_spiric_operands.rs"]
+mod spline_spiric_operands;
 
 #[path = "shell7_r1_diff.rs"]
 mod shell7_r1_diff;
@@ -1246,3 +1258,9 @@ mod a_revolved_wall_arc_join_reads_its_reach;
 mod join_lever_is_the_joined_edge;
 #[path = "review_4737_span_probes.rs"]
 mod review_4737_span_probes;
+
+#[path = "fallback_rows_review.rs"]
+mod fallback_rows_review;
+
+#[path = "fallback_rows_review_head.rs"]
+mod fallback_rows_review_head;

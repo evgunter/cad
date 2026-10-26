@@ -381,7 +381,7 @@ fn ranked_reference_widens_to_the_tied_base_row() {
             vec![],
         )),
     );
-    let ev = Evaluation::<f64>::hand_built(doc.id(), vec![node], nodes);
+    let ev = Evaluation::<f64>::hand_built(doc.id(), vec![node], nodes, Tol::witness());
     let mut ranked = base.clone();
     ranked
         .path
@@ -1126,8 +1126,9 @@ fn the_phantom_detector_sees_through_the_whole_vocabulary() {
 #[test]
 fn suggestions_never_offer_wall_phantoms_and_are_kind_filtered() {
     // The reviewer's band-cut rig: the subtract mints `Borders`-qualified
-    // cap pieces whose walls are BARE operand names of the cutter's
-    // walls — exactly the shape a user paints. Suggestions for a
+    // cap pieces whose walls are the cutter's walls as the subtract
+    // carries them in, each the `From` of a BARE operand name — exactly
+    // the shape a user paints. Suggestions for a
     // painted wall must be derivations WRAPPING it, never pieces of the
     // OTHER body that merely border it, and never a kind Rebind
     // refuses.
@@ -1173,7 +1174,10 @@ fn suggestions_never_offer_wall_phantoms_and_are_kind_filtered() {
                 return None;
             }
             n.path.iter().find_map(|seg| match seg {
-                RoleSeg::Fragment(Qualifier::Borders(v)) => v.first().cloned(),
+                RoleSeg::Fragment(Qualifier::Borders(v)) => match v.first()?.path.as_slice() {
+                    [RoleSeg::From { of, .. }] => Some((**of).clone()),
+                    _ => None,
+                },
                 _ => None,
             })
         })
@@ -1500,7 +1504,7 @@ fn one_node_eval(
             vec![],
         )),
     );
-    Evaluation::<f64>::hand_built(document, vec![node], nodes)
+    Evaluation::<f64>::hand_built(document, vec![node], nodes, Tol::witness())
 }
 
 fn body_ent(i: u32) -> editor_core::EntityRef {

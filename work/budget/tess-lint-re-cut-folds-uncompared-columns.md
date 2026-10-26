@@ -85,3 +85,27 @@ Three things, and the third is the one that decides the shape:
 ## Fence
 
 `tools/tess-lint/*`. INSTR's.
+
+## Merged from `tess-budget-baseline-drifts-from-mains-own-numbers-between-cuts` (2026-10-26, tracker sweep)
+
+That INSTR row (filed 2026-09-21 by RING-2, SCALAR) is the same defect
+seen from a lane that re-cut. It is closed onto this one.
+
+**What it measured.** The baseline committed at `5a0048b70e5e`
+(2026-09-15) was compared with a `--sizing-only` sweep of main at
+`ed93c4cde7` (2026-09-21, 3 367 commits later), over 1 605 rows:
+- 98 certified-block cells moved, all on `lily` faces, by at most
+  `6.4e-13` relative, and 55 of them LOOSER. A further 7
+  `realized_aspect` cells moved.
+- No gated column moved, so `tess-lint` said nothing.
+
+When RING-2 (PR #3032) re-cut, its commit and PR body charged all of
+that drift to RING-2. Measured with only `ring_interval.rs` swapped
+back, RING-2's own share was 80 rows per certified column, all tighter,
+plus one `cap_bands`.
+
+**Two candidate repairs beyond this row's report:**
+- re-cut on a schedule, so the committed numbers are always main's own
+  and a lane's diff is that lane's;
+- drop the uncompared columns from the committed file, if nothing reads
+  them. That is a question about who reads `docs/tess-budget-data/`.

@@ -448,6 +448,19 @@ fn certify_errors() -> Vec<CertifyError> {
             chart: geom::SurfaceKind::Cone,
             carrier: geom::CurveKind::Ellipse,
         },
+        CertifyError::NoGeneralLane {
+            chart: geom::SurfaceKind::Torus,
+            carrier: geom::CurveKind::Circle,
+            gap: geom_brep::LaneGap::Unwritten,
+        },
+        CertifyError::NoGeneralLane {
+            chart: geom::SurfaceKind::Sphere,
+            carrier: geom::CurveKind::Circle,
+            gap: geom_brep::LaneGap::Pose {
+                piece: 1,
+                channel: geom_brep::SectorChannel::Azimuth,
+            },
+        },
         CertifyError::UnresolvedSurface { key },
         CertifyError::Unimplemented,
         CertifyError::NurbsLaneNotSupplied,
@@ -610,15 +623,33 @@ fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
         PcurveCertifyError::UnsupportedChart {
             chart: geom::SurfaceKind::Torus,
         },
-        PcurveCertifyError::CarrierGrazesChart {
+        PcurveCertifyError::NoGeneralLane {
             chart: geom::SurfaceKind::Torus,
             carrier: geom::CurveKind::Circle,
-            grazer: geom_brep::Grazer::TorusCircle,
+            gap: geom_brep::LaneGap::Unwritten,
+        },
+        PcurveCertifyError::NoGeneralLane {
+            chart: geom::SurfaceKind::Sphere,
+            carrier: geom::CurveKind::Circle,
+            gap: geom_brep::LaneGap::Pose {
+                piece: 1,
+                channel: geom_brep::SectorChannel::Azimuth,
+            },
         },
         PcurveCertifyError::CarrierOffChart {
             chart: geom::SurfaceKind::Sphere,
             carrier: geom::CurveKind::Line,
             why: "a sphere holds no line",
+            margin: None,
+        },
+        PcurveCertifyError::CarrierOffChart {
+            chart: geom::SurfaceKind::Cone,
+            carrier: geom::CurveKind::Circle,
+            why: "the rim's height is not shown away from the apex's, where the apex plane \
+                  meets the cone only at the apex",
+            margin: Some(geom_brep::OffMargin::InBand(geom_core::MarginDiag::value(
+                4e-10,
+            ))),
         },
         PcurveCertifyError::ImageMismatch {
             image: geom_brep::PcurveKind::General,

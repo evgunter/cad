@@ -3,7 +3,7 @@ id: chart-definite-diag-labels-an-interval-lower-end-as-an-f64-value
 kind: issue
 title: topo: chart_region's definite_diag reports an interval margin's lower end as a point Value, the wrong lane's reading
 status: open
-priority: P3
+priority: P1
 cost: E
 opened: 2026-09-29
 ---

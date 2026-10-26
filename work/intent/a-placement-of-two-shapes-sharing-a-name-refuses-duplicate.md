@@ -2,11 +2,12 @@
 id: a-placement-of-two-shapes-sharing-a-name-refuses-duplicate
 kind: issue
 title: A placement of several shapes names each copy's entities by the shape's name alone, so two shapes carrying one name refuse Duplicate
-status: open
+status: parked
 opened: 2026-10-22
 priority: P1
 cost: M
 refs: [a-mirror-is-a-construction, a-placement-adds-no-name-segment-is-said-three-ways]
+blocked_on: [assemble-is-an-operator-and-the-product-is-a-slot]
 ---
 
 

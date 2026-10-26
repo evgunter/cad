@@ -3706,10 +3706,10 @@ struct Cell<T: Real> {
 /// The crossings themselves are the meeting reading's
 /// ([`edge_crossings`]).
 const EF_CROSS_CONIC: crate::splitting::containment::ConicRows =
-    crate::splitting::containment::ConicRows {
-        span: "pm_census_ef_cross_arc_span",
-        straddle: "pm_census_ef_cross_arc_straddle",
-    };
+    crate::splitting::containment::ConicRows::bounded(
+        "pm_census_ef_cross_arc_span",
+        "pm_census_ef_cross_arc_straddle",
+    );
 
 /// The cells of edge `e` lying in face `f`'s interior: the edge cut at
 /// every face vertex on its interior ([`on_edge_interior_reading`]) and
@@ -3977,11 +3977,11 @@ fn meetings<T: Decide>(
             CarrierSpan::new(&chord, (T::zero(), (b - a).norm())),
             CutAt::Crossing(side.key),
         ),
-        (LoopEdge::Conic(_) | LoopEdge::Spiric(_) | LoopEdge::Unrowed { .. }, Some(curve)) => (
+        (LoopEdge::Conic(_) | LoopEdge::Spiric(_) | LoopEdge::Spline(_), Some(curve)) => (
             CarrierSpan::new(curve.carrier(), curve.params()),
             CutAt::CurvedCrossing(side.key),
         ),
-        (LoopEdge::Conic(_) | LoopEdge::Spiric(_) | LoopEdge::Unrowed { .. }, None) => {
+        (LoopEdge::Conic(_) | LoopEdge::Spiric(_) | LoopEdge::Spline(_), None) => {
             return Err(CrossRefusal::Unsupported(ContainError::LoopUnreadable(
                 side.r#loop,
             )));
@@ -6052,11 +6052,8 @@ pub(crate) fn edge_reach_in<T: Decide>(
 
 /// [`edge_reach_in`] past its edge's lookup: `e` is `ek`'s record.
 ///
-/// No public door builds a spiric-bearing operand that reaches the
-/// contact census at this head (the boolean's operand gate refuses the
-/// kind; a hollowed partial revolve stops at tier 3's check 7 before
-/// the census), so the spiric arm is exercised by the box module's
-/// hand-built sector rows.
+/// The spiric arm is exercised by the box module's hand-built sector
+/// rows.
 fn edge_reach_of<T: Decide>(
     body: &Body<T>,
     ek: crate::entity::EdgeKey,
@@ -6567,6 +6564,7 @@ const TOUCH_PIECE_MEET: &str = "census_touch_piece_meet";
 const TOUCH_NORMAL: &str = "census_touch_normal";
 
 mod curved;
+pub(crate) use curved::{EdgeSpan, edge_span};
 mod depth_gap;
 #[cfg(test)]
 mod depth_gap_fuzz;
@@ -8524,8 +8522,8 @@ fn backstop_apart<T: Decide>(
 /// arm yet, and both fire a typed [`ValidationError::CensusUndecidable`]
 /// here instead of passing silently:
 ///
-/// 1. **Proximity** (the C9-ring conformal-rest / partial-embedding
-///    class): a pair of faces from DIFFERENT solids, not
+/// 1. **Proximity** (the conformal-rest / partial-embedding class the
+///    C9 exclusion ring would certify): a pair of faces from DIFFERENT solids, not
 ///    vertex-adjacent, whose reach boxes cannot be definitely
 ///    separated, and which the exact sweeps cannot see — every pair
 ///    with a curved side (F5: curved × planar included, since a

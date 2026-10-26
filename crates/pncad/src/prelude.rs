@@ -380,11 +380,15 @@ pub use sweep::blend::{BlendDecision, BlendSite, Breach, CornerConfig, RunOutPol
 // refusal.
 // `SideWall` and `BandWall` are `Extruded::walls` and `Revolved::bands`
 // — the one wall per run of pieces each verb builds — so a caller
-// reading those handles can name their element type.
+// reading those handles can name their element type. `Cavity` and
+// `CavityOrigin` are `Revolved::cavities`' element and its key — which
+// pocket, a hole loop or an axis gap, a cavity shell revolves — and
+// `CavityOrigin` is also `RevolveError::VoidInsertion`'s subject, so a
+// caller can match which cavity refused.
 pub use sweep::{
-    BandWall, ExtrudeError, ExtrudeSide, Extruded, Extrusion, LoftError, Lofted, Revolution,
-    RevolveAxis, RevolveError, Revolved, RevolvedKind, SideWall, TubeError, TubeWindow, extrude,
-    loft_body, revolve, sweep_body, tube_along_arc, tube_along_arc_hollow,
+    BandWall, Cavity, CavityOrigin, ExtrudeError, ExtrudeSide, Extruded, Extrusion, LoftError,
+    Lofted, Revolution, RevolveAxis, RevolveError, Revolved, RevolvedKind, SideWall, TubeError,
+    TubeWindow, extrude, loft_body, revolve, sweep_body, tube_along_arc, tube_along_arc_hollow,
 };
 
 // --- 4. Bodies and Booleans -----------------------------------
@@ -482,9 +486,10 @@ pub use geom::SurfaceKind;
 // re-deriving.
 pub use topo::{
     AtRestBody, Backing, Body, BooleanBody, BooleanError, BooleanOp, BooleanResult,
-    BooleanResultKind, Cited, Cites, ContactRecords, Curve3, EdgeDescription, EdgeKey, EntityId,
-    FaceKey, GeomRef, LoopKey, Operand, PairRefusalSite, PlaneRelation, ShellOrientation, Surface,
-    TransformError, VertexKey, intersect, subtract, transform_rigid, union,
+    BooleanResultKind, Cited, Cites, ContactRecords, Curve3, EdgeCarrierSite, EdgeDescription,
+    EdgeKey, EntityId, FaceKey, GeomRef, LoopKey, Operand, PairRefusalSite, PlaneRelation,
+    ShellOrientation, Surface, TransformError, VertexKey, intersect, subtract, transform_rigid,
+    union,
 };
 
 // --- 5. The validation ladder ---------------------------------
@@ -566,9 +571,11 @@ pub use topo::{
 // the curated-type rule (the `coherence` note below) says a caller
 // able to hold the answer must be able to spell its vocabulary;
 // `VolumeReading` is that answer read as a number or a bracket.
+// `Settle` is what a measurement is asked (`[tolerance.measure]`), with
+// the vocabulary its variants carry.
 pub use topo::{
-    MassProperties, MassPropsError, TargetUnreached, VolumeEnclosure, VolumeReading,
-    mass_properties,
+    MassProperties, MassPropsError, RelOp, RoleNames, Settle, SignNames, TargetUnreached,
+    VolumeEnclosure, VolumeReading, mass_properties,
 };
 
 // --- 7. Tessellation and export -------------------------------

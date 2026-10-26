@@ -2,9 +2,10 @@
 id: a-fold-steps-ring-tie-row-names-a-pierce-vertex-its-operand-does-not-hold
 kind: issue
 title: A union fold step's ring-tie row names a pierce vertex the reduction minted off every edge split, so no operand table names it and the union holds it out of its log
-status: open
+status: review
 opened: 2026-10-19
 priority: P1
+branch: cleave/ring-tie-spells-its-pierce-vertex
 ---
 
 

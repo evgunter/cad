@@ -42,7 +42,7 @@
 //!   `SketchPlane::xy()` (`sf2a_r2_probes.rs` = `verbs_shell.rs`,
 //!   `m8_4_intersection_iso.rs` = `r1_p2_probes.rs`, plus six
 //!   singletons) — a different family and not this unit's, tracked as
-//!   `work/tint/sweep-boolean-suite-brick-and-prism-copies.md`;
+//!   `work/fixture/sweep-boolean-suite-brick-and-prism-copies.md`;
 //! - `super::approx::prism`, which builds the `Surface::Approx`
 //!   surgery's base rather than a boolean operand.
 

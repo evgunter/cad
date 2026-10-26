@@ -4,7 +4,7 @@ kind: issue
 title: boolean::ops declared_surface_pairs emits one surviving declared pair per FACE sharing the key - nine identical pairs per three-arc bore wall
 status: open
 opened: 2026-09-07
-refs: [cylindrical-rest-pair-hits-planar-merge, 2105]
+refs: [2105]
 priority: P0
 cost: D
 ---

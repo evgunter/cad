@@ -24,6 +24,7 @@ pub mod interval;
 pub mod k_stats;
 pub mod linalg;
 pub mod one_line;
+pub mod period;
 pub mod predicate;
 pub mod readable;
 pub mod real;

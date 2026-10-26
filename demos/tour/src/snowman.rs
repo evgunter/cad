@@ -159,7 +159,7 @@ fn roll_centre() -> (f64, f64) {
 /// `p` to `q`, the short way round. With `ρ = a + s cos θ` and
 /// `y = b + s sin θ` the integrand is a polynomial in `cos θ`, and its
 /// antiderivative is closed-form.
-fn arc_rho2_dy(c: (f64, f64), s: f64, p: (f64, f64), q: (f64, f64)) -> f64 {
+pub(crate) fn arc_rho2_dy(c: (f64, f64), s: f64, p: (f64, f64), q: (f64, f64)) -> f64 {
     let a = c.0;
     let f = |t: f64| {
         a * a * s * t.sin()

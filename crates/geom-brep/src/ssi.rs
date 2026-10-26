@@ -1117,7 +1117,7 @@ impl core::fmt::Display for SsiError {
             } => write!(
                 f,
                 "ssi: the march gave the branch {samples} samples, short of the cubic fit's four, \
-                 and no gap between them halves ({in_band} within the tolerance, {unsettled} \
+                 and no gap between them halves ({in_band} in the band, {unsettled} \
                  not settling where the surfaces cross clearly, {off_domain} settling outside \
                  the wall)"
             ),
@@ -1168,7 +1168,7 @@ impl core::fmt::Display for SsiError {
                     ) => write!(
                         f,
                         "ssi: no selected gap of the branch's {samples} samples halves \
-                         ({in_band} within the tolerance, {unsettled} not settling where the \
+                         ({in_band} in the band, {unsettled} not settling where the \
                          surfaces cross clearly, {off_domain} settling outside the domain): \
                          {refusal}"
                     ),
@@ -1182,7 +1182,7 @@ impl core::fmt::Display for SsiError {
                     ) => write!(
                         f,
                         "ssi: refined over {rounds} round{} to {samples} samples, then no \
-                         refused gap halved further ({in_band} within the tolerance, \
+                         refused gap halved further ({in_band} in the band, \
                          {unsettled} not settling where the surfaces cross clearly, \
                          {off_domain} settling outside the domain): {refusal}",
                         if rounds == 1 { "" } else { "s" }
@@ -2104,10 +2104,12 @@ const SEED_RECOURSE: &str = "Recourse: seed the trace at a point nearer where th
 const SEED_OFF_DOMAIN_RECOURSE: &str = "Recourse: seed the trace at a point that settles inside \
      the domain, or name a domain that holds where it settles";
 
-/// [`SsiError::WrongLane`]'s ending: each door traces one pairing of
-/// kinds, and the routing table ([`crate::intersect::route`]) names
-/// the door for a pair, or says no door traces it yet.
-const WRONG_LANE_RECOURSE: &str = "Recourse: look the pair up in the routing table \
+/// [`SsiError::WrongLane`]'s and
+/// [`crate::intersect::SectionError::WrongLane`]'s ending: each door
+/// traces one pairing of kinds, and the routing table
+/// ([`crate::intersect::route`]) names the door for a pair, or says no
+/// door traces it yet.
+pub(crate) const WRONG_LANE_RECOURSE: &str = "Recourse: look the pair up in the routing table \
      (`geom_brep::route`), which names the door that traces it or says none does yet";
 
 /// A spline face whose certified stretch across the traced locus is

@@ -2,10 +2,11 @@
 id: the-f32-seam-diff-shifted-84-cited-lines-in-seven-programs
 kind: issue
 title: vgeom/f32-seam shifted the bands 84 substantive citations point into, across 39 rows in seven programs
-status: open
+status: closed
 opened: 2026-09-21
 priority: P4
 cost: D
+closed: 2026-10-26
 ---
 
 
@@ -123,3 +124,7 @@ positions by subject.
 general row for the class and should absorb this one if a sweep takes
 both. `crates-cite-work-view-rows-that-moved-in-the-rescope` holds six
 of the 84 and is about the same lines from the other direction.
+
+## Closed (2026-10-26, tracker sweep)
+
+**Superseded by `stale-file-citations-after-the-split`**, which this row's *Neighbours* section says should absorb it. This row is a census of one diff against one base, and by its own text its numbers are an upper bound to be re-derived by subject at placing time. Since filing, its population has mostly left the tracker. The 22 `work/view/` entries went with VIEW (`docs/doc-ledger/view-leaves-the-tracker.md`), the closed VNEWS rows are records, and four VDOC rows it lists close in this sweep. The remaining live entries are already `stale-file-citations-after-the-split`'s class. That row now carries a pointer to this file's list, which stays readable here while VDOC is open and at `bb25fa4f` after.

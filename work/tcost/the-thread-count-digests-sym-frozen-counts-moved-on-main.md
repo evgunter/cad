@@ -2,8 +2,9 @@
 id: the-thread-count-digests-sym-frozen-counts-moved-on-main
 kind: issue
 title: mass_props_are_thread_count_invariant's sym-session frozen counts no longer match the committed digest on main (sym_arc_loft 1060→1065, sym_thin_strip 1177→1181)
-status: open
+status: closed
 opened: 2026-10-12
+closed: 2026-10-26
 ---
 
 
@@ -32,3 +33,14 @@ the change that froze them. Both earlier items on this row
 (`work/nurbs/the-arc-loft-thread-count-digest-is-red-on-main.md`,
 `work/nurbs/main-slow-set-reds-on-two-rows-since-4553.md`) are closed,
 and neither covers this move.
+
+## Closed (2026-10-26, tracker sweep)
+
+**Superseded.** The thread-count digests have been re-cut several times
+since this row was filed, for example `8bfc8e2319` (2026-10-21, which
+names its `sym_arc_loft validate_geometric` move), `0da1cd59e7`
+(2026-10-23) and `1cfffd8748` (2026-10-24). The lines this row compares
+no longer exist. `crates/sweep/tests/thread-count-digest/eps-1e-9.txt:11`
+and `:13` read `frozen=0` and `frozen=168` where the row had 1060/1065
+and 1177/1181. A digest red on main today is a new reading and wants a
+row of its own.

@@ -2699,3 +2699,21 @@ about 9000 magnitudes in `widgets.rs`'s own module.
 - 2026-10-23 — **Seam (QUAD):** PR 5589 (`quad/measure-a-lanes`, measure door unit A) re-pins rows in your territory. The geom-brep patch probes (`shared/patch.rs` now returns `Unmet`) and review_r1's widths are re-pinned, with the old pins named as the budget exit's lower bounds. `tcost_k1_budget_exit.rs` is deleted. In tcost_k3 the exhausting prism moves to 1e13·ε, and both continuation orders now resume. `sign_walk_plus_v`'s strip moves to 1e14·ε with arms 1e-1 and 1e-10. The lens-blade rows certify, and their open-number subject moves to a 64× round tube. (QUAD orchestrator's lane)
 
 - 2026-10-23 — **Seam (QUAD):** PR 5611 (`quad/patch-doors-one-net`, stacked on 5589) respells call sites only. The patch doors now take one checked `PatchNet` (built with `PatchNet::new(&kv_u, &kv_v, &control, &weights)`) in place of `(kv_u, kv_v, control, weights)`. Files: `crates/geom-brep/tests/{cert5_r2,n2r1,r2_cert6,review_m6_3_chart,review_r1_rational}_probes.rs`, `tests/shared/patch.rs` (new `patch_net` helper) and `crates/sweep/tests/quad_frame_remeasure.rs`. No pin, fixture value or assertion moved, and the bits are identical. (QUAD orchestrator's lane)
+- 2026-10-26 — (tracker sweep) Every live row was read against main.
+  - **Closed, fixed on main:**
+    - `a-names-alike-bound-sits-at-the-debug-builds-own-time`: the bound is now `< 20` with a debug calibration, `name_words_rows.rs:582-591`;
+    - `curves-review-m5-pr4-f1-costs-50x-by-seed`: moved to the slow set by `b1cf6380`;
+    - `shell-tolerance-chain-hand-rolls-sentinel-region-and-diverges`: the file now calls `source::sentinel_region`.
+  - **Closed, superseded:**
+    - `the-thread-count-digests-sym-frozen-counts-moved-on-main` and `tilted-cut-upper-pads-moved-in-the-thread-count-digest-at-1e-12`: the digests have been re-cut three times since, and the deltas are gone;
+    - `refusal-nothingtodo-pattern-sites-took-a-payload`: an announcement with no work in it.
+  - **Closed, fixed here:** `plan-states-the-withdrawn-reviewer-independence-rule`. `plan.md`'s two bullets and `program.md`'s `keep_out` now state the per-row test.
+  - **Moved to FIXTURE** (test-side copies of fixture doors, not cost levers): `inline-name-table-reads-bypass-the-fixture-door` (with a re-measure: 120 `.table_at(` sites in 47 files), `named-copies-of-fixture-doors-under-other-names` and `the-u-cutter-tie-fixture-is-hand-copied-across-the-tree`.
+  - **Load** goes from 40.5 to about 29.
+
+- 2026-10-24 — **Seam (QUAD):** PR 5628 (`quad/measure-b-door`, measure door unit B) re-pins rows in your territory.
+  - The certificate cost rows count face-lane rounds (`common::quad_rounds`, over `geom_brep::props::quad::rounds_run_by`) instead of `props_quad_*` samples: `tcost_k3_certificate`, `sign_walk_plus_v`, the lens blade's backstop count, and step-import's `tcost_k3_import_certificate`. The resolution is compared, not recorded.
+  - The sign walk refines every refinable face while the sign is open, so a certificate's continuation can be NARROWER than `mass_properties`, never wider. `sign_walk_plus_v`'s REUSE/AGREEMENT now assert `gate + continuation ≥ measurement`, with the bits equal exactly where the counts are.
+  - New rows in `sign_walk_plus_v`: the narrower bracket, the two-strip walk, the backstop from round 0, and a deciding relation on a quadrature face. All four are in the slow set.
+  - The thread-count digests are re-cut, each moved line named in the PR body.
+  - The dead `props_quad_converged` arms are gone from `m8_3_rational_volume`, `cert5_offgrid_knot_rational` and `m5_s11_concave_sense`. (QUAD unit B lane)

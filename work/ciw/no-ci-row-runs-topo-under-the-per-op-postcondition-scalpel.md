@@ -47,7 +47,7 @@ doc names (`cargo test -p sweep --features topo/per-op-postcondition`).
 | `--all-features`, with the fix | 1103 run, 1103 pass | (unchanged) |
 
 The 15 extra rows at `--all-features` are `probe`-gated; the lib's
-seven are the shape `work/guard/feature-gated-lib-unit-tests-are-compiled-and-never-run.md`
+seven are the shape `work/unread/feature-gated-lib-unit-tests-are-compiled-and-never-run.md`
 already holds. Cost of the scalpel build: one more `topo` lib-test
 compile; the slowest row under it, `kill_anchors_on_a_few_torn_bodies`,
 ran 33–41 s against 16–23 s at default features.

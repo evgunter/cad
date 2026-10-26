@@ -98,9 +98,9 @@ pub mod torus_convention;
 
 pub use carrier_net::CarrierEnclosureRefusal;
 pub use certify::{
-    CERT_SAMPLES, CertCheck, Certificate, CertifyError, DraftedIntersection, EdgeCurve,
-    EdgeCurveSpec, ForwardReading, IntersectionDraft, NurbsLane, StatedImage, StatedSpan,
-    WindingReading, edge_extent, folded_parallelism, sample_param, schedule_param,
+    CERT_SAMPLES, CertCheck, Certificate, CertifiedTurn, CertifyError, DraftedIntersection,
+    EdgeCurve, EdgeCurveSpec, ForwardReading, IntersectionDraft, NurbsLane, StatedImage,
+    StatedSpan, WindingReading, edge_extent, folded_parallelism, sample_param, schedule_param,
 };
 pub use conic_bend::{BendBounds, ConicBend, ConicDeparture, conic_bend_side};
 pub use description::{
@@ -176,11 +176,11 @@ pub use pcurve::{
 pub use pcurve_cache::{
     ANGLE_WINDOW_START, AxisMap, Azimuth, BranchMiss, Channel, ChartMap, ChartMapRefusal,
     ChartStretchInf, ChartWindow, EnvelopeStatement, EnvelopeTerm, FocalImage, FramedCarrier,
-    Grazer, ISO_FAMILY_CLAUSE, IsoFamily, IsoFamilyRefusal, NoChartSup, Pcurve, PcurveCache,
-    PcurveCertificate, PcurveCertifyError, PcurveCheck, PcurveKind, Period, ProjectedChart,
-    ProjectedImage, SectorChannel, SpiricImage, WalkStop, WallTorus, angle_rate, chart_iso_family,
-    chart_pcurve, chart_pcurve_over, chart_stretch_inf, chart_stretch_sup, chart_stretch_sup_v,
-    chart_sup_arms_at, harmonic_form_of, iso_arc_spans,
+    ISO_FAMILY_CLAUSE, IsoFamily, IsoFamilyRefusal, LaneGap, NoChartSup, OffMargin, Pcurve,
+    PcurveCache, PcurveCertificate, PcurveCertifyError, PcurveCheck, PcurveKind, Period,
+    ProjectedChart, ProjectedImage, SectorChannel, SpiricImage, WalkStop, WallTorus, angle_rate,
+    chart_iso_family, chart_pcurve, chart_pcurve_over, chart_stretch_inf, chart_stretch_sup,
+    chart_stretch_sup_v, chart_sup_arms_at, harmonic_form_of, iso_arc_spans,
 };
 pub use props::{
     FaceContribution, LoopEdge, PropsError, curved_face, planar_face, require_iso_rectangle,

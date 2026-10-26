@@ -777,7 +777,7 @@ impl JoinRefusal {
             ),
             Self::CarrierUnsupported { carrier, closed } => format!(
                 "two edges meet at a vertex on one {} carrier, which the join cannot run an \
-                 edge on {} yet (work/hone/joining-a-spline-carrier-is-unbuilt); there is no \
+                 edge on {} yet (work/splice/joining-a-spline-carrier-is-unbuilt); there is no \
                  way through this yet",
                 carrier.name(),
                 if *closed {
@@ -1500,7 +1500,7 @@ mod undecided_text {
 
     /// A chart image that did not derive is classed undecided at the
     /// Boolean and ends in whatever its derivation refusal carries, here
-    /// none: `work/hone/the-join-lever-names-a-pole-for-a-chart-class-reading.md`
+    /// none: `work/honejoin/the-join-lever-names-a-pole-for-a-chart-class-reading.md`
     /// owns giving it one verdict, and re-baselines this text.
     #[test]
     fn a_chart_image_that_did_not_derive_ends_without_a_recourse_today() {

@@ -152,4 +152,4 @@ there because no identity reads the root.
 - The pole's strict branch, `reduce_periodic` and sugar's ±π:
   `the-period-jump-has-no-ruling`.
 - Found reading the readers: the section ruling's seam-blind root order,
-  `work/hone/ruling-root-order-compares-raw-parameters-across-the-seam.md`.
+  `work/honeroot/ruling-root-order-compares-raw-parameters-across-the-seam.md`.

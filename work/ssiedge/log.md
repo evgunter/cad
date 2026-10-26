@@ -69,3 +69,4 @@ Rows moved with `git mv` and keep their ids.
   - **Bounds:** `SsiOperand`, `ChartedNurbs` and `certify::Lane` are bounded by `CertifiedBounds`.
   - **Guard:** `every_rung_reads_the_operands_one_build_of_each_cell`.
   - **Next:** products-once with de Casteljau halving, then the cut becomes exact restriction (`analysis/design-fork/nurbs-quotient-cost`, converged). — (NURBS orchestrator)
+- 2026-10-25 — **Band rule (work/README.md, Priority):** `plane-nurbs-certificate-bound-does-not-refine-with-eps` (P1) un-parked from KNOT's P2 `f64-refinement-inside-an-enclosure-has-five-more-sites` and from PR 3524. It waited on site 5 (the convex form at `insert_once_ring`), which PR 3524 closed. The site still open there (`mesh/src/chords.rs`) plays no part in limb 2. The schedule-contract design question is now open to take, after the lerp-era table is re-taken. (band-rule triage)

@@ -123,6 +123,7 @@
 //! ruling, which refuses.
 
 use geom_brep::{EdgeCurveSpec, Pcurve, chart_pcurve_over};
+use geom_core::period::{Exact, Extent, Period, TurnRows};
 use geom_core::{
     Band, BandError, Decide, Indeterminate, InfSpeed, Margin, Point3, Real, Sign, UnitVec3, Vec3,
 };
@@ -487,6 +488,19 @@ pub enum SplitJoinError {
         /// The curved kind whose section has no arm.
         wall: geom::SurfaceKind,
     },
+    /// A run edge of a curved face whose image on the face's chart is
+    /// none of the chart's own curves: its class reading took the
+    /// general lane, read in band or definite, or found none written
+    /// for the pair ([`geom_brep::PcurveCertifyError::NoGeneralLane`]).
+    /// The window walk reads a closed-form azimuth, so a general image
+    /// is a lane it does not read yet: a lane choice (D3), refused
+    /// lever-only "not yet", never an invariant break or a tolerance.
+    RunImageNotYet {
+        /// The face being divided.
+        face: FaceKey,
+        /// Its surface kind.
+        kind: geom::SurfaceKind,
+    },
     /// A ring whose island the ring lane does not read: on a curved face
     /// it winds an island, and re-homes a ring, on a cylinder wall's
     /// chart and on a sphere, a cone or a torus by a path's parity; on a
@@ -498,6 +512,15 @@ pub enum SplitJoinError {
         face: FaceKey,
         /// Its surface kind.
         kind: geom::SurfaceKind,
+    },
+    /// A run edge between two chords on a plane face is a spiric or a
+    /// spline, and the join has no row reading whether such an edge lies
+    /// in the cut's plane: its midpoint's side says nothing of the rest.
+    RunEdgeCarrierUnsupported {
+        /// The face whose loop the run is on.
+        face: FaceKey,
+        /// The edge: its split pieces' root.
+        edge: EdgeKey,
     },
     /// Whether a split plane is tangent to a curved face along the
     /// ruling it cuts the face on is in band, at a station of the
@@ -784,11 +807,25 @@ impl core::fmt::Display for SplitJoinError {
                     crate::boolean::meeting_recourse(wall),
                 )
             }
+            Self::RunImageNotYet { kind, .. } => write!(
+                f,
+                "an edge of a {} face sits on the face as none of its own curves, and the \
+                 join does not yet read such an edge's reach around the face. {}",
+                crate::boolean::kind_word(*kind),
+                geom_core::NOT_YET_ENDING
+            ),
             Self::RingIslandUnread { kind, .. } => write!(
                 f,
                 "a cut passes through a {kind:?} face without reaching its boundary, leaving \
                  a ring whose island the join does not read there. Recourse: move the cut so \
                  it crosses the face's edge, or divide the face there first"
+            ),
+            Self::RunEdgeCarrierUnsupported { .. } => write!(
+                f,
+                "a cut joins two points of a face's boundary across a spiric or spline \
+                 (NURBS) edge, and the join cannot yet tell whether such an edge lies in the \
+                 cut. Recourse: {}",
+                crate::boolean::CONIC_EDGES_RECOURSE
             ),
             Self::TangentChordEscalated { diag, .. } => write!(
                 f,
@@ -2843,17 +2880,15 @@ fn between_edge_is_section<T: Decide>(
     };
     match curve.carrier() {
         geom::Curve3::Line { .. } => Ok(Some(true)),
-        // The join lanes are fenced against the spiric and the spline
-        // (both operand gates refuse the kinds), so a run edge carrying
-        // one is an invariant break, never assumed ON.
         geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => {
-            Err(SplitJoinError::SectionInvariant {
+            Err(SplitJoinError::RunEdgeCarrierUnsupported {
                 face: body
                     .get_loop(he_data.parent_loop)
                     .map(|l| l.face)
                     .ok_or_else(|| corrupt_loop(he_data.parent_loop))?,
-                what: "a join lane reached a spiric or spline run edge (the operand gates \
-                       refuse the kinds)",
+                edge: body
+                    .split_root(he_data.edge, |_| false)
+                    .map_err(|_| corrupt_edge(he_data.edge))?,
             })
         }
         geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. } => {
@@ -2885,13 +2920,11 @@ fn between_edge_is_section<T: Decide>(
 /// sentinel. A sentinel would be actively wrong here: the caller hulls
 /// with `(a.min(lo), b.max(hi))`, which ABSORBS an inverted range
 /// silently instead of propagating it, so "the empty range makes the
-/// window refuse" would have been false. `None` propagates through the
-/// caller as a typed `SectionInvariant` refusal.
-///
-/// The arm is unreachable today — `chart_pcurve` refuses a `Nurbs`
-/// carrier before a fitted image can reach this function — and it is
-/// written anyway because a face bounded by a fitted cyl×sphere edge is
-/// exactly what would make it live.
+/// window refuse" would have been false. The caller reads `None` by the
+/// image: a projected image (a circle's lane choice on a sphere, a
+/// spline's only image) refuses `RunImageNotYet`, and a spiric image
+/// `SectionInvariant`. A fitted image never reaches this function:
+/// `chart_pcurve` derives none.
 fn chart_azimuth_range<T: Real>(p: &Pcurve<T>, t0: T, t1: T) -> Option<(T, T)> {
     p.closed_form_span_box(t0, t1).map(|b| (b.u_min, b.u_max))
 }
@@ -3009,6 +3042,18 @@ fn run_azimuth_images<T: Decide>(
         let (t0, t1) = curve.params();
         let base =
             chart_pcurve_over(curve.carrier(), t0, t1, surface, band).map_err(|e| match e {
+                // The class reading is a lane choice (D3): in band, and
+                // with no general lane written, it ends "not yet".
+                geom_brep::PcurveCertifyError::Escalated {
+                    check: geom_brep::PcurveCheck::ChartClass | geom_brep::PcurveCheck::GeneralLane,
+                    ..
+                }
+                | geom_brep::PcurveCertifyError::NoGeneralLane { .. } => {
+                    SplitJoinError::RunImageNotYet {
+                        face,
+                        kind: surface.kind(),
+                    }
+                }
                 geom_brep::PcurveCertifyError::Escalated { cause, .. } => {
                     SplitJoinError::Escalated { face, diag: cause }
                 }
@@ -3127,12 +3172,27 @@ fn run_azimuth_images<T: Decide>(
                 base.shift_branch(k, geom_brep::Period::new(tau))
             }
         };
-        let (lo, hi) =
-            chart_azimuth_range(&pcurve, t0, t1).ok_or(SplitJoinError::SectionInvariant {
+        // A general-lane image (a circle's class read in band on a sphere,
+        // or a spline's only image: the projected lane) has no closed-form
+        // azimuth box: the walk's lane for it is not written, which is no
+        // invariant break. The other image the derivation above returns
+        // without a box is a spiric carrier's exact `Pcurve::Spiric` (a
+        // torus wall's plane section); it ends `SectionInvariant` today,
+        // though it is one of the chart's own curves and the walk's lane
+        // for it is simply not written
+        // (`work/pcert/a-spiric-run-edge-ends-the-window-walk-as-an-invariant.md`).
+        // A fitted image never comes out of that derivation.
+        let (lo, hi) = chart_azimuth_range(&pcurve, t0, t1).ok_or(match &pcurve {
+            Pcurve::Projected(_) | Pcurve::General(_) => SplitJoinError::RunImageNotYet {
                 face,
-                what: "a boundary edge's chart image is FITTED — the window walk reads a \
-                       closed-form azimuth",
-            })?;
+                kind: surface.kind(),
+            },
+            _ => SplitJoinError::SectionInvariant {
+                face,
+                what: "a boundary edge's chart image has no closed-form azimuth box (a spiric \
+                       image) — the window walk reads a closed-form azimuth",
+            },
+        })?;
         let exit = pcurve.eval(exit_t).x;
         images.push(AzimuthImage {
             entry: pcurve.eval(entry_t).x,
@@ -3273,11 +3333,25 @@ fn pole_branch<T: Decide>(
     };
     let half = T::tau() * T::from_f64(0.5);
     let shifted = if advancing { gap + half } else { gap - half };
+    // **What the lever is.** Not a rate either edge has throughout: a
+    // point's azimuth rate is its distance from the axis, zero at the pole
+    // and at most the edge's reach, so over either edge the lever is that
+    // rate's sup, and its inf is zero. What the marks decide is the two
+    // edges' largest separation, which on the meridians that reach here is
+    // the chord `2ρ·sin(g/2)` at the reach `ρ` both share: `g·lever`
+    // overstates it by a relative `g²/24` at most, and where `g·ρ` is
+    // within a few bands of a mark that is a few bands squared over `ρ²`,
+    // beneath any band's resolution. So the lever is
+    // the decision's inf to that order, and the decision is the side of
+    // the mark the pair's separation lies on. It is no inf on a curved
+    // edge bending back (the lens, [`pole_lever`]'s four times), which
+    // never gets here: a non-meridian circle's chart image is projected,
+    // and the walk refuses it as FITTED.
     geom_brep::Period::new(T::tau())
         .decide(
             "split_sphere_pole_branch",
             shifted,
-            |g| Margin::levered(g, lever),
+            |g| Margin::metered(g, InfSpeed::new(lever)),
             band,
         )
         .map_err(|stop| match stop.miss {
@@ -4984,18 +5058,15 @@ impl ChordJoiner {
             // Interior null edge: kef merges the two slivers. Kill a
             // sliver side (never a real face), deterministically
             // preferring he_plus's side.
-            //
-            // Neither side is a completed null face, though one sits in
-            // `slivers` and the boolean carries its key to quiescence
-            // unremapped: the edge's sides are the slivers its own
-            // polygon's chords walled off at its two ends, and a
-            // completed face is bounded by another polygon's two copies,
-            // which kemr left once that polygon's last null edge was cut.
-            debug_assert!(
-                !self.completed.contains_key(f_plus) && !self.completed.contains_key(f_minus),
-                "{} would kef a completed null face",
-                EntityId::Edge(edge)
-            );
+            if self.completed.contains_key(f_plus) || self.completed.contains_key(f_minus) {
+                unreachable!(
+                    "{} would kef a completed null face: the edge's sides are the slivers its \
+                     own polygon's chords walled off at its two ends, and a completed face is \
+                     bounded by another polygon's two copies, which kemr left once that \
+                     polygon's last null edge was cut",
+                    EntityId::Edge(edge)
+                );
+            }
             let (victim, survivor) = if self.slivers.contains_key(f_plus) {
                 (edge_data.he_plus, f_minus)
             } else if self.slivers.contains_key(f_minus) {
@@ -5143,6 +5214,22 @@ fn ring_vertices<T: Decide>(
     }
 }
 
+/// Whether a run's azimuth window `[lo, hi]` on a wall of `radius` is
+/// definitely over one period (`split_ring_chart_window`, the turn rule
+/// at the radius): a whole turn is not.
+pub(crate) fn run_window_over<T: Decide>(
+    lo: T,
+    hi: T,
+    radius: T,
+    band: Band,
+) -> Result<bool, Indeterminate> {
+    let rows = TurnRows::exact("split_ring_chart_window");
+    Period::new(T::tau())
+        .not_over(rows, Extent::between(lo, hi), Exact::new(radius), band)
+        .map(|not_over| !not_over)
+        .map_err(|undecided| undecided.diag)
+}
+
 /// [`ring_side`] on a cylinder wall's chart: which side of
 /// `newf`'s outer loop (the run a `mef` just walled off) `ring` lies on,
 /// by the parity of a ray from each ring vertex toward `+v` at constant
@@ -5195,19 +5282,14 @@ fn chart_ring_side<T: Decide>(
     let (lo, hi) = azimuth_hull(&images).ok_or(invariant(
         "ring re-homing on a chart: the run carries no charted edge",
     ))?;
-    let decide_m = |name, margin| {
-        decide(name, margin, band).map_err(|diag| SplitJoinError::Escalated { face: newf, diag })
-    };
     // A run whose window is a whole period (a band round a full-turn
     // face, closed along its seam) holds the seam's azimuth at both `lo`
     // and `hi`. A ring vertex there reads alike at either: the half-open
     // rule reads it just inside `lo` or just past `hi`, and just inside
     // `lo` the run lies only beside its rows along `lo`, which the ray
     // meets only from a vertex on them.
-    if decide_m(
-        "split_ring_chart_window",
-        Margin::levered(tau - (hi - lo), radius),
-    )? == Sign::Negative
+    if run_window_over(lo, hi, radius, band)
+        .map_err(|diag| SplitJoinError::Escalated { face: newf, diag })?
     {
         return Err(invariant(
             "ring re-homing on a chart: the run's azimuth window spans more than a full period, \
@@ -7843,4 +7925,44 @@ mod pole_branch_rows {
     }
 
     use core::f64::consts::{PI, TAU};
+}
+
+/// **A run edge between two chords that is a spiric or a spline
+/// refuses typed, naming the edge and its face**: its midpoint's side
+/// of the cut's plane says nothing of the rest of it. The sweep rows'
+/// sheets (`boolean::reduce::planar_lane_carrier_rows`), each cut by a
+/// plane through the arc's ends, which a midpoint reading would call
+/// off the plane.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod run_edge_carrier_rows {
+    use super::{SectionCtx, SplitJoinError, between_edge_is_section};
+    use crate::boolean::reduce::planar_lane_carrier_rows::{arc_sheet, spiric_cap};
+    use geom_core::{Band, Point3, Tol, UnitVec3, Vec3};
+
+    #[test]
+    fn a_curved_run_edge_refuses_naming_itself() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let cuts = [
+            ("spline", arc_sheet(1.0, 1.0), Vec3::new(0.0, 1.0, 0.0)),
+            ("spiric", spiric_cap(), Vec3::new(0.0, 1.0, 0.0)),
+        ];
+        for (name, (body, edge), normal) in cuts {
+            let he = body.get_edge(edge).unwrap().he_plus;
+            let face = body.face_of_linked(he);
+            let origin = body.half_edge_start_point(he).unwrap();
+            let ctx = SectionCtx {
+                origin: Point3::new(origin.x, origin.y, origin.z),
+                normal: UnitVec3::new(normal, "run_edge_rows", band).unwrap(),
+                plane_key: None,
+                branch: None,
+            };
+            match between_edge_is_section(&body, &ctx, he, band) {
+                Err(SplitJoinError::RunEdgeCarrierUnsupported { face: f, edge: e }) => {
+                    assert_eq!((f, e), (face, edge), "{name}: the face and the edge");
+                }
+                other => panic!("{name}: expected the run-edge refusal, got {other:?}"),
+            }
+        }
+    }
 }
