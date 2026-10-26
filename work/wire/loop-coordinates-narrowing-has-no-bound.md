@@ -7,7 +7,7 @@ opened: 2026-10-21
 ---
 
 
-Found by `wire-emithelpers` (branch `wire/emit-helpers-row-four`), 2026-10-21, while converting `to_u32`'s callers to row 4 (`work/wire/emit-rs-shared-helpers-raise-emission-for-torn-reads.md`).
+Found by `wire-emithelpers` (branch `wire/emit-helpers-row-four`), 2026-10-21, while converting `to_u32`'s callers to row 4 (`work/wirehold/emit-rs-shared-helpers-raise-emission-for-torn-reads.md`).
 
 `loop_coordinates` (`crates/editor-core/src/eval/wire.rs:1906`) narrows a validated profile's loop count to the `u32` a program loop is addressed by. It raises `NamingError::Emission` past `u32::MAX`, and `Emission` is the kernel-defect category. Nothing bounds that count, though:
 - a profile is recipe input, not a `topo` arena, so no `SlotMap` cap applies;
