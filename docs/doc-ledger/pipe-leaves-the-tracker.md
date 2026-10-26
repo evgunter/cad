@@ -36,7 +36,7 @@ The other five closed rows (`D291`, `S70`, `S79`,
 were cited only as `refs:` entries, those entries were pruned (Ev, in
 chat: keep a closed row only where it gives the citing row context).
 The prose citations of `work/pipe/` paths now point at `work/topo/`.
-PIPE's band 4500–4599 closes with it.
+PIPE's band 4500–4599 passes to CORES with its two rows.
 
 Recover the program and its closed rows from the parent of the commit
 that deletes `work/pipe/`:
