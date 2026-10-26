@@ -35,3 +35,35 @@ top's corner is the full turn round the tip.
 ## Owed
 
 Build these, or refuse them typed as a construction gap.
+
+## Cause
+
+The box's face flush with the top meets the void's two walls along the
+ring's ray: two crossing germs in that face's one sector entry, each
+along one of the ring's two edges (`B`'s locus `OnEdge`), at one
+direction. `insert::walk_order` (`boolean/insert.rs:779`) orders a
+vertex pair's germs by `walks_before`, which reads that pair as a tie,
+and nothing else ordered them; with the walk's order broken, the
+strut's facing (`leads`, `boolean/insert.rs:1390`; `walk_faces_first`,
+`:2166`) met the same tie. Past those, the section's sliver between the
+two germs, from the tip along the ring to its apex, read no side:
+`join::sliver_along_a_slit` (`boolean/join.rs:5045`) looks for the
+ring's tips at the sliver's two ends through `slit_tip_on` (`:4708`),
+and the ends are the tips' null-edge copies, which it did not read, so
+`resolve_roles_geometric` refused `SectionLoopUndecided`.
+
+## Built (branch `cleave/flush-partners-at-a-slit-build`)
+
+Two germs along one direction in one entry, each along an edge of the
+other solid, lie on the sides of the line where that edge's flanker
+flush with the entry lies: `insert::beside_order` (`:1574`) reads them
+at second order (`d + δ o`), from each germ's edge's two flankers
+(`flankers_of`, `:1607`), and `walk_order`, `leads` and the strut
+facing read it (`tied_order`, `:1625`). `slit_tip_on` reads a vertex's
+null-edge copies as the vertex. Every cell of the table builds, in all
+six ops, as the closed form says, tier 3 and 3′, its edges on the line
+the material's creases, at ε default, 1e-6 and 1e-12, at rest, turned
+and flipped and turned; so do the box's edge through the tip along `x`
+and its corner at the ring's apex, which refused `Escalated` on main.
+Pinned by
+`a_ring_crossed_along_its_line_places_its_germs_apart::a_box_at_the_rings_tip_builds_in_every_op`.

@@ -28,3 +28,31 @@ and one of its faces lies flush with the top. `y ∪ x` refuses
 ## Owed
 
 Build it, or refuse it typed before the result gate.
+
+## Cause
+
+The union keeps the top on both sides of the partner's stretch of the
+ray and drops the walls there, so the zip leaves that stretch an edge
+of the top on both sides, between stretches of the ring the union
+keeps. Plate first, the zip's `kill_pair` (`boolean/zip.rs:1027`) reads
+it as a seam edge whose pair is no section strut and does not report
+it, and the output stage closed only the struts the zip reported
+(`ops::finish_output`, `boolean/ops.rs:2946`): the edge stayed, never
+described, and the result gate refused `ScaffoldAtRest`. Where the zip
+did report it (the stretch from 0.2), `slit::close_struts`
+(`boolean/slit.rs:650`) refused `SlitFaceClosesMidSlit`: the strut has
+no free end, and parting the ring was not built.
+
+## Built (branch `cleave/flush-partners-at-a-slit-build`)
+
+`finish_output` hands the closing the seam edges too, and
+`slit::part_mid_slit` (`:713`) deletes a strut with no free end with
+`kemr`: the loop parts in two, the side that is the slit's run becomes
+a ring of the face. The union's top holds two rings on the ray, from
+the apex to the partner's stretch and from its end to the tip. Every op
+builds, in both orders, as the closed form says, tier 3 and 3′, its
+edges on the line the material's creases, the partner's edge from 0.1
+to 0.3 or 0.4 and from 0.2 to 0.4, on either side of the ray, at ε
+default, 1e-6 and 1e-12, at rest, turned and flipped and turned.
+Pinned by
+`a_ring_crossed_along_its_line_places_its_germs_apart::a_partner_inside_the_ring_parts_it_in_the_union`.
