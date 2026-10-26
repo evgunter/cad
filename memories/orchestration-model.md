@@ -103,12 +103,6 @@ Ev's standing instructions for implementation work:
   directory as a persistent Monitor — glob the directory, never
   maintain a named list. They stay separate scripts on purpose
   (independent failure domains, per-stream disarm).
-- **Usage alerts: act only on ones naming YOUR OWN account.** Resolve it
-  at session start from your own agent dir
-  (`agent-<id>/plugin/claude/anthropic/.claude.json` →
-  `oauthAccount.emailAddress`; the id is in your memory-directory path).
-  `usage-watch.sh`'s events carry their own actions. Other accounts'
-  alerts are informational — never act on them.
 - **Away-channel arming**: the script fails loud (exit 78) without its
   routing env — `CAD_CHANNEL_SELF_TAG="(<ROLE> orchestrator)"
   CAD_CHANNEL_BRANCH_PREFIXES=<prefixes> bash .../github-away-channel.sh`.
