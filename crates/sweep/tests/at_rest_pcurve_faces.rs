@@ -607,3 +607,106 @@ fn a_torus_face_bounded_by_a_villarceau_arc_mints_on_either_family() {
         );
     }
 }
+
+/// The planar cap of [`torus_quarter`] in the profile plane `z = 0`.
+fn profile_cap(body: &Body<f64>) -> geom_brep::SurfaceKey {
+    body.faces()
+        .map(|(_, f)| f.surface)
+        .find(|&k| {
+            matches!(body.get_surface(k), Some(Surface::Plane { normal, .. })
+                if normal.z.abs() > 0.5)
+        })
+        .expect("the quarter revolve has a cap in the profile plane")
+}
+
+/// A straight strut on the torus wall from a corner in the profile plane,
+/// lying in that plane: DECLARED (a scaffold, the modeler's), or DERIVED
+/// (described as a chart image of the profile cap, which it lies on, so
+/// its edge certifies while its row on the torus wall cannot).
+fn in_plane_strut(declared: bool) -> (Body<f64>, FaceKey) {
+    let mut body = torus_quarter();
+    let (wall, cycle) = torus_wall(&body);
+    let he = cycle
+        .iter()
+        .copied()
+        .find(|&he| {
+            let p = start_point(&body, he);
+            p.z.abs() < 1e-12 && p.x > 1.2
+        })
+        .expect("a wall corner in the profile plane, off the axis");
+    let p = start_point(&body, he);
+    let end = p + Vec3::new(0.05, 0.2, 0.0);
+    let spec = if declared {
+        EdgeCurveSpec::line_between(p, end)
+    } else {
+        let len = p.distance(end);
+        EdgeCurveSpec {
+            description: geom_brep::EdgeDescriptionSpec::chart(profile_cap(&body)),
+            carrier: Curve3::Line {
+                origin: p,
+                dir: (end - p) * (1.0 / len),
+            },
+            param_start: 0.0,
+            param_end: len,
+        }
+    };
+    strut(&mut body, he, end, spec);
+    (body, wall)
+}
+
+/// **A strut off its face ends by who placed it, at every door** (D3,
+/// E1b R1/R2): the one map (`geom_brep::IncidenceRead::ending`) the
+/// build Display and the at-rest reason read alike. The same line strut on
+/// the torus wall, declared (a scaffold) and derived (a chart image of the
+/// profile cap it lies on):
+///
+/// - the stamp on the mint's refusal is the edge's own authority;
+/// - at the build door (`topo::mint_pcurves_of`, and a sweep builder's
+///   wrapper of it), a declared strut reads the modeler's lever, with no
+///   "defect" and no "repair the body", and a derived one the kernel's;
+/// - at rest (tier 3's finding), the same.
+///
+/// A render that drops the authority (every strut read as derived) reds
+/// the declared arm at the build door.
+#[test]
+fn a_strut_off_its_face_ends_by_who_placed_it_at_every_door() {
+    for declared in [true, false] {
+        let (mut body, wall) = in_plane_strut(declared);
+        let findings = validate_pcurves(&body, band());
+        let [finding] = findings.as_slice() else {
+            panic!("declared {declared}: {findings:?}")
+        };
+        let PcurveMintError::Certify {
+            error, authority, ..
+        } = finding
+        else {
+            panic!("declared {declared}: {finding:?}")
+        };
+        assert!(
+            matches!(error, PcurveCertifyError::CarrierOffChart { .. }),
+            "declared {declared}: {error:?}"
+        );
+        assert_eq!(authority.is_declared(), declared);
+        let minted = topo::mint_pcurves_of(&mut body, &[wall], tol()).unwrap_err();
+        assert_eq!(&minted, finding, "the mint and tier 3 refuse alike");
+        let built = minted.to_string();
+        let wrapped = sweep::ExtrudeError::Pcurve(minted.clone()).to_string();
+        let at_rest = topo::ValidationError::Pcurve { finding: minted }.to_string();
+        for (door, text) in [("build", &built), ("extrude", &wrapped), ("rest", &at_rest)] {
+            if declared {
+                assert!(
+                    text.contains("Recourse: move the declared curve onto the face it bounds"),
+                    "{door}: {text}"
+                );
+                for word in ["defect", "repair the body", "loosen", "tighten"] {
+                    assert!(!text.contains(word), "{door}: {word}: {text}");
+                }
+            } else {
+                assert!(
+                    !text.contains("declared curve") && text.contains("defect"),
+                    "{door}: {text}"
+                );
+            }
+        }
+    }
+}
