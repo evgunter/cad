@@ -387,7 +387,7 @@ pub mod test_support {
     }
 
     /// What each shell's aimed rays read before the volume, as text
-    /// (`side_reader`): the sphere and spline aims' probes read it.
+    /// (`side_reader`): the trimmed-sphere aims' pin reads it.
     pub fn shell_aims(body: &Body<f64>, band: geom_core::Band) -> Vec<String> {
         crate::side_reader::shell_aims_report(body, band)
     }

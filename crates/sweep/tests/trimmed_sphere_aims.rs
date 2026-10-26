@@ -1,7 +1,8 @@
 //! **The side reader's aims on trimmed sphere faces**
 //! (`work/flush/the-side-at-infinity-reader-offers-no-aim-on-a-trimmed-sphere-or-a-spline.md`):
-//! shells made only of trimmed sphere faces (a lens, two balls, a bitten
-//! ball, and a lens or two balls cut from a block as a cavity) read their
+//! shells made only of trimmed sphere faces (a lens, a sliver lens, two
+//! balls, a bitten ball, and a lens, a sliver lens or two balls cut from a
+//! block as a cavity) read their
 //! side off rays aimed at those faces, not off their volume. The probe
 //! prints which faces offer an aim and what each solid's and shell's rays
 //! read: `cargo nextest run -p sweep --run-ignored only
@@ -89,6 +90,15 @@ fn fixtures(tol: Tol) -> Vec<(&'static str, AtRestBody<f64>)> {
     if let Some(lens) = lens {
         push("block less a lens", topo::subtract(&block(), &lens, tol));
     }
+    // Two unit balls 1.999 apart: caps 0.032 rad across, a thousandth thick.
+    let sliver = || topo::intersect(&unit(), &ball(1.0, z(1.999), tol), tol);
+    push("sliver lens", sliver());
+    if let Some(sliver) = body("sliver", sliver()) {
+        push(
+            "block less a sliver lens",
+            topo::subtract(&block(), &sliver, tol),
+        );
+    }
     push(
         "block less two balls",
         topo::subtract(
@@ -112,7 +122,7 @@ fn trimmed_sphere_shells_read_their_side_off_aimed_rays() {
     let fixtures = fixtures(tol);
     assert_eq!(
         fixtures.len(),
-        8,
+        10,
         "at ε {eps:e}: a fixture's boolean did not build a body"
     );
     for (what, b) in fixtures {
