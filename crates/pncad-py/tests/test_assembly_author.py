@@ -126,6 +126,7 @@ from pncad import (
 )
 
 from placing import against, moves, placed, assemble_world_copies
+from measuring import pinned
 
 
 def at_rest(doc, evaluation):
@@ -211,7 +212,7 @@ class TestBenchLayout(BenchWorkspace):
                 placed = PATTERN_COUNT + 2 if name == "pattern" else 3
                 self.assertEqual(len(doc.placements()), placed)
                 ev = evaluate(doc, resolver=self.ws)
-                volume = product(doc, ev).mass_properties().volume
+                volume = pinned(product(doc, ev)).volume
                 self.assertAlmostEqual(
                     volume, PATTERN_COUNT * POST_VOLUME + SHELF_VOLUME, delta=1e-12
                 )
@@ -247,7 +248,7 @@ class TestBenchLayout(BenchWorkspace):
                 body, names = pncad.product_named(doc, ev)
                 self.assertGreater(len(names), 0)
                 self.assertAlmostEqual(
-                    body.mass_properties().volume,
+                    pinned(body).volume,
                     PATTERN_COUNT * POST_VOLUME + SHELF_VOLUME,
                     delta=1e-12,
                 )
@@ -269,7 +270,7 @@ class TestBenchLayout(BenchWorkspace):
                 doc, family, _, _ = self.layout(posts)
                 value = evaluate(doc, resolver=self.ws).value(family)
                 bodies = value.bodies()
-                volumes[name] = sum(b.mass_properties().volume for b in bodies)
+                volumes[name] = sum(pinned(b).volume for b in bodies)
                 if name == "pattern":
                     self.assertEqual(value.kind, "instances")
                     self.assertEqual(len(bodies), PATTERN_COUNT)
@@ -701,7 +702,7 @@ class TestBenchStand(BenchWorkspace):
         ev = evaluate(doc, resolver=self.ws)
         self.assertEqual(at_rest(doc, ev), [])
         self.assertAlmostEqual(
-            product(doc, ev).mass_properties().volume,
+            pinned(product(doc, ev)).volume,
             2 * POST_VOLUME + SHELF_VOLUME,
             delta=1e-12,
         )
@@ -1199,7 +1200,7 @@ class TestRefactorings(BenchWorkspace):
         return doc, post_i, shelf_i
 
     def volume(self, doc):
-        return product(doc, evaluate(doc, resolver=self.ws)).mass_properties().volume
+        return pinned(product(doc, evaluate(doc, resolver=self.ws))).volume
 
     def test_split_and_inline_list_their_node_maps_in_document_order(self):
         # A NodeId has no order a caller can read, so the list's own
@@ -1330,7 +1331,7 @@ class TestTheWorld(BenchWorkspace):
     — no placement joins it by being placed."""
 
     def volume(self, doc):
-        return product(doc, evaluate(doc, resolver=self.ws)).mass_properties().volume
+        return pinned(product(doc, evaluate(doc, resolver=self.ws))).volume
 
     def block(self, doc, x0):
         profile = doc.insert(

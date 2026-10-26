@@ -288,7 +288,13 @@ fn the_gates_certificate_is_the_measurement_and_costs_one_quadrature() {
     let body = topo::test_support::finished("body", prism(), tol);
 
     let mut measured = None;
-    let one = quad_rounds(|| measured = Some(topo::mass_properties(&body, tol)));
+    let one = quad_rounds(|| {
+        measured = Some(topo::mass_properties(
+            &body,
+            tol,
+            topo::test_support::pinned_resolution(tol),
+        ))
+    });
     let measured = measured.expect("the closure ran").expect(
         "IDENTITY: the fixture is scaled to 1e5·ε so that it certifies at EVERY ε row — \
          a refusal here is a moved schedule or a moved fixture, not an ε this row may \
@@ -302,7 +308,8 @@ fn the_gates_certificate_is_the_measurement_and_costs_one_quadrature() {
          door just certified",
     );
     let mut continued = None;
-    let refine = quad_rounds(|| continued = Some(gated.refine_to_target()));
+    let refine =
+        quad_rounds(|| continued = Some(gated.measure(topo::test_support::pinned_resolution(tol))));
     let continued = continued.expect("the closure ran").expect(
         "IDENTITY: the continuation of a certificate the measurement door certified must \
          certify too — it is the same rounds",
@@ -320,7 +327,9 @@ fn the_gates_certificate_is_the_measurement_and_costs_one_quadrature() {
         .expect("the closure ran")
         .expect("IDENTITY: and so must the tier-3′ door, which is the one the import path pays");
     let mut continued3 = None;
-    let refine3 = quad_rounds(|| continued3 = Some(gated3.refine_to_target()));
+    let refine3 = quad_rounds(|| {
+        continued3 = Some(gated3.measure(topo::test_support::pinned_resolution(tol)))
+    });
     let continued3 = continued3.expect("the closure ran").expect(
         "IDENTITY: the tier-3′ certificate's continuation must certify too — it is the same \
          rounds",
@@ -353,20 +362,20 @@ fn the_gates_certificate_is_the_measurement_and_costs_one_quadrature() {
 
     // ---- IDENTITY ----
     assert!(
-        measured.volume_pad > 0.0,
+        measured.enclosure.volume_pad > 0.0,
         "IDENTITY: this row's claim is about the QUADRATURE lane, so the body must carry \
          a certified enclosure: pad {}",
-        measured.volume_pad
+        measured.enclosure.volume_pad
     );
     assert_eq!(
-        bits(&continued),
-        bits(&measured),
+        bits(&continued.enclosure),
+        bits(&measured.enclosure),
         "IDENTITY: tier 3's certificate, continued to the reporting target, must BE the \
          measurement, in all four fields: gate {continued:?} vs measurement {measured:?}"
     );
     assert_eq!(
-        bits(&continued3),
-        bits(&measured),
+        bits(&continued3.enclosure),
+        bits(&measured.enclosure),
         "IDENTITY: tier 3′'s certificate, continued to the reporting target, must BE the \
          measurement, in all four fields: gate {continued3:?} vs measurement {measured:?}"
     );
@@ -397,7 +406,13 @@ fn a_multi_solid_certificate_reads_each_face_once() {
     );
 
     let mut measured = None;
-    let one = quad_rounds(|| measured = Some(topo::mass_properties(&body, tol)));
+    let one = quad_rounds(|| {
+        measured = Some(topo::mass_properties(
+            &body,
+            tol,
+            topo::test_support::pinned_resolution(tol),
+        ))
+    });
     let measured = measured
         .expect("the closure ran")
         .expect("ONE READ PER FACE: two certifying prisms measure at every ε row");
@@ -414,7 +429,9 @@ fn a_multi_solid_certificate_reads_each_face_once() {
         .expect("the closure ran")
         .expect("ONE READ PER FACE: two disjoint certifying prisms pass tier 3′");
     let mut continued = None;
-    let refine = quad_rounds(|| continued = Some(gated3.refine_to_target()));
+    let refine = quad_rounds(|| {
+        continued = Some(gated3.measure(topo::test_support::pinned_resolution(tol)))
+    });
     let continued = continued
         .expect("the closure ran")
         .expect("ONE READ PER FACE: the continuation of a certifying pair certifies");
@@ -431,8 +448,8 @@ fn a_multi_solid_certificate_reads_each_face_once() {
          behind the per-solid walks"
     );
     assert_eq!(
-        bits(&continued),
-        bits(&measured),
+        bits(&continued.enclosure),
+        bits(&measured.enclosure),
         "ONE READ PER FACE: the assembled certificate, continued, must BE the whole-body \
          measurement: {continued:?} vs {measured:?}"
     );
@@ -440,8 +457,8 @@ fn a_multi_solid_certificate_reads_each_face_once() {
 
 /// **ROUND SPLIT** — a multi-solid certificate whose parts stopped at
 /// DIFFERENT rounds, assembled and continued, is the whole-body
-/// measurement: the same four fields bit for bit, or the same typed
-/// refusal naming the same face.
+/// measurement: the same four fields bit for bit, or a bracket short of
+/// the resolution as the measurement's is.
 ///
 /// `ONE READ PER FACE`'s pair settles in round 0 and leaves nothing to
 /// continue. Here one solid is the `1e5·ε` prism (finished at round 0)
@@ -452,17 +469,14 @@ fn a_multi_solid_certificate_reads_each_face_once() {
 /// re-orders parts into arena order and an order-sensitive splice would
 /// agree on one and not the other. The last two subjects pair the
 /// exhausting `1e13·ε` prism with each of the others: the gate admits
-/// both, and the continuation must refuse exactly as `mass_properties`
+/// both, and the continuation stops short exactly as `mass_properties`
 /// does.
 ///
-/// **CONTINUATION BRACKET** rides on those two refusals. In both the
-/// gate stopped the exhausting prism's walls where the sign settled,
-/// and the continuation runs them on to their work wall before the
-/// refusal, so the bracket it hands back must be strictly narrower
-/// than the certificate's, meet it, and hold the closed form. (While
-/// a lane refused a face at round 0 on a predicted last round, the
-/// `1e5·ε` prism's order resumed nothing and handed back the
-/// certificate's own bracket.)
+/// **CONTINUATION BRACKET** rides on those two. In both the gate stopped
+/// the exhausting prism's walls where the sign settled, and the
+/// continuation runs them on to their work wall, so the bracket it hands
+/// back must be strictly narrower than the certificate's, meet it, and
+/// hold the closed form.
 ///
 /// Every body is ε-scaled, so each takes the same arm at every ε row.
 #[test]
@@ -483,8 +497,16 @@ fn a_multi_solid_certificate_split_across_rounds_continues_to_the_measurement() 
         let finished =
             topo::test_support::finished("the measured body", topo::Body::clone(&body), tol);
         let mut measured = None;
-        let one = quad_rounds(|| measured = Some(topo::mass_properties(&finished, tol)));
-        let measured = measured.expect("the closure ran");
+        let one = quad_rounds(|| {
+            measured = Some(topo::mass_properties(
+                &finished,
+                tol,
+                topo::test_support::pinned_resolution(tol),
+            ))
+        });
+        let measured = measured
+            .expect("the closure ran")
+            .unwrap_or_else(|e| panic!("ROUND SPLIT {label}: the body measures: {e}"));
 
         let mut gated = None;
         let gate = quad_rounds(|| {
@@ -501,18 +523,17 @@ fn a_multi_solid_certificate_split_across_rounds_continues_to_the_measurement() 
             )
         });
         let gated_bracket = gated.enclosure();
-        // `measure` is `refine_to_target` with its refusal classified:
-        // the same walk and the same verdicts, so the count below is
-        // the continuation's either way.
         let mut continued = None;
-        let refine = quad_rounds(|| continued = Some(gated.measure()));
-        let (continued, bracket) = match continued.expect("the closure ran") {
-            Ok(props) => (Ok(props), None),
-            Err(topo::TargetUnreached { refusal, bracket }) => (Err(refusal), Some(bracket)),
-        };
+        let refine = quad_rounds(|| {
+            continued = Some(gated.measure(topo::test_support::pinned_resolution(tol)));
+        });
+        let continued = continued
+            .expect("the closure ran")
+            .unwrap_or_else(|e| panic!("ROUND SPLIT {label}: the continuation measures: {e}"));
+        let short = |stop| matches!(stop, topo::Stop::Floor | topo::Stop::Wall);
 
-        match (&continued, &measured) {
-            (Ok(continued), Ok(measured)) => {
+        match (continued.stop, measured.stop) {
+            (topo::Stop::Met, topo::Stop::Met) => {
                 assert!(
                     refine > 0,
                     "ROUND SPLIT {label}: the fine prism's sign settles before its target, so \
@@ -525,31 +546,22 @@ fn a_multi_solid_certificate_split_across_rounds_continues_to_the_measurement() 
                      measurement's {one}"
                 );
                 assert_eq!(
-                    bits(continued),
-                    bits(measured),
+                    bits(&continued.enclosure),
+                    bits(&measured.enclosure),
                     "ROUND SPLIT {label}: the assembled certificate, continued, must BE the \
                      measurement: {continued:?} vs {measured:?}"
                 );
             }
-            (Err(continued), Err(measured)) => {
+            (c, m) if short(c) && short(m) => {
                 assert!(
                     label.contains("exhausting"),
-                    "ROUND SPLIT {label}: only the exhausting pair may refuse: {measured}"
+                    "ROUND SPLIT {label}: only the exhausting pair may stop short: {measured:?}"
                 );
-                assert_eq!(
-                    continued, measured,
-                    "ROUND SPLIT {label}: the continuation must refuse as the measurement \
-                     does, naming the same face"
-                );
-                let bracket = bracket.unwrap_or_else(|| {
-                    panic!("CONTINUATION BRACKET {label}: a budget refusal keeps a bracket")
-                });
+                let bracket = continued.enclosure.enclosure();
                 // In either order the continuation resumes: the gate
-                // stops each face where the sign settles, and no lane
-                // refuses a face before it runs (the round-0 budget exit
-                // that left the small-first order nothing to resume is
-                // gone), so the continuation runs the exhausting wall on
-                // to its work wall before it refuses.
+                // stops each face where the sign settles, so the
+                // continuation runs the exhausting wall on to its work
+                // wall.
                 {
                     let (before, after) = (
                         gated_bracket.volume_hi - gated_bracket.volume_lo,
@@ -558,7 +570,7 @@ fn a_multi_solid_certificate_split_across_rounds_continues_to_the_measurement() 
                     assert!(
                         after < before,
                         "CONTINUATION BRACKET {label}: the continuation refined past the \
-                         gate before it refused, so its bracket must be strictly narrower \
+                         gate, so its bracket must be strictly narrower \
                          than the certificate's — width {after:e} against {before:e}"
                     );
                     // Both are sound brackets of the one volume, so
@@ -591,9 +603,9 @@ fn a_multi_solid_certificate_split_across_rounds_continues_to_the_measurement() 
             ),
         }
         assert_eq!(
-            continued.is_err(),
+            short(continued.stop),
             label.contains("exhausting"),
-            "ROUND SPLIT {label}: exactly the exhausting pair refuses"
+            "ROUND SPLIT {label}: exactly the exhausting pair stops short"
         );
     }
 }
@@ -700,7 +712,7 @@ fn a_refusing_arm_returns_no_properties_through_either_door() {
     // cannot do is reach `1024·ε` of mean boundary displacement. Check
     // 7 reads the sign of a volume enclosure, so every tier-3 door is
     // finished with it and says so, and the caller that asks for the
-    // NUMBER is the one this schedule refuses — through each returning
+    // NUMBER gets the bracket short of it — through each returning
     // door's continuation alike.
     for (door, got) in [
         (
@@ -732,20 +744,13 @@ fn a_refusing_arm_returns_no_properties_through_either_door() {
                 .expect("the returning door agrees with the composed one"),
         ),
     ] {
-        let refused = certificate.refine_to_target().expect_err(&format!(
-            "PLANTED exhausted schedule through the {door}: the caller that asks for the \
-             NUMBER is the one this schedule refuses"
-        ));
+        let measured = certificate
+            .measure(topo::test_support::pinned_resolution(tol))
+            .unwrap_or_else(|e| panic!("PLANTED exhausted schedule through the {door}: {e}"));
         assert!(
-            matches!(
-                refused,
-                topo::MassPropsError::Face {
-                    source: geom_brep::PropsError::QuadratureBudget { .. },
-                    ..
-                }
-            ),
-            "PLANTED exhausted schedule through the {door}: the continuation's refusal \
-             must be the schedule's own budget refusal, got {refused:?}"
+            matches!(measured.stop, topo::Stop::Floor | topo::Stop::Wall),
+            "PLANTED exhausted schedule through the {door}: the caller that asks for the \
+             number gets the bracket short of it, got {measured:?}"
         );
     }
 }

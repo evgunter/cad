@@ -242,6 +242,7 @@ from pncad import (
     m,
     product,
     relative_freedom_components,
+    Settle,
 )
 
 POST_SECTION, POST_HEIGHT = 0.12, 0.5
@@ -359,7 +360,7 @@ assert stand.placements() == [post_a, shelf_i, post_b]
 assert [stand.node_kind(n) for n in stand.placements()] == ["instantiate_part"] * 3
 stand.set_product(stand.assemble([post_a, shelf_i, post_b]))
 ev = evaluate(stand, resolver=store)
-volume = product(stand, ev).mass_properties().volume
+volume = product(stand, ev).mass_properties(Settle.resolution(1e-6 * m)).met().volume
 expected = 2 * POST_SECTION**2 * POST_HEIGHT + SHELF_LENGTH * SHELF_DEPTH * SHELF_THICKNESS
 assert abs(volume - expected) < 1e-12
 
@@ -377,7 +378,7 @@ except ProductError as refusal:
 # The slot reads a body in the world, so `alone`, in a space of its
 # own, is brought there by a placement, and the slot reads that copy.
 flat.set_product(flat.place(alone, flat.world))
-volume = product(flat, evaluate(flat, resolver=store)).mass_properties().volume
+volume = product(flat, evaluate(flat, resolver=store)).mass_properties(Settle.resolution(1e-6 * m)).met().volume
 assert abs(volume - POST_SECTION**2 * POST_HEIGHT) < 1e-12
 ```
 
@@ -452,6 +453,7 @@ from pncad import (
     evaluate,
     m,
     product,
+    Settle,
 )
 
 POST_SECTION, POST_HEIGHT = 0.12, 0.5
@@ -500,7 +502,7 @@ ev = evaluate(layout, resolver=store)
 assert ev.succeeded(post_i) and ev.succeeded(shelf_i)
 assert ev.part_evaluations == 2, "two referenced documents crossed the seam"
 
-volume = product(layout, ev).mass_properties().volume
+volume = product(layout, ev).mass_properties(Settle.resolution(1e-6 * m)).met().volume
 expected = POST_SECTION**2 * POST_HEIGHT + SHELF_LENGTH * SHELF_DEPTH * SHELF_THICKNESS
 assert abs(volume - expected) < 1e-12
 ```
@@ -548,6 +550,7 @@ from pncad import (
     content_pin,
     evaluate,
     m,
+    Settle,
 )
 
 
@@ -572,7 +575,7 @@ shelf_i = layout.insert(Node.instantiate_part(DocRef(shelf.id, content_pin(shelf
 # scheduled nowhere.
 before = evaluate(layout, resolver=store)
 assert (before.reused, before.recomputed) == (0, 1)
-pinned_volume = before.value(shelf_i).body().mass_properties().volume
+pinned_volume = before.value(shelf_i).body().mass_properties(Settle.resolution(1e-6 * m)).met().volume
 
 # Someone thickens the shelf and saves it. The assembly still pins
 # the version it was authored against.
@@ -594,7 +597,7 @@ except EvaluationError as refusal:
 memoized = evaluate(layout, resolver=store, prior=before)
 assert (memoized.reused, memoized.recomputed) == (1, 0)
 assert memoized.part_evaluations == 0, "the seam was not crossed"
-assert memoized.value(shelf_i).body().mass_properties().volume == pinned_volume
+assert memoized.value(shelf_i).body().mass_properties(Settle.resolution(1e-6 * m)).met().volume == pinned_volume
 
 # The limit case of the same rule: with every node a memo hit, the
 # resolver is not needed at all.
@@ -676,6 +679,7 @@ from pncad import (
     product,
     run_checks,
     solve_document,
+    Settle,
 )
 
 POST_SECTION, POST_HEIGHT = 0.12, 0.5
@@ -782,7 +786,7 @@ report = run_checks(stand, ev)
 assert [f for f in report.findings if f.check == CheckId.AtRest] == []
 expected = (2 * POST_SECTION**2 * POST_HEIGHT
             + SHELF_LENGTH * SHELF_DEPTH * SHELF_THICKNESS)
-assert abs(product(stand, ev).mass_properties().volume - expected) < 1e-12
+assert abs(product(stand, ev).mass_properties(Settle.resolution(1e-6 * m)).met().volume - expected) < 1e-12
 ```
 
 ## 5. The refusals an assembly author actually meets
@@ -1044,6 +1048,7 @@ from pncad import (
     product,
     random_document_id,
     split,
+    Settle,
 )
 
 
@@ -1071,7 +1076,7 @@ layout.set_product(layout.assemble([post_i, shelf_i]))
 
 
 def volume(doc):
-    return product(doc, evaluate(doc, resolver=store)).mass_properties().volume
+    return product(doc, evaluate(doc, resolver=store)).mass_properties(Settle.resolution(1e-6 * m)).met().volume
 
 
 before = volume(layout)

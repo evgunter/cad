@@ -61,9 +61,13 @@ fn interval_lane_quadrature_brackets_the_closed_form() {
                 Tol::witness(),
             ),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap_or_else(|e| panic!("{label}: interval quadrature computes: {e:?}"));
-        let (lo, hi) = (m.volume.lo() - m.volume_pad, m.volume.hi() + m.volume_pad);
+        let (lo, hi) = (
+            m.enclosure.volume.lo() - m.enclosure.volume_pad,
+            m.enclosure.volume.hi() + m.enclosure.volume_pad,
+        );
         assert!(
             lo <= half_exact && half_exact <= hi,
             "{label}: interval bracket [{lo}, {hi}] must contain {half_exact}"

@@ -99,7 +99,7 @@ use pncad::geom_core::Tol;
 use pncad::mesh::validate::{check_mesh, signed_volume, triangle_count};
 use pncad::prelude::{Evaluation, RecipeNodeId};
 use pncad::topo::readback::euler_counts;
-use pncad::topo::{Body, ContactRecords, EulerCounts, VolumeReading};
+use pncad::topo::{Body, ContactRecords, EulerCounts, MassMeasurement, Settle};
 
 /// One body of a tour scene: its own STL/STEP exports, its own
 /// validation posture. `contacts` is `Some` exactly when the body is a
@@ -130,7 +130,7 @@ struct SceneBody {
     /// See [`SceneBody::named`].
     face_names: Option<tess_meter::FaceNames>,
     /// `Some(δ)` when the scene asks this body for a finer chordal
-    /// deviation than its own [`Stop::delta`]. See [`SceneBody::finer`].
+    /// deviation than its own [`TourStop::delta`]. See [`SceneBody::finer`].
     delta: Option<f64>,
 }
 
@@ -161,7 +161,7 @@ impl SceneBody {
     }
 
     /// The same body, meshed at chordal deviation `delta` where the
-    /// rest of its scene takes [`Stop::delta`]: a small feature on one
+    /// rest of its scene takes [`TourStop::delta`]: a small feature on one
     /// body (a glyph's inner arc) is paid for on that body alone.
     ///
     /// Finer only — [`SceneBody::delta`] refuses a `delta` that is not
@@ -348,8 +348,10 @@ struct View {
     up: char,
 }
 
-/// One tour stop = one rendered scene (possibly several bodies).
-struct Stop {
+/// One tour stop = one rendered scene (possibly several bodies). Named
+/// `TourStop`, not `Stop`, so it is never read as the measurement's
+/// [`pncad::topo::Stop`], which this file also matches on.
+struct TourStop {
     name: &'static str,
     /// Montage caption (defaults to `name` when empty).
     caption: String,
@@ -444,31 +446,34 @@ fn mesh_area(mesh: &pncad::mesh::Mesh) -> f64 {
     area
 }
 
-/// The reporting door, for the one arm that still has to ask it.
-fn reported(label: &str, body: &Body<f64>, tol: Tol) -> VolumeReading<f64> {
-    VolumeReading::Number(
-        pncad::topo::mass_properties(&crate::booleans::at_rest(body, tol), tol)
-            .unwrap_or_else(|e| panic!("{label}: mass properties failed: {e:?}")),
-    )
+/// **The tour's stated precision**: every number it prints is read to
+/// 1.024 µm of mean boundary displacement, a fixed length whatever ε a
+/// run is at. A row whose own claim needs a finer width states that one.
+pub(crate) fn printed<T: pncad::geom_core::Real>() -> Settle<T> {
+    Settle::Resolution(pncad::quantity::Length::from_meters(1.024e-6))
 }
 
-/// A gate's certificate, continued to the number where the quadrature
-/// can reach it.
+/// The measurement door at the printed precision, for the one arm that
+/// still has to ask it.
+fn reported(label: &str, body: &Body<f64>, tol: Tol) -> MassMeasurement<f64> {
+    pncad::topo::mass_properties(&crate::booleans::at_rest(body, tol), tol, printed())
+        .unwrap_or_else(|e| panic!("{label}: mass properties failed: {e:?}"))
+}
+
+/// A gate's certificate, measured on at the printed precision.
 ///
 /// Both gates run a certified quadrature (tier 3's check 7 and 3′'s
 /// are the same check), so every body here is measured by the gate it
-/// was already going to pass through and by nothing else. The
-/// continuation can refuse where the gate passed: the reporting target
-/// is a length that scales with ε while the schedule's floor is a
-/// property of the part, so a body whose sign is definite may have no
-/// number at this ε. Such a body is VALID, and what the tour reports
-/// for it is the bracket ([`VolumeReading::Bracket`]); every other
-/// refusal is a body with no volume at all, and stays fail-loud.
+/// was already going to pass through and by nothing else. A body whose
+/// faces stop short of the precision is VALID, and what the tour reports
+/// for it is the bracket its measurement reached; a refusal is a body
+/// with no volume at all, and stays fail-loud.
 fn continued<T: Gated>(
     label: &str,
     certificate: pncad::topo::SignCertificate<'_, T>,
-) -> VolumeReading<T> {
-    VolumeReading::of(certificate.measure())
+) -> MassMeasurement<T> {
+    certificate
+        .measure(printed())
         .unwrap_or_else(|refusal| panic!("{label}: mass properties failed: {refusal}"))
 }
 
@@ -494,7 +499,7 @@ fn gated<T: Gated>(
     body: &Body<T>,
     contacts: Option<&ContactRecords>,
     tol: Tol,
-) -> VolumeReading<T> {
+) -> MassMeasurement<T> {
     match contacts {
         Some(contacts) => continued(
             label,
@@ -581,12 +586,13 @@ fn run_body(
     check_mesh(&mesh).unwrap_or_else(|e| panic!("{label}: check_mesh failed: {e:?}"));
     let v_mesh = signed_volume(&mesh);
     assert!(v_mesh > 0.0, "{label}: mesh signed volume must be positive");
-    match &measured {
-        // The number: volume, area and their pads. Since M5 PR 11
-        // curved-CUT faces contribute certified quadrature enclosures,
-        // `volume` is a bracket midpoint with half-width `volume_pad`
-        // (0.0 on closed-form bodies).
-        VolumeReading::Number(props) => {
+    match measured.stop {
+        // The number: volume, area and their pads. Curved-CUT faces
+        // contribute certified quadrature enclosures, so `volume` is a
+        // bracket midpoint with half-width `volume_pad` (0.0 on
+        // closed-form bodies).
+        pncad::topo::Stop::Met => {
+            let props = &measured.enclosure;
             let rel = ((v_mesh - props.volume) / props.volume).abs();
             let certified = if props.volume_pad > 0.0 {
                 format!(" (certified enclosure ± {:.1e})", props.volume_pad)
@@ -628,7 +634,8 @@ fn run_body(
         // surface across a convex feature and stands outside it across
         // a concave one, so a mesh volume may land on either side of
         // the exact one.
-        VolumeReading::Bracket(enclosure) => {
+        pncad::topo::Stop::Floor | pncad::topo::Stop::Wall => {
+            let enclosure = measured.enclosure.enclosure();
             let slack = delta * mesh_area(&mesh);
             assert!(
                 v_mesh > enclosure.volume_lo - slack && v_mesh < enclosure.volume_hi + slack,
@@ -639,8 +646,8 @@ fn run_body(
             );
             println!(
                 "   [{label}] exact: V in [{:.6e}, {:.6e}] m^3, certified bracket \
-                 (tier 3 certified the sign; the reporting target 1024·ε is under the \
-                 width this body's quadrature stops at, so it has no volume NUMBER at this ε), \
+                 (tier 3 certified the sign; the printed precision is under the width this \
+                 body's quadrature stops at, so it has no volume NUMBER to print), \
                  A = {:.6} m^2; mesh (delta = {:.0e}): {} triangles, \
                  V_mesh = {v_mesh:.6e} (inside the bracket, chordal slack ±{slack:.1e})",
                 enclosure.volume_lo,
@@ -649,6 +656,9 @@ fn run_body(
                 delta,
                 triangle_count(&mesh),
             );
+        }
+        pncad::topo::Stop::Settled(_) | pncad::topo::Stop::Band => {
+            unreachable!("{label}: a resolution decides nothing: {:?}", measured.stop)
         }
     }
 
@@ -780,7 +790,7 @@ fn run_body(
 /// stop that genuinely could not be drawn would have to say so where
 /// it is built — see the STEP arm in `run_body`.
 fn run_stop(
-    stop: &Stop,
+    stop: &TourStop,
     outdir: &str,
     manifest: &mut String,
     dumps: &mut Vec<uvdump::FaceDump>,
@@ -802,7 +812,7 @@ fn run_stop(
 
 /// One scene's manifest entry (hand-rolled JSON — fixed schema, no
 /// string content beyond file stems and captions we control).
-fn scene_json(stop: &Stop, bodies: &[ManifestBody]) -> String {
+fn scene_json(stop: &TourStop, bodies: &[ManifestBody]) -> String {
     let caption = if stop.caption.is_empty() {
         stop.name.to_string()
     } else {
@@ -858,7 +868,7 @@ fn scene_json(stop: &Stop, bodies: &[ManifestBody]) -> String {
 /// the other, which is the drift a second hand-maintained list would
 /// guarantee.
 ///
-/// A visitor rather than a `Vec<Stop>` because the tour is LAZY on
+/// A visitor rather than a `Vec<TourStop>` because the tour is LAZY on
 /// purpose. Several scene constructors narrate as they build (the
 /// coincidence ladder, the mated-union doors, the stable-name count),
 /// and returning a fully built list would print all of that up front,
@@ -871,7 +881,7 @@ fn scene_json(stop: &Stop, bodies: &[ManifestBody]) -> String {
 /// other documents, and the seam it crosses is a workspace on disk —
 /// so the contract grew a path. Recorded rather than hidden: the tour
 /// harness assumed single-document scenes.
-fn walk_tour(visit: &mut dyn FnMut(&Stop), work: &std::path::Path, tol: Tol) {
+fn walk_tour(visit: &mut dyn FnMut(&TourStop), work: &std::path::Path, tol: Tol) {
     for stop in bodies::stops(tol) {
         visit(&stop);
     }
@@ -1146,7 +1156,7 @@ fn main() {
     let mut scenes: Vec<String> = Vec::new();
     let mut dumps: Vec<uvdump::FaceDump> = Vec::new();
     let mut cells = 0usize;
-    let mut run = |stop: &Stop| {
+    let mut run = |stop: &TourStop| {
         manifest.clear();
         run_stop(stop, &outdir, &mut manifest, &mut dumps, tol);
         scenes.push(manifest.clone());
@@ -1164,7 +1174,7 @@ fn main() {
     // The Monte-Carlo density cell (`mcplate`). It writes a PICTURE
     // rather than a body, so it sits here beside the uv lane's own
     // output rather than inside `walk_tour`'s stop list: there is no
-    // `Stop` for it to be, no STL, no camera, and no renderer — the
+    // `TourStop` for it to be, no STL, no camera, and no renderer — the
     // geometry is 2-D and the tour draws it itself.
     println!("\n-- the MC density plate (E11.1: the population an advisory number summarizes) --");
     let mc_dir = std::path::Path::new(&outdir).join("mc");

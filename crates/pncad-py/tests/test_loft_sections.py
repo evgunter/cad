@@ -22,6 +22,8 @@ from pncad import (
     m,
 )
 
+from measuring import pinned
+
 
 def square(half):
     h = half * m
@@ -59,7 +61,7 @@ class TestSetLoftSections(unittest.TestCase):
         )
         run = evaluate(self.doc)
         self.assertTrue(run.succeeded(self.loft))
-        volume = run.value(self.loft).body().mass_properties().volume
+        volume = pinned(run.value(self.loft).body()).volume
         # A degree-1 loft is a frustum per pair of sections.
         frusta = 4 / 3 * (1.0 * (0.25 + 0.2 + 0.16) + 1.5 * (0.16 + 0.12 + 0.09))
         self.assertAlmostEqual(volume, frusta, places=9)

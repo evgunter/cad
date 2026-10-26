@@ -34,6 +34,7 @@ from pncad import (
     product_named,
     run_checks,
 )
+from measuring import pinned
 
 
 def slab(doc, x0, x1):
@@ -76,12 +77,12 @@ class TestBothQuestionsOnOneEvaluation(unittest.TestCase):
         self.assertEqual(report_first.skipped, report_second.skipped)
         self.assertEqual(named_first[1], named_second[1])
         self.assertEqual(
-            named_first[0].mass_properties().volume,
-            named_second[0].mass_properties().volume,
+            pinned(named_first[0]).volume,
+            pinned(named_second[0]).volume,
         )
         self.assertEqual(
-            product(doc, forward).mass_properties().volume,
-            named_first[0].mass_properties().volume,
+            pinned(product(doc, forward)).volume,
+            pinned(named_first[0]).volume,
         )
 
     def test_two_evaluations_of_one_document_answer_the_same(self):
@@ -89,9 +90,9 @@ class TestBothQuestionsOnOneEvaluation(unittest.TestCase):
         Two of them are two memos and one answer."""
         doc = one_box("memo-two-evaluations")
         assemble_world_copies(doc)
-        first = product(doc, evaluate(doc)).mass_properties().volume
+        first = pinned(product(doc, evaluate(doc))).volume
         assemble_world_copies(doc)
-        second = product(doc, evaluate(doc)).mass_properties().volume
+        second = pinned(product(doc, evaluate(doc))).volume
         self.assertEqual(first, second)
 
     def test_a_document_with_an_empty_world_refuses_every_time(self):

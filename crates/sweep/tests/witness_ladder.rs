@@ -15,7 +15,9 @@ fn tol() -> Tol {
 
 fn volume_of(r: BooleanResult<f64>) -> Option<f64> {
     match r {
-        BooleanResult::Body(bb) => Some(topo::mass_properties(&bb.body, tol()).unwrap().volume),
+        BooleanResult::Body(bb) => {
+            Some(topo::test_support::pinned_volume("the measured body", &bb.body, tol()).volume)
+        }
         BooleanResult::Empty => None,
     }
 }

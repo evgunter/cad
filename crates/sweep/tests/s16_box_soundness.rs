@@ -278,9 +278,7 @@ fn a_lofted_operand_reaches_the_fallbacks_re_gate() {
     let topo::BooleanResult::Body(out) = union else {
         panic!("a union of two solids is a body");
     };
-    let v = topo::mass_properties(&out.body, Tol::witness())
-        .expect("the union measures")
-        .volume;
+    let v = topo::test_support::pinned_volume("the union", &out.body, Tol::witness()).volume;
     assert!(
         (v - 9.4).abs() <= 1e-6 * 9.4,
         "the union is the prism's 9 m³ and the box's 0.4 m³ side by side, got {v}"

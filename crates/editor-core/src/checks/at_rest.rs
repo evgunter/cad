@@ -695,7 +695,8 @@ pub(crate) fn partition<T: LocalizeLane>(
 /// the pair an interference verdict decided, the two entities an
 /// undecidable verdict names, the two cells of an unrecorded touch, the
 /// two edges of a coincident-wedges verdict, the edge and face of a
-/// face-through-wedge verdict, the two faces of a contradicted
+/// face-through-wedge verdict, the one solid (twice) of a solid
+/// crossing itself, the two faces of a contradicted
 /// declaration or of a pair the census had no lane for.
 ///
 /// `None` for a finding that names no pair of solids: an escalation,
@@ -743,6 +744,11 @@ pub(crate) fn finding_solids<T: Decide>(
         | E::FaceThroughEdgeWedgeUndecided {
             edge: e, face: f, ..
         } => (edge(*e)?, face(*f)?),
+        // A solid crossing itself is about that one solid, placed as
+        // (s, s) as census `Named::of` reads it: inside an arrival a
+        // door already censused, it is that door's.
+        E::BoundaryCrossesItself { solid, .. }
+        | E::BoundaryCrossesItselfUndecided { solid, .. } => (*solid, *solid),
         E::ContactContradicted { declaration, .. } => (face(declaration.a)?, face(declaration.b)?),
         E::CensusUnsupported { subject, .. } | E::CensusLaneUnsupported { subject } => {
             match subject {
@@ -792,8 +798,6 @@ pub(crate) fn finding_solids<T: Decide>(
         | E::NoDihedralArm { .. }
         | E::LoopRoleInverted { .. }
         | E::CurvedSenseInverted { .. }
-        | E::BoundaryCrossesItself { .. }
-        | E::BoundaryCrossesItselfUndecided { .. }
         | E::SeamRegionOvercovered { .. }
         | E::SeamRegionCoverUnresolved { .. }
         | E::NegativeVolume { .. }

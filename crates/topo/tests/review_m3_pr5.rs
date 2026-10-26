@@ -78,10 +78,11 @@ fn assert_props(body: &Body<f64>, volume: f64, area: f64) {
     let m = mass_properties(
         &topo::test_support::finished("the measured body", (body).clone(), Tol::witness()),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap();
-    assert_eq!(m.volume, volume, "exact volume");
-    assert_eq!(m.surface_area, area, "exact area");
+    assert_eq!(m.enclosure.volume, volume, "exact volume");
+    assert_eq!(m.enclosure.surface_area, area, "exact area");
 }
 
 /// A refusal must be typed, deterministic, and leave operands bitwise
@@ -212,12 +213,17 @@ fn pocket_orientation_matrix() {
         match subtract(&a, &b, Tol::witness()) {
             Ok(BooleanResult::Body(body)) => {
                 assert_eq!(validate_closed(&body.body), Ok(()), "{name}");
-                let m = mass_properties(&body.body, Tol::witness()).unwrap();
+                let m = mass_properties(
+                    &body.body,
+                    Tol::witness(),
+                    topo::test_support::pinned_resolution(Tol::witness()),
+                )
+                .unwrap();
                 // Exact on purpose: every coordinate is dyadic and small, so each closed-form
                 // term and their sum are exact in f64 (a zero pad states no rounding; here
                 // there is none).
-                assert_eq!(m.volume, 7.875, "{name}: SILENT WRONG VOLUME");
-                assert_eq!(m.surface_area, 25.0, "{name}: SILENT WRONG AREA");
+                assert_eq!(m.enclosure.volume, 7.875, "{name}: SILENT WRONG VOLUME");
+                assert_eq!(m.enclosure.surface_area, 25.0, "{name}: SILENT WRONG AREA");
             }
             Ok(BooleanResult::Empty) => panic!("{name}: empty"),
             Err(_) => {
@@ -296,11 +302,16 @@ fn corner_flush_pillar_union_honest() {
     match union(&a, &b, Tol::witness()) {
         Ok(BooleanResult::Body(body)) => {
             assert_eq!(validate_closed(&body.body), Ok(()));
-            let m = mass_properties(&body.body, Tol::witness()).unwrap();
+            let m = mass_properties(
+                &body.body,
+                Tol::witness(),
+                topo::test_support::pinned_resolution(Tol::witness()),
+            )
+            .unwrap();
             // Exact on purpose: every coordinate is dyadic and small, so each closed-form term
             // and their sum are exact in f64 (a zero pad states no rounding; here there is
             // none).
-            assert_eq!(m.volume, 8.25, "corner-flush union volume");
+            assert_eq!(m.enclosure.volume, 8.25, "corner-flush union volume");
         }
         Ok(BooleanResult::Empty) => panic!("cannot be empty"),
         Err(e) => panic!("the corner-flush rest glues: {e:?}"),

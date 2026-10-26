@@ -285,7 +285,7 @@ point, each naming its two cells by the names their own operands gave
 them.
 
 ```python
-from pncad import Coord, Doc, Formula, MateValue, Node, Placed, evaluate, mm
+from pncad import Coord, Doc, Formula, MateValue, Node, Placed, evaluate, mm, Settle, m
 
 
 def slab(doc, z0, z1, on=None):
@@ -315,7 +315,7 @@ ev = evaluate(doc)
 body = ev.value(glued).body()
 body.validate()
 # 10 × 10 × 20 mm³ — one block, watertight.
-assert abs(body.mass_properties().volume - 2e-6) < 1e-15
+assert abs(body.mass_properties(Settle.resolution(1e-6 * m)).met().volume - 2e-6) < 1e-15
 
 # The rest at z = 10 mm, the four walls carried on across it, and the
 # four corners where the slabs meet.

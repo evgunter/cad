@@ -279,10 +279,11 @@ fn check_pose((name, edge, a, d): (&str, usize, f64, f64), tol: Tol) -> (Vec<Str
     let body = pr.body(tol);
     let m = pr.near_normal(edge, a, d);
     let cube = nt_cube(pr.v, m, tol);
-    let props = topo::mass_properties(&body, tol).unwrap();
-    let (va, vb, common) = (props.volume, 64.0, pr.overlap(m));
+    let props =
+        topo::mass_properties(&body, tol, topo::test_support::pinned_resolution(tol)).unwrap();
+    let (va, vb, common) = (props.enclosure.volume, 64.0, pr.overlap(m));
     // The cube's six faces of side 4.
-    let faces = props.surface_area + 96.0;
+    let faces = props.enclosure.surface_area + 96.0;
     let runs: [Run; 6] = [
         (
             "prism ∪ cube",
@@ -332,12 +333,14 @@ fn check_pose((name, edge, a, d): (&str, usize, f64, f64), tol: Tol) -> (Vec<Str
             continue;
         };
         built += 1;
-        let props = topo::mass_properties(&bb.body, tol).unwrap();
-        let slack = tol.eps() * props.surface_area;
-        if (props.volume - want).abs() > slack {
+        let props =
+            topo::mass_properties(&bb.body, tol, topo::test_support::pinned_resolution(tol))
+                .unwrap();
+        let slack = tol.eps() * props.enclosure.surface_area;
+        if (props.enclosure.volume - want).abs() > slack {
             wrong.push(format!(
                 "{tag}: volume {} against the closed form {want}, past ε·area {slack:e}",
-                props.volume
+                props.enclosure.volume
             ));
         }
         let errors = topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol)

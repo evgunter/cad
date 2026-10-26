@@ -26,12 +26,13 @@ fn a_seam_region_holding_its_poles_inside_its_faces_imports_and_measures() {
         Ok(StepImport::Solid { body, .. }) => body,
         other => panic!("the side-cut ball does not import as a solid: {other:?}"),
     };
-    topo::validate_geometric(&body, tol).unwrap_or_else(|e| panic!("tier 3 refuses it: {e:?}"));
-    let volume = topo::mass_properties(
-        &topo::test_support::finished("the measured body", body.clone(), tol),
+    topo::validate_geometric(body.body(), tol)
+        .unwrap_or_else(|e| panic!("tier 3 refuses it: {e:?}"));
+    let volume = topo::test_support::pinned_volume(
+        "the measured body",
+        &topo::test_support::finished("the measured body", body.body().clone(), tol),
         tol,
     )
-    .unwrap()
     .volume;
     assert!(
         (volume - exact).abs() <= 1e-9 * exact,
@@ -60,27 +61,29 @@ fn a_seam_region_reads_its_side_at_a_pole_on_another_members_edge() {
         Ok(StepImport::Solid { body, .. }) => body,
         other => panic!("the split side-cut ball does not import as a solid: {other:?}"),
     };
-    topo::validate_geometric(&body, tol).unwrap_or_else(|e| panic!("tier 3 refuses it: {e:?}"));
-    let volume = topo::mass_properties(
-        &topo::test_support::finished("the measured body", body.clone(), tol),
+    topo::validate_geometric(body.body(), tol)
+        .unwrap_or_else(|e| panic!("tier 3 refuses it: {e:?}"));
+    let volume = topo::test_support::pinned_volume(
+        "the measured body",
+        &topo::test_support::finished("the measured body", body.body().clone(), tol),
         tol,
     )
-    .unwrap()
     .volume;
     assert!(
         (volume - exact).abs() <= 1e-9 * exact,
         "the split side-cut ball measures {volume}, the closed form is {exact}"
     );
     // The upper face: the one whose loop's vertices all lie on the equator.
-    let points: Vec<_> = body.vertex_points().collect();
+    let points: Vec<_> = body.body().vertex_points().collect();
     let on_equator = |h: topo::HalfEdgeKey| {
-        let v = body.get_half_edge(h).unwrap().start;
+        let v = body.body().get_half_edge(h).unwrap().start;
         points.iter().find(|(k, _)| *k == v).unwrap().1.z.abs() < 1e-9
     };
     let upper: Vec<_> = body
+        .body()
         .faces()
         .filter(|(_, f)| {
-            topo::props::loop_edges(&body, f.outer)
+            topo::props::loop_edges(body.body(), f.outer)
                 .unwrap()
                 .1
                 .into_iter()
@@ -91,7 +94,7 @@ fn a_seam_region_reads_its_side_at_a_pole_on_another_members_edge() {
     let [upper] = upper[..] else {
         panic!("one face has its loop on the equator: {upper:?}");
     };
-    let flipped = body.flipped_face_sense_for_tests(upper).unwrap();
+    let flipped = body.body().flipped_face_sense_for_tests(upper).unwrap();
     let errs = topo::validate_geometric(&flipped, tol).unwrap_err();
     assert!(
         errs.iter().any(
@@ -124,14 +127,14 @@ fn the_side_cut_ball_flipped_whole_is_refused_by_its_cover() {
         other => panic!("the side-cut ball does not import as a solid: {other:?}"),
     };
     // The two faces of one surface entity: the sphere's.
-    let faces: Vec<_> = body.faces().map(|(k, f)| (k, f.surface)).collect();
+    let faces: Vec<_> = body.body().faces().map(|(k, f)| (k, f.surface)).collect();
     let sphere: Vec<_> = faces
         .iter()
         .filter(|(_, s)| faces.iter().filter(|(_, t)| t == s).count() == 2)
         .map(|(k, _)| *k)
         .collect();
     assert_eq!(sphere.len(), 2, "two faces of one sphere: {faces:?}");
-    let flipped = sphere.iter().fold(topo::Body::clone(&body), |b, &k| {
+    let flipped = sphere.iter().fold(topo::Body::clone(body.body()), |b, &k| {
         b.flipped_face_sense_for_tests(k).unwrap()
     });
     let errs = topo::validate_geometric(&flipped, tol).unwrap_err();

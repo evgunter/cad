@@ -124,10 +124,11 @@ fn hollow_elbow_is_valid_with_pappus_mass_properties() {
             Tol::witness(),
         ),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("mass properties");
-    assert_close(props.volume, v_expect, "elbow volume");
-    assert_close(props.surface_area, a_expect, "elbow area");
+    assert_close(props.enclosure.volume, v_expect, "elbow volume");
+    assert_close(props.enclosure.surface_area, a_expect, "elbow area");
 
     // The elbow really is hollow: the solid tube of the same window
     // is heavier by exactly the bore, which is the same Pappus form
@@ -152,10 +153,11 @@ fn hollow_elbow_is_valid_with_pappus_mass_properties() {
             Tol::witness(),
         ),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("mass properties");
     assert_close(
-        solid_props.volume - props.volume,
+        solid_props.enclosure.volume - props.enclosure.volume,
         theta * R * PI * INNER * INNER,
         "the bore",
     );
@@ -197,15 +199,16 @@ fn hollow_torus_carries_its_cavity() {
             Tol::witness(),
         ),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("mass properties");
     assert_close(
-        props.volume,
+        props.enclosure.volume,
         2.0 * PI * PI * R * (OUTER * OUTER - INNER * INNER),
         "torus-shell volume",
     );
     assert_close(
-        props.surface_area,
+        props.enclosure.surface_area,
         4.0 * PI * PI * R * (OUTER + INNER),
         "torus-shell area",
     );
@@ -419,7 +422,8 @@ fn hollow_wall_and_shared_refusal_doors() {
         "the normalized axis builds the same hollow torus"
     );
     assert_eq!(
-        topo::mass_properties(
+        topo::test_support::pinned_volume(
+            "mass properties",
             &topo::test_support::finished(
                 "the measured body",
                 topo::Body::clone(&scaled.body),
@@ -427,10 +431,10 @@ fn hollow_wall_and_shared_refusal_doors() {
             ),
             Tol::witness()
         )
-        .expect("mass properties")
         .volume
         .to_bits(),
-        topo::mass_properties(
+        topo::test_support::pinned_volume(
+            "mass properties",
             &topo::test_support::finished(
                 "the measured body",
                 topo::Body::clone(&unit.body),
@@ -438,7 +442,6 @@ fn hollow_wall_and_shared_refusal_doors() {
             ),
             Tol::witness()
         )
-        .expect("mass properties")
         .volume
         .to_bits(),
         "the normalized axis builds it bit for bit"
@@ -516,17 +519,18 @@ mod certified {
                 Tol::witness(),
             ),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .expect("mass properties");
         encloses(
-            m.volume,
-            m.volume_pad,
+            m.enclosure.volume,
+            m.enclosure.volume_pad,
             2.0 * PI * PI * R * (OUTER * OUTER - INNER * INNER),
             "volume",
         );
         encloses(
-            m.surface_area,
-            m.area_pad,
+            m.enclosure.surface_area,
+            m.enclosure.area_pad,
             4.0 * PI * PI * R * (OUTER + INNER),
             "area",
         );
@@ -563,11 +567,12 @@ mod certified {
                 Tol::witness(),
             ),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .expect("mass properties");
         encloses(
-            m.volume,
-            m.volume_pad,
+            m.enclosure.volume,
+            m.enclosure.volume_pad,
             (T1 - T0) * R * PI * (OUTER * OUTER - INNER * INNER),
             "volume",
         );

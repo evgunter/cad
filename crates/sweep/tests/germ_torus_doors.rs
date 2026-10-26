@@ -618,9 +618,7 @@ fn a_three_face_cylinder_rod_builds_under_every_op() {
             Ok(()),
             "{what}: tier 3"
         );
-        let v = topo::mass_properties(body, Tol::witness())
-            .unwrap_or_else(|e| panic!("{what}: mass properties {e:?}"))
-            .volume;
+        let v = topo::test_support::pinned_volume("the measured body", body, Tol::witness()).volume;
         assert!(
             (v - truth).abs() <= 1e-12 * truth.max(1.0),
             "{what}: volume {v} against the closed form {truth}"
@@ -676,7 +674,9 @@ fn the_torus_waisted_union_builds_like_the_cylinder_control() {
     for handle in [Handle::Torus, Handle::Cylinder] {
         let (a, b) = (half(1.0, handle), half(-1.0, handle));
         let want = [&a, &b]
-            .map(|h| topo::mass_properties(h, Tol::witness()).unwrap().volume)
+            .map(|h| {
+                topo::test_support::pinned_volume("the measured body", h, Tol::witness()).volume
+            })
             .iter()
             .sum::<f64>();
         let r = t2(handle).unwrap_or_else(|e| panic!("{handle:?}: the dumbbell builds: {e:?}"));
@@ -700,9 +700,8 @@ fn the_torus_waisted_union_builds_like_the_cylinder_control() {
             topo::validate_geometric_certificate(&bb.body, Tol::witness()).is_ok(),
             "{handle:?}: the at-rest certificate"
         );
-        let v = topo::mass_properties(&bb.body, Tol::witness())
-            .unwrap()
-            .volume;
+        let v =
+            topo::test_support::pinned_volume("the measured body", &bb.body, Tol::witness()).volume;
         assert!(
             (v - want).abs() < 1e-9,
             "{handle:?}: the halves only touch, so the union is their sum: {v} against {want}"
@@ -1025,7 +1024,8 @@ fn a_cube_in_the_donuts_hole_answers_the_disjoint_union() {
     let r = topo::union(&d, &cube, Tol::witness()).expect("the cube stands clear of the donut");
     let b = &r.body().expect("non-empty").body;
     let vol = |x: &Body<f64>| {
-        topo::mass_properties(
+        topo::test_support::pinned_volume(
+            "the volume integrates",
             &topo::test_support::finished(
                 "the measured body",
                 topo::Body::clone(x),
@@ -1033,7 +1033,6 @@ fn a_cube_in_the_donuts_hole_answers_the_disjoint_union() {
             ),
             Tol::witness(),
         )
-        .expect("the volume integrates")
         .volume
     };
     let want = std::f64::consts::PI.powi(2) + 0.5;
@@ -1071,7 +1070,8 @@ fn a_cube_in_the_donuts_hole_answers_the_disjoint_union() {
 fn a_cube_in_the_donuts_hole_answers_subtract_and_intersect() {
     let (d, cube) = (donut(), bar((-0.5, 0.5), (-0.25, 0.25), (-0.5, 0.5)));
     let vol = |x: &Body<f64>| {
-        topo::mass_properties(
+        topo::test_support::pinned_volume(
+            "the volume integrates",
             &topo::test_support::finished(
                 "the measured body",
                 topo::Body::clone(x),
@@ -1079,7 +1079,6 @@ fn a_cube_in_the_donuts_hole_answers_subtract_and_intersect() {
             ),
             Tol::witness(),
         )
-        .expect("the volume integrates")
         .volume
     };
     // (the cube's centre, the tube's spine, the hole beside the cube)

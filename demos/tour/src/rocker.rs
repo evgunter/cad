@@ -43,7 +43,7 @@ use pncad::topo::readback::euler_counts;
 
 use crate::booleans::finished;
 use crate::scalar::Scalar;
-use crate::{SceneBody, Stop, View};
+use crate::{SceneBody, TourStop, View};
 use pncad::authoring::p2;
 use pncad::geom_core::{Arc2, Tol};
 
@@ -482,8 +482,9 @@ fn eye_pick_narration(vp: &ValidatedProfile<f64>) -> String {
 /// kernel refuses, pinned live. Returns the narration line.
 fn crease_narration(plate: &Extruded<f64>, rounded: &Body<f64>, tol: Tol) -> String {
     let volume = |b: &Body<f64>| {
-        mass_properties(&crate::booleans::at_rest(b, tol), tol)
+        mass_properties(&crate::booleans::at_rest(b, tol), tol, crate::printed())
             .expect("the rocker's mass properties are closed-form")
+            .enclosure
             .volume
     };
 
@@ -557,14 +558,14 @@ fn crease_narration(plate: &Extruded<f64>, rounded: &Body<f64>, tol: Tol) -> Str
 /// The stop, in tour order — the montage's fillet cell: the plate
 /// rounded in the profile (six corners, 2-D) and on the solid (the
 /// keyhole's creases, 3-D).
-pub fn stops(tol: Tol) -> Vec<Stop> {
+pub fn stops(tol: Tol) -> Vec<TourStop> {
     let (plate, rounded) = build::<f64>(tol);
     let note = format!(
         "{} {}",
         eye_pick_narration(&profile::<f64>(tol)),
         crease_narration(&plate, &rounded, tol)
     );
-    vec![Stop {
+    vec![TourStop {
         name: "rocker",
         // Short — montage captions share the panel's width.
         caption: "rocker plate — filleted in 2-D and in 3-D".to_string(),

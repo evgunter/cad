@@ -58,7 +58,7 @@ fn report(label: &str, r: f64, w: f64, angle: f64) -> Option<Result<f64, topo::M
     let exact = angle * (solid - 2.0 / 3.0 * r * r * r);
     let blind = angle * solid - 2.0 / 3.0 * r * r * r * PI;
     let mp = match &at_rest {
-        Ok(finished) => topo::mass_properties(finished, Tol::witness()),
+        Ok(finished) => topo::mass_properties(finished, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())),
         Err(errors) => {
             assert!(
                 errors
@@ -67,10 +67,10 @@ fn report(label: &str, r: f64, w: f64, angle: f64) -> Option<Result<f64, topo::M
                 "[bool5r1 {label}] tier 3 refuses the lune with more than its volume check: {errors:?}"
             );
             // Raw door: tier 3 cannot measure this lune (VolumeUncomputable), and the measurement's own typed refusal of it is the subject.
-            topo::test_support::measure_unvalidated(&t.body, Tol::witness())
+            topo::test_support::measure_unvalidated(&t.body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
         }
     }
-    .map(|m| m.volume);
+    .map(|m| m.enclosure.volume);
     println!(
         "[bool5r1 {label}] angle = 2pi - {:e}: tiers = {tiers:?}; volume = {mp:?}; exact = {exact:.15e}; \
          with the lune at pi = {blind:.15e}",

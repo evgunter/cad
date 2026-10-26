@@ -285,8 +285,10 @@ pollster = "1.0.1"
 # wires it onto a non-dev edge. FORWARDS `editor-core/test-support`:
 # the literal and frame doors there are re-exported from this crate's
 # `test_support`, so the feature has to compile wherever it is named,
-# not only where the dev-dependency below happens to unify it in.
-test-support = ["editor-core/test-support"]
+# not only where the dev-dependency below happens to unify it in. And
+# `pncad/test-support`: `evaluated_volume` reads at `topo`'s pinned
+# resolution through the façade.
+test-support = ["editor-core/test-support", "pncad/test-support"]
 # The eframe application: windowing, the docked chrome, and the wgpu
 # viewport. Everything else in this crate — camera state, the typed
 # camera operations, the input mapping, and the scene extraction — is

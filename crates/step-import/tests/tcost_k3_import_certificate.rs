@@ -86,20 +86,20 @@ fn bits(m: &MassProperties<f64>) -> [u64; 4] {
 
 /// **ONE CERTIFICATE / IDENTITY, through `import_step`** — the reader
 /// pays one certified quadrature for the body it ships, and
-/// `StepImport::Solid`'s `enclosure` is that quadrature's own object.
+/// `StepImport::Solid`'s `certificate` is that quadrature's own object.
 ///
 /// **ONE CERTIFICATE** is the assertion the import path could not
-/// otherwise make. The `enclosure` field is documented as the gate's
-/// own value rather than a second computation, and no comparison of
+/// otherwise make. The `certificate` field is documented as the gate's
+/// own rounds rather than a second computation, and no comparison of
 /// VALUES can check that — a second computation would agree bit for
 /// bit. The count is the only witness, and it is exact: a single-solid
 /// file owes no per-solid gate (`topo::per_part_gate_owed`), so the
 /// whole import runs exactly the certificates its aggregate tier-3′
 /// gate runs, which must be one measurement's worth.
 ///
-/// **IDENTITY** then says the value the reader hands out is that
-/// certificate: bit-identical in all four fields to `mass_properties`
-/// on the body the reader shipped. The row asserts the arm it takes —
+/// **IDENTITY** then says what the reader's certificate measures is that
+/// quadrature's: bit-identical in all four fields to `mass_properties`
+/// on the body the reader shipped, at the same resolution. The row asserts the arm it takes —
 /// the fixture is ε-scaled so the import certifies at every ε row, and
 /// a refusal here is this row failing rather than an ε it may skip.
 #[test]
@@ -117,27 +117,41 @@ fn the_readers_gate_runs_one_certificate_and_hands_it_back() {
     let through_import = quad_rounds(|| {
         imported = Some(import_step(&text, &ImportOptions::default(), tol));
     });
-    let (body, enclosure) = match imported.expect("the closure ran") {
-        Ok(StepImport::Solid {
-            body, enclosure, ..
-        }) => (
-            body,
-            enclosure.expect(
-                "IDENTITY: the ε-scaled prism converges in round 0 at every ε row, so its \
-                 enclosure is measured",
-            ),
-        ),
+    let body = match imported.expect("the closure ran") {
+        Ok(StepImport::Solid { body, .. }) => body,
         other => panic!(
             "ONE CERTIFICATE: the ε-scaled rational prism is a single-solid file that \
              certifies at every ε row, so the reader must ship a Solid: {other:?}"
         ),
     };
 
+    // The reader's certificate, measured on: the prism converges in
+    // round 0 at every ε row, so the gate's rounds already hold the
+    // number and continuing them runs none.
+    let mut through = None;
+    let continued = quad_rounds(|| {
+        through = Some(body.measure(topo::test_support::pinned_resolution(tol)));
+    });
+    let enclosure = through
+        .expect("the closure ran")
+        .expect("IDENTITY: the reader's certificate measures the body it shipped")
+        .enclosure;
+    assert_eq!(
+        continued, 0,
+        "ONE CERTIFICATE: the gate's rounds already meet the resolution, so measuring \
+         through its certificate runs none: {continued}"
+    );
     // Validated outside the count: tier 3 measures the volume too, and
     // the count is of the one measurement.
-    let body = topo::test_support::finished("the measured body", body.clone(), tol);
+    let body = topo::test_support::finished("the measured body", body.body().clone(), tol);
     let mut measured = None;
-    let one = quad_rounds(|| measured = Some(topo::mass_properties(&body, tol)));
+    let one = quad_rounds(|| {
+        measured = Some(topo::mass_properties(
+            &body,
+            tol,
+            topo::test_support::pinned_resolution(tol),
+        ))
+    });
     let measured = measured.expect("the closure ran").expect(
         "IDENTITY: the body the reader shipped passed the reader's own tier-3′ gate, so \
          its enclosure certifies by construction",
@@ -156,15 +170,15 @@ fn the_readers_gate_runs_one_certificate_and_hands_it_back() {
          behind a field that says it did not"
     );
     assert!(
-        measured.volume_pad > 0.0,
+        measured.enclosure.volume_pad > 0.0,
         "ONE CERTIFICATE: this row's claim is about the QUADRATURE lane, so the imported \
          body must carry a certified enclosure: pad {}",
-        measured.volume_pad
+        measured.enclosure.volume_pad
     );
     assert_eq!(
         bits(&enclosure),
-        bits(&measured),
-        "IDENTITY: the reader's `enclosure` must BE the gate's certificate, in all four \
+        bits(&measured.enclosure),
+        "IDENTITY: what the reader's certificate measures must BE the measurement, in all four \
          fields: field {enclosure:?} vs measurement {measured:?}"
     );
 }

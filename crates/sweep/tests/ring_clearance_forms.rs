@@ -64,6 +64,7 @@ fn carve(name: &str, body: &Body<f64>, rims: &[(f64, f64)], r: f64) -> (f64, Bod
     let before = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
         tol(),
+        topo::test_support::pinned_resolution(tol()),
     )
     .unwrap();
     let out = fillet_edges(&sweep::test_support::at_rest(body, tol()), &arcs, r, tol())
@@ -73,11 +74,15 @@ fn carve(name: &str, body: &Body<f64>, rims: &[(f64, f64)], r: f64) -> (f64, Bod
     let after = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol()),
         tol(),
+        topo::test_support::pinned_resolution(tol()),
     )
     .unwrap();
-    assert_eq!(after.volume_pad, 0.0, "{name}: closed-form faces only");
+    assert_eq!(
+        after.enclosure.volume_pad, 0.0,
+        "{name}: closed-form faces only"
+    );
     assert_eq!(out.band_faces.len(), rims.len(), "{name}: one band per rim");
-    (after.volume - before.volume, out.body)
+    (after.enclosure.volume - before.enclosure.volume, out.body)
 }
 
 /// The bar every closed form below is held to: an absolute `1e-12`,
@@ -212,16 +217,16 @@ fn the_bosss_two_rims_refuse_together_and_compose_sequentially() {
             ),
             other => panic!("{name}: expected the mixed shared-support arm, got {other:?}"),
         }
-        let before = topo::mass_properties(&body, tol()).unwrap().volume;
+        let before = topo::test_support::pinned_volume("the measured body", &body, tol()).volume;
         let (_, after_ladder) = carve(name, &body, &[(0.5, 1.0)], 0.1);
         let (_, out) = carve(name, &after_ladder, &[(1.0, 1.0)], 0.1);
         // Each band's host trimlines joined: one vertex and one edge fewer apiece.
         assert_eq!(census(&out), (9, 14, 8), "{name}: two bands' census");
-        let measured = topo::mass_properties(
+        let measured = topo::test_support::pinned_volume(
+            "the measured body",
             &topo::test_support::finished("the measured body", topo::Body::clone(&out), tol()),
             tol(),
         )
-        .unwrap()
         .volume
             - before;
         agrees(name, measured, if up { ladder } else { -ladder } - annulus);

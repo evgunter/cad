@@ -122,7 +122,7 @@ fn a_validated_wall_never_refuses_its_own_boundary_column() {
             &step_import::ImportOptions::default(),
             Tol::witness(),
         ) {
-            walk(name, &body);
+            walk(name, body.body());
         }
     }
     assert!(

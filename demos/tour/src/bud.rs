@@ -99,7 +99,7 @@ use pncad::sweep::{Revolution, RevolveAxis, revolve};
 use pncad::topo::{Body, EdgeKey};
 
 use crate::booleans::finished;
-use crate::{SceneBody, Stop, View};
+use crate::{SceneBody, TourStop, View};
 
 /// The bore's radius: the bud is ANNULAR, which is what makes the full
 /// revolve mint one wall per meridian segment and every latitude rim a
@@ -259,7 +259,7 @@ fn band_torus(body: &Body<f64>, face: pncad::topo::FaceKey) -> (f64, f64) {
     }
 }
 
-pub fn stops(tol: Tol) -> Vec<Stop> {
+pub fn stops(tol: Tol) -> Vec<TourStop> {
     // The unfilleted twin, kept alive: every claim below is against
     // THIS body rather than against a remembered number.
     let sharp = finished("sharp", bud(tol), tol);
@@ -346,13 +346,18 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     });
     // Finished once: both measurements of the rolled bud below read it.
     let rolled_at_rest = crate::booleans::at_rest(&rolled.body, tol);
-    let one_call_volume = pncad::topo::mass_properties(&rolled_at_rest, tol)
+    let one_call_volume = pncad::topo::mass_properties(&rolled_at_rest, tol, crate::printed())
         .expect("the one-call bud's props")
+        .enclosure
         .volume;
-    let sequential_volume =
-        pncad::topo::mass_properties(&crate::booleans::at_rest(&sequential.body, tol), tol)
-            .expect("the sequential bud's props")
-            .volume;
+    let sequential_volume = pncad::topo::mass_properties(
+        &crate::booleans::at_rest(&sequential.body, tol),
+        tol,
+        crate::printed(),
+    )
+    .expect("the sequential bud's props")
+    .enclosure
+    .volume;
     // MEASURED at one ulp, and the ulp is the integrator's, not the
     // carve's: the two paths mint the same closed-form faces under
     // different arena keys, so `mass_properties` sums the same
@@ -456,11 +461,12 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     );
 
     // ---- proof 4: mass properties move, against the twin ----
-    let sharp_props = pncad::topo::mass_properties(&sharp, tol).expect("the sharp bud's props");
-    let rolled_props =
-        pncad::topo::mass_properties(&rolled_at_rest, tol).expect("the rolled bud's props");
-    let dv = sharp_props.volume - rolled_props.volume;
-    let da = sharp_props.surface_area - rolled_props.surface_area;
+    let sharp_props =
+        pncad::topo::mass_properties(&sharp, tol, crate::printed()).expect("the sharp bud's props");
+    let rolled_props = pncad::topo::mass_properties(&rolled_at_rest, tol, crate::printed())
+        .expect("the rolled bud's props");
+    let dv = sharp_props.enclosure.volume - rolled_props.enclosure.volume;
+    let da = sharp_props.enclosure.surface_area - rolled_props.enclosure.surface_area;
     assert!(
         dv > 0.0,
         "a convex rim's roll REMOVES material: ΔV = {dv} must be positive"
@@ -495,7 +501,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         "the bands are meshed, not degenerate at the scene's own δ"
     );
 
-    vec![Stop {
+    vec![TourStop {
         name: "budfillet",
         caption: "THE FILLETED BUD (three curved-support arms, one body)".to_string(),
         // Montage cell RETIRED by the montage-v3 curation (Ev,
@@ -548,8 +554,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
              seat — the same implementation the document layer's selector runs; the \
              bore's cylinder-plane description names BOTH its ends, so the base is \
              picked out by its axial station, this scene's own carrier read",
-            100.0 * dv / sharp_props.volume,
-            100.0 * da / sharp_props.surface_area
+            100.0 * dv / sharp_props.enclosure.volume,
+            100.0 * da / sharp_props.enclosure.surface_area
         )),
         // High enough to look down into the pucker: the mouth's roll is
         // then seen across rather than edge-on, which is the most an

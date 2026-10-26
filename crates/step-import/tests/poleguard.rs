@@ -209,13 +209,13 @@ fn the_halfcap_eps7_witness_is_band_shaped() {
     // The file's own geometry, asserted band-independently: its
     // sphere face's undeclared north pole.
     let (mut pole, mut radius) = (None, 0.0f64);
-    for (_, f) in body.faces() {
+    for (_, f) in body.body().faces() {
         if let Some(geom::Surface::Sphere {
             center,
             radius: r,
             axis,
             ..
-        }) = body.get_surface(f.surface)
+        }) = body.body().get_surface(f.surface)
         {
             pole = Some(*center + *axis * *r);
             radius = *r;
@@ -224,6 +224,7 @@ fn the_halfcap_eps7_witness_is_band_shaped() {
     let pole = pole.expect("a sphere face");
     assert!(radius > 0.0);
     let nearest = body
+        .body()
         .vertex_points()
         .map(|(_, p)| (p - pole).norm())
         .fold(f64::INFINITY, f64::min);
@@ -231,13 +232,13 @@ fn the_halfcap_eps7_witness_is_band_shaped() {
     let hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(|_| {}));
     let out = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        mesh::tessellate(&body, 1.0e-3, Tol::witness())
+        mesh::tessellate(body.body(), 1.0e-3, Tol::witness())
     }));
     std::panic::set_hook(hook);
     let out = out.unwrap_or_else(|_| {
         panic!("at eps {eps:e} the witness must not panic — nothing here asserts")
     });
-    let report = topo::examine_chart_coherence(&body, Tol::witness());
+    let report = topo::examine_chart_coherence(body.body(), Tol::witness());
     assert!(report.unexamined.is_empty(), "{:?}", report.unexamined);
     if (0.99e-6..=1.01e-6).contains(&eps) {
         assert!(normalizations.is_empty(), "nothing is joined at this band");

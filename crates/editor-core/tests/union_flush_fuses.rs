@@ -40,7 +40,8 @@ fn a_union_of_two_flush_placements_of_one_prototype_fuses() {
         "the union refused: {:?}",
         failure(&ev, union)
     );
-    let volume = topo::mass_properties(
+    let volume = topo::test_support::pinned_volume(
+        "the fused body has mass",
         &topo::test_support::finished(
             "the measured body",
             topo::Body::clone(body_of(&ev, union)),
@@ -48,7 +49,6 @@ fn a_union_of_two_flush_placements_of_one_prototype_fuses() {
         ),
         Tol::witness(),
     )
-    .expect("the fused body has mass")
     .volume;
     assert_eq!(volume, 1.5, "the fused volume is the two blocks' union");
 }
@@ -165,7 +165,8 @@ fn a_member_flush_under_a_merged_wall_fuses() {
         "the union refused: {:?}",
         failure(&ev, union)
     );
-    let volume = topo::mass_properties(
+    let volume = topo::test_support::pinned_volume(
+        "the fused body has mass",
         &topo::test_support::finished(
             "the measured body",
             topo::Body::clone(body_of(&ev, union)),
@@ -173,7 +174,6 @@ fn a_member_flush_under_a_merged_wall_fuses() {
         ),
         Tol::witness(),
     )
-    .expect("the fused body has mass")
     .volume;
     assert_eq!(volume, 3.0, "the placements' 1.5 and m3's 1.5");
 }
@@ -423,7 +423,8 @@ fn a_contact_against_a_merged_cap_glues_in_every_order() {
             "{order:?}: {:?}",
             failure(&ev, union)
         );
-        let v = topo::mass_properties(
+        let v = topo::test_support::pinned_volume(
+            "mass",
             &topo::test_support::finished(
                 "the measured body",
                 topo::Body::clone(body_of(&ev, union)),
@@ -431,7 +432,6 @@ fn a_contact_against_a_merged_cap_glues_in_every_order() {
             ),
             Tol::witness(),
         )
-        .expect("mass")
         .volume;
         assert!((v - (1.5 + 1.1 * 0.6 * 0.5)).abs() < 1e-9, "{order:?}: {v}");
     }
@@ -453,7 +453,8 @@ fn a_stack_of_resting_slabs_builds() {
     );
     let ev = run(&doc);
     assert!(failure(&ev, union).is_none(), "{:?}", failure(&ev, union));
-    let volume = topo::mass_properties(
+    let volume = topo::test_support::pinned_volume(
+        "the stack has mass",
         &topo::test_support::finished(
             "the measured body",
             topo::Body::clone(body_of(&ev, union)),
@@ -461,7 +462,6 @@ fn a_stack_of_resting_slabs_builds() {
         ),
         Tol::witness(),
     )
-    .expect("the stack has mass")
     .volume;
     assert_eq!(volume, 9.0 + 4.0 + 1.0);
 }

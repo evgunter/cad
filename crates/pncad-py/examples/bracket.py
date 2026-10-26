@@ -32,7 +32,7 @@ import math
 import os
 import tempfile
 
-from pncad import Coord, Doc, Formula, MateValue, Node, Open, Placed, Start, evaluate, import_step, mm
+from pncad import Coord, Doc, Formula, MateValue, Node, Open, Placed, Settle, Start, evaluate, import_step, m, mm
 
 PLATE = (80, 40)  # mm
 # The plate's corner radius: the natural one for this plate. It was
@@ -123,7 +123,12 @@ def main():
     body = ev.value(lightened).body()
     body.validate()
 
-    props = body.mass_properties()
+    # A measurement states what it asks: this script prints numbers, to
+    # a micrometre of mean boundary displacement.
+    to_a_micrometre = Settle.resolution(1e-6 * m)
+    measured = body.mass_properties(to_a_micrometre)
+    assert measured.stop == "met", measured
+    props = measured.enclosure
     print(f"volume       {props.volume:.9f} m^3  (+/- {props.volume_pad:g})")
     print(f"surface area {props.surface_area:.9f} m^2  (+/- {props.area_pad:g})")
 
@@ -152,10 +157,10 @@ def main():
 
     with open(path, encoding="ascii") as inp:
         reimported = import_step(inp.read())
-    # The report's enclosure is the import gate's own certified
-    # measurement of the body it just adopted, so the round-trip check
-    # costs no second quadrature.
-    volume = reimported.enclosure.volume
+    # The report measures through the import gate's own certificate of
+    # the body it just adopted, so the round-trip check costs no second
+    # quadrature.
+    volume = reimported.measure(to_a_micrometre).enclosure.volume
     assert abs(volume - props.volume) < 1e-12, "the export round-trips"
     print(f"exported     {path} ({os.path.getsize(path)} bytes; re-imported OK)")
 

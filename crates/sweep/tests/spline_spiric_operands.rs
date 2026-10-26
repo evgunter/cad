@@ -210,9 +210,7 @@ type Run<'a> = (
 /// each outcome to its oracle; returns the census lines.
 fn census(name: &str, operand: &AtRestBody<f64>, placements: &[Placement]) -> Vec<String> {
     let tol = Tol::witness();
-    let v = topo::mass_properties(operand, tol)
-        .expect("the operand measures")
-        .volume;
+    let v = topo::test_support::pinned_volume("the operand measures", operand, tol).volume;
     let mut lines = Vec::new();
     for p in placements {
         let (x, y, z) = p.brick;
@@ -287,10 +285,7 @@ fn census(name: &str, operand: &AtRestBody<f64>, placements: &[Placement]) -> Ve
                     let got = match &result {
                         BooleanResult::Empty => 0.0,
                         BooleanResult::Body(b) => {
-                            topo::mass_properties(&b.body, tol)
-                                .unwrap_or_else(|e| {
-                                    panic!("{line}builds a body with no volume: {e:?}")
-                                })
+                            topo::test_support::pinned_volume("the measured body", &b.body, tol)
                                 .volume
                         }
                     };
@@ -377,9 +372,7 @@ fn cavity() -> (AtRestBody<f64>, f64) {
     let tol = Tol::witness();
     let (_, cavity) = vessel_cavity(1.0 / 128.0);
     let cavity = AtRestBody::validate(cavity, tol).expect("the cavity passes the at-rest gate");
-    let v = topo::mass_properties(&cavity, tol)
-        .expect("the cavity measures")
-        .volume;
+    let v = topo::test_support::pinned_volume("the cavity measures", &cavity, tol).volume;
     (cavity, v)
 }
 

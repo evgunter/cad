@@ -341,7 +341,8 @@ fn a_split_tangent_to_a_thin_shoulder_describes_its_ruling_by_the_rule() {
                 Ok(()),
                 "{label}: {side} is tier-3 valid"
             );
-            let volume = topo::mass_properties(piece, tol()).unwrap().volume;
+            let volume =
+                topo::test_support::pinned_volume("the measured body", piece, tol()).volume;
             assert!(
                 (volume - area * h).abs() <= 1e-9 * area * h,
                 "{label}: {side} holds {volume:e}, want {:e}",
@@ -443,7 +444,8 @@ fn a_cut_across_a_tangent_seam_describes_each_piece_by_the_rule() {
                     Ok(()),
                     "{label}: the {height:e} piece is tier-3 valid"
                 );
-                let volume = topo::mass_properties(piece, tol()).unwrap().volume;
+                let volume =
+                    topo::test_support::pinned_volume("the measured body", piece, tol()).volume;
                 assert!(
                     (volume - area * height).abs() <= 1e-9 * area * height,
                     "{label}: the {height:e} piece holds {volume:e}, want {:e}",
@@ -820,7 +822,7 @@ fn a_plane_tangent_to_a_hole_answers_every_op() {
             Ok(topo::BooleanResult::Body(b)) => b.body,
             other => panic!("{name}: want a body, got {other:?}"),
         };
-        let v = topo::mass_properties(&body, tol()).unwrap().volume;
+        let v = topo::test_support::pinned_volume("the measured body", &body, tol()).volume;
         assert!((v - want).abs() < 1e-9, "{name}: volume {v}, want {want}");
         assert_eq!(
             topo::validate_geometric(&body, tol()),
@@ -947,7 +949,8 @@ fn a_nested_aligned_touch_answers_every_op() {
     ] {
         match (got, want) {
             (Ok(topo::BooleanResult::Body(b)), Some(want)) => {
-                let v = topo::mass_properties(&b.body, tol()).unwrap().volume;
+                let v =
+                    topo::test_support::pinned_volume("the measured body", &b.body, tol()).volume;
                 assert!((v - want).abs() < 1e-9, "{name}: volume {v}, want {want}");
                 assert_eq!(
                     topo::validate_geometric(&b.body, tol()),
