@@ -5817,6 +5817,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "remainder_edit",
             "remainder_read_uncarried",
             "severed_edge",
+            "space_straddles_cut",
             "split_pin",
             "uncut_var_reference",
             "unknown_cut_node",
