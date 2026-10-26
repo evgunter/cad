@@ -1419,7 +1419,7 @@ fn the_import_answer_and_its_record_are_spellable_through_the_prelude() {
     };
     named::<Body<f64>>(body.clone());
     named::<HeldCertificate<f64>>(certificate.clone());
-    let measured: Measured<f64> = certificate
+    let measured: pncad::topo::Measured<f64> = certificate
         .measure(&body, topo::test_support::pinned_resolution(Tol::witness()))
         .expect("a box measures through its certificate");
     named::<Stop>(measured.stop);

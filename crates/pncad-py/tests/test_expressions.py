@@ -471,7 +471,9 @@ NESTING_BOUND = 128
 _NESTED = """
 import json, sys, threading
 
-from pncad import Doc, Formula, LiteralError, Node, ParseError, evaluate, load, m
+from pncad import Doc, Formula, LiteralError, Node, ParseError, Settle, evaluate, load, m
+
+PINNED = Settle.resolution(1.024e-6 * m)
 
 bound, far = int(sys.argv[1]), int(sys.argv[2])
 said = {}
@@ -487,9 +489,9 @@ def run():
     )
     at_the_bound = doc.parse_formula(" + ".join(["1 m"] + ["0 m"] * (bound - 1)))
     box = doc.insert(Node.extrude(square, at_the_bound))
-    said["volume"] = pinned(evaluate(doc).value(box).body()).volume
+    said["volume"] = evaluate(doc).value(box).body().mass_properties(PINNED).enclosure.volume
     said["loaded_volume"] = (
-        pinned(evaluate(load(doc.save()).doc).value(box).body()).volume
+        evaluate(load(doc.save()).doc).value(box).body().mass_properties(PINNED).enclosure.volume
     )
     negative = doc.parse_formula(" + ".join(["-1 m"] + ["0 m"] * (bound - 1)))
     said["negative_reads_back"] = doc.parse_formula(negative.text) == negative

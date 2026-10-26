@@ -561,15 +561,18 @@ pub use topo::{
 
 // --- 6. Mass properties ---------------------------------------
 // `Settle` is what a measurement is asked (`[tolerance.measure]`), with
-// the vocabulary its variants carry, and `Measured` what it answers:
-// the enclosure, and why it stopped (`Stop`, with a deciding
-// predicate's `Verdict`). `VolumeEnclosure` is a certificate's bracket,
-// and `HeldCertificate` is `StepImport::Solid::certificate`: the curated-
-// type rule (the `coherence` note below) says a caller able to hold it
-// must be able to spell it.
+// the vocabulary its variants carry, and `Stop` why it stopped.
+// `VolumeEnclosure` is a certificate's bracket, and `HeldCertificate` is
+// `StepImport::Solid::certificate`: the curated-type rule (the
+// `coherence` note below) says a caller able to hold it must be able to
+// spell it. What a measurement answers, `topo::Measured`, and a deciding
+// predicate's `topo::Verdict` are spelled through `pncad::topo`: their
+// names are the document layer's (`Doc.measure`'s `Measured`, an
+// assertion's `Verdict`) on the Python surface the prelude is censused
+// against.
 pub use topo::{
-    HeldCertificate, MassProperties, MassPropsError, Measured, RelOp, RoleNames, Settle, SignNames,
-    Stop, Verdict, VolumeEnclosure, mass_properties,
+    HeldCertificate, MassProperties, MassPropsError, RelOp, RoleNames, Settle, SignNames, Stop,
+    VolumeEnclosure, mass_properties,
 };
 
 // --- 7. Tessellation and export -------------------------------

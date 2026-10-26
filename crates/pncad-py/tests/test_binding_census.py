@@ -1388,14 +1388,11 @@ BOUND_AS = {
     "intersect": "Node.intersect",
     "loft_body": "Node.loft",
     "mass_properties": "Body.mass_properties",
-    # What a measurement reached crosses as `MassMeasurement` (the
-    # names `Measured` and `Measurement` are the document layer's), its
-    # stop as the `stop` word and a deciding predicate's verdict as
-    # `verdict`. A relation's operator is which `Settle` constructor
-    # built it.
-    "Measured": "MassMeasurement",
+    # Why a measurement stopped crosses as `MassMeasurement.stop`'s
+    # word (what it answers, `topo::Measured`, is `MassMeasurement`, and
+    # a deciding predicate's verdict its `verdict`). A relation's
+    # operator is which `Settle` constructor built it.
     "Stop": "MassMeasurement.stop",
-    "Verdict": "MassMeasurement.verdict",
     "RelOp": ("Settle.at_most", "Settle.at_least"),
     # The import gate's certificate, held beside the body: Python
     # measures through it and never holds it.
@@ -4211,6 +4208,10 @@ MEMBERS_NOT_BOUND = {
     # itself and renders from it, so there is no second document to
     # check against and no id to read back.
     "McReport::document": SHAPE,
+    # A relation is built by its operator's constructor,
+    # `Settle.at_most` or `Settle.at_least` (`RelOp`'s row above), so
+    # there is no `relation` to spell.
+    "Settle::Relation": SHAPE,
     # The carried mate as the document below holds it, kept for the
     # sentence that names it. Python's row is read by its fields and
     # says no sentence; the finding that names it does
