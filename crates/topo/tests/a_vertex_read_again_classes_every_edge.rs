@@ -216,30 +216,6 @@ const OVERLAPPING: &[(&str, usize)] = &[
     ("inside the lying pyramid", 5),
 ];
 
-/// **Refused, a parting not built**: the scenes whose cells refuse
-/// `EdgeInFace`, each pose's `y − x`. A pyramid on the void's face, in
-/// the arch or round its island: `y − x` leaves the pyramid's edge in the
-/// void's face along part of its length, and the material about it (at
-/// its midpoint, from the face's own direction round into it: solid to
-/// 20°, empty to 90°, solid to 180°, empty beyond) parts it, which is not
-/// built where it runs on past the face's boundary
-/// (`work/cleave/a-boolean-edge-running-past-the-face-it-lies-in-is-not-parted.md`).
-/// Main built the one edge, its wedge a reflex 290° through the empty
-/// half-space.
-const UNPARTED: [(&str, [&str; 5]); 2] = [
-    ("on the void's face in the arch", ON_THE_VOIDS_FACE),
-    ("on the void's face, the island in it", ON_THE_VOIDS_FACE),
-];
-
-/// [`UNPARTED`]'s cells.
-const ON_THE_VOIDS_FACE: [&str; 5] = [
-    "at rest, y − x: EdgeInFace",
-    "turned about z, y − x: EdgeInFace",
-    "turned, y − x: EdgeInFace",
-    "flipped, y − x: EdgeInFace",
-    "flipped and turned, y − x: EdgeInFace",
-];
-
 /// A refusal's kind as a tally keys it: the error's arm, and for the
 /// result gate's refusal of coincident edges, [`OVERLAP`] where it is an
 /// overlap.
@@ -1026,13 +1002,8 @@ fn every_edge_a_vertex_read_again_reads_is_classed_against_the_germ() {
             tally.doubled,
             tally.refused_cells
         );
-        // The partings not built are pinned exactly ([`UNPARTED`]), and
-        // the result gate's overlap refusals apart, by count
-        // ([`OVERLAPPING`]).
-        let refused = UNPARTED
-            .iter()
-            .find(|(l, _)| l == label)
-            .map_or(&[][..], |(_, cells)| &cells[..]);
+        // The result gate's overlap refusals are pinned, by count
+        // ([`OVERLAPPING`]); nothing else refuses.
         let (overlaps, others): (Vec<&String>, Vec<&String>) = tally
             .refused_cells
             .iter()
@@ -1041,7 +1012,7 @@ fn every_edge_a_vertex_read_again_reads_is_classed_against_the_germ() {
             .iter()
             .find(|(scene, _)| scene == label)
             .map_or(0, |&(_, n)| n);
-        if others != refused
+        if !others.is_empty()
             || overlaps.len() != pinned
             || tally.wrong + tally.missing + tally.doubled > 0
         {
@@ -1500,8 +1471,8 @@ const PARTNERS_OVERLAPPING: &[(f64, usize)] = &[(1e-9, 40), (1e-6, 26), (1e-12, 
 /// lies on it is a zero-area ring of the top, and a partner with an edge
 /// along the ray crosses its two coincident edges there; their union
 /// keeps only the top there and closes it across the line
-/// (`work/cleave/a-boolean-closes-a-slits-face-across-its-line.md`). A
-/// half-turn partner's edge inside the along face runs on past it
-/// (`work/cleave/a-boolean-edge-running-past-the-face-it-lies-in-is-not-parted.md`).
-/// They move with ε as [`PARTNERS_OVERLAPPING`] does.
-const PARTNERS_SLIT_GAPS: &[(f64, usize, usize)] = &[(1e-9, 20, 8), (1e-6, 18, 3), (1e-12, 20, 7)];
+/// (`work/cleave/a-boolean-closes-a-slits-face-across-its-line.md`): that
+/// count moves with ε as [`PARTNERS_OVERLAPPING`] does. None refuses
+/// `EdgeInFace` at any ε: a half-turn partner's edge inside the along
+/// face, ending on the face's corner by a record, parts there.
+const PARTNERS_SLIT_GAPS: &[(f64, usize, usize)] = &[(1e-9, 20, 0), (1e-6, 18, 0), (1e-12, 20, 0)];

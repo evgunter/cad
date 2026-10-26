@@ -169,6 +169,13 @@ fn boxd(q: Point3<f64>, x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> f64 {
         .max(q.z - z.1)
 }
 
+/// A margin off the diamond `|x| + |y| < 1`, positive outside: the
+/// distance to the line of the edge facing the point, at most its
+/// distance to the diamond. [`margin`] reads only its sign, past 1e-3.
+fn diamond(q: Point3<f64>) -> f64 {
+    (q.x.abs() + q.y.abs() - 1.0) / std::f64::consts::SQRT_2
+}
+
 fn grid() -> Vec<Point3<f64>> {
     let mut out = Vec::new();
     for i in 0..9 {
@@ -721,18 +728,86 @@ fn p12_a_plane_tangent_to_the_middle_of_a_hole() {
         [Some(42.0 - pi), Some(30.0 - pi), Some(6.0), Some(6.0)],
         &grid(),
     );
-    // `A ∖ B` keeps the hole's ruling, a doubled cusp, lying in the
-    // pocket's wall along its middle half only: the parting D1 owes there
-    // is not built, and it refuses typed rather than return the ruling
-    // whole across the wall
-    // (`work/cleave/a-boolean-edge-running-past-the-face-it-lies-in-is-not-parted.md`).
+    // `A ∖ B` keeps the hole's ruling lying in the pocket's wall along its
+    // middle half, the hole's wall tangent to it there: each of the two
+    // edges D1 parts it into would bound a cusp, whose reading on a line
+    // of coincident edges is not built, and it refuses typed rather than
+    // return the ruling whole across the wall
+    // (`work/cleave/the-boolean-parting-refuses-its-rarer-configurations.md`).
+    // [`p12_a_plane_through_the_middle_of_a_diamond_holes_edge`] is the
+    // same cut with no tangency, and builds.
     let [union, cut, cut_back, common] = got.as_slice() else {
         panic!("p12: {got:#?}");
     };
     all_answer("p12", &[union.clone(), cut_back.clone(), common.clone()]);
     assert!(
-        cut.starts_with("REFUSED EdgeInFace") && cut.contains("runs on past the face's boundary"),
+        cut.starts_with("REFUSED EdgeInFace") && cut.contains("tangent to the face along it"),
         "p12 A ∖ B: {cut}"
+    );
+}
+
+/// [`p12_a_plane_tangent_to_the_middle_of_a_hole`] with a diamond hole,
+/// `|x| + |y| < 1`: the cutter's face `x = 1` holds the hole's edge at
+/// `(1, 0)` along its middle half, the hole's two faces meeting it at 45°
+/// and both leaving into the plate's material. Every op answers. `A ∖ B`
+/// parts the edge where it lies in the pocket's wall, `z ∈ [0.25, 0.75]`,
+/// into two coincident edges, each crossing of the wall's top and bottom
+/// edges one vertex, and the wall into the two pieces either side of the
+/// line; the edge runs on whole below and above. Tier 3′ passes.
+#[test]
+fn p12_a_plane_through_the_middle_of_a_diamond_holes_edge() {
+    let hole = bulge_loop(vec![
+        (Point2::new(1.0, 0.0), 0.0),
+        (Point2::new(0.0, 1.0), 0.0),
+        (Point2::new(-1.0, 0.0), 0.0),
+        (Point2::new(0.0, -1.0), 0.0),
+    ]);
+    let a = ext(
+        "diamond-holed plate",
+        vec![rect(-3.0, -3.0, 3.0, 3.0), hole],
+        0.0,
+        1.0,
+    );
+    let b = finished(
+        "cutter",
+        brick::<f64>((1.0, 4.0), (-4.0, 4.0), (0.25, 0.75), tol()),
+        tol(),
+    );
+    // plate 36 − 2 = 34; cutter 12; meet 2·6·0.5 = 6
+    let got = four(
+        "p12 middle of a diamond hole's edge",
+        &a,
+        &b,
+        |q| margin(boxd(q, (-3.0, 3.0), (-3.0, 3.0), (0.0, 1.0)).max(-diamond(q))),
+        |q| margin(boxd(q, (1.0, 4.0), (-4.0, 4.0), (0.25, 0.75))),
+        [Some(40.0), Some(28.0), Some(6.0), Some(6.0)],
+        &grid(),
+    );
+    all_answer("p12 diamond", &got);
+    let Ok(topo::BooleanResult::Body(r)) = topo::subtract(&a, &b, tol()) else {
+        panic!("p12 diamond A ∖ B");
+    };
+    assert_eq!(
+        topo::validate_pseudomanifold(&r.body, &r.contacts, tol()).err(),
+        None,
+        "p12 diamond A ∖ B: tier 3′"
+    );
+    // Along the hole's edge, x = 1 on y = 0: the parted middle twice,
+    // the edge whole below and above, and a vertex per crossing.
+    let (spans, vertices) = topo::test_support::along_line(
+        &r.body,
+        Point3::new(1.0, 0.0, 0.0),
+        geom_core::Vec3::new(0.0, 0.0, 1.0),
+    );
+    assert_eq!(
+        spans,
+        [(0.0, 0.25), (0.25, 0.75), (0.25, 0.75), (0.75, 1.0)],
+        "p12 diamond A ∖ B: the edges along the hole's edge"
+    );
+    assert_eq!(
+        vertices,
+        [0.0, 0.25, 0.75, 1.0],
+        "p12 diamond A ∖ B: the vertices along the hole's edge"
     );
 }
 

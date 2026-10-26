@@ -329,23 +329,22 @@ struct Closed<'a> {
 /// and the parting is not built there.
 ///
 /// - The line body less the 0° prism against the bisector, every order:
-///   the prism's edge lies in the third's face along part of its length
-///   (`Partly`). At its midpoint, from the face's own direction round
-///   into it, the material is solid to 30°, empty to 80°, solid to 180°,
-///   empty to 270°, solid to 300° and empty beyond.
+///   the prism's edge lies in the third's face along part of its length,
+///   crossing the face's boundary at its corner on the plate's top, and
+///   runs along the line body's own coincident edges there, whose
+///   edge-edge records the division does not place (`Unplaced`;
+///   `work/cleave/an-edge-running-past-a-face-along-coincident-edges-is-not-divided.md`).
+///   At its midpoint, from the face's own direction round into it, the
+///   material is solid to 30°, empty to 80°, solid to 180°, empty to
+///   270°, solid to 300° and empty beyond.
 /// - The line body towards 350° less the prisms over 0°–50° and
 ///   280°–330°: the prism's edge lies in the wedge's face, whose material
-///   divides it, and an end touches an edge there (`DividedEndTouched`).
-/// - The line body less the bridge moved 1e-2 along x, every order: the
-///   bridge's edge lies in a face along part of its length (`Partly`;
-///   solid to 39°, empty to 149°, solid to 180°, empty beyond).
+///   divides it, and an end touches an edge there (`DividedEndTouched`;
+///   `work/cleave/the-boolean-parting-refuses-its-rarer-configurations.md`).
 ///
 /// Main built each as one edge, its wedge claiming the empty sector
-/// between the face's material and the prism's; the result gate refused
-/// the first two groups `LineWedges` (their overlapping wedges) and
-/// passed the third
-/// (`work/cleave/a-boolean-edge-running-past-the-face-it-lies-in-is-not-parted.md`,
-/// `work/cleave/the-boolean-parting-refuses-its-rarer-configurations.md`).
+/// between the face's material and the prism's, which the result gate
+/// refused `LineWedges` (their overlapping wedges).
 const UNPARTED: &[&str] = &[
     "subtraction of the prism over [(1.5, 1.0), (1.9, 1.0), (1.7571150438746157, 1.3064177772475911)], the line body [0, 1, 2], the line body first: true",
     "subtraction of the prism over [(1.5, 1.0), (1.9, 1.0), (1.7571150438746157, 1.3064177772475911)], the line body [0, 2, 1], the line body first: true",
@@ -361,12 +360,6 @@ const UNPARTED: &[&str] = &[
     "subtraction of the wedge towards 350°, the line body [1, 2, 0], the prism over [(1.5, 1.0), (1.9, 1.0), (1.7571150438746157, 1.3064177772475911)], the line body first: true",
     "subtraction of the wedge towards 350°, the line body [2, 1, 0], the prism over [(1.5, 1.0), (1.569459271066772, 0.6060768987951167), (1.8464101615137753, 0.7999999999999998)], the line body first: true",
     "subtraction of the wedge towards 350°, the line body [2, 1, 0], the prism over [(1.5, 1.0), (1.9, 1.0), (1.7571150438746157, 1.3064177772475911)], the line body first: true",
-    "subtraction of the line from [0, 1, 2] and the bridge moved (0.01, 0), the line body first: true",
-    "subtraction of the line from [0, 2, 1] and the bridge moved (0.01, 0), the line body first: true",
-    "subtraction of the line from [1, 0, 2] and the bridge moved (0.01, 0), the line body first: true",
-    "subtraction of the line from [1, 2, 0] and the bridge moved (0.01, 0), the line body first: true",
-    "subtraction of the line from [2, 0, 1] and the bridge moved (0.01, 0), the line body first: true",
-    "subtraction of the line from [2, 1, 0] and the bridge moved (0.01, 0), the line body first: true",
 ];
 
 /// Whether `got` is the refusal [`UNPARTED`] names for the cell; a cell
@@ -730,6 +723,73 @@ fn an_edge_crossing_both_wedges_refuses_typed_in_every_op_and_its_recourse_build
                 &|_, _| None,
             );
         }
+    }
+}
+
+/// **The line body less the bridge moved 1e-2 along x passes tier 3′
+/// with its members' records carried, in every member order.** The
+/// bridge's edge lies in the 0° prism's face along `y = 1` from the
+/// plate's top to its own top corner and runs on into the plate below:
+/// the material parts it there into two coincident edges, divided where
+/// it crosses the face's bottom edge, the crossing one vertex
+/// (`boolean::slit`). The bridge's own records are none.
+#[test]
+fn the_line_less_the_moved_bridge_passes_three_prime_with_its_records() {
+    let op = |kind, x: &AtRestBody<f64>, y: &AtRestBody<f64>, records_a| {
+        let inputs = topo::BooleanInputs {
+            records_a,
+            ..topo::BooleanInputs::default()
+        };
+        match topo::boolean_op_with(kind, x, y, &inputs, topo::SweepStrategy::Realized, t()) {
+            Ok(BooleanResult::Body(r)) => r,
+            other => panic!("{kind:?}: {:?}", other.map(|_| ())),
+        }
+    };
+    let mut bridge = Prism::on_line(30.0, 140.0, (0.44, 1.81));
+    bridge.foot[0].0 += 1e-2;
+    let bridge = bridge.body();
+    let members = [
+        finished(
+            "the plate",
+            common::brick(PLATE[0], PLATE[1], PLATE[2], t()),
+            t(),
+        ),
+        Prism::on_line(0.0, 50.0, (0.5, 2.0)).body(),
+        Prism::on_line(120.0, 170.0, (0.47, 1.7)).body(),
+    ];
+    for order in orders(3) {
+        let mut line = members[order[0]].clone();
+        let mut records = topo::OperandRecords::default();
+        for &i in &order[1..] {
+            let r = op(topo::BooleanOp::Union, &line, &members[i], records);
+            records = r.contacts.carried();
+            line = r.body;
+        }
+        let r = op(topo::BooleanOp::Subtract, &line, &bridge, records);
+        let what = format!("the line from {order:?} less the moved bridge");
+        assert_eq!(
+            validate_pseudomanifold(&r.body, &r.contacts, t()).err(),
+            None,
+            "{what}: tier 3′"
+        );
+        // The bridge's line, x = 1.51 on y = 1: two edges from the face's
+        // bottom edge (z = 1) to the bridge's top corner, one below, and
+        // one vertex at the crossing.
+        let (spans, vertices) = topo::test_support::along_line(
+            &r.body,
+            Point3::new(1.51, 1.0, 0.0),
+            geom_core::Vec3::new(0.0, 0.0, 1.0),
+        );
+        assert_eq!(
+            spans,
+            [(0.44, 1.0), (1.0, 1.81), (1.0, 1.81)],
+            "{what}: the edges along the bridge's line"
+        );
+        assert_eq!(
+            vertices,
+            [0.44, 1.0, 1.81],
+            "{what}: the vertices along the bridge's line"
+        );
     }
 }
 

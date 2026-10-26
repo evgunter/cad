@@ -989,15 +989,18 @@ class TestLoftPrism(unittest.TestCase):
     def test_the_v_degree_is_a_count_the_kernel_checks(self):
         """`1 <= v_degree <= len(profiles) - 1` is the kernel's rule,
         not the binding's: nothing is pre-checked here, so degree 3
-        through three sections refuses at evaluation."""
+        through three sections is the kernel's `loft_shape` refusal at
+        the insert door."""
         doc = Doc()
         sections = [
             (doc.insert(Node.polygon([(Formula.length_in(x, m), Formula.length_in(y, m)) for x, y in PRISM_SQUARE])), z)
             for z in (0.0, 1.0, 2.0)
         ]
-        overdegree = doc.insert(Node.loft(*stacked(sections), Formula.count(3)))
-        ev = evaluate(doc)
-        self.assertFalse(ev.succeeded(overdegree), "degree 3 needs four sections")
+        with self.assertRaises(EditError) as caught:
+            doc.insert(Node.loft(*stacked(sections), Formula.count(3)))
+        self.assertEqual(caught.exception.variant, "loft_shape")
+        self.assertEqual(caught.exception.inner_variant, "degree_out_of_range")
+        self.assertEqual((caught.exception.count, caught.exception.given), (3, 3))
 
 
 class TestTheVDegreeParamBinding(unittest.TestCase):
@@ -4019,7 +4022,8 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
                 "delete_node", "delete_var",
                 "insert_node", "rebind", "remove_constraint",
                 "rename_var",
-                "set_constraints", "set_label", "set_members",
+                "set_constraints", "set_label", "set_loft_sections",
+                "set_members",
                 "set_param", "set_program",
                 "set_tolerance", "set_var_distribution", "set_var_unit",
                 "set_var_value", "update_reference",

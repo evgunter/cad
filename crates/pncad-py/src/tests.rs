@@ -2329,6 +2329,31 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     carries(&E::WouldCycle { at: sp(1) }, &["node"]);
     carries(&E::ReadSiteMissingNode { at: sp(1) }, &["node"]);
     carries(&E::SetMembersOnNonList { node: sp(1) }, &["node"]);
+    carries(&E::SetLoftSectionsOnNonLoft { node: sp(1) }, &["node"]);
+    carries(
+        &E::LoftShape {
+            node: sp(1),
+            fault: pncad::document::LoftFault::TooFewSections { have: 1 },
+        },
+        &["node", "count"],
+    );
+    carries(
+        &E::LoftShape {
+            node: sp(1),
+            fault: pncad::document::LoftFault::EmptyStation { section: 1 },
+        },
+        &["node", "index"],
+    );
+    carries(
+        &E::LoftShape {
+            node: sp(1),
+            fault: pncad::document::LoftFault::DegreeOutOfRange {
+                degree: 2,
+                sections: 2,
+            },
+        },
+        &["node", "count", "given"],
+    );
     carries(&E::SetProgramOnNonProfile { node: sp(1) }, &["node"]);
     carries(
         &E::StepIdsRefused {
@@ -4664,6 +4689,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "label_unchanged",
             "loft_section_count",
             "loft_sections_spelled",
+            "loft_shape",
             "mate_refused",
             "meta_non_finite",
             "meta_not_set",
@@ -4695,6 +4721,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "rebind_unknown_name",
             "selection_name_kind",
             "selection_shape",
+            "set_loft_sections_on_non_loft",
             "set_members_on_non_list",
             "set_program_on_non_profile",
             "shared_var_needs_name",
@@ -4735,6 +4762,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "distribution_fault_tag",
             "expr_dimension_error_tag",
             "input_fault_tag",
+            "loft_fault_tag",
             "mate_fault_tag",
             "meta_version_error_tag",
             "node_error_tag",
@@ -4976,6 +5004,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "skin",
             "stacking_escalated",
         ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "loft_fault_tag",
+        values: &["degree_out_of_range", "empty_station", "too_few_sections"],
         delegates: &[],
     },
     TagEntry {
@@ -5802,6 +5835,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "remainder_edit",
             "remainder_read_uncarried",
             "severed_edge",
+            "space_straddles_cut",
             "split_pin",
             "uncut_var_reference",
             "unknown_cut_node",
@@ -6317,6 +6351,9 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("step_ids", 3),
     ("structure", 3),
     ("tolerance_conflict", 2),
+    // One fact at the edit door and in the skin: a loft through fewer
+    // than two sections.
+    ("too_few_sections", 2),
     ("transition", 2),
     // A coincidence: a crossing side the band left undecided, and a
     // rigidity margin the decided door left undecided.
