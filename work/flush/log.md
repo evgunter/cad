@@ -584,3 +584,5 @@ None waits on an INTENT stage. A row that turns out to need one moves back. — 
   moved from (25512, 1392) to (26292, 2004) at the merge of PRED's PR 5724
   onto FLUSH's PR 5706. Each passes alone; the bisect is in
   `work/issues/main-red-the-lattice-discard-pin-moved-where-pred-5724-met-flush-5706.md`.
+- 2026-10-26 — **The glue verdict goes to Ev** (`a-glue-verdict-is-not-bound-to-the-bodies-it-judged`, P2 design). One Opus and one Fable designer, dispatched together on one statement of the problem (labels by byte, recorded on `analysis/design-fork/flush-glue-verdict`), agree on the final state: a kernel n-ary union and intersect, with `given` leaving the public API. Both reject the row's framing. No reconciliation was needed. They differ only on the judgement's operand order and on whether DM4's sentence is a decision, so I put it to Ev (fork-log row 197): moving the fold into `topo` changes DM4's "a fold of the kernel's pair verb", and an unsure decision goes as a fork. The row re-prices at dispatch: the move crosses CLEAVE/HONE (`topo` boolean) and WIRE (`wire.rs`) ground.
+— (FLUSH orchestrator)
