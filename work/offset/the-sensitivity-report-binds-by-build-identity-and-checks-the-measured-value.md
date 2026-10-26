@@ -2,12 +2,15 @@
 id: the-sensitivity-report-binds-by-build-identity-and-checks-the-measured-value
 kind: unit
 title: The sensitivity report binds its dual passes to the f64 evaluation by build identity and refuses on a measured-value mismatch; the anchor walk goes
-status: spec
+status: closed
 opened: 2026-10-25
 priority: P1
 cost: M
 parent: offset
 refs: [5689]
+closed: 2026-10-25
+pr: 5720
+branch: offset/sensitivity-build-identity
 ---
 
 
@@ -43,3 +46,29 @@ rebuilt `f64` anchor:
 
 **Test.** A pass with a perturbed value must refuse as drift, and a pass
 from another revision, ε or parts set must refuse at the binding.
+
+## Closed
+
+Built in PR 5720. `stackup.rs` binds the `f64` build of record to the
+unseeded dual base and to every pass by `BuildIdentity` (document id,
+content pin, binding bits, tolerance, resolved parts), refusing a
+typed `BindingViolation`; each pass's measured value half is compared
+bit for bit (`SensitivityRefusal::MeasuredValueDrift`); the lift valve
+reads the pass's own `ProfileLaneReplay`. The anchor walk and the
+value-channel digest are gone. `EvalOptions::pin` asks a run for its
+`Evaluation::pin`. The resolved parts' pin already exists as
+`DocRef.pin` (A4); the carried part rows are the identity's parts set,
+so no new pin and no filed gap.
+
+The review's fix pass on the same PR made these changes:
+- the driver picks the first error in parameter order whatever the
+  schedule;
+- a record that refused every node is `BindingViolation::NotABuild`;
+- a dual-only refusal carries its node, its cause and the record's
+  reading (`RecordReading`) into the `Stackup` blocker;
+- `PairingViolation` is renamed `BindingViolation`;
+- `Evaluation::pin` and `Evaluation::tolerance` are crate-private
+  behind getters.
+
+`EvalOutcome::Completed` on a whole refusal is filed as
+`a-whole-evaluation-refusal-reports-completed`.
