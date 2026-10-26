@@ -81,9 +81,9 @@ fn interval_evaluation_of_a_boolean_doc_brackets_the_oracle() {
     };
     assert_eq!(validate(body), Ok(()));
     assert_eq!(validate_closed(body), Ok(()));
-    let vol = topo::test_support::unmigrated_measure(body, Tol::witness())
+    let vol = topo::test_support::unmigrated_measure(body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
         .unwrap()
-        .volume;
+        .enclosure.volume;
     let oracle = 8.0 - 0.25 * 0.25 * 0.125;
     assert!(
         vol.lo() <= oracle && oracle <= vol.hi(),
@@ -114,9 +114,9 @@ fn the_die_evaluates_at_interval_and_brackets_the_oracle() {
     };
     assert_eq!(validate(body), Ok(()));
     assert_eq!(validate_closed(body), Ok(()));
-    let vol = topo::test_support::unmigrated_measure(body, Tol::witness())
+    let vol = topo::test_support::unmigrated_measure(body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
         .unwrap()
-        .volume;
+        .enclosure.volume;
     assert!(
         vol.lo() <= fixture::DIE_VOLUME && fixture::DIE_VOLUME <= vol.hi(),
         "enclosure [{}, {}] must bracket the oracle",

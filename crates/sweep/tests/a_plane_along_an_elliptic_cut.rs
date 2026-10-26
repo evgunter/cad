@@ -58,7 +58,7 @@ fn lower_piece(tol: Tol) -> (AtRestBody<f64>, f64, Point3<f64>) {
         .body()
         .expect("material below the cut")
         .clone();
-    let volume = mass_properties(&lower, tol).unwrap().volume;
+    let volume = mass_properties(&lower, tol, topo::test_support::pinned_resolution(tol)).unwrap().enclosure.volume;
     let want = core::f64::consts::PI * RADIUS * RADIUS * DEPTH / 2.0;
     assert!(
         (volume - want).abs() <= within(tol) * want,
@@ -90,7 +90,7 @@ fn lands_whole_below(
     );
     let below = r.below.body().expect("the piece lands Below");
     assert_eq!(validate_closed(below), Ok(()), "{label}: Below is closed");
-    let got = mass_properties(below, tol).unwrap().volume;
+    let got = mass_properties(below, tol, topo::test_support::pinned_resolution(tol)).unwrap().enclosure.volume;
     assert!(
         (got - volume).abs() <= within(tol) * volume,
         "{label}: Below holds the whole piece: {got}, want {volume}"

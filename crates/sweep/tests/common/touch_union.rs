@@ -23,7 +23,7 @@ fn tol() -> Tol {
 }
 
 fn volume(body: &AtRestBody<f64>) -> f64 {
-    topo::mass_properties(body, tol()).unwrap().volume
+    topo::mass_properties(body, tol(), topo::test_support::pinned_resolution(tol())).unwrap().enclosure.volume
 }
 
 fn body<'r>(

@@ -25,7 +25,7 @@ fn main() {
     for (name, body, delta) in common::acceptance_bodies() {
         let body = topo::AtRestBody::validate(body, tol)
             .unwrap_or_else(|e| panic!("{name}: tier-3 validation failed: {e:?}"));
-        let props = topo::mass_properties(&body, tol).expect("mass properties");
+        let props = topo::mass_properties(&body, tol, topo::test_support::pinned_resolution(tol)).expect("mass properties");
         let mesh = mesh::tessellate(&body, delta, tol).expect("tessellate");
         check_mesh(&mesh).unwrap_or_else(|e| panic!("{name}: check_mesh failed: {e:?}"));
         let v = signed_volume(&mesh);
@@ -36,8 +36,8 @@ fn main() {
         println!(
             "exported {path}: {} triangles, V_exact = {:.6}, V_mesh = {v:.6}, A_exact = {:.6}",
             triangle_count(&mesh),
-            props.volume,
-            props.surface_area,
+            props.enclosure.volume,
+            props.enclosure.surface_area,
         );
     }
 }

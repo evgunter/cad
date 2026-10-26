@@ -91,9 +91,9 @@ fn arc_bracket() -> Body<f64> {
 }
 
 fn volume(b: &Body<f64>) -> f64 {
-    topo::test_support::unmigrated_measure(b, Tol::witness())
+    topo::test_support::unmigrated_measure(b, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
         .expect("the volume integrates")
-        .volume
+        .enclosure.volume
 }
 
 /// One op's row: the op, its name, and what it returned.

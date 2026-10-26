@@ -109,9 +109,9 @@ fn top_normal_z(body: &Body<f64>) -> f64 {
 
 fn volume(body: &Body<f64>) -> f64 {
     // Raw door: this helper measures each body before and after an offset, and tier 3 refuses the inside-out ones (NegativeVolume).
-    topo::test_support::measure_unvalidated(body, Tol::witness())
+    topo::test_support::measure_unvalidated(body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
         .unwrap()
-        .volume
+        .enclosure.volume
 }
 
 /// `body` finishes when `right_way`, and refuses on check 7 alone when

@@ -30,12 +30,12 @@ fn run(
 
 fn fingerprint(b: &Body<f64>) -> String {
     let mut s = String::new();
-    let m = topo::test_support::unmigrated_measure(b, Tol::witness()).unwrap();
+    let m = topo::test_support::unmigrated_measure(b, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap();
     let _ = writeln!(
         s,
         "V {:016x} A {:016x}",
-        m.volume.to_bits(),
-        m.surface_area.to_bits()
+        m.enclosure.volume.to_bits(),
+        m.enclosure.surface_area.to_bits()
     );
     for (k, p) in b.points() {
         let _ = writeln!(
@@ -538,9 +538,9 @@ fn revolve_volume(angle: f64) -> Result<f64, String> {
     let ev = run(&doc, None, false);
     match ev.nodes.get(&rev) {
         Some(NodeResult::Ok(v)) => match &v.payload {
-            ValuePayload::Body(b) => Ok(topo::test_support::unmigrated_measure(b, Tol::witness())
+            ValuePayload::Body(b) => Ok(topo::test_support::unmigrated_measure(b, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
                 .unwrap()
-                .volume),
+                .enclosure.volume),
             other => Err(format!("non-body: {}", other.kind_name())),
         },
         Some(NodeResult::Failed(e)) => Err(format!("{:?}", e.kind)),
@@ -683,15 +683,17 @@ fn rotational_pip_matches_translated_pip_to_rounding() {
     let v_exact = topo::test_support::unmigrated_measure(
         boolean_body(&run(&d_exact, None, false), s_exact),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .volume;
+    .enclosure.volume;
     let v_rot = topo::test_support::unmigrated_measure(
         boolean_body(&run(&d_rot, None, false), s_rot),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .volume;
+    .enclosure.volume;
     assert_eq!(
         v_exact,
         8.0 - 0.25 * 0.25 * 0.125,
@@ -801,14 +803,15 @@ fn interval_memo_reuses_and_invalidates_like_f64() {
     let vf = topo::test_support::unmigrated_measure(
         boolean_body(&run(&doc, None, false), s),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .volume;
+    .enclosure.volume;
     let vi = match &e2.value(s).unwrap().payload {
         ValuePayload::Boolean(BooleanValue::Body { body, .. }) => {
-            topo::test_support::unmigrated_measure(body.as_ref(), Tol::witness())
+            topo::test_support::unmigrated_measure(body.as_ref(), Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
                 .unwrap()
-                .volume
+                .enclosure.volume
         }
         other => panic!("expected boolean body, got {}", other.kind_name()),
     };

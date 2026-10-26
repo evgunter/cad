@@ -68,7 +68,7 @@ fn probe_overthick_box_fails_loud() {
         Ok(topo::Shelled { body, .. }) => panic!(
             "overthick box returned Ok — silent wrong answer; shells = {}, volume = {:?}",
             body.shells().count(),
-            topo::test_support::unmigrated_measure(&body, Tol::witness()).map(|p| p.volume)
+            topo::test_support::unmigrated_measure(&body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).map(|p| p.enclosure.volume)
         ),
     }
 }
@@ -87,7 +87,7 @@ fn probe_overhalf_slab_fails_loud() {
         Ok(topo::Shelled { body, .. }) => panic!(
             "over-half slab returned Ok — silent wrong answer; shells = {}, volume = {:?}",
             body.shells().count(),
-            topo::test_support::unmigrated_measure(&body, Tol::witness()).map(|p| p.volume)
+            topo::test_support::unmigrated_measure(&body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).map(|p| p.enclosure.volume)
         ),
     }
 }
@@ -105,7 +105,7 @@ fn probe_exact_half_slab_fails_loud() {
         Ok(topo::Shelled { body, .. }) => panic!(
             "exact-half slab returned Ok — degenerate cavity; shells = {}, volume = {:?}",
             body.shells().count(),
-            topo::test_support::unmigrated_measure(&body, Tol::witness()).map(|p| p.volume)
+            topo::test_support::unmigrated_measure(&body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).map(|p| p.enclosure.volume)
         ),
     }
 }
@@ -137,7 +137,7 @@ fn probe_lshape_colliding_cavity_fails_loud() {
         Ok(topo::Shelled { body, .. }) => panic!(
             "L-shape returned Ok — colliding cavity; shells = {}, volume = {:?}",
             body.shells().count(),
-            topo::test_support::unmigrated_measure(&body, Tol::witness()).map(|p| p.volume)
+            topo::test_support::unmigrated_measure(&body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).map(|p| p.enclosure.volume)
         ),
     }
 }
@@ -238,17 +238,17 @@ fn probe_shell_of_a_hollow_thickens_every_boundary() {
             "{solid:?}: one outer boundary and one cavity"
         );
     }
-    let props = topo::test_support::unmigrated_measure(&shelled, Tol::witness()).expect("props");
+    let props = topo::test_support::unmigrated_measure(&shelled, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).expect("props");
     let v = |w: f64, d: f64, h: f64| w * d * h;
     let want = (v(2.0, 3.0, 4.0) - v(1.9, 2.9, 3.9)) + (v(1.6, 2.6, 3.6) - v(1.5, 2.5, 3.5));
     assert!(
-        (props.volume - want).abs() <= 1e-12,
+        (props.enclosure.volume - want).abs() <= 1e-12,
         "two walls: got {}, want {want}",
-        props.volume
+        props.enclosure.volume
     );
     println!(
         "[probe] MAJ-2: shell-of-hollow thickens every boundary: volume {}",
-        props.volume
+        props.enclosure.volume
     );
 }
 
@@ -322,17 +322,17 @@ fn probe_adjacent_two_face_opening() {
                 "adjacent-pair opening returned an INVALID body"
             );
             let props =
-                topo::test_support::unmigrated_measure(&open, Tol::witness()).expect("props");
+                topo::test_support::unmigrated_measure(&open, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).expect("props");
             // Cavity runs to the top AND to the x = w side.
             let want = w * d * h - (w - t) * (d - 2.0 * t) * (h - t);
             assert!(
-                (props.volume - want).abs() <= 1e-12,
+                (props.enclosure.volume - want).abs() <= 1e-12,
                 "adjacent-pair volume: got {}, want {want}",
-                props.volume
+                props.enclosure.volume
             );
             println!(
                 "[probe] adjacent pair: Ok and coherent (volume {})",
-                props.volume
+                props.enclosure.volume
             );
         }
     }
@@ -434,17 +434,17 @@ fn probe_opened_vessel_cup() {
                 });
             }
             let props =
-                topo::test_support::unmigrated_measure(&cup, Tol::witness()).expect("props");
+                topo::test_support::unmigrated_measure(&cup, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).expect("props");
             let want = core::f64::consts::PI * (r * r * h - (r - t) * (r - t) * (h - t));
             assert!(
-                (props.volume - want).abs() <= 1e-9 + props.volume_pad,
+                (props.enclosure.volume - want).abs() <= 1e-9 + props.enclosure.volume_pad,
                 "vessel cup volume: got {} (pad {}), want {want}",
-                props.volume,
-                props.volume_pad
+                props.enclosure.volume,
+                props.enclosure.volume_pad
             );
             println!(
                 "[probe] vessel cup: Ok and coherent (volume {}, rings {})",
-                props.volume, counts.r
+                props.enclosure.volume, counts.r
             );
         }
     }

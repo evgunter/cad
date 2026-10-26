@@ -45,9 +45,10 @@ fn two_outer_bounds_on_a_planar_face_with_a_real_hole() {
     let v0 = topo::mass_properties(
         &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .volume;
+    .enclosure.volume;
     println!("baseline volume {v0}");
     match import_step(&m, &ImportOptions::default(), Tol::witness()) {
         Ok(StepImport::Solid { body, .. }) => {
@@ -55,8 +56,9 @@ fn two_outer_bounds_on_a_planar_face_with_a_real_hole() {
             let v = topo::mass_properties(
                 &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
                 Tol::witness(),
+                topo::test_support::pinned_resolution(Tol::witness()),
             )
-            .map(|x| x.volume);
+            .map(|x| x.enclosure.volume);
             println!("all-outer: t3ok={} vol={v:?}", t3.is_ok());
             if t3.is_ok() {
                 let v = v.unwrap();

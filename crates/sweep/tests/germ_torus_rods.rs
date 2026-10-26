@@ -33,9 +33,9 @@ use test_utils::fuzz;
 use topo::{Body, BooleanResult};
 
 fn volume(b: &Body<f64>) -> f64 {
-    topo::test_support::unmigrated_measure(b, Tol::witness())
+    topo::test_support::unmigrated_measure(b, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
         .expect("the volume integrates")
-        .volume
+        .enclosure.volume
 }
 
 #[test]

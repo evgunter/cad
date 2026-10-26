@@ -236,7 +236,7 @@ fn the_gate_certifies_a_sign_and_the_continuation_certifies_the_number() {
         let continued = continued.expect("the closure ran");
         let mut measured = None;
         let one =
-            quad_rounds(|| measured = Some(topo::test_support::unmigrated_measure(&body, tol)));
+            quad_rounds(|| measured = Some(topo::test_support::unmigrated_measure(&body, tol, topo::test_support::pinned_resolution(tol))));
         let measured = measured.expect("the closure ran");
 
         // REUSE: none skipped — on EVERY roster body, in the form that
@@ -295,11 +295,11 @@ fn the_gate_certifies_a_sign_and_the_continuation_certifies_the_number() {
         match (&continued, &measured) {
             (Ok(c), Ok(m)) => {
                 assert!(
-                    c.volume_pad <= m.volume_pad,
+                    c.volume_pad <= m.enclosure.volume_pad,
                     "AGREEMENT {label}: the continuation keeps every face's narrowest \
                      enclosure, so its pad {:e} is never over the measurement's {:e}",
                     c.volume_pad,
-                    m.volume_pad
+                    m.enclosure.volume_pad
                 );
                 if gate + refine == one {
                     assert_eq!(
@@ -310,10 +310,10 @@ fn the_gate_certifies_a_sign_and_the_continuation_certifies_the_number() {
                             c.area_pad.to_bits()
                         ),
                         (
-                            m.volume.to_bits(),
-                            m.surface_area.to_bits(),
-                            m.volume_pad.to_bits(),
-                            m.area_pad.to_bits()
+                            m.enclosure.volume.to_bits(),
+                            m.enclosure.surface_area.to_bits(),
+                            m.enclosure.volume_pad.to_bits(),
+                            m.enclosure.area_pad.to_bits()
                         ),
                         "AGREEMENT {label}: the gate took no face past the round the number \
                          stops it at, so the continuation ran the measurement's rounds and \
@@ -324,18 +324,18 @@ fn the_gate_certifies_a_sign_and_the_continuation_certifies_the_number() {
                 // round its sign became certain, contains the value
                 // the reporting door eventually computed.
                 assert!(
-                    enclosure.volume_lo <= m.volume && m.volume <= enclosure.volume_hi,
+                    enclosure.volume_lo <= m.enclosure.volume && m.enclosure.volume <= enclosure.volume_hi,
                     "AGREEMENT {label}: the sign-level bracket [{}, {}] must contain the \
                      reported volume {}",
                     enclosure.volume_lo,
                     enclosure.volume_hi,
-                    m.volume
+                    m.enclosure.volume
                 );
                 assert!(
-                    m.volume > 0.0,
+                    m.enclosure.volume > 0.0,
                     "AGREEMENT {label}: the gate certified a positive sign, so the number \
                      must be positive too, got {}",
-                    m.volume
+                    m.enclosure.volume
                 );
             }
             (Err(c), Err(m)) => assert_eq!(
@@ -393,24 +393,25 @@ fn the_sign_walks_narrower_bracket_holds_the_closed_form() {
     let reported = topo::mass_properties(
         &topo::test_support::finished("the strip", body.clone(), tol),
         tol,
+        topo::test_support::pinned_resolution(tol),
     )
     .unwrap_or_else(|e| panic!("the reporting door measures the strip: {e}"));
     let measured = cert
         .measure()
         .unwrap_or_else(|e| panic!("the certificate measures the strip: {}", e.refusal));
     assert!(
-        measured.volume_pad < reported.volume_pad,
+        measured.enclosure.volume_pad < reported.enclosure.volume_pad,
         "the sign walk refined the walls past the resolution, so the certificate's pad \
          {:e} must be under the reporting door's {:e}",
-        measured.volume_pad,
-        reported.volume_pad
+        measured.enclosure.volume_pad,
+        reported.enclosure.volume_pad
     );
     for (door, p) in [("certificate", &measured), ("reporting door", &reported)] {
         assert!(
-            (p.volume - want).abs() <= p.volume_pad,
+            (p.enclosure.volume - want).abs() <= p.enclosure.volume_pad,
             "the {door}'s bracket {:e} ± {:e} must hold the closed form {want:e}",
-            p.volume,
-            p.volume_pad
+            p.enclosure.volume,
+            p.enclosure.volume_pad
         );
     }
 }
@@ -518,6 +519,7 @@ fn the_backstop_reads_from_round_zero() {
         topo::mass_properties(
             &topo::test_support::finished("the loft", result.clone(), tol),
             tol,
+            topo::test_support::pinned_resolution(tol),
         )
         .expect("the loft measures");
     });
@@ -591,9 +593,10 @@ fn a_relation_refines_a_quadrature_face_and_settles_or_stops_in_the_band() {
     let v = topo::mass_properties(
         &topo::test_support::finished("the loft", body.clone(), tol),
         tol,
+        topo::test_support::pinned_resolution(tol),
     )
     .expect("the arc loft measures")
-    .volume;
+    .enclosure.volume;
     let name = "sign_walk_plus_v_relation";
     let ask = |bound: f64| {
         let bracket = geom_core::k_stats::Bracket::open();

@@ -121,7 +121,7 @@ fn every_op_in_both_orders(
         match topo::union(p, q, tol()) {
             Ok(BooleanResult::Body(u)) => {
                 assert_eq!(u.body.solids().count(), 2, "{}: two solids", what("∪"));
-                let v = topo::mass_properties(&u.body, tol()).unwrap().volume;
+                let v = topo::mass_properties(&u.body, tol(), topo::test_support::pinned_resolution(tol())).unwrap().enclosure.volume;
                 assert!(
                     (v - (vx + vy)).abs() <= 1e-9 * (vx + vy),
                     "{}: volume {v} against the closed form {}",
@@ -143,7 +143,7 @@ fn every_op_in_both_orders(
         match topo::subtract(p, q, tol()) {
             Ok(BooleanResult::Body(d)) => {
                 assert_eq!(d.kind, BooleanResultKind::OperandA, "{}", what("∖"));
-                let v = topo::mass_properties(&d.body, tol()).unwrap().volume;
+                let v = topo::mass_properties(&d.body, tol(), topo::test_support::pinned_resolution(tol())).unwrap().enclosure.volume;
                 assert!(
                     (v - vp).abs() <= 1e-9 * vp,
                     "{}: volume {v} against the closed form {vp}",

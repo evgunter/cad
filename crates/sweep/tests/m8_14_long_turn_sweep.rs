@@ -95,20 +95,20 @@ fn helix_oracle_gap(turns: f64, stations: usize) -> f64 {
     let profile = quad([(-H, -H), (H, -H), (H, H), (-H, H)]);
     let swept = sweep_body::<f64>(&profile, place, &path, stations, 3, Tol::witness())
         .unwrap_or_else(|e| panic!("a {turns}-turn helical sweep must build now: {e:?}"));
-    let m = topo::test_support::unmigrated_measure(&swept.body, Tol::witness())
+    let m = topo::test_support::unmigrated_measure(&swept.body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
         .expect("mass properties certify");
     assert!(
-        m.volume_pad < 1e-9,
+        m.enclosure.volume_pad < 1e-9,
         "{turns}-turn helix @ {stations} stations: the certified enclosure must \
          stay far tighter than the discretization bracket (pad {})",
-        m.volume_pad
+        m.enclosure.volume_pad
     );
     let area = (2.0 * H) * (2.0 * H);
     let oracle = area * chordal_length(&path, 20_000);
-    let rel = ((m.volume - oracle) / oracle).abs();
+    let rel = ((m.enclosure.volume - oracle) / oracle).abs();
     println!(
         "helix {turns} turns @ {stations} stations | certified {} (pad {}) | A*L {oracle} | rel {rel}",
-        m.volume, m.volume_pad
+        m.enclosure.volume, m.enclosure.volume_pad
     );
     rel
 }

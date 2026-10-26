@@ -44,7 +44,7 @@
 use std::io::Write as _;
 
 use pncad::geom_core::k_stats::{self, Probe, SampleOutcome};
-use pncad::topo::{Body, ContactRecords, VolumeReading};
+use pncad::topo::{Body, ContactRecords, Measured, Stop};
 
 use crate::{
     az, bodies, bool_bodies, bossplate, bracket, crosslap, curvedcut, cutaway, heatsink,
@@ -74,7 +74,7 @@ fn validate_probe(
     body: &Body<Probe>,
     contacts: Option<&ContactRecords>,
     tol: Tol,
-) -> VolumeReading<Probe> {
+) -> Measured<Probe> {
     pncad::topo::validate(body).unwrap_or_else(|e| panic!("{label}: tier 1 at Probe: {e:?}"));
     pncad::topo::validate_closed(body)
         .unwrap_or_else(|e| panic!("{label}: tier 2 at Probe: {e:?}"));
@@ -103,11 +103,12 @@ fn sweep<F: FnOnce() -> Vec<ProbeBody>>(
     let bodies = build();
     for (label, body, contacts) in &bodies {
         let reading = validate_probe(label, body, contacts.as_ref(), tol);
-        let kind = match reading {
-            VolumeReading::Number(_) => "number",
-            VolumeReading::Bracket(_) => "bracket",
+        let kind = if reading.stop == Stop::Met {
+            "number"
+        } else {
+            "bracket"
         };
-        let e = reading.enclosure();
+        let e = reading.enclosure.enclosure();
         eprintln!(
             "k_probe(demo)\tvolume\t{scene}\t{label}\t{kind}\t{:e}\t{:e}",
             e.volume_lo.0, e.volume_hi.0

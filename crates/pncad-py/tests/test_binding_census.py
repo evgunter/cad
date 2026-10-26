@@ -865,7 +865,7 @@ BOUND_AS = {
     # `StepImport` is what `import_step` answers. Its `Solid` arm is
     # the whole of what Python's door can adopt, so the carrier crosses
     # AS that arm — `ImportReport`, a frozen value with `body`,
-    # `enclosure`, `eps_in` and the three record lists — rather than as
+    # `measure`, `eps_in` and the three record lists — rather than as
     # a two-arm sum with a `variant` a Python caller could never see
     # the other value of. The `Wireframe` arm is not dropped: it is
     # already this door's typed refusal (`StepImportError.variant ==
@@ -877,8 +877,8 @@ BOUND_AS = {
     # had no Python spelling at all; the natural journey — import a
     # file, ask what it encloses — ran the certified quadrature TWICE
     # over one body at one band, once inside the import gate and once
-    # in `Body.mass_properties`. `enclosure` is the gate's own result
-    # handed back, so that journey now measures once, and
+    # in `Body.mass_properties`. `measure` continues the gate's own
+    # certificate, so that journey now measures once, and
     # `test_document.py` pins the two BIT for bit rather than within a
     # tolerance: the claim is that they are the same computation, and
     # an almost-equality would pass for two different ones that agreed.
@@ -1388,6 +1388,18 @@ BOUND_AS = {
     "intersect": "Node.intersect",
     "loft_body": "Node.loft",
     "mass_properties": "Body.mass_properties",
+    # What a measurement reached crosses as `MassMeasurement` (the
+    # names `Measured` and `Measurement` are the document layer's), its
+    # stop as the `stop` word and a deciding predicate's verdict as
+    # `verdict`. A relation's operator is which `Settle` constructor
+    # built it.
+    "Measured": "MassMeasurement",
+    "Stop": "MassMeasurement.stop",
+    "Verdict": "MassMeasurement.verdict",
+    "RelOp": ("Settle.at_most", "Settle.at_least"),
+    # The import gate's certificate, held beside the body: Python
+    # measures through it and never holds it.
+    "HeldCertificate": "ImportReport.measure",
     # The façade's lattice-backed loop door and the document layer's
     # node constructor answer the same question — a closed outline from
     # a coordinate table — one rung apart, which is the mapping rule's
@@ -1652,18 +1664,6 @@ FAMILIES: dict[str, str] = {
         "was stored with, a Python spelling of the keyed read beside "
         "`IndexedRead`, and one Python row reading one copy of an "
         "instance at a body seat."
-    ),
-    # THE MEASUREMENT PREDICATE ARRIVED BEFORE ITS DOORS
-    # (`docs/QUAD-MEASURE-SPEC.md` unit B): the façade curates `Settle`
-    # and the vocabulary its variants carry, while no number door takes
-    # one yet. Python taking it as data is unit C's
-    # (`work/quad/the-measurement-door-refines-until-a-predicate-resolves`).
-    "B-SETTLE": (
-        "what a measurement is asked — `Settle` (a sign, a relation, a "
-        "containment or a resolution) with `RelOp`, `SignNames` and "
-        "`RoleNames`. Closing it needs `Body.mass_properties()` and the "
-        "other number doors to take one as data, a `pncad.pyi` entry for "
-        "each, and one Python row per variant."
     ),
 }
 
@@ -2423,10 +2423,11 @@ NOT_BOUND = {
     "SpokenSpace": SHAPE,
     "VarDef": f"{GAP}: B-VAR-ID a variable's minted identity",
     "CopyKey": f"{GAP}: B-COPY-KEY the key of one copy of a placement's copies",
-    "Settle": f"{GAP}: B-SETTLE what a measurement is asked",
-    "RelOp": f"{GAP}: B-SETTLE what a measurement is asked",
-    "SignNames": f"{GAP}: B-SETTLE what a measurement is asked",
-    "RoleNames": f"{GAP}: B-SETTLE what a measurement is asked",
+    # The names a deciding predicate's decisions are recorded under:
+    # each `Settle` constructor fixes its own, which its docstring
+    # gives, so a Python caller states the question and not the name.
+    "SignNames": SHAPE,
+    "RoleNames": SHAPE,
     "KeyedCopy": f"{GAP}: B-COPY-KEY the key of one copy of a placement's copies",
     "VarRef": f"{GAP}: B-VAR-ID a variable's minted identity",
     "node_kind_noun": SHAPE,
@@ -2528,19 +2529,9 @@ NOT_BOUND = {
     "GeomRef": SHAPE,
     "Mat3": SHAPE,
     "MassPropsError": SHAPE,
-    # `StepImport::Solid::enclosure`'s refusal arm and the bracket it
-    # carries cross the way `MassPropsError` does: as the measurement
-    # refusal `ImportReport.enclosure` and
-    # `Body.validate_geometric_measured` raise, with the bracket as its
-    # `volume_lo`/`volume_hi`/`surface_area` attributes (`None` unless
-    # the schedule ran out) rather than as values Python holds.
-    "TargetUnreached": SHAPE,
+    # A certificate's bracket, which a Python caller never holds: the
+    # certificate crosses only as the door that measures through it.
     "VolumeEnclosure": SHAPE,
-    # `VolumeReading` is that same fork, number or bracket, named as
-    # one value for the Rust demos and rows. Python reads the number
-    # from the mass properties and the bracket from the refusal's
-    # `volume_lo`/`volume_hi`, as above.
-    "VolumeReading": SHAPE,
     # WHAT THE CLASSIFIER SAW, curated at the prelude beside the
     # `Indeterminate` that holds it — and a discriminant that crosses
     # as WHICH ATTRIBUTE IS SET rather than as a word.

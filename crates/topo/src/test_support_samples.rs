@@ -792,6 +792,7 @@ fn mass_props_errors() -> Vec<MassPropsError> {
             eps: 1e-9,
         },
         MassPropsError::Poisoned { cause: diag() },
+        MassPropsError::CertificateOfAnotherBody,
     ]);
     v.extend(
         props_errors()

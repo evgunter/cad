@@ -206,15 +206,15 @@ fn reassembly_oracle_generic_cube() {
         "census equality"
     );
     // Raw door: the measured body is construction state whose joinable vertices tier 3 refuses (JoinableVertexAtRest).
-    let m1 = crate::test_support::measure_unvalidated(&body, tol).unwrap();
+    let m1 = crate::test_support::measure_unvalidated(&body, tol, crate::test_support::pinned_resolution(tol)).unwrap();
     // Raw door: the measured body is a body still carrying construction scaffolding, which tier 3 refuses (ScaffoldAtRest).
-    let m0 = crate::test_support::measure_unvalidated(&operand, tol).unwrap();
+    let m0 = crate::test_support::measure_unvalidated(&operand, tol, crate::test_support::pinned_resolution(tol)).unwrap();
     let close = |a: f64, b: f64| (a - b).abs() <= 1e-12 * b.abs().max(1.0);
     assert!(
-        close(m1.volume, m0.volume),
+        close(m1.enclosure.volume, m0.enclosure.volume),
         "volume restored: {} vs {}",
-        m1.volume,
-        m0.volume
+        m1.enclosure.volume,
+        m0.enclosure.volume
     );
-    assert!(close(m1.surface_area, m0.surface_area), "area restored");
+    assert!(close(m1.enclosure.surface_area, m0.enclosure.surface_area), "area restored");
 }

@@ -28,9 +28,9 @@ fn tol() -> Tol {
 }
 
 fn volume(body: &Body<f64>) -> f64 {
-    topo::test_support::unmigrated_measure(body, tol())
+    topo::test_support::unmigrated_measure(body, tol(), topo::test_support::pinned_resolution(tol()))
         .expect("mass properties")
-        .volume
+        .enclosure.volume
 }
 
 /// Is `b` a rotation of `a`? (Same length, same cycle, same direction.)

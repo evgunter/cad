@@ -37,9 +37,9 @@ pub(crate) fn tol() -> Tol {
 }
 
 pub(crate) fn volume(body: &Body<f64>) -> f64 {
-    let p = topo::test_support::unmigrated_measure(body, tol()).expect("closed-form props");
-    assert_eq!(p.volume_pad, 0.0, "the inventory is closed-form");
-    p.volume
+    let p = topo::test_support::unmigrated_measure(body, tol(), topo::test_support::pinned_resolution(tol())).expect("closed-form props");
+    assert_eq!(p.enclosure.volume_pad, 0.0, "the inventory is closed-form");
+    p.enclosure.volume
 }
 
 /// The widest certified enclosure a row accepts as a claim: the
@@ -119,9 +119,9 @@ pub(crate) fn arc_residual(out: &Blended<f64>) -> (usize, f64) {
 /// lane's on a curved face trimmed by an ellipse: a fillet's band at an
 /// oblique end face).
 pub(crate) fn volume_enclosure<T: Decide + Bounds + CertifiedBounds>(body: &Body<T>) -> (f64, f64) {
-    let p = topo::test_support::unmigrated_measure(body, tol()).expect("certified props");
-    let (lo, hi) = (p.volume.lo(), p.volume.hi());
-    (0.5 * (lo + hi), 0.5 * (hi - lo) + p.volume_pad)
+    let p = topo::test_support::unmigrated_measure(body, tol(), topo::test_support::pinned_resolution(tol())).expect("certified props");
+    let (lo, hi) = (p.enclosure.volume.lo(), p.enclosure.volume.hi());
+    (0.5 * (lo + hi), 0.5 * (hi - lo) + p.enclosure.volume_pad)
 }
 
 /// The edge of `body` between the two points, either way round, at any

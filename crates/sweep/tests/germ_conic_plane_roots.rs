@@ -51,9 +51,9 @@ fn boxed(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
 }
 
 fn volume(b: &Body<f64>) -> f64 {
-    topo::test_support::unmigrated_measure(b, Tol::witness())
+    topo::test_support::unmigrated_measure(b, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
         .expect("the volume integrates")
-        .volume
+        .enclosure.volume
 }
 
 /// `∫ √(1 − y²) dy` from `0.5` to `0.7`: the antiderivative

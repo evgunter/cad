@@ -84,9 +84,9 @@ fn sub_period_wall_pieces_remerge_structurally() {
     // Volume exact: the halves hold the operand's (the merge is pure
     // structure), and a second merge finds nothing.
     let vol = |b: &Body<f64>| {
-        topo::test_support::unmigrated_measure(b, Tol::witness())
+        topo::test_support::unmigrated_measure(b, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
             .unwrap()
-            .volume
+            .enclosure.volume
     };
     let halves = vol(&part) + vol(parts.above.body().expect("an above part exists"));
     assert!(
@@ -115,9 +115,9 @@ fn full_period_closure_skips_loudly() {
     // — recorded as a LOUD skip naming the period closure; the body
     // is untouched and its volume stays exact.
     let mut body = disc_cylinder();
-    let vol_before = topo::test_support::unmigrated_measure(&body, Tol::witness())
+    let vol_before = topo::test_support::unmigrated_measure(&body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
         .unwrap()
-        .volume;
+        .enclosure.volume;
     let out = body
         .merge_coplanar_faces(Tol::witness())
         .expect("the merge call itself");
@@ -131,9 +131,9 @@ fn full_period_closure_skips_loudly() {
         "the skip carries the period-closure refusal itself: {:?}",
         out.skipped[0].reason
     );
-    let vol_after = topo::test_support::unmigrated_measure(&body, Tol::witness())
+    let vol_after = topo::test_support::unmigrated_measure(&body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
         .unwrap()
-        .volume;
+        .enclosure.volume;
     assert!((vol_after - vol_before).abs() == 0.0, "body untouched");
     topo::validate_closed(&body).unwrap();
 }

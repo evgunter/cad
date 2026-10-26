@@ -48,9 +48,9 @@ fn a_flush_rest_glues_and_records_its_unproven_rows() {
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
     let body = body_of(&ev, union);
     assert_eq!(body.solids().count(), 1, "one solid");
-    let volume = topo::test_support::unmigrated_measure(body, Tol::witness())
+    let volume = topo::test_support::unmigrated_measure(body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
         .expect("the union measures")
-        .volume;
+        .enclosure.volume;
     assert!((volume - 4.5).abs() < 1e-12, "the summed volume: {volume}");
     let rows = &ev.value(union).expect("the union evaluated").coincidences;
     assert_eq!(rows.len(), 5, "the rest and its four corners: {rows:#?}");

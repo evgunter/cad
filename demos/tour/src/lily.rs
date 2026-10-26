@@ -533,9 +533,9 @@ const FOOT_BOTTOM_Z: f64 = -0.92;
 
 /// A body's exact volume, read out at `f64`.
 fn volume<S: Scalar>(b: &Body<S>, tol: Tol) -> f64 {
-    pncad::topo::mass_properties(&crate::booleans::at_rest(b, tol), tol)
+    pncad::topo::mass_properties(&crate::booleans::at_rest(b, tol), tol, crate::printed())
         .expect("the volume integrates")
-        .volume
+        .enclosure.volume
         .f()
 }
 
@@ -2880,6 +2880,7 @@ mod review_probes {
         let props = pncad::topo::mass_properties(
             &crate::booleans::at_rest(lant, Tol::witness()),
             Tol::witness(),
+            crate::printed(),
         )
         .expect("mass properties");
         // The literal, DELIBERATELY: this row and
@@ -2891,11 +2892,11 @@ mod review_probes {
         // expression cannot move both readings together.
         let exact = 0.36455193285177373;
         assert!(
-            (props.volume - exact).abs() < 1e-12,
+            (props.enclosure.volume - exact).abs() < 1e-12,
             "lantern volume {} vs the closed form {exact}",
-            props.volume
+            props.enclosure.volume
         );
-        assert_eq!(props.volume_pad, 0.0, "every lantern face is closed-form");
+        assert_eq!(props.enclosure.volume_pad, 0.0, "every lantern face is closed-form");
     }
 
     /// Finding 13 re-measured: one chord budget spends wildly
@@ -3061,13 +3062,11 @@ mod review_probes {
                 "{name}: the skin's V = {skin_v} misses Pappus {pappus} by {fit:e} of it, past \
                  the cubic fit's scale {fit_scale:e}"
             );
-            let reading = pncad::topo::VolumeReading::of(
-                pncad::topo::validate_geometric_certificate(b, Tol::witness())
-                    .expect("the swept leaf is tier 3 clean")
-                    .measure(),
-            );
-            let e = reading
+            let e = pncad::topo::validate_geometric_certificate(b, Tol::witness())
+                .expect("the swept leaf is tier 3 clean")
+                .measure(crate::printed())
                 .unwrap_or_else(|refusal| panic!("{name}: no certified volume: {refusal}"))
+                .enclosure
                 .enclosure();
             let (lo, hi) = (e.volume_lo, e.volume_hi);
             assert!(

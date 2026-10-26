@@ -84,7 +84,7 @@ fn the_tangent_graze_resolves_past_first_order() {
     let r = out.expect("a tangent plane lands a convex body whole on its material's side");
     assert!(matches!(r.above, topo::splitting::SplitPart::Empty));
     let below = r.below.body().expect("the cylinder lands Below");
-    let vol = topo::mass_properties(below, Tol::witness()).unwrap().volume;
+    let vol = topo::mass_properties(below, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap().enclosure.volume;
     assert!(
         (vol - std::f64::consts::PI / 4.0).abs() <= 1e-9,
         "the whole cylinder: {vol}"

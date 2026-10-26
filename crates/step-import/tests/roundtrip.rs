@@ -78,7 +78,7 @@ fn committed_corpus_row(name: &str) {
     // teeth both ways: the review's scale-corruption probe
     // (`review_k3_probe`) shows the new budget catching corruptions
     // the old slop accepted, at 1600×/8000× margins.
-    let (props, terms) = topo::test_support::mass_properties_with_face_terms(&body, Tol::witness())
+    let (props, terms) = topo::test_support::mass_properties_with_face_terms(&body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
         .unwrap_or_else(|e| panic!("{name}: {e}"));
     let expected_m3 = expect.kernel_volume_mm3 * 1e-9;
     let native_pad_m3 = expect.kernel_volume_pad_mm3 * 1e-9;
@@ -94,18 +94,18 @@ fn committed_corpus_row(name: &str) {
         },
     );
     let diameter = (0..3).map(|i| (hi[i] - lo[i]).powi(2)).sum::<f64>().sqrt();
-    let reach = props.surface_area * diameter;
+    let reach = props.enclosure.surface_area * diameter;
     let own: f64 = terms.iter().map(|&(_, flux, _)| flux.abs()).sum();
     let fold = topo::test_support::fold_order_bound(&terms).0 * (reach / own).max(1.0);
     let ulps = 2.0 * fold + 2.0 * ulp;
-    let tolerance = props.volume_pad + native_pad_m3 + ulps;
+    let tolerance = props.enclosure.volume_pad + native_pad_m3 + ulps;
     assert!(
-        (props.volume - expected_m3).abs() <= tolerance,
+        (props.enclosure.volume - expected_m3).abs() <= tolerance,
         "{name}: volume {} m³ vs native {} m³ (tolerance {}: pad {} + native pad {} + ulps {})",
-        props.volume,
+        props.enclosure.volume,
         expected_m3,
         tolerance,
-        props.volume_pad,
+        props.enclosure.volume_pad,
         native_pad_m3,
         ulps
     );
@@ -188,15 +188,17 @@ fn fixed_point() {
         let v1 = topo::mass_properties(
             &topo::test_support::finished("the measured body", body1.clone(), Tol::witness()),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
-        .volume;
+        .enclosure.volume;
         let v2 = topo::mass_properties(
             &topo::test_support::finished("the measured body", body2.clone(), Tol::witness()),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
-        .volume;
+        .enclosure.volume;
         assert_eq!(
             v1.to_bits(),
             v2.to_bits(),

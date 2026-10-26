@@ -288,7 +288,7 @@ fn the_gates_certificate_is_the_measurement_and_costs_one_quadrature() {
     let tol = Tol::witness();
 
     let mut measured = None;
-    let one = quad_rounds(|| measured = Some(topo::test_support::unmigrated_measure(&body, tol)));
+    let one = quad_rounds(|| measured = Some(topo::test_support::unmigrated_measure(&body, tol, topo::test_support::pinned_resolution(tol))));
     let measured = measured.expect("the closure ran").expect(
         "IDENTITY: the fixture is scaled to 1e5·ε so that it certifies at EVERY ε row — \
          a refusal here is a moved schedule or a moved fixture, not an ε this row may \
@@ -353,10 +353,10 @@ fn the_gates_certificate_is_the_measurement_and_costs_one_quadrature() {
 
     // ---- IDENTITY ----
     assert!(
-        measured.volume_pad > 0.0,
+        measured.enclosure.volume_pad > 0.0,
         "IDENTITY: this row's claim is about the QUADRATURE lane, so the body must carry \
          a certified enclosure: pad {}",
-        measured.volume_pad
+        measured.enclosure.volume_pad
     );
     assert_eq!(
         bits(&continued),
@@ -397,7 +397,7 @@ fn a_multi_solid_certificate_reads_each_face_once() {
     );
 
     let mut measured = None;
-    let one = quad_rounds(|| measured = Some(topo::test_support::unmigrated_measure(&body, tol)));
+    let one = quad_rounds(|| measured = Some(topo::test_support::unmigrated_measure(&body, tol, topo::test_support::pinned_resolution(tol))));
     let measured = measured
         .expect("the closure ran")
         .expect("ONE READ PER FACE: two certifying prisms measure at every ε row");
@@ -481,7 +481,7 @@ fn a_multi_solid_certificate_split_across_rounds_continues_to_the_measurement() 
         assert_eq!(body.solids().count(), 2, "ROUND SPLIT {label}: two solids");
         let mut measured = None;
         let one =
-            quad_rounds(|| measured = Some(topo::test_support::unmigrated_measure(&body, tol)));
+            quad_rounds(|| measured = Some(topo::test_support::unmigrated_measure(&body, tol, topo::test_support::pinned_resolution(tol))));
         let measured = measured.expect("the closure ran");
 
         let mut gated = None;

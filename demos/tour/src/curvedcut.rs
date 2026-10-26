@@ -284,9 +284,9 @@ fn section_narration(label: &str, body: &Body<f64>, exact: f64, tol: Tol) -> Str
     }
     assert!(arcs > 0, "{label}: the tilted cut must mint ellipse arcs");
 
-    let m = pncad::topo::mass_properties(&crate::booleans::at_rest(body, tol), tol)
+    let m = pncad::topo::mass_properties(&crate::booleans::at_rest(body, tol), tol, crate::printed())
         .expect("the quadrature lane computes");
-    let (v, pad) = (m.volume, m.volume_pad);
+    let (v, pad) = (m.enclosure.volume, m.enclosure.volume_pad);
     assert!(
         v - pad <= exact && exact <= v + pad,
         "{label}: certified bracket [{}, {}] must contain the closed form {exact}",
@@ -307,13 +307,13 @@ fn section_narration(label: &str, body: &Body<f64>, exact: f64, tol: Tol) -> Str
 /// [`DEPTH`]. Returns the pockets' closed-form total and the narration.
 fn pocket_narration(stages: &[AtRestBody<f64>], tol: Tol) -> (f64, String) {
     let volume = |b: &Body<f64>| {
-        let m = pncad::topo::mass_properties(&crate::booleans::at_rest(b, tol), tol)
+        let m = pncad::topo::mass_properties(&crate::booleans::at_rest(b, tol), tol, crate::printed())
             .expect("the engraved cylinder measures");
         assert_eq!(
-            m.volume_pad, 0.0,
+            m.enclosure.volume_pad, 0.0,
             "the engraved cylinder is lines, circles and planes: its volume is closed-form"
         );
-        m.volume
+        m.enclosure.volume
     };
     let glyphs = lettering::<f64>(tol);
     assert_eq!(
@@ -375,14 +375,14 @@ fn walls(cut: &Cut<f64>, tol: Tol) {
             .and_then(|r| r.body().map(|b| b.body.clone()))
             .unwrap_or_else(|| panic!("the {} engraves {at}", glyph.name));
         pncad::topo::validate_geometric(&engraved, tol).expect("the engraved half is tier-3 valid");
-        let before = pncad::topo::mass_properties(half, tol).expect("the half measures");
+        let before = pncad::topo::mass_properties(half, tol, crate::printed()).expect("the half measures");
         let after =
-            pncad::topo::mass_properties(&engraved, tol).expect("the engraved half measures");
+            pncad::topo::mass_properties(&engraved, tol, crate::printed()).expect("the engraved half measures");
         assert!(
-            (before.volume - after.volume - removed).abs() <= before.volume_pad + after.volume_pad,
+            (before.enclosure.volume - after.enclosure.volume - removed).abs() <= before.enclosure.volume_pad + after.enclosure.volume_pad,
             "the {} pocket in {at} removed {} m^3, not its area x depth {removed} m^3",
             glyph.name,
-            before.volume - after.volume
+            before.enclosure.volume - after.enclosure.volume
         );
     };
     let below = &finished("the lower half", cut.below.clone(), tol);

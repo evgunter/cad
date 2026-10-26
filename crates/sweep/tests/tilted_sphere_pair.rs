@@ -61,13 +61,13 @@ fn assert_body(label: &str, body: &Body<f64>, expected: f64) {
         Ok(()),
         "{label}: validate_geometric"
     );
-    let p = topo::test_support::unmigrated_measure(body, Tol::witness())
+    let p = topo::test_support::unmigrated_measure(body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
         .unwrap_or_else(|e| panic!("{label}: mass properties, got {e:?}"));
-    assert_eq!(p.volume_pad, 0.0, "{label}: closed-form faces only");
+    assert_eq!(p.enclosure.volume_pad, 0.0, "{label}: closed-form faces only");
     assert!(
-        (p.volume - expected).abs() <= 1e-9 * expected.max(1.0),
+        (p.enclosure.volume - expected).abs() <= 1e-9 * expected.max(1.0),
         "{label}: volume {} against the lens closed form {expected}",
-        p.volume
+        p.enclosure.volume
     );
 }
 
@@ -192,9 +192,9 @@ fn a_tilted_sphere_pair_builds_at_the_interval_scalar() {
             Ok(()),
             "Interval {op:?}: validate_geometric"
         );
-        let v = topo::mass_properties(body, Tol::witness())
+        let v = topo::mass_properties(body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
             .unwrap_or_else(|e| panic!("Interval {op:?}: mass properties, got {e:?}"))
-            .volume;
+            .enclosure.volume;
         let slack = 1e-9 * expected.max(1.0);
         assert!(
             v.lo() - slack <= expected && expected <= v.hi() + slack,
@@ -331,7 +331,7 @@ fn a_flipped_tilted_face_is_refused_by_name() {
             );
             assert!(
                 matches!(
-                    topo::test_support::unmigrated_measure(&inverted, Tol::witness()),
+                    topo::test_support::unmigrated_measure(&inverted, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())),
                     Err(topo::MassPropsError::Face {
                         face,
                         source: geom_brep::props::PropsError::SenseContradicted,
@@ -390,7 +390,7 @@ fn a_flipped_remnant_with_a_pole_off_its_loop_is_refused_by_name() {
         );
         assert!(
             matches!(
-                topo::test_support::unmigrated_measure(&inverted, tol),
+                topo::test_support::unmigrated_measure(&inverted, tol, topo::test_support::pinned_resolution(tol)),
                 Err(topo::MassPropsError::Face {
                     face,
                     source: geom_brep::props::PropsError::SenseContradicted,

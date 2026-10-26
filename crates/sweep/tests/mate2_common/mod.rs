@@ -150,9 +150,9 @@ pub fn plane_face(body: &Body<f64>, z: f64, up: bool) -> topo::FaceKey {
 }
 
 pub fn volume(b: &Body<f64>) -> f64 {
-    topo::test_support::unmigrated_measure(b, Tol::witness())
+    topo::test_support::unmigrated_measure(b, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
         .unwrap()
-        .volume
+        .enclosure.volume
 }
 
 pub fn boolean_body(r: BooleanResult<f64>) -> topo::BooleanBody<f64> {

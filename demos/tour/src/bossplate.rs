@@ -140,7 +140,7 @@ fn assert_seam_chords_shared(body: &Body<f64>, delta: f64, tol: Tol) -> usize {
 pub fn stops(tol: Tol) -> Vec<Stop> {
     let bb = build::<f64>(tol);
     let expect = 16.0 + core::f64::consts::PI * 0.25 * 0.6;
-    let vol = pncad::topo::mass_properties(&bb.body, tol).unwrap().volume;
+    let vol = pncad::topo::mass_properties(&bb.body, tol, crate::printed()).unwrap().enclosure.volume;
     assert!(
         (vol - expect).abs() < 1e-6,
         "vol(plate∪boss) = {vol}, closed form {expect}"

@@ -70,17 +70,17 @@ fn every_op_far_off_and_turned_measures_its_volume_at_home() {
     let tol = Tol::witness();
     for ((label, home), (_, far)) in built(0.0).into_iter().zip(built(100.0)) {
         let at = |b: &AtRestBody<f64>, s: f64| {
-            topo::mass_properties(b, tol)
+            topo::mass_properties(b, tol, topo::test_support::pinned_resolution(tol))
                 .unwrap_or_else(|e| panic!("s = {s}, {label}: the volume: {e:?}"))
         };
         let (home, far) = (at(&home, 0.0), at(&far, 100.0));
         assert!(
-            (far.volume - home.volume).abs() <= far.volume_pad + home.volume_pad,
+            (far.enclosure.volume - home.enclosure.volume).abs() <= far.enclosure.volume_pad + home.enclosure.volume_pad,
             "{label}: far off {} ± {} against at home {} ± {}",
-            far.volume,
-            far.volume_pad,
-            home.volume,
-            home.volume_pad,
+            far.enclosure.volume,
+            far.enclosure.volume_pad,
+            home.enclosure.volume,
+            home.enclosure.volume_pad,
         );
     }
 }
@@ -138,7 +138,7 @@ fn every_spiric_face_meets_its_target_at_the_round_it_does_at_home() {
 fn every_op_far_off_and_turned_keeps_its_pads_at_home() {
     let tol = Tol::witness();
     for ((label, home), (_, far)) in built(0.0).into_iter().zip(built(100.0)) {
-        let pad = |b: &AtRestBody<f64>| topo::mass_properties(b, tol).unwrap().volume_pad;
+        let pad = |b: &AtRestBody<f64>| topo::mass_properties(b, tol, topo::test_support::pinned_resolution(tol)).unwrap().enclosure.volume_pad;
         let (home, far) = (pad(&home), pad(&far));
         assert!(
             home > 0.0 && far <= home * 1.01,
@@ -175,9 +175,9 @@ fn one_solid_in_two_face_orders_carries_nearly_one_pad() {
     };
     let pad = |x: &AtRestBody<f64>, y: &AtRestBody<f64>| {
         let got = topo::union(x, y, tol).unwrap();
-        topo::mass_properties(&got.body().unwrap().body, tol)
+        topo::mass_properties(&got.body().unwrap().body, tol, topo::test_support::pinned_resolution(tol))
             .unwrap()
-            .volume_pad
+            .enclosure.volume_pad
     };
     let apart = |x: &AtRestBody<f64>, y: &AtRestBody<f64>| {
         let (xy, yx) = (pad(x, y), pad(y, x));
@@ -217,9 +217,9 @@ fn pads_over_rotations(body: &topo::Body<f64>) -> Vec<f64> {
         .map(|k| {
             let mut b = body.clone();
             topo::test_support::rotate_shell_faces(&mut b, k);
-            topo::test_support::unmigrated_measure(&b, tol)
+            topo::test_support::unmigrated_measure(&b, tol, topo::test_support::pinned_resolution(tol))
                 .unwrap()
-                .volume_pad
+                .enclosure.volume_pad
         })
         .collect()
 }

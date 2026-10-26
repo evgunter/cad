@@ -85,11 +85,11 @@ pub fn dump(body: &Body<f64>) -> String {
             let _ = writeln!(s);
         }
     }
-    let props = topo::test_support::unmigrated_measure(body, Tol::witness()).unwrap();
+    let props = topo::test_support::unmigrated_measure(body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap();
     let _ = writeln!(
         s,
         "props volume={:?} pad={:?} area={:?} apad={:?}",
-        props.volume, props.volume_pad, props.surface_area, props.area_pad
+        props.enclosure.volume, props.enclosure.volume_pad, props.enclosure.surface_area, props.enclosure.area_pad
     );
     s
 }

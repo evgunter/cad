@@ -628,14 +628,15 @@ fn r1_a_wedge_in_band_only_at_its_apex_edges_length_ships_as_a_corner() {
         let mp = topo::mass_properties(
             &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap_or_else(|e| panic!("alpha={alpha:e}: mass properties: {e:?}"));
         let exact = 0.5 * leg * leg * alpha.sin() * h;
-        let rel = (mp.volume - exact).abs() / exact;
+        let rel = (mp.enclosure.volume - exact).abs() / exact;
         assert!(
             rel < 1e-6,
             "alpha={alpha:e}: volume {:e} != exact {exact:e} (rel {rel:e})",
-            mp.volume
+            mp.enclosure.volume
         );
     }
 }

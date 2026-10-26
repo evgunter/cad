@@ -343,19 +343,19 @@ fn r2_closed_forms_over_varied_radii_walls_and_windows() {
         };
         let v = theta * major * area_sec;
         let a = theta * major * 2.0 * PI * (minor + inner) + caps;
-        let p = topo::test_support::unmigrated_measure(&t.body, Tol::witness())
+        let p = topo::test_support::unmigrated_measure(&t.body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
             .expect("mass properties");
         assert!(
-            rel(p.volume, v) < 1e-11,
+            rel(p.enclosure.volume, v) < 1e-11,
             "{what}: volume {} vs closed form {v} (relative {})",
-            p.volume,
-            rel(p.volume, v)
+            p.enclosure.volume,
+            rel(p.enclosure.volume, v)
         );
         assert!(
-            rel(p.surface_area, a) < 1e-11,
+            rel(p.enclosure.surface_area, a) < 1e-11,
             "{what}: area {} vs closed form {a} (relative {})",
-            p.surface_area,
-            rel(p.surface_area, a)
+            p.enclosure.surface_area,
+            rel(p.enclosure.surface_area, a)
         );
 
         // Census: the full period is two shells (outer + cavity),
@@ -416,15 +416,15 @@ fn r2_hollow_plus_bore_is_the_solid_tube() {
             Tol::witness(),
         )
         .expect("bore builds");
-        let vh = topo::test_support::unmigrated_measure(&hollow.body, Tol::witness())
+        let vh = topo::test_support::unmigrated_measure(&hollow.body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
             .expect("props")
-            .volume;
-        let vs = topo::test_support::unmigrated_measure(&solid.body, Tol::witness())
+            .enclosure.volume;
+        let vs = topo::test_support::unmigrated_measure(&solid.body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
             .expect("props")
-            .volume;
-        let vb = topo::test_support::unmigrated_measure(&bore.body, Tol::witness())
+            .enclosure.volume;
+        let vb = topo::test_support::unmigrated_measure(&bore.body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
             .expect("props")
-            .volume;
+            .enclosure.volume;
         assert!(
             rel(vh + vb, vs) < 1e-11,
             "R {major} ro {minor} wall {wall} arc {arc:?}: hollow {vh} + bore {vb} != solid {vs}"
@@ -783,11 +783,11 @@ mod certified {
                 Some((t0, t1)) => (t1 - t0, 2.0 * area_sec, 1),
             };
             assert_eq!(t.body.shells().count(), shells, "{what}");
-            let m = topo::test_support::unmigrated_measure(&t.body, Tol::witness()).expect("props");
-            encloses(m.volume, m.volume_pad, theta * major * area_sec, &what);
+            let m = topo::test_support::unmigrated_measure(&t.body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).expect("props");
+            encloses(m.enclosure.volume, m.enclosure.volume_pad, theta * major * area_sec, &what);
             encloses(
-                m.surface_area,
-                m.area_pad,
+                m.enclosure.surface_area,
+                m.enclosure.area_pad,
                 theta * major * 2.0 * PI * (minor + inner) + caps,
                 &what,
             );

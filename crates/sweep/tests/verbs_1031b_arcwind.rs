@@ -248,9 +248,9 @@ fn the_boolean_on_the_cup_builds_and_balances() {
             Ok(()),
             "cup {what}: tier 3"
         );
-        let m = topo::mass_properties(&out.body, tol)
+        let m = topo::mass_properties(&out.body, tol, topo::test_support::pinned_resolution(tol))
             .unwrap_or_else(|e| panic!("cup {what}: mass properties {e:?}"));
-        (m.volume, m.volume_pad)
+        (m.enclosure.volume, m.enclosure.volume_pad)
     };
     let (vd, pd) = measure("∖ cutter", topo::boolean::subtract(&cup, &cut, tol));
     let (vi, pi) = measure("∩ cutter", topo::boolean::intersect(&cup, &cut, tol));
@@ -298,13 +298,13 @@ fn the_boolean_on_the_cup_builds_and_balances() {
             "cup {what} cutter: volume {v} ± {pad} against the closed form {truth}"
         );
     }
-    let whole = topo::mass_properties(&cup, tol).expect("the cup measures");
-    let gap = (vd + vi - whole.volume).abs();
+    let whole = topo::mass_properties(&cup, tol, topo::test_support::pinned_resolution(tol)).expect("the cup measures");
+    let gap = (vd + vi - whole.enclosure.volume).abs();
     assert!(
-        vi > 0.0 && gap <= pd + pi + whole.volume_pad + 1e-12 * whole.volume,
+        vi > 0.0 && gap <= pd + pi + whole.enclosure.volume_pad + 1e-12 * whole.enclosure.volume,
         "cup ∖ cutter ({vd} ± {pd}) and cup ∩ cutter ({vi} ± {pi}) must sum to the cup \
          ({} ± {}): off by {gap}",
-        whole.volume,
-        whole.volume_pad
+        whole.enclosure.volume,
+        whole.enclosure.volume_pad
     );
 }

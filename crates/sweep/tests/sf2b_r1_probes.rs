@@ -116,9 +116,9 @@ fn r1p1_a_bulged_box_is_axial_and_hollows_to_its_closed_form() {
     );
     let outer = bulge_loop_area(&BULGED);
     let inner = bulge_loop_area(&eroded_bulge_loop(&BULGED, T));
-    let operand = topo::test_support::unmigrated_measure(&body, tol)
+    let operand = topo::test_support::unmigrated_measure(&body, tol, topo::test_support::pinned_resolution(tol))
         .expect("the operand's props")
-        .volume;
+        .enclosure.volume;
     assert!(
         (operand - outer * DEPTH).abs() <= 1e-15,
         "the oracle's own profile area: {operand} against {}",
@@ -129,9 +129,9 @@ fn r1p1_a_bulged_box_is_axial_and_hollows_to_its_closed_form() {
         .unwrap_or_else(|e| panic!("the bulged box hollows: {e:?}"))
         .body;
     assert_eq!(topo::validate_geometric(&hollow, tol), Ok(()), "tier 3");
-    let got = topo::test_support::unmigrated_measure(&hollow, tol)
+    let got = topo::test_support::unmigrated_measure(&hollow, tol, topo::test_support::pinned_resolution(tol))
         .expect("props")
-        .volume;
+        .enclosure.volume;
     println!("[r1p1] bulged box hollow: {got}, closed form {want}");
     assert!((got - want).abs() <= 1e-15, "hollow {got}, want {want}");
 
@@ -145,9 +145,9 @@ fn r1p1_a_bulged_box_is_axial_and_hollows_to_its_closed_form() {
         Ok(()),
         "the door's tier 3"
     );
-    let cavity = topo::test_support::unmigrated_measure(&work, tol)
+    let cavity = topo::test_support::unmigrated_measure(&work, tol, topo::test_support::pinned_resolution(tol))
         .expect("props")
-        .volume;
+        .enclosure.volume;
     let shrunk = inner * (DEPTH - 2.0 * T);
     assert!(
         (cavity - shrunk).abs() <= 1e-15,
@@ -176,20 +176,20 @@ fn r1p2_a_sliver_wedge_with_no_cavity_must_refuse() {
         );
         match topo::shell(&finished("the operand", body.clone(), tol), T, tol) {
             Ok(topo::Shelled { body: hollow, .. }) => {
-                let props = topo::test_support::unmigrated_measure(&hollow, tol).expect("props");
-                let outer = topo::test_support::unmigrated_measure(&body, tol)
+                let props = topo::test_support::unmigrated_measure(&hollow, tol, topo::test_support::pinned_resolution(tol)).expect("props");
+                let outer = topo::test_support::unmigrated_measure(&body, tol, topo::test_support::pinned_resolution(tol))
                     .expect("props")
-                    .volume;
+                    .enclosure.volume;
                 println!(
                     "[r1p2] angle {angle}: HOLLOWS, wall volume {} of outer {outer}",
-                    props.volume
+                    props.enclosure.volume
                 );
                 assert!(
                     cross < r - T,
                     "angle {angle}: the cavity's cross-section is EMPTY (meridians cross at \
                      {cross} > wall {}), yet a body shipped with wall volume {}",
                     r - T,
-                    props.volume
+                    props.enclosure.volume
                 );
                 assert_eq!(
                     topo::validate_geometric(&hollow, tol),

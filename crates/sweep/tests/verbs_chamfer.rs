@@ -92,14 +92,14 @@ fn the_chamfered_cube() {
     }
 
     let want = chamfered_cube_volume(L, D);
-    let props = topo::test_support::unmigrated_measure(&out_body, Tol::witness())
+    let props = topo::test_support::unmigrated_measure(&out_body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
         .expect("closed-form props");
     assert!(
-        (props.volume - want).abs() <= 1e-12 * want,
+        (props.enclosure.volume - want).abs() <= 1e-12 * want,
         "volume {} vs closed form {want}",
-        props.volume
+        props.enclosure.volume
     );
-    assert_eq!(props.volume_pad, 0.0, "closed forms need no pad");
+    assert_eq!(props.enclosure.volume_pad, 0.0, "closed forms need no pad");
 
     let mesh = mesh::tessellate(&out_body, 5e-3, Tol::witness()).expect("tessellates");
     mesh::validate::check_mesh(&mesh).expect("watertight");
@@ -232,9 +232,9 @@ fn one_edge_of_a_cube_is_cut_off_at_its_end_faces() {
     )
     .expect("one edge of a cube chamfers");
     let removed = L.powi(3)
-        - topo::test_support::unmigrated_measure(&out.body, Tol::witness())
+        - topo::test_support::unmigrated_measure(&out.body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
             .expect("closed-form props")
-            .volume;
+            .enclosure.volume;
     assert!(
         (removed - D * D / 2.0 * L).abs() < 1e-12,
         "the strip removes its prism: {removed}"

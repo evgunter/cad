@@ -72,9 +72,9 @@ use topo::boolean::{SolidContainment, point_in_solid};
 use topo::{Body, FaceKey};
 
 fn vol(body: &Body<f64>) -> f64 {
-    topo::test_support::unmigrated_measure(body, Tol::witness())
+    topo::test_support::unmigrated_measure(body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
         .unwrap()
-        .volume
+        .enclosure.volume
 }
 
 fn sense_of(body: &Body<f64>, f: FaceKey) -> bool {
@@ -590,17 +590,17 @@ fn extruded_twin(loops: &[ProfileLoop<f64>], h: f64) -> Body<f64> {
 /// convergence predicate may escalate. Anything else is a real failure.
 fn assert_rational_volume(row: &str, body: &Body<f64>, want: f64) {
     let target = 1024.0 * Tol::witness().get().eps;
-    match topo::test_support::unmigrated_measure(body, Tol::witness()) {
+    match topo::test_support::unmigrated_measure(body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())) {
         Ok(m) => {
             // ACCURACY: the certified enclosure must CONTAIN the
             // independent oracle (`want` is the extruded twin's closed
             // form, pad exactly 0).
             assert!(
-                (m.volume - want).abs() <= m.volume_pad,
+                (m.enclosure.volume - want).abs() <= m.enclosure.volume_pad,
                 "{row}: the rational enclosure must contain the analytic \
                  volume: got {} ± {}, oracle {want}",
-                m.volume,
-                m.volume_pad
+                m.enclosure.volume,
+                m.enclosure.volume_pad
             );
             // PAD CEILING, pinned SEPARATELY: accuracy alone gets
             // easier as the enclosure degrades, so a loosening pad
@@ -616,17 +616,17 @@ fn assert_rational_volume(row: &str, body: &Body<f64>, want: f64) {
             // guarantees.
             let ceiling = 4.0 * target;
             assert!(
-                m.volume_pad.is_finite() && m.volume_pad < ceiling,
+                m.enclosure.volume_pad.is_finite() && m.enclosure.volume_pad < ceiling,
                 "{row}: volume pad {} vs {ceiling:e}",
-                m.volume_pad
+                m.enclosure.volume_pad
             );
             // The measure the ceiling's comment cites, held where it was taken.
             if row == "the lofted concave prism" && Tol::witness().get().eps == 1e-6 {
                 assert!(
-                    (m.volume_pad / LOFTED_CONCAVE_PAD_AT_1E6 - 1.0).abs() < 0.01,
+                    (m.enclosure.volume_pad / LOFTED_CONCAVE_PAD_AT_1E6 - 1.0).abs() < 0.01,
                     "{row}: volume pad {} moved from the {LOFTED_CONCAVE_PAD_AT_1E6} the \
                      ceiling's comment cites",
-                    m.volume_pad
+                    m.enclosure.volume_pad
                 );
             }
         }

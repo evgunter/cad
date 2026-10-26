@@ -181,21 +181,24 @@ fn generic_plane_asymmetric() {
         mass_properties(
             &topo::test_support::finished("the measured body", (above).clone(), Tol::witness()),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
-        .volume,
+        .enclosure.volume,
         mass_properties(
             &topo::test_support::finished("the measured body", (below).clone(), Tol::witness()),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
-        .volume,
+        .enclosure.volume,
         mass_properties(
             &topo::test_support::finished("the measured body", fx.body.clone(), Tol::witness()),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
-        .volume,
+        .enclosure.volume,
     );
     assert!((va + vb - v0).abs() <= 1e-12 * v0);
 
@@ -279,21 +282,24 @@ fn vertex_grazing_plane() {
         mass_properties(
             &topo::test_support::finished("the measured body", (above).clone(), Tol::witness()),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
-        .volume,
+        .enclosure.volume,
         mass_properties(
             &topo::test_support::finished("the measured body", (below).clone(), Tol::witness()),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
-        .volume,
+        .enclosure.volume,
         mass_properties(
             &topo::test_support::finished("the measured body", fx.body.clone(), Tol::witness()),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
-        .volume,
+        .enclosure.volume,
     );
     assert!((va + vb - v0).abs() <= 1e-12 * v0);
 }
@@ -372,21 +378,24 @@ fn notched_block_end_to_end() {
         mass_properties(
             &topo::test_support::finished("the measured body", (above).clone(), Tol::witness()),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
-        .volume,
+        .enclosure.volume,
         mass_properties(
             &topo::test_support::finished("the measured body", (below).clone(), Tol::witness()),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
-        .volume,
+        .enclosure.volume,
         mass_properties(
             &topo::test_support::finished("the measured body", fx.body.clone(), Tol::witness()),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
-        .volume,
+        .enclosure.volume,
     );
     assert!((va + vb - v0).abs() <= 1e-12 * v0);
 }
@@ -518,9 +527,10 @@ fn a_plane_within_eps_of_a_pinch_cuts_it_and_records_the_pinch() {
         let v0 = mass_properties(
             &topo::test_support::finished("the measured body", fx.body.clone(), tol),
             tol,
+            topo::test_support::pinned_resolution(tol),
         )
         .unwrap()
-        .volume;
+        .enclosure.volume;
         for up in [1.0, -1.0] {
             let n = Vec3::new(0.0, up, 0.0);
             for k in [0.13, 0.5, 0.9, 0.99, -0.13, -0.5, -0.9, -0.99] {
@@ -538,9 +548,10 @@ fn a_plane_within_eps_of_a_pinch_cuts_it_and_records_the_pinch() {
                     volume += mass_properties(
                         &topo::test_support::finished("the measured body", (body).clone(), tol),
                         tol,
+                        topo::test_support::pinned_resolution(tol),
                     )
                     .unwrap()
-                    .volume;
+                    .enclosure.volume;
                     for face in [n, -n]
                         .into_iter()
                         .flat_map(|m| section_faces_with(body, o, m))
@@ -684,9 +695,10 @@ fn one_sided_tangency_classifies_with_its_material() {
         let v0 = mass_properties(
             &topo::test_support::finished("the measured body", fx.body.clone(), Tol::witness()),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
-        .volume;
+        .enclosure.volume;
         for s in [1.0, -1.0] {
             let plane = topo::test_support::split_plane(
                 Point3::new(0.0, 1.0, 0.0),
@@ -706,9 +718,10 @@ fn one_sided_tangency_classifies_with_its_material() {
             let v = mass_properties(
                 &topo::test_support::finished("the measured body", (body).clone(), Tol::witness()),
                 Tol::witness(),
+                topo::test_support::pinned_resolution(Tol::witness()),
             )
             .unwrap()
-            .volume;
+            .enclosure.volume;
             assert!(
                 (v - v0).abs() <= 1e-12 * v0,
                 "{label}, s = {s}: {v} vs {v0}"
@@ -747,22 +760,25 @@ fn bob_mirror_pinch_refuses_typed() {
     let v0 = mass_properties(
         &topo::test_support::finished("the measured body", fx.body.clone(), Tol::witness()),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .volume;
+    .enclosure.volume;
     let (vs, vp) = (
         mass_properties(
             &topo::test_support::finished("the measured body", (slab).clone(), Tol::witness()),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
-        .volume,
+        .enclosure.volume,
         mass_properties(
             &topo::test_support::finished("the measured body", (pieces).clone(), Tol::witness()),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
-        .volume,
+        .enclosure.volume,
     );
     assert!((vs + vp - v0).abs() <= 1e-12 * v0, "{vs} + {vp} vs {v0}");
 
@@ -784,22 +800,25 @@ fn bob_mirror_pinch_refuses_typed() {
     let v0 = mass_properties(
         &topo::test_support::finished("the measured body", fx.body.clone(), Tol::witness()),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .volume;
+    .enclosure.volume;
     let (vs, vp) = (
         mass_properties(
             &topo::test_support::finished("the measured body", (slab).clone(), Tol::witness()),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
-        .volume,
+        .enclosure.volume,
         mass_properties(
             &topo::test_support::finished("the measured body", (pieces).clone(), Tol::witness()),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
-        .volume,
+        .enclosure.volume,
     );
     assert!((vs + vp - v0).abs() <= 1e-12 * v0, "{vs} + {vp} vs {v0}");
 }
@@ -899,15 +918,17 @@ fn ring_rehoming_genus_one() {
         mass_properties(
             &topo::test_support::finished("the measured body", (above).clone(), Tol::witness()),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
-        .volume,
+        .enclosure.volume,
         mass_properties(
             &topo::test_support::finished("the measured body", (below).clone(), Tol::witness()),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
-        .volume,
+        .enclosure.volume,
     );
     assert!((va - 4.0).abs() < 1e-12, "above {va}");
     assert!((vb - 10.0).abs() < 1e-12, "below {vb}");

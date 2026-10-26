@@ -642,24 +642,24 @@ fn an_interior_column_intersection_mints_a_general_image() {
     // widened chart has interior knots in its degree-1 `u` direction,
     // and `mesh`'s patch-bound gate refuses that C⁰ crease first
     // (`geom_brep::patch_bound::PatchBoundError::Degree1Crease`). ----
-    let props = topo::test_support::unmigrated_measure(&body, Tol::witness())
+    let props = topo::test_support::unmigrated_measure(&body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
         .unwrap_or_else(|e| panic!("the trimmed lane answers the degree-1 body too: {e:?}"));
     let want =
-        topo::test_support::unmigrated_measure(&prism(INTERIOR_COLUMN_SCALE), Tol::witness())
+        topo::test_support::unmigrated_measure(&prism(INTERIOR_COLUMN_SCALE), Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
             .expect("the oracle prism's own lanes answer it");
     println!(
         "M8-4 DEG1 mass_properties on the trimmed chart: volume {:e} ± {:e}, area {:e} ± {:e}",
-        props.volume, props.volume_pad, props.surface_area, props.area_pad
+        props.enclosure.volume, props.enclosure.volume_pad, props.enclosure.surface_area, props.enclosure.area_pad
     );
     assert!(
-        props.volume - props.volume_pad <= want.volume + want.volume_pad
-            && want.volume - want.volume_pad <= props.volume + props.volume_pad,
+        props.enclosure.volume - props.enclosure.volume_pad <= want.enclosure.volume + want.enclosure.volume_pad
+            && want.enclosure.volume - want.enclosure.volume_pad <= props.enclosure.volume + props.enclosure.volume_pad,
         "the degree-1 widening is the SAME solid as the oracle prism, so its volume \
          enclosure must overlap: {:e} ± {:e} vs {:e} ± {:e}",
-        props.volume,
-        props.volume_pad,
-        want.volume,
-        want.volume_pad
+        props.enclosure.volume,
+        props.enclosure.volume_pad,
+        want.enclosure.volume,
+        want.enclosure.volume_pad
     );
     let tess = mesh::tessellate(&body, 1e-5, Tol::witness());
     let Err(mesh::TessellateError::UnsupportedNurbsFace { note, .. }) = tess else {
@@ -863,21 +863,21 @@ fn a_degree_two_widening_measures_against_the_oracle() {
         findings.is_empty(),
         "the degree-2 body validates at rest: {findings:?}"
     );
-    let props = topo::test_support::unmigrated_measure(&body, Tol::witness())
+    let props = topo::test_support::unmigrated_measure(&body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
         .unwrap_or_else(|e| panic!("the trimmed lane answers the degree-2 body: {e:?}"));
     let oracle = prism(INTERIOR_COLUMN_SCALE);
-    let want = topo::test_support::unmigrated_measure(&oracle, Tol::witness())
+    let want = topo::test_support::unmigrated_measure(&oracle, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
         .expect("the oracle prism's own lanes answer it");
     let overlaps = |a: (f64, f64), b: (f64, f64)| a.0 <= b.1 && b.0 <= a.1;
     let bracket = |v: f64, pad: f64| (v - pad, v + pad);
     let (got_v, want_v) = (
-        bracket(props.volume, props.volume_pad),
-        bracket(want.volume, want.volume_pad),
+        bracket(props.enclosure.volume, props.enclosure.volume_pad),
+        bracket(want.enclosure.volume, want.enclosure.volume_pad),
     );
     println!(
         "E1 @ eps={eps:e}: volume {got_v:?} vs oracle {want_v:?}; area {:?} vs {:?}",
-        bracket(props.surface_area, props.area_pad),
-        bracket(want.surface_area, want.area_pad)
+        bracket(props.enclosure.surface_area, props.enclosure.area_pad),
+        bracket(want.enclosure.surface_area, want.enclosure.area_pad)
     );
     assert!(
         overlaps(got_v, want_v),
@@ -886,8 +886,8 @@ fn a_degree_two_widening_measures_against_the_oracle() {
     );
     assert!(
         overlaps(
-            bracket(props.surface_area, props.area_pad),
-            bracket(want.surface_area, want.area_pad)
+            bracket(props.enclosure.surface_area, props.enclosure.area_pad),
+            bracket(want.enclosure.surface_area, want.enclosure.area_pad)
         ),
         "E1: the surface-area enclosures must overlap too"
     );

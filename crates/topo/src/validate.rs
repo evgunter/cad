@@ -16,7 +16,7 @@
 //! certain, assembled into one body certificate over the face arena —
 //! one read of each face, whatever the solid count. A caller that wants
 //! the number continues the certificate
-//! ([`crate::SignCertificate::refine_to_target`]) and pays only the
+//! ([`crate::SignCertificate::measure`]) and pays only the
 //! rounds the check did not. The `()`-returning doors above ARE those
 //! calls with the value mapped away.
 //!
@@ -3324,20 +3324,11 @@ pub(crate) fn classify_mass_props(e: &crate::props::MassPropsError) -> MassProps
                     PropsCheck::Extent => {
                         "a face's area could not be certified positive at this tolerance"
                     }
-                    PropsCheck::Converged => {
-                        "the quadrature could not decide whether its \
-                                              enclosure of a face's contribution had converged"
-                    }
                 },
                 check
                     .ending(RefusedArm::Undecided(cause), Reading::AtRest)
                     .into(),
                 *check == PropsCheck::Exact,
-            ),
-            P::QuadratureBudget { width_len, .. } => reading(
-                "a face's contribution did not converge to the tolerance",
-                geom_brep::props::quadrature_budget_recourse(*width_len).into(),
-                false,
             ),
             P::Unimplemented
             | P::NotIsoRectangle { .. }
@@ -3438,6 +3429,11 @@ pub(crate) fn classify_mass_props(e: &crate::props::MassPropsError) -> MassProps
         M::ResolutionFinerThanEps { .. } => reading(
             "a measurement was asked for finer than the tolerance",
             "Recourse: ask for a resolution of at least the tolerance".into(),
+            false,
+        ),
+        M::CertificateOfAnotherBody => reading(
+            "a certificate was measured against another body",
+            "Recourse: measure the certificate against the body it was derived from".into(),
             false,
         ),
         M::Poisoned { cause } => reading(
@@ -5347,9 +5343,9 @@ pub fn validate_geometric<
 /// needed and no further. There is no volume to read off it, by
 /// construction — a quadrature stopped at the round its caller was
 /// finished has not computed one — and
-/// [`crate::SignCertificate::refine_to_target`] is where a caller who
-/// wants the number asks for it, paying only the rounds that were not
-/// already run.
+/// [`crate::SignCertificate::measure`] is where a caller who
+/// wants the number asks for it under its own predicate, paying only the
+/// rounds that were not already run.
 ///
 /// **THE value, not a second one.** That continuation is bit-identical
 /// in all four fields to [`crate::mass_properties`] on the same body
@@ -5606,7 +5602,7 @@ fn validate_geometric_certified<
 /// own sign straddles, and the certificates held and then handed on: the
 /// caller receives the body certificate they assemble to, continuable
 /// from there by a caller who wants the number
-/// ([`crate::SignCertificate::refine_to_target`]). So a body of several
+/// ([`crate::SignCertificate::measure`]). So a body of several
 /// solids reads each face once per round its solid's sign needs, never a
 /// further arena-wide walk. The walk's recordings interleave the solids
 /// round by round (each round takes every solid still open, in arena
@@ -9568,9 +9564,10 @@ pub fn validate_pseudomanifold_structural<
 /// face-arena order, whatever the body's solid count — so a body of
 /// several solids pays one read of each face and no further
 /// arena-wide one. A caller that wants the number calls
-/// [`crate::SignCertificate::refine_to_target`], which pays only the
-/// rounds the check did not, and whose `Ok` is bit-identical to
-/// [`crate::mass_properties`] on the same body at the same `tol`.
+/// [`crate::SignCertificate::measure`], which pays only the
+/// rounds the check did not, and whose `Ok` under a resolution is
+/// bit-identical to [`crate::mass_properties`] on the same body at the
+/// same `tol` and resolution wherever no face stood past it.
 ///
 /// **This door is the one the import path pays.** `step-import`'s
 /// aggregate gate runs it over every assembled body and continues the
@@ -10887,7 +10884,6 @@ mod tests {
             plus_v_verdict(Err(crate::props::RoleWalkRefusal::Unread {
                 last: Box::new(last),
                 limit,
-                measuring: None,
                 in_band: false,
             }))
         };
@@ -16010,9 +16006,9 @@ mod tests {
         // could not refuse the flipped one even if it ran.
         let volume = |b: &Body<f64>| {
             // Raw door: the measured body still carries construction scaffolding, or a loop flipped against its role, which tier 3 refuses (ScaffoldAtRest, LoopRoleInverted).
-            crate::test_support::measure_unvalidated(b, Tol::witness())
+            crate::test_support::measure_unvalidated(b, Tol::witness(), crate::test_support::pinned_resolution(Tol::witness()))
                 .unwrap()
-                .volume
+                .enclosure.volume
         };
         assert_eq!(
             volume(&cube).to_bits(),

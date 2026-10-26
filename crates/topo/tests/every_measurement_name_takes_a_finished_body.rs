@@ -61,7 +61,7 @@ fn the_reviews_flipped_shell_and_reverted_bodies_do_not_finish() {
             .unwrap()
             .volume
             .to_bits(),
-        topo::mass_properties(&h, tol).unwrap().volume.to_bits(),
+        topo::mass_properties(&h, tol, topo::test_support::pinned_resolution(tol)).unwrap().enclosure.volume.to_bits(),
         "a planar hollow box measures alike through the closed form"
     );
 }

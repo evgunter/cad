@@ -43,12 +43,13 @@ fn a_reversed_band_is_refused_as_a_lamina_by_both_doors() {
     let mp = mass_properties(
         &topo::test_support::finished("the measured body", ball.clone(), Tol::witness()),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("the ball measures");
     assert!(
-        (mp.volume - exact).abs() <= 1e-12 * exact,
+        (mp.enclosure.volume - exact).abs() <= 1e-12 * exact,
         "the revolved unit ball encloses 4/3·π: {}",
-        mp.volume
+        mp.enclosure.volume
     );
     assert!(
         validate_geometric(&ball, Tol::witness()).is_ok(),
@@ -61,12 +62,12 @@ fn a_reversed_band_is_refused_as_a_lamina_by_both_doors() {
         inside_out.set_face_sense(k, !s).unwrap();
     }
     // Raw door: the measured body is an inside-out body, which tier 3 refuses (NegativeVolume).
-    let mp = topo::test_support::measure_unvalidated(&inside_out, Tol::witness())
+    let mp = topo::test_support::measure_unvalidated(&inside_out, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
         .expect("the twin measures too");
     assert!(
-        (mp.volume + exact).abs() <= 1e-12 * exact,
+        (mp.enclosure.volume + exact).abs() <= 1e-12 * exact,
         "reversing every face negates the enclosed volume: {}",
-        mp.volume
+        mp.enclosure.volume
     );
     let errs = validate_geometric(&inside_out, Tol::witness())
         .expect_err("an inside-out solid is not valid");
@@ -80,7 +81,7 @@ fn a_reversed_band_is_refused_as_a_lamina_by_both_doors() {
     let s = one_band.get_face(keys[0]).unwrap().sense;
     one_band.set_face_sense(keys[0], !s).unwrap();
     // Raw door: the measured body is a lamina (a flipped band), which tier 3 refuses (LaminaWedge).
-    let door = topo::test_support::measure_unvalidated(&one_band, Tol::witness());
+    let door = topo::test_support::measure_unvalidated(&one_band, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()));
     assert!(
         matches!(
             door,

@@ -72,7 +72,7 @@ fn params(body: &Body<f64>, edge: EdgeKey) -> (f64, f64) {
 /// The body's volume through the at-rest door.
 fn volume(body: &Body<f64>) -> Result<f64, topo::MassPropsError> {
     let at = topo::AtRestBody::validate(body.clone(), tol()).expect("the body is at rest");
-    topo::mass_properties(&at, tol()).map(|m| m.volume)
+    topo::mass_properties(&at, tol(), topo::test_support::pinned_resolution(tol())).map(|m| m.enclosure.volume)
 }
 
 /// The half-edge of `edge` on `wall`.

@@ -65,17 +65,17 @@ fn exact_mass_pins_hold() {
         let Some(pin) = d.pin else { continue };
         pinned += 1;
         let m =
-            topo::test_support::unmigrated_measure(body, Tol::witness()).expect("mass properties");
+            topo::test_support::unmigrated_measure(body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).expect("mass properties");
         assert_eq!(
-            m.volume, pin.volume,
+            m.enclosure.volume, pin.volume,
             "{}: volume {} != exact oracle {} (derivation in the document's module docs)",
-            d.name, m.volume, pin.volume
+            d.name, m.enclosure.volume, pin.volume
         );
         if let Some(area) = pin.area {
             assert_eq!(
-                m.surface_area, area,
+                m.enclosure.surface_area, area,
                 "{}: surface area {} != exact oracle {}",
-                d.name, m.surface_area, area
+                d.name, m.enclosure.surface_area, area
             );
         }
     }

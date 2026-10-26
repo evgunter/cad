@@ -560,17 +560,16 @@ pub use topo::{
 };
 
 // --- 6. Mass properties ---------------------------------------
-// `TargetUnreached` and the `VolumeEnclosure` it carries are
-// `StepImport::Solid::enclosure`'s other arm: an admitted body whose
-// volume is not measurable at this ε imports with that refusal, and
-// the curated-type rule (the `coherence` note below) says a caller
-// able to hold the answer must be able to spell its vocabulary;
-// `VolumeReading` is that answer read as a number or a bracket.
 // `Settle` is what a measurement is asked (`[tolerance.measure]`), with
-// the vocabulary its variants carry.
+// the vocabulary its variants carry, and `Measured` what it answers:
+// the enclosure, and why it stopped (`Stop`, with a deciding
+// predicate's `Verdict`). `VolumeEnclosure` is a certificate's bracket,
+// and `HeldCertificate` is `StepImport::Solid::certificate`: the curated-
+// type rule (the `coherence` note below) says a caller able to hold it
+// must be able to spell it.
 pub use topo::{
-    MassProperties, MassPropsError, RelOp, RoleNames, Settle, SignNames, TargetUnreached,
-    VolumeEnclosure, VolumeReading, mass_properties,
+    HeldCertificate, MassProperties, MassPropsError, Measured, RelOp, RoleNames, Settle,
+    SignNames, Stop, Verdict, VolumeEnclosure, mass_properties,
 };
 
 // --- 7. Tessellation and export -------------------------------

@@ -64,12 +64,12 @@ fn the_rod_carves_at_the_certified_scalar_and_brackets_the_prism_closed_form() {
     let creases = rod_creases(&source);
     assert_eq!(creases.len(), 2, "two ruling creases");
     let (v0, e0, f0) = census(&source);
-    let p0 = topo::test_support::unmigrated_measure(&source, tol).expect("interval props");
-    assert_eq!(p0.volume_pad, 0.0, "the source is closed-form");
+    let p0 = topo::test_support::unmigrated_measure(&source, tol, topo::test_support::pinned_resolution(tol)).expect("interval props");
+    assert_eq!(p0.enclosure.volume_pad, 0.0, "the source is closed-form");
     assert!(
-        p0.volume.hi() - p0.volume.lo() < 1e-12,
+        p0.enclosure.volume.hi() - p0.enclosure.volume.lo() < 1e-12,
         "the source's own enclosure is a claim: width {}",
-        p0.volume.hi() - p0.volume.lo()
+        p0.enclosure.volume.hi() - p0.enclosure.volume.lo()
     );
 
     let bracket = Bracket::open();
@@ -164,23 +164,23 @@ fn the_rod_carves_at_the_certified_scalar_and_brackets_the_prism_closed_form() {
     }
     assert_naming_totality(&source, &out, &creases, "the rod at Interval");
 
-    let p1 = topo::test_support::unmigrated_measure(&out.body, tol).expect("interval props");
+    let p1 = topo::test_support::unmigrated_measure(&out.body, tol, topo::test_support::pinned_resolution(tol)).expect("interval props");
     assert_eq!(
-        p1.volume_pad, 0.0,
+        p1.enclosure.volume_pad, 0.0,
         "closed-form inventory at the certified scalar too"
     );
     let cut = 2.0 * rod_section_cut(ROD_R, ROD_FLAT, r) * ROD_L;
-    let v0 = 0.5 * (p0.volume.lo() + p0.volume.hi());
+    let v0 = 0.5 * (p0.enclosure.volume.lo() + p0.enclosure.volume.hi());
     assert_brackets(
-        p1.volume,
+        p1.enclosure.volume,
         v0 - cut,
         "the carved body against the prism closed form",
     );
     assert!(
-        p1.volume.hi() < p0.volume.lo(),
+        p1.enclosure.volume.hi() < p0.enclosure.volume.lo(),
         "a convex band removes material, definitely: {:?} below {:?}",
-        p1.volume,
-        p0.volume
+        p1.enclosure.volume,
+        p0.enclosure.volume
     );
 }
 

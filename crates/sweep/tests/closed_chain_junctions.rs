@@ -97,9 +97,9 @@ fn census(b: &Body<f64>) -> (usize, usize, usize) {
 /// is exactly zero.
 fn volume(body: &Body<f64>, what: &str) -> f64 {
     let props =
-        topo::test_support::unmigrated_measure(body, tol()).expect("mass properties compute");
-    assert_eq!(props.volume_pad, 0.0, "{what}: closed-form faces only");
-    props.volume
+        topo::test_support::unmigrated_measure(body, tol(), topo::test_support::pinned_resolution(tol())).expect("mass properties compute");
+    assert_eq!(props.enclosure.volume_pad, 0.0, "{what}: closed-form faces only");
+    props.enclosure.volume
 }
 
 /// Three consecutive edges of the unit cube's top face: an OPEN

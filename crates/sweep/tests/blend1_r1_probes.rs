@@ -101,9 +101,9 @@ fn faces_of(body: &Body<f64>, e: EdgeKey) -> (FaceKey, FaceKey) {
 
 fn volume(body: &Body<f64>) -> f64 {
     let props =
-        topo::test_support::unmigrated_measure(body, tol()).expect("mass properties compute");
-    assert_eq!(props.volume_pad, 0.0, "closed-form faces only");
-    props.volume
+        topo::test_support::unmigrated_measure(body, tol(), topo::test_support::pinned_resolution(tol())).expect("mass properties compute");
+    assert_eq!(props.enclosure.volume_pad, 0.0, "closed-form faces only");
+    props.enclosure.volume
 }
 
 // ------------------------------------------------------------------
@@ -289,11 +289,11 @@ fn p3_a_petrie_hexagon_cycle_never_assembles_into_a_closed_chain() {
     let r: f64 = 0.1;
     let removed = 6.0 * (1.0 - core::f64::consts::PI / 4.0) * r * r
         - 6.0 * (5.0 / 3.0 - core::f64::consts::FRAC_PI_2) * r.powi(3);
-    let props = topo::test_support::unmigrated_measure(&out.body, tol()).expect("certified props");
+    let props = topo::test_support::unmigrated_measure(&out.body, tol(), topo::test_support::pinned_resolution(tol())).expect("certified props");
     assert!(
-        ((1.0 - props.volume) - removed).abs() < 1e-8 + props.volume_pad,
+        ((1.0 - props.enclosure.volume) - removed).abs() < 1e-8 + props.enclosure.volume_pad,
         "ΔV {} vs the closed form {removed}",
-        1.0 - props.volume
+        1.0 - props.enclosure.volume
     );
 }
 
@@ -365,9 +365,9 @@ fn p4_the_lantern_neck_rim_carves_and_one_arc_refuses_followably() {
     validate_geometric(&out.body, tol()).expect("the neck carve is tier-3 valid");
     assert_eq!(out.band_faces.len(), 1, "ONE band over both arcs");
     let props =
-        topo::test_support::unmigrated_measure(&out.body, tol()).expect("mass properties compute");
+        topo::test_support::unmigrated_measure(&out.body, tol(), topo::test_support::pinned_resolution(tol())).expect("mass properties compute");
     assert_eq!(
-        props.volume_pad, 0.0,
+        props.enclosure.volume_pad, 0.0,
         "every face of the neck carve is closed-form"
     );
 }

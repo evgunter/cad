@@ -64,9 +64,9 @@ fn unit_block(name: &str) -> (ProfileDoc, RecipeNodeId) {
 }
 
 fn volume(ev: &Evaluation<f64>, id: RecipeNodeId) -> f64 {
-    topo::test_support::unmigrated_measure(crate::corpus::body_of(ev, id), Tol::witness())
+    topo::test_support::unmigrated_measure(crate::corpus::body_of(ev, id), Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
         .expect("mass properties")
-        .volume
+        .enclosure.volume
 }
 
 fn is_empty(ev: &Evaluation<f64>, id: RecipeNodeId) -> bool {

@@ -21,9 +21,9 @@ use topo::Body;
 const A: f64 = 0.006;
 
 fn volume(body: &Body<f64>) -> f64 {
-    topo::test_support::unmigrated_measure(body, tol())
+    topo::test_support::unmigrated_measure(body, tol(), topo::test_support::pinned_resolution(tol()))
         .expect("closed-form mass properties")
-        .volume
+        .enclosure.volume
 }
 
 fn extrude(profile: RecipeNodeId, distance: f64) -> editor_core::AuthoredNode {

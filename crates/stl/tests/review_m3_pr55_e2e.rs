@@ -129,7 +129,7 @@ fn die_from_raw_extrudes_watertight_stl() {
             assert_eq!(validate_closed(&acc), Ok(()));
             let expect = 8.0 - f64::from(pips) * 0.25 * 0.25 * 0.125;
             assert_eq!(
-                mass_properties(&acc, Tol::witness()).unwrap().volume,
+                mass_properties(&acc, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap().enclosure.volume,
                 expect,
                 "pip {pips}"
             );
@@ -137,7 +137,7 @@ fn die_from_raw_extrudes_watertight_stl() {
     }
     assert_eq!(pips, 21);
     assert_eq!(
-        mass_properties(&acc, Tol::witness()).unwrap().volume,
+        mass_properties(&acc, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap().enclosure.volume,
         7.8359375
     );
     // Tessellate + self-checked mesh + STL for the admesh gate.

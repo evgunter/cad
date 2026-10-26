@@ -94,7 +94,7 @@ mod certified {
         let h = R - Z_CUT;
         let cap = PI * h * h * (3.0 * R - h) / 3.0;
         let closed = 4.0 * PI * R * R * R / 3.0 - cap;
-        let vol = mass_properties(cut, Tol::witness()).unwrap().volume;
+        let vol = mass_properties(cut, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap().enclosure.volume;
         assert!(
             vol.lo() <= closed && closed <= vol.hi(),
             "volume enclosure [{}, {}] must contain {closed}",

@@ -101,9 +101,10 @@ fn split_volumes(session: &mut DocSession, split: RecipeNodeId, tol: Tol) -> (f6
                 &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(body), tol)
                     .expect("the measured body passes tier 3"),
                 tol,
+                topo::test_support::pinned_resolution(tol),
             )
             .expect("mass properties")
-            .volume
+            .enclosure.volume
         }
         SplitSide::Empty => 0.0,
     };
@@ -2352,9 +2353,10 @@ fn drawn_volume(session: &mut DocSession, tol: Tol) -> f64 {
         &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(body), tol)
             .expect("the measured body passes tier 3"),
         tol,
+        topo::test_support::pinned_resolution(tol),
     )
     .expect("mass properties")
-    .volume
+    .enclosure.volume
 }
 
 /// A box, and a pattern of two of it stepped clear along +x.

@@ -265,7 +265,7 @@ fn booleans_beside_a_far_carrier_never_answer_wrong() {
                     Ok(r) => {
                         let v = r
                             .body()
-                            .map(|bb| topo::mass_properties(&bb.body, tol).unwrap().volume);
+                            .map(|bb| topo::mass_properties(&bb.body, tol, topo::test_support::pinned_resolution(tol)).unwrap().enclosure.volume);
                         let fine = match (v, want) {
                             (Some(v), Some(w)) => (v - w).abs() < 1e-9,
                             (None, None) => true,

@@ -127,8 +127,8 @@ fn read_split(body: &Body<f64>, plane: &SplitPlane<f64>) -> Result<[Half; 2], St
         if let Err(e) = topo::validate_geometric(&half, tol()) {
             return Err(format!("{side}: tier 3 {e:?}"));
         }
-        let v = topo::mass_properties(&half, tol())
-            .map(|m| m.volume)
+        let v = topo::mass_properties(&half, tol(), topo::test_support::pinned_resolution(tol()))
+            .map(|m| m.enclosure.volume)
             .map_err(|e| format!("{e:?}"));
         out.push((sections(&half, plane), v));
     }
@@ -369,7 +369,7 @@ fn a_keyed_cylinder_from_subtract_splits_into_counter_clockwise_sections() {
                     continue;
                 }
             };
-            let total = topo::mass_properties(&body, tol()).unwrap().volume;
+            let total = topo::mass_properties(&body, tol(), topo::test_support::pinned_resolution(tol())).unwrap().enclosure.volume;
             for tilt in [0.0, 1.0, 1.2, 1.4] {
                 for (o, phi) in [([0.0, 0.0, 1.25], 0.0), ([0.0, 0.3, 1.25], 1.3)] {
                     for flip in [false, true] {

@@ -204,13 +204,13 @@ fn oracle_volume() -> f64 {
         Tol::witness(),
     )
     .expect("extrude");
-    let want = topo::test_support::unmigrated_measure(&oracle.body, Tol::witness())
+    let want = topo::test_support::unmigrated_measure(&oracle.body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
         .expect("analytic mass properties");
     assert_eq!(
-        want.volume_pad, 0.0,
+        want.enclosure.volume_pad, 0.0,
         "ORACLE: the extrude oracle must be a closed form"
     );
-    want.volume
+    want.enclosure.volume
 }
 
 /// The measured width a budget refusal carries, if that is the
@@ -261,12 +261,12 @@ fn row(
     // every ε regardless of the posture below.
     topo::validate_closed(&body).expect("TIER-1/2: tiers 1/2 admit the blade");
     let eps = Tol::witness().get().eps;
-    let got = topo::test_support::unmigrated_measure(&body, Tol::witness());
+    let got = topo::test_support::unmigrated_measure(&body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()));
     let posture = body_posture(name, &got);
     eprintln!(
         "EPS-ROW {name} @ eps={eps:e}: {posture:?}{}",
         match &got {
-            Ok(m) => format!(" volume {} ± {}", m.volume, m.volume_pad),
+            Ok(m) => format!(" volume {} ± {}", m.enclosure.volume, m.enclosure.volume_pad),
             Err(e) => format!(" ({e})"),
         }
     );
@@ -294,11 +294,11 @@ fn row(
     // ACCURACY: the certified enclosure contains the analytic volume.
     let want = oracle_volume();
     assert!(
-        (got.volume - want).abs() <= got.volume_pad,
+        (got.enclosure.volume - want).abs() <= got.enclosure.volume_pad,
         "ACCURACY {name}: the enclosure must CONTAIN the analytic volume: got {} ± {}, \
          oracle {want}",
-        got.volume,
-        got.volume_pad
+        got.enclosure.volume,
+        got.enclosure.volume_pad
     );
     // PAD CEILING, pinned separately so a loosening enclosure cannot
     // absorb the accuracy row: the schedule is fixed, so the pad is
@@ -312,17 +312,17 @@ fn row(
     // guarantees.
     let ceiling = 4.0 * QUAD_TARGET_LEN_FACTOR * eps;
     assert!(
-        got.volume_pad < ceiling,
+        got.enclosure.volume_pad < ceiling,
         "PAD CEILING {name}: volume pad {} vs {ceiling}",
-        got.volume_pad
+        got.enclosure.volume_pad
     );
     // The measure the ceiling's comment cites, held where it was taken.
     if name == "blade-8 (deg 1)" && eps == DEFAULT_EPS {
         assert!(
-            (got.volume_pad / BLADE_8_PAD_AT_DEFAULT_EPS - 1.0).abs() < 0.01,
+            (got.enclosure.volume_pad / BLADE_8_PAD_AT_DEFAULT_EPS - 1.0).abs() < 0.01,
             "MEASURED {name}: volume pad {} moved from the {BLADE_8_PAD_AT_DEFAULT_EPS} the \
              ceiling's comment cites",
-            got.volume_pad
+            got.enclosure.volume_pad
         );
     }
 }

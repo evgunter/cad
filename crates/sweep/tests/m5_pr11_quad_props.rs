@@ -67,23 +67,23 @@ fn tilted_halves_volume_enclosure_brackets_the_closed_form() {
     let (above, below) = halves();
     let half_exact = core::f64::consts::PI * R * R * H / 2.0;
     for (label, body) in [("above", &above), ("below", &below)] {
-        let m = topo::test_support::unmigrated_measure(body, Tol::witness())
+        let m = topo::test_support::unmigrated_measure(body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
             .unwrap_or_else(|e| panic!("{label}: the PR 11 quadrature lane computes: {e:?}"));
         assert!(
-            m.volume_pad > 0.0,
+            m.enclosure.volume_pad > 0.0,
             "{label}: a curved-cut half carries a certified (nonzero) volume pad"
         );
         assert!(
-            m.volume - m.volume_pad <= half_exact && half_exact <= m.volume + m.volume_pad,
+            m.enclosure.volume - m.enclosure.volume_pad <= half_exact && half_exact <= m.enclosure.volume + m.enclosure.volume_pad,
             "{label}: certified bracket [{}, {}] must contain πr²H/2 = {half_exact}",
-            m.volume - m.volume_pad,
-            m.volume + m.volume_pad
+            m.enclosure.volume - m.enclosure.volume_pad,
+            m.enclosure.volume + m.enclosure.volume_pad
         );
         // The bracket is also USEFUL: half-widths far below the value.
         assert!(
-            m.volume_pad < 1e-3 * half_exact,
+            m.enclosure.volume_pad < 1e-3 * half_exact,
             "{label}: pad {} vs volume {half_exact}",
-            m.volume_pad
+            m.enclosure.volume_pad
         );
     }
 }
@@ -97,16 +97,16 @@ fn half_area_enclosures_bracket_the_closed_form() {
     let pi = core::f64::consts::PI;
     let exact = pi * R * R + pi * R * H + pi * R * R / PHI.cos();
     for (label, body) in [("above", &above), ("below", &below)] {
-        let m = topo::test_support::unmigrated_measure(body, Tol::witness()).unwrap();
+        let m = topo::test_support::unmigrated_measure(body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap();
         assert!(
-            m.area_pad > 0.0,
+            m.enclosure.area_pad > 0.0,
             "{label}: the cut wall's area is a certified enclosure"
         );
         assert!(
-            m.surface_area - m.area_pad <= exact && exact <= m.surface_area + m.area_pad,
+            m.enclosure.surface_area - m.enclosure.area_pad <= exact && exact <= m.enclosure.surface_area + m.enclosure.area_pad,
             "{label}: area bracket [{}, {}] must contain {exact}",
-            m.surface_area - m.area_pad,
-            m.surface_area + m.area_pad
+            m.enclosure.surface_area - m.enclosure.area_pad,
+            m.enclosure.surface_area + m.enclosure.area_pad
         );
         // Positivity and containment both get EASIER as a certified
         // width grows, so on their own they report no widening at all.
@@ -140,10 +140,10 @@ fn half_area_enclosures_bracket_the_closed_form() {
         // bracket, not merely when the pad gets large, and it bites
         // identically on every ε leg.
         assert!(
-            m.area_pad <= (3.0 / R) * m.volume_pad * (1.0 + 1e-9),
+            m.enclosure.area_pad <= (3.0 / R) * m.enclosure.volume_pad * (1.0 + 1e-9),
             "{label}: area pad {} exceeds {} = (3/r)·volume_pad",
-            m.area_pad,
-            (3.0 / R) * m.volume_pad
+            m.enclosure.area_pad,
+            (3.0 / R) * m.enclosure.volume_pad
         );
         // SECOND, an outer backstop, which the pin above does not
         // give: it would stay green if BOTH brackets widened together.
@@ -161,9 +161,9 @@ fn half_area_enclosures_bracket_the_closed_form() {
         // bit-identical to the one this row was first written against,
         // while the loft row's moved when that cell rule changed.
         assert!(
-            m.area_pad < 3e-4 * exact,
+            m.enclosure.area_pad < 3e-4 * exact,
             "{label}: area pad {} vs exact area {exact}",
-            m.area_pad
+            m.enclosure.area_pad
         );
     }
 }
@@ -186,12 +186,12 @@ fn tier3_passes_on_both_halves() {
 #[test]
 fn quadrature_is_bit_deterministic() {
     let (above, _) = halves();
-    let a = topo::test_support::unmigrated_measure(&above, Tol::witness()).unwrap();
-    let b = topo::test_support::unmigrated_measure(&above, Tol::witness()).unwrap();
-    assert_eq!(a.volume.to_bits(), b.volume.to_bits());
-    assert_eq!(a.surface_area.to_bits(), b.surface_area.to_bits());
-    assert_eq!(a.volume_pad.to_bits(), b.volume_pad.to_bits());
-    assert_eq!(a.area_pad.to_bits(), b.area_pad.to_bits());
+    let a = topo::test_support::unmigrated_measure(&above, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap();
+    let b = topo::test_support::unmigrated_measure(&above, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap();
+    assert_eq!(a.enclosure.volume.to_bits(), b.enclosure.volume.to_bits());
+    assert_eq!(a.enclosure.surface_area.to_bits(), b.enclosure.surface_area.to_bits());
+    assert_eq!(a.enclosure.volume_pad.to_bits(), b.enclosure.volume_pad.to_bits());
+    assert_eq!(a.enclosure.area_pad.to_bits(), b.enclosure.area_pad.to_bits());
 }
 
 /// The two halves complement: volumes sum to the full cylinder well
@@ -199,11 +199,11 @@ fn quadrature_is_bit_deterministic() {
 #[test]
 fn halves_sum_to_the_cylinder() {
     let (above, below) = halves();
-    let a = topo::test_support::unmigrated_measure(&above, Tol::witness()).unwrap();
-    let b = topo::test_support::unmigrated_measure(&below, Tol::witness()).unwrap();
+    let a = topo::test_support::unmigrated_measure(&above, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap();
+    let b = topo::test_support::unmigrated_measure(&below, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap();
     let full = core::f64::consts::PI * R * R * H;
-    let sum = a.volume + b.volume;
-    let pad = a.volume_pad + b.volume_pad;
+    let sum = a.enclosure.volume + b.enclosure.volume;
+    let pad = a.enclosure.volume_pad + b.enclosure.volume_pad;
     assert!(
         (sum - full).abs() <= pad,
         "sum {sum} vs cylinder {full} (allowed {pad})"

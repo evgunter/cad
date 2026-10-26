@@ -236,7 +236,7 @@ fn r2_a_box_with_on_carrier_rulings_builds_every_op_undeclared() {
         topo::validate_geometric(body, tol).unwrap_or_else(|e| panic!("{op}: tier 3: {e:?}"));
         topo::validate_pseudomanifold(body, &bb.contacts, tol)
             .unwrap_or_else(|e| panic!("{op}: tier 3′: {e:?}"));
-        let v = topo::mass_properties(body, tol).unwrap().volume;
+        let v = topo::mass_properties(body, tol, topo::test_support::pinned_resolution(tol)).unwrap().enclosure.volume;
         assert!(
             (v - volume).abs() <= 1e-12 * volume,
             "{op}: the closed form: {v} vs {volume}"
@@ -384,7 +384,7 @@ fn r2_an_off_centre_bar_unions_to_the_closed_form() {
         .unwrap_or_else(|e| panic!("bar {x:?}: refused {e:?}"));
         let body = &out.body().expect("a body").body;
         assert_eq!(topo::validate_geometric(body, Tol::witness()), Ok(()));
-        let v = topo::mass_properties(body, Tol::witness()).unwrap().volume;
+        let v = topo::mass_properties(body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap().enclosure.volume;
         let truth = core::f64::consts::PI * 4.0 + (x.1 - x.0) * 0.55 * 0.5 - shared;
         assert!(
             (v - truth).abs() <= 1e-12 * truth,

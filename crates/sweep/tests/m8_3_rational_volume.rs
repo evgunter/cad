@@ -206,21 +206,21 @@ fn tier3_admits_the_rational_wall_body_and_its_volume_brackets_the_extrusion() {
         Tol::witness(),
     )
     .expect("extrude");
-    let want = topo::test_support::unmigrated_measure(&oracle.body, Tol::witness())
+    let want = topo::test_support::unmigrated_measure(&oracle.body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
         .expect("analytic mass properties");
     assert_eq!(
-        want.volume_pad, 0.0,
+        want.enclosure.volume_pad, 0.0,
         "ORACLE: the extrude oracle must be a closed form"
     );
 
     // 1. ACCURACY: the certified enclosure contains the oracle.
     assert!(
-        (got.volume - want.volume).abs() <= got.volume_pad,
+        (got.volume - want.enclosure.volume).abs() <= got.volume_pad,
         "ACCURACY: the rational enclosure must CONTAIN the analytic volume: \
          got {} ± {}, oracle {}",
         got.volume,
         got.volume_pad,
-        want.volume,
+        want.enclosure.volume,
     );
     // 2. PAD CEILING, pinned separately: a loosening enclosure cannot
     // absorb assertion 1 without tripping this. The ceiling is keyed

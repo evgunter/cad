@@ -374,24 +374,24 @@ fn interval_the_klein_elbow_hollows_to_its_measured_volume() {
     .body;
     match topo::shell(&finished("the operand", body.clone(), tol), iv(0.05), tol) {
         Ok(hollow) => {
-            let props = topo::test_support::unmigrated_measure(&hollow.body, tol)
+            let props = topo::test_support::unmigrated_measure(&hollow.body, tol, topo::test_support::pinned_resolution(tol))
                 .unwrap_or_else(|e| panic!("the interval hollow measures, got {e:?}"));
             let theta = core::f64::consts::FRAC_PI_2;
             let want = disc_cut_volume(theta, 0.05, 0.0, 1.2, r)
                 - disc_cut_volume(theta, 0.05, 2.0, 1.2, r - 0.05);
-            let slack = props.volume_pad + 1e-10 * want;
+            let slack = props.enclosure.volume_pad + 1e-10 * want;
             println!(
                 "[measured] the interval elbow: volume [{}, {}] ± {}, oracle {want}",
-                props.volume.lo(),
-                props.volume.hi(),
-                props.volume_pad
+                props.enclosure.volume.lo(),
+                props.enclosure.volume.hi(),
+                props.enclosure.volume_pad
             );
             assert!(
-                props.volume.lo() - slack <= want && want <= props.volume.hi() + slack,
+                props.enclosure.volume.lo() - slack <= want && want <= props.enclosure.volume.hi() + slack,
                 "the interval elbow's volume [{}, {}] ± {} misses the oracle {want}",
-                props.volume.lo(),
-                props.volume.hi(),
-                props.volume_pad
+                props.enclosure.volume.lo(),
+                props.enclosure.volume.hi(),
+                props.enclosure.volume_pad
             );
         }
         // At a strict band the certified scalar may escalate first: at

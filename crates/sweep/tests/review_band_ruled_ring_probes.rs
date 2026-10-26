@@ -14,8 +14,8 @@ fn tol() -> Tol {
 }
 
 fn volume(body: &Body<f64>) -> f64 {
-    let p = topo::test_support::unmigrated_measure(body, tol()).expect("closed-form props");
-    p.volume
+    let p = topo::test_support::unmigrated_measure(body, tol(), topo::test_support::pinned_resolution(tol())).expect("closed-form props");
+    p.enclosure.volume
 }
 
 fn square(h: f64) -> ProfileLoop<f64> {

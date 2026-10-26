@@ -816,14 +816,15 @@ fn a_tube_is_minted_and_built_from_prelude_names_alone() {
         &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&built.body), tol)
             .expect("the measured body passes tier 3"),
         tol,
+        topo::test_support::pinned_resolution(tol),
     )
     .expect("mass properties");
     // Pappus: V = 2 pi^2 R r^2.
     let want = 2.0 * core::f64::consts::PI * core::f64::consts::PI * major * minor * minor;
     assert!(
-        (props.volume - want).abs() <= 1e-6 * want,
+        (props.enclosure.volume - want).abs() <= 1e-6 * want,
         "the prelude-built torus has the closed-form volume: {} vs {want}",
-        props.volume
+        props.enclosure.volume
     );
 }
 
@@ -1213,12 +1214,13 @@ fn the_authoring_ladder_runs_on_one_dependency() {
         &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&built.body), Tol::witness())
             .expect("the measured body passes tier 3"),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("mass properties");
     assert!(
-        (props.volume - 3.0).abs() < 1e-12,
+        (props.enclosure.volume - 3.0).abs() < 1e-12,
         "volume {}",
-        props.volume
+        props.enclosure.volume
     );
 
     let mesh = tessellate(&built.body, 0.05, Tol::witness()).expect("tessellate");
@@ -1403,7 +1405,7 @@ fn the_import_answer_and_its_record_are_spellable_through_the_prelude() {
     // Every field of the arm, bound by name and typed from this list.
     let StepImport::Solid {
         body,
-        enclosure,
+        certificate,
         eps_in,
         normalizations,
         curve_promotions,
@@ -1416,9 +1418,12 @@ fn the_import_answer_and_its_record_are_spellable_through_the_prelude() {
         panic!("the box re-imports as a solid, not a wireframe");
     };
     named::<Body<f64>>(body.clone());
-    named::<Result<MassProperties<f64>, TargetUnreached<f64>>>(enclosure.clone());
-    // A box measures, so the refusal arm is spelled here and not taken.
-    let enclosure = enclosure.expect("a box's enclosure is measurable");
+    named::<HeldCertificate<f64>>(certificate.clone());
+    let measured: Measured<f64> = certificate
+        .measure(&body, topo::test_support::pinned_resolution(Tol::witness()))
+        .expect("a box measures through its certificate");
+    named::<Stop>(measured.stop);
+    let enclosure: MassProperties<f64> = measured.enclosure;
     named::<f64>(eps_in);
     named::<Vec<StructureNormalization>>(normalizations.clone());
     named::<Vec<CurvePromotion>>(curve_promotions.clone());
@@ -1457,15 +1462,16 @@ fn the_import_answer_and_its_record_are_spellable_through_the_prelude() {
         &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&body), Tol::witness())
             .expect("the measured body passes tier 3"),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("imported mass properties");
-    assert_eq!(enclosure.volume.to_bits(), again.volume.to_bits());
+    assert_eq!(enclosure.volume.to_bits(), again.enclosure.volume.to_bits());
     assert_eq!(
         enclosure.surface_area.to_bits(),
-        again.surface_area.to_bits()
+        again.enclosure.surface_area.to_bits()
     );
-    assert_eq!(enclosure.volume_pad.to_bits(), again.volume_pad.to_bits());
-    assert_eq!(enclosure.area_pad.to_bits(), again.area_pad.to_bits());
+    assert_eq!(enclosure.volume_pad.to_bits(), again.enclosure.volume_pad.to_bits());
+    assert_eq!(enclosure.area_pad.to_bits(), again.enclosure.area_pad.to_bits());
 
     // The assembly record is kept whether or not the file states an
     // assembly, so a one-solid box still carries one.
@@ -1566,11 +1572,11 @@ fn a_boolean_result_validates_at_tier_3_prime() {
     // empty set. This is what makes 3′ meaningful.
     ladder(&result.body, Some(&result.contacts));
 
-    let props = mass_properties(&result.body, Tol::witness()).expect("mass properties");
+    let props = mass_properties(&result.body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).expect("mass properties");
     assert!(
-        (props.volume - 7.0).abs() < 1e-12,
+        (props.enclosure.volume - 7.0).abs() < 1e-12,
         "6.0 + 1.5 - 0.5 overlap = 7.0, got {}",
-        props.volume
+        props.enclosure.volume
     );
 }
 
@@ -2382,9 +2388,10 @@ fn a_recorded_paths_chain_becomes_a_profile_program_node() {
         )
         .expect("the measured body passes tier 3"),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("mass properties")
-    .volume;
+    .enclosure.volume;
     // 40 x 30, less what the r = 6 round takes off, times 8 thick.
     let area = 40.0 * 30.0 - (36.0 - core::f64::consts::PI * 36.0 / 4.0);
     assert!((volume - area * 8.0).abs() < 1e-9, "volume {volume}");
@@ -2420,9 +2427,10 @@ fn the_persist_doors_round_trip_through_the_facade() {
         )
         .expect("the measured body passes tier 3"),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("mass properties")
-    .volume;
+    .enclosure.volume;
     // Exact on purpose: every coordinate is dyadic and small, so each closed-form term and
     // their sum are exact in f64 (a zero pad states no rounding; here there is none).
     assert_eq!(volume, 6.0);
@@ -2458,9 +2466,10 @@ fn the_persist_doors_round_trip_through_the_facade() {
         )
         .expect("the measured body passes tier 3"),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("mass properties")
-    .volume;
+    .enclosure.volume;
     assert_eq!(
         volume.to_bits(),
         replayed.to_bits(),
@@ -2485,9 +2494,10 @@ fn the_export_door_serves_the_one_shot_journey() {
                 &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&body), Tol::witness())
                     .expect("the measured body passes tier 3"),
                 Tol::witness(),
+                topo::test_support::pinned_resolution(Tol::witness()),
             )
             .expect("imported mass properties")
-            .volume;
+            .enclosure.volume;
             assert!((v - 6.0).abs() < 1e-9, "imported volume {v} differs");
         }
         other => panic!("expected a solid import, got {other:?}"),
@@ -2551,9 +2561,10 @@ fn the_document_export_door_ships_the_multi_solid_product() {
                 &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&body), Tol::witness())
                     .expect("the measured body passes tier 3"),
                 Tol::witness(),
+                topo::test_support::pinned_resolution(Tol::witness()),
             )
             .expect("imported mass properties")
-            .volume;
+            .enclosure.volume;
             assert!(
                 (v - (2.0 * 2.0 * 1.5 + 1.0)).abs() < 1e-9,
                 "imported volume {v} is not the parts' sum"
@@ -2917,9 +2928,10 @@ fn plate_param_authors_facade_only_and_its_saved_text_is_pinned() {
         &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(body.as_ref()), Tol::witness())
             .expect("the measured body passes tier 3"),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("mass properties")
-    .volume;
+    .enclosure.volume;
     // Plate + tab − their overlap − two cylinders of radius 0.25: the
     // same closed form `switch_plate_param.rs` asserts, tab included.
     let oracle = 4.0 * 2.0 * 0.5 + 1.0 * 0.75 * 0.25
@@ -3726,9 +3738,10 @@ fn asm2a_row1_two_instances_through_a_real_workspace() {
             &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(b), Tol::witness())
                 .expect("the measured body passes tier 3"),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .expect("mass properties")
-        .volume
+        .enclosure.volume
     };
     assert_eq!(
         vol(&body).to_bits(),
@@ -3876,9 +3889,10 @@ fn asm2a_child_product_probe() {
         &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&body), Tol::witness())
             .expect("the measured body passes tier 3"),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("mass properties")
-    .volume;
+    .enclosure.volume;
     std::fs::write(&out, format!("{}", v.to_bits())).expect("probe output writable");
 }
 
@@ -4023,9 +4037,10 @@ fn asm_r2a_child_mated_probe() {
         &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&body), Tol::witness())
             .expect("the measured body passes tier 3"),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("mass properties")
-    .volume;
+    .enclosure.volume;
     let text = pncad::document::save(&doc, &[], Tol::witness()).expect("the document saves");
     std::fs::write(
         &out,
@@ -4138,9 +4153,10 @@ fn asm_r2b_child_crossing_probe() {
         &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&assembled), Tol::witness())
             .expect("the measured body passes tier 3"),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("mass properties")
-    .volume;
+    .enclosure.volume;
     std::fs::write(
         &out,
         format!(
@@ -4263,9 +4279,10 @@ fn asm2b_row2_sub_assembly_through_a_real_workspace() {
             &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(b), Tol::witness())
                 .expect("the measured body passes tier 3"),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .expect("mass properties")
-        .volume
+        .enclosure.volume
     };
     let part_doc = ws.resolve(&p, Tol::witness()).expect("resolves");
     let part_ev = asm2a_eval(&part_doc, &ws);
@@ -4337,9 +4354,10 @@ fn asm2b_child_product_probe() {
         &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&body), Tol::witness())
             .expect("the measured body passes tier 3"),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("mass properties")
-    .volume;
+    .enclosure.volume;
     let text = format!("{}|{}", v.to_bits(), asm2b_signature(&body));
     std::fs::write(&out, text).expect("probe output writable");
 }
@@ -4448,9 +4466,10 @@ fn asm4_split_and_inline_through_the_real_store() {
             &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(b), Tol::witness())
                 .expect("the measured body passes tier 3"),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .expect("mass properties")
-        .volume
+        .enclosure.volume
         .to_bits()
     };
 
@@ -4611,9 +4630,10 @@ fn asm_upd_row3_update_to_store_picks_up_the_resaved_part() {
             &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(b), Tol::witness())
                 .expect("the measured body passes tier 3"),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .expect("mass properties")
-        .volume
+        .enclosure.volume
     };
     let ev = asm2a_eval(&doc, &ws);
     let before = vol(&d::product(&doc, &ev, Tol::witness()).expect("gathers"));
@@ -4749,9 +4769,10 @@ fn asm_upd_child_update_probe() {
         )
         .expect("the measured body passes tier 3"),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("mass properties")
-    .volume;
+    .enclosure.volume;
     let text = format!(
         "{}\u{1e}{}",
         d::save(&updated, &[], Tol::witness()).expect("the updated document saves"),
@@ -6733,13 +6754,14 @@ mod the_hollowed_box_through_the_facade {
             &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(body), Tol::witness())
                 .expect("the measured body passes tier 3"),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .expect("the cup measures");
         let inner: f64 = 1.0 - 0.25;
         let want = 1.0 - inner * inner * (1.0 - 0.125);
         // Exact on purpose: every coordinate is dyadic and small, so each closed-form term and
         // their sum are exact in f64 (a zero pad states no rounding; here there is none).
-        assert_eq!(props.volume, want, "the cup's volume is its closed form");
+        assert_eq!(props.enclosure.volume, want, "the cup's volume is its closed form");
     }
 
     /// At a dual the same document refuses at the shell node and

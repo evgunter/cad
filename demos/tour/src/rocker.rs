@@ -482,9 +482,9 @@ fn eye_pick_narration(vp: &ValidatedProfile<f64>) -> String {
 /// kernel refuses, pinned live. Returns the narration line.
 fn crease_narration(plate: &Extruded<f64>, rounded: &Body<f64>, tol: Tol) -> String {
     let volume = |b: &Body<f64>| {
-        mass_properties(&crate::booleans::at_rest(b, tol), tol)
+        mass_properties(&crate::booleans::at_rest(b, tol), tol, crate::printed())
             .expect("the rocker's mass properties are closed-form")
-            .volume
+            .enclosure.volume
     };
 
     // The kind-pair description alone also matches the six vertical

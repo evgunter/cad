@@ -248,9 +248,9 @@ fn the_refused_chain_flattened_by_one_level_evaluates_at_the_bound() {
         let leaf_body = product(&leaf, &run(&leaf, &EvalOptions::default()), Tol::witness())
             .expect("the leaf's product gathers");
         let volume = |b: &topo::Body<f64>| {
-            topo::test_support::unmigrated_measure(b, Tol::witness())
+            topo::test_support::unmigrated_measure(b, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
                 .expect("mass properties")
-                .volume
+                .enclosure.volume
         };
         assert_eq!(
             volume(&body).to_bits(),
@@ -566,9 +566,10 @@ fn below_the_top_the_mate_solve_and_the_instances_find_the_rows_the_descent_ente
         topo::test_support::unmigrated_measure(
             &product(doc, ev, Tol::witness()).expect("the product gathers"),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .expect("mass properties")
-        .volume
+        .enclosure.volume
     };
     assert_eq!(
         volume(&top, &ev).to_bits(),

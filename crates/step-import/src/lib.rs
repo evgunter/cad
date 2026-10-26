@@ -157,11 +157,11 @@
 //! and read, and their rational walls now have a volume quadrature
 //! that converges through interior knots — but it is a composite under
 //! a per-face work wall, so a large or strongly curved rational wall can
-//! still stop short of the reporting target. The at-rest gate below
-//! decides each solid's volume SIGN and admits such a body; what the
-//! wall refuses is the NUMBER, and the import carries that refusal — with the
-//! measured width and the narrowest bracket the measurement held — on
-//! the enclosure it returns rather than refusing the file.
+//! still stop short of a fine resolution. The at-rest gate below
+//! decides each solid's volume SIGN and admits such a body, and the
+//! import hands back the certificate the gate decided on: a caller
+//! measures through it under its own predicate, and an unmet resolution
+//! is a bracket, not a refusal of the file.
 //!
 //! # The wild (M7-4)
 //!
@@ -540,31 +540,20 @@ pub enum StepImport {
         /// state its native twin does not occupy — and nothing imports
         /// into a state the kernel will not certify.
         body: Body<f64>,
-        /// **The at-rest gate's own enclosure of `body`, continued to
-        /// the number** — the certificate the aggregate gate's check 7
-        /// decided the +V invariant on, refined to the reporting target
-        /// rather than dropped. **Not a second computation**: the
-        /// continuation reuses every round the gate ran and pays only
-        /// the rest, so a reader that wants the imported body's volume
-        /// reads this field instead of calling
-        /// [`topo::mass_properties`] again, and gets the same four
-        /// fields bit for bit — the `Ok` arm, or the same refusal.
-        ///
-        /// **An `Err` is not an import refusal.** Check 7 decides a
-        /// SIGN, so the gate admits a valid body whose volume is not
-        /// measurable at this ε (a rational-walled loft whose
-        /// quadrature stops at its work wall, say) exactly as it
-        /// admits that body's native twin; the reader holds no opinion
-        /// of its own about which admitted bodies ship (DESIGN import
-        /// step 4). What it cannot give is the number, and
-        /// [`topo::TargetUnreached`] says why — with the narrowest
-        /// bracket the gate's certificate or its continuation held,
-        /// when the reason is the schedule running out.
+        /// **The at-rest gate's own certificate of `body`**: the one
+        /// the aggregate gate's check 7 decided the +V invariant on,
+        /// kept rather than dropped. The import has no purpose to state,
+        /// so it measures nothing: a reader that wants the imported
+        /// body's volume measures through this
+        /// ([`topo::HeldCertificate::measure`], against `body`) under its
+        /// own predicate, which reuses every round the gate ran and pays
+        /// only the rest, instead of calling [`topo::mass_properties`]
+        /// again.
         ///
         /// Its band is `Band::linear` of the import's `tol`, and its
         /// lane is the tier-3′ door's — the `f64` quadrature lane,
         /// which is the certified one at this scalar.
-        enclosure: Result<topo::MassProperties<f64>, topo::TargetUnreached<f64>>,
+        certificate: topo::HeldCertificate<f64>,
         /// The import's input tolerance ε_in (meters): the override if
         /// given, else the file's declared uncertainty.
         eps_in: f64,
@@ -725,8 +714,8 @@ impl StepImport {
 /// cover, topology that does not assemble, geometry the D7 adoption
 /// ladder cannot certify, or a body the kernel's shared at-rest gate
 /// refuses ([`StepImportError::TierInvalid`]). A body the gate admits
-/// whose volume is not measurable at this ε is NOT an error: it imports,
-/// and the refusal rides on `StepImport::Solid`'s `enclosure`. Files written by
+/// whose volume is wide at this ε is NOT an error: it imports, and its
+/// caller measures it through `StepImport::Solid`'s `certificate`. Files written by
 /// `step_export::step_string` from finished kernel bodies import
 /// cleanly.
 pub fn import_step(
@@ -891,7 +880,7 @@ pub fn import_step(
             // two solids that overlap refuse. The per-solid gates above stay
             // tier 3: contact is an aggregate-body fact, and the
             // aggregate census sweeps every entity of every instance.
-            let (contacts, coincidences, enclosure) = gate3(&body, tol)?;
+            let (contacts, coincidences, certificate) = gate3(&body, tol)?;
             // **The chart-coherence channel** — after the gate, on the
             // body that ships, and consuming nothing. The door is a
             // pure function of (body, ε) that refuses nothing and
@@ -906,7 +895,7 @@ pub fn import_step(
                 .then(|| topo::examine_chart_coherence(&body, tol));
             Ok(StepImport::Solid {
                 body,
-                enclosure,
+                certificate,
                 eps_in,
                 normalizations,
                 curve_promotions: model.curve_promotions.clone(),
@@ -946,13 +935,9 @@ fn gate(body: &topo::Body<f64>, solid: Option<u64>, tol: Tol) -> Result<(), Step
 ///
 /// The gate returns the certificate its check 7 decided on: each
 /// solid's SIGN, certified per solid and assembled over the whole face
-/// arena, one read of each face. The enclosure `StepImport::Solid`
-/// carries is that certificate CONTINUED to the reporting target
-/// ([`topo::SignCertificate::measure`]), so the continuation's cost is
-/// spelled here, where the reader asks for the number. The verdicts are
-/// the gate's, verbatim; a continuation that cannot reach the target is
-/// not a verdict, and rides on the enclosure rather than refusing the
-/// import.
+/// arena, one read of each face, and `StepImport::Solid` carries it
+/// held apart from the body ([`topo::SignCertificate::detach`]), for its
+/// reader to measure through. The verdicts are the gate's, verbatim.
 ///
 /// **What the import as a whole pays is more than this gate.** Where
 /// [`topo::per_part_gate_owed`] asks for it, each placed solid is gated
@@ -970,7 +955,7 @@ fn gate3(
     (
         topo::ContactRecords,
         Vec<topo::Coincidence>,
-        Result<topo::MassProperties<f64>, topo::TargetUnreached<f64>>,
+        topo::HeldCertificate<f64>,
     ),
     StepImportError,
 > {
@@ -1009,7 +994,7 @@ fn gate3(
         Some(certified) if findings.is_empty() => {
             let mut rows = recorded.rows;
             rows.extend(flush.rows);
-            Ok((recorded.records, rows, certified.measure()))
+            Ok((recorded.records, rows, certified.detach()))
         }
         _ => Err(StepImportError::TierInvalid {
             solid: None,

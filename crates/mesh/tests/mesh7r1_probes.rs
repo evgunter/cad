@@ -63,7 +63,7 @@ fn a_pole_crossing_meridian_arc_passes_the_door_on_both_faces() {
         report_tessellate("half-cap (2 faces)", &body, delta, tol);
     }
     // Raw door: the measured body is a body still carrying construction scaffolding, which tier 3 refuses (ScaffoldAtRest).
-    let mp = topo::test_support::measure_unvalidated(&body, tol);
+    let mp = topo::test_support::measure_unvalidated(&body, tol, topo::test_support::pinned_resolution(tol));
     println!(
         "PROBE half-cap mass_properties: {mp:?} (exact volume {})",
         4.0 * core::f64::consts::PI / 3.0
@@ -223,7 +223,7 @@ fn three_rectangles_sharing_a_pole_crossing_arc() {
     // Raw door: the measured body is a body still carrying construction scaffolding, which tier 3 refuses (ScaffoldAtRest).
     println!(
         "PROBE 3-face mass_properties: {:?} (exact {})",
-        topo::test_support::measure_unvalidated(&body, tol),
+        topo::test_support::measure_unvalidated(&body, tol, topo::test_support::pinned_resolution(tol)),
         4.0 * core::f64::consts::PI / 3.0
     );
     for delta in [0.5, 0.3, 0.2, 0.1, 0.05, 0.02] {
@@ -355,7 +355,7 @@ fn three_rectangles_with_a_seam_sharing_a_pole_crossing_arc() {
     // Raw door: the measured body is a body still carrying a scaffolding strut, which tier 3 refuses (ScaffoldingStrutVertex).
     println!(
         "PROBE seamed mass_properties: {:?} (exact {})",
-        topo::test_support::measure_unvalidated(&body, tol),
+        topo::test_support::measure_unvalidated(&body, tol, topo::test_support::pinned_resolution(tol)),
         4.0 * core::f64::consts::PI / 3.0
     );
     for delta in [0.5, 0.3, 0.2, 0.1, 0.05, 0.02] {
@@ -387,7 +387,7 @@ fn a_split_rim_donut_meshes_and_measures() {
     let m = mesh::tessellate(&body, 0.1, tol).expect("split-rim donut meshes");
     mesh::validate::check_mesh(&m).expect("watertight");
     // Raw door: the measured body is construction state whose joinable vertices tier 3 refuses (JoinableVertexAtRest).
-    let mp = topo::test_support::measure_unvalidated(&body, tol).expect("split-rim donut measures");
+    let mp = topo::test_support::measure_unvalidated(&body, tol, topo::test_support::pinned_resolution(tol)).expect("split-rim donut measures");
     println!(
         "PROBE split-rim donut: positions={} props={mp:?}",
         m.positions.len()
@@ -416,7 +416,7 @@ fn report_keyway_and_lens_raw_outcomes() {
         // Raw door: the measured body is a body still carrying construction scaffolding, which tier 3 refuses (ScaffoldAtRest).
         println!(
             "PROBE {name} mass_properties: {:?}",
-            topo::test_support::measure_unvalidated(&body, tol)
+            topo::test_support::measure_unvalidated(&body, tol, topo::test_support::pinned_resolution(tol))
         );
     }
 }
@@ -471,7 +471,7 @@ fn a_pole_crossing_arc_is_refused_by_the_branch_door_not_the_shape_door() {
     // may hold inside it, so the face refuses by name and the body no
     // longer answers 0.0 for a closed sphere.
     // Raw door: the measured body is a body still carrying construction scaffolding, which tier 3 refuses (ScaffoldAtRest).
-    let mp = topo::test_support::measure_unvalidated(&body, tol);
+    let mp = topo::test_support::measure_unvalidated(&body, tol, topo::test_support::pinned_resolution(tol));
     assert!(
         matches!(
             mp,

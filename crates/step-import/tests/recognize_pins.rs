@@ -132,15 +132,17 @@ fn quasi_uniform_vocabulary_reads_the_same_surface() {
         topo::mass_properties(
             &topo::test_support::finished("the measured body", base.clone(), Tol::witness()),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
-        .volume,
+        .enclosure.volume,
         topo::mass_properties(
             &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
-        .volume,
+        .enclosure.volume,
     );
     assert_eq!(v1.to_bits(), v2.to_bits(), "volume bit-identical");
 }

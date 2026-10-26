@@ -99,9 +99,9 @@ fn bored_lantern() -> Body<f64> {
 
 fn volume(body: &Body<f64>) -> f64 {
     let props =
-        topo::test_support::unmigrated_measure(body, tol()).expect("mass properties must compute");
-    assert_eq!(props.volume_pad, 0.0, "closed-form inventory");
-    props.volume
+        topo::test_support::unmigrated_measure(body, tol(), topo::test_support::pinned_resolution(tol())).expect("mass properties must compute");
+    assert_eq!(props.enclosure.volume_pad, 0.0, "closed-form inventory");
+    props.enclosure.volume
 }
 
 // ------------------------------------------------------------------
@@ -414,7 +414,7 @@ fn fingerprint(source: &Body<f64>, arcs: &[EdgeKey], r: f64) -> String {
     let out =
         fillet_edges(&sweep::test_support::at_rest(source, tol()), arcs, r, tol()).expect("carves");
     let rec = out.naming.as_ref().expect("names");
-    let props = topo::test_support::unmigrated_measure(&out.body, tol()).expect("mass properties");
+    let props = topo::test_support::unmigrated_measure(&out.body, tol(), topo::test_support::pinned_resolution(tol())).expect("mass properties");
     format!(
         "f={} e={} v={} l={} bands={} vol={:#018x} pad={} \
          trims={} feet={} msplit={} mrem={} slits={} dead_e={} dead_v={}",
@@ -423,8 +423,8 @@ fn fingerprint(source: &Body<f64>, arcs: &[EdgeKey], r: f64) -> String {
         out.body.vertices().count(),
         out.body.loops().count(),
         out.band_faces.len(),
-        props.volume.to_bits(),
-        props.volume_pad,
+        props.enclosure.volume.to_bits(),
+        props.enclosure.volume_pad,
         rec.rim_trims.len(),
         rec.rim_feet.len(),
         rec.meridian_splits.len(),

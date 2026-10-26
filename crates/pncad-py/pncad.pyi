@@ -4628,6 +4628,55 @@ class MassProperties:
     @property
     def area_pad(self) -> float: ...
 
+class Settle:
+    """What a measurement is asked: a sign, a relation against a volume
+    bound, a containment, or a resolution. There is no default: every
+    measurement door takes one. Frozen; build one with a constructor."""
+
+    @staticmethod
+    def sign() -> Settle:
+        """The volume's sign: `verdict` is `"outer"` (positive) or
+        `"void"` (negative). Recorded under `py_measure_sign` and
+        `py_measure_sign_exact`."""
+    @staticmethod
+    def at_most(bound: float) -> Settle:
+        """The volume at most `bound` (m^3): `verdict` is whether it
+        holds. Recorded under `py_measure_at_most`."""
+    @staticmethod
+    def at_least(bound: float) -> Settle:
+        """The volume at least `bound` (m^3): `verdict` is whether it
+        holds. Recorded under `py_measure_at_least`."""
+    @staticmethod
+    def contains(lo: float, hi: float) -> Settle:
+        """The volume within `[lo, hi]` (m^3): `verdict` is whether it
+        holds. Recorded under `py_measure_contains`."""
+    @staticmethod
+    def resolution(length: Length) -> Settle:
+        """Each face refined until its enclosure spans at most `length`
+        of mean boundary displacement — the predicate of a caller that
+        wants the number. Decides nothing and is recorded nowhere. A
+        length finer than the tolerance raises (`measure_refusal ==
+        "resolution_finer_than_eps"`)."""
+
+class MassMeasurement:
+    """What a measurement reached: the narrowest enclosure, why it
+    stopped, and what a deciding predicate decided.
+
+    `stop` is `"settled"` (a deciding predicate settled), `"met"` (every
+    face met the resolution), `"floor"` (refinement stopped paying short
+    of the question), `"wall"` (a face short of the question reached the
+    work wall) or `"band"` (the enclosure lies wholly in the predicate's
+    band). `verdict` is `"outer"` or `"void"` for `Settle.sign()`
+    settled, a bool for a relation or a containment settled, and `None`
+    otherwise."""
+
+    @property
+    def enclosure(self) -> MassProperties: ...
+    @property
+    def stop(self) -> Literal["settled", "met", "floor", "wall", "band"]: ...
+    @property
+    def verdict(self) -> Literal["outer", "void"] | bool | None: ...
+
 class Body:
     """A solid body — an opaque handle with curated doors.
 
@@ -4638,42 +4687,38 @@ class Body:
     one body and pairing it with another is the mistake the tier-3′
     contract exists to refuse."""
 
-    def mass_properties(self) -> MassProperties:
-        """Volume, area and their certified pads, of a FINISHED body.
+    def mass_properties(self, settle: Settle) -> MassMeasurement:
+        """Volume and area enclosures of a FINISHED body under `settle`,
+        and why the measurement stopped.
 
         The measurement reads a body that passes tier 3, so this IS
-        `validate_geometric_measured()`: the gate runs, and its own
-        certified quadrature, continued to the reporting target, is the
+        `validate_geometric_measured(settle)`: the gate runs, and its
+        own certified quadrature, continued under `settle`, is the
         answer — one quadrature. A body tier 3 refuses raises
         `ValidationError` (`door == "validate_geometric"`, its findings
-        as that door reports them) instead of being measured; a body
-        it admits whose number this eps cannot reach raises
-        `ValidationError` with `reason == "mass_properties_failed"` and
-        the bracket the quadrature held."""
+        as that door reports them) instead of being measured. A
+        resolution the quadrature cannot reach is not a refusal: the
+        `MassMeasurement`'s `stop` is `"floor"` or `"wall"`, and its
+        enclosure is the bracket it reached."""
     def validate(self) -> None: ...
     def validate_closed(self) -> None: ...
     def validate_geometric(self) -> None: ...
-    def validate_geometric_measured(self) -> MassProperties:
-        """Tier 3 and the number its own +V check computed, in ONE
-        certified quadrature.
+    def validate_geometric_measured(self, settle: Settle) -> MassMeasurement:
+        """Tier 3 and a measurement under `settle`, in ONE certified
+        quadrature.
 
         Check 7 IS a certified quadrature, and a measurement after it
         would start another from round 0. This door keeps the
         certificate the gate decided the sign on and continues that
-        quadrature to the reporting target, so it answers the typed
-        measurement of the finished body bit for bit at one
-        quadrature's cost. `mass_properties()` is this door.
+        quadrature under `settle`. `mass_properties(settle)` is this
+        door.
 
-        It can refuse where `validate_geometric()` alone passes: the
-        reporting target scales with eps while the refinement
-        schedule's floor is a property of the part, so a body whose
-        volume SIGN is definite may have no volume NUMBER at this
-        eps. Tier 3 admits such a body and the measurement raises
-        `ValidationError` with `reason == "mass_properties_failed"`,
-        exactly as `mass_properties()` does — carrying, there and
-        only there, the narrowest bracket the gate's certificate or
-        its continuation held, as `volume_lo`, `volume_hi` and
-        `surface_area`."""
+        A measurement that cannot be made raises `ValidationError` with
+        `reason == "mass_properties_failed"` and `measure_refusal`
+        naming which: `"face"`, `"ring_on_curved_face"`, `"corrupt"`,
+        `"null_scaffold_edge"` or `"band"` (no enclosure),
+        `"poisoned"` (the predicate's margin could not be read) or
+        `"resolution_finer_than_eps"`."""
     def validate_pseudomanifold(self) -> None:
         """Tier 3′, the ladder's fourth rung: tier 3's whole local
         battery PLUS the global coincidence census tier 3 defers,
@@ -4787,22 +4832,14 @@ class PlacedInstance:
 
 class ImportReport:
     """What a successful STEP import produced: the body, the gate's own
-    measurement of it, and the record of what the adoption changed.
+    certificate of it, and the record of what the adoption changed.
 
-    `enclosure` is the certified `MassProperties` the import's at-rest
-    gate derived and decided the body's orientation invariant on — NOT
-    a second computation. Reading it measures the imported body once;
-    `report.body.mass_properties()` runs the certified quadrature a
-    second time over the same body at the same band, and answers the
-    same four fields bit for bit.
-
-    The gate decides each solid's volume SIGN, so it admits a valid
-    body whose volume is not measurable at this ε (a large rational
-    wall whose quadrature exhausts its schedule). The import still
-    succeeds; reading `enclosure` on such a report raises the same
-    measurement refusal `Body.validate_geometric_measured` raises,
-    carrying `volume_lo`/`volume_hi`/`surface_area` when the schedule
-    ran out.
+    `measure(settle)` measures the body through the certificate the
+    import's at-rest gate decided the body's orientation invariant on —
+    NOT a second computation: it continues the gate's rounds, where
+    `report.body.mass_properties(settle)` runs the certified quadrature
+    again from round 0. The import itself measures nothing: it has no
+    purpose to state.
 
     The three record lists are the adoption's own report, as data
     rather than prose: every boundary graph re-minted, every NURBS
@@ -4811,8 +4848,10 @@ class ImportReport:
 
     @property
     def body(self) -> Body: ...
-    @property
-    def enclosure(self) -> MassProperties: ...
+    def measure(self, settle: Settle) -> MassMeasurement:
+        """The body measured under `settle` through the gate's
+        certificate. Raises as `Body.validate_geometric_measured`'s
+        measurement does."""
     @property
     def eps_in(self) -> float: ...
     @property

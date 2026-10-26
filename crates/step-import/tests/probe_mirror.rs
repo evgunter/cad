@@ -26,9 +26,10 @@ fn vol(b: &topo::Body<f64>) -> f64 {
     topo::mass_properties(
         &topo::test_support::finished("the measured body", (b).clone(), Tol::witness()),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .volume
+    .enclosure.volume
 }
 
 fn bbox(b: &topo::Body<f64>) -> [f64; 6] {

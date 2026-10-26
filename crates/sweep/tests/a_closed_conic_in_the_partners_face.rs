@@ -243,7 +243,7 @@ fn a_boss_on_a_plate_at_interval() {
             topo::validate_geometric(&b.body, tol())
                 .unwrap_or_else(|e| panic!("{what}: tier 3: {e:?}"));
             assert_eq!(Some(census(&b.body)), counted, "{what}: census");
-            let v = topo::mass_properties(&b.body, tol()).unwrap().volume;
+            let v = topo::mass_properties(&b.body, tol(), topo::test_support::pinned_resolution(tol())).unwrap().enclosure.volume;
             assert!(
                 v.lo() <= want && want <= v.hi() && v.hi() - v.lo() < 1e-9,
                 "{what}: [{}, {}] against {want}",

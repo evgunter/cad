@@ -252,9 +252,9 @@ pub(crate) fn volume_and_points(
         Ok(()),
         "{what}: tier 3"
     );
-    let v = topo::test_support::unmigrated_measure(b, Tol::witness())
+    let v = topo::test_support::unmigrated_measure(b, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
         .unwrap_or_else(|e| panic!("{what}: the volume: {e:?}"))
-        .volume;
+        .enclosure.volume;
     assert!(
         (v - want).abs() <= volume_tol(want),
         "{what}: volume {v} against the truth {want}"

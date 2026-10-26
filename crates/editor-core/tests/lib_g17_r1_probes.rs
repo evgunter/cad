@@ -104,11 +104,11 @@ fn a_thick_wall_bump_builds_below_half_the_side_and_refuses_at_it() {
             Some(NodeResult::Ok(_)) => {
                 assert!(t < cup::L / 2.0, "t={t} must not build");
                 let b = body_of(&ev, shell);
-                let m = topo::test_support::unmigrated_measure(b, Tol::witness()).unwrap();
+                let m = topo::test_support::unmigrated_measure(b, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap();
                 let want = cup::closed_forms(cup::L, cup::H, t);
                 assert_eq!(b.faces().count(), 11);
                 assert_eq!(b.shells().count(), 1);
-                assert_eq!(m.volume, want.volume, "t={t}");
+                assert_eq!(m.enclosure.volume, want.volume, "t={t}");
             }
             Some(NodeResult::Failed(e)) => {
                 assert!(t >= cup::L / 2.0, "t={t} must build, got {}", e.kind);
@@ -245,9 +245,9 @@ fn a_thickness_only_edit_moves_the_content_key_and_the_memo() {
         Tol::witness(),
     );
     let body = body_of(&with_prior, shell);
-    let m = topo::test_support::unmigrated_measure(body, Tol::witness()).unwrap();
+    let m = topo::test_support::unmigrated_measure(body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap();
     assert_eq!(
-        m.volume,
+        m.enclosure.volume,
         cup::closed_forms(cup::L, cup::H, cup::T_BUMPED).volume,
         "the memo served the pre-edit hollow"
     );

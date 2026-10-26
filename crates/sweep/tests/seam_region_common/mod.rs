@@ -112,7 +112,7 @@ pub(crate) fn assert_refused(
         .unwrap_or_else(|| {
             panic!(
                 "{label}: flipping {set:?} passes tier 3 (measures {:?})",
-                topo::test_support::unmigrated_measure(&flipped, tol).map(|m| m.volume)
+                topo::test_support::unmigrated_measure(&flipped, tol, topo::test_support::pinned_resolution(tol)).map(|m| m.enclosure.volume)
             )
         });
     for &face in named {
@@ -125,11 +125,11 @@ pub(crate) fn assert_refused(
     }
     // The door reads the same seam regions, so it refuses the same flips
     // without tier 3.
-    let door = topo::test_support::unmigrated_measure(&flipped, tol);
+    let door = topo::test_support::unmigrated_measure(&flipped, tol, topo::test_support::pinned_resolution(tol));
     assert!(
         door.is_err(),
         "{label}: flipping {set:?}: tier 3 refuses, the door measures {:?}",
-        door.map(|m| m.volume)
+        door.map(|m| m.enclosure.volume)
     );
 }
 
@@ -187,9 +187,9 @@ pub(crate) fn split_at_meridian(body: &mut Body<f64>, key: FaceKey, dir: Vec3<f6
 // Splits of the review of PR 5516 (R2), lifted into rows.
 
 pub(crate) fn volume(body: &Body<f64>, tol: Tol) -> Option<f64> {
-    topo::test_support::unmigrated_measure(body, tol)
+    topo::test_support::unmigrated_measure(body, tol, topo::test_support::pinned_resolution(tol))
         .ok()
-        .map(|m| m.volume)
+        .map(|m| m.enclosure.volume)
 }
 
 /// Splits the face of `body` that a meridian in direction `dir` passes
@@ -222,8 +222,8 @@ pub(crate) fn split_outside(body: &mut Body<f64>, dir: Vec3<f64>, tol: Tol) -> b
             split_at_meridian(&mut b, f, dir, tol)
         }))
         .is_ok();
-        let moved = match topo::test_support::unmigrated_measure(&b, tol) {
-            Ok(m) => (m.volume - before).abs() > 1e-6 * before.abs(),
+        let moved = match topo::test_support::unmigrated_measure(&b, tol, topo::test_support::pinned_resolution(tol)) {
+            Ok(m) => (m.enclosure.volume - before).abs() > 1e-6 * before.abs(),
             Err(topo::MassPropsError::Face {
                 source: geom_brep::props::PropsError::SeamRegionOvercovered { .. },
                 ..

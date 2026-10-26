@@ -117,9 +117,9 @@ fn is_cylinder(body: &Body<f64>, f: topo::FaceKey) -> bool {
 }
 
 fn volume(body: &Body<f64>) -> f64 {
-    topo::test_support::unmigrated_measure(body, tol())
+    topo::test_support::unmigrated_measure(body, tol(), topo::test_support::pinned_resolution(tol()))
         .unwrap()
-        .volume
+        .enclosure.volume
 }
 
 /// The union, which must build, be additive and valid at tier 3 and 3′.

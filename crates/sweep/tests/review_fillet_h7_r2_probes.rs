@@ -49,9 +49,9 @@ fn census(body: &Body<f64>) -> (usize, usize, usize) {
 }
 
 fn volume(body: &Body<f64>) -> f64 {
-    let p = topo::test_support::unmigrated_measure(body, tol()).expect("closed-form props");
-    assert_eq!(p.volume_pad, 0.0, "the inventory is closed-form");
-    p.volume
+    let p = topo::test_support::unmigrated_measure(body, tol(), topo::test_support::pinned_resolution(tol())).expect("closed-form props");
+    assert_eq!(p.enclosure.volume_pad, 0.0, "the inventory is closed-form");
+    p.enclosure.volume
 }
 
 /// The D-profile rod of [`ROD_R`] and [`ROD_FLAT`] at an ARBITRARY

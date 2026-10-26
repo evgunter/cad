@@ -61,8 +61,8 @@ fn interval_offset_planes_together_box() {
     }
     topo::offset_planes_together(&mut body, &moves, band, tol)
         .expect("the interval box inset builds");
-    let props = topo::test_support::unmigrated_measure(&body, tol).expect("interval props");
-    let (lo, hi) = (props.volume.lo(), props.volume.hi());
+    let props = topo::test_support::unmigrated_measure(&body, tol, topo::test_support::pinned_resolution(tol)).expect("interval props");
+    let (lo, hi) = (props.enclosure.volume.lo(), props.enclosure.volume.hi());
     println!("[r2a-interval] box inset volume enclosure [{lo}, {hi}]");
     assert!(
         lo <= 13.125 && 13.125 <= hi,
@@ -105,8 +105,8 @@ fn interval_offset_planes_together_hexagon() {
     }
     match topo::offset_planes_together(&mut body, &moves, band, tol) {
         Ok(_) => {
-            let props = topo::test_support::unmigrated_measure(&body, tol).expect("interval props");
-            let (lo, hi) = (props.volume.lo(), props.volume.hi());
+            let props = topo::test_support::unmigrated_measure(&body, tol, topo::test_support::pinned_resolution(tol)).expect("interval props");
+            let (lo, hi) = (props.enclosure.volume.lo(), props.enclosure.volume.hi());
             println!("[r2a-interval] hexagon inset volume enclosure [{lo}, {hi}]");
             // The inset solid: hexagon of circumradius r − 2t/√3 over
             // height 0.25 − 2t (the acceptance's own closed form, seen

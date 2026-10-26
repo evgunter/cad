@@ -329,10 +329,11 @@ fn wild_files_import_and_agree_with_the_oracle() {
         let props = topo::mass_properties(
             &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap_or_else(|e| panic!("{name}: {e}"));
-        let volume_mm3 = props.volume * 1e9;
-        let tolerance = 1e-11 * e.volume_mm3.abs() + props.volume_pad * 1e9;
+        let volume_mm3 = props.enclosure.volume * 1e9;
+        let tolerance = 1e-11 * e.volume_mm3.abs() + props.enclosure.volume_pad * 1e9;
         assert!(
             (volume_mm3 - e.volume_mm3).abs() <= tolerance,
             "{name}: volume {volume_mm3} mm3 vs the oracle's {} mm3 (tolerance {tolerance})",
@@ -472,15 +473,17 @@ fn wild_bodies_are_a_fixed_point_of_our_own_dialect() {
             topo::mass_properties(
                 &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
                 Tol::witness(),
+                topo::test_support::pinned_resolution(Tol::witness()),
             )
             .unwrap()
-            .volume,
+            .enclosure.volume,
             topo::mass_properties(
                 &topo::test_support::finished("the measured body", again.clone(), Tol::witness()),
                 Tol::witness(),
+                topo::test_support::pinned_resolution(Tol::witness()),
             )
             .unwrap()
-            .volume,
+            .enclosure.volume,
         );
         assert!(
             (v1 - v2).abs() <= 4.0 * f64::EPSILON * v1.abs(),

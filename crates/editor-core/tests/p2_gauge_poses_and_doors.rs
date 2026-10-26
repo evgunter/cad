@@ -440,9 +440,9 @@ fn a_copy_in_another_space_below_stays_out_of_the_outer_product() {
     );
     let ev = run(&outer, &with_resolver(store));
     let vol = |b: &Body<f64>| {
-        topo::test_support::unmigrated_measure(b, Tol::witness())
+        topo::test_support::unmigrated_measure(b, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
             .expect("mass")
-            .volume
+            .enclosure.volume
     };
     let gathered = editor_core::product(&outer, &ev, Tol::witness()).expect("the world gathers");
     assert!(

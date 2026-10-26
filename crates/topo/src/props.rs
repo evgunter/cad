@@ -169,7 +169,7 @@ impl<T: Real> MassProperties<T> {
 }
 
 /// **A volume BRACKET and its lever** — what a certified quadrature
-/// is entitled to say before it has met the reporting target.
+/// is entitled to say of a volume's sign.
 ///
 /// There is no `volume` here, deliberately (D9 row 0): a quadrature
 /// stopped early has an enclosure and no number, and a type that
@@ -285,6 +285,9 @@ pub enum MassPropsError {
         /// The poisoned decision.
         cause: Indeterminate,
     },
+    /// A held certificate was measured against a body whose face arena
+    /// is not the one it was derived over ([`HeldCertificate::measure`]).
+    CertificateOfAnotherBody,
 }
 
 impl fmt::Display for MassPropsError {
@@ -325,6 +328,10 @@ impl fmt::Display for MassPropsError {
             Self::Poisoned { cause } => {
                 write!(f, "the measurement's question could not be decided: {cause}")
             }
+            Self::CertificateOfAnotherBody => f.write_str(
+                "a body's certificate was measured against another body. Recourse: measure \
+                 the certificate against the body it was derived from",
+            ),
         }
     }
 }
@@ -2138,6 +2145,26 @@ impl<'b, T: Decide> SignCertificate<'b, T> {
         })
     }
 
+    /// **This certificate, held apart from its body**: what a reader that
+    /// keeps the body beside it (an import's report) stores, and measures
+    /// through later against that body ([`HeldCertificate::measure`]).
+    #[must_use]
+    pub fn detach(self) -> HeldCertificate<T> {
+        let Self {
+            body: _,
+            band,
+            tol,
+            quad,
+            runs,
+        } = self;
+        HeldCertificate {
+            band,
+            tol,
+            quad,
+            runs,
+        }
+    }
+
     /// Every face short of `len` whose lane can refine, resumed at its
     /// next round over the rest of its schedule.
     fn resume_to(&mut self, len: f64) {
@@ -2182,6 +2209,59 @@ impl<'b, T: Decide> SignCertificate<'b, T> {
         for (&(slot, _), resumed) in wanted.iter().zip(resumed) {
             runs[slot].advance(resumed);
         }
+    }
+}
+
+/// **A [`SignCertificate`] held apart from the body it was derived
+/// from** ([`SignCertificate::detach`]): its faces' rounds, band,
+/// tolerance and lane, and no borrow, so it can sit beside the body that
+/// owns it. Opaque: it is read only by measuring through it.
+#[derive(Clone)]
+pub struct HeldCertificate<T: Decide> {
+    band: Band,
+    tol: Tol,
+    quad: Option<QuadLane<T>>,
+    runs: Vec<FaceRun<T>>,
+}
+
+impl<T: Decide> HeldCertificate<T> {
+    /// **The measurement, continued against `body`**:
+    /// [`SignCertificate::measure`] on the certificate re-attached to the
+    /// body it was derived from. It leaves this certificate as it was, so
+    /// each call continues from the rounds the gate took.
+    ///
+    /// # Errors
+    ///
+    /// [`MassPropsError::CertificateOfAnotherBody`] where `body`'s face
+    /// arena is not the one the certificate was derived over, face for
+    /// face in arena order; otherwise as [`SignCertificate::measure`].
+    pub fn measure(&self, body: &Body<T>, settle: Settle<T>) -> Result<Measured<T>, MassPropsError> {
+        let same = self.runs.len() == body.faces.len()
+            && self
+                .runs
+                .iter()
+                .zip(body.faces.iter())
+                .all(|(run, (face, _))| run.face == face);
+        if !same {
+            return Err(MassPropsError::CertificateOfAnotherBody);
+        }
+        SignCertificate::of_runs(body, self.band, self.tol, self.quad, self.runs.clone())
+            .measure(settle)
+    }
+}
+
+impl<T: Decide> fmt::Debug for HeldCertificate<T> {
+    /// The certificate as [`SignCertificate`]'s render reads it.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let e = fold_runs(&self.runs).enclosure();
+        write!(
+            f,
+            "HeldCertificate: volume in [{:?}, {:?}], surface area {:?}, {} faces",
+            e.volume_lo,
+            e.volume_hi,
+            e.surface_area,
+            self.runs.len()
+        )
     }
 }
 
@@ -2510,27 +2590,20 @@ mod face_walk_composition_tests {
         );
     }
 
-    /// **A face stopped short of a resolution refuses with the kept
-    /// enclosure's width**: a wider round that reaches the wall keeps the
-    /// narrower held enclosure, so the number door's payload is that
-    /// enclosure's, with the rounds the lane ran.
+    /// **A face stopped short of a resolution keeps the narrower held
+    /// enclosure**: a wider round that reaches the wall leaves the face at
+    /// the held round's width, short of the resolution, refining no
+    /// further.
     #[test]
-    fn a_kept_enclosures_refusal_carries_its_own_width() {
+    fn a_face_stopped_short_keeps_its_held_width() {
         let mut run = round_run(4, 1.0, LaneStop::Refinable);
         run.advance(Ok(round_run(5, 2.0, LaneStop::Wall)));
-        match interim_budget(&run, len_of(0.5)) {
-            Some(PropsError::QuadratureBudget {
-                width_len, rounds, ..
-            }) => {
-                assert_eq!(
-                    width_len,
-                    len_of(1.0),
-                    "the payload is the held round's width"
-                );
-                assert_eq!(rounds, 6, "the receipt is the rounds run");
-            }
-            other => panic!("the stopped face refuses on budget: {other:?}"),
-        }
+        assert_eq!(
+            run.width_len(),
+            Ok(len_of(1.0)),
+            "the width is the held round's"
+        );
+        assert!(!run.meets(len_of(0.5)), "short of the resolution");
         assert_eq!(taken(&run), 4);
         assert_eq!(run.next_round(), None, "and refines no further");
     }
@@ -2543,11 +2616,7 @@ mod face_walk_composition_tests {
         let len = len_of(1.5);
         let mut run = round_run(3, 1.0, LaneStop::Refinable);
         run.advance(Ok(round_run(4, 2.0, LaneStop::Wall)));
-        assert_eq!(
-            interim_budget(&run, len),
-            None,
-            "the met round's number stands"
-        );
+        assert!(run.meets(len), "the met round's number stands");
         assert_eq!(run.resumes_to(len), None, "and the face refines no further");
         assert_eq!(taken(&run), 3);
         let mut run = round_run(3, 2.0, LaneStop::Refinable);
@@ -2748,7 +2817,7 @@ mod fold_order_rows {
 
 /// **The refusal rule, at the site that carries it.** [`SignCertificate`]
 /// says a face refused outright outranks one left short of the number,
-/// wherever each stands, and [`SignCertificate::refine_to_target`]'s
+/// wherever each stands, and [`SignCertificate::measure`]'s
 /// sequential half is where that survives a parallel resumption. The
 /// rows below put the two kinds in the order that would let a walk
 /// stopping at the first short face answer the wrong one: an EARLIER
@@ -2822,9 +2891,9 @@ mod continuation_refusal_order_tests {
                         run_of(skeletal, LaneStop::Refinable),
                     ],
                 )
-                .refine_to_target()
+                .measure(crate::test_support::pinned_resolution(Tol::witness()))
             })
-            .expect_err("no face meets the resolution, so the continuation cannot answer")
+            .expect_err("the skeletal face refuses when resumed")
     }
 
     /// **A face a later round refuses outright stands at the enclosure it
@@ -2883,69 +2952,43 @@ mod continuation_refusal_order_tests {
         assert_eq!(refused.len(), 1, "the one member names its face's refusal");
         assert_eq!(Some(&refused[0].1), open.runs[0].refused());
 
-        let unreached = certificate(&body, vec![held])
-            .measure()
+        let refusal = certificate(&body, vec![held])
+            .measure(crate::test_support::pinned_resolution(Tol::witness()))
             .expect_err("the skeletal face has no number");
-        assert!(
-            !matches!(
-                unreached.refusal,
-                MassPropsError::Face {
-                    source: PropsError::QuadratureBudget { .. },
-                    ..
-                }
-            ),
-            "the refusal is the face's own, outright: {:?}",
-            unreached.refusal
-        );
         assert_eq!(
-            unreached.bracket.volume_hi - unreached.bracket.volume_lo,
-            before,
-            "the measurement keeps the bracket the face held"
+            Some(&refusal),
+            open.runs[0].refused(),
+            "the refusal is the face's own, outright"
         );
     }
 
-    /// **A face refused outright outranks one left short of the
-    /// resolution**, wherever it stands: the short face's enclosure is
+    /// **A face left short of the resolution is no refusal; one refused
+    /// outright is**, wherever it stands: the short face's enclosure is
     /// sound and its sum is kept, while the refused face has none.
     #[test]
-    fn a_later_outright_refusal_outranks_an_earlier_face_short_of_the_resolution() {
+    fn a_later_outright_refusal_is_the_refusal_not_an_earlier_face_short_of_the_resolution() {
         let err = refusal_at(1);
         assert!(
-            !matches!(
-                err,
-                MassPropsError::Face {
-                    source: PropsError::QuadratureBudget { .. },
-                    ..
-                }
-            ),
-            "the continuation reported the earlier face's budget over the later face's \
-             outright refusal: {err}"
+            !matches!(err, MassPropsError::Face { face, .. } if face == FaceKey::null()),
+            "the continuation refused on the face short of the resolution: {err}"
         );
     }
 
     /// **A face its lane stopped short of the resolution is not
-    /// resumed**: it has no round to run, so its refusal is the budget
-    /// one. The face is skeletal, so a resumption would refuse outright.
+    /// resumed**: it has no round to run, so the measurement answers its
+    /// bracket, stopped at the wall. The face is skeletal, so a
+    /// resumption would refuse outright.
     #[test]
-    fn a_stopped_face_short_of_the_resolution_refuses_on_budget_without_resuming() {
+    fn a_stopped_face_short_of_the_resolution_answers_its_bracket_without_resuming() {
         let mut body = Body::<f64>::new();
         let skeletal = body
             .mvfs(Point3::new(0.0, 0.0, 0.0), true)
             .expect("the skeletal body builds")
             .face;
-        let err = certificate(&body, vec![run_of(skeletal, LaneStop::Wall)])
-            .refine_to_target()
-            .expect_err("the face is short of the resolution");
-        assert!(
-            matches!(
-                err,
-                MassPropsError::Face {
-                    face,
-                    source: PropsError::QuadratureBudget { rounds: 1, .. }
-                } if face == skeletal
-            ),
-            "the continuation resumed a face its lane had stopped: {err}"
-        );
+        let measured = certificate(&body, vec![run_of(skeletal, LaneStop::Wall)])
+            .measure(crate::test_support::pinned_resolution(Tol::witness()))
+            .unwrap_or_else(|err| panic!("the continuation resumed a face its lane had stopped: {err}"));
+        assert_eq!(measured.stop, Stop::Wall, "the bracket, at the wall");
     }
 
     #[test]
@@ -2994,7 +3037,9 @@ mod measure_door_rows {
             bound,
             name: "measure_door_row",
         };
-        let len = Length::from_meters(interim_resolution(Tol::witness()));
+        // ε itself: the finest resolution offered, which a closed form
+        // meets.
+        let len = Length::from_meters(Tol::witness().eps());
         assert_eq!(
             stop(&cube, Settle::Resolution(len)),
             Stop::Met,
@@ -3030,13 +3075,26 @@ mod measure_door_rows {
         );
     }
 
-    /// **No resolution finer than ε is offered.**
+    /// **No resolution finer than ε is offered**: the door refuses it,
+    /// typed, naming both lengths.
     #[test]
-    #[should_panic(expected = "finer than ε")]
     fn a_resolution_finer_than_eps_is_refused() {
+        let tol = Tol::witness();
         let cube = unit_cube();
-        let fine = Length::from_meters(0.5 * Tol::witness().eps());
-        let _ = stop(&cube, Settle::Resolution(fine));
+        let fine = 0.5 * tol.eps();
+        let band = Band::linear(tol).expect("the witness band builds");
+        let lane = Some(QuadLane::certified());
+        let faces = crate::query::all_faces(&cube);
+        let settle = Settle::Resolution(Length::from_meters(fine));
+        let refusal = measure_to(&cube, &faces, band, tol, (lane, lane), settle)
+            .expect_err("a resolution finer than ε is refused");
+        assert_eq!(
+            refusal,
+            MassPropsError::ResolutionFinerThanEps {
+                resolution: fine,
+                eps: tol.eps()
+            }
+        );
     }
 }
 
@@ -6635,10 +6693,11 @@ mod face_list_door_tests {
                 .collect();
             let assembled =
                 SignCertificate::assembled(&body, band, tol, Some(QuadLane::certified()), parts)
-                    .refine_to_target()
-                    .unwrap();
+                    .measure(crate::test_support::pinned_resolution(tol))
+                    .unwrap()
+                    .enclosure;
             // Raw door: the measured body is a body still carrying construction scaffolding, which tier 3 refuses (ScaffoldAtRest).
-            let whole = crate::test_support::measure_unvalidated(&body, tol).unwrap();
+            let whole = crate::test_support::measure_unvalidated(&body, tol, crate::test_support::pinned_resolution(tol)).unwrap();
             assert_eq!(
                 (
                     assembled.volume.to_bits(),
@@ -6647,10 +6706,10 @@ mod face_list_door_tests {
                     assembled.area_pad.to_bits()
                 ),
                 (
-                    whole.volume.to_bits(),
-                    whole.surface_area.to_bits(),
-                    whole.volume_pad.to_bits(),
-                    whole.area_pad.to_bits()
+                    whole.enclosure.volume.to_bits(),
+                    whole.enclosure.surface_area.to_bits(),
+                    whole.enclosure.volume_pad.to_bits(),
+                    whole.enclosure.area_pad.to_bits()
                 ),
                 "{name}: the assembled certificate is not the whole-body read"
             );
@@ -7009,7 +7068,7 @@ mod exact_enclosure_rows {
                                 tol,
                                 RoundWindow::SCHEDULE,
                                 &refs,
-                                Some(interim_resolution(tol)),
+                                Some(crate::test_support::pinned_len(tol)),
                             )
                         })
                         .unwrap();
@@ -7085,7 +7144,7 @@ mod shell_reference_rows {
                 tol,
                 RoundWindow::SCHEDULE,
                 about,
-                Some(interim_resolution(tol)),
+                Some(crate::test_support::pinned_len(tol)),
             )
         })
         .unwrap();
@@ -7197,15 +7256,15 @@ mod shell_reference_rows {
                     tol,
                     RoundWindow::SCHEDULE,
                     first_start(f),
-                    Some(interim_resolution(tol)),
+                    Some(crate::test_support::pinned_len(tol)),
                 )
             })
             .unwrap();
             let about_first = fold_runs(&runs);
             // Raw door: this row walks bodies with and without construction scaffolding alike, and tier 3 refuses the scaffolded ones and those with a loop flipped against its role (ScaffoldAtRest, LoopRoleInverted).
-            let walked = crate::test_support::measure_unvalidated(body, tol).unwrap();
+            let walked = crate::test_support::measure_unvalidated(body, tol, crate::test_support::pinned_resolution(tol)).unwrap();
             assert_eq!(
-                (walked.volume.to_bits(), walked.surface_area.to_bits()),
+                (walked.enclosure.volume.to_bits(), walked.enclosure.surface_area.to_bits()),
                 (
                     about_first.volume.to_bits(),
                     about_first.surface_area.to_bits()
@@ -7289,7 +7348,7 @@ mod shell_reference_rows {
                 tol,
                 RoundWindow::SCHEDULE,
                 &refs,
-                Some(interim_resolution(tol)),
+                Some(crate::test_support::pinned_len(tol)),
             )
         })
         .unwrap();

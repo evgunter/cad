@@ -127,13 +127,13 @@ fn roster() -> Vec<(String, Body<f64>)> {
 /// where the refusing FACE is named) and both recorded channels.
 fn line(name: &str, body: &Body<f64>) -> String {
     let bracket = Bracket::open();
-    let read = match topo::test_support::unmigrated_measure(body, Tol::witness()) {
+    let read = match topo::test_support::unmigrated_measure(body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())) {
         Ok(m) => format!(
             "v={:016x} a={:016x} vpad={:016x} apad={:016x}",
-            m.volume.to_bits(),
-            m.surface_area.to_bits(),
-            m.volume_pad.to_bits(),
-            m.area_pad.to_bits(),
+            m.enclosure.volume.to_bits(),
+            m.enclosure.surface_area.to_bits(),
+            m.enclosure.volume_pad.to_bits(),
+            m.enclosure.area_pad.to_bits(),
         ),
         // The refusal's sentence leaves the face's key out; the walk's
         // choice of WHICH face refused is part of what is pinned.
@@ -303,7 +303,7 @@ fn receipts(bodies: &[(&'static str, SymBody)], budget: SymBudget) -> Vec<Receip
 /// Reads `body` through `door`; true where the door refused.
 fn read_door(body: &Body<Sym<f64>>, door: &str) -> bool {
     if door == "mass_properties" {
-        topo::test_support::unmigrated_measure(body, Tol::witness()).is_err()
+        topo::test_support::unmigrated_measure(body, Tol::witness(), /* Settle<Sym<f64>> */).is_err()
     } else {
         topo::validate_geometric(body, Tol::witness()).is_err()
     }
@@ -436,7 +436,7 @@ fn the_roster_records_the_props_lanes_own_verdicts() {
         "the committed digest records no verdict on any body — it is a table of empty channels"
     );
     let bracket = Bracket::open();
-    let _ = topo::test_support::unmigrated_measure(&loft_prism(Tol::witness()), Tol::witness());
+    let _ = topo::test_support::unmigrated_measure(&loft_prism(Tol::witness()), Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()));
     let log = bracket.finish();
     let quad = log
         .verdicts

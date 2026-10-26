@@ -112,9 +112,9 @@ fn r2_both_cone_nappes_hollow_to_their_closed_forms() {
     ] {
         let body = frustum(r0, r1, h);
         describe_cones(what, &body);
-        let v_out = topo::test_support::unmigrated_measure(&body, tol)
+        let v_out = topo::test_support::unmigrated_measure(&body, tol, topo::test_support::pinned_resolution(tol))
             .expect("props")
-            .volume;
+            .enclosure.volume;
         match topo::shell(&finished("the operand", body.clone(), tol), T, tol) {
             Ok(topo::Shelled { body: hollow, .. }) => {
                 assert_eq!(
@@ -122,9 +122,9 @@ fn r2_both_cone_nappes_hollow_to_their_closed_forms() {
                     Ok(()),
                     "{what}: tier 3"
                 );
-                let v = topo::test_support::unmigrated_measure(&hollow, tol)
+                let v = topo::test_support::unmigrated_measure(&hollow, tol, topo::test_support::pinned_resolution(tol))
                     .expect("props")
-                    .volume;
+                    .enclosure.volume;
                 let want = frustum_wall(r0, r1, h);
                 println!(
                     "[r2] {what}: operand {v_out}, wall {v} want {want} delta {}",
@@ -193,14 +193,14 @@ fn r2_a_conical_wedge_meridian_edge() {
             ]),
             Revolution::Partial(turn),
         );
-        let v0 = topo::test_support::unmigrated_measure(&body, tol)
+        let v0 = topo::test_support::unmigrated_measure(&body, tol, topo::test_support::pinned_resolution(tol))
             .expect("props")
-            .volume;
+            .enclosure.volume;
         match topo::shell(&finished("the operand", body.clone(), tol), T, tol) {
             Ok(topo::Shelled { body: hollow, .. }) => {
-                let v = topo::test_support::unmigrated_measure(&hollow, tol)
+                let v = topo::test_support::unmigrated_measure(&hollow, tol, topo::test_support::pinned_resolution(tol))
                     .expect("props")
-                    .volume;
+                    .enclosure.volume;
                 println!(
                     "[r2] conical wedge {what}: HOLLOWS operand {v0} wall {v} tier3 {:?} shells {}",
                     topo::validate_geometric(&hollow, tol).is_ok(),
@@ -246,14 +246,14 @@ fn r2_wedge_at_degenerate_turns() {
             ]),
             Revolution::Partial(turn),
         );
-        let v0 = topo::test_support::unmigrated_measure(&body, tol)
+        let v0 = topo::test_support::unmigrated_measure(&body, tol, topo::test_support::pinned_resolution(tol))
             .expect("props")
-            .volume;
+            .enclosure.volume;
         match topo::shell(&finished("the operand", body.clone(), tol), T, tol) {
             Ok(topo::Shelled { body: hollow, .. }) => {
-                let v = topo::test_support::unmigrated_measure(&hollow, tol)
+                let v = topo::test_support::unmigrated_measure(&hollow, tol, topo::test_support::pinned_resolution(tol))
                     .expect("props")
-                    .volume;
+                    .enclosure.volume;
                 let valid = topo::validate_geometric(&hollow, tol);
                 println!(
                     "[r2] wedge {what}: operand {v0}, wall {v}, tier3 {:?}, shells {}",
@@ -337,10 +337,10 @@ fn r2_the_carried_azimuth_survives_both_surfaces_moving() {
         .collect();
     match topo::shell_open(&finished("the operand", pot.clone(), tol), T, &mouth, tol) {
         Ok(topo::Shelled { body: cup, .. }) => {
-            let props = topo::test_support::unmigrated_measure(&cup, tol).expect("props");
+            let props = topo::test_support::unmigrated_measure(&cup, tol, topo::test_support::pinned_resolution(tol)).expect("props");
             println!(
                 "[r2] the opened cup: V {} shells {} tier3 {:?}",
-                props.volume,
+                props.enclosure.volume,
                 cup.shells().count(),
                 topo::validate_geometric(&cup, tol).is_ok()
             );

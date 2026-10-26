@@ -61,9 +61,10 @@ fn an_imported_rim_only_sphere_cap_passes_every_tier_and_the_mesh_lane_refuses_i
         let volume = topo::mass_properties(
             &topo::test_support::finished("the measured body", body.clone(), tol),
             tol,
+            topo::test_support::pinned_resolution(tol),
         )
         .unwrap()
-        .volume;
+        .enclosure.volume;
         assert!(
             (volume - exact).abs() <= 1e-9 * exact,
             "{name}: volume {volume} vs the closed form {exact}"

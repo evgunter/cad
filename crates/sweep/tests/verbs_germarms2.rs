@@ -176,8 +176,8 @@ fn four(a: &Body<f64>, b: &Body<f64>, what: &str) -> [(f64, f64); 4] {
     );
     let built = |r: Result<topo::BooleanResult<f64>, BooleanError>, op: &str| match r {
         Ok(topo::BooleanResult::Body(body)) => {
-            let m = topo::mass_properties(&body.body, tol).unwrap();
-            (m.volume, m.volume_pad)
+            let m = topo::mass_properties(&body.body, tol, topo::test_support::pinned_resolution(tol)).unwrap();
+            (m.enclosure.volume, m.enclosure.volume_pad)
         }
         other => panic!("{what}, {op}: the family builds, got {other:?}"),
     };
@@ -337,7 +337,7 @@ fn the_fenced_poses_keep_their_own_outcomes() {
         let Ok(topo::BooleanResult::Body(bb)) = &built else {
             panic!("parallel-equal-r, {pose}: the union builds: {built:?}");
         };
-        let v = topo::mass_properties(&bb.body, tol).unwrap().volume;
+        let v = topo::mass_properties(&bb.body, tol, topo::test_support::pinned_resolution(tol)).unwrap().enclosure.volume;
         assert!(
             (v - want).abs() < 1e-9,
             "parallel-equal-r, {pose}: {v} vs the closed form {want}"

@@ -98,12 +98,12 @@ fn a_spherical_cap_opens_to_a_seamed_band() {
     let outer = PI * r * r * h + cap_volume(rho, rho - (rho * rho - r * r).sqrt());
     let reach = (rho * rho - a * a).sqrt();
     let cavity = PI * a * a * (centre + reach - t) + cap_volume(rho, rho - reach);
-    let props = topo::test_support::unmigrated_measure(cup, tol).expect("the band's props");
+    let props = topo::test_support::unmigrated_measure(cup, tol, topo::test_support::pinned_resolution(tol)).expect("the band's props");
     assert!(
-        (props.volume - (outer - cavity)).abs() <= 1e-12 + props.volume_pad,
+        (props.enclosure.volume - (outer - cavity)).abs() <= 1e-12 + props.enclosure.volume_pad,
         "cup volume: got {} (pad {}), want {}",
-        props.volume,
-        props.volume_pad,
+        props.enclosure.volume,
+        props.enclosure.volume_pad,
         outer - cavity
     );
     for delta in [1e-2, 1e-3] {
@@ -147,12 +147,12 @@ fn a_voids_cap_opens_to_a_seamed_band_of_its_twin() {
     };
     let outer_wall = w(0.5, 0.0, rho) - w(0.5 - t, t, rho - t);
     let cup = w(0.3 + t, 0.2 - t, rho - 0.2) - w(0.3, 0.2, rho - 0.2);
-    let props = topo::test_support::unmigrated_measure(body, tol).expect("props");
+    let props = topo::test_support::unmigrated_measure(body, tol, topo::test_support::pinned_resolution(tol)).expect("props");
     assert!(
-        (props.volume - (outer_wall + cup)).abs() <= 1e-12 + props.volume_pad,
+        (props.enclosure.volume - (outer_wall + cup)).abs() <= 1e-12 + props.enclosure.volume_pad,
         "volume: got {} (pad {}), want {}",
-        props.volume,
-        props.volume_pad,
+        props.enclosure.volume,
+        props.enclosure.volume_pad,
         outer_wall + cup
     );
     mesh::tessellate(body, 1e-2, tol).expect("the void's band triangulates");
@@ -195,12 +195,12 @@ fn a_d_section_window_opens_to_a_ring_and_the_mesh_refuses_it() {
     let segment = r * r * (t / r).acos() - t * (r * r - t * t).sqrt();
     let want = PI * r * r / 2.0 * h - segment * (h - 2.0 * t);
     let props =
-        topo::test_support::unmigrated_measure(cut, tol).expect("a ringed cylinder wall's props");
+        topo::test_support::unmigrated_measure(cut, tol, topo::test_support::pinned_resolution(tol)).expect("a ringed cylinder wall's props");
     assert!(
-        (props.volume - want).abs() <= 1e-9 + props.volume_pad,
+        (props.enclosure.volume - want).abs() <= 1e-9 + props.enclosure.volume_pad,
         "volume: got {} (pad {}), want {want}",
-        props.volume,
-        props.volume_pad
+        props.enclosure.volume,
+        props.enclosure.volume_pad
     );
     assert!(
         mesh::tessellate(cut, 1e-2, tol).is_err(),
@@ -224,12 +224,12 @@ fn a_sphere_window_opens_to_a_ring_and_passes_tier_3() {
     assert_eq!(topo::validate_geometric(cut, tol), Ok(()), "tier 3");
     let rim = cut.get_face(zone[0]).expect("the designated face survives");
     assert_eq!(rim.rings, vec![shelled.naming.rims[0].ring], "one ring");
-    let before = topo::test_support::unmigrated_measure(&body, tol)
+    let before = topo::test_support::unmigrated_measure(&body, tol, topo::test_support::pinned_resolution(tol))
         .unwrap()
-        .volume;
-    let after = topo::test_support::unmigrated_measure(cut, tol)
+        .enclosure.volume;
+    let after = topo::test_support::unmigrated_measure(cut, tol, topo::test_support::pinned_resolution(tol))
         .unwrap()
-        .volume;
+        .enclosure.volume;
     assert!(
         0.0 < after && after < before,
         "the shell removes material: {after} of {before}"
@@ -298,8 +298,8 @@ fn a_cone_tip_shells_through_its_apex_on_either_nappe() {
         let corner = apex + dir * (slide + a * slope);
         let sealed_cavity = column(corner) + PI * a * a * a * slope / 3.0;
         let volume = |b: &Body<f64>| {
-            let p = topo::test_support::unmigrated_measure(b, tol).expect("props");
-            (p.volume, p.volume_pad)
+            let p = topo::test_support::unmigrated_measure(b, tol, topo::test_support::pinned_resolution(tol)).expect("props");
+            (p.enclosure.volume, p.enclosure.volume_pad)
         };
 
         let sealed = topo::shell(&finished("the operand", body.clone(), tol), t, tol)
@@ -411,12 +411,12 @@ fn a_tangent_dome_shells_at_its_tangent_circle() {
             vertex_at(&hollow, a, h).is_some(),
             "r = {r}: the cavity's corner is on the tangent circle"
         );
-        let props = topo::test_support::unmigrated_measure(&hollow, tol).expect("props");
+        let props = topo::test_support::unmigrated_measure(&hollow, tol, topo::test_support::pinned_resolution(tol)).expect("props");
         assert!(
-            (props.volume - sealed_want).abs() <= 1e-12 * r.powi(3) + props.volume_pad,
+            (props.enclosure.volume - sealed_want).abs() <= 1e-12 * r.powi(3) + props.enclosure.volume_pad,
             "r = {r}: volume {} (pad {}), want {sealed_want}",
-            props.volume,
-            props.volume_pad
+            props.enclosure.volume,
+            props.enclosure.volume_pad
         );
         mesh::tessellate(&hollow, r / 50.0, tol)
             .unwrap_or_else(|e| panic!("r = {r}: the hollow triangulates, got {e:?}"));
@@ -430,13 +430,13 @@ fn a_tangent_dome_shells_at_its_tangent_circle() {
             Ok(()),
             "r = {r}: open, tier 3"
         );
-        let props = topo::test_support::unmigrated_measure(&cup, tol).expect("props");
+        let props = topo::test_support::unmigrated_measure(&cup, tol, topo::test_support::pinned_resolution(tol)).expect("props");
         let want = sealed_want - PI * a * a * t;
         assert!(
-            (props.volume - want).abs() <= 1e-12 * r.powi(3) + props.volume_pad,
+            (props.enclosure.volume - want).abs() <= 1e-12 * r.powi(3) + props.enclosure.volume_pad,
             "r = {r}: open volume {} (pad {}), want {want}",
-            props.volume,
-            props.volume_pad
+            props.enclosure.volume,
+            props.enclosure.volume_pad
         );
     }
 }
@@ -487,13 +487,13 @@ fn a_dome_short_of_tangent_shells_at_its_upper_root() {
                 .any(|y| (y - corner).abs() < 0.1 * (corner - centre)),
             "gap = {gap:e}: the cavity's corner is on the upper root {corner}, got {got:?}"
         );
-        let props = topo::test_support::unmigrated_measure(&hollow, tol).expect("props");
+        let props = topo::test_support::unmigrated_measure(&hollow, tol, topo::test_support::pinned_resolution(tol)).expect("props");
         let want = outer - cavity;
         assert!(
-            (props.volume - want).abs() <= 1e-12 + props.volume_pad,
+            (props.enclosure.volume - want).abs() <= 1e-12 + props.enclosure.volume_pad,
             "gap = {gap:e}: volume {} (pad {}), want {want}",
-            props.volume,
-            props.volume_pad
+            props.enclosure.volume,
+            props.enclosure.volume_pad
         );
     }
 }
@@ -647,12 +647,12 @@ fn a_two_face_window_that_does_not_wrap_opens_to_a_ring() {
     );
     let segment = r * r * (t / r).acos() - t * (r * r - t * t).sqrt();
     let want = PI * r * r / 2.0 * h - segment * (h - 2.0 * t);
-    let props = topo::test_support::unmigrated_measure(cut, tol).expect("props");
+    let props = topo::test_support::unmigrated_measure(cut, tol, topo::test_support::pinned_resolution(tol)).expect("props");
     assert!(
-        (props.volume - want).abs() <= 1e-9 + props.volume_pad,
+        (props.enclosure.volume - want).abs() <= 1e-9 + props.enclosure.volume_pad,
         "volume: got {} (pad {}), want {want}",
-        props.volume,
-        props.volume_pad
+        props.enclosure.volume,
+        props.enclosure.volume_pad
     );
 }
 
@@ -785,12 +785,12 @@ fn a_tubes_wall_opens_to_two_seamed_bands() {
         }
 
         let want = outer - cavity;
-        let props = topo::test_support::unmigrated_measure(cut, tol).expect("the bands' props");
+        let props = topo::test_support::unmigrated_measure(cut, tol, topo::test_support::pinned_resolution(tol)).expect("the bands' props");
         assert!(
-            (props.volume - want).abs() <= 1e-12 + props.volume_pad,
+            (props.enclosure.volume - want).abs() <= 1e-12 + props.enclosure.volume_pad,
             "{what}: volume: got {} (pad {}), want {want}",
-            props.volume,
-            props.volume_pad
+            props.enclosure.volume,
+            props.enclosure.volume_pad
         );
         for delta in [1e-2, 1e-3] {
             mesh::tessellate(cut, delta, tol).unwrap_or_else(|e| {
@@ -856,12 +856,12 @@ fn a_voids_band_wall_opens_to_two_bands_of_its_twin() {
             "{what}: the twin's two bands, on the designated radius"
         );
         let want = outer_wall + dilated - annulus(vi, vo, vh);
-        let props = topo::test_support::unmigrated_measure(body, tol).expect("props");
+        let props = topo::test_support::unmigrated_measure(body, tol, topo::test_support::pinned_resolution(tol)).expect("props");
         assert!(
-            (props.volume - want).abs() <= 1e-12 + props.volume_pad,
+            (props.enclosure.volume - want).abs() <= 1e-12 + props.enclosure.volume_pad,
             "{what}: volume: got {} (pad {}), want {want}",
-            props.volume,
-            props.volume_pad
+            props.enclosure.volume,
+            props.enclosure.volume_pad
         );
         mesh::tessellate(body, 1e-2, tol)
             .unwrap_or_else(|e| panic!("{what}: the bands triangulate, got {e:?}"));

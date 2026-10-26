@@ -583,9 +583,9 @@ fn the_puck_is_the_shape_it_is_built_as() {
     let (h, big_r, r) = FILLET;
     let centroid = big_r + 4.0 * r / (3.0 * PI);
     let want = PI * 4.0 * (1.0 - h) + PI * big_r * big_r * h + TAU * centroid * PI * r * r / 4.0;
-    let v = topo::mass_properties(&puck(), Tol::witness())
+    let v = topo::mass_properties(&puck(), Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
         .unwrap()
-        .volume;
+        .enclosure.volume;
     assert!(
         (v - want).abs() < 1e-9 * want,
         "the puck's volume {v} against {want}"

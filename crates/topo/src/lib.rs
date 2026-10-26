@@ -291,6 +291,26 @@ pub mod test_support {
     use geom_core::Real;
 
     use crate::body::Body;
+
+    /// **The resolution the suites' pinned numbers are stated at**:
+    /// [`crate::Settle::Resolution`] of 1024·ε of mean boundary
+    /// displacement. A test that reads a volume or an area as a number,
+    /// against a closed form or a pin, measures through this: its
+    /// tolerances and pins were set where every face met 1024·ε, and a
+    /// face that converges within the work wall keeps its bits under it.
+    /// A test whose assertion needs another width states that one.
+    #[must_use]
+    pub fn pinned_resolution<T: Real>(tol: geom_core::Tol) -> crate::Settle<T> {
+        crate::Settle::Resolution(quantity::Length::from_meters(pinned_len(tol)))
+    }
+
+    /// [`pinned_resolution`]'s length (m), for a row that hands a face's
+    /// lane the resolution itself.
+    #[must_use]
+    pub fn pinned_len(tol: geom_core::Tol) -> f64 {
+        1024.0 * tol.eps()
+    }
+
     // `UNIT_SQUARE` is deliberately NOT here: `tests/cube_doors_agree.rs`
     // is the only suite that wants the literal, and it restates it on
     // purpose — a guard that reached for the constant the builder uses
@@ -1103,7 +1123,8 @@ pub use pcurves::{
     PcurveMintError, SiteRowRefusal, chart_boundary, mint_pcurves, mint_pcurves_of, pcurve_of,
 };
 pub use props::{
-    AtRestOutcome, AtRestPolicy, MassProperties, MassPropsError, Measured, QuadLane, RelOp,
+    AtRestOutcome, AtRestPolicy, HeldCertificate, MassProperties, MassPropsError, Measured,
+    QuadLane, RelOp,
     RoleNames, Settle, ShellClassification, ShellClassifyError, ShellClassifyPayload, ShellDoor,
     ShellRole, SignCertificate, SignLimit, SignNames, Stop, Verdict, VolumeEnclosure,
     classify_shells, classify_shells_of, classify_shells_structural, mass_properties,

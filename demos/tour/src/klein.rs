@@ -782,9 +782,9 @@ fn corners_by_wall<S: Scalar>(sharp: &Body<S>, corners: &[EdgeKey]) -> (EdgeKey,
 
 /// A body's exact volume, read out at `f64`.
 fn volume<S: Scalar>(b: &Body<S>, tol: Tol) -> f64 {
-    pncad::topo::mass_properties(&crate::booleans::at_rest(b, tol), tol)
+    pncad::topo::mass_properties(&crate::booleans::at_rest(b, tol), tol, crate::printed())
         .expect("the volume integrates")
-        .volume
+        .enclosure.volume
         .f()
 }
 
@@ -842,17 +842,16 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     let allowance = pappus * (1.0 - half_step.sin() / half_step);
     let (band_lo, band_hi) = (pappus - allowance, pappus + allowance);
     // The kernel's reading is a certified ENCLOSURE (the walls are
-    // rational): a number with its half-width where the reporting
-    // target is met, the narrowest bracket the certificate held where
-    // it is not. The body's true volume is in it AND in the band, so
-    // the two must meet.
-    let e = pncad::topo::VolumeReading::of(
-        pncad::topo::validate_geometric_certificate(&top, tol)
-            .unwrap_or_else(|e| panic!("the loop's tier 3 refused: {e:?}"))
-            .measure(),
-    )
-    .unwrap_or_else(|refusal| panic!("the loop's mass properties: {refusal}"))
-    .enclosure();
+    // rational): a number with its half-width where the printed
+    // precision is met, the narrowest bracket it reached where it is
+    // not. The body's true volume is in it AND in the band, so the two
+    // must meet.
+    let e = pncad::topo::validate_geometric_certificate(&top, tol)
+        .unwrap_or_else(|e| panic!("the loop's tier 3 refused: {e:?}"))
+        .measure(crate::printed())
+        .unwrap_or_else(|refusal| panic!("the loop's mass properties: {refusal}"))
+        .enclosure
+        .enclosure();
     let (v_lo, v_hi) = (e.volume_lo, e.volume_hi);
     assert!(
         v_lo <= band_hi && band_lo <= v_hi,

@@ -161,13 +161,13 @@ fn assert_body(label: &str, body: &Body<f64>, want: f64) {
         Ok(()),
         "{label}: a closed manifold mesh"
     );
-    let p = topo::test_support::unmigrated_measure(body, tol)
+    let p = topo::test_support::unmigrated_measure(body, tol, topo::test_support::pinned_resolution(tol))
         .unwrap_or_else(|e| panic!("{label}: mass properties, got {e:?}"));
-    assert_eq!(p.volume_pad, 0.0, "{label}: closed-form faces only");
+    assert_eq!(p.enclosure.volume_pad, 0.0, "{label}: closed-form faces only");
     assert!(
-        (p.volume - want).abs() <= 1e-9 * want.max(1.0),
+        (p.enclosure.volume - want).abs() <= 1e-9 * want.max(1.0),
         "{label}: volume {} against the closed form {want}",
-        p.volume
+        p.enclosure.volume
     );
 }
 

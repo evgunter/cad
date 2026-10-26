@@ -173,7 +173,7 @@ fn every_op(label: &str, x: &AtRestBody<f64>, y: &AtRestBody<f64>, rows: &[Row])
             "{what}: maximal edges"
         );
         assert_eq!(validate_geometric(&r.body, t()), Ok(()), "{what}: tier 3");
-        let v = topo::mass_properties(&r.body, t()).unwrap().volume;
+        let v = topo::mass_properties(&r.body, t(), topo::test_support::pinned_resolution(t())).unwrap().enclosure.volume;
         assert!(
             (v - volume).abs() < 1e-9,
             "{what}: volume {v}, closed form {volume}"
@@ -409,7 +409,7 @@ fn a_pinch_standing_on_a_face_builds_in_every_op() {
                     "{name}: maximal edges"
                 );
                 assert_eq!(validate_geometric(&r.body, t()), Ok(()), "{name}: tier 3");
-                let v = topo::mass_properties(&r.body, t()).unwrap().volume;
+                let v = topo::mass_properties(&r.body, t(), topo::test_support::pinned_resolution(t())).unwrap().enclosure.volume;
                 assert!(
                     (v - volume).abs() < 1e-9,
                     "{name}: volume {v}, closed form {volume}"

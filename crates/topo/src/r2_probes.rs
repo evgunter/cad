@@ -47,13 +47,14 @@ fn r2_the_cusp_prisms_material_is_the_crescent_by_volume() {
     let props = crate::mass_properties(
         &crate::test_support::finished("the measured body", p.body.clone(), tol),
         tol,
+        crate::test_support::pinned_resolution(tol),
     )
     .expect("volume meters");
     let expect = 1.5 * std::f64::consts::PI;
     assert!(
-        (props.volume - expect).abs() < 1e-9,
+        (props.enclosure.volume - expect).abs() < 1e-9,
         "crescent lip volume: got {}, hand-derived {expect}",
-        props.volume
+        props.enclosure.volume
     );
     // And the validator, asked the same body, reads the kissing edge
     // as a jet-determinate tangency and passes it: a legal cusp.
@@ -154,13 +155,14 @@ fn r2_lamina_message_versus_the_measured_volume() {
     let v_ok = crate::mass_properties(
         &crate::test_support::finished("the measured body", p.body.clone(), tol),
         tol,
+        crate::test_support::pinned_resolution(tol),
     )
     .unwrap()
-    .volume;
+    .enclosure.volume;
     let flipped = p.body.flipped_face_sense_for_tests(p.face_side[1]).unwrap();
     let errs = validate_geometric(&flipped, tol).unwrap_err();
     // Raw door: the measured body is a body whose loop roles are inverted, which tier 3 refuses (LoopRoleInverted).
-    let v_flipped = crate::test_support::measure_unvalidated(&flipped, tol).map(|m| m.volume);
+    let v_flipped = crate::test_support::measure_unvalidated(&flipped, tol, crate::test_support::pinned_resolution(tol)).map(|m| m.enclosure.volume);
     println!("R2: cusp prism volume {v_ok}; flat-face-flipped volume {v_flipped:?}");
     println!("R2: flipped-flat verdict {errs:?}");
 }

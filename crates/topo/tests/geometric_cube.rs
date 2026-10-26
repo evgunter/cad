@@ -99,9 +99,9 @@ fn tier_three_refuses_a_hand_flipped_face_sense() {
     // Winding-derived, hence blind to a lone sense flip: same volume.
     let volume = |b: &Body<f64>| {
         // Raw door: this helper measures the cube and its sense-flipped copy alike, and tier 3 refuses the copy (LoopRoleInverted).
-        topo::test_support::measure_unvalidated(b, Tol::witness())
+        topo::test_support::measure_unvalidated(b, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
             .unwrap()
-            .volume
+            .enclosure.volume
     };
     assert_eq!(
         volume(&body).to_bits(),
@@ -482,8 +482,9 @@ fn the_structural_certificate_continues_to_the_closed_form() {
     describe_as_intersections(&mut f.body, Tol::witness());
     let continued = topo::validate_geometric_certificate_structural(&f.body, tol)
         .expect("the cube passes the `_structural` door")
-        .refine_to_target()
-        .expect("a closed-form certificate's continuation cannot refuse");
+        .measure(topo::test_support::pinned_resolution(tol))
+        .expect("a closed-form certificate's continuation cannot refuse")
+        .enclosure;
     assert_eq!(
         (continued.volume_pad.to_bits(), continued.area_pad.to_bits()),
         (0, 0),
@@ -500,8 +501,9 @@ fn the_structural_certificate_continues_to_the_closed_form() {
     describe_as_intersections(&mut d.body, Tol::witness());
     let continued = topo::validate_geometric_certificate_structural(&d.body, tol)
         .expect("the cube passes the `_structural` door at a dual")
-        .refine_to_target()
-        .expect("a closed-form certificate's continuation cannot refuse at a dual");
+        .measure(topo::test_support::pinned_resolution(tol))
+        .expect("a closed-form certificate's continuation cannot refuse at a dual")
+        .enclosure;
     let measured = topo::mass_properties_structural(
         &topo::test_support::finished("the cube", d.body.clone(), tol),
         tol,

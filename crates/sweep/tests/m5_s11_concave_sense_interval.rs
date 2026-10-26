@@ -78,7 +78,7 @@ fn interval_union_keeps_the_pellet() {
     let r = topo::boolean::union(&a, &b, Tol::witness()).unwrap();
     let out = r.body().expect("union of two non-empty solids");
     assert_eq!(out.body.shells().count(), 2);
-    let vol = mass_properties(&out.body, Tol::witness()).unwrap().volume;
+    let vol = mass_properties(&out.body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap().enclosure.volume;
     let analytic = 3.008;
     assert!(
         vol.lo() <= analytic && analytic <= vol.hi(),
@@ -100,9 +100,9 @@ fn interval_washer_props_and_bore_door() {
         dir: v2(0.0, 1.0),
     };
     let t = revolve(&validated(vec![lp]), axis, Revolution::Full, Tol::witness()).unwrap();
-    let vol = topo::test_support::unmigrated_measure(&t.body, Tol::witness())
+    let vol = topo::test_support::unmigrated_measure(&t.body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
         .unwrap()
-        .volume;
+        .enclosure.volume;
     let analytic = 3.0 * PI;
     assert!(
         vol.lo() <= analytic && analytic <= vol.hi(),

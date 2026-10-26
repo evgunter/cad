@@ -377,12 +377,12 @@ fn an_edge_near_a_node_crosses_through_the_bisector_planes() {
                                 let Ok(BooleanResult::Body(out)) = r else {
                                     panic!("{cut}: builds, got {r:?}");
                                 };
-                                let m = topo::mass_properties(&out.body, tol).unwrap();
+                                let m = topo::mass_properties(&out.body, tol, topo::test_support::pinned_resolution(tol)).unwrap();
                                 assert!(
-                                    (m.volume - closed).abs() <= m.volume_pad + 1e-9,
+                                    (m.enclosure.volume - closed).abs() <= m.enclosure.volume_pad + 1e-9,
                                     "{cut}: volume {} ± {}, want {closed}",
-                                    m.volume,
-                                    m.volume_pad
+                                    m.enclosure.volume,
+                                    m.enclosure.volume_pad
                                 );
                             }
                             Want::Builds => {
@@ -395,12 +395,12 @@ fn an_edge_near_a_node_crosses_through_the_bisector_planes() {
                                 // (`work/tess/a-thin-arc-bounded-face-refuses-as-corrupt-geometry-at-a-coarse-delta.md`):
                                 // its volume is held to the certified bracket alone.
                                 if capped {
-                                    let m = topo::mass_properties(&out.body, tol).unwrap();
+                                    let m = topo::mass_properties(&out.body, tol, topo::test_support::pinned_resolution(tol)).unwrap();
                                     assert!(
-                                        (m.volume - closed).abs() <= m.volume_pad + 1e-9,
+                                        (m.enclosure.volume - closed).abs() <= m.enclosure.volume_pad + 1e-9,
                                         "{cut}: volume {} ± {}, want {closed}",
-                                        m.volume,
-                                        m.volume_pad
+                                        m.enclosure.volume,
+                                        m.enclosure.volume_pad
                                     );
                                 } else {
                                     assert_volume(&out.body, closed, &cut);
@@ -577,12 +577,12 @@ fn the_near_node_poses_at_the_witness_band() {
                         let Ok(BooleanResult::Body(out)) = r else {
                             panic!("{cut}: builds, got {r:?}");
                         };
-                        let m = topo::mass_properties(&out.body, tol).unwrap();
+                        let m = topo::mass_properties(&out.body, tol, topo::test_support::pinned_resolution(tol)).unwrap();
                         assert!(
-                            (m.volume - closed).abs() <= m.volume_pad + 1e-9,
+                            (m.enclosure.volume - closed).abs() <= m.enclosure.volume_pad + 1e-9,
                             "{cut}: volume {} ± {}, want {closed}",
-                            m.volume,
-                            m.volume_pad
+                            m.enclosure.volume,
+                            m.enclosure.volume_pad
                         );
                     }
                 }
@@ -696,12 +696,12 @@ fn a_rim_vertex_on_a_node_refuses_as_a_node_on_the_boundary() {
         };
         // Its cap's lunes are the mesh's
         // (`work/tess/a-thin-arc-bounded-face-refuses-as-corrupt-geometry-at-a-coarse-delta.md`).
-        let m = topo::mass_properties(&out.body, tol).unwrap();
+        let m = topo::mass_properties(&out.body, tol, topo::test_support::pinned_resolution(tol)).unwrap();
         assert!(
-            (m.volume - want).abs() <= m.volume_pad + 1e-9,
+            (m.enclosure.volume - want).abs() <= m.enclosure.volume_pad + 1e-9,
             "capped {dz:e} off, {op}: volume {} ± {}, want {want}",
-            m.volume,
-            m.volume_pad
+            m.enclosure.volume,
+            m.enclosure.volume_pad
         );
     }
 }
@@ -773,12 +773,12 @@ fn rod_y(h: f64) -> Body<f64> {
 /// the quadrature.
 fn assert_volume(body: &topo::AtRestBody<f64>, want: f64, what: &str) {
     let tol = Tol::witness();
-    let m = topo::mass_properties(body, tol).unwrap();
+    let m = topo::mass_properties(body, tol, topo::test_support::pinned_resolution(tol)).unwrap();
     assert!(
-        (m.volume - want).abs() <= m.volume_pad + 1e-9,
+        (m.enclosure.volume - want).abs() <= m.enclosure.volume_pad + 1e-9,
         "{what}: volume {} ± {}, want {want}",
-        m.volume,
-        m.volume_pad
+        m.enclosure.volume,
+        m.enclosure.volume_pad
     );
     let mesh = mesh::tessellate(body, 2e-3, tol).expect("the result tessellates");
     // Where two solids of the result touch at a node their faces there
@@ -865,8 +865,8 @@ fn two_crossing_bores_build_every_operation_at_the_closed_forms() {
 fn a_rod_against_a_bore_builds_every_operation() {
     let tol = Tol::witness();
     let measure = |b: &topo::AtRestBody<f64>| {
-        let m = topo::mass_properties(b, tol).unwrap();
-        (m.volume, m.volume_pad)
+        let m = topo::mass_properties(b, tol, topo::test_support::pinned_resolution(tol)).unwrap();
+        (m.enclosure.volume, m.enclosure.volume_pad)
     };
     let bore = bored(
         [(-2.0, 2.0), (-2.0, 2.0), (-2.0, 2.0)],
@@ -1039,7 +1039,7 @@ fn a_rod_against_a_bore_builds_every_operation() {
 fn mesh_agrees(body: &topo::AtRestBody<f64>, tol: Tol, what: &str) {
     let mesh = mesh::tessellate(body, 2e-3, tol).expect("the result tessellates");
     let meshed = mesh::validate::signed_volume(&mesh);
-    let v = topo::mass_properties(body, tol).unwrap().volume;
+    let v = topo::mass_properties(body, tol, topo::test_support::pinned_resolution(tol)).unwrap().enclosure.volume;
     assert!(
         (meshed - v).abs() <= 5e-3 * v,
         "{what}: the mesh encloses {meshed}, the body {v}"
@@ -1072,8 +1072,8 @@ fn mesh_agrees(body: &topo::AtRestBody<f64>, tol: Tol, what: &str) {
 fn slanted_bores_build_every_operation_one_difference_pinched_to_itself() {
     let tol = Tol::witness();
     let measure = |b: &topo::AtRestBody<f64>| {
-        let m = topo::mass_properties(b, tol).unwrap();
-        (m.volume, m.volume_pad)
+        let m = topo::mass_properties(b, tol, topo::test_support::pinned_resolution(tol)).unwrap();
+        (m.enclosure.volume, m.enclosure.volume_pad)
     };
     let a0 = bored(
         [(-2.0, 2.0), (-2.0, 2.0), (-2.0, 2.0)],
@@ -1286,8 +1286,8 @@ fn a_rod_glued_in_its_bore_answers_alike_in_either_order() {
     }
     let outcome = |r: Result<BooleanResult<f64>, topo::BooleanError>| match r {
         Ok(BooleanResult::Body(out)) => {
-            let m = topo::mass_properties(&out.body, tol).unwrap();
-            Outcome::Built(m.volume, m.volume_pad)
+            let m = topo::mass_properties(&out.body, tol, topo::test_support::pinned_resolution(tol)).unwrap();
+            Outcome::Built(m.enclosure.volume, m.enclosure.volume_pad)
         }
         Ok(_) => Outcome::Built(0.0, 0.0),
         Err(topo::BooleanError::Escalated { decision, diag }) => Outcome::Escalated(

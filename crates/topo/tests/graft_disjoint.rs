@@ -226,17 +226,19 @@ fn a_multi_solid_graft_equals_sequential_single_solid_grafts() {
     assert_eq!(
         topo::mass_properties(
             &topo::test_support::finished("the measured body", at_once.clone(), Tol::witness()),
-            Tol::witness()
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .expect("volume")
-        .volume
+        .enclosure.volume
         .to_bits(),
         topo::mass_properties(
             &topo::test_support::finished("the measured body", one_by_one.clone(), Tol::witness()),
-            Tol::witness()
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .expect("volume")
-        .volume
+        .enclosure.volume
         .to_bits(),
         "bit-equal volume"
     );

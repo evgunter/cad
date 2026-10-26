@@ -60,6 +60,7 @@ from pncad import (
     Frame,
     Node,
     Open,
+    Settle,
     Start,
     StationMove,
     ValidationError,
@@ -75,6 +76,7 @@ from pncad import (
 
 from placing import against, placed
 from test_assembly_eval import opened
+from measuring import PINNED, pinned
 
 RUNGS = ("validate", "validate_closed", "validate_geometric", "validate_pseudomanifold")
 
@@ -203,7 +205,7 @@ class TestTheFourthRungIsTheStrictest(unittest.TestCase):
         body = evaluate(doc).value(glued).body()
         body.validate_pseudomanifold()
         # The glue is a glue: the exact dyadic volume of the two parts.
-        self.assertEqual(body.mass_properties().volume, 1.125)
+        self.assertEqual(pinned(body).volume, 1.125)
 
 
 class TestTheRecordsRideWithTheBody(unittest.TestCase):
@@ -232,8 +234,8 @@ class TestTheRecordsRideWithTheBody(unittest.TestCase):
         # the body, which `test_assembly_author` already pins and this
         # row depends on, so it is re-asserted rather than assumed.
         self.assertEqual(
-            gathered.mass_properties().volume,
-            assembly.body.mass_properties().volume,
+            pinned(gathered).volume,
+            pinned(assembly.body).volume,
         )
         # And on every rung that does not consult declarations.
         for rung in ("validate", "validate_closed", "validate_geometric"):
@@ -643,8 +645,8 @@ class TestGateAndMeasureInOneQuadrature(unittest.TestCase):
         quadratures that happened to agree.
         """
         body = polygonal_loft()
-        once = body.validate_geometric_measured()
-        twice = body.mass_properties()
+        once = pinned(body)
+        twice = pinned(body)
         self.assertEqual(once.volume, twice.volume)
         self.assertEqual(once.surface_area, twice.surface_area)
         self.assertEqual(once.volume_pad, twice.volume_pad)
@@ -666,56 +668,34 @@ class TestGateAndMeasureInOneQuadrature(unittest.TestCase):
         gathered = product(doc, evaluate(doc))
         with self.assertRaises(ValidationError):
             gathered.validate_pseudomanifold()
-        measured = gathered.validate_geometric_measured()
-        self.assertEqual(measured.volume, gathered.mass_properties().volume)
+        measured = pinned(gathered)
+        self.assertEqual(measured.volume, pinned(gathered).volume)
 
-    def test_a_body_tier_3_admits_can_still_have_no_number(self):
-        """The refusal the pair does not have, and the bracket that
-        comes with it.
+    def test_a_body_tier_3_admits_at_an_unmet_resolution_answers_its_bracket(self):
+        """An unmet resolution is the bracket, not a refusal.
 
-        The reporting target scales with eps and the width a face's
-        lane stops at does not, so a body can be tier-3 VALID — its volume's SIGN is
-        definite, which is all check 7 reads — and still have no
-        volume number at this eps. The door refuses there with the
-        reporting door's own class and `reason`, so a caller already
-        catching `mass_properties()` catches this unchanged; what is
-        new is the bracket the certificate or its continuation held,
-        which is the whole of what the certified quadrature is entitled
-        to say about such a body.
+        A body can be tier-3 VALID — its volume's SIGN is definite,
+        which is all check 7 reads — and still stop short of a
+        resolution at this eps: a rational wall at any reachable size
+        stops at the work wall, its removable width still dominant
+        there. The door answers the bracket it reached, with the stop
+        that says why, and the bracket is this body's.
 
         ONE certified quadrature is run here and that is deliberate:
-        this row is the suite's most expensive and the reporting
-        door's refusal on the same body would cost another, to assert
-        a `reason` string this row already asserts and an attribute's
-        ABSENCE. So `mass_properties()`' refusal shape is left to the
-        row that already owns it.
-
-        WHY NOT A SMALL BODY AT A TIGHT EPS, OR A CHEAPER STOP. No
-        lane knows the target, so a refusal is reached only where a
-        face STOPS short of it — at the work wall, or at its floor —
-        and a rational wall at any reachable size or eps stops at the
-        wall, not the floor: its removable width still dominates
-        there. The wall is one bound in weighted cells for every face,
-        so every refusing rational wall costs the same work; the
-        teapot-sized route under `CAD_TOLERANCE_EPS=1e-12` in a
-        subprocess (how `test_ty.py` runs a child) would buy a second
-        interpreter and the teapot's other faces for no saving. Measured in the dev-profile module
-        this suite's CI job builds: this row takes about 47 s (the
-        125 m version of the tube, which certifies, takes 17 s), the
-        suite's most expensive row.
+        this row is the suite's most expensive. Measured in the
+        dev-profile module this suite's CI job builds: about 47 s (the
+        125 m version of the tube, which meets the resolution, takes
+        17 s).
         """
         body = oversized_round_loft()
-        with self.assertRaises(ValidationError) as gated:
-            body.validate_geometric_measured()
-        self.assertEqual(gated.exception.reason, "mass_properties_failed")
-        # A MEASUREMENT refusal and not a gate one: tier 3 admitted
-        # this body, so the door got past its gate half, whose refusals
-        # carry `door` / `failure_count` / `findings` instead.
-        self.assertFalse(hasattr(gated.exception, "door"))
-        lo, hi = gated.exception.volume_lo, gated.exception.volume_hi
+        measured = body.mass_properties(PINNED)
+        self.assertIn(measured.stop, ("wall", "floor"), measured)
+        self.assertIsNone(measured.verdict, "a resolution decides nothing")
+        e = measured.enclosure
+        lo, hi = e.volume - e.volume_pad, e.volume + e.volume_pad
         self.assertLess(lo, hi)
         self.assertGreater(lo, 0.0, "the bracket is definitely positive")
-        self.assertGreater(gated.exception.surface_area, 0.0)
+        self.assertGreater(e.surface_area, 0.0)
         # The bracket is THIS body's and not a placeholder: a tapered
         # tube of radii 1497.6 m and 748.8 m over an 8 km spine
         # encloses the frustum on those radii, and the rational walls
@@ -724,6 +704,49 @@ class TestGateAndMeasureInOneQuadrature(unittest.TestCase):
         self.assertLess(lo, frustum)
         self.assertGreater(hi, frustum)
 
+
+class TestSettle(unittest.TestCase):
+    """Each predicate a measurement takes, on the unit cube's closed
+    form: volume 1, one value at round 0, so each answers there."""
+
+    def cube(self):
+        doc = Doc()
+        node = slab(doc, (0 * m, 1 * m), (0 * m, 1 * m), 1 * m)
+        return evaluate(doc).value(node).body()
+
+    def test_a_sign_reads_the_cube_outer(self):
+        measured = self.cube().mass_properties(Settle.sign())
+        self.assertEqual((measured.stop, measured.verdict), ("settled", "outer"))
+
+    def test_a_relation_settles_on_either_side(self):
+        cube = self.cube()
+        for settle, holds in [
+            (Settle.at_most(2.0), True),
+            (Settle.at_most(0.5), False),
+            (Settle.at_least(0.5), True),
+            (Settle.at_least(2.0), False),
+        ]:
+            with self.subTest(settle=repr(settle)):
+                measured = cube.mass_properties(settle)
+                self.assertEqual((measured.stop, measured.verdict), ("settled", holds))
+
+    def test_a_containment_holds_where_the_closed_form_lies(self):
+        cube = self.cube()
+        inside = cube.mass_properties(Settle.contains(0.5, 1.5))
+        self.assertEqual((inside.stop, inside.verdict), ("settled", True))
+        outside = cube.mass_properties(Settle.contains(2.0, 3.0))
+        self.assertEqual((outside.stop, outside.verdict), ("settled", False))
+
+    def test_a_resolution_is_met_and_decides_nothing(self):
+        measured = self.cube().mass_properties(PINNED)
+        self.assertEqual((measured.stop, measured.verdict), ("met", None))
+        self.assertEqual(measured.enclosure.volume, 1.0)
+
+    def test_a_resolution_finer_than_the_tolerance_is_refused(self):
+        with self.assertRaises(ValidationError) as refused:
+            self.cube().mass_properties(Settle.resolution(1e-10 * m))
+        self.assertEqual(refused.exception.reason, "mass_properties_failed")
+        self.assertEqual(refused.exception.measure_refusal, "resolution_finer_than_eps")
 
 if __name__ == "__main__":
     unittest.main()

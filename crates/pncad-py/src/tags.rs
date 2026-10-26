@@ -366,6 +366,22 @@ pub fn validation_refusal_tag(refusal: ValidationRefusal) -> &'static str {
     }
 }
 
+/// The `ValidationError.measure_refusal` of a measurement door's
+/// refusal: which arm of the kernel's `MassPropsError` refused.
+pub fn mass_props_error_tag(err: &pncad::topo::MassPropsError) -> &'static str {
+    use pncad::topo::MassPropsError as M;
+    match err {
+        M::Band { .. } => "band",
+        M::Face { .. } => "face",
+        M::RingOnCurvedFace { .. } => "ring_on_curved_face",
+        M::Corrupt { .. } => "corrupt",
+        M::NullScaffoldEdge { .. } => "null_scaffold_edge",
+        M::ResolutionFinerThanEps { .. } => "resolution_finer_than_eps",
+        M::Poisoned { .. } => "poisoned",
+        M::CertificateOfAnotherBody => "certificate_of_another_body",
+    }
+}
+
 /// The `EditError.variant` of a refusal the boundary built, over the
 /// [`BoundaryEdit`] its raise takes.
 ///

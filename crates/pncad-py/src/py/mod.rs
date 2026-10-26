@@ -98,11 +98,9 @@ pyo3::create_exception!(
      `Body.validate_geometric_measured` raises through both halves: \
      the gate's shape when tier 3 refuses, and the \
      `mass_properties` shape when the gate passed and the \
-     measurement could not reach its target. That second refusal \
-     carries `volume_lo`, `volume_hi` and `surface_area` beside \
-     `reason` — the sign-level bracket the gate DID certify, which \
-     is the whole of what the quadrature is entitled to say about \
-     such a body. They are `None` on every other refusal."
+     measurement could not be made. That second refusal carries \
+     `measure_refusal` beside `reason`: which arm of the measurement \
+     refused."
 );
 pyo3::create_exception!(
     pncad,

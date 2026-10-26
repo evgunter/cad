@@ -203,8 +203,9 @@ fn conic_trimmed_flip_slips_both_gates() {
             let vol = topo::mass_properties(
                 &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
                 Tol::witness(),
+                topo::test_support::pinned_resolution(Tol::witness()),
             )
-            .map(|p| p.volume);
+            .map(|p| p.enclosure.volume);
             println!("CONIC-SLIP flipped wall: imported, t3={t3:?} vol={vol:?}");
         }
         Ok(_) => panic!("wireframe"),

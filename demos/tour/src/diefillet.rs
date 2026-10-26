@@ -580,9 +580,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     );
 
     let blank = body_at(&ev, die.blank);
-    let vol = pncad::topo::mass_properties(&crate::booleans::at_rest(&blank, tol), tol)
+    let vol = pncad::topo::mass_properties(&crate::booleans::at_rest(&blank, tol), tol, crate::printed())
         .unwrap()
-        .volume;
+        .enclosure.volume;
     let want = crate::oracles::rounded_box_volume([L; 3], R);
     assert!(
         (vol - want).abs() < 1e-9 * want,
@@ -595,12 +595,12 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     );
     assert_eq!((f, e, v), (26, 48, 24));
     let pipped = body_at(&ev, die.pipped);
-    let pip_vol = pncad::topo::mass_properties(&crate::booleans::at_rest(&pipped, tol), tol)
+    let pip_vol = pncad::topo::mass_properties(&crate::booleans::at_rest(&pipped, tol), tol, crate::printed())
         .unwrap()
-        .volume;
+        .enclosure.volume;
     let composed = body_at(&ev, die.composed);
     let comp =
-        pncad::topo::mass_properties(&crate::booleans::at_rest(&composed, tol), tol).unwrap();
+        pncad::topo::mass_properties(&crate::booleans::at_rest(&composed, tol), tol, crate::printed()).unwrap();
     assert_eq!(
         pncad::topo::validate_geometric(&composed, tol),
         Ok(()),
@@ -701,7 +701,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                  Neither blend names an edge by hand: {} lines and {} plane–sphere arcs \
                  come back from `select_where`, and the 42 co-surface meridians it does \
                  NOT return are the ones `fillet_edges` would refuse at margin zero",
-                comp.volume, die.box_edges, die.rims
+                comp.enclosure.volume, die.box_edges, die.rims
             )),
             view: View {
                 elev: 26.0,

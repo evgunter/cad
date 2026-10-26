@@ -79,12 +79,12 @@ fn consume(label: &str, body: &Body<f64>, want_volume: f64, want_shells: usize) 
         "{label}: pcurve findings {:?}",
         pcurve_findings(body)
     );
-    let props = topo::test_support::unmigrated_measure(body, tol()).expect("props");
+    let props = topo::test_support::unmigrated_measure(body, tol(), topo::test_support::pinned_resolution(tol())).expect("props");
     assert!(
-        (props.volume - want_volume).abs() <= 1e-9 + props.volume_pad,
+        (props.enclosure.volume - want_volume).abs() <= 1e-9 + props.enclosure.volume_pad,
         "{label}: volume {} (pad {}), want {want_volume}",
-        props.volume,
-        props.volume_pad
+        props.enclosure.volume,
+        props.enclosure.volume_pad
     );
     let shells: Vec<_> = body.shells().map(|(k, _)| k).collect();
     let roles = topo::classify_shells_of(
@@ -125,9 +125,9 @@ fn r2_e2e_two_arc_sphere_hollows_and_tessellates() {
         4.0 / 3.0 * PI * (r - t) * (r - t) * (r - t),
         4.0 / 3.0 * PI * (r - t).powi(3),
         want,
-        topo::test_support::unmigrated_measure(&out.body, tol())
+        topo::test_support::unmigrated_measure(&out.body, tol(), topo::test_support::pinned_resolution(tol()))
             .expect("props")
-            .volume
+            .enclosure.volume
     );
     let mut cavity = body.clone();
     let band = geom_core::Band::linear(tol()).expect("band");
@@ -135,9 +135,9 @@ fn r2_e2e_two_arc_sphere_hollows_and_tessellates() {
         .expect("the cavity");
     println!(
         "[r2] measured cavity volume {:?}",
-        topo::test_support::unmigrated_measure(&cavity, tol())
+        topo::test_support::unmigrated_measure(&cavity, tol(), topo::test_support::pinned_resolution(tol()))
             .expect("props")
-            .volume
+            .enclosure.volume
     );
     consume("two-arc sphere shelled", &out.body, want, 2);
 }
@@ -148,18 +148,18 @@ fn r2_e2e_sphere_zone_vase_hollowed_then_opened() {
     let (r, h, t) = (1.0, 1.5, 0.1);
     let v = sphere_zone_vase(r, h);
     let sealed = topo::shell(&finished("the operand", v.clone(), tol()), t, tol()).expect("shells");
-    let sealed_vol = topo::test_support::unmigrated_measure(&sealed.body, tol())
+    let sealed_vol = topo::test_support::unmigrated_measure(&sealed.body, tol(), topo::test_support::pinned_resolution(tol()))
         .expect("props")
-        .volume;
+        .enclosure.volume;
     consume("sphere-zone vase sealed", &sealed.body, sealed_vol, 2);
     let caps = cap_at_y(&v, h);
     assert!(!caps.is_empty(), "a top cap");
     println!("[r2] vase top cap faces: {}", caps.len());
     let opened = topo::shell_open(&finished("the operand", v.clone(), tol()), t, &caps, tol())
         .expect("opens");
-    let opened_vol = topo::test_support::unmigrated_measure(&opened.body, tol())
+    let opened_vol = topo::test_support::unmigrated_measure(&opened.body, tol(), topo::test_support::pinned_resolution(tol()))
         .expect("props")
-        .volume;
+        .enclosure.volume;
     consume(
         "sphere-zone vase opened",
         &opened.body,
@@ -181,9 +181,9 @@ fn r2_e2e_box_beside_vessel_hollowed_and_opened() {
     let pair = beside(&b, &v, 6.0);
     let sealed = topo::shell(&finished("the operand", pair.clone(), tol()), 0.2, tol())
         .expect("shells the pair");
-    let sealed_vol = topo::test_support::unmigrated_measure(&sealed.body, tol())
+    let sealed_vol = topo::test_support::unmigrated_measure(&sealed.body, tol(), topo::test_support::pinned_resolution(tol()))
         .expect("props")
-        .volume;
+        .enclosure.volume;
     consume(
         "box beside vessel sealed",
         &sealed.body,
@@ -201,9 +201,9 @@ fn r2_e2e_box_beside_vessel_hollowed_and_opened() {
         tol(),
     )
     .expect("opens the pair");
-    let opened_vol = topo::test_support::unmigrated_measure(&opened.body, tol())
+    let opened_vol = topo::test_support::unmigrated_measure(&opened.body, tol(), topo::test_support::pinned_resolution(tol()))
         .expect("props")
-        .volume;
+        .enclosure.volume;
     consume(
         "box beside vessel opened",
         &opened.body,

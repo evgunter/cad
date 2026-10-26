@@ -23,8 +23,9 @@ fn probe(tag: &str, text: &str, base_vol: f64) {
             let v = topo::mass_properties(
                 &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
                 Tol::witness(),
+                topo::test_support::pinned_resolution(Tol::witness()),
             )
-            .map(|m| m.volume);
+            .map(|m| m.enclosure.volume);
             println!(
                 "{tag}: IMPORTED census={:?} t1={t1:?} t2={t2:?} t3ok={} vol={v:?}",
                 arena_census(&body),
@@ -55,9 +56,10 @@ fn flipped_sense_is_never_silent_misgeometry() {
     let v0 = topo::mass_properties(
         &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .volume;
+    .enclosure.volume;
 
     // Box: flip one EDGE_CURVE sense only.
     let m = base.replace(
@@ -77,9 +79,10 @@ fn flipped_sense_is_never_silent_misgeometry() {
     let vs = topo::mass_properties(
         &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .volume;
+    .enclosure.volume;
     let m2 = sg1.replace(
         "#46=EDGE_CURVE('',#43,#45,#41,.F.) ;",
         "#46=EDGE_CURVE('',#43,#45,#41,.T.) ;",

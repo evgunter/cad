@@ -55,9 +55,10 @@ fn measured_relative_volume_agreement() {
         let v = topo::mass_properties(
             &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap_or_else(|e| panic!("{name}: imported but has no volume: {e:?}"))
-        .volume
+        .enclosure.volume
             * 1e9;
         let rel = (v - oracle).abs() / oracle.abs();
         worst = worst.max(rel);

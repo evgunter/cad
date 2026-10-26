@@ -275,24 +275,24 @@ pub fn vessel_hollow_volume(t: f64) -> f64 {
 /// bracket's midpoint inherits that lean, well inside the bracket.
 pub fn assert_hollow_volume(label: &str, hollow: &Body<f64>, want: f64) {
     let tol = Tol::witness();
-    let props = topo::test_support::unmigrated_measure(hollow, tol)
+    let props = topo::test_support::unmigrated_measure(hollow, tol, topo::test_support::pinned_resolution(tol))
         .unwrap_or_else(|e| panic!("{label}: the hollow measures, got {e:?}"));
     println!(
         "[measured] {label}: volume {} ± {}, oracle {want}",
-        props.volume, props.volume_pad
+        props.enclosure.volume, props.enclosure.volume_pad
     );
     assert!(
-        (props.volume - want).abs() <= props.volume_pad + 1e-10 * want.abs(),
+        (props.enclosure.volume - want).abs() <= props.enclosure.volume_pad + 1e-10 * want.abs(),
         "{label}: volume {} ± {} misses the oracle {want}",
-        props.volume,
-        props.volume_pad
+        props.enclosure.volume,
+        props.enclosure.volume_pad
     );
-    let reporting = 512.0 * tol.eps() * props.surface_area;
+    let reporting = 512.0 * tol.eps() * props.enclosure.surface_area;
     assert!(
-        props.volume_pad > 0.0 && props.volume_pad <= reporting,
+        props.enclosure.volume_pad > 0.0 && props.enclosure.volume_pad <= reporting,
         "{label}: a spiric face is a quadrature, and its pad {} is under the reporting \
          level {reporting}",
-        props.volume_pad
+        props.enclosure.volume_pad
     );
 }
 
@@ -331,16 +331,16 @@ pub fn cut_cap_area(t: f64, rho_c: f64, a: f64) -> f64 {
 /// wall area wrong by more than the pad — the spiric lane's `G` channel
 /// — reaches `mass_properties` and goes red.
 pub fn assert_hollow_area(label: &str, hollow: &Body<f64>, want: f64) {
-    let props = topo::test_support::unmigrated_measure(hollow, Tol::witness())
+    let props = topo::test_support::unmigrated_measure(hollow, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
         .unwrap_or_else(|e| panic!("{label}: the hollow measures, got {e:?}"));
     println!(
         "[measured] {label}: surface area {} ± {}, oracle {want}",
-        props.surface_area, props.area_pad
+        props.enclosure.surface_area, props.enclosure.area_pad
     );
     assert!(
-        (props.surface_area - want).abs() <= props.area_pad + 1e-10 * want,
+        (props.enclosure.surface_area - want).abs() <= props.enclosure.area_pad + 1e-10 * want,
         "{label}: surface area {} ± {} misses the oracle {want}",
-        props.surface_area,
-        props.area_pad
+        props.enclosure.surface_area,
+        props.enclosure.area_pad
     );
 }

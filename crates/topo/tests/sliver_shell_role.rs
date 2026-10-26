@@ -129,7 +129,7 @@ fn a_near_tangent_wedge_tens_of_bands_thick_reads_outer() {
             "d = {d:e}: the bulk and the wedge are two lumps"
         );
         assert!(
-            shells.iter().any(|s| s.volume.abs() < 1e-12),
+            shells.iter().any(|s| s.enclosure.volume.abs() < 1e-12),
             "d = {d:e}: one lump is the wedge: {shells:?}"
         );
     }
@@ -495,8 +495,8 @@ fn a_millimetre_cube_on_a_thin_plate_builds() {
     ] {
         let both = topo::union(a, b, tol).unwrap_or_else(|e| panic!("{order}: builds, got {e:?}"));
         let body = both.body().expect("the union is not empty");
-        let m = topo::mass_properties(&body.body, tol).expect("the union measures");
-        let va = m.volume / m.surface_area;
+        let m = topo::mass_properties(&body.body, tol, topo::test_support::pinned_resolution(tol)).expect("the union measures");
+        let va = m.enclosure.volume / m.enclosure.surface_area;
         let band = geom_core::Band::linear(tol).expect("the band forms");
         assert!(
             va > band.zero() && va < band.escalate(),

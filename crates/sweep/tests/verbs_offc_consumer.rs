@@ -438,8 +438,8 @@ fn the_props_lanes_verdict_is_the_same_either_side_of_the_map() {
         Tol::witness(),
     )
     .expect("the body moves");
-    let read = |b: &Body<f64>| match topo::test_support::unmigrated_measure(b, Tol::witness()) {
-        Ok(m) => Ok((m.volume, m.surface_area, m.volume_pad, m.area_pad)),
+    let read = |b: &Body<f64>| match topo::test_support::unmigrated_measure(b, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())) {
+        Ok(m) => Ok((m.enclosure.volume, m.enclosure.surface_area, m.enclosure.volume_pad, m.enclosure.area_pad)),
         Err(e) => Err(format!("{e}")),
     };
     match (read(&body), read(&moved)) {
@@ -931,12 +931,12 @@ fn the_walls_a_placed_approx_capped_part_still_meets() {
     .expect("the part places");
 
     let here =
-        topo::test_support::unmigrated_measure(&body, Tol::witness()).expect("the operand weighs");
-    let props = topo::test_support::unmigrated_measure(&placed, Tol::witness())
+        topo::test_support::unmigrated_measure(&body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).expect("the operand weighs");
+    let props = topo::test_support::unmigrated_measure(&placed, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
         .expect("the placed part weighs");
     assert!(
-        (props.volume - here.volume).abs() <= props.volume_pad + here.volume_pad
-            && (props.surface_area - here.surface_area).abs() <= props.area_pad + here.area_pad,
+        (props.enclosure.volume - here.enclosure.volume).abs() <= props.enclosure.volume_pad + here.enclosure.volume_pad
+            && (props.enclosure.surface_area - here.enclosure.surface_area).abs() <= props.enclosure.area_pad + here.enclosure.area_pad,
         "a rigid map moves neither volume nor area: {here:?} -> {props:?}"
     );
 

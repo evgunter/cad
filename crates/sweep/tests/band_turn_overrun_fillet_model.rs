@@ -386,8 +386,8 @@ fn build(
 }
 
 fn vol(body: &Body<f64>) -> (f64, f64) {
-    let p = topo::test_support::unmigrated_measure(body, tol()).expect("props");
-    (p.volume, p.volume_pad)
+    let p = topo::test_support::unmigrated_measure(body, tol(), topo::test_support::pinned_resolution(tol())).expect("props");
+    (p.enclosure.volume, p.enclosure.volume_pad)
 }
 
 fn edge_points(body: &Body<f64>, e: EdgeKey) -> (V, V) {

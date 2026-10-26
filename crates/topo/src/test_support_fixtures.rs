@@ -2091,15 +2091,16 @@ mod tests {
         assert_eq!(
             crate::mass_properties(
                 &crate::test_support::finished("the measured body", euler.body.clone(), tol),
-                tol
+                tol,
+                crate::test_support::pinned_resolution(tol),
             )
             .expect("the Euler-op prism has mass properties")
-            .volume,
+            .enclosure.volume,
             1.0
         );
         // Raw door: the measured body is a body whose surface does not certify, which tier 3 refuses (UncertifiableSurface).
         assert!(
-            crate::test_support::measure_unvalidated(&raw.body, tol).is_err(),
+            crate::test_support::measure_unvalidated(&raw.body, tol, crate::test_support::pinned_resolution(tol)).is_err(),
             "the raw prism's placeholder geometry has no mass properties"
         );
     }

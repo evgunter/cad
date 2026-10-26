@@ -122,12 +122,12 @@ fn every_op(what: &str, a: Body<f64>, b: Body<f64>, v: (f64, f64, f64)) {
         // The volume against the closed form within the quadrature's
         // own certified pad, which grows with ε; `outcome`'s fixed 1e-7
         // holds at the default ε only.
-        let m = topo::mass_properties(body, tol()).unwrap();
+        let m = topo::mass_properties(body, tol(), topo::test_support::pinned_resolution(tol())).unwrap();
         assert!(
-            (m.volume - want).abs() <= m.volume_pad + 1e-9 * want.max(1.0),
+            (m.enclosure.volume - want).abs() <= m.enclosure.volume_pad + 1e-9 * want.max(1.0),
             "{row}: volume {} ± {}, closed form {want}",
-            m.volume,
-            m.volume_pad
+            m.enclosure.volume,
+            m.enclosure.volume_pad
         );
         // `operand=` reads only whether the union builds. A legal
         // operand's union with the far brick also holds the brick's
@@ -138,14 +138,14 @@ fn every_op(what: &str, a: Body<f64>, b: Body<f64>, v: (f64, f64, f64)) {
         );
         let joined = topo::union(body, &far, tol())
             .unwrap_or_else(|e| panic!("{row}: ∪ a far brick: {e:?}"));
-        let j = topo::mass_properties(&joined.body().expect("not empty").body, tol()).unwrap();
+        let j = topo::mass_properties(&joined.body().expect("not empty").body, tol(), topo::test_support::pinned_resolution(tol())).unwrap();
         assert!(
-            (j.volume - (m.volume + 1.0)).abs() <= j.volume_pad + m.volume_pad + 1e-9,
+            (j.enclosure.volume - (m.enclosure.volume + 1.0)).abs() <= j.enclosure.volume_pad + m.enclosure.volume_pad + 1e-9,
             "{row}: ∪ a far brick: volume {} vs {}",
-            j.volume,
-            m.volume + 1.0
+            j.enclosure.volume,
+            m.enclosure.volume + 1.0
         );
-        let line = outcome(r, m.volume, tol());
+        let line = outcome(r, m.enclosure.volume, tol());
         for f in ["t2=true", "t3p=true", "cert=true", "operand=true"] {
             assert!(line.contains(f), "{row}: want {f}: {line}");
         }

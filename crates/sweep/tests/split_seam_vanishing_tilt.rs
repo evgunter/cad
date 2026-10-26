@@ -123,9 +123,9 @@ fn a_split_through_a_seam_vertex_returns_no_side_tier_three_refuses() {
                                         "{pose}: the {word} side is returned but fails tier 3: {errors:?}"
                                     );
                                 }
-                                volume += mass_properties(b, tol())
+                                volume += mass_properties(b, tol(), topo::test_support::pinned_resolution(tol()))
                                     .unwrap_or_else(|e| panic!("{pose}: {word} measures: {e}"))
-                                    .volume;
+                                    .enclosure.volume;
                             }
                             assert!(
                                 (volume - PI).abs() < 1e-6,

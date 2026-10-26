@@ -56,12 +56,12 @@ fn census(b: &Body<f64>) -> (usize, usize, usize) {
 /// iso-rectangle argument, `verbs_arms1_annulus.rs`).
 fn volume(body: &Body<f64>) -> f64 {
     let props =
-        topo::test_support::unmigrated_measure(body, tol()).expect("mass properties compute");
+        topo::test_support::unmigrated_measure(body, tol(), topo::test_support::pinned_resolution(tol())).expect("mass properties compute");
     assert_eq!(
-        props.volume_pad, 0.0,
+        props.enclosure.volume_pad, 0.0,
         "closed-form inventory: the volume pad is exactly zero"
     );
-    props.volume
+    props.enclosure.volume
 }
 
 /// The census delta a two-crossing rim band leaves, on either door.

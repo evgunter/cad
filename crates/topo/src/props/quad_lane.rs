@@ -1633,7 +1633,7 @@ mod tests {
         use crate::entity::{FaceKey, LoopBoundary};
         use crate::props::{
             FaceRun, QuadLane, References, corner_of, decide_faces_serially, face_flux, face_loops,
-            flat_loops, interim_resolution, rederive, resolve_face, round_hook, shell_polygons,
+            flat_loops, rederive, resolve_face, round_hook, shell_polygons,
             vertex_rings,
         };
 
@@ -1886,7 +1886,7 @@ mod tests {
                     tol,
                     RoundWindow::SCHEDULE,
                     &refs,
-                    Some(interim_resolution(tol)),
+                    Some(crate::test_support::pinned_len(tol)),
                 )
             })
             .unwrap()

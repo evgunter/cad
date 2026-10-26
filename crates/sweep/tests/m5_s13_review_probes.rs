@@ -29,9 +29,9 @@ fn slack() -> f64 {
 }
 
 fn vol(body: &Body<f64>) -> f64 {
-    topo::test_support::unmigrated_measure(body, Tol::witness())
+    topo::test_support::unmigrated_measure(body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
         .unwrap()
-        .volume
+        .enclosure.volume
 }
 
 /// Rotate `body` about `pivot` by `theta` around the world x-axis.
@@ -307,7 +307,7 @@ fn probe_nested_spheres_union_to_the_outer_ball() {
         .expect("the whole-sphere containment arm answers");
     let body = &out.body().expect("a body").body;
     assert_eq!(body.shells().count(), 1, "one shell: the outer ball");
-    let vol = topo::mass_properties(body, Tol::witness()).unwrap().volume;
+    let vol = topo::mass_properties(body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap().enclosure.volume;
     let want = 4.0 * PI / 3.0;
     assert!(
         (vol - want).abs() <= 1e-9 * want,

@@ -177,13 +177,13 @@ fn the_bored_dome_equator_fillets_at_three_radii() {
             .unwrap_or_else(|e| panic!("tier 3 at r = {r}, got {e:?}"));
         assert_eq!(out.band_faces.len(), 1);
         let props =
-            topo::test_support::unmigrated_measure(&out.body, tol()).expect("mass properties");
-        assert_eq!(props.volume_pad, 0.0, "closed-form faces only at r = {r}");
+            topo::test_support::unmigrated_measure(&out.body, tol(), topo::test_support::pinned_resolution(tol())).expect("mass properties");
+        assert_eq!(props.enclosure.volume_pad, 0.0, "closed-form faces only at r = {r}");
         let expect = washer(1.0, 0.3, 0.0, 0.8) - corner_cut(1.0, r, 0.0, 1.0);
         assert!(
-            (props.volume - expect).abs() <= 1e-12 * expect,
+            (props.enclosure.volume - expect).abs() <= 1e-12 * expect,
             "bored dome r = {r}: got {}, closed form {expect}",
-            props.volume
+            props.enclosure.volume
         );
     }
 }
@@ -230,14 +230,14 @@ fn both_zone_rims_fillet_sequentially_and_match_the_closed_form() {
         "each annulus band adds one vertex, two edges, one face"
     );
     let props =
-        topo::test_support::unmigrated_measure(&second.body, tol()).expect("mass properties");
-    assert_eq!(props.volume_pad, 0.0);
+        topo::test_support::unmigrated_measure(&second.body, tol(), topo::test_support::pinned_resolution(tol())).expect("mass properties");
+    assert_eq!(props.enclosure.volume_pad, 0.0);
     let expect =
         washer(2.0, 0.6, -0.5, 1.0) - corner_cut(2.0, r, -0.5, 1.0) - corner_cut(2.0, r, 1.0, -1.0);
     assert!(
-        (props.volume - expect).abs() <= 1e-12 * expect,
+        (props.enclosure.volume - expect).abs() <= 1e-12 * expect,
         "zone: got {}, closed form {expect}",
-        props.volume
+        props.enclosure.volume
     );
 }
 
@@ -270,8 +270,8 @@ fn both_zone_rims_in_one_call_match_the_sequential_composition() {
         .unwrap_or_else(|e| panic!("the one-call shared-wall pair builds (#935), got {e:?}"));
     validate_geometric(&one.body, tol()).unwrap_or_else(|e| panic!("tier 3, got {e:?}"));
     assert_eq!(one.band_faces.len(), 2, "one band per rim");
-    let props = topo::test_support::unmigrated_measure(&one.body, tol()).expect("mass properties");
-    assert_eq!(props.volume_pad, 0.0);
+    let props = topo::test_support::unmigrated_measure(&one.body, tol(), topo::test_support::pinned_resolution(tol())).expect("mass properties");
+    assert_eq!(props.enclosure.volume_pad, 0.0);
 
     let seq = |first: f64, second: f64| {
         let a = fillet_edges(&body, &[zone_rim(&body, first)], r, tol())
@@ -283,23 +283,23 @@ fn both_zone_rims_in_one_call_match_the_sequential_composition() {
             tol(),
         )
         .expect("the second sequential call");
-        topo::test_support::unmigrated_measure(&b.body, tol())
+        topo::test_support::unmigrated_measure(&b.body, tol(), topo::test_support::pinned_resolution(tol()))
             .expect("mass properties")
-            .volume
+            .enclosure.volume
     };
     let (v_lo_hi, v_hi_lo) = (seq(-0.5, 1.0), seq(1.0, -0.5));
     assert!(
-        props.volume == v_lo_hi && props.volume == v_hi_lo,
+        props.enclosure.volume == v_lo_hi && props.enclosure.volume == v_hi_lo,
         "one call is the sequential composition to the bit, both orders: \
          {:.17e} vs {v_lo_hi:.17e} / {v_hi_lo:.17e}",
-        props.volume
+        props.enclosure.volume
     );
     let expect =
         washer(2.0, 0.6, -0.5, 1.0) - corner_cut(2.0, r, -0.5, 1.0) - corner_cut(2.0, r, 1.0, -1.0);
     assert!(
-        (props.volume - expect).abs() <= 1e-12 * expect,
+        (props.enclosure.volume - expect).abs() <= 1e-12 * expect,
         "one call matches the closed form: got {}, expect {expect}",
-        props.volume
+        props.enclosure.volume
     );
 }
 

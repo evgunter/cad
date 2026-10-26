@@ -126,13 +126,13 @@ fn assert_apart_every_op(
             "{label}: tier 3"
         );
         sweep::test_support::assert_legal_operand(&label, &out.body, tol);
-        let m = topo::mass_properties(&out.body, tol)
+        let m = topo::mass_properties(&out.body, tol, topo::test_support::pinned_resolution(tol))
             .unwrap_or_else(|e| panic!("{label}: mass properties {e:?}"));
         assert!(
-            (m.volume - truth).abs() <= m.volume_pad + 1e-9 * truth,
+            (m.enclosure.volume - truth).abs() <= m.enclosure.volume_pad + 1e-9 * truth,
             "{label}: volume {} ± {} against the closed form {truth}",
-            m.volume,
-            m.volume_pad
+            m.enclosure.volume,
+            m.enclosure.volume_pad
         );
     };
     run("∪", topo::union(a, b, tol), v_a + v_b);

@@ -63,7 +63,7 @@ fn check(
     let eps = tol().get().eps;
     match got {
         Ok(topo::BooleanResult::Body(b)) => {
-            let v = topo::mass_properties(&b.body, tol()).unwrap().volume;
+            let v = topo::mass_properties(&b.body, tol(), topo::test_support::pinned_resolution(tol())).unwrap().enclosure.volume;
             let want = want.unwrap_or_else(|| panic!("{pose} {name}: body {v}, want Empty"));
             assert!(
                 (v - want).abs() < 1e-6,
@@ -332,7 +332,7 @@ fn p3_a_nested_touch_just_off_tangent() {
                 Ok(()),
                 "p3 outward {name}: tier 3"
             );
-            Some(topo::mass_properties(&r.body, tol()).unwrap().volume)
+            Some(topo::mass_properties(&r.body, tol(), topo::test_support::pinned_resolution(tol())).unwrap().enclosure.volume)
         }
         Err(e) if fine && e.kind() == topo::BooleanErrorKind::CurvedPierceUnsupported => {
             eprintln!("p3 outward {name}: refused {e}");
@@ -554,7 +554,7 @@ fn p10_the_sliver_family() {
             let pinned = sliver_refusal(h);
             match got {
                 Ok(topo::BooleanResult::Body(r)) => {
-                    let v = topo::mass_properties(&r.body, tol()).unwrap().volume;
+                    let v = topo::mass_properties(&r.body, tol(), topo::test_support::pinned_resolution(tol())).unwrap().enclosure.volume;
                     assert!(
                         (v - want).abs() < 1e-9 * want.max(1.0),
                         "WRONG BODY {row}: volume {v} vs {want}"

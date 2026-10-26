@@ -92,9 +92,9 @@ fn the_edge(body: &Body<f64>, on: impl Fn(Vec3<f64>) -> bool) -> EdgeKey {
 
 /// A definite refusal's reading.
 fn volume(body: &Body<f64>) -> f64 {
-    topo::test_support::unmigrated_measure(body, tol())
+    topo::test_support::unmigrated_measure(body, tol(), topo::test_support::pinned_resolution(tol()))
         .expect("mass properties")
-        .volume
+        .enclosure.volume
 }
 
 /// The volume a convex fillet of radius `r` removes along the washer's

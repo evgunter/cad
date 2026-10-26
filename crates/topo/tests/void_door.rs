@@ -59,10 +59,11 @@ fn door_inserts_a_certified_cavity() {
     let props = mass_properties(
         &topo::test_support::finished("the measured body", dst.clone(), Tol::witness()),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap();
-    assert!((props.volume - 26.0).abs() < 1e-12);
-    assert!((props.surface_area - 60.0).abs() < 1e-12);
+    assert!((props.enclosure.volume - 26.0).abs() < 1e-12);
+    assert!((props.enclosure.surface_area - 60.0).abs() < 1e-12);
 }
 
 /// The carried-sign arm (the revolve's evidence shape) inserts the
@@ -114,11 +115,12 @@ fn door_agrees_with_the_subtract_fallback() {
     let pd = mass_properties(
         &topo::test_support::finished("the measured body", dst.clone(), Tol::witness()),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap();
-    let pb = mass_properties(&bb.body, Tol::witness()).unwrap();
-    assert_eq!(pd.volume.to_bits(), pb.volume.to_bits());
-    assert_eq!(pd.surface_area.to_bits(), pb.surface_area.to_bits());
+    let pb = mass_properties(&bb.body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap();
+    assert_eq!(pd.enclosure.volume.to_bits(), pb.enclosure.volume.to_bits());
+    assert_eq!(pd.enclosure.surface_area.to_bits(), pb.enclosure.surface_area.to_bits());
 }
 
 /// Planted corruption: every dishonest evidence shape refuses typed,
@@ -362,12 +364,13 @@ fn two_destinations_each_take_their_own_cavity() {
     let props = mass_properties(
         &topo::test_support::finished("the measured body", dst.clone(), Tol::witness()),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap();
     assert!(
-        (props.volume - (54.0 - 1.0 - 1.5)).abs() < 1e-12,
+        (props.enclosure.volume - (54.0 - 1.0 - 1.5)).abs() < 1e-12,
         "{}",
-        props.volume
+        props.enclosure.volume
     );
 }
 

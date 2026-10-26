@@ -106,19 +106,19 @@ fn face_outer_cycle(body: &topo::Body<f64>, face: &topo::Face) -> Option<Vec<top
 fn shape_iii_volume_matches_the_derived_closed_form() {
     let (sections, places) = shape_iii_sections();
     let lofted = loft_body::<f64>(&sections, &places, 2, Tol::witness()).expect("loft builds");
-    let m = topo::test_support::unmigrated_measure(&lofted.body, Tol::witness())
+    let m = topo::test_support::unmigrated_measure(&lofted.body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
         .expect("mass properties");
     let exact = 9.0;
     assert!(
-        (m.volume - exact).abs() <= m.volume_pad + 1e-9,
+        (m.enclosure.volume - exact).abs() <= m.enclosure.volume_pad + 1e-9,
         "volume {} ± {} must bracket the derived {exact}",
-        m.volume,
-        m.volume_pad
+        m.enclosure.volume,
+        m.enclosure.volume_pad
     );
     assert!(
-        m.volume_pad < 1e-6,
+        m.enclosure.volume_pad < 1e-6,
         "the exact per-span lane is tight, pad = {}",
-        m.volume_pad
+        m.enclosure.volume_pad
     );
     // The caps' closed forms contribute pad-free; the walls' area is
     // an honest enclosure — positive, and NARROW. Positivity and
@@ -158,12 +158,12 @@ fn shape_iii_volume_matches_the_derived_closed_form() {
     // rows in `m5_pr11_quad_props.rs` scale to theirs. The tree spells
     // this kind of ceiling four ways and unifying them is not this
     // row's job.
-    assert!(m.surface_area > 0.0);
+    assert!(m.enclosure.surface_area > 0.0);
     assert!(
-        m.area_pad < 0.3,
+        m.enclosure.area_pad < 0.3,
         "the walls' area half-width is {} m² (surface area {} m²)",
-        m.area_pad,
-        m.surface_area
+        m.enclosure.area_pad,
+        m.enclosure.surface_area
     );
 }
 
@@ -241,11 +241,11 @@ mod certified {
             Ok(()),
             "tier 3"
         );
-        let m = topo::test_support::unmigrated_measure(&lofted.body, Tol::witness())
+        let m = topo::test_support::unmigrated_measure(&lofted.body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
             .expect("mass properties");
         let (lo, hi) = (
-            geom_core::Bounds::lo(m.volume) - geom_core::Bounds::hi(m.volume_pad),
-            geom_core::Bounds::hi(m.volume) + geom_core::Bounds::hi(m.volume_pad),
+            geom_core::Bounds::lo(m.enclosure.volume) - geom_core::Bounds::hi(m.enclosure.volume_pad),
+            geom_core::Bounds::hi(m.enclosure.volume) + geom_core::Bounds::hi(m.enclosure.volume_pad),
         );
         assert!(lo <= 9.0 && 9.0 <= hi, "9 ∈ [{lo}, {hi}]");
         // The same two ceilings the f64 row carries, against the same
@@ -255,8 +255,8 @@ mod certified {
         // `Interval`. Both pads come out bit-identical to the f64
         // lane's, so the constants are shared deliberately.
         let (vpad, apad) = (
-            geom_core::Bounds::hi(m.volume_pad),
-            geom_core::Bounds::hi(m.area_pad),
+            geom_core::Bounds::hi(m.enclosure.volume_pad),
+            geom_core::Bounds::hi(m.enclosure.area_pad),
         );
         assert!(
             vpad < 1e-6,

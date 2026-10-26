@@ -78,13 +78,13 @@ fn shelled_to_closed_form(what: &str, body: &Body<f64>) -> topo::Shelled<f64> {
         "{what}: tier 3"
     );
     assert_eq!(out.body.shells().count(), 2, "{what}: outer + cavity");
-    let props = topo::test_support::unmigrated_measure(&out.body, tol()).expect("props");
+    let props = topo::test_support::unmigrated_measure(&out.body, tol(), topo::test_support::pinned_resolution(tol())).expect("props");
     let want = wall_volume(SMALL_R, T);
     assert!(
-        (props.volume - want).abs() <= 1e-9 + props.volume_pad,
+        (props.enclosure.volume - want).abs() <= 1e-9 + props.enclosure.volume_pad,
         "{what}: wall volume got {} (pad {}), want {want}",
-        props.volume,
-        props.volume_pad
+        props.enclosure.volume,
+        props.enclosure.volume_pad
     );
     assert_eq!(
         minor_radii(&out.body),
@@ -330,13 +330,13 @@ fn the_line_arm_carries_a_hand_split_drum_seam_to_its_foot_at_the_direct_door() 
         (span - (h - 2.0 * T)).abs() <= 1e-13,
         "the whole moved seam, cap to cap: got {span}"
     );
-    let props = topo::test_support::unmigrated_measure(&moved, tol()).expect("props");
+    let props = topo::test_support::unmigrated_measure(&moved, tol(), topo::test_support::pinned_resolution(tol())).expect("props");
     let want = PI * (r - T) * (r - T) * (h - 2.0 * T);
     assert!(
-        (props.volume - want).abs() <= 1e-9 + props.volume_pad,
+        (props.enclosure.volume - want).abs() <= 1e-9 + props.enclosure.volume_pad,
         "the moved drum: got {} (pad {}), want {want}",
-        props.volume,
-        props.volume_pad
+        props.enclosure.volume,
+        props.enclosure.volume_pad
     );
 }
 
@@ -375,12 +375,12 @@ fn shells_with_one_surface_vertices(
         "{what}: tier 3"
     );
     assert_eq!(out.body.shells().count(), 2, "{what}: outer + cavity");
-    let props = topo::test_support::unmigrated_measure(&out.body, tol()).expect("props");
+    let props = topo::test_support::unmigrated_measure(&out.body, tol(), topo::test_support::pinned_resolution(tol())).expect("props");
     assert!(
-        (props.volume - want).abs() <= 1e-9 + props.volume_pad,
+        (props.enclosure.volume - want).abs() <= 1e-9 + props.enclosure.volume_pad,
         "{what}: volume got {} (pad {}), want {want}",
-        props.volume,
-        props.volume_pad
+        props.enclosure.volume,
+        props.enclosure.volume_pad
     );
     let mut seen = 0;
     for &(new, old) in &out.naming.inner_vertices {
@@ -454,12 +454,12 @@ fn cavity_at_closed_form(
         Ok(()),
         "{what}: cavity tier 3"
     );
-    let props = topo::test_support::unmigrated_measure(&cavity, tol()).expect("props");
+    let props = topo::test_support::unmigrated_measure(&cavity, tol(), topo::test_support::pinned_resolution(tol())).expect("props");
     assert!(
-        (props.volume - want).abs() <= 1e-9 + props.volume_pad,
+        (props.enclosure.volume - want).abs() <= 1e-9 + props.enclosure.volume_pad,
         "{what}: cavity volume got {} (pad {}), want {want}",
-        props.volume,
-        props.volume_pad
+        props.enclosure.volume,
+        props.enclosure.volume_pad
     );
     let mut seen = 0;
     for (v, _) in body.vertices() {
@@ -508,11 +508,11 @@ fn a_collinear_cap_vertex_drum_shells_to_its_closed_form() {
     cavity_at_closed_form("collinear cap", &body, t, cavity, ring_foot);
     let want = PI * r * r * h - cavity;
     let out = shells_with_one_surface_vertices("collinear cap", &body, t, want, ring_foot);
-    let props = topo::test_support::unmigrated_measure(&out.body, tol()).expect("props");
+    let props = topo::test_support::unmigrated_measure(&out.body, tol(), topo::test_support::pinned_resolution(tol())).expect("props");
     assert!(
-        (props.volume - want).abs() <= 1e-12,
+        (props.enclosure.volume - want).abs() <= 1e-12,
         "collinear cap: volume {} vs the closed form {want}",
-        props.volume
+        props.enclosure.volume
     );
     let mesh = mesh::tessellate(&out.body, 1e-3, tol()).expect("the thin drum tessellates");
     mesh::validate::check_mesh(&mesh).expect("watertight");
@@ -586,12 +586,12 @@ fn a_sphere_from_an_arc_run_hollows_to_its_closed_form() {
             Ok(()),
             "station {v}: tier 3"
         );
-        let props = topo::test_support::unmigrated_measure(&cavity, tol()).expect("props");
+        let props = topo::test_support::unmigrated_measure(&cavity, tol(), topo::test_support::pinned_resolution(tol())).expect("props");
         let want = 4.0 / 3.0 * PI * (r - t).powi(3);
         assert!(
-            (props.volume - want).abs() <= 1e-9 + props.volume_pad,
+            (props.enclosure.volume - want).abs() <= 1e-9 + props.enclosure.volume_pad,
             "station {v}: cavity volume {} vs {want}",
-            props.volume
+            props.enclosure.volume
         );
     }
     // A torus wall's meridian run at, just under and just over the half
@@ -618,7 +618,7 @@ fn a_sphere_from_an_arc_run_hollows_to_its_closed_form() {
                 Ok(()),
                 "{label}: tier 3"
             );
-            topo::test_support::unmigrated_measure(&cavity, tol())
+            topo::test_support::unmigrated_measure(&cavity, tol(), topo::test_support::pinned_resolution(tol()))
                 .unwrap_or_else(|e| panic!("{label}: props {e:?}"));
         }
     }
@@ -655,11 +655,11 @@ fn a_two_arc_sphere_shells_to_its_closed_form() {
     cavity_at_closed_form("two-arc sphere", &body, t, cavity, concentric);
     let want = 4.0 / 3.0 * PI * (r.powi(3) - (r - t).powi(3));
     let out = shells_with_one_surface_vertices("two-arc sphere", &body, t, want, concentric);
-    let props = topo::test_support::unmigrated_measure(&out.body, tol()).expect("props");
+    let props = topo::test_support::unmigrated_measure(&out.body, tol(), topo::test_support::pinned_resolution(tol())).expect("props");
     assert!(
-        (props.volume - want).abs() <= 1e-12,
+        (props.enclosure.volume - want).abs() <= 1e-12,
         "two-arc sphere: volume {} vs the closed form {want}",
-        props.volume
+        props.enclosure.volume
     );
     let mesh = mesh::tessellate(&out.body, 1e-3, tol()).expect("the thin sphere tessellates");
     mesh::validate::check_mesh(&mesh).expect("watertight");

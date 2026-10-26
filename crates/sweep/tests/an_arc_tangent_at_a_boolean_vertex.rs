@@ -137,7 +137,7 @@ fn report(what: &str, r: Result<BooleanResult<f64>, topo::BooleanError>, want: O
     let got = match r {
         Ok(BooleanResult::Empty) => "Empty".to_string(),
         Ok(BooleanResult::Body(b)) => {
-            let v = mass_properties(&b.body, Tol::witness()).map(|m| m.volume);
+            let v = mass_properties(&b.body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).map(|m| m.enclosure.volume);
             format!("Body volume {v:?}")
         }
         Err(e) => format!("Err {e:?}"),
@@ -154,7 +154,7 @@ fn report(what: &str, r: Result<BooleanResult<f64>, topo::BooleanError>, want: O
 fn the_wide_slab_minus_and_meet_the_round() {
     let round = quarter_round();
     let s = slab(5.0, -1.0, 6.0);
-    let vol = |b: &AtRestBody<f64>| mass_properties(b, Tol::witness()).unwrap().volume;
+    let vol = |b: &AtRestBody<f64>| mass_properties(b, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap().enclosure.volume;
     let (vr, vs) = (vol(&round), vol(&s));
     let body = |what: &str, r: Result<BooleanResult<f64>, topo::BooleanError>| match r {
         Ok(BooleanResult::Body(b)) => vol(&b.body),
@@ -197,7 +197,7 @@ fn the_wide_slab_minus_and_meet_the_round() {
 #[test]
 fn a_tilted_dipping_round_meets_the_slab_in_its_closed_form() {
     let s = slab(5.0, -6.0, 12.0);
-    let vol = |b: &AtRestBody<f64>| mass_properties(b, Tol::witness()).unwrap().volume;
+    let vol = |b: &AtRestBody<f64>| mass_properties(b, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap().enclosure.volume;
     let vs = vol(&s);
     for alpha in [0.3f64, 0.6] {
         let round = tilted_dipping_round(alpha);
@@ -251,7 +251,7 @@ fn a_tilted_dipping_round_meets_the_slab_in_its_closed_form() {
 #[test]
 fn the_flush_and_corner_slabs_answer() {
     let round = quarter_round();
-    let vol = |b: &AtRestBody<f64>| mass_properties(b, Tol::witness()).unwrap().volume;
+    let vol = |b: &AtRestBody<f64>| mass_properties(b, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap().enclosure.volume;
     let vr = vol(&round);
     let body = |what: &str, r: Result<BooleanResult<f64>, topo::BooleanError>| match r {
         Ok(BooleanResult::Body(b)) => vol(&b.body),
@@ -309,8 +309,8 @@ fn the_untilted_dip() {
     let dip = dipping_round();
     let wide = slab(5.0, -1.0, 6.0);
     let (vd, vw) = (
-        mass_properties(&dip, Tol::witness()).unwrap().volume,
-        mass_properties(&wide, Tol::witness()).unwrap().volume,
+        mass_properties(&dip, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap().enclosure.volume,
+        mass_properties(&wide, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap().enclosure.volume,
     );
     let lens = 4.0 - core::f64::consts::PI;
     report(
@@ -352,7 +352,7 @@ fn the_untilted_dip() {
 fn the_dip_on_a_deep_slab_unions_into_one_solid() {
     let dip = dipping_round();
     let deep = slab_deep(0.0, 5.0, -1.0, 6.0, -1.0);
-    let vol = |b: &AtRestBody<f64>| mass_properties(b, Tol::witness()).unwrap().volume;
+    let vol = |b: &AtRestBody<f64>| mass_properties(b, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap().enclosure.volume;
     let lens = 4.0 - core::f64::consts::PI;
     let want = vol(&deep) + vol(&dip) - lens;
     let body = match topo::union(&deep, &dip, Tol::witness()) {
@@ -419,7 +419,7 @@ pub(crate) fn slab_between(x0: f64, x1: f64, y0: f64, depth: f64) -> AtRestBody<
 #[test]
 #[ignore = "measurement: prints each op's outcome; run with --ignored --nocapture"]
 fn review_tilted_dip_off_the_vertex_on_face_pass() {
-    let vol = |b: &AtRestBody<f64>| mass_properties(b, Tol::witness()).unwrap().volume;
+    let vol = |b: &AtRestBody<f64>| mass_properties(b, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap().enclosure.volume;
     for alpha in [0.3f64, 0.6] {
         let round = tilted_dipping_round(alpha);
         let vr = vol(&round);
@@ -531,7 +531,7 @@ fn tilted_round(alpha: f64) -> AtRestBody<f64> {
 /// `[2, 3]`), integrated by the midpoint rule on the arc's span.
 #[test]
 fn a_round_tilted_to_bend_its_arc_out_of_the_slab_answers() {
-    let vol = |b: &AtRestBody<f64>| mass_properties(b, Tol::witness()).unwrap().volume;
+    let vol = |b: &AtRestBody<f64>| mass_properties(b, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap().enclosure.volume;
     for alpha in [-0.3f64, -0.2] {
         let t = alpha.abs().tan();
         let round = tilted_round(alpha);

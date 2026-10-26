@@ -25,35 +25,35 @@ fn ring2_r1_end_to_end_certificate_bits() {
     let tol = Tol::witness();
     let body = loft_prism(tol);
     topo::validate_geometric(&body, tol).expect("the prism is tier-3 valid");
-    let props = topo::test_support::unmigrated_measure(&body, tol).expect("mass properties");
+    let props = topo::test_support::unmigrated_measure(&body, tol, topo::test_support::pinned_resolution(tol)).expect("mass properties");
     println!(
         "R1E2E volume={:.17e} bits={:#018x} pad={:.17e} pad_bits={:#018x}",
-        props.volume,
-        props.volume.to_bits(),
-        props.volume_pad,
-        props.volume_pad.to_bits()
+        props.enclosure.volume,
+        props.enclosure.volume.to_bits(),
+        props.enclosure.volume_pad,
+        props.enclosure.volume_pad.to_bits()
     );
     println!(
         "R1E2E area={:.17e} bits={:#018x} apad={:.17e} apad_bits={:#018x}",
-        props.surface_area,
-        props.surface_area.to_bits(),
-        props.area_pad,
-        props.area_pad.to_bits()
+        props.enclosure.surface_area,
+        props.enclosure.surface_area.to_bits(),
+        props.enclosure.area_pad,
+        props.enclosure.area_pad.to_bits()
     );
     // The certificate is an enclosure, so the one thing it may never
     // do is exclude the answer.
     assert!(
-        props.volume_pad > 0.0 && props.volume_pad.is_finite(),
+        props.enclosure.volume_pad > 0.0 && props.enclosure.volume_pad.is_finite(),
         "the volume pad is a width, not a refusal: {props:?}"
     );
     assert!(
-        (props.volume - EXACT_VOLUME).abs() <= props.volume_pad,
+        (props.enclosure.volume - EXACT_VOLUME).abs() <= props.enclosure.volume_pad,
         "the certified volume enclosure [{} +/- {}] excludes the prism's exact {EXACT_VOLUME}",
-        props.volume,
-        props.volume_pad
+        props.enclosure.volume,
+        props.enclosure.volume_pad
     );
     assert!(
-        props.area_pad > 0.0 && props.area_pad.is_finite() && props.surface_area > 0.0,
+        props.enclosure.area_pad > 0.0 && props.enclosure.area_pad.is_finite() && props.enclosure.surface_area > 0.0,
         "the area certificate is a width around a positive area: {props:?}"
     );
 

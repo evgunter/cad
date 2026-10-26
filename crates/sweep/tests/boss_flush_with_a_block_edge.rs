@@ -40,7 +40,7 @@ fn assert_built(tag: &str, r: Result<BooleanResult<f64>, BooleanError>, want: f6
         Ok(BooleanResult::Body(bb)) => bb,
         other => panic!("{tag}: the union builds, got {other:?}"),
     };
-    let got = topo::mass_properties(&bb.body, tol).unwrap().volume;
+    let got = topo::mass_properties(&bb.body, tol, topo::test_support::pinned_resolution(tol)).unwrap().enclosure.volume;
     assert!(
         (got - want).abs() <= 1e-12 * want,
         "{tag}: volume {got} vs {want}"

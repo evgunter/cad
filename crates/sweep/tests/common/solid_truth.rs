@@ -223,9 +223,9 @@ pub fn assert_body_is(
 ) -> f64 {
     let tol = Tol::witness();
     let band = Band::linear(tol).unwrap();
-    let got_v = topo::test_support::unmigrated_measure(body, tol)
+    let got_v = topo::test_support::unmigrated_measure(body, tol, topo::test_support::pinned_resolution(tol))
         .unwrap_or_else(|e| panic!("{label}: the volume refused {e:?}"))
-        .volume;
+        .enclosure.volume;
     assert!(
         (got_v - v).abs() <= tolerance,
         "{label}: volume {got_v} against {v} (± {tolerance})"

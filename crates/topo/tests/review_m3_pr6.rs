@@ -111,9 +111,10 @@ fn both_sided_pinch_scenario<T: Decide + geom_core::CertifiedBounds + topo::AtRe
         let v0 = mass_properties(
             &topo::test_support::finished("the measured body", fx.body.clone(), Tol::witness()),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
-        .volume;
+        .enclosure.volume;
         let r = split(&operand, &plane_y::<T>(1.0, 1.0), Tol::witness())
             .unwrap_or_else(|e| panic!("{profile:?}: refused: {e:?}"));
         for (side, want) in [(&r.above, shells[0]), (&r.below, shells[1])] {
@@ -133,9 +134,10 @@ fn both_sided_pinch_scenario<T: Decide + geom_core::CertifiedBounds + topo::AtRe
                     Tol::witness(),
                 ),
                 Tol::witness(),
+                topo::test_support::pinned_resolution(Tol::witness()),
             )
             .unwrap()
-            .volume,
+            .enclosure.volume,
             mass_properties(
                 &topo::test_support::finished(
                     "the measured body",
@@ -143,9 +145,10 @@ fn both_sided_pinch_scenario<T: Decide + geom_core::CertifiedBounds + topo::AtRe
                     Tol::witness(),
                 ),
                 Tol::witness(),
+                topo::test_support::pinned_resolution(Tol::witness()),
             )
             .unwrap()
-            .volume,
+            .enclosure.volume,
         );
         let d = (va + vb - v0).abs();
         assert!(d.hi() <= 1e-9, "{profile:?}: volume conservation: {d:?}");
@@ -198,15 +201,17 @@ fn mirror_identity_scenario<T: Decide + geom_core::CertifiedBounds + topo::AtRes
             let d = (mass_properties(
                 &topo::test_support::finished("the measured body", (x).clone(), Tol::witness()),
                 Tol::witness(),
+                topo::test_support::pinned_resolution(Tol::witness()),
             )
             .unwrap()
-            .volume
+            .enclosure.volume
                 - mass_properties(
                     &topo::test_support::finished("the measured body", (y).clone(), Tol::witness()),
                     Tol::witness(),
+                    topo::test_support::pinned_resolution(Tol::witness()),
                 )
                 .unwrap()
-                .volume)
+                .enclosure.volume)
                 .abs();
             assert!(d.hi() <= 1e-9, "{side}: volume mismatch {d:?}");
         }
@@ -448,7 +453,7 @@ fn l_prism() -> topo::AtRestBody<f64> {
 fn vol_of(r: Result<BooleanResult<f64>, BooleanError>, ctx: &str) -> Option<f64> {
     match r {
         Ok(BooleanResult::Body(b)) => {
-            Some(mass_properties(&b.body, Tol::witness()).unwrap().volume)
+            Some(mass_properties(&b.body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap().enclosure.volume)
         }
         Ok(BooleanResult::Empty) => Some(0.0),
         Err(BooleanError::PairingMismatch { .. }) => {
@@ -466,7 +471,7 @@ fn vol_of(r: Result<BooleanResult<f64>, BooleanError>, ctx: &str) -> Option<f64>
 #[test]
 fn r4_extended_sweep_volume_identities() {
     let a = l_prism();
-    let va = mass_properties(&a, Tol::witness()).unwrap().volume;
+    let va = mass_properties(&a, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap().enclosure.volume;
     let mut closed = 0;
     let mut refused = 0;
     for zc in [0.5f64, 1.0] {
@@ -502,7 +507,7 @@ fn r4_extended_sweep_volume_identities() {
                     mapped_cube(map, Tol::witness()),
                     Tol::witness(),
                 );
-                let vb = mass_properties(&b, Tol::witness()).unwrap().volume;
+                let vb = mass_properties(&b, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap().enclosure.volume;
                 let ctx = format!("zc={zc} family={family} k={k}");
                 let vu = vol_of(union(&a, &b, Tol::witness()), &ctx);
                 let vi = vol_of(intersect(&a, &b, Tol::witness()), &ctx);
@@ -681,7 +686,7 @@ fn r7_closure_reversed_rows_loud() {
     match subtract(&mover, &base.body, Tol::witness()) {
         Ok(BooleanResult::Body(r)) => {
             assert_eq!(
-                mass_properties(&r.body, Tol::witness()).unwrap().volume,
+                mass_properties(&r.body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap().enclosure.volume,
                 0.875
             );
             match validate_pseudomanifold(&r.body, &r.contacts, Tol::witness()) {
@@ -708,7 +713,7 @@ fn r7_closure_reversed_rows_loud() {
             // measure 0 → must not silently return junk; A ∩ toucher
             // is the shared edge only. Any BODY here must certify or
             // refuse loudly.
-            let v = mass_properties(&r.body, Tol::witness()).unwrap().volume;
+            let v = mass_properties(&r.body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap().enclosure.volume;
             match validate_pseudomanifold(&r.body, &r.contacts, Tol::witness()) {
                 Ok(()) => eprintln!("R7 intersect second-toucher closed: vol {v}"),
                 Err(errors) => {

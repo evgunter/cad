@@ -177,7 +177,7 @@ fn checked(what: &str, r: Result<BooleanResult<f64>, BooleanError>, vf: usize) -
             "{what}: {r:?}'s face holds its vertex"
         );
     }
-    topo::mass_properties(&bb.body, t).unwrap().volume
+    topo::mass_properties(&bb.body, t, topo::test_support::pinned_resolution(t)).unwrap().enclosure.volume
 }
 
 /// **A cylinder's ruling along each of the box's twelve edges**: every

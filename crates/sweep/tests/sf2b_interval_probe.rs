@@ -91,9 +91,9 @@ fn interval_offset_charts_together_sphere_zone() {
         core::f64::consts::PI * 2.0 * (rr * rr * half - half * half * half / 3.0)
     };
     let want = zone(big, h / 2.0) - zone(big - t, h / 2.0 - t);
-    let got = topo::test_support::unmigrated_measure(&hollow, tol)
+    let got = topo::test_support::unmigrated_measure(&hollow, tol, topo::test_support::pinned_resolution(tol))
         .expect("props")
-        .volume;
+        .enclosure.volume;
     contains("sphere-zone wall", got, want);
 }
 
@@ -151,9 +151,9 @@ fn interval_offset_charts_together_partial_wedge() {
         f(top) - f(d) - d * (top - d)
     };
     let want = core::f64::consts::PI * r * r * h / 4.0 - two_chord(r - t, t) * (h - 2.0 * t);
-    let got = topo::test_support::unmigrated_measure(&hollow, tol)
+    let got = topo::test_support::unmigrated_measure(&hollow, tol, topo::test_support::pinned_resolution(tol))
         .expect("props")
-        .volume;
+        .enclosure.volume;
     contains("wedge wall", got, want);
 }
 
@@ -192,9 +192,9 @@ fn interval_offset_charts_together_cone_frustum() {
         );
     contains(
         "cone frustum wall",
-        topo::test_support::unmigrated_measure(&hollow, tol)
+        topo::test_support::unmigrated_measure(&hollow, tol, topo::test_support::pinned_resolution(tol))
             .expect("props")
-            .volume,
+            .enclosure.volume,
         want,
     );
 }
@@ -224,9 +224,9 @@ fn interval_offset_charts_together_drum() {
     let want = pi * r * r * h - pi * (r - t) * (r - t) * (h - 2.0 * t);
     contains(
         "drum wall",
-        topo::test_support::unmigrated_measure(&hollow, tol)
+        topo::test_support::unmigrated_measure(&hollow, tol, topo::test_support::pinned_resolution(tol))
             .expect("props")
-            .volume,
+            .enclosure.volume,
         want,
     );
 }

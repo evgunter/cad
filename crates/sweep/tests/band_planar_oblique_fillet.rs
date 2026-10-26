@@ -309,11 +309,11 @@ fn the_oblique_fillet_carves_at_the_certified_scalar() {
         );
     }
     let (p0, p1) = (
-        topo::test_support::unmigrated_measure(&body, tol()).expect("interval props"),
-        topo::test_support::unmigrated_measure(&out.body, tol()).expect("interval props"),
+        topo::test_support::unmigrated_measure(&body, tol(), topo::test_support::pinned_resolution(tol())).expect("interval props"),
+        topo::test_support::unmigrated_measure(&out.body, tol(), topo::test_support::pinned_resolution(tol())).expect("interval props"),
     );
-    let removed = p0.volume - p1.volume;
-    let pad = p0.volume_pad + p1.volume_pad;
+    let removed = p0.enclosure.volume - p1.enclosure.volume;
+    let pad = p0.enclosure.volume_pad + p1.enclosure.volume_pad;
     let truth = Verb::Fillet.section() * 2.0;
     assert!(
         removed.lo() - pad <= truth && truth <= removed.hi() + pad,

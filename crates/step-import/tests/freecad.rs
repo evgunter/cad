@@ -355,6 +355,7 @@ fn foreign_corpus() {
         let props = topo::mass_properties(
             &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap_or_else(|err| panic!("{name}: {err}"));
         // mm³ → m³ (the generator's unit is FreeCAD's mm).
@@ -365,15 +366,15 @@ fn foreign_corpus() {
         #[allow(clippy::cast_precision_loss)]
         let ulps = (e.census.2 as f64) * (expected_m3.next_up() - expected_m3);
         let dialect = expected_m3.abs() * e.dialect_rel;
-        let tolerance = props.volume_pad + ulps + dialect;
+        let tolerance = props.enclosure.volume_pad + ulps + dialect;
         assert!(
-            (props.volume - expected_m3).abs() <= tolerance,
+            (props.enclosure.volume - expected_m3).abs() <= tolerance,
             "{name}: volume {} m³ vs closed form {} m³ (tolerance {}: pad {} + ulps {} \
              + dialect {})",
-            props.volume,
+            props.enclosure.volume,
             expected_m3,
             tolerance,
-            props.volume_pad,
+            props.enclosure.volume_pad,
             ulps,
             dialect
         );
@@ -498,15 +499,17 @@ fn cross_dialect_fixed_point() {
         let v1 = topo::mass_properties(
             &topo::test_support::finished("the measured body", body1.clone(), Tol::witness()),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
-        .volume;
+        .enclosure.volume;
         let v2 = topo::mass_properties(
             &topo::test_support::finished("the measured body", body2.clone(), Tol::witness()),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
-        .volume;
+        .enclosure.volume;
         // Bit-identity everywhere but ONE named fixture. Byte-identical
         // exports already prove both bodies carry the same stated
         // geometry, so any residue is arithmetic, not data — and the
@@ -543,9 +546,10 @@ fn volume_mm3(body: &topo::Body<f64>) -> f64 {
     topo::mass_properties(
         &topo::test_support::finished("the measured body", (body).clone(), Tol::witness()),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("mass properties")
-    .volume
+    .enclosure.volume
         * 1e9
 }
 
@@ -633,9 +637,10 @@ fn millimetre_lengths_scale_by_one_rounded_multiply() {
     let v = topo::mass_properties(
         &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .volume;
+    .enclosure.volume;
     assert!(
         (v - 1e-9).abs() <= 8.0 * f64::EPSILON * 1e-9,
         "unit cube volume {v} m³ vs 1e-9 m³"

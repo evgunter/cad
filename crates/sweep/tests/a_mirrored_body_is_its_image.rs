@@ -212,8 +212,8 @@ fn planes() -> Vec<(&'static str, Reflection<f64>)> {
 /// ε, which is the measurement's answer and not the mirror's.
 fn volume(body: &Body<f64>) -> Result<(f64, f64), String> {
     let measured = topo::test_support::finished("the measured body", body.clone(), tol());
-    topo::mass_properties(&measured, tol())
-        .map(|m| (m.volume, m.volume_pad))
+    topo::mass_properties(&measured, tol(), topo::test_support::pinned_resolution(tol()))
+        .map(|m| (m.enclosure.volume, m.enclosure.volume_pad))
         .map_err(|e| format!("{e:?}"))
 }
 

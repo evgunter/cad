@@ -3047,11 +3047,11 @@ fn an_inside_out_part_beside_an_ordinary_one_refuses_by_name() {
         panic!("two cubes are two solids");
     };
     // Raw door: the measured body is an inside-out body, which tier 3 refuses (NegativeVolume).
-    let total = crate::test_support::measure_unvalidated(&body, tol).expect("both cubes measure");
+    let total = crate::test_support::measure_unvalidated(&body, tol, crate::test_support::pinned_resolution(tol)).expect("both cubes measure");
     assert!(
-        total.volume > 0.0,
+        total.enclosure.volume > 0.0,
         "the fixture's point is a POSITIVE total: {}",
-        total.volume
+        total.enclosure.volume
     );
     let errs = validate_geometric(&body, tol).unwrap_err();
     assert_eq!(
@@ -3097,11 +3097,13 @@ fn a_multi_solid_certificate_is_the_whole_body_measurement() {
     let certified =
         crate::validate_pseudomanifold_certificate(&body, &crate::ContactRecords::default(), tol)
             .expect("two ordinary cubes certify")
-            .refine_to_target()
-            .expect("two ordinary cubes measure");
+            .measure(crate::test_support::pinned_resolution(tol))
+            .expect("two ordinary cubes measure")
+            .enclosure;
     let measured = crate::mass_properties(
         &crate::test_support::finished("the measured body", body.clone(), tol),
         tol,
+        crate::test_support::pinned_resolution(tol),
     )
     .expect("the cubes measure");
     assert_eq!(
@@ -3112,10 +3114,10 @@ fn a_multi_solid_certificate_is_the_whole_body_measurement() {
             certified.area_pad.to_bits()
         ),
         (
-            measured.volume.to_bits(),
-            measured.surface_area.to_bits(),
-            measured.volume_pad.to_bits(),
-            measured.area_pad.to_bits()
+            measured.enclosure.volume.to_bits(),
+            measured.enclosure.surface_area.to_bits(),
+            measured.enclosure.volume_pad.to_bits(),
+            measured.enclosure.area_pad.to_bits()
         ),
         "the door's certificate, continued, is the measurement door's"
     );
@@ -3159,8 +3161,9 @@ fn a_structural_certificate_continues_at_a_dual_to_the_closed_form() {
         tol,
     )
     .expect("two closed-form boxes pass the no-lane tier-3′ door at a dual")
-    .refine_to_target()
-    .expect("a closed-form certificate's continuation cannot refuse");
+    .measure(crate::test_support::pinned_resolution(tol))
+    .expect("a closed-form certificate's continuation cannot refuse")
+    .enclosure;
     let measured = crate::mass_properties_structural(
         &crate::test_support::finished("the two boxes", body.clone(), tol),
         tol,
@@ -3245,9 +3248,9 @@ fn a_solid_holding_several_outer_shells_refuses() {
 
     // Raw door: the measured body is a solid filed with two outer shells, which tier 3 refuses (SolidOuterShells).
     assert!(
-        crate::test_support::measure_unvalidated(&body, tol)
+        crate::test_support::measure_unvalidated(&body, tol, crate::test_support::pinned_resolution(tol))
             .expect("the cubes measure")
-            .volume
+            .enclosure.volume
             > 0.0,
         "check 7's subject is this solid, and its volume is positive"
     );
@@ -3553,10 +3556,11 @@ fn a_sign_is_read_off_the_exact_volume_not_its_rounding() {
     let read = crate::mass_properties(
         &crate::test_support::finished("the measured body", upright.clone(), tol),
         tol,
+        crate::test_support::pinned_resolution(tol),
     )
     .expect("the slab measures");
     assert!(
-        read.volume < -exact,
+        read.enclosure.volume < -exact,
         "the premise: the walk's sum reads the slab negative, past its exact \
          volume {exact:e}: {read:?}"
     );
@@ -4010,10 +4014,11 @@ fn far_thin_half_disc_reads(far: bool, tol: Tol) {
         let read = crate::mass_properties(
             &crate::test_support::finished("the measured body", upright.clone(), tol),
             tol,
+            crate::test_support::pinned_resolution(tol),
         )
         .expect("the half-disc measures");
         assert!(
-            (read.volume - exact).abs() <= 1e-3 * exact,
+            (read.enclosure.volume - exact).abs() <= 1e-3 * exact,
             "the oracle: {read:?} vs {exact:e}"
         );
     }

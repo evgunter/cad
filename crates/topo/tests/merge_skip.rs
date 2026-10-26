@@ -44,7 +44,7 @@ fn l_corner_caps_merge_and_stay_tier3_green() {
         panic!("overlapping union cannot be Empty");
     };
     assert_eq!(
-        mass_properties(&bb.body, Tol::witness()).unwrap().volume,
+        mass_properties(&bb.body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap().enclosure.volume,
         1.0 + 1.0 - 0.5 * 0.75,
         "exact dyadic volume"
     );

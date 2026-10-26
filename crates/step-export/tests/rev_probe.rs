@@ -42,7 +42,7 @@ fn ball_both_single_band_flips_are_laminae_with_the_curved_arm_still_silent() {
         let v = validate_geometric(&flipped, Tol::witness());
         // Raw door: the measured body is a lamina (a flipped band), which tier 3 refuses (LaminaWedge).
         let vol =
-            topo::test_support::measure_unvalidated(&flipped, Tol::witness()).map(|p| p.volume);
+            topo::test_support::measure_unvalidated(&flipped, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).map(|p| p.enclosure.volume);
         println!("BALL flip {k:?}: verdict={v:?} vol={vol:?}");
         let errs = v.expect_err("a half-flipped ball is a lamina at the shared edges");
         assert!(
@@ -173,7 +173,7 @@ fn conic_trimmed_wall_flip_probe() {
         let v = validate_geometric(&flipped, Tol::witness());
         // Raw door: the measured body is a lamina (a flipped band), which tier 3 refuses (LaminaWedge).
         let vol =
-            topo::test_support::measure_unvalidated(&flipped, Tol::witness()).map(|p| p.volume);
+            topo::test_support::measure_unvalidated(&flipped, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).map(|p| p.enclosure.volume);
         println!("CONIC cut_cylinder wall sense={sense} flip -> {v:?} vol={vol:?}");
     }
 }

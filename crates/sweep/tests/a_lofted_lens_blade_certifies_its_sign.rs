@@ -127,16 +127,16 @@ fn a_lofted_lens_blade_certifies_its_sign_and_its_number() {
     );
     // At ε = 1e-12 the target is a thousand times tighter and the
     // blade's number may stay open; the sign is the claim there.
-    match topo::mass_properties(&body, tol) {
+    match topo::mass_properties(&body, tol, topo::test_support::pinned_resolution(tol)) {
         Ok(measured) => {
             assert!(
-                enclosure.volume_lo <= measured.volume && measured.volume <= enclosure.volume_hi,
+                enclosure.volume_lo <= measured.enclosure.volume && measured.enclosure.volume <= enclosure.volume_hi,
                 "the blade's number {} sits in the gate's bracket {enclosure:?}",
-                measured.volume
+                measured.enclosure.volume
             );
             if tol.eps() == geom_core::tolerance::DEFAULT_EPS {
                 assert_eq!(
-                    (measured.volume.to_bits(), measured.volume_pad.to_bits()),
+                    (measured.enclosure.volume.to_bits(), measured.enclosure.volume_pad.to_bits()),
                     (
                         0.034_605_949_150_085_27_f64.to_bits(),
                         4.641_116_041_851_727e-7_f64.to_bits()
@@ -173,7 +173,7 @@ fn a_round_tube_certifies_its_sign_while_its_number_is_refused() {
         enclosure.volume_lo > 0.0,
         "the admitted tube's volume enclosure is positive: {enclosure:?}"
     );
-    let door = topo::mass_properties(&body, tol);
+    let door = topo::mass_properties(&body, tol, topo::test_support::pinned_resolution(tol));
     match &door {
         Err(MassPropsError::Face {
             source:
@@ -239,7 +239,7 @@ fn the_volume_backstop_reads_a_refused_face_once_per_body() {
     let body = topo::test_support::finished("the round tube", round_tube(tol), tol);
     let brick = crate::common::square_prism();
     let reporting = crate::common::quad_rounds(|| {
-        topo::mass_properties(&body, tol).expect_err("the reporting door refuses the tube");
+        topo::mass_properties(&body, tol, topo::test_support::pinned_resolution(tol)).expect_err("the reporting door refuses the tube");
     });
     let backstop = crate::common::quad_rounds(|| {
         topo::test_support::volume_backstop(topo::BooleanOp::Union, &body, &brick, &body, tol)

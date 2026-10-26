@@ -92,21 +92,24 @@ fn mirrored_fixture_flipped_plane_succeeds() {
         mass_properties(
             &topo::test_support::finished("the measured body", (pieces).clone(), Tol::witness()),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
-        .volume,
+        .enclosure.volume,
         mass_properties(
             &topo::test_support::finished("the measured body", (slab).clone(), Tol::witness()),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
-        .volume,
+        .enclosure.volume,
         mass_properties(
             &topo::test_support::finished("the measured body", fx.body.clone(), Tol::witness()),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
-        .volume,
+        .enclosure.volume,
     );
     assert!((vp + vs - v0).abs() <= 1e-12 * v0, "{vp} + {vs} vs {v0}");
 }
@@ -127,9 +130,10 @@ fn notched_fixture_orientation_table() {
         let v0 = mass_properties(
             &topo::test_support::finished("the measured body", fx.body.clone(), Tol::witness()),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
-        .volume;
+        .enclosure.volume;
         for ny in [1.0, -1.0] {
             let r = split(&operand, &plane(1.0, ny), Tol::witness()).unwrap();
             let (a, b) = (body_of(&r.above), body_of(&r.below));
@@ -147,15 +151,17 @@ fn notched_fixture_orientation_table() {
                 mass_properties(
                     &topo::test_support::finished("the measured body", (a).clone(), Tol::witness()),
                     Tol::witness(),
+                    topo::test_support::pinned_resolution(Tol::witness()),
                 )
                 .unwrap()
-                .volume,
+                .enclosure.volume,
                 mass_properties(
                     &topo::test_support::finished("the measured body", (b).clone(), Tol::witness()),
                     Tol::witness(),
+                    topo::test_support::pinned_resolution(Tol::witness()),
                 )
                 .unwrap()
-                .volume,
+                .enclosure.volume,
             );
             assert!((va + vb - v0).abs() <= 1e-12 * v0, "{va} + {vb} vs {v0}");
         }

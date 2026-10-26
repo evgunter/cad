@@ -48,9 +48,10 @@ fn a1_perturbed_value_flows_to_reexport() {
     let v = topo::mass_properties(
         &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .volume;
+    .enclosure.volume;
     let expected = 4.0 / 3.0 * std::f64::consts::PI * 1.25f64.powi(3);
     assert!(
         (v - expected).abs() < 1e-9,
@@ -86,6 +87,7 @@ fn a1_small_perturbation_breaks_row1_tolerance() {
     let props = topo::mass_properties(
         &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap();
     let expect = common::expect_sidecar("ball");
@@ -93,14 +95,14 @@ fn a1_small_perturbation_breaks_row1_tolerance() {
     // Row-1 tolerance for ball (the tightened KERNEL_VOLUME_MM3 form —
     // roundtrip.rs derives it): pad + native pad + (2×faces + 2) = 6
     // ulps; no print-precision term, the literal is full precision.
-    let tol = props.volume_pad
+    let tol = props.enclosure.volume_pad
         + expect.kernel_volume_pad_mm3 * 1e-9
         + 6.0 * (expected.next_up() - expected);
-    let dev = (props.volume - expected).abs();
+    let dev = (props.enclosure.volume - expected).abs();
     assert!(
         dev > tol,
         "a 1e-7 radius error must exceed the row tolerance: dev {dev} vs tol {tol} (pad {})",
-        props.volume_pad
+        props.enclosure.volume_pad
     );
 }
 
@@ -224,15 +226,17 @@ fn d4_reversed_data_lines_still_assemble() {
     let v1 = topo::mass_properties(
         &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .volume;
+    .enclosure.volume;
     let v2 = topo::mass_properties(
         &topo::test_support::finished("the measured body", reference.clone(), Tol::witness()),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .volume;
+    .enclosure.volume;
     assert_eq!(v1.to_bits(), v2.to_bits());
     let e1 = export(&body, "die");
     let body2 = solid(&e1, "reversed die reimport");
@@ -269,15 +273,17 @@ fn d4_renumbered_kiss_assembly_still_assembles() {
     let v1 = topo::mass_properties(
         &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .volume;
+    .enclosure.volume;
     let v2 = topo::mass_properties(
         &topo::test_support::finished("the measured body", reference.clone(), Tol::witness()),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .volume;
+    .enclosure.volume;
     assert_eq!(v1.to_bits(), v2.to_bits());
     let e1 = export(&body, "kiss_assembly");
     let body2 = solid(&e1, "renumbered kiss reimport");
@@ -346,9 +352,10 @@ fn f6_reversed_face_unflip_is_not_healed() {
             let v = topo::mass_properties(
                 &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
                 Tol::witness(),
+                topo::test_support::pinned_resolution(Tol::witness()),
             )
             .unwrap()
-            .volume;
+            .enclosure.volume;
             let v0 = topo::mass_properties(
                 &topo::test_support::finished(
                     "the measured body",
@@ -356,9 +363,10 @@ fn f6_reversed_face_unflip_is_not_healed() {
                     Tol::witness(),
                 ),
                 Tol::witness(),
+                topo::test_support::pinned_resolution(Tol::witness()),
             )
             .unwrap()
-            .volume;
+            .enclosure.volume;
             // Finding data, not a hard assert: tier-3 detectability of a
             // curved-face sense flip is kernel scope, not import scope.
             println!(
@@ -493,16 +501,18 @@ fn g7_nonunit_vector_rescales_without_moving_the_solid() {
     assert_eq!(
         topo::mass_properties(
             &topo::test_support::finished("the measured body", (a).clone(), Tol::witness()),
-            Tol::witness()
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
-        .volume,
+        .enclosure.volume,
         topo::mass_properties(
             &topo::test_support::finished("the measured body", (b).clone(), Tol::witness()),
-            Tol::witness()
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
-        .volume,
+        .enclosure.volume,
         "the line's parameter scale is not the line"
     );
     for bad in ["0.0", "-2.0"] {
@@ -565,9 +575,10 @@ fn e5_closed_forms() {
     let v = topo::mass_properties(
         &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .volume;
+    .enclosure.volume;
     let expected: f64 = 987904868.2836792e-9;
     let ulp = expected.next_up() - expected;
     println!(
@@ -575,10 +586,11 @@ fn e5_closed_forms() {
         (v - expected).abs() / ulp,
         topo::mass_properties(
             &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
-            Tol::witness()
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
-        .volume_pad
+        .enclosure.volume_pad
     );
 }
 
@@ -604,9 +616,10 @@ fn h8_eps_in_not_consumed() {
         let v = topo::mass_properties(
             &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
-        .volume;
+        .enclosure.volume;
         assert_eq!(
             v.to_bits(),
             1.0f64.to_bits(),

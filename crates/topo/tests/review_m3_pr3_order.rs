@@ -45,16 +45,18 @@ fn tilted_plane_f64_and_replay() {
         mass_properties(
             &topo::test_support::finished("the measured body", (above).clone(), Tol::witness()),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
-        .volume,
+        .enclosure.volume,
         mass_properties(
             &topo::test_support::finished("the measured body", (below).clone(), Tol::witness()),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
-        .volume,
-        mass_properties(&fx, Tol::witness()).unwrap().volume,
+        .enclosure.volume,
+        mass_properties(&fx, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap().enclosure.volume,
     );
     assert!((vb - 2.0).abs() < 1e-9, "below {vb}");
     assert!((va + vb - v0).abs() <= 1e-12 * v0);
@@ -133,9 +135,10 @@ fn orientation_flip_swaps_sides_only() {
                 Tol::witness(),
             ),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
-        .volume
+        .enclosure.volume
     };
     assert!((vol(&r1.above) - vol(&r2.below)).abs() < 1e-12);
     assert!((vol(&r1.below) - vol(&r2.above)).abs() < 1e-12);

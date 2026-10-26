@@ -295,15 +295,15 @@ fn check(
     if !volume {
         return Ok(());
     }
-    let m = match topo::test_support::unmigrated_measure(body, tol()) {
+    let m = match topo::test_support::unmigrated_measure(body, tol(), topo::test_support::pinned_resolution(tol())) {
         Ok(m) => m,
         Err(e) if near && in_band(&e) => return Ok(()),
         Err(e) => return Err(format!("the volume: {e:?}")),
     };
-    if (m.volume - closed).abs() > m.volume_pad + 1e-9 * closed.max(1.0) {
+    if (m.enclosure.volume - closed).abs() > m.enclosure.volume_pad + 1e-9 * closed.max(1.0) {
         return Err(format!(
             "volume {} ± {}, closed form {closed}",
-            m.volume, m.volume_pad
+            m.enclosure.volume, m.enclosure.volume_pad
         ));
     }
     Ok(())

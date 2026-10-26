@@ -5156,6 +5156,20 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &["node_error_tag"],
     },
     TagEntry {
+        function: "mass_props_error_tag",
+        values: &[
+            "band",
+            "certificate_of_another_body",
+            "corrupt",
+            "face",
+            "null_scaffold_edge",
+            "poisoned",
+            "resolution_finer_than_eps",
+            "ring_on_curved_face",
+        ],
+        delegates: &[],
+    },
+    TagEntry {
         function: "mc_refusal_tag",
         values: &["no_samples", "nominal_does_not_build"],
         delegates: &["measure_unavailable_tag"],

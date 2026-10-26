@@ -90,9 +90,9 @@ fn graft_onto(dst: &mut Body<f64>, target: SolidKey, src: &Body<f64>) {
 fn positive_total(body: &Body<f64>) {
     // Raw door: the measured body is wound or filed against its roles, which tier 3 refuses (ShellWinding, NegativeVolume, SolidOuterShells).
     assert!(
-        topo::test_support::measure_unvalidated(body, tol())
+        topo::test_support::measure_unvalidated(body, tol(), topo::test_support::pinned_resolution(tol()))
             .expect("the body measures")
-            .volume
+            .enclosure.volume
             > 0.0,
         "the premise: the total is positive, so check 7 alone would pass"
     );
@@ -280,7 +280,7 @@ fn small(body: &Body<f64>, candidates: &[ShellKey]) -> ShellKey {
     assert_eq!(classes.len(), 2, "two candidates");
     classes
         .iter()
-        .min_by(|a, b| a.volume.abs().total_cmp(&b.volume.abs()))
+        .min_by(|a, b| a.enclosure.volume.abs().total_cmp(&b.enclosure.volume.abs()))
         .expect("two candidates")
         .shell
 }

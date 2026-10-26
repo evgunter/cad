@@ -6,6 +6,7 @@ declares unrepresentable, plus the typed-quantity boundary.
 """
 
 from pncad import (
+    Settle,
     MeasurePrimitive,
     AssertionRelation,
     AnalysisPolicy,
@@ -670,7 +671,7 @@ except StlError as _stl:
 # reaching past the field it wanted.
 _import = import_step("ISO-10303-21;\nEND-ISO-10303-21;\n")
 _as_body: Body = _import  # ty: error
-_measured = _import.mass_properties()  # ty: error
+_measured = _import.mass_properties(Settle.sign())  # ty: error
 
 # And a report is FROZEN, like every other value on this surface: the
 # import is restated by importing again, never by editing one in place.

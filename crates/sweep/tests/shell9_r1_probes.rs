@@ -266,21 +266,21 @@ fn check_result(what: &str, body: &Body<f64>, want: f64, tol_abs: f64) {
     let roles = topo::test_support::unmigrated_classify(body, tol()).expect("classifies");
     let outers = roles.iter().filter(|c| c.role == ShellRole::Outer).count();
     let voids = roles.iter().filter(|c| c.role == ShellRole::Void).count();
-    let props = topo::test_support::unmigrated_measure(body, tol()).expect("props");
+    let props = topo::test_support::unmigrated_measure(body, tol(), topo::test_support::pinned_resolution(tol())).expect("props");
     let rows = body.pcurves().count();
     println!(
         "[r1e2e] {what}: solids {} shells {} (outer {outers}, void {voids}) faces {} rows {rows} volume {} pad {} want {want} diff {:e}",
         body.solids().count(),
         body.shells().count(),
         body.faces().count(),
-        props.volume,
-        props.volume_pad,
-        props.volume - want
+        props.enclosure.volume,
+        props.enclosure.volume_pad,
+        props.enclosure.volume - want
     );
     assert!(
-        (props.volume - want).abs() <= tol_abs + props.volume_pad,
+        (props.enclosure.volume - want).abs() <= tol_abs + props.enclosure.volume_pad,
         "{what}: volume {} vs {want}",
-        props.volume
+        props.enclosure.volume
     );
     let mesh = mesh::tessellate(body, 1e-3, tol()).expect("tessellates");
     mesh::validate::check_mesh(&mesh).expect("watertight");

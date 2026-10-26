@@ -323,9 +323,9 @@ fn two_chords_of_one_seam_are_told_apart_by_their_ends() {
 }
 
 fn volume(body: &topo::Body<f64>) -> f64 {
-    topo::test_support::unmigrated_measure(body, Tol::witness())
+    topo::test_support::unmigrated_measure(body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
         .expect("mass")
-        .volume
+        .enclosure.volume
 }
 
 /// **A bar through a sunk boss passes the chord rule and refuses at the

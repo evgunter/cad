@@ -39,9 +39,9 @@ fn split_of(
 fn volume(side: &SplitSide<f64>) -> Option<f64> {
     match side {
         SplitSide::Body(b) => Some(
-            topo::test_support::unmigrated_measure(b, Tol::witness())
+            topo::test_support::unmigrated_measure(b, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
                 .unwrap()
-                .volume,
+                .enclosure.volume,
         ),
         SplitSide::Empty => None,
     }

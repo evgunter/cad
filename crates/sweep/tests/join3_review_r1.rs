@@ -66,9 +66,9 @@ fn tool(plane: SketchPlane<f64>, chain: &[(f64, f64, f64)], h: f64) -> Option<Bo
 }
 
 fn volume(b: &Body<f64>) -> Option<f64> {
-    topo::test_support::unmigrated_measure(b, tol())
+    topo::test_support::unmigrated_measure(b, tol(), topo::test_support::pinned_resolution(tol()))
         .ok()
-        .map(|m| m.volume)
+        .map(|m| m.enclosure.volume)
 }
 
 fn verdict(r: Result<topo::BooleanResult<f64>, topo::BooleanError>, want: f64) -> String {

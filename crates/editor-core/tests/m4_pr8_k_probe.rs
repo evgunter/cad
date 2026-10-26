@@ -84,7 +84,7 @@ fn run_doc(d: &corpus::CorpusDoc) -> Vec<MarginSample> {
         let body = body_of(&ev, result);
         validate(body).expect("tier 1");
         validate_closed(body).expect("closed");
-        topo::test_support::unmigrated_measure(body, Tol::witness()).expect("mass properties");
+        topo::test_support::unmigrated_measure(body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).expect("mass properties");
     }
     k_stats::take_samples()
 }
@@ -464,8 +464,8 @@ fn probe_agrees_with_f64_bit_for_bit_over_the_corpus() {
             && matches!(ev_f.result(result), Some(NodeResult::Ok(_)))
         {
             let tol = Tol::witness();
-            let mf = topo::test_support::unmigrated_measure(body_of(&ev_f, result), tol);
-            let mp = topo::test_support::unmigrated_measure(body_of(&ev_p, result), tol);
+            let mf = topo::test_support::unmigrated_measure(body_of(&ev_f, result), tol, topo::test_support::pinned_resolution(tol));
+            let mp = topo::test_support::unmigrated_measure(body_of(&ev_p, result), tol, topo::test_support::pinned_resolution(tol));
             match (&mf, &mp) {
                 (Ok(a), Ok(b)) => {
                     let (ha, wa) = props_digest(a);

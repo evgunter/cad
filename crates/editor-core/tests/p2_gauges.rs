@@ -683,14 +683,14 @@ fn a_loose_copy_is_gathered_and_measured_against_nothing_outside_it() {
     let doc = set_pin(doc, top, None, &o);
     let ev = run(&doc, &o);
     let world = |id| {
-        topo::test_support::unmigrated_measure(body_of(&ev, id).as_ref(), Tol::witness())
+        topo::test_support::unmigrated_measure(body_of(&ev, id).as_ref(), Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
             .expect("mass properties")
-            .volume
+            .enclosure.volume
     };
     let gathered = product(&doc, &ev, Tol::witness()).expect("the world gathers");
-    let volume = topo::test_support::unmigrated_measure(&gathered, Tol::witness())
+    let volume = topo::test_support::unmigrated_measure(&gathered, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
         .expect("mass properties")
-        .volume;
+        .enclosure.volume;
     assert_eq!(
         volume.to_bits(),
         world(base).to_bits(),
@@ -998,9 +998,10 @@ fn inline_lands_verbatim_at_the_identity_and_composes_the_values_at_any_other_po
         topo::test_support::unmigrated_measure(
             &product(d, &run(d, &o), Tol::witness()).expect("gathers"),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .expect("mass properties")
-        .volume
+        .enclosure.volume
     };
     assert_eq!(volume(&back_doc).to_bits(), volume(&doc).to_bits());
 

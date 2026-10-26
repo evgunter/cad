@@ -40,6 +40,7 @@ from pncad import (
     evaluate,
     m,
 )
+from measuring import pinned
 
 L, H, T = 1.0, 1.0, 0.125
 H_BUMPED, T_BUMPED = 1.5, 0.25
@@ -86,7 +87,7 @@ def cup(doc, side=L, h=H, t=T):
 
 
 def mass(doc, node):
-    return evaluate(doc).value(node).body().mass_properties()
+    return pinned(evaluate(doc).value(node).body())
 
 
 class TestCup(unittest.TestCase):
@@ -96,7 +97,7 @@ class TestCup(unittest.TestCase):
         body = evaluate(doc).value(hollow).body()
         body.validate()
         want_v, want_a = closed_forms(L, H, T)
-        props = body.mass_properties()
+        props = pinned(body)
         self.assertEqual(props.volume, want_v)
         self.assertEqual(props.surface_area, want_a)
         # Five outer faces, the rim annulus, five cavity faces.
@@ -109,7 +110,7 @@ class TestCup(unittest.TestCase):
         body = evaluate(doc).value(sealed).body()
         body.validate()
         inner = L - 2 * T
-        self.assertEqual(body.mass_properties().volume, L * L * H - inner * inner * (H - 2 * T))
+        self.assertEqual(pinned(body).volume, L * L * H - inner * inner * (H - 2 * T))
         # Two complete boxes: no rim was minted.
         ev = evaluate(doc)
         self.assertEqual(len(ev.all_faces(sealed)), 12)
@@ -163,7 +164,7 @@ class TestCup(unittest.TestCase):
         )
 
         ev = evaluate(doc)
-        props = ev.value(hollow).body().mass_properties()
+        props = pinned(ev.value(hollow).body())
         want_v, want_a = closed_forms(L, H_BUMPED, T_BUMPED)
         self.assertEqual(props.volume, want_v)
         self.assertEqual(props.surface_area, want_a)
@@ -191,7 +192,7 @@ class TestCup(unittest.TestCase):
             self.assertEqual(
                 (verdict.status, verdict.variant), ("failed", "node_gone"), name
             )
-        props = ev2.value(hollow2).body().mass_properties()
+        props = pinned(ev2.value(hollow2).body())
         want_v, want_a = closed_forms(L, H_BUMPED, T_BUMPED)
         self.assertEqual(props.volume, want_v)
         self.assertEqual(props.surface_area, want_a)

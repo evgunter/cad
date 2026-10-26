@@ -44,12 +44,13 @@ fn main() {
                     &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&swept.body), tol)
                         .expect("the measured body passes tier 3"),
                     tol,
+                    topo::test_support::pinned_resolution(tol),
                 )
                 .expect("props");
                 println!(
                     "{stations} stations: swept volume {} ± {:.1e}; validate {:?}",
-                    m.volume,
-                    m.volume_pad,
+                    m.enclosure.volume,
+                    m.enclosure.volume_pad,
                     pncad::topo::validate_closed(&swept.body)
                 );
             }
@@ -102,12 +103,13 @@ fn main() {
         &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&loft.body), tol)
             .expect("the measured body passes tier 3"),
         tol,
+        topo::test_support::pinned_resolution(tol),
     )
     .expect("props");
     println!(
         "rolled loft volume {} ± {:.1e}; validate {:?}",
-        ml.volume,
-        ml.volume_pad,
+        ml.enclosure.volume,
+        ml.enclosure.volume_pad,
         pncad::topo::validate_closed(&loft.body)
     );
     let mut drift = 0.0f64;

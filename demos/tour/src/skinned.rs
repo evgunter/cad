@@ -586,8 +586,14 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         "the stop's note narrates V = 9 m³ exactly; these sections (flare d = {flare}) \
          now give {narrated}, so the note is wrong before the kernel is asked"
     );
-    let prism_props = pncad::topo::mass_properties(&crate::booleans::at_rest(&prism, tol), tol)
-        .expect("the prism has a volume");
+    // The pad bound below is a claim about the kernel's precision: a
+    // half-width of 1e-9 m³ over the prism's ~25 m² is a mean
+    // displacement under ε, so it asks for the finest width offered, ε,
+    // and the bound reads where the faces' own floor falls.
+    let finest = pncad::topo::Settle::Resolution(pncad::quantity::Length::from_meters(tol.eps()));
+    let prism_props =
+        pncad::topo::mass_properties(&crate::booleans::at_rest(&prism, tol), tol, finest)
+            .expect("the prism has a volume");
     // The enclosure is asked to BRACKET the derivation — and is
     // bounded from above first, because `volume_pad` is the props
     // door's own certified half-width with nothing constraining it:
@@ -598,18 +604,18 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // has stopped saying anything about a 9 m³ solid.
     const PRISM_PAD_MAX: f64 = 1e-9;
     assert!(
-        prism_props.volume_pad <= PRISM_PAD_MAX,
+        prism_props.enclosure.volume_pad <= PRISM_PAD_MAX,
         "loft_prism's certified volume enclosure widened to ± {} (> {PRISM_PAD_MAX:e}): \
          the bracket check below stops meaning anything at that width",
-        prism_props.volume_pad
+        prism_props.enclosure.volume_pad
     );
     assert!(
-        (prism_props.volume - narrated).abs() <= prism_props.volume_pad,
+        (prism_props.enclosure.volume - narrated).abs() <= prism_props.enclosure.volume_pad,
         "the skin changed: loft_prism's V = {} ± {} no longer brackets the {narrated} m³ \
          its own sections derive (the derivation is this stop's note, and \
          sweep/tests/m6_loft_body.rs derives the same number for the corpus fixture)",
-        prism_props.volume,
-        prism_props.volume_pad
+        prism_props.enclosure.volume,
+        prism_props.enclosure.volume_pad
     );
     // Montage-v2 spacing: z = 0/0.15/2, not the corpus fixture's
     // 0/1/3. Measured on the #218 sheet, 0/1/3 was invisible as a
@@ -726,15 +732,15 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         "each twisted strut runs from c_k to c_(k+1): the top square starts one corner on"
     );
     let twist_props =
-        pncad::topo::mass_properties(&crate::booleans::at_rest(&twisted_at_origin, tol), tol)
+        pncad::topo::mass_properties(&crate::booleans::at_rest(&twisted_at_origin, tol), tol, finest)
             .expect("the twisted loft has a volume");
     assert!(
-        twist_props.volume_pad <= PRISM_PAD_MAX
-            && (twist_props.volume - twist_narrated).abs() <= twist_props.volume_pad,
+        twist_props.enclosure.volume_pad <= PRISM_PAD_MAX
+            && (twist_props.enclosure.volume - twist_narrated).abs() <= twist_props.enclosure.volume_pad,
         "twisted_loft's V = {} ± {} does not bracket the {twist_narrated} m³ its \
          correspondence derives",
-        twist_props.volume,
-        twist_props.volume_pad
+        twist_props.enclosure.volume,
+        twist_props.enclosure.volume_pad
     );
     let twisted = pncad::topo::transform_rigid(
         &twisted_at_origin,
@@ -1116,12 +1122,12 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // the ratio of the areas is constant along the spine and comes
     // straight out of the integral: 1 − (TUBE_IN/TUBE_OUT)² = 16/25,
     // whatever the spine does.
-    let v_tube = pncad::topo::mass_properties(&crate::booleans::at_rest(&twisted_tube, tol), tol)
+    let v_tube = pncad::topo::mass_properties(&crate::booleans::at_rest(&twisted_tube, tol), tol, crate::printed())
         .expect("the tube has a volume")
-        .volume;
-    let v_solid = pncad::topo::mass_properties(&crate::booleans::at_rest(&twisted_solid, tol), tol)
+        .enclosure.volume;
+    let v_solid = pncad::topo::mass_properties(&crate::booleans::at_rest(&twisted_solid, tol), tol, crate::printed())
         .expect("the solid twin has a volume")
-        .volume;
+        .enclosure.volume;
     let hollow_ratio = 1.0 - (TUBE_IN / TUBE_OUT) * (TUBE_IN / TUBE_OUT);
     assert!(
         ((v_tube - hollow_ratio * v_solid) / v_tube).abs() < 1e-12,

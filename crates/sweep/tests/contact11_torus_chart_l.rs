@@ -37,7 +37,7 @@ fn a_notched_half_donut_answers_its_volume() {
     let b = &r.body().expect("non-empty").body;
     assert_eq!(topo::validate_geometric(b, Tol::witness()), Ok(()));
     let pi2 = core::f64::consts::PI.powi(2);
-    let v = topo::mass_properties(b, Tol::witness()).unwrap().volume;
+    let v = topo::mass_properties(b, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap().enclosure.volume;
     let want = 3.0 * pi2 / 8.0;
     assert!(
         (v - want).abs() <= want * 1e-9_f64.max(1e3 * Tol::witness().eps()),

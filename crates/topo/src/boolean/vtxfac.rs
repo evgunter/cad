@@ -4261,7 +4261,7 @@ mod tests {
             let volume = |r: Result<crate::BooleanResult<f64>, BooleanError>| {
                 r.unwrap()
                     .body()
-                    .map_or(0.0, |b| mass_properties(&b.body, tol).unwrap().volume)
+                    .map_or(0.0, |b| mass_properties(&b.body, tol, crate::test_support::pinned_resolution(tol)).unwrap().enclosure.volume)
             };
             volumes.push([
                 volume(crate::union(&body, &cube, tol)),

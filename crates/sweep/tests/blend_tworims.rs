@@ -94,9 +94,9 @@ fn one_rim(body: &Body<f64>, sel: (f64, f64)) -> EdgeKey {
 }
 
 fn volume(body: &Body<f64>) -> f64 {
-    let p = topo::test_support::unmigrated_measure(body, tol()).expect("mass properties");
-    assert_eq!(p.volume_pad, 0.0, "closed-form faces only");
-    p.volume
+    let p = topo::test_support::unmigrated_measure(body, tol(), topo::test_support::pinned_resolution(tol())).expect("mass properties");
+    assert_eq!(p.enclosure.volume_pad, 0.0, "closed-form faces only");
+    p.enclosure.volume
 }
 
 /// Fillet the lantern's rims one call per rim, in the given selector

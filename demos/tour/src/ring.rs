@@ -283,19 +283,19 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // torus would fail.
     // Finished once: the props and the shell roles below both read it.
     let ring_at_rest = crate::booleans::at_rest(&ring.body, tol);
-    let props = pncad::topo::mass_properties(&ring_at_rest, tol).expect("mass properties");
+    let props = pncad::topo::mass_properties(&ring_at_rest, tol, crate::printed()).expect("mass properties");
     let v_solid = 2.0 * PI * PI * R * RO * RO;
     let v_want = 2.0 * PI * PI * R * (RO * RO - RI * RI);
     let a_want = 4.0 * PI * PI * R * (RO + RI);
     assert!(
-        ((props.volume - v_want) / v_want).abs() < 1e-12,
+        ((props.enclosure.volume - v_want) / v_want).abs() < 1e-12,
         "V = {} vs the closed form {v_want}",
-        props.volume
+        props.enclosure.volume
     );
     assert!(
-        ((props.surface_area - a_want) / a_want).abs() < 1e-12,
+        ((props.enclosure.surface_area - a_want) / a_want).abs() < 1e-12,
         "A = {} vs the closed form {a_want}",
-        props.surface_area
+        props.enclosure.surface_area
     );
 
     // And per shell (finding 2 above, executed): the `Void`-role shell
@@ -314,11 +314,11 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     );
     let v_bore = 2.0 * PI * PI * R * RI * RI;
     assert!(
-        ((voids[0].volume + v_bore) / v_bore).abs() < 1e-12,
+        ((voids[0].enclosure.volume + v_bore) / v_bore).abs() < 1e-12,
         "bore volume {} vs the closed form -{v_bore}",
-        voids[0].volume
+        voids[0].enclosure.volume
     );
-    assert_eq!(props.volume_pad, 0.0, "closed forms need no pad");
+    assert_eq!(props.enclosure.volume_pad, 0.0, "closed forms need no pad");
 
     let bore = v_solid - v_want;
     let (v, e, f) = (
@@ -347,10 +347,10 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         (2, v, e, f),
         "the recipe layer carries the hole through to the same verb"
     );
-    let doc_props = pncad::topo::mass_properties(&crate::booleans::at_rest(&doc_ring, tol), tol)
+    let doc_props = pncad::topo::mass_properties(&crate::booleans::at_rest(&doc_ring, tol), tol, crate::printed())
         .expect("recipe mass properties");
     assert_eq!(
-        doc_props.volume, props.volume,
+        doc_props.enclosure.volume, props.enclosure.volume,
         "the two doors build the same solid, not merely the same census"
     );
 
@@ -393,9 +393,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
              — one profile whose loop list is [Circle(rₒ), Circle(rᵢ)], and \
              Revolve(2π) — comes back with the same shells, the same {v}/{e}/{f} and a \
              bit-equal volume, so the hole reaches the verb through the document too",
-            props.volume,
+            props.enclosure.volume,
             100.0 * bore / v_solid,
-            props.surface_area
+            props.enclosure.surface_area
         )),
         view: View {
             elev: 24.0,

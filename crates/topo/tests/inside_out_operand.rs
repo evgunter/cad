@@ -164,7 +164,7 @@ fn the_counterclockwise_wedge_answers_the_true_volumes() {
         let Ok(BooleanResult::Body(out)) = op(&brick, &prism, tol) else {
             panic!("{name}: the outward wedge builds");
         };
-        let got = mass_properties(&out.body, tol).unwrap().volume;
+        let got = mass_properties(&out.body, tol, topo::test_support::pinned_resolution(tol)).unwrap().enclosure.volume;
         assert!(
             (got - want).abs() < 1e-12,
             "{name}: volume {got}, want {want}"
@@ -219,9 +219,9 @@ fn an_inside_out_part_beside_an_ordinary_one_refuses() {
     common::describe_as_intersections(&mut parts, tol);
     // Raw door: the measured body is an inside-out body, which tier 3 refuses (NegativeVolume).
     assert!(
-        topo::test_support::measure_unvalidated(&parts, tol)
+        topo::test_support::measure_unvalidated(&parts, tol, topo::test_support::pinned_resolution(tol))
             .unwrap()
-            .volume
+            .enclosure.volume
             > 0.0,
         "the body's total is positive, so it hides the part's sign"
     );

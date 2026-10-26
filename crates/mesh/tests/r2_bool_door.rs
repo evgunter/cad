@@ -57,9 +57,9 @@ fn r2_bool_door_near_pole() {
                 // `y = y0`.
                 let h = 1.0 - y0;
                 let want = (4.0 / 3.0 - h * h * (3.0 - h) / 3.0) * core::f64::consts::PI / 2.0;
-                let got = topo::mass_properties(&b, Tol::witness())
+                let got = topo::mass_properties(&b, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
                     .unwrap_or_else(|e| panic!("rho={rho:.3e}: mass properties, got {e:?}"))
-                    .volume;
+                    .enclosure.volume;
                 assert!(
                     (got - want).abs() <= 1e-9,
                     "rho={rho:.3e}: volume {got} against the closed form {want}"

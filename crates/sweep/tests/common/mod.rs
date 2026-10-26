@@ -628,7 +628,7 @@ pub fn tilted_cut_cylinder(above: bool) -> Body<f64> {
     let topo::splitting::SplitPart::Body(half) = part else {
         panic!("each half carries material");
     };
-    let v = topo::mass_properties(&half, tol).expect("props").volume;
+    let v = topo::mass_properties(&half, tol, topo::test_support::pinned_resolution(tol)).expect("props").enclosure.volume;
     assert!(
         (v - core::f64::consts::PI * 1.25).abs() < TILTED_CUT_WALL_VOLUME,
         "the plane halves the cylinder: {v}"

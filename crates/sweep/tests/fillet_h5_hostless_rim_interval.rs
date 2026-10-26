@@ -84,7 +84,7 @@ fn the_hostless_rim_carves_at_the_certified_scalar_on_both_material_sides() {
     ] {
         let arcs = rim_arcs_at(&source, rim.0, rim.1);
         assert_full_revolve_rim(&arcs, name);
-        let p0 = topo::test_support::unmigrated_measure(&source, tol()).expect("interval props");
+        let p0 = topo::test_support::unmigrated_measure(&source, tol(), topo::test_support::pinned_resolution(tol())).expect("interval props");
 
         let out = fillet_edges(
             &sweep::test_support::at_rest(&source, tol()),
@@ -96,9 +96,9 @@ fn the_hostless_rim_carves_at_the_certified_scalar_on_both_material_sides() {
         assert_eq!(out.band_faces.len(), 1, "{name}: one annulus band");
         validate_geometric(&out.body, tol())
             .unwrap_or_else(|e| panic!("{name}: tier-3 valid at Interval, got {e:?}"));
-        let p1 = topo::test_support::unmigrated_measure(&out.body, tol()).expect("interval props");
+        let p1 = topo::test_support::unmigrated_measure(&out.body, tol(), topo::test_support::pinned_resolution(tol())).expect("interval props");
         assert_eq!(
-            p1.volume_pad, 0.0,
+            p1.enclosure.volume_pad, 0.0,
             "{name}: every face of the carve is closed-form"
         );
 
@@ -109,29 +109,29 @@ fn the_hostless_rim_carves_at_the_certified_scalar_on_both_material_sides() {
         let fill = wedge_fill(k, da, db, r);
         let delta = if adds { fill } else { -fill };
         assert!(
-            p0.volume.hi() - p0.volume.lo() < 1e-12,
+            p0.enclosure.volume.hi() - p0.enclosure.volume.lo() < 1e-12,
             "{name}: the source's own enclosure is a point"
         );
-        assert_brackets(p1.volume, p0.volume.lo() + delta, name);
+        assert_brackets(p1.enclosure.volume, p0.enclosure.volume.lo() + delta, name);
         // And the SIGN is DEFINITE on whichever side this fixture is —
         // the two directions need different comparisons, and asserting
         // only the adding one would let a straddle pass on the removing
         // side (the enclosures must not overlap either way).
         if adds {
             assert!(
-                p1.volume.lo() - p0.volume.hi() > 0.0,
+                p1.enclosure.volume.lo() - p0.enclosure.volume.hi() > 0.0,
                 "{name}: the concave band definitely ADDS material \
                  ({:?} vs {:?})",
-                p1.volume,
-                p0.volume
+                p1.enclosure.volume,
+                p0.enclosure.volume
             );
         } else {
             assert!(
-                p0.volume.lo() - p1.volume.hi() > 0.0,
+                p0.enclosure.volume.lo() - p1.enclosure.volume.hi() > 0.0,
                 "{name}: the convex band definitely REMOVES material \
                  ({:?} vs {:?})",
-                p1.volume,
-                p0.volume
+                p1.enclosure.volume,
+                p0.enclosure.volume
             );
         }
     }
@@ -153,9 +153,9 @@ fn the_plane_sphere_hostless_carve_brackets_its_closed_form_at_the_certified_sca
     ));
     let arcs = rim_arcs_at(&source, 1.0, 0.0);
     assert_full_revolve_rim(&arcs, "the repaired equator");
-    let p0 = topo::test_support::unmigrated_measure(&source, tol()).expect("interval props");
+    let p0 = topo::test_support::unmigrated_measure(&source, tol(), topo::test_support::pinned_resolution(tol())).expect("interval props");
     assert!(
-        p0.volume.hi() - p0.volume.lo() < 1e-12,
+        p0.enclosure.volume.hi() - p0.enclosure.volume.lo() < 1e-12,
         "the source's own enclosure is a point"
     );
 
@@ -168,19 +168,19 @@ fn the_plane_sphere_hostless_carve_brackets_its_closed_form_at_the_certified_sca
     .unwrap_or_else(|e| panic!("the repaired equator carves at Interval, got {e:?}"));
     assert_eq!(out.band_faces.len(), 1, "one annulus band");
     validate_geometric(&out.body, tol()).expect("tier-3 valid at Interval");
-    let p1 = topo::test_support::unmigrated_measure(&out.body, tol()).expect("interval props");
-    assert_eq!(p1.volume_pad, 0.0, "closed-form faces only");
+    let p1 = topo::test_support::unmigrated_measure(&out.body, tol(), topo::test_support::pinned_resolution(tol())).expect("interval props");
+    assert_eq!(p1.enclosure.volume_pad, 0.0, "closed-form faces only");
 
     let removed = plane_sphere_cut(1.0, r);
     assert_brackets(
-        p1.volume,
-        p0.volume.lo() - removed,
+        p1.enclosure.volume,
+        p0.enclosure.volume.lo() - removed,
         "the plane-sphere hostless carve",
     );
     assert!(
-        p0.volume.lo() - p1.volume.hi() > 0.0,
+        p0.enclosure.volume.lo() - p1.enclosure.volume.hi() > 0.0,
         "the convex band definitely REMOVES material ({:?} below {:?})",
-        p1.volume,
-        p0.volume
+        p1.enclosure.volume,
+        p0.enclosure.volume
     );
 }

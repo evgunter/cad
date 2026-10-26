@@ -387,12 +387,12 @@ fn nonuniform_prism_loft_body_matches_the_derived_volume() {
         Ok(()),
         "tier 3 at rest"
     );
-    let m = topo::test_support::unmigrated_measure(body, Tol::witness()).expect("mass properties");
+    let m = topo::test_support::unmigrated_measure(body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).expect("mass properties");
     assert!(
-        (m.volume - 12.0).abs() <= m.volume_pad + 1e-9,
+        (m.enclosure.volume - 12.0).abs() <= m.enclosure.volume_pad + 1e-9,
         "volume {} ± {} must bracket the derived 12",
-        m.volume,
-        m.volume_pad
+        m.enclosure.volume,
+        m.enclosure.volume_pad
     );
 }
 
@@ -485,20 +485,20 @@ fn curved_path_sweep_body_builds_validates_and_brackets_pappus() {
         "tier 3 at rest"
     );
 
-    let m = topo::test_support::unmigrated_measure(body, Tol::witness()).expect("mass properties");
+    let m = topo::test_support::unmigrated_measure(body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).expect("mass properties");
     let pappus = (2.0 * ELBOW_H) * (2.0 * ELBOW_H) * ELBOW_R * FRAC_PI_2;
-    let rel = ((m.volume - pappus) / pappus).abs();
+    let rel = ((m.enclosure.volume - pappus) / pappus).abs();
     assert!(
         rel <= 1e-5,
         "swept volume {} vs Pappus {pappus} (rel {rel}) — the 9-station \
          discretization bracket",
-        m.volume
+        m.enclosure.volume
     );
     assert!(
-        m.volume_pad < 1e-9,
+        m.enclosure.volume_pad < 1e-9,
         "the certified enclosure must stay far tighter than the discretization \
          bracket, else the bracket is measuring the wrong thing (pad {})",
-        m.volume_pad
+        m.enclosure.volume_pad
     );
 }
 

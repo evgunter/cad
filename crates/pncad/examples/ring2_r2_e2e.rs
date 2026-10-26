@@ -31,20 +31,20 @@ fn main() {
         Err(errs) => println!("validate_geometric: {} error(s): {errs:?}", errs.len()),
     }
     let body = pncad::topo::AtRestBody::validate(body, tol).expect("the loft prism passes tier 3");
-    let m = mass_properties(&body, tol).expect("mass properties certify");
+    let m = mass_properties(&body, tol, topo::test_support::pinned_resolution(tol)).expect("mass properties certify");
     println!(
         "volume {:.17e} ({:#018x}) pad {:.17e} ({:#018x})",
-        m.volume,
-        m.volume.to_bits(),
-        m.volume_pad,
-        m.volume_pad.to_bits()
+        m.enclosure.volume,
+        m.enclosure.volume.to_bits(),
+        m.enclosure.volume_pad,
+        m.enclosure.volume_pad.to_bits()
     );
     println!(
         "area   {:.17e} ({:#018x}) pad {:.17e} ({:#018x})",
-        m.surface_area,
-        m.surface_area.to_bits(),
-        m.area_pad,
-        m.area_pad.to_bits()
+        m.enclosure.surface_area,
+        m.enclosure.surface_area.to_bits(),
+        m.enclosure.area_pad,
+        m.enclosure.area_pad.to_bits()
     );
     budget::arm(budget::Mode::Sizing);
     let mesh = tessellate(&body, 6e-3, tol).expect("tessellates");

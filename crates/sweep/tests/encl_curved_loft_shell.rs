@@ -781,24 +781,24 @@ fn a_moved_plane_meets_a_fitted_cap_along_their_certified_section() {
     let at_rest = topo::AtRestBody::validate(moved, Tol::witness())
         .unwrap_or_else(|e| panic!("the moved box passes tier 3: {e:?}"));
     let props =
-        topo::mass_properties(&at_rest, Tol::witness()).expect("the moved box has a volume");
+        topo::mass_properties(&at_rest, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).expect("the moved box has a volume");
     // The closed form is the box `(2 − T) × 2 × 1`, its cap a fit of the
     // plane `z = 1` within ε over an area under 4 m².
     let truth = (2.0 - THICKNESS) * 2.0;
-    let slack = props.volume_pad + 4.0 * Tol::witness().eps();
+    let slack = props.enclosure.volume_pad + 4.0 * Tol::witness().eps();
     assert!(
-        (props.volume - truth).abs() <= slack,
+        (props.enclosure.volume - truth).abs() <= slack,
         "the moved box's volume {} ± {} misses {truth}",
-        props.volume,
-        props.volume_pad
+        props.enclosure.volume,
+        props.enclosure.volume_pad
     );
     // And the bracket is tight: the cap floors at its first round, so
     // a pad that grew (a looser rule, a lost round) would make the
     // containment above vacuous. Measured 3.7e-14 at the default ε.
     assert!(
-        props.volume_pad <= 1e-12,
+        props.enclosure.volume_pad <= 1e-12,
         "the moved box's volume bracket widened to ± {}",
-        props.volume_pad
+        props.enclosure.volume_pad
     );
 }
 

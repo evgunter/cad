@@ -90,9 +90,9 @@ fn answer(ev: &Evaluation<f64>, id: RecipeNodeId) -> Option<(f64, usize, Boolean
     match &ev.value(id).expect("a value").payload {
         ValuePayload::Boolean(BooleanValue::Empty) => None,
         ValuePayload::Boolean(BooleanValue::Body { body, kind, .. }) => {
-            let volume = topo::test_support::unmigrated_measure(body, Tol::witness())
+            let volume = topo::test_support::unmigrated_measure(body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
                 .unwrap()
-                .volume;
+                .enclosure.volume;
             Some((volume, body.shells().count(), *kind))
         }
         other => panic!("node {} is a {}, not a boolean", id.0, other.kind_name()),
@@ -173,12 +173,12 @@ fn two_parts_of_one_copy_answer_under_every_op() {
         }
     }
     let copy =
-        topo::test_support::unmigrated_measure(crate::corpus::body_of(&ev, union), Tol::witness())
+        topo::test_support::unmigrated_measure(crate::corpus::body_of(&ev, union), Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
             .unwrap();
     assert!(
-        (copy.volume - 0.75).abs() < 1e-9,
+        (copy.enclosure.volume - 0.75).abs() < 1e-9,
         "the n-ary union is the copy: {}",
-        copy.volume
+        copy.enclosure.volume
     );
 }
 

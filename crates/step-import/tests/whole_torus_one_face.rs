@@ -104,18 +104,19 @@ fn the_whole_torus_is_one_face_cut_once_each_way() {
     let mp = topo::mass_properties(
         &topo::test_support::finished("the measured body", body.clone(), tol()),
         tol(),
+        topo::test_support::pinned_resolution(tol()),
     )
     .unwrap();
     let (volume, area) = (2.0 * PI * PI * R * MINOR * MINOR, 4.0 * PI * PI * R * MINOR);
     assert!(
-        (mp.volume - volume).abs() < 1e-12,
+        (mp.enclosure.volume - volume).abs() < 1e-12,
         "volume {} vs {volume}",
-        mp.volume
+        mp.enclosure.volume
     );
     assert!(
-        (mp.surface_area - area).abs() < 1e-12,
+        (mp.enclosure.surface_area - area).abs() < 1e-12,
         "area {} vs {area}",
-        mp.surface_area
+        mp.enclosure.surface_area
     );
     let chordal = 1e-3;
     let mesh = mesh::tessellate(&body, chordal, tol()).expect("the whole torus meshes");
@@ -179,7 +180,7 @@ fn the_whole_torus_answers_containment_and_a_disjoint_union() {
         Ok(()),
         "the union's tier 3"
     );
-    let v = topo::mass_properties(b, tol()).unwrap().volume;
+    let v = topo::mass_properties(b, tol(), topo::test_support::pinned_resolution(tol())).unwrap().enclosure.volume;
     let want = 2.0 * PI * PI * R * MINOR * MINOR + 1.0;
     assert!((v - want).abs() < 1e-12, "union volume {v} vs {want}");
 }

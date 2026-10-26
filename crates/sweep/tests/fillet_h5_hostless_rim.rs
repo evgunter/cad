@@ -36,9 +36,9 @@ fn tol() -> Tol {
 }
 
 fn volume(body: &Body<f64>) -> f64 {
-    topo::test_support::unmigrated_measure(body, tol())
+    topo::test_support::unmigrated_measure(body, tol(), topo::test_support::pinned_resolution(tol()))
         .expect("mass properties compute")
-        .volume
+        .enclosure.volume
 }
 
 /// The two faces an edge separates.
@@ -187,7 +187,7 @@ fn the_plane_hosted_rim_carves_on_either_material_side() {
         }
 
         let before =
-            topo::test_support::unmigrated_measure(body, tol()).expect("mass properties compute");
+            topo::test_support::unmigrated_measure(body, tol(), topo::test_support::pinned_resolution(tol())).expect("mass properties compute");
         let census = |b: &Body<f64>| {
             (
                 b.vertices().count() as i64,
@@ -219,13 +219,13 @@ fn the_plane_hosted_rim_carves_on_either_material_side() {
         assert_eq!(c0.0 - c0.1 + c0.2, 2, "{name}: the source is a sphere");
         assert_eq!(c1.0 - c1.1 + c1.2, 2, "{name}: and so is the carve");
 
-        let after = topo::test_support::unmigrated_measure(&out.body, tol())
+        let after = topo::test_support::unmigrated_measure(&out.body, tol(), topo::test_support::pinned_resolution(tol()))
             .expect("mass properties compute");
         assert_eq!(
-            after.volume_pad, 0.0,
+            after.enclosure.volume_pad, 0.0,
             "{name}: every face of the carve is closed-form"
         );
-        let delta = after.volume - before.volume;
+        let delta = after.enclosure.volume - before.enclosure.volume;
         assert_eq!(
             delta > 0.0,
             *concave,
@@ -421,14 +421,14 @@ fn the_hostless_carves_match_their_hand_closed_forms() {
         ),
     ] {
         let arcs = rim_arcs_at(&body, rim.0, rim.1);
-        let before = topo::test_support::unmigrated_measure(&body, tol()).unwrap();
+        let before = topo::test_support::unmigrated_measure(&body, tol(), topo::test_support::pinned_resolution(tol())).unwrap();
         let out = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &arcs, r, tol())
             .unwrap_or_else(|e| panic!("{name} carves, got {e:?}"));
         validate_geometric(&out.body, tol())
             .unwrap_or_else(|e| panic!("{name} tier-3 valid, got {e:?}"));
-        let after = topo::test_support::unmigrated_measure(&out.body, tol()).unwrap();
-        assert_eq!(after.volume_pad, 0.0, "{name}: closed-form faces only");
-        let measured = after.volume - before.volume;
+        let after = topo::test_support::unmigrated_measure(&out.body, tol(), topo::test_support::pinned_resolution(tol())).unwrap();
+        assert_eq!(after.enclosure.volume_pad, 0.0, "{name}: closed-form faces only");
+        let measured = after.enclosure.volume - before.enclosure.volume;
         let want = if adds {
             wedge_fill(k, da, db, r)
         } else {
@@ -501,8 +501,8 @@ fn a_hostless_rim_composes_with_a_shared_wall_neighbour() {
     .expect("the hostless neck and the shoulder carve in ONE call");
     validate_geometric(&one_call.body, tol()).expect("the one-call result is tier-3 valid");
     assert_eq!(one_call.band_faces.len(), 2, "one band per rim");
-    let one = topo::test_support::unmigrated_measure(&one_call.body, tol()).unwrap();
-    assert_eq!(one.volume_pad, 0.0, "closed-form faces only");
+    let one = topo::test_support::unmigrated_measure(&one_call.body, tol(), topo::test_support::pinned_resolution(tol())).unwrap();
+    assert_eq!(one.enclosure.volume_pad, 0.0, "closed-form faces only");
 
     for order in [[neck, shoulder], [shoulder, neck]] {
         let mut body = repaired(lantern(tol()));
@@ -513,14 +513,14 @@ fn a_hostless_rim_composes_with_a_shared_wall_neighbour() {
                 .body;
         }
         validate_geometric(&body, tol()).expect("the sequential result is tier-3 valid");
-        let seq = topo::test_support::unmigrated_measure(&body, tol()).unwrap();
+        let seq = topo::test_support::unmigrated_measure(&body, tol(), topo::test_support::pinned_resolution(tol())).unwrap();
         assert_eq!(
-            seq.volume_pad, 0.0,
+            seq.enclosure.volume_pad, 0.0,
             "closed-form faces only, order {order:?}"
         );
         assert_eq!(
-            one.volume.to_bits(),
-            seq.volume.to_bits(),
+            one.enclosure.volume.to_bits(),
+            seq.enclosure.volume.to_bits(),
             "the one-call result IS the sequential composition, bit for bit \
              (order {order:?})"
         );
@@ -570,14 +570,14 @@ fn the_plane_sphere_hostless_carve_matches_its_hand_closed_form() {
         ),
     ] {
         let arcs = rim_arcs_at(&body, 1.0, 0.0);
-        let before = topo::test_support::unmigrated_measure(&body, tol()).unwrap();
+        let before = topo::test_support::unmigrated_measure(&body, tol(), topo::test_support::pinned_resolution(tol())).unwrap();
         let out = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &arcs, r, tol())
             .unwrap_or_else(|e| panic!("{name} carves, got {e:?}"));
         validate_geometric(&out.body, tol())
             .unwrap_or_else(|e| panic!("{name} tier-3 valid, got {e:?}"));
-        let after = topo::test_support::unmigrated_measure(&out.body, tol()).unwrap();
-        assert_eq!(after.volume_pad, 0.0, "{name}: closed-form faces only");
-        let measured = before.volume - after.volume;
+        let after = topo::test_support::unmigrated_measure(&out.body, tol(), topo::test_support::pinned_resolution(tol())).unwrap();
+        assert_eq!(after.enclosure.volume_pad, 0.0, "{name}: closed-form faces only");
+        let measured = before.enclosure.volume - after.enclosure.volume;
         assert!(
             (measured - removed).abs() <= 1e-12 * removed,
             "{name}: the removed volume is the hand form \

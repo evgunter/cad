@@ -46,6 +46,7 @@ from pncad import (
     mm,
     rad,
 )
+from measuring import pinned
 
 
 def plate(width=0.1 * m, margin=3 * mm, holes=4):
@@ -486,9 +487,9 @@ def run():
     )
     at_the_bound = doc.parse_formula(" + ".join(["1 m"] + ["0 m"] * (bound - 1)))
     box = doc.insert(Node.extrude(square, at_the_bound))
-    said["volume"] = evaluate(doc).value(box).body().mass_properties().volume
+    said["volume"] = pinned(evaluate(doc).value(box).body()).volume
     said["loaded_volume"] = (
-        evaluate(load(doc.save()).doc).value(box).body().mass_properties().volume
+        pinned(evaluate(load(doc.save()).doc).value(box).body()).volume
     )
     negative = doc.parse_formula(" + ".join(["-1 m"] + ["0 m"] * (bound - 1)))
     said["negative_reads_back"] = doc.parse_formula(negative.text) == negative

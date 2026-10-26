@@ -102,7 +102,7 @@ fn per_face(body: &topo::Body<f64>) -> (f64, f64) {
 /// The door refuses a ball with one band flipped: the two bands' seam
 /// region's bits disagree, a lamina tier 3 names at check 4.
 fn refused_at_the_door(body: &topo::Body<f64>) {
-    let door = topo::test_support::unmigrated_measure(body, Tol::witness());
+    let door = topo::test_support::unmigrated_measure(body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()));
     assert!(
         matches!(
             door,
@@ -133,11 +133,11 @@ fn refused_at_the_door(body: &topo::Body<f64>) {
 #[test]
 fn props_flux_flips_with_the_rimless_band_sense() {
     let b = ball();
-    let honest = topo::test_support::unmigrated_measure(&b, Tol::witness()).unwrap();
+    let honest = topo::test_support::unmigrated_measure(&b, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap();
     assert!(
-        (honest.volume - 4.0 * PI / 3.0).abs() < 1e-9,
+        (honest.enclosure.volume - 4.0 * PI / 3.0).abs() < 1e-9,
         "the unit ball meters 4π/3, got {}",
-        honest.volume
+        honest.enclosure.volume
     );
 
     let flipped = b.flipped_face_sense_for_tests(first_face(&b)).unwrap();
@@ -152,7 +152,7 @@ fn props_flux_flips_with_the_rimless_band_sense() {
     // sense-invariant, and a consumer that flipped it too would be
     // double-counting.
     assert!(
-        (area - honest.surface_area).abs() < 1e-9,
+        (area - honest.enclosure.surface_area).abs() < 1e-9,
         "surface area is orientation-free and must not follow the bit"
     );
 }
@@ -176,11 +176,11 @@ fn props_flux_flips_with_the_rimless_band_sense() {
 #[test]
 fn offcentre_flipped_ball_still_cancels() {
     let b = ball_at(5.0);
-    let honest = topo::test_support::unmigrated_measure(&b, Tol::witness()).unwrap();
+    let honest = topo::test_support::unmigrated_measure(&b, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap();
     assert!(
-        (honest.volume - 4.0 * PI / 3.0).abs() < 1e-9,
+        (honest.enclosure.volume - 4.0 * PI / 3.0).abs() < 1e-9,
         "the off-centre unit ball still meters 4π/3, got {}",
-        honest.volume
+        honest.enclosure.volume
     );
 
     let flipped = b.flipped_face_sense_for_tests(first_face(&b)).unwrap();
@@ -230,11 +230,11 @@ fn assembly_flip_is_wrong_but_nonzero() {
     let cuboid = finished("the cuboid", cuboid, Tol::witness());
     let r = topo::boolean::union(&ball, &cuboid, Tol::witness()).unwrap();
     let body = &r.body().expect("a disjoint assembly is a body").body;
-    let honest = topo::mass_properties(body, Tol::witness()).unwrap();
+    let honest = topo::mass_properties(body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap();
     assert!(
-        (honest.volume - (4.0 * PI / 3.0 + 6.0)).abs() < 1e-9,
+        (honest.enclosure.volume - (4.0 * PI / 3.0 + 6.0)).abs() < 1e-9,
         "the assembly meters ball + cuboid, got {}",
-        honest.volume
+        honest.enclosure.volume
     );
 
     let band_face = body
@@ -435,8 +435,8 @@ fn fixed_union_keeps_a_pellet_in_a_concave_notch() {
         Tol::witness(),
     );
     let b = finished("the pellet", pellet::<f64>(), Tol::witness());
-    let vol_a = topo::mass_properties(&a, Tol::witness()).unwrap().volume;
-    let vol_b = topo::mass_properties(&b, Tol::witness()).unwrap().volume;
+    let vol_a = topo::mass_properties(&a, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap().enclosure.volume;
+    let vol_b = topo::mass_properties(&b, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness())).unwrap().enclosure.volume;
     assert!(
         (vol_b - 0.008).abs() < 1e-12,
         "the pellet meters 0.008, got {vol_b}"
@@ -444,9 +444,9 @@ fn fixed_union_keeps_a_pellet_in_a_concave_notch() {
 
     let r = topo::boolean::union(&a, &b, Tol::witness()).unwrap();
     let out = r.body().expect("union of two non-empty solids");
-    let vol = topo::mass_properties(&out.body, Tol::witness())
+    let vol = topo::mass_properties(&out.body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
         .unwrap()
-        .volume;
+        .enclosure.volume;
     let shells = out.body.shells().count();
 
     assert!(

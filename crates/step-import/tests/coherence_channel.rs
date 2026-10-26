@@ -540,10 +540,12 @@ fn asking_for_the_examination_changes_nothing_about_acceptance() {
         let text = fixture(name, "step");
         let one = |examine: bool| match import_step(&text, &own_import_options(examine), tol) {
             Ok(StepImport::Solid {
-                body, enclosure, ..
+                body, certificate, ..
             }) => {
-                let enclosure =
-                    enclosure.unwrap_or_else(|e| panic!("{name}: the enclosure measures: {e}"));
+                let enclosure = certificate
+                    .measure(&body, topo::test_support::pinned_resolution(tol))
+                    .unwrap_or_else(|e| panic!("{name}: the certificate measures: {e}"))
+                    .enclosure;
                 (
                     common::arena_census(&body),
                     [

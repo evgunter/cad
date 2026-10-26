@@ -172,9 +172,9 @@ fn p1_an_oblique_all_concave_cavity_carves_to_its_own_steiner_form() {
     let edges = cavity_edges(&body, &quad);
     assert_eq!(edges.len(), 12, "the skewed cavity's twelve concave edges");
 
-    let before = topo::test_support::unmigrated_measure(&body, Tol::witness())
+    let before = topo::test_support::unmigrated_measure(&body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
         .expect("closed-form props")
-        .volume;
+        .enclosure.volume;
     let out = fillet_edges(
         &sweep::test_support::at_rest(&body, Tol::witness()),
         &edges,
@@ -201,9 +201,9 @@ fn p1_an_oblique_all_concave_cavity_carves_to_its_own_steiner_form() {
     };
     let added = prism_void - rounded_void_volume(&quad, 1.0, 3.0, r);
     let want = before + added;
-    let after = topo::test_support::unmigrated_measure(&out.body, Tol::witness())
+    let after = topo::test_support::unmigrated_measure(&out.body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
         .expect("closed-form props")
-        .volume;
+        .enclosure.volume;
     assert!(
         (after - want).abs() <= 1e-12 * want,
         "the oblique concave fillet's volume: got {after}, want {want}"
@@ -265,9 +265,9 @@ fn p2_slim_skews_carve_valid_or_refuse_typed_never_worse() {
                     Ok(()),
                     "a carve that lands at {deg}° must be tier-3 valid"
                 );
-                let vol = topo::test_support::unmigrated_measure(&out.body, Tol::witness())
+                let vol = topo::test_support::unmigrated_measure(&out.body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
                     .expect("closed-form props")
-                    .volume;
+                    .enclosure.volume;
                 assert!(vol.is_finite() && vol > 0.0, "a finite positive volume");
             }
             Err(e) => {
@@ -302,9 +302,9 @@ fn digest(body: &Body<f64>) -> (usize, usize, usize, u64, u64) {
             h = h.wrapping_mul(0x0000_0100_0000_01b3);
         }
     }
-    let vol = topo::test_support::unmigrated_measure(body, Tol::witness())
+    let vol = topo::test_support::unmigrated_measure(body, Tol::witness(), topo::test_support::pinned_resolution(Tol::witness()))
         .expect("closed-form props")
-        .volume;
+        .enclosure.volume;
     (nv, ne, nf, h, vol.to_bits())
 }
 

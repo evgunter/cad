@@ -4070,7 +4070,8 @@ fn volume_refusal(
         | M::RingOnCurvedFace { .. }
         | M::Face { .. }
         | M::ResolutionFinerThanEps { .. }
-        | M::Poisoned { .. } => PointInSolidError::VolumeUncertified,
+        | M::Poisoned { .. }
+        | M::CertificateOfAnotherBody => PointInSolidError::VolumeUncertified,
     }
 }
 

@@ -146,9 +146,10 @@ fn tiny_real_sliver_not_wrongly_refused() {
     let va = mass_properties(
         &topo::test_support::finished("the measured body", (above).clone(), Tol::witness()),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
-    .volume;
+    .enclosure.volume;
     let expect = 2.0 * h * h / (1.0 + h);
     assert!(
         (va - expect).abs() <= 1e-6 * expect,
@@ -237,7 +238,8 @@ fn tier3_needs_upgrade_pass_consumers_lack() {
     assert!(
         mass_properties(
             &topo::test_support::finished("the measured body", (above).clone(), Tol::witness()),
-            Tol::witness()
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .is_ok(),
         "mass props work"

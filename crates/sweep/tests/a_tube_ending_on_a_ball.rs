@@ -331,7 +331,7 @@ fn the_witness_brackets_its_closed_forms_at_the_certified_scalar() {
             _ => panic!("{op}: wanted a body, got {r:?}"),
         };
         topo::validate_geometric(&bb.body, tol).unwrap_or_else(|e| panic!("{op}: tier 3: {e:?}"));
-        let v = topo::mass_properties(&bb.body, tol).unwrap().volume;
+        let v = topo::mass_properties(&bb.body, tol, topo::test_support::pinned_resolution(tol)).unwrap().enclosure.volume;
         assert!(
             v.lo() <= want && want <= v.hi() && v.hi() - v.lo() < 1e-9,
             "{op}: [{}, {}] against {want}",

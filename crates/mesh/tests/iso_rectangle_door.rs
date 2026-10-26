@@ -116,9 +116,10 @@ fn a_rimless_lune_meshes_through_the_door_and_measures() {
     let volume = topo::mass_properties(
         &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("the flux lane measures the lune by its meridian pair")
-    .volume;
+    .enclosure.volume;
     let exact = 2.0 / 3.0 * 2.0;
     assert!(
         (volume - exact).abs() / exact < 1e-12,
@@ -212,20 +213,22 @@ fn a_split_seam_donut_meshes_and_measures_as_the_unsplit_donut() {
     let mp0 = topo::mass_properties(
         &topo::test_support::finished("the measured body", base.clone(), tol),
         tol,
+        topo::test_support::pinned_resolution(tol),
     )
     .expect("the unsplit donut measures");
     let mp = topo::mass_properties(
         &topo::test_support::finished("the measured body", body.clone(), tol),
         tol,
+        topo::test_support::pinned_resolution(tol),
     )
     .expect("the split-seam donut measures");
     assert_eq!(
-        (mp.volume.to_bits(), mp.surface_area.to_bits()),
-        (mp0.volume.to_bits(), mp0.surface_area.to_bits()),
+        (mp.enclosure.volume.to_bits(), mp.enclosure.surface_area.to_bits()),
+        (mp0.enclosure.volume.to_bits(), mp0.enclosure.surface_area.to_bits()),
         "mass properties bitwise: split {mp:?} vs unsplit {mp0:?}"
     );
     assert!(
-        (mp.volume - 9.869_604_401_089_358).abs() < 1e-12,
+        (mp.enclosure.volume - 9.869_604_401_089_358).abs() < 1e-12,
         "V = π² for R = 2, r = 0.5"
     );
     let (r0, r) = (receipts(&base), receipts(&body));
@@ -323,9 +326,10 @@ fn split_children_partition_the_parent_edges_own_parametrisation() {
     let v0 = topo::mass_properties(
         &topo::test_support::finished("the measured body", base.clone(), tol),
         tol,
+        topo::test_support::pinned_resolution(tol),
     )
     .unwrap()
-    .volume
+    .enclosure.volume
     .to_bits();
     let (f0, _) = base.faces().next().unwrap();
     let (outer0, _) = topo::props::loop_edges(&base, base.get_face(f0).unwrap().outer).unwrap();
@@ -382,10 +386,11 @@ fn split_children_partition_the_parent_edges_own_parametrisation() {
         assert_eq!(
             topo::mass_properties(
                 &topo::test_support::finished("the measured body", body.clone(), tol),
-                tol
+                tol,
+                topo::test_support::pinned_resolution(tol),
             )
             .unwrap()
-            .volume
+            .enclosure.volume
             .to_bits(),
             v0,
             "{fracs:?}: the volume, bitwise"
@@ -411,9 +416,10 @@ fn split_children_partition_the_parent_edges_own_parametrisation() {
         let got = topo::mass_properties(
             &topo::test_support::finished("the measured body", shifted.clone(), tol),
             tol,
+            topo::test_support::pinned_resolution(tol),
         )
         .unwrap_or_else(|e| panic!("{fracs:?}: the shifted child measures: {e:?}"))
-        .volume;
+        .enclosure.volume;
         let want = f64::from_bits(v0);
         assert!(
             (got - want).abs() <= 1e-12 * want,

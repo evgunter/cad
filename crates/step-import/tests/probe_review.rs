@@ -289,8 +289,9 @@ fn a1_inside_out_cone_apex() {
                         Tol::witness(),
                     ),
                     Tol::witness(),
+                    topo::test_support::pinned_resolution(Tol::witness()),
                 )
-                .map(|p| p.volume);
+                .map(|p| p.enclosure.volume);
                 println!(
                     "a1ca {label}: imported t3={:?} vol={:?}",
                     topo::validate_geometric(&body, Tol::witness()),
@@ -482,9 +483,10 @@ fn a6_unit_edges() {
             let v = topo::mass_properties(
                 &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
                 Tol::witness(),
+                topo::test_support::pinned_resolution(Tol::witness()),
             )
             .unwrap()
-            .volume;
+            .enclosure.volume;
             println!("a6 micro volume={v:e} (expect 1e-18)");
         }
         Ok(_) => panic!(),

@@ -44,16 +44,17 @@ fn k3_scale_corruption_old_accepted_new_catches() {
     let props = topo::mass_properties(
         &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap();
     let expect = expect_sidecar("notched");
     let expected_m3 = expect.kernel_volume_mm3 * 1e-9;
     let ulp = expected_m3.next_up() - expected_m3;
-    let dev = (props.volume - expected_m3).abs();
+    let dev = (props.enclosure.volume - expected_m3).abs();
     // OLD budget: pad + half-last-printed-decimal of "3000000000.0" + faces ulps
-    let old = props.volume_pad + 0.05e-9 + 6.0 * ulp;
+    let old = props.enclosure.volume_pad + 0.05e-9 + 6.0 * ulp;
     // NEW budget: pad_imported + pad_native + (2*faces+2) ulps
-    let new = props.volume_pad + expect.kernel_volume_pad_mm3 * 1e-9 + 14.0 * ulp;
+    let new = props.enclosure.volume_pad + expect.kernel_volume_pad_mm3 * 1e-9 + 14.0 * ulp;
     println!(
         "dev={:e} m3, old budget={:e}, new budget={:e}",
         dev, old, new

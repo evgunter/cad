@@ -289,9 +289,9 @@ fn every_op_refuses_or_answers_its_closed_form() {
             if let Err(e) = topo::validate_geometric(body, tol) {
                 failures.push(format!("{what}: invalid body {e:?}"));
             }
-            let got = topo::mass_properties(body, tol)
+            let got = topo::mass_properties(body, tol, topo::test_support::pinned_resolution(tol))
                 .expect("the volume integrates")
-                .volume;
+                .enclosure.volume;
             if (got - want).abs() > fx.abs {
                 failures.push(format!(
                     "{what}: volume {got} against the closed form {want}"
@@ -349,9 +349,9 @@ fn the_closed_forms_hold_on_the_operands() {
     let tol = Tol::witness();
     for fx in fixtures() {
         for (which, body, want) in [("A", &fx.a, fx.vol_a), ("B", &fx.b, fx.vol_b)] {
-            let got = topo::mass_properties(body, tol)
+            let got = topo::mass_properties(body, tol, topo::test_support::pinned_resolution(tol))
                 .expect("the volume integrates")
-                .volume;
+                .enclosure.volume;
             assert!(
                 (got - want).abs() < 1e-9 * want.max(1.0),
                 "{}: {which} volume {got} against {want}",

@@ -121,7 +121,7 @@ fn reading(
         },
     };
     let ok = |b: bool| if b { "ok" } else { "BAD" };
-    let vol = topo::mass_properties(&bb.body, tol()).map(|m| m.volume);
+    let vol = topo::mass_properties(&bb.body, tol(), topo::test_support::pinned_resolution(tol())).map(|m| m.enclosure.volume);
     let v = vol.as_ref().map_or_else(variant, |&v| {
         if (v - want).abs() < 1e-7 {
             "ok".to_owned()
@@ -293,7 +293,7 @@ fn a_curved_notch_at_a_corner_pinch_builds_bodies_the_census_cannot_read_yet() {
             .unwrap();
         let res = res.unwrap_or_else(|e| panic!("{label}: refused {e:?}"));
         let bb = res.body().unwrap_or_else(|| panic!("{label}: empty"));
-        let v = mass_properties(&bb.body, tol()).unwrap().volume;
+        let v = mass_properties(&bb.body, tol(), topo::test_support::pinned_resolution(tol())).unwrap().enclosure.volume;
         assert!(
             (v - want).abs() < 1e-7,
             "{label}: volume {v} against the oracle's {want}"
@@ -324,9 +324,9 @@ fn a_curved_notch_at_a_corner_pinch_builds_bodies_the_census_cannot_read_yet() {
         );
         let reuse = topo::union(&bb.body, &far, tol())
             .unwrap_or_else(|e| panic!("{label}: the further union builds, got {e:?}"));
-        let joined = mass_properties(&reuse.body().expect("not empty").body, tol())
+        let joined = mass_properties(&reuse.body().expect("not empty").body, tol(), topo::test_support::pinned_resolution(tol()))
             .unwrap()
-            .volume;
+            .enclosure.volume;
         assert!(
             (joined - (want + 1.0)).abs() < 1e-7,
             "{label}: the further union's volume {joined} against {}",
