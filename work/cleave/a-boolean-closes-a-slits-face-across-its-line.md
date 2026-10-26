@@ -52,6 +52,13 @@ line, and one construction should serve both.
   (`UnrecordedContact`).
 - `crates/topo/tests/a_ring_crossed_along_its_line_places_its_germs_apart.rs`
   pins the unions' refusal in both scenes.
+- The same file's
+  `a_partner_flush_with_the_rings_face_builds_where_one_copy_is_kept`:
+  `y ∪ x` with the partner flush with the top beside the ring, left
+  and right, at rest and turned, 4 cells at each ε (5 poses: 10). It
+  refused `Flush` before PR 5545; it builds once the output stage drops
+  a declared surface pair the closing consumed (PR 5545), as `x ∪ y`
+  does.
 
 ## Fix
 

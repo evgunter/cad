@@ -123,11 +123,6 @@ pub(crate) fn read_of(
         | ValuePayload::Boolean(crate::eval::BooleanValue::Body { body: b, .. }) => {
             std::sync::Arc::clone(b)
         }
-        ValuePayload::Copies(copies) => copies
-            .bodies
-            .first()
-            .cloned()
-            .ok_or(PinRefusal::NotABody { node })?,
         ValuePayload::Instances(bodies) => bodies
             .first()
             .cloned()

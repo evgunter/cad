@@ -18,7 +18,7 @@ through `geom::Curve3::param_near`, which recovers no parameter on a
 NURBS carrier. So `EdgeCarrier::of_edge` reads such an edge as
 `EdgeCarrier::Unread`:
 
-- in the line collapse (`emit_topo::least_per_line`, reached from the
+- in the line grouping (`emit_topo::sets_per_line`, reached from the
   pair's `flush_lines` and the union's `Flush::meeting`) and in
   `emit_union::Flush::same_way`, it is a line of its own, so two NURBS
   member edges running flush through one vertex are two lines of its

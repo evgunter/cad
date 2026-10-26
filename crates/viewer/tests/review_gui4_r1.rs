@@ -511,8 +511,8 @@ fn r1_the_memo_bounds_scan_at_resolution_a_changed_store_is_not_re_read() {
     // win: no document is held hostage by a messy directory.
     assert_eq!(
         broken.tree_rows().len(),
-        3,
-        "the tree is whole: three instances, each its own placement"
+        4,
+        "the tree is whole: three instances, each its own placement, and the product's ⊔"
     );
 }
 

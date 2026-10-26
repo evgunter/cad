@@ -18,3 +18,10 @@ D10 `[assertions]` (PR 4666): inside one arrival the census "decides nothing and
 - the carry across every placement (`a-placement-carries-its-sources-at-rest-result`).
 
 When those land, delete the check and its finding arm, so the census reads nothing inside an arrival. Before deleting, show it has gone quiet on the corpus and tour.
+
+Note (D′3's fix pass, 2026-10-26): every census now discards what it
+finds inside an arrival a door already decided (a `⊔`'s, an instance's
+copy; `product::gather_sources`). The kernel's census has no group
+scope, so it still computes there and the door discards it; deleting
+the computation is this unit's.
+

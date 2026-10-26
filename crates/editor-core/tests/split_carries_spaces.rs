@@ -46,7 +46,7 @@ fn place_into(doc: ProfileDoc, body: RecipeNodeId, target: VarId) -> (ProfileDoc
     let (doc, placement) = step(
         doc,
         DocEdit::place(
-            vec![body.into()],
+            editor_core::BodyRead::plain(Operand::Node(body)),
             Operand::Var(target),
             editor_core::stand().bundle(),
         ),

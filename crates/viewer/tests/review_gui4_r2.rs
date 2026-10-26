@@ -563,7 +563,11 @@ fn the_threaded_seam_resolves_the_assembly_too() {
     }
     assert!(!session.busy(), "the threaded run lands");
     let rows = session.tree_rows();
-    assert_eq!(rows.len(), 3, "three instances, each its own placement");
+    assert_eq!(
+        rows.len(),
+        4,
+        "three instances, each its own placement, and the product's ⊔"
+    );
     for row in &rows {
         assert_eq!(row.status, RowStatus::Ok, "{row:?}");
     }
