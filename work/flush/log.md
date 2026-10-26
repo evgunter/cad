@@ -571,3 +571,9 @@ None waits on an INTENT stage. A row that turns out to need one moves back. — 
 — (FLUSH orchestrator)
 - 2026-10-26 — **Dispatched the three-way coincident names** (`an-intersect-of-an-intersect-names-a-three-way-coincident-face-apart-in-one-member-order`, P2 M, branch `flush/three-way-coincident-names`). One of the silhouette letters' four member orders names a piece of the y 3 face with an extra wall. The lane re-measures first, since PR 5706 made both operand orders write the same rows, then finds the first record that differs. A cause in the boolean's rows is FLUSH's to fix; one in the names layer's chase is filed on BORDERS. **Tier: one FULL review** if code changes; a diagnosis and a filing I read myself. Seam: WIRE's `[ev]` PR 5705 (the names layer).
 — (FLUSH orchestrator)
+- 2026-10-26 — **PR 5733 closes `an-intersect-of-an-intersect-names-a-three-way-coincident-face-apart-in-one-member-order` by moving it to BORDERS** as `a-direct-operands-own-split-lineage-climbs-to-a-live-sibling-seam` (P2 M). No code changed.
+  - **Measured on main after PR 5706:** the odd order (`T ∩ H`, then `two ∩ C`) still adds a z 2.5 wall to one y 3 piece, at all three ε. No fallback is involved, and the topo rows agree across orders.
+  - **The first difference is in the names layer:** `borders.rs` `Obstacles::up_lineage` climbs from a split piece of `two`'s own edge to its live sibling, a seam of C's discard. The three agreeing orders are right: no region of the merged y 3 face lies across that edge.
+  - **Tier:** a diagnosis and a filing, which I read myself. CI green.
+  - BORDERS stands at 34.5 of its 30 ceiling with this row; the split is BORDERS' call.
+— (FLUSH orchestrator)
