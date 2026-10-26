@@ -1605,3 +1605,31 @@ Signed (CLEAVE orchestrator).
   - **WIRE can now** delete `held_out` (seam note on WIRE's log).
   - **New row filed by the lane:** TESS `main-red-thin-nested-rings-build-meshes-the-rings-its-pin-expects-refused`.
   - **Disk:** the ringtie build cache was freed. (CLEAVE orchestrator)
+- 2026-10-26 — **[ev] 5780: Ev pointed out an overclaim.** 'A boolean mints no surface' is only ∂(A∪B) ⊆ ∂A ∪ ∂B. Once the glue moves geometry it does not choose the written order over a mean surface. The orchestrator conceded on the PR and replaced the principle in the diff (`125495b285`) with the reasons that do carry the choice:
+  - the kept surface stays exactly what was written, so structural glue elsewhere survives;
+  - no drift across chains of booleans;
+  - no general mean surface exists;
+  - a pick that reads values decides by rounding.
+
+  **Lesson:** check that a stated principle carries the claim it is offered for before it goes to Ev. (CLEAVE orchestrator)
+- 2026-10-26 — **PR 5545 narrow re-review on the combined head.** No wrong body, no regression.
+  - **Confirmed:** F2 is fixed; the outcome diff is the same at three ε; the `finish_output` drop rule is safe (it drops only orphaned surfaces); `tip_wraps` reads a spur as zero and a tip as the full turn; CI is red only on SPLICE's python red.
+  - **R1, a false claim:** 90 cells per ε gain correct lineage rows main never recorded, or lose a zero-area sliver's row. The body must say so.
+  - **Witness found:** `TipUnread` is reached by an arc-sided floor with an open keel, `x ∩ y`.
+  - The lane is told to fix the body and the row. Merge follows. (CLEAVE orchestrator)
+- 2026-10-26 — **PR 5545 merged (`f9d372b298`). CI was fully green, the python suite included.** `a-boolean-cuts-a-flush-face-kept-once-along-a-slits-line` is closed.
+  - **What landed:**
+    - the fate cut ends at a slit's tip (`tip_wraps`);
+    - doubled chords along a slit are skipped only where one kept face holds both sides;
+    - `Flush` and `Closes` are gone from `SlitLineGap`;
+    - `SlitFaceGlued` carries a gap field;
+    - the combination with 5544 is fixed in `finish_output`, so ring + flush partner builds in all six ops.
+  - **Naming:** 90 cells per ε gain the lineage main never recorded.
+  - **Seam note:** left on FLUSH's log about its fate-cut row. (CLEAVE orchestrator)
+- 2026-10-26 — Dispatched:
+  - the three flush-partner kernel-defect P1s from 5545's probe (box corner at the ring's tip, a fate cut between touching lumps, a ring partner inside the ring) on `cleave/flush-partners-at-a-slit-build`;
+  - `one-segment-tangent-rims-refuse-where-their-two-arc-forms-build` (P1 H; it blocks PATHS unit 4) on `cleave/one-segment-tangent-rims`.
+
+  Held: the two backstop P1s (they touch `volume_backstop`, so they wait on Ev's [ev] 5780 ruling), `glue-disagreements-…` (`design: true`), the crescent build (H, after the tangent-rims lane), and `a-vertex-piercing-two-declared-coincident-faces-reads-as-one`. (CLEAVE orchestrator)
+- 2026-10-26 — [ev] 5780: Ev asked whether two glued cubes are stored differently from a prism made directly. Answered on the PR (comment 6427582133): the result is the same 6-face, 12-edge, 8-vertex complex on the same planes; only the merged faces' lineage differs. The order dependence shows only where the two descriptions differ inside ε, and the two results then lie within ε of each other. (CLEAVE orchestrator)
+- 2026-10-26 — PR 5793 (riders read every edge in a face; both riders P1s) handed back with CI green. Claims and style reviews dispatched. The lane filed four rows: three CLEAVE rows (an arc in a curved face's interior, a no-area ring in a curved face, a closed edge lying in a face) and RESTREAD's tier-3′ curved own-solid edge row. The alternate-ε reds it saw on main went to a tracker lane, which checks last night's whole full-suite failing list (nightly run 72) against open rows and files a row for each red with none. (CLEAVE orchestrator)

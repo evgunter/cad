@@ -2,10 +2,11 @@
 id: a-fate-cut-end-between-two-touching-lumps-lies-in-no-piece
 kind: issue
 title: A flush partner over two lumps touching along an edge, the lumps second, refuses ClassificationInvariant in ∪ and ∖: a fate cut's end lies inside no one piece of its face
-status: open
+status: dispatched
 opened: 2026-10-25
 priority: P1
 cost: M
+branch: cleave/flush-partners-at-a-slit-build
 ---
 
 
