@@ -124,10 +124,10 @@ use crate::names::emit::{
     check_total, edge_ends, ent, face_half_edges, vertex_point,
 };
 use crate::names::emit_topo::{
-    CornerCopies, Cover, CrossedEdge, EdgeCarrier, EdgePieces, FaceDescent, Lone, Segment,
-    UNORIENTED, carrier_arc, crossed_edge_orientation, edge_holds, edges_holding, is_straight,
-    joined_along, joined_candidates, name_corner_copies, name_edge_pieces, name_parent_faces,
-    rank_along_track, rank_crossings,
+    CornerCopies, Cover, CrossedEdge, EdgeCarrier, EdgePieces, Lone, Segment, UNORIENTED,
+    carrier_arc, crossed_edge_orientation, edge_holds, edges_holding, is_straight, joined_along,
+    joined_candidates, name_corner_copies, name_edge_pieces, name_parent_faces, rank_along_track,
+    rank_crossings,
 };
 use crate::names::groups::Rederived;
 use crate::names::least_root::LeastRoot;
@@ -2175,7 +2175,7 @@ impl<T: geom_core::Real> Links<T> {
         naming: &topo::BooleanNaming,
         body: &topo::Body<T>,
     ) -> Result<(), NamingError> {
-        let descent = FaceDescent::of(naming);
+        let descent = topo::FaceDescent::of(naming);
         let member = |(operand, f): (topo::Operand, topo::FaceKey)| match operand {
             topo::Operand::A => (a, f),
             topo::Operand::B => (b, f),
@@ -2183,7 +2183,7 @@ impl<T: geom_core::Real> Links<T> {
         for faces in descent.merged().values() {
             let mut held = BTreeSet::new();
             for &g in faces {
-                held.insert(member(descent.result_face(g)?));
+                held.insert(member(descent.result_face(g)));
             }
             for &x in held.iter().filter(|m| m.0 == a) {
                 for &y in held.iter().filter(|m| m.0 == b) {
@@ -2261,17 +2261,13 @@ impl<T: geom_core::Real> Links<T> {
 }
 
 /// **What a union's fold records for its end pass**: which member faces
-/// each face of the accumulation descends from, by entity, and every
+/// each face of the accumulation descends from, by entity, as the
+/// kernel's n-ary door advanced it ([`topo::MemberLineage`]), and every
 /// step's discards ([`Obstacles`]) keyed by the member faces the
 /// discarded face descends from.
-///
-/// A face's descent is read off each step's rows, never off a name:
-/// a piece of a face descends from what the face does, a merged face
-/// from what each face it absorbed does, and a face of the member the
-/// step folds in from that member's face.
 pub(crate) struct Fold {
     /// Accumulation face → the member faces it descends from.
-    lineage: BTreeMap<topo::FaceKey, BTreeSet<MemberFace>>,
+    lineage: topo::MemberLineage,
     obstacles: Obstacles<MemberFace>,
 }
 
@@ -2279,57 +2275,37 @@ impl Fold {
     /// The fold before any step: the first member's body.
     pub(crate) fn new<T: geom_core::Real>(first: usize, body: &topo::Body<T>) -> Self {
         Self {
-            lineage: body
-                .faces()
-                .map(|(f, _)| (f, BTreeSet::from([(first, f)])))
-                .collect(),
+            lineage: topo::MemberLineage::of_member(first, body),
             obstacles: Obstacles::new(),
         }
     }
 
-    /// The member faces accumulation face `face` descends from — the
-    /// lineage a fold step reads its pairs' verdicts through. `None`
-    /// for a face the accumulation does not hold.
-    pub(crate) fn member_faces(&self, face: topo::FaceKey) -> Option<&BTreeSet<MemberFace>> {
-        self.lineage.get(&face)
-    }
-
     /// One fold step: `member` folded into the accumulation, giving
-    /// `result` with the kernel's record `naming`.
+    /// `result` with the kernel's record `naming`, whose faces descend
+    /// from the member faces `lineage` holds.
     pub(crate) fn step<T: geom_core::Real>(
         &mut self,
         member: usize,
         naming: &topo::BooleanNaming,
         result: &topo::Body<T>,
+        lineage: &topo::MemberLineage,
     ) -> Result<(), NamingError> {
-        let descent = FaceDescent::of(naming);
-        let from = |lineage: &BTreeMap<topo::FaceKey, BTreeSet<MemberFace>>,
-                    (operand, f): (topo::Operand, topo::FaceKey)|
-         -> Result<BTreeSet<MemberFace>, NamingError> {
-            match operand {
-                topo::Operand::A => Ok(lineage.get(&f).cloned().unwrap_or_else(|| {
+        let descent = topo::FaceDescent::of(naming);
+        let held = &self.lineage;
+        self.obstacles.record(naming, result, |operand, f| {
+            let f = descent.clone_face(operand, f);
+            Ok(match operand {
+                topo::Operand::A => held.member_faces(f).cloned().unwrap_or_else(|| {
                     unreachable!(
                         "fold step {member}'s face descends from accumulation face {f:?}, \
                          which the fold does not hold: operand A of a step is the accumulation, \
                          and the fold holds a lineage for each of its faces"
                     )
-                })),
-                topo::Operand::B => Ok(BTreeSet::from([(member, f)])),
-            }
-        };
-        self.obstacles.record(naming, result, |operand, f| {
-            from(&self.lineage, (operand, descent.clone_face(operand, f)))
+                }),
+                topo::Operand::B => BTreeSet::from([(member, f)]),
+            })
         })?;
-        let merged = descent.merged();
-        let mut next = BTreeMap::new();
-        for (f, _) in result.faces() {
-            let mut set = BTreeSet::new();
-            for &g in merged.get(&f).map_or(&[f][..], Vec::as_slice) {
-                set.extend(from(&self.lineage, descent.result_face(g)?)?);
-            }
-            next.insert(f, set);
-        }
-        self.lineage = next;
+        self.lineage = lineage.clone();
         Ok(())
     }
 }
@@ -2383,7 +2359,7 @@ impl Parents {
         for (f, _) in body.faces() {
             let (from, first) = fold
                 .lineage
-                .get(&f)
+                .member_faces(f)
                 .and_then(|s| Some((s, *s.first()?)))
                 .unwrap_or_else(|| {
                     unreachable!(

@@ -699,13 +699,28 @@ pub fn boolean_op_with<T: Decide + Bounds + crate::props::AtRestPolicy>(
     op: BooleanOp,
     a: &AtRestBody<T>,
     b: &AtRestBody<T>,
-    inputs: &BooleanInputs<T>,
+    inputs: &BooleanInputs,
+    strategy: SweepStrategy,
+    tol: Tol,
+) -> Result<BooleanResult<T>, BooleanError> {
+    boolean_op_given(op, a, b, inputs, None, strategy, tol)
+}
+
+/// [`boolean_op_with`], its coincidences `given` where they are a fold
+/// step's of the n-ary door ([`super::nary`]): `Some` makes those pairs
+/// the operation's only coincidences, and it decides none of its own.
+pub(crate) fn boolean_op_given<T: Decide + Bounds + crate::props::AtRestPolicy>(
+    op: BooleanOp,
+    a: &AtRestBody<T>,
+    b: &AtRestBody<T>,
+    inputs: &BooleanInputs,
+    given: Option<&[super::GluedPair<T>]>,
     strategy: SweepStrategy,
     tol: Tol,
 ) -> Result<BooleanResult<T>, BooleanError> {
     #[cfg(feature = "door-tier3-meter")]
     let door_from = std::time::Instant::now();
-    let result = boolean_door(op, a, b, &Glue::of(inputs), strategy, tol);
+    let result = boolean_door(op, a, b, &Glue::of(inputs, given), strategy, tol);
     #[cfg(feature = "door-tier3-meter")]
     super::door_meter::record(op, &result, door_from.elapsed(), [a.outcome(), b.outcome()]);
     result

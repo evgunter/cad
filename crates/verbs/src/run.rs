@@ -11,11 +11,12 @@ use sweep::{ExtrudeError, Extruded, RevolveError, Revolved};
 use topo::splitting::SplitNaming;
 use topo::{
     AtRestBody, Body, BooleanError, BooleanNaming, BooleanResult, BooleanResultKind,
-    ContactRecords, GlueVerdict, ShellDoor, ShellError, ShellNaming, Shelled, SplitError,
-    SplitPart, SplitResult, SweepStrategy, boolean_op_with, split,
+    ContactRecords, GlueVerdict, NaryMember, NaryRefusal, NaryResult, ShellDoor, ShellError,
+    ShellNaming, Shelled, SplitError, SplitPart, SplitResult, SweepStrategy, boolean_op_with,
+    nary_boolean, split,
 };
 
-use crate::verb::{Blend, Boolean, Shell, Split, Sweep};
+use crate::verb::{Blend, Boolean, Members, Shell, Split, Sweep};
 
 /// **What a verb produced**: the body, and the operation's own record
 /// of what it minted, in the record channel for the verb's family.
@@ -187,6 +188,8 @@ pub enum VerbError<T: Real> {
     Blend(BlendRefusal),
     /// The boolean pipeline refused.
     Boolean(BooleanError),
+    /// The n-ary union or intersect refused, naming where.
+    Members(NaryRefusal),
     /// The extrude door refused.
     Extrude(ExtrudeError),
     /// The revolve door refused.
@@ -206,6 +209,7 @@ impl<T: Real> fmt::Display for VerbError<T> {
         match self {
             Self::Blend(refusal) => write!(f, "{refusal}"),
             Self::Boolean(refusal) => write!(f, "{refusal}"),
+            Self::Members(refusal) => write!(f, "{refusal}"),
             Self::Extrude(refusal) => write!(f, "{refusal}"),
             Self::Revolve(refusal) => write!(f, "{refusal}"),
             Self::Split(refusal) => write!(f, "{refusal}"),
@@ -256,7 +260,7 @@ impl<T: DoorScalar> Blend<T> {
     }
 }
 
-impl<T: DoorScalar> Boolean<T> {
+impl Boolean {
     /// **Run this boolean against its operands.**
     ///
     /// Both bodies come in borrowed, in operand order, finished
@@ -271,7 +275,7 @@ impl<T: DoorScalar> Boolean<T> {
     ///
     /// [`VerbError::Boolean`] carrying the pipeline's [`BooleanError`]
     /// verbatim (`topo::boolean_op_with` enumerates the cases).
-    pub fn run_pair(
+    pub fn run_pair<T: DoorScalar>(
         &self,
         a: &AtRestBody<T>,
         b: &AtRestBody<T>,
@@ -306,6 +310,47 @@ impl<T: DoorScalar> Boolean<T> {
                 }))
             }
         }
+    }
+}
+
+impl Members {
+    /// **Run this union or intersect over its member bodies**, in list
+    /// order, one body per member of the payload.
+    ///
+    /// The bodies come in borrowed and finished, as at
+    /// [`Boolean::run_pair`]. What comes back is the kernel's own
+    /// n-ary product (`topo::NaryResult`): every judgement and every
+    /// fold step, each a pair boolean's body and record, which a
+    /// consumer names from.
+    ///
+    /// # Errors
+    ///
+    /// [`VerbError::Members`] carrying the door's [`NaryRefusal`]
+    /// verbatim (`topo::nary_boolean` enumerates the cases).
+    ///
+    /// # Panics
+    ///
+    /// Where `bodies` does not hold one body per member: a wiring bug.
+    pub fn run_members<T: DoorScalar>(
+        &self,
+        bodies: &[&AtRestBody<T>],
+        sweep: SweepStrategy,
+        tol: Tol,
+    ) -> Result<NaryResult<T>, VerbError<T>> {
+        let Self { op, members } = self;
+        if bodies.len() != members.len() {
+            unreachable!(
+                "an n-ary boolean of {} members was run over {} bodies",
+                members.len(),
+                bodies.len()
+            );
+        }
+        let members: Vec<NaryMember<'_, T>> = bodies
+            .iter()
+            .zip(members)
+            .map(|(&body, inputs)| NaryMember { body, inputs })
+            .collect();
+        nary_boolean(*op, &members, sweep, tol).map_err(VerbError::Members)
     }
 }
 

@@ -956,10 +956,12 @@ discharged by the claim under test), and the cylinder enclosure halves
 its zero band on `Bridged`.
 
 A boolean's face pairs are the glue its margins decide (`boolean::glue`),
-or, at a step of an n-ary union's fold, the verdicts that union's pairwise
-judgement decided (`BooleanInputs::given`, each pair made from a
-`GlueVerdict` some boolean returned, which nothing ties to the operands
-it is handed to); no node declares a contact, a mate included
+or, at a fold step of the n-ary union or intersect (`nary_boolean`), the
+verdicts that operation's own pairwise judgements decided over the
+members it holds, read through the face lineage it advances from each
+step's naming (`MemberLineage`); no public input states a glue, so no
+glue goes unrecorded by the judgement that decided it. No node declares a
+contact, a mate included
 (`crates/editor-core/ASSEMBLY.md` A3). Bodies carry only verified records,
 in the `BooleanBody` wrapper, never persisted. Replay is scalar-generic;
 an indeterminate verification at an interval scalar aborts.

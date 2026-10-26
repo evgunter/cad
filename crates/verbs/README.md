@@ -33,7 +33,7 @@ implementation under both.
 | S2 `select_where` as a wrapper | `crates/editor-core/src/names/geompred.rs` |
 | S3 flush detector at the body seat | `crates/topo/src/flush.rs`, verifier at `crates/topo/src/boolean/carrier_pair.rs` (`carrier_pair_relation`); the name-level wrapper at `crates/editor-core/src/names/flush.rs` |
 | S4 band derived at op entry | `crates/sweep/src/blend/build.rs`, `crates/topo/src/shell.rs` |
-| V1 the closed kernel-side declaration | `crates/verbs/src/verb.rs` (`Blend`, `Boolean`, `Sweep`, `Split`, `Shell`, `VerbKind`), `run.rs` (the doors, `VerbOut`/`PairOut`/`SplitOut`/`VerbRecord`/`VerbError`), `flow.rs` (`ParamFlow`) |
+| V1 the closed kernel-side declaration | `crates/verbs/src/verb.rs` (`Blend`, `Boolean`, `Members`, `Sweep`, `Split`, `Shell`, `VerbKind`), `run.rs` (the doors, `VerbOut`/`PairOut`/`SplitOut`/`VerbRecord`/`VerbError`), `flow.rs` (`ParamFlow`) |
 | V2 owner-held stable-tag commitments | `crates/editor-core/src/eval/mod.rs` (`verb_content_tag`) |
 | V3 per-verb correspondence | `crates/editor-core/src/verbs/{mod,blend,boolean,sweep,split,shell}.rs`; the generic lowerings in `crates/editor-core/src/eval/wire.rs` |
 | V4 additive migration | `crates/verbs/src/lib.rs` (what is on the seat and what is not) |
@@ -154,8 +154,12 @@ parameters as data:
 - `Blend` — `Fillet` and `Chamfer`, edge keys and a scalar;
 - `Sweep` — `Extrude`, a depth and a side, and `Revolve`, a sketch-plane
   axis and a classified `Revolution`;
-- `Boolean` — the regularized op and the declared coincidence intents in
-  arena keys;
+- `Boolean` — the regularized op and its two operands' carried records
+  in arena keys;
+- `Members` — a union or an intersect over a list of members, and each
+  member's carried records and rank (`topo::MemberInputs`), in list
+  order: the kernel's n-ary door (`topo::nary_boolean`), whose kind is
+  the boolean's;
 - `Split` — the parting plane;
 - `Shell` — a thickness and the faces to open (one verb, since an empty
   designation IS the sealed hollow).
@@ -180,7 +184,9 @@ Each verb owns:
 
 - **its run door.** `Blend::run` (one body in, `VerbOut`),
   `Boolean::run_pair` (two bodies in, `PairOut` — the typed empty is part
-  of the boolean's contract, F8), `Sweep::run_profile` (one borrowed
+  of the boolean's contract, F8), `Members::run_members` (a list of
+  bodies in, the kernel's `NaryResult`: every judgement's and fold
+  step's pair-boolean body and record), `Sweep::run_profile` (one borrowed
   `ValidatedProfile`, the door's whole bundle back as the record),
   `Split::run_split` (`SplitOut`, two sides each a body or the typed
   empty) and `Shell::run_shell`. Every check,

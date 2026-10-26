@@ -21,7 +21,7 @@ use topo::{
     AtRestBody, Body, BooleanInputs, BooleanOp, BooleanResult, SplitPart, SweepStrategy,
     boolean_op_with, split,
 };
-use verbs::{Blend, Boolean, PairOut, Shell, Split, Sweep, VerbError, VerbRecord};
+use verbs::{Blend, Boolean, Members, PairOut, Shell, Split, Sweep, VerbError, VerbRecord};
 
 use crate::fixture::{disc, offset_disc, pinch_plane, pinch_prism, tol, x_axis, z_plane};
 use sweep::test_support::finished;
@@ -277,6 +277,81 @@ fn a_boolean_refusal_crosses_the_dispatch_unaltered() {
     let VerbError::Boolean(carried) = via else {
         panic!("a boolean refusal crossed as another family's: {via:?}");
     };
+    assert_eq!(format!("{door:?}"), format!("{carried:?}"));
+    assert_eq!(door.to_string(), carried.to_string());
+}
+
+/// Three members, each with its rank its place, run through the n-ary
+/// dispatch and through the kernel's door.
+fn members_both_ways(
+    bodies: [&AtRestBody<f64>; 3],
+) -> (
+    Result<topo::NaryResult<f64>, topo::NaryRefusal>,
+    Result<topo::NaryResult<f64>, VerbError<f64>>,
+) {
+    let inputs: Vec<topo::MemberInputs> = (0..3)
+        .map(|rank| topo::MemberInputs {
+            rank,
+            ..topo::MemberInputs::default()
+        })
+        .collect();
+    let members: Vec<topo::NaryMember<'_, f64>> = bodies
+        .iter()
+        .zip(&inputs)
+        .map(|(&body, inputs)| topo::NaryMember { body, inputs })
+        .collect();
+    let door = topo::nary_boolean(
+        topo::NaryOp::Union,
+        &members,
+        SweepStrategy::Realized,
+        tol(),
+    );
+    let via = Members {
+        op: topo::NaryOp::Union,
+        members: inputs.clone(),
+    }
+    .run_members(&bodies, SweepStrategy::Realized, tol());
+    (door, via)
+}
+
+/// **The n-ary dispatch is the n-ary door**: three overlapping cubes
+/// united both ways judge the same pairs and build the same body.
+#[test]
+fn the_members_dispatch_is_the_nary_door() {
+    let [a, b, c] = [0.0, 0.5, 1.0].map(|x| shifted_cube(Vec3::new(x, 0.0, 0.0)));
+    let (door, via) = members_both_ways([&a, &b, &c]);
+    let (Ok(topo::NaryResult::Body(door)), Ok(topo::NaryResult::Body(via))) = (door, via) else {
+        panic!("the fixture's union is a body both ways");
+    };
+    let pairs =
+        |n: &topo::NaryBody<f64>| n.judgements.iter().map(|j| (j.a, j.b)).collect::<Vec<_>>();
+    assert_eq!(pairs(&door), pairs(&via), "the same pairs are judged");
+    assert_eq!(
+        dump(&door.result().body),
+        dump(&via.result().body),
+        "the same body is built"
+    );
+}
+
+/// **An n-ary refusal crosses unaltered**, naming where it was raised:
+/// two cubes 2ε apart, in the ambiguity band, beside a third far off.
+#[test]
+fn a_members_refusal_crosses_the_dispatch_unaltered() {
+    let a = unit_cube();
+    let b = shifted_cube(Vec3::new(1.0 + 2.0 * tol().eps(), 0.0, 0.0));
+    let far = shifted_cube(Vec3::new(10.0, 0.0, 0.0));
+    let (door, via) = members_both_ways([&a, &b, &far]);
+    let door = door.unwrap_err();
+    let Err(VerbError::Members(carried)) = via else {
+        panic!(
+            "an n-ary refusal crossed as something else: {:?}",
+            via.map(|_| ())
+        );
+    };
+    assert!(
+        matches!(carried, topo::NaryRefusal::Judgement { a: 0, b: 1, .. }),
+        "the pair's judgement refused: {carried:?}"
+    );
     assert_eq!(format!("{door:?}"), format!("{carried:?}"));
     assert_eq!(door.to_string(), carried.to_string());
 }

@@ -1600,63 +1600,6 @@ fn operand_key<K: Copy + Ord>(
     }
 }
 
-/// **Which operand face each face of a boolean result descends from**,
-/// by entity: the operand and the root face in that operand's space,
-/// read through the graft rows and the fragment rows. A union's fold
-/// reads it step by step to follow each face to the member faces it
-/// descends from.
-pub(crate) struct FaceDescent<'n> {
-    naming: &'n topo::BooleanNaming,
-    inv_faces: BTreeMap<FaceKey, FaceKey>,
-    a_rows: &'n topo::FaceDivisions,
-    b_rows: &'n topo::FaceDivisions,
-}
-
-impl<'n> FaceDescent<'n> {
-    pub(crate) fn of(naming: &'n topo::BooleanNaming) -> Self {
-        Self {
-            naming,
-            inv_faces: naming.graft_faces.iter().map(|&(s, d)| (d, s)).collect(),
-            a_rows: &naming.face_fragments_a,
-            b_rows: &naming.face_fragments_b,
-        }
-    }
-
-    /// The operand face result face `f` descends from. A merged face
-    /// descends from each face it absorbed as well: see
-    /// [`FaceDescent::merged`].
-    pub(crate) fn result_face(&self, f: FaceKey) -> Result<(topo::Operand, FaceKey), NamingError> {
-        let (operand, k) = operand_key(self.naming, &self.inv_faces, f).0.of_operand();
-        Ok((operand, self.clone_face(operand, k)))
-    }
-
-    /// The operand face a face in `operand`'s CLONE keys is a fragment
-    /// of (a discarded face's key is one).
-    pub(super) fn clone_face(&self, operand: topo::Operand, f: FaceKey) -> FaceKey {
-        match operand {
-            topo::Operand::A => self.a_rows.root(f),
-            topo::Operand::B => self.b_rows.root(f),
-        }
-    }
-
-    /// Merged result face → every face it holds, itself first, in
-    /// result keys before the merge.
-    pub(crate) fn merged(&self) -> BTreeMap<FaceKey, Vec<FaceKey>> {
-        self.naming
-            .merge_groups
-            .iter()
-            .map(|(kept, absorbed)| {
-                (
-                    *kept,
-                    core::iter::once(*kept)
-                        .chain(absorbed.iter().copied())
-                        .collect(),
-                )
-            })
-            .collect()
-    }
-}
-
 /// Names a boolean result (spec D2's boolean vocabulary; N2/N3).
 pub(crate) fn name_boolean<T: Decide>(
     node: RecipeNodeId,

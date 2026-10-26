@@ -153,8 +153,9 @@ reads.
   one BVH of padded conservative face boxes over the one body; `certify(maps)`
   tests each pair `(i, j)` in that body's frame through `M_i⁻¹ ∘ M_j`. Box
   separation is real separation, and the test is sufficient-not-necessary:
-  copies it cannot certify disjoint go through the union's ordinary pairwise
-  pass and fold (DM4), which decides their contact as for any members. The
+  copies it cannot certify disjoint go through the union's ordinary n-ary
+  door (DM4, `topo::nary_boolean`), which decides their contact as for any
+  members. The
   certificate runs before any body is placed.
 - **Lowering.** In index order (D9), each certified copy goes through
   `graft_disjoint_all_keyed`, minting its own solids, so the result is a body

@@ -101,6 +101,7 @@ mod fragments;
 mod glue;
 pub(crate) mod insert;
 mod join;
+mod nary;
 mod node;
 mod ops;
 pub(crate) use ops::{AtRestRefusal, at_rest_refusal};
@@ -186,6 +187,10 @@ pub use edge_join::{
     is_conventional_vertex, join_covers, joinable_vertices, joined_cell, joined_edge,
 };
 pub use join::CompletedPolygonPair;
+pub use nary::{
+    FaceDescent, JudgedRow, MemberFace, MemberInputs, MemberLineage, NaryBody, NaryJudgement,
+    NaryMember, NaryOp, NaryRefusal, NaryResult, NaryStep, nary_boolean,
+};
 pub use ops::{
     BooleanBody, BooleanNaming, BooleanResult, BooleanResultKind, OperandKeys, SettleError,
     Settler, boolean_op_with, intersect, subtract, union,
@@ -934,43 +939,16 @@ impl OperandRecords {
 }
 
 /// **What a boolean is handed besides its two operands**: each
-/// operand's own contact records, carried into the result, and, for a
-/// step of an n-ary union's fold alone, the verdicts that union's
-/// pairwise judgement decided (DM4).
+/// operand's own contact records, carried into the result.
 ///
-/// Every key is validated at the op door (live, and planar for a
-/// given face) — a dangling key is a typed refusal
-/// ([`BooleanError::InvalidInput`]), never a silent drop.
-#[derive(Clone, Debug)]
-pub struct BooleanInputs<T: Real = f64> {
-    /// The carrier pairs whose verdicts are decided already: `Some`
-    /// makes these the operation's only coincidences, and it decides
-    /// none of its own; `None`, the default, has it decide every
-    /// coincidence it meets by its margin.
-    ///
-    /// **Not carried by the façade.** It is the union fold's channel
-    /// (`editor_core`'s n-ary union hands each step the pass's
-    /// verdicts, read through member lineage). Its pairs are made only
-    /// from a verdict some boolean decided ([`GlueVerdict::given_at`]),
-    /// but nothing ties that verdict to these operands: a caller who
-    /// re-keys or reuses one glues its pair here with nothing measured
-    /// and no row recorded
-    /// (`work/flush/a-glue-verdict-is-not-bound-to-the-bodies-it-judged.md`).
-    pub given: Option<Vec<GluedPair<T>>>,
+/// Every key is validated at the op door (live) — a dangling key is a
+/// typed refusal ([`BooleanError::InvalidInput`]), never a silent drop.
+#[derive(Clone, Debug, Default)]
+pub struct BooleanInputs {
     /// Operand A's own contact records, carried into the result.
     pub records_a: OperandRecords,
     /// Operand B's own contact records, carried into the result.
     pub records_b: OperandRecords,
-}
-
-impl<T: Real> Default for BooleanInputs<T> {
-    fn default() -> Self {
-        Self {
-            given: None,
-            records_a: OperandRecords::default(),
-            records_b: OperandRecords::default(),
-        }
-    }
 }
 
 /// **A face pair a boolean glued on its own decision**: a face of
@@ -1012,10 +990,10 @@ impl<T: Real> GlueVerdict<T> {
     /// accumulation face whose lineage holds the judged `held` face, and
     /// the judged face of the other operand, under the judged class
     /// (every class is symmetric in its two faces), carrying the
-    /// decision: its margin, and a tangency's line. The fold passes each
-    /// such accumulation face, over the operand that other face belongs
-    /// to; nothing here checks either, since no body is in hand.
-    pub fn given_at(&self, held: Operand, at: FaceKey) -> GluedPair<T> {
+    /// decision: its margin, and a tangency's line. The n-ary door
+    /// ([`super::nary`]) passes each such accumulation face, read
+    /// through the lineage it advances itself.
+    pub(crate) fn given_at(&self, held: Operand, at: FaceKey) -> GluedPair<T> {
         let other = match held {
             Operand::A => self.b,
             Operand::B => self.a,
@@ -1067,7 +1045,7 @@ pub(crate) struct GivenDecision<T: Real> {
 
 /// **The pairs one boolean glues**, and the records it carries: the
 /// operation's own decisions ([`glue::decided_declarations`]) or the
-/// pairs it was given ([`BooleanInputs::given`]), in arena keys, each
+/// pairs it was given (a fold step of [`super::nary`]), in arena keys, each
 /// pair under the class its relation makes it.
 #[derive(Clone, Debug)]
 pub(crate) struct Glue<T: Real> {
@@ -1167,17 +1145,16 @@ impl<T: Real> Glue<T> {
         }
     }
 
-    /// The glue `inputs` states: its given pairs under their classes,
-    /// or none, to be decided ([`glue::decided_declarations`]).
-    pub(crate) fn of(inputs: &BooleanInputs<T>) -> Self {
+    /// The glue `inputs` carries, with `given`'s pairs under their
+    /// classes, or none, to be decided ([`glue::decided_declarations`]).
+    pub(crate) fn of(inputs: &BooleanInputs, given: Option<&[GluedPair<T>]>) -> Self {
         let BooleanInputs {
-            given,
             records_a,
             records_b,
         } = inputs;
         let (pairs, verdicts) = match given {
             None => (Vec::new(), Verdicts::Decided),
-            Some(given) => (given.clone(), Verdicts::Given),
+            Some(given) => (given.to_vec(), Verdicts::Given),
         };
         Self {
             pairs,
@@ -1190,11 +1167,11 @@ impl<T: Real> Glue<T> {
 }
 
 /// **One glued cross-operand face pair and its class**: a pair an
-/// operation decided, or one it was given ([`BooleanInputs::given`]),
-/// whose one public mint is [`GlueVerdict::given_at`]; a given pair
-/// carries the decision it was given on.
+/// operation decided, or one an n-ary union's fold step was given
+/// ([`GlueVerdict::given_at`]); a given pair carries the decision it
+/// was given on.
 #[derive(Clone, Copy, Debug)]
-pub struct GluedPair<T: Real = f64> {
+pub(crate) struct GluedPair<T: Real = f64> {
     /// The A-operand face.
     pub(crate) a: FaceKey,
     /// The B-operand face.
@@ -1220,7 +1197,7 @@ impl<T: Real> GluedPair<T> {
     /// Whether `row` restates this given pair's decision, as a fold step
     /// records it for a face–face record to cite: its two faces, its
     /// class's relation, its margin.
-    pub fn restated_by(&self, row: &crate::Coincidence) -> bool {
+    pub(crate) fn restated_by(&self, row: &crate::Coincidence) -> bool {
         self.given.is_some_and(|given| {
             row.face_pair() == Some((self.a, self.b))
                 && row.relation.glued_class() == Some(self.class)
