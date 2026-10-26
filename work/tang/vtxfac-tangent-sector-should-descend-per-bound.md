@@ -25,7 +25,7 @@ Per bound refuses today only because of a defect. On the one fixture
 that reaches the arm (`crates/sweep/tests/m9_3_zip.rs`,
 `a_tangent_curved_sector_on_a_face_lumps_whole`), the second bound is
 the arc, cut to a 2.1e-8 m sliver by the band-edge split
-(`work/hone/an-arc-tangent-to-a-face-at-its-end-is-split-at-the-edge-of-the-band.md`),
+(`work/honeroot/an-arc-tangent-to-a-face-at-its-end-is-split-at-the-edge-of-the-band.md`),
 so its second-order margin is inside the zero band and it reads `On`
 too: two consecutive `On`s, and all three ops refused
 `ClassificationInvariant` (measured with a temporary per-bound build).

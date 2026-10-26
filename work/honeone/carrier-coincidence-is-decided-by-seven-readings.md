@@ -42,6 +42,6 @@ Re-aimed to D3 "One reading per question". Coincident ± is one class of the car
 
 **The glue door's two unread drops, kept and noted at the site.** These are in `crates/topo/src/boolean/glue.rs`.
 - `decided_declarations` reads `Err(PairUnread::Extent(_))` as no undeclared glue. This follows the module's rule: an undecided pair is left to the stage that meets it.
-- `coaxial_rows` has an `if let Ok`. It was probed on the coaxiality row (`hone/coaxiality-of-two-revolution-carriers-is-tested-five-ways`).
+- `coaxial_rows` has an `if let Ok`. It was probed on the coaxiality row (`honeone/coaxiality-of-two-revolution-carriers-is-tested-five-ways`).
 
 Both are undeclared detection, so a refusal there is a refusal of a pair nobody asked about. Both belong in the one table this row asks for, as unread arms with a stated reading.
