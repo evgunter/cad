@@ -32,3 +32,14 @@ measured at that PR's head `f6f69915e4`.
   `Curve3::ellipse` would reject as `AxesSwapped`. Reviewer r1 raised
   it as a style point and the fix pass left it. No lane claim covers
   it. Build the pose through `Curve3::ellipse`, or order the axes.
+
+## 2026-10-26 (tracker sweep): the second bullet is moot
+
+`geom::Curve3::Ellipse` is order-free by contract since GERM's PR 5156
+(`semi_u`/`semi_v`, "in either order"; `Curve3::ellipse` refuses only a
+non-positive minor semi-axis, `crates/geom/src/curves.rs` ~:146-171), so
+the fuzz pose's swapped semi-axes (`torus_rows::pose`,
+`crates/topo/src/boolean/ellipse_torus.rs` ~:405-417) build a legitimate
+ellipse, not one the constructor rejects. What stays is the first
+bullet: a pose the 1e-12 band resolves, with the row asking for its
+certificate.
