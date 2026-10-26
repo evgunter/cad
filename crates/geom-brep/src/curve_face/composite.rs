@@ -115,14 +115,20 @@ pub fn crossings<T: Decide>(
     band: Band,
     cross: impl Fn(T) -> Interval,
 ) -> Result<Vec<T>, CompositeRefusal> {
-    let (a, b) = (cross(params.0).lo(), cross(params.1).hi());
+    let (start, end) = (cross(params.0), cross(params.1));
+    if !(start.is_certified() && end.is_certified()) {
+        return Err(CompositeRefusal::Unread(
+            "an end of the span does not certify",
+        ));
+    }
+    let (a, b) = (start.lo(), end.hi());
     if !(a < b) {
         return Err(CompositeRefusal::Unread(
             "the span's ends do not certify forward",
         ));
     }
     let pieces = numerator_rows(net, surface, (a, b), &cross)?;
-    let creases = creases(net, (a, b), &cross);
+    let creases = creases(net, (a, b), &cross)?;
     let floor = (b - a) * FLOOR_SHARE;
     // Each knot inside the span where a row's value holds zero, and the
     // far signs of the monotone pieces either side, left then right.
@@ -295,15 +301,24 @@ fn creases<T: Real>(
     net: &NurbsCurve3<T>,
     (a, b): (f64, f64),
     cross: &impl Fn(T) -> Interval,
-) -> Vec<f64> {
+) -> Result<Vec<f64>, CompositeRefusal> {
     let knots = net.knot_values();
-    let values: Vec<f64> = knots.runs().map(|(u, _)| cross(u).lo()).collect();
-    knots
+    let mut values = Vec::new();
+    for (u, _) in knots.runs() {
+        let u = cross(u);
+        if !u.is_certified() {
+            return Err(CompositeRefusal::Unread(
+                "a knot of the carrier does not certify",
+            ));
+        }
+        values.push(u.lo());
+    }
+    Ok(knots
         .structure()
         .crease_runs()
         .map(|r| values[r])
         .filter(|&k| a < k && k < b)
-        .collect()
+        .collect())
 }
 
 /// The sign every value of `values` holds, by its enclosure alone: `None`
