@@ -1,6 +1,6 @@
-//! **A union's vertices that share a run of seams are ranked along a
-//! seam in it whose pieces lie on one open carrier, a curved one
-//! included, in every member order** (N2, `emit_union::rank_along_seam`).
+//! **A union's vertices that share a run of seams are named apart by
+//! their seams' senses, in every member order** (N2,
+//! `emit_union::Flush::seam_sense`).
 //!
 //! Each scene unites `x`, the unit disc extruded z ∈ [0, 1], a block `y`
 //! under z = 0.5, and a disc `w` extruded z ∈ [−0.25, 0.75]. `x`'s wall
@@ -8,19 +8,17 @@
 //! the stretch of it between; no member edge reaches either crossing,
 //! so each is named for the run of its three seams (that arc, the one
 //! where `x`'s wall leaves `y`'s top, and the line where the two walls
-//! meet), and the two share that name. The two walls meet on two
-//! vertical lines, so that seam never ranks; which arc does is the
-//! scene's.
+//! meet). Each seam ends at the crossing, the result keeping it on one
+//! side only, and the side it runs along into the member that trimmed
+//! it is the side it is read as entering along: the arc enters `x` at
+//! one crossing and leaves it at the other, so the two runs' senses
+//! differ and the names come apart. Nothing ranks them.
 //!
 //! - [`OPEN_ARC`]: what is left of `w`'s arc is one open stretch from
 //!   one crossing to the other.
 //! - [`CUT_ARC`]: `y`'s side at x = −0.9 also cuts `w`'s arc, so its
-//!   pieces leave two gaps, of which only the one `x` swallows is
-//!   bounded by the crossings: the arc reads from the other.
-//!   `x`'s arc leaves three gaps, two of them, at `y`'s side and its
-//!   end at y = −0.95, free of the crossings, so it has no start.
-//! - [`NO_START`]: `y` cut back to y ≤ 2.2 cuts `w`'s arc a third time,
-//!   so it too leaves two gaps free of the crossings, and the two tie.
+//!   pieces leave two gaps; `x`'s arc leaves three.
+//! - [`NO_START`]: `y` cut back to y ≤ 2.2 cuts `w`'s arc a third time.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::blocks::{block_on, failure, run};
@@ -30,15 +28,19 @@ use crate::emit_union_rim_piece_ranks::signature;
 use crate::fixture::{insert, len, slid, table, union_over};
 
 use editor_core::{
-    EntityKey, Entry, Evaluation, LoopProgram, Node, ProfileDoc, ProfileProgram, Qualifier,
-    RecipeNodeId, RoleSeg, StableName,
+    EntityKey, Entry, Evaluation, LoopProgram, Node, ProfileDoc, ProfileProgram, RecipeNodeId,
+    RoleSeg, Sense, StableName,
 };
 use geom_core::{Point3, Tol};
 
 /// The disc of radius `r` about `(cx, cy)` on its own xy, extruded
 /// `dz`; its wall is two half cylinders, cut where `phase` says
 /// ([`LoopProgram::circle_split`]), or where the kernel cuts a circle.
-fn disc(doc: ProfileDoc, ((cx, cy), r, phase): Disc, dz: f64) -> (ProfileDoc, RecipeNodeId) {
+pub(crate) fn disc(
+    doc: ProfileDoc,
+    ((cx, cy), r, phase): Disc,
+    dz: f64,
+) -> (ProfileDoc, RecipeNodeId) {
     let (doc, p) = insert(
         doc,
         Node::Profile(ProfileProgram {
@@ -62,25 +64,25 @@ fn disc(doc: ProfileDoc, ((cx, cy), r, phase): Disc, dz: f64) -> (ProfileDoc, Re
 }
 
 /// A disc's centre, radius, and where its wall is cut in two.
-type Disc = ((f64, f64), f64, Option<f64>);
+pub(crate) type Disc = ((f64, f64), f64, Option<f64>);
 
 /// One scene: `x` and `w`, `y`'s spans along x and y, and the height y
 /// at which `x`'s wall crosses `w`'s.
-struct Scene {
-    x: Disc,
-    w: Disc,
-    y: ((f64, f64), (f64, f64)),
+pub(crate) struct Scene {
+    pub(crate) x: Disc,
+    pub(crate) w: Disc,
+    pub(crate) y: ((f64, f64), (f64, f64)),
     cross_y: f64,
 }
 
-const OPEN_ARC: Scene = Scene {
+pub(crate) const OPEN_ARC: Scene = Scene {
     x: ((0.0, 0.0), 1.0, None),
     w: ((0.0, 0.6), 0.7, None),
     y: ((-3.0, 3.0), (0.2, 3.0)),
     cross_y: 0.725,
 };
 
-const CUT_ARC: Scene = Scene {
+pub(crate) const CUT_ARC: Scene = Scene {
     x: ((0.0, 0.0), 1.0, Some(0.6)),
     w: ((0.0, 1.5), 1.0, Some(0.0)),
     y: ((-0.9, 3.0), (-0.95, 3.0)),
@@ -146,25 +148,13 @@ fn crossings(scene: &Scene, ev: &Evaluation<f64>, union: RecipeNodeId) -> Vec<(S
     out.into_iter().map(|(_, n, t)| (n, t)).collect()
 }
 
-/// `name` without a trailing `Fragment(OrderAlong { of: 2 })`, and its
-/// rank there.
-fn rank_of(name: &StableName) -> (StableName, Option<u32>) {
-    let mut base = name.clone();
-    match base.path.last() {
-        Some(&RoleSeg::Fragment(Qualifier::OrderAlong { rank, of: 2 })) => {
-            base.path.pop();
-            (base, Some(rank))
-        }
-        _ => (base, None),
-    }
-}
-
-/// **The two crossings of `scene` rank along one arc of the run,
-/// alike in every member order.** Each crossing is the same run of
-/// three seams, the one at −x ranked `minus_x` of 2 and the other the
-/// other rank; every order publishes one table ([`signature`]). Read
-/// from the gap between the crossings instead, the ranks swap.
-fn crossings_rank_in_every_member_order(scene: &Scene, minus_x: u32) {
+/// **The two crossings of `scene` name apart by their seams' senses,
+/// alike in every member order.** Each crossing is a unique row, a run
+/// of three seams; the two runs cite the same three lines, each seam
+/// carrying the one side it enters along, and at least one seam reads
+/// the other way at the other crossing. Every order publishes one table
+/// ([`signature`]).
+fn crossings_name_apart_in_every_member_order(scene: &Scene) {
     let runs = every_order(scene);
     assert_eq!(runs.len(), 6, "every order of three members");
     let (first_at, first_ev, first_union) = &runs[0];
@@ -175,50 +165,46 @@ fn crossings_rank_in_every_member_order(scene: &Scene, minus_x: u32) {
         let [(a, false), (b, false)] = rows.as_slice() else {
             panic!("{at}: one untied row at each crossing, got {rows:?}");
         };
-        let ((base_a, rank_a), (base_b, rank_b)) = (rank_of(a), rank_of(b));
-        assert_eq!(base_a, base_b, "{at}: the two crossings share one name");
-        assert!(
-            matches!(base_a.path.as_slice(), [RoleSeg::EdgeCrossing(run)] if run.len() == 3),
-            "{at}: the name is a run of three seams, got {base_a:?}"
-        );
-        assert_eq!(
-            [rank_a, rank_b],
-            [Some(minus_x), Some(1 - minus_x)],
-            "{at}: the crossing at −x ranked {minus_x} of 2, got {a:?} and {b:?}"
-        );
-    }
-}
-
-/// **Two crossings of an arc seam's one open stretch rank along its
-/// circle** ([`OPEN_ARC`]).
-#[test]
-fn crossings_of_one_open_arc_rank_along_it_in_every_member_order() {
-    crossings_rank_in_every_member_order(&OPEN_ARC, 1);
-}
-
-/// **Two crossings of an arc whose pieces leave two gaps rank from the
-/// gap they leave free** ([`CUT_ARC`]): the only seam of the run that
-/// reads is `w`'s arc, read from where `y`'s side cuts it.
-#[test]
-fn crossings_of_an_arc_cut_twice_rank_from_the_gap_they_leave_free_in_every_member_order() {
-    crossings_rank_in_every_member_order(&CUT_ARC, 1);
-}
-
-/// **Where every seam of the run leaves several gaps free of the
-/// crossings, or lies on two lines, the crossings tie in every member
-/// order** ([`NO_START`]): no seam of the run has a start of its own to
-/// rank them from.
-#[test]
-fn crossings_of_seams_with_no_start_tie_in_every_member_order() {
-    for (at, ev, union) in every_order(&NO_START) {
-        let rows = crossings(&NO_START, &ev, union);
-        let [(a, true), (b, true)] = rows.as_slice() else {
-            panic!("{at}: the two crossings in one tied row, got {rows:?}");
+        assert_ne!(a, b, "{at}: the two crossings name apart");
+        let run = |n: &StableName| match n.path.as_slice() {
+            [RoleSeg::EdgeCrossing(run)] if run.len() == 3 => run.clone(),
+            _ => panic!("{at}: the name is a run of three seams, got {n:?}"),
         };
-        assert_eq!(a, b, "{at}: one tied row");
-        assert!(
-            matches!(a.path.as_slice(), [RoleSeg::EdgeCrossing(run)] if run.len() == 3),
-            "{at}: the name is a run of three seams, got {a:?}"
-        );
+        let (ra, rb) = (run(a), run(b));
+        for l in ra.iter().chain(&rb) {
+            assert!(
+                matches!(l.line.path.as_slice(), [RoleSeg::Seam { .. }]),
+                "{at}: every line is a seam: {l:?}"
+            );
+            assert!(
+                matches!(&l.sense, Sense::Through { entering } if entering.len() == 1),
+                "{at}: each seam ends at the crossing, entering along one side: {l:?}"
+            );
+        }
+        let lines =
+            |r: &[editor_core::RunLine]| r.iter().map(|l| l.line.clone()).collect::<Vec<_>>();
+        assert_eq!(lines(&ra), lines(&rb), "{at}: the same three seams");
     }
+}
+
+/// **Two crossings of an arc seam's one open stretch name apart by
+/// sense** ([`OPEN_ARC`]).
+#[test]
+fn crossings_of_one_open_arc_name_apart_by_sense_in_every_member_order() {
+    crossings_name_apart_in_every_member_order(&OPEN_ARC);
+}
+
+/// **Two crossings of an arc whose pieces leave two gaps name apart by
+/// sense** ([`CUT_ARC`]).
+#[test]
+fn crossings_of_an_arc_cut_twice_name_apart_by_sense_in_every_member_order() {
+    crossings_name_apart_in_every_member_order(&CUT_ARC);
+}
+
+/// **Two crossings of seams whose pieces leave several gaps name apart
+/// by sense** ([`NO_START`]), where a rank along any of them would have
+/// had no start to read from.
+#[test]
+fn crossings_of_seams_with_no_start_name_apart_by_sense_in_every_member_order() {
+    crossings_name_apart_in_every_member_order(&NO_START);
 }

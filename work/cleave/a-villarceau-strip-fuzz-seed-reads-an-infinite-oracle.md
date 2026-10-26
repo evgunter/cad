@@ -2,10 +2,11 @@
 id: a-villarceau-strip-fuzz-seed-reads-an-infinite-oracle
 kind: issue
 title: torus_region's Villarceau-strip fuzz finds a seed whose oracle reads (inf, 0.0) at eps 1e-6
-status: open
+status: closed
 opened: 2026-10-19
 priority: P2
 cost: E
+closed: 2026-10-26
 ---
 
 
@@ -31,3 +32,7 @@ sample point the generator should not produce; which one is unread. Pin
 the seed beside the fix.
 
 Signed (WIRE implementer, wire-citerows).
+
+## Closed (2026-10-26)
+
+Fixed by PR 5363 (`973ddaba01`, RESTREAD): the sign-scan oracle that read `(inf, 0.0)` is gone; `a_villarceau_strip_reads_its_side_at_random_points` reads each point's family parameter in closed form (`villarceau_family`) at its own fixed band. Not re-run at the seed (tracker-only lane). (CLEAVE slate triage)
