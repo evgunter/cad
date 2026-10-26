@@ -239,8 +239,9 @@ pub(crate) struct OpEnv<'a, T: Decide> {
     /// **A second computing frame**
     /// ([`super::EvalOptions::computing_twist`]): each construction's body
     /// built, then mapped by it, its frame the inverse, so every
-    /// operation downstream computes in a frame the twist turned.
-    pub twist: Option<RigidMotion<T>>,
+    /// operation downstream computes in a frame the twist turned. A twist
+    /// that is no rigid motion refuses at each construction.
+    pub twist: Option<Result<RigidMotion<T>, geom_core::RigidMotionError>>,
     pub boolean_sweep: topo::SweepStrategy,
     pub parts: &'a super::parts::Reached<T>,
     /// The environments profile geometry is elaborated over.
@@ -619,6 +620,7 @@ fn twisted<T: Decide + topo::AtRestPolicy>(
     tol: Tol,
 ) -> OpResult<T> {
     if let (Some(twist), ValuePayload::Body(body)) = (env.twist.as_ref(), &out.payload) {
+        let twist = twist.as_ref().map_err(|e| NodeErrorKind::Motion(*e))?;
         let turned = transform_rigid(body.body(), twist, tol).map_err(NodeErrorKind::Transform)?;
         let back = super::Frame::Own
             .moved(&twist.inverse().map_err(NodeErrorKind::Motion)?)

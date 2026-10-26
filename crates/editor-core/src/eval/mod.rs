@@ -3131,22 +3131,28 @@ pub struct ComputingTwist {
 impl ComputingTwist {
     /// The motion at scalar `T`.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// If the axis is no unit direction or a part is not finite.
-    fn at<T: Decide>(&self, tol: Tol) -> geom_core::RigidMotion<T> {
+    /// An axis no unit direction decides (refused as the map not being
+    /// rigid, `computing_twist_axis_unit`), or a part that is not finite.
+    fn at<T: Decide>(
+        &self,
+        tol: Tol,
+    ) -> Result<geom_core::RigidMotion<T>, geom_core::RigidMotionError> {
         let lift = |v: [f64; 3]| {
             geom_core::Vec3::new(T::from_f64(v[0]), T::from_f64(v[1]), T::from_f64(v[2]))
         };
-        let band = geom_core::Band::linear(tol).expect("a twist's tolerance forms a band");
+        let not_unit = geom_core::RigidMotionError::NotRigid {
+            check: "computing_twist_axis_unit",
+        };
+        let band = geom_core::Band::linear(tol).map_err(|_| not_unit)?;
         let axis = geom_core::UnitVec3::new(lift(self.axis), "computing twist axis", band)
-            .expect("a twist turns about a unit axis");
+            .map_err(|_| not_unit)?;
         geom_core::RigidMotion::rotation_then_translation(
             axis,
             T::from_f64(self.angle),
             lift(self.by),
         )
-        .expect("a twist is a finite motion")
     }
 }
 

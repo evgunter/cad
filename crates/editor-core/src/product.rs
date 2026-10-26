@@ -1270,6 +1270,10 @@ fn gather<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     Ok(product)
 }
 
+/// One grafted source: the source, its graft's key bridge, and its body
+/// read into the gather's computing frame.
+type Grafted<'s, T> = (&'s Source<T>, Arc<topo::GraftKeys>, Arc<Body<T>>);
+
 /// [`gather`] over its sources: grafted, gated, carried and
 /// censused, each source its own group.
 fn gather_sources<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
@@ -1286,8 +1290,7 @@ fn gather_sources<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     // The gather computes in its first source's frame and reads every
     // other into it through `relative`.
     let mut computing: Option<&crate::eval::Framed<T>> = None;
-    let mut grafted: Vec<(&Source<T>, Arc<topo::GraftKeys>, Arc<Body<T>>)> =
-        Vec::with_capacity(sources.len());
+    let mut grafted: Vec<Grafted<'_, T>> = Vec::with_capacity(sources.len());
     for source in &sources {
         let Source { node, body, .. } = source;
         // An empty source contributes nothing; the graft door refuses a

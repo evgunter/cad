@@ -309,9 +309,13 @@ fn every_corpus_placement_places_its_body_by_the_pinned_bits() {
             .copied()
             .filter(|id| placements.contains(id))
         {
-            let (word, fed) = placed_body_digest(&ev, id).unwrap_or_else(|| {
-                panic!("{} node {id}: a placement's value is one body", doc.name)
-            });
+            let digest = placed_body_digest(&ev, id);
+            assert!(
+                digest.is_some(),
+                "{} node {id}: a placement's value is one body",
+                doc.name
+            );
+            let (word, fed) = digest.unwrap_or_default();
             assert!(fed > 0, "{} node {}: nothing was digested", doc.name, id);
             got.push((doc.name, id.0.ordinal(), word));
         }
