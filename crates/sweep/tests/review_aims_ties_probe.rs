@@ -224,3 +224,45 @@ fn review_turned_tube_in_its_seam_plane() {
         println!("== turned {angle}: right {right}, other {other}, wrong {}: {:?}", wrong.len(), &wrong[..wrong.len().min(6)]);
     }
 }
+
+/// Claim 7: the P1's wrong side (`NegativeVolume` on a correctly
+/// oriented side of a split through a seam vertex) at more seam
+/// azimuths and tilts than `split_seam_vanishing_tilt` pins.
+#[test]
+fn review_seam_split_wrong_side_census() {
+    use topo::splitting::{SplitError, SplitFinishError, split};
+    let tol = Tol::witness();
+    let mut tally = std::collections::BTreeMap::new();
+    for i in 0..24 {
+        let phi = -3.1 + 6.2 * f64::from(i) / 23.0;
+        let circle = vec![(Point2::new(1.0, 0.0), 1.0), (Point2::new(-1.0, 0.0), 1.0)];
+        let body = topo::AtRestBody::validate(sweep::test_support::prism(circle, 1.0, tol), tol).unwrap();
+        let turn = geom_core::Affine3::rotation_about_axis(Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0), phi);
+        let turned = topo::transform_rigid(&body, &geom_core::test_support::rigid(&turn, tol), tol).unwrap();
+        let Ok(cyl) = topo::AtRestBody::validate(turned, tol) else { continue };
+        let (c, s) = (phi.cos(), phi.sin());
+        let v = Point3::new(c, s, 0.0);
+        let along = Vec3::new(-s, c, 0.0);
+        for psi in [1e-7_f64, 2e-7, 5e-7, 1e-6] {
+            for l in [0.0, 0.1] {
+                for sign in [1.0, -1.0] {
+                    let n = Vec3::new(c * psi.cos(), s * psi.cos(), psi.sin()) * sign;
+                    let plane = topo::test_support::split_plane(v + along * l, n, tol);
+                    let key = match split(&cyl, &plane, tol) {
+                        Ok(_) => "ok".to_owned(),
+                        Err(SplitError::Finish(SplitFinishError::ResultNotAtRest { errors, .. })) => {
+                            let wrong: Vec<_> = errors.iter().map(|e| format!("{e:?}")).filter(|e| e.contains("NegativeVolume") || e.contains("InsideOut") || e.contains("Inside")).collect();
+                            if wrong.is_empty() { "not at rest".to_owned() } else {
+                                println!("WRONG SIDE φ {phi} ψ {psi:e} L {l} sign {sign}: {}", &wrong[0][..wrong[0].len().min(200)]);
+                                "WRONG SIDE".to_owned()
+                            }
+                        }
+                        Err(e) => format!("{}", format!("{e:?}").chars().take(30).collect::<String>()),
+                    };
+                    *tally.entry(key).or_insert(0) += 1;
+                }
+            }
+        }
+    }
+    println!("seam split census {tally:?}");
+}
