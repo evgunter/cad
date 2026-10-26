@@ -75,6 +75,32 @@ fn spline(rng: &mut Rng, case: usize) -> (geom::NurbsCurve3<f64>, Vec<f64>) {
     }
 }
 
+/// The arc `(t0, t1)` of `c` as a polyline whose every chord is at most
+/// `2·10⁻⁴` long: a fixed parameter step misses a narrow excursion on a
+/// fast rational span, where the arc moves far for a small step.
+fn polyline(c: &geom::NurbsCurve3<f64>, (t0, t1): (f64, f64)) -> Vec<(f64, f64)> {
+    let at = |t: f64| {
+        let x = c.eval(t);
+        (x.x, x.y)
+    };
+    let mut out = vec![at(t0)];
+    let mut stack = vec![(t0, t1)];
+    while let Some((a, b)) = stack.pop() {
+        let (pa, pb) = (at(a), at(b));
+        let m = 0.5 * (a + b);
+        let pm = at(m);
+        let long = |p: (f64, f64), q: (f64, f64)| (p.0 - q.0).hypot(p.1 - q.1) > 2e-4;
+        if (long(pa, pm) || long(pm, pb)) && a < m && m < b {
+            stack.push((m, b));
+            stack.push((a, m));
+        } else {
+            out.push(pm);
+            out.push(pb);
+        }
+    }
+    out
+}
+
 /// **Every ray the row counts crosses the arc as often as a dense
 /// polyline of it says.** Points within `1e-3` of the arc, and rays the
 /// polyline cannot read reliably (a near-tangent turn within `1e-3` of
@@ -104,13 +130,7 @@ fn random_splines<T: Decide>(lane: &str, cases: usize) {
                 test_utils::fuzz::replay()
             );
         };
-        let m = 8_000;
-        let pts: Vec<(f64, f64)> = (0..=m)
-            .map(|i| {
-                let x = c.eval(t0 + (t1 - t0) * f64::from(i) / f64::from(m));
-                (x.x, x.y)
-            })
-            .collect();
+        let pts = polyline(&c, (t0, t1));
         for _ in 0..40 {
             let q = (rng.range(-2.5, 2.5), rng.range(-2.5, 2.5));
             let a = rng.range(0.0, core::f64::consts::TAU);
@@ -142,7 +162,7 @@ fn random_splines<T: Decide>(lane: &str, cases: usize) {
                     .windows(2)
                     .any(|w| (s(w[0]) > 0.0) != (s(w[1]) > 0.0) && g(w[0]).abs() < 1e-3)
                 || sv[0].abs() < 1e-3
-                || sv[m as usize].abs() < 1e-3;
+                || sv[sv.len() - 1].abs() < 1e-3;
             if fragile {
                 continue;
             }
