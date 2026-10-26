@@ -16,8 +16,11 @@ closed against `crates/topo/README.md`'s "the C9 exclusion ring".
 Its two live rows moved to `work/germcert/` with their ids kept:
 `the-whole-period-spiric-speed-bound-reads-sin-and-f-apart` and
 `spiric-oval-turn-centre-and-ball-belong-on-the-curve`. GERMCERT now
-claims `crates/geom/src/curves.rs`. Eight closed rows that other programs
-cite by `refs:` moved there too, unchanged; the rest were deleted. `docs/CURVED-SPIRIC-DESIGN.md` is
+claims `crates/geom/src/curves.rs`. Its closed rows were deleted, except `VERBS-C5ARMS`, which three GERM
+and SECT rows cite in their text as the unit they continue; it moved
+to GERMCERT unchanged. Seven other closed rows that were only `refs:`
+entries elsewhere were deleted, and those entries pruned (Ev, in chat:
+keep a closed row only where it gives the citing row context). `docs/CURVED-SPIRIC-DESIGN.md` is
 left unclaimed.
 
 Recover the program and its closed rows from the parent of the commit
