@@ -114,6 +114,8 @@ mod a_ruling_through_a_box_corner_edge;
 mod a_seam_region_carrying_both_poles;
 #[path = "a_seam_region_covering_the_sphere_twice.rs"]
 mod a_seam_region_covering_the_sphere_twice;
+#[path = "a_sheath_grafted_on_its_blade.rs"]
+mod a_sheath_grafted_on_its_blade;
 #[path = "a_short_shallow_strut_between_wide_walls_is_a_corner.rs"]
 mod a_short_shallow_strut_between_wide_walls_is_a_corner;
 #[path = "a_spiric_cut_far_off_and_turned_reads_as_at_home.rs"]

@@ -385,3 +385,23 @@ span's interior from y's topology under the boolean's
 non-self-intersection precondition) is consistent with C5's "only what
 the boundary leaves undecided is read against the face's interior", or
 needs a sentence in C5.
+
+## 2026-10-26 — PR 5768 (boundary-first) merges
+
+The fix pass `76d5bbcfd5` answered the dual pair's union. The
+orchestrator read the delta: no second review, since the pair is
+concurrent and raised no MAJOR. Dual-review row:
+`docs/dual-review-log/rows/PR-5768.md`.
+
+The curve × face table now exists in geom-brep, with its boundary
+pass. Where the demos stand:
+- lily wall 8: reaches the converse arm (a blade NURBS seam against the
+  sheath's planar base cap);
+- teapot wall 3: reaches `PointSplitCarrierUnsupported` on the spout's
+  NURBS seam (`a-meeting-on-a-spline-boundary-edge-has-no-split-parameter`);
+- klein wall 3: unchanged, behind the cap tilt.
+
+Next on lily's path: the table's interior arm together with the
+converse rung, as one brief. `twin_edge`'s fit with C5 is put to Ev in
+chat. The code is kept, and its premise is stated as the boolean's
+non-self-intersection precondition.
