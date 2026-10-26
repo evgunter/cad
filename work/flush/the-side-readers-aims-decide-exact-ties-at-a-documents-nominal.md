@@ -2,10 +2,11 @@
 id: the-side-readers-aims-decide-exact-ties-at-a-documents-nominal
 kind: issue
 title: The side reader's aims land on exact ties at symmetric nominals
-status: open
+status: dispatched
 priority: P2
 opened: 2026-10-19
 cost: H
+branch: flush/aims-ties
 refs: [a-ray-meets-a-curved-faces-edge-in-band-by-each-faces-own-trim]
 ---
 
