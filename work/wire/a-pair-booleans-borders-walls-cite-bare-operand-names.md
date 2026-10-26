@@ -2,10 +2,11 @@
 id: a-pair-booleans-borders-walls-cite-bare-operand-names
 kind: issue
 title: A pair boolean's Borders walls cite the operands' bare face names, so two walls of one name from the two operands spell one set
-status: dispatched
+status: closed
 opened: 2026-10-20
 priority: P2
 cost: M
+closed: 2026-10-26
 ---
 
 
@@ -37,3 +38,5 @@ publishes no tied row, so that fixture does not reach a wall
 collision. No witness built.
 
 Signed (WIRE lane `wire-seamorder`).
+
+Closed by PR 5732 (2026-10-26). A wall now cites the boolean's own `From` name, as a seam side does. The only witness is a unit-level spelling test; an end-to-end collision needs D10 copies. Four corpus goldens were re-pinned, spelling only.

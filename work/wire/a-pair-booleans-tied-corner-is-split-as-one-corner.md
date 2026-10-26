@@ -2,10 +2,11 @@
 id: a-pair-booleans-tied-corner-is-split-as-one-corner
 kind: issue
 title: The pair boolean groups an operand corner's copies by name, so a tied corner's candidates are split as one corner
-status: dispatched
+status: closed
 opened: 2026-10-25
 priority: P2
 cost: M
+closed: 2026-10-26
 ---
 
 
@@ -47,3 +48,5 @@ member corners it sits at, so each candidate is its own corner.
 ## Correction from PR 5535's re-review (2026-10-26)
 
 "No fixture has been built yet" is wrong. `union_member_orders_decide_alike::a_vertex_row_is_the_unions_once_in_every_member_order` (the prism-and-cube pinch) reaches the pair corner pass with a tied name held as 2 copies, twice, and it does not refuse. There the two candidates are copies of one point, split by real obstacles. The refusal claim narrows to tied candidates at *distinct points*, where no discard borders two copies (`borders.rs:691` refuses). That refusal is labelled `NamingError::Emission` although the input is legal.
+
+Closed by PR 5732 (2026-10-26). The pair corner pass is keyed by `(name, candidate)` and shares `name_corner_copies` with the union. Witness: `touch_reread_rows::a_tied_corners_candidates_are_named_apart_wherever_they_lie`. This also fixed the REFS carried-pinch fold cases; that row's pair-subtract witness stays live.
