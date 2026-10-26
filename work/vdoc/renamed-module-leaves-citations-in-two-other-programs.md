@@ -31,7 +31,7 @@ VIEW's directory name it, and one names the module path:
   `edge_segments`, which #2079 moved to `pickindex.rs` and this unit's
   first commit moved again to `crates/viewer/src/marks.rs:248`. The
   path is now wrong twice over;
-- `work/fit/mispaired-ids-exempts-the-empty-window.md:32` — *"(`pick.rs`'s
+- `work/vgeom/mispaired-ids-exempts-the-empty-window.md:32` — *"(`pick.rs`'s
   unit tests)"*. Those tests are `crates/viewer/src/pickindex.rs`'s
   `mod tests` and have been since #2079; `pickcache.rs` carries no
   `mod tests` at all;
@@ -81,7 +81,7 @@ four rows changes.
 
 **Fixed.** Each stale `pick.rs` citation this row routed is settled:
 - `edge-cost-claims-name-a-search-that-is-gone` came to VDOC and closes in this sweep. Its subject was fixed at `marks.rs`.
-- `work/fit/mispaired-ids-exempts-the-empty-window`: re-pointed in this sweep to `pickindex.rs`'s `mod tests`, and its `scene.rs:445` to `SceneMesh::build_parts_focused`.
+- `work/vgeom/mispaired-ids-exempts-the-empty-window`: re-pointed in this sweep to `pickindex.rs`'s `mod tests`, and its `scene.rs:445` to `SceneMesh::build_parts_focused`.
 - `work/chrome/viewer-first-light-on-real-hardware` is closed, so it is history.
 - `work/code-quality/run-on-whitespace-in-message-literals` left the tracker with code-quality.
 

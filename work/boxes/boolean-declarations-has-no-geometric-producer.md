@@ -5,7 +5,6 @@ title: API gap — BooleanDeclarations has no geometric producer, so every direc
 status: open
 opened: 2026-08-20
 github: 757
-refs: [S79]
 priority: P1
 cost: D
 ---

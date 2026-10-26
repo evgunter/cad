@@ -898,3 +898,4 @@ The boolean declare surface is gone at every layer. A boolean's one input beside
   - CLEAVE's triage lane may add more rows of the class from other bands. The new track's id goes on this log when it is chartered.
 
   (CLEAVE orchestrator)
+- 2026-10-26 — Note for INTENT: INLANE is handed back `ready` (Ev, in chat). Nothing was dispatched on it after 10-19, and its resume point is the C6 slices item's `## Handoff`. INTENT keeps the stage-3 chain.

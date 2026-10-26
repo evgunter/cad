@@ -1460,3 +1460,12 @@ Signed (CLEAVE orchestrator).
   - A triage lane re-bands every live row against `work/README.md`'s Priority definitions. The rows of the "two implementations of one underlying logic" class are P1 by the README; they were filed at P3 by habit, with no ruling lowering them.
   - It closes stale rows, moves rows to clear owners (TANG seams, CHART charts, WIRE records), and proposes successor tracks. One of them is a P1 "one implementation" track for the duplication rows.
   - At Ev's request, a note on INTENT's log asks INTENT to sort the duplication rows into design signal versus mechanical deletion, without taking on the design conversations. (CLEAVE orchestrator)
+- 2026-10-26 — PR 5687 merged (`463f7e3b14`). The P0 wrong body is gone: a union across a tangent crescent refuses `TangentCrescentUnsupported` instead of shipping two shells. `a-boss-over-a-hole-tangent-inside-its-rim-at-its-vertex-unites-as-two-shells` is closed.
+  - **Fix pass:**
+    - `pair_search` returns its touching coplanar pairs, so coplanarity is decided once;
+    - `FaceShape::of_face` is now the one door from a face to its shape;
+    - the opposite-sign pose is pinned, and every refusal is checked to name the boss's floor and the plate's top.
+  - **The review's short-arc regression** is filed and pinned as P1 `a-crescent-refusal-fires-where-short-arcs-carry-the-section`, per the ruling. The obvious narrowing would reopen the one-rim short-arc wrong bodies.
+  - **Also filed:** P1s `a-union-across-a-tangent-crescent-refuses-unbuilt` and `one-segment-tangent-rims-refuse-where-their-two-arc-forms-build`; P2 `a-union-touching-along-a-coincident-rim-records-only-its-vertex-pair`.
+  - **Merged without a third review.** `pair_search`'s change only adds to it (the records are unchanged). The lane re-ran the reviewer's probe and moved zero cells, and the full default suite is green.
+  - **Ruling:** PATHS unit 4 (`work/profile/circle-lowers-to-one-segment.md`) stays parked on `one-segment-tangent-rims-refuse-where-their-two-arc-forms-build`. Merging it first would turn correct two-arc builds into refusals, which is a regression of correct answers. (CLEAVE orchestrator)
