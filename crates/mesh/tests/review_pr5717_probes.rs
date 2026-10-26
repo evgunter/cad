@@ -10,8 +10,8 @@ use crate::common;
 use common::*;
 use core::f64::consts::PI;
 use geom_core::{Point2, Tol};
-use profile::{ProfileLoop, RawLoop};
 use profile::test_support::bulge_loop;
+use profile::{ProfileLoop, RawLoop};
 use sweep::Revolution;
 use topo::Body;
 
@@ -167,13 +167,21 @@ fn review_sphere_zones_and_wedges() {
             Revolution::Partial(0.05),
         ] {
             for d in DELTAS {
-                t.row(&format!("zone [{a:.3},{b:.3}] {rev:?}"), zone(1.0, a, b, rev), d);
+                t.row(
+                    &format!("zone [{a:.3},{b:.3}] {rev:?}"),
+                    zone(1.0, a, b, rev),
+                    d,
+                );
             }
         }
     }
     for theta in [0.02, 0.1, 0.4, 1.0, 2.0, 3.0] {
         for d in DELTAS {
-            t.row(&format!("sphere_wedge {theta}"), Some(sphere_wedge(theta)), d);
+            t.row(
+                &format!("sphere_wedge {theta}"),
+                Some(sphere_wedge(theta)),
+                d,
+            );
         }
     }
     t.report("sphere");
@@ -221,7 +229,11 @@ fn review_uneven_cylinder_rims() {
             Revolution::Partial(2.0),
         ] {
             for d in DELTAS {
-                t.row(&format!("domed big {big} {rev:?}"), domed_cylinder(big, rev), d);
+                t.row(
+                    &format!("domed big {big} {rev:?}"),
+                    domed_cylinder(big, rev),
+                    d,
+                );
             }
         }
     }
@@ -238,7 +250,11 @@ fn review_rounding_edge() {
         for n in (9..=400).step_by(1) {
             #[allow(clippy::cast_precision_loss)]
             let d = r * (1.0 - (PI / n as f64).cos());
-            t.row(&format!("cyl r {r} n {n}"), frustum(r, r, 1.0, Revolution::Full), d);
+            t.row(
+                &format!("cyl r {r} n {n}"),
+                frustum(r, r, 1.0, Revolution::Full),
+                d,
+            );
         }
     }
     // Cone: δ = ρ_max·cos α·(1 − cos(π/n)), radii 1 → 0.5 over height 1.
@@ -246,7 +262,11 @@ fn review_rounding_edge() {
     for n in 9..=200 {
         #[allow(clippy::cast_precision_loss)]
         let d = alpha.cos() * (1.0 - (PI / n as f64).cos());
-        t.row(&format!("cone n {n}"), frustum(1.0, 0.5, 1.0, Revolution::Full), d);
+        t.row(
+            &format!("cone n {n}"),
+            frustum(1.0, 0.5, 1.0, Revolution::Full),
+            d,
+        );
     }
     t.report("rounding edge");
 }
@@ -257,7 +277,9 @@ fn review_rounding_edge() {
 fn review_rounding_edge_round_inputs() {
     let mut rows = 0;
     let mut refused = Vec::new();
-    let radii = [0.01, 0.02, 0.05, 0.1, 0.2, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 2.5, 3.0, 5.0, 10.0];
+    let radii = [
+        0.01, 0.02, 0.05, 0.1, 0.2, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 2.5, 3.0, 5.0, 10.0,
+    ];
     let mut deltas = Vec::new();
     for k in 1..=6 {
         for m in [1.0, 2.0, 2.5, 5.0] {

@@ -635,10 +635,15 @@ fn review_probe_main_count(
             }
             n
         }
-        Curve3::Ellipse { semi_u, semi_v, .. } => ceil_count(span, ellipse_step(ds, semi_u, semi_v))?,
-        Curve3::Spiric { major_radius, minor_radius, offset, .. } => {
-            ceil_count(span, spiric_step(ds, major_radius, minor_radius, offset))?
+        Curve3::Ellipse { semi_u, semi_v, .. } => {
+            ceil_count(span, ellipse_step(ds, semi_u, semi_v))?
         }
+        Curve3::Spiric {
+            major_radius,
+            minor_radius,
+            offset,
+            ..
+        } => ceil_count(span, spiric_step(ds, major_radius, minor_radius, offset))?,
         Curve3::Nurbs(ref nn) => nurbs_chord_count(nn, span, ds, ek)?,
     };
     let main_n = nurbs_tighten(body, ek, (t0, t1), ds, bounds, n)?;
