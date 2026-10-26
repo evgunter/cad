@@ -42,3 +42,7 @@ unit and could not be left standing) and stopped there.
 ## Re-homed at S-BOOL's exit (2026-09-16)
 
 Moved from `work/bool/` to CURVED (its charter names S-BOOL's ceded ground and inherits at S-BOOL's exit) when S-BOOL closed (`docs/S-BOOL-EXIT-WALK.md`); the item's content, id and history are unchanged.
+
+## Sweep note (2026-10-26, tracker sweep)
+
+Still live on main, at moved sites. The door is `crates/topo/src/boolean/carrier_pair.rs:46`, re-exported at `boolean/mod.rs:212` and `lib.rs:1030`, and `topo/src/flush.rs` no longer exists. Its only in-tree reader is the torn-body read census in `crates/topo/src/review_d18.rs` (`READ_DOORS`, `:3445`/`:3477`, called at `:3658`), so "no caller" now means no production caller. The door's doc cited this row at `work/seat/…`; this sweep re-pointed it to `work/probe/…` (`carrier_pair.rs:30`; PIN merged into PROBE the same day).

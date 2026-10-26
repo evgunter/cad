@@ -2,12 +2,13 @@
 id: boolean-smooth-arm-rebuilds-line-carrier
 kind: issue
 title: boolean's smooth-arm stale-flat branch rebuilds line carriers via line_between instead of restating the certified carrier
-status: open
+status: closed
 opened: 2026-08-31
 github: 1382
 refs: [1152, 1378, 1107, 1362, D95]
 priority: P3
 cost: E
+closed: 2026-10-26
 ---
 
 ## From GitHub issue 1382
@@ -29,3 +30,7 @@ S-BOOL: the instance is in `crates/topo/src/boolean/ops.rs`, S-BOOL territory, a
 ## Re-homed at S-BOOL's exit (2026-09-16)
 
 Moved from `work/bool/` to CURVED (its charter names S-BOOL's ceded ground and inherits at S-BOOL's exit) when S-BOOL closed (`docs/S-BOOL-EXIT-WALK.md`); the item's content, id and history are unchanged.
+
+## Closed (2026-10-26, tracker sweep)
+
+Fixed on main. `crates/topo/src/boolean/ops.rs` has no `line_between` call left. The smooth arm of `describe_edges` (`DihedralClass::Smooth`, ~`:3092-3170`) re-describes a stale edge with `crate::rest_locus` "on its UNCHANGED carrier (only the description moves)", and the intrinsic reading uses `restate_edge` on the existing carrier. That is restating rather than rebuilding. (`boolean/edge_join.rs:1113`'s `line_between` is a different case: a join that spans two merged edges, whose chord is new.)

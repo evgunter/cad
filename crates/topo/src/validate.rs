@@ -557,7 +557,12 @@ impl PartialEq for CensusSubject {
         match (self, other) {
             (Self::Entity(x), Self::Entity(y)) => x == y,
             (Self::FacePair(a, b), Self::FacePair(c, d)) => (a, b) == (c, d) || (a, b) == (d, c),
-            _ => false,
+            // The mismatches spelled over the whole vocabulary rather
+            // than swept up by a catch-all, so a variant added above
+            // must be given its own arm (E0004) instead of silently
+            // comparing unequal to itself, which would break the
+            // reflexivity `Eq` below promises.
+            (Self::Entity(_), Self::FacePair(..)) | (Self::FacePair(..), Self::Entity(_)) => false,
         }
     }
 }
@@ -1923,7 +1928,7 @@ pub enum ValidationError {
     /// of silently not looked at (A5's letter: decide or refuse,
     /// never silently not-examine). Two arms fire it: arm 1, on a
     /// cross-solid curved face pair within reach of each other (the
-    /// C9-ring conformal-rest/proximity class — the exclusion ring
+    /// conformal-rest/proximity class — the C9 exclusion ring
     /// is the certified excluder this backstop stands in for); and
     /// arm 2, the instance-containment arm, on what its MATERIAL test
     /// could not answer. Arm 2's box test is the gate, not the

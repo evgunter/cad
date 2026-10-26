@@ -51,3 +51,7 @@ viewer's is on VIEW's
 ## Re-homed at S-BOOL's exit (2026-09-16)
 
 Moved from `work/bool/` to CURVED (its charter names S-BOOL's ceded ground and inherits at S-BOOL's exit) when S-BOOL closed (`docs/S-BOOL-EXIT-WALK.md`); the item's content, id and history are unchanged.
+
+## Sweep note (2026-10-26, tracker sweep)
+
+Half fixed on main. The coaxial-frame probe's pair now comes from `axis.orthonormal_basis()` (`crates/topo/src/boolean/join.rs:7560`, `:7579`). `cylinder_at` (`:6443`, a test fixture) still hand-rolls `if axis.x.abs() < 0.5 { x̂ } else { ŷ }`. The fix is `u_ref: axis.orthonormal_basis().0`, but it changes the fixture's chart bits, so it needs a build and a test run to see what moves.

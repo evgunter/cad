@@ -2,10 +2,11 @@
 id: boolean-mod-doc-links-a-feature-gated-variant
 kind: issue
 title: boolean/mod.rs:31 links SweepStrategy::Idealized, a feature-gated variant — rustdoc with CI's lints errors on a default build
-status: open
+status: closed
 opened: 2026-09-08
 priority: P4
 cost: E
+closed: 2026-10-26
 ---
 
 
@@ -22,3 +23,7 @@ local invocation is not the gate's. Signed (SHELL orchestrator).
 ## Re-homed at S-BOOL's exit (2026-09-16)
 
 Moved from `work/bool/` to CURVED (its charter names S-BOOL's ceded ground and inherits at S-BOOL's exit) when S-BOOL closed (`docs/S-BOOL-EXIT-WALK.md`); the item's content, id and history are unchanged.
+
+## Closed (2026-10-26, tracker sweep)
+
+Fixed by this sweep. `crates/topo/src/boolean/mod.rs:33` no longer links the feature-gated variant. It now names `SweepStrategy::Idealized` in plain code font and says the variant sits behind the `sweep-testing` feature (`boolean/reduce.rs:102`, `#[cfg(feature = "sweep-testing")]`), so a default-feature `cargo doc --document-private-items` has no unresolved intra-doc link there. The orchestrator's rustdoc run is what confirms it.

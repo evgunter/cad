@@ -2,12 +2,13 @@
 id: edge-chord-len-defaults-to-one-metre
 kind: issue
 title: edge_chord_len's None defaults to a 1 m arm at two plane-identity sites
-status: open
+status: closed
 opened: 2026-09-01
 github: 1529
 refs: [1398, 501]
 priority: P3
 cost: E
+closed: 2026-10-26
 ---
 
 ## From GitHub issue 1529
@@ -66,3 +67,7 @@ panics naming the record (D2 row 4); no length stands in. Rows:
 edge length at all: it levers at the pair's reach
 (`boolean::rest::pair_extent`). Nothing of this row remains open that
 this branch knows of; its owner closes it.
+
+## Closed (2026-10-26, tracker sweep)
+
+Fixed on main. No `edge_chord_len` exists anywhere under `crates/`, and no `unwrap_or_else(T::one)` remains in `crates/topo/src/`. Both plane-pair decisions are now levered by the geometry's own reach. The boolean's maximal-faces gate reads "a ball about the shared edge's start that holds the edge … the tilt is levered at its reach" (`crates/topo/src/boolean/reduce.rs:782-790`, `gate_maximal_faces`). The merge door's orientation decision is "levered at the radius of a ball enclosing both faces" (`crates/topo/src/merge_faces.rs:1124-1134`, `DECLARED_ORIENTATION`). That is the row's second candidate, "use the faces' own extent as the arm".

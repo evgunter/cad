@@ -2,10 +2,11 @@
 id: rows-do-not-cross-a-boolean-remap
 kind: issue
 title: declaration rows do not cross a boolean's key remap (unreachable today: an instance carrying one is multi-solid)
-status: open
+status: closed
 opened: 2026-09-06
 priority: P3
 cost: E
+closed: 2026-10-26
 ---
 
 
@@ -110,3 +111,7 @@ stays unreachable for as long as products refuse.
 reduction's rows and `carried` (`operand_fate`, then
 `records::landings`) for the operands', which land on the census's
 record confirm rather than dropping a consumed record by key.
+
+## Closed (2026-10-26, tracker sweep)
+
+Superseded. The channel this row was about is gone from main (`bb25fa4f0b`): no `carry_declarations` exists anywhere under `crates/`, no `remap_contacts` in `crates/topo/src/boolean/ops.rs` (the boolean now carries records through `carry`, ~`:1042`), no `Attribution` enum or `Attribution::Unattributed`, and no `no_carried_declaration_can_reach_a_boolean_operand` row in `crates/editor-core/tests/docm6_seam_declarations.rs`. A mate's declaration rows were the declared-pair surface D10 retires (`docs/DESIGN.md`, "State of the build": the boolean declare surface is retired, stage 4 E and F; a mate's `ContactClass` and A5's unattributed-contact error retire into `unproven-coincidence` findings). The live question of how a carried contact reaches a finding is COINCIDE's and ATREST's.
