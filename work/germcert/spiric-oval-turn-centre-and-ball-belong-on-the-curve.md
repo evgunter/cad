@@ -37,3 +37,7 @@ arm read them, so that one derivation serves both. Not urgent: nothing
 is wrong today, and the one consumer of the ball (`bool_connect`'s
 antipode for a one-site loop) is unreachable for the torus until the
 germ-pair dispatch has a torus arm (U-T2).
+
+## Moved (2026-10-26)
+
+From CURVED, which closed (Ev, in chat: "curved can close without a walk, and rows to germcert is good"; `docs/doc-ledger/curved-leaves-the-tracker.md`). Both rows came from GERM lanes and are about the spiric carrier's own facts.

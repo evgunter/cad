@@ -58,3 +58,7 @@ piecewise reading like `piece_speed`; and a near-tangent row shows the
 whole-period bound within a small factor of the true sup. If the
 reading lands in `spiric_rate_bounds` itself, `piece_speed`'s together
 half becomes a call to it.
+
+## Moved (2026-10-26)
+
+From CURVED, which closed (Ev, in chat: "curved can close without a walk, and rows to germcert is good"; `docs/doc-ledger/curved-leaves-the-tracker.md`). Both rows came from GERM lanes and are about the spiric carrier's own facts.
