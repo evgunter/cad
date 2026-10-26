@@ -453,3 +453,49 @@ fn the_corpus_geometry_is_bit_identical_with_ids_masked() {
          moves with ids, and this one does not"
     );
 }
+
+#[test]
+fn r1_per_document_id_free() {
+    type Nodes = std::collections::BTreeMap<editor_core::MintId, (String, Vec<[u64; 3]>)>;
+    let mut docs: Vec<(String, Nodes)> = Vec::new();
+    walk::<f64>(|seen| match seen {
+        Seen::Document(name) => docs.push((name.to_owned(), Nodes::new())),
+        Seen::Node { id, outcome, .. } => {
+            let outcome = match outcome {
+                Outcome::Poisoned { .. } => "poisoned",
+                Outcome::Failed => "failed",
+                Outcome::Ok { kind } => kind,
+            };
+            docs.last_mut().unwrap().1.insert(id, (outcome.to_owned(), Vec::new()));
+        }
+        Seen::Point { id, p, .. } => docs
+            .last_mut()
+            .and_then(|(_, nodes)| nodes.get_mut(&id))
+            .unwrap()
+            .1
+            .push(p.to_array().map(f64::to_bits)),
+        _ => {}
+    });
+    for (name, nodes) in docs {
+        let mut held: Vec<(String, Vec<[u64; 3]>)> = nodes
+            .into_values()
+            .map(|(o, mut p)| {
+                p.sort_unstable();
+                (o, p)
+            })
+            .collect();
+        held.sort();
+        let mut d = Digest::new();
+        let mut n = 0;
+        for (o, pts) in &held {
+            d.text(o);
+            for p in pts {
+                n += 1;
+                for c in p {
+                    d.u64(*c);
+                }
+            }
+        }
+        println!("R1DOC {name} nodes={} points={n} {:016x}{:016x}", held.len(), d.lo, d.hi);
+    }
+}

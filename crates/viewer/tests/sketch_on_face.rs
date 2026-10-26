@@ -269,3 +269,43 @@ fn a_face_on_a_splits_lower_half_is_sketched_on_that_half() {
         "the half and its boss drawn: {fused} vs {want}"
     );
 }
+
+/// R1 probe: sketch on each of the box's six faces.
+#[test]
+fn r1_sketch_on_every_face() {
+    let tol = Tol::witness();
+    let mut bad = Vec::new();
+    for (label, from, dir) in [
+        ("top", [0.005, 0.005, 1.0], [0.0, 0.0, -1.0]),
+        ("bottom", [0.005, 0.005, -1.0], [0.0, 0.0, 1.0]),
+        ("+x side", [1.0, 0.005, 0.005], [-1.0, 0.0, 0.0]),
+        ("-x side", [-1.0, 0.005, 0.005], [1.0, 0.0, 0.0]),
+        ("+y side", [0.005, 1.0, 0.005], [0.0, -1.0, 0.0]),
+        ("-y side", [0.005, -1.0, 0.005], [0.0, 1.0, 0.0]),
+    ] {
+        let (doc, _cube) = boxed(tol);
+        let mut session = DocSession::inline(doc, tol);
+        session.pump();
+        let face = common::asm::pick_face(&session, &bvh::test_support::ray(from, dir));
+        let out = session.perform(boss_on(face));
+        println!("{label}: refusal {:?}", out.refusal);
+        if out.refusal.is_some() {
+            bad.push(format!("{label}: {:?}", out.refusal));
+            continue;
+        }
+        session.pump();
+        let doc = session.committed_doc();
+        let union = doc
+            .ids()
+            .into_iter()
+            .find(|&id| matches!(doc.node(id), Some(Node::Union { .. })))
+            .expect("the union landed");
+        let got = common::body_volume(&mut session, union, tol);
+        let want = SIDE * SIDE * HEIGHT + BOSS[0] * BOSS[1] * BOSS[2];
+        println!("{label}: volume {got} vs {want}");
+        if !common::near(got, want) {
+            bad.push(format!("{label}: volume {got} vs {want}"));
+        }
+    }
+    assert!(bad.is_empty(), "{}", bad.join("\n"));
+}

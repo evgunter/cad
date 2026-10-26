@@ -1,0 +1,346 @@
+//! Reviewer R1 probes of PR 5742 (the value chart reads a written
+//! orientation). Each prints what it saw; the asserts are the claims.
+
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use crate::fixture;
+use editor_core::pose::{PoseDef, PoseRole, RoleRead};
+use editor_core::{
+    CapEnd, Coord, DocumentId, EvalOptions, Formula, Frame, Node, Operand, Orientation, Placed,
+    ProfileDoc, RecipeNodeId, RoleSeg, SignedAxis, StableName, TargetAxis,
+};
+use fixture::{head, head_at, insert, len, on_frame, solve};
+use geom_core::Tol;
+
+fn prism(doc: ProfileDoc, pts: Vec<(f64, f64)>, z: f64) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, profile) = on_frame(doc, [0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], vec![pts]);
+    insert(
+        doc,
+        Node::Extrude {
+            profile: profile.into(),
+            distance: len(z),
+        },
+    )
+}
+
+fn block(doc: ProfileDoc, x: f64, y: f64, z: f64) -> (ProfileDoc, RecipeNodeId) {
+    prism(doc, vec![(0.0, 0.0), (x, 0.0), (x, y), (0.0, y)], z)
+}
+
+fn face(doc: &ProfileDoc, body: RecipeNodeId, at: [f64; 3], normal: [f64; 3]) -> StableName {
+    let read = editor_core::test_support::plane_on(doc, body, at, normal, Tol::witness()).read;
+    let Operand::Pose(def) = read else {
+        panic!("a plane read: {read:?}")
+    };
+    let PoseDef::Plane {
+        face: Operand::Select { names, .. },
+    } = *def
+    else {
+        panic!("a plane of one face")
+    };
+    names[0].clone()
+}
+
+type Out = Result<Frame, String>;
+
+/// Write the bundle through the door and solve; any refusal as text.
+fn place(doc: ProfileDoc, placement: RecipeNodeId, placed: Placed) -> (Out, ProfileDoc) {
+    let mut doc = doc;
+    for edit in fixture::bundle_edits(&doc, placement, placed.bundle()) {
+        match editor_core::apply(&doc, &edit, Tol::witness()) {
+            Ok(a) => doc = a.doc,
+            Err(e) => return (Err(format!("door: {e}")), doc),
+        }
+    }
+    let poses = solve(&doc, &EvalOptions::default(), Tol::witness());
+    let out = match poses.fault(placement) {
+        Some(f) => Err(format!("fault: {f} [{f:?}]")),
+        None => poses
+            .placement(&doc, placement)
+            .map_err(|e| format!("unplaced: {e:?}")),
+    };
+    (out, doc)
+}
+
+fn ori(x: SignedAxis, z: SignedAxis) -> Orientation {
+    Orientation::new(x, z).unwrap()
+}
+
+fn apply(f: &Frame, p: [f64; 3]) -> [f64; 3] {
+    let mut o = f.translation;
+    for c in 0..3 {
+        for r in 0..3 {
+            o[r] += f.columns[c][r] * p[c];
+        }
+    }
+    o
+}
+fn lin(f: &Frame, v: [f64; 3]) -> [f64; 3] {
+    let mut o = [0.0; 3];
+    for c in 0..3 {
+        for r in 0..3 {
+            o[r] += f.columns[c][r] * v[c];
+        }
+    }
+    o
+}
+fn dot(a: [f64; 3], b: [f64; 3]) -> f64 {
+    a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+}
+fn dist(a: &Frame, b: &Frame) -> f64 {
+    (0..3)
+        .map(|i| (a.translation[i] - b.translation[i]).abs())
+        .chain((0..3).flat_map(|c| (0..3).map(move |r| (a.columns[c][r] - b.columns[c][r]).abs())))
+        .fold(0.0, f64::max)
+}
+
+/// A floor turned by `moves`, a unit box resting on it by its bottom.
+/// Returns the floor's top normal and a point on it in the world (the
+/// floor's own frame is read off a bare copy at the same moves).
+fn on_floor(moves: Vec<(Coord, Formula)>, values: Vec<(Coord, Formula)>, orient: Orientation, direction: bool) -> Out {
+    let doc = ProfileDoc::empty(DocumentId::derive("r1-floor"), Tol::witness());
+    let (doc, body) = block(doc, 1.0, 1.0, 1.0);
+    let (doc, floor, _) = fixture::floor(doc, moves);
+    let (doc, placement) = insert(
+        doc,
+        fixture::stood(vec![editor_core::BodyRead::plain(Operand::from(body))]),
+    );
+    let bottom = fixture::fname(body, RoleSeg::Cap(CapEnd::Start));
+    let mut mate = if direction {
+        let n = |p: Operand| {
+            Operand::Pose(Box::new(PoseDef::Flip {
+                pose: RoleRead::through(p, PoseRole::Normal),
+            }))
+        };
+        // copy's bottom normal (−z) flipped = +z, onto the floor's up
+        // normal flipped... use the floor's normal and the copy's
+        // bottom-normal flipped twice-avoiding: on = flip(normal(bottom)),
+        // to = flip(normal(flip floor)) is a double flip; use to = the
+        // floor normal via a plain role read wrapped as a pose slide 0.
+        let to = Operand::Pose(Box::new(PoseDef::Flip {
+            pose: RoleRead::through(fixture::flip(floor), PoseRole::Normal),
+        }));
+        fixture::mate(n(fixture::plane(head(bottom))), to)
+    } else {
+        fixture::mate(fixture::plane(head(bottom)), fixture::flip(floor))
+    };
+    mate.orient = orient;
+    place(doc, placement, Placed { mates: vec![mate], values }).0
+}
+
+fn rx(t: f64) -> Vec<(Coord, Formula)> {
+    vec![(Coord::Spin(Some(TargetAxis::X)), fixture::ang(t))]
+}
+
+/// The floor's up normal at `rx(t)`: R_x(t)·z.
+fn up_x(t: f64) -> [f64; 3] {
+    [0.0, -t.sin(), t.cos()]
+}
+
+/// P1: every bundle pins its copy, so the settle's count dispatch only
+/// ever sees as many slides as the mate leaves: fewer refuse at the door.
+#[test]
+fn r1_p1_partial_slides_refuse_at_the_door() {
+    let x = |v| (Coord::Slide(TargetAxis::X), len(v));
+    let sp = (Coord::SPIN, fixture::ang(0.0));
+    for t in [0.0, 0.5] {
+        for direction in [false, true] {
+            let got = on_floor(rx(t), vec![x(3.0), sp.clone()], Orientation::IDENTITY, direction);
+            assert!(
+                matches!(&got, Err(e) if e.starts_with("door:") && e.contains("unwritten")),
+                "t={t} direction={direction}: {got:?}"
+            );
+        }
+    }
+}
+
+/// The boss hung under a plate tilted by a chain (as in the PR's row),
+/// generalised: any chain, any orientation.
+fn hung(chain: Vec<(Coord, Formula)>, orient: Orientation, values: Vec<(Coord, Formula)>) -> Out {
+    let doc = ProfileDoc::empty(DocumentId::derive("r1-hung"), Tol::witness());
+    let (doc, plate) = block(doc, 20.0, 10.0, 2.0);
+    let (doc, boss) = block(doc, 1.0, 1.0, 1.0);
+    let bottom = face(&doc, plate, [10.0, 5.0, 0.0], [0.0, 0.0, -1.0]);
+    let (doc, b) = fixture::in_world_by(doc, plate, Placed::unmated(chain).values);
+    let (doc, placement) = insert(
+        doc,
+        fixture::stood(vec![editor_core::BodyRead::plain(Operand::from(boss))]),
+    );
+    let top = fixture::fname(boss, RoleSeg::Cap(CapEnd::End));
+    let mut mate = fixture::rest(head(top), head_at(b, bottom.in_copy(b)));
+    mate.orient = orient;
+    place(doc, placement, Placed { mates: vec![mate], values }).0
+}
+
+fn std_values_for(o: Orientation) -> Vec<(Coord, Formula)> {
+    let j = o.z().index();
+    let mut v: Vec<(Coord, Formula)> = TargetAxis::ALL
+        .into_iter()
+        .filter(|a| a.index() != j)
+        .zip([10.0, 0.0])
+        .map(|(a, by)| (Coord::Slide(a), len(by)))
+        .collect();
+    v.push((Coord::SPIN, fixture::ang(0.0)));
+    v
+}
+
+/// P2: continuity. A sweep of the plate's tilt from −(π−δ) to π−δ
+/// about x, y, and an oblique chain, under several orientations; the
+/// copy's frame moves by at most lever·step between steps, and only the
+/// band about the pole may refuse.
+#[test]
+fn r1_p2_continuity_sweeps() {
+    let orients = [
+        Orientation::IDENTITY,
+        ori(SignedAxis::PlusY, SignedAxis::PlusZ),
+        ori(SignedAxis::MinusX, SignedAxis::PlusZ),
+        ori(SignedAxis::PlusX, SignedAxis::PlusY),
+        ori(SignedAxis::PlusZ, SignedAxis::MinusX),
+    ];
+    let steps = 400;
+    let delta = 1e-3;
+    let mut report = Vec::new();
+    for o in orients {
+        for axis in ["x", "y", "oblique"] {
+            let chain = |t: f64| -> Vec<(Coord, Formula)> {
+                match axis {
+                    "x" => vec![(Coord::Spin(Some(TargetAxis::X)), fixture::ang(t))],
+                    "y" => vec![(Coord::Spin(Some(TargetAxis::Y)), fixture::ang(t))],
+                    _ => vec![
+                        (Coord::Spin(Some(TargetAxis::Z)), fixture::ang(0.7)),
+                        (Coord::Spin(Some(TargetAxis::X)), fixture::ang(t)),
+                    ],
+                }
+            };
+            let lo = -(std::f64::consts::PI - delta);
+            let h = 2.0 * (std::f64::consts::PI - delta) / f64::from(steps);
+            let mut last: Option<Frame> = None;
+            let mut worst = 0.0_f64;
+            let mut refusals = Vec::new();
+            for k in 0..=steps {
+                let t = lo + h * f64::from(k);
+                match hung(chain(t), o, std_values_for(o)) {
+                    Ok(f) => {
+                        if let Some(l) = &last {
+                            worst = worst.max(dist(&f, l) / h);
+                        }
+                        last = Some(f);
+                    }
+                    Err(e) => {
+                        refusals.push(format!("{t:.4}: {}", &e[..e.len().min(90)]));
+                        last = None;
+                    }
+                }
+            }
+            let line = format!(
+                "{o} about {axis}: worst rate {worst:.2}/rad, {} refusals {:?}",
+                refusals.len(),
+                refusals.iter().take(3).collect::<Vec<_>>()
+            );
+            println!("{line}");
+            report.push((worst, refusals.len(), line));
+        }
+    }
+    // The lever is ~ 23 (the boss at x = 10 under a plate whose reach is
+    // 20 × 10 × 2); a jump shows as a rate ≫ that.
+    let bad: Vec<_> = report
+        .iter()
+        .filter(|(w, r, _)| *w > 40.0 || *r > 0)
+        .map(|(_, _, l)| l.clone())
+        .collect();
+    assert!(bad.is_empty(), "jumps or refusals:\n{}", bad.join("\n"));
+}
+
+/// P3: the pole. The boss's orientation written backwards against a
+/// plate tilted near the half turn; the `write` named fixes it.
+#[test]
+fn r1_p3_pole_and_write() {
+    let mut bad = Vec::new();
+    for o in Orientation::all() {
+        // The pole for this orientation is where O·z = −d, d the plate's
+        // flipped bottom's normal = R·z. Level plate: pole iff O·z = −z.
+        let level = hung(vec![], o, std_values_for(o));
+        let backwards = o.z() == SignedAxis::MinusZ;
+        match (&level, backwards) {
+            (Err(e), true) if e.contains("Backwards") => {
+                let w = o.toward(geom_core::linalg::Vec3::new(0.0, 0.0, 1.0), geom_core::linalg::Vec3::new(0.0, 0.0, 1.0));
+                println!("{o}: refuses, write {w}: {e}");
+                if !e.contains(&format!("write: {w:?}")) {
+                    bad.push(format!("{o}: the fault does not name {w:?}: {e}"));
+                }
+                if let Err(e2) = hung(vec![], w, std_values_for(w)) {
+                    bad.push(format!("{o}: writing {w} still refuses: {e2}"));
+                }
+            }
+            (Ok(_), false) => {}
+            (Ok(f), true) => bad.push(format!("{o}: backwards but placed at {:?}", f.translation)),
+            (Err(e), _) => bad.push(format!("{o}: refused {e}")),
+        }
+    }
+    assert!(bad.is_empty(), "{}", bad.join("\n"));
+}
+
+/// P4: an oblique source face — a wedge resting on its sloped face on a
+/// level floor and on a tilted one; the copy stays on the plane and is
+/// continuous in the floor's tilt.
+#[test]
+fn r1_p4_oblique_source() {
+    let mut bad = Vec::new();
+    let run = |t: f64, values: Vec<(Coord, Formula)>, o: Orientation| -> Out {
+        let doc = ProfileDoc::empty(DocumentId::derive("r1-wedge"), Tol::witness());
+        let (doc, wedge) = prism(doc, vec![(0.0, 0.0), (4.0, 0.0), (0.0, 3.0)], 1.0);
+        let slope = face(&doc, wedge, [2.0, 1.5, 0.5], [0.6, 0.8, 0.0]);
+        let (doc, floor, _) = fixture::floor(doc, rx(t));
+        let (doc, placement) = insert(
+            doc,
+            fixture::stood(vec![editor_core::BodyRead::plain(Operand::from(wedge))]),
+        );
+        let mut mate = fixture::mate(fixture::plane(head(slope)), fixture::flip(floor));
+        mate.orient = o;
+        place(doc, placement, Placed { mates: vec![mate], values }).0
+    };
+    let x = |v| (Coord::Slide(TargetAxis::X), len(v));
+    let y = |v| (Coord::Slide(TargetAxis::Y), len(v));
+    let z = |v| (Coord::Slide(TargetAxis::Z), len(v));
+    let sp = (Coord::SPIN, fixture::ang(0.3));
+    for o in [Orientation::IDENTITY, ori(SignedAxis::PlusY, SignedAxis::PlusZ), ori(SignedAxis::PlusX, SignedAxis::MinusY)] {
+        for (label, vals) in [
+            ("x,y", vec![x(3.0), y(4.0), sp.clone()]),
+            ("x,z", vec![x(3.0), z(4.0), sp.clone()]),
+            ("y,z", vec![y(3.0), z(4.0), sp.clone()]),
+        ] {
+            let mut last: Option<Frame> = None;
+            let mut worst = 0.0_f64;
+            let mut first = None;
+            for k in 0..=300 {
+                let t = -1.5 + 0.01 * f64::from(k);
+                match run(t, vals.clone(), o) {
+                    Ok(f) => {
+                        // a point of the slope (2,0,0) on the floor plane
+                        let off = dot(apply(&f, [4.0, 0.0, 0.0]), up_x(t));
+                        let nrm = lin(&f, [0.6, 0.8, 0.0]);
+                        let anti = dot(nrm, up_x(t)) + 1.0;
+                        if off.abs() > 1e-9 || anti.abs() > 1e-9 {
+                            bad.push(format!("{o} {label} t={t}: off {off:e} anti {anti:e}"));
+                        }
+                        if let Some(l) = &last {
+                            worst = worst.max(dist(&f, l) / 0.01);
+                        }
+                        last = Some(f);
+                    }
+                    Err(e) => {
+                        if first.is_none() {
+                            first = Some(format!("t={t}: {}", &e[..e.len().min(140)]));
+                        }
+                        last = None;
+                    }
+                }
+            }
+            println!("wedge {o} {label}: worst rate {worst:.2}, first refusal {first:?}");
+            if worst > 40.0 {
+                bad.push(format!("wedge {o} {label}: jump rate {worst}"));
+            }
+        }
+    }
+    assert!(bad.is_empty(), "{}", bad.join("\n"));
+}

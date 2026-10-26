@@ -1080,3 +1080,110 @@ fn a_face_on_a_splits_lower_half_is_mated_on_that_half() {
         "the lower half, seated on the block's top",
     );
 }
+
+/// R1 probe: the snap under turns that need a turn of their own and a
+/// non-identity orientation.
+#[test]
+fn r1_snap_under_tilts_and_orientations() {
+    use pncad::document::{Coord, Dimension, Node, SlotId, TargetAxis};
+    let tol = Tol::witness();
+    let mut bad = Vec::new();
+    for (zt, xt) in [(100.0_f64, 0.0_f64), (10.0, 20.0), (100.0, 20.0), (190.0, -35.0), (45.0, 50.0), (-80.0, 10.0), (0.0, 170.0), (30.0, 120.0), (30.0, 180.0)] {
+        let bench = asm::bench(&format!("r1snap{zt}{xt}"), tol);
+        let mut session = asm::open_bench(&bench, tol);
+        let (post_top, shelf_bottom) = asm::seat_picks(&session, &bench);
+        let mut ok = true;
+        for (coord, value) in [
+            (Coord::Slide(TargetAxis::Y), (Dimension::Length, 0.02)),
+            (Coord::Spin(Some(TargetAxis::Z)), (Dimension::Angle, zt.to_radians())),
+            (Coord::Spin(Some(TargetAxis::X)), (Dimension::Angle, xt.to_radians())),
+        ] {
+            let constraint = match session.committed_doc().node(bench.post_b) {
+                Some(Node::InstantiatePart { constraints, .. }) => constraints
+                    .iter()
+                    .find(|c| c.value().is_some_and(|v| v.coord == coord))
+                    .map(|c| c.id),
+                _ => None,
+            };
+            let Some(constraint) = constraint else {
+                println!("no value {coord:?} on post_b");
+                ok = false;
+                continue;
+            };
+            let slot = match coord {
+                Coord::Slide(_) => SlotId::ValueSlide { constraint },
+                Coord::Spin(_) => SlotId::ValueSpin { constraint },
+            };
+            let outcome = session.perform(SessionOp::SetSlot {
+                node: bench.post_b,
+                slot,
+                value: viewer::props::SlotValue::of(value.0, value.1).expect("a finite value"),
+            });
+            assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+        }
+        if !ok {
+            bad.push(format!("{zt},{xt}: chain not present"));
+            continue;
+        }
+        session.pump();
+        let pose = |session: &DocSession| {
+            let (doc, _) = session.landed_pair().expect("landed");
+            common::solve(session, doc, tol)
+                .placement(doc, bench.post_b)
+                .expect("post_b has a pose")
+        };
+        let before = pose(&session);
+        let mut tool = MateTool::new();
+        tool.pick(session.doc(), post_top.clone());
+        tool.pick(session.doc(), shelf_bottom.clone());
+        let (doc, _) = session.landed_pair().expect("landed");
+        let proposal = tool
+            .proposal(
+                doc,
+                viewer::matetool::MateChoice {
+                    kind: pncad::document::VarKind::Plane,
+                    flip: true,
+                    values: Vec::new(),
+                },
+            )
+            .expect("the seat proposes");
+        common::commit_mate(&mut session, proposal.op());
+        let after = pose(&session);
+        // Expected: least turn of R0·z onto +z, composed after R0.
+        let r0 = before.columns;
+        let f = r0[2];
+        let (c, k) = (f[2], [f[1], -f[0], 0.0]); // f × z
+        let s = |e: [f64; 3]| -> [f64; 3] {
+            let kxe = [k[1] * e[2] - k[2] * e[1], k[2] * e[0] - k[0] * e[2], k[0] * e[1] - k[1] * e[0]];
+            let kd = k[0] * e[0] + k[1] * e[1] + k[2] * e[2];
+            [0, 1, 2].map(|i| e[i] * c + kxe[i] + k[i] * kd / (1.0 + c))
+        };
+        let want: Vec<[f64; 3]> = r0.iter().map(|&col| s(col)).collect();
+        let mut dcol = 0.0_f64;
+        for j in 0..3 {
+            for i in 0..3 {
+                dcol = dcol.max((after.columns[j][i] - want[j][i]).abs());
+            }
+        }
+        let h = asm::POST_HEIGHT;
+        let p = |fr: &pncad::document::Frame| -> [f64; 3] {
+            [0, 1, 2].map(|i| fr.translation[i] + fr.columns[2][i] * h)
+        };
+        let (pb, pa) = (p(&before), p(&after));
+        let dxy = (pa[0] - pb[0]).abs().max((pa[1] - pb[1]).abs());
+        let orient = match session.committed_doc().node(bench.post_b) {
+            Some(Node::InstantiatePart { constraints, .. }) => constraints
+                .iter()
+                .find_map(|c| c.mate().map(|m| m.orient)),
+            _ => None,
+        };
+        println!("snap z={zt} x={xt}: orient {orient:?} turn err {dcol:e} point xy err {dxy:e}");
+        // At the antipode (x = 180°) the expected least turn has no
+        // formula; only the rest and the point are checked there.
+        if (dcol > 1e-9 && 1.0 + c > 1e-9) || dxy > 1e-9 {
+            bad.push(format!("{zt},{xt}: turn err {dcol:e}, point err {dxy:e}"));
+        }
+        assert_faces_rest(&session, &post_top, &shelf_bottom, "r1 snapped seat");
+    }
+    assert!(bad.is_empty(), "{}", bad.join("\n"));
+}

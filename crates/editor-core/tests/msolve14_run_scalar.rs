@@ -2386,3 +2386,28 @@ fn a5_certified_clearance_runs_over_a_seated_mate() {
         "the clearance leaf",
     );
 }
+
+#[test]
+fn r1_dump_corpus_poses() {
+    for (label, doc, opts) in corpus() {
+        let poses = solve(&doc, &opts, Tol::witness());
+        for (k, id) in doc.ids().iter().copied().enumerate() {
+            if !matches!(doc.node(id), Some(Node::InstantiatePart { .. } | Node::Place { .. })) {
+                continue;
+            }
+            match poses.placement(&doc, id) {
+                Ok(f) => {
+                    let bits: Vec<String> = f
+                        .columns
+                        .iter()
+                        .flatten()
+                        .chain(f.translation.iter())
+                        .map(|v| format!("{v:.17e}"))
+                        .collect();
+                    println!("R1POSE {label} #{k} {}", bits.join(" "));
+                }
+                Err(e) => println!("R1POSE {label} #{k} refused {:?}", std::mem::discriminant(&e)),
+            }
+        }
+    }
+}
