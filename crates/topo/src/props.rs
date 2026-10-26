@@ -2798,6 +2798,26 @@ mod face_walk_composition_tests {
         assert_eq!(run.next_round(), None, "and refines no further");
     }
 
+    /// **A face stopped at its floor keeps its held width**, as at the
+    /// wall: a wider round that floors keeps the narrower held
+    /// enclosure, short of the resolution however close that width is
+    /// to it, and refines no further.
+    #[test]
+    fn a_floor_stop_keeps_the_held_width() {
+        for over in [2.0, 1.0 + 1e-6] {
+            let mut run = round_run(4, over, LaneStop::Refinable);
+            run.advance(Ok(round_run(5, 2.0 * over, LaneStop::Floor)));
+            assert_eq!(
+                run.width_len(),
+                Ok(len_of(over)),
+                "{over}× the resolution: the width is the held round's"
+            );
+            assert!(!run.meets(len_of(1.0)), "{over}×: short of the resolution");
+            assert_eq!(taken(&run), 4);
+            assert_eq!(run.next_round(), None, "{over}×: and refines no further");
+        }
+    }
+
     /// **A round that met the resolution keeps its number** when the
     /// next, wider round stops short: the face refuses nothing, and
     /// refines no further. A narrower round replaces a wider held one.

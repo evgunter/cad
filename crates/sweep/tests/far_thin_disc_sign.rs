@@ -202,12 +202,18 @@ fn tilted_cut(h: f64, tilt: f64, tol: Tol) -> Option<Body<f64>> {
 }
 
 /// **A far tilted cut disc is read by its exact volume**, its wall
-/// through the quadrature lane: the upright disc passes check 7 and
-/// reads `Outer`, the inside-out one is refused `NegativeVolume` and
-/// reads `Void`. Its volume `π r² h / cos tilt` is some 500× the band's
-/// escalation over its area at ε 1e-9, so the sign is far from the band;
-/// a quadrature face taken about the world origin used to leave the
-/// valid disc refused `VolumeSignUnresolved` 5 km out.
+/// through the quadrature lane: the upright disc passes check 7, reads
+/// `Outer` and measures its volume `π r² h / cos tilt` within its pad;
+/// the inside-out one is refused `NegativeVolume` and reads `Outer` by
+/// arity. That volume is some 500× the band's escalation over its area
+/// at ε 1e-9, so the sign is far from the band; a quadrature face taken
+/// about the world origin used to leave the valid disc refused
+/// `VolumeSignUnresolved` 5 km out. At 1e-12 the pose `h 1e-6, tilt 0.8,
+/// 5e3 m, turned 0.7` refused `QuadratureBudget` on its wall while the
+/// cylinder lane read each trim end's trig off its vertex, `ε` wide over
+/// `r = 1 mm`
+/// (`work/quadtail/a-micron-thin-cylinder-wall-runs-the-quadrature-out-of-budget-on-its-map-residual-pad.md`);
+/// read at the end's parameter, it measures as the others do.
 #[test]
 fn far_tilted_cut_discs_are_read_by_their_exact_volume() {
     let tol = Tol::witness();
@@ -259,10 +265,19 @@ fn far_tilted_cut_discs_are_read_by_their_exact_volume() {
                             "{what}, {name}: check 7"
                         );
                         let classified = match &check7 {
-                            Ok(()) => topo::classify_shells(
-                                &finished(name, topo::Body::clone(body), tol),
-                                tol,
-                            ),
+                            Ok(()) => {
+                                let at_rest = finished(name, topo::Body::clone(body), tol);
+                                let props = topo::test_support::pinned_volume(name, &at_rest, tol);
+                                let exact = core::f64::consts::PI * R * R * h / tilt.cos();
+                                assert!(
+                                    (props.volume - exact).abs()
+                                        <= props.volume_pad + 1e-12 * exact,
+                                    "{what}, {name}: volume {:e} ± {:e}, not {exact:e}",
+                                    props.volume,
+                                    props.volume_pad
+                                );
+                                topo::classify_shells(&at_rest, tol)
+                            }
                             // Raw door: the inside-out twin, which tier 3 refuses (NegativeVolume), as check 7 above asserts.
                             Err(_) => topo::test_support::classify_unvalidated(body, tol),
                         };
