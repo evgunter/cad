@@ -1002,7 +1002,8 @@ mod kernel {
             SectionLoopMixed, SectionLoopUndecided, CutInvariant, Corrupt, LineageRow,
             Band, Euler, SectionEndEscalated, SectionUnresolved, Section, OpenConicChord,
             ApexUnlifted,
-            PoleEdgesCoincide, SectionInvariant, SectionUnarmed, RingIslandUnread,
+            PoleEdgesCoincide, SectionInvariant, SectionUnarmed, RunImageNotYet,
+            RingIslandUnread,
             TangentChordEscalated, TangentChordBendEscalated, TangentChordRefuted,
             SectionCrossings,
         ];
@@ -2670,6 +2671,13 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                     face,
                     divided: geom::SurfaceKind::Plane,
                     wall: geom::SurfaceKind::Nurbs,
+                },
+            ),
+            (
+                "RunImageNotYet",
+                J::RunImageNotYet {
+                    face,
+                    kind: geom::SurfaceKind::Sphere,
                 },
             ),
             (

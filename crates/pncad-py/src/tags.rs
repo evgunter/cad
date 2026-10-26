@@ -2386,6 +2386,7 @@ pub fn tessellate_error_tag(err: &TessellateError) -> &'static str {
         TessellateError::ResolutionOverflow { .. } => "resolution_overflow",
         TessellateError::StepNotPositive { .. } => "step_not_positive",
         TessellateError::CertificateExceeded { .. } => "certificate_exceeded",
+        TessellateError::RoundingUnresolved { .. } => "rounding_unresolved",
         TessellateError::Triangulation { .. } => "triangulation",
         TessellateError::SelfTouchingTrimLoop { .. } => "self_touching_trim_loop",
         TessellateError::PinchWedge { .. } => "pinch_wedge",
