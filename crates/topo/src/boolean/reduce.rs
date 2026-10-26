@@ -147,7 +147,7 @@ pub(super) struct SweepKnobs {
 pub(super) struct ContactAcc {
     records: ReductionContacts,
     /// Every edge split the sweep made, in split order.
-    pub(super) splits: super::EdgeSplits,
+    pub(super) splits: super::Mints,
     /// Every decision a push made, in decision order: the rows the
     /// records cite ([`Backing::Decided`](crate::Backing::Decided) names an index here until
     /// the result's carry renumbers it).
@@ -171,7 +171,9 @@ pub(super) struct ContactAcc {
 pub(crate) struct PendingRow {
     /// The two cells, each in its operand clone's keys: a vertex the
     /// reduction minted is still a vertex here, and the carry reads it
-    /// back to the input edge it was minted on.
+    /// back to the input cell it was minted in ([`super::Mints`]). A
+    /// ring tie's pierced face, which its row also names, is kept beside
+    /// the row (`ops::Ledger`).
     pub(crate) cells: [(Operand, super::Cell); 2],
     /// What was decided between them.
     pub(crate) relation: crate::Relation,
