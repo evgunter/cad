@@ -195,7 +195,7 @@ pub(crate) struct Study {
 /// `mate_chart_reference_antipode` theorems off each mated placement:
 /// the plate and the bracket (two placements each) 1253 -> 1249 and
 /// 1625 -> 1621, the annulus and the pad (one each) 632 -> 630 and
-/// 1546 -> 1544; the link holds at 924.
+/// 1546 -> 1544, and the link (one) 924 -> 922.
 pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
     [
         Study {
@@ -246,7 +246,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // reads. Under INTENT stage 3 D's placement it decides two
             // fewer numeric comparisons on the way (712 -> 710).
             without_the_registry: Some(((722, 702), Some("pcurve_envelope"))),
-            symbolic: [924, 924, 924],
+            symbolic: [922, 922, 922],
             at: Box::new(move |s: f64| crate::m10_9_r2_probes_interval::link(s, tol).0),
         },
         Study {
