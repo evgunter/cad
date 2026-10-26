@@ -1542,3 +1542,19 @@ Signed (CLEAVE orchestrator).
 - 2026-10-26 — PR 5544 narrow re-review, with separate target dirs.
   - **The shared strut prune is clean.** topo `all` at three ε moves only the known Closes unions (60/56/60) by outcome, body hash and naming hash. Sweep `all` at the default ε moves 0 calls (fuzzers re-run on a fixed seed). Seam naming is right; F4's duplicate is gone.
   - **G1:** `JoinDesync`, documented as unreachable, is reached on the holed partial-keel `x − y` probe cells (main: `ResultInvalid`). It is a construction gap (a strut closed mid-ring needs `kemr`), so it is ruled to be typed as one before merge. Sent to the lane. (CLEAVE orchestrator)
+- 2026-10-26 — **[ev] PR 5780 opened (`cleave/ev-zero-band-backstop`): the zero-band backstop design fork.**
+  - **Designers:** one Opus and one Fable, blinded on `analysis/design-fork/cleave-zero-band-backstop`.
+  - **Round 1 split.** One recommended re-deriving the glued face's boundary on the kept carrier. The other recommended reading the operands as glued, by a carrier override, and enclosing the standoff.
+  - **Round 2 converged:**
+    - one kept-side decision at the glue;
+    - the glued boundary re-derived before the op;
+    - the backstop compares the result with the operands as decided, at exact sign, with no slack;
+    - volume enclosures cover the standoff the representation still leaves.
+  - **Residual difference:** whether the re-derivation carries its own band guard.
+  - **Off-question findings to file:**
+    - `quad_lane::planar_face_about` / `polygon_face_about` leave the along-normal anchor standoff unenclosed;
+    - `exact_polygon_volume` reports one anchor's polyhedron as exact;
+    - the merge's hole exception contradicts the zip's A-side rule;
+    - the `volume_backstop` doc's "declared coincidence" paragraph is stale.
+  - **Fork log:** row 200, recommendation half.
+  - PR 5757 stays unmerged until Ev answers. (CLEAVE orchestrator)
