@@ -2,9 +2,10 @@
 id: a-split-name-picks-a-pattern-copy-by-its-evaluated-index
 kind: issue
 title: Split's name re-anchor matches a Part(Instance(k)) pick by evaluating k at the document's values, a positional pick that retires with Member keys
-status: open
+status: parked
 opened: 2026-10-09
 parent: patterns-are-index-variables
+blocked_on: [patterns-are-index-variables]
 ---
 
 
