@@ -3064,8 +3064,9 @@ mod review_probes {
         // so the stem's and arch's tori and the lantern's sphere zone
         // and cones and its mouth's torus band coarsen — stem
         // 392 -> 188 and 828 -> 476, arch 2_960 -> 1_472, lantern
-        // 1_220 -> 856 and 3_038 -> 2_004. The leaves are NURBS, whose
-        // lattice did not move.
+        // 1_220 -> 832 and 3_038 -> 1_900 (its cones take no rows, its
+        // sphere zone sizes its azimuth at its widest latitude). The
+        // leaves are NURBS, whose lattice did not move.
         let table = [
             ("lily_stem", 5e-3, 188usize),
             ("lily_stem", 2e-3, 476),
@@ -3077,8 +3078,8 @@ mod review_probes {
             // RE-BASELINED (wall 6 retired): the mouth's torus band,
             // sized per curvature like any torus, adds its own cells —
             // 1_080 -> 1_220 and 2_556 -> 3_038.
-            ("lily_lantern", 5e-3, 856),
-            ("lily_lantern", 2e-3, 2_004),
+            ("lily_lantern", 5e-3, 832),
+            ("lily_lantern", 2e-3, 1_900),
             // RE-BASELINED: the swept leaves are fitted at the cubic
             // degree along the path (wall 15 retired) — 6_468 -> 5_576
             // and 5_992 -> 5_164. RE-BASELINED again (PR 4984, one
@@ -3143,7 +3144,7 @@ mod review_probes {
         println!("lantern volume error, measured: {rels:?}");
         // RE-BASELINED (PRED, `[mesh.sizing]`): the rolled lantern
         // measured 0.012769 and 0.0050019 at the δ/2 sizing and measures
-        // 0.015968 and 0.0063408 now — the chords' inscribed deficit
+        // 0.015945 and 0.0062491 now — the chords' inscribed deficit
         // grows with the coarser grid, inside the `area·δ` a mesh
         // within δ allows.
         for ((delta, rel), (lo, hi)) in rels.into_iter().zip([(0.0153, 0.0167), (0.0060, 0.0067)]) {

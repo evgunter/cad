@@ -130,7 +130,7 @@ const TABLE: &[(&str, bool, bool, &str)] = &[
         "the shortest abbreviation either half admits",
     ),
     (
-        "# tess-budget-cut: ce0f7ed311fe 2026-10-26T01:22:06+00:00",
+        "# tess-budget-cut: c3ff4a85a526 2026-10-26T04:41:06+00:00",
         true,
         true,
         "the shape the committed baseline carries, read from it below",

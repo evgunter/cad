@@ -978,7 +978,7 @@ fn the_committed_baseline_sizes_this_much() {
     // `the_committed_baseline_carries_this_many_indistinguishable_pairs`
     // above and is deliberately not restated here; the report prints
     // its two percentages from that pair against this one.
-    assert_eq!(t.triangles, 463_118, "triangles over the whole sweep");
+    assert_eq!(t.triangles, 460_396, "triangles over the whole sweep");
     assert_eq!(
         t.nurbs_triangles, 390_646,
         "triangles the Hessian-sized faces carry"
