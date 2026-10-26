@@ -8,6 +8,7 @@ priority: P2
 cost: M
 refs: [5368, a-direct-operands-own-split-lineage-climbs-to-a-live-sibling-seam]
 branch: flush/three-way-coincident-names
+pr: 5733
 closed: 2026-10-26
 ---
 
