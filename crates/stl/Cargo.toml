@@ -41,6 +41,9 @@ profile = { path = "../profile", features = ["test-support"] }
 # crate or of `sweep` reaches the module.
 sweep = { path = "../sweep", features = ["test-support"] }
 topo = { path = "../topo" }
+# The acceptance-export example states the resolution it reads the exact
+# volume at as a `quantity::Length`.
+quantity = { path = "../quantity" }
 
 # ONE test binary for the whole suite (see tests/all.rs). Each extra test
 # target cost ~1.9 s of codegen+link on the 2-vCPU CI runner.

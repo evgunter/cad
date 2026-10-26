@@ -20,6 +20,10 @@ use pncad::profile::SketchPlane;
 const TURNS: f64 = 0.4;
 fn main() {
     let tol = Tol::witness();
+    // Every volume below is read at 1.024e-6 m — 1024·ε at this
+    // tolerance, the resolution the suites' pinned numbers are stated at.
+    // Spelled as a literal: an example reaches the kernel only through
+    // the façade, which carries no test vocabulary in a plain build.
     // A helix-ish path a user might author: 33 points, degree 3.
     let pts: Vec<Point3<f64>> = (0..=32)
         .map(|k| {
@@ -44,8 +48,11 @@ fn main() {
                     &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&swept.body), tol)
                         .expect("the measured body passes tier 3"),
                     tol,
+                    pncad::topo::Settle::Resolution(pncad::quantity::Length::from_meters(1.024e-6)),
                 )
-                .expect("props");
+                .expect("props")
+                .met()
+                .expect("the resolution is met");
                 println!(
                     "{stations} stations: swept volume {} ± {:.1e}; validate {:?}",
                     m.volume,
@@ -102,8 +109,11 @@ fn main() {
         &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&loft.body), tol)
             .expect("the measured body passes tier 3"),
         tol,
+        pncad::topo::Settle::Resolution(pncad::quantity::Length::from_meters(1.024e-6)),
     )
-    .expect("props");
+    .expect("props")
+    .met()
+    .expect("the resolution is met");
     println!(
         "rolled loft volume {} ± {:.1e}; validate {:?}",
         ml.volume,

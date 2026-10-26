@@ -82,13 +82,14 @@ fn consume(label: &str, body: &Body<f64>, want_volume: f64, want_shells: usize) 
     let props = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
         tol(),
+        topo::test_support::pinned_resolution(tol()),
     )
     .expect("props");
     assert!(
-        (props.volume - want_volume).abs() <= 1e-9 + props.volume_pad,
+        (props.enclosure.volume - want_volume).abs() <= 1e-9 + props.enclosure.volume_pad,
         "{label}: volume {} (pad {}), want {want_volume}",
-        props.volume,
-        props.volume_pad
+        props.enclosure.volume,
+        props.enclosure.volume_pad
     );
     let shells: Vec<_> = body.shells().map(|(k, _)| k).collect();
     let roles = topo::classify_shells_of(
@@ -129,11 +130,11 @@ fn r2_e2e_two_arc_sphere_hollows_and_tessellates() {
         4.0 / 3.0 * PI * (r - t) * (r - t) * (r - t),
         4.0 / 3.0 * PI * (r - t).powi(3),
         want,
-        topo::mass_properties(
+        topo::test_support::pinned_volume(
+            "props",
             &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol()),
             tol()
         )
-        .expect("props")
         .volume
     );
     let mut cavity = body.clone();
@@ -142,11 +143,11 @@ fn r2_e2e_two_arc_sphere_hollows_and_tessellates() {
         .expect("the cavity");
     println!(
         "[r2] measured cavity volume {:?}",
-        topo::mass_properties(
+        topo::test_support::pinned_volume(
+            "props",
             &topo::test_support::finished("the measured body", topo::Body::clone(&cavity), tol()),
             tol()
         )
-        .expect("props")
         .volume
     );
     consume("two-arc sphere shelled", &out.body, want, 2);
@@ -158,11 +159,11 @@ fn r2_e2e_sphere_zone_vase_hollowed_then_opened() {
     let (r, h, t) = (1.0, 1.5, 0.1);
     let v = sphere_zone_vase(r, h);
     let sealed = topo::shell(&finished("the operand", v.clone(), tol()), t, tol()).expect("shells");
-    let sealed_vol = topo::mass_properties(
+    let sealed_vol = topo::test_support::pinned_volume(
+        "props",
         &topo::test_support::finished("the measured body", topo::Body::clone(&sealed.body), tol()),
         tol(),
     )
-    .expect("props")
     .volume;
     consume("sphere-zone vase sealed", &sealed.body, sealed_vol, 2);
     let caps = cap_at_y(&v, h);
@@ -170,11 +171,11 @@ fn r2_e2e_sphere_zone_vase_hollowed_then_opened() {
     println!("[r2] vase top cap faces: {}", caps.len());
     let opened = topo::shell_open(&finished("the operand", v.clone(), tol()), t, &caps, tol())
         .expect("opens");
-    let opened_vol = topo::mass_properties(
+    let opened_vol = topo::test_support::pinned_volume(
+        "props",
         &topo::test_support::finished("the measured body", topo::Body::clone(&opened.body), tol()),
         tol(),
     )
-    .expect("props")
     .volume;
     consume(
         "sphere-zone vase opened",
@@ -197,11 +198,11 @@ fn r2_e2e_box_beside_vessel_hollowed_and_opened() {
     let pair = beside(&b, &v, 6.0);
     let sealed = topo::shell(&finished("the operand", pair.clone(), tol()), 0.2, tol())
         .expect("shells the pair");
-    let sealed_vol = topo::mass_properties(
+    let sealed_vol = topo::test_support::pinned_volume(
+        "props",
         &topo::test_support::finished("the measured body", topo::Body::clone(&sealed.body), tol()),
         tol(),
     )
-    .expect("props")
     .volume;
     consume(
         "box beside vessel sealed",
@@ -220,11 +221,11 @@ fn r2_e2e_box_beside_vessel_hollowed_and_opened() {
         tol(),
     )
     .expect("opens the pair");
-    let opened_vol = topo::mass_properties(
+    let opened_vol = topo::test_support::pinned_volume(
+        "props",
         &topo::test_support::finished("the measured body", topo::Body::clone(&opened.body), tol()),
         tol(),
     )
-    .expect("props")
     .volume;
     consume(
         "box beside vessel opened",

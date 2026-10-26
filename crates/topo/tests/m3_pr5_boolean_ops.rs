@@ -62,10 +62,11 @@ fn assert_props(body: &Body<f64>, volume: f64, area: f64) {
     let m = mass_properties(
         &topo::test_support::finished("the measured body", (body).clone(), Tol::witness()),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap();
-    assert_eq!(m.volume, volume, "exact volume");
-    assert_eq!(m.surface_area, area, "exact area");
+    assert_eq!(m.enclosure.volume, volume, "exact volume");
+    assert_eq!(m.enclosure.surface_area, area, "exact area");
 }
 
 /// Tier 3 directly at rest (D6, M3 PR 6a): boolean results carry
@@ -461,12 +462,28 @@ fn subtract_and_intersect_partition_a_and_a_complement_is_unfinished() {
 pub(crate) fn partition_and_complement(name: &str, a: &AtRestBody<f64>, b: &AtRestBody<f64>) {
     let volume = |r: BooleanResult<f64>| {
         r.body().map_or(0.0, |bb| {
-            mass_properties(&bb.body, Tol::witness()).unwrap().volume
+            mass_properties(
+                &bb.body,
+                Tol::witness(),
+                topo::test_support::pinned_resolution(Tol::witness()),
+            )
+            .unwrap()
+            .met()
+            .expect("the pinned resolution is met")
+            .volume
         })
     };
     let minus = volume(subtract(a, b, Tol::witness()).unwrap());
     let meet = volume(topo::intersect(a, b, Tol::witness()).unwrap());
-    let whole = mass_properties(a, Tol::witness()).unwrap().volume;
+    let whole = mass_properties(
+        a,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap()
+    .met()
+    .expect("the pinned resolution is met")
+    .volume;
     assert_eq!(minus + meet, whole, "{name}: A∖B and A∩B partition A");
     let refused = AtRestBody::validate(b.revert().unwrap(), Tol::witness())
         .expect_err("a complement is not a finished body");

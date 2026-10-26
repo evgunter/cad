@@ -279,10 +279,11 @@ fn check_pose((name, edge, a, d): (&str, usize, f64, f64), tol: Tol) -> (Vec<Str
     let body = pr.body(tol);
     let m = pr.near_normal(edge, a, d);
     let cube = nt_cube(pr.v, m, tol);
-    let props = topo::mass_properties(&body, tol).unwrap();
-    let (va, vb, common) = (props.volume, 64.0, pr.overlap(m));
+    let props =
+        topo::mass_properties(&body, tol, topo::test_support::pinned_resolution(tol)).unwrap();
+    let (va, vb, common) = (props.enclosure.volume, 64.0, pr.overlap(m));
     // The cube's six faces of side 4.
-    let faces = props.surface_area + 96.0;
+    let faces = props.enclosure.surface_area + 96.0;
     let runs: [Run; 6] = [
         (
             "prism ∪ cube",
@@ -332,12 +333,14 @@ fn check_pose((name, edge, a, d): (&str, usize, f64, f64), tol: Tol) -> (Vec<Str
             continue;
         };
         built += 1;
-        let props = topo::mass_properties(&bb.body, tol).unwrap();
-        let slack = tol.eps() * props.surface_area;
-        if (props.volume - want).abs() > slack {
+        let props =
+            topo::mass_properties(&bb.body, tol, topo::test_support::pinned_resolution(tol))
+                .unwrap();
+        let slack = tol.eps() * props.enclosure.surface_area;
+        if (props.enclosure.volume - want).abs() > slack {
             wrong.push(format!(
                 "{tag}: volume {} against the closed form {want}, past ε·area {slack:e}",
-                props.volume
+                props.enclosure.volume
             ));
         }
         let errors = topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol)
@@ -349,17 +352,20 @@ fn check_pose((name, edge, a, d): (&str, usize, f64, f64), tol: Tol) -> (Vec<Str
                 ValidationError::FaceThroughEdgeWedgeUndecided {
                     why: topo::TouchUnread::InBand | topo::TouchUnread::PieceInBand,
                     ..
+                } | ValidationError::BoundaryCrossesItselfUndecided {
+                    why: topo::TouchUnread::InBand | topo::TouchUnread::PieceInBand,
+                    ..
                 }
             )
         };
         let escalated = |e: &ValidationError| matches!(e, ValidationError::CensusEscalated { .. });
-        // An edge's side in band of a face of its own solid with no
-        // escalation beside it ([`UNREAD`]).
+        // A self-touch's side in band with no escalation beside it
+        // ([`UNREAD`]).
         if errors.iter().any(unread) && !errors.iter().any(escalated) {
             wrong.push(format!("{UNREAD}{tag}"));
         }
-        // In band: an escalation, or an edge lying in a face of its own
-        // solid whose side is undecided.
+        // In band: an escalation, or a self-touch whose side is
+        // undecided.
         let findings: Vec<ValidationError> = errors
             .into_iter()
             .filter(|e| !escalated(e) && !unread(e))
@@ -438,15 +444,16 @@ fn near_tangent_pierce_poses_build_their_closed_form_or_refuse_typed() {
 }
 
 /// A run line [`check_pose`] reports for a body whose tier 3′ refusal
-/// holds `FaceThroughEdgeWedgeUndecided` in band with no
-/// `CensusEscalated` beside it: the side of an edge lying in a face of
-/// its own solid is the one reading in band. It is no pass: the poses'
+/// holds `FaceThroughEdgeWedgeUndecided` or
+/// `BoundaryCrossesItselfUndecided` in band with no `CensusEscalated`
+/// beside it: the side of a solid's touch with itself, along an edge
+/// lying in its face or at a point, is the one reading in band. It is no pass: the poses'
 /// test counts them ([`UNREADS`]), and the witness tests accept them.
 const UNREAD: &str = "UNREAD ";
 
 /// How many runs of the poses' test read [`UNREAD`], by ε; none at any
 /// ε not listed.
-const UNREADS: &[(f64, usize)] = &[(1e-9, 2), (1e-6, 2)];
+const UNREADS: &[(f64, usize)] = &[(1e-9, 2), (1e-6, 2), (1e-12, 3)];
 
 #[test]
 fn the_pierce_germs_witnesses_build_every_run() {

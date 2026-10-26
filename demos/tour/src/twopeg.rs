@@ -72,7 +72,7 @@ use pncad::topo::{AtRestBody, Body, BooleanBody};
 
 use crate::booleans::{check, expect_seamed, finished, try_union};
 use crate::scalar::Scalar;
-use crate::{SceneBody, Stop, View};
+use crate::{SceneBody, TourStop, View};
 
 /// Plate footprint and thickness, peg radius, and the two peg centres
 /// — the part's whole dimension set, named once so the closed-form
@@ -356,8 +356,9 @@ pub(crate) fn build<S: Scalar>(
     // fillets' π-terms make no part's volume dyadic, so the sum and the
     // union's own flux total associate the same terms differently.
     let vol = |b: &Body<S>| {
-        pncad::topo::mass_properties(&crate::booleans::at_rest(b, tol), tol)
+        pncad::topo::mass_properties(&crate::booleans::at_rest(b, tol), tol, crate::printed())
             .expect("mass properties")
+            .enclosure
             .volume
             .f()
     };
@@ -416,7 +417,7 @@ pub(crate) fn build<S: Scalar>(
     (p, q, mated, q_lifted)
 }
 
-pub fn stops(tol: Tol) -> Vec<Stop> {
+pub fn stops(tol: Tol) -> Vec<TourStop> {
     let (p, _q, mated, q_lifted) = build::<f64>(tol);
     let note = format!(
         "the mate's contacts — the mating plane, and each peg against its own bore, \
@@ -449,7 +450,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     let aside = RigidMotion::translation(Vec3::new(APART_GAP, 0.0, 0.0)).expect("a finite offset");
     let p_aside = pncad::topo::transform_rigid(&p, &aside, tol).expect("place P aside");
     let q_aside = pncad::topo::transform_rigid(&q_lifted, &aside, tol).expect("place Q aside");
-    vec![Stop {
+    vec![TourStop {
         name: "twopeg",
         caption: "two-peg plate — mated, and apart".to_string(),
         montage: true,

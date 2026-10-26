@@ -56,7 +56,7 @@ fn solid(text: &str, who: &str) -> (topo::Body<f64>, Vec<(u64, PromotedKind, f64
             ..
         }) => {
             let p = promotions(&normalizations);
-            (body, p)
+            (body.into_body(), p)
         }
         other => panic!("{who}: expected a solid import, got {other:?}"),
     }
@@ -129,17 +129,17 @@ fn quasi_uniform_vocabulary_reads_the_same_surface() {
         "identical promotions (bit-identical patches)"
     );
     let (v1, v2) = (
-        topo::mass_properties(
+        topo::test_support::pinned_volume(
+            "the measured body",
             &topo::test_support::finished("the measured body", base.clone(), Tol::witness()),
             Tol::witness(),
         )
-        .unwrap()
         .volume,
-        topo::mass_properties(
+        topo::test_support::pinned_volume(
+            "the measured body",
             &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
             Tol::witness(),
         )
-        .unwrap()
         .volume,
     );
     assert_eq!(v1.to_bits(), v2.to_bits(), "volume bit-identical");
@@ -273,7 +273,7 @@ fn the_integral_mixed_body_imports_first_class_with_a_charted_seam() {
     // THE POINT the arc prism cannot make: tier-valid at rest as
     // `Ok(())`, not as parity with a refusing twin. The integral
     // wall's patch flux is computable, so nothing here is banked.
-    topo::validate_geometric(own_body, Tol::witness())
+    topo::validate_geometric(own_body.body(), Tol::witness())
         .expect("tier-valid AT REST — the integral wall quadratures");
     topo::validate_geometric(&native, Tol::witness())
         .expect("its native twin too: parity here is Ok(())");
@@ -281,7 +281,7 @@ fn the_integral_mixed_body_imports_first_class_with_a_charted_seam() {
     // With OUR bytes the bitwise rung answers, so declare-and-check is
     // never reached — the measurement behind the finding above.
     assert!(
-        plane_nurbs_seams(own_body).is_empty(),
+        plane_nurbs_seams(own_body.body()).is_empty(),
         "our own writer's carriers are bit-identical to the walls' columns, \
          so every seam takes the IsoCurve rung"
     );
@@ -289,7 +289,7 @@ fn the_integral_mixed_body_imports_first_class_with_a_charted_seam() {
     // NURBS certificate takes their line carrier: they adopt at the
     // `Intersection` rung, which the ladder offers before the
     // conventional one.
-    let rims = plane_nurbs_intersections(own_body);
+    let rims = plane_nurbs_intersections(own_body.body());
     assert!(
         rims.len() == 4 && rims.iter().all(|(_, plane, _)| is_cap(plane)),
         "the plane × NURBS Intersections with our own bytes are the bowed walls' four \
@@ -311,16 +311,16 @@ fn the_integral_mixed_body_imports_first_class_with_a_charted_seam() {
                 "the seam's certified sup does not fit inside an ε_in finer than its own \
                  rounding — a first-class import there would be a widened gate"
             );
-            topo::validate_geometric(&body, Tol::witness())
+            topo::validate_geometric(body.body(), Tol::witness())
                 .expect("the foreign restatement is tier-valid at rest, exactly like our own");
-            let seams = plane_nurbs_seams(&body);
+            let seams = plane_nurbs_seams(body.body());
             assert_eq!(
                 seams.len(),
                 1,
                 "exactly the restated seam takes the declare-and-check rung: {seams:?}"
             );
             assert_eq!(
-                plane_nurbs_intersections(&body).len(),
+                plane_nurbs_intersections(body.body()).len(),
                 5,
                 "beside the restated seam, the same four cap rims as our own bytes"
             );
@@ -330,10 +330,11 @@ fn the_integral_mixed_body_imports_first_class_with_a_charted_seam() {
             // derive-on-demand status, so it stores nothing — one
             // stored cache for the edge is the whole statement.
             let stored: Vec<topo::Pcurve<f64>> = body
+                .body()
                 .edges()
                 .filter(|(_, e)| e.curve == *curve)
                 .flat_map(|(_, e)| [e.he_plus, e.he_minus])
-                .filter_map(|he| body.pcurve(he).map(|c| c.pcurve().clone()))
+                .filter_map(|he| body.body().pcurve(he).map(|c| c.pcurve().clone()))
                 .collect();
             assert_eq!(
                 stored.len(),
@@ -435,9 +436,9 @@ fn the_mixed_arc_prism_imports_first_class_over_the_intersection_pcurve_arm() {
             curve_promotions,
             ..
         }) => {
-            topo::validate_geometric(&body, Tol::witness())
+            topo::validate_geometric(body.body(), Tol::witness())
                 .expect("first-class at rest: the rational wall's flux reaches its target");
-            let taken = plane_nurbs_intersections(&body);
+            let taken = plane_nurbs_intersections(body.body());
             assert!(
                 taken.is_empty(),
                 "both seams are the arc wall's own columns, bit for bit; the \
@@ -462,6 +463,7 @@ fn the_mixed_arc_prism_imports_first_class_over_the_intersection_pcurve_arm() {
                 }
             }
             let wall = body
+                .body()
                 .surfaces()
                 .find_map(|(_, s)| match s {
                     geom::Surface::Nurbs(n) if !n.is_placeholder() => Some((**n).clone()),
@@ -470,9 +472,10 @@ fn the_mixed_arc_prism_imports_first_class_over_the_intersection_pcurve_arm() {
                 .expect("the arc wall stays NURBS at every band");
             let (du0, du1) = wall.knots_u_f64_interim().domain();
             let images: Vec<_> = body
+                .body()
                 .edges()
                 .flat_map(|(_, e)| [e.he_plus, e.he_minus])
-                .filter_map(|he| body.pcurve(he).map(|c| c.pcurve().clone()))
+                .filter_map(|he| body.body().pcurve(he).map(|c| c.pcurve().clone()))
                 .filter_map(|p| match p {
                     topo::Pcurve::IsoLine { p0, pl } if pl.x == 0.0 => Some(p0),
                     _ => None,
@@ -496,21 +499,15 @@ fn the_mixed_arc_prism_imports_first_class_over_the_intersection_pcurve_arm() {
                 line_promotions.len()
             );
         }
-        // The FIXED SCHEDULE's honest frontier (M8-3, D9): where the
-        // seam certifies but the rational wall's flux cannot reach
-        // `1024·ε`, a caller wanting the NUMBER is refused TYPED with
-        // the measured width. That is a DIFFERENT refusal from the
-        // retired bank — the lane ran, and said how far it got.
-        //
-        // Tier 3's own check 7 no longer makes that refusal (it reads
-        // a SIGN), so a body reaching this arm is one whose aggregate
-        // tier-3′ gate asked for the number, or one whose sign was
-        // undecided when the schedule ran out.
+        // The honest frontier: where the seam certifies but the
+        // rational wall's sign is still open at its work wall, check 7
+        // refuses TYPED. That is a DIFFERENT refusal from the retired
+        // bank — the lane ran, and said how far it got.
         Err(refusal @ StepImportError::TierInvalid { .. }) => {
             let shown = format!("{refusal:?}");
             assert!(
-                shown.contains("QuadratureBudget"),
-                "the only surviving at-rest refusal is the quadrature budget: {shown}"
+                shown.contains("VolumeSignUnresolved"),
+                "the only surviving at-rest refusal is a sign open at the wall: {shown}"
             );
             assert!(
                 !shown.contains("RATIONAL patch flux"),

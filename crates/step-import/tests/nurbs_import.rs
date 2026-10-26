@@ -120,56 +120,42 @@ fn reverse_data_section(text: &str) -> String {
 }
 
 /// The honest posture of a rational-wall body's mass properties at the
-/// run's ε (M8-3). The schedule is FIXED (D9) and the target is
-/// `1024·ε`, so `Ok` at one ε and a typed budget refusal at a tighter
-/// one are both correct; nothing else is. `Certified` carries the
-/// enclosure — the caller reuses it rather than paying a second
-/// rational quadrature, which is the expensive thing in these rows.
+/// run's ε (M8-3), read at the pinned resolution `1024·ε`: met at one ε
+/// and a bracket at a tighter one are both correct; nothing else is.
+/// `Certified` carries the enclosure — the caller reuses it rather than
+/// paying a second rational quadrature, which is the expensive thing in
+/// these rows.
 ///
-/// The resolution is compared, not decided, so no convergence predicate
-/// can escalate: a refusal other than the budget's panics, as a row that
-/// logged it as a budget refusal would report a frontier the run never
-/// reached.
+/// The resolution is compared, not decided, so a refusal panics.
 #[derive(Debug)]
 enum Posture {
-    /// Bounds returned.
+    /// The resolution met.
     Certified(topo::MassProperties<f64>, Vec<topo::test_support::FaceTerm>),
-    /// The lane stops short of `1024·ε` — typed, with the width of the
-    /// narrowest enclosure it reached.
-    Budget,
+    /// The faces stopped short of `1024·ε`, at the floor or the work
+    /// wall, with the bracket they reached.
+    Short,
 }
 
 fn rational_props_posture(body: &topo::Body<f64>, who: &str) -> Posture {
-    let target = 1024.0 * geom_core::Tol::witness().get().eps;
     // The same walk as `topo::mass_properties`, with each face's own term
     // handed back beside the sum (the round trip compares them face by
     // face).
-    match topo::test_support::mass_properties_with_face_terms(body, Tol::witness()) {
-        Ok((props, terms)) => Posture::Certified(props, terms),
-        Err(err) => {
-            let topo::MassPropsError::Face { source, .. } = &err else {
-                panic!("{who}: expected a per-face volume refusal, got: {err:?}");
-            };
-            match source {
-                geom_brep::props::PropsError::QuadratureBudget {
-                    width_len,
-                    target_len,
-                    ..
-                } => {
-                    assert!(
-                        width_len.is_finite() && width_len > target_len,
-                        "{who}: a budget refusal must carry a width that really missed: \
-                         {width_len:e} vs {target_len:e}"
-                    );
-                    assert!(
-                        (target_len - target).abs() <= target * 1e-12,
-                        "{who}: the refused target must BE 1024·ε: {target_len:e} vs {target:e}"
-                    );
-                    Posture::Budget
-                }
-                other => panic!("{who}: not an honest quadrature posture: {other:?}"),
-            }
+    let (measured, terms) = topo::test_support::mass_properties_with_face_terms(
+        body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap_or_else(|err| panic!("{who}: not an honest quadrature posture: {err:?}"));
+    match measured.stop {
+        topo::Stop::Met => Posture::Certified(measured.enclosure, terms),
+        topo::Stop::Floor | topo::Stop::Wall => {
+            assert!(
+                measured.enclosure.volume_pad > 0.0,
+                "{who}: a bracket short of the resolution has a width"
+            );
+            Posture::Short
         }
+        stop => panic!("{who}: a resolution decides nothing: {stop:?}"),
     }
 }
 
@@ -193,10 +179,9 @@ fn rational_props_posture(body: &topo::Body<f64>, who: &str) -> Posture {
 /// volume agreement below is what catches that. (The non-rational
 /// side's positive control is `loft_prism`.)
 ///
-/// **ε posture.** The schedule is fixed (D9) against a `1024·ε`
-/// target, so at a tight enough ε the honest outcome is a typed
-/// budget refusal on both sides. Both outcomes are pinned; neither
-/// is widened.
+/// **ε posture.** Read at `1024·ε`, so at a tight enough ε the honest
+/// outcome is a bracket short of it on both sides. Both outcomes are
+/// pinned; neither is widened.
 ///
 /// # Adopted arms
 ///
@@ -219,15 +204,13 @@ fn rational_props_posture(body: &topo::Body<f64>, who: &str) -> Posture {
 ///   for why that is a strengthening and what it measured;
 /// * **the refusal arm's structural match is review F1's positive
 ///   control's** (`review_probes_m7_3::probe_arm_b_true_arc_rim_
-///   positive_control`, M7-3 review, adopted by merge). It is
-///   STRICTER than the string check beside it: the import succeeds and
-///   its enclosure's refusal must be a per-face `QuadratureBudget`
-///   carrying a bracket — no validity verdict, and no
-///   escalation standing in for a budget. Because the import's measurement is the
-///   SAME quadrature the native side runs, this also pins the native
-///   posture RW2 asserted directly: a native escalation would arrive
-///   here as an escalation and fail this
-///   match.
+///   positive_control`, M7-3 review, adopted by merge): the import
+///   succeeds and its certificate measures to the resolution or to a
+///   definitely positive bracket — no validity verdict, and no refusal.
+///   Because the import's measurement is the SAME quadrature the native
+///   side runs, this also pins the native posture RW2 asserted
+///   directly: a native escalation would arrive here as a refusal and
+///   fail this row.
 #[test]
 fn arc_loft_natively_computes_its_rational_volume() {
     let native = native_arc_loft();
@@ -263,7 +246,7 @@ fn arc_loft_natively_computes_its_rational_volume() {
     let posture = rational_props_posture(&native, "native");
     let native_props = match &posture {
         Posture::Certified(props, terms) => Some((props, terms)),
-        Posture::Budget => None,
+        Posture::Short => None,
     };
     let certified = native_props.is_some();
     if let Some((want, _)) = native_props {
@@ -298,67 +281,38 @@ fn arc_loft_natively_computes_its_rational_volume() {
     )
     .expect("the writer exports the rational-walled body");
     match import_step(&text, &ImportOptions::default(), Tol::witness()) {
-        Ok(step_import::StepImport::Solid {
-            body, enclosure, ..
-        }) => {
-            // The fixed schedule's honest frontier, reached through the
-            // import's measurement instead of the native one. The gate
-            // ADMITS the body — check 7 decides a sign, and this body's
-            // is definite — and the import SUCCEEDS (DESIGN import step
-            // 4: the reader holds no opinion of its own about which
-            // admitted bodies ship). What refuses is the number, and the
-            // refusal rides on the enclosure.
-            let enclosure = match enclosure {
-                Ok(enclosure) => enclosure,
-                Err(unreached) => {
-                    assert!(
-                        !certified,
-                        "the import may only fail to measure where the native body's flux \
-                         also ran out of schedule: {unreached:?}"
-                    );
-                    // Review F1's positive control, adopted: the REFUSAL
-                    // itself, not a substring of its prose — the per-face
-                    // quadrature budget, and no escalation standing in for
-                    // one — and the kernel's own classification of it,
-                    // which keeps a bracket.
-                    assert!(
-                        matches!(
-                            unreached.refusal,
-                            topo::MassPropsError::Face {
-                                source: geom_brep::props::PropsError::QuadratureBudget { .. },
-                                ..
-                            }
-                        ),
-                        "the only surviving refusal is the fixed schedule's budget: {unreached:?}"
-                    );
-                    let bracket = unreached.bracket;
-                    assert!(
-                        bracket.volume_lo > 0.0,
-                        "the budget refusal's bracket is definitely positive: {bracket:?}"
-                    );
-                    let msg = unreached.to_string();
-                    assert!(
-                        !msg.contains("RATIONAL patch flux"),
-                        "the RATIONAL patch flux bank is RETIRED — no refusal may name it: {msg}"
-                    );
-                    assert!(
-                        msg.contains("this tolerance targets"),
-                        "the only surviving refusal is the quadrature budget, with its number: \
-                         {msg}"
-                    );
-                    return;
-                }
-            };
+        Ok(step_import::StepImport::Solid { body, .. }) => {
+            // The honest frontier, reached through the import's own
+            // certificate instead of the native one. The gate ADMITS the
+            // body — check 7 decides a sign, and this body's is definite
+            // — and the import SUCCEEDS (DESIGN import step 4: the reader
+            // holds no opinion of its own about which admitted bodies
+            // ship). Where the faces stop short of the resolution the
+            // measurement is the bracket they reached.
+            let measured = body
+                .measure(topo::test_support::pinned_resolution(Tol::witness()))
+                .unwrap_or_else(|err| panic!("the import's certificate measures: {err:?}"));
+            if measured.stop != topo::Stop::Met {
+                assert!(
+                    !certified,
+                    "the import may only stop short where the native body's flux also did: \
+                     {measured:?}"
+                );
+                let bracket = measured.enclosure.enclosure();
+                assert!(
+                    bracket.volume_lo > 0.0,
+                    "the bracket is definitely positive: {bracket:?}"
+                );
+                return;
+            }
+            let enclosure = measured.enclosure;
             assert!(
                 certified,
-                "an imported Solid means the at-rest gate passed, which means the \
-                 quadrature certified — it cannot happen at an ε where the native \
-                 body's own flux ran out of schedule"
+                "the import's certificate meets the resolution only where the native \
+                 body's own flux does"
             );
-            // The gate's own enclosure of this body, not a second one:
-            // `import_step` cannot hand back a `Solid` without its
-            // aggregate gate having certified it, and the field IS what
-            // that check decided on.
+            // The gate's own certificate of this body, measured on, not a
+            // second quadrature.
             let got = enclosure;
             let (want, want_terms) = native_props.expect("the native side certified");
             // **BIT identity where it holds, ulp identity where it
@@ -381,18 +335,24 @@ fn arc_loft_natively_computes_its_rational_volume() {
             //
             // * the import's gate enclosure IS the imported body's own
             //   measurement, bit for bit (same body, same order);
-            let (imported, imported_terms) =
-                topo::test_support::mass_properties_with_face_terms(&body, Tol::witness())
-                    .expect("the imported body measures where its gate certified");
+            let (imported, imported_terms) = topo::test_support::mass_properties_with_face_terms(
+                body.body(),
+                Tol::witness(),
+                topo::test_support::pinned_resolution(Tol::witness()),
+            )
+            .expect("the imported body measures where its gate certified");
             assert_eq!(
                 (got.volume.to_bits(), got.volume_pad.to_bits()),
-                (imported.volume.to_bits(), imported.volume_pad.to_bits()),
+                (
+                    imported.enclosure.volume.to_bits(),
+                    imported.enclosure.volume_pad.to_bits()
+                ),
                 "the gate's enclosure must BE the imported body's measurement: \
                  gate {} ± {}, measured {} ± {}",
                 got.volume,
                 got.volume_pad,
-                imported.volume,
-                imported.volume_pad,
+                imported.enclosure.volume,
+                imported.enclosure.volume_pad,
             );
             // * every face's flux term and half-width, native against
             //   imported, bit for bit: the same multiset of terms, each
@@ -503,8 +463,8 @@ fn arc_loft_natively_computes_its_rational_volume() {
                 .unwrap_or_else(|e| panic!("re-exporting the {who} body: {e}"))
             };
             assert_eq!(
-                rewrite(&again, "reversed-DATA"),
-                rewrite(&body, "as-written"),
+                rewrite(again.body(), "reversed-DATA"),
+                rewrite(body.body(), "as-written"),
                 "a reordered file must import to the SAME BODY, and it re-exports \
                  differently — entity order became information somewhere in the reader"
             );
@@ -521,8 +481,8 @@ fn arc_loft_natively_computes_its_rational_volume() {
                 all
             };
             assert_eq!(
-                descriptions(&again),
-                descriptions(&body),
+                descriptions(again.body()),
+                descriptions(body.body()),
                 "a reordered file must mint the SAME edge descriptions — this is the \
                  half the re-export cannot see, and the arc rim's IsoArc lives in it"
             );
@@ -666,6 +626,7 @@ fn an_adopted_iso_column_is_a_knot_domain_end() {
     // The wall the reparameterization names, located by its DOMAIN so
     // the row survives arena renumbering.
     let (wall, _) = body
+        .body()
         .surfaces()
         .find(|(_, s)| match s {
             geom::Surface::Nurbs(n) => n.knots_u_f64_interim().domain() == (0.0, 3.0),
@@ -673,6 +634,7 @@ fn an_adopted_iso_column_is_a_knot_domain_end() {
         })
         .expect("the reparameterized wall survives the import");
     let mut columns: Vec<f64> = body
+        .body()
         .curves()
         .filter_map(|(_, geom)| match geom {
             topo::CurveGeom::Certified(c) => match c.description() {
@@ -691,7 +653,7 @@ fn an_adopted_iso_column_is_a_knot_domain_end() {
         vec![0.0, 3.0],
         "both of the wall's seams adopt on ITS OWN knot-domain ends"
     );
-    topo::validate_geometric(&body, Tol::witness())
+    topo::validate_geometric(body.body(), Tol::witness())
         .expect("and the reparameterized body is valid at rest");
 }
 
@@ -772,7 +734,7 @@ fn promoted_ruling_seams_reexport_as_line() {
         panic!("the prism is a solid");
     };
     let text2 = step_export::step_string(
-        &crate::common::at_rest(&body),
+        &crate::common::at_rest(body.body()),
         &step_export::StepOptions::default(),
         tol,
     )

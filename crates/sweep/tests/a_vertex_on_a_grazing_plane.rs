@@ -45,11 +45,11 @@ fn pad_ceiling() -> f64 {
 }
 
 fn volume(body: &Body<f64>) -> f64 {
-    topo::mass_properties(
+    topo::test_support::pinned_volume(
+        "the measured body",
         &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
         tol(),
     )
-    .unwrap()
     .volume
 }
 
@@ -171,9 +171,10 @@ fn the_split_reads_a_grazing_vertex_against_its_section() {
                                 tol(),
                             ),
                             tol(),
+                            topo::test_support::pinned_resolution(tol()),
                         )
                         .unwrap();
-                        (m.volume, m.volume_pad)
+                        (m.enclosure.volume, m.enclosure.volume_pad)
                     })
                 };
                 let ((a, pa), (b, pb)) = (

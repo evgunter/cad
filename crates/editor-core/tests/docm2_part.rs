@@ -743,8 +743,16 @@ fn a7_the_product_of_a_lone_placed_half_is_that_half() {
         product(&r.doc, &ev, Tol::witness()).expect("the product gathers"),
         Tol::witness(),
     );
-    let m = topo::mass_properties(&body, Tol::witness()).expect("mass properties");
-    assert_eq!(m.volume, 0.5, "the upper half of the unit box, exactly");
+    let m = topo::mass_properties(
+        &body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .expect("mass properties");
+    assert_eq!(
+        m.enclosure.volume, 0.5,
+        "the upper half of the unit box, exactly"
+    );
     let (side, _) = sides(&ev, split);
     assert_eq!(bits(&body), bits(&side));
 }

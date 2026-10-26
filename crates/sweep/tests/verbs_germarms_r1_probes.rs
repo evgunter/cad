@@ -152,7 +152,9 @@ fn r1_a_first_order_exits_verdict_on_a_hole_wall_is_contradicted_at_its_own_arm(
 fn r1_the_planar_cap_pierce_and_the_curved_wall_pierce_both_join() {
     let tol = Tol::witness();
     let volume = |r: Result<topo::BooleanResult<f64>, BooleanError>, what: &str| match r {
-        Ok(topo::BooleanResult::Body(out)) => topo::mass_properties(&out.body, tol).unwrap().volume,
+        Ok(topo::BooleanResult::Body(out)) => {
+            topo::test_support::pinned_volume("the measured body", &out.body, tol).volume
+        }
         other => panic!("{what} joins, got {other:?}"),
     };
     let cap = volume(
