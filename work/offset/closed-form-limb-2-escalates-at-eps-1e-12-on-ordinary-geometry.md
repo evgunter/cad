@@ -8,6 +8,8 @@ priority: P0
 cost: M
 parent: closed-form-edge-carriers-pass-on-samples-with-no-stated-bound-between-them
 design: true
+needs_ev: true
+pr: 5728
 ---
 
 
@@ -79,3 +81,10 @@ these bodies. The candidates, none weighed yet:
    `origin` far from the edge adds its distance to every term).
 
 This is a design question for Ev, through the designer pair (`[ev]`).
+
+**Weighed (fork row 200, 2026-10-26).** Both designers say these refusals are not the certificate's honest limit:
+- **The cause.** A closed form's net is enclosed in world coordinates, so the bound rounds at the part's distance from the origin.
+- **The fix.** One limb-2 reader serves every carrier: the carrier's net, framed at each operand in certification arithmetic once. `closed_form_offset_sup` goes, and so does the spline path's unenclosed `f64` framing.
+- **The verdict.** A bound that stalls above the band refuses as the kernel approximation limit `[tolerance.recourse]` names, carrying the bound, the extent and the carrier's enclosure width. It is never an escalation and never a definite miss.
+
+Ev's ruling is asked on PR 5728.
