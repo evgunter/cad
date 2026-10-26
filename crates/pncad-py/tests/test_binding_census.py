@@ -2795,6 +2795,12 @@ NOT_BOUND = {
     # Python speaks the document layer and reads a wall by its NAME.
     "SideWall": INTERIOR,
     "BandWall": INTERIOR,
+    # `Revolved::cavities` elements and their key (`CavityOrigin`, also
+    # `RevolveError::VoidInsertion`'s subject): behind the same door as
+    # `Revolved`. A refusal crosses as its tag, and the document layer
+    # answers a body, not its shells.
+    "Cavity": INTERIOR,
+    "CavityOrigin": INTERIOR,
     # The run a swept wall's role segment holds. Python never builds a
     # name from parts: a run wall's name is the opaque text `select`
     # answers, and the one-piece run is what `band(node, piece)` spells.
@@ -3453,6 +3459,7 @@ NOT_BOUND = {
     "PerParam": SHAPE,
     "ReasonClass": SHAPE,
     "Receipt": SHAPE,
+    "RecordReading": SHAPE,
     "RefusalReason": SHAPE,
     "RefusedLeaf": SHAPE,
     "ReportCache": SHAPE,

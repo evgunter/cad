@@ -1717,7 +1717,7 @@ impl<T: Decide> Body<T> {
     /// tier 3 re-derives the face and reports it unminted, or the
     /// refusal its derivation meets. The drop buys a body that no
     /// longer HOLDS the wrong row for `props`, the tessellator or
-    /// `chart_boundary` to read.
+    /// `loop_windings` to read.
     ///
     /// A row is the half-edge's image and the element of the joint into
     /// it, and both go. The element of the joint OUT of a dropped half

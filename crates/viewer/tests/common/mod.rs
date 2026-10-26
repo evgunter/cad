@@ -36,6 +36,9 @@ pub mod asm;
 /// reference and their two aims.
 pub mod corpus_pick;
 
+/// Where a drawn copy stands, and what it draws.
+pub mod drawn;
+
 use bvh::Aabb;
 use pncad::document::{SolvedPoses, solve_document};
 use pncad::geom_core::Point3;

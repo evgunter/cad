@@ -971,10 +971,15 @@ fn run_at<T: editor_core::EvalScalar>(
 /// the census at a `⊔` keeps its verdict on the `⊔`'s value), the
 /// content key's `VERSION` moved to 21 and the mates' spelling with it,
 /// so every value token moved; re-measured at all three ε.
+///
+/// And, all three rows, when a certificate came to keep its turn: the
+/// evaluation digest feeds each edge curve's `Debug`, which now spells
+/// it. No pose, fault or point moved. Re-measured with both merged, at
+/// all three ε.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0x72d7_f216_184f_82e1),
-    (1e-6, 0xf21b_4a3a_4e2f_5ab5),
-    (1e-12, 0x6513_c235_9d4a_22c8),
+    (1e-9, 0x7b0f_be4e_b4f4_e5d1),
+    (1e-6, 0x01ef_f0e0_9fde_7c4e),
+    (1e-12, 0x6429_efaa_9430_4fd7),
 ];
 
 /// **Each seat of the corpus stands on what it is seated on**: in the
@@ -2228,23 +2233,61 @@ fn a5_sensitivities_cross_a_seated_mate() {
         ),
         other => panic!("a derivative across the seat, not {other:?}"),
     }
-    // A record build over no resolver is not this build: its instances
-    // refuse where the anchor's resolve, and the pairing gate says so.
-    let unresolved = run_at::<f64>(&doc, &EvalOptions::default(), None);
-    assert!(
-        matches!(
-            sensitivities(
+    // A record build over no resolver is not this build: it resolved no
+    // part where the passes resolved the bolt's, and the binding says so.
+    // Over the store it binds.
+    let record = |opts: EvalOptions| {
+        sensitivities(
+            &doc,
+            crate::fixture::output(&doc, m),
+            Some(&run_at::<f64>(
                 &doc,
-                crate::fixture::output(&doc, m),
-                Some(&unresolved),
+                &EvalOptions { pin: true, ..opts },
                 None,
-                false,
-                Some(&resolver),
-                Tol::witness()
-            ),
-            Err(SensitivityRefusal::Pairing(_))
-        ),
-        "a record build over another resolver fails the pairing gate"
+            )),
+            None,
+            false,
+            Some(&resolver),
+            Tol::witness(),
+        )
+    };
+    assert!(record(b.opts.clone()).is_ok(), "the store's build binds");
+    assert_eq!(
+        record(EvalOptions::default()).err(),
+        Some(SensitivityRefusal::Binding(
+            editor_core::stackup::BindingViolation::Parts
+        )),
+        "a record build over another resolver fails the binding"
+    );
+    // The other direction, which is what an edited part file looks
+    // like (A4: its bytes no longer hash to the reference's pin, so the
+    // pin resolves to nothing): the record resolved the bolt over the
+    // store, and the passes run over a store that no longer holds it.
+    let gone = with_resolver(PartStore::new())
+        .resolver
+        .expect("a resolver over the emptied store");
+    assert_eq!(
+        sensitivities(
+            &doc,
+            crate::fixture::output(&doc, m),
+            Some(&run_at::<f64>(
+                &doc,
+                &EvalOptions {
+                    pin: true,
+                    ..b.opts.clone()
+                },
+                None,
+            )),
+            None,
+            false,
+            Some(&gone),
+            Tol::witness(),
+        )
+        .err(),
+        Some(SensitivityRefusal::Binding(
+            editor_core::stackup::BindingViolation::Parts
+        )),
+        "passes over a store whose part file changed fail the binding"
     );
 }
 

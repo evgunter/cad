@@ -714,7 +714,7 @@ fn hand_eval(
     }
     nodes.insert(named, value(table, vec![]));
     order.push(named);
-    Evaluation::<f64>::hand_built(doc.id(), order, nodes)
+    Evaluation::<f64>::hand_built(doc.id(), order, nodes, Tol::witness())
 }
 
 /// Hand-built tables at `cut` for a fragment group that stops being

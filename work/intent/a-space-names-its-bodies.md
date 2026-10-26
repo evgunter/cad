@@ -8,7 +8,6 @@ priority: P0
 cost: M
 refs: [a-placement-relates-two-frames]
 parent: assemble-is-an-operator-and-the-product-is-a-slot
-blocked_on: [assemble-is-an-operator-and-the-product-is-a-slot]
 closed: 2026-10-23
 ---
 

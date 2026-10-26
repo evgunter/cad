@@ -51,9 +51,12 @@ fn built(
 ) -> Result<f64, BlendError> {
     let f = fillet_edges(body, edges, r, tol()).map_err(|e| e.error)?;
     assert_eq!(validate_geometric(&f.body, tol()), Ok(()), "{what}: tier 3");
-    Ok(topo::test_support::unmigrated_measure(&f.body, tol())
-        .expect("a volume")
-        .volume)
+    Ok(topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(&f.body), tol()),
+        tol(),
+    )
+    .expect("a volume")
+    .volume)
 }
 
 fn is_reach(e: &BlendError) -> bool {

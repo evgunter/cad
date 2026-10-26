@@ -3782,7 +3782,8 @@ mod properties_pane_tests {
             | ToolKind::Transform
             | ToolKind::Pattern
             | ToolKind::Part
-            | ToolKind::Duplicate => Some(COMBINE_BODIES),
+            | ToolKind::Duplicate
+            | ToolKind::Mirror => Some(COMBINE_BODIES),
             ToolKind::Blend => Some(BLEND_EDGES),
         }
     }

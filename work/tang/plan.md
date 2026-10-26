@@ -44,7 +44,7 @@ corners nearest them: **28 budget points**, 20 live rows.
 | P2 | `a-lone-unread-partner-has-no-class-rule` | — | open | A vertex whose lone partner reads nothing has no class rule, so naming refuses a crossing there |
 | P2 | `a-ring-on-a-cone-or-torus-face-has-no-island-winding` | M | parked | A ring on a torus face has no island winding: the plane×torus germ pair refuses before the ring lane |
 | P2 | `a-sqrt-band-refused-ring-around-every-pinch-node` | H | open | A √band refused ring around every pinch node: the pierce vertex reads a family pierce through the pierced wall's tangent plane |
-| P2 | `a-torus-meridian-rims-span-bound-is-wider-than-the-band` | M | open | The jet schedule's span bound on a circle carrier off a torus's axis (the G1 tube chain's meridian rim) is ~1.2 m, so its declared Seam cannot verify |
+| P1 | `a-torus-meridian-rims-span-bound-is-wider-than-the-band` | M | open | The jet schedule's span bound on a circle carrier off a torus's axis (the G1 tube chain's meridian rim) is ~1.2 m, so its declared Seam cannot verify |
 | P2 | `a-vertex-minted-on-an-edge-lying-on-a-curved-face-is-unread` | M | open | A vertex a split mints on a conic lying in a plane is not read against that face |
 | P2 | `two-wedges-sharing-a-tangent-plane-face-on-a-ruling-refuse-unpaired-loose-ends` | M | open | Two wedges sharing a wall's tangent-plane face, apex edges on its ruling, refuse Join(UnpairedLooseEnds) in every op and order: an untyped join refusal with no recourse (D4) |
 | P3 | `a-covered-line-ending-just-off-the-face-keeps-the-door` | M | parked | A Seam-covered line whose end touches the partner's carrier just outside the face keeps the door |

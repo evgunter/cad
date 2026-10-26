@@ -3428,7 +3428,7 @@ mod field_tests {
         assert_eq!(
             field.parses.get(),
             2,
-            "one typed text, parsed on the frame the edit ends and again on              the next"
+            "one typed text, parsed on the frame the edit ends and again on the next"
         );
         assert_eq!(field.value, 1002.0);
     }

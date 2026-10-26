@@ -130,9 +130,16 @@ fn flush_plane_pair_glues() {
         panic!("the union is a body");
     };
     assert_eq!(
-        topo::test_support::unmigrated_measure(body, Tol::witness())
-            .unwrap()
-            .volume,
+        topo::mass_properties(
+            &topo::test_support::finished(
+                "the measured body",
+                topo::Body::clone(&**body),
+                Tol::witness()
+            ),
+            Tol::witness()
+        )
+        .unwrap()
+        .volume,
         1.5
     );
     assert_eq!(
@@ -164,9 +171,16 @@ fn flush_plane_pair_glues() {
     };
     // 1 + (b = 1·0.5·1.25) − (overlap = 0.5·0.5·0.75) = 1.4375.
     assert_eq!(
-        topo::test_support::unmigrated_measure(body, Tol::witness())
-            .unwrap()
-            .volume,
+        topo::mass_properties(
+            &topo::test_support::finished(
+                "the measured body",
+                topo::Body::clone(&**body),
+                Tol::witness()
+            ),
+            Tol::witness()
+        )
+        .unwrap()
+        .volume,
         1.4375
     );
 }
@@ -212,9 +226,16 @@ fn crossing_slots_recipe_document_evaluates_and_resolves() {
     };
     // #90's oracle: 9 − two 0.5-deep slots + shared middle.
     assert_eq!(
-        topo::test_support::unmigrated_measure(body, Tol::witness())
-            .unwrap()
-            .volume,
+        topo::mass_properties(
+            &topo::test_support::finished(
+                "the measured body",
+                topo::Body::clone(&**body),
+                Tol::witness()
+            ),
+            Tol::witness()
+        )
+        .unwrap()
+        .volume,
         9.0 - (3.0 * 0.5 + 3.0 * 0.5 - 0.5) * 1.0
     );
     assert_eq!(
@@ -290,9 +311,16 @@ fn l_corner_caps_merge_at_the_recipe_door_tier3_green() {
         panic!("the flush-caps union is a body");
     };
     assert_eq!(
-        topo::test_support::unmigrated_measure(body, Tol::witness())
-            .unwrap()
-            .volume,
+        topo::mass_properties(
+            &topo::test_support::finished(
+                "the measured body",
+                topo::Body::clone(&**body),
+                Tol::witness()
+            ),
+            Tol::witness()
+        )
+        .unwrap()
+        .volume,
         1.625
     );
     // Both caps merged: two octagonal caps and eight walls, where two
@@ -360,9 +388,16 @@ fn crossing_slots_swapped_order_names_the_floor_corner_for_both_edges() {
         panic!("swapped crossing slots is a body");
     };
     assert_eq!(
-        topo::test_support::unmigrated_measure(body, Tol::witness())
-            .unwrap()
-            .volume,
+        topo::mass_properties(
+            &topo::test_support::finished(
+                "the measured body",
+                topo::Body::clone(&**body),
+                Tol::witness()
+            ),
+            Tol::witness()
+        )
+        .unwrap()
+        .volume,
         9.0 - (3.0 * 0.5 + 3.0 * 0.5 - 0.5) * 1.0
     );
     assert_eq!(

@@ -95,9 +95,12 @@ fn a_pinch_apex_meeting_one_vertex_builds_in_either_order() {
     let pinch = pinch.body;
     let top = resting();
     let vol = |b: &Body<f64>| {
-        topo::test_support::unmigrated_measure(b, tol())
-            .unwrap()
-            .volume
+        topo::mass_properties(
+            &topo::test_support::finished("the measured body", topo::Body::clone(b), tol()),
+            tol(),
+        )
+        .unwrap()
+        .volume
     };
     let want = vol(&pinch) + vol(&top);
     for pinch_first in [true, false] {

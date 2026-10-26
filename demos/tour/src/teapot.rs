@@ -2492,9 +2492,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
              {DELTA}. On an ANNULAR mouth the same class needs two disjoint annuli — a \
              face SPLIT — and that is built too; `tests/verbs_teapot.rs` carries both \
              shapes. THE OPENED POT NOW LEAVES AS STEP, which the sealed one could not: \
-             the writer's outward/void classifier has closed forms for planar faces \
-             only, so a CURVED solid of two or more shells refuses \
-             CurvedShellClassification — and a cup is ONE shell. That gate keeps three \
+             the writer refuses a void shell (VoidShellUnsupported: no \
+             BREP_WITH_VOIDS yet) — and a cup is ONE shell. That gate keeps three \
              live probes (klein's wall 6, the `ring` scene's and `hollowtorus`'s); this \
              scene is no longer one of them, because the body it ships no longer \
              reaches it. THE LID, which is where the CURVED-SUPPORT fillet family \

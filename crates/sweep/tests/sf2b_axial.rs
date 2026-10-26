@@ -127,7 +127,11 @@ fn wall(what: &str, body: &Body<f64>) -> f64 {
         "{what}: tier 3"
     );
     assert_eq!(hollow.shells().count(), 2, "{what}: outer + cavity");
-    let props = topo::test_support::unmigrated_measure(&hollow, tol).expect("props");
+    let props = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(&hollow), tol),
+        tol,
+    )
+    .expect("props");
     println!("[axial] {what}: wall volume {}", props.volume);
     props.volume
 }

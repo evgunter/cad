@@ -176,6 +176,12 @@ const UNMARKED_RECOURSE: &[&str] = &[
 /// reads a `⊔` keys each copy's faces by the read they came through
 /// (`From { read }`), so a face scoped to the product says that read,
 /// where the gather's table said the copy's wrapped name.
+///
+/// A pair boolean's `Borders` wall came to cite its parent as the
+/// boolean's own table names it, the `From` it came in through: each
+/// wall of `crossing_slots`' pieces now says its read ("… through
+/// <read>"). Scoped p99 43 → 45, total 60241 → 60371; full total
+/// 461129 → 461339. No outcome moved.
 const NAME_WORDS: [(&str, [usize; 4]); 2] = [
     ("scoped faces", [16, 45, 57, 46_933]),
     ("full", [19, 122, 196, 342_994]),
@@ -339,6 +345,10 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// Re-pinned for D′3: no name says a placement layer, a
 /// product's names say the `⊔` read they came through, and node tags
 /// moved with the ids.
+///
+/// Re-pinned with [`NAME_WORDS`] when a pair boolean's `Borders` walls
+/// came to say the read each came in through: the words that moved are
+/// those walls'.
 const SAID_DIGEST: u64 = 0xea0f_1a37_b898_f6d0;
 
 /// The tables an evaluation answers for a name it does not hold: a

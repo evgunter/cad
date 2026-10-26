@@ -374,6 +374,10 @@ fn a_split_document_read_by_port_round_trips_byte_identical() {
 /// `kitchen_sink` were measured again with main's plane pose merged in
 /// (main, `34a2e26e61`, which reds both rows on its own), and carry both
 /// changes.
+///
+/// RE-BLESSED, every row, for a certificate that keeps its turn: the
+/// digest feeds each edge curve's `Debug`, which now spells the
+/// certificate's `turn`. No outcome or point moved.
 #[test]
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
@@ -509,6 +513,10 @@ fn cube_split_at(z: f64) -> (Recorder, RecipeNodeId) {
 /// construction defines its space beside its body, and the content key
 /// holds a placement's target (`VERSION` 18), so ids drawn after a
 /// construction and every value token moved. No point moved.
+///
+/// RE-BLESSED for a certificate that keeps its turn: the digest feeds
+/// each edge curve's `Debug`, which now spells the certificate's `turn`.
+/// No outcome or point moved.
 #[test]
 fn a_split_with_an_empty_side_evaluates_to_its_committed_digest() {
     let (r, split) = cube_split_at(5.0);
@@ -529,7 +537,7 @@ fn a_split_with_an_empty_side_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat8 empty_side: {got:#018x}");
     assert_eq!(
-        got, 0xa218_4b53_38f5_c2fe,
+        got, 0x6514_aa34_b3e7_b9ae,
         "the empty-side evaluation moved — side token, body or name table"
     );
 }

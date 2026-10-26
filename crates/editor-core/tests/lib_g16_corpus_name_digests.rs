@@ -297,6 +297,12 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 /// every id drawn after one moved. Names and ids only:
 /// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
 /// holds with the `⊔` nodes set aside.
+///
+/// Re-pinned, `crossing_slots` alone, when a pair boolean's `Borders`
+/// wall came to cite its parent as the boolean's own table names it,
+/// the `From { read, of }` it came in through, as a seam side does: the
+/// second subtract's divided pieces' walls gained their read. No
+/// outcome moved, and every other document held.
 const PINNED: &[(&str, u64)] = &[
     ("die", 0xfbed65489a5bf5c2),
     ("corner_table", 0x2c84ce36d490eac0),

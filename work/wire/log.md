@@ -6960,3 +6960,43 @@ Signed (WIRE orchestrator).
   - Priced on the way: the tied joined set P3/M, the loft count P3/E, and the variant-less emit_topo raises P2/M.
   - Recorded in docs/MODEL-AB-LOG.md, with four live bands (13800–14199) the roster had missed.
 - 2026-10-20 (WIRE orchestrator) Dispatched `wire-docserde` (wire/doc-deserialize-door: Doc's public Deserialize goes through the load door; STYLE+correctness review) and `wire-splitvertex` (wire/split-wall-vertex-crossing: root-cause the vertex-touching moat refusal; FULL review). State sync PR 5509 opened.
+- 2026-10-20 (WIRE orchestrator) PR 5501's fix pass was read by the orchestrator. Five band- and pair-dependent sites went back to typed, the variant rows were merged into one (24 raises), and the test was split. CI green, merged at 43d115ee1a. The parent Emission row is closed. The 4 D10-held emit.rs raises are noted on the emit.rs helpers row.
+- 2026-10-21 (WIRE orchestrator) `wire-docserde` opened PR 5514 (head 073b2812b6). Doc derives Serialize only, and a private SnapshotWire is the load door's parse type. Its witnesses are a compile_fail doctest and the two id-shape faults refusing typed at the load door. No direct-serde users were left outside persist. The sweep filed no rows. A STYLE+correctness review (`wire-docserde-rev`) is dispatched; it checks byte-identical load over the corpus and that test-support is confined.
+- 2026-10-21 (WIRE orchestrator) PR 5514's review says MERGEABLE; load is byte-identical over the tree's saved files and 66 mutations. A small fix pass is sent: keep the 'expected struct Doc' text, reword the runtime witness, fix the comments. Dispatched `wire-namevariants` (wire/naming-limit-variants) to give the 24 correct-kernel-reachable raises row-1 or row-2 variants.
+- 2026-10-21 (WIRE orchestrator) `wire-splitvertex` opened PR 5515 (head 3a5495b9f3).
+  - Root cause: the naming read a subtract's SplitEdge birth record as this split's crossing. The table is now checked first.
+  - The diamond and kite witnesses evaluate. The row's second document did not reproduce.
+  - Filed a cleave SliverSector row and added evidence to a refs row.
+  - A FULL review (`wire-splitvertex-rev`) is dispatched.
+- 2026-10-21 (WIRE orchestrator) The orchestrator read PR 5514's fix pass: `expecting = "struct Doc"` keeps the refusal text, and it is pinned. Merged at d1e5e7f3e3; the row is closed.
+- 2026-10-21 (WIRE orchestrator) PR 5515 FULL review: MERGEABLE.
+  - Instrumented over both suites, only the new fixtures' 5 vertices take the changed branch.
+  - The row's second document was recovered from 5486's probe. It is the same pocket-wall cause, and it evaluates at head.
+  - A small fix pass is sent: the above-half check counts tied rows, the recovered probe becomes a third witness, and the cleave row gains refs.
+  - D9 note: split_sense now sees only vertices the split minted. The reviewer leans toward it being unreachable, because Joined::Whole/Set cover whole operand edges and Seam lies along no operand edge. Not proven, so it stays typed.
+- 2026-10-21 (WIRE orchestrator) PR 5515 fix pass read by the orchestrator. Tests only: tied rows are counted, the third witness is the recovered probe, and the closure join is now reached (a ring meets the exterior at a point). Merged at 3b8c43a57b; row closed.
+- 2026-10-21 (WIRE orchestrator) **Main red from this sitting's cut.** name_invariance's admission lists read row files by path, so the git mv to wirerest/namecheck left three slow-set tests failing. `wire-namevariants` found it. Fix branch wire/moved-row-paths repoints the three cited paths. **Class note:** before moving a row, run `rg work/<prog>/<id>` over crates/ and scripts/.
+- 2026-10-21 (WIRE orchestrator) PR 5518 review: two MAJORs. (1) The Geometry and K levers end in KERNEL_LIMIT_LAST_RESORT, which geom-core's contract reserves for the ε lever. (2) The new row-2 variants lack D9's Unsupported* prefix.
+  - Ruling: compose geom_core::lever_recourse with no qualifier. The new variants (and the reshaped SeamVertexParentage) take Unsupported*. Older Unruled variants get one class row, not renamed here.
+  - Fix pass also covers locators, per-shape recourse, README's Outright-join rule (check provenance), prose counts and full-shape rendering.
+  - Note: most such Unruled variants already break the prefix rule. That is a class, now filed rather than spread.
+- 2026-10-21 (WIRE orchestrator) PR 5523 (repoint the moved rows' citations) is green and merged at fa65d8fb52. Main's three name_invariance failures are fixed.
+- 2026-10-21 (WIRE orchestrator) Dispatched `wire-orderalong` (wire/order-along-drops-its-count). It drops OrderAlong's `of`, and the witness is part of acceptance: three same-sense crossings on a torus or a bumped revolve. If no such witness can be built, the witness is filed.
+- 2026-10-21 (WIRE orchestrator) `wire-orderalong` stopped at a fork before writing any code.
+  - canonical's Reverse rule reads `of` through the refactor remap (ASM-4 ground). No three-entry carrier is buildable today (NURBS×plane booleans refuse), so the defect is unreachable.
+  - The row now records options A/B/C, is re-priced P3+design, and moved to WIREREST. The path grep found no code citations.
+  - Not sent to Ev now: the case is unreachable, and a design fork goes to the designer pair first, once a witness exists.
+- 2026-10-21 (WIRE orchestrator) Dispatched `wire-bridges` (wire/bridged-wedges-pair-booleans): the two bridged-wedge pair-boolean refusals as one unit. Their witnesses come off name_invariance's VACUOUS lists. FULL review.
+- 2026-10-21 (WIRE orchestrator) The orchestrator read PR 5518's fix pass. The levers compose lever_recourse, the variants are Unsupported*, the locators are in subject position, and every shape is rendered in display_tests. Outright traces to agent text 7b6d56df65, so it stays row 2. Merged at 9fbf113ba1; row closed.
+- 2026-10-21 (WIRE orchestrator) Dispatched `wire-emithelpers` (wire/emit-helpers-row-four): emit.rs's 12 shared-helper raises go to row 4, and callers on D10 ground are left alone.
+- 2026-10-21 (WIRE orchestrator) `wire-emithelpers` opened PR 5530 (head b1083ca470). 11 of 12 helper raises went to row 4.
+  - `to_u32`'s bound is SlotMap's u32 slot cap. `output_body` stays fallible: pattern counts are uncapped and on D10 ground. `loop_coordinates` stays fallible and was filed.
+  - Four rows filed, two of them in other programs (seamrank, doctail: track_caller inside closures).
+  - Review dispatched (`wire-emithelpers-rev`).
+- 2026-10-25 (WIRE orchestrator) After the usage reset, `wire-bridges` and `wire-emithelpers-rev` resumed.
+  - PR 5530 review: mergeable, four MINORs. Fix pass sent:
+    - section()'s closures defeat track_caller;
+    - first-hop dead-key arms need a proven-live reason (chord_faces guards a dead face);
+    - output_body joins the loop_coordinates row;
+    - stale docs, vestigial Results, borders' hand copy of edge_ends.
+- 2026-10-25 (PRED orchestrator) Seam note: branch `pred/full-revolve-cavity-per-axis-gap` adds one paragraph to `crates/editor-core/src/names/README.md`'s "N1, the revolve poles". A full revolve meeting the axis in several runs now builds one cavity per gap. Its inner run ends are cavity poles, and its cavity walls, meridians and rims are named by the profile pieces that sweep them, through loop 0's maps, with no new role. `emit_sweep.rs` is unchanged except for one new test, `a_full_revolves_axis_cavities_are_named`.

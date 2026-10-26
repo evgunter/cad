@@ -303,7 +303,7 @@ fn the_bud_lip_and_bore_rims_fillet_through_their_own_arms() {
 /// whose faces are all closed-form.
 #[test]
 fn the_filleted_bud_removes_material_and_stays_closed_form() {
-    let source = bud();
+    let source = topo::test_support::finished("source", bud(), tol());
     let mouth = one_edge_rim_at(&source, 0.8, 0.6);
     let out = fillet_edges(
         &sweep::test_support::at_rest(&source, tol()),
@@ -312,10 +312,12 @@ fn the_filleted_bud_removes_material_and_stays_closed_form() {
         tol(),
     )
     .unwrap();
-    let before =
-        topo::test_support::unmigrated_measure(&source, tol()).expect("the bud's mass properties");
-    let after = topo::test_support::unmigrated_measure(&out.body, tol())
-        .expect("the filleted bud's mass properties");
+    let before = topo::mass_properties(&source, tol()).expect("the bud's mass properties");
+    let after = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol()),
+        tol(),
+    )
+    .expect("the filleted bud's mass properties");
     let removed = before.volume - after.volume;
     // The cut region is inside the triangle bounded by the two setbacks:
     // its area is at most the product of the two, so the revolved volume

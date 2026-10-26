@@ -1657,8 +1657,8 @@ pub enum ValidationError {
     /// inside its face's outer loop could not be certified: no vertex
     /// of the ring was placed either way, and at least one query
     /// escalated (a margin of the parity walk), exhausted that walk's
-    /// schedule, met topology it could not read, or found no ray past
-    /// an outer edge the walk cannot cross. On an arc-bearing
+    /// schedule, met topology it could not read, or could not place a
+    /// query against a spiric or spline outer edge. On an arc-bearing
     /// outer loop only the walk's point-level rows escalate — its
     /// ray-level ones retry the next ray — so most undecided pairs there
     /// arrive as an exhausted schedule, which names no predicate; on a
@@ -3439,7 +3439,6 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
     let (why, recourse) = match e {
         M::LoopDiscontinuity { .. }
         | M::LoopNotClosed { .. }
-        | M::SingularChartJoint { .. }
         | M::MissingCache { .. }
         | M::RowInterval { .. } => (WRONG, DEFECT),
         // Every row derives and certifies; the producer did not mint.
@@ -3447,27 +3446,15 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
             "a curved face stores no certified boundary description",
             DEFECT,
         ),
-        // A face that stores no rows has no certificate for a fitted
-        // or general image: unminted, or uncovered by every lane yet.
-        M::UncertifiedImage { .. } => (
-            "a face's boundary has no certified description yet",
-            NOT_YET_ENDING,
-        ),
-        M::OuterSpansPeriod | M::LoopWraps { .. } => (
-            "the face wraps all the way round its surface, which the kernel cannot yet map",
-            NOT_YET_ENDING,
-        ),
         // A net closed in `v` whose `v` sections sit in the band's sliver
         // of collapsing: an undecided reading, read as one.
-        M::Escalated { cause, .. }
-        | M::NetStretchUndecided { cause, .. }
-        | M::OuterSpanPoisoned { cause } => {
+        M::Escalated { cause, .. } | M::NetStretchUndecided { cause, .. } => {
             return (
                 CLOSE,
                 geom_brep::recourse::not_yet(RefusedArm::Undecided(cause), Reading::AtRest).into(),
             );
         }
-        // Never produced at rest: only the face description raises it.
+        // Never produced at rest: only the loop windings raise it.
         M::JointWithoutRoom { .. } => (CLOSE, NOT_YET_ENDING),
         M::Band(b) => (classify_band(b), TOLERANCE),
         // A null edge at rest is tier 2's finding, and a row stored on
@@ -3476,16 +3463,11 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
         // Never produced at rest: the pass takes no key from a caller,
         // so a key it named that did not resolve would be its own.
         M::Stale { .. } => ("a key the boundary names does not resolve", DEFECT),
-        // Never produced at rest (the pass skips a placeholder face, and
-        // describes no face's boundary); classified as its Display
-        // states it.
+        // Never produced at rest (the pass skips a placeholder face);
+        // classified as its Display states it.
         M::PlaceholderChart { .. } => (
             geom::PLACEHOLDER_SURFACE,
             crate::pcurves::PLACEHOLDER_RECOURSE,
-        ),
-        M::EmptyOuter { .. } => (
-            "the face's outline is a lone vertex, so it bounds no region",
-            crate::pcurves::EMPTY_OUTER_RECOURSE,
         ),
         M::Certify { error, .. } => {
             // A decision's refused arm ends as its check's routing gives
@@ -3633,8 +3615,8 @@ fn close_to_boundary(
 // cause is the check's, and no redrawing is prescribed.
 fn uncrossable(u: &crate::splitting::Uncrossable) -> Cow<'static, str> {
     format!(
-        "every test ray from a point the check asked about could meet a {} edge of the \
-         boundary, which the check cannot yet cross",
+        "the check could not place a point it asked about against a {} edge of the \
+         boundary: cutting the edge into pieces ran out before the point was clear of it",
         u.carrier.word()
     )
     .into()
@@ -9152,8 +9134,7 @@ fn window<T: Decide>(segment: MeetSegment<T>, p: geom_core::Point3<T>, band: Ban
 /// One condition: the surface is a `Plane`, because there is
 /// otherwise no plane for the arms to run in. The outer loop's CLASS
 /// is not gated on: [`crate::splitting::containment::point_in_loop`] reads
-/// every edge on its own carrier and answers every class it has a
-/// crossing row for, and refuses itself where it has none
+/// every edge on its own carrier and refuses itself where it cannot
 /// ([`crate::splitting::PointInLoopError::Uncrossable`]), so the gate
 /// has nothing of its own to add about which loops are walkable.
 ///
@@ -9225,13 +9206,12 @@ enum RingNestingVerdict {
 /// disc-class rows here and in `topo_ring_nesting`.
 ///
 /// **What the walk cannot read**, and what that costs. An outer edge on
-/// a spline carrier has no crossing row: the walk answers only along
-/// rays that definitely miss a ball holding that edge (a spiric edge,
-/// only along rays whose crossings of it its pieces settle), and
-/// refuses ([`crate::splitting::PointInLoopError::Uncrossable`]) a
-/// query from which none does. That refusal is read like an
-/// escalation: it settles nothing at its vertex, and a ring no vertex
-/// of which was placed is [`RingNestingVerdict::Undecided`].
+/// a spiric or spline carrier is read piece by piece, and where its
+/// pieces run out before the query is placed against it the walk
+/// refuses ([`crate::splitting::PointInLoopError::Uncrossable`]). That
+/// refusal is read like an escalation: it settles nothing at its
+/// vertex, and a ring no vertex of which was placed is
+/// [`RingNestingVerdict::Undecided`].
 ///
 /// **One vertex speaks for the whole ring, and the premise that makes
 /// it so is that the two loops do not CROSS.** A ring disjoint from

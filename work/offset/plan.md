@@ -36,6 +36,18 @@ that row first.
 `offset-meters-cell-normal-midpoint-direction-is-an-f64-fold` closed
 at pick-up as overtaken (its row says by what).
 
+## The conic build (Ev's ruling on PR 5652)
+
+| unit | pri | cost | depends on |
+|---|---|---|---|
+| `closed-form-edge-carriers-pass-on-samples-with-no-stated-bound-between-them` (limb 2 for every carrier) | P0 | H | — |
+| `the-plane-cone-arc-is-minted-exactly-and-the-axial-door-reads-the-moved-section` | P0 | H | unit 1 |
+| `a-classified-pairs-section-states-the-bounds-that-retire-the-tube` | P0 | M | unit 2; lands last and alone (Ev's reservation) |
+
+`offset-lane-has-no-conic-carrier` closes when they land. Review: unit 1
+and unit 2 are broad (every closed-form edge's certificate; a new
+section path every caller reads), so each draws a dual.
+
 ## The tail (P2–P4)
 
 Left for a successor unless this sitting's context makes a row cheap.

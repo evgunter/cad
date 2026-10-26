@@ -452,6 +452,10 @@ fn both_sweeps_evaluate_in_one_document() {
 /// `kitchen_sink` were measured again with main's plane pose merged in
 /// (main, `34a2e26e61`, which reds both rows on its own), and carry both
 /// changes.
+///
+/// RE-BLESSED, every row, for a certificate that keeps its turn: the
+/// digest feeds each edge curve's `Debug`, which now spells the
+/// certificate's `turn`. No outcome or point moved.
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
@@ -1014,9 +1018,16 @@ fn one_declared_radius_decides_equal_radii_at_the_germ_as_its_kernel_twin_does()
         "one declared parameter's two walls must decide equal radii: {:?}",
         value.coincidences
     );
-    let from_document = topo::test_support::unmigrated_measure(body_of(&ev, union), tol())
-        .unwrap()
-        .volume;
+    let from_document = topo::mass_properties(
+        &topo::test_support::finished(
+            "the measured body",
+            topo::Body::clone(body_of(&ev, union)),
+            tol(),
+        ),
+        tol(),
+    )
+    .unwrap()
+    .volume;
 
     let raw_a = raw_spin(&raw_cylinder(R, H), Vec3::new(0.0, 0.0, 1.0), PHI);
     let raw_b = raw_spin(

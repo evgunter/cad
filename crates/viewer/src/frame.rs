@@ -797,6 +797,7 @@ pub fn acts(op: &SessionOp) -> bool {
         | SessionOp::AddRevolve { .. }
         | SessionOp::AddBoolean { .. }
         | SessionOp::AddSplit { .. }
+        | SessionOp::AddMirror { .. }
         | SessionOp::AddTransform { .. }
         | SessionOp::AddPattern { .. }
         | SessionOp::AddPlacedUnion { .. }
@@ -908,6 +909,7 @@ fn replaces_the_document(op: &SessionOp) -> bool {
         | SessionOp::AddRevolve { .. }
         | SessionOp::AddBoolean { .. }
         | SessionOp::AddSplit { .. }
+        | SessionOp::AddMirror { .. }
         | SessionOp::AddTransform { .. }
         | SessionOp::AddPattern { .. }
         | SessionOp::AddPlacedUnion { .. }
@@ -2204,6 +2206,7 @@ pub fn tool_notice(
 ) -> Message {
     let retold = match notice {
         ToolNotice::Mate(MateToolEvent::PickLost { .. }) => Retold::Never,
+        ToolNotice::Mirror(crate::combine::MirrorEvent::PlaneLost { .. }) => Retold::Never,
         ToolNotice::Seated {
             event: SeatEvent::PickLost { .. },
             ..

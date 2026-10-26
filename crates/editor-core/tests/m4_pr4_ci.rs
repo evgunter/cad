@@ -85,7 +85,13 @@ fn digest(rows: &[(&'static str, editor_core::Resolution)]) -> u64 {
 /// **Re-pinned for the merge over ATREST stage 4 I** (PR 5637): the
 /// slab's mate writes no class and the content key's `VERSION` moved
 /// to 21, so every mint id's digest moved with it: a spelling change.
-const DIAGNOSIS_DIGEST: u64 = 0x9684_bb4d_cf2a_c2f7;
+///
+/// **Re-pinned for a pair boolean's walls** (a `Borders` wall cites its
+/// parent as the boolean's own table names it, the `From` it came in
+/// through): the ambiguous row's piece's wall moved from the tool's bare
+/// face name to that `From`. Every row keeps its shape: a spelling
+/// change. Re-measured with both merged.
+const DIAGNOSIS_DIGEST: u64 = 0x60eb_02dc_8b87_abf2;
 
 #[test]
 fn diagnosis_corpus_is_golden() {

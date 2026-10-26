@@ -24,7 +24,7 @@ feeds a decision, every walk is bounded.
 | Contact vocabulary | `src/contact.rs` (`GlueClass`, `DeclaredContact`, `ContactVerdict`, `ContactRefusal`, `ContactFinding`, `CONTACT_RECOURSE`) |
 | Contact verification (Door 1) | `src/boolean/contact_verify.rs` (`rest_pair_verdict`), `src/boolean/carrier_eq.rs` (the kind-generalized carrier ladder), `src/boolean/plane_eq.rs` (its planar arm) |
 | Chart-region overlap (Door 2) | `src/chart_region.rs` (`chart_region_overlap`, `declared_pair_overlap`, `world_carrier`, `cylinder_pair_overlap`, `interior_witness`), `src/chart.rs`, `src/chart_iso.rs`, `src/pcurves.rs` |
-| Chart-boundary description | `src/chart_bound.rs` (`ChartBound`, `ChartLoop`, `ChartEdge`, `assembled`, `metred`, `MetredBound::certifies_outside`, `MetredRect`), `src/pcurves.rs` (`chart_boundary`) |
+| Chart cells against a face's region | `src/cell_region.rs` (`cell_region`, `station_region`, `CellRegion`): a cell of a face's stored chart decided `Inside`, `Outside` or `Undecided` off the face's edges on their carriers and its point-in-face door; `src/pcurves.rs` (`loop_windings`) |
 | Plane splitting | `src/splitting/` (`classify`, `neighborhood`, `rules`, `insert`, `order`, `join`, `finish`, `section`, `containment`), `src/chord_join.rs`, `src/ring_path.rs`, `src/null.rs` |
 | Booleans | `src/boolean/mod.rs` (reduction, classification, `ReductionContacts`, `BooleanInputs`, the glue), `records.rs` (`ContactRecords`, `Contact`), `reduce.rs`, `vtxfac.rs`, `sectors.rs` (a slit's tip read as its face's full turn, `SlitTips`), `recl.rs`, `tables.rs`, `insert.rs`, `join.rs`, `finish.rs`, `zip.rs`, `slit.rs` (an edge lying in one of the result's faces, parted as the material decides, and a glued slit's two edges merged across the sliver between them), `ops.rs`, `carrier_pair.rs`, `combine.rs`, `voids.rs`, `boxes.rs`, `contain.rs`, `solid_contain.rs`, `surface_group.rs`, `rim_wedge.rs` |
 | Instances, separation | `src/instance.rs` (disjoint graft), `src/separation.rs` (certified no-touch), `src/transform.rs` (rigid placement) |
@@ -792,9 +792,12 @@ reparents only within one shell (`EulerOpError::CrossShell`).
   SSI pipeline for provably-no-crossing cases with caller-certified
   containment. Four producers: boolean subtraction (its probe
   verdicts); `shell`'s sealed hollow (its offset margin, OFFSET-DESIGN
-  O4); the full revolve of a holed profile, DEFINED as
-  `revolve(outer) − revolve(hole-as-outer)` and executed through the
-  degenerate no-crossing arm (the profile's validated 2-D margins); and
+  O4); the full revolve of a profile, DEFINED as
+  `revolve(filled) − Σ revolve(pocket)`, where its pockets are its hole
+  loops and the region each gap between two of its axis runs closes, and
+  `filled` is the profile with its pockets added (one axis run, from the
+  lowest run's lower end to the highest run's upper end), executed through
+  the degenerate no-crossing arm (the profile's validated 2-D margins); and
   a concave blend's fill sealing a blind hole's mouth, DEFINED by the
   blend's Boolean semantics (`S ∪ F`) and executed by its surgery (the
   mouth's cycle on the face the fill covers).

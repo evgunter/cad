@@ -228,3 +228,44 @@ fn a_face_on_no_body_is_refused_at_the_door() {
     );
     assert_eq!(session.history().len(), steps, "nothing recorded");
 }
+
+/// **A face on a split's second half is sketched on that half**: a box
+/// split at mid-height, its lower half placed 0.1 m along x, and its
+/// underside picked there. The boss is fused onto the split's LOWER
+/// output, read by its port, and the half's copy draws the half with
+/// the boss on it.
+#[test]
+fn a_face_on_a_splits_lower_half_is_sketched_on_that_half() {
+    let tol = Tol::witness();
+    let size = [SIDE, SIDE, HEIGHT];
+    let (session, _, split) = common::drawn::split_box(size, tol);
+    let below = pncad::select::SplitHalf::Below;
+    let at = common::drawn::translated([0.1, 0.0, 0.0]);
+    let (mut session, half) = common::drawn::half_placed(&session, split, below, &at, tol);
+    let underside = common::asm::pick_face(&session, &common::up_at(0.1, 0.0));
+    assert_eq!(underside.node, half, "the ray met the lower half's copy");
+    let out = session.perform(boss_on(underside));
+    assert!(out.refusal.is_none(), "{:?}", out.refusal);
+    session.pump();
+    let doc = session.committed_doc();
+    let Some(Node::Place { source, .. }) = doc.node(half) else {
+        panic!("the half's copy is a placement");
+    };
+    let union = doc
+        .operation_of(source.read)
+        .expect("the copy reads an operation");
+    let Some(Node::Union { members }) = doc.node(union) else {
+        panic!("the copy draws the fused half, not {:?}", doc.node(union));
+    };
+    let lower = doc.output(split, below.port());
+    assert!(
+        members.rows().iter().any(|(_, m)| Some(m.read) == lower),
+        "the union reads the split's lower half by its port: {members:?}"
+    );
+    let fused = common::body_volume(&mut session, half, tol);
+    let want = SIDE * SIDE * HEIGHT / 2.0 + BOSS.iter().product::<f64>();
+    assert!(
+        common::near(fused, want),
+        "the half and its boss drawn: {fused} vs {want}"
+    );
+}

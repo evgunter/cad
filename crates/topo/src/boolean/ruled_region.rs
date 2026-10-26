@@ -135,12 +135,13 @@ use super::circle_roots::{
     FirstHarmonic, FirstHarmonicRows, first_harmonic_roots_in_band, near_span,
 };
 use super::region::{
-    Hit, RegionRefusal, TARGET_SHARES, circle_edge_hit, found, in_band, side_at_closest, span, turn,
+    self, End, Fault, Landing, Legs, Line, Paths, Region, RegionEdge, RegionRefusal, Round,
+    Scaffolding, circle_edge_hit, found, in_band, span, targets,
 };
 use super::solid_contain::PointInSolidError;
 use crate::body::Body;
-use crate::entity::{EdgeKey, FaceKey, LoopBoundary, LoopKey};
-use crate::ray_walk::{self, Crossings, RayFault, SegmentRows};
+use crate::entity::{FaceKey, LoopKey};
+use crate::ray_walk::{self, RayFault, SegmentRows};
 use crate::splitting::containment::ConicRows;
 use crate::validate::decide;
 use geom_brep::roots::Roots;
@@ -154,10 +155,10 @@ const ROOT_ROWS: FirstHarmonicRows = FirstHarmonicRows {
 };
 
 /// A conic edge's boundary reading's rows (module docs).
-const BOUNDARY: ConicRows = ConicRows {
-    span: "bool_ruled_region_arc_span",
-    straddle: "bool_ruled_region_arc_straddle",
-};
+const BOUNDARY: ConicRows = ConicRows::bounded(
+    "bool_ruled_region_arc_span",
+    "bool_ruled_region_arc_straddle",
+);
 
 /// A line edge's boundary reading's rows ([`ray_walk::on_segment`]).
 const LINE: SegmentRows = SegmentRows {
@@ -248,20 +249,14 @@ pub(crate) struct RuledFaceRegion<T: geom_core::Real> {
     /// bound on the farthest a cone face's boundary reaches from the
     /// apex, never under it.
     scale: T,
-    edges: Vec<RegionEdge<T>>,
+    edges: Vec<Edge<T>>,
 }
 
-/// One boundary edge — a line, a circle or an ellipse — over its
-/// certified span `[t0, t1]`.
-#[derive(Clone, Debug)]
-struct RegionEdge<T: geom_core::Real> {
-    edge: EdgeKey,
-    curve: geom::Curve3<T>,
-    t0: T,
-    t1: T,
-    /// Whether the loop runs `t0 → t1` (its `he_plus`).
-    forward: bool,
-}
+/// One boundary edge: a line, a circle or an ellipse.
+type Edge<T> = RegionEdge<T>;
+
+/// The row a place is read against a leg's end on.
+const END: &str = "bool_ruled_region_end";
 
 /// A conic edge's frame: `center + a·û cos θ + b·v̂ sin θ`, `v̂ = axis × û`.
 #[derive(Clone, Copy)]
@@ -274,6 +269,40 @@ struct Conic<T: geom_core::Real> {
 }
 
 impl<T: Decide> Conic<T> {
+    /// A circle or ellipse edge's frame.
+    fn of(curve: &geom::Curve3<T>) -> Self {
+        match *curve {
+            geom::Curve3::Circle {
+                center,
+                axis,
+                radius,
+                u_ref,
+            } => Self {
+                center,
+                axis,
+                a: radius,
+                b: radius,
+                u: u_ref,
+            },
+            geom::Curve3::Ellipse {
+                center,
+                axis,
+                semi_u,
+                semi_v,
+                u_ref,
+            } => Self {
+                center,
+                axis,
+                a: semi_u,
+                b: semi_v,
+                u: u_ref,
+            },
+            geom::Curve3::Line { .. } | geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => {
+                unreachable!("a conic edge of a ruled face is a circle or an ellipse")
+            }
+        }
+    }
+
     /// The parameter of `y`, a point of the conic, on the branch of
     /// `span`'s middle.
     fn angle(&self, y: Point3<T>, span: (T, T)) -> T {
@@ -288,187 +317,46 @@ impl<T: Decide> Conic<T> {
     }
 }
 
-/// An edge's carrier, as the crossings read it.
+/// A leg's course: a parallel, or a ruling.
 #[derive(Clone, Copy)]
-enum Carrier<T: geom_core::Real> {
-    Line { origin: Point3<T>, dir: Vec3<T> },
-    Conic(Conic<T>),
-}
-
-impl<T: Decide> RegionEdge<T> {
-    fn carrier(&self) -> Carrier<T> {
-        match self.curve {
-            geom::Curve3::Line { origin, dir } => Carrier::Line { origin, dir },
-            geom::Curve3::Circle {
-                center,
-                axis,
-                radius,
-                u_ref,
-            } => Carrier::Conic(Conic {
-                center,
-                axis,
-                a: radius,
-                b: radius,
-                u: u_ref,
-            }),
-            geom::Curve3::Ellipse {
-                center,
-                axis,
-                semi_u,
-                semi_v,
-                u_ref,
-            } => Carrier::Conic(Conic {
-                center,
-                axis,
-                a: semi_u,
-                b: semi_v,
-                u: u_ref,
-            }),
-            geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => {
-                unreachable!("ruled_face_region keeps lines, circles and ellipses only")
-            }
-        }
-    }
-
-    fn at(&self, t: T) -> Point3<T> {
-        self.curve.eval(t)
-    }
-
-    /// The loop's unit traversal direction at `t`.
-    fn traversal(&self, t: T) -> Vec3<T> {
-        let d = self.curve.deriv(t);
-        let d = d / d.norm();
-        if self.forward { d } else { -d }
-    }
-}
-
-/// One leg of a path, from `start` at place `0` along increasing place
-/// (metres), ending at the place `end` where it is bounded.
-#[derive(Clone, Copy)]
-struct Leg<T: geom_core::Real> {
-    shape: LegShape<T>,
-    start: Point3<T>,
-    end: Option<T>,
-}
-
-#[derive(Clone, Copy)]
-enum LegShape<T: geom_core::Real> {
-    /// The circle `center + radius·(e1 cos s + e2 sin s)` in the plane of
-    /// unit normal `normal`, `e2 = normal × e1`, run along increasing `s`.
-    Parallel {
-        center: Point3<T>,
-        normal: Vec3<T>,
-        radius: T,
-        e1: Vec3<T>,
-        e2: Vec3<T>,
-    },
-    /// The line from `start` along unit `dir`. `radial` is the unit
-    /// direction from the axis to the leg, in its meridian plane; on a
-    /// cone, `nappe` is the side of the apex the leg runs on (`true` the
-    /// opening one).
+pub(crate) enum LegShape<T: geom_core::Real> {
+    /// A parallel, run along increasing angle.
+    Parallel(Round<T>),
+    /// A ruling's `line`. `radial` is the unit direction from the axis to
+    /// the leg, in its meridian plane; on a cone, `nappe` is the side of
+    /// the apex the leg runs on (`true` the opening one).
     Ruling {
-        dir: Vec3<T>,
+        line: Line<T>,
         radial: Vec3<T>,
         nappe: bool,
     },
 }
 
-impl<T: Decide> Leg<T> {
-    /// The point at place `s` of a parallel.
-    fn parallel_at(&self, s: T) -> Point3<T> {
-        let LegShape::Parallel {
-            center,
-            radius,
-            e1,
-            e2,
-            ..
-        } = self.shape
-        else {
-            unreachable!("only a parallel leg is read by its angle")
-        };
-        let (sn, cs) = s.sin_cos();
-        center + (e1 * cs + e2 * sn) * radius
+impl<T: Decide> region::Course<T> for LegShape<T> {
+    fn place(&self, y: Point3<T>, at: &'static str, band: Band) -> Result<Option<T>, Fault> {
+        match self {
+            Self::Parallel(round) => round.place(y, at, band),
+            Self::Ruling { line, .. } => line.place(y, at, band),
+        }
     }
 
-    /// The angle of `y`, a point of a parallel, from the start, in
-    /// `(−π, π]`.
-    fn angle(&self, y: Point3<T>) -> T {
-        let LegShape::Parallel { center, e1, e2, .. } = self.shape else {
-            unreachable!("only a parallel leg is read by its angle")
-        };
-        let w = y - center;
-        w.dot(e2).atan2(w.dot(e1))
+    fn reach(&self, y: Point3<T>, at: &'static str, band: Band) -> Result<Option<T>, Fault> {
+        match self {
+            Self::Parallel(round) => round.reach(y, at, band),
+            Self::Ruling { line, .. } => line.reach(y, at, band),
+        }
     }
 
-    /// The unit direction of travel at `y`.
     fn heading(&self, y: Point3<T>) -> Vec3<T> {
-        match self.shape {
-            LegShape::Parallel { center, normal, .. } => {
-                let h = normal.cross(y - center);
-                h / h.norm()
-            }
-            LegShape::Ruling { dir, .. } => dir,
-        }
-    }
-
-    /// Where `y`, a point of the leg's line or circle, lies along it:
-    /// `Some(place)` ahead of the start, `None` behind it (a ruling's
-    /// back half).
-    fn place(&self, y: Point3<T>, band: Band) -> Result<Option<T>, RayFault<RegionRefusal>> {
-        match self.shape {
-            LegShape::Parallel { radius, .. } => {
-                let s = self.angle(y);
-                ray_walk::apart("bool_ruled_region_at", Margin::of((radius * s).abs()), band)
-                    .map_err(|f| f.map(RegionRefusal::Escalated))?;
-                Ok(Some(radius * turn(s)))
-            }
-            LegShape::Ruling { dir, .. } => {
-                let s = (y - self.start).dot(dir);
-                match ray_walk::advance("bool_ruled_region_at", Margin::of(s), band)
-                    .map_err(|f| f.map(RegionRefusal::Escalated))?
-                {
-                    Sign::Negative => Ok(None),
-                    _ => Ok(Some(s)),
-                }
-            }
-        }
-    }
-
-    /// Whether a place ahead of the start lies short of the leg's end:
-    /// `Some(true)` short of it, `Some(false)` past it.
-    fn short_of_end(&self, s: T, band: Band) -> Result<bool, RayFault<RegionRefusal>> {
-        let Some(end) = self.end else {
-            return Ok(true);
-        };
-        match decide("bool_ruled_region_end", Margin::of(end - s), band).map_err(in_band)? {
-            Sign::Positive => Ok(true),
-            Sign::Negative => Ok(false),
-            Sign::Zero => Err(RayFault::Graze),
+        match self {
+            Self::Parallel(round) => round.heading(y),
+            Self::Ruling { line, .. } => line.heading(y),
         }
     }
 }
 
-/// A path to read.
-#[derive(Clone, Copy)]
-enum PathSpec<T: geom_core::Real> {
-    /// `p`'s parallel, run `forward` (about the axis) or back.
-    Parallel { forward: bool },
-    /// `p`'s ruling, run `outward` (along the axis on a cylinder, away
-    /// from the apex on a cone) or back.
-    Ruling { outward: bool },
-    /// A first leg from `p` to a corner on `target`'s parallel
-    /// (`parallel_first: false`, along `p`'s ruling) or ruling (round
-    /// `p`'s parallel, `first_forward`), then the other family's leg
-    /// through the corner, `then_forward`, which passes `target`.
-    Aimed {
-        target: Point3<T>,
-        parallel_first: bool,
-        first_forward: bool,
-        then_forward: bool,
-    },
-    /// From a `p` at the cone's apex, the generator through `target`.
-    FromApex { target: Point3<T> },
-}
+/// One leg of a path, along a parallel or a ruling.
+type Leg<T> = region::Leg<T, LegShape<T>>;
 
 /// `face`'s region on its cylinder or cone, or `None` when an edge of it
 /// is not a line, a circle or an ellipse — a spline or a spiric — whose
@@ -528,58 +416,14 @@ pub(crate) fn ruled_face_region<T: Decide>(
         },
         _ => return Err(corrupt()),
     };
-    let mut edges = Vec::new();
-    for (i, &lk) in core::iter::once(&f.outer).chain(&f.rings).enumerate() {
-        let first = match body.get_loop(lk).ok_or_else(corrupt)?.boundary {
-            LoopBoundary::Cycle { first } => first,
-            // A lone ring vertex bounds no area; an outer loop must.
-            LoopBoundary::Empty { .. } if i > 0 => continue,
-            LoopBoundary::Empty { .. } => return Err(corrupt()),
-        };
-        for he in body.loop_cycle(first).ok_or_else(corrupt)? {
-            let edge_key = body.get_half_edge(he).ok_or_else(corrupt)?.edge;
-            let edge = body.get_edge(edge_key).ok_or_else(corrupt)?;
-            let Some(curve) = body.edge_curve_linked(edge_key, edge).certified() else {
-                // Null scaffolding joins two vertices on one point, and
-                // bounds nothing; an uncertified edge between two points
-                // is a gap in the boundary no reading may step over.
-                let point = |h| {
-                    body.get_half_edge(h)
-                        .and_then(|h| body.get_vertex(h.start))
-                        .map(|v| v.point)
-                };
-                if point(edge.he_plus).ok_or_else(corrupt)?
-                    == point(edge.he_minus).ok_or_else(corrupt)?
-                {
-                    continue;
-                }
-                return Ok(None);
-            };
-            match curve.carrier() {
-                geom::Curve3::Line { .. }
-                | geom::Curve3::Circle { .. }
-                | geom::Curve3::Ellipse { .. } => {}
-                geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => return Ok(None),
-            }
-            let (t0, t1) = curve.params();
-            edges.push(RegionEdge {
-                edge: edge_key,
-                curve: curve.carrier().clone(),
-                t0,
-                t1,
-                forward: he == edge.he_plus,
-            });
-        }
-    }
-    let seam = |e: EdgeKey| {
-        edges
-            .iter()
-            .filter(|a: &&RegionEdge<T>| a.edge == e)
-            .count()
-            > 1
+    let ruled = [
+        geom::CurveKind::Line,
+        geom::CurveKind::Circle,
+        geom::CurveKind::Ellipse,
+    ];
+    let Some(edges) = region::boundary(body, face, Scaffolding::Skipped, &ruled)? else {
+        return Ok(None);
     };
-    let seams: Vec<EdgeKey> = edges.iter().map(|a| a.edge).filter(|&e| seam(e)).collect();
-    edges.retain(|a| !seams.contains(&a.edge));
     let scale = reach_bound(&surface, &edges);
     Ok(Some(RuledFaceRegion {
         surface,
@@ -596,14 +440,19 @@ pub(crate) fn ruled_face_region<T: Decide>(
 /// edge: a segment's distance from the apex is convex along it, so its
 /// farther end bounds it, and a conic lies within its larger semi-axis
 /// of its centre.
-fn reach_bound<T: Decide>(surface: &Ruled<T>, edges: &[RegionEdge<T>]) -> T {
+fn reach_bound<T: Decide>(surface: &Ruled<T>, edges: &[Edge<T>]) -> T {
     match *surface {
         Ruled::Cylinder { radius, .. } => radius,
         Ruled::Cone { apex, .. } => edges
             .iter()
-            .map(|e| match e.carrier() {
-                Carrier::Line { .. } => (e.at(e.t0) - apex).norm().max((e.at(e.t1) - apex).norm()),
-                Carrier::Conic(c) => (c.center - apex).norm() + c.a.max(c.b),
+            .map(|e| match e.carrier {
+                geom::Curve3::Line { .. } => {
+                    (e.at(e.t0) - apex).norm().max((e.at(e.t1) - apex).norm())
+                }
+                ref conic => {
+                    let c = Conic::of(conic);
+                    (c.center - apex).norm() + c.a.max(c.b)
+                }
             })
             .fold(T::zero(), T::max),
     }
@@ -645,37 +494,19 @@ impl<T: Decide> RuledFaceRegion<T> {
             }
         };
         if at_apex {
-            let specs = self.targets().map(|target| PathSpec::FromApex { target });
-            return ray_walk::walk(specs, |spec| self.path(p, spec, band), exhausted).map(Some);
+            return ray_walk::walk(
+                targets(&self.edges),
+                |target| region::read_leg(self, &self.apex_generator(target, band)?, band),
+                exhausted,
+            )
+            .map(Some);
         }
         if let Ruled::Cone { .. } = self.surface
             && !self.reaches_nappe(p, band)?
         {
             return Ok(Some(false));
         }
-        let singles = [
-            PathSpec::Parallel { forward: true },
-            PathSpec::Parallel { forward: false },
-            PathSpec::Ruling { outward: true },
-            PathSpec::Ruling { outward: false },
-        ];
-        let both = [(true, true), (true, false), (false, true), (false, false)];
-        let aimed = self.targets().flat_map(move |target| {
-            [true, false].into_iter().flat_map(move |parallel_first| {
-                both.map(move |(first_forward, then_forward)| PathSpec::Aimed {
-                    target,
-                    parallel_first,
-                    first_forward,
-                    then_forward,
-                })
-            })
-        });
-        ray_walk::walk(
-            singles.into_iter().chain(aimed),
-            |spec| self.path(p, spec, band),
-            exhausted,
-        )
-        .map(Some)
+        region::walk(self, p, band).map(Some)
     }
 
     /// The face's scale: the cylinder's radius, or a bound on the
@@ -695,7 +526,7 @@ impl<T: Decide> RuledFaceRegion<T> {
     pub(crate) fn aim(&self) -> Option<Point3<T>> {
         let base = self.surface.base();
         let first = self.edges.first()?;
-        let middle = |e: &RegionEdge<T>| e.at(geom::mid_param(e.t0, e.t1)) - base;
+        let middle = |e: &Edge<T>| e.at(geom::mid_param(e.t0, e.t1)) - base;
         let (sum, n) = self.edges[1..]
             .iter()
             .fold((middle(first), T::one()), |(sum, n), e| {
@@ -716,16 +547,6 @@ impl<T: Decide> RuledFaceRegion<T> {
         Some(base + axis * h + dir * at)
     }
 
-    /// Three points of every edge, in loop order: the aimed paths'
-    /// targets.
-    fn targets(&self) -> impl Iterator<Item = Point3<T>> + '_ {
-        self.edges.iter().flat_map(|edge| {
-            TARGET_SHARES
-                .into_iter()
-                .map(|share| edge.at(edge.t0 + (edge.t1 - edge.t0) * T::from_f64(share)))
-        })
-    }
-
     /// Whether any edge may lie on `p`'s nappe of the cone: one not
     /// definitely on the other. A conic edge, a bounded plane section,
     /// lies on one nappe and is read at its middle. A line edge, a
@@ -738,9 +559,9 @@ impl<T: Decide> RuledFaceRegion<T> {
     fn reaches_nappe(&self, p: Point3<T>, band: Band) -> Result<bool, RegionRefusal> {
         let own = self.nappe(p, band)?;
         for edge in &self.edges {
-            let (points, at_apex_says_nothing) = match edge.carrier() {
-                Carrier::Line { .. } => (vec![edge.at(edge.t0), edge.at(edge.t1)], true),
-                Carrier::Conic(_) => (vec![edge.at(geom::mid_param(edge.t0, edge.t1))], false),
+            let (points, at_apex_says_nothing) = match edge.carrier {
+                geom::Curve3::Line { .. } => (vec![edge.at(edge.t0), edge.at(edge.t1)], true),
+                _ => (vec![edge.at(geom::mid_param(edge.t0, edge.t1))], false),
             };
             for y in points {
                 match decide(
@@ -769,59 +590,21 @@ impl<T: Decide> RuledFaceRegion<T> {
         )
     }
 
-    /// The boundary pre-pass: whether `p` is on an edge, read on the
-    /// edge's own carrier.
-    fn on_boundary(&self, p: Point3<T>, band: Band) -> Result<bool, RegionRefusal> {
-        for edge in &self.edges {
-            let on = match edge.curve {
-                geom::Curve3::Line { .. } => {
-                    ray_walk::on_segment(edge.at(edge.t0), edge.at(edge.t1), p, &LINE, band)
-                        .map_err(RegionRefusal::Escalated)?
-                }
-                _ => circle_edge_hit(
-                    &edge.curve,
-                    (edge.t0, edge.t1),
-                    BOUNDARY,
-                    p,
-                    self.outer,
-                    band,
-                )?,
-            };
-            if on {
-                return Ok(true);
-            }
-        }
-        Ok(false)
-    }
-
     /// `a`'s distance from the axis and its height from the base, and
     /// the unit radial direction.
     fn polar(&self, a: Point3<T>) -> (T, T, Vec3<T>) {
-        let axis = self.surface.axis();
-        let w = a - self.surface.base();
-        let h = w.dot(axis);
-        let radial = w - axis * h;
-        let rho = radial.norm();
-        (rho, h, radial / rho)
+        region::polar(self.surface.base(), self.surface.axis(), a)
     }
 
     /// The parallel through `a`, run `forward` (right-handed about the
     /// axis) or back.
     fn parallel(&self, a: Point3<T>, forward: bool) -> Leg<T> {
-        let (rho, h, e1) = self.polar(a);
-        let axis = self.surface.axis();
-        let normal = if forward { axis } else { -axis };
-        Leg {
-            shape: LegShape::Parallel {
-                center: self.surface.base() + axis * h,
-                normal,
-                radius: rho,
-                e1,
-                e2: normal.cross(e1),
-            },
-            start: a,
-            end: None,
-        }
+        Leg::whole(LegShape::Parallel(region::parallel(
+            self.surface.base(),
+            self.surface.axis(),
+            a,
+            forward,
+        )))
     }
 
     /// The ruling through `a`, a point clear of a cone's apex on
@@ -843,117 +626,34 @@ impl<T: Decide> RuledFaceRegion<T> {
             }
         };
         Leg {
-            shape: LegShape::Ruling { dir, radial, nappe },
-            start: a,
-            end,
+            course: LegShape::Ruling {
+                line: Line { start: a, dir },
+                radial,
+                nappe,
+            },
+            end: end.map(|place| End { place, row: END }),
         }
     }
 
-    /// One path from `p` (module docs): whether `p` is in the face.
-    fn path(
-        &self,
-        p: Point3<T>,
-        spec: PathSpec<T>,
-        band: Band,
-    ) -> Result<bool, RayFault<RegionRefusal>> {
-        let fault = |e: RegionRefusal| RayFault::InBand(e);
-        let mut crossings = Crossings::new();
-        match spec {
-            PathSpec::Parallel { forward } => {
-                let leg = self.parallel(p, forward);
-                self.leg_crossings(&leg, T::zero(), &mut crossings, band)?;
-            }
-            PathSpec::Ruling { outward } => {
-                let nappe = self.p_nappe(p, band).map_err(fault)?;
-                let leg = self.ruling(p, nappe, outward);
-                self.leg_crossings(&leg, T::zero(), &mut crossings, band)?;
-            }
-            PathSpec::FromApex { target } => {
-                let Ruled::Cone { apex, .. } = self.surface else {
-                    unreachable!("only a cone has an apex")
-                };
-                let nappe = match self.nappe(target, band) {
-                    Ok(nappe) => nappe,
-                    Err(_) => return Err(RayFault::Unread),
-                };
-                let (_, _, radial) = self.polar(target);
-                let g = target - apex;
-                let leg = Leg {
-                    shape: LegShape::Ruling {
-                        dir: g / g.norm(),
-                        radial,
-                        nappe,
-                    },
-                    start: apex,
-                    end: None,
-                };
-                self.leg_crossings(&leg, T::zero(), &mut crossings, band)?;
-            }
-            PathSpec::Aimed {
-                target,
-                parallel_first,
-                first_forward,
-                then_forward,
-            } => {
-                // Both corners lie on `p`'s nappe (on its parallel, or on
-                // its generator at the target's reach), so the path does
-                // too, wherever the target lies: it only steers.
-                let nappe = self.p_nappe(p, band).map_err(fault)?;
-                let (first, corner) = if parallel_first {
-                    let (rho_p, h_p, _) = self.polar(p);
-                    let (_, _, radial_t) = self.polar(target);
-                    let corner = self.surface.base() + self.surface.axis() * h_p + radial_t * rho_p;
-                    let mut first = self.parallel(p, first_forward);
-                    first.end = Some(rho_p * turn(first.angle(corner)));
-                    (first, corner)
-                } else {
-                    // Along `p`'s ruling to `target`'s parallel: the side
-                    // it lies is decided, and a target on `p`'s own
-                    // parallel is the parallel's to read.
-                    let (corner, gap) = match self.surface {
-                        Ruled::Cylinder { axis, .. } => {
-                            let gap = (target - p).dot(axis);
-                            (p + axis * gap, gap)
-                        }
-                        Ruled::Cone { apex, .. } => {
-                            let (rp, rt) = ((p - apex).norm(), (target - apex).norm());
-                            (apex + (p - apex) * (rt / rp), rt - rp)
-                        }
-                    };
-                    let outward = match decide("bool_ruled_region_corner", Margin::of(gap), band)
-                        .map_err(in_band)?
-                    {
-                        Sign::Positive => true,
-                        Sign::Negative => false,
-                        Sign::Zero => return Err(RayFault::Unread),
-                    };
-                    let mut first = self.ruling(p, nappe, outward);
-                    // The corner lies short of the apex: the leg ends there.
-                    first.end = Some(gap.abs());
-                    (first, corner)
-                };
-                let kept = self.leg_crossings(&first, T::zero(), &mut crossings, band)?;
-                // Past a crossing before the corner, every crossing of the
-                // second leg lies beyond it, decided apart from the corner
-                // by its own rows.
-                if !kept {
-                    let offset = first.end.unwrap_or_else(T::zero);
-                    let then = if parallel_first {
-                        self.ruling(corner, nappe, then_forward)
-                    } else {
-                        self.parallel(corner, then_forward)
-                    };
-                    self.leg_crossings(&then, offset, &mut crossings, band)?;
-                }
-            }
-        }
-        // A path meeting no edge lies wholly on one side.
-        side_at_closest(
-            crossings,
-            ("bool_ruled_region_order", "bool_ruled_region_cross"),
-            self.scale,
-            band,
-        )
+    /// From a `p` at the cone's apex, the generator through `target`.
+    fn apex_generator(&self, target: Point3<T>, band: Band) -> Result<Leg<T>, Fault> {
+        let Ruled::Cone { apex, .. } = self.surface else {
+            unreachable!("only a cone has an apex")
+        };
+        let nappe = match self.nappe(target, band) {
+            Ok(nappe) => nappe,
+            Err(_) => return Err(RayFault::Unread),
+        };
+        let (_, _, radial) = self.polar(target);
+        let g = target - apex;
+        Ok(Leg::whole(LegShape::Ruling {
+            line: Line {
+                start: apex,
+                dir: g / g.norm(),
+            },
+            radial,
+            nappe,
+        }))
     }
 
     /// `p`'s nappe on a cone (`true` on a cylinder, which has one).
@@ -963,76 +663,176 @@ impl<T: Decide> RuledFaceRegion<T> {
             Ruled::Cone { .. } => self.nappe(p, band),
         }
     }
+}
 
-    /// Offers every crossing of `leg` with the boundary to `crossings`,
-    /// at `offset` plus its place along the leg, short of the leg's end.
-    /// Whether one was offered.
-    fn leg_crossings(
-        &self,
-        leg: &Leg<T>,
-        offset: T,
-        crossings: &mut Crossings<T, Hit<T>>,
-        band: Band,
-    ) -> Result<bool, RayFault<RegionRefusal>> {
-        let surface = self.surface.surface();
-        let mut offered = false;
-        for edge in &self.edges {
-            for (y, t, sideless) in self.landings(edge, leg, band)? {
-                let Some(s) = leg.place(y, band)? else {
-                    continue;
-                };
-                if !leg.short_of_end(s, band)? {
-                    continue;
-                }
-                let outward = geom_brep::implicit_outward_normal(&surface, self.sense, y);
-                crossings.push(
-                    offset + s,
-                    Hit {
-                        heading: leg.heading(y),
-                        face_side: outward.vec().cross(edge.traversal(t)),
-                    },
-                    sideless,
-                );
-                offered = true;
+impl<T: Decide> Region<T> for RuledFaceRegion<T> {
+    fn edges(&self) -> &[Edge<T>] {
+        &self.edges
+    }
+
+    fn outer(&self) -> LoopKey {
+        self.outer
+    }
+
+    /// A line as a segment ([`ray_walk::on_segment`]), a conic on its
+    /// own carrier.
+    fn on_edge(&self, edge: &Edge<T>, p: Point3<T>, band: Band) -> Result<bool, RegionRefusal> {
+        match edge.carrier {
+            geom::Curve3::Line { .. } => {
+                ray_walk::on_segment(edge.at(edge.t0), edge.at(edge.t1), p, &LINE, band)
+                    .map_err(RegionRefusal::Escalated)
             }
+            _ => circle_edge_hit(
+                &edge.carrier,
+                edge.turn.as_ref(),
+                BOUNDARY,
+                p,
+                self.outer,
+                band,
+            ),
         }
-        Ok(offered)
+    }
+}
+
+impl<T: Decide> Paths<T> for RuledFaceRegion<T> {
+    /// `p`'s parallel, or its ruling run `forward` outward.
+    fn single(
+        &self,
+        p: Point3<T>,
+        parallel: bool,
+        forward: bool,
+        band: Band,
+    ) -> Result<Leg<T>, Fault> {
+        if parallel {
+            Ok(self.parallel(p, forward))
+        } else {
+            let nappe = self.p_nappe(p, band).map_err(RayFault::InBand)?;
+            Ok(self.ruling(p, nappe, forward))
+        }
+    }
+
+    /// A first leg from `p` to a corner on `target`'s ruling
+    /// (`parallel_first`, round `p`'s parallel) or parallel (along `p`'s
+    /// ruling), then the other family's leg through the corner.
+    fn aimed(
+        &self,
+        p: Point3<T>,
+        target: Point3<T>,
+        parallel_first: bool,
+        first_forward: bool,
+        then_forward: bool,
+        band: Band,
+    ) -> Result<(LegShape<T>, End<T>, impl FnOnce() -> Leg<T>), Fault> {
+        // Both corners lie on `p`'s nappe (on its parallel, or on
+        // its generator at the target's reach), so the path does
+        // too, wherever the target lies: it only steers.
+        let nappe = self.p_nappe(p, band).map_err(RayFault::InBand)?;
+        let (first, end, corner) = if parallel_first {
+            let (rho_p, h_p, _) = self.polar(p);
+            let (_, _, radial_t) = self.polar(target);
+            let corner = self.surface.base() + self.surface.axis() * h_p + radial_t * rho_p;
+            let round =
+                region::parallel(self.surface.base(), self.surface.axis(), p, first_forward);
+            (LegShape::Parallel(round), round.arc(corner), corner)
+        } else {
+            // Along `p`'s ruling to `target`'s parallel: the side
+            // it lies is decided, and a target on `p`'s own
+            // parallel is the parallel's to read.
+            let (corner, gap) = match self.surface {
+                Ruled::Cylinder { axis, .. } => {
+                    let gap = (target - p).dot(axis);
+                    (p + axis * gap, gap)
+                }
+                Ruled::Cone { apex, .. } => {
+                    let (rp, rt) = ((p - apex).norm(), (target - apex).norm());
+                    (apex + (p - apex) * (rt / rp), rt - rp)
+                }
+            };
+            let outward =
+                match decide("bool_ruled_region_corner", Margin::of(gap), band).map_err(in_band)? {
+                    Sign::Positive => true,
+                    Sign::Negative => false,
+                    Sign::Zero => return Err(RayFault::Unread),
+                };
+            // The corner lies short of the apex: the leg ends there.
+            (self.ruling(p, nappe, outward).course, gap.abs(), corner)
+        };
+        let then = move || {
+            if parallel_first {
+                self.ruling(corner, nappe, then_forward)
+            } else {
+                self.parallel(corner, then_forward)
+            }
+        };
+        Ok((
+            first,
+            End {
+                place: end,
+                row: END,
+            },
+            then,
+        ))
+    }
+}
+
+impl<T: Decide> Legs<T> for RuledFaceRegion<T> {
+    type Course = LegShape<T>;
+
+    const AT: &'static str = "bool_ruled_region_at";
+
+    const SIDE: (&'static str, &'static str) =
+        ("bool_ruled_region_order", "bool_ruled_region_cross");
+
+    fn lever(&self) -> T {
+        self.scale
     }
 
     /// Where `leg`'s line or circle meets `edge`: each crossing's point,
     /// the edge's parameter there, and whether it lies at an end of the
     /// edge (module docs, step 2). Where along the leg it lies is the
     /// caller's to read.
-    #[allow(clippy::type_complexity)] // the three readings of one crossing
-    fn landings(
-        &self,
-        edge: &RegionEdge<T>,
-        leg: &Leg<T>,
-        band: Band,
-    ) -> Result<Vec<(Point3<T>, T, bool)>, RayFault<RegionRefusal>> {
+    fn landings(&self, edge: &Edge<T>, leg: &Leg<T>, band: Band) -> Result<Vec<Landing<T>>, Fault> {
         let row = |name, m: T| decide(name, Margin::of(m), band).map_err(in_band);
         let span =
             |t: T, lever: T| span("bool_ruled_region_span", t, (edge.t0, edge.t1), lever, band);
         let axis = self.surface.axis();
         let base = self.surface.base();
         let mut out = Vec::new();
-        match (edge.carrier(), leg.shape) {
-            (
-                Carrier::Conic(conic),
-                LegShape::Parallel {
-                    center,
-                    radius,
-                    normal,
-                    e1,
-                    ..
-                },
-            ) => {
+        match (&edge.carrier, leg.course) {
+            (&geom::Curve3::Line { origin, dir }, LegShape::Parallel(Round { center, .. })) => {
+                // A ruling crosses the parallel's plane once, at the
+                // parallel's one point on it.
+                let t = (center - origin).dot(axis) / dir.dot(axis);
+                if let Some(sideless) = span(t, T::one())? {
+                    out.push((origin + dir * t, t, sideless));
+                }
+            }
+            (geom::Curve3::Line { .. }, LegShape::Ruling { line, .. }) => {
+                let ends = [edge.at(edge.t0), edge.at(edge.t1)];
+                let off_line = |y: Point3<T>| {
+                    let w = y - line.start;
+                    (w - line.dir * w.dot(line.dir)).norm()
+                };
+                // Two rulings apart meet nowhere the leg runs: a
+                // cylinder's never meet, and a cone's only at the apex,
+                // which a leg reaches only at its end, where nothing is
+                // read.
+                if row(
+                    "bool_ruled_region_collinear",
+                    off_line(ends[0]).max(off_line(ends[1])),
+                )? == Sign::Zero
+                {
+                    leg.along(edge, Self::AT, band)?;
+                }
+            }
+            (conic, LegShape::Parallel(round)) => {
+                let conic = Conic::of(conic);
                 let roots = first_harmonic_roots_in_band(
                     &FirstHarmonic::circle_off_plane(
-                        (center, normal, radius, e1),
+                        (round.center, round.normal, round.radius, round.e1),
                         (conic.center, conic.axis),
                     ),
-                    radius,
+                    round.radius,
                     T::zero(),
                     T::tau(),
                     &ROOT_ROWS,
@@ -1041,26 +841,19 @@ impl<T: Decide> RuledFaceRegion<T> {
                 // A circle in the leg's plane is the leg's own parallel:
                 // the plane holds no other circle of the surface.
                 if let Ok(Roots::On(_)) = roots {
-                    self.along(edge, leg, band)?;
+                    leg.along(edge, Self::AT, band)?;
                     return Ok(out);
                 }
                 for s in found(roots)? {
-                    let y = leg.parallel_at(s);
+                    let y = round.at(s);
                     let theta = conic.angle(y, (edge.t0, edge.t1));
                     if let Some(sideless) = span(theta, conic.slow())? {
                         out.push((y, theta, sideless));
                     }
                 }
             }
-            (Carrier::Line { origin, dir }, LegShape::Parallel { center, .. }) => {
-                // A ruling crosses the parallel's plane once, at the
-                // parallel's one point on it.
-                let t = (center - origin).dot(axis) / dir.dot(axis);
-                if let Some(sideless) = span(t, T::one())? {
-                    out.push((origin + dir * t, t, sideless));
-                }
-            }
-            (Carrier::Conic(conic), LegShape::Ruling { radial, nappe, .. }) => {
+            (conic, LegShape::Ruling { radial, nappe, .. }) => {
+                let conic = Conic::of(conic);
                 let normal = axis.cross(radial);
                 let roots = first_harmonic_roots_in_band(
                     &FirstHarmonic::conic_off_plane(
@@ -1097,70 +890,12 @@ impl<T: Decide> RuledFaceRegion<T> {
                     }
                 }
             }
-            (Carrier::Line { .. }, LegShape::Ruling { dir, .. }) => {
-                let ends = [edge.at(edge.t0), edge.at(edge.t1)];
-                let off_line = |y: Point3<T>| {
-                    let w = y - leg.start;
-                    (w - dir * w.dot(dir)).norm()
-                };
-                // Two rulings apart meet nowhere the leg runs: a
-                // cylinder's never meet, and a cone's only at the apex,
-                // which a leg reaches only at its end, where nothing is
-                // read.
-                if row(
-                    "bool_ruled_region_collinear",
-                    off_line(ends[0]).max(off_line(ends[1])),
-                )? == Sign::Zero
-                {
-                    self.along(edge, leg, band)?;
-                }
-            }
         }
         Ok(out)
     }
 
-    /// An edge on the leg's own line or circle: the leg runs along it if
-    /// it reaches it, which grazes. A leg reaches every point of its
-    /// circle, and of its line from its start to its end; neither end of
-    /// the edge is the leg's start, which the boundary pre-pass placed off
-    /// the edge.
-    fn along(
-        &self,
-        edge: &RegionEdge<T>,
-        leg: &Leg<T>,
-        band: Band,
-    ) -> Result<(), RayFault<RegionRefusal>> {
-        let mut behind = 0;
-        let mut past = 0;
-        for t in [edge.t0, edge.t1] {
-            let y = edge.at(t);
-            let s = match leg.shape {
-                LegShape::Parallel { radius, .. } => radius * turn(leg.angle(y)),
-                LegShape::Ruling { dir, .. } => {
-                    let s = (y - leg.start).dot(dir);
-                    match decide("bool_ruled_region_at", Margin::of(s), band).map_err(in_band)? {
-                        Sign::Negative => {
-                            behind += 1;
-                            continue;
-                        }
-                        Sign::Positive => s,
-                        Sign::Zero => return Err(RayFault::Graze),
-                    }
-                }
-            };
-            let Some(end) = leg.end else {
-                return Err(RayFault::Graze);
-            };
-            match decide("bool_ruled_region_end", Margin::of(end - s), band).map_err(in_band)? {
-                Sign::Negative => past += 1,
-                Sign::Positive | Sign::Zero => return Err(RayFault::Graze),
-            }
-        }
-        if behind == 2 || past == 2 {
-            Ok(())
-        } else {
-            Err(RayFault::Graze)
-        }
+    fn outward(&self, y: Point3<T>) -> Vec3<T> {
+        geom_brep::implicit_outward_normal(&self.surface.surface(), self.sense, y).vec()
     }
 }
 

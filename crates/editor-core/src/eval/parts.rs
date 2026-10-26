@@ -737,6 +737,8 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
             // (`analysis::var_env_symbolic`), so two documents' ids never
             // name one symbol.
             symbols: self.symbols,
+            // The reference's own pin already says which version this is.
+            pin: false,
         };
         let evaluation =
             super::evaluate_nested::<T>(doc, cancel, &opts, Reached(reached), &doc_ref.pin, tol);
@@ -853,6 +855,11 @@ impl<T: Decide> Carried<T> {
     /// No row carried: a nested evaluation, or one that entered none.
     pub(crate) fn none() -> Self {
         Self(BTreeMap::new())
+    }
+
+    /// The carried rows' keys, in order.
+    pub(crate) fn keys(&self) -> impl Iterator<Item = (DocRef, u64)> + '_ {
+        self.0.keys().copied()
     }
 }
 

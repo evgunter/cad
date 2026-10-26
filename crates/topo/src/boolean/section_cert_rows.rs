@@ -1322,7 +1322,7 @@ pub(super) fn tilted_slab() -> Body<f64> {
     .unwrap()
 }
 
-/// **W2 reads `chart_boundary` per face, never the kind.** A seamless
+/// **W2 reads the loop windings per face, never the kind.** A seamless
 /// band cut by a tilted slab in ellipses inside both faces refuses:
 /// nothing about the kind forbids such a face, and the meridian-edge
 /// premise the old wall gate assumed fails on it. A W2 that took
@@ -1335,12 +1335,11 @@ fn w2_refuses_a_seamless_band_and_clears_a_banded_wall() {
         .get_surface(band_body.get_face(band_face).unwrap().surface)
         .unwrap()
         .clone();
+    let read = crate::pcurves::loop_windings(&band_body, band_face, &surface, band())
+        .expect("the seamless band's loops read");
     assert!(
-        matches!(
-            crate::pcurves::chart_boundary(&band_body, band_face, &surface, band()),
-            Err(crate::PcurveMintError::LoopWraps { .. })
-        ),
-        "the seamless band's loops each close a period off"
+        !read.is_empty() && read.iter().all(|w| !w.zero && !w.singular),
+        "the seamless band's loops each close a period off: {read:?}"
     );
     let slab = tilted_slab();
     let verdicts = scan(&band_body, band_face, &slab);

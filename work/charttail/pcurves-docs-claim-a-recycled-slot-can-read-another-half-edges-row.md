@@ -41,7 +41,7 @@ reachable only by a holder of the DEAD key (`Body::pcurve(dead)` still
 answers while the slot is unreused, because the versions still agree)
 and occupies memory until the slot is recycled or a whole-body
 `mint_pcurves` clears the map. Every reader that reaches rows through
-faces — `validate_pcurves`, `props`, the tessellator, `chart_boundary`
+faces — `validate_pcurves`, `props`, the tessellator, `loop_windings`
 — cannot reach it, which the `mint_pcurves_of` section already says.
 So the consequence the `Neither` posture rests on is smaller than the
 paragraph states, and the kill ops' entries (`kev`, `kef`, `kvfs`,

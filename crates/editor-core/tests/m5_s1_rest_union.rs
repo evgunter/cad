@@ -73,9 +73,16 @@ fn rest_union_evaluates_green() {
     };
     assert_eq!(*kind, topo::BooleanResultKind::Seamed);
     assert_eq!(
-        topo::test_support::unmigrated_measure(body, Tol::witness())
-            .unwrap()
-            .volume,
+        topo::mass_properties(
+            &topo::test_support::finished(
+                "the measured body",
+                topo::Body::clone(&**body),
+                Tol::witness()
+            ),
+            Tol::witness()
+        )
+        .unwrap()
+        .volume,
         8.0
     );
     assert_eq!(

@@ -12,49 +12,44 @@
 //!   `worst_case` gates, everything else is advisory and forfeits
 //!   loudly.
 //!
-//! # The pairing hook (DL3's sentence made a mechanism)
+//! # The binding: one build identity, one measured value (DL3)
 //!
 //! A dual evaluation runs no certified validation
 //! (`topo::AtRestPolicy` — its gates are structurally absent at a
-//! dual), which is sound exactly when the sensitivity is OF the build
-//! the f64 run validated. This driver makes that a GATE rather than a
-//! convention, in two halves that together leave no path to a
-//! sensitivity of an unvalidated build:
+//! dual), so the claim that a sensitivity is OF a certified shape
+//! belongs to the validated `f64` evaluation the report reads beside
+//! the passes; the passes contribute tangents and are never read as a
+//! shape. Two checks make that claim a gate rather than a convention:
 //!
-//! 1. **The anchor.** Every driver call builds the document's f64
-//!    evaluation on the build path (`EvalOptions::default()` — the run
-//!    that validates), threading the caller's `paired` evaluation, the
-//!    validated build of record, as the memo prior. The anchor's
-//!    per-node content keys are then compared against the handed
-//!    one's, at every node: same key ⇒ same input bits ⇒ (D9) same
-//!    build. A fresh handed evaluation makes the rebuild a memo walk
-//!    that re-runs no op; a STALE one (the document edited between
-//!    builds) differs somewhere in its keys and gets the typed
-//!    [`PairingViolation`], never a sensitivity.
-//! 2. **The passes.** Each seeded `Dual64` pass is compared against
-//!    the anchor at EVERY node on its result arm (`Ok`/`Failed`/
-//!    `Poisoned`, same poison source) and, where both built, on a
-//!    digest of the VALUE CHANNEL of the whole payload — every body
-//!    point, profile vertex, measured value and verdict,
-//!    read through each scalar's own value bracket. That is DL3's
-//!    "value-channel equality" taken literally and per node; the dual
-//!    contract says the two are bit-identical, and the driver checks
-//!    it rather than trusting it. A dual's own content keys cannot
-//!    serve here — they feed both channels (DL2) and so never equal an
-//!    f64 key — and the verdict vector cannot either, because the
-//!    at-rest gate's predicates are logged at `f64` and structurally
-//!    unrun at a dual.
+//! 1. **The build identity.** The report takes the `f64` evaluation and
+//!    the seeded `Dual64` passes and refuses typed
+//!    ([`BindingViolation`]) unless every pass, and the unseeded dual
+//!    run the passes reuse, read exactly the inputs the `f64`
+//!    evaluation read: the same document
+//!    ([`crate::DocumentId`]) at the same revision
+//!    ([`crate::ContentPin`], [`Evaluation::pin`]), the parameter
+//!    bindings bit for bit (a dual binding by its value half), the
+//!    same tolerance, and the same resolved parts (each reference with
+//!    its pin, A4). Under D9 equal inputs are equal value bits, so
+//!    nothing pairs the two evaluations node by node. A handed `f64`
+//!    evaluation that is stale — the document edited since, a part
+//!    file that no longer resolves, another document — differs in its
+//!    identity and gets the violation, never a sensitivity.
+//! 2. **The measured value.** Where a pass reads the measured value,
+//!    its value half is compared bit for bit with the `f64`
+//!    evaluation's measured value, and a mismatch refuses
+//!    [`SensitivityRefusal::MeasuredValueDrift`]: a D9 break between
+//!    the scalars, caught in production at the one number the report
+//!    hands out. One number per pass; the refusal names the parameter
+//!    whose pass drifted, not the node.
 //!
-//! **The lift's limits are not staleness.** A pass runs the guided
-//! lift and the anchor runs the build path, and there are nodes the
-//! lift refuses that the build path builds: a guided elaboration can
-//! refuse a decision it cannot re-confirm. That refusal is typed at
-//! the node (`NodeErrorKind::ProfileLaneReplay`) and
-//! the pairing recognises it BY KIND: the entry becomes
+//! **The lift's limits are not drift.** A pass elaborates profiles
+//! guided by the `f64` first pass, and a guided elaboration can refuse
+//! a decision it cannot re-confirm. That refusal is typed at the node
+//! (`NodeErrorKind::ProfileLaneReplay`) and read off the pass's own
+//! result: a measured value whose refusal is that kind becomes
 //! [`SensitivityOutcome::Unliftable`] — the spec's typed valve, never a
-//! finite zero and never a `PairingViolation` — and every node poisoned
-//! through that refusal is accounted to it. Any other disagreement
-//! between the two runs is a pairing violation, as before.
+//! finite zero and never a violation.
 //!
 //! # The chamber verdict is tied to the build (§5's "unwritable" lie)
 //!
@@ -111,31 +106,29 @@
 //!
 //! Nothing. Every geometric decision happens inside the evaluations
 //! this module launches, at their own `Decide` sites; what remains up
-//! here is driver and reporting arithmetic — content-key identity,
-//! exact offset comparisons on stored leaf boxes, tangent-channel float
-//! classification (E9's explicit reading), value-channel digests, and
-//! `f64` report sums. No ε is consulted and no funnel predicate is
-//! minted.
+//! here is driver and reporting arithmetic — build-identity and
+//! content-key equality, exact offset comparisons on stored leaf boxes,
+//! tangent-channel float classification (E9's explicit reading), one
+//! bitwise comparison of measured values per pass, and `f64` report
+//! sums. No ε is consulted and no funnel predicate is minted.
 //!
 //! Nothing here persists. The goldening form is [`Stackup::serialize`]
 //! (floats as exact bits, one line per row) and [`Stackup::content_key`]
 //! keys it, derived on demand; [`Stackup::render`] is the human form.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
 use geom_core::{Dual64, Readable, Tol};
-use topo::Body;
 
 use crate::analysis::{AnalyzedBox, MeasureUnavailable, ParamBox};
 use crate::doc::Doc;
 use crate::drive::{CertifiedLeaf, MeasureAccounting, ParamBoxVerdict, Receipt};
 use crate::eval::measure::Observed;
 use crate::eval::{
-    BooleanValue, CancelToken, ContentKey, EvalOptions, EvalOutcome, Evaluation, NodeErrorKind,
-    NodeResult, SplitSide, ValuePayload, evaluate,
+    CancelToken, ContentKey, EvalOptions, EvalOutcome, Evaluation, NodeErrorKind, NodeResult,
+    evaluate,
 };
-use crate::measure::AssertionVerdict;
 use crate::node::RecipeNodeId;
 use crate::program::ProfileProgram;
 use crate::resolve::VerdictVectorKey;
@@ -204,12 +197,13 @@ pub enum SensitivityOutcome {
         /// The degraded tangent, as evidence (NaN or ±∞).
         tangent: f64,
     },
-    /// The measure refused in this pass, through its own doors — a
-    /// per-entry refusal, not a driver failure. The value channel is
-    /// scalar-independent, so a measure that refuses here refuses at
-    /// `f64` too; re-evaluating the document hands back the typed
-    /// error itself (`NodeErrorKind` is neither `Clone` nor
-    /// `PartialEq`, so this entry carries its node and its rendering).
+    /// The measured value has no value in this pass — its measure
+    /// refused through its own doors, or a node under it did not build
+    /// at the pass's scalar — a per-entry refusal, not a driver
+    /// failure. Re-evaluating the document at `Dual64` with this
+    /// entry's parameter as the seed hands back the typed error itself
+    /// (`NodeErrorKind` is neither `Clone` nor `PartialEq`, so this
+    /// entry carries its node and its rendering).
     MeasureRefused {
         /// The refusing node — a measure under the value, or the
         /// failed ancestor it was poisoned through; `None` for a value
@@ -217,9 +211,14 @@ pub enum SensitivityOutcome {
         node: Option<RecipeNodeId>,
         /// The node error, rendered.
         cause: String,
+        /// What the `f64` build of record read for the value.
+        /// [`RecordReading::Measured`] says the refusal is the dual's
+        /// alone: a door DUAL-DESIGN DL3 leaves unrun at a dual, or a
+        /// decision the two scalars took differently (a D9 break).
+        record: RecordReading,
     },
     /// The seed could not reach the measure: the lift refused typed at
-    /// a node the build path built (module docs). The derivative is
+    /// a node under the measured value (module docs). The derivative is
     /// not zero and is not reported; it is unavailable, and the entry
     /// says why and where.
     Unliftable {
@@ -228,6 +227,36 @@ pub enum SensitivityOutcome {
         /// The typed limit.
         refusal: LiftRefusal,
     },
+}
+
+/// **What the `f64` build of record read for the measured value** —
+/// its nominal's three states, kept apart so a pass that disagrees with
+/// it says which it disagreed with.
+#[derive(Debug, Clone, PartialEq)]
+pub enum RecordReading {
+    /// The build of record measured the value.
+    Measured(f64),
+    /// The measure has no value at `f64` by its own door (a
+    /// `min_clearance`, answered by an engine that needs an enclosure).
+    Unavailable(crate::measure::MeasureUnavailableAt),
+    /// The value refused in the build of record: its measure, or a
+    /// node under it, did not build.
+    Refused {
+        /// The refusal, rendered with the node it came from.
+        cause: String,
+    },
+}
+
+impl core::fmt::Display for RecordReading {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Measured(v) => write!(f, "the f64 build of record measured {v:e}"),
+            Self::Unavailable(reason) => {
+                write!(f, "the f64 build of record has no value: {reason}")
+            }
+            Self::Refused { cause } => write!(f, "the f64 build of record refused it: {cause}"),
+        }
+    }
 }
 
 /// One continuous parameter's sensitivity entry.
@@ -242,89 +271,114 @@ pub struct Sensitivity {
     pub outcome: SensitivityOutcome,
 }
 
-/// The pairing gate's typed finding: the driver was asked to
-/// differentiate a build that is not the validated one, or a pass
-/// diverged from the anchor. Never a warning — the driver refuses.
+/// The binding's typed finding (module docs): the `f64` evaluation and
+/// a pass did not read the same inputs, so the pass's tangents are not
+/// of the validated build. Never a warning — the driver refuses.
 #[derive(Debug, Clone, PartialEq)]
-pub enum PairingViolation {
-    /// The handed f64 evaluation did not run to completion — a
+pub enum BindingViolation {
+    /// The `f64` evaluation (or a pass) did not run to completion — a
     /// canceled prefix validates nothing.
     Incomplete,
-    /// The handed evaluation's node set (or order) is not the
-    /// document's — nodes were added, removed, or re-scheduled since
-    /// it was built.
-    NodeSet,
-    /// Content keys differ at this node: the handed evaluation is of
-    /// different input bits than the document's build — the exact
-    /// silent state DL3's availability argument leans on excluding.
-    ContentKey {
-        /// The first differing node, in evaluation order, spoken from
-        /// the document asked about.
-        node: SpokenNode,
-        /// The handed evaluation's key there.
-        handed: ContentKey,
-        /// The document's own build's key there.
-        rebuilt: ContentKey,
+    /// The `f64` evaluation (or a pass) refused before building
+    /// anything ([`Evaluation::refused_whole`]): it was asked for a
+    /// seed or a parameter box its scalar cannot carry, or its
+    /// tolerance conflicts with the document's. It reports itself
+    /// complete, but it read no inputs — its environment is the
+    /// nominal one whatever it was asked to bind — so there is no
+    /// build to bind. A build of record is a build-path evaluation.
+    NotABuild,
+    /// The `f64` evaluation carries no content pin, so which revision
+    /// it read cannot be said: it was not asked for one
+    /// ([`crate::EvalOptions::pin`]; `refusal` is `None`), or the
+    /// document refused to canonicalize (`refusal` says why).
+    Unpinned {
+        /// The canonicalization's refusal, when there was one.
+        refusal: Option<crate::persist::PersistError>,
     },
-    /// A node's result arm differs between the two runs being paired —
-    /// they disagree about which nodes evaluate — and the difference
-    /// is not one of the lift's typed limits (module docs).
-    ResultArm {
-        /// The first disagreeing node, in evaluation order, spoken
-        /// from the document asked about.
-        node: SpokenNode,
-        /// The arm in the evaluation being checked.
-        found: &'static str,
-        /// The arm in the build of record.
-        expected: &'static str,
+    /// The `f64` evaluation is of another document (DI3).
+    EvaluationOfAnotherDocument {
+        /// The document asked about.
+        expected: crate::DocumentId,
+        /// The document the `f64` evaluation is of.
+        found: crate::DocumentId,
     },
-    /// A seeded pass's value channel at this node is not the anchor's,
-    /// bit for bit, over the whole payload — the dual contract broken.
-    ValueChannel {
-        /// The first diverging node, in evaluation order, spoken from
-        /// the document asked about.
-        node: SpokenNode,
+    /// The two read different revisions of the document: their content
+    /// pins differ.
+    Revision,
+    /// The two decided at different tolerances.
+    Tolerance,
+    /// The two bound this variable to different bits (a dual binding
+    /// compared by its value half), or only one bound it.
+    Binding {
+        /// The variable, spoken from the document asked about.
+        var: SpokenVar,
     },
+    /// The two resolved different parts: a reference one resolved and
+    /// the other did not, or at another pin.
+    Parts,
 }
 
-impl core::fmt::Display for PairingViolation {
+impl core::fmt::Display for BindingViolation {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Incomplete => f.write_str(
-                "the paired f64 evaluation is a canceled prefix — an incomplete run \
+                "the f64 build of record is a canceled prefix — an incomplete run \
                  validates nothing, so there is no build of record to differentiate",
             ),
-            Self::NodeSet => f.write_str(
-                "the paired f64 evaluation's node set is not this document's — the \
-                 document changed since that build, so the sensitivity would not be \
-                 of the validated build",
+            Self::NotABuild => f.write_str(
+                "the f64 build of record refused every node before building anything (a \
+                 seed or parameter box its scalar cannot carry, or a tolerance conflict) \
+                 — it is no build; hand a build-path evaluation",
             ),
-            Self::ContentKey { node, .. } => write!(
-                f,
-                "the paired f64 evaluation is STALE at {node}: its content key is not \
-                 the document's own build's, so differentiating now would report a \
-                 sensitivity of a build nobody validated"
+            Self::Unpinned { refusal: None } => f.write_str(
+                "the f64 build of record records no content pin, so which revision it \
+                 read cannot be said; evaluate it with `EvalOptions::pin`",
             ),
-            Self::ResultArm {
-                node,
-                found,
-                expected,
+            Self::Unpinned {
+                refusal: Some(refusal),
             } => write!(
                 f,
-                "{node} is {found} where the build of record has it {expected} — the \
-                 two runs disagree about which nodes evaluate, and not by one of the \
-                 lift's typed limits"
+                "the document does not canonicalize, so no build of it can be bound by \
+                 revision: {refusal}"
             ),
-            Self::ValueChannel { node } => write!(
+            Self::EvaluationOfAnotherDocument { expected, found } => write!(
                 f,
-                "the seeded pass's value channel at {node} is not the validated \
-                 build's, bit for bit — the dual contract is broken there"
+                "the f64 build of record is of document {found}, not of {expected}, the \
+                 document asked about"
+            ),
+            Self::Revision => f.write_str(
+                "the f64 build of record read another revision of the document — it \
+                 changed since that build, so differentiating now would report a \
+                 sensitivity of a build nobody validated",
+            ),
+            Self::Tolerance => f.write_str(
+                "the f64 build of record decided at another tolerance than the \
+                 sensitivity passes",
+            ),
+            Self::Binding { var } => write!(
+                f,
+                "the f64 build of record bound {var} to other bits than the \
+                 sensitivity passes did"
+            ),
+            Self::Parts => f.write_str(
+                "the f64 build of record resolved other parts than the sensitivity \
+                 passes did — a part that resolves in one and not the other, or at \
+                 another pin",
             ),
         }
     }
 }
 
-impl core::error::Error for PairingViolation {}
+impl core::error::Error for BindingViolation {}
+
+impl From<crate::Mispaired> for BindingViolation {
+    fn from(m: crate::Mispaired) -> Self {
+        Self::EvaluationOfAnotherDocument {
+            expected: m.expected,
+            found: m.found,
+        }
+    }
+}
 
 /// A sensitivity drive that could not start. Per-entry states (a
 /// refused measure, a degraded tangent, an unliftable seed) are
@@ -356,9 +410,21 @@ pub enum SensitivityRefusal {
         /// This document's replay key there, if the replay built it.
         replayed: Option<ContentKey>,
     },
-    /// The pairing gate fired (module docs): no sensitivity of an
+    /// The binding fired (module docs): no sensitivity of an
     /// unvalidated build.
-    Pairing(PairingViolation),
+    Binding(BindingViolation),
+    /// A pass's measured value is not the `f64` evaluation's, bit for
+    /// bit, over inputs the binding found equal — a D9 break between
+    /// the scalars (module docs).
+    MeasuredValueDrift {
+        /// The parameter whose pass drifted.
+        param: SpokenVar,
+        /// The value half of the pass's measured value.
+        pass: f64,
+        /// What the `f64` evaluation read for the value: another
+        /// number, or no value where the pass has one (and which).
+        base: RecordReading,
+    },
 }
 
 /// **Where a stale verdict's replay first parts from its record**, said
@@ -412,7 +478,12 @@ impl core::fmt::Display for SensitivityRefusal {
                  a different content key at {node} — the document changed since the \
                  drive, or the verdict is another document's; drive again"
             ),
-            Self::Pairing(v) => write!(f, "pairing violation: {v}"),
+            Self::Binding(v) => write!(f, "binding violation: {v}"),
+            Self::MeasuredValueDrift { param, pass, base } => write!(
+                f,
+                "the sensitivity pass for {param} measured {pass:e} where {base} — the \
+                 dual's value channel is not the f64 build's (a D9 break)"
+            ),
         }
     }
 }
@@ -425,10 +496,11 @@ impl core::error::Error for SensitivityRefusal {}
 /// the analysis and has no entry: nobody asks a sensitivity to a value
 /// that carries no tolerance (VR8).
 ///
-/// `paired` is the caller's validated f64 build of record — a
-/// build-path evaluation (`EvalOptions::default()`) of `doc` — gated as
-/// the module docs describe; `None` makes the driver's own fresh f64
-/// build the record. `chamber` is a drive over this document: its
+/// `of_record` is the caller's validated f64 build of record — a
+/// build-path evaluation (`EvalOptions::default()`) of `doc`, asked for
+/// its pin ([`EvalOptions::pin`]) — bound to the passes as the module
+/// docs describe; `None` makes the driver's own fresh f64 build the
+/// record. `chamber` is a drive over this document: its
 /// certified leaf holding the nominal, content-tied to this build
 /// (module docs), marks every derivative; without it (or with the
 /// nominal in refused mass) every mark is [`Chamber::LocalOnly`]. Which
@@ -440,35 +512,37 @@ impl core::error::Error for SensitivityRefusal {}
 /// `resolver` resolves the parts a document instantiates, in every pass
 /// and replay, as [`EvalOptions::resolver`] does an evaluation's: an
 /// assembly's mates solve at each pass's own scalar (`ASSEMBLY.md` A11
-/// (5)), so ∂m/∂pᵢ crosses a mate. A `paired` build over another
-/// resolver, or none, fails the pairing gate: its instances' arms or
-/// content keys are not the anchor's.
+/// (5)), so ∂m/∂pᵢ crosses a mate. An `of_record` build that resolved other
+/// parts — over another resolver, or none — fails the binding.
 ///
 /// Pure: `doc` is shared, the result is a value, nothing on this path
-/// writes. Cost: one f64 anchor, one unseeded and n seeded `Dual64`
+/// writes. Cost: one canonicalization of `doc` for its pin, one f64
+/// build when no `of_record` is handed, one unseeded and n seeded `Dual64`
 /// passes, plus one `Interval` leaf replay when a chamber is handed.
 ///
 /// # Errors
 ///
 /// [`SensitivityRefusal`] — the node is not a measure, the verdict is
-/// foreign or not of this build, or the pairing gate fired.
+/// foreign or not of this build, the binding fired, or a pass's
+/// measured value drifted from the build of record's.
 pub fn sensitivities(
     doc: &Doc<ProfileProgram>,
     value: VarId,
-    paired: Option<&Evaluation<f64>>,
+    of_record: Option<&Evaluation<f64>>,
     chamber: Option<&ParamBoxVerdict>,
     parallel: bool,
     resolver: Option<&Arc<dyn crate::part::PartResolver>>,
     tol: Tol,
 ) -> Result<Vec<Sensitivity>, SensitivityRefusal> {
-    driver(doc, value, paired, chamber, parallel, resolver, tol).map(|d| d.entries)
+    driver(doc, value, of_record, chamber, parallel, resolver, tol).map(|d| d.entries)
 }
 
-/// What the driver's shared core hands back: the anchored f64 build,
-/// the mark, and the entries — [`stackup()`] consumes all three,
-/// [`sensitivities`] keeps the entries.
+/// What the driver's shared core hands back: the build of record's
+/// nominal reading, the mark, and the entries — [`stackup()`] consumes
+/// all three, [`sensitivities`] keeps the entries.
 struct Driven {
-    anchor: Evaluation<f64>,
+    nominal:
+        Result<Result<f64, crate::measure::MeasureUnavailableAt>, (Option<RecipeNodeId>, String)>,
     chamber: Chamber,
     entries: Vec<Sensitivity>,
 }
@@ -476,7 +550,7 @@ struct Driven {
 fn driver(
     doc: &Doc<ProfileProgram>,
     value: VarId,
-    paired: Option<&Evaluation<f64>>,
+    of_record: Option<&Evaluation<f64>>,
     chamber: Option<&ParamBoxVerdict>,
     parallel: bool,
     resolver: Option<&Arc<dyn crate::part::PartResolver>>,
@@ -494,23 +568,35 @@ fn driver(
         Some(verdict) => bind_verdict(doc, verdict, resolver, tol)?,
     };
 
-    // The anchor: the document's own build-path f64 evaluation,
-    // threaded from the handed prior so agreement is cheap (a full memo
-    // walk, zero ops re-run) and staleness is loud (the edited cone
-    // re-keys and the comparison names the first difference).
-    let anchor = evaluate::<f64>(
-        doc,
-        paired,
-        &CancelToken::new(),
-        &EvalOptions {
-            resolver: resolver.cloned(),
-            ..EvalOptions::default()
-        },
-        tol,
-    );
-    if let Some(handed) = paired {
-        pair_record(doc, handed, &anchor).map_err(SensitivityRefusal::Pairing)?;
-    }
+    // The revision every evaluation below reads, pinned once: the
+    // driver's own runs are of `doc` by construction and are stamped
+    // with it rather than each canonicalizing `doc` again.
+    let pin = crate::persist::content_pin(doc, tol).map_err(|refusal| {
+        SensitivityRefusal::Binding(BindingViolation::Unpinned {
+            refusal: Some(refusal),
+        })
+    })?;
+    let own: Evaluation<f64>;
+    let record = match of_record {
+        Some(handed) => handed,
+        None => {
+            own = stamped(
+                evaluate::<f64>(
+                    doc,
+                    None,
+                    &CancelToken::new(),
+                    &EvalOptions {
+                        resolver: resolver.cloned(),
+                        ..EvalOptions::default()
+                    },
+                    tol,
+                ),
+                pin,
+            );
+            &own
+        }
+    };
+    let record = Record::new(doc, record, value).map_err(SensitivityRefusal::Binding)?;
 
     // The variables, in declaration order (deterministic in both schedules).
     let names: Vec<VarId> = toleranced_params(doc).collect();
@@ -521,31 +607,44 @@ fn driver(
     // the parameter-independent subgraph is evaluated once — DL2's
     // cross-pass reuse, bought through the front door. Shared
     // read-only, so the parallel schedule sees exactly what the
-    // sequential one does.
-    let base: Evaluation<Dual64> = evaluate(
-        doc,
-        None,
-        &CancelToken::new(),
-        &pass_opts(None, resolver),
-        tol,
-    );
-
-    let one = |name: &VarId| -> Result<Sensitivity, PairingViolation> {
-        let pass: Evaluation<Dual64> = evaluate(
+    // sequential one does. Bound to the record like every pass, so a
+    // record that read other inputs is refused even where there is no
+    // pass to refuse it — the nominal is read from it.
+    let base: Evaluation<Dual64> = stamped(
+        evaluate(
             doc,
-            Some(&base),
+            None,
             &CancelToken::new(),
-            &pass_opts(Some(*name), resolver),
+            &pass_opts(None, resolver),
             tol,
+        ),
+        pin,
+    );
+    BuildIdentity::of(&base)
+        .and_then(|identity| record.identity.bind(doc, &identity))
+        .map_err(SensitivityRefusal::Binding)?;
+
+    let one = |name: &VarId| -> Result<Sensitivity, SensitivityRefusal> {
+        let pass = stamped(
+            evaluate(
+                doc,
+                Some(&base),
+                &CancelToken::new(),
+                &pass_opts(Some(*name), resolver),
+                tol,
+            ),
+            pin,
         );
-        // DL3, per pass: the pass evaluates exactly the nodes the
-        // anchor does with the anchor's value channel, or it is not a
-        // sensitivity of the anchor's build — unless the lift refused
-        // typed, which is the entry's own state.
-        let outcome = match pair_pass(doc, &anchor, &pass)? {
-            Some((node, refusal)) => SensitivityOutcome::Unliftable { node, refusal },
-            None => read_pass(doc, &pass, value, &chamber),
-        };
+        let outcome = record
+            .read(doc, &pass, value, &chamber)
+            .map_err(|e| match e {
+                Unread::Binding(v) => SensitivityRefusal::Binding(v),
+                Unread::Drift(Drift { pass, base }) => SensitivityRefusal::MeasuredValueDrift {
+                    param: doc.spoken_var(*name),
+                    pass,
+                    base,
+                },
+            })?;
         Ok(Sensitivity {
             document: doc.id(),
             param: *name,
@@ -554,18 +653,29 @@ fn driver(
     };
 
     // D9 idiom 1: an indexed map over the name list — results land by
-    // position, never accumulated — so the schedule cannot leak.
-    let entries: Result<Vec<Sensitivity>, PairingViolation> = if parallel {
+    // position, never accumulated — so the schedule cannot leak. Every
+    // pass's result is collected BEFORE any error is chosen: rayon's
+    // short-circuiting `collect` into a `Result` hands back whichever
+    // error arrives first in time, so the refusal would depend on the
+    // schedule. The error reported is the first in parameter order.
+    let results: Vec<Result<Sensitivity, SensitivityRefusal>> = if parallel {
         use rayon::prelude::*;
         names.par_iter().map(one).collect()
     } else {
         names.iter().map(one).collect()
     };
     Ok(Driven {
-        anchor,
+        nominal: record.nominal,
         chamber,
-        entries: entries.map_err(SensitivityRefusal::Pairing)?,
+        entries: results.into_iter().collect::<Result<_, _>>()?,
     })
+}
+
+/// `ev`, which the driver evaluated from the document `pin` is of,
+/// stamped with that pin.
+fn stamped<T: geom_core::Decide>(mut ev: Evaluation<T>, pin: crate::ContentPin) -> Evaluation<T> {
+    ev.pin = Some(Ok(pin));
+    ev
 }
 
 /// The pass options: sequential inside (the driver's parallelism is
@@ -638,334 +748,242 @@ fn measure_of<T: geom_core::Decide + Copy>(
     }
 }
 
-/// One pass's reading of the measured value (E9 lives here): the
-/// tangent off the value's public field; a non-finite tangent under a
-/// finite value is the forfeiture state, NEVER a refusal — the only
-/// refusals are the measures' own doors, carried per entry.
-///
-/// The finiteness test is tangent-channel float classification in the
-/// driver lane — E9's explicit reading of derivative-channel
-/// degradation. It consults no ε and decides no topology.
-fn read_pass(
-    doc: &Doc<ProfileProgram>,
-    pass: &Evaluation<Dual64>,
-    value: VarId,
-    chamber: &Chamber,
-) -> SensitivityOutcome {
-    match measure_of(doc, pass, value) {
-        Ok(value) => {
-            let tangent = value.deriv;
-            if tangent.is_finite() {
-                SensitivityOutcome::Derivative {
-                    value: tangent,
-                    chamber: chamber.clone(),
-                }
-            } else {
-                SensitivityOutcome::TangentDegraded { tangent }
-            }
-        }
-        Err((node, cause)) => SensitivityOutcome::MeasureRefused { node, cause },
-    }
+// ------------------------------------------------------- the binding
+
+/// **What a build read** (DL3): the inputs that decide its every value
+/// bit under D9, whatever its scalar. Two evaluations with equal
+/// identities are builds of one input.
+#[derive(Debug, PartialEq)]
+struct BuildIdentity {
+    document: crate::DocumentId,
+    pin: crate::ContentPin,
+    /// `(ε, K)` as bits.
+    tolerance: (u64, u64),
+    bindings: BTreeMap<VarId, BoundBits>,
+    parts: BTreeSet<(crate::DocRef, u64)>,
 }
 
-/// Pairing half 1 (module docs): the handed evaluation IS the rebuild,
-/// by per-node content keys — the value channel's identity, since `f64`
-/// is the value channel. `Failed`/`Poisoned` nodes carry no key; for
-/// them arm agreement is the whole check, which is honest: no
-/// sensitivity is read from a failed subgraph, and every `Ok` node's
-/// inputs are certified transitively by its own key.
-fn pair_record(
-    doc: &Doc<ProfileProgram>,
-    handed: &Evaluation<f64>,
-    rebuilt: &Evaluation<f64>,
-) -> Result<(), PairingViolation> {
-    if handed.outcome != EvalOutcome::Completed {
-        return Err(PairingViolation::Incomplete);
-    }
-    if handed.order != rebuilt.order {
-        return Err(PairingViolation::NodeSet);
-    }
-    for &id in &rebuilt.order {
-        match (handed.result(id), rebuilt.result(id)) {
-            (Some(NodeResult::Ok(h)), Some(NodeResult::Ok(r))) => {
-                if h.content_key != r.content_key {
-                    return Err(PairingViolation::ContentKey {
-                        node: doc.spoken(id),
-                        handed: h.content_key,
-                        rebuilt: r.content_key,
-                    });
-                }
-            }
-            (h, r) => same_arm(doc, id, h, r)?,
-        }
-    }
-    Ok(())
+/// One parameter binding as bits: a continuous value by its value half.
+#[derive(Debug, PartialEq)]
+enum BoundBits {
+    Continuous(crate::Dimension, u64),
+    Count(i64),
 }
 
-/// Pairing half 2 (module docs): a seeded pass evaluates exactly the
-/// nodes the anchor does — arm for arm, same poison source — with the
-/// anchor's value channel at every node that built, EXCEPT where the
-/// lift refused typed: that node and everything poisoned through it
-/// are the entry's own [`LiftRefusal`], returned rather than raised.
-/// Total: every node is compared, and a node both runs built is
-/// compared on its whole payload.
-fn pair_pass(
-    doc: &Doc<ProfileProgram>,
-    anchor: &Evaluation<f64>,
-    pass: &Evaluation<Dual64>,
-) -> Result<Option<(RecipeNodeId, LiftRefusal)>, PairingViolation> {
-    if anchor.order != pass.order {
-        return Err(PairingViolation::NodeSet);
-    }
-    let mut valve: Option<(RecipeNodeId, LiftRefusal)> = None;
-    let mut unlifted: BTreeSet<RecipeNodeId> = BTreeSet::new();
-    for &id in &anchor.order {
-        match (anchor.result(id), pass.result(id)) {
-            (Some(NodeResult::Ok(a)), Some(NodeResult::Ok(p))) => {
-                if payload_digest(&a.payload) != payload_digest(&p.payload) {
-                    return Err(PairingViolation::ValueChannel {
-                        node: doc.spoken(id),
-                    });
-                }
-            }
-            (Some(NodeResult::Ok(_)), Some(NodeResult::Failed(e))) => match &e.kind {
-                NodeErrorKind::ProfileLaneReplay { loop_, step, .. } => {
-                    unlifted.insert(id);
-                    valve.get_or_insert((
-                        id,
-                        LiftRefusal::GuidedReplay {
-                            loop_: *loop_,
-                            step: *step,
-                        },
-                    ));
-                }
-                _ => same_arm(doc, id, anchor.result(id), pass.result(id))?,
-            },
-            (Some(NodeResult::Ok(_)), Some(NodeResult::Poisoned { through }))
-                if unlifted.contains(through) =>
-            {
-                unlifted.insert(id);
-            }
-            (a, p) => same_arm(doc, id, a, p)?,
-        }
-    }
-    Ok(valve)
+/// A scalar's VALUE HALF as exact bits — what D9's "bit-identical"
+/// quantifies over: the `f64` itself, a dual's value channel.
+trait ValueBits: geom_core::Decide + Copy {
+    fn value_bits(self) -> u64;
 }
 
-/// The arm comparison both halves share: `Ok`/`Failed`/`Poisoned` (same
-/// poison source)/absent, the RECORD's arm being the expected one.
-fn same_arm<T: geom_core::Decide, U: geom_core::Decide>(
-    doc: &Doc<ProfileProgram>,
-    id: RecipeNodeId,
-    record: Option<&NodeResult<T>>,
-    checked: Option<&NodeResult<U>>,
-) -> Result<(), PairingViolation> {
-    let same = match (record, checked) {
-        (Some(NodeResult::Poisoned { through: a }), Some(NodeResult::Poisoned { through: b })) => {
-            a == b
-        }
-        _ => arm(record) == arm(checked),
-    };
-    if same {
-        Ok(())
-    } else {
-        Err(PairingViolation::ResultArm {
-            node: doc.spoken(id),
-            found: arm(checked),
-            expected: arm(record),
-        })
-    }
-}
-
-/// A result arm's name, for the pairing comparison and its prose.
-fn arm<T: geom_core::Decide>(r: Option<&NodeResult<T>>) -> &'static str {
-    match r {
-        Some(NodeResult::Ok(_)) => "Ok",
-        Some(NodeResult::Failed(_)) => "Failed",
-        Some(NodeResult::Poisoned { .. }) => "Poisoned",
-        None => "absent",
-    }
-}
-
-// ---------------------------------------------- the value-channel digest
-
-/// A scalar's VALUE CHANNEL as exact bits — what the dual contract's
-/// "bit-identical" quantifies over, read through each scalar's own
-/// bracket: the `f64` itself, a dual's value channel.
-trait ValueChannel: geom_core::Decide + Copy {
-    fn bits(self) -> u64;
-}
-
-impl ValueChannel for f64 {
-    fn bits(self) -> u64 {
+impl ValueBits for f64 {
+    fn value_bits(self) -> u64 {
         self.to_bits()
     }
 }
 
-impl ValueChannel for Dual64 {
-    fn bits(self) -> u64 {
-        self.value.bits()
+impl ValueBits for Dual64 {
+    fn value_bits(self) -> u64 {
+        self.value.to_bits()
     }
 }
 
-/// FNV-1a 64 over value-channel bits — a comparison digest for the
-/// pairing, never a content key (it hashes OUTPUTS, keyed by nothing).
-///
-/// Its own mixer rather than `crate::eval::memo`'s (a private module,
-/// so it is named rather than linked), and the sentence
-/// above is the reason: that one builds CONTENT KEYS, whose whole job is
-/// to be the identity of an evaluation, and reusing the key type here
-/// would make a digest that must never be treated as an identity share a
-/// name with the one that is. `geom_core::sym`'s `Hash128` is a third,
-/// under the strictest contract of the three (node ids that must agree
-/// across builds forever). Three small FNV-1a mixers under three
-/// different contracts; the duplication is stated at each of them.
-struct Digest(u64);
-
-impl Digest {
-    fn new() -> Self {
-        Self(0xcbf2_9ce4_8422_2325)
-    }
-
-    fn u64(&mut self, x: u64) {
-        for b in x.to_le_bytes() {
-            self.0 ^= u64::from(b);
-            self.0 = self.0.wrapping_mul(0x0000_0100_0000_01b3);
+impl BuildIdentity {
+    /// `ev`'s identity, or why it has none to bind by.
+    fn of<T: ValueBits>(ev: &Evaluation<T>) -> Result<Self, BindingViolation> {
+        if ev.outcome != EvalOutcome::Completed {
+            return Err(BindingViolation::Incomplete);
         }
-    }
-
-    fn scalar<T: ValueChannel>(&mut self, x: T) {
-        self.u64(x.bits());
-    }
-
-    fn point3<T: ValueChannel>(&mut self, p: geom_core::Point3<T>) {
-        self.scalar(p.x);
-        self.scalar(p.y);
-        self.scalar(p.z);
-    }
-
-    fn body<T: ValueChannel>(&mut self, body: &Body<T>) {
-        self.u64(body.solids().count() as u64);
-        self.u64(body.faces().count() as u64);
-        self.u64(body.edges().count() as u64);
-        self.u64(body.vertices().count() as u64);
-        for (_k, p) in body.points() {
-            self.point3(*p);
+        if ev.refused_whole() {
+            return Err(BindingViolation::NotABuild);
         }
-    }
-}
-
-/// The value-channel digest of one payload: its arm, its counts, and
-/// every scalar it stores — body points, profile
-/// vertices and arc carriers, measured values, verdict numbers — through the
-/// scalar's own value bracket, so an `f64` build and a `Dual64` pass
-/// digest identically exactly when their value channels agree.
-fn payload_digest<T: ValueChannel>(payload: &ValuePayload<T>) -> u64 {
-    let mut d = Digest::new();
-    // VALUE-DIGEST-ARMS BEGIN — the sentinels
-    // `value_digest_tags_reuse_no_retired_number` reads: each arm's
-    // first `d.u64` after its `=>` is its tag.
-    match payload {
-        ValuePayload::Profile(p) => {
-            d.u64(14);
-            for lp in p.validated.loops() {
-                d.u64(lp.vertices().len() as u64);
-                // Each vertex with its leaving segment's classified
-                // carrier: a kind tag, and an arc's centre, radius and
-                // sweep — every scalar the segment stores.
-                for (v, s) in lp.vertices().iter().zip(lp.segments()) {
-                    d.scalar(v.x);
-                    d.scalar(v.y);
-                    match s.kind {
-                        profile::SegmentKind::Line => d.u64(0),
-                        profile::SegmentKind::Arc { arc, turn } => {
-                            d.u64(match turn {
-                                geom_core::Sign::Negative => 2,
-                                geom_core::Sign::Zero | geom_core::Sign::Positive => 1,
-                            });
-                            d.scalar(arc.centre.x);
-                            d.scalar(arc.centre.y);
-                            d.scalar(arc.radius);
-                            d.scalar(arc.sweep);
-                        }
+        let pin = match &ev.pin {
+            Some(Ok(pin)) => *pin,
+            Some(Err(refusal)) => {
+                return Err(BindingViolation::Unpinned {
+                    refusal: Some(refusal.clone()),
+                });
+            }
+            None => return Err(BindingViolation::Unpinned { refusal: None }),
+        };
+        let bindings = ev
+            .env
+            .bindings
+            .iter()
+            .map(|(&var, binding)| {
+                let bits = match binding {
+                    crate::expr::ParamValue::Continuous { dim, value } => {
+                        BoundBits::Continuous(*dim, value.value_bits())
                     }
-                }
-            }
-        }
-        ValuePayload::Body(b) => {
-            d.u64(15);
-            d.body(b);
-        }
-        ValuePayload::Boolean(BooleanValue::Empty) => d.u64(16),
-        ValuePayload::Boolean(BooleanValue::Body { body, .. }) => {
-            d.u64(17);
-            d.body(body);
-        }
-        ValuePayload::Split { above, below } => {
-            d.u64(18);
-            for side in [above, below] {
-                match side {
-                    SplitSide::Empty => d.u64(0),
-                    SplitSide::Body(b) => {
-                        d.u64(1);
-                        d.body(b);
-                    }
-                }
-            }
-        }
-        ValuePayload::Instances(bodies) => {
-            d.u64(19);
-            d.u64(bodies.len() as u64);
-            for b in bodies {
-                d.body(b);
-            }
-        }
-        // 10 to 13, 20, 21, 26, 27 and 29 are retired (`RETIRED_VALUE_DIGEST_TAGS`).
-        ValuePayload::Measure { value, .. } => {
-            d.u64(22);
-            d.scalar(*value);
-        }
-        // APPENDED, never reused (the tag rule this digest shares with
-        // the content keys). A measure with no value digests as the
-        // ABSENCE and not as some stand-in number: two passes that both
-        // failed to measure agree, and neither agrees with a pass that
-        // measured something.
-        ValuePayload::MeasureUnavailable { .. } => d.u64(24),
-        ValuePayload::Assertion(verdict) => {
-            d.u64(23);
-            match verdict {
-                AssertionVerdict::Holds { measured, bound } => {
-                    d.u64(1);
-                    d.scalar(*measured);
-                    d.scalar(*bound);
-                }
-                AssertionVerdict::Violated { measured, bound } => {
-                    d.u64(2);
-                    d.scalar(*measured);
-                    d.scalar(*bound);
-                }
-                AssertionVerdict::Unevaluated { .. } => d.u64(3),
-            }
-        }
+                    crate::expr::ParamValue::Count(n) => BoundBits::Count(*n),
+                };
+                (var, bits)
+            })
+            .collect();
+        Ok(Self {
+            document: ev.document,
+            pin,
+            tolerance: (ev.tolerance.eps.to_bits(), ev.tolerance.k.to_bits()),
+            bindings,
+            parts: ev.resolved_parts().collect(),
+        })
     }
-    // VALUE-DIGEST-ARMS END
-    d.0
+
+    /// The first input `pass` read differently from `self`, the build
+    /// of record's, said from `doc`.
+    fn bind(&self, doc: &Doc<ProfileProgram>, pass: &Self) -> Result<(), BindingViolation> {
+        if let Some(m) = crate::ident::mispaired(pass.document, self.document) {
+            return Err(m.into());
+        }
+        if self.pin != pass.pin {
+            return Err(BindingViolation::Revision);
+        }
+        if self.tolerance != pass.tolerance {
+            return Err(BindingViolation::Tolerance);
+        }
+        let vars: BTreeSet<&VarId> = self.bindings.keys().chain(pass.bindings.keys()).collect();
+        if let Some(var) = vars
+            .into_iter()
+            .find(|var| self.bindings.get(var) != pass.bindings.get(var))
+        {
+            return Err(BindingViolation::Binding {
+                var: doc.spoken_var(*var),
+            });
+        }
+        if self.parts != pass.parts {
+            return Err(BindingViolation::Parts);
+        }
+        Ok(())
+    }
 }
 
-/// The tag numbers [`payload_digest`]'s arms may not use: retired with
-/// the payloads that held them, and dead for good.
-#[cfg(test)]
-const RETIRED_VALUE_DIGEST_TAGS: &[(u64, &str)] = &[
-    (10, "Datum plane"),
-    (11, "Datum axis"),
-    (12, "Datum point"),
-    (13, "Datum frame"),
-    (20, "Declarations"),
-    (21, "Mate"),
-    (26, "Gauge"),
-    (27, "Datum direction"),
-    (29, "Copies"),
-];
+/// **The build of record, ready to read passes against**: the
+/// validated `f64` evaluation's identity and its measured value, both
+/// taken once.
+struct Record {
+    identity: BuildIdentity,
+    /// The measured value's reading in the build of record.
+    nominal:
+        Result<Result<f64, crate::measure::MeasureUnavailableAt>, (Option<RecipeNodeId>, String)>,
+}
+
+/// Why a pass yields no entry: the binding refused it, or its measured
+/// value drifted.
+#[derive(Debug)]
+enum Unread {
+    Binding(BindingViolation),
+    Drift(Drift),
+}
+
+/// A pass's measured value against the build of record's, where the
+/// two differ. Naming the node it first differs at would ride here.
+#[derive(Debug)]
+struct Drift {
+    pass: f64,
+    base: RecordReading,
+}
+
+impl Record {
+    /// `ev`, the `f64` build of record, as of `doc`, reading `value`.
+    fn new(
+        doc: &Doc<ProfileProgram>,
+        ev: &Evaluation<f64>,
+        value: VarId,
+    ) -> Result<Self, BindingViolation> {
+        if let Some(m) = crate::ident::mispaired(doc.id(), ev.document) {
+            return Err(m.into());
+        }
+        Ok(Self {
+            identity: BuildIdentity::of(ev)?,
+            nominal: nominal_of(doc, ev, value),
+        })
+    }
+
+    /// What the build of record read for the measured value.
+    fn reading(&self) -> RecordReading {
+        match &self.nominal {
+            Ok(Ok(v)) => RecordReading::Measured(*v),
+            Ok(Err(reason)) => RecordReading::Unavailable(*reason),
+            Err((_, cause)) => RecordReading::Refused {
+                cause: cause.clone(),
+            },
+        }
+    }
+
+    /// **The report's reading of one pass** (E9 lives here): bound to
+    /// the build of record by identity, its measured value compared
+    /// with the record's, then the tangent off the value's public field.
+    /// A non-finite tangent under a finite value is the forfeiture
+    /// state, NEVER a refusal; a measured value with no value in the
+    /// pass is the entry's own refusal, unliftable when the lift
+    /// refused under it.
+    ///
+    /// The finiteness test is tangent-channel float classification in
+    /// the driver lane — E9's explicit reading of derivative-channel
+    /// degradation. It consults no ε and decides no topology.
+    fn read(
+        &self,
+        doc: &Doc<ProfileProgram>,
+        pass: &Evaluation<Dual64>,
+        value: VarId,
+        chamber: &Chamber,
+    ) -> Result<SensitivityOutcome, Unread> {
+        BuildIdentity::of(pass)
+            .and_then(|identity| self.identity.bind(doc, &identity))
+            .map_err(Unread::Binding)?;
+        let base = self.reading();
+        let measured = match measure_of(doc, pass, value) {
+            Ok(measured) => measured,
+            Err((node, cause)) => return Ok(unread_measure(pass, node, cause, base)),
+        };
+        match base {
+            RecordReading::Measured(v) if v.to_bits() == measured.value_bits() => {}
+            base => {
+                return Err(Unread::Drift(Drift {
+                    pass: measured.value,
+                    base,
+                }));
+            }
+        }
+        let tangent = measured.deriv;
+        Ok(if tangent.is_finite() {
+            SensitivityOutcome::Derivative {
+                value: tangent,
+                chamber: chamber.clone(),
+            }
+        } else {
+            SensitivityOutcome::TangentDegraded { tangent }
+        })
+    }
+}
+
+/// The entry for a measured value the pass has no value of, refused at
+/// `node`: the lift's valve when that node is the guided replay's typed
+/// refusal, the measure's own refusal otherwise.
+fn unread_measure(
+    pass: &Evaluation<Dual64>,
+    node: Option<RecipeNodeId>,
+    cause: String,
+    record: RecordReading,
+) -> SensitivityOutcome {
+    if let Some(id) = node
+        && let Some(NodeResult::Failed(e)) = pass.result(id)
+        && let NodeErrorKind::ProfileLaneReplay { loop_, step, .. } = &e.kind
+    {
+        return SensitivityOutcome::Unliftable {
+            node: id,
+            refusal: LiftRefusal::GuidedReplay {
+                loop_: *loop_,
+                step: *step,
+            },
+        };
+    }
+    SensitivityOutcome::MeasureRefused {
+        node,
+        cause,
+        record,
+    }
+}
 
 // ------------------------------------------------- the verdict's tie
 
@@ -1084,10 +1102,19 @@ pub enum Unavailable {
         var: SpokenVar,
     },
     /// The parameter's pass could not read the measure (its doors
-    /// refused).
+    /// refused) — [`SensitivityOutcome::MeasureRefused`], carried.
     MeasureRefused {
         /// The variable.
         var: SpokenVar,
+        /// The refusing node, spoken from the document asked about;
+        /// `None` for a value no measure is under.
+        node: Option<SpokenNode>,
+        /// The node error, rendered.
+        cause: String,
+        /// What the `f64` build of record read for the value —
+        /// [`RecordReading::Measured`] marks a refusal the dual alone
+        /// made.
+        record: RecordReading,
     },
     /// The parameter's seed could not reach the measure — the lift's
     /// typed limit ([`SensitivityOutcome::Unliftable`]).
@@ -1109,7 +1136,7 @@ impl Unavailable {
     pub fn var(&self) -> &SpokenVar {
         match self {
             Self::TangentDegraded { var }
-            | Self::MeasureRefused { var }
+            | Self::MeasureRefused { var, .. }
             | Self::Unliftable { var }
             | Self::BandHasNoMeasure { var } => var,
         }
@@ -1123,9 +1150,14 @@ impl Unavailable {
         let mut again = self.clone();
         match &mut again {
             Self::TangentDegraded { var }
-            | Self::MeasureRefused { var }
             | Self::Unliftable { var }
             | Self::BandHasNoMeasure { var } => *var = var.respoken(doc),
+            Self::MeasureRefused { var, node, .. } => {
+                *var = var.respoken(doc);
+                if let Some(node) = node {
+                    *node = node.respoken(doc);
+                }
+            }
         }
         again
     }
@@ -1139,8 +1171,28 @@ impl core::fmt::Display for Unavailable {
                 "parameter {var}'s tangent degraded at the nominal (E9: forfeits its \
                  advisory uses, refuses nothing)"
             ),
-            Self::MeasureRefused { var } => {
-                write!(f, "parameter {var}'s pass could not read the measure")
+            Self::MeasureRefused {
+                var,
+                node,
+                cause,
+                record,
+            } => {
+                write!(f, "parameter {var}'s pass could not read the measure")?;
+                if let Some(node) = node {
+                    write!(f, " at {node}")?;
+                }
+                write!(f, ": {cause}")?;
+                match record {
+                    RecordReading::Measured(_) => write!(
+                        f,
+                        " — but {record}, so the refusal is the dual's alone: a door DL3 \
+                         leaves unrun at a dual, or a decision the two scalars took \
+                         differently (a D9 break)"
+                    ),
+                    RecordReading::Unavailable(_) | RecordReading::Refused { .. } => {
+                        write!(f, " ({record})")
+                    }
+                }
             }
             Self::Unliftable { var } => write!(
                 f,
@@ -1244,8 +1296,9 @@ pub struct Stackup {
     pub document: crate::DocumentId,
     /// The measured value the report is about ([`crate::Doc::observed`]).
     pub measurement: VarId,
-    /// The f64 build's measured value — re-derived from the anchored
-    /// evaluation, never handed in — or the typed reason there is none.
+    /// The f64 build of record's measured value — read from the
+    /// evaluation the passes were bound to (the handed one, or the
+    /// driver's own build) — or the typed reason there is none.
     ///
     /// **Absent rather than missing** (M10-6, R2's MINOR-3). The
     /// nominal is an ADVISORY column: E5 puts the certified worst case
@@ -1540,12 +1593,19 @@ fn sensitivity_text(outcome: &SensitivityOutcome, node: impl Fn(RecipeNodeId) ->
             format!("degraded tangent ({tangent})")
         }
         SensitivityOutcome::MeasureRefused {
-            node: Some(id),
+            node: refusing,
             cause,
+            record,
         } => {
-            format!("refused at {}: {cause}", node(*id))
+            let at = refusing.map_or(String::new(), |id| format!(" at {}", node(id)));
+            let alone = match record {
+                RecordReading::Measured(v) => {
+                    format!(" (the f64 build of record measured {v:e}: the dual's refusal alone)")
+                }
+                RecordReading::Unavailable(_) | RecordReading::Refused { .. } => String::new(),
+            };
+            format!("refused{at}: {cause}{alone}")
         }
-        SensitivityOutcome::MeasureRefused { node: None, cause } => format!("refused: {cause}"),
         // Spelled out rather than `Debug`-printed: this string is read
         // by a person in `render` and compared by a golden in
         // `serialize`, and `Debug` is a form neither of those wants.
@@ -1595,7 +1655,7 @@ fn coverage_bits(coverage: &MeasureAccounting) -> String {
 /// learn it carries what the drive and the driver did produce.
 #[derive(Debug, Clone, PartialEq)]
 pub enum StackupRefusal {
-    /// The sensitivity driver refused (measure, pairing, or a verdict
+    /// The sensitivity driver refused (measure, binding, or a verdict
     /// that is foreign or not of this build).
     Sensitivity(SensitivityRefusal),
     /// The analyzed box is not the box the verdict was driven over —
@@ -1703,8 +1763,8 @@ impl core::error::Error for StackupRefusal {}
 /// `analyzed` and `verdict` must be the same analysis: the verdict's
 /// root box must be `ParamBox::of(analyzed)` (checked, typed), and the
 /// verdict's leaves must be of THIS build (content-tied, module docs).
-/// `paired` is the validated f64 build of record, gated exactly as
-/// [`sensitivities`] gates it. `parallel` runs the sensitivity passes
+/// `of_record` is the validated f64 build of record, bound exactly as
+/// [`sensitivities`] binds it. `parallel` runs the sensitivity passes
 /// and the per-leaf worst-case evaluations under rayon idiom 1; the
 /// report is schedule-independent (D9).
 ///
@@ -1733,7 +1793,7 @@ pub fn stackup(
     value: VarId,
     analyzed: &AnalyzedBox,
     verdict: &ParamBoxVerdict,
-    paired: Option<&Evaluation<f64>>,
+    of_record: Option<&Evaluation<f64>>,
     parallel: bool,
     resolver: Option<&Arc<dyn crate::part::PartResolver>>,
     tol: Tol,
@@ -1742,13 +1802,21 @@ pub fn stackup(
         return Err(StackupRefusal::ForeignBox);
     }
     let Driven {
-        anchor,
+        nominal,
         chamber,
         entries,
-    } = driver(doc, value, paired, Some(verdict), parallel, resolver, tol)
-        .map_err(StackupRefusal::Sensitivity)?;
+    } = driver(
+        doc,
+        value,
+        of_record,
+        Some(verdict),
+        parallel,
+        resolver,
+        tol,
+    )
+    .map_err(StackupRefusal::Sensitivity)?;
 
-    // **The nominal, re-derived from the anchored build — and
+    // **The nominal, read from the build of record — and
     // FORFEITED rather than fatal when the measure has no f64 value**
     // (M10-6, R2's MINOR-3). E5 makes the certified worst case the only
     // gating number and E9 says a degraded advisory column forfeits
@@ -1759,7 +1827,7 @@ pub fn stackup(
     // A measure that FAILED for any other reason is still fatal here:
     // `measure_of`'s other error arms mean the node did not evaluate,
     // which is a broken report and not a forfeited column.
-    let nominal = match nominal_of(doc, &anchor, value) {
+    let nominal = match nominal {
         Ok(n) => n,
         Err((node, cause)) => {
             return Err(StackupRefusal::MeasureRefusedAtNominal {
@@ -1806,8 +1874,15 @@ pub fn stackup(
             SensitivityOutcome::TangentDegraded { .. } => Err(Unavailable::TangentDegraded {
                 var: spoken.clone(),
             }),
-            SensitivityOutcome::MeasureRefused { .. } => Err(Unavailable::MeasureRefused {
+            SensitivityOutcome::MeasureRefused {
+                node,
+                cause,
+                record,
+            } => Err(Unavailable::MeasureRefused {
                 var: spoken.clone(),
+                node: node.map(|node| doc.spoken(node)),
+                cause: cause.clone(),
+                record: record.clone(),
             }),
             SensitivityOutcome::Unliftable { .. } => Err(Unavailable::Unliftable {
                 var: spoken.clone(),
@@ -1935,13 +2010,16 @@ fn worst_case(
     // the collected brackets, so the hull is the same bits in either
     // schedule. The brackets are certified (no NaN reaches the fold),
     // so min/max are exact lattice operations here.
-    let brackets: Result<Vec<(f64, f64)>, StackupRefusal> = if parallel {
+    // Every leaf's result is collected before an error is chosen, so
+    // the refusal is the first in the verdict's leaf order whatever the
+    // schedule (the driver's own collection says why).
+    let results: Vec<Result<(f64, f64), StackupRefusal>> = if parallel {
         use rayon::prelude::*;
         leaves.par_iter().map(one).collect()
     } else {
         leaves.iter().map(one).collect()
     };
-    let brackets = brackets?;
+    let brackets = results.into_iter().collect::<Result<Vec<_>, _>>()?;
     let mut lo = f64::INFINITY;
     let mut hi = f64::NEG_INFINITY;
     for (l, h) in &brackets {
@@ -1958,61 +2036,14 @@ fn worst_case(
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
-    use super::{RETIRED_VALUE_DIGEST_TAGS, RSS_BLOCKER_LEAD, Rss, Unavailable, render_rss};
-    use crate::VarName;
-
-    /// **No arm of [`super::payload_digest`] re-uses a retired tag.**
-    /// A source census, for the reason `node_kind_vocabulary_is_injective`
-    /// gives: the tags live in a match over a payload, and constructing
-    /// one of every payload would be a fixture larger than the property.
-    /// An arm is a line at the match's own indent opening on
-    /// `ValuePayload::`; its tag is the first `d.u64(<number>)` after the
-    /// arm's `=>`. A nested match's numbers sit after that one, so they
-    /// are never read. What it cannot see: an arm whose tag is computed
-    /// rather than written. None exists.
-    #[test]
-    fn value_digest_tags_reuse_no_retired_number() {
-        const SOURCE: &str = include_str!("stackup.rs");
-        let region = test_utils::source::sentinel_region(
-            SOURCE,
-            "stackup.rs",
-            "VALUE-DIGEST-ARMS BEGIN",
-            "VALUE-DIGEST-ARMS END",
-        );
-        let code = test_utils::source::code_and_literals(SOURCE);
-        let code = &code[region];
-        let starts: Vec<usize> = code
-            .match_indices("\n        ValuePayload::")
-            .map(|(at, _)| at + 1)
-            .collect();
-        // A census that read nothing would pass vacuously.
-        assert!(
-            starts.len() >= 9,
-            "the arm census found only {} arms — the sentinels or the scan have drifted from \
-             the match they are supposed to read",
-            starts.len()
-        );
-        for (i, &at) in starts.iter().enumerate() {
-            let arm = &code[at..starts.get(i + 1).copied().unwrap_or(code.len())];
-            let head = arm.lines().next().unwrap_or_default().trim();
-            let body = &arm[arm
-                .find("=>")
-                .unwrap_or_else(|| panic!("`{head}` has no `=>`"))..];
-            let digits: String = body
-                .split_once("d.u64(")
-                .unwrap_or_else(|| panic!("`{head}` writes no tag"))
-                .1
-                .chars()
-                .take_while(char::is_ascii_digit)
-                .collect();
-            let tag: u64 = digits
-                .parse()
-                .unwrap_or_else(|_| panic!("`{head}`'s tag is not a number literal"));
-            if let Some((_, held_by)) = RETIRED_VALUE_DIGEST_TAGS.iter().find(|(t, _)| *t == tag) {
-                panic!("`{head}` re-uses value-digest tag {tag}, retired with {held_by}");
-            }
-        }
-    }
+    use super::{
+        BindingViolation, BuildIdentity, Chamber, Drift, RSS_BLOCKER_LEAD, Record, RecordReading,
+        Rss, SensitivityOutcome, Unavailable, Unread, pass_opts, render_rss, stamped,
+    };
+    use crate::eval::{CancelToken, Evaluation, NodeResult, evaluate};
+    use crate::program::{ProfileDoc, ProfileProgram};
+    use crate::{VarId, VarName};
+    use geom_core::{Dual64, Tol};
 
     test_utils::f6_variants! {
         /// Every [`Unavailable`] arm, welded to the enum by the match
@@ -2033,7 +2064,12 @@ mod tests {
             crate::SpokenVar::new(crate::VarId::new(0, 1), Some(VarName::from_static(param)));
         let all = vec![
             Unavailable::TangentDegraded { var: param.clone() },
-            Unavailable::MeasureRefused { var: param.clone() },
+            Unavailable::MeasureRefused {
+                var: param.clone(),
+                node: None,
+                cause: "a refusal".to_owned(),
+                record: RecordReading::Measured(1.0),
+            },
             Unavailable::Unliftable { var: param.clone() },
             Unavailable::BandHasNoMeasure { var: param },
         ];
@@ -2109,6 +2145,254 @@ mod tests {
             "    rss UNAVAILABLE — 1 blocker:\n      - parameter w's seed could not reach the \
              measure: the lift refused typed\n"
         );
+    }
+
+    /// **The slab**: a unit square extruded by `depth`, measured cap to
+    /// cap — the thickness, whose derivative in `depth` is 1. The
+    /// document, `depth`, and the thickness.
+    fn slab(depth: f64) -> (ProfileDoc, VarId, VarId) {
+        use crate::{CapEnd, DocEdit, Formula, Node, RoleSeg, SitedRef, StableName};
+        let tol = Tol::witness();
+        let push = |doc: &ProfileDoc, edit: DocEdit<ProfileProgram>| {
+            let applied = crate::apply(doc, &edit, tol).expect("the edit applies");
+            (applied.doc, applied.record.minted)
+        };
+        let doc = crate::doc::Doc::empty_derived("stackup-binding-slab", tol);
+        let (doc, _) = push(
+            &doc,
+            DocEdit::DeclareVar {
+                name: VarName::from_static("depth"),
+                def: crate::VarDecl::Free(crate::FreeVar::Continuous {
+                    dim: crate::Dimension::Length,
+                    value: depth,
+                    display_unit: crate::UnitSym::canonical_for(crate::Dimension::Length),
+                    distribution: Some(crate::Distribution::Uniform {
+                        lo: -1e-3,
+                        hi: 1e-3,
+                    }),
+                }),
+            },
+        );
+        let depth_var = doc.var_named("depth").expect("declared");
+        let (doc, profile) = push(
+            &doc,
+            DocEdit::InsertNode {
+                node: Box::new(Node::Profile(ProfileProgram {
+                    loops: vec![
+                        crate::LoopProgram::polygon([
+                            (0.0, 0.0),
+                            (1.0, 0.0),
+                            (1.0, 1.0),
+                            (0.0, 1.0),
+                        ])
+                        .expect("finite corners"),
+                    ],
+                    ids: Vec::new(),
+                })),
+                fresh: Vec::new(),
+            },
+        );
+        let (doc, block) = push(
+            &doc,
+            DocEdit::InsertNode {
+                node: Box::new(Node::Extrude {
+                    profile: profile.expect("minted").into(),
+                    distance: Formula::named(
+                        VarName::from_static("depth"),
+                        crate::Dimension::Length,
+                    ),
+                }),
+                fresh: Vec::new(),
+            },
+        );
+        let block = block.expect("minted");
+        let cap = |end| {
+            SitedRef::new(
+                block,
+                StableName {
+                    kind: crate::EntityKind::Face,
+                    node: block,
+                    path: vec![RoleSeg::Cap(end)],
+                },
+            )
+        };
+        let measured = crate::measure(
+            &doc,
+            &[crate::MeasurePrimitive::Distance {
+                a: cap(CapEnd::Start),
+                b: cap(CapEnd::End),
+            }],
+            tol,
+        )
+        .expect("the measure inserts");
+        (measured.doc, depth_var, measured.measured.outputs[0])
+    }
+
+    /// `doc`'s build-path `f64` evaluation, stamped with `doc`'s pin as
+    /// the driver stamps its own runs.
+    fn record_run(doc: &ProfileDoc) -> Evaluation<f64> {
+        let ev = evaluate(
+            doc,
+            None,
+            &CancelToken::new(),
+            &pass_opts(None, None),
+            Tol::witness(),
+        );
+        stamped(ev, pin(doc))
+    }
+
+    /// `doc`'s `Dual64` pass seeded at `seed`, stamped likewise.
+    fn pass_run(doc: &ProfileDoc, seed: VarId) -> Evaluation<Dual64> {
+        let opts = pass_opts(Some(seed), None);
+        stamped(
+            evaluate(doc, None, &CancelToken::new(), &opts, Tol::witness()),
+            pin(doc),
+        )
+    }
+
+    fn pin(doc: &ProfileDoc) -> crate::ContentPin {
+        crate::persist::content_pin(doc, Tol::witness()).expect("canonicalizes")
+    }
+
+    /// **A pass whose measured value is perturbed refuses as drift**,
+    /// over inputs the binding finds equal: one ulp on the value half,
+    /// the tangent untouched. Unperturbed, the same pass reads ∂/∂depth
+    /// = 1, so the refusal is the perturbation's.
+    #[test]
+    fn a_pass_whose_measured_value_is_perturbed_refuses_as_drift() {
+        let (doc, depth, thickness) = slab(1.0);
+        let record = Record::new(&doc, &record_run(&doc), thickness).expect("binds");
+        let mut pass = pass_run(&doc, depth);
+        match record.read(&doc, &pass, thickness, &Chamber::LocalOnly) {
+            Ok(SensitivityOutcome::Derivative { value, .. }) => assert_eq!(value, 1.0),
+            other => panic!("the unperturbed pass reads its derivative: {other:?}"),
+        }
+        let (node, _) = pass.read_port(thickness).expect("a measure's output");
+        let Some(NodeResult::Ok(v)) = pass.nodes.get_mut(&node) else {
+            panic!("the measure built");
+        };
+        let crate::eval::ValuePayload::Measure { value, .. } = &mut v.payload else {
+            panic!("a measure's payload");
+        };
+        let base = value.value;
+        value.value = f64::from_bits(base.to_bits() + 1);
+        let perturbed = value.value;
+        match record.read(&doc, &pass, thickness, &Chamber::LocalOnly) {
+            Err(Unread::Drift(Drift { pass, base: got })) => {
+                assert_eq!(pass.to_bits(), perturbed.to_bits(), "the pass's value half");
+                match got {
+                    RecordReading::Measured(got) => {
+                        assert_eq!(got.to_bits(), base.to_bits(), "the record's");
+                    }
+                    other => panic!("the record measured: {other:?}"),
+                }
+            }
+            other => panic!("a perturbed measured value must refuse as drift: {other:?}"),
+        }
+    }
+
+    /// **A refusal only the dual made says so.** The pass's measure is
+    /// planted as refused while the build of record measured it: the
+    /// entry carries the node, the rendered cause and the record's
+    /// value, and the stackup's blocker built from it names the
+    /// refusal as the dual's alone — the shape a D9 break in a decision
+    /// takes when it surfaces as a refusal.
+    #[test]
+    fn a_refusal_only_the_dual_made_carries_the_records_value() {
+        let (doc, depth, thickness) = slab(1.0);
+        let built = record_run(&doc);
+        let record = Record::new(&doc, &built, thickness).expect("binds");
+        let RecordReading::Measured(base) = record.reading() else {
+            panic!("the record measures the thickness");
+        };
+        let mut pass = pass_run(&doc, depth);
+        let (node, _) = pass.read_port(thickness).expect("a measure's output");
+        pass.nodes.insert(
+            node,
+            NodeResult::Failed(crate::eval::NodeError {
+                node,
+                kind: crate::eval::NodeErrorKind::ToleranceConflict {
+                    document_eps: 1.0,
+                    process_eps: 2.0,
+                },
+                escalations: std::sync::Arc::new(Vec::new()),
+            }),
+        );
+        let outcome = record
+            .read(&doc, &pass, thickness, &Chamber::LocalOnly)
+            .expect("a refused measure is an entry, not a refusal");
+        let SensitivityOutcome::MeasureRefused {
+            node: Some(at),
+            cause,
+            record: RecordReading::Measured(measured),
+        } = &outcome
+        else {
+            panic!("the dual's refusal, with the record's value: {outcome:?}");
+        };
+        assert_eq!(*at, node);
+        assert_eq!(measured.to_bits(), base.to_bits());
+        assert!(!cause.is_empty());
+        let blocker = Unavailable::MeasureRefused {
+            var: doc.spoken_var(depth),
+            node: Some(doc.spoken(node)),
+            cause: cause.clone(),
+            record: RecordReading::Measured(*measured),
+        };
+        let text = blocker.to_string();
+        assert!(text.contains(cause.as_str()), "{text}");
+        assert!(text.contains("the dual's alone"), "{text}");
+    }
+
+    /// **A pass from another revision, tolerance or parts set refuses
+    /// at the binding**, before its measured value is read.
+    #[test]
+    fn a_pass_of_other_inputs_refuses_at_the_binding() {
+        let (doc, depth, thickness) = slab(1.0);
+        let record = Record::new(&doc, &record_run(&doc), thickness).expect("binds");
+        let refused = |pass: &Evaluation<Dual64>| match record.read(
+            &doc,
+            pass,
+            thickness,
+            &Chamber::LocalOnly,
+        ) {
+            Err(Unread::Binding(v)) => v,
+            other => panic!("the binding must refuse: {other:?}"),
+        };
+
+        // Another revision: the same recipe at another depth.
+        let (other, _, _) = slab(1.5);
+        assert_eq!(
+            refused(&pass_run(&other, depth)),
+            BindingViolation::Revision
+        );
+
+        // Another tolerance, restamped (one process holds one ε).
+        let mut pass = pass_run(&doc, depth);
+        pass.tolerance.k *= 2.0;
+        assert_eq!(refused(&pass), BindingViolation::Tolerance);
+
+        // Another parts set: a reference the pass resolved and the
+        // record did not, written into the pass's identity (a document
+        // that instantiates nothing resolves no part;
+        // `msolve14_run_scalar::a5_sensitivities_cross_a_seated_mate`
+        // has the real case, over an assembly).
+        let mut identity = BuildIdentity::of(&pass_run(&doc, depth)).expect("an identity");
+        identity.parts.insert((
+            crate::DocRef {
+                id: crate::DocumentId::derive("stackup-binding-part"),
+                pin: crate::ContentPin([7; 32]),
+            },
+            Tol::witness().eps().to_bits(),
+        ));
+        assert_eq!(
+            record.identity.bind(&doc, &identity),
+            Err(BindingViolation::Parts)
+        );
+
+        // An unpinned pass cannot be bound.
+        let mut pass = pass_run(&doc, depth);
+        pass.pin = None;
+        assert_eq!(refused(&pass), BindingViolation::Unpinned { refusal: None });
     }
 
     /// A document holding no variable, so a blocker is said as it was

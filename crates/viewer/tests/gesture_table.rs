@@ -113,7 +113,7 @@ use viewer::session::{
 /// `the_table_answers_for_every_op` checks the samples land on each
 /// exactly once — so a variant added without a sample fails, and one
 /// added without an answer does not compile.
-const OP_COUNT: usize = 56;
+const OP_COUNT: usize = 57;
 
 /// A document with a literal-driven extrude — a slot a gesture can
 /// actually open on, which the expression-driven fixture is not.
@@ -314,7 +314,10 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
             of: node,
             select: PartSelectSpec::Instance(1),
         },
-        SessionOp::Duplicate { input: node.into() },
+        SessionOp::Duplicate {
+            input: node.into(),
+            beside: None,
+        },
         SessionOp::AddInstance {
             id: DocumentId::derive("view1b-no-such-part"),
         },
@@ -363,6 +366,18 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
         SessionOp::IntoOwnSpace { placement: node },
         SessionOp::SetProduct {
             bodies: vec![node.into()],
+        },
+        SessionOp::AddMirror {
+            body: node.into(),
+            plane: viewer::session::FaceSelection {
+                name: pncad::prelude::StableName {
+                    kind: pncad::prelude::EntityKind::Face,
+                    node,
+                    path: Vec::new(),
+                },
+                node,
+                body: 0,
+            },
         },
     ]
 }
@@ -465,9 +480,11 @@ fn expected(op: &SessionOp) -> (usize, bool) {
         // A re-target and a bundle written: a document edit, fenced
         // with every other one.
         SessionOp::IntoOwnSpace { .. } => (54, false),
+        // An insert door, fenced with every other one.
+        SessionOp::AddMirror { .. } => (55, false),
         // What the document makes: a document edit, fenced with every
         // other one.
-        SessionOp::SetProduct { .. } => (55, false),
+        SessionOp::SetProduct { .. } => (56, false),
     }
 }
 
@@ -946,6 +963,7 @@ fn cancels_a_gesture(op: &SessionOp) -> bool {
         | SessionOp::AddRevolve { .. }
         | SessionOp::AddBoolean { .. }
         | SessionOp::AddSplit { .. }
+        | SessionOp::AddMirror { .. }
         | SessionOp::AddTransform { .. }
         | SessionOp::AddPattern { .. }
         | SessionOp::AddPlacedUnion { .. }
@@ -1560,6 +1578,7 @@ fn replaces_the_document(op: &SessionOp) -> bool {
         | SessionOp::AddRevolve { .. }
         | SessionOp::AddBoolean { .. }
         | SessionOp::AddSplit { .. }
+        | SessionOp::AddMirror { .. }
         | SessionOp::AddTransform { .. }
         | SessionOp::AddPattern { .. }
         | SessionOp::AddPlacedUnion { .. }

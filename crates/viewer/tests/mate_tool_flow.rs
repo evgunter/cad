@@ -958,3 +958,37 @@ fn a_mate_refusal_names_the_picked_node_as_the_panel_does() {
         "the panel says the same node: {panel}"
     );
 }
+
+/// **A face on a split's second half is mated on that half**: a block
+/// split at mid-height, its lower half placed 0.1 m along x, rested by
+/// its underside on the whole block's top. The mate's `on` side reads
+/// the face on the split's LOWER output by its port — read alone, the
+/// split is two bodies and the commit refuses — and the half is drawn
+/// seated on the top.
+#[test]
+fn a_face_on_a_splits_lower_half_is_mated_on_that_half() {
+    let tol = Tol::witness();
+    let size = [0.04, 0.02, 0.01];
+    let (session, block, split) = common::drawn::split_box(size, tol);
+    let below = pncad::select::SplitHalf::Below;
+    let at = common::drawn::translated([0.1, 0.0, 0.0]);
+    let (mut session, half) = common::drawn::half_placed(&session, split, below, &at, tol);
+    let underside = asm::pick_face(&session, &common::up_at(0.1, 0.0));
+    let top = asm::pick_face(&session, &common::down_at(0.0, 0.0));
+    assert_eq!(underside.node, half, "the ray met the lower half's copy");
+    assert_eq!(
+        top.node,
+        common::copy_of(session.committed_doc(), block),
+        "and the block's top"
+    );
+    common::drawn::rest_on(&mut session, underside, top);
+    let (x, y, z) = (size[0] / 2.0, size[1] / 2.0, size[2]);
+    common::drawn::assert_drawn(
+        &mut session,
+        half,
+        [0.1 - x, -y, z],
+        [0.1 + x, y, 1.5 * z],
+        size.iter().product::<f64>() / 2.0,
+        "the lower half, seated on the block's top",
+    );
+}

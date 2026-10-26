@@ -350,9 +350,25 @@ impl MateToolState {
 /// **What this tool calls a held pick**: `face of Extrude 000000000003`
 /// — the face of the node whose body the pick was taken on, as the
 /// document speaks it. The panel item ([`MateToolState::line`]) and the
-/// drop notice ([`MateToolEvent`]) both say it.
-fn face_of(node: &SpokenNode) -> String {
+/// drop notice ([`MateToolEvent`]) both say it, and the mirror tool's
+/// plane is said in the same words (`crate::combine::MirrorTool`).
+pub(crate) fn face_of(node: &SpokenNode) -> String {
     format!("face of {node}")
+}
+
+/// **The sentence a dropped face pick is said in**: its role, and the
+/// face as [`face_of`] says it — the mate tool's drop and the mirror
+/// tool's (`crate::combine::MirrorEvent`).
+pub(crate) fn face_lost(
+    f: &mut core::fmt::Formatter<'_>,
+    role: impl core::fmt::Display,
+    node: &SpokenNode,
+) -> core::fmt::Result {
+    write!(
+        f,
+        "the {role} pick (a {}) no longer resolves; the tool dropped it",
+        face_of(node)
+    )
 }
 
 /// A typed tool event the chrome renders — every state change that
@@ -381,12 +397,7 @@ impl core::fmt::Display for MateToolEvent {
     /// full in the value; this is what a person reads.
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::PickLost { side, node, .. } => write!(
-                f,
-                "the {} pick (a {}) no longer resolves; the tool dropped it",
-                side.name(),
-                face_of(node)
-            ),
+            Self::PickLost { side, node, .. } => face_lost(f, side.name(), node),
         }
     }
 }
@@ -450,16 +461,18 @@ impl MateProposal {
 
 /// **A face read as a pose of `kind`**: its plane, or its carrier's
 /// axis.
-fn pose_of(kind: VarKind, face: &SitedFace) -> pncad::document::Operand {
-    let def = match kind {
-        VarKind::Axis => pose::PoseDef::Axis {
-            of: face.clone().into(),
-        },
-        _ => pose::PoseDef::Plane {
-            face: face.clone().into(),
-        },
-    };
-    pncad::document::Operand::Pose(Box::new(def))
+fn pose_of(kind: VarKind, face: pncad::document::Operand) -> pncad::document::Operand {
+    match kind {
+        VarKind::Axis => pncad::document::Operand::Pose(Box::new(pose::PoseDef::Axis { of: face })),
+        _ => plane_of(face),
+    }
+}
+
+/// **A face read as its plane**: `face`, a one-name face selection,
+/// read plainly as the plane of that face — a plane mate's side, and
+/// the plane a mirror reflects across (`crate::combine::mirror_node`).
+pub(crate) fn plane_of(face: pncad::document::Operand) -> pncad::document::Operand {
+    pncad::document::Operand::Pose(Box::new(pose::PoseDef::Plane { face }))
 }
 
 /// The placement whose copy a pick at `at` is on: `at` itself when it
@@ -649,21 +662,27 @@ impl MateTool {
             return Err(MateToolError::SamePick { head });
         }
         // A `Place`'s copy is read off the shape it copies, by the
-        // shape's own name for the face.
-        let on_face = match doc.node(on.node) {
+        // shape's own name for the face, on the output it copies where
+        // the shape's operation defines several (a split's halves).
+        let (on_face, on_read) = match doc.node(on.node) {
             Some(Node::Place { .. }) => {
-                let (at, _, own) = crate::world::on_body(doc, on.node, on.body, &on.name);
+                let (at, port, own) = crate::world::on_body(doc, on.node, on.body, &on.name);
                 let own = pncad::document::FaceName::new(own).map_err(|refusal| {
                     MateToolError::PickIsNotAFace {
                         side: MateSide::On,
                         refusal,
                     }
                 })?;
-                SitedFace::new(at, own)
+                let body = match crate::world::seat_read(doc, at, Some(port)) {
+                    (at, Some(port)) => pncad::document::Operand::output(at, port),
+                    (at, None) => pncad::document::Operand::Node(at),
+                };
+                let read = pncad::document::Operand::select(body, vec![own.clone().into_name()]);
+                (SitedFace::new(at, own), read)
             }
-            _ => picked_on,
+            _ => (picked_on.clone(), picked_on.into()),
         };
-        let target = pose_of(choice.kind, &picked_to);
+        let target = pose_of(choice.kind, picked_to.clone().into());
         let target = if choice.flip {
             pncad::document::Operand::Pose(Box::new(pose::PoseDef::Flip {
                 pose: pose::RoleRead::plain(target),
@@ -674,7 +693,7 @@ impl MateTool {
         Ok(MateProposal {
             placement,
             mate: Mate {
-                on: pose_of(choice.kind, &on_face),
+                on: pose_of(choice.kind, on_read),
                 to: target,
             },
             on: on_face,

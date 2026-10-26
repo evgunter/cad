@@ -1,9 +1,10 @@
 //! Certified-conservative [`Aabb`] constructors for curve carriers
 //! (C10, M5 PR 8): a box is a cache with a **containment contract** —
 //! the carrier's true locus over the stated span lies inside it — and
-//! every computation here errs outward only: by directed rounding in
-//! bracket arithmetic, or, for the spiric, by the charge
-//! [`crate::spiric_period_box`] states for its own arithmetic.
+//! every computation here errs outward only: by the certified
+//! [`Interval`] arithmetic the conic doors run in, or, for the spiric,
+//! by the charge [`crate::spiric_period_box`] states for its own
+//! arithmetic.
 //!
 //! **Outward is the only sound direction; it is not a free one.** A
 //! wider box is a weaker answer, not a cheaper one: a consumer that
@@ -18,15 +19,20 @@
 //! to consume it — see `bvh`'s crate docs) and each constructor sits
 //! next to the invariant it cites. [`conic_arc_aabb`] is the one door
 //! a consumer boxing an edge of unknown conic kind reads; the two kind
-//! doors under it are its arms.
+//! doors under it are its arms. A conic arc's extent along an
+//! ARBITRARY direction is [`conic_arc_extent_along`] (at the carrier's
+//! scalar) and [`conic_arc_extent_along_bracketed`] (certified); the
+//! box doors are the same closed form read along the world axes, so
+//! the extremum has one body ([`ArcWindow`]).
 //!
 //! This is certified-box driver code, a **sole**-bound [`Bounds`] seam
 //! under the 2026-07-29 amendment (geom-core `real.rs`, Bounds scope
-//! rule): every scalar enters as its `[lo(), hi()]` bracket — save the
-//! spiric's, which [`spiric_arc_aabb`] runs in its scalar's own
-//! arithmetic and brackets once done — and
-//! poison (NaN) flows to the poison box, which overlaps everything —
-//! the honest answer when no cheap superset is known.
+//! rule): every scalar enters as the [`Interval`] of its
+//! `[lo(), hi()]` bracket — save the spiric's, which
+//! [`spiric_arc_aabb`] runs in its scalar's own arithmetic and
+//! brackets once done — and poison (NaN) flows to the poison box,
+//! which overlaps everything — the honest answer when no cheap
+//! superset is known.
 //!
 //! **Not "allowlisted", which is what this said before.** The amendment
 //! ratifies the box constructors to write the COMPOUND `Decide + Bounds`
@@ -36,74 +42,268 @@
 //! case. The rule covers this module; the gate does not.
 
 use bvh::Aabb;
-use geom_core::{Bounds, Point3};
+use geom_core::{Bounds, Interval, Point3, Real, Vec3};
 
 use crate::curves::Curve3;
 use crate::curves::nurbs::NurbsCurve3;
 use crate::net;
 
-/// A one-dimensional outward bracket: plain `f64` interval arithmetic
-/// where every ring operation widens its result by one ulp per side.
-/// `+`, `−`, `×`, `√` are correctly rounded at `f64` (true result
-/// within half an ulp of the returned one), so the widening makes each
-/// bracket a true enclosure; NaN propagates (poison stays loud).
+/// A conic's frame as the extremum reads it: the centre, the plane
+/// normal, the `t = 0` reference direction and the two semi-axes — a
+/// circle is the ellipse with `semi_u = semi_v = radius`. Each
+/// constructor refuses (`None`) every kind it does not name.
+#[derive(Clone, Copy)]
+struct ConicFrame<T: Real> {
+    center: Point3<T>,
+    axis: Vec3<T>,
+    u_ref: Vec3<T>,
+    semi_u: T,
+    semi_v: T,
+}
+
+impl<T: Real> ConicFrame<T> {
+    fn of(carrier: &Curve3<T>) -> Option<Self> {
+        Self::circle(carrier).or_else(|| Self::ellipse(carrier))
+    }
+
+    fn circle(carrier: &Curve3<T>) -> Option<Self> {
+        let Curve3::Circle {
+            center,
+            axis,
+            radius,
+            u_ref,
+        } = *carrier
+        else {
+            return None;
+        };
+        Some(Self {
+            center,
+            axis,
+            u_ref,
+            semi_u: radius,
+            semi_v: radius,
+        })
+    }
+
+    fn ellipse(carrier: &Curve3<T>) -> Option<Self> {
+        let Curve3::Ellipse {
+            center,
+            axis,
+            semi_u,
+            semi_v,
+            u_ref,
+        } = *carrier
+        else {
+            return None;
+        };
+        Some(Self {
+            center,
+            axis,
+            u_ref,
+            semi_u,
+            semi_v,
+        })
+    }
+
+    /// `axis × u_ref`, the `t = π/2` reference direction.
+    fn v_ref(&self) -> Vec3<T> {
+        self.axis.cross(self.u_ref)
+    }
+}
+
+impl<T: Bounds> ConicFrame<T> {
+    /// The frame with every scalar entered as the [`Interval`] of its
+    /// bracket. The second reference direction is crossed AFTER the
+    /// lift, so its rounding is the interval's and not `T`'s.
+    fn lifted(self) -> ConicFrame<Interval> {
+        let point = |p: Point3<T>| Point3::new(lift(p.x), lift(p.y), lift(p.z));
+        let vector = |v: Vec3<T>| Vec3::new(lift(v.x), lift(v.y), lift(v.z));
+        ConicFrame {
+            center: point(self.center),
+            axis: vector(self.axis),
+            u_ref: vector(self.u_ref),
+            semi_u: lift(self.semi_u),
+            semi_v: lift(self.semi_v),
+        }
+    }
+}
+
+/// A bracket as the certified scalar's enclosure of it. The box doors
+/// read only the result's bounds, never its decoration, so the
+/// decoration this rebuild discards is not a channel anything here
+/// decides on; a poisoned bracket (a NaN end) enters as NaI and leaves
+/// as NaN bounds.
+fn lift<T: Bounds>(x: T) -> Interval {
+    Interval::from_bounds(x.lo(), x.hi())
+}
+
+/// **The extremum of an arc along one direction — the one home of it.**
+///
+/// Along any direction a conic arc's coordinate is a harmonic of its
+/// parameter, `c + p·cos t + q·sin t`, with `p = semi_u·(û·n)` and
+/// `q = semi_v·(v̂·n)`. Its crests `c ± A`, `A = √(p² + q²)`, stand
+/// where `cos(t − t*) = ±1`. A span of half-width `h ≥ π` holds every
+/// crest, which the window decides from `h` alone; a shorter span
+/// holds a crest iff its cosine against the span's middle `m` is at
+/// least `cos h` ([`ArcWindow::crest_outside`]). So each extreme is a
+/// crest where the span holds it, and an end's reading where it does
+/// not — between its two crests the harmonic is monotone.
+///
+/// **No comparison is written**: the in-span question is read by
+/// [`Real::select_le_zero`], so the body runs at every scalar. At `f64`
+/// it is the exact extremum to rounding. The cosine test runs only for
+/// `h < π`, where, with `d ∈ [0, π]` the crest's angle from `m`,
+/// `1 − cos(h − d) ≤ |cos h − cos d|`: a test misjudged by `δ` leaves
+/// the end nearest the crest within `A·δ` of it. The turn test,
+/// misjudged by `δ` of angle at `h ≈ π`, puts an end within `δ` of the
+/// crest, which reads within `A·δ²/2` of it. At [`Interval`] an
+/// undecided reading selects the hull of both candidates, so an
+/// enclosure of the inputs yields an enclosure of the extent: the
+/// certified reading the box doors take. Poison propagates through
+/// every operation.
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct Brk {
-    pub(crate) lo: f64,
-    pub(crate) hi: f64,
+pub struct ArcWindow<T: Real> {
+    cos_m: T,
+    sin_m: T,
+    cos_h: T,
+    /// `π − h`: at most zero iff the span covers a full turn.
+    turn_left: T,
+    ends: [(T, T); 2],
 }
 
-impl Brk {
-    pub(crate) fn of<T: Bounds>(x: T) -> Self {
+impl<T: Real> ArcWindow<T> {
+    /// The window of the span `[t0, t1]`, in either orientation.
+    pub fn new(t0: T, t1: T) -> Self {
+        let half = T::from_f64(0.5);
+        let (sin_m, cos_m) = ((t0 + t1) * half).sin_cos();
+        let h = ((t1 - t0) * half).abs();
         Self {
-            lo: x.lo(),
-            hi: x.hi(),
+            cos_m,
+            sin_m,
+            cos_h: h.min(T::pi()).cos(),
+            turn_left: T::pi() - h,
+            ends: [t0.sin_cos(), t1.sin_cos()],
         }
     }
 
-    fn out(lo: f64, hi: f64) -> Self {
-        Self {
-            lo: lo.next_down(),
-            hi: hi.next_up(),
-        }
+    /// **Whether the crest of `p·cos t + q·sin t` lies in the span**, as
+    /// a reading at most zero iff it does: `π − h` where the span covers
+    /// a full turn, else `A·cos h − (p·cos m + q·sin m)`. The trough is
+    /// the crest of `(−p, −q)`. Read it with [`Real::select_le_zero`]:
+    /// an enclosure that cannot tell takes both arms.
+    pub fn crest_outside(&self, p: T, q: T) -> T {
+        let tilt = (p.powi(2) + q.powi(2)).sqrt() * self.cos_h - (p * self.cos_m + q * self.sin_m);
+        self.turn_left.select_le_zero(self.turn_left, tilt)
     }
 
-    pub(crate) fn add(self, o: Self) -> Self {
-        Self::out(self.lo + o.lo, self.hi + o.hi)
-    }
-
-    pub(crate) fn sub(self, o: Self) -> Self {
-        Self::out(self.lo - o.hi, self.hi - o.lo)
-    }
-
-    pub(crate) fn mul(self, o: Self) -> Self {
-        let (a, b, c, d) = (
-            self.lo * o.lo,
-            self.lo * o.hi,
-            self.hi * o.lo,
-            self.hi * o.hi,
-        );
-        // NaN-propagating min/max: `f64::min` ignores NaN, which would
-        // silently narrow poison away (D4 ¶2).
-        let lo = pfold(a, pfold(b, pfold(c, d, f64::min), f64::min), f64::min);
-        let hi = pfold(a, pfold(b, pfold(c, d, f64::max), f64::max), f64::max);
-        Self::out(lo, hi)
-    }
-
-    /// √ of the nonnegative part (used on sums of squares; a slightly
-    /// negative `lo` from outward rounding clamps to 0 — outward-safe
-    /// for a true value that is a square sum, hence ≥ 0).
-    pub(crate) fn sqrt_nonneg(self) -> Self {
-        if self.lo.is_nan() || self.hi.is_nan() || self.hi < 0.0 {
-            return Self {
-                lo: f64::NAN,
-                hi: f64::NAN,
-            };
-        }
-        Self::out(self.lo.max(0.0).sqrt(), self.hi.sqrt())
+    /// The `(lo, hi)` of `c + p·cos t + q·sin t` over the span.
+    pub fn extent(&self, c: T, p: T, q: T) -> (T, T) {
+        let crest = (p.powi(2) + q.powi(2)).sqrt();
+        let [(s0, c0), (s1, c1)] = self.ends;
+        let (r0, r1) = (p * c0 + q * s0, p * c1 + q * s1);
+        let (end_lo, end_hi) = (r0.min(r1), r0.max(r1));
+        let hi = self.crest_outside(p, q).select_le_zero(crest, end_hi);
+        let lo = self.crest_outside(-p, -q).select_le_zero(-crest, end_lo);
+        (c + end_lo.min(lo), c + end_hi.max(hi))
     }
 }
 
+/// The extent of `frame`'s arc over `window` along `n`, about `origin`.
+fn extent_along<T: Real>(
+    frame: &ConicFrame<T>,
+    window: &ArcWindow<T>,
+    origin: Point3<T>,
+    n: Vec3<T>,
+) -> (T, T) {
+    window.extent(
+        (frame.center - origin).dot(n),
+        frame.semi_u * frame.u_ref.dot(n),
+        frame.semi_v * frame.v_ref().dot(n),
+    )
+}
+
+/// **A circle or ellipse arc's extent along a direction**: the
+/// `(lo, hi)` of `(P(t) − origin)·n` over the certified span
+/// `[theta0, theta1]` (either orientation), at the carrier's own
+/// scalar — the exact extremum where it lies in the span and the
+/// end's value where it does not ([`ArcWindow`] carries the closed
+/// form). `n` need not be unit: the extent is linear in it.
+///
+/// Comparison-free, so it serves a lane whose scalar has no ordering.
+/// At [`Interval`] it is an enclosure of the extent; at `f64` it is
+/// the extent to rounding, and a lane that must contain the locus
+/// reads [`conic_arc_extent_along_bracketed`] instead.
+///
+/// `None` when `carrier` is not a `Circle` or an `Ellipse` (refuse
+/// rather than guess).
+pub fn conic_arc_extent_along<T: Real>(
+    carrier: &Curve3<T>,
+    theta0: T,
+    theta1: T,
+    origin: Point3<T>,
+    n: Vec3<T>,
+) -> Option<(T, T)> {
+    let frame = ConicFrame::of(carrier)?;
+    Some(extent_along(
+        &frame,
+        &ArcWindow::new(theta0, theta1),
+        origin,
+        n,
+    ))
+}
+
+/// [`conic_arc_extent_along`] as a certified `f64` bracket: every
+/// scalar enters as the [`Interval`] of its bracket and the extent is
+/// read off that enclosure, so it contains the extent of every
+/// realization of a bracketed description. Poison yields NaN ends.
+pub fn conic_arc_extent_along_bracketed<T: Bounds>(
+    carrier: &Curve3<T>,
+    theta0: T,
+    theta1: T,
+    origin: Point3<T>,
+    n: Vec3<T>,
+) -> Option<(f64, f64)> {
+    let frame = ConicFrame::of(carrier)?.lifted();
+    let origin = Point3::new(lift(origin.x), lift(origin.y), lift(origin.z));
+    let n = Vec3::new(lift(n.x), lift(n.y), lift(n.z));
+    let (lo, hi) = extent_along(
+        &frame,
+        &ArcWindow::new(lift(theta0), lift(theta1)),
+        origin,
+        n,
+    );
+    Some((lo.lo(), hi.hi()))
+}
+
+/// The box of a circle or ellipse arc: per world axis the
+/// [`ArcWindow`] extent of that coordinate — the directional extremum
+/// read along `x̂`, `ŷ`, `ẑ` — at the certified scalar, hulled with the
+/// endpoint seeds.
+fn conic_frame_aabb<T: Bounds>(
+    frame: ConicFrame<T>,
+    theta0: T,
+    theta1: T,
+    end0: Point3<T>,
+    end1: Point3<T>,
+) -> Aabb {
+    // Endpoint hull: always inside the box (2 points — never empty).
+    let mut b = Aabb::from_points([end0, end1]).unwrap_or_else(Aabb::poison);
+    let frame = frame.lifted();
+    let window = ArcWindow::new(lift(theta0), lift(theta1));
+    for (n, min, max) in [
+        (Vec3::unit_x(), &mut b.min_x, &mut b.max_x),
+        (Vec3::unit_y(), &mut b.min_y, &mut b.max_y),
+        (Vec3::unit_z(), &mut b.min_z, &mut b.max_z),
+    ] {
+        let (lo, hi) = extent_along(&frame, &window, Point3::origin(), n);
+        *min = pfold(*min, lo.lo(), f64::min);
+        *max = pfold(*max, hi.hi(), f64::max);
+    }
+    b
+}
+
+/// NaN-propagating fold: `f64::min`/`max` ignore NaN, which would
+/// silently narrow poison away (D4 ¶2).
 fn pfold(a: f64, b: f64, f: fn(f64, f64) -> f64) -> f64 {
     if a.is_nan() || b.is_nan() {
         f64::NAN
@@ -112,84 +312,20 @@ fn pfold(a: f64, b: f64, f: fn(f64, f64) -> f64) -> f64 {
     }
 }
 
-/// Angular slack (radians) added on BOTH sides of the window every
-/// span-membership test below hands [`crate::periodic_window_may_hold`],
-/// which takes a window's ends as given: it absorbs `libm::atan2`'s deviation from the exact
-/// value (observed ≤ 4 ulps in the geom-core census — this is 6+ orders
-/// more) plus the membership arithmetic's own rounding. Slack only ever
-/// *includes* more extrema, so it errs outward — the sound direction,
-/// and not a free one (module docs).
-const ANGLE_SLOP: f64 = 1e-6;
-
-/// The extremal-angle INTERVAL of `atan2(v, u)` over the bracket
-/// rectangle `u × v`: evaluated on the four corners, which carry the
-/// angular extremes of a convex region not containing the origin (a
-/// supporting ray through the origin touches a polygon at a vertex) —
-/// provided the wedge does not cross `atan2`'s ±π cut, where the
-/// corner angles would read as a full turn. A rectangle touching the
-/// negative `u` axis (`v` straddling zero, `u ≤ 0`) does cross it, so
-/// its corners are read in the frame rotated by π, `atan2(−v, −u)`,
-/// whose cut lies on the positive `u` axis the rectangle is clear of,
-/// and the interval is shifted back by π; the translate-aware span
-/// test downstream reads it like any other. The exact case that
-/// matters is an extremal angle of exactly π — a conic in a tilted
-/// plane has one on the axis its plane's normal tilts along — and
-/// it now yields the point interval `[π, π]` rather than "no bound".
-///
-/// `None` means "no bound": the rectangle possibly contains the
-/// origin, so the amplitude's sign is unknown and the caller must
-/// include BOTH extrema. A poisoned side or corner answers `None` too,
-/// so a `Some` never carries a NaN end — the postcondition
-/// [`geom_core::CertifiedEnclosure`] states for a certified bracket,
-/// held here by the `is_nan` guards because [`Brk`] has no
-/// certified door to route through.
-fn extremal_angle_interval(u: Brk, v: Brk) -> Option<(f64, f64)> {
-    if u.lo.is_nan() || u.hi.is_nan() || v.lo.is_nan() || v.hi.is_nan() {
-        return None;
-    }
-    let u_straddles = u.lo <= 0.0 && u.hi >= 0.0;
-    let v_straddles = v.lo <= 0.0 && v.hi >= 0.0;
-    if u_straddles && v_straddles {
-        return None; // origin possibly inside
-    }
-    let (sign, shift) = if v_straddles && u.hi <= 0.0 {
-        (-1.0, core::f64::consts::PI)
-    } else {
-        (1.0, 0.0)
-    };
-    let corners = [
-        geom_core::Real::atan2(sign * v.lo, sign * u.lo),
-        geom_core::Real::atan2(sign * v.lo, sign * u.hi),
-        geom_core::Real::atan2(sign * v.hi, sign * u.lo),
-        geom_core::Real::atan2(sign * v.hi, sign * u.hi),
-    ];
-    let mut lo = f64::INFINITY;
-    let mut hi = f64::NEG_INFINITY;
-    for c in corners {
-        if c.is_nan() {
-            return None;
-        }
-        lo = lo.min(c);
-        hi = hi.max(c);
-    }
-    Some((lo + shift, hi + shift))
-}
-
 /// The certified-conservative box of a **circular arc**: the carrier's
 /// `Circle` frame over the certified span `[theta0, theta1]`, seeded
 /// with the arc's (certified) endpoint points `end0`/`end1`.
 ///
-/// Closed form, outward-only (the private `Brk` outward bracket): per
-/// world axis the coordinate
-/// is `cᵢ + r·Aᵢ·cos(θ − φᵢ)` with amplitude `Aᵢ = √(uᵢ² + vᵢ²)`
-/// (`v = axis × u_ref`, computed bracket-wise), so the span extremum on
-/// that axis is `cᵢ ± r·Aᵢ` — included exactly when the extremal angle
-/// `φᵢ = atan2(vᵢ, uᵢ)` (or `φᵢ + π`) possibly lies in the span
-/// (`ANGLE_SLOP`-widened, conservative-inclusive); otherwise the
-/// endpoint hull already bounds the monotone piece. The endpoints
-/// enter as brackets; residual padding (vertices sit on carriers only
-/// up to certification) is the CALLER's `Aabb::padded` obligation,
-/// exactly as for vertex-extent boxes.
+/// Per world axis the coordinate is `cᵢ + r·uᵢ·cos t + r·vᵢ·sin t`
+/// (`v = axis × u_ref`), whose extent over the span is the
+/// [`ArcWindow`] closed form: `cᵢ ± r·√(uᵢ² + vᵢ²)` where that
+/// extremum lies in the span, an end's value where it does not. It is
+/// evaluated at [`Interval`] over every scalar's bracket, so a
+/// bracketed radius, frame or span yields a box containing every
+/// realization. The endpoints enter as brackets; residual padding
+/// (vertices sit on carriers only up to certification) is the
+/// CALLER's `Aabb::padded` obligation, exactly as for vertex-extent
+/// boxes.
 ///
 /// `None` when `carrier` is not a `Circle` (the caller named the wrong
 /// lane — refuse loudly rather than guess). Poison anywhere yields
@@ -201,115 +337,20 @@ pub fn circle_arc_aabb<T: Bounds>(
     end0: Point3<T>,
     end1: Point3<T>,
 ) -> Option<Aabb> {
-    let Curve3::Circle {
-        center,
-        axis,
-        radius,
-        u_ref,
-    } = carrier
-    else {
-        return None;
-    };
-    // Endpoint hull: always inside the box (2 points — never empty).
-    let mut b = Aabb::from_points([end0, end1]).unwrap_or_else(Aabb::poison);
-
-    let r = Brk::of(*radius);
-    let (ax, ay, az) = (Brk::of(axis.x), Brk::of(axis.y), Brk::of(axis.z));
-    let (ux, uy, uz) = (Brk::of(u_ref.x), Brk::of(u_ref.y), Brk::of(u_ref.z));
-    // v = axis × u_ref, bracket-wise (the same fixed component order as
-    // `Vec3::cross`).
-    let vx = ay.mul(uz).sub(az.mul(uy));
-    let vy = az.mul(ux).sub(ax.mul(uz));
-    let vz = ax.mul(uy).sub(ay.mul(ux));
-
-    // The slop-widened span (orientation-normalized outward). On a
-    // DESCENDING run at a wide scalar these are the INNER ends of the
-    // two brackets; the range is still covered because the endpoint
-    // hull above enters both ends as whole brackets — that seed is
-    // load-bearing for span coverage, not a convenience.
-    let (s0, s1) = (theta0.lo(), theta1.hi());
-    let lo = pfold(s0, s1, f64::min) - ANGLE_SLOP;
-    let hi = pfold(s0, s1, f64::max) + ANGLE_SLOP;
-
-    axis_extremum(
-        &mut b.min_x,
-        &mut b.max_x,
-        Brk::of(center.x),
-        ux,
-        vx,
-        r,
-        lo,
-        hi,
-    );
-    axis_extremum(
-        &mut b.min_y,
-        &mut b.max_y,
-        Brk::of(center.y),
-        uy,
-        vy,
-        r,
-        lo,
-        hi,
-    );
-    axis_extremum(
-        &mut b.min_z,
-        &mut b.max_z,
-        Brk::of(center.z),
-        uz,
-        vz,
-        r,
-        lo,
-        hi,
-    );
-    Some(b)
+    Some(conic_frame_aabb(
+        ConicFrame::circle(carrier)?,
+        theta0,
+        theta1,
+        end0,
+        end1,
+    ))
 }
 
-/// One world axis of [`circle_arc_aabb`]: extends `[min, max]` by the
-/// axis extremum `c ± r·√(u² + v²)` when its angle possibly lies in
-/// the (widened) span.
-#[allow(clippy::too_many_arguments)] // one bracket per named quantity
-fn axis_extremum(min: &mut f64, max: &mut f64, c: Brk, u: Brk, v: Brk, r: Brk, lo: f64, hi: f64) {
-    let amp = r.mul(u.mul(u).add(v.mul(v)).sqrt_nonneg());
-    // The extremal angle as an INTERVAL over the bracket corners
-    // (wide input brackets shift the extremum by up to the bracket's
-    // angular width — a midpoint angle would under-cover exactly
-    // there); ANGLE_SLOP still absorbs libm error and the membership
-    // arithmetic. `None` = no exclusion possible: include both.
-    let (include_max, include_min) = match extremal_angle_interval(u, v) {
-        None => (true, true),
-        Some((p_lo, p_hi)) => (
-            crate::periodic_window_may_hold((p_lo, p_hi), (lo, hi), core::f64::consts::TAU),
-            crate::periodic_window_may_hold(
-                (p_lo + core::f64::consts::PI, p_hi + core::f64::consts::PI),
-                (lo, hi),
-                core::f64::consts::TAU,
-            ),
-        ),
-    };
-    if include_max {
-        *max = pfold(*max, c.add(amp).hi, f64::max);
-    }
-    if include_min {
-        *min = pfold(*min, c.sub(amp).lo, f64::min);
-    }
-}
-
-/// The certified-conservative box of an **ellipse arc** (M5 PR 5): the
-/// carrier's `Ellipse` frame over the certified span
-/// `[theta0, theta1]`, seeded with the arc's certified endpoints —
-/// [`circle_arc_aabb`]'s corner-evaluated extremal-interval shape,
-/// generalized.
-///
-/// Per world axis the coordinate is
-/// `cᵢ + major·uᵢ·cos θ + minor·vᵢ·sin θ = cᵢ + Aᵢ·cos(θ − φᵢ)` with
-/// amplitude `Aᵢ = √((major·uᵢ)² + (minor·vᵢ)²)` and extremal angle
-/// `φᵢ = atan2(minor·vᵢ, major·uᵢ)` — exactly the circle formula with
-/// the frame components pre-scaled by the semi-axes. The same
-/// wide-bracket rules apply verbatim: the extremal angle is evaluated
-/// as an INTERVAL over the scaled-bracket corners, branch-cut wedges
-/// (and possibly-origin rectangles) include BOTH extrema, span
-/// membership is `ANGLE_SLOP`-widened and conservative-inclusive, and
-/// poison flows to the poison box.
+/// The certified-conservative box of an **ellipse arc**: the carrier's
+/// `Ellipse` frame over the certified span `[theta0, theta1]`, seeded
+/// with the arc's certified endpoints — [`circle_arc_aabb`] with the
+/// frame components scaled by their semi-axes, per world axis
+/// `cᵢ + major·uᵢ·cos t + minor·vᵢ·sin t`.
 ///
 /// `None` when `carrier` is not an `Ellipse` (wrong lane — refuse
 /// loudly rather than guess). Residual padding stays the caller's
@@ -321,73 +362,13 @@ pub fn ellipse_arc_aabb<T: Bounds>(
     end0: Point3<T>,
     end1: Point3<T>,
 ) -> Option<Aabb> {
-    let Curve3::Ellipse {
-        center,
-        axis,
-        semi_u,
-        semi_v,
-        u_ref,
-    } = carrier
-    else {
-        return None;
-    };
-    // Endpoint hull: always inside the box (2 points — never empty).
-    let mut b = Aabb::from_points([end0, end1]).unwrap_or_else(Aabb::poison);
-
-    let a = Brk::of(*semi_u);
-    let bm = Brk::of(*semi_v);
-    let (ax, ay, az) = (Brk::of(axis.x), Brk::of(axis.y), Brk::of(axis.z));
-    let (ux, uy, uz) = (Brk::of(u_ref.x), Brk::of(u_ref.y), Brk::of(u_ref.z));
-    // v = axis × u_ref, bracket-wise (the same fixed component order as
-    // `Vec3::cross`).
-    let vx = ay.mul(uz).sub(az.mul(uy));
-    let vy = az.mul(ux).sub(ax.mul(uz));
-    let vz = ax.mul(uy).sub(ay.mul(ux));
-
-    // The slop-widened span (orientation-normalized outward). On a
-    // DESCENDING run at a wide scalar these are the INNER ends of the
-    // two brackets; the range is still covered because the endpoint
-    // hull above enters both ends as whole brackets — that seed is
-    // load-bearing for span coverage, not a convenience.
-    let (s0, s1) = (theta0.lo(), theta1.hi());
-    let lo = pfold(s0, s1, f64::min) - ANGLE_SLOP;
-    let hi = pfold(s0, s1, f64::max) + ANGLE_SLOP;
-
-    // Pre-scale the frame brackets by the semi-axes; the unit `r`
-    // bracket keeps `axis_extremum`'s amplitude arithmetic outward
-    // (an extra [1, 1] multiply only ever widens).
-    let unit = Brk { lo: 1.0, hi: 1.0 };
-    axis_extremum(
-        &mut b.min_x,
-        &mut b.max_x,
-        Brk::of(center.x),
-        a.mul(ux),
-        bm.mul(vx),
-        unit,
-        lo,
-        hi,
-    );
-    axis_extremum(
-        &mut b.min_y,
-        &mut b.max_y,
-        Brk::of(center.y),
-        a.mul(uy),
-        bm.mul(vy),
-        unit,
-        lo,
-        hi,
-    );
-    axis_extremum(
-        &mut b.min_z,
-        &mut b.max_z,
-        Brk::of(center.z),
-        a.mul(uz),
-        bm.mul(vz),
-        unit,
-        lo,
-        hi,
-    );
-    Some(b)
+    Some(conic_frame_aabb(
+        ConicFrame::ellipse(carrier)?,
+        theta0,
+        theta1,
+        end0,
+        end1,
+    ))
 }
 
 /// The certified-conservative box of a SPIRIC arc — the whole

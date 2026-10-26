@@ -291,8 +291,12 @@ fn row1_a_coaxial_slid_and_clocked_pair_is_determined_and_evaluates() {
 
     let ev = run(&doc, &o);
     assert!(matches!(ev.result(ids[1]), Some(NodeResult::Ok(_))));
-    let body = product(&doc, &ev, Tol::witness()).expect("the product gathers");
-    let volume = topo::test_support::unmigrated_measure(&body, Tol::witness())
+    let body = topo::test_support::finished(
+        "body",
+        product(&doc, &ev, Tol::witness()).expect("the product gathers"),
+        Tol::witness(),
+    );
+    let volume = topo::mass_properties(&body, Tol::witness())
         .expect("mass properties")
         .volume;
     assert!(
@@ -316,8 +320,12 @@ fn row1_evaluation_and_save_bytes_are_bit_identical_across_runs() {
     let first = run(&doc, &o);
     let second = run(&doc, &o);
     let volume = |ev: &Evaluation<f64>| {
-        let body = product(&doc, ev, Tol::witness()).expect("gathers");
-        topo::test_support::unmigrated_measure(&body, Tol::witness())
+        let body = topo::test_support::finished(
+            "body",
+            product(&doc, ev, Tol::witness()).expect("gathers"),
+            Tol::witness(),
+        );
+        topo::mass_properties(&body, Tol::witness())
             .expect("props")
             .volume
     };
@@ -777,8 +785,12 @@ fn row6c_the_gather_takes_the_placements_alone() {
         ids.len() + 1,
         "the constraints are no nodes: the two instances, and the `⊔` the product reads"
     );
-    let body = product(&doc, &ev, Tol::witness()).expect("the product gathers");
-    let volume = topo::test_support::unmigrated_measure(&body, Tol::witness())
+    let body = topo::test_support::finished(
+        "body",
+        product(&doc, &ev, Tol::witness()).expect("the product gathers"),
+        Tol::witness(),
+    );
+    let volume = topo::mass_properties(&body, Tol::witness())
         .expect("props")
         .volume;
     assert!(

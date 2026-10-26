@@ -203,9 +203,12 @@ fn assert_pose(pose: &str, m: [f64; 3]) {
     );
     let cube = finished("the cube", cube_beyond(m));
     let vol = |b: &Body<f64>| {
-        topo::test_support::unmigrated_measure(b, tol())
-            .unwrap()
-            .volume
+        topo::mass_properties(
+            &topo::test_support::finished("the measured body", topo::Body::clone(b), tol()),
+            tol(),
+        )
+        .unwrap()
+        .volume
     };
     let (va, vb, shared) = (vol(&prism), vol(&cube), prism_beyond(m));
     let (pa, pb) = (prism_pieces(), cube_pieces(m));

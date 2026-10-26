@@ -49,7 +49,11 @@ fn census(body: &Body<f64>) -> (usize, usize, usize) {
 }
 
 fn volume(body: &Body<f64>) -> f64 {
-    let p = topo::test_support::unmigrated_measure(body, tol()).expect("closed-form props");
+    let p = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
+        tol(),
+    )
+    .expect("closed-form props");
     assert_eq!(p.volume_pad, 0.0, "the inventory is closed-form");
     p.volume
 }

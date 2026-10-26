@@ -24,10 +24,10 @@
 //! - **The seamless band** (M7-5). A cylinder or torus lateral face
 //!   stated as its two full-period rim bounds with NO seam generator
 //!   at all. The kernel's face model is one outer loop plus rings,
-//!   and a ring that winds the chart's period is a loop tier 3's
-//!   pcurve mint refuses (`topo::PcurveMintError::LoopWraps`), so
-//!   adopting the second rim as a ring would hand back a body that is
-//!   not tier-3 valid. Detection tags
+//!   and a ring that winds the chart's period is a loop whose chart
+//!   walk does not close on its start (`topo::loop_windings`), so
+//!   adopting the second rim as a ring would hand back a face that
+//!   does not lift to a disc of its chart. Detection tags
 //!   the shape at the face gate ([`crate::entities`]); [`band_seam`]
 //!   re-mints it here.
 //!

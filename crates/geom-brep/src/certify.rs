@@ -54,17 +54,17 @@
 
 use geom::Curve3;
 use geom::Surface;
+use geom_core::period::{Exact, Extent, NotForward, Period, Turn, TurnRows, TurnUndecided, Within};
 use geom_core::spline::SpanLocate;
 use geom_core::{
-    Band, BandError, Decide, Decided, Indeterminate, InfSpeed, Margin, MarginDiag, Point3, Real,
-    Sign,
+    Band, BandError, Decide, Decided, Indeterminate, Margin, MarginDiag, Point3, Real, Sign,
 };
 
 use crate::description::{
     ChartCurve, EdgeAuthority, EdgeDescription, EdgeDescriptionSpec, SurfacePair, authority_of,
 };
 use crate::dihedral::{
-    DihedralClass, WedgeEscalation, decide, decide_positive, decide_reported, wedge_decided,
+    DihedralClass, WedgeEscalation, decide_positive, decide_reported, wedge_decided,
 };
 use crate::implicit::implicit_residual;
 use crate::keys::SurfaceKey;
@@ -156,10 +156,11 @@ pub enum CertCheck {
     /// interval by; its definite failure is
     /// [`CertifyError::SpanMeterCollapsed`].
     ParamSpanMeter,
-    /// A periodic carrier's stored arc leaves headroom to one full turn —
-    /// named on escalations of that decision; its definite
-    /// failure is [`CertifyError::WindingExceeded`], which every public
-    /// door reports as its input's [`CertifyError::StatedInterval`].
+    /// A periodic carrier's stored arc is not over one full turn — short
+    /// of one or a whole one ([`geom_core::period::Period::turn`]) — named
+    /// on escalations of that decision; its definite failure is
+    /// [`CertifyError::WindingExceeded`], which every public door reports
+    /// as its input's [`CertifyError::StatedInterval`].
     ParamWinding,
     /// The edge's chart image on a spline wall (an arc rim's exact image,
     /// [`crate::pcurve_cache::PcurveCheck::ParamSpan`]) runs forward over
@@ -1040,7 +1041,11 @@ pub enum WindingReading {
     /// Decided past the band ([`CertifyError::WindingExceeded`]), which
     /// keeps no number.
     Exceeded,
-    /// In band wholly on the refused side ([`CertifyError::Escalated`]).
+    /// Undecided with its margin wholly on the refused side, an overlap
+    /// past a turn ([`CertifyError::Escalated`]). A turn left unsettled
+    /// with its margin not wholly over — a short edge whose two readings
+    /// straddle the band — is no reading of the input's, and stays the
+    /// check's own escalation.
     InBand(Indeterminate),
 }
 
@@ -1750,7 +1755,48 @@ pub struct Certificate<T: Real> {
     /// arms move in opposite directions with scale — never laundered
     /// by re-associating a meter to make a number match.
     pub max_residual: T,
+    /// Where the edge's extent stands against one period of its
+    /// carrier, as check 2 decided it: `None` on a carrier with no
+    /// period (a line, a spline).
+    pub turn: Option<CertifiedTurn<T>>,
 }
+
+/// **A certified edge's turn**: its parameter interval, its extent
+/// decided forward from that interval, and where the extent stands
+/// against one period ([`Within`]) — never over one, which does not
+/// certify. Minted by check 2 alone, so a reader of a conic span reads
+/// the interval and its extent from one source.
+#[derive(Clone, Copy, Debug)]
+pub struct CertifiedTurn<T> {
+    params: (T, T),
+    extent: Extent<T>,
+    turn: Within,
+}
+
+impl<T: Copy> CertifiedTurn<T> {
+    /// The certified interval `(param_start, param_end)`.
+    pub fn params(&self) -> (T, T) {
+        self.params
+    }
+
+    /// The edge's extent, `param_end − param_start`, decided forward.
+    pub fn extent(&self) -> Extent<T> {
+        self.extent
+    }
+
+    /// Where the extent stands against one period.
+    pub fn turn(&self) -> Within {
+        self.turn
+    }
+}
+
+/// Check 2's forward row, every carrier's.
+const FORWARD_ROW: &str = "interval_span_forward";
+
+/// Check 2's winding rows: the headroom to one period, and the straddle
+/// of a bounded rate's two readings.
+const WINDING_ROWS: TurnRows<&str> =
+    TurnRows::bounded("interval_span_winding", "interval_span_winding_straddle");
 
 /// A certified edge carrier: the intensional description, its cached
 /// [`Curve3`] carrier with the certified parameter interval, and the
@@ -1806,11 +1852,17 @@ impl<T: Decide> EdgeCurve<T> {
     ///    carriers, metering radians into meters) is definitely
     ///    positive ([`CertifyError::IntervalNotForward`] otherwise —
     ///    decreasing *and* degenerate zero-span intervals refuse); for
-    ///    circle carriers additionally `(τ − Δt)·r` is not definitely
-    ///    negative ([`CertifyError::WindingExceeded`]) — at most one
-    ///    full period, which closes the 9-sample `8kτ` winding-alias
-    ///    family (see that variant's docs). In-band/poisoned span
-    ///    margins escalate under [`CertCheck::ParamSpan`]. The interval
+    ///    periodic carriers additionally the extent is not over one
+    ///    turn ([`geom_core::period::Period::turn`]: `(τ − Δt)` at the
+    ///    circle's radius, or between an ellipse's or a spiric's speed
+    ///    floor and its sup over the turn's defect;
+    ///    [`CertifyError::WindingExceeded`] where it is over) — at most
+    ///    one full period, which closes the 9-sample `8kτ` winding-alias
+    ///    family (see that variant's docs) — and the certificate keeps
+    ///    whether it is short of a turn or a whole one
+    ///    ([`Certificate::turn`]). In-band/poisoned span margins
+    ///    escalate under [`CertCheck::ParamSpan`], an unsettled turn
+    ///    under [`CertCheck::ParamWinding`]. The interval
     ///    is this door's input, so a reading certainly on either check's
     ///    refused side refuses as [`CertifyError::StatedInterval`], here
     ///    and at every re-certification ([`EdgeCurve::recertify`]). A spline
@@ -3371,16 +3423,15 @@ fn run_checks<T: Decide>(
     let mut max_residual = T::zero();
     let (t0, t1) = (spec.param_start, spec.param_end);
 
-    // ---- Check 2: interval span (forward direction; circle winding
-    // bound) — see the check-sequence docs. Spans are metered as arc
-    // length so they classify against the linear band like every other
-    // margin (dimensional honesty). Every arm is the CARRIER'S OWN
-    // parameter rate — a circle's radius, an ellipse's minor
-    // semi-axis, a net's `speed_lower_bound` — so every arm here is an
-    // `InfSpeed` through the metric door, the same numbers
-    // `pcurve_cache::param_rate` mints for the same kinds. All three
-    // claims are "definitely apart" (forward, or headroom to one
-    // period), which is the inf side.
+    // ---- Check 2: interval span (forward direction; winding bound) —
+    // see the check-sequence docs. Spans are metered as arc length so
+    // they classify against the linear band like every other margin
+    // (dimensional honesty). The forward claim is "definitely apart",
+    // the inf side, at the CARRIER'S OWN parameter rate — a circle's
+    // radius, an ellipse's smaller semi-axis, a spiric's minor radius,
+    // a net's `speed_lower_bound` — the numbers `pcurve_cache::param_rate`
+    // mints for the same kinds. The winding bound is the turn rule
+    // (`geom_core::period`), whose `Whole` reads the sup side.
     let span = t1 - t0;
     // The span decision runs once, before the schedule: not a sample.
     let span_escalated = |cause: Indeterminate| CertifyError::Escalated {
@@ -3388,67 +3439,70 @@ fn run_checks<T: Decide>(
         sample: NOT_A_SAMPLE,
         cause,
     };
+    let not_forward = |refused: NotForward| match refused {
+        NotForward::Undecided(cause) => span_escalated(cause),
+        NotForward::Zero(margin) => CertifyError::IntervalNotForward {
+            verdict: Refused::Zero(Classified { margin, band }),
+        },
+        NotForward::Reversed(margin) => CertifyError::IntervalNotForward {
+            verdict: Refused::Negative { margin },
+        },
+    };
     let forward = |span: Margin<T>| -> Result<(), CertifyError> {
-        let decided =
-            decide_reported("interval_span_forward", span, band).map_err(span_escalated)?;
+        let decided = decide_reported(FORWARD_ROW, span, band).map_err(span_escalated)?;
         match Refused::of(decided, band) {
             None => Ok(()),
             Some(verdict) => Err(CertifyError::IntervalNotForward { verdict }),
         }
     };
-    let winding_escalated = |cause: Indeterminate| CertifyError::Escalated {
-        check: CertCheck::ParamWinding,
-        sample: NOT_A_SAMPLE,
-        cause,
+    // Zero (exactly a full period, the scaffolding/rim case) and Positive
+    // (a partial arc) certify, and the certificate keeps which; Over is
+    // the alias family. A turn the rule cannot settle escalates.
+    let wound = |turn: Result<Turn, TurnUndecided>| match turn {
+        Ok(turn) => turn.within().ok_or(CertifyError::WindingExceeded),
+        Err(undecided) => Err(CertifyError::Escalated {
+            check: CertCheck::ParamWinding,
+            sample: NOT_A_SAMPLE,
+            cause: undecided.diag,
+        }),
     };
-    // The ellipse's and the spiric's span check, at the speed floor
-    // each arm below reads.
-    let span_at_floor = |floor: T| -> Result<(), CertifyError> {
-        let rate = InfSpeed::new(floor);
-        forward(Margin::metered(span, rate))?;
-        let headroom = Margin::metered(T::tau() - span, rate);
-        match decide("interval_span_winding", headroom, band).map_err(winding_escalated)? {
-            Sign::Positive | Sign::Zero => {}
-            Sign::Negative => return Err(CertifyError::WindingExceeded),
+    let one_turn = Period::new(T::tau());
+    // A periodic carrier's span is forward at the carrier's speed floor
+    // (`geom::carrier_speed::speed_floor`, the one spelling the conic
+    // readers share): a circle's radius; an ellipse's smaller semi-axis
+    // magnitude (|dP/dθ| ≥ min(a, b), so the span times it is a
+    // certified lower bound on the child's arc length — the semi-axes'
+    // ORDER is not this gate's to decide, `Conic` — with a non-positive
+    // `minor` refused as `IntervalNotForward`, a door's `StatedInterval`,
+    // and a negative `major` (its `u_ref` flipped, the same locus)
+    // admitted as it always has, for tier 3 to refuse on its value); a
+    // spiric's MINOR radius (`|dP/dv| ≥ r`). The winding bound is the
+    // 8kτ sample-alias argument about the parameter period, which all
+    // three share.
+    let turn = match &spec.carrier {
+        periodic @ (Curve3::Circle { .. } | Curve3::Ellipse { .. } | Curve3::Spiric { .. }) => {
+            let Some(floor) = geom::carrier_speed::speed_floor(periodic) else {
+                unreachable!("check 2: `speed_floor` answers every periodic carrier")
+            };
+            let extent = Extent::forward(FORWARD_ROW, t0, t1, floor, band).map_err(not_forward)?;
+            let turn = if let Curve3::Circle { .. } = periodic {
+                let rows = TurnRows::exact(WINDING_ROWS.turn);
+                one_turn.turn(rows, extent, Exact::new(floor.get()), band)
+            } else {
+                // The ellipse and the spiric read the turn between the
+                // inf and the sup over the turn's defect of this window.
+                let rate = geom::carrier_speed::turn_defect_rate(periodic, t0, extent);
+                one_turn.turn(WINDING_ROWS, extent, rate, band)
+            };
+            Some(CertifiedTurn {
+                params: (t0, t1),
+                extent,
+                turn: wound(turn)?,
+            })
         }
-        Ok(())
-    };
-    match &spec.carrier {
-        Curve3::Circle { radius, .. } => {
-            let rate = InfSpeed::new(*radius);
-            forward(Margin::metered(span, rate))?;
-            // Winding bound: the remaining headroom to one full period.
-            // Zero (exactly full period, the scaffolding/rim case) and
-            // Positive (a partial arc) both pass; definitely negative
-            // is the alias family.
-            let headroom = Margin::metered(T::tau() - span, rate);
-            match decide("interval_span_winding", headroom, band).map_err(winding_escalated)? {
-                Sign::Positive | Sign::Zero => {}
-                Sign::Negative => return Err(CertifyError::WindingExceeded),
-            }
-        }
-        // Ellipse spans are metered at the SMALLER semi-axis — the
-        // conservative meter (|dP/dθ| ≥ min(a, b), so the span times it
-        // is a certified lower bound on the child's arc length: a span
-        // this gate accepts as forward is truly forward, and
-        // near-threshold spans escalate rather than sneak through). The
-        // semi-axes' ORDER is not this gate's to decide (`Conic`); for a
-        // frame stored in the ordinary order the meter is `minor`. The
-        // same winding bound applies: the 8kτ sample-alias argument is
-        // about the parameter period, which the ellipse shares with the
-        // circle. A spiric's speed floor is its MINOR radius
-        // (`|dP/dv| ≥ r`, the variant docs) and its period is the same
-        // 2π, so it takes this arm at that meter.
-        // The floor is `min(|major|, minor)`: a frame stored in either
-        // order is metered at its smaller magnitude, and a non-positive
-        // `minor` makes the floor non-positive, so the span is refused
-        // (`IntervalNotForward`, a door's `StatedInterval`). A
-        // negative `major` (its `u_ref` flipped, the same locus) it
-        // admits, as it always has; tier 3 refuses it on its value.
-        Curve3::Ellipse { semi_u, semi_v, .. } => span_at_floor(semi_u.abs().min(*semi_v))?,
-        Curve3::Spiric { minor_radius, .. } => span_at_floor(*minor_radius)?,
         Curve3::Line { .. } => {
             forward(Margin::of(span))?;
+            None
         }
         // Rung-3 carriers (M5 PR 9): the span is metered through the
         // certified speed lower bound (`m/parameter`, the split-meter
@@ -3493,8 +3547,9 @@ fn run_checks<T: Decide>(
                 }
             })?;
             forward(Margin::metered(span, meter))?;
+            None
         }
-    }
+    };
 
     // ---- Check 3: endpoint pinning. ----
     check_residual(
@@ -4161,6 +4216,7 @@ fn run_checks<T: Decide>(
         Certificate {
             samples: CERT_SAMPLES,
             max_residual,
+            turn,
         },
         canonical,
     ))
