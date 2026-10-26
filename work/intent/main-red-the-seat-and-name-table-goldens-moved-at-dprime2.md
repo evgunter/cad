@@ -49,10 +49,15 @@ Two cases:
 - If it did not, the body or the name table it changed is found and
   fixed.
 
+## One more failure on main (CLEAVE, 2026-10-26)
+
+`crates/editor-core/tests/intent_s2_c_world.rs`, `the_migrated_world_is_the_pre_c_product`, fails on main at `bc060f246f` with "cut_cylinder: the product moved d2acb2b37c5273db/28". CLEAVE's PR 5545 lane measured it while running editor-core in full, and it fails the same on main without the branch. The same lane saw `m4_pr3_names_ci::die_name_tables_are_golden` at digest `0x7fb3623b41caf7c9`, which this row already lists. This row does not yet say whether the cut-cylinder golden moved for the same reason as the name tables.
+
 ## Closed by D′3 (PR 5636)
 
 D′3 re-pins these rows over its own moves and main's merge at `1235f4c050`, with `m10_p_fence`'s ids-masked row holding on its head, so no point moved under D′3 or the merge:
 - the five goldens (`seat4` blend and boolean, `seat7` sweep, `seat8` split, and `m4_pr3_names_ci`'s table and names-only die digests);
-- `seat7`'s `boss_union` and `kitchen_sink`, which moved with them.
+- `seat7`'s `boss_union` and `kitchen_sink`, which moved with them;
+- `intent_s2_c_world`'s `cut_cylinder` product row (the CLEAVE note above), whose move is main's plane pose (`34a2e26e61`), ported with a note naming it.
 
 Each pin's note names the move. Whether each of D′2's own moves was meant is PR 5613's record; the digests here do not separate a body move from a name move.

@@ -99,12 +99,8 @@ decisions! {
     PatternStep => crate::eval::PATTERN_STEP, LEVER;
     /// How many whole turns a circular pattern's step holds: an angle.
     PatternStepTurn => crate::eval::PATTERN_STEP_TURN, LEVER;
-    /// The order of two crossings along an edge: a curve parameter.
-    OrderAlong => crate::names::ORDER_ALONG, LEVER;
     /// A point's place along a member edge: a distance in the result.
     OnMemberEdge => crate::names::ON_MEMBER_EDGE, SIZED;
-    /// Whether a point lies on a seam's line: a distance in the result.
-    OnSeamLine => crate::names::ON_SEAM_LINE, SIZED;
     /// Whether a chord lies on its rim: a distance in the result.
     ChordOnRim => crate::names::CHORD_ON_RIM, SIZED;
     /// A distance from a plane against a stated value: a length the user
@@ -289,34 +285,6 @@ mod undecided_text {
              near-coincidence; Recourse: move the geometry, or, if this size is intended, tighten \
              the tolerance below 5e-10 m. Recourse: give the rotation axis a direction of nonzero \
              length"
-        );
-    }
-
-    /// **The order of two crossings along an edge ends in the lever**:
-    /// its margin is a curve parameter, no size the user chose.
-    #[test]
-    fn namings_order_along_an_edge_ends_in_the_lever() {
-        check(
-            "naming, order along",
-            |m| {
-                NamingError::Escalated {
-                    predicate: crate::names::ORDER_ALONG,
-                    source: at(crate::names::ORDER_ALONG, m),
-                }
-                .to_string()
-            },
-            [
-                "the order of two crossings along an edge, which a name rests on, is undecided: \
-                 margin 5e-9 lies inside the ambiguity band (1e-9, 1e-8). Recourse: move the \
-                 geometry",
-                "the order of two crossings along an edge, which a name rests on, is undecided: \
-                 enclosure [-2e-9, 5e-9] cannot be classified against the ambiguity band (1e-9, \
-                 1e-8). Recourse: move the geometry",
-                "the order of two crossings along an edge, which a name rests on, is undecided: \
-                 margin is invalid (NaN or a refused enclosure) against the ambiguity band \
-                 (1e-9, 1e-8). Recourse: move the geometry; an unreadable margin may indicate a \
-                 kernel bug worth reporting",
-            ],
         );
     }
 

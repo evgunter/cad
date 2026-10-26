@@ -16,9 +16,6 @@
 //!   combinatorially indistinguishable — that is what a tie means — so
 //!   the tied set expressed in names is the tie row itself, and the
 //!   [`TieWitness`] carries the multiplicity and site).
-//! - The documented `rank_by` over-tie widens: a reference to a
-//!   RANKED fragment name whose group over-tied resolves `Ambiguous`
-//!   with the WIDENED base name as the candidate — never a mis-bind.
 //! - N3's offered candidates (a retired constituent's merged name; a
 //!   vanished merged name's constituents) ride NEXT TO the N5 error,
 //!   not inside it: [`ResolutionFailure::offers`] wraps the verbatim
@@ -119,8 +116,7 @@ pub enum ResolveError {
         /// The referenced name.
         name: StableName,
         /// The distinct names the tied set answers to (module docs:
-        /// the tie row itself, or the widened base on an
-        /// `rank_by` over-tie).
+        /// the tie row itself).
         candidates: Vec<StableName>,
         /// The recorded tie's site and width.
         tie: TieWitness,
@@ -367,19 +363,16 @@ impl ResolveError {
     ///
     /// The tie row IS the ambiguity (N5), so the candidates are that
     /// row expressed in names and are derived from the witness here
-    /// rather than restated per door. `at` is the referenced name
-    /// itself, except on an `rank_by` over-tie, where it is the
-    /// widened base row the reference actually tied against.
-    pub(crate) fn ambiguous(
-        name: &StableName,
-        at: StableName,
-        node: RecipeNodeId,
-        width: usize,
-    ) -> Self {
+    /// rather than restated per door: the referenced name itself.
+    pub(crate) fn ambiguous(name: &StableName, node: RecipeNodeId, width: usize) -> Self {
         Self::Ambiguous {
             name: name.clone(),
-            candidates: vec![at.clone()],
-            tie: TieWitness { node, at, width },
+            candidates: vec![name.clone()],
+            tie: TieWitness {
+                node,
+                at: name.clone(),
+                width,
+            },
         }
     }
 
@@ -503,8 +496,8 @@ pub enum Diagnosis {
 /// A CUTTER is the operand entity on the other side of a `Seam` row
 /// spelled on the group's parent: the seam EDGES a face group's parent
 /// meets, the seam VERTICES an edge group's parent meets. Matched on the
-/// `Seam { a, b }` pair, never on the row, so a seam that is ranked or
-/// tied in one run and single in the other is the same cutter in both.
+/// `Seam { a, b }` pair, never on the row, so a seam that is in pieces
+/// or tied in one run and single in the other is the same cutter in both.
 ///
 /// A seam is a crossing, not a division: a contact that only trims or
 /// notches the parent spells one as well as a contact that divides it,
@@ -1019,8 +1012,7 @@ impl ResolveRefusal {
 pub struct TieWitness {
     /// The node whose table records the tie.
     pub node: RecipeNodeId,
-    /// The tied table row (the referenced name itself, or the widened
-    /// base name on an `rank_by` over-tie).
+    /// The tied table row.
     pub at: StableName,
     /// How many equally-admissible candidates tie there.
     pub width: usize,
@@ -1279,7 +1271,7 @@ fn enrich_impl<T: Decide, P: PriorCtx>(
             .find(|entry| matches!(entry, Entry::Tied(_)))
     {
         return Resolution::Failed(ResolutionFailure {
-            error: ResolveError::ambiguous(&loss.name, loss.name.clone(), *at, ents.len()),
+            error: ResolveError::ambiguous(&loss.name, *at, ents.len()),
             offers: Vec::new(),
         });
     }
@@ -1690,31 +1682,16 @@ fn resolve_rungs<T: Decide, P: PriorCtx>(
         }
         Some((carrier, Entry::Tied(ents))) => {
             return Resolution::Failed(ResolutionFailure {
-                error: ResolveError::ambiguous(name, name.clone(), carrier.node, ents.len()),
+                error: ResolveError::ambiguous(name, carrier.node, ents.len()),
                 offers: Vec::new(),
             });
         }
         None => {}
     }
 
-    // 3. The `rank_by` over-tie widening (spec D1): a ranked
-    //    fragment reference whose group over-tied resolves Ambiguous
-    //    against the WIDENED base row — never a mis-bind.
+    // 3. A vanished piece's undivided survivor, offered.
     let mut offers = Vec::new();
-    if let Some(base) = widened_base(name) {
-        match here(&base) {
-            Some((carrier, Entry::Tied(ents))) => {
-                return Resolution::Failed(ResolutionFailure {
-                    error: ResolveError::ambiguous(name, base, carrier.node, ents.len()),
-                    offers: Vec::new(),
-                });
-            }
-            // The group collapsed to a single fragment: the ranked
-            // name is gone; the surviving base is the offer.
-            Some((_, Entry::Unique(_))) => offers.push(base),
-            None => {}
-        }
-    } else if let Some(line) = piece_line(name) {
+    if let Some(line) = piece_line(name) {
         // An edge piece's base is its line, which no table publishes:
         // the surviving pieces of the line are offered (N5, "A cited
         // line"), the undivided edge among them where it is one row.
@@ -1723,11 +1700,11 @@ fn resolve_rungs<T: Decide, P: PriorCtx>(
                 offers.push((**row).clone());
             }
         }
-    } else if let Some(base) = unqualified(name)
+    } else if let Some(base) = fragment_base(name)
         // The same collapse for a face piece: the undivided survivor is
-        // offered for an explicit `Rebind`, never bound. There is no
-        // over-tie to widen to here — a `Borders` or `Keeps` tie is a
-        // row of the QUALIFIED name, which step 2 already answered.
+        // offered for an explicit `Rebind`, never bound. A `Borders` or
+        // `Keeps` tie is a row of the QUALIFIED name, which step 2
+        // already answered.
         && matches!(here(&base), Some((_, Entry::Unique(_))))
     {
         offers.push(base);
@@ -1743,7 +1720,7 @@ fn resolve_rungs<T: Decide, P: PriorCtx>(
     //    the diagnosis ladder.
     offers.extend(merge_offers(new.eval, name));
     if name.kind == EntityKind::Edge
-        && let Some(base) = unqualified(name)
+        && let Some(base) = fragment_base(name)
     {
         for offer in merge_offers(new.eval, &base) {
             if !offers.contains(&offer) {
@@ -1854,9 +1831,8 @@ fn retired_into_a_live_merge<T: Decide>(eval: &Evaluation<T>, name: &StableName)
 /// would leave an empty path (never emitted: a qualifier always
 /// follows a parent-bearing segment, N2).
 ///
-/// The one spelling of the pop. [`unqualified`] and [`widened_base`]
-/// are this, restricted to one qualifier kind each, and
-/// [`group_resized`] is this unrestricted.
+/// What the SAME group is called once it stops being multi-fragment,
+/// and therefore the current-run counterpart of a vanished piece.
 fn fragment_base(name: &StableName) -> Option<StableName> {
     if !matches!(name.path.last(), Some(RoleSeg::Fragment(_))) {
         return None;
@@ -1954,25 +1930,6 @@ fn cited_lines(name: &StableName, is_line: bool) -> Vec<&StableName> {
     out
 }
 
-/// A face or edge piece's base ([`fragment_base`]) — what the SAME
-/// group is called once it stops being multi-fragment, and therefore
-/// the current-run counterpart of a vanished piece.
-///
-/// Not [`widened_base`]: that one asks which ROW a ranked reference
-/// landed on and must refuse a piece's tail; this one asks which entity
-/// a piece became and must refuse an `OrderAlong` tail. Same pop,
-/// different questions, so different filters.
-fn unqualified(name: &StableName) -> Option<StableName> {
-    matches!(
-        name.path.last(),
-        Some(RoleSeg::Fragment(
-            Qualifier::Borders(_) | Qualifier::Keeps(_) | Qualifier::Ends(_)
-        ))
-    )
-    .then(|| fragment_base(name))
-    .flatten()
-}
-
 /// The BORDER-DELTA rung — N5's qualifier-delta rung for a face piece
 /// ([`Diagnosis::BorderDelta`]): a vanished piece's name records the
 /// divider walls it bordered (`Qualifier::Borders`), and so does every
@@ -2044,22 +2001,18 @@ fn border_delta<T: Decide>(
 ///
 /// This is the one statement of it; the sites that need it point
 /// here. A face fragment's qualifier exists only while its group has
-/// two or more members (N2), an edge piece's `Ends` while its parent is
-/// divided, and `OrderAlong` spells the size of a group of crossings of
-/// one sense into the name as `of`. So a fragment name vanishes
-/// whenever its group stops being divided, and a ranked crossing's
-/// whenever its group changes size, and neither event need flip any
-/// discriminator: a `Borders` group that stops being divided leaves no
-/// piece whose walls could be compared — the walls still stand where
-/// they stood relative to the survivor — and an `OrderAlong` group
-/// ranks its members against EACH OTHER, so a group of one runs no
-/// pair. What remains in evidence is the count. An edge piece's `Ends`
-/// holds no count and a crossing's sense is its own, so a cut elsewhere
-/// on its parent leaves the piece's name as it was, and so do the
-/// crossings it ends at; a second crossing of the same sense by a face
-/// that already crosses the parent ranks the first, and every piece
-/// whose `Ends` cite it vanishes too; so does a piece whose own end
-/// moves, which leaves its group's count as it was.
+/// two or more members (N2), and an edge piece's `Ends` while its parent
+/// is divided. So a fragment name vanishes whenever its group stops
+/// being divided, and that event need flip no discriminator: a
+/// `Borders` group that stops being divided leaves no piece whose walls
+/// could be compared — the walls still stand where they stood relative
+/// to the survivor. What remains in evidence is the count. An edge
+/// piece's `Ends` holds no count and a crossing's sense is its own, so a
+/// cut elsewhere on its parent leaves the piece's name as it was, and so
+/// do the crossings it ends at; a second crossing of the same sense by
+/// a face that already crosses the parent ties with the first (N4), so
+/// the first's name stays and reads `Ambiguous`; a piece whose own end
+/// moves vanishes, and leaves its group's count as it was.
 ///
 /// # What is counted
 ///
@@ -2226,7 +2179,7 @@ fn group_reading(groups: &crate::names::FragmentGroups, base: &StableName) -> Op
 /// `Fragment`s after it (a later fold step cutting one of the group's
 /// own pieces) is on it. The cutter is the other side with ITS
 /// `Fragment` tail dropped: a union's trailing fragments are the fold's,
-/// not the member's, so a cutter a fold step re-ranked or stopped
+/// not the member's, so a cutter a fold step divided or stopped
 /// dividing is the same cutter, and a pair's sides carry none. A
 /// `Seam`-headed base is the pair case's `From(r, Seam ..)` — a seam
 /// line an earlier step minted, cut by a later step's seam vertices —
@@ -2468,18 +2421,6 @@ fn lookup_in<'a, T: Decide>(
     table
         .lookup(name)
         .map(|entry| (Carrier { node, port, table }, entry))
-}
-
-/// The widened base of a ranked fragment name: the same name without
-/// its trailing `Fragment(OrderAlong)` qualifier (the row the emitter
-/// ties when the group over-ties).
-fn widened_base(name: &StableName) -> Option<StableName> {
-    matches!(
-        name.path.last(),
-        Some(RoleSeg::Fragment(Qualifier::OrderAlong { .. }))
-    )
-    .then(|| fragment_base(name))
-    .flatten()
 }
 
 /// N3's structural offers: the merged name a retired constituent
@@ -2908,7 +2849,6 @@ fn embedded<'a>(name: &'a StableName, partners: Partners, f: &mut Vec<(&'a Stabl
                         }
                     }
                 }
-                Qualifier::OrderAlong { .. } => {}
             },
             name_free_seg!() => {}
         }
@@ -3111,8 +3051,17 @@ mod tests {
         }
     }
 
-    fn rank(rank: u32, of: u32) -> RoleSeg {
-        RoleSeg::Fragment(Qualifier::OrderAlong { rank, of })
+    /// A piece qualifier between vertices `v0` and `v1` of node 5.
+    fn ends(v0: u32, v1: u32) -> RoleSeg {
+        let end = |v: u32| StableName {
+            kind: EntityKind::Vertex,
+            node: NODE,
+            path: vec![RoleSeg::From {
+                read: crate::names::FOLD_B,
+                of: NameRef::new(face(5, v)),
+            }],
+        };
+        RoleSeg::Fragment(Qualifier::Ends(vec![end(v0), end(v1)]))
     }
 
     fn table(rows: Vec<StableName>) -> NameTable {
@@ -3144,7 +3093,7 @@ mod tests {
         GroupCutters::Read { gone, new }
     }
 
-    /// A cutter is its `Seam` pair: ranked in one run and single in the
+    /// A cutter is its `Seam` pair: in pieces in one run and whole in the
     /// other, it is the same cutter. A seam between two other faces and
     /// a seam of the wrong kind (a face group's seam VERTEX) are not
     /// seams on this parent: the current table alone carries them,
@@ -3152,8 +3101,8 @@ mod tests {
     #[test]
     fn a_cutter_is_its_seam_pair_on_the_parents_side_and_kind() {
         let prior = vec![
-            seam(EntityKind::Edge, base(), tool(1), &[rank(0, 2)]),
-            seam(EntityKind::Edge, base(), tool(1), &[rank(1, 2)]),
+            seam(EntityKind::Edge, base(), tool(1), &[ends(0, 2)]),
+            seam(EntityKind::Edge, base(), tool(1), &[ends(1, 2)]),
         ];
         let now = vec![
             seam(EntityKind::Edge, base(), tool(1), &[]),
@@ -3165,16 +3114,16 @@ mod tests {
     }
 
     /// A seam row with more than one `Fragment` after its pair is read
-    /// like any other: a cutter ranked once in one run and twice in the
+    /// like any other: a cutter in one piece in one run and two in the
     /// other is not gone.
     #[test]
     fn a_seam_with_a_deep_fragment_tail_is_read() {
-        let prior = vec![seam(EntityKind::Edge, base(), tool(1), &[rank(0, 2)])];
+        let prior = vec![seam(EntityKind::Edge, base(), tool(1), &[ends(0, 2)])];
         let now = vec![seam(
             EntityKind::Edge,
             base(),
             tool(1),
-            &[rank(0, 2), rank(1, 2)],
+            &[ends(0, 2), ends(1, 2)],
         )];
         assert_eq!(pair(prior, now), read(vec![], vec![]));
     }
@@ -3226,13 +3175,13 @@ mod tests {
     /// In a union a seam's sides are in name order, the parent may be
     /// either, and a cutter's fold-accumulated `Fragment` tail is the
     /// fold's: a wall another member divided in one run and not in the
-    /// other, or ranked differently, is the same cutter.
+    /// other, or divided differently, is the same cutter.
     #[test]
     fn a_union_cutter_is_compared_without_its_fold_tail() {
         let base = member(1, top(), &[]);
         let wall = |tail: &[RoleSeg]| member(3, face(5, 1), tail);
         let prior = vec![
-            seam(EntityKind::Edge, wall(&[rank(0, 2)]), base.clone(), &[]),
+            seam(EntityKind::Edge, wall(&[ends(0, 2)]), base.clone(), &[]),
             seam(
                 EntityKind::Edge,
                 base.clone(),
@@ -3243,7 +3192,7 @@ mod tests {
         let now = vec![seam(
             EntityKind::Edge,
             base.clone(),
-            wall(&[rank(0, 3)]),
+            wall(&[ends(0, 3)]),
             &[],
         )];
         assert_eq!(
@@ -3265,7 +3214,7 @@ mod tests {
         );
         let vertex = |on: StableName, cutter: StableName| seam(EntityKind::Vertex, on, cutter, &[]);
         let mut piece = line.clone();
-        piece.path.push(rank(1, 2));
+        piece.path.push(ends(1, 2));
         let cutter = |seg| member(4, face(6, seg), &[]);
         let prior = vec![vertex(line.clone(), cutter(0)), vertex(cutter(1), piece)];
         let now = vec![vertex(line.clone(), cutter(0))];

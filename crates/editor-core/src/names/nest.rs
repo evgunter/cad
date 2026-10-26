@@ -83,7 +83,7 @@ use std::cell::{Cell, RefCell};
 
 use serde::ser::Error as _;
 
-use super::role::{EntityKind, NameRef, Qualifier, RoleSeg, StableName};
+use super::role::{EntityKind, NameRef, Qualifier, RoleSeg, Sense, StableName};
 use crate::node::RecipeNodeId;
 use crate::persist::jsontext;
 
@@ -345,7 +345,6 @@ impl RoleSeg {
             RoleSeg::From { of: n, .. }
             | RoleSeg::SectionEdge { face: n, .. }
             | RoleSeg::SplitFragment { parent: n, .. }
-            | RoleSeg::CrossingVertex { edge: n, .. }
             | RoleSeg::OnToolVertex { of: n, .. }
             | RoleSeg::BlendFace(n)
             | RoleSeg::CornerFace(n)
@@ -358,10 +357,16 @@ impl RoleSeg {
             | RoleSeg::Rim(n)
             | RoleSeg::HoleRim { of: n, .. }
             | RoleSeg::Instance { of: n, .. } => f(Shared(n)),
-            RoleSeg::Seam { a, b }
-            | RoleSeg::Crossing {
-                edge: a, face: b, ..
+            RoleSeg::CrossingVertex { edge, sense } => {
+                f(Shared(edge));
+                sense_names(sense, f);
             }
+            RoleSeg::Crossing { edge, face, sense } => {
+                f(Shared(edge));
+                f(Shared(face));
+                sense_names(sense, f);
+            }
+            RoleSeg::Seam { a, b }
             | RoleSeg::TrimEdge {
                 edge: a,
                 support: b,
@@ -374,7 +379,10 @@ impl RoleSeg {
                 f(Shared(a));
                 f(Shared(b));
             }
-            RoleSeg::EdgeCrossing(run) => run.iter().for_each(|l| f(Shared(&l.line))),
+            RoleSeg::EdgeCrossing(run) => run.iter().for_each(|l| {
+                f(Shared(&l.line));
+                sense_names(&l.sense, f);
+            }),
             RoleSeg::Merged(set) | RoleSeg::BandFace(set) => set.iter().for_each(|n| f(Owned(n))),
             RoleSeg::BandCross { edge, band } | RoleSeg::BandSlit { edge, band } => {
                 f(Shared(edge));
@@ -383,7 +391,7 @@ impl RoleSeg {
             RoleSeg::Fragment(
                 Qualifier::Borders(walls) | Qualifier::Keeps(walls) | Qualifier::Ends(walls),
             ) => walls.iter().for_each(|n| f(Owned(n))),
-            RoleSeg::Fragment(Qualifier::OrderAlong { .. }) | super::name_free_seg!() => {}
+            super::name_free_seg!() => {}
         }
     }
 
@@ -395,7 +403,6 @@ impl RoleSeg {
             RoleSeg::From { of: n, .. }
             | RoleSeg::SectionEdge { face: n, .. }
             | RoleSeg::SplitFragment { parent: n, .. }
-            | RoleSeg::CrossingVertex { edge: n, .. }
             | RoleSeg::OnToolVertex { of: n, .. }
             | RoleSeg::BlendFace(n)
             | RoleSeg::CornerFace(n)
@@ -408,10 +415,16 @@ impl RoleSeg {
             | RoleSeg::Rim(n)
             | RoleSeg::HoleRim { of: n, .. }
             | RoleSeg::Instance { of: n, .. } => f(Shared(n)),
-            RoleSeg::Seam { a, b }
-            | RoleSeg::Crossing {
-                edge: a, face: b, ..
+            RoleSeg::CrossingVertex { edge, sense } => {
+                f(Shared(edge));
+                sense_names_mut(sense, f);
             }
+            RoleSeg::Crossing { edge, face, sense } => {
+                f(Shared(edge));
+                f(Shared(face));
+                sense_names_mut(sense, f);
+            }
+            RoleSeg::Seam { a, b }
             | RoleSeg::TrimEdge {
                 edge: a,
                 support: b,
@@ -424,7 +437,10 @@ impl RoleSeg {
                 f(Shared(a));
                 f(Shared(b));
             }
-            RoleSeg::EdgeCrossing(run) => run.iter_mut().for_each(|l| f(Shared(&mut l.line))),
+            RoleSeg::EdgeCrossing(run) => run.iter_mut().for_each(|l| {
+                f(Shared(&mut l.line));
+                sense_names_mut(&mut l.sense, f);
+            }),
             RoleSeg::Merged(set) | RoleSeg::BandFace(set) => {
                 set.iter_mut().for_each(|n| f(Owned(n)));
             }
@@ -437,8 +453,24 @@ impl RoleSeg {
             ) => {
                 walls.iter_mut().for_each(|n| f(Owned(n)));
             }
-            RoleSeg::Fragment(Qualifier::OrderAlong { .. }) | super::name_free_seg!() => {}
+            super::name_free_seg!() => {}
         }
+    }
+}
+
+/// The names a sense holds: a `Through`'s things, in order.
+fn sense_names<'a>(sense: &'a Sense, f: &mut impl FnMut(Hold<'a>)) {
+    match sense {
+        Sense::Through { entering } => entering.iter().for_each(|n| f(Hold::Shared(n))),
+        Sense::Enters | Sense::Leaves | Sense::Outside | Sense::Inside => {}
+    }
+}
+
+/// [`sense_names`], mutably.
+fn sense_names_mut(sense: &mut Sense, f: &mut impl FnMut(HoldMut<'_>)) {
+    match sense {
+        Sense::Through { entering } => entering.iter_mut().for_each(|n| f(HoldMut::Shared(n))),
+        Sense::Enters | Sense::Leaves | Sense::Outside | Sense::Inside => {}
     }
 }
 
@@ -1857,30 +1889,44 @@ pub(super) mod tests {
                 R::Crossing {
                     edge: r(a),
                     face: r(b),
-                    sense: crate::names::Sense::Enters,
+                    sense: Sense::Enters,
+                },
+                R::Crossing {
+                    edge: r(a),
+                    face: r(b),
+                    sense: Sense::Through {
+                        entering: vec![r(b), r(a)],
+                    },
                 },
                 R::EdgeCrossing(vec![
                     RunLine {
                         line: r(a),
-                        sense: Some(crate::names::Sense::Leaves),
+                        sense: Sense::Leaves,
                     },
                     RunLine {
                         line: r(b),
-                        sense: None,
+                        sense: Sense::Through {
+                            entering: vec![r(a)],
+                        },
                     },
                 ]),
                 R::Merged(vec![a.clone(), b.clone()]),
                 R::Fragment(Qualifier::Borders(vec![a.clone(), b.clone()])),
                 R::Fragment(Qualifier::Keeps(vec![a.clone(), b.clone()])),
                 R::Fragment(Qualifier::Ends(vec![a.clone(), b.clone()])),
-                R::Fragment(Qualifier::OrderAlong { rank: 1, of: 3 }),
                 R::SplitBody,
                 R::SectionFace,
                 R::SectionEdge { face: r(a) },
                 R::SplitFragment { parent: r(b) },
                 R::CrossingVertex {
                     edge: r(a),
-                    sense: crate::names::Sense::Leaves,
+                    sense: Sense::Leaves,
+                },
+                R::CrossingVertex {
+                    edge: r(a),
+                    sense: Sense::Through {
+                        entering: vec![r(b)],
+                    },
                 },
                 R::OnToolVertex { of: r(b) },
                 R::From {
@@ -1954,10 +2000,10 @@ pub(super) mod tests {
                 )
             };
             let (a, b) = (over(&x), over(&y));
-            let rank = RoleSeg::Fragment(Qualifier::OrderAlong { rank: 0, of: 2 });
+            let tail = RoleSeg::Fragment(Qualifier::Borders(Vec::new()));
             for (p, q) in [(&a, &b), (&b, &a)] {
                 for seg in every_segment!(p, q) {
-                    out.push(named(EntityKind::Edge, 11, vec![seg, rank.clone()]));
+                    out.push(named(EntityKind::Edge, 11, vec![seg, tail.clone()]));
                 }
             }
             // One `Arc` held twice, beside two handles stamped by one
@@ -1986,7 +2032,8 @@ pub(super) mod tests {
     mod ours {
         pub(super) use super::super::super::role::{
             CapEnd, EntityKind, MeridianEnd, NameRef, PieceRole, PieceRun, ProfileEdgeRef,
-            ProfileVertexRef, Qualifier, RimSupport, RoleSeg, RunLine, SectionCircle, StableName,
+            ProfileVertexRef, Qualifier, RimSupport, RoleSeg, RunLine, SectionCircle, Sense,
+            StableName,
         };
         use crate::node::{RecipeNodeId, StepId};
 
@@ -2277,7 +2324,7 @@ pub(super) mod tests {
                 }],
             );
             let through = wrapped(edge, DEEP, 6, from_a);
-            let (a, b) = super::super::seam_pair::seam_line_pair(&through).expect("a seam pair");
+            let (a, b) = super::super::seam_pair::seam_edge_sides(&through).expect("a seam pair");
             assert_eq!(
                 (a.node.0.digest(), b.node.0.digest()),
                 (1, 2),

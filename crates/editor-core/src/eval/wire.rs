@@ -1997,15 +1997,9 @@ mod ladder {
         })
     }
 
-    /// Rung 2's payload: the tie row is the name itself, as there is no
-    /// widened base to tie against in one table.
+    /// Rung 2's payload: the tie row is the name itself.
     fn tied(live: &Live<'_>, width: usize) -> Box<ResolveError> {
-        Box::new(ResolveError::ambiguous(
-            live.0,
-            live.0.clone(),
-            live.0.node,
-            width,
-        ))
+        Box::new(ResolveError::ambiguous(live.0, live.0.node, width))
     }
 
     /// Rung 3's payload, from the one home that mints it.
@@ -3655,7 +3649,7 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         }
     }
     // The members' own bodies and tables: where each member edge the
-    // published table ranks pieces of is defined (`name_union`).
+    // published table names pieces of is defined (`name_union`).
     let member_views: Vec<names::UnionMember<'_, T>> = members
         .iter()
         .map(|m| names::UnionMember {

@@ -457,6 +457,10 @@ fn both_sweeps_evaluate_in_one_document() {
 /// digest feeds each edge curve's `Debug`, which now spells the
 /// certificate's `turn`. No outcome or point moved.
 ///
+/// RE-BLESSED, `corner_table` only, for a run line's sense that is no
+/// longer optional: its `EdgeCrossing` names spell each line's sense
+/// bare. No outcome or point moved.
+///
 /// RE-BLESSED, the rows that moved, over main's merge into D′3 at
 /// `1235f4c050`: D′2's moves (main red, filed as
 /// `main-red-the-seat-and-name-table-goldens-moved-at-dprime2`),
@@ -465,11 +469,11 @@ fn both_sweeps_evaluate_in_one_document() {
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
-        ("die", 0x4a25_14f2_42c7_0ffe),
-        ("corner_table", 0x8f2f_e5f1_026f_ce20),
-        ("cut_cylinder", 0xd82f_d380_9e2e_8e5e),
-        ("boss_union", 0x7d7f_3a11_1c98_1b33),
-        ("kitchen_sink", 0x4f64_6f46_1d52_45eb),
+        ("die", 0xcce3_bc80_9945_6069),
+        ("corner_table", 0x3a58_01fe_f60a_b936),
+        ("cut_cylinder", 0x687e_0fa1_7407_124c),
+        ("boss_union", 0x6a62_8956_3b55_e92e),
+        ("kitchen_sink", 0xf86d_b45d_276f_b984),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {

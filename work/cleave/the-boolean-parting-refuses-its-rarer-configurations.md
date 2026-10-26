@@ -30,7 +30,7 @@ rather than keep the rider form, where:
 - `Tangent`: a wall is tangent to the face along the line, so each of
   the two edges bounds a cusp (D1's doubled cusp), and the reading of a
   cusp on a line of coincident edges is not built (PR 5357's gate
-  refuses `LineWedges { WedgeEnd }` there). Reached by the holed plate
+  refuses `LineWedges { Unread { why: Degenerate } }` there). Reached by the holed plate
   less a cutter tangent to its hole
   (`crates/sweep/tests/wedge_end_doors.rs`,
   `a_plane_tangent_to_a_hole_answers_every_op`;

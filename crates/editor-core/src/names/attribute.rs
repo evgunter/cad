@@ -292,7 +292,7 @@ mod tests {
                     read: crate::names::FOLD_A,
                     of: cap().into(),
                 },
-                RoleSeg::Fragment(Qualifier::OrderAlong { rank: 0, of: 2 }),
+                RoleSeg::Fragment(Qualifier::Borders(Vec::new())),
             ],
         };
         assert_eq!(attribute(&fragment).minted_by(), Some(EXTRUDE));
@@ -350,10 +350,7 @@ mod tests {
         };
         assert_eq!(attribute(&headless).minted_by(), None);
         assert_eq!(attribute(&headless).chain(), [CUT].as_slice());
-        let qualifier_first = at(
-            CUT,
-            RoleSeg::Fragment(Qualifier::OrderAlong { rank: 0, of: 2 }),
-        );
+        let qualifier_first = at(CUT, RoleSeg::Fragment(Qualifier::Borders(Vec::new())));
         assert_eq!(attribute(&qualifier_first).minted_by(), None);
     }
 }

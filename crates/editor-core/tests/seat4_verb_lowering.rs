@@ -532,6 +532,11 @@ fn a_boolean_document_round_trips_byte_identical() {
 /// `From` each came in through): the second subtract's divided pieces'
 /// names moved. No outcome or point moved.
 ///
+/// RE-BLESSED, `crossing_slots` only, for a run line's sense that is no
+/// longer optional (an orientation is read, never chosen): the
+/// subtracts' `EdgeCrossing` names spell each line's sense bare. No
+/// outcome or point moved.
+///
 /// RE-BLESSED, the rows that moved, over main's merge into D′3 at
 /// `1235f4c050`: D′2's moves (main red, filed as
 /// `main-red-the-seat-and-name-table-goldens-moved-at-dprime2`),
@@ -541,9 +546,9 @@ fn a_boolean_document_round_trips_byte_identical() {
 fn the_boolean_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("crossing_slots", 0xe71e_82c9_48ad_ddb7_u64),
-        ("heat_sink", 0x6ece_8456_1f08_4fd6),
-        ("kiss_carry", 0x4a5f_c225_42ec_5a68),
+        ("crossing_slots", 0x444a_8d81_c8c1_8e3f_u64),
+        ("heat_sink", 0x0ec3_4ebe_7178_d688),
+        ("kiss_carry", 0x0a0b_0ddb_99f9_abb9),
     ] {
         let doc = corpus::documents()
             .into_iter()

@@ -86,3 +86,10 @@ The code is not built that way yet (verified on main at `d621f67e`):
 RefuseRun}` and `flip_senses` (`crates/editor-core/src/names/canonical.rs:70`,
 `:276`) and `rank_crossings` (`crates/editor-core/src/names/emit_topo.rs:5231`)
 all stand. This row is that build.
+
+
+## Closed by PR 5758 (2026-10-26)
+
+`wire/nothing-is-ranked` builds Ev's PR 5705 rule: an orientation is read,
+never chosen, and nothing is ranked. A `Merged` line of flush member edges crosses `Through { entering }` the edges, or seam sides, whose direction enters; `line_head` and the least-edge reading are gone, and `name_invariance`'s admission for "plate pinch, p2 extruded down" is removed (`ADMITTED_HISTORY` is empty). The status change is the
+orchestrator's.

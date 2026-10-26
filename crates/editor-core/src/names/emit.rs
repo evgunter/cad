@@ -323,14 +323,11 @@ pub enum NamingError {
     },
     /// A union's member edge read where ONE edge is needed, where a tie
     /// stands: the member's own table ties the edge's name (or the
-    /// least row on its line) to several edges, or the fold tied two of
-    /// its crossings under one name.
+    /// least row on its line) to several edges.
     ///
-    /// The union needs one edge to rank the crossings of one face
-    /// along it (`emit_union`'s `cite_member_edges`), to place a
-    /// finished vertex or edge on it, and to read its two faces
-    /// (`Flush`); a tie offers several edges or several vertices and no
-    /// rule picks one. Nothing about the result body is wrong, so this
+    /// The union needs one edge to place a finished vertex or edge on
+    /// it and to read its two faces (`Flush`); a tie offers several
+    /// edges and no rule picks one. Nothing about the result body is wrong, so this
     /// is a missing rule and not an [`Self::Emission`].
     MemberEdgeTied {
         /// The member whose edge it is.
@@ -377,9 +374,8 @@ pub enum NamingError {
     UnsupportedUnionName {
         /// The name as the union held it where the shape was met: the
         /// fold row the collapse was rewriting for
-        /// [`UnionNameShape::RunLeastLineMoved`] and
         /// [`UnionNameShape::JunctionLinesCollide`], the member-keyed
-        /// name being published for the other two.
+        /// name being published for the other.
         name: Box<StableName>,
         /// What the name met.
         shape: UnionNameShape,
@@ -585,19 +581,9 @@ shapes! {
     /// What a name a union publishes met
     /// ([`NamingError::UnsupportedUnionName`]).
     UnionNameShape {
-        /// Several vertices share one seam name once they cite member
-        /// edges whole, and neither side of it is an edge to rank them
-        /// along.
-        SeamGroupNoMemberEdge => "is one seam name several vertices share once they cite member \
-                                  edges whole, and neither side of it is an edge to rank them \
-                                  along",
         /// It cites member faces of several parents: a tied member face
         /// is keyed to each candidate's parent, and those can differ.
         SeveralParents => "cites faces of several parents, so it names no one face",
-        /// A ranked edge-crossing run whose least line is another line
-        /// once keyed by member: the collapse does not keep name order.
-        RunLeastLineMoved => "is a ranked run whose least line is another line once keyed by \
-                              member, so nothing says where its vertices lie along it",
         /// Two lines of a seam junction, met at different steps, collapse
         /// to one member-space line.
         JunctionLinesCollide => "is a seam junction two of whose lines collapse to one \
@@ -898,8 +884,8 @@ impl crate::spoken::Say for NamingError {
             Self::MemberEdgeTied { member, edge } => write!(
                 f,
                 "{UNRULED_FRAMING}: member {}'s edge ({}) is read where one edge is needed, \
-                 to rank crossings along it, place a vertex on it or read its faces, but the \
-                 member ties that name to several edges, or ties two of its crossings",
+                 to place a vertex on it or read its faces, but the member ties that name to \
+                 several edges",
                 by.read(*member),
                 by.name(edge)
             ),
@@ -2199,10 +2185,10 @@ mod display_tests {
             ),
             (
                 NamingError::Escalated {
-                    predicate: crate::names::discriminate::ORDER_ALONG,
+                    predicate: crate::names::discriminate::ON_MEMBER_EDGE,
                     source: escalation(),
                 },
-                vec!["the order of two crossings along an edge"],
+                vec!["a point's place along an edge"],
             ),
             (
                 NamingError::SplitLineage(SplitLineageCycle {

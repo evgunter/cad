@@ -339,15 +339,20 @@ fn sans_epsilon(t: &str) -> String {
 /// divided pieces' walls gaining their read. Its persisted text, and
 /// every other document, held.
 ///
+/// **Re-pinned for a run line's bare sense** (an orientation is read,
+/// never chosen): `corner_table`'s and `crossing_slots`' name tables
+/// only, their `EdgeCrossing` names spelling each line's sense bare.
+/// Their persisted text, and every other document, held.
+///
 /// Measured again for D′3 over main's merge at `1235f4c050`, which
 /// brings stage 4 I's id moves (`f077063267`) and the walls above
 /// beneath D′3's names and ids; the ids-masked fence held.
 const PINNED: &[(&str, u64, u64)] = &[
-    ("die", 0xa9a96a98aa049f06, 0x8eba03dc9b203383),
-    ("corner_table", 0x5287865ce26e8e13, 0xc79f739e7787cff1),
-    ("heat_sink", 0x8fb573954b1c99f2, 0x4328cb68f5d3d5e6),
-    ("crossing_slots", 0x636a572853a6f4d5, 0xa94f7117fd2a1626),
-    ("nested_islands_105", 0xa6c11cf0e5335f60, 0x724d8aba8033f2e4),
+    ("die", 0xdc846f5f9155e5bd, 0xd01338a3985ddb51),
+    ("corner_table", 0xde55200c79a4cddc, 0x255232f74b555158),
+    ("heat_sink", 0x3282865c55da4b17, 0xfdeb3e58c8a10021),
+    ("crossing_slots", 0x1377208cb0cba264, 0x7ba67321e479912d),
+    ("nested_islands_105", 0x6abf8ce391d386db, 0x5a9f22f4eba0b1a2),
     (
         "nested_islands_106_depth1",
         0xc55c6dfa20025dee,

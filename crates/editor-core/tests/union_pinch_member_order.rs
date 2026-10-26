@@ -925,7 +925,7 @@ fn one_run(label: &str, holes: fn() -> Vec<Hole>, sense: &str, orders: &[Vec<usi
         );
         assert_eq!(
             run_senses(name),
-            vec![format!("Some({sense})"); holes().len()],
+            vec![sense.to_owned(); holes().len()],
             "{label}, member order {order:?}: each leg against the rest: {name}"
         );
         match &first {
@@ -1015,7 +1015,7 @@ fn two_wedges_name_their_meeting_point_the_touch_of_their_legs_in_either_order()
         );
         let n = &names[0];
         assert!(
-            n.contains("path: [EdgeCrossing(") && run_senses(n) == ["Some(Outside)"; 2],
+            n.contains("path: [EdgeCrossing(") && run_senses(n) == ["Outside"; 2],
             "member order {order:?}: the meeting point is the legs' touch from outside: {n}"
         );
         assert_eq!(
@@ -1171,8 +1171,9 @@ fn solids_touching_along_one_line_build_one_body_in_every_member_order() {
 /// **Two edges of one member that run flush where they pierce another
 /// are one line** (N2): the joined blocks hold their contact as two
 /// coincident edges, which pierce the plate's top at the pinch. They are
-/// cited once, as the least, so the pinch is that edge's `Crossing` of
-/// the plate's top, leaving the plate, alike in both orders.
+/// one line, the `Merged` set of them, so the pinch is that line's
+/// `Crossing` of the plate's top, read `Through` the edges whose
+/// direction enters the plate, alike in both orders.
 #[test]
 fn two_edges_of_one_member_at_the_pinch_are_one_crossing() {
     let (doc, m) = pinch(ProfileDoc::empty_derived("union_pinch", Tol::witness()));
@@ -1191,7 +1192,7 @@ fn two_edges_of_one_member_at_the_pinch_are_one_crossing() {
         assert!(
             matches!(names.as_slice(), [n] if n.contains("path: [Crossing {")
                 && n.contains("Cap(End)")
-                && n.contains("sense: Leaves")
+                && n.contains("sense: Through")
                 && !n.contains("Seam {")),
             "{members:?}: the pinch is the contact's crossing of the plate's top: {names:?}"
         );
@@ -1228,7 +1229,7 @@ fn two_legs_on_the_plate_are_their_touch_in_every_member_order() {
         assert!(
             name.contains("path: [EdgeCrossing(")
                 && name.matches("role: Leg").count() == 2
-                && run_senses(name) == ["Some(Outside)"; 2],
+                && run_senses(name) == ["Outside"; 2],
             "member order {order:?}: the legs' touch from outside: {name}"
         );
         match &first {

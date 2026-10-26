@@ -431,9 +431,9 @@ fn crossing_slots_swapped_order_names_the_floor_corner_for_both_edges() {
                 [x, y] if x.line.kind == EntityKind::Edge
                     && y.line.kind == EntityKind::Edge
                     && matches!(
-                        (x.sense, y.sense),
-                        (Some(s), Some(editor_core::Sense::Inside))
-                            | (Some(editor_core::Sense::Inside), Some(s)) if s.crosses()
+                        (&x.sense, &y.sense),
+                        (s, editor_core::Sense::Inside)
+                            | (editor_core::Sense::Inside, s) if s.crosses()
                     )
             )
         ),

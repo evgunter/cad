@@ -315,7 +315,9 @@ fn p4_checks_over_a_correctly_mated_document() {
 
 /// P6: carried PENETRATING geometry (the inner upper cube sunk half a
 /// unit into the lower, by a standoff that declares nothing): whatever
-/// arm fires, the outer document must not pass.
+/// arm fires, the outer document must not pass silently: it carries the
+/// part's overlap, which the part's census decided off the sunk cube's
+/// walls lying on the lower's, as a loud interference.
 #[test]
 fn p6_carried_penetration_is_loud() {
     let mut store = PartStore::default();
@@ -327,7 +329,20 @@ fn p6_carried_penetration_is_loud() {
     let ev = run(&outer, &with_resolver(store));
     let result = assemble(&outer, &ev, Tol::witness());
     println!("P6: {}", headline(&result));
-    assert!(result.is_err(), "penetrating carried geometry must be loud");
+    let assembly = result.expect("a carried overlap is a finding, not a refusal");
+    let carried: Vec<_> = assembly
+        .carried_interference
+        .iter()
+        .map(|c| &c.finding)
+        .collect();
+    assert!(
+        !carried.is_empty()
+            && carried.iter().all(|f| f.is_loud()
+                && f.evidence
+                    .iter()
+                    .any(|e| matches!(e, topo::ValidationError::SameSideInterference { .. }))),
+        "penetrating carried geometry is the part's loud, decided overlap: {carried:?}"
+    );
 }
 
 /// P7: the outer gate over the ×3-stand seam document, counted by arm.

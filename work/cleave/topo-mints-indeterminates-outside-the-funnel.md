@@ -657,3 +657,13 @@ above replace steps 3–5. This row is their umbrella and closes when the seal l
 no remaining site answers wrongly on normal geometry, and the user-visible text that made it P0
 went with stage 4 E. Its open design question moves to the stage-4 unit. Each unit must keep its
 ending by type, and pin it before and after (the re-scope's conflict with ENCL's endings).
+
+## Duplication triage (INTENT, 2026-10-26)
+
+Classified on Ev's ask, via the CLEAVE note on INTENT's log, against main `e92fb951` and DESIGN `[one-way.places]` / `[one-way.readings]`. The four classes:
+- **design signal:** DESIGN names no single home, so a design conversation is owed;
+- **mechanical:** DESIGN names the home; delete the off-home copy and repoint its users;
+- **D10 debris:** a D10 stage retires one copy;
+- **not duplication.**
+
+**Not duplication, plus debris.** These are two bypasses of one door, not two homes. The local helpers have already merged into `invalid_margin.rs`. The D10-held arms in `contact_verify.rs` are owed now that stage 4 is built (open row `glue-disagreements-and-held-contradictions-after-stage-4`). DESIGN home: `[verdicts]`.
