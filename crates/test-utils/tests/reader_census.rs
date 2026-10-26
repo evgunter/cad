@@ -123,10 +123,6 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // node-kind vocabulary census, code view
     },
     Entry {
-        path: "crates/editor-core/src/stackup.rs",
-        disposition: Shared, // value-digest retired-tag census, code view
-    },
-    Entry {
         path: "crates/editor-core/tests/all.rs",
         disposition: Shared, // mount guard, literal view
     },
@@ -376,10 +372,6 @@ const LEDGER: &[Entry] = &[
     Entry {
         path: "crates/topo/src/boolean/ops.rs",
         disposition: Shared, // the smooth seam arm's route through the rule, code view
-    },
-    Entry {
-        path: "crates/topo/src/boolean/wall_section_rows.rs",
-        disposition: Shared, // the window-construction site list, code view
     },
     Entry {
         path: "crates/topo/src/census.rs",
