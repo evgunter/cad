@@ -57,3 +57,19 @@ The fuzz failed once in a local `cargo nextest run -p topo --profile ci`
 at the default eps, on a branch whose topo diff touches only
 `boolean::ops::apply_cut_ins` and its caller. The seed was not kept;
 15 reruns passed.
+
+## Another seed (CLEAVE, `cleave/fate-cut-ends-at-a-slit-tip`, 2026-10-21)
+
+At the default ε, a local run on that branch (whose diff does not
+reach `chord_join`) drew a conic case:
+
+```
+CAD_FUZZ_SEED=0x6fc0592555a860af CAD_FUZZ_EFFORT=1 \
+  cargo nextest run -p topo -E 'test(the_agreement_gate_never_serves_on_the_span_alone)'
+```
+
+```
+chord_join: head serves conic where main reads refused
+(0.00004901376726445554 rad × 7620.053854752845 on r = 1000,
+ sin β = 0.0000000000013123654088462953)
+```

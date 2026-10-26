@@ -4,8 +4,6 @@ kind: issue
 title: NotIndexed's three refusal sentences are held only by a difference check and a substring
 status: open
 opened: 2026-09-21
----
-
 priority: P3
 cost: E
 ---

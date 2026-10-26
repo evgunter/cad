@@ -16,6 +16,8 @@ Opened 2026-10-20 by GERM's closing cut (`work/README.md`, Track size): GERM mea
 | P3 | `root-slack-meter-reads-an-interval-root-at-its-whole-width` | M | The subdivision's root-slack meter reads an Interval root over its whole enclosure, so the dependency problem refuses about a quarter of the Interval lane's correct shallow-crossing answers |
 | P3 | `section-carriers-read-off-acos-near-a-degenerate-pose-carry-unread-rounding` | M | a section arm's carrier read off acos or atan2 near a degenerate pose carries rounding its margin does not read |
 | P3 | `the-tube-and-radius-guards-decide-on-the-band-where-check-1-reads-lo` | D | The section arms decide a torus tube, a cylinder radius and a cone aperture on the tolerance band; tier-3 check 1 compares the same datums' lower bound with zero |
+| P4 | `the-whole-period-spiric-speed-bound-reads-sin-and-f-apart` | M | The whole-period spiric speed bound reads sup|sin| and inf f apart, so it grows as 1/f_min at the pinch (from CURVED, 2026-10-26) |
+|  | `spiric-oval-turn-centre-and-ball-belong-on-the-curve` |  | A spiric oval's turn centre and closed-form ball are derived in topo's join from Curve3::Spiric's fields (from CURVED, 2026-10-26) |
 | P4 | `a-narrow-cones-ruling-direction-datum-widens-its-interval-near-the-apex` | E | A narrow cone's ruling direction datum p·cos α − h·sin α widens its Interval enclosure near the apex; 48 rulings at α 0.1, scale 1e3, ε 1e-12 escalate that certify on main |
 | P4 | `generic-pose-window-is-tighter-than-the-biquadratic-arm-bound` | E | the ray-torus generic-pose sweep holds roots to an absolute 1e-6 while the biquadratic arm documents a K*eps error, 1e-5 at eps 1e-6 |
 

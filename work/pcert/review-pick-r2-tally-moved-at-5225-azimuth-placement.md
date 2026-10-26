@@ -51,3 +51,31 @@ reading before any re-pin. The row's other asserts still hold: no
 genuine crossing is refused, and there are no wide winners. The
 overnight move is not bisected. The window's code merges are listed in
 the 2026-10-24 triage PR (`intent/nightly-triage-1024`).
+
+## 2026-10-26 (SPLICE nightly triage): the 10-24 → 10-25 move is #5659
+
+Still red in `viewer app feature` on nightly run 40274924857 (main
+`38f1a24ed3`), with the same tally as 2026-10-25 (run 40165703340,
+`9f5b44561d`):
+
+    left: (441036, 141417, 25542, 7998)
+   right: (440460, 141163, 13482, 6882)
+
+That tally appeared between 10-24 (`3dfb96b91c`: `(441036, 141423, 24792, 7386)`)
+and 10-25. I bisected over the window's 35 merges by running this row alone
+(the reproduce line above) at each candidate:
+
+| merge | tally |
+|---|---|
+| `40ea8d2114` (#5655) | `(441036, 141423, 24792, 7386)` |
+| `8a6d97e661` (#5659, `chart/chart-inversion-one-reading`) | `(441036, 141417, 25542, 7998)` |
+
+So the move is **#5659**, "a point's chart coordinates are one reading
+(`geom::ChartInverse`)". At the aimed vertex, 6 fewer rays are answered,
+750 more candidates refuse at the determinant, and 612 more rays carry
+a refusal. The other asserts in the row still hold. One merge in the
+window, `6045ce5ff4` (#5657), does not compile (W2's `walk_refusal`
+missed `PcurveMintError::OuterSpanPoisoned`); #5662 fixed that at
+`09011e4179`, which reads the old tally. Whether #5659's single chart
+reading should refuse more here is the question this row already owes,
+answered from that PR. Do not re-pin before it is answered.

@@ -21,7 +21,7 @@
 //!
 //! The pretty layout indents a line by its depth, so a name nested `d`
 //! brackets deep costs `O(d²)` bytes laid out: 42 MB for a name 1 024
-//! `InPart` levels deep. Only a stable name nests past
+//! levels deep. Only a stable name nests past
 //! [`BODY_NESTING`], and no body nested past it read back before names
 //! were read one level at a time, so a layout that stops indenting
 //! there changes no file an earlier build could load, and keeps a

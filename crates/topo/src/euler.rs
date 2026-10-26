@@ -794,7 +794,7 @@ impl<T: Real> NewCurve<T> {
 /// face's: asked where `after` is not `old`. Where it is, nothing is
 /// asked — the boolean pipeline's chord joins mint a chord with the
 /// description of the face that will be glued along it
-/// (`work/topo/minting-doors-take-a-callers-description-unasked-where-the-new-face-keeps-the-key`).
+/// (`work/restate/minting-doors-take-a-callers-description-unasked-where-the-new-face-keeps-the-key`).
 fn require_chord_adjacent<T: Real>(
     spec: &EdgeCurveSpec<T>,
     (old, after): (SurfaceKey, Slot),
@@ -1602,12 +1602,13 @@ impl EulerOpError {
             Self::SplitParamNotInterior { verdict, .. } => format!(
                 "{}. {}",
                 match verdict {
-                    geom_brep::recourse::Refused::Zero(_) => {
-                        "a crossing lands on an end of its edge at this tolerance, not \
-                         strictly inside it"
-                    }
+                    geom_brep::recourse::Refused::Zero(_) => format!(
+                        "a crossing is not shown strictly inside its edge (margin {} m from an \
+                         end)",
+                        verdict.margin().readable()
+                    ),
                     geom_brep::recourse::Refused::Negative { .. } => {
-                        "a crossing lands outside its edge"
+                        "a crossing lands outside its edge".to_owned()
                     }
                 },
                 crate::split::split_param_ending(verdict.arm())
@@ -2533,7 +2534,7 @@ impl<T: Decide> Body<T> {
     /// face's key, whether the chord's description names it. The
     /// boolean pipeline's chord joins rely on that: they mint the chord
     /// with the description of the face glued along it afterwards
-    /// (`work/topo/minting-doors-take-a-callers-description-unasked-where-the-new-face-keeps-the-key`).
+    /// (`work/restate/minting-doors-take-a-callers-description-unasked-where-the-new-face-keeps-the-key`).
     ///
     /// **A face minted on another chart is vouched for by the edges it
     /// takes, or refused** ([`RechartDoor::Mef`]). Where `surface` is
@@ -7444,6 +7445,19 @@ mod tests {
             ],
             other => panic!("a zero-band, an outside and an in-band split: {other:?}"),
         };
+        let zero_text = zero.to_string();
+        let printed = zero_text
+            .split_once("not shown strictly inside its edge (margin ")
+            .and_then(|(_, rest)| rest.split_once(" m from an end)"))
+            .map(|(v, _)| v.parse::<f64>().unwrap());
+        let EulerOpError::SplitParamNotInterior { verdict, .. } = &zero else {
+            panic!("the zero-band split: {zero:?}");
+        };
+        assert_eq!(
+            printed,
+            Some(value(verdict.margin())),
+            "the zero arm states its margin and claims no size: {zero_text}"
+        );
         for (err, want) in [zero, outside, undecided].iter().zip(want) {
             let text = err.to_string();
             assert!(

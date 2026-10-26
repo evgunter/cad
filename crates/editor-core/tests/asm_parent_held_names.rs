@@ -1,9 +1,10 @@
 //! **A parent's names of a child document's pieces, across the child's
 //! reshaping and the parent's pin update.**
 //!
-//! An assembly holds names of a part's entities as `InPart { of }` at
-//! the instantiate node: `of` is the name the part document mints, so
-//! a swept wall's is spelled by the piece its profile step drew — the
+//! An assembly holds a part's entities by the part's own names, read at
+//! the instantiate node whose copy carries them: each is the name the
+//! part document mints, so a swept wall's is spelled by the piece its
+//! profile step drew — the
 //! step's minted id and its role (`names/README.md`, "N1, the profile
 //! pieces"). A reshaping that keeps the step keeps the id, so the
 //! parent's name needs nothing from the part's edit door, which never
@@ -89,18 +90,6 @@ fn part_wall(doc: &editor_core::ProfileDoc, ext: RecipeNodeId, k: u32) -> Stable
     fixture::fname(ext, fixture::wall(doc, ext, k))
 }
 
-/// The same wall as the parent names it: `InPart { of }` at the
-/// instantiate node, `of` the part's copy of it under its world
-/// `placement` (A10).
-fn held(instance: RecipeNodeId, placement: RecipeNodeId, of: &StableName) -> StableName {
-    fixture::fname(
-        instance,
-        RoleSeg::InPart {
-            of: of.in_copy(placement).into(),
-        },
-    )
-}
-
 /// The corners of the face a parent-held name denotes, sorted.
 fn corners(
     ev: &Evaluation<f64>,
@@ -135,7 +124,7 @@ fn corners(
 /// removed.
 #[test]
 fn a_parents_held_name_follows_its_step_across_a_pin_update() {
-    let (v1, profile, ext, placement) = part();
+    let (v1, profile, ext, _) = part();
     let wall = part_wall(&v1, ext, 1);
     let v1_painted = apply(
         &v1,
@@ -182,11 +171,11 @@ fn a_parents_held_name_follows_its_step_across_a_pin_update() {
 
     let parent = ProfileDoc::empty(DocumentId::derive("held-names-parent"), Tol::witness());
     let (parent, instance) = insert(parent, crate::fixture::mated_instance(r1));
-    let name = held(instance, placement, &wall);
+    let name = wall.clone();
     let parent = apply(
         &parent,
         &DocEdit::SetAppearance {
-            body: crate::fixture::painted_in(&parent, &name),
+            body: parent.output(instance, 0).expect("the instance's copy"),
             name: name.clone(),
             attr: Attr::Color(Rgba8::opaque(200, 30, 30)),
         },
@@ -280,7 +269,7 @@ fn with_leg(base: &ProfileDoc, profile: RecipeNodeId, at: usize, corner: (f64, f
 /// the paint `Vanished`, rather than re-denoting B's leg.
 #[test]
 fn sibling_versions_mint_different_step_ids_and_a_held_name_vanishes_across_them() {
-    let (base, profile, ext, placement) = part();
+    let (base, profile, ext, _) = part();
     let a = with_leg(&base, profile, 2, (3.0, 1.0));
     let b = with_leg(&base, profile, 3, (1.0, 3.0));
     let a_new = step_ids(&a, profile)[2];
@@ -319,11 +308,11 @@ fn sibling_versions_mint_different_step_ids_and_a_held_name_vanishes_across_them
     };
     let parent = ProfileDoc::empty(DocumentId::derive("held-names-parent"), Tol::witness());
     let (parent, instance) = insert(parent, crate::fixture::mated_instance(ra));
-    let name = held(instance, placement, &wall(a_new));
+    let name = wall(a_new).clone();
     let parent = apply(
         &parent,
         &DocEdit::SetAppearance {
-            body: crate::fixture::painted_in(&parent, &name),
+            body: parent.output(instance, 0).expect("the instance's copy"),
             name: name.clone(),
             attr: Attr::Color(Rgba8::opaque(200, 30, 30)),
         },
@@ -362,11 +351,7 @@ fn sibling_versions_mint_different_step_ids_and_a_held_name_vanishes_across_them
         table(&after_ev, instance).lookup(&name).is_none(),
         "at B the held spelling denotes nothing"
     );
-    let b_leg = corners(
-        &after_ev,
-        instance,
-        &held(instance, placement, &wall(b_new)),
-    );
+    let b_leg = corners(&after_ev, instance, &wall(b_new).clone());
     assert!(
         b_leg.contains(&(2.0, 2.0, 0.0)) && b_leg.contains(&(1.0, 3.0, 0.0)),
         "B's leg (2,2)→(1,3) is drawn, under B's own id: {b_leg:?}"

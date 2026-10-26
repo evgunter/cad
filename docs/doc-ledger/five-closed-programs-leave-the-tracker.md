@@ -11,6 +11,14 @@ Sweep SHA `f955ddc75cda454a268f9214d2a753ae1a9bbd0f`.
 
     git show f955ddc75cda454a268f9214d2a753ae1a9bbd0f:work/<program>/<FILE>
 
+**A citation of the old `docs/` name resolves under `work/`.** Each pair
+had already been renamed out of `docs/` before this sweep, so at the SHA
+the `docs/` spelling does not exist and the content is at
+`work/<program>/plan.md` and `log.md`: `S-BLEND-PLAN.md`/`S-BLEND-LOG.md`
+are `blend`'s, `GAUTH-PLAN.md`/`GAUTH-LOG.md` `gauth`'s,
+`GUI-PLAN.md`/`GUI-LOG.md` `gui`'s, `PCURVE-PLAN.md`/`PCURVE-LOG.md`
+`pcurve`'s, and `S-QA-PLAN.md`/`S-QA-LOG.md` `qa`'s.
+
 | program | title | closed | done-state of record |
 | --- | --- | --- | --- |
 | `blend` | S-BLEND — fillet/chamfer completion | 2026-08-31 | `docs/S-BLEND-EXIT-WALK.md` (criteria quoted verbatim from the plan) |

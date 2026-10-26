@@ -2,10 +2,11 @@
 id: a-fixture-may-compose-a-dead-door-and-nothing-says-when
 kind: issue
 title: A unit row may set up its fixture with a composition production does not perform, and the rule that decides when is stated at one site instead of once for the crate
-status: open
+status: closed
 opened: 2026-09-20
 priority: P4
 cost: E
+closed: 2026-10-26
 ---
 
 
@@ -97,3 +98,7 @@ Neither row composes a dead door now, so neither needs a disclosure.
 The tree holds no instance of this row's rule. The rule is still the
 right instruction for the next door added beside an existing one, but
 it has no worked example left to cite.
+
+## Closed (2026-10-26, tracker sweep)
+
+**Superseded.** The rule this row asked the README to state has no instance left to state it over, and the door it was about can no longer be composed dead. `frame::apply` now takes a `RankedVerdict` (`crates/viewer/src/frame.rs:736`), so the dead `apply(status, fold_status(..))` composition does not compile. Both rows that held it were rewritten (`a_clean_fold_retires_the_camera_refusal_it_did_write` at `frame.rs:3215`, `a_refused_fold_is_news_about_the_camera` at `:3391`). Both carriers this row named are closed: `work/vnews/ranked-and-unranked-verdicts-are-one-type` and `work/vnews/a-dead-composition-sets-up-a-fixture-without-saying-so`. The 2026-09-28 evidence section above already records that the tree holds no instance. A clause with no worked example and no live case is guidance for a door nobody has added, so it is not kept as a scheduled row.

@@ -323,14 +323,11 @@ pub enum NamingError {
     },
     /// A union's member edge read where ONE edge is needed, where a tie
     /// stands: the member's own table ties the edge's name (or the
-    /// least row on its line) to several edges, or the fold tied two of
-    /// its crossings under one name.
+    /// least row on its line) to several edges.
     ///
-    /// The union needs one edge to rank the crossings of one face
-    /// along it (`emit_union`'s `cite_member_edges`), to place a
-    /// finished vertex or edge on it, and to read its two faces
-    /// (`Flush`); a tie offers several edges or several vertices and no
-    /// rule picks one. Nothing about the result body is wrong, so this
+    /// The union needs one edge to place a finished vertex or edge on
+    /// it and to read its two faces (`Flush`); a tie offers several
+    /// edges and no rule picks one. Nothing about the result body is wrong, so this
     /// is a missing rule and not an [`Self::Emission`].
     MemberEdgeTied {
         /// The member whose edge it is.
@@ -377,9 +374,8 @@ pub enum NamingError {
     UnsupportedUnionName {
         /// The name as the union held it where the shape was met: the
         /// fold row the collapse was rewriting for
-        /// [`UnionNameShape::RunLeastLineMoved`] and
         /// [`UnionNameShape::JunctionLinesCollide`], the member-keyed
-        /// name being published for the other two.
+        /// name being published for the other.
         name: Box<StableName>,
         /// What the name met.
         shape: UnionNameShape,
@@ -585,19 +581,9 @@ shapes! {
     /// What a name a union publishes met
     /// ([`NamingError::UnsupportedUnionName`]).
     UnionNameShape {
-        /// Several vertices share one seam name once they cite member
-        /// edges whole, and neither side of it is an edge to rank them
-        /// along.
-        SeamGroupNoMemberEdge => "is one seam name several vertices share once they cite member \
-                                  edges whole, and neither side of it is an edge to rank them \
-                                  along",
         /// It cites member faces of several parents: a tied member face
         /// is keyed to each candidate's parent, and those can differ.
         SeveralParents => "cites faces of several parents, so it names no one face",
-        /// A ranked edge-crossing run whose least line is another line
-        /// once keyed by member: the collapse does not keep name order.
-        RunLeastLineMoved => "is a ranked run whose least line is another line once keyed by \
-                              member, so nothing says where its vertices lie along it",
         /// Two lines of a seam junction, met at different steps, collapse
         /// to one member-space line.
         JunctionLinesCollide => "is a seam junction two of whose lines collapse to one \
@@ -631,8 +617,8 @@ shapes! {
                                edges its set holds",
         /// Two independent pairwise judgements of edges flush only within
         /// the band.
-        FlushSensesDisagree => "is where two member edges flush on one line disagree on its \
-                                sense",
+        FlushSensesDisagree => "is where two edges flush on one line, of union members or of \
+                                a boolean's operands, disagree on its sense",
         /// A piece shorter than the band puts both its neighbours'
         /// classes at one point.
         PiecesAtOneVertex => "holds two pieces of one member line, each classified there",
@@ -653,7 +639,7 @@ impl DisagreeShape {
             ),
             Self::FlushSensesDisagree => concat!(
                 geom_core::coincidence_move_arm!(),
-                " so the member edges at the vertex are clearly flush or clearly apart"
+                " so the edges on one line at the vertex are clearly flush or clearly apart"
             ),
             Self::PiecesAtOneVertex => concat!(
                 geom_core::coincidence_move_arm!(),
@@ -898,8 +884,8 @@ impl crate::spoken::Say for NamingError {
             Self::MemberEdgeTied { member, edge } => write!(
                 f,
                 "{UNRULED_FRAMING}: member {}'s edge ({}) is read where one edge is needed, \
-                 to rank crossings along it, place a vertex on it or read its faces, but the \
-                 member ties that name to several edges, or ties two of its crossings",
+                 to place a vertex on it or read its faces, but the member ties that name to \
+                 several edges",
                 by.read(*member),
                 by.name(edge)
             ),
@@ -1217,8 +1203,8 @@ pub(crate) fn name_pattern<T: geom_core::Real>(
 /// index 0, re-keyed through that instance's graft bridge (`bridges[i]`
 /// is the correspondence the graft of instance `i` established).
 ///
-/// The BODY name is minted here rather than wrapped, for
-/// [`name_in_part`]'s reason: the fused body is not the body any
+/// The BODY name is minted here rather than wrapped, for the reason
+/// [`name_copy`] mints a copy's: the fused body is not the body any
 /// instance-local name denotes, so it is this node's own output body,
 /// named like every other body-producing op's. The prototype's own
 /// body-kind rows therefore do not carry — they have nothing left to
@@ -1257,7 +1243,7 @@ pub(crate) fn name_placed_union<T: geom_core::Real>(
                 }],
             };
             // The prototype is ONE body — a placed union fuses what
-            // `body_operand` admits, and a value of several bodies is
+            // `read_body` admits, and a value of several bodies is
             // `Pattern`'s to place, never this node's to fuse — so its
             // table is a single-output-body table, and a row at any
             // other index is a bug: surfaced, not dropped.
@@ -1289,126 +1275,34 @@ pub(crate) fn name_placed_union<T: geom_core::Real>(
     Ok(Arc::new(t))
 }
 
-/// Wraps an instantiated part's product table under the instance
-/// (ASM-2A D-4: the GQ4 wrapper composed with N1–N7).
+/// **A copy, named** (D10 `[placement.placement]`): a placement's or
+/// an instance's copy keeps every name of its source, so a placement
+/// adds no name segment. The copy's own body row is minted here, at the
+/// copying node, since the copy is that node's output; a family's rows,
+/// body rows included, pass through whole.
 ///
-/// Every stable name of the referenced part's product body is re-minted
-/// as `InPart(part-local name)` at the INSTANTIATE node, so two
-/// instances of one part have wholly distinct names (their nodes
-/// differ) while a part-document edit that breaks a local name surfaces
-/// through the unchanged N1–N7 diagnosis ladder — the wrapped name is
-/// still in there, structurally.
-///
-/// Keys hold verbatim: `product_named` keyed the part table onto the
-/// product body, and `transform_rigid` is key-stable, so the placed
-/// copy's arena answers to exactly those keys.
-///
-/// The BODY name is minted here rather than wrapped: the part's product
-/// is not a body any part-local name denotes (see
-/// [`crate::product::product_named`]), and an instance's placed body is
-/// this node's own output, named like every other body-producing op's.
-pub(crate) fn name_in_part<T: geom_core::Real>(
+/// Keys hold verbatim, because `transform_rigid` is key-stable.
+pub(crate) fn name_copy<T: geom_core::Real>(
     node: RecipeNodeId,
-    part: &NameTable,
-    placed: &Body<T>,
+    source: &NameTable,
+    placed: &[&Body<T>],
 ) -> Result<Arc<NameTable>, NamingError> {
-    // The part's table is read whole; sealing it here is what
-    // `upstream_name` does for a table read an entity at a time.
-    part.seal_order();
+    source.seal_order();
+    let one = placed.len() == 1;
     let mut t = NameTable::new();
-    t.insert(
-        name1(EntityKind::Body, node, super::role::RoleSeg::OutputBody),
-        ent(0, EntityKey::Body),
-    )?;
-    for (name, entry) in part.iter_refs() {
-        let wrapped = StableName {
-            kind: name.kind,
-            node,
-            path: vec![super::role::RoleSeg::InPart { of: name.clone() }],
-        };
-        // The part's table is the PRODUCT's: one body, index 0. A row
-        // anywhere else is a gather bug, surfaced rather than dropped.
-        let misplaced = || NamingError::Emission {
-            what: "an instantiated part's product table names a body other than the product",
-        };
-        match entry {
-            super::table::Entry::Unique(e) => {
-                if e.body != 0 {
-                    return Err(misplaced());
-                }
-                t.insert(wrapped, ent(0, e.key))?;
-            }
-            super::table::Entry::Tied(es) => {
-                if es.iter().any(|e| e.body != 0) {
-                    return Err(misplaced());
-                }
-                t.insert_tied(wrapped, es.iter().map(|e| ent(0, e.key)).collect())?;
-            }
-        }
+    if one {
+        t.insert(
+            name1(EntityKind::Body, node, super::role::RoleSeg::OutputBody),
+            ent(0, EntityKey::Body),
+        )?;
     }
-    check_total(&t, placed, 0)?;
-    Ok(Arc::new(t))
-}
-
-/// **A placement's copy, named** (D10, A10): every row of the
-/// body placed (`body`'s table, already projected to that one body) is
-/// re-minted as `Placed(name)` at the PLACEMENT node, so two placements
-/// of one body name their copies apart, as an instance names its
-/// part's entities ([`name_in_part`]).
-///
-/// Keys hold verbatim, because `transform_rigid` is key-stable. The
-/// body row is the copy's own, minted here.
-pub(crate) fn name_placed<T: geom_core::Real>(
-    node: RecipeNodeId,
-    body: &NameTable,
-    placed: &Body<T>,
-) -> Result<Arc<NameTable>, NamingError> {
-    body.seal_order();
-    let mut t = NameTable::new();
-    t.insert(
-        name1(EntityKind::Body, node, super::role::RoleSeg::OutputBody),
-        ent(0, EntityKey::Body),
-    )?;
-    for (name, entry) in body.iter_refs() {
-        if name.kind == EntityKind::Body {
+    for (name, entry) in source.iter_refs() {
+        if one && name.kind == EntityKind::Body {
             continue;
         }
-        let wrapped = StableName {
-            kind: name.kind,
-            node,
-            path: vec![super::role::RoleSeg::Placed { of: name.clone() }],
-        };
         match entry {
-            super::table::Entry::Unique(e) => t.insert(wrapped, ent(0, e.key))?,
-            super::table::Entry::Tied(es) => {
-                t.insert_tied(wrapped, es.iter().map(|e| ent(0, e.key)).collect())?;
-            }
-        }
-    }
-    check_total(&t, placed, 0)?;
-    Ok(Arc::new(t))
-}
-
-/// **One copy of an instantiated part, named** ([`name_in_part`]'s
-/// rows for one of the part's copies): every name of the copy's part
-/// table, qualified by the instance, each kept on the body it answers,
-/// and the table total over every body of the copy.
-pub(crate) fn name_in_part_copy<T: geom_core::Real>(
-    node: RecipeNodeId,
-    part: &NameTable,
-    placed: &[Arc<Body<T>>],
-) -> Result<Arc<NameTable>, NamingError> {
-    part.seal_order();
-    let mut t = NameTable::new();
-    for (name, entry) in part.iter_refs() {
-        let wrapped = StableName {
-            kind: name.kind,
-            node,
-            path: vec![super::role::RoleSeg::InPart { of: name.clone() }],
-        };
-        match entry {
-            super::table::Entry::Unique(e) => t.insert(wrapped, *e)?,
-            super::table::Entry::Tied(es) => t.insert_tied(wrapped, es.clone())?,
+            super::table::Entry::Unique(e) => t.insert((**name).clone(), *e)?,
+            super::table::Entry::Tied(es) => t.insert_tied((**name).clone(), es.clone())?,
         }
     }
     for (ix, body) in placed.iter().enumerate() {
@@ -1417,36 +1311,71 @@ pub(crate) fn name_in_part_copy<T: geom_core::Real>(
     Ok(Arc::new(t))
 }
 
-/// **A placement's copies of several shapes, named** (D10): copy `k`
-/// is body `k`, and every name of shape `k` is that copy's, qualified
-/// by the placement ([`super::role::RoleSeg::Placed`]) — its body name
-/// too, so each copy's body is named by the body it copies. A
-/// placement of one shape is [`name_placed`]'s.
-pub(crate) fn name_placed_copies<T: geom_core::Real>(
+/// **A `⊔`'s one body, named** (D10 `[operations.operators]`): every
+/// name of each member, keyed by the member's read
+/// ([`super::role::RoleSeg::From`], as a union keys its members),
+/// re-keyed onto the grafted body through that member's graft bridges
+/// (`members[m].2[i]` is the bridge of the member's body `i`). The
+/// body row is the node's own; a member's body rows have nothing left
+/// to point at.
+pub(crate) fn name_assemble<T: geom_core::Real>(
     node: RecipeNodeId,
-    shapes: &[(&NameTable, &Body<T>)],
+    members: &[(crate::VarId, Arc<NameTable>, Vec<topo::GraftKeys>)],
+    fused: &Body<T>,
 ) -> Result<Arc<NameTable>, NamingError> {
     let mut t = NameTable::new();
-    for (k, (table, _)) in shapes.iter().enumerate() {
-        let k = output_body(k)?;
+    t.insert(
+        name1(EntityKind::Body, node, super::role::RoleSeg::OutputBody),
+        ent(0, EntityKey::Body),
+    )?;
+    let mut by_name: BTreeMap<StableName, Vec<EntityRef>> = BTreeMap::new();
+    for (read, table, bridges) in members {
         table.seal_order();
         for (name, entry) in table.iter_refs() {
-            let wrapped = StableName {
+            if name.kind == EntityKind::Body {
+                continue;
+            }
+            let rows: Vec<EntityRef> = match entry {
+                super::table::Entry::Unique(e) => vec![*e],
+                super::table::Entry::Tied(es) => es.clone(),
+            };
+            let moved = rows
+                .into_iter()
+                .map(|e| {
+                    let keys = bridges.get(e.body as usize).ok_or(NamingError::Emission {
+                        what: "a member's table names a body the member does not have",
+                    })?;
+                    let key = match e.key {
+                        EntityKey::Body => None,
+                        EntityKey::Face(f) => keys.face(f).map(EntityKey::Face),
+                        EntityKey::Edge(e) => keys.edge(e).map(EntityKey::Edge),
+                        EntityKey::Vertex(v) => keys.vertex(v).map(EntityKey::Vertex),
+                    };
+                    key.map(|key| ent(0, key)).ok_or(NamingError::Emission {
+                        what: "a member's graft bridge is not total over its entities",
+                    })
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            let keyed = StableName {
                 kind: name.kind,
                 node,
-                path: vec![super::role::RoleSeg::Placed { of: name.clone() }],
+                path: vec![super::role::RoleSeg::From {
+                    read: *read,
+                    of: name.clone(),
+                }],
             };
-            match entry {
-                super::table::Entry::Unique(e) => t.insert(wrapped, ent(k, e.key))?,
-                super::table::Entry::Tied(es) => {
-                    t.insert_tied(wrapped, es.iter().map(|e| ent(k, e.key)).collect())?;
-                }
-            }
+            by_name.entry(keyed).or_default().extend(moved);
         }
     }
-    for (k, (_, body)) in shapes.iter().enumerate() {
-        check_total(&t, body, output_body(k)?)?;
+    // A read assembled twice keys its two pieces' entities alike: each
+    // such name is a tie of both, whose candidates keep their identity.
+    for (keyed, moved) in by_name {
+        match moved.as_slice() {
+            [one] => t.insert(keyed, *one)?,
+            _ => t.insert_tied(keyed, moved)?,
+        }
     }
+    check_total(&t, fused, 0)?;
     Ok(Arc::new(t))
 }
 
@@ -2256,10 +2185,10 @@ mod display_tests {
             ),
             (
                 NamingError::Escalated {
-                    predicate: crate::names::discriminate::ORDER_ALONG,
+                    predicate: crate::names::discriminate::ON_MEMBER_EDGE,
                     source: escalation(),
                 },
-                vec!["the order of two crossings along an edge"],
+                vec!["a point's place along an edge"],
             ),
             (
                 NamingError::SplitLineage(SplitLineageCycle {

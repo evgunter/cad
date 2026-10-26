@@ -1018,6 +1018,8 @@ test_utils::f6_variants! {
         DefinitionCycle,
         DefinitionTooLarge,
         EpsilonInvalid,
+        ProductRead,
+        PickPath,
         ConstraintNotMinted,
         PlacementNonFinite,
         PlacementNonRigid,
@@ -1388,6 +1390,20 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
             ],
         ),
         (
+            SnapshotError::ProductRead {
+                read: editor_core::VarId::new(0, 7),
+                fault: editor_core::ProductReadFault::Unresolved,
+            },
+            vec!["the product slot reads", "it names no live variable"],
+        ),
+        (
+            SnapshotError::PickPath {
+                var: editor_core::SpokenVar::new(editor_core::VarId::new(0, 7), None),
+                at: Some(0),
+            },
+            vec!["picks no piece", "step 1 of its path names no one operand"],
+        ),
+        (
             SnapshotError::EpsilonInvalid { value: 0.0 },
             vec![
                 "recorded ε",
@@ -1742,21 +1758,18 @@ fn a_predicate_flip_names_its_signs_as_words() {
     let sign_words = as_strs(&sign_debug);
     assert_f6(
         &Diagnosis::PredicateFlip {
-            predicate: "name_frag_order_along",
+            predicate: "name_frag_on_member_edge",
             from: geom_core::predicate::Sign::Positive,
             to: geom_core::predicate::Sign::Negative,
         },
-        &[
-            "the margin deciding the order of two crossings along an edge flipped from positive \
-             to negative",
-        ],
+        &["the margin deciding a point's place along an edge flipped from positive to negative"],
         // Every `Sign`, not the two this row happens to construct: a
         // rendering that leaked `Zero` would be just as much a dump.
         // `PredicateFlip` is `Diagnosis`'s own identifier, and this row
         // renders that one arm.
         &[
             sign_words.as_slice(),
-            &["PredicateFlip", "name_frag_order_along"],
+            &["PredicateFlip", "name_frag_on_member_edge"],
         ]
         .concat(),
     );
@@ -2609,7 +2622,7 @@ fn naming_error_display_names_its_content_not_its_struct() {
         ),
         (
             NamingError::Escalated {
-                predicate: "name_frag_order_along",
+                predicate: "name_frag_on_member_edge",
                 source: geom_core::Indeterminate {
                     margin: geom_core::predicate::MarginDiag::INVALID,
                     band: geom_core::Band::new(1e-9, 1e-6).expect("a valid band"),
@@ -2617,7 +2630,7 @@ fn naming_error_display_names_its_content_not_its_struct() {
                     terminal_sliver: false,
                 },
             },
-            vec!["the order of two crossings along an edge, which a name rests on, is undecided"],
+            vec!["a point's place along an edge, which a name rests on, is undecided"],
         ),
     ];
     assert_f6_every_variant(&cases, &NAMING_ERROR, &[]);
@@ -2730,6 +2743,7 @@ test_utils::f6_variants! {
         StrandedAppearance,
         StrandedRead,
         StrandedSpace,
+        ProductOutsideWorld,
         ValueDropped,
         AnonymousVarRemoved,
     ];
@@ -2814,6 +2828,17 @@ fn maintenance_display_says_what_the_edit_did() {
                 "Union 000000000005 reads the world and the space #0:0000000000070000",
                 "this edit left in two spaces",
                 "refuses until its reads are in one space",
+            ],
+        ),
+        (
+            Maintenance::ProductOutsideWorld {
+                read: editor_core::SpokenVar::new(editor_core::VarId::new(0, tagged(7)), None),
+                space: spaces.spoken_space(editor_core::VarId::new(0, tagged(7))),
+            },
+            vec![
+                "the product reads",
+                "which this edit moved into",
+                "refuses until it reads a body in the world",
             ],
         ),
         (
@@ -3376,9 +3401,10 @@ fn an_edit_refusal_does_not_repeat_the_noun_its_spoken_node_says() {
             vec![held(4, "Place")],
         ),
         (
-            EditError::CopyReadOffBodySeat {
+            EditError::PickPath {
                 node: held(5, "Fillet"),
                 slot: editor_core::SlotId::Radius,
+                at: Some(0),
             },
             vec![held(5, "Fillet")],
         ),

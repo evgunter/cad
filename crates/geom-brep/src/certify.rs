@@ -2351,12 +2351,18 @@ pub struct NurbsLane<T: Real> {
         Point3<T>,
         T,
     ) -> Result<geom::Projection3<T>, geom::ProjectionInconclusive>,
+    /// [`geom::NurbsSurface::project`] at `T`.
+    surface_foot: fn(
+        &geom::NurbsSurface<T>,
+        Point3<T>,
+    )
+        -> Result<geom::SurfaceProjection<T>, geom::SurfaceProjectionInconclusive>,
 }
 
 impl<T: Decide + geom_core::CertifiedBounds> NurbsLane<T> {
-    /// The certified plane × NURBS lane, and the only constructor
-    /// there is: [`crate::plane_nurbs_limbs`] and [`Self::seeded_foot`]
-    /// instantiated at `T`.
+    /// The certified NURBS lane, and the only constructor there is:
+    /// every field holds its door instantiated at `T`, the wiring rows
+    /// below naming which.
     #[must_use]
     pub const fn certified() -> Self {
         Self {
@@ -2365,6 +2371,7 @@ impl<T: Decide + geom_core::CertifiedBounds> NurbsLane<T> {
             analytic_rung3: crate::edge_nurbs::analytic_rung3::<T>,
             incidence: crate::edge_nurbs::plane_nurbs_incidence::<T>,
             foot: Self::seeded_foot,
+            surface_foot: geom::NurbsSurface::project,
         }
     }
 
@@ -2454,6 +2461,22 @@ impl<T: Real> NurbsLane<T> {
         seed: T,
     ) -> Result<geom::Projection3<T>, geom::ProjectionInconclusive> {
         (self.foot)(carrier, point, seed)
+    }
+
+    /// The foot of `point` on a NURBS surface ([`geom::NurbsSurface::project`]):
+    /// the projection carries its own distance and certifies nothing;
+    /// the caller decides that distance.
+    ///
+    /// # Errors
+    ///
+    /// [`geom::SurfaceProjectionInconclusive`] when Newton's budget
+    /// expires.
+    pub fn surface_foot(
+        self,
+        surface: &geom::NurbsSurface<T>,
+        point: Point3<T>,
+    ) -> Result<geom::SurfaceProjection<T>, geom::SurfaceProjectionInconclusive> {
+        (self.surface_foot)(surface, point)
     }
 }
 
@@ -3049,12 +3072,13 @@ pub enum DraftedIntersection<T: Real> {
 ///   `g′ = ρ/f ≥ 1` never shrinks a distance — so the spiric arc's
 ///   point-set diameter dominates the r-circle arc's, and the circle
 ///   bound below applies to that circle verbatim.
-/// - **Nurbs** — the chord: a certified lower bound on the point-set
-///   diameter for the open fitted branches the zip mints (M5 PR 9);
-///   closed rung-3 loops are split at crossing vertices before they
-///   become edges, so the collapsing-chord case does not arise at
-///   rest — and a smaller arm only escalates more (the safe
-///   direction), never definitely misclassifies.
+/// - **Nurbs** — the chord: the distance between two of the edge's
+///   points, so a lower bound on its point-set diameter whatever the
+///   spline — a fitted branch the zip mints, or a loft's or a sweep's
+///   seam or section edge on a boolean operand. It collapses toward
+///   zero on a closed or nearly closed spline edge, and there a smaller
+///   arm only escalates more (the safe direction), never definitely
+///   misclassifies.
 ///
 /// Total and comparison-free (`max` is the [`Real`] lattice operation).
 pub fn edge_extent<T: Real>(carrier: &Curve3<T>, t0: T, t1: T, chord: T) -> T {
@@ -4536,6 +4560,12 @@ mod wiring_rows {
             crate::edge_nurbs::plane_nurbs_incidence::<T> as fn(_, _, _, _, _, _) -> _,
         ) {
             return Err("incidence is not `edge_nurbs::plane_nurbs_incidence`");
+        }
+        if !std::ptr::fn_addr_eq(
+            lane.surface_foot,
+            geom::NurbsSurface::<T>::project as fn(_, _) -> _,
+        ) {
+            return Err("surface_foot is not `NurbsSurface::project`");
         }
         Ok(())
     }

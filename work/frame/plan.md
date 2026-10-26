@@ -24,6 +24,13 @@ this plan, never this file. Branch prefix `frame/`; away-channel tag
   unit witness pays for the normalize again).
 - **A frame built where the normal is not settled**:
   `a-widened-derived-placement-normalises-a-straddling-newell-sum`.
+- **What a direction's length is measured in**:
+  `direction-doors-refuse-finite-directions-normalize-now-answers` (the
+  doors at the format's ends) and
+  `authored-and-derived-directions-decide-a-unitless-norm-against-the-length-band`
+  (a unit-less norm decided against the length band; moved here from
+  FLUXHOLD on 2026-10-26). One question per door, so one designer pass
+  can weigh both.
 
 Sibling on PROPS' ground, to consult rather than claim:
 `torus-meridian-orient-builds-a-frame-on-an-undecided-normalize` is

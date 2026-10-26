@@ -108,10 +108,9 @@ pub(crate) const MAX_DEPTH: usize = 1024;
 pub(crate) struct PartValue<T: Decide> {
     pub body: Arc<Body<T>>,
     pub names: Arc<NameTable>,
-    /// The same product copy by copy, each keyed by its identity in the
-    /// part ([`crate::CopyKey`]), in the part's frame: what an instance's
-    /// `copies` delivers to a reader of one copy ([`keyed_copies`]).
-    pub copies: Arc<Vec<super::KeyedCopy<T>>>,
+    /// The pieces the product holds ([`super::Pieces`]), in the part's
+    /// frame: what a pick of one piece of an instance reads.
+    pub pieces: Option<Arc<super::Pieces<T>>>,
     pub contacts: Arc<topo::ContactRecords>,
     /// The at-rest census's rows the product's records cite
     /// ([`crate::Product::coincidences`]), named in the part's
@@ -129,10 +128,6 @@ pub(crate) struct PartValue<T: Decide> {
     /// The census findings its gate refuses, its own first: inner
     /// at-rest health is the outermost gate's business.
     pub at_rest: Arc<Vec<PartRow<crate::assembly::Pinned<crate::assembly::AtRestFinding>>>>,
-    /// The pairs of solids both lists are about, keyed in [`Self::body`],
-    /// smaller first: what the census over an instantiating product finds
-    /// again inside this part's copy, and must not report a second time.
-    pub census_pairs: Arc<Vec<(topo::SolidKey, topo::SolidKey)>>,
     /// How many parts the referenced document's product is: its
     /// placements' copies ([`crate::product::Product::solid_copies`]),
     /// each counted at its own value's `parts`, so a sub-assembly's
@@ -145,13 +140,12 @@ impl<T: Decide> Clone for PartValue<T> {
         Self {
             body: Arc::clone(&self.body),
             names: Arc::clone(&self.names),
-            copies: Arc::clone(&self.copies),
+            pieces: self.pieces.clone(),
             contacts: Arc::clone(&self.contacts),
             coincidences: Arc::clone(&self.coincidences),
             cited_inputs: Arc::clone(&self.cited_inputs),
             interference: Arc::clone(&self.interference),
             at_rest: Arc::clone(&self.at_rest),
-            census_pairs: Arc::clone(&self.census_pairs),
             parts: self.parts,
         }
     }
@@ -497,9 +491,12 @@ enum ProductRecourse {
 fn product_recourse(kind: crate::product::ProductErrorKind) -> ProductRecourse {
     use crate::product::ProductErrorKind as K;
     match kind {
-        K::EmptyProduct | K::StrandedPlacement | K::Graft | K::RootInvalid | K::ProductInvalid => {
-            ProductRecourse::Carried
-        }
+        K::EmptyProduct
+        | K::StrandedProduct
+        | K::ProductOutsideWorld
+        | K::Graft
+        | K::RootInvalid
+        | K::ProductInvalid => ProductRecourse::Carried,
         K::ContactLineage
         | K::EvaluationOfAnotherDocument
         | K::UnknownNode
@@ -764,20 +761,8 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
         // mint health are as much part of that as its records are. The
         // `Arc`s are the row's, so every instance of one part shares
         // one row set.
-        let parts = product
-            .solid_copies
-            .iter()
-            .map(|o| (o.node, o.output))
-            .collect::<std::collections::BTreeSet<_>>()
-            .into_iter()
-            .map(|(node, _)| {
-                let Some(value) = evaluation.value(node) else {
-                    unreachable!("a gathered root's value is the one the product read")
-                };
-                value.parts
-            })
-            .sum();
-        let copies = Arc::new(keyed_copies(doc, &evaluation));
+        let parts = product.parts;
+        let pieces = product.pieces.clone();
         // The part's own verdict on what its census found, judged as its
         // gate judges it, so the document instantiating it reports each
         // finding once, as the part's (`assembly::seam_verdict`).
@@ -834,9 +819,8 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
                     }))
                     .collect(),
             ),
-            census_pairs: Arc::new(seam.pairs),
             parts,
-            copies,
+            pieces,
             body: Arc::new(product.body.into_body()),
             names: Arc::new(product.names),
             contacts: Arc::new(product.contacts),
@@ -844,60 +828,6 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
             cited_inputs: Arc::new(product.cited_inputs),
         })
     }
-}
-
-/// **A document's world copies, each keyed by its identity there**
-/// (FORK-DM4): the copy a world `Place` makes of each shape it reads,
-/// keyed by its placement and the read, and each copy a world instance
-/// delivers, keyed by its placement and the copy's key in its part. A
-/// copy a pattern placed is a family under one key. In the placements'
-/// document order, as the gather reads them, so the copies are the
-/// product's material copy by copy; an empty copy is none.
-pub(crate) fn keyed_copies<T: Decide>(
-    doc: &ProfileDoc,
-    evaluation: &super::Evaluation<T>,
-) -> Vec<super::KeyedCopy<T>> {
-    use super::{BooleanValue, KeyedCopy, ValuePayload};
-    use crate::CopyKey;
-    let mut out = Vec::new();
-    for node in doc.placements() {
-        if doc.node_space(node) != Some(crate::VarId::WORLD) {
-            continue;
-        }
-        let Some(value) = evaluation.value(node) else {
-            continue;
-        };
-        let read = || match doc.node(node) {
-            Some(crate::node::Node::Place { shapes, .. }) => shapes.first().map(|s| s.read),
-            _ => None,
-        };
-        let one = |bodies: Vec<Arc<Body<T>>>, family: bool| {
-            read().map(|read| KeyedCopy {
-                key: CopyKey::part(node, CopyKey::Read(read)),
-                bodies,
-                family,
-                parts: value.parts,
-                table: value
-                    .output(0)
-                    .map_or_else(crate::names::empty, super::OutputNames::shared_table),
-                motion: None,
-            })
-        };
-        match &value.payload {
-            ValuePayload::Body(body) | ValuePayload::Boolean(BooleanValue::Body { body, .. }) => {
-                out.extend(one(vec![Arc::clone(body)], false));
-            }
-            ValuePayload::Instances(bodies) => out.extend(one(bodies.clone(), true)),
-            ValuePayload::Copies(copies) => {
-                out.extend(copies.members.iter().map(|member| KeyedCopy {
-                    key: CopyKey::part(node, member.key.clone()),
-                    ..member.clone()
-                }));
-            }
-            _ => {}
-        }
-    }
-    out
 }
 
 /// **The parts an evaluation instantiates, already evaluated**: what

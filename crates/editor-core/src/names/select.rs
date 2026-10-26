@@ -87,11 +87,6 @@ pub enum OpGroup {
     Fillet,
     /// Pattern.
     Pattern,
-    /// Instantiate-part (ASM-2A's cross-document wrapper).
-    InstantiatePart,
-    /// A placement's copy ([`RoleSeg::Placed`], minted by a
-    /// [`crate::Node::Place`]).
-    Place,
     /// Shell (the hollowing verb's cavity, rim and hole-rim roles).
     /// Its outer wall speaks as [`SegTag::From`], which groups under
     /// [`OpGroup::Shared`]: the tag names the SHAPE (an entity carried
@@ -185,10 +180,6 @@ seg_tags! {
     HoleRim,
     // Pattern
     Instance,
-    // Instantiate part
-    InPart,
-    // World placement
-    Placed,
 }
 
 /// The end/side discriminator a role segment can carry — the closed,
@@ -273,8 +264,6 @@ impl SegTag {
             RoleSeg::Rim(..) => Self::Rim,
             RoleSeg::HoleRim { .. } => Self::HoleRim,
             RoleSeg::Instance { .. } => Self::Instance,
-            RoleSeg::InPart { .. } => Self::InPart,
-            RoleSeg::Placed { .. } => Self::Placed,
         }
     }
 
@@ -322,8 +311,6 @@ impl SegTag {
             | Self::BandSlit => OpGroup::Fillet,
             Self::Inner | Self::Rim | Self::HoleRim => OpGroup::Shell,
             Self::Instance => OpGroup::Pattern,
-            Self::InPart => OpGroup::InstantiatePart,
-            Self::Placed => OpGroup::Place,
         }
     }
 }
@@ -363,12 +350,7 @@ fn side_of(seg: &RoleSeg) -> Option<Side> {
         | RoleSeg::Crossing { .. }
         | RoleSeg::EdgeCrossing { .. }
         | RoleSeg::Merged(_)
-        | RoleSeg::Fragment(
-            Qualifier::Borders(_)
-            | Qualifier::Keeps(_)
-            | Qualifier::Ends(_)
-            | Qualifier::OrderAlong { .. },
-        )
+        | RoleSeg::Fragment(Qualifier::Borders(_) | Qualifier::Keeps(_) | Qualifier::Ends(_))
         | RoleSeg::BlendFace(_)
         | RoleSeg::CornerFace(_)
         | RoleSeg::TrimEdge { .. }
@@ -384,8 +366,6 @@ fn side_of(seg: &RoleSeg) -> Option<Side> {
         | RoleSeg::Inner(_)
         | RoleSeg::Rim(_)
         | RoleSeg::HoleRim { .. }
-        | RoleSeg::InPart { .. }
-        | RoleSeg::Placed { .. }
         | RoleSeg::Instance { .. } => None,
     }
 }
@@ -426,9 +406,7 @@ fn name_args(seg: &RoleSeg) -> Vec<&StableName> {
         | RoleSeg::CrossingVertex { edge: n, .. }
         | RoleSeg::OnToolVertex { of: n, .. }
         | RoleSeg::BandTrim { edge: n, .. }
-        | RoleSeg::Instance { of: n, .. }
-        | RoleSeg::Placed { of: n }
-        | RoleSeg::InPart { of: n } => vec![n],
+        | RoleSeg::Instance { of: n, .. } => vec![n],
         RoleSeg::Seam { a, b } => vec![a, b],
         RoleSeg::EdgeCrossing(run) => run.iter().map(|l| &*l.line).collect(),
         RoleSeg::Crossing { edge, face, .. } => vec![edge, face],
@@ -440,12 +418,9 @@ fn name_args(seg: &RoleSeg) -> Vec<&StableName> {
             std::iter::once(&**edge).chain(band).collect()
         }
         // A qualifier, not a role argument (see the doc note).
-        RoleSeg::Fragment(
-            Qualifier::Borders(_)
-            | Qualifier::Keeps(_)
-            | Qualifier::Ends(_)
-            | Qualifier::OrderAlong { .. },
-        ) => Vec::new(),
+        RoleSeg::Fragment(Qualifier::Borders(_) | Qualifier::Keeps(_) | Qualifier::Ends(_)) => {
+            Vec::new()
+        }
         name_free_seg!() => Vec::new(),
     }
 }

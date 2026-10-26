@@ -51,7 +51,7 @@ trees. Those are three-line vocabulary rather than fixtures and the routing
 rule (`crates/sweep/src/test_support.rs`'s header) argues they stay local —
 worth deciding explicitly rather than sweeping in.
 
-Related, on this slate: `work/tint/sweep-boolean-suite-brick-and-prism-copies.md`,
+Related: `work/fixture/sweep-boolean-suite-brick-and-prism-copies.md`,
 whose `brick` half `S52` closed and whose `prism(pts, h)` half is still
 open against the same home.
 

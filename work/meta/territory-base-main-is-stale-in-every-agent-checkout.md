@@ -108,3 +108,19 @@ and it is the part the sentence contradicts.
 The fix is presumably "a shared claim" or the count itself. Note that
 `--selftest` asserts the current phrase, so it moves in the same
 commit.
+
+## Merged from `territory-base-main-reads-a-stale-local-ref-and-answers-confidently-wrong` (2026-10-26, tracker sweep)
+
+That row (WIRE orchestrator, opened 2026-09-15) found the same defect a
+week earlier and was closed into this one. What it added:
+
+- Its measurement: local `main` at `0312083aa` (2026-09-12),
+  `origin/main` at `385c01b33` (2026-09-15); `git rev-list --count
+  main..origin/main` → 12068 and `origin/main..main` → 0 — a strict
+  ancestor, so nothing diverged; the ref is simply old. `territory`
+  then named ~200 paths.
+- A third shape beside this row's two: **refuse a stale base** —
+  compare `--base` with its remote-tracking counterpart and refuse when
+  it is behind, naming both SHAs (fail-loud).
+- Whichever lands, `work/README.md`'s territory bullet and its script
+  usage block move together, and `--selftest` gains a row.

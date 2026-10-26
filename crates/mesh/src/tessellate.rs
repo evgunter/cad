@@ -16,7 +16,7 @@ use crate::curved::tessellate_curved;
 use crate::memo::{FaceInputs, FaceMemo, PatchKeys, PatchMemo, Placement};
 use crate::nurbs_cert::FaceBounds;
 use crate::planar::tessellate_planar;
-use crate::sizing::{Eps, SizingTols, sizing_target};
+use crate::sizing::{Eps, SizingTols};
 use crate::types::{BoundaryPolyline, FacePatch, Mesh, TessellateError};
 
 /// One corner of a face patch's triangle, named the way the lane that
@@ -248,13 +248,31 @@ pub(crate) enum Lane {
 /// (`walk::require_a_meridian` and `walk::require_two_columns`), which
 /// is why this dispatch can hand an iso boundary over without deciding
 /// anything about its shape.
-fn lane_of(body: &Body<f64>, fk: FaceKey, surface: &Surface<f64>) -> Result<Lane, TessellateError> {
+pub(crate) fn lane_of(
+    body: &Body<f64>,
+    fk: FaceKey,
+    surface: &Surface<f64>,
+) -> Result<Lane, TessellateError> {
     Ok(match *surface {
         Surface::Nurbs(_) | Surface::Approx(_) => Lane::Trimmed,
         Surface::Plane { .. } => Lane::Planar,
         _ if crate::trimmed::has_trim_carrier(body, fk)? => Lane::Trimmed,
         _ => Lane::Curved,
     })
+}
+
+/// A face's surface, the misses named as the tessellator names them.
+pub(crate) fn face_surface(
+    body: &Body<f64>,
+    fk: FaceKey,
+) -> Result<&Surface<f64>, TessellateError> {
+    let face = body
+        .get_face(fk)
+        .ok_or(TessellateError::MissingEntity { what: "face" })?;
+    body.get_surface(face.surface)
+        .ok_or(TessellateError::MissingEntity {
+            what: "face surface",
+        })
 }
 
 /// One face's slot in [`tessellate_impl`]'s indexed parallel map: the
@@ -306,7 +324,6 @@ fn tessellate_impl(
     // ones included, rather than meshing until the first curved face
     // (`TessellateError::Band` says why).
     let band = Band::linear(tol).map_err(|error| TessellateError::Band { error })?;
-    let delta_s = sizing_target(chordal);
 
     // Mesh vertex ids: topology vertices first, arena order (D9).
     let mut positions = Vec::new();
@@ -324,7 +341,7 @@ fn tessellate_impl(
     // Chord pass: per-edge polylines, computed once (crate docs);
     // `chord_ts` is the matching parameter schedule (the trimmed lane
     // evaluates pcurves on it — one derivation, both consumers).
-    let chords = compute_chords(body, delta_s, &vids, &mut positions, &mut bounds)?;
+    let chords = compute_chords(body, chordal, &vids, &mut positions, &mut bounds)?;
     // Every id a face can SHARE with another face is now minted:
     // topology vertices, then chord points, then (per face, below) that
     // face's own interior grid. So a shared id is exactly an id below
@@ -384,7 +401,6 @@ fn tessellate_impl(
     // patches are smaller.
     let tol = SizingTols {
         delta: chordal,
-        delta_s,
         eps,
         band,
     };

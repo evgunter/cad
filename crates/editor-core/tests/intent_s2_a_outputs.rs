@@ -84,9 +84,7 @@ fn every_operation_defines_its_signature_at_insert() {
     // Placements, as inserted: a signature is the insert's, before any
     // mate places them.
     let placement = |of: RecipeNodeId| {
-        crate::fixture::stood(vec![editor_core::BodyRead::plain(
-            editor_core::Operand::from(of),
-        )])
+        crate::fixture::stood(editor_core::BodyRead::plain(editor_core::Operand::from(of)))
     };
     let (doc, moved_copies) = insert(doc, placement(pattern));
     let (doc, moved_body) = insert(doc, placement(extrude));
@@ -408,7 +406,7 @@ fn the_up_to_ids_comparator_holds_a_document_and_refuses_each_mutant() {
         .unwrap()
         .values_mut()
         .filter_map(|node| node.get_mut("Place"))
-        .map(|placement| &mut placement["shapes"][0])
+        .map(|placement| &mut placement["source"])
         .collect();
     *reads[1] = reads[0].clone();
     let err = up_to_ids::equal_up_to_ids(&swapped, &new).expect_err("an inconsistent renaming");
@@ -509,8 +507,9 @@ fn every_node_shape_states_its_signature() {
         "Subtract -> [body:Body]",
         "Union -> [body:Body]",
         "Intersect -> [body:Body]",
-        "Place -> [copies:placed]",
-        "Place -> [copies:placed]",
+        "Assemble -> [body:Body]",
+        "Place -> [copy:placed]",
+        "Place -> [copy:placed]",
         "World -> [space:Space]",
         "Space -> [space:Space]",
         "Pattern -> [bodies:Bodies]",
@@ -523,8 +522,8 @@ fn every_node_shape_states_its_signature() {
         "PlacedUnion -> [body:Body]",
         "PlacedUnion -> [body:Body]",
         "Part -> [body:Body]",
-        "InstantiatePart -> [copies:Bodies]",
-        "Place -> [copies:placed]",
+        "InstantiatePart -> [copy:Body]",
+        "Place -> [copy:placed]",
         "Measure -> [value:Length]",
         "Assertion -> []",
     ];
@@ -691,7 +690,7 @@ fn a_placer_on_a_deleted_operand_loads_and_refuses_its_read() {
             matches!(
                 error.kind,
                 editor_core::NodeErrorKind::UnresolvedRead {
-                    slot: editor_core::OperandSlot::Shape(0),
+                    slot: editor_core::OperandSlot::Source,
                     var,
                 } if var == read
             ),

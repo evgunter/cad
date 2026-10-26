@@ -807,7 +807,8 @@ pub fn acts(op: &SessionOp) -> bool {
         | SessionOp::Duplicate { .. }
         | SessionOp::AddInstance { .. }
         | SessionOp::AcceptPartVersion { .. }
-        | SessionOp::SetLabel { .. } => true,
+        | SessionOp::SetLabel { .. }
+        | SessionOp::SetProduct { .. } => true,
         SessionOp::CreateLabelled { creation, .. } => acts(creation.op()),
     }
 }
@@ -918,7 +919,8 @@ fn replaces_the_document(op: &SessionOp) -> bool {
         | SessionOp::Duplicate { .. }
         | SessionOp::AddInstance { .. }
         | SessionOp::AcceptPartVersion { .. }
-        | SessionOp::SetLabel { .. } => false,
+        | SessionOp::SetLabel { .. }
+        | SessionOp::SetProduct { .. } => false,
         SessionOp::CreateLabelled { creation, .. } => replaces_the_document(creation.op()),
     }
 }
@@ -1483,7 +1485,6 @@ pub fn outcome_notices(outcome: &OpOutcome) -> impl Iterator<Item = Message> + '
         refusal: _,
         withdrawn,
         maintenance,
-        renamed: _,
     } = outcome;
     Withdrawal::all(withdrawn)
         .map(|withdrawal| withdrawal.notice())
@@ -1540,6 +1541,9 @@ pub fn maintenance_notice(row: &Maintenance) -> Option<Message> {
         // The reader's own row refuses `SpaceMismatch` at the next
         // evaluation, naming both spaces.
         Maintenance::StrandedSpace { .. } => Retold::Again,
+        // The product's gather refuses `ProductOutsideWorld` at the next
+        // landing, naming the read.
+        Maintenance::ProductOutsideWorld { .. } => Retold::Again,
         Maintenance::StrandedAppearance { .. } => Retold::Never,
         // Nothing evaluates differently in a way that names it: the
         // copy simply stops reading the value.
@@ -2535,9 +2539,9 @@ enum BadgeSite {
 /// and [`ProductErrorKind::UnknownNode`] — the classes of
 /// [`ProductError::Root`], by the placement's standing — are those same
 /// three states seen from the gather.
-/// [`ProductErrorKind::StrandedPlacement`] is the first of them seen
-/// from the recipe: a placement whose body is gone reads nothing, and
-/// the tree draws its row `Failed` on that unresolved read. That count is a MEASUREMENT of another module's enum,
+/// [`ProductErrorKind::StrandedProduct`] is the first of them seen
+/// from the recipe: a product read whose body is gone reads nothing,
+/// and the tree draws its row `Failed` on that unresolved read. That count is a MEASUREMENT of another module's enum,
 /// so it does not stand on this `match` being exhaustive:
 /// `the_tree_still_has_exactly_the_three_states_this_policy_pairs_with`
 /// is its guard, and a fourth non-`Ok` state reds there. The tree
@@ -2574,10 +2578,11 @@ fn badge_site(kind: ProductErrorKind) -> BadgeSite {
     match kind {
         ProductErrorKind::RootFailed
         | ProductErrorKind::RootPoisoned
-        | ProductErrorKind::StrandedPlacement
         | ProductErrorKind::UnknownNode => BadgeSite::FeatureTree,
         ProductErrorKind::EvaluationOfAnotherDocument
         | ProductErrorKind::EmptyProduct
+        | ProductErrorKind::StrandedProduct
+        | ProductErrorKind::ProductOutsideWorld
         | ProductErrorKind::Graft
         | ProductErrorKind::RootInvalid
         | ProductErrorKind::ProductInvalid
@@ -2777,7 +2782,7 @@ fn downstream_node(error: &PickIndexError) -> Option<RecipeNodeId> {
 /// which is also the event its subject names.
 ///
 /// **What the line could not do with it.** The status line is painted
-/// in the toolbar, EARLIER in the same `update` than the pane that
+/// in the toolbar, EARLIER in the same frame's `ui` than the pane that
 /// writes this, and `perform_batch` runs after both — so the sentence
 /// was never drawn on the frame it was written, and on a frame whose
 /// batch acted cleanly `RankedVerdict::Clear` wiped it before any
@@ -3440,17 +3445,7 @@ mod tests {
         // backticks: a bracketed link in a `//` comment is checked by
         // nothing, so it must not wear the spelling rustdoc gates.)
         for (quiet, site) in [
-            (
-                ProductError::EmptyProduct {
-                    unplaced: Vec::new(),
-                    elsewhere: Vec::new(),
-                },
-                BadgeSite::NotAFault,
-            ),
-            (
-                ProductError::StrandedPlacement { placement: node },
-                BadgeSite::FeatureTree,
-            ),
+            (ProductError::EmptyProduct, BadgeSite::NotAFault),
             (
                 ProductError::Root(NodeStanding::Failed { node }),
                 BadgeSite::FeatureTree,
@@ -3540,7 +3535,8 @@ mod tests {
             ProductErrorKind::RootFailed,
             ProductErrorKind::RootPoisoned,
             ProductErrorKind::EmptyProduct,
-            ProductErrorKind::StrandedPlacement,
+            ProductErrorKind::StrandedProduct,
+            ProductErrorKind::ProductOutsideWorld,
             ProductErrorKind::Graft,
             ProductErrorKind::RootInvalid,
             ProductErrorKind::ProductInvalid,
@@ -3548,10 +3544,9 @@ mod tests {
         ]
         .into_iter()
         .filter(|kind| badge_site(*kind) == BadgeSite::FeatureTree)
-        // The row state each class reaches the pane as: a stranded
-        // placement is a failed row, on its unresolved read.
+        // The row state each class reaches the pane as.
         .map(|kind| match kind {
-            ProductErrorKind::RootFailed | ProductErrorKind::StrandedPlacement => 0,
+            ProductErrorKind::RootFailed => 0,
             ProductErrorKind::RootPoisoned => 1,
             ProductErrorKind::UnknownNode => 2,
             other => unreachable!("{other:?} is not a class the tree draws"),
@@ -4005,11 +4000,7 @@ mod tests {
             },
             PartFault::PartProduct {
                 held: Default::default(),
-                refusal: ProductError::EmptyProduct {
-                    unplaced: Vec::new(),
-                    elsewhere: Vec::new(),
-                }
-                .into(),
+                refusal: ProductError::EmptyProduct.into(),
             },
             PartFault::ReferenceCycle {
                 cycle: vec![*doc_ref],

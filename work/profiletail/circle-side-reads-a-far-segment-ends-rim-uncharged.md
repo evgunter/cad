@@ -12,11 +12,11 @@ cost: E
 Found writing PR 5552 and disclosed in its body; filed by its FULL review
 (MINOR 3).
 
-**What.** `circle_side` (`crates/profile/src/seg.rs:979`) decides
+**What.** `circle_side` (`crates/profile/src/seg.rs:989`) decides
 `|q − c| − r` with no charge. The end `q` is stored, but the margin is
 computed: the difference `q − c`, its norm and the subtraction of `r`
 round at `|q|`, `|c|` and `r`. Its one reader is `carrier_side`
-(`seg.rs:2194`), which `touches_from` and `end_in_stretch` read for a
+(`seg.rs:2264`), which `touches_from` and `end_in_stretch` read for a
 segment's end against an arc's carrier.
 
 **Where it binds.** Inside the arcs' reach (about 2.8 km at ε `1e-12`)

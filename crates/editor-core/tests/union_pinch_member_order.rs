@@ -925,7 +925,7 @@ fn one_run(label: &str, holes: fn() -> Vec<Hole>, sense: &str, orders: &[Vec<usi
         );
         assert_eq!(
             run_senses(name),
-            vec![format!("Some({sense})"); holes().len()],
+            vec![sense.to_owned(); holes().len()],
             "{label}, member order {order:?}: each leg against the rest: {name}"
         );
         match &first {
@@ -1015,7 +1015,7 @@ fn two_wedges_name_their_meeting_point_the_touch_of_their_legs_in_either_order()
         );
         let n = &names[0];
         assert!(
-            n.contains("path: [EdgeCrossing(") && run_senses(n) == ["Some(Outside)"; 2],
+            n.contains("path: [EdgeCrossing(") && run_senses(n) == ["Outside"; 2],
             "member order {order:?}: the meeting point is the legs' touch from outside: {n}"
         );
         assert_eq!(
@@ -1171,8 +1171,9 @@ fn solids_touching_along_one_line_build_one_body_in_every_member_order() {
 /// **Two edges of one member that run flush where they pierce another
 /// are one line** (N2): the joined blocks hold their contact as two
 /// coincident edges, which pierce the plate's top at the pinch. They are
-/// cited once, as the least, so the pinch is that edge's `Crossing` of
-/// the plate's top, leaving the plate, alike in both orders.
+/// one line, the `Merged` set of them, so the pinch is that line's
+/// `Crossing` of the plate's top, read `Through` the edges whose
+/// direction enters the plate, alike in both orders.
 #[test]
 fn two_edges_of_one_member_at_the_pinch_are_one_crossing() {
     let (doc, m) = pinch(ProfileDoc::empty_derived("union_pinch", Tol::witness()));
@@ -1191,7 +1192,7 @@ fn two_edges_of_one_member_at_the_pinch_are_one_crossing() {
         assert!(
             matches!(names.as_slice(), [n] if n.contains("path: [Crossing {")
                 && n.contains("Cap(End)")
-                && n.contains("sense: Leaves")
+                && n.contains("sense: Through")
                 && !n.contains("Seam {")),
             "{members:?}: the pinch is the contact's crossing of the plate's top: {names:?}"
         );
@@ -1228,7 +1229,7 @@ fn two_legs_on_the_plate_are_their_touch_in_every_member_order() {
         assert!(
             name.contains("path: [EdgeCrossing(")
                 && name.matches("role: Leg").count() == 2
-                && run_senses(name) == ["Some(Outside)"; 2],
+                && run_senses(name) == ["Outside"; 2],
             "member order {order:?}: the legs' touch from outside: {name}"
         );
         match &first {
@@ -1443,7 +1444,9 @@ fn named_alike(gap: &Gap) -> usize {
         if let Err(e) = topo::validate_geometric(body, Tol::witness()) {
             panic!("{what}: tier 3 refused the body: {e:?}");
         }
-        let mut walls = gap.walls.map(|i| m[i]);
+        let mut walls = gap
+            .walls
+            .map(|i| doc.output(m[i], 0).expect("a member's body"));
         walls.sort_unstable();
         for &(lo, hi) in gap.seams {
             let on: Vec<&StableName> = crate::fixture::table(&ev, u)
@@ -1467,7 +1470,7 @@ fn named_alike(gap: &Gap) -> usize {
             let Some(RoleSeg::Seam { a, b }) = seam.path.first() else {
                 panic!("{what}: the edge on the line from z {lo} to {hi}: {seam:?}")
             };
-            let mut sides = [side_node(a.name()), side_node(b.name())];
+            let mut sides = [side_read(a.name()), side_read(b.name())];
             sides.sort_unstable();
             assert_eq!(
                 sides, walls,
@@ -1585,6 +1588,15 @@ fn a_bridge_met_with_the_wedges_holds_each_corner_on_the_line_as_two_copies() {
         let [a, b, d, c] = m[..] else {
             unreachable!("two bridges are four members")
         };
+        // A copy carries its source's names, so a member's names are
+        // spelled with the prism it copies.
+        let minted = |copy: RecipeNodeId| match doc.node(copy) {
+            Some(editor_core::Node::Place { source, .. }) => doc
+                .operation_of(source.read)
+                .expect("a copy reads a construction"),
+            _ => copy,
+        };
+        let (pa, pb, pd) = (minted(a), minted(b), minted(d));
         let (doc, rest) = crate::fixture::union_over(doc, &[a, b, c]);
         let (x, y) = if swapped { (rest, d) } else { (d, rest) };
         let (doc, met) = insert(doc, pair_node(BooleanOp::Intersect, x, y));
@@ -1603,7 +1615,7 @@ fn a_bridge_met_with_the_wedges_holds_each_corner_on_the_line_as_two_copies() {
             else {
                 continue;
             };
-            if n.kind != EntityKind::Vertex || of.name().node != d {
+            if n.kind != EntityKind::Vertex || of.name().node != pd {
                 continue;
             }
             let editor_core::Entry::Unique(r) = e else {
@@ -1626,7 +1638,7 @@ fn a_bridge_met_with_the_wedges_holds_each_corner_on_the_line_as_two_copies() {
             let at = micron(MEET[0], MEET[1], z);
             let mut walls = copies.remove(&at).unwrap_or_default();
             walls.sort_unstable();
-            let mut wedges = [a, b];
+            let mut wedges = [pa, pb];
             wedges.sort_unstable();
             assert_eq!(
                 walls, wedges,
@@ -1637,10 +1649,10 @@ fn a_bridge_met_with_the_wedges_holds_each_corner_on_the_line_as_two_copies() {
     }
 }
 
-/// The member node a union's `From` side was minted by.
-fn side_node(side: &StableName) -> RecipeNodeId {
+/// The member read a union's `From` side came in through.
+fn side_read(side: &StableName) -> editor_core::VarId {
     match side.path.as_slice() {
-        [RoleSeg::From { of, .. }, ..] => of.name().node,
+        [RoleSeg::From { read, .. }, ..] => *read,
         _ => panic!("a union seam side cites a member face: {side:?}"),
     }
 }

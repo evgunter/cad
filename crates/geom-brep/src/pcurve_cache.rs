@@ -9629,9 +9629,9 @@ fn incidence_over_span<T: Decide>(
 /// not show one of the chart's own classes may take the general lane, or
 /// refuse "not yet" ([`PcurveCheck::ChartClass`]), the chart's incidence
 /// test must not have shown the carrier off the chart. The witness of
-/// that ([`Incident`]) is built here and nowhere else, so an arm that
-/// skips the test cannot build [`Underived::General`] or a class
-/// escalation.
+/// that ([`Incident`](incidence::Incident)) is built here and nowhere
+/// else, so an arm that skips the test cannot build
+/// [`Underived::General`] or a class escalation.
 mod incidence {
     use super::{
         Curve3, Decide, Incidence, Indeterminate, OffChart, PcurveCertifyError, PcurveCheck,

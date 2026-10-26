@@ -83,3 +83,18 @@ Sites: `crates/test-utils/tests/hand_written_impl_census.rs`
 (`Verdict`, `first_read_of`, the module header's *What this cannot
 see* list); the two subjects are `crates/profile/src/lib.rs` and
 `crates/editor-core/src/names/role.rs`.
+
+## Re-checked (2026-10-26, tracker sweep)
+
+Disposition 1 has landed:
+- `Verdict::NoFieldRead`'s doc
+  (`crates/test-utils/tests/hand_written_impl_census.rs:163-173`) now
+  says "Nothing THIS READER can attribute to a declaration falls
+  behind one" and calls the qualifier load-bearing.
+- The census pins the `self.0.name` shape as a known false green
+  (`:823-829`).
+
+What is left is the question dispositions 2 and 3 answer: whether
+either shape gets a verdict of its own. The doc points at this row for
+that. Its path, and `crates/editor-core/src/names/role.rs:214`'s, were
+re-pointed from `work/tint/` to `work/fixture/` in this sweep.

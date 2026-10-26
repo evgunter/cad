@@ -190,9 +190,8 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
             input: i,
             ..
         } => (none(), id(c), id(i), none(), none(), none()),
-        // As inline's `instance_read_uncarried`: the reader is the
-        // consumer, and why no one body carries the read is in the
-        // message.
+        // The reader is the consumer, and why no one body carries the
+        // read is in the message.
         E::RemainderReadUncarried { reader, why: _ } => {
             (none(), id(reader), none(), none(), none(), none())
         }
@@ -206,6 +205,20 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
             none(),
             id(kept_node),
             text(&var.to_string()),
+            none(),
+            none(),
+        ),
+        // The space is the shared thing, as `UncutVarReference`'s
+        // variable is: its node in the `param` field's place.
+        E::SpaceStraddlesCut {
+            space,
+            cut_node,
+            kept_node,
+        } => (
+            id(cut_node),
+            none(),
+            id(kept_node),
+            text(&space.to_string()),
             none(),
             none(),
         ),
@@ -231,8 +244,9 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
         E::NameStraddlesCut { name, .. }
         | E::BodyNameCrossesCut { name }
         | E::NameOutsidePartWorld { name }
-        | E::NameOnDroppedStep { name, .. }
-        | E::RankedRunReordered { name } => (none(), none(), none(), none(), named(name), none()),
+        | E::NameOnDroppedStep { name, .. } => {
+            (none(), none(), none(), none(), named(name), none())
+        }
         E::Pin { .. } | E::PartEdit { .. } | E::RemainderEdit { .. } => {
             (none(), none(), none(), none(), none(), none())
         }
@@ -451,23 +465,13 @@ fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
             .unwrap_or_else(|_| py.None())
     };
     let none = || py.None();
-    let (node, by, name, param, key, host_eps, part_eps) = match err {
+    let (node, name, param, key, host_eps, part_eps) = match err {
         // The instance (or the node a construction reads it at) is the
-        // subject: why it cannot be spliced is the variant, and why its
-        // bundle does not carry it is in the message.
+        // subject: why it cannot be spliced is the variant.
         E::UnknownNode { id: n }
         | E::NotAnInstance { node: n }
-        | E::UnplaceablePart {
-            instance: n,
-            why: _,
-        } => (id(n), none(), none(), none(), none(), none(), none()),
-        // The host node reading the instance rides `by`; why no one
-        // body takes its read is in the message.
-        E::InstanceReadUncarried { reader, why: _ } => {
-            (none(), id(reader), none(), none(), none(), none(), none())
-        }
+        | E::UnplaceablePart { instance: n } => (id(n), none(), none(), none(), none(), none()),
         E::Unresolved { failure } => (
-            none(),
             none(),
             none(),
             none(),
@@ -478,30 +482,13 @@ fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
         E::EpsilonSeam {
             host_eps: h,
             part_eps: p,
-        } => (
-            none(),
-            none(),
-            none(),
-            none(),
-            none(),
-            number(*h),
-            number(*p),
-        ),
-        E::PartCarriesMetadata { key: k } => {
-            (none(), none(), none(), none(), text(k), none(), none())
+        } => (none(), none(), none(), none(), number(*h), number(*p)),
+        E::PartCarriesMetadata { key: k } => (none(), none(), none(), text(k), none(), none()),
+        E::VarNameConflict { name: p } => {
+            (none(), none(), text(p.as_str()), none(), none(), none())
         }
-        E::VarNameConflict { name: p } => (
-            none(),
-            none(),
-            none(),
-            text(p.as_str()),
-            none(),
-            none(),
-            none(),
-        ),
         E::UnresolvedVarCrossesCut { var, node: n } => (
             id(n),
-            none(),
             none(),
             text(&var.to_string()),
             none(),
@@ -509,14 +496,12 @@ fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
             none(),
         ),
         E::InstanceBodyNameReferenced { name }
-        | E::ForeignInstanceName { name }
         | E::StrandedPartName { name, .. }
         | E::StrandedPartRead { name, .. }
-        | E::NameOnDroppedStep { name, .. }
-        | E::RankedRunReordered { name } => {
-            (none(), none(), named(name), none(), none(), none(), none())
+        | E::NameOnDroppedStep { name, .. } => {
+            (none(), named(name), none(), none(), none(), none())
         }
-        E::Edit { .. } => (none(), none(), none(), none(), none(), none(), none()),
+        E::Edit { .. } => (none(), none(), none(), none(), none(), none()),
     };
     typed_err(
         py,
@@ -528,7 +513,6 @@ fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
                 PyString::new(py, inline_error_tag(err)).unbind().into_any(),
             ),
             ("node", node),
-            ("by", by),
             ("name", name),
             ("param", param),
             ("key", key),

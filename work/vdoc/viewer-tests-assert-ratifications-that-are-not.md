@@ -38,3 +38,19 @@ vocabulary. That is a different sense of the word, and itself a
 reader hazard beside a companion table where "Ratified" means Ev's.
 The census's sorting test (find the clause, then the commit) applies
 to the rest.
+
+## The test-file members fixed (2026-10-26, tracker sweep)
+
+All three verdicted members are re-worded, and no assertion moved:
+- `frame_policy.rs` (~`:1585`): the checks badge being a button is now
+  *a decision rather than an accident*, citing the README's badge
+  paragraph and saying that no GUI-DESIGN clause rules it.
+- `story_parametric.rs` (module doc ~`:12`, step 7 ~`:428`): it cites
+  G4's affordance as ruled for a drag and applied to the typed write.
+- `panel_edits.rs` (~`:674`): the assertion message reads *the
+  affordance's wording*.
+
+**What is left is the README half**, which this row handed over
+unverdicted: `grep -niI ratif crates/viewer/README.md`, sorted by the
+census's test (find the clause, then the commit).
+

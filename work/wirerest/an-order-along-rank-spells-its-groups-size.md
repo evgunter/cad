@@ -2,12 +2,13 @@
 id: an-order-along-rank-spells-its-groups-size
 kind: issue
 title: Qualifier::OrderAlong { rank, of } spells the group's size in the name, so a third same-sense crossing renames the first two
-status: open
+status: closed
 opened: 2026-10-20
 priority: P3
 cost: M
 refs: [naming-has-no-single-strategy-and-each-fork-patches-one-entity]
 design: true
+closed: 2026-10-26
 ---
 
 
@@ -60,3 +61,27 @@ N5's group-size rung (`resolve::group_resized`) already reads the recorded group
 ## Moved to WIREREST (2026-10-21)
 
 Re-priced P3 when the build found it unreachable today, with a fork; WIRE kept its reachable P2 rows. Signed (WIRE orchestrator).
+
+## Parked (2026-10-26, tracker sweep)
+
+The fork above is answered by a wider ruling: FORK-ORIENT (fork-log row
+197; Ev, 2026-10-26, "cool, seems good!"; PR 5705, `964083e5`) rules
+that nothing is ranked along a line, and lists `Reverse` and `of` among
+what retires. N2 in `crates/editor-core/src/names/README.md` now reads
+"Nothing is ranked: crossings, and vertices of one run, that their names
+do not tell apart tie (N4)". So `OrderAlong { rank, of }` has no rank to
+carry, and neither option (A)–(C) is needed. The code is unchanged on
+main (`role.rs`'s `Qualifier::OrderAlong`, `canonical.rs`'s
+`RankRule::Reverse`); WIRE's `a-unions-line-of-several-edges-is-oriented-by-its-least-edge`
+builds the ruling. This row closes as superseded when that build
+removes `OrderAlong`, and opens again only if a ranked spelling survives
+it.
+
+
+## Closed by PR 5758 (2026-10-26)
+
+`wire/nothing-is-ranked` builds Ev's PR 5705 rule: an orientation is read,
+never chosen, and nothing is ranked. `Qualifier::OrderAlong` is deleted with its `of`; N5's group-size rung reads the recorded group and stays. The status change is the
+orchestrator's.
+
+Closed by PR 5758 (2026-10-26, "nothing is ranked", Ev's ruling on PR 5705). `OrderAlong` and its `of` are deleted, and canonical's `RankRule::Reverse` with them. The fork dissolved.

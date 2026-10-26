@@ -1164,7 +1164,7 @@ fn a_later_fillet_of_l_refuses_at_the_far_bands_curved_face() {
 }
 
 /// **A short near edge refuses `FOOT_INSIDE_A_FACE` for the fillet as
-/// for the chamfer** (`work/band/an-overruns-sliver-refuses-a-short-near-edge.md`):
+/// for the chamfer** (`work/bandmeter/an-overruns-sliver-refuses-a-short-near-edge.md`):
 /// the step-2 hexahedron `(s 0.4, c 1)`, `θ_S ≈ 136.1°`, its top–wall
 /// edge cut short. At `0.40` down to `0.16` the turn builds at the
 /// oracle; at `0.14` and `0.12` it refuses at the far band's foot on the

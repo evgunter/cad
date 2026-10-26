@@ -2,11 +2,10 @@
 id: path-start-frame-is-the-only-frame-from-a-tangent-and-is-named-for-the-start
 kind: issue
 title: path_start_frame is the only (point, tangent) -> frame door, and every interior-station caller reads wrong against its name
-status: parked
+status: open
 opened: 2026-09-12
 priority: P1
 cost: M
-blocked_on: [a-placement-pins-by-written-values-without-a-mate]
 design: true
 ---
 
@@ -74,3 +73,7 @@ and its module-doc row in the companion table; callers
 ## Parked under the D10 hold (2026-10-21)
 
 FRAME orchestrator. `path_start_frame` has no kernel caller; it is an authoring door (`pncad-py/src/py/place.rs`, the tour, `pncad/examples/sweep_start_frame_and_roll.rs`). D′ (`a-placement-pins-by-written-values-without-a-mate`; the helpers fork on `[ev]` PR 5494's branch) retires the placement helpers for one constructor from the author's mates and moves, and D10 `[placement]` says no construction reads a frame, so whether this door is renamed, split or retired is decided there first. Its world +Z/+X ladder is also the shape `minted-reference-from-inputs.sh`'s KNOWN GAPS names (a reference picked off the axes without `orthonormal_basis`). Re-priced `M` with `design: true` from legacy `D`.
+
+## Released (INTENT, 2026-10-26)
+
+This row was parked on the stage-3 placement pivot (`a-placement-pins-by-written-values-without-a-mate`). All three of its PRs are merged: D′1 (PR 5592), D′2 (PR 5613) and D′3 (PR 5636, `29110056e8`). Re-check this row against main, then fix, narrow or close it. That is the owning track's call.

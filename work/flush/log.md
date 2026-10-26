@@ -590,4 +590,25 @@ None waits on an INTENT stage. A row that turns out to need one moves back. — 
 — (FLUSH orchestrator)
 - 2026-10-26 — **PR 5737, round 3 and Ev's ruling on angles.** Ev asked whether the 0.4ε tilt refusal (one designer's round-2 evidence) was even wrong. Both designers said yes: the undeclared plane reading prices the angle at a ball around both faces. That is a pair-boolean defect, now measured on LEVER's lever row. Both withdrew the tilt as evidence, and the n-ary recommendation stands on the covered touch and the covered gap. One designer found a fold step reading a vertex against a carrier the pass never judged, so today's union is order-dependent there; it is filed as `work/issues/a-fold-step-reads-a-vertex-against-a-carrier-the-pass-never-judged.md`. Ev then ruled "tolerance.epsilon should meter an angle in whatever way is required to make all geometry correct to within epsilon", now in `[tolerance.epsilon]`, with no objection to the n-ary door, so I merged. Blinding slip: I committed the A/B mapping before Ev's follow-up question; it is recorded on the analysis branch.
 — (FLUSH orchestrator)
+- 2026-10-26 — **Dispatched the n-ary union door** (`a-glue-verdict-is-not-bound-to-the-bodies-it-judged`, P2 H, branch `flush/nary-union-door`), as Ev adopted it on PR 5737. `topo` gets the n-ary union and intersect: pass, fold and lineage. The given channel goes crate-private, and `editor-core` names from the door's output.
+  - **Operand order:** the door takes a per-member rank, and `editor-core` passes today's lesser-read order (PR 5303), so the move changes no behaviour. List order with a symmetric margin is left as a possible follow-up.
+  - **Tier: dual review** (architectural, hard to change later).
+  - **Seams:** CLEAVE/HONE (`boolean/mod.rs`, `ops.rs`), WIRE (`eval/wire.rs`), BORDERS/EMIT (`names/`), and CONTACTHOLD's restated-tangency and record-completeness rows, which the door may close.
+  - It runs beside PR 5730's fix pass; their files are disjoint.
+— (FLUSH orchestrator)
+- 2026-10-26 — **PR 5730 closes `the-side-at-infinity-reader-offers-no-aim-on-a-trimmed-sphere-or-a-spline`**, and CLEAVE's absorbed sliver row with it. A trimmed sphere face now aims (`SphereFaceRegion::aim`, evaluation only, inside the face by construction), so sphere-only shells read their side off rays. A spline gets no aim because no ray is cast at a spline selection; the ray arm is filed on INSIDE.
+  - **Tier: one FULL review.** It found the first aim, an unweighted mean of arc steps, landing outside zones and slivers. The sliver lens still read its volume, so CLEAVE's row was closed early.
+  - **The fix.** The fix pass rebuilt the aim (golden-section start, step capped by the arc's own radius and half the clearance to other arcs). The delta check approved: no break in 98 shapes, nothing moving between Out and In across 32 bodies at 3 ε.
+  - **Ties.** New exact ties at the nominal on symmetric sphere bodies (1/2/1/5, all `bool_pierce_normal_on_chart`), the `Interval` aim-hull tie and the ruled aim's middles are recorded on the aims'-ties row, which is next.
+  - **CI.** The lane once broke the ci profile's filter in `.config/nextest.toml` (a slow-set entry spliced inside a `test(=…)` term). It was fixed. I resolved the last slow-set conflict with main at merge.
+— (FLUSH orchestrator)
+- 2026-10-26 — **Dispatched the aims' exact ties** (`the-side-readers-aims-decide-exact-ties-at-a-documents-nominal`, P2 H, branch `flush/aims-ties`), after PR 5730.
+  - **The scope:**
+    - the planar cap with circle edges (aim at a point that asks nothing, cross by the turn of its loops);
+    - the ruled aim moved off its arcs' middles, with one golden-section constant;
+    - the sphere aim's `bool_pierce_normal_on_chart` ties and its `Interval` hull;
+    - the coaxial roots. If those turn out to be a design question, the lane writes it into the row and stops.
+  - **The bar:** no tie-break, ever.
+  - **Tier: dual review.** Its files are disjoint from the n-ary union door lane's.
+— (FLUSH orchestrator)
 

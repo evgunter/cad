@@ -16,8 +16,8 @@ the name↔entity table and re-resolution is a lookup, never a match.
 | N4 `NameTable`, `Entry::{Unique,Tied}`, `EntityRef` | `table.rs` |
 | N4 emission, `NamingError` | `emit.rs` (helpers, totality check), `emit_sweep.rs` (extrude/revolve/loft), `emit_topo.rs` (boolean, split, N3 merge), `emit_union.rs` (the n-ary union: member-keying in, collapse out), `emit_blend.rs` behind `emit_fillet.rs`/`emit_chamfer.rs` (an edge its closing join made over several trims, rim trims or survivors `Merged`), `emit_shell.rs` (the shell: survivors `From` the target's read, cavity twins `Inner`, a chart's rim `Rim` of its first designated face, a hole's promoted annulus `HoleRim`, an edge its closing join made over several input edges `Merged`) |
 | N1's node and profile step ids: the mint chain and mint log (`Mint`) | `crates/editor-core/src/mint.rs`; `RecipeNodeId` and `StepId` in `crates/editor-core/src/node.rs` |
-| N2 discriminators — `Borders` over the kernel's record of what a boolean discarded and over a Split's tool plane, `Keeps`, `Ends`, the crossing's sense and the same-sense ordinal's predicates; tie propagation | `borders.rs`, `plane_pieces.rs`, `discriminate.rs`; `defer.rs` |
-| A path's canonical form: its name-ordered positions (N3 sets, `Borders` walls, `Keeps` edges, `Ends` pairs, a junction's lines, an `EdgeCrossing`'s run, a seam's sides), and what ordering a seam does to the crossings ranked along it | `canonical.rs`, which the mint, the union's collapse and every rewrite of a published name end in; `seam_pair.rs` (which seam line a rank lies on) |
+| N2 discriminators — `Borders` over the kernel's record of what a boolean discarded and over a Split's tool plane, `Keeps`, `Ends`, the crossing's sense; tie propagation | `borders.rs`, `plane_pieces.rs`, `discriminate.rs`; `defer.rs` |
+| A path's canonical form: its name-ordered positions (N3 sets, `Borders` walls, `Keeps` edges, `Ends` pairs, a junction's lines, an `EdgeCrossing`'s run, a seam's sides, a `Through` sense's things) | `canonical.rs`, which the mint, the union's collapse and every rewrite of a published name end in; `seam_pair.rs` (which seam an edge lies on, and which of its faces is which side) |
 | N5 `ResolveError`, `Diagnosis`, tombstones, offers; diff engine; hit-testing; `Rebind` | `crates/editor-core/src/resolve/mod.rs`; `resolve/vdiff.rs`; `resolve/hit.rs`, `resolve/pick.rs`; `edit.rs` |
 | N6 a recorded cell's read and name; the walk from them to the minting node | `crates/editor-core/src/coincide.rs` (`NamedCell`, `construction`) |
 | Which node minted a named entity (`NameOrigin`); name → geometry (`denotation`, `face_frame`, ...) | `attribute.rs`; `interrogate.rs` |
@@ -79,8 +79,8 @@ forking a question. Each principle names the check that holds it.
   claims.
 - **NS3, locality.** A name reads nothing outside the entity's closure (its
   boundary and the lines it lies on) and its parents' closures. A qualifier
-  reads only the entity's own relation to its siblings: walls, kept edges,
-  ends, or a rank along a shared line, which is a recorded verdict. It never
+  reads only the entity's own relation to its siblings: walls, kept edges or
+  ends. It never
   reads how many siblings there are or which came first. *Check:* an
   unrelated feature added elsewhere leaves every surviving entity's name.
 - **NS4, totality and identity.** Every live entity has exactly one name, and
@@ -109,14 +109,17 @@ by the variable the input slot reads, DM4: a union's or intersect's members,
 a subtract's two seats, a shell's or blend's one input), boolean (`Seam`,
 `Merged`, `Fragment`), split (`SectionFace`, `SectionEdge`, `SplitFragment`,
 ...), blend (shared by fillet and
-chamfer, told apart by the minting node), `InPart`, pattern `Instance { i, of }`
+chamfer, told apart by the minting node), pattern `Instance { i, of }`
 with `i` recipe-structural. Role arguments are themselves names; profile locators
 (`ProfileEdgeRef`, `ProfileVertexRef`) name a profile piece by the id its step
 was minted with, never by its position (below). Names contain no floats and no arena keys; a pass-through op (a
 split-intact entity, a read of a split's half, a `Part`'s projection of one instance, a mirror's
-image) adds no segment, so `node` stays the original minter; a placement's copy is qualified
-`Placed { of }`, once per copy. Names are document-local;
-assembly wrapping is `ASSEMBLY.md`'s.
+image) adds no segment, so `node` stays the original minter, and so does
+a copy (a placement's of its source, an instance's of its part's
+product), which carries its source's names verbatim. Copies are told
+apart by the variable that holds each (N1), and under a `⊔` by the
+`From { read, of }` that keys each member by its read. Names are
+document-local; assembly's are `ASSEMBLY.md`'s.
 
 **N1, the scope.** A name is scoped by the variable that holds its body:
 there is one name table per output variable, and a name tells apart only
@@ -389,22 +392,25 @@ The qualifier depends on what was split:
   `CrossingVertex` holds it as a field.
   A vertex where two or more lines meet is an `EdgeCrossing` over the run of
   those lines, each with its sense, in name order. Its lines are the edges cut
-  at the vertex, edges that run flush on one line counted once (at a union as
-  the `Merged` set of them, flat and in name order; at a pair boolean as the
-  least of them), and, at a union, each seam through the vertex whose two faces bound
-  none of those edges, cited by its faces' parents as a seam edge is. So a
-  union vertex no member edge reaches is the run of its seams, and a lone
-  member edge through a seam is the run of the edge and the seam. A face
-  through the vertex that bounds none of its lines is not in its name: the
-  lines locate the vertex, as a corner resting on a face cites no face.
+  at the vertex, edges that run flush on one line counted once, as the
+  `Merged` set of them, flat and in name order, and, at a union, each seam
+  through the vertex whose two faces bound none of those edges, cited by its
+  faces' parents as a seam edge is. So a union vertex no member edge reaches
+  is the run of its seams, and a lone member edge through a seam is the run
+  of the edge and the seam. A face through the vertex that bounds none of its
+  lines is not in its name: the lines locate the vertex, as a corner resting
+  on a face cites no face.
   Each edge in the name carries its sense, read against the closed bodies of
   the members the name's other entries belong to, other than the edge's own:
   the crossing face's member for a `Crossing`, the other lines' members for a
   run. A seam in a run carries its sense as any line of several things does.
   A boolean reads the sense at the step
-  that mints the vertex. A union reads it from its members' pairwise
-  judgements, a side being inside when any judgement classed it so; a side
-  no judgement classed refuses.
+  that mints the vertex. A union reads a member edge's from its members'
+  pairwise judgements, a side being inside when any judgement classed it
+  so; a side no judgement classed refuses. A union's seam in a run is read
+  by which of its pieces the result keeps at the vertex: a side whose piece
+  ends there runs into the member that trimmed it, and two kept pieces read
+  `Outside`.
   Reversing an edge swaps `Enters` and `Leaves` and keeps the other two.
   Nothing is ranked: crossings, and vertices of one run, that their names do
   not tell apart tie (N4).
@@ -420,8 +426,7 @@ The qualifier depends on what was split:
 No rule reads a plane or a direction, and a union's reading of a seam pair in
 name order changes nothing. Name order spells a set, and at a union it
 chooses no entity: what several members hold at once is named for all of
-them (below). The pair boolean's seam vertex still cites the least of several
-flush edges.
+them (below).
 
 **Flush edges at a union.** Each union edge is named for the member edges it
 lies on, read off the finished body and the members' own bodies
@@ -494,10 +499,8 @@ the image of.
 
 A seam vertex cites an input edge whole, `From(m, e)`, never a piece: the
 one it lies on. Where several of one input's edges lie flush on its line, a
-union cites the `Merged` set of them. A pair boolean cites the least of them
-in name order; it reads each seat's edges apart, so this choice never sets one
-seat against the other
-(`work/wirerest/a-pair-booleans-seam-vertex-cites-the-least-of-several-flush-operand-edges.md`).
+union and a pair boolean cite the `Merged` set of them, read along each
+(`work/wire/a-pair-booleans-seam-vertex-cites-the-least-of-several-flush-operand-edges.md`).
 A vertex at a member vertex is that vertex. At several members' vertices (a
 body glued to its copy) it is `Merged` of them, flat and in name order. A
 vertex where a single face crosses or touches a member edge, or a line of
@@ -623,11 +626,11 @@ discriminator among a tie's candidates like any other: the divided candidate's
 pieces are named by their `Borders`, the undivided candidates stay under the
 bare name, and an edit that moves the divider onto another candidate moves each
 name with its role. The pass-through ops of N1 carry the candidate with the name; an op that wraps the
-name numbers afresh, as it mints a fresh name. A world placement is such an op:
-each copy is its own output, and its names are qualified by the copy
-(`RoleSeg::Placed` at the placement) as a pattern copy's are, so a name reaches
-the product once per copy by construction and the gather has no
-once-per-product rule to keep. The candidate is not part of the name and
+name numbers afresh, as it mints a fresh name. A copy is a pass-through:
+each copy is its own output variable with its source's names, and a `⊔`
+that gathers copies keys each member's names by the member's read
+(`From { read, of }`), so a name reaches the product once per copy by
+construction and the gather has no once-per-product rule to keep. The candidate is not part of the name and
 reaches no name digest.
 
 **The row is a shared handle.** A table keys on `NameRef` — one `Arc<StableName>`
@@ -745,11 +748,11 @@ the current run, the diagnosis is `GroupResized { node, was, now, cutters }`.
 
 - *Which edge pieces it meets.* An edge piece's `Ends` holds no count and a
   crossing's sense is its own, so a cut elsewhere on its parent leaves the
-  piece's name as it was, and so do the crossings it ends at. Only a second
-  crossing with the same sense by a face that already crosses the line renames
-  anything: it ranks the same-sense group, so the first crossing gains
-  its rank, and with it every piece whose `Ends` cite it. The rung meets an edge piece where its own ends moved or were
-  renamed, or its group stopped being divided.
+  piece's name as it was, and so do the crossings it ends at. A second
+  crossing with the same sense by a face that already crosses the line ties
+  with the first (N4), so the first's name stays and resolves `Ambiguous`. The
+  rung meets an edge piece where its own ends moved or were renamed, or its
+  group stopped being divided.
 - *What the group is.* The group is the one the emitter formed, read from the
   record it keeps beside the table (`names::FragmentGroups`, not persisted),
   not re-derived from the names. It counts the distinct entities of the node's

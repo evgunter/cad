@@ -243,7 +243,7 @@ pub enum MateToolError {
 impl core::fmt::Display for MateToolError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::NotTwoPicks => write!(f, "the mate tool needs two face picks"),
+            Self::NotTwoPicks => write!(f, "needs two face picks"),
             Self::PickIsNotAFace { side, refusal } => write!(
                 f,
                 "the {} pick does not name a face, so no pose is read off it: {refusal}",
@@ -535,19 +535,6 @@ impl MateTool {
     /// keeps the last it had.
     pub fn respeak(&mut self, doc: &Doc<ProfileProgram>) {
         crate::seats::respeak_each(&mut self.said, doc);
-    }
-
-    /// **The held picks' names re-seated** after an operation that
-    /// moved them ([`crate::session::Renamed`]).
-    pub fn rename(&mut self, renamed: &crate::session::Renamed) {
-        match &mut self.state {
-            MateToolState::Idle => {}
-            MateToolState::One(on) => renamed.rename(&mut on.name),
-            MateToolState::Two { on, to } => {
-                renamed.rename(&mut on.name);
-                renamed.rename(&mut to.name);
-            }
-        }
     }
 
     /// **`side`'s pick's node as a refusal says it**: by the label the

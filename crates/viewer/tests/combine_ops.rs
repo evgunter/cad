@@ -260,7 +260,7 @@ fn the_combine_gesture_re_points_the_world_in_one_action() {
                 DocEdit::InsertNode { .. },
                 DocEdit::SetParam {
                     node,
-                    slot: pncad::document::SlotId::Operand(OperandSlot::Shape(0)),
+                    slot: pncad::document::SlotId::Operand(OperandSlot::Source),
                     value: pncad::document::SlotValue::Read(pncad::document::Operand::Node(read)),
                     ..
                 },
@@ -2220,7 +2220,7 @@ fn the_body_seat_is_the_operand_doors_body_slot() {
         ),
         (
             "placement",
-            crate::fixture::stood(vec![pncad::document::BodyRead::plain(Operand::from(body))]),
+            crate::fixture::stood(pncad::document::BodyRead::plain(Operand::from(body))),
         ),
         (
             "split",
@@ -2358,17 +2358,28 @@ fn each_tool_narrows_the_cursor_to_what_it_can_use() {
 // AUTH-4: projecting one body out of several, and duplicating one.
 // ---------------------------------------------------------------
 
-/// The whole document's drawn volume — the gather over the world's
-/// placements the viewport draws (A10), as one number.
+/// The whole document's drawn volume — the world's copies the
+/// viewport draws, gathered as one `⊔`, as one number.
 ///
-/// **The product and not a node**, because every row below this line
+/// **The world and not a node**, because every row below this line
 /// is about WHAT IS DRAWN rather than about what one node evaluates
 /// to, and the two differ as soon as a body is authored and not placed.
+/// The gather is of the landed document with its product set to the
+/// world's copies, so the session's own document is not edited.
 fn drawn_volume(session: &mut DocSession, tol: Tol) -> f64 {
     session.pump();
-    let body = session.landed_body().expect("the landing kept a product");
+    let (landed, _) = session.landed_pair().expect("a run landed");
+    let doc = crate::fixture::assemble_world_copies(landed.clone());
+    let ev = pncad::document::evaluate::<f64>(
+        &doc,
+        None,
+        &pncad::document::CancelToken::new(),
+        &pncad::document::EvalOptions::default(),
+        tol,
+    );
+    let body = pncad::document::product(&doc, &ev, tol).expect("the world gathers");
     pncad::topo::mass_properties(
-        &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(body), tol)
+        &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&body), tol)
             .expect("the measured body passes tier 3"),
         tol,
     )
@@ -2424,9 +2435,8 @@ fn a_split_half_is_read_by_its_port_at_a_body_seat() {
     assert!(
         matches!(
             doc.node(moved),
-            Some(Node::Place { shapes, .. })
-                if shapes.first().map(|shape| shape.read)
-                    == doc.output(split, SplitHalf::Below.port())
+            Some(Node::Place { source, .. })
+                if Some(source.read) == doc.output(split, SplitHalf::Below.port())
         ),
         "the transform's placement reads the split's below output"
     );
@@ -2746,9 +2756,7 @@ fn the_part_seats_track_the_part_door() {
     let mut doc = session.committed_doc().clone();
     let placed_pattern = common::insert_into(
         &mut doc,
-        crate::fixture::stood(vec![pncad::document::BodyRead::plain(Operand::from(
-            pattern,
-        ))]),
+        crate::fixture::stood(pncad::document::BodyRead::plain(Operand::from(pattern))),
         tol,
     );
 
@@ -3156,9 +3164,7 @@ fn duplicating_a_several_body_value_is_refused() {
     let mut doc = session.committed_doc().clone();
     let placed = common::insert_into(
         &mut doc,
-        crate::fixture::stood(vec![pncad::document::BodyRead::plain(Operand::from(
-            pattern,
-        ))]),
+        crate::fixture::stood(pncad::document::BodyRead::plain(Operand::from(pattern))),
         tol,
     );
     let mut session = DocSession::inline(doc, tol);
@@ -3534,22 +3540,18 @@ fn a_body_read_by_variable_lands_and_a_selection_refuses_typed() {
     );
 }
 
-/// **Taking over one half of a two-half placement leaves the other**:
-/// one placement draws both halves of a split, `[Above, Below]`, and a
-/// transform of the lower half re-points that shape alone, so the
+/// **Taking over one half of a split leaves the other's copy**: two
+/// placements draw the two halves of a split, and a transform of the
+/// lower half re-points the placement copying that half alone, so the
 /// upper half is still drawn and the lower half is drawn once.
 #[test]
-fn taking_over_one_half_of_a_two_half_placement_leaves_the_other() {
+fn taking_over_one_half_of_a_split_leaves_the_other() {
     let tol = Tol::witness();
     let (session, _, split) = common::drawn::split_box(A, tol);
     let at = common::drawn::translated([0.1, 0.0, 0.0]);
-    let (mut session, placement) = common::drawn::halves_placed(
-        &session,
-        split,
-        &[SplitHalf::Above, SplitHalf::Below],
-        &at,
-        tol,
-    );
+    let (session, upper) = common::drawn::half_placed(&session, split, SplitHalf::Above, &at, tol);
+    let (mut session, lower) =
+        common::drawn::half_placed(&session, split, SplitHalf::Below, &at, tol);
     let doc = session.committed_doc();
     let above = doc.output(split, SplitHalf::Above.port());
     let below = Operand::output(split, SplitHalf::Below.port());
@@ -3563,13 +3565,69 @@ fn taking_over_one_half_of_a_two_half_placement_leaves_the_other() {
         },
     );
     let doc = session.committed_doc();
-    let Some(Node::Place { shapes, .. }) = doc.node(placement) else {
-        panic!("the placement stands");
+    let read = |placement| match doc.node(placement) {
+        Some(Node::Place { source, .. }) => Some(source.read),
+        other => panic!("the placement stands, not {other:?}"),
     };
-    let reads: Vec<_> = shapes.iter().map(|shape| Some(shape.read)).collect();
     assert_eq!(
-        reads,
+        [read(upper), read(lower)],
         [above, doc.output(moved, 0)],
         "the upper half kept, the lower half taken over by the transform"
     );
+}
+
+/// **A combine that would strand a pick refuses at the takeover door,
+/// typed, and records nothing.** A `⊔` of two placed boxes is placed in
+/// the world, and a pick of its first piece is placed beside it. The
+/// union of the `⊔` with the second box takes the `⊔`'s world copy over
+/// onto the union, which holds no pieces; a pick is never re-pointed,
+/// so the takeover refuses rather than leave the pick naming a piece
+/// its copy no longer holds.
+#[test]
+fn a_combine_that_would_strand_a_pick_refuses_typed() {
+    use pncad::document::{BodyRead, VarId};
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let a = common::xy_box_in(&mut session, A);
+    let b = common::xy_box_in(&mut session, B);
+    let doc = session.committed_doc().clone();
+    let copy = |body| {
+        doc.output(common::copy_of(&doc, body), 0)
+            .expect("a world copy")
+    };
+    let (a_copy, b_copy) = (copy(a), copy(b));
+    let place = |read: Operand| {
+        Node::place(
+            BodyRead::plain(read),
+            Operand::Var(VarId::WORLD),
+            pncad::document::stand().bundle(),
+        )
+    };
+    let (doc, seat) = crate::fixture::insert(
+        doc.clone(),
+        Node::Assemble {
+            members: Bodies::Spelled(vec![
+                BodyRead::plain(Operand::Var(a_copy)),
+                BodyRead::plain(Operand::Var(b_copy)),
+            ]),
+        },
+    );
+    let (doc, held) = crate::fixture::insert(doc, place(Operand::Node(seat)));
+    let (doc, _) =
+        crate::fixture::insert(doc, place(Operand::pick(Operand::Node(held), vec![a_copy])));
+    let mut session = crate::common::inline_without_door(doc, tol);
+    session.pump();
+    let steps = session.history().len();
+    let out = session.perform(SessionOp::AddBoolean {
+        spec: BooleanSpec::Union(vec![seat.into(), b.into()]),
+    });
+    assert!(
+        matches!(
+            &out.refusal,
+            Some(Refusal::StrandedPick { copy, .. }) if copy.id() == held
+        ),
+        "{:?}",
+        out.refusal
+    );
+    assert_eq!(session.history().len(), steps, "nothing recorded");
 }

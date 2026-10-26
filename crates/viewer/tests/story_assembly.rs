@@ -112,8 +112,8 @@ fn open_at(path: &Path, tol: Tol) -> DocSession {
 }
 
 /// Author one box part through the creation ops — a new document, one
-/// centred rectangle, one extrude — assert its volume, and save it.
-/// Answers the part's document id.
+/// centred rectangle, one extrude, the box's copy its product — assert
+/// its volume, and save it. Answers the part's document id.
 fn author_box_part(
     session: &mut DocSession,
     name: &str,
@@ -130,6 +130,8 @@ fn author_box_part(
         near(body_volume(session, extrude, tol), width * height * depth),
         "the {name} part's volume is its box"
     );
+    let copy = common::copy_of(session.committed_doc(), extrude);
+    common::product_is(session, &[copy]);
     let saved = session.perform(SessionOp::Save(file.to_path_buf()));
     assert!(saved.refusal.is_none(), "{:?}", saved.refusal);
     session.committed_doc().id()
@@ -440,10 +442,14 @@ fn the_windmill_story() {
     );
     assert!(
         matches!(
-            crate::fixture::resolve_at_mint(RunCtx { doc, eval }, &hit.name),
-            Resolution::Resolved(_)
+            pncad::select::resolve(
+                RunCtx { doc, eval },
+                doc.output(hit.node, 0).expect("the tower's copy"),
+                &hit.name
+            ),
+            Ok(Resolution::Resolved(_))
         ),
-        "a just-picked name resolves in the run it was picked from"
+        "a just-picked name resolves in the copy it was picked on, in the run it was picked from"
     );
     let picked = FaceSelection {
         name: hit.name.clone(),
@@ -552,8 +558,10 @@ fn the_windmill_story() {
 
     // The placement is SOLVED: the hub's underside centre sits on the
     // tower's top centre — a known world point, the tower being
-    // identity-placed — and the faces' normals meet opposed. The base
-    // CERTIFIES at rest: one declared contact, nested, answered.
+    // identity-placed — and the faces' normals meet opposed. The base,
+    // once the author says it is what the document makes, CERTIFIES at
+    // rest: one declared contact, nested, answered.
+    common::product_is(&mut session, &[tower_i, hub_i]);
     {
         let (_, eval) = session.landed_pair().expect("landed");
         let pose = face_frame(eval, hub_bottom.node, &hub_bottom.name)
@@ -596,7 +604,9 @@ fn the_windmill_story() {
     }
 
     // ── 9. UNDO AND REDO ACROSS THE MATE: the edit steps out and back
-    // in through the same doors as any other.
+    // in through the same doors as any other — behind the product the
+    // author set after it, which steps out first and back in last.
+    session.perform(SessionOp::Undo);
     session.perform(SessionOp::Undo);
     session.pump();
     assert!(
@@ -604,6 +614,7 @@ fn the_windmill_story() {
         "undo removes the mate"
     );
     assert_eq!(session.tree_rows().len(), 2, "the two instances again");
+    session.perform(SessionOp::Redo);
     session.perform(SessionOp::Redo);
     session.pump();
     assert!(
@@ -760,12 +771,14 @@ fn the_windmill_story() {
     // overhang is ordinary authoring; the declaration the user
     // already made says the faces rest, once, for everything the seat
     // induces — the gate's verdict is the truth about this design,
-    // shown on the draw path rather than saved for an export.
+    // shown on the draw path rather than saved for an export — once the
+    // author says the four are what the document makes.
+    common::product_is(&mut session, &[tower_i, hub_i, sail_a, sail_b]);
     let rows = session.tree_rows();
     assert_eq!(
         rows.len(),
-        4,
-        "four instances, each its own placement, the mates their children"
+        5,
+        "four instances, each its own placement, the mates their children, and the product's ⊔"
     );
     for row in &rows {
         assert_eq!(row.status, RowStatus::Ok, "{row:?}");
@@ -825,7 +838,11 @@ fn the_windmill_story() {
         "save → reopen is bit-identity on the document"
     );
     let rows = reopened.tree_rows();
-    assert_eq!(rows.len(), 4, "the whole recipe came back");
+    assert_eq!(
+        rows.len(),
+        5,
+        "the whole recipe came back, the product's ⊔ with it"
+    );
     for row in &rows {
         assert_eq!(row.status, RowStatus::Ok, "{row:?}");
     }

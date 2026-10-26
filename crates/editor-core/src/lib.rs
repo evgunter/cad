@@ -130,16 +130,17 @@ pub use drive::{
     RefusalReason, RefusedLeaf, StructureFlip, drive,
 };
 pub use edit::{
-    Applied, CarryForwardDoor, DEFINITION_NODE_BOUND, DocEdit, EditError, EditRecord, Maintenance,
-    MaintenanceNet, MeasureOutcome, Measured, Recorded, Recording, SketchOutcome, SketchedOnFace,
-    SlotValue, Took, apply, apply_replayed, cascade_delete_order, measure, sketch_on_face,
+    Applied, CarryForwardDoor, DEFINITION_NODE_BOUND, DocEdit, EditError, EditRecord, LoftFault,
+    Maintenance, MaintenanceNet, MeasureOutcome, Measured, ProductReadFault, Recorded, Recording,
+    SketchOutcome, SketchedOnFace, SlotValue, Took, apply, apply_replayed, cascade_delete_order,
+    measure, sketch_on_face,
 };
 pub use eval::measure::{Observed, ObservedRefusal};
 pub use eval::{
     At, BooleanValue, CancelToken, CanonicalSegment, CarriedChain, CarriedIn, CarriedLevel,
-    ContentBits, ContentKey, Copies, DirectionRefusal, Epoch, EvalOptions, EvalOutcome, EvalScalar,
-    Evaluation, KeyedCopy, NamingKey, NodeError, NodeErrorClass, NodeErrorKind, NodeRefusal,
-    NodeResult, NodeStanding, NodeValue, PartFault, PoseValue, ProfileLane, ProfilePieces,
+    ContentBits, ContentKey, DirectionRefusal, Epoch, EvalOptions, EvalOutcome, EvalScalar,
+    Evaluation, NamingKey, NodeError, NodeErrorClass, NodeErrorKind, NodeRefusal, NodeResult,
+    NodeStanding, NodeValue, PartFault, Piece, Pieces, PoseValue, ProfileLane, ProfilePieces,
     SplitSide, StepTurns, ValuePayload, evaluate,
 };
 pub use refusal::Refusal;
@@ -195,7 +196,7 @@ pub use node::{
     PlacementRuleFault, PortKind, RecipeNodeId, SitedFace, SitedRef, SlotId, StationMove, StepArg,
     StepId, TubeWindow, VectorSlot,
 };
-pub use operand::{Bodies, BodyRead, CopyKey, Operand, OperandSlot, SlotKind};
+pub use operand::{Bodies, BodyRead, Operand, OperandSlot, SlotKind};
 pub use parse::{ParseError, VarNameFault, VarNameReason, parse_formula};
 pub use part::{PartResolver, ResolveFailure, ResolveFault};
 pub use persist::{
@@ -207,8 +208,8 @@ pub use placement::{AxisRefusal, Frame, FrameFault, FrameSite};
 #[cfg(debug_assertions)]
 pub use product::gathers_on_this_thread;
 pub use product::{
-    Product, ProductError, ProductErrorKind, ProductRefusal, SourceFinding, SpaceGather, product,
-    product_named, product_recorded, space_gathers,
+    AssembleGather, Product, ProductError, ProductErrorKind, ProductRefusal, SourceFinding,
+    assemble_gathers, product, product_named, product_recorded,
 };
 pub use program::{
     LoopProgram, ProfileDoc, ProfilePayload, ProfileProgram, ProgramArcData, ProgramRefusal,
@@ -242,7 +243,7 @@ pub use step_handle::{
     ArcShape, AuthoredStep, StepHandleRefusal, StepShape, TargetShape, keep_grid,
 };
 pub use var::{
-    FreshEntry, Select, SelectionCount, SelectionFault, Var, VarDecl, VarDef, VarId, VarKind,
+    FreshEntry, Pick, Select, SelectionCount, SelectionFault, Var, VarDecl, VarDef, VarId, VarKind,
     VarRef, WrittenDef,
 };
 // GUI-1: the hit-test service (G1 `ray → stable ref`), with the ray

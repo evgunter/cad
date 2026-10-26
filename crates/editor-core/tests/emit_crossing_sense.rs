@@ -89,7 +89,7 @@ fn two_crossing_edges_carry_each_ones_sense_against_the_other_block() {
         for l in run {
             let (node, of, other) = member(&l.line);
             assert_eq!(
-                l.sense.expect("an edge carries its sense"),
+                l.sense,
                 sense_against(&ev, node, &of, at, other),
                 "{l:?} against the other block at {p:?}: {name:?}"
             );
@@ -160,7 +160,7 @@ fn a_rim_on_the_other_cavitys_floor_meets_its_rim_where_it_meets_its_wall() {
         };
         match name.path.as_slice() {
             [RoleSeg::Crossing { sense, .. }] if !sense.crosses() => {
-                touches.push((name.clone(), *sense, point(body, v)));
+                touches.push((name.clone(), sense.clone(), point(body, v)));
             }
             [RoleSeg::EdgeCrossing(run)] => {
                 crossings.push((run.clone(), point(body, v)));
@@ -179,9 +179,9 @@ fn a_rim_on_the_other_cavitys_floor_meets_its_rim_where_it_meets_its_wall() {
         let [x, y] = run.as_slice() else {
             panic!("two lines at {p:?}: {run:?}");
         };
-        let (slot, cavity) = match (x.sense, y.sense) {
-            (Some(Sense::Inside), Some(s)) if s.crosses() => (x, y),
-            (Some(s), Some(Sense::Inside)) if s.crosses() => (y, x),
+        let (slot, cavity) = match (&x.sense, &y.sense) {
+            (Sense::Inside, s) if s.crosses() => (x, y),
+            (s, Sense::Inside) if s.crosses() => (y, x),
             _ => panic!("one rim inside, the other crossing, at {p:?}: {run:?}"),
         };
         assert!(
@@ -229,10 +229,16 @@ fn a_corner_resting_on_a_face_is_the_corner_in_either_order() {
         let [name] = names.as_slice() else {
             panic!("{members:?}: one name at the corner: {names:?}");
         };
-        let [RoleSeg::From { of, .. }] = name.path.as_slice() else {
+        let [RoleSeg::From { read, of }] = name.path.as_slice() else {
             panic!("{members:?}: the corner is a member's own vertex: {name:?}");
         };
-        assert_eq!(of.node, b, "{members:?}: b's corner: {name:?}");
+        // `b` is a copy, carrying its source's names: the corner is the
+        // one read through `b`.
+        assert_eq!(
+            Some(*read),
+            doc.output(b, 0),
+            "{members:?}: b's corner: {name:?}"
+        );
         match &first {
             None => first = Some((**of).clone()),
             Some(want) => assert_eq!(**of, *want, "{members:?}"),
@@ -270,7 +276,7 @@ fn an_edge_crossing_of_two_members_is_named_alike_in_either_order() {
                         path.as_slice(),
                         [RoleSeg::EdgeCrossing(run)]
                             if run.len() == 2
-                                && run.iter().all(|l| l.sense.is_some_and(|s| s.crosses()))
+                                && run.iter().all(|l| l.sense.crosses())
                     )
                 ),
                 "{label}: the crossing at {at:?}: {names:?}"
@@ -357,11 +363,18 @@ fn an_edge_through_a_seam_is_read_against_the_seams_members() {
         let [RoleSeg::EdgeCrossing(run)] = name.path.as_slice() else {
             panic!("{order:?}: a run: {name:?}");
         };
+        let is_seam =
+            |l: &editor_core::RunLine| matches!(l.line.path.as_slice(), [RoleSeg::Seam { .. }]);
         let [edge, seam] = match run.as_slice() {
-            [a, b] if a.sense.is_some() && b.sense.is_none() => [a, b],
-            [a, b] if b.sense.is_some() && a.sense.is_none() => [b, a],
+            [a, b] if !is_seam(a) && is_seam(b) => [a, b],
+            [a, b] if !is_seam(b) && is_seam(a) => [b, a],
             _ => panic!("{order:?}: one edge and one seam: {name:?}"),
         };
+        assert_eq!(
+            seam.sense,
+            Sense::Outside,
+            "{order:?}: the result keeps the seam on both sides of the meeting point: {name:?}"
+        );
         assert!(
             matches!(seam.line.path.as_slice(), [RoleSeg::Seam { .. }]),
             "{order:?}: the seam is cited as a seam edge is: {name:?}"
@@ -393,7 +406,7 @@ fn an_edge_through_a_seam_is_read_against_the_seams_members() {
             (true, true) => Sense::Inside,
         };
         assert!(want.crosses(), "the fixture's edge crosses both blocks");
-        assert_eq!(edge.sense, Some(want), "{order:?}: {name:?}");
+        assert_eq!(edge.sense, want, "{order:?}: {name:?}");
         match &first {
             None => first = Some(name.clone()),
             Some(f) => assert_eq!(name, f, "{order:?}: the meeting point's name"),
