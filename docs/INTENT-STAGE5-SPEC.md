@@ -126,7 +126,12 @@ It lives in `checks/at_rest.rs` beside `quiet_verdicts`, and the `unproven-coinc
 3. its relation is `=` and its bound is decided zero;
 4. its verdict in the evaluation the census ran in is `Holds`.
 
-The space condition follows from the selections: a `Gap` over the `⊔`'s operands reads bodies of the `⊔`'s space. The rule matches by cells, not by bodies, so a second contact between the same two arrivals stays loud. It reads verdicts only, so a failed or poisoned assertion quiets nothing, gates nothing, and the finding stays loud (`a-failed-requirement-refuses-the-whole-product`'s acceptance is kept). Which rows it applies to, at which cell dimensions, and whether a flush pair is among them are §11's Q1–Q3. The lint's knob after C is Q4.
+The space condition follows from the selections: a `Gap` over the `⊔`'s operands reads bodies of the `⊔`'s space. The rule matches by cells, not by bodies, so a second contact between the same two arrivals stays loud. It reads verdicts only, so a failed or poisoned assertion quiets nothing, gates nothing, and the finding stays loud (`a-failed-requirement-refuses-the-whole-product`'s acceptance is kept). The rule is written over a row's two cells, whatever the row's kind and the cells' dimension (§11):
+
+- **Rows.** C applies it to the at-rest rows of each `⊔`. An operation's unproven row (a boolean's glue, a split's ON verdict, a blend's) is quieted by the same rule once its cells can be selected (`an-assertion-quiets-an-operations-unproven-row`).
+- **Dimensions.** C quiets every row whose two cells `Gap`'s door admits, which today means face pairs. A row with a vertex or an edge cell stays loud until `Gap` reads such cells (`gap-reads-vertex-and-edge-cells`).
+- **A flush pair is never quieted by an assertion.** It is no contact, and only a flag mate or the replay establishes it (`[assertions]`).
+- **The lint's knob stays `Advisory`.**
 
 ### Severity and the refusing path
 
@@ -203,7 +208,9 @@ Rows 1–4 are A's and 5–10 are B's, built and kept as their PRs pinned them (
     - With a `Gap` over another face pair of the same two bodies it is loud.
     - With a `Gap = 0` that is `Violated` (the bodies moved apart), there is no row and the assertion reports its own failure.
     - The same pair placed by a mate has no finding.
-    - *Breaks if* the rule matches by body pair (the other-face row quiets), `≥ 0` quiets (the straddle reading), or a mated pair is reported.
+    - A flush pair of two coplanar faces of the two bodies, with `Gap = 0` over its two cells, stays loud.
+    - A vertex-on-face row stays loud: `Gap` admits no vertex.
+    - *Breaks if* the rule matches by body pair (the other-face row quiets), `≥ 0` quiets (the straddle reading), a mated pair is reported, or the flush pair quiets.
 13. **A could-not-look finding never refuses.**
     - A `CensusUndecidable` pair between two arrivals is one could-not-look finding, reported at Warn and Error, and `enforce_checks` refuses it at neither.
     - A loud interference finding refuses at Error only.
@@ -244,7 +251,8 @@ DESIGN governs where a companion clause disagrees. Each rewrite below describes 
 ## 9. The in-scope rows
 
 - **`a-failed-requirement-refuses-the-whole-product`** (closed). C must not regress it: the quieting rule reads verdicts, and a poisoned assertion quiets nothing and gates nothing (rows 10 and 12).
-- **`stage5-contact-finding-and-the-unproven-row-report-one-contact-twice`**: this spec's §1 resolves it, since `AtRest` has no contact finding.
+- **`stage5-contact-finding-and-the-unproven-row-report-one-contact-twice`** (closed): `AtRest` has no contact finding (§1).
+- **`an-assertion-quiets-an-operations-unproven-row`** and **`gap-reads-vertex-and-edge-cells`** carry the contact half past C (§11, Q1 and Q2).
 - **`separation-quiets-only-first-rung-rows`** (rides with C): `Separation` and its suppression retire, so it closes with C.
 
 ## 10. Boundaries
@@ -261,32 +269,14 @@ DESIGN governs where a companion clause disagrees. Each rewrite below describes 
 - **Stage 4** is built (H #5300, I #5637). Declared contacts, the mate mint and `ContactClass` are gone, and the lint reads the at-rest rows. C adds only the contact half's matching to the lint, and the lint's door is unchanged.
 - **`d10-one-way-to-say-intent-is-unbuilt`** waits on C. After C, State of the build lists A5's gate and `Separation` as built.
 
-## 11. Open questions
+## 11. Decided questions
 
-The FORKs of the first cut (S5-1 to S5-5) are settled by fork-log rows 91 and 98, and by PR 4666's cell reading. The questions below are ones the ratified text does not settle. None of them changes C's resident. Each decides how far the contact half reaches in the lint.
+The first cut's FORKs (S5-1 to S5-5) are settled by fork-log rows 91 and 98 and by PR 4666's cell reading. The four questions below decide how far C's contact half reaches. D10 settles the final state of each, so what remains is sequencing, which is the ATREST orchestrator's (2026-10-26).
 
-**Q1 — Which unproven rows does the contact half quiet?** `[assertions.quiet]` defines it for "a contact", the census's finding at a `⊔`. `[intent.checked]` says of every unproven coincidence that "an assertion at its site quiets it", and that includes a boolean's glue and a split's ON verdict.
+**Q1 — Which unproven rows the contact half quiets.** The final state is every unproven row. `[intent.checked]` says of every unproven coincidence that "an assertion at its site quiets it", and that includes a boolean's glue, a split's ON verdict and a blend's rows. C builds the at-rest rows, with the rule written over a row's two cells so that it applies unchanged to an operation's row. The operation rows' cells are named in the deciding node's input tables, and selecting them is `an-assertion-quiets-an-operations-unproven-row`.
 
-- **(a) At-rest rows only.** C quiets the `⊔`'s contacts, and the operation rows wait for a unit of their own. This is the smallest diff, and it is what `[assertions.quiet]` spells out.
-- **(b) Every row the lint reports**, where a `Gap = 0` can be taken between the row's two cells. One rule for the lint, but C reaches the boolean and split rows' naming (their cells are named in the deciding node's input tables) too.
+**Q2 — Cells below a face.** The final state is every dimension: `[assertions.quiet]` says "at whatever dimension they are". `Gap`'s door admits faces only (`MeasurePrimitive::admits`, `measure.rs`). So C quiets every row whose two cells `Gap` admits, and a lower-dimensional row stays loud until `gap-reads-vertex-and-edge-cells` widens `Gap`, which is buildable beside C. C writes the rule cell-generic, so that widening adds no rule.
 
-Recommendation, likely: (a), with (b) filed.
+**Q3 — A flush pair.** A `Gap` assertion never quiets one. `[assertions]` says a flush pair is "no contact, but a coincidence … a finding unless established, by a flag mate or by the replay", and `[assertions.quiet]` quiets "a contact". Ev, on PR 5555: "the proper way to specify this would be a mate that additionally indicates that it is flush".
 
-**Q2 — Cells below a face.** `[assertions.quiet]` quiets a contact "at whatever dimension they are (two faces, a vertex or an edge on a face, an edge on an edge, two vertices)". `Gap`'s door admits faces only (`MeasurePrimitive::admits`, `measure.rs`), so no assertion can yet be written over a lower-dimensional row.
-
-- **(a) C widens `Gap`** to edge and vertex selections, with C5's signed arms for each cell pair: a vertex's signed distance to a face, and so on.
-- **(b) C quiets face-pair rows only.** A lower-dimensional row stays loud, as a frontier, and a unit is filed to widen `Gap`.
-
-Recommendation, likely: (b). Widening a measure's door is a measure unit's, and a loud row is the safe direction.
-
-**Q3 — Does `Gap = 0` quiet a flush pair?** `[assertions]` says a flush pair is "no contact, but a coincidence … a finding unless established, by a flag mate or by the replay". It names no assertion. `[assertions.quiet]`'s contact sentence reads "a contact".
-
-- **(a) Yes.** It is a finding of the lint at two cells, and a holding `Gap = 0` between them (two coplanar faces) states the same.
-- **(b) No.** Only the document's constructions establish it, so it stays loud until a flag mate or the replay does.
-
-**Q4 — The lint's knob after C.** `UnprovenCoincidence` is `Advisory` because it "does not read" its quieting record (`ChecksConfig::unproven_coincidence`).
-
-- **(a) It stays `Advisory`** while any row it reports cannot be quieted (Q1 (a), Q2 (b)).
-- **(b) `Severity`**, with `Error` refusing only quietable loud rows, and every other row loud and never refusing, as `AtRest`'s could-not-look findings are (DS6's frontier sentence).
-
-Recommendation, likely: (a) under Q1 (a), and (b) once every row is quietable. A knob whose `Error` refuses only some rows of one check is a second refusal rule to explain.
+**Q4 — The lint's knob.** C leaves `ChecksConfig::unproven_coincidence` as `Advisory`. It is re-read against CHECKS DS3 ("off / warn / error, or off / warn where it ships no way to quiet a finding") once both rows above land. A flush pair is never quietable by an assertion, so a lint-wide `Error` needs a rule this spec does not write.
