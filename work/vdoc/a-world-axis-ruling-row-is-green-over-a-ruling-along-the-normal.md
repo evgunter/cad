@@ -2,10 +2,11 @@
 id: a-world-axis-ruling-row-is-green-over-a-ruling-along-the-normal
 kind: issue
 title: datum_draw's world-axis ruling row holds 'along a world axis', not 'the other two', and seven siblings red before it
-status: open
+status: closed
 opened: 2026-09-21
 priority: P4
 cost: E
+closed: 2026-10-26
 ---
 
 
@@ -83,3 +84,7 @@ population* applied to a test name.
 `a_world_axis_planes_ruling_stays_on_the_other_two_world_axes`.
 
 **Confidence**: sure — the mutation receipt is above.
+
+## Closed (2026-10-26, tracker sweep)
+
+**Superseded.** The test and the code it measured are gone from main (`bb25fa4f`). `crates/viewer/tests/datum_draw.rs` and `crates/viewer/src/datums.rs` do not exist, and `rule_patch` and `a_world_axis_planes_ruling_stays_on_the_other_two_world_axes` appear nowhere under `crates/`. Datums became poses under D10, and nothing in the viewer draws a datum plane any more (FIT's 2026-10-22 log: *no `datums.rs` exists on main*). No row is left whose name could over-claim.

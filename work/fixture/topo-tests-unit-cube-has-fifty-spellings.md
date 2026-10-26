@@ -59,3 +59,14 @@ and individually defensible:
 
 Collectively that is three rules. Whichever way the nullary-unit-cube
 question goes should settle this too.
+
+## Re-checked (2026-10-26, tracker sweep)
+
+The population has moved a long way. `crates/topo/tests/common/` is
+gone; topo's fixtures now live in `crates/topo/src/test_support_fixtures.rs`,
+which has a private `unit_cube` at `:474`. The row's own regex finds 11
+hits in 4 files (`brick` ×1, `finished_brick` ×10), not 49. There are
+also suite-local `fn cube` helpers, for example
+`a_widened_rotation_moves_a_body.rs:23`. Re-derive the population before
+taking it. The naming question against `geometric_cube` may already
+have been answered there.

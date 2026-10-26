@@ -1653,6 +1653,18 @@ FAMILIES: dict[str, str] = {
         "`IndexedRead`, and one Python row reading one copy of an "
         "instance at a body seat."
     ),
+    # THE MEASUREMENT PREDICATE ARRIVED BEFORE ITS DOORS
+    # (`docs/QUAD-MEASURE-SPEC.md` unit B): the façade curates `Settle`
+    # and the vocabulary its variants carry, while no number door takes
+    # one yet. Python taking it as data is unit C's
+    # (`work/quad/the-measurement-door-refines-until-a-predicate-resolves`).
+    "B-SETTLE": (
+        "what a measurement is asked — `Settle` (a sign, a relation, a "
+        "containment or a resolution) with `RelOp`, `SignNames` and "
+        "`RoleNames`. Closing it needs `Body.mass_properties()` and the "
+        "other number doors to take one as data, a `pncad.pyi` entry for "
+        "each, and one Python row per variant."
+    ),
 }
 
 #: Curated names with no Python spelling at all, by family.
@@ -2400,6 +2412,10 @@ NOT_BOUND = {
     "SpokenSpace": SHAPE,
     "VarDef": f"{GAP}: B-VAR-ID a variable's minted identity",
     "CopyKey": f"{GAP}: B-COPY-KEY the key of one copy of a placement's copies",
+    "Settle": f"{GAP}: B-SETTLE what a measurement is asked",
+    "RelOp": f"{GAP}: B-SETTLE what a measurement is asked",
+    "SignNames": f"{GAP}: B-SETTLE what a measurement is asked",
+    "RoleNames": f"{GAP}: B-SETTLE what a measurement is asked",
     "KeyedCopy": f"{GAP}: B-COPY-KEY the key of one copy of a placement's copies",
     "VarRef": f"{GAP}: B-VAR-ID a variable's minted identity",
     "node_kind_noun": SHAPE,
@@ -3917,6 +3933,7 @@ MEMBERS_BOUND_AS = {
     "TessellateError::ResolutionOverflow": "TessellateError.variant",
     "TessellateError::StepNotPositive": "TessellateError.variant",
     "TessellateError::CertificateExceeded": "TessellateError.variant",
+    "TessellateError::RoundingUnresolved": "TessellateError.variant",
     "TessellateError::Triangulation": "TessellateError.variant",
     "TessellateError::SelfTouchingTrimLoop": "TessellateError.variant",
     "TessellateError::PinchWedge": "TessellateError.variant",

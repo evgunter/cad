@@ -211,7 +211,7 @@ impl From<StableName> for NameRef {
 // (`crates/test-utils/tests/hand_written_impl_census.rs`, which names
 // this file as the standing example; whether that verdict should
 // change is
-// `work/tint/census-answers-no-field-read-for-a-walk-that-reads-a-field.md`).
+// `work/fixture/census-answers-no-field-read-for-a-walk-that-reads-a-field.md`).
 // `Deref`, `AsRef` and `Borrow` are not in the group: each hands back
 // `&StableName`, so its return TYPE names the one field it projects
 // and there is no list that could be short.
@@ -230,7 +230,7 @@ impl From<StableName> for NameRef {
 // declaration holds — a sixth walk added under `Ord` would inherit
 // this claim without being in it. Recorded rather than closed; the
 // closing instrument would be a per-impl population, which is
-// `work/tint/the-per-impl-sight-anchor-is-a-suppression-list-that-shrinks.md`.
+// `work/fixture/the-per-impl-sight-anchor-is-a-suppression-list-that-shrinks.md`.
 
 // The rendering a `NameRef` gave: the name, with no wrapper of
 // its own. Name digests are taken over this text.

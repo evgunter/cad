@@ -2,10 +2,11 @@
 id: refuse-roster-and-chrome-labels-header-predate-the-disabled-reason-doors
 kind: issue
 title: chrome_labels.rs's header was already false at its own merge base, and the viewer README's refuse roster is short by four members
-status: open
+status: closed
 opened: 2026-09-20
 priority: P4
 cost: E
+closed: 2026-10-26
 ---
 
 Filed by VNEWS's `vnews/app-controls-read-their-refusals` (#2960).
@@ -75,3 +76,9 @@ carries for `NodeKindWanted`/`admits`.
   `new_document_name`, `self_instance`, and the module header, which
   #2960 DID update because that file is VNEWS's own ground.
 - `crates/viewer/README.md` — the `session::refuse` vocabulary row.
+
+## Closed (2026-10-26, tracker sweep)
+
+**Fixed in this sweep.**
+1. `crates/viewer/tests/chrome_labels.rs`'s header no longer says the rest of the chrome's wording *is not testable without a window*. It now says that wording is held where it is drawn, by the headless harnesses in `app.rs`'s tests (`toolbar_row` `:2698`, `Toolbar` `:3043`) and `pane/view.rs`'s key-event rows (`:370`), and that this suite claims only its two names.
+2. `crates/viewer/README.md`'s `session::refuse` row (~`:404`) now lists `Refusal`'s deciding constructors (`self_instance`, `nothing_to_step`, `new_document_name`), the predicate `admits_read` beside `admits`, and the `Step` payload. The row already states the population as a rule (*every refusal vocabulary a session door raises*), so the list is that rule's instance.

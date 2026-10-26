@@ -2,10 +2,12 @@
 id: d-prime3-fallback-diagnosis-blames-the-sources-minting-node-for-a-re-pointed-copy
 kind: issue
 title: On D′3's branch a name stale in a re-pointed copy is diagnosed against the source's minting node ("Extrude B's payload differs"), not the copy that changed
-status: open
+status: parked
 opened: 2026-10-25
 priority: P3
 cost: E
+rides_with: assemble-is-an-operator-and-the-product-is-a-slot
+blocked_on: [assemble-is-an-operator-and-the-product-is-a-slot]
 ---
 
 

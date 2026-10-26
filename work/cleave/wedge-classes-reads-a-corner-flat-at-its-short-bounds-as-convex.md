@@ -110,7 +110,7 @@ both dent signs, six op orders; red on main, in the fast set),
 `a_direction_in_band_of_a_corners_face_reads_it_as_a_polygon_cone`
 (each read against a closed form; the last two red on main's arms), and
 the fuzz's long-probe column. Filed:
-`work/hone/boolean-reads-two-faces-coplanar-three-ways-at-three-levers.md`.
+`work/honeone/boolean-reads-two-faces-coplanar-three-ways-at-three-levers.md`.
 
 ## Closed (PR 4564, 2026-10-10)
 

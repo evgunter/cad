@@ -11,7 +11,7 @@ cost: E
 
 Found by CHROME's style lane on PR 1768, against that PR's own claim.
 
-`crates/viewer/src/scene.rs:445` refuses `SceneError::MispairedIds`
+`crates/viewer/src/scene.rs` (`SceneMesh::build_parts_focused`, `:561` at `bb25fa4f`) refuses `SceneError::MispairedIds`
 when a drawn part's id count disagrees with its mesh's patch count —
 but it guards with
 
@@ -31,7 +31,7 @@ list and the check really compares two sources. The PR body said it was
 
 And the exempted shape is the one that unit singled out as
 interesting: an empty run still OWNS a window, which is why 1768 covers
-it synthetically at the structure (`pick.rs`'s unit tests) rather than
+it synthetically at the structure (`crates/viewer/src/pickindex.rs`'s `mod tests`; the module was `pick.rs` when this was filed) rather than
 through the tessellator, which cannot produce it. The one case the
 refactor went out of its way to reason about is the case this guard
 skips.

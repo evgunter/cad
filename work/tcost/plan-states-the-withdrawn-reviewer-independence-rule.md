@@ -2,10 +2,11 @@
 id: plan-states-the-withdrawn-reviewer-independence-rule
 kind: issue
 title: tcost's plan states the reviewer-independence rule the policy memory withdrew
-status: open
+status: closed
 opened: 2026-09-19
 priority: P4
 cost: E
+closed: 2026-10-26
 ---
 
 
@@ -56,3 +57,14 @@ plan.
 `work/tint/tint-plan-states-the-withdrawn-reviewer-independence-rule.md`
 is the same defect in S-TINT's plan; they are filed separately because
 one file is one item and neither program may edit the other's.
+
+## Closed (2026-10-26, tracker sweep)
+
+**Fixed in this sweep.** `work/tcost/plan.md`'s reading-list bullet and
+its keep-out bullet, and the matching clause in `work/tcost/program.md`'s
+`keep_out`, now state the surviving per-row test from
+`memories/review-and-dependency-policy.md` ("Reviewer tests are ordinary
+tests"). A row keeps its own code only where its claim needs its own
+derivation, whoever wrote the row. The withdrawn "independence worth
+keeping" reading is gone from both files. The S-TINT twin was fixed by
+`7816627606` (2026-09-20).

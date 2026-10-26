@@ -2,10 +2,11 @@
 id: a-union-over-a-declared-continuation-keeps-its-walls-split
 kind: issue
 title: B ∪ A over a declared rounded continuation builds the thick plate with its walls split where the thin plate's lay (18 or 14 faces against 10)
-status: open
+status: closed
 opened: 2026-10-02
 priority: P3
 cost: M
+closed: 2026-10-26
 ---
 
 
@@ -38,3 +39,7 @@ Waits on `intent-stage4-is-built`, not on the whole program: fix site is merge_c
 ## Released by INTENT stage 4 E (`intent/s4-e-glue-on-zero`) (2026-10-09)
 
 E rewrites the merge so that it glues every adjacent pair its margins decide one carrier facing one way, planar and curved, declared or not (`crates/topo/src/merge_faces.rs:2255`, `faces_continue`). B ∪ A still builds 18 faces sunk and 14 flush against the plate's 10: the pin is unchanged (`crates/sweep/tests/reach_continuation.rs:1213`–`:1266`). The split walls are therefore not a missing merge rung. Which faces stay split, and why the merge leaves them, is the row's measurement still to make.
+
+## Closed (2026-10-26, tracker sweep)
+
+**Fixed.** `B ∪ A` now builds the thick plate with the plate's own 10 faces in all three in-wall poses (sunk, flush top, flush bottom): `crates/sweep/tests/reach_continuation.rs:921`–`:926`, `builds(…, topo::union(&b, &a, tol()), area(4.0), 10)`, where `builds` asserts the face count (`:648`). The test's doc says "its walls glued back whole where the thin plate's lay (the plate's 10 faces)" (`:876`–`:878`). The rounded two-plate stack also merges its four fillet pairs now, with ten faces and no recorded skip (`reach_continuation.rs:158`–`:190`). The A ∪ B and B ∖ A refusals in that test are `rounded-stack-subtract-and-intersect-refuse-fallback-extent`'s (this slate), which stays open. The history is shallow, so the commit was not found.

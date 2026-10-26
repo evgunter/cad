@@ -2,8 +2,9 @@
 id: territory-base-main-reads-a-stale-local-ref-and-answers-confidently-wrong
 kind: issue
 title: work/README.md documents 'territory --base main', but in this repo's working model the local main ref is reliably stale, so the documented invocation answers confidently wrong instead of refusing
-status: open
+status: closed
 opened: 2026-09-15
+closed: 2026-10-26
 priority: P3
 cost: E
 ---
@@ -77,3 +78,15 @@ Filed by the WIRE orchestrator under
 `docs/prompts/implementer-discipline.md` §6. `scripts/work.py` and
 `work/README.md` are both in META's `paths`, so this is squarely META's
 ground rather than a routing guess.
+
+## Closed (2026-10-26, tracker sweep)
+
+**Duplicate.** `territory-base-main-is-stale-in-every-agent-checkout`
+(opened 2026-09-22) is the same defect — `territory --base main` diffs
+against a stale local `main` and reports a large false crossing — with
+the same candidate fixes, plus a second defect in the same function. It
+is the survivor; this row's own measurement (12,068 commits behind,
+strict ancestor) and its "refuse a stale base" shape were merged into
+it. Still live at `bb25fa4f`: `scripts/work.py territory` diffs
+`{base}...HEAD` as given, and `work/README.md` (§Rules, the territory
+bullet) still spells `--base main`.

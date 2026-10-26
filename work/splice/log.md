@@ -220,3 +220,28 @@ The lane's topo slow set had one red, the lattice discard pin, which is
 main's: it was bisected to PRED 5724 meeting FLUSH 5706, and is filed
 in `work/issues/` (PR 5735). The orchestrator read the delta and merged
 on green `gate ok`.
+
+## 2026-10-26 — C5 gains the curve × face clause (PR 5727)
+
+Ev took the converged design (fork log row 198) after asking about
+dimensionality. Answered on the PR: a span × face meets in isolated
+points; A and B differ only in eliminating the curve parameter; and a
+boundary meeting is non-generic, so it is a coincidence. Ev's reply:
+"if it is actually for the point then it's fine".
+
+Filed on this slate:
+- `a-span-is-read-against-a-faces-boundary-edges-first` (P0 H);
+- `a-point-has-no-place-in-a-nurbs-faces-trim` (P1 M);
+- `the-side-of-a-spline-face-is-read-by-no-dihedral` (P1 M);
+- `curved-boolean-unsupported-names-no-edge` (P3 E).
+
+The crossing rung is now an arm of the same table. SECT's row got a
+correction: klein's join pair is cylinder × NURBS, tangent along the
+rim.
+
+Lily wall 8's path is now:
+1. the boundary-first reading;
+2. the dihedral side reading;
+3. the two flush rows.
+
+No interior arm is needed for it.

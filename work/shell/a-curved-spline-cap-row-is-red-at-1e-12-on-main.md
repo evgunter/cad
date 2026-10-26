@@ -2,8 +2,12 @@
 id: a-curved-spline-cap-row-is-red-at-1e-12-on-main
 kind: issue
 title: shell_general_door's curved spline cap row is red at ε 1e-12 on main (fit stops at 3.2e-12)
-status: open
+status: closed
 opened: 2026-10-12
+priority: P3
+cost: E
+closed: 2026-10-26
+refs: [a-curved-fitted-cap-rows-sample-cap-grid-pin-is-red-at-1e-12-on-main]
 ---
 
 
@@ -36,3 +40,13 @@ Re-run alone with a fresh `CARGO_TARGET_DIR` per commit: red at `a71403e3` and s
 ## 2026-10-19 — bisected to PR 4551 (NURBS)
 
 CONTACTHOLD's nightly-red lane bisected it over first-parent merges from `61ee8bf5a4` (green) to `360cf55eb2` (the 2026-10-12 nightly, red), at ε 1e-12. It passes at `071a630b58` and fails at **`aa1f124298`**, the merge of PR 4551 (`nurbs/monotone-step-and-blossom`: `Certification::between` and `CoeffWindow::blossom`), stopping at 3.2397e-12 on (48, 48). `encl_curved_loft_shell`'s curved fitted cap row (`a-curved-fitted-cap-rows-sample-cap-grid-pin-is-red-at-1e-12-on-main`) moved at the same merge. Still red in the 2026-10-19 nightly (run 39205007024).
+
+## Closed (2026-10-26, sweep follow-up)
+
+A duplicate of `a-curved-fitted-cap-rows-sample-cap-grid-pin-is-red-at-1e-12-on-main`.
+Both reds are on the offset fit and both were bisected to PR 4551's merge
+(`aa1f124298`), so they are one re-baseline-or-fix decision. That row
+survives (it carried a band and the pin's history), and this row's test,
+its reproduction and its open question (an unlisted refusal, or no
+refusal) are carried into it. Still red at 1e-12 on main `d621f67e`
+(`shell_general_door.rs:153`, stop 3.2397e-12 on (48, 48)).

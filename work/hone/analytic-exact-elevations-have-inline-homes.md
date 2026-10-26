@@ -2,11 +2,12 @@
 id: analytic-exact-elevations-have-inline-homes
 kind: issue
 title: The exact-distance elevation of a cylinder, sphere and torus is written inline at several sites; the cone's now has one home in geom_brep::cone_elevation
-status: open
+status: closed
 opened: 2026-09-28
 priority: P3
 cost: E
 refs: [c5-gate-admits-every-pose-of-an-implemented-pair]
+closed: 2026-10-26
 ---
 
 ## What
@@ -41,3 +42,6 @@ do not get.
 every site above calling them. Check bit-identity per site: the torus
 copies differ in operation order.
 
+## Closed (2026-10-26, tracker sweep)
+
+**Superseded by `point-to-carrier-distance-is-spelled-seven-times`** (this slate). That row asks for one reading of a point against a carrier, with its residual, distance and on-carrier decision, and one arm per surface kind. The exact cylinder, sphere and torus elevations this row lists are spellings of that reading. Its unique facts (the cone's home, the extra sites, the bit-identity caution) are merged into that row's `## Merged from` section. `torus_elevation` is still the boolean module's home (`crates/topo/src/boolean/solid_contain.rs:1157`), and `geom_brep::cone_elevation` is still the only `*_elevation` home in geom-brep (`crates/geom-brep/src/implicit.rs:136`).

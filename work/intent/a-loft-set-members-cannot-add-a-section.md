@@ -2,11 +2,12 @@
 id: a-loft-set-members-cannot-add-a-section
 kind: issue
 title: SetMembers on a loft must keep its section count: a section it adds has no station to stand at
-status: open
+status: dispatched
 opened: 2026-10-18
 priority: P2
 cost: M
 parent: transform-retires-into-a-placement
+branch: intent/loft-section-stations
 ---
 
 

@@ -1065,6 +1065,21 @@ fn chart_of<T: Decide>(
     })
 }
 
+/// **Whether `carrier` has a projected image on `surface`**: the one
+/// home of the (carrier, chart) pairs the general lane is written for, read
+/// by the mint's lane choice (`chart_image`) and by check 4's two gates
+/// here. A spline net on any analytic chart, and a circle on a sphere,
+/// whose incidence term is the sphere's exact off-sphere sup. A circle on
+/// a cone, torus or cylinder has none yet (unit E4,
+/// `work/pcert/a-circles-general-lane-is-written-only-on-the-sphere.md`).
+pub(crate) fn has_lane<T: Real>(carrier: &Curve3<T>, surface: &Surface<T>) -> bool {
+    match carrier {
+        Curve3::Nurbs(_) => crate::edge_nurbs::is_analytic(surface),
+        Curve3::Circle { .. } => matches!(surface, Surface::Sphere { .. }),
+        Curve3::Line { .. } | Curve3::Ellipse { .. } | Curve3::Spiric { .. } => false,
+    }
+}
+
 /// The period gate's row, and the straddle of a bounded channel's two
 /// readings.
 const PERIOD_ROWS: TurnRows<&str> =
@@ -1102,16 +1117,27 @@ fn period_gate(
 /// within the band of a pole, the cone's apex or the torus's core);
 /// [`PcurveCertifyError::Escalated`] ([`PcurveCheck::Sector`]) when the
 /// nappe or a sector stays in the band at the cap.
+///
+/// # Panics
+///
+/// On a pair with no projected lane ([`has_lane`]): every caller reads
+/// that list before the call, so such a pair here is a kernel bug, not a
+/// refusal.
 pub(crate) fn project<T: Decide>(
     carrier: &Curve3<T>,
     span: Option<(T, T)>,
     surface: &Surface<T>,
     band: Band,
 ) -> Result<ProjectedImage<T>, PcurveCertifyError> {
+    assert!(
+        has_lane(carrier, surface),
+        "project: a {} on a {} chart has no projected lane (`has_lane`), and every caller \
+         reads that list first",
+        carrier.kind().name(),
+        surface.kind().name()
+    );
     let Some((origin, e)) = chart_frame(surface) else {
-        return Err(PcurveCertifyError::UnsupportedChart {
-            chart: surface.kind(),
-        });
+        unreachable!("project: `has_lane` admits only analytic charts, which have a frame")
     };
     let framed = match carrier {
         Curve3::Nurbs(net) => FramedCarrier::Net(Arc::new(framed_net(net, origin, &e))),
@@ -1129,10 +1155,7 @@ pub(crate) fn project<T: Decide>(
             }
         }
         Curve3::Line { .. } | Curve3::Ellipse { .. } | Curve3::Spiric { .. } => {
-            return Err(PcurveCertifyError::ImageMismatch {
-                image: PcurveKind::Projected,
-                why: "a line, ellipse or spiric has a closed-form image, never a projected one",
-            });
+            unreachable!("project: `has_lane` admits no line, ellipse or spiric")
         }
     };
     let escalated = |cause| PcurveCertifyError::Escalated {
@@ -1989,7 +2012,9 @@ pub(super) fn projected_envelope<T: Decide>(
             let Some(form) = super::carrier_harmonic(carrier) else {
                 unreachable!("a circle has a harmonic form")
             };
-            let Surface::Sphere { center, radius, .. } = *surface else {
+            let (true, &Surface::Sphere { center, radius, .. }) =
+                (has_lane(carrier, surface), surface)
+            else {
                 return Err(refuse("a circle's projected image is written for a sphere"));
             };
             // `Δc + Δa·cos t + Δb·sin t`: the centre's gap and the pair's
@@ -2215,8 +2240,7 @@ pub(super) fn run_projected_checks<T: Decide>(
                 }
             }
         }
-        (FramedCarrier::Circle { .. }, Curve3::Circle { .. })
-            if matches!(surface, Surface::Sphere { .. }) => {}
+        (FramedCarrier::Circle { .. }, Curve3::Circle { .. }) if has_lane(carrier, surface) => {}
         _ => {
             return Err(refuse(
                 "the stored carrier is not the edge's carrier kind (a spline's net, or a \
