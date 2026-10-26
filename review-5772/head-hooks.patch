@@ -1,0 +1,215 @@
+diff --git a/crates/editor-core/src/eval/wire.rs b/crates/editor-core/src/eval/wire.rs
+index 49b05fba..151d0492 100644
+--- a/crates/editor-core/src/eval/wire.rs
++++ b/crates/editor-core/src/eval/wire.rs
+@@ -470,7 +470,7 @@ where
+             } else {
+                 BooleanOp::Intersect
+             };
+-            wire_combine(
++            let out = wire_combine(
+                 &crate::verbs::boolean::boolean(),
+                 (op, node, members),
+                 id,
+@@ -478,7 +478,9 @@ where
+                 doc,
+                 env.boolean_sweep,
+                 tol,
+-            )
++            );
++            review_capture::capture(op, id, &out);
++            out
+         }
+         Node::Place {
+             shapes,
+@@ -3328,7 +3330,7 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
+     let mut links = names::UnionLinks::default();
+     let mut judged: Vec<Vec<crate::coincide::NamedCoincidence>> =
+         Vec::with_capacity(built.judgements.len());
+-    for j in &built.judgements {
++    for (review_k, j) in built.judgements.iter().enumerate() {
+         judged.push(
+             crate::coincide::name_rows(
+                 &j.body.coincidences,
+@@ -3340,6 +3342,11 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
+             )
+             .map_err(NodeErrorKind::Naming)?,
+         );
++        if review_capture::fault(review_k) {
++            return Err(NodeErrorKind::Naming(names::NamingError::Emission {
++                what: "review: injected judgement naming fault",
++            }));
++        }
+         links
+             .judged(j.a, j.b, &j.body.naming, &j.body.body)
+             .map_err(NodeErrorKind::Naming)?;
+@@ -4748,3 +4755,77 @@ mod union_row_tests {
+         assert_eq!(member_ranks(&reads), [2, 0, 1, 0]);
+     }
+ }
++
++/// Review-only capture hook (not for merge).
++mod review_capture {
++    use super::{BooleanOp, OpResult, RecipeNodeId};
++    use geom_core::Decide;
++    use std::hash::{Hash, Hasher};
++    use std::io::Write;
++    fn h(s: &str) -> u64 {
++        let mut x = std::collections::hash_map::DefaultHasher::new();
++        s.hash(&mut x);
++        x.finish()
++    }
++    fn mask(s: &str) -> String {
++        let key = "ZeroWord(";
++        let mut out = String::with_capacity(s.len());
++        let mut rest = s;
++        while let Some(i) = rest.find(key) {
++            out.push_str(&rest[..i + key.len()]);
++            rest = &rest[i + key.len()..];
++            let j = rest.find(|c: char| !c.is_ascii_digit()).unwrap_or(rest.len());
++            out.push('_');
++            rest = &rest[j..];
++        }
++        out.push_str(rest);
++        out
++    }
++    pub(super) fn fault(k: usize) -> bool {
++        std::env::var("REVIEW_FAULT_JUDGEMENT").ok().and_then(|v| v.parse::<usize>().ok()) == Some(k)
++    }
++    pub(super) fn capture<T: Decide>(op: BooleanOp, id: RecipeNodeId, out: &OpResult<T>) {
++        let Some(dir) = std::env::var_os("UNION_CAPTURE_DIR") else {
++            return;
++        };
++        let dir = std::path::PathBuf::from(dir);
++        let line = match out {
++            Ok(o) => {
++                let rows = format!("{:?}", o.coincidences);
++                let rh = h(&rows);
++                let blobs = dir.join("rows");
++                let _ = std::fs::create_dir_all(&blobs);
++                let bp = blobs.join(format!("{rh:016x}.txt"));
++                if !bp.exists() {
++                    let _ = std::fs::write(&bp, &rows);
++                }
++                format!(
++                    "ok body={:016x} names={:016x} rows={:016x} rowsm={:016x} rec={:016x} cited={:016x} parts={} carried={:016x} motion={}",
++                    h(&format!("{:?}", o.payload)),
++                    h(&format!("{:?}", o.outputs)),
++                    rh,
++                    h(&mask(&rows)),
++                    h(&format!("{:?}", o.contacts)),
++                    h(&format!("{:?}", o.cited_inputs)),
++                    o.parts,
++                    h(&format!("{:?}", o.carried)),
++                    o.motion.is_some(),
++                )
++            }
++            Err(e) => {
++                let d = format!("{e:?}");
++                let mut short: String = d.chars().take(300).collect();
++                short = short.replace(['\n', '\t'], " ");
++                format!("err {:016x} {}", h(&d), short)
++            }
++        };
++        let test = std::env::args()
++            .skip(1)
++            .find(|a| !a.starts_with('-'))
++            .unwrap_or_default();
++        let path = dir.join(format!("{}.txt", std::process::id()));
++        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
++            let _ = writeln!(f, "{test}\t{op:?}\t{id:?}\t{line}");
++        }
++    }
++}
+diff --git a/crates/editor-core/tests/all.rs b/crates/editor-core/tests/all.rs
+index 770723a9..4d6671f6 100644
+--- a/crates/editor-core/tests/all.rs
++++ b/crates/editor-core/tests/all.rs
+@@ -52,6 +52,7 @@
+ // There is no `#![allow(clippy::duplicate_mod)]` here because no file is
+ // loaded twice any more; if one ever is, the lint is meant to fire.
+ mod blocks;
++mod review_precedence_probes;
+ mod corpus;
+ mod fixture;
+ // The wire-surgery helper, editor-core's alone — `tests/fixture/` and
+diff --git a/crates/sweep/tests/all.rs b/crates/sweep/tests/all.rs
+index 1e2f4601..4922d328 100644
+--- a/crates/sweep/tests/all.rs
++++ b/crates/sweep/tests/all.rs
+@@ -52,6 +52,7 @@
+ // There is no `#![allow(clippy::duplicate_mod)]` here because no file is
+ // loaded twice any more; if one ever is, the lint is meant to fire.
+ mod common;
++mod nary_door_review_probes;
+ mod mate2_common;
+ mod revolve_common;
+ mod seam_region_common;
+diff --git a/crates/topo/src/boolean/nary.rs b/crates/topo/src/boolean/nary.rs
+index 59cc14c4..6540e3b8 100644
+--- a/crates/topo/src/boolean/nary.rs
++++ b/crates/topo/src/boolean/nary.rs
+@@ -455,6 +455,7 @@ pub fn nary_boolean<T: Decide + Bounds + AtRestPolicy>(
+     if pairwise {
+         let ranks: Vec<u32> = members.iter().map(|m| m.inputs.rank).collect();
+         for (a, b) in judged_pairs(&hulls, &ranks) {
++            review_line("JUDGED", &format!("{a},{b}"));
+             let judged = boolean_op_given(
+                 op.op(),
+                 members[a].body,
+@@ -495,6 +496,9 @@ pub fn nary_boolean<T: Decide + Bounds + AtRestPolicy>(
+         } else {
+             None
+         };
++        if let Some(g) = &given {
++            review_line("GIVEN", &format!("{member} {}", review_hash(&format!("{g:?}"))));
++        }
+         let inputs = BooleanInputs {
+             records_a,
+             records_b: members[member].inputs.records.clone(),
+@@ -690,6 +694,45 @@ fn restated_rows<T: Real>(
+     restated
+ }
+ 
++
++/// Review-only capture (not for merge).
++#[allow(missing_docs, clippy::all)]
++pub(crate) fn review_line(kind: &str, payload: &str) {
++    use std::io::Write;
++    let Some(dir) = std::env::var_os("UNION_CAPTURE_DIR") else {
++        return;
++    };
++    let test = std::env::args()
++        .skip(1)
++        .find(|a| !a.starts_with('-'))
++        .unwrap_or_default();
++    let path = std::path::PathBuf::from(dir).join(format!("{}.aux.txt", std::process::id()));
++    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
++        let _ = writeln!(f, "{test}\t{kind}\t{payload}");
++    }
++}
++#[allow(missing_docs, clippy::all)]
++pub(crate) fn review_hash(s: &str) -> String {
++    use std::hash::{Hash, Hasher};
++    let h = |s: &str| {
++        let mut x = std::collections::hash_map::DefaultHasher::new();
++        s.hash(&mut x);
++        x.finish()
++    };
++    let key = "ZeroWord(";
++    let mut out = String::with_capacity(s.len());
++    let mut rest = s;
++    while let Some(i) = rest.find(key) {
++        out.push_str(&rest[..i + key.len()]);
++        rest = &rest[i + key.len()..];
++        let j = rest.find(|c: char| !c.is_ascii_digit()).unwrap_or(rest.len());
++        out.push('_');
++        rest = &rest[j..];
++    }
++    out.push_str(rest);
++    format!("raw={:016x} masked={:016x} n={}", h(s), h(&out), s.len())
++}
++
+ #[cfg(test)]
+ mod tests {
+     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
