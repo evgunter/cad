@@ -6057,6 +6057,8 @@ fn finding_arm(finding: &ValidationError) -> Option<InBand> {
         | V::FaceThroughEdgeWedgeUndecided { .. }
         | V::CoincidentWedgesOverlap { .. }
         | V::CoincidentWedgesOverlapUndecided { .. }
+        | V::BoundaryCrossesItself { .. }
+        | V::BoundaryCrossesItselfUndecided { .. }
         | V::ArcEndOffCorner { .. }
         | V::InstanceInterference { .. }
         | V::SameSideInterference { .. }

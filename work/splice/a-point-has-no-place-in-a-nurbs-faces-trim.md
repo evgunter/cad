@@ -8,6 +8,7 @@ closed: 2026-10-26
 priority: P1
 cost: M
 refs: [an-analytic-edge-against-a-nurbs-face-has-no-crossing-lane]
+branch: splice/point-in-face
 ---
 
 
