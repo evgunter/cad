@@ -265,7 +265,7 @@ type Aim<T> = (Point3<T>, Vec3<T>);
 /// face aims at a point certified strictly inside it
 /// ([`crate::stands::planar_interior_point`]), and offers none where no
 /// candidate certifies. A cylinder or cone face aims at its region's own
-/// aim (its edges' golden-section points carried onto the surface), a
+/// aim (its boundary's middle points carried onto the surface), a
 /// trimmed sphere at its region's own (its first arc's golden-section
 /// point stepped toward the face), a torus and a closed sphere at a
 /// fixed point of their charts; none of these needs to lie inside the

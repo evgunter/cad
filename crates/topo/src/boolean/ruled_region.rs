@@ -517,21 +517,20 @@ impl<T: Decide> RuledFaceRegion<T> {
     }
 
     /// A point of the face's surface the side-at-infinity reader may aim
-    /// at: the mean of a point of each boundary edge at the golden section
-    /// of its span ([`geom_core::GOLDEN_SECTION`]), off the middle a
-    /// symmetric pose's planes hold, carried onto the surface along its
-    /// parallel, or onto the surface's reference azimuth where that mean
-    /// is on the axis. It need not lie in the face; it only steers.
-    /// `None` for a face with no boundary edge, which offers no aim.
+    /// at: the mean of the boundary's middle points, carried onto the
+    /// surface along its parallel, or onto the surface's reference
+    /// azimuth where that mean is on the axis (a full band whose rims
+    /// start half a turn apart). It need not lie in the face; it only
+    /// steers. `None` for a face with no boundary edge, which offers no
+    /// aim.
     pub(crate) fn aim(&self) -> Option<Point3<T>> {
         let base = self.surface.base();
         let first = self.edges.first()?;
-        let golden = T::from_f64(geom_core::GOLDEN_SECTION);
-        let sample = |e: &Edge<T>| e.at(e.t0 + (e.t1 - e.t0) * golden) - base;
+        let middle = |e: &Edge<T>| e.at(geom::mid_param(e.t0, e.t1)) - base;
         let (sum, n) = self.edges[1..]
             .iter()
-            .fold((sample(first), T::one()), |(sum, n), e| {
-                (sum + sample(e), n + T::one())
+            .fold((middle(first), T::one()), |(sum, n), e| {
+                (sum + middle(e), n + T::one())
             });
         let mean = sum / n;
         let axis = self.surface.axis();
