@@ -8,6 +8,7 @@ closed: 2026-10-26
 priority: P1
 cost: M
 refs: [curved-copies-filling-one-volume-read-as-undecidable]
+pr: 5745
 ---
 
 
