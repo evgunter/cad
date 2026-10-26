@@ -1570,11 +1570,11 @@ impl<T: Decide> Folded<T> {
     /// invariant, as it is to the touch's partners.
     fn of(secs: &[BoolSector<T>], body: &Body<T>, w: Wedge) -> Result<Option<Self>, BooleanError> {
         let sector = &secs[w.flankers[0]];
-        let shape = crate::readback::face_carrier_kind(body, sector.face)
-            .map(super::sectors::FaceShape::of_kind)
-            .map_err(|_| BooleanError::ClassificationInvariant {
-                what: "a face holding a contact line has no carrier",
-            })?;
+        let shape = super::sectors::FaceShape::of_face(
+            body,
+            sector.face,
+            "a face holding a contact line has no carrier",
+        )?;
         Ok((shape == super::sectors::FaceShape::Plane).then(|| Self {
             wedge: w,
             datum: super::vtxfac::PierceDatum {

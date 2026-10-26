@@ -5988,11 +5988,8 @@ pub(crate) fn edge_reach_in<T: Decide>(
 
 /// [`edge_reach_in`] past its edge's lookup: `e` is `ek`'s record.
 ///
-/// No public door builds a spiric-bearing operand that reaches the
-/// contact census at this head (the boolean's operand gate refuses the
-/// kind; a hollowed partial revolve stops at tier 3's check 7 before
-/// the census), so the spiric arm is exercised by the box module's
-/// hand-built sector rows.
+/// The spiric arm is exercised by the box module's hand-built sector
+/// rows.
 fn edge_reach_of<T: Decide>(
     body: &Body<T>,
     ek: crate::entity::EdgeKey,

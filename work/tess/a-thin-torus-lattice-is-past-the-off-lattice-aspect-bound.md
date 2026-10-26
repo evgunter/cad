@@ -6,7 +6,6 @@ status: open
 priority: P3
 cost: M
 opened: 2026-10-26
-refs: [mesh-sizes-each-lane-by-its-worst-admissible-triangle]
 ---
 
 Found in PR 5717's fix pass (PRED), while sizing the sphere. The

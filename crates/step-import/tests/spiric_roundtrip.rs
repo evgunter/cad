@@ -124,7 +124,7 @@ fn vessel_cavity() -> topo::Body<f64> {
 /// certificate's uniqueness tube (C2's limb 3) has no enclosure of the
 /// torus's gradient, so the reading refuses naming the torus. Until the
 /// tube has a torus arm
-/// (`work/chart/torus-certificate-runs-root-free-through-its-quartic.md`)
+/// (`work/charttail/torus-certificate-runs-root-free-through-its-quartic.md`)
 /// no spline on a torus wall adopts as an `Intersection`, however close
 /// it lies.
 #[test]
