@@ -272,3 +272,201 @@ fn a_cubic_leaves_a_sphere_through_the_door() {
         "the span's start on the sphere is its end vertex's"
     );
 }
+
+mod r1_probe {
+    use super::*;
+
+    struct Lcg(u64);
+    impl Lcg {
+        fn next(&mut self) -> f64 {
+            self.0 = self.0.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            ((self.0 >> 11) as f64) / ((1u64 << 53) as f64)
+        }
+    }
+
+    /// Oracle: sign changes of z along a fine sample; None where a sampled
+    /// |z| local minimum is tiny (ambiguous).
+    fn oracle(net: &NurbsCurve3<f64>, (lo, hi): (f64, f64)) -> Option<Vec<f64>> {
+        let n = 40000;
+        let zs: Vec<(f64, f64)> = (0..=n)
+            .map(|i| {
+                let t = lo + (hi - lo) * i as f64 / n as f64;
+                (t, net.eval(t).z)
+            })
+            .collect();
+        let mut roots = vec![];
+        for i in 1..zs.len() {
+            if zs[i].1.abs() < 1e-6 {
+                return None;
+            }
+            if zs[i - 1].1.signum() != zs[i].1.signum() {
+                roots.push(zs[i].0);
+            }
+        }
+        if zs[0].1.abs() < 1e-6 {
+            return None;
+        }
+        Some(roots)
+    }
+
+    #[test]
+    fn r1_fuzz_against_sampled_oracle() {
+        let mut g = Lcg(0x5eed_1234);
+        let (mut ok, mut refused, mut skipped) = (0, 0, 0);
+        let mut bad = vec![];
+        for case in 0..300 {
+            let deg = 1 + (g.next() * 7.0) as usize;
+            let interior = (g.next() * 4.0) as usize;
+            let mut knots = vec![0.0; deg + 1];
+            let mut ks: Vec<f64> = (0..interior).map(|_| 0.05 + 0.9 * g.next()).collect();
+            ks.sort_by(f64::total_cmp);
+            for &k in &ks {
+                let mult = if g.next() < 0.2 { deg } else { 1 };
+                for _ in 0..mult {
+                    knots.push(k);
+                }
+            }
+            knots.extend(vec![1.0; deg + 1]);
+            let n = knots.len() - deg - 1;
+            let rational = g.next() < 0.5;
+            let control: Vec<Point3<f64>> = (0..n)
+                .map(|i| Point3::new(i as f64, 0.3 * g.next(), 2.0 * g.next() - 1.0))
+                .collect();
+            let weights: Vec<f64> = (0..n)
+                .map(|_| if rational { 0.05 + 3.0 * g.next() } else { 1.0 })
+                .collect();
+            let Ok(kv) = KnotVector::clamped(knots.clone(), deg) else { continue };
+            let Ok(net) = NurbsCurve3::new(kv, control, weights) else { continue };
+            let span = if g.next() < 0.5 {
+                (0.0, 1.0)
+            } else {
+                let a = 0.4 * g.next();
+                (a, a + 0.2 + 0.4 * g.next())
+            };
+            let Some(want) = oracle(&net, span) else {
+                skipped += 1;
+                continue;
+            };
+            match crossings(&net, span, &ground(), band(), Interval::from_certified) {
+                Ok(got) => {
+                    ok += 1;
+                    let close = got.len() == want.len()
+                        && got.iter().zip(&want).all(|(g, w)| (g - w).abs() < 1e-3);
+                    if !close {
+                        bad.push(format!("case {case} deg {deg} knots {knots:?} span {span:?}: got {got:?} want {want:?}"));
+                    }
+                }
+                Err(_) => refused += 1,
+            }
+        }
+        eprintln!("ok {ok} refused {refused} skipped {skipped}");
+        assert!(bad.is_empty(), "{} bad:\n{}", bad.len(), bad.join("\n"));
+    }
+
+    /// Two crossings 1e-7 apart in one piece, and 1e-13 apart.
+    #[test]
+    fn r1_close_roots() {
+        for d in [1e-4, 1e-7, 1e-9, 1e-11] {
+            // z = (t - 0.5)(t - 0.5 - d) as a quadratic Bezier over [0,1], x = t.
+            let r1 = 0.5;
+            let r2 = 0.5 + d;
+            // z(t) = t^2 - (r1+r2) t + r1 r2; Bernstein: c0 = r1r2, c1 = r1r2 - (r1+r2)/2, c2 = 1-(r1+r2)+r1r2
+            let c0 = r1 * r2;
+            let c1 = c0 - (r1 + r2) / 2.0;
+            let c2 = 1.0 - (r1 + r2) + c0;
+            let net = spline(2, &[0.0, 0.0, 0.0, 1.0, 1.0, 1.0], &[(0.0, c0), (0.5, c1), (1.0, c2)]);
+            let got = read(&net, &ground());
+            eprintln!("d {d}: {got:?}");
+            if let Ok(r) = &got {
+                assert_eq!(r.len(), 2, "d {d}: {got:?}");
+            }
+        }
+    }
+
+    /// Degree 1 polyline: interior knots are creases. A vertex on the plane.
+    #[test]
+    fn r1_polyline_vertex_on_plane() {
+        let net = spline(1, &[0.0, 0.0, 0.5, 1.0, 1.0], &[(0.0, -1.0), (0.5, 0.0), (1.0, 1.0)]);
+        let got = read(&net, &ground());
+        eprintln!("polyline: {got:?}");
+        assert!(matches!(got, Err(CompositeRefusal::Unsettled(Unsettled::Crease))), "{got:?}");
+    }
+
+    /// A geometric kink with no crease knot: quadratic with P1 == P2 on the plane.
+    #[test]
+    fn r1_kink_without_crease_knot() {
+        let net = spline(
+            2,
+            &[0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0],
+            &[(0.0, -1.0), (0.5, 0.0), (0.5, 0.0), (1.0, 1.0)],
+        );
+        let got = read(&net, &ground());
+        eprintln!("kink: {got:?}");
+        assert!(got.is_err(), "{got:?}");
+    }
+
+    /// Near-zero weights.
+    #[test]
+    fn r1_tiny_weight() {
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
+        let control = vec![
+            Point3::new(0.0, 0.0, -1.0),
+            Point3::new(1.0, 0.0, 5.0),
+            Point3::new(2.0, 0.0, -5.0),
+            Point3::new(3.0, 0.0, 1.0),
+        ];
+        for w in [1e-3, 1e-8, 1e-150, 1e-300] {
+            let net = NurbsCurve3::new(kv.clone(), control.clone(), vec![1.0, w, w, 1.0]).unwrap();
+            let got = read(&net, &ground());
+            let want = oracle(&net, (0.0, 1.0));
+            eprintln!("w {w}: {got:?} oracle {want:?}");
+            if let (Ok(g), Some(o)) = (&got, &want) {
+                assert_eq!(g.len(), o.len());
+            }
+        }
+    }
+
+    /// High degree oscillation: degree 20 Bezier from Chebyshev-like controls.
+    #[test]
+    fn r1_high_degree() {
+        let deg = 20;
+        let mut knots = vec![0.0; deg + 1];
+        knots.extend(vec![1.0; deg + 1]);
+        let xz: Vec<(f64, f64)> = (0..=deg)
+            .map(|i| (i as f64 / deg as f64, if i % 2 == 0 { 1.0 } else { -1.0 }))
+            .collect();
+        let net = spline(deg, &knots, &xz);
+        let got = read(&net, &ground());
+        let want = oracle(&net, (0.0, 1.0));
+        eprintln!("deg20: {got:?} oracle {want:?}");
+        if let (Ok(g), Some(o)) = (&got, &want) {
+            assert_eq!(g.len(), o.len());
+        }
+    }
+}
+
+/// A crossing within the band of a crease, not on it: the crease row's
+/// plane lifted by `1e-11`, so the crossing sits on the second piece a
+/// hair past the turn. It refuses as the crease's.
+#[test]
+fn r1_a_crossing_within_band_of_a_crease_refuses() {
+    let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
+    let control = vec![
+        Point3::new(0.0, 0.0, -1.0),
+        Point3::new(0.5, 0.0, -0.5),
+        Point3::new(1.0, 0.0, 0.0),
+        Point3::new(1.0, 0.5, 0.5),
+        Point3::new(1.0, 1.0, 1.0),
+    ];
+    let net = NurbsCurve3::new(kv, control, vec![1.0; 5]).unwrap();
+    let lifted = Surface::Plane {
+        origin: Point3::new(0.0, 0.0, 1e-11),
+        normal: Vec3::unit_z(),
+        u_ref: Vec3::unit_x(),
+    };
+    let got = read(&net, &lifted);
+    assert!(
+        matches!(got, Err(CompositeRefusal::Unsettled(Unsettled::Crease))),
+        "{got:?}"
+    );
+}
