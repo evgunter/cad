@@ -266,6 +266,13 @@ impl Advisory {
 /// body, because a lane that cannot look and reports nothing renders
 /// identically to a body with nothing to report — the F6 posture the
 /// rest of this module already takes.
+///
+/// **Why every lane but `f64` answers `None`.** The examination is
+/// written at `f64` ([`topo::examine_chart_coherence`] takes a
+/// `&Body<f64>`), so the absence is LANE-0's class, *the derivation is
+/// not written at this scalar*, and not *this scalar may not certify*.
+/// `Sym` and `Dual` have no impl at all, so the resident's pass cannot be
+/// instantiated at them: a static exclusion, not a `None`.
 pub trait ChartCoherenceLane: geom_core::Real {
     /// This lane's chart-coherence examination of `body` at `tol`, or
     /// `None` when the lane has none.
@@ -284,6 +291,8 @@ impl ChartCoherenceLane for geom_core::Probe {
         _body: &topo::Body<Self>,
         _tol: Tol,
     ) -> Option<topo::CoherenceReport> {
+        // Not written at this scalar (the examination takes a
+        // `Body<f64>`): the trait's LANE-0 absence, not a refusal to certify.
         None
     }
 }
@@ -293,6 +302,8 @@ impl ChartCoherenceLane for geom_core::interval::Interval {
         _body: &topo::Body<Self>,
         _tol: Tol,
     ) -> Option<topo::CoherenceReport> {
+        // Not written at this scalar (the examination takes a
+        // `Body<f64>`): the trait's LANE-0 absence, not a refusal to certify.
         None
     }
 }

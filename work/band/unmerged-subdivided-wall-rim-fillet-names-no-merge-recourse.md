@@ -31,3 +31,18 @@ run-out (split the strut at its two feet, as the ruled band splits a
 cap rim). `swept-continuation-walls-reach-the-boolean-unmerged` (P0)
 retires most of the reach if the sweep stops minting the split walls
 (the pending one-wall-per-run ruling), so this is P3.
+
+## Re-read (2026-10-26, tracker sweep)
+
+The witness is gone. Extrude and revolve build one wall per run
+(`crates/sweep/tests/band_subdivided_side_walls.rs`, module doc and
+`extruded_continuation_builds_one_wall_and_unions_as_built`), so a
+declared straight continuation no longer puts a rim's halves on two
+faces of one key, and `subdivided_rim_blends_as_one_band_once_merged`
+no longer exists. The refusal stands (`crates/sweep/src/blend/admit.rs:160`,
+"an open chain's links meet on different support faces") and still
+names no merge. `merge_coplanar_faces` is opt-in, and nothing at rest
+checks maximal faces, so a body holding two same-key faces across a
+strut may still reach it (an import, a hand build). The first step is
+a witness that reaches the blend door this way, or a proof that none
+does, after which the row closes.

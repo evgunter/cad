@@ -2,8 +2,9 @@
 id: lane-scratchpad-is-shared-between-worktrees
 kind: issue
 title: the per-session scratchpad is shared between concurrent lanes, and two lanes had files overwritten mid-task
-status: deferred
+status: closed
 opened: 2026-09-11
+closed: 2026-10-26
 priority: P3
 cost: E
 ---
@@ -168,3 +169,13 @@ someone who has not read this, which is the limitation shape 2 was
 always recorded with, and is not an argument for shape 1 — Ev ruled
 against a `memories/` sentence on 2026-09-11 and nothing here
 disturbs that.
+
+## Closed (2026-10-26, tracker sweep)
+
+**Fixed: shape 1 was adopted, on Ev's sign-off.** `[ev]` PR 3237
+("implementer-discipline: prefix shared-scratchpad files with the
+lane's name", merged 2026-09-25) added the rule this row's deferral had
+declined: `docs/prompts/implementer-discipline.md` §2 (:87) now reads
+"**Prefix every file you write to a shared scratchpad with your lane's
+name.**" The deferral's ratification is therefore overtaken by a later
+one, and nothing is left for the row to wait on.

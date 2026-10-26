@@ -188,10 +188,15 @@ pub enum TessellateError {
         /// The offending step.
         step: f64,
     },
-    /// An emitted triangle failed its closed-form deviation
-    /// certificate against δ — the certified-conservative promise
-    /// could not be established (kernel-side defect or degenerate
-    /// geometry; fail loud, never ship an uncertified mesh).
+    /// An emitted triangle's closed-form deviation certificate exceeds
+    /// δ by more than its own rounding (`cert::verdict`) — the
+    /// certified-conservative promise could not be established, and an
+    /// uncertified mesh is never shipped. Each lane sizes its worst
+    /// triangle at δ by its theorem (`crates/mesh/README.md`
+    /// `[mesh.sizing]`), so this is a kernel defect, a triangle outside
+    /// what its lane's theorem covers (the trimmed cylinder's beside a
+    /// trim chord, which sizes at `trimmed::UNPROVED_HEADROOM` for that
+    /// reason), or degenerate geometry.
     CertificateExceeded {
         /// The face whose patch failed.
         face: FaceKey,
@@ -199,6 +204,22 @@ pub enum TessellateError {
         bound: f64,
         /// The requested chordal tolerance δ.
         requested: f64,
+    },
+    /// An emitted triangle's certificate lands past δ by no more than
+    /// its own f64 rounding, but that rounding is not small against δ
+    /// and the kernel ε (`cert::ALLOWANCE_SHARE`): the coordinates are
+    /// too far from the origin, or δ or ε too fine, for f64 to certify
+    /// the triangle, and the rounding is refused rather than absorbed.
+    /// Recourse: model nearer the origin, or ask for a coarser δ.
+    RoundingUnresolved {
+        /// The face whose patch failed.
+        face: FaceKey,
+        /// The closed-form deviation bound of the worst triangle.
+        bound: f64,
+        /// The requested chordal tolerance δ.
+        requested: f64,
+        /// The rounding allowance the verdict would have had to absorb.
+        allowance: f64,
     },
     /// The CDT rejected a point insertion (non-finite or out-of-range
     /// UV coordinate — corrupt geometry surfaced as a typed error).
@@ -584,6 +605,18 @@ impl core::fmt::Display for TessellateError {
                  conservative promise could not be established, and an \
                  uncertified mesh is never shipped; this is a kernel-side defect \
                  or degenerate geometry",
+            ),
+            Self::RoundingUnresolved {
+                bound,
+                requested,
+                allowance,
+                ..
+            } => write!(
+                f,
+                "tessellate: a face's worst triangle certifies to {bound:e} m against the \
+                 requested δ = {requested:e} m, past it only by its own f64 rounding, but that \
+                 rounding ({allowance:e} m) is not small against δ and the kernel ε, so it is \
+                 not absorbed; model the body nearer the origin or ask for a coarser δ",
             ),
             Self::Triangulation { .. } => f.write_str(
                 "tessellate: the CDT rejected a point insertion on a face — a \

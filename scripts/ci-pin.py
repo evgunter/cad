@@ -128,6 +128,13 @@ def unquote(raw: str, name: str, lineno: int) -> str:
             raise Refuse(f"{name} at line {lineno} has {rest!r} after the closing quote — "
                          "this reader takes a plain quoted scalar and will not guess at that")
         val = val[1:end]
+        # The bare branch's whitespace refusal, applied inside the quotes
+        # too: quoting changes how the scalar is spelled, not what a
+        # version pin may contain.
+        if re.search(r"\s", val):
+            raise Refuse(f"{name} at line {lineno} is {raw.strip()!r}, which holds whitespace "
+                         "inside its quotes — a version pin does not, and this reader will not "
+                         "guess which part was meant")
     else:
         # A bare scalar may carry a trailing comment. Anything else with a
         # space in it is a flow scalar, a list, or a mistake; all three are
@@ -380,6 +387,8 @@ def selftest() -> int:
         for body, want, why in (
             ("env:\n  NEXTEST_VERSION:\n", "does not recognise", "an empty bare pin"),
             ('env:\n  NEXTEST_VERSION: ""\n', "is empty", "an empty quoted pin"),
+            ('env:\n  NEXTEST_VERSION: "0.9.140 extra"\n', "whitespace inside its quotes",
+             "a quoted pin with a space in it"),
         ):
             wf = write(body, "empty.yml")
             rc, out, err = _run(["NEXTEST_VERSION", "--file", wf], t)

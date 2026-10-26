@@ -210,8 +210,8 @@ set -euo pipefail
 # contain a `*` with the repeated operand as its LAST factor, so
 # `(a + b) * b` and `(a * b) * c` are untouched.
 SQUARE_PATH='(?:[a-z_][a-z0-9_]*)(?:\.[a-z_][a-z0-9_]*)*'
-SQUARE_RE="(?<![\w.])($SQUARE_PATH)\s*\*\s*\1(?![\w.(\[])"
-SQUARE_RE="$SQUARE_RE|(?<!\w)\(\s*[^()]*?\*\s*($SQUARE_PATH)\s*\)\s*\*\s*\2(?![\w.(\[])"
+SQUARE_RE="(?<![\w.])($SQUARE_PATH)\s*\*\s*\1(?![\w.:(\[])"
+SQUARE_RE="$SQUARE_RE|(?<!\w)\(\s*[^()]*?\*\s*($SQUARE_PATH)\s*\)\s*\*\s*\2(?![\w.:(\[])"
 
 # --- THE FIVE-SHAPE CENSUS --------------------------------------------
 #
@@ -237,9 +237,9 @@ SQUARE_RE="$SQUARE_RE|(?<!\w)\(\s*[^()]*?\*\s*($SQUARE_PATH)\s*\)\s*\*\s*\2(?![\
 # file-granular ratification with a per-site one for that one spelling.
 # The two shapes are kept apart instead: adjacency is branch 1's, and a
 # genuinely wedged repeat is this one's.
-CENSUS_PAREN_FIRST_RE="(?<!\w)\(\s*($SQUARE_PATH)\s*\*\s*[^()]*\)\s*\*\s*\1(?![\w.(\[])"
-CENSUS_NESTED_PAREN_RE="(?<!\w)\(\s*[^()]*\([^()]*\)[^()]*\*\s*($SQUARE_PATH)\s*\)\s*\*\s*\1(?![\w.(\[])"
-CENSUS_THREE_FACTOR_RE="(?<![\w.])($SQUARE_PATH)(?:\s*\*\s*(?!\1(?![\w.]))[A-Za-z0-9_.]+)+\s*\*\s*\1(?![\w.(\[])"
+CENSUS_PAREN_FIRST_RE="(?<!\w)\(\s*($SQUARE_PATH)\s*\*\s*[^()]*\)\s*\*\s*\1(?![\w.:(\[])"
+CENSUS_NESTED_PAREN_RE="(?<!\w)\(\s*[^()]*\([^()]*\)[^()]*\*\s*($SQUARE_PATH)\s*\)\s*\*\s*\1(?![\w.:(\[])"
+CENSUS_THREE_FACTOR_RE="(?<![\w.])($SQUARE_PATH)(?:\s*\*\s*(?!\1(?![\w.]))[A-Za-z0-9_.]+)+\s*\*\s*\1(?![\w.:(\[])"
 
 # THE ALLOWLISTED FILES, as paths and held once: the filter's exemption,
 # `gate_require_homes`'s subject check and the clean fixture all read
@@ -617,6 +617,7 @@ plant_not_squares() {
     printf 'pub fn g<T: Real>(a: T, b: T) -> T { foo(a * b) * b }\n'
     printf 'pub fn h<T: Real>(a: T, b: T) -> T { (a + b) * b }\n'
     printf 'pub fn i<T: Real>(a: T, b: T, c: T) -> T { (a * b) * c }\n'
+    printf 'pub fn j(n: u32) -> f64 { n as f64 * f64::EPSILON }\n'
     printf '#[cfg(test)]\nmod tests {\n    fn t() { let q = 2.0; let _ = q * q; }\n}\n'
   } > "$1/crates/planted/src/lib.rs"
 }
@@ -874,7 +875,7 @@ gate_selftest() {
   gate_selftest_case "$want" plant_scaled_square
   gate_selftest_case "$want" plant_scaled_square_field_path
   gate_selftest_case "$want" plant_colon_after_the_home_that_is_not_a_line_number
-  gate_selftest_passes "prose, string literals, mixed products, a * a.method(), a call whose result multiplies its own argument, a parenthesized product whose last factor is not the repeated one, and a cfg(test) module" plant_not_squares
+  gate_selftest_passes "prose, string literals, mixed products, a * a.method(), a call whose result multiplies its own argument, a parenthesized product whose last factor is not the repeated one, a factor followed by a path into it (`f64 * f64::EPSILON`), and a cfg(test) module" plant_not_squares
   gate_selftest_test_module_homes "$want" plant_square_at
   gate_selftest_homes --narrowed --subject "$ALLOWLISTED_SUBJECT" "${ALLOWLISTED_HOMES[@]}"
   # THE CENSUS, in both directions. `census` is the half whose subject

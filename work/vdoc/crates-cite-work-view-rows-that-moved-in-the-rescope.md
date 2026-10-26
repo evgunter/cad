@@ -124,3 +124,32 @@ FIT's `ctrl-wheel-reaches-no-zoom` built the binding its two
 doc and the ctrl-wheel test row's). Both sentences were rewritten to
 state the binding and neither cites a row any more, so the
 `ctrl-wheel-reaches-no-zoom` line is struck from the table above.
+
+## The population at `bb25fa4f` (2026-10-26, tracker sweep)
+
+`grep -rnoE 'work/view/[a-z0-9-]+' crates/` prints 19 sites after this sweep (20 before its README edit). Thirteen name
+an id that lives elsewhere now:
+- `vseam`: `face-selection-carries-a-bare-stable-name` (`matetool.rs:196`,
+  `tests/rv_matehead_probes.rs:11`); `projection-fault-has-no-sweeper`
+  (`pane/viewport.rs:902`, `frame.rs:2817`);
+  `adjacent-same-typed-arguments-are-the-same-swap` (`README.md:448`).
+- `guard`: `vocabulary-macro-bodies-are-outside-rustfmt` (`vocab.rs:94`,
+  `README.md` ~`:2175`).
+- `vdoc`: `a-module-named-for-its-spine-type-is-unfalsifiable`
+  (`pickcache.rs:37`); `viewer-suites-hold-hand-written-complete-variant-lists`
+  (`pane/viewport.rs:2532`, `README.md` ~`:2280`).
+- `ciw`: `wasm-only-doc-comments-are-checked-by-nothing` (`README.md` ~`:2550`).
+- `vnews`: `joined-notices-nest-their-own-separator` (`tests/frame_policy.rs:232`);
+  `environmental-facts-answer-usable-as-a-bool-with-the-reason-elsewhere`
+  (`tests/gesture_table.rs:1232`, wrapped; closed there).
+
+The rest name rows that have left the tracker. Those cite
+`work/view/` (or `work/dup/`) at an id that now resolves only at a
+ledger SHA: `f6-display-predicate-…` in three files
+(`docs/doc-ledger/dup-leaves-the-tracker.md`),
+`frame-module-has-eight-concerns-and-no-holds-row`,
+`seam-split-leaves-a-cycle-through-the-session`,
+and `free-move-in-flight-refusal-has-no-reachable-producer`. The status
+line's `startup-notices-need-holding-to-badge` README citation is
+repointed by the same sweep's edit to that section.
+

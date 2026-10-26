@@ -16,15 +16,13 @@ keep_out: [opened 2026-10-08 by REACH's closing cut on its priority seam (Ev in 
 one step short of a lane.** The circle × cylinder square arm charges
 its root slack with the whole term bound; the conic × quadric
 first-harmonic arm charges the dropped second harmonic to crossings
-the ladder places; the circle × meridian-plane first harmonic is
-hand-built in three places with an unaudited noise charge. A line
+the ladder places; the circle × plane first harmonic's one door
+carries an unaudited noise charge. A line
 parallel to a cone's generator has no lane; a section circle inside a
 plane face's hole refuses at the edge boxes; a tilted section through a
 chart pole is not split there; a revolved face's narrow-phase anchor
 sits on its seam. Two rows owe coverage (the ellipse × torus door at
-ε 1e-12; the operand gate's curved arms through a finished fixture),
-and two owe typed refusals (a spline edge at the join and continuation
-sites; a STEP ellipse stored minor first).
+ε 1e-12; the operand gate's curved arms through a finished fixture).
 
 Slate, order and posture: `work/roots/plan.md`; narrative in
 `work/roots/log.md`.

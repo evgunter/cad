@@ -1081,6 +1081,12 @@ fixture_readme() {
 
 plant_src_tree_gone() { rm -rf "$1/$SRC"; }
 
+# The two NAMED subjects `gate_require_file` holds, one fixture each:
+# it ends the gate at the FIRST missing file, so a case that removes the
+# README never reaches the manifest guard.
+plant_readme_gone() { rm -f "$1/$README"; }
+plant_manifest_gone() { rm -f "$1/$MANIFEST"; }
+
 # lib.rs and bin/ are the two exclusions the clean fixture asserts. A
 # tree holding ONLY those has no module to classify, and the scan set
 # is empty for a reason no later check can see.
@@ -1529,6 +1535,8 @@ gate_selftest() {
   # having read no module or no vocabulary — or red against a file that
   # broke nothing, which is the fourth.
   gate_selftest_case "the gate's subject is gone, so it scanned nothing" plant_src_tree_gone
+  gate_selftest_case "$README does not exist under" plant_readme_gone
+  gate_selftest_case "$MANIFEST does not exist under" plant_manifest_gone
   gate_selftest_case "besides lib.rs and bin/ — the gate scanned nothing" plant_only_lib_and_bin
 
   gate_selftest_case "declares no module kind" plant_undeclared_module
