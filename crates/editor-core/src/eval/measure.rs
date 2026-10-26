@@ -24,17 +24,16 @@
 //! | `gap` | vertex x plane, sphere or cylinder face, either seat | the vertex's signed offset from the face's carrier, positive away from its material | none |
 //! | `gap` | line edge x plane face, either seat | the lower end's offset `min((e − o)·ŵ)` | none |
 //! | `gap` | line edge x cylinder face, either seat | the edge's offset from the wall, `±(d − r)` | `carrier_cyl_axis_parallel` |
-//! | `gap` | line edge x vertex, either seat | the vertex's offset from the edge's wedge (below) | `gap_edge_convexity` |
-//! | `gap` | line edge x line edge | the inner's lowest offset from the outer's wedge | `gap_edge_convexity`, `gap_wedge_crossing` |
-//! | `gap` | vertex x vertex | the inner's offset from the outer's corner | `gap_edge_convexity` |
+//! | `gap` | line edge x vertex, either seat | the vertex's offset from the edge's link (below) | `topo::link`'s door |
+//! | `gap` | line edge x line edge | the inner's lowest offset from the outer's link | `topo::link`'s door |
+//! | `gap` | vertex x vertex | the inner's offset from the outer's link | `topo::link`'s door |
 //!
-//! A wedge is an edge's two plane faces, a corner a vertex's: the
-//! material is the intersection of the faces' half-spaces where every
-//! edge there is convex, their union where every one is concave, and a
-//! point's offset from it the largest, or the smallest, of its offsets
-//! from the faces' planes. A saddle vertex, an edge or a vertex beside
-//! a curved face, and an edge whose dihedral is in the band, have no
-//! such reading and refuse.
+//! A vertex's or an edge's material is its link ([`topo::Link`]): the
+//! cone its faces bound at the point, convex, concave or a saddle alike.
+//! A point's offset from it is its signed distance from the cone's
+//! boundary, negative inside ([`topo::Link::offset`]), and an edge's its
+//! lowest along it ([`topo::Link::lowest_on`]). An edge or a vertex
+//! beside a curved face has no link yet and refuses.
 //!
 //! Everything else — a cone, a torus, a NURBS patch, a curved edge, a
 //! whole body, and every mixed pair not listed — refuses.
@@ -54,12 +53,9 @@
 //! Two EXISTING funnel predicates called at their existing margin
 //! shapes: `bool_plane_parallel` (`Margin::levered(‖n̂_a × n̂_b‖, arm)`,
 //! the sine of the normals' disagreement priced at a lever arm) and
-//! `carrier_cyl_axis_parallel` (the same shape on the axes). And two of
-//! `gap`'s own over a vertex's or an edge's material:
-//! `gap_edge_convexity` (the sine of a dihedral's departure from flat,
-//! levered by the faces' reach as `geom_brep::dihedral` levers one) and
-//! `gap_wedge_crossing` (whether an edge's two face offsets change
-//! order along a segment, which never refuses: [`Fold::lowest_on`]). A
+//! `carrier_cyl_axis_parallel` (the same shape on the axes). A vertex's
+//! or an edge's material decides through the link's own door, every
+//! sign a point's distance from a plane (`topo::link`'s module docs). A
 //! measure whose decision escalates refuses typed rather than
 //! reporting a number whose meaning depends on an undecided fact.
 //!
@@ -82,7 +78,7 @@ use geom::{Curve3, Surface};
 use geom_brep::OutwardNormal;
 use geom_core::k_stats::decide;
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
-use topo::Body;
+use topo::{Body, Link, TouchUnread};
 
 use crate::measure::MeasurePrimitive;
 use crate::names::{EntityKey, EntityRef};
@@ -131,8 +127,8 @@ pub(crate) enum Carrier<'b, T: geom_core::Real> {
     Point {
         /// The position.
         at: Point3<T>,
-        /// The faces and edges around the vertex, read when an arm asks.
-        corner: CornerOf<'b, T>,
+        /// The vertex, its link read when an arm asks.
+        cell: CellOf<'b, T>,
     },
     /// A planar face's carrier: a point on it, its UNIT chart normal,
     /// and the face's OUTWARD normal with the S10 sense folded in.
@@ -195,8 +191,8 @@ pub(crate) enum Carrier<'b, T: geom_core::Real> {
         /// The edge's two vertices' positions, `None` where one does not
         /// read.
         ends: Option<[Point3<T>; 2]>,
-        /// The two faces the edge bounds, read when an arm asks.
-        wedge: WedgeOf<'b, T>,
+        /// The edge, its link read when an arm asks.
+        cell: CellOf<'b, T>,
     },
     /// A carrier outside the v1 table, kept as its CLASS so a refusal
     /// can name it.
@@ -217,76 +213,28 @@ impl<T: geom_core::Real> Carrier<'_, T> {
     }
 }
 
-/// **The two plane faces an edge bounds**, as [`gap`] reads the
-/// material beside it: the edge's own direction, each face's outward
-/// normal, and how far the faces run from the edge.
+/// **Where a vertex's or a line edge's link is read**: off its body,
+/// and only when an arm of [`gap`] asks, so a `distance` or an `angle`
+/// never walks the cell's faces.
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct Wedge<T: geom_core::Real> {
-    /// The edge's unit direction, which runs with its plus half.
-    dir: Vec3<T>,
-    /// The outward normal of the face the plus half bounds.
-    plus: Vec3<T>,
-    /// The outward normal of the face the minus half bounds.
-    minus: Vec3<T>,
-    /// The faces' reach from the edge (`topo::edge_wedge_reach`): the
-    /// lever the dihedral is read at.
-    reach: T,
-}
-
-/// **The plane faces around a vertex and the edges between them**, as
-/// [`gap`] reads the material around the vertex.
-#[derive(Debug, Clone)]
-pub(crate) struct Corner<T: geom_core::Real> {
-    /// Each face's outward normal; every one of the faces passes
-    /// through the vertex.
-    faces: Vec<Vec3<T>>,
-    /// The wedge of each edge at the vertex.
-    edges: Vec<Wedge<T>>,
-}
-
-/// **Where a vertex's [`Corner`] is read**: off its body, and only when
-/// an arm of [`gap`] asks, so a `distance` or an `angle` never walks the
-/// vertex's faces.
-#[derive(Debug, Clone)]
-pub(crate) enum CornerOf<'b, T: geom_core::Real> {
+pub(crate) enum CellOf<'b, T: geom_core::Real> {
     /// Vertex `v` of `body`.
-    Body(&'b Body<T>, topo::entity::VertexKey),
-    /// A unit row's own corner.
+    Vertex(&'b Body<T>, topo::entity::VertexKey),
+    /// Line edge `e` of `body`.
+    Edge(&'b Body<T>, topo::entity::EdgeKey),
+    /// A unit row's cell, with no body to read a link off.
     #[cfg(test)]
-    Held(Option<Corner<T>>),
+    Bare,
 }
 
-impl<T: Decide> CornerOf<'_, T> {
-    /// The corner, `None` where a face around the vertex does not read
-    /// as a plane, or an edge as [`WedgeOf::read`] reads one.
-    fn read(&self) -> Option<Corner<T>> {
+impl<T: Decide> CellOf<'_, T> {
+    /// The cell's link: at the vertex, or at `at` inside the edge.
+    fn link(&self, at: Point3<T>, band: Band) -> Result<Link<T>, TouchUnread> {
         match self {
-            Self::Body(body, v) => corner_of(body, *v),
+            Self::Vertex(body, v) => Link::at_point(body, *v, band),
+            Self::Edge(body, e) => Link::on_edge(body, *e, at, band),
             #[cfg(test)]
-            Self::Held(corner) => corner.clone(),
-        }
-    }
-}
-
-/// **Where a line edge's [`Wedge`] is read**: as [`CornerOf`], when an
-/// arm asks.
-#[derive(Debug, Clone, Copy)]
-pub(crate) enum WedgeOf<'b, T: geom_core::Real> {
-    /// Edge `e` of `body`.
-    Body(&'b Body<T>, topo::entity::EdgeKey),
-    /// A unit row's own wedge.
-    #[cfg(test)]
-    Held(Option<Wedge<T>>),
-}
-
-impl<T: Decide> WedgeOf<'_, T> {
-    /// The wedge, `None` where the edge is not a line or a face it
-    /// bounds does not read as a plane.
-    fn read(&self) -> Option<Wedge<T>> {
-        match self {
-            Self::Body(body, e) => wedge_of(body, *e),
-            #[cfg(test)]
-            Self::Held(wedge) => *wedge,
+            Self::Bare => Err(TouchUnread::Unreadable),
         }
     }
 }
@@ -308,38 +256,6 @@ fn plane_of<T: Decide>(
     }
 }
 
-fn wedge_of<T: Decide>(body: &Body<T>, k: topo::entity::EdgeKey) -> Option<Wedge<T>> {
-    let edge = body.get_edge(k)?;
-    let Curve3::Line { dir, .. } = body
-        .get_curve_geom(edge.curve)?
-        .certified()
-        .map(topo::EdgeCurve::carrier)?
-    else {
-        return None;
-    };
-    let outward = |he| Some(plane_of(body, body.face_of_half_edge(he)?)?.2);
-    Some(Wedge {
-        dir: *dir,
-        plus: outward(edge.he_plus)?,
-        minus: outward(edge.he_minus)?,
-        reach: topo::edge_wedge_reach(body, k)?,
-    })
-}
-
-fn corner_of<T: Decide>(body: &Body<T>, v: topo::entity::VertexKey) -> Option<Corner<T>> {
-    let faces = body
-        .faces_of_vertex(v)?
-        .into_iter()
-        .map(|k| Some(plane_of(body, k)?.2))
-        .collect::<Option<Vec<_>>>()?;
-    let edges = body
-        .edges_of_vertex(v)?
-        .into_iter()
-        .map(|k| wedge_of(body, k))
-        .collect::<Option<Vec<_>>>()?;
-    (!faces.is_empty()).then_some(Corner { faces, edges })
-}
-
 /// Reads the carrier a resolved entity sits on, out of the body its
 /// reference lands in.
 ///
@@ -354,7 +270,7 @@ pub(crate) fn carrier_of<T: Decide>(body: &Body<T>, ent: EntityRef) -> Carrier<'
         EntityKey::Vertex(v) => match topo::readback::vertex_point(body, v) {
             Ok(at) => Carrier::Point {
                 at,
-                corner: CornerOf::Body(body, v),
+                cell: CellOf::Vertex(body, v),
             },
             Err(_) => Carrier::Other("an unreadable vertex"),
         },
@@ -417,7 +333,7 @@ pub(crate) fn carrier_of<T: Decide>(body: &Body<T>, ent: EntityRef) -> Carrier<'
                         .half_edge_start_point(edge.he_plus)
                         .zip(body.half_edge_start_point(edge.he_minus))
                         .map(|(start, end)| [start, end]),
-                    wedge: WedgeOf::Body(body, k),
+                    cell: CellOf::Edge(body, k),
                 },
                 Some(Curve3::Circle { .. }) => Carrier::Other("a circular edge"),
                 Some(_) => Carrier::Other("a curved edge"),
@@ -827,17 +743,18 @@ fn angle<T: Decide>(a: &Carrier<'_, T>, b: &Carrier<'_, T>) -> Result<T, Primiti
 /// definition, and it would silently flip the sign of an interference
 /// fit, which is exactly the case C6 exists for.
 ///
-/// **A vertex or an edge is read by one cell's material.** That cell's
-/// material is the half-spaces of the face carriers it lies on, and the
-/// gap is how far the other cell stands out of it, along those faces'
-/// outward normals:
+/// **A vertex or an edge is read by one cell's material.** A face's
+/// material is the half-space of its carrier. A vertex's or an edge's is
+/// its LINK ([`topo::Link`]): the directions entering its solid at the
+/// point, a cone over its faces, convex, concave or a saddle alike. The
+/// gap is the other cell's signed distance from that material's
+/// boundary, negative inside:
 ///
 /// - a face reads a vertex or a line edge in either seat, so a vertex
 ///   or an edge on a face reads the same whichever argument it is;
-/// - an edge reads a vertex in either seat, through its [`Wedge`];
-/// - between two edges, the outer edge's wedge reads the inner edge;
-///   between two vertices, the outer vertex's [`Corner`] reads the
-///   inner one.
+/// - an edge reads a vertex in either seat, through its link;
+/// - between two edges, the outer edge's link reads the inner edge;
+///   between two vertices, the outer vertex's link reads the inner one.
 ///
 /// An edge reads as its segment, so its gap is its lowest point's: zero
 /// where it lies on the other cell's material without entering it.
@@ -949,16 +866,6 @@ fn gap<T: Decide>(
         (Carrier::Line { ends: None, .. }, other) | (other, Carrier::Line { ends: None, .. }) => {
             unsupported_as("gap", "a line edge whose ends do not read", other.class())
         }
-        // Two vertices: the outer's corner reads the inner.
-        (Carrier::Point { at: apex, corner }, Carrier::Point { at, .. }) => {
-            let Some(corner) = corner.read() else {
-                return unsupported_as("gap", NO_CORNER, inner.class());
-            };
-            let Some(fold) = Fold::of_corner(&corner.edges, band)? else {
-                return unsupported_as("gap", "a saddle vertex", inner.class());
-            };
-            Ok(fold.offset(&corner.faces, *apex, *at))
-        }
         // A face and a vertex: the face reads it.
         (
             face @ (Carrier::Plane { .. } | Carrier::Cylinder { .. } | Carrier::Sphere { .. }),
@@ -977,49 +884,24 @@ fn gap<T: Decide>(
             line @ Carrier::Line { .. },
             face @ (Carrier::Plane { .. } | Carrier::Cylinder { .. }),
         ) => face_reads_edge(face, line, outer, inner, band),
-        // A line edge and a vertex: the edge's wedge reads the vertex.
-        (
-            Carrier::Line {
-                wedge,
-                ends: Some(ends),
-                ..
-            },
-            vertex @ Carrier::Point { at, .. },
-        ) => wedge_reads_vertex(wedge, ends[0], *at, vertex, band),
-        (
-            vertex @ Carrier::Point { at, .. },
-            Carrier::Line {
-                wedge,
-                ends: Some(ends),
-                ..
-            },
-        ) => wedge_reads_vertex(wedge, ends[0], *at, vertex, band),
-        // Two line edges: the outer's wedge reads the inner's segment.
-        (
-            Carrier::Line {
-                wedge,
-                ends: Some(at),
-                ..
-            },
-            Carrier::Line {
-                ends: Some(ends), ..
-            },
-        ) => {
-            let Some(wedge) = wedge.read() else {
-                return unsupported_as("gap", NO_WEDGE, inner.class());
-            };
-            let fold = wedge.turn(band)?.fold();
-            Ok(fold.lowest_on(&wedge, at[0], *ends, band))
+        // A line edge and a vertex: the edge's link reads the vertex.
+        (line @ Carrier::Line { .. }, vertex @ Carrier::Point { .. })
+        | (vertex @ Carrier::Point { .. }, line @ Carrier::Line { .. }) => {
+            link_reads(line, vertex, band)
         }
+        // Two vertices, or two line edges: the outer's link reads the
+        // inner.
+        (Carrier::Point { .. }, Carrier::Point { .. })
+        | (Carrier::Line { .. }, Carrier::Line { .. }) => link_reads(outer, inner, band),
         _ => unsupported("gap", outer, inner),
     }
 }
 
-/// The class a refusal names for a vertex whose corner does not read.
-const NO_CORNER: &str = "a vertex whose faces do not all read as planes";
+/// The class a refusal names for a vertex whose link does not read.
+const NO_CORNER: &str = "a vertex whose faces do not all read as planes bounded by lines";
 
-/// The class a refusal names for an edge whose wedge does not read.
-const NO_WEDGE: &str = "a line edge whose faces do not both read as planes";
+/// The class a refusal names for an edge whose link does not read.
+const NO_WEDGE: &str = "a line edge whose faces do not both read as planes bounded by lines";
 
 /// A face reading a line edge: a plane at the edge's lower end, its
 /// offset linear along it; a cylinder at its ruling, the axis running
@@ -1057,21 +939,48 @@ fn face_reads_edge<T: Decide>(
     }
 }
 
-/// An edge's wedge through `at` reading the point `x`.
-fn wedge_reads_vertex<T: Decide>(
-    wedge: &WedgeOf<'_, T>,
-    at: Point3<T>,
-    x: Point3<T>,
-    vertex: &Carrier<'_, T>,
+/// **`reading`'s link reading `read`**: a vertex's link at the vertex,
+/// an edge's at its middle, reading a vertex by [`topo::Link::offset`]
+/// and an edge by [`topo::Link::lowest_on`]. A link that does not read
+/// refuses typed, naming why as the reading cell's class.
+fn link_reads<T: Decide>(
+    reading: &Carrier<'_, T>,
+    read: &Carrier<'_, T>,
     band: Band,
 ) -> Result<T, PrimitiveRefusal> {
-    let Some(wedge) = wedge.read() else {
-        return unsupported_as("gap", NO_WEDGE, vertex.class());
+    let link = match reading {
+        Carrier::Point { at, cell } => cell.link(*at, band),
+        Carrier::Line {
+            ends: Some([start, end]),
+            cell,
+            ..
+        } => cell.link(*start + (*end - *start) * T::from_f64(0.5), band),
+        _ => unreachable!("gap matched a vertex or a line edge whose ends read"),
     };
-    Ok(wedge
-        .turn(band)?
-        .fold()
-        .offset(&[wedge.plus, wedge.minus], at, x))
+    let got = link.and_then(|link| match read {
+        Carrier::Point { at, .. } => link.offset(*at, band),
+        Carrier::Line {
+            ends: Some([start, end]),
+            ..
+        } => link.lowest_on((*start, *end), band),
+        _ => unreachable!("gap matched a vertex or a line edge whose ends read"),
+    });
+    got.or_else(|why| {
+        let class = match why {
+            TouchUnread::Unreadable => match reading {
+                Carrier::Point { .. } => NO_CORNER,
+                _ => NO_WEDGE,
+            },
+            TouchUnread::InBand | TouchUnread::PieceInBand => {
+                "a cell whose material does not read at this tolerance"
+            }
+            TouchUnread::Unanalysed => "a cell whose faces do not close around it",
+            TouchUnread::Degenerate => "a cell where two of its faces lie on each other",
+            TouchUnread::ChordScale => "a cell with an edge too long or too short to measure",
+            TouchUnread::Corrupt => "a cell whose topology does not read",
+        };
+        unsupported_as("gap", class, read.class())
+    })
 }
 
 /// **How far `at` stands out of a face's material**, along its outward
@@ -1097,143 +1006,6 @@ fn face_offset<T: Decide>(face: &Carrier<'_, T>, at: Point3<T>) -> T {
             ..
         } => signed(*convex, axis_offset(*origin, *axis, at) - *radius),
         _ => unreachable!("the arm matched a face"),
-    }
-}
-
-/// **Which way an edge's two faces turn**: decided once per edge.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Turn {
-    /// The minus face falls away into the plus face's material.
-    Convex,
-    /// The minus face rises out of it.
-    Concave,
-    /// The two faces lie on one plane.
-    Flat,
-}
-
-impl<T: Decide> Wedge<T> {
-    /// **The edge's turn.** The plus face lies left of the edge seen
-    /// from outside it (`topo::entity`'s interior-left rule), so the edge
-    /// is convex when the plus face's outward normal turns into the minus
-    /// face's about the edge's direction. That triple product is the sine
-    /// of the dihedral's departure from flat, and it is levered by the
-    /// faces' reach from the edge, the lever every reader of a dihedral
-    /// passes (`geom_brep::dihedral`, `topo::edge_wedge_reach`), never by
-    /// how long the edge is.
-    fn turn(&self, band: Band) -> Result<Turn, PrimitiveRefusal> {
-        const PREDICATE: &str = "gap_edge_convexity";
-        let sine = self.dir.dot(self.plus.cross(self.minus));
-        match decide(PREDICATE, Margin::levered(sine, self.reach), band) {
-            Ok(Sign::Positive) => Ok(Turn::Convex),
-            Ok(Sign::Negative) => Ok(Turn::Concave),
-            Ok(Sign::Zero) => Ok(Turn::Flat),
-            Err(source) => Err(PrimitiveRefusal::Escalated {
-                predicate: PREDICATE,
-                source,
-            }),
-        }
-    }
-}
-
-impl Turn {
-    /// The fold one edge's two faces make, which is never a saddle.
-    fn fold(self) -> Fold {
-        match self {
-            Self::Convex | Self::Flat => Fold::Max,
-            Self::Concave => Fold::Min,
-        }
-    }
-}
-
-/// **How the half-spaces around an edge or a vertex make its
-/// material**: their intersection where every edge there is convex,
-/// their union where every one is concave. A flat edge is either.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Fold {
-    /// Convex: a point is outside when it is outside any face.
-    Max,
-    /// Concave: a point is outside only when it is outside every face.
-    Min,
-}
-
-impl Fold {
-    /// The fold the edges around a vertex make, `None` for a saddle (a
-    /// convex edge and a concave one).
-    fn of_corner<T: Decide>(
-        edges: &[Wedge<T>],
-        band: Band,
-    ) -> Result<Option<Self>, PrimitiveRefusal> {
-        let (mut convex, mut concave) = (false, false);
-        for w in edges {
-            match w.turn(band)? {
-                Turn::Convex => convex = true,
-                Turn::Concave => concave = true,
-                Turn::Flat => {}
-            }
-        }
-        Ok(match (convex, concave) {
-            (true, true) => None,
-            (_, false) => Some(Self::Max),
-            (false, true) => Some(Self::Min),
-        })
-    }
-
-    /// How far `x` stands out of the material the planes through `at`
-    /// with outward normals `normals` make.
-    fn offset<T: Decide>(self, normals: &[Vec3<T>], at: Point3<T>, x: Point3<T>) -> T {
-        let mut each = normals.iter().map(|w| w.dot(x - at));
-        let first = each
-            .next()
-            .unwrap_or_else(|| unreachable!("an edge has two faces and a corner at least one"));
-        each.fold(first, |a, b| match self {
-            Self::Max => a.max(b),
-            Self::Min => a.min(b),
-        })
-    }
-
-    /// The lowest [`Self::offset`] along the segment `ends`, of the
-    /// material of `wedge` through `at`.
-    ///
-    /// Along a segment each face's offset is linear. Under `Min` the
-    /// lowest is at an end. Under `Max` it is at an end or where the two
-    /// offsets cross, which is inside the segment when their differences
-    /// `D₀`, `D₁` at the two ends have opposite signs. That is the
-    /// question decided. A difference the band cannot sign leaves the
-    /// crossing a candidate as long as the other is signed, since any
-    /// point of the segment is one; where neither is signed, the two
-    /// offsets agree within the band along the whole segment and the ends
-    /// decide it. So this never refuses.
-    fn lowest_on<T: Decide>(
-        self,
-        wedge: &Wedge<T>,
-        at: Point3<T>,
-        ends: [Point3<T>; 2],
-        band: Band,
-    ) -> T {
-        let normals = [wedge.plus, wedge.minus];
-        let [start, end] = ends;
-        let lowest = self
-            .offset(&normals, at, start)
-            .min(self.offset(&normals, at, end));
-        if self == Self::Min {
-            return lowest;
-        }
-        let apart = |x: Point3<T>| (wedge.plus - wedge.minus).dot(x - at);
-        let (d0, d1) = (apart(start), apart(end));
-        let sign = |d: T| decide("gap_wedge_crossing", Margin::of(d), band).ok();
-        let opposed = match (sign(d0), sign(d1)) {
-            (Some(Sign::Positive), Some(Sign::Positive))
-            | (Some(Sign::Negative), Some(Sign::Negative)) => false,
-            (Some(Sign::Positive | Sign::Negative), _)
-            | (_, Some(Sign::Positive | Sign::Negative)) => true,
-            _ => false,
-        };
-        if !opposed {
-            return lowest;
-        }
-        let (from, to) = (magnitude(d0), magnitude(d1));
-        let cross = start + (end - start) * (from / (from + to));
-        lowest.min(self.offset(&normals, at, cross))
     }
 }
 
@@ -1546,22 +1318,18 @@ mod tests {
         }
     }
 
-    fn line(
-        start: Point3<f64>,
-        end: Point3<f64>,
-        wedge: Option<Wedge<f64>>,
-    ) -> Carrier<'static, f64> {
+    fn line(start: Point3<f64>, end: Point3<f64>) -> Carrier<'static, f64> {
         Carrier::Line {
             dir: (end - start) / (end - start).norm(),
             ends: Some([start, end]),
-            wedge: WedgeOf::Held(wedge),
+            cell: CellOf::Bare,
         }
     }
 
-    fn vertex(at: Point3<f64>, corner: Option<Corner<f64>>) -> Carrier<'static, f64> {
+    fn vertex(at: Point3<f64>) -> Carrier<'static, f64> {
         Carrier::Point {
             at,
-            corner: CornerOf::Held(corner),
+            cell: CellOf::Bare,
         }
     }
 
@@ -1571,50 +1339,6 @@ mod tests {
 
     fn close(got: f64, want: f64, what: &str) {
         assert!((got - want).abs() < 1e-12, "{what}: {got}, not {want}");
-    }
-
-    /// The convex edge along +y at the origin between the top face
-    /// (`+z`) and the side face (`+x`): material where `x ≤ 0` and
-    /// `z ≤ 0`. The plus face's normal turns into the minus face's
-    /// about `+y`, which is convex ([`Fold::of`]).
-    fn ridge() -> Wedge<f64> {
-        Wedge {
-            dir: v(0.0, 1.0, 0.0),
-            plus: v(0.0, 0.0, 1.0),
-            minus: v(1.0, 0.0, 0.0),
-            reach: 1.0,
-        }
-    }
-
-    /// A block's corner at the origin, its material where `x, y, z ≤ 0`
-    /// (`hole` false), or the corner of an octant hole cut into
-    /// material, its material wherever any coordinate is negative.
-    fn corner(hole: bool) -> Corner<f64> {
-        let s = if hole { -1.0 } else { 1.0 };
-        let (x, y, z) = (v(1.0, 0.0, 0.0), v(0.0, 1.0, 0.0), v(0.0, 0.0, 1.0));
-        Corner {
-            faces: vec![x, y, z],
-            edges: vec![
-                Wedge {
-                    dir: x * s,
-                    plus: y,
-                    minus: z,
-                    reach: 1.0,
-                },
-                Wedge {
-                    dir: y * s,
-                    plus: z,
-                    minus: x,
-                    reach: 1.0,
-                },
-                Wedge {
-                    dir: z * s,
-                    plus: x,
-                    minus: y,
-                    reach: 1.0,
-                },
-            ],
-        }
     }
 
     /// **A vertex or a line edge on a face reads the face's signed
@@ -1627,7 +1351,7 @@ mod tests {
     fn a_face_reads_a_vertex_or_an_edge_by_its_outward_normal() {
         let floor = plane(p(0.0, 0.0, 1.0), v(0.0, 0.0, 1.0));
         for h in [0.0, 0.01, -0.01] {
-            let at = vertex(p(0.3, -0.2, 1.0 + h), None);
+            let at = vertex(p(0.3, -0.2, 1.0 + h));
             close(
                 read(&floor, &at),
                 h,
@@ -1638,7 +1362,7 @@ mod tests {
                 h,
                 "a vertex over the floor, outer the vertex",
             );
-            let tilted = line(p(0.0, 0.0, 1.0 + h), p(1.0, 0.0, 1.5 + h), None);
+            let tilted = line(p(0.0, 0.0, 1.0 + h), p(1.0, 0.0, 1.5 + h));
             close(
                 read(&floor, &tilted),
                 h,
@@ -1658,12 +1382,12 @@ mod tests {
             reach: 5.0,
             convex,
         };
-        let out = vertex(p(1.01, 0.0, 0.0), None);
+        let out = vertex(p(1.01, 0.0, 0.0));
         close(read(&sphere(true), &out), 0.01, "outside a ball");
         close(read(&sphere(false), &out), -0.01, "in a socket's material");
         close(read(&cylinder(true), &out), 0.01, "outside a pin");
         close(read(&out, &cylinder(false)), -0.01, "in a bore's material");
-        let ruling = line(p(0.99, 0.0, -1.0), p(0.99, 0.0, 1.0), None);
+        let ruling = line(p(0.99, 0.0, -1.0), p(0.99, 0.0, 1.0));
         close(
             read(&cylinder(true), &ruling),
             -0.01,
@@ -1674,7 +1398,7 @@ mod tests {
             0.01,
             "a ruling inside a bore's hollow",
         );
-        let skew = line(p(1.0, 0.0, -1.0), p(1.0, 0.5, 1.0), None);
+        let skew = line(p(1.0, 0.0, -1.0), p(1.0, 0.5, 1.0));
         assert!(
             matches!(
                 gap(&cylinder(true), &skew, band()),
@@ -1687,152 +1411,28 @@ mod tests {
         );
     }
 
-    /// **An edge's wedge reads a vertex in either seat, and the outer
-    /// edge's wedge reads the inner edge.** Over the ridge `x, z ≤ 0`, a
-    /// segment crossing it in the plane `x + z = h√2` reads `h/√2` at
-    /// the crossing, which is its lowest point, though both its ends
-    /// read near 1; an edge lying along the ridge reads its larger
-    /// offset. Red if the crossing is not a candidate, or the wedge
-    /// folds as a union.
+    /// **A vertex or an edge with no link to read refuses typed**,
+    /// naming the reading cell: an edge reading a vertex in either seat,
+    /// and a vertex reading a vertex. The links themselves are
+    /// `topo::link`'s rows, and the real bodies' are
+    /// `gap_reads_vertex_and_edge_cells`. Red if a cell with no link reads
+    /// a number, or an edge stops reading a vertex in the vertex's seat.
     #[test]
-    fn an_edge_reads_a_vertex_and_an_edge_by_its_wedge() {
-        let ridge = line(p(0.0, -1.0, 0.0), p(0.0, 1.0, 0.0), Some(ridge()));
-        let tip = vertex(p(0.01, 0.5, -0.5), None);
-        close(read(&ridge, &tip), 0.01, "a vertex beside the side face");
-        close(read(&tip, &ridge), 0.01, "in either seat");
-        let n = v(1.0, 0.0, 1.0) / 2.0_f64.sqrt();
-        for h in [0.0, 0.01, -0.01] {
-            let crossing = line(p(-1.0, 0.3, 1.0) + n * h, p(1.0, 0.3, -1.0) + n * h, None);
-            close(
-                read(&ridge, &crossing),
-                h / 2.0_f64.sqrt(),
-                "an edge crossing the ridge",
-            );
-            let along = line(p(h, -0.5, h), p(h, 0.5, h), None);
-            close(read(&ridge, &along), h, "an edge lying along the ridge");
-        }
-        let bare = line(p(0.0, -1.0, 0.0), p(0.0, 1.0, 0.0), None);
-        assert!(
-            matches!(
-                gap(&bare, &ridge, band()),
-                Err(PrimitiveRefusal::Unsupported(MeasureUnsupported {
-                    a: NO_WEDGE,
-                    ..
-                }))
-            ),
-            "an outer edge with no wedge has no material to read the inner by"
-        );
-    }
-
-    /// **The outer vertex's corner reads the inner vertex**: the largest
-    /// offset over a block's corner, the smallest over a hole's, and a
-    /// saddle or a corner on a curved face refuses typed. Red if a hole's
-    /// corner reads its empty octant as material, or a saddle reads a
-    /// number.
-    #[test]
-    fn a_vertex_reads_a_vertex_by_its_corner() {
-        let block = vertex(p(0.0, 0.0, 0.0), Some(corner(false)));
-        let hole = vertex(p(0.0, 0.0, 0.0), Some(corner(true)));
-        let at = |x, y, z| vertex(p(x, y, z), None);
-        close(
-            read(&block, &at(0.0, 0.0, 0.0)),
-            0.0,
-            "a vertex on a vertex",
-        );
-        close(read(&block, &at(0.01, -0.02, -0.03)), 0.01, "off the block");
-        close(
-            read(&block, &at(-0.01, -0.02, -0.03)),
-            -0.01,
-            "in the block",
-        );
-        close(read(&hole, &at(0.01, 0.02, 0.03)), 0.01, "in the hole");
-        close(
-            read(&hole, &at(0.01, -0.02, 0.03)),
-            -0.02,
-            "in the hole's wall",
-        );
-        let mut saddle = corner(false);
-        saddle.edges[0].dir = saddle.edges[0].dir * -1.0;
-        let refused = |outer: &Carrier<'_, f64>| match gap(outer, &at(0.0, 0.0, 0.0), band()) {
-            Err(PrimitiveRefusal::Unsupported(u)) => u.a,
-            other => panic!("refused typed: {other:?}"),
-        };
+    fn a_cell_with_no_link_refuses_naming_the_reading_cell() {
+        let edge = line(p(0.0, -1.0, 0.0), p(0.0, 1.0, 0.0));
+        let tip = vertex(p(0.01, 0.5, -0.5));
+        let refused =
+            |outer: &Carrier<'_, f64>, inner: &Carrier<'_, f64>| match gap(outer, inner, band()) {
+                Err(PrimitiveRefusal::Unsupported(u)) => u.a,
+                other => panic!("refused typed: {other:?}"),
+            };
+        assert_eq!(refused(&edge, &tip), NO_WEDGE, "the edge reads the vertex");
+        assert_eq!(refused(&tip, &edge), NO_WEDGE, "in either seat");
+        assert_eq!(refused(&tip, &vertex(p(0.0, 0.0, 0.0))), NO_CORNER);
         assert_eq!(
-            refused(&vertex(p(0.0, 0.0, 0.0), Some(saddle))),
-            "a saddle vertex"
+            refused(&edge, &line(p(1.0, 0.0, 0.0), p(2.0, 0.0, 0.0))),
+            NO_WEDGE
         );
-        assert_eq!(refused(&vertex(p(0.0, 0.0, 0.0), None)), NO_CORNER);
-    }
-
-    /// **A short, gently concave crease is concave, so its saddle
-    /// refuses.** A vertex with a top face (`+z`), a side face `+x` and
-    /// a side face turned δ about `z`, the two sides meeting in a 1 mm
-    /// concave crease and both rims convex. With δ = ε/(2·1 mm), the
-    /// crease levered by its own length read flat, the saddle folded as
-    /// a block's corner, and a point 2.5ε inside the turned face read
-    /// +2.5ε. Levered by the faces' reach (here 1) it reads concave.
-    /// Red if the convexity decision is levered by the edge's length.
-    #[test]
-    fn a_short_concave_crease_reads_concave_by_its_faces_reach() {
-        let eps = geom_core::Tol::witness().eps();
-        let delta = 0.5 * eps / 1e-3;
-        let z = v(0.0, 0.0, 1.0);
-        let n2 = v(1.0, 0.0, 0.0);
-        let n3 = v(delta.cos(), delta.sin(), 0.0);
-        let wedge = |dir: Vec3<f64>, plus, minus| Wedge {
-            dir,
-            plus,
-            minus,
-            reach: 1.0,
-        };
-        let crease = wedge(v(0.0, 0.0, -1.0), n2, n3);
-        assert_eq!(
-            crease.turn(band()).expect("decides"),
-            Turn::Concave,
-            "the crease"
-        );
-        let saddle = Corner {
-            faces: vec![z, n2, n3],
-            edges: vec![
-                wedge(v(0.0, 1.0, 0.0), z, n2),
-                wedge(v(delta.sin(), -delta.cos(), 0.0), n3, z),
-                crease,
-            ],
-        };
-        let refused = gap(
-            &vertex(p(0.0, 0.0, 0.0), Some(saddle)),
-            &vertex(p(0.0, -0.01, -1e-3), None),
-            band(),
-        );
-        assert!(
-            matches!(
-                refused,
-                Err(PrimitiveRefusal::Unsupported(MeasureUnsupported {
-                    a: "a saddle vertex",
-                    ..
-                }))
-            ),
-            "the saddle refuses: {refused:?}"
-        );
-    }
-
-    /// **An edge resting on a ridge's face, parallel to the ridge, reads
-    /// 0 however close to the ridge it lies.** Its two ends' face offsets
-    /// differ by the same amount, `s`, so it has no crossing; at `s` = ε
-    /// that difference is in the band, which used to refuse the measure
-    /// `Escalated` at contact. Red if the crossing's decision refuses.
-    #[test]
-    fn an_edge_resting_beside_a_ridge_reads_zero() {
-        let ridge = line(p(0.0, -1.0, 0.0), p(0.0, 1.0, 0.0), Some(ridge()));
-        let eps = geom_core::Tol::witness().eps();
-        for s in [eps, 0.1] {
-            let rest = line(p(-s, -0.5, 0.0), p(-s, 0.5, 0.0), None);
-            close(
-                read(&ridge, &rest),
-                0.0,
-                &format!("an edge {s} in from the ridge"),
-            );
-        }
     }
 
     /// **`angle` reads a line edge whose ends do not read**: the gap's
@@ -1843,7 +1443,7 @@ mod tests {
         let bare = |dir| Carrier::<f64>::Line {
             dir,
             ends: None,
-            wedge: WedgeOf::Held(None),
+            cell: CellOf::Bare,
         };
         let got = angle(&bare(v(1.0, 0.0, 0.0)), &bare(v(0.0, 1.0, 0.0)))
             .unwrap_or_else(|e| panic!("the angle reads: {e:?}"));

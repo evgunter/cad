@@ -1982,7 +1982,7 @@ pub enum ValidationError {
         witness: String,
         /// Why the reading was not taken; the finding renders it with
         /// its recourse.
-        why: crate::census::TouchUnread,
+        why: crate::link::TouchUnread,
     },
     /// Tier 3′: the census read a point at an arc's end that lies
     /// definitely off both of its edge's corners, on a body tier 3 passed

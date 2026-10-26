@@ -1684,7 +1684,7 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             witness: "(0.0, 0.0, 0.0)".to_owned(),
         },
     ));
-    for why in crate::census::TouchUnread::iter() {
+    for why in crate::link::TouchUnread::iter() {
         s.push((
             format!("FaceThroughEdgeWedgeUndecided/{why:?}"),
             ValidationError::FaceThroughEdgeWedgeUndecided {

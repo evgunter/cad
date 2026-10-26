@@ -288,12 +288,16 @@ mod real_bodies {
         (0.0, 3.0),
     ];
 
-    /// **A real L-bracket's reflex strut reads a vertex as the MIN**, and
-    /// its reflex top vertex (two convex rims, one concave strut) refuses
-    /// as a saddle. The cube's corner at `(1.02, 0.99)` is inside the
-    /// bracket's long leg (`y < 1`): `−0.01`. A `max` fold reads `+0.02`.
+    /// **A real L-bracket's reflex strut reads a vertex by its link, and
+    /// so does its reflex top vertex**, a saddle (two convex rims, one
+    /// concave strut). The cube's corner at `(1.02, 0.99)` is inside the
+    /// bracket's long leg (`y < 1`), `0.01` from its notch wall: `−0.01`;
+    /// at `(1.02, 1.01)` it is in the notch, `+0.01`. Reading the strut's
+    /// two face planes as an intersection reads `+0.02` in the leg, and
+    /// reading the vertex's three as either fold reads a wrong sign at
+    /// one of the two.
     #[test]
-    fn real_reflex_strut_reads_by_min_and_its_vertex_is_a_saddle() {
+    fn real_reflex_strut_and_its_saddle_vertex_read_by_their_links() {
         let doc = ProfileDoc::empty_derived("gap-cells-real-l", Tol::witness());
         let (doc, l) = extrude(doc, vec![poly(&L)], 1.0);
         let (doc, b) = extrude(doc, vec![poly(&UNIT)], 1.0);
@@ -321,10 +325,10 @@ mod real_bodies {
                 pl,
                 vname(l, RoleSeg::CapVertex(CapEnd::End, reflex)).in_copy(pl),
             );
-            let refused = gap(&doc, &top, &tip).expect_err("a saddle refuses");
-            assert!(
-                refused.contains("MeasureUnsupported") && refused.contains("a saddle vertex"),
-                "the reflex top vertex refuses as a saddle: {refused}"
+            near(
+                gap(&doc, &top, &tip),
+                want,
+                &format!("saddle vertex, y {y}"),
             );
         }
     }
@@ -332,8 +336,8 @@ mod real_bodies {
     /// **Two real ridges crossing at right angles.** The block's vertical
     /// `(1, 1)` strut (material `x, y ≤ 1`) and a wedge prism's apex ridge
     /// along `y` at `x = 1 + h, z = 0.5` (material `x ≥ 1 + h`): the ridges
-    /// are `h` apart. Each seat reads the sign of `h` (the magnitudes
-    /// differ: each is its own wedge's surrogate).
+    /// are `h` apart. Each seat reads the sign of `h`; the magnitudes are
+    /// each outer link's own distance to the inner segment.
     #[test]
     fn real_crossing_ridges_read_the_sign_in_both_seats() {
         for h in [0.0, 0.01, -0.01] {
