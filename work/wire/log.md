@@ -7084,3 +7084,4 @@ Signed (WIRE orchestrator).
     - the new fold-step refusal routes (coincident twins on the face, touch agreement);
     - vocabulary; line_of_several's one-thing case, and one line-naming home.
   - A state sync is owed so the README's work/wire path exists on main.
+- 2026-10-26 (WIRE orchestrator) The pairflush fix-pass lane got a security flag for 'irreversible local destruction'. Its transcript shows rm -rf only of its own build target, logs, probe files and scratch copy, all lane-owned and deleted as the standing rules require. Nothing else was touched; the orchestrator checkout is clean. Removed the merged norank worktree and its logs.
