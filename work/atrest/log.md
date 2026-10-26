@@ -42,3 +42,8 @@
   - **Q4:** C leaves the lint's knob as it is.
   - `stage5-contact-finding-and-the-unproven-row-report-one-contact-twice` closes with the spec. `an-instance-carries-its-parts-coincidences` is re-cut (a part's unproven rows reach the host's report as the part's, by route, quieted only by the part's assertions) and parked on D′3.
 - 2026-10-26 — Dispatched `gap-reads-vertex-and-edge-cells` (P0 M) to `session_01LAxLQNJFwzHwRxtDMG2LZX` on `atrest/gap-reads-vertex-and-edge-cells`. Tier: single FULL review, for the sign conventions per cell pair. It is FLUXHOLD's ground (`measure.rs`), so the PR carries the seam note.
+- 2026-10-26 — `gap-reads-vertex-and-edge-cells` is at review: PR #5746, head `b77f144055`, green.
+  - **Built:** `Gap` admits edge and vertex selections. Each cell pair has a signed arm, zero at a contact. Saddle vertices and curved edges refuse typed.
+  - **Filed:** the residue `gap-reads-no-curved-cell-below-a-face` (P1).
+  - **Review:** single FULL review, `session_01BFkXPLUiAuzbBGGvRspL7a`. The first dispatch failed at init on a short SHA, so the review session was given the full SHA.
+  - **The lane flagged one sentence** it added to topo README C5. It describes built code under the ratified `[assertions.quiet]` and changes no decision, so it lands with the PR.
