@@ -249,8 +249,9 @@ mod tests {
 
     /// **The arc closed by its chord, read by the row, against the
     /// region sampled densely** — the whole arc, a window of it that
-    /// starts and ends inside spans and runs across both knots, and one
-    /// that ends on a knot, whose pieces are none of them a point. Every
+    /// starts and ends inside spans and runs across both knots, one that
+    /// ends on a knot and one that starts on one, whose pieces are none
+    /// of them a point. Every
     /// grid point further than `1e-3` from the sampled boundary is
     /// definitely off the arc, and its ray along a fixed generic
     /// direction crosses the arc a certified number of times whose
@@ -261,7 +262,7 @@ mod tests {
     fn the_row_reads_the_arcs_region<T: Decide>(lane: &str) {
         let band = Band::linear(Tol::witness()).unwrap();
         let f = T::from_f64;
-        for (t0, t1) in [(0.0, 1.0), (0.1, 0.9), (0.1, 0.7)] {
+        for (t0, t1) in [(0.0, 1.0), (0.1, 0.9), (0.1, 0.7), (0.4, 1.0)] {
             let k = arc::<T>((t0, t1));
             assert!(
                 k.roots().iter().all(|p| p.a < p.b),
@@ -408,6 +409,51 @@ mod tests {
     #[test]
     fn the_count_is_exact_at_interval() {
         the_count_is_exact::<Interval>("Interval");
+    }
+
+    /// **A point of the arc reads on it, and a point within the band of
+    /// it never reads off it.** Along the wave at parameters nobody
+    /// chose, its own point reads `On` (or `End`), never refusing; and a
+    /// point off it along its normal by a fraction of the band's
+    /// coincidence threshold, or short of its escalation threshold,
+    /// reads anything but `Off`, on either side.
+    fn the_band_is_never_read_off<T: Decide>(lane: &str, samples: u32) {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let f = T::from_f64;
+        let k = arc::<T>((0.0, 1.0));
+        let point = |(x, y): (f64, f64)| Point3::new(f(x), f(y), f(Z));
+        for i in 1..samples {
+            let t = f64::from(i) / f64::from(samples) + 3.1e-5;
+            let (x, y) = at(t);
+            assert!(
+                matches!(
+                    k.contact(point((x, y)), ROWS, band),
+                    Ok(ArcHit::On(_) | ArcHit::End)
+                ),
+                "{lane} t {t}: the arc's own point is on it"
+            );
+            let n = wave().deriv(t).normalize();
+            for frac in [0.2, 0.9, 1.5, 0.95 * band.escalate() / band.zero()] {
+                for sign in [-1.0, 1.0] {
+                    let dl = sign * frac * band.zero();
+                    assert_ne!(
+                        k.contact(point((x - n.y * dl, y + n.x * dl)), ROWS, band),
+                        Ok(ArcHit::Off),
+                        "{lane} t {t}: {dl:e} off the arc is not off it"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn the_band_is_never_read_off_at_f64() {
+        the_band_is_never_read_off::<f64>("f64", 200);
+    }
+
+    #[test]
+    fn the_band_is_never_read_off_at_interval() {
+        the_band_is_never_read_off::<Interval>("Interval", 40);
     }
 }
 
