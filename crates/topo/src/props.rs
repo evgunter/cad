@@ -4029,8 +4029,8 @@ fn quadrature_regions<T: Decide>(body: &Body<T>, shell: ShellKey) -> Vec<Vec<Fac
 /// faces lie a kilometre apart reads pads up to 90× apart across
 /// rotations of its face list at 1e-6
 /// (`work/flux/a-shells-pad-still-depends-on-which-quadrature-face-it-stores-first.md`).
-/// A region far from it, the first among them, is read about a point of
-/// its own and carried here ([`References`]).
+/// A region after the first, far from it, is read about a point of its own
+/// and carried here ([`References`]).
 #[cfg_attr(not(any(test, feature = "test-support")), expect(dead_code))]
 fn shell_reference<T: Decide>(body: &Body<T>, shell: ShellKey) -> Point3<T> {
     reference_of(body, shell, &quadrature_regions(body, shell))
@@ -4106,11 +4106,13 @@ fn reference_of<T: Decide>(body: &Body<T>, shell: ShellKey, regions: &[Vec<FaceK
 /// so on the planes they bound. The long top face's own start may lie a
 /// bar's length from the torus it carries.
 ///
-/// **The first region is carried too.** The shell's point `c` is the start
-/// of its first quadrature face, which may be that long face's, and the
-/// region holding it then holds a torus a bar's length off. Each region,
-/// the first among them, is read about its own point where that is far
-/// from `c` and the gate below admits it.
+/// **The first region is read about `c`**, the start of its first face. It
+/// may be a long plane's, a bar's length from the region's torus, but the
+/// torus's rims lie on that plane, and a lever within it barely moves a
+/// curved face's width. Read about its own point and carried, the first
+/// region pads the same as about `c` to six digits, across every rotation
+/// of a torus on a bar's top face, one midway on it, and one astride the
+/// bar's end edge, at each ε.
 ///
 /// # Only where it narrows
 ///
@@ -4127,8 +4129,8 @@ fn reference_of<T: Decide>(body: &Body<T>, shell: ShellKey, regions: &[Vec<FaceK
 /// tori 900 apart on one bar read about 53. Every door reads the same
 /// [`References`], so all of them carry the same regions.
 ///
-/// A region is read about `c`, uncarried, where it is not that far, where
-/// the door does not hold every face of it or
+/// A region is read about `c`, uncarried, where it is the first, where it
+/// is not that far, where the door does not hold every face of it or
 /// holds no quadrature lane (a carry stands for the whole region, and only
 /// a lane encloses it), where its boundary does not resolve, and where
 /// its boundary's vector area does not read or its carry does not certify
@@ -4266,8 +4268,8 @@ impl<T: Real> ReadAbout<T> {
 }
 
 /// The carried regions among a shell's quadrature regions `quadrature`
-/// ([`References`]): each region, the first among them, whose every face
-/// is `held` and that lies far from the shell's point `c` ([`far_from`]),
+/// ([`References`]): each region after the first whose every face is
+/// `held` and that lies far from the shell's point `c` ([`far_from`]),
 /// with its point ([`region_point`]) and its carry to `c`, read through
 /// `lane`.
 fn region_carries<T: Decide>(
@@ -4288,7 +4290,7 @@ fn region_carries<T: Decide>(
         end: e.end,
     };
     let mut out = Vec::new();
-    for faces in quadrature {
+    for faces in quadrature.into_iter().skip(1) {
         if !faces.iter().all(|f| held.contains(f)) {
             continue;
         }
