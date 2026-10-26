@@ -3503,6 +3503,7 @@ area `kernel`; prefix `curved/`; tag `(CURVED orchestrator)`; ab_band `2200-2299
 | `wall-sheet-fixtures-mint-inside-out-faces` | 2026-10-24 | Test fixtures mint curved sheet faces whose loop bounds the other side from their sense: cyl_wall_sheet, boxes' revolved_wall, chain_sheet's clockwise chains |
 | `the-witness-ladder-reads-one-interior-candidate-per-face-so-one-in-band-hides-a-definite-one` | 2026-10-25 | The witness ladder probes one interior candidate per planar face, so a face whose first candidate reads in band refuses though another reads off the band |
 | `track-caller-fns-panic-inside-closures-in-topo-and-sweep` | 2026-10-25 | #[track_caller] fns in topo and sweep panic, or call a #[track_caller] helper, from inside a closure, so the panic reports the fn's own line |
+| `main-red-the-lattice-discard-pin-moved-where-pred-5724-met-flush-5706` | 2026-10-26 | Main is red: the lattice corpus's bordered-discard pin moved where PRED's PR 5724 merged onto FLUSH's PR 5706; each passes alone |
 
 ## Blocked
 
