@@ -7,6 +7,7 @@ opened: 2026-10-26
 closed: 2026-10-26
 priority: P0
 cost: M
+branch: splice/sector-walk-nurbs
 ---
 
 
