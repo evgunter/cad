@@ -2,10 +2,12 @@
 id: main-red-the-teapot-north-star-test-expects-the-old-spline-face-refusal
 kind: issue
 title: main red: python test_north_star TestTeapot.test_both_joins_refuse_through_the_document expects the spline-face refusal the boundary pass replaced with PointSplitCarrierUnsupported
-status: open
+status: closed
 opened: 2026-10-26
 priority: P1
 cost: E
+closed: 2026-10-26
+branch: splice/converse-arm
 ---
 
 
@@ -20,3 +22,11 @@ The python suite runs only when a PR touches `pncad-py`, so the PR that moved th
 ## Owed
 
 Re-pin the test to the refusal main gives, or, if SPLICE's open P1 fixes the split first, to whatever that fix gives. One line in the test. Either way, the test should name the refusal kind rather than a sentence of its text.
+
+## Closed
+
+`TestTeapot.test_both_joins_refuse_through_the_document` names the
+spout join's refusal by its kind, `point_split_carrier_unsupported`,
+the one main gives and the one the tour's teapot wall 3 pins, rather
+than by a sentence of its text. The crossing rung's branch carries it,
+because that branch touches `pncad-py` and so runs the python suite.

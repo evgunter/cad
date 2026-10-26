@@ -3306,23 +3306,19 @@ class TestTeapot(unittest.TestCase):
 
         # spout union vessel: PAST the pair rung, because a loft's
         # walls are Nurbs and that arm exists — and dead in the sweep,
-        # which meets the belly's revolve seam (a meridian, where the
-        # spout leaves the belly) with one of the spout's NURBS walls
-        # and has no crossing layer for a spline face. Making the spout the shape a potter draws did not make
-        # it joinable; it moved the refusal off a pair nobody modelled
-        # and onto the meeting itself.
+        # which reads the belly's revolve seam (a meridian, where the
+        # spout leaves the belly) against one of the spout's NURBS walls
+        # by that wall's boundary first. The meridian pierces the wall
+        # where it crosses one of the spout's spline seams, and a seam
+        # has no point parameter to split at. Making the spout the shape
+        # a potter draws did not make it joinable; it moved the refusal
+        # off a pair nobody modelled and onto the meeting itself.
         self.assertFalse(ev.succeeded(spout_join))
         with self.assertRaises(EvaluationError) as caught:
             ev.value(spout_join)
         refusal = caught.exception
         self.assertEqual(refusal.kind, "boolean")
-        text = str(refusal)
-        self.assertIn(
-            "cannot yet work out where one solid's spline (NURBS) face meets", text
-        )
-        # NOT the pair rung any more, and this is the half that would
-        # go quietly wrong if it were only asserted positively.
-        self.assertNotIn("may meet", text)
+        self.assertEqual(refusal.inner_kind, "point_split_carrier_unsupported")
 
 
 class TestTorusvessel(unittest.TestCase):
