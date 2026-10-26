@@ -350,3 +350,97 @@ fn a_hairpin_carriers_upper_foot_is_out_of_a_lower_half_face() {
         "the door's own point, by its edge line"
     );
 }
+
+// ---- review lane r1 (PR 5805) counterexample rows ----
+
+/// A point of the carrier half a band outside the trim, read past the
+/// boundary walk: a point of the face (the edge's) is within the band, so
+/// Out is unsound here; the reading must stay unsettled. Goes red if the
+/// Out rule stops requiring every kept cell to be decided out.
+#[test]
+fn r1_a_carrier_point_in_the_band_outside_the_trim_is_not_out() {
+    let c = 0.6;
+    let chart = twisted(c);
+    let (body, face) = sheet(&chart, &rect((0.25, 0.75), (0.25, 0.75)));
+    let b = band();
+    let step = (b.zero() + b.escalate()) / 2.0;
+    for u in [0.75 + step, 0.75 + b.zero() * 0.5] {
+        let r = read(&body, face, &chart, chart.eval(u, 0.5), b);
+        assert!(matches!(r, Reading::Unsettled(_)), "u = {u}: {r:?}");
+    }
+}
+
+/// The hairpin door's own point lies within `3h/7` of the face's edge, so
+/// Out (no face point within the band) is false there.
+#[test]
+fn r1_the_hairpin_door_point_is_not_out() {
+    let chart = hairpin();
+    let h = Tol::witness().eps() / 100.0;
+    let (body, face) = sheet(&chart, &rect((0.1, 0.9), (1.0 / 14.0, 2.0 / 7.0)));
+    let p = Point3::new(1.0 / 7.0, 3.0 / 7.0, 3.0 * h / 7.0);
+    let r = read(&body, face, &chart, p, band());
+    assert!(matches!(r, Reading::Unsettled(_)), "{r:?}");
+}
+
+/// The ray from a query on the crease row passes exactly through the
+/// trim's vertex `(0.75, 0.5)`: the half-open rule counts it once.
+#[test]
+fn r1_a_ray_through_a_trim_vertex_counts_once() {
+    let chart = ruled(&[(0.0, 0.0), (1.0, 0.0), (2.0, 1.0)]);
+    let (body, face) = sheet(
+        &chart,
+        &[
+            (0.25, 0.25),
+            (0.75, 0.25),
+            (0.75, 0.5),
+            (0.75, 0.75),
+            (0.25, 0.75),
+            (0.25, 0.5),
+        ],
+    );
+    let b = band();
+    let cells = bezier_cells(&chart).unwrap();
+    let trim = Trim::of(&body, face, &chart, b).unwrap();
+    let at = trim.place(&cells, super::Rect::point(0.5, 0.5), b);
+    assert!(matches!(at, Place::In), "{at:?}");
+}
+
+/// On a chart closed in `u` (period 1), an outer loop lifted from a
+/// member in the principal window runs over the seam, `u ∈ [0.8, 1.4]`,
+/// while a hole inside it, whose members all lie in the principal
+/// window, is lifted at `u ∈ [0.1, 0.3]` (its true place in the outer's
+/// cover is `[1.1, 1.3]`). A query in the hole is out of the face.
+#[test]
+fn r1_a_hole_lifted_a_period_from_its_outer_loop_is_still_a_hole() {
+    let chart = twisted(0.6);
+    let cells = bezier_cells(&chart).unwrap();
+    let square = |(u0, u1): (f64, f64), (v0, v1): (f64, f64), ccw: bool| {
+        let mut p = vec![[u0, v0], [u1, v0], [u1, v1], [u0, v1]];
+        if !ccw {
+            p.reverse();
+        }
+        (0..4)
+            .map(|k| super::Piece::segment(p[k], p[(k + 1) % 4]))
+            .collect::<Vec<_>>()
+    };
+    let mut pieces = square((0.8, 1.4), (0.2, 0.8), true);
+    pieces.extend(square((0.1, 0.3), (0.4, 0.6), false));
+    let trim = Trim {
+        pieces,
+        reach: super::Rect {
+            u: (0.1, 1.4),
+            v: (0.2, 0.8),
+        },
+        domain: super::Rect {
+            u: (0.0, 1.0),
+            v: (0.0, 1.0),
+        },
+        periods: [Some(1.0), None],
+    };
+    let b = band();
+    // Sanity: in the face but not in the hole.
+    let face_point = trim.place(&cells, super::Rect::point(0.9, 0.5), b);
+    assert!(matches!(face_point, Place::In), "{face_point:?}");
+    let hole = trim.place(&cells, super::Rect::point(0.2, 0.5), b);
+    assert!(matches!(hole, Place::Out), "a point of the hole: {hole:?}");
+}
