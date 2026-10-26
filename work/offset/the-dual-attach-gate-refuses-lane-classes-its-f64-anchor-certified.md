@@ -2,12 +2,15 @@
 id: the-dual-attach-gate-refuses-lane-classes-its-f64-anchor-certified
 kind: issue
 title: a Dual Euler door refuses plane x NURBS Intersection and analytic rung-3 edges that the f64 anchor certified: not run at a dual, or delegated to the value scalar?
-status: open
+status: closed
 opened: 2026-10-16
 priority: P2
 cost: M
 design: true
 refs: [stackup-pairing-reads-the-shells-dual-refusal-as-a-violation, onpair-has-no-incidence-lane-on-a-spline-adjacent-pair]
+closed: 2026-10-26
+pr: 5728
+parent: closed-form-edge-carriers-pass-on-samples-with-no-stated-bound-between-them
 ---
 
 
