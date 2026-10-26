@@ -180,6 +180,7 @@ fn each_strut_alone_is_refused_by_its_own_class() {
             "oblique at {i}: {m:?}"
         );
         let (f, m, _) = verdicts(None, Some(i));
+        if let Err(e) = &m { eprintln!("PROBE mint refusal Display (build): {e}\n  render(AtRest): {}\n  as ValidationError: {}", e.render(geom_brep::recourse::Reading::AtRest), topo::ValidationError::Pcurve { finding: e.clone() }); }
         assert!(
             matches!(f.as_slice(), [e] if off_chart(e)),
             "line at {i}: {f:?}"

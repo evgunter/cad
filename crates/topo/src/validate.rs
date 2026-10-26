@@ -17693,3 +17693,44 @@ mod door_roster {
         }
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod probe_e1b_strings {
+    use super::*;
+    #[test]
+    fn probe_e1b_strings() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let cause = geom_core::Indeterminate {
+            margin: geom_core::MarginDiag::value(5e-9),
+            band,
+            predicate: Some("pcurve_sphere_chart_incident"),
+            terminal_sliver: false,
+        };
+        let m = geom_core::MarginDiag::value(4e-10);
+        let errs = [
+            CertifyError::Escalated { check: CertCheck::DeclaredIncidence, sample: u32::MAX, cause },
+            CertifyError::DeclaredOffChart { chart: geom::SurfaceKind::Cone, carrier: geom::CurveKind::Line, margin: None },
+            CertifyError::DeclaredOffChart { chart: geom::SurfaceKind::Cone, carrier: geom::CurveKind::Line, margin: Some(geom_brep::OffMargin::Past(m)) },
+            CertifyError::DeclaredOffChart { chart: geom::SurfaceKind::Cone, carrier: geom::CurveKind::Line, margin: Some(geom_brep::OffMargin::InBand(m)) },
+        ];
+        let [derived, declared] = crate::test_support_samples::authorities();
+        for authority in [derived, declared] {
+            for error in [
+                geom_brep::PcurveCertifyError::Escalated { check: geom_brep::PcurveCheck::ChartIncidence, sample: 0, cause },
+                geom_brep::PcurveCertifyError::CarrierOffChart { chart: geom::SurfaceKind::Cone, carrier: geom::CurveKind::Line, why: "w", margin: Some(geom_brep::OffMargin::InBand(m)) },
+            ] {
+                let f = crate::pcurves::PcurveMintError::Certify { half_edge: crate::entity::HalfEdgeKey::default(), error, authority };
+                eprintln!("PROBE mint declared={}: Display: {f}", authority.is_declared());
+                eprintln!("PROBE   at rest: {}", ValidationError::Pcurve { finding: f.clone() });
+            }
+        }
+        for e in errs {
+            eprintln!("PROBE display: {e}");
+            eprintln!("PROBE build:   {:?}", e.ending(Reading::Build));
+            eprintln!("PROBE rest:    {:?}", e.ending(Reading::AtRest));
+            let (why, rec) = classify_certify(&e);
+            eprintln!("PROBE classify: {why} | {rec}\n");
+        }
+    }
+}
