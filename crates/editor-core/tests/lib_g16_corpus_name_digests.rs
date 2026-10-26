@@ -290,32 +290,39 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 /// seam face plainly, so its ids moved too. Ids only:
 /// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
 /// held unmoved.
+///
+/// **Re-pinned when the value chart came to read a written
+/// orientation**: every mate carries its orientation, which the minting
+/// edits' bytes hold, so the ids after a mate, and the names spelled
+/// with them, moved in the seventeen documents holding a mate. The
+/// ids-masked fence moved in `die_composed_tour` alone, its ±x faces'
+/// pip seams turned a quarter about the pips' axes.
 const PINNED: &[(&str, u64)] = &[
-    ("die", 0x7edd9af875ab8a41),
-    ("corner_table", 0x7b26284bc1febf4a),
-    ("heat_sink", 0xa73720bc22f28026),
-    ("crossing_slots", 0x922b1c1a71310f0b),
-    ("nested_islands_105", 0xccb5f0610256c3b0),
-    ("nested_islands_106_depth1", 0xe0e0e0478a1875fc),
-    ("nested_islands_106_depth2", 0x2f5fb3d31d8f6f6c),
+    ("die", 0x10059d4cd2321a83),
+    ("corner_table", 0xde6ef64e9c7f89ea),
+    ("heat_sink", 0x7c03a5b3a87b6fd0),
+    ("crossing_slots", 0x05c096513677d9ec),
+    ("nested_islands_105", 0xc4601cc2eec6456c),
+    ("nested_islands_106_depth1", 0x5a89806615efd197),
+    ("nested_islands_106_depth2", 0x12538e107691ee32),
     ("declared_tangency", 0xd108b6ffec69bb96),
-    ("kitchen_sink", 0x8af9a5800611a05a),
+    ("kitchen_sink", 0x27c1cfbe35126b49),
     ("cut_cylinder", 0x3a27171be80eccde),
-    ("measured_web", 0xcb5416d2d2f0bdd8),
-    ("boss_union", 0x3dc7ea1c9368a03f),
+    ("measured_web", 0x1abe8f29c0cb23cf),
+    ("boss_union", 0x75f86de89e542d8e),
     ("die_fillet", 0xd89b04ca6c904f1c),
     ("die_chamfer", 0x49a6149b72216e24),
-    ("die_pips", 0x81c46a46788065dc),
+    ("die_pips", 0x8ee27945d160c646),
     ("heat_sink_fins", 0x5c769a19b5aa51be),
-    ("die_tool", 0xa3b837c9b9790bfa),
-    ("face_sketch", 0x106ca2a6f6b6dde0),
+    ("die_tool", 0x0e68c857cdc7884c),
+    ("face_sketch", 0x7d95c9afe2f96f2e),
     ("part_select", 0x331a8218fc53644d),
     ("symmetric_plate", 0x15fcb81f3d14e60e),
     ("loft_prism", 0xd755086b63c1b1e0),
-    ("die_composed", 0xbfce67ab06b18047),
-    ("die_composed_tour", 0x2d02f13391c39594),
-    ("plate_param", 0x385b2dce81179759),
-    ("kiss_carry", 0xadae0a3108bf2cba),
+    ("die_composed", 0xf71b07eccee20e9a),
+    ("die_composed_tour", 0x602579a992cdd6ee),
+    ("plate_param", 0xde1db0ef749c84b9),
+    ("kiss_carry", 0xe79a9b6aebd6b8ed),
     ("tube_ring", 0x07f65493eee0fb77),
     ("tube_arc", 0x7293a2e365d4a2ed),
     ("hollow_tube_elbow", 0x9c6883bdccf7ae3b),

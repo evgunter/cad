@@ -75,7 +75,12 @@ fn digest(rows: &[(&'static str, editor_core::Resolution)]) -> u64 {
 /// the content key's `VERSION` moved, so every mint id's digest moved
 /// with it. Every row's Debug spelling, ordinals included, is main's
 /// with the mint digests masked: a spelling change.
-const DIAGNOSIS_DIGEST: u64 = 0xec87_4211_ef99_5654;
+///
+/// **Re-pinned when the value chart came to read a written
+/// orientation**: every mate carries its orientation, which the minting
+/// edits' bytes hold, so every mint id's digest after the slab's mate
+/// moved with it. A spelling change.
+const DIAGNOSIS_DIGEST: u64 = 0x455e_7c8c_e786_fa31;
 
 #[test]
 fn diagnosis_corpus_is_golden() {

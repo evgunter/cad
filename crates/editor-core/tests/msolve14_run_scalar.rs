@@ -1011,7 +1011,7 @@ fn run_at<T: editor_core::EvalScalar>(
 /// by [`each_seat_stands_on_what_it_is_seated_on`]; not compared id-free
 /// against main.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0x56ec_a0b8_2662_e3c9),
+    (1e-9, 0xc9a1_5c2f_8157_2720),
     (1e-6, 0xfc0f_2d40_8c90_1d43),
     (1e-12, 0x5b91_d653_e6de_b52a),
 ];

@@ -604,6 +604,11 @@ fn the_boolean_documents_evaluate_to_their_committed_digests() {
 /// `VERSION` moved, so its ids and the names under them moved. Every
 /// node's kind and vertex bits are main's (`be9b907694`).
 ///
+/// RE-BLESSED when the value chart came to read a written orientation:
+/// the second operand's mate carries its orientation, which the minting
+/// edits' bytes hold, so its ids and the names under them moved. No
+/// point moved (`m10_p_fence`'s ids-masked row).
+///
 /// RE-BLESSED for a certificate that keeps its turn: the digest feeds
 /// each edge curve's `Debug`, which now spells the certificate's `turn`.
 /// No outcome or point moved.
@@ -645,7 +650,7 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat5 empty_intersect: {got:#018x}");
     assert_eq!(
-        got, 0x3314_e34b_988c_6eea,
+        got, 0x2610_af1e_aef0_42d3,
         "the empty-boolean evaluation moved — value token, bodies or name tables"
     );
 }

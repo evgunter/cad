@@ -328,7 +328,11 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// and this PR's `test_support::plane_on` reads `symmetric_plate`'s
 /// seam face plainly, so its node tags moved too; the words that moved
 /// are the node tags.
-const SAID_DIGEST: u64 = 0x84aa_4c5d_d24d_3960;
+///
+/// **Re-pinned when the value chart came to read a written
+/// orientation**: the ids after a mate moved with the mate's
+/// orientation, and the words that moved are the node tags.
+const SAID_DIGEST: u64 = 0xb930_d8c4_3be2_4a67;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a
