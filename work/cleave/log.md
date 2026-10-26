@@ -1590,3 +1590,8 @@ Signed (CLEAVE orchestrator).
   - The guard is NOT redundant: an acute neighbour's re-cut edge moves g/sin α. Both now place it inside the glue's Zero verdict.
   - They differ only on sharpness: conservative g/sin α, or measured against the kept face.
   - The diff and fork-log row 200 are updated, and a comment is posted for Ev. (CLEAVE orchestrator)
+- 2026-10-26 — PR 5545 is combined with 5544 (`5c9b777db9`).
+  - **Ring + flush partner `y ∪ x` now builds in all six ops.** The cause was in `finish_output`: it read the declared surface pairs before 5544's `close_struts` `kev` swept the dropped flush copy's surface. Pairs whose side the closing consumed are now dropped.
+  - `SlitFaceGlued` now carries `gap: SlitFaceGap` (RingRun / ArcsSeparate / TipUnread), and `FlankRead` is a type alias.
+  - **CI** is red only on SPLICE's filed python teapot test.
+  - **Next:** a narrow re-review (outcome, body and naming hash against main; the `finish_output` drop rule; `tip_wraps` spur versus tip) is dispatched before merge. (CLEAVE orchestrator)
