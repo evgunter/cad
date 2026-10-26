@@ -63,6 +63,16 @@ site whether a face that does not resolve is a desync or an honest
 "no", saying which at the site.
 
 
+## Duplication triage (INTENT, 2026-10-26)
+
+Classified on Ev's ask, via the CLEAVE note on INTENT's log, against main `e92fb951` and DESIGN `[one-way.places]` / `[one-way.readings]`. The four classes:
+- **design signal:** DESIGN names no single home, so a design conversation is owed;
+- **mechanical:** DESIGN names the home; delete the off-home copy and repoint its users;
+- **D10 debris:** a D10 stage retires one copy;
+- **not duplication.**
+
+**Mechanical, and it recurs.** It is now 29 sites, up from 24. Keep `Body::face_surface_linked` and repoint the private `face_surface` twins. It recurs the closed row `boolean-join-resolves-germ-face-surfaces-in-three-closures`. The likely cause is that the helper is awkward to call, not architecture: if the canonical helper is easier to call, the copies stop.
+
 ## Slate triage (2026-10-26, CLEAVE)
 
 - Re-banded P3 → P1: two dozen inline copies of one walk: two implementations of one underlying logic, P1 by `work/README.md` Priority.

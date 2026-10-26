@@ -21,6 +21,17 @@ Left by PR 4657's re-review (style S1/S2).
   `section_cert`: a shared helper hosted inside one of its two
   consumers. Give it a neutral home.
 
+
+## Duplication triage (INTENT, 2026-10-26)
+
+Classified on Ev's ask, via the CLEAVE note on INTENT's log, against main `e92fb951` and DESIGN `[one-way.places]` / `[one-way.readings]`. The four classes:
+- **design signal:** DESIGN names no single home, so a design conversation is owed;
+- **mechanical:** DESIGN names the home; delete the off-home copy and repoint its users;
+- **D10 debris:** a D10 stage retires one copy;
+- **not duplication.**
+
+**Mechanical.** `section_cert::Reach` is literally `{centre, radius}`: delete it for `ExtentBall`. `carrier_eq::line_tilt` moves down, out of its consumer. The real signal is in cluster C (`extent-ball-and-reach-are-two-statements-of-one-extent`). DESIGN home: `[one-way.readings]`.
+
 ## Slate triage (2026-10-26, CLEAVE)
 
 - Re-banded P3 → P1: two vocabularies for one ball: two implementations of one underlying logic, P1 by `work/README.md` Priority.

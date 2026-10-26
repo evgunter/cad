@@ -45,6 +45,17 @@ row schedules them.
    `Coincide::VertexOnFace`'s subject ("lies on a face of the other")
    while its margin is δ/sin ψ, under `VERTEX_SECTION_SUBJECT`.
 
+
+## Duplication triage (INTENT, 2026-10-26)
+
+Classified on Ev's ask, via the CLEAVE note on INTENT's log, against main `e92fb951` and DESIGN `[one-way.places]` / `[one-way.readings]`. The four classes:
+- **design signal:** DESIGN names no single home, so a design conversation is owed;
+- **mechanical:** DESIGN names the home; delete the off-home copy and repoint its users;
+- **D10 debris:** a D10 stage retires one copy;
+- **not duplication.**
+
+**Mainly a bug**: `Rounded::quotient` divides by `room` unchecked. The duplication is secondary and belongs to cluster A. **Cluster A, the vertex-neighbourhood reading against a surface.** Split and boolean each own run enumeration, the sector walk, the bound side, struts and site choice. The only shared ground is the Euler types and the loose `vertex_section.rs`/`sector_*` modules, and the boolean already reaches into `splitting`. `reduce::vertex_face_side`'s `far` re-decides offsets that should go through `vertex_section`, and Sign→PlaneSide is spelled three times.
+
 ## Slate triage (2026-10-26, CLEAVE)
 
 - Re-banded P2 → P1: its items 3 and 4 are five evaluation sites and three Sign→PlaneSide spellings: two implementations of one underlying logic, P1 by `work/README.md` Priority (items 1, 2, 5 and 6 are P2 and travel with them).

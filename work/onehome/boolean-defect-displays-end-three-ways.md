@@ -48,6 +48,17 @@ says "kernel bug"), or give it its decision's lever if input reaches it.
 is the home for that classification. Once the defect variants panic,
 `offer_key`'s kind list goes away of its own accord.
 
+
+## Duplication triage (INTENT, 2026-10-26)
+
+Classified on Ev's ask, via the CLEAVE note on INTENT's log, against main `e92fb951` and DESIGN `[one-way.places]` / `[one-way.readings]`. The four classes:
+- **design signal:** DESIGN names no single home, so a design conversation is owed;
+- **mechanical:** DESIGN names the home; delete the off-home copy and repoint its users;
+- **D10 debris:** a D10 stage retires one copy;
+- **not duplication.**
+
+**Not duplication.** This is the D2/D9-row-4 bug-versus-typed classification, owned by `classification-invariant-family-types-bug-only-states-against-d9-row-4` and ENCL's `a-typed-kernel-defect-ending-may-launder-a-bug-d2-forbids`. DESIGN home: `[loud-failure]`.
+
 ## Slate triage (2026-10-26, CLEAVE)
 
 - Re-banded P3 → P1: the defect ending is spelled four ways and `offer_key` reads one: two implementations of one underlying logic, P1 by `work/README.md` Priority.

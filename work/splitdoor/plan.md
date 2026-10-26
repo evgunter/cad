@@ -14,7 +14,10 @@ is dispatched.
 
 A legal body splits, and a legal pair combines: no refusal and no
 shipped side that the kernel's own gate fails, on an input the operand
-gate admits. Where a pose cannot be built yet, it refuses with a typed
+gate admits. One row here is P0 (orchestrator's ruling on PR
+5765): `a-convex-graze-of-a-cone-refuses-at-some-azimuths`, a plane
+through a full cone's apex, which refuses at every pose measured. Take
+it first. Where a pose cannot be built yet, it refuses with a typed
 construction gap, never a kernel invariant.
 
 ## Lanes
@@ -44,7 +47,7 @@ construction gap, never a kernel invariant.
 
 | pri | item | cost | title |
 |---|---|---|---|
-| P1 | `a-convex-graze-of-a-cone-refuses-at-some-azimuths` | M | a plane holding a cone's apex refuses at the apex vertex, grazing or cutting |
+| P0 | `a-convex-graze-of-a-cone-refuses-at-some-azimuths` | M | a plane holding a cone's apex refuses at the apex vertex, grazing or cutting |
 | P1 | `a-crescent-refusal-fires-where-short-arcs-carry-the-section` | M | The crescent refusal fires where short arcs either side of the tip carry the section, refusing a union main builds |
 | P1 | `a-curved-slit-fails-tier-3-prime-on-its-two-coincident-arcs` | M | A curved keel's slit or ring fails tier 3′: its two coincident arcs sit on two curve entries and no record backs the overlap |
 | P1 | `a-hole-in-an-elliptic-section-keeps-a-face-of-its-own-that-tier-3-prime-refuses` | M | A hole in an elliptic section keeps a face of its own over the outline's, and tier 3′ refuses the side |

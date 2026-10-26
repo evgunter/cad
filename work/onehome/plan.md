@@ -29,13 +29,38 @@ INTENT is sorting these rows (Ev, 2026-10-26, `work/intent/log.md`):
 - **Mechanical.** Delete one copy and repoint its users to the other;
   the row says so in one line.
 
-Until a row carries its sort, read it as unsorted and ask before
-dispatching. HONEONE holds rows of the same class filed at P3 on
-boolean ground; a design conversation here may settle one there.
+INTENT's sort is on every row here (`## Duplication triage (INTENT,
+2026-10-26)`), against DESIGN `[one-way.places]` and `[one-way.readings]`:
+
+- **Design signal** (`design: true`): `run-loops-of-split-and-pierce-are-twins`
+  and `the-split-walk-and-the-boolean-sector-pass-read-a-bounds-side-two-ways`
+  (cluster A, who owns a vertex neighbourhood's runs against a surface);
+  `three-readings-of-a-points-rounding-charge-it-three-ways` (cluster C,
+  the scale a margin is charged at; TWICE's
+  `extent-ball-and-reach-are-two-statements-of-one-extent` is the same
+  cluster); `circle-and-ellipse-frame-arms-re-spell-conic-of` (cluster B,
+  a light one: who owns a conic carrier's frame view);
+  `the-at-rest-result-gate-and-its-typing-live-in-five-homes`
+  (mechanical plus a small gap DESIGN leaves open). Weigh these with
+  designers before a lane builds them (`memories/orchestration-model.md`).
+- **Mechanical**: the rest, each with its repoint written on the row.
+- **Stale or not duplication, by INTENT's reading**:
+  `coincidence-intent-has-too-many-spellings` (stale: D10's
+  `[coincidence.door]` answers it; close it or repoint its residue at
+  ATREST and COINCIDE) and `boolean-defect-displays-end-three-ways`
+  (not duplication: the D2 bug-versus-typed classification, owned with
+  CLEAVETAIL's `classification-invariant-family-types-bug-only-states-against-d9-row-4`).
+  Both stay here until an orchestrator acts on the reading.
+- `vertex-section-quotient-has-no-room-precondition-and-four-offset-spellings`
+  is mainly a bug (`Rounded::quotient` divides by `room` unchecked), with
+  its duplication secondary.
+
+HONEONE holds rows of the same class filed at P3 on boolean ground; a
+design conversation here may settle one there.
 
 `vertex-section-quotient-has-no-room-precondition-and-four-offset-spellings`
-is here for its two duplicate spellings; its other four items are P2
-interval work that travels with them.
+is here for its duplicate spellings; its other items are P2 interval
+work that travels with them.
 
 ## The slate
 

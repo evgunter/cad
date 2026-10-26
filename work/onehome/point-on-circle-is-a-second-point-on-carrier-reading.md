@@ -15,6 +15,17 @@ Found by stage (c) of `the-curve-pair-reader` (closed, PRs 5154, 5162 and 5227),
 
 Two rows of one fact can decide it differently in the band (D3, "One reading per question"). A route is to read the split point by `Span::contact` on the edge's span, with its parameter the foot: `On` is the split, `End` the end's vertex, and `Off`/`Carrier`/`Past` the broken invariant the caller already refuses.
 
+
+## Duplication triage (INTENT, 2026-10-26)
+
+Classified on Ev's ask, via the CLEAVE note on INTENT's log, against main `e92fb951` and DESIGN `[one-way.places]` / `[one-way.readings]`. The four classes:
+- **design signal:** DESIGN names no single home, so a design conversation is owed;
+- **mechanical:** DESIGN names the home; delete the off-home copy and repoint its users;
+- **D10 debris:** a D10 stage retires one copy;
+- **not duplication.**
+
+**Mechanical** (cluster D). Repoint to `Span::contact` and delete `contain::point_on_circle`. Also off-home: `containment::circle_miss` lives in topo and the boolean reads it. DESIGN home: `[one-way.readings]` (geom). **Cluster D, carrier readings re-spelled outside their named home.** DESIGN names the home. Ev (2026-10-26): the first fix is making the canonical reading the path of least resistance (the API consumers need), with a gate only as a backstop. 
+
 ## Slate triage (2026-10-26, CLEAVE)
 
 - Re-banded P3 → P1: two rows for one point-on-carrier fact: two implementations of one underlying logic, P1 by `work/README.md` Priority.

@@ -4,7 +4,7 @@ kind: issue
 title: a plane holding a cone's apex refuses at the apex vertex, grazing or cutting
 status: open
 opened: 2026-10-02
-priority: P1
+priority: P0
 cost: M
 ---
 
@@ -100,5 +100,5 @@ and on the apex fix, at three ε. This asymmetry is not yet explained.
 
 ## Slate triage (2026-10-26, CLEAVE)
 
-- Re-banded P3 → P1: a plane through a cone's apex refuses the split at every pose measured: verb breadth beyond the everyday shapes (a split or boolean that refuses, or ships a body its own gate fails, on a legal input), P1 by `work/README.md` Priority.
+- Re-banded P3 → P0 (CLEAVE orchestrator's ruling on PR 5765): a plane through a full cone's apex refuses the split at every pose measured, at all three ε, which is a normal verb broken on normal geometry, P0 by `work/README.md` Priority.
 - Moved to SPLITDOOR (`work/splitdoor/`) by `git mv`, id and body unchanged: the P1 track opened for split and boolean shapes that refuse, or ship a side their own gate fails, where a uniform reading would build: the split door's tier-3′ bar, tangent and pinch poses, and the curved-carrier lanes that read lines and circles only. CLEAVE measured 270.5 budget points against 30 and split on its priority seam (Ev, in chat, 2026-10-26).

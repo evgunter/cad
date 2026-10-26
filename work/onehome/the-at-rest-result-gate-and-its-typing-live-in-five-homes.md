@@ -6,6 +6,7 @@ status: open
 opened: 2026-10-14
 priority: P1
 cost: M
+design: true
 ---
 
 
@@ -34,6 +35,17 @@ and the split.
 **What closes it:** route each through the policy and `at_rest_refusal`, or
 say per door why its typing differs. The sweep doors' missing gate is
 `work/carve/the-sweep-doors-return-bodies-tier-3-refuses.md`.
+
+
+## Duplication triage (INTENT, 2026-10-26)
+
+Classified on Ev's ask, via the CLEAVE note on INTENT's log, against main `e92fb951` and DESIGN `[one-way.places]` / `[one-way.readings]`. The four classes:
+- **design signal:** DESIGN names no single home, so a design conversation is owed;
+- **mechanical:** DESIGN names the home; delete the off-home copy and repoint its users;
+- **D10 debris:** a D10 stage retires one copy;
+- **not duplication.**
+
+**Mechanical, plus a small gap DESIGN leaves open** (cluster E). **Cluster E, where a refusal's typing lives.** The places table names the at-rest gate and "one recourse per decision", but not where the gate's refusal typing lives, so it lands in whichever consumer wrote it first. There is one gate (`AtRestPolicy::gate_at_rest*`). The typing `at_rest_refusal` lives in `boolean/ops.rs`, inside a consumer. `shell.rs` goes around the gate (`validate_geometric` → `ShellError::NotValid`), and editor-core types findings its own way. `product.rs`'s census is D10 stage 5 C debris (ATREST). It recurs the closed row `boolean-and-split-result-gates-are-one-gate-with-two-texts`. Unclear: where a gate's refusal typing lives.
 
 ## Slate triage (2026-10-26, CLEAVE)
 

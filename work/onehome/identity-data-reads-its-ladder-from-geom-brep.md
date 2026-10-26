@@ -64,6 +64,17 @@ Ownership: `carrier_eq.rs` is claimed by CLEAVE, HONE and TANG (`work.py
 territory`). This stays on CLEAVE, whose slate holds
 `rim-identity-decides-centre-radius-and-axis-one-at-a-time`.
 
+
+## Duplication triage (INTENT, 2026-10-26)
+
+Classified on Ev's ask, via the CLEAVE note on INTENT's log, against main `e92fb951` and DESIGN `[one-way.places]` / `[one-way.readings]`. The four classes:
+- **design signal:** DESIGN names no single home, so a design conversation is owed;
+- **mechanical:** DESIGN names the home; delete the off-home copy and repoint its users;
+- **D10 debris:** a D10 stage retires one copy;
+- **not duplication.**
+
+**Mechanical** (cluster D). `geom_brep::ladder::read_identity` stays. Repoint `carrier_eq::identity_data`, and likely `ray_walk::Evidence::ranked`. DESIGN home: `[one-way.readings]` (geom-brep). Structural note: `carrier_eq` is a pair reading hosted in topo against the crate rule (umbrella `work/honeone/carrier-coincidence-is-decided-by-seven-readings`). **Cluster D, carrier readings re-spelled outside their named home.** DESIGN names the home. Ev (2026-10-26): the first fix is making the canonical reading the path of least resistance (the API consumers need), with a gate only as a backstop. 
+
 ## Slate triage (2026-10-26, CLEAVE)
 
 - Re-banded P4 → P1: `identity_data` spells out `read_identity`'s rule by hand: two implementations of one underlying logic, P1 by `work/README.md` Priority.

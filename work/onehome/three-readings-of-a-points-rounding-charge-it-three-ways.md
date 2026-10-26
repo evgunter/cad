@@ -6,6 +6,7 @@ status: open
 opened: 2026-10-14
 priority: P1
 cost: M
+design: true
 ---
 
 
@@ -37,6 +38,17 @@ reader wants, and two of them charge from the world origin.
 One home that names the two terms (the coordinates' floor, the carrier's
 amplification) and lets each reader take the ones it needs. Rename
 `ring_path::resolution` so one name means one quantity.
+
+
+## Duplication triage (INTENT, 2026-10-26)
+
+Classified on Ev's ask, via the CLEAVE note on INTENT's log, against main `e92fb951` and DESIGN `[one-way.places]` / `[one-way.readings]`. The four classes:
+- **design signal:** DESIGN names no single home, so a design conversation is owed;
+- **mechanical:** DESIGN names the home; delete the off-home copy and repoint its users;
+- **D10 debris:** a D10 stage retires one copy;
+- **not duplication.**
+
+**Design signal.** **Cluster C, the scale a margin is charged at.** Ev (2026-10-26): every point of the representation must be within ε of the real shape, so a decision's charge should be derived from that one contract, not chosen per site. The three readings disagree: `carrier_resolution` leaves the coordinate rounding to K, while `implicit::sample_rounding` and `ring_path::resolution` charge it explicitly. Unclear: whether that floor is always K's job, and where the floor and the amplification terms are defined once. `[verdicts]` presumes K covers it, and no canonical-places row says so.
 
 ## Slate triage (2026-10-26, CLEAVE)
 

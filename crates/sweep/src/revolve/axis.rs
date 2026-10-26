@@ -2,7 +2,7 @@
 //! classification (the ratified case split — see the module docs).
 //!
 //! Everything topology-determining here goes through the named
-//! [`super::decide`] funnel: per-vertex radial classes (on-axis /
+//! [`decide`] funnel: per-vertex radial classes (on-axis /
 //! off-axis / crossing / sliver), per-segment surface classes
 //! (parallel / perpendicular / oblique lines; on-axis-centered /
 //! off-axis-centered arcs), and the arc-interior half-plane checks

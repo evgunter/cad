@@ -3,10 +3,10 @@ id: a-sliver-operands-orientation-falls-back-to-its-volume-where-it-has-no-plana
 kind: issue
 title: A sliver operand's orientation probe falls back to its V/A where it has no planar face, and skips a solid whose faces do not read
 status: closed
+closed: 2026-10-25
 opened: 2026-10-12
 priority: P2
 cost: M
-closed: 2026-10-26
 ---
 
 
@@ -53,6 +53,13 @@ cones, splines) is on FLUSH's slate as
 `the-side-at-infinity-reader-offers-no-aim-on-a-trimmed-sphere-or-a-spline`.
 This row closes with that PR; CLEAVE closes it.
 
-## Closed (2026-10-26)
+## Closed (FLUSH `flush/sphere-spline-aims`, 2026-10-25)
 
-Fixed by PR 5119 (FLUSH, `flush/shell-role-reader`), as this row's 2026-10-14 note foresaw: `gate_sliver_orientation` has no definition on main, so finding 2 went with it, and finding 1 is FLUSH's `the-side-at-infinity-reader-offers-no-aim-on-a-trimmed-sphere-or-a-spline`. (CLEAVE slate triage)
+Finding 2 went with the operand gate (above). Finding 1, narrowed to
+the reader's own limit, closes with FLUSH's
+`the-side-at-infinity-reader-offers-no-aim-on-a-trimmed-sphere-or-a-spline`:
+a trimmed sphere face now offers an aim that reads. What is left, a
+selection with a spline face, casts no ray because no ray can cross the
+face, and is INSIDE's `point-containments-ray-test-has-no-spline-arm`.
+An untrimmable cone or wall has no window to aim in and keeps the
+volume.

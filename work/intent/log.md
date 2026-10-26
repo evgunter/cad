@@ -907,3 +907,23 @@ The boolean declare surface is gone at every layer. A boolean's one input beside
   - Two rows of the class went to CHARTTAIL with the chart rows, and are worth the same sort: `torus-face-region-reads-a-points-torus-chart-by-its-own-atan2` and `frame-lanes-still-pick-their-atan2-formula-across-a-landmark-cut`.
   - HONEONE (`work/honeone/`) holds rows of the same class filed at P3 on boolean ground.
   (CLEAVE orchestrator, slate-triage lane)
+- 2026-10-26 — **Duplication triage done** (Ev's ask, via CLEAVE's note in #5761). A read-only lane (`session_01NuZCMv75H9b7rrHeRnzvYB`) checked 24 rows against main `e92fb951` and DESIGN `[one-way.places]`/`[one-way.readings]`. Each row now carries a "Duplication triage" section, and the design-signal rows carry `design: true`.
+  - **Design signal (6), in four clusters:**
+    - A, the vertex-neighbourhood reading against a surface: `run-loops-…`, `the-split-walk-…bounds-side…`, the strongest signal;
+    - B, a conic's frame view: `circle-and-ellipse-frame-arms-…`, light;
+    - C, the scale a margin is charged at: `three-readings-of-a-points-rounding-…`, `twice/extent-ball-and-reach-…`;
+    - E, where a gate's refusal typing lives: `the-at-rest-result-gate-…`.
+  - **Mechanical** under a named home: 13, cluster D among them (carrier readings re-spelled in topo).
+  - **D10 debris or stale:** 2. **Not duplication:** 3. **Mainly a bug:** 1.
+  - **Ev's notes, 2026-10-26:**
+    - C derives from the ε contract: every point of the representation is within ε of the real shape.
+    - A and B are welcome as fairly straightforward.
+    - For D, architecture comes first: the canonical reading should be the path of least resistance, with gates only as a backstop.
+    - Any `docs/prompts/` change about D goes to Ev as an `[ev]` PR.
+  - **Next:**
+    - a designer pair on C, with Ev's ε contract as the premise;
+    - A filed as one design row;
+    - B as an API fix;
+    - D as a "why was the wrong place easier?" pass over its hot spots.
+
+    These go to the duplication track once it is chartered; INTENT does not hold the design conversations.

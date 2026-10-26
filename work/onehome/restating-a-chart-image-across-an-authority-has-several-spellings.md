@@ -39,6 +39,17 @@ sites disagree on an input.
 
 The review of PR 4158 (S5).
 
+
+## Duplication triage (INTENT, 2026-10-26)
+
+Classified on Ev's ask, via the CLEAVE note on INTENT's log, against main `e92fb951` and DESIGN `[one-way.places]` / `[one-way.readings]`. The four classes:
+- **design signal:** DESIGN names no single home, so a design conversation is owed;
+- **mechanical:** DESIGN names the home; delete the off-home copy and repoint its users;
+- **D10 debris:** a D10 stage retires one copy;
+- **not duplication.**
+
+**Mechanical, mostly stale.** `EdgeCurve::restated_in_chart` now exists (#5426, #5484). One hand-roll is left: `finish.rs` `describe_section_boundary`. Its `!intrinsic` guard decides between a repoint and a new argument on the helper. DESIGN home: `[edges]`.
+
 ## Slate triage (2026-10-26, CLEAVE)
 
 - Re-banded P3 → P1: three hand-built restatements of one carry: two implementations of one underlying logic, P1 by `work/README.md` Priority.
