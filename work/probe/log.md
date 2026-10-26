@@ -122,3 +122,5 @@ noted above (PR 3161's fix pass).
     - `census-at-rest-two-boolean-lane-premises`, `edge-chord-len-defaults-to-one-metre` and `boolean-smooth-arm-rebuilds-line-carrier`, already fixed on main;
     - `boolean-mod-doc-links-a-feature-gated-variant`, fixed by this sweep (`boolean/mod.rs:33`).
   - **Notes added:** `D284`, `flush-pair-relation-has-no-caller` (its code citation re-pointed to `work/probe/`) and `join-probe-charts-hand-roll-the-across-axis-reference` (half fixed).
+- 2026-10-26 — (easy-fixes lane) Closed `merge-faces-should-panic-rows-on-a-debug-assert-fail-in-release`: both rows are gated on `debug_assertions`.
+- 2026-10-26 — (easy-fixes lane) Closed `join-probe-charts-hand-roll-the-across-axis-reference`: `cylinder_at` and the coaxial-circles probe read `orthonormal_basis`. Four siblings are filed on HONE.

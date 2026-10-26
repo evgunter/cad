@@ -1819,6 +1819,36 @@ fn sphere_sphere_cut_is_the_exact_circle_zero_residual() {
     }
 }
 
+/// **At radii six orders of magnitude apart the section circle lies on
+/// the smaller sphere.** `r₁² − a²` would be a difference of numbers
+/// near `10¹²` whose true value is about 1, taking the circle off the
+/// unit sphere by about `10⁻⁴`. The clearance-factored half-chord
+/// keeps every sample on both spheres to a few ulps of the large
+/// radius.
+#[test]
+fn sphere_sphere_cut_at_unequal_radii_lies_on_the_smaller_sphere() {
+    use geom_brep::intersect::{SphereSphereSection, sphere_sphere_section};
+    let (c1, r1) = (Point3::origin(), 1.0e6);
+    let (c2, r2) = (Point3::new(1.0e6 + 0.25, 0.0, 0.0), 1.0);
+    let SphereSphereSection::Circle(c) =
+        sphere_sphere_section(&sphere_at(c1, r1), &sphere_at(c2, r2), band()).unwrap()
+    else {
+        panic!("expected the circle");
+    };
+    let ulp = f64::EPSILON * r1;
+    for k in 0..17 {
+        let p = c.eval(0.37 * k as f64);
+        let off_small = ((p - c2).norm() - r2).abs();
+        let off_large = ((p - c1).norm() - r1).abs();
+        assert!(
+            off_small <= 8.0 * ulp && off_large <= 8.0 * ulp,
+            "sample {k}: {off_small:.3e} off the small sphere, {off_large:.3e} off the \
+             large, against 8 ulps = {:.3e}",
+            8.0 * ulp
+        );
+    }
+}
+
 /// The `ss_carrier_*` trilean trio, in gate order: coincident surfaces
 /// refuse typed (a whole-sphere REST is a coincidence to declare, never
 /// a section); separated and strictly nested are both `Empty`; external
