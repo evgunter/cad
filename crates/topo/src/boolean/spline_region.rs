@@ -322,7 +322,7 @@ impl<T: Decide> Patch<T> {
             axis(lo.y, hi.y, q.y),
             axis(lo.z, hi.z, q.z),
         );
-        (gx * gx + gy * gy + gz * gz).sqrt()
+        (gx.powi(2) + gy.powi(2) + gz.powi(2)).sqrt()
     }
 
     /// The diagonal of the control net's box, read on its value channel:
@@ -818,7 +818,7 @@ impl Trim {
             }
             let (gu, gv) = (gap(q.u, b.u), gap(q.v, b.v));
             let (mu, mv) = (au * T::from_computed(gu), av * T::from_computed(gv));
-            let along = (mu * mu + mv * mv).sqrt();
+            let along = (mu.powi(2) + mv.powi(2)).sqrt();
             let clearance = exit.map_or(along, |e| along.min(e));
             let diag = match decide(TRIM, Margin::of(clearance), band) {
                 Ok(Sign::Positive) => {
