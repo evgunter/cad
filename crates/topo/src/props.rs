@@ -401,7 +401,7 @@ pub fn mass_properties<T: Decide + geom_core::CertifiedBounds>(
     body: &crate::AtRestBody<T>,
     tol: Tol,
     settle: Settle<T>,
-) -> Result<Measured<T>, MassPropsError> {
+) -> Result<MassMeasurement<T>, MassPropsError> {
     measure_body(body, tol, settle)
 }
 
@@ -434,7 +434,7 @@ pub(crate) mod raw_door {
         body: &Body<T>,
         tol: Tol,
         settle: Settle<T>,
-    ) -> Result<Measured<T>, MassPropsError> {
+    ) -> Result<MassMeasurement<T>, MassPropsError> {
         let band = Band::linear(tol).map_err(|error| MassPropsError::Band { error })?;
         mass_properties_with(body, band, tol, Some(QuadLane::certified()), settle)
     }
@@ -537,10 +537,10 @@ pub(crate) fn mass_properties_with<T: Decide>(
     tol: Tol,
     quad: Option<QuadLane<T>>,
     settle: Settle<T>,
-) -> Result<Measured<T>, MassPropsError> {
+) -> Result<MassMeasurement<T>, MassPropsError> {
     let faces = crate::query::all_faces(body);
     let (stop, certificate) = measure_to(body, &faces, band, tol, (quad, quad), settle)?;
-    Ok(Measured {
+    Ok(MassMeasurement {
         enclosure: certificate.props(),
         stop,
     })
@@ -2132,7 +2132,7 @@ impl<'b, T: Decide> SignCertificate<'b, T> {
     /// # Errors
     ///
     /// [`MassPropsError`], as [`crate::mass_properties`].
-    pub fn measure(mut self, settle: Settle<T>) -> Result<Measured<T>, MassPropsError> {
+    pub fn measure(mut self, settle: Settle<T>) -> Result<MassMeasurement<T>, MassPropsError> {
         let stop = match settle {
             Settle::Resolution(len) => {
                 let len = resolution_len(len, self.tol)?;
@@ -2141,7 +2141,7 @@ impl<'b, T: Decide> SignCertificate<'b, T> {
             }
             settle => self.settle_on(self.quad, settle)?,
         };
-        Ok(Measured {
+        Ok(MassMeasurement {
             enclosure: self.props(),
             stop,
         })
@@ -2239,7 +2239,7 @@ impl<T: Decide> HeldCertificate<T> {
         &self,
         body: &Body<T>,
         settle: Settle<T>,
-    ) -> Result<Measured<T>, MassPropsError> {
+    ) -> Result<MassMeasurement<T>, MassPropsError> {
         let same = self.runs.len() == body.faces.len()
             && self
                 .runs
@@ -3280,12 +3280,12 @@ pub fn mass_properties_with_face_terms(
     body: &Body<f64>,
     tol: Tol,
     settle: Settle<f64>,
-) -> Result<(Measured<f64>, Vec<FaceTerm>), MassPropsError> {
+) -> Result<(MassMeasurement<f64>, Vec<FaceTerm>), MassPropsError> {
     let band = Band::linear(tol).map_err(|error| MassPropsError::Band { error })?;
     let faces = crate::query::all_faces(body);
     let lane = Some(QuadLane::certified());
     let (stop, certificate) = measure_to(body, &faces, band, tol, (lane, lane), settle)?;
-    let props = Measured {
+    let props = MassMeasurement {
         enclosure: certificate.props(),
         stop,
     };
@@ -3312,7 +3312,7 @@ pub fn measure_with_unmet_width(
     body: &crate::AtRestBody<f64>,
     tol: Tol,
     settle: Settle<f64>,
-) -> Result<(Measured<f64>, Option<f64>), MassPropsError> {
+) -> Result<(MassMeasurement<f64>, Option<f64>), MassPropsError> {
     let band = Band::linear(tol).map_err(|error| MassPropsError::Band { error })?;
     let faces = crate::query::all_faces(body);
     let lane = Some(QuadLane::certified());
@@ -3326,7 +3326,7 @@ pub fn measure_with_unmet_width(
         _ => None,
     };
     Ok((
-        Measured {
+        MassMeasurement {
             enclosure: certificate.props(),
             stop,
         },
@@ -7423,7 +7423,7 @@ mod at_rest_policy_tests {
 /// module owns everything that needs half-edges and vertex points.
 mod quad_lane;
 pub(crate) mod settle;
-pub use settle::{Measured, RelOp, Settle, SignNames, Stop, Verdict};
+pub use settle::{MassMeasurement, RelOp, Settle, SignNames, Stop, Verdict};
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]

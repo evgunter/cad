@@ -68,4 +68,4 @@ and PROPS' done-state of record is `docs/doc-ledger/props-leaves-the-tracker.md`
 
 ## Closed
 
-Moot. Measure door unit C removed `PropsError::QuadratureBudget`: no lane refuses for width, and an unmet resolution is the door's bracket, `Measured { enclosure, stop: Floor | Wall }`, with the stop naming why (`topo::props::settle::Stop`). There are no rounds payloads left to tell apart.
+Moot. Measure door unit C removed `PropsError::QuadratureBudget`: no lane refuses for width, and an unmet resolution is the door's bracket, `MassMeasurement { enclosure, stop: Floor | Wall }`, with the stop naming why (`topo::props::settle::Stop`). There are no rounds payloads left to tell apart.

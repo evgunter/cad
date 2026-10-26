@@ -99,7 +99,7 @@ use pncad::geom_core::Tol;
 use pncad::mesh::validate::{check_mesh, signed_volume, triangle_count};
 use pncad::prelude::{Evaluation, RecipeNodeId};
 use pncad::topo::readback::euler_counts;
-use pncad::topo::{Body, ContactRecords, EulerCounts, Measured, Settle};
+use pncad::topo::{Body, ContactRecords, EulerCounts, MassMeasurement, Settle};
 
 /// One body of a tour scene: its own STL/STEP exports, its own
 /// validation posture. `contacts` is `Some` exactly when the body is a
@@ -453,7 +453,7 @@ pub(crate) fn printed<T: pncad::geom_core::Real>() -> Settle<T> {
 
 /// The measurement door at the printed precision, for the one arm that
 /// still has to ask it.
-fn reported(label: &str, body: &Body<f64>, tol: Tol) -> Measured<f64> {
+fn reported(label: &str, body: &Body<f64>, tol: Tol) -> MassMeasurement<f64> {
     pncad::topo::mass_properties(&crate::booleans::at_rest(body, tol), tol, printed())
         .unwrap_or_else(|e| panic!("{label}: mass properties failed: {e:?}"))
 }
@@ -469,7 +469,7 @@ fn reported(label: &str, body: &Body<f64>, tol: Tol) -> Measured<f64> {
 fn continued<T: Gated>(
     label: &str,
     certificate: pncad::topo::SignCertificate<'_, T>,
-) -> Measured<T> {
+) -> MassMeasurement<T> {
     certificate
         .measure(printed())
         .unwrap_or_else(|refusal| panic!("{label}: mass properties failed: {refusal}"))
@@ -497,7 +497,7 @@ fn gated<T: Gated>(
     body: &Body<T>,
     contacts: Option<&ContactRecords>,
     tol: Tol,
-) -> Measured<T> {
+) -> MassMeasurement<T> {
     match contacts {
         Some(contacts) => continued(
             label,

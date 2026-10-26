@@ -569,14 +569,13 @@ pub use topo::{
 // `VolumeEnclosure` is a certificate's bracket, and `HeldCertificate` is
 // `StepImport::Solid::certificate`: the curated-type rule (the
 // `coherence` note below) says a caller able to hold it must be able to
-// spell it. What a measurement answers, `topo::Measured`, and a deciding
-// predicate's `topo::Verdict` are spelled through `pncad::topo`: their
-// names are the document layer's (`Doc.measure`'s `Measured`, an
-// assertion's `Verdict`) on the Python surface the prelude is censused
-// against.
+// spell it. `MassMeasurement` is what a measurement answers, the one
+// name in Rust and Python. A deciding predicate's `topo::Verdict` is
+// spelled through `pncad::topo`: its name is an assertion's `Verdict`
+// on the Python surface the prelude is censused against.
 pub use topo::{
-    HeldCertificate, MassProperties, MassPropsError, RelOp, RoleNames, Settle, SignNames, Stop,
-    VolumeEnclosure, mass_properties,
+    HeldCertificate, MassMeasurement, MassProperties, MassPropsError, RelOp, RoleNames, Settle,
+    SignNames, Stop, VolumeEnclosure, mass_properties,
 };
 
 // --- 7. Tessellation and export -------------------------------

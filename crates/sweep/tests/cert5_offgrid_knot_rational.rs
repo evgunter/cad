@@ -42,7 +42,7 @@ use geom_core::Tol;
 use profile::{Profile, SketchPlane};
 use sweep::ExtrudeSide;
 use sweep::{Section, loft_body};
-use topo::{Measured, Stop};
+use topo::{MassMeasurement, Stop};
 
 /// The resolution this row reads at, as a multiple of ε: the pinned
 /// resolution's (`topo::test_support::pinned_resolution`).
@@ -98,7 +98,7 @@ enum EpsPosture {
     Budget,
 }
 
-fn body_posture(row: &str, out: &(Measured<f64>, Option<f64>)) -> EpsPosture {
+fn body_posture(row: &str, out: &(MassMeasurement<f64>, Option<f64>)) -> EpsPosture {
     let target = QUAD_TARGET_LEN_FACTOR * Tol::witness().get().eps;
     match (out.0.stop, out.1) {
         (Stop::Met, None) => EpsPosture::Certified,

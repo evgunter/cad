@@ -105,7 +105,7 @@ pub enum Stop {
 /// reached, and [`Stop::Floor`] or [`Stop::Wall`] the bracket where it
 /// went unmet, at the width the enclosure states.
 #[derive(Clone, Copy, Debug)]
-pub struct Measured<T: Real> {
+pub struct MassMeasurement<T: Real> {
     /// The volume and area enclosures: midpoints and half-widths
     /// ([`MassProperties`]).
     pub enclosure: MassProperties<T>,

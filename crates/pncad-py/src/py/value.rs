@@ -510,8 +510,8 @@ pub(crate) struct MassMeasurement {
     verdict: Option<topo::Verdict>,
 }
 
-impl From<topo::Measured<f64>> for MassMeasurement {
-    fn from(measured: topo::Measured<f64>) -> Self {
+impl From<topo::MassMeasurement<f64>> for MassMeasurement {
+    fn from(measured: topo::MassMeasurement<f64>) -> Self {
         let (stop, verdict) = match measured.stop {
             topo::Stop::Settled(verdict) => ("settled", Some(verdict)),
             topo::Stop::Met => ("met", None),

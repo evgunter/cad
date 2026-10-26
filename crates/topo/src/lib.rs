@@ -1158,7 +1158,7 @@ pub use pcurves::{
     pcurve_of,
 };
 pub use props::{
-    AtRestOutcome, AtRestPolicy, HeldCertificate, MassProperties, MassPropsError, Measured,
+    AtRestOutcome, AtRestPolicy, HeldCertificate, MassMeasurement, MassProperties, MassPropsError,
     QuadLane, RelOp, RoleNames, Settle, ShellClassification, ShellClassifyError,
     ShellClassifyPayload, ShellDoor, ShellRole, SignCertificate, SignLimit, SignNames, Stop,
     Verdict, VolumeEnclosure, classify_shells, classify_shells_of, classify_shells_structural,

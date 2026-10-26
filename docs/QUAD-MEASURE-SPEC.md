@@ -115,7 +115,7 @@ Line numbers cite main at `9f7f131` and drift. Each unit's lane re-greps.
   `Body.mass_properties()`, `validate_geometric_measured()` and
   `ImportReport.enclosure`.
   - Each takes a required `Settle`.
-  - Each returns `Measured { enclosure, stop }`, where `stop` is one of
+  - Each returns `MassMeasurement { enclosure, stop }`, where `stop` is one of
     `Settled(verdict)`, `Met`, `Floor`, `Wall` or `Band`.
   - A number is `Settle::Resolution(len)`'s result.
   - `step-import`'s `ImportReport` stores the certificate, not a measured

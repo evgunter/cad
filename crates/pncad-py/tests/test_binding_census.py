@@ -1389,8 +1389,7 @@ BOUND_AS = {
     "loft_body": "Node.loft",
     "mass_properties": "Body.mass_properties",
     # Why a measurement stopped crosses as `MassMeasurement.stop`'s
-    # word (what it answers, `topo::Measured`, is `MassMeasurement`, and
-    # a deciding predicate's verdict its `verdict`). A relation's
+    # word (and a deciding predicate's verdict as its `verdict`). A relation's
     # operator is which `Settle` constructor built it.
     "Stop": "MassMeasurement.stop",
     "RelOp": ("Settle.at_most", "Settle.at_least"),

@@ -44,7 +44,7 @@
 use std::io::Write as _;
 
 use pncad::geom_core::k_stats::{self, Probe, SampleOutcome};
-use pncad::topo::{Body, ContactRecords, Measured, Stop};
+use pncad::topo::{Body, ContactRecords, MassMeasurement, Stop};
 
 use crate::{
     az, bodies, bool_bodies, bossplate, bracket, crosslap, curvedcut, cutaway, heatsink,
@@ -74,7 +74,7 @@ fn validate_probe(
     body: &Body<Probe>,
     contacts: Option<&ContactRecords>,
     tol: Tol,
-) -> Measured<Probe> {
+) -> MassMeasurement<Probe> {
     pncad::topo::validate(body).unwrap_or_else(|e| panic!("{label}: tier 1 at Probe: {e:?}"));
     pncad::topo::validate_closed(body)
         .unwrap_or_else(|e| panic!("{label}: tier 2 at Probe: {e:?}"));

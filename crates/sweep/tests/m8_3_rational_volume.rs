@@ -41,7 +41,7 @@ use geom_core::Tol;
 use profile::{Profile, SketchPlane};
 use sweep::ExtrudeSide;
 use sweep::loft_body;
-use topo::{Measured, Stop};
+use topo::{MassMeasurement, Stop};
 
 /// The resolution this row reads its numbers at, as a multiple of ε:
 /// the pinned resolution's (`topo::test_support::pinned_resolution`).
@@ -59,7 +59,7 @@ enum EpsPosture {
 
 /// Classify a body-level measurement, asserting each posture's own
 /// invariants. Anything outside the two is a real failure and panics.
-fn body_posture(row: &str, out: &Measured<f64>) -> EpsPosture {
+fn body_posture(row: &str, out: &MassMeasurement<f64>) -> EpsPosture {
     match out.stop {
         Stop::Met => EpsPosture::Certified,
         Stop::Floor | Stop::Wall => {
