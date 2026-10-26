@@ -999,7 +999,7 @@ fn run_at<T: editor_core::EvalScalar>(
 /// it. No pose, fault or point moved.
 ///
 /// And when the value chart came to read a written orientation (all
-/// three rows, `work/intent/the-value-chart-reads-a-written-orientation.md`):
+/// three rows, `work/msolve/the-value-chart-reads-a-written-orientation.md`):
 /// every mate carries its orientation, which the content key and the
 /// minting edits' bytes hold, so every id minted after a mate moved; and
 /// a seat's spin turns about the mated direction rather than the

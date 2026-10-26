@@ -237,7 +237,7 @@ use crate::m10_8_harness::{assert_split, split_at_the_nominal};
 /// slow set, before D′2 touched it.
 ///
 /// **The value chart reads a written orientation**
-/// (`work/intent/the-value-chart-reads-a-written-orientation.md`): the
+/// (`work/msolve/the-value-chart-reads-a-written-orientation.md`): the
 /// swing onto the mated direction retires with its two reference
 /// decisions (`mate_chart_reference_antipode` 2/0 leaves), and the
 /// least turn from the oriented copy direction onto the mated one is

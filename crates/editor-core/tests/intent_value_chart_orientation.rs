@@ -1,5 +1,5 @@
 //! The value chart reads a written orientation (D10 `[placement.values]`,
-//! `work/intent/the-value-chart-reads-a-written-orientation.md`).
+//! `work/msolve/the-value-chart-reads-a-written-orientation.md`).
 //!
 //! Beside a mate fixing a direction `d`, the mate's orientation `O` puts
 //! the copy's mated direction at `O·d_c`, and the least turn carries that
