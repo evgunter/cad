@@ -22,7 +22,8 @@ three crossings each, against the face `x = 1` of a box. The union of
 that loft and box (`editor-core` `emit_topo`'s
 `wavy_loft::a_union_across_a_nurbs_edge_refuses_at_the_sector_walk`)
 then refuses `CurvedBooleanUnsupported { operand: A, face, kind: Nurbs }`
-from `boolean/sectors.rs`. There, the sector face resolution
+from `boolean/sectors.rs`, where `SectorFaceError::Unsupported` is
+mapped (`sectors.rs:609`). There, the sector face resolution
 (`sector_face::resolve`, its `_ => SectorFaceError::Unsupported` arm)
 has no arm for a NURBS face. It is reached at a crossing vertex, which
 lies on a corner edge between two spline walls of the loft, so both
@@ -33,3 +34,11 @@ faces of its sectors are splines.
 The end-to-end row the crossing rung could not write: the crossings of
 each corner named through the boolean, the first and third, of one
 sense, tied. Replace that tripwire with it.
+
+## The crease class
+
+The arm reads a face's tangent or normal at the crossing vertex. It
+must not read it across an interior knot of multiplicity at least the
+degree (`KnotStructure::crease_runs`), and it must not read it at a
+foot on another sheet. This class has been found three times: PR 5715,
+PR 5764, and SELECT's plane × NURBS limbs.

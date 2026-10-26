@@ -35,7 +35,7 @@
 //! by their control nets, so a lofted operand that crosses nothing
 //! reaches `topo`'s fallback re-gate, which reads each NURBS face reach
 //! first: a brick its net may meet refuses there, and a far one passes
-//! it. The operand's face class is asserted, so the row cannot outlive
+//! it and builds. The operand's face class is asserted, so the row cannot outlive
 //! the premise it argues from.
 //!
 //! # 3. The conic edge box as a PRUNE, through the sweep
@@ -240,10 +240,9 @@ fn lofted() -> Body<f64> {
 ///   across that wall's control-net hull, may meet the wall for all the
 ///   box knows, and refuses there (`NurbsExtentUnsupported`). Its edges
 ///   stand far off the wall, so none reaches the spline-face door first;
-/// - a brick far off is certified clear of every NURBS face by the
-///   boxes, passes the re-gate, and stops at the vertex probe, which
-///   reads no NURBS face
-///   (`work/inside/a-point-probe-reads-no-nurbs-face-a-box-clears.md`).
+/// - a box far off is certified clear of every NURBS face by the boxes,
+///   passes the re-gate, and builds: the vertex probe reads each of its
+///   vertices past every face of the prism, outside.
 #[test]
 fn a_lofted_operand_reaches_the_fallbacks_re_gate() {
     let a = lofted();
@@ -270,18 +269,21 @@ fn a_lofted_operand_reaches_the_fallbacks_re_gate() {
         matches!(err, BooleanError::NurbsExtentUnsupported { .. }),
         "the fallback's re-gate refuses the wall the slab may meet, got {err:?}"
     );
+    // The far box, `[19.5, 20.5] × [−½, ½] × [0.3, 0.7]`: its vertices
+    // stand past every face of the prism, so the vertex probe reads
+    // them outside, and the union is the two solids side by side.
     let far = finished("the far box", nested_box(20.0, 0.5), Tol::witness());
-    let err = topo::boolean::union(&a, &far, Tol::witness())
-        .expect_err("the probe reads no NURBS face yet");
+    let union = topo::boolean::union(&a, &far, Tol::witness())
+        .unwrap_or_else(|e| panic!("the far box unions with the lofted operand: {e:?}"));
+    let topo::BooleanResult::Body(out) = union else {
+        panic!("a union of two solids is a body");
+    };
+    let v = topo::mass_properties(&out.body, Tol::witness())
+        .expect("the union measures")
+        .volume;
     assert!(
-        matches!(
-            err,
-            BooleanError::Containment(topo::PointInSolidError::KindUnsupported {
-                kind: geom::SurfaceKind::Nurbs,
-                ..
-            })
-        ),
-        "past the re-gate, at the vertex probe, got {err:?}"
+        (v - 9.4).abs() <= 1e-6 * 9.4,
+        "the union is the prism's 9 m³ and the box's 0.4 m³ side by side, got {v}"
     );
 }
 

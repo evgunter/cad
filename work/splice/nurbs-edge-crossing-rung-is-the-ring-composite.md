@@ -153,13 +153,17 @@ Witness rows:
   `emit_topo`'s `a_union_across_a_nurbs_edge_refuses_at_the_sector_walk`
   is its tripwire.
 - The far spline edge is pruned by its hull and no longer refuses at a
-  pair that does not meet. The fallback's NURBS re-gate now reads reach
-  first (`s16_box_soundness::a_lofted_operand_reaches_the_fallbacks_re_gate`
-  pins both halves). The far placement then refuses at the vertex
-  probe, which reads no NURBS face
-  (`inside/a-point-probe-reads-no-nurbs-face-a-box-clears`). The
-  census `spline_spiric_operands` builds nothing new and moves its
-  refusals.
+  pair that does not meet. The containment fallback's NURBS re-gate
+  reads reach first (`s16_box_soundness::a_lofted_operand_reaches_the_fallbacks_re_gate`
+  pins both halves). The vertex probe reads a point that stands
+  definitely past the hull of every face's certified reach as being at
+  infinity (`a_point_past_a_spline_solids_reach`, which also pins a box
+  solid's centre as still refusing). The census `spline_spiric_operands`
+  builds every op for the loft prism and the lofted cylinder against
+  the far brick and the brick around each, at their closed-form
+  volumes. A brick inside either refuses typed, at the probe or the
+  spline-face door
+  (`inside/point-containments-ray-test-has-no-spline-arm`).
 - The plane rows in `topo`'s `planar_lane_carrier_rows` that refused an
   arc now split it at its closed-form crossings.
 

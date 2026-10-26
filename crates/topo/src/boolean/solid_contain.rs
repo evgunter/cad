@@ -1027,6 +1027,50 @@ fn face_geo_arms<T: Decide>(
     }
 }
 
+/// K name: how far a point stands past the hull of a selection's face
+/// reaches, along one world axis (metres).
+const PAST_EVERY_REACH: &str = "bool_point_past_every_reach";
+
+/// Whether `q` lies definitely outside the hull of every face's
+/// certified reach (`census::face_reach_in`, the box rules' one map), on
+/// some world axis. A face with no claim to make answers `false`.
+fn past_every_reach<T: Decide>(
+    body: &Body<T>,
+    faces: &[FaceKey],
+    q: Point3<T>,
+    band: Band,
+) -> bool {
+    let frame = super::boxes::BoxFrame::World;
+    let mut hull: Option<(Point3<T>, Point3<T>)> = None;
+    for &face in faces {
+        let Some((lo, hi)) = crate::census::face_reach_in(body, face, band, &frame) else {
+            return false;
+        };
+        hull = Some(match hull {
+            None => (lo, hi),
+            Some((l, h)) => (
+                Point3::new(l.x.min(lo.x), l.y.min(lo.y), l.z.min(lo.z)),
+                Point3::new(h.x.max(hi.x), h.y.max(hi.y), h.z.max(hi.z)),
+            ),
+        });
+    }
+    let Some((lo, hi)) = hull else {
+        return false;
+    };
+    let past = |m: T| {
+        matches!(
+            decide(PAST_EVERY_REACH, Margin::of(m), band),
+            Ok(Sign::Positive)
+        )
+    };
+    past(q.x - hi.x)
+        || past(lo.x - q.x)
+        || past(q.y - hi.y)
+        || past(lo.y - q.y)
+        || past(q.z - hi.z)
+        || past(lo.z - q.z)
+}
+
 /// **Whether the ray test has an arm for a surface kind** — the one
 /// list of them: [`face_geo`] refuses every other kind through
 /// [`uncrossable`] before its dispatch, and the side-at-infinity reader
@@ -1955,6 +1999,23 @@ fn point_in_faces<T: Decide + crate::props::AtRestPolicy>(
     let faces = sel.faces();
     if faces.is_empty() {
         return Err(PointInSolidError::ZeroVolumeBody);
+    }
+    // **A point past the whole selection's reach**, read only for a
+    // selection the ray test cannot cross: a point definitely outside the
+    // hull of every face's certified reach leaves along a straight path
+    // that meets no face, so it takes the side at infinity. Outside each
+    // face's own reach is not enough — the centre of a box solid lies
+    // outside every face's slab and inside the solid.
+    let mut crossable = true;
+    for &face in faces {
+        crossable &= uncrossable(body, face)?.is_none();
+    }
+    if !crossable && past_every_reach(body, faces, q, band) {
+        match missed_side(body, sel, band, tol, &MissedRead::new()) {
+            Ok(side) => return Ok(side),
+            Err(RayFault::InBand(e) | RayFault::Blocked(e) | RayFault::Fatal(e)) => return Err(e),
+            Err(RayFault::Graze | RayFault::Unread) => {}
+        }
     }
 
     // ---- Boundary pre-pass: q on any face ⇒ OnBoundary. ----

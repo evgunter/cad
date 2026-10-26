@@ -331,6 +331,7 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         "spline_composite_root_on" => {
             "whether a crossing found along a spline edge lies on the face"
         }
+        "bool_point_past_every_reach" => "whether a point stands past every face of the solid",
         // The point-on-span reading's two halves, which the on-carrier
         // crossing and the boundary pass read: `geom`'s one-carrier
         // reading and `geom_brep::curve_pair`'s span reading.
