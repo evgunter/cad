@@ -2,12 +2,13 @@
 id: quadrature-budget-conflates-its-lanes-and-budgets
 kind: issue
 title: PropsError::QuadratureBudget fires from six sites in three lanes under three round budgets and an exact arm — the rounds payload (0 / 1 / N+1) is the only tell
-status: open
+status: closed
 opened: 2026-09-06
 refs: [quad2-rational-max-rounds-dial-decision]
 priority: P1
 cost: D
 parent: the-measurement-door-refines-until-a-predicate-resolves
+closed: 2026-10-26
 ---
 
 
@@ -64,3 +65,7 @@ the rational quad lane is its own.
 It is dropped from this row's `refs:` because `refs` names live items; the
 finding is unchanged and readable at `git show 63df2069c:work/props/<id>.md`,
 and PROPS' done-state of record is `docs/doc-ledger/props-leaves-the-tracker.md`.
+
+## Closed
+
+Moot. Measure door unit C removed `PropsError::QuadratureBudget`: no lane refuses for width, and an unmet resolution is the door's bracket, `Measured { enclosure, stop: Floor | Wall }`, with the stop naming why (`topo::props::settle::Stop`). There are no rounds payloads left to tell apart.
