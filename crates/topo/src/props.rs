@@ -4261,10 +4261,11 @@ fn quadrature_loops<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<Vec<Flat
 
 /// **A shell's quadrature regions**: its faces that take the quadrature
 /// ([`quadrature_loops`]), grouped by sharing an edge whose vector area
-/// [`loop_vector_area`] cannot read exactly (a spiric or a rational rim,
-/// [`curved_rim`]), each region in the shell's stored order and the
-/// regions in the order their first faces are stored ([`References`]
-/// says why the join stops at the other edges). The partition itself is
+/// [`loop_vector_area`](geom_brep::props::loop_vector_area) cannot read
+/// exactly (a spiric or a rational rim, [`curved_rim`]), each region in
+/// the shell's stored order and the regions in the order their first
+/// faces are stored ([`References`] says why the join stops at the other
+/// edges). The partition itself is
 /// the stored order's no more than the body's edges are; only which face
 /// of a region is first is.
 fn quadrature_regions<T: Decide>(body: &Body<T>, shell: ShellKey) -> Vec<Vec<FaceKey>> {
@@ -4375,8 +4376,10 @@ fn reference_of<T: Decide>(body: &Body<T>, shell: ShellKey, regions: &[Vec<FaceK
 /// # What a region is
 ///
 /// Two quadrature faces are one region only where they share an edge
-/// whose vector area [`loop_vector_area`] cannot read exactly: a spiric or
-/// a rational rim ([`curved_rim`], [`quadrature_regions`]). Across any
+/// whose vector area
+/// [`loop_vector_area`](geom_brep::props::loop_vector_area) cannot read
+/// exactly: a spiric or a rational rim ([`curved_rim`],
+/// [`quadrature_regions`]). Across any
 /// other edge (a line, a conic arc, a polynomial spline) each side is its
 /// own region, and the edge lies on both boundaries, traversed once each
 /// way, so the two carries read it exactly and the sum is the region's
@@ -4641,13 +4644,7 @@ fn far_from(
     use geom_core::Bounds as _;
     let lever =
         |p: Point3<Interval>, x: Point3<Interval>, plane: Option<geom_core::Vec3<Interval>>| {
-            plane.map_or_else(
-                || p.distance_squared(x),
-                |n| {
-                    let d = (p - x).dot(n);
-                    d * d
-                },
-            )
+            plane.map_or_else(|| p.distance_squared(x), |n| (p - x).dot(n).powi(2))
         };
     let curved = every.iter().any(|(_, plane)| plane.is_none());
     let (mut near, mut extent) = (f64::INFINITY, 0.0_f64);
