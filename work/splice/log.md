@@ -405,3 +405,22 @@ Next on lily's path: the table's interior arm together with the
 converse rung, as one brief. `twin_edge`'s fit with C5 is put to Ev in
 chat. The code is kept, and its premise is stated as the boolean's
 non-self-intersection precondition.
+
+## 2026-10-26 — PR 5764 (spline dihedral side) merges
+
+The second fix pass, `49e19569`:
+- the door's contract now says the foot is the CARRIER's, and a caller
+  may consume the side only once the foot is placed in the face; the
+  wiring row is parked on point-in-face, with the hairpin fixture as its
+  witness;
+- a regularity check (`irregular_reach`) runs before any side, so a
+  foot near an irregular point (a kink or a pole) escalates `Crease`;
+- `EdgeWalk`'s public mint takes an `EdgeHalf`.
+
+Filed:
+- the zero-speed foot in geom's `project`;
+- seam continuity (P3);
+- the foot-reader class `a-derivative-is-read-at-a-foot-no-one-placed`.
+
+The orchestrator read the delta. It merged after main's RESTREAD red
+was fixed (ATREST PR 5779).
