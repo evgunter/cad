@@ -273,7 +273,7 @@ pub(crate) fn name_union<T: geom_core::Decide>(
             (body, 0),
             &g.edges,
             g.lone,
-        )?;
+        );
     }
     pieces.mint(&mut t, &mut tie)?;
     tie.flush(&mut t)?;
@@ -648,7 +648,7 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
             union,
             body,
             members,
-            inc: Incidence::of(body)?,
+            inc: Incidence::of(body),
             face_ents,
             edges: BTreeMap::new(),
             spans: BTreeMap::new(),
@@ -767,7 +767,7 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
         let Some(set) = self.spans.get(&k) else {
             return Ok(Vec::new());
         };
-        let p = vertex_point(self.body, v)?;
+        let p = vertex_point(self.body, v);
         let mut on = Vec::with_capacity(set.len());
         for line in set {
             let read = line.0;
@@ -845,14 +845,11 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
     /// edge's one end twice).
     fn holds_whole(&self, k: topo::EdgeKey, edge: &MemberEntity) -> Result<bool, NamingError> {
         let (member_body, member_edge) = member_edge(self.members, edge.0, edge.1.name())?;
-        let (m0, m1) = edge_ends(member_body, member_edge)?;
-        let (c0, c1) = edge_ends(self.body, k)?;
-        let ends = [
-            vertex_point(member_body, m0)?,
-            vertex_point(member_body, m1)?,
-        ];
+        let (m0, m1) = edge_ends(member_body, member_edge);
+        let (c0, c1) = edge_ends(self.body, k);
+        let ends = [vertex_point(member_body, m0), vertex_point(member_body, m1)];
         let at = |c| -> Result<Vec<usize>, NamingError> {
-            let p = vertex_point(self.body, c)?;
+            let p = vertex_point(self.body, c);
             let mut at = Vec::with_capacity(2);
             for (i, q) in ends.iter().enumerate() {
                 let off = decide(ON_MEMBER_EDGE, Margin::of((p - *q).norm()), self.bnd).map_err(
@@ -1259,7 +1256,7 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
                 rows.entry(k).or_insert(row);
             }
         }
-        let p = vertex_point(self.body, v)?;
+        let p = vertex_point(self.body, v);
         let read = |i: usize| self.members.get(i).map(|m| m.read);
         // Whether a judgement of the edge's member against one the name
         // cites recorded something at the point `at` that is `v`'s.
@@ -1519,13 +1516,13 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
                 cited.extend(self.face_ents.get(f).into_iter().flatten().copied());
             }
         }
-        let p = vertex_point(self.body, v)?;
+        let p = vertex_point(self.body, v);
         let mut seen = BTreeSet::new();
         let mut at_v: BTreeSet<MemberEntity> = BTreeSet::new();
         let mut tied = false;
         for (i, f) in cited {
             let m = self.member_by_index(i);
-            for he in face_half_edges(m.body, f)? {
+            for he in face_half_edges(m.body, f) {
                 let w = m
                     .body
                     .get_half_edge(he)
@@ -1540,7 +1537,7 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
                 if !seen.insert((i, w)) {
                     continue;
                 }
-                let gap = Margin::of((vertex_point(m.body, w)? - p).norm());
+                let gap = Margin::of((vertex_point(m.body, w) - p).norm());
                 let at = decide(ON_MEMBER_EDGE, gap, self.bnd).map_err(|source| {
                     NamingError::Escalated {
                         predicate: ON_MEMBER_EDGE,
@@ -1804,7 +1801,7 @@ fn cite_member_edges<T: geom_core::Decide>(
                 );
             };
             keys.push(e);
-            points.push(vertex_point(body, v)?);
+            points.push(vertex_point(body, v));
         }
         // Each crossing is read on the member edge of the line it lies
         // on, the line's least row where it lies on none: a tied row by
@@ -1882,7 +1879,7 @@ fn rank_along_seam<T: geom_core::Decide>(
             Entry::Unique(e) => {
                 if let EntityKey::Vertex(v) = e.key {
                     group.push(v);
-                    points.push(vertex_point(body, v)?);
+                    points.push(vertex_point(body, v));
                 }
                 keys.push(e);
             }
@@ -1910,12 +1907,12 @@ fn rank_along_seam<T: geom_core::Decide>(
             )
         });
         let along = if g.edges.iter().all(|&e| is_straight(body, e)) {
-            let seg = Segment::of_edge(body, first)?;
+            let seg = Segment::of_edge(body, first);
             let mut on = true;
             for &e in &g.edges {
-                let (v0, v1) = edge_ends(body, e)?;
+                let (v0, v1) = edge_ends(body, e);
                 for v in [v0, v1] {
-                    on &= seg.on_line(vertex_point(body, v)?, ON_SEAM_LINE, bnd)?;
+                    on &= seg.on_line(vertex_point(body, v), ON_SEAM_LINE, bnd)?;
                 }
             }
             for &p in &points {
@@ -1927,8 +1924,8 @@ fn rank_along_seam<T: geom_core::Decide>(
         } else if let EdgeCarrier::Curved(track) = EdgeCarrier::of_edge(body, first)? {
             let mut pieces = Vec::with_capacity(g.edges.len());
             for &e in &g.edges {
-                let (v0, v1) = edge_ends(body, e)?;
-                pieces.push((carrier_arc(body, e)?, [v0, v1]));
+                let (v0, v1) = edge_ends(body, e);
+                pieces.push((carrier_arc(body, e), [v0, v1]));
             }
             track
                 .open_offsets(&pieces, &group, &points, ON_SEAM_LINE, bnd)?
@@ -2166,7 +2163,7 @@ impl<T: geom_core::Real> Links<T> {
                 }
                 Err(e) => return Err(NamingError::from(e)),
             };
-            Ok(Some((member, other, vertex_point(body, v)?)))
+            Ok(Some((member, other, vertex_point(body, v))))
         };
         for row in &naming.edge_classes {
             let Some((member, other, at)) = place(row.operand, row.vertex)? else {
@@ -3830,13 +3827,9 @@ mod tests {
             };
             let (low, high) = (lone(0.25), lone(0.75));
             let at = |v| {
-                crate::names::emit_topo::param_along(
-                    &member_body,
-                    edge,
-                    vertex_point(&body, v).unwrap(),
-                )
-                .unwrap()
-                .unwrap()
+                crate::names::emit_topo::param_along(&member_body, edge, vertex_point(&body, v))
+                    .unwrap()
+                    .unwrap()
             };
             let along = if at(low) < at(high) {
                 [low, high]
@@ -3957,7 +3950,7 @@ mod tests {
             unread: vec![UnreadAt {
                 member: 0,
                 other: 1,
-                at: vertex_point(&g.body, listed).unwrap(),
+                at: vertex_point(&g.body, listed),
                 record,
             }],
         };
@@ -4465,7 +4458,7 @@ mod tests {
 
         /// A face of the cube, and an edge it bounds with its faces.
         fn face_and_edge(&self) -> (topo::FaceKey, topo::EdgeKey, [topo::FaceKey; 2]) {
-            let inc = Incidence::of(&self.body).unwrap();
+            let inc = Incidence::of(&self.body);
             let (&k, fs) = inc.edge_faces.iter().next().unwrap();
             let [f0, f1] = fs.as_slice() else {
                 panic!("a cube edge has two faces")
@@ -4606,7 +4599,7 @@ mod tests {
                 table: &plain.table,
             },
         ];
-        let inc = Incidence::of(&tied.body).unwrap();
+        let inc = Incidence::of(&tied.body);
         let face_ents = tied
             .body
             .faces()

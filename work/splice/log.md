@@ -70,6 +70,70 @@ built on SECT's critical path. Filed SECT's
 SECT step 1 and on `delete-the-boolean-operand-edge-gate`. Lily wall 8
 stays this track's first demo witness.
 
+## 2026-10-25 — PR 5719 (carrier walk) reviewed
+
+Single full review (`session_01WJhm39zKSMKSiECpcoahqv`, on c2e7a187):
+MERGEABLE, no MAJOR. Every claim held, and the reviewer measured each
+one. The spiric differential against main is byte-identical (2400
+rows). A random-spline crossing fuzz ran 5680 queries per scalar with
+0 wrong, and goes red 149 times with the monotone gate removed. The fix
+list went to the lane: route the window net through
+`SpanLocate::restrict_window`, drop zero-width end pieces, move the
+on-point to mid-piece, adopt the fuzz as a row, and fix three stale
+prose sites.
+
+**Class noted at adjudication:** a hand-rolled homogeneous window net
+(`span_row` divided per channel) beside the certified per-scalar door
+`SpanLocate::restrict_window`. The new copy bypassed the door's
+argument contract and its [0,1] clamp at Interval. The one other
+`span_row` caller outside geom-core is `derivative.rs`. Any lane that
+needs a spline window's Bézier net reads it through `restrict_window`.
+
+## 2026-10-25 — PR 5715 (touch doors) reviewed: NOT-MERGEABLE
+
+Single full review (`session_01TKt5dMsxyqRwbeLAunJLcm`, on f4fcf1ec).
+It found two MAJORs from one root cause, both shown by rows that are red
+on the head and green on main (branch `splice/review-5715`, 1499d787):
+- `NurbsCurve3::accel_upper_bound` is a per-open-span sup of C″, so a
+  spline with a C0 interior knot (multiplicity ≥ p, which clamped-v1
+  admits) reads `accel = curvature = 0`;
+- the PR's newly wired second-order bounds then certify across the
+  corner. `off_face` answers OffFace for a real crossing of the face,
+  and `curve_pair::walk` (CPAIR) misses a spline crossing a line.
+
+Main is sound today because the bound was `None` for a spline there.
+The fix list went to the lane: the bound is either window-scoped and
+non-finite across a non-C¹ knot, or the piece walks split there. Also:
+a curvature floor that is not definitely positive gives a non-finite
+bound; one home in `geom` for the point-vs-span reach walk, now on
+its third copy (`Curve3::clear_of`, `walk::near_pieces`,
+`ArcPieces::clear`); and the cell-door pin gets its own looseness
+guard. The re-review runs on the fix pass's head.
+
+**Classes noted at adjudication:**
+- **A second-order (Taylor) bound read across a tangent discontinuity.**
+  Any consumer of `accel_upper_bound` / `accel_hi` / `curvature_hi`
+  assumes C¹ on the piece it bounds. A lofted operand with a polyline
+  or C0 section reaches these doors once the operand gate is gone. The
+  lane sweeps the consumers; a symbol sweep cannot see a site that
+  assumes smoothness without naming these bounds.
+- **The point-vs-span reach walk is copied**, not shared: one
+  `geom_core::bisect` driver, three loop bodies. The lane gives it one
+  home and lists the `census/curved.rs` and `shell.rs` reach sites.
+
+## 2026-10-26 — the demo joins' first refusal has its own row
+
+The gate lane measured, on PR 5723, that klein wall 3, lily wall 8 and
+teapot wall 3 all refuse at their contact once the gate is gone. In
+each, an analytic edge of one operand is read against a NURBS wall of
+the other (`CurvedBooleanUnsupported { kind: Nurbs }`). No row owned
+that: the crossing rung composes along a NURBS edge, and SECT's new row
+is the face × face section. Filed
+`an-analytic-edge-against-a-nurbs-face-has-no-crossing-lane` (P0 H,
+design open). The plan's "lily wall 8 needs no curved section" still
+holds, but lily also needs this row. Designers weigh it once 5723 is
+in review.
+
 ## 2026-10-26 — PR 5719 (carrier walk) merges
 
 The fix pass (77e42f67, 732ff87f) answered the review:

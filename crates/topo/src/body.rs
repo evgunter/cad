@@ -950,6 +950,20 @@ impl<T: Real> Body<T> {
         removed.then_some(out)
     }
 
+    /// **Failure-injection door** (`sweep-testing` only): a clone of
+    /// this body with point `point` removed and every vertex that names
+    /// it left naming it, the state [`Self::with_entity_removed_for_tests`]
+    /// cannot reach because a point is geometry, not an [`EntityId`].
+    ///
+    /// Returns `None` if `point` is stale.
+    #[cfg(feature = "sweep-testing")]
+    #[doc(hidden)]
+    #[must_use]
+    pub fn with_point_removed_for_tests(&self, point: PointKey) -> Option<Self> {
+        let mut out = self.clone();
+        out.points.remove(point).is_some().then_some(out)
+    }
+
     /// The loop at `key`, or `None` if the key is stale;
     /// [a foreign key is not caught](self#key-validity-stale-vs-foreign).
     /// (`get_loop`, like all lookups here, keeps the `get_` prefix partly

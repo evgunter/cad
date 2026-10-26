@@ -207,7 +207,7 @@ pub(crate) fn name_extrude<T: Decide>(
                 ),
                 ent(0, EntityKey::Edge(wall.strut)),
             )?;
-            let strut = edge_ends(body, wall.strut)?;
+            let strut = edge_ends(body, wall.strut);
             for (end, rim) in [
                 (CapEnd::End, wall.top_rim),
                 (CapEnd::Start, wall.bottom_rim),
@@ -221,7 +221,7 @@ pub(crate) fn name_extrude<T: Decide>(
                     ent(0, EntityKey::Edge(rim)),
                 )?;
                 // The run's cap vertex is where its strut meets its rim.
-                let rim_ends = edge_ends(body, rim)?;
+                let rim_ends = edge_ends(body, rim);
                 let Some(vtx) = common_vertex(strut, rim_ends) else {
                     unreachable!(
                         "extruded wall {:?}'s rim {rim:?} (ends {rim_ends:?}) shares no single \
@@ -298,7 +298,7 @@ fn name_loft_topology<T: Decide>(
                 ent(0, EntityKey::Face(wall)),
             )?;
             for (end, cap) in [(CapEnd::End, end_cap), (CapEnd::Start, start_cap)] {
-                let rim = match rim_between(body, wall, cap)? {
+                let rim = match rim_between(body, wall, cap) {
                     Rim::One(e) => e,
                     Rim::NotOne(found) => cap_rim_contradicted(wall, cap, found),
                 };
@@ -319,14 +319,14 @@ fn name_loft_topology<T: Decide>(
                 name1(EntityKind::Edge, node, swept.strut(l, j)),
                 ent(0, EntityKey::Edge(strut)),
             )?;
-            let (s0, s1) = edge_ends(body, strut)?;
+            let (s0, s1) = edge_ends(body, strut);
             for (end, cap) in [(CapEnd::End, end_cap), (CapEnd::Start, start_cap)] {
                 let wall = side_faces[l][j];
-                let rim = match rim_between(body, wall, cap)? {
+                let rim = match rim_between(body, wall, cap) {
                     Rim::One(e) => e,
                     Rim::NotOne(found) => cap_rim_contradicted(wall, cap, found),
                 };
-                let (r0, r1) = edge_ends(body, rim)?;
+                let (r0, r1) = edge_ends(body, rim);
                 let Some(vtx) = common_vertex((s0, s1), (r0, r1)) else {
                     unreachable!(
                         "loft strut {strut:?} (ends {:?}) and rim {rim:?} (ends {:?}) share no \
@@ -466,29 +466,25 @@ pub(crate) fn name_revolve<T: Decide>(
                     } else if let Some(rim) = rims[v] {
                         // Off-axis: the rim's two ends, each the one a
                         // meridian of its chain beside it shares.
-                        let ends = edge_ends(body, rim)?;
-                        let beside = |chain: &[EdgeKey]| -> Result<VertexKey, NamingError> {
-                            let Some(vertex) = [chain[(v + n - 1) % n], chain[v]]
-                                .iter()
-                                .map(|&m| Ok(common_vertex(ends, edge_ends(body, m)?)))
-                                .collect::<Result<Vec<_>, NamingError>>()?
+                        let ends = edge_ends(body, rim);
+                        let beside = |chain: &[EdgeKey]| -> VertexKey {
+                            let mut shared = [chain[(v + n - 1) % n], chain[v]]
                                 .into_iter()
-                                .flatten()
-                                .next()
-                            else {
+                                .filter_map(|m| common_vertex(ends, edge_ends(body, m)));
+                            let Some(vertex) = shared.next() else {
                                 unresolved(rim, l, v)
                             };
-                            Ok(vertex)
+                            vertex
                         };
                         insert_vertex(
                             &mut t,
                             RoleSeg::MeridianVertex(MeridianEnd::Start, pv(l, v)),
-                            beside(ss)?,
+                            beside(ss),
                         )?;
                         insert_vertex(
                             &mut t,
                             RoleSeg::MeridianVertex(MeridianEnd::End, pv(l, v)),
-                            beside(es)?,
+                            beside(es),
                         )?;
                     }
                 }
@@ -533,16 +529,12 @@ pub(crate) fn name_revolve<T: Decide>(
                 let seam_chain = &meridians[0];
                 for v in 0..n {
                     if let Some(rim) = rims[v] {
-                        let ends = edge_ends(body, rim)?;
+                        let ends = edge_ends(body, rim);
                         let beside = [seam_chain[(v + n - 1) % n], seam_chain[v]];
                         let Some(seam) = beside
                             .iter()
                             .flatten()
-                            .map(|m| Ok(common_vertex(ends, edge_ends(body, *m)?)))
-                            .collect::<Result<Vec<_>, NamingError>>()?
-                            .into_iter()
-                            .flatten()
-                            .next()
+                            .find_map(|m| common_vertex(ends, edge_ends(body, *m)))
                         else {
                             unresolved(rim, 0, v)
                         };
@@ -571,7 +563,7 @@ pub(crate) fn name_revolve<T: Decide>(
             for l in lamina..built.rims.len() {
                 for (v, r) in built.rims[l].iter().enumerate() {
                     let Some(e) = r else { continue };
-                    let (a, b) = edge_ends(body, *e)?;
+                    let (a, b) = edge_ends(body, *e);
                     if a != b {
                         unreachable!(
                             "lamina full revolve rim {e:?} at loop {l}, vertex {v} runs from \
