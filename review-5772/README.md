@@ -34,3 +34,23 @@
   and 1.0e-11 (P2,R); the step's restated row carries 0.0, restates both.
 - Batteries (release, ignored): 5/5 both sides, outcome lines identical.
 - Die union (21 pips) peak RSS: base 142.2 MB, head 142.7 MB.
+
+## Delta check: head 0ef9b1da against its merge base f6bab5e5 (2026-10-26)
+
+- Hooks: `delta-{base,head}-hooks.patch` (capture plus env faults
+  `REVIEW_FAULT_JUDGEMENT=k` / `REVIEW_FAULT_STEP=k`); the precedence
+  probes gain an L-shaped intersect whose pairs all meet and whose
+  step 1 is empty.
+- Precedence: 9 outcomes (3 fixtures × {none, judgement 0, step 0})
+  identical on base and head.
+- ci profile at 1e-9 / 1e-6 / 1e-12: 8745/8745 base, 8751/8751 head; 806
+  evaluations per eps identical (head adds the two new pins).
+- editor-core release with the slow set: 473 tests and 11,557 evaluations
+  identical bar the known ZeroWord rows; failing sets identical (25).
+- m2 pin: green at 1e-9, 3e-9, 1e-6 and 1e-12; red with `given_pairs`
+  keeping the last verdict (1e-9 and 3e-9).
+- compile_fail doctests: `GluedPair` pub → its doctest red; `given_at`
+  pub alone → its doctest stays green (fails on GluedPair's privacy);
+  `boolean_op_given` pub and re-exported at `topo::boolean` → its doctest
+  stays green (fails on `ops` being private); both of those pub plus a
+  forging snippet → rejected by rustc ("type GluedPair is private").

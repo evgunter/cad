@@ -1,0 +1,131 @@
+diff --git a/crates/editor-core/src/eval/wire.rs b/crates/editor-core/src/eval/wire.rs
+index a3e70ebd4..d7c8c066f 100644
+--- a/crates/editor-core/src/eval/wire.rs
++++ b/crates/editor-core/src/eval/wire.rs
+@@ -482,7 +482,7 @@ where
+             } else {
+                 BooleanOp::Intersect
+             };
+-            wire_combine(
++            let out = wire_combine(
+                 &crate::verbs::boolean::boolean(),
+                 (op, node, members),
+                 id,
+@@ -490,7 +490,9 @@ where
+                 doc,
+                 env.boolean_sweep,
+                 tol,
+-            )
++            );
++            review_capture::capture(op, id, &out);
++            out
+         }
+         Node::Place {
+             source,
+@@ -3371,6 +3373,7 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
+         Some((names::UnionLinks::default(), Vec::new(), Vec::new()))
+     } else {
+         let reads: Vec<crate::VarId> = members.iter().map(|m| m.read).collect();
++        let mut review_jk = 0usize;
+         judge_pairwise_contact(&hulls, &reads, |a, b| {
+             let out = (verb.build)(op, BooleanInputs::default())
+                 .run_pair(&members[a].body, &members[b].body, boolean_sweep, tol)
+@@ -3397,6 +3400,10 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
+                 },
+             )
+             .map_err(NodeErrorKind::Naming)?;
++            review_jk += 1;
++            if review_capture::fault("REVIEW_FAULT_JUDGEMENT", review_jk - 1) {
++                return Err(NodeErrorKind::Naming(names::NamingError::Emission { what: "review: injected naming fault" }));
++            }
+             match out.record {
+                 verbs::VerbRecord::Boolean {
+                     naming, verdicts, ..
+@@ -3477,6 +3484,9 @@ fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
+                  finished non-empty bodies and their union holds each"
+             ),
+             verbs::PairOut::Out(out) => {
++                if review_capture::fault("REVIEW_FAULT_STEP", step) {
++                    return Err(NodeErrorKind::Naming(names::NamingError::Emission { what: "review: injected naming fault" }));
++                }
+                 if pairwise {
+                     debug_assert_given(&out.coincidences, &inputs);
+                 }
+@@ -5140,3 +5150,77 @@ mod union_row_tests {
+         }
+     }
+ }
++
++/// Review-only capture hook (not for merge).
++mod review_capture {
++    use super::{BooleanOp, OpResult, RecipeNodeId};
++    use geom_core::Decide;
++    use std::hash::{Hash, Hasher};
++    use std::io::Write;
++    fn h(s: &str) -> u64 {
++        let mut x = std::collections::hash_map::DefaultHasher::new();
++        s.hash(&mut x);
++        x.finish()
++    }
++    fn mask(s: &str) -> String {
++        let key = "ZeroWord(";
++        let mut out = String::with_capacity(s.len());
++        let mut rest = s;
++        while let Some(i) = rest.find(key) {
++            out.push_str(&rest[..i + key.len()]);
++            rest = &rest[i + key.len()..];
++            let j = rest.find(|c: char| !c.is_ascii_digit()).unwrap_or(rest.len());
++            out.push('_');
++            rest = &rest[j..];
++        }
++        out.push_str(rest);
++        out
++    }
++    pub(super) fn fault(var: &str, k: usize) -> bool {
++        std::env::var(var).ok().and_then(|v| v.parse::<usize>().ok()) == Some(k)
++    }
++    pub(super) fn capture<T: Decide>(op: BooleanOp, id: RecipeNodeId, out: &OpResult<T>) {
++        let Some(dir) = std::env::var_os("UNION_CAPTURE_DIR") else {
++            return;
++        };
++        let dir = std::path::PathBuf::from(dir);
++        let line = match out {
++            Ok(o) => {
++                let rows = format!("{:?}", o.coincidences);
++                let rh = h(&rows);
++                let blobs = dir.join("rows");
++                let _ = std::fs::create_dir_all(&blobs);
++                let bp = blobs.join(format!("{rh:016x}.txt"));
++                if !bp.exists() {
++                    let _ = std::fs::write(&bp, &rows);
++                }
++                format!(
++                    "ok body={:016x} names={:016x} rows={:016x} rowsm={:016x} rec={:016x} cited={:016x} parts={} carried={:016x} motion={}",
++                    h(&format!("{:?}", o.payload)),
++                    h(&format!("{:?}", o.outputs)),
++                    rh,
++                    h(&mask(&rows)),
++                    h(&format!("{:?}", o.contacts)),
++                    h(&format!("{:?}", o.cited_inputs)),
++                    o.parts,
++                    h(&format!("{:?}", o.carried)),
++                    o.motion.is_some(),
++                )
++            }
++            Err(e) => {
++                let d = format!("{e:?}");
++                let mut short: String = d.chars().take(300).collect();
++                short = short.replace(['\n', '\t'], " ");
++                format!("err {:016x} {}", h(&d), short)
++            }
++        };
++        let test = std::env::args()
++            .skip(1)
++            .find(|a| !a.starts_with('-'))
++            .unwrap_or_default();
++        let path = dir.join(format!("{}.txt", std::process::id()));
++        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
++            let _ = writeln!(f, "{test}\t{op:?}\t{id:?}\t{line}");
++        }
++    }
++}

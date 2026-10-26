@@ -34,7 +34,7 @@ fn precedence_union_naming_fault_then_a_later_judgement_refuses() {
     let (doc, u) = crate::fixture::union_over(doc, &[a, b, c]);
     eprintln!(
         "PREC union fault={:?}: {}",
-        std::env::var("REVIEW_FAULT_JUDGEMENT").ok(),
+        (std::env::var("REVIEW_FAULT_JUDGEMENT").ok(), std::env::var("REVIEW_FAULT_STEP").ok()),
         outcome(&doc, u)
     );
 }
@@ -55,7 +55,48 @@ fn precedence_intersect_naming_fault_then_a_later_judgement_is_empty() {
     );
     eprintln!(
         "PREC intersect fault={:?}: {}",
-        std::env::var("REVIEW_FAULT_JUDGEMENT").ok(),
+        (std::env::var("REVIEW_FAULT_JUDGEMENT").ok(), std::env::var("REVIEW_FAULT_STEP").ok()),
+        outcome(&doc, i)
+    );
+}
+
+/// An intersect whose pairs all meet but whose three do not: two bars
+/// crossing at [0,1]², and an L over [0,3]×[2,3] ∪ [2,3]×[0,3]. Every
+/// judgement is non-empty; step 1 (the L joined to the bars' square) is
+/// empty. With `REVIEW_FAULT_STEP=0`, step 0's naming fails first.
+#[test]
+fn precedence_intersect_step_naming_fault_then_a_later_step_is_empty() {
+    let doc = ProfileDoc::empty_derived("review_prec_l", Tol::witness());
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 3.0), 1.0);
+    let (doc, b) = block_on(doc, a, (0.0, 3.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, p) = crate::fixture::insert(
+        doc,
+        Node::Profile(crate::fixture::desc(vec![vec![
+            (0.0, 2.0),
+            (2.0, 2.0),
+            (2.0, 0.0),
+            (3.0, 0.0),
+            (3.0, 3.0),
+            (0.0, 3.0),
+        ]])),
+    );
+    let (doc, l) = crate::fixture::insert(
+        doc,
+        Node::Extrude {
+            profile: p.into(),
+            distance: crate::fixture::len(1.0),
+        },
+    );
+    let (doc, c) = crate::fixture::slid(doc, a, l, [0.0, 0.0, 0.0]);
+    let (doc, i) = crate::fixture::insert(
+        doc,
+        Node::Intersect {
+            members: Bodies::Spelled(vec![a.into(), b.into(), c.into()]),
+        },
+    );
+    eprintln!(
+        "PREC L-intersect fault={:?}: {}",
+        (std::env::var("REVIEW_FAULT_JUDGEMENT").ok(), std::env::var("REVIEW_FAULT_STEP").ok()),
         outcome(&doc, i)
     );
 }
