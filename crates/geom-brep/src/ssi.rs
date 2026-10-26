@@ -2104,10 +2104,12 @@ const SEED_RECOURSE: &str = "Recourse: seed the trace at a point nearer where th
 const SEED_OFF_DOMAIN_RECOURSE: &str = "Recourse: seed the trace at a point that settles inside \
      the domain, or name a domain that holds where it settles";
 
-/// [`SsiError::WrongLane`]'s ending: each door traces one pairing of
-/// kinds, and the routing table ([`crate::intersect::route`]) names
-/// the door for a pair, or says no door traces it yet.
-const WRONG_LANE_RECOURSE: &str = "Recourse: look the pair up in the routing table \
+/// [`SsiError::WrongLane`]'s and
+/// [`crate::intersect::SectionError::WrongLane`]'s ending: each door
+/// traces one pairing of kinds, and the routing table
+/// ([`crate::intersect::route`]) names the door for a pair, or says no
+/// door traces it yet.
+pub(crate) const WRONG_LANE_RECOURSE: &str = "Recourse: look the pair up in the routing table \
      (`geom_brep::route`), which names the door that traces it or says none does yet";
 
 /// A spline face whose certified stretch across the traced locus is

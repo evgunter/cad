@@ -19,3 +19,4 @@ with its id, body and history unchanged. Rows dispatchable: 15, for 28.5 points.
   - `torus-walk-steps-over-null-edges-where-the-cone-refuses` (fixed by `6f920b62`): `region::boundary`'s one `Scaffolding` rule now serves the torus and ruled trims alike.
 
   Re-read notes on `degenerate-torus-operand-…` (the declare menu is gone; "the solid itself is fine" stands) and on `pierce-germ-direction-within-…` (the pierce half is on main; `sectors::within`'s per-bound lever is still owed). The plan's Order note is corrected: `booleans-glue-on-zero` closed, so the `contact_verify` half is no longer held. 24 points in 12 rows.
+- 2026-10-26 — (easy-fixes lane) Closed `a-cube-sunk-flush-into-a-block-refuses-ray-exhausted-on-every-order`: the witness fuses in every order, pinned in `wire_legal_union_refusals`.

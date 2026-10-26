@@ -3084,7 +3084,8 @@ impl Node {
     ///
     /// What each primitive reads is checked when the node is inserted:
     /// `distance` a face, an edge or a vertex, `angle` a face or an
-    /// edge, `min_clearance` a body or a face, `gap` a face, and any
+    /// edge, `min_clearance` a body or a face, `gap` a face, an edge or
+    /// a vertex, and any
     /// other refuses `slot_var_kind`. The rest are the kernel's own
     /// typed refusals at `evaluate`: a name that no longer resolves
     /// (`select_resolve`), a carrier pair with no v1 closed form

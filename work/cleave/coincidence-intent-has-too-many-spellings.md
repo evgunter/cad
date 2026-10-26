@@ -42,3 +42,13 @@ Waits on `intent-stage4-is-built`, not on the whole program: the spellings it li
 ## Released by stage 4 F (2026-10-11)
 
 Stage 4 F (`declared-pairs-retire`) retired every boolean declaration: no author can declare a pair, the glue is what the margins decide, and the declare offer, the flush detector and the carried declarations are gone. What this row waited on has fired; re-read it against that tree.
+
+## Duplication triage (INTENT, 2026-10-26)
+
+Classified on Ev's ask, via the CLEAVE note on INTENT's log, against main `e92fb951` and DESIGN `[one-way.places]` / `[one-way.readings]`. The four classes:
+- **design signal:** DESIGN names no single home, so a design conversation is owed;
+- **mechanical:** DESIGN names the home; delete the off-home copy and repoint its users;
+- **D10 debris:** a D10 stage retires one copy;
+- **not duplication.**
+
+**Stale.** `[coincidence.door]` and the places row "A coincidence decided from values" answer it, and the declared-pair types have 0 hits. Residue: `topo::contact::DeclaredContact`/`ContactFinding`, which D10 stage 5 C retires (ATREST); the rest belongs to COINCIDE. Close it, or repoint it at those.
