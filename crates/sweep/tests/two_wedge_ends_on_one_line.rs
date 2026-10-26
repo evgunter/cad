@@ -85,6 +85,19 @@ fn recorded(body: &Body<f64>) -> ContactRecords {
     )
 }
 
+/// [`lune_prism`] of side `s` into `body`'s `solid` through the void
+/// door.
+fn insert_lune(body: &mut Body<f64>, solid: topo::SolidKey, s: f64) {
+    let cavity = lune_prism(s);
+    let evidence = VoidEvidence {
+        shells: cavity
+            .shells()
+            .map(|(k, _)| (k, VoidContainment::Probed(SolidContainment::In)))
+            .collect(),
+    };
+    insert_void(body, solid, cavity, &evidence).expect("the void door takes the lune");
+}
+
 /// A brick holding both lunes as cavities, through the void door one
 /// at a time: tiers 3 and 3′ pass one cavity alone (its slit is one
 /// edge on its line), and with both the line's reading refuses the pair
@@ -95,14 +108,7 @@ fn two_lune_cavities_kissing_at_their_cusps_refuse_their_wedge_ends() {
     let mut both = sweep::test_support::brick((-4.0, 4.0), (-6.0, 6.0), (-1.0, 2.0), tol());
     let (solid, _) = both.solids().next().unwrap();
     for s in [1.0, -1.0] {
-        let cavity = lune_prism(s);
-        let evidence = VoidEvidence {
-            shells: cavity
-                .shells()
-                .map(|(k, _)| (k, VoidContainment::Probed(SolidContainment::In)))
-                .collect(),
-        };
-        insert_void(&mut both, solid, cavity, &evidence).expect("the void door takes the lune");
+        insert_lune(&mut both, solid, s);
         if s > 0.0 {
             assert_eq!(
                 validate_geometric(&both, tol()),
@@ -133,5 +139,36 @@ fn two_lune_cavities_kissing_at_their_cusps_refuse_their_wedge_ends() {
     assert!(
         edges[0] != edges[1] && edges.contains(unread),
         "the unread edge is one of the pair: {errors:?}"
+    );
+}
+
+/// **A second solid near a body whose own wedges went unread is not
+/// cleared past them.** The two lune cavities above, with a small brick
+/// floating inside the first as a second solid. The host's own line
+/// refuses unread, so arm 2 cannot tell whether the host's boundary
+/// crosses itself there and refuses the pair as unexamined, beside the
+/// host's own finding.
+#[test]
+fn a_brick_floating_in_a_lune_beside_unread_wedge_ends_refuses_unexamined() {
+    let mut body = sweep::test_support::brick((-4.0, 4.0), (-6.0, 6.0), (-1.0, 2.0), tol());
+    let (solid, _) = body.solids().next().unwrap();
+    for s in [1.0, -1.0] {
+        insert_lune(&mut body, solid, s);
+    }
+    let brick = sweep::test_support::brick((0.4, 0.6), (2.9, 3.1), (0.4, 0.6), tol());
+    topo::graft_disjoint(&mut body, &brick).unwrap();
+    assert_eq!(validate_geometric(&body, tol()), Ok(()), "tier 3");
+    let errors = validate_pseudomanifold(&body, &recorded(&body), tol())
+        .expect_err("the host's line refuses");
+    let [
+        ValidationError::CoincidentWedgesOverlapUndecided { .. },
+        ValidationError::CensusUndecidable { what, .. },
+    ] = &errors[..]
+    else {
+        panic!("the host's line, then arm 2 on the pair: {errors:?}");
+    };
+    assert!(
+        what.starts_with("another finding left their boundaries unchecked"),
+        "arm 2 refuses the pair as unexamined: {what}"
     );
 }

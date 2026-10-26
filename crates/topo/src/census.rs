@@ -1168,7 +1168,8 @@ impl Declared {
     /// which answers for it, an in-band reading included. Where no
     /// pair could be read there, the refusal stands in the finding's
     /// place. A lane that finds nothing asks no pair, nor does one whose
-    /// cells no confirmed pair names.
+    /// cells no confirmed pair names. `true` where a confirmed pair
+    /// answered for what the lane found.
     ///
     /// `q` answers for everything the lane finds, so a lane reads one
     /// touch: a point, or a run of two straight edges on one line, whose
@@ -1185,24 +1186,31 @@ impl Declared {
         band: Band,
         errors: &mut Vec<ValidationError>,
         lane: impl FnOnce(&mut Vec<ValidationError>),
-    ) {
+    ) -> bool {
         let named = sides
             .0
             .iter()
             .any(|&fx| sides.1.iter().any(|&fy| self.confirmed.contains(&(fx, fy))));
         if !named {
-            return lane(errors);
+            lane(errors);
+            return false;
         }
         let mut found = Vec::new();
         lane(&mut found);
         if found.is_empty() {
-            return;
+            return false;
         }
         let mut read = Vec::new();
         match self.holds(body, geo, cells, sides, q, band, &mut read) {
-            Some(true) => {}
-            Some(false) => errors.extend(found),
-            None => errors.extend(read),
+            Some(true) => true,
+            Some(false) => {
+                errors.extend(found);
+                false
+            }
+            None => {
+                errors.extend(read);
+                false
+            }
         }
     }
 
@@ -4073,10 +4081,17 @@ fn pair_edge_edge<T: Decide>(
             });
         }
         Some(Some(Meeting::Overlap(span, margin))) => {
+            // A confirmed pair answers for the overlap's record, never for
+            // its sides: no record makes two wedges' overlap valid (D1).
             let q = ea.p0 + ea.dir * geom::mid_param(span.0, span.1);
-            declared.confine(body, geo, cells, sides, q, band, errors, |errors| {
-                ee_collinear_lane(body, (ea, eb), (span, margin), geo, declared, band, errors);
+            let mut certified = false;
+            let answered = declared.confine(body, geo, cells, sides, q, band, errors, |errors| {
+                certified =
+                    ee_collinear_lane(body, (ea, eb), (span, margin), geo, declared, band, errors);
             });
+            if certified || answered {
+                errors.extend(ee_overlap_sides(body, (ea, eb), span, band));
+            }
         }
         Some(None) | None => {}
     }
@@ -5120,8 +5135,8 @@ fn projected_overlap<T: Decide>(
 /// enough: the other bound's record backs only that bound, never the
 /// segment. An overlap with no record, or with a bound
 /// [`ee_bound_backed`] does not back, is an `UnrecordedContact`; a
-/// bound is never inferred. A certified overlap is then read for sides
-/// ([`ee_overlap_sides`]).
+/// bound is never inferred. `true` where the overlap is certified, for
+/// its caller to read its sides ([`ee_overlap_sides`]).
 fn ee_collinear_lane<T: Decide>(
     body: &Body<T>,
     (ea, eb): (&EdgeGeo<T>, &EdgeGeo<T>),
@@ -5130,7 +5145,7 @@ fn ee_collinear_lane<T: Decide>(
     declared: &Declared,
     band: Band,
     errors: &mut Vec<ValidationError>,
-) {
+) -> bool {
     let low = ee_bound_backed(body, ea, eb, lo, geo, declared, band, errors);
     let high = match low {
         Bound::Unbacked => Bound::Unbacked,
@@ -5148,9 +5163,8 @@ fn ee_collinear_lane<T: Decide>(
             witness: witness(ea.p0 + ea.dir * geom::mid_param(lo, hi)),
             margin: Some(margin),
         });
-    } else {
-        errors.extend(ee_overlap_sides(body, (ea, eb), (lo, hi), band));
     }
+    backed && recorded
 }
 
 /// **Tier 3′'s side reading of a certified collinear overlap**: the two
@@ -6737,15 +6751,18 @@ impl TouchUnread {
     /// read along the line rather than at a point.
     pub(crate) fn sentence_on_line(self) -> &'static str {
         match self {
-            Self::Unreadable => {
+            Self::Unreadable => concat!(
                 "a face meeting the line is curved there, and the check cannot yet read \
-                 which side of a curved face material lies on. There is no way through yet \
-                 for this shape"
-            }
-            Self::Degenerate => {
+                 which side of a curved face material lies on. ",
+                geom_core::not_yet_ending!(),
+                " for this shape"
+            ),
+            Self::Degenerate => concat!(
                 "an edge on the line is a cusp or a knife slit, whose side the check cannot \
-                 yet read. There is no way through yet for this shape"
-            }
+                 yet read. ",
+                geom_core::not_yet_ending!(),
+                " for this shape"
+            ),
             _ => self.sentence(),
         }
     }
@@ -6757,26 +6774,34 @@ impl TouchUnread {
         match self {
             Self::InBand => concat!(
                 geom_core::undecided!("which side of each other their material lies on"),
-                ". There is no way through yet for this shape"
+                ". ",
+                geom_core::not_yet_ending!(),
+                " for this shape"
             ),
-            Self::PieceInBand => {
+            Self::PieceInBand => concat!(
                 "a face there has corners or edges too nearly in line, seen from the point, \
-                 to trace at this tolerance, so no side reads. There is no way through yet \
-                 for this shape"
-            }
-            Self::Unreadable => {
+                 to trace at this tolerance, so no side reads. ",
+                geom_core::not_yet_ending!(),
+                " for this shape"
+            ),
+            Self::Unreadable => concat!(
                 "a curved face meets the point, and the check cannot yet read which side of \
-                 a curved face material lies on. There is no way through yet for this shape"
-            }
-            Self::Unanalysed => {
+                 a curved face material lies on. ",
+                geom_core::not_yet_ending!(),
+                " for this shape"
+            ),
+            Self::Unanalysed => concat!(
                 "the part's faces there meet the point along an edge and again, or do not \
-                 close around it, so no side reads. There is no way through yet for this \
-                 shape"
-            }
-            Self::Degenerate => {
+                 close around it, so no side reads. ",
+                geom_core::not_yet_ending!(),
+                " for this shape"
+            ),
+            Self::Degenerate => concat!(
                 "two faces of the part lie on each other there, as a slit or a doubled face \
-                 does, so no side reads. There is no way through yet for this shape"
-            }
+                 does, so no side reads. ",
+                geom_core::not_yet_ending!(),
+                " for this shape"
+            ),
             Self::ChordScale => {
                 "an edge there is too long or too short to measure. Recourse: rescale the \
                  model so every edge length is an ordinary number"
@@ -10967,6 +10992,30 @@ mod tests {
             })),
             Undecided::FaceKindUnsupported.what()
         );
+    }
+
+    /// **[`WEDGE_UNREAD`] is every reason `wedge` gives**: the samples
+    /// of a line's unread wedge iterate it, so a reason `wedge` gains
+    /// would render nowhere. This reads `wedge`'s code for the
+    /// `TouchUnread` variants it names and reds where the list differs.
+    #[test]
+    fn wedge_unread_is_every_reason_wedge_gives() {
+        use test_utils::source::{balanced_end, code_only};
+        let code = code_only(include_str!("census.rs"));
+        let at = code.find("\nfn wedge<").expect("`wedge` is in this file");
+        let open = at + code[at..].find('{').expect("`wedge`'s body");
+        let close = balanced_end(&code, open).expect("`wedge`'s closing brace");
+        let named: BTreeSet<String> = code[open..close]
+            .split("TouchUnread::")
+            .skip(1)
+            .map(|rest| {
+                rest.chars()
+                    .take_while(char::is_ascii_alphanumeric)
+                    .collect()
+            })
+            .collect();
+        let listed: BTreeSet<String> = WEDGE_UNREAD.iter().map(|w| format!("{w:?}")).collect();
+        assert_eq!(named, listed, "`wedge`'s reasons against WEDGE_UNREAD");
     }
 
     /// **The backstop writes no sentence of its own**: every `what` it

@@ -626,3 +626,64 @@ fn the_unequal_pinch_grafted_as_a_cavity_refuses_its_wedges_at_tier_3_prime() {
         );
     }
 }
+
+/// **A second solid near a body whose own wedges overlap is not cleared
+/// past them.** The pinch grafted as a cavity (above), at rest, with a
+/// small brick floating inside the taller cavity as a second solid. The
+/// host's own two edges on the z-axis overlap, its boundary crossing
+/// itself, so arm 2 reads no placement of the brick against the host's
+/// material and refuses the pair on that crossing, beside the host's own
+/// finding.
+#[test]
+fn a_brick_floating_in_a_cavity_whose_wedges_overlap_refuses_on_that_crossing() {
+    let pose = Pose::rest();
+    let what = "floating";
+    let q1 = posed_box(what, [(0.0, 1.0), (0.0, 1.0), (0.5, 1.5)], &pose, t());
+    let q3 = posed_box(what, [(-1.0, 0.0), (-1.0, 0.0), (0.5, 1.25)], &pose, t());
+    let BooleanResult::Body(pinch) = topo::union(&q1, &q3, t()).unwrap() else {
+        panic!("the pinch is empty");
+    };
+    let cavity = pinch.body.into_body();
+    let mut dst = posed_box(what, [(-2.0, 2.0), (-2.0, 2.0), (0.0, 2.0)], &pose, t()).into_body();
+    let (solid, _) = dst.solids().next().unwrap();
+    let evidence = VoidEvidence {
+        shells: cavity
+            .shells()
+            .map(|(s, _)| (s, VoidContainment::Probed(topo::SolidContainment::In)))
+            .collect(),
+    };
+    let solids = vec![solid; cavity.solids().count()];
+    topo::insert_voids(&mut dst, &solids, cavity, &evidence).expect("the graft");
+    let brick = posed_box(what, [(0.4, 0.6), (0.4, 0.6), (0.9, 1.1)], &pose, t());
+    topo::graft_disjoint(&mut dst, &brick).unwrap();
+    assert_eq!(validate_geometric(&dst, t()), Ok(()), "tier 3");
+    let unrecorded = validate_pseudomanifold(&dst, &ContactRecords::default(), t())
+        .expect_err("the touch is unrecorded");
+    let records = topo::test_support::records(
+        &dst,
+        unrecorded.iter().filter_map(|e| match e {
+            ValidationError::UnrecordedContact {
+                contact: CensusContact::VertexOnEdge { vertex, edge },
+                ..
+            } => Some((Cell::Vertex(*vertex), Cell::Edge(*edge))),
+            ValidationError::UnrecordedContact {
+                contact: CensusContact::EdgeEdgeOverlap { a, b },
+                ..
+            } => Some((Cell::Edge(*a), Cell::Edge(*b))),
+            _ => None,
+        }),
+    );
+    let errors =
+        validate_pseudomanifold(&dst, &records, t()).expect_err("the host's wedges refuse");
+    let [
+        ValidationError::CoincidentWedgesOverlap { .. },
+        ValidationError::CensusUndecidable { what, .. },
+    ] = &errors[..]
+    else {
+        panic!("the host's wedges, then arm 2 on the pair: {errors:?}");
+    };
+    assert!(
+        what.starts_with("another finding reports their boundaries crossing"),
+        "arm 2 refuses the pair on the host's own crossing: {what}"
+    );
+}

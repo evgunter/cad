@@ -2288,7 +2288,16 @@ pub const UNNAMED_DECISION: &str = "an unnamed decision";
 /// The one ending of a refusal at a shape or configuration the kernel
 /// does not build or check yet: nothing the user changes gets through
 /// today, and nothing is wrong with what they asked for.
-pub const NOT_YET_ENDING: &str = "There is no way through yet";
+pub const NOT_YET_ENDING: &str = crate::not_yet_ending!();
+
+/// [`NOT_YET_ENDING`] as a literal for `concat!`.
+#[doc(hidden)]
+#[macro_export]
+macro_rules! not_yet_ending {
+    () => {
+        "There is no way through yet"
+    };
+}
 
 /// The qualifier a refusal at a kernel approximation limit puts on its
 /// one recourse, loosening the tolerance (D4 ¶1 (i)): a kernel

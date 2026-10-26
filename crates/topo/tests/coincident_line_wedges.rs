@@ -370,3 +370,62 @@ fn a_prism_leaning_into_a_brick_reads_as_passing_into_it() {
         assert_eq!(errs.len(), 4, "{what}: nothing else refuses: {errs:?}");
     }
 }
+
+/// **A pinwheel of two prisms doubles the unit square's material, and
+/// the face pairs it rests on do not answer for that.** Both profiles
+/// hold the unit square `R`, with arms swept opposite ways about it, so
+/// the two prisms meet flush over four wall areas, and `R × (z-overlap)`
+/// lies in both: on each of the square's corner lines the two edges
+/// bound material on the same side. With the four face–face records the
+/// census asks, every confirmed pair holds those lines in its overlap's
+/// closure, which answers for their touch's record, never for their
+/// sides (D1: no record makes two wedges' overlap valid). Each corner
+/// line refuses its wedges decided, and arm 2 reads the pair as one
+/// passing into the other, at every pose, with B's span above A's
+/// middle and below it.
+#[test]
+fn a_pinwheel_resting_on_confirmed_face_pairs_refuses_its_doubled_core() {
+    let a = [
+        (-2.0, -2.0),
+        (3.0, -2.0),
+        (1.0, 0.0),
+        (1.0, 1.0),
+        (3.0, 3.0),
+        (-2.0, 3.0),
+        (0.0, 1.0),
+        (0.0, 0.0),
+    ];
+    let b = [
+        (0.0, 0.0),
+        (1.0, 0.0),
+        (3.0, -2.0),
+        (3.0, 3.0),
+        (1.0, 1.0),
+        (0.0, 1.0),
+        (-2.0, 3.0),
+        (-2.0, -2.0),
+    ];
+    for pose in poses() {
+        for (span, zb) in [("above", (0.25, 1.5)), ("below", (-0.5, 0.75))] {
+            let what = format!("{}, B {span}", pose.label);
+            let mut body = prism(&pose, "A", &a, (0.0, 1.0)).into_body();
+            topo::graft_disjoint(&mut body, &prism(&pose, "B", &b, zb)).unwrap();
+            assert_eq!(validate_geometric(&body, t()), Ok(()), "{what}: tier 3");
+            let errs = recorded_verdict(&what, &body).expect_err("the doubled core refuses");
+            let wedges = wedge_findings(&errs);
+            assert!(
+                wedges.len() == 4
+                    && wedges
+                        .iter()
+                        .all(|e| matches!(e, ValidationError::CoincidentWedgesOverlap { .. })),
+                "{what}: the core's four corner lines refuse their wedges, decided: {errs:?}"
+            );
+            assert_eq!(
+                arm_2(&errs),
+                [MIXED_TOUCH],
+                "{what}: arm 2 reads the pair as one passing into the other: {errs:?}"
+            );
+            assert_eq!(errs.len(), 5, "{what}: nothing else refuses: {errs:?}");
+        }
+    }
+}
