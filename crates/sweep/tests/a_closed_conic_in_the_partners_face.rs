@@ -691,7 +691,7 @@ fn poses() -> [Pose; 16] {
 
 /// One pose's ops in both forms, through and pocketed, every op in both
 /// orders, both operands turned by `turn` where one is given.
-fn by_pose((pose, hx, hr, haz, baz, cells): Pose, turn: Option<&Affine3<f64>>) {
+fn by_pose((pose, hx, hr, hole_az, boss_az, cells): Pose, turn: Option<&Affine3<f64>>) {
     let placed = |what: &str, body: Body<f64>| match turn {
         None => fin(what, body),
         Some(turn) => fin(
@@ -711,12 +711,12 @@ fn by_pose((pose, hx, hr, haz, baz, cells): Pose, turn: Option<&Affine3<f64>>) {
             );
             let boss = placed(
                 "the boss",
-                extruded(vec![rim(form, 0.0, 0.3, baz)], 0.0, 1.0),
+                extruded(vec![rim(form, 0.0, 0.3, boss_az)], 0.0, 1.0),
             );
             let holed = if pocket {
                 let cutter = fin(
                     "the cutter",
-                    extruded(vec![rim(form, hx, hr, haz)], -0.25, 0.5),
+                    extruded(vec![rim(form, hx, hr, hole_az)], -0.25, 0.5),
                 );
                 let cut = topo::subtract(&plate(), &cutter, tol()).unwrap();
                 placed(
@@ -726,7 +726,7 @@ fn by_pose((pose, hx, hr, haz, baz, cells): Pose, turn: Option<&Affine3<f64>>) {
             } else {
                 placed(
                     "the holed plate",
-                    extruded(vec![square(), rim(form, hx, hr, haz)], -0.5, 0.5),
+                    extruded(vec![square(), rim(form, hx, hr, hole_az)], -0.5, 0.5),
                 )
             };
             let vh = 2.0 - PI * hr * hr * depth;

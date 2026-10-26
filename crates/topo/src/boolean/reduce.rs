@@ -2236,7 +2236,17 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 // fragments are read again once both directions have split
                 // it.
                 Ok(Sign::Zero) if covered => {
-                    let inside = interior(on_carrier, y, x_is, face, &curve, band, frontier)?;
+                    let inside = interior(
+                        on_carrier,
+                        (x, edge),
+                        y,
+                        x_is,
+                        face,
+                        &curve,
+                        declared,
+                        band,
+                        frontier,
+                    )?;
                     if let Interior::Crossing(event) = inside {
                         return Ok(event);
                     }
@@ -2414,7 +2424,17 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 "a covered circle keeps the frontier at the circle rung"
             );
             let on_carrier = on_declared_shared_carrier(x, x_is, edge, face, declared);
-            let inside = interior(on_carrier, y, x_is, face, &curve, band, frontier)?;
+            let inside = interior(
+                on_carrier,
+                (x, edge),
+                y,
+                x_is,
+                face,
+                &curve,
+                declared,
+                band,
+                frontier,
+            )?;
             if let Interior::Crossing(event) = inside {
                 return Ok(event);
             }
@@ -3136,37 +3156,141 @@ impl<T: geom_core::Real> Interior<T> {
 }
 
 /// **The interior question**: where the edge meets `face`'s boundary
-/// strictly inside its span ([`super::carrier_cross`]). A meeting is a
-/// curve × curve reading, so it splits both edges there whether or not
-/// the edge lies on `face`'s carrier: a rim tangent to the face's own
-/// rim, its wall tangent to the face (a cover), touches the face only
-/// there. The certificate that the interior meets the boundary nowhere
-/// speaks for the face only of an edge the carrier-identity rung puts
-/// ON `face`'s carrier (`on_carrier`); an edge off it is
-/// [`Interior::Unseen`] whatever the pass could not place, and an edge
-/// on it whose meetings that module cannot read keeps the frontier door.
+/// strictly inside its span ([`super::carrier_cross`]), asked of an edge
+/// the carrier-identity rung puts ON `face`'s carrier (`on_carrier`); a
+/// pair whose meetings that module cannot read keeps the frontier door.
+/// An edge off the carrier, its parent covered against `face`, is
+/// [`Interior::Unseen`], save where it touches `face`'s boundary at a
+/// point the two tangent sheets only meet at ([`sheets_part`]): a rim
+/// tangent to the face's own rim, the two walls leaving the rims' plane
+/// to either side of it. There both edges are split, as a vertex there
+/// would split them.
+#[allow(clippy::too_many_arguments)]
 fn interior<T: Decide>(
     on_carrier: bool,
+    (x, edge): (&Body<T>, &crate::entity::Edge),
     y: &Body<T>,
     x_is: Operand,
     face: FaceKey,
     curve: &geom_brep::EdgeCurve<T>,
+    declared: &super::GluedPairs<T>,
     band: Band,
     frontier: impl Fn() -> BooleanError,
 ) -> Result<Interior<T>, BooleanError> {
     use super::carrier_cross::{BoundaryCrossing, boundary_crossing};
-    match boundary_crossing(y, x_is.other(), face, curve.carrier(), curve.params(), band)? {
-        BoundaryCrossing::At { t, p, at, margin } => Ok(Interior::Crossing(CurvedEvent::Pierce {
+    let pierce = |t, p, at, margin| {
+        Interior::Crossing(CurvedEvent::Pierce {
             t,
             p,
             at,
             on: Some(margin),
             branch: None,
-        })),
-        _ if !on_carrier => Ok(Interior::Unseen),
-        BoundaryCrossing::Clear => Ok(Interior::Clear),
-        BoundaryCrossing::Unread => Err(frontier()),
+        })
+    };
+    let read = boundary_crossing(y, x_is.other(), face, curve.carrier(), curve.params(), band)?;
+    match (read, on_carrier) {
+        (BoundaryCrossing::At { t, p, at, margin }, true) => Ok(pierce(t, p, at, margin)),
+        (BoundaryCrossing::At { t, p, at, margin }, false)
+            if sheets_part(
+                (x, x_is, edge),
+                (y, face, at),
+                declared,
+                curve,
+                (t, p),
+                band,
+            ) =>
+        {
+            Ok(pierce(t, p, at, margin))
+        }
+        (_, false) => Ok(Interior::Unseen),
+        (BoundaryCrossing::Clear, true) => Ok(Interior::Clear),
+        (BoundaryCrossing::Unread, true) => Err(frontier()),
     }
+}
+
+/// **Whether a covered edge's parent and `face` part at `p`**, where the
+/// edge meets `face`'s boundary edge `at`: the parent's direction into
+/// itself from the edge (`N × τ`, `N` its outward normal at `p`, `τ` its
+/// half-edge's tangent) and `face`'s from its own boundary edge there
+/// are definitely opposed. The two faces are tangent sheets (the cover),
+/// so each leaves `p` along their common tangent plane, perpendicular to
+/// the edges there; opposed, they meet nowhere else near `p`, and the
+/// meeting is a touch of the two boundaries alone. Alike, the sheets
+/// run on together past `p` through both faces' interiors, which the
+/// sweep does not read from a split there (`face_face_touch`'s nested
+/// disc), and anything the reading cannot decide (a boundary edge both
+/// of whose halves bound `face`, a carrier with no tangent here, a
+/// normal the door refuses) is `false`.
+fn sheets_part<T: Decide>(
+    (x, x_is, edge): (&Body<T>, Operand, &crate::entity::Edge),
+    (y, face, at): (&Body<T>, FaceKey, FaceContainment),
+    declared: &super::GluedPairs<T>,
+    curve: &geom_brep::EdgeCurve<T>,
+    (t, p): (T, Point3<T>),
+    band: Band,
+) -> bool {
+    let FaceContainment::OnEdge(e_y) = at else {
+        return false;
+    };
+    let covered: Vec<crate::entity::HalfEdgeKey> = [edge.he_plus, edge.he_minus]
+        .into_iter()
+        .filter(|&h| {
+            x.face_of_half_edge(h)
+                .is_some_and(|f| declared.cover(x_is, f, x_is.other(), face).is_some())
+        })
+        .collect();
+    let [h_x] = covered[..] else {
+        return false;
+    };
+    let tau_x = curve.carrier().deriv(t)
+        * if h_x == edge.he_plus {
+            T::one()
+        } else {
+            -T::one()
+        };
+    let Some(d_y) = y.get_edge(e_y) else {
+        return false;
+    };
+    let halves: Vec<crate::entity::HalfEdgeKey> = [d_y.he_plus, d_y.he_minus]
+        .into_iter()
+        .filter(|&h| y.face_of_half_edge(h) == Some(face))
+        .collect();
+    let [h_y] = halves[..] else {
+        return false;
+    };
+    let Some(c_y) = y.edge_curve_linked(e_y, d_y).certified() else {
+        return false;
+    };
+    let tau_y = match *c_y.carrier() {
+        geom::Curve3::Line { dir, .. } => dir,
+        geom::Curve3::Circle { center, axis, .. } => axis.cross(p - center),
+        _ => return false,
+    } * if h_y == d_y.he_plus {
+        T::one()
+    } else {
+        -T::one()
+    };
+    let normal = |body: &Body<T>, f: FaceKey| {
+        crate::face_normal::face_outward_normal_at(body, f, p, band)
+            .ok()
+            .flatten()
+            .map(|n| n.vec())
+    };
+    let (Some(f_x), Some(n_y)) = (x.face_of_half_edge(h_x), normal(y, face)) else {
+        return false;
+    };
+    let Some(n_x) = normal(x, f_x) else {
+        return false;
+    };
+    let (into_x, into_y) = (n_x.cross(tau_x.normalize()), n_y.cross(tau_y.normalize()));
+    matches!(
+        decide(
+            "bool_touch_sheets_part",
+            Margin::of(into_x.dot(into_y)),
+            band
+        ),
+        Ok(Sign::Negative)
+    )
 }
 
 /// An arc of `x` lying on `face`'s carrier, as [`lying_on`] reads it.
