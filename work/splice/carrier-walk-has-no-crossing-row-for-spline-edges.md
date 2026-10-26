@@ -2,11 +2,13 @@
 id: carrier-walk-has-no-crossing-row-for-spline-edges
 kind: issue
 title: The in-plane carrier walk has no crossing row for a spline edge, so a planar face bounded by one refuses containment inside its control hull's ball
-status: dispatched
+status: closed
 opened: 2026-10-03
 priority: P1
 cost: M
 branch: splice/carrier-walk-spline
+pr: 5719
+closed: 2026-10-25
 ---
 
 
@@ -42,3 +44,30 @@ one; nobody has run that probe.
 ## Moved to SPLICE (2026-10-25)
 
 From CLEAVE (taken on request in chat; CLEAVE would not start a P3). Moved by `git mv` in the chat-approved refold that opened SPLICE (`work/splice/program.md`), the track for a body built by loft or sweep entering every boolean. Re-banded P3 → P1: a link the spline operand's path runs through.
+
+## Closed
+
+`splitting::spline_arc::SplineArc` is the spline row, beside the
+spiric's: `carrier_loop` holds a `Nurbs` edge as `LoopEdge::Spline`,
+and `LoopEdge::Unrowed` and the walk's ball pass are deleted. Both
+pieced edges read through one driver, `splitting::pieced_arc::PiecedArc`
+(the boundary reading `contact` and the crossing count `crossings`,
+moved out of `SpiricArc`); each carrier states its pieces, a ball per
+piece and its own crossing test. A spline piece is a window of one knot
+span, its Bézier net the scalar's own restriction of the span's
+coefficients (`geom_brep::pcurve_cache::projected::piece_controls`, over
+`SpanLocate::restrict_window`); it is settled against a ray by
+its control points (all on one side of the ray line, or behind the
+point) or by their offsets from the ray line being strictly monotone
+with both ends signed. `Uncrossable { carrier: Spline }` remains only
+where a spline's boundary reading runs out of depth or pieces.
+
+Witnessed by `splitting::containment::spline_cap_rows::a_spline_cap_is_read_inside_its_control_ball`
+(the walk and `boolean::contfp` on a cap bounded by a cubic and its
+chord; every row refused `Uncrossable` on main), and
+`splitting::spline_arc::tests::{the_row_reads_the_arcs_region,the_count_is_exact}_at_{f64,interval}`,
+and searched by `splitting::spline_arc::fuzz::random_splines_at_{f64,interval}`.
+
+Reachability stays unmeasured: no body today builds a planar face
+bounded by a spline edge through a public door (the operand edge gate
+and the split's `CurvedEdgeUnsupported` both refuse first).

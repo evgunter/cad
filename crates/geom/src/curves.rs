@@ -60,7 +60,9 @@ use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec3};
 
 use crate::azimuth;
 pub use nurbs::{CurveWindow2, CurveWindow3, NurbsCurve2, NurbsCurve3};
-pub use on_carrier::{CarrierRefusal, Clearance, Foot, OnCarrier, ellipse_level_clearance};
+pub use on_carrier::{
+    CarrierRefusal, Clearance, Foot, OnCarrier, PieceRead, PieceStep, ellipse_level_clearance,
+};
 pub use projection::{Projection2, Projection3, ProjectionInconclusive};
 
 /// An analytic 3-D curve — a **complete locus**. Units, the
@@ -1271,6 +1273,30 @@ pub fn spiric_rate_bounds<T: Real>(
         + (minor.powi(2) * sin_max.powi(2) + minor * rho_hi) / f_lo
         + minor.powi(2) * rho_hi.powi(2) * sin_max.powi(2) / f_lo.powi(3);
     (speed, accel)
+}
+
+/// [`spiric_rate_bounds`] over the window of the spiric `(R, r, d)` within
+/// `reach` of `mid` in its parameter `v`: `cos v` and `sin v` each move at
+/// most `reach` from their values at `mid`, which bounds `ρ` (held to
+/// `[R − r, R + r]`) and `|sin v|` (held to 1) there. The one spelling of
+/// that window, read by a piece of `topo`'s spiric arc (`reach` its half
+/// width) and by [`crate::carrier_speed::turn_defect_speed_hi`] (`reach`
+/// the turn defect's half width and its rounding allowance). Never more
+/// than [`spiric_period_rate_bounds`]; finite on a window clear of a
+/// tangent pinch.
+pub fn spiric_window_rate_bounds<T: Real>(
+    (major, minor, offset): (T, T, T),
+    mid: T,
+    reach: T,
+) -> (T, T) {
+    let one = T::one();
+    let (sm, cm) = mid.sin_cos();
+    let rho = (
+        major + minor * (cm - reach).max(T::zero() - one),
+        major + minor * (cm + reach).min(one),
+    );
+    let sin_max = (sm.abs() + reach).min(one);
+    spiric_rate_bounds(minor, offset, rho, sin_max)
 }
 
 /// [`spiric_rate_bounds`] over a whole period of the spiric `(R, r,

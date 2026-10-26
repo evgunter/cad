@@ -1988,3 +1988,41 @@ fn the_gap_is_charged_with_the_rounding_of_far_coordinates() {
         "far by the parameter: {got:?}"
     );
 }
+
+/// **A spline with a corner meets a line across its second span.** The
+/// degree-1 spline runs along `y = 0.28` to a corner just past its
+/// middle, then straight down through `y = 0` to `y = −0.008`; the line
+/// `y = 0` crosses that second span at `(0.012, 0, 0)`. Each span is
+/// straight, so a bound read span by span is zero, though the tangent
+/// turns a right angle at the knot: the crease bounds no `|C″|`.
+#[test]
+fn a_spline_with_a_corner_meets_a_line_past_it() {
+    use geom::NurbsCurve3;
+    use geom_core::spline::{KnotVector, Knots};
+    let knots = KnotVector::clamped(vec![0.0, 0.0, 0.52, 1.0, 1.0], 1).unwrap();
+    let a = Curve3::Nurbs(std::sync::Arc::new(
+        NurbsCurve3::new(
+            Knots::from(knots),
+            vec![
+                Point3::new(-0.3, 0.28, 0.0),
+                Point3::new(0.012, 0.28, 0.0),
+                Point3::new(0.012, -0.008, 0.0),
+            ],
+            vec![1.0; 3],
+        )
+        .unwrap(),
+    ));
+    let b = line([-0.3, 0.0, 0.0], [1.0, 0.0, 0.0]);
+    let got = super::walk::meet(
+        &Span::new(&a, (0.0, 1.0)),
+        &Span::new(&b, (0.0, 0.6)),
+        band(),
+    );
+    let Ok(m) = got else {
+        panic!("the walk reads the crossing: {got:?}")
+    };
+    assert!(
+        m.points.len() == 1 && interiors_meet(&m),
+        "one meeting, on both interiors: {m:?}"
+    );
+}

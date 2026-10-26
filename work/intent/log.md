@@ -842,3 +842,9 @@ The boolean declare surface is gone at every layer. A boolean's one input beside
   3. **Part names.** `Rebind` holds `from.node` to the host's mint log (`RebindUnknownName`), so a takeover of an instance's copy cannot rebind its part-spelled references.
 
   Filed on INTENT's slate: `d-prime3-fallback-diagnosis-blames-the-sources-minting-node-for-a-re-pointed-copy` (P3 E). Also noted, unfiled because D′3 closes it: on main, a mate on a copy's face goes stale under the Transform takeover too (`Renamed::through` re-seats only the viewer's held picks). PR 5636's branch predates the mirror (PR 5683): at its next main merge, `add_mirror`'s `repoint(...).map(drop)` follows `repoint`'s new signature.
+- 2026-10-26 — Resumed after a usage reset; nothing moved from 10-24 16:45. Both lanes picked up on their own: D′3 (#5636, `session_017HwxSpesEsgKsHjvrj6TyM`) on MAJOR 1 over merged #5637, and the value chart (`session_01ReeWyLMjbS8q7pwdH5Tpwo`).
+  - **AUTHTAIL's 10-25 notes, ruled for D′3:**
+    - a pick is never re-pointed. A takeover that would strand a pick refuses typed at the takeover door, and an exact re-seat is filed P3;
+    - the takeover rule stays door behaviour, with no `[placement.placement]` change in this PR (it would bind future work, so it is Ev's if wanted);
+    - part names in `Rebind` are filed P3;
+    - spec sentences (a)–(c) are written into `docs/INTENT-STAGE3-SPEC.md` by the D′3 lane, without the sink-set wording.

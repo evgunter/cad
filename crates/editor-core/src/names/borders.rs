@@ -224,20 +224,11 @@ impl<K: Ord + Clone> Obstacles<K> {
             .iter()
             .flat_map(|d| d.seams.iter().copied())
             .collect();
-        // A row's chains are in its operand's clone keys: A's are the
-        // result's, B's are read through the graft's edge rows, and an
-        // ancestor the graft does not carry ends the chain.
-        if !naming.discards.is_empty()
-            && (naming.a_keys, naming.b_keys)
-                != (topo::OperandKeys::Direct, topo::OperandKeys::Grafted)
-        {
-            unreachable!(
-                "a boolean recorded {} discards under operand key layout {:?}: only the graft \
-                 path discards, and it holds A direct and B grafted",
-                naming.discards.len(),
-                (naming.a_keys, naming.b_keys)
-            );
-        }
+        // A row's chains are in its operand's clone keys: a direct
+        // operand's are the result's, a grafted one's are read through
+        // the graft's edge rows, where an ancestor the graft does not
+        // carry ends the chain, and an absent one's name no edge of the
+        // result.
         let grafted: BTreeMap<EdgeKey, EdgeKey> = naming
             .graft_edges
             .iter()
@@ -251,12 +242,19 @@ impl<K: Ord + Clone> Obstacles<K> {
             let chains: Vec<Vec<EdgeKey>> = row
                 .boundary_chains
                 .iter()
-                .map(|chain| match row.operand {
-                    topo::Operand::A => chain.clone(),
-                    topo::Operand::B => chain
-                        .iter()
-                        .map_while(|k| grafted.get(k).copied())
-                        .collect(),
+                .map(|chain| {
+                    let keys = match row.operand {
+                        topo::Operand::A => naming.a_keys,
+                        topo::Operand::B => naming.b_keys,
+                    };
+                    match keys {
+                        topo::OperandKeys::Direct => chain.clone(),
+                        topo::OperandKeys::Grafted => chain
+                            .iter()
+                            .map_while(|k| grafted.get(k).copied())
+                            .collect(),
+                        topo::OperandKeys::Absent => Vec::new(),
+                    }
                 })
                 .collect();
             let mut seams = Vec::new();

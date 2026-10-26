@@ -141,6 +141,8 @@ ALL_LISTS = ("document", "select", "prelude", "profile", "analysis")
 DISPOSITIONS: dict[str, tuple[str, str]] = {
     "Attr": ("argued", "NOT_CARRIED, the appearance family (crates/pncad/tests/all.rs); "
                        "crates/pncad/src/document.rs says why the record types stay out"),
+    "BindingViolation": ("argued", "NOT_CARRIED, the analysis lane's interior residue "
+                                   "(crates/pncad/tests/all.rs)"),
     # The entries whose home is the CARRIER's crate rather than the
     # façade's: the argument for not publishing the rung is about what a
     # façade carry would owe (the CUR3 matchability row, and a word for
@@ -230,8 +232,6 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
     "Minted": ("argued", "NOT_CARRIED, the mint family (crates/pncad/tests/all.rs): a "
                          "consumer holds ids, never the mint log, and a snapshot refusal "
                          "crosses as its tag word"),
-    "PairingViolation": ("argued", "NOT_CARRIED, the analysis lane's interior residue "
-                                   "(crates/pncad/tests/all.rs)"),
     "ParamValue": ("argued", "NOT_CARRIED, a curated face of a different shape "
                              "(crates/pncad/tests/all.rs)"),
     "Qualifier": ("argued", "NOT_CARRIED, the naming interior (crates/pncad/tests/all.rs)"),

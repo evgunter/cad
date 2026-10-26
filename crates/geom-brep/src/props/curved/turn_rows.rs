@@ -151,22 +151,21 @@ fn cone_ellipse(span: (f64, f64), band: Band) -> Outcome {
 
 /// **The cone's ellipse door agrees with its old pair, but for the
 /// listed deltas**: the old pair read both halves at the smaller
-/// semi-axis `1`; the door now reads the turn between that floor and the
+/// semi-axis `1`; the door now reads the turn between the inf and the
 /// sup over the turn's defect, as certification does.
 ///
 /// **The expected deltas**, each listed, all with the defect at the fast
 /// side (`θ = π/2`, speed 16); the slow side (`θ = 0`, speed 1) does not
 /// move, and nothing moves between admitted and refused:
-/// - where the floor reads the defect `Zero` and the sup reads it in the
-///   band (`0.5·ε` of the floor's length, and `3·ε` and `5·ε` of the
-///   sup's), the arc was admitted and now escalates — over-wound and
-///   short alike, since neither bound settles whether the extent is a
-///   whole turn or short of one;
-/// - where the floor reads a short arc's headroom in the band and the sup
-///   reads it definitely positive (`3·ε` and `5·ε` short of the floor's
-///   length, `20·ε` and `30·ε` short of the sup's), the arc escalated and
-///   is now admitted: it is short of a turn in its parameter
-///   ([`geom_core::period::TurnUndecided::not_over_at_sup`]).
+/// - where the floor reads the defect `Zero` and both bounds over the
+///   defect read it in the band (`0.5·ε` of the floor's length, and `3·ε`
+///   and `5·ε` of the sup's), the arc was admitted and now escalates —
+///   over-wound and short alike, since neither bound settles whether the
+///   extent is a whole turn or short of one;
+/// - where the floor reads the defect in the band and the inf over the
+///   defect reads it definitely past (`3·ε` and `5·ε` of the floor's
+///   length, `20·ε` and `30·ε` of the sup's), the arc escalated and is
+///   now admitted short of a turn, or refused over one.
 #[test]
 fn the_cone_ellipse_door_agrees_with_the_old_pair() {
     let band = band();
@@ -188,6 +187,12 @@ fn the_cone_ellipse_door_agrees_with_the_old_pair() {
         ("fast", 1.0, -5.0),
         ("fast", 16.0, -20.0),
         ("fast", 16.0, -30.0),
+    ];
+    let refuses: [(&str, f64, f64); 4] = [
+        ("fast", 1.0, 3.0),
+        ("fast", 1.0, 5.0),
+        ("fast", 16.0, 20.0),
+        ("fast", 16.0, 30.0),
     ];
     let mut seen = 0;
     for (side, centre, sup) in [("fast", FRAC_PI_2, 16.0), ("slow", 0.0, 1.0)] {
@@ -211,6 +216,17 @@ fn the_cone_ellipse_door_agrees_with_the_old_pair() {
                         "{side} {k}: the listed delta, was {old:?}"
                     );
                     assert_eq!(new, Outcome::Admitted, "{side} {k}: the listed delta");
+                } else if refuses.contains(&(side, rate, k)) {
+                    seen += 1;
+                    assert!(
+                        matches!(old, Outcome::Escalated(_)),
+                        "{side} {k}: the listed delta, was {old:?}"
+                    );
+                    assert_eq!(
+                        new,
+                        Outcome::Refused(names[1]),
+                        "{side} {k}: the listed delta"
+                    );
                 } else {
                     assert_eq!(new, old, "{side} at rate {rate}, k = {k}: unlisted");
                 }
@@ -227,7 +243,7 @@ fn the_cone_ellipse_door_agrees_with_the_old_pair() {
     }
     assert_eq!(
         seen,
-        escalates.len() + admits.len(),
+        escalates.len() + admits.len() + refuses.len(),
         "every listed delta is a case"
     );
 }
