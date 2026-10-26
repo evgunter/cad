@@ -3039,12 +3039,24 @@ fn merged_sets(name: &StableName) -> Vec<&[StableName]> {
 /// vocabulary must be classified here before the suite compiles, so a
 /// new name-carrying segment cannot hide a merged face from the walk.
 fn embedded_names(seg: &RoleSeg) -> Vec<&StableName> {
-    use editor_core::Qualifier;
+    use editor_core::{Qualifier, Sense};
+    fn sensed(sense: &Sense) -> Vec<&StableName> {
+        match sense {
+            Sense::Through { entering } => entering.iter().map(AsRef::as_ref).collect(),
+            Sense::Enters | Sense::Leaves | Sense::Outside | Sense::Inside => Vec::new(),
+        }
+    }
     match seg {
+        RoleSeg::CrossingVertex { edge, sense } => std::iter::once(edge.as_ref())
+            .chain(sensed(sense))
+            .collect(),
+        RoleSeg::Crossing { edge, face, sense } => [edge.as_ref(), face.as_ref()]
+            .into_iter()
+            .chain(sensed(sense))
+            .collect(),
         RoleSeg::From { of: x, .. }
         | RoleSeg::SectionEdge { face: x, .. }
         | RoleSeg::SplitFragment { parent: x, .. }
-        | RoleSeg::CrossingVertex { edge: x, .. }
         | RoleSeg::OnToolVertex { of: x, .. }
         | RoleSeg::Instance { of: x, .. }
         | RoleSeg::InPart { of: x }
@@ -3060,9 +3072,6 @@ fn embedded_names(seg: &RoleSeg) -> Vec<&StableName> {
         | RoleSeg::Rim(x)
         | RoleSeg::HoleRim { of: x, .. } => vec![x.as_ref()],
         RoleSeg::Seam { a: x, b: y }
-        | RoleSeg::Crossing {
-            edge: x, face: y, ..
-        }
         | RoleSeg::TrimEdge {
             edge: x,
             support: y,
@@ -3072,7 +3081,10 @@ fn embedded_names(seg: &RoleSeg) -> Vec<&StableName> {
             support: y,
         }
         | RoleSeg::EndArc { vertex: x, edge: y } => vec![x.as_ref(), y.as_ref()],
-        RoleSeg::EdgeCrossing(run) => run.iter().map(|l| l.line.as_ref()).collect(),
+        RoleSeg::EdgeCrossing(run) => run
+            .iter()
+            .flat_map(|l| std::iter::once(l.line.as_ref()).chain(sensed(&l.sense)))
+            .collect(),
         RoleSeg::Merged(v) | RoleSeg::BandFace(v) => v.iter().collect(),
         RoleSeg::BandCross { edge, band } | RoleSeg::BandSlit { edge, band } => {
             std::iter::once(edge.as_ref()).chain(band).collect()
@@ -3080,8 +3092,7 @@ fn embedded_names(seg: &RoleSeg) -> Vec<&StableName> {
         RoleSeg::Fragment(Qualifier::Borders(v) | Qualifier::Keeps(v) | Qualifier::Ends(v)) => {
             v.iter().collect()
         }
-        RoleSeg::Fragment(Qualifier::OrderAlong { .. })
-        | RoleSeg::OutputBody
+        RoleSeg::OutputBody
         | RoleSeg::Cap(_)
         | RoleSeg::Lateral(_)
         | RoleSeg::RimEdge(..)

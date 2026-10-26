@@ -1602,12 +1602,13 @@ impl EulerOpError {
             Self::SplitParamNotInterior { verdict, .. } => format!(
                 "{}. {}",
                 match verdict {
-                    geom_brep::recourse::Refused::Zero(_) => {
-                        "a crossing lands on an end of its edge at this tolerance, not \
-                         strictly inside it"
-                    }
+                    geom_brep::recourse::Refused::Zero(_) => format!(
+                        "a crossing is not shown strictly inside its edge (margin {} m from an \
+                         end)",
+                        verdict.margin().readable()
+                    ),
                     geom_brep::recourse::Refused::Negative { .. } => {
-                        "a crossing lands outside its edge"
+                        "a crossing lands outside its edge".to_owned()
                     }
                 },
                 crate::split::split_param_ending(verdict.arm())
@@ -7435,6 +7436,19 @@ mod tests {
             ],
             other => panic!("a zero-band, an outside and an in-band split: {other:?}"),
         };
+        let zero_text = zero.to_string();
+        let printed = zero_text
+            .split_once("not shown strictly inside its edge (margin ")
+            .and_then(|(_, rest)| rest.split_once(" m from an end)"))
+            .map(|(v, _)| v.parse::<f64>().unwrap());
+        let EulerOpError::SplitParamNotInterior { verdict, .. } = &zero else {
+            panic!("the zero-band split: {zero:?}");
+        };
+        assert_eq!(
+            printed,
+            Some(value(verdict.margin())),
+            "the zero arm states its margin and claims no size: {zero_text}"
+        );
         for (err, want) in [zero, outside, undecided].iter().zip(want) {
             let text = err.to_string();
             assert!(

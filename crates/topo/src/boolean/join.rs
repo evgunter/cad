@@ -6521,20 +6521,13 @@ mod frame_dispatch_tests {
     }
 
     /// A cylinder about `axis` through `origin`. The chart's `u_ref` is
-    /// any unit vector across the axis — this dispatch never reads it,
-    /// and picking the less-aligned coordinate direction keeps it from
-    /// being poison on an axis-aligned pose.
+    /// any unit vector across the axis: this dispatch never reads it.
     fn cylinder_at(origin: Point3<f64>, axis: Vec3<f64>, radius: f64) -> geom::Surface<f64> {
-        let seed = if axis.x.abs() < 0.5 {
-            Vec3::new(1.0, 0.0, 0.0)
-        } else {
-            Vec3::new(0.0, 1.0, 0.0)
-        };
         geom::Surface::Cylinder {
             origin,
             axis,
             radius,
-            u_ref: axis.cross(seed).normalize(),
+            u_ref: axis.orthonormal_basis().0,
         }
     }
 
@@ -7065,12 +7058,7 @@ mod frame_dispatch_tests {
             };
             let station = 3.0_f64.sqrt(); // sqrt((2-1)(2+1))
             // A frame-independent radial direction across the axis.
-            let u = if axis.cross(Vec3::new(1.0, 0.0, 0.0)).norm() > 0.5 {
-                axis.cross(Vec3::new(1.0, 0.0, 0.0)).normalize()
-            } else {
-                axis.cross(Vec3::new(0.0, 1.0, 0.0)).normalize()
-            };
-            let v = axis.cross(u);
+            let (u, v) = axis.orthonormal_basis();
             for st in [station, -station] {
                 let own = c + axis * st;
                 for i in 0..8 {
