@@ -27,7 +27,7 @@
 
 use geom::Curve3;
 use geom::Surface;
-use geom_core::period::{Bounded, Exact, Extent, NotForward, TurnRate, TurnRows};
+use geom_core::period::{Exact, Extent, NotForward, TurnRate, TurnRows};
 use geom_core::{
     Band, Decide, InfSpeed, LeveredUnitError, Margin, Point3, Real, RigidMotion, Sign,
     UNIT_DIRECTION_ARM, UnitVec3, UnitVec3Error, Vec3,
@@ -2415,9 +2415,8 @@ fn require_cone_conic_spans<T: Decide>(
                     (e.t0, e.t1),
                     floor,
                     |extent| {
-                        let inf = geom::carrier_speed::turn_defect_speed_lo(ellipse, e.t0, extent);
-                        let sup = geom::carrier_speed::turn_defect_speed_hi(ellipse, e.t0, extent);
-                        (Bounded::new(inf, sup), rows)
+                        let rate = geom::carrier_speed::turn_defect_rate(ellipse, e.t0, extent);
+                        (rate, rows)
                     },
                     "props_cone_ellipse_span_forward",
                     band,

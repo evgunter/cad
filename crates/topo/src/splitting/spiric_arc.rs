@@ -145,14 +145,7 @@ impl<T: Decide> SpiricArc<T> {
         let o = self.oval;
         let h = (p.vb - p.va).abs() * T::from_f64(0.5);
         let vm = geom::mid_param(p.va, p.vb);
-        let (sm, cm) = vm.sin_cos();
-        let one = T::one();
-        let rho = (
-            o.major + o.minor * (cm - h).max(T::zero() - one),
-            o.major + o.minor * (cm + h).min(one),
-        );
-        let sin_max = (sm.abs() + h).min(one);
-        let (speed, accel) = geom::spiric_rate_bounds(o.minor, o.offset, rho, sin_max);
+        let (speed, accel) = geom::spiric_window_rate_bounds((o.major, o.minor, o.offset), vm, h);
         Bounds {
             h,
             center: self.point(vm),

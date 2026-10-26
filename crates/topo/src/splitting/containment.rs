@@ -121,9 +121,7 @@
 //! whole band ([`geom_core::k_stats::straddle`]).
 
 use geom_brep::recourse::{LeverOnly, Reading, RefusedArm, RefusedSide, SizedDecision, SizedPass};
-use geom_core::period::{
-    Bounded, Exact, Extent, Period, Turn, TurnRow, TurnRows, TurnUndecided, Within,
-};
+use geom_core::period::{Exact, Extent, Period, Turn, TurnRow, TurnRows, TurnUndecided, Within};
 use geom_core::{Band, Decide, Indeterminate, Margin, MarginDiag, Point3, Sign, Vec3};
 
 use crate::body::Body;
@@ -929,9 +927,8 @@ impl<T: Decide> ConicArc<T> {
         };
         // A circle's two levers are one, its radius. An ellipse's are
         // certification's: the inf and the sup of the speed over the
-        // turn's defect itself
-        // ([`geom::carrier_speed::turn_defect_speed_lo`],
-        // [`geom::carrier_speed::turn_defect_speed_hi`]), bounds on the
+        // turn's defect itself ([`geom::carrier_speed::turn_defect_rate`]),
+        // bounds on the
         // speed anywhere on it and tight as it shrinks, so a certified
         // window (its ends pinned within the band of its vertex) is never
         // read as over-wound.
@@ -943,9 +940,8 @@ impl<T: Decide> ConicArc<T> {
                 band,
             ),
             ConicKind::Ellipse => {
-                let inf = geom::carrier_speed::turn_defect_speed_lo(carrier, t0, extent);
-                let sup = geom::carrier_speed::turn_defect_speed_hi(carrier, t0, extent);
-                one_turn.turn(rows, extent, Bounded::new(inf, sup), band)
+                let rate = geom::carrier_speed::turn_defect_rate(carrier, t0, extent);
+                one_turn.turn(rows, extent, rate, band)
             }
         });
         // An arc kept on an unsettled turn rests on no escalation: its

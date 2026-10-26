@@ -7695,7 +7695,20 @@ pub(crate) enum Along {
 /// has the length its ends give it), and, for a span wholly on the axis (a
 /// pole or apex vertex read over no length), at the farthest its carrier
 /// reaches over its own interval; only a carrier wholly on the axis has
-/// none. The tube angle at the torus's minor radius; the latitude at the
+/// none.
+///
+/// **What the azimuth lever is.** A point's azimuth rate is its distance
+/// from the axis, so over the span the rate runs from its inf (zero, on
+/// an edge through the axis) to its sup, the span's largest reach. Three
+/// samples of the reach are a floor on that sup, not on the rate
+/// everywhere: the lever is the least the span's farthest point moves per
+/// radian. That is the side a placement needs and no more, since every
+/// outcome of its marks names a placement of the same curve: either side
+/// of a decided mark, or the tie-break on one in band, are whole turns
+/// apart ([`Placement`], *What holds across scalars*). The lever only
+/// sets how wide the band about each mark reads, and a floor never
+/// decides a mark apart that the span's largest movement would leave in
+/// band. The tube angle at the torus's minor radius; the latitude at the
 /// sphere's radius. A chart without one of those angles carries `1` in
 /// its slot, which no arm reads (no arm places a tube angle off a torus,
 /// or a latitude off a sphere).
