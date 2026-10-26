@@ -36,7 +36,13 @@ ambiguity band `(1e-12, 1e-11)`. The bounds read:
   `tier3_tests::a_far_thin_curved_body_is_read_by_its_exact_volume`,
   `near_circular_sections`, `reach_cone_split`, the sphere zone row).
 
-One row refuses outright: `review_m3_pr2::r5_crossing_vertex_on_is_declared_not_measured`,
+At `eps 1e-6` the same escalation reaches two rows:
+`sym11_far_placement_rows::sym11_the_bare_lifts_answer_typed_at_every_placement`
+(a cylinder at a far placement, 3.3e-6) and
+`split_edge_on_faces_poses::an_edge_at_the_zero_bands_edge_refuses_typed_and_its_lever_builds`
+(a plane, at the band's edge by construction). `mesh::all
+perf1_torus_sizing::torus_sizing_sweep_is_sound_tight_and_on_the_ideal`
+refuses at 1e-12 (a torus limb bound of 1.75e-11). One row refuses outright: `review_m3_pr2::r5_crossing_vertex_on_is_declared_not_measured`,
 a plane limb bound of 1.47e-11. One census moves:
 `shallow_arc_extrude_grid_interval` goes from `(24, 21, 15, 0)` to
 `(22, 21, 17, 0)`. The cone rows that refused `NoOffsetBound` at the

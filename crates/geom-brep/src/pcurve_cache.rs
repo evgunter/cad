@@ -3231,7 +3231,7 @@ fn twin_span_hulls<T: geom_core::CertifiedBounds>(
                         .map_or_else(
                             |()| {
                                 meters
-                                    .apex_root(point(f_sup), z)
+                                    .apex_root(point(f_sup))
                                     .map_or(f64::INFINITY, |m| upper(m, true))
                             },
                             |m| upper(m, true),

@@ -1535,20 +1535,15 @@ impl<S: Real> Meters<S> {
         })
     }
 
-    /// **The apex root**: on a cone, `√|f|` bounds the distance of a part
-    /// whose axial floor on the stored nappe is non-negative, wherever
-    /// the lever does not decide positive (a part reaching the apex).
-    /// `f = a·b` with `a = ρ cos α − σz sin α`, the distance in the
-    /// meridian half-plane from the generator line, which lies on the
-    /// cone, and `b = ρ cos α + σz sin α ≥ |a|` where `ρ ≥ 0` and
-    /// `σz ≥ 0`, so `a² ≤ |f|`. `None` off the cone, or where the floor
-    /// is negative (the other nappe).
-    pub(crate) fn apex_root(self, f: S, z: (f64, f64)) -> Option<S> {
-        let Self::Cone { nappe, .. } = self else {
-            return None;
-        };
-        let floor = if nappe == Nappe::Opening { z.0 } else { -z.1 };
-        (floor >= 0.0).then(|| f.sqrt())
+    /// **The apex root**: on a cone, `√|f|` bounds a part's distance from
+    /// the cone's implicit surface wherever the lever does not decide
+    /// positive (a part reaching the apex). In the meridian half-plane
+    /// `f = a·b`, with `a = ρ cos α − z sin α` and `b = ρ cos α + z sin α`
+    /// the distances from the two generator lines, both on the implicit
+    /// cone, so the distance is at most `min(|a|, |b|) ≤ √|f|`. `None` off
+    /// the cone.
+    pub(crate) fn apex_root(self, f: S) -> Option<S> {
+        matches!(self, Self::Cone { .. }).then(|| f.sqrt())
     }
 
     /// An upper bound in metres on the distance of a part whose `|f|` is
@@ -1780,11 +1775,7 @@ pub(super) fn net_incidence<T: Decide>(
                     sector_refused(j, SectorChannel::Lever),
                 )
             })
-            .or_else(|refusal| {
-                apex.then(|| meters.apex_root(f, span.z))
-                    .flatten()
-                    .ok_or(refusal)
-            })?;
+            .or_else(|refusal| apex.then(|| meters.apex_root(f)).flatten().ok_or(refusal))?;
         incidence = incidence.max(disp);
     }
     let Some(rho_floor) = rho_floor else {
