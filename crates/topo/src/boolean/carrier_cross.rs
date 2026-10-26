@@ -23,24 +23,22 @@
 //! [`super::reduce`]'s all-`Elsewhere` reading: a span whose interior
 //! meets the boundary nowhere, with both ends outside, lies outside.
 //!
-//! **It reads, it does not solve.** The edge and each boundary edge are
-//! two carrier spans, and whether and where they meet is
-//! [`geom_brep::curve_pair::meet`]'s one reading. A meeting it places on
-//! the edge's interior is a crossing; one at the edge's end is the
-//! endpoint arms' question. Where the two read as one curve, the shared
-//! run's ends are vertices of the boundary or the edge's own ends, so a
-//! boundary vertex the point-on-span reading ([`Span::contact`]) puts on
-//! the edge's interior is a crossing too. Each crossing is then placed on
-//! the boundary entity it lands on by the face's boundary pre-pass, which
-//! names that entity; a crossing the pre-pass puts off every boundary
-//! entity is two readings that disagree, and answers
-//! [`BoundaryCrossing::Unread`]. So does every refusal `meet` types past
-//! the band's own escalation, and a face holding a lone vertex (a pierce
-//! ring), which has no boundary pre-pass: the caller keeps its frontier
-//! door. A refusal's meetings are not read: a stretch that escalates
-//! holds meetings whose stretch is undecided.
+//! **It reads, it does not solve.** Whether and where the edge meets the
+//! face's boundary is the curve × face table's boundary pass
+//! ([`geom_brep::curve_face::boundary`]), which reads each boundary
+//! vertex on the edge and each boundary edge against it through the
+//! curve-pair table. A meeting it places on the edge's interior is a
+//! crossing; one at the edge's end is the endpoint arms' question. Each
+//! crossing is then placed on the boundary entity it lands on by the
+//! face's boundary pre-pass, which names that entity; a crossing the
+//! pre-pass puts off every boundary entity is two readings that
+//! disagree, and answers [`BoundaryCrossing::Unread`]. So does every
+//! refusal the pass types past the band's own escalation, and a face
+//! holding a lone vertex (a pierce ring), which has no boundary pre-pass:
+//! the caller keeps its frontier door.
 
-use geom_brep::curve_pair::{Hit, MeetFault, Span, meet};
+use geom_brep::curve_face::{self, Boundary, BoundaryRefusal};
+use geom_brep::curve_pair::{MeetFault, Span};
 use geom_core::{Band, Decide, Point3};
 
 use super::contain::FaceContainment;
@@ -96,57 +94,17 @@ pub(super) fn boundary_crossing<T: Decide>(
     band: Band,
 ) -> Result<BoundaryCrossing<T>, BooleanError> {
     let swept = Span::new(carrier, (t0, t1));
-    let face_data = y
-        .get_face(face)
-        .ok_or(BooleanError::ClassificationInvariant {
-            what: "on-carrier crossing: face lost",
-        })?;
-    // Each crossing's parameter on the edge.
-    let mut crossings: Vec<T> = Vec::new();
-    for member in y.face_boundary_linked(face, face_data) {
-        let BoundaryMember::Edge { he, half, ek, edge } = member else {
-            return Ok(BoundaryCrossing::Unread);
-        };
-        let vertex = y.linked_vertex_point(half.start, EntityId::HalfEdge(he), "start");
-        match vertex_on_span(&swept, vertex, band) {
-            Ok(t) => crossings.extend(t),
-            Err(refusal) => return vertex_refusal(refusal),
-        }
-        let CurveGeom::Certified(other) = y.edge_curve_linked(ek, edge) else {
-            return Ok(BoundaryCrossing::Unread);
-        };
-        let met = match meet(&swept, &Span::new(other.carrier(), other.params()), band) {
-            Ok(met) => met,
-            Err(refusal) => {
-                return match refusal.fault {
-                    MeetFault::Escalated(diag) => Err(escalated(diag)),
-                    MeetFault::Unsettled(_) | MeetFault::Unsupported { .. } => {
-                        Ok(BoundaryCrossing::Unread)
-                    }
-                    MeetFault::Desync => Err(BooleanError::ClassificationInvariant {
-                        what: "on-carrier crossing: a carrier the meeting table misread",
-                    }),
-                    MeetFault::Contradiction { .. } => Err(BooleanError::ClassificationInvariant {
-                        what: "on-carrier crossing: two readings of the meeting pose contradict",
-                    }),
-                };
-            }
-        };
-        if met.shared.is_some() {
-            continue;
-        }
-        for m in &met.points {
-            match m.on_a {
-                Hit::On { t, .. } => crossings.push(t),
-                Hit::End(_) => {}
-            }
-        }
-    }
-    // The first crossing in the boundary's walk order: the sweep splits
-    // there and re-examines both fragments against this face, so every
-    // other one is found again on them.
-    let Some(&t) = crossings.first() else {
-        return Ok(BoundaryCrossing::Clear);
+    let Some(edges) = boundary_spans(y, face)? else {
+        return Ok(BoundaryCrossing::Unread);
+    };
+    let edges: Vec<_> = edges
+        .iter()
+        .map(|(start, curve)| (*start, Span::new(curve.carrier(), curve.params())))
+        .collect();
+    let t = match curve_face::boundary(&swept, &edges, band) {
+        Ok(Boundary::Meets { t, .. }) => t,
+        Ok(Boundary::Along { .. } | Boundary::Clear) => return Ok(BoundaryCrossing::Clear),
+        Err(refusal) => return boundary_refusal(refusal).map(|()| BoundaryCrossing::Unread),
     };
     let p = carrier.eval(t);
     Ok(
@@ -159,39 +117,62 @@ pub(super) fn boundary_crossing<T: Decide>(
     )
 }
 
-/// **Whether the swept span holds a boundary vertex on its interior**:
-/// the vertex read by [`Span::contact`] at its foot on the swept carrier
-/// ([`geom::Curve3::foot`]), `Some` of the parameter where it is on the
-/// interior. The foot, not the carrier's [`geom::Curve3::param_near`]: on
-/// an ellipse that is the angle of the point's unit-coordinate image,
-/// whose point lies up to `(1 + a/b)·ε` from a vertex `ε` off the
-/// carrier, which the band would read off it.
-fn vertex_on_span<T: Decide>(
-    swept: &Span<'_, T>,
-    vertex: geom_core::Point3<T>,
-    band: Band,
-) -> Result<Option<T>, geom::CarrierRefusal> {
-    let (t0, t1) = swept.params();
-    Ok(
-        match swept.contact(vertex, geom::mid_param(t0, t1), band)? {
-            Some(Hit::On { t, .. }) => Some(t),
-            Some(Hit::End(_)) | None => None,
-        },
-    )
+/// A boundary edge as the boundary pass reads it: its half-edge's start
+/// point and its certified curve.
+pub(super) type BoundaryEdge<T> = (Point3<T>, geom_brep::EdgeCurve<T>);
+
+/// `face`'s boundary edges in its walk order, each as its half-edge's
+/// start point and its certified curve: the boundary pass's input
+/// ([`curve_face::boundary`]). `None` where the boundary holds a lone
+/// vertex (a pierce ring) or an edge with no certified curve, which the
+/// pass cannot read.
+///
+/// # Errors
+///
+/// [`BooleanError::ClassificationInvariant`] where `face` does not
+/// resolve.
+///
+/// # Panics
+///
+/// As [`boundary_crossing`]'s.
+pub(super) fn boundary_spans<T: Decide>(
+    y: &Body<T>,
+    face: FaceKey,
+) -> Result<Option<Vec<BoundaryEdge<T>>>, BooleanError> {
+    let face_data = y
+        .get_face(face)
+        .ok_or(BooleanError::ClassificationInvariant {
+            what: "boundary pass: face lost",
+        })?;
+    let mut edges = Vec::new();
+    for member in y.face_boundary_linked(face, face_data) {
+        let BoundaryMember::Edge { he, half, ek, edge } = member else {
+            return Ok(None);
+        };
+        let start = y.linked_vertex_point(half.start, EntityId::HalfEdge(he), "start");
+        let CurveGeom::Certified(curve) = y.edge_curve_linked(ek, edge) else {
+            return Ok(None);
+        };
+        edges.push((start, curve.clone()));
+    }
+    Ok(Some(edges))
 }
 
-/// A point-on-span refusal of the vertex reading: an escalation is this
-/// module's, and a spline that cannot be read is not read.
-fn vertex_refusal<T: geom_core::Real>(
-    refusal: geom::CarrierRefusal,
-) -> Result<BoundaryCrossing<T>, BooleanError> {
+/// A boundary pass's refusal: an escalation is this module's, a reading
+/// that could not run is `Ok` (nothing is known), and a misread is a
+/// kernel fault.
+pub(super) fn boundary_refusal(refusal: BoundaryRefusal) -> Result<(), BooleanError> {
     match refusal {
-        geom::CarrierRefusal::Escalated(diag) | geom::CarrierRefusal::Straddle(diag) => {
-            Err(escalated(diag))
+        BoundaryRefusal::Escalated(diag) => Err(escalated(diag)),
+        BoundaryRefusal::Unread(_) => Ok(()),
+        BoundaryRefusal::Fault(MeetFault::Contradiction { .. }) => {
+            Err(BooleanError::ClassificationInvariant {
+                what: "boundary pass: two readings of the meeting pose contradict",
+            })
         }
-        geom::CarrierRefusal::Exhausted | geom::CarrierRefusal::Unbounded => {
-            Ok(BoundaryCrossing::Unread)
-        }
+        BoundaryRefusal::Fault(_) => Err(BooleanError::ClassificationInvariant {
+            what: "boundary pass: a carrier the meeting table misread",
+        }),
     }
 }
 
@@ -212,45 +193,12 @@ mod crossing_rows {
     //! wall sheet's rim, which no vertex projects onto. (Coaxial
     //! iso-curves are found by either kind of candidate; this is the row
     //! that needs the meeting reading.)
-    use super::{BoundaryCrossing, boundary_crossing, vertex_on_span};
+    use super::{BoundaryCrossing, boundary_crossing};
     use crate::boolean::contain::FaceContainment;
     use crate::boolean::{BooleanError, Operand};
     use crate::test_support_fixtures::{CylFrame, cyl_wall_sheet};
     use geom::Curve3;
-    use geom_brep::curve_pair::Span;
     use geom_core::{Band, Point3, Tol, Vec3};
-
-    /// **A vertex within the band of a thin ellipse is read on it.** An
-    /// ellipse of semi-axes `a/b` from 100 to 1000, and a vertex half the
-    /// band's zero off it along its in-plane normal at three parameters
-    /// across the span. Read at the ellipse's foot it is `On`; read at the
-    /// angle of its unit-coordinate image (`param_near`) its gap is about
-    /// `(1 + a/b)` times that, which the band decides off. Red on the
-    /// `param_near` reading.
-    #[test]
-    fn a_vertex_in_the_band_of_a_thin_ellipse_is_on_it() {
-        let band = Band::linear(Tol::witness()).unwrap();
-        let z = band.zero();
-        for ratio in [100.0, 1e3] {
-            let thin = Curve3::Ellipse {
-                center: Point3::new(0.2, -0.1, 0.4),
-                axis: Vec3::unit_z(),
-                semi_u: ratio,
-                semi_v: 1.0,
-                u_ref: Vec3::unit_x(),
-            };
-            let swept = Span::new(&thin, (0.5, 2.5));
-            for t in [0.9, 1.3, 2.1] {
-                let (p, d) = thin.ders1(t);
-                let normal = Vec3::unit_z().cross(d).normalize();
-                let vertex = p + normal * (0.5 * z);
-                let on = vertex_on_span(&swept, vertex, band)
-                    .unwrap_or_else(|e| panic!("{ratio} at {t}: {e:?}"));
-                let at = on.unwrap_or_else(|| panic!("{ratio} at {t}: read off"));
-                assert!((at - t).abs() < 1e-6, "{ratio} at {t}: {at}");
-            }
-        }
-    }
 
     #[test]
     fn a_tilted_circle_meets_a_rim_no_vertex_projects_onto() {
