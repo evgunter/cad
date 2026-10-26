@@ -229,20 +229,25 @@ pub fn placed(
 }
 
 /// [`placed`] of any body read — an operation's port, an instance's
-/// copies.
+/// copy. The product is then the world's copies
+/// ([`editor_core::test_support::assemble_world_copies`]).
 pub fn placed_read(
     doc: &Doc<ProfileProgram>,
     read: pncad::document::Operand,
     tol: Tol,
 ) -> (Doc<ProfileProgram>, RecipeNodeId) {
-    inserted(
+    let (doc, placement) = inserted(
         doc,
         Node::place(
-            vec![pncad::document::BodyRead::plain(read)],
+            pncad::document::BodyRead::plain(read),
             pncad::document::Operand::Var(pncad::document::VarId::WORLD),
             pncad::document::stand().bundle(),
         ),
         tol,
+    );
+    (
+        editor_core::test_support::assemble_world_copies(doc, tol),
+        placement,
     )
 }
 
@@ -278,7 +283,7 @@ pub fn against_in(
     inserted(
         doc,
         Node::place(
-            vec![pncad::document::BodyRead::plain(body)],
+            pncad::document::BodyRead::plain(body),
             pncad::document::Operand::Var(space),
             placed.bundle(),
         ),
@@ -504,7 +509,7 @@ pub fn boss_on_block(label: &str, tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeI
     let (doc, _) = inserted(
         &doc,
         Node::place(
-            vec![pncad::document::BodyRead::plain(boss_read)],
+            pncad::document::BodyRead::plain(boss_read),
             pncad::document::Operand::Var(pncad::document::VarId::WORLD),
             at.bundle(),
         ),

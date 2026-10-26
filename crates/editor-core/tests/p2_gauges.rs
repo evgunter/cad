@@ -25,11 +25,11 @@ use crate::wire::doctored;
 use editor_core::{
     CapEnd, Coord, Dimension, DocEdit, DocRef, DocumentId, EvalOptions, Evaluation, Formula, Frame,
     FreeValue, FreeVar, Maintenance, MateRef, MeasurePrimitive, Node, PartResolver, PersistError,
-    ProfileDoc, ProfileProgram, RecipeNodeId, SitedFace, SitedRef, StableName, TargetAxis,
-    ValuePayload, VarId, VarName, apply, apply_replayed, evaluate, load, product, save,
+    ProfileDoc, ProfileProgram, RecipeNodeId, SitedFace, StableName, TargetAxis, ValuePayload,
+    VarId, VarName, apply, apply_replayed, evaluate, load, product, save,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
-use fixture::{ang, head, insert, len, offset_of, on_frame, run, solve, step};
+use fixture::{ang, head, head_at, insert, len, offset_of, on_frame, run, solve, step};
 use geom_core::linalg::Affine3;
 use geom_core::{Bounds, Interval, Tol};
 use topo::Body;
@@ -93,44 +93,31 @@ impl Parts {
         with_resolver(self.store.clone())
     }
     /// The base's top cap.
-    pub(crate) fn base_cap(&self, base: RecipeNodeId) -> StableName {
+    pub(crate) fn base_cap(&self, base: RecipeNodeId) -> crate::fixture::resolver::PartName {
         in_part(base, self.base_body, CapEnd::End)
     }
     /// The top block's bottom cap.
-    pub(crate) fn top_cap(&self, top: RecipeNodeId) -> StableName {
+    pub(crate) fn top_cap(&self, top: RecipeNodeId) -> crate::fixture::resolver::PartName {
         in_part(top, self.top_body, CapEnd::Start)
     }
     /// The top block's upper cap, which a second block seats on.
-    pub(crate) fn top_upper_cap(&self, top: RecipeNodeId) -> StableName {
+    pub(crate) fn top_upper_cap(&self, top: RecipeNodeId) -> crate::fixture::resolver::PartName {
         in_part(top, self.top_body, CapEnd::End)
     }
 }
 
-/// **`name`'s world copy by `by`**: the one name in the gathered
-/// product's table that is `by`'s copy of `name` — `name` itself where
-/// `by` minted it, or `name` under the `Placed` qualifier of the
-/// placement `by` ([`StableName::copy_of`]).
+/// **`name`'s product name, read at `by`** ([`fixture::product_name`]).
 fn copy_name(
     doc: &ProfileDoc,
     ev: &Evaluation<f64>,
     name: &StableName,
     by: RecipeNodeId,
 ) -> StableName {
-    let (_, names) =
-        editor_core::product_named(doc, ev, Tol::witness()).expect("the product gathers");
-    let copies: Vec<StableName> = names
-        .iter()
-        .map(|(n, _)| n.clone())
-        .filter(|n| n.copy_of() == Some((by, name)) || (n == name && name.node == by))
-        .collect();
-    let [copy] = copies.as_slice() else {
-        panic!("{name:?} has one world copy by {by:?}, not {copies:?}");
-    };
-    copy.clone()
+    fixture::product_name(doc, ev, (by, name.clone()))
 }
 
-/// [`fixture::seat::assert_seated`] over the world copies of `a` by
-/// `a_by` and of `b` by `b_by` ([`copy_name`]).
+/// [`fixture::seat::assert_seated`] over the product names of `a` read
+/// at `a_by` and of `b` read at `b_by` ([`copy_name`]).
 fn assert_seated(
     doc: &ProfileDoc,
     ev: &Evaluation<f64>,
@@ -143,19 +130,19 @@ fn assert_seated(
     fixture::seat::assert_seated(doc, ev, &a, &b, control, what);
 }
 
-/// [`fixture::seat::seat_map`] over the world copies of `a` and `b`,
-/// each by the instance that minted it.
+/// [`fixture::seat::seat_map`] over the product names of `a` and `b`,
+/// each read where it is read.
 fn seat_map(
     doc: &ProfileDoc,
     ev: &Evaluation<f64>,
-    a: &StableName,
-    b: &StableName,
+    a: &(impl fixture::Sited + Clone),
+    b: &(impl fixture::Sited + Clone),
 ) -> Affine3<f64> {
     fixture::seat::seat_map(
         doc,
         ev,
-        &copy_name(doc, ev, a, a.node),
-        &copy_name(doc, ev, b, b.node),
+        &fixture::product_name(doc, ev, a.clone()),
+        &fixture::product_name(doc, ev, b.clone()),
     )
 }
 
@@ -384,7 +371,6 @@ pub(crate) fn body_of<T: geom_core::Decide>(ev: &Evaluation<T>, id: RecipeNodeId
         .payload
     {
         ValuePayload::Body(b) => Arc::clone(b),
-        ValuePayload::Copies(c) => one(&c.bodies),
         ValuePayload::Instances(bodies) => one(bodies),
         other => panic!("{id:?} is a {}, not a body", other.kind_name()),
     }
@@ -469,6 +455,21 @@ fn an_inserted_instance_sits_at_the_origin_and_a_constraint_places_a_loose_one_r
     let p = parts("p2-door");
     let o = p.opts();
     let empty = ProfileDoc::empty(DocumentId::derive("p2-door"), Tol::witness());
+    // Inserted through the door alone: the log below is these edits,
+    // and a fixture insert would write the product beside them.
+    let insert = |doc: ProfileDoc, node| {
+        let applied = apply(
+            &doc,
+            &DocEdit::InsertNode {
+                node: Box::new(node),
+                fresh: Vec::new(),
+            },
+            Tol::witness(),
+        )
+        .expect("an instance inserts");
+        let id = applied.record.minted.expect("an insert mints its node");
+        (applied.doc, id)
+    };
     let (doc, base) = insert(empty.clone(), crate::fixture::mated_instance(p.base));
     assert_eq!(
         fixture::bundle(&doc, base).len(),
@@ -671,8 +672,8 @@ fn a_loose_copy_is_gathered_and_measured_against_nothing_outside_it() {
     let (doc, top) = pinned(doc, p.top, literal([0.0, 0.0, BASE_HEIGHT]), &o);
     let measure = || Node::Measure {
         primitive: MeasurePrimitive::Distance {
-            a: SitedRef::at_mint(p.base_cap(base)).into(),
-            b: SitedRef::at_mint(p.top_cap(top)).into(),
+            a: crate::fixture::sited_ref(p.base_cap(base)).into(),
+            b: crate::fixture::sited_ref(p.top_cap(top)).into(),
         },
     };
     // Both in the world: the measure answers.
@@ -895,7 +896,7 @@ pub(crate) fn stacked(
     onto: SitedFace,
 ) -> (ProfileDoc, RecipeNodeId) {
     let (doc, copy) = insert(doc, fixture::mated_instance(part));
-    let mover = head(in_part(copy, part_body, CapEnd::Start));
+    let mover = head_at(copy, in_part(copy, part_body, CapEnd::Start));
     let (doc, _) = seat_on(doc, copy, mover, onto, [0.0, 0.0]);
     (doc, copy)
 }
@@ -1074,10 +1075,10 @@ fn inline_lands_verbatim_at_the_identity_and_composes_the_values_at_any_other_po
 
 /// **A face a seat reads crosses the seam with its head**: a kept top
 /// seated on a cut base, its target reading the base's top face, crosses
-/// split — the head re-anchors through the instance qualifier, and the
-/// face it names in the new part is the same face — and inline carries
-/// it back onto the new placement's copy, which flatten unwraps onto the
-/// inner instance. The seat solves on each document with no fault.
+/// split — the head is read at the instance, under the base part's own
+/// name, which every copy of it carries — and inline carries it back
+/// onto the new placement's copy, which flatten moves onto the inner
+/// instance. The seat solves on each document with no fault.
 #[test]
 fn a_face_target_crosses_split_and_inline_with_its_head() {
     let p = parts("p2-face-crossing");
@@ -1104,10 +1105,12 @@ fn a_face_target_crosses_split_and_inline_with_its_head() {
     let [side] = fixture::face_reads(&out.remainder, target)[..] else {
         panic!("the crossed target reads one face: {crossed:?}");
     };
+    let face = p.base_cap(base).name;
+    let head = fixture::side_head(&out.remainder, side);
     assert_eq!(
-        fixture::side_head(&out.remainder, side).name.node,
-        out.instance,
-        "the head re-anchors through the instance"
+        (head.at, head.name.into_name()),
+        (out.instance, face.clone()),
+        "the head is read at the instance, under the base's own name"
     );
     let ev = run(&out.remainder, &store_opts);
     assert!(ev.node_error(top).is_none(), "{:?}", ev.node_error(top));
@@ -1126,10 +1129,11 @@ fn a_face_target_crosses_split_and_inline_with_its_head() {
     let [side] = fixture::face_reads(&back.doc, host.to)[..] else {
         panic!("the host target reads one face: {host:?}");
     };
+    let head = fixture::side_head(&back.doc, side);
     assert_eq!(
-        fixture::side_head(&back.doc, side).name.node,
-        back.placement,
-        "the head re-anchors on the new placement's copy"
+        (head.at, head.name.into_name()),
+        (back.placement, face.clone()),
+        "the head is read at the new placement's copy"
     );
     let ev = run(&back.doc, &o);
     assert!(
@@ -1142,10 +1146,11 @@ fn a_face_target_crosses_split_and_inline_with_its_head() {
     let [side] = fixture::face_reads(&flat, host.to)[..] else {
         panic!("the flattened target reads one face: {host:?}");
     };
+    let head = fixture::side_head(&flat, side);
     assert_eq!(
-        fixture::side_head(&flat, side).name.node,
-        back.node_map[&out.node_map[&base]],
-        "flattened, the head unwraps onto the inner instance"
+        (head.at, head.name.into_name()),
+        (back.node_map[&out.node_map[&base]], face),
+        "flattened, the head is read at the inner instance"
     );
     let ev = run(&flat, &o);
     assert!(
@@ -1271,6 +1276,7 @@ fn a_verbatim_split_keeps_every_bundle() {
 fn an_inline_at_the_identity_keeps_every_bundle() {
     let (p, part, _) = pair_beside_a_base("p2-carry-inline");
     let mut store = p.store.clone();
+    let part = crate::fixture::assemble_world_copies(part);
     let part_ref = store.insert(part.clone(), Tol::witness());
     let host = ProfileDoc::empty(DocumentId::derive("p2-carry-inline-host"), Tol::witness());
     let (host, instance) = fixture::insert_pinned(

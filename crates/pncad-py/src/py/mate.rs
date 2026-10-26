@@ -934,6 +934,7 @@ impl Maintenance {
                 readers.first().map(|reader| NodeId(reader.id()))
             }
             d::Maintenance::StrandedAppearance { .. }
+            | d::Maintenance::ProductOutsideWorld { .. }
             | d::Maintenance::AnonymousVarRemoved { .. } => None,
         }
     }
@@ -957,6 +958,7 @@ impl Maintenance {
             }
             d::Maintenance::StrandedRead { .. }
             | d::Maintenance::StrandedSpace { .. }
+            | d::Maintenance::ProductOutsideWorld { .. }
             | d::Maintenance::ValueDropped { .. }
             | d::Maintenance::AnonymousVarRemoved { .. } => Ok(None),
         }

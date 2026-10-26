@@ -81,11 +81,7 @@ fn resting(rest: Rest, lift: f64) -> (ProfileDoc, SitedRef, SitedRef) {
         Rest::Vertex => vname(prism, RoleSeg::CapVertex(CapEnd::End, apex)),
     };
     let top = fname(block, RoleSeg::Cap(CapEnd::End));
-    (
-        doc,
-        SitedRef::new(p, top.in_copy(p)),
-        SitedRef::new(q, cell.in_copy(q)),
-    )
+    (doc, SitedRef::new(p, top), SitedRef::new(q, cell))
 }
 
 /// A `Gap(outer, inner)` and a `Gap = 0` over it: the document after
@@ -250,14 +246,8 @@ mod real_bodies {
             let (doc, a, b, pa, pb) = two_blocks([1.0 + dx, 0.98, 0.98]);
             let ca = vpiece(&doc, a, 0, 2);
             let cb = vpiece(&doc, b, 0, 0);
-            let corner = SitedRef::new(
-                pa,
-                vname(a, RoleSeg::CapVertex(CapEnd::End, ca)).in_copy(pa),
-            );
-            let tip = SitedRef::new(
-                pb,
-                vname(b, RoleSeg::CapVertex(CapEnd::Start, cb)).in_copy(pb),
-            );
+            let corner = SitedRef::new(pa, vname(a, RoleSeg::CapVertex(CapEnd::End, ca)));
+            let tip = SitedRef::new(pb, vname(b, RoleSeg::CapVertex(CapEnd::Start, cb)));
             near(
                 gap(&doc, &corner, &tip),
                 want,
@@ -265,7 +255,7 @@ mod real_bodies {
             );
             // The block's +x/+y strut edge at (1, 1) reads the vertex too, in
             // either seat.
-            let strut = SitedRef::new(pa, ename(a, RoleSeg::LateralEdge(ca)).in_copy(pa));
+            let strut = SitedRef::new(pa, ename(a, RoleSeg::LateralEdge(ca)));
             near(
                 gap(&doc, &strut, &tip),
                 want,
@@ -306,11 +296,8 @@ mod real_bodies {
             let (doc, pb) = in_world(doc.clone(), b, &at([1.02, y, 0.5]));
             let reflex = vpiece(&doc, l, 0, 3);
             let cb = vpiece(&doc, b, 0, 0);
-            let strut = SitedRef::new(pl, ename(l, RoleSeg::LateralEdge(reflex)).in_copy(pl));
-            let tip = SitedRef::new(
-                pb,
-                vname(b, RoleSeg::CapVertex(CapEnd::Start, cb)).in_copy(pb),
-            );
+            let strut = SitedRef::new(pl, ename(l, RoleSeg::LateralEdge(reflex)));
+            let tip = SitedRef::new(pb, vname(b, RoleSeg::CapVertex(CapEnd::Start, cb)));
             near(
                 gap(&doc, &strut, &tip),
                 want,
@@ -321,10 +308,7 @@ mod real_bodies {
                 want,
                 &format!("reflex strut seat, y {y}"),
             );
-            let top = SitedRef::new(
-                pl,
-                vname(l, RoleSeg::CapVertex(CapEnd::End, reflex)).in_copy(pl),
-            );
+            let top = SitedRef::new(pl, vname(l, RoleSeg::CapVertex(CapEnd::End, reflex)));
             near(
                 gap(&doc, &top, &tip),
                 want,
@@ -355,8 +339,8 @@ mod real_bodies {
             let (doc, pw) = in_world(doc, w, &frame);
             let ca = vpiece(&doc, a, 0, 2);
             let apex = vpiece(&doc, w, 0, 0);
-            let strut = SitedRef::new(pa, ename(a, RoleSeg::LateralEdge(ca)).in_copy(pa));
-            let ridge = SitedRef::new(pw, ename(w, RoleSeg::LateralEdge(apex)).in_copy(pw));
+            let strut = SitedRef::new(pa, ename(a, RoleSeg::LateralEdge(ca)));
+            let ridge = SitedRef::new(pw, ename(w, RoleSeg::LateralEdge(apex)));
             let one = gap(&doc, &strut, &ridge).expect("strut outer reads");
             let two = gap(&doc, &ridge, &strut).expect("ridge outer reads");
             eprintln!("h {h}: strut-outer {one}, ridge-outer {two}");
@@ -407,8 +391,8 @@ mod real_bodies {
             let (doc, pw) = in_world(doc, w, &frame);
             let ca = vpiece(&doc, blk, 0, 2);
             let apex = vpiece(&doc, w, 0, 0);
-            let strut = SitedRef::new(pa, ename(blk, RoleSeg::LateralEdge(ca)).in_copy(pa));
-            let ridge = SitedRef::new(pw, ename(w, RoleSeg::LateralEdge(apex)).in_copy(pw));
+            let strut = SitedRef::new(pa, ename(blk, RoleSeg::LateralEdge(ca)));
+            let ridge = SitedRef::new(pw, ename(w, RoleSeg::LateralEdge(apex)));
             for (o, i, seat) in [
                 (&strut, &ridge, "strut outer"),
                 (&ridge, &strut, "ridge outer"),
@@ -479,10 +463,7 @@ mod real_bodies {
             // The cube's start-cap vertex 0, local (0, −0.1, 0), stands at
             // (0.5 + d, 0, 0.25).
             let cb = vpiece(&doc, b, 0, 0);
-            let tip = SitedRef::new(
-                pb,
-                vname(b, RoleSeg::CapVertex(CapEnd::Start, cb)).in_copy(pb),
-            );
+            let tip = SitedRef::new(pb, vname(b, RoleSeg::CapVertex(CapEnd::Start, cb)));
             near(gap(&doc, &wall, &tip), want, &format!("bore {bore}, d {d}"));
             near(
                 gap(&doc, &tip, &wall),
@@ -535,15 +516,9 @@ mod real_bodies {
             let (doc, a, b, pa, pb) = two_blocks([1.0 + dx, 0.98, 0.98]);
             let ca = vpiece(&doc, a, 0, 2);
             let cb = vpiece(&doc, b, 0, 0);
-            let corner = SitedRef::new(
-                pa,
-                vname(a, RoleSeg::CapVertex(CapEnd::End, ca)).in_copy(pa),
-            );
-            let tip = SitedRef::new(
-                pb,
-                vname(b, RoleSeg::CapVertex(CapEnd::Start, cb)).in_copy(pb),
-            );
-            let strut = SitedRef::new(pa, ename(a, RoleSeg::LateralEdge(ca)).in_copy(pa));
+            let corner = SitedRef::new(pa, vname(a, RoleSeg::CapVertex(CapEnd::End, ca)));
+            let tip = SitedRef::new(pb, vname(b, RoleSeg::CapVertex(CapEnd::Start, cb)));
+            let strut = SitedRef::new(pa, ename(a, RoleSeg::LateralEdge(ca)));
             check(&doc, &corner, &tip, &format!("corner/vertex dx {dx}"));
             check(&doc, &strut, &tip, &format!("strut/vertex dx {dx}"));
             check(&doc, &tip, &strut, &format!("vertex/strut dx {dx}"));
@@ -563,8 +538,8 @@ mod real_bodies {
             let (doc, pw) = in_world(doc, w, &frame);
             let ca = vpiece(&doc, a, 0, 2);
             let apex = vpiece(&doc, w, 0, 0);
-            let strut = SitedRef::new(pa, ename(a, RoleSeg::LateralEdge(ca)).in_copy(pa));
-            let ridge = SitedRef::new(pw, ename(w, RoleSeg::LateralEdge(apex)).in_copy(pw));
+            let strut = SitedRef::new(pa, ename(a, RoleSeg::LateralEdge(ca)));
+            let ridge = SitedRef::new(pw, ename(w, RoleSeg::LateralEdge(apex)));
             check(&doc, &strut, &ridge, &format!("strut/ridge h {h}"));
             check(&doc, &ridge, &strut, &format!("ridge/strut h {h}"));
         }

@@ -156,69 +156,81 @@ fn placed(body: RecipeNodeId) -> (RecipeNodeId, editor_core::VarId) {
         .unwrap_or_else(|| panic!("{body:?} is no body a part stored with `insert_part` placed"))
 }
 
-/// **The key of `body`'s copy in its part** (FORK-DM4): the part's
-/// placement of it, and the read it copies `body` through — what an
-/// instance of the part delivers that copy under.
-pub fn copy_key(body: RecipeNodeId) -> editor_core::CopyKey {
-    let (placement, read) = placed(body);
-    editor_core::CopyKey::part(placement, editor_core::CopyKey::Read(read))
+/// **A part's entity as an instance's copy carries it**: the part's
+/// own name, verbatim, and the instance it is read at. A host reads a
+/// part's name at the instance whose copy carries it — never at its
+/// mint, which is a node of the part's document, not the host's.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PartName {
+    /// The instance whose copy carries the name.
+    pub at: RecipeNodeId,
+    /// The part's own name.
+    pub name: StableName,
 }
 
-/// **A cap face of `instance`'s part product**, in the wrapper the
-/// instantiate node mints: the part's own name for the face — a cap of
-/// `body`, as its placement's copy carries it ([`RoleSeg::Placed`]) —
-/// worn inside a [`RoleSeg::InPart`] under the
-/// instance that placed it, the kernel's own wrapper
-/// (`FaceName::in_part`).
-pub fn in_part(instance: RecipeNodeId, body: RecipeNodeId, cap: CapEnd) -> StableName {
-    editor_core::FaceName::new(in_world(body, cap))
-        .expect("a cap is a face")
-        .in_part(instance)
-        .into_name()
+impl From<PartName> for StableName {
+    fn from(part: PartName) -> Self {
+        part.name
+    }
 }
 
-/// **A cap face of a part's product**, as the part's own gather names
-/// it: the body's cap under its placement's copy ([`placement_of`]).
+/// The name itself, wherever a reader wants only the name (a table
+/// lookup, a comparison with what a product says).
+impl std::ops::Deref for PartName {
+    type Target = StableName;
+    fn deref(&self) -> &StableName {
+        &self.name
+    }
+}
+
+impl PartialEq<StableName> for PartName {
+    fn eq(&self, other: &StableName) -> bool {
+        self.name == *other
+    }
+}
+
+impl PartialEq<PartName> for StableName {
+    fn eq(&self, other: &PartName) -> bool {
+        *self == other.name
+    }
+}
+
+/// **A cap face of `instance`'s part product**, as the instance's copy
+/// carries it: the part's own name for the face — a cap of `body`,
+/// which its placement's copy names as `body` does, and the part's
+/// product, that one copy, names verbatim ([`PartStore::insert_part`]).
+pub fn in_part(instance: RecipeNodeId, body: RecipeNodeId, cap: CapEnd) -> PartName {
+    PartName {
+        at: instance,
+        name: in_world(body, cap),
+    }
+}
+
+/// **A cap face of a part's product**, as the part names it: the body's
+/// own cap, which its placement's copy carries verbatim.
 pub fn in_world(body: RecipeNodeId, cap: CapEnd) -> StableName {
     StableName {
         kind: EntityKind::Face,
-        node: placement_of(body),
-        path: vec![RoleSeg::Placed {
-            of: editor_core::NameRef::new(StableName {
-                kind: EntityKind::Face,
-                node: body,
-                path: vec![RoleSeg::Cap(cap)],
-            }),
-        }],
+        node: body,
+        path: vec![RoleSeg::Cap(cap)],
     }
 }
 
 /// **A part's own entity `seg` of kind `kind`, as an instance of it
-/// carries it**: the body's name under its placement's copy
-/// ([`placement_of`]), worn inside `instance`'s `InPart` — a face, an
-/// edge or a vertex alike.
+/// carries it**: the body's own name, verbatim through its placement's
+/// copy and the instance's.
 pub fn in_part_of(
     kind: editor_core::EntityKind,
     instance: RecipeNodeId,
     body: RecipeNodeId,
     seg: editor_core::RoleSeg,
-) -> StableName {
-    let placed = StableName {
-        kind,
-        node: placement_of(body),
-        path: vec![editor_core::RoleSeg::Placed {
-            of: editor_core::NameRef::new(StableName {
-                kind,
-                node: body,
-                path: vec![seg],
-            }),
-        }],
-    };
-    StableName {
-        kind,
-        node: instance,
-        path: vec![editor_core::RoleSeg::InPart {
-            of: editor_core::NameRef::new(placed),
-        }],
+) -> PartName {
+    PartName {
+        at: instance,
+        name: StableName {
+            kind,
+            node: body,
+            path: vec![seg],
+        },
     }
 }

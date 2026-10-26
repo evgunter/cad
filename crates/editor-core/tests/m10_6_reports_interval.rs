@@ -107,17 +107,11 @@ fn plate(law: Distribution) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         &[
             SitedRef::new(
                 placed,
-                crate::m10_5_clearance_interval::in_placement(
-                    placed,
-                    fixture::fname(solid, fixture::wall(&r.doc, solid, 0)),
-                ),
+                fixture::fname(solid, fixture::wall(&r.doc, solid, 0)),
             ),
             SitedRef::new(
                 placed,
-                crate::m10_5_clearance_interval::in_placement(
-                    placed,
-                    fixture::fname(solid, fixture::wall(&r.doc, solid, 2)),
-                ),
+                fixture::fname(solid, fixture::wall(&r.doc, solid, 2)),
             ),
         ],
     );
