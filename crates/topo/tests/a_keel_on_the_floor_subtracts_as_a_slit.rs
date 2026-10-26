@@ -1207,7 +1207,8 @@ fn a_flush_partner_over_two_lumps_touching_along_an_edge_builds() {
                         Ok(()),
                         "{what}: tier 3′"
                     );
-                    let v = topo::mass_properties(&r.body, tol).unwrap().volume;
+                    let v =
+                        topo::test_support::pinned_volume("the measured body", &r.body, tol).volume;
                     assert!(
                         (v - want).abs() < 1e-9,
                         "{what}: volume {v}, closed form {want}"
@@ -1261,7 +1262,8 @@ fn a_flush_partner_over_two_lumps_touching_along_an_edge_builds() {
 fn a_partner_along_part_of_the_keel_unites_with_the_slit_in_either_order() {
     let tol = t();
     let poses = poses();
-    let volume = |b: &AtRestBody<f64>| topo::mass_properties(b, tol).unwrap().volume;
+    let volume =
+        |b: &AtRestBody<f64>| topo::test_support::pinned_volume("the measured body", b, tol).volume;
     for pose in [&poses[0], &poses[2]] {
         for (row, stretch, beside) in [
             (&ROWS[0], (1.7, 2.3), 1.6),
