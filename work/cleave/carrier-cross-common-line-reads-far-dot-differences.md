@@ -2,10 +2,11 @@
 id: carrier-cross-common-line-reads-far-dot-differences
 kind: issue
 title: carrier_cross's common_line forms its point from a difference of far dot products, off its planes by 1e-11 at the box edge
-status: open
+status: closed
 opened: 2026-10-14
 priority: P3
 cost: E
+closed: 2026-10-26
 ---
 
 
@@ -47,3 +48,7 @@ in `n2·(c2 − c1)`, so that only the planes' gap to each other enters,
 as `plane_torus_section` now does (`n·(q − c)`). Add a row that holds
 a circle × plane meeting at the box edge to its in-origin verdict at
 three ε, red against the current spelling.
+
+## Closed (2026-10-26)
+
+Stale: PR 5154 (`f6237757e6`, the curve-pair reader's stage c1) deleted `carrier_cross::common_line`; `carrier_cross` reads its meetings from `geom_brep::curve_pair::meet`. The world-origin anchoring of a plane-plane solve elsewhere is `work/issues/offset-section-plane-plane-cramer-anchors-at-the-world-origin.md`. (CLEAVE slate triage)

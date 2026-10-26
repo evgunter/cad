@@ -24,7 +24,7 @@ on it, and states a reason that is still true.
 
 ## The slate
 
-**15 budget points** of dispatchable work against a ceiling of 30.
+**28 budget points** of dispatchable work against a ceiling of 30.
 
 | pri | item | cost | title |
 |---|---|---|---|
@@ -37,6 +37,20 @@ on it, and states a reason that is still true.
 | P4 | `split-finish-arms-the-weld-renders-fall-short-of-the-shape-guard` | E | Split/Finish's ResultEscalated runs 94 words with two face keys, and its Merge arm carries the merge's stage label, a key and no recourse |
 | — | `a-driver-carried-operation-refusal-shows-the-user-the-drivers-recourse` | — | A driver-carried operation refusal shows the user the driver's recourse |
 | — | `plane-parallel-escalation-ends-four-ways` | — | the planes-parallel decision's escalation ends four ways across topo's doors |
+
+### Arrived from CLEAVE (2026-10-26)
+
+Moved by CLEAVE's priority-seam cut, ids and bodies unchanged, each with a dated `## Slate triage` note (13 points of the total above):
+
+| pri | item | cost | title |
+|---|---|---|---|
+| P3 | `boolean-structural-refusals-drop-their-payload` | E | The Boolean's carve, single-solid and re-cut refusals drop the error they map into a desync |
+| P3 | `chart-pcurve-and-props-escalations-lose-their-check-at-split-join-and-point-in-solid` | E | chord_join and solid_contain re-wrap a chart_pcurve or props escalation without its check, so it ends by the wrapper's decision |
+| P3 | `join-desync-renders-a-caller-arity-error-as-a-kernel-lockstep-bug` | E | topo: BooleanError::JoinDesync renders a graft caller's arity error as 'A/B lockstep invariant violated (kernel bug or corrupt reduction)' |
+| P3 | `non-manifold-result-calls-a-buildable-solid-permanently-unrepresentable` | M | NonManifoldResult calls a solid with a manifold form permanently unrepresentable; after Ev's D1 ruling on PR 4795 it is a construction gap |
+| P3 | `solid-exhaustion-in-band-reading-offers-a-declaration` | M | point_in_solid's refusal on a ray's in-band reading, when no ray decides, renders as the pre-pass's Escalated and offers declaring the coincidence |
+| P3 | `split-dihedral-readers-drop-the-arm-rung` | M | topo: the split's finish and reduce rules drop classify_dihedral's rung, so an arm, undecided or collapsed, refuses as a sliver wedge |
+| P3 | `split-escalations-end-a-poisoned-margin-in-the-plane-lever` | M | topo: split and section escalations end a poisoned margin in the plane lever, and one of them carries a straddle as poison |
 
 ## Exit criteria
 
