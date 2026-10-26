@@ -13,12 +13,9 @@
 //!   FINDING — the one place a voice and an exit code deliberately
 //!   disagree, for the reason `main.rs`'s module docs give.
 //! * Which failure LEAD prints, the both-kinds case included.
-//! * That the recourse quotes `docs/TESS-BUDGET.md` verbatim. **Only
-//!   half of that pin is here**: this file asserts the string the
-//!   binary emits; nothing in the tree asserts the document still
-//!   contains it. There is no cross-file gate, the doc is the other
-//!   half, and a reflow of that sentence would break the quote in
-//!   silence — said plainly rather than left looking pinned.
+//! * That the recourse quotes `docs/TESS-BUDGET.md` verbatim: both
+//!   halves, the string the binary emits and the document still
+//!   carrying it ([`RECOURSE_QUOTE`]).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -32,6 +29,19 @@ use tess_lint::{CUT_PREFIX, EXPECTED_HEADER};
 #[path = "../src/tests/csv_fixture.rs"]
 mod csv_fixture;
 use crate::csv_fixture::{scene, unsized_row};
+
+/// The sentence the recourse quotes from `docs/TESS-BUDGET.md`.
+const RECOURSE_QUOTE: &str = "restores coverage, it does not verify it";
+
+/// The quoted half of the recourse pin: the document still says what
+/// the binary quotes it as saying.
+#[test]
+fn the_budget_document_carries_the_sentence_the_recourse_quotes() {
+    assert!(
+        include_str!("../../../docs/TESS-BUDGET.md").contains(RECOURSE_QUOTE),
+        "docs/TESS-BUDGET.md no longer contains {RECOURSE_QUOTE:?}, which the recourse quotes"
+    );
+}
 
 fn csv(name: &str, text: &str) -> std::path::PathBuf {
     let dir = std::env::temp_dir().join(format!("tess-lint-cli-{}", std::process::id()));
@@ -186,9 +196,7 @@ fn an_uncovered_scene_exits_two_in_the_harness_voice() {
         "could not COMPARE 1 scene(s)",
         "scripts/tess_budget_sweep.sh",
         "check the diff is ADDITIVE",
-        // Quoted from docs/TESS-BUDGET.md. This half of the pin is the
-        // only half there is — see the module docs.
-        "restores coverage, it does not verify it",
+        RECOURSE_QUOTE,
     ] {
         assert!(e.contains(phrase), "stderr missing {phrase:?}: {e}");
     }

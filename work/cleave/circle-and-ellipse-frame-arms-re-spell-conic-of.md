@@ -4,6 +4,7 @@ kind: issue
 title: LoopArc::of and the section outline's Circle and Ellipse arms re-spell geom_brep::Conic::of
 status: open
 opened: 2026-10-14
+design: true
 ---
 
 Found by the class sweep on `cleave/carrier-cross-one-curve`, which
@@ -26,3 +27,13 @@ span; the outline's ellipse flag). Doing so also drops their reads of
 `geom_brep::Conic::semi_axis_vectors` (added on the same branch) is the one
 spelling of the frame `(semi_u·u_ref, semi_v·v_ref)`; the outline's
 `a`/`b` are exactly it.
+
+## Duplication triage (INTENT, 2026-10-26)
+
+Classified on Ev's ask, via the CLEAVE note on INTENT's log, against main `e92fb951` and DESIGN `[one-way.places]` / `[one-way.readings]`. The four classes:
+- **design signal:** DESIGN names no single home, so a design conversation is owed;
+- **mechanical:** DESIGN names the home; delete the off-home copy and repoint its users;
+- **D10 debris:** a D10 stage retires one copy;
+- **not duplication.**
+
+**Design signal, a light one.** **Cluster B, a conic carrier's frame and semi-axis view.** It is spread over geom's `SemiAxes`/`major_frame`, `geom_brep::implicit::Conic` and three topo-private `Conic` structs. It recurs the closed carrier-cross conic-helper row. `ruled_region::Conic::of` is a fourth copy the row missed. Unclear: whether geom or geom-brep owns a conic carrier's frame view, and whether it carries a span. Once that is answered, the rest is mechanical (see `semi-axes-by-size-misses-seven-inline-sites`).

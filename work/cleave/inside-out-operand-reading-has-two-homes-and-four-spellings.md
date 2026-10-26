@@ -18,3 +18,13 @@ Left by PR 4725's final re-review (style notes, none gating).
 - In the gate, `let Ok(sel) = SolidFaces::of(..) else { continue }` can never fail, because the keys come from `body.solids()`. That makes it a silent skip that never runs.
 - `inside_out_operand` could return `InsideOutOperand { errors: [] }` if the whole-body read refuses while no single solid does. Not reached.
 - The gate's refusal now precedes more specific ones. A valid thin tube cut across used to refuse `CurvedPierceUnsupported` and now refuses `Containment` from the gate. Nothing pins which story wins.
+
+## Duplication triage (INTENT, 2026-10-26)
+
+Classified on Ev's ask, via the CLEAVE note on INTENT's log, against main `e92fb951` and DESIGN `[one-way.places]` / `[one-way.readings]`. The four classes:
+- **design signal:** DESIGN names no single home, so a design conversation is owed;
+- **mechanical:** DESIGN names the home; delete the off-home copy and repoint its users;
+- **D10 debris:** a D10 stage retires one copy;
+- **not duplication.**
+
+**Mechanical, partly stale** (cluster E). `gate_sliver_orientation` is gone and `point_hull` is no longer shared. Still live: the recourse sentence spelled four times (`validate.rs` ×3, `solid_contain.rs`), which one constant fixes. The rest is robustness, not duplication. DESIGN home: `[tolerance.recourse]`.
