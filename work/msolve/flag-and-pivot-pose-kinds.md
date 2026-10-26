@@ -2,10 +2,11 @@
 id: flag-and-pivot-pose-kinds
 kind: unit
 title: the Flag and Pivot pose kinds: reads, charts, folds, persistence, picks, and the rung-1 composition through each part's construction
-status: open
+status: parked
 opened: 2026-10-22
 priority: P1
 cost: H
+blocked_on: [the-value-chart-reads-a-written-orientation]
 ---
 
 

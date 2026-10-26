@@ -5,9 +5,8 @@ title: A GlueVerdict is not bound to the bodies it judged: a caller can re-key i
 status: open
 opened: 2026-10-13
 priority: P2
-cost: M
+cost: H
 design: true
-needs_ev: true
 ---
 
 The residue of `boolean-given-pairs-glue-unmeasured-for-any-rust-caller`
@@ -66,7 +65,7 @@ bodies that the door can compare. The façade never sets `given`, and
 
 ## Design
 
-Two designers weighed the row (2026-10-26) and agree on the final state,
+Ev adopted this on PR 5737 (2026-10-26, "sounds good!"), after asking whether an honest fold would be better. Two designers weighed the row and agree on the final state,
 and both reject its framing: a verdict is not a token to bind to its
 bodies. `given` is a decision handed to the kernel from outside, and it
 exists because DM4's n-ary union and intersect have no kernel door. The
@@ -88,13 +87,21 @@ record states cannot be written. The fold's half of
 and `work/contacthold/a-fold-steps-restated-tangency-takes-one-of-several-verdicts-margins.md`
 close with it.
 
+Rejected, on Ev's question: an honest fold, each step deciding its own
+coincidences at the accumulation's extent with no pass. It makes the
+union's refusals and records follow member order. On kernel probes a
+covered touch is recorded in only some orders, a covered 3ε gap refuses
+in 2 of 6 orders, and a 0.4ε tilt refuses in 2 of 3 orders where it is
+read over the merged face. `[operations.operators]` calls an order that
+refuses where another builds a kernel defect.
+
 Rejected: a verdict carrying an identity of the bodies it judged (a stamp
 the kernel carries, which `[coincidence.door]` rules out, and it leaves
 the channel public); re-checking the given pair at the step (ruled out by
 the one-verdict-per-carrier-pair rule PR 4323 ratified, and it records
 nothing); leaving it documented (a sequencing choice, not a design).
 
-Open within the answer: which member is a judgement's operand A. Today
+Open within the answer, settled at dispatch: which member is a judgement's operand A. Today
 `editor-core` picks the lesser read (PR 5303). The kernel door either
 takes a per-member rank, or judges in list order with the margin made
 symmetric where the asymmetry starts.
