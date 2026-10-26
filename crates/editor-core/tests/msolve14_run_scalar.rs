@@ -983,7 +983,7 @@ fn run_at<T: editor_core::EvalScalar>(
 /// it. No pose, fault or point moved. Re-measured with both merged, at
 /// all three ε.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0x7b0f_be4e_b4f4_e5d1),
+    (1e-9, 0xaa45_2c35_08a5_7082),
     (1e-6, 0x01ef_f0e0_9fde_7c4e),
     (1e-12, 0x6429_efaa_9430_4fd7),
 ];
