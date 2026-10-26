@@ -6,7 +6,7 @@ status: closed
 opened: 2026-10-23
 priority: P1
 cost: E
-closed: 2026-10-26
+closed: 2026-10-23
 ---
 
 
@@ -34,3 +34,14 @@ one Rest contact, where it used to read a vertex-on-face and an
 edge-face overlap. Decide whether the fixture's new reading is right
 (it then needs a fixture with the old findings, or new expectations),
 or whether the census regressed.
+
+Absorbed by D′3 (`assemble-is-an-operator-and-the-product-is-a-slot`,
+PR 5636), whose Python migration met the same four rows. The new reading
+is the census PR 5605 built: a planar face pair resting against each
+other is one `conformal_patch` finding, witnessed by the region the two
+faces share. So the expectations follow it. The message test reads
+"two faces lying against each other" and "at their shared region",
+the per-arm words read `{conformal_patch}`, a conformal patch's word is
+"lying against each other", and the frozen-value row counts one
+finding. All in `crates/pncad-py/tests/test_validate.py`. The hosted
+Python job is green on PR 5636.

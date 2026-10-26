@@ -263,10 +263,7 @@ fn two_slabs() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
 fn cap(ev: &Evaluation<f64>, node: RecipeNodeId, end: editor_core::CapEnd) -> SitedRef {
     use editor_core::{EntityKind, NamePat, SegPat, SegTag, Selector, select};
     let own = NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Cap).side(end));
-    let worn =
-        NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Placed).of([own.clone()]));
     let mut found = select(ev, node, &Selector::of(own));
-    found.extend(select(ev, node, &Selector::of(worn)));
     assert_eq!(found.len(), 1, "one {end:?} cap on node {node:?}");
     SitedRef::new(node, found.remove(0))
 }
@@ -859,8 +856,8 @@ fn a_measure_at_a_placement_reads_the_placed_carrier() {
 
     let ev = eval(&doc);
     // ONE vertex, measured against itself at two different reading
-    // sites: the only thing that differs is `at` (and the `Placed`
-    // layer the copy's names wear).
+    // sites: the only thing that differs is `at`, since a copy carries
+    // its source's names as they are.
     let vname = {
         let mut vs = select(
             &ev,
@@ -879,10 +876,7 @@ fn a_measure_at_a_placement_reads_the_placed_carrier() {
         MeasurePrimitive::Distance { a: 0, b: 1 },
         vec![
             SitedRef::new(solid, vname.clone()),
-            SitedRef::new(
-                placed,
-                crate::m10_5_clearance_interval::in_placement(placed, vname),
-            ),
+            SitedRef::new(placed, vname),
         ],
     )
     .0;
@@ -1382,9 +1376,10 @@ fn a_split_half_of_a_cusp_extrude_gathers() {
     );
     let (doc, _) = fixture::insert_pinned(
         doc,
-        crate::fixture::stood(vec![editor_core::BodyRead::plain(
-            editor_core::Operand::output(split, SplitHalf::Above.port()),
-        )]),
+        crate::fixture::stood(editor_core::BodyRead::plain(editor_core::Operand::output(
+            split,
+            SplitHalf::Above.port(),
+        ))),
         &EvalOptions::default(),
     );
     let ev = eval(&doc);

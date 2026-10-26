@@ -54,7 +54,6 @@ fn cube_doc_node(doc: ProfileDoc, dx: f64) -> (ProfileDoc, RecipeNodeId) {
 fn body_of(ev: &Evaluation<f64>, node: RecipeNodeId) -> &Body<f64> {
     match &ev.value(node).expect("extrude evaluates").payload {
         ValuePayload::Body(b) => b,
-        ValuePayload::Copies(copies) if copies.bodies.len() == 1 => &copies.bodies[0],
         other => panic!("extrude payload is a body, got {}", other.kind_name()),
     }
 }

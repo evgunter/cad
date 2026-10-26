@@ -1018,6 +1018,8 @@ test_utils::f6_variants! {
         DefinitionCycle,
         DefinitionTooLarge,
         EpsilonInvalid,
+        ProductRead,
+        PickPath,
         ConstraintNotMinted,
         PlacementNonFinite,
         PlacementNonRigid,
@@ -1386,6 +1388,20 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 "as a length",
                 "declared angle",
             ],
+        ),
+        (
+            SnapshotError::ProductRead {
+                read: editor_core::VarId::new(0, 7),
+                fault: editor_core::ProductReadFault::Unresolved,
+            },
+            vec!["the product slot reads", "it names no live variable"],
+        ),
+        (
+            SnapshotError::PickPath {
+                var: editor_core::SpokenVar::new(editor_core::VarId::new(0, 7), None),
+                at: Some(0),
+            },
+            vec!["picks no piece", "step 1 of its path names no one operand"],
         ),
         (
             SnapshotError::EpsilonInvalid { value: 0.0 },
@@ -2727,6 +2743,7 @@ test_utils::f6_variants! {
         StrandedAppearance,
         StrandedRead,
         StrandedSpace,
+        ProductOutsideWorld,
         ValueDropped,
         AnonymousVarRemoved,
     ];
@@ -2811,6 +2828,17 @@ fn maintenance_display_says_what_the_edit_did() {
                 "Union 000000000005 reads the world and the space #0:0000000000070000",
                 "this edit left in two spaces",
                 "refuses until its reads are in one space",
+            ],
+        ),
+        (
+            Maintenance::ProductOutsideWorld {
+                read: editor_core::SpokenVar::new(editor_core::VarId::new(0, tagged(7)), None),
+                space: spaces.spoken_space(editor_core::VarId::new(0, tagged(7))),
+            },
+            vec![
+                "the product reads",
+                "which this edit moved into",
+                "refuses until it reads a body in the world",
             ],
         ),
         (
@@ -3373,9 +3401,10 @@ fn an_edit_refusal_does_not_repeat_the_noun_its_spoken_node_says() {
             vec![held(4, "Place")],
         ),
         (
-            EditError::CopyReadOffBodySeat {
+            EditError::PickPath {
                 node: held(5, "Fillet"),
                 slot: editor_core::SlotId::Radius,
+                at: Some(0),
             },
             vec![held(5, "Fillet")],
         ),

@@ -69,19 +69,15 @@ fn failed_placement_world(id: &str) -> (ProfileDoc, editor_core::EvalOptions, Re
     let (doc, placed) = insert(doc, fixture::mated_instance(part_ref));
     let nowhere = StableName {
         kind: EntityKind::Face,
-        node: base,
-        path: vec![RoleSeg::InPart {
-            of: StableName {
-                kind: EntityKind::Face,
-                node: RecipeNodeId::new(0, 99),
-                path: vec![RoleSeg::Cap(CapEnd::End)],
-            }
-            .into(),
-        }],
+        node: RecipeNodeId::new(0, 99),
+        path: vec![RoleSeg::Cap(CapEnd::End)],
     };
     let mate = fixture::rest(
-        fixture::head(fixture::resolver::in_part(placed, body, CapEnd::Start)),
-        fixture::head(nowhere),
+        fixture::head_at(
+            placed,
+            fixture::resolver::in_part(placed, body, CapEnd::Start),
+        ),
+        fixture::head_at(base, nowhere),
     );
     let (doc, _) = fixture::constrain_at(doc, placed, mate);
     (doc, opts, placed)
@@ -123,7 +119,7 @@ fn an_empty_world_is_the_empty_product_subject() {
     assert!(
         matches!(
             product_recorded(&doc, &ev, tol).expect_err("nothing is placed"),
-            ProductError::EmptyProduct { .. }
+            ProductError::EmptyProduct
         ),
         "the premise: this is the arm the wrapper maps to a subject"
     );
@@ -161,9 +157,10 @@ fn a_gather_refusal_reaches_the_door_and_refuses_after_the_subject_free_resident
     assert!(
         matches!(
             refusal,
-            ProductError::Root(NodeStanding::Failed { node }) if node == placement
+            ProductError::Root(NodeStanding::Poisoned { through, .. }) if through == placement
         ),
-        "the premise: the gather refuses the failed placement: {refusal:?}"
+        "the premise: the gather refuses the product's `⊔`, poisoned through the failed \
+         placement: {refusal:?}"
     );
     let carries_the_gathers_refusal = |err: ChecksError| match &err {
         ChecksError::Product {
@@ -603,6 +600,12 @@ fn the_assembly_gathers_in_one_place() {
 /// a `Clone` or an `Arc` on `Product<T>` would be the other answer, and
 /// these modules do not take it. The needles end at the generic's `<`,
 /// so a type that only shares the prefix (`ProductError`) is not one.
+///
+/// One copy is made, and it is not this ordering's: a door's census
+/// verdict is the door's, kept on its value (`product::Census`) for
+/// every reader of it, and a gather that reads the door hands its
+/// consumer a copy of that verdict to own (`Product::fresh`). The
+/// verdict itself is lent, never put behind an `Arc`.
 ///
 /// Read through the shared reader's CODE view
 /// ([`test_utils::source::code_only`]), because every needle here is a

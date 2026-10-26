@@ -21,9 +21,9 @@
 //!
 //! The kernel's finding passes straight through — stated, never
 //! swallowed, never re-labelled. A part's own census findings are the
-//! part's: the census over a document instantiating it finds them again
-//! inside the part's copy, and the part's carried rows report them in
-//! that re-finding's place, once (`checks::at_rest::less_carried`).
+//! part's: the part's carried rows report them, once, and the census
+//! over a document instantiating it discards what it finds again inside
+//! the part's copy (`product::gather_sources`).
 
 use std::sync::Arc;
 
@@ -201,11 +201,6 @@ pub struct CarriedFindings {
     pub interference: Vec<CarriedInterference>,
     /// The at-rest refusals of the documents below, each crossing whole.
     pub at_rest: Vec<CarriedAtRestFinding>,
-    /// The pairs of solids those findings are about, keyed in the same
-    /// arena as the records, so a census over this body that finds
-    /// them again inside the copy can tell they were answered
-    /// ([`crate::Product::census_pairs`]).
-    pub census_pairs: Vec<(topo::SolidKey, topo::SolidKey)>,
 }
 
 /// **An overlap a document BELOW this one reported between two of its
@@ -339,13 +334,13 @@ pub struct AtRestFinding {
 pub enum AssemblyError {
     /// The gather itself refused.
     Product(Box<ProductError>),
-    /// **A `new_space()`'s copies did not gather** (D10, Spaces): the
-    /// copies placed into it check inside it, and its gather refused,
-    /// so it is not at rest there.
-    Space {
-        /// The space.
-        space: crate::VarId,
-        /// The space's gather refusal.
+    /// **A `⊔` the product does not read did not gather** (D10
+    /// `[operations.operators]`): its operands check at its door, and
+    /// its gather refused, so they are not at rest there.
+    Assemble {
+        /// The `⊔`'s output.
+        assemble: crate::VarId,
+        /// Its gather refusal.
         refusal: Box<ProductError>,
     },
     /// The at-rest refusals of documents BELOW this one: a touch its
@@ -383,10 +378,10 @@ impl crate::spoken::Say for AssemblyError {
     ) -> core::fmt::Result {
         match self {
             Self::Product(e) => write!(f, "{}", crate::spoken::Said(&**e, by)),
-            Self::Space { space, refusal } => write!(
+            Self::Assemble { assemble, refusal } => write!(
                 f,
-                "the copies placed into {} do not gather: {}",
-                by.space(*space),
+                "the operands of {} do not gather: {}",
+                by.output(*assemble),
                 crate::spoken::Said(&**refusal, by)
             ),
             // Each row in the ids of the document below that found it,
@@ -487,8 +482,8 @@ pub fn assemble<P: crate::ProfilePayload, T: crate::checks::at_rest::LocalizeLan
         // as its verdict is when it gathers.
         Err(refusal) => {
             if refusal.kind() == crate::ProductErrorKind::EmptyProduct {
-                gate_spaces(
-                    crate::product::space_gathers(doc, evaluation, tol),
+                gate_assembles(
+                    crate::product::assemble_gathers(doc, evaluation, tol, None),
                     tol,
                     &mut Reported {
                         interference: &mut Vec::new(),
@@ -509,17 +504,17 @@ struct Reported<'a> {
     carried: Vec<CarriedInterference>,
 }
 
-/// **Each `new_space()`'s copies check as usual inside it**, and
-/// against nothing outside it (D10, Spaces): the gate over each
-/// [`crate::SpaceGather`] in turn, a space whose copies denote no body
-/// holding nothing to check.
-fn gate_spaces<T: crate::checks::at_rest::LocalizeLane>(
-    spaces: Vec<crate::SpaceGather<T>>,
+/// **Each census the product does not read checks as usual**, and
+/// against nothing outside its door (D10 `[assertions]`): the gate over
+/// each [`crate::AssembleGather`] in turn, a door whose pieces denote no
+/// body holding nothing to check.
+fn gate_assembles<T: crate::checks::at_rest::LocalizeLane>(
+    assembles: Vec<crate::AssembleGather<T>>,
     tol: Tol,
     reported: &mut Reported<'_>,
 ) -> Result<(), AssemblyError> {
-    for space in spaces {
-        match space.gather {
+    for assemble in assembles {
+        match assemble.gather {
             Ok(product) => {
                 reported.interference.extend(verdict(&product, tol)?);
                 once_per_part_row(
@@ -529,8 +524,8 @@ fn gate_spaces<T: crate::checks::at_rest::LocalizeLane>(
             }
             Err(refusal) if refusal.kind().means_no_body() => {}
             Err(refusal) => {
-                return Err(AssemblyError::Space {
-                    space: space.space,
+                return Err(AssemblyError::Assemble {
+                    assemble: assemble.var,
                     refusal: Box::new(refusal),
                 });
             }
@@ -629,7 +624,7 @@ pub fn assemble_gathered<T: crate::checks::at_rest::LocalizeLane>(
         body,
         names,
         contacts,
-        spaces,
+        assembles,
         carried_interference,
         ..
     } = product;
@@ -637,7 +632,7 @@ pub fn assemble_gathered<T: crate::checks::at_rest::LocalizeLane>(
         interference: &mut interference,
         carried: carried_interference,
     };
-    gate_spaces(spaces, tol, &mut reported)?;
+    gate_assembles(assembles, tol, &mut reported)?;
     let carried_interference = reported.carried;
     Ok(Assembly {
         body: body.into_body(),
@@ -653,8 +648,8 @@ pub fn assemble_gathered<T: crate::checks::at_rest::LocalizeLane>(
 /// at-rest stage ([`at_rest_stage`]).
 fn ahead_of_at_rest<T: Decide>(product: &Product<T>) -> Option<AssemblyError> {
     // A part's own at-rest refusals, before this document's: the part
-    // decided them, and the census over this product re-finds them only
-    // inside the part's copy (`less_carried`, in the at-rest stage).
+    // decided them, and the census over this product discards what it
+    // finds inside the part's copy.
     (!product.carried_at_rest.is_empty()).then(|| AssemblyError::CarriedAtRest {
         findings: product.carried_at_rest.clone(),
     })
@@ -674,11 +669,9 @@ fn at_rest_stage<T: crate::checks::at_rest::LocalizeLane>(
 ) {
     // The census's findings over the records, as the gather kept them. A
     // contact between copies is not among them: the gather recorded it
-    // as a row (D10).
-    //
-    // What a part's census already reported, re-found here inside its
-    // copy, is the part's, carried up and reported as the part's.
-    let errors = crate::checks::at_rest::less_carried(product, product.census.clone());
+    // as a row (D10). Nor is a finding inside a copy a door already
+    // censused, a part's among them: the gather discarded it.
+    let errors = product.census.clone();
     if errors.is_empty() {
         return (Vec::new(), Vec::new());
     }
@@ -721,9 +714,6 @@ pub(crate) struct SeamVerdict {
     pub(crate) interference: Vec<crate::checks::at_rest::InterferenceFinding>,
     /// The part's at-rest refusal, whole; empty where it has none.
     pub(crate) refused: Vec<AtRestFinding>,
-    /// The pairs of solids both lists are about, with those the part
-    /// carried from below, sorted, in the part's product.
-    pub(crate) pairs: Vec<(topo::SolidKey, topo::SolidKey)>,
 }
 
 /// The part's at-rest verdict over its gathered `product`
@@ -750,24 +740,9 @@ pub(crate) fn seam_verdict<T: crate::checks::at_rest::LocalizeLane>(
     } else {
         at_rest_stage(product, tol)
     };
-    let mut pairs: Vec<(topo::SolidKey, topo::SolidKey)> = product
-        .census_pairs
-        .iter()
-        .copied()
-        .chain(
-            interference
-                .iter()
-                .flat_map(|finding| &finding.evidence)
-                .chain(refused.iter().map(|finding| &finding.error))
-                .filter_map(|error| crate::checks::at_rest::finding_solids(&product.body, error)),
-        )
-        .collect();
-    pairs.sort_unstable();
-    pairs.dedup();
     SeamVerdict {
         interference,
         refused,
-        pairs,
     }
 }
 

@@ -2,13 +2,12 @@
 id: a-placement-pins-by-written-values-without-a-mate
 kind: issue
 title: Stage 3 D′, the placement pivot (PR 5494): a placement names its target Space, mates read only geometry and values chart on the target's axes, four operators and one product slot; built as three PRs
-status: parked
+status: closed
 opened: 2026-10-18
 priority: P0
 cost: H
 refs: [transform-retires-into-a-placement]
-blocked_on: [assemble-is-an-operator-and-the-product-is-a-slot]
-rides_with: assemble-is-an-operator-and-the-product-is-a-slot
+closed: 2026-10-26
 ---
 
 **Spec:** `docs/INTENT-STAGE3-SPEC.md` §5′, restated on PR 5494's rulings against main at `4a4bb23608`; where this body and §5′ differ, §5′ governs. The design is ruled: PR 5494 (fork-log rows 189–191; Ev 2026-10-22, "it looks good!!") answered §5′'s Q1, Q2, Q3 and Q5, and the orchestrator's helpers ruling (2026-10-20, `work/intent/log.md`) answered Q4. This row is D′'s umbrella and closes when its three PRs have merged:
@@ -27,3 +26,7 @@ Findings recorded on this row before the split, with the PR that ends each:
 - **The helpers' turns read off geometry** (D's exact-turn lane, 2026-10-20): `place_at`'s plane-path `Spin` (`Chart::spin_at`) and axis-path world read (`axis_in_world` → `moved_by`'s turns); `place_against`'s plane-path `Spin`, tilted-path frame (`frame_at_in`) and axis-path target frame (`axis_placed`); `frame_at`'s picked frame moved by `moved_pose`'s turns; `pin_at`'s `world_at` → `moved_by`. D′2 retires all of them; the callers that meant an exact frame write it (`moved_frame`, `corner_frame`, or a mateless bundle).
 - 2026-10-21, D's review (frozen head `a59da0cecc`), findings D′2's pure constructor retires: `pin.rs` `written()` classifying a value by `f64 == 0.0`; `place_at_in`'s fallback chain; `m10_5_clearance_interval::slid_by` reverse-engineering `place_against`'s output; the gimbal's `√ε` threshold; `refactor::reads_a_number`.
 - 2026-10-21, PR #5547's review: `pin.rs` `axis_placed` seeds the copy's own frame about its axis with world `x`, or world `y` where `|dir.x| ≥ 0.5`, `orthonormal_basis`'s shape without the name. The spin it picks reaches no solved pose (both targets read the composed frame through its `z` only). D′2 retires `axis_placed` with `place_at`/`place_against`.
+
+## Resolved by D′3 (INTENT, 2026-10-26)
+
+D′3 (PR 5636, merged `29110056e8`) merged, after D′1 (PR 5592) and D′2 (PR 5613), so all three PRs this umbrella names are built.

@@ -89,15 +89,12 @@ fn boss_on_the_plate(turn: f64, through_union: bool) -> editor_core::Frame {
             Placed::unmated(vec![(Coord::Slide(TargetAxis::X), len(100.0))]).values,
         );
         let (doc, both) = fixture::union_over(doc, &[b, c]);
-        let name = fixture::member_name(&doc, both, b, side.in_copy(b));
+        let name = fixture::member_name(&doc, both, b, side);
         (doc, head_at(both, name))
     } else {
-        (doc, head_at(b, side.in_copy(b)))
+        (doc, head_at(b, side))
     };
-    let (doc, placement) = insert(
-        doc,
-        fixture::stood(vec![BodyRead::plain(Operand::from(boss))]),
-    );
+    let (doc, placement) = insert(doc, fixture::stood(BodyRead::plain(Operand::from(boss))));
     let start = fixture::fname(boss, RoleSeg::Cap(CapEnd::Start));
     let placed = Placed {
         mates: vec![fixture::rest(head(start), target)],
@@ -212,6 +209,7 @@ fn inline_keeps_a_variable_driving() {
         .values,
     );
     let mut store = PartStore::default();
+    let part = crate::fixture::assemble_world_copies(part);
     let doc_ref = store.insert(part.clone(), Tol::witness());
     let opts = with_resolver(store.clone());
     let host = ProfileDoc::empty(DocumentId::derive("dprime2-t21-host"), Tol::witness());
@@ -306,6 +304,7 @@ fn inlined(dx: f64) -> (ProfileDoc, editor_core::InlineOutcome, RecipeNodeId) {
     let (part, body) = block(part, 1.0, 1.0, 1.0);
     let (part, placed) = fixture::place(part, body);
     let mut store = PartStore::default();
+    let part = crate::fixture::assemble_world_copies(part);
     let doc_ref = store.insert(part, Tol::witness());
     let host = ProfileDoc::empty(DocumentId::derive("dprime2-flatten-host"), Tol::witness());
     let (host, instance) = insert(host, fixture::mated_instance(doc_ref));
@@ -325,9 +324,10 @@ fn inlined(dx: f64) -> (ProfileDoc, editor_core::InlineOutcome, RecipeNodeId) {
 /// **Flatten folds an identity placement out of its new space, and
 /// refuses everything else typed**: an unknown id, a node that is no
 /// placement, a placement off the identity, one whose source is no new
-/// space, one beside another placement copying out of that space, one
-/// whose copy a reader reads whole over two shapes, and one whose copy
-/// and source are both named.
+/// space, one beside another placement copying out of that space, and
+/// one whose copy and source are both named. A copy of a part of two
+/// placements is one body, the part's `⊔`, so a reader of it whole
+/// flattens.
 ///
 /// *Breaks if* flatten moves a placement that is not the identity, or
 /// strands a reader it cannot re-point.
@@ -399,8 +399,9 @@ fn flatten_folds_the_identity_and_refuses_the_rest_typed() {
         FlattenError::SpaceShared { .. }
     ));
 
-    // A part of two placements: the new placement copies two shapes,
-    // and a reader of its copies whole names no one shape.
+    // A part of two placements: the new placement copies the `⊔` of
+    // the two, one body, and a reader of its copy whole reads that `⊔`
+    // once flattened.
     let part = ProfileDoc::empty(DocumentId::derive("dprime2-flatten-two"), Tol::witness());
     let (part, a) = block(part, 1.0, 1.0, 1.0);
     let (part, b) = block(part, 1.0, 1.0, 1.0);
@@ -411,6 +412,7 @@ fn flatten_folds_the_identity_and_refuses_the_rest_typed() {
         Placed::unmated(vec![(Coord::Slide(TargetAxis::X), len(3.0))]).values,
     );
     let mut store = PartStore::default();
+    let part = crate::fixture::assemble_world_copies(part);
     let doc_ref = store.insert(part, Tol::witness());
     let host = ProfileDoc::empty(
         DocumentId::derive("dprime2-flatten-two-host"),
@@ -419,14 +421,12 @@ fn flatten_folds_the_identity_and_refuses_the_rest_typed() {
     let (host, instance) = insert(host, fixture::mated_instance(doc_ref));
     let (host, _) = insert(
         host,
-        fixture::stood(vec![BodyRead::plain(Operand::from(instance))]),
+        fixture::stood(BodyRead::plain(Operand::from(instance))),
     );
     let resolver: Arc<dyn PartResolver> = Arc::new(store);
     let two = inline(&host, instance, &resolver, Tol::witness()).expect("inlines");
-    assert!(matches!(
-        refused(&two.doc, two.placement),
-        FlattenError::ReadUncarried { .. }
-    ));
+    flatten(&two.doc, two.placement, Tol::witness())
+        .expect("a reader of the copy whole reads the `⊔` it copies");
 
     // The copy and the shape it copies both named.
     let copy = out
@@ -472,10 +472,7 @@ fn a_slide_value_sets_its_translation_with_no_width() {
     let doc = ProfileDoc::empty(DocumentId::derive("dprime2-slide-width"), Tol::witness());
     let (doc, top, _) = fixture::floor(doc, Vec::new());
     let (doc, boss) = block(doc, 1.0, 1.0, 1.0);
-    let (doc, placement) = insert(
-        doc,
-        fixture::stood(vec![BodyRead::plain(Operand::from(boss))]),
-    );
+    let (doc, placement) = insert(doc, fixture::stood(BodyRead::plain(Operand::from(boss))));
     let start = fixture::fname(boss, RoleSeg::Cap(CapEnd::Start));
     let placed = Placed {
         mates: vec![editor_core::Mate {
@@ -627,7 +624,7 @@ fn a_mate_reports_each_value_it_drops() {
     let tilt = doc.var_named("tilt").expect("declared");
     let top = fixture::fname(floor, RoleSeg::Cap(CapEnd::End));
     let start = fixture::fname(boss, RoleSeg::Cap(CapEnd::Start));
-    let mate = fixture::rest(head(start), head_at(f, top.in_copy(f)));
+    let mate = fixture::rest(head(start), head_at(f, top));
     let applied = doc
         .apply(
             &DocEdit::AddConstraint {
