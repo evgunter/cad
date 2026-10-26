@@ -815,7 +815,7 @@ pub struct NodeValue<T: Decide> {
     /// keyed in the same arena as `contacts` and filled at the same one
     /// op. Rides the value, so memo reuse transfers them with the
     /// geometry they are keyed into.
-    pub carried: Arc<crate::assembly::CarriedFindings>,
+    pub carried: Arc<crate::checks::at_rest::CarriedFindings>,
     /// **The coincidences the node's op decided from values**
     /// ([`crate::coincide`]), in decision order, each cell named in the
     /// table of the input the decision read, so a row survives a later
@@ -958,7 +958,7 @@ impl NodeValue<f64> {
             payload: ValuePayload::Boolean(BooleanValue::Empty),
             outputs: vec![OutputNames::new(Arc::new(table), Arc::new(groups))].into(),
             contacts: Arc::new(topo::ContactRecords::default()),
-            carried: Arc::new(crate::assembly::CarriedFindings::default()),
+            carried: Arc::new(crate::checks::at_rest::CarriedFindings::default()),
             coincidences: Arc::new([]),
             cited_inputs: Arc::new([]),
             parts: 1,
@@ -1333,7 +1333,7 @@ pub struct Piece<T: Decide> {
     /// census at the `⊔`'s door carries for it.
     pub contacts: Arc<topo::ContactRecords>,
     /// The mate bookkeeping those records travel with.
-    pub carried: Arc<crate::assembly::CarriedFindings>,
+    pub carried: Arc<crate::checks::at_rest::CarriedFindings>,
     /// The pieces it holds in turn: a member that is itself a `⊔`, or a
     /// copy of one.
     pub pieces: Option<Arc<Pieces<T>>>,

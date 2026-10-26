@@ -1,12 +1,12 @@
 //! The advisory-check registry (DISCIPLINES-DESIGN DS6, grade 4) and
 //! its four residents: the connectedness check (LONGTERM-IDEAS
-//! I1(0b)), the product-separation check (the establishment of
-//! disjointness `topo::graft_disjoint_all_keyed` leaves to its
-//! callers), the chart-coherence examination
+//! I1(0b)), the chart-coherence examination
 //! (`topo::examine_chart_coherence`, read per rest body and default
-//! `Off`), and the unproven-coincidence check (D10: each coincidence a
+//! `Off`), the unproven-coincidence check (D10: each coincidence a
 //! node decided from values that the coincidence door,
-//! [`crate::coincide::prove`], does not prove structural).
+//! [`crate::coincide::prove`], does not prove structural), and the
+//! at-rest check (D10 `[assertions]`: what the census at each `⊔`
+//! found between its arrivals, [`at_rest`]).
 //!
 //! A check is a **pure analysis over a finished evaluation** producing
 //! findings — no declaration vocabulary, no verify table, and by
@@ -37,7 +37,10 @@
 //!   configuration.
 //! - **Deterministic order** (D9): a body check's findings follow the
 //!   placements' document order; the unproven-coincidence check's
-//!   follow evaluation order, then each node's decision order — a
+//!   follow evaluation order, then each node's decision order; the
+//!   at-rest check's follow the gathers' order, the product first and
+//!   then each other `⊔` in document order, each `⊔`'s in the census's
+//!   order of first mention with its carried findings after — a
 //!   report that changes only when the document or its evaluation does.
 //!
 //! The check set is a CLOSED enum ([`CheckId`], the D3 philosophy): a
@@ -68,16 +71,6 @@ pub enum CheckId {
     /// counted as `Outer` shells ([`topo::classify_shells`]); internal
     /// voids are boundary, not components, and are never counted.
     Connectedness,
-    /// The product-separation check: two solids the gather contributed
-    /// from DIFFERENT root subjects that are not certifiably disjoint
-    /// ([`topo::SolidSeparation`]).
-    ///
-    /// The gather gathers, it does not fuse — a product's solids are
-    /// disjoint solids of one aggregate, and
-    /// [`topo::graft_disjoint_all_keyed`] asserts nothing about that,
-    /// so every caller owes an establishment of disjointness. This is
-    /// the document layer's, run as a report.
-    Separation,
     /// The chart-coherence examination
     /// ([`topo::examine_chart_coherence`]): a curved face's CARRIERS
     /// and its VERTICES disagree, in metres, about a chart coordinate
@@ -100,6 +93,13 @@ pub enum CheckId {
     /// node's [`crate::eval::NodeValue::coincidences`]; it refuses
     /// nothing and changes no body.
     UnprovenCoincidence,
+    /// The at-rest check (D10 `[assertions]`, ASSEMBLY A5): at each
+    /// `⊔`, the overlaps the census found between two arrivals
+    /// ([`CheckEvidence::Interference`], and a part's,
+    /// [`CheckEvidence::CarriedInterference`]), and each pair it could
+    /// not look at ([`CheckEvidence::AtRest`]). A contact is the
+    /// `unproven-coincidence` check's, never this one's.
+    AtRest,
 }
 
 impl CheckId {
@@ -112,14 +112,10 @@ impl CheckId {
     pub fn kind(self) -> CheckKind {
         match self {
             Self::Connectedness => CheckKind::Certified,
-            // Certified in the direction it stays SILENT: a pair this
-            // check does not report is one the box rule PROVED apart,
-            // and the box rule is a sound superset for every surface
-            // kind. What it reports is the denial of that certificate,
-            // which is a fact about the certificate and is exactly what
-            // the finding says — never "these two overlap", which the
-            // boxes do not decide. See `topo::SolidsMeet`.
-            Self::Separation => CheckKind::Certified,
+            // Certified: an overlap is the census's decided verdict,
+            // bounded by the kernel's own intersection, and a pair it
+            // could not decide is reported as exactly that.
+            Self::AtRest => CheckKind::Certified,
             // Certified: the gap, the lever arm and their product are
             // closed forms over the body's own stated coordinates, and
             // the band is an exact `<` against eps. What the finding
@@ -147,14 +143,14 @@ impl CheckId {
     /// order's one constraint rather than a convention: a resident
     /// that reads no subject has answered before [`run_checks_on`]
     /// can refuse [`ChecksError::Product`] on one that does, so a
-    /// subject-less resident placed after [`Self::Separation`] would
-    /// lose its findings on exactly the documents that have no
+    /// subject-less resident placed after [`Self::UnprovenCoincidence`]
+    /// would lose its findings on exactly the documents that have no
     /// product.
     pub const ALL: [Self; 4] = [
         Self::Connectedness,
         Self::ChartCoherence,
         Self::UnprovenCoincidence,
-        Self::Separation,
+        Self::AtRest,
     ];
 
     /// Whether this resident reads the registry's [`Subject`].
@@ -166,7 +162,8 @@ impl CheckId {
     pub fn reads_subject(self) -> bool {
         match self {
             Self::Connectedness => false,
-            Self::Separation => true,
+            // Each census rides the gathered product.
+            Self::AtRest => true,
             // The examination is over one body at rest, read per root
             // output exactly as connectedness is; no product, nothing
             // to gather.
@@ -182,7 +179,7 @@ impl fmt::Display for CheckId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Connectedness => f.write_str("connectedness"),
-            Self::Separation => f.write_str("separation"),
+            Self::AtRest => f.write_str("at-rest"),
             // ONE token, like its two neighbours: `ChecksReport`'s
             // skipped list is space-separated, so a two-word name
             // would make the list unreadable at the boundary between
@@ -320,31 +317,6 @@ pub struct ChecksConfig {
     /// resident's acknowledgment mechanism: a deliberately disjoint
     /// body is EXPECTED disjoint, stated as data, and stays clean.
     pub expected_components: BTreeMap<(RecipeNodeId, u32), u32>,
-    /// [`CheckId::Separation`]'s severity — [`Advisory`], NOT
-    /// [`Severity`], so `Error` is unrepresentable here.
-    ///
-    /// **DS6's waiver rule is an `iff`** (DISCIPLINES-DESIGN, round 3,
-    /// Ev): a check may offer `error` *iff* it ships a per-finding,
-    /// stable-name-keyed acknowledgment record with a staleness
-    /// direction. The connectedness resident satisfies it through
-    /// `expected_components` + [`CheckEvidence::StaleExpectation`].
-    /// This resident ships nothing analogous, so it may not offer
-    /// `error`, and the type says so rather than a comment asking the
-    /// caller not to.
-    ///
-    /// **The declared-contact suppression is NOT that waiver** and
-    /// must not be mistaken for one: it is derived from mates rather
-    /// than authored about a finding, it is keyed by kernel arena
-    /// entities rather than stable names, it carries no provenance,
-    /// and it has no staleness direction — a declaration that stops
-    /// matching any pair is never flagged. A real waiver would be
-    /// keyed by the `(root, output)` PAIR a finding names, which is
-    /// the shape `expected_components` has one subject down; it is
-    /// what this resident owes before `Error` becomes representable,
-    /// and `heatsink.pncad` is the standing demonstration that it is
-    /// owed (five findings that are all correct and none of which can
-    /// be acknowledged short of turning the resident off).
-    pub separation: Advisory,
     /// [`CheckId::ChartCoherence`]'s severity — [`Advisory`], NOT
     /// [`Severity`], on the same DS6 `iff`: this resident ships no
     /// per-finding acknowledgment record with a staleness direction,
@@ -369,12 +341,19 @@ pub struct ChecksConfig {
     /// Turning it on is one field, and `Off` is VISIBLY off
     /// ([`ChecksReport::skipped`]).
     pub chart_coherence: Advisory,
-    /// [`CheckId::UnprovenCoincidence`]'s severity — [`Advisory`]: the
-    /// quieting record is an assertion at the coincidence's site, which
-    /// the check does not read yet, so `Error` is unrepresentable. A
-    /// per-run choice and never a document's: turning it off removes
-    /// reports, never changes a body (DS3).
+    /// [`CheckId::UnprovenCoincidence`]'s severity — [`Advisory`]: an
+    /// assertion quiets an at-rest contact ([`at_rest`]'s contact rule),
+    /// and nothing yet quiets an operation's row or a flush pair, so
+    /// `Error` is unrepresentable. A per-run choice and never a
+    /// document's: turning it off removes reports, never changes a body
+    /// (DS3).
     pub unproven_coincidence: Advisory,
+    /// [`CheckId::AtRest`]'s severity — a full [`Severity`], default
+    /// `Warn`. `Error` is legal because an assertion quiets every
+    /// interference the kernel can bound (DS3, DS6); at `Error`,
+    /// [`enforce_checks`] refuses a loud interference finding and
+    /// nothing else this check reports.
+    pub at_rest: Severity,
 }
 
 impl Default for ChecksConfig {
@@ -382,9 +361,9 @@ impl Default for ChecksConfig {
         Self {
             connectedness: Severity::Warn,
             expected_components: BTreeMap::new(),
-            separation: Advisory::Warn,
             chart_coherence: Advisory::Off,
             unproven_coincidence: Advisory::Warn,
+            at_rest: Severity::Warn,
         }
     }
 }
@@ -395,7 +374,7 @@ impl ChecksConfig {
     pub fn severity(&self, check: CheckId) -> Severity {
         match check {
             CheckId::Connectedness => self.connectedness,
-            CheckId::Separation => self.separation.severity(),
+            CheckId::AtRest => self.at_rest,
             CheckId::ChartCoherence => self.chart_coherence.severity(),
             CheckId::UnprovenCoincidence => self.unproven_coincidence.severity(),
         }
@@ -467,32 +446,6 @@ pub enum CheckEvidence {
         /// The entry's stated component count.
         expected: u32,
     },
-    /// Two solids the gather contributed from different root subjects
-    /// could not be certified apart. The finding's own `(root,
-    /// output_ix)` is the FIRST subject in gather order; this names the
-    /// second.
-    ///
-    /// Not a claim that the two overlap — see [`topo::SolidsMeet`].
-    /// What it denies is the certificate, and a pair that merely
-    /// touches lands here too.
-    NotSeparated {
-        /// The counterpart root.
-        other_root: RecipeNodeId,
-        /// The counterpart root's output-body index.
-        other_output: u32,
-    },
-    /// The separation machinery could not be built over the product at
-    /// all — the box builder's typed refusal. The check has no verdict
-    /// for ANY pair, which is a finding, never a silent pass (F6).
-    SeparationUnavailable {
-        /// The kernel's own refusal, shared whole: its class, which a
-        /// consumer matches on, is `refusal.get().kind()`, and its
-        /// sentence, which a reader reads, is its `Display`. It rides
-        /// in a [`crate::Refusal`] where `Escalated` and `Unsupported`
-        /// hold their shell refusal bare, because `topo::BooleanError`
-        /// is neither `Clone` nor `PartialEq` and a report is both.
-        refusal: crate::Refusal<topo::BooleanError>,
-    },
     /// One chart-coherence measurement, carried whole
     /// ([`topo::CoherenceFinding`]: the condition, the gap in chart
     /// units, the lever arm, their product in metres, and the band it
@@ -558,6 +511,35 @@ pub enum CheckEvidence {
             crate::coincide::Recourse,
         )>,
     },
+    /// An overlap of two arrivals' material at rest, quiet or loud
+    /// ([`at_rest::InterferenceFinding`]).
+    Interference {
+        /// The finding.
+        finding: Box<at_rest::InterferenceFinding>,
+    },
+    /// An overlap a document below this one reported between two of
+    /// its own arrivals, quiet or loud as the part's assertions judged
+    /// it ([`at_rest::CarriedInterference`]).
+    CarriedInterference {
+        /// The carried finding.
+        finding: Box<at_rest::CarriedInterference>,
+    },
+    /// A pair the at-rest census could not look at
+    /// ([`at_rest::AtRestEvidence`]): loud, unquietable, and refusing at
+    /// no severity (DS6).
+    AtRest {
+        /// Why.
+        evidence: at_rest::AtRestEvidence,
+    },
+}
+
+impl CheckEvidence {
+    /// Whether this is a finding the check could not judge (DS6): loud,
+    /// never quietable, and never refused by [`enforce_checks`].
+    #[must_use]
+    pub fn could_not_look(&self) -> bool {
+        matches!(self, Self::AtRest { .. })
+    }
 }
 
 /// One finding of one check on one subject ([`FindingSubject`]).
@@ -569,6 +551,12 @@ pub struct CheckFinding {
     pub subject: FindingSubject,
     /// What was found.
     pub evidence: CheckEvidence,
+    /// The assertion that quiets it, or `None` when it is loud. A quiet
+    /// finding is listed, naming its assertion, so "checked and
+    /// intended" stays distinct from "not checked"; [`enforce_checks`]
+    /// never refuses it. A part's carried finding names the part's own
+    /// assertion, in the part's ids.
+    pub quiet: Option<RecipeNodeId>,
 }
 
 /// **What a finding is about.** A body check's subject is a
@@ -587,8 +575,14 @@ pub enum FindingSubject {
     },
     /// A node of the document, root or not.
     Node(RecipeNodeId),
+    /// The body a census at rest was taken over, by the read it is: a
+    /// `⊔`'s output, or the body the product slot reads.
+    Census {
+        /// The read.
+        read: crate::VarId,
+    },
     /// Two copies of the product, earlier in gather order first: an
-    /// at-rest finding between them that no mate speaks for.
+    /// at-rest contact between them that no mate speaks for.
     Copies {
         /// The earlier copy.
         a: crate::checks::at_rest::CopyRef,
@@ -632,6 +626,9 @@ impl crate::finding::Finding for SaidFinding<'_> {
                 by.node_as(root, "placement"),
                 output_ix
             ),
+            FindingSubject::Census { read } => {
+                write!(f, "check {}: {}", finding.check, by.read(read))
+            }
             FindingSubject::Copies { a, b } => write!(
                 f,
                 "check {}: copies {} and {}",
@@ -643,6 +640,29 @@ impl crate::finding::Finding for SaidFinding<'_> {
     }
 
     fn story(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let Self(finding, by) = *self;
+        self.evidence_story(f)?;
+        match (finding.quiet, &finding.evidence) {
+            (None, _) => Ok(()),
+            // A part's finding is quieted by the part's own assertion, in
+            // its ids, which this document cannot say.
+            (Some(_), CheckEvidence::CarriedInterference { .. }) => {
+                f.write_str("; quiet: an assertion of the part's says so")
+            }
+            (Some(assertion), _) => {
+                write!(f, "; quiet: {} says so", by.node_as(assertion, "assertion"))
+            }
+        }
+    }
+
+    fn recourse(&self) -> &str {
+        self.recourse_words()
+    }
+}
+
+impl SaidFinding<'_> {
+    /// What the evidence says was found.
+    fn evidence_story(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let Self(finding, by) = *self;
         match &finding.evidence {
             CheckEvidence::Connectedness { actual, expected } => write!(
@@ -683,18 +703,6 @@ impl crate::finding::Finding for SaidFinding<'_> {
                  placement output. Recourse: remove the ChecksConfig::expected_components \
                  entry, or fix the placement"
             ),
-            CheckEvidence::NotSeparated {
-                other_root,
-                other_output,
-            } => write!(
-                f,
-                "not certifiably disjoint from {} output {other_output}, so any space they \
-                 share is gathered twice",
-                by.node_as(*other_root, "placement")
-            ),
-            CheckEvidence::SeparationUnavailable { refusal } => {
-                write!(f, "separation could not be checked: {refusal}")
-            }
             CheckEvidence::ChartCoherence { finding } => {
                 let what = match finding.condition {
                     topo::CoherenceCondition::MeridianClosure { .. } => {
@@ -772,21 +780,36 @@ impl crate::finding::Finding for SaidFinding<'_> {
                     ),
                 }
             }
+            CheckEvidence::Interference { finding } => interference_words(f, finding, by),
+            CheckEvidence::CarriedInterference { finding } => {
+                write!(
+                    f,
+                    "{} reports an overlap between its own arrivals: ",
+                    crate::spoken::Said(&finding.route, by)
+                )?;
+                interference_words(f, &finding.finding, crate::spoken::Speaker::TAG)
+            }
+            CheckEvidence::AtRest { evidence } => {
+                write!(
+                    f,
+                    "the census could not look: {}",
+                    crate::spoken::Said(evidence, by)
+                )
+            }
         }
     }
 
-    fn recourse(&self) -> &str {
+    fn recourse_words(&self) -> &'static str {
         match &self.0.evidence {
             CheckEvidence::Connectedness { .. } => {
                 "Recourse: a stray component usually means a boolean that missed its operand \
                  or an instance placed nowhere; if it is deliberate, state the expected count \
                  in ChecksConfig::expected_components"
             }
-            CheckEvidence::NotSeparated { .. } => {
-                "Recourse: usually a body placed twice, or a body placed beside what it \
-                 was combined into, so delete the stray placement or re-point it at the \
-                 result; copies meant to TOUCH want a mate, and copies meant to \
-                 INTERPENETRATE want a boolean"
+            CheckEvidence::Interference { .. } | CheckEvidence::CarriedInterference { .. } => {
+                "Recourse: move the two apart, combine them with a boolean if they are one \
+                 body, or, for a fit meant to interfere, assert a negative Gap between the \
+                 two faces that bound the overlap"
             }
             CheckEvidence::ChartCoherence { .. } => {
                 "a MEASUREMENT, not a refusal: judge the metres against the band; an \
@@ -815,7 +838,47 @@ impl crate::finding::Finding for SaidFinding<'_> {
             | CheckEvidence::Escalated { .. }
             | CheckEvidence::Unsupported { .. }
             | CheckEvidence::StaleExpectation { .. }
-            | CheckEvidence::SeparationUnavailable { .. } => "",
+            | CheckEvidence::AtRest { .. } => "",
+        }
+    }
+}
+
+/// An interference finding's story: the two arrivals, and where they
+/// overlap.
+fn interference_words(
+    f: &mut fmt::Formatter<'_>,
+    finding: &at_rest::InterferenceFinding,
+    by: crate::spoken::Speaker<'_>,
+) -> fmt::Result {
+    write!(
+        f,
+        "{} and {} overlap",
+        copy_said(finding.a, by),
+        copy_said(finding.b, by)
+    )?;
+    match &finding.overlap {
+        at_rest::Overlap::Bounded { faces } => {
+            let names: Vec<String> = faces.iter().map(|s| by.name(&s.face).to_string()).collect();
+            write!(f, ", bounded by {}", names.join(", "))
+        }
+        at_rest::Overlap::Unlocalized(why) => {
+            f.write_str(", and the kernel could not bound the overlap: ")?;
+            match why {
+                at_rest::Unlocalized::Refused { refusal }
+                | at_rest::Unlocalized::Containment { refusal } => f.write_str(refusal),
+                at_rest::Unlocalized::Invalid { errors } => {
+                    write!(f, "a copy is not a valid body ({} finding(s))", errors.len())
+                }
+                at_rest::Unlocalized::Empty => {
+                    f.write_str("it is thinner than the boolean's tolerance")
+                }
+                at_rest::Unlocalized::Unnamed => {
+                    f.write_str("a face of it descends from no named face")
+                }
+                at_rest::Unlocalized::Lane => {
+                    f.write_str("this evaluation's scalar has no lane to intersect them")
+                }
+            }
         }
     }
 }
@@ -860,7 +923,7 @@ pub struct ChecksReport {
     /// Findings in deterministic order (D9): each resident's own
     /// findings by root-list position then output index, residents in
     /// registry order. NOT one global sort — root 5's connectedness
-    /// finding precedes root 1's separation finding, because each
+    /// finding precedes root 1's at-rest finding, because each
     /// resident appends its own pass in sequence, and the coincidence
     /// door's are settled into the place its pass holds
     /// ([`ChecksReport::settle`]).
@@ -1249,7 +1312,7 @@ impl<T: Decide> Subject<'_, T> {
 /// and disagreed is a FINDING, not an error.
 pub fn run_checks<
     P: crate::ProfilePayload,
-    T: Decide + AtRestPolicy + CertifiedBounds + ChartCoherenceLane,
+    T: at_rest::LocalizeLane + CertifiedBounds + ChartCoherenceLane,
 >(
     doc: &Doc<P>,
     ev: &Evaluation<T>,
@@ -1298,7 +1361,7 @@ pub fn run_checks<
 /// have answered, so their refusals still come first.
 pub fn run_checks_on<
     P: crate::ProfilePayload,
-    T: Decide + AtRestPolicy + CertifiedBounds + ChartCoherenceLane,
+    T: at_rest::LocalizeLane + CertifiedBounds + ChartCoherenceLane,
 >(
     doc: &Doc<P>,
     ev: &Evaluation<T>,
@@ -1331,7 +1394,7 @@ pub fn run_checks_on<
 /// As [`run_checks_on`].
 pub fn run_checks_at_rest_on<
     P: crate::ProfilePayload,
-    T: Decide + AtRestPolicy + CertifiedBounds + ChartCoherenceLane,
+    T: at_rest::LocalizeLane + CertifiedBounds + ChartCoherenceLane,
 >(
     doc: &Doc<P>,
     ev: &Evaluation<T>,
@@ -1375,7 +1438,7 @@ pub fn run_checks_at_rest_on<
             refusal: refusal.clone(),
         });
     } else {
-        let rows = door_rows(doc, ev, &subject);
+        let rows = door_rows(doc, ev, &subject, tol);
         if !rows.is_empty() {
             report.pending.push(CheckId::UnprovenCoincidence);
             door = Some(DoorJob {
@@ -1387,8 +1450,8 @@ pub fn run_checks_at_rest_on<
             });
         }
     }
-    if cfg.severity(CheckId::Separation) == Severity::Off {
-        report.skipped.push(CheckId::Separation);
+    if cfg.severity(CheckId::AtRest) == Severity::Off {
+        report.skipped.push(CheckId::AtRest);
     } else if let Subject::Unavailable { refusal } = &subject {
         // The resident is on and there is no subject: the registry
         // could not run, and the refusal carried here is the one it
@@ -1397,7 +1460,7 @@ pub fn run_checks_at_rest_on<
             refusal: refusal.clone(),
         });
     } else {
-        separation(doc, &subject, tol, &mut report);
+        at_rest(doc, ev, &subject, tol, &mut report);
     }
     Ok((report, door))
 }
@@ -1456,11 +1519,11 @@ pub struct DoorFindings {
 
 /// One row set: the subject its findings are reported against, the
 /// node whose decision the door proves it at, and its rows in decision
-/// order.
+/// order, each with the assertion that quiets it, if one does.
 type DoorRows = (
     FindingSubject,
     RecipeNodeId,
-    Vec<crate::coincide::NamedCoincidence>,
+    Vec<(crate::coincide::NamedCoincidence, Option<RecipeNodeId>)>,
 );
 
 /// **The rows the `unproven-coincidence` resident asks the door
@@ -1469,13 +1532,17 @@ type DoorRows = (
 /// product and on each other `⊔` it carries
 /// ([`crate::Product::assembles`]), in their order; each
 /// under the subject it is reported against — the node that decided it,
-/// or the two copies the census found in contact.
+/// or the two copies the census found in contact. An at-rest row is
+/// quiet under the contact half of the quieting rule
+/// ([`at_rest::quiet_contact`]), read here, where the evaluation the
+/// census ran in is in hand.
 fn door_rows<P, T: Decide>(
     doc: &Doc<P>,
     ev: &Evaluation<T>,
     subject: &Subject<'_, T>,
+    tol: Tol,
 ) -> Vec<DoorRows> {
-    let at_rest: Vec<&crate::assembly::AtRestRow> = match subject {
+    let at_rest: Vec<&at_rest::AtRestRow> = match subject {
         Subject::Product(gathered) => gathered
             .coincidences
             .iter()
@@ -1499,8 +1566,10 @@ fn door_rows<P, T: Decide>(
     ev.order
         .iter()
         .filter_map(|&node| {
-            ev.value(node)
-                .map(|value| (node, value.coincidences.to_vec()))
+            ev.value(node).map(|value| {
+                let rows = value.coincidences.iter().map(|r| (r.clone(), None));
+                (node, rows.collect::<Vec<_>>())
+            })
         })
         .filter(|(_, rows)| !rows.is_empty())
         .map(|(node, rows)| (FindingSubject::Node(node), node, rows))
@@ -1509,7 +1578,7 @@ fn door_rows<P, T: Decide>(
             (
                 FindingSubject::Copies { a, b },
                 at_rest_node(a),
-                vec![r.row.clone()],
+                vec![(r.row.clone(), at_rest::quiet_contact(doc, ev, &r.row, tol))],
             )
         }))
         .collect()
@@ -1524,9 +1593,14 @@ fn door_findings<P: crate::ProfilePayload>(
     tol: Tol,
     cancel: &crate::CancelToken,
 ) -> Result<Vec<CheckFinding>, crate::coincide::Canceled> {
+    let named: Vec<Vec<crate::coincide::NamedCoincidence>> = rows
+        .iter()
+        .map(|(_, _, rows)| rows.iter().map(|(row, _)| row.clone()).collect())
+        .collect();
     let nodes: Vec<(RecipeNodeId, &[crate::coincide::NamedCoincidence])> = rows
         .iter()
-        .map(|(_, node, rows)| (*node, &rows[..]))
+        .zip(&named)
+        .map(|((_, node, _), rows)| (*node, &rows[..]))
         .collect();
     let proofs = crate::coincide::prove(doc, &nodes, resolver, tol, cancel)?;
     let mut findings: Vec<CheckFinding> = Vec::new();
@@ -1534,9 +1608,9 @@ fn door_findings<P: crate::ProfilePayload>(
         let unproven: Vec<_> = rows
             .iter()
             .zip(proofs)
-            .filter_map(|(row, proof)| match proof {
+            .filter_map(|((row, quiet), proof)| match proof {
                 crate::coincide::Proof::Unproven { residual, recourse } => {
-                    Some((row, residual, recourse))
+                    Some((row, residual, recourse, *quiet))
                 }
                 crate::coincide::Proof::Structural(_) => None,
             })
@@ -1559,24 +1633,24 @@ fn door_findings<P: crate::ProfilePayload>(
             unproven
                 .iter()
                 .enumerate()
-                .filter(|(_, (j, _, _))| {
+                .filter(|(_, (j, _, _, _))| {
                     matches!(j.origin, crate::coincide::RowOrigin::Judged { .. })
                         && j.at_one_vertex(row)
                 })
-                .min_by(|(i, (a, _, _)), (k, (b, _, _))| {
+                .min_by(|(i, (a, _, _, _)), (k, (b, _, _, _))| {
                     statement(a).cmp(&statement(b)).then(i.cmp(k))
                 })
                 .map(|(i, _)| i)
         };
         let parents: Vec<Option<usize>> = unproven
             .iter()
-            .map(|(row, _, _)| match row.origin {
+            .map(|(row, _, _, _)| match row.origin {
                 crate::coincide::RowOrigin::Fold { .. } => parent(row),
                 _ => None,
             })
             .collect();
         let mut at: Vec<Option<usize>> = vec![None; unproven.len()];
-        for (i, (row, residual, recourse)) in unproven.iter().enumerate() {
+        for (i, (row, residual, recourse, quiet)) in unproven.iter().enumerate() {
             if parents[i].is_some() {
                 continue;
             }
@@ -1590,9 +1664,10 @@ fn door_findings<P: crate::ProfilePayload>(
                     recourse: *recourse,
                     restated: Vec::new(),
                 },
+                quiet: *quiet,
             });
         }
-        for (i, (row, residual, recourse)) in unproven.iter().enumerate() {
+        for (i, (row, residual, recourse, _)) in unproven.iter().enumerate() {
             let Some(p) = parents[i] else { continue };
             let Some(CheckEvidence::UnprovenCoincidence { restated, .. }) = at[p]
                 .and_then(|f| findings.get_mut(f))
@@ -1636,6 +1711,7 @@ fn connectedness<P: crate::ProfilePayload, T: Decide + CertifiedBounds + AtRestP
                         check: CheckId::Connectedness,
                         subject: FindingSubject::Output { root, output_ix },
                         evidence: CheckEvidence::NotAtRest { errors },
+                        quiet: None,
                     });
                     continue;
                 }
@@ -1660,6 +1736,7 @@ fn connectedness<P: crate::ProfilePayload, T: Decide + CertifiedBounds + AtRestP
                             check: CheckId::Connectedness,
                             subject: FindingSubject::Output { root, output_ix },
                             evidence: CheckEvidence::Connectedness { actual, expected },
+                            quiet: None,
                         });
                     }
                 }
@@ -1677,6 +1754,7 @@ fn connectedness<P: crate::ProfilePayload, T: Decide + CertifiedBounds + AtRestP
                         check: CheckId::Connectedness,
                         subject: FindingSubject::Output { root, output_ix },
                         evidence: CheckEvidence::Escalated { source },
+                        quiet: None,
                     });
                 }
                 Err(
@@ -1688,6 +1766,7 @@ fn connectedness<P: crate::ProfilePayload, T: Decide + CertifiedBounds + AtRestP
                         check: CheckId::Connectedness,
                         subject: FindingSubject::Output { root, output_ix },
                         evidence: CheckEvidence::Unsupported { source },
+                        quiet: None,
                     });
                 }
             }
@@ -1700,6 +1779,7 @@ fn connectedness<P: crate::ProfilePayload, T: Decide + CertifiedBounds + AtRestP
             check: CheckId::Connectedness,
             subject: FindingSubject::Output { root, output_ix },
             evidence: CheckEvidence::StaleExpectation { expected },
+            quiet: None,
         });
     }
     Ok(())
@@ -1743,6 +1823,7 @@ fn chart_coherence<P: crate::ProfilePayload, T: Decide + ChartCoherenceLane>(
                 check: CheckId::ChartCoherence,
                 subject: FindingSubject::Output { root, output_ix },
                 evidence,
+                quiet: None,
             };
             let Some(examined) = T::examine_chart_coherence(body.as_ref(), tol) else {
                 report
@@ -1767,183 +1848,95 @@ fn chart_coherence<P: crate::ProfilePayload, T: Decide + ChartCoherenceLane>(
     Ok(())
 }
 
-/// The separation resident's pass: every pair of gathered solids that
-/// came from DIFFERENT root subjects, held to the kernel's box-level
-/// separation certificate.
+/// **The at-rest resident's pass** (D10 `[assertions]`): each census at
+/// rest as the gather kept it, the product's first and then each `⊔` the
+/// product does not read ([`crate::Product::assembles`]), in document
+/// order. Each reports, under its `⊔`, its interference findings and
+/// what it could not look at ([`at_rest::reading`]), then the findings
+/// its parts carried up, each part row once across the whole report. A
+/// `⊔` whose operands did not gather is one could-not-look finding. A
+/// world with no body reports every `⊔` beside it all the same.
 ///
-/// # What "different subjects" excludes, and why
-///
-/// Two solids of ONE root output are that node's own body, validated
-/// on its own by the gather (`product`'s per-source tier-3 pass) and
-/// the responsibility of whatever constructed it — a pattern's
-/// instances, a multi-solid import. The gather did not put them
-/// together, so their relationship is not the gather's to answer for.
-/// What the gather DID do is place different roots' bodies in one
-/// aggregate without establishing that they may share the space, and
-/// that is exactly the pair set this walks.
-///
-/// # Determinism (D9)
-///
-/// `solid_copies` is in gather order, which is the placements'
-/// document order then the copy's own solid order. The walk is
-/// `i < j` over that list, so the findings come out in a stable order
-/// that does not depend on arena iteration luck.
-///
-/// # Cost, and the shape it would grow if it mattered
-///
-/// One box per face, one small tree per solid, then a hull test per
-/// cross-subject pair — quadratic in the SOLID count.
-///
-/// The gather, this registry over a subject already in hand, and the
-/// tier-3′ census over the same aggregate are measured separately over
-/// the corpus heat sink at 160 fins (161 solids / 991 faces): the
-/// `registry split` row of `crates/editor-core/tests/m4_pr8_latency.rs`
-/// appends them to `docs/perf-data/rebuild-latency/` as
-/// `registry_split.gather_ms`, `checks_ms` and `census_ms`, on a
-/// nightly cron gated on `main` having moved. The registry is the
-/// smallest of the three by an order of magnitude, so a caller that
-/// already holds the product pays little for it. The SIZE is exact and
-/// gates on every PR
-/// (`docm5_subject::the_registry_split_is_measured_at_a_pinned_point`).
-///
-/// A document with solids in the thousands would make the pair walk
-/// the term that matters, and the fix is already sitting here — one
-/// `Bvh` over the per-solid hulls, queried instead of the `S²` loop.
-/// Not built, because nothing has measured it as the bottleneck.
-///
-/// # A mated contact suppresses
-///
-/// A pair a mate rests on each other is not reported: the census
-/// recorded the touch, and the coincidence door proves it by the mate.
-/// Reporting it here too would make a correctly-mated assembly noisy
-/// about the thing it got right. The suppression keys on the door's
-/// first rung ([`mated_pairs`]), and between two copies only a mate
-/// proves there: the rung's other two arms need both cells read
-/// through one chain of maps to one minting node, and each copy reads
-/// its cells through its own placement. So a touch no mate states is
-/// not suppressed (F1).
-fn separation<P: crate::ProfilePayload, T: Decide + CertifiedBounds>(
+/// It runs no census and no predicate of its own: the census ran once,
+/// in the gather, and this reads it.
+fn at_rest<P: crate::ProfilePayload, T: at_rest::LocalizeLane>(
     doc: &Doc<P>,
+    ev: &Evaluation<T>,
     subject: &Subject<'_, T>,
     tol: Tol,
     report: &mut ChecksReport,
 ) {
-    // No product, no pair to hold to a certificate, so no finding —
-    // the reading [`Subject::EmptyProduct`] states. `Unavailable` never
-    // reaches here while this resident is enabled ([`run_checks_on`]
-    // refuses first) and is silent when it is not.
-    let Subject::Product(gathered) = subject else {
-        return;
-    };
-    // Fewer than two gathered solids cannot make a pair.
-    if gathered.solid_copies.len() < 2 {
-        return;
-    }
-    let boxes = match topo::SolidSeparation::of(&gathered.body, tol) {
-        Ok(boxes) => boxes,
-        Err(source) => {
-            // No pair has a verdict. One finding against the first
-            // subject says so rather than a silent clean report (F6).
-            let first = gathered.solid_copies[0];
-            report.findings.push(CheckFinding {
-                check: CheckId::Separation,
-                subject: FindingSubject::Output {
-                    root: first.node,
-                    output_ix: first.output,
-                },
-                evidence: CheckEvidence::SeparationUnavailable {
-                    refusal: source.into(),
-                },
-            });
-            return;
+    let elsewhere;
+    let (world, assembles) = match subject {
+        Subject::Product(gathered) => (
+            doc.product().map(|read| (read, &**gathered)),
+            &gathered.assembles[..],
+        ),
+        Subject::EmptyProduct => {
+            elsewhere = product::assemble_gathers(doc, ev, tol, None);
+            (None, &elsewhere[..])
         }
+        Subject::Unavailable { .. } => return,
     };
-    let mated = mated_pairs(doc, gathered, tol);
-    for (j, later) in gathered.solid_copies.iter().enumerate() {
-        for earlier in &gathered.solid_copies[..j] {
-            if (earlier.node, earlier.output) == (later.node, later.output) {
+    let mut carried_interference: Vec<at_rest::CarriedInterference> = Vec::new();
+    let mut carried_at_rest: Vec<at_rest::CarriedAtRestFinding> = Vec::new();
+    let finding = |read, evidence, quiet| CheckFinding {
+        check: CheckId::AtRest,
+        subject: FindingSubject::Census { read },
+        evidence,
+        quiet,
+    };
+    let gathers = world.map(|(read, product)| (read, Ok(product))).into_iter().chain(
+        assembles
+            .iter()
+            .map(|a| (a.var, a.gather.as_ref().map(|p| &**p))),
+    );
+    for (read, gather) in gathers {
+        let product = match gather {
+            Ok(product) => product,
+            Err(refusal) if refusal.kind().means_no_body() => continue,
+            Err(refusal) => {
+                let evidence = at_rest::AtRestEvidence::NotGathered(refusal.clone());
+                report
+                    .findings
+                    .push(finding(read, CheckEvidence::AtRest { evidence }, None));
                 continue;
             }
-            if boxes.certify(earlier.solid, later.solid).is_ok() {
-                continue;
-            }
-            let pair = if earlier.solid <= later.solid {
-                (earlier.solid, later.solid)
-            } else {
-                (later.solid, earlier.solid)
+        };
+        let reading = at_rest::reading(product, tol);
+        for interference in reading.interference {
+            let quiet = interference.quiet;
+            let evidence = CheckEvidence::Interference {
+                finding: Box::new(interference),
             };
-            if mated.contains(&pair) {
-                continue;
-            }
-            report.findings.push(CheckFinding {
-                check: CheckId::Separation,
-                subject: FindingSubject::Output {
-                    root: earlier.node,
-                    output_ix: earlier.output,
-                },
-                evidence: CheckEvidence::NotSeparated {
-                    other_root: later.node,
-                    other_output: later.output,
-                },
-            });
+            report.findings.push(finding(read, evidence, quiet));
+        }
+        for evidence in reading.could_not_look {
+            report
+                .findings
+                .push(finding(read, CheckEvidence::AtRest { evidence }, None));
+        }
+        let earlier = carried_interference.len();
+        at_rest::once_per_part_row(
+            &mut carried_interference,
+            product.carried_interference.iter().cloned(),
+        );
+        for row in &carried_interference[earlier..] {
+            let quiet = row.finding.quiet;
+            let evidence = CheckEvidence::CarriedInterference {
+                finding: Box::new(row.clone()),
+            };
+            report.findings.push(finding(read, evidence, quiet));
+        }
+        let earlier = carried_at_rest.len();
+        at_rest::once_per_part_row(&mut carried_at_rest, product.carried_at_rest.iter().cloned());
+        for row in &carried_at_rest[earlier..] {
+            let evidence = at_rest::AtRestEvidence::Carried(Box::new(row.clone()));
+            report
+                .findings
+                .push(finding(read, CheckEvidence::AtRest { evidence }, None));
         }
     }
-}
-
-/// Which solid pairs rest on each other structurally, keyed as an
-/// ordered pair of solid keys: those of each record citing an at-rest
-/// row the coincidence door's first rung proves ([`crate::coincide`]),
-/// such as the two faces a mate rests on each other.
-///
-/// A record whose entity the aggregate cannot resolve contributes
-/// nothing — the strict direction: a broken record can only make this
-/// check louder, never quieter.
-fn mated_pairs<P: crate::ProfilePayload, T: Decide>(
-    doc: &Doc<P>,
-    gathered: &product::Product<T>,
-    tol: Tol,
-) -> std::collections::BTreeSet<(topo::SolidKey, topo::SolidKey)> {
-    // A record citing a row the first rung leaves suppresses nothing: it
-    // backs a contact the `unproven-coincidence` check reports, and
-    // quieting the separation finding beside it would let a touch
-    // nothing states read as clean twice over. One that rode up
-    // from a source relates two solids of that one copy, a pair this
-    // resident never examines.
-    let mated = |cites: &topo::Cites| {
-        cites.iter().any(|backing| match backing {
-            topo::Backing::Decided(k) => gathered
-                .coincidences
-                .get(k as usize)
-                .is_some_and(|row| crate::coincide::first_rung_proves(doc, &row.row, tol)),
-            topo::Backing::Carried { .. } => false,
-        })
-    };
-    let owner = topo::SolidOwners::of(&gathered.body);
-    let mut out = std::collections::BTreeSet::new();
-    let mut note = |a: Option<topo::SolidKey>, b: Option<topo::SolidKey>| {
-        if let (Some(a), Some(b)) = (a, b)
-            && a != b
-        {
-            out.insert(if a <= b { (a, b) } else { (b, a) });
-        }
-    };
-    let solid = |cell| match cell {
-        topo::Cell::Vertex(v) => owner.vertex(v),
-        // An edge belongs to its ends' solid.
-        topo::Cell::Edge(e) => gathered
-            .body
-            .get_edge(e)
-            .and_then(|d| gathered.body.get_half_edge(d.he_plus))
-            .and_then(|h| owner.vertex(h.start)),
-        topo::Cell::Face(f) => owner.face(f),
-    };
-    for record in gathered.contacts.rows() {
-        if mated(&record.cites) {
-            let [a, b] = record.cells();
-            note(solid(a), solid(b));
-        }
-    }
-    out
 }
 
 /// The door from a finding's attribution back to its subject: the body
@@ -1985,8 +1978,11 @@ pub fn subject_body<T: Decide>(
 }
 
 /// The ONE refusing path of the registry: refuses iff `report` carries
-/// a finding whose check `cfg` sets to [`Severity::Error`]. The caller
-/// chooses where to gate — this module never does.
+/// a loud finding whose check `cfg` sets to [`Severity::Error`]. The
+/// caller chooses where to gate — this module never does. A quiet
+/// finding ([`CheckFinding::quiet`]) never refuses, and neither does a
+/// finding the check could not judge
+/// ([`CheckEvidence::could_not_look`]), at any severity (DS6).
 ///
 /// Consumes a FINISHED report (DS3: enforcement is a read over
 /// findings; it evaluates nothing and can change nothing). `Warn`
@@ -1996,13 +1992,16 @@ pub fn subject_body<T: Decide>(
 ///
 /// # Errors
 ///
-/// [`CheckRefusal`], carrying every `Error`-severity finding in report
-/// order.
+/// [`CheckRefusal`], carrying every refusing finding in report order.
 pub fn enforce_checks(report: &ChecksReport, cfg: &ChecksConfig) -> Result<(), CheckRefusal> {
     let findings: Vec<CheckFinding> = report
         .findings
         .iter()
-        .filter(|finding| cfg.severity(finding.check) == Severity::Error)
+        .filter(|finding| {
+            cfg.severity(finding.check) == Severity::Error
+                && finding.quiet.is_none()
+                && !finding.evidence.could_not_look()
+        })
         .cloned()
         .collect();
     if findings.is_empty() {
@@ -2026,6 +2025,7 @@ mod tests {
             check,
             subject: super::FindingSubject::Node(RecipeNodeId::new(0, 7)),
             evidence: CheckEvidence::StaleExpectation { expected },
+            quiet: None,
         }
     }
 
@@ -2035,11 +2035,11 @@ mod tests {
     /// appends rather than splices.
     #[test]
     fn a_door_job_settles_its_findings_in_the_doors_place() {
-        use super::CheckId::{Connectedness, Separation, UnprovenCoincidence};
+        use super::CheckId::{AtRest, Connectedness, UnprovenCoincidence};
         let document = crate::DocumentId(1);
         let mut report = super::ChecksReport {
             document,
-            findings: vec![finding(Connectedness, 1), finding(Separation, 3)],
+            findings: vec![finding(Connectedness, 1), finding(AtRest, 3)],
             skipped: Vec::new(),
             pending: vec![UnprovenCoincidence],
         };
@@ -2054,7 +2054,7 @@ mod tests {
             [
                 finding(Connectedness, 1),
                 finding(UnprovenCoincidence, 2),
-                finding(Separation, 3)
+                finding(AtRest, 3)
             ]
         );
     }
@@ -2164,38 +2164,43 @@ mod tests {
         );
     }
 
-    /// INVARIANT: the separation door's evidence reads the kernel's
-    /// refusal, which it holds whole, in the kernel's own sentence.
-    ///
-    /// The refusing branch itself cannot be reached from `run_checks`
-    /// over a well-formed document: every refusal
-    /// `topo::SolidSeparation::of` can raise needs either a corrupt
-    /// body or an ε within a factor K of `f64::MAX`, and `Tol` is a
-    /// zero-sized witness for the run's committed tolerance, so a test
-    /// cannot hand it one. This row therefore pins the evidence's
-    /// reading, and says so rather than implying the branch was
-    /// executed.
+    /// INVARIANT: a could-not-look finding never refuses, at any
+    /// severity, and a quiet finding never refuses either; a loud one at
+    /// `Error` does. Reds if `enforce_checks` reads severity alone.
     #[test]
-    fn the_separation_door_reads_the_kernel_refusal_in_its_own_sentence() {
-        let refusal = topo::BooleanError::ClassificationInvariant {
-            what: "solid separation: the ambient tolerance band is unusable",
-        };
-        let finding = super::CheckFinding {
-            check: super::CheckId::Separation,
-            subject: super::FindingSubject::Output {
-                root: RecipeNodeId::new(0, 1),
-                output_ix: 0,
+    fn only_a_loud_judged_finding_refuses() {
+        let document = crate::DocumentId(1);
+        let at = |evidence, quiet| super::CheckFinding {
+            check: super::CheckId::AtRest,
+            subject: super::FindingSubject::Census {
+                read: crate::VarId::WORLD,
             },
-            evidence: CheckEvidence::SeparationUnavailable {
-                refusal: refusal.into(),
-            },
+            evidence,
+            quiet,
         };
-        assert_eq!(
-            finding.to_string(),
-            "check separation: placement 000000000000 output 0: separation could not be \
-             checked: classification invariant violated: solid separation: the ambient \
-             tolerance band is unusable",
-            "the story ends in the kernel's own sentence, whole"
-        );
+        let not_run = || CheckEvidence::AtRest {
+            evidence: super::at_rest::AtRestEvidence::NotRun,
+        };
+        let report = |findings| super::ChecksReport {
+            document,
+            findings,
+            skipped: Vec::new(),
+            pending: Vec::new(),
+        };
+        let error = super::ChecksConfig {
+            at_rest: super::Severity::Error,
+            ..super::ChecksConfig::default()
+        };
+        let could_not_look = report(vec![at(not_run(), None)]);
+        assert!(super::enforce_checks(&could_not_look, &error).is_ok());
+        let loud = report(vec![finding(super::CheckId::Connectedness, 2)]);
+        let connectedness_error = super::ChecksConfig {
+            connectedness: super::Severity::Error,
+            ..super::ChecksConfig::default()
+        };
+        assert!(super::enforce_checks(&loud, &connectedness_error).is_err());
+        let mut quiet = finding(super::CheckId::Connectedness, 2);
+        quiet.quiet = Some(RecipeNodeId::new(0, 1));
+        assert!(super::enforce_checks(&report(vec![quiet]), &connectedness_error).is_ok());
     }
 }

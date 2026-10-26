@@ -1,35 +1,39 @@
-//! **Interference between copies at rest** (D10, Assertions; ASSEMBLY
-//! A5 *Interference.*): the at-rest gate's interference findings, and
-//! the quieting rule's one home.
+//! **The at-rest check** (D10, Assertions; ASSEMBLY A5): what the
+//! census at each `⊔` found between its arrivals, as the registry's
+//! `AtRest` resident reports it, and the quieting rule's one home.
 //!
-//! An overlap of two copies' material is a finding of its own, never a
-//! refusal. The census decides that two copies interfere (a vertex of
-//! one strictly inside the other's material, an edge piercing a face,
-//! or an in-plane crossing whose side test reads `SameSide`); the gate
-//! then intersects the two copies, and each connected solid of the
-//! result is one [`InterferenceFinding`], named by the faces of the two
+//! The census decides each pair of arrivals apart, in contact,
+//! overlapping or undecided, and nothing it finds refuses. A contact is
+//! a row the `unproven-coincidence` lint reads ([`AtRestRow`]), quiet
+//! under [`quiet_contact`]. An overlap of two arrivals' material is an
+//! [`InterferenceFinding`]: the census decides that two copies interfere
+//! (a vertex of one strictly inside the other's material, an edge
+//! piercing a face, or an in-plane crossing whose side test reads
+//! `SameSide`), the check intersects the two copies, and each connected
+//! solid of the result is one finding, named by the faces of the two
 //! copies that bound it. An overlap the kernel cannot bound is one
 //! [`Overlap::Unlocalized`] finding for the pair, loud, which nothing
-//! quiets.
+//! quiets. Every other verdict is a pair the census could not look at
+//! ([`AtRestEvidence`]): loud, unquietable, and never refusing (CHECKS
+//! DS6).
 //!
-//! **What quiets one** (`quiet_verdicts`): a holding assertion that
-//! reads a `Gap`'s output directly, over an opposed pair of faces of
-//! the two copies, admitting only negative values (`≤ b` or `= b`, `b`
-//! decided negative), whose two faces both bound the overlap, and
-//! between whose carriers the overlap lies, which the kernel's boolean
-//! decides (`beyond`). The rule reads the assertion's verdict, never
-//! its measure's value, and an assertion speaks for nothing but its own
-//! site: every other overlap is loud.
+//! **What quiets an interference** (`quiet_verdicts`): a holding
+//! assertion that reads a `Gap`'s output directly, over an opposed pair
+//! of faces of the two copies, admitting only negative values (`≤ b` or
+//! `= b`, `b` decided negative), whose two faces both bound the overlap,
+//! and between whose carriers the overlap lies, which the kernel's
+//! boolean decides (`beyond`). **What quiets a contact**
+//! ([`quiet_contact`]): a holding `Gap = 0` between the row's two cells,
+//! at whatever dimension they are. Both read the assertion's verdict,
+//! never its measure's value, and an assertion speaks for nothing but
+//! its own site: every other finding is loud.
 //!
-//! Inside one copy's body an overlap stays the kernel's typed error:
-//! only verdicts between solids of two different copies are findings.
 //! A part is one copy of the document instantiating it, and its own
 //! census decided the meetings inside that copy: those findings are the
-//! part's, carried up and reported as the part's
-//! ([`crate::CarriedInterference`], [`crate::AssemblyError::CarriedAtRest`]).
-//! A census reading a body some door already censused as one arrival
-//! (a `⊔`'s, or an instance's copy) discards what it finds inside it
-//! (`product::gather_sources`, [`finding_group`]).
+//! part's, carried up and reported as the part's ([`CarriedInterference`],
+//! [`CarriedAtRestFinding`]). A census reading a body some door already
+//! censused as one arrival (a `⊔`'s, or an instance's copy) discards what
+//! it finds inside it (`product::gather_sources`, [`finding_group`]).
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -44,6 +48,223 @@ use crate::measure::{AssertionRelation, AssertionVerdict, MeasurePrimitive};
 use crate::names::{EntityKey, EntityRef, Entry, NameTable, StableName};
 use crate::node::{Node, RecipeNodeId};
 use crate::product::{GatheredCopy, Product};
+
+mod carried;
+
+pub use carried::{AtRestRow, CarriedAtRestFinding, CarriedFindings, CarriedInterference, Route};
+pub(crate) use carried::{PartRow, Pinned, once_per_part_row, seam_verdict};
+
+/// **Why the at-rest check could not look** (CHECKS DS6): one finding,
+/// loud, unquietable, and refusing at no severity, since what the check
+/// could not judge is not something the document said.
+#[derive(Debug, Clone, PartialEq)]
+pub enum AtRestEvidence {
+    /// A pair between two arrivals the census had no lane for or left
+    /// undecided, or a touch between them it could not clear (kept as a
+    /// finding, not a row: [`topo::record_at_rest`]). The census's own
+    /// verdict.
+    NoLane(ValidationError),
+    /// The gathered body fails a check of its own structure or geometry.
+    Malformed(ValidationError),
+    /// A touch or an overlap inside one arrival that no carried record
+    /// backs and no carried finding matches, or a stale record: the
+    /// arrival's door's defect, found again by the census here.
+    InsideArrival(ValidationError),
+    /// A `⊔` the product does not read whose operands did not gather.
+    NotGathered(crate::product::ProductRefusal),
+    /// The evaluation's scalar runs no census at rest
+    /// ([`topo::AtRestOutcome::NotRunAtThisScalar`]): nothing was
+    /// looked at, which is one finding rather than a clean report.
+    NotRun,
+    /// A part's could-not-look finding, crossed with its route.
+    Carried(Box<CarriedAtRestFinding>),
+}
+
+// The kernel's own verdict, forwarded verbatim through its `Display`:
+// its tier-3′ messages end in their own recourse.
+impl crate::spoken::Say for AtRestEvidence {
+    fn say(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        by: crate::spoken::Speaker<'_>,
+    ) -> core::fmt::Result {
+        match self {
+            Self::NoLane(error) | Self::Malformed(error) | Self::InsideArrival(error) => {
+                write!(f, "{error}")
+            }
+            Self::NotGathered(refusal) => write!(
+                f,
+                "its operands do not gather: {}",
+                crate::spoken::Said(refusal, by)
+            ),
+            Self::NotRun => f.write_str(
+                "this evaluation's scalar runs no census at rest, so nothing was looked at; \
+                 the f64 evaluation of the same document is the one that checks",
+            ),
+            Self::Carried(row) => write!(f, "{}", crate::spoken::Said(&**row, by)),
+        }
+    }
+}
+
+/// The evidence where no document is at hand.
+impl core::fmt::Display for AtRestEvidence {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
+    }
+}
+
+/// **One census's verdicts, read** ([`reading`]): the interference
+/// findings between its arrivals, and what it could not look at.
+pub(crate) struct Reading {
+    pub(crate) interference: Vec<InterferenceFinding>,
+    pub(crate) could_not_look: Vec<AtRestEvidence>,
+}
+
+/// **The at-rest check's reading of one gather**: the census's verdicts
+/// as the gather kept them ([`Product::census`]), partitioned into the
+/// interference between arrivals ([`partition`]) and the rest, each of
+/// which is a could-not-look finding. A scalar that runs no census
+/// reads as one [`AtRestEvidence::NotRun`]. A contact between arrivals
+/// is not among the verdicts: the gather recorded it as a row.
+pub(crate) fn reading<T: LocalizeLane>(product: &Product<T>, tol: Tol) -> Reading {
+    if product.body.outcome() == topo::AtRestOutcome::NotRunAtThisScalar {
+        return Reading {
+            interference: Vec::new(),
+            could_not_look: vec![AtRestEvidence::NotRun],
+        };
+    }
+    let errors = product.census.clone();
+    if errors.is_empty() {
+        return Reading {
+            interference: Vec::new(),
+            could_not_look: Vec::new(),
+        };
+    }
+    let (interference, rest) = partition(product, errors, tol);
+    let groups = copy_groups(&product.copies);
+    let could_not_look = rest
+        .into_iter()
+        .map(|error| could_not_look(&product.body, &groups, error))
+        .collect();
+    Reading {
+        interference,
+        could_not_look,
+    }
+}
+
+/// **Which could-not-look finding a census verdict is**: inside one
+/// arrival, or a stale record of one ([`AtRestEvidence::InsideArrival`]);
+/// a census verdict between arrivals or naming none
+/// ([`AtRestEvidence::NoLane`]); or a finding about the gathered body's
+/// own structure ([`AtRestEvidence::Malformed`]).
+fn could_not_look<T: Decide>(
+    body: &Body<T>,
+    groups: &BTreeMap<SolidKey, u32>,
+    error: ValidationError,
+) -> AtRestEvidence {
+    if matches!(error, ValidationError::StaleContactDeclaration { .. })
+        || finding_group(body, groups, &error).is_some()
+    {
+        return AtRestEvidence::InsideArrival(error);
+    }
+    if finding_solids(body, &error).is_some()
+        || matches!(
+            error,
+            ValidationError::CensusEscalated { .. }
+                | ValidationError::CensusUnsupported { .. }
+                | ValidationError::CensusLaneUnsupported { .. }
+                | ValidationError::CensusUndecidable { .. }
+                | ValidationError::UnrecordedContact { .. }
+                | ValidationError::ArcEndOffCorner { .. }
+        )
+    {
+        return AtRestEvidence::NoLane(error);
+    }
+    AtRestEvidence::Malformed(error)
+}
+
+/// The funnel site name of the contact quieting rule's decision that an
+/// assertion's bound is zero.
+pub(crate) const AT_REST_QUIET_CONTACT_BOUND: &str = "at_rest_quiet_contact_bound";
+
+/// **The contact half of the quieting rule** (D10 `[assertions.quiet]`):
+/// the first assertion, in document order, that quiets `row`, an
+/// at-rest row of two cells, or `None` when the row stays loud.
+///
+/// An assertion quiets a row when it relates a `Gap` read directly by
+/// `=` to a bound decided zero, its two selections are the row's two
+/// cells in either order, each its arrival's read and the cell's name
+/// there, and its verdict in `evaluation` is `Holds`. The cells may be
+/// of any dimension `Gap` admits. A flush pair
+/// ([`topo::Relation::SameOriented`]) is no contact, and no assertion
+/// quiets it. The rule matches cells, so another contact between the
+/// same two arrivals stays loud, and it reads verdicts only, so an
+/// assertion that failed or did not evaluate quiets nothing.
+pub(crate) fn quiet_contact<P, T: Decide>(
+    doc: &Doc<P>,
+    evaluation: &Evaluation<T>,
+    row: &crate::coincide::NamedCoincidence,
+    tol: Tol,
+) -> Option<RecipeNodeId> {
+    if row.relation == topo::Relation::SameOriented {
+        return None;
+    }
+    let band = Band::linear(tol).ok()?;
+    let cell = |c: &crate::coincide::NamedCell| match c {
+        crate::coincide::NamedCell::Entity { input, name } => {
+            // The `⊔` keys an arrival's names by the read it entered
+            // through; the cell's name is the arrival's own.
+            let own = match name.path.as_slice() {
+                [crate::names::RoleSeg::From { read, of }] if read == input => (**of).clone(),
+                _ => name.clone(),
+            };
+            Some((*input, own))
+        }
+        _ => None,
+    };
+    let [a, b] = match row.cells.as_slice() {
+        [a, b] => [cell(a)?, cell(b)?],
+        _ => return None,
+    };
+    let selected = |var: VarId| {
+        let select = doc.selection(var)?;
+        let [name] = select.names.as_slice() else {
+            return None;
+        };
+        Some((select.body, name.clone()))
+    };
+    doc.ids().into_iter().find(|&id| {
+        let Some(Node::Assertion {
+            value,
+            relation: AssertionRelation::Equal,
+            ..
+        }) = doc.node(id)
+        else {
+            return false;
+        };
+        let Some((measure, 0)) = doc.var(*value).and_then(|v| v.def().output()) else {
+            return false;
+        };
+        let Some(Node::Measure {
+            primitive: MeasurePrimitive::Gap { outer, inner },
+        }) = doc.node(measure)
+        else {
+            return false;
+        };
+        let Some(ValuePayload::Assertion(AssertionVerdict::Holds { bound, .. })) =
+            evaluation.value(id).map(|v| &v.payload)
+        else {
+            return false;
+        };
+        if decide(AT_REST_QUIET_CONTACT_BOUND, Margin::of(*bound), band) != Ok(Sign::Zero) {
+            return false;
+        }
+        let (Some(o), Some(i)) = (selected(*outer), selected(*inner)) else {
+            return false;
+        };
+        (o == a && i == b) || (o == b && i == a)
+    })
+}
 
 /// **One copy, as a finding names it**: the placement's output
 /// variable, and which member of that placement's value it is (0 for a
@@ -100,7 +321,7 @@ pub enum Unlocalized {
     /// A face of the intersection descends from no named face of
     /// either copy.
     Unnamed,
-    /// The gate ran at a scalar with no localizing lane
+    /// The check ran at a scalar with no localizing lane
     /// ([`LocalizeLane`]): the overlap is decided and not bounded.
     Lane,
     /// An assertion's faces bound the overlap, and the kernel could not
@@ -156,8 +377,8 @@ pub struct GapAssertion {
 /// is negative.
 pub(crate) const AT_REST_QUIET_BOUND: &str = "at_rest_quiet_bound";
 
-/// The funnel site name of the quieting rule's decision that two
-/// planar faces' outward normals oppose.
+/// The funnel site name of the quieting rule's decision that two faces'
+/// materials face each other.
 pub(crate) const AT_REST_QUIET_OPPOSED: &str = "at_rest_quiet_opposed";
 
 /// **Every assertion in `doc` that can quiet an interference between
@@ -252,41 +473,58 @@ pub(crate) fn gap_assertions<P, T: Decide>(
 }
 
 /// **Whether a `Gap`'s two faces are opposed**: each faces the other's
-/// material, which is the mating configuration C5's gap is written
-/// for. Two planes oppose when their outward normals do; a bore and a
-/// pin, or a socket and a ball, when the outer face is concave (its
-/// material outside its carrier) and the inner one convex. The `Gap`
-/// that holds over them already decided their carriers parallel,
-/// coaxial or concentric.
+/// material, which is the mating configuration C5's gap is written for
+/// (two planes whose outward normals oppose, a bore about a pin, a
+/// socket about a ball). The material pairing door decides it, read at
+/// a point of the outer face and levered by the two faces' reach from
+/// it, as the census reads two faces' sides; a pairing it cannot decide
+/// is not opposed.
 fn opposed<T: Decide>(body: &Body<T>, outer: FaceKey, inner: FaceKey, band: Band) -> bool {
-    use crate::eval::measure::{Carrier, carrier_of};
-    let at = |key| {
-        carrier_of(
-            body,
-            EntityRef {
-                body: 0,
-                key: EntityKey::Face(key),
-            },
-        )
+    use crate::eval::measure::reach_of;
+    let carrier = |key: FaceKey| {
+        let face = body.get_face(key)?;
+        Some((body.get_surface(face.surface)?, face.sense))
     };
-    let sense = |key| body.get_face(key).map(|f| f.sense);
-    match (at(outer), at(inner)) {
-        (Carrier::Plane { outward: wo, .. }, Carrier::Plane { outward: wi, .. }) => {
-            decide(AT_REST_QUIET_OPPOSED, Margin::of(wo.dot(wi)), band) == Ok(Sign::Negative)
-        }
-        (Carrier::Cylinder { .. }, Carrier::Cylinder { .. })
-        | (Carrier::Sphere { .. }, Carrier::Sphere { .. }) => {
-            sense(outer) == Some(false) && sense(inner) == Some(true)
-        }
-        _ => false,
-    }
+    let (Some((s_outer, sense_outer)), Some((s_inner, sense_inner))) =
+        (carrier(outer), carrier(inner))
+    else {
+        return false;
+    };
+    let Some(p) = face_point(body, outer) else {
+        return false;
+    };
+    let (Some(r_outer), Some(r_inner)) = (reach_of(body, outer, p), reach_of(body, inner, p))
+    else {
+        return false;
+    };
+    let arm = geom_brep::folded_lever_arm(s_outer, s_inner, p, r_outer.max(r_inner));
+    geom_brep::classify_material_pairing_as(
+        AT_REST_QUIET_OPPOSED,
+        s_outer,
+        sense_outer,
+        s_inner,
+        sense_inner,
+        p,
+        arm,
+        band,
+    ) == Ok(geom_brep::MaterialPairing::Opposed)
 }
 
-/// **The scalars the gate localizes an overlap at**: one seam per
+/// A point of face `key`: the start of its outer loop.
+fn face_point<T: Decide>(body: &Body<T>, key: FaceKey) -> Option<geom_core::Point3<T>> {
+    let face = body.get_face(key)?;
+    let vertex = match body.get_loop(face.outer)?.boundary {
+        topo::LoopBoundary::Empty { vertex } => vertex,
+        topo::LoopBoundary::Cycle { first, .. } => body.get_half_edge(first)?.start,
+    };
+    body.get_point(body.get_vertex(vertex)?.point).copied()
+}
+
+/// **The scalars the at-rest check localizes an overlap at**: one seam per
 /// scalar, because localizing builds bodies (the copies' intersection
 /// and the region past each asserted carrier), which reads the
-/// bracket a scalar carries, and the gate reads no bracket anywhere
-/// else. `f64` is the one lane; the analysis scalars the gate is also
+/// bracket a scalar carries, and the check reads no bracket anywhere
+/// else. `f64` is the one lane; the analysis scalars the check is also
 /// run at report a decided overlap as [`Unlocalized::Lane`], loud.
 pub trait LocalizeLane: Decide + AtRestPolicy {
     /// The findings of the copies `a` and `b` of `product`, which the
@@ -351,8 +589,8 @@ impl LocalizeLane for f64 {
 
 /// **The at-rest census's verdicts, partitioned**: the interference
 /// findings between copies, in the census's order of first mention of
-/// each pair, and every other verdict, which the gate attributes and
-/// refuses as before.
+/// each pair, and every other verdict, each a could-not-look finding
+/// ([`AtRestEvidence`]).
 pub(crate) fn partition<T: LocalizeLane>(
     product: &Product<T>,
     errors: Vec<ValidationError>,
@@ -391,7 +629,7 @@ pub(crate) fn partition<T: LocalizeLane>(
     // verdict to lie on its own overlap (`covered`). So does a touch
     // between them, which the census records for no interfering pair
     // (`topo::record_at_rest`), and which keeps the finding loud. A pair
-    // the census decided nothing about stays refused as it left it.
+    // the census decided nothing about is a could-not-look finding.
     let undecided_pair = |error: &ValidationError| match error {
         ValidationError::CensusUndecidable { .. } | ValidationError::UnrecordedContact { .. } => {
             finding_solids(&product.body, error).and_then(|(x, y)| pair_of(x, y))
@@ -633,7 +871,7 @@ pub(crate) fn copy_rows<T: Decide>(
     names: &NameTable,
     copies: &[GatheredCopy<T>],
     rows: Vec<topo::Coincidence>,
-) -> Vec<crate::assembly::AtRestRow> {
+) -> Vec<AtRestRow> {
     let groups = copy_groups(copies);
     let named = |cell: topo::RowCell| {
         let topo::RowCell::Result { cell } = cell else {
@@ -650,7 +888,7 @@ pub(crate) fn copy_rows<T: Decide>(
             let [Some((ca, na)), Some((cb, nb))] = row.cells.map(named) else {
                 unreachable!("a row the census recorded between copies names a cell of each")
             };
-            crate::assembly::AtRestRow {
+            AtRestRow {
                 copies: (by(ca.min(cb)), by(ca.max(cb))),
                 row: crate::coincide::NamedCoincidence {
                     cells: vec![na, nb],

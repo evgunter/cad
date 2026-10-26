@@ -18,7 +18,6 @@
 
 pub mod analysis;
 pub mod appearance;
-pub mod assembly;
 pub mod checks;
 pub mod clearance;
 pub mod coincide;
@@ -106,11 +105,10 @@ pub use appearance::{
     AppearanceKey, AppearanceLoss, AppearanceLossCause, AppearanceMap, AppearanceRecord,
     AppearanceResolution, Attr, AttrKind, AttrSet, Rgba8,
 };
-pub use assembly::{
-    Assembly, AssemblyError, AtRestFinding, AtRestRow, CarriedAtRestFinding, CarriedFindings,
-    CarriedInterference, Route, assemble, assemble_gathered,
+pub use checks::at_rest::{
+    AtRestEvidence, AtRestRow, CarriedAtRestFinding, CarriedFindings, CarriedInterference,
+    CopyRef, FaceSite, InterferenceFinding, Overlap, Route, Unlocalized,
 };
-pub use checks::at_rest::{CopyRef, FaceSite, InterferenceFinding, Overlap, Unlocalized};
 pub use checks::{
     Advisory, ChartCoherenceLane, CheckEvidence, CheckFinding, CheckId, CheckKind, CheckRefusal,
     ChecksConfig, ChecksError, ChecksReport, DoorFindings, DoorJob, FindingSubject, Severity,

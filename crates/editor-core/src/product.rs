@@ -65,16 +65,15 @@
 //! copy its own group): a touch between two copies no record backs is
 //! a `CensusAtRest` row of the product and a record citing it (D1 (iii),
 //! D10), and every other finding is kept on the product
-//! ([`Product::census`]) for the ASSEMBLY gate ([`crate::assemble`]),
-//! which reads it and the kept tier-3 verdict ([`topo::AtRestBody`])
-//! and runs neither again.
+//! ([`Product::census`]) for the at-rest check ([`crate::checks::at_rest`]),
+//! which reads it and runs no census again.
 //!
 //! **The gather does not refuse on the census**: what the census finds
 //! is kept, not raised, because a caller gathering on every edit must
 //! still be handed the product — the corpus heat sink at 160 fins (161
 //! solids / 991 faces), whose fins overlap the base, is handed over
-//! with its census's findings, which the gate turns into interference
-//! findings. The census costs the same order as the gather itself, and
+//! with its census's findings, which the at-rest check turns into
+//! interference findings. The census costs the same order as the gather itself, and
 //! more than once where a touch between copies is unmated (the door
 //! reruns to confirm what it recorded, at most four passes), so every
 //! gather door pays it, and the
@@ -89,10 +88,9 @@
 //! having moved. What the gather
 //! DOES owe — [`topo::graft_disjoint_all_keyed`] asserts nothing about
 //! its operands, so every caller of it must establish disjointness —
-//! is discharged by [`crate::checks`]'s separation resident, which
-//! reads this gather's `solid_copies` and holds every cross-root solid
-//! pair to the box-level certificate. It reports rather than refuses,
-//! because a viewer must keep drawing a document it can diagnose.
+//! is discharged by the census it runs, whose overlaps between copies
+//! the at-rest check reports. It reports rather than refuses, because a
+//! viewer must keep drawing a document it can diagnose.
 
 use std::sync::Arc;
 
@@ -600,7 +598,7 @@ pub(crate) fn sources_of<T: Decide>(value: &NodeValue<T>) -> Option<Vec<Source0<
     // travels those records — and nowhere else, because a body 0 that
     // is not the instantiated one has no part's findings to carry.
     let rows = || Arc::clone(&value.carried);
-    let norows = || Arc::new(crate::assembly::CarriedFindings::default());
+    let norows = || Arc::new(crate::checks::at_rest::CarriedFindings::default());
     match &value.payload {
         ValuePayload::Body(body) => Some(vec![(0, Arc::clone(body), carried(), rows())]),
         ValuePayload::Boolean(BooleanValue::Body { body, contacts, .. }) => {
@@ -730,8 +728,8 @@ pub struct Product<T: Decide> {
     pub document: crate::ident::DocumentId,
     /// The gathered aggregate, with the at-rest gate's verdict on it
     /// kept ([`topo::AtRestBody`]). The gather runs tier 3′'s census
-    /// over it once ([`Self::census`]); [`crate::assemble_gathered`]
-    /// reads both and runs neither again.
+    /// over it once ([`Self::census`]); the at-rest check reads it and
+    /// runs no census again.
     pub body: topo::AtRestBody<T>,
     /// Its stable names, re-keyed onto the aggregate ([`product_named`]).
     pub names: NameTable,
@@ -746,20 +744,18 @@ pub struct Product<T: Decide> {
     /// flush pairs between copies, each in the census's order, each cell
     /// named as its copy's placement reads it. The `unproven-coincidence`
     /// check reads them ([`crate::checks`]).
-    pub coincidences: Vec<crate::assembly::AtRestRow>,
+    pub coincidences: Vec<crate::checks::at_rest::AtRestRow>,
     /// The product's inputs a carried record cites, by position: the
     /// gathered sources, in gather order.
     pub cited_inputs: Vec<crate::coincide::CitedInput>,
     /// **The tier-3′ census's findings over the product and its
     /// records**, run once, by the gather, in the census's order: every
     /// finding but the contacts between copies it recorded as rows
-    /// ([`Self::coincidences`]). The at-rest gate reads them and runs
-    /// no census of its own ([`crate::assemble_gathered`]).
+    /// ([`Self::coincidences`]). The at-rest check reads them and runs
+    /// no census of its own ([`crate::checks::at_rest`]).
     pub census: Vec<ValidationError>,
     /// Which placement contributed each of the aggregate's solids, in
-    /// gather order (`crate::checks`'s separation resident is the
-    /// consumer: it turns a kernel finding about two solid keys into a
-    /// sentence about two placements).
+    /// gather order.
     ///
     /// Read off the GRAFT's own minted-key list, exactly as the name
     /// and contact carries are — never re-derived by looking at the
@@ -767,7 +763,7 @@ pub struct Product<T: Decide> {
     pub solid_copies: Vec<SolidOrigin>,
     /// Every copy the gather grafted, in gather order: its placed body
     /// and the bridge from that body's arena to the aggregate's. The
-    /// at-rest gate intersects two of them to localize an interference
+    /// at-rest check intersects two of them to localize an interference
     /// between them ([`crate::checks::at_rest`]).
     pub copies: Vec<GatheredCopy<T>>,
     /// The holding assertions over a `Gap` between faces of two of
@@ -777,17 +773,16 @@ pub struct Product<T: Decide> {
     pub gap_assertions: Vec<crate::checks::at_rest::GapAssertion>,
     /// The overlaps documents below this one reported between their own
     /// copies ([`crate::CarriedInterference`]), carried verbatim, in
-    /// gather order: reported by the gate, never refused.
-    pub carried_interference: Vec<crate::assembly::CarriedInterference>,
-    /// The at-rest refusals of documents below this one, each crossing
-    /// whole
-    /// ([`crate::CarriedAtRestFinding`]), carried verbatim: the
-    /// outermost gate refuses over them.
-    pub carried_at_rest: Vec<crate::assembly::CarriedAtRestFinding>,
+    /// gather order: reported by the at-rest check, never refused.
+    pub carried_interference: Vec<crate::checks::at_rest::CarriedInterference>,
+    /// What documents below this one could not look at
+    /// ([`crate::CarriedAtRestFinding`]), carried verbatim, in gather
+    /// order: reported by the at-rest check, never refused.
+    pub carried_at_rest: Vec<crate::checks::at_rest::CarriedAtRestFinding>,
     /// **Each `⊔` the product does not read, gathered by itself**
     /// ([`assemble_gathers`]), in document order, kept beside the
-    /// product so the at-rest gate checks every `⊔` from the one product
-    /// it is handed ([`crate::assemble_gathered`]). Empty on a `⊔`'s own
+    /// product so the at-rest check reads every `⊔` from the one product
+    /// it is handed ([`crate::checks::at_rest`]). Empty on a `⊔`'s own
     /// gather.
     pub assembles: Vec<AssembleGather<T>>,
     /// The pieces the product body holds ([`crate::eval::Pieces`]): what
@@ -979,7 +974,7 @@ pub fn assemble_gathers<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
                 .filter(|census| census.node == id)?;
             Some(AssembleGather {
                 var,
-                gather: census.verdict(doc, tol).map(|verdict| {
+                gather: census.verdict(doc, tol).map_err(Into::into).map(|verdict| {
                     let mut verdict = verdict.fresh();
                     verdict.document = doc.id();
                     verdict.gap_assertions = crate::checks::at_rest::gap_assertions(
@@ -1004,9 +999,10 @@ pub fn assemble_gathers<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
 pub struct AssembleGather<T: Decide> {
     /// The door's output.
     pub var: crate::VarId,
-    /// Its verdict, kept rather than raised: any refusal is the gate's
-    /// to raise ([`crate::AssemblyError::Assemble`]).
-    pub gather: Result<Box<Product<T>>, ProductError>,
+    /// Its verdict, kept rather than raised: a refusal is the at-rest
+    /// check's could-not-look finding against this `⊔`
+    /// ([`crate::AtRestEvidence::NotGathered`]).
+    pub gather: Result<Box<Product<T>>, ProductRefusal>,
 }
 
 /// **The census at a door that assembled pieces**, kept on its value
@@ -1017,7 +1013,7 @@ pub struct AssembleGather<T: Decide> {
 /// between two arrivals recorded. A copy or a pick of the door's body
 /// carries the same census, so every reader of the door's meetings
 /// reads one verdict ([`Self::verdict`]): the product's gather, the
-/// at-rest gate, the checks, a boolean reading the body, an outer `⊔`.
+/// at-rest check, a boolean reading the body, an outer `⊔`.
 ///
 /// The census is the door's, but it does not run at the door: the
 /// wire only sets it on the value, and it runs lazily, once, the first
@@ -1277,7 +1273,7 @@ fn gather_sources<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     // carried, so a product that is not a valid body refuses as that
     // before any naming collision is read. Only a refusal pays for
     // attribution (`attribute_at_rest`). The verdict is kept with the
-    // body, so the assembly gate over this product pays the census
+    // body, so the at-rest check over this product pays the census
     // alone.
     let aggregate = match T::gate_at_rest_kept(aggregate, tol) {
         Ok(gated) => gated,
@@ -1297,8 +1293,8 @@ fn gather_sources<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     let mut contacts = ContactRecords::default();
     let mut cited_inputs: Vec<crate::coincide::CitedInput> = Vec::new();
     let mut solid_copies: Vec<SolidOrigin> = Vec::new();
-    let mut carried_interference: Vec<crate::assembly::CarriedInterference> = Vec::new();
-    let mut carried_at_rest: Vec<crate::assembly::CarriedAtRestFinding> = Vec::new();
+    let mut carried_interference: Vec<crate::checks::at_rest::CarriedInterference> = Vec::new();
+    let mut carried_at_rest: Vec<crate::checks::at_rest::CarriedAtRestFinding> = Vec::new();
     let mut tie_rows = CarriedRows::default();
     let mut copies: Vec<GatheredCopy<T>> = Vec::with_capacity(grafted.len());
     for (
@@ -1348,11 +1344,11 @@ fn gather_sources<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
         // A part's census findings carry verbatim too, spelled in its
         // own document, each reported once per part row, by the first
         // route in gather order (`once_per_part_row`).
-        crate::assembly::once_per_part_row(
+        crate::checks::at_rest::once_per_part_row(
             &mut carried_interference,
             rows.interference.iter().cloned(),
         );
-        crate::assembly::once_per_part_row(&mut carried_at_rest, rows.at_rest.iter().cloned());
+        crate::checks::at_rest::once_per_part_row(&mut carried_at_rest, rows.at_rest.iter().cloned());
     }
     // The name carry's second half, after the last source: every
     // carried row, narrowed ONCE over all of them (`carry_names`). A tie
@@ -1376,7 +1372,7 @@ fn gather_sources<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     // the product and a record citing it (`topo::record_at_rest`, D1
     // (iii)), mated or not, which the `unproven-coincidence` check reads
     // and the door proves by its mate where one rests the pair; the rest
-    // is what the at-rest gate refuses or reports ([`Product::census`]).
+    // is what the at-rest check reports ([`Product::census`]).
     let recorded = topo::record_at_rest(
         &aggregate,
         &contacts,
@@ -1455,7 +1451,7 @@ struct Source<T: Decide> {
     body: Arc<Body<T>>,
     table: Arc<NameTable>,
     contacts: Arc<ContactRecords>,
-    rows: Arc<crate::assembly::CarriedFindings>,
+    rows: Arc<crate::checks::at_rest::CarriedFindings>,
     /// Whether a door already decided the meetings inside it
     /// ([`crate::NodeValue::censused`]).
     censused: bool,
@@ -1510,7 +1506,7 @@ pub(crate) type Source0<T> = (
     u32,
     Arc<Body<T>>,
     Arc<ContactRecords>,
-    Arc<crate::assembly::CarriedFindings>,
+    Arc<crate::checks::at_rest::CarriedFindings>,
 );
 
 /// Re-keys one grafted body's contact records onto the aggregate,
