@@ -711,29 +711,44 @@ pub fn boolean_op_with<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let result = boolean_door(op, a, b, &Glue::of(inputs), strategy, tol);
     #[cfg(feature = "door-tier3-meter")]
     super::door_meter::record(op, &result, door_from.elapsed(), [a.outcome(), b.outcome()]);
-    #[cfg(debug_assertions)]
     if let Ok(BooleanResult::Body(out)) = &result {
         rows_name_input_cells(&out.coincidences, [a, b]);
     }
     result
 }
 
-/// Asserts that every input cell `rows` name, a meeting's third
-/// included, is one its input holds: a row is keyed in the op's inputs
+/// **Every input cell a row names is live in its input**, a meeting's
+/// further cells included: a row is keyed in the op's inputs
 /// (`crate::coincidence`), never in the clones the op minted cells in.
-#[cfg(debug_assertions)]
-fn rows_name_input_cells<T: Real>(rows: &[crate::Coincidence], [a, b]: [&Body<T>; 2]) {
+/// It checks liveness only: a key the input holds but that the op read
+/// at another place (a re-charted shell's input-keyed cell,
+/// [`Recharts`]) passes it.
+///
+/// # Panics
+///
+/// For a row naming a cell its input does not hold: every cell the op
+/// minted is read back to an input cell before its row leaves the op
+/// ([`input_cell`], [`respell_through_cuts`]), so a correct kernel
+/// names none.
+fn rows_name_input_cells<T: Real>(rows: &[crate::Coincidence], inputs: [&Body<T>; 2]) {
     for row in rows {
         for cell in row.every_cell() {
-            if let crate::RowCell::Input { input, cell } = cell {
-                let body = if input == Operand::A { a } else { b };
-                assert!(
-                    super::records::holds(body, cell),
-                    "row {row:?} names {input:?}'s {cell:?}, which that input does not hold"
+            if let crate::RowCell::Input { input, cell } = cell
+                && !super::records::holds(inputs[side(input)], cell)
+            {
+                unreachable!(
+                    "row {row:?} names {input:?}'s {cell:?}, which that input does not hold, \
+                     though every cell the op minted is read back to an input cell before its \
+                     row leaves the op"
                 );
             }
         }
     }
+}
+
+/// An operand's index in an `[A, B]` pair.
+fn side(input: Operand) -> usize {
+    usize::from(input == Operand::B)
 }
 
 /// [`boolean_op_with`]'s body.
@@ -7027,12 +7042,11 @@ fn apply_recuts<T: Decide + Bounds + crate::props::AtRestPolicy>(
         for r in &mine {
             let shell = shell_of(r.representative)?;
             cut_shells.push(shell);
-            let mut faces = src
+            let faces = src
                 .get_shell(shell)
                 .ok_or(corrupt("re-cut shell lost"))?
                 .faces
                 .clone();
-            faces.sort_unstable();
             let ball = carve(src, solid, &[shell])
                 .map_err(|_| corrupt("re-cut carve of the sphere shell failed"))?;
             recut_lean(r.axis, r.align, r.radius, band)?;
@@ -7133,7 +7147,7 @@ fn apply_recuts<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     cells_of(base).difference(&before).copied().collect()
                 }
             };
-            made.shells.push((cells, faces));
+            made.add(cells, faces);
         }
         out.adopt(rebuilt.ok_or(corrupt("re-cut produced no body"))?);
     }
@@ -7155,12 +7169,24 @@ type RechartsPerOperand = [Recharts; 2];
 /// What [`apply_recuts`] made in one operand.
 #[derive(Default)]
 struct Recharts {
-    /// Each re-charted shell's cells in the re-cut operand, beside the
-    /// faces of the input shell it was turned from, sorted.
-    shells: Vec<(BTreeSet<Cell>, Vec<FaceKey>)>,
+    /// Each re-charted shell's cells in the re-cut operand, to that
+    /// shell's place in `shells`.
+    cells: BTreeMap<Cell, usize>,
+    /// The faces of the input shell each re-charted shell was turned
+    /// over, sorted.
+    shells: Vec<Vec<FaceKey>>,
 }
 
 impl Recharts {
+    /// Records one re-charted shell: its cells in the re-cut operand and
+    /// its input shell's faces.
+    fn add(&mut self, cells: BTreeSet<Cell>, mut faces: Vec<FaceKey>) {
+        faces.sort_unstable();
+        let at = self.shells.len();
+        self.shells.push(faces);
+        self.cells.extend(cells.into_iter().map(|cell| (cell, at)));
+    }
+
     /// The faces of the input shell whose sphere `cell` of the re-cut
     /// operand was turned over, where `cell` is a re-charted shell's.
     ///
@@ -7170,10 +7196,7 @@ impl Recharts {
     /// ([`super::solid_contain::closed_sphere_group`]) is the whole
     /// shell.
     fn input_faces(&self, cell: Cell) -> Option<&[FaceKey]> {
-        self.shells
-            .iter()
-            .find(|(cells, _)| cells.contains(&cell))
-            .map(|(_, faces)| faces.as_slice())
+        self.cells.get(&cell).map(|&at| self.shells[at].as_slice())
     }
 }
 
@@ -7632,31 +7655,32 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
 /// spelled in the op's inputs' cells, one row for one, so the records
 /// cite the rows they cited.
 ///
-/// A re-charted shell's cell is read as the least face of the input
-/// shell it was turned over ([`Recharts::input_faces`]), which wears the
-/// sphere the turn moved the cell over. A [`crate::Relation::Meet`] or
-/// an [`crate::Relation::OnCarrier`] states the cells' carriers, so it
-/// holds of that face; any other relation holds of it only where the
-/// input shell is that one face and the cell a face, which the face
-/// holds whole.
+/// A re-charted shell's cell is read back as its input shell's faces
+/// ([`Recharts::input_faces`]), which wear the sphere the turn moved it
+/// over. A shell of one face holds a turned face whole, so a row on one
+/// keeps its relation. Any other reading widens the cell, and only a
+/// point decided on a cell holds of the cells that hold it
+/// ([`states_a_point`]).
 ///
 /// # Errors
 ///
-/// [`BooleanError::FallbackExtentUnsupported`] for a row of any other
-/// relation naming a re-charted cell; otherwise as [`spell`].
+/// [`BooleanError::RechartedRowUnstated`] for a row of any other
+/// decision widened by a re-chart; otherwise as [`spell`].
 fn respell_through_cuts(
     rows: &mut [crate::Coincidence],
     cuts: &CutsPerOperand,
     recharted: &RechartsPerOperand,
 ) -> Result<(), BooleanError> {
-    let side = |input: Operand| usize::from(input == Operand::B);
-    let cut = |(input, cell): End| (input, cuts[side(input)].input_cell(cell));
-    let read = |end: End| {
-        let (input, cell) = cut(end);
-        match recharted[side(input)].input_faces(cell) {
-            Some(faces) => (input, Cell::Face(faces[0])),
-            None => (input, cell),
-        }
+    // A cell of a re-cut operand read through the cut-ins, beside the
+    // input shell's faces where a re-chart turned it: a cut-in cuts a
+    // face no re-chart turned.
+    let recut = |(input, cell): End| {
+        let cell = cuts[side(input)].input_cell(cell);
+        (input, cell, recharted[side(input)].input_faces(cell))
+    };
+    let read = |end: End| match recut(end) {
+        (input, _, Some(faces)) => (input, Cell::Face(faces[0])),
+        (input, cell, None) => (input, cell),
     };
     let end = |cell| match cell {
         crate::RowCell::Input { input, cell } => Some((input, cell)),
@@ -7672,29 +7696,45 @@ fn respell_through_cuts(
                 what: "a meeting's third cell is no cell of the op's input",
             })?),
         };
-        let of_carriers = matches!(
-            row.relation,
-            crate::Relation::Meet | crate::Relation::OnCarrier
-        );
-        for (input, cell) in [x, y].into_iter().chain(through).map(cut) {
-            let Some(faces) = recharted[side(input)].input_faces(cell) else {
+        let point = states_a_point(row.relation, recut(x).1);
+        for (operand, cell, faces) in [x, y].into_iter().chain(through).map(recut) {
+            let Some(faces) = faces else {
                 continue;
             };
             let whole = faces.len() == 1 && matches!(cell, Cell::Face(_));
-            if !of_carriers && !whole {
-                return Err(BooleanError::FallbackExtentUnsupported {
-                    operand: input,
-                    face: faces[0],
-                    what: "a decision other than a point's or a carrier's names a cell of a \
-                           re-charted sphere shell, which the re-chart reads back only as the \
-                           input shell it was turned over: a shell of several faces, or a \
-                           cell that is not a face",
+            if !whole && !point {
+                return Err(BooleanError::RechartedRowUnstated {
+                    operand,
+                    relation: row.relation,
+                    faces: faces.to_vec(),
                 });
             }
         }
         (row.cells, row.third, row.relation) = spell([x, y], through, row.relation, read)?;
     }
     Ok(())
+}
+
+/// Whether a `relation` decided with `first` its first cell is a point
+/// decided on a cell, which holds of every cell that holds that cell: a
+/// meeting, or a vertex on a carrier. Every other relation is decided of
+/// the cells' carriers or of their shapes, which a cell widened to the
+/// cells holding it does not keep.
+fn states_a_point(relation: crate::Relation, first: Cell) -> bool {
+    use crate::Relation;
+    match relation {
+        Relation::Meet => true,
+        Relation::OnCarrier => matches!(first, Cell::Vertex(_)),
+        Relation::SameOriented
+        | Relation::SameOpposite
+        | Relation::CommonFoot
+        | Relation::Tangent { .. }
+        | Relation::SurfaceTangent
+        | Relation::Coaxial
+        | Relation::SameRadius
+        | Relation::AxesMeet
+        | Relation::CoRuled => false,
+    }
 }
 
 /// What [`apply_cut_ins`] made in each operand, A's then B's.
@@ -8385,15 +8425,12 @@ mod tests {
             discharge: crate::Discharge::Numeric,
         };
         let recharted = |faces: &[u64]| {
-            [
-                Recharts::default(),
-                Recharts {
-                    shells: vec![(
-                        [Cell::Edge(key(turned_edge).into()), face(turned_face)].into(),
-                        faces.iter().map(|&n| key(n).into()).collect(),
-                    )],
-                },
-            ]
+            let mut b = Recharts::default();
+            b.add(
+                [Cell::Edge(key(turned_edge).into()), face(turned_face)].into(),
+                faces.iter().rev().map(|&n| key(n).into()).collect(),
+            );
+            [Recharts::default(), b]
         };
         let cuts = [ChartCuts::default(), ChartCuts::default()];
         let mut rows = [
@@ -8422,15 +8459,32 @@ mod tests {
             ),
             "a one-face shell holds its turned face whole, so the pair keeps its relation"
         );
-        let mut split = [row(face(turned_face), Relation::SameOpposite)];
-        let refused = respell_through_cuts(&mut split, &cuts, &recharted(&[least, other]));
-        assert!(
-            matches!(
-                refused,
-                Err(BooleanError::FallbackExtentUnsupported { operand: Operand::B, face: f, .. })
-                    if f == key(least).into()
+        for relation in [Relation::SameOpposite, Relation::OnCarrier] {
+            let mut split = [row(face(turned_face), relation)];
+            let refused = respell_through_cuts(&mut split, &cuts, &recharted(&[least, other]));
+            assert!(
+                matches!(
+                    &refused,
+                    Err(BooleanError::RechartedRowUnstated { operand: Operand::B, relation: r, faces })
+                        if *r == relation && *faces == [key(least).into(), key(other).into()]
+                ),
+                "a {relation:?} face pair on a two-face shell's turned face refuses typed: \
+                 {refused:?}"
+            );
+        }
+        let mut pierce = [row(face(turned_face), Relation::OnCarrier)];
+        pierce[0].cells[0] = RowCell::Input {
+            input: Operand::A,
+            cell: Cell::Vertex(key(plane).into()),
+        };
+        respell_through_cuts(&mut pierce, &cuts, &recharted(&[least, other])).unwrap();
+        assert_eq!(
+            (pierce[0].cells[1], pierce[0].relation),
+            (
+                RowCell::face(Operand::B, key(least).into()),
+                Relation::OnCarrier
             ),
-            "a carrier pair on a two-face shell's turned face refuses typed: {refused:?}"
+            "a vertex on a two-face shell's turned face is a point, stated on the shell"
         );
     }
 

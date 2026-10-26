@@ -2199,6 +2199,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::ArcLoopContainmentUnsupported
         | BooleanErrorKind::PointInFaceRefused
         | BooleanErrorKind::RestPieceUnread
+        | BooleanErrorKind::RechartedRowUnstated
         | BooleanErrorKind::CarryRefused
         | BooleanErrorKind::ScaffoldingOperand
         | BooleanErrorKind::InsideOutOperand

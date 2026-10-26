@@ -406,6 +406,14 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             },
         ),
         (
+            "RechartedRowUnstated",
+            BooleanError::RechartedRowUnstated {
+                operand: Operand::B,
+                relation: topo::Relation::SameOpposite,
+                faces: vec![face, face],
+            },
+        ),
+        (
             "GermFrameUnsupported",
             BooleanError::GermFrameUnsupported {
                 a_face: face,
