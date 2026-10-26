@@ -3167,14 +3167,13 @@ impl<T: Decide> EdgeMeets<T> {
 }
 
 /// **Whether a ray crosses planar `face` at `p`**, off the turn of its
-/// loops about `p`. Every edge of `face` is a line edge the ray was
-/// decided definitely clear of ([`edge_meets`]), so the turn is `±2π`
-/// inside the face and `0` outside it, to rounding: `|turn| − π` is
-/// `±π`, definite by construction, and is read under `winding` through
-/// the unlogged door (`k_stats::check_unlogged`, ledger row F23 of
-/// `docs/predicate-dimension-audit.md`), so no verdict log, flip lane
-/// or tie census counts it as a margin. No auxiliary direction is cast,
-/// so no tie the face's geometry does not hold is ever decided.
+/// loops about `p` ([`loop_turn`]); `None` where an edge of it is neither
+/// a line nor a circle arc. Every edge of `face` was decided clear of the
+/// ray ([`edge_meets`], [`curved_edges`]), so the turn is `±2π` inside
+/// the face and `0` outside it, to rounding: `|turn| − π` is `±π`,
+/// definite by construction ([`turned_inside`]). No auxiliary direction
+/// is cast, so no tie the face's geometry does not hold is ever decided.
+#[allow(clippy::too_many_arguments)] // the face, the crossing, the ray's reach and the rows
 fn crosses_by_turn<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -3183,19 +3182,74 @@ fn crosses_by_turn<T: Decide>(
     reach: T,
     band: Band,
     rows: RayRows,
-) -> Result<bool, RayFault<PointInSolidError>> {
-    let corrupt = || RayFault::Fatal(PointInSolidError::CorruptFace { face });
-    let at = |v| {
-        body.get_vertex(v)
-            .and_then(|vx| body.get_point(vx.point))
-            .copied()
-            .ok_or_else(corrupt)
-    };
-    let mut turn = T::zero();
-    for e in face_edges(body, face).map_err(RayFault::Fatal)? {
-        let (u, w) = (at(e.ends[0])? - p, at(e.ends[1])? - p);
-        turn = turn + normal.dot(u.cross(w)).atan2(u.dot(w));
+) -> Result<Option<bool>, RayFault<PointInSolidError>> {
+    match loop_turn(body, face, normal, p, |x| x)? {
+        Some(turn) => turned_inside(face, turn, reach, band, rows).map(Some),
+        None => Ok(None),
     }
+}
+
+/// **Whether a root `p` of a cylinder face's wall lies in the face**, off
+/// the turn of its loops about `p` on an image of the wall in a plane
+/// ([`loop_turn`]); `None` where an edge of it is neither a ruling nor a
+/// circle (an oblique section). The wall `(origin, axis, radius)` minus
+/// nothing is an annulus: a point at height `h` along the axis and
+/// radial direction `s` goes to `ρ(h − h_p)·s`, `s` read in the frame of
+/// `p`'s own radial and `ρ(Δ) = 1 + Δ/(|Δ| + radius)`, which rises from
+/// `0` to `2` and is `1` at `p`. It is one to one and continuous, carries
+/// every ruling to a segment of a ray from the origin and every circle on
+/// the wall (a parallel) to a circle about it, so the face's image is a
+/// region of the plane bounded by its loops' images, and `p`'s image lies
+/// in it exactly when `p` lies in the face. Every edge of the face was
+/// decided clear of the ray, so of `p` ([`crosses_by_turn`]'s premise),
+/// and the turn is read as a planar face's is ([`turned_inside`]):
+/// nothing about the wall is asked, and no path is walked.
+#[allow(clippy::too_many_arguments)] // the face, its wall, the root, the ray's reach and the rows
+fn wall_crosses_by_turn<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    (origin, axis, radius): (Point3<T>, Vec3<T>, T),
+    p: Point3<T>,
+    reach: T,
+    band: Band,
+    rows: RayRows,
+) -> Result<Option<bool>, RayFault<PointInSolidError>> {
+    let axis = axis / axis.norm();
+    let radius = radius.abs();
+    let split = |x: Point3<T>| {
+        let w = x - origin;
+        let h = w.dot(axis);
+        let radial = w - axis * h;
+        (h, radial / radial.norm())
+    };
+    let (h_p, e1) = split(p);
+    let e2 = axis.cross(e1);
+    let image = |x: Point3<T>| {
+        let (h, s) = split(x);
+        let dh = h - h_p;
+        let rho = T::one() + dh / (dh.abs() + radius);
+        Point3::new(s.dot(e1) * rho, s.dot(e2) * rho, T::zero())
+    };
+    let up = Vec3::new(T::zero(), T::zero(), T::one());
+    match loop_turn(body, face, up, image(p), image)? {
+        Some(turn) => turned_inside(face, turn, reach, band, rows).map(Some),
+        None => Ok(None),
+    }
+}
+
+/// Whether a loop turn `turn` about a point says it lies inside: the
+/// turn is `±2π` inside and `0` outside, to rounding, so `|turn| − π` is
+/// `±π`, definite by construction, and is read under `winding` through
+/// the unlogged door (`k_stats::check_unlogged`, ledger row F23 of
+/// `docs/predicate-dimension-audit.md`), so no verdict log, flip lane or
+/// tie census counts it as a margin.
+fn turned_inside<T: Decide>(
+    face: FaceKey,
+    turn: T,
+    reach: T,
+    band: Band,
+    rows: RayRows,
+) -> Result<bool, RayFault<PointInSolidError>> {
     Ok(geom_core::k_stats::check_unlogged(
         rows.winding,
         (turn.abs() - T::pi()) * reach,
@@ -3204,6 +3258,90 @@ fn crosses_by_turn<T: Decide>(
     )
     .map_err(|diag| RayFault::InBand(PointInSolidError::Escalated { face, diag }))?
         == Sign::Positive)
+}
+
+/// **The turn of `face`'s loops about `p`**, about `normal`, every point
+/// of them first carried by `map` (the identity for a planar face, which
+/// `p` lies in; an image of a curved face in the plane `p`'s image lies
+/// in): a line edge, carried to a segment, turns by the angle its ends
+/// make at `p`, and a circle arc, carried to a circle arc, by [`arc_turn`]
+/// over its two halves. `None` where an edge is neither.
+fn loop_turn<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    normal: Vec3<T>,
+    p: Point3<T>,
+    map: impl Fn(Point3<T>) -> Point3<T>,
+) -> Result<Option<T>, RayFault<PointInSolidError>> {
+    let corrupt = || RayFault::Fatal(PointInSolidError::CorruptFace { face });
+    let at = |v| {
+        body.get_vertex(v)
+            .and_then(|vx| body.get_point(vx.point))
+            .map(|&x| map(x))
+            .ok_or_else(corrupt)
+    };
+    let angle = |a: Point3<T>, b: Point3<T>| {
+        let (u, w) = (a - p, b - p);
+        normal.dot(u.cross(w)).atan2(u.dot(w))
+    };
+    let mut turn = T::zero();
+    for e in face_edges(body, face).map_err(RayFault::Fatal)? {
+        let (a, b) = (at(e.ends[0])?, at(e.ends[1])?);
+        let curve = body
+            .get_edge(e.edge)
+            .and_then(|ed| body.get_curve_geom(ed.curve))
+            .and_then(crate::null::CurveGeom::certified)
+            .ok_or_else(corrupt)?;
+        match *curve.carrier() {
+            geom::Curve3::Line { .. } => turn = turn + angle(a, b),
+            geom::Curve3::Circle { .. } => {
+                let plus = body
+                    .edges
+                    .get(e.edge)
+                    .and_then(|ed| ed.claim(e.half))
+                    .ok_or_else(corrupt)?
+                    .plus;
+                // The arc's points at fractions of its span, as the half
+                // walks it.
+                let (t0, t1) = curve.params();
+                let on = |f: f64| {
+                    let f = T::from_f64(if plus { f } else { 1.0 - f });
+                    map(curve.carrier().eval(t0 + (t1 - t0) * f))
+                };
+                let m = on(0.5);
+                turn = turn
+                    + arc_turn(normal, p, (a, on(0.25), m))
+                    + arc_turn(normal, p, (m, on(0.75), b));
+            }
+            _ => return Ok(None),
+        }
+    }
+    Ok(Some(turn))
+}
+
+/// **The turn about `p` of a circle arc** from `a` through `m` to `b`,
+/// at most half a turn, about `normal`, in the plane of `p`: the change
+/// in the direction from `p` to the arc's point as it runs from `a` to
+/// `b`. As complex numbers in that plane, `M(x) = (x − a)/(x − b)` carries
+/// the arc's circle to a line through the origin and the arc to the
+/// half of it `M(m)` lies on, so the turn is
+/// `Arg(−conj M(m)) − Arg(−M(p) conj M(m))`, whose one cut is the arc
+/// itself: it asks no question, as a chord's turn and a test of which
+/// side of the chord `p` lies would, and `p` lies clear of the arc. Each
+/// `M` is read by its numerator `(x − a)·conj(x − b)`, the positive
+/// scale `|x − b|²` turning no argument.
+fn arc_turn<T: Decide>(
+    normal: Vec3<T>,
+    p: Point3<T>,
+    (a, m, b): (Point3<T>, Point3<T>, Point3<T>),
+) -> T {
+    let numerator = |x: Point3<T>| {
+        let (u, w) = (x - a, x - b);
+        (u.dot(w), normal.dot(w.cross(u)))
+    };
+    let ((pr, pi), (mr, mi)) = (numerator(p), numerator(m));
+    let zero = T::zero();
+    mi.atan2(zero - mr) - (zero - (pi * mr - pr * mi)).atan2(zero - (pr * mr + pi * mi))
 }
 
 /// **An edge of a face's loops**, as one of its half-edges walks it: the
@@ -3845,12 +3983,14 @@ pub(crate) fn ray_crossings<T: Decide>(
         // crossing at all — in particular a `t = 0` hit on a face plane
         // through `q` (a corner-aligned query) must be skipped, not
         // grazed, when the face itself is elsewhere.
-        let inside = if every_edge_read(body, face, &meets.lines) {
-            Some(crosses_by_turn(
-                body, face, c.normal, c.p, reach, band, rows,
-            )?)
+        let turned = if every_edge_read(body, face, &meets.read) {
+            crosses_by_turn(body, face, c.normal, c.p, reach, band, rows)?
         } else {
-            point_in_face(body, face, c.normal, c.p, band).map_err(at_hit)?
+            None
+        };
+        let inside = match turned {
+            Some(inside) => Some(inside),
+            None => point_in_face(body, face, c.normal, c.p, band).map_err(at_hit)?,
         };
         let point = (c.t, c.t);
         match inside {
@@ -3898,7 +4038,32 @@ pub(crate) fn ray_crossings<T: Decide>(
             let Some(geo) = geo_of(r.face) else {
                 continue;
             };
-            match root_held(r.face, geo, q + d * r.t, band) {
+            // A wall face met at no edge, every edge of which the ray was
+            // decided clear of, is held where the turn of its loops says.
+            let turned = match *geo {
+                FaceGeo::Cylinder {
+                    origin,
+                    axis,
+                    radius,
+                    ..
+                } if !meets.met.iter().any(|m| m.faces.contains(&r.face))
+                    && every_edge_read(body, r.face, &meets.read) =>
+                {
+                    wall_crosses_by_turn(
+                        body,
+                        r.face,
+                        (origin, axis, radius),
+                        q + d * r.t,
+                        reach,
+                        band,
+                        rows,
+                    )
+                    .map(|inside| inside.map(Some))
+                    .transpose()
+                }
+                _ => None,
+            };
+            match turned.unwrap_or_else(|| root_held(r.face, geo, q + d * r.t, band)) {
                 Ok(Some(true)) => held = held.or(Some((r, geo))),
                 Ok(Some(false)) => {}
                 Ok(None) => boundary = boundary.or(Some(r)),

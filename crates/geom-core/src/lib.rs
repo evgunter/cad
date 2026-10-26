@@ -43,6 +43,15 @@ pub mod tolerance;
 /// aimed rays by it.
 pub const GOLDEN_ANGLE: f64 = 2.399_963_229_728_653;
 
+/// **The golden section** of a unit span, `1/φ = (√5 − 1)/2`: a point at
+/// this fraction (or at `1 −` it) of a span sits off its middle and off
+/// every low-order rational fraction of it, so it misses the planes of a
+/// symmetric pose and a dyadic lattice alike. The one spelling of it:
+/// topo's side-at-infinity aims step and weigh by it, its sequence
+/// generator splits edges at it, and golden-section searches narrow by
+/// it.
+pub const GOLDEN_SECTION: f64 = 0.618_033_988_749_895;
+
 pub use arc::{Arc2, Circles, Circles2, CirclesAt};
 pub use dual::{Dual, Dual64, DualInterval};
 pub use interval::Interval;

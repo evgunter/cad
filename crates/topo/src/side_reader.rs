@@ -287,7 +287,7 @@ fn aim_at<T: Decide>(
 ) -> Result<Option<Aim<T>>, PointInSolidError> {
     match face_plane(body, face) {
         Ok((_, normal)) => {
-            if let Some(aim) = line_loop_mean(body, face) {
+            if let Some(aim) = loop_aim(body, face) {
                 return Ok(Some((aim, normal)));
             }
             return Ok(
@@ -297,9 +297,11 @@ fn aim_at<T: Decide>(
         Err(PointInSolidError::KindUnsupported { .. }) => {}
         Err(e) => return Err(e),
     }
-    let surface = body
+    let f = body
         .get_face(face)
-        .and_then(|f| body.get_surface(f.surface))
+        .ok_or(PointInSolidError::CorruptFace { face })?;
+    let surface = body
+        .get_surface(f.surface)
         .ok_or(PointInSolidError::CorruptFace { face })?;
     let aim = match *geo {
         FaceGeo::Cylinder { ref region, .. } | FaceGeo::Cone { ref region, .. } => {
@@ -318,21 +320,40 @@ fn aim_at<T: Decide>(
         FaceGeo::Sphere { .. } => surface.eval(T::from_f64(1.0), T::from_f64(0.3)),
         _ => return Ok(None),
     };
-    // A normal the face's own reader cannot give (an in-band residual,
-    // an apex) leaves no incidence to aim at: the face offers none.
-    Ok(
-        crate::face_normal::face_outward_normal_at(body, face, aim, band)
-            .ok()
-            .flatten()
-            .map(|normal| (aim, normal.vec())),
-    )
+    // A cylinder's, a sphere's or a ring torus's aim lies on its surface
+    // by construction, where the chart's gradient is its unit normal: the
+    // aim only steers, so nothing certifies it onto the surface. A cone's
+    // gradient is unit everywhere off its axis and undefined at its apex,
+    // so its face's own reader gives the normal, and a normal it cannot
+    // give (an in-band residual, an apex) leaves no incidence to aim at:
+    // the face offers none.
+    if let FaceGeo::Cone { .. } = *geo {
+        return Ok(
+            crate::face_normal::face_outward_normal_at(body, face, aim, band)
+                .ok()
+                .flatten()
+                .map(|normal| (aim, normal.vec())),
+        );
+    }
+    let chart = geom_brep::implicit_gradient(surface, aim);
+    Ok(Some((
+        aim,
+        geom_brep::OutwardNormal::from_chart(chart, f.sense).vec(),
+    )))
 }
 
-/// The mean of the points of planar `face`'s outer loop, where every
-/// edge of it is a line: an aim that asks nothing, which the ray crosses
-/// edge by edge however near an edge it lands ([`ray_crossings`]).
-/// `None` for a loop with a curved edge, or one that does not walk.
-fn line_loop_mean<T: geom_core::Real>(body: &Body<T>, face: FaceKey) -> Option<Point3<T>> {
+/// **Where a ray aimed at planar `face` aims**, where every edge of its
+/// outer loop is a line or a circle arc: a mean of the loop's points,
+/// each vertex and each arc's point at the golden section of its span
+/// ([`geom_core::GOLDEN_SECTION`]), weighted in walk order by `1` plus
+/// the fractional part of the golden section's multiples. The plain mean
+/// of a symmetric loop is its centre, which can be a vertex of it (an L
+/// whose arms match) or a point its edges' carriers pass through (a
+/// disc's axis); the weighted one is no symmetry's point. It asks
+/// nothing, and the ray crosses the face edge by edge or by the turn of
+/// its loops however near an edge it lands ([`ray_crossings`]). `None`
+/// for a loop with another edge, or one that does not walk.
+fn loop_aim<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<Point3<T>> {
     // Not `face_edges`: the mean is the outer loop's, and that walks the rings too.
     let outer = body.get_face(face)?.outer;
     let first = match body.get_loop(outer)?.boundary {
@@ -342,16 +363,33 @@ fn line_loop_mean<T: geom_core::Real>(body: &Body<T>, face: FaceKey) -> Option<P
         LoopBoundary::Empty { .. } => return None,
     };
     let origin = Point3::new(T::zero(), T::zero(), T::zero());
-    let (mut sum, mut n) = (Vec3::zero(), T::zero());
+    let (mut sum, mut total, mut k) = (Vec3::zero(), T::zero(), 0_u32);
+    let mut add = |p: Point3<T>| {
+        let w = T::from_f64(1.0 + (f64::from(k) * geom_core::GOLDEN_SECTION).fract());
+        sum = sum + (p - origin) * w;
+        total = total + w;
+        k += 1;
+    };
     for h in body.loop_walk(first).closed("loop", first) {
         let he = body.get_half_edge(h)?;
-        if !crate::census::edge_is_line(body, he.edge) {
-            return None;
+        add(*body.get_point(body.get_vertex(he.start)?.point)?);
+        let edge = body.get_edge(he.edge)?;
+        let curve = body.get_curve_geom(edge.curve)?.certified()?;
+        match *curve.carrier() {
+            geom::Curve3::Line { .. } => {}
+            geom::Curve3::Circle { .. } => {
+                let (t0, t1) = curve.params();
+                let f = if edge.he_plus == h {
+                    geom_core::GOLDEN_SECTION
+                } else {
+                    1.0 - geom_core::GOLDEN_SECTION
+                };
+                add(curve.carrier().eval(t0 + (t1 - t0) * T::from_f64(f)));
+            }
+            _ => return None,
         }
-        sum = sum + (*body.get_point(body.get_vertex(he.start)?.point)? - origin);
-        n = n + T::one();
     }
-    Some(origin + sum / n)
+    Some(origin + sum / total)
 }
 
 /// **How far from `aim` any face of the selection reaches**: the loops'
