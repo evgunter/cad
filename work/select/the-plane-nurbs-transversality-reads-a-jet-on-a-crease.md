@@ -16,8 +16,8 @@ from its sweep. The same lane's review found the surface form of a
 crease defect there: a foot on a C⁰ knot line reads the jet of
 whichever span `ders` locates, which need not be the face's.
 
-`plane_nurbs_limbs` in `crates/geom-brep/src/edge_nurbs.rs` reads
-`wall.ders(u, v)` at each interior schedule foot for its
+`plane_nurbs_limbs` in `crates/geom-brep/src/edge_nurbs.rs` (~:615) reads
+`wall.ders(u, v)` (~:655) at each interior schedule foot for its
 transversality sine (`normal_angle_sine`), with no check that the foot
 is off the wall's crease runs (`KnotStructure::crease_runs`). Its
 interior samples avoid the edge's ends, but not an edge that rides a
@@ -27,7 +27,9 @@ for an edge that is not transverse on the face's own side, or the
 reverse.
 
 Not measured: no fixture yet puts a plane × NURBS edge on a C⁰ wall
-crease. The guard `dihedral_side` uses is `off_every_crease` in
-`crates/geom-brep/src/dihedral_side.rs`; the same reading, or a typed
+crease. The guard `dihedral_side` uses is `on_a_crease` in
+`crates/geom-brep/src/dihedral_side.rs`, with `irregular_reach` for an
+irregular foot,; the same reading, or a typed
 refusal for a foot within the band of a crease, would close it.
-`nurbs_pair_limbs` reads two walls' jets the same way.
+`nurbs_pair_limbs` (~:1253, the sine at ~:1297) reads two walls' jets the
+same way. The class is `splice/a-derivative-is-read-at-a-foot-no-one-placed`.

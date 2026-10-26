@@ -35,25 +35,33 @@ curvature folding the arm. A spline face is given no signed residual.
 A tangent dihedral escalates `SideEscalation::Tangent`, and an in-band
 one escalates through the lever's rungs.
 
-A foot within the band of a line the chart's normal is not continuous
-across (a C⁰ knot run per `KnotStructure::crease_runs`, or a closed
-chart's seam) escalates `SideEscalation::Crease`. The edge's direction
-is an `EdgeWalk`, minted from the half-edge that walks it.
+A foot within the band of an irregular point of the chart (`S_u × S_v`
+vanishing) or of a line its normal is not continuous across (a C⁰ knot
+run per `KnotStructure::crease_runs`, or a closed chart's seam)
+escalates `SideEscalation::Crease`. The foot is decided on the carrier,
+not the face's trim. The edge's direction is an `EdgeWalk`, minted from
+the edge's curve and the half-edge (`EdgeHalf`) that walks it.
 
 Witness rows, in `dihedral_side::tests`:
 `a_spline_wall_reads_its_side_of_a_plane`,
+`the_minus_half_walks_the_carrier_backward`,
 `a_plane_reads_its_side_of_a_spline_wall`,
 `a_spline_wall_and_a_cylinder_read_each_others_side`,
 `a_tangent_or_in_band_departure_escalates`,
 `the_arm_is_the_walls_radius_of_curvature_past_its_reach`,
 `a_foot_in_band_escalates`,
 `a_point_off_the_spline_face_is_refused`,
-`a_spline_face_without_a_lane_refuses_typed`; in
-`dihedral_side::review_rows`:
+`a_spline_face_without_a_lane_refuses_typed`,
 `each_half_of_a_creased_carrier_escalates_on_the_crease`,
 `a_creased_carrier_reads_its_side_off_the_crease`,
-`a_closed_charts_seam_escalates`.
+`a_kink_from_coincident_control_rows_escalates_like_a_knot_crease`,
+`a_point_on_a_kinked_chart_is_not_refused_off_it`,
+`the_regularity_reach_is_the_distance_to_the_kink`,
+`a_closed_charts_seam_escalates`,
+`a_c1_seam_escalates_for_want_of_a_seam_continuity_reading`.
 
 The boolean does not call the door yet. Its consumer is the sweep's
-curved arm, behind the boundary-first reading:
-`the-curved-arm-reads-a-spline-faces-side-through-the-dihedral-side-door`.
+curved arm, behind the boundary-first reading and point-in-face for a
+spline face:
+`the-curved-arm-reads-a-spline-faces-side-through-the-dihedral-side-door`,
+parked on `a-point-has-no-place-in-a-nurbs-faces-trim`.

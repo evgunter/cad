@@ -2,11 +2,12 @@
 id: the-curved-arm-reads-a-spline-faces-side-through-the-dihedral-side-door
 kind: issue
 title: The sweep's curved arm still refuses a spline face before reading a side; the dihedral side door is not yet its spline arm
-status: open
+status: parked
 opened: 2026-10-26
 priority: P1
 cost: E
 refs: [a-span-is-read-against-a-faces-boundary-edges-first, the-side-of-a-spline-face-is-read-by-no-dihedral]
+blocked_on: [a-point-has-no-place-in-a-nurbs-faces-trim]
 ---
 
 
@@ -35,6 +36,14 @@ it from the parent face's own half-edge as
 mint (a `Body` helper taking the half-edge), so no caller assembles the
 bit by hand. A `Tangent`, `Crease` or in-band answer keeps its
 escalation.
+
+**Parked on point-in-face.** The door decides a spline face's foot on
+its CARRIER and reads no trim. A carrier that passes within the band of
+the point on a sheet the face does not use gives the foot on that sheet
+(the hairpin witness in `a-point-has-no-place-in-a-nurbs-faces-trim`).
+So the side is the face's only once the foot is placed in the face. The
+wiring places it through that row's NURBS arm before it consumes the
+side.
 
 The one-sided cover's side reading (`read_cover_side` in
 `crates/topo/src/boolean/mod.rs`) samples `implicit_residual` on the

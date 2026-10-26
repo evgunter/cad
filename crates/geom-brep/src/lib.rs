@@ -116,7 +116,9 @@ pub use dihedral::{
     material_kappa_rel, must_carry_description, must_carry_over_edge, reask_chart, reask_pair,
     second_order_walk, tangent_second_order,
 };
-pub use dihedral_side::{FaceSide, SideEscalation, SideFace, SideRole, dihedral_side};
+pub use dihedral_side::{
+    EdgeHalf, EdgeWalk, FaceSide, SideEscalation, SideFace, SideRole, dihedral_side,
+};
 pub use edge_nurbs::{
     AnalyticRung3Refusal, CARRIER_DOMAIN_RECOURSE, CarrierDomainFault, CarrierDomainRefusal,
     IncidenceRefusal, PlaneNurbsIncidence, PlaneNurbsLimbs, PlaneNurbsRefusal, Rung3Limb,
