@@ -76,9 +76,9 @@ const FILES: [&str; 5] = [
 /// each row digests the product composed into the world through
 /// `in_space`, and 29 of the 30 rows held. The tour die moved, its count
 /// kept: its 15 pip-floor points read four ulps from where they read,
-/// because the cut computes in the die's frame and reads each pip, a
-/// copy, through one composed map where each was rebuilt before
-/// (`edit_placement_corpus_bits` says the same of its last copy).
+/// because the pips' union computes in its first pip's frame and reads
+/// every other pip through `relative` (`edit_placement_corpus_bits`
+/// says the same of its last copy).
 const PRE_C: [(&str, &str); 35] = [
     ("die", "18a00a4411472694/532"),
     ("corner_table", "1b26e7ae1ba4a066/100"),

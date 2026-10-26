@@ -896,10 +896,17 @@ fn a_planted_engine_refusal_becomes_refused_mass_that_overruns_a_zero_budget() {
     assert!(verdict.certified().is_empty());
 }
 
-/// Budget overrun: a box the widening class refuses (issue 1191) leaves
-/// unresolved mass, and a recorded budget of zero reds it.
+/// **A wide box over a copy certifies whole.** The neck's placed prism
+/// is its source's body under a frame the box moves (D10
+/// `[placement.frame]`), so no copy is rebuilt over the box and nothing
+/// widens past the band: the box that issue 1191's class refused while
+/// the copy was rebuilt leaves no unresolved mass. A zero budget's
+/// overrun is the planted refusal's row above.
+///
+/// *Breaks if* a copy is rebuilt over the box again (the leaf refuses
+/// and its mass is unresolved).
 #[test]
-fn a_wide_box_overruns_a_zero_budget() {
+fn a_wide_box_over_a_copy_certifies_whole() {
     let (doc, _) = neck(
         0.3,
         9,
@@ -921,7 +928,8 @@ fn a_wide_box_overruns_a_zero_budget() {
     .expect("builds");
     let budget = MassBudget::of(verdict.accounting(), &analyzed);
     eprintln!("{}", budget.render(&doc));
-    assert!(budget.unresolved.clone().expect("priced") > 0.0);
+    assert_eq!(budget.unresolved.clone().expect("priced"), 0.0);
+    assert!(!verdict.certified().is_empty());
 }
 
 // ------------------------------------------- 6. priced vs forced

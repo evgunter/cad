@@ -100,9 +100,10 @@ use editor_core::Node;
 /// copy composes to the bits its rebuilt copy had. The tour die's last
 /// row (`1621`, the identity copy of the filleted die) moved: its 15
 /// pip-floor points read `0.04999999999999993` where they read
-/// `0.04999999999999996` (four ulps), because the subtract that cut the
-/// pips computes in the die's frame and reads each pip, a copy, through
-/// one composed map where each was rebuilt once per placement before.
+/// `0.04999999999999996` (four ulps): the pips' union computes in its
+/// first pip's frame and reads every other pip through `relative`, an
+/// inverse and a composition where each pip was rebuilt into the world
+/// before, and the cut, both fillets and this copy carry that rounding.
 ///
 /// `die_tool`'s two rows moved again when its master ball came to
 /// stand on the cube's corner frame by an axis mate whose slide and
