@@ -29,3 +29,13 @@ the meeting-axes pose builds: Err(Escalated { decision: Containment { decision: 
 ```
 
 PCERT's E1 merge of main (`30477d14e2`) fails the same way, so the default-ε red is main's. The done-when now covers every ε.
+
+## 2026-10-26 (SPLICE nightly triage): now red at every ε
+
+On nightly run 40274924857 (main `38f1a24ed3`) this row is red at
+default, 1e-6 and 1e-12. At the default ε it escalates
+`bool_ruled_region_span`
+(`Containment { decision: None, escalation: Margin }`). Bisected at the
+default ε to #5664 (`80a6f77af3`). The widening is filed on CHART's
+slate, at `work/chart/main-red-ringed-curved-doors-reds-four-sweep-rows.md`.
+The 1e-12 red this row names predates #5664.
