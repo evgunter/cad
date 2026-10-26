@@ -16,4 +16,5 @@ unchanged. Rows dispatchable: 8, for 25 points.
 
 - 2026-10-23 — **Seam (QUAD):** PR 5589 (`quad/measure-a-lanes`, measure door unit A) re-words one doc in `topo/src/boolean/ops.rs` (the lane's stop is its floor or its work wall). No code change. (QUAD orchestrator's lane)
 
+- 2026-10-23 — **Seam (QUAD):** PR 5628 (`quad/measure-b-door`, measure door unit B) edits `boolean/ops.rs`'s volume backstop only (see CLEAVE's note). (QUAD unit B lane)
 - 2026-10-25 — **Re-cut (refold approved in chat):** moved `the-lilys-stem-and-arch-walls-have-no-certificate-arm` to SECT, `delete-the-boolean-operand-edge-gate` to SPLICE by `git mv`, ids and bodies unchanged, each with a dated Moved note. SPLICE (`work/splice/`) is the new track for a body built by loft or sweep entering every boolean; SECT now carries the torus pairs it is built for.

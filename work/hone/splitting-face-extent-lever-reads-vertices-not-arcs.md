@@ -2,11 +2,12 @@
 id: splitting-face-extent-lever-reads-vertices-not-arcs
 kind: issue
 title: splitting's face_extent lever must over-estimate a face's reach but folds only its boundary VERTICES, so an arc bowing past them under-claims the arm
-status: open
+status: closed
 opened: 2026-10-06
 priority: P2
 cost: E
 refs: [an-edges-extent-has-four-dispatchers]
+closed: 2026-10-26
 ---
 
 
@@ -32,3 +33,7 @@ A fix folds each curved edge's extent in through the one door
 `an-edges-extent-has-four-dispatchers` names. Until that lands it is
 `splitting::containment::carrier_ball`, which the shell clearance gate
 reads (`shell::carrier_box`).
+
+## Closed (2026-10-26, tracker sweep)
+
+**Fixed.** `face_extent` (`crates/topo/src/splitting/rules.rs:615`) now reads `face_reach_from` (`:636`). That function levers each certified boundary edge as its `geom_brep::Reach::Span` is: a circle arc exactly, an ellipse arc by its quarters' chords and bulges, and a segment by its ends. Off a plane or a cylinder, each edge is levered round its whole carrier (`Reach::lever_from`). The vertex-only fold this row names is gone, so a cap on one closed circle and a bowing arc are both read at their reach. The history is shallow, so the commit was not found; this is the code as it stands at `bb25fa4f`.

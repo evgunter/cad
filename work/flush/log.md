@@ -571,3 +571,29 @@ None waits on an INTENT stage. A row that turns out to need one moves back. — 
 — (FLUSH orchestrator)
 - 2026-10-26 — **Dispatched the three-way coincident names** (`an-intersect-of-an-intersect-names-a-three-way-coincident-face-apart-in-one-member-order`, P2 M, branch `flush/three-way-coincident-names`). One of the silhouette letters' four member orders names a piece of the y 3 face with an extra wall. The lane re-measures first, since PR 5706 made both operand orders write the same rows, then finds the first record that differs. A cause in the boolean's rows is FLUSH's to fix; one in the names layer's chase is filed on BORDERS. **Tier: one FULL review** if code changes; a diagnosis and a filing I read myself. Seam: WIRE's `[ev]` PR 5705 (the names layer).
 — (FLUSH orchestrator)
+- 2026-10-26 — **PR 5733 closes `an-intersect-of-an-intersect-names-a-three-way-coincident-face-apart-in-one-member-order` by moving it to BORDERS** as `a-direct-operands-own-split-lineage-climbs-to-a-live-sibling-seam` (P2 M). No code changed.
+  - **Measured on main after PR 5706:** the odd order (`T ∩ H`, then `two ∩ C`) still adds a z 2.5 wall to one y 3 piece, at all three ε. No fallback is involved, and the topo rows agree across orders.
+  - **The first difference is in the names layer:** `borders.rs` `Obstacles::up_lineage` climbs from a split piece of `two`'s own edge to its live sibling, a seam of C's discard. The three agreeing orders are right: no region of the merged y 3 face lies across that edge.
+  - **Tier:** a diagnosis and a filing, which I read myself. CI green.
+  - BORDERS stands at 34.5 of its 30 ceiling with this row; the split is BORDERS' call.
+— (FLUSH orchestrator)
+
+- 2026-10-26 — (SPLICE orchestrator) **Main is red on a slow-set row
+  between FLUSH and PRED.** The lattice corpus's bordered-discard pin
+  (`fused_into_live_cells::every_fused_vertex_of_the_lattice_corpus_settles_on_a_live_cell`)
+  moved from (25512, 1392) to (26292, 2004) at the merge of PRED's PR 5724
+  onto FLUSH's PR 5706. Each passes alone; the bisect is in
+  `work/issues/main-red-the-lattice-discard-pin-moved-where-pred-5724-met-flush-5706.md`.
+- 2026-10-26 — **The glue verdict goes to Ev** (`a-glue-verdict-is-not-bound-to-the-bodies-it-judged`, P2 design). One Opus and one Fable designer, dispatched together on one statement of the problem (labels by byte, recorded on `analysis/design-fork/flush-glue-verdict`), agree on the final state: a kernel n-ary union and intersect, with `given` leaving the public API. Both reject the row's framing. No reconciliation was needed. They differ only on the judgement's operand order and on whether DM4's sentence is a decision, so I put it to Ev (fork-log row 199): moving the fold into `topo` changes DM4's "a fold of the kernel's pair verb", and an unsure decision goes as a fork. The row re-prices at dispatch: the move crosses CLEAVE/HONE (`topo` boolean) and WIRE (`wire.rs`) ground.
+— (FLUSH orchestrator)
+- 2026-10-26 — **Ev adopted the glue verdict's answer** on PR 5737 ("sounds good!"): the n-ary union and intersect become a kernel door and the given channel goes crate-private; DM4 is re-worded. Ev first asked what a glue is, then whether an honest fold would be better. Both designers, shown Ev's comments, held the n-ary door on kernel probes: an honest fold makes refusals and records follow member order, which `[operations.operators]` calls a kernel defect. The operand-order sub-question was not answered and is settled at dispatch. The row re-prices to H (a move across `topo`'s boolean, CLEAVE/HONE ground, and `editor-core`'s fold, WIRE ground). Fork-log row 199 is complete.
+— (FLUSH orchestrator)
+- 2026-10-26 — **PR 5737, round 3 and Ev's ruling on angles.** Ev asked whether the 0.4ε tilt refusal (one designer's round-2 evidence) was even wrong. Both designers said yes: the undeclared plane reading prices the angle at a ball around both faces. That is a pair-boolean defect, now measured on LEVER's lever row. Both withdrew the tilt as evidence, and the n-ary recommendation stands on the covered touch and the covered gap. One designer found a fold step reading a vertex against a carrier the pass never judged, so today's union is order-dependent there; it is filed as `work/issues/a-fold-step-reads-a-vertex-against-a-carrier-the-pass-never-judged.md`. Ev then ruled "tolerance.epsilon should meter an angle in whatever way is required to make all geometry correct to within epsilon", now in `[tolerance.epsilon]`, with no objection to the n-ary door, so I merged. Blinding slip: I committed the A/B mapping before Ev's follow-up question; it is recorded on the analysis branch.
+— (FLUSH orchestrator)
+- 2026-10-26 — **Dispatched the n-ary union door** (`a-glue-verdict-is-not-bound-to-the-bodies-it-judged`, P2 H, branch `flush/nary-union-door`), as Ev adopted it on PR 5737. `topo` gets the n-ary union and intersect: pass, fold and lineage. The given channel goes crate-private, and `editor-core` names from the door's output.
+  - **Operand order:** the door takes a per-member rank, and `editor-core` passes today's lesser-read order (PR 5303), so the move changes no behaviour. List order with a symmetric margin is left as a possible follow-up.
+  - **Tier: dual review** (architectural, hard to change later).
+  - **Seams:** CLEAVE/HONE (`boolean/mod.rs`, `ops.rs`), WIRE (`eval/wire.rs`), BORDERS/EMIT (`names/`), and CONTACTHOLD's restated-tangency and record-completeness rows, which the door may close.
+  - It runs beside PR 5730's fix pass; their files are disjoint.
+— (FLUSH orchestrator)
+

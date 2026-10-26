@@ -4,6 +4,7 @@ kind: issue
 title: replace_face reads route_pose as serving sphere-sphere and cylinder-sphere, then section_closed refuses both
 status: open
 opened: 2026-10-14
+priority: P1
 ---
 
 Found by the pair-table audit (`fuse/every-pair-question-has-one-total-table`, #5078). The rule it tests is D3's "One reading per question" (`docs/DESIGN.md`, D3): every decision about carriers is a reading (of one carrier against a point, of a carrier pair's pose, or of a pair outcome that takes the pose); each reading is one exhaustive match with one method per arm and no fallback, and every consumer reads it. C5 (`crates/geom-brep/README.md`) is that rule's instance for surface and curve pairs.

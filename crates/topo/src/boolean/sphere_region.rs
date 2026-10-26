@@ -121,6 +121,14 @@ const BOUNDARY: ConicRows = ConicRows::bounded(
     "bool_sphere_region_arc_straddle",
 );
 
+/// The fraction of each arc's span [`SphereFaceRegion::aim`] steps from:
+/// the golden section, off the middle a symmetric pose's planes hold.
+const AIM_FRACTION: f64 = 0.381_966_011_250_105_2;
+
+/// How many even steps of each arc's span [`SphereFaceRegion::aim`]'s
+/// clearance reads.
+const CLEARANCE_SAMPLES: usize = 32;
+
 /// A trimmed sphere face's boundary: every arc of every loop, each with
 /// the direction its loop traverses it.
 #[derive(Clone, Debug)]
@@ -229,41 +237,87 @@ impl<T: Decide> SphereFaceRegion<T> {
         .map(Some)
     }
 
-    /// A point of the face's sphere the side-at-infinity reader may aim
-    /// at: each arc's middle stepped along its great circle toward the
-    /// face (`N × τ`, module docs) by half its circle's angular radius
-    /// about its pole, so a cap's lone rim steps into the cap whichever
-    /// side of the rim it is; the steps' mean carried onto the sphere
-    /// radially, or the first arc's step where that mean is the centre.
-    /// It need not lie in the face; it only steers. `None` for a face with
-    /// no boundary arc, which offers no aim.
+    /// A point of the face the side-at-infinity reader may aim at, found
+    /// by evaluation alone: a point `m` of each arc ([`AIM_FRACTION`] of
+    /// its span) stepped along its great circle toward the face (`N × τ`, module docs) by an angle `φ` that
+    /// keeps the step's path off every boundary arc, and the step that
+    /// goes deepest. `φ` is at most half the arc's circle's angular radius
+    /// about the nearer pole, so the path does not meet that circle again,
+    /// and `R·φ` at most half a lower bound on `m`'s distance from every
+    /// other arc ([`Self::clearance`]), so it meets no other arc: the
+    /// stepped point lies in the face, as the face lies along `N × τ` at
+    /// `m`. A face narrower than the rounding there steps nowhere and aims
+    /// at `m`; the aim only steers either way. `None` for a
+    /// face with no boundary arc, which offers no aim.
     pub(crate) fn aim(&self) -> Option<Point3<T>> {
-        let (one, two) = (T::one(), T::from_f64(2.0));
-        let step = |arc: &Arc<T>| {
-            let t = geom::mid_param(arc.t0, arc.t1);
+        let (zero, half) = (T::zero(), T::from_f64(0.5));
+        let mut best: Option<(T, Point3<T>)> = None;
+        for (k, arc) in self.edges.iter().enumerate() {
+            let geom::Curve3::Circle { radius, .. } = arc.carrier else {
+                unreachable!("sphere_face_region admits circles only")
+            };
+            let t = arc.t0 + (arc.t1 - arc.t0) * T::from_f64(AIM_FRACTION);
             let m = arc.at(t);
+            let own = (radius / self.radius).abs().min(T::one()).asin() * half;
+            let room = self.clearance(k, m) * half / self.radius;
+            let phi = own.min(room).max(zero);
             let w = m - self.center;
             let into = self.outward(m).cross(arc.traversal(t));
-            // The sine of the circle's angular radius, `ρ / R`; a carrier
-            // that is not a circle (none is admitted) steps as a great
-            // circle would.
-            let sine = match arc.carrier {
-                geom::Curve3::Circle { radius, .. } => (radius / self.radius).abs().min(one),
-                _ => one,
+            let (sin, cos) = phi.sin_cos();
+            let p = self.center + (w / w.norm() * cos + into / into.norm() * sin) * self.radius;
+            best = Some(match best {
+                // Evaluation, not a decision: the deeper step only steers.
+                Some((deepest, q)) => {
+                    let pick = |a: T, b: T| (phi - deepest).select_le_zero(a, b);
+                    (
+                        pick(deepest, phi),
+                        Point3::new(pick(q.x, p.x), pick(q.y, p.y), pick(q.z, p.z)),
+                    )
+                }
+                None => (phi, p),
+            });
+        }
+        best.map(|(_, p)| p)
+    }
+
+    /// A lower bound on the distance from `m` to every arc but the `k`th:
+    /// per arc, the greater of two, each never above the true distance —
+    /// `m`'s distance from the arc's whole circle, and the least distance
+    /// from `m` to the arc's points at [`CLEARANCE_SAMPLES`] even steps of
+    /// its span less half the arc length between two of them (every point
+    /// of the arc lies within that of one), which reads an arc of `m`'s own
+    /// circle whose circle passes through `m`.
+    fn clearance(&self, k: usize, m: Point3<T>) -> T {
+        let n = T::from_f64(CLEARANCE_SAMPLES as f64);
+        let mut least: Option<T> = None;
+        for (j, arc) in self.edges.iter().enumerate() {
+            if j == k {
+                continue;
+            }
+            let geom::Curve3::Circle {
+                center,
+                axis,
+                radius,
+                ..
+            } = arc.carrier
+            else {
+                unreachable!("sphere_face_region admits circles only")
             };
-            let cosine = (one - sine.powi(2)).max(T::zero()).sqrt();
-            let (cos, sin) = (((one + cosine) / two).sqrt(), ((one - cosine) / two).sqrt());
-            w / w.norm() * cos + into / into.norm() * sin
-        };
-        let first = step(self.edges.first()?);
-        let sum = self.edges[1..]
-            .iter()
-            .fold(first, |sum, arc| sum + step(arc));
-        let len = sum.norm();
-        // Evaluation, not a decision: the direction only steers.
-        let at_centre = len.select_le_zero(one, T::zero());
-        let dir = sum / len.select_le_zero(one, len) + first / first.norm() * at_centre;
-        Some(self.center + dir / dir.norm() * self.radius)
+            let d = m - center;
+            let h = d.dot(axis);
+            let circle = (h.powi(2) + ((d - axis * h).norm() - radius.abs()).powi(2)).sqrt();
+            let span = arc.t1 - arc.t0;
+            let step = span / n;
+            let (mut t, mut near) = (arc.t0, (arc.at(arc.t0) - m).norm());
+            for _ in 0..CLEARANCE_SAMPLES {
+                t = t + step;
+                near = near.min((arc.at(t) - m).norm());
+            }
+            let gap = circle.max(near - (radius * step).abs() * T::from_f64(0.5));
+            least = Some(least.map_or(gap, |l| l.min(gap)));
+        }
+        // A face of one arc: nothing else to keep off.
+        least.unwrap_or(self.radius * T::from_f64(4.0))
     }
 
     /// The ray from `a` along the unit tangent `t` (module docs, step 1):
@@ -473,17 +527,118 @@ mod tests {
         }
     }
 
-    /// **The aim steps into the face from each arc**: on the sphere, and
-    /// read inside the face, for the cap above the 60° circle, the rest of
-    /// the sphere below it (the same arc run the other way) and the lune.
+    /// An arc of the unit sphere's circle at polar angle `theta` about
+    /// `pole`, from `t0` to `t1` in the frame `u_ref`, `pole × u_ref`.
+    fn circle_arc(
+        pole: Vec3<f64>,
+        theta: f64,
+        u_ref: Vec3<f64>,
+        (t0, t1): (f64, f64),
+        forward: bool,
+        key: u64,
+    ) -> RegionEdge<f64> {
+        let pole = pole / pole.norm();
+        let u = u_ref - pole * pole.dot(u_ref);
+        RegionEdge {
+            edge: EdgeKey::from(KeyData::from_ffi(key)),
+            r#loop: LoopKey::default(),
+            carrier: geom::Curve3::Circle {
+                center: Point3::origin() + pole * theta.cos(),
+                axis: pole,
+                radius: theta.sin(),
+                u_ref: u / u.norm(),
+            },
+            t0,
+            t1,
+            turn: crate::boolean::region::fixture_turn(t0, t1),
+            forward,
+        }
+    }
+
+    /// The circle at polar angle `theta` about `z` in `n` equal arcs from
+    /// azimuth `u`, each run `forward`.
+    fn rim(theta: f64, u: Vec3<f64>, n: usize, forward: bool, key: u64) -> Vec<RegionEdge<f64>> {
+        let z = Vec3::new(0.0, 0.0, 1.0);
+        let step = core::f64::consts::TAU / n as f64;
+        (0..n)
+            .map(|i| {
+                let span = (step * i as f64, step * (i + 1) as f64);
+                circle_arc(z, theta, u, span, forward, key + i as u64)
+            })
+            .collect()
+    }
+
+    /// A unit-sphere face of `sense` bounded by `edges`.
+    fn face(sense: bool, edges: Vec<RegionEdge<f64>>) -> SphereFaceRegion<f64> {
+        SphereFaceRegion {
+            center: Point3::origin(),
+            radius: 1.0,
+            sense,
+            outer: LoopKey::default(),
+            edges,
+        }
+    }
+
+    /// **The aim lands in the face**, on the sphere, for both senses:
+    /// caps either side of a rim, a lune, zones whose rims' seams lie
+    /// apart, a zone a thousandth wide, rims in unequal counts of arcs, a
+    /// zone symmetric about the equator, and caps with a ring where the
+    /// rim's step would land and beside a great arc. A mean of steps, or a
+    /// step blind to the face's width, lands outside on most of them.
     #[test]
     fn the_aim_lies_in_the_face() {
+        use core::f64::consts::{FRAC_PI_2, PI, TAU};
         let band = Band::new(1e-9, 1e-8).unwrap();
-        for (what, region) in [
-            ("cap", carved(true)),
-            ("the rest", carved(false)),
-            ("lune", lune()),
-        ] {
+        let (x, mx) = (Vec3::new(1.0, 0.0, 0.0), Vec3::new(-1.0, 0.0, 0.0));
+        let z = Vec3::new(0.0, 0.0, 1.0);
+        let pole_at = |polar: f64, az: f64| at(polar, az) - Point3::origin();
+        let mut shapes: Vec<(String, SphereFaceRegion<f64>)> = vec![
+            ("cap".to_owned(), carved(true)),
+            ("the rest".to_owned(), carved(false)),
+            ("lune".to_owned(), lune()),
+        ];
+        for sense in [true, false] {
+            // With `sense` false the outward normal points in, which turns
+            // the face's side: every rim runs the other way to keep it.
+            let f = |forward: bool| forward == sense;
+            let zone = |hi: f64, lo: f64, u: Vec3<f64>, n: usize| {
+                let mut e = rim(hi, x, 1, f(false), 1);
+                e.extend(rim(lo, u, n, f(true), 10));
+                face(sense, e)
+            };
+            let ringed = |rim_at: f64, pole: Vec3<f64>, ring: f64| {
+                let mut e = rim(rim_at, x, 1, f(true), 1);
+                e.push(circle_arc(pole, ring, z, (0.0, TAU), f(false), 20));
+                face(sense, e)
+            };
+            let mut push = |what: &str, r| shapes.push((format!("sense {sense}: {what}"), r));
+            push("zone, seams opposite", zone(0.6, 1.2, mx, 1));
+            push("sliver zone, seams opposite", zone(1.0, 1.001, mx, 1));
+            push("sliver zone, 1 and 3 arcs", zone(1.0, 1.001, x, 3));
+            push("wide zone, 1 and 5 arcs", zone(0.3, 2.8, x, 5));
+            push(
+                "symmetric zone, seams opposite",
+                zone(PI / 3.0, 2.0 * PI / 3.0, mx, 1),
+            );
+            push(
+                "cap ringed at its rim's step",
+                ringed(1.0, pole_at(0.5, PI), 0.1),
+            );
+            push(
+                "cap ringed near its rim",
+                ringed(1.2, pole_at(1.1, 0.0), 0.05),
+            );
+            push(
+                "hemisphere ringed beside its great rim",
+                ringed(FRAC_PI_2, pole_at(1.4, 0.3), 0.1),
+            );
+            push("tiny cap", face(sense, rim(1e-4, x, 1, f(true), 1)));
+            push(
+                "all but a tiny cap",
+                face(sense, rim(1e-4, x, 1, f(false), 1)),
+            );
+        }
+        for (what, region) in shapes {
             let aim = region.aim().expect("an aim");
             assert!(
                 ((aim - Point3::origin()).norm() - 1.0).abs() < 1e-12,

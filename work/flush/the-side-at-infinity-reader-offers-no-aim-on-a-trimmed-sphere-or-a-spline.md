@@ -87,3 +87,41 @@ selection holding a face the ray test has no arm for (`uncrossable`,
 never be cast: a spline shell, spline-only or not, reads its volume.
 The arm and the aim are filed together on INSIDE's slate as
 `point-containments-ray-test-has-no-spline-arm`.
+
+## Review fix pass (2026-10-26)
+
+The review (APPROVE-WITH-FIXES) found the first aim, an unweighted mean
+of each arc's step of half its circle's angular radius, landing outside
+the face on zones with opposite seams, a zone a thousandth wide, rims in
+unequal arc counts, a symmetric zone and a ringed cap. In bodies, all
+four aims of a sliver lens (unit balls 1.999 apart) missed and the
+solid read its volume.
+
+`SphereFaceRegion::aim` now steps from a point of each arc (the golden
+section of its span) by an angle bounded by half its own circle's
+angular radius and by half a lower bound on that point's distance from
+every other arc (`clearance`: the greater of the distance to the arc's
+whole circle and a sampled bound), and takes the deepest step. It is
+evaluation alone and lands in the face by construction.
+
+- Every one of the review's 22 region shapes, in both senses, aims inside
+  the face (`the_aim_lies_in_the_face` pins them, with unequal arc
+  counts and a ring beside a great rim).
+- Over the review's 32 bodies, 157 faces, at ε 1e-9, 1e-6 and 1e-12:
+  every sphere face's aim reads its side, and every solid reads. The one
+  face set aside is the bowl's (a graze), which holds no sphere.
+- The sliver lens and a block less it join
+  `trimmed_sphere_shells_read_their_side_off_aimed_rays`.
+- Exact ties at the nominal: on
+  `the-side-readers-aims-decide-exact-ties-at-a-documents-nominal`.
+
+No region shape the review or this pass built still lands outside, so
+CLEAVE's absorbed sliver row stays closed. Still on the volume:
+- a sphere patch with no boundary arc;
+- a face whose outward normal at the aim is refused;
+- untrimmable cones and walls;
+- a selection with a spline face (INSIDE's
+  `point-containments-ray-test-has-no-spline-arm`);
+- a selection with a sphere face bounded by a non-circle edge
+  (`PartialSphereFace`, appended to RESTFRONT's
+  `check-10-is-silent-where-point-in-solid-refuses`).

@@ -1,199 +1,105 @@
 # META — the tracker and the process instruments (plan)
 
-**STATUS: OPEN (2026-09-04).** Live state is `log.md`'s tail and the
-item files beside this plan, never this file.
+Live state is `log.md`'s tail and the item files beside this plan.
 
 Branch prefix: **`meta/`**. Away-channel tag `(META orchestrator)`.
 A/B band **2800–2899**, claimed for bookkeeping — this program runs no
-duals (its units are infra and prose, the CIW/CHROME posture).
+duals (its units are infra and prose).
 
-## Why this program exists
+## What this program is
 
-The 2026-09-03 cut divided the tree by file territory and gave eleven
-tracks an owner each. It did not divide **the instruments it used to do
-that**. Measured 2026-09-04 against every open program's `paths`:
+The instruments the tracker is made of: `scripts/work.py` and its
+`lint`, `status` and `territory` commands, `scripts/ci-pin.py`,
+`work/README.md`'s contract, the rules and rosters of
+`docs/MODEL-AB-LOG.md` (the band allocation entry, the protocol
+sections, the stopping rule), and `docs/doc-ledger/`'s convention. It
+also custodies the two cross-program registers no fence owns. A
+tracker-vocabulary ruling made anywhere lands its build here.
 
-- `scripts/work.py` — the tracker's one tool — is in no program's
-  territory. CIW's `keep_out` says so explicitly ("`scripts/work.py`
-  is the tracker's own and changes only with `work/README.md`"), which
-  names an owner that did not exist.
-- `docs/prompts/` (the implementer brief, the reviewer-style brief) is
-  in no program's territory, and is edited by whoever last needed a
-  rule changed.
-- `docs/MODEL-AB-LOG.md` is written by every program and owned by none.
-  Its rules — the band allocation, the protocol, the **stopping rule** —
-  have no reader.
-- `docs/DOC-LEDGER.md` is the done-state of record for every closed
-  program and has no owner between exits.
+Two neighbours were cut out of it on 2026-10-26, when it carried 38
+budget points against 30:
 
-The cost is not hypothetical and it is on file three times over: a
-territory check blind to the exact collision it exists to catch, a
-pre-registered stopping rule passed about nine times without anyone
-noticing, and two acceptance clauses in live specs that instruct a
-coverage reduction and red the gate if obeyed.
+- **BRIEF** held `docs/prompts/*` and the rows whose fix is a sentence
+  in the standing briefs or in `memories/`. Ev ruled on all four the
+  same day and BRIEF closed (`docs/doc-ledger/brief-leaves-the-tracker.md`).
+  `docs/prompts/*` is this program's again; a change to it is an `[ev]`
+  PR, and CIW keeps its standing right to amend
+  `implementer-discipline.md` §2 for its own runs.
+- **UNSEEN** holds the checkers whose subject is a hand-written
+  reference or a surface across the whole tree (citations, tracker
+  paths in crates, ledger recovery commands, the public-method census,
+  merge-commit content). Where such a checker is built as an arm of
+  `scripts/work.py lint`, the code lands here by announced seam and
+  the row stays on UNSEEN.
 
-## The fence, and why it does not collide with CIW
+## The fence
 
-CIW owns `.github/workflows/*`, `local-scripts/*`, the demo shell and
-Python, and an enumerated list of `scripts/`. It owns **the runs**.
-This program owns **the tracker and the briefs**. The two fences were
-already written against each other from CIW's side before this program
-existed — its `keep_out` cedes `scripts/work.py` — and the only place
-they touch is `docs/prompts/implementer-discipline.md` §2, which
-describes what a CI run gates. That paragraph is **CIW's to amend
-whenever its runs change, without waiting on this program**; the rest
-of the file is this program's. Written on both sides, per the rule the
-CURVED/S-BOOL fence set.
-
-`scripts/gates/*` is code-quality Track K's and `scripts/ci-filter.py`
-is S-TCOST's. Neither is touched here.
+CIW owns the runs (`.github/workflows/*`, `local-scripts/*`, an
+enumerated list of `scripts/`); this program owns the tracker, and
+CIW's `keep_out` cedes `scripts/work.py` in so many words.
+`scripts/gates/*` is GUARD's and `scripts/ci-filter.py` is TCOST's. No
+program's `plan.md`, `log.md` or item files are this program's to edit:
+a stale citation on another slate is routed to its owner.
 
 ## The slate
 
-**Three items, re-homed at opening** (header edit and `git mv`, ids
-unchanged):
+**19 budget points** of dispatchable work against 30 (one row unpriced,
+charged 2.5), and one deferred row.
 
-1. **`territory-cannot-see-a-path-two-programs-both-claim`** — **CLOSED
-   2026-09-11**; both candidates landed, the lint rule in its warning
-   phase, and the error flip is
-   `double-claim-lint-rule-waits-on-the-tests-seam`. The reasoning the
-   item opened with is kept below because the decision it reached is
-   the one that shipped. (E, the opener) — `territory` reports a changed path another program owns
-   only when the branch's own program does *not* claim it, so the one
-   case that matters — two programs claiming one path — is the one case
-   it is silent on. Found by FIX tripping it on `transform.rs` against
-   SHELL, and it went unnoticed the same way for the whole day. Two
-   candidate fixes are on the item; **(1), a lint rule, is the one that
-   would have caught the instance**, and it fires on the day the second
-   program opens rather than on the day a lane happens to run
-   `territory`. It needs one decision — whether a deliberate overlap
-   may exist and whether `keep_out` prose is the sanctioned way to
-   record one — and BOOL/CURVED and MSOLVE/DOCM are both live instances
-   that say yes. So: a lint rule that errors on an unrecorded double
-   claim and passes one recorded in `keep_out`.
+**The tracker's own checks** (`scripts/work.py`, `work/README.md`):
 
-   This is the opener because **every other program's fence depends on
-   it** and because TOPO, opened the same day, had to enumerate twenty
-   file paths instead of writing one glob for exactly this reason.
+| pri | item | cost | what |
+|---|---|---|---|
+| P3 | `a-plan-whose-table-orders-the-work-has-no-check-that-it-lists-the-work` | D | a plan's slate table drifts from its item files with lint green |
+| P3 | `an-announced-seam-is-recorded-only-on-the-crossing-programs-side` | D | a crossing announced in one `keep_out` leaves no record on the owner |
+| P3 | `d321-row-number-reissued` | D | nothing checks that an id is never reissued |
+| P3 | `keep-out-prose-can-name-a-program-that-no-longer-exists` | E | `keep_out` can name a closed program |
+| P3 | `needs-ev-on-a-program-is-invisible-to-the-board` | E | `needs_ev` on a program never reaches Waiting on Ev |
+| P3 | `territory-base-main-is-stale-in-every-agent-checkout` | E | `territory --base main` reads a stale local ref |
+| — | `a-row-in-review-whose-pr-has-merged-is-lintable` | — | a `review` row whose PR merged is invisible to lint |
+| P4 | `the-2026-09-11-cuts-class-estimates-are-untested-and-both-tested-ones-were-wrong` | E | 38 rows carry a class sentence the tree does not back |
 
-2. **`ab-log-v6-stream-is-past-its-stopping-rule-unadjudicated`**
-   (`[ev]`, and the one urgent thing here) — Protocol v6 pre-registers
-   a stop at eight adjudicated unilateral-MAJORs or twelve new pairs,
-   whichever first. **109 v6 dual rows are recorded**; the twelfth fair
-   pair was passed around 2026-08-29/30. No row records the rule
-   firing, no notification is recorded, there is no Protocol v7, and
-   the running tally is stated inconsistently by four different rows
-   and then abandoned. Ev's call in two parts: run the blinded
-   adjudication over the candidate list, and then either STOP per the
-   pre-registered rule or write v7 and say why. Every program is
-   spending two reviews per unit at ~250–320k tokens each against a
-   rule that said to stop.
+**The A/B ledger's rules** (`docs/MODEL-AB-LOG.md`):
 
-   **The item does not carry `needs_ev: true` yet** — the flag goes on
-   in the commit that opens the `[ev]` PR, per `work/README.md`
-   ("whoever opens an `[ev]` PR arranges to be woken by comments on
-   it"). Until then it is invisible on the board's "Waiting on Ev"
-   section, which is exactly the shape of the failure it describes, so
-   that PR is this program's first action and not its second.
+| pri | item | cost | what |
+|---|---|---|---|
+| P3 | `ab-log-rows-do-not-match-their-tables-declared-width` | E | 32 rows carry the wrong cell count for their table |
+| P4 | `ab-log-v6-stream-is-past-its-stopping-rule-unadjudicated` | E | v7 answered part 2; the tally readout is still owed |
+| P3 | `ab-log-sample-numbers-collide-under-branch-side-block-records` | E | deferred while the protocol suspension stands |
 
-3. **`stale-track-t-citations-in-fillet-and-cert`** — three sentences
-   in FILLET's and CERT's slates describing a Track T arrangement that
-   has since changed. Neither is this program's to edit (one file, one
-   item), and that is exactly the point: the item is the routing
-   record, and the class it names — a citation across a fence going
-   stale with nothing that reads it — is what this program is for.
+**The doc-ledger convention**:
 
-**Two registers, custodied not executed:**
+| pri | item | cost | what |
+|---|---|---|---|
+| P4 | `ledger-recovery-recipe-fails-in-a-shallow-clone` | E | the recovery recipe's shallow-clone failure reads like a wrong recipe |
 
-- **`m6-carried-items-register`** — every carried item from the M6 exit
-  walk, rows owned by S-MATE, VERBS, S-CERT and the code-quality tracks
-  at once.
-- **`decide-flagged-dimensional-debt-inventory`** — the remaining
-  `decide_flagged` families (F2 ×4 in `validate.rs`, now **TOPO's**;
-  F10 in `transform.rs`, **SHELL's**; F13 the cone charts; F14/F15 the
-  editor-core wire), each retiring as an opportunistic rider on
-  whichever unit next touches its family, with the census count as the
-  tripwire.
+**Two registers, custodied not executed**:
 
-**Custody means keeping them accurate and routing their rows to the
-owners, and nothing else.** This program does not execute a register
-row; it is the thing that stops a register from being a file nobody
-reads. Each is re-surveyed when a named owner's program closes, and
-each closes when its last non-triage row is closed or has moved onto a
-program's slate.
+| pri | item | cost | what |
+|---|---|---|---|
+| P4 | `m6-carried-items-register` | E | every carried item from the M6 exit walk, rows owned elsewhere |
+| P4 | `decide-flagged-dimensional-debt-inventory` | E | the remaining `decide_flagged` families, each retiring as a rider |
 
-## Not taken, and named so it is not re-derived
-
-**`fillet-specs-require-a-narrowing-ci-config` was closed on main
-before this program opened, and stays in `work/issues/`.** It was on
-this slate in the sweep's first draft; merging main showed CIW's
-`delete-config-trailer` unit had already swept the clause out of both
-FILLET specs and three more (`PCURVE-P2`, `EXCH-H1`, `FILLET-H5`) by
-deleting the `CI-Config:` trailer path itself. A closed item is not
-work, so it does not go on a program's board.
-
-**The class it was an instance of is still this program's**, and now
-has a worked example to point at: a spec's `## Acceptance` clause
-silently falsified by a CI change, with nothing that reads the two
-against each other. Its `## Closed` section records the sharper half —
-after the sweep the stale instruction does not red, it is *inert*,
-"which makes it quieter, not safer". That is the argument for the
-standing instruction living in `docs/prompts/implementer-discipline.md`
-§2 and specs pointing at it, and it is why §2 is on this program's
-fence with CIW amending it.
-
-
-**`tracker-has-no-status-for-an-unscheduled-trigger` was ruled and
-built before this program existed, and its lesson stands.** It asked
-what `status` an item whose trigger is neither an item nor a PR should
-carry — "parked lies and open overstates". Ev ruled on PR #1857
-(2026-09-04) and VIEW landed the build the same day: `deferred` is now
-a status in `work/README.md`, in `ITEM_STATUS` and in `lint`'s
-"deferred is a ratified not-now, not a wait on a named trigger" check,
-and the ruling is `closed` on VIEW's board.
-
-**Both files the build landed in are now this program's**, and that is
-the whole argument for this program in one instance: a status
-vocabulary change went into `work/README.md` and `scripts/work.py`
-correctly, by a program whose territory is `crates/viewer/src`, because
-on 2026-09-04 those files had no owner to route it to. Nothing about
-that was wrong and nothing is owed back. What it settles is the
-posture: **the next one comes here**, and this program's first job on
-any tracker-vocabulary ruling is to be the place the build lands rather
-than to collect the question.
-
-The same applies in general: a tracker-class item already sitting on a
-program's board with an open `[ev]` PR is left there and the build is
-handed over at the ruling. This program does not collect items; it
-owns the instruments.
+Custody means keeping a register accurate and routing its rows to their
+owners, never executing one. Each is re-surveyed when a named owner's
+program closes, and each closes when its last row is closed or has
+moved onto a program's slate.
 
 ## Order
 
-**As executed (2026-09-11).** The opener landed, and with it the three
-other executable rows — `parked-on-an-int-is-invisible-to-the-fired-trigger-rule`,
-`work-set-accepts-a-scalar-for-a-list-field` and
-`perf-plan-is-cited-by-twenty-nine-files-and-absent-from-tree-and-ledger`
-— as one PR, because each is a small edit to `scripts/work.py` or to a
-document this program owns and three of them detect the same class.
-`work/meta/log.md` carries what landed and the one decision taken
-unilaterally (both new detectors warn where an error was specified; the
-tree violates each rule today in rows this program may not edit).
-
-**What the parallel `[ev]` PR cost by not being opened.** The A/B
-stopping-rule question was to go out *"in parallel on day one rather
-than behind it"*. It did not, and it is now seven days behind the
-opener rather than beside it — the spend it names has been running that
-whole time. It is the next action on this program and nothing precedes
-it.
-
-Then the two routing items, which are announcements rather than work,
-and the two residues filed at the opener's landing. Then the first
-register re-survey, which is the honest measure of whether custody is
-worth anything.
+The cheap `scripts/work.py` checks first, as one PR where they share a
+reader: `needs-ev-on-a-program-is-invisible-to-the-board`,
+`keep-out-prose-can-name-a-program-that-no-longer-exists` and
+`territory-base-main-is-stale-in-every-agent-checkout`, each with a
+`--selftest` mutation. Then the three `D` rows, each of which states the
+decision it opens on, and `a-row-in-review-whose-pr-has-merged-is-lintable`,
+which needs a band, a cost and its forge-or-proxy decision first. The
+A/B rows and the registers go as the protocol and the owning programs
+move; the class-estimates row is a routing announcement, not a build.
 
 ## Review posture
 
 CIW's, and for the same reason: infra and prose units, no A/B row. One
-subagent style review per unit, plus a correctness reviewer where a
-unit changes what `work.py lint` accepts or rejects — the lint rule in
-item 1 is one, since a false positive there blocks every program's CI.
+style review per unit, plus a correctness reviewer where a unit changes
+what `work.py lint` accepts or rejects, since a false positive there
+blocks every program's CI.

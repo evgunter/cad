@@ -444,3 +444,11 @@ rows cite `PathVerb` and its `ALL` table. #2830 deletes `PathVerb`: the
 path form walks `profile::Verb::ALL`, drawn in `pane/create.rs` with
 fields from `widgets.rs`. Any re-citation should name those. The
 `viewer-pathverb` row itself is closed.
+
+## Absorbed `the-f32-seam-diff-shifted-84-cited-lines-in-seven-programs` (2026-10-26, tracker sweep)
+
+That row, a census of the cited lines `vgeom/f32-seam` shifted in
+`camera.rs`, `scene.rs`, `marks.rs`, `pane/viewport.rs`, `app.rs` and
+`lib.rs`, closed into this one, as its own *Neighbours* section asked.
+Its per-row list of the 84 is still in its file and is a population to
+re-derive by subject, not a table of numbers to apply.

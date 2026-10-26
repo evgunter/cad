@@ -5,6 +5,7 @@ title: band: plane_plane_blend's centre and setback divide by 1 + n_a.n_b, which
 status: open
 opened: 2026-10-20
 priority: P2
+cost: M
 ---
 
 

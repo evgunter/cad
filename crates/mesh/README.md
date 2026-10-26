@@ -35,8 +35,8 @@ worst triangle, and takes the coarsest step that bound allows.
 - **Rim chords use the face's grid step.** A rim chord point that the
   grid did not place creates triangles the lattice theorem does not
   cover. So a lane whose theorem is about grid cells chords its rims
-  at its own grid step. The torus does this through
-  `torus_boundary_step` and NURBS through `nurbs_tighten`.
+  at its own grid step. The torus, sphere and cone do this through
+  `grid_boundary_step` and NURBS through `nurbs_tighten`.
 - **A lane without its theorem yet** keeps an explicitly named
   `UNPROVED_HEADROOM` factor at its call site, filed as a debt. The fix
   is to write the theorem, not to tune the factor.
