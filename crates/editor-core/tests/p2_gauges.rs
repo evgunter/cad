@@ -679,7 +679,8 @@ fn a_loose_copy_is_gathered_and_measured_against_nothing_outside_it() {
     let doc = set_pin(doc, top, None, &o);
     let ev = run(&doc, &o);
     let world = |id| {
-        topo::mass_properties(
+        topo::test_support::pinned_volume(
+            "mass properties",
             &topo::test_support::finished(
                 "the measured body",
                 topo::Body::clone(body_of(&ev, id).as_ref()),
@@ -687,7 +688,6 @@ fn a_loose_copy_is_gathered_and_measured_against_nothing_outside_it() {
             ),
             Tol::witness(),
         )
-        .expect("mass properties")
         .volume
     };
     let gathered = topo::test_support::finished(
@@ -695,9 +695,8 @@ fn a_loose_copy_is_gathered_and_measured_against_nothing_outside_it() {
         product(&doc, &ev, Tol::witness()).expect("the world gathers"),
         Tol::witness(),
     );
-    let volume = topo::mass_properties(&gathered, Tol::witness())
-        .expect("mass properties")
-        .volume;
+    let volume =
+        topo::test_support::pinned_volume("mass properties", &gathered, Tol::witness()).volume;
     assert_eq!(
         volume.to_bits(),
         world(base).to_bits(),
@@ -1009,8 +1008,11 @@ fn inline_lands_verbatim_at_the_identity_and_composes_the_values_at_any_other_po
                 Tol::witness(),
             ),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .expect("mass properties")
+        .met()
+        .expect("the pinned resolution is met")
         .volume
     };
     assert_eq!(volume(&back_doc).to_bits(), volume(&doc).to_bits());

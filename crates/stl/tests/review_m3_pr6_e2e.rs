@@ -41,7 +41,15 @@ fn die(x0: f64, y0: f64, z0: f64) -> AtRestBody<f64> {
     };
     assert!(b.contacts.is_empty());
     assert_eq!(
-        mass_properties(&b.body, Tol::witness()).unwrap().volume,
+        mass_properties(
+            &b.body,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness())
+        )
+        .unwrap()
+        .met()
+        .expect("the pinned resolution is met")
+        .volume,
         0.875
     );
     b.body
@@ -78,11 +86,16 @@ fn r6_pocketed_dice_kiss_e2e() {
     // Structure + exact oracles (the parts=2 discipline: shell count
     // is asserted HERE, not inferred from admesh part count).
     assert_eq!(assembly.body.shells().count(), 2);
-    let m = mass_properties(&assembly.body, Tol::witness()).unwrap();
+    let m = mass_properties(
+        &assembly.body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap();
     // Exact on purpose: every coordinate is dyadic and small, so each closed-form term and
     // their sum are exact in f64 (a zero pad states no rounding; here there is none).
-    assert_eq!(m.volume, 1.75, "exact volume oracle");
-    assert_eq!(m.surface_area, 14.0, "exact area oracle");
+    assert_eq!(m.enclosure.volume, 1.75, "exact volume oracle");
+    assert_eq!(m.enclosure.surface_area, 14.0, "exact area oracle");
     // Tessellate → watertight mesh → exact mesh volume → STL.
     let mesh = mesh::tessellate(&assembly.body, 1e-2, Tol::witness()).unwrap();
     check_mesh(&mesh).unwrap();

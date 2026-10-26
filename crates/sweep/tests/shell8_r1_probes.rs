@@ -100,24 +100,30 @@ fn r1_a_distant_box_does_not_lever_the_vessels_margins() {
         topo::mass_properties(
             &topo::test_support::finished("the measured body", topo::Body::clone(&alone), tol()),
             tol(),
+            topo::test_support::pinned_resolution(tol()),
         )
         .expect("props"),
         topo::mass_properties(
             &topo::test_support::finished("the measured body", topo::Body::clone(&far), tol()),
             tol(),
+            topo::test_support::pinned_resolution(tol()),
         )
         .expect("props"),
     );
     println!(
         "[r1] vessel alone {:.12}, in a far pair {:.12}, closed form {:.12}, stored box {:.15}",
-        alone.volume, far.volume, wall, far_box
+        alone.enclosure.volume, far.enclosure.volume, wall, far_box
     );
-    assert!((alone.volume - wall).abs() < 1e-12, "the vessel's own wall");
     assert!(
-        (far.volume - (alone.volume + far_box)).abs() <= far.volume_pad + alone.volume_pad + 1e-12,
+        (alone.enclosure.volume - wall).abs() < 1e-12,
+        "the vessel's own wall"
+    );
+    assert!(
+        (far.enclosure.volume - (alone.enclosure.volume + far_box)).abs()
+            <= far.enclosure.volume_pad + alone.enclosure.volume_pad + 1e-12,
         "the pair is the vessel's wall and the stored box's exact volume: {} against {} + {far_box}",
-        far.volume,
-        alone.volume
+        far.enclosure.volume,
+        alone.enclosure.volume
     );
 }
 

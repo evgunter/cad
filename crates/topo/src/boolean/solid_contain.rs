@@ -4456,9 +4456,13 @@ fn volume_refusal(
         M::Corrupt { .. } | M::NullScaffoldEdge { .. } => {
             PointInSolidError::CorruptFace { face: first }
         }
-        M::Band { .. } | M::RingOnCurvedFace { .. } | M::Face { .. } => {
-            PointInSolidError::VolumeUncertified
-        }
+        M::Band { .. }
+        | M::RingOnCurvedFace { .. }
+        | M::Face { .. }
+        | M::ResolutionFinerThanEps { .. }
+        | M::EmptyContains
+        | M::Poisoned { .. }
+        | M::Undecided { .. } => PointInSolidError::VolumeUncertified,
     }
 }
 

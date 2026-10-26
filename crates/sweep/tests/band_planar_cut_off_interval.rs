@@ -54,7 +54,11 @@ fn the_box_rows_carve_at_the_certified_scalar_and_bracket_their_closed_forms() {
     let front = edge(&body, [0.0, 0.0, 1.0], [2.0, 0.0, 1.0]);
     let up = edge(&body, [0.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
     let across = edge(&body, [0.0, 0.0, 1.0], [0.0, 1.5, 1.0]);
-    let v0 = mass_properties(&body, tol).expect("interval props").volume;
+    let v0 = mass_properties(&body, tol, topo::test_support::pinned_resolution(tol))
+        .expect("interval props")
+        .met()
+        .expect("the pinned resolution is met")
+        .volume;
     let chamfer = (D * D / 2.0, 2.0 / 3.0 * D.powi(3));
     let fillet = (
         (1.0 - PI / 4.0) * D * D,
@@ -95,10 +99,14 @@ fn the_box_rows_carve_at_the_certified_scalar_and_bracket_their_closed_forms() {
                     tol,
                 ),
                 tol,
+                topo::test_support::pinned_resolution(tol),
             )
             .expect("interval props");
-            assert_eq!(p.volume_pad, 0.0, "{what}: a closed-form inventory");
-            let removed = v0 - p.volume;
+            assert_eq!(
+                p.enclosure.volume_pad, 0.0,
+                "{what}: a closed-form inventory"
+            );
+            let removed = v0 - p.enclosure.volume;
             let truth = section * length - corner * corners as f64;
             assert!(
                 removed.lo() <= truth + 1e-15 && truth - 1e-15 <= removed.hi(),
@@ -189,7 +197,11 @@ fn a_feature_across_a_requested_edges_line_is_clear_at_the_certified_scalar() {
                 tol,
             );
             let tip = edge(&body, [3.5, 2.5, z], [2.5, 2.5, z]);
-            let v0 = mass_properties(&body, tol).expect("interval props").volume;
+            let v0 = mass_properties(&body, tol, topo::test_support::pinned_resolution(tol))
+                .expect("interval props")
+                .met()
+                .expect("the pinned resolution is met")
+                .volume;
             for (round, section) in [(false, D * D / 2.0), (true, (1.0 - PI / 4.0) * D * D)] {
                 let out = if round {
                     fillet_edges(&body, &[tip], iv(D), tol)
@@ -210,7 +222,10 @@ fn a_feature_across_a_requested_edges_line_is_clear_at_the_certified_scalar() {
                             tol,
                         ),
                         tol,
+                        topo::test_support::pinned_resolution(tol),
                     )
+                    .expect("interval props")
+                    .met()
                     .expect("interval props")
                     .volume;
                 let truth = if convex { section } else { -section };
@@ -315,8 +330,13 @@ fn a_fillet_foot_on_atan2s_cut_at_an_oblique_end_carves_at_the_certified_scalar(
         for convex in [true, false] {
             let (fbody, fedge) = sheared::<f64>(s, convex, tol);
             let (ibody, iedge) = sheared::<Interval>(s, convex, tol);
-            let fv0 = mass_properties(&fbody, tol).expect("props").volume;
-            let iv0 = mass_properties(&ibody, tol).expect("interval props");
+            let fv0 = mass_properties(&fbody, tol, topo::test_support::pinned_resolution(tol))
+                .expect("props")
+                .met()
+                .expect("the pinned resolution is met")
+                .volume;
+            let iv0 = mass_properties(&ibody, tol, topo::test_support::pinned_resolution(tol))
+                .expect("interval props");
             for round in [false, true] {
                 let witness = round && s > 0.0;
                 let what = format!("shear {s}, convex {convex}, round {round}");
@@ -334,7 +354,10 @@ fn a_fillet_foot_on_atan2s_cut_at_an_oblique_end_carves_at_the_certified_scalar(
                             tol,
                         ),
                         tol,
+                        topo::test_support::pinned_resolution(tol),
                     )
+                    .expect("props")
+                    .met()
                     .expect("props")
                     .volume;
                 let out = match if round {
@@ -378,10 +401,11 @@ fn a_fillet_foot_on_atan2s_cut_at_an_oblique_end_carves_at_the_certified_scalar(
                         tol,
                     ),
                     tol,
+                    topo::test_support::pinned_resolution(tol),
                 )
                 .expect("interval props");
-                let removed = iv0.volume - p.volume;
-                let pad = iv0.volume_pad.hi() + p.volume_pad.hi();
+                let removed = iv0.enclosure.volume - p.enclosure.volume;
+                let pad = iv0.enclosure.volume_pad.hi() + p.enclosure.volume_pad.hi();
                 assert!(
                     removed.lo() - pad <= want && want <= removed.hi() + pad,
                     "{what}: ΔV {removed:?} ± {pad} brackets the f64 body's {want}"

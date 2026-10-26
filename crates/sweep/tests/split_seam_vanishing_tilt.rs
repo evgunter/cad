@@ -73,14 +73,6 @@ fn carrier_resolution(e: &ValidationError) -> bool {
                 },
             ..
         } => msg.contains(geom_core::NOT_YET_ENDING),
-        ValidationError::VolumeUncomputable {
-            source:
-                MassPropsError::Face {
-                    source: PropsError::QuadratureBudget { .. },
-                    ..
-                },
-            ..
-        } => msg.ends_with(geom_core::KERNEL_LIMIT_LAST_RESORT),
         ValidationError::UnrepresentableCurveDatum {
             kind: geom::CurveKind::Ellipse,
             datum: geom::CurveDatum::URef,
@@ -123,9 +115,15 @@ fn a_split_through_a_seam_vertex_returns_no_side_tier_three_refuses() {
                                         "{pose}: the {word} side is returned but fails tier 3: {errors:?}"
                                     );
                                 }
-                                volume += mass_properties(b, tol())
-                                    .unwrap_or_else(|e| panic!("{pose}: {word} measures: {e}"))
-                                    .volume;
+                                volume += mass_properties(
+                                    b,
+                                    tol(),
+                                    topo::test_support::pinned_resolution(tol()),
+                                )
+                                .unwrap_or_else(|e| panic!("{pose}: {word} measures: {e}"))
+                                .met()
+                                .expect("the pinned resolution is met")
+                                .volume;
                             }
                             assert!(
                                 (volume - PI).abs() < 1e-6,

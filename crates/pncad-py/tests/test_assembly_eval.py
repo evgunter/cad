@@ -112,6 +112,7 @@ from bench_scene import (
 from pncad import CapEnd, Doc, DocEdit, DocRef, Formula, Frame, Node, SegTag, Workspace, content_pin, evaluate, m, mm
 
 from placing import placed, assemble_world_copies
+from measuring import pinned
 
 #: The layout's nodes: the post instance, its pattern and the shelf
 #: instance, then each pattern copy projected and placed, and the `⊔`
@@ -172,7 +173,7 @@ def opened(directory=None):
 
 def volumes(evaluation, node):
     """Every body volume the node's value denotes, in canonical units."""
-    return [body.mass_properties().volume for body in evaluation.value(node).bodies()]
+    return [pinned(body).volume for body in evaluation.value(node).bodies()]
 
 
 def poisoned(evaluation):

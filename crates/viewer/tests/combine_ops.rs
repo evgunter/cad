@@ -98,12 +98,12 @@ fn split_volumes(session: &mut DocSession, split: RecipeNodeId, tol: Tol) -> (f6
     };
     let volume_of = |side: &SplitSide<f64>| match side {
         SplitSide::Body(body) => {
-            pncad::topo::mass_properties(
+            pncad::topo::test_support::pinned_volume(
+                "mass properties",
                 &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(body), tol)
                     .expect("the measured body passes tier 3"),
                 tol,
             )
-            .expect("mass properties")
             .volume
         }
         SplitSide::Empty => 0.0,
@@ -2378,12 +2378,12 @@ fn drawn_volume(session: &mut DocSession, tol: Tol) -> f64 {
         tol,
     );
     let body = pncad::document::product(&doc, &ev, tol).expect("the world gathers");
-    pncad::topo::mass_properties(
+    pncad::topo::test_support::pinned_volume(
+        "mass properties",
         &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&body), tol)
             .expect("the measured body passes tier 3"),
         tol,
     )
-    .expect("mass properties")
     .volume
 }
 

@@ -58,7 +58,7 @@ use topo::Body;
 fn measured(body: &topo::Body<f64>, major: f64) -> topo::MassProperties<f64> {
     let tol = Tol::witness();
     match topo::AtRestBody::validate(topo::Body::clone(body), tol) {
-        Ok(finished) => topo::mass_properties(&finished, tol).expect("props"),
+        Ok(finished) => topo::test_support::pinned_volume("props", &finished, tol),
         Err(errors) => {
             let named = major == 1300.0
                 && tol.get().eps == 1e-12
@@ -70,7 +70,14 @@ fn measured(body: &topo::Body<f64>, major: f64) -> topo::MassProperties<f64> {
                 "R={major}: tier 3 refuses the tube outside the case this file records: {errors:?}"
             );
             // Raw door: tier 3 refuses the major-1300 tube at ε 1e-12 (VolumeUncomputable), the one case the assert above admits.
-            topo::test_support::measure_unvalidated(body, tol).expect("props")
+            topo::test_support::measure_unvalidated(
+                body,
+                tol,
+                topo::test_support::pinned_resolution(tol),
+            )
+            .expect("props")
+            .met()
+            .expect("the pinned resolution is met")
         }
     }
 }
@@ -430,7 +437,12 @@ mod certified {
                 Err(e) => panic!("unexpected refusal at Interval for R={major}: {e}"),
             };
             let m = match topo::AtRestBody::validate(topo::Body::clone(&t.body), Tol::witness()) {
-                Ok(finished) => topo::mass_properties(&finished, Tol::witness()).expect("props"),
+                Ok(finished) => topo::mass_properties(
+                    &finished,
+                    Tol::witness(),
+                    topo::test_support::pinned_resolution(Tol::witness()),
+                )
+                .expect("props"),
                 Err(errors) => {
                     assert!(
                         major == 1300.0
@@ -441,7 +453,12 @@ mod certified {
                         "R={major} win={window:?}: tier 3 refuses the tube at Interval outside the case this row records: {errors:?}"
                     );
                     // Raw door: at Interval, tier 3 cannot decide the full-period major-1300 thin wall's orientation (OrientationUndecided), the one case the assert above admits.
-                    topo::test_support::measure_unvalidated(&t.body, Tol::witness()).expect("props")
+                    topo::test_support::measure_unvalidated(
+                        &t.body,
+                        Tol::witness(),
+                        topo::test_support::pinned_resolution(Tol::witness()),
+                    )
+                    .expect("props")
                 }
             };
             let inner = outer - wall;
@@ -452,19 +469,19 @@ mod certified {
             };
             let what = format!("R={major} ro={outer} w={wall} win={window:?}");
             let (lo, hi) = (
-                Bounds::lo(m.volume) - m.volume_pad,
-                Bounds::hi(m.volume) + m.volume_pad,
+                Bounds::lo(m.enclosure.volume) - m.enclosure.volume_pad,
+                Bounds::hi(m.enclosure.volume) + m.enclosure.volume_pad,
             );
             assert!(lo <= v && v <= hi, "{what}: volume {v} ∉ [{lo}, {hi}]");
             // Tightness: the pad and the interval width both small
             // against the quantity — red when certification DEGRADES.
             assert!(
-                m.volume_pad <= 1e-6 * v.abs(),
+                m.enclosure.volume_pad <= 1e-6 * v.abs(),
                 "{what}: volume pad {} degraded past 1e-6 relative",
-                m.volume_pad
+                m.enclosure.volume_pad
             );
             assert!(
-                (Bounds::hi(m.volume) - Bounds::lo(m.volume)) <= 1e-6 * v.abs(),
+                (Bounds::hi(m.enclosure.volume) - Bounds::lo(m.enclosure.volume)) <= 1e-6 * v.abs(),
                 "{what}: volume interval width degraded past 1e-6 relative"
             );
         }

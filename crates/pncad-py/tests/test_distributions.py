@@ -73,6 +73,7 @@ from pncad import (
     mm,
     rad,
 )
+from measuring import pinned
 
 
 def declared(**params):
@@ -669,7 +670,7 @@ class TestTheAnnotationDoesNotMoveGeometry(unittest.TestCase):
         plain = pncad.evaluate(plain_doc).value(plain_solid).body()
         marked = pncad.evaluate(marked_doc).value(marked_solid).body()
         self.assertAlmostEqual(
-            plain.mass_properties().volume, marked.mass_properties().volume, delta=1e-12
+            pinned(plain).volume, pinned(marked).volume, delta=1e-12
         )
 
 

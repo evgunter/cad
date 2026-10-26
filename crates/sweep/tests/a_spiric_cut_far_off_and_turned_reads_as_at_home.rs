@@ -13,7 +13,7 @@
 //! `(8, −3, 5)` and turned by 0.7 rad about a skew axis stood ~990 m
 //! off: each spiric face's vector area kept ~7e-11 of width per
 //! component at the last round, the lever made the flux ~8.6e-8 wide,
-//! and `T ∩ P`, `P ∩ T` and `T ∖ P` refused `QuadratureBudget` at every
+//! and `T ∩ P`, `P ∩ T` and `T ∖ P` stopped short of the resolution at every
 //! ε (width 3.6e-8 against 1024ε = 1.024e-9 at 1e-12). Carried without
 //! the turn, the faces' widths off their normals stayed zero, so the
 //! translation alone built.
@@ -72,17 +72,18 @@ fn every_op_far_off_and_turned_measures_its_volume_at_home() {
     let tol = Tol::witness();
     for ((label, home), (_, far)) in built(0.0).into_iter().zip(built(100.0)) {
         let at = |b: &AtRestBody<f64>, s: f64| {
-            topo::mass_properties(b, tol)
+            topo::mass_properties(b, tol, topo::test_support::pinned_resolution(tol))
                 .unwrap_or_else(|e| panic!("s = {s}, {label}: the volume: {e:?}"))
         };
         let (home, far) = (at(&home, 0.0), at(&far, 100.0));
         assert!(
-            (far.volume - home.volume).abs() <= far.volume_pad + home.volume_pad,
+            (far.enclosure.volume - home.enclosure.volume).abs()
+                <= far.enclosure.volume_pad + home.enclosure.volume_pad,
             "{label}: far off {} ± {} against at home {} ± {}",
-            far.volume,
-            far.volume_pad,
-            home.volume,
-            home.volume_pad,
+            far.enclosure.volume,
+            far.enclosure.volume_pad,
+            home.enclosure.volume,
+            home.enclosure.volume_pad,
         );
     }
 }
@@ -95,7 +96,7 @@ fn every_spiric_face_meets_its_target_at_the_round_it_does_at_home() {
     let tol = Tol::witness();
     let rounds = |b: &AtRestBody<f64>| {
         let mut rounds: Vec<(String, Option<usize>)> =
-            topo::test_support::quadrature_rounds(b, tol)
+            topo::test_support::quadrature_rounds(b, tol, topo::test_support::pinned_len(tol))
                 .unwrap()
                 .into_iter()
                 .map(|(_, kind, round)| (format!("{kind:?}"), round))
@@ -140,7 +141,13 @@ fn every_spiric_face_meets_its_target_at_the_round_it_does_at_home() {
 fn every_op_far_off_and_turned_keeps_its_pads_at_home() {
     let tol = Tol::witness();
     for ((label, home), (_, far)) in built(0.0).into_iter().zip(built(100.0)) {
-        let pad = |b: &AtRestBody<f64>| topo::mass_properties(b, tol).unwrap().volume_pad;
+        let pad = |b: &AtRestBody<f64>| {
+            topo::mass_properties(b, tol, topo::test_support::pinned_resolution(tol))
+                .expect("the measured body")
+                .met()
+                .expect("the measured body")
+                .volume_pad
+        };
         let (home, far) = (pad(&home), pad(&far));
         assert!(
             home > 0.0 && far <= home * 1.01,
@@ -177,9 +184,15 @@ fn one_solid_in_two_face_orders_carries_nearly_one_pad() {
     };
     let pad = |x: &AtRestBody<f64>, y: &AtRestBody<f64>| {
         let got = topo::union(x, y, tol).unwrap();
-        topo::mass_properties(&got.body().unwrap().body, tol)
-            .unwrap()
-            .volume_pad
+        topo::mass_properties(
+            &got.body().unwrap().body,
+            tol,
+            topo::test_support::pinned_resolution(tol),
+        )
+        .expect("the measured body")
+        .met()
+        .expect("the measured body")
+        .volume_pad
     };
     let apart = |x: &AtRestBody<f64>, y: &AtRestBody<f64>| {
         let (xy, yx) = (pad(x, y), pad(y, x));
@@ -222,8 +235,11 @@ fn pads_over_rotations(body: &topo::Body<f64>) -> Vec<f64> {
             topo::mass_properties(
                 &topo::test_support::finished("the measured body", topo::Body::clone(&b), tol),
                 tol,
+                topo::test_support::pinned_resolution(tol),
             )
-            .unwrap()
+            .expect("the measured body")
+            .met()
+            .expect("the measured body")
             .volume_pad
         })
         .collect()
@@ -363,18 +379,23 @@ fn a_regions_carry_moves_the_volume_by_what_it_says_with_its_sign() {
     let tol = Tol::witness();
     let body = two_tori_on_a_bar();
     let (_, carry) = far_region(&body);
-    let carried = topo::mass_properties(&finished("the tori", body, tol), tol).unwrap();
+    let carried = topo::mass_properties(
+        &finished("the tori", body, tol),
+        tol,
+        topo::test_support::pinned_resolution(tol),
+    )
+    .unwrap();
     assert!(
-        (carried.volume - TWO_TORI_ON_A_BAR).abs() <= carried.volume_pad,
+        (carried.enclosure.volume - TWO_TORI_ON_A_BAR).abs() <= carried.enclosure.volume_pad,
         "carried {} ± {} against the exact {TWO_TORI_ON_A_BAR}",
-        carried.volume,
-        carried.volume_pad,
+        carried.enclosure.volume,
+        carried.enclosure.volume_pad,
     );
     let moved = 2.0 * carry.lo().abs().min(carry.hi().abs()) / 3.0;
     assert!(
-        moved > 1e6 * carried.volume_pad,
+        moved > 1e6 * carried.enclosure.volume_pad,
         "a carry of the wrong sign moves the volume by {moved}, against {} of pad",
-        carried.volume_pad
+        carried.enclosure.volume_pad
     );
 }
 
@@ -462,14 +483,24 @@ fn a_region_bounded_off_one_plane_is_carried_about_its_own_point() {
         })
         .collect();
     assert_eq!(planes.len(), 2, "both roof faces are in the far region");
-    let carried =
-        topo::mass_properties(&finished("the roofed bar", body.clone(), tol), tol).unwrap();
-    let one = topo::test_support::mass_properties_one_point(&body, tol).unwrap();
+    let carried = topo::mass_properties(
+        &finished("the roofed bar", body.clone(), tol),
+        tol,
+        topo::test_support::pinned_resolution(tol),
+    )
+    .unwrap();
+    let one = topo::test_support::mass_properties_one_point(
+        &body,
+        tol,
+        topo::test_support::pinned_len(tol),
+    )
+    .unwrap();
     assert!(
-        (carried.volume - one.volume).abs() <= carried.volume_pad + one.volume_pad,
+        (carried.enclosure.volume - one.volume).abs()
+            <= carried.enclosure.volume_pad + one.volume_pad,
         "carried {} ± {} against one point's {} ± {}",
-        carried.volume,
-        carried.volume_pad,
+        carried.enclosure.volume,
+        carried.enclosure.volume_pad,
         one.volume,
         one.volume_pad
     );
@@ -543,7 +574,11 @@ fn a_carried_region_at_the_certified_scalar_holds_its_volume() {
         "the carry is an enclosure, not a point: {carry:?}"
     );
     let truth = 303.0 + std::f64::consts::PI * std::f64::consts::PI / 8.0;
-    let volume = topo::mass_properties(&body, tol).unwrap().volume;
+    let volume = topo::mass_properties(&body, tol, topo::test_support::pinned_resolution(tol))
+        .expect("the measured body")
+        .met()
+        .expect("the measured body")
+        .volume;
     assert!(
         volume.lo() <= truth && truth <= volume.hi(),
         "{volume:?} holds {truth}"
@@ -591,19 +626,26 @@ fn every_door_reads_a_carried_region_about_its_own_point() {
         }
     };
     let (_, reads) = topo::test_support::read_points::recorded(&at_rest, || {
-        topo::mass_properties(&at_rest, tol).unwrap()
+        topo::mass_properties(&at_rest, tol, topo::test_support::pinned_resolution(tol)).unwrap()
     });
     whole("mass_properties", &reads);
     let (_, reads) = topo::test_support::read_points::recorded(&body, || {
         // Raw door: the door itself is the subject, on a body tier 3 passes: it reads one point per region as the typed door does.
-        topo::test_support::measure_unvalidated(&body, tol).unwrap()
+        topo::test_support::measure_unvalidated(
+            &body,
+            tol,
+            topo::test_support::pinned_resolution(tol),
+        )
+        .unwrap()
     });
     whole("the raw measurement door", &reads);
     let (_, reads) = topo::test_support::read_points::recorded(&body, || {
         topo::validate_geometric(&body, tol).unwrap()
     });
     whole("tier 3", &reads);
-    let doors = topo::test_support::every_door(&body, tol).unwrap();
+    let doors =
+        topo::test_support::every_door(&body, tol, topo::test_support::pinned_resolution(tol))
+            .unwrap();
     let mut spans = Vec::new();
     for door in &doors {
         let name = door.door;
@@ -687,10 +729,16 @@ fn a_shell_of_one_quadrature_region_reads_as_about_one_point_bit_for_bit() {
                 regions.len()
             );
         }
-        let carried = topo::mass_properties(&body, tol).unwrap();
-        let one = topo::test_support::mass_properties_one_point(&body, tol).unwrap();
+        let carried =
+            topo::mass_properties(&body, tol, topo::test_support::pinned_resolution(tol)).unwrap();
+        let one = topo::test_support::mass_properties_one_point(
+            &body,
+            tol,
+            topo::test_support::pinned_len(tol),
+        )
+        .unwrap();
         assert_eq!(
-            [carried.volume, carried.volume_pad].map(f64::to_bits),
+            [carried.enclosure.volume, carried.enclosure.volume_pad].map(f64::to_bits),
             [one.volume, one.volume_pad].map(f64::to_bits),
             "{label}"
         );
@@ -750,10 +798,16 @@ fn a_region_near_its_shells_point_is_read_about_it_bit_for_bit() {
     let [(_, None), (_, None)] = &regions[..] else {
         panic!("one shell of two regions, neither carried: {regions:?}");
     };
-    let carried = topo::mass_properties(&body, tol).unwrap();
-    let one = topo::test_support::mass_properties_one_point(&body.into_body(), tol).unwrap();
+    let carried =
+        topo::mass_properties(&body, tol, topo::test_support::pinned_resolution(tol)).unwrap();
+    let one = topo::test_support::mass_properties_one_point(
+        &body.into_body(),
+        tol,
+        topo::test_support::pinned_len(tol),
+    )
+    .unwrap();
     assert_eq!(
-        [carried.volume, carried.volume_pad].map(f64::to_bits),
+        [carried.enclosure.volume, carried.enclosure.volume_pad].map(f64::to_bits),
         [one.volume, one.volume_pad].map(f64::to_bits),
     );
 }
@@ -782,11 +836,12 @@ fn each_shell_is_read_about_the_first_face_its_walk_measures_by_quadrature() {
     ];
     for (name, out) in bodies {
         let body = out.unwrap().body().unwrap().body.clone().into_body();
-        let quadrature: Vec<topo::FaceKey> = topo::test_support::quadrature_rounds(&body, tol)
-            .unwrap()
-            .into_iter()
-            .map(|(face, _, _)| face)
-            .collect();
+        let quadrature: Vec<topo::FaceKey> =
+            topo::test_support::quadrature_rounds(&body, tol, topo::test_support::pinned_len(tol))
+                .unwrap()
+                .into_iter()
+                .map(|(face, _, _)| face)
+                .collect();
         let n = *topo::test_support::rotate_shell_faces(&mut body.clone(), 0)
             .iter()
             .max()

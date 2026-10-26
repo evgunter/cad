@@ -58,6 +58,7 @@ from pncad import (
     rad,
     solve_document,
 )
+from measuring import pinned
 
 SQUARE = [
     (Formula.length_in(0, m), Formula.length_in(0, m)),
@@ -276,7 +277,7 @@ class TestSketchOnAFace(unittest.TestCase):
                 self.assertAlmostEqual(max(p[axis] for p in boss), hi, delta=1e-12)
         # The union holds the plate and the boss: 1 x 1 x 0.2 and
         # 0.6 x 0.6 x 0.3.
-        volume = ev.value(sketched.union).body().mass_properties().volume
+        volume = pinned(ev.value(sketched.union).body()).volume
         self.assertAlmostEqual(volume, 0.2 + 0.108, delta=1e-12)
 
     def test_the_four_nodes_are_one_recorded_action(self):

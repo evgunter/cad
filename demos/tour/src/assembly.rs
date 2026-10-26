@@ -116,7 +116,7 @@ use pncad::topo::EulerCounts;
 use pncad::topo::readback::euler_counts;
 use pncad::workspace::{PIN_MISMATCH_RECOURSE, Workspace, WorkspaceError, update_to_store};
 
-use crate::{SceneBody, Stop, View};
+use crate::{SceneBody, TourStop, View};
 
 // ---- The model's dimensions, in metres ----
 //
@@ -400,8 +400,9 @@ fn census(body: &Body<f64>) -> (i64, i64, i64, i64) {
 
 /// A product's volume, by bits — the other half of the identity.
 fn volume_bits(body: &Body<f64>, tol: Tol) -> u64 {
-    pncad::topo::mass_properties(&crate::booleans::at_rest(body, tol), tol)
+    pncad::topo::mass_properties(&crate::booleans::at_rest(body, tol), tol, crate::printed())
         .expect("mass properties")
+        .enclosure
         .volume
         .to_bits()
 }
@@ -970,18 +971,19 @@ fn layout_scene(ws: &Workspace, doc: &ProfileDoc, pattern: RecipeNodeId, tol: To
         "one instance, patterned twice, plus the shelf"
     );
     let want = 2.0 * POST_VOLUME + SHELF_VOLUME;
-    let props = pncad::topo::mass_properties(&crate::booleans::at_rest(&body, tol), tol)
-        .expect("mass properties");
+    let props =
+        pncad::topo::mass_properties(&crate::booleans::at_rest(&body, tol), tol, crate::printed())
+            .expect("mass properties");
     assert!(
-        (props.volume - want).abs() < 1e-12,
+        (props.enclosure.volume - want).abs() < 1e-12,
         "the layout gathers {want} m^3 of material, measured {}",
-        props.volume
+        props.enclosure.volume
     );
     println!(
         "   [layout] {} instantiated solid(s) from 2 part documents; V = {:.6} m^3 \
          (2 x post + shelf, exact); {} product names",
         body.shells().count(),
-        props.volume,
+        props.enclosure.volume,
         names.iter().count()
     );
 
@@ -1123,12 +1125,16 @@ fn stand_scene(ws: &Workspace, stand: &Stand, bench: &Bench, tol: Tol) -> Evalua
         4,
         "two posts, a shelf and a crate"
     );
-    let props = pncad::topo::mass_properties(&crate::booleans::at_rest(&gathered, tol), tol)
-        .expect("mass properties");
+    let props = pncad::topo::mass_properties(
+        &crate::booleans::at_rest(&gathered, tol),
+        tol,
+        crate::printed(),
+    )
+    .expect("mass properties");
     assert!(
-        (props.volume - BENCH_VOLUME).abs() < 1e-12,
+        (props.enclosure.volume - BENCH_VOLUME).abs() < 1e-12,
         "the bench gathers {BENCH_VOLUME} m^3, measured {}",
-        props.volume
+        props.enclosure.volume
     );
 
     // ASSERTED, not merely printed: the stand is the natural drawing of
@@ -1252,9 +1258,14 @@ fn poses(
         far_post_solved(&doc, stand, &with_store(ws), degrees.to_radians(), tol);
         shelf_stays_on_the_pivot(&ev, stand, degrees);
         let (gathered, _) = product_of(&doc, &ev, tol);
-        let volume = pncad::topo::mass_properties(&crate::booleans::at_rest(&gathered, tol), tol)
-            .expect("mass properties")
-            .volume;
+        let volume = pncad::topo::mass_properties(
+            &crate::booleans::at_rest(&gathered, tol),
+            tol,
+            crate::printed(),
+        )
+        .expect("mass properties")
+        .enclosure
+        .volume;
         assert!(
             (volume - BENCH_VOLUME).abs() < 1e-12,
             "a swing moves material and makes none: {BENCH_VOLUME} m^3, measured {volume}"
@@ -1834,10 +1845,14 @@ fn update_door(ws: &mut Workspace, stand: &Stand, bench: &Bench, shelf: DocRef, 
         .placement(&bench.doc, bench.crate_i)
         .expect("the crate is placed on the shelf");
     let (before_body, _) = product_of(&bench.doc, &before, tol);
-    let before_volume =
-        pncad::topo::mass_properties(&crate::booleans::at_rest(&before_body, tol), tol)
-            .expect("mass properties")
-            .volume;
+    let before_volume = pncad::topo::mass_properties(
+        &crate::booleans::at_rest(&before_body, tol),
+        tol,
+        crate::printed(),
+    )
+    .expect("mass properties")
+    .enclosure
+    .volume;
 
     // The part changes on disk: a thicker board. The shelf is modelled
     // from its UNDERSIDE up, so the face the posts' mates seat on does
@@ -1923,10 +1938,14 @@ fn update_door(ws: &mut Workspace, stand: &Stand, bench: &Bench, shelf: DocRef, 
     // The gate certifies the thicker bench, the crate on its top.
     at_rest(&updated, &after, tol);
     let (after_body, _) = product_of(&updated, &after, tol);
-    let after_volume =
-        pncad::topo::mass_properties(&crate::booleans::at_rest(&after_body, tol), tol)
-            .expect("mass properties")
-            .volume;
+    let after_volume = pncad::topo::mass_properties(
+        &crate::booleans::at_rest(&after_body, tol),
+        tol,
+        crate::printed(),
+    )
+    .expect("mass properties")
+    .enclosure
+    .volume;
     assert!(
         after_volume > before_volume,
         "the new version carries more material"
@@ -2204,7 +2223,7 @@ fn round_trip(ws: &Workspace, doc: &ProfileDoc, label: &str, tol: Tol) {
 /// it is turned with it, and the swing is a document parameter: one
 /// value edit moves every part on it, the crate included, and re-runs
 /// those four instances alone.
-pub fn stops(work: &Path, tol: Tol) -> Vec<Stop> {
+pub fn stops(work: &Path, tol: Tol) -> Vec<TourStop> {
     let (mut ws, parts) = workspace(work, tol);
     println!(
         "   workspace: {} document(s) in {}",
@@ -2324,7 +2343,7 @@ pub fn stops(work: &Path, tol: Tol) -> Vec<Stop> {
                     assembled(&counters),
                 )
             };
-            Stop {
+            TourStop {
                 name,
                 caption,
                 montage,

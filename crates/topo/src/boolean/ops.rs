@@ -2603,6 +2603,9 @@ fn bounded<T: Decide>(
                 crate::props::Ask::Decided(Err(escalated(cause)))
             }
             crate::props::settle::Step::Refine => crate::props::Ask::Refine(vec![true]),
+            crate::props::settle::Step::Empty => {
+                unreachable!("a single relation names a volume; only a `Contains` can be empty")
+            }
         }
     });
     match walked {
@@ -6057,6 +6060,8 @@ fn finding_arm(finding: &ValidationError) -> Option<InBand> {
         | V::FaceThroughEdgeWedgeUndecided { .. }
         | V::CoincidentWedgesOverlap { .. }
         | V::CoincidentWedgesOverlapUndecided { .. }
+        | V::BoundaryCrossesItself { .. }
+        | V::BoundaryCrossesItselfUndecided { .. }
         | V::ArcEndOffCorner { .. }
         | V::InstanceInterference { .. }
         | V::SameSideInterference { .. }
@@ -9066,9 +9071,15 @@ mod tests {
         );
         let volume = |body: &crate::Body<f64>| {
             // Raw door: the measured prisms still carry construction scaffolding, which tier 3 refuses (ScaffoldAtRest).
-            crate::test_support::measure_unvalidated(body, Tol::witness())
-                .unwrap()
-                .volume
+            crate::test_support::measure_unvalidated(
+                body,
+                Tol::witness(),
+                crate::test_support::pinned_resolution(Tol::witness()),
+            )
+            .unwrap()
+            .met()
+            .expect("the pinned resolution is met")
+            .volume
         };
         assert!(
             volume(&low) < volume(&high),

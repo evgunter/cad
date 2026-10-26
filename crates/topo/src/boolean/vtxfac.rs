@@ -4262,9 +4262,13 @@ mod tests {
             );
             let body = AtRestBody::validate(body, tol).unwrap();
             let volume = |r: Result<crate::BooleanResult<f64>, BooleanError>| {
-                r.unwrap()
-                    .body()
-                    .map_or(0.0, |b| mass_properties(&b.body, tol).unwrap().volume)
+                r.unwrap().body().map_or(0.0, |b| {
+                    mass_properties(&b.body, tol, crate::test_support::pinned_resolution(tol))
+                        .unwrap()
+                        .met()
+                        .expect("the pinned resolution is met")
+                        .volume
+                })
             };
             volumes.push([
                 volume(crate::union(&body, &cube, tol)),
