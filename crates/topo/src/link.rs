@@ -2071,3 +2071,461 @@ mod tests {
         );
     }
 }
+
+/// Review probes (review/atrest-link-NbL4fi), not for merging.
+#[cfg(test)]
+mod review_probes {
+    #![allow(clippy::expect_used, clippy::panic, clippy::print_stderr)]
+
+    use super::*;
+    use geom_core::{Bounds, Dual, Interval};
+
+    fn band() -> Band {
+        Band::linear(geom_core::Tol::witness()).expect("a band")
+    }
+
+    fn pt<T: Real>(x: f64, y: f64, z: f64) -> Point3<T> {
+        Point3::new(T::from_f64(x), T::from_f64(y), T::from_f64(z))
+    }
+
+    fn fans<T: Decide>(p: Point3<T>, fans: &[(Vec3<T>, Vec<Point3<T>>)]) -> Link<T> {
+        let sectors = fans
+            .iter()
+            .map(|(m, pts)| Sector {
+                surface: geom::Surface::Plane {
+                    origin: p,
+                    normal: *m,
+                    u_ref: (pts[0] - p).normalize(),
+                },
+                sense: true,
+                outward: *m,
+                apex: p,
+                wedges: pts.windows(2).map(|w| (w[0], w[1])).collect(),
+                closed: false,
+            })
+            .collect();
+        Link::of(p, sectors).unwrap_or_else(|_| panic!("a link"))
+    }
+
+    fn vv<T: Real>(x: f64, y: f64, z: f64) -> Vec3<T> {
+        Vec3::new(T::from_f64(x), T::from_f64(y), T::from_f64(z))
+    }
+
+    /// A block's corner at the origin (material x, y, z <= 0) whose edge
+    /// along -x is `s` long.
+    fn corner<T: Decide>(s: f64) -> Link<T> {
+        let (x, y, z) = (pt(-s, 0.0, 0.0), pt(0.0, -1.0, 0.0), pt(0.0, 0.0, -1.0));
+        fans(
+            pt(0.0, 0.0, 0.0),
+            &[
+                (vv(1.0, 0.0, 0.0), vec![y, z]),
+                (vv(0.0, 1.0, 0.0), vec![z, x]),
+                (vv(0.0, 0.0, 1.0), vec![x, y]),
+            ],
+        )
+    }
+
+    fn ridge<T: Decide>() -> Link<T> {
+        fans(
+            pt(0.0, 0.0, 0.0),
+            &[
+                (
+                    vv(0.0, 0.0, 1.0),
+                    vec![pt(0.0, 1.0, 0.0), pt(-1.0, 0.0, 0.0), pt(0.0, -1.0, 0.0)],
+                ),
+                (
+                    vv(1.0, 0.0, 0.0),
+                    vec![pt(0.0, -1.0, 0.0), pt(0.0, 0.0, -1.0), pt(0.0, 1.0, 0.0)],
+                ),
+            ],
+        )
+    }
+
+    /// Claim 3: a point on the top face's extended plane, beside the
+    /// corner's short -x edge and `d` off the y = 0 face, is `d` from the
+    /// cone. Prints what `offset` reads.
+    #[test]
+    fn probe_offset_beside_a_short_ray_reads_contact() {
+        let b = band();
+        eprintln!("band zero {:e} escalate {:e}", b.zero(), b.escalate());
+        let mut wrong = Vec::new();
+        for s in [1.0, 1e-3] {
+            let link = corner::<f64>(s);
+            for k in [0.5, 2.0, 50.0, 500.0] {
+                let d = k * b.zero();
+                let got = link.offset(pt(-1.0, d, 0.0), b);
+                eprintln!("s {s:e} d {d:e}: offset {got:?}");
+                match got {
+                    Ok(o) if (o - d).abs() > 0.5 * d => wrong.push((s, d, o)),
+                    _ => {}
+                }
+            }
+        }
+        assert!(wrong.is_empty(), "offset is not the distance: {wrong:?}");
+    }
+
+    /// Claim 3: continuity / sign through zero across a reflex (hole)
+    /// corner and the saddle, probing along lines through the boundary.
+    #[test]
+    fn probe_offset_is_continuous_and_signed_through_zero() {
+        let b = band();
+        let hole = {
+            let (x, y, z) = (pt(1.0, 0.0, 0.0), pt(0.0, 1.0, 0.0), pt(0.0, 0.0, 1.0));
+            fans::<f64>(
+                pt(0.0, 0.0, 0.0),
+                &[
+                    (vv(1.0, 0.0, 0.0), vec![y, z]),
+                    (vv(0.0, 1.0, 0.0), vec![z, x]),
+                    (vv(0.0, 0.0, 1.0), vec![x, y]),
+                ],
+            )
+        };
+        let mut bad = Vec::new();
+        for (name, link) in [("hole", &hole), ("ridge", &ridge::<f64>())] {
+            for (a, dir) in [
+                (pt(0.3, -0.2, 0.4), vv(0.0, 1.0, 0.0)),
+                (pt(0.2, 0.2, -0.3), vv(0.0, 0.0, 1.0)),
+                (pt(-0.3, 0.1, 0.5), vv(1.0, 0.0, -1.0)),
+                (pt(0.0, 0.0, 0.0), vv(1.0, 1.0, 1.0)),
+            ] {
+                let mut prev: Option<f64> = None;
+                for i in -40..=40 {
+                    let t = f64::from(i) * 0.005;
+                    let q = a + dir * t;
+                    match link.offset(q, b) {
+                        Ok(o) => {
+                            if let Some(pv) = prev
+                                && (o - pv).abs() > 0.02
+                            {
+                                bad.push(format!("{name} {a:?} t {t}: jump {pv} -> {o}"));
+                            }
+                            prev = Some(o);
+                        }
+                        Err(e) => {
+                            bad.push(format!("{name} {a:?} t {t}: {e:?}"));
+                            prev = None;
+                        }
+                    }
+                }
+            }
+        }
+        for l in &bad {
+            eprintln!("{l}");
+        }
+        assert!(bad.is_empty(), "{} discontinuities or refusals", bad.len());
+    }
+
+    /// Claim 4: brute-force the lowest offset along random segments near a
+    /// corner, a hole, a saddle-like L and a ridge, against lowest_on.
+    #[test]
+    fn probe_lowest_on_against_a_dense_sample() {
+        let b = band();
+        let l = {
+            let (x, y, z) = (pt(1.0, 0.0, 0.0), pt(0.0, 1.0, 0.0), pt(0.0, 0.0, -1.0));
+            let (nx, ny) = (pt(-1.0, 0.0, 0.0), pt(0.0, -1.0, 0.0));
+            fans::<f64>(
+                pt(0.0, 0.0, 0.0),
+                &[
+                    (vv(0.0, 0.0, 1.0), vec![y, nx, ny, x]),
+                    (vv(0.0, 1.0, 0.0), vec![x, z]),
+                    (vv(1.0, 0.0, 0.0), vec![z, y]),
+                ],
+            )
+        };
+        let links = [
+            ("corner", corner::<f64>(1.0)),
+            ("saddle", l),
+            ("ridge", ridge::<f64>()),
+        ];
+        let mut seed: u64 = 0x9E37_79B9_7F4A_7C15;
+        let mut rnd = move || {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            (seed >> 11) as f64 / (1u64 << 53) as f64 * 2.0 - 1.0
+        };
+        let (mut worst, mut refusals, mut n) = (0.0f64, 0usize, 0usize);
+        let mut report = Vec::new();
+        for (name, link) in &links {
+            for _ in 0..400 {
+                let a = pt::<f64>(rnd(), rnd(), rnd());
+                let c = pt::<f64>(rnd(), rnd(), rnd());
+                let got = match link.lowest_on((a, c), b) {
+                    Ok(g) => g,
+                    Err(e) => {
+                        refusals += 1;
+                        if refusals < 6 {
+                            let mut ok = 0;
+                            let mut lo = f64::INFINITY;
+                            for i in 0..=400 {
+                                if let Ok(o) = link.offset(a + (c - a) * (f64::from(i) / 400.0), b)
+                                {
+                                    ok += 1;
+                                    lo = lo.min(o);
+                                }
+                            }
+                            eprintln!(
+                                "REFUSED {name} {a:?}->{c:?}: {e:?}; offsets read at {ok}/401 samples, sampled low {lo}"
+                            );
+                        }
+                        continue;
+                    }
+                };
+                let mut sampled = f64::INFINITY;
+                for i in 0..=4000 {
+                    let t = f64::from(i) / 4000.0;
+                    if let Ok(o) = link.offset(a + (c - a) * t, b) {
+                        sampled = sampled.min(o);
+                    }
+                }
+                n += 1;
+                // lowest_on may only be at or below the sample's minimum,
+                // and above it by no more than sampling error.
+                let over = got - sampled;
+                if over > worst {
+                    worst = over;
+                }
+                if over > 1e-6 {
+                    report.push(format!(
+                        "{name} {a:?}->{c:?}: lowest_on {got}, sampled {sampled}"
+                    ));
+                }
+                if got < sampled - 1e-3 {
+                    report.push(format!(
+                        "{name} {a:?}->{c:?}: lowest_on {got} BELOW sampled {sampled}"
+                    ));
+                }
+            }
+        }
+        eprintln!("segments {n}, refusals {refusals}, worst over {worst:e}");
+        for r in report.iter().take(20) {
+            eprintln!("{r}");
+        }
+        assert!(report.is_empty(), "{} misses", report.len());
+    }
+
+    /// Claim 6: the Dual scalar at contact. A vertex resting on the
+    /// ridge line, moved along x by a seeded h, and a segment crossing
+    /// the ridge at h; the derivative channel should be a number.
+    #[test]
+    fn probe_dual_derivative_at_contact() {
+        type D = Dual<f64>;
+        let b = band();
+        let link = ridge::<D>();
+        let h = D::variable(0.0);
+        let q = Point3::new(h, D::from_f64(0.3), D::zero());
+        let o = link.offset(q, b).expect("reads");
+        eprintln!("vertex on the ridge: value {} deriv {}", o.value, o.deriv);
+        let lift = Vec3::new(h, D::zero(), h);
+        let seg = (
+            pt::<D>(-1.0, 0.3, 1.0) + lift,
+            pt::<D>(1.0, 0.3, -1.0) + lift,
+        );
+        let l = link.lowest_on(seg, b).expect("reads");
+        eprintln!(
+            "segment across the ridge: value {} deriv {}",
+            l.value, l.deriv
+        );
+        let on_face = Point3::new(D::from_f64(-0.4), D::from_f64(0.3), h);
+        let f = link.offset(on_face, b).expect("reads");
+        eprintln!(
+            "vertex on the top face: value {} deriv {}",
+            f.value, f.deriv
+        );
+        assert!(
+            o.deriv.is_finite() && l.deriv.is_finite() && f.deriv.is_finite(),
+            "a derivative at contact is not a number: {} {} {}",
+            o.deriv,
+            l.deriv,
+            f.deriv
+        );
+    }
+
+    /// Claim 6: Interval readings enclose f64 at the same input, over a
+    /// grid of points near the ridge and the corner.
+    #[test]
+    fn probe_interval_offset_encloses_f64() {
+        let b = band();
+        let (lf, li) = (corner::<f64>(1.0), corner::<Interval>(1.0));
+        let (rf, ri) = (ridge::<f64>(), ridge::<Interval>());
+        let (mut miss, mut refused, mut n) = (Vec::new(), 0, 0);
+        for (f, i) in [(&lf, &li), (&rf, &ri)] {
+            for x in -6..=6 {
+                for y in -6..=6 {
+                    for z in -6..=6 {
+                        let (x, y, z) = (
+                            f64::from(x) * 0.07,
+                            f64::from(y) * 0.07 + 0.01,
+                            f64::from(z) * 0.07,
+                        );
+                        let Ok(v) = f.offset(pt(x, y, z), b) else {
+                            continue;
+                        };
+                        n += 1;
+                        match i.offset(pt(x, y, z), b) {
+                            Ok(e) if e.lo() <= v && v <= e.hi() => {}
+                            Ok(e) => miss.push(format!(
+                                "({x},{y},{z}): f64 {v} not in [{}, {}]",
+                                e.lo(),
+                                e.hi()
+                            )),
+                            Err(_) => refused += 1,
+                        }
+                    }
+                }
+            }
+        }
+        eprintln!(
+            "points {n}, interval refused {refused}, misses {}",
+            miss.len()
+        );
+        for m in miss.iter().take(10) {
+            eprintln!("{m}");
+        }
+        assert!(miss.is_empty());
+    }
+}
+
+#[cfg(test)]
+mod review_probes_dbg {
+    #![allow(clippy::expect_used, clippy::panic, clippy::print_stderr)]
+    use super::*;
+    #[test]
+    fn probe_which_candidate_refuses() {
+        let b = Band::linear(geom_core::Tol::witness()).expect("a band");
+        let p = |x: f64, y: f64, z: f64| Point3::new(x, y, z);
+        let o = p(0.0, 0.0, 0.0);
+        let (x, y, z) = (p(-1.0, 0.0, 0.0), p(0.0, -1.0, 0.0), p(0.0, 0.0, -1.0));
+        let mk = |m: Vec3<f64>, pts: Vec<Point3<f64>>| Sector {
+            surface: geom::Surface::Plane {
+                origin: o,
+                normal: m,
+                u_ref: (pts[0] - o).normalize(),
+            },
+            sense: true,
+            outward: m,
+            apex: o,
+            wedges: pts.windows(2).map(|w| (w[0], w[1])).collect(),
+            closed: false,
+        };
+        let link = Link::of(
+            o,
+            vec![
+                mk(Vec3::new(1.0, 0.0, 0.0), vec![y, z]),
+                mk(Vec3::new(0.0, 1.0, 0.0), vec![z, x]),
+                mk(Vec3::new(0.0, 0.0, 1.0), vec![x, y]),
+            ],
+        )
+        .expect("link");
+        let a = p(
+            0.719588241561633,
+            -0.21139732328732652,
+            -0.03882425190101646,
+        );
+        let c = p(-0.622100228344509, -0.6490756419338675, 0.18017933438838418);
+        for i in 0..=1000 {
+            let t = f64::from(i) / 1000.0;
+            let q = a + (c - a) * t;
+            if link.offset(q, b).is_err() {
+                eprintln!("grid t {t} refuses at {q:?}");
+            }
+        }
+        // the clamped ends
+        for t in [0.0, 1.0] {
+            let q = a + (c - a) * t;
+            eprintln!("end t {t}: {:?}", link.offset(q, b));
+        }
+        // the plane crossings
+        for (k, s) in link.sectors.iter().enumerate() {
+            let (o0, o1) = (s.outward.dot(a - o), s.outward.dot(c - a));
+            let t = -o0 / o1;
+            let q = a + (c - a) * t.clamp(0.0, 1.0);
+            eprintln!(
+                "plane {k} crossing t {t}: q {q:?} side {:?} place {:?} offset {:?}",
+                link.side(
+                    s,
+                    q,
+                    Reading {
+                        band: b,
+                        slack: None
+                    }
+                ),
+                s.place(
+                    o,
+                    q,
+                    Reading {
+                        band: b,
+                        slack: None
+                    }
+                ),
+                link.offset(q, b)
+            );
+        }
+    }
+}
+
+#[cfg(test)]
+mod review_probes_rot {
+    #![allow(clippy::expect_used, clippy::panic, clippy::print_stderr)]
+    use super::*;
+
+    /// MAJOR probe: the ridge (convex edge along y, faces +z and +x)
+    /// turned about z by `deg`, read by a strut segment crossing it at
+    /// `h` off, as `real_crossing_ridges_read_the_sign_in_both_seats`
+    /// builds axis-aligned. Red where f64 `lowest_on` refuses.
+    #[test]
+    fn probe_a_turned_crossing_reads_in_f64() {
+        let b = Band::linear(geom_core::Tol::witness()).expect("a band");
+        let mut refused = Vec::new();
+        let mut n = 0;
+        for deg in [0.0f64, 1.0, 7.0, 13.0, 30.0, 45.0, 61.0] {
+            let (c, s) = (deg.to_radians().cos(), deg.to_radians().sin());
+            let r = |x: f64, y: f64, z: f64| Point3::new(c * x - s * y, s * x + c * y, z);
+            let rv = |x: f64, y: f64, z: f64| Vec3::new(c * x - s * y, s * x + c * y, z);
+            let o = Point3::new(0.0, 0.0, 0.0);
+            let mk = |m: Vec3<f64>, pts: Vec<Point3<f64>>| Sector {
+                surface: geom::Surface::Plane {
+                    origin: o,
+                    normal: m,
+                    u_ref: (pts[0] - o).normalize(),
+                },
+                sense: true,
+                outward: m,
+                apex: o,
+                wedges: pts.windows(2).map(|w| (w[0], w[1])).collect(),
+                closed: false,
+            };
+            let ridge = Link::of(
+                o,
+                vec![
+                    mk(
+                        rv(0.0, 0.0, 1.0),
+                        vec![r(0.0, 1.0, 0.0), r(-1.0, 0.0, 0.0), r(0.0, -1.0, 0.0)],
+                    ),
+                    mk(
+                        rv(1.0, 0.0, 0.0),
+                        vec![r(0.0, -1.0, 0.0), r(0.0, 0.0, -1.0), r(0.0, 1.0, 0.0)],
+                    ),
+                ],
+            )
+            .expect("link");
+            for h in [0.0, 0.01, -0.01] {
+                // a strut along z at x = h, crossing the ridge line
+                let seg = (r(h, 0.3, -0.5), r(h, 0.3, 0.5));
+                n += 1;
+                match ridge.lowest_on(seg, b) {
+                    Ok(v) => eprintln!("deg {deg} h {h}: {v}"),
+                    Err(e) => {
+                        eprintln!("deg {deg} h {h}: REFUSED {e:?}");
+                        refused.push((deg, h));
+                    }
+                }
+            }
+        }
+        assert!(
+            refused.is_empty(),
+            "{}/{n} turned crossings refuse in f64: {refused:?}",
+            refused.len()
+        );
+    }
+}
