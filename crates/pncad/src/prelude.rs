@@ -380,11 +380,15 @@ pub use sweep::blend::{BlendDecision, BlendSite, Breach, CornerConfig, RunOutPol
 // refusal.
 // `SideWall` and `BandWall` are `Extruded::walls` and `Revolved::bands`
 // — the one wall per run of pieces each verb builds — so a caller
-// reading those handles can name their element type.
+// reading those handles can name their element type. `Cavity` and
+// `CavityOrigin` are `Revolved::cavities`' element and its key — which
+// pocket, a hole loop or an axis gap, a cavity shell revolves — and
+// `CavityOrigin` is also `RevolveError::VoidInsertion`'s subject, so a
+// caller can match which cavity refused.
 pub use sweep::{
-    BandWall, ExtrudeError, ExtrudeSide, Extruded, Extrusion, LoftError, Lofted, Revolution,
-    RevolveAxis, RevolveError, Revolved, RevolvedKind, SideWall, TubeError, TubeWindow, extrude,
-    loft_body, revolve, sweep_body, tube_along_arc, tube_along_arc_hollow,
+    BandWall, Cavity, CavityOrigin, ExtrudeError, ExtrudeSide, Extruded, Extrusion, LoftError,
+    Lofted, Revolution, RevolveAxis, RevolveError, Revolved, RevolvedKind, SideWall, TubeError,
+    TubeWindow, extrude, loft_body, revolve, sweep_body, tube_along_arc, tube_along_arc_hollow,
 };
 
 // --- 4. Bodies and Booleans -----------------------------------
@@ -736,14 +740,14 @@ pub use editor_core::{NameTextError, StableName};
 // These are that door, curated as one group in `crate::select` (whose
 // module docs carry the worked examples).
 pub use crate::select::{
-    CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactFinding, ContactRefusal, ContactVerdict,
-    CurveKind, CurveKindSet, DeclaredContact, Denotation, EntityKind, FIT_DEFERRAL, GeomPred,
-    InterrogateError, MeridianEnd, NameOrigin, NamePat, NameRef, NameTable, OpGroup, PieceRole,
-    PieceRun, Pose, ProfileEdgeRef, ProfileVertexRef, ReadbackError, RimSupport, RolePath, RoleSeg,
-    RunLine, SEL_PLANE_DISTANCE, SectionCircle, SegPat, SegTag, SelectRefusal, Selector, Sense,
-    Side, SplitHalf, StepId, SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces,
-    all_vertices, attribute, denotation, edge_carrier_kind, edge_frame, edge_name,
-    face_carrier_kind, face_frame, face_name, select, select_where, vertex_position,
+    CONTACT_RECOURSE, CapEnd, Cmp, ContactFinding, ContactRefusal, ContactVerdict, CurveKind,
+    CurveKindSet, DeclaredContact, Denotation, EntityKind, GeomPred, GlueClass, InterrogateError,
+    MeridianEnd, NameOrigin, NamePat, NameRef, NameTable, OpGroup, PieceRole, PieceRun, Pose,
+    ProfileEdgeRef, ProfileVertexRef, ReadbackError, RimSupport, RolePath, RoleSeg, RunLine,
+    SEL_PLANE_DISTANCE, SectionCircle, SegPat, SegTag, SelectRefusal, Selector, Sense, Side,
+    SplitHalf, StepId, SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces, all_vertices,
+    attribute, denotation, edge_carrier_kind, edge_frame, edge_name, face_carrier_kind, face_frame,
+    face_name, select, select_where, vertex_position,
 };
 // The KERNEL query seat (`topo::query`): the same selection
 // vocabulary as a pure function of a `Body`, for the caller who holds

@@ -87,21 +87,17 @@
 //!
 //! **What does need saying is the opposite case**: two maps a caller
 //! reads ONE fact from, which must therefore agree word for word.
-//! Three are pinned against each other in `src/tests.rs` and each says
-//! which pin holds it — [`entity_kind_tag`] with [`entity_id_tag`]
-//! where both layers speak of one entity, [`class_admission_tag`]
-//! with [`mint_refusal_tag`], where the first predicts ONE ARM of the
-//! second (see that function for the arm it does not), and
-//! [`edit_error_tag`] with [`snapshot_error_tag`] over the four
+//! One pair is pinned against each other in `src/tests.rs`, and says
+//! which pin holds it: [`edit_error_tag`] with [`snapshot_error_tag`] over the four
 //! param-ref words, where both doors raise one fault at one address.
 //! **That is not
 //! the whole set of pairs that owe a pin**, only the set these maps
 //! have been read for: [`ring_contact_tag`], [`census_contact_tag`]
 //! and [`stale_declaration_tag`] share contact words by prose alone,
-//! and the entity-kind vocabulary has a THIRD Python-visible spelling
+//! and the entity vocabulary has a second Python-visible spelling
 //! outside this file — `py::select::EntityKind`'s member names, held
-//! against `pncad.pyi` by `tests/test_stubs.py` and against these
-//! words by nothing. `work/census/` carries the contact family as a
+//! against `pncad.pyi` by `tests/test_stubs.py` and against
+//! [`entity_id_tag`]'s words by nothing. `work/census/` carries the contact family as a
 //! row.
 //!
 //! **This file is READ as data.** The exhaustive matches guard the
@@ -130,14 +126,14 @@ use pncad::analysis::{
 };
 use pncad::document::LabelFault;
 use pncad::document::{
-    AssemblyError, AttrKind, Attribution, Axis3, CheckEvidence, ChecksError, ClassAdmission, Coord,
-    CountMismatch, DimensionError, Distribution, DistributionFault, DistributionField, EditError,
-    EvalError, FlattenError, InlineError, InterfaceCrossing, LeverRefusal, Maintenance, MateFault,
-    MeasureUnavailableAt, MetaVersionError, MintRefusal, NoChartWhy, NodeErrorClass, NodeErrorKind,
+    AssemblyError, AttrKind, Axis3, CheckEvidence, ChecksError, Coord, CountMismatch,
+    DimensionError, Distribution, DistributionFault, DistributionField, EditError, EvalError,
+    FlattenError, InlineError, InterfaceCrossing, LeverRefusal, Maintenance, MateFault,
+    MeasureUnavailableAt, MetaVersionError, NoChartWhy, NodeErrorClass, NodeErrorKind,
     NodeStanding, ParseError, PersistError, PinRefusal, PlacementRuleFault, ProgramFault,
-    ProgramRefusal, ReachRefusal, RecordedProgramError, RefusedRef, Relation, ResolveFault,
-    ShellClassifyError, SlotId, SnapshotError, SplitError, StepHandleRefusal, StepIdFault,
-    TargetAxis, Unlocalized, UpdateError,
+    ProgramRefusal, ReachRefusal, RecordedProgramError, ResolveFault, ShellClassifyError, SlotId,
+    SnapshotError, SplitError, StepHandleRefusal, StepIdFault, TargetAxis, Unlocalized,
+    UpdateError,
 };
 use pncad::geom_core::{BandError, BandField, FrameError, FrameInput, FrameVector};
 use pncad::mesh::TessellateError;
@@ -147,10 +143,9 @@ use pncad::profile::{
 };
 use pncad::quantity::FmtQuantityError;
 use pncad::select::{
-    CrossingSensesShape, DisagreeShape, EntityKind, HitTestError, InterrogateError, JoinShape,
-    MeshPickError, NameLookupError, NamingError, NodePickError, ReadbackError, Resolution,
-    ResolveError, ResolveIndeterminate, RimShare, SeamSidesShape, SeamVertexShape, UnionNameShape,
-    WayShape,
+    CrossingSensesShape, DisagreeShape, HitTestError, InterrogateError, JoinShape, MeshPickError,
+    NameLookupError, NamingError, NodePickError, ReadbackError, Resolution, ResolveError,
+    ResolveIndeterminate, RimShare, SeamSidesShape, SeamVertexShape, UnionNameShape, WayShape,
 };
 use pncad::step_import::{NormalizationKind, PromotedCurveKind, PromotedKind, StepImportError};
 use pncad::sweep::blend::BlendError;
@@ -336,7 +331,6 @@ pub fn select_refusal_tag(err: &pncad::select::SelectRefusal) -> &'static str {
 pub fn unmirrored_select_tag(which: UnmirroredSelect) -> &'static str {
     match which {
         UnmirroredSelect::Refusal => "unclassified",
-        UnmirroredSelect::ContactClass => "unclassified",
     }
 }
 
@@ -993,7 +987,6 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         // different recourses, so a caller
         // branches on which one fired, not on "a mate failed".
         C::MatePosesOfAnotherDocument => "mate_poses_of_another_document",
-        C::MateClassNotAdmitted => "mate_class_not_admitted",
         C::MateOverconstrained => "mate_overconstrained",
         C::MateUnpinned => "mate_unpinned",
         C::MateNotOnTheCopy => "mate_not_on_the_copy",
@@ -1383,7 +1376,7 @@ pub fn revolve_error_tag(err: &RevolveError) -> &'static str {
         RevolveError::SliverAxisClearance { .. } => "sliver_axis_clearance",
         RevolveError::UnsupportedToroid { .. } => "unsupported_toroid",
         RevolveError::NonManifoldAxisContact { .. } => "non_manifold_axis_contact",
-        RevolveError::MultipleAxisRuns { .. } => "multiple_axis_runs",
+        RevolveError::AxisGapEscalated { .. } => "axis_gap_escalated",
         RevolveError::HoleTouchesAxis { .. } => "hole_touches_axis",
         RevolveError::VoidInsertion { .. } => "void_insertion",
         RevolveError::CosurfaceEscalated { .. } => "cosurface_escalated",
@@ -1556,7 +1549,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::FallbackExtentUnsupported => "fallback_extent_unsupported",
         BooleanErrorKind::SpheresMeet => "spheres_meet",
         BooleanErrorKind::GermFrameUnsupported => "germ_frame_unsupported",
-        BooleanErrorKind::GermSectionOutsideInventory => "germ_section_outside_inventory",
+        BooleanErrorKind::GermSectionOpenConic => "germ_section_open_conic",
         BooleanErrorKind::GermSectionSpiric => "germ_section_spiric",
         BooleanErrorKind::NodeUnbuilt => "node_unbuilt",
         BooleanErrorKind::Euler => "euler",
@@ -2223,6 +2216,7 @@ pub fn export_error_tag(err: &pncad::export::ExportError) -> &'static str {
         },
         E::NotABody { .. } => "not_a_body",
         E::EmptyBoolean { .. } => "empty_boolean",
+        E::BodyInvalid { .. } => "body_invalid",
         E::Step(_) => "step_refused",
         E::Product(inner) => product_error_tag(inner),
     }
@@ -2434,14 +2428,6 @@ pub fn binary_header_error_tag(err: &BinaryHeaderError) -> &'static str {
     }
 }
 
-/// The stable tag for a mate reference that named no product face
-/// (the assembly gate's `Reference` arm rides one).
-pub fn refused_ref_tag(why: &RefusedRef) -> &'static str {
-    match why {
-        RefusedRef::Ambiguous { .. } => "ref_ambiguous",
-    }
-}
-
 /// The stable tag for an at-rest gate refusal.
 ///
 /// The `Product` arm delegates to [`product_error_tag`] rather than
@@ -2450,95 +2436,12 @@ pub fn refused_ref_tag(why: &RefusedRef) -> &'static str {
 /// and the wrapper adds nothing they can act on. The two namespaces
 /// do not collide — the gather's tags are bare (`empty_product`), the
 /// gate's carry their own words.
-///
-/// The two MINT arms each carry a LIST, so neither can delegate: a
-/// document with a stale reference and an unrecordable class refuses
-/// both at once, and one tag cannot be two words. Each arm's tag names
-/// the fact it raises — which mates did not mint, and whose — and the
-/// per-row word is [`mint_refusal_tag`] on the rows themselves.
 pub fn assembly_error_tag(err: &AssemblyError) -> &'static str {
     match err {
         AssemblyError::Product(inner) => product_error_tag(inner),
-        AssemblyError::Mint { .. } => "unminted_mates",
-        AssemblyError::CarriedMintRefusal { .. } => "carried_mint_refusal",
         AssemblyError::CarriedAtRest { .. } => "carried_at_rest",
         AssemblyError::AtRest { .. } => "at_rest",
-        AssemblyError::Uncertified { .. } => "uncertified",
         AssemblyError::Space { .. } => "own_space",
-    }
-}
-
-/// **The stable tag for ONE mint refusal** — a row of either mint arm
-/// of [`assembly_error_tag`], this document's own or a part's.
-///
-/// The two words a caller branches on used to sit on the gate's enum,
-/// one arm each, because the gate raised one refusal. They live here
-/// now, on the row, for the reason the arms became lists: a document
-/// can refuse both ways at once, and which repair a mate needs is a
-/// fact about that mate.
-pub fn mint_refusal_tag(refusal: &MintRefusal) -> &'static str {
-    match refusal {
-        MintRefusal::Reference { .. } => "mate_reference_refused",
-        MintRefusal::NoAtRestRecord { .. } => "no_at_rest_record",
-        MintRefusal::Unevaluated { .. } => "mate_unevaluated",
-    }
-}
-
-/// The stable tag for **how far a contact class gets**: what the
-/// class table answers a tool that asks BEFORE it commits an edit.
-///
-/// `no_at_rest_record` is [`mint_refusal_tag`]'s word on purpose and
-/// must stay it: `ClassAdmission::NoAtRestRecord` says the mint door
-/// will raise `MintRefusal::NoAtRestRecord` for this class, so a
-/// caller that asks ahead and a caller that reads that refusal
-/// afterwards are told one fact.
-/// `the_class_table_predicts_the_mint_refusal_in_its_own_words` holds
-/// those two spellings equal.
-///
-/// **The prediction is one arm's, not the table's.** The mint door
-/// (`editor_core::assembly`) refuses through a wildcard `other =>`
-/// arm, so `NotAdmitted` ALSO arrives at the caller as
-/// `MintRefusal::NoAtRestRecord` — carrying the deferral reason, but
-/// under the other word. A tool matching the word it was told against
-/// the word it later sees is right on the `no_at_rest_record` arm,
-/// silent on `mints` (which refuses nothing) and WRONG on
-/// `not_admitted`. Widening the prediction to the whole table is a
-/// kernel question about that wildcard, not a binding one.
-pub fn class_admission_tag(admission: &ClassAdmission) -> &'static str {
-    match admission {
-        ClassAdmission::Mints => "mints",
-        ClassAdmission::NoAtRestRecord { .. } => "no_at_rest_record",
-        ClassAdmission::NotAdmitted => "not_admitted",
-    }
-}
-
-/// **The stable tag for one at-rest attribution** — what a finding
-/// says about a declaration it names, and whose declaration it is.
-///
-/// Four words rather than two, because a caller must be able to tell a
-/// refutation from a decline (relabelling the first as the second
-/// promotes a verdict against the document into the unrefuted
-/// frontier) AND a declaration this document authored from one a part
-/// did (`declaration.mate` is then a node of another document, and
-/// `of`/`via` are what make that id usable). It lives here, with the
-/// refusal tags, so this crate's `TAG_INVENTORY` guards it — that
-/// roster reads THIS file — because these words are as much a public
-/// Python contract as any tag below.
-///
-/// Exhaustive over both enums, so a relation or an attribution arm
-/// added in the kernel stops this build.
-pub fn attribution_tag(attribution: &Attribution) -> &'static str {
-    match attribution {
-        Attribution::Refuted(_) => "refuted",
-        Attribution::Declined(_) => "declined",
-        Attribution::Carried {
-            relation: Relation::Refuted,
-            ..
-        } => "carried_refuted",
-        Attribution::Carried {
-            relation: Relation::Declined,
-            ..
-        } => "carried_declined",
     }
 }
 
@@ -2962,7 +2865,7 @@ pub fn checks_error_tag(err: &ChecksError) -> &'static str {
 /// The stable tag for one finding's evidence.
 ///
 /// A VALUE's discriminant rather than a refusal's, on the
-/// [`refused_ref_tag`] / [`mate_fault_tag`] precedent: what a caller
+/// [`mate_fault_tag`] precedent: what a caller
 /// branches on is which fact was found, and `Display` prose is not a
 /// stable interface for that. It lives here, beside the refusal maps
 /// and not in the PyO3 layer, so the exhaustive match compiles — and
@@ -3253,37 +3156,6 @@ pub fn entity_id_tag(entity: &EntityId) -> &'static str {
         EntityId::HalfEdge(_) => "half_edge",
         EntityId::Edge(_) => "edge",
         EntityId::Vertex(_) => "vertex",
-    }
-}
-
-/// The stable tag for an entity KIND — what a document-layer name
-/// denotes, one rung above the arena reference [`entity_id_tag`]
-/// spells.
-///
-/// The two maps are two layers' vocabularies, not one map written
-/// twice: this one is total over what a NAME can denote, and the
-/// other over what the arena can hold, so `solid`, `shell`, `loop`
-/// and `half_edge` exist only there and `body` only here. Where both
-/// layers speak of one entity — a face, an edge, a vertex — the word
-/// is the same word, because a caller resolving a name and a caller
-/// reading a census subject are reading one concept.
-/// `the_entity_kind_and_entity_id_maps_agree_where_both_speak` is
-/// what holds that true.
-///
-/// A THIRD spelling of this vocabulary reaches Python, and it is held
-/// somewhere else: `py::select::EntityKind` is a fieldless
-/// `#[pyclass]` mirror whose member names pyo3 mints from Rust
-/// identifiers, so `pncad.EntityKind.Face` is the capitalised twin of
-/// this map's `face` with no literal anywhere. Nothing ties it to
-/// these words — but `tests/test_stubs.py` compares every stub
-/// class's attributes against the compiled class name for name, so a
-/// rename there reds against `pncad.pyi` rather than passing.
-pub fn entity_kind_tag(kind: EntityKind) -> &'static str {
-    match kind {
-        EntityKind::Face => "face",
-        EntityKind::Edge => "edge",
-        EntityKind::Vertex => "vertex",
-        EntityKind::Body => "body",
     }
 }
 

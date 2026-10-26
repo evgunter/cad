@@ -12,3 +12,19 @@
   - **NOTEs:** the sense check in `stated_by_a_mate` is uncovered (its mutant survives); spec §9's "473 lines" is stale.
   - **Next:** the fix list went to the lane (`session_019tRXC73J6ZavA9dQrrqHbE`) at 03:28Z. The sequential arm's MAJOR means **review 2 runs on the fix-pass head**: same claims plus the adjudicated findings, the whole unit. Then the row (`arm: sequential`, letter M, byte 190) and the merge. D′3 (#5636) builds its census door on this merge, so message its lane when it lands.
 - 2026-10-24 — Stage 4 I (#5637): the fix pass landed at `c8ce05f1fa`, green. Review 2 (sequential arm, FULL, the whole unit plus confirming review 1's adjudicated fixes and the whole slow set at three ε) is `session_017MTZg7n4cWyuUCBbypijpe`, on that frozen head. After it come the row (`docs/dual-review-log/rows/PR-5637.md`: arm sequential, letter M, byte 190; review 1 1/4/8, MAJOR the six slow-set id pins; review 2 per its report) and the merge. Then message D′3's lane (`session_017HwxSpesEsgKsHjvrj6TyM`).
+- 2026-10-24 — **Stage 4 I (#5637) merges.** The sequential arm ran in order:
+  - review 1 was NOT-MERGEABLE, with one MAJOR: six slow-set id pins;
+  - fix pass `c8ce05f1fa`;
+  - review 2 was APPROVE-WITH-FIXES, 0/2/3: a rustdoc link to the retired `MintRefusal`, plus stale prose. Its slow-set coverage was partial and the row states it;
+  - second fix pass `7dcf467637`, green.
+
+  The row is `docs/dual-review-log/rows/PR-5637.md`. Filed on the way: `two-copies-filling-one-volume-certify-at-rest` (P1) and `a-declared-contacts-class-admits-continuation`. The `CONTACT_RECOURSE` rewording waits on a ruling (SELECT-DESIGN §3d). Next on ATREST: `the-at-rest-census-is-a-check` (stage 5 C). D′3 (#5636) now builds its ⊔ door on this merge.
+- 2026-10-24 — With H (#5300) and I (#5637) both closed, **stage 4 is built**. `intent-stage4-is-built` closes, and its release fires: 12 rows parked on it alone open.
+  - **contacthold:** 3 rows.
+  - **cleave:** 3 rows, including `glue-disagreements-and-held-contradictions-after-stage-4` (P1).
+  - **tang:** 6 rows, five of them P1.
+  - Two more rows drop it from their `blocked_on`: `d10-one-way-to-say-intent-is-unbuilt` keeps stage 3 and stage 5 C, and the torus seam-graze row keeps its span-bound blocker.
+  - **Released by I itself:** `the-at-rest-census-is-a-check` (stage 5 C, P0, ATREST's next) and wirehold's `opout-contacts-body-zero-invariant-is-held-by-prose` open.
+- 2026-10-24 — Sequencing (orchestrator's call): `the-at-rest-census-is-a-check` (stage 5 C, P0, now open) waits for D′3 (#5636) to merge before dispatch. D′3 is moving the at-rest census onto each ⊔'s door, and stage 5 C turns that census into a check resident (`CheckId::AtRest`) and retires `assemble`'s gate. Running both at once would rewrite one path twice. The alternative, dispatching now and merging on top, is rejected: the census's home is exactly what D′3 decides.
+- 2026-10-25 — **Seam (PRED):** branch `pred/period-turn-rule` (unit 1 of `period-headroom-margin-has-no-shared-home`) touches `topo/src/census.rs` (`EF_CROSS_CONIC` is spelled `ConicRows::bounded`, names unchanged) and `splitting/containment.rs`'s `ConicArc::of`, which now reads the certificate's extent and the shared turn rule. (PRED orchestrator)
+- 2026-10-25 — Seam note from PRED `D292` (branch `pred/d292-directional-extremum`): `crates/topo/src/census.rs`'s `edge_reach_of` and `axial_carrier` read `geom::curves::boxes::conic_arc_extent_along` at the census's scalar (comparison-free) instead of `arc_extent`'s subdivision; census conic edge reaches and axial windows tighten by up to the old subdivision charge. (PRED orchestrator)

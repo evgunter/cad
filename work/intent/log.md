@@ -830,3 +830,21 @@ The boolean declare surface is gone at every layer. A boolean's one input beside
   - ATREST I review 2 (`session_017MTZg7n4cWyuUCBbypijpe`, on `c8ce05f1`);
   - D′3 (#5636, green at `199c17c187`) waits for 5637;
   - the value-chart unit (`session_01ReeWyLMjbS8q7pwdH5Tpwo`) is building.
+- 2026-10-25 — (AUTHTAIL orchestrator) **Note for INTENT: three spec sentences owed to D′3's viewer port** (`docs/INTENT-STAGE3-SPEC.md` §5′.1 and §5′.3). AUTHTAIL's mirror arrival fork (Opus/Fable designer pair, converged; no DESIGN.md clause changes) rests on them. They are INTENT's to write, with D′3:
+  - **(a) The takeover re-points along the seen path.** It re-points whatever reads the picked body along the path it was seen through: a placement's source, a `⊔`/`∪` operand slot, or the product slot. This generalises the residue-1 gesture rule (INTENT-STAGE2, fork row 85) beyond placements.
+  - **(b) Creation gestures add their result to the product `⊔`** (`SetProduct` from a gesture).
+  - **(c) §5′.1's picture** draws the product slot's body plus the shown spaces, with unread bodies tinted as outside the product. One designer's alternative wording, "a space's bodies that nothing in it reads", is the sink-set rule rows 80 and 85 retired, and should not go into the spec.
+
+  AUTHTAIL also claims `a-mirrors-body-reads-as-in-no-space` with PR 5683, which carries its one `SpaceWalk` arm (the file moves when that PR lands). The arm sits beside D′3's own `SpaceWalk` edits, so expect a one-line merge.
+- 2026-10-25 — (AUTHTAIL orchestrator) **Questions for D′3 from AUTHTAIL's stale-mate fork.** The Opus/Fable designer pair converged. A takeover (fillet, mirror, sketch-on-face re-pointing a world copy onto a node built over its source) leaves every reference into the copy stale. The fix is the takeover writing a `Rebind` per carried name in the same action (`work/authtail/a-mate-on-a-taken-over-copys-face-goes-stale.md`, `## Decided`), parked on PR 5636. D′3 should decide:
+  1. **Picks through a taken-over copy.** A takeover's authored re-seat may rewrite a `Pick`; `[placement.placement]`'s "never re-pointed" would then read "never re-pointed by resolution". Or the takeover refuses at the door where C's new source keeps no pieces.
+  2. **Whether the takeover rule is written into `[placement.placement]`**, which D′3 rewrites ("a gesture that re-points a copy onto a node built over its source re-spells every reference read in the copy as that node carries it"), or stays a door's behaviour. One designer proposed the sentence; it binds future work, so it is Ev's.
+  3. **Part names.** `Rebind` holds `from.node` to the host's mint log (`RebindUnknownName`), so a takeover of an instance's copy cannot rebind its part-spelled references.
+
+  Filed on INTENT's slate: `d-prime3-fallback-diagnosis-blames-the-sources-minting-node-for-a-re-pointed-copy` (P3 E). Also noted, unfiled because D′3 closes it: on main, a mate on a copy's face goes stale under the Transform takeover too (`Renamed::through` re-seats only the viewer's held picks). PR 5636's branch predates the mirror (PR 5683): at its next main merge, `add_mirror`'s `repoint(...).map(drop)` follows `repoint`'s new signature.
+- 2026-10-26 — Resumed after a usage reset; nothing moved from 10-24 16:45. Both lanes picked up on their own: D′3 (#5636, `session_017HwxSpesEsgKsHjvrj6TyM`) on MAJOR 1 over merged #5637, and the value chart (`session_01ReeWyLMjbS8q7pwdH5Tpwo`).
+  - **AUTHTAIL's 10-25 notes, ruled for D′3:**
+    - a pick is never re-pointed. A takeover that would strand a pick refuses typed at the takeover door, and an exact re-seat is filed P3;
+    - the takeover rule stays door behaviour, with no `[placement.placement]` change in this PR (it would bind future work, so it is Ev's if wanted);
+    - part names in `Rebind` are filed P3;
+    - spec sentences (a)–(c) are written into `docs/INTENT-STAGE3-SPEC.md` by the D′3 lane, without the sink-set wording.

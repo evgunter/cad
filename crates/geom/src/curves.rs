@@ -1273,6 +1273,30 @@ pub fn spiric_rate_bounds<T: Real>(
     (speed, accel)
 }
 
+/// [`spiric_rate_bounds`] over the window of the spiric `(R, r, d)` within
+/// `reach` of `mid` in its parameter `v`: `cos v` and `sin v` each move at
+/// most `reach` from their values at `mid`, which bounds `ρ` (held to
+/// `[R − r, R + r]`) and `|sin v|` (held to 1) there. The one spelling of
+/// that window, read by a piece of `topo`'s spiric arc (`reach` its half
+/// width) and by [`crate::carrier_speed::turn_defect_speed_hi`] (`reach`
+/// the turn defect's half width and its rounding allowance). Never more
+/// than [`spiric_period_rate_bounds`]; finite on a window clear of a
+/// tangent pinch.
+pub fn spiric_window_rate_bounds<T: Real>(
+    (major, minor, offset): (T, T, T),
+    mid: T,
+    reach: T,
+) -> (T, T) {
+    let one = T::one();
+    let (sm, cm) = mid.sin_cos();
+    let rho = (
+        major + minor * (cm - reach).max(T::zero() - one),
+        major + minor * (cm + reach).min(one),
+    );
+    let sin_max = (sm.abs() + reach).min(one);
+    spiric_rate_bounds(minor, offset, rho, sin_max)
+}
+
 /// [`spiric_rate_bounds`] over a whole period of the spiric `(R, r,
 /// d)`: `ρ ∈ [R − r, R + r]`, `sin_max = 1`. Generic, so a certified
 /// reader carries its enclosures.
@@ -2664,8 +2688,8 @@ mod tests {
 
         /// The box door at the interval scalar, on POINT brackets: the
         /// lifted fixture's brackets are single f64 values, so this
-        /// box is bit-for-bit the f64 twin's (`Brk` reads `lo()`/`hi()`
-        /// and both are the point) — what this row checks is that the
+        /// box is bit-for-bit the f64 twin's (the door brackets with
+        /// `lo()`/`hi()` and both are the point) — what this row checks is that the
         /// `Interval` scalar passes the door and the result contains
         /// every f64 sample. It cannot see an inward-turned bracket;
         /// the wide-bracket row below is that reader.
@@ -2693,7 +2717,7 @@ mod tests {
         /// **A WIDE bracket must box every member.** A carrier whose
         /// `offset` is the bracket `[0.05, 0.06]` describes a family of
         /// spirics; the f64 twins at the bracket's two ends sample the
-        /// `m`-faces of the box, so a `Brk` turned inward
+        /// `m`-faces of the box, so a bracket turned inward
         /// (`[f_min.hi, f_max.lo]`) lets them escape by
         /// `≈ 5.65e-4` — the reader the point-bracket row above cannot
         /// be. Adopted from the v6 dual's second reviewer lane

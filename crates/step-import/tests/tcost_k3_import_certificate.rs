@@ -106,8 +106,12 @@ fn bits(m: &MassProperties<f64>) -> [u64; 4] {
 fn the_readers_gate_runs_one_certificate_and_hands_it_back() {
     let tol = Tol::witness();
     let native = arc_prism(1.0e5 * tol.get().eps);
-    let text = step_export::step_string(&native, &step_export::StepOptions::default(), tol)
-        .expect("the rational-walled prism exports");
+    let text = step_export::step_string(
+        &crate::common::at_rest(&native),
+        &step_export::StepOptions::default(),
+        tol,
+    )
+    .expect("the rational-walled prism exports");
 
     let mut imported = None;
     let through_import = quad_rounds(|| {

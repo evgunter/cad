@@ -58,8 +58,8 @@ offset lamina; ~:131; ~:173), `mass_props` (~:106), `mass_props_interval`
 `review_pr12_probes` (~:33), `review_ring_clearance_r2_probes` (~:76),
 `review_verbs_rim_lever_probes` (~:383, ~:584), `revolve_ball` (~:29),
 `revolve_determinism` (~:21), `sf2b_r1_probes` (~:186, offset),
-`tcost_k3_certificate` (`ball()`, ~:188), `trim_3_chart_bound_bodies`
-(~:806, a raw vertex list), `verbs_cylsph_opening` (~:60),
+`tcost_k3_certificate` (`ball()`, ~:188), `cell_region_bodies`
+(`ball()`, a raw vertex list), `verbs_cylsph_opening` (~:60),
 `verbs_rim_closed_lever` (~:133), `verbs_rim_r1_probes` (~:321),
 `verbs_sphsph_chart` (~:53), `verbs_sphsph_opening` (~:37).
 

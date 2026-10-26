@@ -104,9 +104,12 @@ fn assert_chain_rows(
 }
 
 fn volume(body: &topo::Body<f64>) -> f64 {
-    topo::test_support::unmigrated_measure(body, Tol::witness())
-        .expect("mass")
-        .volume
+    topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), Tol::witness()),
+        Tol::witness(),
+    )
+    .expect("mass")
+    .volume
 }
 
 // ---------------------------------------------------------------------

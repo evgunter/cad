@@ -366,7 +366,7 @@ fn the_fixture_is_not_a_structurally_valid_body() {
 /// Onto a chart that mints nothing the rows can neither be re-stated
 /// nor measured — the pass skips a planar face — so the door drops
 /// them rather than leaving four cylinder-chart curves on a plane for
-/// `props`, the tessellator and `chart_boundary` to read.
+/// `props`, the tessellator and `loop_windings` to read.
 #[test]
 fn kfmrh_onto_a_chart_that_mints_nothing_drops_the_demoted_loops_rows() {
     let mut s = sheet();
@@ -677,7 +677,7 @@ fn mfkrh_inheriting_the_chart_carries_every_row() {
 /// target through every door here, and the two rows below are the
 /// other two doors. What the drop buys is that the
 /// body no longer HOLDS a row about another surface for `props`, the
-/// tessellator and `chart_boundary` to read; the caller's re-mint is
+/// tessellator and `loop_windings` to read; the caller's re-mint is
 /// what restores the face, and at rest without it tier 3 re-derives
 /// the rowless face and names why its rows are missing — the moved
 /// loop refused in the destination's chart, the mint's own refusal.
@@ -1648,7 +1648,7 @@ fn kef_into_a_minted_face_on_another_chart_mints_the_remnant_in_its_chart() {
 /// swapped onto a chart that mints nothing keeps none of its rows: the
 /// pass skips a planar face, so a row left here is one no reader could
 /// ever be warned about, and `props`, the tessellator and
-/// `chart_boundary` would read four cylinder curves off a plane.
+/// `loop_windings` would read four cylinder curves off a plane.
 ///
 /// **What discriminates here is the row count, and only that.** The
 /// pass skips a planar face whatever it holds (`chart_mints`), so

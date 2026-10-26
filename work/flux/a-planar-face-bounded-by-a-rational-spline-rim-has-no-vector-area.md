@@ -2,8 +2,10 @@
 id: a-planar-face-bounded-by-a-rational-spline-rim-has-no-vector-area
 kind: issue
 title: a planar face bounded by a rational spline rim has no vector area: loop_vector_area's NURBS arm refuses Unimplemented on any weight other than 1, which is where the vase's cap moved alone stops at tier 3
-status: open
+status: closed
 opened: 2026-10-23
+closed: 2026-10-25
+branch: flux/rational-rim-vector-area
 priority: P2
 cost: M
 ---
@@ -46,3 +48,20 @@ rational carriers.
 so a fixed Gauss rule is not exact. Either a certified quadrature with
 an error bound on the span, or recognising a rational quadratic span
 that is a circular arc and taking `arc_vector_area`'s closed form.
+
+## Resolution
+
+Closed on `flux/rational-rim-vector-area`. `geom_brep::props::rational_rim`
+encloses a rational rim's vector-area term, `(1/2)∫ B × B′/w² dt` per
+Bézier span, through the spiric lane's certified Taylor rule. The rule
+is now generic over its jets (`spiric::composite_by`). topo routes a
+plane bounded by a varying-weight `Curve3::Nurbs` to the quadrature
+(`takes_quadrature` and `curved_rim` in `crates/topo/src/props.rs`), and
+its plane cap (`plane_cap` in `crates/topo/src/props/quad_lane.rs`)
+reads spiric and rational rims side by side. The closed form
+(`loop_vector_area`) keeps its typed `Unimplemented`, which is what the
+structural door and a `Dual` read answer.
+
+The vase's moved cap measures at every ε row, its area and flux holding
+the disc's. Tier 3 then refuses at a wall, a different gap:
+`work/shell/a-wall-trimmed-to-an-inexact-iso-row-has-no-rectangle.md`.

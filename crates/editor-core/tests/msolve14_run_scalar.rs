@@ -38,10 +38,10 @@ use std::sync::Arc;
 
 use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
-    BoxAxis, CancelToken, CapEnd, ContactClass, Coord, Dimension, DocEdit, DocRef, DocumentId,
-    EvalOptions, Evaluation, Formula, FreeVar, MateRef, NameRef, Node, NodeResult, Operand,
-    ParamBox, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName, TargetAxis,
-    VarName, all_vertices, evaluate, vertex_position,
+    BoxAxis, CancelToken, CapEnd, Coord, Dimension, DocEdit, DocRef, DocumentId, EvalOptions,
+    Evaluation, Formula, FreeVar, MateRef, NameRef, Node, NodeResult, Operand, ParamBox,
+    PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName, TargetAxis, VarName,
+    all_vertices, evaluate, vertex_position,
 };
 use fixture::resolver::{PartStore, in_part, placement_of, with_resolver};
 use fixture::{ang, head, insert, len, on_frame, scl, solve, step};
@@ -275,7 +275,6 @@ fn seat(
         fixture::mate(
             fixture::plane(head(foot)),
             fixture::flip(standoff(fixture::plane(head(onto)), by)),
-            ContactClass::Rest,
         ),
         &[
             (Coord::Slide(TargetAxis::X), x),
@@ -534,7 +533,7 @@ fn shaft(label: &str, off: (f64, f64)) -> Shaft {
     let doc = declare(doc, idle(), IDLE, Dimension::Length);
     let line = || p.slab_line(slab, 4.0, 4.0);
     let mates = [
-        fixture::mate(p.bolt_edge(bolt, 0), line(), ContactClass::Rest),
+        fixture::mate(p.bolt_edge(bolt, 0), line()),
         fixture::mate(
             p.bolt_edge(bolt, 0),
             slid(
@@ -542,7 +541,6 @@ fn shaft(label: &str, off: (f64, f64)) -> Shaft {
                 p.slab_side(slab, 1),
                 len(off.1),
             ),
-            ContactClass::Rest,
         ),
         fixture::mate(
             fixture::plane(head(p.bolt_foot(bolt))),
@@ -550,12 +548,10 @@ fn shaft(label: &str, off: (f64, f64)) -> Shaft {
                 fixture::plane(head(p.slab_top(slab))),
                 named(rise(), Dimension::Length),
             )),
-            ContactClass::Rest,
         ),
         fixture::mate(
             p.bolt_edge(bolt, 1),
             slid(line(), p.slab_side(slab, 1), len(BOLT_WIDTH)),
-            ContactClass::Rest,
         ),
     ];
     // The first bore through the door; the rest beside it past the
@@ -620,11 +616,7 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
     let (doc, _) = fixture::mated(
         doc,
         bolts[0],
-        fixture::mate(
-            p.bolt_edge(bolts[0], 0),
-            p.slab_line(slab, 4.0, 4.0),
-            ContactClass::Rest,
-        ),
+        fixture::mate(p.bolt_edge(bolts[0], 0), p.slab_line(slab, 4.0, 4.0)),
         &[
             (Coord::Slide(TargetAxis::Z), len(SLAB_HEIGHT + 0.25)),
             (Coord::Spin(editor_core::TargetAxis::Z), ang(0.3)),
@@ -641,11 +633,7 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
     let (doc, _) = fixture::constrain_at(
         doc,
         bolt,
-        fixture::rest(
-            head(p.bolt_foot(bolt)),
-            head(p.slab_top(slab)),
-            ContactClass::Rest,
-        ),
+        fixture::rest(head(p.bolt_foot(bolt)), head(p.slab_top(slab))),
     );
     let frame = |at: RecipeNodeId, body: RecipeNodeId, names: &Names, edge: Operand, end| {
         let corner = match end {
@@ -682,7 +670,6 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
                 p.slab_edge(slab, 0),
                 CapEnd::End,
             ),
-            ContactClass::Rest,
         ),
         Tol::witness(),
     );
@@ -1000,10 +987,14 @@ fn run_at<T: editor_core::EvalScalar>(
 /// translation entry by at most one ulp (8.9e-16 m) and every rotation
 /// entry bit-identical; every other solved pose of the corpus is main's
 /// bit for bit (each map dumped on main and on the branch).
+///
+/// And, all three rows, when a certificate came to keep its turn: the
+/// evaluation digest feeds each edge curve's `Debug`, which now spells
+/// it. No pose, fault or point moved.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0xb2a4_c6af_68c0_eabf),
-    (1e-6, 0xf1ee_344a_2a63_4bd7),
-    (1e-12, 0xc404_5ce6_ff18_2ef7),
+    (1e-9, 0x56ec_a0b8_2662_e3c9),
+    (1e-6, 0xfc0f_2d40_8c90_1d43),
+    (1e-12, 0x5b91_d653_e6de_b52a),
 ];
 
 /// **Each seat of the corpus stands on what it is seated on**: in the
@@ -1725,7 +1716,6 @@ fn a_tilted_plane_slid_within_itself_leaves_the_map_thin() {
                 p.slab_side(slab, 1),
                 named(drift(), Dimension::Length),
             )),
-            ContactClass::Rest,
         ),
         &[
             (Coord::Slide(TargetAxis::X), len(x)),
@@ -2258,23 +2248,61 @@ fn a5_sensitivities_cross_a_seated_mate() {
         ),
         other => panic!("a derivative across the seat, not {other:?}"),
     }
-    // A record build over no resolver is not this build: its instances
-    // refuse where the anchor's resolve, and the pairing gate says so.
-    let unresolved = run_at::<f64>(&doc, &EvalOptions::default(), None);
-    assert!(
-        matches!(
-            sensitivities(
+    // A record build over no resolver is not this build: it resolved no
+    // part where the passes resolved the bolt's, and the binding says so.
+    // Over the store it binds.
+    let record = |opts: EvalOptions| {
+        sensitivities(
+            &doc,
+            crate::fixture::output(&doc, m),
+            Some(&run_at::<f64>(
                 &doc,
-                crate::fixture::output(&doc, m),
-                Some(&unresolved),
+                &EvalOptions { pin: true, ..opts },
                 None,
-                false,
-                Some(&resolver),
-                Tol::witness()
-            ),
-            Err(SensitivityRefusal::Pairing(_))
-        ),
-        "a record build over another resolver fails the pairing gate"
+            )),
+            None,
+            false,
+            Some(&resolver),
+            Tol::witness(),
+        )
+    };
+    assert!(record(b.opts.clone()).is_ok(), "the store's build binds");
+    assert_eq!(
+        record(EvalOptions::default()).err(),
+        Some(SensitivityRefusal::Binding(
+            editor_core::stackup::BindingViolation::Parts
+        )),
+        "a record build over another resolver fails the binding"
+    );
+    // The other direction, which is what an edited part file looks
+    // like (A4: its bytes no longer hash to the reference's pin, so the
+    // pin resolves to nothing): the record resolved the bolt over the
+    // store, and the passes run over a store that no longer holds it.
+    let gone = with_resolver(PartStore::new())
+        .resolver
+        .expect("a resolver over the emptied store");
+    assert_eq!(
+        sensitivities(
+            &doc,
+            crate::fixture::output(&doc, m),
+            Some(&run_at::<f64>(
+                &doc,
+                &EvalOptions {
+                    pin: true,
+                    ..b.opts.clone()
+                },
+                None,
+            )),
+            None,
+            false,
+            Some(&gone),
+            Tol::witness(),
+        )
+        .err(),
+        Some(SensitivityRefusal::Binding(
+            editor_core::stackup::BindingViolation::Parts
+        )),
+        "passes over a store whose part file changed fail the binding"
     );
 }
 

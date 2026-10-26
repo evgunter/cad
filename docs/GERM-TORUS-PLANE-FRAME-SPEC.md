@@ -1,7 +1,7 @@
 # GERM plane × torus — the boolean join's germ frame for a plane × torus pair (unit spec)
 
 This spec carries what GERM still owes on
-`work/germ/c5-plane-torus-cone-cylinder-arms.md` (P1, H): the germ frame
+`work/sect/c5-plane-torus-cone-cylinder-arms.md` (P1, H): the germ frame
 for a plane × torus germ pair, which `boolean::join`'s
 `pair_section_frame_at` refuses as
 `GermFrameUnsupported { Plane, Torus }`. It measures the chain of doors
@@ -697,12 +697,13 @@ Rows run in-crate, against `pair_section_frame_at` and
   day the general rung retires.
 - **Q3 The general pose's refusal type** (answered: a new
   `GermSectionSpiric`). Not `GermFrameUnsupported`, which says the kind
-  pair has no arm, and it will have one. Not
-  `GermSectionOutsideInventory`: the hyperbola is outside the inventory
-  by Ev's ruling (C1/C5, R1), while the spiric quartic's general rung is
-  unbuilt (the table's own text: "blocked on the torus's exact meters
-  conversion"). Its recourse differs too: the spiric quartic's is the
-  torus's meeting recourse, the hyperbola's says cut all the way round.
+  pair has no arm, and it will have one. Not `GermSectionOpenConic`:
+  the hyperbola's arc is minted (C1) and only the Boolean's crossing
+  layer for a NURBS carrier is missing, while the spiric quartic's
+  general rung is unbuilt (the table's own text: "blocked on the
+  torus's exact meters conversion"). Its recourse differs too: the
+  spiric quartic's is the torus's meeting recourse, the hyperbola's
+  says cut all the way round.
 - **Q4 Two loops on one face pair** (answered: the germ's loop, by
   margin). The cylinder pair's intersecting axes need a frame per
   ellipse, because no one frame serves both: each germ carries its

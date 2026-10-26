@@ -23,7 +23,9 @@
 //!    the shared first-harmonic door
 //!    ([`super::circle_roots::first_harmonic_roots`]); a root counts
 //!    where it lies inside its arc's span, at the ray parameter `s` it
-//!    sits at.
+//!    sits at. The ray is a leg of the region skeleton
+//!    ([`region::read_leg`]), so each arc's roots are all read against
+//!    its span before any is placed along the ray.
 //! 3. At the closest crossing, the ray's heading against `N × τ` says
 //!    whether it leaves the face there (so `p` is in it) or enters it.
 //!
@@ -93,19 +95,17 @@
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
 use super::BooleanDecision;
-use super::circle_roots::{
-    FirstHarmonic, FirstHarmonicRoots, FirstHarmonicRows, first_harmonic_roots_in_band,
-};
+use super::circle_roots::{FirstHarmonic, FirstHarmonicRows, first_harmonic_roots_in_band};
 use super::region::{
-    Hit, RegionRefusal, TARGET_SHARES, circle_edge_hit, in_band, side_at_closest, span,
+    self, Fault, Landing, Leg, Legs, Region, RegionEdge, RegionRefusal, Round, Scaffolding,
+    circle_edge_hit, found, span, targets,
 };
 use super::solid_contain::PointInSolidError;
 use crate::body::Body;
-use crate::entity::{EdgeKey, FaceKey, LoopBoundary, LoopKey};
-use crate::ray_walk::{self, Crossings, RayFault};
+use crate::entity::{FaceKey, LoopKey};
+use crate::ray_walk::{self, RayFault};
 use crate::splitting::containment::{ConicRows, SCHEDULE};
 use crate::validate::decide;
-use geom_brep::roots::{RootRefusal, Roots};
 
 const ROOT_ROWS: FirstHarmonicRows = FirstHarmonicRows {
     noise: "bool_sphere_region_roots_noise",
@@ -116,10 +116,10 @@ const ROOT_ROWS: FirstHarmonicRows = FirstHarmonicRows {
 };
 
 /// The boundary reading's rows (module docs).
-const BOUNDARY: ConicRows = ConicRows {
-    span: "bool_sphere_region_arc_span",
-    straddle: "bool_sphere_region_arc_straddle",
-};
+const BOUNDARY: ConicRows = ConicRows::bounded(
+    "bool_sphere_region_arc_span",
+    "bool_sphere_region_arc_straddle",
+);
 
 /// A trimmed sphere face's boundary: every arc of every loop, each with
 /// the direction its loop traverses it.
@@ -132,38 +132,11 @@ pub(crate) struct SphereFaceRegion<T: geom_core::Real> {
     sense: bool,
     /// The face's outer loop, named by an exhaustion.
     outer: LoopKey,
-    arcs: Vec<RegionArc<T>>,
+    edges: Vec<Arc<T>>,
 }
 
-/// One boundary arc: the circle `center + radius·(û cos θ + v̂ sin θ)`,
-/// `v̂ = axis × û`, over its certified span `[t0, t1]`.
-#[derive(Clone, Debug)]
-struct RegionArc<T: geom_core::Real> {
-    edge: EdgeKey,
-    center: Point3<T>,
-    axis: Vec3<T>,
-    radius: T,
-    u_ref: Vec3<T>,
-    t0: T,
-    t1: T,
-    /// Whether the loop runs `t0 → t1` (its `he_plus`).
-    forward: bool,
-}
-
-impl<T: Decide> RegionArc<T> {
-    fn at(&self, theta: T) -> Point3<T> {
-        let (s, c) = theta.sin_cos();
-        let v_ref = self.axis.cross(self.u_ref);
-        self.center + self.u_ref * (self.radius * c) + v_ref * (self.radius * s)
-    }
-
-    /// The loop's unit traversal direction at `theta`.
-    fn traversal(&self, theta: T) -> Vec3<T> {
-        let d = self.axis.cross(self.at(theta) - self.center);
-        let d = d / d.norm();
-        if self.forward { d } else { -d }
-    }
-}
+/// One boundary arc.
+type Arc<T> = RegionEdge<T>;
 
 /// The unit tangent at the unit `a` along `raw`, a vector already
 /// projected off `a` once. A `raw` from a direction near `a` keeps a
@@ -197,53 +170,19 @@ pub(crate) fn sphere_face_region<T: Decide>(
     center: Point3<T>,
     radius: T,
 ) -> Result<Option<SphereFaceRegion<T>>, PointInSolidError> {
-    let corrupt = || PointInSolidError::CorruptFace { face };
-    let f = body.get_face(face).ok_or_else(corrupt)?;
-    let mut arcs = Vec::new();
-    for (i, &lk) in core::iter::once(&f.outer).chain(&f.rings).enumerate() {
-        let first = match body.get_loop(lk).ok_or_else(corrupt)?.boundary {
-            LoopBoundary::Cycle { first } => first,
-            // A lone ring vertex bounds no area; an outer loop must.
-            LoopBoundary::Empty { .. } if i > 0 => continue,
-            LoopBoundary::Empty { .. } => return Err(corrupt()),
-        };
-        for he in body.loop_cycle(first).ok_or_else(corrupt)? {
-            let edge_key = body.get_half_edge(he).ok_or_else(corrupt)?.edge;
-            let edge = body.get_edge(edge_key).ok_or_else(corrupt)?;
-            let Some(curve) = body.edge_curve_linked(edge_key, edge).certified() else {
-                return Ok(None);
-            };
-            let geom::Curve3::Circle {
-                center: c_c,
-                axis,
-                radius: r_c,
-                u_ref,
-            } = *curve.carrier()
-            else {
-                return Ok(None);
-            };
-            let (t0, t1) = curve.params();
-            arcs.push(RegionArc {
-                edge: edge_key,
-                center: c_c,
-                axis,
-                radius: r_c,
-                u_ref,
-                t0,
-                t1,
-                forward: he == edge.he_plus,
-            });
-        }
-    }
-    let seam = |e: EdgeKey| arcs.iter().filter(|a: &&RegionArc<T>| a.edge == e).count() > 1;
-    let seams: Vec<EdgeKey> = arcs.iter().map(|a| a.edge).filter(|&e| seam(e)).collect();
-    arcs.retain(|a| !seams.contains(&a.edge));
+    let f = body
+        .get_face(face)
+        .ok_or(PointInSolidError::CorruptFace { face })?;
+    let circles = [geom::CurveKind::Circle];
+    let Some(edges) = region::boundary(body, face, Scaffolding::Refused, &circles)? else {
+        return Ok(None);
+    };
     Ok(Some(SphereFaceRegion {
         center,
         radius,
         sense: f.sense,
         outer: f.outer,
-        arcs,
+        edges,
     }))
 }
 
@@ -256,31 +195,15 @@ impl<T: Decide> SphereFaceRegion<T> {
     /// [`RegionRefusal`]: `p` in the band of an arc, or no ray decided
     /// ([`ray_walk::walk`]), or an arc that bounds nothing.
     pub(crate) fn contains(&self, p: Point3<T>, band: Band) -> Result<Option<bool>, RegionRefusal> {
-        if self.arcs.is_empty() {
+        if self.edges.is_empty() {
             return Ok(Some(true));
         }
-        for arc in &self.arcs {
-            let circle = geom::Curve3::Circle {
-                center: arc.center,
-                axis: arc.axis,
-                radius: arc.radius,
-                u_ref: arc.u_ref,
-            };
-            if circle_edge_hit(&circle, (arc.t0, arc.t1), BOUNDARY, p, self.outer, band)? {
-                return Ok(None);
-            }
+        if self.on_boundary(p, band)? {
+            return Ok(None);
         }
         let w = p - self.center;
         let a = w / w.norm();
-        let aimed: Vec<Vec3<T>> = self
-            .arcs
-            .iter()
-            .flat_map(|arc| {
-                TARGET_SHARES.map(|share| {
-                    arc.at(arc.t0 + (arc.t1 - arc.t0) * T::from_f64(share)) - self.center
-                })
-            })
-            .collect();
+        let aimed: Vec<Vec3<T>> = targets(&self.edges).map(|y| y - self.center).collect();
         let scheduled: Vec<Vec3<T>> = SCHEDULE.iter().map(|r| r.map(T::from_f64)).collect();
         let both_ways = |dirs: Vec<Vec3<T>>| {
             let back: Vec<Vec3<T>> = dirs.iter().map(|&d| -d).collect();
@@ -292,7 +215,9 @@ impl<T: Decide> SphereFaceRegion<T> {
                 let raw = toward - a * a.dot(toward);
                 let arm = Margin::levered(raw.norm() / toward.norm(), self.radius);
                 match decide("bool_sphere_region_arm", arm, band) {
-                    Ok(Sign::Positive) => self.ray(a, tangent(a, raw), band),
+                    Ok(Sign::Positive) => {
+                        region::read_leg(self, &self.ray(a, tangent(a, raw)), band)
+                    }
                     // Along the normal, or aimed at `p` or its antipode:
                     // no tangent direction to cast.
                     Ok(Sign::Zero | Sign::Negative) => Err(RayFault::Unread),
@@ -304,77 +229,99 @@ impl<T: Decide> SphereFaceRegion<T> {
         .map(Some)
     }
 
-    /// The ray from `a` along the unit tangent `t` (module docs): whether
-    /// `p` is in the face.
-    fn ray(&self, a: Vec3<T>, t: Vec3<T>, band: Band) -> Result<bool, RayFault<RegionRefusal>> {
-        let r = self.radius;
-        let g = a.cross(t);
-        let mut crossings = Crossings::new();
-        for arc in &self.arcs {
-            let thetas = match self.ray_roots(arc, g, band) {
-                Ok(Roots::Miss) => continue,
-                Ok(Roots::Certified(found)) => found,
-                // The arc in the ray's plane, or a tangency.
-                Ok(Roots::On(_)) | Err(RootRefusal::Unsettled(_)) => {
-                    return Err(RayFault::Graze);
-                }
-                Err(RootRefusal::Escalated(diag)) => return Err(in_band(diag)),
-            };
-            for &theta in thetas.roots() {
-                let Some(sideless) = span(
-                    "bool_sphere_region_span",
-                    theta,
-                    (arc.t0, arc.t1),
-                    arc.radius,
-                    band,
-                )?
-                else {
-                    continue;
-                };
-                let y = arc.at(theta) - self.center;
-                // `s ∈ (−π, π]`, read from `p` either way round the great
-                // circle, which has no behind: only its distance from `p`.
-                let s = y.dot(t).atan2(y.dot(a));
-                ray_walk::apart("bool_sphere_region_at", Margin::of((r * s).abs()), band)
-                    .map_err(|f| f.map(RegionRefusal::Escalated))?;
-                let s = (T::zero() - s).select_le_zero(s, s + T::tau());
-                let y = y / y.norm();
-                let outward = geom_brep::OutwardNormal::from_chart(y, self.sense).vec();
-                let hit = Hit {
-                    heading: g.cross(y),
-                    face_side: outward.cross(arc.traversal(theta)),
-                };
-                crossings.push(r * s, hit, sideless);
-            }
-        }
-        // A great circle meeting no arc lies wholly on one side.
-        side_at_closest(
-            crossings,
-            ("bool_sphere_region_order", "bool_sphere_region_cross"),
-            r,
+    /// The ray from `a` along the unit tangent `t` (module docs, step 1):
+    /// the great circle round the centre from `a` toward `t`.
+    fn ray(&self, a: Vec3<T>, t: Vec3<T>) -> Leg<T, Round<T>> {
+        Leg::whole(Round {
+            center: self.center,
+            normal: a.cross(t),
+            radius: self.radius,
+            e1: a,
+            e2: t,
+        })
+    }
+}
+
+impl<T: Decide> Region<T> for SphereFaceRegion<T> {
+    fn edges(&self) -> &[Arc<T>] {
+        &self.edges
+    }
+
+    fn outer(&self) -> LoopKey {
+        self.outer
+    }
+
+    fn on_edge(&self, arc: &Arc<T>, p: Point3<T>, band: Band) -> Result<bool, RegionRefusal> {
+        circle_edge_hit(
+            &arc.carrier,
+            arc.turn.as_ref(),
+            BOUNDARY,
+            p,
+            self.outer,
             band,
         )
     }
+}
 
-    /// `arc`'s crossings with the ray's plane through the centre, normal
-    /// `g` (module docs, step 2).
-    fn ray_roots(
+impl<T: Decide> Legs<T> for SphereFaceRegion<T> {
+    type Course = Round<T>;
+
+    const AT: &'static str = "bool_sphere_region_at";
+
+    const SIDE: (&'static str, &'static str) =
+        ("bool_sphere_region_order", "bool_sphere_region_cross");
+
+    fn lever(&self) -> T {
+        self.radius
+    }
+
+    /// Where `arc` meets the ray's plane through the centre (module docs,
+    /// step 2), read in the arc's own parameter, inside its span.
+    fn landings(
         &self,
-        arc: &RegionArc<T>,
-        g: Vec3<T>,
+        arc: &Arc<T>,
+        ray: &Leg<T, Round<T>>,
         band: Band,
-    ) -> Result<FirstHarmonicRoots<T>, RootRefusal> {
-        first_harmonic_roots_in_band(
+    ) -> Result<Vec<Landing<T>>, Fault> {
+        let geom::Curve3::Circle {
+            center,
+            axis,
+            radius,
+            u_ref,
+        } = arc.carrier
+        else {
+            unreachable!("sphere_face_region admits circles only")
+        };
+        let roots = first_harmonic_roots_in_band(
             &FirstHarmonic::circle_off_plane(
-                (arc.center, arc.axis, arc.radius, arc.u_ref),
-                (self.center, g),
+                (center, axis, radius, u_ref),
+                (self.center, ray.course.normal),
             ),
-            arc.radius,
+            radius,
             arc.t0,
             arc.t1,
             &ROOT_ROWS,
             band,
-        )
+        );
+        let mut out = Vec::new();
+        for theta in found(roots)? {
+            let lands = span(
+                "bool_sphere_region_span",
+                theta,
+                (arc.t0, arc.t1),
+                radius,
+                band,
+            )?;
+            if let Some(sideless) = lands {
+                out.push((arc.at(theta), theta, sideless));
+            }
+        }
+        Ok(out)
+    }
+
+    fn outward(&self, y: Point3<T>) -> Vec3<T> {
+        let w = y - self.center;
+        geom_brep::OutwardNormal::from_chart(w / w.norm(), self.sense).vec()
     }
 }
 
@@ -382,6 +329,7 @@ impl<T: Decide> SphereFaceRegion<T> {
 #[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
+    use crate::entity::EdgeKey;
     use slotmap::KeyData;
 
     /// The unit sphere's face on one side of the circle at polar angle
@@ -393,14 +341,18 @@ mod tests {
             radius: 1.0,
             sense: true,
             outer: LoopKey::default(),
-            arcs: vec![RegionArc {
+            edges: vec![RegionEdge {
                 edge: EdgeKey::from(KeyData::from_ffi(1)),
-                center: Point3::new(0.0, 0.0, 0.5),
-                axis: Vec3::new(0.0, 0.0, 1.0),
-                radius: 0.75f64.sqrt(),
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
+                r#loop: LoopKey::default(),
+                carrier: geom::Curve3::Circle {
+                    center: Point3::new(0.0, 0.0, 0.5),
+                    axis: Vec3::new(0.0, 0.0, 1.0),
+                    radius: 0.75f64.sqrt(),
+                    u_ref: Vec3::new(1.0, 0.0, 0.0),
+                },
                 t0: 0.0,
                 t1: core::f64::consts::TAU,
+                turn: crate::boolean::region::fixture_turn(0.0, core::f64::consts::TAU),
                 forward,
             }],
         }
@@ -458,14 +410,18 @@ mod tests {
     /// and `π/2`: each a half of a great circle, pole to pole, so each
     /// arc's circle runs on past its ends round the back of the sphere.
     fn lune() -> SphereFaceRegion<f64> {
-        let meridian = |az: f64, forward: bool, key: u64| RegionArc {
+        let meridian = |az: f64, forward: bool, key: u64| RegionEdge {
             edge: EdgeKey::from(KeyData::from_ffi(key)),
-            center: Point3::origin(),
-            axis: Vec3::new(-az.sin(), az.cos(), 0.0),
-            radius: 1.0,
-            u_ref: Vec3::new(0.0, 0.0, 1.0),
+            r#loop: LoopKey::default(),
+            carrier: geom::Curve3::Circle {
+                center: Point3::origin(),
+                axis: Vec3::new(-az.sin(), az.cos(), 0.0),
+                radius: 1.0,
+                u_ref: Vec3::new(0.0, 0.0, 1.0),
+            },
             t0: 0.0,
             t1: core::f64::consts::PI,
+            turn: crate::boolean::region::fixture_turn(0.0, core::f64::consts::PI),
             forward,
         };
         SphereFaceRegion {
@@ -473,7 +429,7 @@ mod tests {
             radius: 1.0,
             sense: true,
             outer: LoopKey::default(),
-            arcs: vec![
+            edges: vec![
                 meridian(0.0, true, 1),
                 meridian(core::f64::consts::FRAC_PI_2, false, 2),
             ],
@@ -544,5 +500,35 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// **Null scaffolding leaves a sphere face with no region**, as any
+    /// edge with no certified curve does: a zone with a null edge fanned
+    /// into its outer loop answers `None`, where the zone without it has
+    /// a region.
+    #[test]
+    fn a_zones_null_edge_leaves_no_region() {
+        let sheet = || {
+            crate::boolean::boxes::sphere_rect_rows::sphere_zone_sheet(
+                (0.2, 1.0),
+                (-0.3, 0.4),
+                geom_core::Tol::witness(),
+            )
+        };
+        let (body, face) = sheet();
+        assert!(
+            sphere_face_region(&body, face, Point3::origin(), 1.0)
+                .unwrap()
+                .is_some(),
+            "the zone's region"
+        );
+        let (mut nulled, nulled_face) = sheet();
+        super::region::with_null_edge(&mut nulled, nulled_face);
+        assert!(
+            sphere_face_region(&nulled, nulled_face, Point3::origin(), 1.0)
+                .unwrap()
+                .is_none(),
+            "a null edge refuses"
+        );
     }
 }

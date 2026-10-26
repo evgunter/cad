@@ -216,3 +216,98 @@ Filed: CHARTTAIL's `the-cones-rung3-certificate-has-no-metres-enclosure`
 (P1 M, the shared cone blocker, no item named it) and SELECT's
 `closed-form-edge-carriers-pass-on-samples-with-no-stated-bound-between-them`
 (P2 M, both designers' finding; its fix follows Ev's answer).
+
+## 2026-10-25 — the conic fork closes; the build is cut (OFFSET orchestrator)
+
+Ev approved PR 5652 (merged `6e9df01639`): *"i'm still not totally sure
+about having special cases for the parabola and hyperbola, but sure, we
+can run with it"*. Round 5 had converged after Ev asked what the class
+rule would do: B withdrew it and stated a pair-based rule; A adopted it
+with an amendment for soundness (transversality over the span, clearance
+from near misses); B accepted. On Ev's last question both conceded the
+tube exemption is the part resting on the classification and is
+severable. Row 193 filled (A = Opus, B = Fable; match: neither first
+report). Built as three units (plan.md), the exemption last and alone so
+Ev's reservation can drop it cheaply. SELECT's
+`closed-form-edge-carriers-pass-on-samples-with-no-stated-bound-between-them`
+is claimed as unit 1 (moved here).
+
+## 2026-10-25 — conic unit 1 stops on DL1; unit 2 un-parks (OFFSET orchestrator)
+
+Unit 1's lane (`offset/limb2-for-every-carrier`, head `452e7d8757`, no PR)
+stopped before opening a PR, rightly. Limb 2 for every closed-form carrier
+needs the `NurbsLane`. `AtRestPolicy::nurbs_lane` is `None` at `Dual64`,
+per DUAL-DESIGN DL1 ("a Dual is tangent transport and never certifies",
+ratified #1146), so 39 of 63 dual rows refuse. It also measured the cost:
+a full circle's limb 2 takes 5.7 ms, a spiric 8–17 ms, and 13 curved-boolean
+rows run 12× slower. Ev's new C2 ("limbs 1–2 owed by every carrier") and
+DL1 conflict at the dual. That is a design fork, so unit 1 parks on the
+lane's fork row and the row goes to designers. The lane also filed the
+cost row and the spiric-net row (the net is tight enough; long ovals halve
+to clear).
+
+My error: unit 2 was parked on unit 1, but the arc is a NURBS carrier and
+already owes limb 2 through the existing path. Unit 2 is un-parked and
+dispatched.
+
+## 2026-10-25 — conic unit 2 merges (OFFSET orchestrator)
+
+PR 5692 closes `the-plane-cone-arc-is-minted-exactly-and-the-axial-door-reads-the-moved-section`.
+The plane×cone parabola and hyperbola are exact rational-quadratic arcs.
+The old "by decision" refusal is now typed refusals that name the conic.
+The axial door refuses the hyperbolic case at its gate, and a cone-only
+move keeps its generator lines. Tier: concurrent dual (letter H). Both
+reviews came back APPROVE-WITH-FIXES with no MAJOR, about 100k fuzzed
+poses between them. Tally 0, confirmed by blinded coding (byte 13). The
+row is `docs/dual-review-log/rows/PR-5692.md`. The union's fix pass is at
+`fff330083c`.
+
+Consequences:
+- Unit 3 parks on SELECT's chord-extent row, now P1. A short lever decides
+  Zero (a definite verdict) more easily, so it is possibly unsound once an
+  arc can rest.
+- STEP import of HYPERBOLA/PARABOLA is filed on EXCH.
+
+Process lesson: I removed the first implementer's worktree to free disk
+before its PR merged, so the lane could not be resumed for its fix pass.
+Keep a lane's worktree until its PR merges; delete target dirs, not
+worktrees.
+
+Still on Ev: `[ev]` PR 5689, where unit 1 parks on the dual/limb-2 fork.
+
+## 2026-10-25 — board after unit 2 (OFFSET orchestrator)
+
+`offset-lane-has-no-conic-carrier` parks on its two remaining units. Unit 1
+waits on Ev's `[ev]` PR 5689. Unit 3 waits on SELECT's chord-extent row
+(P1). `closed-form-limb-2-costs-milliseconds-per-curved-edge` parks on the
+dual fork, since 5689 may move limb 2 to rest and change what the cost
+row is about. That leaves no dispatchable P0 or P1 on this slate. The
+orchestrator holds the track while `[ev]` PR 5689 is open.
+
+## 2026-10-25 — the dual-limb fork converges on structural pairing (OFFSET orchestrator)
+
+PR 5689 (`[ev]`, row 196) answers Ev's question about the dual entering
+certification. Both designers agree:
+- the edge door splits into mint (generic) and certify (bounded on the
+  certification trait), so a dual mints and never checks, by type;
+- the dual keeps its values;
+- a dual pass is a function of its validated `f64` anchor, bound to the
+  document revision it read. It walks the anchor's nodes and compares each
+  value channel bit for bit.
+
+Ev objected to recovering the anchor by content key. Both designers
+withdrew it: a key excludes node identity and, at a dual, includes the
+tangent bits. My earlier explanation to Ev presented that lookup as the
+existing mechanism. That was wrong, since today's `pair_pass` pairs by node
+id in order, and I corrected it on the PR. Unit 1 stays parked until Ev
+rules, then is re-scoped to the split and the pairing.
+
+Process lesson: a chained `git merge` and commit pushed conflict markers
+into the fork log once, and twice a chained command stopped at an empty
+commit and left edits unapplied. Merge with `--no-commit`, grep for
+markers, then commit as a separate step, and check `git log` after every
+chained push.
+
+## 2026-10-25 — band rule (band-rule triage)
+
+**Band rule (work/README.md, Priority):** conic unit 3, `a-classified-pairs-section-states-the-bounds-that-retire-the-tube`, re-banded P1→P0: `offset-lane-has-no-conic-carrier` (P0) is parked on it and closes when it lands, and it is the unit that lets the arc rest. Its blocker, SELECT's `edge-extent-reads-a-steep-nurbs-arcs-chord-four-to-ten-times-short`, goes to P0 with it. The plan's conic-build table still reads P1 for unit 3. (band-rule triage)

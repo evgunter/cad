@@ -298,10 +298,8 @@ fn j3r2_pocket_battery() {
                 let shape = turn(&base, phi, off);
                 for (entry, z0, h) in entries {
                     let plane = SketchPlane::xy_at(Point3::new(0.0, 0.0, z0));
-                    let c = body_of(plane, &shape, h);
-                    let vc = topo::test_support::unmigrated_measure(&c, tol())
-                        .unwrap()
-                        .volume;
+                    let c = topo::test_support::finished("c", body_of(plane, &shape, h), tol());
+                    let vc = topo::mass_properties(&c, tol()).unwrap().volume;
                     if (vc - s * h).abs() > 1e-9 {
                         println!("J3R2 ORACLE-MISMATCH {name} {vc} vs {}", s * h);
                     }
@@ -355,17 +353,19 @@ fn j3r2_tilted_battery() {
                         let place = Affine3::translation(p - Point3::origin()) * rot;
                         let o = place.transform_point(Point3::origin());
                         assert!((o - p).norm() < 1e-12, "placement composes as expected");
-                        let c = body_of(
-                            SketchPlane::from_frame(geom_core::test_support::rigid(
-                                &place,
-                                geom_core::Tol::witness(),
-                            )),
-                            &shape,
-                            h,
+                        let c = topo::test_support::finished(
+                            "c",
+                            body_of(
+                                SketchPlane::from_frame(geom_core::test_support::rigid(
+                                    &place,
+                                    geom_core::Tol::witness(),
+                                )),
+                                &shape,
+                                h,
+                            ),
+                            tol(),
                         );
-                        let vc = topo::test_support::unmigrated_measure(&c, tol())
-                            .unwrap()
-                            .volume;
+                        let vc = topo::mass_properties(&c, tol()).unwrap().volume;
                         let n = place.transform_vec(Vec3::new(0.0, 0.0, 1.0));
                         // The oblique closed form, only for the through
                         // pose and only once the caps clear the slab.
@@ -534,19 +534,21 @@ fn j3r2_groove_battery() {
             )
             .validate(tol())
             .unwrap();
-            let rod = extrude(
-                &p,
-                Extrusion::Distance {
-                    depth: 3.0,
-                    side: ExtrudeSide::Along,
-                },
-                tol(),
-            )
-            .unwrap()
-            .body;
-            let vr = topo::test_support::unmigrated_measure(&rod, tol())
+            let rod = topo::test_support::finished(
+                "rod",
+                extrude(
+                    &p,
+                    Extrusion::Distance {
+                        depth: 3.0,
+                        side: ExtrudeSide::Along,
+                    },
+                    tol(),
+                )
                 .unwrap()
-                .volume;
+                .body,
+                tol(),
+            );
+            let vr = topo::mass_properties(&rod, tol()).unwrap().volume;
             // The disc's part inside z ∈ [0, 1] (y is inside the block).
             let below = |h: f64| {
                 // area of the disc below the plane z = h
@@ -726,16 +728,18 @@ fn j3r2_reach_wall_c09() {
         1.738_194_969_430_420_4,
     );
     let s = std::f64::consts::FRAC_1_SQRT_2;
-    let a = three_arc_cylinder(Point2::new(0.0, 0.0), 1.0, 0.0, 2.0, 0.0);
+    let a = topo::test_support::finished(
+        "a",
+        three_arc_cylinder(Point2::new(0.0, 0.0), 1.0, 0.0, 2.0, 0.0),
+        tol(),
+    );
     let vbar = w * w * (t1 - t0);
     let c = 0.9_f64;
     let lo = c - w / 2.0;
     let half = (1.0 - lo * lo).sqrt();
     let f = |x: f64| 0.5 * (x * (1.0 - x * x).sqrt() + x.asin()) - lo * x;
     let area = f(half.min(t1)) - f((-half).max(t0));
-    let va = topo::test_support::unmigrated_measure(&a, tol())
-        .unwrap()
-        .volume;
+    let va = topo::mass_properties(&a, tol()).unwrap().volume;
     for depth in [0.03, 0.1, 0.3] {
         let o = Point3::new(c * s, -c * s, 2.0 - depth + w / 2.0);
         let b = framed_bar(o, Vec3::new(s, s, 0.0), t0, t1, w);

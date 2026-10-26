@@ -102,7 +102,7 @@ fn refusal(err: BlendError) -> (&'static str, Sign, f64) {
 fn r1_the_dome_rims_material_side_is_read_off_the_body() {
     for up in [true, false] {
         let name = if up { "boss" } else { "dimple" };
-        let body = repaired(up);
+        let body = topo::test_support::finished("body", repaired(up), tol());
         let arcs = rim_arcs_at(&body, 0.5, 1.0);
         assert_eq!(arcs.len(), 2);
         let [fa, fb] = faces_of(&body, arcs[0]);
@@ -134,9 +134,7 @@ fn r1_the_dome_rims_material_side_is_read_off_the_body() {
             convex, !up,
             "{name}: the boss's dome rim is concave, the dimple's convex"
         );
-        let before = topo::test_support::unmigrated_measure(&body, tol())
-            .unwrap()
-            .volume;
+        let before = topo::mass_properties(&body, tol()).unwrap().volume;
         let out = fillet_edges(
             &sweep::test_support::at_rest(&body, tol()),
             &arcs,
@@ -151,9 +149,12 @@ fn r1_the_dome_rims_material_side_is_read_off_the_body() {
             convex,
             "{name}: the band's stored sense bit is the chain's convexity"
         );
-        let delta = topo::test_support::unmigrated_measure(&out.body, tol())
-            .unwrap()
-            .volume
+        let delta = topo::mass_properties(
+            &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol()),
+            tol(),
+        )
+        .unwrap()
+        .volume
             - before;
         assert_eq!(
             delta > 0.0,
@@ -213,12 +214,10 @@ fn dimpled_plate(rho: f64, a: f64, cx: f64, cy: f64) -> Body<f64> {
 /// full circle on the containment term refuses this body.
 #[test]
 fn r1_a_convex_corner_arc_of_a_mixed_outer_cycle_takes_the_external_term() {
-    let body = dimpled_plate(0.3, 0.15, 0.3, 0.0);
+    let body = topo::test_support::finished("body", dimpled_plate(0.3, 0.15, 0.3, 0.0), tol());
     validate_geometric(&body, tol()).expect("the dimpled plate is tier-3 valid");
     let arcs = z_rim(&body, 0.15, 0.4, true);
-    let before = topo::test_support::unmigrated_measure(&body, tol())
-        .unwrap()
-        .volume;
+    let before = topo::mass_properties(&body, tol()).unwrap().volume;
     let out = fillet_edges(
         &sweep::test_support::at_rest(&body, tol()),
         &arcs,
@@ -228,7 +227,11 @@ fn r1_a_convex_corner_arc_of_a_mixed_outer_cycle_takes_the_external_term() {
     .unwrap_or_else(|e| panic!("the ladder rim beside a convex corner arc carves, got {e:?}"));
     validate_geometric(&out.body, tol()).expect("tier-3 valid");
     assert_eq!(out.band_faces.len(), 1);
-    let after = topo::test_support::unmigrated_measure(&out.body, tol()).unwrap();
+    let after = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol()),
+        tol(),
+    )
+    .unwrap();
     assert_eq!(after.volume_pad, 0.0);
     assert!(
         after.volume < before,
@@ -284,9 +287,12 @@ fn r1_a_bored_cylinders_off_axis_ring_reaches_the_annulus_backstop_at_the_front_
     .expect("a contained off-axis ring carves");
     validate_geometric(&out.body, tol()).expect("tier-3 valid");
     assert_eq!(
-        topo::test_support::unmigrated_measure(&out.body, tol())
-            .unwrap()
-            .volume_pad,
+        topo::mass_properties(
+            &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol()),
+            tol()
+        )
+        .unwrap()
+        .volume_pad,
         0.0
     );
 }
@@ -330,9 +336,12 @@ fn r1_a_bored_cylinders_off_axis_ring_reaches_the_ladder_backstop_at_the_front_d
         .expect("a contained trim circle carves");
     validate_geometric(&out.body, tol()).expect("tier-3 valid");
     assert_eq!(
-        topo::test_support::unmigrated_measure(&out.body, tol())
-            .unwrap()
-            .volume_pad,
+        topo::mass_properties(
+            &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol()),
+            tol()
+        )
+        .unwrap()
+        .volume_pad,
         0.0
     );
 }

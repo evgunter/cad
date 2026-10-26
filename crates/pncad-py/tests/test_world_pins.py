@@ -25,7 +25,6 @@ import unittest
 import pncad
 from pncad import (
     CapEnd,
-    ContactClass,
     Coord,
     Doc,
     DocEdit,
@@ -298,8 +297,8 @@ class WorldPins(unittest.TestCase):
             doc.set_constraints(
                 post,
                 [
-                    Mate(facing(post, (0.0, 0.0, -1.0)), floor, ContactClass.Rest),
-                    Mate(facing(post, (-1.0, 0.0, 0.0)), wall_x, ContactClass.Rest),
+                    Mate(facing(post, (0.0, 0.0, -1.0)), floor),
+                    Mate(facing(post, (-1.0, 0.0, 0.0)), wall_x),
                 ],
             )
         fault = caught.exception.fault

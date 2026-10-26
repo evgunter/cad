@@ -284,11 +284,11 @@ fn bits(m: &MassProperties<f64>) -> [u64; 4] {
 /// here would be asserting a property of the fixture.
 #[test]
 fn the_gates_certificate_is_the_measurement_and_costs_one_quadrature() {
-    let body = prism();
     let tol = Tol::witness();
+    let body = topo::test_support::finished("body", prism(), tol);
 
     let mut measured = None;
-    let one = quad_rounds(|| measured = Some(topo::test_support::unmigrated_measure(&body, tol)));
+    let one = quad_rounds(|| measured = Some(topo::mass_properties(&body, tol)));
     let measured = measured.expect("the closure ran").expect(
         "IDENTITY: the fixture is scaled to 1e5·ε so that it certifies at EVERY ε row — \
          a refusal here is a moved schedule or a moved fixture, not an ε this row may \
@@ -388,8 +388,8 @@ fn the_gates_certificate_is_the_measurement_and_costs_one_quadrature() {
 /// must be the measurement's count exactly.
 #[test]
 fn a_multi_solid_certificate_reads_each_face_once() {
-    let body = prism_pair();
     let tol = Tol::witness();
+    let body = topo::test_support::finished("body", prism_pair(), tol);
     assert_eq!(
         body.solids().count(),
         2,
@@ -397,7 +397,7 @@ fn a_multi_solid_certificate_reads_each_face_once() {
     );
 
     let mut measured = None;
-    let one = quad_rounds(|| measured = Some(topo::test_support::unmigrated_measure(&body, tol)));
+    let one = quad_rounds(|| measured = Some(topo::mass_properties(&body, tol)));
     let measured = measured
         .expect("the closure ran")
         .expect("ONE READ PER FACE: two certifying prisms measure at every ε row");
@@ -479,9 +479,11 @@ fn a_multi_solid_certificate_split_across_rounds_continues_to_the_measurement() 
         ("fine then exhausting", grafted(&[fine(), exhausting()])),
     ] {
         assert_eq!(body.solids().count(), 2, "ROUND SPLIT {label}: two solids");
+        // Finished outside the count: the count is the one measurement's.
+        let finished =
+            topo::test_support::finished("the measured body", topo::Body::clone(&body), tol);
         let mut measured = None;
-        let one =
-            quad_rounds(|| measured = Some(topo::test_support::unmigrated_measure(&body, tol)));
+        let one = quad_rounds(|| measured = Some(topo::mass_properties(&finished, tol)));
         let measured = measured.expect("the closure ran");
 
         let mut gated = None;

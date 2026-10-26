@@ -227,9 +227,16 @@ fn volume(doc: &editor_core::ProfileDoc, node: RecipeNodeId) -> f64 {
         "the document evaluates:\n{}",
         bad.join("\n")
     );
-    topo::test_support::unmigrated_measure(corpus::body_of(&ev, node), tol())
-        .expect("closed-form mass properties")
-        .volume
+    topo::mass_properties(
+        &topo::test_support::finished(
+            "the measured body",
+            topo::Body::clone(corpus::body_of(&ev, node)),
+            tol(),
+        ),
+        tol(),
+    )
+    .expect("closed-form mass properties")
+    .volume
 }
 
 /// The `(x, y)` both ends of the strut edge `name` stand at, on the

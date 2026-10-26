@@ -43,9 +43,12 @@ fn tol() -> Tol {
 }
 
 fn volume(body: &Body<f64>) -> f64 {
-    topo::test_support::unmigrated_measure(body, tol())
-        .expect("closed-form props")
-        .volume
+    topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
+        tol(),
+    )
+    .expect("closed-form props")
+    .volume
 }
 
 /// A round profile loop: two semicircles about `(x, y)`.
@@ -710,9 +713,12 @@ fn a_hole_whose_edge_leaves_the_slivers_enclosure_by_two_faces_carves_at_interva
             .unwrap_or_else(|e| panic!("{what}: both creases carve at Interval, got {e:?}"));
         validate_geometric(&out.body, tol).unwrap_or_else(|e| panic!("{what}: tier 3, {e:?}"));
         let vol = |b: &Body<Interval>| {
-            topo::test_support::unmigrated_measure(b, tol)
-                .expect("interval props")
-                .volume
+            topo::mass_properties(
+                &topo::test_support::finished("the measured body", topo::Body::clone(b), tol),
+                tol,
+            )
+            .expect("interval props")
+            .volume
         };
         let dv = vol(&out.body) - vol(&body);
         let want = -2.0 * rod_section_cut(ROD_R, ROD_FLAT, ROD_FILLET) * ROD_L;

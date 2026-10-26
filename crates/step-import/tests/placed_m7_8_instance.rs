@@ -4,102 +4,28 @@
 //! re-mints through the plain edge doors and the cap offset after it.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom_core::Tol;
 use geom_core::test_support::upper;
-use geom_core::{Point3, Tol};
 use step_import::{ImportOptions, StepImport, import_step};
-use topo::test_support as tc;
-
-/// The wall's bow: the front face's z-rims are genuine quadratics.
-const BOW: f64 = -0.25;
-
-fn nurbs_wall() -> geom::Surface<f64> {
-    let k = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
-    let xs = [(0.0, 0.0), (0.5, BOW), (1.0, 0.0)];
-    let ticks = [0.0, 0.5, 1.0];
-    let (mut control, mut weights) = (Vec::new(), Vec::new());
-    for &(x, y) in &xs {
-        for &z in &ticks {
-            control.push(Point3::new(x, y, z));
-            weights.push(1.0);
-        }
-    }
-    geom::Surface::Nurbs(std::sync::Arc::new(
-        geom::NurbsSurface::new(k.clone(), k, control, weights).unwrap(),
-    ))
-}
-
-fn m7_8_cube() -> topo::Body<f64> {
-    let cube = tc::geometric_cube::<f64>(Tol::witness());
-    let mut body = cube.body;
-    let wall = body
-        .set_face_surface(
-            cube.mefs[1].face,
-            topo::FaceSurface::New {
-                surface: nurbs_wall(),
-                sense: true,
-            },
-        )
-        .unwrap();
-    let edges: Vec<_> = body.edges().map(|(k, e)| (k, e.clone())).collect();
-    for (edge_key, edge) in edges {
-        let (s1, s2) = topo::readback::edge_sides(&body, edge_key)
-            .unwrap()
-            .surfaces();
-        if s1 != wall && s2 != wall {
-            continue;
-        }
-        let start = body.get_half_edge(edge.he_plus).unwrap().start;
-        let end = body.half_edge_end(edge.he_plus).unwrap();
-        let p0 = *body
-            .get_point(body.get_vertex(start).unwrap().point)
-            .unwrap();
-        let p1 = *body.get_point(body.get_vertex(end).unwrap().point).unwrap();
-        let carrier = if (p0.x - p1.x).abs() > 0.5 {
-            // A z-rim: the quadratic the wall's bow traces in the plane.
-            let kv = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2)
-                .unwrap();
-            let mid = Point3::new(0.5, BOW, p0.z);
-            geom::Curve3::Nurbs(std::sync::Arc::new(
-                geom::NurbsCurve3::new(kv, vec![p0, mid, p1], vec![1.0, 1.0, 1.0]).unwrap(),
-            ))
-        } else {
-            let kv = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
-            geom::Curve3::Nurbs(std::sync::Arc::new(
-                geom::NurbsCurve3::new(kv, vec![p0, p1], vec![1.0, 1.0]).unwrap(),
-            ))
-        };
-        body.set_edge_curve(
-            edge_key,
-            geom_brep::EdgeCurveSpec {
-                description: geom_brep::EdgeDescriptionSpec::Intersection {
-                    pair: geom_brep::SurfacePair::new(s1, s2),
-                    witness: if (p0.x - p1.x).abs() > 0.5 {
-                        Point3::new(0.5, 0.5 * BOW, p0.z)
-                    } else {
-                        p0.lerp(p1, 0.5)
-                    },
-                },
-                carrier,
-                param_start: 0.0,
-                param_end: 1.0,
-            },
-            Tol::witness(),
-        )
-        .unwrap();
-    }
-    body
-}
 
 /// The `work/exch/a-placed-step-instance-with-a-plane-nurbs-edge-refuses-at-transform`
 /// ask: a placed instance carrying the M7-8 class imports. With the
 /// lane taken out of `transform_rigid` it refuses at `Placement`, on the
 /// wall's edges.
+///
+/// The input is a committed document: the unit cube with its `y = 0`
+/// face a biquadratic NURBS wall bowed to `y = −0.25` and that face's
+/// four rims restated as M7-8 intersections, its other chords still the
+/// scaffolds of `topo::test_support::geometric_cube`. That body is not
+/// at rest (tier 2 names the scaffolds), so the export door, which takes
+/// a finished body, cannot write it; the file is what it wrote.
 #[test]
 fn a_placed_m7_8_instance_imports() {
-    let body = m7_8_cube();
-    let text =
-        step_export::step_string(&body, &step_export::StepOptions::default(), Tol::witness())
-            .expect("exports");
+    let text = std::fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/fixtures/m7-8-cube/m7_8_cube.step"
+    ))
+    .expect("the committed fixture reads");
     let placed = match import_step(&place(&text), &ImportOptions::default(), Tol::witness()) {
         Ok(StepImport::Solid { body, .. }) => body,
         Ok(StepImport::Wireframe { .. }) => panic!("expected a solid"),

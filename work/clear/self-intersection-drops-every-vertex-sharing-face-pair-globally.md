@@ -4,7 +4,7 @@ kind: issue
 title: clearance's self-intersection drops every face pair that shares a vertex, and a face against itself, globally - vacuous on a cone's lateral faces or a triangle-section loft
 status: open
 opened: 2026-10-06
-priority: P2
+priority: P0
 cost: H
 design: true
 ---

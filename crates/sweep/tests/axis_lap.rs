@@ -120,9 +120,12 @@ fn segment(d: f64) -> f64 {
 fn assert_sound(body: &Body<f64>, expect: f64, what: &str) {
     topo::validate_geometric_certificate(body, tol())
         .unwrap_or_else(|e| panic!("{what}: the result does not certify at rest: {e:?}"));
-    let v = topo::test_support::unmigrated_measure(body, tol())
-        .unwrap()
-        .volume;
+    let v = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
+        tol(),
+    )
+    .unwrap()
+    .volume;
     assert!(
         (v - expect).abs() < 1e-9,
         "{what}: volume {v} against the analytic {expect}"

@@ -806,7 +806,6 @@ impl core::fmt::Display for SlotId {
 ///
 /// ```compile_fail,E0308
 /// let _ = editor_core::InterfaceCrossing::Mate {
-///     class: editor_core::ContactClass::Rest,
 ///     outer: named(editor_core::EntityKind::Edge),
 ///     inner: named(editor_core::EntityKind::Edge),
 /// };
@@ -831,7 +830,6 @@ impl core::fmt::Display for SlotId {
 /// };
 ///
 /// let _ = editor_core::InterfaceCrossing::Mate {
-///     class: editor_core::ContactClass::Rest,
 ///     outer: face(),
 ///     inner: face(),
 /// };
@@ -867,9 +865,6 @@ pub enum InterfaceCrossing {
     /// a later delete of the mate is not reported — is a reference
     /// with no reader to protect.
     Mate {
-        /// The class the crossing declares.
-        #[serde(with = "crate::persist::kernel_wire::contact_class")]
-        class: crate::mate::ContactClass,
         /// The remainder-side reference — the one the mate keeps.
         outer: FaceName,
         /// The part-side reference, in the part's own names — the one
@@ -1310,7 +1305,7 @@ impl SitedRef {
 /// ```
 /// use editor_core::pose::PoseDef;
 /// use editor_core::{
-///     ContactClass, EntityKind, FaceName, Formula, Mate, Operand, RecipeNodeId, SitedFace,
+///     EntityKind, FaceName, Formula, Mate, Operand, RecipeNodeId, SitedFace,
 ///     StableName,
 /// };
 /// let face = FaceName::new(StableName {
@@ -1330,7 +1325,6 @@ impl SitedRef {
 /// let _: Mate<Formula> = Mate {
 ///     on: plane(face),
 ///     to: flipped,
-///     class: ContactClass::Rest,
 /// };
 /// ```
 ///

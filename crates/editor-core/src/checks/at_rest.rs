@@ -527,7 +527,7 @@ pub(crate) fn copy_rows<T: Decide>(
                 unreachable!("a row the census recorded between copies names a cell of each")
             };
             crate::assembly::AtRestRow {
-                by: crate::assembly::AtRestBy::Copies(by(ca.min(cb)), by(ca.max(cb))),
+                copies: (by(ca.min(cb)), by(ca.max(cb))),
                 row: crate::coincide::NamedCoincidence {
                     cells: vec![na, nb],
                     relation: row.relation,

@@ -207,7 +207,7 @@ pub(crate) fn name_extrude<T: Decide>(
                 ),
                 ent(0, EntityKey::Edge(wall.strut)),
             )?;
-            let strut = edge_ends(body, wall.strut)?;
+            let strut = edge_ends(body, wall.strut);
             for (end, rim) in [
                 (CapEnd::End, wall.top_rim),
                 (CapEnd::Start, wall.bottom_rim),
@@ -221,7 +221,7 @@ pub(crate) fn name_extrude<T: Decide>(
                     ent(0, EntityKey::Edge(rim)),
                 )?;
                 // The run's cap vertex is where its strut meets its rim.
-                let rim_ends = edge_ends(body, rim)?;
+                let rim_ends = edge_ends(body, rim);
                 let Some(vtx) = common_vertex(strut, rim_ends) else {
                     unreachable!(
                         "extruded wall {:?}'s rim {rim:?} (ends {rim_ends:?}) shares no single \
@@ -298,7 +298,7 @@ fn name_loft_topology<T: Decide>(
                 ent(0, EntityKey::Face(wall)),
             )?;
             for (end, cap) in [(CapEnd::End, end_cap), (CapEnd::Start, start_cap)] {
-                let rim = match rim_between(body, wall, cap)? {
+                let rim = match rim_between(body, wall, cap) {
                     Rim::One(e) => e,
                     Rim::NotOne(found) => cap_rim_contradicted(wall, cap, found),
                 };
@@ -319,14 +319,14 @@ fn name_loft_topology<T: Decide>(
                 name1(EntityKind::Edge, node, swept.strut(l, j)),
                 ent(0, EntityKey::Edge(strut)),
             )?;
-            let (s0, s1) = edge_ends(body, strut)?;
+            let (s0, s1) = edge_ends(body, strut);
             for (end, cap) in [(CapEnd::End, end_cap), (CapEnd::Start, start_cap)] {
                 let wall = side_faces[l][j];
-                let rim = match rim_between(body, wall, cap)? {
+                let rim = match rim_between(body, wall, cap) {
                     Rim::One(e) => e,
                     Rim::NotOne(found) => cap_rim_contradicted(wall, cap, found),
                 };
-                let (r0, r1) = edge_ends(body, rim)?;
+                let (r0, r1) = edge_ends(body, rim);
                 let Some(vtx) = common_vertex((s0, s1), (r0, r1)) else {
                     unreachable!(
                         "loft strut {strut:?} (ends {:?}) and rim {rim:?} (ends {:?}) share no \
@@ -466,29 +466,25 @@ pub(crate) fn name_revolve<T: Decide>(
                     } else if let Some(rim) = rims[v] {
                         // Off-axis: the rim's two ends, each the one a
                         // meridian of its chain beside it shares.
-                        let ends = edge_ends(body, rim)?;
-                        let beside = |chain: &[EdgeKey]| -> Result<VertexKey, NamingError> {
-                            let Some(vertex) = [chain[(v + n - 1) % n], chain[v]]
-                                .iter()
-                                .map(|&m| Ok(common_vertex(ends, edge_ends(body, m)?)))
-                                .collect::<Result<Vec<_>, NamingError>>()?
+                        let ends = edge_ends(body, rim);
+                        let beside = |chain: &[EdgeKey]| -> VertexKey {
+                            let mut shared = [chain[(v + n - 1) % n], chain[v]]
                                 .into_iter()
-                                .flatten()
-                                .next()
-                            else {
+                                .filter_map(|m| common_vertex(ends, edge_ends(body, m)));
+                            let Some(vertex) = shared.next() else {
                                 unresolved(rim, l, v)
                             };
-                            Ok(vertex)
+                            vertex
                         };
                         insert_vertex(
                             &mut t,
                             RoleSeg::MeridianVertex(MeridianEnd::Start, pv(l, v)),
-                            beside(ss)?,
+                            beside(ss),
                         )?;
                         insert_vertex(
                             &mut t,
                             RoleSeg::MeridianVertex(MeridianEnd::End, pv(l, v)),
-                            beside(es)?,
+                            beside(es),
                         )?;
                     }
                 }
@@ -533,16 +529,12 @@ pub(crate) fn name_revolve<T: Decide>(
                 let seam_chain = &meridians[0];
                 for v in 0..n {
                     if let Some(rim) = rims[v] {
-                        let ends = edge_ends(body, rim)?;
+                        let ends = edge_ends(body, rim);
                         let beside = [seam_chain[(v + n - 1) % n], seam_chain[v]];
                         let Some(seam) = beside
                             .iter()
                             .flatten()
-                            .map(|m| Ok(common_vertex(ends, edge_ends(body, *m)?)))
-                            .collect::<Result<Vec<_>, NamingError>>()?
-                            .into_iter()
-                            .flatten()
-                            .next()
+                            .find_map(|m| common_vertex(ends, edge_ends(body, *m)))
                         else {
                             unresolved(rim, 0, v)
                         };
@@ -571,7 +563,7 @@ pub(crate) fn name_revolve<T: Decide>(
             for l in lamina..built.rims.len() {
                 for (v, r) in built.rims[l].iter().enumerate() {
                     let Some(e) = r else { continue };
-                    let (a, b) = edge_ends(body, *e)?;
+                    let (a, b) = edge_ends(body, *e);
                     if a != b {
                         unreachable!(
                             "lamina full revolve rim {e:?} at loop {l}, vertex {v} runs from \
@@ -635,6 +627,136 @@ mod tests {
 
     fn node() -> RecipeNodeId {
         RecipeNodeId::new(0, test_utils::refusal::tagged(1))
+    }
+
+    /// **A full revolve's axis cavities are named like its outer
+    /// shell**: a profile meeting the axis in two or three runs, with
+    /// square, round and pointed notches and a hole beside them,
+    /// revolves to a body whose every cavity wall, meridian, rim and
+    /// pole is named by the profile piece that sweeps it, and the
+    /// table is total over the body (`check_total`), poles at both
+    /// ends of each gap included.
+    #[test]
+    fn a_full_revolves_axis_cavities_are_named() {
+        let axis = sweep::RevolveAxis {
+            origin: Point2::new(0.0, 0.0),
+            dir: geom_core::Vec2::new(0.0, 1.0),
+        };
+        let p = Point2::new;
+        let column = [p(0.0, 0.0), p(2.0, 0.0), p(2.0, 5.0), p(0.0, 5.0)];
+        let square = [p(0.0, 4.0), p(0.5, 4.0), p(0.5, 3.0), p(0.0, 3.0)];
+        let pointed = [p(0.0, 2.0), p(0.5, 2.0), p(0.0, 1.0)];
+        let hole = ProfileLoop::polygon([p(1.0, 1.0), p(1.5, 1.0), p(1.5, 2.0), p(1.0, 2.0)]);
+        let round = RawLoop::new(
+            [p(0.0, 0.0), p(2.0, 0.0), p(2.0, 3.0), p(0.0, 3.0)]
+                .map(|q| (q, Segment::Line))
+                .into_iter()
+                .chain([
+                    (
+                        p(0.0, 2.0),
+                        Segment::Arc(Arc2 {
+                            centre: p(0.0, 1.5),
+                            radius: 0.5,
+                            sweep: -core::f64::consts::PI,
+                        }),
+                    ),
+                    (p(0.0, 1.0), Segment::Line),
+                ]),
+        );
+        let three_runs: Vec<Point2<f64>> = column
+            .iter()
+            .chain(&square)
+            .chain(&pointed)
+            .copied()
+            .collect();
+        // (what, loops, segments per loop, cavities)
+        let cases = [
+            (
+                "three runs",
+                vec![ProfileLoop::polygon(three_runs)],
+                vec![11],
+                2,
+            ),
+            ("round notch", vec![round], vec![6], 1),
+            (
+                "a hole beside a gap",
+                vec![
+                    ProfileLoop::polygon(column.iter().chain(&square).copied()),
+                    hole,
+                ],
+                vec![8, 4],
+                2,
+            ),
+        ];
+        for (what, loops, counts, cavities) in cases {
+            let profile = Profile::new(SketchPlane::<f64>::xy(), loops)
+                .validate(Tol::witness())
+                .unwrap_or_else(|e| panic!("{what}: the profile validates: {e:?}"));
+            let built = sweep::revolve(&profile, axis, sweep::Revolution::Full, Tol::witness())
+                .unwrap_or_else(|e| panic!("{what}: the profile revolves: {e:?}"));
+            assert_eq!(built.cavities.len(), cavities, "{what}");
+            let pieces = ProfilePieces::numbered(&counts);
+            let table = name_revolve(node(), &built, &pieces)
+                .unwrap_or_else(|e| panic!("{what}: the revolve is named: {e:?}"));
+            if what == "three runs" {
+                three_runs_walls_are_named_by_their_pieces(&built, &table, &pieces);
+            }
+        }
+    }
+
+    /// Each wall of the three-run column, cavity walls included, is the
+    /// surface its own profile piece sweeps: read through the NAME and
+    /// checked against the piece's geometry, so two walls' names
+    /// swapped is red.
+    fn three_runs_walls_are_named_by_their_pieces(
+        built: &sweep::Revolved<f64>,
+        table: &NameTable,
+        pieces: &ProfilePieces,
+    ) {
+        use geom::Surface;
+        // (piece, the swept surface): a plane at height y, a cylinder
+        // of radius r, or a cone.
+        enum Wall {
+            Plane(f64),
+            Cylinder(f64),
+            Cone,
+        }
+        let walls = [
+            (0, Wall::Plane(0.0)),
+            (1, Wall::Cylinder(2.0)),
+            (2, Wall::Plane(5.0)),
+            (4, Wall::Plane(4.0)),
+            (5, Wall::Cylinder(0.5)),
+            (6, Wall::Plane(3.0)),
+            (8, Wall::Plane(2.0)),
+            (9, Wall::Cone),
+        ];
+        for (k, want) in walls {
+            let name = name1(
+                EntityKind::Face,
+                node(),
+                RoleSeg::Band(run_at(pieces, 0, &[k])),
+            );
+            let entry = table
+                .lookup(&name)
+                .unwrap_or_else(|| panic!("piece {k}'s wall is named"));
+            let Some(face) = entry.entities()[0].key.face() else {
+                panic!("piece {k}'s wall name holds a face")
+            };
+            let surface = built.body.get_face(face).unwrap().surface;
+            let fits = match (want, built.body.get_surface(surface).unwrap()) {
+                (Wall::Plane(y), Surface::Plane { origin, .. }) => (origin.y - y).abs() < 1e-12,
+                (Wall::Cylinder(r), Surface::Cylinder { radius, .. }) => {
+                    (*radius - r).abs() < 1e-12
+                }
+                (Wall::Cone, Surface::Cone { .. }) => true,
+                _ => false,
+            };
+            assert!(
+                fits,
+                "piece {k}'s wall name holds the surface piece {k} sweeps"
+            );
+        }
     }
 
     /// **A one-segment loop's revolve and loft are named whole**: the

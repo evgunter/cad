@@ -777,7 +777,7 @@ impl JoinRefusal {
             ),
             Self::CarrierUnsupported { carrier, closed } => format!(
                 "two edges meet at a vertex on one {} carrier, which the join cannot run an \
-                 edge on {} yet (work/hone/joining-a-spline-carrier-is-unbuilt); there is no \
+                 edge on {} yet (work/splice/joining-a-spline-carrier-is-unbuilt); there is no \
                  way through this yet",
                 carrier.name(),
                 if *closed {

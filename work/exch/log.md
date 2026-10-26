@@ -360,3 +360,4 @@ TRIM's dm1-frontier row when it lands.
   - `tcost_k3_import_certificate.rs` counts face-lane rounds.
 
   No import verdict moved. (QUAD unit B lane)
+- 2026-10-25 — **Band rule (work/README.md, Priority):** `import-normalizes-the-rim-only-cap` re-banded P3→P0, it gates `restfront`'s `validity-refuses-an-interior-chart-singularity` (P0), which lands after it or import starts refusing files it accepts today. Legacy `cost: D` re-priced `M` with `design: true`: whether the seamed statement (`seamed.step`) is accepted, normalized or stays refused is still this row's question. (band-rule triage)

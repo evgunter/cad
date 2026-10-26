@@ -264,7 +264,7 @@ fn start_class(start: f64) -> Start {
 /// a hyperbola whose branches start `0.9·ε/D` (`D = sin α ≈ 1/64`, so
 /// `≈ 58·ε`) from the apex, past the band. The cap's wall edge runs from
 /// the apex vertex, so the line pair through the apex is not its
-/// section there: the edge refuses typed, naming the hyperbola (R1),
+/// section there: the edge refuses typed, naming the hyperbola,
 /// where the door had planned the old generator. The cap's other edges,
 /// against planes, plan.
 #[test]
@@ -294,17 +294,14 @@ fn a_cap_moved_off_a_needle_apex_refuses_the_hyperbola() {
             let mut walls = 0;
             for (edge, plan) in topo::offset_edge_plans_for_tests(&body, face, d, tol) {
                 match plan {
-                    Err(topo::ReplaceFaceError::NeighborPoseUnroutable {
+                    Err(topo::ReplaceFaceError::EdgeSection {
                         other_kind: geom::SurfaceKind::Cone,
-                        why,
+                        verdict:
+                            topo::SectionVerdict::OpenConic {
+                                conic: geom_brep::OpenConic::Hyperbola,
+                            },
                         ..
-                    }) => {
-                        assert!(
-                            why.contains("HYPERBOLA"),
-                            "{face:?} by {d:e}, {edge:?}: refuses naming the hyperbola, got {why}"
-                        );
-                        walls += 1;
-                    }
+                    }) => walls += 1,
                     Ok(None) => {}
                     other => panic!("{face:?} by {d:e}, {edge:?}: got {other:?}"),
                 }

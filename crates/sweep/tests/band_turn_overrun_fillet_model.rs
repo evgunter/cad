@@ -386,7 +386,11 @@ fn build(
 }
 
 fn vol(body: &Body<f64>) -> (f64, f64) {
-    let p = topo::test_support::unmigrated_measure(body, tol()).expect("props");
+    let p = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
+        tol(),
+    )
+    .expect("props");
     (p.volume, p.volume_pad)
 }
 

@@ -265,8 +265,6 @@ fn a1a_mates_read_at_the_placements_below_a_placed_union_mint_nothing() {
     let f = fused(&s, |_, t, cap, _| head_at(t, cap));
     assert_placed(&s, &f, "A1(a)");
     let ev = run(&f.doc, &s.opts);
-    crate::fixture::assert_mints_nothing(&f.doc, &ev, f.m1);
-    crate::fixture::assert_mints_nothing(&f.doc, &ev, f.m2);
     assert!(
         gate(&f.doc, &ev).is_ok(),
         "A1(a): the unmated seats do not refuse"
@@ -493,7 +491,6 @@ fn a_mate_read_below_a_placed_boolean_mints_nothing() {
             .is_some_and(|r| r.value().is_some()),
         "the mate's placement evaluates"
     );
-    crate::fixture::assert_mints_nothing(&doc, &ev, mate);
 }
 
 /// **A `Part` above a union is refused at the door.** A `Part` picks

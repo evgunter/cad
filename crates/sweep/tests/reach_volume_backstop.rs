@@ -274,9 +274,12 @@ fn a_curved_closed_form_tie_passes_on_the_faces_own_enclosures() {
     let rod = |first: f64| three_arc_cylinder(Point2::new(0.1, 0.2), 0.7, 0.0, 0.9, first);
     let (low, high) = (rod(45.0), rod(60.0));
     let volume = |b: &Body<f64>| {
-        topo::test_support::unmigrated_measure(b, tol())
-            .unwrap()
-            .volume
+        topo::mass_properties(
+            &topo::test_support::finished("the measured body", topo::Body::clone(b), tol()),
+            tol(),
+        )
+        .unwrap()
+        .volume
     };
     assert!(
         volume(&low) < volume(&high),

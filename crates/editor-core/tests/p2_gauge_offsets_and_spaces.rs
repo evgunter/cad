@@ -903,9 +903,9 @@ fn two_instances_pinned_to_the_world_are_one_component_with_no_mate() {
 /// **A touch between two copies inside a `new_space()` is reported like
 /// one in the world** (D1 (iii), D10; A11 (2)). Two tops seated side by
 /// side on a base standing in a `new_space()`, flush along x = 1.5 with
-/// no mate between them: the space's gather records the touch as rows
-/// of the two copies, and the `unproven-coincidence` check reports them
-/// against the copies, read off `Product::spaces` beside the world's
+/// no mate between them: the space's gather records the touches as rows
+/// of the copies, and the `unproven-coincidence` check reports the two
+/// tops' against them, read off `Product::spaces` beside the world's
 /// (empty) rows. Red if the check reads the world's rows alone.
 #[test]
 fn a_touch_between_copies_in_a_new_space_reaches_the_coincidence_check() {
@@ -940,9 +940,7 @@ fn a_touch_between_copies_in_a_new_space_reaches_the_coincidence_check() {
         .as_ref()
         .expect("the space gathers")
         .coincidences
-        .iter()
-        .filter(|r| matches!(r.by, editor_core::AtRestBy::Copies(..)))
-        .count();
+        .len();
     assert!(copies > 0, "the tops' touch is the space's rows");
     let report = editor_core::run_checks(
         &doc,
@@ -951,15 +949,28 @@ fn a_touch_between_copies_in_a_new_space_reaches_the_coincidence_check() {
         Tol::witness(),
     )
     .expect("checks run");
-    let reported = report
+    // The tops' seats on the base are their mates' statements, which the
+    // door proves; the touch between the two tops is reported.
+    let tops = [a, b].map(|t| doc.output(t, 0).expect("an instance defines its copies"));
+    let reported: Vec<_> = report
         .findings
         .iter()
-        .filter(|f| {
-            f.check == editor_core::CheckId::UnprovenCoincidence
-                && matches!(f.subject, editor_core::FindingSubject::Copies { .. })
-        })
-        .count();
-    assert_eq!(reported, copies, "{:?}", report.findings);
+        .filter(|f| f.check == editor_core::CheckId::UnprovenCoincidence)
+        .collect();
+    assert!(
+        !reported.is_empty() && reported.len() < copies,
+        "{:?}",
+        report.findings
+    );
+    assert!(
+        reported.iter().all(|f| matches!(
+            f.subject,
+            editor_core::FindingSubject::Copies { a, b }
+                if tops.contains(&a.var) && tops.contains(&b.var)
+        )),
+        "every finding is the two tops' touch: {:?}",
+        report.findings
+    );
 }
 
 /// **The at-rest gate checks each `new_space()` whatever the world

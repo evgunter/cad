@@ -292,7 +292,7 @@ fn arc_loft_natively_computes_its_rational_volume() {
 
     // ---- The ROUND TRIP, which the bank used to block entirely. ----
     let text = step_export::step_string(
-        &native,
+        &crate::common::at_rest(&native),
         &step_export::StepOptions::default(),
         Tol::witness(),
     )
@@ -495,8 +495,12 @@ fn arc_loft_natively_computes_its_rational_volume() {
                 ),
             };
             let rewrite = |b: &topo::Body<f64>, who: &str| {
-                step_export::step_string(b, &step_export::StepOptions::default(), Tol::witness())
-                    .unwrap_or_else(|e| panic!("re-exporting the {who} body: {e}"))
+                step_export::step_string(
+                    &crate::common::at_rest(b),
+                    &step_export::StepOptions::default(),
+                    Tol::witness(),
+                )
+                .unwrap_or_else(|e| panic!("re-exporting the {who} body: {e}"))
             };
             assert_eq!(
                 rewrite(&again, "reversed-DATA"),
@@ -714,8 +718,12 @@ fn promoted_ruling_seams_reexport_as_line() {
     )
     .expect("the arc prism lofts")
     .body;
-    let text1 = step_export::step_string(&native, &step_export::StepOptions::default(), tol)
-        .expect("the prism exports");
+    let text1 = step_export::step_string(
+        &crate::common::at_rest(&native),
+        &step_export::StepOptions::default(),
+        tol,
+    )
+    .expect("the prism exports");
     let bs1 = |text: &str| {
         text.matches("B_SPLINE_CURVE_WITH_KNOTS('', 1,").count()
             + text.matches("B_SPLINE_CURVE_WITH_KNOTS('',1,").count()
@@ -763,8 +771,12 @@ fn promoted_ruling_seams_reexport_as_line() {
     let step_import::StepImport::Solid { body, .. } = import else {
         panic!("the prism is a solid");
     };
-    let text2 = step_export::step_string(&body, &step_export::StepOptions::default(), tol)
-        .expect("the re-imported prism re-exports");
+    let text2 = step_export::step_string(
+        &crate::common::at_rest(&body),
+        &step_export::StepOptions::default(),
+        tol,
+    )
+    .expect("the re-imported prism re-exports");
     assert_eq!(bs1(&text2), 0, "no degree-1 spline survives the round trip");
     assert_eq!(
         lines(&text2),

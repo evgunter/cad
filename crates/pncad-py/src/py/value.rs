@@ -1724,7 +1724,9 @@ impl Evaluation {
     /// for "which body does this node denote", shared with Rust).
     ///
     /// Accepts a `body` or non-empty `boolean` value; everything else
-    /// raises a typed `ExportError`.
+    /// raises a typed `ExportError`. The body is gated at rest first,
+    /// so one the gate refuses raises `ExportError` tagged
+    /// `body_invalid` rather than reaching the writer.
     ///
     /// Every `StepOptions` field is a keyword here, and each defaults
     /// to `None` meaning the Rust default — so the door narrows
@@ -1817,7 +1819,7 @@ fn export_err(
         // the world's placements, not this call's node, so it adds no field
         // here. The arm is spelled out because the match
         // is exhaustive on purpose — the tripwire, not a wildcard.
-        E::EmptyBoolean { .. } | E::Step(_) | E::Product(_) => {}
+        E::EmptyBoolean { .. } | E::BodyInvalid { .. } | E::Step(_) | E::Product(_) => {}
     }
     typed_err(py, ErrorClass::Export, err.spoken(doc), &fields)
 }
@@ -2471,6 +2473,7 @@ pub(crate) fn evaluate(
         param_box: defaults.param_box,
         seed: defaults.seed,
         symbols: defaults.symbols,
+        pin: defaults.pin,
     };
     let token = cancel.map_or_else(d::CancelToken::new, CancelToken::token);
     let recipe = &doc.inner;

@@ -284,7 +284,7 @@ fn edge_at(body: &Body<Interval>, a: [f64; 3], b: [f64; 3]) -> EdgeKey {
 /// `(1 − π/4)·r²·2`.
 #[test]
 fn the_oblique_fillet_carves_at_the_certified_scalar() {
-    let body = parallelogram::<Interval>();
+    let body = topo::test_support::finished("body", parallelogram::<Interval>(), tol());
     let e = edge_at(&body, [0.0, 0.0, 1.0], [2.0, 0.0, 1.0]);
     let out = fillet_edges(
         &sweep::test_support::at_rest(&body, tol()),
@@ -309,8 +309,12 @@ fn the_oblique_fillet_carves_at_the_certified_scalar() {
         );
     }
     let (p0, p1) = (
-        topo::test_support::unmigrated_measure(&body, tol()).expect("interval props"),
-        topo::test_support::unmigrated_measure(&out.body, tol()).expect("interval props"),
+        topo::mass_properties(&body, tol()).expect("interval props"),
+        topo::mass_properties(
+            &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol()),
+            tol(),
+        )
+        .expect("interval props"),
     );
     let removed = p0.volume - p1.volume;
     let pad = p0.volume_pad + p1.volume_pad;

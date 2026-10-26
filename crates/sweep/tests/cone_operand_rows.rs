@@ -314,8 +314,8 @@ fn the_apex_pin_refuses_every_op_never_a_body() {
         assert!(
             matches!(
                 &got,
-                Err(BooleanError::GermSectionOutsideInventory {
-                    conic: geom_brep::OutsideConic::Hyperbola,
+                Err(BooleanError::GermSectionOpenConic {
+                    conic: geom_brep::OpenConic::Hyperbola,
                     ..
                 })
             ),

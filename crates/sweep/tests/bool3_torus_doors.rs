@@ -373,11 +373,9 @@ fn the_minor_window_trims_the_spool_band() {
 /// quadrant reads as material.
 #[test]
 fn the_major_window_trims_the_quarter_donut() {
-    let body = quarter_donut();
+    let body = topo::test_support::finished("body", quarter_donut(), Tol::witness());
     // The body really is a quarter: its volume is the closed form.
-    let v = topo::test_support::unmigrated_measure(&body, Tol::witness())
-        .unwrap()
-        .volume;
+    let v = topo::mass_properties(&body, Tol::witness()).unwrap().volume;
     let quarter = 2.0 * core::f64::consts::PI.powi(2) * DONUT_R * DONUT_MINOR.powi(2) / 4.0;
     assert!(
         (v - quarter).abs() < 1e-9,
