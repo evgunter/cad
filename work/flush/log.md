@@ -565,7 +565,7 @@ None waits on an INTENT stage. A row that turns out to need one moves back. — 
 - 2026-10-26 — **PR 5706 closes `a-containment-fallback-substitutes-a-partly-held-dropped-face-whole`**. The containment fallback cuts its dropped coincident faces and records its discards, so both operand orders write the same rows.
   - **Tier: one FULL review.** The first head swallowed every refusal of the cut into a new `uncut` record and wrote the face as a whole discard bordering nothing (MAJOR); one refusal also uncut every partly held face (MINOR).
   - **My ruling** (no Ev fork, within `[failure.taxonomy]`): defects propagate; only the cut's own placement limits are recorded, per face; an uncut face gets no row; the reader question is filed on BORDERS.
-  - **Check pass:** APPROVE-WITH-FIXES, both fixed by execution. A last pass typed the limit (`fate::Limit`), made an in-band ring winding escalate as `BooleanDecision::RingWinding` (it read as a broken invariant, here and at the older site), and corrected two docs that claimed every lost face is a discard.
-  - **At merge** I resolved one conflict with main (`BooleanDecision::ArcSpan` had left main; `RingWinding` kept).
+  - **Check pass:** APPROVE-WITH-FIXES, both fixed by execution. A last pass typed the limit (`fate::Limit`), made an in-band ring winding escalate as `BooleanDecision::CutRingWinding` (it read as a broken invariant, here and at the older site), and corrected two docs that claimed every lost face is a discard.
+  - **At merge** I resolved one conflict with main (`BooleanDecision::ArcSpan` had left main); the lane named the new decision `CutRingWinding`, apart from main's `SelfCheck::RingWinding`.
   - **No body moved.** Batteries identical; the `boss/holedlow ∩` refusal's words changed (the cut now goes one step further before it stops).
 — (FLUSH orchestrator)
