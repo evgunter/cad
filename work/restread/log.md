@@ -125,3 +125,8 @@ crossing lane and the edge-on-face lane (plan.md, Order).
     - `one-material-leaves-its-in-band-arm-and-one-sector-reason-unpinned` (P4);
     - for other programs, two main reds confirmed on main: `tess/a-thin-nested-rings-row-pins-untriangulated-where-the-mesh-now-meshes` (P2) and `splice/the-lofted-cylinder-operand-runs-out-of-quadrature-budget-at-1e-12` (P2).
   - `fused_into_live_cells` is main's, already filed P0 in `issues/`. — (RESTREAD orchestrator)
+- 2026-10-26 — `main-red-coincident-wedges-overlap-refuses-flush-copies` (P0, filed by INTENT) closes via PR 5804, a row-only change.
+  - **Cause:** PR 5529's wedge read, which runs outside `Declared::confine`, met PR 5745's `SameSideInterference` (merged ten minutes after 5529) and reported a doubled volume a second time.
+  - **Fix:** ATREST's PR 5779 had already fixed it on main. It skips the read where an aligned confirmed pair holds the span and re-pins 5529's two gating rows. Opposed pairs still reach the read, and the pinwheel still refuses. 5529's verdict was right on substance.
+  - **A second break:** RESTREAD's own PR 5704 broke `editor-core`'s build. Its new `BoundaryCrossesItself` variants were not placed in `finding_solids`, and the change filter skipped editor-core, so PR CI and main's push run stayed green. ATREST placed them (`863030db6b`).
+  - Filed `ciw/a-new-public-variant-skips-its-downstream-exhaustive-matches-in-the-change-filter` (P2). — (RESTREAD orchestrator)
