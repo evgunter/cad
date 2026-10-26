@@ -2,12 +2,13 @@
 id: mesh-sizes-each-lane-by-its-worst-admissible-triangle
 kind: unit
 title: Build [mesh.sizing]: each lane's worst admissible triangle is sized at the coarsest step its pinned theorem grants; δ/2 and the sphere's 1.25 retire; sphere and cone rims chorded to the grid
-status: dispatched
+status: review
 opened: 2026-10-25
 priority: P1
 cost: H
 refs: [S29, a-cone-rim-chord-joined-to-a-higher-row-certifies-above-delta-s]
 branch: pred/mesh-sizing-rule
+pr: 5717
 ---
 
 Ruled by Ev on PR 5708 (`S29`). The rule is `crates/mesh/README.md`
