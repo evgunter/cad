@@ -93,3 +93,26 @@ operand, so its stretches are read through substituted fragments alone
 `fate::uncut` is gone. The swap comparators compare the fallback's
 discards like any other.
 
+The fallback reaches poses that the join shapes on the section path, so
+`fate::cut` learned three of them:
+
+- a closed kept edge whose one vertex is a lone vertex of the dropped
+  face, or an existing vertex in one corner of it: a circular edge
+  (`MefSite::Lone`, or `Chords` with an empty run);
+- one that leaves and returns through two corners of the outer loop:
+  a chord splitting that loop;
+- a sector's piece read on a face that is one piece, which is that face,
+  as `fragment_at` already reads it.
+
+A closed chord carries the kept edge's restated description, since a
+whole-turn scaffold circle reads as a null edge's.
+
+Each dropped face is cut on its own. Where a face's cut meets one of
+the cut's placement limits (`fate::is_placement_limit`, which names
+each), that face alone is restored and recorded in
+`BooleanNaming::uncut` (`UncutFace`), with neither a substituted nor a
+discard row. Every other refusal of the cut propagates. The limit is
+filed as `a-fallback-cut-refuses-beside-a-ring-a-seam-or-a-pinch`; that
+no reader reads `uncut` is filed on BORDERS as
+`no-reader-reads-a-fallbacks-uncut-faces`.
+

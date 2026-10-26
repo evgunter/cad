@@ -15,7 +15,10 @@ fn fallback_rows_review_uncut() {
         use super::fallback_rows_review::{circle, extruded, square};
         let fin = |w: &str, b| sweep::test_support::finished(w, b, tol);
         let boss = || extruded(vec![circle(0.0, 0.0, 0.3, 0.0)], 0.0, 1.0);
-        let holed = fin("holed", extruded(vec![square(1.0), circle(0.0, 0.0, 0.1, 0.0)], -0.5, 0.5));
+        let holed = fin(
+            "holed",
+            extruded(vec![square(1.0), circle(0.0, 0.0, 0.1, 0.0)], -0.5, 0.5),
+        );
         let lid = fin("lid", extruded(vec![square(1.0)], 1.0, 0.5));
         let plain = fin("plain", extruded(vec![square(1.0)], -0.5, 0.5));
         let two = |a: &topo::AtRestBody<f64>, b: &topo::AtRestBody<f64>| {
@@ -33,6 +36,15 @@ fn fallback_rows_review_uncut() {
         corpus.push(("boss/holed+lid", fin("boss", boss()), two(&holed, &lid)));
         corpus.push(("boss/plain+lid", fin("boss", boss()), two(&plain, &lid)));
         corpus.push(("boss/lid", fin("boss", boss()), lid.clone()));
+        let br = |x: (f64, f64), y: (f64, f64), z: (f64, f64)| fin("b", sweep::test_support::brick(x, y, z, tol));
+        let a = || br((0.0, 2.0), (0.0, 1.0), (0.0, 1.0));
+        corpus.push(("a/lid1edge", a(), br((0.0, 3.0), (-1.0, 2.0), (1.0, 2.0))));
+        corpus.push(("a/lid2edge", a(), br((0.0, 3.0), (0.0, 2.0), (1.0, 2.0))));
+        corpus.push(("a/lid3edge", a(), br((0.0, 2.0), (0.0, 2.0), (1.0, 2.0))));
+        corpus.push(("a/lidmid", a(), br((0.5, 1.5), (-1.0, 2.0), (1.0, 2.0))));
+        corpus.push(("a/big1edge", a(), br((0.0, 3.0), (-1.0, 2.0), (-1.0, 1.0))));
+        corpus.push(("a/big3edge", a(), br((0.0, 2.0), (0.0, 2.0), (-1.0, 1.0))));
+        corpus.push(("a/bigstrip", a(), br((0.5, 1.5), (-1.0, 2.0), (-1.0, 1.0))));
     }
     for (label, x, y) in corpus {
         for (op, p, q, ord) in [
@@ -52,12 +64,20 @@ fn fallback_rows_review_uncut() {
                 println!("RES {label} {op} {ord}: {:?}", r.map(|_| ()).err());
                 continue;
             };
-            println!("RES {label} {op} {ord}: {:?} rows {} discards {}", out.kind, out.naming.substituted.len(), out.naming.discards.len());
+            println!(
+                "RES {label} {op} {ord}: {:?} rows {} discards {}",
+                out.kind,
+                out.naming.substituted.len(),
+                out.naming.discards.len()
+            );
             let n = &out.naming;
             if !n.uncut.is_empty() {
                 println!("UNCUT {label} {op} {ord} {:?}: {:?}", out.kind, n.uncut);
             }
-            if matches!(out.kind, BooleanResultKind::OperandA | BooleanResultKind::OperandB) {
+            if matches!(
+                out.kind,
+                BooleanResultKind::OperandA | BooleanResultKind::OperandB
+            ) {
                 // Each row: the fragment's area against its holder's.
                 for s in &n.substituted {
                     let (fb, hb) = match s.operand {
@@ -65,10 +85,14 @@ fn fallback_rows_review_uncut() {
                         Operand::B => (q, p),
                     };
                     let _ = (fb, hb);
-                    println!("ROW {label} {op} {ord}: {:?} root {:?}", s, match s.operand {
-                        Operand::A => n.face_fragments_a.root(s.face),
-                        Operand::B => n.face_fragments_b.root(s.face),
-                    });
+                    println!(
+                        "ROW {label} {op} {ord}: {:?} root {:?}",
+                        s,
+                        match s.operand {
+                            Operand::A => n.face_fragments_a.root(s.face),
+                            Operand::B => n.face_fragments_b.root(s.face),
+                        }
+                    );
                 }
             }
         }

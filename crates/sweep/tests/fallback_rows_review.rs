@@ -48,7 +48,10 @@ fn rounded(s: &str) -> String {
 }
 
 fn seat(body: &topo::Body<f64>, f: FaceKey) -> String {
-    rounded(&format!("{:?}", topo::face_carrier(body, f).expect("a carrier")))
+    rounded(&format!(
+        "{:?}",
+        topo::face_carrier(body, f).expect("a carrier")
+    ))
 }
 
 fn root(out: &BooleanBody<f64>, o: Operand, f: FaceKey) -> FaceKey {
@@ -77,10 +80,12 @@ fn live(out: &BooleanBody<f64>, rows: &[(topo::VertexKey, topo::VertexKey)]) -> 
                 _ => return "UNSETTLED".to_string(),
             };
             let between = match (u, w) {
-                (topo::Cell::Vertex(u), topo::Cell::Vertex(w)) => body.edges().map(|(k, _)| k).find(|&k| {
-                    let [s, t] = ends(k);
-                    (s, t) == (u, w) || (s, t) == (w, u)
-                }),
+                (topo::Cell::Vertex(u), topo::Cell::Vertex(w)) => {
+                    body.edges().map(|(k, _)| k).find(|&k| {
+                        let [s, t] = ends(k);
+                        (s, t) == (u, w) || (s, t) == (w, u)
+                    })
+                }
                 _ => None,
             };
             match between.or_else(|| out.naming.stretch_through_joins(body, (u, w))) {
@@ -129,7 +134,12 @@ fn run(
             .discards
             .iter()
             .map(|d| {
-                let all: Vec<_> = d.bordered.iter().chain(&d.bordered_through).copied().collect();
+                let all: Vec<_> = d
+                    .bordered
+                    .iter()
+                    .chain(&d.bordered_through)
+                    .copied()
+                    .collect();
                 let mut ends = live(out, &all);
                 ends.sort();
                 (face(d.operand, d.face), ends)
@@ -169,7 +179,7 @@ fn b(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> topo::Body<f64> {
     brick(x, y, z, Tol::witness())
 }
 
-pub fn circle(cx: f64, cy: f64, r: f64, az: f64) -> profile::ProfileLoop<f64> {
+pub(crate) fn circle(cx: f64, cy: f64, r: f64, az: f64) -> profile::ProfileLoop<f64> {
     profile::RawLoop::new([(
         Point2::new(cx + r * az.cos(), cy + r * az.sin()),
         profile::Segment::Arc(geom_core::Arc2 {
@@ -180,7 +190,7 @@ pub fn circle(cx: f64, cy: f64, r: f64, az: f64) -> profile::ProfileLoop<f64> {
     )])
 }
 
-pub fn extruded(loops: Vec<profile::ProfileLoop<f64>>, z0: f64, h: f64) -> topo::Body<f64> {
+pub(crate) fn extruded(loops: Vec<profile::ProfileLoop<f64>>, z0: f64, h: f64) -> topo::Body<f64> {
     let tol = Tol::witness();
     let profile = profile::Profile::new(profile::SketchPlane::<f64>::xy(), loops)
         .validate(tol)
@@ -194,7 +204,7 @@ pub fn extruded(loops: Vec<profile::ProfileLoop<f64>>, z0: f64, h: f64) -> topo:
     topo::transform_rigid(&body, &geom_core::test_support::rigid(&up, tol), tol).unwrap()
 }
 
-pub fn square(h: f64) -> profile::ProfileLoop<f64> {
+pub(crate) fn square(h: f64) -> profile::ProfileLoop<f64> {
     profile::RawLoop::polygon([
         Point2::new(-h, -h),
         Point2::new(h, -h),
@@ -203,7 +213,7 @@ pub fn square(h: f64) -> profile::ProfileLoop<f64> {
     ])
 }
 
-pub fn corpus() -> Vec<(&'static str, AtRestBody<f64>, AtRestBody<f64>)> {
+pub(crate) fn corpus() -> Vec<(&'static str, AtRestBody<f64>, AtRestBody<f64>)> {
     let tol = Tol::witness();
     let plate = || b((-1.0, 1.0), (-1.0, 1.0), (-0.5, 0.0));
     let a = || b((0.0, 2.0), (0.0, 1.0), (0.0, 1.0));
@@ -236,45 +246,223 @@ pub fn corpus() -> Vec<(&'static str, AtRestBody<f64>, AtRestBody<f64>)> {
     };
     let hemi = || hemisphere_on_flat_base(1.0, tol);
     vec![
-        ("a/inside", fin("a", a()), fin("in", b((0.5, 1.5), (0.0, 1.0), (0.0, 1.0)))),
-        ("a/poking", fin("a", a()), fin("p", b((0.5, 1.5), (0.0, 1.0), (0.0, 2.0)))),
-        ("a/lid", fin("a", a()), fin("lid", b((-1.0, 3.0), (-1.0, 2.0), (1.0, 2.0)))),
-        ("a/big", fin("a", a()), fin("big", b((-1.0, 3.0), (-1.0, 2.0), (-1.0, 1.0)))),
-        ("a/bigtwo", fin("a", a()), fin("bt", b((-1.0, 3.0), (0.0, 2.0), (-1.0, 1.0)))),
+        (
+            "a/inside",
+            fin("a", a()),
+            fin("in", b((0.5, 1.5), (0.0, 1.0), (0.0, 1.0))),
+        ),
+        (
+            "a/poking",
+            fin("a", a()),
+            fin("p", b((0.5, 1.5), (0.0, 1.0), (0.0, 2.0))),
+        ),
+        (
+            "a/lid",
+            fin("a", a()),
+            fin("lid", b((-1.0, 3.0), (-1.0, 2.0), (1.0, 2.0))),
+        ),
+        (
+            "a/big",
+            fin("a", a()),
+            fin("big", b((-1.0, 3.0), (-1.0, 2.0), (-1.0, 1.0))),
+        ),
+        (
+            "a/bigtwo",
+            fin("a", a()),
+            fin("bt", b((-1.0, 3.0), (0.0, 2.0), (-1.0, 1.0))),
+        ),
         ("a/same", fin("a", a()), fin("a2", a())),
-        ("a/half", fin("a", a()), fin("h", b((0.0, 1.0), (0.0, 1.0), (0.0, 1.0)))),
-        ("a/corner", fin("a", a()), fin("c", b((0.0, 0.5), (0.0, 0.5), (0.0, 0.5)))),
-        ("a/mid", fin("a", a()), fin("m", b((0.5, 1.5), (0.25, 0.75), (0.25, 1.0)))),
-        ("block/box", fin("bl", block()), fin("bx", b((1.0, 2.0), (1.0, 2.0), (1.0, 2.0)))),
-        ("block/cornerbox", fin("bl", block()), fin("cb", b((0.0, 1.0), (0.0, 1.0), (1.0, 2.0)))),
-        ("void/fill", fin("v", voided()), fin("f", b((1.0, 3.0), (1.0, 3.0), (1.0, 3.0)))),
-        ("void/floor", fin("v", voided()), fin("fl", b((1.0, 3.0), (1.0, 3.0), (1.0, 2.0)))),
-        ("void/small", fin("v", voided()), fin("s", b((1.5, 2.5), (1.5, 2.5), (1.0, 2.0)))),
-        ("void/outerflush", fin("v", voided()), fin("o", b((0.0, 4.0), (0.0, 4.0), (0.0, 0.5)))),
-        ("void/hugger", fin("v", voided()), fin("hg", b((-1.0, 5.0), (-1.0, 5.0), (-1.0, 4.0)))),
-        ("two/inleft", fin("two", two()), fin("il", b((0.0, 0.5), (0.0, 1.0), (0.0, 1.0)))),
-        ("two/lidleft", fin("two", two()), fin("ll", b((-0.5, 1.5), (-0.5, 1.5), (1.0, 2.0)))),
-        ("two/bigleft", fin("two", two()), fin("bl", b((-0.5, 1.5), (-0.5, 1.5), (-0.5, 1.0)))),
-        ("two/spanbig", fin("two", two()), fin("sb", b((-0.5, 3.5), (-0.5, 1.5), (-0.5, 1.0)))),
-        ("hemi/brickin", fin("hemi", hemi()), fin("bi", b((-0.3, 0.3), (0.0, 0.5), (-0.3, 0.3)))),
-        ("hemi/slab", fin("hemi", hemi()), fin("sl", b((-2.0, 2.0), (-1.0, 0.0), (-2.0, 2.0)))),
-        ("hemi/bigslab", fin("hemi", hemi()), fin("bs", b((-2.0, 2.0), (-1.0, 2.0), (-2.0, 2.0)))),
-        ("hemi/pad", fin("hemi", hemi()), fin("pd", b((-0.3, 0.3), (-0.5, 0.0), (-0.3, 0.3)))),
-        ("rod/box", fin("rod", rod(Point2::new(0.0, 0.0), 0.5, 0.0, 1.0)), fin("bx", b((-1.0, 1.0), (-1.0, 1.0), (0.0, 1.0)))),
-        ("rod/lowbox", fin("rod", rod(Point2::new(0.0, 0.0), 0.5, 0.0, 1.0)), fin("lb", b((-1.0, 1.0), (-1.0, 1.0), (0.0, 2.0)))),
-        ("rod/inrod", fin("rod", rod(Point2::new(0.0, 0.0), 1.0, 0.0, 1.0)), fin("ir", rod(Point2::new(0.0, 0.0), 0.5, 0.0, 1.0))),
-        ("rod/offrod", fin("rod", rod(Point2::new(0.0, 0.0), 1.0, 0.0, 1.0)), fin("or", rod(Point2::new(0.3, 0.0), 0.5, 0.0, 0.5))),
-        ("box/rodin", fin("bx", b((-1.0, 1.0), (-1.0, 1.0), (0.0, 1.0))), fin("ri", rod(Point2::new(0.0, 0.0), 0.5, 0.0, 0.5))),
-        ("boss/plate", fin("boss", extruded(vec![circle(0.0, 0.0, 0.3, 0.0)], 0.0, 1.0)), fin("pl", plate())),
-        ("boss/plate45", fin("boss", extruded(vec![circle(0.0, 0.0, 0.3, 0.7)], 0.0, 1.0)), fin("pl", plate())),
-        ("boss/holed", fin("boss", extruded(vec![circle(0.0, 0.0, 0.3, 0.0)], 0.0, 1.0)), fin("hp", extruded(vec![square(1.0), circle(0.0, 0.0, 0.1, 0.0)], -0.5, 0.5))),
-        ("boss/holedlow", fin("boss", extruded(vec![circle(0.0, 0.0, 0.3, 0.0)], -0.5, 0.5)), fin("hp", extruded(vec![square(1.0), circle(0.0, 0.0, 0.1, 0.0)], -0.5, 0.5))),
-        ("boss/padin", fin("boss", extruded(vec![circle(0.0, 0.0, 0.3, 0.0)], 0.0, 1.0)), fin("pad", extruded(vec![circle(0.0, 0.0, 0.2, 1.0)], -0.5, 0.5))),
-        ("boss/padin0", fin("boss", extruded(vec![circle(0.0, 0.0, 0.3, 0.0)], 0.0, 1.0)), fin("pad", extruded(vec![circle(0.0, 0.0, 0.2, 0.0)], 0.0, 0.5))),
-        ("boss/squarein", fin("boss", extruded(vec![circle(0.0, 0.0, 0.3, 0.0)], 0.0, 1.0)), fin("sq", extruded(vec![square(0.1)], 0.0, 0.5))),
-        ("boss/hang", fin("boss", extruded(vec![circle(0.2, 0.1, 0.3, 0.0)], -1.5, 1.0)), fin("pl", plate())),
-        ("cavity/plug", fin("cv", cut("c", &b((0.0, 3.0), (0.0, 3.0), (0.0, 3.0)), &b((1.0, 2.0), (1.0, 2.0), (2.0, 4.0)))), fin("pl", b((1.0, 2.0), (1.0, 2.0), (2.0, 3.0)))),
-        ("cavity/half", fin("cv", cut("c", &b((0.0, 3.0), (0.0, 3.0), (0.0, 3.0)), &b((1.0, 2.0), (1.0, 2.0), (2.0, 4.0)))), fin("hp", b((1.0, 2.0), (1.0, 2.0), (2.0, 2.5)))),
+        (
+            "a/half",
+            fin("a", a()),
+            fin("h", b((0.0, 1.0), (0.0, 1.0), (0.0, 1.0))),
+        ),
+        (
+            "a/corner",
+            fin("a", a()),
+            fin("c", b((0.0, 0.5), (0.0, 0.5), (0.0, 0.5))),
+        ),
+        (
+            "a/mid",
+            fin("a", a()),
+            fin("m", b((0.5, 1.5), (0.25, 0.75), (0.25, 1.0))),
+        ),
+        (
+            "block/box",
+            fin("bl", block()),
+            fin("bx", b((1.0, 2.0), (1.0, 2.0), (1.0, 2.0))),
+        ),
+        (
+            "block/cornerbox",
+            fin("bl", block()),
+            fin("cb", b((0.0, 1.0), (0.0, 1.0), (1.0, 2.0))),
+        ),
+        (
+            "void/fill",
+            fin("v", voided()),
+            fin("f", b((1.0, 3.0), (1.0, 3.0), (1.0, 3.0))),
+        ),
+        (
+            "void/floor",
+            fin("v", voided()),
+            fin("fl", b((1.0, 3.0), (1.0, 3.0), (1.0, 2.0))),
+        ),
+        (
+            "void/small",
+            fin("v", voided()),
+            fin("s", b((1.5, 2.5), (1.5, 2.5), (1.0, 2.0))),
+        ),
+        (
+            "void/outerflush",
+            fin("v", voided()),
+            fin("o", b((0.0, 4.0), (0.0, 4.0), (0.0, 0.5))),
+        ),
+        (
+            "void/hugger",
+            fin("v", voided()),
+            fin("hg", b((-1.0, 5.0), (-1.0, 5.0), (-1.0, 4.0))),
+        ),
+        (
+            "two/inleft",
+            fin("two", two()),
+            fin("il", b((0.0, 0.5), (0.0, 1.0), (0.0, 1.0))),
+        ),
+        (
+            "two/lidleft",
+            fin("two", two()),
+            fin("ll", b((-0.5, 1.5), (-0.5, 1.5), (1.0, 2.0))),
+        ),
+        (
+            "two/bigleft",
+            fin("two", two()),
+            fin("bl", b((-0.5, 1.5), (-0.5, 1.5), (-0.5, 1.0))),
+        ),
+        (
+            "two/spanbig",
+            fin("two", two()),
+            fin("sb", b((-0.5, 3.5), (-0.5, 1.5), (-0.5, 1.0))),
+        ),
+        (
+            "hemi/brickin",
+            fin("hemi", hemi()),
+            fin("bi", b((-0.3, 0.3), (0.0, 0.5), (-0.3, 0.3))),
+        ),
+        (
+            "hemi/slab",
+            fin("hemi", hemi()),
+            fin("sl", b((-2.0, 2.0), (-1.0, 0.0), (-2.0, 2.0))),
+        ),
+        (
+            "hemi/bigslab",
+            fin("hemi", hemi()),
+            fin("bs", b((-2.0, 2.0), (-1.0, 2.0), (-2.0, 2.0))),
+        ),
+        (
+            "hemi/pad",
+            fin("hemi", hemi()),
+            fin("pd", b((-0.3, 0.3), (-0.5, 0.0), (-0.3, 0.3))),
+        ),
+        (
+            "rod/box",
+            fin("rod", rod(Point2::new(0.0, 0.0), 0.5, 0.0, 1.0)),
+            fin("bx", b((-1.0, 1.0), (-1.0, 1.0), (0.0, 1.0))),
+        ),
+        (
+            "rod/lowbox",
+            fin("rod", rod(Point2::new(0.0, 0.0), 0.5, 0.0, 1.0)),
+            fin("lb", b((-1.0, 1.0), (-1.0, 1.0), (0.0, 2.0))),
+        ),
+        (
+            "rod/inrod",
+            fin("rod", rod(Point2::new(0.0, 0.0), 1.0, 0.0, 1.0)),
+            fin("ir", rod(Point2::new(0.0, 0.0), 0.5, 0.0, 1.0)),
+        ),
+        (
+            "rod/offrod",
+            fin("rod", rod(Point2::new(0.0, 0.0), 1.0, 0.0, 1.0)),
+            fin("or", rod(Point2::new(0.3, 0.0), 0.5, 0.0, 0.5)),
+        ),
+        (
+            "box/rodin",
+            fin("bx", b((-1.0, 1.0), (-1.0, 1.0), (0.0, 1.0))),
+            fin("ri", rod(Point2::new(0.0, 0.0), 0.5, 0.0, 0.5)),
+        ),
+        (
+            "boss/plate",
+            fin("boss", extruded(vec![circle(0.0, 0.0, 0.3, 0.0)], 0.0, 1.0)),
+            fin("pl", plate()),
+        ),
+        (
+            "boss/plate45",
+            fin("boss", extruded(vec![circle(0.0, 0.0, 0.3, 0.7)], 0.0, 1.0)),
+            fin("pl", plate()),
+        ),
+        (
+            "boss/holed",
+            fin("boss", extruded(vec![circle(0.0, 0.0, 0.3, 0.0)], 0.0, 1.0)),
+            fin(
+                "hp",
+                extruded(vec![square(1.0), circle(0.0, 0.0, 0.1, 0.0)], -0.5, 0.5),
+            ),
+        ),
+        (
+            "boss/holedlow",
+            fin(
+                "boss",
+                extruded(vec![circle(0.0, 0.0, 0.3, 0.0)], -0.5, 0.5),
+            ),
+            fin(
+                "hp",
+                extruded(vec![square(1.0), circle(0.0, 0.0, 0.1, 0.0)], -0.5, 0.5),
+            ),
+        ),
+        (
+            "boss/padin",
+            fin("boss", extruded(vec![circle(0.0, 0.0, 0.3, 0.0)], 0.0, 1.0)),
+            fin("pad", extruded(vec![circle(0.0, 0.0, 0.2, 1.0)], -0.5, 0.5)),
+        ),
+        (
+            "boss/padin0",
+            fin("boss", extruded(vec![circle(0.0, 0.0, 0.3, 0.0)], 0.0, 1.0)),
+            fin("pad", extruded(vec![circle(0.0, 0.0, 0.2, 0.0)], 0.0, 0.5)),
+        ),
+        (
+            "boss/squarein",
+            fin("boss", extruded(vec![circle(0.0, 0.0, 0.3, 0.0)], 0.0, 1.0)),
+            fin("sq", extruded(vec![square(0.1)], 0.0, 0.5)),
+        ),
+        (
+            "boss/hang",
+            fin(
+                "boss",
+                extruded(vec![circle(0.2, 0.1, 0.3, 0.0)], -1.5, 1.0),
+            ),
+            fin("pl", plate()),
+        ),
+        (
+            "cavity/plug",
+            fin(
+                "cv",
+                cut(
+                    "c",
+                    &b((0.0, 3.0), (0.0, 3.0), (0.0, 3.0)),
+                    &b((1.0, 2.0), (1.0, 2.0), (2.0, 4.0)),
+                ),
+            ),
+            fin("pl", b((1.0, 2.0), (1.0, 2.0), (2.0, 3.0))),
+        ),
+        (
+            "cavity/half",
+            fin(
+                "cv",
+                cut(
+                    "c",
+                    &b((0.0, 3.0), (0.0, 3.0), (0.0, 3.0)),
+                    &b((1.0, 2.0), (1.0, 2.0), (2.0, 4.0)),
+                ),
+            ),
+            fin("hp", b((1.0, 2.0), (1.0, 2.0), (2.0, 2.5))),
+        ),
     ]
 }
 
@@ -306,7 +494,10 @@ fn fallback_rows_review() {
             let yx = keep.iter().find(|k| k.0 == op && k.1 == "yx");
             if let (Some(p), Some(q)) = (xy, yx) {
                 let fb = |k: Option<BooleanResultKind>| {
-                    matches!(k, Some(BooleanResultKind::OperandA | BooleanResultKind::OperandB))
+                    matches!(
+                        k,
+                        Some(BooleanResultKind::OperandA | BooleanResultKind::OperandB)
+                    )
                 };
                 if fb(p.2) != fb(q.2) || (fb(p.2) && fb(q.2)) {
                     let same = p.3 == q.3;
