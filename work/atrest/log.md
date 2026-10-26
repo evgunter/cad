@@ -75,3 +75,4 @@
   - **No ratified text changes.** The C5 cell sentence being re-worded is #5746's agent text from today.
   - The row is now the build (P1 H). `gap-reads-no-curved-cell-below-a-face` is re-cut to the curved-carrier arm and parked on it.
   - The designers' reports are on `analysis/design-fork/atrest-material-reader`. No fork-log row: nothing went to Ev.
+- 2026-10-26 — Dispatched the link build (`material-and-convexity-are-read-three-ways`, P1 H) to `session_019wGbSrLfmrqDKVBwjrputi` on `atrest/topo-link-one-material-reader`. Tier: dual review. It is an architectural change of broad reach: a new public `topo::link` that four consumers will read. The protocol is read at review.
