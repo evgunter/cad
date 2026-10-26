@@ -2,10 +2,12 @@
 id: an-in-band-face-pair-at-rest-is-not-one-finding
 kind: issue
 title: an in-band face pair at rest is not one finding: its boundary cells escalate, and a pair-naming verdict blocks the arrivals' records
-status: open
+status: closed
 opened: 2026-10-22
 priority: P1
 cost: M
+branch: atrest/in-band-face-pair-one-finding
+closed: 2026-10-26
 refs: [the-at-rest-census-is-a-check, two-copies-filling-one-volume-certify-at-rest]
 ---
 
@@ -61,3 +63,29 @@ The recording side follows from ratified text, so it needs no designers. `[asser
 **Rows:**
 - `census_records_what_it_decides::a_near_flush_side_is_its_pairs_finding_and_the_seat_is_one_pair` reports one could-not-look finding for the near-flush wall pair, with no pair-less escalations. The seat's face pair is recorded.
 - The near-flush mated seat no longer refuses the product on its walls' escalations once stage 5 C retires the gate. Until then it refuses on one finding, not thirty.
+
+## Closed
+
+2026-10-26 (in-band lane): built as decided.
+
+- **The census.** `planar_face_pairs` reads Door 1's `Undecided` or
+  `Escalated` on two planar faces of different solids as an in-band pair.
+  `Declared::absorb` turns what the sweeps find of a touch between the
+  pair's cells into the pair's one `CensusUndecidable`, naming the two
+  faces, with `reason: Undecidable::InBandPair`. An escalation of two
+  other cells whose closures hold such a touch is held, and is settled
+  after every pass (`Declared::settle`). Arm 2's material test does not
+  refuse on a vertex of such a touch.
+- **The recording side.** `census_uncleared_solids` and arm 2's `blocks`
+  read only `Undecidable::MayOverlap`, so the seat's face pair is
+  recorded beside the in-band finding.
+- **The flush door** leaves Door 1's in-band pairs to the census.
+- **Rows.** `census_records_what_it_decides::a_near_flush_side_is_its_pairs_finding_and_the_seat_is_one_pair`
+  reports one finding, records the seat, and confirms.
+  `asm_r2b_assembly::a_near_flush_seat_refuses_on_its_one_in_band_pair`
+  pins the gate refusing on that one finding until stage 5 C.
+
+The sweep turned up one hit outside the fence:
+`an-in-band-pair-rides-an-interference-as-its-overlap`
+(`checks/at_rest.rs`, INTENT D′3's).
+
