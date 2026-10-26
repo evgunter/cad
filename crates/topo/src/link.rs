@@ -1301,11 +1301,11 @@ impl<T: Decide> Link<T> {
         // The apex once, at the link's point: every sector stands on it,
         // or within the link's tie of it.
         let w = x0 - self.p;
-        forms.push([e.dot(e), two * w.dot(e), w.dot(w)]);
+        forms.push([e.norm_squared(), two * w.dot(e), w.norm_squared()]);
         for s in &self.sectors {
             let w = x0 - s.apex;
             let (o0, o1) = (s.outward.dot(w), s.outward.dot(e));
-            forms.push([o1 * o1, two * o0 * o1, o0 * o0]);
+            forms.push([o1.powi(2), two * o0 * o1, o0.powi(2)]);
             let last = s.wedges.len().saturating_sub(1);
             for (k, &(a, b)) in s.wedges.iter().enumerate() {
                 let rays = if k == last { vec![a, b] } else { vec![a] };
@@ -1316,7 +1316,7 @@ impl<T: Decide> Link<T> {
                     kept.push((s.apex, s.outward, r));
                     let u = (r - s.apex).normalize();
                     let (wp, ep) = (w - u * u.dot(w), e - u * u.dot(e));
-                    forms.push([ep.dot(ep), two * wp.dot(ep), wp.dot(wp)]);
+                    forms.push([ep.norm_squared(), two * wp.dot(ep), wp.norm_squared()]);
                 }
             }
         }
@@ -1327,7 +1327,7 @@ impl<T: Decide> Link<T> {
         for (i, f) in forms.iter().enumerate() {
             for g in &forms[i + 1..] {
                 let (a, b, c) = (f[0] - g[0], f[1] - g[1], f[2] - g[2]);
-                let r = (b * b - T::from_f64(4.0) * a * c).max(T::zero()).sqrt();
+                let r = (b.powi(2) - T::from_f64(4.0) * a * c).max(T::zero()).sqrt();
                 ts.extend([
                     (-b + r) / (two * a),
                     (-b - r) / (two * a),
