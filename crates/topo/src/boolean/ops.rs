@@ -2968,7 +2968,14 @@ pub(super) fn finish_output<T: Decide + crate::props::AtRestPolicy>(
     // One snapshot of the records serves every stage: nothing between
     // the closing and the join mints an edge that survives it.
     let split_from = super::edge_join::split_records(body);
-    let closed = super::slit::close_struts(body, struts, tol)?;
+    // A seam edge the zip left with one face on both sides is a strut
+    // as much as one it named.
+    let struts: Vec<EdgeKey> = struts
+        .iter()
+        .chain(seam_edges.listed.iter().filter(|e| !struts.contains(e)))
+        .copied()
+        .collect();
+    let closed = super::slit::close_struts(body, &struts, tol)?;
     let mut killed_lineage = BTreeMap::new();
     super::edge_join::record_killed_lineage(
         &mut killed_lineage,

@@ -76,7 +76,14 @@ fn creases(
     rho: f64,
     material: &dyn Fn(Point3<f64>) -> Option<bool>,
 ) -> usize {
-    const N: usize = 240;
+    creases_of(&round(p, d, rho).map(material))
+}
+
+const N: usize = 240;
+
+/// The `N` points at radius `rho` round the line through `p` along
+/// unit `d`.
+fn round(p: Point3<f64>, d: Vec3<f64>, rho: f64) -> [Point3<f64>; N] {
     let a = if d.x.abs() < 0.9 {
         Vec3::new(1.0, 0.0, 0.0)
     } else {
@@ -84,12 +91,14 @@ fn creases(
     };
     let u = (a - d * a.dot(d)).normalize();
     let v = d.cross(u);
-    let read: Vec<Option<bool>> = (0..N)
-        .map(|k| {
-            let th = std::f64::consts::TAU * (k as f64 + 0.5) / N as f64;
-            material(p + (u * th.cos() + v * th.sin()) * rho)
-        })
-        .collect();
+    std::array::from_fn(|k| {
+        let th = std::f64::consts::TAU * (k as f64 + 0.5) / N as f64;
+        p + (u * th.cos() + v * th.sin()) * rho
+    })
+}
+
+/// [`creases`] of the material read at [`round`]'s points.
+fn creases_of(read: &[Option<bool>]) -> usize {
     let mut last = read.iter().flatten().next().copied().unwrap_or(false);
     let filled: Vec<bool> = read
         .iter()
@@ -490,5 +499,375 @@ fn a_partner_grooved_along_the_ring_unites_in_either_order() {
             (vol[0] + i - volume(&x) - volume(&y)).abs() < 1e-9,
             "{what}: |x ∪ y| + |x ∩ y| = |x| + |y|"
         );
+    }
+}
+
+/// A half-space `n · p ≤ c`, `n` unit.
+type Half = ([f64; 3], f64);
+
+fn dot(a: [f64; 3], b: [f64; 3]) -> f64 {
+    a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+}
+
+fn cross(a: [f64; 3], b: [f64; 3]) -> [f64; 3] {
+    [
+        a[1] * b[2] - a[2] * b[1],
+        a[2] * b[0] - a[0] * b[2],
+        a[0] * b[1] - a[1] * b[0],
+    ]
+}
+
+fn sub(a: [f64; 3], b: [f64; 3]) -> [f64; 3] {
+    [a[0] - b[0], a[1] - b[1], a[2] - b[2]]
+}
+
+/// The half-spaces bounding the convex hull of `pts`.
+fn hull_planes(pts: &[[f64; 3]]) -> Vec<Half> {
+    let mut out = Vec::new();
+    for i in 0..pts.len() {
+        for j in i + 1..pts.len() {
+            for k in j + 1..pts.len() {
+                let n = cross(sub(pts[j], pts[i]), sub(pts[k], pts[i]));
+                let l = dot(n, n).sqrt();
+                if l < 1e-12 {
+                    continue;
+                }
+                let n = n.map(|c| c / l);
+                let c = dot(n, pts[i]);
+                if pts.iter().all(|&p| dot(n, p) - c <= 1e-12) {
+                    out.push((n, c));
+                } else if pts.iter().all(|&p| dot(n, p) - c >= -1e-12) {
+                    out.push((n.map(|x| -x), -c));
+                }
+            }
+        }
+    }
+    out
+}
+
+/// The half-spaces of the box `b`.
+fn box_planes(b: [(f64, f64); 3]) -> Vec<Half> {
+    (0..3)
+        .flat_map(|k| {
+            let mut e = [0.0; 3];
+            e[k] = 1.0;
+            [(e, b[k].1), (e.map(|x| -x), -b[k].0)]
+        })
+        .collect()
+}
+
+/// **The volume of a bounded intersection of half-spaces**, in closed
+/// form: its vertices are the points three planes meet at inside every
+/// half-space, and each plane holding three or more bounds a face, whose
+/// cone from the origin adds `area · c / 3`.
+fn convex_volume(hs: &[Half]) -> f64 {
+    let mut planes: Vec<Half> = Vec::new();
+    for &(n, c) in hs {
+        if !planes
+            .iter()
+            .any(|&(m, d)| dot(m, n) > 1.0 - 1e-12 && (d - c).abs() < 1e-12)
+        {
+            planes.push((n, c));
+        }
+    }
+    let mut verts: Vec<[f64; 3]> = Vec::new();
+    for i in 0..planes.len() {
+        for j in i + 1..planes.len() {
+            for k in j + 1..planes.len() {
+                let (a, b, c) = (planes[i], planes[j], planes[k]);
+                let det = dot(a.0, cross(b.0, c.0));
+                if det.abs() < 1e-12 {
+                    continue;
+                }
+                let (u, v, w) = (cross(b.0, c.0), cross(c.0, a.0), cross(a.0, b.0));
+                let p = [0, 1, 2].map(|q| (a.1 * u[q] + b.1 * v[q] + c.1 * w[q]) / det);
+                if planes.iter().all(|&(n, d)| dot(n, p) - d <= 1e-9)
+                    && !verts.iter().any(|&q| dot(sub(q, p), sub(q, p)) < 1e-18)
+                {
+                    verts.push(p);
+                }
+            }
+        }
+    }
+    let mut volume = 0.0;
+    for &(n, c) in &planes {
+        let mut on: Vec<[f64; 3]> = verts
+            .iter()
+            .copied()
+            .filter(|&p| (dot(n, p) - c).abs() < 1e-9)
+            .collect();
+        if on.len() < 3 {
+            continue;
+        }
+        let m = on.len() as f64;
+        let ctr = [0, 1, 2].map(|q| on.iter().map(|p| p[q]).sum::<f64>() / m);
+        let u = cross(
+            n,
+            if n[0].abs() < 0.9 {
+                [1.0, 0.0, 0.0]
+            } else {
+                [0.0, 1.0, 0.0]
+            },
+        );
+        let v = cross(n, u);
+        let angle = |p: [f64; 3]| dot(sub(p, ctr), v).atan2(dot(sub(p, ctr), u));
+        on.sort_by(|&a, &b| angle(a).total_cmp(&angle(b)));
+        let area: f64 = (0..on.len())
+            .map(|i| dot(cross(sub(on[i], ctr), sub(on[(i + 1) % on.len()], ctr)), n).abs() / 2.0)
+            .sum();
+        volume += area * c / 3.0;
+    }
+    volume
+}
+
+/// The pyramid with its apex at `MEET + apex` over `base` (relative to
+/// its apex), wound outward whichever way `base` runs, and its corners.
+fn pyramid(apex: [f64; 3], base: &[[f64; 3]], pose: &Pose) -> (AtRestBody<f64>, Vec<[f64; 3]>) {
+    let apex = [0, 1, 2].map(|k| MEET[k] + apex[k]);
+    let n = base.iter().enumerate().fold([0.0; 3], |acc, (i, &a)| {
+        let b = base[(i + 1) % base.len()];
+        [0, 1, 2].map(|k| acc[k] + cross(a, b)[k])
+    });
+    let mut at: Vec<[f64; 3]> = base
+        .iter()
+        .map(|q| [0, 1, 2].map(|k| apex[k] + q[k]))
+        .collect();
+    if dot(n, base[0]) > 0.0 {
+        at.reverse();
+    }
+    let body = common::meeting::posed_pyramid(&at, apex, pose, t());
+    at.push(apex);
+    (body, at)
+}
+
+/// **The six ops of `x` and the plate less the lying void, each as the
+/// closed form says**: `vi` is `|x ∩ y|`, and each op builds where its
+/// volume is not zero, tier 3 and 3′, its edges on the ring's line the
+/// material's creases at `at`; an op of no volume is empty. Returns the
+/// spans along the line of the union's edges on it, alike in both
+/// orders.
+fn six_ops(
+    what: &str,
+    (x, y): (&AtRestBody<f64>, &AtRestBody<f64>),
+    (vx, vy, vi): (f64, f64, f64),
+    pose: &Pose,
+    at: &[f64],
+) -> Vec<(f64, f64)> {
+    let o = pose.at(MEET);
+    let d = (pose.at([0, 1, 2].map(|k| MEET[k] + bearing(60.0, 1.0, 0.0)[k])) - o).normalize();
+    type Keep = fn(bool, bool) -> bool;
+    type Made = Result<BooleanResult<f64>, BooleanError>;
+    let ops: [(&str, Keep, f64, Made); 6] = [
+        ("x − y", |a, b| a && !b, vx - vi, subtract(x, y, t())),
+        ("y − x", |a, b| b && !a, vy - vi, subtract(y, x, t())),
+        ("x ∩ y", |a, b| a && b, vi, intersect(x, y, t())),
+        ("y ∩ x", |a, b| a && b, vi, intersect(y, x, t())),
+        ("x ∪ y", |a, b| a || b, vx + vy - vi, union(x, y, t())),
+        ("y ∪ x", |a, b| a || b, vx + vy - vi, union(y, x, t())),
+    ];
+    // Each sample's operands, read once for all six ops.
+    let operands: Vec<[[Option<bool>; N]; 2]> = at
+        .iter()
+        .map(|&s| {
+            let ring = round(o + d * s, d, 1e-3);
+            [x, y].map(|b| ring.map(|q| inside(b, q)))
+        })
+        .collect();
+    let mut unions = Vec::new();
+    for (op, keep, want, r) in ops {
+        let what = format!("{what}, {}, {op}", pose.label);
+        let r = match r {
+            Ok(BooleanResult::Body(r)) => r,
+            Ok(BooleanResult::Empty) if want.abs() < 1e-12 => continue,
+            other => panic!("{what}: builds, got {:?}", other.map(|_| ())),
+        };
+        assert_eq!(validate_geometric(&r.body, t()), Ok(()), "{what}: tier 3");
+        assert_eq!(
+            validate_pseudomanifold(&r.body, &r.contacts, t()),
+            Ok(()),
+            "{what}: tier 3′"
+        );
+        let v = volume(&r.body);
+        assert!(
+            (v - want).abs() < 1e-9,
+            "{what}: volume {v}, closed form {want}"
+        );
+        let on = spans(&r.body, o, d, 1.0);
+        for (&s, [xs, ys]) in at.iter().zip(&operands) {
+            let p = o + d * s;
+            let kept: Vec<Option<bool>> = xs
+                .iter()
+                .zip(ys)
+                .map(|(&a, &b)| Some(keep(a?, b?)))
+                .collect();
+            let want = creases_of(&kept);
+            let got = on.iter().filter(|&&(a, b)| a < s && s < b).count();
+            assert_eq!(
+                got, want,
+                "{what}: edges on the line at {s}, the material's creases"
+            );
+            let held = creases(p, d, 1e-3, &|q| inside(&r.body, q));
+            assert_eq!(held, want, "{what}: the result's own material at {s}");
+        }
+        if op.contains('∪') {
+            let mut on = on;
+            on.sort_by(|a, b| a.0.total_cmp(&b.0));
+            unions.push((
+                (
+                    r.body.vertices().count(),
+                    r.body.edges().count(),
+                    r.body.faces().count(),
+                ),
+                on,
+            ));
+        }
+    }
+    let [(a, on), (b, _)] = &unions[..] else {
+        panic!("{what}: both unions build")
+    };
+    assert_eq!(
+        a, b,
+        "{what}, {}: the union alike in both orders",
+        pose.label
+    );
+    on.clone()
+}
+
+/// **A box with a corner or an edge at the ring's tip builds in every
+/// op.** The box lies flush under the ringed top, or stands on it, with
+/// a corner or an edge at the tip, where the top wraps the full turn.
+/// Its face flush with the top meets the void's two walls along the
+/// ring's ray in one sector: two germs along one direction, each on one
+/// of the ring's two edges, which the walk orders by the side of the
+/// line the top lies on beside each edge (`insert::beside_order`). The
+/// sliver between them lies along the ring, both its ends the ring's
+/// tips through their null-edge copies (`join::slit_tip_on`). Every op
+/// builds as the closed form says, tier 3 and 3′, its edges on the line
+/// the material's creases, both unions alike.
+#[test]
+fn a_box_at_the_rings_tip_builds_in_every_op() {
+    let below = |b: [[f64; 3]; 3]| b.map(|[x, y, z]| [x, y, -z]);
+    let void_at = below(lying(0.0));
+    let void_pts: Vec<[f64; 3]> = void_at
+        .iter()
+        .map(|c| [0, 1, 2].map(|k| MEET[k] + c[k]))
+        .chain([MEET])
+        .collect();
+    let tip = [0, 1, 2].map(|k| MEET[k] + bearing(60.0, 0.5, 0.0)[k]);
+    let poses = poses();
+    for pose in [&poses[0], &poses[2]] {
+        let plate = posed_box("the plate", PLATE, pose, t());
+        let void = apex_pyramid(&void_at, pose, t());
+        let y = built("the plate less the void", subtract(&plate, &void, t()));
+        let vy = 6.0 - convex_volume(&hull_planes(&void_pts));
+        for (label, bx) in [
+            (
+                "corner at the tip",
+                [(1.0, tip[0]), (0.5, tip[1]), (0.3, 1.0)],
+            ),
+            (
+                "edge at the tip, along y",
+                [(1.0, tip[0]), (0.5, 1.5), (0.3, 1.0)],
+            ),
+            (
+                "edge at the tip, along x",
+                [(1.0, 2.0), (0.5, tip[1]), (0.3, 1.0)],
+            ),
+            ("corner at the apex", [(1.5, 2.0), (1.0, 1.5), (0.3, 1.0)]),
+            (
+                "above, corner at the tip",
+                [(1.0, tip[0]), (0.5, tip[1]), (1.0, 1.5)],
+            ),
+            (
+                "above, edge at the tip",
+                [(1.0, tip[0]), (0.5, 1.5), (1.0, 1.5)],
+            ),
+        ] {
+            let x = posed_box("the box", bx, pose, t());
+            let planes = box_planes(bx);
+            let vx = convex_volume(&planes);
+            let vi = convex_volume(&[planes.clone(), box_planes(PLATE)].concat())
+                - convex_volume(&[planes, hull_planes(&void_pts)].concat());
+            six_ops(
+                label,
+                (&x, &y),
+                (vx, vy, vi),
+                pose,
+                &[0.05, 0.15, 0.25, 0.35, 0.45, 0.55],
+            );
+        }
+    }
+}
+
+/// **A partner whose edge lies inside the ring parts it in the union.**
+/// A pyramid with its apex on the ring's ray, one face flush with the
+/// top beside the ray and its edge along the ray from 0.1 or 0.2 to 0.3
+/// or 0.4 of the ring's 0.5, fills the void about that stretch of the
+/// line. The union keeps the top on both sides of it: the zip leaves
+/// the stretch an edge of the top on both sides, between stretches of
+/// the ring the union keeps, and the closing deletes it with `kemr`,
+/// parting the ring into two rings of the top (`slit::part_mid_slit`).
+/// Every op builds as the closed form says, tier 3 and 3′, its edges on
+/// the line the material's creases, both unions alike.
+#[test]
+fn a_partner_inside_the_ring_parts_it_in_the_union() {
+    let below = |b: [[f64; 3]; 3]| b.map(|[x, y, z]| [x, y, -z]);
+    let void_at = below(lying(0.0));
+    let void_pts: Vec<[f64; 3]> = void_at
+        .iter()
+        .map(|c| [0, 1, 2].map(|k| MEET[k] + c[k]))
+        .chain([MEET])
+        .collect();
+    let poses = poses();
+    for pose in [&poses[0], &poses[2]] {
+        let plate = posed_box("the plate", PLATE, pose, t());
+        let void = apex_pyramid(&void_at, pose, t());
+        let y = built("the plate less the void", subtract(&plate, &void, t()));
+        let vy = 6.0 - convex_volume(&hull_planes(&void_pts));
+        for (from, r) in [(0.1, 0.3), (0.1, 0.2), (0.2, 0.2)] {
+            for (side, base) in [
+                (
+                    "left",
+                    [
+                        bearing(60.0, r, 0.0),
+                        bearing(150.0, 0.6, 0.0),
+                        bearing(20.0, 0.6, -0.7),
+                    ],
+                ),
+                (
+                    "right",
+                    [
+                        bearing(60.0, r, 0.0),
+                        bearing(-30.0, 0.6, 0.0),
+                        bearing(100.0, 0.6, -0.7),
+                    ],
+                ),
+            ] {
+                let (x, pts) = pyramid(bearing(60.0, from, 0.0), &base, pose);
+                let planes = hull_planes(&pts);
+                let vx = convex_volume(&planes);
+                let vi = vx - convex_volume(&[planes, hull_planes(&void_pts)].concat());
+                let what = format!("{side}, from {from} along {r}");
+                let ends = [from, from + r, 0.5];
+                let at: Vec<f64> = [0.05, 0.15, 0.25, 0.35, 0.45, 0.55]
+                    .into_iter()
+                    .filter(|s| ends.iter().all(|e| (e - s).abs() > 0.01))
+                    .collect();
+                let on = six_ops(&what, (&x, &y), (vx, vy, vi), pose, &at);
+                // The union's top holds two rings on the line, each two
+                // edges: from the apex to the partner's stretch, and
+                // from its end to the tip.
+                let want = [(0.0, from), (0.0, from), (from + r, 0.5), (from + r, 0.5)];
+                assert!(
+                    on.len() == 4
+                        && on
+                            .iter()
+                            .zip(want)
+                            .all(|(a, b)| (a.0 - b.0).abs() < 1e-9 && (a.1 - b.1).abs() < 1e-9),
+                    "{what}, {}: the union parts the ring into {want:?}, got {on:?}",
+                    pose.label
+                );
+            }
+        }
     }
 }

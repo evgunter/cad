@@ -3915,8 +3915,10 @@ pub enum BooleanError {
     /// slit or zero-area ring, between stretches of it the result keeps:
     /// the zip glues the slit's two edges into one edge of that face
     /// there, with the slit's edges running on past both its ends, and
-    /// deleting it parts the slit in two, which is not built
-    /// (`slit::close_struts`). A construction gap, with no lever.
+    /// deleting it parts the slit in two, which is built only where the
+    /// edge's two halves lie in one loop of the face and, of the face's
+    /// outline, one side is the slit's run (`slit::part_mid_slit`). A
+    /// construction gap, with no lever.
     SlitFaceClosesMidSlit {
         /// The face, in the result's keys.
         face: FaceKey,
@@ -5241,7 +5243,8 @@ impl core::fmt::Display for BooleanError {
                 "the result keeps face {face:?} on both sides of edge {edge:?}, part of an \
                  operand's slit or zero-area ring whose edges run on past both its ends, so the \
                  face closes across that part and parts the slit in two, which the Boolean does \
-                 not yet build. {}",
+                 not yet build where the edge's halves lie in two loops or the outline it parts \
+                 has no side that is the slit's run. {}",
                 geom_core::NOT_YET_ENDING
             ),
             Self::LineWedges { fault, from, to } => match fault {

@@ -899,11 +899,39 @@ fn fragment_at<T: Decide>(
     p: Point3<T>,
     band: Band,
 ) -> Result<FaceKey, BooleanError> {
+    match fragments_at(body, root, divisions, p, band)? {
+        At::Inside(one) => Ok(one),
+        At::Corners(_) | At::Nowhere => Err(BooleanError::ClassificationInvariant {
+            what: "a fate cut's end lies inside no one piece of its face",
+        }),
+    }
+}
+
+/// Where `p` lies among the faces divided from `root` ([`fragments_at`]).
+enum At {
+    /// Inside this one piece.
+    Inside(FaceKey),
+    /// Inside none, at these vertices of the pieces' loops: a vertex of
+    /// the face's division.
+    Corners(Vec<VertexKey>),
+    /// Inside none and at no vertex, or inside several.
+    Nowhere,
+}
+
+/// Where `p` lies among the faces divided from `root`: inside one, or
+/// at vertices of their loops.
+fn fragments_at<T: Decide>(
+    body: &Body<T>,
+    root: FaceKey,
+    divisions: &FaceDivisions,
+    p: Point3<T>,
+    band: Band,
+) -> Result<At, BooleanError> {
     if let Some(one) = one_piece(body, root, divisions) {
-        return Ok(one);
+        return Ok(At::Inside(one));
     }
     let unplaced = |e| contained(e, "a fate cut's end is not placed in its face");
-    let mut inside = Vec::new();
+    let (mut inside, mut corners) = (Vec::new(), Vec::new());
     for f in pieces(body, root, divisions) {
         let at = match crate::face_normal::face_outward_normal(body, f) {
             Some(normal) => super::contfp(body, f, normal.vec(), p, band).map_err(unplaced)?,
@@ -913,15 +941,51 @@ fn fragment_at<T: Decide>(
                     what: "a fate cut's end lies in a curved face its chart cannot place it in",
                 })?,
         };
-        if at == super::FaceContainment::In {
-            inside.push(f);
+        match at {
+            super::FaceContainment::In => inside.push(f),
+            super::FaceContainment::OnVertex(v) => corners.push(v),
+            super::FaceContainment::Out | super::FaceContainment::OnEdge(_) => {}
         }
     }
-    match inside.as_slice() {
-        [one] => Ok(*one),
-        _ => Err(BooleanError::ClassificationInvariant {
-            what: "a fate cut's end lies inside no one piece of its face",
-        }),
+    Ok(match (inside.as_slice(), corners.is_empty()) {
+        ([one], _) => At::Inside(*one),
+        ([], false) => At::Corners(corners),
+        _ => At::Nowhere,
+    })
+}
+
+/// The face divided from `root` that holds a dropped sector at `p`,
+/// its interior along unit `d`: the piece holding `p` inside it, or,
+/// where `p` is a vertex of the face's division, the piece whose corner
+/// there holds `d` ([`place`]).
+fn fragment_along<T: Decide>(
+    (body, operand): (&Body<T>, Operand),
+    root: FaceKey,
+    divisions: &FaceDivisions,
+    (p, d): (Point3<T>, Vec3<T>),
+    band: Band,
+) -> Result<FaceKey, CutError> {
+    let corners = match fragments_at(body, root, divisions, p, band)? {
+        At::Inside(one) => return Ok(one),
+        At::Corners(corners) => corners,
+        At::Nowhere => {
+            return Err(BooleanError::ClassificationInvariant {
+                what: "a fate cut's end lies inside no one piece of its face",
+            }
+            .into());
+        }
+    };
+    let held = (body, operand);
+    match place(held, (&corners, &[]), root, divisions, Leaving::bisector(d), band)? {
+        Some(Place::Corner(h)) => Ok(face_of_he(body, h)?),
+        Some(Place::Lone(..)) | None => Err(BooleanError::ClassificationInvariant {
+            what: "a dropped sector held at a vertex of its face's division lies in no corner there",
+        }
+        .into()),
+        Some(Place::Along(_)) => Err(BooleanError::ClassificationInvariant {
+            what: "a dropped sector held at a pierce runs along a kept edge",
+        }
+        .into()),
     }
 }
 
@@ -1707,7 +1771,7 @@ pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
                             .and_then(|v| body.get_point(v.point))
                             .copied()
                             .ok_or_else(|| desync("a piercing vertex has no point"))?;
-                        fragment_at(kept_body, root, div_k, p, band)?
+                        fragment_along((kept_body, fc.holder), root, div_k, (p, d), band)?
                     }
                 }
             }

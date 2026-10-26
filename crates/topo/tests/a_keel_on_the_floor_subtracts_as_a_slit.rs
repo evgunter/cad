@@ -1100,9 +1100,13 @@ fn a_flush_partner_crossing_the_slit_intersects_it_in_either_order() {
 /// `(1.5, 2.5)`, less the slab keeps the floor on both sides of that
 /// stretch of the keel and the walls beyond it: the zip glues the floor
 /// to itself there, a strut whose ends both run on into the ring's
-/// edges, and deleting it parts the ring in two, which is not built.
-/// `x − y` refuses `SlitFaceClosesMidSlit`, a construction gap with no
-/// lever (`work/cleave/a-partner-along-part-of-a-slit-refuses-result-invalid.md`).
+/// edges, and the closing deletes it, parting the ring in two
+/// (`slit::part_mid_slit`). Beyond the stretch the floor continues
+/// across the line, a half-turn, and the trench's walls crease the
+/// narrow vee above it, one edge, but the ring's two edges stay there,
+/// floor | wall each, their wedges overlapping: `x − y` refuses
+/// `LineWedges` `Overlap` at the result gate, a construction gap
+/// (`work/cleave/a-difference-whose-partner-ends-inside-a-slit-overlaps-its-wedges.md`).
 #[test]
 fn a_face_closed_across_part_of_the_slit_refuses_typed() {
     let tol = t();
@@ -1129,10 +1133,213 @@ fn a_face_closed_across_part_of_the_slit_refuses_typed() {
         match subtract(&x.body, &y, tol) {
             Err(e) => assert_eq!(
                 e.kind(),
-                topo::BooleanErrorKind::SlitFaceClosesMidSlit,
+                topo::BooleanErrorKind::LineWedges,
                 "{what}: x − y: {e:?}"
             ),
             Ok(_) => panic!("{what}: x − y builds, where it refuses typed"),
+        }
+    }
+}
+
+/// **A flush partner over two lumps touching along an edge builds with
+/// the lumps second.** The box `[0, 1]³` ∪ a second lump touching it
+/// along the edge `x = 1, z = 1`: the box `[1, 2] × [0, 1] × [1, 2]`
+/// (an S, opposite faces across the line) or the wedge over the `(x, z)`
+/// triangle `(1, 1), (2, 1), (2, 2)` (above it, its bottom coplanar with
+/// the box's top). The partner `[−0.5, 2.5] × [−0.5, 1.5]` over
+/// `[1, 1.5]` or `[0.5, 1]` lies flush with a face of each lump on the
+/// line's plane. Where the op keeps the partner's face over one lump,
+/// the dropped copy's corner at the lumps' shared point is held by the
+/// piece of the face whose corner there holds its direction: the point
+/// is a vertex of that face's division (`fate::fragment_along`).
+///
+/// Every op but `x ∪ y` builds as the closed form says, tier 3 and 3′,
+/// with one edge along the line (each result's material about it is one
+/// creased sector); `x ∪ y` refuses `PinchRaysInAFace`, a construction
+/// gap (`work/cleave/two-lumps-touching-along-an-edge-refuse-pinch-rays-against-a-flush-partner.md`).
+#[test]
+fn a_flush_partner_over_two_lumps_touching_along_an_edge_builds() {
+    use common::meeting::posed_box;
+    let tol = t();
+    let poses = poses();
+    for pose in [&poses[0], &poses[2]] {
+        let cube = posed_box("the box", [(0.0, 1.0), (0.0, 1.0), (0.0, 1.0)], pose, tol);
+        // Each second lump's `(z, x)` profile, counterclockwise, and its
+        // volume above `z = 1` up to 1.5.
+        for (lump, profile, whole, upto) in [
+            (
+                "the S",
+                &[(2.0, 1.0), (2.0, 2.0), (1.0, 2.0), (1.0, 1.0)][..],
+                1.0,
+                0.5,
+            ),
+            (
+                "the wedge above",
+                &[(2.0, 2.0), (1.0, 2.0), (1.0, 1.0)][..],
+                0.5,
+                0.5 - 0.125,
+            ),
+        ] {
+            let second = prism(pose, lump, profile, (0.0, 1.0), &|z, x, y| [x, y, z]);
+            let Ok(BooleanResult::Body(x)) = topo::union(&cube, &second, tol) else {
+                panic!("{}: the box and {lump}", pose.label);
+            };
+            let x = x.body;
+            for (side, z, vi) in [("above", (1.0, 1.5), upto), ("below", (0.5, 1.0), 0.5)] {
+                let what = format!("{lump}, the partner {side}, {}", pose.label);
+                let y = posed_box("the partner", [(-0.5, 2.5), (-0.5, 1.5), z], pose, tol);
+                let (vx, vy) = (1.0 + whole, 3.0);
+                for (op, r, want) in [
+                    ("x − y", subtract(&x, &y, tol), vx - vi),
+                    ("y − x", subtract(&y, &x, tol), vy - vi),
+                    ("x ∩ y", intersect(&x, &y, tol), vi),
+                    ("y ∩ x", intersect(&y, &x, tol), vi),
+                    ("y ∪ x", topo::union(&y, &x, tol), vx + vy - vi),
+                ] {
+                    let what = format!("{what}: {op}");
+                    let Ok(BooleanResult::Body(r)) = r else {
+                        panic!("{what}: builds, got {:?}", r.map(|_| ()));
+                    };
+                    assert_eq!(validate_geometric(&r.body, tol), Ok(()), "{what}: tier 3");
+                    assert_eq!(
+                        validate_pseudomanifold(&r.body, &r.contacts, tol),
+                        Ok(()),
+                        "{what}: tier 3′"
+                    );
+                    let v = topo::mass_properties(&r.body, tol).unwrap().volume;
+                    assert!(
+                        (v - want).abs() < 1e-9,
+                        "{what}: volume {v}, closed form {want}"
+                    );
+                    let line = [[1.0, 0.0, 1.0], [1.0, 1.0, 1.0]].map(|p| pose.at(p));
+                    let along: Vec<EdgeKey> = r
+                        .body
+                        .edges()
+                        .map(|(e, _)| e)
+                        .filter(|&e| {
+                            let [a, b] = ends_of(&r.body, e).map(|k| *r.body.get_point(k).unwrap());
+                            [a, b].iter().all(|p| {
+                                let s = (*p - line[0]).dot(line[1] - line[0]);
+                                (line[0] + (line[1] - line[0]) * s - *p).norm() < 1e-9
+                                    && (-1e-9..=1.0 + 1e-9).contains(&s)
+                            })
+                        })
+                        .collect();
+                    assert_eq!(
+                        along.len(),
+                        1,
+                        "{what}: one edge along the lumps' line, its one creased sector"
+                    );
+                }
+                match topo::union(&x, &y, tol) {
+                    Err(e) => assert_eq!(
+                        e.kind(),
+                        topo::BooleanErrorKind::PinchRaysInAFace,
+                        "{what}: x ∪ y: {e:?}"
+                    ),
+                    Ok(_) => panic!("{what}: x ∪ y builds: pin it"),
+                }
+            }
+        }
+    }
+}
+
+/// **A partner along part of the keel unites with the slit in either
+/// order.** The slit form closed at both ends or open at one, from
+/// either origin, ∪ a wide vee standing on the floor along part of the
+/// keel, `(1.7, 2.3)` or `(2.2, 3.4)`: the vee fills the trench about its
+/// stretch, so the union keeps the floor on both sides of the keel
+/// there and the zip leaves the stretch an edge of the floor on both
+/// sides, between stretches of the keel the union keeps. The closing
+/// deletes it, parting the keel's ring or slit (`slit::part_mid_slit`):
+/// no edge lies on the keel inside the vee's stretch, and the keel's two
+/// edges lie beside it. Both orders build alike, tier 3 and 3′, and
+/// `|x ∪ y| + |x ∩ y| = |x| + |y|`
+/// (`work/cleave/a-partner-along-part-of-a-slit-refuses-result-invalid.md`).
+#[test]
+fn a_partner_along_part_of_the_keel_unites_with_the_slit_in_either_order() {
+    let tol = t();
+    let poses = poses();
+    let volume = |b: &AtRestBody<f64>| topo::mass_properties(b, tol).unwrap().volume;
+    for pose in [&poses[0], &poses[2]] {
+        for (row, stretch, beside) in [
+            (&ROWS[0], (1.7, 2.3), 1.6),
+            (&ROWS[0], (2.2, 3.4), 1.8),
+            (&ROWS[1], (1.7, 2.3), 2.8),
+            (&ROWS[1], (2.2, 3.4), 3.7),
+        ] {
+            let vee = prism(
+                pose,
+                "the wide vee",
+                &[(2.0, 0.0), (2.9, 2.0), (1.1, 2.0)],
+                stretch,
+                &|y, z, x| [x, y, z],
+            );
+            let inside = (stretch.0 + stretch.1.min(row.span.1)) / 2.0;
+            for (origin, y) in slit_operands(row, pose) {
+                let what = format!(
+                    "{}, {origin}, the vee {stretch:?}, {}",
+                    row.what, pose.label
+                );
+                let mut unions = Vec::new();
+                for (op, r) in [
+                    ("x ∪ y", topo::union(&vee, &y, tol)),
+                    ("y ∪ x", topo::union(&y, &vee, tol)),
+                ] {
+                    let what = format!("{what}: {op}");
+                    let Ok(BooleanResult::Body(r)) = r else {
+                        panic!("{what}: builds, got {:?}", r.map(|_| ()));
+                    };
+                    assert_eq!(validate_geometric(&r.body, tol), Ok(()), "{what}: tier 3");
+                    assert_eq!(
+                        validate_pseudomanifold(&r.body, &r.contacts, tol),
+                        Ok(()),
+                        "{what}: tier 3′"
+                    );
+                    let on_keel = |s: f64| {
+                        r.body
+                            .edges()
+                            .filter(|&(e, _)| {
+                                let [a, b] =
+                                    ends_of(&r.body, e).map(|k| *r.body.get_point(k).unwrap());
+                                let o = pose.at([0.0, 2.0, 0.0]);
+                                let d = pose.at([1.0, 2.0, 0.0]) - o;
+                                let along = |p: geom_core::Point3<f64>| {
+                                    let t = (p - o).dot(d);
+                                    ((o + d * t - p).norm() < 1e-9).then_some(t)
+                                };
+                                matches!(
+                                    (along(a), along(b)),
+                                    (Some(ta), Some(tb)) if ta.min(tb) < s && s < ta.max(tb)
+                                )
+                            })
+                            .count()
+                    };
+                    assert_eq!(
+                        on_keel(inside),
+                        0,
+                        "{what}: no edge on the keel at {inside}"
+                    );
+                    assert_eq!(
+                        on_keel(beside),
+                        2,
+                        "{what}: the keel's two edges at {beside}"
+                    );
+                    unions.push(volume(&r.body));
+                }
+                let i = match intersect(&vee, &y, tol) {
+                    Ok(BooleanResult::Body(r)) => volume(&r.body),
+                    other => panic!("{what}: x ∩ y: {:?}", other.map(|_| ())),
+                };
+                assert!(
+                    (unions[0] - unions[1]).abs() < 1e-9,
+                    "{what}: |x ∪ y| {unions:?} in the two orders"
+                );
+                assert!(
+                    (unions[0] + i - volume(&vee) - volume(&y)).abs() < 1e-9,
+                    "{what}: |x ∪ y| + |x ∩ y| = |x| + |y|"
+                );
+            }
         }
     }
 }

@@ -500,6 +500,30 @@ pub(super) fn plan_null_pairs<T: Decide>(
             )
         })
         .collect::<Result<Vec<_>, BooleanError>>()?;
+    // A germ along an edge of one solid lies, in the other's walk,
+    // beside that edge where its flanker flush with the walk's sector
+    // lies ([`beside_order`]).
+    let beside = |on_edge: fn(&(super::Locus, super::Locus)) -> bool,
+                  sectors: &[BoolSector<T>],
+                  read: fn(&PairRecord) -> (usize, (SideCode, SideCode))| {
+        raw.iter()
+            .zip(&loci)
+            .map(|(w, l)| {
+                let (k, codes) = read(w);
+                on_edge(l).then(|| flankers_of(sectors, k, codes)).flatten()
+            })
+            .collect::<Vec<_>>()
+    };
+    let a_beside = beside(
+        |l| matches!(l.1, super::Locus::OnEdge(_)),
+        b_sectors,
+        |r| (r.b, r.sb),
+    );
+    let b_beside = beside(
+        |l| matches!(l.0, super::Locus::OnEdge(_)),
+        a_sectors,
+        |r| (r.a, r.sa),
+    );
     // Each solid's walk order of the survivors ([`walk_order`]). Two
     // survivors pair with each other and run either way round, so only
     // more need one.
@@ -508,8 +532,8 @@ pub(super) fn plan_null_pairs<T: Decide>(
         let entries =
             |side: fn(&PairRecord) -> usize| survivors.iter().map(side).collect::<Vec<_>>();
         (
-            walk_order(a_sectors, &entries(|r| r.a), &dirs, band)?,
-            walk_order(b_sectors, &entries(|r| r.b), &dirs, band)?,
+            walk_order(a_sectors, &entries(|r| r.a), &dirs, &a_beside, band)?,
+            walk_order(b_sectors, &entries(|r| r.b), &dirs, &b_beside, band)?,
         )
     } else {
         ((0..n).collect(), (0..n).collect())
@@ -575,16 +599,16 @@ pub(super) fn plan_null_pairs<T: Decide>(
                 a_sectors,
                 a_body,
                 a_run,
-                (r0.a, r0.sa, g0_faces, dirs[i0], branches[i0]),
-                (r1.a, r1.sa, g1_faces, dirs[i1], branches[i1]),
+                (r0.a, r0.sa, g0_faces, dirs[i0], branches[i0], a_beside[i0]),
+                (r1.a, r1.sa, g1_faces, dirs[i1], branches[i1], a_beside[i1]),
                 &a_pos,
             )?,
             side(
                 b_sectors,
                 b_body,
                 b_run,
-                (r0.b, r0.sb, g0_faces, dirs[i0], branches[i0]),
-                (r1.b, r1.sb, g1_faces, dirs[i1], branches[i1]),
+                (r0.b, r0.sb, g0_faces, dirs[i0], branches[i0], b_beside[i0]),
+                (r1.b, r1.sb, g1_faces, dirs[i1], branches[i1], b_beside[i1]),
                 &b_pos,
             )?,
         ]);
@@ -748,22 +772,34 @@ fn arc_holders(n: usize, arcs: &[[usize; 2]]) -> Result<Vec<Option<usize>>, ArcR
 
 /// The survivors' walk order round one solid's orbit ([`walks_before`])
 /// at their sector `entries` and directions `dirs`: the order's ranks,
-/// the walk positions [`arc_holders`] reads. Nothing orders two germs
-/// along one direction in one entry, so they refuse.
+/// the walk positions [`arc_holders`] reads. Two germs along one
+/// direction in one entry, each along an edge of the other solid, are
+/// ordered by the sides `beside` puts them on ([`beside_order`]); any
+/// other two refuse.
 fn walk_order<T: Decide>(
     sectors: &[BoolSector<T>],
     entries: &[usize],
     dirs: &[Vec3<T>],
+    beside: &[Option<[Vec3<T>; 2]>],
     band: Band,
 ) -> Result<Vec<usize>, BooleanError> {
     let mut order: Vec<usize> = Vec::with_capacity(entries.len());
     for i in 0..entries.len() {
         let mut at = order.len();
         for (p, &j) in order.iter().enumerate() {
-            let before = walks_before(sectors, (entries[i], dirs[i]), (entries[j], dirs[j]), band)?
+            let before =
+                match walks_before(sectors, (entries[i], dirs[i]), (entries[j], dirs[j]), band)? {
+                    Some(before) => Some(before),
+                    None => match (beside[i], beside[j]) {
+                        (Some(bi), Some(bj)) => {
+                            beside_order(&sectors[entries[i]], dirs[i], (bi, bj), band)?
+                        }
+                        _ => None,
+                    },
+                }
                 .ok_or(BooleanError::ClassificationInvariant {
                     what: "two crossing germs of a vertex pair lie along one direction in one \
-                           sector entry",
+                       sector entry",
                 })?;
             if before {
                 at = p;
@@ -1360,7 +1396,11 @@ fn leads<T: Decide>(
     if !is_strut(secs, from.0, to.0)? {
         return Ok(true);
     }
-    walks_before(secs, from, to, band)?.ok_or(BooleanError::ClassificationInvariant {
+    match walks_before(secs, from, to, band)? {
+        Some(first) => Some(first),
+        None => tied_order(secs, &run.from, &run.to, band)?,
+    }
+    .ok_or(BooleanError::ClassificationInvariant {
         what: "a dangling null edge whose two germs lie along one direction",
     })
 }
@@ -1522,6 +1562,78 @@ fn arc_holds<P: Copy, E>(
     Ok([inside(inner[0])?, inside(inner[1])?])
 }
 
+/// **Whether a germ along `d` beside `bj` lies after one beside `bi`**,
+/// walking the convex sector `s` forward ([`walks_after`]): two germs
+/// along one direction in one entry, each along one of the other
+/// solid's two coincident edges there (a slit's or ring's), lie on the
+/// sides of that line where the other solid's faces flush with `s`
+/// border those edges. Each germ's side is the one of its edge's two
+/// flankers ([`flankers_of`]) that lies in `s`'s plane, read at second
+/// order: `d + δ oi` against `d + δ oj`. `None` where a germ's edge has
+/// no one flanker in that plane, or the two sides read alike.
+fn beside_order<T: Decide>(
+    s: &BoolSector<T>,
+    d: Vec3<T>,
+    (bi, bj): ([Vec3<T>; 2], [Vec3<T>; 2]),
+    band: Band,
+) -> Result<Option<bool>, BooleanError> {
+    let n = s.normal.vec();
+    let read = |x: T| {
+        crate::validate::decide("bool_shared_cut_order", Margin::levered(x, s.arm), band).map_err(
+            |diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag),
+        )
+    };
+    let flush = |b: [Vec3<T>; 2]| -> Result<Option<Vec3<T>>, BooleanError> {
+        Ok(match [read(n.dot(b[0]))?, read(n.dot(b[1]))?] {
+            [Sign::Zero, Sign::Positive | Sign::Negative] => Some(b[0]),
+            [Sign::Positive | Sign::Negative, Sign::Zero] => Some(b[1]),
+            _ => None,
+        })
+    };
+    let (Some(oi), Some(oj)) = (flush(bi)?, flush(bj)?) else {
+        return Ok(None);
+    };
+    Ok(match read(d.cross(oj - oi).dot(n))? {
+        Sign::Negative => Some(true),
+        Sign::Positive => Some(false),
+        Sign::Zero => None,
+    })
+}
+
+/// The far bounds of the two sectors flanking the bound of entry `i`
+/// that `read` reads On, unit: the faces either side of the edge a germ
+/// read there runs along ([`beside_order`]). `None` where neither bound
+/// reads On.
+fn flankers_of<T: Decide>(
+    sectors: &[BoolSector<T>],
+    i: usize,
+    read: (SideCode, SideCode),
+) -> Option<[Vec3<T>; 2]> {
+    let n = sectors.len();
+    let s = &sectors[i];
+    match read {
+        (SideCode::On, _) => Some([s.end, sectors[(i + 1) % n].start]),
+        (_, SideCode::On) => Some([s.start, sectors[(i + n - 1) % n].end]),
+        _ => None,
+    }
+    .map(|b| b.map(Vec3::normalize))
+}
+
+/// Whether germ `g` walks before germ `h` where both lie along one
+/// direction in one entry, each beside an edge of the other solid
+/// ([`beside_order`]); `None` for any other two.
+fn tied_order<T: Decide>(
+    sectors: &[BoolSector<T>],
+    g: &Germ<T>,
+    h: &Germ<T>,
+    band: Band,
+) -> Result<Option<bool>, BooleanError> {
+    match (g.5, h.5) {
+        (Some(bg), Some(bh)) if g.0 == h.0 => beside_order(&sectors[g.0], g.3, (bg, bh), band),
+        _ => Ok(None),
+    }
+}
+
 /// Whether `y` lies after `x` walking the convex sector `s` forward,
 /// from its end bound toward its start (`None`: the two lie along one
 /// direction). The rotation from start to end is positive about the
@@ -1547,8 +1659,16 @@ fn walks_after<T: Decide>(
 }
 
 /// A germ in one solid: its sector entry, its codes there, its cells,
-/// its direction and its branch.
-type Germ<T> = (usize, (SideCode, SideCode), Cells, Vec3<T>, super::Branch);
+/// its direction, its branch, and, where it runs along an edge of the
+/// other solid, that edge's flankers ([`flankers_of`]).
+type Germ<T> = (
+    usize,
+    (SideCode, SideCode),
+    Cells,
+    Vec3<T>,
+    super::Branch,
+    Option<[Vec3<T>; 2]>,
+);
 
 /// A germ's `(A face, B face)` and `(A locus, B locus)`.
 pub(super) type Cells = ((FaceKey, FaceKey), (super::Locus, super::Locus));
@@ -1667,18 +1787,20 @@ fn mint_directed<T: Decide>(
             body.proven_orbit_step(arrival_he)
         };
         let departure = proven(&body.half_edges, departure_he, EntityId::HalfEdge).edge;
+        let tied = tied_order(sectors, &gf, &gt, band)?;
         let facing = strut_faces_first(
             body,
             (operand, sectors),
             (arrival, departure),
             (gf.0, gf.2, gf.3),
             (gt.0, gt.2, gt.3),
+            tied,
             band,
         )?;
         // At a closed edge's lone vertex the walk orders the germs.
         Some(match facing {
             Some(first) => first,
-            None => walk_faces_first(body, sectors, (gf.0, gf.3), (gt.0, gt.3), band)?,
+            None => walk_faces_first(body, sectors, (gf.0, gf.3), (gt.0, gt.3), tied, band)?,
         })
     } else {
         None
@@ -2008,6 +2130,7 @@ pub(super) fn strut_faces_first<T: Decide>(
     (arrival, departure): (EdgeKey, EdgeKey),
     first: (usize, Cells, Vec3<T>),
     second: (usize, Cells, Vec3<T>),
+    tied: Option<bool>,
     band: Band,
 ) -> Result<Option<bool>, BooleanError> {
     match strut_facing(
@@ -2024,6 +2147,7 @@ pub(super) fn strut_faces_first<T: Decide>(
             sectors,
             (first.0, first.2),
             (second.0, second.2),
+            tied,
             band,
         )
         .map(Some),
@@ -2044,12 +2168,18 @@ fn walk_faces_first<T: Decide>(
     sectors: &[BoolSector<T>],
     first: Cut<T>,
     second: Cut<T>,
+    tied: Option<bool>,
     band: Band,
 ) -> Result<bool, BooleanError> {
     if first.0 != second.0 {
         return Ok(walks_before(sectors, first, second, band)? == Some(true));
     }
     let s = &sectors[first.0];
+    if let Some(tied) = tied
+        && walks_after(s, first.1, second.1, band)?.is_none()
+    {
+        return Ok(tied);
+    }
     strut_order(
         anchor_dir(body, s.he),
         s.normal.vec(),
@@ -2770,11 +2900,11 @@ mod tests {
             "outside, wrapped"
         );
         assert_eq!(
-            walk_order(&secs, &[3, 0, 0], &[x, x, y], band).unwrap(),
+            walk_order(&secs, &[3, 0, 0], &[x, x, y], &[None; 3], band).unwrap(),
             vec![2, 1, 0]
         );
         assert!(matches!(
-            walk_order(&secs, &[2, 2], &[x, x], band),
+            walk_order(&secs, &[2, 2], &[x, x], &[None; 2], band),
             Err(BooleanError::ClassificationInvariant { .. })
         ));
         let mut twin_first = secs.clone();
