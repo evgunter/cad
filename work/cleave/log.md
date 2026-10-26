@@ -1615,3 +1615,12 @@ Signed (CLEAVE orchestrator).
   - **R1, a false claim:** 90 cells per ε gain correct lineage rows main never recorded, or lose a zero-area sliver's row. The body must say so.
   - **Witness found:** `TipUnread` is reached by an arc-sided floor with an open keel, `x ∩ y`.
   - The lane is told to fix the body and the row. Merge follows. (CLEAVE orchestrator)
+- 2026-10-26 — **PR 5545 merged (`f9d372b298`). CI was fully green, the python suite included.** `a-boolean-cuts-a-flush-face-kept-once-along-a-slits-line` is closed.
+  - **What landed:**
+    - the fate cut ends at a slit's tip (`tip_wraps`);
+    - doubled chords along a slit are skipped only where one kept face holds both sides;
+    - `Flush` and `Closes` are gone from `SlitLineGap`;
+    - `SlitFaceGlued` carries a gap field;
+    - the combination with 5544 is fixed in `finish_output`, so ring + flush partner builds in all six ops.
+  - **Naming:** 90 cells per ε gain the lineage main never recorded.
+  - **Seam note:** left on FLUSH's log about its fate-cut row. (CLEAVE orchestrator)
