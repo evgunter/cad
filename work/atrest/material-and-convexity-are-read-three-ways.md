@@ -2,7 +2,9 @@
 id: material-and-convexity-are-read-three-ways
 kind: issue
 title: A cell's material and an edge's convexity are read three ways with three levers
-status: open
+status: closed
+closed: 2026-10-26
+branch: atrest/topo-link-one-material-reader
 priority: P1
 cost: H
 opened: 2026-10-26
@@ -49,3 +51,16 @@ Designers A and B were dispatched concurrently with one brief; the record is on 
 **The over-refusal to pin while building:** `Link::reads` refuses a point in band of a sector's plane even where the point lies decidedly outside that sector. Add a row, and sharpen it only if a `Gap` row needs it.
 
 Build order: unit 1–2–4 as one PR (this row, cost H); then the curved arm; blend and the boolean on their owners' slates.
+
+## Closed
+
+Items 1, 2 and 4 of the decision, as one PR on `atrest/topo-link-one-material-reader`. Item 3 holds: the face arms are unchanged.
+
+- **`topo::link`** (`crates/topo/src/link.rs`) holds the census's `Link`, `Sector`, `face_piece`, the `metric` door, `rest::judge` and `TouchUnread`, moved without a change of arithmetic. The census keeps its snapshot builders (`Link::touch_at_point`, `touch_on_edge`, `touch_in_face`) and gathers each face for the shared `Sector::of_face`. The census rows and the `perf12_census_*` goldens are unchanged at ε 1e-6, 1e-9 and 1e-12.
+- **Builders off a live body**: `Link::at_point`, `Link::on_edge` and `Link::in_face`.
+- **`Link::offset`** is a point's signed distance from the cone's boundary, negative where `Link::reads` says In. It refuses `InBand` only where the parity reading is in band and the point stands off every sector. **`Link::lowest_on`** is its lowest along a segment, over a closed candidate set (`link::tests`).
+- **`Gap`'s vertex and edge arms** read the link: an edge reads a vertex in either seat, and of two edges or two vertices the outer reads the inner. `Wedge`, `Corner`, `CornerOf`, `WedgeOf`, `Turn`, `Fold`, `gap_edge_convexity`, `gap_wedge_crossing` and the saddle and near-flat-edge refusals are gone.
+- **The doors row** is `link::tests::the_link_decides_only_through_its_doors`. It reads the whole module and the census's touch section.
+- **C5's cell sentence** (`crates/topo/README.md`) reads the reading cell's link.
+
+The over-refusal the decision asked to pin is `link::tests::reads_refuses_a_point_in_band_of_a_plane_outside_its_sector`. It costs `Gap`'s Interval lane three edge-pair readings at exact contact, filed as `link-reads-refuses-a-point-in-a-planes-sliver-outside-its-sector`. `gap-reads-a-cells-carrier-beyond-the-cell` is narrowed to the face arms. `gap-reads-no-curved-cell-below-a-face` is un-parked with the curved arm left on it. Items 5 and 6 stay on `at-rest-opposed-decides-a-unitless-dot-as-a-length` and `gap-reads-no-curved-cell-below-a-face`. The blend and boolean rows are on BAND's and CLEAVE's slates.
