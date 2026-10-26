@@ -2,10 +2,11 @@
 id: one-segment-tangent-rims-refuse-where-their-two-arc-forms-build
 kind: issue
 title: A boss over a hole whose rims are tangent refuses in its one-segment form where the two-arc form builds
-status: open
+status: dispatched
 opened: 2026-10-26
 priority: P1
 cost: H
+branch: cleave/one-segment-tangent-rims
 ---
 
 
