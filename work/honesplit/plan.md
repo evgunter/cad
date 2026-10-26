@@ -24,7 +24,7 @@ and take both orientations of a configuration they take one of.
 
 ## The slate
 
-**27.5 budget points** of dispatchable work against a ceiling of 30.
+**30 budget points** of dispatchable work against a ceiling of 30.
 
 | pri | item | cost | title |
 |---|---|---|---|
@@ -40,7 +40,7 @@ and take both orientations of a configuration they take one of.
 
 ### Arrived from CLEAVE (2026-10-26)
 
-Moved by CLEAVE's priority-seam cut, ids and bodies unchanged, each with a dated `## Slate triage` note (9.5 points of the total above):
+Moved by CLEAVE's priority-seam cut, ids and bodies unchanged, each with a dated `## Slate triage` note (12 points of the total above):
 
 | pri | item | cost | title |
 |---|---|---|---|
@@ -49,6 +49,7 @@ Moved by CLEAVE's priority-seam cut, ids and bodies unchanged, each with a dated
 | P3 | `split-carrier-gate-rows-read-the-gate-past-the-door` | M | The split's carrier-gate rows whose fixture is not a finished body read the gate past the door: no finished fixture reaches the torus, spline, approx or spline-edge arm |
 | P3 | `split-result-gates-have-no-row-past-the-finished-operand` | E | No row reaches the split's ResultInvalid gate past the finished-operand gate, and Pieces is witnessed only at a dual |
 | P3 | `the-split-keeps-an-in-plane-edge-it-doubles-at-a-dead-key` | M | The split's lineage states an in-plane edge it turns into two coincident edges as kept under its own key, which neither side holds |
+| P3 | `the-uncut-shell-witness-reads-no-curved-face-interior` | M | The uncut-shell witness reads no curved face's interior, so a shell whose vertices and edges all lie on the other boundary and whose other faces are curved refuses ShellWitnessExhausted |
 
 ## Exit criteria
 

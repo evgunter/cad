@@ -25,7 +25,7 @@ as a kernel defect.
 
 ## The slate
 
-**27 budget points** of dispatchable work against a ceiling of 30.
+**29.5 budget points** of dispatchable work against a ceiling of 30.
 
 | pri | item | cost | title |
 |---|---|---|---|
@@ -40,10 +40,11 @@ as a kernel defect.
 
 ### Arrived from CLEAVE (2026-10-26)
 
-Moved by CLEAVE's priority-seam cut, ids and bodies unchanged, each with a dated `## Slate triage` note (8.5 points of the total above):
+Moved by CLEAVE's priority-seam cut, ids and bodies unchanged, each with a dated `## Slate triage` note (11 points of the total above):
 
 | pri | item | cost | title |
 |---|---|---|---|
+| P1 | `the-edge-plane-lane-copies-no-ellipse-edge` | M | The edge-plane lane copies no ellipse edge: a germ along an ellipse rim inside a curved face refuses as a section invariant |
 | P2 | `a-joined-section-arc-runs-its-kept-carrier-without-re-seaming` | M | An edge join runs the kept section carrier over the removed edge's span without re-seaming, so a long joined arc can sit back near its carrier's ±π/2 |
 | P3 | `a-torus-meridian-circle-is-a-stood-in-section-read-on-its-own-plane` | M | A torus's meridian circles stand in for a plane read through the axis, but a chord on one carries the plane's own reading (OnPlane) |
 | P3 | `join-census-blind-spots` | E | The join's source censuses and its pre-surgery reads have blind spots no pin covers |

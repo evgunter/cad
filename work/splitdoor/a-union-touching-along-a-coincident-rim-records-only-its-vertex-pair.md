@@ -33,3 +33,7 @@ as touching), so the pair is a touch, and the edges that run along it
 from the vertex are never recorded as coincident. `boolean/ops.rs`
 `BooleanBody` does not run the census, so the body ships without the
 record.
+
+## Slate triage (2026-10-26, CLEAVE)
+
+- Moved to SPLITDOOR (`work/splitdoor/`) by `git mv`, id and body unchanged: the P1 track opened for split and boolean shapes that refuse, or ship a side their own gate fails, where a uniform reading would build: the split door's tier-3′ bar, tangent and pinch poses, and the curved-carrier lanes that read lines and circles only. Band P2 as CLEAVE ruled it on 2026-10-26 (PR 5687's claims review); it is a shipped body its own tier-3′ gate fails, beside SPLITDOOR's slit records. CLEAVE measured 270.5 budget points against 30 and split on its priority seam (Ev, in chat, 2026-10-26).

@@ -50,3 +50,7 @@ the union builds.
 What tells the two apart is whether the short arcs on both sides lie on
 each other, so that the coincident run carries the section to the far
 vertex pair. The refusal would have to read that run, not the pair alone.
+
+## Slate triage (2026-10-26, CLEAVE)
+
+- Moved to SPLITDOOR (`work/splitdoor/`) by `git mv`, id and body unchanged: the P1 track opened for split and boolean shapes that refuse, or ship a side their own gate fails, where a uniform reading would build: the split door's tier-3′ bar, tangent and pinch poses, and the curved-carrier lanes that read lines and circles only. Band P1 as filed. CLEAVE keeps its siblings from PR 5687 (`a-union-across-a-tangent-crescent-refuses-unbuilt`, `one-segment-tangent-rims-refuse-where-their-two-arc-forms-build`); whoever takes one reads the others. CLEAVE measured 270.5 budget points against 30 and split on its priority seam (Ev, in chat, 2026-10-26).

@@ -66,4 +66,4 @@ loop guard is the next door.
 ## Slate triage (2026-10-26, CLEAVE)
 
 - Re-banded P2 → P1: the edge-plane lane copies a circle and not an ellipse, so crossing equal rods refuse: verb breadth beyond the everyday shapes (a split or boolean that refuses, or ships a body its own gate fails, on a legal input), P1 by `work/README.md` Priority.
-- Moved to SPLITDOOR (`work/splitdoor/`) by `git mv`, id and body unchanged: the P1 track opened for split and boolean shapes that refuse, or ship a side their own gate fails, where a uniform reading would build: the split door's tier-3′ bar, tangent and pinch poses, and the curved-carrier lanes that read lines and circles only. CLEAVE measured 270.5 budget points against 30 and split on its priority seam (Ev, in chat, 2026-10-26).
+- Moved to HONEJOIN (`work/honejoin/`) by `git mv`, id and body unchanged: whose charter is the curved and chord join's residue. The join's edge-plane lane admits an ellipse edge its copy then refuses as a broken invariant: an arm its gate admits and a refusal it misfiles. CLEAVE measured 270.5 budget points against 30 and split on its priority seam (Ev, in chat, 2026-10-26).
