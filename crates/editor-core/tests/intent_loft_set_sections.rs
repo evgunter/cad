@@ -7,8 +7,8 @@
 
 use crate::fixture::{self, insert, len};
 use editor_core::{
-    Axis3, DocEdit, EditError, EvalOptions, Formula, LoftSection, Node, NodeResult, Operand,
-    ProfileDoc, RecipeNodeId, StationMove, ValuePayload,
+    Axis3, DocEdit, EditError, EvalOptions, Formula, LoftFault, LoftSection, Node, NodeResult,
+    Operand, ProfileDoc, RecipeNodeId, SlotId, StationMove, ValuePayload,
 };
 use geom_core::Tol;
 
@@ -205,8 +205,8 @@ fn set_loft_sections_refuses_a_non_loft() {
 }
 
 /// **A section read that is not a profile refuses** as the insert door
-/// refuses it, and the document is untouched. Broken by a door that
-/// writes the read without asking its kind.
+/// refuses it. Broken by a door that writes the read without asking its
+/// kind.
 #[test]
 fn set_loft_sections_refuses_a_non_profile_section() {
     let (doc, [a, b, _], loft) = two_section_loft();
@@ -219,7 +219,150 @@ fn set_loft_sections_refuses_a_non_profile_section() {
     );
     let err = set(&doc, loft, a, vec![up(block, 1.0)]).expect_err("a body is not a profile");
     assert!(matches!(err, EditError::SlotVarKind { .. }), "{err:?}");
-    assert_eq!(doc.upstream(loft), vec![a, b], "the loft as it was");
+}
+
+/// **A station move of the wrong dimension refuses** at the slot it
+/// fills: a spin by a length. Broken by a door that lowers the station
+/// without asking D6's slot rule.
+#[test]
+fn set_loft_sections_refuses_a_station_of_the_wrong_dimension() {
+    let (doc, [a, b, _], loft) = two_section_loft();
+    let spun_by_a_length = LoftSection {
+        profile: b.into(),
+        station: vec![
+            StationMove::Slide {
+                along: Axis3::Z,
+                by: len(1.0),
+            },
+            StationMove::Spin {
+                about: Axis3::Z,
+                by: len(1.0),
+            },
+        ],
+    };
+    let err = set(&doc, loft, a, vec![spun_by_a_length]).expect_err("a spin is an angle");
+    assert!(
+        matches!(
+            err,
+            EditError::SlotDimensionMismatch {
+                slot: SlotId::StationSpin {
+                    section: 1,
+                    step: 1
+                },
+                ..
+            }
+        ),
+        "{err:?}"
+    );
+}
+
+/// The sections after a loft's first, as an edit writes them.
+type Sections = Vec<LoftSection<Operand, Formula>>;
+
+/// The loft `then` and `degree` make over `a`, as `InsertNode` writes
+/// it.
+fn lofted(
+    a: RecipeNodeId,
+    then: Vec<LoftSection<Operand, Formula>>,
+    degree: i64,
+) -> editor_core::AuthoredNode {
+    Node::Loft {
+        first: a.into(),
+        then,
+        v_degree: Formula::count(degree),
+    }
+}
+
+/// `err` is `LoftShape` of `loft` with `fault`.
+fn assert_shape(err: &EditError, fault: &LoftFault, what: &str) {
+    assert!(
+        matches!(err, EditError::LoftShape { fault: f, .. } if f == fault),
+        "{what}: {err:?}"
+    );
+}
+
+/// **A shape no evaluation can loft refuses at both doors alike**: one
+/// section, a section with an empty station (it stands in the first
+/// section's plane), and a degree the sections cannot carry, each
+/// through `InsertNode` and through `SetLoftSections`. Broken by a
+/// shape check that one door asks and the other does not, or that
+/// either leaves to evaluation.
+#[test]
+fn a_loft_shape_no_evaluation_lofts_refuses_at_both_doors() {
+    let (doc, [a, b, c], loft) = two_section_loft();
+    let empty = || LoftSection {
+        profile: b.into(),
+        station: Vec::new(),
+    };
+    let rows: [(Sections, i64, LoftFault, &str); 3] = [
+        (
+            Vec::new(),
+            1,
+            LoftFault::TooFewSections { have: 1 },
+            "one section",
+        ),
+        (
+            vec![up(b, 1.0), empty()],
+            1,
+            LoftFault::EmptyStation { section: 2 },
+            "an empty station",
+        ),
+        (
+            vec![up(c, 2.0)],
+            2,
+            LoftFault::DegreeOutOfRange {
+                degree: 2,
+                sections: 2,
+            },
+            "degree 2 through two sections",
+        ),
+    ];
+    for (then, degree, fault, what) in rows {
+        let inserted = fixture::insert_refused(&doc, lofted(a, then.clone(), degree));
+        assert_shape(&inserted, &fault, &format!("insert, {what}"));
+        // The degree is the loft's own, kept by the edit: a degree-2
+        // loft through three sections dropped to two.
+        let (base, target) = if degree == 1 {
+            (doc.clone(), loft)
+        } else {
+            insert(doc.clone(), lofted(a, vec![up(b, 1.0), up(c, 2.0)], degree))
+        };
+        let rewritten = set(&base, target, a, then).expect_err(what);
+        assert_shape(&rewritten, &fault, &format!("SetLoftSections, {what}"));
+    }
+    let err = fixture::insert_refused(&doc, lofted(a, Vec::new(), 1));
+    assert!(
+        err.to_string().contains("through 1 section"),
+        "the sentence: {err}"
+    );
+}
+
+/// **A degree written past the sections refuses at the slot door
+/// too**, so no edit leaves a loft in a shape the insert door refuses.
+/// Broken by a slot door that writes the degree without asking the
+/// loft's shape.
+#[test]
+fn a_degree_written_past_the_sections_refuses() {
+    let (doc, _, loft) = two_section_loft();
+    let err = doc
+        .apply(
+            &DocEdit::SetStructuralParam {
+                node: loft,
+                slot: SlotId::VDegree,
+                expr: Formula::count(2),
+                fresh: Vec::new(),
+            },
+            Tol::witness(),
+        )
+        .expect_err("two sections admit degree 1 alone");
+    assert_shape(
+        &err,
+        &LoftFault::DegreeOutOfRange {
+            degree: 2,
+            sections: 2,
+        },
+        "SetStructuralParam",
+    );
 }
 
 /// **`SetMembers` handed a loft a different count refuses**, and its

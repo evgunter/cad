@@ -515,6 +515,24 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             param: var.name(),
             ..none
         },
+        EditError::LoftShape { node, fault } => match fault {
+            pncad::document::LoftFault::TooFewSections { have } => EditPayload {
+                node: Some(node.id()),
+                count: Some(*have),
+                ..none
+            },
+            pncad::document::LoftFault::EmptyStation { section } => EditPayload {
+                node: Some(node.id()),
+                index: Some(*section),
+                ..none
+            },
+            pncad::document::LoftFault::DegreeOutOfRange { degree, sections } => EditPayload {
+                node: Some(node.id()),
+                count: Some(*sections),
+                given: usize::try_from(*degree).ok(),
+                ..none
+            },
+        },
         EditError::LoftSectionCount {
             node,
             sections,

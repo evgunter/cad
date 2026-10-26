@@ -3353,11 +3353,12 @@ class DocEdit:
         station)`, `Node.loft`'s own shape. The edit that adds, drops or
         reorders a loft's sections; the degree is kept.
 
-        Every check `Doc.insert` makes of a loft is remade of the
-        rewritten one: `slot_var_kind` for a section that is not a
+        It admits a loft exactly where `Doc.insert` would, through the
+        same kernel checks: `slot_var_kind` for a section that is not a
         profile, `slot_dimension_mismatch` for a station move of the
-        wrong dimension, `unresolved_input`, `would_cycle`. A node that
-        is not a loft refuses `set_loft_sections_on_non_loft`."""
+        wrong dimension, `loft_shape` (`fault`: `too_few_sections`,
+        `empty_station`, `degree_out_of_range`). A node that is not a
+        loft refuses `set_loft_sections_on_non_loft`."""
 
     @staticmethod
     def set_param(node: NodeId, slot: str, value: _SlotArg | NodeId) -> DocEdit:

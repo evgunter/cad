@@ -74,6 +74,39 @@ class TestSetLoftSections(unittest.TestCase):
         self.assertEqual(caught.exception.variant, "set_loft_sections_on_non_loft")
         self.assertEqual(caught.exception.node, self.b)
 
+    def test_a_shape_no_evaluation_lofts_refuses_at_both_doors(self):
+        # Broken by a shape check one door asks and the other does not:
+        # one section, an empty station, and degree 2 through two
+        # sections, each through `insert` and `set_loft_sections`.
+        rows = [
+            ([], 1, "too_few_sections"),
+            ([(self.b, [])], 1, "empty_station"),
+            ([(self.b, up(1.0))], 2, "degree_out_of_range"),
+        ]
+        for then, degree, fault in rows:
+            with self.subTest(fault=fault):
+                with self.assertRaises(EditError) as inserted:
+                    self.doc.insert(Node.loft(self.a, then, Formula.count(degree)))
+                self.assertEqual(inserted.exception.variant, "loft_shape")
+                self.assertEqual(inserted.exception.inner_variant, fault)
+        for then, fault in [
+            ([], "too_few_sections"),
+            ([(self.b, [])], "empty_station"),
+        ]:
+            with self.subTest(fault=fault, door="set_loft_sections"):
+                with self.assertRaises(EditError) as rewritten:
+                    self.doc.apply(DocEdit.set_loft_sections(self.loft, self.a, then))
+                self.assertEqual(rewritten.exception.variant, "loft_shape")
+                self.assertEqual(rewritten.exception.inner_variant, fault)
+        cubic = self.doc.insert(
+            Node.loft(self.a, [(self.b, up(1.0)), (self.c, up(2.0))], Formula.count(2))
+        )
+        with self.assertRaises(EditError) as dropped:
+            self.doc.apply(
+                DocEdit.set_loft_sections(cubic, self.a, [(self.c, up(2.0))])
+            )
+        self.assertEqual(dropped.exception.inner_variant, "degree_out_of_range")
+
     def test_set_members_keeps_the_count(self):
         # Broken by a count check that is dropped: a third section
         # would have no station.

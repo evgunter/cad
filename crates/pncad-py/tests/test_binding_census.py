@@ -976,6 +976,9 @@ BOUND_AS = {
     # `StepIdFault` is what `EditError::StepIdsRefused` carries, and
     # its arms cross at the carrier's second word.
     "StepIdFault": "EditError.inner_variant",
+    # `LoftFault` is what `EditError::LoftShape` carries, and its arms
+    # cross at the carrier's second word.
+    "LoftFault": "EditError.inner_variant",
     # Which primitive a measure is, without its references: Python reads
     # it as the primitive's verb word.
     "MeasureVerb": "MeasurePrimitive.verb",
@@ -3663,6 +3666,7 @@ MEMBERS_BOUND_AS = {
     "EditError::IndexedRead": "EditError.variant",
     "EditError::SetMembersOnNonList": "EditError.variant",
     "EditError::SetLoftSectionsOnNonLoft": "EditError.variant",
+    "EditError::LoftShape": "EditError.variant",
     "EditError::LoftSectionsSpelled": "EditError.variant",
     "EditError::SetProgramOnNonProfile": "EditError.variant",
     "EditError::LoftSectionCount": "EditError.variant",

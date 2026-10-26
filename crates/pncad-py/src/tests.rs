@@ -2330,6 +2330,30 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     carries(&E::ReadSiteMissingNode { at: sp(1) }, &["node"]);
     carries(&E::SetMembersOnNonList { node: sp(1) }, &["node"]);
     carries(&E::SetLoftSectionsOnNonLoft { node: sp(1) }, &["node"]);
+    carries(
+        &E::LoftShape {
+            node: sp(1),
+            fault: pncad::document::LoftFault::TooFewSections { have: 1 },
+        },
+        &["node", "count"],
+    );
+    carries(
+        &E::LoftShape {
+            node: sp(1),
+            fault: pncad::document::LoftFault::EmptyStation { section: 1 },
+        },
+        &["node", "index"],
+    );
+    carries(
+        &E::LoftShape {
+            node: sp(1),
+            fault: pncad::document::LoftFault::DegreeOutOfRange {
+                degree: 2,
+                sections: 2,
+            },
+        },
+        &["node", "count", "given"],
+    );
     carries(&E::SetProgramOnNonProfile { node: sp(1) }, &["node"]);
     carries(
         &E::StepIdsRefused {
@@ -4662,6 +4686,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "label_unchanged",
             "loft_section_count",
             "loft_sections_spelled",
+            "loft_shape",
             "mate_refused",
             "meta_non_finite",
             "meta_not_set",
@@ -4734,6 +4759,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "distribution_fault_tag",
             "expr_dimension_error_tag",
             "input_fault_tag",
+            "loft_fault_tag",
             "mate_fault_tag",
             "meta_version_error_tag",
             "node_error_tag",
@@ -4976,6 +5002,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "skin",
             "stacking_escalated",
         ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "loft_fault_tag",
+        values: &["degree_out_of_range", "empty_station", "too_few_sections"],
         delegates: &[],
     },
     TagEntry {

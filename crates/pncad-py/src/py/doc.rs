@@ -2575,11 +2575,11 @@ impl Node {
     /// stations; a station's moves are its `station_slide` and
     /// `station_spin` slots.
     ///
-    /// Nothing is pre-checked here. Too few sections, a degree outside
-    /// `1 ≤ d ≤ len − 1`, a section that is not a profile, sections
-    /// whose loops do not correspond — every one of those is the
-    /// kernel's own typed refusal, arriving from `insert` or from
-    /// `evaluate` exactly where the Rust surface raises it.
+    /// Nothing is pre-checked here. Too few sections, an empty station,
+    /// a degree outside `1 ≤ d ≤ len − 1`, a section that is not a
+    /// profile, sections whose loops do not correspond — every one of
+    /// those is the kernel's own typed refusal, arriving from `insert`
+    /// or from `evaluate` exactly where the Rust surface raises it.
     #[staticmethod]
     fn loft(
         py: Python<'_>,
@@ -3912,11 +3912,12 @@ impl DocEdit {
     /// adds, drops or reorders a loft's sections, since each after the
     /// first stands where its station puts it. The degree is kept.
     ///
-    /// Every check `Doc.insert` makes of a loft is remade of the
-    /// rewritten one: `slot_var_kind` for a section that is not a
+    /// It admits a loft exactly where `Doc.insert` would, through the
+    /// same kernel checks: `slot_var_kind` for a section that is not a
     /// profile, `slot_dimension_mismatch` for a station move of the
-    /// wrong dimension, `unresolved_input` and `would_cycle`. A node
-    /// that is not a loft refuses `set_loft_sections_on_non_loft`.
+    /// wrong dimension, `loft_shape` for too few sections, an empty
+    /// station or a degree outside `1 ≤ d ≤ len − 1`. A node that is
+    /// not a loft refuses `set_loft_sections_on_non_loft`.
     #[staticmethod]
     fn set_loft_sections(
         node: &NodeId,
