@@ -10,9 +10,9 @@
 //! bracket `ε` wide, and that width rode every piece of the edge: on the
 //! sliver it alone was the wall's floor, and the split refused at rest,
 //! `QuadratureBudget` after 13 rounds and about 30 s. Each end is now
-//! read at the parameter the lane integrates from, met with the vertex
-//! reading (`topo::props::quad_lane`'s `trig_at_end`), about 1e-14 wide at
-//! most.
+//! read at the parameter the lane integrates from
+//! (`geom_brep::props::quad::trig_at_limit`), 3.4e-13 wide at most over a
+//! period.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -77,9 +77,9 @@ fn a_sliver_just_off_the_rim_vertex_builds_and_the_halves_hold_the_volume() {
 
 /// **At 1e-12 the sliver's wall is at its floor, over the target**, and
 /// says so: the split refuses at rest with the wall's
-/// `QuadratureFloor` after one round, a decided fact rather than a
-/// budget run out. The width left is the part refinement does not
-/// touch, `4.68e-6` at `d = 5e-11` and `2.36e-7` at `d = 1e-9`, against
+/// `QuadratureFloor` after one round: the lane stopped at its floor,
+/// not at the work wall. The width left is the part refinement does not
+/// aim at, `4.68e-6` at `d = 5e-11` and `2.36e-7` at `d = 1e-9`, against
 /// the `1.024e-9` this ε targets; before the ends were read at their
 /// parameters it was `1.05e-4` and `5.2e-6`, after 13 rounds. Pinned
 /// within 1.1×.

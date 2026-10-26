@@ -2283,7 +2283,8 @@ pub struct TargetUnreached<T: Real> {
     /// first, and narrower wherever the continuation refined a face
     /// before it stopped ([`SignCertificate::measure`] says how it is
     /// read). `Some` iff `refusal` is a face's
-    /// [`PropsError::QuadratureBudget`]: the body's sign is decided and
+    /// [`PropsError::QuadratureBudget`] or
+    /// [`PropsError::QuadratureFloor`]: the body's sign is decided and
     /// its volume lies in this bracket, which is as sound as the lane
     /// it was derived through.
     pub bracket: Option<VolumeEnclosure<T>>,
@@ -3192,6 +3193,110 @@ mod continuation_refusal_order_tests {
             format!("{}", refusal_at(1)),
             "the refusal the continuation names moved with the pool width"
         );
+    }
+}
+
+#[cfg(test)]
+mod floor_arm_tests {
+    #![allow(clippy::expect_used, clippy::panic)]
+
+    use super::*;
+    use geom_core::Point3;
+
+    fn floor(width_len: f64) -> PropsError {
+        PropsError::QuadratureFloor {
+            width_len,
+            target_len: 0.5,
+            rounds: 1,
+        }
+    }
+
+    fn budget(width_len: f64) -> PropsError {
+        PropsError::QuadratureBudget {
+            width_len,
+            target_len: 0.5,
+            rounds: 1,
+        }
+    }
+
+    /// One face's run, its enclosure `flux` wide `± half` about zero over
+    /// a unit area, carrying `refusal`.
+    fn run_of(face: FaceKey, half: f64, refusal: Option<PropsError>) -> FaceRun<f64> {
+        FaceRun {
+            face,
+            contribution: FaceFlux {
+                flux: 0.0,
+                area: 1.0,
+                flux_pad: half,
+                area_pad: 0.0,
+                enclosure: Some((Interval::from_bounds(-half, half), Interval::from_bounds(1.0, 1.0))),
+            },
+            open_at: None,
+            converged_at: None,
+            refinable: false,
+            taken_at: Some(0),
+            refusal,
+            about: ReadAbout::Shell(Point3::origin()),
+        }
+    }
+
+    /// **A continuation that stops at a face's floor keeps its bracket**,
+    /// as one that stops at the work wall does: the sign was decided and
+    /// the volume lies in the bracket either way
+    /// ([`SignCertificate::measure`]).
+    #[test]
+    fn a_floor_keeps_its_bracket_as_a_budget_does() {
+        let mut body = Body::<f64>::new();
+        let face = body
+            .mvfs(Point3::new(0.0, 0.0, 0.0), true)
+            .expect("the skeletal body builds")
+            .face;
+        let band = Band::linear(Tol::witness()).expect("the witness band builds");
+        for refusal in [floor(1.0), budget(1.0)] {
+            let got = SignCertificate {
+                body: &body,
+                band,
+                tol: Tol::witness(),
+                quad: Some(QuadLane::certified()),
+                runs: vec![run_of(face, 0.25, Some(refusal.clone()))],
+                refused: Some((face, refusal.clone())),
+            }
+            .measure()
+            .expect_err("the face carries its refusal");
+            assert!(
+                got.bracket.is_some(),
+                "{refusal}: the continuation dropped the bracket it held"
+            );
+        }
+    }
+
+    /// **A face whose held round is narrower carries that round's width
+    /// in its floor refusal**, as in its budget one ([`FaceRun::advance`]):
+    /// the reporting door's payload is the kept enclosure's.
+    #[test]
+    fn a_floor_refusal_carries_the_kept_rounds_width() {
+        let face = FaceKey::null();
+        for refusal in [floor(9.0), budget(9.0)] {
+            let mut run = run_of(face, 0.25, Some(budget(1.0)));
+            run.advance(run_of(face, 0.5, Some(refusal.clone())));
+            let kept = geom_brep::props::quad::mean_boundary_displacement(
+                Interval::from_bounds(-0.25, 0.25),
+                Interval::from_bounds(1.0, 1.0),
+            )
+            .expect("a width");
+            let width = match run.refusal {
+                Some(
+                    PropsError::QuadratureFloor { width_len, .. }
+                    | PropsError::QuadratureBudget { width_len, .. },
+                ) => width_len,
+                other => panic!("{refusal}: {other:?}"),
+            };
+            assert!(
+                width == kept && core::mem::discriminant(run.refusal.as_ref().expect("a refusal"))
+                    == core::mem::discriminant(&refusal),
+                "{refusal}: carried {width}, the kept round is {kept} wide"
+            );
+        }
     }
 }
 

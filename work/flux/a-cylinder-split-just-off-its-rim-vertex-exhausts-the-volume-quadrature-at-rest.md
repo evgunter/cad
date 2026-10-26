@@ -1,7 +1,7 @@
 ---
 id: a-cylinder-split-just-off-its-rim-vertex-exhausts-the-volume-quadrature-at-rest
 kind: issue
-title: A cylinder split by a plane tilted 1e-2 just off its seam rim vertex leaves a sliver whose volume quadrature exhausts its budget, so the split refuses at rest
+title: "A cylinder split by a plane tilted 1e-2 just off its seam rim vertex leaves a sliver whose wall's volume quadrature stops at its floor over the target at 1e-12, so the split refuses at rest"
 status: open
 opened: 2026-10-14
 priority: P2
@@ -47,15 +47,14 @@ names this row.
 `(cos t, sin t)` off the end's vertex, a bracket `ε` wide, and that width
 rode every piece of the edge: on the wedge's wall, a few `d` high, it alone
 was the floor. Each end is now read at the parameter the lane integrates
-from (`geom_brep::props::quad::trig_at_limit`), met with the vertex
-reading (`topo::props::quad_lane`'s `trig_at_end`), about 1e-14 wide at
-most. At 1e-9 and 1e-6 the split builds at `d = 50ε, 500ε, 5000ε`, and the
+from (`geom_brep::props::quad::trig_at_limit`), rotated from the exact
+`(1, 0)`: 1.7e-13 wide at `π`, 3.4e-13 at `2π`. The vertex is not read. At 1e-9 and 1e-6 the split builds at `d = 50ε, 500ε, 5000ε`, and the
 halves hold `π` within their pads
 (`crates/sweep/tests/a_cylinder_split_just_off_its_rim_vertex.rs`).
 
 **At 1e-12 the wall is at its floor, and refuses as one.** It stops after
-one round, in 0.02 s, with `QuadratureFloor` (a floor the target lies
-wholly below, not a budget run out):
+one round, in 0.02 s, with `QuadratureFloor` (the lane stopped at its
+floor, not at the work wall):
 
 | `d` | wall area | flux width | `width_len` | before |
 |---|---|---|---|---|
@@ -66,8 +65,8 @@ against the `1.024e-9` this ε targets.
 
 ## The open shape
 
-What is left is the meter, not the integrand. The flux width is the part no
-round removes: each edge's rule rounding and its pcurve map-residual pad,
+What is left is the meter, not the integrand. The flux width is the part the
+rule's remainder does not account for: each edge's rule rounding and its pcurve map-residual pad,
 each at an ulp of the wall's own terms (`O(r) = O(1)` levers, the pcurve
 envelope `2.2e-16`), about `1e-19` in all. The mean boundary displacement
 divides it by `3·area`, and this wall's area is `≈ (4/3)·d·√(d/5e-3)`, so

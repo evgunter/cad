@@ -510,12 +510,10 @@ pub enum PropsError {
         check: PropsCheck,
     },
     /// The certified quadrature's enclosure did not tighten to the
-    /// reporting target before its lane stopped: at the work wall, or at
-    /// its floor with the target within the floor's share of the width,
-    /// where a later round might still have met it (M5 PR 11; the [`quad`]
-    /// module docs give the rule and the stop, and `topo`'s reporting
-    /// adapter the target's metering). A floor the target lies wholly
-    /// below is [`Self::QuadratureFloor`].
+    /// reporting target before its lane stopped at the work wall (M5 PR
+    /// 11; the [`quad`] module docs give the rule and the stop, and
+    /// `topo`'s reporting adapter the target's metering). A lane that
+    /// stopped at its floor is [`Self::QuadratureFloor`].
     /// Certified bounds or typed refusal — never a silently wide
     /// answer. Both payloads are LENGTHS (mean boundary displacement),
     /// the same metering as tier 3's volume check.
@@ -540,17 +538,18 @@ pub enum PropsError {
         /// what the refusal cost.
         rounds: usize,
     },
-    /// **The certified quadrature's enclosure is at its floor, above the
-    /// reporting target, so no budget meets it.** The lane stopped at
-    /// [`quad::LaneStop::Floor`]: the part of its width a later round
-    /// removes is at most [`quad::FLOOR_SHARE`] of it, so every later
-    /// round is at least `1 − FLOOR_SHARE` of that width wide, and that
-    /// is above the target. The width is the part refinement does not
-    /// touch: the honesty pads (the trim ends' brackets, the pcurves'
-    /// map residuals) and the arithmetic. Where only the work wall
-    /// stopped the lane, or the target lies within the floor's share,
-    /// the refusal is [`Self::QuadratureBudget`]. Payloads as that
-    /// arm's.
+    /// **The certified quadrature's lane stopped at its floor, its
+    /// enclosure over the reporting target.** The lane stopped at
+    /// [`quad::LaneStop::Floor`]: at that round the rule's remainder,
+    /// the part of the width a later round removes, was at most
+    /// [`quad::FLOOR_SHARE`] of it, and the rest is the honesty pads (the
+    /// trim ends' brackets, the pcurves' map residuals) and the
+    /// arithmetic, which refinement does not aim at. That is where more
+    /// rounds stop paying, not a proof that none meets the target: the
+    /// rest moves between rounds as the pieces move (by 1–2% on a sliver
+    /// wall), so a target close to the width may yet be met. Where the
+    /// work wall stopped the lane, the refusal is
+    /// [`Self::QuadratureBudget`]. Payloads as that arm's.
     QuadratureFloor {
         /// The width of the narrowest enclosure the lane reached, as a
         /// length (m).
@@ -811,9 +810,10 @@ impl core::fmt::Display for PropsError {
                 rounds,
             } => write!(
                 f,
-                "a face's quadrature reached its floor after {rounds} refinement round(s): no \
-                 later round narrows its certified contribution below {width_len:.3e} m, over \
-                 the {target_len:.3e} m this tolerance targets. {}",
+                "a face's quadrature stopped at its floor after {rounds} refinement round(s), \
+                 where more rounds stop narrowing its certified contribution: its narrowest \
+                 enclosure is {width_len:.3e} m wide, over the {target_len:.3e} m this \
+                 tolerance targets. {}",
                 quadrature_budget_recourse(*width_len)
             ),
             Self::QuadratureUnsupported { what } => write!(

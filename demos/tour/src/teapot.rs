@@ -240,7 +240,7 @@
 //!    enclosure is chased to a reporting target derived from ε. Every
 //!    ε the tour runs meets that target: at ε = 1e-12 the volume's
 //!    half-width is 8.1e-12 m³. Where a tighter ε refuses
-//!    `QuadratureBudget`, tier 3 still certifies the body on the
+//!    `QuadratureBudget` or `QuadratureFloor`, tier 3 still certifies the body on the
 //!    enclosure's SIGN — the tier's own docs say deciding that sign "is
 //!    an act of certification rather than a measurement" — and the
 //!    scene measures through the certificate the tier hands back, so it
@@ -399,7 +399,7 @@ const _: () = assert!(SPOUT_STATIONS == 7);
 /// is chased to `QUAD_TARGET_LEN_FACTOR·ε`. Every ε the tour runs meets
 /// that target, and the scene holds the enclosure to the skin's own
 /// integrated volume (`patch_quadrature`). Where a tighter ε refuses
-/// `QuadratureBudget`, tier 3 still certifies the body on the
+/// `QuadratureBudget` or `QuadratureFloor`, tier 3 still certifies the body on the
 /// enclosure's SIGN, and the scene holds the same reference to the
 /// bracket the certificate keeps.
 const SPOUT_ARCS: u32 = 4;

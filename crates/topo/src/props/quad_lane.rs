@@ -41,80 +41,14 @@ pub(super) fn mid_pad(x: Interval) -> (f64, f64) {
     ((x.lo() + x.hi()) * 0.5, (x.hi() - x.lo()) * 0.5)
 }
 
-/// **The trig bracket at one end of a trim edge's carrier interval**, as
-/// the cylinder lane reads it: `(cos a, sin a)` for `a` the end's
-/// midpoint, the parameter the lane integrates from (and to), formed from
-/// the exact `(1, 0)` at `t = 0` ([`quad::trig_at_limit`]), about 1e-14
-/// wide at most. The vertex reading ([`trig_at_start`]) is `ε` wide, and its width rides
-/// every piece of the edge, levered by the channel's trig coefficients:
-/// on a sliver whose height is a few `ε`, it alone was the face's floor
-/// (`work/flux/a-cylinder-split-just-off-its-rim-vertex-exhausts-the-volume-quadrature-at-rest.md`).
-/// Where the end is an exact point, the vertex reading encloses the same
-/// value by an independent argument, and the two are met; an empty meet
-/// refuses, since one of the arguments was then wrong. Where the end is
-/// wider than a point, the vertex encloses the trig of where in it the
-/// carrier starts, not of its midpoint, and only the parameter's bracket
-/// is the one the lane needs.
-fn trig_at_end(t: Interval, vertex: (Interval, Interval)) -> (Interval, Interval) {
-    let (c, s) = quad::trig_at_limit(t);
-    if t.is_certified() && t.lo() == t.hi() {
-        (c.meet(vertex.0), s.meet(vertex.1))
-    } else {
-        (c, s)
-    }
-}
-
-/// `(cos t₀, sin t₀)` enclosure at the carrier-interval start,
-/// recovered algebraically from the carrier frame and the interval
-/// start's VERTEX point (within the run's ε of the carrier, D4 ¶2
-/// — the ε rides into the bracket as an explicit pad).
-fn trig_at_start<T: Decide + Bounds + CertifiedEnclosure>(
-    carrier: &Curve3<T>,
-    p: Point3<T>,
-    eps: f64,
-) -> Result<(Interval, Interval), PropsError> {
-    let full = Interval::from_bounds(-1.0, 1.0);
-    // `from_bounds` mints a fresh bracket out of whatever
-    // endpoints it is handed, so a refused operand would come back
-    // clean. The refusal is carried across by hand.
-    let clamp = |x: Interval, pad: f64| {
-        if !x.is_certified() {
-            return Interval::refused();
-        }
-        Interval::from_bounds(x.lo() - pad, x.hi() + pad).clamped_to(-1.0, 1.0)
-    };
+/// **The trim carrier's kind, as the cylinder lane reads it**: a line, a
+/// circle or an ellipse, whose harmonic pcurve the lane integrates; each
+/// end's `(cos, sin)` is formed at the limit the lane integrates from
+/// ([`quad::trig_at_limit`]), so no vertex is read. The other kinds
+/// refuse by name.
+fn harmonic_carrier<T: Decide>(carrier: &Curve3<T>) -> Result<(), PropsError> {
     match carrier {
-        // A line's harmonic pcurve has zero trig amplitudes; the
-        // whole-circle bracket is sound and multiplies away.
-        Curve3::Line { .. } => Ok((full, full)),
-        Curve3::Circle {
-            center,
-            axis,
-            radius,
-            u_ref,
-        } => {
-            let v_ref = axis.cross(*u_ref);
-            let w = p - *center;
-            let c = Interval::from_certified(w.dot(*u_ref)) / Interval::from_certified(*radius);
-            let s = Interval::from_certified(w.dot(v_ref)) / Interval::from_certified(*radius);
-            let pad = (Interval::point(eps) / Interval::from_certified(*radius)).mag();
-            Ok((clamp(c, pad), clamp(s, pad)))
-        }
-        Curve3::Ellipse {
-            center,
-            axis,
-            semi_u,
-            semi_v,
-            u_ref,
-        } => {
-            let v_ref = axis.cross(*u_ref);
-            let w = p - *center;
-            let c = Interval::from_certified(w.dot(*u_ref)) / Interval::from_certified(*semi_u);
-            let s = Interval::from_certified(w.dot(v_ref)) / Interval::from_certified(*semi_v);
-            let pad_c = (Interval::point(eps) / Interval::from_certified(*semi_u)).mag();
-            let pad_s = (Interval::point(eps) / Interval::from_certified(*semi_v)).mag();
-            Ok((clamp(c, pad_c), clamp(s, pad_s)))
-        }
+        Curve3::Line { .. } | Curve3::Circle { .. } | Curve3::Ellipse { .. } => Ok(()),
         // The spiric's chart images are not harmonic (its `m`
         // channel is `√((R + r cos v)² − d²)`), so the trig
         // brackets this lane reads do not exist for it. Unreachable
@@ -567,7 +501,7 @@ pub(super) fn cut_face_rounds<T: Decide + Bounds + CertifiedEnclosure>(
 ) -> Result<RoundOutcome, PropsError> {
     let eps = tol.eps();
     let mut accept = to_target::<T>(eps, band);
-    let run = cut_face_lane(body, surface, loops, band, tol, window, centre, &mut accept)?;
+    let run = cut_face_lane(body, surface, loops, band, window, centre, &mut accept)?;
     reported(run, eps)
 }
 
@@ -713,11 +647,10 @@ impl RoundOutcome {
 /// **INTERIM: a lane's run read at the reporting target** — the
 /// accepted round converged, a window cut short open, and a lane that
 /// stopped short of the target refused with its narrowest enclosure,
-/// which a sign walk may still read: [`PropsError::QuadratureFloor`] at
-/// its floor ([`LaneEnd::Floor`]) where even the part no round removes,
-/// at least `1 − FLOOR_SHARE` of the narrowest width, is over the
-/// target, so no budget would meet it; else
-/// [`PropsError::QuadratureBudget`]. Goes with [`to_target`].
+/// which a sign walk may still read: [`PropsError::QuadratureFloor`] where
+/// it stopped at its floor ([`LaneEnd::Floor`]), and
+/// [`PropsError::QuadratureBudget`] at the work wall. Goes with
+/// [`to_target`].
 fn reported(run: LaneRun, eps: f64) -> Result<RoundOutcome, PropsError> {
     let LaneRun {
         bounds,
@@ -738,12 +671,10 @@ fn reported(run: LaneRun, eps: f64) -> Result<RoundOutcome, PropsError> {
         LaneEnd::Floor | LaneEnd::Wall => {
             let width_len = quad::mean_boundary_displacement(bounds.flux, bounds.area)?;
             let target_len = QUAD_TARGET_LEN_FACTOR * eps;
-            let floored =
-                end == LaneEnd::Floor && width_len * (1.0 - quad::FLOOR_SHARE) > target_len;
             RoundOutcome::Open {
                 bounds,
                 round,
-                end: OpenEnd::Exhausted(if floored {
+                end: OpenEnd::Exhausted(if end == LaneEnd::Floor {
                     PropsError::QuadratureFloor {
                         width_len,
                         target_len,
@@ -762,13 +693,11 @@ fn reported(run: LaneRun, eps: f64) -> Result<RoundOutcome, PropsError> {
 }
 
 /// [`cut_face_rounds`]' lanes, asking `accept` of every round.
-#[allow(clippy::too_many_arguments)]
 fn cut_face_lane<T: Decide + Bounds + CertifiedEnclosure>(
     body: &Body<T>,
     surface: &Surface<T>,
     loops: &[super::FlatLoop<T>],
     band: Band,
-    tol: Tol,
     window: RoundWindow,
     centre: Option<Point3<Interval>>,
     accept: &mut Accept<'_>,
@@ -815,7 +744,6 @@ fn cut_face_lane<T: Decide + Bounds + CertifiedEnclosure>(
                    algebra is the cylinder's",
         });
     };
-    let eps = tol.eps();
     let mut va = geom_core::Vec3::new(T::zero(), T::zero(), T::zero());
     for (edges, _) in loops {
         va = va + loop_vector_area(edges, *origin)?;
@@ -870,12 +798,9 @@ fn cut_face_lane<T: Decide + Bounds + CertifiedEnclosure>(
             };
             let (t0, t1) = cache.params();
             let (t0, t1) = (Interval::from_certified(t0), Interval::from_certified(t1));
-            // The interval-start vertex: traversal start when forward,
-            // traversal end when reversed (`he_plus` start either way).
-            let p_start = start_point(body, *he, le.forward)?;
-            let trig0 = trig_at_end(t0, trig_at_start(&le.carrier, p_start, eps)?);
-            let p_end = start_point(body, *he, !le.forward)?;
-            let trig1 = Some(trig_at_end(t1, trig_at_start(&le.carrier, p_end, eps)?));
+            harmonic_carrier(&le.carrier)?;
+            let trig0 = quad::trig_at_limit(t0);
+            let trig1 = Some(quad::trig_at_limit(t1));
             edges.push(TrimEdgeQ {
                 u: chan(p0.x, pa.x, pb.x, pl.x)?,
                 v: chan(p0.y, pa.y, pb.y, pl.y)?,
@@ -1732,25 +1657,6 @@ fn about(control: Vec<quad::RVec3>, centre: Option<Point3<Interval>>) -> Vec<qua
     }
 }
 
-/// The vertex POINT at a half-edge's carrier-interval start (its
-/// edge's `he_plus` start vertex).
-fn start_point<T: Decide + Bounds + CertifiedEnclosure>(
-    body: &Body<T>,
-    he: HalfEdgeKey,
-    forward: bool,
-) -> Result<Point3<T>, PropsError> {
-    let corrupt = PropsError::QuadratureUnsupported {
-        what: "corrupt body reaching the quadrature lane (a key did not resolve)",
-    };
-    let vk = if forward {
-        body.half_edges.get(he).ok_or(corrupt.clone())?.start
-    } else {
-        body.half_edge_end(he).ok_or(corrupt.clone())?
-    };
-    let v = body.vertices.get(vk).ok_or(corrupt.clone())?;
-    body.points.get(v.point).copied().ok_or(corrupt)
-}
-
 #[cfg(test)]
 mod tests {
     /// The plane cap ([`super::plane_cap`]) over hand-built loops: a rim
@@ -1964,10 +1870,9 @@ mod tests {
         /// **A lane stopped short of the target refuses with a width that
         /// really missed**: its narrowest enclosure's, the target the
         /// run's, and the rounds it ran — `QuadratureFloor` at its floor
-        /// where `1 − FLOOR_SHARE` of that width is still over the target,
-        /// so no later round meets it, and `QuadratureBudget` at the work
-        /// wall or at a floor within that share of the target. An accepted
-        /// round converges; a window cut short stays open with no refusal.
+        /// however close its width is to the target, and
+        /// `QuadratureBudget` at the work wall. An accepted round
+        /// converges; a window cut short stays open with no refusal.
         #[test]
         fn a_stopped_lane_refuses_with_its_narrowest_width() {
             let eps = 1e-9;
@@ -1982,7 +1887,7 @@ mod tests {
             for (end, over, floored) in [
                 (LaneEnd::Floor, 2.0, true),
                 (LaneEnd::Wall, 2.0, false),
-                (LaneEnd::Floor, within, false),
+                (LaneEnd::Floor, within, true),
                 (LaneEnd::Wall, within, false),
             ] {
                 let (width_len, target_len, is_floor) = match reported(run(end, over), eps).unwrap()
