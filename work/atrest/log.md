@@ -58,3 +58,10 @@
   - **MINOR 1:** an aligned overlap's boundary touches are not absorbed into the pair, so the stage 5 B quieting cannot reach it (`[assertions]`: "part of that pair where it lies in the closure of their overlap"). It is built in the fix pass if it reuses the opposed pair's absorption, and filed P1 otherwise.
   - The fix list went to the lane. The tier is single, so the PR merges on green after the orchestrator reads the fix pass.
 - 2026-10-26 — (sweep follow-up, Ev's ask) `crates/editor-core/src/measure.rs` is added to ATREST's `paths`. FLUXHOLD's closure left it unclaimed (`docs/doc-ledger/fluxhold-leaves-the-tracker.md`). It is the measure vocabulary whose `Gap` door the assertions that quiet an at-rest contact read, and `gap-reads-vertex-and-edge-cells` (P0, on this slate) edits it. A `keep_out` line records this, and also that its evaluation, `crates/editor-core/src/eval/measure.rs`, is TALLY's (`eval/*`). `gap-reads-vertex-and-edge-cells`'s seam paragraph no longer names FLUXHOLD: it now points the evaluation seam at TALLY.
+- 2026-10-26 — #5746 review R1 (`session_01BFkXPLUiAuzbBGGvRspL7a`, probes on `review/atrest-gap-cells-R1` @ 8444113d): APPROVE-WITH-FIXES, 0/5/4. Signs held on real bodies at three ε, and face–face analysis bits are unchanged.
+  - **Executed defects:**
+    - (M1) `gap_edge_convexity` levers a dihedral by the edge's length rather than by the faces' reach, so a short concave crease reads wrong-signed;
+    - (M2) `gap_wedge_crossing` guards a division rather than deciding sign opposition, so a resting parallel edge escalates at contact.
+  - **(M3)** The stage 5 spec's test row 12 pinned the opposite of this unit; the fix pass rewrites it.
+  - **Class (S3):** material and convexity are read three ways (`Fold::of`, the census's `metric::Distance` door, `geom_brep` dihedral). It is filed as its own row.
+  - The fix list went to the lane, which also drops its edit to the closed FLUXHOLD log. The tier is single, so the PR merges on green after the orchestrator reads the fix pass.
