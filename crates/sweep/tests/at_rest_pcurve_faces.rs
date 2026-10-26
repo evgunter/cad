@@ -1,5 +1,7 @@
 //! **Tier 3's pcurve pass on a torus wall** (C4): a strut no torus
-//! holds is a defect tier 3 and the mint name; a stored row stated over
+//! holds is a refusal tier 3 and the mint name, and, the strut being
+//! scaffolding (the modeler's declaration), it ends in the modeler's
+//! lever (D3, E1b); a stored row stated over
 //! more of its carrier than the edge spans is refused, on a complete
 //! face and a half-minted one alike; and a face bounded by a Villarceau
 //! arc mints.
@@ -126,14 +128,25 @@ fn line_strut(body: &mut Body<f64>, he: HalfEdgeKey) {
     strut(body, he, end, EdgeCurveSpec::line_between(p, end));
 }
 
+/// A scaffold strut off the torus: declared, and its refusal reads the
+/// modeler's lever at the build door and at rest, with no defect.
 fn off_chart(e: &PcurveMintError) -> bool {
-    matches!(
-        e,
-        PcurveMintError::Certify {
-            error: PcurveCertifyError::CarrierOffChart { .. },
-            ..
-        }
-    )
+    let PcurveMintError::Certify {
+        error: PcurveCertifyError::CarrierOffChart { .. },
+        authority,
+        ..
+    } = e
+    else {
+        return false;
+    };
+    let lever = |text: &str| {
+        text.contains("Recourse: move the declared curve onto the face it bounds")
+            && !text.contains("defect")
+            && !text.contains("repair the body")
+    };
+    authority.is_declared()
+        && lever(&e.to_string())
+        && lever(&topo::ValidationError::Pcurve { finding: e.clone() }.to_string())
 }
 
 /// Tier 3's findings and the wall's mint, with the oblique strut at
