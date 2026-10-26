@@ -172,13 +172,16 @@ fn a_refused_a5_gate_eats_the_body_and_says_so_by_its_absence() {
     let tol = Tol::witness();
     let bench = common::asm::bench("landed-body-refused-gate", tol);
     let mut session = common::asm::open_bench(&bench, tol);
-    // Both posts seated at one spot under the shelf: they interpenetrate,
-    // and the gate refuses.
-    for post in [bench.post_a, bench.post_b] {
+    // The two posts seated side by side under the shelf, three ε apart:
+    // inside the sliver band, so the census cannot say whether they
+    // touch, and the gate refuses.
+    let middle = common::asm::SHELF_LENGTH / 2.0;
+    let beside = middle + common::asm::POST_SECTION + 3.0 * tol.eps();
+    for (post, at) in [(bench.post_a, middle), (bench.post_b, beside)] {
         common::asm::unpin(&mut session, post);
         common::commit_mate(
             &mut session,
-            common::asm::seat_op(&bench, post, common::asm::middle_seat_values()),
+            common::asm::seat_op(&bench, post, common::asm::seat_values(at)),
         );
     }
     assert!(
