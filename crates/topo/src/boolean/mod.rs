@@ -284,6 +284,7 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         crate::census::SPAN_ORDER_CHARGED
         | crate::census::EE_OVERLAP_CHARGED
         | crate::census::SPAN_ROUNDING => BooleanDecision::LineSpanPrecision.subject(),
+        slit::PARTING_ORDER => BooleanDecision::PartingOrder.subject(),
         // The line's wedges the result gate reads (`census::line_wedges`),
         // tier 3's pinch-corner reading under names of its own.
         crate::census::LINE_WEDGE_AFTER_LEAVING
@@ -2217,6 +2218,25 @@ pub(crate) fn one_vertex_at<T: Decide>(
     Ok((magnitude == geom_core::k_stats::Magnitude::Zero).then_some(margin))
 }
 
+/// **The vertex of `body` at `p`**, the first in arena order (D9) that
+/// [`one_vertex_at`] reads at `p`, with the margin that put it there.
+///
+/// # Errors
+///
+/// The band's escalation where a vertex sits in its gap.
+pub(crate) fn vertex_at<T: Decide>(
+    body: &crate::body::Body<T>,
+    p: Point3<T>,
+    band: Band,
+) -> Result<Option<(crate::entity::VertexKey, MarginDiag)>, Indeterminate> {
+    for (v, q) in body.vertex_points() {
+        if let Some(margin) = one_vertex_at(p, q, band)? {
+            return Ok(Some((v, margin)));
+        }
+    }
+    Ok(None)
+}
+
 /// The result of [`boolean_reduce`]: both operands' annotated clones
 /// plus every record the PR 5 joining step consumes.
 #[derive(Debug)]
@@ -3783,9 +3803,9 @@ pub enum BooleanError {
     /// An edge of the result lies in one of its own faces, and the
     /// material parts it into two edges, face | wall each
     /// ([`EdgeInFaceGap`]): a parting the kernel does not build there,
-    /// or ([`EdgeInFaceGap::Crossed`], [`EdgeInFaceGap::TwinIncident`]) a
-    /// face crossing the edge's material or a parting that left a record
-    /// it cannot hold, which are the kernel's own defects.
+    /// or ([`EdgeInFaceGap::is_defect`]) a face crossing the edge's
+    /// material, or a parting or division that left what it never
+    /// makes, which are the kernel's own defects.
     EdgeInFace {
         /// The edge, in the result's keys.
         edge: crate::entity::EdgeKey,
@@ -5087,11 +5107,7 @@ impl core::fmt::Display for BooleanError {
                      {NOT_YET_ENDING}"
                 )
             }
-            Self::EdgeInFace {
-                edge,
-                face,
-                gap: gap @ (EdgeInFaceGap::Crossed | EdgeInFaceGap::TwinIncident),
-            } => write!(
+            Self::EdgeInFace { edge, face, gap } if gap.is_defect() => write!(
                 f,
                 "edge {edge:?} of the result lies in face {face:?}, and {}. {}",
                 gap.words(),

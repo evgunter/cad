@@ -127,7 +127,8 @@ pub enum DocEdit<P: crate::ProfilePayload> {
         id: RecipeNodeId,
     },
     /// **Replace a node's whole LIST input** (DM4) — a union's or an
-    /// intersect's `Bodies` argument, a loft's sections: the slot door
+    /// intersect's `Bodies` argument, or a loft's section reads re-pointed
+    /// in place: the slot door
     /// ([`DocEdit::SetParam`] with a [`SlotValue::Read`]) on a list. The
     /// new list is stated in full, so nothing is inferred about which of
     /// the old entries survived, moved or was meant.
@@ -139,9 +140,11 @@ pub enum DocEdit<P: crate::ProfilePayload> {
     /// meets), acyclicity ([`EditError::WouldCycle`]), and one space
     /// over every entry ([`EditError::SpaceMismatch`], D10
     /// `[placement.spaces]`). A loft's sections are spelled, so a family
-    /// there refuses
-    /// [`EditError::LoftSectionsSpelled`]; a node with no list input
-    /// refuses [`EditError::SetMembersOnNonList`].
+    /// there refuses [`EditError::LoftSectionsSpelled`], and each keeps
+    /// its station, so a different count refuses
+    /// [`EditError::LoftSectionCount`]: [`DocEdit::SetLoftSections`]
+    /// adds, drops or reorders them. A node with no list input refuses
+    /// [`EditError::SetMembersOnNonList`].
     SetMembers {
         /// The node whose list is replaced.
         node: RecipeNodeId,
@@ -149,6 +152,37 @@ pub enum DocEdit<P: crate::ProfilePayload> {
         /// each read lowered as [`DocEdit::SetParam`]'s read is, and
         /// each index of an indexed member as a slot's formula.
         members: crate::Bodies<crate::BodyRead<Formula>>,
+    },
+    /// **Write a loft's sections whole, each with its station**: the
+    /// edit that adds, drops or reorders a loft's sections, since a
+    /// section after the first stands where its station puts it and
+    /// [`DocEdit::SetMembers`] has none to give one. The list is stated
+    /// in full, as [`Node::Loft`] holds it; the degree is kept.
+    ///
+    /// The rewritten loft is lowered by the insert door's own
+    /// lowering (`lower_authored`) and written under the checks every
+    /// door that writes a node makes (`check_written_node`), so this
+    /// edit admits a loft exactly where `InsertNode` would: a read that
+    /// is not a profile refuses [`EditError::SlotVarKind`], a station
+    /// move of the wrong dimension [`EditError::SlotDimensionMismatch`],
+    /// and a shape no evaluation can loft [`EditError::LoftShape`]. A
+    /// node that is not a loft refuses
+    /// [`EditError::SetLoftSectionsOnNonLoft`].
+    SetLoftSections {
+        /// The loft.
+        node: RecipeNodeId,
+        /// The first section's profile.
+        first: crate::Operand,
+        /// The sections after the first, in skin order, each with its
+        /// station.
+        then: Vec<crate::LoftSection<crate::Operand, Formula>>,
+        /// The edit's fresh table (VR6): the variables it mints for its
+        /// formulas to read as [`Formula::fresh`], entry by entry and
+        /// before anything else it mints. An entry's definition may
+        /// read the entries before it, and an entry two readers share
+        /// carries a name (VR2).
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        fresh: Vec<FreshEntry>,
     },
     /// **Replace a live profile node's PROGRAM whole** — its loops,
     /// their verbs, order and count, arc modes, sides, windings,
@@ -723,6 +757,7 @@ impl<P: crate::ProfilePayload> DocEdit<P> {
             Self::SetProgram { .. } => false,
             Self::DeleteNode { .. }
             | Self::SetMembers { .. }
+            | Self::SetLoftSections { .. }
             | Self::Rebind { .. }
             | Self::RemoveConstraint { .. }
             | Self::RemoveConstraints { .. }
@@ -2070,6 +2105,29 @@ impl core::fmt::Display for DefinitionVarKindSentence<'_> {
     }
 }
 
+/// **Why a loft's shape refuses** ([`EditError::LoftShape`]).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum LoftFault {
+    /// Fewer than two sections.
+    TooFewSections {
+        /// The sections written.
+        have: usize,
+    },
+    /// A section after the first with no station: it stands in the
+    /// first section's plane.
+    EmptyStation {
+        /// The section, in skin order (the first is `0`).
+        section: usize,
+    },
+    /// A v degree outside `1 ..= sections − 1`.
+    DegreeOutOfRange {
+        /// The degree the slot holds.
+        degree: i64,
+        /// The sections written.
+        sections: usize,
+    },
+}
+
 /// Typed, specific edit refusal (spec D6: no stringly errors).
 ///
 /// **The variable-read naming convention is stated here and nowhere
@@ -2282,6 +2340,18 @@ pub enum EditError {
         sections: usize,
         /// The sections handed.
         given: usize,
+    },
+    /// `SetLoftSections` aimed at a node that is not a loft.
+    SetLoftSectionsOnNonLoft {
+        /// The node.
+        node: SpokenNode,
+    },
+    /// A loft written in a shape no evaluation can loft.
+    LoftShape {
+        /// The loft.
+        node: SpokenNode,
+        /// What is wrong with it.
+        fault: LoftFault,
     },
     /// `SetProgram` aimed at a node that holds no profile program: a
     /// node of another kind, or a `Node::Profile` over a payload that
@@ -3284,6 +3354,8 @@ impl EditError {
             }
             | Self::IndexedRead { node, fault: _ }
             | Self::SetMembersOnNonList { node }
+            | Self::SetLoftSectionsOnNonLoft { node }
+            | Self::LoftShape { node, fault: _ }
             | Self::LoftSectionsSpelled { node }
             | Self::LoftSectionCount {
                 node,
@@ -3552,11 +3624,56 @@ impl EditError {
                 tail.recourse(
                     f,
                     format_args!(
-                        "re-point the {sections} sections, or insert a loft whose sections carry \
-                         their stations"
+                        "re-point the {sections} sections, or write them whole with their \
+                         stations through SetLoftSections"
                     ),
                 )
             }
+            Self::SetLoftSectionsOnNonLoft { node } => {
+                write!(f, "{node} is not a loft, so it has no sections to write")?;
+                tail.recourse(
+                    f,
+                    format_args!(
+                        "aim SetLoftSections at a loft; a union's or an intersect's members \
+                         are written by SetMembers, and any other read by SetParam"
+                    ),
+                )
+            }
+            Self::LoftShape { node, fault } => match fault {
+                LoftFault::TooFewSections { have } => {
+                    write!(
+                        f,
+                        "{node} is a loft through {have} section, and a loft passes through \
+                         two or more"
+                    )?;
+                    tail.recourse(f, format_args!("write a second section with its station"))
+                }
+                LoftFault::EmptyStation { section } => {
+                    write!(
+                        f,
+                        "section {section} of {node} has no station, so it stands in the \
+                         first section's plane"
+                    )?;
+                    tail.recourse(
+                        f,
+                        format_args!(
+                            "write the moves that carry the first section's plane to its own"
+                        ),
+                    )
+                }
+                LoftFault::DegreeOutOfRange { degree, sections } => {
+                    write!(
+                        f,
+                        "{node} is a loft of v degree {degree} through {sections} sections, \
+                         which admit degrees 1 to {}",
+                        sections - 1
+                    )?;
+                    tail.recourse(
+                        f,
+                        format_args!("write a degree in that range, or the sections it needs"),
+                    )
+                }
+            },
             Self::SetMembersOnNonList { node } => {
                 write!(
                     f,
@@ -5852,6 +5969,42 @@ fn check_payload_refs<P: crate::ProfilePayload>(
     Ok(())
 }
 
+/// **A loft's shape, as its data fixes it**: two sections or more,
+/// each after the first with a station that moves it, and a v degree
+/// in `1 ..= sections − 1` under the document's current values. A
+/// degree read off a variable that does not resolve is evaluation's to
+/// refuse. A station that moves its section by nothing (a slide of
+/// `0`) is degenerate by value, not by data, and is evaluation's too.
+/// Asked of every loft a door writes ([`check_written_node`]) and
+/// after a slot edit of one ([`set_slot`]); `Ok` for any other node.
+fn check_loft_shape<P: crate::ProfilePayload>(
+    new: &Doc<P>,
+    node: &Node<P>,
+) -> Result<(), LoftFault> {
+    let Node::Loft { then, v_degree, .. } = node else {
+        return Ok(());
+    };
+    let sections = then.len() + 1;
+    if sections < 2 {
+        return Err(LoftFault::TooFewSections { have: sections });
+    }
+    if let Some(k) = then.iter().position(|s| s.station.is_empty()) {
+        return Err(LoftFault::EmptyStation { section: k + 1 });
+    }
+    if let Some(crate::expr::ParamValue::Count(degree)) =
+        new.var_env::<f64>().bindings.get(v_degree)
+    {
+        let most = i64::try_from(sections - 1).unwrap_or(i64::MAX);
+        if !(1..=most).contains(degree) {
+            return Err(LoftFault::DegreeOutOfRange {
+                degree: *degree,
+                sections,
+            });
+        }
+    }
+    Ok(())
+}
+
 /// What of a node a door writes ([`check_written_node`]).
 #[derive(Clone, Copy)]
 enum Writes {
@@ -5870,13 +6023,14 @@ enum Writes {
 /// stand** (DM6): `node` is `id`'s content after the edit, its reads
 /// lowered, judged against `new` before it is written there. One
 /// function, called by `InsertNode` of the node it mints and by the
-/// slot door ([`DocEdit::SetParam`] at an operand,
-/// [`DocEdit::SetMembers`]) of the node it rewrites, so no door admits
-/// a node another refuses:
+/// doors that rewrite a node's reads ([`DocEdit::SetParam`] at an
+/// operand, [`DocEdit::SetMembers`], [`DocEdit::SetLoftSections`]), so
+/// no door admits a node another refuses:
 ///
 /// - its payload's names and read sites live ([`check_payload_refs`]),
 ///   where the door writes the payload (`writes`);
 /// - DM5 and the list floor ([`check_node_inputs`]);
+/// - a loft's shape ([`check_loft_shape`]);
 /// - the world, which no edit writes;
 /// - the variable every slot and payload expression reads, a measure's
 ///   reference indices, and an assertion's bound against the dimension
@@ -5897,6 +6051,10 @@ fn check_written_node<P: crate::ProfilePayload>(
         check_payload_refs(doc, new, node)?;
     }
     check_node_inputs(doc, id, node)?;
+    check_loft_shape(new, node).map_err(|fault| EditError::LoftShape {
+        node: spoken(),
+        fault,
+    })?;
     // The world is every document's from its creation: no edit writes
     // one.
     if matches!(node, Node::World) {
@@ -6475,11 +6633,8 @@ pub fn cascade_delete_order<P: crate::ProfilePayload>(
     let spaces_read = |n: RecipeNodeId| -> Vec<RecipeNodeId> {
         doc.node(n)
             .into_iter()
-            .flat_map(Node::operand_rows)
-            .filter_map(|(_, var)| match doc.var(var).map(|v| (v.kind(), v.def())) {
-                Some((VarKind::Space, VarDef::Output { node, .. })) => Some(*node),
-                _ => None,
-            })
+            .flat_map(|node| doc.spaces_read(node))
+            .map(|(_, at)| at)
             .collect()
     };
     let order = crate::eval::schedule::schedule(doc).order;
@@ -6544,7 +6699,8 @@ fn apply_with<P: Clone + crate::ProfilePayload>(
 
 /// **The node `edit` re-points**, whose reads it rewrites in place:
 /// a [`DocEdit::SetParam`] at an operand but a placement's `target`,
-/// or a [`DocEdit::SetMembers`]. Such a node is held to D10
+/// a [`DocEdit::SetMembers`], or a [`DocEdit::SetLoftSections`]. Such
+/// a node is held to D10
 /// `[placement.spaces]` as one written whole is. A re-target is not:
 /// it is the one write that may leave reads in two spaces, reported
 /// ([`Maintenance::StrandedSpace`]) and refused at evaluation.
@@ -6555,7 +6711,7 @@ fn repointed<P: crate::ProfilePayload>(edit: &DocEdit<P>) -> Option<RecipeNodeId
             slot: SlotId::Operand(slot),
             ..
         } if *slot != crate::OperandSlot::Space => Some(*node),
-        DocEdit::SetMembers { node, .. } => Some(*node),
+        DocEdit::SetMembers { node, .. } | DocEdit::SetLoftSections { node, .. } => Some(*node),
         _ => None,
     }
 }
@@ -6773,27 +6929,10 @@ fn insert_into<P: Clone + crate::ProfilePayload>(
         SpokenNode::entering(would, &held)
     };
     // The node as the door writes it, lowered before anything else is
-    // asked of it (VR4): the fresh table minted, then every slot the
-    // variable it stores. Its id is minted from the lowered node, so a
-    // node authored by name and the same node authored by id mint one
-    // id.
-    let lowering = Lowering::start(new, fresh)?;
-    let node = &lower_node(new, &lowering, authored, tol, would)?;
-    // D6's slot rule, of the formulas as written, asked after the names
-    // as the door has always asked it: each carries the
-    // dimension its address fixes (`Node::formula_dimension_fault`).
-    if let Some(SlotDimensionFault {
-        slot,
-        expected,
-        found,
-    }) = authored.formula_dimension_fault()
-    {
-        return Err(EditError::SlotDimensionMismatch {
-            slot,
-            expected,
-            found,
-        });
-    }
+    // asked of it. Its id is minted from the lowered node, so a node
+    // authored by name and the same node authored by id mint one id.
+    let (node, lowering) = lower_authored(new, authored, fresh, tol, would)?;
+    let node = &node;
     // N1: the node's id is minted from the document's mint
     // chain, extended by the node as the edit states it, and
     // then every authored step's, from the same chain. Minting
@@ -6845,6 +6984,37 @@ fn insert_into<P: Clone + crate::ProfilePayload>(
         admit_bundle_make_up(new, id)?;
     }
     Ok((id, fresh, outputs, minted))
+}
+
+/// **An authored node lowered as the door writes it** (VR4): the
+/// edit's fresh table minted, then every slot the variable it stores
+/// and every read the variable it reads, then D6's slot rule of the
+/// formulas as written, after the names: each carries the dimension
+/// its address fixes (`Node::formula_dimension_fault`). The insert
+/// door and [`DocEdit::SetLoftSections`] lower through it, and both
+/// then write the node through [`check_written_node`].
+fn lower_authored<P: crate::ProfilePayload>(
+    new: &mut Doc<P>,
+    authored: &Node<P::Authored, Formula>,
+    fresh: &[FreshEntry],
+    tol: Tol,
+    spoken: impl Fn() -> SpokenNode,
+) -> Result<(Node<P>, Lowering), EditError> {
+    let lowering = Lowering::start(new, fresh)?;
+    let node = lower_node(new, &lowering, authored, tol, spoken)?;
+    if let Some(SlotDimensionFault {
+        slot,
+        expected,
+        found,
+    }) = authored.formula_dimension_fault()
+    {
+        return Err(EditError::SlotDimensionMismatch {
+            slot,
+            expected,
+            found,
+        });
+    }
+    Ok((node, lowering))
 }
 
 /// **A bundle as written, minted** onto `placement`: each constraint's
@@ -7295,6 +7465,38 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 }
             }
             write_reads(doc, new, reported, *node, rewritten, tol)?
+        }
+        DocEdit::SetLoftSections {
+            node,
+            first,
+            then,
+            fresh,
+        } => {
+            let v_degree = match new.nodes.get(node) {
+                None => {
+                    return Err(EditError::UnknownNode {
+                        id: SpokenNode::absent(*node),
+                    });
+                }
+                Some(Node::Loft { v_degree, .. }) => *v_degree,
+                Some(_) => {
+                    return Err(EditError::SetLoftSectionsOnNonLoft {
+                        node: doc.spoken(*node),
+                    });
+                }
+            };
+            let authored: Node<P::Authored, Formula> = Node::Loft {
+                first: first.clone(),
+                then: then.clone(),
+                v_degree: Formula::var(v_degree, SlotId::VDegree.expr_dimension()),
+            };
+            let (rewritten, lowering) =
+                lower_authored(new, &authored, fresh, tol, || doc.spoken(*node))?;
+            let record = write_reads(doc, new, reported, *node, rewritten, tol)?;
+            EditRecord {
+                fresh: lowering.finish(new)?,
+                ..record
+            }
         }
         DocEdit::SetProgram {
             node,
@@ -8373,6 +8575,12 @@ fn set_slot<P: Clone + crate::ProfilePayload>(
         return Err(EditError::UnknownSlot { id: spoken, slot });
     };
     *target = var;
+    if let Some(node) = new.nodes.get(&id) {
+        check_loft_shape(new, node).map_err(|fault| EditError::LoftShape {
+            node: spoken.clone(),
+            fault,
+        })?;
+    }
     lowering.finish(new)
 }
 

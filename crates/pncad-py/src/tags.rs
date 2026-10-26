@@ -128,7 +128,7 @@ use pncad::document::LabelFault;
 use pncad::document::{
     AssemblyError, AttrKind, Axis3, CheckEvidence, ChecksError, Coord, CountMismatch,
     DimensionError, Distribution, DistributionFault, DistributionField, EditError, EvalError,
-    FlattenError, InlineError, InterfaceCrossing, LeverRefusal, Maintenance, MateFault,
+    FlattenError, InlineError, InterfaceCrossing, LeverRefusal, LoftFault, Maintenance, MateFault,
     MeasureUnavailableAt, MetaVersionError, NoChartWhy, NodeErrorClass, NodeErrorKind,
     NodeStanding, ParseError, PersistError, PinRefusal, PlacementRuleFault, ProgramFault,
     ProgramRefusal, ReachRefusal, RecordedProgramError, ResolveFault, ShellClassifyError, SlotId,
@@ -579,6 +579,8 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::PoseShape { .. } => "pose_shape",
         EditError::IndexedRead { .. } => "indexed_read",
         EditError::SetMembersOnNonList { .. } => "set_members_on_non_list",
+        EditError::SetLoftSectionsOnNonLoft { .. } => "set_loft_sections_on_non_loft",
+        EditError::LoftShape { .. } => "loft_shape",
         EditError::LoftSectionsSpelled { .. } => "loft_sections_spelled",
         EditError::SetProgramOnNonProfile { .. } => "set_program_on_non_profile",
         EditError::LoftSectionCount { .. } => "loft_section_count",
@@ -1167,6 +1169,9 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::PoseShape { fault, .. } => Some(pose_fault_tag(fault)),
         EditError::IndexedRead { fault, .. } => Some(input_fault_tag(fault)),
         EditError::SetMembersOnNonList { .. } => None,
+        EditError::SetLoftSectionsOnNonLoft { .. } => None,
+        // What is wrong with the loft is the arm.
+        EditError::LoftShape { fault, .. } => Some(loft_fault_tag(fault)),
         EditError::LoftSectionsSpelled { .. } => None,
         EditError::SetProgramOnNonProfile { .. } => None,
         EditError::LoftSectionCount { .. } => None,
@@ -1638,6 +1643,17 @@ pub fn skin_error_tag(err: &SkinError) -> &'static str {
         SkinError::Fit(_) => "fit",
         SkinError::KnotAlgebra(_) => "knot_algebra",
         SkinError::Structure(_) => "structure",
+    }
+}
+
+/// The stable tag for why a loft's shape refuses at the edit door —
+/// the fault `EditError::LoftShape` carries, published on
+/// `inner_variant` beside the edit's own word.
+pub fn loft_fault_tag(fault: &LoftFault) -> &'static str {
+    match fault {
+        LoftFault::TooFewSections { .. } => "too_few_sections",
+        LoftFault::EmptyStation { .. } => "empty_station",
+        LoftFault::DegreeOutOfRange { .. } => "degree_out_of_range",
     }
 }
 
@@ -2471,6 +2487,7 @@ pub fn split_error_tag(err: &SplitError) -> &'static str {
         SplitError::CutsTheWorld => "cuts_the_world",
         SplitError::NoMaterial { .. } => "no_material",
         SplitError::UncutVarReference { .. } => "uncut_var_reference",
+        SplitError::SpaceStraddlesCut { .. } => "space_straddles_cut",
         SplitError::DefinitionStraddlesCut { .. } => "definition_straddles_cut",
         SplitError::UnresolvedVarCrossesCut { .. } => "unresolved_var_crosses_cut",
         SplitError::PartNameReachesRemainder { .. } => "part_name_reaches_remainder",

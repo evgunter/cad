@@ -562,9 +562,10 @@ pub const NODE_KINDS: [&str; 23] = [
 /// tally's DOMAIN, not the `DocEdit` vocabulary.
 ///
 /// It is a SUBSET, deliberately and visibly: `SetMembers`,
-/// `RemoveConstraint`, `RemoveConstraints`, `RenameVar`, `DeleteVar` and
-/// `UpdateReference` are arms of `DocEdit` that no corpus document
-/// authors, and listing them here would report six permanent misses
+/// `SetLoftSections`, `RemoveConstraint`, `RemoveConstraints`,
+/// `RenameVar`, `DeleteVar` and `UpdateReference` are arms of `DocEdit`
+/// that no corpus document authors, and listing them here would report
+/// seven permanent misses
 /// rather than covering anything. `AddConstraint` is not listed
 /// either: no corpus document authors one, its placements being
 /// written whole.
@@ -733,6 +734,7 @@ pub fn edit_kind(edit: &DocEdit<ProfileProgram>) -> &'static str {
         DocEdit::InsertNode { .. } => "InsertNode",
         DocEdit::DeleteNode { .. } => "DeleteNode",
         DocEdit::SetMembers { .. } => "SetMembers",
+        DocEdit::SetLoftSections { .. } => "SetLoftSections",
         DocEdit::SetProgram { .. } => "SetProgram",
         DocEdit::SetParam { .. } => "SetParam",
         DocEdit::SetStructuralParam { .. } => "SetStructuralParam",
