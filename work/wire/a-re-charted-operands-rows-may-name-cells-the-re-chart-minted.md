@@ -42,12 +42,21 @@ Signed (WIRE implementer, wire-citerows).
 
 PR 5753 adds a debug-build check at `boolean/ops.rs` `boolean_op_with`'s
 exit (`rows_name_input_cells`): every input cell a row names must be
-held by its input (`records::holds`). Two `sweep` tests trip it:
-- `m5_s13_pips::two_pips_cut_under_the_group_arm`
-- `review_pr12_probes::probe_h_door_a_closed_tool`
+held by its input (`records::holds`). Four `sweep` tests trip it, at
+the default ε:
+- `m5_s13_pips::two_pips_cut_under_the_group_arm`: 4 cells
+- `review_pr12_probes::probe_h_door_a_closed_tool`: 2 cells
+- `spheres_crossing_off_every_edge::a_ball_crossed_by_two_partners_builds`:
+  42 cells (in the slow set)
+- `spheres_crossing_off_every_edge::a_ball_escaping_through_a_plane_and_a_sphere`:
+  24 cells (in the slow set)
 
-Both subtract a two-ball union from a slab, and the row is
-`Meet {A Face(1v1), B Edge(3v3)}`, `VertexFusion`.
+The same counts hold at ε 1e-6 and 1e-12, and on main at all three ε.
+Every hit is a `VertexFusion` `Meet` naming an edge or face with a
+generation-3 key. All four tests take the re-chart path: `apply_recuts`
+runs with operands to re-chart in each. The first two subtract a
+two-ball union from a slab, and their row is
+`Meet {A Face(1v1), B Edge(3v3)}`.
 
 `through_the_join`'s containment re-cut re-charts both of B's balls
 (`apply_recuts`). Each ball is two lunes, two meridians and two poles
