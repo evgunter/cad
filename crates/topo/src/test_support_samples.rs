@@ -1679,7 +1679,17 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
                 a,
                 b,
                 what: why.what(),
+                reason: crate::validate::Undecidable::MayOverlap,
             },
+        ));
+    }
+    for reason in [
+        crate::validate::Undecidable::ThinInBand,
+        crate::validate::Undecidable::MayOverlap,
+    ] {
+        s.push((
+            format!("CensusUndecidable/unread/{reason:?}"),
+            crate::census::unread_sample(face, face, reason),
         ));
     }
     s.push((
@@ -1718,6 +1728,23 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             ValidationError::CoincidentWedgesOverlapUndecided {
                 edges: [EdgeKey::default(); 2],
                 unread,
+                witness: "(0.0, 0.0, 0.0)".to_owned(),
+                why,
+            },
+        ));
+    }
+    s.push((
+        "BoundaryCrossesItself".to_owned(),
+        ValidationError::BoundaryCrossesItself {
+            solid,
+            witness: "(0.0, 0.0, 0.0)".to_owned(),
+        },
+    ));
+    for why in crate::census::TouchUnread::iter() {
+        s.push((
+            format!("BoundaryCrossesItselfUndecided/{why:?}"),
+            ValidationError::BoundaryCrossesItselfUndecided {
+                solid,
                 witness: "(0.0, 0.0, 0.0)".to_owned(),
                 why,
             },

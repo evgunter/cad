@@ -1516,6 +1516,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::CrossingAtConeApex => "crossing_at_cone_apex",
         BooleanErrorKind::NormalAtConeApex => "normal_at_cone_apex",
         BooleanErrorKind::EdgeCarrierUnsupported => "edge_carrier_unsupported",
+        BooleanErrorKind::SplineCrossingUnsettled => "spline_crossing_unsettled",
         BooleanErrorKind::PointSplitCarrierUnsupported => "point_split_carrier_unsupported",
         BooleanErrorKind::GermEdgeCarrierUnsupported => "germ_edge_carrier_unsupported",
         BooleanErrorKind::ArcLoopContainmentUnsupported => "arc_loop_containment_unsupported",
@@ -3098,6 +3099,10 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::CoincidentWedgesOverlap { .. } => "coincident_wedges_overlap",
         ValidationError::CoincidentWedgesOverlapUndecided { .. } => {
             "coincident_wedges_overlap_undecided"
+        }
+        ValidationError::BoundaryCrossesItself { .. } => "boundary_crosses_itself",
+        ValidationError::BoundaryCrossesItselfUndecided { .. } => {
+            "boundary_crosses_itself_undecided"
         }
         ValidationError::ArcEndOffCorner { .. } => "arc_end_off_corner",
         ValidationError::InstanceInterference { .. } => "instance_interference",

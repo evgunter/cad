@@ -289,6 +289,16 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             },
         ),
         (
+            "SplineCrossingUnsettled",
+            BooleanError::SplineCrossingUnsettled {
+                operand: Operand::A,
+                edge,
+                face,
+                face_of: Operand::B,
+                why: geom_brep::roots::Unsettled::Crease,
+            },
+        ),
+        (
             "PointSplitCarrierUnsupported",
             BooleanError::PointSplitCarrierUnsupported {
                 operand: Operand::A,

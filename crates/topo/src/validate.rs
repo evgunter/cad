@@ -529,6 +529,44 @@ pub(crate) fn decide_nonzero<T: Decide>(
     geom_core::k_stats::decide_nonzero(name, margin, band)
 }
 
+/// **What a [`ValidationError::CensusUndecidable`] leaves open**: whether
+/// the two solids it names may interpenetrate, or only one face pair's
+/// own reading in band. `census_uncleared_solids` reads it: the first leaves
+/// the two solids uncleared, the second does not.
+///
+/// **NOT carried to the façade's curated list, and that is a decision
+/// rather than an omission** (`scripts/payload-rung-sweep.py` names this
+/// rung; the disposition table cites this paragraph as its home). A Rust
+/// caller can already name and match this type — `pncad` re-exports
+/// `topo` whole — and the Python door already says the arm
+/// (`census_undecidable`) and carries the sentence, which says whether
+/// the pair read in band. Publishing the name owes the CUR3 property row
+/// `carried_refusal_payloads_are_matchable_through_the_prelude` and a
+/// Python word per arm, both the façade crate's to write.
+///
+/// **The falsifier is a Python caller who must tell a pair hiding no
+/// overlap (move one face clear of the band) from a pair the census
+/// cannot clear (the solids may overlap)** without reading the sentence.
+/// When the façade carries the reason, delete this paragraph and the
+/// disposition row with it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Undecidable {
+    /// The census cannot clear the two of interpenetrating past the
+    /// band: a pair it cannot examine, a crossing or a touch it could
+    /// not read, a containment its material test could not answer.
+    MayOverlap,
+    /// Two planar faces of different solids whose carriers, or whose
+    /// lying flush, read within the band, and which hide no overlap
+    /// thicker than the band: the pair's one could-not-look finding
+    /// (`[assertions]`). An opposed pair: its two materials lie on
+    /// either side, so any overlap it hides is thinner than the band,
+    /// which the representation cannot tell from contact. An aligned
+    /// pair has both materials behind both faces, so it is this only
+    /// where the two share no area thicker than the band. It is no
+    /// evidence the two solids interpenetrate.
+    ThinInBand,
+}
+
 /// **What a census refusal is ABOUT** — the whole of the subject the
 /// refusing arm was examining.
 ///
@@ -1955,6 +1993,8 @@ pub enum ValidationError {
         b: EntityId,
         /// The not-yet-supported class, named.
         what: &'static str,
+        /// What the refusal leaves open.
+        reason: Undecidable,
     },
     /// **Tier 3′: a face passes through an edge's material wedge.** An
     /// edge lies in a face of its own solid, and on decided readings the
@@ -2008,6 +2048,31 @@ pub enum ValidationError {
         /// sign comparing the two landed in band.
         unread: Option<EdgeKey>,
         /// Where the two were read, as coordinates.
+        witness: String,
+        /// Why the reading was not taken; the finding renders it with
+        /// its recourse.
+        why: crate::census::TouchUnread,
+    },
+    /// **Tier 3′: a solid's boundary crosses itself at a point where it
+    /// touches itself.** On decided readings the solid's faces through
+    /// the point bound no one material there: two of its sheets cross,
+    /// or a region about the point lies behind one face bordering it and
+    /// in front of another (D1, `crates/topo/README.md` tier 3), so no
+    /// record makes this valid.
+    BoundaryCrossesItself {
+        /// The solid.
+        solid: SolidKey,
+        /// The point, as coordinates.
+        witness: String,
+    },
+    /// **Tier 3′: whether a solid's boundary crosses itself at a point
+    /// where it touches itself is undecided.** The reading of
+    /// [`Self::BoundaryCrossesItself`] could not be taken: `why` says
+    /// why.
+    BoundaryCrossesItselfUndecided {
+        /// The solid.
+        solid: SolidKey,
+        /// The point, as coordinates.
         witness: String,
         /// Why the reading was not taken; the finding renders it with
         /// its recourse.
@@ -4375,7 +4440,7 @@ impl fmt::Display for ValidationError {
                 "a face's boundary reads an arc's end off its corner where certification pinned \
                  it: {gaps}. {DEFECT}"
             ),
-            Self::CensusUndecidable { a, b, what } => write!(
+            Self::CensusUndecidable { a, b, what, .. } => write!(
                 f,
                 "{} can be neither examined nor cleared: {what}",
                 match (a, b) {
@@ -4406,6 +4471,17 @@ impl fmt::Display for ValidationError {
                 "two edges lie along one line at {witness}, and whether the material each \
                  bounds overlaps the other's is undecided: {}",
                 why.sentence_on_line()
+            ),
+            Self::BoundaryCrossesItself { witness, .. } => write!(
+                f,
+                "a part touches itself at {witness}, and its faces there cross each other or \
+                 face both ways about one region, so they bound no one material. {DEFECT}"
+            ),
+            Self::BoundaryCrossesItselfUndecided { witness, why, .. } => write!(
+                f,
+                "a part touches itself at {witness}, and whether its faces there bound one \
+                 material is undecided: {}",
+                why.sentence()
             ),
             Self::InstanceInterference { .. } => write!(
                 f,

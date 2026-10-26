@@ -2,11 +2,11 @@
 id: a-placement-adds-no-name-segment-is-said-three-ways
 kind: issue
 title: N1's scope clause, N4 and the open placement-copy row say three different things about RoleSeg::Placed and whether a placement adds a name segment
-status: parked
+status: closed
 opened: 2026-10-20
 priority: P3
 cost: E
-blocked_on: [assemble-is-an-operator-and-the-product-is-a-slot]
+closed: 2026-10-26
 ---
 
 
@@ -32,3 +32,7 @@ and NS4 say identical operands are told apart by their reads, which
 include a placement copy's `CopyKey`. When the placement rebuild settles
 this row, re-check those two clauses with WIRE and rewrite the losing
 text in N1, N4 or N0 with it.
+
+## Resolved by D′3 (INTENT, 2026-10-26)
+
+D′3 (PR 5636, merged `29110056e8`) retired `RoleSeg::Placed` and `RoleSeg::InPart`: a copy carries its source's names and picks key an operand by its read (§5′.3, test 19). No hit for `RoleSeg::Placed` remains in `crates/`, and both D′3 reviewers checked the retired-name prose. The three texts this row compared no longer disagree, because the segment they disagreed about is gone.

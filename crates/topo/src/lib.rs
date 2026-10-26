@@ -1163,14 +1163,14 @@ pub use boolean::{
     OperandRecords, PairFace, PairRefusalSite, PairSite, PairUnread, PierceRingRecord, PlaneDesc,
     PlaneEqError, PlaneIdentity, PlaneRelation, PlaneRung, PointInSolidError, ReductionContacts,
     RefusedRow, SectorRead, SectorRung, SelfCheck, SettleError, Settler, Settling,
-    ShellOrientation, SideCode, SlitLineGap, SolidContainment, SolidFaces, SphereQuestion,
-    SpiricLoops, SubstitutedFace, SweepStrategy, SweepTrace, TorusConvention, UncutFace,
-    UnreadNeighbourhood, UnreadPartner, VeContact, VfContact, VoidContainment, VoidEvidence,
-    VoidInsertError, VoidInserted, VvContact, WallRung, boolean_op_with, boolean_reduce,
-    carrier_eq, contfp, curved_face_containment, decision_words, face_carrier, flush_pair_relation,
-    insert_void, insert_voids, intersect, is_conventional_vertex, join_covers, joinable_vertices,
-    joined_cell, joined_edge, oriented_plane_eq, point_in_solid, point_in_solid_faces,
-    point_in_solid_of, rest_locus, subtract, tangent_pair_relation, union,
+    ShellOrientation, SideCode, SlitFaceGap, SlitLineGap, SolidContainment, SolidFaces,
+    SphereQuestion, SpiricLoops, SubstitutedFace, SweepStrategy, SweepTrace, TorusConvention,
+    UncutFace, UnreadNeighbourhood, UnreadPartner, VeContact, VfContact, VoidContainment,
+    VoidEvidence, VoidInsertError, VoidInserted, VvContact, WallRung, boolean_op_with,
+    boolean_reduce, carrier_eq, contfp, curved_face_containment, decision_words, face_carrier,
+    flush_pair_relation, insert_void, insert_voids, intersect, is_conventional_vertex, join_covers,
+    joinable_vertices, joined_cell, joined_edge, oriented_plane_eq, point_in_solid,
+    point_in_solid_faces, point_in_solid_of, rest_locus, subtract, tangent_pair_relation, union,
 };
 pub use joint::{Deck, JointElement};
 pub use lineage::{
@@ -1300,8 +1300,8 @@ pub use transform::{TransformError, transform_rigid};
 pub use validate::{
     AtRestBody, CensusContact, CensusSubject, CensusUnsupportedCause, ContactMark,
     CrossingSideVerdict, OrientationUnread, RingContact, RingPairContact, StaleDeclaration,
-    Unfinished, ValidationError, WedgeCheck, contact_marks, contact_marks_structural, validate,
-    validate_closed, validate_geometric, validate_geometric_certificate,
+    Undecidable, Unfinished, ValidationError, WedgeCheck, contact_marks, contact_marks_structural,
+    validate, validate_closed, validate_geometric, validate_geometric_certificate,
     validate_geometric_certificate_structural, validate_geometric_structural,
     validate_pseudomanifold, validate_pseudomanifold_certificate,
     validate_pseudomanifold_certificate_structural, validate_pseudomanifold_structural,
