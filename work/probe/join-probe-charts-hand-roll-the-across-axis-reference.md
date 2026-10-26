@@ -2,10 +2,11 @@
 id: join-probe-charts-hand-roll-the-across-axis-reference
 kind: issue
 title: join's probe charts hand-roll an across-axis reference instead of calling Vec3::orthonormal_basis
-status: open
+status: closed
 opened: 2026-09-15
 priority: P3
 cost: E
+closed: 2026-10-26
 ---
 
 ## Finding
@@ -55,3 +56,7 @@ Moved from `work/bool/` to CURVED (its charter names S-BOOL's ceded ground and i
 ## Sweep note (2026-10-26, tracker sweep)
 
 Half fixed on main. The coaxial-frame probe's pair now comes from `axis.orthonormal_basis()` (`crates/topo/src/boolean/join.rs:7560`, `:7579`). `cylinder_at` (`:6443`, a test fixture) still hand-rolls `if axis.x.abs() < 0.5 { x̂ } else { ŷ }`. The fix is `u_ref: axis.orthonormal_basis().0`, but it changes the fixture's chart bits, so it needs a build and a test run to see what moves.
+
+## Closed (2026-10-26, easy-fixes lane)
+
+`crates/topo/src/boolean/join.rs` `cylinder_at` now takes `u_ref: axis.orthonormal_basis().0`. The same sweep found a third copy in the file: `frame_dispatch_tests::one_frame_serves_both_coaxial_cylinder_sphere_circles` hand-rolled its radial `u` by `axis.cross(x̂).norm() > 0.5`. It now reads `let (u, v) = axis.orthonormal_basis()`, which keeps `v = axis × u`. No pinned value moved: the dispatch `cylinder_at` feeds never reads its `u_ref`, and the probe's claim is frame-independent. Four test-fixture copies elsewhere in topo are filed on HONE's slate as `hone/topo-test-frames-hand-roll-the-across-axis-reference`. Verified: `cargo nextest run -p topo --lib -E 'test(/…|boolean::join|…/)'`: 367 passed. `cargo nextest run -p topo --tests -E 'kind(test) & test(/shell|moved_wall|thin|split|merge_face|section/)'`: 168 passed.
