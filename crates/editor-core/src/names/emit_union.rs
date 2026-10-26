@@ -122,8 +122,8 @@ use crate::names::emit::{
 };
 use crate::names::emit_topo::{
     CornerCopies, Cover, EdgeCarrier, EdgePieces, EdgeReading, FaceDescent, Lone, UNSIDED,
-    edge_reading, edges_holding, is_straight, joined_along, joined_candidates, name_corner_copies,
-    name_edge_pieces, name_parent_faces,
+    edge_reading, edges_holding, is_straight, joined_along, joined_candidates, line_of_several,
+    name_corner_copies, name_edge_pieces, name_parent_faces, sets_per_line,
 };
 use crate::names::groups::Rederived;
 use crate::names::least_root::LeastRoot;
@@ -1147,38 +1147,24 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
         })
     }
 
-    /// **Member edges `edges` grouped by the line they lie on** (N2's
-    /// lines at a vertex): an edge lies on a group's line where it runs
-    /// along the group's first edge's carrier through [`ON_MEMBER_EDGE`]
-    /// ([`EdgeCarrier::runs_with`]); an [`EdgeCarrier::Unread`] edge is a
-    /// line of its own. Each line is the set of its edges, so no edge on
-    /// it is chosen over another.
+    /// **Member edges `edges` grouped by the line they lie on**
+    /// ([`sets_per_line`]), each line the set of its edges.
     fn sets_per_line(
         &self,
         edges: &BTreeSet<MemberEntity>,
     ) -> Result<BTreeSet<BTreeSet<MemberEntity>>, NamingError> {
-        let mut lines: Vec<(BTreeSet<MemberEntity>, EdgeCarrier<T>)> = Vec::new();
-        for e in edges {
-            let (body, edge) = member_edge(self.members, e.0, e.1.name())?;
-            let carrier = EdgeCarrier::of_edge(body, edge)?;
-            let mut on = None;
-            for (i, (_, line)) in lines.iter().enumerate() {
-                if line
-                    .runs_with(&carrier, ON_MEMBER_EDGE, self.bnd)?
-                    .is_some()
-                {
-                    on = Some(i);
-                    break;
-                }
-            }
-            match on {
-                Some(i) => {
-                    lines[i].0.insert(e.clone());
-                }
-                None => lines.push((BTreeSet::from([e.clone()]), carrier)),
-            }
-        }
-        Ok(lines.into_iter().map(|(line, _)| line).collect())
+        let lines = sets_per_line(
+            edges.iter().cloned(),
+            |e| {
+                let (body, edge) = member_edge(self.members, e.0, e.1.name())?;
+                EdgeCarrier::of_edge(body, edge).map(Some)
+            },
+            self.bnd,
+        )?;
+        Ok(lines
+            .into_iter()
+            .map(|line| line.into_iter().collect())
+            .collect())
     }
 
     /// **The sense at finished vertex `v` of the line of member edges
@@ -1381,18 +1367,14 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
     /// **The sense at finished vertex `v` of a line of member edges,
     /// each with its sense along it as its member stores it and how a
     /// crossing of it reads** (N2): a line of one edge reads as that
-    /// edge ([`EdgeReading::read`]); a line of several things, flush
-    /// edges each a thing and a seam edge's two sides two, crosses as
-    /// `Through` the things whose direction runs into the bodies, and
-    /// touches as each of them does.
+    /// edge ([`EdgeReading::read`]), a line of several as
+    /// [`line_of_several`] reads it.
     ///
     /// # Errors
     ///
-    /// As [`EdgeReading::read`];
-    /// [`NamingError::BandVerdictsDisagree`] where one flush edge
-    /// crosses and another touches, or two touch from opposite sides:
-    /// two independent pairwise judgements of edges flush only within
-    /// `ON_MEMBER_EDGE`, which nothing makes agree.
+    /// As [`EdgeReading::read`] and [`line_of_several`]: there the
+    /// senses are independent pairwise judgements of edges flush only
+    /// within `ON_MEMBER_EDGE`.
     fn compose(
         &self,
         v: topo::VertexKey,
@@ -1401,45 +1383,14 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
         if let [(e, stored, reading)] = read.as_slice() {
             return reading.read(stored.clone(), |s| self.member_side(e.0, s));
         }
-        let disagree = || NamingError::BandVerdictsDisagree {
-            vertex: v,
-            shape: DisagreeShape::FlushSensesDisagree,
-        };
-        let mut touch: Option<Sense> = None;
-        let mut crosses = false;
-        let mut entering = Vec::new();
+        let mut senses = Vec::with_capacity(read.len());
         for (e, stored, reading) in read {
-            match reading.read(stored, |s| self.member_side(e.0, s))? {
-                t @ (Sense::Outside | Sense::Inside) => {
-                    if touch.as_ref().is_some_and(|was| *was != t) {
-                        return Err(disagree());
-                    }
-                    touch = Some(t);
-                }
-                Sense::Enters => {
-                    crosses = true;
-                    entering.push(edge_line(&NameRef::new(entity_name(self.union, e))));
-                }
-                Sense::Leaves => crosses = true,
-                Sense::Through { entering: sides } => {
-                    crosses = true;
-                    entering.extend(sides);
-                }
-            }
+            senses.push((
+                edge_line(&NameRef::new(entity_name(self.union, e))),
+                reading.read(stored, |s| self.member_side(e.0, s))?,
+            ));
         }
-        match (touch, crosses) {
-            (Some(t), false) => Ok(t),
-            (None, true) => {
-                entering.sort();
-                entering.dedup();
-                Ok(Sense::Through { entering })
-            }
-            (Some(_), true) => Err(disagree()),
-            (None, false) => unreachable!(
-                "a line at union vertex {v:?} holds no member edge: `Flush::sets_per_line` makes \
-                 each line of one edge or more"
-            ),
-        }
+        line_of_several(v, senses)
     }
 
     /// Whether member edge `of` runs the same way as member edge `like`:

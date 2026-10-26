@@ -389,9 +389,8 @@ The qualifier depends on what was split:
   `CrossingVertex` holds it as a field.
   A vertex where two or more lines meet is an `EdgeCrossing` over the run of
   those lines, each with its sense, in name order. Its lines are the edges cut
-  at the vertex, edges that run flush on one line counted once (at a union as
-  the `Merged` set of them, flat and in name order; at a pair boolean as the
-  least of them), and, at a union, each seam through the vertex whose two faces bound
+  at the vertex, edges that run flush on one line counted once, as the
+  `Merged` set of them, flat and in name order, and, at a union, each seam through the vertex whose two faces bound
   none of those edges, cited by its faces' parents as a seam edge is. So a
   union vertex no member edge reaches is the run of its seams, and a lone
   member edge through a seam is the run of the edge and the seam. A face
@@ -423,8 +422,7 @@ The qualifier depends on what was split:
 No rule reads a plane or a direction, and a union's reading of a seam pair in
 name order changes nothing. Name order spells a set, and at a union it
 chooses no entity: what several members hold at once is named for all of
-them (below). The pair boolean's seam vertex still cites the least of several
-flush edges.
+them (below).
 
 **Flush edges at a union.** Each union edge is named for the member edges it
 lies on, read off the finished body and the members' own bodies
@@ -497,10 +495,8 @@ the image of.
 
 A seam vertex cites an input edge whole, `From(m, e)`, never a piece: the
 one it lies on. Where several of one input's edges lie flush on its line, a
-union cites the `Merged` set of them. A pair boolean cites the least of them
-in name order; it reads each seat's edges apart, so this choice never sets one
-seat against the other
-(`work/wirerest/a-pair-booleans-seam-vertex-cites-the-least-of-several-flush-operand-edges.md`).
+union and a pair boolean cite the `Merged` set of them, read along each
+(`work/wire/a-pair-booleans-seam-vertex-cites-the-least-of-several-flush-operand-edges.md`).
 A vertex at a member vertex is that vertex. At several members' vertices (a
 body glued to its copy) it is `Merged` of them, flat and in name order. A
 vertex where a single face crosses or touches a member edge, or a line of
