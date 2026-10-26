@@ -207,3 +207,199 @@ fn tilt_reads_zero_at_pair_extent_and_in_band_at_merged_extent() {
         }
     }
 }
+
+/// Re-key `v`'s face on `from` (operand `held` of the verdict) onto the
+/// face of `onto` lying on the same plane (normals and offsets within
+/// 1e-6: the planes differ by at most a few ε here), as the fold's
+/// lineage would.
+fn rekey_plane(
+    v: &topo::GlueVerdict<f64>,
+    held: topo::Operand,
+    from: &Body<f64>,
+    onto: &Body<f64>,
+) -> Option<topo::GluedPair<f64>> {
+    let key = match held {
+        topo::Operand::A => v.a(),
+        topo::Operand::B => v.b(),
+    };
+    let f = from.get_face(key)?;
+    let Some(Surface::Plane { origin, normal, .. }) = from.get_surface(f.surface) else {
+        return None;
+    };
+    let (origin, normal) = (*origin, *normal);
+    let d = |o: Point3<f64>, n: geom_core::Vec3<f64>| o.x * n.x + o.y * n.y + o.z * n.z;
+    let at = onto.faces().find(|(_, g)| {
+        matches!(onto.get_surface(g.surface),
+            Some(Surface::Plane { origin: o2, normal: n2, .. })
+            if (n2.x - normal.x).abs() < 1e-6 && (n2.y - normal.y).abs() < 1e-6
+                && (n2.z - normal.z).abs() < 1e-6
+                && (d(*o2, *n2) - d(origin, normal)).abs() < 1e-6)
+    })?;
+    Some(v.given_at(held, at.0))
+}
+
+/// How far the vertices of `body` lie from each of its faces' planes:
+/// the largest |n·(p − o)| over every face's own vertices.
+fn worst_vertex_off_its_face(body: &Body<f64>) -> f64 {
+    let mut worst = 0.0f64;
+    for (_, f) in body.faces() {
+        let Some(Surface::Plane { origin, normal, .. }) = body.get_surface(f.surface) else {
+            continue;
+        };
+        for lk in std::iter::once(f.outer).chain(f.rings.iter().copied()) {
+            let Some(lp) = body.get_loop(lk) else { continue };
+            let starts: Vec<topo::VertexKey> = match lp.boundary {
+                topo::LoopBoundary::Empty { vertex } => vec![vertex],
+                topo::LoopBoundary::Cycle { first } => body
+                    .loop_cycle(first)
+                    .unwrap_or_default()
+                    .into_iter()
+                    .filter_map(|he| body.get_half_edge(he).map(|h| h.start))
+                    .collect(),
+            };
+            for vk in starts {
+                let Some(v) = body.get_vertex(vk) else { continue };
+                let Some(p) = body.get_point(v.point) else { continue };
+                let dist = (normal.x * (p.x - origin.x)
+                    + normal.y * (p.y - origin.y)
+                    + normal.z * (p.z - origin.z))
+                    .abs();
+                worst = worst.max(dist);
+            }
+        }
+    }
+    worst
+}
+
+/// C: as B, but P3 is tilted by θ about the Y-parallel line through its
+/// shared top edge (x = 2, z = 1), so the tilt grows along the row: P3's
+/// own top is within θ·1 of the flat plane, but a long flat plate read
+/// against P3's tilted description is θ·11 off at its far end. This
+/// separates a metering artefact from a genuine order dependence.
+#[test]
+fn tilt_along_the_row_is_order_dependent_in_substance() {
+    let eps = tol().get().eps;
+    let theta = 0.4 * eps;
+    let p1 = finished("p1", brick((-9.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol()), tol());
+    let p2 = finished("p2", brick((1.0, 2.0), (0.0, 1.0), (0.0, 1.0), tol()), tol());
+    let p3_flat: Body<f64> = brick((2.0, 3.0), (0.0, 1.0), (0.0, 1.0), tol());
+    let motion = geom_core::RigidMotion::rotation_about_axis(
+        Point3::new(2.0, 0.0, 1.0),
+        UnitVec3::exact_y(),
+        theta,
+    )
+    .unwrap();
+    let p3 = finished(
+        "p3",
+        topo::transform_rigid(&p3_flat, &motion, tol()).unwrap(),
+        tol(),
+    );
+    println!("PROBE C: eps={eps:e} theta={theta:e}");
+    println!(
+        "PROBE C: p3's vertices off its own faces: {:e}",
+        worst_vertex_off_its_face(&p3)
+    );
+    let pass23 = union_with(&p2, &p3, &BooleanInputs::default());
+    let pass12 = union_with(&p1, &p2, &BooleanInputs::default());
+    for (name, r) in [("(p2,p3)", &pass23), ("(p1,p2)", &pass12)] {
+        match r {
+            Ok(out) => {
+                println!("PROBE C pass {name}: {}", describe(out));
+                for v in &out.verdicts {
+                    println!("PROBE C pass {name} verdict: {v:?}");
+                }
+            }
+            Err(e) => println!("PROBE C pass {name}: REFUSED {e:?}"),
+        }
+    }
+    honest_fold("C [p1,p2,p3]", &[&p1, &p2, &p3]);
+    honest_fold("C [p3,p2,p1]", &[&p3, &p2, &p1]);
+    honest_fold("C [p2,p3,p1]", &[&p2, &p3, &p1]);
+    let (Ok(pass23), Ok(pass12)) = (pass23, pass12) else {
+        return;
+    };
+    // Today's design, order [p3, p2, p1]: step 1 is p3 ∪ p2 given the
+    // (p2,p3) verdicts (the accumulation p3 is the verdict's B side);
+    // step 2 is (p3∪p2) ∪ p1 given the (p1,p2) verdicts (the
+    // accumulation holds p2's faces, the verdict's B side).
+    let given1: Vec<_> = pass23
+        .verdicts
+        .iter()
+        .filter_map(|v| rekey_plane(v, topo::Operand::B, &p3, &p3))
+        .collect();
+    println!("PROBE C given step 1: {} of {}", given1.len(), pass23.verdicts.len());
+    let step1 = union_with(
+        &p3,
+        &p2,
+        &BooleanInputs {
+            given: Some(given1),
+            ..BooleanInputs::default()
+        },
+    );
+    let acc = match step1 {
+        Ok(out) => {
+            println!("PROBE C [p3,p2,p1] given step 1: {}", describe(&out));
+            out.body
+        }
+        Err(e) => {
+            println!("PROBE C [p3,p2,p1] given step 1: REFUSED {e:?}");
+            return;
+        }
+    };
+    let given2: Vec<_> = pass12
+        .verdicts
+        .iter()
+        .filter_map(|v| rekey_plane(v, topo::Operand::B, &p2, &acc))
+        .collect();
+    println!("PROBE C given step 2: {} of {}", given2.len(), pass12.verdicts.len());
+    match union_with(
+        &acc,
+        &p1,
+        &BooleanInputs {
+            given: Some(given2),
+            ..BooleanInputs::default()
+        },
+    ) {
+        Ok(out) => {
+            println!("PROBE C [p3,p2,p1] given step 2: {}", describe(&out));
+            println!(
+                "PROBE C [p3,p2,p1] given: vertices off their faces' descriptions: {:e} (eps {eps:e})",
+                worst_vertex_off_its_face(&out.body)
+            );
+            for (_, f) in out.body.faces() {
+                if let Some(Surface::Plane { origin, normal, .. }) = out.body.get_surface(f.surface) {
+                    if normal.z > 0.999 {
+                        println!(
+                            "PROBE C [p3,p2,p1] given: fused top description origin={:?} normal=({:e},{:e},{:e})",
+                            origin, normal.x, normal.y, normal.z
+                        );
+                    }
+                }
+            }
+        }
+        Err(e) => println!("PROBE C [p3,p2,p1] given step 2: REFUSED {e:?}"),
+    }
+    // And the mirror: order [p1, p2, p3] with the given verdicts.
+    if let Ok(acc) = union_with(&p1, &p2, &BooleanInputs::default()) {
+        let given: Vec<_> = pass23
+            .verdicts
+            .iter()
+            .filter_map(|v| rekey_plane(v, topo::Operand::A, &p2, &acc.body))
+            .collect();
+        match union_with(
+            &acc.body,
+            &p3,
+            &BooleanInputs {
+                given: Some(given),
+                ..BooleanInputs::default()
+            },
+        ) {
+            Ok(out) => println!(
+                "PROBE C [p1,p2,p3] given: {} ; vertices off faces {:e}",
+                describe(&out),
+                worst_vertex_off_its_face(&out.body)
+            ),
+            Err(e) => println!("PROBE C [p1,p2,p3] given: REFUSED {e:?}"),
+        }
+    }
+}
