@@ -262,7 +262,7 @@ pub(crate) fn frame_rows<T: Decide + Bounds>(
             _ => continue,
         };
         // A refusal adds no row: where the faces meet, a later decision
-        // refuses (`hone/coaxiality-of-two-revolution-carriers-is-tested-five-ways`).
+        // refuses (`honeone/coaxiality-of-two-revolution-carriers-is-tested-five-ways`).
         if let Ok((_, margin)) = section {
             rows.push(row(
                 (fa, fb),

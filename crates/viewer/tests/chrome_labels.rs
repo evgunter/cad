@@ -2,9 +2,11 @@
 //!
 //! Two of the names a user reads are pure functions of state rather
 //! than pixels, so they are pinned here: the toolbar's name for the
-//! open document, and the initial layout's shape. The rest of the
-//! chrome's wording lives inside widget calls and is not testable
-//! without a window; this suite claims only what it can see.
+//! open document, and the initial layout's shape. Wording that lives
+//! inside widget calls is held where it is drawn, by the headless
+//! harnesses in `app.rs`'s tests (`toolbar_row`, `Toolbar`) and
+//! `pane/view.rs`'s key-event rows, not here; this suite claims only
+//! the two names above.
 
 // Panicking is a test's failure mechanism (workspace lint note).
 #![allow(clippy::expect_used)]

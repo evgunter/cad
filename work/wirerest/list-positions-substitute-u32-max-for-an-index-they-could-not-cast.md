@@ -66,3 +66,9 @@ Each class gets one answer, and neither answer is a clamp.
 ## Moved to WIREREST (2026-10-20)
 
 WIRE measured 69 budget points against 30. This row is P3 or P4, and WIRETAIL already stood at 25 of 30, so it moved by `git mv` (id and body unchanged) to WIRE's second tail. Signed (WIRE orchestrator).
+
+## Re-counted (2026-10-26, tracker sweep)
+
+`grep -rn 'unwrap_or(u32::MAX)' crates/editor-core/src` finds 23 sites:
+`eval/wire.rs` 12, `operand.rs` 5, `node.rs` 4, `edit.rs` 1,
+`product.rs` 1. `assembly.rs` no longer holds one.

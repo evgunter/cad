@@ -45,7 +45,7 @@ The cut is pinned live as two walls: `tolerance::cut_wall` (wall 1, in
 `demo-tour certified`) and `gallery::tests::the_cut_plate_has_no_product`
 (wall 2). An overshooting tool is not this part's spelling; measured as
 evidence, it refuses the 1e-9 box on a second frontier
-(`work/chart/an-overshooting-subtract-flips-chart-bound-outer-span-over-a-tiny-box.md`).
+(`work/charttail/an-overshooting-subtract-flips-chart-bound-outer-span-over-a-tiny-box.md`).
 The trigger is both blockers closing: the cut then certifies and has a
 product, and the plate is re-authored as the cut.
 

@@ -24,11 +24,15 @@ Opened 2026-10-20 by WIRE's cut. Nothing dispatched.
 | P3 | `a-loft-of-fewer-than-two-sections-refuses-at-evaluation` | E |
 | P4 | `editor-core-refusals-spell-the-recourse-label-by-hand` | E |
 
+Parked, and not counted: `an-order-along-rank-spells-its-groups-size`
+(P3 M +design), on WIRE's `a-unions-line-of-several-edges-is-oriented-by-its-least-edge`,
+whose build of FORK-ORIENT (nothing is ranked) retires `OrderAlong`.
+
 ## Order
 
 - **The split rows come first, as one unit.** These are the first four rows of the slate: the half's plane, the nesting limit, the merge of one, and the two-piece wall. All four were found around PR 5486, and all read `topo::SplitNaming`.
 - **The two flush-helper rows are one unit.**
-- **Check the D9 rows first.** `eval-wiring-kernel-defect-endings-…` and `list-positions-…` may already be overtaken by WIRE's D9 work (PRs 5457, 5502), so check them against the tree before dispatching either.
+- **Check the D9 rows first.** `eval-wiring-kernel-defect-endings-…` and `list-positions-…` were checked against main on 2026-10-26: two of the first row's seven sites remain, and the second's 23 clamps all stand (each row's dated note).
 - **The verb-door row** takes three `Emission` raises with it (PR 5502's report).
 
 ## Review posture

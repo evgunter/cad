@@ -87,9 +87,8 @@
 //!   dataflow analysis over text.
 //! - **An enum arm with a catch-all.** `_ => false` is exhaustive to
 //!   the compiler and silent about a new variant, which is the same
-//!   defect one level up from this one. `topo`'s `CensusSubject` is the
-//!   live instance —
-//!   `work/topo/censussubject-eq-answers-false-for-a-new-variant-against-itself.md`.
+//!   defect one level up from this one. `topo`'s `CensusSubject` was
+//!   the live instance until its `eq` spelled its mismatches out.
 //! - **One exhaustive pattern anywhere in the body answers for the
 //!   whole body** — `Self { … }`, `Self::V { … }` or the type's own
 //!   name alike. A struct LITERAL reads as a destructure, and so would
@@ -171,7 +170,7 @@ enum Verdict {
     /// named fields one level down. The verdict says what this walk
     /// saw, not what the impl does. Whether either shape should get a
     /// verdict of its own is
-    /// `work/tint/census-answers-no-field-read-for-a-walk-that-reads-a-field.md`.
+    /// `work/fixture/census-answers-no-field-read-for-a-walk-that-reads-a-field.md`.
     ///
     /// **"No census here", not "the census is the empty set".** An
     /// `eq` that reads nothing and answers `true`
@@ -307,7 +306,7 @@ const KNOWN_HAND_LISTED: [(&str, &str, &str, &str); 1] = [(
 /// hidden, and that a SUPPRESSION LIST was standing in for it — so
 /// that the instrument weakens exactly as the rows it names are
 /// repaired — is
-/// `work/tint/the-per-impl-sight-anchor-is-a-suppression-list-that-shrinks.md`.
+/// `work/fixture/the-per-impl-sight-anchor-is-a-suppression-list-that-shrinks.md`.
 ///
 /// **A new line is the arrival this row exists to detect.** Adding one
 /// is a deliberate act and the message below says which acts are

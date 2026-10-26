@@ -84,7 +84,7 @@ weight quotient.
 | Hit | Disposition |
 |---|---|
 | `pcurve_cache` `nurbs_stretch_inf` | fixed: the floors |
-| `pcurve_cache` `weight_ratio_factor` + its `weight_ratio_poison` row | retired; the producers hold the weight regime (PR 4923); `work/knot/surface-knot-insertion-writes-weights-validate-counts-refuses.md`'s citation of both updated |
+| `pcurve_cache` `weight_ratio_factor` + its `weight_ratio_poison` row | retired; the producers hold the weight regime (PR 4923); `work/nurbs/surface-knot-insertion-writes-weights-validate-counts-refuses.md`'s citation of both updated |
 | `pcurve_cache` `skipping_surface_derivative_net` | retired: `net_direction` sums `derivative_net` per column |
 | `pcurve_cache` `net_inf` | now `floor_along` (the clamp and cap only) |
 | `chart_stretch_sup` → `nurbs_stretch_bounds` | sup side, unchanged |

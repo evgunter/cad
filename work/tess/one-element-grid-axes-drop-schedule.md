@@ -5,7 +5,7 @@ title: mesh: one-element grid axes drop the other axis' computed schedule — th
 status: open
 opened: 2026-09-01
 github: 1513
-refs: [685, 1507, 678, S29]
+refs: [685, 1507, 678]
 priority: P0
 cost: H
 ---

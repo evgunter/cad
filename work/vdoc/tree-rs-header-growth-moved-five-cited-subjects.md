@@ -2,10 +2,11 @@
 id: tree-rs-header-growth-moved-five-cited-subjects
 kind: issue
 title: Five cited subjects in viewer/src/tree.rs moved when CHROME grew its module header; one of them had its text rewritten
-status: open
+status: closed
 opened: 2026-09-15
 priority: P4
 cost: E
+closed: 2026-10-26
 ---
 
 
@@ -74,3 +75,7 @@ disclosed to the CHROME orchestrator in a lane report and nowhere in
 the tree, which reaches VIEW not at all.
 
 Signed: (CHROME implementer lane, `chrome/band-refusal-badging`)
+
+## Closed (2026-10-26, tracker sweep)
+
+**Superseded.** Four of the five citations lived in rows that have left the tracker. Three were `work/view/` rows (`four-badges-five-spellings`, `the-gui-shows-no-measure-value-and-no-clearance`, `named-not-linked-is-a-silent-disposition-at-eleven-of-thirteen-sites`), deleted with VIEW (`docs/doc-ledger/view-leaves-the-tracker.md`; *prose citations of `work/view/…` resolve at the SHA*). One was `renderer-free-cross-crate-links-…` (deleted, `docs/doc-ledger/mirror-and-blind-leave-the-tracker.md`). The fifth, `comment-symbol-names-outside-rustdocs-reach-have-no-gate`, is now GUARD's, and its instance has gone too: `grep -n 'SolvedPoses::placement' crates/viewer/src/tree.rs` returns nothing, so GUARD's row (`work/guard/comment-symbol-names-outside-rustdocs-reach-have-no-gate.md:57`, `tree.rs:337`) cites a site that no longer exists. That is reported to GUARD by this sweep, not edited from here.

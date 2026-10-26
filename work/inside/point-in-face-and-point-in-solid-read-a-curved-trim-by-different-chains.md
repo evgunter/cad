@@ -20,7 +20,7 @@ Found by the pair-table audit (`fuse/every-pair-question-has-one-total-table`, #
 
 ## Owed
 
-Re-aimed to D3 "One reading per question". Point-in-face is a reading over trimmed faces, so it lives in `topo` and reaches carrier facts (on-carrier, chart coordinates) only through the carrier readings (`hone/point-to-carrier-distance-is-spelled-seven-times`, `chart/chart-inversion-is-spelled-three-times`).
+Re-aimed to D3 "One reading per question". Point-in-face is a reading over trimmed faces, so it lives in `topo` and reaches carrier facts (on-carrier, chart coordinates) only through the carrier readings (`honeone/point-to-carrier-distance-is-spelled-seven-times`, `chart/chart-inversion-is-spelled-three-times`).
 
 - One point-in-face reading, one exhaustive match over surface kinds with a typed refusal for the rest. Point-in-face and point-in-solid both read it.
 - `face_placement`'s `_ =>` delegation, the cylinder outline chain, and `face_geo`'s cone and sphere chains are methods reached because another declined: fallbacks D3 forbids. Each arm has one method.

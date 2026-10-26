@@ -16,7 +16,7 @@ door could not settle against the face
 `SpanVerdict::OffFace` when every touch is certified off it.
 
 The straddle arm of `reduce::curved_face_arm` (the
-`(Sign::Positive, Sign::Negative)` arm, `reduce.rs:2389`) still sends
+`(Sign::Positive, Sign::Negative)` arm, `crates/topo/src/boolean/reduce.rs:2642-2662`) still sends
 `OffFace` to the frontier with every verdict other than `Pierce` and
 `Elsewhere`. Its contradiction posture is for `NoInterior`, a root set
 that finds no crossing where the ends promise one. `OffFace` claims no

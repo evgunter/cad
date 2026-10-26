@@ -1054,7 +1054,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         // an arc tangent at this vertex is split at the band's edge, and
         // the sliver's arm puts the arc's second-order margin in the zero
         // band too, so the two `On`s are the consecutive-`On` refusal
-        // (`work/hone/an-arc-tangent-to-a-face-at-its-end-is-split-at-the-edge-of-the-band.md`;
+        // (`work/honeroot/an-arc-tangent-to-a-face-at-its-end-is-split-at-the-edge-of-the-band.md`;
         // pinned by `m9_3_zip::a_tangent_curved_sector_on_a_face_lumps_whole`).
         if class == Some(GlueClass::Tangent) {
             let surface_of = |body: &Body<T>, f| {
@@ -2690,8 +2690,8 @@ fn tie_breaks_after<T: Decide>(
 /// A conic edge's On against a plane is as real: its height bound over
 /// the whole arc reads within the band (`Reach::Conic`,
 /// `sectors::conic_side`); a tie whose bend reads no side is lumped or
-/// refuses before this runs. Against a curved face, and for a fitted
-/// edge's chord (`Reach::Extent`), it is a first-order tie
+/// refuses before this runs. Against a curved face it is a first-order
+/// tie
 /// (`work/contacthold/conic-ties-outside-the-vertex-on-face-pass-still-read-first-order.md`).
 ///
 /// A bisector entry's On is a direction's, levered at its sector's arm,

@@ -28,4 +28,4 @@ Re-aimed to D3 "One reading per question". The earlier target, "the tangency out
 - `census::point::face_face` (its private enum and `pm_census_point_*` predicates), `locus::closed_form_locus` and `section_cert`'s `Section::Tangent` each read that pose reading and the outcome that takes it. None of them decides the tangency again.
 - A consumer that serves fewer pairs matches on the pose reading's answer and refuses the rest typed (the `_ => None` in `face_face` goes).
 
-The second-order wedge duplicate (`dihedral::tangent_second_order` against `contact_verify`'s own) is already on `pred/lever-arm-fold-six-hand-rolled-siblings` (issue 1439) and is not refiled.
+The second-order wedge duplicate (`dihedral::tangent_second_order` against `contact_verify`'s own) is already on `predtail/contact-verify-spells-the-orientation-and-second-order-margins-beside-their-homes` (cut from issue 1439's lever-arm row) and is not refiled.

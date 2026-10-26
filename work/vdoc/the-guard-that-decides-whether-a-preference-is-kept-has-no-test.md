@@ -25,7 +25,7 @@ ever learns their theme is not being kept, and no test in
   guard — the statement that a store keeping nothing is not asked, and
   the site whose SILENCE was the original defect.
 - the `frame::prefs_badge(self.store.unusable().as_ref())` draw beside
-  the palette picker in `ViewerApp::update` — the sentence itself.
+  the palette picker in `ViewerApp`'s frame entry point (`<ViewerApp as eframe::App>::ui`; this row first called it `update`, a method the crate never had) — the sentence itself.
 
 Both live in `crates/viewer/src/app.rs`, one inside an `egui` closure
 and one on a `&mut ViewerApp`, and `ViewerApp` cannot be constructed in
