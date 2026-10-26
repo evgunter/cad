@@ -175,3 +175,4 @@ Signed (FIX orchestrator).
   - **Routing:** one lane-routing predicate.
 
   NURBS's typed ½ share is re-banded P2 and left to its own unit. Brief correction, recorded: 'NURBS stays bit-identical' was a designer's expectation, not Ev's ruling.
+- 2026-10-26 — (PRED orchestrator) The user, on 5717's rounding allowance: "kind of ugly but i can see why it may be the best solution. but seems worth making sure it's always small compared to delta and epsilon and flagging it when it isn't". Forwarded to the fix pass as binding: the allowance is checked against a stated small fraction of min(δ, ε), and when it exceeds that it is flagged loudly (preferably a typed refusal naming allowance, δ and ε) and never absorbed silently. Both sides are pinned.
