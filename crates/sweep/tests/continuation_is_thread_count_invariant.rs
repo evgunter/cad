@@ -1,7 +1,7 @@
 //! **The continuation's session receipt does not move with the thread
 //! count.**
 //!
-//! `SignCertificate::refine_to_target` resumes the faces its gate left
+//! `SignCertificate::measure` resumes the faces its gate left
 //! open. `sign_walk_plus_v` pins its refusal rule and the
 //! piece-evaluation identity `gate + refine == one` at whatever width
 //! the runner gives it; this suite reads the one channel a width-blind
@@ -71,7 +71,9 @@ fn session_reading(body: &Body<Sym<f64>>, threads: usize) -> String {
         let (refused, counts) =
             with_session(budget(), || {
                 match topo::validate_geometric_certificate(body, tol) {
-                    Ok(cert) => cert.refine_to_target().is_err(),
+                    Ok(cert) => cert
+                        .measure(topo::test_support::pinned_resolution(tol))
+                        .map_or(true, |m| m.stop != topo::Stop::Met),
                     Err(_) => true,
                 }
             });
@@ -83,7 +85,7 @@ fn session_reading(body: &Body<Sym<f64>>, threads: usize) -> String {
 /// **The continuation stays on the caller's thread while a session is
 /// installed**, and this is the row that says so.
 ///
-/// `refine_to_target` has a serial arm of its own, taken when
+/// `SignCertificate::measure` has a serial arm of its own, taken when
 /// `decisions_are_thread_portable` is false, and every other channel
 /// the continuation reports is a value the walk hands back — so a parallel
 /// resumption could compose it. These two cannot: `count_decision`

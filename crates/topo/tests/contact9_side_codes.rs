@@ -141,8 +141,11 @@ fn volume(body: &Body<f64>) -> f64 {
     mass_properties(
         &topo::test_support::finished("the measured body", (body).clone(), Tol::witness()),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
+    .met()
+    .expect("the pinned resolution is met")
     .volume
 }
 

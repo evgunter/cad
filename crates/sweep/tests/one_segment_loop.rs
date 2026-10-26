@@ -82,9 +82,10 @@ fn volume(body: &Body<f64>) -> (f64, f64) {
     let m = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
         tol(),
+        topo::test_support::pinned_resolution(tol()),
     )
     .unwrap();
-    (m.volume, m.volume_pad)
+    (m.enclosure.volume, m.enclosure.volume_pad)
 }
 
 fn close((got, pad): (f64, f64), want: f64, what: &str) {
@@ -256,8 +257,11 @@ fn one_segment_circles_extrude_at_interval() {
                             tol(),
                         ),
                         tol(),
+                        topo::test_support::pinned_resolution(tol()),
                     )
-                    .unwrap()
+                    .expect("the measured body")
+                    .met()
+                    .expect("the measured body")
                     .volume;
                     assert!(
                         v.lo() <= want && want <= v.hi(),
@@ -570,8 +574,11 @@ fn one_segment_circles_revolve_at_interval() {
                         tol(),
                     ),
                     tol(),
+                    topo::test_support::pinned_resolution(tol()),
                 )
-                .unwrap()
+                .expect("the measured body")
+                .met()
+                .expect("the measured body")
                 .volume;
                 assert!(
                     v.lo() <= want && want <= v.hi(),
@@ -677,8 +684,8 @@ fn a_lofted_one_segment_section_is_one_spline_wall_with_a_wrap_strut() {
 /// one is known (a cylinder `2π`, a frustum `πh(R² + Rr + r²)/3`); a
 /// section turned by a radian between the stations has none, and the
 /// two forms are held to each other. Where neither reaches it (at
-/// ε = 1e-9 and 1e-12 today) both refuse alike (`QuadratureBudget`),
-/// and a run where only one form measures is a finding.
+/// ε = 1e-9 and 1e-12 today) both stop short alike, and a run where only
+/// one form measures is a finding.
 #[test]
 fn a_lofted_one_segment_wall_measures_as_the_two_arc_wall() {
     let places = sweep::test_support::stacked_at(&[0.0, 2.0]);
@@ -723,21 +730,17 @@ fn a_lofted_one_segment_wall_measures_as_the_two_arc_wall() {
     let measure = |what: &str, [a, b]: [ProfileLoop<f64>; 2]| {
         let lofted = sweep::loft_body::<f64>(&[vec![a], vec![b]], &places, 1, tol())
             .unwrap_or_else(|e| panic!("{what}: the loft builds: {e}"));
-        match topo::mass_properties(
+        let m = topo::mass_properties(
             &topo::test_support::finished(
                 "the measured body",
                 topo::Body::clone(&lofted.body),
                 tol(),
             ),
             tol(),
-        ) {
-            Ok(m) => Some((m.volume, m.volume_pad)),
-            Err(topo::MassPropsError::Face {
-                source: geom_brep::PropsError::QuadratureBudget { .. },
-                ..
-            }) => None,
-            Err(e) => panic!("{what}: the volume refused otherwise: {e:?}"),
-        }
+            topo::test_support::pinned_resolution(tol()),
+        )
+        .unwrap_or_else(|e| panic!("{what}: the volume refused: {e:?}"));
+        (m.stop == topo::Stop::Met).then_some((m.enclosure.volume, m.enclosure.volume_pad))
     };
     for (what, one, two, want) in cases {
         let got = (
@@ -771,11 +774,9 @@ fn a_lofted_one_segment_wall_measures_as_the_two_arc_wall() {
             // At ε = 1e-12 the one-segment wall (one face round the
             // whole turn) stops short of the target where the two-arc
             // halves certify (measured on the frustum: the two arcs
-            // read 3.6651914291769425 ± 4.415e-9). Both refused at
-            // round 0 while a lane refused on a predicted last round.
-            // The form that measures is still held to the closed form.
-            // `None` is only ever a `QuadratureBudget` refusal: `measure`
-            // maps that refusal to it and panics on every other.
+            // read 3.6651914291769425 ± 4.415e-9). The form that
+            // measures is still held to the closed form. `None` is only
+            // ever a resolution unmet: `measure` panics on a refusal.
             (None, Some(two)) if tol().eps() == 1e-12 => {
                 if let Some(want) = want {
                     close(two, want, &format!("{what}, two arcs"));

@@ -120,12 +120,13 @@ fn report(what: &str, r: Result<Body<f64>, topo::ShellError<f64>>) -> Option<Bod
                     Tol::witness(),
                 ),
                 Tol::witness(),
+                topo::test_support::pinned_resolution(Tol::witness()),
             )
             .expect("props");
             println!(
                 "[r1] {what}: BUILDS  shells={} volume={:.17e} tier3={:?}",
                 b.shells().count(),
-                props.volume,
+                props.enclosure.volume,
                 topo::validate_geometric(&b, Tol::witness()).is_ok(),
             );
             Some(b)
@@ -230,7 +231,8 @@ fn r1b_the_unpinned_oblique_fixtures_against_their_closed_forms() {
             Tol::witness(),
         ) {
             Ok(topo::Shelled { body: b, .. }) => {
-                let got = topo::mass_properties(
+                let got = topo::test_support::pinned_volume(
+                    "props",
                     &topo::test_support::finished(
                         "the measured body",
                         topo::Body::clone(&b),
@@ -238,7 +240,6 @@ fn r1b_the_unpinned_oblique_fixtures_against_their_closed_forms() {
                     ),
                     Tol::witness(),
                 )
-                .expect("props")
                 .volume;
                 println!(
                     "[r1b] {what}: BUILDS volume={got:.17e} closed form={want:.17e} \
@@ -350,7 +351,8 @@ fn r1d_the_straight_footprint_vertex_through_shell() {
         )
         .map(|shelled| shelled.body),
     ) {
-        let got = topo::mass_properties(
+        let got = topo::test_support::pinned_volume(
+            "props",
             &topo::test_support::finished(
                 "the measured body",
                 topo::Body::clone(&b),
@@ -358,7 +360,6 @@ fn r1d_the_straight_footprint_vertex_through_shell() {
             ),
             Tol::witness(),
         )
-        .expect("props")
         .volume;
         println!(
             "[r1d] volume={got:.17e} want={want:.17e} delta={:.3e}",
@@ -507,7 +508,8 @@ fn r1e_conditioning_verdict_moves_with_the_offset_alone() {
                 Tol::witness(),
             ) {
                 Ok(topo::Shelled { body: b, .. }) => {
-                    let got = topo::mass_properties(
+                    let got = topo::test_support::pinned_volume(
+                        "props",
                         &topo::test_support::finished(
                             "the measured body",
                             topo::Body::clone(&b),
@@ -515,7 +517,6 @@ fn r1e_conditioning_verdict_moves_with_the_offset_alone() {
                         ),
                         Tol::witness(),
                     )
-                    .expect("props")
                     .volume;
                     println!(
                         "[r1e] delta={delta:e} t={t:e}: BUILDS rel_err={:.3e}",
@@ -601,7 +602,8 @@ fn r1g_box_control() {
         )
         .map(|shelled| shelled.body),
     ) {
-        let got = topo::mass_properties(
+        let got = topo::test_support::pinned_volume(
+            "props",
             &topo::test_support::finished(
                 "the measured body",
                 topo::Body::clone(&b),
@@ -609,7 +611,6 @@ fn r1g_box_control() {
             ),
             Tol::witness(),
         )
-        .expect("props")
         .volume;
         println!(
             "[r1g] volume bits={:x} closed form={want:.17e} delta={:.3e}",
@@ -694,14 +695,15 @@ fn wide_dump(body: &Body<f64>) -> String {
     let props = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(body), Tol::witness()),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap();
     let _ = writeln!(
         s,
         "props V={:x} A={:x} pad={:x}",
-        props.volume.to_bits(),
-        props.surface_area.to_bits(),
-        props.volume_pad.to_bits()
+        props.enclosure.volume.to_bits(),
+        props.enclosure.surface_area.to_bits(),
+        props.enclosure.volume_pad.to_bits()
     );
     s
 }

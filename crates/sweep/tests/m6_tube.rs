@@ -152,13 +152,18 @@ fn tube_minor_radius_is_stored_bit_exact() {
 #[test]
 fn tube_donut_volume_is_pappus_exact() {
     let tube = topo::test_support::finished("tube", tube_donut(), Tol::witness());
-    let props = topo::mass_properties(&tube, Tol::witness()).expect("mass properties");
+    let props = topo::mass_properties(
+        &tube,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .expect("mass properties");
     let exact = 2.0 * PI * PI * R * MINOR * MINOR;
-    let pad = props.volume_pad;
+    let pad = props.enclosure.volume_pad;
     assert!(
-        (props.volume - exact).abs() <= pad,
+        (props.enclosure.volume - exact).abs() <= pad,
         "V = {} ± {pad} must bracket Pappus {exact}",
-        props.volume
+        props.enclosure.volume
     );
 }
 
@@ -221,12 +226,10 @@ fn tube_window_and_refusal_doors() {
     );
     assert_eq!(scaled.faces().count(), unit.faces().count());
     assert_eq!(
-        topo::mass_properties(&scaled, Tol::witness())
-            .expect("mass properties")
+        topo::test_support::pinned_volume("mass properties", &scaled, Tol::witness())
             .volume
             .to_bits(),
-        topo::mass_properties(&unit, Tol::witness())
-            .expect("mass properties")
+        topo::test_support::pinned_volume("mass properties", &unit, Tol::witness())
             .volume
             .to_bits(),
         "the normalized axis builds the same torus, bit for bit"
@@ -322,12 +325,15 @@ mod certified {
                 Tol::witness(),
             ),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .expect("mass properties");
         let exact = 2.0 * PI * PI * R * MINOR * MINOR;
         let (lo, hi) = (
-            geom_core::Bounds::lo(m.volume) - geom_core::Bounds::hi(m.volume_pad),
-            geom_core::Bounds::hi(m.volume) + geom_core::Bounds::hi(m.volume_pad),
+            geom_core::Bounds::lo(m.enclosure.volume)
+                - geom_core::Bounds::hi(m.enclosure.volume_pad),
+            geom_core::Bounds::hi(m.enclosure.volume)
+                + geom_core::Bounds::hi(m.enclosure.volume_pad),
         );
         assert!(lo <= exact && exact <= hi, "Pappus {exact} ∈ [{lo}, {hi}]");
         // Containment alone is monotone in the degrading direction, so

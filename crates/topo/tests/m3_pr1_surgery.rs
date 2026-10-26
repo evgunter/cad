@@ -200,16 +200,23 @@ fn revert_negates_volume() {
     let props = topo::mass_properties(
         &topo::test_support::finished("the cube", cube.body.clone(), Tol::witness()),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap();
     // Raw door: the measured body is an inside-out body, which tier 3 refuses (NegativeVolume).
-    let rev_props =
-        topo::test_support::measure_unvalidated(&cube.body.revert().unwrap(), Tol::witness())
-            .unwrap();
-    assert_eq!(rev_props.volume.to_bits(), (-props.volume).to_bits());
+    let rev_props = topo::test_support::measure_unvalidated(
+        &cube.body.revert().unwrap(),
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap();
     assert_eq!(
-        rev_props.surface_area.to_bits(),
-        props.surface_area.to_bits()
+        rev_props.enclosure.volume.to_bits(),
+        (-props.enclosure.volume).to_bits()
+    );
+    assert_eq!(
+        rev_props.enclosure.surface_area.to_bits(),
+        props.enclosure.surface_area.to_bits()
     );
 }
 

@@ -16,6 +16,17 @@ mod common;
 use geom_core::Tol;
 use mesh::validate::{check_mesh, signed_volume, triangle_count};
 
+/// The resolution the exported bodies' exact volume and area are read
+/// at: 1024·ε of mean boundary displacement. The printed numbers stand
+/// beside admesh's mesh-side ones, which agree only to the tessellation's
+/// chord tolerance, so any resolution far finer than the mesh serves;
+/// this one is the suites' (`topo::test_support::pinned_resolution`),
+/// stated here because an example is no test and carries no test
+/// vocabulary.
+fn resolution(tol: Tol) -> topo::Settle<f64> {
+    topo::Settle::Resolution(quantity::Length::from_meters(1024.0 * tol.eps()))
+}
+
 fn main() {
     let tol = Tol::witness();
     let outdir = std::env::args()
@@ -25,7 +36,10 @@ fn main() {
     for (name, body, delta) in common::acceptance_bodies() {
         let body = topo::AtRestBody::validate(body, tol)
             .unwrap_or_else(|e| panic!("{name}: tier-3 validation failed: {e:?}"));
-        let props = topo::mass_properties(&body, tol).expect("mass properties");
+        let props = topo::mass_properties(&body, tol, resolution(tol))
+            .expect("mass properties")
+            .met()
+            .expect("the resolution is met");
         let mesh = mesh::tessellate(&body, delta, tol).expect("tessellate");
         check_mesh(&mesh).unwrap_or_else(|e| panic!("{name}: check_mesh failed: {e:?}"));
         let v = signed_volume(&mesh);

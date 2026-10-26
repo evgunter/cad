@@ -18,7 +18,7 @@ use pncad::sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 
 use crate::booleans::finished;
 use crate::scalar::Scalar;
-use crate::{SceneBody, Stop, View};
+use crate::{SceneBody, TourStop, View};
 use pncad::authoring::{p2, polygon, v2, validated};
 use pncad::geom_core::Tol;
 
@@ -170,10 +170,12 @@ pub fn sheave<S: Scalar>(tol: Tol) -> (pncad::topo::Body<S>, String) {
     //   V = 2*pi*(1997/1200) - (189/1000)*pi^2.
     let pi = core::f64::consts::PI;
     let oracle = 2.0 * (1997.0 / 1200.0) * pi - 0.189 * pi * pi;
-    let v = pncad::topo::mass_properties(&crate::booleans::at_rest(&body, tol), tol)
-        .expect("sheave mass properties")
-        .volume
-        .f();
+    let v =
+        pncad::topo::mass_properties(&crate::booleans::at_rest(&body, tol), tol, crate::printed())
+            .expect("sheave mass properties")
+            .enclosure
+            .volume
+            .f();
     let rel = ((v - oracle) / oracle).abs();
     assert!(
         rel < 1e-12,
@@ -234,10 +236,12 @@ pub fn chute<S: Scalar>(tol: Tol) -> (pncad::topo::Body<S>, String) {
     // Pappus for the partial sweep (independent derivation, exact):
     // profile first moment 429/1024, angle 3pi/2 => V = (1287/2048)pi.
     let oracle = (1287.0 / 2048.0) * core::f64::consts::PI;
-    let v = pncad::topo::mass_properties(&crate::booleans::at_rest(&body, tol), tol)
-        .expect("chute mass properties")
-        .volume
-        .f();
+    let v =
+        pncad::topo::mass_properties(&crate::booleans::at_rest(&body, tol), tol, crate::printed())
+            .expect("chute mass properties")
+            .enclosure
+            .volume
+            .f();
     let rel = ((v - oracle) / oracle).abs();
     assert!(
         rel < 1e-12,
@@ -252,7 +256,7 @@ pub fn chute<S: Scalar>(tol: Tol) -> (pncad::topo::Body<S>, String) {
 
 // Narration fields arrive as one flat argument list on purpose — the
 // call sites below read as a table of stops; a params struct would just
-// re-spell `Stop` itself.
+// re-spell `TourStop` itself.
 #[allow(clippy::too_many_arguments)]
 fn stop(
     name: &'static str,
@@ -263,8 +267,8 @@ fn stop(
     color: [f64; 3],
     body: pncad::topo::Body<f64>,
     note: Option<String>,
-) -> Stop {
-    Stop {
+) -> TourStop {
+    TourStop {
         name,
         caption: String::new(),
         montage: true,
@@ -349,13 +353,13 @@ pub fn spacer<S: Scalar>(tol: Tol) -> (pncad::topo::Body<S>, String) {
 /// narration, corpus/latency roles untouched) — the curation lever, so
 /// a retirement is one wrapped call site and not a reshaped `stop`
 /// table.
-fn off_sheet(mut s: Stop) -> Stop {
+fn off_sheet(mut s: TourStop) -> TourStop {
     s.montage = false;
     s
 }
 
 /// The sweep stops, in tour order.
-pub fn stops(tol: Tol) -> Vec<Stop> {
+pub fn stops(tol: Tol) -> Vec<TourStop> {
     let (sheave_body, sheave_note) = sheave::<f64>(tol);
     let (chute_body, chute_note) = chute::<f64>(tol);
     let (spacer_body, spacer_note) = spacer::<f64>(tol);

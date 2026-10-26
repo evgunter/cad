@@ -70,9 +70,14 @@ fn params(body: &Body<f64>, edge: EdgeKey) -> (f64, f64) {
 }
 
 /// The body's volume through the at-rest door.
-fn volume(body: &Body<f64>) -> Result<f64, topo::MassPropsError> {
+fn volume(body: &Body<f64>) -> Result<f64, topo::Stop> {
     let at = topo::AtRestBody::validate(body.clone(), tol()).expect("the body is at rest");
-    topo::mass_properties(&at, tol()).map(|m| m.volume)
+    let measured = topo::mass_properties(&at, tol(), topo::test_support::pinned_resolution(tol()))
+        .unwrap_or_else(|e| panic!("the body measures: {e:?}"));
+    match measured.stop {
+        topo::Stop::Met => Ok(measured.enclosure.volume),
+        stop => Err(stop),
+    }
 }
 
 /// The half-edge of `edge` on `wall`.
@@ -198,7 +203,7 @@ fn a_whole_rim_re_mints_the_closed_form() {
 /// **Both halves of a split rim** re-mint the parent's row, over the
 /// parent's arc: the first starting at its corner, the second ending at
 /// its other one. The re-minted body measures the unsplit volume, or
-/// refuses as the unsplit body does. The mesher refuses the halves,
+/// stops short of the resolution as the unsplit body does. The mesher refuses the halves,
 /// pinned as its frontier.
 #[test]
 fn both_halves_of_a_split_rim_re_mint_the_parents_row() {
@@ -212,20 +217,9 @@ fn both_halves_of_a_split_rim_re_mint_the_parents_row() {
             (split - whole).abs() <= 1e-12 * whole,
             "the re-minted rows measure the unsplit volume: {split} / {whole}"
         ),
-        // At eps 1e-12 the unsplit rational wall already exhausts the
-        // quadrature budget
-        // (`work/exch/arc-loft-native-volume-exhausts-the-quadrature-budget-at-eps-1e-12.md`);
-        // the split body must refuse the same way, on the same face.
-        (
-            Err(topo::MassPropsError::Face {
-                face: whole_face,
-                source: geom_brep::props::PropsError::QuadratureBudget { .. },
-            }),
-            Err(topo::MassPropsError::Face {
-                face: split_face,
-                source: geom_brep::props::PropsError::QuadratureBudget { .. },
-            }),
-        ) => assert_eq!(split_face, whole_face, "the same face exhausts its budget"),
+        // At eps 1e-12 the unsplit rational wall already stops short of
+        // the resolution; the split body must stop the same way.
+        (Err(whole), Err(split)) => assert_eq!(split, whole, "both stop short alike"),
         (whole, split) => panic!("split {split:?} against unsplit {whole:?}"),
     }
     // The mesher's chord schedule lands on the sub-arc joints only for

@@ -66,9 +66,10 @@ fn volume(b: &Body<f64>) -> Measured {
     let m = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(b), Tol::witness()),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap();
-    (m.volume, m.volume_pad)
+    (m.enclosure.volume, m.enclosure.volume_pad)
 }
 
 /// The four operations' volumes, `[∪, ∩, A∖B, B∖A]`; each must build.

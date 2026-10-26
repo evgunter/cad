@@ -693,6 +693,7 @@ fn channel_rows(pose: Pose, m: f64, s: f64, tol: Tol, want: impl Fn(&str) -> Wan
             .iter()
             .find(|r| r.shell == cavity)
             .expect("the shell")
+            .enclosure
             .volume;
         assert!(
             ((got - volume) / volume).abs() < rel,
@@ -759,6 +760,36 @@ fn a_needle_channel_whose_fill_face_leans_reads_its_side_off_its_seam() {
     }
 }
 
+/// `result` with each unresolved sign's bracket checked to be one (its
+/// ends ordered and finite) and then cleared, so the rows compare
+/// the verdict and not the walk's last enclosure, which they do not pin.
+fn bracket_read(result: Result<(), Vec<ValidationError>>) -> Result<(), Vec<ValidationError>> {
+    result.map_err(|errors| {
+        errors
+            .into_iter()
+            .map(|error| match error {
+                ValidationError::VolumeSignUnresolved {
+                    solid,
+                    limit,
+                    volume,
+                } => {
+                    let (lo, hi) = volume.expect("the structural door reads a bracket end");
+                    assert!(
+                        lo.is_finite() && hi.is_finite() && lo <= hi,
+                        "an unresolved sign carries a bracket: [{lo:e}, {hi:e}]"
+                    );
+                    ValidationError::VolumeSignUnresolved {
+                        solid,
+                        limit,
+                        volume: None,
+                    }
+                }
+                other => other,
+            })
+            .collect()
+    })
+}
+
 /// **A needle's orientation through the structural doors**, which hold
 /// no quadrature lane and read the volume walk's own sums: the sign of
 /// the sum against a stated bound on its rounding
@@ -794,6 +825,7 @@ fn a_needles_orientation_through_the_structural_doors() {
             let unresolved = Err(vec![ValidationError::VolumeSignUnresolved {
                 solid,
                 limit: topo::SignLimit::Scalar,
+                volume: None,
             }]);
             let plain = if reads { Ok(()) } else { unresolved.clone() };
             let inverted = if reads || !turned {
@@ -802,12 +834,12 @@ fn a_needles_orientation_through_the_structural_doors() {
                 unresolved
             };
             assert_eq!(
-                topo::validate_geometric_structural(&body, tol),
+                bracket_read(topo::validate_geometric_structural(&body, tol)),
                 plain,
                 "{what} through the structural door"
             );
             assert_eq!(
-                topo::validate_geometric_structural(&inside_out, tol),
+                bracket_read(topo::validate_geometric_structural(&inside_out, tol)),
                 inverted,
                 "inside-out {what} through the structural door"
             );

@@ -64,9 +64,7 @@ fn body(ev: &Evaluation<f64>, id: RecipeNodeId) -> &Body<f64> {
 
 fn volume(b: &Body<f64>) -> f64 {
     let measured = topo::test_support::finished("the measured body", b.clone(), Tol::witness());
-    topo::mass_properties(&measured, Tol::witness())
-        .unwrap()
-        .volume
+    topo::test_support::pinned_volume("the measured body", &measured, Tol::witness()).volume
 }
 
 /// Every vertex point of `b`, sorted, so two bodies compare by point set.

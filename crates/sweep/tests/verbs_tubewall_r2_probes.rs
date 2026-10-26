@@ -350,19 +350,20 @@ fn r2_closed_forms_over_varied_radii_walls_and_windows() {
                 Tol::witness(),
             ),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .expect("mass properties");
         assert!(
-            rel(p.volume, v) < 1e-11,
+            rel(p.enclosure.volume, v) < 1e-11,
             "{what}: volume {} vs closed form {v} (relative {})",
-            p.volume,
-            rel(p.volume, v)
+            p.enclosure.volume,
+            rel(p.enclosure.volume, v)
         );
         assert!(
-            rel(p.surface_area, a) < 1e-11,
+            rel(p.enclosure.surface_area, a) < 1e-11,
             "{what}: area {} vs closed form {a} (relative {})",
-            p.surface_area,
-            rel(p.surface_area, a)
+            p.enclosure.surface_area,
+            rel(p.enclosure.surface_area, a)
         );
 
         // Census: the full period is two shells (outer + cavity),
@@ -423,7 +424,8 @@ fn r2_hollow_plus_bore_is_the_solid_tube() {
             Tol::witness(),
         )
         .expect("bore builds");
-        let vh = topo::mass_properties(
+        let vh = topo::test_support::pinned_volume(
+            "props",
             &topo::test_support::finished(
                 "the measured body",
                 topo::Body::clone(&hollow.body),
@@ -431,9 +433,9 @@ fn r2_hollow_plus_bore_is_the_solid_tube() {
             ),
             Tol::witness(),
         )
-        .expect("props")
         .volume;
-        let vs = topo::mass_properties(
+        let vs = topo::test_support::pinned_volume(
+            "props",
             &topo::test_support::finished(
                 "the measured body",
                 topo::Body::clone(&solid.body),
@@ -441,9 +443,9 @@ fn r2_hollow_plus_bore_is_the_solid_tube() {
             ),
             Tol::witness(),
         )
-        .expect("props")
         .volume;
-        let vb = topo::mass_properties(
+        let vb = topo::test_support::pinned_volume(
+            "props",
             &topo::test_support::finished(
                 "the measured body",
                 topo::Body::clone(&bore.body),
@@ -451,7 +453,6 @@ fn r2_hollow_plus_bore_is_the_solid_tube() {
             ),
             Tol::witness(),
         )
-        .expect("props")
         .volume;
         assert!(
             rel(vh + vb, vs) < 1e-11,
@@ -818,12 +819,24 @@ mod certified {
                     Tol::witness(),
                 ),
                 Tol::witness(),
+                topo::test_support::pinned_resolution(Tol::witness()),
             )
             .expect("props");
-            encloses(m.volume, m.volume_pad, theta * major * area_sec, &what);
             encloses(
-                m.surface_area,
-                m.area_pad,
+                m.enclosure.volume,
+                m.enclosure.volume_pad,
+                theta * major * area_sec,
+                &what,
+            );
+            encloses(
+                m.enclosure.volume,
+                m.enclosure.volume_pad,
+                theta * major * area_sec,
+                &what,
+            );
+            encloses(
+                m.enclosure.surface_area,
+                m.enclosure.area_pad,
                 theta * major * 2.0 * PI * (minor + inner) + caps,
                 &what,
             );
