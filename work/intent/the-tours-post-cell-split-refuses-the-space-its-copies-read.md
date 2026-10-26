@@ -2,13 +2,14 @@
 id: the-tours-post-cell-split-refuses-the-space-its-copies-read
 kind: issue
 title: the tour's second cut (the patterned-post cell) no longer splits: the cell's placements read a Space node outside it, so the gui lane drops a cell
-status: dispatched
+status: closed
 opened: 2026-10-23
 priority: P1
 cost: M
-design: true
 refs: [5592]
+pr: 5763
 branch: intent/split-carries-spaces
+closed: 2026-10-26
 ---
 
 
@@ -93,3 +94,21 @@ Designers A (Opus) and B (Fable), byte 234 (Opus is A), recorded on `analysis/de
   - `p2_face::a_mate_reading_a_copy_in_a_space_of_its_own_refuses_at_split` keeps its assertion.
   - The gui lane re-renders the posts cell with `[render]`.
 - **Check on D′3's branch:** whether inline then flatten leaves the part's product `⊔` as an extra node. That would break A4's round trip by one node. File it if it holds.
+
+## Handoff
+
+PR 5763. Split reads every `Space`-kind operand as an edge to the node
+defining the space (`refactor.rs` `spaces_read`), and a `new_space()`
+takes the variable regime: all readers cut joins the cut, named or
+not; readers on both sides refuses `SpaceStraddlesCut` naming the
+space's node and one reader each side, after the closure check (so
+`p2_face`'s `SeveredEdge` still speaks first); an unread one stays
+unless named. The spaces a node reads have one home,
+`Doc::spaces_read`, which the cascade and split both read. A placement across the cut from a construction's own
+space is `SeveredEdge` naming the construction. `carry` deals
+`Node::Space` nodes first, for split and inline alike. A space named in
+the cut under a kept reader now refuses `SeveredEdge` instead of
+stranding. Rows: `tests/split_carries_spaces.rs`. The tour's second
+cut asserts the round trip (inline then flatten is the layout by node
+kinds, census, and volume to its sum's rounding); the posts cell
+re-rendered under `[render]`.
