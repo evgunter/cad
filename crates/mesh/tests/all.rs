@@ -171,6 +171,8 @@ mod review_m2_pr6_walk_shapes;
 mod review_m3_pr1_mesh;
 #[path = "revolves.rs"]
 mod revolves;
+#[path = "sizing_theorem_rows.rs"]
+mod sizing_theorem_rows;
 #[path = "wedge.rs"]
 mod wedge;
 
@@ -403,12 +405,17 @@ fn the_eps_inventory_is_pinned() {
     // The four operations, in the order the read column reports them.
     const OPS: [&str; 4] = ["separates", "coincident", "dominates", "pad"];
     // (file, ε CARRIER tokens, one READ count per op above).
-    const PINNED: [(&str, usize, [usize; 4]); 6] = [
-        ("curved.rs", 6, [0, 0, 0, 0]),
+    // `cert.rs`'s one read is the certificate verdict's
+    // (`cert::verdict`): whether the rounding allowance is small beside
+    // ε, so that it may be applied; `curved.rs` and `trimmed.rs` each
+    // carry the band one more step, to hand it to that verdict.
+    const PINNED: [(&str, usize, [usize; 4]); 7] = [
+        ("cert.rs", 2, [0, 0, 1, 0]),
+        ("curved.rs", 7, [0, 0, 0, 0]),
         ("memo.rs", 4, [0, 0, 0, 0]),
         ("sizing.rs", 2, [0, 0, 0, 0]),
         ("tessellate.rs", 2, [0, 0, 0, 0]),
-        ("trimmed.rs", 1, [0, 0, 0, 1]),
+        ("trimmed.rs", 2, [0, 0, 0, 1]),
         ("walk.rs", 9, [1, 3, 1, 0]),
     ];
     let src = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("src");
@@ -474,13 +481,13 @@ fn the_eps_inventory_is_pinned() {
          edges), then re-pin."
     );
     // The crate's terminal reads and its named operations are the same
-    // six things, which is the whole claim: `Eps`'s methods ARE the
+    // seven things, which is the whole claim: `Eps`'s methods ARE the
     // inventory. Stated as a total so the per-file rows above cannot
     // drift from the sentence in this row's docs.
     let total: usize = found.iter().flat_map(|(_, _, r)| r.iter()).sum();
     assert_eq!(
-        total, 6,
-        "the crate has six terminal ε reads; the operation columns must sum to them"
+        total, 7,
+        "the crate has seven terminal ε reads; the operation columns must sum to them"
     );
 }
 #[path = "r2_mesh7_probes.rs"]

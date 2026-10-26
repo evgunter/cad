@@ -5,7 +5,6 @@ title: API gap — no public census/genus query, so the Euler-Poincare identity 
 status: closed
 opened: 2026-08-20
 github: 758
-refs: [S79]
 branch: topo/census-door
 pr: 2131
 closed: 2026-09-12

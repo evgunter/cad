@@ -2,10 +2,11 @@
 id: unclaimed-half-edge-read-as-a-minus-half-in-contact
 kind: issue
 title: a half-edge its own edge does not claim is read as that edge's minus half: 1 site(s) on this ground
-status: open
+status: closed
 opened: 2026-09-30
 priority: P3
 cost: E
+closed: 2026-10-26
 ---
 
 Filed by TOPO's fix pass on PR 3532 (the review's MINOR-3), which
@@ -81,3 +82,15 @@ self-pair checks, and `merge_faces.rs`' `#[cfg(test)]` tear hooks.
 | band | `unclaimed-half-edge-read-as-a-minus-half-in-band` | `crates/sweep/src/blend/surgery.rs`, the rim arc mate, ~:3651 | mate |
 | no owner | `unclaimed-half-edge-read-as-a-minus-half-unowned` | `crates/topo/src/props.rs`, the curved-face edge record, ~:1825 | direction |
 | no owner | `unclaimed-half-edge-read-as-a-minus-half-unowned` | `crates/topo/src/pcurves.rs`, `is_plus`, ~:1199 | direction |
+
+## Closed (2026-10-26, tracker sweep)
+
+Fixed: the site is gone. `crates/topo/src/boolean/solid_contain.rs` and
+`solid_contain/` hold no `he_plus` comparison on main. The one pairing
+read left in the file, `face_edges`' walk
+(`crates/topo/src/boolean/solid_contain.rs:3247`), goes through
+`Edge::claim(half)` and refuses `CorruptFace` on `None`. The run
+parameter interval the row named went when the containment trims were
+rewritten (the region skeleton, `boolean/region.rs`), before this
+checkout's shallow history begins (graft 2026-10-19), so no commit is
+cited. The class's other rows, on other slates, are unaffected.

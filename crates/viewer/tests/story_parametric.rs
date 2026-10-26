@@ -9,8 +9,9 @@
 //! session: the create/replace param partition (`DeclareVar` refuses
 //! a taken name, `SetVariable` refuses an absent variable — both in the
 //! edit door's words),
-//! expressions driving slots (`SetSlotExpression`) and the ratified
-//! refuse-with-affordance on a numeric write to a driven slot, display
+//! expressions driving slots (`SetSlotExpression`) and the
+//! refuse-with-affordance on a numeric write to a driven slot (G4
+//! rules it for a drag; the write follows the same rule), display
 //! units as a separate door from values (`SetSlotUnit`), slider
 //! gestures over a slot and over a variable (previews against
 //! scratch, exactly one undo step, a cancel leaving no trace), a
@@ -425,7 +426,8 @@ fn the_parametric_living_walk() {
     );
 
     // ── 7. Living in it, first touch: a direct number onto the
-    // tower's driven distance refuses with the ratified affordance —
+    // tower's driven distance refuses with G4's affordance (ruled for
+    // a drag, applied here to a typed write) —
     // the typed payload names the driving variable and the value the
     // slot has today, and the refusal commits nothing.
     let before = session.history().len();

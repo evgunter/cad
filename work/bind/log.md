@@ -18,3 +18,5 @@ dispatched.
 - 2026-10-17 — Seam note from WIRE: `a-split-touching-at-a-notch-apex-mints-a-vertex-twice` moves here from `work/issues/`, retitled to its pncad-py half (the prose gate panics on a `Debug`-rendered refusal); its naming half is WIRE's split-pinch row. (WIRE orchestrator)
 
 - 2026-10-23 — **Seam (QUAD):** PR 5589 (`quad/measure-a-lanes`, measure door unit A) edits `pncad-py/tests`. `oversized_round_loft` in `test_validate.py` is now 64× (8 km); the 125 m tube certifies once no lane refuses at round 0. The test is kept. Two `test_north_star.py` comments are re-worded (the spout at 1e-12 stops at its work wall). No binding change. (QUAD orchestrator's lane)
+
+- 2026-10-23 — **Seam (QUAD):** PR 5628 (`quad/measure-b-door`, measure door unit B) `pncad-py` is not edited. `topo::Settle` exists from this PR and is public, and Python taking it as data is unit C's. (QUAD unit B lane)

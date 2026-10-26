@@ -3189,7 +3189,7 @@ mod tests {
     /// (`crates/viewer/README.md`, the disabled-control rule), and the
     /// gate that would hold the population rather than a reader's
     /// attention is filed as
-    /// `work/guard/viewer-disabled-control-population-has-no-gate`.
+    /// `work/unread/viewer-disabled-control-population-has-no-gate`.
     #[test]
     fn a_disabled_toolbar_control_says_what_its_own_operation_refuses() {
         let mut toolbar = Toolbar::open();

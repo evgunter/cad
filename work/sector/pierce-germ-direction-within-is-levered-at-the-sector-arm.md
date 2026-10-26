@@ -66,3 +66,16 @@ wedge witness above is unmeasured on that branch. `sectors::within`
 and its other callers (`pair_search`, `insert::germ_dir`, the
 polygon-cone reader) are unchanged, so the per-bound lever owed here
 still stands for them.
+
+## Re-read (2026-10-26, tracker sweep)
+
+The pierce half is on main. `vtxfac::pierce_germ_dir`
+(`crates/topo/src/boolean/vtxfac.rs:2774-2834`) signs the germ by
+`OutBound` and reads `sectors::within` only in a debug assertion. What
+this row still owes is the per-bound lever in `sectors::within` itself:
+`within_signs` levers both bound readings at `s.arm`
+(`crates/topo/src/boolean/sectors.rs:1266-1290`), against
+`sectors::least_lever` (`:2341`). That serves its remaining callers:
+`pair_search`, `insert::germ_dir` (`crates/topo/src/boolean/insert.rs:2181`,
+`:2233`) and the polygon-cone reader.
+

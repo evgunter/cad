@@ -46,7 +46,7 @@ fn split_steps_stay_on_the_ellipse_and_inside_the_cap() {
         }
     }
     for _ in 0..fuzz::scaled(500) {
-        let delta_s = 10.0f64.powf(rng.range(-6.0, -1.0));
+        let budget = 10.0f64.powf(rng.range(-6.0, -1.0));
         let b = NurbsFaceBound {
             muu: mag(&mut rng),
             muv: mag(&mut rng),
@@ -54,15 +54,15 @@ fn split_steps_stay_on_the_ellipse_and_inside_the_cap() {
             mu1: mag(&mut rng),
             mv1: mag(&mut rng),
         };
-        let s = b.split_steps(delta_s);
+        let s = b.split_steps(budget);
         // Ellipse membership, checked at a finite box (an
         // unconstrained ∞ step realizes as the box extent).
         let ext = 10.0f64.powf(rng.range(-2.0, 2.0));
         let (hu, hv) = (s.hu.min(ext), s.hv.min(ext));
         let q = b.muu * hu.powi(2) + 2.0 * b.muv * hu * hv + b.mvv * hv.powi(2);
         assert!(
-            q <= delta_s * (1.0 + 1e-9),
-            "chosen point violates the certificate: q={q:e} > {delta_s:e} for {b:?} — {}",
+            q <= budget * (1.0 + 1e-9),
+            "chosen point violates the certificate: q={q:e} > {budget:e} for {b:?} — {}",
             fuzz::replay()
         );
         // Aspect-cap membership whenever the window exists and the

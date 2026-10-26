@@ -210,13 +210,19 @@ struct Tally {
 /// the only document that moved; its vertices are now the merge base's
 /// bit for bit.
 ///
-/// It moved for D′3 (a placement copies one source, the product is a
-/// slot reading a `⊔`), from `(440460, 141163, 13482, 6882)`: 576 more
-/// rays, 254 more grazes, and 12 060 more candidates refused at the
-/// determinant on 1 116 more rays, the landings now drawing each copy
-/// as its source's body under its source's names. No genuine crossing
-/// is refused and no winner is wide.
-const PINNED: (usize, usize, usize, usize) = (441_036, 141_417, 25_542, 7_998);
+/// It moved when the mesher began sizing each lane at its own
+/// worst-triangle theorem (`crates/mesh/README.md` `[mesh.sizing]`),
+/// from `(440460, 141163, 13482, 6882)`: the corpus's curved faces
+/// coarsen, so 42 948 fewer rays, 8 551 fewer
+/// grazes, and 12 576 more candidates refused at the determinant on
+/// 1 410 more rays — larger triangles put more of them edge-on to an
+/// aimed ray. No genuine crossing is refused.
+///
+/// It moved again when the cone stopped taking interior rows and the
+/// sphere sized its azimuth at each face's widest latitude, from
+/// `(397512, 132612, 26058, 8292)`: 5 400 fewer rays and 900 fewer
+/// grazes, the refusals unchanged.
+const PINNED: (usize, usize, usize, usize) = (392_112, 131_712, 26_058, 8_292);
 
 fn sweep(name: &str, step: &str, index: &PickIndex, tally: &mut Tally) {
     let reference = FlatReference::of(index);

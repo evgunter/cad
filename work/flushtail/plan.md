@@ -7,7 +7,7 @@ unchanged. Nothing dispatched.
 
 ## The slate
 
-**26.5 budget points** against a ceiling of 30 (2026-10-25: PR 5697 filed two P3 rows here). One row is unpriced
+**25.5 budget points** against a ceiling of 30 (2026-10-26). One row is unpriced
 and is charged 2.5.
 
 | pri | item | cost | title |
@@ -17,7 +17,6 @@ and is charged 2.5.
 | P3 | `a-split-seams-kfmrh-onto-a-curved-host-is-unexercised` | M | zip_split's kfmrh of a split seam's faces onto a curved host face is unexercised |
 | P3 | `kept-boundary-undecided-has-no-live-fixture` | E | MergeCoplanarError::KeptBoundaryUndecided has no live fixture: the merge's neighbour scan refuses an in-band planar dihedral first |
 | P3 | `revalue-pairs-the-ray-casters-decisions-only-to-their-first-difference` | – | revalue_corpus pairs the ray caster's decisions only up to their first difference, so a laundering in a later ray goes uncounted |
-| P3 | `the-glue-door-re-witnesses-a-declared-tangent-pair` | E | The glue door re-runs the tangency witness on a pair already declared Tangent |
 | P3 | `the-lane-free-rounding-bound-charges-a-thin-face-its-spread-squared` | M | The lane-free rounding bound charges a thin face its spread squared |
 | P3 | `the-volume-backstops-plus-v-posture-reads-a-sign-the-side-reader-cannot` | E | The volume backstop's vol(R) ≥ 0 posture reads tier 3's +V sign off a summed volume, which the side-at-infinity reader cannot answer |
 | P3 | `a-small-toruss-aims-land-on-its-faces-shared-seam-where-the-quartic-reads-in-band` | M | a small torus's aims land on its faces' shared seam where the quartic reads in band (PR 5422's residue) |

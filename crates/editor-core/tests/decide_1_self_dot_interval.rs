@@ -19,7 +19,7 @@
 //! (`r1_rule_a_never_fires_on_a_straddling_argument` and
 //! `r1_rule_a_decides_zero_at_every_width_and_off_it_widens`). What
 //! nothing re-takes is the STATIC half, and that gap is a filed row
-//! (`work/guard/self-dot-has-no-gate-the-interval-square-one-cannot-see-it`),
+//! (`work/blind/self-dot-has-no-gate-the-interval-square-one-cannot-see-it`),
 //! not a row here. Run these:
 //!
 //! ```sh

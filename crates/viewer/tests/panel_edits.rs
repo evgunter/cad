@@ -671,7 +671,7 @@ fn the_affordance_outranks_the_bookkeeping_refusal_it_causes() {
     );
     assert!(
         shown.to_string().contains("edit the expression?"),
-        "and it renders the ratified wording: {shown}"
+        "and it renders the affordance's wording: {shown}"
     );
     assert!(shown.rank() < Refusal::NoGesture.rank());
 }

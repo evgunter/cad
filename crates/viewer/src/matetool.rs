@@ -243,7 +243,7 @@ pub enum MateToolError {
 impl core::fmt::Display for MateToolError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::NotTwoPicks => write!(f, "the mate tool needs two face picks"),
+            Self::NotTwoPicks => write!(f, "needs two face picks"),
             Self::PickIsNotAFace { side, refusal } => write!(
                 f,
                 "the {} pick does not name a face, so no pose is read off it: {refusal}",

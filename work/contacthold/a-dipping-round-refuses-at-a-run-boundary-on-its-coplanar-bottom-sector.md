@@ -36,7 +36,7 @@ union answers one solid (the PR 4831 section below).
 
 This is not the arc's reading (PR 4575's descent leaves it, the lump
 keys on first-order ties), and not
-`work/hone/an-arc-tangent-to-a-face-at-its-end-is-split-at-the-edge-of-the-band.md`,
+`work/honeroot/an-arc-tangent-to-a-face-at-its-end-is-split-at-the-edge-of-the-band.md`,
 whose refusal is `vtxfac::pierce_germ_dir`'s "pierce transition on a
 coplanar sector" at the lumped wall sector. Forcing the arc's every
 reading to its far vertex moved this refusal to that one, by unlumping

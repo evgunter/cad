@@ -1641,6 +1641,18 @@ FAMILIES: dict[str, str] = {
         "produced, a `pncad.pyi` entry on `Maintenance` for it, and one "
         "Python row asserting the net of a cascade whose rows cancel."
     ),
+    # THE MEASUREMENT PREDICATE ARRIVED BEFORE ITS DOORS
+    # (`docs/QUAD-MEASURE-SPEC.md` unit B): the façade curates `Settle`
+    # and the vocabulary its variants carry, while no number door takes
+    # one yet. Python taking it as data is unit C's
+    # (`work/quad/the-measurement-door-refines-until-a-predicate-resolves`).
+    "B-SETTLE": (
+        "what a measurement is asked — `Settle` (a sign, a relation, a "
+        "containment or a resolution) with `RelOp`, `SignNames` and "
+        "`RoleNames`. Closing it needs `Body.mass_properties()` and the "
+        "other number doors to take one as data, a `pncad.pyi` entry for "
+        "each, and one Python row per variant."
+    ),
 }
 
 #: Curated names with no Python spelling at all, by family.
@@ -2387,6 +2399,10 @@ NOT_BOUND = {
     # whose space it is. Python reads a refusal's spaces in its message.
     "SpokenSpace": SHAPE,
     "VarDef": f"{GAP}: B-VAR-ID a variable's minted identity",
+    "Settle": f"{GAP}: B-SETTLE what a measurement is asked",
+    "RelOp": f"{GAP}: B-SETTLE what a measurement is asked",
+    "SignNames": f"{GAP}: B-SETTLE what a measurement is asked",
+    "RoleNames": f"{GAP}: B-SETTLE what a measurement is asked",
     "VarRef": f"{GAP}: B-VAR-ID a variable's minted identity",
     "node_kind_noun": SHAPE,
     # A direction refusal before it is spelled as a node error: which
@@ -2892,6 +2908,14 @@ NOT_BOUND = {
     # as its tag word plus prose, and the guard's prose is its own
     # sentence, so a Python caller reads the site in the message.
     "PairRefusalSite": INTERIOR,
+    # `BooleanError::EdgeCarrierUnsupported`'s SITE: which lane met the
+    # spiric or spline edge (the sweep's planar or curved crossing arm,
+    # the join's germ frame or ring run). Carried in Rust so a consumer
+    # matching that variant can name the field's type; interior here
+    # because Python never holds one. The refusal crosses as its tag
+    # word plus prose, and each site's clause is its own, so a Python
+    # caller reads the site in the message.
+    "EdgeCarrierSite": INTERIOR,
     # `NodeErrorKind::FullRangeStep`'s `turns`: whether a step of a
     # turn or more lands every copy on the master or names an angle
     # within the turn. Carried in Rust so a consumer matching that
@@ -3906,6 +3930,7 @@ MEMBERS_BOUND_AS = {
     "TessellateError::ResolutionOverflow": "TessellateError.variant",
     "TessellateError::StepNotPositive": "TessellateError.variant",
     "TessellateError::CertificateExceeded": "TessellateError.variant",
+    "TessellateError::RoundingUnresolved": "TessellateError.variant",
     "TessellateError::Triangulation": "TessellateError.variant",
     "TessellateError::SelfTouchingTrimLoop": "TessellateError.variant",
     "TessellateError::PinchWedge": "TessellateError.variant",
