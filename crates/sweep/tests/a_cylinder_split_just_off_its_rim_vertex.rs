@@ -45,7 +45,9 @@ fn sliver_split(d: f64, tol: Tol) -> Result<topo::splitting::SplitResult<f64>, S
 /// the seam vertex (the issue's `d` at 1e-9, which refused) and one and
 /// two orders further. The sliver below is `d` high at its thickest. (At
 /// `5ε` the vertex is in band of the plane, and the split refuses the
-/// input there, `SliverVertex`.)
+/// input there, `SliverVertex`.) Only 1e-9 witnesses the fix: at 1e-6 the
+/// split builds at every `d` here with each end read off its vertex too,
+/// so that arm is a regression row.
 #[test]
 fn a_sliver_just_off_the_rim_vertex_builds_and_the_halves_hold_the_volume() {
     let tol = Tol::witness();
