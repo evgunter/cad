@@ -307,11 +307,13 @@ impl<T: Decide> SphereFaceRegion<T> {
             let h = d.dot(axis);
             let circle = (h.powi(2) + ((d - axis * h).norm() - radius.abs()).powi(2)).sqrt();
             let span = arc.t1 - arc.t0;
-            let near = (0..=CLEARANCE_SAMPLES)
-                .map(|i| (arc.at(arc.t0 + span * T::from_f64(i as f64) / n) - m).norm())
-                .reduce(T::min)
-                .unwrap_or(T::zero());
-            let gap = circle.max(near - (radius * span).abs() / n * T::from_f64(0.5));
+            let step = span / n;
+            let (mut t, mut near) = (arc.t0, (arc.at(arc.t0) - m).norm());
+            for _ in 0..CLEARANCE_SAMPLES {
+                t = t + step;
+                near = near.min((arc.at(t) - m).norm());
+            }
+            let gap = circle.max(near - (radius * step).abs() * T::from_f64(0.5));
             least = Some(least.map_or(gap, |l| l.min(gap)));
         }
         // A face of one arc: nothing else to keep off.

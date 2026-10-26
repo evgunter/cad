@@ -87,3 +87,28 @@ nominal:
    curved face's region that way yet.
 
 The row is H for the second half; the first could land alone.
+
+## Measured on the trimmed-sphere aim (FLUSH, PR 5730, 2026-10-26)
+
+PR 5730 gives a trimmed sphere face an aim (`sphere_region.rs`
+`SphereFaceRegion::aim`), which no corpus document casts, so
+`revalue_corpus::reader_ties_at_the_nominal` cannot see it. Its review
+recorded `Sym<f64>` builds of trimmed-sphere bodies (PR 5730's review
+probe `review_sphere_aims_sym_ties`, on `flush/sphere-aims-review` @
+`6f5073f6`) and counted the decisions under `SIDE_READER_FAMILY` whose
+margin is exactly 0. Lens = unit ball ∩ 0.8 ball at `z = 0.9`; the
+symmetric pair is two unit balls at `z = ±0.5`; block = a 4-cube.
+
+| body | main | first aim (mean of steps) | PR 5730 aim (golden-section step) |
+|---|---|---|---|
+| symmetric lens | 0 | 2 | 1 |
+| lens | 1 | 2 | 2 |
+| symmetric bite | 0 | 1 | 1 |
+| block less the symmetric lens | 0 | 13 | 5 |
+
+The same counts at ε 1e-9, 1e-6 and 1e-12. Every tie left is
+`bool_pierce_normal_on_chart`. The first aim's `bool_sphere_region_order`
+and `curve_foot_branch` ties (the in-face walk of the aim's crossing on
+the symmetric plane through an arc's middle) went when the aim moved off
+the middle to the golden section of the arc. None moves a reading:
+every aim of every body reads the same side. What is left is this row's.
