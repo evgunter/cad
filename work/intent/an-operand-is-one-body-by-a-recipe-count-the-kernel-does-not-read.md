@@ -2,10 +2,11 @@
 id: an-operand-is-one-body-by-a-recipe-count-the-kernel-does-not-read
 kind: issue
 title: The editor decides whether an operand is one body by an instance's recipe part count (NodeValue.parts), while the kernel's notion is solids
-status: open
+status: parked
 opened: 2026-10-21
 priority: P1
 cost: M
+blocked_on: [assemble-is-an-operator-and-the-product-is-a-slot]
 ---
 
 

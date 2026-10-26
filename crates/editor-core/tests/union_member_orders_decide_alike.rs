@@ -677,11 +677,6 @@ pub(crate) fn pinch_and_cap(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) 
     (doc, m)
 }
 
-/// Where a union holds a pinch an earlier fold step made, its end pass
-/// refuses naming the corner's copies.
-pub(crate) const CARRIED_PINCH: &str =
-    "work/refs/a-pinch-carried-through-a-later-fold-step-refuses-naming.md";
-
 /// Two unit blocks kissing at the corner (1, 1, 1): one vertex-vertex
 /// record, citing its `VertexFusion` row.
 pub(crate) fn kiss(doc: ProfileDoc) -> (ProfileDoc, [RecipeNodeId; 2]) {
@@ -778,17 +773,11 @@ fn statement(
 /// step meets a vertex an earlier step minted. Every order that builds
 /// judges alike, and the first that builds logs exactly the statements
 /// listed, its fold steps' with them, so a row published twice or not
-/// at all is red. The orders that fold the far member last after the
-/// pinch refuse [`CARRIED_PINCH`] and are excluded, each checked to
-/// refuse that way.
+/// at all is red. Every order builds, the far member folded last after
+/// the pinch among them.
 #[test]
 fn a_vertex_row_is_the_unions_once_in_every_member_order() {
-    type Row = (
-        &'static str,
-        Members,
-        fn(&[usize]) -> bool,
-        &'static [&'static str],
-    );
+    type Row = (&'static str, Members, &'static [&'static str]);
     const PINCH: &[&str] = &["judged VertexFusion OnCarrier Face@m1 Vertex@m0"];
     // The kiss: the three walls through the corner, each against the
     // other block's, and the corner itself.
@@ -834,49 +823,25 @@ fn a_vertex_row_is_the_unions_once_in_every_member_order() {
         "judged VertexFusion OnCarrier Edge@m2 Vertex@m1",
     ];
     let rows: [Row; 6] = [
-        ("prism and cube", prism_and_cube, |_| false, PINCH),
+        ("prism and cube", prism_and_cube, PINCH),
         (
             "two blocks pinching on a plate",
             crate::union_pinch_member_order::pinch,
-            |_| false,
             PLATE,
         ),
-        (
-            "the pinch with a far member",
-            pinch_and_far,
-            |o| o[2] == 2,
-            PINCH,
-        ),
-        (
-            "the pinch with a cap over the corner",
-            pinch_and_cap,
-            |_| false,
-            PINCH,
-        ),
-        ("the kiss with a far member", kiss_and_far, |_| false, KISS),
-        (
-            "the kiss with a block read twice",
-            kiss_read_twice,
-            |_| false,
-            TWICE,
-        ),
+        ("the pinch with a far member", pinch_and_far, PINCH),
+        ("the pinch with a cap over the corner", pinch_and_cap, PINCH),
+        ("the kiss with a far member", kiss_and_far, KISS),
+        ("the kiss with a block read twice", kiss_read_twice, TWICE),
     ];
     let mut failures = Vec::new();
-    for (what, fixture, carried, expected) in rows {
+    for (what, fixture, expected) in rows {
         let n = fixture(ProfileDoc::empty_derived("count", Tol::witness()))
             .1
             .len();
         let mut first: Option<(Vec<usize>, Decided)> = None;
         for order in orders(n) {
             let got = decide(&fixture, &order);
-            if carried(&order) {
-                assert!(
-                    matches!(&got, Decided::Refused(e)
-                        if e.contains("a copy of a corner held as several meets no recorded discard")),
-                    "{what}, {order:?}: refused other than {CARRIED_PINCH}: {got:?}"
-                );
-                continue;
-            }
             assert!(
                 matches!(got, Decided::Built { .. }),
                 "{what}, {order:?}: built: {got:?}"

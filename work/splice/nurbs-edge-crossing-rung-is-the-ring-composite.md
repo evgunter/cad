@@ -62,3 +62,11 @@ consumer-side half.
 ## Moved to SPLICE (2026-10-25)
 
 From REACHHOLD. Moved by `git mv` in the chat-approved refold that opened SPLICE (`work/splice/program.md`), the track for a body built by loft or sweep entering every boolean. Re-banded P1 → P0 and UN-PARKED (was `blocked_on: [cylinder-sphere-germ-pair-has-no-join-lane]`). That park waited for a first PRODUCER of spline edges between faces, and every loft and sweep already is one: the klein loop's four longitudinal seams are `Curve3::Nurbs` edges between two NURBS walls (measured on main, 2026-10-25, `work/splice/delete-the-boolean-operand-edge-gate.md`), and once the gate is gone they cross the bulb's cone. Klein wall 3 and teapot wall 3 reach this rung.
+
+## An arm of the curve × face table (2026-10-26)
+
+Ev took C5's curve × face clause on PR 5727 (fork log row 198). This
+rung is that table's spline-span × analytic-face arm. The ring
+composite is the arm's clearance test, and
+`an-analytic-edge-against-a-nurbs-face-has-no-crossing-lane` is the
+other column. Build the two against one brief, or one after the other.

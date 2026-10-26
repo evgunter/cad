@@ -1635,16 +1635,16 @@ pub(crate) fn carrier_ball<T: Decide>(
 /// that gave it ([`ArcFloor`]): a line's own segment; a circle's or an
 /// ellipse's own arc (`ring_path::Conic::distance_floor`, the arc of
 /// the circle over the same span less the conic's distance from it);
-/// any other carrier's ball ([`carrier_ball`]). A conic carries its
-/// whole annulus's floor beside its arc's. `None` for a spline
-/// with no control points. The one home of the question "is this edge
+/// any other carrier's ball ([`carrier_ball`]), and its arc's pieces
+/// past it ([`ArcPieces`]). A conic carries its whole annulus's floor
+/// beside its arc's. `None` for a spline with no control points. The one home of the question "is this edge
 /// clear of that point by more than a radius", which the clearance
 /// cell door and the boolean's touch gate both ask.
 pub(crate) fn arc_distance_floor<T: Decide>(
     carrier: &geom::Curve3<T>,
     (t0, t1): (T, T),
     q: Point3<T>,
-) -> Option<ArcFloor<T>> {
+) -> Option<ArcFloor<'_, T>> {
     Some(match *carrier {
         geom::Curve3::Line { .. } => ArcFloor::Segment(
             crate::sector_shape::point_segment_distance(carrier.eval(t0), carrier.eval(t1), q),
@@ -1677,7 +1677,14 @@ pub(crate) fn arc_distance_floor<T: Decide>(
         }
         geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => {
             let (center, reach) = carrier_ball(carrier, (t0, t1))?;
-            ArcFloor::Ball(((q - center).norm() - reach).max(T::zero()))
+            ArcFloor::Ball {
+                ball: ((q - center).norm() - reach).max(T::zero()),
+                pieces: ArcPieces {
+                    carrier,
+                    span: (t0, t1),
+                    q,
+                },
+            }
         }
     })
 }
@@ -1686,7 +1693,7 @@ pub(crate) fn arc_distance_floor<T: Decide>(
 /// bounds: each is its own question, so a caller deciding on them keeps
 /// them apart.
 #[derive(Clone, Copy, Debug)]
-pub(crate) enum ArcFloor<T> {
+pub(crate) enum ArcFloor<'c, T: geom_core::Real> {
     /// A line's distance to its segment.
     Segment(T),
     /// A conic's two floors: its whole annulus's, exact near its centre
@@ -1697,18 +1704,59 @@ pub(crate) enum ArcFloor<T> {
         /// The arc's own floor.
         arc: T,
     },
-    /// The distance to a ball holding the arc.
-    Ball(T),
+    /// A spiric's or a spline's: the distance to a ball holding the
+    /// arc, and the arc's pieces, read when the ball is not clear.
+    Ball {
+        /// The distance to the ball.
+        ball: T,
+        /// The arc, to read piece by piece.
+        pieces: ArcPieces<'c, T>,
+    },
 }
 
-impl<T> ArcFloor<T> {
+impl<T: Decide> ArcFloor<'_, T> {
     /// Whether `clear` decides any of the floors clear: either of a
-    /// conic's two, the annulus first.
+    /// conic's two, the annulus first; a ball's, or else every piece of
+    /// its arc's.
     pub(crate) fn clears(self, clear: impl Fn(T) -> bool) -> bool {
         match self {
-            Self::Segment(d) | Self::Ball(d) => clear(d),
+            Self::Segment(d) => clear(d),
             Self::Conic { annulus, arc } => clear(annulus) || clear(arc),
+            Self::Ball { ball, pieces } => clear(ball) || pieces.clear(clear),
         }
+    }
+}
+
+/// **An arc read piece by piece against a point `q`.** A piece `(a, b)`
+/// lies within [`geom_core::bisect::reach`] `ℓ` of its middle point `m`
+/// at the carrier's speed bound ([`geom::carrier_speed::speed_range`]),
+/// so `|q − m| − ℓ` is a floor on its distance from `q`. A piece whose
+/// floor is not clear is halved; one whose middle point is not clear
+/// answers that the arc is not, since no piece holding that point
+/// clears.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ArcPieces<'c, T: geom_core::Real> {
+    carrier: &'c geom::Curve3<T>,
+    span: (T, T),
+    q: Point3<T>,
+}
+
+impl<T: Decide> ArcPieces<'_, T> {
+    /// Whether `clear` decides every piece's floor clear on the
+    /// carrier's point walk ([`geom::Curve3::point_walk`]), within
+    /// [`geom_core::bisect::PIECE_BUDGET`].
+    fn clear(self, clear: impl Fn(T) -> bool) -> bool {
+        let hi = geom::carrier_speed::speed_range(self.carrier).1;
+        let walk = self.carrier.point_walk(self.q, self.span, hi, |p| {
+            if !clear(p.gap) {
+                return geom::PieceStep::Stop(());
+            }
+            if clear(p.gap - p.reach) {
+                return geom::PieceStep::Settled;
+            }
+            geom::PieceStep::Halve
+        });
+        matches!(walk, Ok(None))
     }
 }
 
