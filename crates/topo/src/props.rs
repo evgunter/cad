@@ -3229,7 +3229,10 @@ mod floor_arm_tests {
                 area: 1.0,
                 flux_pad: half,
                 area_pad: 0.0,
-                enclosure: Some((Interval::from_bounds(-half, half), Interval::from_bounds(1.0, 1.0))),
+                enclosure: Some((
+                    Interval::from_bounds(-half, half),
+                    Interval::from_bounds(1.0, 1.0),
+                )),
             },
             open_at: None,
             converged_at: None,
@@ -3292,8 +3295,9 @@ mod floor_arm_tests {
                 other => panic!("{refusal}: {other:?}"),
             };
             assert!(
-                width == kept && core::mem::discriminant(run.refusal.as_ref().expect("a refusal"))
-                    == core::mem::discriminant(&refusal),
+                width == kept
+                    && core::mem::discriminant(run.refusal.as_ref().expect("a refusal"))
+                        == core::mem::discriminant(&refusal),
                 "{refusal}: carried {width}, the kept round is {kept} wide"
             );
         }
@@ -4168,9 +4172,9 @@ fn reference_of<T: Decide>(body: &Body<T>, shell: ShellKey, regions: &[Vec<FaceK
 /// cancels, so `Σ_f A⃗_f = A⃗(∂g)`: the vector area of the region's
 /// boundary, the half-edges of its faces whose mate lies on a face outside
 /// it ([`region_edges`]). The carry is `(c_g − c)·A⃗(∂g)`, read by
-/// [`loop_vector_area`] in interval arithmetic over the lifted boundary
-/// ([`carry_of`]), and folded into the region's first face's enclosure
-/// ([`FaceRun::carried`]).
+/// [`geom_brep::props::loop_vector_area`] in interval arithmetic over the
+/// lifted boundary ([`carry_of`]), and folded into the region's first
+/// face's enclosure ([`FaceRun::carried`]).
 ///
 /// # Only where it narrows
 ///
