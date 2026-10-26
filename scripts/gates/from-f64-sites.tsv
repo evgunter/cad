@@ -158,6 +158,7 @@ crates/topo/src/side_reader.rs	1	constant	turn_sin	the aimed ray's fixed golden-
 crates/topo/src/splitting/classify.rs	1	constant	crate::boolean::boxes::sweep_pad(band)	the band's sweep pad, a tolerance
 crates/topo/src/splitting/containment.rs	1	constant	<fn>	a fixed ray direction of the schedule
 crates/topo/src/splitting/order.rs	1	constant	<fn>	a fixed ray direction of the schedule
+crates/topo/src/splitting/spline_arc.rs	1	constant	m	a spline piece's middle parameter, a point the halving chose
 crates/topo/src/test_support_fixtures.rs	1	fixture	frame.radius	a fixture surface's radius
 crates/topo/src/test_support_fixtures.rs	1	fixture	self.radius	a fixture surface's radius
 crates/topo/src/test_support_fixtures.rs	1	fixture	t0	a fixture curve's domain
