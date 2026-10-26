@@ -4890,7 +4890,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "name_on_dropped_step",
             "not_an_instance",
             "part_carries_metadata",
-            "ranked_run_reordered",
             "stranded_part_name",
             "stranded_part_read",
             "unknown_node",
@@ -5782,7 +5781,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "part_edit",
             "part_id_collides",
             "part_name_reaches_remainder",
-            "ranked_run_reordered",
             "remainder_edit",
             "remainder_read_uncarried",
             "severed_edge",
@@ -5949,8 +5947,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "union_name_shape_tag",
         values: &[
             "unsupported_union_name_junction_lines_collide",
-            "unsupported_union_name_run_least_line_moved",
-            "unsupported_union_name_seam_group_no_member_edge",
             "unsupported_union_name_several_parents",
         ],
         delegates: &[],
@@ -6263,9 +6259,6 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // `program`, which leaves `profile` to the operand the slot
     // alphabet forwards.
     ("profile", 2),
-    // A split's and an inline's refusal of a ranked run its re-minted
-    // ids reorder: one fact (`editor_core::RemapError::RankedRunReordered`).
-    ("ranked_run_reordered", 2),
     // One fact: a list that names one entry twice, a selection's face
     // set (`selection_fault_tag`) as a profile's kept step ids.
     ("repeated", 2),

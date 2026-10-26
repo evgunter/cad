@@ -87,7 +87,9 @@ fn a_rim_arc_crossed_twice_names_its_pieces_by_their_ends_and_its_crossings_by_t
                     };
                     let p = point(half, v);
                     assert!(
-                        crossings.insert((side, *sense), p.to_array()).is_none(),
+                        crossings
+                            .insert((side, sense.clone()), p.to_array())
+                            .is_none(),
                         "one crossing a sense a side: {name:?}"
                     );
                 }
@@ -143,8 +145,8 @@ fn a_rim_arc_crossed_twice_names_its_pieces_by_their_ends_and_its_crossings_by_t
     );
     for sense in [Sense::Enters, Sense::Leaves] {
         let (a, b) = (
-            crossings[&(SplitHalf::Above, sense)],
-            crossings[&(SplitHalf::Below, sense.flipped())],
+            crossings[&(SplitHalf::Above, sense.clone())],
+            crossings[&(SplitHalf::Below, sense.clone().flipped())],
         );
         let gap = (0..3).map(|i| (a[i] - b[i]).abs()).fold(0.0, f64::max);
         assert!(
