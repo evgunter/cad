@@ -836,3 +836,4 @@ The boolean declare surface is gone at every layer. A boolean's one input beside
   - **(c) §5′.1's picture** draws the product slot's body plus the shown spaces, with unread bodies tinted as outside the product. One designer's alternative wording, "a space's bodies that nothing in it reads", is the sink-set rule rows 80 and 85 retired, and should not go into the spec.
 
   AUTHTAIL also claims `a-mirrors-body-reads-as-in-no-space` with PR 5683, which carries its one `SpaceWalk` arm (the file moves when that PR lands). The arm sits beside D′3's own `SpaceWalk` edits, so expect a one-line merge.
+- 2026-10-26 — **Seam (CLEAVE):** `intent_s2_c_world::the_migrated_world_is_the_pre_c_product` fails on main `bc060f246f` ('cut_cylinder: the product moved d2acb2b37c5273db/28'). Added as evidence on `main-red-the-seat-and-name-table-goldens-moved-at-dprime2`, the nearest INTENT row; INTENT decides whether it belongs there. (CLEAVE orchestrator)

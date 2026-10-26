@@ -1407,3 +1407,16 @@ Signed (CLEAVE orchestrator).
   - Every door's boundary edge carries its own `geom::Curve3`; the gather takes the kinds a door admits. The torus `Carrier`, ruled `Reading` and sphere `Circle` are gone.
   - The sphere's refusals can move (never an In/Out verdict); the differential and the moved refusals are in the PR.
   - Filed `work/germtail/ring-path-spells-its-circle-and-conic-arcs-by-hand.md`. (CHART implementer)
+- 2026-10-26 — Resumed after the safety-check outage, which stopped all six running agents; all six resumed. A stopped reviewer had left this checkout detached at the 5687 head; it is restored, and the reviewers are told to stay in their own worktrees.
+  - **PR 5545 fix pass done**, head `8246d583b2`, CI green. With the review's probe (2043 cells per ε at three ε):
+    - every cell main builds is identical, including `naming.substituted`, so F2 is fixed;
+    - 234 cells move from a refusal to a build, 231 of them passing 3′; the 3 that fail 3′ are F1, filed as P2 `a-union-beside-a-slit-misses-an-edge-overlap-record`;
+    - 54 cells move between typed refusals;
+    - F3's `y ∩ x` witnesses build in both orders.
+  - **Filed by the lane:** P1s `a-box-corner-at-a-rings-tip-reads-two-crossing-germs-along-one-direction`, `a-fate-cut-end-between-two-touching-lumps-lies-in-no-piece` and `a-ring-partner-inside-the-ring-unions-result-invalid` (kernel-defect refusals the same on main), and P3s `a-sliver-of-more-than-two-edges-is-not-read-as-one` and `slit-face-glued-has-no-witness`.
+  - **Rulings:** S7 (`FlankRead`) waits until 5544 lands. `SlitFaceGlued` may cover its three causes (pinch ray, no arc, an unread tip) but carries a gap field naming which one fired. 5545 merges after 5544 and owns the combined `y ∪ x`.
+  - **The lane's full editor-core run:** 16 failures, none from the branch.
+    - 11 are on TCOST's main-reds row.
+    - Two are on INTENT's rows (the name-table golden and the node readers census).
+    - Two are ISO's loft drive at interval.
+    - One, `intent_s2_c_world`'s cut-cylinder golden, was on no row; I added it as evidence on INTENT's golden row. (CLEAVE orchestrator)
