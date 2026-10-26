@@ -593,3 +593,166 @@ mod tests {
         );
     }
 }
+
+/// Review probes (PR 5730): where `SphereFaceRegion::aim` lands, read
+/// against the region's own `contains`, over loop shapes the region can
+/// hold. `cargo nextest run -p topo -E 'test(review_aim_probes)' --no-capture`.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::print_stdout)]
+mod review_aim_probes {
+    use super::*;
+    use crate::entity::EdgeKey;
+    use core::f64::consts::{FRAC_PI_2, PI, TAU};
+    use slotmap::KeyData;
+
+    fn unit(v: Vec3<f64>) -> Vec3<f64> {
+        v / v.norm()
+    }
+
+    /// An arc of the unit sphere's circle at polar angle `theta` about
+    /// `pole`, from `t0` to `t1` in the frame `u_ref`, `pole × u_ref`;
+    /// `forward` puts the face toward `pole`.
+    fn arc(
+        pole: Vec3<f64>,
+        theta: f64,
+        u_ref: Vec3<f64>,
+        (t0, t1): (f64, f64),
+        forward: bool,
+        key: u64,
+    ) -> Arc<f64> {
+        let pole = unit(pole);
+        let u = unit(u_ref - pole * pole.dot(u_ref));
+        RegionEdge {
+            edge: EdgeKey::from(KeyData::from_ffi(key)),
+            r#loop: LoopKey::default(),
+            carrier: geom::Curve3::Circle {
+                center: Point3::origin() + pole * theta.cos(),
+                axis: pole,
+                radius: theta.sin(),
+                u_ref: u,
+            },
+            t0,
+            t1,
+            turn: crate::boolean::region::fixture_turn(t0, t1),
+            forward,
+        }
+    }
+
+    fn region(sense: bool, edges: Vec<Arc<f64>>) -> SphereFaceRegion<f64> {
+        SphereFaceRegion {
+            center: Point3::origin(),
+            radius: 1.0,
+            sense,
+            outer: LoopKey::default(),
+            edges,
+        }
+    }
+
+    fn at(polar: f64, az: f64) -> Point3<f64> {
+        Point3::new(polar.sin() * az.cos(), polar.sin() * az.sin(), polar.cos())
+    }
+
+    /// A rim split into `n` equal arcs.
+    fn rim(theta: f64, u: Vec3<f64>, n: usize, forward: bool, key: u64) -> Vec<Arc<f64>> {
+        let z = Vec3::new(0.0, 0.0, 1.0);
+        (0..n)
+            .map(|i| {
+                let (a, b) = (TAU * i as f64 / n as f64, TAU * (i + 1) as f64 / n as f64);
+                arc(z, theta, u, (a, b), forward, key + i as u64)
+            })
+            .collect()
+    }
+
+    fn report(what: &str, r: &SphereFaceRegion<f64>, known_in: Point3<f64>) {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let sanity = r.contains(known_in, band);
+        let aim = r.aim().expect("an aim");
+        let off = ((aim - Point3::origin()).norm() - 1.0).abs();
+        let read = r.contains(aim, band);
+        let polar = aim.z.clamp(-1.0, 1.0).acos();
+        let az = aim.y.atan2(aim.x);
+        println!(
+            "AIMPROBE {what}: known-in reads {sanity:?}; aim ({:.6},{:.6},{:.6}) polar {polar:.6} az {az:.6} off-sphere {off:e} reads {read:?}",
+            aim.x, aim.y, aim.z
+        );
+    }
+
+    #[test]
+    fn review_aim_probes() {
+        let x = Vec3::new(1.0, 0.0, 0.0);
+        let mx = Vec3::new(-1.0, 0.0, 0.0);
+        let z = Vec3::new(0.0, 0.0, 1.0);
+        for sense in [true, false] {
+            // With `sense` false the outward normal points in, which turns
+            // the face side: run every rim the other way to keep the face.
+            let f = |forward: bool| forward == sense;
+            let s = format!("sense={sense}");
+            // A zone, seams aligned.
+            let mut e = rim(0.6, x, 1, f(false), 1);
+            e.extend(rim(1.2, x, 1, f(true), 10));
+            report(&format!("{s} zone 0.6..1.2"), &region(sense, e), at(0.9, 0.3));
+            // The zone, seams opposite.
+            let mut e = rim(0.6, x, 1, f(false), 1);
+            e.extend(rim(1.2, mx, 1, f(true), 10));
+            report(&format!("{s} zone seams opposite"), &region(sense, e), at(0.9, 0.3));
+            // A sliver zone 1e-3 wide, seams aligned, then opposite.
+            for (name, u2) in [("aligned", x), ("opposite", mx)] {
+                let mut e = rim(1.0, x, 1, f(false), 1);
+                e.extend(rim(1.001, u2, 1, f(true), 10));
+                report(
+                    &format!("{s} sliver zone 1.0..1.001 seams {name}"),
+                    &region(sense, e),
+                    at(1.0005, 0.3),
+                );
+            }
+            // A sliver zone whose lower rim is split in three.
+            let mut e = rim(1.0, x, 1, f(false), 1);
+            e.extend(rim(1.001, x, 3, f(true), 10));
+            report(&format!("{s} sliver zone 1+3 arcs"), &region(sense, e), at(1.0005, 0.3));
+            // A wide zone whose lower rim is split in five, upper one.
+            let mut e = rim(0.3, x, 1, f(false), 1);
+            e.extend(rim(2.8, x, 5, f(true), 10));
+            report(&format!("{s} wide zone 1+5 arcs"), &region(sense, e), at(1.5, 0.3));
+            // A symmetric zone about the equator, seams opposite: the
+            // steps' sum is (nearly) zero.
+            let mut e = rim(PI / 3.0, x, 1, f(false), 1);
+            e.extend(rim(2.0 * PI / 3.0, mx, 1, f(true), 10));
+            {
+                let r = region(sense, e);
+                report(&format!("{s} symmetric zone seams opposite"), &r, at(FRAC_PI_2, 0.3));
+            }
+            // A cap with a ring centred where the rim's step lands
+            // (polar 0.5, azimuth π), of angular radius 0.1.
+            let hole_pole = unit(at(0.5, PI) - Point3::origin());
+            let mut e = rim(1.0, x, 1, f(true), 1);
+            e.push(arc(hole_pole, 0.1, z, (0.0, TAU), f(false), 20));
+            report(&format!("{s} cap with a ring at its step"), &region(sense, e), at(0.8, 0.0));
+            // A cap with a ring elsewhere.
+            let hole_pole = unit(at(0.5, 0.0) - Point3::origin());
+            let mut e = rim(1.0, x, 1, f(true), 1);
+            e.push(arc(hole_pole, 0.1, z, (0.0, TAU), f(false), 20));
+            report(&format!("{s} cap with a ring off its step"), &region(sense, e), at(0.8, PI));
+            // Near-hemispheres and past them, both sides.
+            for theta in [FRAC_PI_2 - 1e-3, FRAC_PI_2, FRAC_PI_2 + 1e-3, FRAC_PI_2 + 0.5, 3.0] {
+                for side in [true, false] {
+                    let known = if side { at(theta * 0.5, 1.0) } else { at((theta + PI) * 0.5, 1.0) };
+                    report(
+                        &format!("{s} cap at {theta:.4} toward pole {side}"),
+                        &region(sense, rim(theta, x, 1, f(side), 1)),
+                        known,
+                    );
+                }
+            }
+            // Tiny caps: a 1e-4 cap and its complement.
+            report(&format!("{s} tiny cap"), &region(sense, rim(1e-4, x, 1, f(true), 1)), at(0.5e-4, 0.0));
+            report(&format!("{s} all but a tiny cap"), &region(sense, rim(1e-4, x, 1, f(false), 1)), at(2.0, 0.0));
+            // A two-rim "lens rim" face: big circle and tiny circle around
+            // different poles (a face between a 1.2 rim about z and a
+            // 0.05 ring about a pole near that rim).
+            let p2 = unit(at(1.1, 0.0) - Point3::origin());
+            let mut e = rim(1.2, x, 1, f(true), 1);
+            e.push(arc(p2, 0.05, z, (0.0, TAU), f(false), 20));
+            report(&format!("{s} cap with a tiny ring near its rim"), &region(sense, e), at(0.5, 2.0));
+        }
+    }
+}

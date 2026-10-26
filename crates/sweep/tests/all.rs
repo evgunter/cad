@@ -342,6 +342,8 @@ mod torus_region_probe;
 mod transform_nurbs_walls;
 #[path = "trimmed_sphere_aims.rs"]
 mod trimmed_sphere_aims;
+#[path = "review_sphere_aims_probe.rs"]
+mod review_sphere_aims_probe;
 #[path = "tube_rim_touch_rows.rs"]
 mod tube_rim_touch_rows;
 #[path = "two_tubes_in_the_zero_band.rs"]

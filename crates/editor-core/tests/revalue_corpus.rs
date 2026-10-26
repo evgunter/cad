@@ -976,3 +976,31 @@ fn reader_ties_at_the_nominal() {
         );
     }
 }
+
+/// Review probe (PR 5730): [`reader_ties_at_the_nominal`] over every
+/// corpus document, for a diff between two trees.
+#[test]
+#[ignore = "review probe"]
+fn review_reader_ties_every_document() {
+    for cd in corpus::documents() {
+        let (decisions, _) = replayed(&BTreeMap::new(), |opts| build(&cd.doc, opts));
+        let family: Vec<(usize, &Decision)> = decisions
+            .iter()
+            .enumerate()
+            .filter(|(_, d)| d.family == Some(topo::SIDE_READER_FAMILY))
+            .collect();
+        let ties: Vec<(usize, &'static str)> = family
+            .iter()
+            .filter(|(_, d)| d.value == Some(0.0))
+            .map(|&(k, d)| (k + 1, d.predicate))
+            .collect();
+        let names: std::collections::BTreeSet<&'static str> =
+            family.iter().map(|(_, d)| d.predicate).collect();
+        println!(
+            "RTIES {}: {} decisions, {} the reader's, exact ties {ties:?}, predicates {names:?}",
+            cd.name,
+            decisions.len(),
+            family.len()
+        );
+    }
+}
