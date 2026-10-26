@@ -6017,6 +6017,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "arc_end_off_corner",
             "back_pointer_mismatch",
             "band",
+            "boundary_crosses_itself",
+            "boundary_crosses_itself_undecided",
             "census_escalated",
             "census_lane_unsupported",
             "census_undecidable",
