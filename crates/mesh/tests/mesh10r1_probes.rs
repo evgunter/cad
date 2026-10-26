@@ -106,7 +106,11 @@ fn r1_every_donut_split_is_the_donut_bitwise() {
             let body = split_donut(i, fracs);
             let r = receipts(&body);
             let mp = match topo::AtRestBody::validate(body.clone(), tol) {
-                Ok(finished) => topo::mass_properties(&finished, tol),
+                Ok(finished) => topo::mass_properties(
+                    &finished,
+                    tol,
+                    topo::test_support::pinned_resolution(tol),
+                ),
                 Err(errors) => {
                     assert!(
                         errors.iter().all(|e| matches!(
@@ -116,7 +120,11 @@ fn r1_every_donut_split_is_the_donut_bitwise() {
                         "edge {i} @{fracs:?}: tier 3 refuses the split body for more than its joinable vertices: {errors:?}"
                     );
                     // Raw door: a split that leaves joinable vertices at rest, which tier 3 refuses (JoinableVertexAtRest), as the assert above admits.
-                    topo::test_support::measure_unvalidated(&body, tol)
+                    topo::test_support::measure_unvalidated(
+                        &body,
+                        tol,
+                        topo::test_support::pinned_resolution(tol),
+                    )
                 }
             };
             let vol_ok = mp
@@ -411,7 +419,11 @@ fn r1_the_class_sweep_measured_over_the_curved_corpus() {
                 }
                 let r = receipts(&body);
                 let mp = match topo::AtRestBody::validate(body.clone(), tol) {
-                    Ok(finished) => topo::mass_properties(&finished, tol),
+                    Ok(finished) => topo::mass_properties(
+                        &finished,
+                        tol,
+                        topo::test_support::pinned_resolution(tol),
+                    ),
                     Err(errors) => {
                         assert!(
                             errors.iter().all(|e| matches!(
@@ -421,11 +433,20 @@ fn r1_the_class_sweep_measured_over_the_curved_corpus() {
                             "{name} edge {i} @{fracs:?}: tier 3 refuses the split body for more than its joinable vertices: {errors:?}"
                         );
                         // Raw door: a split that leaves joinable vertices at rest, which tier 3 refuses (JoinableVertexAtRest), as the assert above admits.
-                        topo::test_support::measure_unvalidated(&body, tol)
+                        topo::test_support::measure_unvalidated(
+                            &body,
+                            tol,
+                            topo::test_support::pinned_resolution(tol),
+                        )
                     }
                 };
                 let mp = mp
-                    .map(|m| (m.volume.to_bits(), m.surface_area.to_bits()))
+                    .map(|m| {
+                        (
+                            m.enclosure.volume.to_bits(),
+                            m.enclosure.surface_area.to_bits(),
+                        )
+                    })
                     .map_err(|e| format!("{e:?}"));
                 let same = r == r0 && mp == mp0;
                 if !same {

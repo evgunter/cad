@@ -131,7 +131,11 @@ fn line(name: &str, body: &Body<f64>) -> String {
     // would panic here rather than reach the pinned line.
     let at_rest = topo::test_support::finished(name, topo::Body::clone(body), Tol::witness());
     let bracket = Bracket::open();
-    let read = match topo::mass_properties(&at_rest, Tol::witness()) {
+    let read = match topo::mass_properties(
+        &at_rest,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    ) {
         Ok(m) => format!(
             "v={:016x} a={:016x} vpad={:016x} apad={:016x}",
             m.enclosure.volume.to_bits(),
@@ -296,7 +300,12 @@ fn receipts(bodies: &[(&'static str, SymBody)], budget: SymBudget) -> Vec<Receip
                 let built = geom_core::sym::session_counts().expect("a session is installed");
                 geom_core::sym::report::start_shape_report();
                 let refused = match &finished {
-                    Some(finished) => topo::mass_properties(finished, Tol::witness()).is_err(),
+                    Some(finished) => topo::mass_properties(
+                        finished,
+                        Tol::witness(),
+                        topo::test_support::pinned_resolution(Tol::witness()),
+                    )
+                    .is_err(),
                     None => topo::validate_geometric(&body, Tol::witness()).is_err(),
                 };
                 (refused, built)
@@ -443,7 +452,11 @@ fn the_roster_records_the_props_lanes_own_verdicts() {
     let prism =
         topo::test_support::finished("the loft prism", loft_prism(Tol::witness()), Tol::witness());
     let bracket = Bracket::open();
-    let _ = topo::mass_properties(&prism, Tol::witness());
+    let _ = topo::mass_properties(
+        &prism,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    );
     let log = bracket.finish();
     let quad = log
         .verdicts
@@ -517,7 +530,12 @@ fn bodies_built_before_the_session_trip_the_guard_while_disp_still_reads_zero() 
         .into_iter()
         .map(|door| {
             let (_, c) = with_session(budget(), || match door {
-                "mass_properties" => topo::mass_properties(&finished, Tol::witness()).is_err(),
+                "mass_properties" => topo::mass_properties(
+                    &finished,
+                    Tol::witness(),
+                    topo::test_support::pinned_resolution(Tol::witness()),
+                )
+                .is_err(),
                 _ => topo::validate_geometric(&body, Tol::witness()).is_err(),
             });
             (door, c)

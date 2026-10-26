@@ -82,9 +82,10 @@ fn volume(body: &Body<f64>) -> (f64, f64) {
     let m = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
         tol(),
+        topo::test_support::pinned_resolution(tol()),
     )
     .unwrap();
-    (m.volume, m.volume_pad)
+    (m.enclosure.volume, m.enclosure.volume_pad)
 }
 
 fn close((got, pad): (f64, f64), want: f64, what: &str) {
@@ -256,8 +257,10 @@ fn one_segment_circles_extrude_at_interval() {
                             tol(),
                         ),
                         tol(),
+                        topo::test_support::pinned_resolution(tol()),
                     )
                     .unwrap()
+                    .enclosure
                     .volume;
                     assert!(
                         v.lo() <= want && want <= v.hi(),
@@ -570,8 +573,10 @@ fn one_segment_circles_revolve_at_interval() {
                         tol(),
                     ),
                     tol(),
+                    topo::test_support::pinned_resolution(tol()),
                 )
                 .unwrap()
+                .enclosure
                 .volume;
                 assert!(
                     v.lo() <= want && want <= v.hi(),

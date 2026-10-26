@@ -88,8 +88,10 @@ fn interval_evaluation_of_a_boolean_doc_brackets_the_oracle() {
             Tol::witness(),
         ),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
+    .enclosure
     .volume;
     let oracle = 8.0 - 0.25 * 0.25 * 0.125;
     assert!(
@@ -128,8 +130,10 @@ fn the_die_evaluates_at_interval_and_brackets_the_oracle() {
             Tol::witness(),
         ),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
+    .enclosure
     .volume;
     assert!(
         vol.lo() <= fixture::DIE_VOLUME && fixture::DIE_VOLUME <= vol.hi(),

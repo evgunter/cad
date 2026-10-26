@@ -309,10 +309,12 @@ fn the_oblique_fillet_carves_at_the_certified_scalar() {
         );
     }
     let (p0, p1) = (
-        topo::mass_properties(&body, tol()).expect("interval props"),
+        topo::mass_properties(&body, tol(), topo::test_support::pinned_resolution(tol()))
+            .expect("interval props"),
         topo::mass_properties(
             &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol()),
             tol(),
+            topo::test_support::pinned_resolution(tol()),
         )
         .expect("interval props"),
     );

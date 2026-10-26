@@ -75,8 +75,10 @@ fn vol(body: &Body<f64>) -> f64 {
     topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(body), Tol::witness()),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
+    .enclosure
     .volume
 }
 
@@ -593,11 +595,14 @@ fn extruded_twin(loops: &[ProfileLoop<f64>], h: f64) -> Body<f64> {
 /// convergence predicate may escalate. Anything else is a real failure.
 fn assert_rational_volume(row: &str, body: &Body<f64>, want: f64) {
     let target = 1024.0 * Tol::witness().get().eps;
-    match topo::mass_properties(
+    let (m, unmet) = topo::test_support::measure_with_unmet_width(
         &topo::test_support::finished("the measured body", topo::Body::clone(body), Tol::witness()),
         Tol::witness(),
-    ) {
-        Ok(m) => {
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap_or_else(|e| panic!("{row}: not an honest quadrature posture: {e}"));
+    match unmet {
+        None => {
             // ACCURACY: the certified enclosure must CONTAIN the
             // independent oracle (`want` is the extruded twin's closed
             // form, pad exactly 0).

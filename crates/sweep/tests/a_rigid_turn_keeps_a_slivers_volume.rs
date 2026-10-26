@@ -102,8 +102,11 @@ fn a_turned_sliver_validates_and_measures_its_own_volume() {
             "{pose}: the turned sliver validates"
         );
         let truth = sliver_volume(psi);
-        let before = topo::mass_properties(&sliver, tol).unwrap();
-        let after = topo::mass_properties(&turned, tol).unwrap();
+        let before =
+            topo::mass_properties(&sliver, tol, topo::test_support::pinned_resolution(tol))
+                .unwrap();
+        let after = topo::mass_properties(&turned, tol, topo::test_support::pinned_resolution(tol))
+            .unwrap();
         assert!(
             (after.enclosure.volume - truth).abs() <= after.enclosure.volume_pad,
             "{pose}: the turned sliver's enclosure {:e} ± {:e} misses its volume {truth:e}",

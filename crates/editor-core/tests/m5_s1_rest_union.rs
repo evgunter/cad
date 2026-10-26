@@ -79,9 +79,11 @@ fn rest_union_evaluates_green() {
                 topo::Body::clone(&**body),
                 Tol::witness()
             ),
-            Tol::witness()
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
+        .enclosure
         .volume,
         8.0
     );

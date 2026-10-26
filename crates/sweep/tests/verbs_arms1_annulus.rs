@@ -288,6 +288,7 @@ fn the_filleted_dome_matches_its_closed_form_volume_with_no_quadrature_pad() {
     let props = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol()),
         tol(),
+        topo::test_support::pinned_resolution(tol()),
     )
     .expect("mass properties must compute");
     assert_eq!(

@@ -192,8 +192,10 @@ fn peg_in_socket_union_holds(s: &AtRestBody<f64>, p: &AtRestBody<f64>) {
                 Tol::witness(),
             ),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
+        .enclosure
         .volume
     };
     let (v, want) = (vol(&bb.body), vol(s) + vol(p));

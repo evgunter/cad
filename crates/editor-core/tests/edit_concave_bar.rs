@@ -24,8 +24,10 @@ fn volume(body: &Body<f64>) -> f64 {
     topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
         tol(),
+        topo::test_support::pinned_resolution(tol()),
     )
     .expect("closed-form mass properties")
+    .enclosure
     .volume
 }
 

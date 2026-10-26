@@ -387,7 +387,12 @@ fn nonuniform_prism_loft_body_matches_the_derived_volume() {
     );
     let body = topo::AtRestBody::validate(topo::Body::clone(&lofted.body), Tol::witness())
         .expect("tier 3 at rest");
-    let m = topo::mass_properties(&body, Tol::witness()).expect("mass properties");
+    let m = topo::mass_properties(
+        &body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .expect("mass properties");
     assert!(
         (m.enclosure.volume - 12.0).abs() <= m.enclosure.volume_pad + 1e-9,
         "volume {} ± {} must bracket the derived 12",
@@ -485,7 +490,12 @@ fn curved_path_sweep_body_builds_validates_and_brackets_pappus() {
     let body = topo::AtRestBody::validate(topo::Body::clone(&swept.body), Tol::witness())
         .expect("tier 3 at rest");
 
-    let m = topo::mass_properties(&body, Tol::witness()).expect("mass properties");
+    let m = topo::mass_properties(
+        &body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .expect("mass properties");
     let pappus = (2.0 * ELBOW_H) * (2.0 * ELBOW_H) * ELBOW_R * FRAC_PI_2;
     let rel = ((m.enclosure.volume - pappus) / pappus).abs();
     assert!(
@@ -639,7 +649,8 @@ fn a_rational_quarter_torus_answers_a_bracket_at_the_wall_not_a_refusal() {
         tol,
     )
     .expect("the rational elbow builds");
-    let measured = topo::test_support::unmigrated_measure(
+    // Raw door: the measurement, not tier 3's sign read, is the subject, and tier 3 may leave this body's sign open at its walls' wall (VolumeSignUnresolved).
+    let measured = topo::test_support::measure_unvalidated(
         &swept.body,
         tol,
         topo::test_support::pinned_resolution(tol),

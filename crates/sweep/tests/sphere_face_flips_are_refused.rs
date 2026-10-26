@@ -189,9 +189,17 @@ fn every_sphere_face_flip_is_refused_and_named() {
             let at_rest = topo::AtRestBody::validate(topo::Body::clone(body), tol);
             let tier3 = at_rest.is_ok();
             let door = match &at_rest {
-                Ok(finished) => topo::mass_properties(finished, tol).is_ok(),
+                Ok(finished) => {
+                    topo::mass_properties(finished, tol, topo::test_support::pinned_resolution(tol))
+                        .is_ok()
+                }
                 // Raw door: the subject is the door's parity with tier 3, here over the double cover tier 3 refuses.
-                Err(_) => topo::test_support::measure_unvalidated(body, tol).is_ok(),
+                Err(_) => topo::test_support::measure_unvalidated(
+                    body,
+                    tol,
+                    topo::test_support::pinned_resolution(tol),
+                )
+                .is_ok(),
             };
             if tier3 != door {
                 failures.push(format!(

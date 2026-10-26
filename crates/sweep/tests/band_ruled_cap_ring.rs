@@ -46,8 +46,10 @@ fn volume(body: &Body<f64>) -> f64 {
     topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
         tol(),
+        topo::test_support::pinned_resolution(tol()),
     )
     .expect("closed-form props")
+    .enclosure
     .volume
 }
 
@@ -716,8 +718,10 @@ fn a_hole_whose_edge_leaves_the_slivers_enclosure_by_two_faces_carves_at_interva
             topo::mass_properties(
                 &topo::test_support::finished("the measured body", topo::Body::clone(b), tol),
                 tol,
+                topo::test_support::pinned_resolution(tol),
             )
             .expect("interval props")
+            .enclosure
             .volume
         };
         let dv = vol(&out.body) - vol(&body);

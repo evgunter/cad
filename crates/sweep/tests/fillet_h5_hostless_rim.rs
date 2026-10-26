@@ -39,8 +39,10 @@ fn volume(body: &Body<f64>) -> f64 {
     topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
         tol(),
+        topo::test_support::pinned_resolution(tol()),
     )
     .expect("mass properties compute")
+    .enclosure
     .volume
 }
 
@@ -192,6 +194,7 @@ fn the_plane_hosted_rim_carves_on_either_material_side() {
         let before = topo::mass_properties(
             &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
             tol(),
+            topo::test_support::pinned_resolution(tol()),
         )
         .expect("mass properties compute");
         let census = |b: &Body<f64>| {
@@ -228,6 +231,7 @@ fn the_plane_hosted_rim_carves_on_either_material_side() {
         let after = topo::mass_properties(
             &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol()),
             tol(),
+            topo::test_support::pinned_resolution(tol()),
         )
         .expect("mass properties compute");
         assert_eq!(
@@ -433,6 +437,7 @@ fn the_hostless_carves_match_their_hand_closed_forms() {
         let before = topo::mass_properties(
             &topo::test_support::finished("the measured body", topo::Body::clone(&body), tol()),
             tol(),
+            topo::test_support::pinned_resolution(tol()),
         )
         .unwrap();
         let out = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &arcs, r, tol())
@@ -442,10 +447,14 @@ fn the_hostless_carves_match_their_hand_closed_forms() {
         let after = topo::mass_properties(
             &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol()),
             tol(),
+            topo::test_support::pinned_resolution(tol()),
         )
         .unwrap();
-        assert_eq!(after.volume_pad, 0.0, "{name}: closed-form faces only");
-        let measured = after.volume - before.volume;
+        assert_eq!(
+            after.enclosure.volume_pad, 0.0,
+            "{name}: closed-form faces only"
+        );
+        let measured = after.enclosure.volume - before.enclosure.volume;
         let want = if adds {
             wedge_fill(k, da, db, r)
         } else {
@@ -525,9 +534,10 @@ fn a_hostless_rim_composes_with_a_shared_wall_neighbour() {
             tol(),
         ),
         tol(),
+        topo::test_support::pinned_resolution(tol()),
     )
     .unwrap();
-    assert_eq!(one.volume_pad, 0.0, "closed-form faces only");
+    assert_eq!(one.enclosure.volume_pad, 0.0, "closed-form faces only");
 
     for order in [[neck, shoulder], [shoulder, neck]] {
         let mut body = repaired(lantern(tol()));
@@ -541,6 +551,7 @@ fn a_hostless_rim_composes_with_a_shared_wall_neighbour() {
         let seq = topo::mass_properties(
             &topo::test_support::finished("the measured body", topo::Body::clone(&body), tol()),
             tol(),
+            topo::test_support::pinned_resolution(tol()),
         )
         .unwrap();
         assert_eq!(
@@ -602,6 +613,7 @@ fn the_plane_sphere_hostless_carve_matches_its_hand_closed_form() {
         let before = topo::mass_properties(
             &topo::test_support::finished("the measured body", topo::Body::clone(&body), tol()),
             tol(),
+            topo::test_support::pinned_resolution(tol()),
         )
         .unwrap();
         let out = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &arcs, r, tol())
@@ -611,10 +623,14 @@ fn the_plane_sphere_hostless_carve_matches_its_hand_closed_form() {
         let after = topo::mass_properties(
             &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol()),
             tol(),
+            topo::test_support::pinned_resolution(tol()),
         )
         .unwrap();
-        assert_eq!(after.volume_pad, 0.0, "{name}: closed-form faces only");
-        let measured = before.volume - after.volume;
+        assert_eq!(
+            after.enclosure.volume_pad, 0.0,
+            "{name}: closed-form faces only"
+        );
+        let measured = before.enclosure.volume - after.enclosure.volume;
         assert!(
             (measured - removed).abs() <= 1e-12 * removed,
             "{name}: the removed volume is the hand form \

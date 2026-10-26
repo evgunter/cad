@@ -153,8 +153,10 @@ pub fn volume(b: &Body<f64>) -> f64 {
     topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(b), Tol::witness()),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
+    .enclosure
     .volume
 }
 

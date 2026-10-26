@@ -102,6 +102,7 @@ fn helix_oracle_gap(turns: f64, stations: usize) -> f64 {
             Tol::witness(),
         ),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("mass properties certify");
     assert!(

@@ -87,6 +87,7 @@ fn the_hostless_rim_carves_at_the_certified_scalar_on_both_material_sides() {
         let p0 = topo::mass_properties(
             &topo::test_support::finished("the measured body", topo::Body::clone(&source), tol()),
             tol(),
+            topo::test_support::pinned_resolution(tol()),
         )
         .expect("interval props");
 
@@ -103,6 +104,7 @@ fn the_hostless_rim_carves_at_the_certified_scalar_on_both_material_sides() {
         let p1 = topo::mass_properties(
             &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol()),
             tol(),
+            topo::test_support::pinned_resolution(tol()),
         )
         .expect("interval props");
         assert_eq!(
@@ -165,7 +167,8 @@ fn the_plane_sphere_hostless_carve_brackets_its_closed_form_at_the_certified_sca
     );
     let arcs = rim_arcs_at(&source, 1.0, 0.0);
     assert_full_revolve_rim(&arcs, "the repaired equator");
-    let p0 = topo::mass_properties(&source, tol()).expect("interval props");
+    let p0 = topo::mass_properties(&source, tol(), topo::test_support::pinned_resolution(tol()))
+        .expect("interval props");
     assert!(
         p0.enclosure.volume.hi() - p0.enclosure.volume.lo() < 1e-12,
         "the source's own enclosure is a point"
@@ -183,9 +186,10 @@ fn the_plane_sphere_hostless_carve_brackets_its_closed_form_at_the_certified_sca
     let p1 = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol()),
         tol(),
+        topo::test_support::pinned_resolution(tol()),
     )
     .expect("interval props");
-    assert_eq!(p1.volume_pad, 0.0, "closed-form faces only");
+    assert_eq!(p1.enclosure.volume_pad, 0.0, "closed-form faces only");
 
     let removed = plane_sphere_cut(1.0, r);
     assert_brackets(

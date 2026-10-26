@@ -138,16 +138,24 @@ fn the_certified_doors_form_at_the_symbolic_tier_and_answer_the_base_bits() {
         );
         let (mp_base, mp_sym, cs_base, cs_sym) = match (&fb, &fs) {
             (Some(fb), Some(fs)) => (
-                topo::mass_properties(fb, tol),
-                topo::mass_properties(fs, tol),
+                topo::mass_properties(fb, tol, topo::test_support::pinned_resolution(tol)),
+                topo::mass_properties(fs, tol, topo::test_support::pinned_resolution(tol)),
                 topo::classify_shells(fb, tol).is_ok(),
                 topo::classify_shells(fs, tol).is_ok(),
             ),
             // Raw door: an inside-out `~reverted` twin at both scalars, which tier 3 refuses (NegativeVolume).
             _ => (
-                topo::test_support::measure_unvalidated(b, tol),
+                topo::test_support::measure_unvalidated(
+                    b,
+                    tol,
+                    topo::test_support::pinned_resolution(tol),
+                ),
                 // Raw door: the symbolic twin of the same inside-out body.
-                topo::test_support::measure_unvalidated(s, tol),
+                topo::test_support::measure_unvalidated(
+                    s,
+                    tol,
+                    topo::test_support::pinned_resolution(tol),
+                ),
                 // Raw door: the same inside-out body at f64.
                 topo::test_support::classify_unvalidated(b, tol).is_ok(),
                 // Raw door: the same inside-out body at the symbolic tier.

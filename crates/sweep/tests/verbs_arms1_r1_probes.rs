@@ -179,9 +179,13 @@ fn the_bored_dome_equator_fillets_at_three_radii() {
         let props = topo::mass_properties(
             &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol()),
             tol(),
+            topo::test_support::pinned_resolution(tol()),
         )
         .expect("mass properties");
-        assert_eq!(props.volume_pad, 0.0, "closed-form faces only at r = {r}");
+        assert_eq!(
+            props.enclosure.volume_pad, 0.0,
+            "closed-form faces only at r = {r}"
+        );
         let expect = washer(1.0, 0.3, 0.0, 0.8) - corner_cut(1.0, r, 0.0, 1.0);
         assert!(
             (props.enclosure.volume - expect).abs() <= 1e-12 * expect,
@@ -235,9 +239,10 @@ fn both_zone_rims_fillet_sequentially_and_match_the_closed_form() {
     let props = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(&second.body), tol()),
         tol(),
+        topo::test_support::pinned_resolution(tol()),
     )
     .expect("mass properties");
-    assert_eq!(props.volume_pad, 0.0);
+    assert_eq!(props.enclosure.volume_pad, 0.0);
     let expect =
         washer(2.0, 0.6, -0.5, 1.0) - corner_cut(2.0, r, -0.5, 1.0) - corner_cut(2.0, r, 1.0, -1.0);
     assert!(
@@ -279,9 +284,10 @@ fn both_zone_rims_in_one_call_match_the_sequential_composition() {
     let props = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(&one.body), tol()),
         tol(),
+        topo::test_support::pinned_resolution(tol()),
     )
     .expect("mass properties");
-    assert_eq!(props.volume_pad, 0.0);
+    assert_eq!(props.enclosure.volume_pad, 0.0);
 
     let seq = |first: f64, second: f64| {
         let a = fillet_edges(&body, &[zone_rim(&body, first)], r, tol())
@@ -296,8 +302,10 @@ fn both_zone_rims_in_one_call_match_the_sequential_composition() {
         topo::mass_properties(
             &topo::test_support::finished("the measured body", topo::Body::clone(&b.body), tol()),
             tol(),
+            topo::test_support::pinned_resolution(tol()),
         )
         .expect("mass properties")
+        .enclosure
         .volume
     };
     let (v_lo_hi, v_hi_lo) = (seq(-0.5, 1.0), seq(1.0, -0.5));

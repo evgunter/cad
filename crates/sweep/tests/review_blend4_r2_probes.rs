@@ -443,6 +443,7 @@ fn r2_no_sliver_wedge_pose_is_silently_wrong_on_the_corner_path() {
                             Tol::witness(),
                         ),
                         Tol::witness(),
+                        topo::test_support::pinned_resolution(Tol::witness()),
                     )
                     .expect("a carved wedge has closed-form props");
                     assert!(

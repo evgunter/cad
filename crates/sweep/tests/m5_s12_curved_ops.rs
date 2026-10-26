@@ -67,8 +67,10 @@ fn vol(body: &Body<f64>) -> f64 {
     topo::mass_properties(
         &finished("the measured body", Body::clone(body), Tol::witness()),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
+    .enclosure
     .volume
 }
 
@@ -237,9 +239,14 @@ fn revert_uses_the_plane_normal_for_planes_and_the_sense_bit_for_charts() {
         "a reverted body bounds the complement: tier 3 is exactly NegativeVolume"
     );
     // Raw door: `rev` is inside out, which tier 3 refuses (NegativeVolume), as asserted above.
-    let rev_v = topo::test_support::measure_unvalidated(&rev, Tol::witness())
-        .unwrap()
-        .volume;
+    let rev_v = topo::test_support::measure_unvalidated(
+        &rev,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap()
+    .enclosure
+    .volume;
     assert_eq!(rev_v.to_bits(), (-v).to_bits(), "volume is bit-negated");
 }
 

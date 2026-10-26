@@ -325,7 +325,11 @@ fn the_prism_in_cylinder_oracle_agrees_with_a_quadrature() {
             (exact - quadrature).abs() < 3e-5,
             "k = {k}: the face sum {exact} against the quadrature of the built prism {quadrature}"
         );
-        let measured = topo::mass_properties(&body, tol()).unwrap().volume;
+        let measured =
+            topo::mass_properties(&body, tol(), topo::test_support::pinned_resolution(tol()))
+                .unwrap()
+                .enclosure
+                .volume;
         let closed = prism_volume(k, sites, 2.0, 1.5);
         assert!(
             (measured - closed).abs() < 1e-9,
@@ -496,7 +500,14 @@ fn steep_plate_rod_battery() {
                             let rd =
                                 topo::test_support::finished("rd", rod(theta, phi, t, len), tol());
                             let va = (xs.1 - xs.0) * 4.0 * t;
-                            let vb = topo::mass_properties(&rd, tol()).unwrap().volume;
+                            let vb = topo::mass_properties(
+                                &rd,
+                                tol(),
+                                topo::test_support::pinned_resolution(tol()),
+                            )
+                            .unwrap()
+                            .enclosure
+                            .volume;
                             let vi = want_i(theta, xs, t);
                             let tag = format!(
                                 "R2E th={theta_deg} t={t} x=({:.4},{:.4}) phi={phi:.2} m={mirror}",
@@ -571,7 +582,11 @@ fn u_plate_battery() {
                 let (pl, poly) = u_plate(c, w, t);
                 let rd = topo::test_support::finished("rd", rod(0.0, phi, t, 3.0), tol());
                 let va = area(&poly) * t;
-                let vb = topo::mass_properties(&rd, tol()).unwrap().volume;
+                let vb =
+                    topo::mass_properties(&rd, tol(), topo::test_support::pinned_resolution(tol()))
+                        .unwrap()
+                        .enclosure
+                        .volume;
                 let vi = disc_clip_area(R, &poly) * t;
                 let tag = format!("R2U c={c} w={w} phi={phi:.2}");
                 for (op, w_ab, w_ba) in [
@@ -724,8 +739,9 @@ fn steep_ellipse_poses_build_sound() {
             tol(),
         );
         let va = (xs.1 - xs.0) * 4.0 * t;
-        let mb = topo::mass_properties(&rd, tol()).unwrap();
-        let (vb, pad_b) = (mb.volume, mb.volume_pad);
+        let mb = topo::mass_properties(&rd, tol(), topo::test_support::pinned_resolution(tol()))
+            .unwrap();
+        let (vb, pad_b) = (mb.enclosure.volume, mb.enclosure.volume_pad);
         let vi = want_i(theta, xs, t);
         for (op, order) in runs {
             let volume = match (op, order) {

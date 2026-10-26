@@ -315,9 +315,10 @@ fn assert_volume(what: &str, body: &Body<f64>, want: f64) {
     let props = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
         tol(),
+        topo::test_support::pinned_resolution(tol()),
     )
     .unwrap_or_else(|e| panic!("{what}: the volume refused {e:?}"));
-    let slack = props.volume_pad + 64.0 * f64::EPSILON * want.abs();
+    let slack = props.enclosure.volume_pad + 64.0 * f64::EPSILON * want.abs();
     assert!(
         (props.enclosure.volume - want).abs() <= slack,
         "{what}: volume {:e} against {want:e} (± {slack:e})",

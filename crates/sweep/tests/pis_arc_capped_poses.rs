@@ -63,7 +63,10 @@ fn revolved(verts: Vec<(Point2<f64>, f64)>) -> Body<f64> {
 /// region the probes are judged by is the body that was built.
 fn prism_of(verts: Vec<(Point2<f64>, f64)>, volume: f64) -> Body<f64> {
     let body = topo::test_support::finished("body", prism(verts, 1.0, tol()), tol());
-    let v = topo::mass_properties(&body, tol()).unwrap().volume;
+    let v = topo::mass_properties(&body, tol(), topo::test_support::pinned_resolution(tol()))
+        .unwrap()
+        .enclosure
+        .volume;
     assert!(
         (v - volume).abs() < 1e-9,
         "the fixture is the region its truth describes: {v} vs {volume}"

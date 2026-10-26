@@ -288,7 +288,13 @@ fn the_gates_certificate_is_the_measurement_and_costs_one_quadrature() {
     let body = topo::test_support::finished("body", prism(), tol);
 
     let mut measured = None;
-    let one = quad_rounds(|| measured = Some(topo::mass_properties(&body, tol)));
+    let one = quad_rounds(|| {
+        measured = Some(topo::mass_properties(
+            &body,
+            tol,
+            topo::test_support::pinned_resolution(tol),
+        ))
+    });
     let measured = measured.expect("the closure ran").expect(
         "IDENTITY: the fixture is scaled to 1e5·ε so that it certifies at EVERY ε row — \
          a refusal here is a moved schedule or a moved fixture, not an ε this row may \
@@ -400,7 +406,13 @@ fn a_multi_solid_certificate_reads_each_face_once() {
     );
 
     let mut measured = None;
-    let one = quad_rounds(|| measured = Some(topo::mass_properties(&body, tol)));
+    let one = quad_rounds(|| {
+        measured = Some(topo::mass_properties(
+            &body,
+            tol,
+            topo::test_support::pinned_resolution(tol),
+        ))
+    });
     let measured = measured
         .expect("the closure ran")
         .expect("ONE READ PER FACE: two certifying prisms measure at every ε row");
@@ -485,8 +497,16 @@ fn a_multi_solid_certificate_split_across_rounds_continues_to_the_measurement() 
         let finished =
             topo::test_support::finished("the measured body", topo::Body::clone(&body), tol);
         let mut measured = None;
-        let one = quad_rounds(|| measured = Some(topo::mass_properties(&finished, tol)));
-        let measured = measured.expect("the closure ran");
+        let one = quad_rounds(|| {
+            measured = Some(topo::mass_properties(
+                &finished,
+                tol,
+                topo::test_support::pinned_resolution(tol),
+            ))
+        });
+        let measured = measured
+            .expect("the closure ran")
+            .unwrap_or_else(|e| panic!("ROUND SPLIT {label}: the body measures: {e}"));
 
         let mut gated = None;
         let gate = quad_rounds(|| {

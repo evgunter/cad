@@ -298,6 +298,7 @@ fn check(
     let m = match topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
         tol(),
+        topo::test_support::pinned_resolution(tol()),
     ) {
         Ok(m) => m,
         Err(e) if near && in_band(&e) => return Ok(()),

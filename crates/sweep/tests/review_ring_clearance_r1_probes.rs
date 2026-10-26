@@ -134,7 +134,11 @@ fn r1_the_dome_rims_material_side_is_read_off_the_body() {
             convex, !up,
             "{name}: the boss's dome rim is concave, the dimple's convex"
         );
-        let before = topo::mass_properties(&body, tol()).unwrap().volume;
+        let before =
+            topo::mass_properties(&body, tol(), topo::test_support::pinned_resolution(tol()))
+                .unwrap()
+                .enclosure
+                .volume;
         let out = fillet_edges(
             &sweep::test_support::at_rest(&body, tol()),
             &arcs,
@@ -152,8 +156,10 @@ fn r1_the_dome_rims_material_side_is_read_off_the_body() {
         let delta = topo::mass_properties(
             &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol()),
             tol(),
+            topo::test_support::pinned_resolution(tol()),
         )
         .unwrap()
+        .enclosure
         .volume
             - before;
         assert_eq!(
@@ -217,7 +223,10 @@ fn r1_a_convex_corner_arc_of_a_mixed_outer_cycle_takes_the_external_term() {
     let body = topo::test_support::finished("body", dimpled_plate(0.3, 0.15, 0.3, 0.0), tol());
     validate_geometric(&body, tol()).expect("the dimpled plate is tier-3 valid");
     let arcs = z_rim(&body, 0.15, 0.4, true);
-    let before = topo::mass_properties(&body, tol()).unwrap().volume;
+    let before = topo::mass_properties(&body, tol(), topo::test_support::pinned_resolution(tol()))
+        .unwrap()
+        .enclosure
+        .volume;
     let out = fillet_edges(
         &sweep::test_support::at_rest(&body, tol()),
         &arcs,
@@ -230,9 +239,10 @@ fn r1_a_convex_corner_arc_of_a_mixed_outer_cycle_takes_the_external_term() {
     let after = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol()),
         tol(),
+        topo::test_support::pinned_resolution(tol()),
     )
     .unwrap();
-    assert_eq!(after.volume_pad, 0.0);
+    assert_eq!(after.enclosure.volume_pad, 0.0);
     assert!(
         after.enclosure.volume < before,
         "a convex dimple rim removes material"
@@ -289,9 +299,11 @@ fn r1_a_bored_cylinders_off_axis_ring_reaches_the_annulus_backstop_at_the_front_
     assert_eq!(
         topo::mass_properties(
             &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol()),
-            tol()
+            tol(),
+            topo::test_support::pinned_resolution(tol()),
         )
         .unwrap()
+        .enclosure
         .volume_pad,
         0.0
     );
@@ -338,9 +350,11 @@ fn r1_a_bored_cylinders_off_axis_ring_reaches_the_ladder_backstop_at_the_front_d
     assert_eq!(
         topo::mass_properties(
             &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol()),
-            tol()
+            tol(),
+            topo::test_support::pinned_resolution(tol()),
         )
         .unwrap()
+        .enclosure
         .volume_pad,
         0.0
     );

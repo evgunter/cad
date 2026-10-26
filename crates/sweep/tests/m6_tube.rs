@@ -152,7 +152,12 @@ fn tube_minor_radius_is_stored_bit_exact() {
 #[test]
 fn tube_donut_volume_is_pappus_exact() {
     let tube = topo::test_support::finished("tube", tube_donut(), Tol::witness());
-    let props = topo::mass_properties(&tube, Tol::witness()).expect("mass properties");
+    let props = topo::mass_properties(
+        &tube,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .expect("mass properties");
     let exact = 2.0 * PI * PI * R * MINOR * MINOR;
     let pad = props.enclosure.volume_pad;
     assert!(
@@ -221,14 +226,24 @@ fn tube_window_and_refusal_doors() {
     );
     assert_eq!(scaled.faces().count(), unit.faces().count());
     assert_eq!(
-        topo::mass_properties(&scaled, Tol::witness())
-            .expect("mass properties")
-            .volume
-            .to_bits(),
-        topo::mass_properties(&unit, Tol::witness())
-            .expect("mass properties")
-            .volume
-            .to_bits(),
+        topo::mass_properties(
+            &scaled,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness())
+        )
+        .expect("mass properties")
+        .enclosure
+        .volume
+        .to_bits(),
+        topo::mass_properties(
+            &unit,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness())
+        )
+        .expect("mass properties")
+        .enclosure
+        .volume
+        .to_bits(),
         "the normalized axis builds the same torus, bit for bit"
     );
     // **A reference ON the axis line still refuses** — it names no
@@ -322,6 +337,7 @@ mod certified {
                 Tol::witness(),
             ),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .expect("mass properties");
         let exact = 2.0 * PI * PI * R * MINOR * MINOR;

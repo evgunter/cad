@@ -285,8 +285,10 @@ fn a_large_d_away_from_the_apex_is_not_an_apex_crossing() {
             Tol::witness(),
         ),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("the moved body has properties")
+    .enclosure
     .volume;
     assert!(
         (volume - pappus).abs() < 1e-9 * pappus,

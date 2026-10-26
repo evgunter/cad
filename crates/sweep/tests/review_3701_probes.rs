@@ -85,8 +85,10 @@ fn vol(b: &Body<f64>, t: Tol) -> f64 {
     topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(b), t),
         t,
+        topo::test_support::pinned_resolution(t),
     )
     .unwrap()
+    .enclosure
     .volume
 }
 

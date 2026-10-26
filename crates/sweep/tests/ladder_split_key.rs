@@ -142,7 +142,9 @@ fn the_boss_dome_rims_meridians_run_pole_to_rim_and_the_carve_is_naming_total() 
             "{name}: every meridian's he_plus ENDS at its rim vertex, so the rim-side \
              piece of each split is a fresh key — this is what the fixture witnesses"
         );
-        let before = topo::mass_properties(&source, tol()).unwrap();
+        let before =
+            topo::mass_properties(&source, tol(), topo::test_support::pinned_resolution(tol()))
+                .unwrap();
         let out = fillet_edges(
             &sweep::test_support::at_rest(&source, tol()),
             &arcs,
@@ -155,9 +157,13 @@ fn the_boss_dome_rims_meridians_run_pole_to_rim_and_the_carve_is_naming_total() 
         let after = topo::mass_properties(
             &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol()),
             tol(),
+            topo::test_support::pinned_resolution(tol()),
         )
         .unwrap();
-        assert_eq!(after.volume_pad, 0.0, "{name}: closed-form faces only");
+        assert_eq!(
+            after.enclosure.volume_pad, 0.0,
+            "{name}: closed-form faces only"
+        );
         let want = if adds { form } else { -form };
         let measured = after.enclosure.volume - before.enclosure.volume;
         assert!(

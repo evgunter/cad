@@ -119,8 +119,9 @@ fn holds(label: &str, side: &str, part: &SplitPart<f64>, want: f64) {
     topo::validate_geometric(&b, tol).unwrap_or_else(|e| panic!("{label}: {side}: tier 3: {e:?}"));
     topo::validate_pseudomanifold(&b, &ContactRecords::default(), tol)
         .unwrap_or_else(|e| panic!("{label}: {side}: tier 3′: {e:?}"));
-    let v = topo::mass_properties(&b, tol)
+    let v = topo::mass_properties(&b, tol, topo::test_support::pinned_resolution(tol))
         .unwrap_or_else(|e| panic!("{label}: {side}: mass properties: {e:?}"))
+        .enclosure
         .volume;
     assert!(
         (v - want).abs() <= 1e-9 * want.max(1.0),

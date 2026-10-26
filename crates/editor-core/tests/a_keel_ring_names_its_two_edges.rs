@@ -81,8 +81,10 @@ fn a_keel_ring_names_its_two_edges_apart() {
         let got = topo::mass_properties(
             &topo::test_support::finished("the measured body", topo::Body::clone(&**b), tol),
             tol,
+            topo::test_support::pinned_resolution(tol),
         )
         .unwrap()
+        .enclosure
         .volume;
         assert!((got - v).abs() < 1e-9 * v, "{what}: volume {got}, not {v}");
     }

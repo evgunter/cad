@@ -114,8 +114,10 @@ fn interval_washer_props_and_bore_door() {
             Tol::witness(),
         ),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
+    .enclosure
     .volume;
     let analytic = 3.0 * PI;
     assert!(

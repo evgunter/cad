@@ -298,6 +298,7 @@ fn tangent_charts_shell_onto_their_closed_forms() {
                     Tol::witness(),
                 ),
                 Tol::witness(),
+                topo::test_support::pinned_resolution(Tol::witness()),
             )
             .unwrap_or_else(|e| panic!("eps {eps:e}, {name} at {t}: the thin solid weighs: {e}"));
             let want = closed(t);

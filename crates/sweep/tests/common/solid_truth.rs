@@ -226,8 +226,10 @@ pub fn assert_body_is(
     let got_v = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(body), tol),
         tol,
+        topo::test_support::pinned_resolution(tol),
     )
     .unwrap_or_else(|e| panic!("{label}: the volume refused {e:?}"))
+    .enclosure
     .volume;
     assert!(
         (got_v - v).abs() <= tolerance,

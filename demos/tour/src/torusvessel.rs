@@ -850,7 +850,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                  lift opens (a cylinder of the cavity's neck radius, one wall tall). \
                  A = {:.9} m². THE CUP LEAVES AS STEP, which the sealed panel next door \
                  cannot: the writer refuses a void shell, and a cup is ONE shell",
-                props_c.volume, props_c.surface_area,
+                props_c.enclosure.volume, props_c.enclosure.surface_area,
             )),
             // Ten degrees higher than the sealed panel and swung round
             // to the other quadrant: the subject here is the annular

@@ -109,8 +109,10 @@ fn assert_half(row: &str, part: &Body<f64>, holds_bore: bool) {
     let v = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(part), tol()),
         tol(),
+        topo::test_support::pinned_resolution(tol()),
     )
     .unwrap_or_else(|e| panic!("{row}: mass properties refused: {e:?}"))
+    .enclosure
     .volume;
     let want = half_volume(holds_bore);
     assert!(

@@ -109,9 +109,11 @@ fn r1_the_bosss_base_rim_is_hostless_and_carves() {
     assert_eq!(
         topo::mass_properties(
             &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol()),
-            tol()
+            tol(),
+            topo::test_support::pinned_resolution(tol()),
         )
         .unwrap()
+        .enclosure
         .volume_pad,
         0.0,
         "closed-form faces only"
@@ -171,9 +173,11 @@ fn r1_a_hostless_rim_on_a_ringed_host_carves_under_the_recourse_that_promises_it
     assert_eq!(
         topo::mass_properties(
             &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol()),
-            tol()
+            tol(),
+            topo::test_support::pinned_resolution(tol()),
         )
         .unwrap()
+        .enclosure
         .volume_pad,
         0.0,
         "closed-form faces only"
@@ -221,9 +225,10 @@ fn r1_two_hostless_rims_of_one_body_compose_in_one_call() {
             tol(),
         ),
         tol(),
+        topo::test_support::pinned_resolution(tol()),
     )
     .unwrap();
-    assert_eq!(one.volume_pad, 0.0, "closed-form faces only");
+    assert_eq!(one.enclosure.volume_pad, 0.0, "closed-form faces only");
 
     for order in [[(1.0, 0.0), (0.2, 1.2)], [(0.2, 1.2), (1.0, 0.0)]] {
         let mut body = {
@@ -245,6 +250,7 @@ fn r1_two_hostless_rims_of_one_body_compose_in_one_call() {
         let seq = topo::mass_properties(
             &topo::test_support::finished("the measured body", topo::Body::clone(&body), tol()),
             tol(),
+            topo::test_support::pinned_resolution(tol()),
         )
         .unwrap();
         // The same body, not the same history: each carve ends with the

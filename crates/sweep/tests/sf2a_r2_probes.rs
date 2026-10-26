@@ -201,6 +201,7 @@ fn r2a_valence4_concurring_corner_builds_in_closed_form() {
     let props = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(&chamfered), tol),
         tol,
+        topo::test_support::pinned_resolution(tol),
     )
     .expect("props");
     let want = chamfered_cube_volume(a - 2.0 * t, d + s * core::f64::consts::SQRT_2 - 2.0 * t);
@@ -250,6 +251,7 @@ fn r2a_bevel_kite_triangle_walls_in_closed_form() {
         let props = topo::mass_properties(
             &topo::test_support::finished("the measured body", topo::Body::clone(&hollow), tol),
             tol,
+            topo::test_support::pinned_resolution(tol),
         )
         .expect("props");
         let want = shoelace(&pts) * h - shoelace(&inset(&pts, t)) * (h - 2.0 * t);
@@ -300,8 +302,10 @@ fn r2a_a_face_named_twice_across_moves() {
     let before = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(&body), tol),
         tol,
+        topo::test_support::pinned_resolution(tol),
     )
     .expect("props")
+    .enclosure
     .volume;
     match topo::offset_planes_together(&mut body, &moves, band(), tol) {
         Err(e) => println!("[r2a] duplicate face: refused, {e}"),
@@ -310,8 +314,9 @@ fn r2a_a_face_named_twice_across_moves() {
             let vol = topo::mass_properties(
                 &topo::test_support::finished("the measured body", topo::Body::clone(&body), tol),
                 tol,
+                topo::test_support::pinned_resolution(tol),
             )
-            .map(|p| p.volume);
+            .map(|p| p.enclosure.volume);
             println!(
                 "[r2a] duplicate face: BUILT (operand was volume {before}); tier3 = {tier3:?}, \
                  volume = {vol:?} (a correct inset would be 1.5·2.5·3.5 = 13.125)"
@@ -409,7 +414,10 @@ fn r2a_one_curved_face_among_oblique_planes_takes_the_axial_door() {
         topo::is_axial(&body, band()).expect("the axis gate decides"),
         "sides parallel to the arc's axis, ends normal to it"
     );
-    let operand = topo::mass_properties(&body, tol).expect("props").volume;
+    let operand = topo::mass_properties(&body, tol, topo::test_support::pinned_resolution(tol))
+        .expect("props")
+        .enclosure
+        .volume;
     let area = bulge_loop_area(&hex);
     assert!(
         (operand - area * depth).abs() <= 1e-15,
@@ -428,8 +436,10 @@ fn r2a_one_curved_face_among_oblique_planes_takes_the_axial_door() {
     let got = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(&hollow), tol),
         tol,
+        topo::test_support::pinned_resolution(tol),
     )
     .expect("props")
+    .enclosure
     .volume;
     println!("[r2a] one-arc hexagon hollow: {got}, closed form {want}");
     assert!((got - want).abs() <= 1e-15, "hollow {got}, want {want}");
@@ -457,6 +467,7 @@ fn r2a_straight_vertex_prism_through_shell_at_head() {
             let props = topo::mass_properties(
                 &topo::test_support::finished("the measured body", topo::Body::clone(&hollow), tol),
                 tol,
+                topo::test_support::pinned_resolution(tol),
             )
             .expect("props");
             println!(

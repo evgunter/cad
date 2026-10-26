@@ -55,6 +55,7 @@ fn r1_e2e_gauge_is_silent_on_an_honest_body_through_the_public_door() {
             Tol::witness(),
         ),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("mass properties");
     // Report the honest widths so the run is a measurement, not just a
@@ -115,7 +116,11 @@ fn r1_e2e_gauge_is_silent_at_the_interval_lane() {
     )
     .expect("r1 loft builds");
     // Raw door: the measured body is a body tier 3 cannot measure (VolumeUncomputable), whose typed refusal is the subject.
-    match topo::test_support::measure_unvalidated(&lofted.body, Tol::witness()) {
+    match topo::test_support::measure_unvalidated(
+        &lofted.body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    ) {
         Ok(m) => println!(
             "R1-E2E(interval) area_pad {:?} surface {:?}",
             m.enclosure.area_pad, m.enclosure.surface_area

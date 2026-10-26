@@ -690,8 +690,10 @@ fn a_loose_copy_is_gathered_and_measured_against_nothing_outside_it() {
                 Tol::witness(),
             ),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .expect("mass properties")
+        .enclosure
         .volume
     };
     let gathered = topo::test_support::finished(
@@ -699,9 +701,14 @@ fn a_loose_copy_is_gathered_and_measured_against_nothing_outside_it() {
         product(&doc, &ev, Tol::witness()).expect("the world gathers"),
         Tol::witness(),
     );
-    let volume = topo::mass_properties(&gathered, Tol::witness())
-        .expect("mass properties")
-        .volume;
+    let volume = topo::mass_properties(
+        &gathered,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .expect("mass properties")
+    .enclosure
+    .volume;
     assert_eq!(
         volume.to_bits(),
         world(base).to_bits(),

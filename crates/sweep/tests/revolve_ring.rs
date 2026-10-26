@@ -111,6 +111,7 @@ fn one_call_hollow_ring() {
             Tol::witness(),
         ),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap();
     let v_expect = 2.0 * pi * (1.5 - 0.375);
@@ -163,6 +164,7 @@ fn hollow_torus_runs_no_crossing_machinery() {
     let props = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(&t.body), tol),
         tol,
+        topo::test_support::pinned_resolution(tol),
     )
     .unwrap();
     let v_expect = 2.0 * pi * pi * rc * (ro * ro - ri * ri);
@@ -216,6 +218,7 @@ fn two_holes_two_cavities() {
             Tol::witness(),
         ),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap();
     let v_expect = 2.0 * pi * (6.0 * 2.0 - 0.5 * 2.0 - 0.5 * 1.75);
@@ -267,6 +270,7 @@ fn wire_outer_with_hole_cavity() {
             Tol::witness(),
         ),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap();
     let v_expect = 2.0 * pi * (6.0 * 1.0 - 1.0 * 1.0);
@@ -297,6 +301,7 @@ fn holed_full_revolve_replays() {
             Tol::witness(),
         ),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap();
     let pb = topo::mass_properties(
@@ -306,8 +311,12 @@ fn holed_full_revolve_replays() {
             Tol::witness(),
         ),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap();
-    assert_eq!(pa.volume.to_bits(), pb.volume.to_bits());
-    assert_eq!(pa.surface_area.to_bits(), pb.surface_area.to_bits());
+    assert_eq!(pa.enclosure.volume.to_bits(), pb.enclosure.volume.to_bits());
+    assert_eq!(
+        pa.enclosure.surface_area.to_bits(),
+        pb.enclosure.surface_area.to_bits()
+    );
 }

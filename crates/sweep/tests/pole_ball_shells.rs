@@ -40,6 +40,7 @@ fn a_pole_touching_ball_shells_to_the_difference_of_two_balls() {
         let props = topo::mass_properties(
             &topo::test_support::finished("the measured body", topo::Body::clone(&out), tol),
             tol,
+            topo::test_support::pinned_resolution(tol),
         )
         .expect("props");
         let want = 4.0 / 3.0 * PI * (r.powi(3) - (r - t).powi(3));

@@ -94,8 +94,10 @@ fn interval_offset_charts_together_sphere_zone() {
     let got = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(&hollow), tol),
         tol,
+        topo::test_support::pinned_resolution(tol),
     )
     .expect("props")
+    .enclosure
     .volume;
     contains("sphere-zone wall", got, want);
 }
@@ -157,8 +159,10 @@ fn interval_offset_charts_together_partial_wedge() {
     let got = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(&hollow), tol),
         tol,
+        topo::test_support::pinned_resolution(tol),
     )
     .expect("props")
+    .enclosure
     .volume;
     contains("wedge wall", got, want);
 }
@@ -201,8 +205,10 @@ fn interval_offset_charts_together_cone_frustum() {
         topo::mass_properties(
             &topo::test_support::finished("the measured body", topo::Body::clone(&hollow), tol),
             tol,
+            topo::test_support::pinned_resolution(tol),
         )
         .expect("props")
+        .enclosure
         .volume,
         want,
     );
@@ -236,8 +242,10 @@ fn interval_offset_charts_together_drum() {
         topo::mass_properties(
             &topo::test_support::finished("the measured body", topo::Body::clone(&hollow), tol),
             tol,
+            topo::test_support::pinned_resolution(tol),
         )
         .expect("props")
+        .enclosure
         .volume,
         want,
     );

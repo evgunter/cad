@@ -147,8 +147,10 @@ fn a_blind_pocket_in_a_cylinder_cap_cuts_to_the_closed_form() {
             topo::mass_properties(
                 &topo::test_support::finished("the measured body", topo::Body::clone(b), tol),
                 tol,
+                topo::test_support::pinned_resolution(tol),
             )
             .expect("mass properties")
+            .enclosure
             .volume
         };
         let tool_volume = volume(body_of(&ev, prism));
@@ -196,8 +198,9 @@ fn a_pocket_across_the_rim_cuts_to_the_closed_form() {
     let d = 0.035;
     let segment = R * R * (d / R).acos() - d * (R * R - d * d).sqrt();
     let truth = PI * R * R * HEIGHT - segment * DEPTH;
-    let got = topo::mass_properties(&body, tol)
+    let got = topo::mass_properties(&body, tol, topo::test_support::pinned_resolution(tol))
         .expect("mass properties")
+        .enclosure
         .volume;
     assert!(
         (got - truth).abs() < 1e-15,

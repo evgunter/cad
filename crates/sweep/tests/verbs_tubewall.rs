@@ -124,10 +124,11 @@ fn hollow_elbow_is_valid_with_pappus_mass_properties() {
             Tol::witness(),
         ),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("mass properties");
-    assert_close(props.volume, v_expect, "elbow volume");
-    assert_close(props.surface_area, a_expect, "elbow area");
+    assert_close(props.enclosure.volume, v_expect, "elbow volume");
+    assert_close(props.enclosure.surface_area, a_expect, "elbow area");
 
     // The elbow really is hollow: the solid tube of the same window
     // is heavier by exactly the bore, which is the same Pappus form
@@ -152,6 +153,7 @@ fn hollow_elbow_is_valid_with_pappus_mass_properties() {
             Tol::witness(),
         ),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("mass properties");
     assert_close(
@@ -197,6 +199,7 @@ fn hollow_torus_carries_its_cavity() {
             Tol::witness(),
         ),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("mass properties");
     assert_close(
@@ -425,9 +428,11 @@ fn hollow_wall_and_shared_refusal_doors() {
                 topo::Body::clone(&scaled.body),
                 Tol::witness()
             ),
-            Tol::witness()
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .expect("mass properties")
+        .enclosure
         .volume
         .to_bits(),
         topo::mass_properties(
@@ -436,9 +441,11 @@ fn hollow_wall_and_shared_refusal_doors() {
                 topo::Body::clone(&unit.body),
                 Tol::witness()
             ),
-            Tol::witness()
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .expect("mass properties")
+        .enclosure
         .volume
         .to_bits(),
         "the normalized axis builds it bit for bit"
@@ -516,6 +523,7 @@ mod certified {
                 Tol::witness(),
             ),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .expect("mass properties");
         encloses(
@@ -563,6 +571,7 @@ mod certified {
                 Tol::witness(),
             ),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .expect("mass properties");
         encloses(

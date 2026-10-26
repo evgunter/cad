@@ -109,6 +109,7 @@ fn assert_coherent(what: &str, cup: &Body<f64>, want_volume: Option<f64>) {
                 Tol::witness(),
             ),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .expect("props");
         assert!(
@@ -551,6 +552,7 @@ fn p8_hollow_operand_thickens_every_boundary() {
             Tol::witness(),
         ),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("props");
     let want = (2.0 * 3.0 * 4.0 - 1.9 * 2.9 * 3.9) + (1.6 * 2.6 * 3.6 - 1.5 * 2.5 * 3.5);

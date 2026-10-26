@@ -208,8 +208,10 @@ fn the_refusals_own_text_names_the_door_and_following_it_carves() {
     let after = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol()),
         tol(),
+        topo::test_support::pinned_resolution(tol()),
     )
     .unwrap()
+    .enclosure
     .volume;
     assert!(after < before, "convex: material removed");
 }

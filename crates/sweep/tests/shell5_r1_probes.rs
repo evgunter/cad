@@ -307,7 +307,8 @@ fn r1p1_cylindrical_void_in_a_box_through_the_axial_door() {
         .unwrap_or_else(|e| panic!("box with cylindrical void at t={t} hollows: {e:?}"));
     let out = topo::test_support::finished("out", topo::Body::clone(&s.body), tol());
     let tier3 = topo::validate_geometric(&out, tol());
-    let props = topo::mass_properties(&out, tol()).expect("props");
+    let props = topo::mass_properties(&out, tol(), topo::test_support::pinned_resolution(tol()))
+        .expect("props");
     let pi = core::f64::consts::PI;
     let want = (64.0 - 3.8f64.powi(3)) + pi * (1.1 * 1.1 * 2.2 - 2.0);
     println!(
@@ -315,8 +316,8 @@ fn r1p1_cylindrical_void_in_a_box_through_the_axial_door() {
         out.solids().count(),
         out.shells().count(),
         roles_by_solid(&out),
-        props.volume,
-        props.volume_pad
+        props.enclosure.volume,
+        props.enclosure.volume_pad
     );
     assert_eq!(tier3, Ok(()));
     assert_eq!(out.solids().count(), 2);
@@ -406,7 +407,8 @@ fn r1p6_open_a_void_ceiling_with_a_pillar_through_it() {
         Ok(s) => {
             let out = topo::test_support::finished("out", topo::Body::clone(&s.body), tol());
             let tier3 = topo::validate_geometric(&out, tol());
-            let props = topo::mass_properties(&out, tol());
+            let props =
+                topo::mass_properties(&out, tol(), topo::test_support::pinned_resolution(tol()));
             // A = 4³ − 3.8³; B = V′ − V where V = 2²·2 − 0.4²·2 and
             // V′ = 2.2³ − 0.2²·2.2; the removed slab is the counterpart's
             // footprint (2.2² − 0.2²) × t.
@@ -504,6 +506,7 @@ fn r1_e2e_hollow_twice_then_open_the_inner_wall() {
     let props = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(&twice.body), tol()),
         tol(),
+        topo::test_support::pinned_resolution(tol()),
     )
     .expect("props");
     println!(
@@ -525,6 +528,7 @@ fn r1_e2e_hollow_twice_then_open_the_inner_wall() {
     let props = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(&three.body), tol()),
         tol(),
+        topo::test_support::pinned_resolution(tol()),
     )
     .expect("props");
     println!(
@@ -587,7 +591,8 @@ fn r1_e2e_hollow_twice_then_open_the_inner_wall() {
         topo::validate_geometric(&out, tol()),
         roles_by_solid(&out)
     );
-    let props = topo::mass_properties(&out, tol()).expect("props");
+    let props = topo::mass_properties(&out, tol(), topo::test_support::pinned_resolution(tol()))
+        .expect("props");
     let want = (box_volume(2.0, 3.0, 4.0) - box_volume(1.9, 2.9, 3.9))
         + (box_volume(1.6, 2.6, 3.6) - box_volume(1.5, 2.5, 3.5))
         - 1.6 * 2.6 * 0.05;

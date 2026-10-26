@@ -100,11 +100,13 @@ fn r1_a_distant_box_does_not_lever_the_vessels_margins() {
         topo::mass_properties(
             &topo::test_support::finished("the measured body", topo::Body::clone(&alone), tol()),
             tol(),
+            topo::test_support::pinned_resolution(tol()),
         )
         .expect("props"),
         topo::mass_properties(
             &topo::test_support::finished("the measured body", topo::Body::clone(&far), tol()),
             tol(),
+            topo::test_support::pinned_resolution(tol()),
         )
         .expect("props"),
     );

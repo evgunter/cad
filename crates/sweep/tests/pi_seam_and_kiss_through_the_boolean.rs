@@ -618,8 +618,10 @@ fn a_lens_of_two_domes_builds() {
         topo::mass_properties(
             &topo::test_support::finished("the measured body", topo::Body::clone(b), tol),
             tol,
+            topo::test_support::pinned_resolution(tol),
         )
         .unwrap()
+        .enclosure
         .volume
     };
     let want = 2.0 * volume(&dome);
@@ -1597,8 +1599,10 @@ fn a_g1_joint_authored_inside_one_profile_is_the_seams_union() {
     let v = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(&capsule), tol),
         tol,
+        topo::test_support::pinned_resolution(tol),
     )
     .unwrap()
+    .enclosure
     .volume;
     let want = tube_and_half_ball_volume();
     assert!((v - want).abs() <= 1e-12 * want, "{v} vs {want}");

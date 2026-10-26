@@ -101,10 +101,11 @@ fn volume(body: &Body<f64>) -> f64 {
     let props = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
         tol(),
+        topo::test_support::pinned_resolution(tol()),
     )
     .expect("mass properties must compute");
-    assert_eq!(props.volume_pad, 0.0, "closed-form inventory");
-    props.volume
+    assert_eq!(props.enclosure.volume_pad, 0.0, "closed-form inventory");
+    props.enclosure.volume
 }
 
 // ------------------------------------------------------------------
@@ -420,6 +421,7 @@ fn fingerprint(source: &Body<f64>, arcs: &[EdgeKey], r: f64) -> String {
     let props = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol()),
         tol(),
+        topo::test_support::pinned_resolution(tol()),
     )
     .expect("mass properties");
     format!(

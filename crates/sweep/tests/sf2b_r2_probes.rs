@@ -112,7 +112,10 @@ fn r2_both_cone_nappes_hollow_to_their_closed_forms() {
     ] {
         let body = topo::test_support::finished("body", frustum(r0, r1, h), tol);
         describe_cones(what, &body);
-        let v_out = topo::mass_properties(&body, tol).expect("props").volume;
+        let v_out = topo::mass_properties(&body, tol, topo::test_support::pinned_resolution(tol))
+            .expect("props")
+            .enclosure
+            .volume;
         match topo::shell(
             &finished("the operand", topo::Body::clone(&body.clone()), tol),
             T,
@@ -131,8 +134,10 @@ fn r2_both_cone_nappes_hollow_to_their_closed_forms() {
                         tol,
                     ),
                     tol,
+                    topo::test_support::pinned_resolution(tol),
                 )
                 .expect("props")
+                .enclosure
                 .volume;
                 let want = frustum_wall(r0, r1, h);
                 println!(
@@ -263,7 +268,10 @@ fn r2_wedge_at_degenerate_turns() {
             ),
             tol,
         );
-        let v0 = topo::mass_properties(&body, tol).expect("props").volume;
+        let v0 = topo::mass_properties(&body, tol, topo::test_support::pinned_resolution(tol))
+            .expect("props")
+            .enclosure
+            .volume;
         match topo::shell(
             &finished("the operand", topo::Body::clone(&body.clone()), tol),
             T,
@@ -277,8 +285,10 @@ fn r2_wedge_at_degenerate_turns() {
                         tol,
                     ),
                     tol,
+                    topo::test_support::pinned_resolution(tol),
                 )
                 .expect("props")
+                .enclosure
                 .volume;
                 let valid = topo::validate_geometric(&hollow, tol);
                 println!(
@@ -366,6 +376,7 @@ fn r2_the_carried_azimuth_survives_both_surfaces_moving() {
             let props = topo::mass_properties(
                 &topo::test_support::finished("the measured body", topo::Body::clone(&cup), tol),
                 tol,
+                topo::test_support::pinned_resolution(tol),
             )
             .expect("props");
             println!(

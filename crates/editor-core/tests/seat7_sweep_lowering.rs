@@ -1015,8 +1015,10 @@ fn one_declared_radius_decides_equal_radii_at_the_germ_as_its_kernel_twin_does()
             tol(),
         ),
         tol(),
+        topo::test_support::pinned_resolution(tol()),
     )
     .unwrap()
+    .enclosure
     .volume;
 
     let raw_a = raw_spin(&raw_cylinder(R, H), Vec3::new(0.0, 0.0, 1.0), PHI);

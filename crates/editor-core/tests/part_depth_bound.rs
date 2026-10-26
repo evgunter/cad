@@ -255,8 +255,10 @@ fn the_refused_chain_flattened_by_one_level_evaluates_at_the_bound() {
                     Tol::witness(),
                 ),
                 Tol::witness(),
+                topo::test_support::pinned_resolution(Tol::witness()),
             )
             .expect("mass properties")
+            .enclosure
             .volume
         };
         assert_eq!(

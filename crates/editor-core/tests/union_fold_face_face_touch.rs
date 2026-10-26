@@ -144,8 +144,10 @@ fn touches(
             Tol::witness(),
         ),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
+    .enclosure
     .volume;
     assert!(
         (v - volume).abs() < 1e-9,
@@ -300,8 +302,10 @@ fn a_slab_across_the_line_leaves_the_touch_on_its_pieces() {
                 Tol::witness(),
             ),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
+        .enclosure
         .volume;
         assert!((v - volume).abs() < within, "{what}: volume {v}");
         touches(&doc, what, &members, (plate, rod), 1, v, records);
@@ -473,8 +477,10 @@ fn a_slab_across_the_whole_face_pairs_each_piece_with_its_own_side() {
                 Tol::witness(),
             ),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
+        .enclosure
         .volume;
         let want = *volume.get_or_insert(v);
         assert!(

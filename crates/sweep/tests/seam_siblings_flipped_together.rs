@@ -173,8 +173,10 @@ fn seam_siblings_flipped_together_are_refused_by_name() {
         let got = topo::mass_properties(
             &topo::test_support::finished("the measured body", topo::Body::clone(&body), tol),
             tol,
+            topo::test_support::pinned_resolution(tol),
         )
         .unwrap_or_else(|e| panic!("{}: the unflipped body does not measure: {e:?}", p.label))
+        .enclosure
         .volume;
         assert!(
             (got - want).abs() <= 1e-9 * want,
@@ -349,8 +351,10 @@ fn a_chain_of_three_siblings_reads_one_side() {
     let got = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(&body), tol),
         tol,
+        topo::test_support::pinned_resolution(tol),
     )
     .unwrap()
+    .enclosure
     .volume;
     assert!(
         (got - want).abs() <= 1e-9 * want,
@@ -417,8 +421,10 @@ fn a_lone_lune_through_both_poles_flips_into_another_valid_body() {
         topo::mass_properties(
             &topo::test_support::finished("the measured body", topo::Body::clone(b), tol),
             tol,
+            topo::test_support::pinned_resolution(tol),
         )
         .unwrap()
+        .enclosure
         .volume
     };
     let boss = measure(&body);

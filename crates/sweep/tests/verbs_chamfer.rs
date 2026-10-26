@@ -92,7 +92,12 @@ fn the_chamfered_cube() {
     }
 
     let want = chamfered_cube_volume(L, D);
-    let props = topo::mass_properties(&out_body, Tol::witness()).expect("closed-form props");
+    let props = topo::mass_properties(
+        &out_body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .expect("closed-form props");
     assert!(
         (props.enclosure.volume - want).abs() <= 1e-12 * want,
         "volume {} vs closed form {want}",
@@ -238,8 +243,10 @@ fn one_edge_of_a_cube_is_cut_off_at_its_end_faces() {
                 Tol::witness(),
             ),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .expect("closed-form props")
+        .enclosure
         .volume;
     assert!(
         (removed - D * D / 2.0 * L).abs() < 1e-12,

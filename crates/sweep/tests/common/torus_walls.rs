@@ -278,6 +278,7 @@ pub fn assert_hollow_volume(label: &str, hollow: &Body<f64>, want: f64) {
     let props = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(hollow), tol),
         tol,
+        topo::test_support::pinned_resolution(tol),
     )
     .unwrap_or_else(|e| panic!("{label}: the hollow measures, got {e:?}"));
     println!(
@@ -341,6 +342,7 @@ pub fn assert_hollow_area(label: &str, hollow: &Body<f64>, want: f64) {
             Tol::witness(),
         ),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap_or_else(|e| panic!("{label}: the hollow measures, got {e:?}"));
     println!(

@@ -123,8 +123,10 @@ fn assert_sound(body: &Body<f64>, expect: f64, what: &str) {
     let v = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
         tol(),
+        topo::test_support::pinned_resolution(tol()),
     )
     .unwrap()
+    .enclosure
     .volume;
     assert!(
         (v - expect).abs() < 1e-9,

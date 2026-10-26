@@ -260,8 +260,10 @@ pub(crate) fn volume_and_points(
     let v = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(b), Tol::witness()),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap_or_else(|e| panic!("{what}: the volume: {e:?}"))
+    .enclosure
     .volume;
     assert!(
         (v - want).abs() <= volume_tol(want),

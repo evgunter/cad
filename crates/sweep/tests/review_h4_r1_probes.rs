@@ -366,7 +366,10 @@ fn the_fourth_quadrant_is_built_and_its_floor_rim_carves() {
     );
 
     // The carve, and the fill by Pappus.
-    let v0 = topo::mass_properties(&body, tol()).expect("props").volume;
+    let v0 = topo::mass_properties(&body, tol(), topo::test_support::pinned_resolution(tol()))
+        .expect("props")
+        .enclosure
+        .volume;
     let out = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &arcs, r, tol())
         .unwrap_or_else(|e| panic!("the floor rim carves, got {e:?}"));
     assert_eq!(out.band_faces.len(), 1, "one band");
@@ -374,6 +377,7 @@ fn the_fourth_quadrant_is_built_and_its_floor_rim_carves() {
     let p1 = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol()),
         tol(),
+        topo::test_support::pinned_resolution(tol()),
     )
     .expect("props");
     assert_eq!(

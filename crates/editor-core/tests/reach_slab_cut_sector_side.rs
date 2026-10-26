@@ -58,8 +58,10 @@ fn volume(ev: &Evaluation<f64>, n: RecipeNodeId, what: &str) -> f64 {
             Tol::witness(),
         ),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("the volume integrates")
+    .enclosure
     .volume
 }
 

@@ -171,6 +171,7 @@ fn a_general_box_matches_an_independent_closed_form() {
                 Tol::witness(),
             ),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .expect("props");
         assert!(
@@ -240,6 +241,7 @@ fn a_skewed_wedge_chamfers_with_every_face_outward() {
                 Tol::witness(),
             ),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .expect("props");
         let uncut = 0.5 * base * t * h;
@@ -414,6 +416,7 @@ fn a_dimpled_spacer_carries_its_ring_through_the_chamfer() {
             Tol::witness(),
         ),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("props");
     // The cube term is spelled out here, deliberately
@@ -485,6 +488,7 @@ fn an_overrunning_sliver_corner_refuses_or_stays_valid() {
                     Tol::witness(),
                 ),
                 Tol::witness(),
+                topo::test_support::pinned_resolution(Tol::witness()),
             )
             .expect("props");
             let uncut = 0.5 * 2.0 * 0.4 * 1.0;

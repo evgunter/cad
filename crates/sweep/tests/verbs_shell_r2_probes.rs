@@ -174,6 +174,7 @@ fn r2_partial_revolve_axis_touching_cap() {
             let props = topo::mass_properties(
                 &topo::test_support::finished("the measured body", topo::Body::clone(cup), tol),
                 tol,
+                topo::test_support::pinned_resolution(tol),
             )
             .expect("props");
             let want = 0.5 * theta * (r * r * h - (r - t) * (r - t) * (h - t));
@@ -359,6 +360,7 @@ fn r2_my_own_annulus_splits_into_two_rims() {
     let props = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(&cup), tol),
         tol,
+        topo::test_support::pinned_resolution(tol),
     )
     .expect("props");
     let want = core::f64::consts::PI
@@ -642,6 +644,7 @@ fn r2_box_control_fingerprint() {
                         tol,
                     ),
                     tol,
+                    topo::test_support::pinned_resolution(tol),
                 )
                 .expect("props");
                 println!(

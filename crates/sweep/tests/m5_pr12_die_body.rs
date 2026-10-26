@@ -84,6 +84,7 @@ fn filleting_every_edge_of_a_box_yields_a_tier3_valid_rounded_solid() {
             Tol::witness(),
         ),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap();
     assert!(
@@ -154,6 +155,7 @@ fn the_die_is_tier3_valid_at_a_second_radius() {
             Tol::witness(),
         ),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap();
     assert!(

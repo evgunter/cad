@@ -82,6 +82,7 @@ fn consume(label: &str, body: &Body<f64>, want_volume: f64, want_shells: usize) 
     let props = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
         tol(),
+        topo::test_support::pinned_resolution(tol()),
     )
     .expect("props");
     assert!(
@@ -131,9 +132,11 @@ fn r2_e2e_two_arc_sphere_hollows_and_tessellates() {
         want,
         topo::mass_properties(
             &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol()),
-            tol()
+            tol(),
+            topo::test_support::pinned_resolution(tol()),
         )
         .expect("props")
+        .enclosure
         .volume
     );
     let mut cavity = body.clone();
@@ -144,9 +147,11 @@ fn r2_e2e_two_arc_sphere_hollows_and_tessellates() {
         "[r2] measured cavity volume {:?}",
         topo::mass_properties(
             &topo::test_support::finished("the measured body", topo::Body::clone(&cavity), tol()),
-            tol()
+            tol(),
+            topo::test_support::pinned_resolution(tol()),
         )
         .expect("props")
+        .enclosure
         .volume
     );
     consume("two-arc sphere shelled", &out.body, want, 2);
@@ -161,8 +166,10 @@ fn r2_e2e_sphere_zone_vase_hollowed_then_opened() {
     let sealed_vol = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(&sealed.body), tol()),
         tol(),
+        topo::test_support::pinned_resolution(tol()),
     )
     .expect("props")
+    .enclosure
     .volume;
     consume("sphere-zone vase sealed", &sealed.body, sealed_vol, 2);
     let caps = cap_at_y(&v, h);
@@ -173,8 +180,10 @@ fn r2_e2e_sphere_zone_vase_hollowed_then_opened() {
     let opened_vol = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(&opened.body), tol()),
         tol(),
+        topo::test_support::pinned_resolution(tol()),
     )
     .expect("props")
+    .enclosure
     .volume;
     consume(
         "sphere-zone vase opened",
@@ -200,8 +209,10 @@ fn r2_e2e_box_beside_vessel_hollowed_and_opened() {
     let sealed_vol = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(&sealed.body), tol()),
         tol(),
+        topo::test_support::pinned_resolution(tol()),
     )
     .expect("props")
+    .enclosure
     .volume;
     consume(
         "box beside vessel sealed",
@@ -223,8 +234,10 @@ fn r2_e2e_box_beside_vessel_hollowed_and_opened() {
     let opened_vol = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(&opened.body), tol()),
         tol(),
+        topo::test_support::pinned_resolution(tol()),
     )
     .expect("props")
+    .enclosure
     .volume;
     consume(
         "box beside vessel opened",

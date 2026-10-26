@@ -71,8 +71,10 @@ fn volume(ev: &Evaluation<f64>, id: RecipeNodeId) -> f64 {
             Tol::witness(),
         ),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("mass properties")
+    .enclosure
     .volume
 }
 

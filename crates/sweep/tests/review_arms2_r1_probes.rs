@@ -322,8 +322,9 @@ fn a_sphere_sphere_waist_reaches_its_arm_and_carves_as_a_concave_chain() {
     assert_eq!(sphere_centres.len(), 2, "two sphere walls");
     assert!((sphere_centres[0]).abs() < 1e-12 && (sphere_centres[1] - 1.2).abs() < 1e-12);
     let waist = one_edge_rim_at(&source, 0.8, 0.6);
-    let v0 = topo::mass_properties(&source, tol())
+    let v0 = topo::mass_properties(&source, tol(), topo::test_support::pinned_resolution(tol()))
         .expect("mass properties")
+        .enclosure
         .volume;
     let out = fillet_edges(
         &sweep::test_support::at_rest(&source, tol()),
@@ -338,9 +339,10 @@ fn a_sphere_sphere_waist_reaches_its_arm_and_carves_as_a_concave_chain() {
     let props1 = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol()),
         tol(),
+        topo::test_support::pinned_resolution(tol()),
     )
     .expect("mass properties");
-    let v1 = props1.volume;
+    let v1 = props1.enclosure.volume;
     assert!(
         v1 > v0,
         "a concave band ADDS material: {v1} must exceed {v0}"

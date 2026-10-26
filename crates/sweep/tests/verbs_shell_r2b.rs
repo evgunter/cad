@@ -138,6 +138,7 @@ fn r2b_squared_stepped_vase_mints_one_annular_rim() {
     let props = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(&cup), tol),
         tol,
+        topo::test_support::pinned_resolution(tol),
     )
     .expect("props");
     println!(
@@ -209,9 +210,10 @@ fn r2b_one_holed_extrusion() {
             let props = topo::mass_properties(
                 &topo::test_support::finished("the measured body", topo::Body::clone(cup), tol),
                 tol,
+                topo::test_support::pinned_resolution(tol),
             )
             .expect("props");
-            println!("[r2b] one-holed cup V = {}", props.volume);
+            println!("[r2b] one-holed cup V = {}", props.enclosure.volume);
         }
         Err(e) => println!("[r2b] one-holed extrusion REFUSED: {e}"),
     }

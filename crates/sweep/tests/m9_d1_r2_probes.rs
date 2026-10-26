@@ -86,8 +86,10 @@ fn partial_wedge_pole_export_is_direction_safe_both_signs() {
                 Tol::witness(),
             ),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
+        .enclosure
         .volume;
         let exact = 2.0 / 3.0 * theta.abs();
         assert!(
@@ -165,8 +167,10 @@ fn partial_with_hole_exports_outer_poles_and_no_hole_poles() {
                 Tol::witness(),
             ),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
+        .enclosure
         .volume;
         let exact = (16.0 / 3.0 - 0.36) * theta.abs();
         assert!(

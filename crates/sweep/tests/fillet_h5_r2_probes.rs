@@ -451,9 +451,14 @@ fn a_curved_single_face_carrying_both_arcs_is_construction_state() {
             "repair = {repair}, order = {order}: the survivor wraps"
         );
         // Raw door: the measured body is construction state whose joinable vertices tier 3 refuses (JoinableVertexAtRest).
-        let volume = topo::test_support::measure_unvalidated(&body, tol())
-            .unwrap()
-            .volume;
+        let volume = topo::test_support::measure_unvalidated(
+            &body,
+            tol(),
+            topo::test_support::pinned_resolution(tol()),
+        )
+        .unwrap()
+        .enclosure
+        .volume;
         assert!(
             (volume - core::f64::consts::PI).abs() < 1e-9,
             "repair = {repair}, order = {order}: the wall meters π, got {volume}"
@@ -500,9 +505,13 @@ fn compose_two_rims(
             tol(),
         ),
         tol(),
+        topo::test_support::pinned_resolution(tol()),
     )
     .unwrap();
-    assert_eq!(one.volume_pad, 0.0, "{what}: closed-form faces only");
+    assert_eq!(
+        one.enclosure.volume_pad, 0.0,
+        "{what}: closed-form faces only"
+    );
     for order in [[rims[0], rims[1]], [rims[1], rims[0]]] {
         let mut body = source.clone();
         for (rr, ry) in order {
@@ -516,6 +525,7 @@ fn compose_two_rims(
         let seq = topo::mass_properties(
             &topo::test_support::finished("the measured body", topo::Body::clone(&body), tol()),
             tol(),
+            topo::test_support::pinned_resolution(tol()),
         )
         .unwrap();
         // The same body, not the same history: each carve ends with the
@@ -652,16 +662,20 @@ fn the_hostless_closed_forms_match_an_independent_derivation() {
         let before = topo::mass_properties(
             &topo::test_support::finished("the measured body", topo::Body::clone(&body), tol()),
             tol(),
+            topo::test_support::pinned_resolution(tol()),
         )
         .unwrap()
+        .enclosure
         .volume;
         let out = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &arcs, r, tol())
             .unwrap_or_else(|e| panic!("{name} carves, got {e:?}"));
         let after = topo::mass_properties(
             &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol()),
             tol(),
+            topo::test_support::pinned_resolution(tol()),
         )
         .unwrap()
+        .enclosure
         .volume;
         let delta = after - before;
         assert!(

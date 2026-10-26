@@ -147,9 +147,11 @@ fn flush_plane_pair_glues() {
                 topo::Body::clone(&**body),
                 Tol::witness()
             ),
-            Tol::witness()
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
+        .enclosure
         .volume,
         1.5
     );
@@ -188,9 +190,11 @@ fn flush_plane_pair_glues() {
                 topo::Body::clone(&**body),
                 Tol::witness()
             ),
-            Tol::witness()
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
+        .enclosure
         .volume,
         1.4375
     );
@@ -243,9 +247,11 @@ fn crossing_slots_recipe_document_evaluates_and_resolves() {
                 topo::Body::clone(&**body),
                 Tol::witness()
             ),
-            Tol::witness()
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
+        .enclosure
         .volume,
         9.0 - (3.0 * 0.5 + 3.0 * 0.5 - 0.5) * 1.0
     );
@@ -328,9 +334,11 @@ fn l_corner_caps_merge_at_the_recipe_door_tier3_green() {
                 topo::Body::clone(&**body),
                 Tol::witness()
             ),
-            Tol::witness()
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
+        .enclosure
         .volume,
         1.625
     );
@@ -405,9 +413,11 @@ fn crossing_slots_swapped_order_names_the_floor_corner_for_both_edges() {
                 topo::Body::clone(&**body),
                 Tol::witness()
             ),
-            Tol::witness()
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
+        .enclosure
         .volume,
         9.0 - (3.0 * 0.5 + 3.0 * 0.5 - 0.5) * 1.0
     );

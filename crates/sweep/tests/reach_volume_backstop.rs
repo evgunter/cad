@@ -279,8 +279,10 @@ fn a_curved_closed_form_tie_passes_on_the_faces_own_enclosures() {
         topo::mass_properties(
             &topo::test_support::finished("the measured body", topo::Body::clone(b), tol()),
             tol(),
+            topo::test_support::pinned_resolution(tol()),
         )
         .unwrap()
+        .enclosure
         .volume
     };
     assert!(

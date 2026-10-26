@@ -104,8 +104,10 @@ fn a_peg_in_a_bore_of_its_own_radius_unions() {
                     Tol::witness(),
                 ),
                 Tol::witness(),
+                topo::test_support::pinned_resolution(Tol::witness()),
             )
             .unwrap()
+            .enclosure
             .volume
         })
         .iter()
@@ -139,8 +141,10 @@ fn a_peg_in_a_bore_of_its_own_radius_unions() {
             Tol::witness(),
         ),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
+    .enclosure
     .volume;
     assert!(
         (v - want).abs() <= 1e-9 * want,

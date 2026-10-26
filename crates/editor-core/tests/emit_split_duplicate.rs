@@ -46,8 +46,10 @@ fn volume(side: &SplitSide<f64>) -> Option<f64> {
                     Tol::witness(),
                 ),
                 Tol::witness(),
+                topo::test_support::pinned_resolution(Tol::witness()),
             )
             .unwrap()
+            .enclosure
             .volume,
         ),
         SplitSide::Empty => None,

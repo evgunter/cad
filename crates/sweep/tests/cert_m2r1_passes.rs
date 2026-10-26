@@ -43,10 +43,21 @@ fn certified<T: geom_core::CertifiedBounds + topo::AtRestPolicy>() -> Doors<T> {
     Doors {
         pseudomanifold: topo::validate_pseudomanifold::<T>,
         marks: |body, tol| topo::contact_marks(body, tol).map(|m| sorted_marks(m.iter())),
-        mass: |body, tol| match T::gate_at_rest_kept(topo::Body::clone(body), tol) {
-            Ok(finished) => topo::mass_properties(&finished, tol),
-            // Raw door: the corpus holds corrupt bodies tier 3 refuses, and the dump records the door's answer on each; a body tier 3 passes reads the typed door above.
-            Err(_) => topo::test_support::measure_unvalidated(body, tol),
+        mass: |body, tol| {
+            match T::gate_at_rest_kept(topo::Body::clone(body), tol) {
+                Ok(finished) => topo::mass_properties(
+                    &finished,
+                    tol,
+                    topo::test_support::pinned_resolution(tol),
+                ),
+                // Raw door: the corpus holds corrupt bodies tier 3 refuses, and the dump records the door's answer on each; a body tier 3 passes reads the typed door above.
+                Err(_) => topo::test_support::measure_unvalidated(
+                    body,
+                    tol,
+                    topo::test_support::pinned_resolution(tol),
+                ),
+            }
+            .map(|measured| measured.enclosure)
         },
     }
 }
@@ -184,9 +195,15 @@ fn m2r1_structural_at_dual64_is_the_f64_closed_form_and_refuses_where_the_lane_w
             );
         }
         let certified = match &at_rest {
-            Ok(finished) => topo::mass_properties(finished, tol),
+            Ok(finished) => {
+                topo::mass_properties(finished, tol, topo::test_support::pinned_resolution(tol))
+            }
             // Raw door: a `~reverted` twin is inside out, which tier 3 refuses (NegativeVolume), as the assert above admits.
-            Err(_) => topo::test_support::measure_unvalidated(b, tol),
+            Err(_) => topo::test_support::measure_unvalidated(
+                b,
+                tol,
+                topo::test_support::pinned_resolution(tol),
+            ),
         }
         .unwrap_or_else(|e| panic!("{name}: the certified door refused a corpus body: {e:?}"));
         let structural = match &at_rest {
@@ -220,7 +237,7 @@ fn m2r1_structural_at_dual64_is_the_f64_closed_form_and_refuses_where_the_lane_w
             }
             Err(topo::MassPropsError::Face { .. }) => {
                 assert!(
-                    certified.volume_pad > 0.0,
+                    certified.enclosure.volume_pad > 0.0,
                     "{name}: the structural door refused a face the certified door did not need the quadrature for"
                 );
                 refused.push(name.clone());

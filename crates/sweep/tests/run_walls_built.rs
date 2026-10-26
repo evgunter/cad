@@ -525,6 +525,7 @@ fn has_volume(label: &str, b: &Body<f64>, want: f64) {
     let p = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(b), tol()),
         tol(),
+        topo::test_support::pinned_resolution(tol()),
     )
     .unwrap_or_else(|e| panic!("{label}: props: {e:?}"));
     assert!(
@@ -792,6 +793,7 @@ fn arc_runs_build_one_wall_at_interval() {
                         t,
                     ),
                     t,
+                    topo::test_support::pinned_resolution(t),
                 )
                 .unwrap_or_else(|e| panic!("{label}: props: {e:?}"));
             }

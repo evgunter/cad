@@ -220,9 +220,10 @@ fn probe_e_hexagon_tier3_error() {
                 topo::Body::clone(&f.body),
                 Tol::witness()
             ),
-            Tol::witness()
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
-        .map(|p| (p.volume, p.volume_pad))
+        .map(|p| (p.enclosure.volume, p.enclosure.volume_pad))
     );
     if let Err(errs) = topo::validate_geometric(&f.body, Tol::witness()) {
         for e in &errs {

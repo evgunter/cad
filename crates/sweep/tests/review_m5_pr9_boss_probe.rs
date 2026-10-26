@@ -57,8 +57,10 @@ fn audit(body: &Body<f64>, expect_vol: f64, expect_seam_arcs: usize, seam_z: f64
     let vol = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(body), Tol::witness()),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
+    .enclosure
     .volume;
     assert!(
         (vol - expect_vol).abs() < 1e-9,

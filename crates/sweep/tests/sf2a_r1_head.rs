@@ -105,8 +105,10 @@ fn h1_valence_four_concurring_corners_must_solve() {
             Tol::witness(),
         ),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
+    .enclosure
     .volume;
     let lambda = 0.9;
     let moves: Vec<ChartMove<f64>> = charts(&body)
@@ -127,8 +129,10 @@ fn h1_valence_four_concurring_corners_must_solve() {
                     Tol::witness(),
                 ),
                 Tol::witness(),
+                topo::test_support::pinned_resolution(Tol::witness()),
             )
             .unwrap()
+            .enclosure
             .volume;
             let after = sorted_points(&body);
             // Every vertex must be the λ-scaled original.
@@ -262,8 +266,10 @@ fn h4_a_face_named_twice() {
             Tol::witness(),
         ),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
+    .enclosure
     .volume;
     match topo::offset_planes_together(&mut body, &moves, band(), Tol::witness()) {
         Ok(_) => {
@@ -274,8 +280,10 @@ fn h4_a_face_named_twice() {
                     Tol::witness(),
                 ),
                 Tol::witness(),
+                topo::test_support::pinned_resolution(Tol::witness()),
             )
             .unwrap()
+            .enclosure
             .volume;
             println!(
                 "[h4] a face named TWICE was accepted: V0={vol0:.17e} V={vol:.17e}; \

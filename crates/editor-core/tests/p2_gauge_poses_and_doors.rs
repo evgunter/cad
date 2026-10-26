@@ -447,8 +447,10 @@ fn a_copy_in_another_space_below_stays_out_of_the_outer_product() {
                 Tol::witness(),
             ),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .expect("mass")
+        .enclosure
         .volume
     };
     let gathered = editor_core::product(&outer, &ev, Tol::witness()).expect("the world gathers");

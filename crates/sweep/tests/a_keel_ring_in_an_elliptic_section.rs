@@ -129,8 +129,10 @@ fn a_keel_ring_nests_inside_an_elliptic_section() {
             let got = topo::mass_properties(
                 &topo::test_support::finished("the measured body", topo::Body::clone(b), tol()),
                 tol(),
+                topo::test_support::pinned_resolution(tol()),
             )
             .unwrap()
+            .enclosure
             .volume;
             assert!(
                 (got - volume).abs() < 1e-9 * volume,
@@ -246,8 +248,10 @@ fn a_keel_ring_on_an_island_in_a_hole_nests_on_the_island() {
                 let got = topo::mass_properties(
                     &topo::test_support::finished("the measured body", topo::Body::clone(b), tol()),
                     tol(),
+                    topo::test_support::pinned_resolution(tol()),
                 )
                 .unwrap()
+                .enclosure
                 .volume;
                 assert!(
                     (got - volume).abs() < 1e-9 * volume,

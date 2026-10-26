@@ -238,8 +238,10 @@ fn p2_ring_touch_trio_through_the_front_door() {
                 Tol::witness(),
             ),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
+        .enclosure
         .volume;
         assert!((v - want).abs() <= 1e-9 * want, "volume {v} vs {want}");
         println!("P2a: +1cm passes, volume ok");
@@ -368,7 +370,14 @@ fn p3_one_and_two_pip_ladders_and_tight_pair() {
         }
         assert_eq!(doubled, 1, "exactly one double-traversed edge (the slit)");
         let want = blank_volume() - per_pip;
-        let v = topo::mass_properties(&die, Tol::witness()).unwrap().volume;
+        let v = topo::mass_properties(
+            &die,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
+        )
+        .unwrap()
+        .enclosure
+        .volume;
         assert!(
             (v - want).abs() <= 1e-9 * want,
             "one-pip volume {v} vs {want}"
@@ -436,8 +445,10 @@ fn p3_one_and_two_pip_ladders_and_tight_pair() {
                 Tol::witness(),
             ),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
+        .enclosure
         .volume;
         assert!(
             (v - want).abs() <= 1e-9 * want,
@@ -586,8 +597,10 @@ fn p5_seam_azimuth_rotation_certifies_identically() {
                 Tol::witness(),
             ),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
+        .enclosure
         .volume;
         assert!(
             (v - want).abs() <= 1e-9 * want,

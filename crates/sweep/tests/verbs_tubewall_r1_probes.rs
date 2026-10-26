@@ -58,7 +58,11 @@ use topo::Body;
 fn measured(body: &topo::Body<f64>, major: f64) -> topo::MassProperties<f64> {
     let tol = Tol::witness();
     match topo::AtRestBody::validate(topo::Body::clone(body), tol) {
-        Ok(finished) => topo::mass_properties(&finished, tol).expect("props"),
+        Ok(finished) => {
+            topo::mass_properties(&finished, tol, topo::test_support::pinned_resolution(tol))
+                .expect("props")
+                .enclosure
+        }
         Err(errors) => {
             let named = major == 1300.0
                 && tol.get().eps == 1e-12
@@ -70,7 +74,13 @@ fn measured(body: &topo::Body<f64>, major: f64) -> topo::MassProperties<f64> {
                 "R={major}: tier 3 refuses the tube outside the case this file records: {errors:?}"
             );
             // Raw door: tier 3 refuses the major-1300 tube at ε 1e-12 (VolumeUncomputable), the one case the assert above admits.
-            topo::test_support::measure_unvalidated(body, tol).expect("props")
+            topo::test_support::measure_unvalidated(
+                body,
+                tol,
+                topo::test_support::pinned_resolution(tol),
+            )
+            .expect("props")
+            .enclosure
         }
     }
 }
@@ -156,13 +166,8 @@ fn closed_forms_at_varied_geometry() {
             ),
         };
         let what = format!("R={major} ro={outer} w={wall} win={window:?}");
-        rel_close(props.enclosure.volume, v, 1e-9, &format!("volume {what}"));
-        rel_close(
-            props.enclosure.surface_area,
-            a,
-            1e-9,
-            &format!("area {what}"),
-        );
+        rel_close(props.volume, v, 1e-9, &format!("volume {what}"));
+        rel_close(props.surface_area, a, 1e-9, &format!("area {what}"));
     }
 }
 
@@ -190,7 +195,7 @@ fn the_bore_differences_out_against_the_solid_door() {
         let hp = measured(&h.body, major);
         let sp = measured(&s.body, major);
         rel_close(
-            sp.enclosure.volume - hp.enclosure.volume,
+            sp.volume - hp.volume,
             (t1 - t0) * major * PI * inner * inner,
             1e-9,
             "bore",
@@ -435,7 +440,12 @@ mod certified {
                 Err(e) => panic!("unexpected refusal at Interval for R={major}: {e}"),
             };
             let m = match topo::AtRestBody::validate(topo::Body::clone(&t.body), Tol::witness()) {
-                Ok(finished) => topo::mass_properties(&finished, Tol::witness()).expect("props"),
+                Ok(finished) => topo::mass_properties(
+                    &finished,
+                    Tol::witness(),
+                    topo::test_support::pinned_resolution(Tol::witness()),
+                )
+                .expect("props"),
                 Err(errors) => {
                     assert!(
                         major == 1300.0
@@ -446,7 +456,12 @@ mod certified {
                         "R={major} win={window:?}: tier 3 refuses the tube at Interval outside the case this row records: {errors:?}"
                     );
                     // Raw door: at Interval, tier 3 cannot decide the full-period major-1300 thin wall's orientation (OrientationUndecided), the one case the assert above admits.
-                    topo::test_support::measure_unvalidated(&t.body, Tol::witness()).expect("props")
+                    topo::test_support::measure_unvalidated(
+                        &t.body,
+                        Tol::witness(),
+                        topo::test_support::pinned_resolution(Tol::witness()),
+                    )
+                    .expect("props")
                 }
             };
             let inner = outer - wall;

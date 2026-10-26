@@ -459,9 +459,10 @@ fn the_mitre_carves_at_the_certified_scalar() {
         let p = topo::mass_properties(
             &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol),
             tol,
+            topo::test_support::pinned_resolution(tol),
         )
         .expect("interval props");
-        let removed = v0 - p.volume;
+        let removed = v0 - p.enclosure.volume;
         let truth = verb.section() * 3.5 - overlap(verb);
         let pad = p.enclosure.volume_pad.hi();
         assert!(

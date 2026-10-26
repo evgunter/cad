@@ -350,7 +350,11 @@ fn row4_translated_arc_prism() {
         // The finish inside the catch, as the measurement is: a tier-3
         // refusal at a far placement prints as the row's PANIC line.
         let r = std::panic::catch_unwind(|| {
-            topo::mass_properties(&topo::test_support::finished("body", body, tol()), tol())
+            topo::mass_properties(
+                &topo::test_support::finished("body", body, tol()),
+                tol(),
+                topo::test_support::pinned_resolution(tol()),
+            )
         });
         match r {
             Ok(Ok(mp)) => println!(

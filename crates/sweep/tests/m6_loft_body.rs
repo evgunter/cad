@@ -113,6 +113,7 @@ fn shape_iii_volume_matches_the_derived_closed_form() {
             Tol::witness(),
         ),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("mass properties");
     let exact = 9.0;
@@ -255,6 +256,7 @@ mod certified {
                 Tol::witness(),
             ),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .expect("mass properties");
         let (lo, hi) = (

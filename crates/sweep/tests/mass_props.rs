@@ -38,10 +38,11 @@ fn check(body: &Body<f64>, what: &str, volume: f64, area: f64) {
     let props = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(body), Tol::witness()),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("mass properties must compute");
-    assert_close(&format!("{what} volume"), props.volume, volume);
-    assert_close(&format!("{what} area"), props.surface_area, area);
+    assert_close(&format!("{what} volume"), props.enclosure.volume, volume);
+    assert_close(&format!("{what} area"), props.enclosure.surface_area, area);
 }
 
 // ---- extrusions -------------------------------------------------------
@@ -125,8 +126,10 @@ fn washer_matches_closed_forms() {
             Tol::witness(),
         ),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
+    .enclosure
     .volume;
     assert!(
         (v - pappus).abs() < 1e-3 * v,
@@ -156,8 +159,10 @@ fn ball_matches_closed_forms() {
             Tol::witness(),
         ),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
+    .enclosure
     .volume;
     assert!(
         (v - pappus).abs() < 1e-3 * v,
@@ -189,8 +194,10 @@ fn cone_matches_closed_forms() {
             Tol::witness(),
         ),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
+    .enclosure
     .volume;
     assert!(
         (v - pappus).abs() < 1e-3 * v,
@@ -217,8 +224,10 @@ fn donut_matches_closed_forms() {
             Tol::witness(),
         ),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
+    .enclosure
     .volume;
     assert!(
         (v - pappus).abs() < 1e-3 * v,

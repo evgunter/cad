@@ -313,9 +313,14 @@ fn row1_a_coaxial_slid_and_clocked_pair_is_determined_and_evaluates() {
         product(&doc, &ev, Tol::witness()).expect("the product gathers"),
         Tol::witness(),
     );
-    let volume = topo::mass_properties(&body, Tol::witness())
-        .expect("mass properties")
-        .volume;
+    let volume = topo::mass_properties(
+        &body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .expect("mass properties")
+    .enclosure
+    .volume;
     assert!(
         (volume - 2.0).abs() < 1e-9,
         "two unit blocks, apart, gather whole: {volume}"
@@ -342,9 +347,14 @@ fn row1_evaluation_and_save_bytes_are_bit_identical_across_runs() {
             product(&doc, ev, Tol::witness()).expect("gathers"),
             Tol::witness(),
         );
-        topo::mass_properties(&body, Tol::witness())
-            .expect("props")
-            .volume
+        topo::mass_properties(
+            &body,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
+        )
+        .expect("props")
+        .enclosure
+        .volume
     };
     assert_eq!(
         volume(&first).to_bits(),
@@ -800,9 +810,14 @@ fn row6c_the_gather_takes_the_placements_alone() {
         product(&doc, &ev, Tol::witness()).expect("the product gathers"),
         Tol::witness(),
     );
-    let volume = topo::mass_properties(&body, Tol::witness())
-        .expect("props")
-        .volume;
+    let volume = topo::mass_properties(
+        &body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .expect("props")
+    .enclosure
+    .volume;
     assert!(
         (volume - 2.0).abs() < 1e-9,
         "the gather took the two instances: {volume}"

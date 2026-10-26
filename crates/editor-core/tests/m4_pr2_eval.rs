@@ -142,8 +142,10 @@ fn doc_param_edit_recomputes_the_param_cone() {
             Tol::witness(),
         ),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
+    .enclosure
     .volume;
     assert_eq!(vol, 8.0 - 21.0 * 0.25 * 0.25 * 0.0625); // 7.91796875
 }
@@ -459,9 +461,11 @@ fn split_evaluates_both_parts_role_tagged() {
                         topo::Body::clone(&**above),
                         Tol::witness()
                     ),
-                    Tol::witness()
+                    Tol::witness(),
+                    topo::test_support::pinned_resolution(Tol::witness()),
                 )
                 .unwrap()
+                .enclosure
                 .volume,
                 2.0 * 2.0 * 1.5
             );
@@ -472,9 +476,11 @@ fn split_evaluates_both_parts_role_tagged() {
                         topo::Body::clone(&**below),
                         Tol::witness()
                     ),
-                    Tol::witness()
+                    Tol::witness(),
+                    topo::test_support::pinned_resolution(Tol::witness()),
                 )
                 .unwrap()
+                .enclosure
                 .volume,
                 2.0 * 2.0 * 0.5
             );

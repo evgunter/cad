@@ -108,7 +108,12 @@ fn a_thick_wall_bump_builds_below_half_the_side_and_refuses_at_it() {
                     topo::Body::clone(body_of(&ev, shell)),
                     Tol::witness(),
                 );
-                let m = topo::mass_properties(&b, Tol::witness()).unwrap();
+                let m = topo::mass_properties(
+                    &b,
+                    Tol::witness(),
+                    topo::test_support::pinned_resolution(Tol::witness()),
+                )
+                .unwrap();
                 let want = cup::closed_forms(cup::L, cup::H, t);
                 assert_eq!(b.faces().count(), 11);
                 assert_eq!(b.shells().count(), 1);
@@ -253,7 +258,12 @@ fn a_thickness_only_edit_moves_the_content_key_and_the_memo() {
         topo::Body::clone(body_of(&with_prior, shell)),
         Tol::witness(),
     );
-    let m = topo::mass_properties(&body, Tol::witness()).unwrap();
+    let m = topo::mass_properties(
+        &body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap();
     assert_eq!(
         m.enclosure.volume,
         cup::closed_forms(cup::L, cup::H, cup::T_BUMPED).volume,

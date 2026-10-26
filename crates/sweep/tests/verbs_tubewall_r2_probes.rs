@@ -350,6 +350,7 @@ fn r2_closed_forms_over_varied_radii_walls_and_windows() {
                 Tol::witness(),
             ),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .expect("mass properties");
         assert!(
@@ -430,8 +431,10 @@ fn r2_hollow_plus_bore_is_the_solid_tube() {
                 Tol::witness(),
             ),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .expect("props")
+        .enclosure
         .volume;
         let vs = topo::mass_properties(
             &topo::test_support::finished(
@@ -440,8 +443,10 @@ fn r2_hollow_plus_bore_is_the_solid_tube() {
                 Tol::witness(),
             ),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .expect("props")
+        .enclosure
         .volume;
         let vb = topo::mass_properties(
             &topo::test_support::finished(
@@ -450,8 +455,10 @@ fn r2_hollow_plus_bore_is_the_solid_tube() {
                 Tol::witness(),
             ),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .expect("props")
+        .enclosure
         .volume;
         assert!(
             rel(vh + vb, vs) < 1e-11,
@@ -818,9 +825,15 @@ mod certified {
                     Tol::witness(),
                 ),
                 Tol::witness(),
+                topo::test_support::pinned_resolution(Tol::witness()),
             )
             .expect("props");
-            encloses(m.volume, m.volume_pad, theta * major * area_sec, &what);
+            encloses(
+                m.enclosure.volume,
+                m.enclosure.volume_pad,
+                theta * major * area_sec,
+                &what,
+            );
             encloses(
                 m.enclosure.volume,
                 m.enclosure.volume_pad,

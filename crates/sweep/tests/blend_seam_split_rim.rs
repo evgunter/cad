@@ -235,6 +235,7 @@ fn volume(body: &Body<f64>) -> f64 {
     let props = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
         tol(),
+        topo::test_support::pinned_resolution(tol()),
     )
     .expect("mass properties must compute");
     assert_eq!(
@@ -448,9 +449,13 @@ fn the_three_rims_fillet_in_sequence_to_one_valid_solid() {
     let props = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(&body), tol()),
         tol(),
+        topo::test_support::pinned_resolution(tol()),
     )
     .expect("mass properties must compute");
-    assert_eq!(props.volume_pad, 0.0, "every face stays closed-form");
+    assert_eq!(
+        props.enclosure.volume_pad, 0.0,
+        "every face stays closed-form"
+    );
     assert!(
         props.enclosure.volume < volume(&lantern()),
         "three convex fillets remove material"

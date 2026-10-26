@@ -133,8 +133,10 @@ fn halves(what: &str, body: &Body<f64>) -> [Body<f64>; 2] {
     let v = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
         tol(),
+        topo::test_support::pinned_resolution(tol()),
     )
     .expect("the body's volume")
+    .enclosure
     .volume;
     let cut = split(
         &sweep::test_support::finished("the operand", body.clone(), tol()),

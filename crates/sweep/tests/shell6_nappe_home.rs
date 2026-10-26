@@ -95,8 +95,10 @@ fn both_doors_mint_the_turned_offset_on_both_nappes() {
         let v0 = topo::mass_properties(
             &topo::test_support::finished("the measured body", topo::Body::clone(&body), tol),
             tol,
+            topo::test_support::pinned_resolution(tol),
         )
         .expect("props")
+        .enclosure
         .volume;
         for (door, d) in [("per-chart", small), ("axial", T)] {
             let want = geom_brep::offset_surface(&old, nappe.turn(-d), band()).expect("the mint");
@@ -142,8 +144,10 @@ fn both_doors_mint_the_turned_offset_on_both_nappes() {
             let v1 = topo::mass_properties(
                 &topo::test_support::finished("the measured body", topo::Body::clone(&work), tol),
                 tol,
+                topo::test_support::pinned_resolution(tol),
             )
             .expect("props")
+            .enclosure
             .volume;
             assert!(
                 v1 < v0,

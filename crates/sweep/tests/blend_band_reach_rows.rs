@@ -54,8 +54,10 @@ fn built(
     Ok(topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(&f.body), tol()),
         tol(),
+        topo::test_support::pinned_resolution(tol()),
     )
     .expect("a volume")
+    .enclosure
     .volume)
 }
 

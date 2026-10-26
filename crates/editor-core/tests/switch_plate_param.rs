@@ -133,8 +133,10 @@ fn a_parameter_edit_re_evaluates_into_new_geometry() {
                 Tol::witness(),
             ),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .expect("mass properties")
+        .enclosure
         .volume
     };
 
@@ -173,8 +175,10 @@ fn one_parameter_drives_both_holes() {
                 Tol::witness(),
             ),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .expect("a")
+        .enclosure
         .volume
             - topo::mass_properties(
                 &topo::test_support::finished(
@@ -183,8 +187,10 @@ fn one_parameter_drives_both_holes() {
                     Tol::witness(),
                 ),
                 Tol::witness(),
+                topo::test_support::pinned_resolution(Tol::witness()),
             )
             .expect("b")
+            .enclosure
             .volume
     };
     let one_hole = std::f64::consts::PI * (0.3 * 0.3 - 0.2 * 0.2) * PLATE_DEPTH;

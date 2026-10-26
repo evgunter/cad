@@ -73,8 +73,10 @@ fn the_dimpled_ring_measures_its_closed_form_at_a_quarter_turn() {
             Tol::witness(),
         ),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
+    .enclosure
     .volume;
     let want = exact_volume(l, theta);
     assert!(
@@ -148,7 +150,12 @@ fn a_hairline_revolve_of_a_dimpled_ring_refuses_typed_at_the_props_door() {
     );
     println!("[bool5r2] tier 3 on the hairline ring: {tier3:?}");
     // Raw door: the measured body is a body tier 3 cannot measure (VolumeUncomputable), whose typed refusal is the subject.
-    let got = topo::test_support::measure_unvalidated(&t.body, Tol::witness()).map(|m| m.volume);
+    let got = topo::test_support::measure_unvalidated(
+        &t.body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .map(|m| m.enclosure.volume);
     assert!(
         matches!(
             &got,

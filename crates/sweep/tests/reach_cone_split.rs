@@ -97,8 +97,10 @@ fn vol(b: &Body<f64>) -> f64 {
     topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(b), Tol::witness()),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
+    .enclosure
     .volume
 }
 
@@ -333,6 +335,7 @@ fn a_plane_missing_the_cone_splits_the_body() {
                     Tol::witness(),
                 ),
                 Tol::witness(),
+                topo::test_support::pinned_resolution(Tol::witness()),
             )
             .unwrap()
         };
@@ -549,6 +552,7 @@ fn steep_frusta_in_a_generic_pose_split_at_a_shallow_tilt() {
             topo::mass_properties(
                 &topo::test_support::finished("the measured body", topo::Body::clone(b), tol),
                 tol,
+                topo::test_support::pinned_resolution(tol),
             )
             .unwrap()
         };

@@ -64,6 +64,7 @@ fn carve(name: &str, body: &Body<f64>, rims: &[(f64, f64)], r: f64) -> (f64, Bod
     let before = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
         tol(),
+        topo::test_support::pinned_resolution(tol()),
     )
     .unwrap();
     let out = fillet_edges(&sweep::test_support::at_rest(body, tol()), &arcs, r, tol())
@@ -73,9 +74,13 @@ fn carve(name: &str, body: &Body<f64>, rims: &[(f64, f64)], r: f64) -> (f64, Bod
     let after = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol()),
         tol(),
+        topo::test_support::pinned_resolution(tol()),
     )
     .unwrap();
-    assert_eq!(after.volume_pad, 0.0, "{name}: closed-form faces only");
+    assert_eq!(
+        after.enclosure.volume_pad, 0.0,
+        "{name}: closed-form faces only"
+    );
     assert_eq!(out.band_faces.len(), rims.len(), "{name}: one band per rim");
     (after.enclosure.volume - before.enclosure.volume, out.body)
 }
@@ -212,7 +217,11 @@ fn the_bosss_two_rims_refuse_together_and_compose_sequentially() {
             ),
             other => panic!("{name}: expected the mixed shared-support arm, got {other:?}"),
         }
-        let before = topo::mass_properties(&body, tol()).unwrap().volume;
+        let before =
+            topo::mass_properties(&body, tol(), topo::test_support::pinned_resolution(tol()))
+                .unwrap()
+                .enclosure
+                .volume;
         let (_, after_ladder) = carve(name, &body, &[(0.5, 1.0)], 0.1);
         let (_, out) = carve(name, &after_ladder, &[(1.0, 1.0)], 0.1);
         // Each band's host trimlines joined: one vertex and one edge fewer apiece.
@@ -220,8 +229,10 @@ fn the_bosss_two_rims_refuse_together_and_compose_sequentially() {
         let measured = topo::mass_properties(
             &topo::test_support::finished("the measured body", topo::Body::clone(&out), tol()),
             tol(),
+            topo::test_support::pinned_resolution(tol()),
         )
         .unwrap()
+        .enclosure
         .volume
             - before;
         agrees(name, measured, if up { ladder } else { -ladder } - annulus);

@@ -62,8 +62,10 @@ fn the_flush_boss_unions() {
                     Tol::witness(),
                 ),
                 Tol::witness(),
+                topo::test_support::pinned_resolution(Tol::witness()),
             )
             .expect("the union measures")
+            .enclosure
             .volume
         }
         other => panic!("the union is a body, got {other:?}"),

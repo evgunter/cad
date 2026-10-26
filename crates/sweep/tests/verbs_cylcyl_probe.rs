@@ -321,14 +321,18 @@ fn a_fully_crossing_cylinder_pair_with_no_edge_event_refuses_typed() {
     let va = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(&a), tol),
         tol,
+        topo::test_support::pinned_resolution(tol),
     )
     .unwrap()
+    .enclosure
     .volume;
     let vb = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(&b), tol),
         tol,
+        topo::test_support::pinned_resolution(tol),
     )
     .unwrap()
+    .enclosure
     .volume;
     // The wrong answer the silence used to give, kept as the row's own
     // yardstick: 10π + 20π, the lens counted twice.

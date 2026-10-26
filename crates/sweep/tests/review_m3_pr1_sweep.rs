@@ -275,7 +275,14 @@ fn revert_extruded_prism_posture() {
     let body = topo::test_support::finished("body", out.body, Tol::witness());
     assert_eq!(validate_geometric(&body, Tol::witness()), Ok(()));
     let original = format!("{:?}", *body);
-    let vol = topo::mass_properties(&body, Tol::witness()).unwrap().volume;
+    let vol = topo::mass_properties(
+        &body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap()
+    .enclosure
+    .volume;
     assert!(vol > 0.0);
     let reverted = body.revert().unwrap();
     assert_eq!(
@@ -292,9 +299,14 @@ fn revert_extruded_prism_posture() {
         "tier 3 on a reverted prism must be exactly NegativeVolume"
     );
     // Raw door: `reverted` is an inside-out body, which tier 3 refuses (NegativeVolume).
-    let rvol = topo::test_support::measure_unvalidated(&reverted, Tol::witness())
-        .unwrap()
-        .volume;
+    let rvol = topo::test_support::measure_unvalidated(
+        &reverted,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap()
+    .enclosure
+    .volume;
     assert_eq!(rvol.to_bits(), (-vol).to_bits());
     // Involution + determinism, bitwise through the Debug channel.
     assert_eq!(format!("{:?}", reverted.revert().unwrap()), original);
@@ -328,7 +340,14 @@ fn revert_curved_body_reverts_via_the_sense_bit() {
     let body = topo::test_support::finished("body", out.body, Tol::witness());
     assert_eq!(validate_geometric(&body, Tol::witness()), Ok(()));
     let before = format!("{:?}", *body);
-    let vol = topo::mass_properties(&body, Tol::witness()).unwrap().volume;
+    let vol = topo::mass_properties(
+        &body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap()
+    .enclosure
+    .volume;
     assert!(vol > 0.0);
     // There really is a non-plane surface here (the arc wall).
     let curved: Vec<_> = body
@@ -364,9 +383,14 @@ fn revert_curved_body_reverts_via_the_sense_bit() {
         "tier 3 on a reverted curved body must be exactly NegativeVolume"
     );
     // Raw door: `reverted` is an inside-out body, which tier 3 refuses (NegativeVolume).
-    let rvol = topo::test_support::measure_unvalidated(&reverted, Tol::witness())
-        .unwrap()
-        .volume;
+    let rvol = topo::test_support::measure_unvalidated(
+        &reverted,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap()
+    .enclosure
+    .volume;
     assert_eq!(rvol.to_bits(), (-vol).to_bits());
     assert_eq!(format!("{:?}", reverted.revert().unwrap()), before);
     assert_eq!(
@@ -399,8 +423,10 @@ fn split_then_null_lifecycle_on_prism() {
             Tol::witness(),
         ),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
+    .enclosure
     .volume;
     // Split some line edge mid-span.
     let (edge, curve) = body
@@ -420,10 +446,15 @@ fn split_then_null_lifecycle_on_prism() {
     assert_eq!(validate_geometric(&body, Tol::witness()), joinable);
     // Raw door: the measured body is construction state whose joinable vertices tier 3 refuses (JoinableVertexAtRest).
     assert_eq!(
-        topo::test_support::measure_unvalidated(&body, Tol::witness())
-            .unwrap()
-            .volume
-            .to_bits(),
+        topo::test_support::measure_unvalidated(
+            &body,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness())
+        )
+        .unwrap()
+        .enclosure
+        .volume
+        .to_bits(),
         vol0.to_bits(),
         "split changed the prism's exact volume"
     );
@@ -438,7 +469,12 @@ fn split_then_null_lifecycle_on_prism() {
         .unwrap();
     // Raw door: the measured body carries a null scaffolding strut, which tier 3 refuses (ScaffoldingStrutVertex), and the door's typed refusal of it is the subject.
     assert!(matches!(
-        topo::test_support::measure_unvalidated(&body, Tol::witness()).unwrap_err(),
+        topo::test_support::measure_unvalidated(
+            &body,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness())
+        )
+        .unwrap_err(),
         topo::MassPropsError::NullScaffoldEdge { .. }
     ));
     assert!(validate_closed(&body).is_err());

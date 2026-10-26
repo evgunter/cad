@@ -100,13 +100,20 @@ fn tier_three_refuses_a_hand_flipped_face_sense() {
     let cube = topo::mass_properties(
         &topo::test_support::finished("the cube", Body::clone(&body), Tol::witness()),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
+    .enclosure
     .volume;
     // Raw door: the sense-flipped copy, which tier 3 refuses (LoopRoleInverted), as check 6 above asserts.
-    let copy = topo::test_support::measure_unvalidated(&flipped, Tol::witness())
-        .unwrap()
-        .volume;
+    let copy = topo::test_support::measure_unvalidated(
+        &flipped,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap()
+    .enclosure
+    .volume;
     assert_eq!(
         cube.to_bits(),
         copy.to_bits(),

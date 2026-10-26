@@ -693,6 +693,7 @@ fn channel_rows(pose: Pose, m: f64, s: f64, tol: Tol, want: impl Fn(&str) -> Wan
             .iter()
             .find(|r| r.shell == cavity)
             .expect("the shell")
+            .enclosure
             .volume;
         assert!(
             ((got - volume) / volume).abs() < rel,

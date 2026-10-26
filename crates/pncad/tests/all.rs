@@ -1213,7 +1213,12 @@ fn the_authoring_ladder_runs_on_one_dependency() {
     let finished =
         pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&built.body), Tol::witness())
             .expect("the measured body passes tier 3");
-    let props = mass_properties(&finished, Tol::witness()).expect("mass properties");
+    let props = mass_properties(
+        &finished,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .expect("mass properties");
     assert!(
         (props.enclosure.volume - 3.0).abs() < 1e-12,
         "volume {}",

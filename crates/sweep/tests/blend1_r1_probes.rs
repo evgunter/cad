@@ -103,10 +103,11 @@ fn volume(body: &Body<f64>) -> f64 {
     let props = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
         tol(),
+        topo::test_support::pinned_resolution(tol()),
     )
     .expect("mass properties compute");
-    assert_eq!(props.volume_pad, 0.0, "closed-form faces only");
-    props.volume
+    assert_eq!(props.enclosure.volume_pad, 0.0, "closed-form faces only");
+    props.enclosure.volume
 }
 
 // ------------------------------------------------------------------
@@ -295,6 +296,7 @@ fn p3_a_petrie_hexagon_cycle_never_assembles_into_a_closed_chain() {
     let props = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol()),
         tol(),
+        topo::test_support::pinned_resolution(tol()),
     )
     .expect("certified props");
     assert!(
@@ -374,6 +376,7 @@ fn p4_the_lantern_neck_rim_carves_and_one_arc_refuses_followably() {
     let props = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol()),
         tol(),
+        topo::test_support::pinned_resolution(tol()),
     )
     .expect("mass properties compute");
     assert_eq!(

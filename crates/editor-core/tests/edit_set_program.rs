@@ -234,8 +234,10 @@ fn volume(doc: &editor_core::ProfileDoc, node: RecipeNodeId) -> f64 {
             tol(),
         ),
         tol(),
+        topo::test_support::pinned_resolution(tol()),
     )
     .expect("closed-form mass properties")
+    .enclosure
     .volume
 }
 

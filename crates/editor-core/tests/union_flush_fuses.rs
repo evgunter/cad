@@ -47,8 +47,10 @@ fn a_union_of_two_flush_placements_of_one_prototype_fuses() {
             Tol::witness(),
         ),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("the fused body has mass")
+    .enclosure
     .volume;
     assert_eq!(volume, 1.5, "the fused volume is the two blocks' union");
 }
@@ -173,8 +175,10 @@ fn a_member_flush_under_a_merged_wall_fuses() {
             Tol::witness(),
         ),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("the fused body has mass")
+    .enclosure
     .volume;
     assert_eq!(volume, 3.0, "the placements' 1.5 and m3's 1.5");
 }
@@ -431,8 +435,10 @@ fn a_contact_against_a_merged_cap_glues_in_every_order() {
                 Tol::witness(),
             ),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .expect("mass")
+        .enclosure
         .volume;
         assert!((v - (1.5 + 1.1 * 0.6 * 0.5)).abs() < 1e-9, "{order:?}: {v}");
     }
@@ -461,8 +467,10 @@ fn a_stack_of_resting_slabs_builds() {
             Tol::witness(),
         ),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("the stack has mass")
+    .enclosure
     .volume;
     assert_eq!(volume, 9.0 + 4.0 + 1.0);
 }

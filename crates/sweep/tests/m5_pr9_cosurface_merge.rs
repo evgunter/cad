@@ -91,8 +91,10 @@ fn sub_period_wall_pieces_remerge_structurally() {
                 Tol::witness(),
             ),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
+        .enclosure
         .volume
     };
     let halves = vol(&part) + vol(parts.above.body().expect("an above part exists"));
@@ -129,8 +131,10 @@ fn full_period_closure_skips_loudly() {
             Tol::witness(),
         ),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
+    .enclosure
     .volume;
     let out = body
         .merge_coplanar_faces(Tol::witness())
@@ -152,8 +156,10 @@ fn full_period_closure_skips_loudly() {
             Tol::witness(),
         ),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
+    .enclosure
     .volume;
     assert!((vol_after - vol_before).abs() == 0.0, "body untouched");
     topo::validate_closed(&body).unwrap();

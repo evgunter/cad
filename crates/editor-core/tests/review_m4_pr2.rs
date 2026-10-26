@@ -33,6 +33,7 @@ fn fingerprint(b: &Body<f64>) -> String {
     let m = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(b), Tol::witness()),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap();
     let _ = writeln!(
@@ -549,8 +550,10 @@ fn revolve_volume(angle: f64) -> Result<f64, String> {
                     Tol::witness(),
                 ),
                 Tol::witness(),
+                topo::test_support::pinned_resolution(Tol::witness()),
             )
             .unwrap()
+            .enclosure
             .volume),
             other => Err(format!("non-body: {}", other.kind_name())),
         },
@@ -842,8 +845,10 @@ fn interval_memo_reuses_and_invalidates_like_f64() {
                     Tol::witness(),
                 ),
                 Tol::witness(),
+                topo::test_support::pinned_resolution(Tol::witness()),
             )
             .unwrap()
+            .enclosure
             .volume
         }
         other => panic!("expected boolean body, got {}", other.kind_name()),

@@ -179,8 +179,10 @@ fn p1_an_oblique_all_concave_cavity_carves_to_its_own_steiner_form() {
             Tol::witness(),
         ),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("closed-form props")
+    .enclosure
     .volume;
     let out = fillet_edges(
         &sweep::test_support::at_rest(&body, Tol::witness()),
@@ -215,8 +217,10 @@ fn p1_an_oblique_all_concave_cavity_carves_to_its_own_steiner_form() {
             Tol::witness(),
         ),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("closed-form props")
+    .enclosure
     .volume;
     assert!(
         (after - want).abs() <= 1e-12 * want,
@@ -286,8 +290,10 @@ fn p2_slim_skews_carve_valid_or_refuse_typed_never_worse() {
                         Tol::witness(),
                     ),
                     Tol::witness(),
+                    topo::test_support::pinned_resolution(Tol::witness()),
                 )
                 .expect("closed-form props")
+                .enclosure
                 .volume;
                 assert!(vol.is_finite() && vol > 0.0, "a finite positive volume");
             }
@@ -326,8 +332,10 @@ fn digest(body: &Body<f64>) -> (usize, usize, usize, u64, u64) {
     let vol = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(body), Tol::witness()),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("closed-form props")
+    .enclosure
     .volume;
     (nv, ne, nf, h, vol.to_bits())
 }

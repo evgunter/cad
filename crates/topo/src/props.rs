@@ -3297,7 +3297,7 @@ pub fn mass_properties_with_face_terms(
     Ok((props, terms))
 }
 
-/// [`mass_properties`] over any body, with the kept width (mean boundary
+/// [`mass_properties`], with the kept width (mean boundary
 /// displacement, m) of the first face in arena order that a
 /// [`Settle::Resolution`] left unmet: `None` where every face met it, or
 /// under a deciding predicate. Test vocabulary: the rows that pin how far
@@ -3309,7 +3309,7 @@ pub fn mass_properties_with_face_terms(
 #[cfg(any(test, feature = "test-support"))]
 #[doc(hidden)]
 pub fn measure_with_unmet_width(
-    body: &Body<f64>,
+    body: &crate::AtRestBody<f64>,
     tol: Tol,
     settle: Settle<f64>,
 ) -> Result<(Measured<f64>, Option<f64>), MassPropsError> {
@@ -3382,23 +3382,24 @@ pub fn face_flux_terms(
 /// [`mass_properties`]' reporting walk with every face read about its
 /// shell's reference and no region carried ([`References`]): the one
 /// point per shell the walk read before regions. Test vocabulary: the
-/// rows that weigh a region's carry against that reading.
+/// rows that weigh a region's carry against that reading, each face run
+/// to `resolution` (m) or its own stop.
 ///
 /// # Errors
 ///
-/// As [`mass_properties`].
+/// As [`mass_properties`], or a resolution finer than ε.
 #[cfg(any(test, feature = "test-support"))]
 #[doc(hidden)]
 pub fn mass_properties_one_point(
     body: &Body<f64>,
     tol: Tol,
+    resolution: f64,
 ) -> Result<MassProperties<f64>, MassPropsError> {
     let band = Band::linear(tol).map_err(|error| MassPropsError::Band { error })?;
     let faces = crate::query::all_faces(body);
     let hook = round_hook(Some(QuadLane::certified()));
     let refs = References::of(body, faces.iter().copied(), band, None);
-    // INTERIM: the number doors' resolution and refusal (`mass_properties_runs`).
-    let len = interim_resolution(tol);
+    let len = resolution_len(Length::from_meters(resolution), tol)?;
     let runs = decide_faces(&faces, |&face| {
         face_flux(
             body,
@@ -3411,25 +3412,15 @@ pub fn mass_properties_one_point(
             Some(len),
         )
     })?;
-    let budget = runs.iter().find_map(|run| {
-        interim_budget(run, len).map(|source| MassPropsError::Face {
-            face: run.face,
-            source,
-        })
-    });
-    match budget {
-        Some(refusal) => Err(refusal),
-        None => Ok(fold_runs(&runs)),
-    }
+    Ok(fold_runs(&runs))
 }
 
 /// **Every walk a door enters, on `body`**, each through the certified
-/// lane over the whole face arena, one [`DoorRead`] each: the reporting
-/// walk ([`mass_properties`]'s), the target walk ([`measure_to`] to the
-/// reporting resolution) and its continuation
-/// ([`SignCertificate::refine_to_target`]), a sign walk settled at round
-/// 0 ([`walk_set`]) and its continuation, which resumes only the faces
-/// round 0 left short of the target, the sign walk refined until no face
+/// lane over the whole face arena, one [`DoorRead`] each, under `settle`:
+/// the reporting walk ([`mass_properties`]'s), the target walk
+/// ([`measure_to`]) and its continuation ([`SignCertificate::measure`]),
+/// a sign walk settled at round 0 ([`walk_set`]) and its continuation,
+/// which resumes only the faces round 0 left short of the resolution, the sign walk refined until no face
 /// can refine and its interval re-derivation ([`rederive`]), and each
 /// shell's role walk ([`shell_volume_role`]). Test vocabulary: the
 /// rows that pin every door to one point per region.
@@ -3439,7 +3430,11 @@ pub fn mass_properties_one_point(
 /// A walk's refusal, as [`mass_properties`] reports it.
 #[cfg(any(test, feature = "test-support"))]
 #[doc(hidden)]
-pub fn every_door(body: &Body<f64>, tol: Tol) -> Result<Vec<DoorRead>, MassPropsError> {
+pub fn every_door(
+    body: &Body<f64>,
+    tol: Tol,
+    settle: Settle<f64>,
+) -> Result<Vec<DoorRead>, MassPropsError> {
     let band = Band::linear(tol).map_err(|error| MassPropsError::Band { error })?;
     let faces = crate::query::all_faces(body);
     let lane = Some(QuadLane::certified());
@@ -3458,15 +3453,13 @@ pub fn every_door(body: &Body<f64>, tol: Tol) -> Result<Vec<DoorRead>, MassProps
         Ok::<(), MassPropsError>(())
     };
     door("the reporting walk", &mut || {
-        Ok(DoorOutcome::Span(span(&mass_properties_with(
-            body, band, tol, lane,
-        )?)))
+        Ok(DoorOutcome::Span(span(
+            &mass_properties_with(body, band, tol, lane, settle)?.enclosure,
+        )))
     })?;
     let mut certificate = None;
     door("the target walk", &mut || {
-        let resolution = Settle::Resolution(Length::from_meters(interim_resolution(tol)));
-        let (_, walked) = measure_to(body, &faces, band, tol, (lane, None), resolution)
-            .map_err(MeasureRefusal::of_resolution)?;
+        let (_, walked) = measure_to(body, &faces, band, tol, (lane, lane), settle)?;
         certificate = Some(walked);
         Ok(DoorOutcome::Span(None))
     })?;
@@ -3474,7 +3467,7 @@ pub fn every_door(body: &Body<f64>, tol: Tol) -> Result<Vec<DoorRead>, MassProps
         let walked = certificate.take().ok_or(MassPropsError::Corrupt {
             what: "the target walk ran",
         })?;
-        Ok(DoorOutcome::Span(span(&walked.refine_to_target()?)))
+        Ok(DoorOutcome::Span(span(&walked.measure(settle)?.enclosure)))
     })?;
     door("a sign walk settled at round 0", &mut || {
         let mut walked =
@@ -3487,7 +3480,7 @@ pub fn every_door(body: &Body<f64>, tol: Tol) -> Result<Vec<DoorRead>, MassProps
         let walked = certificate.take().ok_or(MassPropsError::Corrupt {
             what: "the sign walk ran",
         })?;
-        Ok(DoorOutcome::Span(span(&walked.refine_to_target()?)))
+        Ok(DoorOutcome::Span(span(&walked.measure(settle)?.enclosure)))
     })?;
     let mut past = None;
     door("the sign walk refined past the target", &mut || {
@@ -3604,7 +3597,7 @@ pub struct FaceReading {
     pub area: f64,
     /// Its half-width.
     pub area_pad: f64,
-    /// The first round meeting the reporting target.
+    /// The first round meeting the resolution.
     pub met_at: Option<usize>,
 }
 
@@ -3619,8 +3612,9 @@ pub fn face_reading(
     body: &Body<f64>,
     face: FaceKey,
     tol: Tol,
+    resolution: f64,
 ) -> Result<FaceReading, MassPropsError> {
-    face_reading_with(body, face, tol, Some(QuadLane::certified()))
+    face_reading_with(body, face, tol, Some(QuadLane::certified()), resolution)
 }
 
 /// [`face_reading`] through the structural door's closed forms alone
@@ -3635,8 +3629,9 @@ pub fn face_reading_structural(
     body: &Body<f64>,
     face: FaceKey,
     tol: Tol,
+    resolution: f64,
 ) -> Result<FaceReading, MassPropsError> {
-    face_reading_with(body, face, tol, None)
+    face_reading_with(body, face, tol, None, resolution)
 }
 
 #[cfg(any(test, feature = "test-support"))]
@@ -3645,13 +3640,13 @@ fn face_reading_with(
     face: FaceKey,
     tol: Tol,
     lane: Option<QuadLane<f64>>,
+    resolution: f64,
 ) -> Result<FaceReading, MassPropsError> {
     let band = Band::linear(tol).map_err(|error| MassPropsError::Band { error })?;
     let faces = crate::query::all_faces(body);
     let hook = round_hook(lane);
     let refs = References::of(body, faces.iter().copied(), band, lane);
-    // INTERIM: the number doors' resolution (`mass_properties_runs`).
-    let len = interim_resolution(tol);
+    let len = resolution_len(Length::from_meters(resolution), tol)?;
     let read = |window| face_flux(body, face, band, &hook, tol, window, &refs, Some(len));
     let run = read(RoundWindow::SCHEDULE)?;
     let mut met_at = None;
@@ -8199,7 +8194,9 @@ mod shell_reference_rows {
             .unwrap();
             let about_first = fold_runs(&runs);
             let walked = match crate::AtRestBody::validate(body.clone(), tol) {
-                Ok(finished) => mass_properties(&finished, tol),
+                Ok(finished) => {
+                    mass_properties(&finished, tol, crate::test_support::pinned_resolution(tol))
+                }
                 Err(errors) => {
                     assert!(
                         errors.iter().all(|e| matches!(
@@ -8210,7 +8207,11 @@ mod shell_reference_rows {
                         "{name}: tier 3 refuses the body for more than its scaffolding: {errors:?}"
                     );
                     // Raw door: a body still carrying construction scaffolding or a loop flipped against its role, which tier 3 refuses (ScaffoldAtRest, LoopRoleInverted), as the assert above admits.
-                    crate::test_support::measure_unvalidated(body, tol)
+                    crate::test_support::measure_unvalidated(
+                        body,
+                        tol,
+                        crate::test_support::pinned_resolution(tol),
+                    )
                 }
             }
             .unwrap();

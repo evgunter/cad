@@ -177,8 +177,10 @@ fn volume(b: &Lofted<f64>) -> f64 {
             Tol::witness(),
         ),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap()
+    .enclosure
     .volume
 }
 

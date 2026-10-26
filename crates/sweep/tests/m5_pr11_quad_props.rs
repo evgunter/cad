@@ -74,6 +74,7 @@ fn tilted_halves_volume_enclosure_brackets_the_closed_form() {
                 Tol::witness(),
             ),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap_or_else(|e| panic!("{label}: the PR 11 quadrature lane computes: {e:?}"));
         assert!(
@@ -112,6 +113,7 @@ fn half_area_enclosures_bracket_the_closed_form() {
                 Tol::witness(),
             ),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap();
         assert!(
@@ -208,12 +210,31 @@ fn quadrature_is_bit_deterministic() {
         topo::Body::clone(&above),
         Tol::witness(),
     );
-    let a = topo::mass_properties(&above_at_rest, Tol::witness()).unwrap();
-    let b = topo::mass_properties(&above_at_rest, Tol::witness()).unwrap();
-    assert_eq!(a.volume.to_bits(), b.volume.to_bits());
-    assert_eq!(a.surface_area.to_bits(), b.surface_area.to_bits());
-    assert_eq!(a.volume_pad.to_bits(), b.volume_pad.to_bits());
-    assert_eq!(a.area_pad.to_bits(), b.area_pad.to_bits());
+    let a = topo::mass_properties(
+        &above_at_rest,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap();
+    let b = topo::mass_properties(
+        &above_at_rest,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap();
+    assert_eq!(a.enclosure.volume.to_bits(), b.enclosure.volume.to_bits());
+    assert_eq!(
+        a.enclosure.surface_area.to_bits(),
+        b.enclosure.surface_area.to_bits()
+    );
+    assert_eq!(
+        a.enclosure.volume_pad.to_bits(),
+        b.enclosure.volume_pad.to_bits()
+    );
+    assert_eq!(
+        a.enclosure.area_pad.to_bits(),
+        b.enclosure.area_pad.to_bits()
+    );
 }
 
 /// The two halves complement: volumes sum to the full cylinder well
@@ -228,6 +249,7 @@ fn halves_sum_to_the_cylinder() {
             Tol::witness(),
         ),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap();
     let b = topo::mass_properties(
@@ -237,6 +259,7 @@ fn halves_sum_to_the_cylinder() {
             Tol::witness(),
         ),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap();
     let full = core::f64::consts::PI * R * R * H;

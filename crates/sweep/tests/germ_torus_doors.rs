@@ -1051,8 +1051,10 @@ fn a_cube_in_the_donuts_hole_answers_the_disjoint_union() {
                 Tol::witness(),
             ),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .expect("the volume integrates")
+        .enclosure
         .volume
     };
     let want = std::f64::consts::PI.powi(2) + 0.5;
@@ -1097,8 +1099,10 @@ fn a_cube_in_the_donuts_hole_answers_subtract_and_intersect() {
                 Tol::witness(),
             ),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .expect("the volume integrates")
+        .enclosure
         .volume
     };
     // (the cube's centre, the tube's spine, the hole beside the cube)

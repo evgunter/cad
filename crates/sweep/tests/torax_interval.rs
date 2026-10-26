@@ -381,6 +381,7 @@ fn interval_the_klein_elbow_hollows_to_its_measured_volume() {
                     tol,
                 ),
                 tol,
+                topo::test_support::pinned_resolution(tol),
             )
             .unwrap_or_else(|e| panic!("the interval hollow measures, got {e:?}"));
             let theta = core::f64::consts::FRAC_PI_2;

@@ -97,8 +97,10 @@ fn answer(ev: &Evaluation<f64>, id: RecipeNodeId) -> Option<(f64, usize, Boolean
                     Tol::witness(),
                 ),
                 Tol::witness(),
+                topo::test_support::pinned_resolution(Tol::witness()),
             )
             .unwrap()
+            .enclosure
             .volume;
             Some((volume, body.shells().count(), *kind))
         }
@@ -186,6 +188,7 @@ fn two_parts_of_one_copy_answer_under_every_op() {
             Tol::witness(),
         ),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap();
     assert!(

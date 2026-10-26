@@ -69,6 +69,7 @@ fn one_call_equals_the_defining_composition() {
     let p = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(&holed.body), tol),
         tol,
+        topo::test_support::pinned_resolution(tol),
     )
     .unwrap();
     let po = topo::mass_properties(
@@ -78,6 +79,7 @@ fn one_call_equals_the_defining_composition() {
             tol,
         ),
         tol,
+        topo::test_support::pinned_resolution(tol),
     )
     .unwrap();
     let ph = topo::mass_properties(
@@ -87,6 +89,7 @@ fn one_call_equals_the_defining_composition() {
             tol,
         ),
         tol,
+        topo::test_support::pinned_resolution(tol),
     )
     .unwrap();
     // Volume: exactly the definition. Area: both boundaries count.
@@ -144,6 +147,7 @@ fn hole_hugging_the_outer_boundary_at_this_eps() {
     let p = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(&t.body), tol),
         tol,
+        topo::test_support::pinned_resolution(tol),
     )
     .unwrap();
     assert!(
@@ -211,6 +215,7 @@ fn near_axis_hole_refuses_below_the_band_and_builds_above_it() {
     let p = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(&t.body), tol),
         tol,
+        topo::test_support::pinned_resolution(tol),
     )
     .unwrap();
     assert!(
@@ -285,6 +290,7 @@ fn wire_outer_with_circular_hole_torus_cavity() {
     let p = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(&t.body), tol),
         tol,
+        topo::test_support::pinned_resolution(tol),
     )
     .unwrap();
     assert!(

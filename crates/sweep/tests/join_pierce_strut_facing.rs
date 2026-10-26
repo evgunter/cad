@@ -206,8 +206,10 @@ fn assert_pose(pose: &str, m: [f64; 3]) {
         topo::mass_properties(
             &topo::test_support::finished("the measured body", topo::Body::clone(b), tol()),
             tol(),
+            topo::test_support::pinned_resolution(tol()),
         )
         .unwrap()
+        .enclosure
         .volume
     };
     let (va, vb, shared) = (vol(&prism), vol(&cube), prism_beyond(m));

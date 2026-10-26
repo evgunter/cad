@@ -54,6 +54,7 @@ fn r2_solid_door_bits_dump() {
                 Tol::witness(),
             ),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .expect("mass properties");
         println!(

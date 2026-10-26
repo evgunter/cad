@@ -266,9 +266,14 @@ fn the_pips_cut_in_one_group_operation_on_all_six_faces() {
         "tier 3"
     );
     let want = DIE_L.powi(3) - 21.0 * cap(PIP_R, PIP_H);
-    let vol = topo::mass_properties(&pipped, Tol::witness())
-        .unwrap()
-        .volume;
+    let vol = topo::mass_properties(
+        &pipped,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap()
+    .enclosure
+    .volume;
     assert!(
         (vol - want).abs() <= 1e-9 * want,
         "pipped cube volume {vol} vs closed form {want}"
@@ -300,7 +305,12 @@ fn the_pip_caps_measure_through_the_closed_form() {
     let blank = finished("the cube", cube(DIE_L, Tol::witness()), Tol::witness());
     let pipped =
         topo::test_support::finished("pipped", subtract(&blank, &pip_tool()), Tol::witness());
-    let props = topo::mass_properties(&pipped, Tol::witness()).unwrap();
+    let props = topo::mass_properties(
+        &pipped,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap();
     println!(
         "PROBE pipped: volume={} volume_pad={} area={} area_pad={}",
         props.enclosure.volume,
@@ -402,9 +412,14 @@ fn deviation_1_both_doors_compose_and_agree() {
         Ok(()),
         "tier 3"
     );
-    let vb = topo::mass_properties(&via_surgery, Tol::witness())
-        .unwrap()
-        .volume;
+    let vb = topo::mass_properties(
+        &via_surgery,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap()
+    .enclosure
+    .volume;
     assert!(
         (vb - want).abs() <= 1e-9 * want,
         "door B volume {vb} vs closed form {want}"

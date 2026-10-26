@@ -98,10 +98,14 @@ fn the_box_rows_carve_at_the_certified_scalar_and_bracket_their_closed_forms() {
                     tol,
                 ),
                 tol,
+                topo::test_support::pinned_resolution(tol),
             )
             .expect("interval props");
-            assert_eq!(p.volume_pad, 0.0, "{what}: a closed-form inventory");
-            let removed = v0 - p.volume;
+            assert_eq!(
+                p.enclosure.volume_pad, 0.0,
+                "{what}: a closed-form inventory"
+            );
+            let removed = v0 - p.enclosure.volume;
             let truth = section * length - corner * corners as f64;
             assert!(
                 removed.lo() <= truth + 1e-15 && truth - 1e-15 <= removed.hi(),
@@ -216,8 +220,10 @@ fn a_feature_across_a_requested_edges_line_is_clear_at_the_certified_scalar() {
                             tol,
                         ),
                         tol,
+                        topo::test_support::pinned_resolution(tol),
                     )
                     .expect("interval props")
+                    .enclosure
                     .volume;
                 let truth = if convex { section } else { -section };
                 assert!(
@@ -344,8 +350,10 @@ fn a_fillet_foot_on_atan2s_cut_at_an_oblique_end_carves_at_the_certified_scalar(
                             tol,
                         ),
                         tol,
+                        topo::test_support::pinned_resolution(tol),
                     )
                     .expect("props")
+                    .enclosure
                     .volume;
                 let out = match if round {
                     fillet_edges(&ibody, &[iedge], iv(D), tol)
@@ -388,10 +396,11 @@ fn a_fillet_foot_on_atan2s_cut_at_an_oblique_end_carves_at_the_certified_scalar(
                         tol,
                     ),
                     tol,
+                    topo::test_support::pinned_resolution(tol),
                 )
                 .expect("interval props");
-                let removed = iv0.volume - p.volume;
-                let pad = iv0.volume_pad.hi() + p.volume_pad.hi();
+                let removed = iv0.enclosure.volume - p.enclosure.volume;
+                let pad = iv0.enclosure.volume_pad.hi() + p.enclosure.volume_pad.hi();
                 assert!(
                     removed.lo() - pad <= want && want <= removed.hi() + pad,
                     "{what}: ΔV {removed:?} ± {pad} brackets the f64 body's {want}"

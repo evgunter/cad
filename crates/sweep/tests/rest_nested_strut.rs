@@ -98,8 +98,10 @@ fn a_pinch_apex_meeting_one_vertex_builds_in_either_order() {
         topo::mass_properties(
             &topo::test_support::finished("the measured body", topo::Body::clone(b), tol()),
             tol(),
+            topo::test_support::pinned_resolution(tol()),
         )
         .unwrap()
+        .enclosure
         .volume
     };
     let want = vol(&pinch) + vol(&top);
