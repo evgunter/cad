@@ -327,7 +327,7 @@ fn wide_slab_below() -> AtRestBody<f64> {
 /// What tells the whole-sector lump from a per-bound reading here is a
 /// defect: read per bound, the ruling is `On` and so is the arc, whose
 /// lever arm is the sliver the band-edge split leaves
-/// (`work/hone/an-arc-tangent-to-a-face-at-its-end-is-split-at-the-edge-of-the-band.md`),
+/// (`work/honeroot/an-arc-tangent-to-a-face-at-its-end-is-split-at-the-edge-of-the-band.md`),
 /// and two consecutive `On`s refuse. With the split fixed the arc reads
 /// its own side and per bound should pass too
 /// (`work/tang/vtxfac-tangent-sector-should-descend-per-bound.md`).

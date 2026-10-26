@@ -228,5 +228,5 @@ the retirement, not a precedent — so nothing in the gate's docs cites
 it as a door, and the repair is carried on
 `work/tquery/rim-of-compares-point-bits-in-production-where-no-gate-looks.md`
 (the site) and
-`work/guard/the-bit-identity-consumer-gate-cannot-see-a-to-bits-read-of-bounds.md`
+`work/blind/the-bit-identity-consumer-gate-cannot-see-a-to-bits-read-of-bounds.md`
 (the gate).

@@ -2,12 +2,13 @@
 id: the-tours-post-cell-split-refuses-the-space-its-copies-read
 kind: issue
 title: the tour's second cut (the patterned-post cell) no longer splits: the cell's placements read a Space node outside it, so the gui lane drops a cell
-status: open
+status: dispatched
 opened: 2026-10-23
 priority: P1
 cost: M
 design: true
 refs: [5592]
+branch: intent/split-carries-spaces
 ---
 
 
@@ -67,3 +68,28 @@ PR 5613 retired both cells (`git rm`, `[render]`); the lane then
 re-baselined, the layout under its `-space` name. Once the second cut
 splits again, its posts cell comes back under whatever name its shape
 then has.
+
+## Decided (orchestrator, 2026-10-26; designer pair concurred, no ratified text changes)
+
+Designers A (Opus) and B (Fable), byte 234 (Opus is A), recorded on `analysis/design-fork/intent-tour-post-cell-split`. They agreed on split's behaviour from round 1. In round 2, A moved to B's representation. The ruling:
+
+- **The refusal is a hole, not a decision.** `Doc::read_ports` answers nothing for a `Space` read, so split's closure check never sees a placement's link to its target. The carry then hits an unmapped `Node::Space` and surfaces `PartEdit { UnresolvedInput }`. B's probe on main also showed:
+  - a cut naming the space but minted after its reader still refuses;
+  - a cut space with a kept reader strands silently (`StrandedRead`);
+  - the same holes exist for a construction's own `a.space`, in both directions.
+- **`Node::Space` stays a node.** A space read by two placements is an output spoken by its node, so it needs no name. Making `new_space()` a variable would put two test sites and every multi-placement inline under the names rule (VR7), which needs a DESIGN exemption. That would be its own `[ev]` fork, and neither designer recommends it.
+- **Split's rule.** Every `Space`-kind operand read is an edge to the node that defines the space. A `new_space()` takes the variable regime:
+  - every reader cut: it joins the cut, whether named or not;
+  - readers on both sides: it refuses, typed, naming one reader on each side;
+  - no readers: it stays;
+  - the world is exempt, as today.
+
+  A construction's space is its output and goes with it, so a crossing refuses `SeveredEdge` naming the construction. The carry deals `Node::Space` nodes before their readers. The rule is stated in `refactor.rs`'s module docs ("Variables go where their readers go" gains spaces). ASSEMBLY A4 is not changed: its closure rule still holds.
+- **Tests.**
+  - The four `new_space()` cases: named and unnamed, both mint orders.
+  - A shared space refuses.
+  - The two construction-space cases.
+  - The tour's second cut splits and inlines back; its "gap" print becomes an assertion.
+  - `p2_face::a_mate_reading_a_copy_in_a_space_of_its_own_refuses_at_split` keeps its assertion.
+  - The gui lane re-renders the posts cell with `[render]`.
+- **Check on D′3's branch:** whether inline then flatten leaves the part's product `⊔` as an extra node. That would break A4's round trip by one node. File it if it holds.

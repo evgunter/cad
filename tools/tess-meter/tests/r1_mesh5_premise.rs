@@ -31,7 +31,7 @@
 //!
 //! Red-capable, not a reporter: the assertions below fail if v-rows
 //! ever buy deviation on any swept cone shape, or if the strip's
-//! deviation ever exceeds `delta_s`.
+//! deviation ever exceeds δ.
 #![allow(
     clippy::unwrap_used,
     clippy::expect_used,
@@ -143,11 +143,12 @@ fn patch(alpha: f64, uspan: f64, v0: f64, v1: f64, m: usize, k: usize) -> (usize
 /// are in the `nu == 1` regime at all. If the kernel's spelling moves,
 /// this restatement is what goes stale — it is a REVIEW instrument and
 /// the numbers it gates are re-derived, not imported.
-fn nu_raw(delta: f64, rho_max: f64, uspan: f64) -> (usize, f64) {
-    let ds = delta * 0.5;
+fn nu_raw(delta: f64, rho_max: f64, alpha: f64, uspan: f64) -> (usize, f64) {
+    // mesh::sizing::cone_grid_step: the sagitta on `ρ_max·cos α`.
+    let rho = rho_max * alpha.cos();
     let cap = core::f64::consts::FRAC_PI_4; // mesh::sizing::MAX_ANGULAR_STEP
-    let hu = if ds < rho_max {
-        let h = 2.0 * (1.0 - ds / rho_max).acos();
+    let hu = if delta < rho {
+        let h = 2.0 * (1.0 - delta / rho).acos();
         if h < cap { h } else { cap }
     } else {
         cap
@@ -162,12 +163,12 @@ fn nu_raw(delta: f64, rho_max: f64, uspan: f64) -> (usize, f64) {
 /// near-flat half-angles, tall and squat, apex-anchored and frustum —
 /// honouring the v-schedule literally (rows, no extra column) must not
 /// reduce the densely sampled deviation, and the strip's deviation
-/// must stay inside `delta_s`.
+/// must stay inside δ.
 #[test]
 fn v_rows_never_buy_deviation_on_a_cone() {
     println!(
-        "{:>10} {:>8} {:>7} {:>7} {:>5} {:>6} {:>11} {:>11} {:>11} {:>9}",
-        "alpha", "U", "v0", "v1", "nu", "delta", "strip_dev", "rows_dev", "grid_dev", "delta_s"
+        "{:>10} {:>8} {:>7} {:>7} {:>5} {:>6} {:>11} {:>11} {:>11}",
+        "alpha", "U", "v0", "v1", "nu", "delta", "strip_dev", "rows_dev", "grid_dev"
     );
     let mut checked = 0usize;
     for &alpha in &[
@@ -196,11 +197,10 @@ fn v_rows_never_buy_deviation_on_a_cone() {
                     if rho_max == 0.0 || !rho_max.is_finite() {
                         continue;
                     }
-                    let (nu, _hu) = nu_raw(delta, rho_max, uspan);
+                    let (nu, _hu) = nu_raw(delta, rho_max, alpha, uspan);
                     if nu != 1 {
                         continue; // only the decided regime
                     }
-                    let ds = delta * 0.5;
                     let (_, strip) = patch(alpha, uspan, v0, v1, 1, 1);
                     let (_, rows) = patch(alpha, uspan, v0, v1, 1, 8);
                     let (_, grid) = patch(alpha, uspan, v0, v1, 3, 8);
@@ -208,7 +208,7 @@ fn v_rows_never_buy_deviation_on_a_cone() {
                     if checked <= 24 {
                         println!(
                             "{alpha:>10.3e} {uspan:>8.3} {v0:>7.1e} {v1:>7.1e} {nu:>5} \
-                             {delta:>6} {strip:>11.4e} {rows:>11.4e} {grid:>11.4e} {ds:>9.3e}"
+                             {delta:>6} {strip:>11.4e} {rows:>11.4e} {grid:>11.4e}"
                         );
                     }
                     // (a) rows never buy deviation (allow 1e-12 slack
@@ -225,11 +225,11 @@ fn v_rows_never_buy_deviation_on_a_cone() {
                         "interior grid REDUCED deviation: alpha={alpha:e} U={uspan} \
                          v=[{v0:e},{v1:e}] delta={delta}: strip={strip:e} grid={grid:e}"
                     );
-                    // (c) the decided answer certifies at delta_s.
+                    // (c) the decided answer certifies at δ.
                     assert!(
-                        strip <= ds * (1.0 + 1e-9),
-                        "single strip exceeds delta_s: alpha={alpha:e} U={uspan} \
-                         v=[{v0:e},{v1:e}] delta={delta}: strip={strip:e} > {ds:e}"
+                        strip <= delta * (1.0 + 1e-9),
+                        "single strip exceeds δ: alpha={alpha:e} U={uspan} \
+                         v=[{v0:e},{v1:e}] delta={delta}: strip={strip:e} > {delta:e}"
                     );
                 }
             }

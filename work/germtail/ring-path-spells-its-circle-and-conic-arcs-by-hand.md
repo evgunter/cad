@@ -4,6 +4,8 @@ kind: issue
 title: ring_path spells its circle and conic arcs by hand beside Curve3
 status: open
 opened: 2026-10-24
+priority: P2
+cost: M
 ---
 
 ## What

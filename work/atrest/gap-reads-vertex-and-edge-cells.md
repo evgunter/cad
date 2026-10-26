@@ -19,6 +19,6 @@ DESIGN `[assertions.quiet]` quiets a contact when a holding `Gap = 0` is taken b
 
 Each arm is zero exactly at the contact, and its sign follows C5's strata. `MeasurePrimitive::admits` admits `Edge` and `Vertex` for `Gap`, and `admitted()`'s wording follows. The selection kinds already exist (`[operations]`, *Selections*). Fix the sign convention for each pair so that a contact reads `= 0`, and a pair whose sign has no meaning refuses typed at the measure's door rather than reading unsigned.
 
-**The seam.** `measure.rs` and its evaluation (`crates/editor-core/src/eval/measure.rs`) are FLUXHOLD's territory (`work/fluxhold/program.md`), so the PR announces it there.
+**The seam.** `measure.rs` is ATREST's own ground (on its `paths` since FLUXHOLD closed, `docs/doc-ledger/fluxhold-leaves-the-tracker.md`). Its evaluation, `crates/editor-core/src/eval/measure.rs`, is TALLY's (`crates/editor-core/src/eval/*`, `work/tally/program.md`), so the PR announces the seam there.
 
 The unit can be built beside C, because C's contact half is cell-generic. Done when a vertex resting on a face and an edge lying on a face, between two arrivals of a `⊔`, are each quiet under a holding `Gap = 0` over their two cells and loud under `Gap ≥ 0`.

@@ -3639,11 +3639,13 @@ mod tests {
     }
 
     /// A same-solid two-shell body: the shape `kfmrh`'s fusion form
-    /// exists for. It is not constructible through the public
-    /// operators (`mvfs` mints one solid per shell), so the second
-    /// shell is refiled by raw in-crate write
-    /// ([`crate::fixtures::refile_shells`]) — the same adversarial
-    /// posture as the rest of this module's corruption rows.
+    /// exists for. The public operators reach it (`Body::movefac`
+    /// re-shells a detached component inside its solid, as
+    /// `movefac`'s `cross_shell_kfmrh_fuses_shells` does); this fixture
+    /// takes the shorter raw route instead, refiling an `mvfs` shell
+    /// into the first solid by in-crate write
+    /// ([`crate::fixtures::refile_shells`]), and the two rows below
+    /// plant their corruption on top of it.
     fn fused_two_shell_body() -> (Body<f64>, MvfsCreated, MvfsCreated) {
         let (mut body, seed, _seg, _split) = ops_pillow();
         let other = body.mvfs(p(9.0), true).unwrap();

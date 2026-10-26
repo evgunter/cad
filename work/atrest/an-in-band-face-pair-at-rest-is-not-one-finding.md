@@ -4,6 +4,10 @@ kind: issue
 title: an in-band face pair at rest is not one finding: its boundary cells escalate, and a pair-naming verdict blocks the arrivals' records
 status: open
 opened: 2026-10-22
+priority: P1
+cost: M
+design: true
+refs: [the-at-rest-census-is-a-check, two-copies-filling-one-volume-certify-at-rest]
 ---
 
 
@@ -41,3 +45,7 @@ faces). It did not build the rest, which needs three things decided:
 
 So a near-flush seat, mated or not, still refuses the product today,
 on the in-band walls' escalations rather than on its seat's edges.
+
+## Triage (2026-10-26, ATREST orchestrator)
+
+P1: one pair reported as about thirty pair-less escalations is a special case handled non-uniformly against `[assertions]`'s "once, at the highest-dimensional cells that touch". `design: true` covers the recording side: whether an undecided pair between two arrivals blocks the arrivals' other records (`census_uncleared_solids`). That question shares ground with `two-copies-filling-one-volume-certify-at-rest` (PR 5745), which re-reads which undecided verdicts are really overlaps. Weigh it after 5745 lands. The vessel is stage 5 C's could-not-look finding (`docs/INTENT-STAGE5-SPEC.md` §4, `AtRestEvidence::NoLane`).

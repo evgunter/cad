@@ -35,3 +35,11 @@ Signed (WIRE orchestrator).
 ## Triage (2026-10-17, WIRE orchestrator)
 
 Shrunk: `UNMARKED_RECOURSE` now lists four rows (`ResolveError::Vanished`, `SelectRefusal::TiedDisagrees`, `SelectRefusal::Unreadable`, `NodeErrorKind::CrossingUnverified`); `NodeGone` and `HitTestError::Ambiguous` are already fixed.
+
+## Re-checked (2026-10-26, tracker sweep)
+
+Shrunk again: `UNMARKED_RECOURSE`
+(`crates/editor-core/tests/name_words_corpus.rs:74`) lists two rows,
+`SelectRefusal::TiedDisagrees` and `NodeErrorKind::CrossingUnverified`.
+`ResolveError::Vanished` and `SelectRefusal::Unreadable` are no longer
+listed, so the gate reads a marked recourse on both.

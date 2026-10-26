@@ -39,3 +39,19 @@ Three shape debts, found in review of PR 4958 (branch
 ## Next
 
 Refactor when the vertex pass is next opened. Each item stands alone.
+
+## Re-checked (2026-10-26, tracker sweep)
+
+- **One relation, two homes: fixed.** `BooleanNaming::cone_splits` is
+  now `topo::ConeCopies` (`crates/topo/src/lineage.rs`, a `Minted` list
+  of `(copy, vertex it copies)`), and `emit_topo::Fused` holds it and
+  answers `Fused::origin` with `self.cones.root(k)`; the reversed
+  `split_from` map is gone.
+- **Two dispatch ladders: re-read before taking.** The two matches this
+  row quotes (`match (a_edges, b_edges)`, `match (pa.kind, pb.kind)`)
+  are no longer in `name_boolean_vertices` (`emit_topo.rs:2701`); the
+  pass now builds its `Crossing`, `EdgeCrossing` and `Seam` heads around
+  `:2936`–`:3100`. Whether one head is still spelled on two routes is
+  unchecked.
+- **The hand-threaded counter: still real.** `Obstacles::records`
+  (`names/borders.rs:118`) still counts the booleans recorded.

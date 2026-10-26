@@ -118,6 +118,8 @@ leave `ALLOWED` for `pcurves::staleness_posture::DECLARED`'s `Maintains`
 block, beside the other doors that assert through a sweeping scope. It
 is a no-op once main carries the same move.
 
+**Also red on main `663dd78fef` (PCERT E1, 2026-10-26):** an ignored golden row, `m10_sym_drive_memo_interval::a_freezing_drive_is_identical_across_thread_counts_too` (`--run-ignored all`), fails at the default ε with `tilted-derived: frozen is the column` (`m10_sym_drive_memo_interval.rs:612`). The failure is identical on PCERT's E1 head (PR #5500). On that run the other ignored Sym goldens red on main were already in the table above or in `work/intent/main-red-the-seat-and-name-table-goldens-moved-at-dprime2.md`: the two `m10_sym_profile`, the two `m10_9_pins`, `sym11`, the two `sym_9_retry`, and seat7 and seat8. The other 40 of the 50 were green.
+
 ## 2026-10-26 (SPLICE nightly triage): the ray-wall row's 6 → 62 is #5664
 
 `k-lint (dev-probe)` on nightly run 40274924857 (main `38f1a24ed3`)

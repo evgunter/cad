@@ -46,3 +46,18 @@ reach on the measured documents after either change; the read's
 ## Home
 
 SYM: `crates/geom-core/src/sym/signed.rs`.
+
+## Re-checked (2026-10-26, tracker sweep)
+
+**The `sqrt` half is fixed on main.** `ring_sqrt` is gone:
+`enclose_indet`'s `Sqrt` arm (`crates/geom-core/src/sym/signed.rs:284`)
+is `arg(0)?.clamped_to(0.0, f64::INFINITY).sqrt()`, through `Interval`'s
+own `sqrt`, with the argument the row asked for stated above it (the
+tier's `sqrt` has no real value below zero, so enclosing the radicand's
+non-negative part encloses every value the atom takes). That is the
+row's second option.
+
+**Still open:** `ring_abs`, `ring_min` and `ring_max` (`signed.rs:216`,
+`:226`, `:233`) still hand-build their results with `from_bounds` and
+keep the retired type's names. So the row is now the decoration and
+rename half of its fix, and the re-measure of the read's reach after it.

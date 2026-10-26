@@ -245,3 +245,25 @@ Lily wall 8's path is now:
 3. the two flush rows.
 
 No interior arm is needed for it.
+
+## 2026-10-26 — PR 5723 (the gate) merges
+
+The operand edge gate is gone: a body built by loft or sweep now enters
+every boolean, and each site refuses a spline or spiric edge typed. The
+review (sequential arm, no MAJOR, so it was the unit's only review)
+found no wrong reader. Fix pass `7b654b1100`:
+- the census pins its builds, on fresh-keyed bodies;
+- `face_of` is carried on the refusal;
+- the refusals name the operand's own edge;
+- the emit e2e obligation and the `NoSoundBox` finding moved to the
+  crossing-rung row;
+- the teapot's contact edge is the belly's meridian seam.
+
+The dual-review row is `docs/dual-review-log/rows/PR-5723.md`.
+
+The lane's slow sets found 16 rows red on bare main, none of them this
+PR's. A nightly triage lane took them
+(`session_014vYCa4XAZmPgeKRwfJrvFt`, run 40274924857).
+
+Next on this track: `a-span-is-read-against-a-faces-boundary-edges-first`
+(P0 H), lily wall 8's first step.

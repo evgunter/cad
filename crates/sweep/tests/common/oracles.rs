@@ -57,7 +57,7 @@
 //!   is LIB-U6's territory and this tree's routing rule says it is
 //!   deliberately not built here, and `demos/` reaches the kernel from
 //!   an outside consumer's seat, which is the point of a demo. Tracked
-//!   as `work/tcost/chamfered-cube-and-steiner-oracles-outside-sweep.md`.
+//!   as `work/helper/chamfered-cube-and-steiner-oracles-outside-sweep.md`.
 //!
 //! For the same reason [`chamfered_cube_removed`] is not spelled as
 //! `a³ − chamfered_cube_volume(a, d)` and vice versa. Same measurement:

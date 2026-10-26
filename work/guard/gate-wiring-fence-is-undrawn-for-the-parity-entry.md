@@ -2,8 +2,9 @@
 id: gate-wiring-fence-is-undrawn-for-the-parity-entry
 kind: issue
 title: a new gate's wiring is one announced line in CIW's files by written convention, but nothing extends that to the TIER_BLIND parity entry it cannot land without
-status: open
+status: closed
 opened: 2026-09-07
+closed: 2026-10-26
 priority: P3
 cost: D
 ---
@@ -78,3 +79,14 @@ made by reading the row against the tree on 2026-09-11, not a verdict on
 the finding, and a lane that finds it wrong says so in its PR. The id,
 the `track:` letter where the row carries one, and the body above are
 unchanged by the move.
+
+## Closed (2026-10-26, tracker sweep)
+
+**Superseded.** The file the clause was to name is gone:
+`scripts/check-ci-mirror-parity.py` (with `local-scripts/ci-local.sh`)
+was deleted in `24fedbfadf` (2026-09-28, "Delete CI self-test scripts
+and the local CI mirror"). And a new gate no longer needs a wiring row at
+all: `ci.yml`'s `gates (scripts/gates)` step runs every
+`scripts/gates/*.sh` in a loop (`33ab68136e`, "ci: run the gates on
+every tier"). `work/gates/` has also left the tracker. Nothing is left
+for a clause to say.

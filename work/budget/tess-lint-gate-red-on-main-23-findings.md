@@ -54,6 +54,32 @@ Nightly run 40066431545 (main `3dfb96b91c`), `k-lint (release-budget)`:
 `FINDING` lines as 2026-10-23's run 39906156937, diffed line for line,
 so nothing new has entered the window. Not re-derived here.
 
+## Earlier reading, merged from `work/instr/tess-gate-red-beyond-twopeg-since-the-10-02-cut` (2026-10-26, tracker sweep)
+
+ENCL's nightly triage of 2026-10-12 (nightly 38115086131, same cut
+`24f02a376460`) read 22 findings and filed them on INSTR. That row is
+closed as a duplicate of this one. What it carried that this row does
+not:
+
+- **Triangle growth:**
+  - `bracket/bracket` 44 → 60 (1.36×);
+  - `lofts/nonuniform_loft` 14950 → 19736 (1.32×), which grows again in
+    the 10-22 reading above;
+  - `twisted_duct_shadow_{y,z}` 7260 → 7660 (1.06×);
+  - the `twopeg` rows, filed at
+    `work/tess/twopeg-triangles-grew-past-the-tess-gate-on-main`.
+- **Re-keys it read**:
+  - `nonuniform_loft` face 2 nu 16 → 19;
+  - `s_duct` nv 112 → 121;
+  - `twisted_tube` 519 → 544;
+  - `twisted_duct` 658 → 682;
+  - the shadows 465 → 482;
+  - `spring`/`cutaway_spring` 3188 → 3102.
+- **Its reading of the chart swaps**: the `bracket`, `tiltedcut`,
+  `heatsink` and `projectbox` plane ↔ cylinder and sphere ↔ plane swaps
+  look like a face-order change rather than a mesh change. Check that
+  first, and do not coarsen delta.
+
 ## 2026-10-26 (SPLICE nightly triage)
 
 Nightly run 40274924857 (main `38f1a24ed3`), `k-lint (release-budget)`:

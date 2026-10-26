@@ -59,7 +59,8 @@
 //! declared; cross-solid proximity with a curved side (against a
 //! curved OR planar partner, F5) REFUSES as `CensusUndecidable` — the
 //! conservative loudness backstop for the class no arm can examine yet
-//! (the C9-ring conformal-rest / partial-embedding class); one
+//! (the conformal-rest / partial-embedding class the C9 exclusion
+//! ring would certify); one
 //! instance's extents nested inside another's go to the material
 //! test, which clears a part sitting in a concavity and refuses an
 //! embedded one typed (`InstanceInterference`, which no record

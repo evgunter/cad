@@ -563,7 +563,12 @@ impl PartialEq for CensusSubject {
         match (self, other) {
             (Self::Entity(x), Self::Entity(y)) => x == y,
             (Self::FacePair(a, b), Self::FacePair(c, d)) => (a, b) == (c, d) || (a, b) == (d, c),
-            _ => false,
+            // The mismatches spelled over the whole vocabulary rather
+            // than swept up by a catch-all, so a variant added above
+            // must be given its own arm (E0004) instead of silently
+            // comparing unequal to itself, which would break the
+            // reflexivity `Eq` below promises.
+            (Self::Entity(_), Self::FacePair(..)) | (Self::FacePair(..), Self::Entity(_)) => false,
         }
     }
 }
@@ -1929,7 +1934,7 @@ pub enum ValidationError {
     /// of silently not looked at (A5's letter: decide or refuse,
     /// never silently not-examine). Two arms fire it: arm 1, on a
     /// cross-solid curved face pair within reach of each other (the
-    /// C9-ring conformal-rest/proximity class — the exclusion ring
+    /// conformal-rest/proximity class — the C9 exclusion ring
     /// is the certified excluder this backstop stands in for); and
     /// arm 2, the instance-containment arm, on what its MATERIAL test
     /// could not answer. Arm 2's box test is the gate, not the
@@ -2947,6 +2952,10 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
         | CertifyError::IntersectionSameSurface { .. }
         | CertifyError::WrapOnNonPeriodic
         | CertifyError::PlaneNurbs(P::PcurveFit) => MISMATCH,
+        CertifyError::NoGeneralLane { .. } => {
+            "it is on its face but is none of the face's own curves, and the kernel cannot yet \
+             write where such a curve sits on that face"
+        }
         CertifyError::ResidualExceeded { check, .. } => {
             if check.bounds_a_miss() {
                 BOUND
@@ -3087,6 +3096,7 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
                  at a certifying scalar"
             }
             CertifyError::ChartImageUnavailable { .. }
+            | CertifyError::NoGeneralLane { .. }
             | CertifyError::ResidualExceeded { .. }
             | CertifyError::IntervalNotForward { .. }
             | CertifyError::WindingExceeded
@@ -3151,6 +3161,12 @@ fn certify_undecided(check: CertCheck) -> &'static str {
         CertCheck::TangentGap => geom_core::undecided!("whether its faces touch along it"),
         CertCheck::ChartImage => {
             geom_core::undecided!("where it sits on its face's parameter chart")
+        }
+        CertCheck::ChartClass => {
+            geom_core::undecided!("which of its face's own curves it is")
+        }
+        CertCheck::GeneralLane => {
+            geom_core::undecided!("whether its face's general image covers it")
         }
         CertCheck::EndpointStart
         | CertCheck::EndpointEnd
@@ -3482,7 +3498,8 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
             let (why, own) = match error {
                 C::UnsupportedChart { .. }
                 | C::IsoUnsupported { .. }
-                | C::ChartWindingUnsupported => (KIND, Some(NOT_YET_ENDING)),
+                | C::ChartWindingUnsupported
+                | C::NoGeneralLane { .. } => (KIND, Some(NOT_YET_ENDING)),
                 C::PlaceholderChart => (
                     geom::PLACEHOLDER_SURFACE,
                     Some(crate::pcurves::PLACEHOLDER_RECOURSE),
@@ -3509,7 +3526,6 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
                     Some(REPARAMETERIZE),
                 ),
                 C::CarrierEnclosure(_) => (CARRIER_ENCLOSURE, Some(NOT_YET_ENDING)),
-                C::CarrierGrazesChart { grazer, .. } => (WRONG, Some(grazer.recourse())),
                 C::ChartRow { .. }
                 | C::CarrierOffChart { .. }
                 | C::ImageMismatch { .. }

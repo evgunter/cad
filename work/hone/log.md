@@ -74,3 +74,18 @@ cleave-tangency)
 
 - 2026-10-23 — **Seam (QUAD):** PR 5628 (`quad/measure-b-door`, measure door unit B) edits `boolean/ops.rs` (the volume backstop's walk) and `offer_rows.rs`'s site census, as on CLEAVE's log. (QUAD unit B lane)
 - 2026-10-25 — **Re-cut (refold approved in chat):** moved `joining-a-spline-carrier-is-unbuilt` to SPLICE by `git mv`, ids and bodies unchanged, each with a dated Moved note. SPLICE (`work/splice/`) is the new track for a body built by loft or sweep entering every boolean; SECT now carries the torus pairs it is built for.
+- 2026-10-26 — (tracker sweep) Closed five rows, each checked against main at `bb25fa4f`:
+  - `a-coplanar-sector-offers-a-rest-the-door-contradicts-across-the-faces`, superseded: INTENT F retired the declare surface, and the sector refusal now offers no declaration (`reduce.rs:5573`, `:5638`);
+  - `splitting-face-extent-lever-reads-vertices-not-arcs`, fixed: `face_extent` levers each edge's span reach (`splitting/rules.rs:615`–`:636`);
+  - `boolean-face-walks-hop-to-a-mates-face-without-proving-it-lists-the-loop`, fixed or superseded: `rest.rs` is gone, and `surface_group::unmated_boundary` hops through `proven_mate` and `face_of_linked`, which asserts the face lists the loop;
+  - `sphere-region-root-slack-crowds-the-zero-band-at-1e-12`, fixed by PR 4567's ruling: k-lint's zero arm is a tally (`tools/k-lint/src/lib.rs`), and the sibling GERM row closed;
+  - `analytic-exact-elevations-have-inline-homes`, superseded by `point-to-carrier-distance-is-spelled-seven-times`, its unique sites merged there.
+
+  The track is still far over budget (116 points against 30) and should split on its priority seam: the P2 rows against the P3/P4 rows. Eight rows carry no band or cost: the four D3 pair-audit rows, `sweep-trace-…`, `a-driver-carried-…`, `plane-parallel-…` and the band-less `a-short-ruling-…`.
+- 2026-10-26 — (split) Cut on the priority seam (`work/README.md`, Track size): HONE carried 118.5 budget points against 30. HONE keeps its eleven open P2 rows and the one parked P2 (24.5 points), all of them margins and error propagation. The 46 P3, P4 and unbanded rows moved by `git mv`, ids and bodies unchanged, into five new programs cut by territory and kind, because the P3 band alone (66 points) was itself twice a budget:
+  - HONEROOT (`work/honeroot/`, 19): the root doors and the sector and rim readers deciding on uncharged or mis-dimensioned margins — ten rows.
+  - HONEJOIN (`work/honejoin/`, 18.5): the curved, chord and split joins' missing arms, argued invariants and misfiled refusals — eight rows.
+  - HONEONE (`work/honeone/`, 23.5): one reading per question (D3) — the pair-table audit's four unbanded rows and six duplicate readers.
+  - HONEWORD (`work/honeword/`, 15): refusal text and payloads — operand, margin, ending, audience, stated reason; nine rows, including the unbanded driver-carried-recourse and planes-parallel-ending rows.
+  - HONESPLIT (`work/honesplit/`, 18): split and carve bookkeeping and reads nothing reaches — nine rows, including the unbanded sweep-trace row.
+  Path citations to the moved rows in other programs' items and in code comments are re-pointed; earlier log entries are left as written (append-only).
