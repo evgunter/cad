@@ -173,8 +173,8 @@ fn a_refused_a5_gate_eats_the_body_and_says_so_by_its_absence() {
     let bench = common::asm::bench("landed-body-refused-gate", tol);
     let mut session = common::asm::open_bench(&bench, tol);
     // The two posts seated side by side under the shelf, three ε apart:
-    // inside the sliver band, so the census cannot say whether they
-    // touch, and the gate refuses.
+    // inside the sliver band, so the census cannot look at the faces
+    // they stand off over, and the gate refuses.
     let middle = common::asm::SHELF_LENGTH / 2.0;
     let beside = middle + common::asm::POST_SECTION + 3.0 * tol.eps();
     for (post, at) in [(bench.post_a, middle), (bench.post_b, beside)] {
@@ -188,9 +188,9 @@ fn a_refused_a5_gate_eats_the_body_and_says_so_by_its_absence() {
         matches!(
             session.at_rest(),
             Some(AtRestBadge::Refused { message })
-                if message.contains("whether two parts of the body touch is undecided")
+                if message.contains("whether they lie on one plane is within the tolerance band")
         ),
-        "this row's premise is a gate refused on the census escalating in the band: {:?}",
+        "this row's premise is a gate refused on an in-band face pair: {:?}",
         session.at_rest()
     );
 
