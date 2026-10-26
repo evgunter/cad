@@ -9,6 +9,7 @@ cost: M
 branch: atrest/in-band-face-pair-one-finding
 closed: 2026-10-26
 refs: [the-at-rest-census-is-a-check, two-copies-filling-one-volume-certify-at-rest]
+pr: 5782
 ---
 
 
