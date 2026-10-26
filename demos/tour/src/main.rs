@@ -1159,6 +1159,10 @@ fn main() {
     // belongs with: a reader can open `assembly/*.pncad` next to the
     // STL and STEP the same run wrote.
     let work = std::path::Path::new(&outdir).join("assembly");
+    if std::env::var("REV5763").is_ok() {
+        let _ = assembly::stops(&work, tol);
+        return;
+    }
     walk_tour(&mut run, &work, tol);
 
     // The Monte-Carlo density cell (`mcplate`). It writes a PICTURE

@@ -1776,8 +1776,46 @@ fn refactorings(ws: &mut Workspace, layout: &ProfileDoc, shelf_i: RecipeNodeId, 
     ws.create(&posts.part, tol)
         .expect("the posts cell is stored");
     let store: Arc<dyn PartResolver> = Arc::new(ws.clone());
-    inline(&posts.remainder, posts.instance, &store, tol)
+    let back = inline(&posts.remainder, posts.instance, &store, tol)
         .unwrap_or_else(|e| panic!("the patterned-post cell inlines back: {e}"));
+    // REVIEW PROBE (PR 5763): the identity flatten returns the layout.
+    {
+        let flat = pncad::document::flatten(&back.doc, back.placement, tol)
+            .unwrap_or_else(|e| panic!("REVIEW flatten: {e:?}"))
+            .doc;
+        let kinds = |d: &ProfileDoc| {
+            let mut v: Vec<String> = d
+                .ids()
+                .iter()
+                .filter_map(|&i| d.node(i))
+                .map(|n| format!("{n:?}").split([' ', '{', '(']).next().unwrap().to_string())
+                .collect();
+            v.sort();
+            v
+        };
+        println!("   REVIEW kinds layout {:?}", kinds(layout));
+        println!("   REVIEW kinds flat   {:?}", kinds(&flat));
+        let ev = run(&flat, &with_store(ws), tol);
+        let (after, _) = product_of(&flat, &ev, tol);
+        println!(
+            "   REVIEW round trip: nodes {} vs {}, census {:?} vs {:?}, volume bits equal {}",
+            layout.ids().len(),
+            flat.ids().len(),
+            census(&before),
+            census(&after),
+            volume_bits(&before, tol) == volume_bits(&after, tol)
+        );
+        println!(
+            "   REVIEW volumes {:e} vs {:e}; layout ids {:?}; flat ids {:?}",
+            f64::from_bits(volume_bits(&before, tol)),
+            f64::from_bits(volume_bits(&after, tol)),
+            layout.ids().iter().filter_map(|&i| layout.node(i)).map(|n| format!("{n:?}").split([' ', '{', '(']).next().unwrap().to_string()).collect::<Vec<_>>(),
+            flat.ids().iter().filter_map(|&i| flat.node(i)).map(|n| format!("{n:?}").split([' ', '{', '(']).next().unwrap().to_string()).collect::<Vec<_>>(),
+        );
+        let lev = run(layout, &with_store(ws), tol);
+        let (again, _) = product_of(layout, &lev, tol);
+        println!("   REVIEW layout re-evaluated now: bits equal to before {}", volume_bits(&before, tol) == volume_bits(&again, tol));
+    }
     println!(
         "   second cut: the patterned-post cell splits out AND inlines back \
          (the cut moved as selected, its space with it, so the pattern lands back verbatim)"

@@ -615,6 +615,7 @@ mod seat7_sweep_lowering;
 mod seat8_split_lowering;
 #[path = "split_carries_spaces.rs"]
 mod split_carries_spaces;
+mod review_5763_probes;
 #[path = "split_pinch_keeps.rs"]
 mod split_pinch_keeps;
 #[path = "step_handle_binding.rs"]
