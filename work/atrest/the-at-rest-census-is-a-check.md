@@ -8,6 +8,7 @@ priority: P0
 cost: H
 closed: 2026-10-26
 branch: atrest/the-at-rest-census-is-a-check
+pr: 5810
 ---
 
 INTENT stage 5, PR C. Ev approved the design in PR 4320 (fork log row
