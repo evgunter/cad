@@ -453,3 +453,154 @@ fn a_near_flush_side_is_its_pairs_finding_and_the_seat_is_one_pair() {
         "the in-band pair is the census's, not the flush door's: {flush:?}"
     );
 }
+
+// ---- review probes (review/atrest-inband-R1) ----
+
+fn probe_report(name: &str, body: &Body<f64>) -> topo::RecordedAtRest {
+    let (recorded, flush) = at_rest(body);
+    eprintln!("== {name}");
+    for e in &recorded.findings {
+        eprintln!("  finding: {e:?}");
+    }
+    eprintln!("  rows: {}  records: {}", recorded.rows.len(), recorded.records.rows().len());
+    eprintln!("  flush rows {} findings {:?}", flush.rows.len(), flush.findings);
+    let uncleared: Vec<_> = recorded
+        .findings
+        .iter()
+        .filter_map(|e| topo::census_uncleared_solids(body, e))
+        .collect();
+    let interf: Vec<_> = recorded
+        .findings
+        .iter()
+        .filter_map(|e| topo::census_interference_solids(body, e))
+        .collect();
+    eprintln!("  uncleared {uncleared:?}  interference {interf:?}");
+    recorded
+}
+
+/// P1: two blocks interpenetrating by a 1×1×1 cube, the second lifted
+/// by an in-band offset, so both their tops and their bottoms are
+/// aligned in-band pairs. Overlap past the band must not clear.
+#[test]
+fn review_p1_overlap_whose_caps_are_in_band() {
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
+    let off = 0.5 * (band.zero() + band.escalate());
+    let body = two_blocks(
+        ((0.0, 2.0), (0.0, 2.0), (0.0, 1.0)),
+        ((1.0, 3.0), (1.0, 3.0), (off, 1.0 + off)),
+    );
+    let r = probe_report("p1 corner overlap, caps in band", &body);
+    let blocked = r.findings.iter().any(|e| {
+        topo::census_uncleared_solids(&body, e).is_some()
+            || topo::census_interference_solids(&body, e).is_some()
+    });
+    assert!(blocked && r.records.is_empty(), "an overlap past the band cleared");
+}
+
+/// P1b: the second block wholly inside the first laterally, lifted in band.
+#[test]
+fn review_p1b_nested_overlap_whose_caps_are_in_band() {
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
+    let off = 0.5 * (band.zero() + band.escalate());
+    let body = two_blocks(
+        ((0.0, 2.0), (0.0, 2.0), (0.0, 1.0)),
+        ((0.5, 1.5), (0.5, 1.5), (off, 1.0 + off)),
+    );
+    let r = probe_report("p1b nested, caps in band", &body);
+    let blocked = r.findings.iter().any(|e| {
+        topo::census_uncleared_solids(&body, e).is_some()
+            || topo::census_interference_solids(&body, e).is_some()
+    });
+    assert!(blocked && r.records.is_empty(), "an overlap past the band cleared");
+}
+
+/// P1c: only the tops in band; the second block's bottom halfway up.
+#[test]
+fn review_p1c_overlap_with_one_cap_in_band() {
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
+    let off = 0.5 * (band.zero() + band.escalate());
+    let body = two_blocks(
+        ((0.0, 2.0), (0.0, 2.0), (0.0, 1.0)),
+        ((1.0, 3.0), (1.0, 3.0), (0.5, 1.0 + off)),
+    );
+    let r = probe_report("p1c corner overlap, top in band", &body);
+    let blocked = r.findings.iter().any(|e| {
+        topo::census_uncleared_solids(&body, e).is_some()
+            || topo::census_interference_solids(&body, e).is_some()
+    });
+    assert!(blocked && r.records.is_empty(), "an overlap past the band cleared");
+}
+
+/// P1d: the side walls overlap by an in-band offset in x (block pushed
+/// INTO the wall by off) - the in-band opposed pair; plus a real
+/// overlap: the block is pushed 0.5 into the base from above.
+#[test]
+fn review_p1d_near_flush_side_with_a_real_sink() {
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
+    let off = 0.5 * (band.zero() + band.escalate());
+    let body = two_blocks(
+        ((0.0, 2.0), (0.0, 2.0), (0.0, 1.0)),
+        ((off, 1.0), (0.5, 1.5), (0.5, 2.0)),
+    );
+    let r = probe_report("p1d near-flush side, sunk 0.5", &body);
+    let blocked = r.findings.iter().any(|e| {
+        topo::census_uncleared_solids(&body, e).is_some()
+            || topo::census_interference_solids(&body, e).is_some()
+    });
+    assert!(blocked && r.records.is_empty(), "an overlap past the band cleared");
+}
+
+/// P2: P1 with the fronts and backs exactly flush (aligned Zero), the
+/// tops and bottoms in band: an edge pair bounding both an in-band and a
+/// Zero pair.
+#[test]
+fn review_p2_overlap_flush_fronts_caps_in_band() {
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
+    let off = 0.5 * (band.zero() + band.escalate());
+    let body = two_blocks(
+        ((0.0, 2.0), (0.0, 2.0), (0.0, 1.0)),
+        ((1.0, 3.0), (0.0, 2.0), (off, 1.0 + off)),
+    );
+    let r = probe_report("p2 flush fronts, caps in band", &body);
+    let blocked = r.findings.iter().any(|e| {
+        topo::census_uncleared_solids(&body, e).is_some()
+            || topo::census_interference_solids(&body, e).is_some()
+    });
+    assert!(blocked && r.records.is_empty(), "an overlap past the band cleared");
+}
+
+/// P3: the near-flush seat, plus a third block crossing both x = 0 walls.
+#[test]
+fn review_p3_near_flush_seat_with_a_third_block_across_the_walls() {
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
+    let off = 0.5 * (band.zero() + band.escalate());
+    let mut body = two_blocks(
+        ((0.0, 2.0), (0.0, 2.0), (0.0, 1.0)),
+        ((off, 1.0), (0.5, 1.5), (1.0, 2.0)),
+    );
+    let third = common::prism_z::<f64>(
+        &[(-0.5, 0.8), (0.5, 0.8), (0.5, 1.0), (-0.5, 1.0)],
+        0.8,
+        1.2,
+        Tol::witness(),
+    )
+    .body;
+    topo::graft_disjoint_all_keyed(&mut body, &third).unwrap();
+    let r = probe_report("p3 third block across the walls", &body);
+    eprintln!("  records: {:?}", r.records.rows());
+}
+
+/// P4: two near-flush pairs sharing a cell: a block in a corner, its
+/// x = 0 and y = 0 sides each off the base's by an in-band offset.
+#[test]
+fn review_p4_two_in_band_pairs_sharing_an_edge() {
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
+    let off = 0.5 * (band.zero() + band.escalate());
+    let body = two_blocks(
+        ((0.0, 2.0), (0.0, 2.0), (0.0, 1.0)),
+        ((off, 1.0), (off, 1.0), (1.0, 2.0)),
+    );
+    let r = probe_report("p4 corner block, two in-band walls", &body);
+    let again = topo::validate_pseudomanifold(&body, &r.records, Tol::witness()).err();
+    eprintln!("  again: {again:?}");
+}
