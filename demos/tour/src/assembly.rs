@@ -97,11 +97,11 @@ use pncad::document::pose::{PoseDef, PoseRole, RoleRead};
 use pncad::document::{
     Assembly, CancelToken, CheckEvidence, CheckId, ChecksConfig, Constraint, Coord, Dimension,
     DocEdit, DocRef, DocumentId, EvalOptions, Evaluation, Formula, Frame, FreeValue, FreeVar,
-    InlineError, LoopProgram, Mate, MateFault, MateRef, Node, OVERCONSTRAINED_RECOURSE, Operand,
-    PartResolver, PartSelect, PatternKind, Placed, ProfileDoc, ProfileProgram, RecipeNodeId,
-    SitedFace, TargetAxis, UNPINNED_RECOURSE, ValuePayload, VarId, VarName, apply, assemble,
-    content_pin, evaluate, inline, load, mixed_pins, parse_formula, product_named, run_checks,
-    save, solve_document, split, stand,
+    LoopProgram, Mate, MateFault, MateRef, Node, OVERCONSTRAINED_RECOURSE, Operand, PartResolver,
+    PartSelect, PatternKind, Placed, ProfileDoc, ProfileProgram, RecipeNodeId, SitedFace,
+    TargetAxis, UNPINNED_RECOURSE, ValuePayload, VarId, VarName, apply, assemble, content_pin,
+    evaluate, inline, load, mixed_pins, parse_formula, product_named, run_checks, save,
+    solve_document, split, stand,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
@@ -1739,17 +1739,13 @@ fn refactorings(ws: &mut Workspace, layout: &ProfileDoc, shelf_i: RecipeNodeId, 
         before_names.iter().count()
     );
 
-    // THE SECOND CUT, probed rather than assumed: the patterned posts.
-    //
-    // The invariant under test is that split and inline are INVERSES
-    // for every legal cut, and the shape most likely to break it is
-    // this one: `inline` refuses an instance whose part's placements it
-    // cannot carry into the host (`UnplaceablePart`), and these place a
-    // pattern's copies of an instance. The cut moves as selected
-    // and leaves the instance pinned at the identity, so the pattern
-    // lands back verbatim; the arms below say which answer
-    // this tree gave rather than asserting one, so a change in either
-    // direction is reported at the scene instead of passing silently.
+    // THE SECOND CUT: the patterned posts. Split and inline are
+    // INVERSES for every legal cut, and the shape most likely to break
+    // that is this one: these place a pattern's copies of an instance,
+    // and the post instance stands in a `new_space()` the cell does not
+    // name, which goes with its readers. The cut moves as selected and
+    // leaves the instance pinned at the identity, so the pattern lands
+    // back verbatim.
     //
     // The cell is the post instance, its pattern, and each copy's
     // `Part` and the placement that puts it in the world.
@@ -1775,28 +1771,17 @@ fn refactorings(ws: &mut Workspace, layout: &ProfileDoc, shelf_i: RecipeNodeId, 
         cell.insert(placement_reading(layout, copy));
     }
     let store: Arc<dyn PartResolver> = Arc::new(ws.clone());
-    match split(layout, &cell, posts_id, tol, Some(&store)) {
-        Ok(posts) => {
-            ws.create(&posts.part, tol)
-                .expect("the posts cell is stored");
-            let store: Arc<dyn PartResolver> = Arc::new(ws.clone());
-            match inline(&posts.remainder, posts.instance, &store, tol) {
-                Ok(_) => println!(
-                    "   second cut: the patterned-post cell splits out AND inlines back \
-                     (the cut moved as selected, so the pattern lands back verbatim)"
-                ),
-                Err(e @ InlineError::UnplaceablePart { .. }) => println!(
-                    "   second cut (gap): the patterned-post cell splits out but does NOT \
-                     inline back — a subtree a user can cut is then not one they can put \
-                     back: {e:?}"
-                ),
-                Err(other) => panic!("unexpected inline refusal: {other:?}"),
-            }
-        }
-        Err(e) => {
-            println!("   second cut (gap): the patterned-post cell does not split at all — {e:?}")
-        }
-    }
+    let posts = split(layout, &cell, posts_id, tol, Some(&store))
+        .unwrap_or_else(|e| panic!("the patterned-post cell splits out: {e}"));
+    ws.create(&posts.part, tol)
+        .expect("the posts cell is stored");
+    let store: Arc<dyn PartResolver> = Arc::new(ws.clone());
+    inline(&posts.remainder, posts.instance, &store, tol)
+        .unwrap_or_else(|e| panic!("the patterned-post cell inlines back: {e}"));
+    println!(
+        "   second cut: the patterned-post cell splits out AND inlines back \
+         (the cut moved as selected, its space with it, so the pattern lands back verbatim)"
+    );
 }
 
 // ---- The update door (A13) ----
