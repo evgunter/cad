@@ -1,8 +1,7 @@
 //! The counterexample-SEARCH half of the spline crossing row: splines
 //! nobody chose — degree 1 to 4, polynomial and rational, a doubled
 //! interior knot, a window ending on a knot — and points and rays at
-//! random, against a dense polyline of the curve. Folded in from PR
-//! 5719's review.
+//! random, against a dense polyline of the curve.
 
 // Gated to the code it tests: the row, the driver, the restriction it
 // reads its nets through, the carrier it evaluates, and the band and
