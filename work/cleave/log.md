@@ -1516,3 +1516,13 @@ Signed (CLEAVE orchestrator).
     - The unconditional third cell stands per DM4, and the docs are fixed to match.
     - Add debug guards: one pierced face per pending row, and every spelled `Input` cell held by its input, checked at the door.
   - Fix pass sent. The meet row moves to WIRE in that PR. (CLEAVE orchestrator)
+- 2026-10-26 — PR 5546 narrow re-review. Nothing blocking.
+  - **Fixed:**
+    - B1: θ from 1e-3 down to 1e-8 builds sound or refuses typed at every ε.
+    - B2: overlap refuses typed with no NaN.
+    - `Joint::between` is behaviour-identical: 362 of 372 Boolean-calling tests are identical by outcome and body hash at the default ε, and the remaining 10 are claimed moves.
+  - **Still owed before merge:**
+    - The `lies_in` relabel also covers `piece_holds`' `OnPlane` self-check. That arm must stay `SelfCheck`, because a self-disagreement is never a lever (Ev, PR 4335). The containment door's own decision must also be kept.
+    - The PR body must say that the lever walks a chain of escalations, and that its "outside" direction ships the filed rider-form wrong body at 1e-9 and 1e-12.
+    - The `Unjoined` reach goes on the rarer-configurations row.
+  - Sent to the lane. (CLEAVE orchestrator)
