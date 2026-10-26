@@ -560,14 +560,24 @@ fn certify_errors() -> Vec<CertifyError> {
 fn analytic_rung3_refusals() -> Vec<geom_brep::AnalyticRung3Refusal> {
     use geom_brep::AnalyticRung3Refusal as A;
     vec![
-        A::Limb {
+        A::KernelLimit {
             operand: geom::SurfaceKind::Plane,
-            limb: geom_brep::Rung3Limb::HullSup,
+            bound: 7.5e-5,
             margin: MarginDiag::value(7.5e-5),
+            width: 1e-6,
+            extent: 2.0,
+            terminal: true,
+        },
+        A::KernelLimit {
+            operand: geom::SurfaceKind::Torus,
+            bound: 7.5e-5,
+            margin: MarginDiag::value(7.5e-5),
+            width: 1e-15,
+            extent: 2.0,
+            terminal: true,
         },
         A::Limb {
             operand: geom::SurfaceKind::Plane,
-            limb: geom_brep::Rung3Limb::HullValue,
             margin: MarginDiag::value(7.5e-5),
         },
         A::Escalated {

@@ -735,13 +735,14 @@ pub(crate) fn edge_on_plane_refusal(diag: &Indeterminate) -> String {
 /// line carrier. A line is the chord between those vertices, so its miss
 /// is their offset plus a few ulp of coordinates, within the share of
 /// the band K's headroom presumes (`crate::validate::resolved`'s
-/// premise). A circle, ellipse, spiric or spline is a construction from
-/// the surfaces, whose own error can be amplified into the band (an
-/// ellipse nearly along a cylinder's axis carries its semi-major axis's
-/// rounding): at these doors it keeps the gate's refusal, as does every
-/// other check and a definite miss. The join reads a section conic's
-/// pins against its carrier's resolution instead
-/// (`chord_join::section_pin_refusal`).
+/// premise). Limb 2's bound of a line against a plane is that residual
+/// over the whole span where it lies far above the net's own rounding:
+/// the composite is linear, so the bound is attained at an end, and limb
+/// 2 decides it as a measured value
+/// (`geom_brep::AnalyticRung3Refusal::Escalated` on its `HullValue`
+/// limb), which reads as the input's like the sampled one. Within the
+/// rounding it stays the kernel's limit
+/// (`geom_brep::AnalyticRung3Refusal::KernelLimit`), a kilometre chord's.
 pub(crate) fn edge_on_faces_reading(
     carrier: geom::CurveKind,
     refusal: &EulerOpError,
@@ -760,6 +761,14 @@ pub(crate) fn edge_on_faces_reading(
                 cause,
                 ..
             },
+        ) => Some(*cause),
+        (
+            geom::CurveKind::Line,
+            geom_brep::CertifyError::AnalyticRung3(geom_brep::AnalyticRung3Refusal::Escalated {
+                operand: Some(geom::SurfaceKind::Plane),
+                limb: geom_brep::Rung3Limb::HullValue,
+                cause,
+            }),
         ) => Some(*cause),
         _ => None,
     }

@@ -90,12 +90,23 @@ const CASES: [Case; 6] = [
     (1300.0, 2.5, 0.001, None),
 ];
 
-fn hollow(major: f64, outer: f64, wall: f64, window: Option<(f64, f64)>) -> Revolved<f64> {
+/// The ε rows a case is pinned to refuse at as limb 2's kernel limit:
+/// the 1.3 km ring (outside the session box) bounds its torus walls'
+/// meridian circles at about 5e-9 m, the torus composite's
+/// conditioning over the circles' own rounding
+/// (`work/offset/the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding.md`).
+fn kernel_limit_rows(major: f64) -> &'static [f64] {
+    if major > 1e3 { &[1e-9, 1e-12] } else { &[] }
+}
+
+/// The hollow tube, or `None` where it refuses as the kernel limit at
+/// one of its case's rows ([`kernel_limit_rows`]).
+fn hollow(major: f64, outer: f64, wall: f64, window: Option<(f64, f64)>) -> Option<Revolved<f64>> {
     let window = match window {
         None => TubeWindow::Full,
         Some((t0, t1)) => TubeWindow::Arc { t0, t1 },
     };
-    tube_along_arc_hollow::<f64>(
+    let got = tube_along_arc_hollow::<f64>(
         tube_frame(
             Point3::new(0.0, 0.0, 0.0),
             Vec3::unit_z(),
@@ -107,8 +118,13 @@ fn hollow(major: f64, outer: f64, wall: f64, window: Option<(f64, f64)>) -> Revo
         outer,
         wall,
         Tol::witness(),
+    );
+    test_utils::kernel_limit::may_refuse(
+        got,
+        Tol::witness().eps(),
+        kernel_limit_rows(major),
+        "the hollow tube",
     )
-    .expect("the hollow tube builds")
 }
 
 fn rel_close(got: f64, want: f64, rel: f64, what: &str) {
@@ -139,7 +155,9 @@ fn tori(body: &Body<f64>) -> Vec<(f64, f64)> {
 fn closed_forms_at_varied_geometry() {
     for (major, outer, wall, window) in CASES {
         let inner = outer - wall;
-        let t = hollow(major, outer, wall, window);
+        let Some(t) = hollow(major, outer, wall, window) else {
+            continue;
+        };
         let props = measured(&t.body, major);
         let ring = outer * outer - inner * inner;
         let (v, a) = match window {
@@ -168,7 +186,9 @@ fn the_bore_differences_out_against_the_solid_door() {
     for (major, outer, wall, window) in CASES {
         let Some((t0, t1)) = window else { continue };
         let inner = outer - wall;
-        let h = hollow(major, outer, wall, window);
+        let Some(h) = hollow(major, outer, wall, window) else {
+            continue;
+        };
         let s = tube_along_arc::<f64>(
             tube_frame(
                 Point3::new(0.0, 0.0, 0.0),
@@ -203,7 +223,7 @@ fn intent_bits_survive_adversarial_values() {
     let outer = 0.300_000_000_000_000_04;
     let wall = 0.1;
     for window in [None, Some((0.7, 3.3))] {
-        let t = hollow(major, outer, wall, window);
+        let t = hollow(major, outer, wall, window).expect("the hollow tube builds");
         let walls = tori(&t.body);
         assert_eq!(walls.len(), 4);
         let recovered = outer - wall; // the caller's own recovery
@@ -332,7 +352,9 @@ fn the_cavity_is_a_two_wall_torus_at_the_inner_bits() {
         if window.is_some() {
             continue;
         }
-        let t = hollow(major, outer, wall, window);
+        let Some(t) = hollow(major, outer, wall, window) else {
+            continue;
+        };
         assert_eq!(t.body.shells().count(), 2);
         assert_eq!(t.cavities.len(), 1);
         assert_ne!(t.cavities[0].shell, t.shell);

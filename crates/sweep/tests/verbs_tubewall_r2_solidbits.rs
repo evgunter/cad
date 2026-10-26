@@ -34,7 +34,7 @@ fn r2_solid_door_bits_dump() {
             None => TubeWindow::Full,
             Some((t0, t1)) => TubeWindow::Arc { t0, t1 },
         };
-        let t = tube_along_arc::<f64>(
+        let got = tube_along_arc::<f64>(
             tube_frame(
                 Point3::new(0.0, 0.0, 0.0),
                 Vec3::unit_y(),
@@ -45,8 +45,17 @@ fn r2_solid_door_bits_dump() {
             window,
             minor,
             Tol::witness(),
-        )
-        .expect("the solid tube builds");
+        );
+        // A ring forty times its tube may bound its wall's circles past
+        // the finest band: the torus composite's conditioning, limb 2's
+        // kernel limit
+        // (`work/offset/the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding.md`).
+        let rows: &[f64] = if major >= 40.0 * minor { &[1e-12] } else { &[] };
+        let Some(t) =
+            test_utils::kernel_limit::may_refuse(got, Tol::witness().eps(), rows, "the solid tube")
+        else {
+            continue;
+        };
         let props = topo::mass_properties(
             &topo::test_support::finished(
                 "the measured body",

@@ -2,14 +2,13 @@
 id: closed-form-limb-2-escalates-at-eps-1e-12-on-ordinary-geometry
 kind: issue
 title: Limb 2 for every closed-form carrier escalates at eps 1e-12 on ordinary geometry: the composite's own rounding at the part's scale lands in the band
-status: open
+status: closed
 opened: 2026-10-26
 priority: P0
 cost: M
 parent: closed-form-edge-carriers-pass-on-samples-with-no-stated-bound-between-them
-design: true
-needs_ev: true
 pr: 5728
+closed: 2026-10-26
 ---
 
 
@@ -88,3 +87,34 @@ This is a design question for Ev, through the designer pair (`[ev]`).
 - **The verdict.** A bound that stalls above the band refuses as the kernel approximation limit `[tolerance.recourse]` names, carrying the bound, the extent and the carrier's enclosure width. It is never an escalation and never a definite miss.
 
 Ev's ruling is asked on PR 5728.
+
+## Closed
+
+Ev approved the designers' answer on PR 5728 ("this seems good",
+2026-10-26), and the same PR builds it.
+
+- **One limb-2 reader for every carrier**,
+  `crates/geom-brep/src/pcurve_cache.rs` `limb2_offset_sup`.
+  - It reads the carrier's net through
+    `crates/geom-brep/src/carrier_net.rs` `framed_carrier_net`, framed at
+    each operand in certification arithmetic. The frame is applied to the
+    carrier's own data before anything is combined: a closed form's
+    centre and axes, a line's origin and direction, a spline's controls.
+  - `closed_form_offset_sup` and `projected::net_offset_sup` are gone.
+  - The spline path's `f64` framing, which was unenclosed, is gone with
+    them. The row `carrier_net::tests::a_spline_framed_at_an_operand_encloses_its_exact_framed_controls`
+    pins its replacement.
+- **The verdict.** Limb 2's upper bound either clears the band or refuses
+  as `AnalyticRung3Refusal::KernelLimit`.
+  - The refusal carries the bound, the net's width and the net's extent,
+    plus the classifier's terminal bit where the bound lay in the band.
+  - Its one story reads which limit the data show: the edge's extent, the
+    carrier's radius, or the composite's conditioning.
+  - `Limb { HullSup }` is removed, and `Limb` is now the measured miss
+    alone.
+- **Rows**: far placements now certify at ε = 1e-12. What still refuses
+  is listed on PR 5728 and filed as four follow-ups:
+  - `the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding`
+  - `the-closed-form-net-builder-rounds-at-a-km-radius-not-at-the-span`
+  - `the-session-box-is-not-enforced-at-construction`
+  - `eps-min-leaves-no-certification-headroom-at-the-box-edge`

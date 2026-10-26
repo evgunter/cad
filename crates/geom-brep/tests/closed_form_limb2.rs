@@ -23,7 +23,7 @@ use geom::{Curve3, Surface};
 use geom_brep::intersect::{PlaneTorusSection, plane_torus_section};
 use geom_brep::{
     AnalyticRung3Refusal, CERT_SAMPLES, CertifyError, EdgeCurve, EdgeCurveSpec,
-    EdgeDescriptionSpec, NurbsLane, Rung3Limb, SurfacePair, implicit_residual, sample_param,
+    EdgeDescriptionSpec, NurbsLane, SurfacePair, implicit_residual, sample_param,
 };
 use geom_core::{Band, Point3, Vec3};
 
@@ -154,7 +154,6 @@ fn refused_on_limb2(got: &Result<EdgeCurve<f64>, CertifyError>, kind: geom::Surf
         got,
         Err(CertifyError::AnalyticRung3(AnalyticRung3Refusal::Limb {
             operand,
-            limb: Rung3Limb::HullSup | Rung3Limb::HullValue,
             ..
         })) if *operand == kind
     )
@@ -331,5 +330,182 @@ fn an_ellipse_off_its_cylinder_between_samples_refuses_on_limb_2() {
     assert!(
         refused_on_limb2(&got, geom::SurfaceKind::Cylinder),
         "limb 2 against the cylinder refuses the moved ellipse: {got:?}"
+    );
+}
+
+/// The band of a run at `ε = 1e-12`, the gate's finest row.
+fn fine_band() -> Band {
+    Band::new(1e-12, 1e-11).unwrap()
+}
+
+/// `p` moved by `d`.
+fn moved(p: Point3<f64>, d: Vec3<f64>) -> Point3<f64> {
+    p + d
+}
+
+/// **Limb 2 reads a part the same wherever it sits.** The net is framed
+/// at each operand before anything is combined, so its controls round at
+/// their distance from the operand's origin: a plane × cylinder circle,
+/// ellipse and ruling certify at the gate's finest band at the origin
+/// and moved 1 km along every axis (where a net enclosed in world
+/// coordinates bounded about 1e-12 m and escalated).
+#[test]
+fn a_part_moved_a_kilometre_reads_as_at_the_origin() {
+    for d in [Vec3::new(0.0, 0.0, 0.0), Vec3::new(1000.0, -1000.0, 1000.0)] {
+        let cylinder = Surface::Cylinder {
+            origin: moved(Point3::origin(), d),
+            axis: Vec3::unit_z(),
+            radius: 0.5,
+            u_ref: Vec3::unit_x(),
+        };
+        let cap = Surface::Plane {
+            origin: moved(Point3::new(0.0, 0.0, 0.25), d),
+            normal: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        };
+        let rim = Curve3::Circle {
+            center: moved(Point3::new(0.0, 0.0, 0.25), d),
+            axis: Vec3::unit_z(),
+            radius: 0.5,
+            u_ref: Vec3::unit_x(),
+        };
+        let side = Surface::Plane {
+            origin: moved(Point3::origin(), d),
+            normal: Vec3::unit_y(),
+            u_ref: Vec3::unit_x(),
+        };
+        let ruling = Curve3::Line {
+            origin: moved(Point3::new(0.5, 0.0, 0.0), d),
+            dir: Vec3::unit_z(),
+        };
+        let (s, c) = (PI / 5.0).sin_cos();
+        let tilted = Surface::Plane {
+            origin: moved(Point3::origin(), d),
+            normal: Vec3::new(0.0, -s, c),
+            u_ref: Vec3::unit_x(),
+        };
+        let ellipse = Curve3::Ellipse {
+            center: moved(Point3::origin(), d),
+            axis: Vec3::new(0.0, -s, c),
+            semi_u: 0.5,
+            semi_v: 0.5 / c,
+            u_ref: Vec3::unit_x(),
+        };
+        let rows = [
+            ("rim", &cylinder, &cap, &rim, (0.0, 1.5 * PI)),
+            ("ruling", &cylinder, &side, &ruling, (0.0, 0.5)),
+            ("ellipse", &cylinder, &tilted, &ellipse, SPAN),
+        ];
+        for (name, a, b, carrier, span) in rows {
+            let got = certify(a, b, carrier, span, fine_band());
+            assert!(got.is_ok(), "{name} moved by {d:?}: {got:?}");
+        }
+    }
+}
+
+/// Limb 2's kernel limit on `got`: its operand, bound, width and extent.
+fn kernel_limit(
+    got: &Result<EdgeCurve<f64>, CertifyError>,
+) -> Option<(geom::SurfaceKind, f64, f64, f64)> {
+    match got {
+        Err(CertifyError::AnalyticRung3(AnalyticRung3Refusal::KernelLimit {
+            operand,
+            bound,
+            width,
+            extent,
+            ..
+        })) => Some((*operand, *bound, *width, *extent)),
+        _ => None,
+    }
+}
+
+/// **A long edge's own rounding is the limit**: a 12 km line where two
+/// skew planes cross, at the gate's finest band, rounds at about
+/// `ulp(12000)` in each plane's frame, so limb 2's bound cannot clear
+/// `1e-12` m. It refuses as the kernel's approximation limit, never as a
+/// miss, with a bound within [`geom_brep::KERNEL_LIMIT_ROUNDING_FACTOR`]
+/// of the net's own width, and its story names shorter edges.
+#[test]
+fn a_twelve_kilometre_edge_refuses_as_the_kernel_limit_at_its_extent() {
+    let unit = |v: Vec3<f64>| v / v.norm();
+    let at = Point3::new(0.3, -0.2, 0.1);
+    let (n1, n2) = (
+        unit(Vec3::new(1.0, 2.0, 3.0)),
+        unit(Vec3::new(-2.0, 1.0, 0.5)),
+    );
+    let plane = |n: Vec3<f64>| Surface::Plane {
+        origin: at,
+        normal: n,
+        u_ref: unit(n.cross(Vec3::unit_z())),
+    };
+    let line = Curve3::Line {
+        origin: at,
+        dir: unit(n1.cross(n2)),
+    };
+    let got = certify(&plane(n1), &plane(n2), &line, (0.0, 12_000.0), fine_band());
+    let Some((_, bound, width, extent)) = kernel_limit(&got) else {
+        panic!("the kernel's limit: {got:?}");
+    };
+    assert!(
+        bound > 1e-12,
+        "the bound does not clear the band: {bound:e}"
+    );
+    assert!(
+        width > 0.0 && bound <= geom_brep::KERNEL_LIMIT_ROUNDING_FACTOR * width,
+        "the bound is the net's own rounding: {bound:e} against {width:e}"
+    );
+    assert!(
+        (11_999.0..12_001.0).contains(&extent),
+        "the extent: {extent}"
+    );
+    let ending = got.unwrap_err().ending(geom_brep::recourse::Reading::Build);
+    assert!(
+        ending
+            .as_deref()
+            .is_some_and(|e| e.contains("shorter edges")),
+        "{ending:?}"
+    );
+}
+
+/// **A torus's composite is the limit**: a circle where a level plane
+/// cuts a torus with `R/r = 50`, at the gate's finest band, reads a bound far above the
+/// net's own rounding (the quartic composite's conditioning). It refuses
+/// as the kernel's approximation limit with the last-resort story.
+#[test]
+fn a_thin_torus_circle_refuses_as_the_kernel_limit_of_its_composite() {
+    let torus = Surface::Torus {
+        center: Point3::origin(),
+        axis: Vec3::unit_z(),
+        major_radius: 10.0,
+        minor_radius: 0.2,
+        u_ref: Vec3::unit_x(),
+    };
+    let level = Surface::Plane {
+        origin: Point3::new(0.0, 0.0, 0.1),
+        normal: Vec3::unit_z(),
+        u_ref: Vec3::unit_x(),
+    };
+    let outer = Curve3::Circle {
+        center: Point3::new(0.0, 0.0, 0.1),
+        axis: Vec3::unit_z(),
+        radius: 10.0 + 0.03_f64.sqrt(),
+        u_ref: Vec3::unit_x(),
+    };
+    let got = certify(&torus, &level, &outer, (0.25, 1.75), fine_band());
+    let Some((operand, bound, width, extent)) = kernel_limit(&got) else {
+        panic!("the kernel's limit: {got:?}");
+    };
+    assert_eq!(operand, geom::SurfaceKind::Torus);
+    assert!(
+        bound > geom_brep::KERNEL_LIMIT_ROUNDING_FACTOR * width,
+        "the bound is far above the net's rounding: {bound:e} against {width:e}"
+    );
+    assert!(extent > 1.0 && extent < 20.0, "the extent: {extent}");
+    let ending = got.unwrap_err().ending(geom_brep::recourse::Reading::Build);
+    assert!(
+        ending
+            .as_deref()
+            .is_some_and(|e| e.contains("conditioning") && e.contains("last resort")),
+        "{ending:?}"
     );
 }

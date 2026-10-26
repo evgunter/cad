@@ -4656,46 +4656,57 @@ pub(crate) mod tests {
     /// look at it at all.
     #[test]
     fn a_real_torus_faces_box_holds_its_locus_and_stays_near_the_oracle() {
-        let (major, minor) = (5.0, 0.06);
-        let (center, axis, u_ref) = (
-            Point3::new(-major, 0.0, 0.0),
-            Vec3::new(0.0, -1.0, 0.0),
-            Vec3::unit_x(),
-        );
-        let v_ref = axis.cross(u_ref);
-        let (u, v) = ((0.0, 22.0_f64.to_radians()), (-1.1, 2.4));
-        let (body, face) = torus_wall(center, axis, u_ref, major, minor, u, v);
-        let b = face_box(&body, face, 0.0, witness_band()).unwrap();
-        for i in 0..=80 {
-            let uu = u.0 + (u.1 - u.0) * f64::from(i) / 80.0;
-            let radial = u_ref * uu.cos() + v_ref * uu.sin();
-            for j in 0..=80 {
-                let vv = v.0 + (v.1 - v.0) * f64::from(j) / 80.0;
-                let p = center + radial * (major + minor * vv.cos()) + axis * (minor * vv.sin());
-                assert!(
-                    holds(&b, p),
-                    "the face's own locus left its box at ({uu}, {vv})"
+        // Pinned to limb 2's kernel limit at ε = 1e-12: the torus composite's conditioning
+        // (`work/offset/the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding.md`).
+        test_utils::kernel_limit::pinned_row(
+            geom_core::Tol::witness().eps(),
+            &[1e-12],
+            "a_real_torus_faces_box_holds_its_locus_and_stays_near_the_oracle",
+            || {
+                let (major, minor) = (5.0, 0.06);
+                let (center, axis, u_ref) = (
+                    Point3::new(-major, 0.0, 0.0),
+                    Vec3::new(0.0, -1.0, 0.0),
+                    Vec3::unit_x(),
                 );
-            }
-        }
-        let n = ARC_SAMPLES as f64;
-        let (hu, hv) = ((u.1 - u.0) / n, (v.1 - v.0) / n);
-        let charge = (hu * hu * (major + minor) + hv * hv * minor) / 8.0;
-        for (e, lo, hi) in [
-            (Vec3::unit_x(), b.min_x, b.max_x),
-            (Vec3::unit_y(), b.min_y, b.max_y),
-            (Vec3::unit_z(), b.min_z, b.max_z),
-        ] {
-            let (o_lo, o_hi) = torus_oracle(center, axis, u_ref, major, minor, (u, v), e);
-            assert!(
-                lo <= o_lo + 1e-12 && hi >= o_hi - 1e-12,
-                "the box must contain the exact extremes along {e:?}"
-            );
-            assert!(
-                (lo - o_lo).abs() <= charge + 1e-9 && (hi - o_hi).abs() <= charge + 1e-9,
-                "and stay within the charge {charge} of them along {e:?}"
-            );
-        }
+                let v_ref = axis.cross(u_ref);
+                let (u, v) = ((0.0, 22.0_f64.to_radians()), (-1.1, 2.4));
+                let (body, face) = torus_wall(center, axis, u_ref, major, minor, u, v);
+                let b = face_box(&body, face, 0.0, witness_band()).unwrap();
+                for i in 0..=80 {
+                    let uu = u.0 + (u.1 - u.0) * f64::from(i) / 80.0;
+                    let radial = u_ref * uu.cos() + v_ref * uu.sin();
+                    for j in 0..=80 {
+                        let vv = v.0 + (v.1 - v.0) * f64::from(j) / 80.0;
+                        let p = center
+                            + radial * (major + minor * vv.cos())
+                            + axis * (minor * vv.sin());
+                        assert!(
+                            holds(&b, p),
+                            "the face's own locus left its box at ({uu}, {vv})"
+                        );
+                    }
+                }
+                let n = ARC_SAMPLES as f64;
+                let (hu, hv) = ((u.1 - u.0) / n, (v.1 - v.0) / n);
+                let charge = (hu * hu * (major + minor) + hv * hv * minor) / 8.0;
+                for (e, lo, hi) in [
+                    (Vec3::unit_x(), b.min_x, b.max_x),
+                    (Vec3::unit_y(), b.min_y, b.max_y),
+                    (Vec3::unit_z(), b.min_z, b.max_z),
+                ] {
+                    let (o_lo, o_hi) = torus_oracle(center, axis, u_ref, major, minor, (u, v), e);
+                    assert!(
+                        lo <= o_lo + 1e-12 && hi >= o_hi - 1e-12,
+                        "the box must contain the exact extremes along {e:?}"
+                    );
+                    assert!(
+                        (lo - o_lo).abs() <= charge + 1e-9 && (hi - o_hi).abs() <= charge + 1e-9,
+                        "and stay within the charge {charge} of them along {e:?}"
+                    );
+                }
+            },
+        );
     }
 
     /// The chart windows the torus rows sweep: `u` spans of 22°,
@@ -4941,49 +4952,59 @@ pub(crate) mod tests {
     /// rows by.
     #[test]
     fn the_torus_window_is_the_edges_own_span_and_its_chart_box_hull() {
-        let (major, minor) = (5.0, 0.06);
-        let (u0, u1) = (0.0, 22.0_f64.to_radians());
-        let (v0, v1) = (-0.4, 0.9);
-        let (body, face) = torus_wall(
-            Point3::origin(),
-            Vec3::unit_z(),
-            Vec3::unit_x(),
-            major,
-            minor,
-            (u0, u1),
-            (v0, v1),
+        // Pinned to limb 2's kernel limit at ε = 1e-12: the torus composite's conditioning
+        // (`work/offset/the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding.md`).
+        test_utils::kernel_limit::pinned_row(
+            geom_core::Tol::witness().eps(),
+            &[1e-12],
+            "the_torus_window_is_the_edges_own_span_and_its_chart_box_hull",
+            || {
+                let (major, minor) = (5.0, 0.06);
+                let (u0, u1) = (0.0, 22.0_f64.to_radians());
+                let (v0, v1) = (-0.4, 0.9);
+                let (body, face) = torus_wall(
+                    Point3::origin(),
+                    Vec3::unit_z(),
+                    Vec3::unit_x(),
+                    major,
+                    minor,
+                    (u0, u1),
+                    (v0, v1),
+                );
+                let (u, v) = read_window(&body, face, major, minor)
+                    .expect("every half-edge stores a certified cache and the window reads");
+                let hull = face_window_steps(&body, face)
+                    .into_iter()
+                    .flatten()
+                    .map(|step| {
+                        let (cache, image, _) =
+                            step.expect("every half-edge stores a certified cache");
+                        let (t0, t1) = cache.params();
+                        image.chart_box(t0, t1)
+                    })
+                    .reduce(geom_brep::ChartWindow::hull)
+                    .expect("the face has half-edges");
+                // The slack is `2·envelope/(R − r)` and `2·envelope/r` on a
+                // fixture whose images are exact, so it is at the mint's own
+                // residual scale — orders below the spans themselves.
+                let slack = 1e-6;
+                for (got, span_end, boxed, what) in [
+                    (u.lo, u0, hull.u_min, "u lo"),
+                    (u.hi, u1, hull.u_max, "u hi"),
+                    (v.lo, v0, hull.v_min, "v lo"),
+                    (v.hi, v1, hull.v_max, "v hi"),
+                ] {
+                    assert!(
+                        (got - span_end).abs() < slack,
+                        "the {what} window end is {got}, the edge's own span end {span_end}"
+                    );
+                    assert!(
+                        (got - boxed).abs() < slack,
+                        "the {what} window end is {got}, the rows' chart_box hull end {boxed}"
+                    );
+                }
+            },
         );
-        let (u, v) = read_window(&body, face, major, minor)
-            .expect("every half-edge stores a certified cache and the window reads");
-        let hull = face_window_steps(&body, face)
-            .into_iter()
-            .flatten()
-            .map(|step| {
-                let (cache, image, _) = step.expect("every half-edge stores a certified cache");
-                let (t0, t1) = cache.params();
-                image.chart_box(t0, t1)
-            })
-            .reduce(geom_brep::ChartWindow::hull)
-            .expect("the face has half-edges");
-        // The slack is `2·envelope/(R − r)` and `2·envelope/r` on a
-        // fixture whose images are exact, so it is at the mint's own
-        // residual scale — orders below the spans themselves.
-        let slack = 1e-6;
-        for (got, span_end, boxed, what) in [
-            (u.lo, u0, hull.u_min, "u lo"),
-            (u.hi, u1, hull.u_max, "u hi"),
-            (v.lo, v0, hull.v_min, "v lo"),
-            (v.hi, v1, hull.v_max, "v hi"),
-        ] {
-            assert!(
-                (got - span_end).abs() < slack,
-                "the {what} window end is {got}, the edge's own span end {span_end}"
-            );
-            assert!(
-                (got - boxed).abs() < slack,
-                "the {what} window end is {got}, the rows' chart_box hull end {boxed}"
-            );
-        }
     }
 
     /// **`TorusWindow`**, both halves of the rule.
@@ -4999,85 +5020,101 @@ pub(crate) mod tests {
     /// parameters, on all six faces in both directions.
     #[test]
     fn the_torus_arms_box_is_exactly_the_construction_its_rule_states() {
-        let pad = pad();
-        for &(major, minor) in &[(2.0, 0.5), (0.01, 0.004), (60.0, 12.0)] {
-            for axis in [Vec3::unit_z(), Vec3::new(1.0, 2.0, 3.0).normalize()] {
-                let c = Point3::new(0.3 * major, -0.2 * major, 0.1 * major);
-                let u_ref = axis.orthonormal_basis().0;
-                let (mut body, face) = arc_sector(major, core::f64::consts::PI);
-                relabel(
-                    &mut body,
-                    face,
-                    Surface::Torus {
-                        center: c,
-                        axis,
-                        major_radius: major,
-                        minor_radius: minor,
-                        u_ref,
-                    },
-                );
-                let b = face_box(&body, face, pad, witness_band()).unwrap();
-                let reach = |a: f64| (major + minor) * (1.0 - a * a).sqrt() + minor * a.abs();
-                let (rx, ry, rz) = (reach(axis.x), reach(axis.y), reach(axis.z));
-                agrees_with_the_rule(
-                    &b,
-                    &Aabb {
-                        min_x: c.x - rx - pad,
-                        min_y: c.y - ry - pad,
-                        min_z: c.z - rz - pad,
-                        max_x: c.x + rx + pad,
-                        max_y: c.y + ry + pad,
-                        max_z: c.z + rz + pad,
-                    },
-                    major,
-                    &format!("the windowless torus arm (R = {major}, r = {minor}, axis {axis:?})"),
-                );
+        // Pinned to limb 2's kernel limit at ε = 1e-12: the torus composite's conditioning
+        // (`work/offset/the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding.md`).
+        test_utils::kernel_limit::pinned_row(
+            geom_core::Tol::witness().eps(),
+            &[1e-12],
+            "the_torus_arms_box_is_exactly_the_construction_its_rule_states",
+            || {
+                let pad = pad();
+                for &(major, minor) in &[(2.0, 0.5), (0.01, 0.004), (60.0, 12.0)] {
+                    for axis in [Vec3::unit_z(), Vec3::new(1.0, 2.0, 3.0).normalize()] {
+                        let c = Point3::new(0.3 * major, -0.2 * major, 0.1 * major);
+                        let u_ref = axis.orthonormal_basis().0;
+                        let (mut body, face) = arc_sector(major, core::f64::consts::PI);
+                        relabel(
+                            &mut body,
+                            face,
+                            Surface::Torus {
+                                center: c,
+                                axis,
+                                major_radius: major,
+                                minor_radius: minor,
+                                u_ref,
+                            },
+                        );
+                        let b = face_box(&body, face, pad, witness_band()).unwrap();
+                        let reach =
+                            |a: f64| (major + minor) * (1.0 - a * a).sqrt() + minor * a.abs();
+                        let (rx, ry, rz) = (reach(axis.x), reach(axis.y), reach(axis.z));
+                        agrees_with_the_rule(
+                            &b,
+                            &Aabb {
+                                min_x: c.x - rx - pad,
+                                min_y: c.y - ry - pad,
+                                min_z: c.z - rz - pad,
+                                max_x: c.x + rx + pad,
+                                max_y: c.y + ry + pad,
+                                max_z: c.z + rz + pad,
+                            },
+                            major,
+                            &format!(
+                                "the windowless torus arm (R = {major}, r = {minor}, axis {axis:?})"
+                            ),
+                        );
 
-                let (u, v) = ((0.3, 1.9), (-0.7, 0.8));
-                let (body, face) = torus_wall(c, axis, u_ref, major, minor, u, v);
-                let b = face_box(&body, face, pad, witness_band()).unwrap();
-                // The window comes from the fixture's own caches (the
-                // fidelity row is what pins it to `[u0, u1] × [v0, v1]`);
-                // the CONSTRUCTION is restated here rather than called,
-                // so this row can see a sample or a charge go missing.
-                let (wu, wv) = read_window(&body, face, major, minor).unwrap();
-                let v_ref = axis.cross(u_ref);
-                let n = ARC_SAMPLES;
-                let (hu, hv) = ((wu.hi - wu.lo) / n as f64, (wv.hi - wv.lo) / n as f64);
-                let mut want: Option<Aabb> = None;
-                for k in 0..=n {
-                    let uu = wu.lo + hu * k as f64;
-                    for l in 0..=n {
-                        let vv = wv.lo + hv * l as f64;
-                        let p = c
-                            + (u_ref * uu.cos() + v_ref * uu.sin()) * (major + minor * vv.cos())
-                            + axis * (minor * vv.sin());
-                        let one = Aabb::from_points([p]).unwrap();
-                        want = Some(want.map_or(one, |a: Aabb| a.hull(&one)));
+                        let (u, v) = ((0.3, 1.9), (-0.7, 0.8));
+                        let (body, face) = torus_wall(c, axis, u_ref, major, minor, u, v);
+                        let b = face_box(&body, face, pad, witness_band()).unwrap();
+                        // The window comes from the fixture's own caches (the
+                        // fidelity row is what pins it to `[u0, u1] × [v0, v1]`);
+                        // the CONSTRUCTION is restated here rather than called,
+                        // so this row can see a sample or a charge go missing.
+                        let (wu, wv) = read_window(&body, face, major, minor).unwrap();
+                        let v_ref = axis.cross(u_ref);
+                        let n = ARC_SAMPLES;
+                        let (hu, hv) = ((wu.hi - wu.lo) / n as f64, (wv.hi - wv.lo) / n as f64);
+                        let mut want: Option<Aabb> = None;
+                        for k in 0..=n {
+                            let uu = wu.lo + hu * k as f64;
+                            for l in 0..=n {
+                                let vv = wv.lo + hv * l as f64;
+                                let p = c
+                                    + (u_ref * uu.cos() + v_ref * uu.sin())
+                                        * (major + minor * vv.cos())
+                                    + axis * (minor * vv.sin());
+                                let one = Aabb::from_points([p]).unwrap();
+                                want = Some(want.map_or(one, |a: Aabb| a.hull(&one)));
+                            }
+                        }
+                        let charge = |a: f64| {
+                            (hu * hu * ((major + minor) * (1.0 - a * a).max(0.0).sqrt())
+                                + hv * hv * minor)
+                                / 8.0
+                        };
+                        let want = want.unwrap();
+                        let want = Aabb {
+                            min_x: (want.min_x - charge(axis.x)).max(c.x - rx),
+                            min_y: (want.min_y - charge(axis.y)).max(c.y - ry),
+                            min_z: (want.min_z - charge(axis.z)).max(c.z - rz),
+                            max_x: (want.max_x + charge(axis.x)).min(c.x + rx),
+                            max_y: (want.max_y + charge(axis.y)).min(c.y + ry),
+                            max_z: (want.max_z + charge(axis.z)).min(c.z + rz),
+                        }
+                        .padded(pad);
+                        agrees_with_the_rule(
+                            &b,
+                            &want,
+                            major,
+                            &format!(
+                                "the windowed torus arm (R = {major}, r = {minor}, axis {axis:?})"
+                            ),
+                        );
                     }
                 }
-                let charge = |a: f64| {
-                    (hu * hu * ((major + minor) * (1.0 - a * a).max(0.0).sqrt()) + hv * hv * minor)
-                        / 8.0
-                };
-                let want = want.unwrap();
-                let want = Aabb {
-                    min_x: (want.min_x - charge(axis.x)).max(c.x - rx),
-                    min_y: (want.min_y - charge(axis.y)).max(c.y - ry),
-                    min_z: (want.min_z - charge(axis.z)).max(c.z - rz),
-                    max_x: (want.max_x + charge(axis.x)).min(c.x + rx),
-                    max_y: (want.max_y + charge(axis.y)).min(c.y + ry),
-                    max_z: (want.max_z + charge(axis.z)).min(c.z + rz),
-                }
-                .padded(pad);
-                agrees_with_the_rule(
-                    &b,
-                    &want,
-                    major,
-                    &format!("the windowed torus arm (R = {major}, r = {minor}, axis {axis:?})"),
-                );
-            }
-        }
+            },
+        );
     }
 
     /// **The two box lanes, side by side on one body** — what #700
@@ -6034,25 +6071,34 @@ pub(crate) mod tests {
     /// hole in every door that prunes on one.
     #[test]
     fn the_conic_edge_box_contains_a_dense_sample_of_adversarial_arcs() {
-        for (what, body, scale) in adversarial_conic_sectors() {
-            let (edge, curve) = conic_edge(&body);
-            let b = edge_box(&body, edge, 0.0);
-            let (t0, t1) = curve.params();
-            let slack = 1e-12 * (1.0 + scale);
-            for i in 0..=20_000 {
-                let t = t0 + (t1 - t0) * f64::from(i) / 20_000.0;
-                let p = curve.carrier().eval(t);
-                assert!(
-                    p.x >= b.min_x - slack
-                        && p.x <= b.max_x + slack
-                        && p.y >= b.min_y - slack
-                        && p.y <= b.max_y + slack
-                        && p.z >= b.min_z - slack
-                        && p.z <= b.max_z + slack,
-                    "{what}: the arc point at t = {t} ({p:?}) left the edge box {b:?}"
-                );
-            }
-        }
+        // Pinned to limb 2's kernel limit at ε = 1e-12: a part near 1 km rounds at its own
+        // extent past the band (`work/offset/eps-min-leaves-no-certification-headroom-at-the-box-edge.md`).
+        test_utils::kernel_limit::pinned_row(
+            geom_core::Tol::witness().eps(),
+            &[1e-12],
+            "the_conic_edge_box_contains_a_dense_sample_of_adversarial_arcs",
+            || {
+                for (what, body, scale) in adversarial_conic_sectors() {
+                    let (edge, curve) = conic_edge(&body);
+                    let b = edge_box(&body, edge, 0.0);
+                    let (t0, t1) = curve.params();
+                    let slack = 1e-12 * (1.0 + scale);
+                    for i in 0..=20_000 {
+                        let t = t0 + (t1 - t0) * f64::from(i) / 20_000.0;
+                        let p = curve.carrier().eval(t);
+                        assert!(
+                            p.x >= b.min_x - slack
+                                && p.x <= b.max_x + slack
+                                && p.y >= b.min_y - slack
+                                && p.y <= b.max_y + slack
+                                && p.z >= b.min_z - slack
+                                && p.z <= b.max_z + slack,
+                            "{what}: the arc point at t = {t} ({p:?}) left the edge box {b:?}"
+                        );
+                    }
+                }
+            },
+        );
     }
 
     /// **The adopted arm, ceiling.** The edge box at zero pad IS the
@@ -6064,25 +6110,34 @@ pub(crate) mod tests {
     /// doors that read it.
     #[test]
     fn the_conic_edge_box_is_the_exact_extremal_construction() {
-        for (what, body, scale) in adversarial_conic_sectors() {
-            let (edge, curve) = conic_edge(&body);
-            let b = edge_box(&body, edge, 0.0);
-            let (t0, t1) = curve.params();
-            let (c, p, q) = conic_frame(curve.carrier());
-            let tol = 1e-12 * (1.0 + scale);
-            for (name, got_lo, got_hi, ci, pi, qi) in [
-                ("x", b.min_x, b.max_x, c.x, p.x, q.x),
-                ("y", b.min_y, b.max_y, c.y, p.y, q.y),
-                ("z", b.min_z, b.max_z, c.z, p.z, q.z),
-            ] {
-                let (lo, hi) = conic_coordinate_extremes(ci, pi, qi, t0, t1);
-                assert!(
-                    (got_lo - lo).abs() <= tol && (got_hi - hi).abs() <= tol,
-                    "{what}: {name} is [{got_lo}, {got_hi}], the exact construction gives \
-                     [{lo}, {hi}] (tolerance {tol})"
-                );
-            }
-        }
+        // Pinned to limb 2's kernel limit at ε = 1e-12: a part near 1 km rounds at its own
+        // extent past the band (`work/offset/eps-min-leaves-no-certification-headroom-at-the-box-edge.md`).
+        test_utils::kernel_limit::pinned_row(
+            geom_core::Tol::witness().eps(),
+            &[1e-12],
+            "the_conic_edge_box_is_the_exact_extremal_construction",
+            || {
+                for (what, body, scale) in adversarial_conic_sectors() {
+                    let (edge, curve) = conic_edge(&body);
+                    let b = edge_box(&body, edge, 0.0);
+                    let (t0, t1) = curve.params();
+                    let (c, p, q) = conic_frame(curve.carrier());
+                    let tol = 1e-12 * (1.0 + scale);
+                    for (name, got_lo, got_hi, ci, pi, qi) in [
+                        ("x", b.min_x, b.max_x, c.x, p.x, q.x),
+                        ("y", b.min_y, b.max_y, c.y, p.y, q.y),
+                        ("z", b.min_z, b.max_z, c.z, p.z, q.z),
+                    ] {
+                        let (lo, hi) = conic_coordinate_extremes(ci, pi, qi, t0, t1);
+                        assert!(
+                            (got_lo - lo).abs() <= tol && (got_hi - hi).abs() <= tol,
+                            "{what}: {name} is [{got_lo}, {got_hi}], the exact construction gives \
+                         [{lo}, {hi}] (tolerance {tol})"
+                        );
+                    }
+                }
+            },
+        );
     }
 
     // ------------------------------------------------------------------
@@ -7088,36 +7143,45 @@ pub(crate) mod sphere_rect_rows {
     /// at every tilt and every ε.
     #[test]
     fn a_zone_axis_near_a_box_row_keeps_its_radial_share() {
-        let tol = Tol::witness();
-        let band = Band::linear(tol).unwrap();
-        let (r, h0) = (1e3, -0.3);
-        let c = Point3::new(120.0, -40.0, 75.0);
-        for t in [1e-9f64, 1e-8, 1e-7, 1e-4, 1e-3] {
-            let axis = Vec3::new(t.sin(), 0.0, t.cos());
-            let (body, cap, _) = strut_cap(
-                c,
-                r,
-                frame_about(axis),
-                (h0, -0.9),
-                (false, true),
-                true,
-                tol,
-            );
-            let boxed = face_box(&body, cap, super::sweep_pad(band), band).unwrap();
-            let top = c.z + r * (h0 * t.cos() + (1.0 - h0 * h0).sqrt() * t.sin());
-            assert!(
-                boxed.max_z >= top,
-                "tilt {t:e}: the padded box's top {} is {:e} m inside the cap's rim {top}",
-                boxed.max_z,
-                top - boxed.max_z
-            );
-            // The window was read: the box is the zone, not the ball.
-            assert!(
-                boxed.max_z < c.z,
-                "tilt {t:e}: the cap's box {} reads the ball, not its zone",
-                boxed.max_z
-            );
-        }
+        // Pinned to limb 2's kernel limit at ε = 1e-12: a part near 1 km rounds at its own
+        // extent past the band (`work/offset/eps-min-leaves-no-certification-headroom-at-the-box-edge.md`).
+        test_utils::kernel_limit::pinned_row(
+            geom_core::Tol::witness().eps(),
+            &[1e-12],
+            "a_zone_axis_near_a_box_row_keeps_its_radial_share",
+            || {
+                let tol = Tol::witness();
+                let band = Band::linear(tol).unwrap();
+                let (r, h0) = (1e3, -0.3);
+                let c = Point3::new(120.0, -40.0, 75.0);
+                for t in [1e-9f64, 1e-8, 1e-7, 1e-4, 1e-3] {
+                    let axis = Vec3::new(t.sin(), 0.0, t.cos());
+                    let (body, cap, _) = strut_cap(
+                        c,
+                        r,
+                        frame_about(axis),
+                        (h0, -0.9),
+                        (false, true),
+                        true,
+                        tol,
+                    );
+                    let boxed = face_box(&body, cap, super::sweep_pad(band), band).unwrap();
+                    let top = c.z + r * (h0 * t.cos() + (1.0 - h0 * h0).sqrt() * t.sin());
+                    assert!(
+                        boxed.max_z >= top,
+                        "tilt {t:e}: the padded box's top {} is {:e} m inside the cap's rim {top}",
+                        boxed.max_z,
+                        top - boxed.max_z
+                    );
+                    // The window was read: the box is the zone, not the ball.
+                    assert!(
+                        boxed.max_z < c.z,
+                        "tilt {t:e}: the cap's box {} reads the ball, not its zone",
+                        boxed.max_z
+                    );
+                }
+            },
+        );
     }
 
     /// **The reach's outward charge covers its rounding, measured.**

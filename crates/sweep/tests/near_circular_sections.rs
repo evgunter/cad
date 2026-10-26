@@ -516,7 +516,11 @@ fn a_near_square_rod_minus_a_box_builds() {
 /// The frustum of scale `S`: radius `r0 = S/2 + S/2` at `y = 0` and
 /// `r1 = S/2` at `y = S`, half-angle `atan ½`, apex above on `y`.
 struct Frustum {
-    body: Body<f64>,
+    /// `None` where the body is pinned to refuse as limb 2's kernel
+    /// limit: at 1 km and ε = 1e-12, where its cone's rim rounds at its
+    /// own extent past the band
+    /// (`work/offset/eps-min-leaves-no-certification-headroom-at-the-box-edge.md`).
+    body: Option<Body<f64>>,
     cone: Surface<f64>,
     r0: f64,
     r1: f64,
@@ -528,7 +532,7 @@ fn frustum(scale: f64) -> Frustum {
     let alpha = 0.5_f64.atan();
     let (h, r1) = (scale, 0.5 * scale);
     let r0 = r1 + h * alpha.tan();
-    let body = sweep::test_support::revolved_about_y(
+    let body = sweep::test_support::try_revolved_about_y_at(
         vec![
             (Point2::new(0.0, 0.0), 0.0),
             (Point2::new(r0, 0.0), 0.0),
@@ -538,6 +542,8 @@ fn frustum(scale: f64) -> Frustum {
         sweep::Revolution::Full,
         tol(),
     );
+    let pinned: &[f64] = if scale >= 1e3 { &[1e-12] } else { &[] };
+    let body = test_utils::kernel_limit::pinned(body, tol().eps(), pinned, "the frustum");
     let apex = h + r1 / alpha.tan();
     Frustum {
         body,
@@ -574,7 +580,7 @@ fn a_frustums_zero_pad_carries_its_closed_forms_rounding() {
         let f = frustum(scale);
         let want = PI * scale / 3.0 * (f.r0 * f.r0 + f.r0 * f.r1 + f.r1 * f.r1);
         for (pose, map) in [("as built", Affine3::identity()), ("turned", turn())] {
-            let body = moved_body(&f.body, &map);
+            let body = moved_body(f.body.as_ref().expect("the frustum builds"), &map);
             let props = topo::mass_properties(&body, tol()).expect("it measures");
             assert_eq!(
                 props.volume_pad, 0.0,
@@ -663,7 +669,11 @@ fn a_near_square_plane_cuts_a_frustum_in_its_exact_ellipse() {
 fn a_near_square_split_of_a_frustum_validates_its_halves() {
     for scale in SCALES {
         let f = frustum(scale);
-        let body = finished("the frustum", f.body.clone(), tol());
+        let body = finished(
+            "the frustum",
+            f.body.clone().expect("the frustum builds"),
+            tol(),
+        );
         let q = Point3::new(0.0, 0.5 * scale, 0.0);
         let rim = 0.5 * (f.r0 + f.r1);
         let whole = PI * (f.r0 * f.r0 * f.apex - f.r1 * f.r1 * (f.apex - scale)) / 3.0;
@@ -702,7 +712,11 @@ fn a_near_square_frustum_minus_a_box_builds() {
         let rim = 0.5 * (f.r0 + f.r1);
         for s in gap_sines(f.r1, cone_spread(rim)) {
             let what = format!("scale {scale:e}, sin θ {s:e}");
-            let turned = rotated(&f.body, Vec3::unit_z(), s.asin());
+            let turned = rotated(
+                f.body.as_ref().expect("the frustum builds"),
+                Vec3::unit_z(),
+                s.asin(),
+            );
             let got = topo::subtract(&turned, &cutter, tol())
                 .unwrap_or_else(|e| panic!("{what}: the subtract refused: {e}"));
             let delta = f.apex * (1.0 - s * s).sqrt() - y0;

@@ -118,10 +118,11 @@ pub use dihedral::{
 };
 pub use edge_nurbs::{
     AnalyticRung3Refusal, CARRIER_DOMAIN_RECOURSE, CarrierDomainFault, CarrierDomainRefusal,
-    IncidenceRefusal, PlaneNurbsIncidence, PlaneNurbsLimbs, PlaneNurbsRefusal, Rung3Limb,
-    analytic_edge_limbs, analytic_rung3, arc_rim_candidates, arc_rim_measured, first_within,
-    is_analytic, nurbs_pair_limbs, pick_arc_rim, plane_nurbs_incidence, plane_nurbs_limbs,
-    probe_pick, sub_arc_joint,
+    IncidenceRefusal, KERNEL_LIMIT_EXTENT_FACTOR, KERNEL_LIMIT_ROUNDING_FACTOR,
+    PlaneNurbsIncidence, PlaneNurbsLimbs, PlaneNurbsRefusal, Rung3Limb, analytic_edge_limbs,
+    analytic_rung3, arc_rim_candidates, arc_rim_measured, first_within, is_analytic,
+    nurbs_pair_limbs, pick_arc_rim, plane_nurbs_incidence, plane_nurbs_limbs, probe_pick,
+    sub_arc_joint,
 };
 pub use enters::{
     EntersMaterial, LeverEscalation, LeverRung, NormalAlignment, OutwardNormal, ParallelNormal,

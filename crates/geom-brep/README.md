@@ -96,10 +96,11 @@ the conversion is a per-span lever instead: a scalar bound on the
 carrier's distance from the axis, whose one square root is of a bound,
 in the scalar's own outward-rounded arithmetic. The edge certificate
 reads it per part of the carrier's knot spans, through one reader for
-every carrier: the carrier's net (`carrier_net`: a spline is its own
-net, a closed form its enclosing net), framed at each operand in
-certification arithmetic, so the bound rounds at the part's own scale
-and never at its distance from the world origin,
+every carrier (`pcurve_cache::limb2_offset_sup`): the carrier's net
+(`carrier_net::framed_carrier_net`: a spline is its own net, a closed
+form its enclosing net), framed at each operand in certification
+arithmetic, so the bound rounds at the part's own scale and never at
+its distance from the world origin,
 and on the cone a part the lever does not decide positive (one reaching
 the apex) reads `√|f|` instead: `f` is the product of the distances
 from the meridian half-plane's two generator lines, both on the implicit
@@ -119,7 +120,7 @@ hull, and a later round whose bound is NaN stops on the lowest certified
 bound before it rather than escalating. Limb 2's reading is an upper bound, and an
 upper bound shows no miss: a bound that ends above the band with no
 measured miss past it refuses as a kernel approximation limit
-([tolerance.recourse]), carrying the bound, the extent it was read over
+([tolerance.recourse]; `AnalyticRung3Refusal::KernelLimit`), carrying the bound, the extent it was read over
 and the carrier's own enclosure width there, so the one story can name
 the input's extent (the bound near that width) or the kernel's
 conditioning (the bound far above it); it is never an ambiguity of the

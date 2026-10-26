@@ -14,7 +14,7 @@ use geom::{Curve3, NurbsCurve3, Surface};
 use geom_brep::recourse::Reading;
 use geom_brep::{
     AnalyticRung3Refusal, CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, NurbsLane,
-    Rung3Limb, SurfaceKey, SurfacePair, chart_pcurve_over,
+    SurfaceKey, SurfacePair, chart_pcurve_over,
 };
 use geom_core::spline::KnotVector;
 use geom_core::{
@@ -156,7 +156,6 @@ fn a_carrier_off_the_plane_between_samples_refuses_on_the_plane_limb() {
             e,
             CertifyError::AnalyticRung3(AnalyticRung3Refusal::Limb {
                 operand: geom::SurfaceKind::Plane,
-                limb: Rung3Limb::HullValue,
                 margin,
                 ..
             }) if upper(*margin) <= off && upper(*margin) >= 0.99 * off
@@ -464,7 +463,6 @@ fn an_edges_limbs_read_only_its_own_interval_of_the_carrier() {
             past,
             Err(CertifyError::AnalyticRung3(AnalyticRung3Refusal::Limb {
                 operand: geom::SurfaceKind::Plane,
-                limb: Rung3Limb::HullValue,
                 margin,
             })) if upper(margin) <= off && upper(margin) >= 0.99 * off
         ),
@@ -559,7 +557,6 @@ fn limb_two_halves_the_parts_whose_bound_does_not_clear() {
             got,
             Err(AnalyticRung3Refusal::Limb {
                 operand: geom::SurfaceKind::Plane,
-                limb: Rung3Limb::HullValue,
                 margin,
             }) if upper(margin) > 10.0 * zero && upper(margin) <= 20.0 * zero
         ),
@@ -637,7 +634,6 @@ fn limb_two_halves_then_stops_on_a_breaks_miss() {
             got,
             Err(AnalyticRung3Refusal::Limb {
                 operand: geom::SurfaceKind::Plane,
-                limb: Rung3Limb::HullValue,
                 margin,
             }) if upper(*margin) > band.escalate() && upper(*margin) <= peak
         )

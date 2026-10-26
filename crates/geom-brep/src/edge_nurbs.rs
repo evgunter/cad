@@ -1400,11 +1400,12 @@ pub fn analytic_rung3<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     }
     let (lo, hi) = crate::carrier_net::outer_ends(params);
     let piece = edge_piece(carrier, lo, hi)?;
-    let lane = crate::FittedLane::<T>::certified();
+    let curve = Curve3::Nurbs(std::sync::Arc::new(carrier.clone()));
     for operand in [s1, s2] {
         limb2(
             operand,
-            crate::pcurve_cache::projected::net_offset_sup(carrier, params, operand, band, lane),
+            crate::pcurve_cache::limb2_offset_sup(&curve, params, operand, band),
+            false,
             band,
         )?;
     }
@@ -1472,7 +1473,8 @@ pub fn analytic_edge_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     for operand in [s1, s2] {
         limb2(
             operand,
-            crate::pcurve_cache::closed_form_offset_sup(carrier, params, operand, band),
+            crate::pcurve_cache::limb2_offset_sup(carrier, params, operand, band),
+            matches!(carrier, Curve3::Line { .. }) && matches!(operand, Surface::Plane { .. }),
             band,
         )?;
     }
@@ -1480,60 +1482,91 @@ pub fn analytic_edge_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
 }
 
 /// Limb 2 against `operand`, decided on what the composite read of the
-/// carrier's distance from it.
+/// carrier's distance from it: a measured miss at a break first
+/// ([`Rung3Limb::HullValue`]), then the upper bound over the interval,
+/// which clears the band or is the kernel's approximation limit
+/// ([`AnalyticRung3Refusal::KernelLimit`]) and never a miss.
+///
+/// `attained` says the bound is a measured value: a line against a
+/// plane composes to a function linear in the parameter, whose
+/// Bernstein bound is its value at an end of the span. Where such a
+/// bound lies far above the net's own rounding (past
+/// [`KERNEL_LIMIT_ROUNDING_FACTOR`] times its width), it is that end's
+/// distance from the plane, the chord's vertex offset, and is decided
+/// as the measured miss it is; within the rounding it is the rounding,
+/// the kernel's limit.
 fn limb2<T: Decide>(
     operand: &Surface<T>,
-    read: Result<crate::pcurve_cache::projected::Offset<T>, crate::PcurveCertifyError>,
+    read: Result<crate::pcurve_cache::projected::OffsetRead<T>, crate::PcurveCertifyError>,
+    attained: bool,
     band: Band,
 ) -> Result<(), AnalyticRung3Refusal> {
-    use crate::pcurve_cache::projected::Offset;
+    use crate::pcurve_cache::projected::{Offset, OffsetRead};
     let kind = operand.kind();
     let refused = |e| AnalyticRung3Refusal::of_offset(kind, e);
-    let offset = match read.map_err(refused)? {
-        Offset::Bound(offset) => offset,
+    let OffsetRead {
+        offset,
+        size,
+        upper,
+    } = read.map_err(refused)?;
+    let bound = match offset {
+        Offset::Bound(bound) => bound,
         Offset::Miss { floor, bound } => {
-            rung3_limb(kind, Limb2::Miss, floor, band)?;
+            measured_miss(kind, floor, band)?;
             bound.map_err(refused)?
         }
     };
-    rung3_limb(kind, Limb2::Bound, offset, band)
+    if attained && upper > KERNEL_LIMIT_ROUNDING_FACTOR * size.width {
+        return measured_miss(kind, bound, band);
+    }
+    upper_bound(kind, bound, upper, size, band)
 }
 
-/// Which of limb 2's readings a verdict decides on.
-#[derive(Clone, Copy)]
-enum Limb2 {
-    /// The bound over the edge's interval ([`Rung3Limb::HullSup`]).
-    Bound,
-    /// A break's measured miss ([`Rung3Limb::HullValue`]).
-    Miss,
-}
-
-/// Limb 2's verdict against `operand` on its reading `value`, in metres,
-/// decided zero against the band at the reading's predicate.
-fn rung3_limb<T: Decide>(
+/// Limb 2's measured miss at a break: a certified floor on the
+/// carrier's distance from the operand, decided zero against the band.
+fn measured_miss<T: Decide>(
     operand: geom::SurfaceKind,
-    reading: Limb2,
-    value: T,
+    floor: T,
     band: Band,
 ) -> Result<(), AnalyticRung3Refusal> {
-    let (limb, predicate) = match reading {
-        Limb2::Bound => (Rung3Limb::HullSup, "ssi_hull_sup"),
-        Limb2::Miss => (Rung3Limb::HullValue, "ssi_hull_value"),
-    };
-    match crate::dihedral::decide_reported(predicate, geom_core::Margin::of(value), band) {
+    match crate::dihedral::decide_reported("ssi_hull_value", geom_core::Margin::of(floor), band) {
         Ok(Decided {
             sign: Sign::Zero, ..
         }) => Ok(()),
-        Ok(Decided { margin, .. }) => Err(AnalyticRung3Refusal::Limb {
-            operand,
-            limb,
-            margin,
-        }),
+        Ok(Decided { margin, .. }) => Err(AnalyticRung3Refusal::Limb { operand, margin }),
         Err(cause) => Err(AnalyticRung3Refusal::Escalated {
             operand: Some(operand),
-            limb,
+            limb: Rung3Limb::HullValue,
             cause,
         }),
+    }
+}
+
+/// Limb 2's upper bound over the edge's interval: it clears the band, or
+/// it is the kernel's approximation limit at this tolerance — an upper
+/// bound shows no miss, so it is neither a definite refusal nor an
+/// ambiguity of the input.
+fn upper_bound<T: Decide>(
+    operand: geom::SurfaceKind,
+    bound: T,
+    upper: f64,
+    size: crate::pcurve_cache::projected::NetSize,
+    band: Band,
+) -> Result<(), AnalyticRung3Refusal> {
+    let limit = |margin, terminal| AnalyticRung3Refusal::KernelLimit {
+        operand,
+        bound: upper,
+        margin,
+        width: size.width,
+        extent: size.extent,
+        terminal,
+    };
+    match crate::dihedral::decide_reported("ssi_hull_sup", geom_core::Margin::of(bound), band) {
+        Ok(Decided {
+            sign: Sign::Zero, ..
+        }) => Ok(()),
+        Ok(Decided { margin, .. }) => Err(limit(margin, true)),
+        Err(cause) => Err(limit(cause.margin, cause.terminal_sliver)),
     }
 }
 
@@ -1663,21 +1696,46 @@ impl Rung3Limb {
     strum_discriminants(name(AnalyticRung3RefusalKind), derive(strum::EnumIter), doc(hidden))
 )]
 pub enum AnalyticRung3Refusal {
-    /// Limb 2 against an operand lies past the band: its certified
-    /// distance bound ([`Rung3Limb::HullSup`]), so the certificate cannot
-    /// show the carrier on that surface between the schedule's samples,
-    /// or the carrier's certified distance from it at a break
-    /// ([`Rung3Limb::HullValue`]), so the carrier is off it there.
+    /// Limb 2's measured miss: the carrier's certified distance from
+    /// the operand at a break lies past the band
+    /// ([`Rung3Limb::HullValue`]), so the carrier is off that surface
+    /// there. The one definite refusal limb 2 makes.
     Limb {
         /// The operand the reading is from.
         operand: geom::SurfaceKind,
-        /// Which limb refused.
-        limb: Rung3Limb,
         /// What the classifier saw of the reading, in metres, for error
         /// reporting only ([`MarginDiag`]): it rides
         /// [`AnalyticRung3Refusal::decision`]'s sign-certain arm to the
         /// import door's words on the limb's check.
         margin: MarginDiag,
+    },
+    /// **The kernel's approximation limit** ([tolerance.recourse]):
+    /// limb 2's upper bound on the carrier's distance from the operand
+    /// ends past the band's zero with no measured miss past it. An upper
+    /// bound shows no miss, so this says nothing of the input; it says
+    /// the certificate cannot get under the tolerance here. The bound is
+    /// read against the carrier's own enclosure width in the operand's
+    /// frame: near it, the input's extent is the limit at this
+    /// tolerance; far above it, the composite's conditioning
+    /// ([`AnalyticRung3Refusal::ending`]).
+    KernelLimit {
+        /// The operand the bound is from.
+        operand: geom::SurfaceKind,
+        /// The bound's upper end, in metres.
+        bound: f64,
+        /// The bound as the classifier saw it.
+        margin: MarginDiag,
+        /// The carrier's own enclosure width in the operand's frame, in
+        /// metres ([`crate::carrier_net::CarrierNet::width`]).
+        width: f64,
+        /// The extent the bound was read over: the diagonal of the
+        /// carrier's net's control box, in metres.
+        extent: f64,
+        /// Whether no subdivision of the input decides the bound: the
+        /// classifier's terminal bit where it lay in the band
+        /// ([`Indeterminate::terminal_sliver`]), kept so the driver does
+        /// not retry it; `true` past the band.
+        terminal: bool,
     },
     /// A limb's margin escalated.
     Escalated {
@@ -1736,6 +1794,17 @@ pub enum AnalyticRung3Refusal {
 }
 
 impl AnalyticRung3Refusal {
+    /// Whether no subdivision of the input decides this refusal: a
+    /// [`Self::KernelLimit`] past the band, or one in it whose enclosure
+    /// is a terminal sliver; `false` for every other refusal.
+    #[must_use]
+    pub fn terminal(&self) -> bool {
+        match self {
+            Self::KernelLimit { terminal, .. } => *terminal,
+            _ => false,
+        }
+    }
+
     fn of_offset(operand: geom::SurfaceKind, e: crate::PcurveCertifyError) -> Self {
         match e {
             crate::PcurveCertifyError::Escalated { cause, .. } => Self::Escalated {
@@ -1798,6 +1867,15 @@ impl AnalyticRung3Refusal {
         if let Self::TubeNotOneArc { cause, .. } = *self {
             return Some(cause.ending(crate::ssi::OneArcDoor::AtRest, at));
         }
+        if let Self::KernelLimit {
+            bound,
+            width,
+            extent,
+            ..
+        } = *self
+        {
+            return Some(kernel_limit_ending(bound, width, extent));
+        }
         self.decision().map(|(check, arm)| recourse(check, arm, at))
     }
 
@@ -1805,14 +1883,18 @@ impl AnalyticRung3Refusal {
     #[must_use]
     pub fn decision(&self) -> Option<(CertCheck, RefusedArm<'_>)> {
         Some(match self {
-            Self::Limb { limb, margin, .. } => {
-                (limb.check(), RefusedArm::SignCertain(Some(*margin)))
-            }
+            Self::Limb { margin, .. } => (
+                Rung3Limb::HullValue.check(),
+                RefusedArm::SignCertain(Some(*margin)),
+            ),
             Self::Escalated { limb, cause, .. } => (limb.check(), RefusedArm::Undecided(cause)),
             Self::TubeStraddles { verdict, .. } => (CertCheck::TransversalityTube, verdict.arm()),
             // The one-arc proof is the SSI door's own decision, and
             // `ending` reads it there.
+            // The kernel's limit is no decision's refused arm about the
+            // input, and `ending` gives its own story.
             Self::NoOffsetBound { .. }
+            | Self::KernelLimit { .. }
             | Self::CarrierEnclosure(_)
             | Self::NoTubeEnclosure { .. }
             | Self::TubeNotOneArc { .. }
@@ -1826,27 +1908,26 @@ impl AnalyticRung3Refusal {
 impl core::fmt::Display for AnalyticRung3Refusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::Limb {
-                operand,
-                limb: limb @ Rung3Limb::HullValue,
-                margin,
-            } => write!(
+            Self::Limb { operand, margin } => write!(
                 f,
                 "{} puts the carrier at least {margin:e} m from the {}, past the run \
                  tolerance — the carrier leaves that surface between the schedule's samples",
-                limb.name(),
+                Rung3Limb::HullValue.name(),
                 operand.name()
             ),
-            Self::Limb {
+            Self::KernelLimit {
                 operand,
-                limb,
-                margin,
+                bound,
+                width,
+                extent,
+                ..
             } => write!(
                 f,
-                "{} bounds the carrier's distance from the {} by {margin:e} m, past the run \
-                 tolerance — the certificate cannot show the carrier stays on that surface \
-                 between the schedule's samples",
-                limb.name(),
+                "{} bounds the carrier's distance from the {} by {bound:e} m over {extent:e} m \
+                 of it, which does not clear the run tolerance; the carrier's own rounding \
+                 there is {width:e} m, and an upper bound shows no miss, so the certificate \
+                 cannot show the carrier stays on that surface at this tolerance",
+                Rung3Limb::HullSup.name(),
                 operand.name()
             ),
             Self::Escalated {
@@ -1895,6 +1976,48 @@ impl core::fmt::Display for AnalyticRung3Refusal {
                 write!(f, "outside the analytic rung-3 certificate: {what}")
             }
         }
+    }
+}
+
+/// How far above the carrier's own rounding limb 2's bound may lie and
+/// still read as that rounding ([`AnalyticRung3Refusal::KernelLimit`]'s
+/// ending): within this factor the input's extent is the limit, past it
+/// the composite's conditioning. An order of magnitude: the composite's
+/// arithmetic adds a few roundings at the net's scale to the net's own.
+pub const KERNEL_LIMIT_ROUNDING_FACTOR: f64 = 16.0;
+
+/// How far above `extent · 2⁻⁵²` the carrier's own rounding may lie and
+/// still be its extent's ([`AnalyticRung3Refusal::KernelLimit`]'s
+/// ending): past it the net rounds at its distance from the operand's
+/// own origin (a large radius), not at its own size.
+pub const KERNEL_LIMIT_EXTENT_FACTOR: f64 = 64.0;
+
+/// **The one story of limb 2's kernel limit** ([tolerance.recourse] (i),
+/// (iv)), its recourse read off the data: a bound within
+/// [`KERNEL_LIMIT_ROUNDING_FACTOR`] of the carrier's own rounding `width`
+/// is that rounding; where that rounding is the edge's own extent's
+/// (within [`KERNEL_LIMIT_EXTENT_FACTOR`] of `extent · 2⁻⁵²`), the extent
+/// is the limit at this tolerance and shorter edges are the lever. A
+/// rounding set by the carrier's distance from the operand's origin, or
+/// a bound far above the rounding (the composite's conditioning), names
+/// no lever, so it names loosening as the last resort and the kernel bug
+/// it may be.
+fn kernel_limit_ending(bound: f64, width: f64, extent: f64) -> String {
+    let rounding = bound <= KERNEL_LIMIT_ROUNDING_FACTOR * width;
+    if rounding && width <= KERNEL_LIMIT_EXTENT_FACTOR * extent * f64::EPSILON {
+        "The bound is the curve's own rounding at its length, too long to certify at this \
+         tolerance. Recourse: split the edge into shorter edges"
+            .to_owned()
+    } else if rounding {
+        format!(
+            "The bound is the curve's rounding at a large radius, not at its length. {}",
+            geom_core::KERNEL_LIMIT_RECOURSE
+        )
+    } else {
+        format!(
+            "The bound is far above the curve's own rounding, the kernel's conditioning. {}",
+            geom_core::KERNEL_LIMIT_RECOURSE
+        )
     }
 }
 

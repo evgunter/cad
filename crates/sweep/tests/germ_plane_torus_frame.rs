@@ -401,10 +401,10 @@ fn the_donuts_corner_bar_refuses_at_its_end_square() {
 /// No declaration is read.
 #[test]
 fn the_lilys_stem_glue_passes_the_chord_to_the_interior_loop_guard() {
-    let (s, a) = (
-        crate::mate7a_r1_probes::stem(),
-        crate::mate7a_r1_probes::arch(),
-    );
+    let Some(s) = crate::mate7a_r1_probes::stem() else {
+        return;
+    };
+    let a = crate::mate7a_r1_probes::arch();
     for (label, x, y) in [("stem ∪ arch", &s, &a), ("arch ∪ stem", &a, &s)] {
         let r = topo::union(x, y, Tol::witness());
         assert!(

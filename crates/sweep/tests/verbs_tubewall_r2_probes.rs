@@ -33,6 +33,15 @@ fn c() -> Point3<f64> {
     Point3::new(0.0, 0.0, 0.0)
 }
 
+/// The ε rows a case may refuse at as limb 2's kernel limit: a ring
+/// forty times its tube or more bounds its torus walls' circles near
+/// the finest band, the torus composite's conditioning over the circles'
+/// own rounding
+/// (`work/offset/the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding.md`).
+fn kernel_limit_rows(major: f64, minor: f64) -> &'static [f64] {
+    if major >= 40.0 * minor { &[1e-12] } else { &[] }
+}
+
 fn build(
     major: f64,
     window: TubeWindow<f64>,
@@ -110,7 +119,14 @@ fn r2_inner_radius_is_the_callers_own_rounding() {
             "sanity: the probe's own arithmetic"
         );
         for window in [TubeWindow::Full, TubeWindow::Arc { t0: 0.25, t1: 1.75 }] {
-            let t = build(major, window, minor, wall).expect("builds");
+            let Some(t) = test_utils::kernel_limit::may_refuse(
+                build(major, window, minor, wall),
+                Tol::witness().eps(),
+                kernel_limit_rows(major, minor),
+                "the tube",
+            ) else {
+                continue;
+            };
             let got = minors(&t.body);
             let mut want = vec![
                 inner.to_bits(),
@@ -331,9 +347,15 @@ fn r2_closed_forms_over_varied_radii_walls_and_windows() {
             None => TubeWindow::Full,
             Some((t0, t1)) => TubeWindow::Arc { t0, t1 },
         };
-        let t = build(major, window, minor, wall)
-            .unwrap_or_else(|e| panic!("R {major} ro {minor} wall {wall} arc {arc:?}: {e}"));
         let what = format!("R {major} ro {minor} wall {wall} arc {arc:?}");
+        let Some(t) = test_utils::kernel_limit::may_refuse(
+            build(major, window, minor, wall),
+            Tol::witness().eps(),
+            kernel_limit_rows(major, minor),
+            &what,
+        ) else {
+            continue;
+        };
         tiers(&t.body, &what);
 
         let area_sec = PI * (minor * minor - inner * inner);
@@ -797,9 +819,15 @@ mod certified {
                     t1: iv(t1),
                 },
             };
-            let t = hollow_iv(major, window, minor, wall)
-                .unwrap_or_else(|e| panic!("R {major} ro {minor} wall {wall} arc {arc:?}: {e}"));
             let what = format!("interval R {major} ro {minor} wall {wall} arc {arc:?}");
+            let Some(t) = test_utils::kernel_limit::may_refuse(
+                hollow_iv(major, window, minor, wall),
+                Tol::witness().eps(),
+                super::kernel_limit_rows(major, minor),
+                &what,
+            ) else {
+                continue;
+            };
             assert_eq!(
                 topo::validate_geometric(&t.body, Tol::witness()),
                 Ok(()),

@@ -27,6 +27,12 @@
 //!
 //! [`carrier_net`] is the door every limb-2 composite reads a carrier
 //! through: a spline as its own net, any other kind as its net here.
+//! [`framed_carrier_net`] is the same net written in a [`Frame`] (an
+//! analytic operand's chart frame) in certification arithmetic, the
+//! frame applied to the carrier's own data before anything is expanded:
+//! a closed form's centre and axes, a line's origin and direction, a
+//! spline's controls. Each control then rounds at its distance from the
+//! frame's origin, never at its distance from the world origin.
 
 use geom::Curve3;
 use geom_core::interval::Interval;
@@ -83,9 +89,14 @@ fn lift_p<T: CertifiedBounds>(p: Point3<T>) -> Vec3<Interval> {
 }
 
 /// `None` for a line or a spline carrier, neither of which is a
-/// harmonic.
-fn harmonic<T: CertifiedBounds>(carrier: &Curve3<T>) -> Option<Harmonic> {
+/// harmonic. Written in `frame` where one is given: each stored point
+/// is framed before it is combined with anything (a spiric's centre and
+/// its offset along `u_ref` separately), so no sum rounds at the world
+/// origin's scale; the axes are formed and then framed.
+fn harmonic<T: CertifiedBounds>(carrier: &Curve3<T>, frame: Option<&Frame>) -> Option<Harmonic> {
     let i = Interval::from_certified;
+    let pt = |p: Point3<T>| frame.map_or(lift_p(p), |f| f.point(lift_p(p)));
+    let vc = |v: Vec3<Interval>| frame.map_or(v, |f| f.vector(v));
     match carrier {
         Curve3::Circle {
             center,
@@ -95,9 +106,9 @@ fn harmonic<T: CertifiedBounds>(carrier: &Curve3<T>) -> Option<Harmonic> {
         } => {
             let (axis, u_ref, r) = (lift_v(*axis), lift_v(*u_ref), i(*radius));
             Some(Harmonic {
-                p0: lift_p(*center),
-                u: u_ref * r,
-                v: axis.cross(u_ref) * r,
+                p0: pt(*center),
+                u: vc(u_ref * r),
+                v: vc(axis.cross(u_ref) * r),
                 alpha: Alpha::Cos,
             })
         }
@@ -110,9 +121,9 @@ fn harmonic<T: CertifiedBounds>(carrier: &Curve3<T>) -> Option<Harmonic> {
         } => {
             let (axis, u_ref) = (lift_v(*axis), lift_v(*u_ref));
             Some(Harmonic {
-                p0: lift_p(*center),
-                u: u_ref * i(*semi_u),
-                v: axis.cross(u_ref) * i(*semi_v),
+                p0: pt(*center),
+                u: vc(u_ref * i(*semi_u)),
+                v: vc(axis.cross(u_ref) * i(*semi_v)),
                 alpha: Alpha::Cos,
             })
         }
@@ -127,9 +138,9 @@ fn harmonic<T: CertifiedBounds>(carrier: &Curve3<T>) -> Option<Harmonic> {
             let (axis, u_ref) = (lift_v(*axis), lift_v(*u_ref));
             let (minor, offset) = (i(*minor_radius), i(*offset));
             Some(Harmonic {
-                p0: lift_p(*center) + u_ref * offset,
-                u: axis.cross(u_ref),
-                v: axis * minor,
+                p0: pt(*center) + vc(u_ref * offset),
+                u: vc(axis.cross(u_ref)),
+                v: vc(axis * minor),
                 alpha: Alpha::Spiric {
                     major: i(*major_radius),
                     minor,
@@ -138,6 +149,40 @@ fn harmonic<T: CertifiedBounds>(carrier: &Curve3<T>) -> Option<Harmonic> {
             })
         }
         Curve3::Line { .. } | Curve3::Nurbs(_) => None,
+    }
+}
+
+/// **A frame in certification arithmetic**: an origin and three axes,
+/// each a certified enclosure. A point is written in it as
+/// `((p − o)·e₀, (p − o)·e₁, (p − o)·e₂)` and a vector as `(v·eᵢ)`, in
+/// outward-rounded interval arithmetic, so the written net encloses the
+/// carrier's image under the frame's exact map.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Frame {
+    origin: Vec3<Interval>,
+    axes: [Vec3<Interval>; 3],
+}
+
+impl Frame {
+    /// The frame of `origin` and `axes`, each lifted to its certified
+    /// enclosure.
+    pub(crate) fn of<T: CertifiedBounds>(origin: Point3<T>, axes: [Vec3<T>; 3]) -> Self {
+        Self {
+            origin: lift_p(origin),
+            axes: axes.map(lift_v),
+        }
+    }
+
+    fn vector(&self, v: Vec3<Interval>) -> Vec3<Interval> {
+        Vec3::new(
+            v.dot(self.axes[0]),
+            v.dot(self.axes[1]),
+            v.dot(self.axes[2]),
+        )
+    }
+
+    fn point(&self, p: Vec3<Interval>) -> Vec3<Interval> {
+        self.vector(p - self.origin)
     }
 }
 
@@ -313,6 +358,96 @@ impl CarrierNet {
     pub(crate) fn cuts(&self) -> &[f64] {
         &self.cuts
     }
+
+    /// **The net's own enclosure width**, in metres: the widest of its
+    /// controls' enclosures over every channel. What the composite read
+    /// of the carrier cannot be sharper than, whatever it is composed
+    /// with: the carrier's own rounding in the frame it is written in.
+    /// NaN where a control does not certify.
+    pub(crate) fn width(&self) -> f64 {
+        self.coords
+            .iter()
+            .flatten()
+            .map(|c| {
+                if c.is_certified() {
+                    Bounds::hi(*c) - Bounds::lo(*c)
+                } else {
+                    f64::NAN
+                }
+            })
+            .fold(0.0, |m: f64, w| {
+                if m.is_nan() || w.is_nan() {
+                    f64::NAN
+                } else {
+                    m.max(w)
+                }
+            })
+    }
+
+    /// **The net's extent**, in metres: the diagonal of its controls'
+    /// box, which holds the carrier over the net's domain (the convex
+    /// hull of a net with positive weights). NaN where a control does
+    /// not certify.
+    pub(crate) fn extent(&self) -> f64 {
+        let reach = |row: &Vec<Interval>| {
+            let lo = row
+                .iter()
+                .map(|c| Bounds::lo(*c))
+                .fold(f64::INFINITY, f64::min);
+            let hi = row
+                .iter()
+                .map(|c| Bounds::hi(*c))
+                .fold(f64::NEG_INFINITY, f64::max);
+            hi - lo
+        };
+        if !self.coords.iter().flatten().all(|c| c.is_certified()) {
+            return f64::NAN;
+        }
+        self.coords
+            .iter()
+            .map(reach)
+            .map(|r| r.powi(2))
+            .sum::<f64>()
+            .sqrt()
+    }
+
+    /// The net as a curve over certification enclosures: its knots and
+    /// weights as point enclosures, its controls as held.
+    ///
+    /// # Errors
+    ///
+    /// `None` where the data form no curve.
+    pub(crate) fn curve(&self) -> Option<geom::NurbsCurve3<Interval>> {
+        let control = (0..self.coords[0].len())
+            .map(|i| Point3::new(self.coords[0][i], self.coords[1][i], self.coords[2][i]))
+            .collect();
+        geom::NurbsCurve3::new(
+            geom_core::spline::Knots::from(self.knots.clone())
+                .lift(|k| Interval::from_bounds(k, k)),
+            control,
+            self.weights
+                .iter()
+                .map(|&w| Interval::from_bounds(w, w))
+                .collect(),
+        )
+        .ok()
+    }
+}
+
+/// A spline as its own net: its knots and weights, `coords` for its
+/// controls (as held, or written in a frame), `breaks` as the cuts the
+/// composite inserts.
+fn spline_net<T: CertifiedBounds>(
+    net: &geom::NurbsCurve3<T>,
+    coords: Vec<Vec<Interval>>,
+    breaks: &[f64],
+) -> CarrierNet {
+    CarrierNet {
+        knots: net.knots_f64_interim().clone(),
+        weights: net.weights_f64_interim().to_vec(),
+        coords,
+        cuts: breaks.to_vec(),
+    }
 }
 
 /// **The carrier's certified net over `domain`, cut at `breaks`** —
@@ -336,12 +471,7 @@ pub(crate) fn carrier_net<T: CertifiedBounds>(
     breaks: &[f64],
 ) -> Result<CarrierNet, CarrierEnclosureRefusal> {
     if let Curve3::Nurbs(net) = carrier {
-        return Ok(CarrierNet {
-            knots: net.knots_f64_interim().clone(),
-            weights: net.weights_f64_interim().to_vec(),
-            coords: net.certified_coords(),
-            cuts: breaks.to_vec(),
-        });
+        return Ok(spline_net(net, net.certified_coords(), breaks));
     }
     let mut all: Vec<f64> = breaks
         .iter()
@@ -351,7 +481,51 @@ pub(crate) fn carrier_net<T: CertifiedBounds>(
     all.extend([lo, hi]);
     all.sort_by(f64::total_cmp);
     all.dedup();
-    let net = enclosing_net(carrier, &all)?;
+    let net = enclosing_net(carrier, &all, None)?;
+    Ok(CarrierNet {
+        weights: vec![1.0; net.knots.control_count()],
+        knots: net.knots,
+        coords: net.coords,
+        cuts: Vec::new(),
+    })
+}
+
+/// **[`carrier_net`] written in `frame`**, the frame applied to the
+/// carrier's own data first (module docs): a spline's controls, a
+/// line's origin and direction, a closed form's centre and axes, then
+/// the closed form expanded span by span as [`carrier_net`] expands it.
+/// The one place limb 2's reader frames a carrier at an operand.
+///
+/// # Errors
+///
+/// As [`carrier_net`].
+pub(crate) fn framed_carrier_net<T: CertifiedBounds>(
+    carrier: &Curve3<T>,
+    (lo, hi): (f64, f64),
+    breaks: &[f64],
+    frame: &Frame,
+) -> Result<CarrierNet, CarrierEnclosureRefusal> {
+    if let Curve3::Nurbs(net) = carrier {
+        let coords = net.certified_coords();
+        let framed: Vec<Vec3<Interval>> = (0..coords[0].len())
+            .map(|i| frame.point(Vec3::new(coords[0][i], coords[1][i], coords[2][i])))
+            .collect();
+        let coords = vec![
+            framed.iter().map(|p| p.x).collect(),
+            framed.iter().map(|p| p.y).collect(),
+            framed.iter().map(|p| p.z).collect(),
+        ];
+        return Ok(spline_net(net, coords, breaks));
+    }
+    let mut all: Vec<f64> = breaks
+        .iter()
+        .copied()
+        .filter(|&t| lo < t && t < hi)
+        .collect();
+    all.extend([lo, hi]);
+    all.sort_by(f64::total_cmp);
+    all.dedup();
+    let net = enclosing_net(carrier, &all, Some(frame))?;
     Ok(CarrierNet {
         weights: vec![1.0; net.knots.control_count()],
         knots: net.knots,
@@ -400,6 +574,7 @@ fn span_certifies(row: &[Interval]) -> bool {
 fn enclosing_net<T: CertifiedBounds>(
     carrier: &Curve3<T>,
     breaks: &[f64],
+    frame: Option<&Frame>,
 ) -> Result<EnclosingNet, CarrierEnclosureRefusal> {
     let refuse = |span| CarrierEnclosureRefusal {
         kind: carrier.kind(),
@@ -414,7 +589,10 @@ fn enclosing_net<T: CertifiedBounds>(
         return Err(refuse(whole));
     }
     if let Curve3::Line { origin, dir } = carrier {
-        let (o, d) = (lift_p(*origin), lift_v(*dir));
+        let (o, d) = match frame {
+            Some(f) => (f.point(lift_p(*origin)), f.vector(lift_v(*dir))),
+            None => (lift_p(*origin), lift_v(*dir)),
+        };
         let mut knots = vec![first];
         knots.extend_from_slice(breaks);
         knots.push(last);
@@ -436,7 +614,7 @@ fn enclosing_net<T: CertifiedBounds>(
             ],
         });
     }
-    let Some(h) = harmonic(carrier) else {
+    let Some(h) = harmonic(carrier, frame) else {
         return Err(refuse(whole));
     };
     let mut knots = vec![first; ORDER + 1];
@@ -476,7 +654,7 @@ mod tests {
     /// by its interval evaluation, which must contain `C(t)` at `f64`,
     /// and no wider than `width` where one is asked.
     fn encloses(carrier: &Curve3<f64>, breaks: &[f64], width: Option<f64>) -> Result<(), String> {
-        let net = enclosing_net(carrier, breaks).map_err(|e| e.to_string())?;
+        let net = enclosing_net(carrier, breaks, None).map_err(|e| e.to_string())?;
         let p = net.knots.degree();
         for (k, pair) in breaks.windows(2).enumerate() {
             for j in 0..=40 {
@@ -710,5 +888,117 @@ mod tests {
         let net = carrier_net(&circle, (0.0, 1.0), &[0.5]).unwrap();
         assert_eq!(net.operand().0.degree(), super::ORDER, "a circle at ORDER");
         assert_eq!(net.operand().0.control_count(), 2 * super::ORDER + 1);
+    }
+
+    /// An exact sum of doubles as a nonoverlapping expansion, by
+    /// error-free transformations (`TwoSum`).
+    fn grow(expansion: &mut Vec<f64>, x: f64) {
+        let mut q = x;
+        let mut out = Vec::with_capacity(expansion.len() + 1);
+        for &e in expansion.iter() {
+            let s = q + e;
+            let bv = s - q;
+            let err = (q - (s - bv)) + (e - bv);
+            if err != 0.0 {
+                out.push(err);
+            }
+            q = s;
+        }
+        out.push(q);
+        *expansion = out;
+    }
+
+    /// The sign of an expansion's exact value: its most significant
+    /// nonzero component's.
+    fn sign(expansion: &[f64]) -> f64 {
+        expansion
+            .iter()
+            .rev()
+            .copied()
+            .find(|&x| x != 0.0)
+            .map_or(0.0, f64::signum)
+    }
+
+    /// `(p − o)·e` exactly, for differences `p − o` that are exact
+    /// (Sterbenz), as an expansion: each product split by `fma`.
+    fn exact_framed(p: Point3<f64>, o: Point3<f64>, e: Vec3<f64>) -> Vec<f64> {
+        let d = [p.x - o.x, p.y - o.y, p.z - o.z];
+        assert!(
+            (d[0] + o.x == p.x) && (d[1] + o.y == p.y) && (d[2] + o.z == p.z),
+            "the differences are exact"
+        );
+        let mut sum = Vec::new();
+        for (di, ei) in d.into_iter().zip([e.x, e.y, e.z]) {
+            let hi = di * ei;
+            let lo = di.mul_add(ei, -hi);
+            grow(&mut sum, hi);
+            grow(&mut sum, lo);
+        }
+        sum
+    }
+
+    /// **A spline framed at an operand is enclosed.** Its controls sit
+    /// near 1 km and the frame's axis is skew, so `(p − o)·e` rounds in
+    /// `f64`: a net framed at `f64` and lifted as points (what the
+    /// spline path did before the one reader) misses the exact framed
+    /// control, which this row first shows by computing that value
+    /// exactly and finding it off the `f64` rounding. The framed net's
+    /// controls enclose it on every channel.
+    #[test]
+    fn a_spline_framed_at_an_operand_encloses_its_exact_framed_controls() {
+        let control = vec![
+            Point3::new(1000.1, -999.7, 1000.3),
+            Point3::new(1000.9, -999.2, 1001.7),
+            Point3::new(1001.3, -998.6, 1000.9),
+        ];
+        let spline = geom::NurbsCurve3::new(
+            geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap(),
+            control.clone(),
+            vec![1.0, 0.5, 1.0],
+        )
+        .unwrap();
+        let o = Point3::new(999.0, -1000.0, 999.5);
+        let n = |v: Vec3<f64>| v / v.norm();
+        let axes = [
+            n(Vec3::new(1.0, 2.0, 3.0)),
+            n(Vec3::new(-2.0, 1.0, 0.0)),
+            n(Vec3::new(3.0, 6.0, -5.0)),
+        ];
+        let frame = super::Frame::of(o, axes);
+        let net = super::framed_carrier_net(
+            &Curve3::Nurbs(std::sync::Arc::new(spline)),
+            (0.0, 1.0),
+            &[],
+            &frame,
+        )
+        .unwrap();
+        let (_, _, coords) = net.operand();
+        let mut rounded_off = 0;
+        for (i, p) in control.iter().enumerate() {
+            for (c, e) in axes.iter().enumerate() {
+                let exact = exact_framed(*p, o, *e);
+                let d = *p - o;
+                let rounded = d.x * e.x + d.y * e.y + d.z * e.z;
+                let mut off = exact.clone();
+                grow(&mut off, -rounded);
+                if sign(&off) != 0.0 {
+                    rounded_off += 1;
+                }
+                let enclosure = coords[c][i];
+                let (mut below, mut above) = (exact.clone(), exact.clone());
+                grow(&mut below, -enclosure.lo());
+                grow(&mut above, -enclosure.hi());
+                assert!(
+                    sign(&below) >= 0.0 && sign(&above) <= 0.0,
+                    "control {i}, channel {c}: [{}, {}] misses the exact framed value",
+                    enclosure.lo(),
+                    enclosure.hi()
+                );
+            }
+        }
+        assert!(
+            rounded_off > 0,
+            "the f64 framing rounds somewhere, so a point lift misses"
+        );
     }
 }

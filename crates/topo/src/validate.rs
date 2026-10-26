@@ -2976,12 +2976,16 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
                 MISMATCH
             }
         }
-        CertifyError::AnalyticRung3(A::Limb { limb, .. }) => {
-            if limb.check().bounds_a_miss() {
+        CertifyError::AnalyticRung3(A::Limb { .. }) => {
+            if geom_brep::Rung3Limb::HullValue.check().bounds_a_miss() {
                 BOUND
             } else {
                 MISMATCH
             }
+        }
+        CertifyError::AnalyticRung3(A::KernelLimit { .. }) => {
+            "the check's certified bound on how far it strays from its faces does not clear the \
+             tolerance, the kernel's approximation limit"
         }
         CertifyError::AnalyticRung3(A::NoOffsetBound { .. }) => {
             "its curve's distance from a face has no certified bound (it reaches a cone's \
@@ -3102,6 +3106,7 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             )
             | CertifyError::AnalyticRung3(
                 A::Limb { .. }
+                | A::KernelLimit { .. }
                 | A::Escalated { .. }
                 | A::TubeStraddles { .. }
                 | A::TubeNotOneArc { .. },
@@ -17063,15 +17068,20 @@ mod certify_escalation_rows {
             ),
             (
                 says(CertifyError::AnalyticRung3(
-                    geom_brep::AnalyticRung3Refusal::Limb {
-                        operand: geom::SurfaceKind::Plane,
-                        limb: geom_brep::Rung3Limb::HullSup,
+                    geom_brep::AnalyticRung3Refusal::KernelLimit {
+                        operand: geom::SurfaceKind::Torus,
+                        bound: 2.0e-8,
                         margin: geom_core::MarginDiag::value(2.0e-8),
+                        width: 2.0e-15,
+                        extent: 3.0,
+                        terminal: true,
                     },
                 )),
-                "the check's certified bound on how far it strays from its faces exceeds the \
-                 tolerance. Recourse: loosen the tolerance, as a last resort; this refusal may \
-                 indicate a kernel bug worth reporting",
+                "the check's certified bound on how far it strays from its faces does not clear \
+                 the tolerance, the kernel's approximation limit. The bound is far above the \
+                 curve's own rounding, the kernel's conditioning. Recourse: loosen the \
+                 tolerance, as a last resort; this refusal may indicate a kernel bug worth \
+                 reporting",
             ),
             // A span shorter than the tolerance is a length a user may
             // intend; one of no length, or reversed, is one no

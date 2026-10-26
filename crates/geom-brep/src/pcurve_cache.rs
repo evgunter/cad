@@ -3261,32 +3261,39 @@ fn twin_span_hulls<T: geom_core::CertifiedBounds>(
     Ok(spans)
 }
 
-/// **A closed-form carrier's distance from an analytic surface** —
-/// [`projected::net_offset_sup`] for a line, circle, ellipse or spiric,
-/// limb 2 of C2 for an analytic operand of any `Intersection` edge
-/// ([`crate::analytic_edge_limbs`]). The carrier is read through its
-/// certified enclosing net ([`crate::carrier_net::carrier_net`]) over
-/// the outer ends of `window`, written in the frame of the surface's
-/// orthonormal twin in certification arithmetic, and the twin's
-/// canonical composite along it is converted to metres per part (the
-/// cone's and the torus's lever per part) and halved under limb 2's
-/// budget ([`projected::offset_rounds`]). A round's cuts are breaks of
-/// the net itself, so each halving re-encloses the span it cuts.
+/// **Limb 2's reader: an `Intersection` carrier's distance from an
+/// analytic surface**, for a carrier of every kind — limb 2 of C2 for an
+/// analytic operand ([`crate::analytic_edge_limbs`]). The carrier is read
+/// through its net ([`crate::carrier_net::framed_carrier_net`]: a spline
+/// is its own net, a line, circle, ellipse or spiric its certified
+/// enclosing net), written in the frame of the surface's orthonormal
+/// twin in certification arithmetic, the frame applied to the carrier's
+/// own data before anything is combined, so each control rounds at its
+/// distance from the operand's origin and never at its distance from the
+/// world's. The twin's canonical composite along the net is converted to
+/// metres per part (the cone's and the torus's lever per part, the cone's
+/// apex root where its lever is not positive) and halved under limb 2's
+/// budget ([`projected::offset_rounds`]): a spline's rounds insert their
+/// breaks into its own net exactly, and a closed form's re-enclose the
+/// spans they cut, over [`closed_form_grid`]'s first breaks. No net
+/// past the window's outer ends is read for a closed form; a spline is
+/// read whole, its parts the window overlaps deciding.
+///
+/// The reading carries the size of the net it stopped on
+/// ([`projected::NetSize`]): the carrier's own enclosure width there,
+/// below which no composite of it can bound anything, and its extent.
 ///
 /// # Errors
 ///
 /// [`PcurveCertifyError::CarrierEnclosure`] for a span the carrier has
 /// no certified net over; [`PcurveCertifyError::UnsupportedChart`] off
 /// an analytic chart; as [`projected::offset_rounds`] otherwise.
-pub(crate) fn closed_form_offset_sup<
-    T: Decide + geom_core::Bounds + geom_core::CertifiedEnclosure,
->(
+pub(crate) fn limb2_offset_sup<T: Decide + geom_core::Bounds + geom_core::CertifiedEnclosure>(
     carrier: &Curve3<T>,
     window: (T, T),
     surface: &Surface<T>,
     band: Band,
-) -> Result<projected::Offset<T>, PcurveCertifyError> {
-    use geom_core::Interval;
+) -> Result<projected::OffsetRead<T>, PcurveCertifyError> {
     let Some((origin, e)) = projected::chart_frame(surface) else {
         return Err(PcurveCertifyError::UnsupportedChart {
             chart: surface.kind(),
@@ -3301,39 +3308,40 @@ pub(crate) fn closed_form_offset_sup<
     let Some((o, te)) = projected::chart_frame(&twin) else {
         unreachable!("an analytic chart has a frame")
     };
-    let cross = Interval::from_certified;
-    let lift = |v: Vec3<T>| Vec3::new(cross(v.x), cross(v.y), cross(v.z));
-    let (o, te) = (lift(o - Point3::origin()), te.map(lift));
-    let (lo, hi) = crate::carrier_net::outer_ends(window);
-    let grid = closed_form_grid(carrier, lo, hi);
-    let hull = |cuts: &[f64]| -> Result<projected::ProjectedHull, PcurveCertifyError> {
+    let frame = crate::carrier_net::Frame::of(o, te);
+    let (domain, grid, per_span) = match carrier {
+        Curve3::Nurbs(net) => (net.domain(), Vec::new(), projected::INCIDENCE_CUTS),
+        _ => {
+            let (lo, hi) = crate::carrier_net::outer_ends(window);
+            ((lo, hi), closed_form_grid(carrier, lo, hi), 1)
+        }
+    };
+    let hull = |cuts: &[f64]| -> Result<(projected::ProjectedHull, projected::NetSize), PcurveCertifyError> {
         let mut breaks: Vec<f64> = grid.iter().chain(cuts).copied().collect();
         breaks.sort_by(f64::total_cmp);
         breaks.dedup();
-        let net = crate::carrier_net::carrier_net(carrier, (lo, hi), &breaks)
+        let net = crate::carrier_net::framed_carrier_net(carrier, domain, &breaks, &frame)
             .map_err(PcurveCertifyError::CarrierEnclosure)?;
-        let (knots, weights, coords) = net.operand();
-        let control: Vec<Point3<Interval>> = (0..coords[0].len())
-            .map(|i| {
-                let p = Vec3::new(coords[0][i], coords[1][i], coords[2][i]) - o;
-                Point3::new(p.dot(te[0]), p.dot(te[1]), p.dot(te[2]))
-            })
-            .collect();
-        let twin_net = NurbsCurve3::new(
-            geom_core::spline::Knots::from(knots.clone()).lift(|k| Interval::from_bounds(k, k)),
-            control,
-            weights.iter().map(|_| Interval::one()).collect(),
-        )
-        .map_err(|_| PcurveCertifyError::ImageMismatch {
+        let curve = net.curve().ok_or(PcurveCertifyError::ImageMismatch {
             image: PcurveKind::Projected,
-            why: "the carrier's enclosing net forms no curve",
+            why: "the carrier's net forms no curve",
         })?;
-        Ok(projected::ProjectedHull {
+        let size = projected::NetSize {
+            width: net.width(),
+            extent: net.extent(),
+        };
+        let hull = projected::ProjectedHull {
             pieces: Vec::new(),
-            spans: twin_span_hulls(&twin_net, &twin, &chart, 1, &[])?,
-        })
+            spans: twin_span_hulls(&curve, &twin, &chart, per_span, net.cuts())?,
+        };
+        Ok((hull, size))
     };
-    projected::offset_rounds(hull, window, &chart, &twin, T::zero(), band)
+    let mut read = projected::offset_rounds(hull, window, &chart, &twin, band)?;
+    read.upper = match &read.offset {
+        projected::Offset::Bound(b) | projected::Offset::Miss { bound: Ok(b), .. } => b.hi(),
+        projected::Offset::Miss { bound: Err(_), .. } => f64::NAN,
+    };
+    Ok(read)
 }
 
 /// The breaks a closed-form carrier's first net is cut at inside
