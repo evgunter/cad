@@ -82,3 +82,4 @@ cleave-tangency)
   - `analytic-exact-elevations-have-inline-homes`, superseded by `point-to-carrier-distance-is-spelled-seven-times`, its unique sites merged there.
 
   The track is still far over budget (116 points against 30) and should split on its priority seam: the P2 rows against the P3/P4 rows. Eight rows carry no band or cost: the four D3 pair-audit rows, `sweep-trace-…`, `a-driver-carried-…`, `plane-parallel-…` and the band-less `a-short-ruling-…`.
+- 2026-10-26 — (easy-fixes lane) `reach-refusals-short-of-the-shape-guard`: `Boolean/Join/Section` and `Split/Join/Section` were fixed at the source (`SectionError::WrongLane` now ends in a recourse), and their admissions were removed.
