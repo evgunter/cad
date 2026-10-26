@@ -6067,29 +6067,32 @@ fn first_arg_literals(code: &str, ident: &str) -> Vec<String> {
 /// (the safe direction — see [`tour_sources`]).
 fn tour_stop_roster() -> (std::collections::BTreeSet<String>, usize, Vec<String>) {
     const DECL: &str = "name: &'static str";
+    // The tour's scene struct (`TourStop`, so it is never read as the
+    // measurement's `topo::Stop`).
+    const STRUCT: &str = "TourStop";
     let mut names = std::collections::BTreeSet::new();
     let mut sites = 0usize;
     let mut complaints: Vec<String> = Vec::new();
 
     for (file, code) in tour_sources() {
         let mut from = 0usize;
-        while let Some(off) = code[from..].find("Stop") {
+        while let Some(off) = code[from..].find(STRUCT) {
             let at = from + off;
-            from = at + "Stop".len();
+            from = at + STRUCT.len();
             if !token_starts_at(&code, at) {
                 continue;
             }
-            let rest = &code[at + "Stop".len()..];
+            let rest = &code[at + STRUCT.len()..];
             let gap = rest.len() - rest.trim_start().len();
             if rest.as_bytes().get(gap) != Some(&b'{') {
                 continue;
             }
-            // `-> Stop {` opens a function body, not a literal.
+            // `-> TourStop {` opens a function body, not a literal.
             if code[..at].trim_end().ends_with("->") {
                 continue;
             }
             sites += 1;
-            let field = first_struct_field(&code, at + "Stop".len() + gap + 1);
+            let field = first_struct_field(&code, at + STRUCT.len() + gap + 1);
             let found: Vec<String> = if field == "name" {
                 // The shorthand: resolve the binding that dominates.
                 let Some(decl) = code[..at].rfind(DECL) else {
