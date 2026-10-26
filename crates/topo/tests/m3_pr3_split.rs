@@ -1101,7 +1101,7 @@ fn no_split_refusal_names_a_stage() {
 /// whose at-rest gate runs refuses to finish it, and at one whose gate
 /// runs nothing (a dual), `split` reads tier 2 itself and refuses it as
 /// [`SplitReduceError::ScaffoldingOperand`] with the same findings.
-fn refused_at_the_door<T: geom_core::Decide + geom_core::Bounds + topo::AtRestPolicy>(
+fn refused_at_the_door<T: geom_core::Decide + topo::AtRestPolicy>(
     what: &str,
     body: &Body<T>,
     plane: &SplitPlane<T>,

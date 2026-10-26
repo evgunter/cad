@@ -1092,8 +1092,7 @@ fn plane_section_areas_enclose_the_closed_form_at_interval() {
 /// The arc spans `θ = 4 atan 0.5` of a circle of radius `1 / sin(θ/2)`,
 /// cutting off `R² (θ − sin θ) / 2`, and the plane meets the prism's
 /// cross-section at `1 / cos t`.
-fn tilted_cut_of_a_d_prism<T: geom_core::Decide + geom_core::Bounds + topo::AtRestPolicy>()
--> (T, usize, f64) {
+fn tilted_cut_of_a_d_prism<T: geom_core::Decide + topo::AtRestPolicy>() -> (T, usize, f64) {
     let (bulge, t) = (0.5_f64, 0.3_f64);
     let p2 = |x: f64, y: f64| Point2::new(x, y).map(T::from_f64);
     let d = profile::test_support::bulge_loop(vec![
@@ -1165,7 +1164,7 @@ fn plane_section_area_of_an_uncancelled_arc_at_f64_and_interval() {
 /// The unit cylinder `x² + y² ≤ 1`, `0 ≤ z ≤ 1` at scalar `T`, its
 /// two seams at azimuths `phi` and `phi + π`, cut by the plane through
 /// `origin` with normal `n`.
-fn cylinder_section<T: geom_core::Decide + geom_core::Bounds + topo::AtRestPolicy>(
+fn cylinder_section<T: geom_core::Decide + topo::AtRestPolicy>(
     phi: f64,
     origin: Point3<f64>,
     n: Vec3<T>,

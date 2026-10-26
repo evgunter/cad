@@ -811,7 +811,7 @@ impl std::error::Error for SplitReduceError {}
 /// # Errors
 ///
 /// As the corresponding [`split_reduce`] stages.
-pub fn vertex_sides<T: geom_core::Decide + geom_core::Bounds + crate::props::AtRestPolicy>(
+pub fn vertex_sides<T: geom_core::Decide + crate::props::AtRestPolicy>(
     body: &AtRestBody<T>,
     plane: &SplitPlane<T>,
     tol: Tol,
@@ -844,7 +844,7 @@ pub(crate) fn carrier_gate_and_sides<T: geom_core::Decide>(
 ///
 /// [`SplitReduceError`] — see each variant; the first failure wins and
 /// the operand is never mutated (the clone is dropped).
-pub fn split_reduce<T: geom_core::Decide + geom_core::Bounds + crate::props::AtRestPolicy>(
+pub fn split_reduce<T: geom_core::Decide + crate::props::AtRestPolicy>(
     operand: &AtRestBody<T>,
     plane: &SplitPlane<T>,
     tol: Tol,
@@ -858,9 +858,7 @@ pub fn split_reduce<T: geom_core::Decide + geom_core::Bounds + crate::props::AtR
 /// ([`AtRestBody::gate_unverdicted`], the Boolean's read too), refused
 /// typed. The carrier gate (`classify::carrier_gate`) runs after it,
 /// inside the pipeline.
-pub(super) fn gate_finished<
-    T: geom_core::Decide + geom_core::Bounds + crate::props::AtRestPolicy,
->(
+pub(super) fn gate_finished<T: geom_core::Decide + crate::props::AtRestPolicy>(
     operand: &AtRestBody<T>,
     tol: Tol,
 ) -> Result<(), SplitReduceError> {
@@ -1066,9 +1064,7 @@ pub(crate) fn split_scratch<T: geom_core::Decide + crate::props::AtRestPolicy>(
 ///
 /// The reduction's or the join's refusal.
 #[cfg(any(test, feature = "test-support"))]
-pub(crate) fn through_the_join<
-    T: geom_core::Decide + geom_core::Bounds + crate::props::AtRestPolicy,
->(
+pub(crate) fn through_the_join<T: geom_core::Decide + crate::props::AtRestPolicy>(
     operand: &AtRestBody<T>,
     plane: &SplitPlane<T>,
     tol: Tol,
@@ -1137,7 +1133,7 @@ pub(crate) fn through_the_join<
 /// touching pieces need no contact record, since their copies of the
 /// pinched vertex share its point key, and the ON verdict that pinched
 /// them is in [`SplitResult::coincidences`].
-pub fn split<T: geom_core::Decide + geom_core::Bounds + crate::props::AtRestPolicy>(
+pub fn split<T: geom_core::Decide + crate::props::AtRestPolicy>(
     operand: &AtRestBody<T>,
     plane: &SplitPlane<T>,
     tol: Tol,

@@ -164,10 +164,9 @@ fn an_undecided_sign_with_the_schedule_run_out_refuses() {
                 let bracket = errors.iter().find_map(|e| match e {
                     topo::ValidationError::VolumeSignUnresolved {
                         limit: topo::SignLimit::Quadrature,
-                        volume_lo,
-                        volume_hi,
+                        volume,
                         ..
-                    } => Some((*volume_lo, *volume_hi)),
+                    } => *volume,
                     _ => None,
                 });
                 let (lo, hi) = bracket.unwrap_or_else(|| {

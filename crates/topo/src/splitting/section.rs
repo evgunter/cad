@@ -293,7 +293,7 @@ impl<T: Real> std::error::Error for SectionError<T> {}
 /// promises refuses as [`super::split`]'s does
 /// ([`SplitReduceError::ScaffoldingOperand`],
 /// [`SplitReduceError::InsideOutOperand`]).
-pub fn plane_section<T: geom_core::Decide + geom_core::Bounds + crate::props::AtRestPolicy>(
+pub fn plane_section<T: geom_core::Decide + crate::props::AtRestPolicy>(
     operand: &AtRestBody<T>,
     plane: &SplitPlane<T>,
     tol: Tol,

@@ -761,7 +761,7 @@ fn a_needle_channel_whose_fill_face_leans_reads_its_side_off_its_seam() {
 }
 
 /// `result` with each unresolved sign's bracket checked to be one (its
-/// ends ordered and finite) and then set to zero, so the rows compare
+/// ends ordered and finite) and then cleared, so the rows compare
 /// the verdict and not the walk's last enclosure, which they do not pin.
 fn bracket_read(result: Result<(), Vec<ValidationError>>) -> Result<(), Vec<ValidationError>> {
     result.map_err(|errors| {
@@ -771,18 +771,17 @@ fn bracket_read(result: Result<(), Vec<ValidationError>>) -> Result<(), Vec<Vali
                 ValidationError::VolumeSignUnresolved {
                     solid,
                     limit,
-                    volume_lo,
-                    volume_hi,
+                    volume,
                 } => {
+                    let (lo, hi) = volume.expect("the structural door reads a bracket end");
                     assert!(
-                        volume_lo.is_finite() && volume_hi.is_finite() && volume_lo <= volume_hi,
-                        "an unresolved sign carries a bracket: [{volume_lo:e}, {volume_hi:e}]"
+                        lo.is_finite() && hi.is_finite() && lo <= hi,
+                        "an unresolved sign carries a bracket: [{lo:e}, {hi:e}]"
                     );
                     ValidationError::VolumeSignUnresolved {
                         solid,
                         limit,
-                        volume_lo: 0.0,
-                        volume_hi: 0.0,
+                        volume: None,
                     }
                 }
                 other => other,
@@ -826,8 +825,7 @@ fn a_needles_orientation_through_the_structural_doors() {
             let unresolved = Err(vec![ValidationError::VolumeSignUnresolved {
                 solid,
                 limit: topo::SignLimit::Scalar,
-                volume_lo: 0.0,
-                volume_hi: 0.0,
+                volume: None,
             }]);
             let plain = if reads { Ok(()) } else { unresolved.clone() };
             let inverted = if reads || !turned {
