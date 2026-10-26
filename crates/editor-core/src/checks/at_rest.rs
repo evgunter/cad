@@ -664,7 +664,14 @@ pub(crate) fn partition<T: LocalizeLane>(
     // between them, which the census records for no interfering pair
     // (`topo::record_at_rest`), and which keeps the finding loud. A pair
     // the census decided nothing about is a could-not-look finding.
+    // A pair read in band hides no overlap thicker than the band
+    // (`topo::Undecidable::ThinInBand`): it is no evidence of one, and
+    // stands as its own could-not-look finding.
     let undecided_pair = |error: &ValidationError| match error {
+        ValidationError::CensusUndecidable {
+            reason: topo::Undecidable::ThinInBand,
+            ..
+        } => None,
         ValidationError::CensusUndecidable { .. } | ValidationError::UnrecordedContact { .. } => {
             finding_solids(&product.body, error).and_then(|(x, y)| pair_of(x, y))
         }

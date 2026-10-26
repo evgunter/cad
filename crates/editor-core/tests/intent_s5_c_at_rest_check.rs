@@ -707,3 +707,81 @@ fn a_dual_runs_no_census_and_says_so() {
         vec![AtRestEvidence::NotRun]
     );
 }
+
+// ---- An in-band pair is no overlap's evidence ----
+
+/// **A pair read in band stands as its own finding, beside an overlap it
+/// is no evidence of.** An L-shaped copy dips 0.05 into a block's +x
+/// wall, and its arm stands three ε over the block's top, opposed, in
+/// band: a `ThinInBand` pair (`topo::Undecidable::ThinInBand`), which
+/// hides no overlap thicker than the band. The overlap is one
+/// interference finding (unbounded here: intersecting the two copies
+/// meets the same in-band arm and refuses), and the in-band pair is one
+/// could-not-look finding of its own, none of the overlap's evidence.
+///
+/// *Breaks if* the in-band pair rides the interference as its evidence.
+#[test]
+fn an_in_band_pair_is_no_overlaps_evidence() {
+    let g = 3.0 * Tol::witness().eps();
+    let doc = ProfileDoc::empty_derived("s5c-thin-in-band", Tol::witness());
+    let (doc, a) = block(doc, 0.5, 1.0);
+    // The L drawn with its height on its own y and swept 0.6 along its
+    // z, then turned a quarter turn about x, which stands its y up the
+    // world's z and centres it on y = 0.
+    let (doc, l) = extrude(
+        doc,
+        vec![
+            (0.45, 0.25),
+            (1.05, 0.25),
+            (1.05, 1.2),
+            (0.0, 1.2),
+            (0.0, 1.0 + g),
+            (0.45, 1.0 + g),
+        ],
+        0.6,
+    );
+    let stand = Frame::rotate_by_turns_then_translate(
+        [1.0, 0.0, 0.0],
+        Turns::new(1, 4).expect("a quarter turn"),
+        [0.0, 0.3, 0.0],
+        crate::fixture::band(),
+    )
+    .expect("the x axis is a direction");
+    let (doc, _) = place(doc, a);
+    let (doc, _) = in_world(doc, l, &stand);
+    let bare = checks(&doc);
+    let thin = |report: &editor_core::ChecksReport| {
+        crate::fixture::could_not_look(&report.findings)
+            .into_iter()
+            .filter(|e| {
+                matches!(
+                    e,
+                    AtRestEvidence::NoLane(topo::ValidationError::CensusUndecidable {
+                        reason: topo::Undecidable::ThinInBand,
+                        ..
+                    })
+                )
+            })
+            .count()
+    };
+    let report = bare;
+    assert_eq!(
+        thin(&report),
+        1,
+        "the arm over the top is one in-band pair, its own finding: {report}"
+    );
+    let interference = crate::fixture::interference(&report.findings);
+    assert_eq!(interference.len(), 1, "one overlap: {report}");
+    assert!(
+        interference
+            .iter()
+            .all(|f| f.evidence.iter().all(|e| !matches!(
+                e,
+                topo::ValidationError::CensusUndecidable {
+                    reason: topo::Undecidable::ThinInBand,
+                    ..
+                }
+            ))),
+        "and the in-band pair is none of its evidence: {interference:?}"
+    );
+}
