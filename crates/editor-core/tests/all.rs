@@ -57,6 +57,8 @@ mod fixture;
 // The wire-surgery helper, editor-core's alone — `tests/fixture/` and
 // `tests/corpus/` are symlinked into `crates/viewer/tests/`, and this
 // one is not, because its subject is `serde_json`.
+#[path = "honest_fold_probe_doc.rs"]
+mod honest_fold_probe_doc;
 mod wire;
 
 #[path = "a_keel_on_the_floor_names_its_two_edges.rs"]

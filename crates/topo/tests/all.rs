@@ -153,6 +153,8 @@ mod graft_disjoint;
 mod h14_census_deferrals;
 #[path = "hollow_island.rs"]
 mod hollow_island;
+#[path = "honest_fold_probe.rs"]
+mod honest_fold_probe;
 #[path = "inside_out_operand.rs"]
 mod inside_out_operand;
 #[path = "interval_body.rs"]
