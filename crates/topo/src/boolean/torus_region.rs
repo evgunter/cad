@@ -64,7 +64,7 @@
 //! # The boundary first
 //!
 //! Before any path, `p` is read against every edge on its own carrier
-//! ([`ConicArc::hit`](crate::splitting::containment::ConicArc::hit) for a circle, [`SpiricArc::contact`] for an oval):
+//! ([`ConicArc::hit`](crate::splitting::containment::ConicArc::hit) for a circle, [`PiecedArc::contact`] for an oval):
 //! on an edge, or within the band of one of its ends, is the point on
 //! the boundary ([`None`]); in the band of one refuses.
 //!
@@ -143,7 +143,8 @@ use crate::body::Body;
 use crate::entity::{FaceKey, LoopKey};
 use crate::ray_walk::RayFault;
 use crate::splitting::containment::ConicRows;
-use crate::splitting::spiric_arc::{Oval, SpiricArc, SpiricHit, SpiricRefusal, SpiricRows};
+use crate::splitting::pieced_arc::{ArcHit, ArcRefusal, ArcRows, PiecedArc};
+use crate::splitting::spiric_arc::{Oval, SpiricArc};
 use crate::splitting::{Uncrossable, UncrossableCarrier};
 use crate::validate::decide;
 use geom_brep::roots::{RootRefusal, Roots};
@@ -166,7 +167,7 @@ const BOUNDARY: ConicRows = ConicRows::bounded(
 );
 
 /// An oval edge's boundary reading's rows (module docs).
-const SPIRIC: SpiricRows = SpiricRows {
+const SPIRIC: ArcRows = ArcRows {
     end: "bool_torus_region_spiric_end",
     clear: "bool_torus_region_spiric_clear",
     on: "bool_torus_region_spiric_on",
@@ -465,7 +466,7 @@ impl<T: Decide> Region<T> for TorusFaceRegion<T> {
     }
 
     /// A circle on its own carrier, an oval by its contact
-    /// ([`SpiricArc::contact`]).
+    /// ([`PiecedArc::contact`]).
     fn on_edge(&self, edge: &Edge<T>, p: Point3<T>, band: Band) -> Result<bool, RegionRefusal> {
         match edge.carrier {
             geom::Curve3::Circle { .. } => circle_edge_hit(
@@ -493,10 +494,10 @@ impl<T: Decide> Region<T> for TorusFaceRegion<T> {
                     offset,
                 };
                 match SpiricArc::new(oval, (edge.t0, edge.t1)).contact(p, SPIRIC, band) {
-                    Ok(SpiricHit::On(_) | SpiricHit::End) => Ok(true),
-                    Ok(SpiricHit::Off) => Ok(false),
-                    Err(SpiricRefusal::Escalated(diag)) => Err(RegionRefusal::Escalated(diag)),
-                    Err(SpiricRefusal::Unsettled) => Err(RegionRefusal::Unreadable(Uncrossable {
+                    Ok(ArcHit::On(_) | ArcHit::End) => Ok(true),
+                    Ok(ArcHit::Off) => Ok(false),
+                    Err(ArcRefusal::Escalated(diag)) => Err(RegionRefusal::Escalated(diag)),
+                    Err(ArcRefusal::Unsettled) => Err(RegionRefusal::Unreadable(Uncrossable {
                         r#loop: edge.r#loop,
                         edge: edge.edge,
                         carrier: UncrossableCarrier::Spiric,

@@ -139,17 +139,19 @@ mod runs;
 mod surfaces;
 pub mod tube;
 mod turn;
+#[cfg(test)]
+mod turn_rows;
 mod upgrade;
 
 use core::fmt;
 
 use crate::swept::CapPlaneError;
-use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Point2, Real, Sign, Tol, Vec2};
+use geom_core::k_stats::NonzeroSign;
+use geom_core::period::{Exact, Extent, Period, TurnRows};
+use geom_core::{Band, BandError, Decide, Indeterminate, InfSpeed, Point2, Real, Sign, Tol, Vec2};
 use profile::ValidatedProfile;
 use topo::readback::{Pose, ReadbackError, face_pose};
 use topo::{Body, DihedralReading, EdgeKey, EulerOpError, FaceKey, ShellKey, SolidKey, VertexKey};
-
-use crate::swept::decide;
 
 /// The predicate names a revolve's cosurface decision reports under
 /// (the revolution walls: planes, cylinders and cones from lines,
@@ -1025,6 +1027,27 @@ impl From<EulerOpError> for RevolveError {
 /// record — unlike `extrude`, which wraps it to add an orientation bit.
 pub(super) use crate::swept::{SweptSeg, swept_segments};
 
+/// **A partial revolve's angle `t`, classified** (module docs) at the
+/// profile's widest radius `r_max`: definitely nonzero
+/// (`revolve_angle`; its sign is the sweep's sense, and whether the
+/// traversals reverse) and definitely short of a full turn
+/// (`revolve_angle_headroom`, the turn rule).
+fn partial_angle_reverses<T: Decide>(t: T, r_max: T, band: Band) -> Result<bool, RevolveError> {
+    let (sign, angle) = Extent::decide_signed("revolve_angle", t, InfSpeed::new(r_max), band)
+        .map_err(|source| match source.margin.rejected_sign() {
+            Some(Sign::Zero) => RevolveError::DegenerateAngle,
+            _ => RevolveError::AngleEscalated { source },
+        })?;
+    let rows = TurnRows::exact("revolve_angle_headroom");
+    match Period::new(T::tau()).strictly_partial(rows, angle, Exact::new(r_max), band) {
+        Ok(true) => Ok(sign == NonzeroSign::Positive),
+        Ok(false) => Err(RevolveError::FullRangeAngle),
+        Err(undecided) => Err(RevolveError::AngleEscalated {
+            source: undecided.diag,
+        }),
+    }
+}
+
 /// Revolves a validated profile about an in-sketch-plane axis into a
 /// closed solid.
 ///
@@ -1060,23 +1083,7 @@ pub fn revolve<T: Decide + topo::AtRestPolicy>(
     let r_max = axis::radial_extent(profile, &frame);
     let (theta, reverse, full) = match revolution {
         Revolution::Full => (T::tau(), true, true),
-        Revolution::Partial(t) => {
-            let sign = decide("revolve_angle", Margin::levered(t, r_max), band)
-                .map_err(|source| RevolveError::AngleEscalated { source })?;
-            let reverse = match sign {
-                Sign::Zero => return Err(RevolveError::DegenerateAngle),
-                Sign::Positive => true,
-                Sign::Negative => false,
-            };
-            let headroom = Margin::levered(T::tau() - t.abs(), r_max);
-            match decide("revolve_angle_headroom", headroom, band)
-                .map_err(|source| RevolveError::AngleEscalated { source })?
-            {
-                Sign::Positive => {}
-                Sign::Zero | Sign::Negative => return Err(RevolveError::FullRangeAngle),
-            }
-            (t, reverse, false)
-        }
+        Revolution::Partial(t) => (t, partial_angle_reverses(t, r_max, band)?, false),
     };
 
     // ---- Swept traversals + axis-contact classification (canonical

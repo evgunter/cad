@@ -228,12 +228,12 @@ fn a_projected_edge_on_part_of_its_net_reads_the_tighter_box() {
 /// (`cell_region`'s ball row). Every cell of a grid over the square and
 /// its surround the door decides agrees with the square.
 ///
-/// The decided counts are pinned. `contfp` holds an uncrossable edge as
-/// a ball too and refuses a station inside it, so a door that called
-/// every spline edge clear never decides a cell the edge straddles here,
-/// and neither can these counts:
+/// The decided counts are pinned: a door that read the spline edge in
+/// any other floor than its control net's ball and then its pieces
+/// decides other cells, and the count goes red. A door that called every
+/// spline edge clear is a different failure, and
 /// [`a_cell_crossing_only_the_spline_edge_is_undecided`] stands against
-/// that door.
+/// it.
 #[test]
 fn the_cell_door_reads_a_spline_edge_as_its_ball() {
     use topo::cell_region::{CellRegion, cell_region};
@@ -284,7 +284,7 @@ fn the_cell_door_reads_a_spline_edge_as_its_ball() {
     assert_eq!(wrong, 0, "a decided cell contradicts the square");
     assert_eq!(
         (inside, outside),
-        (75, 407),
+        (121, 407),
         "the cells the door decides beside the spline edge, pinned"
     );
 }

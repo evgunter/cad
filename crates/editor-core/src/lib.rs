@@ -254,9 +254,9 @@ pub use resolve::{
     PickTarget, pick_face,
 };
 pub use stackup::{
-    Chamber, ChamberSpan, DivergedAt, LiftRefusal, PairingViolation, PerParam, Rss, Sensitivity,
-    SensitivityOutcome, SensitivityRefusal, Stackup, StackupRefusal, Unavailable, WorstCase,
-    render_sensitivity, sensitivities, stackup,
+    BindingViolation, Chamber, ChamberSpan, DivergedAt, LiftRefusal, PerParam, RecordReading, Rss,
+    Sensitivity, SensitivityOutcome, SensitivityRefusal, Stackup, StackupRefusal, Unavailable,
+    WorstCase, render_sensitivity, sensitivities, stackup,
 };
 pub use update::{PinMultiplicity, PinSites, UpdateError, mixed_pins, update_references};
 pub use witness::{

@@ -13,8 +13,9 @@
 //! docs of [`crate::predicate`], *The rate pair*). It is read for three
 //! different questions — "not over", "strictly partial", "a whole turn"
 //! — so the rule fixes the reading and leaves the disposition to the
-//! caller: [`Turn`] has three values and each site matches it
-//! exhaustively for the question it asks.
+//! caller: [`Turn`] has three values, and each question has its one
+//! home ([`Period::not_over`], [`Period::strictly_partial`],
+//! [`Period::whole_turn`]) for a site that asks it.
 //!
 //! The rate is typed. An [`Exact`] rate (a circle's radius, an authored
 //! angle on its arm) reads `h` once. A [`Bounded`] rate (an ellipse, a
@@ -303,6 +304,69 @@ impl<T: Decide> Period<T> {
     ) -> Result<Turn, TurnUndecided> {
         rate.read(rows, Headroom(self.length - extent.0), band)
     }
+
+    /// **"Not over"** (module docs): whether `extent` is not over one
+    /// period — [`Turn::Short`], [`Turn::Whole`], or a reading the sup
+    /// decides short ([`TurnUndecided::not_over_at_sup`]), whose
+    /// escalation the answer supersedes
+    /// ([`crate::k_stats::splice_superseded`]).
+    ///
+    /// # Errors
+    ///
+    /// Any other [`TurnUndecided`].
+    pub fn not_over<R: TurnRate<T>>(
+        self,
+        rows: TurnRows<R::Straddle>,
+        extent: Extent<T>,
+        rate: R,
+        band: Band,
+    ) -> Result<bool, TurnUndecided> {
+        let (turn, recording) = crate::k_stats::detached(|| self.turn(rows, extent, rate, band));
+        match turn {
+            Err(undecided) if undecided.not_over_at_sup() => {
+                crate::k_stats::splice_superseded(recording);
+                Ok(true)
+            }
+            turn => {
+                crate::k_stats::splice(recording);
+                turn.map(|turn| !matches!(turn, Turn::Over(_)))
+            }
+        }
+    }
+
+    /// **"Strictly partial"** (module docs): whether `extent` is
+    /// definitely short of one period, [`Turn::Short`].
+    ///
+    /// # Errors
+    ///
+    /// [`TurnUndecided`] where no reading settles a [`Turn`].
+    pub fn strictly_partial<R: TurnRate<T>>(
+        self,
+        rows: TurnRows<R::Straddle>,
+        extent: Extent<T>,
+        rate: R,
+        band: Band,
+    ) -> Result<bool, TurnUndecided> {
+        self.turn(rows, extent, rate, band)
+            .map(|turn| matches!(turn, Turn::Short(_)))
+    }
+
+    /// **"A whole turn"** (module docs): whether `extent` is one period,
+    /// [`Turn::Whole`].
+    ///
+    /// # Errors
+    ///
+    /// [`TurnUndecided`] where no reading settles a [`Turn`].
+    pub fn whole_turn<R: TurnRate<T>>(
+        self,
+        rows: TurnRows<R::Straddle>,
+        extent: Extent<T>,
+        rate: R,
+        band: Band,
+    ) -> Result<bool, TurnUndecided> {
+        self.turn(rows, extent, rate, band)
+            .map(|turn| matches!(turn, Turn::Whole(_)))
+    }
 }
 
 /// **An extent along a periodic channel**, in its parameter units, never
@@ -333,6 +397,13 @@ impl<T: Real> Extent<T> {
         let first = values.next()?;
         let (lo, hi) = values.fold((first, first), |(lo, hi), x| (lo.min(x), hi.max(x)));
         Some(Self(hi - lo))
+    }
+
+    /// The width of the hull of two values, whatever their order:
+    /// [`Extent::hull`] of the pair.
+    pub fn between(a: T, b: T) -> Self {
+        let (lo, hi) = (a.min(b), a.max(b));
+        Self(hi - lo)
     }
 
     /// The extent, in the channel's parameter units.
@@ -505,20 +576,36 @@ pub enum TurnRow {
 }
 
 /// **No [`Turn`] settled**: the escalation, the row it is named by, and
-/// whether the sup reading put the extent definitely over a turn.
+/// the sign the sup reading decided, where it was read and decided.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct TurnUndecided {
     /// The escalation (the row's name inside).
     pub diag: Indeterminate,
     /// The row it is named by.
     pub on: TurnRow,
-    /// Whether the sup reading is definitely negative. Where it is not,
-    /// and the sup is a true upper bound on the speed over the stretch
-    /// the headroom measures (the caller's premise, [`Bounded::new`]),
-    /// any overlap past a turn is within the escalation band along the
-    /// channel, and a "not over" reading may take the extent as one
-    /// that is not over.
-    pub over_at_sup: bool,
+    /// The sign of the headroom at the sup rate: `None` at an [`Exact`]
+    /// rate (whose one reading is the one undecided) and where the sup
+    /// reading is itself in the band.
+    pub sup: Option<Sign>,
+}
+
+impl TurnUndecided {
+    /// Whether the sup reading put the extent definitely over a turn.
+    #[must_use]
+    pub fn over_at_sup(&self) -> bool {
+        self.sup == Some(Sign::Negative)
+    }
+
+    /// **Whether "not over" may take this reading as an extent that is
+    /// not over a turn**, the one home of that admission: the sup read
+    /// the headroom definitely positive, so the extent is short of a
+    /// turn in the parameter, whatever the speed. Admitting a reading
+    /// the sup does not decide would admit an overlap up to the
+    /// escalation band.
+    #[must_use]
+    pub fn not_over_at_sup(&self) -> bool {
+        self.sup == Some(Sign::Positive)
+    }
 }
 
 /// An exact rate: the speed at every point of the extent, so its inf and
@@ -534,9 +621,9 @@ impl<T: Real> Exact<T> {
     }
 }
 
-/// A rate known only between bounds: the least speed over the extent,
-/// and the greatest over the stretch the headroom measures (an ellipse,
-/// a spiric, a chart image).
+/// A rate known only between bounds: the least and the greatest speed
+/// over the stretch the headroom measures (an ellipse, a spiric, a chart
+/// image).
 #[derive(Clone, Copy, Debug)]
 pub struct Bounded<T> {
     inf: InfSpeed<T>,
@@ -544,9 +631,9 @@ pub struct Bounded<T> {
 }
 
 impl<T: Real> Bounded<T> {
-    /// A lower bound `inf` on the speed over the extent and an upper
-    /// bound `sup` over the headroom's stretch — the caller's premise,
-    /// which the rule's soundness rests on. Both are read as speeds: the
+    /// A lower bound `inf` and an upper bound `sup` on the speed over the
+    /// headroom's stretch — the caller's premise, which the rule's
+    /// soundness rests on. Both are read as speeds: the
     /// inf's magnitude, and the sup never below it (the larger of an
     /// upper and a lower bound on one speed is still an upper bound), so
     /// a pair with `sup < inf` is not representable.
@@ -582,7 +669,7 @@ pub trait TurnRate<T: Decide>: sealed::Sealed + Copy {
     /// What a caller names a straddle by: `()` where none can arise.
     type Straddle: Copy;
 
-    /// The lower bound, the rate an extent's forward decision reads at.
+    /// The lower bound, the rate `Over` and `Short` read the headroom at.
     fn inf(self) -> InfSpeed<T>;
 
     /// The rule at this rate, on the headroom [`Period::turn`] formed.
@@ -613,7 +700,7 @@ impl<T: Decide> TurnRate<T> for Exact<T> {
             .map_err(|diag| TurnUndecided {
                 diag,
                 on: TurnRow::Turn,
-                over_at_sup: false,
+                sup: None,
             })
     }
 }
@@ -642,13 +729,8 @@ impl<T: Decide> TurnRate<T> for Bounded<T> {
             return Ok(Turn::of(decided));
         }
         let high = decide_reported(rows.turn, Margin::metered_sup(headroom, self.sup), band);
-        let undecided = |diag, on, over_at_sup| {
-            Err(TurnUndecided {
-                diag,
-                on,
-                over_at_sup,
-            })
-        };
+        let sup = high.ok().map(|decided| decided.sign);
+        let undecided = |diag, on| Err(TurnUndecided { diag, on, sup });
         match (low, high) {
             (
                 _,
@@ -666,21 +748,9 @@ impl<T: Decide> TurnRate<T> for Bounded<T> {
                 undecided(
                     straddle(rows.straddle, lower, upper, band),
                     TurnRow::Straddle,
-                    over,
                 )
             }
-            (Ok(_), Err(diag)) => undecided(diag, TurnRow::Turn, false),
-            (Err(diag), high) => undecided(
-                diag,
-                TurnRow::Turn,
-                matches!(
-                    high,
-                    Ok(Decided {
-                        sign: Sign::Negative,
-                        ..
-                    })
-                ),
-            ),
+            (Ok(_), Err(diag)) | (Err(diag), _) => undecided(diag, TurnRow::Turn),
         }
     }
 }
@@ -871,7 +941,7 @@ mod period_rows {
     test_utils::gated_to!["crates/geom-core/src/period.rs"];
 
     /// **The gallop answers as the step-by-step walk does at `Interval`,
-    /// levered** (a counterexample search: the seed varies). Enclosures
+    /// metered** (a counterexample search: the seed varies). Enclosures
     /// of every width from a point to two periods, centred out to 300
     /// periods, half of them within 1e-7 periods of a half-period mark,
     /// metered at a lever of 0.37: the answer, the miss and the pair
@@ -885,7 +955,7 @@ mod period_rows {
         let tau = Interval::tau();
         let arm = Interval::from_f64(0.37);
         let band = band();
-        let meter = |g| Margin::levered(g, arm);
+        let meter = |g| Margin::metered(g, crate::InfSpeed::new(arm));
         let step_walk = |gap: Interval| -> String {
             let half = Interval::from_f64(0.5);
             let mark = |k: i32, side: Interval| {
@@ -1035,7 +1105,7 @@ mod turn_rows {
                     got,
                     Err(TurnUndecided {
                         on: TurnRow::Turn,
-                        over_at_sup: false,
+                        sup: None,
                         ..
                     })
                 ),
@@ -1069,15 +1139,18 @@ mod turn_rows {
         assert_eq!(reads(&recorded), 2, "whole: both readings");
         for (h, over) in [(-0.9 * EPS, true), (0.9 * EPS, false)] {
             let (got, recorded) = bounded(h);
-            let Err(TurnUndecided {
-                diag,
-                on: TurnRow::Straddle,
-                over_at_sup,
-            }) = got
+            let Err(
+                undecided @ TurnUndecided {
+                    diag,
+                    on: TurnRow::Straddle,
+                    ..
+                },
+            ) = got
             else {
                 panic!("{h:e}: a straddle: {got:?}");
             };
-            assert_eq!(over_at_sup, over, "{h:e}");
+            assert_eq!(undecided.over_at_sup(), over, "{h:e}");
+            assert_eq!(undecided.not_over_at_sup(), !over, "{h:e}");
             assert_eq!(diag.predicate, Some("t_straddle"), "{h:e}");
             // The headroom the rule read: `τ − (τ − h)`, rounded.
             let read = f64::tau() - (f64::tau() - h);
@@ -1105,7 +1178,8 @@ mod turn_rows {
             assert!(
                 matches!(
                     got,
-                    Err(TurnUndecided { on: TurnRow::Turn, over_at_sup, .. }) if over_at_sup == over
+                    Err(u @ TurnUndecided { on: TurnRow::Turn, .. }) if u.over_at_sup() == over
+                        && u.not_over_at_sup() == !over
                 ),
                 "{h:e}: {got:?}"
             );
@@ -1118,7 +1192,7 @@ mod turn_rows {
                 got,
                 Err(TurnUndecided {
                     on: TurnRow::Turn,
-                    over_at_sup: false,
+                    sup: None,
                     ..
                 })
             ),

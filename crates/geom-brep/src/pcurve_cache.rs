@@ -4188,6 +4188,38 @@ fn azimuth_lever<T: Real>(surface: &Surface<T>, v_sup: T) -> T {
     }
 }
 
+/// The inf of [`azimuth_lever`] over a chart window whose second
+/// parameter spans `[v_lo, v_hi]`, the arm's under-statement per kind:
+/// cylinder `r` (exact); sphere `r·cos v` at the window's largest `|v|`
+/// (`v` is a latitude, so `cos` decreases in `|v|` up to the pole, where
+/// it reads zero); torus `R − r` (`R + r·cos v ≥ R − r` at every `v`);
+/// cone `v_inf·sin α` with `v_inf` the window's least `|v|`, zero where
+/// the window straddles the apex. Never negative: a spindle torus, or a
+/// window on the pole, reads zero.
+fn azimuth_lever_inf<T: Real>(surface: &Surface<T>, v_lo: T, v_hi: T) -> InfSpeed<T> {
+    let arm = match *surface {
+        Surface::Cylinder { radius, .. } => radius,
+        Surface::Sphere { radius, .. } => {
+            let half_turn = T::pi() * T::from_f64(0.5);
+            radius * v_lo.abs().max(v_hi.abs()).min(half_turn).cos()
+        }
+        Surface::Torus {
+            major_radius,
+            minor_radius,
+            ..
+        } => major_radius - minor_radius,
+        Surface::Cone { half_angle, .. } => {
+            v_lo.max(T::zero() - v_hi).max(T::zero()) * half_angle.sin()
+        }
+        Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => unreachable!(
+            "azimuth_lever_inf: a {} chart has no azimuth, and every caller asks on a \
+             periodic chart only",
+            surface.kind().name()
+        ),
+    };
+    InfSpeed::new(arm.max(T::zero()))
+}
+
 /// The rate that meters this carrier's parameter into metres — the
 /// lever arm the forward-span and period checks use (the
 /// [`crate::certify`] convention: radians × the conservative radius).
@@ -7663,7 +7695,20 @@ pub(crate) enum Along {
 /// has the length its ends give it), and, for a span wholly on the axis (a
 /// pole or apex vertex read over no length), at the farthest its carrier
 /// reaches over its own interval; only a carrier wholly on the axis has
-/// none. The tube angle at the torus's minor radius; the latitude at the
+/// none.
+///
+/// **What the azimuth lever is.** A point's azimuth rate is its distance
+/// from the axis, so over the span the rate runs from its inf (zero, on
+/// an edge through the axis) to its sup, the span's largest reach. Three
+/// samples of the reach are a floor on that sup, not on the rate
+/// everywhere: the lever is the least the span's farthest point moves per
+/// radian. That is the side a placement needs and no more, since every
+/// outcome of its marks names a placement of the same curve: either side
+/// of a decided mark, or the tie-break on one in band, are whole turns
+/// apart ([`Placement`], *What holds across scalars*). The lever only
+/// sets how wide the band about each mark reads, and a floor never
+/// decides a mark apart that the span's largest movement would leave in
+/// band. The tube angle at the torus's minor radius; the latitude at the
 /// sphere's radius. A chart without one of those angles carries `1` in
 /// its slot, which no arm reads (no arm places a tube angle off a torus,
 /// or a latitude off a sphere).
@@ -7768,7 +7813,7 @@ impl<T: Decide> Placement<T> {
     /// read piece by piece (the projected one), the turns its deck origin
     /// takes. The turns are decided through the half-period marks about
     /// the window's centre (C4: a whole-period choice a reader tells apart
-    /// goes through the marks), levered at the angle's lever ([`Levers`]).
+    /// goes through the marks), metered at the angle's lever ([`Levers`]).
     /// A lever of zero (an edge wholly on the axis, a pole's zero-radius
     /// parallel; at `Interval`, an enclosure reaching zero) moves nothing,
     /// so every copy is the same curve and the angle as read is kept, at
@@ -7800,7 +7845,7 @@ impl<T: Decide> Placement<T> {
         match Period::new(T::tau()).decide(
             "pcurve_chart_placement",
             at - centre,
-            |g| Margin::levered(g, lever),
+            |g| Margin::metered(g, InfSpeed::new(lever)),
             band,
         ) {
             Ok(k) => Ok(k),
