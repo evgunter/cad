@@ -69,3 +69,126 @@ built on SECT's critical path. Filed SECT's
 `a-nurbs-face-against-a-cone-or-sphere-has-no-section-arm`, parked on
 SECT step 1 and on `delete-the-boolean-operand-edge-gate`. Lily wall 8
 stays this track's first demo witness.
+
+## 2026-10-25 — PR 5719 (carrier walk) reviewed
+
+Single full review (`session_01WJhm39zKSMKSiECpcoahqv`, on c2e7a187):
+MERGEABLE, no MAJOR. Every claim held, and the reviewer measured each
+one. The spiric differential against main is byte-identical (2400
+rows). A random-spline crossing fuzz ran 5680 queries per scalar with
+0 wrong, and goes red 149 times with the monotone gate removed. The fix
+list went to the lane: route the window net through
+`SpanLocate::restrict_window`, drop zero-width end pieces, move the
+on-point to mid-piece, adopt the fuzz as a row, and fix three stale
+prose sites.
+
+**Class noted at adjudication:** a hand-rolled homogeneous window net
+(`span_row` divided per channel) beside the certified per-scalar door
+`SpanLocate::restrict_window`. The new copy bypassed the door's
+argument contract and its [0,1] clamp at Interval. The one other
+`span_row` caller outside geom-core is `derivative.rs`. Any lane that
+needs a spline window's Bézier net reads it through `restrict_window`.
+
+## 2026-10-25 — PR 5715 (touch doors) reviewed: NOT-MERGEABLE
+
+Single full review (`session_01TKt5dMsxyqRwbeLAunJLcm`, on f4fcf1ec).
+It found two MAJORs from one root cause, both shown by rows that are red
+on the head and green on main (branch `splice/review-5715`, 1499d787):
+- `NurbsCurve3::accel_upper_bound` is a per-open-span sup of C″, so a
+  spline with a C0 interior knot (multiplicity ≥ p, which clamped-v1
+  admits) reads `accel = curvature = 0`;
+- the PR's newly wired second-order bounds then certify across the
+  corner. `off_face` answers OffFace for a real crossing of the face,
+  and `curve_pair::walk` (CPAIR) misses a spline crossing a line.
+
+Main is sound today because the bound was `None` for a spline there.
+The fix list went to the lane: the bound is either window-scoped and
+non-finite across a non-C¹ knot, or the piece walks split there. Also:
+a curvature floor that is not definitely positive gives a non-finite
+bound; one home in `geom` for the point-vs-span reach walk, now on
+its third copy (`Curve3::clear_of`, `walk::near_pieces`,
+`ArcPieces::clear`); and the cell-door pin gets its own looseness
+guard. The re-review runs on the fix pass's head.
+
+**Classes noted at adjudication:**
+- **A second-order (Taylor) bound read across a tangent discontinuity.**
+  Any consumer of `accel_upper_bound` / `accel_hi` / `curvature_hi`
+  assumes C¹ on the piece it bounds. A lofted operand with a polyline
+  or C0 section reaches these doors once the operand gate is gone. The
+  lane sweeps the consumers; a symbol sweep cannot see a site that
+  assumes smoothness without naming these bounds.
+- **The point-vs-span reach walk is copied**, not shared: one
+  `geom_core::bisect` driver, three loop bodies. The lane gives it one
+  home and lists the `census/curved.rs` and `shell.rs` reach sites.
+
+## 2026-10-26 — the demo joins' first refusal has its own row
+
+The gate lane measured, on PR 5723, that klein wall 3, lily wall 8 and
+teapot wall 3 all refuse at their contact once the gate is gone. In
+each, an analytic edge of one operand is read against a NURBS wall of
+the other (`CurvedBooleanUnsupported { kind: Nurbs }`). No row owned
+that: the crossing rung composes along a NURBS edge, and SECT's new row
+is the face × face section. Filed
+`an-analytic-edge-against-a-nurbs-face-has-no-crossing-lane` (P0 H,
+design open). The plan's "lily wall 8 needs no curved section" still
+holds, but lily also needs this row. Designers weigh it once 5723 is
+in review.
+
+## 2026-10-26 — PR 5719 (carrier walk) merges
+
+The fix pass (77e42f67, 732ff87f) answered the review:
+- each piece's net now goes through `piece_controls` over
+  `restrict_window`, and `SpanNet` is gone;
+- roots are cut only at knots strictly inside the window;
+- the contact on-point is mid-piece (refusals at 0.9·z dropped from
+  1135 to 30 of 3000);
+- the review's fuzz is adopted as `spline_arc::fuzz::random_splines_at_*`.
+  Its first CI run found an oracle miscount, not a row one: an
+  8000-step polyline missed a narrow rational excursion. The oracle now
+  bisects to 2e-4 chords, and 11,981 + 2,395 rays came back with 0
+  wrong.
+
+Orchestrator's read of the delta (no second review: the delta changes
+certified decisions only within the items asked). One comment-only
+drive-by: a history line in the fuzz header removed. Merged on green
+`gate ok`.
+
+## 2026-10-26 — PR 5723 (the gate) goes to review
+
+Green at b0860ea4 (main b6588d2c merged; the render moved no cell,
+since all three walls refuse before and after, at different sites).
+Tier: dual, letter M (both main rows cost M). Arm drawn at dispatch:
+`/dev/urandom` byte 169, mod 3 = 1, so **SEQUENTIAL**. One review now
+(`session_01XsRqThr5DVNjqpXVWs9hj7`, dispatched 01:28Z); a second runs
+on the fix-pass head only if this one raises a MAJOR.
+
+## 2026-10-26 — PR 5715 (touch doors) re-reviewed: one MAJOR, a pin
+
+Re-review of the whole unit (`session_01YLh5gFkY6a5rytfMtr81zz`, on
+9fbe827e). NOT-MERGEABLE on one MAJOR, a slow-set red the PR gate does
+not select: a new test-side `edge_box(` caller missing from
+`boxes::tests::every_door_that_reads_a_box_is_inventoried`'s pins.
+Every soundness claim held:
+- the crease rule is exactly `m ≥ p`;
+- the near-crease bounds are tight to about 1e-12 at both scalars;
+- `point_walk` reproduces the old walk bit for bit;
+- the cornered rows read a real meeting.
+
+The fix pass goes to the lane:
+- the pin;
+- the reviewer's negative-floor row, re-written rather than
+  cherry-picked, since its commit message names a model (at f64 the
+  `max(floor, 0)` clamp is load-bearing: a spline floor reads negative
+  on 205 of 4000 random nets);
+- an Interval creased-touch row for the `is_finite_length(bend)` guard;
+- the crease cost filed on this slate. A creased spline, which includes
+  lofted nets, loses the second-order clear, so a `PIECE_BUDGET`
+  refusal is expected back once the gate is gone.
+
+The orchestrator reads the delta.
+
+**Class noted at adjudication:** a slow-set row that inventories the
+tree is not run by a PR that changes what it inventories. Evidence
+added to `ciw/a-diff-that-moves-corpus-ids-runs-none-of-the-slow-set-id-pins`.
+From here on, SPLICE implementer briefs say to run the touched crates'
+slow set (`cargo nextest run -p <crate>`) before reporting green.

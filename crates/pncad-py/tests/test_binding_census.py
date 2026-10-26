@@ -3475,6 +3475,7 @@ NOT_BOUND = {
     "PerParam": SHAPE,
     "ReasonClass": SHAPE,
     "Receipt": SHAPE,
+    "RecordReading": SHAPE,
     "RefusalReason": SHAPE,
     "RefusedLeaf": SHAPE,
     "ReportCache": SHAPE,

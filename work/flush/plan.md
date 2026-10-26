@@ -10,12 +10,11 @@ Ev approved the plan in chat on 2026-10-10). Every row here moved from
 
 ## The slate
 
-**25 points** of dispatchable work against a ceiling of 32 (2026-10-25, after PR 5697 closed the curved half of the ray and unparked the aims' ties at H: five P2 rows, one of them H, the P1 fate cut, and three unpriced rows). FLUSH measured 41.5 when PR 5368 closed its P1, so it was cut along its priority seam: the eight P3 rows and the one P4 row moved to **FLUSHTAIL** (`work/flushtail/`) by `git mv`, with ids unchanged. Three older rows are unpriced and charged 2.5 each. `work/flush/program.md` states why the ceiling is not 30.
+**22.5 points** of dispatchable work against a ceiling of 32 (2026-10-26, after PR 5706 closed the containment fallback's rows: four P2 rows, one of them H, the P1 fate cut, and three unpriced rows). FLUSH measured 41.5 when PR 5368 closed its P1, so it was cut along its priority seam: the eight P3 rows and the one P4 row moved to **FLUSHTAIL** (`work/flushtail/`) by `git mv`, with ids unchanged. Three older rows are unpriced and charged 2.5 each. `work/flush/program.md` states why the ceiling is not 30.
 
 | pri | item | cost | title |
 |---|---|---|---|
 | P2 | `the-side-readers-aims-decide-exact-ties-at-a-documents-nominal` | H | the curved aims still decide exact ties at a document's nominal: `cut_cylinder` reads 62 exact zeros (the cap's aim and in-face walk; the wall's region walk at each root); unparked by PR 5697 |
-| P2 | `a-containment-fallback-substitutes-a-partly-held-dropped-face-whole` | M | a fallback cuts nothing, so a dropped face larger than its holder gets one overstating whole-face row (PR 5368's residue) |
 | P2 | `an-intersect-of-an-intersect-names-a-three-way-coincident-face-apart-in-one-member-order` | M | one member order cites an extra wall for a three-way coincident face (PR 5368's residue) |
 
 Parked, and not counted:

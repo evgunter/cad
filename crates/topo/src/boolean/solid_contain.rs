@@ -191,6 +191,7 @@
 //!   face offers an aim that reads, **`bool_point_in_solid_infinity`**,
 //!   the selection's signed volume scaled to a length (`V/A`), does.
 
+use geom_core::period::{Exact, Extent, Period, TurnRows, Within};
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
 use crate::body::Body;
@@ -365,17 +366,14 @@ pub enum PointInSolidError {
         face: FaceKey,
     },
     /// A ray's hit on a `Plane` face could land inside it, and the face
-    /// is bounded by an edge on a carrier the in-face walk has no
-    /// crossing row for — a spiric (a plane's section of a torus) or a
-    /// spline.
+    /// is bounded by a spiric (a plane's section of a torus) or spline
+    /// edge the in-face walk could not read at the hit.
     ///
     /// The walk crosses every boundary edge on its own carrier: a line
     /// where its end vertices straddle the ray, a circle or an ellipse
-    /// at the roots of its quadratic inside the arc's window. For these
-    /// two carriers the only curve on offer is the chord, a different
-    /// curve, so the loop is answered only where no crossing could
-    /// matter — a hit definitely outside a ball holding the whole loop
-    /// is a miss — and refused inside that ball.
+    /// at the roots of its quadratic inside the arc's window, a spiric or
+    /// a spline piece by piece. This is where a spiric's or spline's
+    /// pieces ran out of depth or budget before placing the hit.
     ///
     /// Its own arm rather than [`Self::Loop`], because this door names
     /// the FACE a probe met, as its curved-face siblings do, and the
@@ -385,7 +383,7 @@ pub enum PointInSolidError {
         /// The face whose outline the walk cannot read: a planar face's
         /// loop walk, or a torus face's boundary reading of an oval arc.
         face: FaceKey,
-        /// The loop, and the edge no ray got past.
+        /// The loop, and the edge whose reading ran out.
         cause: crate::splitting::Uncrossable,
     },
     /// A ray's hit on a `Cylinder` wall face could land inside it, and
@@ -1178,6 +1176,25 @@ pub(super) fn chart_dir<T: Decide>(axis: Vec3<T>, u_ref: Vec3<T>, u: T) -> Vec3<
     u_ref * c + axis.cross(u_ref) * s
 }
 
+/// Whether a face's azimuth window `raw` on a sphere of `radius` is
+/// definitely short of one turn (`bool_sphere_trim_period`, the turn
+/// rule at the radius).
+pub(crate) fn trim_window_short<T: Decide>(
+    raw: (T, T),
+    radius: T,
+    band: Band,
+) -> Result<bool, Indeterminate> {
+    let rows = TurnRows::exact("bool_sphere_trim_period");
+    Period::new(T::tau())
+        .strictly_partial(
+            rows,
+            Extent::between(raw.0, raw.1),
+            Exact::new(radius),
+            band,
+        )
+        .map_err(|undecided| undecided.diag)
+}
+
 /// **A sphere face's exact chart rectangle**, for the face class the
 /// sphere chart rectangle can actually express — the rectangle the
 /// sphere arm of the face boxes bounds a face by
@@ -1350,17 +1367,15 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
             // `r̂ = ±â` — no vertex lookup and no `atan2`.
             let half = T::from_f64(0.5);
             let width = t1 - t0;
-            match decide(
-                "bool_sphere_trim_meridian_span",
-                Margin::levered(T::tau() - width, radius),
-                band,
-            )
-            .map_err(escalate)?
-            {
-                Sign::Positive => {}
+            // The edge's own turn, as its certificate decided it.
+            let Some(turn) = curve.certificate().turn else {
+                unreachable!("check 2 mints a turn for every circle")
+            };
+            match turn.turn() {
+                Within::Short => {}
                 // A full-period meridian edge runs through BOTH poles
                 // and has no angular gate to test: out of the class.
-                Sign::Zero | Sign::Negative => return Ok(None),
+                Within::Whole => return Ok(None),
             }
             let m_hat = chart_dir(n_c, u_c, geom::mid_param(t0, t1));
             let (_, c_h) = (width * half).sin_cos();
@@ -1473,16 +1488,12 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
             }
             (None, bounding)
         }
-        None => match decide(
-            "bool_sphere_trim_period",
-            Margin::levered(T::tau() - (raw.1 - raw.0), radius),
-            band,
-        )
-        .map_err(escalate)?
-        {
-            Sign::Positive => (Some(raw), levels),
-            Sign::Zero | Sign::Negative => return Ok(None),
-        },
+        None => {
+            if !trim_window_short(raw, radius, band).map_err(escalate)? {
+                return Ok(None);
+            }
+            (Some(raw), levels)
+        }
     };
     // Only a face that wraps alone can leave no level: one with no rim
     // and no vertex on a pole has no unmated boundary at all, so it is

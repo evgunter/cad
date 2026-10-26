@@ -16,10 +16,11 @@ test_utils::gated_to![
 ];
 
 use super::*;
+use crate::splitting::pieced_arc::{ArcHit, ArcRows};
 use geom_core::{Interval, Tol};
 use test_utils::fuzz::Rng;
 
-const ROWS: SpiricRows = SpiricRows {
+const ROWS: ArcRows = ArcRows {
     end: "fuzz_spiric_end",
     clear: "fuzz_spiric_clear",
     on: "fuzz_spiric_on",
@@ -298,7 +299,7 @@ fn random_arcs<T: Decide>(lane: &str, cases: usize) {
             let truth_inside = (arc_cross + chord) % 2 == 1;
             asked += 1;
             match k.contact(lift(q), ROWS, band) {
-                Ok(SpiricHit::Off) => {}
+                Ok(ArcHit::Off) => {}
                 other => {
                     refused_far += 1;
                     if refused_far < 5 {
@@ -340,13 +341,13 @@ fn random_arcs<T: Decide>(lane: &str, cases: usize) {
             let dd = delta.abs();
             near_asked += 1;
             let got = k.contact(lift(q), ROWS, band);
-            if dd <= band.escalate() && got == Ok(SpiricHit::Off) {
+            if dd <= band.escalate() && got == Ok(ArcHit::Off) {
                 wrong.push(format!(
                     "{lane} case {case} {:?}: δ={delta} in band read Off",
                     cs.t
                 ));
             }
-            if dd < 0.5 * band.zero() && matches!(got, Ok(SpiricHit::Off)) {
+            if dd < 0.5 * band.zero() && matches!(got, Ok(ArcHit::Off)) {
                 wrong.push(format!(
                     "{lane} case {case} {:?}: δ={delta} below zero read {got:?}",
                     cs.t
@@ -355,7 +356,7 @@ fn random_arcs<T: Decide>(lane: &str, cases: usize) {
             if dd < 0.5 * band.zero() && got.is_err() {
                 on_refused += 1;
             }
-            if dd > 2.0 * band.escalate() && got != Ok(SpiricHit::Off) {
+            if dd > 2.0 * band.escalate() && got != Ok(ArcHit::Off) {
                 refused_far += 1;
                 if refused_far < 10 {
                     println!(

@@ -297,8 +297,10 @@ pub mod test_support {
     // would be comparing that constant against itself.
     pub use crate::null::with_ring_root;
     pub use crate::props::{
-        FaceReading, FaceTerm, face_reading, face_reading_structural, fold_order_bound,
-        mass_properties_with_face_terms, quadrature_rounds, shell_references,
+        DoorOutcome, DoorRead, FaceReading, FaceTerm, every_door, face_reading,
+        face_reading_structural, fold_order_bound, mass_properties_one_point,
+        mass_properties_with_face_terms, quadrature_rounds, read_points, region_carries_of,
+        shell_references,
     };
     pub use crate::test_support_fixtures::{
         CubeOps, CylFrame, CylKey, FaceGeometry, NullStrutListing, Prism, PrismOps, RingFaceOps,
@@ -1006,6 +1008,8 @@ mod r2_probes;
 #[cfg(test)]
 mod tier3_tests;
 pub mod transform;
+#[cfg(test)]
+mod turn_rows;
 pub mod validate;
 mod wedge_reach;
 pub use wedge_reach::{WedgeReach, edge_faces, edge_wedge_reach, wedge_reach};
@@ -1026,10 +1030,10 @@ pub use boolean::{
     PlaneIdentity, PlaneRelation, PlaneRung, PointInSolidError, ReductionContacts, RefusedRow,
     SectorRead, SectorRung, SelfCheck, SettleError, Settler, Settling, ShellOrientation, SideCode,
     SlitLineGap, SolidContainment, SolidFaces, SphereQuestion, SpiricLoops, SubstitutedFace,
-    SweepStrategy, SweepTrace, TorusConvention, UnreadNeighbourhood, UnreadPartner, VeContact,
-    VfContact, VoidContainment, VoidEvidence, VoidInsertError, VoidInserted, VvContact, WallRung,
-    boolean_op_with, boolean_reduce, carrier_eq, contfp, curved_face_containment, decision_words,
-    face_carrier, flush_pair_relation, insert_void, insert_voids, intersect,
+    SweepStrategy, SweepTrace, TorusConvention, UncutFace, UnreadNeighbourhood, UnreadPartner,
+    VeContact, VfContact, VoidContainment, VoidEvidence, VoidInsertError, VoidInserted, VvContact,
+    WallRung, boolean_op_with, boolean_reduce, carrier_eq, contfp, curved_face_containment,
+    decision_words, face_carrier, flush_pair_relation, insert_void, insert_voids, intersect,
     is_conventional_vertex, join_covers, joinable_vertices, joined_cell, joined_edge,
     oriented_plane_eq, point_in_solid, point_in_solid_faces, point_in_solid_of, rest_locus,
     subtract, tangent_pair_relation, union,

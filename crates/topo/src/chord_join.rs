@@ -123,6 +123,7 @@
 //! ruling, which refuses.
 
 use geom_brep::{EdgeCurveSpec, Pcurve, chart_pcurve_over};
+use geom_core::period::{Exact, Extent, Period, TurnRows};
 use geom_core::{
     Band, BandError, Decide, Indeterminate, InfSpeed, Margin, Point3, Real, Sign, UnitVec3, Vec3,
 };
@@ -3273,11 +3274,25 @@ fn pole_branch<T: Decide>(
     };
     let half = T::tau() * T::from_f64(0.5);
     let shifted = if advancing { gap + half } else { gap - half };
+    // **What the lever is.** Not a rate either edge has throughout: a
+    // point's azimuth rate is its distance from the axis, zero at the pole
+    // and at most the edge's reach, so over either edge the lever is that
+    // rate's sup, and its inf is zero. What the marks decide is the two
+    // edges' largest separation, which on the meridians that reach here is
+    // the chord `2ρ·sin(g/2)` at the reach `ρ` both share: `g·lever`
+    // overstates it by a relative `g²/24` at most, and where `g·ρ` is
+    // within a few bands of a mark that is a few bands squared over `ρ²`,
+    // beneath any band's resolution. So the lever is
+    // the decision's inf to that order, and the decision is the side of
+    // the mark the pair's separation lies on. It is no inf on a curved
+    // edge bending back (the lens, [`pole_lever`]'s four times), which
+    // never gets here: a non-meridian circle's chart image is projected,
+    // and the walk refuses it as FITTED.
     geom_brep::Period::new(T::tau())
         .decide(
             "split_sphere_pole_branch",
             shifted,
-            |g| Margin::levered(g, lever),
+            |g| Margin::metered(g, InfSpeed::new(lever)),
             band,
         )
         .map_err(|stop| match stop.miss {
@@ -5143,6 +5158,22 @@ fn ring_vertices<T: Decide>(
     }
 }
 
+/// Whether a run's azimuth window `[lo, hi]` on a wall of `radius` is
+/// definitely over one period (`split_ring_chart_window`, the turn rule
+/// at the radius): a whole turn is not.
+pub(crate) fn run_window_over<T: Decide>(
+    lo: T,
+    hi: T,
+    radius: T,
+    band: Band,
+) -> Result<bool, Indeterminate> {
+    let rows = TurnRows::exact("split_ring_chart_window");
+    Period::new(T::tau())
+        .not_over(rows, Extent::between(lo, hi), Exact::new(radius), band)
+        .map(|not_over| !not_over)
+        .map_err(|undecided| undecided.diag)
+}
+
 /// [`ring_side`] on a cylinder wall's chart: which side of
 /// `newf`'s outer loop (the run a `mef` just walled off) `ring` lies on,
 /// by the parity of a ray from each ring vertex toward `+v` at constant
@@ -5195,19 +5226,14 @@ fn chart_ring_side<T: Decide>(
     let (lo, hi) = azimuth_hull(&images).ok_or(invariant(
         "ring re-homing on a chart: the run carries no charted edge",
     ))?;
-    let decide_m = |name, margin| {
-        decide(name, margin, band).map_err(|diag| SplitJoinError::Escalated { face: newf, diag })
-    };
     // A run whose window is a whole period (a band round a full-turn
     // face, closed along its seam) holds the seam's azimuth at both `lo`
     // and `hi`. A ring vertex there reads alike at either: the half-open
     // rule reads it just inside `lo` or just past `hi`, and just inside
     // `lo` the run lies only beside its rows along `lo`, which the ray
     // meets only from a vertex on them.
-    if decide_m(
-        "split_ring_chart_window",
-        Margin::levered(tau - (hi - lo), radius),
-    )? == Sign::Negative
+    if run_window_over(lo, hi, radius, band)
+        .map_err(|diag| SplitJoinError::Escalated { face: newf, diag })?
     {
         return Err(invariant(
             "ring re-homing on a chart: the run's azimuth window spans more than a full period, \
