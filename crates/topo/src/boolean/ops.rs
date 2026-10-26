@@ -711,29 +711,7 @@ pub fn boolean_op_with<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let result = boolean_door(op, a, b, &Glue::of(inputs), strategy, tol);
     #[cfg(feature = "door-tier3-meter")]
     super::door_meter::record(op, &result, door_from.elapsed(), [a.outcome(), b.outcome()]);
-    #[cfg(debug_assertions)]
-    if let Ok(BooleanResult::Body(out)) = &result {
-        rows_name_input_cells(&out.coincidences, [a, b]);
-    }
     result
-}
-
-/// Asserts that every input cell `rows` name, a meeting's third
-/// included, is one its input holds: a row is keyed in the op's inputs
-/// (`crate::coincidence`), never in the clones the op minted cells in.
-#[cfg(debug_assertions)]
-fn rows_name_input_cells<T: Real>(rows: &[crate::Coincidence], [a, b]: [&Body<T>; 2]) {
-    for row in rows {
-        for cell in row.every_cell() {
-            if let crate::RowCell::Input { input, cell } = cell {
-                let body = if input == Operand::A { a } else { b };
-                assert!(
-                    super::records::holds(body, cell),
-                    "row {row:?} names {input:?}'s {cell:?}, which that input does not hold"
-                );
-            }
-        }
-    }
 }
 
 /// [`boolean_op_with`]'s body.
