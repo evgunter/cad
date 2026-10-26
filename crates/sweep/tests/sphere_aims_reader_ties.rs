@@ -17,6 +17,9 @@ use topo::AtRestBody;
 
 type S = Sym<f64>;
 
+/// A named body build, returning its shell count.
+type Case<'a> = (&'static str, Box<dyn Fn() -> usize + 'a>);
+
 #[test]
 #[ignore = "evidence: the side reader's exact ties on trimmed-sphere bodies"]
 fn sphere_aims_reader_ties() {
@@ -43,7 +46,7 @@ fn sphere_aims_reader_ties() {
             tol,
         )
     };
-    let cases: Vec<(&str, Box<dyn Fn() -> usize>)> = vec![
+    let cases: Vec<Case<'_>> = vec![
         ("sym lens", Box::new(move || shells(sym_lens()))),
         (
             "sym bite",
