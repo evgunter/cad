@@ -24,13 +24,15 @@ Where either rim has a vertex there (the other rim is split there), the
 two vertices are a vertex pair, and at that pair the floor's sector and
 the top face's sector share the rims' common tangent and lie on opposite
 sides of it: at first order they only touch, and `sectors.rs`
-`sector_overlap` (≈1816) reads no overlap. One order down they overlap,
-`(κ_b − κ_a)·û > 0` (`sectors.rs` `crescent`, ≈1915). `union` refuses
-`TangentCrescentUnsupported` there (`sectors.rs` `crescent_refusal`,
-≈1856, called from `boolean/mod.rs` after `pair_search`, ≈5891), in
+`pair_search` lists the pair as touching (`sector_overlap` reads no
+overlap). One order down they overlap, `(κ_b − κ_a)·û > 0`
+(`sectors.rs` `crescent`). Under union, `sectors.rs` `crescent_refusal`
+(called from `boolean/mod.rs` after `pair_search`) reads that on two
+opposed plane faces and refuses `TangentCrescentUnsupported`, in
 one-segment and two-arc forms, through and pocket, both operand orders,
 at the default ε, 1e-6 and 1e-12. ∩ and both differences keep the
-operands and are `SOUND`.
+operands and are `SOUND`. The refusal also fires on one pose `main`
+built: `a-crescent-refusal-fires-where-short-arcs-carry-the-section`.
 
 ## What building it takes
 

@@ -4,7 +4,7 @@ kind: issue
 title: A boss over a concentric hole of its own radius unites as two solids touching along the rim, and the union's records name only the vertex pair
 status: open
 opened: 2026-10-25
-priority: P1
+priority: P2
 cost: M
 ---
 

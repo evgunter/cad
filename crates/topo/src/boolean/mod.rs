@@ -3084,10 +3084,9 @@ pub enum BooleanError {
     /// Under union, a plane face of each operand lies on the other's
     /// with opposed normals at a pair of their vertices, and the two
     /// faces' outlines leave the vertex tangent, one curving inside the
-    /// other: the faces overlap in a crescent that narrows to the vertex
-    /// (`sectors::crescent_refusal`). The union glues them over it, and
-    /// no germ runs along a region of zero angle at its tip, so the
-    /// section cannot reach it.
+    /// other: the faces overlap in a crescent that narrows to the vertex,
+    /// which the section cannot reach (`sectors::crescent_refusal` says
+    /// why).
     TangentCrescentUnsupported {
         /// A's face, a key of A's working copy.
         a_face: FaceKey,
@@ -4762,9 +4761,10 @@ impl core::fmt::Display for BooleanError {
             Self::TangentCrescentUnsupported { .. } => write!(
                 f,
                 "a flat face of each part lies on the other's, and their outlines touch at a \
-                 corner where one curves inside the other, so the faces share a sliver that \
-                 narrows to that corner, which the Boolean cannot yet join. Recourse: move \
-                 one part so the two outlines cross or stay clear of each other there"
+                 point where one curves inside the other, so the faces share a sliver that \
+                 narrows to that point, which a union cannot yet join (subtract and \
+                 intersect can). Recourse: move one part so the two outlines cross or stay \
+                 clear of each other there"
             ),
             Self::CrossingsAlongAContactLine { .. } => write!(
                 f,
@@ -5885,8 +5885,13 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                     .push(pair),
             }
         }
-        let mut records = sectors::pair_search(&a_sectors, &b_sectors, band)?;
-        sectors::crescent_refusal([&a, &b], [&a_sectors, &b_sectors], op, band)?;
+        let sectors::PairSearch {
+            mut records,
+            touching,
+        } = sectors::pair_search(&a_sectors, &b_sectors, band)?;
+        if op == BooleanOp::Union {
+            sectors::crescent_refusal([&a, &b], [&a_sectors, &b_sectors], &touching, band)?;
+        }
         // The layering beside a partner along the face reads no sector
         // pair on one plane: it refuses before `recl_sectors` reads one.
         if let Some(refusal) = along
@@ -5936,13 +5941,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             Operand::A => &b,
             Operand::B => &a,
         };
-        move |face| {
-            crate::readback::face_carrier_kind(body, face)
-                .map(sectors::FaceShape::of_kind)
-                .map_err(|_| BooleanError::ClassificationInvariant {
-                    what: "a partner's face has no carrier",
-                })
-        }
+        move |face| sectors::FaceShape::of_face(body, face, "a partner's face has no carrier")
     };
     let mut read = Vec::with_capacity(touches.len() + paired.len());
     for (&(operand, vertex), touch) in &touches {

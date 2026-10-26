@@ -2824,8 +2824,8 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ),
     ("sectors.rs", "build_sectors", "BooleanDecision::Corner", 1),
     ("sectors.rs", "conic_side", "BooleanDecision::ConicBend", 1),
+    ("sectors.rs", "crescent", "BooleanDecision::ConicBend", 1),
     ("sectors.rs", "crescent", "Coincide::Sectors", 1),
-    ("sectors.rs", "crescent_refusal", "Coincide::Sectors", 1),
     ("sectors.rs", "in_sector", "Coincide::Sectors", 1),
     (
         "sectors.rs",
