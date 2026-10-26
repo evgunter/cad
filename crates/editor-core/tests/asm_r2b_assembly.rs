@@ -420,11 +420,14 @@ fn row3_b_the_mated_touching_pair_is_recorded_as_the_unmated_one_is() {
     }
 }
 
-/// INVARIANT (spec row 4's in-band clause; C4's escalation rail): a
-/// seat whose gap is AUTHORED INTO THE BAND — a standoff off the base's
-/// top, which places the cube and declares nothing — is neither
-/// certified nor contradicted: it escalates TYPED, and the escalation
-/// carries the kernel's predicate name.
+/// INVARIANT (spec row 4's in-band clause): a seat whose gap is
+/// AUTHORED INTO THE BAND — a standoff off the base's top, which places
+/// the cube and declares nothing — is neither certified nor
+/// contradicted. The two caps read one carrier in band, so they are one
+/// face pair the census cannot look at (`[assertions]`): the gate
+/// refuses on that pair's typed finding, and on the in-band finding of
+/// each pair of side walls it brings flush, each pair once, with no
+/// escalation of their cells beside them.
 ///
 /// The gap is DERIVED FROM THE COMMITTED BAND, never spelled as a
 /// literal: the hosted matrix runs ε = 1e-12 and 1e-6 as well as the
@@ -436,7 +439,7 @@ fn row3_b_the_mated_touching_pair_is_recorded_as_the_unmated_one_is() {
 /// (Row adopted from the review's probe; the band-relative derivation
 /// is the repo's own precedent for literal-ε rows.)
 #[test]
-fn row4_b_an_in_band_authored_gap_escalates_typed_and_predicate_named() {
+fn row4_b_an_in_band_authored_gap_refuses_on_its_in_band_pairs() {
     let band =
         geom_core::predicate::Band::linear(Tol::witness()).expect("the committed band builds");
     let gap = (band.zero() * band.escalate()).sqrt();
@@ -447,25 +450,28 @@ fn row4_b_an_in_band_authored_gap_escalates_typed_and_predicate_named() {
         band.zero(),
         band.escalate()
     );
-    let (doc, _, mate, store, _) = stacked("asm-r2b-row4b", 1.0 + gap);
+    let (doc, _, _, store, _) = stacked("asm-r2b-row4b", 1.0 + gap);
     let ev = run(&doc, &with_resolver(store));
-    let result = assemble(&doc, &ev, Tol::witness());
-    let errs = findings(&result);
-    assert!(
-        errs.iter().any(|e| e.contains("CensusEscalated")),
-        "an in-band authored gap is the Err(Indeterminate) rail, not a \
-         verdict either way: {errs:?}"
-    );
-    assert!(
-        errs.iter().any(|e| e.contains("predicate")),
-        "and the escalation names the PREDICATE that could not decide: \
-         {errs:?}"
-    );
-    assert!(
-        matches!(result, Err(AssemblyError::AtRest { .. })),
-        "the escalation surfaces through the assembly gate"
-    );
-    let _ = mate;
+    let Err(AssemblyError::AtRest { findings }) = assemble(&doc, &ev, Tol::witness()) else {
+        panic!("an in-band authored gap refuses at rest");
+    };
+    let mut pairs: Vec<[topo::FaceKey; 2]> = findings
+        .iter()
+        .map(|f| match f.error {
+            topo::ValidationError::CensusUndecidable {
+                a: topo::EntityId::Face(a),
+                b: topo::EntityId::Face(b),
+                reason: topo::Undecidable::InBandPair,
+                ..
+            } => [a.min(b), a.max(b)],
+            ref other => panic!("every finding is an in-band pair's: {other:?}"),
+        })
+        .collect();
+    assert!(!pairs.is_empty(), "the in-band seat refuses");
+    let found = pairs.len();
+    pairs.sort();
+    pairs.dedup();
+    assert_eq!(pairs.len(), found, "each pair is one finding: {pairs:?}");
 }
 
 // ---- Rows 5 and 6: the crossing record ----

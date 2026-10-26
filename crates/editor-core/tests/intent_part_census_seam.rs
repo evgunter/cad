@@ -68,9 +68,10 @@ fn in_band_gap() -> f64 {
     3.0 * Tol::witness().eps()
 }
 
-/// The two copies stand three ε apart, inside the sliver band: the census
-/// escalates on whether they touch, which the part's own gate refuses,
-/// naming none of its declarations.
+/// The two copies stand three ε apart, inside the sliver band: the faces
+/// they stand off over read one carrier in band, one pair the census
+/// cannot look at, which the part's own gate refuses, naming none of its
+/// declarations.
 fn in_band(label: &str) -> ProfileDoc {
     two_blocks(label, 0.5 + in_band_gap())
 }
@@ -216,12 +217,10 @@ fn an_overlap_two_documents_down_carries_up_by_its_route() {
 
 /// **A finding the part's own gate refuses refuses the instantiating
 /// gate as the part's.** The part's two copies stand in the sliver
-/// band, so its census escalates on whether they touch, and its gate
-/// refuses that, naming none of its declarations. An escalation names
-/// no pair, so nothing matches it to the census's re-finding inside the
-/// copy (`work/contacthold/an-escalated-census-finding-names-no-pair.md`);
-/// the part's refusal is raised first, so the outer document's own
-/// verdict is never reached. The document
+/// band, so its census cannot look at the faces they stand off over,
+/// and its gate refuses that, naming none of its declarations. The
+/// part's refusal is raised first, so the outer document's own verdict
+/// is never reached. The document
 /// instantiating it refuses `CarriedAtRest` with the part's findings,
 /// verbatim and by the route through the instance, rather than refusing
 /// the census's re-finding inside the copy as its own.
@@ -234,7 +233,7 @@ fn a_parts_own_census_refusal_refuses_the_outer_gate_as_the_parts() {
     let Err(AssemblyError::AtRest { findings: own }) = gate(&part, &EvalOptions::default()) else {
         panic!("the part's own gate refuses the undecided pair")
     };
-    assert!(own.len() > 1, "the premise: several findings: {own:?}");
+    assert!(!own.is_empty(), "the premise: the part refuses: {own:?}");
     let (doc, ids, opts) = instantiating("seam-in-band", &part, 1);
     let err = gate(&doc, &opts).expect_err("the part is not at rest, so neither is this");
     let AssemblyError::CarriedAtRest { findings } = &err else {
@@ -259,23 +258,23 @@ fn a_parts_own_census_refusal_refuses_the_outer_gate_as_the_parts() {
     );
 }
 
-/// **An escalation two documents down is reported once, as the
+/// **An in-band pair two documents down is reported once, as the
 /// part's.** A sub-assembly instantiates the in-band part, and a top
 /// document instantiates the sub-assembly. The sub-assembly's census
-/// finds the part's escalations again inside its copy, and an
-/// escalation names no pair, so nothing matches them; but its gate
+/// finds the part's in-band pair again inside its copy, naming the
+/// copy's faces rather than the part's, so nothing matches it; but its gate
 /// refuses over the part's carried refusal before its own at-rest
 /// stage, so it crosses none of its own census, and the top reports the
 /// part's findings once, by the route through the sub-assembly.
 ///
 /// *Breaks if* the sub-assembly's seam verdict reads its census though
 /// its gate never reaches it (the top then also reports the re-found
-/// escalations, as the sub-assembly's own).
+/// pair, as the sub-assembly's own).
 #[test]
-fn an_escalation_two_documents_down_is_reported_once_as_the_parts() {
+fn an_in_band_pair_two_documents_down_is_reported_once_as_the_parts() {
     let part = in_band("seam-deep-band-part");
     let Err(AssemblyError::AtRest { findings: own }) = gate(&part, &EvalOptions::default()) else {
-        panic!("the part's own gate refuses its escalations")
+        panic!("the part's own gate refuses its in-band pair")
     };
     let mut store = PartStore::new();
     let part_ref = store.insert(part.clone(), Tol::witness());
@@ -341,7 +340,7 @@ fn a_part_in_the_world_and_a_loose_space_reports_its_overlap_once() {
 }
 
 /// **A part placed twice reports its own refusal once.** Both copies
-/// carry the in-band part's escalations up, and they are one part row's
+/// carry the in-band part's finding up, and it is one part row's
 /// findings, reported by the first instance's route.
 ///
 /// *Breaks if* each instance reports the part's refusal again (the
@@ -350,7 +349,7 @@ fn a_part_in_the_world_and_a_loose_space_reports_its_overlap_once() {
 fn a_refusing_part_placed_twice_reports_its_refusal_once() {
     let part = in_band("seam-band-twice-part");
     let Err(AssemblyError::AtRest { findings: own }) = gate(&part, &EvalOptions::default()) else {
-        panic!("the part's own gate refuses its escalations")
+        panic!("the part's own gate refuses its in-band pair")
     };
     let (doc, ids, opts) = instantiating("seam-band-twice", &part, 2);
     let err = gate(&doc, &opts).expect_err("the part is not at rest");
