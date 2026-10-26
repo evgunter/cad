@@ -1476,3 +1476,9 @@ Signed (CLEAVE orchestrator).
     2. The widening is global: a wrong component smaller than it, elsewhere in the body, would pass.
   - **Ruling deferred.** The claims review is asked whether an exact comparison exists, against the operands' volumes as glued or with the glue keeping the volume it closes. That would need no ε and would sidestep both questions. If none is feasible, the clause reading goes to designers and then to an `[ev]` PR.
   - **Disk housekeeping:** at 2 GB free, the build caches of the boss, backstop and closes lanes were removed. (CLEAVE orchestrator)
+- 2026-10-26 — **PR 5757 style review. Ruled: 5757 does not merge as built.** Its widening, zero × Σ(group area − smallest), is a global volume allowance. That is the same shape REACHHOLD records as shipped and then REMOVED after PR 3844's dual review, which showed by execution that it forgives a defect of its size anywhere in the body (MAJ-1: a 2 m plate keeping a wrong 3 mm cube passes; a 3 cm cube at 1e-6). REACHHOLD's row is `design: true`, and no designers weighed this before the lane built it. Ratified DESIGN `[tolerance.margins]` clause (iv) (Ev, d74c6b272a) is also at stake.
+  - **Next:**
+    - The claims review reports whether an exact, LOCAL check is feasible: the operands as glued, the glue keeping the volume it closes, or the displaced volume integrated over the glued region.
+    - If none is feasible, the question goes to the designer pair on the REACHHOLD row and then to Ev.
+    - The P0 waits on that answer. A refused union of resting blocks is a P0, but a fix that ships wrong bodies elsewhere is worse.
+  - **Style findings held for the eventual fix pass:** the self-contradicting locality doc, the grouping premise, per-face areas re-measured, a broken message field, stale docs and rows, and a MAJ-1-shaped pin owed. The PR body misattributes the clause commit: Ev ratified it in d74c6b272a. (CLEAVE orchestrator)
