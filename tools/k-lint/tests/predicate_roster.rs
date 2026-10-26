@@ -441,7 +441,11 @@ fn no_production_door_states_an_eps_derived_resolution() {
     while let Some(dir) = stack.pop() {
         for entry in std::fs::read_dir(&dir).expect("the tree reads") {
             let path = entry.expect("an entry reads").path();
-            let name = path.file_name().and_then(|n| n.to_str()).unwrap_or_default().to_owned();
+            let name = path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or_default()
+                .to_owned();
             if path.is_dir() {
                 if name != "tests" && name != "examples" && name != "benches" && name != "target" {
                     stack.push(path);
@@ -457,7 +461,10 @@ fn no_production_door_states_an_eps_derived_resolution() {
         }
     }
     files.sort();
-    assert!(files.len() > 100, "the walk reaches the workspace's sources");
+    assert!(
+        files.len() > 100,
+        "the walk reaches the workspace's sources"
+    );
     let mut found = Vec::new();
     for path in &files {
         let text = std::fs::read_to_string(path).expect("a source reads");
