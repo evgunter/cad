@@ -22,9 +22,8 @@ use crate::common;
 use common::placement_findings;
 use geom_core::{Band, Point3, Tol};
 use topo::{
-    Body, CensusContact, ContactRecords, EntityId, FaceKey, SolidContainment, SolidKey,
-    ValidationError, VoidContainment, VoidEvidence, insert_void, point_in_solid_of,
-    validate_pseudomanifold,
+    Body, CensusContact, ContactRecords, FaceKey, SolidContainment, SolidKey, ValidationError,
+    VoidContainment, VoidEvidence, insert_void, point_in_solid_of, validate_pseudomanifold,
 };
 
 /// The issue's L profile: counterclockwise from `+z`, reflex at (1, 1).

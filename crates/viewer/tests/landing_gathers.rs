@@ -185,8 +185,12 @@ fn a_refused_a5_gate_eats_the_body_and_says_so_by_its_absence() {
         );
     }
     assert!(
-        matches!(session.at_rest(), Some(AtRestBadge::Refused { .. })),
-        "this row's premise is a refused gate: {:?}",
+        matches!(
+            session.at_rest(),
+            Some(AtRestBadge::Refused { message })
+                if message.contains("whether two parts of the body touch is undecided")
+        ),
+        "this row's premise is a gate refused on the census escalating in the band: {:?}",
         session.at_rest()
     );
 

@@ -12,7 +12,7 @@
 
 use crate::common;
 use geom_core::{Point3, Tol};
-use topo::{Body, ContactRecords, EntityId, ValidationError, validate_pseudomanifold};
+use topo::{Body, ContactRecords, ValidationError, validate_pseudomanifold};
 
 /// Whether the census raised a placement finding on a solid pair.
 fn refused(body: &Body<f64>) -> bool {

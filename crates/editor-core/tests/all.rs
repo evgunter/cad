@@ -61,6 +61,8 @@ mod wire;
 
 #[path = "a_keel_on_the_floor_names_its_two_edges.rs"]
 mod a_keel_on_the_floor_names_its_two_edges;
+#[path = "aligned_overlap_quiets.rs"]
+mod aligned_overlap_quiets;
 #[path = "asm1_identity_pins.rs"]
 mod asm1_identity_pins;
 #[path = "asm2a_instantiate.rs"]

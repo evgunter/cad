@@ -21,7 +21,7 @@ use crate::common;
 use common::placement_findings;
 use geom_core::{Band, Point3, Tol};
 use topo::{
-    Body, CensusContact, ContactRecords, EntityId, SolidContainment, SolidKey, ValidationError,
+    Body, CensusContact, ContactRecords, SolidContainment, SolidKey, ValidationError,
     point_in_solid_of, validate_pseudomanifold,
 };
 

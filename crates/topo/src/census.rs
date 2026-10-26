@@ -30,8 +30,8 @@
 //!   the chart-region predicate); two planar faces of different solids
 //!   meeting over an area, one pair (the planar arm,
 //!   [`planar_face_pairs`], read before the sweeps, which then ask
-//!   nothing of the cells bounding an opposed one, and which reports an
-//!   aligned one as [`ValidationError::SameSideInterference`]);
+//!   nothing of the cells bounding it; an aligned one is reported as
+//!   [`ValidationError::SameSideInterference`]);
 //!   face–face records (the patch
 //!   certifier on one carrier or two planes, the `Tangent` table along
 //!   the closed-form tangent line on two other carriers, the line
@@ -5254,6 +5254,9 @@ enum Bound {
 
 /// One planar face pair the face-pair arm confirmed: its two faces, in
 /// the arm's order, and the margin Door 1 decided their one carrier by.
+/// [`report_found_pairs`] carries the margin on an opposed pair's row;
+/// an aligned pair's [`ValidationError::SameSideInterference`] carries
+/// none, since an overlap is no row.
 struct FoundPair {
     a: FaceKey,
     b: FaceKey,
@@ -5298,9 +5301,11 @@ struct FacePairs {
 /// cells' meetings are read by the sweeps like any others, so it is
 /// never silent.
 ///
-/// The pairs are found before the sweeps run, so a confirmed opposed
-/// pair answers for its boundary cells whether or not it is recorded;
-/// the caller reports each one no record names ([`report_found_pairs`]).
+/// The pairs are found before the sweeps run, so each answers for its
+/// boundary cells' touches in the closure of its shared area
+/// ([`Declared::holds`]) whether or not it is recorded. The caller
+/// reports each opposed pair no record names ([`report_found_pairs`]);
+/// arm 2 reports each aligned one.
 fn planar_face_pairs<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
