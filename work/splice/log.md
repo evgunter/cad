@@ -424,3 +424,41 @@ Filed:
 
 The orchestrator read the delta. It merged after main's RESTREAD red
 was fixed (ATREST PR 5779).
+
+## 2026-10-26 — the converse arm dispatched, stacked
+
+`splice/converse-arm` (`session_01GJUH1SbY5bRWRdPiwDHdvq`):
+`nurbs-edge-crossing-rung-is-the-ring-composite`. This is the
+curve × face table's spline-span × analytic-face arm, with the edge's
+control-hull box, the end-to-end crossing row, and the crease rule.
+Tier: dual, letter H.
+
+It is **stacked on `splice/boundary-first`** (PR 5768: reviewed,
+accepted, held only by main's RESTREAD red). Stacking was chosen over
+waiting, because lily wall 8's next refusal is exactly this arm and
+5768's table is final. The PR targets main and merges main once 5768
+lands. The interior arm (`an-analytic-edge-…`) follows on the same
+table after this one, rather than in parallel, so two lanes don't
+collide in the new module.
+
+PR 5764 (spline dihedral) and PR 5768 are both read and accepted, and
+both wait only on RESTREAD's main red
+(`work/restread/main-red-coincident-wedges-overlap-refuses-flush-copies.md`).
+
+## 2026-10-26 — two rulings for the converse-arm lane
+
+- **Witness 3** (the far loft prism against the `[5,6]^3` brick)
+  stops past the hull at two more refusals. One is
+  `sphere_extent_scan`'s NURBS re-gate. The lane scopes it
+  reach-first, in ops.rs, on this PR, as an announced seam. The other
+  is `point_in_solid`'s `KindUnsupported`. A box exit rides this PR
+  only in its sound form: q outside the selection's overall certified
+  box. "Outside every face's box" is unsound, since a box solid's
+  centre is outside every face slab yet inside the solid. A row must
+  pin that. If the sound form does not build the far case, the exit is
+  filed on the owning slate and the rows are re-pinned.
+- **The end-to-end row** stops at `sectors.rs`'s `sector_face::resolve`,
+  which has no NURBS arm. The lane pins a tripwire there, adds a
+  sweep-level witness, and files
+  `the-sector-walk-reads-no-nurbs-face-at-a-crossing-vertex`, which
+  carries the owed ranking row and the spline-crease caution.
