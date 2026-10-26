@@ -33,12 +33,21 @@ refusal carries the margin it was decided on.
 
 ## The slate
 
-**24.5 budget points** of dispatchable work against a ceiling of 30
+**29.5 budget points** of dispatchable work against a ceiling of 30
 (eleven open P2 rows; one P2 parked).
 
 The P3 and P4 rows this track used to carry are on HONEROOT,
 HONEJOIN, HONEONE, HONEWORD and HONESPLIT (`work/hone/log.md`,
 2026-10-26).
+
+### Arrived from CLEAVE (2026-10-26)
+
+Moved by CLEAVE's priority-seam cut, ids and bodies unchanged, each with a dated `## Slate triage` note (5 points of the total above):
+
+| pri | item | cost | title |
+|---|---|---|---|
+| P2 | `coaxial-rim-margins-decide-tilt-and-off-axis-one-at-a-time` | M | coaxial_margins decides a rim's tilt and its centre's off-axis distance one at a time, not their sum |
+| P2 | `conic-plane-root-at-an-arc-end-reads-the-minor-meter` | M | A conic root near an arc end is read against the span at the minor semi-axis, so a steep ellipse's crossing is dropped as an endpoint |
 
 ## Exit criteria
 
