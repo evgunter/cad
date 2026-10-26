@@ -17,3 +17,10 @@ Found by PR 5742's slow-set run (2026-10-26), on a head carrying main `d67ac3cbd
 Each still carries `#[serde(deny_unknown_fields)]`, but neither declaration has a named field any more. 353f5163b6 ("names: an orientation is read, never chosen; nothing is ranked") removed their one named variant, `OrderAlong { rank, of }`. So the attribute denies nothing.
 
 **Done when** both attributes are removed, any doc that reasons from them says what actually refuses, and the census row is green on main.
+
+## Two more census rows red on main since D′3 (2026-10-26, main `be2b7a139c`)
+
+PR 5742's slow-set run found these on the same day. Neither file is in that PR's diff.
+
+- `deny_unknown_fields_census::the_walk_still_sees_every_attribute_site`: `crates/editor-core/src/var.rs` holds four `deny_unknown_fields` sites on main, and `ATTRIBUTE_SITES_TODAY` still says three.
+- `hand_written_impl_census::every_hand_written_walk_is_held_to_its_declaration` and `::the_walk_still_sees_every_file_holding_one`: `crates/editor-core/src/product.rs:1040`, `impl Debug for Census<T>`, reads `self.node` with no exhaustive pattern, and `product.rs` is not in `IMPL_FILES_TODAY`.
