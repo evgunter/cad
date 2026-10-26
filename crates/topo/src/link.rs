@@ -2367,19 +2367,24 @@ mod tests {
     ///   become one, not even through a second constructor beside `of`.
     ///
     /// - structure (`is_poison(`, `is_bounded(`, `point_value(`,
-    ///   `enclosure_hull(`) is read only inside `lowest_on` (a candidate that
-    ///   is no bounded number is skipped; a candidate's location read as a
-    ///   point; a band joining two points of a point segment) and `either`
-    ///   (a hull where the scalar holds one), and `format!(` and
-    ///   `to_string(` nowhere.
+    ///   `enclosure_hull(`) is read only at six named call sites, each
+    ///   occurring once: four in `lowest_on` (a candidate that is no
+    ///   bounded number is skipped; a candidate's location read as a
+    ///   point; a band joining two points of a point segment) and two in
+    ///   `either` (a hull where the scalar holds one);
+    /// - no text is made of a number: no `format!(`, `format_args!`,
+    ///   `write!`, `writeln!`, `write_fmt` or `to_string(`.
     ///
     /// **What it cannot see.**
-    /// - A sign decided through structure. `(-x).sqrt().is_poison()`,
-    ///   `(1 / (x.max(0) − x.abs())).is_bounded()` or a `Debug` string's
-    ///   first character each decide a sign with no needle naming them;
-    ///   the needles above catch the spellings, and inside `lowest_on` and
-    ///   `either`, where structure is read, only reading can tell a skip
-    ///   from a decision.
+    /// - A sign decided through structure at a named site. The sites are
+    ///   pinned by their text, so a new `(-x).sqrt().is_poison()` or
+    ///   `x.point_value().is_some_and(|v| v < 0.0)` anywhere goes red; but
+    ///   what a site is handed is not: `t` at the skip could be built from
+    ///   a sign upstream, and only reading tells a skip from a decision.
+    /// - A sign spelled through a needle-free route: a `Debug` string
+    ///   reached through a helper outside this module and the census's
+    ///   touch analysis, or a trait method under another name that reads
+    ///   a sign (`Into<f64>` and a comparison, say).
     /// - A comparison of two reals: `Real` has no order, so `<` on a `T`
     ///   does not compile and needs no needle, but a value read out to
     ///   `f64` and compared would.
@@ -2455,20 +2460,50 @@ mod tests {
             "copysign",
             "select_le_zero",
             "format!(",
+            "format_args!",
+            "write!",
+            "writeln!",
+            "write_fmt",
             "to_string(",
         ] {
             stray.extend(outside(module, needle, &[]));
             stray.extend(outside(touch, needle, &[]));
         }
-        // Structure, read only where a candidate is skipped or a branch
-        // hulled, never where a sign is decided.
+        // Structure, read only at these call sites, each where a candidate
+        // is skipped or a branch hulled, never where a sign is decided.
+        // Each must occur once in its body, so a second call goes red.
+        let sites: Vec<core::ops::Range<usize>> = [
+            (&lowest_on, ".all(|v| v.point_value().is_some());"),
+            (
+                &lowest_on,
+                "roots.iter().all(|t| !t.is_poison() && t.is_bounded())",
+            ),
+            (&lowest_on, "if t.is_poison() || !t.is_bounded() {"),
+            (
+                &lowest_on,
+                "let t = t.point_value().map_or(t, T::from_computed);",
+            ),
+            (&either, "let both = lo.enclosure_hull(hi);"),
+            (&either, "if both.is_poison() && !hi.is_poison() {"),
+        ]
+        .into_iter()
+        .map(|(r, site)| {
+            let found: Vec<usize> = module[r.clone()]
+                .match_indices(site)
+                .map(|(i, _)| r.start + i)
+                .collect();
+            assert_eq!(found.len(), 1, "the structure site `{site}`, once");
+            found[0]..found[0] + site.len()
+        })
+        .collect();
+        let sites: Vec<&core::ops::Range<usize>> = sites.iter().collect();
         for needle in [
             "is_poison(",
             "is_bounded(",
             "point_value(",
             "enclosure_hull(",
         ] {
-            stray.extend(outside(module, needle, &[&lowest_on, &either]));
+            stray.extend(outside(module, needle, &sites));
             stray.extend(outside(touch, needle, &[]));
         }
         assert!(
