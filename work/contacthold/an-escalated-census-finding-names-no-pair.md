@@ -35,3 +35,15 @@ at-rest findings, which INTENT stages 4 and 5 rebuild. Per RESTREAD's
 plan (a row needing declared pairs or contact parks and moves to
 CONTACTHOLD), it moved here by `git mv` with its id unchanged. Priced
 `M` where it carried no cost. (RESTREAD orchestrator)
+
+## 2026-10-26 — evidence from stage 5 C
+
+With the at-rest gate gone (`the-at-rest-census-is-a-check`), an
+escalation the census re-finds inside an instance's copy is no longer
+hidden behind the part's carried refusal: nothing refuses, so each level
+that re-finds it reports it loud as its own could-not-look finding
+(`AtRestEvidence::NoLane`), beside the part's carried one. Pinned by
+`intent_part_census_seam::what_a_part_could_not_look_at_is_reported_as_the_parts`
+and `an_escalation_two_documents_down_is_reported_once_as_the_parts`
+(the part's rows once each; the re-findings beside them). Naming the
+pair would let the in-arrival discard place it and report it once.
