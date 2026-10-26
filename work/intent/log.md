@@ -946,3 +946,4 @@ The boolean declare surface is gone at every layer. A boolean's one input beside
     - `coincidence-intent-has-too-many-spellings` is INTENT's (the coincidence door). It is answered, so closed, with its residue pointed at ATREST 5 C and COINCIDE.
     - Cluster E (the at-rest gate's typing) touches INTENT's editor-core and census seams, but the gate is ATREST's. INTENT weighs in on its design fork rather than leading it.
     - A, B and C are kernel rows and stay ONEHOME's.
+- 2026-10-26 14:35 — **Loft (#5748) merged** on green at `d1f528a7cf`. **The ONEHOME close (#5783) merged.** The loft and split items close.
