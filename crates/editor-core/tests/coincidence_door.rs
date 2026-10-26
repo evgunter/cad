@@ -2235,9 +2235,9 @@ fn fusions(ev: &Evaluation<f64>, node: RecipeNodeId) -> Vec<NamedCoincidence> {
 /// and not bit for bit. The plate's top mints one ring for both
 /// (`topo` `vtxfac::mint_ring`), and the intersection keeps both pierces
 /// as two vertices. It records the decision: one `VertexFusion`
-/// `Meet` row, its two cells the two blocks' edges as the union names
-/// them, sharing the point each pierce was minted at, its margin the
-/// gap. The door leaves it unproven, its form outgrowing the door's
+/// `Meet` row, its cells the two blocks' edges as the union names them
+/// and the plate's top, whose carriers share the point each pierce was
+/// minted at (the two edges alone share a line), its margin the gap. The door leaves it unproven, its form outgrowing the door's
 /// budget, and the check reports it: the blocks are copies placed
 /// against the plate, and no mate states their edges one. Red if
 /// the ring glues the two by a shared point key alone, which records
@@ -2302,11 +2302,23 @@ fn a_ring_serving_two_pierces_records_their_fusion_unproven() {
             && !gap.starts_with("MarginDiag(Value(0.0"),
         "the margin is the pierces' gap, not bit for bit zero: {gap}"
     );
-    assert!(
+    let of = |node: RecipeNodeId, kind: EntityKind| {
         row.cells
             .iter()
-            .all(|c| matches!(c, NamedCell::Entity { input, .. } if *input == out(&doc, blocks))),
-        "both cells are the blocks' union's: {:?}",
+            .filter(|c| {
+                matches!(c, NamedCell::Entity { input, name }
+                if *input == out(&doc, node) && name.kind == kind)
+            })
+            .count()
+    };
+    assert_eq!(
+        (
+            of(blocks, EntityKind::Edge),
+            of(plate, EntityKind::Face),
+            row.cells.len()
+        ),
+        (2, 1, 3),
+        "the blocks' union's two edges and the plate's top: {:?}",
         row.cells
     );
     assert_eq!(

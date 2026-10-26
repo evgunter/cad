@@ -1310,7 +1310,10 @@ pub(crate) fn name_rows(
     };
     rows.iter()
         .map(|row| {
-            let cells = vec![name(&row.cells[0])?, name(&row.cells[1])?];
+            let cells = row
+                .every_cell()
+                .map(|cell| name(&cell))
+                .collect::<Result<Vec<_>, _>>()?;
             if row.relation == topo::Relation::Meet {
                 return NamedCoincidence::meet(
                     cells,
