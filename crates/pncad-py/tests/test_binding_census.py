@@ -2922,6 +2922,14 @@ NOT_BOUND = {
     # as its tag word plus prose, and the guard's prose is its own
     # sentence, so a Python caller reads the site in the message.
     "PairRefusalSite": INTERIOR,
+    # `BooleanError::EdgeCarrierUnsupported`'s SITE: which lane met the
+    # spiric or spline edge (the sweep's planar or curved crossing arm,
+    # the join's germ frame or ring run). Carried in Rust so a consumer
+    # matching that variant can name the field's type; interior here
+    # because Python never holds one. The refusal crosses as its tag
+    # word plus prose, and each site's clause is its own, so a Python
+    # caller reads the site in the message.
+    "EdgeCarrierSite": INTERIOR,
     # `NodeErrorKind::FullRangeStep`'s `turns`: whether a step of a
     # turn or more lands every copy on the master or names an angle
     # within the turn. Carried in Rust so a consumer matching that
@@ -3763,7 +3771,6 @@ MEMBERS_BOUND_AS = {
     "InlineError::StrandedPartName": "InlineError.variant",
     "InlineError::StrandedPartRead": "InlineError.variant",
     "InlineError::NameOnDroppedStep": "InlineError.variant",
-    "InlineError::RankedRunReordered": "InlineError.variant",
     "InlineError::Edit": "InlineError.variant",
     "FlattenError::UnknownNode": "FlattenError.variant",
     "FlattenError::NotAPlacement": "FlattenError.variant",
@@ -3891,7 +3898,6 @@ MEMBERS_BOUND_AS = {
     "SplitError::PartNameReachesRemainder": "SplitError.variant",
     "SplitError::NameStraddlesCut": "SplitError.variant",
     "SplitError::NameOnDroppedStep": "SplitError.variant",
-    "SplitError::RankedRunReordered": "SplitError.variant",
     "SplitError::BodyNameCrossesCut": "SplitError.variant",
     "SplitError::NameOutsidePartWorld": "SplitError.variant",
     "SplitError::Pin": "SplitError.variant",
@@ -3935,6 +3941,7 @@ MEMBERS_BOUND_AS = {
     "TessellateError::ResolutionOverflow": "TessellateError.variant",
     "TessellateError::StepNotPositive": "TessellateError.variant",
     "TessellateError::CertificateExceeded": "TessellateError.variant",
+    "TessellateError::RoundingUnresolved": "TessellateError.variant",
     "TessellateError::Triangulation": "TessellateError.variant",
     "TessellateError::SelfTouchingTrimLoop": "TessellateError.variant",
     "TessellateError::PinchWedge": "TessellateError.variant",
@@ -4006,8 +4013,11 @@ MEMBERS_BOUND_AS = {
     "ValidationError::CensusUndecidable": "ValidationFinding.variant",
     "ValidationError::FaceThroughEdgeWedge": "ValidationFinding.variant",
     "ValidationError::FaceThroughEdgeWedgeUndecided": "ValidationFinding.variant",
+    "ValidationError::CoincidentWedgesOverlap": "ValidationFinding.variant",
+    "ValidationError::CoincidentWedgesOverlapUndecided": "ValidationFinding.variant",
     "ValidationError::ArcEndOffCorner": "ValidationFinding.variant",
     "ValidationError::InstanceInterference": "ValidationFinding.variant",
+    "ValidationError::SameSideInterference": "ValidationFinding.variant",
     "ValidationError::CuspEdgesMissing": "ValidationFinding.variant",
     "ValidationError::DanglingTopology": "ValidationFinding.variant",
     "ValidationError::DanglingGeometry": "ValidationFinding.variant",

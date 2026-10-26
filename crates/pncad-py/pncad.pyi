@@ -541,14 +541,16 @@ class TessellateError(PncadError):
     `unsupported_nurbs_face`, `unsupported_curve`,
     `null_scaffold_edge`, `ring_on_curved_face`, `empty_loop`,
     `missing_entity`, `resolution_overflow`, `step_not_positive`,
-    `certificate_exceeded`, `triangulation`, `self_touching_trim_loop`
+    `certificate_exceeded`, `rounding_unresolved`, `triangulation`,
+    `self_touching_trim_loop`
     or `unsupported_curved_domain`.
 
     The offending face or edge is an arena KEY and does not cross, so
     what a caller reads beside the tag is the arm's NUMBERS, always
     present and `None` where inapplicable: `value` (the refused
-    budget, the overflowed count, the refused step, or the curved
-    domain's worst off-box distance in metres), `bound` / `requested`
+    budget, the overflowed count, the refused step, the unabsorbed
+    rounding allowance, or the curved domain's worst off-box distance
+    in metres), `bound` / `requested`
     (a failed deviation certificate against the budget it was checked
     to), and `note` (the arm's own prose about which lane would be
     needed)."""
@@ -2106,8 +2108,11 @@ class MeasurePrimitive:
         offset is measured from) and `inner` the contained one. C5's
         formulas are asymmetric in exactly that way, so the roles are
         authored rather than inferred from which radius is larger. Each
-        reference names a face (another kind refuses `slot_var_kind` at
-        insert)."""
+        reference names a face, an edge or a vertex (a body refuses
+        `slot_var_kind` at insert). Between a face and an edge or a
+        vertex, or an edge and a vertex, the higher-dimensional cell's
+        material reads the other in either seat; between two edges or
+        two vertices the outer's reads the inner."""
 
     @property
     def verb(self) -> str:
@@ -2501,7 +2506,8 @@ class Node:
 
         What each primitive reads is checked at insert: `distance` a
         face, an edge or a vertex, `angle` a face or an edge,
-        `min_clearance` a body or a face, `gap` a face; any other
+        `min_clearance` a body or a face, `gap` a face, an edge or a
+        vertex; any other
         refuses `slot_var_kind`. The rest are the kernel's own typed
         refusals at `evaluate`: a name that no longer resolves
         (`select_resolve`), a carrier pair with no v1 closed form

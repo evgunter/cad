@@ -4,8 +4,9 @@ kind: issue
 title: The starting delta has one home and five prose spellings nothing keeps in step
 status: open
 opened: 2026-09-21
-priority: P2
-cost: D
+priority: P4
+cost: E
+design: true
 ---
 
 
@@ -83,3 +84,21 @@ what the code now does.
 CHROME-ONE-NUMBER's style reviewer (PR 3022, 2026-09-21), on the tree
 that gave `INITIAL_DELTA` its single home. Filed from that unit under
 implementer-discipline §6.
+
+## Re-banded, and the undisputed half fixed (2026-10-26, tracker sweep)
+
+**P2 → P4, `cost: D` → `E` with `design: true`.** This is prose and
+citation hygiene, which is P4 by `work/README.md`'s bands. P2 is
+interval and error propagation, and this row propagates neither. The
+legacy `D` read as "a decision is open", so that is now the `design`
+flag, and the edit is easy once the decision is taken.
+
+**The `expect` case is fixed**, the one this row says has no argument
+on the other side: `the_gallery_ring_at_the_starting_delta_is_inside_the_budget`
+(`crates/viewer/tests/display_budget.rs`, ~`:111`) now fails with
+*"the ring draws at the starting delta"*. The prose spellings
+(`scene.rs` ~`:951`, `:981`, `:987`, `:1050`, `:1239`;
+`display_budget.rs` ~`:12`, `:36`, `:98`) wait on the decision.
+`scene.rs:1050` is `INITIAL_DELTA`'s own doc, beside the value, which
+is a sixth site and the one a reader is least misled by.
+

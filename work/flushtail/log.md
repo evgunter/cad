@@ -10,3 +10,5 @@ track that grows past its budget along its priority seam:
   bodies unchanged.
 
 Nothing dispatched. — (FLUSH orchestrator)
+
+- 2026-10-26 — (tracker sweep) Closed `the-glue-door-re-witnesses-a-declared-tangent-pair` as superseded. Boolean declarations retired at INTENT stage 4 E and F. The door's `pairs` are empty whenever it decides (`Glue::of`, `boolean/mod.rs:1171-1181`), and the door returns early when its pairs are given (`glue.rs:54`), so no declared pair is ever read again. Re-cited `the-lane-free-rounding-bound-…` to `props.rs:1397-1459` (`rounding_bound`). Everything else is kept. 25.5 points.

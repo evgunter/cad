@@ -2,10 +2,11 @@
 id: censussubject-eq-answers-false-for-a-new-variant-against-itself
 kind: issue
 title: CensusSubject's hand-written PartialEq has a catch-all arm, so a new variant compares unequal to itself and breaks the Eq it also implements
-status: open
+status: closed
 opened: 2026-09-15
 priority: P3
 cost: E
+closed: 2026-10-26
 ---
 
 
@@ -46,3 +47,7 @@ that reads a field by name with no exhaustive `Self` pattern. A
 catch-all arm reads no field, so this site classifies as clean there and
 the census's module docs name it as a stated blind spot. Nothing else
 asks the question.
+
+## Closed (2026-10-26, tracker sweep)
+
+Fixed by this sweep (the repair the row wrote down). `impl PartialEq for CensusSubject` (`crates/topo/src/validate.rs`, ~`:555`) now spells the mismatches out, `(Self::Entity(_), Self::FacePair(..)) | (Self::FacePair(..), Self::Entity(_)) => false`, with a comment giving the reason (the `MetaValue` precedent's), in place of `_ => false`. A new variant is now E0004 rather than unequal to itself. The census doc that named this site as the live instance of its catch-all blind spot (`crates/test-utils/tests/hand_written_impl_census.rs:88-92`) now says it was the instance until the `eq` spelled its mismatches out. Needs the orchestrator's build to confirm.

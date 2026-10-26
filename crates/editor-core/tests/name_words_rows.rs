@@ -262,14 +262,10 @@ fn random_rich(rng: &mut fuzz::Rng, depth: u32, pool: usize) -> StableName {
         2 => merged_of(node(rng), list(rng)),
         3..=5 => {
             let base = random_rich(rng, depth - 1, pool);
-            let q = match rng.below(4) {
+            let q = match rng.below(3) {
                 0 => Qualifier::Borders(list(rng)),
                 1 => Qualifier::Keeps(list(rng)),
-                2 => Qualifier::Ends(list(rng)),
-                _ => Qualifier::OrderAlong {
-                    rank: rng.below(3) as u32,
-                    of: 3,
-                },
+                _ => Qualifier::Ends(list(rng)),
             };
             // A qualifier on a carried name, as an operation mints it.
             StableName {

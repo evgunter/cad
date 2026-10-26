@@ -2,10 +2,11 @@
 id: stackup-measure-refused-carries-its-node-error-rendered
 kind: issue
 title: stackup's MeasureRefused carries the node error rendered as a String, where the drive now carries it typed
-status: open
+status: closed
 opened: 2026-10-01
 priority: P4
 cost: M
+closed: 2026-10-26
 ---
 
 
@@ -54,3 +55,14 @@ unchanged. The asymmetry with the drive's typed `MeasureRefusalClass`
 is not D10's vocabulary, so the row is open. It goes to STACK, which
 claims `stackup.rs` and whose log this row already said to announce on.
 FLUX no longer claims `stackup.rs`.
+
+## Closed (2026-10-26, tracker sweep)
+
+Superseded: a duplicate of WIRETAIL's
+`node-error-kind-has-no-fieldless-projection`, which names this very
+door (`stackup.rs`'s `MeasureRefused`, `cause: String` from a node
+error) among the four that render a `NodeErrorKind` away, and asks the
+same question (which typed carriage replaces the string). That row
+holds more; this row's one unique fact, the drive's typed
+`MeasureRefusalClass` as a third carriage to choose, is merged into it
+in its 2026-10-26 section. Still real on main (`stackup.rs:207`).

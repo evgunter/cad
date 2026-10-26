@@ -19,7 +19,7 @@ curves crossing in nearly parallel planes or below the polish basin's
 floor, a first harmonic with both extremes in band, a line beside a
 conic as thin as the band, a same-side touch pose that escalates at
 ε 1e-12, and spline edges the census cannot meter (a whole-span speed
-floor, no acceleration bound). Beside them: a polish meter that levers
+floor). Beside them: a polish meter that levers
 by the line's own span, and a stretch reading with no row of its own.
 
 Slate and order: `work/cpair/plan.md`; narrative in `work/cpair/log.md`.

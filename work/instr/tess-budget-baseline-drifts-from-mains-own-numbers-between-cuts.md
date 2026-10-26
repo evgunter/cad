@@ -2,10 +2,11 @@
 id: tess-budget-baseline-drifts-from-mains-own-numbers-between-cuts
 kind: issue
 title: The committed tess-budget baseline drifts from main's own numbers between cuts, because the gate reads only the sizing columns
-status: open
+status: closed
 opened: 2026-09-21
 priority: P3
 cost: D
+closed: 2026-10-26
 ---
 
 ## What
@@ -82,3 +83,16 @@ INSTR's: `docs/tess-budget-data/` and `tools/tess-lint` are this
 program's ground. Filed by RING-2 (SCALAR), whose own re-cut is what
 made the drift visible, and which left the baseline's cut line where
 it is.
+
+## Closed (2026-10-26, tracker sweep)
+
+**Superseded by `work/budget/tess-lint-re-cut-folds-uncompared-columns`.**
+Both rows are about the same defect: the carried columns (the certified
+block and `realized_aspect`) are compared by nothing, so they drift
+between cuts and a re-cut folds the drift in with no diff. That row
+holds the design question (who the diff is for, and when it prints), so
+it is the survivor. Two things only this row carried are copied into it
+as "Merged from `tess-budget-baseline-drifts-…`": the RING-2 measurement
+(98 cells of main's drift charged to the lane that re-cut), and two
+further candidate repairs (re-cut on a schedule; drop the uncompared
+columns).

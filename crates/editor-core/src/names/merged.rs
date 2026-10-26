@@ -139,7 +139,7 @@ pub(crate) fn entity_set(
             }
         }
     }
-    super::canonical::minted(StableName {
+    super::canonical::form(StableName {
         kind,
         node,
         path: vec![RoleSeg::Merged(names.into_iter().collect())],
@@ -430,7 +430,7 @@ mod tests {
             12,
             vec![
                 RoleSeg::Merged(vec![from_a(12, cap(2))]),
-                RoleSeg::Fragment(crate::names::role::Qualifier::OrderAlong { rank: 0, of: 2 }),
+                RoleSeg::Fragment(crate::names::role::Qualifier::Borders(Vec::new())),
             ],
         );
         assert!(constituents_through_wrappers(&fragment).is_none());

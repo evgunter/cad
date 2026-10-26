@@ -2,23 +2,29 @@
 //! carrier and consumed by both adjacent faces (the watertightness
 //! half of the pure-function invariant, crate docs).
 //!
-//! Chord counts are deterministic ceil arithmetic from δ_s = δ/2 (the
-//! documented sizing safety factor):
+//! Chord counts are deterministic ceil arithmetic from δ: a chord's
+//! worst point lands at δ from its carrier (the edge-chord theorem at
+//! `sizing::sagitta_step`), and each adjacent face whose lane needs
+//! more raises the count through one of the tightenings below.
 //!
 //! - Line carriers: 1 chord (a segment of the exact locus).
 //! - Circle carriers (radius ρ, forward span Δt): per-chord step
-//!   φ = 2·acos(1 − δ_s/ρ) (the closed-form sagitta bound
-//!   ρ(1 − cos(φ/2)) ≤ δ_s), capped at π/4 (`sizing::MAX_ANGULAR_STEP`);
+//!   φ = 2·acos(1 − δ/ρ) (the closed-form sagitta bound
+//!   ρ(1 − cos(φ/2)) ≤ δ), capped at π/4 (`sizing::MAX_ANGULAR_STEP`);
 //!   n = ceil(Δt/φ).
-//! - Adjacent-torus tightening: a face on a torus certifies through
-//!   the UV interpolation bound (crate docs), which needs boundary UV
-//!   steps within its grid steps `(h_u, h_v)` =
-//!   `sizing::torus_grid_steps`; a circle edge's carrier parameter
-//!   *is* the torus chart coordinate along it (azimuth for rims, minor
-//!   angle for meridians), so each adjacent torus face adds
-//!   n ≥ ceil(Δt/h) with `h` the step of the edge's OWN direction —
-//!   `sizing::torus_boundary_step` classifies it with the walk's own
-//!   rim/meridian rule and says what refuses.
+//! - Adjacent-grid tightening: a torus, sphere or cone face's
+//!   worst-triangle theorem is about its grid's cells, so a rim chord
+//!   point the grid did not place would make triangles the theorem
+//!   does not cover. A circle edge's carrier parameter *is* the chart
+//!   coordinate along it (azimuth for rims, minor angle or latitude for
+//!   meridians), so each such adjacent face adds n ≥ ceil(Δt/h) with
+//!   `h` the face's grid step in the edge's own direction —
+//!   `sizing::grid_boundary_step` names each surface's `h` and says
+//!   what refuses.
+//! - Unproved headroom: an edge of a trimmed cylinder face (the one
+//!   lane without its theorem, `trimmed::UNPROVED_HEADROOM`) is chorded
+//!   at that headroom's share of δ, so the lane's trim polygon is the
+//!   one its lattice was sized beside.
 //! - Adjacent-NURBS tightening (M7, the trimmed-NURBS lane): the same
 //!   shape with a hull-derived Hessian — a described NURBS face
 //!   certifies through `crate::nurbs_cert`'s anisotropic bound, which
@@ -41,18 +47,21 @@
 //!   parameter, `t₀ + Δt·geom_brep::sub_arc_joint(k, m)`, the expression
 //!   `sweep::skin::segment_curve` places the joint knot with.
 //!
-//! An adjacent surface reaches a chord count only through
-//! [`adjacent_surface`], and the two tightenings above (not the crease
-//! joints, which round a count already tightened) are its two call
-//! sites — the `Circle` arm's torus boundary step and
-//! [`nurbs_tighten`].
-//! The claim is therefore about one function's callers, which a reader
-//! settles by grepping this file for the name. **Nothing in the tree
-//! checks it**: a third caller compiles green, and it would be a third
-//! way for a neighbour to enter the count.
+//! An adjacent face reaches a chord count only through the
+//! tightenings above (not the crease joints, which round a count
+//! already tightened): the `Circle` arm's
+//! `sizing::grid_boundary_step`, the headroom target ([`edge_target`])
+//! and [`nurbs_tighten`]. Each reads the face through
+//! `tessellate::face_surface`, and the first two through the dispatch
+//! itself (`tessellate::lane_of`), so a face tightens an edge only for
+//! the lane that will mesh it. **Nothing in the tree checks that these
+//! are the only three**: a fourth caller compiles green, and it would
+//! be a fourth way for a neighbour to enter the count.
 //!
 //! With that door held, chord points are a pure function of (carrier +
-//! interval, endpoint points, adjacent surface parameters, δ).
+//! interval, endpoint points, adjacent surface parameters, an adjacent
+//! cone face's largest rim radius, whether an adjacent cylinder face is
+//! trimmed, δ).
 //!
 //! Polyline endpoints are the topology vertices' points **bitwise**
 //! (never `carrier(t₀)`, which is only within ε of them) so every
@@ -71,7 +80,7 @@ use topo::{Body, EdgeKey};
 
 use crate::nurbs_cert::{FaceBounds, face_bound};
 use crate::sizing::{
-    ceil_count, curvature_step, ellipse_step, sagitta_step, spiric_step, torus_boundary_step,
+    ceil_count, curvature_step, ellipse_step, grid_boundary_step, sagitta_step, spiric_step,
 };
 use crate::types::TessellateError;
 
@@ -95,7 +104,7 @@ pub(crate) struct ChordPass {
 /// their already-minted mesh ids.
 pub(crate) fn compute_chords(
     body: &Body<f64>,
-    delta_s: f64,
+    delta: f64,
     vids: &HashMap<topo::VertexKey, u32>,
     positions: &mut Vec<geom_core::Point3<f64>>,
     bounds: &mut FaceBounds,
@@ -113,15 +122,13 @@ pub(crate) fn compute_chords(
             .ok_or(TessellateError::NullScaffoldEdge { edge: ek })?;
         let (t0, t1) = curve.params();
         let span = t1 - t0;
+        let target = edge_target(body, ek, delta)?;
         let n = match *curve.carrier() {
             Curve3::Line { .. } => 1,
             Curve3::Circle { .. } => {
-                let mut n =
-                    ceil_count(span, sagitta_step(delta_s, circle_radius(curve.carrier())))?;
+                let mut n = ceil_count(span, sagitta_step(target, circle_radius(curve.carrier())))?;
                 for fk in adjacent_faces(body, ek)? {
-                    if let Some(h) =
-                        torus_boundary_step(adjacent_surface(body, fk)?, curve, ek, delta_s)?
-                    {
+                    if let Some(h) = grid_boundary_step(body, fk, curve, ek, delta)? {
                         n = n.max(ceil_count(span, h)?);
                     }
                 }
@@ -132,11 +139,11 @@ pub(crate) fn compute_chords(
             // tightening applies (an ellipse never lies on a torus
             // chart of this kernel's constructions).
             Curve3::Ellipse { semi_u, semi_v, .. } => {
-                ceil_count(span, ellipse_step(delta_s, semi_u, semi_v))?
+                ceil_count(span, ellipse_step(target, semi_u, semi_v))?
             }
             // Spiric arcs (the hollowed partial revolve's torus rim):
             // the curvature-bound step from the closed-form `sup|C″|`
-            // (`spiric_step`). No torus tightening: `torus_boundary_step`
+            // (`spiric_step`). No torus tightening: `grid_boundary_step`
             // is the circle arm's (a spiric is neither a rim nor a
             // meridian traversal of its chart), and the step here is
             // already a chord bound on the carrier itself.
@@ -147,7 +154,7 @@ pub(crate) fn compute_chords(
                 ..
             } => ceil_count(
                 span,
-                spiric_step(delta_s, major_radius, minor_radius, offset),
+                spiric_step(target, major_radius, minor_radius, offset),
             )?,
             // B-spline carriers (rung-3 edges at rest, M5 PR 9):
             // the hull-bounded sagitta generalization (C9/PR 11) —
@@ -160,12 +167,19 @@ pub(crate) fn compute_chords(
             // for a RATIONAL one (M8-5; a
             // rational-walled body's seam edges read back rational,
             // so this gate is what makes the face bound reachable).
-            Curve3::Nurbs(ref n) => nurbs_chord_count(n, span, delta_s, ek)?,
+            Curve3::Nurbs(ref n) => nurbs_chord_count(n, span, target, ek)?,
         };
         // Adjacent-NURBS tightening (module docs), on every carrier
         // kind — a straight wall edge is one 3-D chord but many UV
         // steps of the wall's certificate budget.
-        let n = nurbs_tighten(body, ek, (t0, t1), delta_s, bounds, n)?;
+        let n = nurbs_tighten(
+            body,
+            ek,
+            (t0, t1),
+            crate::nurbs_cert::lattice_budget(delta),
+            bounds,
+            n,
+        )?;
         let (vs, ve) = edge_vertices(body, ek)?;
         let start_id = *vids.get(&vs).ok_or(TessellateError::MissingEntity {
             what: "start vertex",
@@ -198,7 +212,7 @@ pub(crate) fn compute_chords(
 
 /// Chord count for a B-spline carrier from the hull-bounded sagitta
 /// (module note at the call site): componentwise `sup|C″|` bounds give
-/// `|C″| ≤ √(Σ sup²)`, and the per-step bound `h²·M/8 ≤ δ_s` sizes
+/// `|C″| ≤ √(Σ sup²)`, and the per-step bound `h²·M/8 ≤ δ` sizes
 /// `h`. Integral carriers take the direct control-hull arm; RATIONAL
 /// carriers (M8-5) take [`rational_carrier_m_bound`] — the surface
 /// bound's second-order quotient statement one dimension down. (The former
@@ -209,7 +223,7 @@ pub(crate) fn compute_chords(
 fn nurbs_chord_count(
     n: &geom::NurbsCurve3<f64>,
     span: f64,
-    delta_s: f64,
+    target: f64,
     ek: EdgeKey,
 ) -> Result<usize, TessellateError> {
     // Every weight is strictly positive and finite: the door's own
@@ -275,7 +289,7 @@ fn nurbs_chord_count(
     if m_bound == 0.0 {
         return Ok(1);
     }
-    ceil_count(span, curvature_step(delta_s, m_bound))
+    ceil_count(span, curvature_step(target, m_bound))
 }
 
 /// Certified `sup‖C″‖` for a RATIONAL B-spline carrier (M8-5): the
@@ -331,7 +345,7 @@ fn nurbs_tighten(
     body: &Body<f64>,
     ek: EdgeKey,
     params: (f64, f64),
-    delta_s: f64,
+    budget: f64,
     bounds: &mut FaceBounds,
     mut n: usize,
 ) -> Result<usize, TessellateError> {
@@ -343,7 +357,7 @@ fn nurbs_tighten(
     let mut joints = 1;
     for side in [sides.plus, sides.minus] {
         let (hek, fk) = (side.half_edge, side.face);
-        let surface = adjacent_surface(body, fk)?;
+        let surface = crate::tessellate::face_surface(body, fk)?;
         // The UV step schedule is a statement about the chart, so both
         // spline kinds take it — an approximating surface's chart is
         // its fit's.
@@ -353,7 +367,7 @@ fn nurbs_tighten(
         if payload.is_placeholder() {
             return Err(TessellateError::UnsupportedSurface { face: fk });
         }
-        let (hu, hv) = face_bound(bounds, payload, fk)?.grid_steps(delta_s);
+        let (hu, hv) = face_bound(bounds, payload, fk)?.grid_steps(budget);
         let Some(cache) = body.pcurve(hek) else {
             return Err(TessellateError::UnsupportedCurve {
                 edge: ek,
@@ -588,6 +602,19 @@ fn general_uv_speeds(
     Ok((su, sv))
 }
 
+/// The deviation target an edge's own carrier is chorded at: δ, or
+/// [`crate::trimmed::UNPROVED_HEADROOM`]·δ when either adjacent face is
+/// a trimmed cylinder — the lane whose theorem is not yet written sizes
+/// its lattice at that headroom, and its trim polygon is these chords.
+fn edge_target(body: &Body<f64>, ek: EdgeKey, delta: f64) -> Result<f64, TessellateError> {
+    for fk in adjacent_faces(body, ek)? {
+        if crate::trimmed::is_trimmed_cylinder(body, fk)? {
+            return Ok(delta * crate::trimmed::UNPROVED_HEADROOM);
+        }
+    }
+    Ok(delta)
+}
+
 /// The radius of a circle carrier (caller guarantees the variant).
 fn circle_radius(carrier: &Curve3<f64>) -> f64 {
     match *carrier {
@@ -613,27 +640,6 @@ pub(crate) fn edge_vertices(
             what: "he_plus end",
         })?;
     Ok((he.start, end))
-}
-
-/// The door an adjacent face's surface reaches a chord count through.
-/// The module header's claim is a claim about this function's call
-/// sites, and it names them: the `Circle` arm's torus tightening and
-/// [`nurbs_tighten`].
-///
-/// **Nothing counts those call sites.** What the name buys is a token
-/// to grep for, which is what the claim lacked; a third caller still
-/// compiles green.
-fn adjacent_surface(
-    body: &Body<f64>,
-    fk: topo::FaceKey,
-) -> Result<&geom::Surface<f64>, TessellateError> {
-    let face = body
-        .get_face(fk)
-        .ok_or(TessellateError::MissingEntity { what: "face" })?;
-    body.get_surface(face.surface)
-        .ok_or(TessellateError::MissingEntity {
-            what: "face surface",
-        })
 }
 
 /// An edge's two sides, the edge's miss named as the tessellator names
@@ -998,30 +1004,29 @@ mod tests {
                 vec![c; unit.control().len()],
             )
             .unwrap();
-            for delta_s in [1e-2, 1e-4, 1e-6] {
+            for target in [1e-2, 1e-4, 1e-6] {
                 let count = |n: &NurbsCurve3<f64>| {
-                    nurbs_chord_count(n, d1 - d0, delta_s, EdgeKey::default())
-                        .expect("in inventory")
+                    nurbs_chord_count(n, d1 - d0, target, EdgeKey::default()).expect("in inventory")
                 };
                 assert_eq!(
                     count(&constant),
                     count(&unit),
-                    "weights {c}, δ_s = {delta_s:e}"
+                    "weights {c}, δ = {target:e}"
                 );
             }
         }
     }
 
     /// The hull-bounded sagitta generalization: the chord count sizes
-    /// the secant deviation under δ_s — verified against a dense
+    /// the secant deviation under δ — verified against a dense
     /// per-segment sampling oracle.
     #[test]
     fn nurbs_chords_bound_the_secant_deviation() {
         let n = wiggle();
         let (d0, d1) = n.knots_f64_interim().domain();
-        for delta_s in [1e-2, 1e-3, 1e-4] {
+        for target in [1e-2, 1e-3, 1e-4] {
             let count =
-                nurbs_chord_count(&n, d1 - d0, delta_s, EdgeKey::default()).expect("in inventory");
+                nurbs_chord_count(&n, d1 - d0, target, EdgeKey::default()).expect("in inventory");
             assert!(count >= 1);
             #[allow(clippy::cast_precision_loss)]
             let h = (d1 - d0) / count as f64;
@@ -1044,8 +1049,8 @@ mod tests {
                 }
             }
             assert!(
-                worst <= delta_s * 1.0000001,
-                "secant deviation {worst} exceeds the certified budget {delta_s}"
+                worst <= target * 1.0000001,
+                "secant deviation {worst} exceeds the certified budget {target}"
             );
         }
     }
@@ -1073,9 +1078,9 @@ mod tests {
         .collect();
         let n = NurbsCurve3::interpolate(&pts, 3).unwrap();
         let (d0, d1) = n.knots_f64_interim().domain();
-        for delta_s in [1e-2, 1e-3, 1e-4] {
+        for target in [1e-2, 1e-3, 1e-4] {
             let count =
-                nurbs_chord_count(&n, d1 - d0, delta_s, EdgeKey::default()).expect("in inventory");
+                nurbs_chord_count(&n, d1 - d0, target, EdgeKey::default()).expect("in inventory");
             #[allow(clippy::cast_precision_loss)]
             let h = (d1 - d0) / count as f64;
             let mut worst = 0.0f64;
@@ -1097,12 +1102,12 @@ mod tests {
                 }
             }
             assert!(
-                worst <= delta_s * 1.0000001,
-                "spike deviation {worst} exceeds the certified budget {delta_s}"
+                worst <= target * 1.0000001,
+                "spike deviation {worst} exceeds the certified budget {target}"
             );
             assert!(
-                worst >= delta_s * 0.5,
-                "spike deviation {worst} fell below half the budget {delta_s} — the \
+                worst >= target * 0.5,
+                "spike deviation {worst} fell below half the budget {target} — the \
                  adversarial fixture went slack (review measured 0.990-0.999)"
             );
         }
@@ -1149,8 +1154,8 @@ mod tests {
         .unwrap();
         for (name, n) in [("quarter_arc", arc), ("steep_wiggle", wiggle_r)] {
             let (d0, d1) = n.knots_f64_interim().domain();
-            for delta_s in [1e-2, 1e-3, 1e-4] {
-                let count = nurbs_chord_count(&n, d1 - d0, delta_s, EdgeKey::default())
+            for target in [1e-2, 1e-3, 1e-4] {
+                let count = nurbs_chord_count(&n, d1 - d0, target, EdgeKey::default())
                     .expect("rational carriers are in the chord inventory now");
                 assert!(count >= 1, "{name}: a real count, not a fabricated zero");
                 #[allow(clippy::cast_precision_loss)]
@@ -1174,9 +1179,9 @@ mod tests {
                     }
                 }
                 assert!(
-                    worst <= delta_s * 1.0000001,
+                    worst <= target * 1.0000001,
                     "{name}: secant deviation {worst} exceeds the certified budget \
-                     {delta_s} over {count} chords"
+                     {target} over {count} chords"
                 );
             }
         }
@@ -1205,7 +1210,7 @@ mod tests {
     // beyond the PR's — extreme/near-zero weights and the C¹
     // multiplicity edge — checked BOTH ways: the m-bound dominates the
     // dense-sampled true sup‖C″‖ (via deriv2, plus the chord counts
-    // keep the measured secant deviation inside δ_s).
+    // keep the measured secant deviation inside δ).
     // ------------------------------------------------------------------
 
     fn r1_secant_worst(n: &NurbsCurve3<f64>, count: usize) -> f64 {
@@ -1252,14 +1257,14 @@ mod tests {
         let d = Domination::sampled_under_certified(&[("sup|C''|", truth, m)]);
         assert!(d.holds(), "{name}: {d}");
         println!("{name}: truth/bound = {:.4}", truth / m);
-        // (b) chord counts keep the secant inside delta_s.
-        for &delta_s in deltas {
+        // (b) chord counts keep the secant inside target.
+        for &target in deltas {
             let count =
-                nurbs_chord_count(n, d1 - d0, delta_s, EdgeKey::default()).expect("in inventory");
+                nurbs_chord_count(n, d1 - d0, target, EdgeKey::default()).expect("in inventory");
             let worst = r1_secant_worst(n, count);
             assert!(
-                worst <= delta_s * 1.0000001,
-                "{name}: secant {worst} exceeds {delta_s} over {count} chords"
+                worst <= target * 1.0000001,
+                "{name}: secant {worst} exceeds {target} over {count} chords"
             );
         }
     }
@@ -1273,7 +1278,7 @@ mod tests {
     /// `nurbs_cert.rs:1513-1516` ("the per-triangle claim d ≤ cert(uv)
     /// is grid-independent, so a coarser grid still falsifies"). The
     /// claim asserted in `r1_check`'s arm (b) is likewise PER SEGMENT —
-    /// `worst <= delta_s` on every one of `count` segments — so a finer
+    /// `worst <= target` on every one of `count` segments — so a finer
     /// δ only multiplies how many segments are checked; it adds no
     /// falsification power per segment. What it does add is cost: the
     /// count scales as δ^(−½), and THIS fixture's bound is the extreme

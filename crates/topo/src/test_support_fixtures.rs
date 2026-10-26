@@ -652,6 +652,49 @@ pub fn brick<T: geom_core::Decide + crate::props::AtRestPolicy>(
     .body
 }
 
+/// An empty body whose first sixteen face, loop, vertex, shell and
+/// solid slots were each taken and freed three times, so the keys it
+/// mints carry a version a body built without as many kills does not
+/// reach: a refusal naming one of its faces names a face of this body
+/// and of no such partner, and a row can read which operand a key
+/// belongs to rather than find it in both. A row relying on it checks
+/// the two bodies' face keys are disjoint, or that the key resolves in
+/// one body only. Fresh-key one side of a pair, never both: two bodies
+/// keyed this way collide again.
+pub fn fresh_keyed_body<T: geom_core::Decide>() -> Body<T> {
+    let mut body = Body::<T>::new();
+    let origin = identity_map::<T>(0.0, 0.0, 0.0);
+    for _ in 0..3 {
+        let seeds: Vec<_> = (0..16)
+            .map(|_| body.mvfs(origin, true).unwrap().solid)
+            .collect();
+        for solid in seeds {
+            body.kvfs(solid).unwrap();
+        }
+    }
+    body
+}
+
+/// [`brick`] built in a [`fresh_keyed_body`].
+pub fn brick_with_fresh_keys<T: geom_core::Decide + crate::props::AtRestPolicy>(
+    x: (f64, f64),
+    y: (f64, f64),
+    z: (f64, f64),
+    tol: Tol,
+) -> Body<T> {
+    let mut body = fresh_keyed_body::<T>();
+    prism_ops(
+        &mut body,
+        &[(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)],
+        z,
+        identity_map,
+        FaceGeometry::Certified,
+        tol,
+    );
+    describe_as_intersections(&mut body, tol);
+    body
+}
+
 /// **Construction step** for hand-built planar fixtures (M3 PR 6a,
 /// D6): describes every definitely-transverse edge as the
 /// `Intersection` of its two adjacent faces' surfaces, witness at the

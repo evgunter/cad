@@ -1582,8 +1582,9 @@ fn a_badge_states_whether_a_reader_has_anything_to_do_about_it() {
     assert_eq!(kept.detail(), None, "a label, and the label says it all");
 }
 
-/// The checks badge is a BUTTON, and that is ratified rather than
-/// incidental: a tooltip is the wrong home for text a reader needs to
+/// The checks badge is a BUTTON, and that is a decision rather than
+/// an accident (`crates/viewer/README.md`'s badge paragraph; no
+/// GUI-DESIGN clause rules it): a tooltip is the wrong home for text a reader needs to
 /// keep open while they act on it, because it is gone the moment the
 /// pointer moves toward the feature it names. A uniformity pass over
 /// the family must not flatten it, so the value says so.

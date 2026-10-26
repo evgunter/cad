@@ -161,6 +161,12 @@ impl MeasurePrimitive {
     /// ball, the pin). C5's formulas are asymmetric in exactly that
     /// way, so the roles are authored rather than inferred from which
     /// radius is larger.
+    ///
+    /// Each reference names a face, an edge or a vertex. Between a face
+    /// and an edge or a vertex, or an edge and a vertex, the
+    /// higher-dimensional cell's material reads the other in either
+    /// seat; between two edges or two vertices the outer's reads the
+    /// inner.
     #[staticmethod]
     fn gap(outer: (NodeId, String), inner: (NodeId, String)) -> PyResult<Self> {
         Ok(Self(d::MeasurePrimitive::Gap {

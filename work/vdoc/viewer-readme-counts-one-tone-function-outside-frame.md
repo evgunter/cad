@@ -2,10 +2,11 @@
 id: viewer-readme-counts-one-tone-function-outside-frame
 kind: issue
 title: crates/viewer/README.md says RowStatus::tone is the one function outside frame that decides a tone; there are four
-status: open
+status: closed
 opened: 2026-09-25
 priority: P4
 cost: E
+closed: 2026-10-26
 ---
 
 `crates/viewer/README.md:940-944` (*The badges.*) says the rule that a
@@ -24,3 +25,7 @@ rather than updating it: the sentence's point is that `pane::features`
 reads the tone off the value, which stays true, and a count of the
 values that carry one is the kind of hand-kept list this crate keeps
 retiring (`app::toned`'s doc dropped its caller list in the same PR).
+
+## Closed (2026-10-26, tracker sweep)
+
+**Fixed.** The count is gone in the shape this row asked for: `crates/viewer/README.md`'s *The badges.* paragraph (~`:1110`) now says the poisoned-row rule *is STATED by `tree::RowStatus::tone`* and that `pane::features` reads that value. It no longer calls it the one function outside `frame` that decides a tone. `grep -n 'one function outside' crates/viewer/README.md` returns nothing.

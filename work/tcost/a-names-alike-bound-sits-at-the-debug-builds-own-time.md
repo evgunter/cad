@@ -2,10 +2,11 @@
 id: a-names-alike-bound-sits-at-the-debug-builds-own-time
 kind: issue
 title: a_large_table_of_names_alike_at_no_citation_is_said_in_bounded_time's 10 s bound sits at a debug build's own time
-status: open
+status: closed
 opened: 2026-10-08
 priority: P4
 cost: E
+closed: 2026-10-26
 ---
 
 
@@ -32,3 +33,13 @@ from ordinary debug cost by chance alone.
 Give the bound a margin on the build actually running it. For example,
 scale the bound under `cfg(debug_assertions)`, or gate the timing
 assertion to release, so that it still separates 1.3 s from 15.5 s.
+
+## Closed (2026-10-26, tracker sweep)
+
+**Fixed on main.** The bound now has a debug margin:
+`crates/editor-core/tests/name_words_rows.rs:582-591` asserts
+`first_took.as_secs() < 20`, and its comment calibrates against the debug
+build that runs it (about 10 s in debug: 9.7 s on main and 10.3 s with
+FORK-DM4 unit 1, 2026-10-10). The guarded search took 15 s in release and
+"far longer" in debug, so it still fails. That is the first fix this row
+proposed.

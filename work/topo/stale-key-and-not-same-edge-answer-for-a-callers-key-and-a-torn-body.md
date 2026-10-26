@@ -88,7 +88,7 @@ wrapper has to say so, whichever way the variant splits.
 
 ## Ruled
 
-Ev, PR 4006, 2026-10-04 (quoted in full on `work/pipe/S14.md`): a state
+Ev, PR 4006, 2026-10-04 (quoted in full on `work/topo/S14.md`): a state
 that only a kernel bug reaches panics, by the current best understanding
 however many parts it rests on, and that covers the whole torn-body
 refusal class. S14 closes first, by staging the graft.

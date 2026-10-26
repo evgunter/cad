@@ -91,7 +91,7 @@ if offenders:
         "(~96% of the build job, measured). Set `autotests = false` in the crate\x27s "
         "Cargo.toml, aggregate every tests/*.rs into tests/all.rs via #[path], and "
         "declare one [[test]] named \"all\" — see crates/topo/tests/all.rs for the "
-        "pattern, including the every_suite_file_is_aggregated guard to copy."
+        "pattern, and invoke `test_utils::every_suite_file_is_aggregated!()` there."
     )
     sys.exit(3)
 

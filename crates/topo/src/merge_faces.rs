@@ -4609,6 +4609,7 @@ mod tests {
     /// where the truthful call refuses, and nothing downstream of the
     /// surgery notices.
     #[test]
+    #[cfg(debug_assertions)]
     #[should_panic(expected = "merge_group: the survivor's kind is the contract's")]
     fn a_curved_run_told_planar_is_caught_before_any_surgery() {
         let tol = Tol::witness();
@@ -4622,6 +4623,7 @@ mod tests {
     /// absorption runs first and refuses `SameFace` — and the re-check
     /// does not depend on that.
     #[test]
+    #[cfg(debug_assertions)]
     #[should_panic(expected = "merge_group: the survivor's kind is the contract's")]
     fn a_planar_group_told_curved_is_caught_before_any_surgery() {
         let tol = Tol::witness();
