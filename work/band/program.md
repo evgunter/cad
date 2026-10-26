@@ -25,9 +25,11 @@ What is left, by band:
   (`a-concave-fill-and-a-whole-shell-inside-a-bands-region`, cost H);
   the Interval refusal at a curved rim's anti-seam
   (`a-rim-split-at-its-carriers-anti-seam-refuses-at-interval`); and
-  three cheap error-propagation rows in `blend/arms.rs` and
-  `battery.rs` (`blend-arms-perp-unit-…`, `fillet3-chain-arm-…`,
-  `plane-sphere-blend-spine-radius-…`).
+  two cheap error-propagation rows in `blend/arms.rs`
+  (`blend-arms-perp-unit-…`, `plane-sphere-blend-spine-radius-…`); and
+  the knife-edge wedge's `1 + n_a·n_b` in `plane_plane_blend`
+  (`a-knife-edge-plane-blend-divides-by-one-plus-the-normals-dot`,
+  reachability unprobed).
 - **P3.** Conservative refusals the rule would build (cups the readings
   cannot certify: leaning, ruled, overrun, not disk or annulus) and
   meters that read wider than they need, each with its own item.
