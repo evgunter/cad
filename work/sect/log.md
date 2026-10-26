@@ -20,3 +20,13 @@ no per-pair stopgap lane is built elsewhere. Rows dispatchable: 10, for
 - 2026-10-14 — `closed-in-face-section-loop-has-one-site` closed by PATHS on `paths/in-face-section-self-loop` (`one_site_segments`: the wrap crossing and the closed-edge arm in one owner). (PATHS)
 
 - 2026-10-14 — #5159's fix pass files two rows here: `a-closed-edge-lying-in-a-cone-cylinder-or-torus-face-has-no-join-arm` (P1, the one-site arm's residue; refused today at the crossing layer) and `a-closed-edges-germ-read-on-a-planar-face-would-take-the-placeholder-chord` (P3, the PR's disclosed blind spot, unreached). `RimSide::of` is now the one table of pierced faces the join and `join_lone_ring` read. (PATHS)
+
+- 2026-10-25 — **Re-cut (refold approved in chat):** in, `the-lilys-stem-and-arch-walls-have-no-certificate-arm` from ORBIT (P0, lily wall 1) and `c5-plane-torus-cone-cylinder-arms` from GERM (P1), beside the torus frame (P0, teapot wall 2); `cylinder-sphere-germ-pair-has-no-join-lane` to P0 as the section object every P0 here is built on; `in-band-axis-offset-…` to P1 as it rides with step 1. Out, the six P2/P3 rows to SECTTAIL on the priority seam. Budget 36 (`program.md` says why). SPLICE, opened the same day, needs this track's rung-3 arm for klein wall 3 and teapot wall 3.
+
+## 2026-10-25 — a row filed by SPLICE
+
+(SPLICE orchestrator) Filed `a-nurbs-face-against-a-cone-or-sphere-has-no-section-arm`
+(P0 H, design open, parked on step 1 and on SPLICE's gate deletion): the
+rung-3 arm that klein wall 3 and teapot wall 3 need. Step 4 of this
+plan mentioned it only as a sentence. Agreed in chat that SECT should
+get its own orchestrator rather than SPLICE taking these rows.

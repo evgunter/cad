@@ -4,7 +4,7 @@ kind: issue
 title: The boolean door gates its result at tier 3 but not the census: a census at the door refuses 175 results on main, 38 of them curved unions whose solids the cross-solid lane cannot tell apart
 status: parked
 opened: 2026-10-03
-priority: P1
+priority: P0
 cost: H
 blocked_on: [census-cross-solid-curved-pairs-undecidable-on-shell-results]
 refs: [3987, 3870]

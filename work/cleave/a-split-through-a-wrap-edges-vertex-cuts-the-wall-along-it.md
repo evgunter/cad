@@ -83,7 +83,7 @@ At offset 0 every pose builds right on both doors, with two
 exceptions. The boolean refuses `SingleSiteSectionLoop` where the plane
 touches the near rim at the vertex and the piece goes round; the split
 builds that pose and the two-arc form builds the boolean
-(`work/sect/a-plane-tangent-to-a-rim-at-its-wrap-edges-vertex-has-no-join-arm.md`).
+(`work/secttail/a-plane-tangent-to-a-rim-at-its-wrap-edges-vertex-has-no-join-arm.md`).
 And `VolumeUnmeasured` on some poses (`work/quad/`, evidence added).
 
 At ±0.6ε and ±0.9ε, only the poses that touch the near rim at the

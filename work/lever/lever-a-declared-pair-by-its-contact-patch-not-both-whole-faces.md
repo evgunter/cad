@@ -46,3 +46,40 @@ Waits on `intent-stage4-is-built`, not on the whole program: the fix site is the
 ## Released by stage 4 F (2026-10-11)
 
 Stage 4 F (`declared-pairs-retire`) retired every boolean declaration: no author can declare a pair, the glue is what the margins decide, and the declare offer, the flush detector and the carried declarations are gone. What this row waited on has fired; re-read it against that tree.
+
+## Measured: the undeclared reading too (2026-10-26)
+
+FLUSH's glue-verdict designers (PR 5737, round 3) met the same lever on
+the undeclared path, through the plain pair boolean. Probes are on the
+scratch branches `flush/glue-verdict-design-u92Pc` @ `84c44eeb`
+(`crates/topo/tests/honest_fold_probe.rs`) and
+`flush/glue-verdict-design-015xnd` @ `278f1fab`.
+
+- **The pose.** A ten-unit plate beside a unit plate rolled by θ about a
+  line along the row. Every point of either face lies within θ·1 of the
+  other's plane.
+- **The refusal.** The union refuses in band at θ = 0.2ε (margin
+  1.55e-9) and at θ = 0.4ε (3.4e-9):
+  `Merge(BooleanMerge(Escalated { Neighbours(Parallel) }))`.
+- **The path.** It comes from `merge_faces.rs`'s undeclared neighbour
+  read (`undeclared_pair_verdict` over `pair_extent`'s ball) into
+  `plane_eq::plane_ladder` rung 2. That rung levers the angle at the
+  ball's radius, about 8.5 here, where the vertices are already in hand.
+- **The honest margin.** The declared rung reads each face's points
+  against the other's plane; that is the honest margin.
+- **Unchecked.** At θ = 0.8ε the pair refuses
+  `Containment … Loop(Boundary)` at 1.131e-9 = 0.8ε·√2, against a true
+  displacement of 0.8ε. This may be a second over-meter, by √2, in the
+  containment reading.
+
+## Ev's ruling (PR 5737, 2026-10-26)
+
+"tolerance.epsilon should meter an angle in whatever way is required to
+make all geometry correct to within epsilon". `[tolerance.epsilon]` now
+says so: an angle's lever arm is the reach at which it displaces the
+geometry it governs, and for parallelism that is each face's own points
+measured against the other's carrier, not the extent of both whole
+faces. The declared and the undeclared readings above both follow from
+this. So do the code comments that quote the old "face extent for
+parallelism": `geom-brep` `dihedral.rs` (`reach`) and `enters.rs`.
+

@@ -59,6 +59,14 @@ pub enum SectionVerdict {
         /// What the door could not do.
         what: &'static str,
     },
+    /// The moved pair meets in a plane×cone parabola or hyperbola, whose
+    /// arc is a rational-quadratic NURBS carrier (`geom_brep`'s C1) that
+    /// has no certificate on a cone yet: the uniqueness tube has no cone
+    /// enclosure.
+    OpenConic {
+        /// The conic.
+        conic: geom_brep::OpenConic,
+    },
 }
 
 impl core::fmt::Display for SectionVerdict {
@@ -79,6 +87,11 @@ impl core::fmt::Display for SectionVerdict {
                  rather than an edge"
             ),
             Self::Unsupported { what } => f.write_str(what),
+            Self::OpenConic { conic } => write!(
+                f,
+                "the moved surfaces meet in {}, an arc that cannot yet be certified on a cone",
+                conic.named()
+            ),
         }
     }
 }
@@ -689,6 +702,11 @@ pub(crate) fn section_closed<T: Decide>(
                 return Ok(Err(SectionVerdict::Tangent));
             }
             Ok(c5::PlaneConeSection::ApexPoint(_)) => return Ok(Err(SectionVerdict::NoBranch)),
+            Ok(c5::PlaneConeSection::OpenConic(section)) => {
+                return Ok(Err(SectionVerdict::OpenConic {
+                    conic: section.conic(),
+                }));
+            }
             Err(e) => return closed(e),
         },
         Surface::Sphere { .. } => match c5::plane_sphere_section(plane, other, band) {

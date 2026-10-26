@@ -2337,7 +2337,7 @@ mod tests {
         assert_eq!(
             draw_range(too_many),
             None,
-            "`draw_range` answered a draw range for {too_many} vertices, which              it cannot count; the substituted answer is {:?}",
+            "`draw_range` answered a draw range for {too_many} vertices, which it cannot count; the substituted answer is {:?}",
             u32::try_from(too_many).unwrap_or(u32::MAX),
         );
     }

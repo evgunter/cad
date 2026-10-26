@@ -2,13 +2,14 @@
 id: the-region-doors-share-one-skeleton-three-times
 kind: issue
 title: The sphere, torus and ruled region doors each carry their own copy of one skeleton: the boundary gather, the path roster and the leg helpers
-status: review
-branch: chart/region-skeleton
+status: closed
 pr: 5671
 priority: P1
 cost: M
 refs: [curved-face-containment-answers-none-on-a-ringed-face]
 opened: 2026-10-24
+branch: chart/region-skeleton
+closed: 2026-10-24
 ---
 
 
@@ -55,3 +56,7 @@ unexercised in `ruled_region` until PR 5664's review added a row.
 One skeleton in `region.rs` (the gather, the walk over a path roster, the
 crossing offer), with each door supplying only its surface's legs and
 landings.
+
+## Closed
+
+Closed 2026-10-24 by PR 5671 (FULL review: an independent differential of about 2.27M records was byte-identical against base). The remaining duplication is `the-sphere-ray-and-the-circle-leg-stand-outside-the-region-skeleton`. (CHART orchestrator)

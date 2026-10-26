@@ -10,7 +10,7 @@ cost: M
 
 
 Found by CLEAVE's sweep for the in-plane carrier walk's spiric row
-(`work/cleave/carrier-walk-has-no-crossing-row-for-spiric-or-spline-edges.md`),
+(`work/splice/carrier-walk-has-no-crossing-row-for-spline-edges.md`),
 which answers a PLANAR face bounded by a spiric. The chart-space trim is
 the curved faces' sibling: `chart_region`'s `pcurve_entry` reads each
 edge's chart image as a straight segment, and refuses

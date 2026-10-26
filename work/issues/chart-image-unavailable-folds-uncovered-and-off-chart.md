@@ -72,3 +72,17 @@ not reach for a conventional description) and the projected lane's own
 refusals. Still owed: carry `why`, or nest the whole
 `PcurveCertifyError`, and re-check the routing each arm gets in
 `decision()`.
+
+**Since PCERT E1 (`pcert/lane-choices`, 2026-10-25).** `CarrierGrazesChart` is gone, and the projected lane's refusals no longer reach the fold. The mint arm in `crates/geom-brep/src/certify.rs` (the `chart_pcurve` call's `map_err`) now reads `chart_pcurve`'s refusals as follows:
+
+- **D3's lane choices are their own arms.**
+  - `PcurveCheck::ChartClass` maps to `CertCheck::ChartClass`.
+  - `PcurveCheck::GeneralLane` maps to `CertCheck::GeneralLane`. This is the projected lane's sector or nappe reading, relabelled at the mint by `general_lane_refusal` for a circle's lane choice and for a spline alike.
+  - `PcurveCertifyError::NoGeneralLane` maps to `CertifyError::NoGeneralLane`. It is a circle on a cone or torus that is none of its circles, or a pose the projected lane cannot partition.
+  - All three end lever-only "not yet".
+- **The fold (`ChartImageUnavailable`) still takes:**
+  - `CarrierOffChart`, the wrong locus, which the text says correctly, though its `why` and margin are still dropped;
+  - `UnsupportedChart`, a spline chart;
+  - the check-4-shaped refusals no mint raises.
+
+Still owed: carry `why` (and `OffMargin`) or nest the whole `PcurveCertifyError`, and re-check each arm's routing in `decision()`.

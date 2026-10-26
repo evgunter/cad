@@ -12,8 +12,6 @@ Every row moved from `work/emit/` by `git mv`, id kept.
 |---|---|---|---|
 | P2 | `a-conventional-vertex-mints-no-edge-derived-name` | H | Naming a conventional vertex refuses typed: its edge-derived name, the ranking skip and the modulo-position order rows are unbuilt |
 | P3 | `a-crossing-of-a-seam-edge-with-no-first-side-refuses` | M +design | A crossing of a seam edge whose two sides carry one name has no orientation to read its sense along, and refuses where a lone one used to be |
-| P3 | `a-flush-reading-finds-no-point-on-a-nurbs-member-edge` | M | The flush rule's Track reads every point as off a NURBS member edge, because Curve3::param_near has no parameter for a NURBS carrier |
-| P3 | `a-unions-flush-reading-cannot-follow-a-nurbs-carrier` | M | A union's flush reading cannot follow a NURBS carrier: such an edge is a line of its own and covers nothing, whatever lies flush with it |
 | P3 | `an-end-touch-crossing-has-no-witness-once-edges-join` | M | The end-touch crossing (an edge lying in a face that ends in it) has no test witness since the output stage joins the area-overlap fixture's |
 | P3 | `an-in-face-crossing-is-spelled-as-a-seam-of-the-face-it-lies-in` | — +design | A vertex where an edge lying in a face ends in it is published as Seam{merged face, its own seam}, losing which member it marks |
 | P3 | `crossing-sense-carries-five-copies-of-the-null-copy-closure` | — | The crossing-sense code holds the null-copy closure in five places and two rules for matching a crossing's sides by image |

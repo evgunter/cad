@@ -544,3 +544,5 @@ if it is ever revisited.
 
 - 2026-10-23 — **Seam (QUAD):** PR 5589 (`quad/measure-a-lanes`, measure door unit A) edits k-lint. `EPS_COUPLED_UNRULED` and its CLI gate go with `props_quad_last_round`, its only entry. `predicate_roster`'s `MINT_SOURCES` reads `topo/src/props/quad_lane.rs` beside `props/quad.rs`, and K-REPORT gains the retirement note. (QUAD orchestrator's lane)
   - Also `demos/*`: the tour's `k_probe_brackets` 1e-12 set is now the lofted leaf and the sepals, as main reads it, with a 2e-7 Pappus fit slack. The teapot, `demos/README.md` and the ribbon now narrate the spout's work-wall stop.
+
+- 2026-10-23 — **Seam (QUAD):** PR 5628 (`quad/measure-b-door`, measure door unit B) edits `tools/k-lint`. `EPS_COUPLED_PREDICATES` is empty: `props_quad_converged` is no longer minted. The committed eras are read through `ERA_EPS_COUPLED_PREDICATES`/`lint_sample_under`, `MINT_SOURCES` is `props/quad.rs` alone, and `docs/K-REPORT.md` has the retirement note. The thread-count digests are re-cut (verdict counts only). (QUAD unit B lane)

@@ -18,8 +18,8 @@
 //! across the widening frustum; C1, a half-space brick whose face is
 //! tilted 10° off axis-normal; T1, TANG's box turned −50° against the
 //! π/6 cone, whose two ellipses bound a ring on the cone face. C2, B1
-//! and C3 cut a hyperbola or a parabola, which the frame refuses by
-//! decision.
+//! and C3 cut a hyperbola or a parabola, whose arcs the frame refuses:
+//! the Boolean has no crossing layer for their NURBS carriers.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -781,17 +781,18 @@ fn each_poses_body_is_its_closed_form_in_every_op() {
     }
 }
 
-/// **A parabola or a hyperbola refuses by decision, end to end.** C2's
+/// **A parabola or a hyperbola refuses at the frame, end to end.** C2's
 /// half-space brick, whose face `x = 0.3` runs along the axis, and B1,
 /// the brick `[0.6, 2] × [0.3, 0.8] × [−0.2, 0.2]` across the widening
 /// wall, whose faces `x = 0.6` and `z = ±0.2` do too, each cut the
 /// frustum in hyperbolas; C3's, whose face through `(0.5, 0.5, 0)` lies
 /// parallel to a generator, in a parabola. In every op and member order
 /// the pipeline refuses at the germ pair's frame with the conic named,
-/// the plane×cone pair in the operands' order: neither the missing-arm
-/// refusal nor a desync.
+/// the plane×cone pair in the operands' order: the section's arcs are
+/// NURBS carriers the Boolean has no crossing layer for. Neither the
+/// missing-arm refusal nor a desync.
 #[test]
-fn a_parabola_or_a_hyperbola_refuses_by_decision_in_every_op() {
+fn a_parabola_or_a_hyperbola_refuses_at_the_frame_in_every_op() {
     let tol = Tol::witness();
     let frustum = widening();
     let alpha = 0.5_f64.atan();
@@ -804,12 +805,12 @@ fn a_parabola_or_a_hyperbola_refuses_by_decision_in_every_op() {
                 brick((0.3, 6.3), (-3.0, 3.0), (-3.0, 3.0), tol),
                 tol,
             ),
-            geom_brep::OutsideConic::Hyperbola,
+            geom_brep::OpenConic::Hyperbola,
         ),
         (
             "B1",
             finished("B1", brick((0.6, 2.0), (0.3, 0.8), (-0.2, 0.2), tol), tol),
-            geom_brep::OutsideConic::Hyperbola,
+            geom_brep::OpenConic::Hyperbola,
         ),
         (
             "C3",
@@ -818,7 +819,7 @@ fn a_parabola_or_a_hyperbola_refuses_by_decision_in_every_op() {
                 brick((0.0, 6.0), (-3.0, 3.0), (-3.0, 3.0), tol),
                 Affine3::translation(Vec3::new(0.5, 0.5, 0.0)) * c3_turn,
             ),
-            geom_brep::OutsideConic::Parabola,
+            geom_brep::OpenConic::Parabola,
         ),
     ];
     for (pose, other, conic) in &poses {
@@ -841,14 +842,14 @@ fn a_parabola_or_a_hyperbola_refuses_by_decision_in_every_op() {
             assert!(
                 matches!(
                     &got,
-                    Err(BooleanError::GermSectionOutsideInventory {
+                    Err(BooleanError::GermSectionOpenConic {
                         a_kind,
                         b_kind,
                         conic: named,
                         ..
                     }) if [*a_kind, *b_kind] == kinds && named == conic
                 ),
-                "{label}: the {conic:?} refuses by decision at the germ pair's frame, got {:?}",
+                "{label}: the {conic:?} refuses at the germ pair's frame, got {:?}",
                 got.map(|j| j.is_some())
             );
         }

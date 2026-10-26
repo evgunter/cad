@@ -2056,8 +2056,8 @@ fn the_silhouette_letters_name_through_an_intersect_of_an_intersect() {
     let (doc, t) = letter(doc, Some(h), &t, ([0.0, 1.0, 0.0], [0.0, 0.0, 1.0]), 2.0);
     let (doc, c) = letter(doc, Some(h), &c, ([0.0, 0.0, 1.0], [1.0, 0.0, 0.0]), 3.0);
     // Each member order of the outer intersect, and of the inner one under
-    // the first. Both swapped differ, as on the frozen head of PR 5368
-    // (`work/flush/an-intersect-of-an-intersect-names-a-three-way-coincident-face-apart-in-one-member-order.md`).
+    // the first. Both swapped cite an extra z 2.5 wall on one y 3 piece
+    // (`work/borders/a-direct-operands-own-split-lineage-climbs-to-a-live-sibling-seam.md`).
     let mut sets = Vec::new();
     for (hs, cs) in [(false, false), (true, false), (false, true)] {
         let (doc, two) = insert(

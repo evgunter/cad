@@ -35,7 +35,7 @@ and `a_torus_crossing_the_rim_reaches_the_join`.
 A torus that comes near the rim comes near the cut plane and the drum
 wall, and meets both obliquely: the plane is not square to the torus's
 axis (a spiric section, a quartic) and the wall is not coaxial with it.
-Neither pair has a section arm (`work/germ/c5-plane-torus-cone-cylinder-arms.md`
+Neither pair has a section arm (`work/sect/c5-plane-torus-cone-cylinder-arms.md`
 built only the axis-containing plane), so the extent scan cannot prove
 a clear pose clear and the join has no frame for a crossing one. Making
 the plane square to the torus's axis forces the wall off it, and the

@@ -81,12 +81,14 @@ pub(crate) use neighborhood::{EntryFault, entry_side, wide_entry};
 // sign-certainty arm decides against the same one rather than minting
 // a second copy of the constants.
 pub(crate) mod order;
+pub(crate) mod pieced_arc;
 #[cfg(test)]
 pub(crate) mod reassembly;
 pub mod rules;
 mod section;
 mod section_loops;
 pub(crate) mod spiric_arc;
+pub(crate) mod spline_arc;
 
 use geom_brep::recourse::{LeverOnly, Reading, RefusedArm};
 use geom_core::{Band, BandError, Indeterminate, MarginDiag, Point3, Real, UnitVec3};

@@ -2,10 +2,12 @@
 id: main-red-the-seat-and-name-table-goldens-moved-at-dprime2
 kind: issue
 title: main red: five committed goldens (seat4 blend and boolean, seat7 sweep, seat8 split digests; m4_pr3 die name-table digest) moved at PR 5613 (D′2) and were not re-pinned
-status: open
+status: parked
 opened: 2026-10-25
 priority: P1
 cost: E
+rides_with: assemble-is-an-operator-and-the-product-is-a-slot
+blocked_on: [assemble-is-an-operator-and-the-product-is-a-slot]
 ---
 
 
