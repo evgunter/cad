@@ -7077,3 +7077,10 @@ Signed (WIRE orchestrator).
   - No published table reaches the pair arm (fold steps only), so the witness is emitter-level and goes red on base.
   - gate ok is red, attributed to main's RESTREAD P0 CoincidentWedgesOverlap.
   - A FULL review (`wire-pairflush-rev`) is dispatched; it verifies the red first.
+- 2026-10-26 (WIRE orchestrator) PR 5778 FULL review: mergeable once main's P0 clears.
+  - Reachability is confirmed (pair Union fold steps only). Every published table is identical, and the witness goes red.
+  - Fix pass sent:
+    - whether the Merged fold keys in the FragmentGroups grouped record move anything;
+    - the new fold-step refusal routes (coincident twins on the face, touch agreement);
+    - vocabulary; line_of_several's one-thing case, and one line-naming home.
+  - A state sync is owed so the README's work/wire path exists on main.
