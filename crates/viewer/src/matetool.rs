@@ -103,9 +103,9 @@ vocabulary! {
     /// alone. It mirrors the kernel's [`Coord`] both ways, by two
     /// exhaustive matches ([`Self::coord`], [`Self::of`]), so a freedom
     /// the kernel grows does not build here until the panel offers it or
-    /// says why not: a spin about the chart's `x` or `y` is a link of a chain of turns,
-    /// which a placement with no direction fixed writes, never a face
-    /// mate's.
+    /// says why not: a spin about the chart's `x` or `y` is a link of a
+    /// chain of turns, which a placement with no direction fixed writes,
+    /// never a face mate's.
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub enum MateFreedom {
         /// A slide along the chart's `x`.
