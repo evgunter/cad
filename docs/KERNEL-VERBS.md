@@ -489,12 +489,11 @@ the table.
 
   **What the nesting half does NOT match, in the same shape**: any face
   on a non-planar surface. On a plane, an outer loop carrying a
-  `Spiric` or NURBS edge, which has no crossing row, is read only along
-  a ray that definitely misses a ball holding each such edge; a ring no
-  vertex of which such a ray reaches is reported
-  `RingNestingUndecided`, never `RingOutsideOuter`, since answering
-  `Out` from a region that is not the loop's would refuse valid
-  bodies. And inside the gate: the nesting arm places a whole ring from one vertex
+  `Spiric` or NURBS edge is read piece by piece on that edge's carrier;
+  a ring no vertex of which those pieces place (the edge's reading ran
+  out of depth or pieces first) is reported `RingNestingUndecided`,
+  never `RingOutsideOuter`, since answering `Out` from a region that is
+  not the loop's would refuse valid bodies. And inside the gate: the nesting arm places a whole ring from one vertex
   on the premise that the two loops do not cross, which the contact
   half checks wherever both loops carry only `Line` and `Circle` edges
   — a ring arc bowing past the outer loop between inside vertices is a

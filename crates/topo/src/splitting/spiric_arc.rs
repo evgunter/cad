@@ -19,49 +19,19 @@
 //! (the integral is largest at an end). So `s′` keeps the chord's sign
 //! across the piece wherever `|s(v_b) − s(v_a)| > 2·A·h²`.
 //!
-//! A piece that settles neither way is halved, until its ball is within
-//! the band's coincidence threshold (the boundary reading), a fixed
-//! depth, or [`geom_core::bisect`]'s piece budget. A reading that runs out
-//! of depth or budget is not a reading in the band: the walk names it
-//! as the edge it could not cross ([`super::containment::Uncrossable`]).
+//! The halving and the two readings over the pieces are
+//! [`super::pieced_arc`]'s.
 
-use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, SupSpeed, Vec3};
+use geom_core::{Band, Decide, Margin, Point3, Sign, SupSpeed, Vec3};
 
+use crate::splitting::pieced_arc::{PieceBall, PiecedArc, Ray};
 use crate::validate::{decide, definitely_positive as positive};
-use geom_core::bisect::{Step, bisect};
-
-/// The rows a caller reads a spiric edge's boundary under — its own, so
-/// each caller's population stays separable in the telemetry.
-#[derive(Clone, Copy)]
-pub(crate) struct SpiricRows {
-    /// The distance from the point to either end of the arc.
-    pub(crate) end: &'static str,
-    /// A piece's ball's clearance from the point, `|q − P(v_m)| − S·h`.
-    pub(crate) clear: &'static str,
-    /// The distance from the point to a point of the arc, `|q − P(v_m)|`.
-    pub(crate) on: &'static str,
-    /// A piece's ball's radius `S·h`: within the band's coincidence
-    /// threshold the piece is a point, and is not halved again.
-    pub(crate) leaf: &'static str,
-}
 
 /// The rows of a ray's crossing of a spiric arc — the walk's alone.
 const CROSS_REACH: &str = "point_in_arc_loop_reach";
 const CROSS_SIDE: &str = "point_in_arc_loop_spiric_side";
 const CROSS_TURN: &str = "point_in_arc_loop_spiric_turn";
 const CROSS_ADVANCE: &str = "point_in_arc_loop_spiric_advance";
-
-/// How many times a piece is halved before a reading gives up on it:
-/// past the point where `f64` can halve a window of a few radians at all
-/// (its parameters are then neighbouring floats), so the depth never
-/// binds before the arithmetic does. The ray count reaches it only where
-/// a crossing sits within the band of a halving point or the ray grazes
-/// the oval; the boundary reading, whose pieces stop at the band, only
-/// on a carrier whose bounds outrun `2⁶⁰` band widths.
-const MAX_DEPTH: u32 = 60;
-
-/// A walk that stopped on a piece past [`MAX_DEPTH`]: no answer.
-struct TooDeep;
 
 /// A spiric oval: [`geom::Curve3::Spiric`]'s data, named so that a
 /// [`SpiricArc`] can only be built from one.
@@ -84,7 +54,7 @@ pub(crate) struct SpiricArc<T: geom_core::Real> {
 }
 
 /// A piece `[va, vb]` of the arc's window, with its end points.
-struct Piece<T: geom_core::Real> {
+pub(crate) struct Piece<T: geom_core::Real> {
     va: T,
     vb: T,
     pa: Point3<T>,
@@ -120,23 +90,6 @@ impl<T: Decide> SpiricArc<T> {
         .eval(v)
     }
 
-    /// The arc's two end points.
-    pub(crate) fn ends(&self) -> [Point3<T>; 2] {
-        [self.point(self.span.0), self.point(self.span.1)]
-    }
-
-    /// The whole arc as one piece.
-    fn root(&self) -> Piece<T> {
-        let (va, vb) = self.span;
-        Piece {
-            va,
-            vb,
-            pa: self.point(va),
-            pb: self.point(vb),
-            depth: 0,
-        }
-    }
-
     /// A piece's bounds over its own window: `cos v` and `sin v` each
     /// move at most `h` from their values at `v_m`, so `ρ = R + r·cos v`
     /// stays in `[R + r·max(cos v_m − h, −1), R + r·min(cos v_m + h, 1)]`
@@ -145,20 +98,37 @@ impl<T: Decide> SpiricArc<T> {
         let o = self.oval;
         let h = (p.vb - p.va).abs() * T::from_f64(0.5);
         let vm = geom::mid_param(p.va, p.vb);
-        let (sm, cm) = vm.sin_cos();
-        let one = T::one();
-        let rho = (
-            o.major + o.minor * (cm - h).max(T::zero() - one),
-            o.major + o.minor * (cm + h).min(one),
-        );
-        let sin_max = (sm.abs() + h).min(one);
-        let (speed, accel) = geom::spiric_rate_bounds(o.minor, o.offset, rho, sin_max);
+        let (speed, accel) = geom::spiric_window_rate_bounds((o.major, o.minor, o.offset), vm, h);
         Bounds {
             h,
             center: self.point(vm),
             reach: geom_core::bisect::reach(SupSpeed::new(speed), (p.va, p.vb)),
             accel,
         }
+    }
+}
+
+impl<T: Decide> PiecedArc<T> for SpiricArc<T> {
+    type Piece = Piece<T>;
+
+    fn ends(&self) -> [Point3<T>; 2] {
+        [self.point(self.span.0), self.point(self.span.1)]
+    }
+
+    /// The whole arc as one piece.
+    fn roots(&self) -> Vec<Piece<T>> {
+        let (va, vb) = self.span;
+        vec![Piece {
+            va,
+            vb,
+            pa: self.point(va),
+            pb: self.point(vb),
+            depth: 0,
+        }]
+    }
+
+    fn depth(piece: &Piece<T>) -> u32 {
+        piece.depth
     }
 
     /// A piece's two halves, the half nearer `va` first.
@@ -184,174 +154,60 @@ impl<T: Decide> SpiricArc<T> {
         ]
     }
 
-    /// **Where `q` sits against the arc.** `End` within the band of an
-    /// end; `On` within the band of a point of the arc; `Off` once every
-    /// piece's ball is definitely clear of `q`.
-    ///
-    /// # Errors
-    ///
-    /// [`SpiricRefusal::Escalated`]: an in-band distance to an end; or,
-    /// where a piece whose ball is within the band's coincidence
-    /// threshold is settled neither way and no other piece puts `q` on
-    /// the arc, the in-band margin it was read on.
-    /// [`SpiricRefusal::Unsettled`] where a piece outlasts the depth or
-    /// the piece budget before its ball is within the band.
-    pub(crate) fn contact(
-        &self,
-        q: Point3<T>,
-        rows: SpiricRows,
-        band: Band,
-    ) -> Result<SpiricHit, SpiricRefusal> {
-        for end in self.ends() {
-            if decide(rows.end, Margin::norm3(q - end), band)? == Sign::Zero {
-                return Ok(SpiricHit::End);
-            }
+    /// The ball `(P(v_m), S·h)`, its centre a point of the arc.
+    fn ball(&self, p: &Piece<T>) -> PieceBall<T> {
+        let b = self.bounds(p);
+        PieceBall {
+            center: b.center,
+            reach: b.reach,
+            on: b.center,
         }
-        // The first leaf no reading settled, by the margin it was read
-        // in the band on.
-        let mut in_band: Option<Indeterminate> = None;
-        let mut exhausted = false;
-        let walk = bisect([self.root()], |p| {
-            let b = self.bounds(&p);
-            let gap = (q - b.center).norm();
-            let mut read = None;
-            match decide(rows.clear, Margin::of(gap - b.reach), band) {
-                Ok(Sign::Positive) => return Step::Settled,
-                Ok(_) => {}
-                Err(diag) => read = Some(diag),
-            }
-            match geom_core::k_stats::decide_reported(rows.on, Margin::of(gap), band) {
-                Ok(geom_core::Decided {
-                    sign: Sign::Zero,
-                    margin,
-                }) => return Step::Stop(margin),
-                Ok(_) => {}
-                Err(diag) => read = Some(diag),
-            }
-            if matches!(decide(rows.leaf, Margin::of(b.reach), band), Ok(Sign::Zero)) {
-                match read {
-                    Some(diag) => {
-                        in_band.get_or_insert(diag);
-                    }
-                    None => exhausted = true,
-                }
-                return Step::Settled;
-            }
-            if p.depth >= MAX_DEPTH {
-                exhausted = true;
-                return Step::Settled;
-            }
-            Step::Halve(self.halves(p))
-        });
-        match walk {
-            Ok(Some(margin)) => return Ok(SpiricHit::On(margin)),
-            Ok(None) => {}
-            Err(_) => exhausted = true,
-        }
-        if let Some(diag) = in_band {
-            return Err(SpiricRefusal::Escalated(diag));
-        }
-        if exhausted {
-            return Err(SpiricRefusal::Unsettled);
-        }
-        Ok(SpiricHit::Off)
     }
 
-    /// **How many times the ray `q + d·t`, `t > 0`, crosses the arc**,
-    /// counted in the loop's plane (`side` the in-plane unit normal to
-    /// `d`). `None` where a piece meeting the ray settles neither its
-    /// crossing nor its miss by the depth — a graze, or a crossing at a
-    /// piece's end — which grazes the ray (why that is sound: the ray
-    /// loop in [`super::containment`]'s walk). The walk calls it only
-    /// for a point [`Self::contact`] read `Off`.
-    ///
-    /// A piece is settled when its ball definitely misses the ray, or
-    /// when `s(v) = (P(v) − q)·side` is definitely monotone on it (the
-    /// module docs) with both ends' `s` definitely signed: same signs, no
+    /// Settled when the piece's ball definitely misses the ray, or when
+    /// `s(v) = (P(v) − q)·side` is definitely monotone on it (the module
+    /// docs) with both ends' `s` definitely signed: same signs, no
     /// crossing; opposite, exactly one, counted when the ball is
     /// definitely ahead of `q` along `d` and not when it is definitely
     /// behind.
-    pub(crate) fn crossings(
-        &self,
-        q: Point3<T>,
-        d: Vec3<T>,
-        side: Vec3<T>,
-        band: Band,
-    ) -> Option<usize> {
-        let mut count = 0;
-        let walk = bisect([self.root()], |p| {
-            let b = self.bounds(&p);
-            let w = b.center - q;
-            let (along, off) = (w.dot(d), w.dot(side));
-            // The in-plane distance from the ball's centre to the ray.
-            let nearest = (off.powi(2) + along.min(T::zero()).powi(2)).sqrt();
-            if positive(CROSS_REACH, nearest - b.reach, band) {
-                return Step::Settled;
-            }
-            let (sa, sb) = ((p.pa - q).dot(side), (p.pb - q).dot(side));
-            let ends = (
-                decide(CROSS_SIDE, Margin::of(sa), band),
-                decide(CROSS_SIDE, Margin::of(sb), band),
-            );
-            let monotone = positive(
-                CROSS_TURN,
-                (sb - sa).abs() - T::from_f64(2.0) * b.accel * b.h.powi(2),
-                band,
-            );
-            if let (
-                true,
-                Ok(a @ (Sign::Positive | Sign::Negative)),
-                Ok(z @ (Sign::Positive | Sign::Negative)),
-            ) = (monotone, ends.0, ends.1)
-            {
-                if a == z {
-                    return Step::Settled;
-                }
-                if positive(CROSS_ADVANCE, along - b.reach, band) {
-                    count += 1;
-                    return Step::Settled;
-                }
-                if matches!(
-                    decide(CROSS_ADVANCE, Margin::of(along + b.reach), band),
-                    Ok(Sign::Negative)
-                ) {
-                    return Step::Settled;
-                }
-            }
-            if p.depth >= MAX_DEPTH {
-                return Step::Stop(TooDeep);
-            }
-            Step::Halve(self.halves(p))
-        });
-        matches!(walk, Ok(None)).then_some(count)
-    }
-}
-
-/// Where a point sits against a spiric arc — [`SpiricArc::contact`].
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) enum SpiricHit {
-    /// Definitely off the arc.
-    Off,
-    /// Within the band of a point of the arc, clear of its ends, by the
-    /// margin that decided it.
-    On(geom_core::MarginDiag),
-    /// Within the band of one of the arc's two ends.
-    End,
-}
-
-/// Why [`SpiricArc::contact`] places no point.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) enum SpiricRefusal {
-    /// A decision fell in the band's gap.
-    Escalated(Indeterminate),
-    /// A piece outlasted the reading's depth or budget before its ball
-    /// came within the band.
-    Unsettled,
-}
-
-impl From<Indeterminate> for SpiricRefusal {
-    fn from(diag: Indeterminate) -> Self {
-        Self::Escalated(diag)
+    fn cross(&self, p: &Piece<T>, Ray { q, d, side }: Ray<T>, band: Band) -> Option<usize> {
+        let b = self.bounds(p);
+        let w = b.center - q;
+        let (along, off) = (w.dot(d), w.dot(side));
+        // The in-plane distance from the ball's centre to the ray.
+        let nearest = (off.powi(2) + along.min(T::zero()).powi(2)).sqrt();
+        if positive(CROSS_REACH, nearest - b.reach, band) {
+            return Some(0);
+        }
+        let (sa, sb) = ((p.pa - q).dot(side), (p.pb - q).dot(side));
+        let ends = (
+            decide(CROSS_SIDE, Margin::of(sa), band),
+            decide(CROSS_SIDE, Margin::of(sb), band),
+        );
+        let monotone = positive(
+            CROSS_TURN,
+            (sb - sa).abs() - T::from_f64(2.0) * b.accel * b.h.powi(2),
+            band,
+        );
+        let (
+            true,
+            Ok(a @ (Sign::Positive | Sign::Negative)),
+            Ok(z @ (Sign::Positive | Sign::Negative)),
+        ) = (monotone, ends.0, ends.1)
+        else {
+            return None;
+        };
+        if a == z {
+            return Some(0);
+        }
+        if positive(CROSS_ADVANCE, along - b.reach, band) {
+            return Some(1);
+        }
+        matches!(
+            decide(CROSS_ADVANCE, Margin::of(along + b.reach), band),
+            Ok(Sign::Negative)
+        )
+        .then_some(0)
     }
 }
 
@@ -359,9 +215,10 @@ impl From<Indeterminate> for SpiricRefusal {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+    use crate::splitting::pieced_arc::{ArcHit, ArcRows};
     use geom_core::{Interval, Tol};
 
-    const ROWS: SpiricRows = SpiricRows {
+    const ROWS: ArcRows = ArcRows {
         end: "test_spiric_end",
         clear: "test_spiric_clear",
         on: "test_spiric_on",
@@ -443,7 +300,7 @@ mod tests {
                 inside += usize::from(want);
                 assert_eq!(
                     k.contact(point(q), ROWS, band),
-                    Ok(SpiricHit::Off),
+                    Ok(ArcHit::Off),
                     "{lane} {q:?}: off the arc"
                 );
                 // The chord's crossing, in closed form.
@@ -472,12 +329,12 @@ mod tests {
         );
         let mid = point(at(0.3));
         assert!(
-            matches!(k.contact(mid, ROWS, band), Ok(SpiricHit::On(_))),
+            matches!(k.contact(mid, ROWS, band), Ok(ArcHit::On(_))),
             "{lane}: on the arc"
         );
         assert_eq!(
             k.contact(point(b), ROWS, band),
-            Ok(SpiricHit::End),
+            Ok(ArcHit::End),
             "{lane}: at its end"
         );
         // Off the arc's outermost point, along the plane, in the band.
@@ -579,7 +436,7 @@ mod tests {
             let k = SpiricArc::new(oval(1.0, 0.25, o), (-3.0, 3.0));
             let mid_y = 0.5 * (k.point(0.0).y + k.point(core::f64::consts::PI).y);
             let q = Point3::new(o, mid_y, 0.0);
-            assert_eq!(k.contact(q, ROWS, band), Ok(SpiricHit::Off), "frac {frac}");
+            assert_eq!(k.contact(q, ROWS, band), Ok(ArcHit::Off), "frac {frac}");
             let d = Vec3::new(0.0, 0.3_f64.cos(), 0.3_f64.sin());
             let side = Vec3::new(1.0, 0.0, 0.0).cross(d);
             // One crossing: the ray leaves the oval's interior through

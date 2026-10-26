@@ -194,6 +194,12 @@ pub enum BooleanDecision {
     /// Whether a split point lies on the circle it was placed on: a
     /// residual on a point the kernel placed.
     SplitPointOnCircle,
+    /// Which way a ring that a fate cut closes in a dropped coincident
+    /// face winds about the face's normal (`fate::ring_winding`, its
+    /// signed area over its length): either definite sign passes, and a
+    /// ring that reads in band refuses rather than divide the face the
+    /// wrong way round.
+    CutRingWinding,
     /// Whether the result's volume agrees with its operands': the
     /// kernel checking its own result.
     VolumeBackstop,
@@ -959,6 +965,12 @@ const PARTNER_FACES: SizedDecision = SizedDecision {
 /// [`CORNER_SENSE`], [`BooleanDecision::BisectorSide`]).
 pub(crate) const CORNER_EDGES: &str = corner_edges!();
 
+/// The lever of a ring a fate cut cannot wind
+/// ([`BooleanDecision::CutRingWinding`]): the ring bounds the region the
+/// kept face holds of the dropped one, so moving the parts widens it.
+const CUT_RING_WINDING: &str = "move the parts so the region one coincident face holds of the other spans clearly more than \
+     the tolerance";
+
 /// **Which question the curved-extent scan asks of a sphere face**
 /// ([`BooleanDecision::Sphere`]). The scan takes no declarations; each
 /// question's pass set is its own, and each decided refusal ends as its
@@ -1435,6 +1447,9 @@ impl BooleanDecision {
             Self::Crossing(decision) => decision.subject(),
             Self::VertexOnVertex => "whether two vertices coincide",
             Self::SplitPointOnCircle => "whether a split point lies on the circle it was placed on",
+            Self::CutRingWinding => {
+                "which way a ring that the cut of a coincident face closes winds"
+            }
             Self::VolumeBackstop => "whether the result's volume agrees with its operands'",
             Self::LeverArm(gate) => gate.subject(),
             Self::Radius(radius) => radius.subject(),
@@ -1580,6 +1595,7 @@ impl BooleanDecision {
                 "distance between the vertices",
                 SizedPass::NonNegative,
             ),
+            Self::CutRingWinding => Ending::Lever(CUT_RING_WINDING),
             Self::VolumeBackstop => Ending::Unsized(Unsized::Defect),
             // The arm passes on a positive length, and a zero-band one
             // is a size a smaller tolerance decides positive
@@ -1998,6 +2014,7 @@ pub(in crate::boolean) mod tests {
                 BooleanDecisionKind::SplitPointOnCircle => {
                     vec![BooleanDecision::SplitPointOnCircle]
                 }
+                BooleanDecisionKind::CutRingWinding => vec![BooleanDecision::CutRingWinding],
                 BooleanDecisionKind::VolumeBackstop => vec![BooleanDecision::VolumeBackstop],
                 BooleanDecisionKind::LeverArm => {
                     LeverArm::iter().map(BooleanDecision::LeverArm).collect()
@@ -2574,6 +2591,13 @@ pub(in crate::boolean) mod tests {
             BooleanDecision::SplitPointOnCircle => (
                 "whether a split point lies on the circle it was placed on",
                 Ending::Defect,
+            ),
+            BooleanDecision::CutRingWinding => (
+                "which way a ring that the cut of a coincident face closes winds",
+                Ending::Lever(
+                    "Recourse: move the parts so the region one coincident face holds of the \
+                     other spans clearly more than the tolerance",
+                ),
             ),
             BooleanDecision::VolumeBackstop => (
                 "whether the result's volume agrees with its operands'",
