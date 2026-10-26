@@ -62,3 +62,16 @@ question is which one the two orders should share. Shapes to weigh:
 
 The row above pins the per-order outcome at ε = 1e-12 and turns red
 when either order moves.
+
+## The orders' outcomes agree (CLEAVE, 2026-10-26)
+
+`cleave/backstop-admits-the-glues-zero-band` widens the volume
+backstop's bounds by what the discs' Zero glue admits. Order 1's
+1.05e-12 crossing is inside that widening, so at ε 1e-12 both orders
+now build, and they also build at the default ε and 1e-6. The row is
+re-pinned that way.
+
+The two orders' volumes still differ by the fan's reading of the
+standoff. Each is within `slack(k)` of the closed form and of the
+other. Which reading the two orders should share is still this row's
+question.

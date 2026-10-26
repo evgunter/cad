@@ -1022,7 +1022,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     body.sweep_and_close();
     let body = gate(finished, band, tol)?;
     interior_loops?;
-    T::gate_volume_backstop(op, a, b, &body, band, tol)?;
+    T::gate_volume_backstop(op, a, b, &body, &decls.pairs, band, tol)?;
     let (graft_vertices, graft_edges, graft_dead_edges, mut graft_faces) = graft_rows(&fin.graft);
     let [mut face_fragments_a, face_fragments_b] = fragments;
     let mut discards = fin.discards;
@@ -2336,11 +2336,23 @@ pub(super) fn output_substitutions(
 /// ([`crate::props::PastTarget::interval_volume`]); one the interval
 /// margin does not certify stays open.
 ///
-/// A declared coincidence the door glues inside the band also moves a
-/// correct result's volume, by up to the band over the glued face, and
-/// at a tight bound that refuses: a correct body refused, the safe
-/// direction
-/// (`work/reachhold/a-settled-declared-coincidence-crosses-a-tight-volume-bound.md`).
+/// # What the glue admits
+///
+/// A pair the op glues on one carrier (`Rest` or a continuation,
+/// [`GluedPair`]) was decided Zero over both faces: every point of each
+/// stands within the band's zero of the other's carrier
+/// (`carrier_eq::coincident_as_declared`, the reach read over the
+/// pair's extent). The glue keeps one description for both, so a
+/// correct result may stand off each face by up to that zero, and its
+/// volume off a tight bound by up to the zero times the area that
+/// moved: a block resting a Zero gap `g` on another unions to
+/// `vol(A) + vol(B) + g·area`. The pairs join faces into groups, each
+/// merged onto one description; which face's is kept is the merge's,
+/// so every bound is widened by the zero times each group's area less
+/// its smallest face's ([`glue_admits`]). A `Tangent` pair keeps both
+/// carriers and moves none. Nothing outside the glued faces widens the bound: a
+/// body with no one-carrier pair is held to it exactly, and a defect
+/// larger than the widening refuses as before.
 ///
 /// Each bound applies only when its reference operand's volume is
 /// certified POSITIVE (a bounded solid). An operand is a finished body,
@@ -2391,8 +2403,10 @@ pub(super) fn output_substitutions(
 ///    "certain" means "proven beyond the enclosure's own width": a
 ///    negative the walk's sums call, which the interval re-derivation
 ///    then certifies (a straddling enclosure escalates and falls
-///    through to the open arm). No ε enters — this is a sign, not a
-///    comparison against a length. Predicate:
+///    through to the open arm). No ε enters the comparison — this is
+///    a sign, not a comparison against a length; the bound it signs is
+///    the one the glue's own Zero decisions widened ("What the glue
+///    admits"), exactly the operands' where nothing glued. Predicate:
 ///    `volume_backstop_violation`.
 /// 2. **Is the violation above the model's own resolution?** Only for
 ///    the near-zero region arm 1 leaves open, and there ε *is* the
@@ -2409,26 +2423,28 @@ pub(super) fn output_substitutions(
 /// would lose its sign — far below any representable model.
 ///
 /// Both gates decide through the k_stats funnel under those names.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn volume_backstop<T: Decide>(
     op: BooleanOp,
     a: &Body<T>,
     b: &Body<T>,
     result: &Body<T>,
+    glued: &[GluedPair<T>],
     band: Band,
     tol: Tol,
     lane: QuadLane<T>,
 ) -> Result<(), BooleanError> {
-    // Each body to its reporting target, keeping the walk so a bound
-    // the reporting enclosures leave open can be refined past it.
-    let measure = |body, operand| {
-        let faces = crate::query::all_faces(body);
-        let (refused, certificate) = crate::props::target_walk(body, &faces, band, tol, Some(lane))
+    // Faces to their reporting target, keeping the walk so a bound the
+    // reporting enclosures leave open can be refined past it.
+    let measure_faces = |body, faces: &[FaceKey], operand| {
+        let (refused, certificate) = crate::props::target_walk(body, faces, band, tol, Some(lane))
             .map_err(|source| props_refusal(operand, source))?;
         match refused {
             Some(source) => Err(props_refusal(operand, source)),
             None => Ok(certificate.past_target()),
         }
     };
+    let measure = |body, operand| measure_faces(body, &crate::query::all_faces(body), operand);
     // The exact (bit-hairline) band for the sign arm below — the same
     // device the splitter's total order uses (`splitting::order`, audit
     // note N6): its open interior holds no representable `f64`, so at
@@ -2468,8 +2484,20 @@ pub(crate) fn volume_backstop<T: Decide>(
         }
     };
     let (ba, bb) = (bounded(ca.props())?, bounded(cb.props())?);
+    let admitted = glue_admits(glued, band, |operand, face| {
+        let body = match operand {
+            Operand::A => a,
+            Operand::B => b,
+        };
+        let target = measure_faces(body, &[face], Some(operand))?;
+        interval_measure("the glued faces' area", Some(operand), &target).map(|(_, area)| area)
+    })?;
     let (a_, b_, r_) = (Some(Operand::A), Some(Operand::B), None);
-    let bound = Posture::Bound { band, exact };
+    let bound = Posture::Bound {
+        band,
+        exact,
+        admitted,
+    };
     let plus_v = Posture::PlusV { band };
     match op {
         BooleanOp::Intersect => {
@@ -2514,6 +2542,58 @@ pub(crate) fn volume_backstop<T: Decide>(
     Ok(())
 }
 
+/// **The volume the op's one-carrier glue admits** ([`volume_backstop`]'s
+/// fn docs, "What the glue admits"): the band's zero times, over each
+/// group of faces the `Rest` and continuation pairs of `glued` join,
+/// the group's area less its smallest face's — every face of a group
+/// but the one whose description is kept may move by up to the zero,
+/// and the kept one may be the smallest — at the interval's lower end.
+/// `area` measures one operand face.
+///
+/// # Errors
+///
+/// `area`'s.
+fn glue_admits<T: Real>(
+    glued: &[GluedPair<T>],
+    band: Band,
+    mut area: impl FnMut(Operand, FaceKey) -> Result<Interval, BooleanError>,
+) -> Result<f64, BooleanError> {
+    // Each glued face's group, by merging the groups each pair joins.
+    let mut group: BTreeMap<(Operand, FaceKey), usize> = BTreeMap::new();
+    for (next, pair) in glued
+        .iter()
+        .filter(|p| p.class.is_one_carrier())
+        .enumerate()
+    {
+        let ends = [(Operand::A, pair.a), (Operand::B, pair.b)];
+        let joined: BTreeSet<usize> = ends.iter().filter_map(|e| group.get(e).copied()).collect();
+        for id in group.values_mut() {
+            if joined.contains(id) {
+                *id = next;
+            }
+        }
+        for end in ends {
+            group.insert(end, next);
+        }
+    }
+    let mut groups: BTreeMap<usize, Vec<Interval>> = BTreeMap::new();
+    for (&(operand, face), &id) in &group {
+        groups.entry(id).or_default().push(area(operand, face)?);
+    }
+    let moved = groups.values().fold(Interval::zero(), |sum, areas| {
+        let total = areas.iter().fold(Interval::zero(), |t, &a| t + a);
+        let least = areas
+            .iter()
+            .copied()
+            .reduce(Real::min)
+            .unwrap_or_else(Interval::zero);
+        sum + (total - least)
+    });
+    Ok((Interval::from_bounds(band.zero(), band.zero()) * moved)
+        .lo()
+        .max(0.0))
+}
+
 /// The property layer's refusal, as the backstop reports it — in tier
 /// 3's reading (`validate::classify_mass_props`): structure that does
 /// not resolve is [`BooleanError::VolumeCorrupt`], anything else a body
@@ -2541,10 +2621,15 @@ enum Side {
 #[derive(Clone, Copy)]
 enum Posture {
     /// A set bound ([`volume_backstop`]'s fn docs, "Two questions, two
-    /// bands"): a violation certified at the `exact` band refuses
-    /// whatever its size, an open sign is refined and then decided
-    /// against `band`, and the magnitude arm reads `band`.
-    Bound { band: Band, exact: Band },
+    /// bands"), widened by the volume the glue `admitted` ("What the
+    /// glue admits"): a violation of it certified at the `exact` band
+    /// refuses whatever its size, an open sign is refined and then
+    /// decided against `band`, and the magnitude arm reads `band`.
+    Bound {
+        band: Band,
+        exact: Band,
+        admitted: f64,
+    },
     /// Tier 3's positive-volume invariant (`docs/DESIGN.md`, tier 3),
     /// read at the door by tier 3's own reading
     /// ([`crate::validate::plus_v_read`]): only a negative certified
@@ -2564,6 +2649,14 @@ enum Reading {
 }
 
 impl Posture {
+    /// The volume the bound is widened by: none for the +V invariant.
+    fn admitted(self) -> f64 {
+        match self {
+            Posture::Bound { admitted, .. } => admitted,
+            Posture::PlusV { .. } => 0.0,
+        }
+    }
+
     /// The margin's reading — exact, or a bracket over the bodies'
     /// quadrature pads ([`crate::props::MassProperties::reading`]) — read
     /// at whatever scalar it is carried in.
@@ -2633,9 +2726,18 @@ fn bound_holds<'t, 'b, T: Decide>(
         diag,
     };
     loop {
-        // The margin `Σ large − Σ small`, and the summed surface area it
-        // is metered over (fn docs, audit F3).
-        let mut margin = crate::props::SignReading::exact(T::zero(), T::zero());
+        // The margin `admitted + Σ large − Σ small`, and the summed
+        // surface area it is metered over (fn docs, audit F3). Nothing
+        // admitted adds nothing: the sums are the operands' own.
+        let slack = posture.admitted();
+        let widen = |x: T| {
+            if slack == 0.0 {
+                x
+            } else {
+                x + T::from_computed(slack)
+            }
+        };
+        let mut margin = crate::props::SignReading::exact(widen(T::zero()), T::zero());
         // The result's volume, and what the other bodies bound it by,
         // for the refusal's text.
         let (mut got, mut others) = (T::zero(), T::zero());
@@ -2652,8 +2754,8 @@ fn bound_holds<'t, 'b, T: Decide>(
             }
         }
         let bound = match result_side {
-            Side::Small => others,
-            Side::Large => -others,
+            Side::Small => widen(others),
+            Side::Large => -widen(others),
         };
         let implausible = || BooleanError::ResultVolumeImplausible {
             which,
@@ -2671,7 +2773,7 @@ fn bound_holds<'t, 'b, T: Decide>(
         // before it refuses: one the interval margin does not certify
         // is the rounding's, and stays open.
         if reading == Reading::Violated {
-            let (mut margin, mut area) = (Interval::zero(), Interval::zero());
+            let (mut margin, mut area) = (Interval::from_bounds(slack, slack), Interval::zero());
             for (side, terms) in [(Side::Small, &*small), (Side::Large, &*large)] {
                 for (operand, target) in terms {
                     let (v, a) = interval_measure(which, *operand, target)?;
@@ -8366,6 +8468,7 @@ mod tests {
                 &cube,
                 &cube,
                 &small,
+                &[],
                 band,
                 Tol::witness(),
                 QuadLane::certified(),
@@ -8379,6 +8482,7 @@ mod tests {
                 &small,
                 &cube,
                 &cube,
+                &[],
                 band,
                 Tol::witness(),
                 QuadLane::certified(),
@@ -8392,6 +8496,7 @@ mod tests {
                 &small,
                 &cube,
                 &cube,
+                &[],
                 band,
                 Tol::witness(),
                 QuadLane::certified(),
@@ -8405,6 +8510,7 @@ mod tests {
                 &cube,
                 &cube,
                 &cube,
+                &[],
                 band,
                 Tol::witness(),
                 QuadLane::certified(),
@@ -8420,6 +8526,7 @@ mod tests {
             &cube,
             &rev,
             &cube,
+            &[],
             band,
             Tol::witness(),
             QuadLane::certified(),
@@ -8431,6 +8538,7 @@ mod tests {
                 &small,
                 &rev,
                 &cube,
+                &[],
                 band,
                 Tol::witness(),
                 QuadLane::certified(),
@@ -8456,6 +8564,7 @@ mod tests {
                 a,
                 b,
                 result,
+                &[],
                 band,
                 Tol::witness(),
                 QuadLane::certified(),
@@ -8523,6 +8632,7 @@ mod tests {
                 operand,
                 operand,
                 result,
+                &[],
                 band,
                 Tol::witness(),
                 QuadLane::certified(),
@@ -8557,6 +8667,7 @@ mod tests {
                 &cube,
                 &cube,
                 &result,
+                &[],
                 band,
                 tol,
                 QuadLane::certified(),
@@ -8605,6 +8716,7 @@ mod tests {
             &plate,
             &plate,
             &wrong,
+            &[],
             band,
             Tol::witness(),
             QuadLane::certified(),
@@ -8621,11 +8733,124 @@ mod tests {
             &plate,
             &plate,
             &plate,
+            &[],
             band,
             Tol::witness(),
             QuadLane::certified(),
         )
         .unwrap();
+    }
+
+    /// **What the glue admits, and no more.** A union "result" standing
+    /// `δ` past `vol(A) + vol(B)`, the two unit faces of one pair glued:
+    /// the group's area less its smallest face's is one, so the bound
+    /// widens by the band's zero. `δ = ½·zero` passes with a one-carrier
+    /// pair and refuses with none; `δ = 2·zero`, a real error past what
+    /// the glue admits, refuses with it, however often the pair is
+    /// listed. A `Tangent` pair moves no carrier and admits nothing.
+    #[test]
+    fn volume_backstop_admits_what_the_glue_moves_and_no_more() {
+        use crate::contact::GlueClass;
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let zero = band.zero();
+        let square = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
+        let cube = quad_prism(&square, 1.0, tol);
+        let top = crate::test_support::face_facing(&cube, 1.0);
+        let bottom = crate::test_support::face_facing(&cube, -1.0);
+        let pair = |class| super::GluedPair::new(top, bottom, class);
+        let union = |delta: f64, glued: &[super::GluedPair<f64>]| {
+            let result = quad_prism(&square, 2.0 + delta, tol);
+            volume_backstop(
+                BooleanOp::Union,
+                &cube,
+                &cube,
+                &result,
+                glued,
+                band,
+                tol,
+                QuadLane::certified(),
+            )
+        };
+        let refuses = |r: Result<(), BooleanError>, what: &str| {
+            assert!(
+                matches!(
+                    r,
+                    Err(BooleanError::ResultVolumeImplausible {
+                        which: "vol(A ∪ B) ≤ vol(A) + vol(B)",
+                        ..
+                    })
+                ),
+                "{what}: {r:?}"
+            );
+        };
+        for class in [GlueClass::Rest, GlueClass::Continuation] {
+            union(0.5 * zero, &[pair(class)])
+                .unwrap_or_else(|e| panic!("½·zero past, a {class:?} pair glued: {e:?}"));
+            refuses(
+                union(2.0 * zero, &[pair(class)]),
+                "2·zero past, past what the glue admits",
+            );
+            refuses(
+                union(2.0 * zero, &[pair(class); 100]),
+                "a pair listed 100 times admits it once",
+            );
+        }
+        refuses(union(0.5 * zero, &[]), "½·zero past, nothing glued");
+        refuses(
+            union(0.5 * zero, &[pair(GlueClass::Tangent)]),
+            "a tangent pair moves no carrier",
+        );
+    }
+
+    /// **The groups the glue's widening reads**: pairs that share a face
+    /// join one group, merged in whatever order they come, and each group
+    /// admits its area less its smallest face's; a `Tangent` pair joins
+    /// nothing.
+    #[test]
+    fn the_glue_admits_each_group_less_its_smallest_face() {
+        use super::{GluedPair, Operand, glue_admits};
+        use crate::contact::GlueClass::{Continuation, Rest, Tangent};
+        use crate::entity::FaceKey;
+        let band = Band::linear(Tol::witness()).unwrap();
+        let key = |n: u64| -> FaceKey { slotmap::KeyData::from_ffi((1u64 << 32) | n).into() };
+        let areas: std::collections::BTreeMap<(Operand, FaceKey), f64> = [
+            ((Operand::A, key(1)), 4.0),
+            ((Operand::A, key(2)), 3.0),
+            ((Operand::A, key(3)), 100.0),
+            ((Operand::B, key(1)), 1.0),
+            ((Operand::B, key(2)), 2.0),
+            ((Operand::B, key(3)), 5.0),
+            ((Operand::B, key(4)), 100.0),
+        ]
+        .into_iter()
+        .collect();
+        let admits = |pairs: &[GluedPair<f64>]| {
+            glue_admits(pairs, band, |operand, face| {
+                let a = areas[&(operand, face)];
+                Ok(geom_core::interval::Interval::from_bounds(a, a))
+            })
+            .unwrap()
+                / band.zero()
+        };
+        let pair = |a, b, class| GluedPair::new(key(a), key(b), class);
+        // {A1, B1, B2}: 4 + 1 + 2 less 1; {A2, B3}: 3 + 5 less 3.
+        let two = admits(&[
+            pair(1, 1, Rest),
+            pair(2, 3, Continuation),
+            pair(1, 2, Rest),
+            pair(3, 4, Tangent),
+        ]);
+        assert!((two - 11.0).abs() < 1e-9, "two groups: {two}");
+        // The last pair joins the two: 4 + 1 + 2 + 3 + 5 less 1.
+        let one = admits(&[
+            pair(1, 1, Rest),
+            pair(2, 3, Continuation),
+            pair(1, 2, Rest),
+            pair(2, 2, Rest),
+        ]);
+        assert!((one - 14.0).abs() < 1e-9, "one group: {one}");
+        assert_eq!(admits(&[pair(3, 4, Tangent)]), 0.0, "a tangent pair alone");
     }
 
     /// **The NURBS re-gate, pinned (M5 S13 §1), and the placeholder's
@@ -10281,6 +10506,7 @@ mod from_computed_rows {
                 &low,
                 &low,
                 &high,
+                &[],
                 band,
                 tol,
                 QuadLane::certified(),

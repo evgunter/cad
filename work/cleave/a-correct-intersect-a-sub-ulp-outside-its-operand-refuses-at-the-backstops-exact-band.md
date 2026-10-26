@@ -68,3 +68,18 @@ goes red when this is fixed. Remove the pin then.
 
 The pose builds `x` (or the arm's slack is ruled), and the pin is
 removed.
+
+## Not covered by the glue's widening (2026-10-25)
+
+`cleave/backstop-admits-the-glues-zero-band` widens each backstop
+bound by what the op's one-carrier glue admits (`glue_admits`,
+`crates/topo/src/boolean/ops.rs`). That widening does not reach this
+pose. The pyramid lies 100ε off the top, past the zero band, so no
+pair glues on one carrier, nothing widens, and arm 1 still certifies
+the 3e-19 m³ excess.
+
+The excess is the output's vertex rounding, not a displacement any
+Zero verdict decided, so the glue's bound has nothing to say about
+it. Admitting it needs its own derivation: the resolution of the
+result's stored coordinates over its faces, about an ulp of each
+vertex. The pin in `a_vertex_read_by_two_sector_passes.rs` stays.

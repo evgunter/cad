@@ -527,7 +527,7 @@ pub mod test_support {
         tol: geom_core::Tol,
     ) -> Result<crate::AtRestOutcome, crate::BooleanError> {
         let band = geom_core::Band::linear(tol)?;
-        T::gate_volume_backstop(op, a, b, result, band, tol)
+        T::gate_volume_backstop(op, a, b, result, &[], band, tol)
     }
 
     /// The two operand clones as the boolean's join leaves them, and

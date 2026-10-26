@@ -155,3 +155,28 @@ orders. Pinned by
 ## Released by INTENT stage 4 E (`intent/s4-e-glue-on-zero`) (2026-10-09)
 
 E widens the class rather than redefining it away. A pair decided Zero now glues undeclared too (`crates/topo/src/boolean/glue.rs:40`), so the residue no longer needs a declaration. A Zero glue moves the result by up to the zero band times the glued face's area. TANG's curved instance, which is inside the zero band, still refuses at the backstop's tight bound in both orders (`crates/sweep/tests/pi_seam_and_kiss_through_the_boolean.rs:916`, `k ∈ {−¼, −½}`). The in-band half goes with F: until `declared-pairs-retire`, a declared pair's rung still bridges an in-band margin. The design question stands: the forgiveness must be local to the glued face.
+
+## The Zero half, widened at the backstop (CLEAVE, 2026-10-26)
+
+`cleave/backstop-admits-the-glues-zero-band` takes the Zero half of
+this row. `volume_backstop` (`crates/topo/src/boolean/ops.rs`) widens
+every set bound by what the op's one-carrier glue admits
+(`glue_admits`). The widening is the band's zero times, for each group
+of glued faces, the group's area less its smallest face's.
+
+TANG's curved instance (`k ∈ {−¼, −½}`) now builds in both member
+orders at ε default, 1e-6 and 1e-12, within `slack(k)` of the closed
+form, and the row is re-pinned that way
+(`pi_seam_and_kiss_through_the_boolean.rs`).
+
+The widening is a volume, not local to the glued face. A defect
+elsewhere in the body that is smaller than the widening passes:
+
+- at ε 1e-9, about 1e-9 m³ per m² of glued face;
+- at 1e-6, 1e-6 m³ per m².
+
+A defect larger than that still refuses
+(`volume_backstop_admits_what_the_glue_moves_and_no_more`).
+
+So the design question this row states, whether the forgiveness must
+be local, stays open for anything finer than that.

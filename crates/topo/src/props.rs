@@ -5572,10 +5572,11 @@ pub trait AtRestPolicy: Decide {
         band: Band,
     ) -> crate::FlushAtRest;
 
-    /// The boolean engine's volume backstop over an op's two operands
-    /// and its result (`crate::boolean::volume_backstop`, measuring
-    /// through [`QuadLane::certified`], at certifying scalars; absent at
-    /// duals, and the outcome says which).
+    /// The boolean engine's volume backstop over an op's two operands,
+    /// the pairs it glued, and its result
+    /// (`crate::boolean::volume_backstop`, measuring through
+    /// [`QuadLane::certified`], at certifying scalars; absent at duals,
+    /// and the outcome says which).
     ///
     /// # Errors
     ///
@@ -5585,6 +5586,7 @@ pub trait AtRestPolicy: Decide {
         a: &Body<Self>,
         b: &Body<Self>,
         result: &Body<Self>,
+        glued: &[crate::GluedPair<Self>],
         band: Band,
         tol: Tol,
     ) -> Result<AtRestOutcome, crate::BooleanError>;
@@ -5673,10 +5675,11 @@ impl AtRestPolicy for f64 {
         a: &Body<Self>,
         b: &Body<Self>,
         result: &Body<Self>,
+        glued: &[crate::GluedPair<Self>],
         band: Band,
         tol: Tol,
     ) -> Result<AtRestOutcome, crate::BooleanError> {
-        crate::boolean::volume_backstop(op, a, b, result, band, tol, QuadLane::certified())
+        crate::boolean::volume_backstop(op, a, b, result, glued, band, tol, QuadLane::certified())
             .map(|()| AtRestOutcome::Validated)
     }
 }
@@ -5757,10 +5760,11 @@ impl AtRestPolicy for geom_core::Probe {
         a: &Body<Self>,
         b: &Body<Self>,
         result: &Body<Self>,
+        glued: &[crate::GluedPair<Self>],
         band: Band,
         tol: Tol,
     ) -> Result<AtRestOutcome, crate::BooleanError> {
-        crate::boolean::volume_backstop(op, a, b, result, band, tol, QuadLane::certified())
+        crate::boolean::volume_backstop(op, a, b, result, glued, band, tol, QuadLane::certified())
             .map(|()| AtRestOutcome::Validated)
     }
 }
@@ -5837,10 +5841,11 @@ impl AtRestPolicy for geom_core::interval::Interval {
         a: &Body<Self>,
         b: &Body<Self>,
         result: &Body<Self>,
+        glued: &[crate::GluedPair<Self>],
         band: Band,
         tol: Tol,
     ) -> Result<AtRestOutcome, crate::BooleanError> {
-        crate::boolean::volume_backstop(op, a, b, result, band, tol, QuadLane::certified())
+        crate::boolean::volume_backstop(op, a, b, result, glued, band, tol, QuadLane::certified())
             .map(|()| AtRestOutcome::Validated)
     }
 }
@@ -5930,10 +5935,11 @@ where
         a: &Body<Self>,
         b: &Body<Self>,
         result: &Body<Self>,
+        glued: &[crate::GluedPair<Self>],
         band: Band,
         tol: Tol,
     ) -> Result<AtRestOutcome, crate::BooleanError> {
-        crate::boolean::volume_backstop(op, a, b, result, band, tol, QuadLane::certified())
+        crate::boolean::volume_backstop(op, a, b, result, glued, band, tol, QuadLane::certified())
             .map(|()| AtRestOutcome::Validated)
     }
 }
@@ -6033,6 +6039,7 @@ where
         _a: &Body<Self>,
         _b: &Body<Self>,
         _result: &Body<Self>,
+        _glued: &[crate::GluedPair<Self>],
         _band: Band,
         _tol: Tol,
     ) -> Result<AtRestOutcome, crate::BooleanError> {
@@ -6335,7 +6342,15 @@ mod at_rest_policy_tests {
         let band = geom_core::Band::linear(tol).expect("the witness tolerance forms a band");
         assert!(
             matches!(
-                T::gate_volume_backstop(crate::BooleanOp::Union, &cube, &cube, &half, band, tol),
+                T::gate_volume_backstop(
+                    crate::BooleanOp::Union,
+                    &cube,
+                    &cube,
+                    &half,
+                    &[],
+                    band,
+                    tol
+                ),
                 Err(crate::BooleanError::ResultVolumeImplausible { .. })
             ),
             "the certifying arm runs the volume backstop"
@@ -6421,6 +6436,7 @@ mod at_rest_policy_tests {
                 &cube,
                 &cube,
                 &half,
+                &[],
                 band,
                 tol
             )

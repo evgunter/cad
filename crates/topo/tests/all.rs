@@ -63,6 +63,8 @@ use topo::test_support as common;
 mod fixture;
 mod probe_support;
 
+#[path = "a_block_resting_a_zero_band_gap.rs"]
+mod a_block_resting_a_zero_band_gap;
 #[path = "a_callers_interval_is_refused_at_its_door.rs"]
 mod a_callers_interval_is_refused_at_its_door;
 #[path = "a_doubled_line_does_not_revert.rs"]
