@@ -23,7 +23,7 @@ that loft and box (`editor-core` `emit_topo`'s
 `wavy_loft::a_union_across_a_nurbs_edge_refuses_at_the_sector_walk`)
 then refuses `CurvedBooleanUnsupported { operand: A, face, kind: Nurbs }`
 from `boolean/sectors.rs`, where `SectorFaceError::Unsupported` is
-mapped (`sectors.rs:609`). There, the sector face resolution
+mapped (`sectors.rs:608`). There, the sector face resolution
 (`sector_face::resolve`, its `_ => SectorFaceError::Unsupported` arm)
 has no arm for a NURBS face. It is reached at a crossing vertex, which
 lies on a corner edge between two spline walls of the loft, so both
