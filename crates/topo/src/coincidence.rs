@@ -223,6 +223,11 @@ pub struct Coincidence {
     /// The two cells decided one, in the order the decision read them;
     /// a [`Relation::Meet`]'s sorted.
     pub cells: [RowCell; 2],
+    /// A [`Relation::Meet`]'s third cell, where the point is decided in
+    /// three cells and no two of them fix it (two pierces of one face
+    /// decided one point, neither a vertex of its input), sorted after
+    /// `cells`. `None` on every other row.
+    pub third: Option<RowCell>,
     /// What was decided between them.
     pub relation: Relation,
     /// Where it was decided.
@@ -235,6 +240,11 @@ pub struct Coincidence {
 }
 
 impl Coincidence {
+    /// Every cell of the row: `cells`, then `third` where it has one.
+    pub fn every_cell(&self) -> impl Iterator<Item = RowCell> {
+        self.cells.into_iter().chain(self.third)
+    }
+
     /// The row's A-operand face and B-operand face, where it decided
     /// one face of each operand a carrier pair, in that order; `None`
     /// for any other pair of cells, and for a [`Relation::Meet`], which

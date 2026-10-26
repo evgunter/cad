@@ -30,9 +30,9 @@ use crate::fixture::{axes_at, slid, value_slot};
 use crate::fixture::{face_vertices, insert, len, on_frame, out, step, table};
 
 use editor_core::{
-    Coord, DocEdit, EntityKey, EntityKind, Entry, Evaluation, LoopProgram, NameTable, NamingError,
-    Node, NodeErrorKind, ProfileDoc, ProfileProgram, Qualifier, RecipeNodeId, RoleSeg, StableName,
-    TargetAxis,
+    Coord, DocEdit, EntityKey, EntityKind, Entry, Evaluation, LoopProgram, NameTable, NamedCell,
+    NamingError, Node, NodeErrorKind, ProfileDoc, ProfileProgram, Qualifier, RecipeNodeId, RoleSeg,
+    StableName, TargetAxis,
 };
 use geom_core::Tol;
 
@@ -555,18 +555,7 @@ fn a_boss_on_one_piece_is_not_cited_and_one_straddling_the_divider_is() {
 fn a_boss_whose_corner_touches_the_divider_is_part_of_it() {
     check(&u(
         "corner_boss",
-        vec![
-            ("plate", plate()),
-            ("slab", slab()),
-            (
-                "boss",
-                Mem::Prism(
-                    vec![vec![(1.4, 1.0), (1.0, 1.4), (0.6, 1.0), (1.0, 0.6)]],
-                    0.47,
-                    1.03,
-                ),
-            ),
-        ],
+        corner_boss_members(),
         vec![
             (
                 "plate:z=1.00",
@@ -584,6 +573,112 @@ fn a_boss_whose_corner_touches_the_divider_is_part_of_it() {
             slab_bottom(),
         ],
     ));
+}
+
+/// The corner boss's members: the plate, the slab across it, and a
+/// diamond prism whose corner edge lies in the slab's `x = 1.4` wall and
+/// crosses the plate's top.
+fn corner_boss_members() -> Vec<(&'static str, Mem)> {
+    vec![
+        ("plate", plate()),
+        ("slab", slab()),
+        (
+            "boss",
+            Mem::Prism(
+                vec![vec![(1.4, 1.0), (1.0, 1.4), (0.6, 1.0), (1.0, 0.6)]],
+                0.47,
+                1.03,
+            ),
+        ),
+    ]
+}
+
+/// The corner boss's members in `doc`, as [`add`] places them.
+pub(crate) fn corner_boss(mut doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
+    let mut ids = Vec::new();
+    for (_, m) in corner_boss_members() {
+        let (d, id) = add(doc, ids.first().copied(), &m);
+        doc = d;
+        ids.push(id);
+    }
+    (doc, ids)
+}
+
+/// **The corner boss's corner is one point, logged alike in every
+/// member order and in a pair boolean.** The boss's corner edge lies in
+/// the slab's wall and crosses the plate's top, so a step folding the
+/// plate onto the other two decides two pierces of the plate's top, the
+/// edge's and the wall's, one point. Each order's union logs that
+/// decision once, as the meeting of the boss's edge, the slab's wall and
+/// the plate's top, the one meeting of three cells it logs; every order
+/// spells it alike; and the subtract of the plate from the other two's
+/// union logs it in its operands' tables, its one meeting of three.
+///
+/// *Breaks if* a step holds the decision out of its log, or spells it
+/// otherwise in some order.
+#[test]
+fn the_corner_boss_logs_its_corner_alike_in_every_order_and_in_a_subtract() {
+    let meetings = |ev: &Evaluation<f64>, n: RecipeNodeId| -> Vec<Vec<NamedCell>> {
+        ev.value(n)
+            .expect("the node evaluates")
+            .coincidences
+            .iter()
+            .filter(|r| r.relation == topo::Relation::Meet && r.cells.len() == 3)
+            .map(|r| r.cells.clone())
+            .collect()
+    };
+    let kinds_of = |kinds: &[EntityKind]| {
+        let mut kinds = kinds.to_vec();
+        kinds.sort();
+        kinds
+    };
+    let kinds = |cells: &[NamedCell]| -> Vec<EntityKind> {
+        kinds_of(
+            &cells
+                .iter()
+                .map(|c| match c {
+                    NamedCell::Entity { name, .. } => name.kind,
+                    other => panic!("a boolean's row names entities: {other:?}"),
+                })
+                .collect::<Vec<_>>(),
+        )
+    };
+    let corner = kinds_of(&[EntityKind::Edge, EntityKind::Face, EntityKind::Face]);
+    let mut first: Option<Vec<NamedCell>> = None;
+    for order in permutations(&[0, 1, 2]) {
+        let (doc, ids) = corner_boss(ProfileDoc::empty_derived("corner_boss", Tol::witness()));
+        let ordered: Vec<RecipeNodeId> = order.iter().map(|&i| ids[i]).collect();
+        let (doc, n) = crate::fixture::union_over(doc, &ordered);
+        let ev = run(&doc);
+        assert!(
+            failure(&ev, n).is_none(),
+            "{order:?}: {:?}",
+            failure(&ev, n)
+        );
+        let [meeting] = <[_; 1]>::try_from(meetings(&ev, n))
+            .unwrap_or_else(|m| panic!("{order:?}: one meeting of three cells, not {m:?}"));
+        assert_eq!(kinds(&meeting), corner, "{order:?}: an edge and two faces");
+        match &first {
+            None => first = Some(meeting),
+            Some(f) => assert_eq!(&meeting, f, "{order:?}: spelled as the first order"),
+        }
+    }
+    let (doc, ids) = corner_boss(ProfileDoc::empty_derived("corner_boss", Tol::witness()));
+    let (doc, boss_on_slab) = crate::fixture::union_over(doc, &[ids[1], ids[2]]);
+    let (doc, n) = insert(doc, PairOp::Subtract.node(boss_on_slab, ids[0]));
+    let ev = run(&doc);
+    assert!(
+        failure(&ev, n).is_none(),
+        "the subtract: {:?}",
+        failure(&ev, n)
+    );
+    let [meeting] = <[_; 1]>::try_from(meetings(&ev, n))
+        .unwrap_or_else(|m| panic!("the subtract: one meeting of three cells, not {m:?}"));
+    assert_eq!(
+        kinds(&meeting),
+        corner,
+        "the subtract: an edge and two faces"
+    );
 }
 
 /// **A member that engulfs the members before it** leaves the fold a

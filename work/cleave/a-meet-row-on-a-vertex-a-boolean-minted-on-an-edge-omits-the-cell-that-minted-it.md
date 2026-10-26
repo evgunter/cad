@@ -53,3 +53,16 @@ decision, which put it where the edge crossed the minting cell. The fix
 above serves all three arms: with the minting cell kept, the second
 cell widens to the edge and that cell, so the row becomes a `Meet` of
 the point and both.
+
+## A row can hold a third cell (2026-10-26)
+
+`topo::Coincidence` carries a `Meet`'s third cell
+(`coincidence.rs` `Coincidence::third`), which `boolean/ops.rs` `spell`
+fills where a decision names a cell the point lies in beside its two
+(`spell`'s `through`). The ring tie fills it with the pierced face
+(`a-fold-steps-ring-tie-row-names-a-pierce-vertex-its-operand-does-not-hold`).
+The minting cell this row asks for can ride the same field. A ring tie
+whose pierce was minted on an edge then has four cells: the edge, its
+minting cell, the face holding the strut, and the pierced face. Where
+the pierced face is the one that minted the vertex, those four are
+three.

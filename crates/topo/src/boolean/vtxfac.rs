@@ -2078,6 +2078,8 @@ pub(super) fn mint_node<T: Decide + crate::props::AtRestPolicy>(
 /// the ring's tie to the pierce it shares the point with cites.
 #[derive(Debug)]
 pub(super) struct HeldPierce<T: geom_core::Real> {
+    /// The face of the piercing body the ring vertex is minted in.
+    pub face: crate::entity::FaceKey,
     pub strut: BoolNullEdgeRecord<T>,
     pub plan: RingPlan<T>,
     pub on: geom_core::MarginDiag,
@@ -2503,6 +2505,7 @@ fn mint_held<T: Decide + crate::props::AtRestPolicy>(
         germs: [half_germ(start_he, germs.0), half_germ(end_he, germs.1)],
     };
     Ok(HeldPierce {
+        face,
         strut: rec,
         on,
         plan: RingPlan {

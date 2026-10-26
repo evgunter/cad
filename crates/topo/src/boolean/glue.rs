@@ -231,6 +231,7 @@ pub(crate) fn frame_rows<T: Decide + Bounds>(
             crate::RowCell::face(Operand::A, fa),
             crate::RowCell::face(Operand::B, fb),
         ],
+        third: None,
         relation,
         site,
         margin,
@@ -289,6 +290,7 @@ pub(crate) fn touched<T: geom_core::Real>(
     rows: &[crate::Coincidence],
     pending: &[super::reduce::PendingRow],
     splits: &super::EdgeSplits,
+    held: &[super::HeldVertex],
     [a, b]: [&Body<T>; 2],
 ) -> Vec<usize> {
     use crate::{Cell, RowCell};
@@ -313,7 +315,10 @@ pub(crate) fn touched<T: geom_core::Real>(
     };
     let landed: Vec<[RowCell; 2]> = pending
         .iter()
-        .map(|row| row.cells.map(|end| super::ops::input_cell(end, splits)))
+        .map(|row| {
+            row.cells
+                .map(|end| super::ops::input_cell(end, splits, held))
+        })
         .collect();
     rows.iter()
         .enumerate()

@@ -46,3 +46,72 @@ union reaches `ROW_CELL_NOT_IN_TABLE`. editor-core's `held_out` currently
 absorbs it silently ([loud-failure]). WIRE's conversion deletes
 `held_out` and makes the site a panic, which is right only once this is
 fixed. WIRE holds that step until this row closes.
+
+## Measured, and spelled (2026-10-26)
+
+The reading holds. Instrumented on `corner_boss` in order `[1, 2, 0]`,
+the step's ring tie is `RingTie { a: 22v1, b: 33v1 }`. Vertex 22 is
+minted on edge 26: `EdgeSplits::minted_on` reads it back. Vertex 33 has
+no split row. It is the vertex `vtxfac::mint_held` mints inside a face
+of the piercing operand (the slab's `x = 1.4` wall, which holds the
+boss's corner edge). One ring on the plate's top serves both pierces:
+`PierceRingRecord { face: 1v1, pierces: [22v1, 33v1] }`.
+
+A topo row now holds that decision in input cells:
+- `boolean/mod.rs` `BooleanReduction::held` keeps each held pierce's
+  vertex with the face it was minted in (`HeldVertex`).
+- `RingTie::face` keeps the pierced face.
+- `boolean/ops.rs` `input_end` reads a held vertex as its face.
+- `ledger` keeps each tie's decision with its pierced face
+  (`Ledger::pierced`).
+- `spell` spells a point whose two cells both widen as the `Meet` of
+  the two cells read and the pierced face. A two-cell meeting would not
+  fix the point here: the boss's edge lies in the slab's wall.
+- The third cell rides `topo::Coincidence::third`. editor-core names
+  it (`coincide::name_rows`), and a fold step spells it in member space
+  (`eval/wire.rs` `in_member_space`).
+
+The corner boss's union logs the row in every member order, spelled
+alike as the meeting of the boss's edge, the slab's wall and the
+plate's top. The subtract of the plate from the slab-and-boss union
+logs it as well. On main that subtract refuses `ROW_CELL_NOT_IN_TABLE`
+in `coincide::name_rows`. Pinned by
+`emit_union_borders::the_corner_boss_logs_its_corner_alike_in_every_order_and_in_a_subtract`,
+which fails on main at `[1, 2, 0]`.
+
+The same rule spells the two blocks pinching on a plate
+(`union_pinch_member_order::pinch`, folded last) as
+`Meet {Edge@m1, Edge@m2, Face@m0}`, as its other orders already did.
+That is the measured case of
+`a-meet-row-on-a-vertex-a-boolean-minted-on-an-edge-omits-the-cell-that-minted-it`.
+
+### The sweep
+
+The sweep checks every row a boolean returns through `topo::boolean_op_with`
+against its operands: a row cell the operand body does not hold
+(`ops::holds`). It also counts each `ROW_CELL_NOT_IN_TABLE` raised in
+`coincide::name_rows` and each `held_out` firing in `wire_combine`.
+Default ε, over editor-core's `all` tests matching
+`emit_|union|subtract|intersect|boolean|coincid|name_invariance|pinch|wire_legal`
+(343 tests) and topo's whole `all` suite (1136):
+
+| | main | branch |
+|---|---|---|
+| editor-core rows naming an unheld cell | 12, in 3 tests | 0 |
+| editor-core `ROW_CELL_NOT_IN_TABLE` / `held_out` | 12 / 12 | 0 / 0 |
+| topo rows naming an unheld cell | 77, in 5 tests | 0 |
+
+Every hit on main has this row's shape: a held pierce's vertex
+`OnCarrier` an edge. The editor-core hits are in
+`emit_union_borders::a_boss_whose_corner_touches_the_divider_is_part_of_it`,
+`emit_union_borders::a_corner_touching_the_near_half_of_a_joined_seam_is_part_of_the_divider`,
+and the corner boss in `every_fold_row_names_every_member_cell_its_cells_are_made_of`.
+The topo hits are `a_vertex_read_again_classes_every_edge::every_edge_a_vertex_read_again_reads_is_classed_against_the_germ`
+(60) and four `three_solids_on_one_line` tests (17). topo names no
+rows, so those pass on main.
+
+What the sweep cannot see:
+- a minted key that collides with a live key of the input;
+- rows from a split, or from any door but `boolean_op_with`;
+- tests outside those sets;
+- ε rows other than the default.

@@ -2171,6 +2171,9 @@ pub(crate) struct RingTie {
     pub operand: Operand,
     pub a: VertexKey,
     pub b: VertexKey,
+    /// The pierced face, in the other operand's keys
+    /// ([`PierceRingRecord::face`]).
+    pub face: FaceKey,
     /// The margin `bool_contact_vertex` decided Zero.
     pub margin: geom_core::MarginDiag,
 }
@@ -2283,6 +2286,19 @@ pub struct BooleanReduction<T: Real> {
     /// Each pair of pierces one ring serves, decided one point
     /// ([`RingTie`]).
     pub(crate) ring_ties: Vec<RingTie>,
+    /// Each vertex a held pierce minted inside a face of its operand's
+    /// clone (`vtxfac::faces_holding_pierce`), with that face: no edge
+    /// split minted it, and the input cell it lies in is the face.
+    pub(crate) held: Vec<HeldVertex>,
+}
+
+/// A vertex minted inside face `face` of operand `operand`'s clone
+/// ([`BooleanReduction`]'s `held`).
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct HeldVertex {
+    pub operand: Operand,
+    pub vertex: VertexKey,
+    pub face: FaceKey,
 }
 
 /// A cross-operand face pair the coincidence ladder settled one
@@ -5590,6 +5606,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     let mut null_pairs = Vec::new();
     let mut pierce_rings = Vec::new();
     let mut ring_ties = Vec::new();
+    let mut held_in = Vec::new();
     let mut covered = Vec::new();
     let mut fates = fate::Fates::default();
     let mut edge_classes = Vec::new();
@@ -5745,6 +5762,11 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         )?;
         let held_on: std::collections::BTreeMap<_, _> =
             held.iter().map(|h| (h.plan.contact.vertex, h.on)).collect();
+        held_in.extend(held.iter().map(|h| HeldVertex {
+            operand,
+            vertex: h.plan.contact.vertex,
+            face: h.face,
+        }));
         minted.extend(held.into_iter().map(|h| (vec![h.strut], Some(h.plan))));
         // Each ring is minted, and its records read, where its first
         // pierce was: a face pierced at one point alone mints as it
@@ -5771,6 +5793,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                 operand,
                 a: only[i].contact.vertex,
                 b: only[j].contact.vertex,
+                face: only[i].contact.face,
                 margin: held_on
                     .get(&only[j].contact.vertex)
                     .copied()
@@ -6086,6 +6109,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         &declared.verified.coincidences,
         &pending,
         &edge_splits,
+        &held_in,
         [a_operand, b_operand],
     );
     let coincidences = kept
@@ -6115,6 +6139,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         null_pairs,
         pierce_rings,
         ring_ties,
+        held: held_in,
         covered: covered
             .into_iter()
             .collect::<std::collections::BTreeSet<_>>()
@@ -6602,6 +6627,7 @@ fn tangent_row(fa: FaceKey, fb: FaceKey, margin: MarginDiag) -> crate::Coinciden
             crate::RowCell::face(Operand::A, fa),
             crate::RowCell::face(Operand::B, fb),
         ],
+        third: None,
         relation: crate::Relation::SurfaceTangent,
         site: crate::DecisionSite::TangentWitness,
         margin,
@@ -6644,6 +6670,7 @@ fn verify_one_carrier_declaration<T: Decide>(
                 crate::RowCell::face(Operand::A, fa),
                 crate::RowCell::face(Operand::B, fb),
             ],
+            third: None,
             relation,
             site: declared_site(a, fa, b, fb),
             margin,

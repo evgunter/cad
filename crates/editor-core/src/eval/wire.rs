@@ -3091,11 +3091,17 @@ fn in_member_space(
             origin,
         )
     };
+    // A meeting of three is a kernel row's with a third cell
+    // (`topo::Coincidence::third`), which only a `Meet` holds.
+    if row.relation == topo::Relation::Meet {
+        return meet(spelled);
+    }
     let mut spelled = spelled.into_iter();
     let (Some(p), Some(x), None) = (spelled.next(), spelled.next(), spelled.next()) else {
         unreachable!(
-            "union fold step {step}'s row holds {} cells, though `name_rows` names a kernel \
-             row's two",
+            "union fold step {step}'s {:?} row holds {} cells, though `name_rows` names a \
+             kernel row's two, and its third only on a `Meet`",
+            row.relation,
             row.cells.len()
         )
     };
@@ -3109,7 +3115,6 @@ fn in_member_space(
             }
             _ => meet(vec![p, x]),
         },
-        topo::Relation::Meet => meet(vec![p, x]),
         // Any other `OnCarrier` is a carrier pair's (a sphere's centre
         // on a cylinder's axis, `CoaxialSphere`), which a fold step does
         // not decide: it runs with the pairwise judgement's verdicts
