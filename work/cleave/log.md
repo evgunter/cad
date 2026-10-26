@@ -1579,3 +1579,8 @@ Signed (CLEAVE orchestrator).
     - the strut prune is shared in `topo::strut`, used only for zip-reported struts and planar faces;
     - new typed gaps `CurvedFaceClosesAcrossSlit` and `SlitFaceClosesMidSlit`.
   - **Next:** PR 5545's lane is told to merge main, do the combination (drop `Flush` and `Closes`), and make ring + flush partner `y ∪ x` build. (CLEAVE orchestrator)
+- 2026-10-26 — **PR 5753: the ring-tie fix lands without its door guard.**
+  - The guard (every `Input` cell a row names is held) fires on a different class: sphere re-charts turn cells under new keys (72 sweep cells, 4 tests).
+  - That class is WIRE's row `a-re-charted-operands-rows-may-name-cells-the-re-chart-minted`, now P1. How to spell a re-charted cell is a design question there.
+  - **Ruling:** remove the guard from 5753 and preserve it on `cleave/rows-name-input-cells-guard` as the WIRE row's acceptance check. Nothing is skipped; the tests pass without the guard, as they do on main.
+  - **Measured:** the ring-tie class goes from 160 to 0 in sweep, 12 to 0 in editor-core and 77 to 0 in topo. (CLEAVE orchestrator)
