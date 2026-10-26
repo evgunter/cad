@@ -14,6 +14,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use std::sync::Arc;
+
 use crate::fixture;
 use editor_core::{
     Bodies, BodyRead, DocEdit, DocumentId, EditError, EvalOptions, Evaluation, Node, Operand,
@@ -264,8 +266,7 @@ fn a_pick_reads_one_piece_and_two_picks_are_two_variables() {
 // ---- Test 25: each operator decides its operands' meetings ----
 
 /// **`A ⊔ A` is an interference finding**: the census at the `⊔`
-/// reads two pieces in one place, and the assembly gate refuses the
-/// product at rest.
+/// reads two pieces in one place, and the assembly gate reports it.
 #[test]
 fn one_body_assembled_twice_is_an_interference_finding() {
     let doc = doc("dprime3-twice");
@@ -279,12 +280,8 @@ fn one_body_assembled_twice_is_an_interference_finding() {
         !product.census.is_empty(),
         "the census reads the two pieces meeting"
     );
-    match editor_core::assemble(&doc, &ev, Tol::witness()) {
-        Err(editor_core::AssemblyError::AtRest { findings }) => {
-            assert!(!findings.is_empty(), "the census's findings travel");
-        }
-        other => panic!("A ⊔ A is a finding at rest, got {:?}", other.err()),
-    }
+    let (_, findings) = outcome(&doc, &ev);
+    assert!(findings > 0, "the census's findings travel to the gate");
 }
 
 /// **`A ∪ A` is `A`.**
@@ -945,6 +942,191 @@ fn an_overlap_inside_a_nested_assemble_is_reported_once() {
     let flat = outcome(&flat, &ev_flat);
     assert!(flat.1 > 0, "the overlap is a finding: {flat:?}");
     assert_eq!(outcome(&nested, &ev), flat, "reported once, nested or not");
+}
+
+/// **An overlap read along shared edge lines is discarded inside an
+/// arrival too** (R1's delta probe,
+/// `r1_nested_assemble_interference_reported_once`, on the census's own
+/// pinwheel, `topo`'s `coincident_line_wedges`): two prisms whose
+/// profiles both hold the unit square, their arms swept opposite ways,
+/// double the square's material, and the census reports that on the
+/// square's corner lines as `CoincidentWedgesOverlap` rows.
+/// `(a ⊔ a') ⊔ n` decides those at the inner `⊔`, and the outer census,
+/// and the census of a host reading an instance of `a ⊔ a'`, find none
+/// of them.
+///
+/// *Breaks if* the in-arrival discard cannot place a
+/// coincident-wedges finding on its two solids
+/// (`checks::at_rest::finding_solids`), and so keeps it at the outer
+/// door.
+#[test]
+fn an_overlap_along_shared_lines_inside_an_arrival_is_reported_once() {
+    let wedges = |census: &[topo::ValidationError]| {
+        census
+            .iter()
+            .filter(|f| matches!(f, topo::ValidationError::CoincidentWedgesOverlap { .. }))
+            .count()
+    };
+    let prism = |doc: ProfileDoc, outline: &[(f64, f64)], height: f64| {
+        let (doc, profile) = on_frame(
+            doc,
+            [0.0; 3],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            vec![outline.to_vec()],
+        );
+        put(
+            doc,
+            Node::Extrude {
+                profile: profile.into(),
+                distance: len(height),
+            },
+        )
+    };
+    let base = doc("dprime3-nested-lines");
+    let (base, a) = prism(
+        base,
+        &[
+            (-2.0, -2.0),
+            (3.0, -2.0),
+            (1.0, 0.0),
+            (1.0, 1.0),
+            (3.0, 3.0),
+            (-2.0, 3.0),
+            (0.0, 1.0),
+            (0.0, 0.0),
+        ],
+        1.0,
+    );
+    let (base, again) = prism(
+        base,
+        &[
+            (0.0, 0.0),
+            (1.0, 0.0),
+            (3.0, -2.0),
+            (3.0, 3.0),
+            (1.0, 1.0),
+            (0.0, 1.0),
+            (-2.0, 3.0),
+            (-2.0, -2.0),
+        ],
+        1.25,
+    );
+    let (base, again) = fixture::slid(base, a, again, [0.0, 0.0, 0.25]);
+    let (base, n) = beside(base, a, [10.0, 0.0, 0.0], 0.3, 0.3);
+    let (base, a) = in_world(base, a);
+    let (base, again) = in_world(base, again);
+    let (base, n) = in_world(base, n);
+
+    let (part, both) = assembled(base.clone(), &[a, again]);
+    let part = set_product(&part, Some(Operand::Node(both)));
+    let ev = run(&part, &EvalOptions::default());
+    let inner = editor_core::product_recorded(&part, &ev, Tol::witness()).expect("it gathers");
+    assert!(
+        wedges(&inner.census) > 0,
+        "the overlap is read along the shared lines at the inner door: {:?}",
+        inner.census
+    );
+
+    let (nested, inner) = assembled(base, &[a, again]);
+    let (nested, outer) = assembled(nested, &[inner, n]);
+    let nested = set_product(&nested, Some(Operand::Node(outer)));
+    let ev = run(&nested, &EvalOptions::default());
+    let product = editor_core::product_recorded(&nested, &ev, Tol::witness()).expect("it gathers");
+    assert!(
+        product.census.is_empty(),
+        "the outer census finds nothing inside its operand: {:?}",
+        product.census
+    );
+
+    let mut store = fixture::resolver::PartStore::default();
+    let part_ref = store.insert(part, Tol::witness());
+    let (host, instance) = put(
+        doc("dprime3-nested-lines-host"),
+        Node::instantiate_part(
+            part_ref,
+            Operand::Var(VarId::WORLD),
+            editor_core::stand().bundle(),
+        ),
+    );
+    let host = set_product(&host, Some(Operand::Node(instance)));
+    let ev = run(&host, &fixture::resolver::with_resolver(store));
+    let product = editor_core::product_recorded(&host, &ev, Tol::witness()).expect("it gathers");
+    assert!(
+        product.census.is_empty(),
+        "the host decides nothing inside the instance's copy: {:?}",
+        product.census
+    );
+}
+
+/// **A kept verdict is reused only with its cone** (R1's N-B): the
+/// verdict a `⊔`'s value keeps reads the document only inside the
+/// `⊔`'s cone (what each member read resolves to, and an instance's
+/// reference through it), and the gather reads the document's own id
+/// and its assertions afresh. So an evaluation that reuses the `⊔`'s
+/// value after an edit outside its cone reads the same verdict a fresh
+/// evaluation runs, and an edit inside the cone runs a new one.
+///
+/// *Breaks if* the kept verdict reads the document outside the `⊔`'s
+/// cone.
+#[test]
+fn a_kept_verdict_is_reused_only_with_its_cone() {
+    let evaluate = |doc: &ProfileDoc, prior: Option<&Evaluation<f64>>| {
+        editor_core::evaluate::<f64>(
+            doc,
+            prior,
+            &editor_core::CancelToken::new(),
+            &EvalOptions::default(),
+            Tol::witness(),
+        )
+    };
+    let said = |doc: &ProfileDoc, ev: &Evaluation<f64>| {
+        let product = editor_core::product_recorded(doc, ev, Tol::witness()).expect("it gathers");
+        format!(
+            "{:?} {:?} {:?}",
+            product.document, product.coincidences, product.census
+        )
+    };
+    let (base, [a, again]) = overlapping(doc("dprime3-kept-verdict"));
+    let (base, both) = assembled(base, &[a, again]);
+    let base = set_product(&base, Some(Operand::Node(both)));
+    let first = evaluate(&base, None);
+    let _ = said(&base, &first);
+    let kept = |ev: &Evaluation<f64>| {
+        ev.value(both)
+            .and_then(|value| value.census.clone())
+            .expect("the `⊔` keeps its census")
+    };
+
+    // Outside the cone: a block nothing in the `⊔` reads.
+    let (outside, _) = block(base.clone(), [9.0, 0.0], 0.5, 1.0);
+    let again_ev = evaluate(&outside, Some(&first));
+    assert!(
+        Arc::ptr_eq(&kept(&first), &kept(&again_ev)),
+        "the `⊔`'s value, and the verdict it keeps, are reused"
+    );
+    assert_eq!(
+        said(&outside, &again_ev),
+        said(&outside, &evaluate(&outside, None)),
+        "the reused verdict is the one a fresh evaluation runs"
+    );
+
+    // Inside the cone: the second block's copy moved off the first.
+    let inside = fixture::pin(
+        base,
+        again,
+        &editor_core::Frame::translation([5.0, 0.0, 0.0]),
+        &EvalOptions::default(),
+    );
+    let moved = evaluate(&inside, Some(&first));
+    assert!(
+        !Arc::ptr_eq(&kept(&first), &kept(&moved)),
+        "an edit in the cone runs the census again"
+    );
+    assert_eq!(
+        said(&inside, &moved),
+        said(&inside, &evaluate(&inside, None))
+    );
 }
 
 /// **A host does not re-decide an instance's self-overlap** (fix pass

@@ -802,22 +802,41 @@ impl<T: Decide> Product<T> {
     /// A copy of this verdict a reader owns: every field but
     /// [`Self::assembles`], which only the product slot's gather fills.
     pub(crate) fn fresh(&self) -> Self {
+        // Destructured, so a field added to `Product` fails to compile
+        // here until this copy says what it does with it.
+        let Self {
+            document,
+            body,
+            names,
+            contacts,
+            coincidences,
+            cited_inputs,
+            census,
+            solid_copies,
+            copies,
+            gap_assertions,
+            carried_interference,
+            carried_at_rest,
+            assembles: _,
+            pieces,
+            parts,
+        } = self;
         Self {
-            document: self.document,
-            body: self.body.clone(),
-            names: self.names.clone(),
-            contacts: self.contacts.clone(),
-            coincidences: self.coincidences.clone(),
-            cited_inputs: self.cited_inputs.clone(),
-            census: self.census.clone(),
-            solid_copies: self.solid_copies.clone(),
-            copies: self.copies.clone(),
-            gap_assertions: self.gap_assertions.clone(),
-            carried_interference: self.carried_interference.clone(),
-            carried_at_rest: self.carried_at_rest.clone(),
+            document: *document,
+            body: body.clone(),
+            names: names.clone(),
+            contacts: contacts.clone(),
+            coincidences: coincidences.clone(),
+            cited_inputs: cited_inputs.clone(),
+            census: census.clone(),
+            solid_copies: solid_copies.clone(),
+            copies: copies.clone(),
+            gap_assertions: gap_assertions.clone(),
+            carried_interference: carried_interference.clone(),
+            carried_at_rest: carried_at_rest.clone(),
             assembles: Vec::new(),
-            pieces: self.pieces.clone(),
-            parts: self.parts,
+            pieces: pieces.clone(),
+            parts: *parts,
         }
     }
 }
@@ -997,9 +1016,21 @@ pub struct AssembleGather<T: Decide> {
 /// `flush_at_rest`), each piece's records carried and each touch
 /// between two arrivals recorded. A copy or a pick of the door's body
 /// carries the same census, so every reader of the door's meetings
-/// reads one verdict, run once, where the first of them asks
-/// ([`Self::verdict`]): the product's gather, the at-rest gate, the
-/// checks, a boolean reading the body, an outer `⊔`.
+/// reads one verdict ([`Self::verdict`]): the product's gather, the
+/// at-rest gate, the checks, a boolean reading the body, an outer `⊔`.
+///
+/// The census is the door's, but it does not run at the door: the
+/// wire only sets it on the value, and it runs lazily, once, the first
+/// time a reader asks, so an evaluation that no reader asks pays
+/// nothing for it.
+///
+/// The verdict reads the document only inside the `⊔`'s cone: what
+/// each member read resolves to, an instance's reference through it,
+/// and the records its pieces' own censuses keep. The gather reads the
+/// document's id and its assertions afresh. So an evaluation that
+/// reuses the `⊔`'s value after an edit outside its cone reuses a
+/// verdict still true of it (`intent_dprime3_assemble_product_slot`'s
+/// `a_kept_verdict_is_reused_only_with_its_cone`).
 pub struct Census<T: Decide> {
     /// The node whose door it is.
     pub node: RecipeNodeId,
