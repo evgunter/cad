@@ -6242,6 +6242,13 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
             diag,
         }
     };
+    // Every surface is read through its link first: a torn one panics
+    // here (D2 row 4), before any row of it is built.
+    for body in [a, b] {
+        for (face, fd) in body.faces() {
+            let _ = body.face_surface_linked(face, fd);
+        }
+    }
     let pad = boxes::sweep_pad(band);
     let axes = super::separating::OperandAxes::new(boxes::axis_key);
     let mut section_charts = ChartCache::default();

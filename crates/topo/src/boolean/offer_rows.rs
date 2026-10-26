@@ -2825,6 +2825,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("reduce.rs", "vertex_refusal", "Coincide::VertexOnFace", 1),
     ("reduce.rs", "wall_crossing", "BooleanDecision::Crossing", 1),
     (
+        "reduce.rs",
+        "spline_plane_crossings",
+        "BooleanDecision::Crossing",
+        1,
+    ),
+    (
         "ruled_region.rs",
         "-",
         "BooleanDecision::CONTAINMENT_UNNAMED",
