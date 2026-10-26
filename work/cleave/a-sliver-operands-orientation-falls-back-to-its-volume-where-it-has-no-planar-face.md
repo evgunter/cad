@@ -2,10 +2,11 @@
 id: a-sliver-operands-orientation-falls-back-to-its-volume-where-it-has-no-planar-face
 kind: issue
 title: A sliver operand's orientation probe falls back to its V/A where it has no planar face, and skips a solid whose faces do not read
-status: open
+status: closed
 opened: 2026-10-12
 priority: P2
 cost: M
+closed: 2026-10-26
 ---
 
 
@@ -51,3 +52,7 @@ and closed spheres too, and what is left (trimmed spheres, untrimmable
 cones, splines) is on FLUSH's slate as
 `the-side-at-infinity-reader-offers-no-aim-on-a-trimmed-sphere-or-a-spline`.
 This row closes with that PR; CLEAVE closes it.
+
+## Closed (2026-10-26)
+
+Fixed by PR 5119 (FLUSH, `flush/shell-role-reader`), as this row's 2026-10-14 note foresaw: `gate_sliver_orientation` has no definition on main, so finding 2 went with it, and finding 1 is FLUSH's `the-side-at-infinity-reader-offers-no-aim-on-a-trimmed-sphere-or-a-spline`. (CLEAVE slate triage)
