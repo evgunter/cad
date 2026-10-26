@@ -350,3 +350,71 @@ fn a_hairpin_carriers_upper_foot_is_out_of_a_lower_half_face() {
         "the door's own point, by its edge line"
     );
 }
+
+/// **Review r2: a chart point of the carrier within the band of the trim
+/// is never read out (nor in)**, asked of [`read`] directly so the
+/// boundary walk does not answer first. A face point lies within the
+/// band of either, so the only honest reading is unsettled; the Out rule
+/// (every kept cell wholly outside) is what keeps the outer one from Out.
+#[test]
+fn review_r2_a_carrier_point_within_the_band_of_the_trim_is_unsettled() {
+    let c = 0.6;
+    let chart = twisted(c);
+    let (body, face) = sheet(&chart, &rect((0.25, 0.75), (0.25, 0.75)));
+    let b = band();
+    let step = (b.zero() + b.escalate()) / 2.0;
+    for u in [0.75 - step, 0.75 + step] {
+        let r = read(&body, face, &chart, chart.eval(u, 0.5), b);
+        assert!(matches!(r, Reading::Unsettled(_)), "u = {u}: {r:?}");
+    }
+}
+
+/// **Review r2: ray parity through a trim vertex and along a trim side.**
+/// The crease fixture's sides meet at `(0.25, ½)` and `(0.75, ½)`, so a
+/// `+u` ray at `v = ½` passes through vertices; an L-shaped face has a
+/// side lying along the ray.
+#[test]
+fn review_r2_parity_through_a_vertex_and_along_a_side() {
+    let chart = ruled(&[(0.0, 0.0), (1.0, 0.0), (2.0, 1.0)]);
+    let b = band();
+    let cells = bezier_cells(&chart).unwrap();
+    let (body, face) = sheet(
+        &chart,
+        &[
+            (0.25, 0.25),
+            (0.75, 0.25),
+            (0.75, 0.5),
+            (0.75, 0.75),
+            (0.25, 0.75),
+            (0.25, 0.5),
+        ],
+    );
+    let trim = Trim::of(&body, face, &chart, b).unwrap();
+    for (u, want_in) in [(0.5, true), (0.1, false), (0.9, false)] {
+        let p = trim.place(&cells, super::Rect::point(u, 0.5), b);
+        assert!(
+            if want_in { matches!(p, Place::In) } else { matches!(p, Place::Out) },
+            "through vertices at u = {u}: {p:?}"
+        );
+    }
+    let (body, face) = sheet(
+        &chart,
+        &[
+            (0.25, 0.25),
+            (0.75, 0.25),
+            (0.75, 0.5),
+            (0.5, 0.5),
+            (0.5, 0.75),
+            (0.25, 0.75),
+            (0.25, 0.5),
+        ],
+    );
+    let trim = Trim::of(&body, face, &chart, b).unwrap();
+    for (u, want_in) in [(0.3, true), (0.1, false)] {
+        let p = trim.place(&cells, super::Rect::point(u, 0.5), b);
+        assert!(
+            if want_in { matches!(p, Place::In) } else { matches!(p, Place::Out) },
+            "along a side at u = {u}: {p:?}"
+        );
+    }
+}
