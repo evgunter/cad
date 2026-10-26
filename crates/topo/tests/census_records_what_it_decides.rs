@@ -418,7 +418,7 @@ fn a_near_flush_side_is_its_pairs_finding_and_the_seat_is_one_pair() {
         ValidationError::CensusUndecidable {
             a: topo::EntityId::Face(a),
             b: topo::EntityId::Face(b),
-            reason: topo::Undecidable::InBandPair,
+            reason: topo::Undecidable::ThinInBand,
             ..
         },
     ] = recorded.findings.as_slice()
@@ -514,4 +514,134 @@ fn an_overlap_whose_aligned_faces_are_in_band_is_never_cleared() {
             recorded.records
         );
     }
+}
+
+/// A base `[0, 3] × [0, base_y1] × [−1, 0]` and a keel along y over it:
+/// an inverted triangle prism whose bottom edge runs at z = off, in band
+/// of the base's top, from y = off to y = keel_y1. Its end face at
+/// y = off stands in band of the base's front, both facing −y.
+fn keel_over_a_base(base_y1: f64, keel_y1: f64) -> Body<f64> {
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
+    let off = 0.5 * (band.zero() + band.escalate());
+    let mut body = common::prism_z::<f64>(
+        &[(0.0, 0.0), (3.0, 0.0), (3.0, base_y1), (0.0, base_y1)],
+        -1.0,
+        0.0,
+        Tol::witness(),
+    )
+    .body;
+    let mut keel = Body::<f64>::new();
+    common::prism_ops(
+        &mut keel,
+        &[(1.4, off), (1.6, 0.5), (1.2, 0.5)],
+        (-keel_y1, -off),
+        |a, b, c| geom_core::Point3::new(a, -c, b),
+        common::FaceGeometry::Certified,
+        Tol::witness(),
+    );
+    common::describe_as_intersections(&mut keel, Tol::witness());
+    topo::graft_disjoint_all_keyed(&mut body, &keel).unwrap();
+    body
+}
+
+/// The census's escalations whose predicate is `predicate`.
+fn escalated(findings: &[ValidationError], predicate: &str) -> usize {
+    findings
+        .iter()
+        .filter(|e| {
+            matches!(
+                e,
+                ValidationError::CensusEscalated { cause } if cause.predicate == Some(predicate)
+            )
+        })
+        .count()
+}
+
+/// **An edge lying in band along a face is not a shadow of an in-band
+/// pair's corner** (`drop_shadows`). A keel's bottom edge runs in band
+/// over a base's top; its end faces stand in band of the base's front
+/// and back, unread pairs whose corners touch the base's top edges.
+/// The bottom edge read against the base's top holds those corners in
+/// its closure, but lies along the top with no one meeting point, so
+/// its escalation may lie anywhere along it: it stands beside the end
+/// pairs' findings, and the blocks are not cleared. Three poses: the
+/// keel a band short of both ends of the base, running past its back,
+/// and ending over it. Red if the edge's escalation is dropped or a
+/// touch is recorded.
+#[test]
+fn an_edge_in_band_along_a_face_stands_beside_the_unread_ends() {
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
+    let off = 0.5 * (band.zero() + band.escalate());
+    for (name, base_y1, keel_y1) in [
+        ("between two in-band ends", 1.0, 1.0 - off),
+        ("past the base", 0.5, 1.0),
+        ("over the base", 1.5, 1.0),
+    ] {
+        let body = keel_over_a_base(base_y1, keel_y1);
+        let (recorded, _) = at_rest(&body);
+        assert!(
+            escalated(&recorded.findings, "pm_census_ef_residual") > 0,
+            "{name}: the bottom edge's escalation stands: {:?}",
+            recorded.findings
+        );
+        assert!(
+            recorded
+                .findings
+                .iter()
+                .any(|e| topo::census_uncleared_solids(&body, e).is_some()),
+            "{name}: the blocks are not cleared"
+        );
+        assert!(
+            recorded.records.is_empty(),
+            "{name}: {:?}",
+            recorded.records
+        );
+    }
+}
+
+/// **The control: the same keel with no unread pair.** The base runs
+/// past both of the keel's ends, so no face of the keel stands in band
+/// of one of the base's, and the bottom edge's escalations are what the
+/// census reads with no unread pair at all; the poses above add the
+/// end pairs' findings and drop none of them. Red if the control has an
+/// unread pair, or its edge escalates under another predicate.
+#[test]
+fn the_keel_with_no_unread_pair_escalates_on_its_edge_alone() {
+    let mut body = common::prism_z::<f64>(
+        &[(0.0, -0.5), (3.0, -0.5), (3.0, 1.5), (0.0, 1.5)],
+        -1.0,
+        0.0,
+        Tol::witness(),
+    )
+    .body;
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
+    let off = 0.5 * (band.zero() + band.escalate());
+    let mut kb = Body::<f64>::new();
+    common::prism_ops(
+        &mut kb,
+        &[(1.4, off), (1.6, 0.5), (1.2, 0.5)],
+        (-1.0, -off),
+        |a, b, c| geom_core::Point3::new(a, -c, b),
+        common::FaceGeometry::Certified,
+        Tol::witness(),
+    );
+    common::describe_as_intersections(&mut kb, Tol::witness());
+    topo::graft_disjoint_all_keyed(&mut body, &kb).unwrap();
+    let (recorded, _) = at_rest(&body);
+    assert!(
+        !recorded.findings.iter().any(|e| matches!(
+            e,
+            ValidationError::CensusUndecidable {
+                a: topo::EntityId::Face(_),
+                ..
+            }
+        )),
+        "no unread pair: {:?}",
+        recorded.findings
+    );
+    assert!(
+        escalated(&recorded.findings, "pm_census_ef_residual") > 0,
+        "the bottom edge escalates along the top: {:?}",
+        recorded.findings
+    );
 }

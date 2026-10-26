@@ -59,9 +59,9 @@ The recording side follows from ratified text, so it needs no designers. `[asser
 - **An in-band verdict on one face pair** (Door 1 `Undecided`/`Escalated` on a planar pair, or the flush door's face-pair `CensusUndecidable`) is that pair's one could-not-look finding. It names the two faces, and nothing of its boundary cells is asked. It does **not** block the records of the other pairs between the same two arrivals. Blocking them would leave a confirmed seat unrecorded, and a later census over the result would decide that seat again.
   - An **opposed** in-band face pair within ε is not evidence of an overlap past the band. Its two materials lie on either side, so any overlap it hides is thinner than the band, which the representation cannot tell from contact.
 - **Corrected (2026-10-26, ATREST orchestrator, on PR 5782's review):** the premise above holds for opposed pairs only. An **aligned** pair has both materials behind both faces, so the area the two share decides.
-  - Door 1 `Undecided` on an opposed pair: `InBandPair`.
+  - Door 1 `Undecided` on an opposed pair: `ThinInBand`.
   - Door 1 `Undecided` on an aligned pair, area decided positive: `SameSideInterference`.
-  - Door 1 `Undecided` on an aligned pair, area decided empty or thinner than the band: `InBandPair`.
+  - Door 1 `Undecided` on an aligned pair, area decided empty or thinner than the band: `ThinInBand`.
   - Door 1 `Undecided` on an aligned pair, area undecided: `MayOverlap`, which blocks the records.
   - Door 1 `Escalated`, which reads no relation: `MayOverlap`.
   - Only a pair's escalations become its finding; a decided finding of its cells stands.
@@ -80,7 +80,7 @@ The recording side follows from ratified text, so it needs no designers. `[asser
   `Escalated` on two planar faces of different solids as an in-band pair.
   `Declared::absorb` turns what the sweeps find of a touch between the
   pair's cells into the pair's one `CensusUndecidable`, naming the two
-  faces, with `reason: Undecidable::InBandPair`. An escalation of two
+  faces, with `reason: Undecidable::ThinInBand`. An escalation of two
   other cells whose closures hold such a touch is held, and is settled
   after every pass (`Declared::settle`). Arm 2's material test does not
   refuse on a vertex of such a touch.
@@ -88,7 +88,7 @@ The recording side follows from ratified text, so it needs no designers. `[asser
   read only `Undecidable::MayOverlap`, so the seat's face pair is
   recorded beside the in-band finding.
 - **The flush door** leaves Door 1's in-band pairs to the census.
-- **Corrected on review.** An aligned in-band pair reads its area. The region door's carrier gate refuses a pair standing off in band, so `thin_overlap` reads the case where the two share no area thicker than the band (`InBandPair`); the rest are `MayOverlap`. `Escalated` is `MayOverlap`. Only escalations are absorbed. Shadows are dropped by where they lie (`drop_shadows`). `an_overlap_whose_aligned_faces_are_in_band_is_never_cleared` pins the reviewer's three overlap poses.
+- **Corrected on review.** An aligned in-band pair reads its area. The region door's carrier gate refuses a pair standing off in band, so `thin_overlap` reads the case where the two share no area thicker than the band (`ThinInBand`); the rest are `MayOverlap`. `Escalated` is `MayOverlap`. Only escalations are absorbed. Shadows are dropped by where they lie (`drop_shadows`). `an_overlap_whose_aligned_faces_are_in_band_is_never_cleared` pins the reviewer's three overlap poses.
 - **Rows.** `census_records_what_it_decides::a_near_flush_side_is_its_pairs_finding_and_the_seat_is_one_pair`
   reports one finding, records the seat, and confirms.
   `asm_r2b_assembly::a_near_flush_seat_refuses_on_its_one_in_band_pair`

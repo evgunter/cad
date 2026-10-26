@@ -376,7 +376,7 @@ fn a_witness_at_the_band_edge_refuses_typed_at_this_eps() {
         ValidationError::CensusUndecidable {
             a: EntityId::Face(a),
             b: EntityId::Face(b),
-            reason: topo::Undecidable::InBandPair,
+            reason: topo::Undecidable::ThinInBand,
             ..
         },
     ] = errors[..]

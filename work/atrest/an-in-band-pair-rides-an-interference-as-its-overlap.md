@@ -15,7 +15,7 @@ routes every `CensusUndecidable` naming one entity of each of two copies
 the census decided interfere into that pair's interference evidence. The
 `covered` closure in `localize` then holds a quiet finding to
 "every undecided verdict on the pair names faces of the component it
-rides". An `InBandPair` verdict (`topo::Undecidable::InBandPair`) is the
+rides". An `ThinInBand` verdict (`topo::Undecidable::ThinInBand`) is the
 census's one could-not-look finding for an opposed planar pair whose
 carriers read in band, or an aligned one sharing no area thicker than
 the band. It is no evidence of the overlap: any overlap it hides is
@@ -28,7 +28,7 @@ outside the overlap's component, keeps an asserted-quiet interference
 loud, and when it lies inside the component it is folded into the
 interference instead of standing as its own finding.
 
-The fix reads `reason`: an `InBandPair` verdict, and only that one, is not
+The fix reads `reason`: an `ThinInBand` verdict, and only that one, is not
 routed into the pair's evidence, and stands as its own could-not-look finding (stage 5 C's
 vessel). It is conservative today (it keeps a finding loud, never quiets
 one), which is why it is P3. Found by the in-band unit's sweep. The

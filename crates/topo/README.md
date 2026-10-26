@@ -1079,17 +1079,22 @@ reads in band are one pair too, which the census cannot look at
 cell bounding one of its faces against a cell bounding the other is
 the pair's one `CensusUndecidable`, naming the two faces, and nothing
 of the cells' escalations is reported (`Declared::absorb`); a decided
-finding of them stands. An escalation of two other cells meeting in
-band of such a touch, their closures holding its cells, reads it again
-and is dropped (`drop_shadows`). The finding's reason says whether the
+finding of them stands. An escalation of two other cells is dropped
+as a reading of such a touch (`drop_shadows`) only where their
+closures hold the touch's two cells, they meet at one point in band of
+both, and each end of either is in band of both too or decidedly off
+the other cell; two cells with no one meeting point (an edge along a
+face) may have escalated anywhere along them, and that escalation
+stands. The finding's reason says whether the
 pair may hide an overlap. An opposed pair in band hides none thicker
 than the band: its two materials lie on either side
-(`Undecidable::InBandPair`). An aligned pair has both materials behind
+(`Undecidable::ThinInBand`). An aligned pair has both materials behind
 both faces, so where the two share area the solids overlap: it is an
-overlap where the region door reads a positive area, `InBandPair` only
+overlap where the region door reads a positive area, `ThinInBand` only
 where they share no area thicker than the band (`thin_overlap`), and
 otherwise `Undecidable::MayOverlap`, as is a pair whose Door 1
-escalated. Arm 2 reads an `InBandPair` finding as blocking nothing, its
+escalated; the flush arm's own in-band findings of an aligned pair read
+the same (`aligned_unread`). Arm 2 reads a `ThinInBand` finding as blocking nothing, its
 material test does not refuse on a vertex of such a pair's touch, and
 `census_uncleared_solids` leaves the solids' other touches to be
 recorded at rest; a `MayOverlap` finding blocks them. The flush arm

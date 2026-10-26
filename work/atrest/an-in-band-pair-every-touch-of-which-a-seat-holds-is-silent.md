@@ -10,7 +10,7 @@ refs: [an-in-band-face-pair-at-rest-is-not-one-finding]
 ---
 
 
-The census reports an in-band face pair (`topo::Undecidable::InBandPair`)
+The census reports an in-band face pair (`topo::Undecidable::ThinInBand`)
 only where a sweep found something between its cells
 (`crates/topo/src/census.rs` `Declared::absorb`: "A lane that finds
 nothing reports nothing"). A lane that a confirmed pair answers

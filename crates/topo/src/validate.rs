@@ -564,7 +564,7 @@ pub enum Undecidable {
     /// pair has both materials behind both faces, so it is this only
     /// where the two share no area thicker than the band. It is no
     /// evidence the two solids interpenetrate.
-    InBandPair,
+    ThinInBand,
 }
 
 /// **What a census refusal is ABOUT** — the whole of the subject the

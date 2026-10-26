@@ -1212,11 +1212,17 @@ impl Declared {
             return true;
         }
         let (x, y) = sides();
-        let pair = x.as_ref().iter().find_map(|&fx| {
-            y.as_ref()
-                .iter()
-                .find_map(|&fy| self.unread.get(&(fx, fy)).copied())
-        });
+        // A touch two unread pairs name is the one that may hide an
+        // overlap's, where either may.
+        let pair = x
+            .as_ref()
+            .iter()
+            .flat_map(|&fx| {
+                y.as_ref()
+                    .iter()
+                    .filter_map(move |&fy| self.unread.get(&(fx, fy)).copied())
+            })
+            .min_by_key(|pair| pair.reason != Undecidable::MayOverlap);
         match pair {
             Some(pair) => {
                 if !pass.answered.contains(&((p, q), pair.reason)) {
@@ -1410,7 +1416,10 @@ fn in_closure<T: Real>(body: &Body<T>, geo: &Geo<T>, c: EntityId, cell: EntityId
 #[derive(Default)]
 struct UnreadPass {
     /// The touches an unread pair answered for: their two cells, and the
-    /// reason of the pair's finding.
+    /// reason of the pair's finding. [`drop_shadows`] reads every touch
+    /// alike; arm 2's material test reads the reason, refusing on no
+    /// vertex of a pair that hides no overlap. One list serves both, as
+    /// each touch is answered once.
     answered: Vec<((EntityId, EntityId), Undecidable)>,
     /// The escalations of every other touch, each with its two cells,
     /// held for [`drop_shadows`].
@@ -1422,12 +1431,12 @@ struct UnreadPass {
 /// cells' closures hold the two cells of a touch the pair answered for,
 /// so it reads that touch again from a cell bounding one of them (a base
 /// edge against the face a near-flush corner bounds), and it lies there:
-/// each end of either cell, and the point where the two meet if they
-/// meet at one, is in band of both cells of such a touch, or decidedly
-/// off the other cell ([`distance`]), so no other part of the two cells
-/// is what escalated. The edge passes run after the vertex passes and
-/// edge–edge after edge–face, so a touch is answered before every
-/// reading that could shadow it is settled.
+/// the two cells meet at one point, in band of both cells of such a
+/// touch, and each end of either cell is too, or stands decidedly off
+/// the other cell ([`distance`]), so no other part of the two cells is
+/// what escalated. Two cells with no one meeting point (an edge lying
+/// along a face, parallel lines, a curved cell) may have escalated
+/// anywhere along them: such an escalation stands.
 fn drop_shadows<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
@@ -1467,7 +1476,7 @@ fn drop_shadows<T: Decide>(
             .collect();
         let answered = |u| touches.iter().any(|&(c, d)| near(c, u) && near(d, u));
         !touches.is_empty()
-            && meeting_point(geo, (p, q)).is_none_or(answered)
+            && meeting_point(geo, (p, q)).is_some_and(answered)
             && [(p, q), (q, p)]
                 .into_iter()
                 .all(|(x, y)| ends(geo, x).into_iter().all(|u| answered(u) || off(y, u)))
@@ -1484,7 +1493,7 @@ fn drop_shadows<T: Decide>(
 /// segment, a planar face's plane or the box of its vertices, whichever
 /// is farther (a bound below the distance to the face). `None` for a
 /// curved cell.
-fn distance<T: Real>(geo: &Geo<T>, u: Point3<T>, cell: EntityId) -> Option<Margin<T>> {
+fn distance<T: Decide>(geo: &Geo<T>, u: Point3<T>, cell: EntityId) -> Option<Margin<T>> {
     match cell {
         EntityId::Vertex(v) => Some(Margin::norm3(u - *geo.vmap.get(&v)?)),
         EntityId::Edge(e) => {
@@ -1494,15 +1503,12 @@ fn distance<T: Real>(geo: &Geo<T>, u: Point3<T>, cell: EntityId) -> Option<Margi
         }
         EntityId::Face(f) => {
             let f = planar_face(geo, f)?;
-            let mut corners = f.boundary.iter().map(|v| geo.vmap.get(v).copied());
-            let first = corners.next()??;
-            let (lo, hi) = corners.try_fold((first, first), |(lo, hi), p| {
-                let p = p?;
-                Some((
-                    Point3::new(lo.x.min(p.x), lo.y.min(p.y), lo.z.min(p.z)),
-                    Point3::new(hi.x.max(p.x), hi.y.max(p.y), hi.z.max(p.z)),
-                ))
-            })?;
+            let corners: Option<Vec<_>> = f
+                .boundary
+                .iter()
+                .map(|v| geo.vmap.get(v).copied())
+                .collect();
+            let (lo, hi) = point_hull(corners?)?;
             let out = |x: T, a: T, b: T| (a - x).max(x - b).max(T::zero());
             let to_box = Vec3::new(
                 out(u.x, lo.x, hi.x),
@@ -5693,7 +5699,7 @@ fn unread_finding(pair: UnreadPair) -> ValidationError {
         a: EntityId::Face(pair.a),
         b: EntityId::Face(pair.b),
         what: match pair.reason {
-            Undecidable::InBandPair => IN_BAND,
+            Undecidable::ThinInBand => IN_BAND,
             Undecidable::MayOverlap => IN_BAND_MAY_OVERLAP,
         },
         reason: pair.reason,
@@ -5730,12 +5736,12 @@ pub(crate) fn unread_sample(a: FaceKey, b: FaceKey, reason: Undecidable) -> Vali
 /// - **In band**: Door 1 reads the carriers' coincidence in band, or
 ///   escalates, and the pair is one the census cannot look at, its own
 ///   one finding where its faces' cells escalate ([`Declared::absorb`]).
-///   An opposed pair in band ([`Undecidable::InBandPair`]) hides no
+///   An opposed pair in band ([`Undecidable::ThinInBand`]) hides no
 ///   overlap thicker than the band: its two materials lie on either
 ///   side. Aligned, both materials lie behind both faces, so the area
 ///   they share decides: a positive area is an overlap as above, read
 ///   on Door 1's in-band residue (`Bridged`); an empty one hides none
-///   (`InBandPair`); an area the region door does not decide may hide
+///   (`ThinInBand`); an area the region door does not decide may hide
 ///   one ([`Undecidable::MayOverlap`]). A Door 1 that escalated, or read
 ///   a datum it could not, reads no orientation, so the pair may hide
 ///   an overlap.
@@ -5841,9 +5847,9 @@ enum InBand {
 }
 
 /// **A pair Door 1 did not decide** ([`planar_face_pairs`]'s in-band
-/// arm): opposed in band is [`Undecidable::InBandPair`]; aligned in band
+/// arm): opposed in band is [`Undecidable::ThinInBand`]; aligned in band
 /// is an overlap where the region door reads a positive area,
-/// `InBandPair` where it reads none or where the two share no area
+/// `ThinInBand` where it reads none or where the two share no area
 /// thicker than the band ([`thin_overlap`]: the region door's carrier
 /// gate refuses a pair standing off in band), and
 /// [`Undecidable::MayOverlap`] where neither is read; anything else
@@ -5865,16 +5871,13 @@ fn in_band_reading<T: Decide>(
         return InBand::Unread(Undecidable::MayOverlap);
     };
     match relation {
-        CarrierRelation::SameOpposite => InBand::Unread(Undecidable::InBandPair),
+        CarrierRelation::SameOpposite => InBand::Unread(Undecidable::ThinInBand),
         CarrierRelation::SameOriented => {
             let bridged = crate::contact::ContactVerdict::Bridged;
             match same_side_overlap(body, geo, lane, fa, fb, bridged, band) {
                 Ok(true) => InBand::Overlap(diag.margin),
-                Ok(false) => InBand::Unread(Undecidable::InBandPair),
-                Err(_) if thin_overlap(geo, fa, fb, band) => {
-                    InBand::Unread(Undecidable::InBandPair)
-                }
-                Err(_) => InBand::Unread(Undecidable::MayOverlap),
+                Ok(false) => InBand::Unread(Undecidable::ThinInBand),
+                Err(_) => InBand::Unread(aligned_unread(geo, fa, fb, band)),
             }
         }
         CarrierRelation::Distinct => InBand::Unread(Undecidable::MayOverlap),
@@ -5886,7 +5889,7 @@ fn in_band_reading<T: Decide>(
 /// edge of either face, the two faces' vertices span intervals that
 /// overlap by no more than the band, so whatever the two share lies in a
 /// slab that thin. `false` for a face with a curved edge, whose vertices
-/// do not bound it.
+/// do not bound it, and wherever no direction decides it.
 fn thin_overlap<T: Decide>(geo: &Geo<T>, fa: &FaceGeo<T>, fb: &FaceGeo<T>, band: Band) -> bool {
     if !(fa.polygon && fb.polygon) {
         return false;
@@ -5901,27 +5904,46 @@ fn thin_overlap<T: Decide>(geo: &Geo<T>, fa: &FaceGeo<T>, fb: &FaceGeo<T>, band:
         return false;
     };
     let span = |pts: &[Point3<T>], d: Vec3<T>| {
-        let mut along = pts.iter().map(|&p| (p - fa.origin).dot(d));
-        let first = along.next()?;
-        Some(along.fold((first, first), |(lo, hi), x| (lo.min(x), hi.max(x))))
+        let along = pts
+            .iter()
+            .map(|&p| Point3::new((p - fa.origin).dot(d), T::zero(), T::zero()));
+        point_hull(along).map(|(lo, hi)| (lo.x, hi.x))
     };
     geo.sides_of(fa.key).chain(geo.sides_of(fb.key)).any(|e| {
         let d = fa.normal.cross(e.dir).normalize();
         let (Some((la, ha)), Some((lb, hb))) = (span(&pa, d), span(&pb, d)) else {
             return false;
         };
-        !matches!(
+        matches!(
             geom_core::k_stats::decide_reported(
                 "pm_census_unread_slab",
                 Margin::of(ha.min(hb) - la.max(lb)),
                 band
             ),
             Ok(geom_core::Decided {
-                sign: Sign::Positive,
+                sign: Sign::Negative | Sign::Zero,
                 ..
             })
         )
     })
+}
+
+/// **What an aligned pair's in-band finding leaves open**, where no door
+/// read the area the two share: the one reading both the face-pair arm
+/// and the flush door give it. Both materials lie behind both faces, so
+/// the pair hides no overlap only where the two share no area thicker
+/// than the band ([`thin_overlap`]); anything else may hide one.
+fn aligned_unread<T: Decide>(
+    geo: &Geo<T>,
+    fa: &FaceGeo<T>,
+    fb: &FaceGeo<T>,
+    band: Band,
+) -> Undecidable {
+    if thin_overlap(geo, fa, fb, band) {
+        Undecidable::ThinInBand
+    } else {
+        Undecidable::MayOverlap
+    }
 }
 
 /// Why [`same_side_overlap`] read no verdict.
@@ -7038,7 +7060,7 @@ enum Said {
     /// unsupported face pair).
     Unexamined,
     /// An unread pair hiding no overlap thicker than the band
-    /// ([`Undecidable::InBandPair`]: an opposed pair, or an aligned one
+    /// ([`Undecidable::ThinInBand`]: an opposed pair, or an aligned one
     /// sharing no thicker area): its own finding, and no evidence the
     /// two solids interpenetrate.
     InBand,
@@ -7092,7 +7114,7 @@ impl Named {
             ValidationError::CensusUndecidable {
                 a,
                 b,
-                reason: Undecidable::InBandPair,
+                reason: Undecidable::ThinInBand,
                 ..
             } => Self::Two(*a, *b, Said::InBand),
             ValidationError::CensusUndecidable {
@@ -9949,7 +9971,7 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
         let answered_in_band = |v: VertexKey| {
             let v = EntityId::Vertex(v);
             answered.iter().any(|&((x, y), reason)| {
-                reason == Undecidable::InBandPair
+                reason == Undecidable::ThinInBand
                     && ((x == v && solid_of_entity(y) == Some(outer))
                         || (y == v && solid_of_entity(x) == Some(outer)))
             })
@@ -11148,7 +11170,7 @@ pub(crate) fn flush_at_rest<T: Decide + Bounds>(
                 a: EntityId::Face(fa.key),
                 b: EntityId::Face(fb.key),
                 what: FLUSH_UNDECIDED,
-                reason: Undecidable::InBandPair,
+                reason: aligned_unread(&geo, fa, fb, band),
             };
             let (verdict, margin) = match crate::boolean::carrier_pair::carrier_pair_reading(
                 body, fa.key, body, fb.key, false, band,
@@ -11350,7 +11372,7 @@ fn two_solids(
 /// two edges on one line whose wedges were not read, and a pair it
 /// cannot clear (`CensusUndecidable`, [`Undecidable::MayOverlap`]).
 /// `None` for every other finding, an unread face pair's that hides no
-/// overlap included ([`Undecidable::InBandPair`]: an opposed pair in
+/// overlap included ([`Undecidable::ThinInBand`]: an opposed pair in
 /// band, any overlap it hides thinner than the band, or an aligned one
 /// sharing no area thicker than it). [`record_at_rest`] records no touch between such a pair,
 /// since the census reads the pair's overlap off those touches.
@@ -11642,7 +11664,7 @@ mod tests {
         let pair = UnreadPair {
             a: fa,
             b: fb,
-            reason: Undecidable::InBandPair,
+            reason: Undecidable::ThinInBand,
         };
         declared.add_unread(&[pair]);
         let edge = geo
@@ -11686,6 +11708,51 @@ mod tests {
         assert_eq!(pass.answered.len(), 2, "{:?}", pass.answered);
     }
 
+    /// **A touch two unread pairs name is the one that may hide an
+    /// overlap's** (`Declared::absorb`). A vertex bounding two faces of
+    /// one solid, each an unread pair with one face of the other: the
+    /// first in face order hides no overlap, the second may. The touch's
+    /// escalation is the second's finding, in either order of the two
+    /// sides. Red if the touch takes the first pair it finds.
+    #[test]
+    fn a_touch_two_unread_pairs_name_is_the_one_that_may_hide_an_overlap() {
+        let (body, _) = near_flush_seat();
+        let geo = snapshot(&body);
+        let faces = |i: usize| {
+            body.solids()
+                .nth(i)
+                .and_then(|(s, _)| body.faces_of_solid(s))
+                .unwrap()
+        };
+        let (base, block) = (faces(0), faces(1));
+        let (fa, fc, fb) = (base[0], base[1], block[0]);
+        for (first, second) in [(fa, fc), (fc, fa)] {
+            let mut declared = Declared::index(&geo, &ContactRecords::default());
+            let thin = UnreadPair {
+                a: first,
+                b: fb,
+                reason: Undecidable::ThinInBand,
+            };
+            let may = UnreadPair {
+                a: second,
+                b: fb,
+                reason: Undecidable::MayOverlap,
+            };
+            declared.add_unread(&[thin, may]);
+            let mut pass = UnreadPass::default();
+            let mut errors = Vec::new();
+            let v = geo.verts[0].0;
+            declared.absorb(
+                &mut pass,
+                (EntityId::Vertex(v), EntityId::Face(fb)),
+                || ([first, second], [fb]),
+                &mut errors,
+                |out| out.push(escalation("pm_census_vf_residual")),
+            );
+            assert_eq!(errors, vec![unread_finding(may)], "{first:?} first");
+        }
+    }
+
     /// **The trace records what a lane found under an unread pair**
     /// (`CensusTrace`). On the near-flush seat each touch of the two
     /// walls' cells escalates and is the pair's one finding, and each
@@ -11710,7 +11777,7 @@ mod tests {
                 matches!(
                     e,
                     ValidationError::CensusUndecidable {
-                        reason: Undecidable::InBandPair,
+                        reason: Undecidable::ThinInBand,
                         ..
                     }
                 )
@@ -11776,7 +11843,7 @@ mod tests {
         let mut pass = UnreadPass {
             answered: vec![(
                 (EntityId::Vertex(vertex), EntityId::Edge(base_edge)),
-                Undecidable::InBandPair,
+                Undecidable::ThinInBand,
             )],
             held: vec![
                 (
@@ -14210,7 +14277,7 @@ mod tests {
                 [ValidationError::CensusUndecidable {
                     a: EntityId::Face(_),
                     b: EntityId::Face(_),
-                    reason: Undecidable::InBandPair,
+                    reason: Undecidable::ThinInBand,
                     ..
                 }]
             ),

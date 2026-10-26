@@ -1684,7 +1684,7 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
         ));
     }
     for reason in [
-        crate::validate::Undecidable::InBandPair,
+        crate::validate::Undecidable::ThinInBand,
         crate::validate::Undecidable::MayOverlap,
     ] {
         s.push((

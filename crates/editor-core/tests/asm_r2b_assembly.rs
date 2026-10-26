@@ -427,10 +427,12 @@ fn row3_b_the_mated_touching_pair_is_recorded_as_the_unmated_one_is() {
 /// AUTHORED INTO THE BAND — a standoff off the base's top, which places
 /// the cube and declares nothing — is neither certified nor
 /// contradicted. The two caps read one carrier in band, so they are one
-/// face pair the census cannot look at (`[assertions]`): the gate
-/// refuses on that pair's typed finding, and on the in-band finding of
-/// each pair of side walls it brings flush, each pair once, with no
-/// escalation of their cells beside them.
+/// face pair the census cannot look at (`[assertions]`), which hides no
+/// overlap: the gate refuses on that pair's typed finding, once. Each
+/// pair of side walls lies flush with its boundaries a band apart, the
+/// flush door's finding, once; and the cube's vertical edges lying
+/// along those walls escalate where they end in band of the base's top,
+/// a reading no one point locates, so it stands.
 ///
 /// The gap is DERIVED FROM THE COMMITTED BAND, never spelled as a
 /// literal: the hosted matrix runs ε = 1e-12 and 1e-6 as well as the
@@ -460,17 +462,33 @@ fn row4_b_an_in_band_authored_gap_refuses_on_its_in_band_pairs() {
     };
     let mut pairs: Vec<[topo::FaceKey; 2]> = findings
         .iter()
-        .map(|f| match f.error {
+        .filter_map(|f| match f.error {
             topo::ValidationError::CensusUndecidable {
                 a: topo::EntityId::Face(a),
                 b: topo::EntityId::Face(b),
-                reason: topo::Undecidable::InBandPair,
                 ..
-            } => [a.min(b), a.max(b)],
-            ref other => panic!("every finding is an in-band pair's: {other:?}"),
+            } => Some([a.min(b), a.max(b)]),
+            _ => None,
         })
         .collect();
-    assert!(!pairs.is_empty(), "the in-band seat refuses");
+    assert!(
+        findings.iter().any(|f| matches!(
+            f.error,
+            topo::ValidationError::CensusUndecidable {
+                reason: topo::Undecidable::ThinInBand,
+                ..
+            }
+        )),
+        "the caps' pair hides no overlap: {findings:?}"
+    );
+    assert!(
+        findings.iter().all(|f| matches!(
+            f.error,
+            topo::ValidationError::CensusUndecidable { .. }
+                | topo::ValidationError::CensusEscalated { .. }
+        )),
+        "nothing is decided, either way: {findings:?}"
+    );
     let found = pairs.len();
     pairs.sort();
     pairs.dedup();
@@ -1122,7 +1140,7 @@ fn a_near_flush_seat_refuses_on_its_one_in_band_pair() {
                         topo::ValidationError::CensusUndecidable {
                             a: topo::EntityId::Face(_),
                             b: topo::EntityId::Face(_),
-                            reason: topo::Undecidable::InBandPair,
+                            reason: topo::Undecidable::ThinInBand,
                             ..
                         },
                 },
