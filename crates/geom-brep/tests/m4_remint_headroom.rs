@@ -55,14 +55,14 @@ fn marginal_witness_slack_vs_remint_freshness() {
         param_end: t1,
     };
     // Marginal-but-valid: certification ACCEPTS (0.9ε < ε).
-    let ec = EdgeCurve::certify_via(
+    let ec = EdgeCurve::certify(
         spec,
         Point3::new(0.0, 0.0, 0.0),
         Point3::new(2.0, 0.0, 0.0),
         &resolve,
         1.0,
         band,
-        Some(geom_brep::NurbsLane::certified()),
+        geom_brep::NurbsLane::certified(),
     )
     .expect("0.9eps witness offset is marginal but VALID");
     // Old path: an exact-in-principle isometry (identity here — the
@@ -91,14 +91,14 @@ fn marginal_witness_slack_vs_remint_freshness() {
         param_start: t0,
         param_end: t1,
     };
-    EdgeCurve::certify_via(
+    EdgeCurve::certify(
         fresh_spec,
         Point3::new(0.0, 0.0, 0.0),
         Point3::new(2.0, 0.0, 0.0),
         &resolve,
         1.0,
         band,
-        Some(geom_brep::NurbsLane::certified()),
+        geom_brep::NurbsLane::certified(),
     )
     .expect("the re-mint formula's witness certifies with fresh headroom");
 }

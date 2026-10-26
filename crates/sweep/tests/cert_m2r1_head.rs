@@ -36,28 +36,25 @@ fn m2r1_structural_dual_matches_f64_structural_and_shows_what_the_dual_loses() {
     }
 }
 
-/// Bitwise pin of the dual's structural-half certificates against f64's
-/// (the geometric_cube claim, on curved bodies).
+/// Bitwise pin of the dual's edge intervals against f64's (the
+/// geometric_cube claim, on curved bodies): a dual edge carries no
+/// certificate (DL3), so its interval is what it has to compare.
 #[test]
 fn m2r1_dual_structural_value_channel_is_f64s() {
     let f = cert_corpus::corpus::<f64>();
     let d = cert_corpus::corpus::<Dual64>();
     for ((n, fb), (_, db)) in f.iter().zip(d.iter()) {
-        let fr: Vec<u64> = fb
+        let fr: Vec<(u64, u64)> = fb
             .curves()
-            .filter_map(|(_, c)| {
-                c.certified()
-                    .map(|c| c.certificate().max_residual.to_bits())
-            })
+            .filter_map(|(_, c)| c.certified().map(|c| c.params()))
+            .map(|(a, b)| (a.to_bits(), b.to_bits()))
             .collect();
-        let dr: Vec<u64> = db
+        let dr: Vec<(u64, u64)> = db
             .curves()
-            .filter_map(|(_, c)| {
-                c.certified()
-                    .map(|c| c.certificate().max_residual.value.to_bits())
-            })
+            .filter_map(|(_, c)| c.certified().map(|c| c.params()))
+            .map(|(a, b)| (a.value.to_bits(), b.value.to_bits()))
             .collect();
-        assert_eq!(fr, dr, "{n}: certificate value channel");
+        assert_eq!(fr, dr, "{n}: edge interval value channel");
         let _ = Body::<f64>::new;
     }
 }

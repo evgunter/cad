@@ -1,0 +1,61 @@
+---
+id: the-policys-other-lanes-encode-certification-rights-as-a-runtime-none
+kind: issue
+title: The at-rest policy's fitted, shell, quadrature and region lanes still encode 'a dual may not certify' as a runtime None; the edge door no longer does
+status: open
+opened: 2026-10-25
+priority: P2
+cost: M
+parent: closed-form-edge-carriers-pass-on-samples-with-no-stated-bound-between-them
+---
+
+
+
+Filed by conic unit 1's implementer lane
+(`closed-form-edge-carriers-pass-on-samples-with-no-stated-bound-between-them`,
+branch `offset/limb2-for-every-carrier`), which built the edge door's
+split on Ev's ruling on PR 5689 and was asked to move "the policy's other
+optional lanes to the same shape where they encode 'a dual may not
+certify'".
+
+**What moved.** The edge door: `topo::AtRestPolicy::nurbs_lane` is gone;
+the policy names the edge door as two functions every scalar implements
+(`attach_edge`, `reattach_edge` in `crates/topo/src/props.rs`), a
+certifying scalar's door certifying in full and a dual's minting, and
+what an edge carries is `geom_core::Real::Carries` (the certificate, or
+`geom_core::Uncertified` at a dual). The spline foot the offset door's
+re-anchor reads moved off the certification lane to its own value,
+`geom_brep::SplineFoot`, read through `AtRestPolicy::spline_foot`, an
+`Option` like `section_lane`: it is a derivation written at the
+certified-bracket scalars (`geom::NurbsCurve3::project_from_seed`'s
+`CertifiedBounds` bound), not a certification.
+
+**What did not, and why it is a unit of its own.** Four lanes still
+answer `None` at a dual for the reason the edge lane did, certification
+rights (`crates/topo/src/props.rs`, the `Dual` arm of `AtRestPolicy`):
+
+- `fitted_lane` — the pcurve mint and the tier-3 pcurve pass refuse
+  `PcurveCertifyError::FittedLaneUnsupported` at the check that asks
+  (`crates/topo/src/pcurves.rs`, 7 reads; DL3 names this refusal).
+- `shell_door` — the shell lowering refuses typed
+  (`crates/editor-core/src/eval/wire.rs`; DL3 names it).
+- `quad_lane` — not a refusal but a second reading: at `None` the
+  construction-time decisions read the closed form only
+  (`crates/topo/src/loop_winding.rs` `Unwound::Uncertified`,
+  `crates/topo/src/boolean/solid_contain.rs` the `VolumeUncertified`
+  arm that escalates to `Measure::Quadrature` only where the lane is
+  held, `crates/topo/src/shell.rs` and `crates/topo/src/pieces.rs`'s
+  shell roles), so a dual can refuse where `f64` escalated; see
+  `a-dual-reads-the-closed-form-where-f64-escalates-to-the-quadrature`.
+- `region_lane` — the census's chart-region arms refuse
+  `CensusLaneUnsupported` and the crossing rung's backing consult folds
+  to `false` (`crates/topo/src/census.rs`).
+
+Each consumer has its own `None` arm with its own meaning (a typed
+refusal for the first two and the last, a fallback computation for the
+quadrature), so moving them is a design pass per lane, not a mechanical
+edit: the edge door could only mint at a dual because C2 and DL3 say
+what a dual's edge is, and none of these four has that sentence yet.
+The edge door's shape is the model: the certifying function bounded on
+the certification trait with its lane a plain argument, and the scalar's
+policy naming what the dual does instead.

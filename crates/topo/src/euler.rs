@@ -135,15 +135,11 @@
 //! **uncertified spec** ([`geom_brep::EdgeCurveSpec`]: D2 intensional
 //! description + carrier cache + parameter interval) and run the D4 ¶2
 //! certification gate *before mutating*: the spec is certified against
-//! the edge's endpoint points and the body's surfaces, with the plane ×
-//! NURBS lane the scalar's policy holds
-//! ([`crate::AtRestPolicy::nurbs_lane`]), and a failure is a typed
-//! [`EulerOpError::Certification`] with the body untouched (atomicity
-//! extends over the geometry gate). A spec of that class at a scalar
-//! holding no lane is [`EulerOpError::NurbsLaneUnsupported`] instead,
-//! at every door, the new-edge mints included: the operators accept any
-//! spec that certifies, so `mef` onto a shared chart or a strut `mev`
-//! can mint the class. Face-minting operators take the new
+//! the edge's endpoint points and the body's surfaces through the
+//! scalar's edge door ([`crate::AtRestPolicy::attach_edge`]: certified
+//! in full where the scalar certifies, minted where it never does), and
+//! a failure is a typed [`EulerOpError::Certification`] with the body
+//! untouched (atomicity extends over the geometry gate). Face-minting operators take the new
 //! face's surface as a [`FaceSurface`] spec (inherit the split face's
 //! key / mint a new [`Surface`] / share an existing key); the new
 //! face's `sense` is derived on the parent's chart and stated by the
@@ -250,7 +246,7 @@ use geom::Surface;
 use geom_brep::recourse::{ReadAt, Reading};
 use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec};
 
-use crate::policy_lane::{ByPolicy, KernelSite, Origin};
+use crate::policy_lane::{KernelSite, Origin};
 use geom_core::{Band, Decide, Point3, Real, Tol};
 use slotmap::SecondaryMap;
 
@@ -868,20 +864,6 @@ pub enum EulerOpError {
         /// The typed re-certification failure.
         error: CertifyError,
     },
-    /// The spec's certificate needs the NURBS lane (the classes are
-    /// listed on [`CertifyError::NurbsLaneNotSupplied`]), and this
-    /// scalar's policy holds no lane
-    /// ([`crate::AtRestPolicy::nurbs_lane`] answers `None`: a dual,
-    /// DL1). Every Euler door takes its lane from that policy, so a lane
-    /// missing there is the scalar's. The body is untouched.
-    NurbsLaneUnsupported {
-        /// The existing edge whose description is of the class; `None`
-        /// where the door was minting a new edge (`mev`, `mef`, `mekr`
-        /// and the ring doors), which has no key yet.
-        edge: Option<EdgeKey>,
-        /// The scalar the door ran at ([`geom_core::Real::NAME`]).
-        scalar: &'static str,
-    },
     /// [`Body::mev`]'s fan site, or either kill door's fan merge
     /// ([`Body::kev`], [`Body::kev_describing`]), would move one end of
     /// a **null edge**
@@ -1450,12 +1432,6 @@ impl EulerOpError {
                 "re-based edge {edge:?} would keep a carrier its endpoint left: {}",
                 error.render(at)
             ),
-            Self::NurbsLaneUnsupported { edge, scalar } => format!(
-                "{}'s certificate needs the NURBS lane, which only a scalar with \
-                 certification rights holds; the {scalar} scalar does not. Recourse: run the \
-                 operation at a certifying scalar",
-                edge.map_or_else(|| "the new edge".to_owned(), |e| format!("edge {e:?}"))
-            ),
             Self::RebasedNullEdge { edge } => format!(
                 "the moved run re-bases one end of null edge {edge:?} and not the other, \
                  and the re-basing gate cannot ask whether the moved end lands on the \
@@ -1838,10 +1814,6 @@ pub(crate) fn every_euler_op_error_once()
         EulerOpError::RebasedCarrier {
             edge: ek,
             error: CertifyError::Unimplemented,
-        },
-        EulerOpError::NurbsLaneUnsupported {
-            edge: Some(ek),
-            scalar: <geom_core::Dual64 as Real>::NAME,
         },
         EulerOpError::RebasedNullEdge { edge: ek },
         EulerOpError::MergeRebasesCarriers { edges: vec![ek] },
@@ -2305,9 +2277,8 @@ impl<T: Decide> Body<T> {
     /// edge** the run moves one end of (one of its halves in the run,
     /// the other not) is refused [`EulerOpError::RebasedNullEdge`]; one
     /// whose two halves are both in the run moves whole and is carried.
-    /// The one-half refusal, and at a scalar holding no plane × NURBS
-    /// lane that class's [`EulerOpError::NurbsLaneUnsupported`], stand
-    /// even where `point` is the old vertex's own: the gate does not ask whether `point` is
+    /// The one-half refusal stands even where `point` is the old
+    /// vertex's own: the gate does not ask whether `point` is
     /// that point, and its docs (the crate-internal
     /// `Body::certify_rebased_run`) say why. A fan split that moves
     /// nothing is [`Body::mev_null`], which copies the old point; it
@@ -3945,9 +3916,9 @@ impl<T: Decide> Body<T> {
 
     /// The attachment gate (D4 ¶2 at operation time): certifies an
     /// [`EdgeCurveSpec`] against its endpoint points, with surface keys
-    /// resolved from this body's arena and the plane × NURBS lane read
-    /// off the scalar's policy ([`crate::AtRestPolicy::nurbs_lane`]), as
-    /// `origin`'s data ([`Origin`]).
+    /// resolved from this body's arena, through the scalar's edge door
+    /// ([`crate::AtRestPolicy::attach_edge`]), as `origin`'s data
+    /// ([`Origin`]).
     /// `edge` is the existing edge the spec certifies (a re-description,
     /// a split child, a merged member), `None` where the door mints a new
     /// edge; `faces` are the two faces the edge bounds as this door
@@ -3963,9 +3934,7 @@ impl<T: Decide> Body<T> {
     ///
     /// # Errors
     ///
-    /// [`EulerOpError::NurbsLaneUnsupported`] naming `edge` where the
-    /// spec is of the plane × NURBS class and the scalar holds no lane;
-    /// [`EulerOpError::Certification`] on every other refusal.
+    /// [`EulerOpError::Certification`] on the door's refusal.
     #[allow(clippy::too_many_arguments)] // the certification's, plus whose data it is
     pub(crate) fn certify_edge_spec(
         &self,
@@ -4005,10 +3974,7 @@ impl<T: Decide> Body<T> {
             band,
             stated.as_ref(),
         )
-        .map_err(|refusal| match refusal {
-            ByPolicy::NoLane { scalar } => EulerOpError::NurbsLaneUnsupported { edge, scalar },
-            ByPolicy::Refused(error) => EulerOpError::Certification { error },
-        })
+        .map_err(|error| EulerOpError::Certification { error })
     }
 
     /// The image `edge` already carries on the spline side of its
@@ -4192,16 +4158,11 @@ impl<T: Decide> Body<T> {
     /// `work/topo/the-re-basing-gate-refuses-m7-8-where-nothing-moves.md`.
     /// Every other doc that meets this question points here.
     ///
-    /// **The plane × NURBS class (M7-8) is re-derived through the lane
-    /// the scalar's policy holds** ([`crate::AtRestPolicy::nurbs_lane`]).
-    /// A scalar holding none (a dual) refuses an edge of the class in
-    /// the run with [`EulerOpError::NurbsLaneUnsupported`]: an operator
-    /// makes no claim it cannot derive, and a claim it cannot derive is
-    /// not a licence to move the edge. That refusal comes before any
-    /// endpoint check, so there the gate refuses where the new point is
-    /// the old vertex's own too; and a run moving one half of a null
-    /// edge is refused at the old point at every scalar. Both are
-    /// over-refusals of a move that moves nothing. A fan split that
+    /// **Each edge is re-derived through the scalar's edge door**
+    /// ([`crate::AtRestPolicy::reattach_edge`]): its certificate in full
+    /// where the scalar certifies, its mint where it never does. A run
+    /// moving one half of a null edge is refused at the old point at
+    /// every scalar, an over-refusal of a move that moves nothing. A fan split that
     /// keeps the old point is [`Body::mev_null`]'s, which copies the old
     /// point and so skips this gate structurally; every kernel run site
     /// (the splitting and boolean pipelines' null-edge insertion) goes
@@ -4245,15 +4206,8 @@ impl<T: Decide> Body<T> {
                 let origin = Origin::Kernels(KernelSite::ReBasedRun);
                 crate::policy_lane::recertify(origin, curve, start, end, surfaces, reach, band)
             };
-            let error = match recertify(p_start, p_end) {
-                Ok(_) => continue,
-                Err(ByPolicy::NoLane { scalar }) => {
-                    return Err(EulerOpError::NurbsLaneUnsupported {
-                        edge: Some(edge_key),
-                        scalar,
-                    });
-                }
-                Err(ByPolicy::Refused(error)) => error,
+            let Err(error) = recertify(p_start, p_end) else {
+                continue;
             };
             if is_endpoint_residual(error) {
                 // The carrier misses an endpoint AFTER the move. Ask
@@ -4261,7 +4215,7 @@ impl<T: Decide> Body<T> {
                 // identical answer means it already missed one, so
                 // this move is not what made it false.
                 let (now_start, now_end) = self.rebased_endpoints(edge_key, &[], p_new);
-                if recertify(now_start, now_end).err() == Some(ByPolicy::Refused(error)) {
+                if recertify(now_start, now_end).err() == Some(error) {
                     continue;
                 }
             }

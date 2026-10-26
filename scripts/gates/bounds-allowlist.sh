@@ -726,7 +726,10 @@ BOUNDS_ALLOWLIST=(
   # `sphere_circle_image_lane`, retired with the Hermite image, so the
   # count is unmoved. Same seam, reached only through
   # `FittedLane::certified`.
-  'crates/geom-brep/src/pcurve_cache.rs 8 M6-2, the SSI rung-3 certificate'
+  # C2 as ratified on PR 5652 (limbs 1 and 2 owed by every carrier)
+  # adds `closed_form_offset_sup`, the rung-3 limb 2's read of a
+  # closed-form carrier through its enclosing net, at that limb's bound.
+  'crates/geom-brep/src/pcurve_cache.rs 10 M6-2, the SSI rung-3 certificate; C2 2026-10-24 (PR 5652), limb 2 for every carrier kind at the same bound'
   # The fitted lane's door value, beside the bodies it holds:
   # `FittedLane::certified`'s block (`Decide + CertifiedBounds`) is the
   # certification RIGHT the value stands for, so the type cannot be
@@ -755,7 +758,9 @@ BOUNDS_ALLOWLIST=(
   # ratified at this bound) with `Limbs::Tube`, and its bound is its
   # callee's: nothing weaker compiles. The kernel reaches it only through `NurbsLane::certified`;
   # it is public so the at-rest rows can run the limb directly.
-  'crates/geom-brep/src/edge_nurbs.rs 12 M7-8, the declare-and-check edge lane; the rung-3 tube body at M6-2; its NURBS x NURBS twin (nurbs_pair_limbs) at the same bound; its incidence alone for OnPair (plane_nurbs_incidence) at the same bound'
+  # C2 as ratified on PR 5652 adds `analytic_edge_limbs`, the analytic
+  # pair's limbs for a carrier of every kind, at `analytic_rung3`'s bound.
+  'crates/geom-brep/src/edge_nurbs.rs 14 M7-8, the declare-and-check edge lane; the rung-3 tube body at M6-2; its NURBS x NURBS twin (nurbs_pair_limbs) at the same bound; its incidence alone for OnPair (plane_nurbs_incidence) at the same bound; C2 2026-10-24 (PR 5652), the analytic limbs for every carrier kind at the same bound'
   # M7-8's 2026-09-02 amendment, the lane's split as a BOUND: the one
   # DOOR that names the certified body `plane_nurbs_limbs`, the lane's
   # door value `NurbsLane::certified`'s block (`Decide +
@@ -766,7 +771,15 @@ BOUNDS_ALLOWLIST=(
   # `wiring_rows::holds_the_certified_nurbs_lane`, which forms that
   # constructor at each certifying scalar and so restates its bound and
   # nothing wider, in a `#[cfg(test)]` module that reads no bracket.
-  'crates/geom-brep/src/certify.rs 2 M7-8 2026-09-02, the lane split as a BOUND; the lane door value `NurbsLane::certified` and its wiring row at the same bound'
+  # 2026-10-25 adds the edge door split (Ev's ruling on PR 5689, the
+  # geom-brep README's C2): the certification doors' impl block and the
+  # engine they share (`run_checks`), at the lane's bound, so a scalar
+  # that may not certify cannot name them.
+  'crates/geom-brep/src/certify.rs 4 M7-8 2026-09-02, the lane split as a BOUND; the lane door value `NurbsLane::certified` and its wiring row at the same bound; 2026-10-25, the edge door split as a BOUND, the certifying doors and their engine'
+  # 2026-10-25, the edge door split as a BOUND (PR 5689): the certifying
+  # scalars' edge door bodies their policies run, at the certifying
+  # doors' own bound, and nothing else in the file.
+  'crates/topo/src/policy_lane.rs 2 2026-10-25, the edge door split as a BOUND; the certifying door bodies'
   # M9-2 PR-1, the chart-region overlap predicate.
   'crates/topo/src/chart_region.rs 28 M9-2 PR-1, the chart-region overlap predicate; the region door value `RegionLane::certified` and its wiring row at the same bound'
   # 2026-08-29, the advisory-check registry. Its fifth bound is the same

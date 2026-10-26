@@ -302,10 +302,8 @@ impl<T: Decide> Body<T> {
     /// edge ([`EulerOpError::NullScaffoldCurve`]), its spec is
     /// adjacency-coherent on the moved charts
     /// ([`EulerOpError::DescriptionNotAdjacent`]) and certifies at its
-    /// endpoints ([`EulerOpError::RechartFalsifies`]; the plane × NURBS
-    /// lane is the scalar's policy, [`crate::AtRestPolicy::nurbs_lane`],
-    /// and a scalar holding none refuses that class
-    /// [`EulerOpError::NurbsLaneUnsupported`]). Then no unlisted
+    /// endpoints through the scalar's edge door
+    /// ([`EulerOpError::RechartFalsifies`]). Then no unlisted
     /// edge is stranded ([`EulerOpError::RechartUndescribed`], every one
     /// named). Then per moved face in order onto a chart that is not its
     /// old one, per loop (outer, then rings) and half-edge in cycle
@@ -438,18 +436,10 @@ impl<T: Decide> Body<T> {
                 reach,
                 band,
             )
-            .map_err(|refusal| match refusal {
-                crate::policy_lane::ByPolicy::NoLane { scalar } => {
-                    EulerOpError::NurbsLaneUnsupported {
-                        edge: Some(edge),
-                        scalar,
-                    }
-                }
-                crate::policy_lane::ByPolicy::Refused(error) => EulerOpError::RechartFalsifies {
-                    door: RechartDoor::SetFaceSurfacesDescribing,
-                    edge,
-                    error,
-                },
+            .map_err(|error| EulerOpError::RechartFalsifies {
+                door: RechartDoor::SetFaceSurfacesDescribing,
+                edge,
+                error,
             })?;
             written.push((edge, sides, curve));
         }
@@ -939,8 +929,7 @@ impl<T: Decide> Body<T> {
     /// ([`EulerOpError::DescriptionNotAdjacent`]); and, `tol` building
     /// a band ([`EulerOpError::Certification`]), it certifies on the
     /// edge's own carrier and interval at its endpoints
-    /// ([`EulerOpError::RechartFalsifies`], or
-    /// [`EulerOpError::NurbsLaneUnsupported`]). A kill re-describes; it
+    /// ([`EulerOpError::RechartFalsifies`]). A kill re-describes; it
     /// does not move a carrier, so the stored carrier, interval and
     /// pcurve rows stand. Then no unlisted edge is stranded
     /// ([`EulerOpError::RechartUndescribed`], every one named, in
@@ -1000,17 +989,7 @@ impl<T: Decide> Body<T> {
                 crate::policy_lane::Origin::Kernels(crate::policy_lane::KernelSite::ReDescription);
             let curve =
                 crate::policy_lane::certify(origin, spec, p_start, p_end, resolve, reach, band()?)
-                    .map_err(|refusal| match refusal {
-                        crate::policy_lane::ByPolicy::NoLane { scalar } => {
-                            EulerOpError::NurbsLaneUnsupported {
-                                edge: Some(edge),
-                                scalar,
-                            }
-                        }
-                        crate::policy_lane::ByPolicy::Refused(error) => {
-                            EulerOpError::RechartFalsifies { door, edge, error }
-                        }
-                    })?;
+                    .map_err(|error| EulerOpError::RechartFalsifies { door, edge, error })?;
             written.push((edge, sides, curve));
         }
         let keeps = landing.after == Slot::Kept(old) || refusals_lifted();
@@ -1315,10 +1294,9 @@ impl<T: Decide> Body<T> {
     /// [`BadArgument::Stale`](crate::euler::BadArgument::Stale) if `edge` does not
     /// resolve; [`EulerOpError::DescriptionNotAdjacent`] on a
     /// description whose surfaces are not the edge's faces' surfaces;
-    /// [`EulerOpError::Certification`] on a failed gate, whose plane × NURBS lane is the scalar's policy
-    /// ([`crate::AtRestPolicy::nurbs_lane`]), and
-    /// [`EulerOpError::NurbsLaneUnsupported`] where that class meets a
-    /// scalar holding none; [`EulerOpError::PcurveMint`] where a face is
+    /// [`EulerOpError::Certification`] on a failed gate, the scalar's
+    /// edge door ([`crate::AtRestPolicy::attach_edge`]);
+    /// [`EulerOpError::PcurveMint`] where a face is
     /// re-minted and a half-edge of it does not resolve.
     /// The body is untouched on `Err`.
     pub fn set_edge_curve(

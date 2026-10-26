@@ -450,7 +450,6 @@ fn certify_errors() -> Vec<CertifyError> {
         },
         CertifyError::UnresolvedSurface { key },
         CertifyError::Unimplemented,
-        CertifyError::NurbsLaneNotSupplied,
         CertifyError::OnPairArcRim {
             iso: None,
             limb: geom_brep::SsiLimb::HullValueChart,

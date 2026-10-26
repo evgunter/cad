@@ -9,8 +9,8 @@
 //! [`validate_pseudomanifold_certificate`], each with its `_structural`
 //! twin (the door roster below counts them) — which runs the same pass
 //! and returns the [`crate::SignCertificate`] check 7 decided on instead
-//! of dropping it; a `_structural` form holds no lane, and its check 7
-//! is the closed form's. Every tier-3 door makes check 7 the same way
+//! of dropping it; a `_structural` form holds no quadrature lane, and its
+//! check 7 is the closed form's. Every tier-3 door makes check 7 the same way
 //! (`plus_v_by_sign`, through the lane it holds): one walk per SOLID, check
 //! 7's subject, each stopped at the round where that solid's sign is
 //! certain, assembled into one body certificate over the face arena —
@@ -211,9 +211,10 @@
 //! - **`_certificate`** returns the [`crate::SignCertificate`] check 7
 //!   decided on instead of `()`.
 //! - **`_structural`** holds no certified lane (H5 ruling 3): check 7
-//!   through the closed form, no NURBS lane at check 2 (so no claim
-//!   about an edge whose certificate needs that lane), and at
-//!   tier 3′ no chart-region door in the census. Every door without it
+//!   through the closed form, and at tier 3′ no chart-region door in the
+//!   census. Check 2 is the scalar's at every door: each edge re-derived
+//!   through [`crate::AtRestPolicy::reattach_edge`], the certificate in
+//!   full at a certifying scalar and the mint at a dual. Every door without it
 //!   has a twin with it. At tier 3 the twin also GATES check 7
 //!   differently: it runs the battery in one call, so check 7 waits on
 //!   checks 1–6 only, where the composed door's `?` makes it wait on the
@@ -3043,10 +3044,6 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
         | CertifyError::AnalyticRung3(A::TubeNotOneArc { .. }) => {
             "its curve is not proved to span one arc of its faces' crossing"
         }
-        CertifyError::NurbsLaneNotSupplied => {
-            "its certificate needs the NURBS lane, and the check that ran was given none, so \
-             nothing about it was checked"
-        }
         CertifyError::Escalated { check, .. } => certify_undecided(*check),
         CertifyError::PlaneNurbs(P::TransversalityEscalated { .. }) => {
             certify_undecided(CertCheck::Transversality)
@@ -3080,10 +3077,6 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
                 | A::CarrierEnclosure(_),
             ) => NOT_YET_ENDING,
             CertifyError::Band(_) => TOLERANCE,
-            CertifyError::NurbsLaneNotSupplied => {
-                "Recourse: check the body through a door that holds the NURBS lane, \
-                 at a certifying scalar"
-            }
             CertifyError::ChartImageUnavailable { .. }
             | CertifyError::ResidualExceeded { .. }
             | CertifyError::IntervalNotForward { .. }
@@ -5234,9 +5227,8 @@ pub(crate) fn closed_by_tier<T: Real>(
 /// CERTIFICATION. So this
 /// entry is two private functions composed:
 ///
-/// - a structural phase running checks 1–6, 8, 9 and 11 (with check 2's
-///   certified plane × NURBS lane), at every [`crate::AtRestPolicy`]
-///   scalar;
+/// - a structural phase running checks 1–6, 8, 9 and 11, at every
+///   [`crate::AtRestPolicy`] scalar;
 /// - `validate_geometric_certified`, check 7 and then check 10 through
 ///   [`crate::QuadLane::certified`], bounded on the quantity they
 ///   actually need.
@@ -5356,11 +5348,6 @@ pub fn validate_geometric_certificate<
     body: &Body<T>,
     tol: Tol,
 ) -> Result<crate::props::SignCertificate<'_, T>, Vec<ValidationError>> {
-    // The structural phase runs WITH check 2's NURBS lane injected,
-    // which is what keeps this composed door re-deriving the lane's
-    // certificate classes at rest; the public structural door,
-    // whose bound cannot name the lane, runs without it.
-    //
     // The `?` between the two halves is the composition
     // `validate_geometric_certified`'s privacy exists to enforce: no
     // caller takes the certified half without the structural one, so no
@@ -5374,11 +5361,7 @@ pub fn validate_geometric_certificate<
     // and reported first, as the structural doors' one pass reports it
     // (`cleave_mint_doors::split_edge_splits_an_m7_8_edge_into_two_of_the_class_at_f64`
     // pins both: check 7's verdict, then check 11's).
-    match structural_via(
-        body,
-        tol,
-        StructuralPhase::BeforeCertifiedCheck7(CertifiedLanes::<T>::held().nurbs),
-    ) {
+    match structural_via(body, tol, StructuralPhase::BeforeCertifiedCheck7) {
         Ok(_) => validate_geometric_certified(body, tol),
         Err(joinable) if joinable.iter().all(ValidationError::is_check_11) => {
             let mut errors = validate_geometric_certified(body, tol)
@@ -5412,13 +5395,9 @@ pub fn validate_geometric_certificate<
 /// verdicts (`work/tally/lane-free-volume-sign-reads-decide-on-a-rounded-sum`).
 /// A face that needed the quadrature is refused typed
 /// ([`ValidationError::VolumeUncomputable`]) rather than passed
-/// unbounded. **Check 2 makes no claim about an edge whose
-/// certificate needs the NURBS lane** ([`geom_brep::CertifyError::NurbsLaneNotSupplied`] lists the classes): such an
-/// edge re-derives only through that lane, which this door does not
-/// hold. Nor does check 8 make it: a fitted row's check 4 bounds its
-/// image against its own chart alone, so neither a spline carrier's
-/// incidence with its mate (limbs 1 and 2) nor the uniqueness tube is
-/// re-derived here.
+/// unbounded. **Check 2 is the scalar's**, as at every door: each edge
+/// re-derived through [`crate::AtRestPolicy::reattach_edge`], its
+/// certificate in full at a certifying scalar and its mint at a dual.
 /// Check 10 (shell winding) reads each shell's role off the same sums,
 /// and refuses a several-shell solid one of whose shells needed the
 /// quadrature or reads no role ([`ValidationError::ShellRoleUndecided`]).
@@ -5429,9 +5408,8 @@ pub fn validate_geometric_certificate<
 ///
 /// # Errors
 ///
-/// As [`validate_geometric`], less the check-2 verdicts on edges whose
-/// certificate needs the NURBS lane and plus the closed form's typed
-/// refusal at check 7.
+/// As [`validate_geometric`], plus the closed form's typed refusal at
+/// check 7.
 pub fn validate_geometric_structural<
     T: geom_core::Decide + geom_core::Bounds + crate::props::AtRestPolicy,
 >(
@@ -5461,19 +5439,17 @@ pub fn validate_geometric_certificate_structural<
     structural_via(body, tol, StructuralPhase::NoLane).map(certificate_of_a_clean_verdict)
 }
 
-/// **Which of the two callers is running the structural battery** — the
-/// one argument that decides both of the battery's injected derivations
-/// together, because they are only ever right as a pair.
+/// **Which of the two callers is running the structural battery**: it
+/// decides whether the battery makes check 7.
 #[derive(Clone, Copy)]
-enum StructuralPhase<T: geom_core::Decide> {
-    /// The `_structural` doors: no lane at all — check 2 without the
-    /// NURBS lane, check 7 MADE through the closed form.
+enum StructuralPhase {
+    /// The `_structural` doors: no quadrature lane — check 7 MADE
+    /// through the closed form.
     NoLane,
-    /// The composed [`validate_geometric`]'s first phase: check 2 through
-    /// the certified NURBS lane it hands in, and check 7 NOT
+    /// The composed [`validate_geometric`]'s first phase: check 7 NOT
     /// made, because the composed door makes it next through the
     /// certified quadrature.
-    BeforeCertifiedCheck7(geom_brep::NurbsLane<T>),
+    BeforeCertifiedCheck7,
 }
 
 /// The tier-3 battery for one [`StructuralPhase`] — the shared body of
@@ -5489,11 +5465,11 @@ enum StructuralPhase<T: geom_core::Decide> {
 fn structural_via<'b, T: geom_core::Decide + geom_core::Bounds + crate::props::AtRestPolicy>(
     body: &'b Body<T>,
     tol: Tol,
-    phase: StructuralPhase<T>,
+    phase: StructuralPhase,
 ) -> Result<Option<crate::props::SignCertificate<'b, T>>, Vec<ValidationError>> {
-    let (nurbs_lane, plus_v) = match phase {
-        StructuralPhase::NoLane => (None, PlusVCheck::Through(None)),
-        StructuralPhase::BeforeCertifiedCheck7(lane) => (Some(lane), PlusVCheck::NotMade),
+    let plus_v = match phase {
+        StructuralPhase::NoLane => PlusVCheck::Through(None),
+        StructuralPhase::BeforeCertifiedCheck7 => PlusVCheck::NotMade,
     };
     // Coarse gate: structural tiers first, verbatim.
     validate_closed(body)?;
@@ -5503,7 +5479,6 @@ fn structural_via<'b, T: geom_core::Decide + geom_core::Bounds + crate::props::A
         &mut marks,
         tol,
         plus_v,
-        nurbs_lane,
         <T as crate::props::AtRestPolicy>::offset_fit_lane(),
     );
     if errors.is_empty() {
@@ -5887,19 +5862,12 @@ pub(crate) fn scaffolds_at_rest<T: Real>(body: &Body<T>) -> Vec<ValidationError>
 /// [`crate::AtRestPolicy`] scalar, a dual included, with the certified
 /// door and its `_structural` twin differing in exactly the lane they
 /// hand in.
-///
-/// `nurbs_lane` is check 2's plane × NURBS derivation, taken as an
-/// argument for the same reason and with the same discipline: the
-/// `_structural` doors hand `None` and the certified doors hand the
-/// certified body, and what a `None` costs is written at
-/// [`validate_pseudomanifold_structural`].
 pub(crate) fn tier3_local_checks<
     'b,
     T: geom_core::Decide + geom_core::Bounds + crate::props::AtRestPolicy,
 >(
     body: &'b Body<T>,
     tol: Tol,
-    nurbs_lane: Option<geom_brep::NurbsLane<T>>,
     quad_lane: Option<crate::props::QuadLane<T>>,
 ) -> (
     Vec<ValidationError>,
@@ -5911,7 +5879,6 @@ pub(crate) fn tier3_local_checks<
         &mut marks,
         tol,
         PlusVCheck::Through(quad_lane),
-        nurbs_lane,
         <T as crate::props::AtRestPolicy>::offset_fit_lane(),
     )
 }
@@ -6351,13 +6318,12 @@ pub(crate) fn material_arm_error(
 /// **This pass makes every check in ONE call**, which is why it is not
 /// [`validate_geometric`] with a second return value: the whole
 /// eleven-check battery runs in one call, check 7 included through the
-/// certified quadrature ([`crate::QuadLane::certified`]) and check 2
-/// through the certified plane × NURBS lane, so its bound names the
-/// certification right. Its `Err` is the battery's vector and differs
+/// certified quadrature ([`crate::QuadLane::certified`]), so its bound
+/// names the certification right. Its `Err` is the battery's vector and differs
 /// from the composed door's in one stated way: its check 7 is gated on
 /// checks 1-6 only, where the composed door gates on the whole
 /// structural phase. [`contact_marks_structural`] is the same pass
-/// holding neither lane, at every scalar with a bracket.
+/// holding no quadrature lane, at every scalar with a bracket.
 ///
 /// **No `_certificate` form**, and that is a roster decision rather
 /// than a hole: this pass's product is the marks channel, the check-7
@@ -6375,36 +6341,32 @@ pub fn contact_marks<
     body: &Body<T>,
     tol: Tol,
 ) -> Result<slotmap::SecondaryMap<EdgeKey, ContactMark>, Vec<ValidationError>> {
-    let lanes = CertifiedLanes::<T>::held();
-    contact_marks_via(body, tol, Some(lanes.nurbs), Some(lanes.quad))
+    contact_marks_via(body, tol, Some(CertifiedLanes::<T>::held().quad))
 }
 
-/// **[`contact_marks`] holding NO lane** — the same pass at every
-/// [`crate::AtRestPolicy`] scalar with a bracket, a
+/// **[`contact_marks`] holding NO quadrature lane** — the same pass at
+/// every [`crate::AtRestPolicy`] scalar with a bracket, a
 /// [`Dual`](geom_core::Dual) included, and it says less at every
-/// scalar, for the reasons [`validate_pseudomanifold_structural`]
-/// states: check 7 runs through the closed form alone, and check 2
-/// makes no claim about an edge whose certificate needs the NURBS lane.
+/// scalar, for the reason [`validate_pseudomanifold_structural`]
+/// states: check 7 runs through the closed form alone.
 ///
 /// # Errors
 ///
-/// As [`contact_marks`], less the check-2 verdicts on those edges and
-/// plus the closed form's typed refusal.
+/// As [`contact_marks`], plus the closed form's typed refusal.
 pub fn contact_marks_structural<
     T: geom_core::Decide + geom_core::Bounds + crate::props::AtRestPolicy,
 >(
     body: &Body<T>,
     tol: Tol,
 ) -> Result<slotmap::SecondaryMap<EdgeKey, ContactMark>, Vec<ValidationError>> {
-    contact_marks_via(body, tol, None, None)
+    contact_marks_via(body, tol, None)
 }
 
-/// The marks pass with its two lanes as arguments — the shared body of
-/// the certified door and its `_structural` twin.
+/// The marks pass with its quadrature lane as an argument — the shared
+/// body of the certified door and its `_structural` twin.
 fn contact_marks_via<T: geom_core::Decide + geom_core::Bounds + crate::props::AtRestPolicy>(
     body: &Body<T>,
     tol: Tol,
-    nurbs_lane: Option<geom_brep::NurbsLane<T>>,
     quad_lane: Option<crate::props::QuadLane<T>>,
 ) -> Result<slotmap::SecondaryMap<EdgeKey, ContactMark>, Vec<ValidationError>> {
     validate_closed(body)?;
@@ -6419,7 +6381,6 @@ fn contact_marks_via<T: geom_core::Decide + geom_core::Bounds + crate::props::At
         &mut marks,
         tol,
         PlusVCheck::Through(quad_lane),
-        nurbs_lane,
         <T as crate::props::AtRestPolicy>::offset_fit_lane(),
     );
     if errors.is_empty() {
@@ -6716,13 +6677,9 @@ pub(crate) fn curve_datum_errors<T: geom_core::Bounds>(
 /// `None` when the check was not made or a subject could not be derived
 /// at all, which the vector then says.
 ///
-/// `nurbs_lane` is check 2's second derivation, handed in for the same
-/// reason and with the same discipline. An edge whose certificate
-/// needs the NURBS lane re-derives only through it, so a caller that
-/// holds none does not re-derive it and this battery SKIPS the edge
-/// rather than reporting it (the lane's absence is its own refusal,
-/// [`geom_brep::CertifyError::NurbsLaneNotSupplied`], which lists the classes).
-/// Every other carrier class is re-certified identically either way.
+/// Check 2 re-derives every edge through the scalar's edge door
+/// ([`crate::AtRestPolicy::reattach_edge`]): the certificate in full at
+/// a certifying scalar, at every door alike, and the mint at a dual.
 ///
 /// `offset_fit` is check 1's re-derivation door for an `Approx` face
 /// ([`geom_brep::OffsetFitLane`]), handed in for a THIRD reason: what
@@ -6736,12 +6693,10 @@ pub(crate) fn curve_datum_errors<T: geom_core::Bounds>(
 /// Every check classifies at the run's linear band, `Band::linear(tol)`:
 /// a body is validated at the ε it was built at (D2, D4), and `Tol` is
 /// committed once per process, so that band is the build's.
-// The seventh parameter is the third INJECTED DERIVATION (`plus_v`,
-// `nurbs_lane`, `offset_fit`), and each is a door whose availability
-// differs by caller: bundling them into one struct would hide behind a
-// single name exactly the thing each parameter is here to make the
-// caller state.
-#[allow(clippy::too_many_arguments)]
+// `plus_v` and `offset_fit` are INJECTED DERIVATIONS, each a door whose
+// availability differs by caller: bundling them into one struct would
+// hide behind a single name exactly the thing each parameter is here to
+// make the caller state.
 pub(crate) fn tier3_local_checks_marked<
     'b,
     T: geom_core::Decide + geom_core::Bounds + crate::props::AtRestPolicy,
@@ -6750,7 +6705,6 @@ pub(crate) fn tier3_local_checks_marked<
     marks: &mut slotmap::SecondaryMap<EdgeKey, ContactMark>,
     tol: Tol,
     plus_v: PlusVCheck<T>,
-    nurbs_lane: Option<geom_brep::NurbsLane<T>>,
     offset_fit: Option<geom_brep::OffsetFitLane<T>>,
 ) -> (
     Vec<ValidationError>,
@@ -6937,34 +6891,10 @@ pub(crate) fn tier3_local_checks_marked<
         let Some((p_start, p_end)) = edge_endpoints(body, edge.he_plus) else {
             continue;
         };
-        // Re-certification takes the lane this battery was handed: the
-        // certified doors hand the certified lane and check 2 runs
-        // whole, and the `_structural` doors hand none and make no
-        // claim about an edge whose certificate needs that lane.
-        //
-        // **Read that at its true width, because it is wider than the
-        // class it is about.** `recertify_via_stated` is ONE call and check 2
-        // is a whole-edge check: without the lane the description
-        // resolver refuses `NurbsLaneNotSupplied` BEFORE the endpoint,
-        // interval and chart-image checks run, so what a lane-free
-        // caller does not get is every check-2 verdict on that edge —
-        // a drifted endpoint included — and not merely the lane's
-        // limbs. That is why the skip is a skip and
-        // not a report: reporting it would name a defect in the body
-        // for a fact about the caller.
-        //
-        // **An imported or minted body holding such an edge must re-derive
-        // its certificate at rest exactly as it did at attach time.**
-        // That invariant did not move; what moved is which door
-        // honours it. Every door whose bound names the right does
-        // ([`validate_geometric`], [`validate_pseudomanifold`],
-        // [`contact_marks`] and their declared and certificate forms),
-        // and `AtRestPolicy`'s certifying arms and `step-import`'s
-        // aggregate gate take those. The `_structural` doors do not,
-        // and each says so at its own signature.
-        //
-        // Every other carrier class is re-certified the same way at
-        // both doors. Re-certification re-derives, the wedge levered at
+        // Re-certification runs through the scalar's edge door
+        // (`AtRestPolicy::reattach_edge`): the certificate in full at a
+        // certifying scalar, at every door alike, and the mint at a dual.
+        // It re-derives, the wedge levered at
         // the edge's two faces' reach; it never trusts the stored
         // certificate. It meters the chart image the body stores where
         // the op metered it (`Body::stated_pair_image`, an
@@ -6984,7 +6914,7 @@ pub(crate) fn tier3_local_checks_marked<
             (t0, t1),
         );
         reaches.insert(edge_key, reach);
-        match crate::policy_lane::recertify_via_stated(
+        if let Err(error) = crate::policy_lane::recertify_stated(
             crate::policy_lane::Origin::Callers,
             curve,
             p_start,
@@ -6992,14 +6922,12 @@ pub(crate) fn tier3_local_checks_marked<
             |k| body.surfaces.get(k).cloned(),
             reach,
             band,
-            nurbs_lane,
             stated.as_ref(),
         ) {
-            Ok(_) | Err(geom_brep::CertifyError::NurbsLaneNotSupplied) => {}
-            Err(error) => errors.push(ValidationError::EdgeCertification {
+            errors.push(ValidationError::EdgeCertification {
                 edge: edge_key,
                 error,
-            }),
+            });
         }
         let (fs_plus, fs_minus) = sides.surfaces();
         // **The transience fence** (U2's Q2 as corrected): the
@@ -9418,12 +9346,9 @@ fn vertex_point<T: Real>(body: &Body<T>, vertex: VertexKey) -> Option<geom_core:
 ///
 /// # What this door checks, and which door does less
 ///
-/// **Check 2 re-derives an M7-8 edge here** — a plane × described-NURBS
-/// `Intersection` — through the certified plane × NURBS lane, which is
-/// why this door's bound names the certification right: an imported or
-/// minted body carrying that class re-derives its certificate at rest
-/// exactly as it did at attach time, the invariant this pass has always
-/// been the home of. It is the door a certifying caller wants, and the
+/// **Check 7 and the census read through the certified lanes**, which is
+/// why this door's bound names the certification right. It is the door a
+/// certifying caller wants, and the
 /// callers in the tree take it: [`AtRestBody::validate_pseudomanifold`]
 /// (its census over a kept verdict, the whole door over none), which
 /// is [`crate::AtRestPolicy`]'s `f64`, `Probe`, `Interval` and `Sym`
@@ -9431,8 +9356,8 @@ fn vertex_point<T: Real>(body: &Body<T>, vertex: VertexKey) -> Option<geom_core:
 /// the `pncad` prelude's re-export and through it `pncad-py`'s
 /// `Body.validate_pseudomanifold` (monomorphic at `f64`) and the tour's
 /// scenes. [`validate_pseudomanifold_structural`] is the same pass holding
-/// none of the three lanes this door holds (the plane × NURBS lane, the
-/// quadrature lane and the chart-region door), and is the door a
+/// neither of the two lanes this door holds (the quadrature lane and the
+/// chart-region door), and is the door a
 /// [`Dual`](geom_core::Dual) body goes through the tier-3′ pass by.
 pub fn validate_pseudomanifold<
     T: geom_core::Decide + geom_core::CertifiedBounds + crate::props::AtRestPolicy,
@@ -9444,16 +9369,15 @@ pub fn validate_pseudomanifold<
     validate_pseudomanifold_certificate(body, contacts, tol).map(|_| ())
 }
 
-/// **[`validate_pseudomanifold`] holding none of its three lanes** — no
-/// plane × NURBS lane, no quadrature lane
-/// ([`crate::QuadLane`]) and no chart-region door
+/// **[`validate_pseudomanifold`] holding neither of its two lanes** — no
+/// quadrature lane ([`crate::QuadLane`]) and no chart-region door
 /// ([`crate::RegionLane`]) — the tier-3′ pass at every
 /// [`crate::AtRestPolicy`] scalar with a bracket, a
 /// [`Dual`](geom_core::Dual) included. This door is what keeps the
 /// tier-3′ pass callable at a scalar that may not certify, which is the
 /// capability H-R3 protects.
 ///
-/// Three things this door does not do, each a statement about the DOOR
+/// Two things this door does not do, each a statement about the DOOR
 /// and never about the scalar it is called at — the `f64` caller of
 /// this door gets exactly what the dual caller gets. **Check 7 runs
 /// through the closed form alone**: a face that needs the certified
@@ -9462,13 +9386,7 @@ pub fn validate_pseudomanifold<
 /// own sums, where the certified door reads their interval
 /// re-derivation — so the two can disagree on a body whose volume is
 /// below its sums' rounding ([`validate_geometric_structural`] says
-/// more). **Check 2 makes no claim
-/// about an edge whose certificate needs the NURBS lane**, at any
-/// scalar, this one's `f64` included: such an edge re-derives only
-/// through that lane,
-/// which this door does not hold, and check 2 is a whole-edge check, so
-/// what goes unmade is every check-2 verdict on such an edge rather
-/// than only its lane's limbs. **The census examines no
+/// more). **The census examines no
 /// chart-region candidate and backs no crossing by a declared pair**:
 /// the pass hands the census no region door, so its two chart-region
 /// arms refuse rather than examine — the conformal face-pair arm on
@@ -9484,8 +9402,8 @@ pub fn validate_pseudomanifold<
 ///
 /// # Errors
 ///
-/// As [`validate_pseudomanifold`], less the check-2 verdicts above,
-/// plus the closed form's typed refusal at check 7, plus the census's
+/// As [`validate_pseudomanifold`], plus the closed form's typed refusal
+/// at check 7, plus the census's
 /// `CensusLaneUnsupported` on every conformal candidate and every
 /// Door-1-verified patch record, and an `UnrecordedContact` on every
 /// meeting a confirmed pair would have answered for.
@@ -9532,14 +9450,7 @@ pub fn validate_pseudomanifold_certificate<
     tol: Tol,
 ) -> Result<crate::props::SignCertificate<'b, T>, Vec<ValidationError>> {
     let lanes = CertifiedLanes::<T>::held();
-    pseudomanifold_certificate_via(
-        body,
-        contacts,
-        tol,
-        Some(lanes.nurbs),
-        Some(lanes.quad),
-        Some(lanes.region),
-    )
+    pseudomanifold_certificate_via(body, contacts, tol, Some(lanes.quad), Some(lanes.region))
 }
 
 /// [`validate_pseudomanifold_structural`]'s certificate form — the
@@ -9569,7 +9480,7 @@ pub fn validate_pseudomanifold_certificate_structural<
     contacts: &crate::boolean::ContactRecords,
     tol: Tol,
 ) -> Result<crate::props::SignCertificate<'b, T>, Vec<ValidationError>> {
-    pseudomanifold_certificate_via(body, contacts, tol, None, None, None)
+    pseudomanifold_certificate_via(body, contacts, tol, None, None)
 }
 
 /// **A body, and tier 3's verdict on it kept beside it** — so a
@@ -9828,7 +9739,7 @@ impl<T: Real> core::ops::Deref for AtRestBody<T> {
     }
 }
 
-/// The tier-3′ pass with its three lanes as arguments — the shared
+/// The tier-3′ pass with its two lanes as arguments — the shared
 /// body of the certified door and its `_structural` twin. The region
 /// lane is the census's: `None` is the census's own typed refusal at
 /// its two chart-region arms
@@ -9842,7 +9753,6 @@ fn pseudomanifold_certificate_via<
     body: &'b Body<T>,
     contacts: &crate::boolean::ContactRecords,
     tol: Tol,
-    nurbs_lane: Option<geom_brep::NurbsLane<T>>,
     quad_lane: Option<crate::props::QuadLane<T>>,
     region: Option<crate::chart_region::RegionLane<T>>,
 ) -> Result<crate::props::SignCertificate<'b, T>, Vec<ValidationError>> {
@@ -9851,7 +9761,7 @@ fn pseudomanifold_certificate_via<
     // The tier-3 local battery, verbatim: it reads no contact record,
     // so with empty records 3′ is tier 3 exactly. The records are the
     // census's.
-    let (errors, certificate) = tier3_local_checks(body, tol, nurbs_lane, quad_lane);
+    let (errors, certificate) = tier3_local_checks(body, tol, quad_lane);
     if !errors.is_empty() {
         return Err(errors);
     }
@@ -9884,14 +9794,13 @@ fn linear_band(tol: Tol) -> Result<Band, Vec<ValidationError>> {
     Band::linear(tol).map_err(|error| vec![ValidationError::Band { error }])
 }
 
-/// **The certified lanes, spelled once**: check 2's plane × NURBS lane,
-/// the quadrature checks 7 and 10 decide through, and the chart-region
+/// **The certified lanes, spelled once**: the quadrature checks 7 and 10
+/// decide through, and the chart-region
 /// door the census's two chart-region arms examine through. The
 /// certified doors read their lanes here, so the tier-3 verdict
 /// [`AtRestBody`] keeps and the tier-3′ pass that reads it hold the same
 /// lanes by construction.
 struct CertifiedLanes<T: geom_core::Decide> {
-    nurbs: geom_brep::NurbsLane<T>,
     quad: crate::props::QuadLane<T>,
     region: crate::chart_region::RegionLane<T>,
 }
@@ -9899,7 +9808,6 @@ struct CertifiedLanes<T: geom_core::Decide> {
 impl<T: geom_core::Decide + geom_core::CertifiedBounds> CertifiedLanes<T> {
     fn held() -> Self {
         Self {
-            nurbs: geom_brep::NurbsLane::certified(),
             quad: crate::props::QuadLane::certified(),
             region: crate::chart_region::RegionLane::certified(),
         }
@@ -12992,7 +12900,7 @@ mod tests {
         let check_9 = |body: &Body<f64>| check_9_words(body, tol);
         let inverted_roles = |body: &Body<f64>| -> Vec<LoopKey> {
             let (errors, _) =
-                tier3_local_checks(body, tol, None, Some(crate::props::QuadLane::certified()));
+                tier3_local_checks(body, tol, Some(crate::props::QuadLane::certified()));
             errors
                 .into_iter()
                 .filter_map(|e| match e {
@@ -13117,8 +13025,7 @@ mod tests {
 
     /// Check 9's NESTING words, on `body`.
     fn nesting_words(body: &Body<f64>, tol: Tol) -> Vec<ValidationError> {
-        let (errors, _) =
-            tier3_local_checks(body, tol, None, Some(crate::props::QuadLane::certified()));
+        let (errors, _) = tier3_local_checks(body, tol, Some(crate::props::QuadLane::certified()));
         errors
             .into_iter()
             .filter(|e| {
@@ -13133,8 +13040,7 @@ mod tests {
 
     /// Every one of check 9's words, on `body`.
     fn check_9_words(body: &Body<f64>, tol: Tol) -> Vec<ValidationError> {
-        let (errors, _) =
-            tier3_local_checks(body, tol, None, Some(crate::props::QuadLane::certified()));
+        let (errors, _) = tier3_local_checks(body, tol, Some(crate::props::QuadLane::certified()));
         errors
             .into_iter()
             .filter(|e| {
@@ -13612,8 +13518,7 @@ mod tests {
     fn check_9_refuses_a_crossed_corner_on_a_cylinder_wall() {
         let tol = Tol::witness();
         let inverted = |body: &Body<f64>, wall: FaceKey| {
-            let (all, _) =
-                tier3_local_checks(body, tol, None, Some(crate::props::QuadLane::certified()));
+            let (all, _) = tier3_local_checks(body, tol, Some(crate::props::QuadLane::certified()));
             all.iter().any(
                 |e| matches!(e, ValidationError::CurvedSenseInverted { face } if *face == wall),
             )
@@ -13746,9 +13651,16 @@ mod tests {
         let e = body.get_edge(edge).unwrap().clone();
         let (s, t) = edge_endpoints(body, e.he_plus).unwrap();
         let spec = geom_brep::EdgeCurveSpec::line_between(s, t);
-        let curve =
-            geom_brep::EdgeCurve::certify(spec, s, t, |_| None, 1.0, Band::linear(tol).unwrap())
-                .expect("the chord certifies");
+        let curve = geom_brep::EdgeCurve::certify(
+            spec,
+            s,
+            t,
+            |_| None,
+            1.0,
+            Band::linear(tol).unwrap(),
+            geom_brep::NurbsLane::certified(),
+        )
+        .expect("the chord certifies");
         *body.curves.get_mut(e.curve).unwrap() = CurveGeom::Certified(curve);
     }
 
@@ -13774,9 +13686,16 @@ mod tests {
         };
         let spec =
             geom_brep::EdgeCurveSpec::arc_of_circle(carrier, 0.0, std::f64::consts::TAU).unwrap();
-        let curve =
-            geom_brep::EdgeCurve::certify(spec, s, t, |_| None, 1.0, Band::linear(tol).unwrap())
-                .expect("the whole circle certifies against its one end point");
+        let curve = geom_brep::EdgeCurve::certify(
+            spec,
+            s,
+            t,
+            |_| None,
+            1.0,
+            Band::linear(tol).unwrap(),
+            geom_brep::NurbsLane::certified(),
+        )
+        .expect("the whole circle certifies against its one end point");
         *body.curves.get_mut(e.curve).unwrap() = CurveGeom::Certified(curve);
     }
 
@@ -14523,6 +14442,7 @@ mod tests {
             surfaces,
             1.0,
             Band::linear(tol).unwrap(),
+            geom_brep::NurbsLane::certified(),
         )
         .expect("the ellipse arc certifies");
         *body.curves.get_mut(stored.curve).unwrap() = CurveGeom::Certified(curve);
@@ -14989,6 +14909,7 @@ mod tests {
             |_| None,
             1.0,
             Band::linear(tol).unwrap(),
+            geom_brep::NurbsLane::certified(),
         )
         .expect("the arc certifies against its own end points");
         *body.curves.get_mut(stored.curve).unwrap() = CurveGeom::Certified(curve);
@@ -16598,7 +16519,7 @@ mod offset_fit_door_rows {
         let (body, face) = approx_faced_body::<T>();
         let mut marks = slotmap::SecondaryMap::new();
         let (errors, _) =
-            tier3_local_checks_marked(&body, &mut marks, tol, PlusVCheck::NotMade, None, door);
+            tier3_local_checks_marked(&body, &mut marks, tol, PlusVCheck::NotMade, door);
         (errors, face)
     }
 
@@ -16668,7 +16589,7 @@ mod offset_fit_door_rows {
         let tol = Tol::witness();
         let (body, face) = approx_faced_body::<f64>();
         let (errors, _) =
-            super::tier3_local_checks(&body, tol, None, Some(crate::props::QuadLane::certified()));
+            super::tier3_local_checks(&body, tol, Some(crate::props::QuadLane::certified()));
         assert!(
             !errors.iter().any(
                 |e| matches!(e, ValidationError::ApproxLaneUnsupported { face: f, .. } if *f == face)

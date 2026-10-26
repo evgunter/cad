@@ -5501,11 +5501,14 @@ mod wiring_rows {
 /// per-scalar fact, for the same reason it carries the gates: it is
 /// the per-scalar policy home. [`AtRestPolicy::offset_fit_lane`] is
 /// the offset fit's, [`AtRestPolicy::fitted_lane`] is the fitted
-/// pcurve derivations', [`AtRestPolicy::nurbs_lane`] is the plane ×
-/// NURBS edge certificate's, and [`AtRestPolicy::shell_door`] is the
-/// hollowing verb's; each answers `None` for its own reason — a
-/// derivation written at one scalar, or certification rights (DL1) —
-/// and the doc on each method says which. What a reader gets from the
+/// pcurve derivations', [`AtRestPolicy::spline_foot`] is the spline
+/// re-anchor's, and [`AtRestPolicy::shell_door`] is the hollowing
+/// verb's; each answers `None` for its own reason — a derivation
+/// written at some scalars, or certification rights (DL1) — and the doc
+/// on each method says which. The edge door is not one of them: it is
+/// two functions every scalar implements ([`AtRestPolicy::attach_edge`],
+/// [`AtRestPolicy::reattach_edge`]), and the scalar names what its
+/// edges carry ([`geom_core::Real::Carries`]). What a reader gets from the
 /// one trait is every per-scalar answer the at-rest machinery needs,
 /// in one place, rather than a lane trait apiece; the scalar's name,
 /// which the refusals those `None`s produce carry, is not one of them
@@ -5535,8 +5538,8 @@ pub trait AtRestPolicy: Decide {
     /// as the per-scalar policy that cut leaves standing): the door
     /// itself is a value the passes take as a parameter, and this is
     /// the one place each scalar's answer is written. The same holds
-    /// of the fitted-pcurve, plane × NURBS and shell doors beside it
-    /// ([`AtRestPolicy::fitted_lane`], [`AtRestPolicy::nurbs_lane`],
+    /// of the fitted-pcurve, spline-foot and shell doors beside it
+    /// ([`AtRestPolicy::fitted_lane`], [`AtRestPolicy::spline_foot`],
     /// [`AtRestPolicy::shell_door`]) — four doors, one policy, no trait
     /// apiece.
     fn offset_fit_lane() -> Option<geom_brep::OffsetFitLane<Self>>;
@@ -5561,32 +5564,72 @@ pub trait AtRestPolicy: Decide {
     /// since no foot is measured.
     fn fitted_lane() -> Option<geom_brep::FittedLane<Self>>;
 
-    /// **This scalar's plane × NURBS lane, or `None` where it may not
-    /// certify** — the ONE seam the `Some` comes from for an operation
-    /// generic over its scalar that certifies edge carriers, read
+    /// **This scalar's edge door** — the ONE seam every operation
+    /// generic over its scalar attaches an edge carrier through, read
     /// through `crate::policy_lane`: the transform
     /// ([`crate::transform_rigid`]); the Euler surface's attachment gate,
     /// which every door that mints or re-describes an edge runs — the
     /// new-edge mints ([`Body::mev`], [`Body::mef`], [`Body::mekr`] and
     /// the ring doors), [`Body::set_edge_curve`], [`Body::split_edge`]
     /// and [`Body::kev_describing`]'s list; the re-chart
-    /// ([`Body::set_face_surfaces_describing`]); the re-basing gate
-    /// of a fan `mev` and of the kill doors' merge; and the offset
-    /// door's re-anchor of a spline-carried edge
-    /// ([`crate::replace_face_offset`], through
-    /// [`geom_brep::NurbsLane::carrier_foot`]).
+    /// ([`Body::set_face_surfaces_describing`]); the re-basing gate of a
+    /// fan `mev` and of the kill doors' merge; and a graft's bridge.
     ///
-    /// `None` is certification rights (DL1), the same fact as
-    /// [`AtRestPolicy::fitted_lane`]'s: the certificate of an
-    /// `Intersection` between a plane and a described NURBS wall (M7-8)
-    /// is C9 certification arithmetic, and
-    /// [`geom_brep::NurbsLane`]'s one constructor is bounded on
-    /// [`geom_core::CertifiedBounds`]. An operation holding `None`
-    /// refuses that class typed, naming the scalar
-    /// ([`crate::TransformError::NurbsLaneUnsupported`] at the
-    /// transform, [`crate::EulerOpError::NurbsLaneUnsupported`] at an
-    /// Euler door).
-    fn nurbs_lane() -> Option<geom_brep::NurbsLane<Self>>;
+    /// Certification is a property of the scalar's type (C2): a
+    /// certifying scalar's door mints and certifies in full
+    /// ([`geom_brep::EdgeCurve::certify_stated`] through
+    /// [`geom_brep::NurbsLane::certified`]), and a tangent-transport
+    /// scalar's door only mints ([`geom_brep::EdgeCurve::mint`], held by
+    /// [`geom_brep::EdgeCurve::uncertified`]), so no code path at a dual
+    /// reaches a certifying function (DUAL-DESIGN DL1, DL3). `stated` is
+    /// a chart image the body already holds for the edge
+    /// ([`geom_brep::EdgeCurve::certify_stated`]); `start`, `end` and
+    /// `reach` are the certificate's inputs.
+    ///
+    /// # Errors
+    ///
+    /// The door's refusal, typed.
+    #[allow(clippy::too_many_arguments)] // the door's own inputs
+    fn attach_edge(
+        spec: geom_brep::EdgeCurveSpec<Self>,
+        start: Point3<Self>,
+        end: Point3<Self>,
+        surfaces: impl Fn(crate::geometry::SurfaceKey) -> Option<Surface<Self>>,
+        reach: Self,
+        band: Band,
+        stated: Option<&geom_brep::StatedImage<Self>>,
+    ) -> Result<geom_brep::EdgeCurve<Self>, geom_brep::CertifyError>;
+
+    /// **This scalar's edge door at rest**: what
+    /// [`AtRestPolicy::attach_edge`] gives an edge to carry, derived
+    /// again from the edge as it stands — the certificate re-derived in
+    /// full at a certifying scalar
+    /// ([`geom_brep::EdgeCurve::recertify_stated`]; the stored one is
+    /// never read), the mint re-run at a tangent-transport scalar.
+    ///
+    /// # Errors
+    ///
+    /// The door's refusal, typed.
+    #[allow(clippy::too_many_arguments)] // the door's own inputs
+    fn reattach_edge(
+        curve: &geom_brep::EdgeCurve<Self>,
+        start: Point3<Self>,
+        end: Point3<Self>,
+        surfaces: impl Fn(crate::geometry::SurfaceKey) -> Option<Surface<Self>>,
+        reach: Self,
+        band: Band,
+        stated: Option<&geom_brep::StatedImage<Self>>,
+    ) -> Result<Self::Carries<geom_brep::Certificate<Self>>, geom_brep::CertifyError>;
+
+    /// **This scalar's spline foot, or `None` where it is not derived
+    /// here** — the offset door's re-anchor of a spline-carried edge
+    /// ([`crate::replace_face_offset`], through
+    /// [`geom_brep::SplineFoot::carrier_foot`]). Newton's foot is written
+    /// at the certified-bracket scalars
+    /// ([`geom::NurbsCurve3::project_from_seed`]'s bound), so an offset
+    /// whose edge needs it refuses at any other scalar by name
+    /// ([`crate::ReplaceFaceError::NurbsLaneUnsupported`]).
+    fn spline_foot() -> Option<geom_brep::SplineFoot<Self>>;
 
     /// **This scalar's section lane, or `None` where it is not
     /// derived here** — the offset door's plane × spline-wall
@@ -5724,10 +5767,34 @@ impl AtRestPolicy for f64 {
         Some(geom_brep::FittedLane::certified())
     }
 
-    /// The decide-with-escalation lane certifies, so it derives the
-    /// plane × NURBS limbs.
-    fn nurbs_lane() -> Option<geom_brep::NurbsLane<Self>> {
-        Some(geom_brep::NurbsLane::certified())
+    /// The decide-with-escalation lane certifies, so its door mints and
+    /// certifies.
+    fn attach_edge(
+        spec: geom_brep::EdgeCurveSpec<Self>,
+        start: Point3<Self>,
+        end: Point3<Self>,
+        surfaces: impl Fn(crate::geometry::SurfaceKey) -> Option<Surface<Self>>,
+        reach: Self,
+        band: Band,
+        stated: Option<&geom_brep::StatedImage<Self>>,
+    ) -> Result<geom_brep::EdgeCurve<Self>, geom_brep::CertifyError> {
+        crate::policy_lane::certifying_attach(spec, start, end, surfaces, reach, band, stated)
+    }
+
+    fn reattach_edge(
+        curve: &geom_brep::EdgeCurve<Self>,
+        start: Point3<Self>,
+        end: Point3<Self>,
+        surfaces: impl Fn(crate::geometry::SurfaceKey) -> Option<Surface<Self>>,
+        reach: Self,
+        band: Band,
+        stated: Option<&geom_brep::StatedImage<Self>>,
+    ) -> Result<Self::Carries<geom_brep::Certificate<Self>>, geom_brep::CertifyError> {
+        crate::policy_lane::certifying_reattach(curve, start, end, surfaces, reach, band, stated)
+    }
+
+    fn spline_foot() -> Option<geom_brep::SplineFoot<Self>> {
+        Some(geom_brep::SplineFoot::certified())
     }
 
     /// The march is written here.
@@ -5809,8 +5876,32 @@ impl AtRestPolicy for geom_core::Probe {
 
     /// As the fitted door above: certification rights decide it, and
     /// the recording scalar holds them.
-    fn nurbs_lane() -> Option<geom_brep::NurbsLane<Self>> {
-        Some(geom_brep::NurbsLane::certified())
+    fn attach_edge(
+        spec: geom_brep::EdgeCurveSpec<Self>,
+        start: Point3<Self>,
+        end: Point3<Self>,
+        surfaces: impl Fn(crate::geometry::SurfaceKey) -> Option<Surface<Self>>,
+        reach: Self,
+        band: Band,
+        stated: Option<&geom_brep::StatedImage<Self>>,
+    ) -> Result<geom_brep::EdgeCurve<Self>, geom_brep::CertifyError> {
+        crate::policy_lane::certifying_attach(spec, start, end, surfaces, reach, band, stated)
+    }
+
+    fn reattach_edge(
+        curve: &geom_brep::EdgeCurve<Self>,
+        start: Point3<Self>,
+        end: Point3<Self>,
+        surfaces: impl Fn(crate::geometry::SurfaceKey) -> Option<Surface<Self>>,
+        reach: Self,
+        band: Band,
+        stated: Option<&geom_brep::StatedImage<Self>>,
+    ) -> Result<Self::Carries<geom_brep::Certificate<Self>>, geom_brep::CertifyError> {
+        crate::policy_lane::certifying_reattach(curve, start, end, surfaces, reach, band, stated)
+    }
+
+    fn spline_foot() -> Option<geom_brep::SplineFoot<Self>> {
+        Some(geom_brep::SplineFoot::certified())
     }
 
     /// The march is written at `f64` alone.
@@ -5887,10 +5978,34 @@ impl AtRestPolicy for geom_core::interval::Interval {
         Some(geom_brep::FittedLane::certified())
     }
 
-    /// The certified interval scalar derives the plane × NURBS limbs:
-    /// its brackets are what their hull bounds are made of.
-    fn nurbs_lane() -> Option<geom_brep::NurbsLane<Self>> {
-        Some(geom_brep::NurbsLane::certified())
+    /// The certified interval scalar certifies: its brackets are what
+    /// the limbs' hull bounds are made of.
+    fn attach_edge(
+        spec: geom_brep::EdgeCurveSpec<Self>,
+        start: Point3<Self>,
+        end: Point3<Self>,
+        surfaces: impl Fn(crate::geometry::SurfaceKey) -> Option<Surface<Self>>,
+        reach: Self,
+        band: Band,
+        stated: Option<&geom_brep::StatedImage<Self>>,
+    ) -> Result<geom_brep::EdgeCurve<Self>, geom_brep::CertifyError> {
+        crate::policy_lane::certifying_attach(spec, start, end, surfaces, reach, band, stated)
+    }
+
+    fn reattach_edge(
+        curve: &geom_brep::EdgeCurve<Self>,
+        start: Point3<Self>,
+        end: Point3<Self>,
+        surfaces: impl Fn(crate::geometry::SurfaceKey) -> Option<Surface<Self>>,
+        reach: Self,
+        band: Band,
+        stated: Option<&geom_brep::StatedImage<Self>>,
+    ) -> Result<Self::Carries<geom_brep::Certificate<Self>>, geom_brep::CertifyError> {
+        crate::policy_lane::certifying_reattach(curve, start, end, surfaces, reach, band, stated)
+    }
+
+    fn spline_foot() -> Option<geom_brep::SplineFoot<Self>> {
+        Some(geom_brep::SplineFoot::certified())
     }
 
     /// The march is written at `f64` alone.
@@ -5977,10 +6092,34 @@ where
         Some(geom_brep::FittedLane::certified())
     }
 
-    /// The base scalar's lane, run at `Sym<T>`, for the reason the
+    /// The base scalar's door, run at `Sym<T>`, for the reason the
     /// fitted door above gives.
-    fn nurbs_lane() -> Option<geom_brep::NurbsLane<Self>> {
-        Some(geom_brep::NurbsLane::certified())
+    fn attach_edge(
+        spec: geom_brep::EdgeCurveSpec<Self>,
+        start: Point3<Self>,
+        end: Point3<Self>,
+        surfaces: impl Fn(crate::geometry::SurfaceKey) -> Option<Surface<Self>>,
+        reach: Self,
+        band: Band,
+        stated: Option<&geom_brep::StatedImage<Self>>,
+    ) -> Result<geom_brep::EdgeCurve<Self>, geom_brep::CertifyError> {
+        crate::policy_lane::certifying_attach(spec, start, end, surfaces, reach, band, stated)
+    }
+
+    fn reattach_edge(
+        curve: &geom_brep::EdgeCurve<Self>,
+        start: Point3<Self>,
+        end: Point3<Self>,
+        surfaces: impl Fn(crate::geometry::SurfaceKey) -> Option<Surface<Self>>,
+        reach: Self,
+        band: Band,
+        stated: Option<&geom_brep::StatedImage<Self>>,
+    ) -> Result<Self::Carries<geom_brep::Certificate<Self>>, geom_brep::CertifyError> {
+        crate::policy_lane::certifying_reattach(curve, start, end, surfaces, reach, band, stated)
+    }
+
+    fn spline_foot() -> Option<geom_brep::SplineFoot<Self>> {
+        Some(geom_brep::SplineFoot::certified())
     }
 
     /// The march is written at `f64` alone.
@@ -6054,7 +6193,7 @@ where
 /// pairing obligation.
 impl<T> AtRestPolicy for geom_core::Dual<T>
 where
-    geom_core::Dual<T>: Decide,
+    geom_core::Dual<T>: Decide + geom_core::TangentTransport,
 {
     /// The fit is derived at `f64` only — the same reason every other
     /// arm here gives, and a separate fact from the gates below, which
@@ -6077,10 +6216,38 @@ where
         None
     }
 
-    /// **A dual does not certify** (DL1), and the plane × NURBS limbs
-    /// are certification arithmetic, so no `Dual` can hold the lane
-    /// ([`geom_brep::NurbsLane::certified`]'s bound).
-    fn nurbs_lane() -> Option<geom_brep::NurbsLane<Self>> {
+    /// **A dual's door only mints** (DL1, DL3): it constructs the
+    /// canonical description, carrier and interval, and the edge
+    /// carries no certificate. What the dual measures is read against
+    /// the input-identical certifying evaluation, which holds it.
+    fn attach_edge(
+        spec: geom_brep::EdgeCurveSpec<Self>,
+        _start: Point3<Self>,
+        _end: Point3<Self>,
+        surfaces: impl Fn(crate::geometry::SurfaceKey) -> Option<Surface<Self>>,
+        _reach: Self,
+        band: Band,
+        _stated: Option<&geom_brep::StatedImage<Self>>,
+    ) -> Result<geom_brep::EdgeCurve<Self>, geom_brep::CertifyError> {
+        crate::policy_lane::minting_attach(spec, surfaces, band)
+    }
+
+    /// The mint, run again on the edge as it stands.
+    fn reattach_edge(
+        curve: &geom_brep::EdgeCurve<Self>,
+        _start: Point3<Self>,
+        _end: Point3<Self>,
+        surfaces: impl Fn(crate::geometry::SurfaceKey) -> Option<Surface<Self>>,
+        _reach: Self,
+        band: Band,
+        _stated: Option<&geom_brep::StatedImage<Self>>,
+    ) -> Result<Self::Carries<geom_brep::Certificate<Self>>, geom_brep::CertifyError> {
+        crate::policy_lane::minting_reattach(curve, surfaces, band)
+    }
+
+    /// Newton's foot is written at the certified-bracket scalars, which
+    /// a dual is not.
+    fn spline_foot() -> Option<geom_brep::SplineFoot<Self>> {
         None
     }
 
@@ -6431,11 +6598,10 @@ mod at_rest_policy_tests {
             T::fitted_lane().is_some(),
             "a certifying scalar holds the fitted-pcurve door"
         );
-        // The plane × NURBS lane likewise: `NurbsLane::certified()` or
-        // nothing.
+        // The spline foot likewise: `SplineFoot::certified()` or nothing.
         assert!(
-            T::nurbs_lane().is_some(),
-            "a certifying scalar holds the plane x NURBS lane"
+            T::spline_foot().is_some(),
+            "a certifying scalar holds the spline foot"
         );
         // The volume backstop runs, on a planted wrong result: a union
         // "result" half the size of an operand.
@@ -6542,10 +6708,6 @@ mod at_rest_policy_tests {
         assert!(
             <geom_core::Dual64 as AtRestPolicy>::shell_door().is_none(),
             "a dual may not certify, so it holds no shell door"
-        );
-        assert!(
-            <geom_core::Dual64 as AtRestPolicy>::nurbs_lane().is_none(),
-            "a dual may not certify, so it holds no plane x NURBS lane"
         );
         assert!(
             <geom_core::Dual64 as AtRestPolicy>::region_lane().is_none(),

@@ -272,19 +272,24 @@ fn dual_lane_decisions_match_f64_bit_for_bit() {
     // structural pass above is not a weaker subject standing in for one
     // that would have failed.
     assert_eq!(validate_geometric(&f.body, Tol::witness()), Ok(()));
-    let f_certs: Vec<f64> = f
+    // The dual's edges carry no certificate (DL3); their intervals are
+    // the f64 build's, value channel for value channel.
+    let f_spans: Vec<(f64, f64)> = f
         .body
         .curves()
-        .map(|(_, c)| c.certified().unwrap().certificate().max_residual)
+        .map(|(_, c)| c.certified().unwrap().params())
         .collect();
-    let d_certs: Vec<Dual<f64>> = d
+    let d_spans: Vec<(Dual<f64>, Dual<f64>)> = d
         .body
         .curves()
-        .map(|(_, c)| c.certified().unwrap().certificate().max_residual)
+        .map(|(_, c)| c.certified().unwrap().params())
         .collect();
-    assert_eq!(f_certs.len(), d_certs.len());
-    for (fv, dv) in f_certs.iter().zip(&d_certs) {
-        assert_eq!(fv.to_bits(), dv.value.to_bits());
+    assert_eq!(f_spans.len(), d_spans.len());
+    for ((f0, f1), (d0, d1)) in f_spans.iter().zip(&d_spans) {
+        assert_eq!(
+            (f0.to_bits(), f1.to_bits()),
+            (d0.value.to_bits(), d1.value.to_bits())
+        );
     }
 }
 

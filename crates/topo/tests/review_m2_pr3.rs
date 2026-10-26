@@ -266,18 +266,19 @@ fn e2e_prism_dual_lane_matches_f64() {
         Ok(())
     );
     assert_eq!(validate_geometric(&f, Tol::witness()), Ok(()));
-    let fr: Vec<f64> = f
+    // The dual's edges carry no certificate (DL3); their intervals are
+    // the f64 build's, value channel for value channel.
+    let fr: Vec<(u64, u64)> = f
         .curves()
-        .map(|(_, c)| c.certified().unwrap().certificate().max_residual)
+        .map(|(_, c)| c.certified().unwrap().params())
+        .map(|(a, b)| (a.to_bits(), b.to_bits()))
         .collect();
-    let dr: Vec<f64> = d
+    let dr: Vec<(u64, u64)> = d
         .curves()
-        .map(|(_, c)| c.certified().unwrap().certificate().max_residual.value)
+        .map(|(_, c)| c.certified().unwrap().params())
+        .map(|(a, b)| (a.value.to_bits(), b.value.to_bits()))
         .collect();
-    assert_eq!(fr.len(), dr.len());
-    for (a, b) in fr.iter().zip(&dr) {
-        assert_eq!(a.to_bits(), b.to_bits());
-    }
+    assert_eq!(fr, dr);
 }
 
 // =====================================================================

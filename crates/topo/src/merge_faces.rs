@@ -1697,7 +1697,6 @@ impl OpPlacement {
             E::SameFace { .. }
             | E::Certification { .. }
             | E::RebasedCarrier { .. }
-            | E::NurbsLaneUnsupported { .. }
             | E::RebasedNullEdge { .. }
             | E::MergeRebasesCarriers { .. }
             | E::NotMergedMember { .. }

@@ -96,7 +96,8 @@ the conversion is a per-span lever instead: a scalar bound on the
 carrier's distance from the axis, whose one square root is of a bound,
 in the scalar's own outward-rounded arithmetic. The edge certificate
 reads it per part of the carrier's knot spans, at
-`pcurve_cache::projected::net_offset_sup`; the search's limbs do not
+`pcurve_cache::projected::net_offset_sup` (for a closed-form carrier,
+`pcurve_cache::closed_form_offset_sup`, through its enclosing net); the search's limbs do not
 yet, which is why their rung-3 arms are unretired. Where the bound does
 not clear the band, the composite's uncleared spans are halved round by
 round, each piece cut from its Bézier segment's own row so no cut

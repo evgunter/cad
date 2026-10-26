@@ -82,14 +82,13 @@ fn ellipse_pair(phi: f64) -> (Surface<f64>, Surface<f64>, Curve3<f64>) {
 }
 
 /// The edge `carrier` over `[t0, t1]` as the intersection of `a` and
-/// `b`, certified at `band`, through the lane or without it.
+/// `b`, certified at `band` through the lane.
 fn certify(
     a: &Surface<f64>,
     b: &Surface<f64>,
     carrier: &Curve3<f64>,
     (t0, t1): (f64, f64),
     band: Band,
-    lane: Option<NurbsLane<f64>>,
 ) -> Result<EdgeCurve<f64>, CertifyError> {
     let (keys, lookup) = table(vec![a.clone(), b.clone()]);
     let spec = EdgeCurveSpec {
@@ -101,14 +100,14 @@ fn certify(
         param_start: t0,
         param_end: t1,
     };
-    EdgeCurve::certify_via(
+    EdgeCurve::certify(
         spec,
         carrier.eval(t0),
         carrier.eval(t1),
         &lookup,
         1.0,
         band,
-        lane,
+        NurbsLane::certified(),
     )
 }
 
@@ -164,8 +163,7 @@ fn refused_on_limb2(got: &Result<EdgeCurve<f64>, CertifyError>, kind: geom::Surf
 /// Every closed-form kind certifies through the lane on the pair that
 /// mints it — plane × cylinder ruling, plane × cone and plane × torus
 /// circles (the per-part axis lever), the tilted plane × cylinder
-/// ellipse and the axis-parallel plane × torus spiric — and a door with
-/// no lane refuses each one before any check of it runs.
+/// ellipse and the axis-parallel plane × torus spiric.
 #[test]
 fn every_closed_form_kind_owes_limb_2_through_the_lane() {
     let cylinder = Surface::Cylinder {
@@ -224,12 +222,28 @@ fn every_closed_form_kind_owes_limb_2_through_the_lane() {
         ("spiric", torus(), spiric_plane(), spiric(), SPAN),
     ];
     for (name, a, b, carrier, span) in rows {
-        let got = certify(&a, &b, &carrier, span, band(), Some(NurbsLane::certified()));
-        assert!(got.is_ok(), "{name}: the exact carrier certifies: {got:?}");
-        let lane_less = certify(&a, &b, &carrier, span, band(), None);
-        assert!(
-            matches!(lane_less, Err(CertifyError::NurbsLaneNotSupplied)),
-            "{name}: a door holding no lane certifies no analytic pair's edge: {lane_less:?}"
+        let (keys, lookup) = table(vec![a.clone(), b.clone()]);
+        let (t0, t1) = span;
+        let spec = EdgeCurveSpec {
+            description: EdgeDescriptionSpec::Intersection {
+                pair: SurfacePair::new(keys[0], keys[1]),
+                witness: carrier.mid_point(t0, t1),
+            },
+            carrier: carrier.clone(),
+            param_start: t0,
+            param_end: t1,
+        };
+        let (start, end) = (carrier.eval(t0), carrier.eval(t1));
+        let lane = NurbsLane::certified();
+        let edge = EdgeCurve::certify(spec, start, end, &lookup, 1.0, band(), lane)
+            .unwrap_or_else(|e| panic!("{name}: the exact carrier certifies: {e:?}"));
+        let at_rest = edge
+            .recertify(start, end, &lookup, 1.0, band(), lane)
+            .unwrap_or_else(|e| panic!("{name}: rest re-derives the certificate: {e:?}"));
+        assert_eq!(
+            format!("{at_rest:?}"),
+            format!("{:?}", edge.certificate()),
+            "{name}: rest re-derives the door's certificate"
         );
     }
 }
@@ -263,14 +277,7 @@ fn a_spiric_off_its_torus_between_samples_refuses_on_limb_2() {
     let (tor, plane) = (torus(), spiric_plane());
     let sampled = sampled_max(&tor, &plane, &moved, SPAN);
     let peak = implicit_residual(&tor, moved.eval(0.0)).abs();
-    let got = certify(
-        &tor,
-        &plane,
-        &moved,
-        SPAN,
-        teeth_band(sampled, peak),
-        Some(NurbsLane::certified()),
-    );
+    let got = certify(&tor, &plane, &moved, SPAN, teeth_band(sampled, peak));
     assert!(
         refused_on_limb2(&got, geom::SurfaceKind::Torus),
         "limb 2 against the torus refuses the moved spiric: {got:?}"
@@ -305,14 +312,7 @@ fn an_ellipse_off_its_cylinder_between_samples_refuses_on_limb_2() {
     };
     let sampled = sampled_max(&cylinder, &plane, &moved, SPAN);
     let peak = implicit_residual(&cylinder, moved.eval(0.0)).abs();
-    let got = certify(
-        &cylinder,
-        &plane,
-        &moved,
-        SPAN,
-        teeth_band(sampled, peak),
-        Some(NurbsLane::certified()),
-    );
+    let got = certify(&cylinder, &plane, &moved, SPAN, teeth_band(sampled, peak));
     assert!(
         refused_on_limb2(&got, geom::SurfaceKind::Cylinder),
         "limb 2 against the cylinder refuses the moved ellipse: {got:?}"

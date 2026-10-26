@@ -5127,6 +5127,10 @@ impl<T: Real> Real for Sym<T> {
 
     const NAME: &'static str = "symbolic";
 
+    /// The lane scalar's: the tier changes how a margin decides, not
+    /// whether the scalar certifies.
+    type Carries<C: Copy + core::fmt::Debug + Send + Sync + 'static> = T::Carries<C>;
+
     fn from_f64(x: f64) -> Self {
         Self::literal(T::from_f64(x), x)
     }
@@ -5259,9 +5263,21 @@ impl<T: Bounds> Bounds for Sym<T> {
 /// Certification delegates: whether the computation was defined on the
 /// whole box is a question about the numeric channel, and the symbolic
 /// tier neither widens nor narrows the answer.
-impl<T: CertifiedEnclosure> CertifiedEnclosure for Sym<T> {
+impl<T: crate::real::CertifiedBounds> CertifiedEnclosure for Sym<T> {
     fn certified_bracket(self) -> Option<(f64, f64)> {
         self.value.certified_bracket()
+    }
+
+    fn carried<C: Copy + core::fmt::Debug + Send + Sync + 'static>(
+        record: C,
+    ) -> <Self as Real>::Carries<C> {
+        T::carried(record)
+    }
+
+    fn held<C: Copy + core::fmt::Debug + Send + Sync + 'static>(
+        held: &<Self as Real>::Carries<C>,
+    ) -> &C {
+        T::held(held)
     }
 }
 

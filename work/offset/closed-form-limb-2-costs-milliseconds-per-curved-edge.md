@@ -45,3 +45,33 @@ to the band (fewer spans where ε is coarse); or an exact sup for a
 circle or ellipse against a quadric, whose residual is a degree-2
 trigonometric polynomial (`harmonic::harmonic_sup`), with the net kept
 for the spiric and the torus.
+
+## Measured again on the door split (2026-10-26)
+
+Conic unit 1's PR (branch `offset/limb2-for-every-carrier`, the door
+split on Ev's ruling on PR 5689) measured the same 13 rows, release with
+the workspace profile (`debug-assertions = true`), `--test-threads 1`,
+three runs each, on the same box back to back. Before is `main` at
+`bc80647eef`; after is the branch.
+
+| row | before (s) | after (s) |
+|---|---|---|
+| `a_frustum_through_a_plate_with_a_hole_of_its_top_radius_builds` | 0.108 | 2.899 |
+| `a_boss_on_a_plate` | 0.127 | 1.673 |
+| `a_rim_inside_a_ball_face` | 0.108 | 1.339 |
+| `a_boss_beside_a_ring_and_over_a_hole` | 0.090 | 1.332 |
+| `a_plug_in_an_annulus_bore` | 0.092 | 1.133 |
+| `a_ball_union_built_on_a_turned_plane_is_the_union_turned` | 0.064 | 0.985 |
+| `crossing_washers_with_radii_in_band_are_no_rim` | 0.040 | 0.922 |
+| `coaxial_equal_cylinders_unite` | 0.052 | 0.583 |
+| `every_construction_built_on_a_turned_plane_is_the_construction_turned` | 0.022 | 0.533 |
+| `a_boss_on_a_plate_at_interval` | 0.074 | 0.486 |
+| `a_boss_over_a_hole_tangent_inside_its_rim` | 0.046 | 0.483 |
+| `a_puck_and_its_rounding_ring_unite` | 0.041 | 0.302 |
+| `a_closed_edge_in_a_cylinder_or_cone_face_refuses_typed` | 0.021 | 0.191 |
+| **all 13** | **0.89** | **12.9** |
+
+About 14.5× in all. A dual pass pays none of it (its door only mints);
+an `f64` pass pays it at the attach door and again at rest, where every
+at-rest door's check 2 now runs the scalar's edge door. Nothing in the
+door split cut it; the candidate cuts above stand.
