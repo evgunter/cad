@@ -23,7 +23,7 @@ escalated typed refusal, never a raw comparison.
 
 | Decisions | Lives in |
 |---|---|
-| C1 locus ladder | `crates/geom/src/curves.rs` (`Curve3`: Line, Circle, Ellipse, Spiric, Nurbs); `crates/geom-brep/src/intersect.rs` (`Rung`) |
+| C1 locus ladder | `crates/geom/src/curves.rs` (`Curve3`: Line, Circle, Ellipse, Spiric, Nurbs); `crates/geom-brep/src/intersect.rs` (`Rung`); `crates/geom-brep/src/intersect/conic_arc.rs` (the plane×cone parabola and hyperbola arcs) |
 | C2, C3 SSI and its certificate | `crates/geom-brep/src/ssi.rs` + `ssi/{march,certify,exhaust,enclose,jet,system,boundary,section,ends,pair,four}.rs` |
 | C4 pcurves | `crates/geom-brep/src/pcurve_cache.rs` (value, certificate), `pcurve.rs` (conic constructors), `crates/topo/src/pcurves.rs` (storage, minting, branch walk); description form in `description.rs` |
 | C5 dispatch table | `crates/geom-brep/src/intersect.rs` (`route`, the section functions); for curve pairs `crates/geom-brep/src/curve_pair.rs` (`method`, `meet`) and `curve_pair/{span,pose,polish,walk}.rs` |
@@ -128,9 +128,18 @@ distance from that surface over the edge's interval, whatever faces
 store pcurve rows (a planar face stores none), which implies limb 1;
 and the tube over the same interval, or over the whole carrier where
 the carrier is rational with unequal weights (no piece of it has `f64`
-weights at an enclosure scalar). A door that holds no lane certifies
-no such edge: it refuses `CertifyError::NurbsLaneNotSupplied`, as it
-refuses a plane × NURBS one. An edge with an operand outside the
+weights at an enclosure scalar). Certification is a property of the
+scalar's type, never an argument a door may omit. An edge door is two
+functions: minting the canonical description is construction, generic
+over any scalar that decides; certifying it (the sampled checks and
+limbs 1–3) is bounded on the certification trait and takes its lane as a
+plain argument. The scalar's policy names what its edges carry: a
+certifying scalar's door mints and certifies; a tangent-transport
+scalar's door (DUAL-DESIGN DL1, DL3) only mints, and no code path at that
+scalar can call a certifying function. A dual body carries no
+certificate: what a dual measures is read against the input-identical
+`f64` evaluation, which holds it (DUAL-DESIGN DL3). At `f64` the door certifies in full and rest
+re-derives the same certificate. An edge with an operand outside the
 tube's enclosure roster (`ssi::enclose::has_implicit_enclosure`) refuses
 the tube by naming that operand (`AnalyticRung3Refusal::NoTubeEnclosure`)
 once limb 2 holds. Each box, cut to the wall's knot rectangle (and to the
@@ -698,7 +707,8 @@ A closed form that already holds a meeting divides that meeting's root out
 of its equation and solves only for the others. The reader is given no
 topology: two edges joined at a vertex meet there because their ends meet.
 Implemented: plane×plane, plane×sphere, sphere×sphere (rung 1);
-plane×cylinder, plane×cone (all but the parabola and hyperbola),
+plane×cylinder, plane×cone (the parabola and hyperbola in closed form,
+each arc minted per window, `ConicBranch::arc`),
 declared-equal cylinder×cylinder, axis-aligned plane×torus (its
 axis-parallel pose off the axis the `Spiric`) (rung 2); cylinder×sphere,
 plane×NURBS and plane×`Approx`, NURBS×NURBS and every pairing of
@@ -709,6 +719,28 @@ readings a boolean takes are their `all()`, which no boolean reads yet
 (no boolean reads a rung-3 arm). `implemented` covers
 the whole operation. Every other pair refuses, most blocked on the cone
 and torus metres conversion (C2 limb 2).
+
+The same rule governs a curve against a face. A carrier span and a face
+meet through one exhaustive `(CurveKind, SurfaceKind)` table, in the
+curve-pair vocabulary (stretches, meetings, an in-band decision
+escalating and never pruning), and the boolean's root doors are its
+arms: a spline span against an analytic face and an analytic span
+against a spline face are two arms of the one table. The span's ends are
+read first, then the span against each of the face's boundary edges
+through the curve-pair table. A shared run along a boundary edge is a
+coincidence, decided at the coincidence door (DESIGN `[coincidence]`)
+and never by surface arithmetic, and a point meeting there is a meeting
+on the face's boundary. Only what the boundary leaves undecided is read
+against the face's interior. An interior arm with no closed form settles
+each piece of the span against each cell of the surface by enclosures:
+clear when the two are definitely apart; exactly one transverse meeting
+when an interval Newton (Krawczyk) contraction on the piece and cell
+succeeds, its Jacobian enclosure definitely invertible; otherwise
+subdivided down to the tangency floor, where it escalates. A surface
+with no signed residual is given none: a point is decided on it by a
+certified foot within the band, and off it by a lower bound on its
+distance past the band. A meeting inside the chart is placed in or out
+of the face by the face's trim.
 
 ### Fitted-cache structure
 
@@ -973,7 +1005,12 @@ never a silent Gaussian, and never a refusal for width alone. A plane cap or tor
 bounded by a `Curve3::Spiric` takes `props/spiric.rs`: the cap's vector
 area and the wall's chart Green form along the spiric are elliptic
 integrals in the torus minor angle, enclosed by a fifth-order Taylor
-rule whose only non-ring operation is `√`, on the same schedule. A sphere face bounded
+rule (`props/taylor.rs`) that reads the spiric's integrands with no
+operation past the ring ones but `√`, on the same schedule. A plane
+cap bounded by a rational spline rim takes the same rule
+(`props/rational_rim.rs`): its vector area is `(1/2)∫ B × B′/w²` per
+Bézier span, `B` the homogeneous numerator about the reference, and the
+closed form keeps its typed refusal for a door with no quadrature lane. A sphere face bounded
 by circle arcs — rims, meridians and sections tilted against its chart
 alike, holes included — has no conic or spline trim and is on the
 closed-form lane, measured by Gauss–Bonnet over all its loops
@@ -1214,9 +1251,9 @@ faces inherit the NURBS-adjacent exemption from dihedral marks (C7).
 
 **O6 — Sequencing and the demo gates.** The units are landed in the
 order O1 → O3 meters and fit → O2 storage → face replacement and shell.
-Live gates, each named where it refuses: a multi-shell curved solid
-refuses STEP export (`CurvedShellClassification`, the outward/void
-classifier is planar-only); the area enclosure is unmetered; rational
+Live gates, each named where it refuses: a hollow solid refuses STEP
+export (`VoidShellUnsupported`, the writer has no `BREP_WITH_VOIDS`);
+the area enclosure is unmetered; rational
 pcurve quadrature refuses typed; the Klein bottle's BULB wall pairs wait on
 the `cylinder × torus` and `cone × torus` arms — its own two rims. The
 bulb has no cone-abutting-cylinder adjacency at all: its flare is

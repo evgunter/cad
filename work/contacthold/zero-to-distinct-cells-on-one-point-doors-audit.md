@@ -75,7 +75,9 @@ Each door that turns a Zero into cells on one point:
   STEP imports): records `CensusAtRest` and a record citing it between
   groups; a touch inside one group is a finding. Recorded.
 - **Revolve, full**: an on-axis vertex is one pole; an isolated contact
-  or two runs refuse (`NonManifoldAxisContact`, `MultipleAxisRuns`); a
+  refuses (`NonManifoldAxisContact`), and two or more runs build one
+  cavity per gap, whose poles are profile points distinct from the
+  outer shell's, so nothing touches; a
   sphere arc's apex on the axis refuses (`ArcCrossesAxis`); a horn
   torus refuses (`UnsupportedToroid`). **Partial**: an on-axis vertex
   is one vertex both caps share. Fused or refused.

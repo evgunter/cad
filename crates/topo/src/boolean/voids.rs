@@ -104,7 +104,11 @@ pub enum VoidContainment {
     /// carries to 3-D verbatim: a validated profile's hole loop —
     /// strictly inside its outer loop, with the profile validation's
     /// decided clearance and containment margins — revolved about the
-    /// same axis as the outer (the holed full revolve), the tube
+    /// same axis as the outer (the holed full revolve); the stretch of
+    /// a profile's outer loop that joins the two ends of a gap between
+    /// its axis runs, decided apart from the rest of the loop by the
+    /// validation's simplicity pass, revolved about that axis (the
+    /// full revolve's axis-gap pocket); the tube
     /// door's own wall funnel deciding a hand-built inner circle
     /// strictly inside its outer one — thickness, bore and the
     /// realized gap between the two STORED radii — before that pair

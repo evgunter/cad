@@ -132,23 +132,21 @@ fn plane_of(s: &Surface<f64>) -> (Point3<f64>, Vec3<f64>) {
     (origin, normal)
 }
 
-/// What a draw met: the pair, refused naming a conic or escalated.
+/// What a draw met: the pair, the open conic, or a refusal.
 fn kind(got: &Result<PlaneConeSection<f64>, SectionError>) -> String {
     match got {
         Ok(PlaneConeSection::ApexLinePair { .. }) => "pair".to_owned(),
+        Ok(PlaneConeSection::OpenConic(s)) => format!("open {:?}", s.conic()),
         Ok(other) => format!("{other:?}")
             .split(['(', ' ', '{'])
             .next()
             .unwrap()
             .to_owned(),
-        Err(r) => match r.outside_conic() {
-            Some(conic) => format!("refused {conic:?}"),
-            None => format!("{r:?}")
-                .split(['(', ' ', '{'])
-                .next()
-                .unwrap()
-                .to_owned(),
-        },
+        Err(r) => format!("{r:?}")
+            .split(['(', ' ', '{'])
+            .next()
+            .unwrap()
+            .to_owned(),
     }
 }
 
@@ -282,7 +280,7 @@ fn leaning(gap: f64) -> (Surface<f64>, Surface<f64>, f64) {
 /// on the nappe its normal leans from and `≈ 20·ε` off on the other. A
 /// span from the apex along the near nappe is served the pair, and the
 /// oracle holds it within ε of the section; along the far nappe, or
-/// through the apex, it is refused naming the hyperbola. The same span
+/// through the apex, it is served the hyperbola. The same span
 /// moved clear of the apex is served on either nappe.
 #[test]
 fn a_span_reaching_the_apex_is_bounded_by_its_own_nappe() {
@@ -310,9 +308,10 @@ fn a_span_reaching_the_apex_is_bounded_by_its_own_nappe() {
                     worst / eps
                 );
             }
-            Err(e) if !served => assert!(
-                e.outside_conic() == Some(geom_brep::intersect::OutsideConic::Hyperbola),
-                "{label}: wanted the hyperbola refusal, got {e:?}"
+            Ok(PlaneConeSection::OpenConic(s)) if !served => assert!(
+                s.conic() == geom_brep::intersect::OpenConic::Hyperbola,
+                "{label}: wanted the hyperbola, got {:?}",
+                s.conic()
             ),
             other => panic!("{label}: served {served}, got {other:?}"),
         }
@@ -325,7 +324,7 @@ fn a_span_reaching_the_apex_is_bounded_by_its_own_nappe() {
 /// both branches `25.6·ε` off, past the band, and stands within
 /// `2·0.4·ε` of the pair wherever the section is. A span from half the
 /// start along the axis holds the pair's points from there, `12.8·ε`
-/// short of the section's nearest: refused naming the hyperbola. From
+/// short of the section's nearest: served the hyperbola. From
 /// twice the start it is served, and the oracle holds it within ε.
 #[test]
 fn a_span_short_of_the_start_reads_the_start() {
@@ -346,7 +345,7 @@ fn a_span_short_of_the_start_reads_the_start() {
             band,
         );
         assert!(
-            matches!(&got, Err(e) if e.outside_conic() == Some(geom_brep::intersect::OutsideConic::Hyperbola)),
+            matches!(&got, Ok(PlaneConeSection::OpenConic(s)) if s.conic() == geom_brep::intersect::OpenConic::Hyperbola),
             "from half the start, side {side}: got {got:?}"
         );
         let clear = (side * 2.0 * start * alpha.cos(), side);

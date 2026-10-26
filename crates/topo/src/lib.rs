@@ -298,7 +298,9 @@ pub mod test_support {
     // would be comparing that constant against itself.
     pub use crate::null::with_ring_root;
     pub use crate::props::{
-        FaceTerm, fold_order_bound, mass_properties_with_face_terms, quadrature_rounds,
+        DoorOutcome, DoorRead, FaceReading, FaceTerm, every_door, face_reading,
+        face_reading_structural, fold_order_bound, mass_properties_one_point,
+        mass_properties_with_face_terms, quadrature_rounds, read_points, region_carries_of,
         shell_references,
     };
     pub use crate::test_support_fixtures::{
@@ -383,6 +385,57 @@ pub mod test_support {
     /// (`side_reader`): the edge-meeting ray's probes read it.
     pub fn aimed_rays(body: &Body<f64>, band: geom_core::Band) -> Vec<String> {
         crate::side_reader::aimed_rays_report(body, band)
+    }
+
+    /// Each face's aimed ray's own reading, every face aimed at
+    /// (`side_reader`): the curved edge-meeting ray's probes read it.
+    pub fn each_aim(body: &Body<f64>, band: geom_core::Band) -> Vec<String> {
+        crate::side_reader::each_aim_report(body, band)
+    }
+
+    /// One aimed ray at `aim` on `face`, at the aimed incidence to
+    /// `normal` (`side_reader`): the probes aim it at and about an edge.
+    pub fn ray_at(
+        body: &Body<f64>,
+        face: crate::FaceKey,
+        aim: geom_core::Point3<f64>,
+        normal: geom_core::Vec3<f64>,
+        band: geom_core::Band,
+    ) -> String {
+        crate::side_reader::ray_at_report(body, face, aim, normal, band)
+    }
+
+    pub use crate::side_reader::EdgeFrame;
+
+    /// Every crossing of the ray `q + s·d` with the solid holding `face`,
+    /// its faces in an order turned left by `turn` and reversed where
+    /// asked, as `(from, to, count, sideless)` (`side_reader`): the probes
+    /// read a whole ray's count off it.
+    pub fn ray_counts(
+        body: &Body<f64>,
+        face: crate::FaceKey,
+        ray: (geom_core::Point3<f64>, geom_core::Vec3<f64>),
+        band: geom_core::Band,
+        order: (usize, bool),
+    ) -> Result<Vec<(f64, f64, i32, bool)>, String> {
+        crate::side_reader::ray_counts(body, face, ray, band, order)
+    }
+
+    /// Each edge's frames on each of its faces, at each fraction of
+    /// `fractions` along it (`side_reader`): the probes aim at and about
+    /// an edge from them.
+    pub fn edge_frames(
+        body: &Body<f64>,
+        fractions: &[f64],
+        band: geom_core::Band,
+    ) -> Vec<EdgeFrame> {
+        crate::side_reader::edge_frames(body, fractions, band)
+    }
+
+    /// Rays aimed at and beside every edge, `offsets` into each face
+    /// (`side_reader`): the curved edge-meeting ray's probes read it.
+    pub fn edge_rays(body: &Body<f64>, offsets: &[f64], band: geom_core::Band) -> Vec<String> {
+        crate::side_reader::edge_rays_report(body, offsets, band)
     }
 
     /// The pad a face's reach box takes past the band, and each face's
@@ -950,6 +1003,8 @@ mod r2_probes;
 #[cfg(test)]
 mod tier3_tests;
 pub mod transform;
+#[cfg(test)]
+mod turn_rows;
 pub mod validate;
 mod wedge_reach;
 pub use wedge_reach::{WedgeReach, edge_faces, edge_wedge_reach, wedge_reach};
@@ -970,10 +1025,10 @@ pub use boolean::{
     PlaneIdentity, PlaneRelation, PlaneRung, PointInSolidError, ReductionContacts, RefusedRow,
     SectorRead, SectorRung, SelfCheck, SettleError, Settler, Settling, ShellOrientation, SideCode,
     SlitLineGap, SolidContainment, SolidFaces, SphereQuestion, SpiricLoops, SubstitutedFace,
-    SweepStrategy, SweepTrace, TorusConvention, UnreadNeighbourhood, UnreadPartner, VeContact,
-    VfContact, VoidContainment, VoidEvidence, VoidInsertError, VoidInserted, VvContact, WallRung,
-    boolean_op_with, boolean_reduce, carrier_eq, contfp, curved_face_containment, decision_words,
-    face_carrier, flush_pair_relation, insert_void, insert_voids, intersect,
+    SweepStrategy, SweepTrace, TorusConvention, UncutFace, UnreadNeighbourhood, UnreadPartner,
+    VeContact, VfContact, VoidContainment, VoidEvidence, VoidInsertError, VoidInserted, VvContact,
+    WallRung, boolean_op_with, boolean_reduce, carrier_eq, contfp, curved_face_containment,
+    decision_words, face_carrier, flush_pair_relation, insert_void, insert_voids, intersect,
     is_conventional_vertex, join_covers, joinable_vertices, joined_cell, joined_edge,
     oriented_plane_eq, point_in_solid, point_in_solid_faces, point_in_solid_of, rest_locus,
     subtract, tangent_pair_relation, union,

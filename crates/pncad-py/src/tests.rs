@@ -4390,7 +4390,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "fallback_extent_unsupported",
             "germ_edge_carrier_unsupported",
             "germ_frame_unsupported",
-            "germ_section_outside_inventory",
+            "germ_section_open_conic",
             "germ_section_spiric",
             "graft_recertify",
             "held_pierce_unbuilt",
@@ -4778,6 +4778,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "export_error_tag",
         values: &[
+            "body_invalid",
             "empty_boolean",
             "node_failed",
             "not_a_body",
@@ -5503,6 +5504,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "angle_escalated",
             "arc_crosses_axis",
             "axis_escalated",
+            "axis_gap_escalated",
             "band",
             "cap_plane",
             "cosurface_escalated",
@@ -5510,7 +5512,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "degenerate_axis",
             "full_range_angle",
             "hole_touches_axis",
-            "multiple_axis_runs",
             "non_finite_axis",
             "non_manifold_axis_contact",
             "op",

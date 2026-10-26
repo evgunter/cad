@@ -208,7 +208,8 @@ fn the_direction_records_every_stored_frame_is_written_to() {
     );
     println!("| --- | --- | --- | --- | --- | --- | --- |");
     for (name, body) in common::fixture_corpus() {
-        let text = step_string(&body, &StepOptions::default(), tol).expect("fixture exports");
+        let text = step_string(&common::at_rest(&body), &StepOptions::default(), tol)
+            .expect("fixture exports");
         for (_, surface) in body.surfaces() {
             let Surface::Plane { normal, u_ref, .. } = surface else {
                 continue;

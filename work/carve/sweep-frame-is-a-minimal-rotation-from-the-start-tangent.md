@@ -70,3 +70,12 @@ their skins are 9.9e-8 and 8.0e-8 off Pappus, against 1.6e-7 and
 9.5e-8. `projectbox.rs`'s `COIL_GAP` (5e-3) admits the coil's deficit
 as a measured band. It should narrow toward the fit's scale once the
 frame law stops spinning the section.
+
+## A P0 waits on this (2026-10-25)
+
+`work/carvetail/a-half-turn-spine-sweeps-only-off-its-exact-tangents.md`
+is now P0, and its first ask is this row's frame. Any planar U-turn spine
+refuses `PathTangentReversal` at its half-turn station, so the klein
+scene lofts its loop as a workaround (wall 9). Linked on request in
+chat. Whichever row lands the frame should close both, and the design
+question here is what the P0 waits on.

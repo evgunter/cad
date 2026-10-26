@@ -238,8 +238,18 @@ fn every_construction_built_on_a_turned_plane_is_the_construction_turned() {
             }
             let options = StepOptions::default();
             let (got, want) = (
-                step_string(&got, &options, tol).unwrap(),
-                step_string(want, &options, tol).unwrap(),
+                step_string(
+                    &topo::test_support::finished("the turned body", got, tol),
+                    &options,
+                    tol,
+                )
+                .unwrap(),
+                step_string(
+                    &topo::test_support::finished("the home body", want.clone(), tol),
+                    &options,
+                    tol,
+                )
+                .unwrap(),
             );
             if let Some((g, w)) = got.lines().zip(want.lines()).find(|(g, w)| g != w) {
                 panic!(

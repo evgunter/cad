@@ -18,9 +18,11 @@
 //! lamina directly, so the opening's entities would be minted only for
 //! the zip to kill them (deviation recorded in the PR).
 //!
-//! **Wire case** (axis contact = one contiguous run of on-axis
-//! segments): the on-axis run is omitted — the profile opens into a
-//! wire whose tips land on the axis as poles/apexes. The wire sweep
+//! **Wire case** (axis contact = one or more contiguous runs of
+//! on-axis segments): the on-axis runs are omitted — the profile opens
+//! into wires whose tips land on the axis as poles/apexes, one for the
+//! outer shell and one per gap between two runs for that gap's cavity
+//! (`build_full`). The wire sweep
 //! struts only interior vertices; tip walls close directly onto the
 //! fixed tip vertices; the zip runs with no `kfmrh` (an axis-anchored
 //! wire adds no handle — genus 0) and no null-edge `mekr` (the tips
@@ -39,18 +41,18 @@
 
 use geom::Surface;
 use geom_brep::EdgeCurveSpec;
-use geom_core::{Band, Decide, Point3, Sign};
-use topo::{Body, EdgeKey, FaceKey, FaceSurface, MefSite, MekrSite, MevSite};
+use geom_core::{Band, Decide, Margin, Point2, Point3, Real, Sign};
+use topo::{Body, EdgeKey, FaceKey, FaceSurface, MefSite, MekrSite, MevSite, VertexKey};
 
-use super::axis::{AxisFrame, AxisRun, LoopClasses, WallClass, WallKind};
+use super::axis::{AxisFrame, AxisRun, LoopClasses, VertexClass, WallClass, WallKind};
 use super::chain::build_chain;
 use super::partial::{he_edge, sweep_loop};
 use super::runs::{Collapsed, collapse_runs};
 use super::surfaces::{revolved_strut_spec, wall_surface};
 use super::turn::{TurnEnds, sweep_turn};
 use super::upgrade::{upgrade_intersection, upgrade_meridian_wrap};
-use super::{RevolveError, Revolved, RevolvedKind, SweptSeg};
-use crate::swept::{face_surface_key, placed_segment_spec, turn_axis};
+use super::{BandWall, Cavity, CavityOrigin, RevolveError, Revolved, RevolvedKind, SweptSeg};
+use crate::swept::{decide, face_surface_key, placed_segment_spec, turn_axis};
 use geom_core::Tol;
 
 /// Builds the full solid of revolution (file docs). `theta` is +2π
@@ -58,23 +60,37 @@ use geom_core::Tol;
 /// a hole loop's stored clockwise chain traversed FORWARD, see
 /// `revolve`).
 ///
-/// **Holed profiles** (the ratified O4 definition): the result is
-/// DEFINED as `revolve(outer) − revolve(hole-as-outer)` and executed
-/// as the degenerate no-crossing arm. The outer loop builds exactly
-/// as before (lamina or wire); each hole loop then builds as its own
-/// closed solid of revolution through the same lamina path — the
-/// per-hole seam surgery is the ordinary kfmrh + loopglue zip on the
-/// hole's own body — and its reversed boundary is inserted as a
-/// cavity shell through the shared void-insertion door
+/// **Pockets** (crate topo's README, structural conventions): the
+/// result is DEFINED as `revolve(filled) − Σ revolve(pocket)` and
+/// executed as the degenerate no-crossing arm. `filled` builds as a
+/// lamina (no axis contact) or as the wire of the stretch joining the
+/// axially extreme run ends. Each pocket then builds as its own closed
+/// solid of revolution in hole-as-outer orientation — a hole loop
+/// through the lamina path, a gap's pocket as the wire of the stretch
+/// joining the gap's two run ends — and its reversed boundary is
+/// inserted as a cavity shell through the shared void-insertion door
 /// ([`topo::insert_void`]). Containment evidence is CARRIED from the
-/// profile's own validation: loops 1.. are canonical hole loops, each
-/// decided strictly inside the outer loop (the containment forest's
-/// parity decision plus the simplicity pass's definite clearance
-/// margins), and revolution about the shared axis maps 2-D strict
-/// containment to 3-D strict containment verbatim — so the carried
-/// sign is `Positive` by the validation's own decisions, and no 3-D
-/// containment test (box or probe) runs here at all. No SSI, no
-/// crossing pipeline: the door is a structural insertion.
+/// profile's own validation, and revolution about the shared axis
+/// cannot bring two points closer than their meridian distance, so
+/// strict 2-D separation is strict 3-D containment verbatim:
+/// - loops 1.. are canonical hole loops, each decided strictly inside
+///   the outer loop (the containment forest's parity decision plus the
+///   simplicity pass's definite clearance margins);
+/// - a gap's stretch and the outer stretch are non-adjacent segments of
+///   one loop (an axis run separates them on each side), which the
+///   simplicity pass decided definitely apart, and the gap itself lies
+///   strictly between the outer stretch's two poles;
+/// - two gaps' stretches are non-adjacent segments of the same loop too,
+///   decided apart by the same pass, and their gaps are disjoint
+///   intervals of the axis, so two pocket cavities are disjoint;
+/// - a hole lies inside the outer loop and a pocket outside it, and
+///   the validation decided the hole apart from every segment of the
+///   outer loop, the pocket's stretch included, so a hole's cavity and
+///   a pocket's are disjoint.
+///
+/// So the carried sign is `Positive` by the validation's own decisions,
+/// and no 3-D containment test (box or probe) runs here at all. No SSI,
+/// no crossing pipeline: the door is a structural insertion.
 ///
 /// **A validated profile is not the only source of that evidence.**
 /// `tube_along_arc_hollow` reaches this path with hand-built
@@ -94,12 +110,25 @@ pub(super) fn build_full<T: Decide + topo::AtRestPolicy>(
     tol: Tol,
 ) -> Result<Revolved<T>, RevolveError> {
     let outer = collapse_runs(&loops[0], &classes[0], 0, band)?;
-    let run = super::axis::analyze_contact(&outer.segs, &outer.cls, 0)?;
-    let mut out = match run {
-        None if profile::is_full_turn(&outer.segs) => build_turn_lamina(frame, &outer, theta, tol),
-        None => build_lamina(frame, 0, &outer, theta, band, tol),
-        Some(run) => build_wire(frame, &outer, run, theta, band, tol),
-    }?;
+    let runs = super::axis::analyze_contact(&outer.segs, &outer.cls, 0)?;
+    let (mut out, pockets) = match runs[..] {
+        [] if profile::is_full_turn(&outer.segs) => {
+            (build_turn_lamina(frame, &outer, theta, tol)?, Vec::new())
+        }
+        [] => (
+            build_lamina(frame, 0, &outer, theta, band, tol)?,
+            Vec::new(),
+        ),
+        [run] => (
+            build_wire(frame, &Wire::off_run(&outer, run), theta, band, tol)?,
+            Vec::new(),
+        ),
+        _ => {
+            let (filled, pockets) = gap_stretches(frame, &outer, &runs, band)?;
+            let wire = Wire::of(&outer, filled.start, filled.len);
+            (build_wire(frame, &wire, theta, band, tol)?, pockets)
+        }
+    };
 
     for (li, (segs, cls)) in loops.iter().zip(classes).enumerate().skip(1) {
         // A hole touching the axis contradicts its validated strict
@@ -115,75 +144,58 @@ pub(super) fn build_full<T: Decide + topo::AtRestPolicy>(
         } else {
             build_lamina(frame, li, &col, theta, band, tol)
         }?;
-        let hole_walls = hole.walls();
-        let evidence = topo::VoidEvidence {
-            shells: vec![(
-                hole.shell,
-                // The profile validation's strict-containment decision,
-                // carried verbatim (fn docs).
-                topo::VoidContainment::Carried {
-                    sign: Sign::Positive,
-                },
-            )],
-        };
-        let inserted = topo::insert_void(&mut out.body, out.solid, hole.body, &evidence).map_err(
-            |source| RevolveError::VoidInsertion {
-                loop_index: li,
-                source,
-            },
-        )?;
-        // Re-key the hole's handles into the result body (the graft's
-        // bridge is the ONLY bridge, total over the cavity's live
-        // entities, and these handles are the hole body's own).
-        let bridged = |what: &str| -> ! {
-            unreachable!(
-                "the hole's {what} handle is missing from the void graft bridge: the bridge is \
-                 total over the cavity's live entities, and the handle is one the hole build \
-                 minted"
-            )
-        };
         let n = segs.len();
-        let RevolvedKind::Full {
-            meridians: hole_mer,
-            ..
-        } = &hole.kind
-        else {
-            unreachable!("build_lamina answers with RevolvedKind::Full")
-        };
-        let mut walls_c = vec![None; n];
-        let mut rims_c = vec![None; n];
-        let mut mer_c = vec![None; n];
-        for j in 0..n {
-            if let Some(f) = hole_walls[0][j] {
-                walls_c[j] = Some(inserted.face(f).unwrap_or_else(|| bridged("wall")));
-            }
-            if let Some(e) = hole.rims[0][j] {
-                rims_c[j] = Some(inserted.edge(e).unwrap_or_else(|| bridged("rim")));
-            }
-            if let Some(e) = hole_mer[0][j] {
-                mer_c[j] = Some(inserted.edge(e).unwrap_or_else(|| bridged("meridian")));
-            }
-        }
-        out.cavities.push(
-            inserted
-                .shell(hole.shell)
-                .unwrap_or_else(|| bridged("shell")),
-        );
-        out.bands.push(super::bands_of(&walls_c, &col.members));
-        out.rims.push(rims_c);
+        let origin = CavityOrigin::Hole { loop_index: li };
+        let grafted = insert_pocket(&mut out, hole, origin)?;
+        out.bands.push(grafted.bands);
+        out.rims.push(grafted.rims);
         out.poles.push(vec![None; n]);
         let RevolvedKind::Full { meridians, .. } = &mut out.kind else {
             unreachable!("build_full's outer arm answers with RevolvedKind::Full")
         };
-        meridians.push(mer_c);
+        meridians.push(grafted.meridians);
     }
+
+    for (gap, stretch) in pockets.into_iter().enumerate() {
+        let wire = pocket_wire(frame, &outer, stretch, band)?;
+        let pocket = build_wire(frame, &wire, theta, band, tol)?;
+        let grafted = insert_pocket(&mut out, pocket, CavityOrigin::Pocket { gap })?;
+        // The pocket's walls are swept by the outer loop's own segments,
+        // so its handles land in loop 0's maps, where the filled shell
+        // left those segments' entries `None`.
+        out.bands[0].extend(grafted.bands);
+        fill(&mut out.rims[0], &grafted.rims);
+        fill(&mut out.poles[0], &grafted.poles);
+        let RevolvedKind::Full {
+            meridians,
+            pi_walls,
+            pi_meridians,
+            pi_rims,
+            ..
+        } = &mut out.kind
+        else {
+            unreachable!("build_full's outer arm answers with RevolvedKind::Full")
+        };
+        fill(&mut meridians[0], &grafted.meridians);
+        fill(pi_walls, &grafted.pi_walls);
+        fill(pi_meridians, &grafted.pi_meridians);
+        fill(pi_rims, &grafted.pi_rims);
+    }
+    // Loop 0's walls in swept order of their first segment: a wire
+    // starts at the end of an axis run, and the filled shell's and the
+    // pockets' walls interleave as the loop holds them.
+    let mut position = vec![0; outer.n_canon];
+    for (j, run) in outer.members.iter().enumerate() {
+        for &m in run {
+            position[m] = j;
+        }
+    }
+    out.bands[0].sort_by_key(|band| position[band.segments[0]]);
 
     // **Unconditional, and it is the door's whole postcondition.** The
     // phase builders above run under a surgery scope, so tier 1 is not
     // re-derived inside them; this is where the body a caller sees is
-    // checked, and at tier 2, which subsumes it. It used to run on the
-    // holed arm only, beside a tier-1 sweep per phase — two walks
-    // there and a weaker check on the single-loop arm.
+    // checked, and at tier 2, which subsumes it.
     #[cfg(debug_assertions)]
     debug_assert_eq!(
         topo::validate_closed(&out.body),
@@ -191,6 +203,218 @@ pub(super) fn build_full<T: Decide + topo::AtRestPolicy>(
         "revolve (full) postcondition: result is not tier-2 valid (kernel bug)",
     );
     Ok(out)
+}
+
+/// Writes `from`'s entries over `into`'s where `from` holds one.
+fn fill<K: Copy>(into: &mut [Option<K>], from: &[Option<K>]) {
+    for (slot, &e) in into.iter_mut().zip(from) {
+        if e.is_some() {
+            *slot = e;
+        }
+    }
+}
+
+/// An off-axis stretch of a collapsed loop: `len` segments from vertex
+/// `start`, both tips on the axis.
+#[derive(Clone, Copy, Debug)]
+struct Stretch {
+    start: usize,
+    len: usize,
+}
+
+/// The stretches between a loop's axis runs (k ≥ 2), sorted by what
+/// they close: the one joining the axially extreme run ends (the filled
+/// profile's wire), and each gap's, lowest gap first.
+///
+/// The swept traversal runs every axis run along `+d̂` (it is the
+/// clockwise traversal of a region at `r ≥ 0`, so its material lies to
+/// the right, at `+r`). A gap's stretch therefore climbs from one run's
+/// upper end to the next run's lower end, and the filled stretch is the
+/// one that descends, from the top run back to the bottom one. Each
+/// jump is decided through the funnel; a simple loop has exactly one
+/// descent.
+fn gap_stretches<T: Decide>(
+    frame: &AxisFrame<T>,
+    col: &Collapsed<T>,
+    runs: &[AxisRun],
+    band: Band,
+) -> Result<(Stretch, Vec<Stretch>), RevolveError> {
+    let n = col.segs.len();
+    let k = runs.len();
+    let mut stretches = Vec::with_capacity(k);
+    let mut filled = None;
+    for (j, run) in runs.iter().enumerate() {
+        let start = (run.start + run.len) % n;
+        let next = runs[(j + 1) % k].start;
+        stretches.push(Stretch {
+            start,
+            len: (next + n - start) % n,
+        });
+        let vertex_index = col.segs[start].canonical_vertex;
+        let jump = frame.axial(col.segs[next].a) - frame.axial(col.segs[start].a);
+        match decide("axis_gap", Margin::of(jump), band).map_err(|source| {
+            RevolveError::AxisGapEscalated {
+                loop_index: 0,
+                vertex_index,
+                source,
+            }
+        })? {
+            Sign::Positive => {}
+            Sign::Negative => {
+                if filled.replace(j).is_some() {
+                    unreachable!(
+                        "two stretches of one simple loop descend between its axis runs, \
+                         though the runs ascend and a simple loop returns to its lowest run \
+                         once"
+                    )
+                }
+            }
+            // Two run ends at one axial station on the axis are one
+            // point the loop meets twice: a pinch.
+            Sign::Zero => {
+                return Err(RevolveError::NonManifoldAxisContact {
+                    loop_index: 0,
+                    vertex_index,
+                });
+            }
+        }
+    }
+    let Some(f) = filled else {
+        unreachable!("no stretch of a closed loop descends, though its axis runs ascend")
+    };
+    let pockets = (1..k).map(|g| stretches[(f + g) % k]).collect();
+    Ok((stretches[f], pockets))
+}
+
+/// A gap's pocket as a wire in hole-as-outer orientation: the gap's
+/// stretch of the outer loop's one collapse, traversed backward. The
+/// swept traversal has the profile on its right; backward, the pocket
+/// is on its right, which is how a swept traversal holds its material,
+/// so each wall is classified with `reverse` set as the outer loop's
+/// are. The vertex classes are the outer loop's own (a point's radial
+/// class has no direction), and so are the runs and their members, in
+/// the loop's swept order.
+fn pocket_wire<T: Decide>(
+    frame: &AxisFrame<T>,
+    outer: &Collapsed<T>,
+    stretch: Stretch,
+    band: Band,
+) -> Result<Wire<T>, RevolveError> {
+    let n = outer.segs.len();
+    let m = stretch.len;
+    // Wire vertex `i` is the stretch's vertex `m − i`; wire segment `i`
+    // is the stretch's segment `m − 1 − i`, reversed.
+    let at = |i: usize| (stretch.start + i) % n;
+    let verts: Vec<VertexClass<T>> = (0..=m).map(|i| outer.cls.verts[at(m - i)]).collect();
+    let canon_verts: Vec<usize> = (0..=m)
+        .map(|i| outer.segs[at(m - i)].canonical_vertex)
+        .collect();
+    let segs: Vec<SweptSeg<T>> = (0..m)
+        .map(|i| outer.segs[at(m - 1 - i)].reversed(canon_verts[i]))
+        .collect();
+    let walls = (0..m)
+        .map(|i| {
+            super::axis::classify_segment(&segs[i], &verts[i], &verts[i + 1], frame, 0, true, band)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(Wire {
+        points: (0..=m).map(|i| outer.segs[at(m - i)].a).collect(),
+        members: (0..m)
+            .map(|i| outer.members[at(m - 1 - i)].clone())
+            .collect(),
+        segs,
+        walls,
+        verts,
+        canon_verts,
+        n_canon: outer.n_canon,
+    })
+}
+
+/// A pocket's handles re-keyed into the result body, over its canonical
+/// loop.
+struct Grafted {
+    bands: Vec<BandWall>,
+    rims: Vec<Option<EdgeKey>>,
+    poles: Vec<Option<VertexKey>>,
+    meridians: Vec<Option<EdgeKey>>,
+    pi_walls: Vec<Option<FaceKey>>,
+    pi_meridians: Vec<Option<EdgeKey>>,
+    pi_rims: Vec<Option<EdgeKey>>,
+}
+
+/// Inserts a pocket's solid of revolution (built in hole-as-outer
+/// orientation) into `out` as a cavity through the void door, with the
+/// profile's carried containment (`build_full`'s docs), records the
+/// cavity under `origin`, and re-keys the pocket's handles into the
+/// result body.
+fn insert_pocket<T: Decide>(
+    out: &mut Revolved<T>,
+    pocket: Revolved<T>,
+    origin: CavityOrigin,
+) -> Result<Grafted, RevolveError> {
+    let evidence = topo::VoidEvidence {
+        shells: vec![(
+            pocket.shell,
+            // The profile validation's strict-separation decision,
+            // carried verbatim (`build_full`'s docs).
+            topo::VoidContainment::Carried {
+                sign: Sign::Positive,
+            },
+        )],
+    };
+    let inserted =
+        topo::insert_void(&mut out.body, out.solid, pocket.body, &evidence).map_err(|source| {
+            RevolveError::VoidInsertion {
+                cavity: origin,
+                source,
+            }
+        })?;
+    // The graft's bridge is the ONLY bridge, total over the cavity's
+    // live entities, and these handles are the pocket body's own.
+    let bridged = |what: &str| -> ! {
+        unreachable!(
+            "the pocket's {what} handle is missing from the void graft bridge: the bridge is \
+             total over the cavity's live entities, and the handle is one the pocket build \
+             minted"
+        )
+    };
+    let face = |f: FaceKey| inserted.face(f).unwrap_or_else(|| bridged("face"));
+    let edge = |e: EdgeKey| inserted.edge(e).unwrap_or_else(|| bridged("edge"));
+    let edges = |es: &[Option<EdgeKey>]| es.iter().map(|e| e.map(edge)).collect::<Vec<_>>();
+    let RevolvedKind::Full {
+        meridians,
+        pi_walls,
+        pi_meridians,
+        pi_rims,
+        ..
+    } = &pocket.kind
+    else {
+        unreachable!("a full revolve's pocket answers with RevolvedKind::Full")
+    };
+    out.cavities.push(Cavity {
+        origin,
+        shell: inserted
+            .shell(pocket.shell)
+            .unwrap_or_else(|| bridged("shell")),
+    });
+    Ok(Grafted {
+        bands: pocket.bands[0]
+            .iter()
+            .map(|band| BandWall {
+                face: face(band.face),
+                segments: band.segments.clone(),
+            })
+            .collect(),
+        rims: edges(&pocket.rims[0]),
+        poles: pocket.poles[0]
+            .iter()
+            .map(|v| v.map(|v| inserted.vertex(v).unwrap_or_else(|| bridged("pole"))))
+            .collect(),
+        meridians: edges(&meridians[0]),
+        pi_walls: pi_walls.iter().map(|f| f.map(face)).collect(),
+        pi_meridians: edges(pi_meridians),
+        pi_rims: edges(pi_rims),
+    })
 }
 
 /// The lamina case (file docs): closed loop, no axis contact — the
@@ -476,45 +700,85 @@ fn build_turn_lamina<T: Decide + topo::AtRestPolicy>(
     })
 }
 
-/// The wire case (file docs): the on-axis run is omitted; the rest of
-/// the loop sweeps as an open wire anchored on the axis at both tips —
+/// A wire: an open chain of off-axis (collapsed) segments whose two
+/// tips lie on the axis — the off-axis stretch a full revolve sweeps
+/// between two axis-run ends. Wire segment `i` runs from wire vertex
+/// `i` to `i + 1`; vertices `0` and `k` are the pinned tips.
+struct Wire<T: Real> {
+    /// The `k` segments, in swept order.
+    segs: Vec<SweptSeg<T>>,
+    /// Their wall classes.
+    walls: Vec<WallClass<T>>,
+    /// The `k + 1` vertex classes.
+    verts: Vec<VertexClass<T>>,
+    /// The `k + 1` vertex points, sketch coordinates.
+    points: Vec<Point2<T>>,
+    /// The `k + 1` canonical vertex indices.
+    canon_verts: Vec<usize>,
+    /// Per segment, the canonical segments its run holds.
+    members: Vec<Vec<usize>>,
+    /// The canonical loop's segment count.
+    n_canon: usize,
+}
+
+impl<T: Real> Wire<T> {
+    /// The stretch of `col` from vertex `start` along `len` segments.
+    fn of(col: &Collapsed<T>, start: usize, len: usize) -> Self {
+        let n = col.segs.len();
+        let at = |i: usize| (start + i) % n;
+        Self {
+            segs: (0..len).map(|i| col.segs[at(i)]).collect(),
+            walls: (0..len).map(|i| col.cls.walls[at(i)]).collect(),
+            verts: (0..=len).map(|i| col.cls.verts[at(i)]).collect(),
+            points: (0..=len).map(|i| col.segs[at(i)].a).collect(),
+            canon_verts: (0..=len)
+                .map(|i| col.segs[at(i)].canonical_vertex)
+                .collect(),
+            members: (0..len).map(|i| col.members[at(i)].clone()).collect(),
+            n_canon: col.n_canon,
+        }
+    }
+
+    /// The stretch of `col` that remains once its one axis run is
+    /// omitted.
+    fn off_run(col: &Collapsed<T>, run: AxisRun) -> Self {
+        Self::of(col, run.start + run.len, col.segs.len() - run.len)
+    }
+}
+
+/// The wire case (file docs): the wire sweeps as an open chain
+/// anchored on the axis at both tips —
 /// in **two π-bands**, so each pole/apex ends with valence 2 (the
 /// angle-0 and angle-π meridians; a one-band wire would leave the tips
 /// valence-1, which tier 2 rightly bans as strut scaffolding). No seam
 /// zip exists in this path: band 2 is carved out of the original wire
 /// face by one rim-closing `mef` per interior vertex, and the wire
-/// face itself survives as segment 0's band-2 wall.
+/// face itself survives as segment 0's band-2 wall. The handles are
+/// indexed over the wire's canonical loop, `None` off the wire.
 fn build_wire<T: Decide + topo::AtRestPolicy>(
     frame: &AxisFrame<T>,
-    col: &Collapsed<T>,
-    run: AxisRun,
+    wire: &Wire<T>,
     theta: T,
     band: Band,
     tol: Tol,
 ) -> Result<Revolved<T>, RevolveError> {
-    let (segs, cls) = (&col.segs[..], &col.cls);
+    let (segs, walls, verts) = (&wire.segs[..], &wire.walls[..], &wire.verts[..]);
     let place = frame.place;
-    let n = segs.len();
-    let k = n - run.len;
+    let k = segs.len();
     let half = theta * T::from_f64(0.5);
     let far = crate::swept::Placing::turned(place, frame.o3, frame.axis, half)
         .map_err(RevolveError::Turn)?;
     let Some(n_pi) = far.turn_vec(frame.n3) else {
         unreachable!("a turned placing has a turn")
     };
-    // Wire segment i is swept segment (run.start + run.len + i) mod n;
-    // wire vertex i is wire segment i's start; wire vertex k is the
-    // run's start vertex (both tips pinned).
-    let wseg = |i: usize| (run.start + run.len + i) % n;
-    let wvert = |i: usize| if i < k { wseg(i) } else { run.start };
-    let pinned = |i: usize| cls.verts[wvert(i)].pinned;
-    let qw: Vec<Point3<T>> = (0..=k).map(|i| frame.world(segs[wvert(i)].a)).collect();
+    let pinned = |i: usize| verts[i].pinned;
+    let qw: Vec<Point3<T>> = wire.points.iter().map(|&p| frame.world(p)).collect();
     let qpi: Vec<Point3<T>> = (0..=k)
         .map(|i| {
             if pinned(i) {
                 qw[i]
             } else {
-                far.point(segs[wvert(i)].a)
+                far.point(wire.points[i])
             }
         })
         .collect();
@@ -531,7 +795,7 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
             r#loop: seed.r#loop,
         },
         qw[1],
-        placed_segment_spec(&segs[wseg(0)], place, frame.n3, qw[0], qw[1], tol),
+        placed_segment_spec(&segs[0], place, frame.n3, qw[0], qw[1], tol),
         tol,
     )?;
     hes.push(first.he_plus);
@@ -543,7 +807,7 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
                 he2: prev.he_minus,
             },
             qw[i + 1],
-            placed_segment_spec(&segs[wseg(i)], place, frame.n3, qw[i], qw[i + 1], tol),
+            placed_segment_spec(&segs[i], place, frame.n3, qw[i], qw[i + 1], tol),
             tol,
         )?;
         hes.push(m.he_plus);
@@ -570,15 +834,7 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
                 he2: hes[i],
             },
             qpi[i],
-            revolved_strut_spec(
-                segs[wseg(i)].a,
-                cls.verts[wseg(i)].r,
-                qw[i],
-                frame,
-                half,
-                axis_c,
-                tol,
-            ),
+            revolved_strut_spec(wire.points[i], verts[i].r, qw[i], frame, half, axis_c, tol),
             tol,
         )?;
         struts.push(Some(m));
@@ -610,9 +866,9 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
         };
         // The wall states its classified sense — see
         // `partial::sweep_loop`.
-        let surface = match cls.walls[wseg(i)] {
+        let surface = match walls[i] {
             WallClass::Wall { kind, sense } => FaceSurface::New {
-                surface: wall_surface(&kind, &segs[wseg(i)], frame),
+                surface: wall_surface(&kind, &segs[i], frame),
                 sense,
             },
             // Unreachable: wire segments are off-axis by construction.
@@ -620,7 +876,7 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
         };
         let mef = body.mef(
             MefSite::Chords { he1, he2 },
-            placed_segment_spec(&segs[wseg(i)], far, n_pi, qpi[i], qpi[i + 1], tol),
+            placed_segment_spec(&segs[i], far, n_pi, qpi[i], qpi[i + 1], tol),
             surface,
             tol,
         )?;
@@ -638,7 +894,7 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
             body.describe_at_rest(strut.edge, tol)?;
             continue;
         }
-        let vertex_index = segs[wseg(i)].canonical_vertex;
+        let vertex_index = wire.canon_verts[i];
         upgrade_intersection(
             &mut body,
             strut.edge,
@@ -680,17 +936,17 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
                 )
             })
             .he_minus;
-        let center = frame.foot3(segs[wseg(i)].a);
+        let center = frame.foot3(wire.points[i]);
         let rim = qpi[i] - center;
         // The same rim identity as `revolve::surfaces`', at the same
         // guarantee (its comment carries the argument).
-        crate::swept::register_rim_identity(rim, cls.verts[wseg(i)].r, tol);
+        crate::swept::register_rim_identity(rim, verts[i].r, tol);
         let spec = EdgeCurveSpec {
             // The return half of the whole turn's own range, on the
             // sketch placement: no turned placement is evaluated.
             description: geom_brep::EdgeDescriptionSpec::Scaffold(
                 geom_brep::MappedCurve::whole(geom_brep::MappedSource::RevolvedPoint {
-                    point: segs[wseg(i)].a,
+                    point: wire.points[i],
                     place,
                     axis_origin: frame.o3,
                     axis_dir: frame.a3,
@@ -701,7 +957,7 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
             carrier: geom::Curve3::Circle {
                 center,
                 axis: axis_c,
-                radius: cls.verts[wseg(i)].r,
+                radius: verts[i].r,
                 u_ref: rim.normalize(),
             },
             param_start: T::zero(),
@@ -728,7 +984,7 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
             body.describe_at_rest(rim2, tol)?;
             continue;
         }
-        let vertex_index = segs[wseg(i)].canonical_vertex;
+        let vertex_index = wire.canon_verts[i];
         upgrade_intersection(
             &mut body,
             rim2,
@@ -758,7 +1014,7 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
         let WallClass::Wall {
             kind: WallKind::Plane { outward },
             ..
-        } = cls.walls[wseg(i)]
+        } = walls[i]
         else {
             continue;
         };
@@ -817,7 +1073,7 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
     // ---- Assembly (canonical indexing; omitted run entries None; a
     // wall run's segments read its one wall and meridians, its stations
     // no rim; a plane wall has no π twin and no meridian). ----
-    let nc = col.n_canon;
+    let nc = wire.n_canon;
     let mut walls_c = vec![None; nc];
     let mut rims_c = vec![None; nc];
     let mut mer_c = vec![None; nc];
@@ -825,8 +1081,6 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
     let mut pi_mer = vec![None; nc];
     let mut pi_rims = vec![None; nc];
     for i in 0..k {
-        let j = wseg(i);
-        let s = &segs[j];
         let (mer, pi_wall, pi_m) = if plane[i] {
             (None, None, None)
         } else {
@@ -836,27 +1090,27 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
                 Some(tops[i]),
             )
         };
-        for &m in &col.members[j] {
+        for &m in &wire.members[i] {
             walls_c[m] = Some(faces[i]);
             mer_c[m] = mer;
             pi_walls[m] = pi_wall;
             pi_mer[m] = pi_m;
         }
         if let Some(strut) = &struts[i] {
-            rims_c[s.canonical_vertex] = Some(strut.edge);
+            rims_c[wire.canon_verts[i]] = Some(strut.edge);
         }
-        pi_rims[s.canonical_vertex] = rims2[i];
+        pi_rims[wire.canon_verts[i]] = rims2[i];
     }
-    // Poles: the axis run's two end vertices, where a cone or curved
-    // wall ends on them; a plane disc's centre took its pole with its
-    // slit. The run's INTERIOR vertices stay `None` — the omitted run
-    // took them with it, so no body vertex answers to them.
+    // Poles: the wire's two tips, where a cone or curved wall ends on
+    // them; a plane disc's centre took its pole with its slit. The
+    // run's INTERIOR vertices stay `None` — the omitted run took them
+    // with it, so no body vertex answers to them.
     let mut poles_c = vec![None; nc];
     if !pole_killed[0] {
-        poles_c[segs[wvert(0)].canonical_vertex] = Some(pole_near);
+        poles_c[wire.canon_verts[0]] = Some(pole_near);
     }
     if !pole_killed[1] {
-        poles_c[segs[wvert(k)].canonical_vertex] = Some(pole_far);
+        poles_c[wire.canon_verts[k]] = Some(pole_far);
     }
     body.close_already_checked();
     Ok(Revolved {
@@ -864,7 +1118,7 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
         solid: seed.solid,
         shell: seed.shell,
         cavities: Vec::new(),
-        bands: vec![super::bands_of(&walls_c, &col.members)],
+        bands: vec![super::bands_of(&walls_c, &wire.members)],
         rims: vec![rims_c],
         poles: vec![poles_c],
         kind: RevolvedKind::Full {

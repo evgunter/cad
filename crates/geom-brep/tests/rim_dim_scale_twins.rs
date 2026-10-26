@@ -421,6 +421,7 @@ fn the_cone_flux_lane_decides_lengths_at_both_scales() {
         "props_chart_loop_turns",
         "props_chart_loop_sense",
         "props_cone_loop_vertex",
+        "props_cone_apex_loop_net",
         "props_cone_apex_loop_sweep",
         "props_cone_loop_vertex_sheet",
         "props_cone_outer_side",

@@ -1209,12 +1209,10 @@ fn the_authoring_ladder_runs_on_one_dependency() {
     // A primitive body: no declared contacts, so the tier-3 arm.
     ladder(&built.body, None);
 
-    let props = mass_properties(
-        &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&built.body), Tol::witness())
-            .expect("the measured body passes tier 3"),
-        Tol::witness(),
-    )
-    .expect("mass properties");
+    let finished =
+        pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&built.body), Tol::witness())
+            .expect("the measured body passes tier 3");
+    let props = mass_properties(&finished, Tol::witness()).expect("mass properties");
     assert!(
         (props.volume - 3.0).abs() < 1e-12,
         "volume {}",
@@ -1228,7 +1226,7 @@ fn the_authoring_ladder_runs_on_one_dependency() {
     write_binary(&mesh, &BinaryOptions::default(), &mut stl_out).expect("stl");
     assert!(!stl_out.is_empty());
 
-    let step = step_string(&built.body, &StepOptions::default(), Tol::witness()).expect("step");
+    let step = step_string(&finished, &StepOptions::default(), Tol::witness()).expect("step");
     assert!(step.starts_with("ISO-10303-21;"));
 }
 
@@ -4974,7 +4972,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 /// - **The analysis lane's INTERIOR residue** (`FlipEvidence`,
 ///   `StructureFlip`, `AxisScalar`, `var_env_over`, `SeedScalar`,
 ///   `seed_env`, `std_deviation`, `sensitivities`,
-///   `PairingViolation`; the third lane seam `MinClearanceLane`
+///   `BindingViolation`; the third lane seam `MinClearanceLane`
 ///   with its `MinClearanceOperand`, which is how a `min_clearance`
 ///   measure asks the interval lane for the bracket only that lane
 ///   can carry; and `ProfileLane`, the sealed fact that the `f64`
@@ -5028,6 +5026,7 @@ const NOT_CARRIED: [&str; 98] = [
     "AttrSet",
     "AxisScalar",
     "BifurcationKind",
+    "BindingViolation",
     "BranchCertification",
     "BranchMarginEvidence",
     "CertifiedRange",
@@ -5059,7 +5058,6 @@ const NOT_CARRIED: [&str; 98] = [
     "NodeChange",
     "NodeVerdictDelta",
     "NodeVerdicts",
-    "PairingViolation",
     "ParamValue",
     "PredicateDivergence",
     "ProfileLane",

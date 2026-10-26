@@ -139,10 +139,9 @@ WINDOW=16
 
 # THE REGISTER — `<file>|<fn>|<fragment>|<count>|<disposition>`.
 REGISTER=(
-  "crates/editor-core/src/names/emit.rs|face_half_edges||1|unaudited"
+  "crates/editor-core/src/names/emit.rs|loop_half_edges||1|unaudited"
   "crates/mesh/src/trimmed.rs|trim_polygon||1|unaudited"
   "crates/mesh/src/walk.rs|loop_half_edges||1|unaudited"
-  "crates/step-export/src/volume.rs|shell_signed_volume||1|unaudited"
   "crates/step-export/src/writer.rs|face_bound||1|unaudited"
   "crates/step-import/src/adopt.rs|rotate_loop_firsts||1|unaudited"
   "crates/sweep/src/blend/battery.rs|screened_loop||1|audited: the discarded variant is refused by name, not passed over — a lone-vertex loop on a support face returns UnsupportedGeometry naming the loop, so predicate 2 never reports a face clear without having read it"
@@ -153,7 +152,7 @@ REGISTER=(
   "crates/topo/src/boolean/carrier_cross.rs|boundary_crossing||1|audited: the discarded variant is answered by name — a lone-vertex loop has no boundary pre-pass, so the crossing is Unread and the caller keeps its frontier door (the module docs state it)"
   "crates/topo/src/boolean/contain.rs|loop_cycle_points||1|unaudited"
   "crates/topo/src/boolean/discard.rs|discard_row||1|unaudited"
-  "crates/topo/src/boolean/join.rs|region_faces||1|unaudited"
+  "crates/topo/src/boolean/join.rs|region_halves||1|unaudited"
   "crates/topo/src/boolean/ops.rs|apply_cut_ins|else { return|1|audited: the discarded variant is refused by name — a lone-vertex loop on the face a cut crosses returns FallbackExtentUnsupported naming that face, so no boundary hit of the meridian goes unread"
   "crates/topo/src/boolean/ops.rs|apply_cut_ins|else { continue|1|audited: the walk above refused every lone-vertex loop of this face, and the edge splits between the two walks add half-edges to its cycles only, so no Empty loop reaches this one"
   "crates/topo/src/boolean/ops.rs|boundary_edges||1|unaudited"
@@ -653,7 +652,7 @@ gate_selftest() {
   # A second discard under a one-site entry, and a second under an entry
   # a FRAGMENT narrows — the two shapes a key without a count absorbs.
   gate_selftest_case "matched 2" plant_extra_site \
-    crates/editor-core/src/names/emit.rs face_half_edges oneline
+    crates/editor-core/src/names/emit.rs loop_half_edges oneline
   gate_selftest_case "matched 2" plant_extra_site \
     crates/topo/src/census.rs face_cycles wrapped-return
   gate_selftest_malformed_register

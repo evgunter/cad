@@ -5903,7 +5903,7 @@ mod tests {
     fn the_work_wall_buys_each_lane_its_measured_rounds() {
         type Cost<'a> = &'a dyn Fn(usize) -> usize;
         let square = |w: usize| move |r: usize| w * (QUAD2_INIT_PIECES << r).pow(2);
-        let rows: [(&str, Cost<'_>, usize); 10] = [
+        let rows: [(&str, Cost<'_>, usize); 12] = [
             ("rational composite", &square(W_RATIONAL_COMPOSITE), 7),
             ("integral composite", &square(W_INTEGRAL_COMPOSITE), 6),
             (
@@ -5920,6 +5920,16 @@ mod tests {
                 "spiric, 1 edge",
                 &|r| super::super::spiric::W_SPIRIC * (QUAD_INIT_PIECES << r),
                 13,
+            ),
+            (
+                "rational rim, degree 2, 4 spans (the vase's cap)",
+                &|r| super::super::spiric::w_rational(2) * 4 * (QUAD_INIT_PIECES << r),
+                9,
+            ),
+            (
+                "rational rim, degree 7, 1 span",
+                &|r| super::super::spiric::w_rational(7) * (QUAD_INIT_PIECES << r),
+                9,
             ),
             (
                 "trimmed bilinear chart, 1 image and 2 iso chords",

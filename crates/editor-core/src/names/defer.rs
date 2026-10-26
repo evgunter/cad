@@ -68,9 +68,11 @@ pub(super) struct Upstream {
     pub(super) name: NameRef,
     /// True iff that name's entry is `Entry::Tied`.
     pub(super) tied: bool,
-    /// The entity's candidate under that name. Only a VERBATIM carry
-    /// reads it ([`TieRows::carry`]): a wrapping emitter names a new
-    /// row, and its candidates are numbered afresh.
+    /// The entity's candidate under that name. A VERBATIM carry reads
+    /// it ([`TieRows::carry`]), and so does the pair boolean's corner
+    /// pass, which names each candidate of a tied corner apart; a
+    /// wrapping emitter names a new row, and its candidates are
+    /// numbered afresh.
     pub(super) candidate: Candidate,
 }
 
