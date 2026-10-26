@@ -206,6 +206,9 @@ pub(crate) enum Step {
     Band,
     /// A margin was poisoned: no enclosure decides it.
     Poisoned(Indeterminate),
+    /// The claim names no volume at all: a [`Settle::Contains`] whose
+    /// least volume definitely exceeds its greatest.
+    Empty,
 }
 
 /// **A relation read off a volume enclosure**: `V op bound`, the margin
@@ -304,6 +307,17 @@ pub(crate) fn contains_step<T: Decide>(
     name: &'static str,
     band: Band,
 ) -> Step {
+    // `hi − lo`, metered over the surface area as the relations' margins
+    // are: definitely negative, and no volume lies in the claim.
+    match geom_core::k_stats::decide_reported(
+        name,
+        Margin::over_lever(hi - lo, e.surface_area),
+        band,
+    ) {
+        Ok(decided) if decided.sign == Sign::Negative => return Step::Empty,
+        Err(cause) if cause.margin.is_invalid() => return Step::Poisoned(cause),
+        _ => {}
+    }
     let at_least = relation_step(e, RelOp::Ge, lo, name, band);
     let at_most = relation_step(e, RelOp::Le, hi, name, band);
     match (at_least, at_most) {

@@ -765,6 +765,12 @@ class TestSettle(unittest.TestCase):
         outside = cube.mass_properties(Settle.contains(2.0, 3.0))
         self.assertEqual((outside.stop, outside.verdict), ("settled", False))
 
+    def test_a_containment_whose_least_is_above_its_greatest_is_refused(self):
+        with self.assertRaises(ValidationError) as refused:
+            self.cube().mass_properties(Settle.contains(1.5, 0.5))
+        self.assertEqual(refused.exception.reason, "mass_properties_failed")
+        self.assertEqual(refused.exception.measure_refusal, "empty_contains")
+
     def test_a_resolution_is_met_and_decides_nothing(self):
         measured = self.cube().mass_properties(PINNED)
         self.assertEqual((measured.stop, measured.verdict), ("met", None))

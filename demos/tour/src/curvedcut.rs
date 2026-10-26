@@ -39,7 +39,7 @@ use pncad::topo::{AtRestBody, Body, BooleanResult, EdgeDescription};
 
 use crate::booleans::{finished, try_subtract};
 use crate::scalar::{Scalar, sketch_frame, split_plane};
-use crate::{SceneBody, Stop, View};
+use crate::{SceneBody, TourStop, View};
 
 /// The cylinder's radius (m).
 const R: f64 = 1.0;
@@ -414,7 +414,7 @@ fn walls(cut: &Cut<f64>, tol: Tol) {
 }
 
 /// The rendering stop.
-pub fn stops(tol: Tol) -> Vec<Stop> {
+pub fn stops(tol: Tol) -> Vec<TourStop> {
     let cut = build::<f64>(tol);
     walls(&cut, tol);
     let half = PI * R * R * H / 2.0;
@@ -422,7 +422,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     let narration_above = section_narration("tiltedcut_above", &cut.above, half - pockets, tol);
     let narration_below = section_narration("tiltedcut_below", &cut.below, half, tol);
     let Cut { above, below, .. } = cut;
-    vec![Stop {
+    vec![TourStop {
         name: "tiltedcut",
         caption: "tilted cut (engraved cap, exact ellipse section)".to_string(),
         montage: true,

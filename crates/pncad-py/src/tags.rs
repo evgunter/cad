@@ -371,6 +371,7 @@ pub fn mass_props_error_tag(err: &pncad::topo::MassPropsError) -> &'static str {
         M::Corrupt { .. } => "corrupt",
         M::NullScaffoldEdge { .. } => "null_scaffold_edge",
         M::ResolutionFinerThanEps { .. } => "resolution_finer_than_eps",
+        M::EmptyContains => "empty_contains",
         M::Poisoned { .. } => "poisoned",
         M::Undecided { .. } => "undecided",
     }

@@ -62,7 +62,7 @@ use pncad::document::{
 use pncad::geom_core::Tol;
 use pncad::topo::Body;
 
-use crate::{SceneBody, Stop, View};
+use crate::{SceneBody, TourStop, View};
 
 /// The hub's facet count. Round enough to read as a hub; why it is a
 /// prism is the module docs'.
@@ -286,7 +286,7 @@ fn body_of(ev: &Evaluation<f64>, at: RecipeNodeId) -> Body<f64> {
     }
 }
 
-pub fn stops(tol: Tol) -> Vec<Stop> {
+pub fn stops(tol: Tol) -> Vec<TourStop> {
     let r = build_doc(tol);
     let cancel = CancelToken::new();
     let opts = EvalOptions::default();
@@ -427,7 +427,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                 8 => "impeller8",
                 _ => "impeller12",
             };
-            Stop {
+            TourStop {
                 name,
                 caption: caption.clone(),
                 montage: *n == COUNTS[2],

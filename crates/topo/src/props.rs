@@ -279,6 +279,10 @@ pub enum MassPropsError {
         /// The run's ε (m).
         eps: f64,
     },
+    /// The caller's [`Settle::Contains`] has its least volume definitely
+    /// above its greatest: the claim names no volume, so there is
+    /// nothing to decide.
+    EmptyContains,
     /// A deciding predicate's margin was poisoned: no enclosure decides
     /// it.
     Poisoned {
@@ -334,6 +338,12 @@ impl fmt::Display for MassPropsError {
                 "a measurement was asked for to {resolution:e} m, finer than the model's \
                  tolerance of {eps:e} m, which is the most it defines a measure to. Recourse: \
                  ask for a resolution of at least the tolerance"
+            ),
+            Self::EmptyContains => write!(
+                f,
+                "a measurement was asked whether the volume lies between a least and a \
+                 greatest value, and the least is above the greatest, so no volume could. \
+                 Recourse: give the least value first"
             ),
             Self::Poisoned { cause } => {
                 write!(
@@ -798,6 +808,7 @@ fn deciding_walk<T: Decide>(
             }
             settle::Step::Band => Ask::Decided(Ok(Stop::Band)),
             settle::Step::Poisoned(cause) => Ask::Decided(Err(MassPropsError::Poisoned { cause })),
+            settle::Step::Empty => Ask::Decided(Err(MassPropsError::EmptyContains)),
             settle::Step::Refine => Ask::Refine(vec![true]),
         }
     });
@@ -2150,6 +2161,18 @@ impl<'b, T: Decide> SignCertificate<'b, T> {
         fold_runs(&self.runs).enclosure()
     }
 
+    /// The volume as the faces stand, re-derived in interval arithmetic
+    /// through the certificate's lane ([`rederive`]): the bracket a
+    /// refusal reports, whose ends are directed outward over the stored
+    /// geometry rather than the walk's own sums. `None` where the
+    /// certificate holds no lane or the re-derivation refuses.
+    pub(crate) fn interval_volume(&self) -> Option<(f64, f64)> {
+        let lane = self.quad?;
+        rederive(self.body, self.band, self.tol, lane, &self.runs, true)
+            .ok()
+            .map(|r| (r.volume.lo(), r.volume.hi()))
+    }
+
     /// [`Self::measure`]'s walk at any scalar: the faces sized to a
     /// resolution, or a deciding predicate walked on, with no refusal
     /// for a predicate run out.
@@ -3360,6 +3383,26 @@ mod measure_door_rows {
             Stop::Settled(SettleVerdict::Holds(true)),
             "0.5 ≤ V ≤ 1.5"
         );
+    }
+
+    /// **A containment whose least volume is above its greatest names no
+    /// volume**: the door refuses it, typed, before reading any volume
+    /// against it.
+    #[test]
+    fn a_containment_with_its_ends_reversed_is_refused() {
+        let tol = Tol::witness();
+        let cube = unit_cube();
+        let band = Band::linear(tol).expect("the witness band builds");
+        let lane = Some(QuadLane::certified());
+        let faces = crate::query::all_faces(&cube);
+        let settle = Settle::Contains {
+            lo: 1.5,
+            hi: 0.5,
+            name: "measure_door_row",
+        };
+        let refusal = measure_to(&cube, &faces, band, tol, (lane, lane), settle)
+            .expect_err("an empty containment is refused");
+        assert_eq!(refusal, MassPropsError::EmptyContains);
     }
 
     /// **No resolution finer than ε is offered**: the door refuses it,

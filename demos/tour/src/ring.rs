@@ -117,7 +117,7 @@ use pncad::quantity::MILLI;
 use pncad::sweep::{CavityOrigin, Revolution, RevolveAxis, revolve};
 use pncad::topo::Body;
 
-use crate::{SceneBody, Stop, View};
+use crate::{SceneBody, TourStop, View};
 
 // **This scene is authored in MILLIMETRES**, and its document says so.
 //
@@ -239,7 +239,7 @@ fn document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId) {
     (doc, revolved)
 }
 
-pub fn stops(tol: Tol) -> Vec<Stop> {
+pub fn stops(tol: Tol) -> Vec<TourStop> {
     // The whole model: an annulus, and a full turn. The hole is a
     // second loop of the same profile — the ring is not assembled from
     // anything, and nothing here mentions a cavity.
@@ -356,7 +356,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         "the two doors build the same solid, not merely the same census"
     );
 
-    vec![Stop {
+    vec![TourStop {
         name: "hollowring",
         caption: "THE ONE-CALL HOLLOW RING (a holed profile, fully revolved)".to_string(),
         // Montage cell RETIRED by the montage-v3 curation (Ev,

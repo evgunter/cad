@@ -57,7 +57,7 @@ use pncad::prelude::{
 use pncad::topo::Body;
 
 use crate::scalar::Scalar;
-use crate::{SceneBody, Stop, View};
+use crate::{SceneBody, TourStop, View};
 use pncad::geom_core::Tol;
 
 /// The die's side, shared by both dice (`diechamfer` closes its volume
@@ -556,7 +556,7 @@ pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
     crate::world::place_in_world(&die.doc, die.composed, tol).doc
 }
 
-pub fn stops(tol: Tol) -> Vec<Stop> {
+pub fn stops(tol: Tol) -> Vec<TourStop> {
     let die = build(tol);
     let ev = evaluate::<f64>(
         &die.doc,
@@ -630,7 +630,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     assert_eq!((cf, ce, cv), (26 + 21 * 3, 48 + 21 * 6, 24 + 21 * 4));
 
     vec![
-        Stop {
+        TourStop {
             name: "diefillet",
             caption: "the die blank (rolling-ball fillets)".to_string(),
             // Standalone since the montage-v2 curation (Ev, #218
@@ -663,7 +663,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                 SceneBody::plain("diefillet", [0.80, 0.72, 0.55], blank).named(&ev, die.blank),
             ],
         },
-        Stop {
+        TourStop {
             name: "diepips",
             caption: "the die's pips (one group cut)".to_string(),
             // Standalone with `diefillet` (see the note there).
@@ -693,7 +693,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                 SceneBody::plain("diepips", [0.62, 0.66, 0.78], pipped).named(&ev, die.pipped),
             ],
         },
-        Stop {
+        TourStop {
             name: "diecomposed",
             caption: "THE COMPOSED DIE (in-place surgery)".to_string(),
             montage: true,

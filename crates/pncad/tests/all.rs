@@ -56,13 +56,11 @@ use pncad::prelude::*;
 use pncad::tolerance::Tol;
 use test_utils::source::{ItemBody, balanced_end, code_and_literals, code_only, item_body};
 
-/// The resolution these rows read a number at: `1024 ε`, the one
-/// `topo::test_support::pinned_resolution` states for the suites'
-/// pinned numbers. Spelled here because this file reaches the kernel
-/// only through the façade, which does not carry `topo`'s test
-/// support.
+/// The resolution these rows read a number at: `1024 ε`, read from its
+/// one home, `topo::test_support::pinned_resolution`, through the
+/// façade (this crate's self dev-dependency turns `test-support` on).
 fn pinned_resolution(tol: Tol) -> Settle<f64> {
-    Settle::Resolution(pncad::quantity::Length::from_meters(1024.0 * tol.eps()))
+    pncad::topo::test_support::pinned_resolution(tol)
 }
 
 /// Consumes a value without executing anything — the sink that makes

@@ -88,7 +88,7 @@ use pncad::geom_core::{Point3, Tol, Vec3};
 use pncad::sweep::{CavityOrigin, TubeWindow, tube_along_arc, tube_along_arc_hollow};
 use pncad::topo::Body;
 
-use crate::{SceneBody, Stop, View};
+use crate::{SceneBody, TourStop, View};
 
 // The spine, the window, the outer radius and the chord budget are
 // IMPORTED from `tube`, which owns them. This panel's headline
@@ -192,7 +192,7 @@ fn wall_triangles(body: &Body<f64>, mesh: &pncad::mesh::Mesh, r: f64) -> Vec<usi
     counts
 }
 
-pub fn stops(tol: Tol) -> Vec<Stop> {
+pub fn stops(tol: Tol) -> Vec<TourStop> {
     let mut out = Vec::new();
 
     // ---- the windowed hollow elbow: a wall you can look down ----
@@ -297,7 +297,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // shifting the tessellation baseline's per-scene total.
     assert_eq!((ve, ee, fe), (8, 12, 6), "elbow census");
 
-    out.push(Stop {
+    out.push(TourStop {
         name: "hollowelbow",
         caption: "THE WINDOWED HOLLOW ELBOW (a wall, and an open bore)".to_string(),
         // Montage cell RETIRED by the montage-v3 curation (Ev,
@@ -424,7 +424,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // rims and 2 vertices, twice over.
     assert_eq!((vt, et, ft), (4, 8, 4), "torus-shell census");
 
-    out.push(Stop {
+    out.push(TourStop {
         name: "hollowtorus",
         caption: "THE FULL-PERIOD HOLLOW TUBE (the bore becomes a cavity)".to_string(),
         // Montage cell RETIRED by the montage-v3 curation (Ev,

@@ -75,7 +75,8 @@ fn twins_built_alike_each_measure_their_own_volume() {
     let settle = || topo::test_support::pinned_resolution::<f64>(tol);
     let own = |b: &CertifiedBody| b.measure(settle()).expect("a box measures").enclosure;
     let fresh = |b: &CertifiedBody| {
-        topo::test_support::measure_unvalidated(b.body(), tol, settle())
+        let finished = topo::test_support::finished("the box", b.body().clone(), tol);
+        topo::mass_properties(&finished, tol, settle())
             .expect("a box measures fresh")
             .enclosure
     };
@@ -106,10 +107,12 @@ fn a_copy_changed_after_import_leaves_the_measurement_as_it_was() {
     let mut copy = certified.body().clone();
     let face = copy.faces().next().map(|(f, _)| f).expect("a face");
     topo::replace_face_offset(&mut copy, face, -0.25 * 1e-3, tol).expect("a box face moves");
-    let moved = topo::test_support::measure_unvalidated(&copy, tol, settle())
-        .unwrap()
-        .enclosure
-        .volume;
+    let moved = topo::test_support::pinned_volume(
+        "the moved box",
+        &topo::test_support::finished("the moved box", copy, tol),
+        tol,
+    )
+    .volume;
     assert!(
         (moved - before.volume).abs() > 1e-3 * before.volume,
         "the changed copy is a different box: {moved:e} against {:e}",

@@ -626,17 +626,23 @@ fn a_rational_section_on_a_curved_path_meters_at_the_span_meter() {
     );
 }
 
-/// **The rational quarter torus answers a bracket, never a refusal**
-/// (`docs/QUAD-MEASURE-SPEC.md` acceptance 5): the circle-section elbow
-/// above, whose rational walls stop short of `1024·ε` at the default ε,
-/// measured at a resolution of 1.024e-6 m. It answers its enclosure with
-/// the stop that says why, at the wall or met, and the enclosure holds
-/// the torus's Pappus volume within the walls' v-interpolation gap
-/// (≈ 4e-6 of it at nine stations, the square elbow's measure).
+/// **The rational elbow answers a bracket, never a refusal**: the
+/// circle-section elbow above, whose rational walls stop short of
+/// `1024·ε` at the default ε, measured at the suites' pinned resolution
+/// (`1024·ε`, which is 1.024e-6 m at the default ε). It answers its
+/// enclosure with the stop that says why, at the wall or met — never
+/// the floor, at any ε.
+///
+/// Its walls interpolate the torus through nine stations rather than
+/// being it, so Pappus is not its volume: the two differ by the fit,
+/// measured at 3.9e-6 of Pappus, and the row holds the bracket to
+/// Pappus within 5e-6 of it beyond the pad. Acceptance 5's exact
+/// oracle is the conic quarter torus, whose walls ARE the torus
+/// (`step-import`'s
+/// `a_conic_quarter_torus_measures_a_bracket_at_the_wall`).
 ///
 /// Through the raw door, because the subject is the measurement and not
-/// the gate. The stop is pinned at the default ε, where the spec states
-/// it; at every ε the answer is an enclosure, not a refusal.
+/// the gate.
 #[test]
 fn a_rational_quarter_torus_answers_a_bracket_at_the_wall_not_a_refusal() {
     let tol = Tol::witness();
@@ -657,13 +663,12 @@ fn a_rational_quarter_torus_answers_a_bracket_at_the_wall_not_a_refusal() {
     )
     .unwrap_or_else(|e| panic!("the quarter torus measures, never refuses: {e:?}"));
     assert!(
-        tol.eps() != geom_core::tolerance::DEFAULT_EPS
-            || matches!(measured.stop, topo::Stop::Wall | topo::Stop::Met),
+        matches!(measured.stop, topo::Stop::Wall | topo::Stop::Met),
         "the stop is the wall or the resolution met: {measured:?}"
     );
     let e = measured.enclosure;
     let pappus = PI * ELBOW_H * ELBOW_H * ELBOW_R * FRAC_PI_2;
-    let gap = 1e-5 * pappus;
+    let gap = 5e-6 * pappus;
     assert!(
         (e.volume - pappus).abs() <= e.volume_pad + gap,
         "the bracket {} ± {:e} holds Pappus's {pappus} within the fit's {gap:e}",
@@ -671,7 +676,7 @@ fn a_rational_quarter_torus_answers_a_bracket_at_the_wall_not_a_refusal() {
         e.volume_pad
     );
     eprintln!(
-        "ACCEPTANCE-5 quarter torus @ ε = {:e}, resolution 1.024e-6 m: stop {:?}, V = {} ± {:e}",
+        "rational elbow @ ε = {:e}, resolution 1024·ε: stop {:?}, V = {} ± {:e}",
         tol.eps(),
         measured.stop,
         e.volume,

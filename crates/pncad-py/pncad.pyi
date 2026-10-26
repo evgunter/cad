@@ -4640,7 +4640,9 @@ class Settle:
     @staticmethod
     def contains(lo: float, hi: float) -> Settle:
         """The volume within `[lo, hi]` (m^3): `verdict` is whether it
-        holds. Recorded under `py_measure_contains`."""
+        holds. Recorded under `py_measure_contains`. A `lo` definitely
+        above `hi` names no volume and raises (`measure_refusal ==
+        "empty_contains"`)."""
     @staticmethod
     def resolution(length: Length) -> Settle:
         """Each face refined until its enclosure spans at most `length`
@@ -4717,7 +4719,9 @@ class Body:
         naming which: `"face"`, `"ring_on_curved_face"`, `"corrupt"`,
         `"null_scaffold_edge"` or `"band"` (no enclosure),
         `"poisoned"` (the predicate's margin could not be read),
-        `"resolution_finer_than_eps"`, or `"undecided"`: a deciding
+        `"resolution_finer_than_eps"`, `"empty_contains"` (a
+        `Settle.contains` whose `lo` is above its `hi`), or
+        `"undecided"`: a deciding
         predicate still undecided where no face can refine, which
         carries `volume`, the enclosure's ends `(lo, hi)` read outward,
         and `stop`, `"wall"` or `"floor"`."""

@@ -8,6 +8,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+#[path = "common/printed.rs"]
+mod printed;
 use pncad::authoring::{p2, validated};
 use pncad::geom::Surface;
 use pncad::geom_core::{Point2, Point3, Tol, Vec2, Vec3};
@@ -302,14 +304,10 @@ fn p3_the_shared_pair_builds_and_matches_the_sequential_composition() {
     )
     .expect("the lip on the result");
     let volume = |b: &pncad::topo::Body<f64>| {
-        pncad::topo::mass_properties(
-            &at_rest(b, tol),
-            tol,
-            pncad::topo::Settle::Resolution(pncad::quantity::Length::from_meters(1.024e-6)),
-        )
-        .expect("mass properties")
-        .enclosure
-        .volume
+        pncad::topo::mass_properties(&at_rest(b, tol), tol, printed::printed())
+            .expect("mass properties")
+            .enclosure
+            .volume
     };
     let (v1, v2) = (volume(&one.body), volume(&second.body));
     assert!(

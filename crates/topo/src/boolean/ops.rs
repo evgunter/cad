@@ -2588,6 +2588,9 @@ fn bounded<T: Decide>(
                 crate::props::Ask::Decided(Err(escalated(cause)))
             }
             crate::props::settle::Step::Refine => crate::props::Ask::Refine(vec![true]),
+            crate::props::settle::Step::Empty => {
+                unreachable!("a single relation names a volume; only a `Contains` can be empty")
+            }
         }
     });
     match walked {

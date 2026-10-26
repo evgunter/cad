@@ -67,7 +67,7 @@ use pncad::topo::Body;
 
 use crate::booleans::finished;
 use crate::diefillet::{L, R};
-use crate::{SceneBody, Stop, View};
+use crate::{SceneBody, TourStop, View};
 
 /// The setback. The point of the pair is that this IS the fillet's
 /// radius, so the panels compare verbs rather than parameters.
@@ -130,7 +130,7 @@ fn edge_material(a: f64, d: f64) -> f64 {
     6.0 * a * d * d - (16.0 / 3.0) * d.powi(3)
 }
 
-pub fn stops(tol: Tol) -> Vec<Stop> {
+pub fn stops(tol: Tol) -> Vec<TourStop> {
     let (cube, pipped) = crate::diefillet::source_bodies(tol);
     let (cube, pipped) = (finished("cube", cube, tol), finished("pipped", pipped, tol));
 
@@ -217,7 +217,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     };
 
     vec![
-        Stop {
+        TourStop {
             name: "diechamferblank",
             caption: "the die blank (chamfers)".to_string(),
             // Standalone for the same reason `diefillet`'s blank is
@@ -248,7 +248,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                 chamfered,
             )],
         },
-        Stop {
+        TourStop {
             name: "diechamfer",
             caption: "THE CHAMFERED DIE (the same die, one verb over)".to_string(),
             montage: true,

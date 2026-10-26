@@ -282,7 +282,7 @@ use pncad::select::{
 use pncad::topo::readback::euler_counts;
 use pncad::topo::{Body, BooleanError, Operand};
 
-use crate::{SceneBody, Stop, View};
+use crate::{SceneBody, TourStop, View};
 
 // ---------------------------------------------------------------------
 // The vessel's meridian. Every station is a dyadic rational in meters,
@@ -1553,7 +1553,7 @@ fn evaluated(tol: Tol) -> (Recipe, Evaluation<f64>) {
     (r, ev)
 }
 
-pub fn stops(tol: Tol) -> Vec<Stop> {
+pub fn stops(tol: Tol) -> Vec<TourStop> {
     let (r, ev) = evaluated(tol);
 
     // ---- the vessel, before the wall ----
@@ -2434,7 +2434,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     let spout_refusal = describe_join(&ev, r.spout_union);
     wall_probes(&ev, &r);
 
-    vec![Stop {
+    vec![TourStop {
         name: "teapot",
         caption: "THE TEAPOT (FOUR solids: the opened pot, the lid lifted, and the \
                   spout and handle it will not join)"

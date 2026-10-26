@@ -3500,6 +3500,11 @@ pub(crate) fn classify_mass_props(e: &crate::props::MassPropsError) -> MassProps
             "Recourse: ask for a resolution of at least the tolerance".into(),
             false,
         ),
+        M::EmptyContains => reading(
+            "a measurement was asked whether the volume lies in a range whose least value is above its greatest",
+            "Recourse: give the least value first".into(),
+            false,
+        ),
         M::Undecided { .. } => reading(
             "the measurement's question is still undecided where refinement stopped",
             geom_core::NOT_YET_ENDING.into(),
@@ -5623,15 +5628,19 @@ fn structural_via<'b, T: geom_core::Decide + geom_core::Bounds + crate::props::A
 type Bracket<'f, 'b, T> = &'f dyn Fn(&crate::props::SignCertificate<'b, T>) -> Option<(f64, f64)>;
 
 /// The outward volume bracket of a certificate, at a door holding
-/// `geom_core::Bounds` (the [`Bracket`] reader).
+/// `geom_core::Bounds` (the [`Bracket`] reader): the certificate's
+/// interval re-derivation where it holds a lane, which encloses the
+/// volume over the stored geometry, else its enclosure's ends.
 macro_rules! outward_volume {
     () => {
         &|certificate| {
-            let enclosure = certificate.enclosure();
-            Some((
-                geom_core::Bounds::lo(enclosure.volume_lo),
-                geom_core::Bounds::hi(enclosure.volume_hi),
-            ))
+            certificate.interval_volume().or_else(|| {
+                let enclosure = certificate.enclosure();
+                Some((
+                    geom_core::Bounds::lo(enclosure.volume_lo),
+                    geom_core::Bounds::hi(enclosure.volume_hi),
+                ))
+            })
         }
     };
 }

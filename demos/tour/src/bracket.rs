@@ -61,7 +61,7 @@ use pncad::profile::ClosedLoop;
 use pncad::topo::{Body, mass_properties};
 
 use crate::scalar::Scalar;
-use crate::{SceneBody, Stop, View};
+use crate::{SceneBody, TourStop, View};
 
 /// The fillet's radius at the inner corner.
 const R: f64 = 0.5;
@@ -424,7 +424,7 @@ struct Broken {
 
 /// The bracket's stop: the document's corner piece, both section faces'
 /// whole rims chamfered.
-pub fn stop(tol: Tol) -> Stop {
+pub fn stop(tol: Tol) -> TourStop {
     let (doc, node) = document(tol);
     let ev = eval(&doc, tol);
     assert_volume(
@@ -436,7 +436,7 @@ pub fn stop(tol: Tol) -> Stop {
     let Broken { note, doc, rims } = split_and_break(&trimmed, node, tol);
     let ev = eval(&doc, tol);
     let body = body_at(&ev, rims);
-    Stop {
+    TourStop {
         name: "bracket",
         caption: String::new(),
         montage: true,

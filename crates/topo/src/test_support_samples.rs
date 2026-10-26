@@ -808,6 +808,7 @@ fn mass_props_errors() -> Vec<MassPropsError> {
             resolution: 1e-10,
             eps: 1e-9,
         },
+        MassPropsError::EmptyContains,
         MassPropsError::Poisoned { cause: diag() },
         MassPropsError::Undecided {
             volume: (-1e-9, 1e-9),

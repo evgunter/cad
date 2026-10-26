@@ -4396,6 +4396,7 @@ fn volume_refusal(
         | M::RingOnCurvedFace { .. }
         | M::Face { .. }
         | M::ResolutionFinerThanEps { .. }
+        | M::EmptyContains
         | M::Poisoned { .. }
         | M::Undecided { .. } => PointInSolidError::VolumeUncertified,
     }

@@ -258,7 +258,7 @@ use pncad::topo::{AtRestBody, Body, BooleanError, BooleanOp, EdgeKey, Operand};
 
 use crate::booleans::finished;
 use crate::scalar::Scalar;
-use crate::{SceneBody, Stop, View};
+use crate::{SceneBody, TourStop, View};
 
 // ---------------------------------------------------------------
 // The bottle's dimensions (metres). Chosen, not measured: a stylized
@@ -833,7 +833,7 @@ fn lever_arm<S: Scalar>(body: &Body<S>, edge: EdgeKey) -> f64 {
 }
 
 /// The bottle stop.
-pub fn stops(tol: Tol) -> Vec<Stop> {
+pub fn stops(tol: Tol) -> Vec<TourStop> {
     let m = meridian();
     let Bottle { bulb, top, spine } = bottle::<f64>(tol);
 
@@ -1001,7 +1001,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                  it meets the bulb's neck at the mate, and subtract refuses the loop's NURBS walls against a \
                  planar face at the revert roster. The neck passes through the flare \
                  uncut for that second reason";
-    vec![Stop {
+    vec![TourStop {
         name: "klein",
         caption: "Klein bottle — two bodies the kernel cannot join".to_string(),
         montage: true,

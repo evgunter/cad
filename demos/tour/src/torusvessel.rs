@@ -99,7 +99,7 @@ use pncad::topo::EulerCounts;
 use pncad::topo::readback::euler_counts;
 use pncad::topo::{AtRestBody, Body, FaceKey, ShellError};
 
-use crate::{SceneBody, Stop, View};
+use crate::{SceneBody, TourStop, View};
 
 // ---------------------------------------------------------------------
 // The meridian. Every station is a dyadic rational in metres, so the
@@ -439,7 +439,7 @@ fn wall_probes(tol: Tol) {
     );
 }
 
-pub fn stops(tol: Tol) -> Vec<Stop> {
+pub fn stops(tol: Tol) -> Vec<TourStop> {
     let body = AtRestBody::validate(bellied(tol), tol).expect("the operand: tier 3");
     assert_eq!(census(&body), (12, 18, 10), "the vessel's operand census");
     assert_eq!(euler_counts(&body).genus(), Ok(0), "a vessel is a ball");
@@ -705,7 +705,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     let (cv, ce, cf) = cup_census;
 
     vec![
-        Stop {
+        TourStop {
             name: "torusvessel",
             caption: "THE TORUS-WALLED VESSEL, HOLLOWED (a donut band in the wall)".to_string(),
             // Montage membership is CURATED (Ev, montage-v3,
@@ -825,7 +825,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                     ),
             ],
         },
-        Stop {
+        TourStop {
             name: "torusvesselcup",
             caption: "THE SAME VESSEL, OPENED AT ITS MOUTH (one annular rim)".to_string(),
             montage: false,

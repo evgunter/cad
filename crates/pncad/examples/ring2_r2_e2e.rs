@@ -31,25 +31,31 @@ fn main() {
         Err(errs) => println!("validate_geometric: {} error(s): {errs:?}", errs.len()),
     }
     let body = pncad::topo::AtRestBody::validate(body, tol).expect("the loft prism passes tier 3");
+    // 1.024e-6 m is 1024·ε at the witness tolerance, the resolution the
+    // suites' pinned numbers are stated at. A literal on purpose: this
+    // program compares bits across heads, so its resolution is a number
+    // no later change to the suites' vocabulary can move.
     let m = mass_properties(
         &body,
         tol,
         pncad::topo::Settle::Resolution(pncad::quantity::Length::from_meters(1.024e-6)),
     )
-    .expect("mass properties certify");
+    .expect("mass properties certify")
+    .met()
+    .expect("the resolution is met");
     println!(
         "volume {:.17e} ({:#018x}) pad {:.17e} ({:#018x})",
-        m.enclosure.volume,
-        m.enclosure.volume.to_bits(),
-        m.enclosure.volume_pad,
-        m.enclosure.volume_pad.to_bits()
+        m.volume,
+        m.volume.to_bits(),
+        m.volume_pad,
+        m.volume_pad.to_bits()
     );
     println!(
         "area   {:.17e} ({:#018x}) pad {:.17e} ({:#018x})",
-        m.enclosure.surface_area,
-        m.enclosure.surface_area.to_bits(),
-        m.enclosure.area_pad,
-        m.enclosure.area_pad.to_bits()
+        m.surface_area,
+        m.surface_area.to_bits(),
+        m.area_pad,
+        m.area_pad.to_bits()
     );
     budget::arm(budget::Mode::Sizing);
     let mesh = tessellate(&body, 6e-3, tol).expect("tessellates");

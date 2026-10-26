@@ -130,7 +130,7 @@ struct SceneBody {
     /// See [`SceneBody::named`].
     face_names: Option<tess_meter::FaceNames>,
     /// `Some(δ)` when the scene asks this body for a finer chordal
-    /// deviation than its own [`Stop::delta`]. See [`SceneBody::finer`].
+    /// deviation than its own [`TourStop::delta`]. See [`SceneBody::finer`].
     delta: Option<f64>,
 }
 
@@ -161,7 +161,7 @@ impl SceneBody {
     }
 
     /// The same body, meshed at chordal deviation `delta` where the
-    /// rest of its scene takes [`Stop::delta`]: a small feature on one
+    /// rest of its scene takes [`TourStop::delta`]: a small feature on one
     /// body (a glyph's inner arc) is paid for on that body alone.
     ///
     /// Finer only — [`SceneBody::delta`] refuses a `delta` that is not
@@ -348,8 +348,10 @@ struct View {
     up: char,
 }
 
-/// One tour stop = one rendered scene (possibly several bodies).
-struct Stop {
+/// One tour stop = one rendered scene (possibly several bodies). Named
+/// `TourStop`, not `Stop`, so it is never read as the measurement's
+/// [`pncad::topo::Stop`], which this file also matches on.
+struct TourStop {
     name: &'static str,
     /// Montage caption (defaults to `name` when empty).
     caption: String,
@@ -788,7 +790,7 @@ fn run_body(
 /// stop that genuinely could not be drawn would have to say so where
 /// it is built — see the STEP arm in `run_body`.
 fn run_stop(
-    stop: &Stop,
+    stop: &TourStop,
     outdir: &str,
     manifest: &mut String,
     dumps: &mut Vec<uvdump::FaceDump>,
@@ -810,7 +812,7 @@ fn run_stop(
 
 /// One scene's manifest entry (hand-rolled JSON — fixed schema, no
 /// string content beyond file stems and captions we control).
-fn scene_json(stop: &Stop, bodies: &[ManifestBody]) -> String {
+fn scene_json(stop: &TourStop, bodies: &[ManifestBody]) -> String {
     let caption = if stop.caption.is_empty() {
         stop.name.to_string()
     } else {
@@ -866,7 +868,7 @@ fn scene_json(stop: &Stop, bodies: &[ManifestBody]) -> String {
 /// the other, which is the drift a second hand-maintained list would
 /// guarantee.
 ///
-/// A visitor rather than a `Vec<Stop>` because the tour is LAZY on
+/// A visitor rather than a `Vec<TourStop>` because the tour is LAZY on
 /// purpose. Several scene constructors narrate as they build (the
 /// coincidence ladder, the mated-union doors, the stable-name count),
 /// and returning a fully built list would print all of that up front,
@@ -879,7 +881,7 @@ fn scene_json(stop: &Stop, bodies: &[ManifestBody]) -> String {
 /// other documents, and the seam it crosses is a workspace on disk —
 /// so the contract grew a path. Recorded rather than hidden: the tour
 /// harness assumed single-document scenes.
-fn walk_tour(visit: &mut dyn FnMut(&Stop), work: &std::path::Path, tol: Tol) {
+fn walk_tour(visit: &mut dyn FnMut(&TourStop), work: &std::path::Path, tol: Tol) {
     for stop in bodies::stops(tol) {
         visit(&stop);
     }
@@ -1154,7 +1156,7 @@ fn main() {
     let mut scenes: Vec<String> = Vec::new();
     let mut dumps: Vec<uvdump::FaceDump> = Vec::new();
     let mut cells = 0usize;
-    let mut run = |stop: &Stop| {
+    let mut run = |stop: &TourStop| {
         manifest.clear();
         run_stop(stop, &outdir, &mut manifest, &mut dumps, tol);
         scenes.push(manifest.clone());
@@ -1172,7 +1174,7 @@ fn main() {
     // The Monte-Carlo density cell (`mcplate`). It writes a PICTURE
     // rather than a body, so it sits here beside the uv lane's own
     // output rather than inside `walk_tour`'s stop list: there is no
-    // `Stop` for it to be, no STL, no camera, and no renderer — the
+    // `TourStop` for it to be, no STL, no camera, and no renderer — the
     // geometry is 2-D and the tour draws it itself.
     println!("\n-- the MC density plate (E11.1: the population an advisory number summarizes) --");
     let mc_dir = std::path::Path::new(&outdir).join("mc");

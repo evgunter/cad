@@ -111,7 +111,7 @@ use pncad::topo::EulerCounts;
 use pncad::topo::readback::euler_counts;
 use pncad::workspace::{PIN_MISMATCH_RECOURSE, Workspace, WorkspaceError, update_to_store};
 
-use crate::{SceneBody, Stop, View};
+use crate::{SceneBody, TourStop, View};
 
 // ---- The model's dimensions, in metres ----
 //
@@ -2201,7 +2201,7 @@ fn round_trip(ws: &Workspace, doc: &ProfileDoc, label: &str, tol: Tol) {
 /// it is turned with it, and the swing is a document parameter: one
 /// value edit moves every part on it, the crate included, and re-runs
 /// those four instances alone.
-pub fn stops(work: &Path, tol: Tol) -> Vec<Stop> {
+pub fn stops(work: &Path, tol: Tol) -> Vec<TourStop> {
     let (mut ws, parts) = workspace(work, tol);
     println!(
         "   workspace: {} document(s) in {}",
@@ -2321,7 +2321,7 @@ pub fn stops(work: &Path, tol: Tol) -> Vec<Stop> {
                     assembled(&counters),
                 )
             };
-            Stop {
+            TourStop {
                 name,
                 caption,
                 montage,

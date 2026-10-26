@@ -459,7 +459,9 @@ impl Settle {
     }
 
     /// The volume within `[lo, hi]` (m³): `verdict` is whether it holds.
-    /// Recorded under `py_measure_contains`.
+    /// Recorded under `py_measure_contains`. A `lo` definitely above `hi`
+    /// names no volume and is refused (`measure_refusal`
+    /// `"empty_contains"`).
     #[staticmethod]
     fn contains(lo: f64, hi: f64) -> Self {
         Self(topo::Settle::Contains {

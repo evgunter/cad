@@ -99,7 +99,7 @@ use pncad::sweep::{Revolution, RevolveAxis, revolve};
 use pncad::topo::{Body, EdgeKey};
 
 use crate::booleans::finished;
-use crate::{SceneBody, Stop, View};
+use crate::{SceneBody, TourStop, View};
 
 /// The bore's radius: the bud is ANNULAR, which is what makes the full
 /// revolve mint one wall per meridian segment and every latitude rim a
@@ -259,7 +259,7 @@ fn band_torus(body: &Body<f64>, face: pncad::topo::FaceKey) -> (f64, f64) {
     }
 }
 
-pub fn stops(tol: Tol) -> Vec<Stop> {
+pub fn stops(tol: Tol) -> Vec<TourStop> {
     // The unfilleted twin, kept alive: every claim below is against
     // THIS body rather than against a remembered number.
     let sharp = finished("sharp", bud(tol), tol);
@@ -501,7 +501,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         "the bands are meshed, not degenerate at the scene's own δ"
     );
 
-    vec![Stop {
+    vec![TourStop {
         name: "budfillet",
         caption: "THE FILLETED BUD (three curved-support arms, one body)".to_string(),
         // Montage cell RETIRED by the montage-v3 curation (Ev,

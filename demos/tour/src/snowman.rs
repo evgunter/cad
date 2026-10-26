@@ -57,7 +57,7 @@ use pncad::topo::{AtRestBody, Body, BooleanBody, BooleanError, BooleanResult, Ed
 
 use crate::booleans::finished;
 
-use crate::{SceneBody, Stop, View};
+use crate::{SceneBody, TourStop, View};
 
 /// The bottom ball's radius, centred at the origin.
 const R1: f64 = 0.3;
@@ -270,7 +270,7 @@ fn scene_body(name: &str, color: [f64; 3], bb: BooleanBody<f64>, slot: f64, tol:
     }
 }
 
-pub fn stops(tol: Tol) -> Vec<Stop> {
+pub fn stops(tol: Tol) -> Vec<TourStop> {
     let (bottom, head) = (ball(R1, 0.0, tol), ball(R2, D, tol));
     let snowman = seamed("bottom ∪ head", pncad::topo::union(&bottom, &head, tol));
     let bitten = seamed("bottom ∖ head", pncad::topo::subtract(&bottom, &head, tol));
@@ -338,7 +338,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     );
 
     let snow = [0.86, 0.89, 0.94];
-    vec![Stop {
+    vec![TourStop {
         name: "snowman",
         caption: "snowman: ∪ rolled, ∪, ∖, ∩".to_string(),
         montage: true,

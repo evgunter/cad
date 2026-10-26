@@ -5001,6 +5001,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "band",
             "corrupt",
+            "empty_contains",
             "face",
             "null_scaffold_edge",
             "poisoned",

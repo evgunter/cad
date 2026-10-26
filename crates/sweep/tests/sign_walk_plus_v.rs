@@ -117,6 +117,7 @@ fn a_relation_run_out_at_the_wall_is_the_refusal_carrying_the_bracket() {
         bound: truth,
         name: "sign_walk_plus_v_undecided",
     };
+    // Raw door: tier 3 refuses the strip (VolumeSignUnresolved), and the measurement's own refusal is the subject.
     match topo::test_support::measure_unvalidated(&body, tol, asked) {
         Err(topo::MassPropsError::Undecided {
             volume: (lo, hi),

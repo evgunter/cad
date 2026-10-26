@@ -76,7 +76,7 @@ use pncad::sweep::skin::{Section, loft_geometry, loft_parameters, sweep_geometry
 use pncad::sweep::{SketchSegment, segment_curve};
 use pncad::topo::readback::euler_counts;
 
-use crate::{SceneBody, Stop, View};
+use crate::{SceneBody, TourStop, View};
 use pncad::geom_core::Tol;
 
 /// A square-with-an-arc section, scaled by `s` (LIB-U3 profile
@@ -534,7 +534,7 @@ fn corner_points(body: &pncad::topo::Body<f64>) -> Vec<[f64; 3]> {
 /// stack in one cell (the corpus's minimal pair — only the spacing
 /// differs — and the twist, where only the correspondence differs),
 /// then the sweeps.
-pub fn stops(tol: Tol) -> Vec<Stop> {
+pub fn stops(tol: Tol) -> Vec<TourStop> {
     // Both lofts are 2 m tall columns flaring in x at one height, so
     // the story-bearing silhouette is the xz PROFILE: a near-face-on
     // ±y camera puts the ±x walls edge-on and the flare becomes a
@@ -825,7 +825,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     let a_times_l = (2.0 * ELBOW_H) * (2.0 * ELBOW_H) * (2.0 * S_R * core::f64::consts::FRAC_PI_2);
 
     let mut stops = vec![
-        Stop {
+        TourStop {
             name: "lofts",
             caption: "three lofts of one section stack (spacing, then correspondence, moves)"
                 .to_string(),
@@ -921,7 +921,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                 SceneBody::plain("twisted_loft", [0.80, 0.62, 0.42], twisted),
             ],
         },
-        Stop {
+        TourStop {
             name: "s_duct",
             caption: "s_duct (an S path in ONE sweep op)".to_string(),
             // Standalone since montage-v2 (Ev, #218 follow-up): the
@@ -1036,7 +1036,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     let tau0 = 3.0 * TC_C / (TC_A * TC_B);
 
     let twisted_color = [0.58, 0.42, 0.66];
-    let shadow = |name: &'static str, caption: String, elev: f64, azim: f64| Stop {
+    let shadow = |name: &'static str, caption: String, elev: f64, azim: f64| TourStop {
         name,
         caption,
         montage: false,
@@ -1180,7 +1180,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
          a quarter turn, which is why both sides fold"
     );
 
-    stops.push(Stop {
+    stops.push(TourStop {
         name: "twisted_tube",
         caption: "THE SAME SPINE, HOLLOW AND TAPERING (a loft, not a sweep)".to_string(),
         montage: true,
@@ -1227,7 +1227,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         )],
     });
 
-    stops.push(Stop {
+    stops.push(TourStop {
         name: "twisted_duct",
         caption: "twisted_duct (nowhere-zero torsion)".to_string(),
         // Montage cell RETIRED in favour of `twisted_tube` next door,

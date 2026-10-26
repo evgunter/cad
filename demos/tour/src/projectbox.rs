@@ -29,7 +29,7 @@ use pncad::topo::{AtRestBody, BooleanBody};
 use crate::bool_bodies::slab;
 use crate::booleans::{check, expect_seamed, finished, try_subtract, try_union};
 use crate::scalar::Scalar;
-use crate::{SceneBody, Stop, View};
+use crate::{SceneBody, TourStop, View};
 use pncad::authoring::{p2, p3, polygon, validated};
 use pncad::geom_core::{RigidMotion, Tol};
 use pncad::profile::SketchPlane;
@@ -391,7 +391,7 @@ pub(crate) fn build<S: Scalar>(tol: Tol) -> (BooleanBody<S>, f64) {
 /// part with its interior shown, and two independently-scaled panels
 /// are the one arrangement that stops a reader laying the halves back
 /// onto the whole.
-pub fn stop(tol: Tol) -> Stop {
+pub fn stop(tol: Tol) -> TourStop {
     let (acc, vol) = build::<f64>(tol);
     let (spring, spring_gap) = standing_spring(tol);
     let spring = finished("the spring", spring, tol);
@@ -414,7 +414,7 @@ pub fn stop(tol: Tol) -> Stop {
         boss_h = BOSS_Z.1 - BOSS_Z.0,
         wire = 2.0 * WIRE_H,
     );
-    Stop {
+    TourStop {
         name: "projectbox",
         caption: "project box — whole, and sectioned".to_string(),
         montage: true,

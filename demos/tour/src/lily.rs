@@ -159,7 +159,7 @@ use pncad::topo::{AtRestBody, Body, BooleanBody, BooleanError, ContactRecords, E
 
 use crate::booleans::{check, expect_seamed, finished, try_union};
 use crate::scalar::{Scalar, axis_frame, sketch_frame};
-use crate::{SceneBody, Stop, View};
+use crate::{SceneBody, TourStop, View};
 use pncad::authoring::{p2, p3, v2, v3, validated};
 use pncad::geom_core::{Tol, Turns};
 
@@ -1644,7 +1644,7 @@ pub fn plant<S: Scalar>(tol: Tol) -> Vec<Piece<S>> {
 }
 
 /// The tour stop.
-pub fn stops(tol: Tol) -> Vec<Stop> {
+pub fn stops(tol: Tol) -> Vec<TourStop> {
     let pieces = plant::<f64>(tol);
     let note = format!(
         "{} closed solids: 1 ROOTSTOCK — a sphere-zone corm whose \
@@ -1675,7 +1675,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
          least of all: see the wall probes.",
         pieces.len()
     );
-    vec![Stop {
+    vec![TourStop {
         name: "lily",
         caption: "fairy lantern (Calochortus pulchellus)".to_string(),
         montage: true,
