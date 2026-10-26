@@ -211,3 +211,122 @@ fn a_vertex_in_the_band_of_a_thin_ellipse_is_on_it() {
         }
     }
 }
+
+/// Review r2: zero-length-overlap poses are not runs.
+mod review_r2 {
+    use super::*;
+
+    fn ellipse(axis: Vec3<f64>) -> Curve3<f64> {
+        Curve3::Ellipse {
+            center: Point3::origin(),
+            axis,
+            semi_u: 3.0,
+            semi_v: 1.0,
+            u_ref: Vec3::unit_x(),
+        }
+    }
+
+    /// An elliptic arc's boundary: the arc, then its chord back.
+    fn read_ellipse(
+        carrier: &Curve3<f64>,
+        params: (f64, f64),
+        endless: bool,
+    ) -> Result<Boundary<f64>, BoundaryRefusal> {
+        let e = ellipse(Vec3::unit_z());
+        let (a, b) = (e.eval(0.3), e.eval(2.0));
+        let chord = line([b.x, b.y, b.z], [a.x - b.x, a.y - b.y, 0.0]);
+        let edges = [
+            (a, Span::new(&e, (0.3, 2.0))),
+            (b, Span::new(&chord, (0.0, (a - b).norm()))),
+        ];
+        let mut s = Span::new(carrier, params);
+        if endless {
+            s = s.endless();
+        }
+        boundary(&s, &edges, band())
+    }
+
+    #[test]
+    fn the_rest_of_an_ellipse_is_not_along_its_arc() {
+        for axis in [Vec3::unit_z(), -Vec3::unit_z()] {
+            let e = ellipse(axis);
+            // The complement of (0.3, 2.0) on the same point set.
+            let params = if axis.z > 0.0 {
+                (2.0, 0.3 + 2.0 * PI)
+            } else {
+                (-0.3, 2.0 * PI - 2.0)
+            };
+            let got = read_ellipse(&e, params, false);
+            assert!(matches!(got, Ok(Boundary::Clear)), "{axis:?}: {got:?}");
+        }
+    }
+
+    #[test]
+    fn an_elliptic_arc_on_its_own_rim_is_along() {
+        let got = read_ellipse(&ellipse(Vec3::unit_z()), (0.3, 2.0), false);
+        assert!(matches!(got, Ok(Boundary::Along { edge: 0 })), "{got:?}");
+        let got = read_ellipse(&ellipse(Vec3::unit_z()), (0.5, 1.5), false);
+        assert!(matches!(got, Ok(Boundary::Along { edge: 0 })), "{got:?}");
+    }
+
+    /// The whole ellipse, closed at 2.0 (a vertex of the rim): meets at
+    /// the other rim vertex.
+    #[test]
+    fn a_closed_ellipse_through_the_rim_meets_at_its_far_vertex() {
+        let got = read_ellipse(&ellipse(Vec3::unit_z()), (2.0, 2.0 + 2.0 * PI), false);
+        assert!(matches!(got, Ok(Boundary::Meets { edge: 0, .. })), "{got:?}");
+        let got = read_ellipse(&ellipse(Vec3::unit_z()), (2.0, 2.0 + 2.0 * PI), true);
+        assert!(matches!(got, Ok(Boundary::Meets { .. })), "endless: {got:?}");
+    }
+
+    /// Collinear segments touching end to end share no run.
+    #[test]
+    fn collinear_segments_touching_end_to_end_are_clear() {
+        let got = read(&line([1.0, 0.0, 0.0], [1.0, 0.0, 0.0]), (0.0, 1.0));
+        assert!(matches!(got, Ok(Boundary::Clear)), "{got:?}");
+        let got = read(&line([-1.0, 0.0, 0.0], [1.0, 0.0, 0.0]), (0.0, 1.0));
+        assert!(matches!(got, Ok(Boundary::Clear)), "{got:?}");
+    }
+
+    /// The rim's own circle as an endless span: it is the arc's carrier
+    /// and passes the rim's two arc vertices inside itself.
+    #[test]
+    fn an_endless_circle_meets_the_rim_at_a_vertex() {
+        let c = unit_circle(Vec3::unit_z());
+        let got = read(&c, (0.0, 2.0 * PI));
+        assert!(matches!(got, Ok(Boundary::Meets { .. })), "closed: {got:?}");
+        let rim = rim();
+        let spans = [(0.0, 1.0), (0.0, FRAC_PI_2), (0.0, 1.0)];
+        let edges: Vec<_> = rim
+            .iter()
+            .zip(spans)
+            .map(|(c, (t0, t1))| (c.eval(t0), Span::new(c, (t0, t1))))
+            .collect();
+        let got = boundary(&Span::new(&c, (0.0, 2.0 * PI)).endless(), &edges, band());
+        assert!(matches!(got, Ok(Boundary::Meets { .. })), "endless: {got:?}");
+    }
+
+    /// A line lying on the x axis rim edge but running past both ends
+    /// meets at the corner it passes inside itself.
+    #[test]
+    fn a_line_longer_than_its_rim_edge_meets_at_the_far_corner() {
+        let got = read(&line([-0.5, 0.0, 0.0], [1.0, 0.0, 0.0]), (0.0, 2.0));
+        assert!(matches!(got, Ok(Boundary::Meets { .. })), "{got:?}");
+    }
+
+    /// A circle-as-ellipse (equal semi-axes) arc on the rim's arc.
+    #[test]
+    fn a_round_ellipse_on_the_rim_arc() {
+        let round = Curve3::Ellipse {
+            center: Point3::origin(),
+            axis: Vec3::unit_z(),
+            semi_u: 1.0,
+            semi_v: 1.0,
+            u_ref: Vec3::unit_x(),
+        };
+        let along = read(&round, (0.2, 1.2));
+        let rest = read(&round, (FRAC_PI_2, 2.0 * PI));
+        eprintln!("round along {along:?}; rest {rest:?}");
+        assert!(!matches!(rest, Ok(Boundary::Along { .. })), "{rest:?}");
+    }
+}
