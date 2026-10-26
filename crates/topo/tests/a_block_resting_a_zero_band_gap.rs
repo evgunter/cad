@@ -20,6 +20,12 @@ use geom_core::{Band, Point3, Tol, Vec3};
 use topo::test_support::{brick, face_facing, finished, mapped_cube};
 use topo::{AtRestBody, BooleanError, BooleanResult, PlaneRelation};
 
+/// One op's label, its outcome and the box arithmetic's volume.
+type Cell = (&'static str, Result<BooleanResult<f64>, BooleanError>, f64);
+
+/// A footprint's label and its `x` and `y` spans.
+type Footprint = (&'static str, (f64, f64), (f64, f64));
+
 /// The six ops of `a` and `b`, labelled, with the box arithmetic's
 /// volume of each: `[vol(A ∪ B), vol(A ∩ B), vol(A ∖ B), vol(B ∖ A)]`.
 fn six(
@@ -27,7 +33,7 @@ fn six(
     b: &AtRestBody<f64>,
     want: [f64; 4],
     tol: Tol,
-) -> [(&'static str, Result<BooleanResult<f64>, BooleanError>, f64); 6] {
+) -> [Cell; 6] {
     let [union, common, a_less, b_less] = want;
     [
         ("A ∪ B", topo::union(a, b, tol), union),
@@ -93,7 +99,7 @@ fn holds(
 }
 
 /// `B`'s footprints: inside `A`'s top, all of it, and half off it.
-const FOOTPRINTS: [(&str, (f64, f64), (f64, f64)); 3] = [
+const FOOTPRINTS: [Footprint; 3] = [
     ("inside", (0.25, 0.75), (0.25, 0.75)),
     ("flush", (0.0, 1.0), (0.0, 1.0)),
     ("half off", (-0.5, 0.5), (0.25, 0.75)),
