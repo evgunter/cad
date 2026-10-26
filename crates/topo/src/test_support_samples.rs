@@ -466,6 +466,11 @@ fn certify_errors() -> Vec<CertifyError> {
             carrier: geom::CurveKind::Line,
             margin: None,
         },
+        CertifyError::DeclaredOffChart {
+            chart: geom::SurfaceKind::Cone,
+            carrier: geom::CurveKind::Line,
+            margin: Some(geom_brep::OffMargin::InBand(MarginDiag::value(4e-10))),
+        },
         CertifyError::UnresolvedSurface { key },
         CertifyError::Unimplemented,
         CertifyError::NurbsLaneNotSupplied,

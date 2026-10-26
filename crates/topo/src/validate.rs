@@ -2947,6 +2947,10 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
         | CertifyError::IntersectionSameSurface { .. }
         | CertifyError::WrapOnNonPeriodic
         | CertifyError::PlaneNurbs(P::PcurveFit) => MISMATCH,
+        CertifyError::DeclaredOffChart {
+            margin: Some(geom_brep::OffMargin::InBand(_)),
+            ..
+        } => DECLARED_AT_POSE,
         CertifyError::DeclaredOffChart { .. } => DECLARED_OFF,
         CertifyError::NoGeneralLane { .. } => {
             "it is on its face but is none of the face's own curves, and the kernel cannot yet \
@@ -3449,48 +3453,67 @@ pub(crate) fn classify_mass_props(e: &crate::props::MassPropsError) -> MassProps
     }
 }
 
+/// Why a DECLARED curve refused on its face, at rest: the edge
+/// certificate's reason and a boundary row's alike.
+const DECLARED_OFF: &str = "a declared curve does not lie on its face";
+/// Why a DECLARED curve's incidence on its face is undecided.
+const DECLARED_CLOSE: &str = geom_core::undecided!("whether a declared curve lies on its face");
+/// Why a DECLARED curve read, within the band, at a pose where its face
+/// holds no curve of its kind refused ([`geom_brep::OffMargin::InBand`]):
+/// it is not shown off its face, so the reason does not say it is.
+const DECLARED_AT_POSE: &str =
+    "a declared curve sits, within the band, where its face holds no curve of its kind";
+
 /// **A boundary curve that misses its face, ended by who placed it**
 /// (D3): the one place a carrier-off-chart refusal or an undecided
 /// incidence reading ([`geom_brep::PcurveCheck::ChartIncidence`]) picks
 /// its ending, or `None` for any other refusal.
 ///
 /// A curve the modeler DECLARED that does not lie on its face is the
-/// modeler's to move: it ends in that lever alone, decided or in band,
+/// modeler's to move: it ends in that lever alone, decided, undecided or
+/// read in band at a degenerate pose ([`geom_brep::OffMargin::InBand`]),
 /// with no tolerance offer and no defect. A locus the kernel DERIVED for
-/// itself that misses its face is the kernel's: a definite miss is the
-/// defect, and an undecided one ends as the incidence check's routing
-/// gives it at rest. `wrong` and `close` are the caller's reasons for a
-/// derived locus.
-/// Why a DECLARED curve refused on its face, at rest: the edge
-/// certificate's reason and a boundary row's alike.
-const DECLARED_OFF: &str = "a declared curve does not lie on its face";
-/// Why a DECLARED curve's incidence on its face is undecided.
-const DECLARED_CLOSE: &str = geom_core::undecided!("whether a declared curve lies on its face");
-
+/// itself that misses its face is the kernel's: a definite miss, or one
+/// read in band at such a pose, is the defect, and an undecided one ends
+/// as the incidence check's routing gives it at rest. `wrong` and `close`
+/// are the caller's reasons for a derived locus.
 fn off_face_ending(
     error: &geom_brep::PcurveCertifyError,
     authority: geom_brep::AuthorityKind,
     wrong: &'static str,
     close: &'static str,
 ) -> Option<(&'static str, Cow<'static, str>)> {
+    use geom_brep::OffMargin;
     use geom_brep::PcurveCertifyError as C;
     use geom_brep::recourse::DECLARED_OFF_FACE;
-    let arm = match error {
-        C::CarrierOffChart { margin, .. } => RefusedArm::SignCertain(*margin),
+    /// How the incidence reading ended.
+    enum Read {
+        Off,
+        AtPose,
+        Undecided,
+    }
+    let (arm, read) = match error {
+        C::CarrierOffChart { margin, .. } => (
+            RefusedArm::SignCertain(margin.map(OffMargin::diag)),
+            match margin {
+                Some(OffMargin::InBand(_)) => Read::AtPose,
+                None | Some(OffMargin::Past(_)) => Read::Off,
+            },
+        ),
         C::Escalated {
             check: geom_brep::PcurveCheck::ChartIncidence,
             cause,
             ..
-        } => RefusedArm::Undecided(cause),
+        } => (RefusedArm::Undecided(cause), Read::Undecided),
         _ => return None,
     };
-    let undecided = matches!(arm, RefusedArm::Undecided(_));
     let lever = || Cow::Owned(DECLARED_OFF_FACE.recourse(arm, Reading::AtRest));
-    Some(match (authority.is_declared(), undecided) {
-        (true, false) => (DECLARED_OFF, lever()),
-        (true, true) => (DECLARED_CLOSE, lever()),
-        (false, false) => (wrong, Cow::Borrowed(DEFECT)),
-        (false, true) => (
+    Some(match (authority.is_declared(), read) {
+        (true, Read::Off) => (DECLARED_OFF, lever()),
+        (true, Read::AtPose) => (DECLARED_AT_POSE, lever()),
+        (true, Read::Undecided) => (DECLARED_CLOSE, lever()),
+        (false, Read::Off | Read::AtPose) => (wrong, Cow::Borrowed(DEFECT)),
+        (false, Read::Undecided) => (
             close,
             Cow::Owned(
                 error
@@ -12102,9 +12125,12 @@ mod tests {
     /// **A boundary row whose carrier misses its face ends by who placed
     /// the carrier** (D3, E1b): `off_face_ending`, read at rest through
     /// the finding's own authority stamp. A declared curve ends in the
-    /// modeler's lever on both arms, decided and in band, with no
-    /// tolerance and no defect; a derived locus keeps the kernel's
-    /// defect (definite) and the incidence check's own ending (in band).
+    /// modeler's lever on every arm, decided, undecided and read in band
+    /// at a degenerate pose ([`geom_brep::OffMargin::InBand`]), with no
+    /// tolerance and no defect, and the in-band read's reason does not
+    /// say the curve is off its face; a derived locus keeps the kernel's
+    /// defect (definite or at the pose) and the incidence check's own
+    /// ending (undecided).
     #[test]
     fn a_boundary_curve_off_its_face_ends_by_who_placed_it() {
         use crate::pcurves::PcurveMintError as M;
@@ -12128,7 +12154,15 @@ mod tests {
                 terminal_sliver: false,
             },
         };
-        for error in [off, in_band] {
+        let at_pose = C::CarrierOffChart {
+            chart: geom::SurfaceKind::Cone,
+            carrier: geom::CurveKind::Line,
+            why: "the line is not shown off the plane through the apex",
+            margin: Some(geom_brep::OffMargin::InBand(geom_core::MarginDiag::value(
+                4e-10,
+            ))),
+        };
+        for error in [off, in_band, at_pose] {
             let rest = |authority| {
                 classify_pcurve(&M::Certify {
                     half_edge: crate::entity::HalfEdgeKey::default(),
@@ -12138,6 +12172,18 @@ mod tests {
             };
             let (why, ending) = rest(declared);
             assert!(why.contains("declared curve"), "{error:?}: {why}");
+            let at_a_pose = matches!(
+                error,
+                C::CarrierOffChart {
+                    margin: Some(geom_brep::OffMargin::InBand(_)),
+                    ..
+                }
+            );
+            assert_eq!(
+                why.contains("does not lie on"),
+                matches!(error, C::CarrierOffChart { .. }) && !at_a_pose,
+                "{error:?}: {why}"
+            );
             assert!(
                 ending.starts_with("Recourse: move the declared curve onto the face it bounds"),
                 "{error:?}: {ending}"

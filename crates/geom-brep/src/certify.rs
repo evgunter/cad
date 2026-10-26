@@ -488,8 +488,9 @@ pub enum CertifyError {
         chart: geom::SurfaceKind,
         /// The declared carrier's kind.
         carrier: geom::CurveKind,
-        /// The margin the incidence decision read, where it read one.
-        margin: Option<geom_core::MarginDiag>,
+        /// The margin the incidence decision read, where it read one, and
+        /// which side of the band it fell ([`crate::OffMargin`]).
+        margin: Option<crate::OffMargin>,
     },
     /// A surface key in the description did not resolve in the owning
     /// body (stale, or the surface does not exist yet — attach the
@@ -830,6 +831,21 @@ impl core::fmt::Display for CertifyError {
                 channel.describe(),
                 crate::pcurve_cache::POSE_LEVER,
             ),
+            // Not shown off the chart: read AT a pose where the chart holds
+            // no curve of its kind, which says nothing about whether it
+            // lies on it.
+            Self::DeclaredOffChart {
+                chart,
+                carrier,
+                margin: Some(crate::OffMargin::InBand(_)),
+            } => write!(
+                f,
+                "a declared {} is no curve of the {} chart its description names at this \
+                 tolerance: it sits, within the band, at a pose where that chart holds no {}",
+                carrier.name(),
+                chart.name(),
+                carrier.name()
+            ),
             Self::DeclaredOffChart { chart, carrier, .. } => write!(
                 f,
                 "a declared {} does not lie on the {} chart its description names",
@@ -1026,7 +1042,7 @@ impl CertifyError {
             } => (CertCheck::GeneralLane, RefusedArm::SignCertain(None)),
             Self::DeclaredOffChart { margin, .. } => (
                 CertCheck::DeclaredIncidence,
-                RefusedArm::SignCertain(*margin),
+                RefusedArm::SignCertain(margin.map(crate::OffMargin::diag)),
             ),
             Self::OnPairArcRim { iso, limb, bound } => {
                 match iso.and_then(crate::pcurve_cache::PcurveCheck::incidence_limb) {
@@ -4645,7 +4661,7 @@ mod tests {
     /// below. Held total against the enum by
     /// [`all_is_the_whole_taxonomy`]'s compile-time visit, not by
     /// review.
-    fn all_checks() -> [CertCheck; 31] {
+    fn all_checks() -> [CertCheck; 32] {
         let surface = SurfaceKey::default();
         [
             CertCheck::ParamSpan,
@@ -4698,38 +4714,38 @@ mod tests {
     #[test]
     fn all_is_the_whole_taxonomy() {
         let rows = match CertCheck::ParamSpan {
-            CertCheck::ParamSpan => 31,
-            CertCheck::ParamSpanMeter => 31,
-            CertCheck::ParamWinding => 31,
-            CertCheck::ImageSpan => 31,
-            CertCheck::EndpointStart => 31,
-            CertCheck::EndpointEnd => 31,
-            CertCheck::SurfaceResidual { .. } => 31,
-            CertCheck::WitnessSurfaceResidual { .. } => 31,
-            CertCheck::WitnessMidpoint => 31,
-            CertCheck::Transversality => 31,
-            CertCheck::TransversalityTube => 31,
-            CertCheck::TransversalityArm => 31,
-            CertCheck::TangentPlanes => 31,
-            CertCheck::TangentParallel => 31,
-            CertCheck::TangentGap => 31,
-            CertCheck::TangentSecondOrder => 31,
-            CertCheck::TangentHull => 31,
-            CertCheck::TangentTube => 31,
-            CertCheck::MappedSource => 31,
-            CertCheck::ChartImage => 31,
-            CertCheck::ChartClass => 31,
-            CertCheck::DeclaredIncidence => 31,
-            CertCheck::GeneralLane => 31,
-            CertCheck::ChartResidual => 31,
-            CertCheck::PlaneNurbsOnLocus => 31,
-            CertCheck::PlaneNurbsHull => 31,
-            CertCheck::PlaneNurbsHullValue => 31,
-            CertCheck::AnalyticBreakResidual => 31,
-            CertCheck::AnalyticHull => 31,
-            CertCheck::PlaneNurbsReportedTransversality => 31,
-            CertCheck::PlaneNurbsChartSpeed => 31,
-            CertCheck::PlaneNurbsChartSpeedBound => 31,
+            CertCheck::ParamSpan => 32,
+            CertCheck::ParamSpanMeter => 32,
+            CertCheck::ParamWinding => 32,
+            CertCheck::ImageSpan => 32,
+            CertCheck::EndpointStart => 32,
+            CertCheck::EndpointEnd => 32,
+            CertCheck::SurfaceResidual { .. } => 32,
+            CertCheck::WitnessSurfaceResidual { .. } => 32,
+            CertCheck::WitnessMidpoint => 32,
+            CertCheck::Transversality => 32,
+            CertCheck::TransversalityTube => 32,
+            CertCheck::TransversalityArm => 32,
+            CertCheck::TangentPlanes => 32,
+            CertCheck::TangentParallel => 32,
+            CertCheck::TangentGap => 32,
+            CertCheck::TangentSecondOrder => 32,
+            CertCheck::TangentHull => 32,
+            CertCheck::TangentTube => 32,
+            CertCheck::MappedSource => 32,
+            CertCheck::ChartImage => 32,
+            CertCheck::ChartClass => 32,
+            CertCheck::DeclaredIncidence => 32,
+            CertCheck::GeneralLane => 32,
+            CertCheck::ChartResidual => 32,
+            CertCheck::PlaneNurbsOnLocus => 32,
+            CertCheck::PlaneNurbsHull => 32,
+            CertCheck::PlaneNurbsHullValue => 32,
+            CertCheck::AnalyticBreakResidual => 32,
+            CertCheck::AnalyticHull => 32,
+            CertCheck::PlaneNurbsReportedTransversality => 32,
+            CertCheck::PlaneNurbsChartSpeed => 32,
+            CertCheck::PlaneNurbsChartSpeedBound => 32,
         };
         for (i, check) in all_checks().iter().enumerate() {
             assert!(
@@ -8581,6 +8597,39 @@ mod tests {
         }
     }
 
+    /// **A declared carrier read in band at a degenerate pose is not
+    /// called off its face** (E1b, with E1's [`crate::OffMargin`]): the
+    /// edge certificate's `DeclaredOffChart` ends in the modeler's lever
+    /// either way, but only a reading decided past the pose says the curve
+    /// does not lie on its chart.
+    #[test]
+    fn a_declared_carrier_at_a_pose_is_not_called_off_its_chart() {
+        let refusal = |margin| CertifyError::DeclaredOffChart {
+            chart: geom::SurfaceKind::Cone,
+            carrier: geom::CurveKind::Line,
+            margin,
+        };
+        let m = geom_core::MarginDiag::value(4e-10);
+        for (margin, off) in [
+            (None, true),
+            (Some(crate::OffMargin::Past(m)), true),
+            (Some(crate::OffMargin::InBand(m)), false),
+        ] {
+            let e = refusal(margin);
+            assert_eq!(e.to_string().contains("does not lie on"), off, "{e}");
+            assert_eq!(
+                e.decision().map(|(check, _)| check),
+                Some(CertCheck::DeclaredIncidence),
+                "{e:?}"
+            );
+            let ending = e.ending(Reading::Build).unwrap_or_default();
+            assert!(
+                ending.starts_with("Recourse: move the declared curve"),
+                "{e:?}: {ending}"
+            );
+        }
+    }
+
     /// A decision's class, as the hand-written table states it
     /// ([`class_table`]).
     #[derive(Debug, PartialEq, Eq)]
@@ -8591,6 +8640,8 @@ mod tests {
         Undefined,
         /// A lane choice's lever-only "not yet" ([`Ending::NotYet`]).
         NotYet,
+        /// The modeler's own lever and nothing else ([`Ending::Lever`]).
+        LeverOnly,
     }
 
     /// **Every decision's class, written out by hand** in taxonomy
@@ -8643,7 +8694,7 @@ mod tests {
             (CertCheck::ChartImage, NoSize(Unsized::Defect)),
             (CertCheck::ChartClass, NotYet),
             (CertCheck::GeneralLane, NotYet),
-            (CertCheck::DeclaredIncidence, DeclaredLever),
+            (CertCheck::DeclaredIncidence, Class::LeverOnly),
             (CertCheck::PlaneNurbsOnLocus, Miss(Unsized::Fit)),
             (CertCheck::PlaneNurbsHull, Miss(Unsized::Bound)),
             (CertCheck::PlaneNurbsHullValue, Miss(Unsized::Bound)),
@@ -8687,7 +8738,7 @@ mod tests {
                 Ending::Residual(residual) => Miss(residual),
                 Ending::Undefined(_) => Undefined,
                 Ending::NotYet => NotYet,
-                Ending::Lever(_) => Lever,
+                Ending::Lever(_) => Class::LeverOnly,
             };
             assert_eq!(&got, want, "{check:?}");
             // A lever is named exactly where the decision is sized.

@@ -362,8 +362,8 @@ impl LeverOnly {
     /// The one ending a refusal of this decision carries on `arm`, read
     /// at `reading`.
     #[must_use]
-    pub fn recourse(self, arm: RefusedArm<'_>, reading: Reading) -> String {
-        lever_recourse(self.lever, arm.unreadable_note(reading))
+    pub fn recourse(self, arm: RefusedArm<'_>, at: impl Into<ReadAt>) -> String {
+        lever_recourse(self.lever, arm.unreadable_note(at))
     }
 }
 

@@ -563,7 +563,9 @@ impl PcurveMintError {
     #[must_use]
     pub fn render(&self, at: impl Into<geom_brep::recourse::ReadAt>) -> String {
         match self {
-            Self::Certify { half_edge, error } => format!(
+            Self::Certify {
+                half_edge, error, ..
+            } => format!(
                 "the pcurve of half-edge {half_edge:?} failed certification: {}",
                 error.render(at)
             ),

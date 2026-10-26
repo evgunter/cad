@@ -9267,6 +9267,16 @@ pub enum OffMargin {
     InBand(geom_core::MarginDiag),
 }
 
+impl OffMargin {
+    /// The margin the decision read, on either side of the band.
+    #[must_use]
+    pub fn diag(self) -> geom_core::MarginDiag {
+        match self {
+            Self::Past(m) | Self::InBand(m) => m,
+        }
+    }
+}
+
 /// A closed-form arm's conclusion that the carrier cannot lie on the
 /// chart, with why ([`PcurveCertifyError::CarrierOffChart`]).
 #[derive(Clone, Copy, Debug)]
