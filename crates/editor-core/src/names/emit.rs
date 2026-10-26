@@ -617,8 +617,8 @@ shapes! {
                                edges its set holds",
         /// Two independent pairwise judgements of edges flush only within
         /// the band.
-        FlushSensesDisagree => "is where two member edges flush on one line disagree on its \
-                                sense",
+        FlushSensesDisagree => "is where two edges flush on one line, of union members or of \
+                                a boolean's operands, disagree on its sense",
         /// A piece shorter than the band puts both its neighbours'
         /// classes at one point.
         PiecesAtOneVertex => "holds two pieces of one member line, each classified there",
@@ -639,7 +639,7 @@ impl DisagreeShape {
             ),
             Self::FlushSensesDisagree => concat!(
                 geom_core::coincidence_move_arm!(),
-                " so the member edges at the vertex are clearly flush or clearly apart"
+                " so the edges on one line at the vertex are clearly flush or clearly apart"
             ),
             Self::PiecesAtOneVertex => concat!(
                 geom_core::coincidence_move_arm!(),
