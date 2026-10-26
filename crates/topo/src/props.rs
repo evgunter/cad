@@ -562,29 +562,6 @@ pub fn mass_properties_structural<T: Decide>(
     measure_body_structural(body, tol)
 }
 
-/// [`mass_properties`] against a caller-built band and the caller's
-/// quadrature lane, over the whole face arena in arena order, through
-/// the door ([`measure_to`]) under `settle`, the lane measuring and
-/// certifying.
-///
-/// # Errors
-///
-/// As [`mass_properties`].
-pub(crate) fn mass_properties_with<T: Decide>(
-    body: &Body<T>,
-    band: Band,
-    tol: Tol,
-    quad: Option<QuadLane<T>>,
-    settle: Settle<T>,
-) -> Result<MassMeasurement<T>, MassPropsError> {
-    let faces = crate::query::all_faces(body);
-    let (stop, certificate) = measure_to(body, &faces, band, tol, (quad, quad), settle)?;
-    Ok(MassMeasurement {
-        enclosure: certificate.props(),
-        stop,
-    })
-}
-
 /// **A resolution the model defines**: `len` meters, refused typed where
 /// it is finer than ε, the most the model defines a measure to.
 fn resolution_len(len: Length, tol: Tol) -> Result<f64, MassPropsError> {
@@ -3701,7 +3678,9 @@ pub fn every_door(
     };
     door("the reporting walk", &mut || {
         Ok(DoorOutcome::Span(span(
-            &mass_properties_with(body, band, tol, lane, settle)?.enclosure,
+            &measure_to(body, &faces, band, tol, (lane, lane), settle)?
+                .1
+                .props(),
         )))
     })?;
     let mut certificate = None;
