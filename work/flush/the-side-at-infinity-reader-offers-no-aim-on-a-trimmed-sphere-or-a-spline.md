@@ -7,6 +7,7 @@ opened: 2026-10-14
 priority: P2
 cost: M
 branch: flush/sphere-spline-aims
+pr: 5730
 ---
 
 
