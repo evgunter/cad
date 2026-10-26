@@ -145,3 +145,9 @@ t1, apex, axis)`, and `lo.max(-hi)` of it is the arc's least `|h|`
 wherever that is positive — the nappe question this row is about. The
 per-piece `|h|` stays needed there for the elevation bound's
 denominator; only the nappe decision could read the door.
+
+## Moved (2026-10-26)
+
+PRED folded into PREDTAIL (Ev, in chat, 2026-10-26): PRED was handed back
+`blocked` with this row and one other parked, and PREDTAIL now holds
+PRED's parked rows beside its tail. Id, body and blocker unchanged.

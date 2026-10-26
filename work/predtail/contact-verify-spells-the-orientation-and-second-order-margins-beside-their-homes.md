@@ -7,7 +7,6 @@ opened: 2026-10-25
 priority: P1
 cost: M
 blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
-refs: [lever-arm-fold-six-hand-rolled-siblings]
 ---
 
 Cut from `lever-arm-fold-six-hand-rolled-siblings` by the PRED
@@ -39,3 +38,9 @@ What is spelled twice:
 
 When the hold fires, re-read `contact_verify` against the tree first:
 whether these sites survive stage 4 is the first thing to settle.
+
+## Moved (2026-10-26)
+
+PRED folded into PREDTAIL (Ev, in chat, 2026-10-26): PRED was handed back
+`blocked` with this row and one other parked, and PREDTAIL now holds
+PRED's parked rows beside its tail. Id, body and blocker unchanged.

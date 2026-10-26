@@ -318,3 +318,12 @@ Filed:
 - `period-decide-callers-lever-a-parameter-gap` (P3);
 - CHART's `azimuth-inf-arm-has-two-homes`;
 - BAND's `surgery-cites-an-unratified-junction-end-pick-precedent`.
+
+## Moved (2026-10-26)
+
+PRED folded into PREDTAIL (Ev, in chat, 2026-10-26). Kept although
+closed: ENCL's `hand-minted-invalid-gates-in-topo` and CLEAVE's
+`topo-mints-indeterminates-outside-the-funnel` and `the-indeterminate-seal`
+hand their `solid_contain` period sites to this row, and its Closed
+section is the record of where those sites now decide
+(`geom_core::period`).
