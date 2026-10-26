@@ -2,8 +2,9 @@
 id: a-coplanar-sector-offers-a-rest-the-door-contradicts-across-the-faces
 kind: issue
 title: a coplanar sector's in-band refusal offers a Rest declaration that the door then contradicts, once the door levers the tilt across the faces
-status: open
+status: closed
 opened: 2026-10-02
+closed: 2026-10-26
 ---
 
 ## What
@@ -39,3 +40,7 @@ would take it, i.e. where the pair's in-band reading also holds at the
 door's lever (`offer_rows`' `Withdrawn` mechanism is the existing
 vocabulary for an offer shown false). Measure which other
 sector-level offers read a tilt at a shorter arm than the door.
+
+## Closed (2026-10-26, tracker sweep)
+
+**Superseded.** The offer this row is about no longer exists. INTENT stage 4 F (`work/intent/declared-pairs-retire.md`, closed 2026-10-11) deleted the declare surface, so no refusal offers a `Rest` or a continuation declaration for the door to contradict. The pinned row this item names is gone. Its successor, `reduce.rs:5573` `a_coplanar_sectors_in_band_parallelism_refuses_on_the_sector`, asserts that the sector refusal's text offers only the geometry or a tolerance, and `!text.contains("declare")` (`reduce.rs:5634`–`:5638`).

@@ -544,6 +544,17 @@ if it is ever revisited.
 
 - 2026-10-23 — **Seam (QUAD):** PR 5589 (`quad/measure-a-lanes`, measure door unit A) edits k-lint. `EPS_COUPLED_UNRULED` and its CLI gate go with `props_quad_last_round`, its only entry. `predicate_roster`'s `MINT_SOURCES` reads `topo/src/props/quad_lane.rs` beside `props/quad.rs`, and K-REPORT gains the retirement note. (QUAD orchestrator's lane)
   - Also `demos/*`: the tour's `k_probe_brackets` 1e-12 set is now the lofted leaf and the sepals, as main reads it, with a 2e-7 Pappus fit slack. The teapot, `demos/README.md` and the ribbon now narrate the spout's work-wall stop.
+- 2026-10-26 — (tracker sweep)
+  - **Closed, superseded:**
+    - `last-round-rows-flag-under-rules-2-and-3`: `props_quad_last_round` was retired with the budget exit (PR 5589);
+    - `frame-mint-funnel-names-outside-every-sweep-corpus`: `sketch_plane_frame_norm` is minted nowhere, and `fixture_frame_axis` is disclosed in K-REPORT's roster table;
+    - `tess-gate-red-beyond-twopeg-since-the-10-02-cut` and `tess-budget-baseline-drifts-from-mains-own-numbers-between-cuts`: duplicates of BUDGET rows, with their facts merged there.
+  - **Closed, fixed:**
+    - `tess-budget-baseline-names-predate-piece-naming`: the re-cut re-spelled the names, and the doc says no rule keys on `name`;
+    - `k-lint-gate-described-as-diffing-the-committed-baselines`: the ci.yml site went with `49d5b2aee`, and `GENERICS-BUILD-COST.md` was fixed here;
+    - `k-report-bit-identity-claim-has-no-citation`: the citation was added to K-REPORT's Methodology;
+    - `c15-transcribes-the-sized-row-identity-split`: both transcriptions in `C15.md` were replaced with the pointer.
+  - The slate table is re-generated. **Load:** 23.5/30.
 
 - 2026-10-23 — **Seam (QUAD):** PR 5628 (`quad/measure-b-door`, measure door unit B) edits `tools/k-lint`. `EPS_COUPLED_PREDICATES` is empty: `props_quad_converged` is no longer minted. The committed eras are read through `ERA_EPS_COUPLED_PREDICATES`/`lint_sample_under`, `MINT_SOURCES` is `props/quad.rs` alone, and `docs/K-REPORT.md` has the retirement note. The thread-count digests are re-cut (verdict counts only). (QUAD unit B lane)
 

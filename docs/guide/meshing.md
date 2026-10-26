@@ -263,6 +263,10 @@ fired and, where there is one, the number that makes it actionable:
 - `certificate_exceeded` — `bound` is the worst triangle's
   closed-form deviation and `requested` the budget it was checked
   against;
+- `rounding_unresolved` — the worst triangle lands past δ only by its
+  own f64 rounding, but that rounding (`value`) is not small against δ
+  and the kernel ε, so it is not absorbed: `bound` and `requested` as
+  above; model nearer the origin or ask for a coarser δ;
 - `unsupported_surface` / `unsupported_nurbs_face` /
   `unsupported_curve` — a lane that is not written, with `note`
   carrying the kernel's own prose about which one and why. Partial

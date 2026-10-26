@@ -42,7 +42,7 @@ arc bound reads On at first order exactly as described. Declared
 the curved on-carrier sector refuses C8 (`CurvedBooleanUnsupported`)
 first, so the undeclared wrong-germ path is still not reached. The same
 fixture shows the arc split at the band's edge
-(`work/hone/an-arc-tangent-to-a-face-at-its-end-is-split-at-the-edge-of-the-band.md`).
+(`work/honeroot/an-arc-tangent-to-a-face-at-its-end-is-split-at-the-edge-of-the-band.md`).
 
 ## Findings (measured 2026-10-10)
 

@@ -2,8 +2,9 @@
 id: loop-boundary-discards-loses-the-enclosing-fn-at-a-semicolon-in-its-signature
 kind: issue
 title: loop-boundary-discards keys a discard to the wrong fn when its fn's signature holds a ';' (an array type), which resets the pending name before the body opens
-status: open
+status: closed
 opened: 2026-10-01
+closed: 2026-10-26
 ---
 
 
@@ -34,3 +35,21 @@ its own name.
 Clear `pending` on a `;` only at bracket and paren depth 0, or only
 when no `(` of the signature is still open. Then add a self-test case
 that plants a discard in a fn whose signature holds `[T; N]`.
+
+## Closed (2026-10-26, tracker sweep)
+
+**Fixed in this sweep.** The enclosing-fn reader in
+`scripts/gates/loop-boundary-discards.sh` (the `phase == 1` block, ~:348)
+now counts the `(`/`[` nesting opened since the pending `fn` (`sig`) and
+clears the pending name on a `;` only at zero, so the `;` of `[T; N]` in a
+signature no longer drops it; a bodiless `fn f(x: [u8; 2]);` still
+clears at its final `;`. New selftest case `plant_array_type_signature`
+(~:569, wired ~:682) plants a discard in
+`fn arrayed_signature(ends: [VertexKey; 2]) -> [u8; 2]` and wants it
+keyed to that fn. Mutation-checked: with the old `;` rule restored the
+case reds with `(no enclosing fn)`; with the fix, `--selftest` and the
+plain gate pass.
+
+**Duplicate elsewhere:** `work/ciw/loop-boundary-discards-loses-an-fn-whose-signature-holds-a-semicolon.md`
+(CIW, opened 2026-10-13, PR 5039's `apply_cut_ins` instance) is the same
+defect; it should close pointing here.

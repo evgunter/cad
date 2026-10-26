@@ -19,12 +19,15 @@ its units by other programs:
 - **The blend chain walk's other readers.** `walk_chains` closes a
   chain at a corner without a junction, and the corner valence
   readers count a self-closed edge once where the walk counts it
-  twice.
+  twice. From BAND's 2026-10-26 split: `corner_at` folds
+  a neighbour's refusal into `Indeterminate` (two rows), and the walk
+  pairs an island edge at a cavity corner.
 - **The loft doors' input checks.** A non-finite placement refuses as
   a stacking error or escalates. A bad parameter vector refuses as a
   count mismatch.
-- **One unbanded compare.** `sweep_places` decides a vanishing
-  tangent by a bare `n > 0.0`.
+- **Four kernel-defect endings.** Two `CapPlaneError` arms and two
+  `LoftError` arms end typed for states that a validated input never
+  reaches (ENCL's census).
 - **The skin's knot union.** It keeps two knots an ulp apart as a
   hairline span.
 - **PR 4189's residue.** The material jet's readers take

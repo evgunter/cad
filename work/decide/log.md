@@ -1048,3 +1048,5 @@ says so:
 
 When either P1 unblocks, the band goes back to P1 with it. Handed
 back `ready`, with nobody on it.
+
+- 2026-10-26 — (tracker sweep) Every live row checked against main; nothing closed or re-parked. `rule-gs-magnitude-door-never-asks-rule-c` re-read: rule C's arm is gone from `magnitude_of_root`, and only the `magnitude_atom_in` fallback is still unreachable (note on the row). `declared-tangency-…` stays parked on ROUND's open P1 `fillet-tangency-is-not-the-constructors-node`. `revolve-carriers-…` stays deferred under E6. Unpriced: `a0-folds-…` (P2), `door-zero-…` and `rule-gs-magnitude-…` (P3). Legacy `D`: `the-brackets-fillet-decisions-…`.

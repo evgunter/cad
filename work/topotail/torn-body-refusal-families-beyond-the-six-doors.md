@@ -22,7 +22,7 @@ still standing.)
 ## What
 
 The rule is D2 row 4 (bullet *A torn body is a kernel bug*, Ev on
-PR 4006, quoted on `work/pipe/S14.md`): a record miss panics naming the
+PR 4006, quoted on `work/topo/S14.md`): a record miss panics naming the
 record; a key the caller passed stays typed. These variants still
 answer a torn record typed. Counts are `::Variant` occurrences in
 `crates/` (raise sites, matches and tests together), from

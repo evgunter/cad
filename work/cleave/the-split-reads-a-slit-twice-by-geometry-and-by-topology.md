@@ -29,7 +29,7 @@ is the same structure as a ring with one tip on the outline: the strut
 side runs out along a tree and back, and the slit side runs two edges
 over each tree edge. One topological reading could serve both, since
 copies share point keys, and would retire the geometric pairing and its
-straight-only limit (`work/hone/split-section-spur-guard-skips-curved-spurs.md`).
+straight-only limit (`work/honejoin/split-section-spur-guard-skips-curved-spurs.md`).
 
 ## Owed
 

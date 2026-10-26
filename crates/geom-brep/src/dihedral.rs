@@ -194,12 +194,14 @@ pub enum DihedralClass {
     Smooth,
 }
 
-/// The one classification funnel of this crate: delegates to the
-/// unified recorder funnel [`geom_core::k_stats::decide`] (M2 PR 7),
+/// The dihedral and material-entry classifiers' funnel: delegates to
+/// the unified recorder funnel [`geom_core::k_stats::decide`] (M2 PR 7),
 /// which names the predicate for the margin-telemetry recorder,
 /// classifies through the sanctioned [`Decide`] door, and tags any
-/// escalation. Kept as the crate-local wrapper so this remains the
-/// crate's single greppable decision site. The margin is a
+/// escalation. It is not the crate's only decision site: other modules
+/// (the curve-pair, pcurve-cache, SSI and props readers among them)
+/// call the recorder funnel directly, which is the one door they all
+/// share. The margin is a
 /// [`Margin<T>`] by signature (D4's margin dimensional convention,
 /// clause (i)): each call site states its dimensional argument by the
 /// construction door it chooses; the per-site arguments are the rows of

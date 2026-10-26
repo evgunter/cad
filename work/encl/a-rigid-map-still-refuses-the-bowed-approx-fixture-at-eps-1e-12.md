@@ -2,11 +2,10 @@
 id: a-rigid-map-still-refuses-the-bowed-approx-fixture-at-eps-1e-12
 kind: issue
 title: at eps = 1e-12 a rigid map still refuses the bowed Approx fixture: the rotated patch's offset fit floors above eps, so the re-fit fallback cannot answer
-status: parked
+status: open
 opened: 2026-09-28
 priority: P3
 cost: E
-blocked_on: [f64-refinement-inside-an-enclosure-has-five-more-sites]
 ---
 
 ## Measured (ENCL rigid-map headroom lane, branch `encl/rigid-map-approx-headroom`, 2026-09-28)
@@ -61,3 +60,7 @@ drift, not a frame in which ε is unreachable. Closing it needs the
 certificate's rounding width to stop depending on the frame (forming
 `X` without the `d²` cancellation, or recentring per cell), which is
 O3's construction — not the transform's.
+
+## Unparked (2026-10-26, tracker sweep)
+
+Its trigger `f64-refinement-inside-an-enclosure-has-five-more-sites` (now in `work/nurbs/`) closed: the last site, `rational_carrier_m_bound` in `crates/mesh/src/chords.rs`, reads `accel_upper_bound` at Interval. Nothing else gates this row.

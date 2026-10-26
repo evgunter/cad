@@ -995,7 +995,7 @@ fn patch_size(body: &Body<f64>, m: &mesh::Mesh, key: topo::SurfaceKey) -> (usize
 ///
 /// The fixture's `General` image runs `u ∈ [2 − 2.2e-16, 2]` — a chart
 /// image degenerate to within an ulp of the iso line beside it
-/// (`work/trim/curved-trim-e2e-fixture-waits-for-a-producer.md`: the
+/// (`work/isotail/curved-trim-e2e-fixture-waits-for-a-producer.md`: the
 /// only at-rest producer mints a 33-foot interpolant of a boundary
 /// locus). So this is a SCHEDULE and WATERTIGHTNESS row, not a
 /// curvature one. The curvature evidence for the speed bound is the

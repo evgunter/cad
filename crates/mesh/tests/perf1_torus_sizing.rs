@@ -11,10 +11,10 @@
 //!    within its certificate, and every certificate within δ — the
 //!    lane refuses typed above δ, so this reads the same worst the
 //!    lane accepted.
-//! 2. **Tight**: the worst certificate over a body is at least 25 % of
-//!    δ. The sizing targets δ_s = δ/2 and spends it with no slack in
-//!    the bound's constant; the remaining gap is the sups `A`, `B` not
-//!    being attained at one φ plus `ceil` rounding. A bound ten times
+//! 2. **Tight**: the worst certificate over a body is at least half of
+//!    δ. The sizing spends δ with no slack in the bound's constant; the
+//!    remaining gap is the sups `A`, `B` not being attained at one φ
+//!    plus `ceil` rounding. A bound ten times
 //!    too loose — the defect this unit removed — passes claim 1 and
 //!    fails this.
 //! 3. **On the ideal**: each torus patch carries EXACTLY
@@ -62,13 +62,12 @@ fn tube(major: f64, sweep: Revolution<f64>) -> Body<f64> {
         .body
 }
 
-/// The derivation's steps, re-derived: `h_u = √(4δ_s/((1+β)(R+r)))`,
-/// `h_v = √(4δ_s/((1+β)r))`, `β = √(r/(R+r))`.
+/// The derivation's steps, re-derived: `h_u = √(4δ/((1+β)(R+r)))`,
+/// `h_v = √(4δ/((1+β)r))`, `β = √(r/(R+r))`.
 fn steps(delta: f64, major: f64) -> (f64, f64) {
-    let delta_s = delta / 2.0;
     let a = major + MINOR;
     let beta = (MINOR / a).sqrt();
-    let share = 4.0 * delta_s / (1.0 + beta);
+    let share = 4.0 * delta / (1.0 + beta);
     ((share / a).sqrt(), (share / MINOR).sqrt())
 }
 
@@ -155,10 +154,10 @@ fn sweep_row(major: f64, delta: f64, sweep: Revolution<f64>) {
         worst / delta,
         4 * nu * nv
     );
-    // Claim 2: at least a quarter of δ is spent on the worst cell.
+    // Claim 2: at least half of δ is spent on the worst cell.
     assert!(
-        worst >= 0.25 * delta,
-        "{label}: the worst certificate {worst} is under a quarter of delta — the sizing has \
+        worst >= 0.5 * delta,
+        "{label}: the worst certificate {worst} is under half of delta — the sizing has \
          gone loose"
     );
     // Claim 3, the cost against the ideal `2·U·V/(h_u·h_v)` per face:

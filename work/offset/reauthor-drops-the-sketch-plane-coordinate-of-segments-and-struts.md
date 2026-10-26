@@ -4,7 +4,6 @@ kind: issue
 title: The axial door's re-author drops a PlacedSegment's or ExtrudedPoint's out-of-plane coordinate without a decide
 status: open
 opened: 2026-10-01
-refs: [equator-seam-reauthor-refuses-the-hollowed-elbow]
 priority: P3
 cost: E
 ---

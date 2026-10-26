@@ -57,7 +57,7 @@ measured.
 crossings.
 
 The same solve exists in two other places. The proposal for one home is
-`work/hone/the-conic-plane-root-solve-has-three-homes.md`.
+`work/honeone/the-conic-plane-root-solve-has-three-homes.md`.
 
 ## Fixed
 

@@ -2317,15 +2317,14 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    so the mate is exact rather than tolerated, and the union
     //    decides it on its zero.
     //
-    //    It still refuses, and the refusal is the interesting part: it
-    //    names a CURVED EDGE, not the contact. Both operands are
-    //    skinned bodies whose wall-wall seams are NURBS iso-curves,
-    //    and the boolean lane is planar-complete with curved work
-    //    wired per germ class. The conformal join is C7
-    //    (CONTACT-DESIGN, ratified #178) and is M8's one row in the
-    //    modeling-verb register, with this rebuild named as its
-    //    consumer — so this wall is not a gap in the plan, it is the
-    //    plan, probed.
+    //    It still refuses, on the contact: the sweep reads the blade's
+    //    base rim, a circle on the shared section, against one of the
+    //    sheath's NURBS walls rising from that same rim, and the
+    //    Boolean has no crossing layer for a spline face. No curved
+    //    section is asked for; what is missing is reading an edge that
+    //    bounds the mate against a spline wall beside it, and the flush
+    //    reading along the two bodies' NURBS edges behind that
+    //    (`work/splice/a-unions-flush-reading-cannot-follow-a-nurbs-carrier`).
     let sheath = {
         let base_section = leaf_a_plan().base;
         // Runs back out of the leaf's base along -dir, so its bottom
@@ -2355,15 +2354,16 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         8,
         "graft the leaf's sheath onto its blade at their shared section",
         crate::booleans::try_union(leaf_a, &sheath, tol),
-        // The KIND is the claim, as in wall 1: a curved EDGE stops
-        // this, not a curved face and not the planar contact. If this
-        // ever starts refusing on the contact instead, the sentence
-        // above is wrong and must be re-derived before it is believed.
+        // The KIND is the claim, as in wall 1: a NURBS wall of the
+        // sheath, operand B, met at the contact. If this ever refuses
+        // elsewhere, the sentence above is wrong and must be re-derived
+        // before it is believed.
         |e| {
             matches!(
                 e,
-                BooleanError::CurvedEdgeUnsupported {
-                    operand: Operand::A,
+                BooleanError::CurvedBooleanUnsupported {
+                    operand: Operand::B,
+                    kind: pncad::prelude::SurfaceKind::Nurbs,
                     ..
                 }
             )
@@ -3064,10 +3064,18 @@ mod review_probes {
     fn finding_13_tessellation_table_reproduces() {
         use pncad::mesh::validate::{signed_volume, triangle_count};
         let ps = pieces();
+        // RE-BASELINED (PRED, `[mesh.sizing]`): each mesher lane sizes
+        // its worst triangle at δ by its own theorem rather than at δ/2,
+        // so the stem's and arch's tori and the lantern's sphere zone
+        // and cones and its mouth's torus band coarsen — stem
+        // 392 -> 188 and 828 -> 476, arch 2_960 -> 1_472, lantern
+        // 1_220 -> 832 and 3_038 -> 1_900 (its cones take no rows, its
+        // sphere zone sizes its azimuth at its widest latitude). The
+        // leaves are NURBS, whose lattice did not move.
         let table = [
-            ("lily_stem", 5e-3, 392usize),
-            ("lily_stem", 2e-3, 828),
-            ("lily_arch", 2e-3, 2_960),
+            ("lily_stem", 5e-3, 188usize),
+            ("lily_stem", 2e-3, 476),
+            ("lily_arch", 2e-3, 1_472),
             // RE-BASELINED (BAND, one wall per run): a full revolve
             // sweeps the lantern's two planar caps whole, and each cap
             // as one disc meshes two triangles fewer than as two
@@ -3075,8 +3083,8 @@ mod review_probes {
             // RE-BASELINED (wall 6 retired): the mouth's torus band,
             // sized per curvature like any torus, adds its own cells —
             // 1_080 -> 1_220 and 2_556 -> 3_038.
-            ("lily_lantern", 5e-3, 1_220),
-            ("lily_lantern", 2e-3, 3_038),
+            ("lily_lantern", 5e-3, 832),
+            ("lily_lantern", 2e-3, 1_900),
             // RE-BASELINED: the swept leaves are fitted at the cubic
             // degree along the path (wall 15 retired) — 6_468 -> 5_576
             // and 5_992 -> 5_164. RE-BASELINED again (PR 4984, one
@@ -3139,10 +3147,12 @@ mod review_probes {
             })
             .collect();
         println!("lantern volume error, measured: {rels:?}");
-        // RE-BASELINED (wall 6 retired): the rolled lantern measures
-        // 0.012769 and 0.0050019; the 2e-3 floor moves 0.0050 -> 0.0049
-        // so it does not sit 2e-6 under the new reading.
-        for ((delta, rel), (lo, hi)) in rels.into_iter().zip([(0.0120, 0.0130), (0.0049, 0.0056)]) {
+        // RE-BASELINED (PRED, `[mesh.sizing]`): the rolled lantern
+        // measured 0.012769 and 0.0050019 at the δ/2 sizing and measures
+        // 0.015945 and 0.0062491 now — the chords' inscribed deficit
+        // grows with the coarser grid, inside the `area·δ` a mesh
+        // within δ allows.
+        for ((delta, rel), (lo, hi)) in rels.into_iter().zip([(0.0153, 0.0167), (0.0060, 0.0067)]) {
             assert!(rel > lo && rel < hi, "lantern @ {delta:e}: rel {rel}");
         }
         // A swept blade has no analytic wall to compare against, but it
