@@ -1037,7 +1037,7 @@ fn walls_inside<T: Decide>(
                 };
                 match crate::validate::decide(
                     "bool_rider_wall_bend",
-                    Margin::of((floor_bend - wall_bend).dot(floor) * arm * arm),
+                    Margin::of((floor_bend - wall_bend).dot(floor) * arm.powi(2)),
                     band,
                 )
                 .map_err(sectors)?
