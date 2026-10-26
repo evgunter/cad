@@ -4374,16 +4374,15 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "continuation_contradicted",
             "coplanar_neighbours",
             "crossing_at_cone_apex",
-            "crossing_carrier_unsupported",
             "crossing_insertion",
             "crossings_along_a_contact_line",
             "curved_boolean_unsupported",
-            "curved_edge_unsupported",
             "curved_pair_unsupported",
             "curved_pierce_unsupported",
             "curved_sector_side_unsupported",
             "declaration_contradicted",
             "degenerate_torus",
+            "edge_carrier_unsupported",
             "edge_in_face",
             "edge_undescribed",
             "escalated",
@@ -4433,6 +4432,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "slit_line_crossed",
             "spheres_meet",
             "split_lineage_cycle",
+            "tangent_crescent_unsupported",
             "torn_component",
             "underflowed_sector_chord",
             "unjoined_operand",
@@ -4892,7 +4892,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "name_on_dropped_step",
             "not_an_instance",
             "part_carries_metadata",
-            "ranked_run_reordered",
             "stranded_part_name",
             "stranded_part_read",
             "unknown_node",
@@ -5786,7 +5785,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "part_edit",
             "part_id_collides",
             "part_name_reaches_remainder",
-            "ranked_run_reordered",
             "remainder_edit",
             "remainder_read_uncarried",
             "severed_edge",
@@ -5953,8 +5951,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "union_name_shape_tag",
         values: &[
             "unsupported_union_name_junction_lines_collide",
-            "unsupported_union_name_run_least_line_moved",
-            "unsupported_union_name_seam_group_no_member_edge",
             "unsupported_union_name_several_parents",
         ],
         delegates: &[],
@@ -5993,6 +5989,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "census_lane_unsupported",
             "census_undecidable",
             "census_unsupported",
+            "coincident_wedges_overlap",
+            "coincident_wedges_overlap_undecided",
             "component_euler_violation",
             "contact_contradicted",
             "curved_sense_inverted",
@@ -6054,6 +6052,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "ring_nesting_undecided",
             "ring_outside_outer",
             "ring_pair_contact_escalated",
+            "same_side_interference",
             "scaffold_at_rest",
             "scaffolding_empty_loop",
             "scaffolding_strut_vertex",
@@ -6267,9 +6266,6 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // `program`, which leaves `profile` to the operand the slot
     // alphabet forwards.
     ("profile", 2),
-    // A split's and an inline's refusal of a ranked run its re-minted
-    // ids reorder: one fact (`editor_core::RemapError::RankedRunReordered`).
-    ("ranked_run_reordered", 2),
     // One fact: a list that names one entry twice, a selection's face
     // set (`selection_fault_tag`) as a profile's kept step ids.
     ("repeated", 2),

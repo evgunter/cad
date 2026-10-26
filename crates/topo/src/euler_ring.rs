@@ -999,7 +999,7 @@ impl<T: Decide> Body<T> {
     /// boolean's seam zip, relies on that move, and
     /// [`Body::kfmrh_describing`] absorbs it once the zip states its
     /// re-descriptions
-    /// (`work/topo/kef-and-kfmrh-across-keys-want-a-describing-door-or-reordered-callers`).
+    /// (`work/restate/kef-and-kfmrh-across-keys-want-a-describing-door-or-reordered-callers`).
     pub fn kfmrh_minting(
         &mut self,
         f1: FaceKey,

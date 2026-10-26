@@ -205,8 +205,8 @@ class WorldPins(unittest.TestCase):
         """`pncad.assemble` reaches the kernel's one gate, which checks
         a new space's copies by themselves: two posts seated at one spot
         under a shelf placed into a space of its own interpenetrate
-        there, and the gate refuses though the world beside them
-        certifies."""
+        there, and the gate reports their overlap as one loud
+        interference finding though the world beside them certifies."""
         doc = Doc("py-pin-gate")
         self.pinned(doc, self.post_ref, Frame.translation((1 * m, 0 * m, 0 * m)))
         aside = doc.new_space()
@@ -226,9 +226,10 @@ class WorldPins(unittest.TestCase):
                 # One post under the shelf: nothing clashes anywhere.
                 pncad.assemble(doc, evaluate(doc, resolver=self.ws))
         self.assertEqual({doc.space(p) for p in posts}, {doc.output(aside)})
-        with self.assertRaises(pncad.AssemblyError) as caught:
-            pncad.assemble(doc, evaluate(doc, resolver=self.ws))
-        self.assertEqual(caught.exception.variant, "at_rest")
+        assembly = pncad.assemble(doc, evaluate(doc, resolver=self.ws))
+        self.assertEqual(len(assembly.interference), 1)
+        (finding,) = assembly.interference
+        self.assertTrue(finding.loud)
 
     def test_a_seat_charts_on_the_space_not_on_the_body_it_rests_on(self):
         """Against an independent 4x4 composition: a post pinned to the

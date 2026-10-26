@@ -6,6 +6,7 @@ status: open
 opened: 2026-10-07
 priority: P4
 cost: M
+design: true
 ---
 
 
@@ -35,3 +36,13 @@ measured from their consumed points (each face's boundary, as
 extent and the rule in `extent.rs`'s module docs governs every reader.
 Each door's ball lever is a verdict-moving change and wants its own
 differential.
+
+## Duplication triage (INTENT, 2026-10-26)
+
+Classified on Ev's ask, via the CLEAVE note on INTENT's log, against main `e92fb951` and DESIGN `[one-way.places]` / `[one-way.readings]`. The four classes:
+- **design signal:** DESIGN names no single home, so a design conversation is owed;
+- **mechanical:** DESIGN names the home; delete the off-home copy and repoint its users;
+- **D10 debris:** a D10 stage retires one copy;
+- **not duplication.**
+
+**Design signal.** **Cluster C, the scale a margin is charged at.** Ev (2026-10-26): every point of the representation must be within ε of the real shape, so a decision's charge should be derived from that one contract, not chosen per site. There are three extent types: `ExtentBall`; `geom_brep::Reach` (Span/Measured/Ball); and topo's `Reach`. Which extent a door levers from changes verdicts. No canonical-places row names "the extent a carrier verdict is levered at".

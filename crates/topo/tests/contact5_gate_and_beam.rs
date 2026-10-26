@@ -10,9 +10,10 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
+use common::placement_findings;
 use geom_core::{Band, Point3, Tol};
 use topo::{
-    Body, CensusContact, ContactRecords, EntityId, SolidContainment, SolidKey, ValidationError,
+    Body, CensusContact, ContactRecords, SolidContainment, SolidKey, ValidationError,
     VoidContainment, VoidEvidence, insert_void, validate_pseudomanifold,
 };
 
@@ -47,23 +48,6 @@ fn errors_of(body: &Body<f64>) -> Vec<ValidationError> {
     validate_pseudomanifold(body, &ContactRecords::default(), Tol::witness())
         .err()
         .unwrap_or_default()
-}
-
-/// The findings arm 2 raises on a solid pair.
-fn placement_findings(errors: &[ValidationError]) -> Vec<&ValidationError> {
-    errors
-        .iter()
-        .filter(|e| {
-            matches!(
-                e,
-                ValidationError::CensusUndecidable {
-                    a: EntityId::Solid(_),
-                    b: EntityId::Solid(_),
-                    ..
-                } | ValidationError::InstanceInterference { .. }
-            )
-        })
-        .collect()
 }
 
 fn crosses(errors: &[ValidationError]) -> usize {

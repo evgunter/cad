@@ -63,3 +63,10 @@ is no axis to choose and no collapse correction to keep. The code
 (`names/canonical.rs`'s `RankRule`, the seam rankers) is unchanged on
 main; its retirement is the build of
 `work/wire/a-unions-line-of-several-edges-is-oriented-by-its-least-edge.md`.
+
+
+## Closed by PR 5758 (2026-10-26)
+
+`wire/nothing-is-ranked` builds Ev's PR 5705 rule: an orientation is read,
+never chosen, and nothing is ranked. No rank remains to orient, so `RankRule` and `flip_senses` are deleted; a crossing of a seam names the side it enters along, which a rewrite that reorders the pair only re-sorts. The status change is the
+orchestrator's.

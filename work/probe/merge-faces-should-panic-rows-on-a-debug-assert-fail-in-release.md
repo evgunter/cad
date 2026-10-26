@@ -2,10 +2,11 @@
 id: merge-faces-should-panic-rows-on-a-debug-assert-fail-in-release
 kind: issue
 title: Two merge_faces should_panic rows rest on an ungated debug_assert and fail in a release test run
-status: open
+status: closed
 opened: 2026-10-04
 priority: P4
 cost: E
+closed: 2026-10-26
 ---
 
 
@@ -26,3 +27,7 @@ gap only shows when someone runs the whole lib in release. Gate them on
 ## Re-homed at TOPO's cut (2026-10-11)
 
 Moved from TOPO to PROBE, whose charter is the guards and generators that cannot go red. TOPO kept only the Euler surgery rows when it dropped to P2.
+
+## Closed (2026-10-26, easy-fixes lane)
+
+`crates/topo/src/merge_faces.rs` `a_curved_run_told_planar_is_caught_before_any_surgery` and `a_planar_group_told_curved_is_caught_before_any_surgery` carry `#[cfg(debug_assertions)]`. Their fixtures, `curved_same_key_cube`, `cube_with_membrane` and `describe_shared_key`, all have other callers in the module, so nothing goes dead in release. Verified: `cargo clippy -p topo --all-targets --all-features -- -D warnings` is clean. `cargo nextest run -p topo --lib -E 'test(/…|merge_faces|…/)'`: 367 passed.

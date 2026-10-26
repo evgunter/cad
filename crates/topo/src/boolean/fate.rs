@@ -380,10 +380,11 @@ fn leaving<T: Decide>(body: &Body<T>, he: HalfEdgeKey, secant: bool) -> Option<(
     let len = (end - base).norm();
     let dir = match curve.carrier() {
         _ if secant => curve.mid_point() - base,
-        geom::Curve3::Line { .. } | geom::Curve3::Nurbs(_) => end - base,
+        geom::Curve3::Line { .. } => end - base,
         geom::Curve3::Circle { .. }
         | geom::Curve3::Ellipse { .. }
-        | geom::Curve3::Spiric { .. } => {
+        | geom::Curve3::Spiric { .. }
+        | geom::Curve3::Nurbs(_) => {
             geom_brep::ConicDeparture::of(curve, he == edge.he_plus, len).dir
         }
     };
@@ -1548,6 +1549,33 @@ mod tests {
                 }
             ),
             "{err:?}"
+        );
+    }
+}
+
+/// **A spline leaves a vertex along its tangent, not its chord**: the
+/// sweep rows' Bézier sheet, whose arc leaves `(0, 0, 0)` along
+/// `(1, 2, 0)` while its chord runs along `x̂`
+/// (`sectors::spline_departure_rows`, the sector walk's twin).
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod spline_departure_rows {
+    use crate::boolean::reduce::planar_lane_carrier_rows::arc_sheet;
+    use geom_core::Vec3;
+
+    #[test]
+    fn a_fate_cut_reads_a_splines_tangent() {
+        let (body, edge) = arc_sheet(1.0, 1.0);
+        let he = body.get_edge(edge).unwrap().he_plus;
+        let (dir, len) = super::departure(&body, he).unwrap();
+        let tangent = Vec3::new(1.0, 2.0, 0.0).normalize();
+        assert!(
+            (dir - tangent).norm() < 1e-12,
+            "the arc leaves along its tangent (1, 2, 0)/√5, got {dir:?}"
+        );
+        assert!(
+            (len - 2.0).abs() < 1e-12,
+            "with its chord's length 2: {len}"
         );
     }
 }

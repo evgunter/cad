@@ -2,7 +2,7 @@
 id: shell
 kind: program
 title: SHELL — shell, offset and transform
-status: active
+status: ready
 opened: 2026-09-03
 area: kernel
 prefix: shell/

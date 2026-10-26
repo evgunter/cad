@@ -3703,7 +3703,7 @@ mod tests {
     }
 
     /// **A ray read in band is set aside, and a later ray answers**
-    /// (`work/chart/chart-region-polygon-walk-refuses-on-a-ray-level-margin`).
+    /// (`work/charttail/chart-region-polygon-walk-refuses-on-a-ray-level-margin`).
     /// The square's right side carries a vertex `3e-9` off the `+x` ray
     /// line from its centre — in the band of the first schedule member's
     /// `chart_region_side` row — and `+y` reads the centre inside.

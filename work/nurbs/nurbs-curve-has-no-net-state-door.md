@@ -18,7 +18,7 @@ but carrying poison. A consumer's match over it is exhaustive. The curve
 has only `NurbsCurve::is_placeholder` (`crates/geom/src/curves/nurbs.rs`),
 so every curve-side consumer asks the two-state question and hands a
 poisoned net to the described arm. That is the shape the surface-side
-sweep (`work/pipe/described-net-two-state-reads-…`, closed) checked at
+sweep (`work/topo/described-net-two-state-reads-…`, closed) checked at
 thirteen-plus sites.
 
 The curve side was out of that sweep's scope. One curve instance is

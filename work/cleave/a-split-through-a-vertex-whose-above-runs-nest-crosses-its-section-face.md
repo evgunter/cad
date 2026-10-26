@@ -161,7 +161,7 @@ where main's mirrored rerun had built them under the flipped normal.
 The class already had 124 cells on main. Rows: four random bases with
 corners in the band split sound, and one pins the residual refusal.
 
-Filed: `work/hone/germ-orders-about-a-normal-have-two-homes.md` (the
+Filed: `work/honeone/germ-orders-about-a-normal-have-two-homes.md` (the
 split's germ order beside the boolean's `germ_order`, `strut_order` and
 `direction_sense`).
 `work/topo/a-split-recharts-an-edge-at-a-vertex-read-on-off-the-plane-into-the-band.md`

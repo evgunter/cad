@@ -111,10 +111,13 @@
 //!    that corner does not classify (`UnsupportedCorner {
 //!    Indeterminate }`, wall 2).
 //! 4. **Neither join can start** (walls 3, 4). `union` refuses at the
-//!    operand gate before any pair is looked at:
-//!    `CurvedEdgeUnsupported { operand: B }` — the loop is a loft, its
-//!    longitudinal edges are NURBS carriers, and rung-3 edges are what
-//!    the curved zip MINTS, not what it consumes. `subtract` answers
+//!    contact itself: the sweep reads the seam line of the bulb's outer
+//!    neck cylinder, which ends on the rim at z = 3 that the loop's top
+//!    cap meets, against one of the loop's four NURBS walls rising from
+//!    that rim, and the Boolean has no crossing layer for a spline face
+//!    (`CurvedBooleanUnsupported { operand: B, kind: Nurbs }`). The rims
+//!    themselves are circles; no seam far from the contact is read
+//!    first. `subtract` answers
 //!    first at the revert roster with `{ op: Some(Subtract), kind:
 //!    Nurbs, other_kind: Plane }` — a NURBS wall of the loop against a
 //!    planar face of the bulb, a pair whose boxes MAY meet (box overlap
@@ -698,14 +701,15 @@ fn bottle<S: Scalar>(tol: Tol) -> Bottle<S> {
     }
 }
 
-/// Wall 3's pinned refusal: the loop's NURBS edges at the union's
-/// operand gate. Shared with `verbs_gate_r1_probes`, so the two
-/// cannot drift.
+/// Wall 3's pinned refusal: a NURBS wall of the loop, met by the
+/// bulb's neck at the mate, at the sweep's curved arm. Shared with
+/// `verbs_gate_r1_probes`, so the two cannot drift.
 fn wall3_pinned(e: &BooleanError) -> bool {
     matches!(
         e,
-        BooleanError::CurvedEdgeUnsupported {
+        BooleanError::CurvedBooleanUnsupported {
             operand: Operand::B,
+            kind: SurfaceKind::Nurbs,
             ..
         }
     )
@@ -715,8 +719,8 @@ fn wall3_pinned(e: &BooleanError) -> bool {
 /// against a planar face of the bulb, at the ∖/∩ revert roster. Both
 /// kinds and the op are pinned, so a pair that changed kind reds. A
 /// NURBS face has no seam lane under ∖ and ∩, and the roster has no
-/// covered rung whatever the pair; it answers before the edge gate
-/// that stops wall 3.
+/// covered rung whatever the pair; it answers before the sweep that
+/// stops wall 3.
 fn wall4_pinned(e: &BooleanError) -> bool {
     matches!(
         e,
@@ -993,8 +997,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                  full revolve of ONE meridian band; the loop over the top is ONE loft \
                  of the annulus through normal planes of its whole U-turn spine. The two MEET on annular \
                  faces, each cap tilted off the bulb's rim by its spine's end tangent, \
-                 and they cannot be joined: union refuses the loop's NURBS edges at the \
-                 operand gate, and subtract refuses the loop's NURBS walls against a \
+                 and they cannot be joined: union refuses a NURBS wall of the loop where \
+                 it meets the bulb's neck at the mate, and subtract refuses the loop's NURBS walls against a \
                  planar face at the revert roster. The neck passes through the flare \
                  uncut for that second reason";
     vec![Stop {
@@ -1177,12 +1181,10 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     );
 
     // Wall 3: the bottle is ONE surface. Its two bodies meet on
-    // annular faces — the REST mate — and the union refuses before
-    // any pair is looked at: the loop is a loft, its longitudinal
-    // edges are NURBS carriers, and the operand gate admits a rung-3
-    // edge in no INPUT operand (rung-3 is what the curved zip mints,
-    // not what it consumes) —
-    // `work/splice/delete-the-boolean-operand-edge-gate`.
+    // annular faces — the REST mate — and the union refuses there: the
+    // sweep reads the bulb's outer neck seam line, ending on the mate's
+    // rim, against a NURBS wall of the loop rising from it, and no
+    // crossing layer reads a spline face.
     crate::walls::wall(
         "bottle",
         3,
@@ -1395,8 +1397,8 @@ mod verbs_gate_r1_probes {
     //! It is a SUBTRACT, and the revert roster it refuses at, on the
     //! loop's NURBS wall, has no covered rung at all: a decided
     //! coincidence supplies the verdict a germ arm would have, and it
-    //! cannot supply a seam lane to revert through. (Wall 3 refuses
-    //! earlier still, on the loop's NURBS edges.)
+    //! cannot supply a seam lane to revert through. (Wall 3, a union,
+    //! passes that roster and refuses in the sweep.)
 
     use super::*;
 
@@ -1414,7 +1416,7 @@ mod verbs_gate_r1_probes {
         println!("klein wall 3: {joined:?}");
         assert!(
             wall3_pinned(&joined),
-            "wall 3 must refuse the loop's NURBS edges at the operand gate: {joined:?}"
+            "wall 3 must refuse a NURBS wall of the loop at the sweep: {joined:?}"
         );
 
         let trimmed = pncad::topo::subtract(&bulb_body, &top, tol)

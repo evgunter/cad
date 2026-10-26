@@ -5610,7 +5610,7 @@ pub(crate) mod staleness_posture {
              across a move onto the same chart and dropped on any other. The edges it \
              re-describes are the listed certified ones, whose rows it keeps on a face that \
              keeps its chart, for the tier-3 pass to re-certify against the new carrier \
-             (`work/topo/set-face-surfaces-describing-keeps-a-moved-edges-rows-on-a-kept-chart`)",
+             (`work/restate/set-face-surfaces-describing-keeps-a-moved-edges-rows-on-a-kept-chart`)",
             ),
             (
                 "set_edge_curve",

@@ -68,3 +68,16 @@ the least of several flush edges" (`names/README.md:423`), and
 `emit_topo::flush_lines` still reads `least_per_line`. WIRE's
 `a-unions-line-of-several-edges-is-oriented-by-its-least-edge` builds
 the ruling on `emit_topo.rs`; this row can ride with it or follow it.
+
+
+## Evidence from PR 5758 (2026-10-26)
+
+PR 5758 settles the orientation half: a union reads a line of several
+flush edges `Through { entering }` the edges whose direction enters, and
+a seam edge by the side it enters along. The pair boolean's citation is
+unchanged: `flush_lines` still cites the least of several flush edges of
+one operand and reads the crossing's sense along that least edge as its
+operand stores it, so where those edges run opposite ways the sense
+(`Enters` or `Leaves`) reads which was minted first. The rank across
+seats this row mentions is gone (nothing is ranked). The fix is the
+union's rule at the pair: cite the set, read it `Through`.

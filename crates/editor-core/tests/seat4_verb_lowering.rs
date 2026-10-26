@@ -512,6 +512,11 @@ fn a_boolean_document_round_trips_byte_identical() {
 /// `From` each came in through): the second subtract's divided pieces'
 /// names moved. No outcome or point moved.
 ///
+/// RE-BLESSED, `crossing_slots` only, for a run line's sense that is no
+/// longer optional (an orientation is read, never chosen): the
+/// subtracts' `EdgeCrossing` names spell each line's sense bare. No
+/// outcome or point moved.
+///
 /// RE-BLESSED when the value chart came to read a written orientation:
 /// a mate carries its orientation, which the minting edits' bytes hold,
 /// so the ids after it and the names under them moved in
@@ -521,9 +526,9 @@ fn a_boolean_document_round_trips_byte_identical() {
 fn the_boolean_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("crossing_slots", 0x022e_e087_0139_e44c_u64),
-        ("heat_sink", 0x53d4_e3e1_8845_2724),
-        ("kiss_carry", 0x8d80_addd_16e1_0bec),
+        ("crossing_slots", 0x444a_8d81_c8c1_8e3f_u64),
+        ("heat_sink", 0x0ec3_4ebe_7178_d688),
+        ("kiss_carry", 0x0a0b_0ddb_99f9_abb9),
     ] {
         let doc = corpus::documents()
             .into_iter()
