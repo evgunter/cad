@@ -754,10 +754,20 @@ definitely on opposite sides, bisected and read on the surface; and
 otherwise cut where it is definitely past the band. A piece within the
 band that no cut parts, a meeting within the band of a crease and two
 crossings within the band of each other refuse. The composite reads the curved analytic faces too, but the
-curved lane does not dispatch a spline span to it, and every arm of the
-table with a spline face is unbuilt. The analytic arms are the sweep's
-existing root doors. What such an arm will hand on, a meeting inside a
-spline face's chart, has its placement built
+curved lane does not dispatch a spline span to it. The analytic span ×
+spline face arm is built (`curve_face::spline_face`, the boolean's
+spline-face door reading it past the boundary pass): it settles boxes of
+the state `(t, u, v)` on `C(t) − S(u, v)`, a displacement read against
+the band with no meter, clear where the box's enclosure is past the band
+and one meeting where the Krawczyk test holds, which also isolates the
+meeting's neighbourhood; the chart is cut at its creases, a box within
+the band at the floor that no meeting holds refuses, and a meeting within
+the band of a crease, or two within the band of each other, refuse. A
+spline or spiric span against a spline face is unbuilt. The analytic
+arms are the sweep's existing root doors. A meeting inside a spline
+face's chart is placed by the trim at the chart point it was found at,
+on its own sheet (`topo::boolean::spline_region::spline_chart_placement`);
+a point in space has its placement built
 (`topo::boolean::spline_region`, the spline arm of the boolean's
 point-in-face door): on the carrier by a foot decided within the band,
 off it where every Bézier cell of the chart is decided past it; then in

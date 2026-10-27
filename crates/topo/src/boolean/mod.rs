@@ -328,15 +328,17 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         "split_edge_param_interior" | "split_conic_crossing_root" | "bool_wall_root_in_span" => {
             CrossingDecision::OnEdge.subject()
         }
-        "split_conic_root_order" | "spline_composite_roots_apart" => {
+        "split_conic_root_order" | "spline_composite_roots_apart" | "spline_face_roots_apart" => {
             CrossingDecision::Order.subject()
         }
-        "spline_composite_root_at_end" | "spline_composite_root_at_crease" => {
-            CrossingDecision::OnEdge.subject()
-        }
+        "spline_composite_root_at_end"
+        | "spline_composite_root_at_crease"
+        | "spline_face_root_at_end"
+        | "spline_face_root_at_crease" => CrossingDecision::OnEdge.subject(),
         "spline_composite_root_on" => {
             "whether a crossing found along a spline edge lies on the face"
         }
+        "spline_face_root_on" => "whether a meeting found on a spline face lies on it",
         "bool_point_past_every_reach" => "whether a point stands past every face of the solid",
         // The point-on-span reading's two halves, which the on-carrier
         // crossing and the boundary pass read: `geom`'s one-carrier
@@ -2863,16 +2865,19 @@ pub enum BooleanError {
         /// The lane.
         site: EdgeCarrierSite,
     },
-    /// A spline edge of `operand` meets a face of `face_of` where the
-    /// curve × face table's ring-composite arm
-    /// ([`geom_brep::curve_face::composite::crossings`]) cannot count its
-    /// crossings (`why`): it comes within the band of the face's carrier
-    /// without a crossing the arm can tell apart (it touches it, runs
-    /// along it, or crosses it more than once within the band), it meets
-    /// it within the band of a crease of the spline, where the spline has
-    /// no tangent, or the point it located does not evaluate onto it. The
-    /// definite half: a decision the arm needs that falls in the band's
-    /// gap escalates as [`Self::Escalated`] instead.
+    /// An edge of `operand` meets a face of `face_of` where a spline arm
+    /// of the curve × face table cannot count its crossings (`why`): the
+    /// ring composite for a spline edge
+    /// ([`geom_brep::curve_face::composite::crossings`]), or the
+    /// spline-face arm for an analytic edge against a spline face
+    /// ([`geom_brep::curve_face::spline_face::meetings`]). The edge comes
+    /// within the band of the face's carrier without a crossing the arm
+    /// can tell apart (it touches it, runs along it, or crosses it more
+    /// than once within the band), it meets it within the band of a crease
+    /// of the spline, where the spline has no tangent, or the point it
+    /// located does not evaluate onto it. The definite half: a decision
+    /// the arm needs that falls in the band's gap escalates as
+    /// [`Self::Escalated`] instead.
     SplineCrossingUnsettled {
         /// The operand whose edge it is.
         operand: Operand,
@@ -4467,7 +4472,7 @@ fn unsettled_crossing(why: geom_brep::roots::Unsettled) -> &'static str {
              tell apart: it touches the face, runs along it, or crosses it more than once \
              within the tolerance"
         }
-        U::Crease => "it meets the face at a corner of the curve",
+        U::Crease => "it meets the face at a corner of the spline",
         U::SignInBand => {
             "the point it located as a crossing does not evaluate onto the face within the \
              tolerance"
@@ -4610,8 +4615,9 @@ impl core::fmt::Display for BooleanError {
             ),
             Self::SplineCrossingUnsettled { operand, why, .. } => write!(
                 f,
-                "a spline (NURBS) edge of the {} operand meets a face of the other \
-                 where the Boolean cannot count its crossings: {}. Recourse: move the \
+                "an edge of the {} operand meets a face of the other, one of the two a \
+                 spline (NURBS), where the Boolean cannot count its crossings: {}. \
+                 Recourse: move the \
                  parts so that edge crosses the face cleanly or stays clear of it",
                 operand_word(*operand),
                 unsettled_crossing(*why),

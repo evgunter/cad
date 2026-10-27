@@ -129,6 +129,52 @@ pub(super) fn spline_face_placement<T: Decide>(
     })
 }
 
+/// **A point of a spline face's chart, against the face's trim**: the
+/// chart point `(u, v)` a meeting was found at, placed by the trim alone
+/// ([`Trim::place`]), so it is read on the sheet it lies on. A point
+/// read in space, as [`spline_face_placement`] reads one, is in where any
+/// sheet within the band of it is, and a meeting's own sheet may be
+/// outside the trim where another passing within the band is inside it.
+///
+/// `None` where the trim is not read, or the point lies within the band
+/// of it along the chart with no decision to name.
+///
+/// # Errors
+///
+/// [`ContainError::Escalated`] where the trim's reading stopped on an
+/// in-band decision.
+pub(super) fn spline_chart_placement<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    (u, v): (f64, f64),
+    band: Band,
+) -> Result<Option<FaceContainment>, ContainError> {
+    let face_data = proven(&body.faces, face, EntityId::Face);
+    let linked = body.face_surface_linked(face, face_data);
+    let Some(chart) = linked.spline_chart() else {
+        unreachable!("the spline arm is reached on a spline chart")
+    };
+    if linked.is_placeholder_chart() {
+        return Ok(None);
+    }
+    let Some(cells) = bezier_cells(chart) else {
+        return Ok(None);
+    };
+    let Some(trim) = Trim::of(body, face, chart, &cells, Caps::READ, band) else {
+        return Ok(None);
+    };
+    match trim.place(&cells, Rect::point(u, v), band) {
+        Place::In => Ok(Some(FaceContainment::In)),
+        Place::Out => Ok(Some(FaceContainment::Out)),
+        Place::Near(None) => Ok(None),
+        Place::Near(Some(diag)) => Err(ContainError::Escalated {
+            decision: None,
+            escalation: Escalation::Margin,
+            diag,
+        }),
+    }
+}
+
 /// What [`read`] found (module docs).
 #[derive(Clone, Debug)]
 pub(crate) enum Reading {
@@ -1191,4 +1237,4 @@ fn window_arms<T: Decide>(
 
 #[cfg(test)]
 #[path = "spline_region_rows.rs"]
-mod rows;
+pub(crate) mod rows;

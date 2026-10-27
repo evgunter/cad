@@ -710,15 +710,18 @@ fn bottle<S: Scalar>(tol: Tol) -> Bottle<S> {
     }
 }
 
-/// Wall 3's pinned refusal: a NURBS wall of the loop, met by the
-/// bulb's neck at the mate, at the sweep's curved arm. Shared with
+/// Wall 3's pinned refusal: an edge of the bulb meets a NURBS wall of
+/// the loop on the wall's crease, the joint of its two rational arcs
+/// (a knot of multiplicity the degree), in the bulb's seam plane, where
+/// the spline-face arm reads no tangent plane to cross by. Shared with
 /// `verbs_gate_r1_probes`, so the two cannot drift.
 fn wall3_pinned(e: &BooleanError) -> bool {
     matches!(
         e,
-        BooleanError::CurvedBooleanUnsupported {
-            operand: Operand::B,
-            kind: SurfaceKind::Nurbs,
+        BooleanError::SplineCrossingUnsettled {
+            operand: Operand::A,
+            face_of: Operand::B,
+            why: pncad::geom_brep::roots::Unsettled::Crease,
             ..
         }
     )
@@ -1190,10 +1193,11 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     );
 
     // Wall 3: the bottle is ONE surface. Its two bodies meet on
-    // annular faces — the REST mate — and the union refuses there: the
-    // sweep reads the bulb's outer neck seam line, ending on the mate's
-    // rim, against a NURBS wall of the loop rising from it, and no
-    // crossing layer reads a spline face.
+    // annular faces — the REST mate — and the union refuses past them:
+    // an edge of the bulb in its seam plane meets a NURBS wall of the
+    // loop on the joint of the wall's two rational arcs, a crease of
+    // its knots, where the spline-face arm has no tangent plane to read
+    // a crossing by.
     crate::walls::wall(
         "bottle",
         3,
@@ -1527,7 +1531,8 @@ mod verbs_gate_r1_probes {
         println!("klein wall 3: {joined:?}");
         assert!(
             wall3_pinned(&joined),
-            "wall 3 must refuse a NURBS wall of the loop at the sweep: {joined:?}"
+            "wall 3 must refuse an edge of the bulb on a crease of the loop's NURBS wall: \
+             {joined:?}"
         );
 
         let trimmed = pncad::topo::subtract(&bulb_body, &top, tol)

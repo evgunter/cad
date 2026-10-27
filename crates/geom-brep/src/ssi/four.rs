@@ -360,7 +360,7 @@ fn narrow<T: CertifiedBounds>(pair: &PairBoxes<'_, T>, (q, k): (Box4, usize)) ->
 
 /// The inverse of a 3×3 matrix, `None` where it is singular or not
 /// finite.
-fn inverse3(m: [[f64; 3]; 3]) -> Option<[[f64; 3]; 3]> {
+pub(crate) fn inverse3(m: [[f64; 3]; 3]) -> Option<[[f64; 3]; 3]> {
     let c =
         |r0: usize, r1: usize, c0: usize, c1: usize| m[r0][c0] * m[r1][c1] - m[r0][c1] * m[r1][c0];
     let det = m[0][0] * c(1, 2, 1, 2) - m[0][1] * c(1, 2, 0, 2) + m[0][2] * c(1, 2, 0, 1);

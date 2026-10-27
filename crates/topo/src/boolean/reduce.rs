@@ -2065,6 +2065,7 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
         == geom_brep::curve_face::Door::SplineFace
     {
         return spline_face(
+            (x, edge_key),
             y,
             x_is,
             &curve,
@@ -2948,15 +2949,17 @@ fn on_declared_shared_carrier<T: Decide>(
 ///   split), and the join glues the two edges
 ///   ([`CurvedEvent::Along`]).
 /// - An edge whose interior the boundary leaves undecided is the
-///   table's interior door, which for a spline face is not built: the
-///   face's refusal, [`BooleanError::CurvedBooleanUnsupported`]. One
-///   such edge is decided without it: an edge of `y` ([`twin_edge`]).
+///   table's interior door ([`spline_interior`]), built for a line, a
+///   circle or an ellipse; any other edge refuses the face,
+///   [`BooleanError::CurvedBooleanUnsupported`]. One such edge is
+///   decided without the door: an edge of `y` ([`twin_edge`]).
 ///
 /// The pass and the boundary pre-pass are two readings of one point on
 /// one boundary, so a point one puts on the boundary and the other off
 /// it is a kernel fault, never a frontier.
 #[allow(clippy::too_many_arguments)]
 fn spline_face<T: Decide + crate::props::AtRestPolicy>(
+    (x, edge_key): (&Body<T>, EdgeKey),
     y: &mut Body<T>,
     x_is: Operand,
     curve: &geom_brep::EdgeCurve<T>,
@@ -2999,7 +3002,16 @@ fn spline_face<T: Decide + crate::props::AtRestPolicy>(
         }
         Some(Ok(Boundary::Clear)) => {
             if !twin_edge(y, face, &swept, ends, band)? {
-                return Err(unbuilt());
+                return spline_interior(
+                    (x, x_is, edge_key),
+                    y,
+                    curve,
+                    ends,
+                    (face, kind),
+                    contacts,
+                    band,
+                    tol,
+                );
             }
             let mut recorded = false;
             for (w, pw) in ends {
@@ -3027,6 +3039,159 @@ fn spline_face<T: Decide + crate::props::AtRestPolicy>(
         Some(Err(refusal)) => boundary_refusal(refusal).and_then(|()| Err(unbuilt())),
         None => Err(unbuilt()),
     }
+}
+
+/// **An edge's interior against a spline face** (C5's interior arm):
+/// the meetings of the edge's span with the face's chart
+/// ([`geom_brep::NurbsLane::chart_meetings`]), each placed on the face,
+/// then the edge's ends.
+///
+/// - A meeting on the face's boundary, by the boundary pre-pass, or
+///   inside its trim at the chart point it was found at
+///   ([`super::spline_region::spline_chart_placement`]), is a
+///   [`CurvedEvent::Pierce`]: the first, the sweep reading the fragments
+///   again. A meeting outside the trim is no event of this face.
+/// - With no meeting on the face, each end is placed on it
+///   ([`super::contain::curved_face_placement_decided`]) and recorded
+///   where it lies: on a vertex, on an edge (split there), or inside.
+///
+/// # Errors
+///
+/// [`BooleanError::CurvedBooleanUnsupported`] where the table has no
+/// built arm for the edge's carrier or the scalar has no certified lane;
+/// [`BooleanError::SplineCrossingUnsettled`] or
+/// [`BooleanError::Escalated`] where the arm refuses;
+/// [`BooleanError::CurvedPierceUnsupported`] where the trim reads no
+/// verdict for a meeting or an end.
+#[allow(clippy::too_many_arguments)]
+fn spline_interior<T: Decide + crate::props::AtRestPolicy>(
+    (x, x_is, edge_key): (&Body<T>, Operand, EdgeKey),
+    y: &mut Body<T>,
+    curve: &geom_brep::EdgeCurve<T>,
+    ends: [End<T>; 2],
+    (face, kind): (FaceKey, geom::SurfaceKind),
+    contacts: &mut ContactAcc,
+    band: Band,
+    tol: Tol,
+) -> Result<CurvedEvent<T>, BooleanError> {
+    use geom_brep::curve_face::spline_face::SplineFaceRefusal;
+    let unbuilt = || BooleanError::CurvedBooleanUnsupported {
+        operand: x_is.other(),
+        face,
+        kind,
+    };
+    let frontier = || BooleanError::CurvedPierceUnsupported {
+        operand: x_is,
+        face,
+        edge: edge_key,
+        band,
+    };
+    let (true, Some(lane)) = (
+        geom_brep::curve_face::route(curve.carrier().kind(), kind).implemented,
+        T::nurbs_lane(),
+    ) else {
+        return Err(unbuilt());
+    };
+    let surface = y
+        .get_face(face)
+        .and_then(|f| y.get_surface(f.surface))
+        .cloned()
+        .ok_or(BooleanError::ClassificationInvariant {
+            what: "spline face: the face's surface does not resolve",
+        })?;
+    let chart = surface
+        .spline_chart()
+        .ok_or(BooleanError::ClassificationInvariant {
+            what: "spline face: the table routed a face with no spline chart",
+        })?;
+    let found = lane
+        .chart_meetings(curve.carrier(), curve.params(), chart, band)
+        .or_else(|refusal| {
+            Err(match refusal {
+                SplineFaceRefusal::Escalated(diag) => BooleanError::Escalated {
+                    decision: BooleanDecision::Crossing(CrossingDecision::OnEdge),
+                    diag,
+                },
+                SplineFaceRefusal::Unsettled(why) => BooleanError::SplineCrossingUnsettled {
+                    operand: x_is,
+                    edge: x
+                        .split_root(edge_key, |_| false)
+                        .map_err(BooleanError::SplitLineage)?,
+                    face,
+                    face_of: x_is.other(),
+                    why,
+                },
+                SplineFaceRefusal::Unread(_) => unbuilt(),
+            })
+        })?;
+    for m in found {
+        let esc_y = |e| esc(e, x_is.other(), face);
+        if let Some((at, margin)) =
+            super::contain::curved_boundary_containment(y, face, m.point, band).map_err(esc_y)?
+        {
+            return Ok(CurvedEvent::Pierce {
+                t: m.t,
+                p: m.point,
+                at,
+                on: Some(margin),
+                branch: None,
+            });
+        }
+        match super::spline_region::spline_chart_placement(y, face, m.uv, band).map_err(esc_y)? {
+            Some(FaceContainment::In) => {
+                return Ok(CurvedEvent::Pierce {
+                    t: m.t,
+                    p: m.point,
+                    at: FaceContainment::In,
+                    on: None,
+                    branch: None,
+                });
+            }
+            Some(FaceContainment::Out) => {}
+            Some(FaceContainment::OnEdge(_) | FaceContainment::OnVertex(_)) => {
+                return Err(BooleanError::ClassificationInvariant {
+                    what: "spline face: the trim placed a chart point on the boundary",
+                });
+            }
+            None => return Err(frontier()),
+        }
+    }
+    let mut recorded = false;
+    for (w, pw) in ends {
+        let (placement, on) = super::contain::curved_face_placement_decided(y, face, pw, band)
+            .map_err(|e| esc(e, x_is.other(), face))?;
+        match placement {
+            CurvedPlacement::Trim(Some(FaceContainment::OnVertex(vy))) => {
+                push_vv(contacts, x_is, w, vy, on);
+            }
+            CurvedPlacement::Trim(Some(FaceContainment::OnEdge(ey))) => {
+                let wy = split_other_at_point(
+                    y,
+                    x_is.other(),
+                    ey,
+                    pw,
+                    super::Cell::Vertex(w),
+                    band,
+                    tol,
+                    contacts,
+                )?;
+                push_vv(contacts, x_is, w, wy, on);
+            }
+            CurvedPlacement::Trim(Some(FaceContainment::In)) => {
+                push_vf(contacts, x_is, w, face, on);
+            }
+            CurvedPlacement::Trim(Some(FaceContainment::Out)) | CurvedPlacement::OffCarrier => {
+                continue;
+            }
+            CurvedPlacement::Trim(None) => return Err(frontier()),
+        }
+        recorded = true;
+    }
+    Ok(if recorded {
+        CurvedEvent::Recorded
+    } else {
+        CurvedEvent::None
+    })
 }
 
 /// The boundary pass and the boundary pre-pass read one point of a
@@ -7422,7 +7587,10 @@ mod spline_face_rows {
     //! [`super::spline_face`], [`super::twin_edge`] and the boundary
     //! placement [`super::along_boundary`], on a cylinder wall sheet
     //! re-labelled onto a spline surface: the boundary pass reads only
-    //! the face's boundary edges, so the surface it carries is never read.
+    //! the face's boundary edges, and the surface it carries is read only
+    //! where the boundary leaves a span undecided
+    //! ([`super::spline_interior`]); then on a twisted spline sheet whose
+    //! trim lies on its chart, where it is read.
     use super::{
         ContactAcc, CurvedEvent, LyingIn, curved_face_arm, edge_ends, read_lying_in, twin_edge,
     };
@@ -7555,12 +7723,14 @@ mod spline_face_rows {
     }
 
     /// **An edge joining two vertices of the face's body that is no edge
-    /// of it refuses**: a chord across the sheet, from one corner to the
-    /// opposite one, ends on the face's boundary, meets it nowhere else,
-    /// and is no edge of `y`, so its interior is the unbuilt interior
-    /// door's.
+    /// of it records its ends**: a chord across the sheet, from one corner
+    /// to the opposite one, ends on the face's boundary, meets it nowhere
+    /// else, and is no edge of `y`, so its interior is the interior door's,
+    /// which finds the chord clear of the patch (it stays on the side
+    /// `x + y > 1` of the patch's plane), and each end is recorded at the
+    /// corner vertex it lands on.
     #[test]
-    fn a_chord_between_two_corners_of_a_spline_face_refuses() {
+    fn a_chord_between_two_corners_of_a_spline_face_records_its_ends() {
         let tol = Tol::witness();
         let (mut y, face) = spline_sheet((0.2, 1.4));
         let at = |a: f64, z: f64| Point3::new(a.cos(), a.sin(), z);
@@ -7577,9 +7747,70 @@ mod spline_face_rows {
             .unwrap();
         let mut acc = ContactAcc::default();
         match arm(&x, chord.edge, &mut y, face, &mut acc) {
-            Err(BooleanError::CurvedBooleanUnsupported { .. }) => {}
-            other => panic!("the chord's interior is the interior door's: {other:?}"),
+            Ok(CurvedEvent::Recorded) => {}
+            other => panic!("the chord's interior is clear, its ends recorded: {other:?}"),
         }
+        assert_eq!(acc.records.vv.len(), 2, "both ends at corners");
+    }
+
+    /// The twisted sheet `(u, v, 0.6·u·v)` over `[¼, ¾]²`, and a body
+    /// holding the one line edge from `p` to `q`.
+    fn twisted_and_a_line(
+        p: Point3<f64>,
+        q: Point3<f64>,
+    ) -> (Body<f64>, FaceKey, Body<f64>, EdgeKey) {
+        use crate::boolean::spline_region::rows::{rect, sheet, twisted};
+        let tol = Tol::witness();
+        let chart = twisted(0.6);
+        let (y, face) = sheet(&chart, &rect((0.25, 0.75), (0.25, 0.75)));
+        let mut x = Body::<f64>::new();
+        let seed = x.mvfs(p, true).unwrap();
+        let edge = x
+            .mev_line(
+                crate::MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                q,
+                tol,
+            )
+            .unwrap()
+            .edge;
+        (y, face, x, edge)
+    }
+
+    /// **A line through a spline face's interior pierces it there**, at the
+    /// meeting the interior arm found, placed in by the trim; one through
+    /// the chart past the trim is no event of the face, its ends off the
+    /// carrier recording nothing.
+    #[test]
+    fn a_line_pierces_a_spline_face_inside_its_trim_and_passes_it_outside() {
+        use crate::boolean::contain::FaceContainment;
+        let up = |x: f64, y: f64| (Point3::new(x, y, -1.0), Point3::new(x, y, 1.0));
+        let (p, q) = up(0.5, 0.5);
+        let (mut y, face, x, ek) = twisted_and_a_line(p, q);
+        let mut acc = ContactAcc::default();
+        match arm(&x, ek, &mut y, face, &mut acc) {
+            Ok(CurvedEvent::Pierce {
+                p,
+                at: FaceContainment::In,
+                ..
+            }) => assert!(
+                (p - Point3::new(0.5, 0.5, 0.15)).norm() < 1e-9,
+                "at the sheet's point over (½, ½): {p:?}"
+            ),
+            other => panic!("the line pierces the face inside its trim: {other:?}"),
+        }
+        let (p, q) = up(0.9, 0.4);
+        let (mut y, face, x, ek) = twisted_and_a_line(p, q);
+        let mut acc = ContactAcc::default();
+        match arm(&x, ek, &mut y, face, &mut acc) {
+            Ok(CurvedEvent::None) => {}
+            other => panic!("a meeting past the trim is no event of the face: {other:?}"),
+        }
+        assert!(
+            acc.records.vv.is_empty() && acc.records.a_on_b.is_empty(),
+            "nothing recorded"
+        );
     }
 
     /// **A point split out of a thin ellipse lands where it was read, or

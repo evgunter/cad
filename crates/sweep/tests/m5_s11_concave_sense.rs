@@ -809,9 +809,10 @@ fn a_tapered_concave_loft_keeps_the_prism_wall_directions() {
 /// was `union(notched, pellet)` on two disjoint solids: no surface
 /// intersections, so the operation asks `point_in_solid`, and a wrong
 /// `sense` on the concave wall made it answer `In` and swallow the
-/// pellet. On a LOFTED operand both doors refuse instead — the boolean
-/// layer rejects a rung-3 NURBS operand at admission, and
-/// `point_in_solid` has no NURBS door at all.
+/// pellet. On a LOFTED operand both doors refuse instead: the boolean
+/// reads every edge of the pellet clear of the loft's NURBS walls, finds
+/// no crossing, and its containment fallback has no reading of a spline
+/// face's side, and `point_in_solid` has no NURBS door at all.
 ///
 /// So the swallow is closed for loft by REFUSAL, not by the bit, which
 /// is why the material-side probes above carry the guard. The extrude
@@ -848,10 +849,11 @@ fn a_lofted_operand_refuses_the_union_check_typed() {
 
     let err = match topo::boolean::union(&operand, &pellet, Tol::witness()) {
         Err(e) => e.to_string(),
-        Ok(_) => panic!("a rung-3 NURBS operand has no boolean layer yet"),
+        Ok(_) => panic!("a disjoint NURBS operand has no containment reading yet"),
     };
     assert!(
-        err.contains("is a spiric or spline (NURBS) curve"),
+        err.contains("found no crossing between the two solids")
+            && err.contains("spline (NURBS) face lies inside or outside"),
         "the refusal names the operand: {err}"
     );
     let door = point_in_solid(
