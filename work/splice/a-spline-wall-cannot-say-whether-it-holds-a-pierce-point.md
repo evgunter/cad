@@ -75,3 +75,21 @@ two doors:
   have.
 
 Decide which while building this row. Re-measure once PR 5805 lands.
+
+## Measured with point-in-face (SPLICE, PR 5805, 2026-10-27)
+
+Measured with the spline arm of `contain::curved_face_placement_decided`
+(`topo::boolean::spline_region`) on a merge of PR 5805 with PR 5802.
+The union still refuses `HeldPierceUnbuilt { placed: false }`, now for a
+different reason. The arm is reached for the loft wall at the pierce
+point `(1, −1, 3)`, but it cannot build the wall's trim:
+`Body::loop_lift` returns `LiftGap` for a half-edge of the wall's loop
+with no stored pcurve row mid-boolean, most likely a piece of a corner
+edge the sweep split. So the trim answers `Trim(None)`.
+
+What this row needs now is the boolean keeping, or re-deriving, the
+rows of a spline face's split edges before it asks the face's trim.
+There are two doors for that:
+- `pcurves::split_cache` restricts a stored row to a split piece;
+- `pcurves::pcurve_of` derives a row on demand, but needs `AtRestPolicy`,
+  which the `Decide`-generic containment door does not have.
