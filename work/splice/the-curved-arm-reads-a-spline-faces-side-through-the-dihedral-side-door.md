@@ -67,7 +67,9 @@ reading never gives a point within the band of the trim a side
 itself `OnEdge`). So "the foot is the face's" is not In there. It is
 the foot's chart distance to the shared half-edge's own lifted image:
 within the band along the chart, the face's sheet; past it, another
-sheet (the hairpin's upper-half foot is `3/7` of the chart away from
-a face edge at `v = 2/7`). `spline_region`'s piece clearance is that
-reading over every piece; the wiring asks it of the one edge's pieces.
+sheet (the hairpin's upper-half foot is `3/7` away in parameter, about
+0.86 m along the chart, from a face edge at `v = 2/7`). `spline_region`'s
+piece clearance (`Trim::copy`) reads it over the whole chain, and its
+pieces carry no half-edge, so the wiring builds that reading for one
+edge's lifted image: the edge's pieces, read by the same metered gap.
 

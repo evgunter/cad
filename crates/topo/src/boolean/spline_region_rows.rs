@@ -3,7 +3,7 @@
 //! along every iso line (degree 1 both ways), so a face's sides are
 //! straight edges whose images are iso lines.
 
-use super::{Place, Reading, Trim, bezier_cells, read};
+use super::{Caps, Place, Reading, Trim, bezier_cells, read, read_capped};
 use crate::body::Body;
 use crate::boolean::contain::{CurvedPlacement, FaceContainment, curved_face_placement};
 use crate::entity::FaceKey;
@@ -52,18 +52,26 @@ fn twisted(c: f64) -> NurbsSurface<f64> {
 }
 
 /// **A sheet face on `chart` bounded by the chart polygon `uv`**, each
-/// side a straight edge whose image is the iso line it lies on. Every
-/// side must stay in one Bézier cell along its own iso direction, where
-/// the chart is affine.
+/// side a straight edge whose image is the line in the chart it lies on
+/// (minted at rest). Every side must stay where the chart is affine
+/// along it. A chart closed in `u` takes coordinates past its domain's
+/// end: a side wholly there is stated a period down, in the principal
+/// window, and the mint's joint elements lift it back.
 fn sheet(chart: &NurbsSurface<f64>, uv: &[(f64, f64)]) -> (Body<f64>, FaceKey) {
-    let (mut body, face) = sheet_unminted(chart, uv);
-    crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
-    (body, face)
+    holed_sheet(chart, uv, None)
 }
 
-fn sheet_unminted(chart: &NurbsSurface<f64>, uv: &[(f64, f64)]) -> (Body<f64>, FaceKey) {
+/// [`sheet`] with a hole, the chart polygon `ring`, planted through a
+/// strut from the outer polygon's third corner to the ring's first and
+/// killed (`kemr`), then closed round with its own sides (`mef`).
+fn holed_sheet(
+    chart: &NurbsSurface<f64>,
+    uv: &[(f64, f64)],
+    ring: Option<&[(f64, f64)]>,
+) -> (Body<f64>, FaceKey) {
     let tol = Tol::witness();
-    let at = |(u, v): (f64, f64)| chart.eval(u, v);
+    let (u_lo, u_hi) = chart.knot_values_u().domain();
+    let at = |(u, v): (f64, f64)| chart.eval(u_lo + (u - u_lo).rem_euclid(u_hi - u_lo), v);
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(at(uv[0]), true).unwrap();
     let key = body
@@ -75,15 +83,31 @@ fn sheet_unminted(chart: &NurbsSurface<f64>, uv: &[(f64, f64)]) -> (Body<f64>, F
             },
         )
         .unwrap();
-    // The iso lane's line limb reads the whole column, so a side along a
-    // creased column states its image as a general degree-1 curve, which
-    // certifies over its own span.
-    let creased_v = chart.knot_values_v().runs().count() > 2;
+    // The iso lane's line limb reads the whole row or column, so a side
+    // along a creased one, or off both iso directions, states its image
+    // as a general degree-1 curve, which certifies over its own span.
+    let creased = |k: &geom_core::spline::Knots<f64>| k.runs().count() > 2;
+    let (creased_u, creased_v) = (
+        creased(chart.knot_values_u()),
+        creased(chart.knot_values_v()),
+    );
     let side = |a: (f64, f64), b: (f64, f64)| {
         let line = EdgeCurveSpec::line_between(at(a), at(b));
+        let (a, b) = if a.0.min(b.0) >= u_hi {
+            let p = u_hi - u_lo;
+            ((a.0 - p, a.1), (b.0 - p, b.1))
+        } else {
+            (a, b)
+        };
         let len = line.param_end;
         #[allow(clippy::float_cmp)]
-        let image = if creased_v && a.0 == b.0 {
+        let iso = (a.0 == b.0 && !creased_v) || (a.1 == b.1 && !creased_u);
+        let image = if iso {
+            Pcurve::IsoLine {
+                p0: Point2::new(a.0, a.1),
+                pl: Vec2::new((b.0 - a.0) / len, (b.1 - a.1) / len),
+            }
+        } else {
             Pcurve::General(std::sync::Arc::new(
                 geom::NurbsCurve2::new(
                     KnotVector::clamped(vec![0.0, 0.0, len, len], 1).unwrap(),
@@ -92,59 +116,78 @@ fn sheet_unminted(chart: &NurbsSurface<f64>, uv: &[(f64, f64)]) -> (Body<f64>, F
                 )
                 .unwrap(),
             ))
-        } else {
-            Pcurve::IsoLine {
-                p0: Point2::new(a.0, a.1),
-                pl: Vec2::new((b.0 - a.0) / len, (b.1 - a.1) / len),
-            }
         };
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::chart_image(key, image),
             ..line
         }
     };
-    let first = body
-        .mev(
-            MevSite::Lone {
-                r#loop: seed.r#loop,
-            },
-            at(uv[1]),
-            side(uv[0], uv[1]),
-            tol,
-        )
-        .unwrap();
-    let mut last = first;
-    let mut before = None;
-    for k in 2..uv.len() {
-        let next = body
+    // A polygon round the empty loop `lp` at `poly[0]`, closed into a
+    // new face by its last side: the vertices in order.
+    let polygon = |body: &mut Body<f64>, lp, poly: &[(f64, f64)]| {
+        let first = body
             .mev(
-                MevSite::Fan {
-                    he1: last.he_minus,
-                    he2: last.he_minus,
-                },
-                at(uv[k]),
-                side(uv[k - 1], uv[k]),
+                MevSite::Lone { r#loop: lp },
+                at(poly[1]),
+                side(poly[0], poly[1]),
                 tol,
             )
             .unwrap();
-        before = Some(last);
-        last = next;
+        let mut made = vec![first];
+        for k in 2..poly.len() {
+            let last = made[made.len() - 1];
+            made.push(
+                body.mev(
+                    MevSite::Fan {
+                        he1: last.he_minus,
+                        he2: last.he_minus,
+                    },
+                    at(poly[k]),
+                    side(poly[k - 1], poly[k]),
+                    tol,
+                )
+                .unwrap(),
+            );
+        }
+        let (last, before) = (made[made.len() - 1], made[made.len() - 2]);
+        let owner = body.get_loop(lp).unwrap().face;
+        let he = body
+            .find_half_edge(owner, last.vertex, before.vertex)
+            .unwrap();
+        let face = body
+            .mef(
+                MefSite::Chords {
+                    he1: he,
+                    he2: first.he_plus,
+                },
+                side(poly[poly.len() - 1], poly[0]),
+                FaceSurface::Shared { key, sense: true },
+                tol,
+            )
+            .unwrap()
+            .face;
+        (face, made.iter().map(|m| m.vertex).collect::<Vec<_>>())
+    };
+    let (face, corners) = polygon(&mut body, seed.r#loop, uv);
+    if let Some(ring) = ring {
+        // `corners[k]` is `uv[k + 1]`: the strut leaves `uv[2]`.
+        let from = corners[1];
+        let he = [corners[2], corners[0]]
+            .into_iter()
+            .find_map(|to| body.find_half_edge(face, from, to))
+            .unwrap();
+        let strut = body
+            .mev(
+                MevSite::Fan { he1: he, he2: he },
+                at(ring[0]),
+                side(uv[2], ring[0]),
+                tol,
+            )
+            .unwrap();
+        let kill = body.kemr(strut.he_plus, strut.he_minus).unwrap();
+        polygon(&mut body, kill.ring, ring);
     }
-    let he = body
-        .find_half_edge(seed.face, last.vertex, before.unwrap().vertex)
-        .unwrap();
-    let face = body
-        .mef(
-            MefSite::Chords {
-                he1: he,
-                he2: first.he_plus,
-            },
-            side(uv[uv.len() - 1], uv[0]),
-            FaceSurface::Shared { key, sense: true },
-            tol,
-        )
-        .unwrap()
-        .face;
+    crate::pcurves::mint_pcurves(&mut body, tol).unwrap();
     (body, face)
 }
 
@@ -231,7 +274,7 @@ fn a_point_within_the_band_of_the_trim_is_never_given_a_side() {
         "a point of an edge is on it"
     );
     let cells = bezier_cells(&chart).unwrap();
-    let trim = Trim::of(&body, face, &chart, b).unwrap();
+    let trim = Trim::of(&body, face, &chart, &cells, Caps::READ, b).unwrap();
     // `|S_u| ≥ 1` on this chart, so a chart step of `δ` along `u` is at
     // least `δ` metres along the chart: halfway into the band.
     let step = (b.zero() + b.escalate()) / 2.0;
@@ -269,7 +312,6 @@ fn a_point_at_a_crease_is_placed_without_a_derivative_across_it() {
             (0.25, 0.5),
         ],
     );
-    let b = band();
     for v in [0.5, 0.5 - 1e-9, 0.5 + 1e-9, 0.4, 0.6] {
         assert_eq!(
             place(&body, face, chart.eval(0.5, v)),
@@ -287,7 +329,6 @@ fn a_point_at_a_crease_is_placed_without_a_derivative_across_it() {
     // Inside the fold of the roof, off both halves by more than the band.
     let q = chart.eval(0.5, 0.5) + Vec3::new(0.0, -0.01, 0.01);
     assert_eq!(place(&body, face, q), CurvedPlacement::OffCarrier);
-    let _ = b;
 }
 
 /// The hairpin: ruled along `x`, degree 1 in `v` with its C⁰ knot at
@@ -321,7 +362,7 @@ fn a_hairpin_carriers_upper_foot_is_out_of_a_lower_half_face() {
         "the projection's foot is the upper half's: {foot:?}"
     );
     let cells = bezier_cells(&chart).unwrap();
-    let trim = Trim::of(&body, face, &chart, b).unwrap();
+    let trim = Trim::of(&body, face, &chart, &cells, Caps::READ, b).unwrap();
     let placed = trim.place(&cells, super::Rect::point(foot.u, foot.v), b);
     assert!(
         matches!(placed, Place::Out),
@@ -343,10 +384,7 @@ fn a_hairpin_carriers_upper_foot_is_out_of_a_lower_half_face() {
         "a point of the upper half over the lower half past the trim"
     );
     assert!(
-        matches!(
-            read(&body, face, &chart, p, b),
-            Reading::Out | Reading::Unsettled(_)
-        ),
+        matches!(read(&body, face, &chart, p, b), Reading::Unsettled(_)),
         "the door's own point, by its edge line"
     );
 }
@@ -400,7 +438,7 @@ fn r1_a_ray_through_a_trim_vertex_counts_once() {
     );
     let b = band();
     let cells = bezier_cells(&chart).unwrap();
-    let trim = Trim::of(&body, face, &chart, b).unwrap();
+    let trim = Trim::of(&body, face, &chart, &cells, Caps::READ, b).unwrap();
     let at = trim.place(&cells, super::Rect::point(0.5, 0.5), b);
     assert!(matches!(at, Place::In), "{at:?}");
 }
@@ -415,7 +453,7 @@ fn r1_a_hole_lifted_a_period_from_its_outer_loop_is_still_a_hole() {
     let chart = twisted(0.6);
     let cells = bezier_cells(&chart).unwrap();
     let square = |(u0, u1): (f64, f64), (v0, v1): (f64, f64), ccw: bool| {
-        let mut p = vec![[u0, v0], [u1, v0], [u1, v1], [u0, v1]];
+        let mut p = [[u0, v0], [u1, v0], [u1, v1], [u0, v1]];
         if !ccw {
             p.reverse();
         }
@@ -423,28 +461,26 @@ fn r1_a_hole_lifted_a_period_from_its_outer_loop_is_still_a_hole() {
             .map(|k| super::Piece::segment(p[k], p[(k + 1) % 4]))
             .collect::<Vec<_>>()
     };
-    let mut pieces = square((0.8, 1.4), (0.2, 0.8), true);
-    pieces.extend(square((0.1, 0.3), (0.4, 0.6), false));
-    let trim = Trim {
-        pieces,
-        reach: super::Rect {
-            u: (0.1, 1.4),
-            v: (0.2, 0.8),
-        },
-        domain: super::Rect {
+    let b = band();
+    let outer = Trim::from_pieces(
+        square((0.8, 1.4), (0.2, 0.8), true),
+        super::Rect {
             u: (0.0, 1.0),
             v: (0.0, 1.0),
         },
-        periods: [Some(1.0), None],
-    };
-    let b = band();
+        [Some(1.0), None],
+        Caps::READ,
+    )
+    .unwrap();
+    let trim = outer
+        .with_rings(&cells, vec![square((0.1, 0.3), (0.4, 0.6), false)], b)
+        .expect("the hole's place in the outer loop's cover is decided");
     // Sanity: in the face but not in the hole.
     let face_point = trim.place(&cells, super::Rect::point(0.9, 0.5), b);
     assert!(matches!(face_point, Place::In), "{face_point:?}");
     let hole = trim.place(&cells, super::Rect::point(0.2, 0.5), b);
     assert!(matches!(hole, Place::Out), "a point of the hole: {hole:?}");
 }
-
 
 /// **Review r2: a chart point of the carrier within the band of the trim
 /// is never read out (nor in)**, asked of [`read`] directly so the
@@ -484,11 +520,15 @@ fn review_r2_parity_through_a_vertex_and_along_a_side() {
             (0.25, 0.5),
         ],
     );
-    let trim = Trim::of(&body, face, &chart, b).unwrap();
+    let trim = Trim::of(&body, face, &chart, &cells, Caps::READ, b).unwrap();
     for (u, want_in) in [(0.5, true), (0.1, false), (0.9, false)] {
         let p = trim.place(&cells, super::Rect::point(u, 0.5), b);
         assert!(
-            if want_in { matches!(p, Place::In) } else { matches!(p, Place::Out) },
+            if want_in {
+                matches!(p, Place::In)
+            } else {
+                matches!(p, Place::Out)
+            },
             "through vertices at u = {u}: {p:?}"
         );
     }
@@ -504,12 +544,170 @@ fn review_r2_parity_through_a_vertex_and_along_a_side() {
             (0.25, 0.5),
         ],
     );
-    let trim = Trim::of(&body, face, &chart, b).unwrap();
+    let trim = Trim::of(&body, face, &chart, &cells, Caps::READ, b).unwrap();
     for (u, want_in) in [(0.3, true), (0.1, false)] {
         let p = trim.place(&cells, super::Rect::point(u, 0.5), b);
         assert!(
-            if want_in { matches!(p, Place::In) } else { matches!(p, Place::Out) },
+            if want_in {
+                matches!(p, Place::In)
+            } else {
+                matches!(p, Place::Out)
+            },
             "along a side at u = {u}: {p:?}"
         );
     }
+}
+
+/// A square tube closed in `u` (period 1), its seam mid-side on `x = 1`,
+/// straight in `z` along `v`.
+fn square_tube() -> NurbsSurface<f64> {
+    let ring = [
+        (1.0, 0.0),
+        (1.0, 1.0),
+        (-1.0, 1.0),
+        (-1.0, -1.0),
+        (1.0, -1.0),
+        (1.0, 0.0),
+    ];
+    let control = ring
+        .iter()
+        .flat_map(|&(x, y)| [0.0, 1.0].map(move |z| Point3::new(x, y, z)))
+        .collect();
+    NurbsSurface::new(
+        KnotVector::clamped(vec![0.0, 0.0, 0.125, 0.375, 0.625, 0.875, 1.0, 1.0], 1).unwrap(),
+        KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+        control,
+        vec![1.0; 12],
+    )
+    .unwrap()
+}
+
+/// **A face across a closed chart's seam, with and without a hole, at
+/// rest**: on the square tube, the face `u ∈ [0.9, 1.1]` (its sides at
+/// `u ≥ 1` stated in the principal window and lifted back by the mint's
+/// joint elements) reads in on both sides of the seam and out across the
+/// tube. A hole beside the seam, on either side of it, is a hole: each
+/// loop's lift starts on one of its own rows, so the ring is lifted into
+/// the outer loop's cover before the parity is read. The hole at
+/// `u ∈ [0.92, 0.96]` read in before that.
+#[test]
+fn a_face_across_a_closed_charts_seam_reads_its_region_and_its_hole() {
+    let chart = square_tube();
+    let outer = [
+        (0.9, 0.2),
+        (1.0, 0.2),
+        (1.1, 0.2),
+        (1.1, 0.8),
+        (1.0, 0.8),
+        (0.9, 0.8),
+    ];
+    let into = CurvedPlacement::Trim(Some(FaceContainment::In));
+    let out = CurvedPlacement::Trim(Some(FaceContainment::Out));
+    let (body, face) = sheet(&chart, &outer);
+    for (u, v, want) in [
+        (0.95, 0.5, into),
+        (0.05, 0.5, into),
+        (0.5, 0.5, out),
+        (0.2, 0.5, out),
+    ] {
+        assert_eq!(
+            place(&body, face, chart.eval(u, v)),
+            want,
+            "no hole: ({u}, {v})"
+        );
+    }
+    for (name, hole, inside) in [
+        (
+            "past the seam",
+            [(1.02, 0.4), (1.06, 0.4), (1.06, 0.6), (1.02, 0.6)],
+            0.04,
+        ),
+        (
+            "before the seam",
+            [(0.92, 0.4), (0.96, 0.4), (0.96, 0.6), (0.92, 0.6)],
+            0.94,
+        ),
+    ] {
+        let (body, face) = holed_sheet(&chart, &outer, Some(&hole));
+        assert_eq!(
+            body.get_face(face).unwrap().rings.len(),
+            1,
+            "{name}: the hole is a ring"
+        );
+        for (u, v, want) in [
+            (inside, 0.5, out),
+            (0.95, 0.3, into),
+            (0.05, 0.3, into),
+            (0.5, 0.5, out),
+        ] {
+            assert_eq!(
+                place(&body, face, chart.eval(u, v)),
+                want,
+                "{name}: ({u}, {v})"
+            );
+        }
+    }
+}
+
+/// **A reading past its work caps stands unsettled**, never a verdict:
+/// a point of the carrier past the trim reads out at the caps every
+/// caller reads at, and unsettled with one kept cell allowed; the trim
+/// reading of its foot reads out, and near with one piece allowed.
+#[test]
+fn a_reading_past_its_work_caps_stands_unsettled() {
+    let chart = twisted(0.6);
+    let (body, face) = sheet(&chart, &rect((0.25, 0.75), (0.25, 0.75)));
+    let b = band();
+    let q = chart.eval(0.9, 0.4);
+    assert!(matches!(read(&body, face, &chart, q, b), Reading::Out));
+    let one_cell = Caps {
+        cells: 1,
+        ..Caps::READ
+    };
+    let capped = read_capped(&body, face, &chart, q, b, one_cell);
+    assert!(
+        matches!(capped, Reading::Unsettled(None)),
+        "one cell: {capped:?}"
+    );
+    let cells = bezier_cells(&chart).unwrap();
+    let at = super::Rect::point(0.9, 0.4);
+    let trim = Trim::of(&body, face, &chart, &cells, Caps::READ, b).unwrap();
+    assert!(matches!(trim.place(&cells, at, b), Place::Out));
+    let one_piece = Caps {
+        pieces: 1,
+        ..Caps::READ
+    };
+    let trim = Trim::of(&body, face, &chart, &cells, one_piece, b).unwrap();
+    let capped = trim.place(&cells, at, b);
+    assert!(matches!(capped, Place::Near(None)), "one piece: {capped:?}");
+}
+
+/// **A way out of the window within the band keeps a query near.** On a
+/// chart `5e-8 m` across in `v` below `v = ½` and collapsed above it
+/// (its upper rows coincide), the trim square `v ∈ [0.6, 0.9]` is
+/// `0.15 · 5e-8 = 7.5e-9 m` along the chart from the query `(0.5, 0.35)`:
+/// within the band. The window round the query keeps below the collapse
+/// (the collapsed cell has no arm), and its way out along `v` is
+/// `5e-8 / 16 ≈ 3e-9 m`, in the band, so the query reads near. The gaps
+/// alone, metered by the window's arms (`0.25 · 5e-8 m`), clear every
+/// piece, and would read it out.
+#[test]
+fn a_way_out_of_the_window_within_the_band_keeps_a_query_near() {
+    let chart = ruled(&[(0.0, 0.0), (2.5e-8, 0.0), (2.5e-8, 0.0)]);
+    let cells = bezier_cells(&chart).unwrap();
+    let p = [[0.25, 0.6], [0.75, 0.6], [0.75, 0.9], [0.25, 0.9]];
+    let square = (0..4)
+        .map(|k| super::Piece::segment(p[k], p[(k + 1) % 4]))
+        .collect();
+    let unit = super::Rect {
+        u: (0.0, 1.0),
+        v: (0.0, 1.0),
+    };
+    let trim = Trim::from_pieces(square, unit, [None, None], Caps::READ).unwrap();
+    let b = band();
+    let near = trim.place(&cells, super::Rect::point(0.5, 0.35), b);
+    assert!(
+        matches!(near, Place::Near(Some(ref d)) if d.predicate == Some(super::TRIM)),
+        "the way out of the window is in the band: {near:?}"
+    );
 }

@@ -37,17 +37,22 @@
 //! along each loop ([`crate::Body::loop_lift`]), each half-edge's image
 //! taken over its edge's span and in its walk's direction, and the
 //! chart-space gap at a joint closed by a segment. A loop that winds a
-//! closed channel bounds no chart polygon and is not read. A query (a
+//! closed channel bounds no chart polygon and is not read. Each loop's
+//! lift starts on one of its own rows, so on a closed channel a ring is
+//! first moved the one whole number of periods that places it in its
+//! outer loop's region, decided, or the trim is not read. A query (a
 //! foot, or a cell's parameter box) is placed by the ray parity of its
 //! centre along `+u`, read off the pieces' control boxes, a piece
 //! subdivided until its box is definitely clear of the query. "Clear" is
-//! decided in metres, never in chart units: the gap between two boxes is
-//! metered through the chart's inf-side arms over a window round the
-//! query, and a piece outside that window is at least the window's exit
-//! distance away. So a query within the band of the trim's boundary,
-//! along the chart, escalates rather than reading a side. On a chart
-//! closed in a channel, the query's copies a period apart are each read
-//! in the chart's cover: in where one is in, out where every one is out.
+//! decided in metres, never in chart units: a channel's gap between two
+//! boxes crosses the metric door metered by that channel's inf-side arm
+//! over a window round the query, and every way out of the window is
+//! decided past the band first, since a piece the gap does not hold
+//! inside the window is at least that far. So a query within the band of
+//! the trim's boundary, along the chart, escalates rather than reading a
+//! side. On a chart closed in a channel, the query's copies a period
+//! apart are each read in the chart's cover: in where one is in, out
+//! where every one is out.
 
 use std::collections::VecDeque;
 use std::num::NonZeroUsize;
@@ -56,9 +61,9 @@ use std::sync::Arc;
 use geom::{NurbsCurve2, NurbsSurface, Surface};
 use geom_brep::Pcurve;
 use geom_core::spline::Knots;
-use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign};
+use geom_core::{Band, Decide, Indeterminate, InfSpeed, Margin, Point3, Sign};
 
-use super::contain::{ContainError, CurvedPlacement, FaceContainment};
+use super::contain::{ContainDecision, ContainError, CurvedPlacement, FaceContainment};
 use crate::body::Body;
 use crate::entity::{EntityId, FaceKey, HalfEdgeKey};
 use crate::joint::Winding;
@@ -77,14 +82,12 @@ pub(crate) const TRIM: &str = "bool_spline_region_trim";
 /// How many times a kept cell is quartered at most, a backstop behind
 /// the band's own floor ([`Patch::extent`]).
 const CELL_DEPTH: usize = 48;
-/// The kept cells one reading may visit before it stands unsettled: a
-/// bound on the work, not on the geometry.
+/// The kept cells one reading may visit ([`Caps`]).
 const CELL_VISITS: usize = 1 << 13;
 /// How many times a trim piece is halved before a query it is not clear
 /// of reads near the trim.
 const PIECE_DEPTH: usize = 52;
-/// The piece visits one query's reading may make before it reads near
-/// the trim: a bound on the work, not on the geometry.
+/// The piece visits one query's trim reading may make ([`Caps`]).
 const PIECE_VISITS: usize = 1 << 14;
 /// The copies of a query a closed chart's periods may ask for.
 const COPIES: usize = 9;
@@ -114,8 +117,11 @@ pub(super) fn spline_face_placement<T: Decide>(
         Reading::Out => CurvedPlacement::Trim(Some(FaceContainment::Out)),
         Reading::Unsettled(None) => CurvedPlacement::Trim(None),
         Reading::Unsettled(Some(diag)) => {
+            // The carrier rows are the carrier decision's; the trim's and
+            // the arm's have no decision of the door's to name.
+            let decision = (diag.predicate == Some(CARRIER)).then_some(ContainDecision::Carrier);
             return Err(ContainError::Escalated {
-                decision: None,
+                decision,
                 escalation: Escalation::Margin,
                 diag,
             });
@@ -137,6 +143,24 @@ pub(crate) enum Reading {
     Unsettled(Option<Indeterminate>),
 }
 
+/// The work one reading may do before it stands unsettled: bounds on
+/// the work, not on the geometry.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Caps {
+    /// The kept cells the carrier walk may visit.
+    pub(crate) cells: usize,
+    /// The pieces one query's trim reading may visit.
+    pub(crate) pieces: usize,
+}
+
+impl Caps {
+    /// The caps every caller reads at.
+    pub(crate) const READ: Self = Self {
+        cells: CELL_VISITS,
+        pieces: PIECE_VISITS,
+    };
+}
+
 /// **The reading of `q` against `face` on its spline `chart`** (module
 /// docs).
 pub(crate) fn read<T: Decide>(
@@ -146,10 +170,36 @@ pub(crate) fn read<T: Decide>(
     q: Point3<T>,
     band: Band,
 ) -> Reading {
-    if chart.is_placeholder() {
+    read_capped(body, face, chart, q, band, Caps::READ)
+}
+
+/// The first in-band decision a walk stops on is the one it reports.
+fn keep(pending: &mut Option<Indeterminate>, diag: Option<Indeterminate>) {
+    if pending.is_none() {
+        *pending = diag;
+    }
+}
+
+/// [`read`] under `caps`.
+pub(crate) fn read_capped<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    chart: &NurbsSurface<T>,
+    q: Point3<T>,
+    band: Band,
+    caps: Caps,
+) -> Reading {
+    let face_data = proven(&body.faces, face, EntityId::Face);
+    if body
+        .face_surface_linked(face, face_data)
+        .is_placeholder_chart()
+    {
         return Reading::Unsettled(None);
     }
-    let (Some(cells), Some(trim)) = (bezier_cells(chart), Trim::of(body, face, chart, band)) else {
+    let Some(cells) = bezier_cells(chart) else {
+        return Reading::Unsettled(None);
+    };
+    let Some(trim) = Trim::of(body, face, chart, &cells, caps, band) else {
         return Reading::Unsettled(None);
     };
     // Breadth first, so the shallowest foot is found before any cell
@@ -163,17 +213,16 @@ pub(crate) fn read<T: Decide>(
         match decide(CARRIER, Margin::of(cell.hull_gap(q)), band) {
             Ok(Sign::Positive) => continue,
             Ok(_) => {}
-            Err(diag) => {
-                pending.get_or_insert(diag);
-            }
+            Err(diag) => keep(&mut pending, Some(diag)),
         }
         visits += 1;
-        if visits > CELL_VISITS {
+        if visits > caps.cells {
             return Reading::Unsettled(pending);
         }
         let extent = cell.extent();
-        // A cell no wider than the band is clear of the trim by less than
-        // the band along the chart wherever it is, so it is not placed.
+        // A cell no wider than the band is not placed, a bound on the
+        // work: its window's way out is no longer than the cell, so its
+        // placement could read nothing but near.
         let placeable = extent > band.escalate();
         let inside = known.or_else(|| {
             if !placeable {
@@ -183,7 +232,7 @@ pub(crate) fn read<T: Decide>(
                 Place::In => Some(true),
                 Place::Out => Some(false),
                 Place::Near(diag) => {
-                    pending = pending.take().or(diag);
+                    keep(&mut pending, diag);
                     None
                 }
             }
@@ -202,7 +251,7 @@ pub(crate) fn read<T: Decide>(
                         Place::In => Some(true),
                         Place::Out => None,
                         Place::Near(diag) => {
-                            pending = pending.take().or(diag);
+                            keep(&mut pending, diag);
                             None
                         }
                     });
@@ -215,9 +264,7 @@ pub(crate) fn read<T: Decide>(
                 }
             }
             Ok(_) => {}
-            Err(diag) => {
-                pending.get_or_insert(diag);
-            }
+            Err(diag) => keep(&mut pending, Some(diag)),
         }
         if depth == CELL_DEPTH || extent.is_nan() || extent <= band.zero() * 0.5 {
             leaf = true;
@@ -493,7 +540,12 @@ fn refine_rows<T: Decide>(
 }
 
 /// **The chart's Bézier cells**, ascending in `u` then `v`; `None` where
-/// the decomposition does not run.
+/// the decomposition does not run. Each is the chart's own net refined
+/// to full multiplicity at every break (each row and column a
+/// [`geom::NurbsCurve3::refine_knots`]), held at the door's scalar:
+/// `geom_brep::patch_bound::patch_cells` reads an `f64` chart and
+/// `PatchSpans::decompose` one interval channel, and this door is
+/// generic over [`Decide`].
 fn bezier_cells<T: Decide>(chart: &NurbsSurface<T>) -> Option<Vec<Patch<T>>> {
     let (ku, kv) = (chart.knot_values_u(), chart.knot_values_v());
     let (pu, pv) = (ku.degree(), kv.degree());
@@ -610,6 +662,16 @@ impl Piece {
         self.net.reverse();
         self
     }
+
+    fn shifted(&self, du: f64, dv: f64) -> Self {
+        Self {
+            net: self
+                .net
+                .iter()
+                .map(|h| [h[0] + du * h[2], h[1] + dv * h[2], h[2]])
+                .collect(),
+        }
+    }
 }
 
 /// Where [`Trim::place`] put a query.
@@ -621,7 +683,8 @@ enum Place {
     Near(Option<Indeterminate>),
 }
 
-/// **A face's trim in its spline chart** (module docs).
+/// **A face's trim in its spline chart** (module docs): every loop's
+/// chain, each ring lifted into the outer loop's cover.
 struct Trim {
     pieces: Vec<Piece>,
     /// The box of every piece.
@@ -630,25 +693,58 @@ struct Trim {
     domain: Rect,
     /// The chart's period in each channel it is decided closed in.
     periods: [Option<f64>; 2],
+    /// The piece visits one query's reading may make ([`Caps`]).
+    piece_visits: usize,
 }
 
 impl Trim {
-    /// The trim of `face` on `chart`; `None` where a loop has no lift, a
-    /// loop winds, or an image is of a kind with no piece reading here.
+    /// The trim of `face` on `chart` (`cells` its Bézier decomposition);
+    /// `None` where a loop has no lift or winds, an image is of a kind
+    /// with no piece reading here, the lift applies a period the chart
+    /// is not decided closed in, or a ring's place in the outer loop's
+    /// cover is not decided.
     fn of<T: Decide>(
         body: &Body<T>,
         face: FaceKey,
         chart: &NurbsSurface<T>,
+        cells: &[Patch<T>],
+        caps: Caps,
         band: Band,
     ) -> Option<Self> {
         let face_data = proven(&body.faces, face, EntityId::Face);
         let surface = body.face_surface_linked(face, face_data);
-        let periods = crate::pcurves::ChartPeriods::of(surface, band);
-        let periods = [
-            periods.u().map(|p| p.length().value_channel()),
-            periods.v().map(|p| p.length().value_channel()),
-        ];
-        let mut pieces = Vec::new();
+        // The lift moves a row by the periods the chart STATES
+        // ([`crate::pcurves::loop_lift`]), and a copy of a query is read a
+        // period apart only on a channel the chart is DECIDED closed in.
+        // The two agree wherever an element carries a period, since only
+        // a net decided closed carries one; a channel where they part is
+        // refused below, row by row.
+        let (stated, owned) = (
+            crate::pcurves::ChartPeriods::stated(surface),
+            crate::pcurves::ChartPeriods::of(surface, band),
+        );
+        let mut periods = [None, None];
+        for (k, (s, o)) in [(stated.u(), owned.u()), (stated.v(), owned.v())]
+            .into_iter()
+            .enumerate()
+        {
+            if let Some(o) = o {
+                let s = s?.length().value_channel();
+                #[allow(clippy::float_cmp)] // one knot domain's length, read twice
+                let agree = s == o.length().value_channel();
+                if !agree {
+                    return None;
+                }
+                periods[k] = Some(s);
+            }
+        }
+        let (u0, u1) = chart.knot_values_u().domain();
+        let (v0, v1) = chart.knot_values_v().domain();
+        let domain = Rect {
+            u: (u0.value_channel(), u1.value_channel()),
+            v: (v0.value_channel(), v1.value_channel()),
+        };
+        let mut chains = Vec::new();
         for lk in core::iter::once(face_data.outer).chain(face_data.rings.iter().copied()) {
             let lift = body.loop_lift(lk).ok()?;
             if lift.is_empty() {
@@ -660,6 +756,12 @@ impl Trim {
             }
             let mut chain: Vec<Piece> = Vec::new();
             for row in &lift {
+                if (row.lift.u != 0 && periods[0].is_none())
+                    || (row.lift.v != 0 && periods[1].is_none())
+                    || row.lift.twin
+                {
+                    return None;
+                }
                 let (t0, t1) = row.row.params();
                 let mut run = image_pieces(&row.pcurve, t0, t1)?;
                 if !walks_forward(body, row.half_edge) {
@@ -670,8 +772,21 @@ impl Trim {
             }
             let start = chain.first()?.ends().0;
             close_gap(&mut chain, start);
-            pieces.extend(chain);
+            chains.push(chain);
         }
+        let mut chains = chains.into_iter();
+        let outer = Self::from_pieces(chains.next()?, domain, periods, caps)?;
+        let rings: Vec<Vec<Piece>> = chains.collect();
+        outer.with_rings(cells, rings, band)
+    }
+
+    /// The trim the chain `pieces` bounds, with no ring.
+    fn from_pieces(
+        pieces: Vec<Piece>,
+        domain: Rect,
+        periods: [Option<f64>; 2],
+        caps: Caps,
+    ) -> Option<Self> {
         let mut reach = pieces.first()?.bbox()?;
         for p in &pieces {
             let b = p.bbox()?;
@@ -680,25 +795,94 @@ impl Trim {
                 v: (reach.v.0.min(b.v.0), reach.v.1.max(b.v.1)),
             };
         }
-        let (u0, u1) = chart.knot_values_u().domain();
-        let (v0, v1) = chart.knot_values_v().domain();
-        let domain = Rect {
-            u: (u0.value_channel(), u1.value_channel()),
-            v: (v0.value_channel(), v1.value_channel()),
-        };
         Some(Self {
             pieces,
             reach,
             domain,
             periods,
+            piece_visits: caps.pieces,
         })
+    }
+
+    /// **This outer trim with `rings` in its cover.** Each loop's lift
+    /// starts on one of its own rows, so on a closed channel a ring can
+    /// sit whole periods from the region its outer loop's lift bounds.
+    /// A ring is moved by the one whole number of periods per closed
+    /// channel that places its first point in that region, decided
+    /// against the outer loop alone; `None` where no such shift, or more
+    /// than one, is decided.
+    fn with_rings<T: Decide>(
+        self,
+        cells: &[Patch<T>],
+        rings: Vec<Vec<Piece>>,
+        band: Band,
+    ) -> Option<Self> {
+        let mut pieces = self.pieces.clone();
+        for ring in rings {
+            let [u, v] = ring.first()?.ends().0;
+            let shifts = |k: usize, x: f64, (r0, r1): (f64, f64)| -> Vec<f64> {
+                match self.periods[k].filter(|p| *p > 0.0) {
+                    None => vec![0.0],
+                    Some(p) => {
+                        let (lo, hi) = (((r0 - x) / p).floor(), ((r1 - x) / p).ceil());
+                        let n = (hi - lo).max(0.0);
+                        if n > COPIES as f64 {
+                            return Vec::new();
+                        }
+                        (0..=n as usize).map(|i| (lo + i as f64) * p).collect()
+                    }
+                }
+            };
+            let mut found = None;
+            for du in shifts(0, u, self.reach.u) {
+                for dv in shifts(1, v, self.reach.v) {
+                    match self.place_in_cover(cells, Rect::point(u + du, v + dv), band) {
+                        Place::In if found.is_none() => found = Some((du, dv)),
+                        Place::Out => {}
+                        Place::In | Place::Near(_) => return None,
+                    }
+                }
+            }
+            let (du, dv) = found?;
+            pieces.extend(ring.iter().map(|p| p.shifted(du, dv)));
+        }
+        Self::from_pieces(
+            pieces,
+            self.domain,
+            self.periods,
+            Caps {
+                cells: 0,
+                pieces: self.piece_visits,
+            },
+        )
     }
 
     /// **Where the query `q` lies against the trim** (module docs): `In`
     /// or `Out` only where every piece is decided clear of it, along the
-    /// chart, past the band. `cells` is the chart's Bézier decomposition,
-    /// which the window's arms are read off.
+    /// chart, past the band, in every copy of `q` a period apart on each
+    /// closed channel. `cells` is the chart's Bézier decomposition, which
+    /// the window's arms are read off.
     fn place<T: Decide>(&self, cells: &[Patch<T>], q: Rect, band: Band) -> Place {
+        self.read_window(cells, q, band, true)
+    }
+
+    /// [`Self::place`] of `q` alone, in the cover, with no copy.
+    fn place_in_cover<T: Decide>(&self, cells: &[Patch<T>], q: Rect, band: Band) -> Place {
+        self.read_window(cells, q, band, false)
+    }
+
+    /// The window round `q` its reading is metered over: its arms, then
+    /// its way out, then the copies (`copies`) or `q` alone.
+    fn read_window<T: Decide>(
+        &self,
+        cells: &[Patch<T>],
+        at: Rect,
+        band: Band,
+        copies: bool,
+    ) -> Place {
+        // The window is the chart's, read at the query's copy in the
+        // domain; the parity is the cover's, read at the query itself.
+        let q = self.principal(at);
         let (du, dv) = self.domain.size();
         let (su, sv) = q.size();
         let reach = (
@@ -723,27 +907,46 @@ impl Trim {
                     continue;
                 }
             };
-            // A narrower window only shortens the way out of it: past
-            // here a halving is for an arm alone.
-            let exit = self.exit(q, window, arms);
-            if let Some(e) = exit {
-                match decide(TRIM, Margin::of(e), band) {
-                    Ok(Sign::Positive) => {}
-                    Ok(_) => return Place::Near(pending),
-                    Err(diag) => return Place::Near(Some(diag)),
-                }
+            // A path from `q` out of the window is at least the window's
+            // way out long, so every piece's clearance is at most that:
+            // it is decided past the band once, here. A narrower window
+            // only shortens it, so past here a halving is for an arm
+            // alone.
+            if let Err(diag) = self.exits_clear(q, window, arms, band) {
+                return Place::Near(diag.or(pending));
             }
-            return self.copies(q, arms, exit, band);
+            return if copies {
+                self.copies(at, arms, band)
+            } else {
+                self.copy(at, arms, band)
+            };
         }
         Place::Near(pending)
     }
 
-    /// The least distance along the chart from `q` out of `window`: each
-    /// side of the window inside the domain, or on a closed channel's
-    /// domain side, metered by its channel's arm. `None` where the
-    /// window has no side a path leaves by.
-    fn exit<T: Decide>(&self, q: Rect, window: Rect, (au, av): (T, T)) -> Option<T> {
-        let mut least: Option<T> = None;
+    /// `q`'s copy whose centre lies in the domain, a whole number of
+    /// periods along each closed channel.
+    fn principal(&self, q: Rect) -> Rect {
+        let (cu, cv) = q.centre();
+        let shift = |k: usize, c: f64, (d0, _): (f64, f64)| {
+            self.periods[k]
+                .filter(|p| *p > 0.0)
+                .map_or(0.0, |p| ((c - d0) / p).floor() * p)
+        };
+        q.shifted(-shift(0, cu, self.domain.u), -shift(1, cv, self.domain.v))
+    }
+
+    /// Whether every way from `q` out of `window` is decided longer than
+    /// the band along the chart: each side of the window inside the
+    /// domain, or on a closed channel's domain side, metered by its
+    /// channel's arm. `Err` with the in-band side, if any.
+    fn exits_clear<T: Decide>(
+        &self,
+        q: Rect,
+        window: Rect,
+        (au, av): (InfSpeed<T>, InfSpeed<T>),
+        band: Band,
+    ) -> Result<(), Option<Indeterminate>> {
         let sides = [
             (window.u.0, self.domain.u.0, q.u.0 - window.u.0, au, 0),
             (window.u.1, self.domain.u.1, window.u.1 - q.u.1, au, 0),
@@ -756,15 +959,22 @@ impl Trim {
             if on_end && self.periods[channel].is_none() {
                 continue;
             }
-            let e = arm * T::from_computed(room.max(0.0));
-            least = Some(least.map_or(e, |l| l.min(e)));
+            match decide(
+                TRIM,
+                Margin::metered(T::from_computed(room.max(0.0)), arm),
+                band,
+            ) {
+                Ok(Sign::Positive) => {}
+                Ok(_) => return Err(None),
+                Err(diag) => return Err(Some(diag)),
+            }
         }
-        least
+        Ok(())
     }
 
     /// [`Self::place`] over the query's copies a period apart on each
     /// closed channel: in where one is in, out where every one is out.
-    fn copies<T: Decide>(&self, q: Rect, arms: (T, T), exit: Option<T>, band: Band) -> Place {
+    fn copies<T: Decide>(&self, q: Rect, arms: (InfSpeed<T>, InfSpeed<T>), band: Band) -> Place {
         let shifts = |channel: usize, (q0, q1): (f64, f64), (r0, r1): (f64, f64)| -> Vec<f64> {
             let Some(p) = self.periods[channel].filter(|p| *p > 0.0) else {
                 return vec![0.0];
@@ -787,7 +997,7 @@ impl Trim {
         let mut near = None;
         for &du in &us {
             for &dv in &vs {
-                match self.copy(q.shifted(du, dv), arms, exit, band) {
+                match self.copy(q.shifted(du, dv), arms, band) {
                     Place::In => return Place::In,
                     Place::Out => {}
                     Place::Near(diag) => {
@@ -802,7 +1012,14 @@ impl Trim {
 
     /// One copy of the query in the cover: the ray parity of its centre
     /// along `+u`, every piece decided clear of it first.
-    fn copy<T: Decide>(&self, q: Rect, (au, av): (T, T), exit: Option<T>, band: Band) -> Place {
+    ///
+    /// `ray_walk`, the chart region's parity, reads a polygon's straight
+    /// segments vertex by vertex and sets a grazing ray aside; these
+    /// pieces are curved arcs read off their control boxes, so the
+    /// crossing count is read off each clear piece's two ends under the
+    /// one half-open rule `v ≥ v_c`, whose shared ends are bit-identical
+    /// across the chain.
+    fn copy<T: Decide>(&self, q: Rect, (au, av): (InfSpeed<T>, InfSpeed<T>), band: Band) -> Place {
         let (cu, cv) = q.centre();
         let (su, sv) = q.size();
         let mut stack: Vec<(Piece, usize)> =
@@ -813,28 +1030,33 @@ impl Trim {
             let Some(b) = piece.bbox() else {
                 return Place::Near(None);
             };
-            if visits > PIECE_VISITS {
+            if visits > self.piece_visits {
                 return Place::Near(None);
             }
             let (gu, gv) = (gap(q.u, b.u), gap(q.v, b.v));
-            let (mu, mv) = (au * T::from_computed(gu), av * T::from_computed(gv));
-            let along = (mu.powi(2) + mv.powi(2)).sqrt();
-            let clearance = exit.map_or(along, |e| along.min(e));
-            let diag = match decide(TRIM, Margin::of(clearance), band) {
-                Ok(Sign::Positive) => {
-                    if b.v.0 > cv || b.v.1 < cv || b.u.1 < cu {
-                        continue;
-                    }
-                    if b.u.0 > cu {
-                        let (s, e) = piece.ends();
-                        parity ^= (s[1] >= cv) != (e[1] >= cv);
-                        continue;
-                    }
-                    None
+            // Clear where either channel's gap alone is decided past the
+            // band: each lower-bounds the way along the chart to the
+            // piece inside the window, and the way out of it was decided
+            // past the band already.
+            let mut diag = None;
+            let mut clear = false;
+            for (g, arm) in [(gu, au), (gv, av)] {
+                match decide(TRIM, Margin::metered(T::from_computed(g), arm), band) {
+                    Ok(Sign::Positive) => clear = true,
+                    Ok(_) => {}
+                    Err(d) => diag = diag.or(Some(d)),
                 }
-                Ok(_) => None,
-                Err(diag) => Some(diag),
-            };
+            }
+            if clear {
+                if b.v.0 > cv || b.v.1 < cv || b.u.1 < cu {
+                    continue;
+                }
+                if b.u.0 > cu {
+                    let (s, e) = piece.ends();
+                    parity ^= (s[1] >= cv) != (e[1] >= cv);
+                    continue;
+                }
+            }
             let (bu, bv) = b.size();
             let meets = gu == 0.0 && gv == 0.0;
             if depth == PIECE_DEPTH || (meets && (su > 0.0 || sv > 0.0) && bu <= su && bv <= sv) {
@@ -938,31 +1160,33 @@ fn bezier_pieces<T: Decide>(image: &NurbsCurve2<T>, a: f64, b: f64) -> Option<Ve
 
 /// **The chart's inf-side lever arms over `window`**: the least, over the
 /// Bézier cells the window overlaps, of each cell's arms restricted to
-/// the window ([`crate::chart_region::skew_discounted_arms`]), each gated
-/// definitely positive. `Err` carries the in-band arm, if any.
+/// the window ([`crate::chart_region::spline_chart_arms`], gated as the
+/// chart region gates its own). `Err` carries the in-band arm, if any.
 fn window_arms<T: Decide>(
     cells: &[Patch<T>],
     window: Rect,
     band: Band,
-) -> Result<(T, T), Option<Indeterminate>> {
-    let gate = |arm: T| match decide(ARM, Margin::of(arm), band) {
-        Ok(Sign::Positive) => Ok(arm),
-        Ok(_) => Err(None),
-        Err(diag) => Err(Some(diag)),
-    };
+) -> Result<(InfSpeed<T>, InfSpeed<T>), Option<Indeterminate>> {
     let mut least: Option<(T, T)> = None;
     for cell in cells {
         let Some(part) = cell.rect.overlap(window) else {
             continue;
         };
         let surface = cell.restricted(part).surface().ok_or(None)?;
-        let inf = geom_brep::chart_stretch_inf(&surface);
-        let (inf_u, inf_v) = (gate(inf.inf_u)?, gate(inf.inf_v)?);
-        let (au, av) = crate::chart_region::skew_discounted_arms(&inf, inf_u, inf_v);
-        let (au, av) = (gate(au)?, gate(av)?);
+        let floor = |x: T| x.structure_bracket().map_or(f64::NAN, |(lo, _)| lo);
+        let (au, av) =
+            crate::chart_region::spline_chart_arms(&surface, ARM, floor, band).map_err(|gate| {
+                match gate {
+                    crate::chart_region::ArmGate::Unbounded => None,
+                    crate::chart_region::ArmGate::Escalated(diag) => Some(diag),
+                }
+            })?;
+        let (au, av) = (au.get(), av.get());
         least = Some(least.map_or((au, av), |(lu, lv)| (lu.min(au), lv.min(av))));
     }
-    least.ok_or(None)
+    least
+        .map(|(u, v)| (InfSpeed::new(u), InfSpeed::new(v)))
+        .ok_or(None)
 }
 
 #[cfg(test)]
