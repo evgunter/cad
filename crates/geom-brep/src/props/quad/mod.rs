@@ -169,7 +169,7 @@ mod trig;
 mod trimmed;
 
 pub use area::boundary_chord_perimeter_lo;
-pub(super) use cylinder::EDGE_INIT_PIECES;
+
 pub use cylinder::{HarmChan, TrimEdgeQ, cylinder_cut_face, cylinder_cut_face_rounds};
 pub use green::bspline_green_integral;
 pub use net::{PatchNet, RVec3};
@@ -180,7 +180,7 @@ pub use run::{
     Accept, FACE_WORK_WALL, FLOOR_SHARE, FaceCutBounds, LaneEnd, LaneRun, LaneStop, RoundWindow,
     classify_len, mean_boundary_displacement, narrower,
 };
-pub(super) use run::{Run, face_extent};
+pub(super) use run::{EDGE_INIT_PIECES, Run, face_extent};
 pub use trig::trig_at_limit;
 pub(super) use trig::{rotate, spread_cos, spread_sin, trig_at};
 pub use trimmed::{TrimChord, TrimPiece, trimmed_patch_face_rounds};

@@ -7,8 +7,7 @@ use geom_core::Bounds;
 use geom_core::interval::Interval;
 use geom_core::interval::certification::Certification;
 
-use super::cylinder::limit;
-use crate::props::bracket::pt;
+use crate::props::bracket::{mid, pt};
 
 /// Enclosure of `cos s` for an EXACT step `s`, |s| ≤ 1.5, by the
 /// degree-8 alternating-series pair
@@ -68,6 +67,14 @@ pub(in crate::props) fn rotate(
 ) -> (Interval, Interval) {
     let clamp = |x: Interval| x.clamped_to(-1.0, 1.0);
     (clamp(c * ch - s * sh), clamp(s * ch + c * sh))
+}
+
+/// The limit a trim edge is integrated from or to, off the bracket `t`
+/// of its parameter: the bracket's midpoint. [`TrimEdgeQ::limits`] and
+/// [`trig_at_limit`](super::trig::trig_at_limit) both read it here, so the trig a caller hands the
+/// lane is at the limit the lane integrates from.
+pub(super) fn limit(t: Interval) -> f64 {
+    mid(t)
 }
 
 /// `(cos a, sin a)` at the limit `a` a trim edge's bracket `t` is

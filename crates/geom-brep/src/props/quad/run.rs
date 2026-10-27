@@ -13,6 +13,10 @@ use crate::descent::Work;
 use crate::props::bracket::{lo_or_refuse, mid};
 use crate::props::{PropsCheck, PropsError};
 
+/// Pieces per trim edge at round 0, doubling per round: the composite
+/// rule of the cylinder lane and of the spiric lane.
+pub(in crate::props) const EDGE_INIT_PIECES: usize = 16;
+
 /// **The work a face may spend over all its rounds**, in weighted cell
 /// evaluations: the unit is a tenth of one cell of the rational lane's
 /// composite arm, and each lane weighs its own cells by a fixed factor
@@ -521,7 +525,7 @@ mod tests {
     use geom_core::Bounds;
 
     use super::super::cells::AXIS_INIT_PIECES;
-    use super::super::cylinder::{EDGE_INIT_PIECES, W_CYLINDER};
+    use super::super::cylinder::W_CYLINDER;
     use super::super::patch::W_INTEGRAL_COMPOSITE;
     use super::super::rational::{W_RATIONAL_COMPOSITE, W_RATIONAL_EXACT_V};
     use super::super::trimmed::{IMAGE_INIT_PIECES, w_trimmed, w_trimmed_composite};

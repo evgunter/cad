@@ -14,8 +14,8 @@ use geom_core::{Band, Decide, InfSpeed, Margin, Sign};
 use super::area::AREA_CELLS_PER_AXIS;
 use super::cells::{AXIS_INIT_PIECES, knot_aligned_cuts};
 use super::net::{
-    Collapse, PatchGrid, PatchNet, RVec3, certified_box, grid_vec, newton_cotes_weights, norm_hi,
-    refused_vec, rv_add, widen,
+    Collapse, PatchGrid, PatchNet, RVec3, certified_box, grid_vec, knots_inside,
+    newton_cotes_weights, norm_hi, normal_partials, refused_vec, rv_add, widen,
 };
 use super::run::{Accept, FaceCutBounds, LaneRun, RoundWindow, Run, face_extent};
 use crate::offset_meters::mig;
@@ -112,6 +112,19 @@ pub(super) const IMAGE_INIT_PIECES: usize = AXIS_INIT_PIECES;
 /// chord anywhere becomes one within a few levels; a cusp or a fold
 /// never does, and refusing is the honest answer for it.
 const MONOTONE_BISECTIONS: usize = 4;
+/// Cells per axis of the trimmed lane's AREA rule under ONE chord: its
+/// `u` span, and its column in `v` — [`AREA_CELLS_PER_AXIS`], and
+/// deliberately the same number.
+///
+/// The rule under each chord is the rectangle lane's own cell rule
+/// ([`chord_polygon_area`]), so its pad is `½h_u·sup|∂_u g| +
+/// `½h_v·sup|∂_v g|` per cell and the resolution is what sets the
+/// area's honest width, exactly as it does there. A lower count was
+/// tried and is what a curved chart cannot afford: at 16 the pad on an
+/// ordinary bidegree-(2,2) chart is the size of the face's own area,
+/// `area.lo()` goes negative and the extent gate answers
+/// `DegenerateFace`.
+const CHORD_AREA_CELLS: usize = AREA_CELLS_PER_AXIS;
 
 /// A chart-space point bracket (`(u, v)`).
 type RPt2 = (Interval, Interval);
@@ -794,7 +807,7 @@ impl Chord {
         let mut cuts = vec![lo, hi];
         let mut sliver = 0.0f64;
         let mut gaps = Vec::new();
-        cuts.extend(ubreaks.iter().copied().filter(|k| *k > lo && *k < hi));
+        cuts.extend(knots_inside(ubreaks, lo, hi));
         for j in 1..n {
             #[allow(clippy::cast_precision_loss)]
             let t = lo + (hi - lo) * (j as f64 / n as f64);
@@ -963,21 +976,6 @@ impl OuterRule<'_> {
             Self::Composite(_) => CrossingCut::Bracket,
         }
     }
-}
-
-/// `∂_u(S_u×S_v) = S_uu×S_v + S_u×S_uv` and `∂_v(S_u×S_v) =
-/// S_uv×S_v + S_u×S_vv`, from the partials' readings.
-pub(super) fn normal_partials(
-    h_su: &RVec3,
-    h_sv: &RVec3,
-    h_suu: &RVec3,
-    h_suv: &RVec3,
-    h_svv: &RVec3,
-) -> (RVec3, RVec3) {
-    (
-        rv_add(cross(h_suu, h_sv), cross(h_su, h_suv)),
-        rv_add(cross(h_suv, h_sv), cross(h_su, h_svv)),
-    )
 }
 
 /// Enclosures of the chord integrand's first partials at one collapse
@@ -1302,9 +1300,7 @@ fn chord_polygon_area(
         let slope = (vb - va) / (ub - ua);
         let ell = |u: f64| va + (u - ua) * slope;
         let mut chord = Interval::zero();
-        for w in
-            knot_aligned_cuts(span_u.start(), span_u.end(), AREA_CELLS_PER_AXIS, &ku).windows(2)
-        {
+        for w in knot_aligned_cuts(span_u.start(), span_u.end(), CHORD_AREA_CELLS, &ku).windows(2) {
             let (p, q) = (w[0], w[1]);
             // Adjacent cuts of a sorted list are ordered; a pair that is
             // not (an infinite end cuts to NaN) names no region, and the
@@ -1326,8 +1322,8 @@ fn chord_polygon_area(
             // this column into the rectangle `[p,q] × [v₀, ℓ(u_m)]`,
             // and the cell rule pads that rectangle directly.
             let mut col = Interval::zero();
-            for wc in knot_aligned_cuts(column.start(), column.end(), AREA_CELLS_PER_AXIS, &kvb)
-                .windows(2)
+            for wc in
+                knot_aligned_cuts(column.start(), column.end(), CHORD_AREA_CELLS, &kvb).windows(2)
             {
                 let (c0, c1) = (wc[0], wc[1]);
                 let Some(cell_v) = ParamRange::new(c0, c1) else {

@@ -9,21 +9,20 @@ use geom_core::spline::KnotVector;
 use geom_core::{Band, Decide};
 
 use super::area::{
-    AREA_CELLS_PER_AXIS, AreaCell, PERIMETER_CHORDS_PER_SIDE, PatchRect, area_midpoint_taylor,
+    AREA_CELLS_PER_AXIS, AreaCell, PERIMETER_CHORDS_PER_SIDE, area_midpoint_taylor,
     boundary_chord_perimeter_lo, debug_assert_area_gauge,
 };
 use super::cells::{
-    AXIS_INIT_PIECES, cell_midpoint, knot_aligned_cuts, knots_inside, remainder_cell_u,
-    remainder_cell_v,
+    AXIS_INIT_PIECES, cell_midpoint, knot_aligned_cuts, remainder_cell_u, remainder_cell_v,
 };
 use super::net::{
-    Collapse, PatchGrid, PatchNet, clipped_spans, grid_vec, newton_cotes_weights, norm_hi, widen,
+    Collapse, PatchGrid, PatchNet, PatchRect, clipped_spans, grid_vec, newton_cotes_weights,
+    norm_hi, normal_partials, widen,
 };
 use super::rational::rational_patch_face;
 use super::run::{
     Accept, FaceCutBounds, LaneEnd, LaneRun, LaneStop, RoundWindow, Run, face_extent,
 };
-use super::trimmed::normal_partials;
 use crate::props::PropsError;
 use crate::props::bracket::pt;
 
@@ -203,8 +202,7 @@ pub fn nurbs_patch_face_rounds<T: Decide>(
     let suuv = suu.as_ref().and_then(PatchGrid::deriv_v);
     let suvv = suv.as_ref().and_then(PatchGrid::deriv_v);
     let svvv = svv.as_ref().and_then(PatchGrid::deriv_v);
-    let knots_u = knots_inside(kv_u, u0, u1);
-    let knots_v = knots_inside(kv_v, v0, v1);
+    let (knots_u, knots_v) = (kv_u.knots(), kv_v.knots());
     // Position magnitude bound over the rectangle (the flux pad's
     // lever): a 1-norm over-bound of the 2-norm suffices — only an
     // upper bound is consumed.
@@ -259,7 +257,7 @@ pub fn nurbs_patch_face_rounds<T: Decide>(
         rect,
         AREA_CELLS_PER_AXIS,
         boundary_defect,
-        (&knots_u, &knots_v),
+        (knots_u, knots_v),
         |b| -> Result<AreaCell, PropsError> {
             let over = (Collapse::Over(b.u), Collapse::Over(b.v));
             let m = (Collapse::At(b.umid), Collapse::At(b.vmid));
@@ -294,7 +292,7 @@ pub fn nurbs_patch_face_rounds<T: Decide>(
         boundary_chord_perimeter_lo(
             rect.corners(),
             PERIMETER_CHORDS_PER_SIDE,
-            (&knots_u, &knots_v),
+            (knots_u, knots_v),
             |cu, cv| s.vec(Collapse::At(cu), Collapse::At(cv)),
         )
     };
@@ -335,8 +333,8 @@ pub fn nurbs_patch_face_rounds<T: Decide>(
     let cuts = |round: usize| {
         let pieces = AXIS_INIT_PIECES << round;
         (
-            knot_aligned_cuts(u0, u1, pieces, &knots_u),
-            knot_aligned_cuts(v0, v1, pieces, &knots_v),
+            knot_aligned_cuts(u0, u1, pieces, knots_u),
+            knot_aligned_cuts(v0, v1, pieces, knots_v),
         )
     };
     let cost = |round: usize| {

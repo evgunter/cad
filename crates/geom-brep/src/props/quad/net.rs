@@ -6,7 +6,7 @@
 
 use geom_core::Bounds;
 use geom_core::interval::certification::Certification;
-use geom_core::interval::{Interval, certified_hi};
+use geom_core::interval::{Interval, certified_hi, cross};
 use geom_core::spline::net::TensorNet;
 use geom_core::spline::{
     CoeffWindow, Derived, KnotVector, LooseKnots, Param, ParamRange, SplineCoeffs, TensorChannels,
@@ -307,6 +307,36 @@ impl Dir {
 /// infinite point as well as a NaN one.
 fn finite_param(t: f64) -> Option<Param> {
     Param::new(t).filter(|p| p.get().is_finite())
+}
+
+/// A patch lane's UV rectangle: finite and of positive extent on each
+/// side, held as the two ranges the lanes read over. [`PatchRect::new`]
+/// is the lanes' one rectangle refusal.
+#[derive(Clone, Copy)]
+pub(super) struct PatchRect {
+    pub(super) u: ParamRange,
+    pub(super) v: ParamRange,
+}
+
+impl PatchRect {
+    /// `(u0, u1, v0, v1)` as a rectangle, or the refusal for one that is
+    /// empty, inverted, NaN or not finite.
+    pub(super) fn new((u0, u1, v0, v1): (f64, f64, f64, f64)) -> Result<Self, PropsError> {
+        // A finite difference of a strictly ordered pair: both ends are
+        // finite and the side has positive extent.
+        let side = |a: f64, b: f64| ParamRange::new(a, b).filter(|_| (b - a).is_finite() && a < b);
+        match (side(u0, u1), side(v0, v1)) {
+            (Some(u), Some(v)) => Ok(Self { u, v }),
+            _ => Err(PropsError::QuadratureUnsupported {
+                what: "empty or non-finite UV rectangle",
+            }),
+        }
+    }
+
+    /// The corners as `(u0, u1, v0, v1)`.
+    pub(super) fn corners(self) -> (f64, f64, f64, f64) {
+        (self.u.start(), self.u.end(), self.v.start(), self.v.end())
+    }
 }
 
 /// **A patch's bracketed control net over its two knot vectors**, with
@@ -689,14 +719,21 @@ pub(super) fn newton_cotes_weights(m: usize) -> Option<Vec<Interval>> {
     Some(out)
 }
 
+/// The knots strictly inside `(lo, hi)`, in order. A range filter, not
+/// `interior_knots`: `(lo, hi)` is a trim rectangle's side or a chord's
+/// span, which is the vector's domain only sometimes.
+pub(super) fn knots_inside(knots: &[f64], lo: f64, hi: f64) -> impl Iterator<Item = f64> + '_ {
+    knots.iter().copied().filter(move |k| *k > lo && *k < hi)
+}
+
 /// The knot-span intervals of a vector clipped to `[lo, hi]`, each
 /// with a strictly interior locator point.
 pub(super) fn clipped_spans(kv: &KnotVector, lo: f64, hi: f64) -> Vec<(f64, f64, f64)> {
     let mut out = Vec::new();
     let mut edges: Vec<f64> = vec![lo];
-    for k in kv.knots() {
-        if *k > lo && *k < hi && edges.last().is_none_or(|e| *e != *k) {
-            edges.push(*k);
+    for k in knots_inside(kv.knots(), lo, hi) {
+        if edges.last().is_none_or(|e| *e != k) {
+            edges.push(k);
         }
     }
     edges.push(hi);
@@ -706,6 +743,21 @@ pub(super) fn clipped_spans(kv: &KnotVector, lo: f64, hi: f64) -> Vec<(f64, f64,
         }
     }
     out
+}
+
+/// `∂_u(S_u×S_v) = S_uu×S_v + S_u×S_uv` and `∂_v(S_u×S_v) =
+/// S_uv×S_v + S_u×S_vv`, from the partials' readings.
+pub(super) fn normal_partials(
+    h_su: &RVec3,
+    h_sv: &RVec3,
+    h_suu: &RVec3,
+    h_suv: &RVec3,
+    h_svv: &RVec3,
+) -> (RVec3, RVec3) {
+    (
+        rv_add(cross(h_suu, h_sv), cross(h_su, h_suv)),
+        rv_add(cross(h_suv, h_sv), cross(h_su, h_svv)),
+    )
 }
 
 /// An upper bound on `|v|` (2-norm) of a bracketed 3-vector.

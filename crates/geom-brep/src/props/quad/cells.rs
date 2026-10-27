@@ -14,8 +14,7 @@ use geom_core::spline::{
     TensorChannels, cell_measure_quotients,
 };
 
-use super::area::PatchRect;
-use super::net::PatchNet;
+use super::net::{PatchNet, PatchRect, knots_inside};
 use crate::patch_bound::{certified_inf, certified_sup};
 use crate::props::PropsError;
 use crate::props::bracket::pt;
@@ -286,17 +285,6 @@ fn ratio_hull(q: &QuotientPiece<Interval, 1>) -> Result<Interval, PropsError> {
     }
 }
 
-/// The knots of `kv` strictly inside `(lo, hi)`, as [`knot_aligned_cuts`]
-/// takes them. A range filter, not `interior_knots`: `(lo, hi)` is the
-/// trim rectangle's side, which is the vector's domain only sometimes.
-pub(super) fn knots_inside(kv: &KnotVector, lo: f64, hi: f64) -> Vec<f64> {
-    kv.knots()
-        .iter()
-        .copied()
-        .filter(|k| *k > lo && *k < hi)
-        .collect()
-}
-
 /// **The composite's cut list in one direction**: the uniform
 /// `pieces` grid, the coarse block boundaries, and the interior knots,
 /// merged.
@@ -355,7 +343,7 @@ pub(super) fn knot_aligned_cuts(lo: f64, hi: f64, pieces: usize, knots: &[f64]) 
     let mut cuts: Vec<f64> = Vec::with_capacity(pieces + HULL_BLOCKS_PER_AXIS + knots.len() + 2);
     cuts.push(lo);
     cuts.push(hi);
-    cuts.extend(knots.iter().copied().filter(|k| *k > lo && *k < hi));
+    cuts.extend(knots_inside(knots, lo, hi));
     cuts.sort_by(|a, b| a.partial_cmp(b).unwrap_or(core::cmp::Ordering::Equal));
     cuts.dedup();
 

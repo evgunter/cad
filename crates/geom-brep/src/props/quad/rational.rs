@@ -9,15 +9,16 @@ use geom_core::spline::KnotVector;
 use geom_core::{Band, Decide};
 
 use super::area::{
-    AREA_CELLS_PER_AXIS, AreaCell, PERIMETER_CHORDS_PER_SIDE, PatchRect, area_midpoint_taylor,
+    AREA_CELLS_PER_AXIS, AreaCell, PERIMETER_CHORDS_PER_SIDE, area_midpoint_taylor,
     boundary_chord_perimeter_lo, debug_assert_area_gauge,
 };
 use super::cells::{
     AXIS_INIT_PIECES, HULL_BLOCKS_PER_AXIS, MeasureCells, RefinedNet, advance_block, cell_midpoint,
-    knot_aligned_cuts, knots_inside, remainder_cell_u, remainder_cell_v, span_cells, v_pieces,
+    knot_aligned_cuts, remainder_cell_u, remainder_cell_v, span_cells, v_pieces,
 };
 use super::net::{
-    Collapse, PatchGrid, PatchNet, RVec3, clipped_spans, grid_vec, newton_cotes_weights, widen,
+    Collapse, PatchGrid, PatchNet, PatchRect, RVec3, clipped_spans, grid_vec, newton_cotes_weights,
+    widen,
 };
 use super::run::{Accept, FaceCutBounds, LaneRun, RoundWindow, Run, face_extent};
 use crate::props::PropsError;
@@ -385,8 +386,7 @@ pub(super) fn rational_patch_face<T: Decide>(
     // inserted knots are artificial (the locus and its smoothness are
     // unchanged), so cutting on them would only cost cells. What the
     // cells must land on is where the smoothness actually breaks.
-    let knots_u = knots_inside(kv_u, u0, u1);
-    let knots_v = knots_inside(kv_v, v0, v1);
+    let (knots_u, knots_v) = (kv_u.knots(), kv_v.knots());
     let measure = MeasureCells::build(net, rect)?;
 
     let over_all = (Collapse::Over(rect.u), Collapse::Over(rect.v));
@@ -418,8 +418,8 @@ pub(super) fn rational_patch_face<T: Decide>(
     // the blocks keeps each hull inside one smooth piece. Built once,
     // before the rounds; the cut list at every refinement level
     // contains these edges, so each block still owns whole cells.
-    let edges_u = knot_aligned_cuts(u0, u1, HULL_BLOCKS_PER_AXIS, &knots_u);
-    let edges_v = knot_aligned_cuts(v0, v1, HULL_BLOCKS_PER_AXIS, &knots_v);
+    let edges_u = knot_aligned_cuts(u0, u1, HULL_BLOCKS_PER_AXIS, knots_u);
+    let edges_v = knot_aligned_cuts(v0, v1, HULL_BLOCKS_PER_AXIS, knots_v);
     let nbv = edges_v.len() - 1;
     let (cells_u, cells_v) = (span_cells(kv_u, &edges_u)?, span_cells(kv_v, &edges_v)?);
     let blocks = measure.block_hulls(&cells_u, &cells_v)?;
@@ -443,7 +443,7 @@ pub(super) fn rational_patch_face<T: Decide>(
         rect,
         AREA_CELLS_PER_AXIS,
         boundary_defect,
-        (&knots_u, &knots_v),
+        (knots_u, knots_v),
         |b| {
             let m = (Collapse::At(b.umid), Collapse::At(b.vmid));
             let cm = a.cross_num(&w, m.0, m.1);
@@ -499,7 +499,7 @@ pub(super) fn rational_patch_face<T: Decide>(
         boundary_chord_perimeter_lo(
             rect.corners(),
             PERIMETER_CHORDS_PER_SIDE,
-            (&knots_u, &knots_v),
+            (knots_u, knots_v),
             |cu, cv| a.point(&w, cu, cv),
         )
     };
@@ -510,8 +510,8 @@ pub(super) fn rational_patch_face<T: Decide>(
     let cuts = |round: usize| {
         let pieces = AXIS_INIT_PIECES << round;
         (
-            knot_aligned_cuts(u0, u1, pieces, &knots_u),
-            knot_aligned_cuts(v0, v1, v_pieces(exact_v, pieces), &knots_v),
+            knot_aligned_cuts(u0, u1, pieces, knots_u),
+            knot_aligned_cuts(v0, v1, v_pieces(exact_v, pieces), knots_v),
         )
     };
     let weight = if exact_v {
@@ -625,6 +625,7 @@ mod tests {
     use geom_core::Bounds;
 
     use super::super::cells::REFINED_SPANS_PER_AXIS;
+    use super::super::net::knots_inside;
     use super::super::patch::{nurbs_patch_face, nurbs_patch_face_rounds};
     use super::super::run::{LaneEnd, mean_boundary_displacement};
     use crate::props::bracket::mid;
@@ -1098,13 +1099,8 @@ mod tests {
             let rect = PatchRect::new((0.0, 1.0, 0.0, 1.0)).unwrap();
             let net = patch(&ku, &kv, &control, &weights);
             let measure = MeasureCells::build(&net, rect).unwrap();
-            let inner = |k: &KnotVector| -> Vec<f64> {
-                k.knots()
-                    .iter()
-                    .copied()
-                    .filter(|x| *x > 0.0 && *x < 1.0)
-                    .collect()
-            };
+            let inner =
+                |k: &KnotVector| -> Vec<f64> { knots_inside(k.knots(), 0.0, 1.0).collect() };
             let (knots_u, knots_v) = (inner(&ku), inner(&kv));
             let a = Ladder::build(PatchGrid::base(&net.map_points(|c, w| {
                 let rw = pt(w);

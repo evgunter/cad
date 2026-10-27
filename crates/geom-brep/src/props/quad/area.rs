@@ -8,18 +8,12 @@ use geom_core::interval::{Interval, certified_hi};
 use geom_core::spline::ParamRange;
 
 use super::cells::knot_aligned_cuts;
-use super::net::{RVec3, widen};
-use crate::props::PropsError;
+use super::net::{PatchRect, RVec3, widen};
 use crate::props::bracket::{lo_or_refuse, pt};
 
-/// Cells per axis of the area rule (fixed, D9): over the rectangle in
-/// both rectangle lanes ([`area_midpoint_taylor`]), and per chord in the
-/// trimmed lane, whose rule under each chord is the same cell rule
-/// (`chord_polygon_area`). The rule is O(h), so the resolution sets the
-/// area's honest width directly. A lower count is what a curved chart
-/// cannot afford: at 16 the pad on an ordinary bidegree-(2,2) trimmed
-/// chart is the size of the face's own area, `area.lo()` goes negative
-/// and the extent gate answers `DegenerateFace`.
+/// Cells per axis of BOTH rectangle lanes' area pass, over the whole
+/// rectangle (fixed, D9). The shared [`area_midpoint_taylor`] rule is
+/// O(h), so the resolution sets the area's honest width directly.
 pub(super) const AREA_CELLS_PER_AXIS: usize = 64;
 /// Chords per rectangle side in the area gauge's certified perimeter
 /// lower bound ([`boundary_chord_perimeter_lo`]). Sixteen is enough
@@ -387,36 +381,6 @@ pub(super) fn debug_assert_area_gauge(
             "{}",
             area_gauge_failure_message(area, denominator)
         );
-    }
-}
-
-/// A patch lane's UV rectangle: finite and of positive extent on each
-/// side, held as the two ranges the lanes read over. [`PatchRect::new`]
-/// is the lanes' one rectangle refusal.
-#[derive(Clone, Copy)]
-pub(super) struct PatchRect {
-    pub(super) u: ParamRange,
-    pub(super) v: ParamRange,
-}
-
-impl PatchRect {
-    /// `(u0, u1, v0, v1)` as a rectangle, or the refusal for one that is
-    /// empty, inverted, NaN or not finite.
-    pub(super) fn new((u0, u1, v0, v1): (f64, f64, f64, f64)) -> Result<Self, PropsError> {
-        // A finite difference of a strictly ordered pair: both ends are
-        // finite and the side has positive extent.
-        let side = |a: f64, b: f64| ParamRange::new(a, b).filter(|_| (b - a).is_finite() && a < b);
-        match (side(u0, u1), side(v0, v1)) {
-            (Some(u), Some(v)) => Ok(Self { u, v }),
-            _ => Err(PropsError::QuadratureUnsupported {
-                what: "empty or non-finite UV rectangle",
-            }),
-        }
-    }
-
-    /// The corners as `(u0, u1, v0, v1)`.
-    pub(super) fn corners(self) -> (f64, f64, f64, f64) {
-        (self.u.start(), self.u.end(), self.v.start(), self.v.end())
     }
 }
 

@@ -7,14 +7,10 @@ use geom_core::interval::certification::Certification;
 use geom_core::interval::{Interval, certified_hi};
 use geom_core::{Band, Decide};
 
-use super::run::{Accept, FaceCutBounds, LaneRun, RoundWindow, Run, face_extent};
-use super::trig::{rotate, spread_cos, spread_sin, trig_at, trig_over};
+use super::run::{Accept, EDGE_INIT_PIECES, FaceCutBounds, LaneRun, RoundWindow, Run, face_extent};
+use super::trig::{limit, rotate, spread_cos, spread_sin, trig_at, trig_over};
 use crate::props::PropsError;
 use crate::props::bracket::{AbsEnclosure, mid, pt};
-
-/// Pieces per trim edge at round 0, doubling per round: the composite
-/// rule of the cylinder lane and of the spiric lane.
-pub(in crate::props) const EDGE_INIT_PIECES: usize = 16;
 
 /// Weight of one harmonic piece of a cylinder edge, in [`FACE_WORK_WALL`](super::run::FACE_WORK_WALL)'s unit.
 pub(super) const W_CYLINDER: usize = 3;
@@ -69,14 +65,6 @@ impl TrimEdgeQ {
     fn limits(&self) -> (f64, f64) {
         (limit(self.t0), limit(self.t1))
     }
-}
-
-/// The limit a trim edge is integrated from or to, off the bracket `t`
-/// of its parameter: the bracket's midpoint. [`TrimEdgeQ::limits`] and
-/// [`trig_at_limit`](super::trig::trig_at_limit) both read it here, so the trig a caller hands the
-/// lane is at the limit the lane integrates from.
-pub(super) fn limit(t: Interval) -> f64 {
-    mid(t)
 }
 
 // ---------------------------------------------------------------------
