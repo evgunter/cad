@@ -207,3 +207,4 @@ Filed `main-red-reader-census-misses-topo-link-rs` on this slate: PR 5773's `cra
   - Ruled: `quietable` means exactly that an assertion the quieting rule could accept exists (a `gap_reads` face pair AND `constant_pairing`). A Gap-admitted pair that `opposed` can never answer is unquietable and never refuses.
   - This restates DS6 as DESIGN.md's companion table summarises it ("`error` only where a finding can be quieted"). It is not a change to a ratified decision; I checked the table row and `git log -S` (0ec34e4b, a move of the ratified DS6).
   - A delta review follows the push.
+- 2026-10-27 12:24Z (orchestrator): #5853 (curved copies) is green on its frozen head `e78b63db`. Concurrent dual review (letter H) dispatched together from one brief: R1 `session_018u3gVFkJ5C4wcFnQdmq3S6`, R2 `session_018u3gVJdNSSkvmasEf4HL3P`. Isolation is on `review/atrest-curved-*`.
