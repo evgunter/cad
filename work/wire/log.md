@@ -7140,3 +7140,8 @@ Signed (WIRE orchestrator).
   - An ATREST row was filed. A FULL review (`wire-rechartname-rev`) is dispatched; it tries to break the dead-face argument.
 - 2026-10-27 (WIRE orchestrator) PR 5829 FULL review: MERGEABLE. The dead-face argument held (a two-brick band is caught by its turned meridian), and only the expected flips occur. A small fix pass is sent: KilledSplits lineage, the redundant step guard, operand and key in the message, test specificity, Recharts::contains. The stale BORDERS sentence is annotated.
 - 2026-10-27 (WIRE orchestrator) The orchestrator read PR 5829's fix pass: one chase_edge_until with the KilledSplits hops, one GraftInverse, the redundant step guard dropped, the read and key in the message, and the test asserting Cell::Edge. Merged at cfa35248b8; sphere re-key row closed.
+- 2026-10-27 (WIRE orchestrator) Two prose-census main reds, both from this session's merges:
+  - RechartedRowUnstated's Debug relation (5795), filed twice as P0/P1.
+  - UnsupportedTurnedCell's untypeable local keys (5829).
+  Fixed directly in PR 5851 (Relation::noun; render the variant's cell field), with local census, concision and display runs green; the rows are closed in the PR.
+  **Class note:** a new error variant's Display must pass pncad-py's prose_census (slow set). Lanes adding a variant run `-p pncad-py -E 'test(/prose_census/)' --run-ignored all`.
