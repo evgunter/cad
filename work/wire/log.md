@@ -7175,3 +7175,8 @@ Signed (WIRE orchestrator).
   - Departure accepted: select classifies the sense rather than walking it, since a pattern has no sense axis.
   - A residue row was filed. Review dispatched (`wire-throughwalk-rev`).
 - 2026-10-27 (WIRE orchestrator) PR 5870 review: mergeable. The Include-walk consumers are unchanged, other_half's None cannot be reached by a legal split, and the witness is red on base. Merged; row closed. Two MINORs and the nits were appended to the residue row.
+- 2026-10-27 (WIRE orchestrator) `wire-seamgroups` opened PR 5876 (head eec1685386).
+  - One ParentEntities key now serves split, pair seam, union seam and the pair corner.
+  - Pair and union witnesses are red on base. The split Seam/SetPiece witnesses were unbuildable and are filed.
+  - The dump shows 643 tests emitting tables and 7 differing, all tie conversions.
+  - A FULL review (`wire-seamgroups-rev`) is dispatched. Also freed 7 GB of stale review scratch.
