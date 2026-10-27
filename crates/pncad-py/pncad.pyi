@@ -6258,6 +6258,12 @@ class InterferenceFinding:
 
     @property
     def loud(self) -> bool: ...
+    @property
+    def quietable(self) -> bool:
+        """Whether an assertion could ever quiet it: the overlap is
+        bounded and two of its bounding faces, one of each copy, are a
+        carrier pair a signed `gap` reads. One no assertion could quiet
+        refuses at no severity."""
 
 # --- the recorded refactorings ----------------------------------------
 # Both are PURE: they hand back the new document VALUES plus the

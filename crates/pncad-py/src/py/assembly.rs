@@ -477,6 +477,7 @@ pub(crate) struct InterferenceFinding {
     faces: Option<Vec<FaceSite>>,
     unlocalized: Option<&'static str>,
     quiet_by: Option<NodeId>,
+    quietable: bool,
 }
 
 impl InterferenceFinding {
@@ -525,6 +526,7 @@ impl InterferenceFinding {
             faces,
             unlocalized,
             quiet_by: finding.quiet.map(NodeId),
+            quietable: finding.quietable,
         })
     }
 }
@@ -581,6 +583,15 @@ impl InterferenceFinding {
     #[getter]
     fn loud(&self) -> bool {
         self.quiet_by.is_none()
+    }
+
+    /// Whether an assertion could ever quiet it: the overlap is bounded
+    /// and two of its bounding faces, one of each copy, are a carrier
+    /// pair a signed `gap` reads. One no assertion could quiet refuses
+    /// at no severity.
+    #[getter]
+    fn quietable(&self) -> bool {
+        self.quietable
     }
 
     fn __repr__(&self) -> String {

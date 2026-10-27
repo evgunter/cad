@@ -87,6 +87,7 @@ class TestInterferenceIsAFinding(unittest.TestCase):
         interference = finding.evidence.interference
         self.assertTrue(interference.loud)
         self.assertIsNone(interference.quiet_by)
+        self.assertTrue(interference.quietable, "a gap between two parallel faces could quiet it")
         self.assertIsNone(interference.unlocalized)
         self.assertNotEqual(interference.a, interference.b)
         self.assertEqual(interference.a.kind, "body")
