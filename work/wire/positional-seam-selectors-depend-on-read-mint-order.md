@@ -2,7 +2,7 @@
 id: positional-seam-selectors-depend-on-read-mint-order
 kind: issue
 title: A positional SegPat over a seam's sides now depends on which read was minted first, though a seam's sides are a set
-status: open
+status: dispatched
 opened: 2026-10-20
 priority: P2
 cost: E

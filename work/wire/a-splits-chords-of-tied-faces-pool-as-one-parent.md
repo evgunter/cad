@@ -2,7 +2,7 @@
 id: a-splits-chords-of-tied-faces-pool-as-one-parent
 kind: issue
 title: A split groups its edges by parent NAME, so the chords of two tied faces are named against each other as pieces of one parent
-status: open
+status: dispatched
 opened: 2026-10-26
 priority: P2
 cost: M

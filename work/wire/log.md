@@ -7146,3 +7146,7 @@ Signed (WIRE orchestrator).
   Fixed directly in PR 5851 (Relation::noun; render the variant's cell field), with local census, concision and display runs green; the rows are closed in the PR.
   **Class note:** a new error variant's Display must pass pncad-py's prose_census (slow set). Lanes adding a variant run `-p pncad-py -E 'test(/prose_census/)' --run-ignored all`.
 - 2026-10-27 (WIRE orchestrator) PR 5851 is green and merged at 66bfc1c6d7. Main's two prose-census reds are fixed, and both rows are closed in the PR.
+- 2026-10-27 (WIRE orchestrator) Dispatched the last two P2 rows.
+  - `wire-splitchords`: key the split's chord groups per candidate. Ruling: NS3 locality and N4's 'undivided candidates stay bare' settle it, no fork.
+  - `wire-seamselect`: seam (and other N0-set) SegPats match as sets. Ruling: N3 and NS1(a).
+  WIRE is at 35/30 load because of re-homed and filed P3s; these two P2s take it down.
