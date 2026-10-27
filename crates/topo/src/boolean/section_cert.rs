@@ -505,15 +505,7 @@ fn unit<T: Real>(v: Vec3<T>) -> Vec3<T> {
     v / v.norm()
 }
 
-/// `v`'s part perpendicular to the unit `a`, and its norm. Taken as
-/// `a × (v × a)`, which stands square to `a` to the rounding of its own
-/// size: `v − a·(a·v)` keeps a component along `a` of `v`'s size times
-/// the rounding, which dividing by a small norm (a plane or a centre
-/// near the axis) turns into a direction off the plane square to `a`.
-fn perp_to<T: Real>(v: Vec3<T>, a: Vec3<T>) -> (Vec3<T>, T) {
-    let perp = a.cross(v.cross(a));
-    (perp, perp.norm())
-}
+use geom_brep::square_part as perp_to;
 
 /// **The meridian half-plane `Π` of the torus `(c, a)` toward `v`**: the
 /// norm `s` of `v`'s part square to `a`, and the map from `Π`'s
@@ -2614,8 +2606,9 @@ fn sphere_sphere<T: Decide>(c1: Point3<T>, r1: T, c2: Point3<T>, r2: T, band: Ba
 /// **A pair the section value builds** ([`geom_brep::pair_section`]),
 /// classified from it, its first surface `F`: a tangency it decided is a
 /// [`Touch`] at the point where the section is one point and R-tan
-/// otherwise; an escalated pose R-tan, named by the decision; a pose
-/// refused on an operand's convention R-reach. Every other section is its
+/// otherwise; a pose question undecided R-tan, named by the decision; a
+/// radius not definitely positive, decided or not, R-reach: an operand's
+/// size is no tangency, and the pair has no arm for it. Every other section is its
 /// components, each with whether it winds about each carrier and its
 /// witness, certified single when there is one.
 pub(super) fn of_pair_section<T: Decide>(
@@ -2624,7 +2617,7 @@ pub(super) fn of_pair_section<T: Decide>(
     use geom_brep::{ComponentShape, SectionError};
     let section = match read {
         Ok(section) => section,
-        Err(SectionError::Escalated(diag) | SectionError::RadiusEscalated { diag, .. }) => {
+        Err(SectionError::Escalated(diag)) => {
             return Section::Tangent(diag.predicate.unwrap_or("cs_pose"));
         }
         Err(_) => return Section::Intractable,
@@ -2634,12 +2627,12 @@ pub(super) fn of_pair_section<T: Decide>(
         return match components {
             [c] if c.shape == ComponentShape::Point => match c.witness {
                 Some(at) => Section::Touch(Touch {
-                    name: zero.decision,
+                    name: zero.decision.name(),
                     at,
                 }),
-                None => Section::Tangent(zero.decision),
+                None => Section::Tangent(zero.decision.name()),
             },
-            _ => Section::Tangent(zero.decision),
+            _ => Section::Tangent(zero.decision.name()),
         };
     }
     Section::Components {

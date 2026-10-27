@@ -742,7 +742,7 @@ fn arc_against_a_wall(r: f64, class: Option<GlueClass>) -> Result<(), BooleanErr
         ..Glue::none()
     };
     let one = super::super::verify_declared_contacts(&x, &y, &decls, band())?;
-    let declared = GluedPairs::build(&decls, one, &x, &y, band())?;
+    let declared = GluedPairs::build(&decls, one, &x, &y, Default::default(), band())?;
     let (edge_key, edge) = x
         .edges()
         .map(|(k, e)| (k, e.clone()))
@@ -1557,7 +1557,7 @@ fn planar_flank_membership_at(against: bool, rest: bool, arm: f64) -> Result<(),
         ..Glue::none()
     };
     let one = super::super::verify_declared_contacts(&pa.body, &pb.body, &decls, band())?;
-    let declared = GluedPairs::build(&decls, one, &pa.body, &pb.body, band())?;
+    let declared = GluedPairs::build(&decls, one, &pa.body, &pb.body, Default::default(), band())?;
     let sa = [sector(z, x, fa), sector(x, z, fa)];
     let sb = [sector(z, flank, fb), sector(flank, z, fb)];
     resolve_edge_edge(

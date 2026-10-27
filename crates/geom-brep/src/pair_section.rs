@@ -35,13 +35,15 @@
 //! `CarriedSection`, and it refuses where a component has no carrier, so
 //! no reader takes a foot on a carrier that does not exist. The march is
 //! written at `f64`, and [`SsiLane`] is the door to it: holding one is
-//! the statement that the scalar may march ([`SsiLane::marched`]).
+//! the statement that the scalar may march (`SsiLane::marched` at
+//! `f64`, `SsiLane::probed` at the recording scalar, which marches its
+//! values at `f64`).
 //!
 //! # Cylinder × sphere
 //!
 //! The one pair this value serves today. Its pose
 //! ([`CylinderSpherePose`]) is decided once, and every reader of the
-//! pair reads it: the C5 coaxial arm ([`crate::cylinder_sphere_section`]),
+//! pair reads it: the C5 table's pose question ([`crate::route_pose`]),
 //! the ℝ³ march ([`crate::ssi::cylinder_sphere_ssi`]), and through this
 //! value the Boolean's section table.
 
@@ -51,7 +53,21 @@ use geom_core::{
 };
 
 use crate::intersect::{PairRoute, SectionError, SectionRadius, route};
+#[cfg(feature = "probe")]
+use crate::ssi::SsiTube;
 use crate::ssi::{BranchEnd, SsiCertificate, SsiDomain, SsiError};
+#[cfg(feature = "probe")]
+use geom_core::Probe;
+
+/// **`v`'s part square to the unit `a`, and its norm**, taken as
+/// `a × (v × a)`, which stands square to `a` to the rounding of its own
+/// size: `v − a·(a·v)` keeps a component along `a` of `v`'s size times
+/// the rounding, which dividing by a small norm (a centre or a plane
+/// near the axis) turns into a direction off the plane square to `a`.
+pub fn square_part<T: Real>(v: Vec3<T>, a: Vec3<T>) -> (Vec3<T>, T) {
+    let perp = a.cross(v.cross(a));
+    (perp, perp.norm())
+}
 
 // ---------------------------------------------------------------------
 // The cylinder × sphere pose
@@ -90,6 +106,11 @@ impl CsDecision {
 
 /// **Why a cylinder × sphere pose is not decided**: an operand's radius
 /// not definitely positive, or a pose question in the band.
+///
+/// Two doors read it, each in its own refusal vocabulary: the section
+/// value as a [`SectionError`] (`From`), and the march as an
+/// [`SsiError`] ([`SsiError::of_pose`]), whose refusals carry the
+/// SSI door's endings (D4 ¶1) that a `SectionError` does not.
 #[derive(Clone, Debug, PartialEq)]
 pub enum PoseRefusal {
     /// The radius guard: `Ok` is a decided `Zero` or `Negative` radius,
@@ -155,7 +176,8 @@ pub enum CsStance<T: Real> {
 /// **The cylinder × sphere pose, decided once**: the radii guarded, the
 /// sphere's centre placed against the cylinder's axis, and the reach
 /// past the wall read. Every number a reader of the pair takes is here,
-/// so readers agree by construction.
+/// so readers agree by construction; its one constructor is
+/// [`Self::decide`], so a pose a reader holds is a decided one.
 ///
 /// In the cylinder's frame put the sphere's centre at offset `d` from
 /// the axis, the cylinder's radius `r` and the sphere's `R`. A wall point
@@ -170,22 +192,14 @@ pub struct CylinderSpherePose<T: Real> {
     cylinder: Surface<T>,
     sphere: Surface<T>,
     cylinder_first: bool,
-    /// The cylinder's axis, unit by the surface's invariant.
-    pub axis: Vec3<T>,
-    /// The cylinder's reference direction.
-    pub u_ref: Vec3<T>,
-    /// The sphere centre's foot on the axis.
-    pub foot: Point3<T>,
-    /// The sphere's centre.
-    pub center: Point3<T>,
-    /// The cylinder's radius `r`, definitely positive.
-    pub r: T,
-    /// The sphere's radius `R`, definitely positive.
-    pub big_r: T,
-    /// The centre's distance `d` from the axis.
-    pub offset: T,
-    /// How the sphere stands.
-    pub stance: CsStance<T>,
+    axis: Vec3<T>,
+    u_ref: Vec3<T>,
+    foot: Point3<T>,
+    center: Point3<T>,
+    r: T,
+    big_r: T,
+    offset: T,
+    stance: CsStance<T>,
 }
 
 impl<T: Decide> CylinderSpherePose<T> {
@@ -232,24 +246,26 @@ impl<T: Decide> CylinderSpherePose<T> {
             return None;
         };
         Some(
-            Self::stance(origin, axis, center, r, big_r, band).map(|(foot, offset, stance)| Self {
-                cylinder: cylinder.clone(),
-                sphere: sphere.clone(),
-                cylinder_first,
-                axis,
-                u_ref,
-                foot,
-                center,
-                r,
-                big_r,
-                offset,
-                stance,
-            }),
+            Self::decide_stance(origin, axis, center, r, big_r, band).map(
+                |(foot, offset, stance)| Self {
+                    cylinder: cylinder.clone(),
+                    sphere: sphere.clone(),
+                    cylinder_first,
+                    axis,
+                    u_ref,
+                    foot,
+                    center,
+                    r,
+                    big_r,
+                    offset,
+                    stance,
+                },
+            ),
         )
     }
 
     #[allow(clippy::type_complexity)] // (foot, offset, stance) — one pose
-    fn stance(
+    fn decide_stance(
         origin: Point3<T>,
         axis: Vec3<T>,
         center: Point3<T>,
@@ -257,39 +273,42 @@ impl<T: Decide> CylinderSpherePose<T> {
         big_r: T,
         band: Band,
     ) -> Result<(Point3<T>, T, CsStance<T>), PoseRefusal> {
+        let read = |name: &'static str, value: T| {
+            geom_core::k_stats::decide_reported(name, Margin::of(value), band)
+        };
         for (name, value, radius) in [
             ("cs_cylinder_radius", r, SectionRadius::Cylinder),
             ("cs_sphere_radius", big_r, SectionRadius::Sphere),
         ] {
-            match geom_core::k_stats::decide(name, Margin::of(value), band) {
-                Ok(Sign::Positive) => {}
-                verdict => return Err(PoseRefusal::Radius { radius, verdict }),
+            match read(name, value) {
+                Ok(Decided {
+                    sign: Sign::Positive,
+                    ..
+                }) => {}
+                verdict => {
+                    return Err(PoseRefusal::Radius {
+                        radius,
+                        verdict: verdict.map(|d| d.sign),
+                    });
+                }
             }
         }
-        let undecided = |decision| move |diag| PoseRefusal::Undecided { decision, diag };
-        let read = |decision: CsDecision, value: T| {
-            geom_core::k_stats::decide_reported(decision.name(), Margin::of(value), band)
-                .map_err(undecided(decision))
+        let pose = |decision: CsDecision, value: T| {
+            read(decision.name(), value).map_err(|diag| PoseRefusal::Undecided { decision, diag })
         };
-        // The centre's part square to the axis, taken as `a × (w × a)`
-        // (`axis` unit by the surface's invariant), which stands square
-        // to the axis to the rounding of its own size: `w − a·(a·w)`
-        // keeps a component along the axis of `w`'s size times the
-        // rounding, which dividing by a small offset turns into a
-        // direction off the plane square to the axis.
-        let off = axis.cross((center - origin).cross(axis));
-        let d = off.norm();
+        // `axis` is unit by the surface's own invariant.
+        let (off, d) = square_part(center - origin, axis);
         let foot = center - off;
-        let coaxial = read(CsDecision::Coaxial, d)?;
+        let coaxial = pose(CsDecision::Coaxial, d)?;
         let stance = if coaxial.sign == Sign::Zero {
             CsStance::Coaxial {
                 coaxial: coaxial.margin,
-                wall: read(CsDecision::WallReach, big_r - r)?,
+                wall: pose(CsDecision::WallReach, big_r - r)?,
             }
         } else {
-            let near = read(CsDecision::NearReach, big_r - (d - r).abs())?;
+            let near = pose(CsDecision::NearReach, big_r - (d - r).abs())?;
             let far = match near.sign {
-                Sign::Positive => Some(read(CsDecision::FarReach, big_r - (d + r))?),
+                Sign::Positive => Some(pose(CsDecision::FarReach, big_r - (d + r))?),
                 Sign::Zero | Sign::Negative => None,
             };
             CsStance::Apart {
@@ -320,13 +339,44 @@ impl<T: Decide> CylinderSpherePose<T> {
         }
     }
 
+    /// The cylinder's axis, unit by the surface's invariant.
+    pub fn axis(&self) -> Vec3<T> {
+        self.axis
+    }
+
+    /// The sphere centre's foot on the axis.
+    pub fn foot(&self) -> Point3<T> {
+        self.foot
+    }
+
+    /// The sphere's centre.
+    pub fn center(&self) -> Point3<T> {
+        self.center
+    }
+
+    /// The cylinder's radius `r` and the sphere's `R`, both decided
+    /// positive.
+    pub fn radii(&self) -> (T, T) {
+        (self.r, self.big_r)
+    }
+
+    /// The centre's distance `d` from the axis.
+    pub fn offset(&self) -> T {
+        self.offset
+    }
+
+    /// How the sphere stands.
+    pub fn stance(&self) -> CsStance<T> {
+        self.stance
+    }
+
     /// **The tangency the pose decided**, if any: the wall reach of a
     /// coaxial pose, or the near or far reach off the axis, decided
     /// `Zero`. Classification data at every reader, never a carrier.
     pub fn tangency(&self) -> Option<ZeroVerdict> {
         let tangent = |decision: CsDecision, d: Decided| {
             (d.sign == Sign::Zero).then_some(ZeroVerdict {
-                decision: decision.name(),
+                decision,
                 margin: d.margin,
                 kind: ZeroKind::Tangency,
             })
@@ -363,8 +413,8 @@ pub enum ZeroKind {
 /// One `Zero` verdict that chose the section's arm.
 #[derive(Clone, Copy, Debug)]
 pub struct ZeroVerdict {
-    /// The decision's K-funnel name.
-    pub decision: &'static str,
+    /// The decision.
+    pub decision: CsDecision,
     /// Its margin.
     pub margin: MarginDiag,
     /// What it means.
@@ -406,17 +456,10 @@ pub struct SectionComponent<T: Real> {
     pub carrier: ClassCarrier<T>,
 }
 
-/// What the pair's arm decided its section from.
-#[derive(Clone, Debug)]
-pub enum SectionPose<T: Real> {
-    /// The cylinder × sphere pose.
-    CylinderSphere(CylinderSpherePose<T>),
-}
-
 /// **The section of two distinct surfaces, classified** (module docs).
 #[derive(Clone, Debug)]
 pub struct PairSection<T: Real> {
-    pose: SectionPose<T>,
+    pose: CylinderSpherePose<T>,
     decided: Vec<ZeroVerdict>,
     components: Vec<SectionComponent<T>>,
 }
@@ -468,7 +511,8 @@ pub fn pair_section<T: Decide>(
 
 /// **Whether the value builds the section of some kind pair `kind` is a
 /// side of** — the filter a reader scanning many pairs applies before it
-/// asks [`pair_section`]. Exhaustive, as `pair_section`'s match is.
+/// asks [`pair_section`]. Exhaustive, as `pair_section`'s match is, and
+/// a second spelling of it (`work/sect/the-c5-kind-dispatch-is-spelled-twice.md`).
 #[must_use]
 pub fn serves(kind: SurfaceKind) -> bool {
     use SurfaceKind::{Approx, Cone, Cylinder, Nurbs, Plane, Sphere, Torus};
@@ -508,7 +552,7 @@ fn cylinder_sphere<T: Decide>(pose: CylinderSpherePose<T>) -> PairSection<T> {
     let components = match pose.stance {
         CsStance::Coaxial { coaxial, wall } => {
             decided.push(ZeroVerdict {
-                decision: CsDecision::Coaxial.name(),
+                decision: CsDecision::Coaxial,
                 margin: coaxial,
                 kind: ZeroKind::Coincidence,
             });
@@ -558,7 +602,7 @@ fn cylinder_sphere<T: Decide>(pose: CylinderSpherePose<T>) -> PairSection<T> {
     };
     decided.extend(pose.tangency());
     PairSection {
-        pose: SectionPose::CylinderSphere(pose),
+        pose,
         decided,
         components,
     }
@@ -576,7 +620,7 @@ pub enum SiteRefusal {
 
 impl<T: Decide> PairSection<T> {
     /// The pose the arm decided.
-    pub fn pose(&self) -> &SectionPose<T> {
+    pub fn pose(&self) -> &CylinderSpherePose<T> {
         &self.pose
     }
 
@@ -608,12 +652,14 @@ impl<T: Decide> PairSection<T> {
     }
 
     /// **The component the site `p` lies on**, by the classification
-    /// alone: a section of one component answers it; two are told apart
-    /// by the side of the plane through the sphere centre's foot square
-    /// to the cylinder's axis (`cs_component_side`), the first component
-    /// on its positive side. Both components of a two-loop section keep
-    /// a definite height over that plane, so a `Zero` there is a site on
-    /// neither, a desync.
+    /// alone, so no march is owed for it: a section of one component
+    /// answers it; two are told apart by the side of the plane through
+    /// the sphere centre's foot square to the cylinder's axis
+    /// (`cs_component_side`), the first component on its positive side.
+    /// Both components of a two-loop section keep a definite height over
+    /// that plane, so a `Zero` there is a site on neither, a desync.
+    /// Whether the site lies within the band of the component is the
+    /// carried section's question ([`CarriedSection::foot`]).
     ///
     /// # Errors
     ///
@@ -623,8 +669,7 @@ impl<T: Decide> PairSection<T> {
             0 => Err(SiteRefusal::Desync("a site on a section with no component")),
             1 => Ok(0),
             _ => {
-                let SectionPose::CylinderSphere(pose) = &self.pose;
-                let height = (p - pose.foot).dot(pose.axis);
+                let height = (p - self.pose.foot).dot(self.pose.axis);
                 match geom_core::k_stats::decide("cs_component_side", Margin::of(height), band) {
                     Ok(Sign::Positive) => Ok(0),
                     Ok(Sign::Negative) => Ok(1),
@@ -639,9 +684,8 @@ impl<T: Decide> PairSection<T> {
 
     /// **The section carried** (module docs): every component's carrier,
     /// a closed form as classified or the general rung's, marched through
-    /// `lane` over the sphere's own box, which holds every component of a
-    /// sphere's section, and fitted with its certificate. The march finds
-    /// each component as one closed branch, assigned to the component its
+    /// `lane` and fitted with its certificate. The march finds each
+    /// component as one closed branch, assigned to the component its
     /// witness lies on ([`Self::component_of`]).
     ///
     /// # Errors
@@ -664,8 +708,7 @@ impl<T: Decide> PairSection<T> {
             .any(|c| matches!(c.carrier, ClassCarrier::General))
         {
             let lane = lane.ok_or(CarryError::NoLane { scalar: T::NAME })?;
-            let SectionPose::CylinderSphere(pose) = &self.pose;
-            let branches = (lane.march)(pose, band).map_err(CarryError::March)?;
+            let branches = (lane.march)(&self.pose, band).map_err(CarryError::March)?;
             let mut slots: Vec<Option<FittedCarrier<T>>> = vec![None; self.components.len()];
             for branch in branches {
                 if !branch.closed {
@@ -712,7 +755,10 @@ impl<T: Decide> PairSection<T> {
                 (ClassCarrier::Unminted(why), _) => Err(CarryError::Unminted(why)),
             })
             .collect::<Result<_, _>>()?;
-        Ok(CarriedSection { components })
+        Ok(CarriedSection {
+            components,
+            lever: self.pose.r,
+        })
     }
 }
 
@@ -735,14 +781,17 @@ pub struct FittedCarrier<T: Real> {
     pub witness: Point3<T>,
 }
 
+/// One march of a decided pose, as a lane holds it.
+type March<T> = fn(&CylinderSpherePose<T>, Band) -> Result<Vec<FittedCarrier<T>>, SsiError>;
+
 /// **The general rung's door** (module docs): the ℝ³ march of a
 /// cylinder × sphere pose, written at `f64`. Holding one is the
-/// statement that the scalar may march; [`SsiLane::marched`] is its one
-/// constructor, and it exists at `f64` alone.
+/// statement that the scalar may march; [`SsiLane::marched`] (at `f64`)
+/// and `SsiLane::probed` (at the recording scalar, under `probe`) are
+/// its constructors.
 #[derive(Clone, Copy, Debug)]
 pub struct SsiLane<T: Real> {
-    #[allow(clippy::type_complexity)] // one march
-    march: fn(&CylinderSpherePose<T>, Band) -> Result<Vec<FittedCarrier<T>>, SsiError>,
+    march: March<T>,
 }
 
 impl SsiLane<f64> {
@@ -755,8 +804,25 @@ impl SsiLane<f64> {
     }
 }
 
-/// The ℝ³ march of `pose` over the sphere's own box, padded by a hundredth
-/// of the radius, with the sphere's diameter as the feature extent.
+#[cfg(feature = "probe")]
+impl SsiLane<Probe> {
+    /// The march, of the recording scalar's values read at `f64`: the
+    /// recording scalar is `f64` with a sink attached, so it carries
+    /// what `f64` carries.
+    #[must_use]
+    pub fn probed() -> Self {
+        Self { march: march_probe }
+    }
+}
+
+/// **The ℝ³ march of `pose` over the sphere's own box**, which holds
+/// every component of a sphere's section: a cube, as an [`SsiDomain`]
+/// states one, padded by a hundredth of the radius so the slab's faces
+/// stand off the sphere's extreme points, where a component can reach
+/// the box. The cylinder's box is unbounded along its axis, so the
+/// sphere's is the smallest cube the pair always fits. The feature
+/// extent is the sphere's diameter; the accounting floor is the
+/// standard one (`floor_scale` 1).
 fn march_over_the_sphere(
     pose: &CylinderSpherePose<f64>,
     band: Band,
@@ -777,6 +843,54 @@ fn march_over_the_sphere(
             closed: matches!(b.end, BranchEnd::Closed),
             certificate: b.certificate,
             witness: b.witness,
+        })
+        .collect())
+}
+
+#[cfg(feature = "probe")]
+/// [`march_over_the_sphere`] of the recording scalar's pose, its values
+/// read at `f64` and its fitted branches lifted back.
+fn march_probe(
+    pose: &CylinderSpherePose<Probe>,
+    band: Band,
+) -> Result<Vec<FittedCarrier<Probe>>, SsiError> {
+    let (a, b) = pose.operands();
+    let (a, b) = (a.map_scalar(|x| x.0), b.map_scalar(|x| x.0));
+    let pose = CylinderSpherePose::decide(&a, &b, band)
+        .ok_or(SsiError::WrongLane {
+            expected: "a cylinder and a sphere in ℝ³ on their implicit pair",
+        })?
+        .map_err(SsiError::of_pose)?;
+    let lift = |c: SsiCertificate<f64>| SsiCertificate {
+        samples: c.samples,
+        on_locus_max: Probe(c.on_locus_max),
+        hull_sup: Probe(c.hull_sup),
+        tube: match c.tube {
+            SsiTube::Spatial { radius } => SsiTube::Spatial {
+                radius: Probe(radius),
+            },
+            SsiTube::Chart { rung, pad_u, pad_v } => SsiTube::Chart {
+                rung: Probe(rung),
+                pad_u: Probe(pad_u),
+                pad_v: Probe(pad_v),
+            },
+            SsiTube::TwoChart { rung, pad_a, pad_b } => SsiTube::TwoChart {
+                rung: Probe(rung),
+                pad_a: (Probe(pad_a.0), Probe(pad_a.1)),
+                pad_b: (Probe(pad_b.0), Probe(pad_b.1)),
+            },
+        },
+        tube_transversality: Probe(c.tube_transversality),
+        tube_boxes: c.tube_boxes,
+    };
+    Ok(march_over_the_sphere(&pose, band)?
+        .into_iter()
+        .map(|f| FittedCarrier {
+            carrier: f.carrier.map_scalar(Probe),
+            span: (Probe(f.span.0), Probe(f.span.1)),
+            closed: f.closed,
+            certificate: lift(f.certificate),
+            witness: Point3::new(Probe(f.witness.x), Probe(f.witness.y), Probe(f.witness.z)),
         })
         .collect())
 }
@@ -817,6 +931,7 @@ pub struct CarriedComponent<T: Real> {
 #[derive(Clone, Debug)]
 pub struct CarriedSection<T: Real> {
     components: Vec<CarriedComponent<T>>,
+    lever: T,
 }
 
 /// A site's place on its component: the component, the foot parameter,
@@ -835,6 +950,13 @@ impl<T: Decide> CarriedSection<T> {
     /// The components.
     pub fn components(&self) -> &[CarriedComponent<T>] {
         &self.components
+    }
+
+    /// **The length a direction's angle to a component is levered by**:
+    /// the cylinder's radius, the scale every component of a cylinder ×
+    /// sphere section turns on.
+    pub fn lever(&self) -> T {
+        self.lever
     }
 
     /// **The site `p`'s foot**: the one component it lies within the
@@ -877,5 +999,35 @@ impl<T: Decide> CarriedSection<T> {
         found.ok_or(SiteRefusal::Desync(
             "a site lies on no component of its section",
         ))
+    }
+}
+
+#[cfg(test)]
+mod wiring {
+    use super::{SsiLane, march_over_the_sphere};
+
+    /// `Ok(())` when the lane holds its march; otherwise the field that
+    /// does not.
+    fn holds_the_ssi_lane() -> Result<(), &'static str> {
+        if !std::ptr::fn_addr_eq(
+            SsiLane::marched().march,
+            march_over_the_sphere as fn(_, _) -> _,
+        ) {
+            return Err("march is not `march_over_the_sphere`");
+        }
+        #[cfg(feature = "probe")]
+        if !std::ptr::fn_addr_eq(SsiLane::probed().march, super::march_probe as fn(_, _) -> _) {
+            return Err("the recording scalar's march is not `march_probe`");
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn f64_is_wired_to_the_ssi_lane() {
+        assert_eq!(
+            holds_the_ssi_lane(),
+            Ok(()),
+            "`SsiLane::marched()` or `SsiLane::probed()` holds something other than its march"
+        );
     }
 }

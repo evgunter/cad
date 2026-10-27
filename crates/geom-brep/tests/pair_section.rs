@@ -60,7 +60,7 @@ fn the_coaxial_pose_is_two_circles_and_records_its_coincidence() {
     let section = built(&cyl, &sph);
     let zero = section.coincidence().expect("the coaxiality is recorded");
     assert_eq!(
-        (zero.decision, zero.kind),
+        (zero.decision.name(), zero.kind),
         ("cs_coaxial", ZeroKind::Coincidence)
     );
     assert!(section.tangency().is_none(), "no tangency");
@@ -147,7 +147,7 @@ fn a_tangency_is_classification_data_and_does_not_carry() {
         let section = built(&cyl, &sph);
         let zero = section.tangency().expect("a tangency");
         assert_eq!(
-            (zero.decision, zero.kind),
+            (zero.decision.name(), zero.kind),
             (decision, ZeroKind::Tangency),
             "{label}"
         );
@@ -218,22 +218,22 @@ fn a_pose_in_the_band_escalates() {
 }
 
 /// **A radius not definitely positive is a degenerate operand on every
-/// reading of the pair**, coaxial or not and in either order: the
-/// section value, the C5 coaxial arm and the march.
+/// reading of the pair**, coaxial or not, either radius, zero or
+/// negative, and in either order: the section value, the march and the
+/// C5 table's pose question.
 #[test]
 fn a_radius_not_definitely_positive_is_degenerate_on_every_reading() {
+    let reach = geom_brep::Reach::Measured {
+        at: Point3::new(0.0, 0.0, 0.0),
+        lever: 1.0,
+    };
     for (label, cyl, sph) in [
-        (
-            "negative cylinder, coaxial",
-            cylinder(-0.5),
-            sphere(0.0, 1.0),
-        ),
-        (
-            "negative cylinder, off the axis",
-            cylinder(-0.5),
-            sphere(0.6, 0.3),
-        ),
+        ("negative cylinder, coaxial", cylinder(-0.5), sphere(0.0, 1.0)),
+        ("negative cylinder, off the axis", cylinder(-0.5), sphere(0.6, 0.3)),
+        ("negative sphere, coaxial", cylinder(0.5), sphere(0.0, -0.7)),
+        ("negative sphere, off the axis", cylinder(0.5), sphere(0.4, -0.3)),
         ("zero sphere, off the axis", cylinder(0.5), sphere(0.6, 0.0)),
+        ("zero cylinder, off the axis", cylinder(0.0), sphere(0.4, 0.3)),
     ] {
         for (a, b) in [(&cyl, &sph), (&sph, &cyl)] {
             assert!(
@@ -256,14 +256,10 @@ fn a_radius_not_definitely_positive_is_degenerate_on_every_reading() {
                 ),
                 "{label}: the march"
             );
+            let served = geom_brep::route_pose(a, b, &reach, band())
+                .unwrap_or_else(|e| panic!("{label}: {e:?}"));
+            assert!(!served.implemented, "{label}: the pose question");
         }
-        assert!(
-            matches!(
-                geom_brep::cylinder_sphere_section(&cyl, &sph, band()),
-                Err(SectionError::DegenerateOperand { .. })
-            ),
-            "{label}: the coaxial arm"
-        );
     }
 }
 

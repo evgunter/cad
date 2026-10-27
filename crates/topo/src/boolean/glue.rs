@@ -205,12 +205,18 @@ pub(super) fn overlapping_pairs<T: Decide + Bounds>(
 /// meeting ([`super::join::crossing_cylinder_margins`]), the
 /// classification the join's bisector lane reads. The rows in A's face
 /// order and B's within each, none where the operation's verdicts are
-/// given; the table is built either way, carrying through `lane`.
+/// given; the table is built either way, carrying through `lane`. The
+/// crossing cylinder pairs are among the pairs the filter keeps, since
+/// it keeps every cylinder.
 ///
 /// # Errors
 ///
 /// A face box's own refusal; [`BooleanError::ClassificationInvariant`]
-/// where the face tree returns an index past its input.
+/// where the face tree returns an index past its input. Under given
+/// verdicts too: the reduction's sweep that follows boxes every face of
+/// both operands at this door's pad and band (`reduce::face_tree`), so a
+/// face box refused here would refuse there, and the door only meets it
+/// first.
 #[allow(clippy::type_complexity)] // (table, rows) — one door's reading
 pub(crate) fn section_door<T: Decide + Bounds>(
     a: &Body<T>,
@@ -224,9 +230,7 @@ pub(crate) fn section_door<T: Decide + Bounds>(
         body.get_face(f)
             .and_then(|face| Some((face.surface, body.get_surface(face.surface)?.clone())))
     };
-    let read = |s: &geom::Surface<T>| {
-        geom_brep::pair_section::serves(s.kind()) || matches!(s, geom::Surface::Cylinder { .. })
-    };
+    let read = |s: &geom::Surface<T>| geom_brep::pair_section::serves(s.kind());
     let row = |(fa, fb), relation, site, margin| crate::Coincidence {
         cells: [
             crate::RowCell::face(Operand::A, fa),
@@ -238,7 +242,7 @@ pub(crate) fn section_door<T: Decide + Bounds>(
         margin,
         discharge: crate::Discharge::of(margin),
     };
-    let mut table = SectionTable::new(lane, band);
+    let mut table = SectionTable::new(lane);
     let mut rows = Vec::new();
     for (fa, fb) in overlapping_pairs(a, b, read, band)? {
         let (Some((ka, sa)), Some((kb, sb))) = (surface(a, fa), surface(b, fb)) else {
@@ -257,7 +261,7 @@ pub(crate) fn section_door<T: Decide + Bounds>(
         }
         // A refusal adds no row: where the faces meet, a later reading of
         // the pair refuses (`honeone/coaxiality-of-two-revolution-carriers-is-tested-five-ways`).
-        let coincidence = match table.read((fa, ka, &sa), (fb, kb, &sb), band) {
+        let coincidence = match table.read((ka, &sa), (kb, &sb), band) {
             Some(Ok(section)) => section.coincidence(),
             Some(Err(_)) | None => None,
         };

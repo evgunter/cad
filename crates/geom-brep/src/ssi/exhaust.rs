@@ -1373,6 +1373,42 @@ mod tests {
     };
     use crate::ssi::SsiError;
 
+    /// **The ℝ³ sweep's refusal arm**, below the pose that guards every
+    /// door to it: a zero-radius sphere has no ring-computable implicit
+    /// enclosure (it divides by `2r`), so the first cell's enclosure is
+    /// refused and the sweep says so typed, naming the cause, rather
+    /// than refining to its cell budget.
+    #[test]
+    fn a_zero_radius_operand_refuses_the_enclosure_typed() {
+        use geom::Surface;
+        use geom_core::{Point3, Vec3};
+        let point = Surface::Sphere {
+            center: Point3::new(0.0, 0.0, 0.0),
+            radius: 0.0,
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let wall = Surface::Cylinder {
+            origin: Point3::new(0.03, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            radius: 0.08,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let floor = SweepFloor::r3(
+            Box3::around(Point3::new(0.0, 0.0, 0.0), 1.5),
+            1e-3,
+            FloorKind::Seeding,
+        )
+        .unwrap();
+        match super::seed_r3(&wall, &point, floor) {
+            Err(SsiError::UnsupportedCertificate { what }) => {
+                assert!(what.contains("zero radius"), "{what}");
+                assert!(what.contains("cannot be proved exhausted"), "{what}");
+            }
+            other => panic!("expected the enclosure refusal, got {other:?}"),
+        }
+    }
+
     fn unit_square() -> UvRect {
         UvRect {
             u: (0.0, 1.0),

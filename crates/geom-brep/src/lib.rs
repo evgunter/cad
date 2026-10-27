@@ -154,13 +154,13 @@ pub use implicit::{
     implicit_residual, min_radius_of_curvature, min_radius_of_curvature_toward,
 };
 pub use intersect::{
-    ConeCylinderSection, ConicArcError, ConicBranch, CylinderSphereSection, EqualCylinderSection,
-    OpenConic, OpenConicSection, PairRoute, ParallelAxes, PlaneConeSection, PlaneCylinderSection,
-    PlaneSite, PlaneSphereSection, PlaneTorusSection, Rung, SectionError, SectionPlane,
-    SectionRadius, SphereSphereSection, cone_cylinder_section, cylinder_axes_coplanar,
-    cylinder_axes_parallel, cylinder_cylinder_section, cylinder_sphere_section, parallel_axes_at,
-    plane_cone_section, plane_cylinder_section, plane_cylinder_section_read, plane_sphere_section,
-    plane_torus_section, route, route_pose, sphere_sphere_section, tilted_section_major,
+    ConeCylinderSection, ConicArcError, ConicBranch, EqualCylinderSection, OpenConic,
+    OpenConicSection, PairRoute, ParallelAxes, PlaneConeSection, PlaneCylinderSection, PlaneSite,
+    PlaneSphereSection, PlaneTorusSection, Rung, SectionError, SectionPlane, SectionRadius,
+    SphereSphereSection, cone_cylinder_section, cylinder_axes_coplanar, cylinder_axes_parallel,
+    cylinder_cylinder_section, parallel_axes_at, plane_cone_section, plane_cylinder_section,
+    plane_cylinder_section_read, plane_sphere_section, plane_torus_section, route, route_pose,
+    sphere_sphere_section, tilted_section_major,
 };
 pub use keys::{CurveKey, PointKey, SurfaceKey, SurfacePair};
 pub use locus::{
@@ -183,7 +183,7 @@ pub use offset_fit_lane::{OFFSET_FIT_DOOR_HOLDERS, OffsetFitLane, ScalarList};
 pub use pair_section::{
     CarriedComponent, CarriedSection, CarryError, ClassCarrier, ComponentShape, CsDecision,
     CsStance, CylinderSpherePose, FittedCarrier, PairSection, PoseRefusal, SectionComponent,
-    SectionPose, SectionRead, SiteFoot, SiteRefusal, SsiLane, ZeroKind, ZeroVerdict, pair_section,
+    SectionRead, SiteFoot, SiteRefusal, SsiLane, ZeroKind, ZeroVerdict, pair_section, square_part,
 };
 pub use pcurve::{
     PCURVE_FIT_SAMPLES, PcurveError, ellipse_pcurve_on_cylinder, ellipse_pcurve_on_plane,

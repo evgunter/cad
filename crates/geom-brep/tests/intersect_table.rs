@@ -10,11 +10,11 @@ use crate::shared::tol::{band, eps};
 use geom::Curve3;
 use geom::{Surface, SurfaceKind};
 use geom_brep::Reach;
+use geom_brep::{ClassCarrier, PairSection, SectionRead};
 use geom_brep::implicit_residual;
 use geom_brep::intersect::{
-    CylinderSphereSection, EqualCylinderSection, OpenConic, PlaneConeSection, PlaneCylinderSection,
-    Rung, SectionError, cylinder_cylinder_section, cylinder_sphere_section, plane_cone_section,
-    plane_cylinder_section, route,
+    EqualCylinderSection, OpenConic, PlaneConeSection, PlaneCylinderSection, Rung, SectionError,
+    cylinder_cylinder_section, plane_cone_section, plane_cylinder_section, route,
 };
 use geom_brep::recourse::Refused;
 use geom_brep::{TorusConvention, TorusRefusal, TorusVerdict};
@@ -872,6 +872,35 @@ fn circle_samples(
         .collect()
 }
 
+/// The cylinder × sphere section value of `cyl` and `sph`, at `T`.
+pub(crate) fn cs_section<T: geom_core::Decide>(
+    cyl: &Surface<T>,
+    sph: &Surface<T>,
+) -> Result<PairSection<T>, SectionError> {
+    match geom_brep::pair_section(cyl, sph, band()) {
+        Ok(SectionRead::Built(s)) => Ok(s),
+        Ok(SectionRead::Elsewhere(route)) => panic!("cylinder × sphere is built: {route:?}"),
+        Err(e) => Err(e),
+    }
+}
+
+/// The closed-form circles of a section, each as (centre, axis, radius).
+#[allow(clippy::type_complexity)] // (centre, axis, radius) per circle
+pub(crate) fn cs_circles<T: Real>(s: &PairSection<T>) -> Vec<(Point3<T>, Vec3<T>, T)> {
+    s.components()
+        .iter()
+        .map(|c| match c.carrier {
+            ClassCarrier::Closed(Curve3::Circle {
+                center,
+                axis,
+                radius,
+                ..
+            }) => (center, axis, radius),
+            ref other => panic!("a coaxial circle, got {other:?}"),
+        })
+        .collect()
+}
+
 /// `R > r`: two circles of the CYLINDER's radius, at the factored
 /// stations `±√((R−r)(R+r))` from the sphere centre — and every point
 /// of both lies on BOTH surfaces, which is the only claim that matters.
@@ -891,31 +920,26 @@ fn a_coaxial_crossing_is_two_circles() {
             posed(&coaxial_pair(1.0, 1.5, 0.0).1),
         ),
     ] {
-        let (s, _) = cylinder_sphere_section(&cyl, &sph, band()).unwrap();
-        let CylinderSphereSection::TwoCircles {
-            center,
-            axis,
-            radius,
-            station,
-        } = s
-        else {
-            panic!("{label}: expected two circles, got {s:?}");
-        };
-        assert_eq!(radius, 1.0, "{label}: the circles carry the CYLINDER's r");
-        assert!(
-            (station - 1.25f64.sqrt()).abs() < 1e-14,
-            "{label}: station {station}"
-        );
-        for st in [station, -station] {
-            for p in circle_samples(center, axis, radius, st) {
+        let s = cs_section(&cyl, &sph).unwrap();
+        let circles = cs_circles(&s);
+        assert_eq!(circles.len(), 2, "{label}: two circles");
+        let centre = s.pose().center();
+        for (c, axis, radius) in circles {
+            assert_eq!(radius, 1.0, "{label}: the circles carry the CYLINDER's r");
+            let station = (c - centre).dot(axis).abs();
+            assert!(
+                (station - 1.25f64.sqrt()).abs() < 1e-14,
+                "{label}: station {station}"
+            );
+            for p in circle_samples(c, axis, radius, 0.0) {
                 assert!(
                     implicit_residual(&cyl, p).abs() < 1e-13,
-                    "{label}: cylinder residual {} at station {st}",
+                    "{label}: cylinder residual {}",
                     implicit_residual(&cyl, p)
                 );
                 assert!(
                     implicit_residual(&sph, p).abs() < 1e-13,
-                    "{label}: sphere residual {} at station {st}",
+                    "{label}: sphere residual {}",
                     implicit_residual(&sph, p)
                 );
             }
@@ -925,8 +949,8 @@ fn a_coaxial_crossing_is_two_circles() {
 
 /// `R = r`: ONE circle at the equator station — classification data.
 /// The row also pins the CONSISTENCY clause: on the same pose the
-/// marcher's own tangency door refuses toward C7 rather than marching,
-/// so the two doors agree and neither constructs a carrier.
+/// marcher refuses toward C7 rather than marching, so the two doors
+/// agree and neither constructs a carrier.
 #[test]
 fn a_coaxial_tangency_is_classification_data_at_both_doors() {
     for (label, cyl, sph) in [
@@ -941,37 +965,31 @@ fn a_coaxial_tangency_is_classification_data_at_both_doors() {
             posed(&coaxial_pair(1.0, 1.0, 0.0).1),
         ),
     ] {
-        let (s, _) = cylinder_sphere_section(&cyl, &sph, band()).unwrap();
-        let CylinderSphereSection::TangentCircle {
-            center,
-            axis,
-            radius,
-        } = s
-        else {
-            panic!("{label}: expected the tangent circle, got {s:?}");
+        let s = cs_section(&cyl, &sph).unwrap();
+        assert_eq!(
+            s.tangency().map(|z| z.decision.name()),
+            Some("cs_wall_reach"),
+            "{label}"
+        );
+        let [c] = s.components() else {
+            panic!("{label}: one component");
         };
-        assert_eq!(radius, 1.0, "{label}");
+        assert!(matches!(c.carrier, ClassCarrier::Unminted(_)), "{label}");
         // It IS the contact locus: zero residual against both.
-        for p in circle_samples(center, axis, radius, 0.0) {
+        let (centre, axis, (r, _)) = (s.pose().center(), s.pose().axis(), s.pose().radii());
+        for p in circle_samples(centre, axis, r, 0.0) {
             assert!(implicit_residual(&cyl, p).abs() < 1e-13, "{label}");
             assert!(implicit_residual(&sph, p).abs() < 1e-13, "{label}");
         }
-        // The SSI's own tangency trilean refuses the SAME pose toward
-        // C7 — one adjudication, two doors that agree.
+        // The SSI refuses the SAME pose toward C7 — one adjudication,
+        // two doors that agree. Pinned to the tangency door exactly,
+        // with its payload, the pose's own reach, decided zero.
         let domain = geom_brep::ssi::SsiDomain {
-            center,
+            center: centre,
             half_extent: 1.5,
             extent: 2.0,
             floor_scale: 1.0,
         };
-        //
-        // Pinned to the TANGENCY door EXACTLY, with its payload. The
-        // row used to accept `TubeStraddles` and `CertificateLimb`
-        // beside it; `CertificateLimb` is not a tangency door at all —
-        // it is a certificate limb failing — so accepting it would
-        // have let the consistency claim green on a refusal that says
-        // nothing about tangency. The payload is the pair's own gap
-        // from the tangent pose, decided zero to tolerance.
         let err = geom_brep::ssi::cylinder_sphere_ssi(&cyl, &sph, domain, band())
             .expect_err("the marcher must refuse a tangency");
         let geom_brep::ssi::SsiError::PairTangent {
@@ -1004,14 +1022,14 @@ fn a_coaxial_short_sphere_is_empty() {
             posed(&coaxial_pair(1.0, 0.5, 0.0).1),
         ),
     ] {
-        let (s, _) = cylinder_sphere_section(&cyl, &sph, band()).unwrap();
-        assert!(matches!(s, CylinderSphereSection::Empty), "{label}: {s:?}");
+        let s = cs_section(&cyl, &sph).unwrap();
+        assert!(s.components().is_empty(), "{label}: {:?}", s.components());
     }
 }
 
 /// **Coaxiality is decided by its margin** (D10): the axis-to-centre
 /// distance, exactly zero here, is the coaxial pose, and the margin
-/// that decided it comes back beside the section.
+/// that decided it is the coincidence the section records.
 #[test]
 fn coaxiality_is_decided_by_the_measured_distance() {
     for (label, cyl, sph) in [
@@ -1026,24 +1044,24 @@ fn coaxiality_is_decided_by_the_measured_distance() {
             posed(&coaxial_pair(1.0, 1.5, 0.0).1),
         ),
     ] {
-        let (s, margin) = cylinder_sphere_section(&cyl, &sph, band()).unwrap();
-        assert!(
-            matches!(s, CylinderSphereSection::TwoCircles { .. }),
-            "{label}: {s:?}"
-        );
-        let geom_core::ErrorTextReading::Value(d) = margin.diagnostic_f64_for_error_text() else {
-            panic!("{label}: the distance is a value: {margin:?}");
+        let s = cs_section(&cyl, &sph).unwrap();
+        assert_eq!(s.components().len(), 2, "{label}");
+        let zero = s.coincidence().expect("the coaxiality is recorded");
+        assert_eq!(zero.decision.name(), "cs_coaxial", "{label}");
+        let geom_core::ErrorTextReading::Value(d) = zero.margin.diagnostic_f64_for_error_text()
+        else {
+            panic!("{label}: the distance is a value: {zero:?}");
         };
         assert!(d.abs() < 1e-12, "{label}: the coaxial margin {d}");
     }
 }
 
-/// **An off-axis centre routes; an in-band one escalates.** A
-/// definitely off-axis centre is the transversal pose the general rung
-/// marches; an offset inside the band is neither, and escalates on the
-/// coaxial row.
+/// **An off-axis centre takes the general rung; an in-band one
+/// escalates.** A definitely off-axis centre is the transversal pose the
+/// general rung marches; an offset inside the band is neither, and
+/// escalates on the coaxial row.
 #[test]
-fn an_off_axis_centre_routes_and_an_in_band_one_escalates() {
+fn an_off_axis_centre_takes_the_general_rung_and_an_in_band_one_escalates() {
     let off = |dx: f64| Surface::Sphere {
         center: Point3::new(dx, 0.0, 0.0),
         radius: 1.5,
@@ -1055,18 +1073,23 @@ fn an_off_axis_centre_routes_and_an_in_band_one_escalates() {
         ("direct", cyl.clone(), off(0.25)),
         ("re-posed twin", posed(&cyl), posed(&off(0.25))),
     ] {
-        let err = cylinder_sphere_section(&c, &s, band()).unwrap_err();
-        let SectionError::RoutesToGeneralRung { why, pair } = err else {
-            panic!("{label}: expected the rung-3 routing refusal, got {err:?}");
-        };
-        assert_eq!(pair, "cylinder×sphere", "{label}");
-        refusal_is_grounded(why, "cylinder x sphere, off axis");
+        let s = cs_section(&c, &s).unwrap();
+        assert!(s.coincidence().is_none(), "{label}: no coincidence off the axis");
+        assert!(
+            !s.components().is_empty()
+                && s
+                    .components()
+                    .iter()
+                    .all(|c| matches!(c.carrier, ClassCarrier::General)),
+            "{label}: {:?}",
+            s.components()
+        );
     }
     for (label, c, s) in [
         ("direct", cyl.clone(), off(3.0 * eps())),
         ("re-posed twin", posed(&cyl), posed(&off(3.0 * eps()))),
     ] {
-        let err = cylinder_sphere_section(&c, &s, band()).unwrap_err();
+        let err = cs_section(&c, &s).unwrap_err();
         let SectionError::Escalated(diag) = err else {
             panic!("{label}: expected an escalation, got {err:?}");
         };
@@ -1099,7 +1122,7 @@ fn the_degeneracy_guard_covers_the_full_convention() {
             ("direct", cyl.clone(), sph.clone()),
             ("re-posed twin", posed(&cyl), posed(&sph)),
         ] {
-            let err = cylinder_sphere_section(&c, &s, band()).unwrap_err();
+            let err = cs_section(&c, &s).unwrap_err();
             let SectionError::DegenerateOperand { what } = err else {
                 panic!("{row} / {label}: expected the degeneracy refusal, got {err:?}");
             };
@@ -1124,39 +1147,33 @@ fn the_reach_trilean_escalates_in_band() {
             posed(&coaxial_pair(1.0, 1.0 + 3.0 * eps(), 0.0).1),
         ),
     ] {
-        let err = cylinder_sphere_section(&c, &s, band()).unwrap_err();
-        // The PREDICATE, not just the variant: this row exists to pin
-        // the REACH trilean's in-band arm, and the two degeneracy rows
-        // and the coaxial row above it all escalate through the
-        // same variant.
-        let SectionError::Escalated(diag) = err else {
-            panic!("{label}: expected an escalation, got {err:?}");
+        // The PREDICATE, not just the variant: the radius rows and the
+        // coaxial row escalate through the same variant.
+        let SectionError::Escalated(diag) = cs_section(&c, &s).unwrap_err() else {
+            panic!("{label}: expected an escalation");
         };
         assert_eq!(diag.predicate, Some("cs_wall_reach"), "{label}");
     }
 }
 
-/// The arm is order-fixed: cylinder first, sphere second. A caller that
-/// hands them the other way round is a caller BUG, typed.
+/// **The value reads the pair in either order**, the `winds` flags in
+/// the order asked, and a pair that is not a cylinder and a sphere is
+/// read elsewhere.
 #[test]
-fn the_cylinder_sphere_arm_names_its_lane() {
+fn the_cylinder_sphere_value_reads_either_order() {
     let (cyl, sph) = coaxial_pair(1.0, 1.5, 0.0);
-    let err = cylinder_sphere_section(&sph, &cyl, band()).unwrap_err();
-    let SectionError::WrongLane { expected } = err else {
-        panic!("expected the lane refusal, got {err:?}");
-    };
-    assert!(expected.contains("cylinder first"), "{expected}");
-    let err = cylinder_sphere_section(&cyl, &cyl, band()).unwrap_err();
-    let SectionError::WrongLane { expected } = err else {
-        panic!("expected the lane refusal, got {err:?}");
-    };
-    assert!(expected.contains("sphere second"), "{expected}");
+    let forward = cs_section(&cyl, &sph).unwrap();
+    let backward = cs_section(&sph, &cyl).unwrap();
+    assert_eq!(forward.components()[0].winds, [true, false]);
+    assert_eq!(backward.components()[0].winds, [false, true]);
+    assert!(matches!(
+        geom_brep::pair_section(&cyl, &cyl, band()),
+        Ok(SectionRead::Elsewhere(_))
+    ));
 }
 
-/// **The route note moved with the arm** (the refusal-text rule): the
-/// sentence that said the coaxial case is "not classified here" is
-/// gone, and the replacement names what IS classified, by which margin,
-/// and what still marches.
+/// **The route note names the section value**: what is classified, by
+/// which margin, and what still marches.
 #[test]
 fn the_cylinder_sphere_route_note_names_the_coaxial_arm() {
     for pair in [
@@ -1164,14 +1181,25 @@ fn the_cylinder_sphere_route_note_names_the_coaxial_arm() {
         (SurfaceKind::Sphere, SurfaceKind::Cylinder),
     ] {
         let note = route(pair.0, pair.1).note;
-        assert!(
-            !note.contains("coaxial circle special case is not classified here"),
-            "the retired sentence survives: {note}"
-        );
         assert!(note.contains("decided Zero by its"), "{note}");
-        assert!(note.contains("cylinder_sphere_section"), "{note}");
+        assert!(note.contains("pair_section"), "{note}");
         assert!(note.contains("still marches"), "{note}");
     }
+}
+
+/// **The pose question gates on the radius too**: `route_pose` reads
+/// the pair's pose, so a radius not definitely positive is not served.
+#[test]
+fn route_pose_reads_the_cylinder_sphere_pose() {
+    let reach = Reach::Measured {
+        at: Point3::origin(),
+        lever: 1.0,
+    };
+    let (cyl, bad) = coaxial_pair(-1.0, 1.5, 0.0);
+    let got = geom_brep::route_pose(&cyl, &bad, &reach, band()).unwrap();
+    assert!(!got.implemented, "a negative cylinder radius is not served: {got:?}");
+    let (cyl, sph) = coaxial_pair(1.0, 1.5, 0.0);
+    assert!(geom_brep::route_pose(&sph, &cyl, &reach, band()).unwrap().implemented);
 }
 
 // ---------------------------------------------------------------------
@@ -1316,18 +1344,10 @@ mod interval {
             axis: iv(Vec3::unit_z()),
             u_ref: iv(Vec3::unit_x()),
         };
-        let (s, _) = cylinder_sphere_section(&cyl, &sph, band()).unwrap();
-        let CylinderSphereSection::TwoCircles {
-            center,
-            axis,
-            radius,
-            station,
-        } = s
-        else {
-            panic!("expected two circles, got {s:?}");
-        };
-        for sign in [Interval::one(), -Interval::one()] {
-            let c = center + axis * (station * sign);
+        let s = super::cs_section(&cyl, &sph).unwrap();
+        let circles = super::cs_circles(&s);
+        assert_eq!(circles.len(), 2, "two circles");
+        for (c, _, radius) in circles {
             for i in 0..=16 {
                 let t = f64::from(i) / 16.0 * core::f64::consts::TAU;
                 let p = c
@@ -1414,10 +1434,16 @@ mod interval {
             axis: iv(Vec3::unit_z()),
             u_ref: iv(Vec3::unit_x()),
         };
-        let (s, _) = cylinder_sphere_section(&cyl, &sph, band()).unwrap();
-        let CylinderSphereSection::TwoCircles { station, .. } = s else {
-            panic!("a near-tangent pose (delta {delta:e}) is still two circles, got {s:?}");
-        };
+        let s = super::cs_section(&cyl, &sph).unwrap();
+        let circles = super::cs_circles(&s);
+        assert_eq!(
+            circles.len(),
+            2,
+            "a near-tangent pose (delta {delta:e}) is still two circles"
+        );
+        // The sphere's centre is the origin, so the first circle's
+        // height is its station.
+        let station = circles[0].0.z;
         // Honest first: a point of each section circle still encloses
         // zero residual on BOTH operands.
         for sign in [Interval::one(), -Interval::one()] {
@@ -1572,11 +1598,9 @@ mod interval {
             axis: iv(Vec3::unit_z()),
             u_ref: iv(Vec3::unit_x()),
         };
-        let (s, _) = cylinder_sphere_section(&cyl, &sph, band()).unwrap();
-        assert!(
-            matches!(s, CylinderSphereSection::TwoCircles { .. }),
-            "{s:?}"
-        );
+        let s = super::cs_section(&cyl, &sph).unwrap();
+        assert!(s.coincidence().is_some(), "decided coaxial at interval");
+        assert_eq!(super::cs_circles(&s).len(), 2, "two circles");
     }
 }
 
