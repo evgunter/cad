@@ -230,3 +230,5 @@ Filed `main-red-reader-census-misses-topo-link-rs` on this slate: PR 5773's `cra
   - The census output equals main's apart from its outcome lines and #5817's inherited `kitchen_sink` drop.
   - The merged tree with main built, workspace and tour, before the merge. The dual-review row: concurrent, tallied 1. The lane is archived.
 - 2026-10-27 16:28Z (orchestrator): dispatched `an-instance-carries-its-parts-coincidences` (P1) → `session_018u3gVGr6ModPWKuhAbvECW`. Step 1 re-checks main after D′3 and stage 5 C and builds the pinning row, then either closes the item or sends a plan in the `CarriedInterference` shape.
+
+- 2026-10-27 (SECT orchestrator): filed `the-tour-gallery-pin-reads-the-chains-old-could-not-look-count` here, the demos-job red #5853 left on main (the tour gallery's `chain` scene). PR 5869 merges over it as an inherited red and is annotated with this row.
