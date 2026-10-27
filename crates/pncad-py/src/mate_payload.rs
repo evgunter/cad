@@ -39,8 +39,8 @@
 //! `Unleverable`.
 
 use pncad::document::{
-    ConstraintId, DocumentId, LeverRefusal, MateFault, MateRef, MateSide, NoChartWhy, ReachRefusal,
-    RecipeNodeId, VarKind,
+    ConstraintId, DocumentId, LeverRefusal, MateFault, MateRef, MateSide, NoChartWhy, Orientation,
+    ReachRefusal, RecipeNodeId, VarKind,
 };
 
 use crate::tags::{lever_refusal_tag, node_error_tag};
@@ -92,6 +92,10 @@ pub struct MateFaultPayload<'a> {
     pub value_ref: Option<MateRef>,
     /// Why a value's freedom has no chart.
     pub why: Option<NoChartWhy>,
+    /// The orientation a mate was written with, where it is backwards.
+    pub orient: Option<Orientation>,
+    /// The orientation to write in its place.
+    pub write: Option<Orientation>,
 }
 
 impl<'a> MateFaultPayload<'a> {
@@ -101,7 +105,7 @@ impl<'a> MateFaultPayload<'a> {
     /// The destructuring is exhaustive with no `..`, so a field added
     /// to the record and not answered here fails to compile — the
     /// same alarm the match over [`MateFault`] is, one level in.
-    pub fn presence(&self) -> [(&'static str, bool); 16] {
+    pub fn presence(&self) -> [(&'static str, bool); 18] {
         let Self {
             mate,
             side,
@@ -119,6 +123,8 @@ impl<'a> MateFaultPayload<'a> {
             to_kind,
             value_ref,
             why,
+            orient,
+            write,
         } = self;
         [
             ("mate", mate.is_some()),
@@ -137,6 +143,8 @@ impl<'a> MateFaultPayload<'a> {
             ("to_kind", to_kind.is_some()),
             ("value_ref", value_ref.is_some()),
             ("why", why.is_some()),
+            ("orient", orient.is_some()),
+            ("write", write.is_some()),
         ]
     }
 
@@ -167,6 +175,8 @@ impl<'a> MateFaultPayload<'a> {
         to_kind: None,
         value_ref: None,
         why: None,
+        orient: None,
+        write: None,
     };
 }
 
@@ -196,7 +206,7 @@ pub fn mate_payload(fault: &MateFault) -> MateFaultPayload<'_> {
             found_document: Some(*found),
             ..none
         },
-        MateFault::NotOnTheCopy { mate } => MateFaultPayload {
+        MateFault::NotOnTheCopy { mate } | MateFault::Unoriented { mate } => MateFaultPayload {
             mate: Some(*mate),
             ..none
         },
@@ -245,6 +255,17 @@ pub fn mate_payload(fault: &MateFault) -> MateFaultPayload<'_> {
             mate: Some(*mate),
             on_kind: Some(*on),
             to_kind: Some(*to),
+            ..none
+        },
+        // The orientation written backwards, and the one to write.
+        MateFault::Backwards {
+            mate,
+            orient,
+            write,
+        } => MateFaultPayload {
+            mate: Some(*mate),
+            orient: Some(*orient),
+            write: Some(*write),
             ..none
         },
         // A value's fault: the value is the subject, by its address.

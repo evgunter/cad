@@ -1392,9 +1392,11 @@ of the target space's axes as the least turn carries it, so a slide a
 plane mate leaves runs in that plane however the plane is tilted, and
 where the face is where the orientation puts it the least turn is the
 identity and a slide is a coordinate on the target's own axes; the
-one **spin** is the angle about the mated direction left after the
-least turn, so no reference axis is chosen on either side and zero
-says the two spaces agree, up to the orientation, as far as the mates
+one **spin** is the angle about the target's own direction (its
+outward normal for a plane), whatever the contact's sense, left after
+the least turn, so no reference axis is chosen on either side, a
+flip written on either side of a rest turns the spin the same way, and
+zero says the two spaces agree, up to the orientation, as far as the mates
 allow. Where the source's own mated direction is one of its axes, one
 carried axis lands on the mated direction and the mate takes that
 slide; otherwise the written slides are admitted only where they span

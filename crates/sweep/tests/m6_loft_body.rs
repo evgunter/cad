@@ -152,13 +152,13 @@ fn shape_iii_volume_matches_the_derived_closed_form() {
     // half-width is 1.1e-13 m³. The flux lane refines to machine
     // precision; the area lane stays at whatever its fixed resolution
     // bought. Nothing in the kernel METERS it — by ruling, not by
-    // omission (S-CERT Q1) — but `props/quad.rs`'s A2 gauge asserts a
+    // omission (S-CERT Q1) — but `props/quad/`'s A2 gauge asserts a
     // generous outer ceiling on it. Widening every face's bracket by a
     // common factor reds THIS row at 1.58x and trips that assert two
     // and a half orders further out: the acceptance row is the tight
     // meter, the assert is the tripwire outside it, and neither
     // substitutes for the other. The tripwire's own figures are not
-    // restated here — `props/quad.rs`'s `area_gauge_ok` is their one
+    // restated here — `props/quad/area.rs`'s `area_gauge_ok` is their one
     // home, and every restatement of them has gone stale once already.
     //
     // Spelled as a bare absolute because this loft has no closed-form

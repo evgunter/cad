@@ -12,9 +12,9 @@ cost: M
 Found off-question by a designer weighing `quad2-rational-max-rounds-dial-decision`
 (2026-10-21, on `quad/check7-sign-walk`); not yet reproduced by the filer.
 
-The reporting target meters the FLUX only. In `crates/geom-brep/src/props/quad.rs`,
+The reporting target meters the FLUX only. In `crates/geom-brep/src/props/quad/`,
 the area pass of the patch lanes runs at a fixed resolution
-(`QUAD2_AREA_PIECES`) and never refines with the rounds. Measured on the
+(`AREA_CELLS_PER_AXIS`) and never refines with the rounds. Measured on the
 quarter torus: the area bracket is 0.47 m² wide (about ±2.4% of π² m²) on every
 round, and it is reported beside a volume the lane calls converged. `area_pad`
 is honest about the width; the "converged" label is not a statement about the

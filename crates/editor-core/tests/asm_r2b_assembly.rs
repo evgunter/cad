@@ -133,7 +133,7 @@ fn seat(doc: ProfileDoc, placement: RecipeNodeId, seat: Seat) -> (ProfileDoc, Ma
         &[
             (Coord::Slide(TargetAxis::X), len(seat.slide[0])),
             (Coord::Slide(TargetAxis::Y), len(seat.slide[1])),
-            (Coord::Spin(editor_core::TargetAxis::Z), fixture::ang(0.0)),
+            (Coord::SPIN, fixture::ang(0.0)),
         ],
     );
     (doc, mate)
@@ -1523,13 +1523,19 @@ fn a_mate_proves_its_faces_only_in_the_sense_it_states() {
 }
 
 /// The seating mate with its flip stripped: a plain plane mate, which
-/// equates the two caps' outward normals and so turns the copy over.
+/// equates the two caps' outward normals, written under the orientation
+/// that turns the copy over about `x`.
 fn unflip(mate: &mut Mate<Formula>) {
     if let Operand::Pose(p) = &mate.to
         && let PoseDef::Flip { pose } = &**p
     {
         mate.to = pose.read.clone();
     }
+    mate.orient = editor_core::Orientation::new(
+        editor_core::SignedAxis::PlusX,
+        editor_core::SignedAxis::MinusZ,
+    )
+    .expect("x and z lie along two axes");
 }
 
 /// **A seat written without its flip turns the copy over beside its

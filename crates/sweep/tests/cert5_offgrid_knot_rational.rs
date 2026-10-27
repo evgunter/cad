@@ -133,7 +133,7 @@ fn body_posture(row: &str, out: &(MassMeasurement<f64>, Option<f64>)) -> EpsPost
 /// the body, not from here.
 ///
 /// "Off-grid" is tested against the coarsest cut the rounds make
-/// (`QUAD2_INIT_PIECES = 8`) and every doubling of it up to the last
+/// (`AXIS_INIT_PIECES = 8`) and every doubling of it up to the last
 /// round's `1024`: a knot that coincided with a cell edge at any of
 /// those resolutions would never have straddled, and the row would be
 /// measuring the on-grid case by accident.

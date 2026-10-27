@@ -20,7 +20,7 @@ still spell the rule inline as `x.sqrt().next_up()`:
 - `crates/geom/src/curves/second_derivative.rs`,
   `nonrational_second_derivative_sup`:
   `let bound = sum_sq.hi().sqrt().next_up();` (PROPS)
-- `crates/geom-brep/src/props/quad.rs`, `sqrt_enclosure`:
+- `crates/geom-brep/src/props/quad/`, `sqrt_enclosure`:
   `hi.next_up()` over `x.hi().max(0.0).sqrt()`, two lines apart, so a
   one-line grep for `sqrt().next_up()` misses it. The lower end is
   `sqrt_down` spelled out. (PROPS)
@@ -50,13 +50,13 @@ reason.
 
 Found by the `ssi/chart-rate` lane's sweep for `sqrt().next_up()`.
 That pattern cannot match a root and its step written apart, which is
-how `quad.rs` was found only by a second pass over `fn *sqrt*`.
+how `props/quad/` was found only by a second pass over `fn *sqrt*`.
 
 ## Since `linalg/certification-gains-a-sqrt-door`
 
 The door exists (`Certification::sqrt`, the backend's root), and
 `sqrt_up`/`sqrt_down` are gone from `geom_core::interval`. Two of the
-three sites retired into the door on that branch: `quad.rs`'s
+three sites retired into the door on that branch: `props/quad/`'s
 `sqrt_enclosure` and the `chords.rs` closing root. The backend's root
 of `[0, 0]` is now exactly `[0, 0]` (`interval_transcendentals`'
 `sqrt_hi` used to pad it to the least subnormal, below the 2Prod
