@@ -51,6 +51,7 @@ graft is made, and that document does not reach this row. Its
 refusal comes from the re-chart moving a pole and its meridians under
 their kept keys, not from the graft.
 
+<<<<<<< HEAD:work/wire/a-sphere-recut-grafts-its-rotated-shell-under-keys-no-record-carries.md
 ## Moved to WIRE at P1 (WIRE orchestrator, 2026-10-26)
 
 PR 5795's FULL review, by inspection, found that a published NAME is wrong today, not only a record:
@@ -61,3 +62,21 @@ PR 5795's FULL review, by inspection, found that a published NAME is wrong today
 This row's two paragraphs disagree. Lines 45-52 say the document does not reach this row; the evidence PR 5795's lane appended says it did not look for one. The review's census resolves it: the document does reach this row.
 
 A wrong published name is P1, and published names are WIRE's ground, so the row moved here by `git mv`, with its id unchanged. The fix reads `BooleanNaming` (fragments, discards, chart cuts) through the re-chart map that PR 5795 adds (`Recharts`). The `wire-rechart` lane takes it after PR 5795.
+=======
+## Evidence (2026-10-26, WIRE `wire/re-chart-rows-name-input-cells`)
+
+The boolean's coincidence rows are now read back through the re-chart:
+`boolean/ops.rs` `apply_recuts` returns each re-charted shell's cells
+in the re-cut operand (`Recharts`), the first turned shell's input-keyed
+cells and every grafted one's new keys alike, and
+`respell_through_cuts` reads each as its input shell's least face. The
+naming record (`BooleanNaming`) is not read through it, so this row's
+debt stands, and it covers the first turned shell too: its cells keep
+their input keys at turned places, so a fragment or discard row naming
+one names an operand cell that stands elsewhere. `Recharts` is the map
+a fix here can read. The documents that reach it are `sweep`'s
+`m5_s13_pips::two_pips_cut_under_the_group_arm`,
+`review_pr12_probes::probe_h_door_a_closed_tool` and the two
+`spheres_crossing_off_every_edge` builds, all `topo`-level;
+this lane did not look for an `editor-core` document that reaches it.
+>>>>>>> origin/main:work/orbit/a-sphere-recut-grafts-its-rotated-shell-under-keys-no-record-carries.md

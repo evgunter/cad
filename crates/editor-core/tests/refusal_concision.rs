@@ -406,6 +406,15 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             },
         ),
         (
+            "RechartedRowUnstated",
+            BooleanError::RechartedRowUnstated {
+                operand: Operand::B,
+                relation: topo::Relation::SameOpposite,
+                faces: vec![face, face],
+                what: "only a point decided there is stated by the faces that hold it",
+            },
+        ),
+        (
             "GermFrameUnsupported",
             BooleanError::GermFrameUnsupported {
                 a_face: face,
