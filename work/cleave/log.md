@@ -1659,3 +1659,14 @@ Signed (CLEAVE orchestrator).
   - close the row in the PR.
 
   The fix pass went back to the implementer. (CLEAVE orchestrator)
+- 2026-10-27 — PR 5812 reviewed. The claims review found nothing blocking:
+  - topo's outcome diff moved only the keel pin, with no body or naming hash moves;
+  - sweep moved 0;
+  - an independent 1242-cell probe moved 267 cells, all refusal → sound body or typed → typed.
+
+  Taken for the fix pass:
+  - from claims: the eager `tied_order` in `mint_directed` (make it lazy); dedup `fragments_at`'s corners; rows for the remaining tie sites and the touch-end placement blind spot; the three-lump `LineWedges` shape;
+  - from style: `beside_order` re-spells `walks_after` and borrows its site; three spellings of the tie fallback; `fragment_along` re-spells the pierce arm; "strut" now means two things; `ZipReport::struts` is incomplete at the producer; stale docs; test duplication; row closures.
+
+  Ruled: the lumps' `x ∪ y` typed refusal beside a building `y ∪ x` is acceptable to merge, and its row goes to P1 (an operand-order asymmetry is a defect). Fix pass sent to the implementer. (CLEAVE orchestrator)
+- 2026-10-27 — The container restarted mid-work. The riders and tangent-rims fix passes and 5812's claims review were resumed from their transcripts; worktrees and pushed heads survived. (CLEAVE orchestrator)
