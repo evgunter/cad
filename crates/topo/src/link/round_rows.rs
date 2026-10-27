@@ -168,12 +168,12 @@ fn turn(axis: Vec3<f64>, angle: f64) -> impl Fn(Vec3<f64>) -> Vec3<f64> {
     }
 }
 
+/// Fans about the origin: each face's outward normal and its sector's
+/// directions in turn.
+type Fans = Vec<(Vec3<f64>, Vec<Vec3<f64>>)>;
+
 /// A link at `at` from fans written about the origin, turned by `rot`.
-fn turned_link(
-    at: Point3<f64>,
-    rot: &dyn Fn(Vec3<f64>) -> Vec3<f64>,
-    fans: &[(Vec3<f64>, Vec<Vec3<f64>>)],
-) -> Link<f64> {
+fn turned_link(at: Point3<f64>, rot: &dyn Fn(Vec3<f64>) -> Vec3<f64>, fans: &Fans) -> Link<f64> {
     let sectors = fans
         .iter()
         .map(|(m, pts)| {
@@ -200,7 +200,7 @@ fn v(x: f64, y: f64, z: f64) -> Vec3<f64> {
 }
 
 /// A block's corner, its material where `x, y, z ≤ 0`.
-fn corner() -> Vec<(Vec3<f64>, Vec<Vec3<f64>>)> {
+fn corner() -> Fans {
     let (x, y, z) = (v(-1.0, 0.0, 0.0), v(0.0, -1.0, 0.0), v(0.0, 0.0, -1.0));
     vec![
         (v(1.0, 0.0, 0.0), vec![y, z]),
@@ -210,7 +210,7 @@ fn corner() -> Vec<(Vec3<f64>, Vec<Vec3<f64>>)> {
 }
 
 /// A block's edge along `y`, its material where `x, z ≤ 0`.
-fn ridge() -> Vec<(Vec3<f64>, Vec<Vec3<f64>>)> {
+fn ridge() -> Fans {
     let (y, ny) = (v(0.0, 1.0, 0.0), v(0.0, -1.0, 0.0));
     vec![
         (v(0.0, 0.0, 1.0), vec![y, v(-1.0, 0.0, 0.0), ny]),
@@ -222,7 +222,7 @@ fn ridge() -> Vec<(Vec3<f64>, Vec<Vec3<f64>>)> {
 /// off the touch, its axis, convex?), and what the touch reads.
 struct Pose {
     name: &'static str,
-    cell: fn() -> Vec<(Vec3<f64>, Vec<Vec3<f64>>)>,
+    cell: fn() -> Fans,
     cyl: bool,
     centre: Vec3<f64>,
     axis: Vec3<f64>,

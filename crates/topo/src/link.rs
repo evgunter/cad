@@ -1918,7 +1918,7 @@ impl<T: Decide> Round<T> {
     }
 
     /// `q` less the centre, or less the axis's origin.
-    fn from_axis(&self, q: Point3<T>) -> Vec3<T> {
+    fn off_centre(&self, q: Point3<T>) -> Vec3<T> {
         match self.at {
             Axis::Centre(c) | Axis::Line(c, _) => q - c,
         }
@@ -1928,13 +1928,13 @@ impl<T: Decide> Round<T> {
     /// away from the material: out of a ball or a pin, into a socket's
     /// or a bore's hollow.
     pub fn offset(&self, q: Point3<T>) -> T {
-        let d = self.across(self.from_axis(q)).norm() - self.radius;
+        let d = self.across(self.off_centre(q)).norm() - self.radius;
         if self.convex { d } else { -d }
     }
 
     /// The outward unit normal at `p`, a point of the carrier.
     fn outward(&self, p: Point3<T>) -> Vec3<T> {
-        let n = self.across(self.from_axis(p)).normalize();
+        let n = self.across(self.off_centre(p)).normalize();
         if self.convex { n } else { -n }
     }
 
@@ -1950,7 +1950,7 @@ impl<T: Decide> Round<T> {
     /// whole segment.
     pub fn lowest_on(&self, (x0, x1): (Point3<T>, Point3<T>)) -> T {
         let e = x1 - x0;
-        let (w, u) = (self.across(self.from_axis(x0)), self.across(e));
+        let (w, u) = (self.across(self.off_centre(x0)), self.across(e));
         let ends = self.offset(x0).min(self.offset(x1));
         let t = -w.dot(u) / u.dot(u);
         // Where the least is, is structure, as in [`Link::lowest_on`]: a

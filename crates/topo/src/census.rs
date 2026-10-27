@@ -8006,7 +8006,7 @@ fn round_face<T: Decide>(
                     let rel = p - center;
                     let h = rel.dot(axis);
                     let across = (rel - axis * h).norm() - radius;
-                    (h * h + across * across).sqrt()
+                    (h.powi(2) + across.powi(2)).sqrt()
                 }
                 _ => return Err(TouchUnread::Unreadable),
             };
