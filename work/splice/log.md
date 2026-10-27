@@ -592,3 +592,24 @@ letter H, a concurrent pair). This is where lily wall 8 now stops.
 - PR 5814 (main's slow-set reds and the past-every-reach axes) is on
   its fix pass. PR 5821 is the `[ev]` short readout for the M-tier
   miss at DR-353.
+
+## 2026-10-27 — PR 5814 (main's slow-set reds; the exit's axes) merges
+
+Five slow-set rows were red on main and filed nowhere; the lane
+bisected each.
+- **Two are SPLICE's, from PR 5789.** Its past-every-reach exit read
+  the reach hull on world axes, so 6 of 13 poses refused. It now reads
+  along planar face normals plus the anchor→point axis. The lofted
+  union check's re-pin now names the concave wall.
+- **The rest are other programs'.** FLUX (PR 5734), CLEAVE (PR 5546)
+  and QUAD (PR 5741, found while running topo's set) are filed on
+  their slates with bisects.
+
+Letter M, sequential (byte 202). The one review was APPROVE-WITH-FIXES
+with no MAJOR. The exit is sound for any direction. The planar-normal
+candidate had no red row; the reviewer's probe adopted. One fix pass,
+`a289dc31`.
+
+The root cause is a process gap: hosted CI runs no slow set, and
+PR 5789's lane skipped sweep's. Every SPLICE brief now binds sweep's
+and topo's full slow sets.
