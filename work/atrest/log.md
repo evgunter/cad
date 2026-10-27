@@ -195,3 +195,11 @@ Filed `main-red-reader-census-misses-topo-link-rs` on this slate: PR 5773's `cra
 - 2026-10-27 08:46Z (orchestrator): dispatched `curved-copies-filling-one-volume-read-as-undecidable` (P1, H) → `session_018u3gVFFPmQbjWscDyrESrE`, branch `atrest/curved-copies-filling-one-volume-interfere`.
   - Plan-first: deciding that two `SurfaceKey`s carry one surface may be a design fork.
   - The caps go through `planar_interiors_meet` in the census, since `chart_region.rs` is CHARTTAIL's.
+- 2026-10-27 10:08Z (orchestrator): **#5827 merged** at `7c3352aa`, head `179c6f8e`, CI green.
+  - The fix pass (`09e1f6d8`) was read by me. The concave arm is exact by the hollow's convexity.
+  - The main merge carried #5823 (one conflict, `TouchSite::verdict`). The dual-review row is sequential and the last commit.
+  - Main builds after the merge. The lane is archived.
+  - `gap-reads-no-curved-cell-below-a-face` is narrowed, keeping cone, torus, NURBS, curved edges and cells whose own link is curved. `gap-reads-a-cells-carrier-beyond-the-cell` is now P2.
+- 2026-10-27 08:52Z (orchestrator): the curved-copies plan was approved; it is not a design fork. Door 1's margin ladder decides one carrier for distinct-key cylinders and spheres, as C2 and the boolean's glue already do.
+  - Added rows: a copy turned about its own axis (seams apart); two half-cylinders sharing only seam rulings (no SameSide, never Ok(false)); a cap-cut sphere (a proper subset).
+  - Rim pairs (cap against the other copy's wall) stay as evidence on the one loud finding.
