@@ -1570,7 +1570,7 @@ impl CertCheck {
 ///   ε_in as a stopgap ([`Unsized::residual_in_file`]); and past ε_in a
 ///   defect ending names the file ([`ReadAt::culprit`]), sized or not.
 #[must_use]
-pub fn recourse(check: CertCheck, arm: RefusedArm<'_>, at: impl Into<ReadAt>) -> String {
+pub(crate) fn recourse(check: CertCheck, arm: RefusedArm<'_>, at: impl Into<ReadAt>) -> String {
     let at = at.into();
     match (check.ending(), at) {
         (Ending::Sized(sized), at) => sized.recourse(arm, at),
