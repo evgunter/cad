@@ -53,13 +53,14 @@ fn turned() -> Pose {
 /// past its charge. The union is one solid of volume `6000`.
 #[test]
 fn two_long_bars_overlapping_by_half_their_length_build_their_union() {
-    // Pinned at ε = 1e-12 to limb 2's measured in-band escalation: the
-    // kilometre bars' edges, outside the session box
+    // Pinned to limb 2's kernel limit at ε = 1e-12: the kilometre bars'
+    // edges, outside the session box
     // (`work/offset/the-session-box-is-not-enforced-at-construction.md`),
     // measure their ends against their planes in certification arithmetic
-    // with an enclosure from zero to past the band (about 1e-12 at 3 to
-    // 6 km, the data's own rounding), which the band cannot decide.
-    test_utils::kernel_limit::pinned_row_in_band(
+    // at `[0, about 1e-12]`, the data's own rounding at 3 to 6 km — an
+    // enclosure reaching zero, so only an upper bound, and the
+    // composite's stall stands.
+    test_utils::kernel_limit::pinned_row(
         geom_core::Tol::witness().eps(),
         &[1e-12],
         "two_long_bars_overlapping_by_half_their_length_build_their_union",
@@ -96,13 +97,14 @@ fn two_long_bars_overlapping_by_half_their_length_build_their_union() {
 /// coordinates, so the union is one solid of volume `6001`.
 #[test]
 fn a_cube_on_a_six_kilometre_bar_builds_its_union() {
-    // Pinned at ε = 1e-12 to limb 2's measured in-band escalation: the
-    // kilometre bars' edges, outside the session box
+    // Pinned to limb 2's kernel limit at ε = 1e-12: the kilometre bars'
+    // edges, outside the session box
     // (`work/offset/the-session-box-is-not-enforced-at-construction.md`),
     // measure their ends against their planes in certification arithmetic
-    // with an enclosure from zero to past the band (about 1e-12 at 3 to
-    // 6 km, the data's own rounding), which the band cannot decide.
-    test_utils::kernel_limit::pinned_row_in_band(
+    // at `[0, about 1e-12]`, the data's own rounding at 3 to 6 km — an
+    // enclosure reaching zero, so only an upper bound, and the
+    // composite's stall stands.
+    test_utils::kernel_limit::pinned_row(
         geom_core::Tol::witness().eps(),
         &[1e-12],
         "a_cube_on_a_six_kilometre_bar_builds_its_union",
@@ -166,13 +168,14 @@ fn stood_down(tol: Tol) -> bool {
 /// message names the precision limit's recourse, not a move apart.
 #[test]
 fn an_overlap_inside_the_rounding_refuses_at_the_result_gate_on_the_precision() {
-    // Pinned at ε = 1e-12 to limb 2's measured in-band escalation: the
-    // kilometre bars' edges, outside the session box
+    // Pinned to limb 2's kernel limit at ε = 1e-12: the kilometre bars'
+    // edges, outside the session box
     // (`work/offset/the-session-box-is-not-enforced-at-construction.md`),
     // measure their ends against their planes in certification arithmetic
-    // with an enclosure from zero to past the band (about 1e-12 at 3 to
-    // 6 km, the data's own rounding), which the band cannot decide.
-    test_utils::kernel_limit::pinned_row_in_band(
+    // at `[0, about 1e-12]`, the data's own rounding at 3 to 6 km — an
+    // enclosure reaching zero, so only an upper bound, and the
+    // composite's stall stands.
+    test_utils::kernel_limit::pinned_row(
         geom_core::Tol::witness().eps(),
         &[1e-12],
         "an_overlap_inside_the_rounding_refuses_at_the_result_gate_on_the_precision",
@@ -212,13 +215,14 @@ fn an_overlap_inside_the_rounding_refuses_at_the_result_gate_on_the_precision() 
 /// contacts too; the row reads only the census's precision findings.)
 #[test]
 fn an_overlap_inside_the_rounding_escalates_at_validation_on_the_precision() {
-    // Pinned at ε = 1e-12 to limb 2's measured in-band escalation: the
-    // kilometre bars' edges, outside the session box
+    // Pinned to limb 2's kernel limit at ε = 1e-12: the kilometre bars'
+    // edges, outside the session box
     // (`work/offset/the-session-box-is-not-enforced-at-construction.md`),
     // measure their ends against their planes in certification arithmetic
-    // with an enclosure from zero to past the band (about 1e-12 at 3 to
-    // 6 km, the data's own rounding), which the band cannot decide.
-    test_utils::kernel_limit::pinned_row_in_band(
+    // at `[0, about 1e-12]`, the data's own rounding at 3 to 6 km — an
+    // enclosure reaching zero, so only an upper bound, and the
+    // composite's stall stands.
+    test_utils::kernel_limit::pinned_row(
         geom_core::Tol::witness().eps(),
         &[1e-12],
         "an_overlap_inside_the_rounding_escalates_at_validation_on_the_precision",
@@ -267,13 +271,14 @@ fn an_overlap_inside_the_rounding_escalates_at_validation_on_the_precision() {
 /// undeclared touch of two solids is.)
 #[test]
 fn bars_meeting_exactly_raise_no_precision_escalation_at_validation() {
-    // Pinned at ε = 1e-12 to limb 2's measured in-band escalation: the
-    // kilometre bars' edges, outside the session box
+    // Pinned to limb 2's kernel limit at ε = 1e-12: the kilometre bars'
+    // edges, outside the session box
     // (`work/offset/the-session-box-is-not-enforced-at-construction.md`),
     // measure their ends against their planes in certification arithmetic
-    // with an enclosure from zero to past the band (about 1e-12 at 3 to
-    // 6 km, the data's own rounding), which the band cannot decide.
-    test_utils::kernel_limit::pinned_row_in_band(
+    // at `[0, about 1e-12]`, the data's own rounding at 3 to 6 km — an
+    // enclosure reaching zero, so only an upper bound, and the
+    // composite's stall stands.
+    test_utils::kernel_limit::pinned_row(
         geom_core::Tol::witness().eps(),
         &[1e-12],
         "bars_meeting_exactly_raise_no_precision_escalation_at_validation",

@@ -419,21 +419,20 @@ fn kernel_limit(
     }
 }
 
-/// **A long line between two planes is decided on its measured ends,
-/// and never as the kernel's limit**: a 12 km line where two skew planes
-/// cross (outside the session box), at the gate's finest band. Its
-/// distance from each plane is affine along it, so the sup is at an end,
-/// and each end's distance is measured in certification arithmetic, the
-/// data lifted through its certified brackets. At 12 km that enclosure
-/// is `[0, 9.1e-12]`, the data's own rounding, which straddles the
-/// band's edge: the band cannot decide it, and limb 2 escalates on the
-/// measured value ([`AnalyticRung3Refusal::Escalated`] on
-/// [`geom_brep::Rung3Limb::HullValue`]), whatever the composite's own bound read.
-/// Red under an ends rule read in round-to-nearest `f64` (which passed
-/// this line on dot products rounding past the band), and under one
-/// that lets the composite's stall stand beside a measured end.
+/// **A long line between two planes, past the session box, is the
+/// kernel's limit**: a 12 km line where two skew planes cross, at the
+/// gate's finest band. Its distance from each plane is affine along it,
+/// so the sup is at an end, and each end's distance is measured in
+/// certification arithmetic, the data lifted through its certified
+/// brackets. At 12 km that enclosure is `[0, 9.1e-12]`, the data's own
+/// rounding: it reaches zero, so it is only an upper bound, which says
+/// nothing about the input, and the composite's stall stands — at `f64`
+/// the kernel's limit ([`AnalyticRung3Refusal::KernelLimit`]), never the
+/// measured escalation. Red under an ends rule read in round-to-nearest
+/// `f64` (which passed this line on dot products rounding past the band),
+/// and under one that escalates on an end enclosure reaching zero.
 #[test]
-fn a_twelve_kilometre_line_between_planes_escalates_on_its_measured_ends() {
+fn a_twelve_kilometre_line_between_planes_refuses_as_the_kernel_limit() {
     let unit = |v: Vec3<f64>| v / v.norm();
     let at = Point3::new(0.3, -0.2, 0.1);
     let (n1, n2) = (
@@ -454,10 +453,7 @@ fn a_twelve_kilometre_line_between_planes_escalates_on_its_measured_ends() {
         matches!(
             got,
             Err(CertifyError::AnalyticRung3(
-                AnalyticRung3Refusal::Escalated {
-                    limb: geom_brep::Rung3Limb::HullValue,
-                    ..
-                }
+                AnalyticRung3Refusal::KernelLimit { .. }
             ))
         ),
         "{got:?}"

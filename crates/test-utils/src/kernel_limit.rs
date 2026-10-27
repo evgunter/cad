@@ -19,10 +19,11 @@
 //! limit at a point scalar, the stall at an enclosure one.
 //!
 //! **Neither is a distance measured in the band.** Where limb 2 measures
-//! a value in the ambiguity band, or straddling its edge (a line's ends
-//! against a plane), the input is ambiguous at that tolerance and limb 2
-//! escalates on the measured value (`Escalated` on `HullValue`), which
-//! no kernel-limit pin accepts; [`pinned_row_in_band`] pins that.
+//! a distance whose enclosure excludes zero in the ambiguity band, or
+//! straddling its edge (a line's end against a plane), the input is
+//! ambiguous at that tolerance and limb 2 escalates on the measured
+//! value (`Escalated` on `HullValue`), which no kernel-limit pin
+//! accepts.
 
 #![allow(clippy::panic)]
 
@@ -39,10 +40,6 @@ const STALL_MARK: &str = "AnalyticRung3(Stalled {";
 
 /// The `Display` phrase of the stall at an enclosure scalar.
 const STALL_DISPLAY: &str = "is undecided over this input";
-
-/// The `Debug` marks of limb 2's measured in-band escalation: a value
-/// measured in the ambiguity band, or straddling its edge.
-const IN_BAND_MARKS: [&str; 2] = ["AnalyticRung3(Escalated {", "limb: HullValue"];
 
 /// **The scalar a fixture reads at**, which names the one shape its
 /// stall takes: [`Scalar::Point`] (`f64`, the probe) refuses as the
@@ -95,16 +92,6 @@ pub fn says_kernel_limit(sentence: &str) -> bool {
 #[must_use]
 pub fn says_kernel_limit_at(scalar: Scalar, sentence: &str) -> bool {
     sentence.contains(scalar.marks().1)
-}
-
-/// Whether `refusal` holds limb 2's measured in-band escalation
-/// (`Escalated` on `HullValue`): a distance measured in the ambiguity
-/// band or straddling its edge, an ambiguity of the input and not the
-/// kernel's limit, at any scalar.
-#[must_use]
-pub fn is_in_band(refusal: &dyn Debug) -> bool {
-    let text = format!("{refusal:?}");
-    IN_BAND_MARKS.iter().all(|m| text.contains(m))
 }
 
 /// Whether `eps` is one of `rows` (each read to a part in a thousand).
@@ -208,33 +195,6 @@ pub fn pinned_row_at(
             let (debug, display) = scalar.marks();
             message.contains(debug) || message.contains(display)
         },
-    );
-}
-
-/// **A whole row pinned to the measured in-band escalation**
-/// ([`is_in_band`]): at an ε in `refused_at` the row `f` must stop on
-/// limb 2's `Escalated` on `HullValue` — the input ambiguous at that
-/// tolerance, as an edge whose ends measure past the zero band within
-/// their rounding is; at any other ε it runs as written.
-///
-/// # Panics
-///
-/// At a pinned ε, when `f` passes or panics for another reason; at any
-/// other, as `f` does.
-#[track_caller]
-pub fn pinned_row_in_band(
-    eps: f64,
-    refused_at: &[f64],
-    what: &str,
-    f: impl FnOnce() + std::panic::UnwindSafe,
-) {
-    stops_on(
-        eps,
-        refused_at,
-        what,
-        "limb 2's measured in-band escalation",
-        f,
-        |message| IN_BAND_MARKS.iter().all(|m| message.contains(m)),
     );
 }
 

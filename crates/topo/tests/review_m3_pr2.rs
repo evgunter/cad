@@ -321,13 +321,14 @@ fn r4_straight_cap_corner_single_wedge_single_null_edge() {
 /// (a), (b) and (d) run in the default build.
 #[test]
 fn r5_crossing_vertex_on_is_declared_not_measured() {
-    // Pinned at ε = 1e-12 to limb 2's measured in-band escalation: its 2 km
-    // edges, outside the session box
+    // Pinned to limb 2's kernel limit at ε = 1e-12: its 2 km edges,
+    // outside the session box
     // (`work/offset/the-session-box-is-not-enforced-at-construction.md`),
     // measure their ends against their planes in certification arithmetic
-    // with an enclosure [0, 1.5e-11], the data's own rounding at that
-    // length, which the band cannot decide. It claims no miss.
-    test_utils::kernel_limit::pinned_row_in_band(
+    // at [0, 1.5e-11], the data's own rounding at that length — an
+    // enclosure reaching zero, so only an upper bound, and the
+    // composite's stall stands. It claims no miss.
+    test_utils::kernel_limit::pinned_row(
         geom_core::Tol::witness().eps(),
         &[1e-12],
         "r5_crossing_vertex_on_is_declared_not_measured",

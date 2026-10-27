@@ -148,11 +148,18 @@ from it by a function affine along it, whose sup is at an end, so a
 reading that neither clears nor shows a miss there is decided on the
 two ends' measured distances, `(p − o)·n` over `|n|` in certification
 arithmetic at every scalar (the data and the ends' parameters lifted
-through their certified brackets): both in the band certify the edge,
-one past it is a miss, and an end in the ambiguity band or straddling
-its edge escalates on that measured value (`Escalated` on `HullValue`):
-the input is ambiguous at the tolerance, and the stall is the verdict
-only where nothing measured lies outside the zero band. At an enclosure scalar a bound that
+through their certified brackets), read by whether an end's enclosure
+excludes zero. An end whose floor is above zero is a measured,
+certified non-zero distance: within the zero band it passes, a floor
+past `Kε` is a miss, and otherwise — in the ambiguity band or
+straddling its edge — it escalates on that measured value (`Escalated`
+on `HullValue`), the input ambiguous at the tolerance. An end whose
+floor is at or below zero (it cannot exclude the carrier lying on the
+plane) passes if its upper end is within the band, and otherwise is
+only an upper bound, which says nothing about the input: it adds
+nothing to the composite's stall, which is the verdict (the kernel
+limit at a point scalar, `Stalled` at an enclosure one). Both ends
+passing certify the edge; a miss, then an escalation, refuses. At an enclosure scalar a bound that
 stalls is undecided at that input (`AnalyticRung3Refusal::Stalled`),
 and over a parameter box the drive bisects it (E6); the refusal carries
 the enclosure and claims no cause and no terminality. A floor measured
