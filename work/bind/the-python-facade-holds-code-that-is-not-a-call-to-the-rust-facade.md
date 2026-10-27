@@ -21,6 +21,8 @@ Resting an existing part on a face has no façade gesture, so each caller builds
 - **Viewer:** `viewer/src/matetool.rs:718` builds the same mate itself and flips the target.
 - **Sketch-on-face**, the one rest the façade does own (`editor-core/src/edit.rs:6466`, re-exported at `pncad/src/document.rs:105`, called from `pncad-py/src/py/doc.rs:1696`), flips the copy.
 
+- **The viewer's snap** (`viewer/src/session/snap.rs`, `snapped`) restates the value chart to write a fresh mate's values: the least turn onto the mated direction, the nearest orientation, the residual spin about the target's own direction, and which slides the mate leaves. That is gesture logic in the viewer. The façade rest gesture should own it, so the viewer and Python call one door. PR 5742 moved sketch-on-face's own orientation pick into the façade (`Recording::sketch_on_face`, `orient: None`) for the same reason; the snap is the rest of that class.
+
 Before PR 5742's ruling (b), the spin read the flip, so the same contact turned opposite ways depending on which caller spelled it. (b) removes that symptom; the duplication that caused it remains.
 
 ## What fixing it is

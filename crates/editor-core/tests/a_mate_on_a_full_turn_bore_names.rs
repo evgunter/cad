@@ -113,10 +113,10 @@ fn mate(a: f64, y0: f64, h: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     // quarter turn about `x`, then `−a` about `z`, slid `−y0` along `z`.
     let placed = editor_core::Placed::unmated(vec![
         (
-            Coord::Spin(TargetAxis::X),
+            Coord::Spin(Some(TargetAxis::X)),
             Formula::turn_over(4).expect("a quarter turn"),
         ),
-        (Coord::Spin(TargetAxis::Z), ang(-a)),
+        (Coord::Spin(Some(TargetAxis::Z)), ang(-a)),
         (Coord::Slide(TargetAxis::Z), len(-y0)),
     ]);
     let space = doc

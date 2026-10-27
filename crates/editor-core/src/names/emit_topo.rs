@@ -1534,97 +1534,28 @@ enum KeySpace {
     Graft,
 }
 
-/// **The one read of a boolean result's key layout**: which operand a
-/// result-arena key belongs to, its key in that operand's space, and
-/// where that key lives. A result key is an A key only where A's clone
-/// is the arena, and a B key either through the graft rows (`inv`,
-/// destination → source) or because B's clone is the arena itself — so
-/// "not grafted" means "A" only in the grafted layout. Every pass reads
-/// keys through here, and the side and its key space come out of one
-/// match rather than being re-derived from the layout.
+/// **A result key read back to its operand**
+/// ([`topo::BooleanNaming::operand_of`]): which operand a result-arena
+/// key belongs to, its key in that operand's space, and where that key
+/// lives. Every pass that reads a result key back reads it through
+/// here.
 ///
 /// # Panics
 ///
-/// On any other layout: `topo`'s boolean builds its result as A's clone
-/// with B grafted in, or as one operand's clone with the other absent,
-/// and records which in `BooleanNaming::a_keys` and `b_keys`.
+/// As [`topo::BooleanNaming::operand_of`].
 #[track_caller]
 fn operand_key<K: Copy + Ord>(
     naming: &topo::BooleanNaming,
     inv: &BTreeMap<K, K>,
     k: K,
 ) -> (OpSide<K>, KeySpace) {
-    use topo::OperandKeys;
-    match (naming.a_keys, naming.b_keys) {
-        (OperandKeys::Direct, OperandKeys::Grafted) => match inv.get(&k) {
-            Some(&kb) => (OpSide::B(kb), KeySpace::Graft),
-            None => (OpSide::A(k), KeySpace::Arena),
-        },
-        (OperandKeys::Direct, OperandKeys::Absent) => (OpSide::A(k), KeySpace::Arena),
-        (OperandKeys::Absent, OperandKeys::Direct) => (OpSide::B(k), KeySpace::Arena),
-        (a_keys, b_keys) => unreachable!(
-            "a boolean's naming records operand keys {a_keys:?} and {b_keys:?}: `topo`'s boolean \
-             builds its result as A's clone with B grafted in, or as one operand's clone with the \
-             other absent"
-        ),
-    }
-}
-
-/// **Which operand face each face of a boolean result descends from**,
-/// by entity: the operand and the root face in that operand's space,
-/// read through the graft rows and the fragment rows. A union's fold
-/// reads it step by step to follow each face to the member faces it
-/// descends from.
-pub(crate) struct FaceDescent<'n> {
-    naming: &'n topo::BooleanNaming,
-    inv_faces: BTreeMap<FaceKey, FaceKey>,
-    a_rows: &'n topo::FaceDivisions,
-    b_rows: &'n topo::FaceDivisions,
-}
-
-impl<'n> FaceDescent<'n> {
-    pub(crate) fn of(naming: &'n topo::BooleanNaming) -> Self {
-        Self {
-            naming,
-            inv_faces: naming.graft_faces.iter().map(|&(s, d)| (d, s)).collect(),
-            a_rows: &naming.face_fragments_a,
-            b_rows: &naming.face_fragments_b,
-        }
-    }
-
-    /// The operand face result face `f` descends from. A merged face
-    /// descends from each face it absorbed as well: see
-    /// [`FaceDescent::merged`].
-    pub(crate) fn result_face(&self, f: FaceKey) -> Result<(topo::Operand, FaceKey), NamingError> {
-        let (operand, k) = operand_key(self.naming, &self.inv_faces, f).0.of_operand();
-        Ok((operand, self.clone_face(operand, k)))
-    }
-
-    /// The operand face a face in `operand`'s CLONE keys is a fragment
-    /// of (a discarded face's key is one).
-    pub(super) fn clone_face(&self, operand: topo::Operand, f: FaceKey) -> FaceKey {
-        match operand {
-            topo::Operand::A => self.a_rows.root(f),
-            topo::Operand::B => self.b_rows.root(f),
-        }
-    }
-
-    /// Merged result face → every face it holds, itself first, in
-    /// result keys before the merge.
-    pub(crate) fn merged(&self) -> BTreeMap<FaceKey, Vec<FaceKey>> {
-        self.naming
-            .merge_groups
-            .iter()
-            .map(|(kept, absorbed)| {
-                (
-                    *kept,
-                    core::iter::once(*kept)
-                        .chain(absorbed.iter().copied())
-                        .collect(),
-                )
-            })
-            .collect()
-    }
+    let (operand, key, grafted) = naming.operand_of(inv, k);
+    let space = if grafted {
+        KeySpace::Graft
+    } else {
+        KeySpace::Arena
+    };
+    (OpSide::on(operand, key), space)
 }
 
 /// Names a boolean result (spec D2's boolean vocabulary; N2/N3).
@@ -6731,10 +6662,11 @@ mod wavy_loft {
     //!
     //! No body the kernel builds puts a face across such an edge yet: the
     //! boolean's sweep splits the corners where a face of the other
-    //! operand crosses them, and the union refuses one step on, at the
-    //! sector walk
-    //! ([`a_union_across_a_nurbs_edge_refuses_at_the_sector_walk`], which
-    //! reds the day the walk reads a spline face).
+    //! operand crosses them, the sector walk reads the spline walls
+    //! around each crossing vertex, and the union refuses one step on,
+    //! where a spline wall's trim cannot place a pierce point
+    //! ([`a_union_across_a_nurbs_edge_refuses_at_a_spline_walls_held_pierce`],
+    //! which reds the day that site reads one).
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
     use crate::edit::DocEdit;
@@ -6868,17 +6800,19 @@ mod wavy_loft {
     /// one sense (asserted on the carriers). The boolean's sweep reads
     /// each corner against the face through the curve × face table's
     /// ring-composite arm and splits it at all three (`sweep`'s
-    /// `a_face_across_a_wavy_corner` pins the splits), and the union
-    /// refuses one step on: the sector walk around a crossing vertex has
-    /// no arm for the spline walls it lies between,
-    /// `CurvedBooleanUnsupported` on a spline face of the loft.
+    /// `a_face_across_a_wavy_corner` pins the splits), the sector walk
+    /// reads the spline walls each crossing vertex lies between
+    /// (`topo::sector_face`'s spline arm), and the union refuses one step
+    /// on: `vtxfac::faces_holding_pierce` asks a spline wall of the loft
+    /// whether it holds a pierce point of the face `x = 1`, and the
+    /// wall's trim cannot say (`HeldPierceUnbuilt`, `placed: false`).
     ///
-    /// It reds the day the sector walk reads a spline face. The
+    /// It reds the day that site places a point in a spline face. The
     /// end-to-end row, the crossings named through the boolean (the
     /// first and third, of one sense, tie), is
-    /// `work/splice/the-sector-walk-reads-no-nurbs-face-at-a-crossing-vertex.md`'s.
+    /// `work/splice/a-spline-wall-cannot-say-whether-it-holds-a-pierce-point.md`'s.
     #[test]
-    fn a_union_across_a_nurbs_edge_refuses_at_the_sector_walk() {
+    fn a_union_across_a_nurbs_edge_refuses_at_a_spline_walls_held_pierce() {
         let (doc, loft) = wavy_doc(0.3);
         let (doc, profile) = ins(
             doc,
@@ -6942,32 +6876,54 @@ mod wavy_loft {
         }
         let Some(crate::eval::NodeError {
             kind:
-                crate::eval::NodeErrorKind::Boolean(topo::BooleanError::CurvedBooleanUnsupported {
+                crate::eval::NodeErrorKind::Boolean(topo::BooleanError::HeldPierceUnbuilt {
                     operand: topo::Operand::A,
                     face,
+                    pierced,
                     kind: geom::SurfaceKind::Nurbs,
+                    pierced_kind: geom::SurfaceKind::Plane,
+                    placed: false,
                 }),
             ..
         }) = ev.node_error(union)
         else {
             panic!(
-                "the union refuses at the sector walk on a spline face of the loft, got {:?}",
+                "the union refuses where a spline wall of the loft cannot place a pierce \
+                 point of the box, got {:?}",
                 ev.node_error(union).map(|e| &e.kind)
             );
         };
         // The recipe mints both bodies fresh, so their keys collide and
-        // `operand` is what states the owner; read in the loft, the key
-        // is a spline wall bounding one of the corners `x = 1` crosses,
-        // which is where the crossing vertices lie. The refusal names no
-        // site, so the row cannot tell the sector walk from another site
-        // raising the same variant on that wall.
+        // `operand` is what states the owner: `face` is read in the loft,
+        // `pierced` in the box.
         assert!(
             matches!(
                 body.get_face(*face)
                     .and_then(|f| body.get_surface(f.surface)),
                 Some(geom::Surface::Nurbs(_))
             ),
-            "the refusal names a spline face of the loft"
+            "the refusal names a spline wall of the loft"
+        );
+        let block = ev
+            .value(copy)
+            .expect("the box evaluates")
+            .payload
+            .output_body(0)
+            .expect("the placed box");
+        // Where the placed box stands: its body is its source's, in its
+        // own coordinates, under its frame (D10 `[placement.frame]`).
+        let plane = block
+            .body()
+            .get_face(*pierced)
+            .and_then(|f| block.body().get_surface(f.surface));
+        assert!(
+            matches!(
+                plane,
+                Some(geom::Surface::Plane { origin, normal, .. })
+                    if (block.point_in_space(*origin).x - 1.0).abs() < 1e-9
+                        && block.vec_in_space(*normal).x.abs() > 1.0 - 1e-9
+            ),
+            "the pierced face is the box's face x = 1"
         );
         let walls: Vec<_> = near
             .iter()

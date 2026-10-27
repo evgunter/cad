@@ -4038,7 +4038,7 @@ fn asm_r2a_mated_assembly(
         (Coord::Slide(TargetAxis::X), length(30.0)),
         (Coord::Slide(TargetAxis::Y), length(0.0)),
         (
-            Coord::Spin(TargetAxis::Z),
+            Coord::SPIN,
             Formula::zero(pncad::document::Dimension::Angle),
         ),
     ];
@@ -4048,6 +4048,7 @@ fn asm_r2a_mated_assembly(
         Mate {
             on: plane(ids[1]),
             to: plane(ids[0]),
+            orient: pncad::document::Orientation::IDENTITY,
         },
         values,
     );
@@ -7120,15 +7121,15 @@ fn moving_the_only_world_placement_moves_no_body_bit_and_moves_the_step_bytes() 
         (Coord::Slide(TargetAxis::Y), len(-1.5)),
         (Coord::Slide(TargetAxis::Z), len(0.75)),
         (
-            Coord::Spin(TargetAxis::X),
+            Coord::Spin(Some(TargetAxis::X)),
             Formula::literal(0.0, Dimension::Angle).unwrap(),
         ),
         (
-            Coord::Spin(TargetAxis::Y),
+            Coord::Spin(Some(TargetAxis::Y)),
             Formula::literal(0.0, Dimension::Angle).unwrap(),
         ),
         (
-            Coord::Spin(TargetAxis::Z),
+            Coord::Spin(Some(TargetAxis::Z)),
             Formula::literal(std::f64::consts::FRAC_1_SQRT_2, Dimension::Angle).unwrap(),
         ),
     ];

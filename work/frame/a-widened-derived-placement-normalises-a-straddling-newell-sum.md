@@ -259,8 +259,8 @@ FRAME orchestrator. This row is a frame read off a placement, widened through th
 The trigger fired: E's branch re-measures
 `m10_derived_frame_interval::m10_the_derived_frames_refusal_is_not_a_freeze`
 on the HEIGHT document's `5e-2` rung. With every rule off the plain
-tier refuses nothing and freezes three forms (it refused at the boss
-extrude's `carrier_endpoint_start` over `[0, 0.32]` after sixteen
+tier refuses nothing and freezes no form (main refuses at the boss
+extrude's `carrier_endpoint_start` over `[0, 0.32]` after twelve
 freezes): a copy shares its source's body under its frame, so the boss
 is never rebuilt over the box, and no mapped extrude is certified
 again. Nothing on the plain tier refuses, the clause-1

@@ -31,22 +31,27 @@ use crate::node::RecipeNodeId;
 pub mod corner;
 pub mod coset;
 pub mod member;
+pub mod orient;
 pub mod pin;
 pub mod reach;
 pub mod solve;
+pub mod turn;
 pub mod unobservable;
 pub(crate) mod value;
 
 pub use corner::{PinRefusal, corner_frame, corner_frame_in};
 pub use coset::{Coset, PoseSymmetry, Subgroup, SubgroupFamily};
 pub use member::{Member, Placing, head_face, head_of, member_of, member_reading};
+pub use orient::{Orientation, SignedAxis};
 pub use pin::{FrameMove, Placed, moved_frame, stand};
 pub use reach::{ReachRefusal, SurfaceKind, body_reach, part_reach, part_reach_from};
 pub use solve::{
     Atan2Branch, Composing, PoseRefusal, SolveScalar, SolvedPoses, in_space, mate_coset,
     relative_freedom_components, solve_document, solve_document_at,
 };
+pub use turn::{LeastTurn, slides_left_along};
 pub use unobservable::{Unobservable, unobservable};
+pub use value::flipped;
 
 /// Which side of a mate a diagnostic is about.
 #[derive(
@@ -83,6 +88,12 @@ pub struct Mate<S: crate::Slot = crate::VarId> {
     /// The pose the copy's is equated with, read off a body in the
     /// target space.
     pub to: S::Read,
+    /// **The orientation** (D10 `[placement.values]`): where the copy's
+    /// axes lie along the target space's, so where the copy's mated
+    /// direction should point. Read only beside a mate fixing a
+    /// direction (a plane, an axis, a direction); a point or a frame
+    /// mate carries the identity ([`MateFault::Unoriented`]).
+    pub orient: Orientation,
 }
 
 impl<S: crate::Slot> Mate<S> {
@@ -106,6 +117,7 @@ impl<S: crate::Slot> Mate<S> {
         Ok(Mate {
             on: read(MateSide::On, &self.on)?,
             to: read(MateSide::To, &self.to)?,
+            orient: self.orient,
         })
     }
 }
@@ -405,19 +417,17 @@ impl<S: crate::Slot> Constraint<S> {
     }
 }
 
-/// **A value** (FORK-S3M; D10 `[placement.values]`, row 190): one
-/// freedom of a placement's motion that its mates leave — a slide or a
-/// spin — set to a `Length` or an `Angle`. A value names no mate: its
-/// bundle holds at most one mate fixing a direction, so its values
-/// have one chart, the target space's axes.
+/// **A value** (FORK-S3M; D10 `[placement.values]`): one freedom of a
+/// placement's motion that its mates leave — a slide or a spin — set
+/// to a `Length` or an `Angle`. A value names no mate: its bundle holds
+/// at most one mate fixing a direction, so its values have one chart.
 ///
-/// Where a mate fixes a direction, the target space's axes are swung
-/// onto it by the shortest turn carrying their `z` to the mated
-/// direction ([`reference_about`]): a slide is the copy's origin
-/// measured from the target space's along a swung axis, and
-/// `Spin(Z)` the angle about the mated direction from the target
-/// space's swung `x` to the copy's. Each is a function of the relative
-/// pose alone, so no order of the values is chosen.
+/// Beside a mate fixing a direction `d`, the mate's orientation `O`
+/// puts the copy's mated direction `d_c` at `n = O·d_c`, and the least
+/// turn `S` carries `n` onto `d`; the copy's turn is `rot(d, θ)·S·O`.
+/// The one [`Coord::Spin`] with no axis is `θ`, and a slide is the
+/// copy's origin measured from the target space's along a target axis
+/// as `S` carries it.
 ///
 /// Where no direction is fixed (no mate, or a lone point mate), a
 /// slide is the copy's origin measured from the target space's along
@@ -433,41 +443,42 @@ pub struct Value<S: crate::Slot = crate::VarId> {
     pub by: S,
 }
 
-/// **Which freedom a value sets**, on the target space's axes, swung
-/// onto the mated direction where a mate fixes one.
+/// **Which freedom a value sets.**
 ///
-/// The freedoms each bundle's mates leave: a plane mate slides along
-/// `x` and `y` and spins about `z`; an axis mate slides along and spins
-/// about `z`; a direction mate slides along all three and spins about
-/// `z`; a point mate leaves its rotation, a chain of spins about the
-/// target space's own axes; a frame mate leaves nothing. With no mate,
-/// a value slides along the target space's `x`, `y` or `z`, or spins
-/// about one of them.
+/// The freedoms each bundle's mates leave: a plane mate two slides and
+/// the spin; an axis mate one slide and the spin; a direction mate the
+/// three slides and the spin; a point mate its rotation, a chain of
+/// spins about the target space's own axes; a frame mate nothing.
+/// Beside a mate, which slides a mate takes is the source's geometry's
+/// to say (the chart's span, [`NoChartWhy::SlidesDoNotSpan`]). With no
+/// mate, a value slides along the target space's `x`, `y` or `z`, or
+/// spins about one of them.
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
 #[serde(rename_all = "snake_case")]
 pub enum Coord {
-    /// A slide along the target space's (swung) axis.
+    /// A slide along the target space's axis (carried by the least turn
+    /// beside a mate).
     Slide(TargetAxis),
-    /// A spin about the target space's (swung) axis: about the mated
-    /// direction (`Z`) where a mate fixes one, else one link of a
-    /// written chain of turns.
-    Spin(TargetAxis),
+    /// A spin: with no axis, the turn about the target's own direction
+    /// left after the least turn, beside a mate fixing a direction; about an
+    /// axis, one link of a written chain of turns where none is fixed.
+    Spin(Option<TargetAxis>),
 }
 
 /// **An axis of the target space**: its own where no mate fixes a
-/// direction, swung onto the mated direction where one does.
+/// direction, carried by the least turn where one does.
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
 #[serde(rename_all = "lowercase")]
 pub enum TargetAxis {
-    /// The (swung) `x`.
+    /// The `x`.
     X,
-    /// The (swung) `y`.
+    /// The `y`.
     Y,
-    /// The (swung) `z`: the mated direction, where a mate fixes one.
+    /// The `z`.
     Z,
 }
 
@@ -484,9 +495,82 @@ impl TargetAxis {
             Self::Z => geom_core::UnitVec3::exact_z(),
         }
     }
+
+    /// Which axis, `0` for `x`.
+    #[must_use]
+    pub fn index(self) -> usize {
+        match self {
+            Self::X => 0,
+            Self::Y => 1,
+            Self::Z => 2,
+        }
+    }
+
+    /// The axis of `index`.
+    #[must_use]
+    pub fn of_index(index: usize) -> Self {
+        Self::ALL[index % 3]
+    }
+}
+
+/// **A set of slides, by the target axes they run along**: the slides
+/// a mate leaves ([`turn::slides_left_along`]), and the ones a refusal
+/// names to write ([`NoChartWhy::SlidesDoNotSpan`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub struct SlideAxes([bool; 3]);
+
+impl SlideAxes {
+    /// The set of `axes`.
+    #[must_use]
+    pub fn of(axes: impl IntoIterator<Item = TargetAxis>) -> Self {
+        let mut set = [false; 3];
+        for axis in axes {
+            set[axis.index()] = true;
+        }
+        Self(set)
+    }
+
+    /// Whether the set holds the slide along `axis`.
+    #[must_use]
+    pub fn contains(self, axis: TargetAxis) -> bool {
+        self.0[axis.index()]
+    }
+
+    /// The axes, in order.
+    pub fn axes(self) -> impl Iterator<Item = TargetAxis> {
+        TargetAxis::ALL
+            .into_iter()
+            .filter(move |&a| self.contains(a))
+    }
+
+    /// How many.
+    #[must_use]
+    pub fn len(self) -> usize {
+        self.axes().count()
+    }
+
+    /// Whether the set is empty.
+    #[must_use]
+    pub fn is_empty(self) -> bool {
+        self.len() == 0
+    }
+}
+
+impl core::fmt::Display for SlideAxes {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let names: Vec<&str> = self.axes().map(axis_name).collect();
+        match names.as_slice() {
+            [] => f.write_str("none"),
+            [one] => f.write_str(one),
+            [rest @ .., last] => write!(f, "{} and {last}", rest.join(", ")),
+        }
+    }
 }
 
 impl Coord {
+    /// The spin about the target's own direction.
+    pub const SPIN: Self = Self::Spin(None);
+
     /// The dimension of the number that sets it.
     #[must_use]
     pub fn dimension(self) -> crate::expr::Dimension {
@@ -503,9 +587,10 @@ impl Coord {
             Self::Slide(TargetAxis::X) => "slide along x",
             Self::Slide(TargetAxis::Y) => "slide along y",
             Self::Slide(TargetAxis::Z) => "slide along z",
-            Self::Spin(TargetAxis::X) => "spin about x",
-            Self::Spin(TargetAxis::Y) => "spin about y",
-            Self::Spin(TargetAxis::Z) => "spin about z",
+            Self::Spin(None) => "spin",
+            Self::Spin(Some(TargetAxis::X)) => "spin about x",
+            Self::Spin(Some(TargetAxis::Y)) => "spin about y",
+            Self::Spin(Some(TargetAxis::Z)) => "spin about z",
         }
     }
 }
@@ -519,60 +604,20 @@ pub enum NoChartWhy {
     /// or none, which the solve's structural settle does not choose
     /// between.
     SlideTurnsABall,
-}
-
-/// **A body's frame swung onto a mate's direction** (ruling C-1): the
-/// shortest turn carrying the body's own `z` to `axis`, `axis` given in
-/// the body's own coordinates, as the turn's `x` column — the body's
-/// reference direction about `axis`. Its `z` is `axis` and its `y`
-/// is `axis × x`.
-///
-/// For `axis = (a, b, c)` the swung `x` is
-/// `(1 − a²/(1+c), −ab/(1+c), −a)`, with `1 + c` taken as
-/// `(a² + b²)/(1 − c)` where `c < 0`, so the antipode's neighbourhood
-/// loses no digit to cancellation. At the antipode itself (`axis = −z`)
-/// no turn is shortest, and the half-turn about the body's own `x` is
-/// taken: `x` stays. The only predicate is the decided sign of `1 + c`,
-/// read as the chord from `−z` levered over `arm`; a chord the band
-/// cannot decide refuses ([`crate::pose::PoseConstruction::Chart`]).
-///
-/// # Errors
-///
-/// The band's escalation, as [`crate::NodeErrorKind::PoseDegenerate`].
-pub fn reference_about<T: SolveScalar>(
-    axis: geom_core::UnitVec3<T>,
-    arm: f64,
-    band: geom_core::predicate::Band,
-) -> Result<geom_core::linalg::Vec3<T>, crate::NodeErrorKind> {
-    let d = axis.get();
-    let (a, b, c) = (d.x, d.y, d.z);
-    let one = T::one();
-    let across = a.powi(2) + b.powi(2);
-    // Which formula is a choice of arithmetic, not a verdict: the two
-    // are one number, and the first loses no digit near the antipode.
-    let one_plus_c = if c.quoted() < 0.0 {
-        across / (one - c)
-    } else {
-        one + c
-    };
-    // The chord from `−z`: |d + z| = √(2(1 + c)), levered over `arm`.
-    let chord = ((one + one) * one_plus_c).sqrt();
-    let sign = geom_core::k_stats::decide(
-        "mate_chart_reference_antipode",
-        geom_core::predicate::Margin::levered(chord, T::from_computed(arm)),
-        band,
-    )
-    .map_err(|_| crate::NodeErrorKind::PoseDegenerate {
-        construction: crate::pose::PoseConstruction::Chart,
-    })?;
-    if sign == geom_core::predicate::Sign::Zero {
-        return Ok(geom_core::linalg::Vec3::new(one, T::zero(), T::zero()));
-    }
-    Ok(geom_core::linalg::Vec3::new(
-        one - a.powi(2) / one_plus_c,
-        T::zero() - a * b / one_plus_c,
-        T::zero() - a,
-    ))
+    /// The written slides do not span the plane (or line) the mate
+    /// leaves: the source's mated direction, where the orientation puts
+    /// it, lies across the one slide a plane mate leaves unwritten, or
+    /// across the one an axis mate leaves written. Decided once from the
+    /// source's geometry.
+    SlidesDoNotSpan {
+        /// The slide the least turn carries onto the mated direction,
+        /// where the source's mated direction lies on a target axis
+        /// exactly: the one a plane mate fixes and an axis mate leaves.
+        along: Option<TargetAxis>,
+        /// The slides to write, which span what the mate leaves
+        /// ([`turn::slides_left_along`]).
+        write: SlideAxes,
+    },
 }
 
 /// **The recourse a [`MateFault::Overconstrained`] ends on**: what an
@@ -772,6 +817,26 @@ pub enum MateFault {
         /// Why.
         why: NoChartWhy,
     },
+    /// **A mate's orientation is written backwards** (D10
+    /// `[placement.values]`): the mated direction lies opposite to where
+    /// the orientation puts the copy's, within the band about that one
+    /// pole, where the least turn has no answer. Decided at evaluation.
+    Backwards {
+        /// The mate.
+        mate: MateRef,
+        /// The orientation written.
+        orient: Orientation,
+        /// The orientation nearest it that puts the copy's mated
+        /// direction nearest the mated one: the one to write.
+        write: Orientation,
+    },
+    /// **An orientation on a mate that fixes no one direction** (D10
+    /// `[placement.values]`): a point or a frame mate, beside which
+    /// there is no orientation.
+    Unoriented {
+        /// The mate.
+        mate: MateRef,
+    },
     /// **A mate's pose did not evaluate**, in the evaluation layer's
     /// own words: the face it reads is gone or has no plane, a
     /// construction is degenerate, a scalar refused.
@@ -818,7 +883,9 @@ impl MateFault {
             | Self::NotOnTheCopy { .. }
             | Self::Unleverable { .. }
             | Self::KindsDiffer { .. }
-            | Self::NoChart { .. } => None,
+            | Self::NoChart { .. }
+            | Self::Backwards { .. }
+            | Self::Unoriented { .. } => None,
         }
     }
 
@@ -883,9 +950,12 @@ pub(crate) const DECISION_WORDS: &[(&str, &str)] = &[
         "whether a solved placement's map holds a frame of its own",
     ),
     (
-        "mate_chart_reference_antipode",
-        "whether the direction a mate's values are charted about points straight down its \
-         reference's z",
+        "mate_chart_pole",
+        "whether the mated direction lies opposite to where the orientation puts the copy's",
+    ),
+    (
+        "mate_chart_slides_span",
+        "whether a placement's slides span what its mate leaves",
     ),
 ];
 
@@ -978,6 +1048,43 @@ impl crate::spoken::Say for MateFault {
                  spin value, or pin it by a frame mate and its values",
                 mate_(*value)
             ),
+            Self::NoChart {
+                value,
+                why: NoChartWhy::SlidesDoNotSpan { along, write },
+            } => {
+                let along = match along {
+                    Some(axis) => format!(
+                        ": the mate's direction lands on the slide along {}, which a plane \
+                         mate fixes and an axis mate leaves",
+                        axis_name(*axis)
+                    ),
+                    None => String::new(),
+                };
+                write!(
+                    f,
+                    "{}'s slides do not span what its mate leaves{along}. Recourse: write the \
+                     slides along {write} instead, or an orientation that puts the copy's mated \
+                     direction where the slides written meet it",
+                    mate_(*value)
+                )
+            }
+            Self::Backwards {
+                mate,
+                orient,
+                write,
+            } => write!(
+                f,
+                "{}'s orientation ({orient}) puts the copy's mated direction opposite to the \
+                 mated one, where no least turn is decided. Recourse: write the orientation \
+                 {write}",
+                mate_(*mate)
+            ),
+            Self::Unoriented { mate } => write!(
+                f,
+                "{} fixes no one direction, so it carries no orientation. Recourse: write its \
+                 orientation as the identity, and its rotation as spin values",
+                mate_(*mate)
+            ),
             // The refusal is the pose's own, drawn on the carried line.
             Self::SideUnevaluated { mate, side, .. } => write!(
                 f,
@@ -987,6 +1094,15 @@ impl crate::spoken::Say for MateFault {
                 side.name()
             ),
         }
+    }
+}
+
+/// An axis's letter.
+fn axis_name(axis: TargetAxis) -> &'static str {
+    match axis {
+        TargetAxis::X => "x",
+        TargetAxis::Y => "y",
+        TargetAxis::Z => "z",
     }
 }
 

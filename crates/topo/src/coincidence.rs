@@ -224,11 +224,12 @@ pub struct Coincidence {
     /// The two cells decided one, in the order the decision read them;
     /// a [`Relation::Meet`]'s sorted.
     pub cells: [RowCell; 2],
-    /// A [`Relation::Meet`]'s third cell: the face a ring tie's two
-    /// pierces pierced, which their decision was taken against, where
-    /// neither pierce is a vertex of its input. Sorted after `cells`;
-    /// `None` on every other row.
-    pub third: Option<RowCell>,
+    /// A [`Relation::Meet`]'s cells after its first two, sorted after
+    /// `cells`, each once, those it has first: the cell whose crossing
+    /// minted a vertex read as the edge it was minted on, and the face a
+    /// ring tie's two pierces pierced, which their decision was taken
+    /// against. `None` on every other row.
+    pub more: [Option<RowCell>; 3],
     /// What was decided between them.
     pub relation: Relation,
     /// Where it was decided.
@@ -241,10 +242,12 @@ pub struct Coincidence {
 }
 
 impl Coincidence {
-    /// Every cell of the row: `cells`, then `third` where it has one.
+    /// Every cell of the row: `cells`, then `more`'s.
     #[must_use = "the cells are only read through the iterator"]
     pub fn every_cell(&self) -> impl Iterator<Item = RowCell> {
-        self.cells.into_iter().chain(self.third)
+        self.cells
+            .into_iter()
+            .chain(self.more.into_iter().flatten())
     }
 
     /// The row's A-operand face and B-operand face, where it decided

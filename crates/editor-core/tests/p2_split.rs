@@ -98,7 +98,7 @@ pub(crate) fn pinned_lifted(
         Formula::named(crate::p2_gauges::lift(), editor_core::Dimension::Length),
     )];
     if angle != 0.0 {
-        values.push((Coord::Spin(TargetAxis::Z), fixture::ang(angle)));
+        values.push((Coord::Spin(Some(TargetAxis::Z)), fixture::ang(angle)));
     }
     let placed = editor_core::Placed::unmated(values);
     (fixture::written(doc, id, placed), id)

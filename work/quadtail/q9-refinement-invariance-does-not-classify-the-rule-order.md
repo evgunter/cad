@@ -12,8 +12,8 @@ design: true
 
 ## What
 
-`props::quad::tests::q9_the_inner_rules_order_is_pinned_at_two_short_and_the_outer_at_four`
-(`crates/geom-brep/src/props/quad.rs`) is the trimmed lane's only
+`props::quad::trimmed::tests::q9_the_inner_rules_order_is_pinned_at_two_short_and_the_outer_at_four`
+(`crates/geom-brep/src/props/quad/`) is the trimmed lane's only
 exactness row for its two closed Newton–Cotes rules
 (`trimmed_patch_face_rounds`, outer `3p_u + 3p_v − 1` in the chord,
 inner `3p_v − 1` across the patch). Two things about it are weaker
@@ -99,7 +99,7 @@ What is left is the structural instrument, and it is QUAD's:
 
 ## Disposition
 
-QUAD's: `quad.rs` is this program's file. Filed by RING-2 (SCALAR),
+QUAD's: `props/quad/` is this program's file. Filed by RING-2 (SCALAR),
 which found it re-deriving the gate its own change moved, and which
 did not widen the gate to pass.
 
@@ -108,4 +108,4 @@ did not widen the gate to pass.
 `M` with `design: true`, from legacy `D`. The three owed items are a
 new fixture, an independent value and a rule-order knob. The knob is a
 production-signature question at `trimmed_patch_face_rounds`. The row
-is still live on main: the test is at `props/quad.rs:8796`.
+is still live on main: the test is at `props/quad/trimmed.rs`.

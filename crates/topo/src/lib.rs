@@ -169,6 +169,7 @@ pub(crate) mod invalid_margin;
 pub(crate) mod iso;
 pub mod joint;
 pub(crate) mod lineage;
+pub mod link;
 pub(crate) mod live;
 // The one statement of a stored planar loop's signed winding, shared by
 // the merge's role assigner and tier 3's check 6. Non-doc comment for
@@ -1198,20 +1199,22 @@ pub use boolean::{
     CarrierEqError, CarrierRelation, CarryRefusal, Cell, Coincide, CoincidenceMeasure,
     CompletedPolygonPair, ConsumedExtent, Contact, ContactKind, ContactPairError, ContactRecords,
     ContainDecision, ContainError, Contradiction, DeclarationRead, DiscardRow, EdgeCarrierSite,
-    EdgeInFaceGap, EdgeJoin, EdgePieceClass, EeContact, EfContact, FaceContainment, FfContact,
-    Fusions, GlueVerdict, GluedPair, JOIN_LEVER, JOIN_SUBJECT, JoinReading, JoinRefusal,
-    JoinUndecided, LeverArm, LineWedgeFault, NodeWhy, NullEdgePairRecord, Operand, OperandKeys,
-    OperandRecords, PairFace, PairRefusalSite, PairSite, PairUnread, PierceRingRecord, PlaneDesc,
-    PlaneEqError, PlaneIdentity, PlaneRelation, PlaneRung, PointInSolidError, ReductionContacts,
-    RefusedRow, SectorRead, SectorRung, SelfCheck, SettleError, Settler, Settling,
-    ShellOrientation, SideCode, SlitFaceGap, SlitLineGap, SolidContainment, SolidFaces,
-    SphereQuestion, SpiricLoops, SubstitutedFace, SweepStrategy, SweepTrace, TorusConvention,
-    UncutFace, UnreadNeighbourhood, UnreadPartner, VeContact, VfContact, VoidContainment,
-    VoidEvidence, VoidInsertError, VoidInserted, VvContact, WallRung, boolean_op_with,
-    boolean_reduce, carrier_eq, contfp, curved_face_containment, decision_words, face_carrier,
-    flush_pair_relation, insert_void, insert_voids, intersect, is_conventional_vertex, join_covers,
-    joinable_vertices, joined_cell, joined_edge, oriented_plane_eq, point_in_solid,
-    point_in_solid_faces, point_in_solid_of, rest_locus, subtract, tangent_pair_relation, union,
+    EdgeInFaceGap, EdgeJoin, EdgePieceClass, EeContact, EfContact, FaceContainment, FaceDescent,
+    FfContact, Fusions, GlueVerdict, JOIN_LEVER, JOIN_SUBJECT, JoinReading, JoinRefusal,
+    JoinUndecided, JudgedRow, LeverArm, LineWedgeFault, MemberFace, MemberInputs, MemberLineage,
+    NaryEnd, NaryJudgement, NaryMember, NaryOp, NaryRefusal, NaryRun, NaryStep, NodeWhy,
+    NullEdgePairRecord, Operand, OperandKeys, OperandRecords, PairFace, PairRefusalSite, PairSite,
+    PairUnread, PierceRingRecord, PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, PlaneRung,
+    PointInSolidError, ReductionContacts, RefusedRow, SectorRead, SectorRung, SelfCheck,
+    SettleError, Settler, Settling, ShellOrientation, SideCode, SlitFaceGap, SlitLineGap,
+    SolidContainment, SolidFaces, SphereQuestion, SpiricLoops, SubstitutedFace, SweepStrategy,
+    SweepTrace, TorusConvention, UncutFace, UnreadNeighbourhood, UnreadPartner, VeContact,
+    VfContact, VoidContainment, VoidEvidence, VoidInsertError, VoidInserted, VvContact, WallRung,
+    boolean_op_with, boolean_reduce, carrier_eq, contfp, curved_face_containment, decision_words,
+    face_carrier, flush_pair_relation, insert_void, insert_voids, intersect,
+    is_conventional_vertex, join_covers, joinable_vertices, joined_cell, joined_edge, nary_boolean,
+    oriented_plane_eq, point_in_solid, point_in_solid_faces, point_in_solid_of, rest_locus,
+    subtract, tangent_pair_relation, union,
 };
 pub use joint::{Deck, JointElement};
 pub use lineage::{
@@ -1234,9 +1237,9 @@ pub use chord_join::face_azimuth_window_traces;
 // vocabulary always, the door on the boolean sweep's terms.
 pub use attach::Rechart;
 pub use census::{
-    CensusStrategy, CensusTrace, FlushAtRest, RecordedAtRest, SweepPairs, TouchUnread,
-    census_cell_solid, census_contact_row, census_entity_solid, census_interference_solids,
-    census_rest_decision, census_uncleared_solids, record_at_rest,
+    CensusStrategy, CensusTrace, FlushAtRest, RecordedAtRest, SweepPairs, census_cell_solid,
+    census_contact_row, census_entity_solid, census_interference_solids, census_rest_decision,
+    census_uncleared_solids, record_at_rest,
 };
 #[cfg(feature = "sweep-testing")]
 pub use census::{census_traces, census_traces_planted};
@@ -1254,6 +1257,7 @@ pub use euler::{
 };
 pub use euler_kill::{KefResult, KevResult, KvfsResult, MergedMember, MfkrhCreated};
 pub use euler_ring::{KemrResult, KfmrhResult, MekrResult, MekrSite};
+pub use link::{Link, LinkRefusal, Material, TouchUnread};
 // The types that appear in this crate's own operator signatures, so a
 // consumer of the ops needs no direct geom-* imports for the common
 // path (the full geometry vocabulary still lives in those crates).

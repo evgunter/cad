@@ -84,9 +84,9 @@ closing section); the rest are unread.
   crates/geom-brep/src/props/curved.rs:862: Three sites
   crates/geom-brep/src/props/curved.rs:1376: third caller
   crates/geom-brep/src/props/curved.rs:1680: three callers
-  crates/geom-brep/src/props/quad.rs:2275: three harder places
-  crates/geom-brep/src/props/quad.rs:2303: three places
-  crates/geom-brep/src/props/quad.rs:4566: third spelling
+  crates/geom-brep/src/props/quad/: three harder places
+  crates/geom-brep/src/props/quad/: three places
+  crates/geom-brep/src/props/quad/: third spelling
   crates/geom-brep/src/ssi.rs:207: four call sites
   crates/geom-brep/src/ssi/enclose.rs:109: three sites
   crates/geom-brep/src/ssi/enclose.rs:252: third consumer

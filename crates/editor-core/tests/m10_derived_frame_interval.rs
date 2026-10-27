@@ -143,10 +143,7 @@ fn at_rest() -> Vec<(editor_core::Coord, Formula)> {
             Coord::Slide(TargetAxis::Y),
             Formula::zero(Dimension::Length),
         ),
-        (
-            Coord::Spin(editor_core::TargetAxis::Z),
-            Formula::zero(Dimension::Angle),
-        ),
+        (Coord::SPIN, Formula::zero(Dimension::Angle)),
     ]
 }
 
@@ -158,8 +155,14 @@ fn cap_plane(site: RecipeNodeId, body: RecipeNodeId, end: CapEnd) -> editor_core
 }
 
 /// **`body` seated on `to`**: a copy of it whose start cap rests on the
-/// plane `to`, at rest in that plane. Returns the placement.
-fn seated(r: &mut Recorder, body: RecipeNodeId, to: editor_core::Operand) -> RecipeNodeId {
+/// plane `to`, at rest in that plane, under `orient`. Returns the
+/// placement.
+fn seated_as(
+    r: &mut Recorder,
+    body: RecipeNodeId,
+    to: editor_core::Operand,
+    orient: editor_core::Orientation,
+) -> RecipeNodeId {
     let placement = r.insert(crate::fixture::stood(editor_core::BodyRead::plain(
         editor_core::Operand::from(body),
     )));
@@ -168,10 +171,22 @@ fn seated(r: &mut Recorder, body: RecipeNodeId, to: editor_core::Operand) -> Rec
         editor_core::Mate {
             on: cap_plane(body, body, CapEnd::Start),
             to,
+            orient,
         },
         at_rest(),
     );
     placement
+}
+
+/// [`seated_as`] on a plane facing up: the start cap faces the plane's
+/// normal unflipped, so the copy stands upended, its `z` along `−z`.
+fn seated(r: &mut Recorder, body: RecipeNodeId, to: editor_core::Operand) -> RecipeNodeId {
+    let upended = editor_core::Orientation::new(
+        editor_core::SignedAxis::PlusX,
+        editor_core::SignedAxis::MinusZ,
+    )
+    .expect("x and z lie along two axes");
+    seated_as(r, body, to, upended)
 }
 
 /// `body`'s start-cap plane slid `by` up its own z and turned to face
@@ -259,7 +274,14 @@ pub(crate) fn transform_lifted_boss(half: f64) -> ProfileDoc {
         profile: boss_p.into(),
         distance: len(0.25),
     });
-    seated(&mut r, boss, cap_plane(lifted, cube, CapEnd::End));
+    // The lifted copy stands upended, so its end cap faces down, the way
+    // the boss's start cap does: the boss stands as it is drawn.
+    seated_as(
+        &mut r,
+        boss,
+        cap_plane(lifted, cube, CapEnd::End),
+        editor_core::Orientation::IDENTITY,
+    );
     r.doc
 }
 
@@ -560,8 +582,8 @@ fn m10_the_derived_frame_extrude_agrees_with_its_authored_twin_below_that_width(
 /// axis-aligned frame cancel as `X − X` — and the boss's side plane,
 /// whose `newell_plane_residual` was a clause-1 `Invalid` while the
 /// placement's map widened its cross-sum to zero, is decided under D's
-/// placement solve. With every rule off, the plain tier freezes three
-/// forms and refuses nothing: a copy shares its source's body under its
+/// placement solve. With every rule off, the plain tier freezes no form
+/// and refuses nothing: a copy shares its source's body under its
 /// frame, so the boss is never rebuilt over the box, and the
 /// start-endpoint certification of the mapped extrude that refused over
 /// an enclosure of [0, 0.32] is not run
@@ -585,15 +607,15 @@ fn m10_the_derived_frames_refusal_is_not_a_freeze() {
     // A copy shares its source's body under its frame (D10
     // `[placement.frame]`), so the boss is never rebuilt over the box:
     // the plain tier reaches no start-endpoint certification of a mapped
-    // extrude and refuses nothing, freezing three forms on the way.
+    // extrude and refuses nothing, freezing no form on the way.
     let (plain_fails, plain_counts) = sym_failures_under(&derived, n);
     assert!(
         plain_fails.is_empty(),
         "plain form alone certifies: {plain_fails:?}"
     );
     assert_eq!(
-        plain_counts.frozen, 3,
-        "and freezes three forms getting there: {plain_counts:?}"
+        plain_counts.frozen, 0,
+        "and freezes no form getting there: {plain_counts:?}"
     );
 
     let a0 = SymRules {

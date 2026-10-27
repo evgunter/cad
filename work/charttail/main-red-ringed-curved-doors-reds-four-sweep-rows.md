@@ -43,3 +43,8 @@ door, or re-pin with the reason. The ray-wall row also keeps its
 original 6 pairs, which predate #5664 (TCOST's row).
 
 Reproduce one row: `CAD_TOLERANCE_EPS=1e-12 cargo nextest run -p sweep --profile ci --ignore-default-filter -E 'test(=<row>)'`.
+
+**At the default ε too (QUAD triage, 2026-10-27).** On main `3a0cd80f`,
+`cargo nextest run -p sweep --features probe -E 'test(ray_wall_margin_twins::)'`
+fails the same way at the default ε: `curve_foot_branch: 62 pairs off,
+e.g. 9.990e2`.

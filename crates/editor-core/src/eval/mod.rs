@@ -4424,10 +4424,14 @@ mod tag {
         /// Keys are process-internal and never persisted, so a bump
         /// costs one whole-memo invalidation and no migration.
         format {
-            /// v21: a placement copies one source, a read of one piece
-            /// of a copy is a pick, keyed by its path, and the assemble
-            /// is a node. v20: a mate writes no class, nor does an
-            /// interface crossing. v19: a value names no mate, and a spin's word is the
+            /// v22: a mate writes its orientation, by where the copy's
+            /// `x` and `z` lie, and a spin beside a mate fixing a
+            /// direction is its own word (`value_coord::SPIN`), the turn
+            /// about the target's own direction. v21: a placement copies
+            /// one source, a read of one piece of a copy is a pick, keyed
+            /// by its path, and the assemble is a node. v20: a mate
+            /// writes no class, nor does an interface crossing. v19: a
+            /// value names no mate, and a spin's word is the
             /// axis it turns about; a mate's `to` is a pose read, with
             /// no target word and no world read. v18: a placement reads the space it places into, which
             /// it does not key (its copy's value is its source moved by
@@ -4457,7 +4461,7 @@ mod tag {
             /// operation. v9: an extrude writes its side. v8: a mate
             /// frame writes its arm word before its payload, and a mate
             /// writes the parts its face frames resolve against.)
-            VERSION = 21,
+            VERSION = 22,
         }
         /// The first word of every naming key: the naming-key domain,
         /// which keeps a naming key's stream apart from a content key's.
@@ -4553,6 +4557,18 @@ mod tag {
             SPIN_X = 5,
             SPIN_Y = 6,
             SPIN_Z = 7,
+            SPIN = 8,
+        }
+        /// Where an orientation puts one of the copy's axes
+        /// ([`crate::mate::SignedAxis`]), written for its `x` and its
+        /// `z`.
+        signed_axis {
+            PLUS_X = 1,
+            MINUS_X = 2,
+            PLUS_Y = 3,
+            MINUS_Y = 4,
+            PLUS_Z = 5,
+            MINUS_Z = 6,
         }
         /// **The word before a slot's NOMINAL — the one home of why a
         /// key holds one, and of every exception.** It is written
@@ -5934,7 +5950,13 @@ fn feed_bundle(
         h.write_u64(u64::from(c.id.0.ordinal()));
         h.write_u64(c.id.0.digest());
         match &c.kind {
-            crate::mate::ConstraintKind::Mate(_) => h.write_tag(tag::constraint_kind::MATE),
+            crate::mate::ConstraintKind::Mate(mate) => {
+                h.write_tag(tag::constraint_kind::MATE);
+                // The orientation, by where the copy's x and z lie.
+                for axis in [mate.orient.x(), mate.orient.z()] {
+                    h.write_tag(axis_word(axis));
+                }
+            }
             crate::mate::ConstraintKind::Value(value) => {
                 use crate::mate::{Coord, TargetAxis};
                 h.write_tag(tag::constraint_kind::VALUE);
@@ -5942,9 +5964,10 @@ fn feed_bundle(
                     Coord::Slide(TargetAxis::X) => tag::value_coord::SLIDE_X,
                     Coord::Slide(TargetAxis::Y) => tag::value_coord::SLIDE_Y,
                     Coord::Slide(TargetAxis::Z) => tag::value_coord::SLIDE_Z,
-                    Coord::Spin(TargetAxis::X) => tag::value_coord::SPIN_X,
-                    Coord::Spin(TargetAxis::Y) => tag::value_coord::SPIN_Y,
-                    Coord::Spin(TargetAxis::Z) => tag::value_coord::SPIN_Z,
+                    Coord::Spin(None) => tag::value_coord::SPIN,
+                    Coord::Spin(Some(TargetAxis::X)) => tag::value_coord::SPIN_X,
+                    Coord::Spin(Some(TargetAxis::Y)) => tag::value_coord::SPIN_Y,
+                    Coord::Spin(Some(TargetAxis::Z)) => tag::value_coord::SPIN_Z,
                 });
                 h.write_tag(if crate::mate::solve::written_as_zero(defs, value.by) {
                     tag::value_form::ZERO
@@ -5953,6 +5976,19 @@ fn feed_bundle(
                 });
             }
         }
+    }
+}
+
+/// A signed axis as a content key's word.
+fn axis_word(axis: crate::mate::SignedAxis) -> u8 {
+    use crate::mate::SignedAxis;
+    match axis {
+        SignedAxis::PlusX => tag::signed_axis::PLUS_X,
+        SignedAxis::MinusX => tag::signed_axis::MINUS_X,
+        SignedAxis::PlusY => tag::signed_axis::PLUS_Y,
+        SignedAxis::MinusY => tag::signed_axis::MINUS_Y,
+        SignedAxis::PlusZ => tag::signed_axis::PLUS_Z,
+        SignedAxis::MinusZ => tag::signed_axis::MINUS_Z,
     }
 }
 
@@ -6888,7 +6924,14 @@ mod bundle_key {
     }
 
     fn mate(to: crate::VarId) -> Constraint {
-        Constraint::of_mate(id(10), Mate { on: ON, to })
+        Constraint::of_mate(
+            id(10),
+            Mate {
+                on: ON,
+                to,
+                orient: crate::Orientation::IDENTITY,
+            },
+        )
     }
 
     fn value(coord: Coord) -> Constraint {
@@ -6913,8 +6956,8 @@ mod bundle_key {
         let with = |v: Constraint| key(&[mate(TO), v]);
         let keys = [
             key(&[mate(TO)]),
-            with(value(Coord::Spin(TargetAxis::Z))),
-            with(value(Coord::Spin(TargetAxis::X))),
+            with(value(Coord::SPIN)),
+            with(value(Coord::Spin(Some(TargetAxis::X)))),
             with(value(Coord::Slide(TargetAxis::X))),
             with(value(Coord::Slide(TargetAxis::Y))),
         ];
@@ -6932,7 +6975,7 @@ mod bundle_key {
     fn a_values_constant_zero_form_moves_the_key() {
         let zero = crate::expr::Expr::zero(crate::expr::Dimension::Angle);
         let defined = |var| (var == BY).then_some(&zero);
-        let bundle = [value(Coord::Spin(TargetAxis::Z))];
+        let bundle = [value(Coord::SPIN)];
         assert_ne!(
             key_over(&defined, &bundle),
             key(&bundle),

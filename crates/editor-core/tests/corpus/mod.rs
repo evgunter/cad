@@ -108,9 +108,15 @@ pub fn spun_about_y() -> Vec<(editor_core::Coord, editor_core::Formula)> {
         .into_iter()
         .map(|axis| (Coord::Slide(axis), Formula::zero(Dimension::Length)))
         .chain([
-            (Coord::Spin(TargetAxis::X), back),
-            (Coord::Spin(TargetAxis::Y), Formula::zero(Dimension::Angle)),
-            (Coord::Spin(TargetAxis::Z), Formula::zero(Dimension::Angle)),
+            (Coord::Spin(Some(TargetAxis::X)), back),
+            (
+                Coord::Spin(Some(TargetAxis::Y)),
+                Formula::zero(Dimension::Angle),
+            ),
+            (
+                Coord::Spin(Some(TargetAxis::Z)),
+                Formula::zero(Dimension::Angle),
+            ),
         ])
         .collect()
 }

@@ -296,10 +296,10 @@ const EXTRUDE_NOUN: &str = "Extrude";
 const MATE_NOUN: &str = "Mate";
 
 /// What the mate tool writes for a freedom left unticked: every bundle
-/// pins its copy, so an unset freedom is the constant 0 in the mate's
-/// chart, never left free.
-pub(crate) const MATE_UNSET_IS_ZERO: &str =
-    "Every bundle pins its copy: a freedom left unticked is written as 0.";
+/// pins its copy, so an unset freedom is written where the copy stands,
+/// snapped onto the mate, never left free.
+pub(crate) const MATE_UNSET_SNAPS: &str = "Every bundle pins its copy: a freedom left unticked is written where the copy stands, \
+     snapped onto the mate.";
 pub(crate) const INSTANCE_NOUN: &str = "InstantiatePart";
 
 /// The heading of the section that makes a body out of nothing.
@@ -507,10 +507,10 @@ impl ViewerBehavior<'_> {
         // ticked. Every bundle pins its copy, so a freedom left unticked
         // is written as the constant 0 (the bundle door's rule), and the
         // panel says so rather than leaving it to be found out.
-        ui.label(MATE_UNSET_IS_ZERO);
+        ui.label(MATE_UNSET_SNAPS);
         for (freedom, (set, value)) in MateFreedom::ALL.iter().zip(&mut self.drafts.mate_values) {
             let coord = freedom.coord();
-            if !freedom.left_by(kind) {
+            if !MateFreedom::offered_beside(kind) {
                 continue;
             }
             ui.horizontal(|ui| {
@@ -529,7 +529,7 @@ impl ViewerBehavior<'_> {
                 let values: Result<Vec<_>, _> = MateFreedom::ALL
                     .iter()
                     .zip(self.drafts.mate_values)
-                    .filter(|(freedom, (set, _))| *set && freedom.left_by(kind))
+                    .filter(|(_, (set, _))| *set && MateFreedom::offered_beside(kind))
                     .map(|(freedom, (_, value))| {
                         let coord = freedom.coord();
                         match coord {

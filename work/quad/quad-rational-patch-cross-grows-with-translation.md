@@ -15,7 +15,7 @@ refs: [a-translated-arc-prism-panics-the-area-gauge-through-mass-properties, 386
 Measured by that PR's reviewer; not reproduced by the filer. PR 3863's
 own §5 sweep missed it.
 
-`crates/geom-brep/src/props/quad.rs`: the rational lane
+`crates/geom-brep/src/props/quad/rational.rs`: the rational lane
 (`rational_patch_face` → `Ladder::cross_num`, read over
 `Collapse::Over` windows) forms the homogeneous net `A = w·P` from the
 control points as given and assembles the area element's cross

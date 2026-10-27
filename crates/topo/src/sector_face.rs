@@ -19,7 +19,8 @@
 //!    cylinder its chart-outward radial at the vertex point, a sphere
 //!    the radial from its centre, a torus the offset from the vertex's
 //!    foot on its core circle, a cone its chart normal off the
-//!    generator through the vertex.
+//!    generator through the vertex, a spline face its chart's
+//!    `S_u × S_v` at the vertex's chart parameters.
 //!
 //! **Every arm folds in the face's `sense` bit** (S10) by minting an
 //! [`OutwardNormal`]: each reads a CHART normal and returns it as the
@@ -43,8 +44,8 @@
 //! told the face was planar, and whether a `Sphere` face has a wired
 //! arm. The first two are adaptation the callers do; the third is
 //! reported here as a [`SectorCarrier`] and refused by the caller that
-//! has no arm for it. What is left — the traversal and all three
-//! normals — is one body.
+//! has no arm for it. What is left — the traversal and every arm's
+//! normal — is one body.
 //!
 //! Like [`crate::sector_shape`], this module is a **top-level sibling**
 //! of `boolean/` and `splitting/` precisely so neither half hosts the
@@ -61,7 +62,7 @@
 
 use geom::SurfaceKind;
 use geom_brep::OutwardNormal;
-use geom_core::Decide;
+use geom_core::{Band, Decide};
 
 use crate::body::Body;
 use crate::entity::{EntityId, FaceKey, HalfEdgeKey, VertexKey};
@@ -88,6 +89,10 @@ pub(crate) enum SectorCarrier {
     /// A cone: the normal is the chart-outward one off the generator
     /// through the vertex, on that vertex's nappe.
     Cone,
+    /// A spline chart (a `Nurbs` or an `Approx` face, the kind named):
+    /// the normal is `S_u × S_v` at the vertex's chart parameters, read
+    /// off the face's own pcurve of the edge into the vertex.
+    Spline(SurfaceKind),
 }
 
 /// The resolved sector face.
@@ -115,6 +120,27 @@ pub(crate) enum SectorFaceError {
         /// The kind that has none.
         kind: SurfaceKind,
     },
+    /// A spline face's chart has no one normal at the vertex: the vertex
+    /// lies within the band of an irregular point of the chart (a pole,
+    /// coincident control rows) or of a line its normal is not continuous
+    /// across (an interior knot run of multiplicity at least the degree,
+    /// a closed chart's seam), where a normal read off one side of the
+    /// line is not the other's ([`geom_brep::chart_normal_at`]).
+    Crease {
+        /// The spline face.
+        face: FaceKey,
+        /// Its kind, `Nurbs` or `Approx`.
+        kind: SurfaceKind,
+    },
+    /// A spline face's half-edge into the vertex has no chart image to
+    /// read the vertex's chart parameters off: it stores no pcurve, or
+    /// its edge no certified carrier.
+    Unplaced {
+        /// The spline face.
+        face: FaceKey,
+        /// Its kind, `Nurbs` or `Approx`.
+        kind: SurfaceKind,
+    },
 }
 
 /// The face orbit half-edge `he`'s sector at `vertex` is a corner of:
@@ -139,16 +165,24 @@ pub(crate) fn face_of<T: Decide>(body: &Body<T>, vertex: VertexKey, he: HalfEdge
 /// resolved and a member of its orbit — so every hop from them is a
 /// link of a record, and a miss panics naming it (D2 row 4).
 ///
+/// `band` decides whether a spline face's vertex lies on a crease of
+/// its chart.
+///
 /// # Errors
 ///
-/// [`SectorFaceError`] — a carrier with no arm.
+/// [`SectorFaceError`] — a carrier with no arm, or a spline face with no
+/// one normal at the vertex or no chart image to read it at.
 #[track_caller]
 pub(crate) fn resolve<T: Decide>(
     body: &Body<T>,
     vertex: VertexKey,
     he: HalfEdgeKey,
+    band: Band,
 ) -> Result<SectorFace<T>, SectorFaceError> {
-    let face = face_of(body, vertex, he);
+    let into = body
+        .proven_mate(he, crate::live::link(EntityId::Vertex(vertex), "orbit"))
+        .mate;
+    let face = body.face_of_linked(into);
     // The planar arm goes through the crate's ONE sense-flip door
     // ([`crate::face_normal`]) rather than re-deriving the flip, and
     // reads nothing else: a plane's outward normal is a property of
@@ -176,7 +210,24 @@ pub(crate) fn resolve<T: Decide>(
             carrier,
         })
     };
-    match body.face_surface_linked(face, face_data) {
+    let surface = body.face_surface_linked(face, face_data);
+    if let Some(chart) = surface.spline_chart() {
+        let kind = surface.kind();
+        let normal = spline_normal(
+            body,
+            point(),
+            (he, into),
+            (face, sense),
+            (chart, kind),
+            band,
+        )?;
+        return Ok(SectorFace {
+            face,
+            normal,
+            carrier: SectorCarrier::Spline(kind),
+        });
+    }
+    match surface {
         geom::Surface::Cylinder { origin, axis, .. } => {
             let w = point() - *origin;
             charted(
@@ -205,7 +256,8 @@ pub(crate) fn resolve<T: Decide>(
             geom_brep::implicit_gradient(s, point()).normalize(),
             SectorCarrier::Cone,
         ),
-        // The planar arm returned above; anything else has no arm.
+        // The planar and spline arms returned above; anything else has
+        // no arm.
         s => Err(SectorFaceError::Unsupported {
             face,
             kind: s.kind(),
@@ -213,12 +265,66 @@ pub(crate) fn resolve<T: Decide>(
     }
 }
 
+/// A spline face's outward normal at the vertex `at`, which ends the
+/// face's half-edge `into`, the mate of the orbit half-edge `he`.
+///
+/// The vertex's chart parameters are that half-edge's pcurve (C4) at the
+/// edge's parameter of the vertex, not a projection foot: the pcurve is
+/// the edge's image in this face's own chart, so the parameters are on
+/// the face's sheet by construction, where a foot of the point could
+/// land on another sheet of the carrier that passes within the band.
+/// The normal is read only where the chart has one there
+/// ([`geom_brep::regular_jet`], [`geom_brep::chart_normal_at`]), over the
+/// carrier's farthest reach from the vertex, its control net's (the face
+/// is a trim of the carrier, so it reaches no farther).
+fn spline_normal<T: Decide>(
+    body: &Body<T>,
+    at: geom_core::Point3<T>,
+    (he, into): (HalfEdgeKey, HalfEdgeKey),
+    (face, sense): (FaceKey, bool),
+    (chart, kind): (&geom::NurbsSurface<T>, SurfaceKind),
+    band: Band,
+) -> Result<OutwardNormal<T>, SectorFaceError> {
+    if chart.is_placeholder() {
+        return Err(SectorFaceError::Unsupported { face, kind });
+    }
+    let unplaced = SectorFaceError::Unplaced { face, kind };
+    let he_data = crate::live::proven(&body.half_edges, he, EntityId::HalfEdge);
+    let edge = crate::live::linked(
+        &body.edges,
+        he_data.edge,
+        EntityId::Edge,
+        EntityId::HalfEdge(he),
+        "edge",
+    );
+    let curve = body
+        .edge_curve_linked(he_data.edge, edge)
+        .certified()
+        .ok_or(unplaced)?;
+    // `he` leaves the vertex, so the vertex is where it starts: the
+    // carrier's first end where `he` walks it forward.
+    let (t0, t1) = curve.params();
+    let t = if he == edge.he_plus { t0 } else { t1 };
+    let uv = body.pcurve(into).ok_or(unplaced)?.pcurve().eval(t);
+    let uv = (uv.x, uv.y);
+    let reach = geom_brep::control_net_reach(chart.control(), at);
+    let crease = |_| SectorFaceError::Crease { face, kind };
+    let jet = geom_brep::regular_jet(chart, uv, reach, band).map_err(crease)?;
+    geom_brep::chart_normal_at(chart, sense, &jet, uv, reach, band)
+        .map(|(normal, _)| normal)
+        .map_err(crease)
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::fixtures::raw_prism;
     use geom_core::Tol;
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
 
     /// A sphere face, installed on a prism's side face so the orbit
     /// around one of its vertices walks a sphere-carried sector.
@@ -254,7 +360,7 @@ mod tests {
         let mate = body.mate(orbit_he).unwrap();
         body.get_half_edge_mut(mate).unwrap().parent_loop = crate::entity::LoopKey::default();
         let report = crate::surgery::tests::panic_message(std::panic::AssertUnwindSafe(|| {
-            let _ = resolve(&body, vertex, orbit_he);
+            let _ = resolve(&body, vertex, orbit_he, band());
         }));
         let premise = format!(
             "{}'s parent_loop names {}, which does not resolve",
@@ -283,7 +389,7 @@ mod tests {
         let orbit_he = body.mate(he).unwrap();
         let bogus = crate::entity::VertexKey::default();
         let report = crate::surgery::tests::panic_message(std::panic::AssertUnwindSafe(|| {
-            let _ = resolve(&body, bogus, orbit_he);
+            let _ = resolve(&body, bogus, orbit_he, band());
         }));
         assert!(
             report.contains(&format!(
@@ -309,7 +415,7 @@ mod tests {
             .unwrap();
         let orbit_he = body.mate(he).unwrap();
         let vertex = body.get_half_edge(orbit_he).unwrap().start;
-        let resolved = resolve(&body, vertex, orbit_he).expect("the sphere arm resolves");
+        let resolved = resolve(&body, vertex, orbit_he, band()).expect("the sphere arm resolves");
         assert_eq!(resolved.carrier, SectorCarrier::Sphere);
         assert_eq!(resolved.face, face);
     }
@@ -359,7 +465,7 @@ mod tests {
             },
         )
         .unwrap();
-        let resolved = resolve(&body, vertex, orbit_he).expect("the torus arm resolves");
+        let resolved = resolve(&body, vertex, orbit_he, band()).expect("the torus arm resolves");
         assert_eq!(resolved.carrier, SectorCarrier::Torus);
         assert_eq!(resolved.face, face);
         let tube = x * cv + z * sv;
@@ -369,5 +475,407 @@ mod tests {
             "{:?} is not the tube's outward normal {want:?}",
             resolved.normal.vec()
         );
+    }
+
+    /// The bilinear-in-`v` chart over the unit square at `z = 1` whose
+    /// `u` columns stand at `xs` on the knots `ku`, `u` running along `x`
+    /// and `v` along `y`: the plane `z = 1`, chart normal `+z`.
+    pub(crate) fn planar_chart(
+        ku: Vec<f64>,
+        degree_u: usize,
+        xs: &[f64],
+    ) -> geom::NurbsSurface<f64> {
+        use geom_core::spline::KnotVector;
+        let ku = KnotVector::clamped(ku, degree_u).unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let control: Vec<_> = xs
+            .iter()
+            .flat_map(|&x| [0.0, 1.0].map(|y| geom_core::Point3::new(x, y, 1.0)))
+            .collect();
+        let n = control.len();
+        geom::NurbsSurface::new(ku, kv, control, vec![1.0; n]).unwrap()
+    }
+
+    /// The unit cube with its top face recarried on `chart` at `sense`,
+    /// its pcurves minted, and the top face.
+    fn spline_topped_cube(chart: geom::NurbsSurface<f64>, sense: bool) -> (Body<f64>, FaceKey) {
+        let cube = crate::test_support_fixtures::prism::<f64>(
+            &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
+            1.0,
+            Tol::witness(),
+        );
+        let mut body = cube.body;
+        body.set_face_surface_unvouched_for_tests(
+            cube.top_face,
+            crate::FaceSurface::New {
+                surface: geom::Surface::Nurbs(std::sync::Arc::new(chart)),
+                sense,
+            },
+        )
+        .unwrap();
+        crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
+        (body, cube.top_face)
+    }
+
+    /// [`spline_topped_cube`] with the top face's `y = 0` edge split at
+    /// `x = ½`: the body, the top face and the new vertex.
+    pub(crate) fn split_at_half(chart: geom::NurbsSurface<f64>) -> (Body<f64>, FaceKey, VertexKey) {
+        let (mut body, top) = spline_topped_cube(chart, true);
+        let edge = body
+            .edges()
+            .map(|(e, _)| e)
+            .find(|&e| {
+                let c = body.stored_curve(e).unwrap();
+                let (t0, t1) = c.params();
+                let (a, b) = (c.carrier().eval(t0), c.carrier().eval(t1));
+                a.z == 1.0 && b.z == 1.0 && a.y == 0.0 && b.y == 0.0
+            })
+            .expect("the top face's y = 0 edge");
+        let (t0, t1) = body.stored_curve(edge).unwrap().params();
+        let mid = body
+            .split_edge(edge, 0.5 * (t0 + t1), Tol::witness())
+            .unwrap()
+            .vertex;
+        (body, top, mid)
+    }
+
+    /// The orbit half-edge at `vertex` whose sector is a corner of `face`.
+    pub(crate) fn sector_of(body: &Body<f64>, vertex: VertexKey, face: FaceKey) -> HalfEdgeKey {
+        body.vertex_orbit_linked(vertex)
+            .into_iter()
+            .find(|&he| face_of(body, vertex, he) == face)
+            .expect("the vertex is a corner of the face")
+    }
+
+    /// The vertices of `face`'s outer loop.
+    fn corners(body: &Body<f64>, face: FaceKey) -> Vec<VertexKey> {
+        let crate::entity::LoopBoundary::Cycle { first } = body
+            .get_loop(body.get_face(face).unwrap().outer)
+            .unwrap()
+            .boundary
+        else {
+            panic!("the face's outer loop is a cycle");
+        };
+        body.loop_cycle(first)
+            .unwrap()
+            .into_iter()
+            .map(|he| body.get_half_edge(he).unwrap().start)
+            .collect()
+    }
+
+    /// **A spline face's sector normal is its chart's `S_u × S_v` at the
+    /// vertex, with the face's sense folded once.** The cube's top face on
+    /// a planar spline chart reads `+z` at each corner whichever way the
+    /// chart runs: on the chart along `(x, y)`, normal `+z`, sense true;
+    /// and on its transpose, normal `−z`, sense false.
+    #[test]
+    fn a_spline_face_reads_its_outward_chart_normal_at_each_corner() {
+        let chart = planar_chart(vec![0.0, 0.0, 1.0, 1.0], 1, &[0.0, 1.0]);
+        for (chart, sense) in [(chart.clone(), true), (chart.transposed(), false)] {
+            let (body, top) = spline_topped_cube(chart, sense);
+            let vertices = corners(&body, top);
+            assert_eq!(vertices.len(), 4, "the top face has four corners");
+            for v in vertices {
+                let resolved = resolve(&body, v, sector_of(&body, v, top), band())
+                    .unwrap_or_else(|e| panic!("sense {sense}, corner {v:?}: {e:?}"));
+                assert_eq!(resolved.face, top);
+                assert_eq!(
+                    resolved.carrier,
+                    SectorCarrier::Spline(SurfaceKind::Nurbs),
+                    "sense {sense}"
+                );
+                let n = resolved.normal.vec();
+                assert!(
+                    (n - geom_core::Vec3::new(0.0, 0.0, 1.0)).norm() < 1e-12,
+                    "sense {sense}, corner {v:?}: {n:?} is not the outward +z"
+                );
+            }
+        }
+    }
+
+    /// **A vertex on a crease of the chart refuses; the same vertex on a
+    /// smooth knot reads.** The top face's `y = 0` edge is split at
+    /// `x = ½`, where the chart's `u` knot `½` lies. On a degree-1 chart
+    /// that knot is a crease run (multiplicity at least the degree), where
+    /// the face has a normal on each side, so the vertex refuses typed. On
+    /// a degree-2 chart the same simple knot is smooth, and the vertex
+    /// reads `+z`.
+    #[test]
+    fn a_vertex_on_a_crease_of_the_chart_refuses_and_one_on_a_smooth_knot_reads() {
+        let creased = planar_chart(vec![0.0, 0.0, 0.5, 1.0, 1.0], 1, &[0.0, 0.5, 1.0]);
+        let smooth = planar_chart(
+            vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0],
+            2,
+            &[0.0, 0.25, 0.75, 1.0],
+        );
+        for (chart, crease) in [(creased, true), (smooth, false)] {
+            let (body, top, mid) = split_at_half(chart);
+            let got = resolve(&body, mid, sector_of(&body, mid, top), band());
+            if crease {
+                assert!(
+                    matches!(got, Err(SectorFaceError::Crease { face, kind: SurfaceKind::Nurbs }) if face == top),
+                    "a vertex on the crease refuses: {got:?}"
+                );
+            } else {
+                let n = got.expect("a vertex on a smooth knot reads").normal.vec();
+                assert!(
+                    (n - geom_core::Vec3::new(0.0, 0.0, 1.0)).norm() < 1e-12,
+                    "{n:?}"
+                );
+            }
+        }
+    }
+
+    /// **A vertex at an irregular point of the chart refuses.** The top
+    /// face of the prism over `(0, 0), (1, 0), (½, ½), (0, 1)` on the
+    /// bilinear chart through those four corners: its Jacobian is
+    /// `1 − (u + v)/2`, which vanishes at the corner `(½, ½)` alone, where
+    /// `S_u` and `S_v` run back along the two collinear edges that meet
+    /// there. `S_u × S_v` has no direction at that corner and the face
+    /// no normal to read, though it is a plane; the other three corners
+    /// read `+z`.
+    #[test]
+    fn a_vertex_at_an_irregular_point_of_the_chart_refuses() {
+        use geom_core::Point3;
+        use geom_core::spline::KnotVector;
+        let lin = || KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let chart = geom::NurbsSurface::new(
+            lin(),
+            lin(),
+            vec![
+                Point3::new(0.0, 0.0, 1.0),
+                Point3::new(0.0, 1.0, 1.0),
+                Point3::new(1.0, 0.0, 1.0),
+                Point3::new(0.5, 0.5, 1.0),
+            ],
+            vec![1.0; 4],
+        )
+        .unwrap();
+        let prism = crate::test_support_fixtures::prism::<f64>(
+            &[(0.0, 0.0), (1.0, 0.0), (0.5, 0.5), (0.0, 1.0)],
+            1.0,
+            Tol::witness(),
+        );
+        let (mut body, top) = (prism.body, prism.top_face);
+        body.set_face_surface_unvouched_for_tests(
+            top,
+            crate::FaceSurface::New {
+                surface: geom::Surface::Nurbs(std::sync::Arc::new(chart)),
+                sense: true,
+            },
+        )
+        .unwrap();
+        crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
+        let vertices = corners(&body, top);
+        assert_eq!(vertices.len(), 4, "the top face has four corners");
+        for v in vertices {
+            let at = *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+            let got = resolve(&body, v, sector_of(&body, v, top), band());
+            if at.x == 0.5 {
+                assert!(
+                    matches!(got, Err(SectorFaceError::Crease { face, kind: SurfaceKind::Nurbs }) if face == top),
+                    "{at:?}: the irregular corner refuses: {got:?}"
+                );
+            } else {
+                let n = got.expect("a regular corner reads").normal.vec();
+                assert!(
+                    (n - geom_core::Vec3::new(0.0, 0.0, 1.0)).norm() < 1e-12,
+                    "{at:?}: {n:?}"
+                );
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod review_5802 {
+    use super::*;
+    use geom_core::spline::KnotVector;
+    use geom_core::{Point3, Tol, Vec3};
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
+
+    /// The tensor chart over the unit square, `u` along `x` at columns
+    /// `xs` on `ku`, `v` along `y` at rows `ys` on `kv`, height `z(i, j)`.
+    fn chart(
+        (ku, du, xs): (Vec<f64>, usize, &[f64]),
+        (kv, dv, ys): (Vec<f64>, usize, &[f64]),
+        z: impl Fn(usize, usize) -> f64,
+    ) -> geom::NurbsSurface<f64> {
+        let ku = KnotVector::clamped(ku, du).unwrap();
+        let kv = KnotVector::clamped(kv, dv).unwrap();
+        let mut control = Vec::new();
+        for (i, &x) in xs.iter().enumerate() {
+            for (j, &y) in ys.iter().enumerate() {
+                control.push(Point3::new(x, y, z(i, j)));
+            }
+        }
+        let n = control.len();
+        geom::NurbsSurface::new(ku, kv, control, vec![1.0; n]).unwrap()
+    }
+
+    fn topped(chart: geom::NurbsSurface<f64>, sense: bool) -> (Body<f64>, FaceKey) {
+        let cube = crate::test_support_fixtures::prism::<f64>(
+            &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
+            1.0,
+            Tol::witness(),
+        );
+        let mut body = cube.body;
+        body.set_face_surface_unvouched_for_tests(
+            cube.top_face,
+            crate::FaceSurface::New {
+                surface: geom::Surface::Nurbs(std::sync::Arc::new(chart)),
+                sense,
+            },
+        )
+        .unwrap();
+        crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
+        (body, cube.top_face)
+    }
+
+    /// Splits the top edge whose ends satisfy `on` at its middle.
+    fn split_top(body: &mut Body<f64>, on: impl Fn(Point3<f64>) -> bool) -> VertexKey {
+        let edge = body
+            .edges()
+            .map(|(e, _)| e)
+            .find(|&e| {
+                let c = body.stored_curve(e).unwrap();
+                let (t0, t1) = c.params();
+                let (a, b) = (c.carrier().eval(t0), c.carrier().eval(t1));
+                a.z == 1.0 && b.z == 1.0 && on(a) && on(b)
+            })
+            .expect("the top edge");
+        let (t0, t1) = body.stored_curve(edge).unwrap().params();
+        body.split_edge(edge, 0.5 * (t0 + t1), Tol::witness())
+            .unwrap()
+            .vertex
+    }
+
+    fn sector_of(body: &Body<f64>, vertex: VertexKey, face: FaceKey) -> HalfEdgeKey {
+        body.vertex_orbit_linked(vertex)
+            .into_iter()
+            .find(|&he| face_of(body, vertex, he) == face)
+            .expect("the vertex is a corner of the face")
+    }
+
+    /// The bump: biquadratic, boundary at `z = 1`, centre raised `h`. At
+    /// the middle of the `y = 0` edge the chart has `S_u = (1, 0, 0)` and
+    /// `S_v = (0, 1, h)`, so the outward normal is `(0, −h, 1)/‖·‖`,
+    /// which no corner reads (each corner reads `+z`): a vertex end read
+    /// at the wrong end of the edge reads `+z`.
+    #[test]
+    fn a_bumped_chart_reads_its_tilted_normal_at_an_edge_middle_both_ways_and_reverted() {
+        let h = 0.3;
+        let q = || (vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2, &[0.0, 0.5, 1.0][..]);
+        let bump = chart(
+            q(),
+            q(),
+            |i, j| if (i, j) == (1, 1) { 1.0 + h } else { 1.0 },
+        );
+        let want = Vec3::new(0.0, -h, 1.0).normalize();
+        for (chart, sense) in [(bump.clone(), true), (bump.transposed(), false)] {
+            let (mut body, top) = topped(chart, sense);
+            let mid = split_top(&mut body, |p| p.y == 0.0);
+            let n = resolve(&body, mid, sector_of(&body, mid, top), band())
+                .unwrap_or_else(|e| panic!("sense {sense}: {e:?}"))
+                .normal
+                .vec();
+            assert!(
+                (n - want).norm() < 1e-9,
+                "sense {sense}: {n:?} not {want:?}"
+            );
+            let rev = body.revert().unwrap();
+            let n = resolve(&rev, mid, sector_of(&rev, mid, top), band())
+                .unwrap_or_else(|e| panic!("reverted, sense {sense}: {e:?}"))
+                .normal
+                .vec();
+            assert!(
+                (n + want).norm() < 1e-9,
+                "reverted, sense {sense}: {n:?} not {:?}",
+                -want
+            );
+        }
+    }
+
+    /// The same bump, every split edge: each edge middle tilts away from
+    /// the bump, along the edge's own outward side.
+    #[test]
+    fn a_bumped_chart_reads_each_edge_middle() {
+        let h = 0.3;
+        let q = || (vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2, &[0.0, 0.5, 1.0][..]);
+        let bump = chart(
+            q(),
+            q(),
+            |i, j| if (i, j) == (1, 1) { 1.0 + h } else { 1.0 },
+        );
+        type On = fn(Point3<f64>) -> bool;
+        let rows: [(On, Vec3<f64>); 4] = [
+            (|p| p.y == 0.0, Vec3::new(0.0, -h, 1.0)),
+            (|p| p.y == 1.0, Vec3::new(0.0, h, 1.0)),
+            (|p| p.x == 0.0, Vec3::new(-h, 0.0, 1.0)),
+            (|p| p.x == 1.0, Vec3::new(h, 0.0, 1.0)),
+        ];
+        for (chart, sense) in [(bump.clone(), true), (bump.transposed(), false)] {
+            for (on, want) in rows {
+                let (mut body, top) = topped(chart.clone(), sense);
+                let mid = split_top(&mut body, on);
+                let n = resolve(&body, mid, sector_of(&body, mid, top), band())
+                    .unwrap_or_else(|e| panic!("{e:?}"))
+                    .normal
+                    .vec();
+                assert!(
+                    (n - want.normalize()).norm() < 1e-9,
+                    "sense {sense}: {n:?} not {want:?}"
+                );
+            }
+        }
+    }
+
+    /// A kink with no knot: degree 2 in `u` on a simple knot `½`, columns
+    /// 1 and 2 coincident at `x = ½`, so `S_u` vanishes along `u = ½`
+    /// though no knot run reaches the degree. The body cannot be built
+    /// (its `y = 0` edge's pcurve does not certify across the kink), so
+    /// the arm's two checks are read at the point the walk would hand
+    /// them: one of them refuses.
+    #[test]
+    fn a_coincident_control_row_kink_refuses() {
+        let kinked = chart(
+            (
+                vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0],
+                2,
+                &[0.0, 0.5, 0.5, 1.0],
+            ),
+            (vec![0.0, 0.0, 1.0, 1.0], 1, &[0.0, 1.0]),
+            |_, _| 1.0,
+        );
+        for uv in [(0.5, 0.0), (0.5, 0.5)] {
+            let read = geom_brep::regular_jet(&kinked, uv, 1.0, band())
+                .and_then(|jet| geom_brep::chart_normal_at(&kinked, true, &jet, uv, 1.0, band()));
+            assert!(read.is_err(), "{uv:?}: {:?}", read.map(|(n, _)| n.vec()));
+        }
+    }
+
+    /// A crease in `v` (degree 1, knot `½` along `y`), the vertex at the
+    /// middle of the `x = 0` edge, which runs along `v` across it; and the
+    /// same crease in `u` reached through the transpose.
+    #[test]
+    fn a_crease_in_v_refuses() {
+        let creased = chart(
+            (vec![0.0, 0.0, 1.0, 1.0], 1, &[0.0, 1.0]),
+            (vec![0.0, 0.0, 0.5, 1.0, 1.0], 1, &[0.0, 0.5, 1.0]),
+            |_, _| 1.0,
+        );
+        for (chart, sense) in [(creased.clone(), true), (creased.transposed(), false)] {
+            let (mut body, top) = topped(chart, sense);
+            let mid = split_top(&mut body, |p| p.x == 0.0);
+            let got = resolve(&body, mid, sector_of(&body, mid, top), band());
+            assert!(
+                matches!(got, Err(SectorFaceError::Crease { face, kind: SurfaceKind::Nurbs }) if face == top),
+                "sense {sense}: {got:?}"
+            );
+        }
     }
 }

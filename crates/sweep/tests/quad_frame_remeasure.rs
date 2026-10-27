@@ -252,8 +252,11 @@ fn verdict(r: Result<(), Vec<ValidationError>>) -> String {
     match r {
         Ok(()) => "decides".into(),
         Err(e) => match &e[..] {
-            [ValidationError::VolumeSignUnresolved { limit, .. }] => {
-                format!("leaves the sign unresolved: {limit:?}")
+            [ValidationError::VolumeSignUnresolved { limit, volume, .. }] => {
+                format!(
+                    "leaves the sign unresolved: {limit:?}, bracket {volume:?} width {:.3e}",
+                    volume.map_or(f64::NAN, |(lo, hi)| hi - lo)
+                )
             }
             other => format!("OTHER {other:?}"),
         },
@@ -308,7 +311,26 @@ fn row3_swept_loop() {
                 for &dg in &degs {
                     let t = std::time::Instant::now();
                     let body = lofted_loop(&spine, &annulus(sp), st, dg);
-                    let v = verdict(topo::validate_geometric(&body, tol()));
+                    let v = (|| match topo::validate_geometric_certificate(&body, tol()) {
+                        Ok(cert) => {
+                            let e = cert.enclosure();
+                            let gate = format!(
+                                "decides, width {:.3e} [{cert:?}]",
+                                e.volume_hi - e.volume_lo
+                            );
+                            if env("ROW3_MEASURE", "1") == "0" {
+                                return gate;
+                            }
+                            match cert.measure(topo::test_support::pinned_resolution(tol())) {
+                                Ok(m) => format!(
+                                    "{gate}; measure {:?} volume {:.12e} pad {:.3e}",
+                                    m.stop, m.enclosure.volume, m.enclosure.volume_pad
+                                ),
+                                Err(e) => format!("{gate}; measure REFUSES {e:?}"),
+                            }
+                        }
+                        Err(e) => verdict(Err(e)),
+                    })();
                     println!(
                         "ROW3 eps={:e} off={off:?} section={} stations={st} vdeg={dg}: {v} ({:.1}s)",
                         tol().eps(),

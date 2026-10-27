@@ -79,7 +79,8 @@ const FILES: [&str; 5] = [
 /// read four ulps from where they read,
 /// because the pips' union computes in its first pip's frame and reads
 /// every other pip through `relative` (`edit_placement_corpus_bits`
-/// says the same of its last copy).
+/// says the same of its last copy). Over main's merge at `1f851964`,
+/// whose die row reads `ca0b8371cb38e973`, the same points move it.
 const PRE_C: [(&str, &str); 35] = [
     ("die", "18a00a4411472694/532"),
     ("corner_table", "1b26e7ae1ba4a066/100"),
@@ -103,7 +104,7 @@ const PRE_C: [(&str, &str); 35] = [
     ("symmetric_plate", "4988a8ebeaf80d66/52"),
     ("loft_prism", "36c0de6a313e3a66/28"),
     ("die_composed", "182b02846757307e/88"),
-    ("die_composed_tour", "c47c71e7f0cc488f/328"),
+    ("die_composed_tour", "b70c1bbdaed3e0e1/328"),
     ("plate_param", "fd7b71fa51270532/88"),
     ("kiss_carry", "9efdca7b404d4e52/85"),
     ("tube_ring", "c342379c65eab6d1/10"),
@@ -113,7 +114,7 @@ const PRE_C: [(&str, &str); 35] = [
     ("reshaped_rod", "128f9facfb4a7626/52"),
     (FILES[0], "8853ddff30bcec28/154"),
     (FILES[1], "e426662d8439569d/82"),
-    (FILES[2], "c47c71e7f0cc488f/328"),
+    (FILES[2], "b70c1bbdaed3e0e1/328"),
     (FILES[3], "07c4e18f181e9b69/16"),
     (FILES[4], "fd7b71fa51270532/88"),
 ];

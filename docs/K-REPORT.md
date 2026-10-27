@@ -714,7 +714,7 @@ undetected one.
 OFF rule (4)'s roster.** It is the one name the roster pin's ADDED
 direction turned up (`tools/k-lint/tests/predicate_roster.rs`'s
 `every_target_len_mint_is_rostered_or_excused`), and it is genuinely
-ε-coupled: `props/quad.rs`'s budget exit mints
+ε-coupled: `props/quad/run.rs`'s budget exit mints
 `Margin::of(target_len - last_round_len)` against
 `QUAD_TARGET_LEN_FACTOR·ε`, the same spelling the rostered family uses.
 The ruling is recorded in `k_lint::EPS_COUPLED_UNRULED` — a name, a
@@ -848,7 +848,7 @@ with its own reason. `props_quad_converged` stays on the roster: it is
 minted now by `topo`'s interim reporting adapter
 (`crates/topo/src/props/quad_lane.rs`, `to_target`), which reads the
 target the lanes no longer do, and the roster pin reads that source
-beside `props/quad.rs`. Its margin and band are the ones the lanes
+beside `props/quad/`. Its margin and band are the ones the lanes
 minted it with, and a face that meets the target records the same
 samples; a face that cannot now records one at every round to its
 lane's stop, where the budget exit ended it after round 0.
@@ -859,8 +859,8 @@ roster with it.** The reporting target is now a resolution
 width is compared with it, and a sizing is not recorded, so `topo`'s
 interim adapter and its mint are gone and nothing mints the name.
 `k_lint::EPS_COUPLED_PREDICATES` is empty, `predicate_roster`'s
-`MINT_SOURCES` reads `props/quad.rs` alone (it still rules on any mint
-there whose margin derives from `target_len`), and rule (4) stays
+`MINT_SOURCES` reads `props/quad/run.rs` and `props/quad/trimmed.rs`
+(it still rules on any mint there whose margin derives from `target_len`), and rule (4) stays
 specified for the next family. The committed eras still carry the
 family's rows, and the constants above were cut against them as
 ε-coupled, so their provenance reads them through
@@ -872,7 +872,7 @@ site's names, every round it is asked.
 
 **The factor goes too (2026-10-26, measure door unit C).** No lane and
 no number door reads `QUAD_TARGET_LEN_FACTOR` any more: every caller
-states its own resolution, so the constant left `props/quad.rs`, and
+states its own resolution, so the constant left `props/quad/`, and
 `predicate_roster`'s pin that it is a finite positive literal went with
 it. The rule (2) spelling it checks a rostered mint's `target_len`
 against, `QUAD_TARGET_LEN_FACTOR * eps`, stays the spelling the next
@@ -1131,10 +1131,10 @@ the crate scan — the same carrier shape `chart_bound_gap` has):
 
 | name | carrier |
 |---|---|
-| `props_trim_piece_monotone` | a bare literal at `geom_brep::props::quad::piece_monotone`'s `classify_len` call |
+| `props_trim_piece_monotone` | a bare literal at `geom_brep::props::quad::trimmed::piece_monotone`'s `classify_len` call |
 
 Its dimension and disposition are `docs/predicate-dimension-audit.md`'s
-`props/quad.rs (piece_monotone)` row: a chart-parameter span levered by
+`props/quad/trimmed.rs (piece_monotone)` row: a chart-parameter span levered by
 the chart's own metric rate along the chord, hence metres like the rest
 of the `props_quad_*` family. It is asked **once per trim piece per
 round**, so on a face that takes several rounds its population is the

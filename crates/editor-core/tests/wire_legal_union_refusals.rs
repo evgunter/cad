@@ -124,8 +124,8 @@ impl SunkBossCut {
 
     /// The same document with block `k`'s copy slid to `y` along y: an
     /// edit of its Slide Y value, so every node keeps its id. The value
-    /// is charted on the plane its copy's start cap is mated to, which
-    /// faces down, so its `y` runs against the world's.
+    /// is charted on the plane its copy's start cap is mated to, its `y`
+    /// the world's.
     fn moved(&self, k: usize, y: f64) -> Self {
         let slot = value_slot(&self.doc, self.placements[k], Coord::Slide(TargetAxis::Y));
         let (doc, _) = step(
@@ -133,7 +133,7 @@ impl SunkBossCut {
             DocEdit::SetParam {
                 node: self.placements[k],
                 slot,
-                value: len(-y).into(),
+                value: len(y).into(),
                 fresh: Vec::new(),
             },
         );
@@ -524,7 +524,7 @@ fn orders(n: usize) -> Vec<Vec<usize>> {
 /// missing rule some other row owns.
 ///
 /// The refusal that must never appear is the fold's own contact verdict:
-/// `judge_pairwise_contact` passed every member pair before the fold,
+/// the n-ary door (`topo::nary_boolean`) judged every member pair before the fold,
 /// so a fold step that refuses a contact would be judging one no pair
 /// has (`fold_step_refusal`).
 fn every_order(
