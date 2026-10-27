@@ -38,3 +38,11 @@ Also seen there: on every carrier measured the per-cell HULL of `g`
 was narrower than the per-cell pad. The pad bounds `|∂_d |c||` by
 `|∂_d c|`, which carries the turning of the normal as well as the
 change of its length; on a cylinder the turning is most of it.
+
+## Re-checked on main `9267d3ae` (QUAD tracker sweep, 2026-10-27)
+
+Still holds. `rational_patch_face`
+(`crates/geom-brep/src/props/quad/rational.rs:360`) still reads
+`measure.area_bounds` once per hull block (`:456`). The area cells
+look their block up by `advance_block` (`:469`–`470`) under
+`AREA_CELLS_PER_AXIS` (`props/quad/area.rs:17`).

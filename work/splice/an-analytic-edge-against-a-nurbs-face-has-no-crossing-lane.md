@@ -2,8 +2,9 @@
 id: an-analytic-edge-against-a-nurbs-face-has-no-crossing-lane
 kind: issue
 title: An analytic operand edge against the other operand's NURBS face refuses CurvedBooleanUnsupported at the crossing layer: the contact klein wall 3, lily wall 8 and teapot wall 3 reach once the edge gate is gone
-status: dispatched
+status: closed
 opened: 2026-10-26
+closed: 2026-10-27
 priority: P0
 cost: H
 refs: [delete-the-boolean-operand-edge-gate, nurbs-edge-crossing-rung-is-the-ring-composite, a-nurbs-face-against-a-cone-or-sphere-has-no-section-arm, nurbs-plane-section-has-no-component-arm, 5723]
@@ -117,3 +118,45 @@ choice. The pieces the design implies are their own rows:
 The converse arm (a spline span against an analytic face) is
 `nurbs-edge-crossing-rung-is-the-ring-composite`, now an arm of the
 same table. Build the two against one brief, or one after the other.
+
+## Closed
+
+Branch `splice/interior-arm`. The table's interior arm for an analytic
+span (line, circle, ellipse) against a spline face (`Nurbs`, `Approx`)
+is built: `geom_brep::curve_face::spline_face` (`isolate`, then
+`settle`, composed as `NurbsLane::chart_meetings`). It runs on boxes of
+`(t, u, v)` on `C(t) − S(u, v)`, clears a box only where `|F|` is decided
+past the band, and proves one transverse meeting by the Krawczyk test
+with `det J` definitely nonzero. The chart is cut at its creases, and a
+box at the floor that no isolating box holds refuses. The boolean's
+spline-face door reads it past the boundary pass
+(`topo::boolean::reduce::spline_interior`). It places each meeting by
+the trim at its own chart point
+(`topo::boolean::spline_region::spline_chart_placement`), then records
+the span's ends.
+
+Witnesses: `geom-brep` `curve_face::spline_face::rows` (a line crossing
+a bicubic patch once, a circle crossing it twice, a tangent line, an
+in-band pass and a pass past the band, a meeting on a crease and one
+beside it, a meeting at a span's end, a rational patch); `topo`
+`spline_face_rows::a_line_pierces_a_spline_face_inside_its_trim_and_passes_it_outside`
+and `a_chord_between_two_corners_of_a_spline_face_records_its_ends`;
+`spline_region::rows::a_meetings_chart_point_is_placed_on_its_own_sheet`
+(the meeting outside the trim, and the hairpin's other sheet); `sweep`
+`m5_s11_concave_sense::a_lofted_operand_refuses_the_union_check_typed`.
+
+The demo walls, measured:
+- **Lily wall 8 does not move.** Its refusal is a NURBS tip seam of the
+  blade against the sheath's ridge wall, `(Nurbs, Nurbs)`, which this
+  arm does not read. Filed as
+  `a-spline-span-against-a-spline-face-has-no-interior-arm`.
+- **Klein wall 3 moves** to `SplineCrossingUnsettled { operand: A,
+  edge: 4v1, face: 3v3, face_of: B, why: Crease }`. That is a meeting on
+  the joint of the loop wall's two rational arcs. Filed as
+  `a-meeting-on-a-g1-arc-joint-of-a-spline-face-refuses-as-a-crease`.
+- **Teapot wall 3 does not move.** It still refuses
+  `PointSplitCarrierUnsupported` ahead of this door
+  (`a-meeting-on-a-spline-boundary-edge-has-no-split-parameter`).
+
+Also filed: `a-meeting-on-a-closed-charts-seam-is-not-isolated`.
+

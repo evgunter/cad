@@ -453,8 +453,8 @@ pub(super) fn recl_sectors<T: Decide>(
                 Operand::B => (b_body, sb, sa),
             };
             let mut runs = false;
-            for (edge, dir) in super::sectors::bound_edges(body, own) {
-                if super::sectors::runs_into(other, dir, arm, band)? {
+            for (edge, dir, reach) in super::sectors::bound_reaches(body, own) {
+                if super::sectors::runs_into(other, (dir, reach), arm, band)? {
                     runs = true;
                     fates.edges.push(super::fate::FateEdge {
                         holder: keeper,

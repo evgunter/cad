@@ -171,7 +171,7 @@ fn a_slab_crossing_one_section_circle_four_times_builds_under_every_boolean() {
 /// a chart (`chord_join::path_island_winding`). Every op builds at the
 /// slab's closed form; ∪ and ball ∖ slab keep the ring as a hole of the
 /// ball's face, which the sphere arm measures over both its loops
-/// (`work/flux/sphere-face-with-a-hole-has-no-closed-form.md`).
+/// (`sphere-face-with-a-hole-has-no-closed-form`, closed by PR 4573).
 #[test]
 fn four_crossings_above_the_centre_wind_the_sphere_ring() {
     let (c, rho) = (0.5f64, 0.75f64.sqrt());

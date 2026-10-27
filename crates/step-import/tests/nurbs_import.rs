@@ -330,7 +330,7 @@ fn arc_loft_natively_computes_its_rational_volume() {
             // 2's sequential fold), and an `f64` sum rounds differently in
             // another order. Whether the fold should be order-independent
             // is FLUX's design row
-            // `work/flux/the-whole-body-property-fold-depends-on-face-order.md`.
+            // `the-whole-body-property-fold-depends-on-face-order`, closed by PR 5402.
             // So:
             //
             // * the import's gate enclosure IS the imported body's own

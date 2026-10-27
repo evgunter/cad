@@ -110,8 +110,8 @@ fn any_solid_pair_undecidable(errors: &[ValidationError], pick: impl Fn(&str) ->
 /// then finds an inner vertex strictly inside the outer's material.
 /// Not a `CensusUndecidable` of any wording — the arm decides this
 /// placement.
-fn interference_decided(errors: &[ValidationError]) -> bool {
-    errors.iter().any(common::is_decided_overlap)
+fn interference_decided(body: &Body<f64>, errors: &[ValidationError]) -> bool {
+    errors.iter().any(|e| common::is_decided_overlap(body, e))
 }
 
 /// **The embedded-instance fixture.** A 1 m cube sitting wholly inside
@@ -180,7 +180,7 @@ fn an_embedded_instance_is_examined_though_its_contact_is_declared() {
          loudness cannot be borrowed from a refuted record: {errors:?}"
     );
     assert!(
-        interference_decided(&errors),
+        interference_decided(&body, &errors),
         "the containment arm must decide the embedded pair as an interference, \
          not refuse it as undecidable: {errors:?}"
     );
@@ -214,7 +214,7 @@ fn the_embedded_pair_is_refused_undeclared_too() {
     let errors = validate_pseudomanifold(&body, &ContactRecords::default(), Tol::witness())
         .expect_err("the undeclared twin refuses");
     assert!(
-        interference_decided(&errors),
+        interference_decided(&body, &errors),
         "the containment arm decides the pair the same way with no records at \
          all: {errors:?}"
     );

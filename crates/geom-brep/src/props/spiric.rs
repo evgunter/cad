@@ -2117,7 +2117,7 @@ mod tests {
         // the wall, which `require_boundary_windings` admits as a
         // boundary; the lifted chart's Green form does not read it, so
         // the wall refuses it typed rather than misread it
-        // (`work/flux/a-spiric-bounded-torus-band-has-no-volume-lane.md`).
+        // (`work/spiricarm/a-spiric-bounded-torus-band-has-no-volume-lane.md`).
         let back_oval = SpiricEdgeQ {
             forward: false,
             ..oval

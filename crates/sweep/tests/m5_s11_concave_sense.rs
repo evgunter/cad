@@ -809,10 +809,11 @@ fn a_tapered_concave_loft_keeps_the_prism_wall_directions() {
 /// was `union(notched, pellet)` on two disjoint solids: no surface
 /// intersections, so the operation asks `point_in_solid`, and a wrong
 /// `sense` on the concave wall made it answer `In` and swallow the
-/// pellet. On a LOFTED operand both doors refuse instead — the pellet
-/// sits inside the hull of the notch's NURBS walls, so the boolean
-/// cannot rule out a meeting it has no NURBS × plane arm for, and
-/// `point_in_solid` has no NURBS door at all.
+/// pellet. On a LOFTED operand both doors refuse instead: the boolean
+/// reads every edge of the pellet clear of the loft's NURBS walls, finds
+/// no crossing, and its extent fallback cannot say which side of the
+/// concave top wall the pellet sits on, and `point_in_solid` has no
+/// NURBS door at all.
 ///
 /// So the swallow is closed for loft by REFUSAL, not by the bit, which
 /// is why the material-side probes above carry the guard. The extrude
@@ -849,12 +850,11 @@ fn a_lofted_operand_refuses_the_union_check_typed() {
 
     let err = match topo::boolean::union(&operand, &pellet, Tol::witness()) {
         Err(e) => e,
-        Ok(_) => panic!("a NURBS wall near the pellet has no boolean arm yet"),
+        Ok(_) => panic!("a disjoint NURBS operand has no containment reading yet"),
     };
-    let topo::BooleanError::CurvedBooleanUnsupported {
+    let topo::BooleanError::NurbsExtentUnsupported {
         operand: topo::boolean::Operand::A,
         face,
-        kind: geom::SurfaceKind::Nurbs,
     } = err
     else {
         panic!("the refusal names a NURBS face of the lofted operand: {err:?}");
