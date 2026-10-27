@@ -263,7 +263,7 @@ fn corners<T: Real>(b: super::boxes::SpanBox<T>) -> (Point3<T>, Point3<T>) {
 /// The mean of an item's boundary vertices, or a circle's or ball's
 /// centre — a point that moves with its body. `None` for a face whose
 /// boundary has no vertex.
-fn anchor<T: Decide>(body: &Body<T>, item: Item<T>) -> Option<Point3<T>> {
+pub(crate) fn anchor<T: Decide>(body: &Body<T>, item: Item<T>) -> Option<Point3<T>> {
     use super::boxes::edge_end_point;
     let mut sum = Vec3::new(T::zero(), T::zero(), T::zero());
     let mut n = 0u32;

@@ -1028,47 +1028,68 @@ fn face_geo_arms<T: Decide>(
 }
 
 /// K name: how far a point stands past the hull of a selection's face
-/// reaches, along one world axis (metres).
+/// reaches, along one candidate direction (metres).
 const PAST_EVERY_REACH: &str = "bool_point_past_every_reach";
 
 /// Whether `q` lies definitely outside the hull of every face's
-/// certified reach (`census::face_reach_in`, the box rules' one map), on
-/// some world axis. A face with no claim to make answers `false`.
+/// certified reach (`census::face_reach_in`, the box rules' one map),
+/// along some direction that turns with the body: a planar face's
+/// outward normal, or the axis from the faces' anchor to `q`
+/// ([`super::separating`]'s candidates). World axes are not read: a
+/// turned body's world hull widens with the turn, so a verdict read on
+/// them would be the pose's. A face with no claim to make answers
+/// `false`.
 fn past_every_reach<T: Decide>(
     body: &Body<T>,
     faces: &[FaceKey],
     q: Point3<T>,
     band: Band,
 ) -> bool {
-    let frame = super::boxes::BoxFrame::World;
-    let mut hull: Option<(Point3<T>, Point3<T>)> = None;
+    use super::separating::{self, Item};
+    let mut dirs = Vec::new();
+    let mut anchors = Vec3::new(T::zero(), T::zero(), T::zero());
+    let mut n = 0u32;
     for &face in faces {
-        let Some((lo, hi)) = crate::census::face_reach_in(body, face, band, &frame) else {
+        if let Some(p) = separating::anchor(body, Item::Face(face)) {
+            anchors = anchors + Vec3::new(p.x, p.y, p.z);
+            n += 1;
+        }
+        dirs.extend(separating::planar_axis(
+            body,
+            face,
+            || crate::census::face_reach(body, face, band),
+            band,
+        ));
+    }
+    if n > 0 {
+        let k = T::one() / T::from_f64(f64::from(n));
+        let anchor = Point3::new(anchors.x * k, anchors.y * k, anchors.z * k);
+        dirs.extend(geom_core::UnitVec3::new(q - anchor, separating::PAIR_AXIS, band).ok());
+    }
+    dirs.into_iter().any(|dir| {
+        let frame = super::boxes::BoxFrame::aimed(dir);
+        let mut hull: Option<(T, T)> = None;
+        for &face in faces {
+            let Some((lo, hi)) = crate::census::face_reach_in(body, face, band, &frame) else {
+                return false;
+            };
+            hull = Some(match hull {
+                None => (lo.x, hi.x),
+                Some((l, h)) => (l.min(lo.x), h.max(hi.x)),
+            });
+        }
+        let Some((lo, hi)) = hull else {
             return false;
         };
-        hull = Some(match hull {
-            None => (lo, hi),
-            Some((l, h)) => (
-                Point3::new(l.x.min(lo.x), l.y.min(lo.y), l.z.min(lo.z)),
-                Point3::new(h.x.max(hi.x), h.y.max(hi.y), h.z.max(hi.z)),
-            ),
-        });
-    }
-    let Some((lo, hi)) = hull else {
-        return false;
-    };
-    let past = |m: T| {
-        matches!(
-            decide(PAST_EVERY_REACH, Margin::of(m), band),
-            Ok(Sign::Positive)
-        )
-    };
-    past(q.x - hi.x)
-        || past(lo.x - q.x)
-        || past(q.y - hi.y)
-        || past(lo.y - q.y)
-        || past(q.z - hi.z)
-        || past(lo.z - q.z)
+        let at = frame.point(q).x;
+        let past = |m: T| {
+            matches!(
+                decide(PAST_EVERY_REACH, Margin::of(m), band),
+                Ok(Sign::Positive)
+            )
+        };
+        past(at - hi) || past(lo - at)
+    })
 }
 
 /// **Whether the ray test has an arm for a surface kind** — the one
