@@ -1,4 +1,7 @@
-//! TODO header
+//! **The rectangle lanes' area**: the shared midpoint–Taylor rule
+//! ([`area_midpoint_taylor`]) over a UV rectangle, and the A2 area gauge
+//! with its certified chord-perimeter lower bound
+//! ([`boundary_chord_perimeter_lo`]).
 
 use geom_core::interval::certification::Certification;
 use geom_core::interval::{Interval, certified_hi};
@@ -9,9 +12,14 @@ use super::net::{RVec3, widen};
 use crate::props::PropsError;
 use crate::props::bracket::{lo_or_refuse, pt};
 
-/// Cells per axis of BOTH patch lanes' area pass (fixed, D9). The
-/// shared [`area_midpoint_taylor`] rule is O(h), so the resolution sets
-/// the area's honest width directly.
+/// Cells per axis of the area rule (fixed, D9): over the rectangle in
+/// both rectangle lanes ([`area_midpoint_taylor`]), and per chord in the
+/// trimmed lane, whose rule under each chord is the same cell rule
+/// (`chord_polygon_area`). The rule is O(h), so the resolution sets the
+/// area's honest width directly. A lower count is what a curved chart
+/// cannot afford: at 16 the pad on an ordinary bidegree-(2,2) trimmed
+/// chart is the size of the face's own area, `area.lo()` goes negative
+/// and the extent gate answers `DegenerateFace`.
 pub(super) const AREA_CELLS_PER_AXIS: usize = 64;
 /// Chords per rectangle side in the area gauge's certified perimeter
 /// lower bound ([`boundary_chord_perimeter_lo`]). Sixteen is enough
@@ -289,7 +297,7 @@ fn area_gauge_ok(area: Interval, perimeter_lo: f64) -> bool {
 ///   ceiling already sits far above the corpus and is aimed at
 ///   bug-scale widths, so even a 10x overstatement leaves orders of
 ///   detection headroom. This is the monotone-wrong direction, and
-///   it is the direction every other guard in this file errs.
+///   it is the direction every other guard in this module errs.
 ///
 /// The costs are not comparable, so the denominator must never be too
 /// small — and neither input can be trusted alone to guarantee that.
@@ -481,7 +489,7 @@ pub(super) struct AreaCell {
 /// knot count. The flux path takes the same cuts for the same
 /// reason.
 ///
-/// Why not the plain hull rule everywhere: every hull in this file is a
+/// Why not the plain hull rule everywhere: every hull in this module is a
 /// control-net convexity fact and those are SPAN-GRANULAR, so on a
 /// single-span patch the per-cell hull IS the whole-patch hull and the
 /// rule never tightens (the unit square came out `[≈0, 10.4]`). Here

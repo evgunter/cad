@@ -1,15 +1,19 @@
-//! TODO header
+//! **The cylinder-cut lane** ([`cylinder_cut_face_rounds`]): the
+//! harmonic-channel Green integral of the formulation in the module docs
+//! of [`super`], its composite rule and honesty pads, and the loop
+//! windings and ring readings a face rests on.
 
 use geom_core::interval::certification::Certification;
 use geom_core::interval::{Interval, certified_hi};
-use geom_core::{Band, Decide, Margin, Sign};
+use geom_core::{Band, Decide};
 
-use super::run::{Accept, FaceCutBounds, LaneRun, RoundWindow, Run, classify_len};
+use super::run::{Accept, FaceCutBounds, LaneRun, RoundWindow, Run, face_extent};
 use super::trig::{rotate, spread_cos, spread_sin, trig_at, trig_over};
-use crate::props::bracket::{AbsEnclosure, lo_or_refuse, mid, pt};
-use crate::props::{PropsCheck, PropsError};
+use crate::props::PropsError;
+use crate::props::bracket::{AbsEnclosure, mid, pt};
 
-/// The initial piece count of the composite rule (round 0).
+/// Pieces per trim edge at round 0, doubling per round: the composite
+/// rule of the cylinder lane and of the spiric lane.
 pub(in crate::props) const EDGE_INIT_PIECES: usize = 16;
 
 /// Weight of one harmonic piece of a cylinder edge, in [`FACE_WORK_WALL`](super::run::FACE_WORK_WALL)'s unit.
@@ -267,28 +271,20 @@ pub fn cylinder_cut_face_rounds<T: Decide>(
         let area = (radius * a_s).abs_enclosure();
         let flux = radius.sqr() * a_s + o_dot_va;
         let bounds = FaceCutBounds { flux, area };
-        let stop = run.stop(round, bounds, radius.sqr().mag() * removable);
-        let accepted = accept(&bounds, stop)?;
-        if accepted {
-            // Face-extent gate on the ACCEPTED enclosure: the area
-            // must be definitely positive, metered as the face's mean
-            // width area/perimeter — a length (the closed-form lanes'
-            // `props_face_extent` lever, quadrature-shaped).
-            let perim: f64 = loops
-                .iter()
-                .flat_map(|edges| edges.iter())
-                .map(|e| edge_metric_length(e, radius))
-                .sum();
-            match classify_len::<T>(
-                "props_quad_face_extent",
-                Margin::over_lever(lo_or_refuse(area), perim),
-                band,
-                PropsCheck::Extent,
-            )? {
-                Sign::Positive => {}
-                Sign::Zero | Sign::Negative => return Err(PropsError::DegenerateFace),
-            }
-        }
+        let (stop, accepted) = run.ask(
+            round,
+            bounds,
+            radius.sqr().mag() * removable,
+            accept,
+            || {
+                let perim: f64 = loops
+                    .iter()
+                    .flat_map(|edges| edges.iter())
+                    .map(|e| edge_metric_length(e, radius))
+                    .sum();
+                face_extent::<T>(area, perim, band)
+            },
+        )?;
         if let Some(out) = run.ringed(round, stop, accepted, bounds, || {
             require_holes_wound_against(loops, &per_loop, &winds, a_s, radius, band)
         })? {
@@ -459,6 +455,7 @@ mod tests {
 
     use super::super::run::{LaneEnd, LaneStop, mean_boundary_displacement};
     use super::super::trig::trig_at_limit;
+    use crate::props::PropsCheck;
     use crate::props::quad::test_target::{self, met, to_target};
     use geom_core::Tol;
 

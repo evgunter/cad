@@ -1,4 +1,8 @@
-//! TODO header
+//! **The patch substrate** every patch lane evaluates on: the checked
+//! net ([`PatchNet`]), its derivative grids ([`PatchGrid`]) with the
+//! loose knot structures of the derivatives no clamped vector spells,
+//! how a direction collapses ([`Collapse`]), span-local de Boor, and the
+//! exact Newton–Cotes weights.
 
 use geom_core::Bounds;
 use geom_core::interval::certification::Certification;

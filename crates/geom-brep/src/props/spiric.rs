@@ -80,16 +80,16 @@
 
 use geom_core::interval::certification::Certification;
 use geom_core::interval::{Interval, certified_hi, cross, dot};
-use geom_core::{Band, Bounds, Decide, Margin, Sign};
+use geom_core::{Band, Bounds, Decide};
 
-use super::bracket::{AbsEnclosure, lo_or_refuse, pt};
+use super::PropsError;
+use super::bracket::{AbsEnclosure, pt};
 use super::closure::{IntervalJunction, interval_loop_turns};
 use super::quad::{
-    Accept, FaceCutBounds, LaneRun, EDGE_INIT_PIECES, RVec3, RoundWindow, Run, classify_len,
-    rotate, spread_cos, spread_sin, trig_at,
+    Accept, EDGE_INIT_PIECES, FaceCutBounds, LaneRun, RVec3, RoundWindow, Run, face_extent, rotate,
+    spread_cos, spread_sin, trig_at,
 };
 use super::taylor::{Jet, composite_by, node};
-use super::{PropsCheck, PropsError};
 
 /// The jets of `t`, `cos t` and `sin t` from enclosures of their values.
 fn trig_jets(t: Interval, c: Interval, s: Interval) -> (Jet, Jet, Jet) {
@@ -858,19 +858,9 @@ pub fn rim_face_rounds<T: Decide>(
     let mut pieces = EDGE_INIT_PIECES << round;
     loop {
         let (bounds, loops, removable) = face_bounds(face, pieces)?;
-        let stop = run.stop(round, bounds, removable);
-        let accepted = accept(&bounds, stop)?;
-        if accepted {
-            match classify_len::<T>(
-                "props_quad_face_extent",
-                Margin::over_lever(lo_or_refuse(bounds.area), face.perimeter),
-                band,
-                PropsCheck::Extent,
-            )? {
-                Sign::Positive => {}
-                Sign::Zero | Sign::Negative => return Err(PropsError::DegenerateFace),
-            }
-        }
+        let (stop, accepted) = run.ask(round, bounds, removable, accept, || {
+            face_extent::<T>(bounds.area, face.perimeter, band)
+        })?;
         if let Some(out) = run.ringed(round, stop, accepted, bounds, || {
             face.wall.as_ref().map_or(Ok(()), |chart| {
                 require_rings_wound_against(face, chart, &loops, band)

@@ -1,4 +1,6 @@
-//! TODO header
+//! **The trimmed-region lane** ([`trimmed_patch_face_rounds`]): Green's
+//! theorem on the trim loop's own chart image — its chords, lunes and
+//! pads, and the chord polygon's exact and composite rules.
 
 use geom_core::Bounds;
 use geom_core::interval::certification::Certification;
@@ -15,7 +17,7 @@ use super::net::{
     Collapse, PatchGrid, PatchNet, RVec3, certified_box, grid_vec, newton_cotes_weights, norm_hi,
     refused_vec, rv_add, widen,
 };
-use super::run::{Accept, FaceCutBounds, LaneRun, RoundWindow, Run, classify_len};
+use super::run::{Accept, FaceCutBounds, LaneRun, RoundWindow, Run, face_extent};
 use crate::offset_meters::mig;
 use crate::props::bracket::{lo_or_refuse, mid, pt};
 use crate::props::{PropsCheck, PropsError};
@@ -110,18 +112,6 @@ pub(super) const IMAGE_INIT_PIECES: usize = AXIS_INIT_PIECES;
 /// chord anywhere becomes one within a few levels; a cusp or a fold
 /// never does, and refusing is the honest answer for it.
 const MONOTONE_BISECTIONS: usize = 4;
-/// Cells per axis of the trimmed lane's AREA rule, per chord —
-/// [`AREA_CELLS_PER_AXIS`], and deliberately the same number.
-///
-/// The rule under each chord is the rectangle lane's own cell rule
-/// ([`chord_polygon_area`]), so its pad is `½h_u·sup|∂_u g| +
-/// `½h_v·sup|∂_v g|` per cell and the resolution is what sets the
-/// area's honest width, exactly as it does there. A lower count was
-/// tried and is what a curved chart cannot afford: at 16 the pad on an
-/// ordinary bidegree-(2,2) chart is the size of the face's own area,
-/// `area.lo()` goes negative and the extent gate answers
-/// `DegenerateFace`.
-const TRIM_AREA_PIECES: usize = AREA_CELLS_PER_AXIS;
 
 /// A chart-space point bracket (`(u, v)`).
 type RPt2 = (Interval, Interval);
@@ -214,7 +204,7 @@ pub struct TrimChord {
     /// a `General`, its whole control polygon) and the chart, so it
     /// derives the length itself ([`polygon_variation`] crossed by the
     /// chart's metric rate). A lane that took a caller's perimeter is
-    /// `work/props/quad-face-extent-trusts-caller-perimeter.md` (#1368,
+    /// `work/quadtail/quad-face-extent-trusts-caller-perimeter.md` (#1368,
     /// open), and this one does not open a second instance of it.
     pub env: Interval,
 }
@@ -374,7 +364,7 @@ struct TrimCell {
     /// chart's own rate it gives the cell's metric length, which is
     /// what the envelope pad and the extent gate's perimeter are built
     /// from. The door computes it here rather than taking a caller's
-    /// number: `work/props/quad-face-extent-trusts-caller-perimeter.md`
+    /// number: `work/quadtail/quad-face-extent-trusts-caller-perimeter.md`
     /// (#1368) is the class a trusted perimeter lands in.
     var: (f64, f64),
     /// The chart-space radius of the wider of the two endpoint
@@ -513,7 +503,7 @@ fn piece_monotone<T: Decide>(
     // at least this much — and `rate` is a certified LOWER bound, so
     // under-stating it can only fail to certify, never certify a
     // sliver.
-    classify_len::<T>(
+    super::run::classify_len::<T>(
         "props_trim_piece_monotone",
         Margin::metered(span, InfSpeed::new(rate)),
         band,
@@ -589,7 +579,7 @@ fn trim_cells<T: Decide>(
             let a = vertex(block[0]);
             let b = vertex(block[block.len() - 1]);
             // An ESCALATION propagates, as it does from every other
-            // lane in this file: an in-band margin is the funnel's own
+            // lane in this module: an in-band margin is the funnel's own
             // answer, and bisection cannot improve it — the span it
             // meters HALVES at every level, so a margin that sits in
             // the band arrives at the depth limit still in it. What
@@ -1312,7 +1302,9 @@ fn chord_polygon_area(
         let slope = (vb - va) / (ub - ua);
         let ell = |u: f64| va + (u - ua) * slope;
         let mut chord = Interval::zero();
-        for w in knot_aligned_cuts(span_u.start(), span_u.end(), TRIM_AREA_PIECES, &ku).windows(2) {
+        for w in
+            knot_aligned_cuts(span_u.start(), span_u.end(), AREA_CELLS_PER_AXIS, &ku).windows(2)
+        {
             let (p, q) = (w[0], w[1]);
             // Adjacent cuts of a sorted list are ordered; a pair that is
             // not (an infinite end cuts to NaN) names no region, and the
@@ -1334,8 +1326,8 @@ fn chord_polygon_area(
             // this column into the rectangle `[p,q] × [v₀, ℓ(u_m)]`,
             // and the cell rule pads that rectangle directly.
             let mut col = Interval::zero();
-            for wc in
-                knot_aligned_cuts(column.start(), column.end(), TRIM_AREA_PIECES, &kvb).windows(2)
+            for wc in knot_aligned_cuts(column.start(), column.end(), AREA_CELLS_PER_AXIS, &kvb)
+                .windows(2)
             {
                 let (c0, c1) = (wc[0], wc[1]);
                 let Some(cell_v) = ParamRange::new(c0, c1) else {
@@ -1737,24 +1729,14 @@ pub fn trimmed_patch_face_rounds<T: Decide>(
         // The lunes, widening the flux both ways, and the composite
         // arm's remainders are the part of its width a later round
         // removes; the vertex, sliver, gap and envelope pads are not.
-        let stop = run.stop(round, bounds, 2.0 * lune_f + remainder);
-        let accepted = accept(&bounds, stop)?;
-        if accepted {
-            // The perimeter this gate levers by is the DOOR's, derived
-            // from the cells above — not a caller's field. A lane that
-            // takes the caller's is
-            // `work/props/quad-face-extent-trusts-caller-perimeter.md`
-            // (#1368, open), and this one deliberately does not join it.
-            match classify_len::<T>(
-                "props_quad_face_extent",
-                Margin::over_lever(lo_or_refuse(area), perimeter),
-                band,
-                PropsCheck::Extent,
-            )? {
-                Sign::Positive => {}
-                Sign::Zero | Sign::Negative => return Err(PropsError::DegenerateFace),
-            }
-        }
+        // The perimeter the extent gate levers by is the DOOR's,
+        // derived from the cells above — not a caller's field. A lane
+        // that takes the caller's is
+        // `work/quadtail/quad-face-extent-trusts-caller-perimeter.md`
+        // (#1368, open), and this one deliberately does not join it.
+        let (stop, accepted) = run.ask(round, bounds, 2.0 * lune_f + remainder, accept, || {
+            face_extent::<T>(area, perimeter, band)
+        })?;
         if let Some(out) = run.exit(round, stop, accepted, bounds) {
             return Ok(out);
         }
@@ -3321,7 +3303,7 @@ mod tests {
     /// to a foregone refusal, and the refusal would misreport an
     /// undecided margin as a decided fold. The funnel's own answer for
     /// an in-band margin is an escalation, which is what every other
-    /// lane in this file returns.
+    /// lane in this module returns.
     ///
     /// The fixture puts the first Bézier block's backward step inside
     /// `(ε, K·ε)`: the image is split into `IMAGE_INIT_PIECES = 8`, so a

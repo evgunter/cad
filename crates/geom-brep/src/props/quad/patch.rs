@@ -1,27 +1,31 @@
-//! TODO header
+//! **The NURBS-patch lane** over a whole UV rectangle
+//! ([`nurbs_patch_face_rounds`]): the polynomial patch's exact per-span
+//! Newton–Cotes rule ([`patch_flux_exact`]) with the composite rounds
+//! behind it. A rational patch routes to [`super::rational`].
 
 use geom_core::interval::certification::Certification;
 use geom_core::interval::{Interval, cross, dot};
 use geom_core::spline::KnotVector;
-use geom_core::{Band, Decide, Margin, Sign};
+use geom_core::{Band, Decide};
 
 use super::area::{
     AREA_CELLS_PER_AXIS, AreaCell, PERIMETER_CHORDS_PER_SIDE, PatchRect, area_midpoint_taylor,
     boundary_chord_perimeter_lo, debug_assert_area_gauge,
 };
 use super::cells::{
-    AXIS_INIT_PIECES, cell_midpoint, knot_aligned_cuts, remainder_cell_u, remainder_cell_v,
+    AXIS_INIT_PIECES, cell_midpoint, knot_aligned_cuts, knots_inside, remainder_cell_u,
+    remainder_cell_v,
 };
 use super::net::{
     Collapse, PatchGrid, PatchNet, clipped_spans, grid_vec, newton_cotes_weights, norm_hi, widen,
 };
 use super::rational::rational_patch_face;
 use super::run::{
-    Accept, FaceCutBounds, LaneEnd, LaneRun, LaneStop, RoundWindow, Run, classify_len,
+    Accept, FaceCutBounds, LaneEnd, LaneRun, LaneStop, RoundWindow, Run, face_extent,
 };
 use super::trimmed::normal_partials;
-use crate::props::bracket::{lo_or_refuse, pt};
-use crate::props::{PropsCheck, PropsError};
+use crate::props::PropsError;
+use crate::props::bracket::pt;
 
 /// Weight of one cell of the integral patch lane's composite.
 pub(super) const W_INTEGRAL_COMPOSITE: usize = 32;
@@ -199,17 +203,8 @@ pub fn nurbs_patch_face_rounds<T: Decide>(
     let suuv = suu.as_ref().and_then(PatchGrid::deriv_v);
     let suvv = suv.as_ref().and_then(PatchGrid::deriv_v);
     let svvv = svv.as_ref().and_then(PatchGrid::deriv_v);
-    // A range filter, not `interior_knots`: `(lo, hi)` is the trim
-    // rectangle's side, which is the vector's domain only sometimes.
-    let interior = |kv: &KnotVector, lo: f64, hi: f64| -> Vec<f64> {
-        kv.knots()
-            .iter()
-            .copied()
-            .filter(|k| *k > lo && *k < hi)
-            .collect()
-    };
-    let knots_u = interior(kv_u, u0, u1);
-    let knots_v = interior(kv_v, v0, v1);
+    let knots_u = knots_inside(kv_u, u0, u1);
+    let knots_v = knots_inside(kv_v, v0, v1);
     // Position magnitude bound over the rectangle (the flux pad's
     // lever): a 1-norm over-bound of the 2-norm suffices — only an
     // upper bound is consumed.
@@ -317,15 +312,7 @@ pub fn nurbs_patch_face_rounds<T: Decide>(
         // one pass is at its floor.
         let accepted = accept(&bounds, LaneStop::Floor)?;
         if accepted {
-            match classify_len::<T>(
-                "props_quad_face_extent",
-                Margin::over_lever(lo_or_refuse(area), perimeter),
-                band,
-                PropsCheck::Extent,
-            )? {
-                Sign::Positive => {}
-                Sign::Zero | Sign::Negative => return Err(PropsError::DegenerateFace),
-            }
+            face_extent::<T>(area, perimeter, band)?;
             debug_assert_area_gauge(area, perimeter, &perimeter_lo);
         }
         return Ok(LaneRun {
@@ -394,20 +381,11 @@ pub fn nurbs_patch_face_rounds<T: Decide>(
         }
         let flux = widen(flux, boundary_defect * p_bound);
         let bounds = FaceCutBounds { flux, area };
-        let stop = run.stop(round, bounds, removable);
-        let accepted = accept(&bounds, stop)?;
-        if accepted {
-            match classify_len::<T>(
-                "props_quad_face_extent",
-                Margin::over_lever(lo_or_refuse(area), perimeter),
-                band,
-                PropsCheck::Extent,
-            )? {
-                Sign::Positive => {}
-                Sign::Zero | Sign::Negative => return Err(PropsError::DegenerateFace),
-            }
+        let (stop, accepted) = run.ask(round, bounds, removable, accept, || {
+            face_extent::<T>(area, perimeter, band)?;
             debug_assert_area_gauge(area, perimeter, &perimeter_lo);
-        }
+            Ok(())
+        })?;
         if let Some(out) = run.exit(round, stop, accepted, bounds) {
             return Ok(out);
         }

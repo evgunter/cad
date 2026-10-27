@@ -1,10 +1,12 @@
-//! TODO header
+//! **The rational patch lane** ([`rational_patch_face`]): the same
+//! rectangle as [`super::patch`], through the quotient statement
+//! `S = A/w`, with its `w`-uniform-in-v exact arm and its composite arm.
 
 use geom_core::Bounds;
 use geom_core::interval::certification::Certification;
 use geom_core::interval::{Interval, cross, dot};
 use geom_core::spline::KnotVector;
-use geom_core::{Band, Decide, Margin, Sign};
+use geom_core::{Band, Decide};
 
 use super::area::{
     AREA_CELLS_PER_AXIS, AreaCell, PERIMETER_CHORDS_PER_SIDE, PatchRect, area_midpoint_taylor,
@@ -12,14 +14,14 @@ use super::area::{
 };
 use super::cells::{
     AXIS_INIT_PIECES, HULL_BLOCKS_PER_AXIS, MeasureCells, RefinedNet, advance_block, cell_midpoint,
-    knot_aligned_cuts, remainder_cell_u, remainder_cell_v, span_cells, v_pieces,
+    knot_aligned_cuts, knots_inside, remainder_cell_u, remainder_cell_v, span_cells, v_pieces,
 };
 use super::net::{
     Collapse, PatchGrid, PatchNet, RVec3, clipped_spans, grid_vec, newton_cotes_weights, widen,
 };
-use super::run::{Accept, FaceCutBounds, LaneRun, RoundWindow, Run, classify_len};
+use super::run::{Accept, FaceCutBounds, LaneRun, RoundWindow, Run, face_extent};
+use crate::props::PropsError;
 use crate::props::bracket::{lo_or_refuse, pt};
-use crate::props::{PropsCheck, PropsError};
 
 /// Weight of one cell of the rational lane's composite arm: the unit's ten.
 pub(super) const W_RATIONAL_COMPOSITE: usize = 10;
@@ -383,17 +385,8 @@ pub(super) fn rational_patch_face<T: Decide>(
     // inserted knots are artificial (the locus and its smoothness are
     // unchanged), so cutting on them would only cost cells. What the
     // cells must land on is where the smoothness actually breaks.
-    // A range filter, not `interior_knots`: `(lo, hi)` is the trim
-    // rectangle's side, which is the vector's domain only sometimes.
-    let interior = |kv: &KnotVector, lo: f64, hi: f64| -> Vec<f64> {
-        kv.knots()
-            .iter()
-            .copied()
-            .filter(|k| *k > lo && *k < hi)
-            .collect()
-    };
-    let knots_u = interior(kv_u, u0, u1);
-    let knots_v = interior(kv_v, v0, v1);
+    let knots_u = knots_inside(kv_u, u0, u1);
+    let knots_v = knots_inside(kv_v, v0, v1);
     let measure = MeasureCells::build(net, rect)?;
 
     let over_all = (Collapse::Over(rect.u), Collapse::Over(rect.v));
@@ -613,20 +606,11 @@ pub(super) fn rational_patch_face<T: Decide>(
             });
         }
         let bounds = FaceCutBounds { flux, area };
-        let stop = run.stop(round, bounds, removable);
-        let accepted = accept(&bounds, stop)?;
-        if accepted {
-            match classify_len::<T>(
-                "props_quad_face_extent",
-                Margin::over_lever(lo_or_refuse(area), perimeter),
-                band,
-                PropsCheck::Extent,
-            )? {
-                Sign::Positive => {}
-                Sign::Zero | Sign::Negative => return Err(PropsError::DegenerateFace),
-            }
+        let (stop, accepted) = run.ask(round, bounds, removable, accept, || {
+            face_extent::<T>(area, perimeter, band)?;
             debug_assert_area_gauge(area, perimeter, &perimeter_lo);
-        }
+            Ok(())
+        })?;
         if let Some(out) = run.exit(round, stop, accepted, bounds) {
             return Ok(out);
         }
@@ -807,7 +791,7 @@ mod tests {
     /// to a per-span CONSTANT first derivative, and the lane returned a
     /// thin enclosure that EXCLUDED the truth. The oracle here is
     /// independent — `geom_core`'s Book-A2.3 basis ladder and the
-    /// quotient rule, not this file's de Boor — and the standing claim
+    /// quotient rule, not this module's de Boor — and the standing claim
     /// is the one the MAJOR broke: **an answer always contains the
     /// truth; the alternative is a typed refusal, never a wrong
     /// bracket.**

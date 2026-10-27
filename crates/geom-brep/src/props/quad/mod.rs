@@ -53,7 +53,7 @@
 //!   channel hulls and derivative hulls from the control-coefficient
 //!   convexity facts (`geom_core::spline::hull`). This family has **no
 //!   at-rest consumer**: the NURBS-patch flux lanes are separate
-//!   engines in this file — `patch_flux_exact` with its composite
+//!   engines in this module — `patch_flux_exact` with its composite
 //!   rounds for a polynomial patch, and `rational_patch_face`'s
 //!   quotient composite (with the `w`-uniform-in-v exact arm) for a
 //!   patch whose weights are not one constant — not this Green-form boundary
@@ -106,22 +106,32 @@
 //! start**: [`nurbs_patch_face`]'s exact per-span rule, which answers
 //! a whole patch in one Newton–Cotes pass, at its floor.
 //!
-//! # The lanes in this file
+//! # The lanes, and where they live
 //!
 //! The formulation above is the CYLINDER chart's, and it is one of
-//! several engines here. The others, so the header does not have to be
-//! reverse-engineered from the table of contents:
-//! [`nurbs_patch_face_rounds`] (the polynomial patch over a whole UV
-//! rectangle: [`patch_flux_exact`](patch::patch_flux_exact)'s per-span Newton–Cotes, with
-//! composite rounds behind it), `rational_patch_face` (the same
-//! rectangle through the quotient statement), [`area_midpoint_taylor`](area::area_midpoint_taylor) (the
-//! area rule both patch lanes share), and — since TRIM-2 —
-//! [`trimmed_patch_face_rounds`], whose region is what a face's chart
-//! IMAGE bounds rather than a rectangle of its chart. That last one is
-//! a **second Green-form boundary integral** in this file, so the
-//! sentence above about [`bspline_green_integral`] having no at-rest
-//! consumer is a statement about THAT function, not about the form:
-//! the trimmed lane integrates `−∮ G_f du` on the image's chord
+//! several engines here, one file each:
+//!
+//! - [`cylinder`]: [`cylinder_cut_face_rounds`], on the
+//!   transcendental-free trig enclosures of [`trig`];
+//! - [`green`]: the B-spline Green integral, [`bspline_green_integral`];
+//! - [`patch`]: [`nurbs_patch_face_rounds`], the polynomial patch over a
+//!   whole UV rectangle — [`patch_flux_exact`](patch::patch_flux_exact)'s
+//!   per-span Newton–Cotes, with composite rounds behind it;
+//! - [`rational`]: `rational_patch_face`, the same rectangle through the
+//!   quotient statement;
+//! - [`trimmed`]: [`trimmed_patch_face_rounds`], whose region is what a
+//!   face's chart IMAGE bounds rather than a rectangle of its chart.
+//!
+//! What they share has its own homes: [`run`] (the rounds, the stop and
+//! the answer, [`Run`]), [`net`] (the patch substrate, [`PatchNet`]),
+//! [`cells`] (the composite's cells and the rational lane's hull
+//! blocks) and [`area`] ([`area_midpoint_taylor`](area::area_midpoint_taylor),
+//! the area rule both rectangle lanes share).
+//!
+//! The trimmed lane is a **second Green-form boundary integral** here,
+//! so the sentence above about [`bspline_green_integral`] having no
+//! at-rest consumer is a statement about THAT function, not about the
+//! form: the trimmed lane integrates `−∮ G_f du` on the image's chord
 //! polygon with its own rules — the exact Newton–Cotes rule inside its
 //! window, the composite midpoint rule with a certified remainder past
 //! it — and its own pads.
@@ -164,13 +174,13 @@ pub use cylinder::{HarmChan, TrimEdgeQ, cylinder_cut_face, cylinder_cut_face_rou
 pub use green::bspline_green_integral;
 pub use net::{PatchNet, RVec3};
 pub use patch::{nurbs_patch_face, nurbs_patch_face_rounds};
-pub(super) use run::Run;
 #[cfg(any(test, feature = "test-support"))]
 pub use run::rounds_run_by;
 pub use run::{
     Accept, FACE_WORK_WALL, FLOOR_SHARE, FaceCutBounds, LaneEnd, LaneRun, LaneStop, RoundWindow,
     classify_len, mean_boundary_displacement, narrower,
 };
+pub(super) use run::{Run, face_extent};
 pub use trig::trig_at_limit;
 pub(super) use trig::{rotate, spread_cos, spread_sin, trig_at};
 pub use trimmed::{TrimChord, TrimPiece, trimmed_patch_face_rounds};

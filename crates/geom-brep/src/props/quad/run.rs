@@ -1,11 +1,16 @@
-//! TODO header
+//! **When a lane stops** (module docs of [`super`]): the one home
+//! every face lane runs its rounds through ([`Run`]), the work wall and
+//! the floor share it stops on, the vocabulary a caller drives a lane
+//! with ([`RoundWindow`], [`Accept`], [`LaneRun`]), the funnel wrapper
+//! the lanes decide through, the face-extent gate an accepted round
+//! passes, and the convergence meter a caller reads.
 
 use geom_core::interval::Interval;
 use geom_core::interval::certification::Certification;
 use geom_core::{Band, Decide, Margin, Sign};
 
 use crate::descent::Work;
-use crate::props::bracket::mid;
+use crate::props::bracket::{lo_or_refuse, mid};
 use crate::props::{PropsCheck, PropsError};
 
 /// **The work a face may spend over all its rounds**, in weighted cell
@@ -194,6 +199,26 @@ pub fn classify_len<T: Decide>(
         .map_err(|cause| PropsError::Escalated { cause, check })
 }
 
+/// **The face-extent gate**, asked of the enclosure a lane answers an
+/// accepting caller with: the area must be definitely positive, metered
+/// as the face's mean width `area/perimeter` — a length (the
+/// closed-form lanes' `props_face_extent` lever, quadrature-shaped).
+pub(in crate::props) fn face_extent<T: Decide>(
+    area: Interval,
+    perimeter: f64,
+    band: Band,
+) -> Result<(), PropsError> {
+    match classify_len::<T>(
+        "props_quad_face_extent",
+        Margin::over_lever(lo_or_refuse(area), perimeter),
+        band,
+        PropsCheck::Extent,
+    )? {
+        Sign::Positive => Ok(()),
+        Sign::Zero | Sign::Negative => Err(PropsError::DegenerateFace),
+    }
+}
+
 /// **Every round a face lane has run in this process** — test
 /// vocabulary for what a measurement pays, since a resolution records
 /// no decision a test could count instead. Process-wide: a reading is
@@ -284,6 +309,27 @@ impl<'c> Run<'c> {
         } else {
             LaneStop::Wall
         }
+    }
+
+    /// **One round, asked of the caller**: the round's stop
+    /// ([`Run::stop`]), the caller's answer to it, and on an accepted
+    /// round the lane's `gate` on the enclosure it answers with. The
+    /// stop and the answer are what [`Run::exit`] or [`Run::ringed`]
+    /// reads next.
+    pub(in crate::props) fn ask(
+        &mut self,
+        round: usize,
+        bounds: FaceCutBounds,
+        removable: f64,
+        accept: &mut Accept<'_>,
+        gate: impl FnOnce() -> Result<(), PropsError>,
+    ) -> Result<(LaneStop, bool), PropsError> {
+        let stop = self.stop(round, bounds, removable);
+        let accepted = accept(&bounds, stop)?;
+        if accepted {
+            gate()?;
+        }
+        Ok((stop, accepted))
     }
 
     /// **The round loop's exit ladder**, asked after the caller read

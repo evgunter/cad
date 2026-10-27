@@ -1,4 +1,8 @@
-//! TODO header
+//! **The composite's cells**: the knot-aligned cut schedule the patch
+//! lanes refine on ([`knot_aligned_cuts`]) and the per-cell Taylor
+//! remainders, and the rational lane's hull blocks — its
+//! certified-refined net ([`RefinedNet`]) and the quotient statement's
+//! per-block reads ([`MeasureCells`]).
 
 use geom_core::Bounds;
 use geom_core::interval::Interval;
@@ -16,14 +20,14 @@ use crate::patch_bound::{certified_inf, certified_sup};
 use crate::props::PropsError;
 use crate::props::bracket::pt;
 
-/// Initial pieces PER AXIS of the 2-D composite rule (cells = p²).
+/// Pieces per axis of the rectangle lanes' 2-D composite rule at round
+/// 0, doubling per round (cells = p²).
 pub(super) const AXIS_INIT_PIECES: usize = 8;
 /// Blocks per axis for the RATIONAL lane's Taylor-remainder hulls
 /// (fixed, D9 — never data-dependent). `AXIS_INIT_PIECES` is a
 /// multiple of it, so every block owns whole cells at every
 /// refinement level ([`rational_patch_face`](super::rational::rational_patch_face)).
 pub(super) const HULL_BLOCKS_PER_AXIS: usize = 8;
-
 /// Spans per axis the RATIONAL lane refines its bracketed net to
 /// before hulling it (fixed, D9) — see [`RefinedNet`].
 pub(super) const REFINED_SPANS_PER_AXIS: usize = 16;
@@ -280,6 +284,17 @@ fn ratio_hull(q: &QuotientPiece<Interval, 1>) -> Result<Interval, PropsError> {
     } else {
         Err(MeasureCells::REFUSED_CUT)
     }
+}
+
+/// The knots of `kv` strictly inside `(lo, hi)`, as [`knot_aligned_cuts`]
+/// takes them. A range filter, not `interior_knots`: `(lo, hi)` is the
+/// trim rectangle's side, which is the vector's domain only sometimes.
+pub(super) fn knots_inside(kv: &KnotVector, lo: f64, hi: f64) -> Vec<f64> {
+    kv.knots()
+        .iter()
+        .copied()
+        .filter(|k| *k > lo && *k < hi)
+        .collect()
 }
 
 /// **The composite's cut list in one direction**: the uniform

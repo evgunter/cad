@@ -1,4 +1,6 @@
-//! TODO header
+//! **The B-spline Green integral** ([`bspline_green_integral`]): the
+//! general hull-bounded boundary rule on B-spline pcurve channels, with
+//! no at-rest consumer (module docs of [`super`]).
 
 use geom_core::interval::Interval;
 use geom_core::interval::certification::Certification;

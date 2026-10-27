@@ -1,4 +1,7 @@
-//! TODO header
+//! **Transcendental-free trig enclosures** (module docs of [`super`]):
+//! `(cos, sin)` brackets advanced by exact rotation, with polynomial
+//! alternating-series bounds on each step — the cylinder lane's and the
+//! spiric lane's harmonic channels read them.
 
 use geom_core::Bounds;
 use geom_core::interval::Interval;
