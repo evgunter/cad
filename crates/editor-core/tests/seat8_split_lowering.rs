@@ -384,13 +384,19 @@ fn a_split_document_read_by_port_round_trips_byte_identical() {
 /// `main-red-the-seat-and-name-table-goldens-moved-at-dprime2`),
 /// stage 4 I's ids and the walls' reads, beneath
 /// D′3's names and ids. `m10_p_fence`'s ids-masked row held.
+///
+/// RE-BLESSED for limb 2 for every carrier (PR 5728): check 2's turn
+/// moved from the edge's `Certificate` onto the edge, which changes the
+/// edge curve's `Debug` the digest feeds. With that `Debug` written in
+/// main's shape every digest here reproduces main's value at all three
+/// ε rows, so nothing else moved.
 #[test]
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("cut_cylinder", 0xd82f_d380_9e2e_8e5e_u64),
-        ("part_select", 0x4540_8c74_d757_704f),
-        ("kitchen_sink", 0xb9ff_1846_2c51_b69c),
+        ("cut_cylinder", 0x0286_358d_ae09_89ce_u64),
+        ("part_select", 0x8aa1_95af_2c83_4e37),
+        ("kitchen_sink", 0x2cab_0c2d_cbd8_4ea8),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()
@@ -523,6 +529,12 @@ fn cube_split_at(z: f64) -> (Recorder, RecipeNodeId) {
 /// RE-BLESSED for a certificate that keeps its turn: the digest feeds
 /// each edge curve's `Debug`, which now spells the certificate's `turn`.
 /// No outcome or point moved.
+///
+/// RE-BLESSED for limb 2 for every carrier (PR 5728): check 2's turn
+/// moved from the edge's `Certificate` onto the edge, which changes the
+/// edge curve's `Debug` the digest feeds. With that `Debug` written in
+/// main's shape every digest here reproduces main's value at all three
+/// ε rows, so nothing else moved.
 #[test]
 fn a_split_with_an_empty_side_evaluates_to_its_committed_digest() {
     let (r, split) = cube_split_at(5.0);
@@ -543,7 +555,7 @@ fn a_split_with_an_empty_side_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat8 empty_side: {got:#018x}");
     assert_eq!(
-        got, 0x6514_aa34_b3e7_b9ae,
+        got, 0x95b6_b099_d57e_e9be,
         "the empty-side evaluation moved — side token, body or name table"
     );
 }

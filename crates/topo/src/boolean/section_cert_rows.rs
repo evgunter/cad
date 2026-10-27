@@ -2384,33 +2384,42 @@ fn notched_chart(du: f64, dv: f64, corner: bool) -> (Vec<(f64, f64)>, (f64, f64)
 /// `s` by `π/8` each way.
 #[test]
 fn a_small_notch_in_a_torus_face_reads_out_at_every_size() {
-    let eps = Tol::witness().eps();
-    let mut bad = Vec::new();
-    let a = PI / 4.0;
-    for ring in RINGS {
-        let rho = ring.0 + ring.1 * a.cos();
-        for s in notch_sizes() {
-            let (du, dv) = (s / rho, s / ring.1);
-            for (what, du, dv, corner) in [
-                ("L", du, dv, true),
-                ("U", du, dv, false),
-                ("thin deep L", du, PI / 8.0, true),
-                ("thin wide L", PI / 8.0, dv, true),
-            ] {
-                let (corners, centre) = notched_chart(du, dv, corner);
-                let (body, face) = torus_sheet(ring, &corners);
-                let got = door(&body, face, torus_at(ring, centre));
-                if !matches!(got, Ok(Some(FaceContainment::Out))) {
-                    bad.push(format!("ring {ring:?}, {what} notch {s:e} m: {got:?}"));
+    // Pinned to limb 2's kernel limit at ε = 1e-12: the torus composite's conditioning
+    // (`work/offset/the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding.md`).
+    test_utils::kernel_limit::pinned_row(
+        geom_core::Tol::witness().eps(),
+        &[1e-12],
+        "a_small_notch_in_a_torus_face_reads_out_at_every_size",
+        || {
+            let eps = Tol::witness().eps();
+            let mut bad = Vec::new();
+            let a = PI / 4.0;
+            for ring in RINGS {
+                let rho = ring.0 + ring.1 * a.cos();
+                for s in notch_sizes() {
+                    let (du, dv) = (s / rho, s / ring.1);
+                    for (what, du, dv, corner) in [
+                        ("L", du, dv, true),
+                        ("U", du, dv, false),
+                        ("thin deep L", du, PI / 8.0, true),
+                        ("thin wide L", PI / 8.0, dv, true),
+                    ] {
+                        let (corners, centre) = notched_chart(du, dv, corner);
+                        let (body, face) = torus_sheet(ring, &corners);
+                        let got = door(&body, face, torus_at(ring, centre));
+                        if !matches!(got, Ok(Some(FaceContainment::Out))) {
+                            bad.push(format!("ring {ring:?}, {what} notch {s:e} m: {got:?}"));
+                        }
+                    }
                 }
             }
-        }
-    }
-    assert!(
-        bad.is_empty(),
-        "ε {eps:e}: {} cells answer other than Out:\n{}",
-        bad.len(),
-        bad.join("\n")
+            assert!(
+                bad.is_empty(),
+                "ε {eps:e}: {} cells answer other than Out:\n{}",
+                bad.len(),
+                bad.join("\n")
+            );
+        },
     );
 }
 
@@ -2421,28 +2430,38 @@ fn a_small_notch_in_a_torus_face_reads_out_at_every_size() {
 /// that root past the band ([`parallel_leg_resolves`]) it refuses typed.
 #[test]
 fn a_torus_rectangle_trims_on_every_ring() {
-    let a = PI / 4.0;
-    for ring in RINGS {
-        let (body, face) = torus_sheet(ring, &[(0.0, -a), (2.0 * a, -a), (2.0 * a, a), (0.0, a)]);
-        assert_eq!(
-            door(&body, face, torus_at(ring, (a, 0.0))).unwrap(),
-            Some(FaceContainment::In),
-            "ring {ring:?}: the centre"
-        );
-        let past = door(&body, face, torus_at(ring, (2.0 * a + 0.1, 0.0)));
-        if parallel_leg_resolves(ring) {
-            assert_eq!(
-                past.unwrap(),
-                Some(FaceContainment::Out),
-                "ring {ring:?}: past the window"
-            );
-        } else {
-            assert!(
-                matches!(past, Err(crate::ContainError::RayExhausted)),
-                "ring {ring:?}: past the window: {past:?}"
-            );
-        }
-    }
+    // Pinned to limb 2's kernel limit at ε = 1e-12: the torus composite's conditioning
+    // (`work/offset/the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding.md`).
+    test_utils::kernel_limit::pinned_row(
+        geom_core::Tol::witness().eps(),
+        &[1e-12],
+        "a_torus_rectangle_trims_on_every_ring",
+        || {
+            let a = PI / 4.0;
+            for ring in RINGS {
+                let (body, face) =
+                    torus_sheet(ring, &[(0.0, -a), (2.0 * a, -a), (2.0 * a, a), (0.0, a)]);
+                assert_eq!(
+                    door(&body, face, torus_at(ring, (a, 0.0))).unwrap(),
+                    Some(FaceContainment::In),
+                    "ring {ring:?}: the centre"
+                );
+                let past = door(&body, face, torus_at(ring, (2.0 * a + 0.1, 0.0)));
+                if parallel_leg_resolves(ring) {
+                    assert_eq!(
+                        past.unwrap(),
+                        Some(FaceContainment::Out),
+                        "ring {ring:?}: past the window"
+                    );
+                } else {
+                    assert!(
+                        matches!(past, Err(crate::ContainError::RayExhausted)),
+                        "ring {ring:?}: past the window: {past:?}"
+                    );
+                }
+            }
+        },
+    );
 }
 
 /// **A gap anywhere in a torus face's boundary refuses.** The rectangle
@@ -2603,81 +2622,90 @@ fn a_small_notch_in_a_cone_face_reads_out_at_every_size() {
 /// the other way.
 #[test]
 fn the_smallest_notch_never_reads_in() {
-    let tol = Tol::witness();
-    let s = 1.5 * tol.k() * tol.eps();
-    let mut bad = Vec::new();
-    let (mut outs, mut ins) = (0, 0);
-    let mut door_reads = |what: String,
-                          [notch, out, inside]: [Result<Option<FaceContainment>, crate::ContainError>;
-                              3]| {
-        if !matches!(notch, Err(crate::ContainError::Escalated { .. })) {
-            bad.push(format!("{what}: the notch reads {notch:?}"));
-        }
-        match out {
-            Ok(Some(FaceContainment::Out)) => outs += 1,
-            Err(crate::ContainError::Escalated { .. }) => {}
-            other => bad.push(format!("{what}: past the notch reads {other:?}")),
-        }
-        match inside {
-            Ok(Some(FaceContainment::In)) => ins += 1,
-            Err(crate::ContainError::Escalated { .. }) => {}
-            other => bad.push(format!("{what}: inside the notch's corner reads {other:?}")),
-        }
-    };
-    for ring in RINGS {
-        let (du, dv) = (s / (ring.0 + ring.1), s / ring.1);
-        let (w, a) = (PI / 2.0, PI / 4.0);
-        let corners = [
-            (0.0, -a),
-            (w, -a),
-            (w, -dv),
-            (w - du, -dv),
-            (w - du, 0.0),
-            (0.0, 0.0),
-        ];
-        let (body, face) = torus_sheet(ring, &corners);
-        door_reads(
-            format!("ring {ring:?}"),
-            [
-                (w - 0.5 * du, -0.5 * dv),
-                (w - 0.5 * du, 2.0 * dv),
-                (w - 3.0 * du, -3.0 * dv),
-            ]
-            .map(|at| door(&body, face, torus_at(ring, at))),
-        );
-    }
-    let w = PI / 4.0;
-    for (h0, h1) in FRUSTA {
-        let (dh, dt) = (s / 2f64.sqrt(), s / h1);
-        let (body, face) = cone_sheet(
-            cone_at(h0, 0.0),
-            &[
-                Step::Arc(h0, 0.0, w),
-                Step::Line(cone_at(h1 - dh, w)),
-                Step::Arc(h1 - dh, w, w - dt),
-                Step::Line(cone_at(h1, w - dt)),
-                Step::Arc(h1, w - dt, 0.0),
-            ],
-        );
-        door_reads(
-            format!("frustum {h0}..{h1}"),
-            [
-                (h1 - 0.5 * dh, w - 0.5 * dt),
-                (h1 + 2.0 * dh, w - 0.5 * dt),
-                (h1 - 3.0 * dh, w - 3.0 * dt),
-            ]
-            .map(|(h, u)| door(&body, face, cone_at(h, u))),
-        );
-    }
-    assert!(
-        outs > 0 && ins > 0,
-        "no definite side: {outs} Out, {ins} In"
-    );
-    assert!(
-        bad.is_empty(),
-        "notch {s:e} m at ε {:e}:\n{}",
-        tol.eps(),
-        bad.join("\n")
+    // Pinned to limb 2's kernel limit at ε = 1e-12: the torus composite's conditioning
+    // (`work/offset/the-torus-composite-bounds-a-thin-torus-far-above-its-carriers-rounding.md`).
+    test_utils::kernel_limit::pinned_row(
+        geom_core::Tol::witness().eps(),
+        &[1e-12],
+        "the_smallest_notch_never_reads_in",
+        || {
+            let tol = Tol::witness();
+            let s = 1.5 * tol.k() * tol.eps();
+            let mut bad = Vec::new();
+            let (mut outs, mut ins) = (0, 0);
+            let mut door_reads = |what: String,
+                                  [notch, out, inside]: [Result<Option<FaceContainment>, crate::ContainError>;
+                                      3]| {
+                if !matches!(notch, Err(crate::ContainError::Escalated { .. })) {
+                    bad.push(format!("{what}: the notch reads {notch:?}"));
+                }
+                match out {
+                    Ok(Some(FaceContainment::Out)) => outs += 1,
+                    Err(crate::ContainError::Escalated { .. }) => {}
+                    other => bad.push(format!("{what}: past the notch reads {other:?}")),
+                }
+                match inside {
+                    Ok(Some(FaceContainment::In)) => ins += 1,
+                    Err(crate::ContainError::Escalated { .. }) => {}
+                    other => bad.push(format!("{what}: inside the notch's corner reads {other:?}")),
+                }
+            };
+            for ring in RINGS {
+                let (du, dv) = (s / (ring.0 + ring.1), s / ring.1);
+                let (w, a) = (PI / 2.0, PI / 4.0);
+                let corners = [
+                    (0.0, -a),
+                    (w, -a),
+                    (w, -dv),
+                    (w - du, -dv),
+                    (w - du, 0.0),
+                    (0.0, 0.0),
+                ];
+                let (body, face) = torus_sheet(ring, &corners);
+                door_reads(
+                    format!("ring {ring:?}"),
+                    [
+                        (w - 0.5 * du, -0.5 * dv),
+                        (w - 0.5 * du, 2.0 * dv),
+                        (w - 3.0 * du, -3.0 * dv),
+                    ]
+                    .map(|at| door(&body, face, torus_at(ring, at))),
+                );
+            }
+            let w = PI / 4.0;
+            for (h0, h1) in FRUSTA {
+                let (dh, dt) = (s / 2f64.sqrt(), s / h1);
+                let (body, face) = cone_sheet(
+                    cone_at(h0, 0.0),
+                    &[
+                        Step::Arc(h0, 0.0, w),
+                        Step::Line(cone_at(h1 - dh, w)),
+                        Step::Arc(h1 - dh, w, w - dt),
+                        Step::Line(cone_at(h1, w - dt)),
+                        Step::Arc(h1, w - dt, 0.0),
+                    ],
+                );
+                door_reads(
+                    format!("frustum {h0}..{h1}"),
+                    [
+                        (h1 - 0.5 * dh, w - 0.5 * dt),
+                        (h1 + 2.0 * dh, w - 0.5 * dt),
+                        (h1 - 3.0 * dh, w - 3.0 * dt),
+                    ]
+                    .map(|(h, u)| door(&body, face, cone_at(h, u))),
+                );
+            }
+            assert!(
+                outs > 0 && ins > 0,
+                "no definite side: {outs} Out, {ins} In"
+            );
+            assert!(
+                bad.is_empty(),
+                "notch {s:e} m at ε {:e}:\n{}",
+                tol.eps(),
+                bad.join("\n")
+            );
+        },
     );
 }
 

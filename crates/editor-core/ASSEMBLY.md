@@ -518,7 +518,7 @@ of a part read one member at a time rather than whole
 finding of its own (D10; `checks::at_rest`). The census decides that
 two copies interfere: a vertex of one strictly inside the other's
 material (`ValidationError::InstanceInterference`), a face of each on
-one plane facing the same way and sharing interior
+one plane, cylinder or sphere facing the same way and sharing interior
 (`ValidationError::SameSideInterference`), a touch where the two
 materials meet (`ValidationError::TouchInterference`), an edge piercing
 a face (`CensusContact::EdgeFacePierce`), an in-plane crossing whose

@@ -5980,7 +5980,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "certify",
             "corrupt",
             "null_scaffold",
-            "nurbs_lane_unsupported",
             "nurbs_placeholder",
             "pcurve",
         ],

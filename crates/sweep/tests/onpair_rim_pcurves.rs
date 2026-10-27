@@ -190,14 +190,14 @@ fn an_arc_rim_on_its_pair_mints_its_iso_arc_and_certifies_through_it() {
             spec.carrier.eval(spec.param_end),
         );
         let surfaces = |k| body.get_surface(k).cloned();
-        let built = geom_brep::EdgeCurve::certify_via(
+        let built = geom_brep::EdgeCurve::certify(
             spec,
             start,
             end,
             surfaces,
             1.0,
             Band::linear(tol()).unwrap(),
-            Some(geom_brep::NurbsLane::certified()),
+            geom_brep::NurbsLane::certified(),
         )
         .expect("the builder's image certifies too");
         assert_eq!(

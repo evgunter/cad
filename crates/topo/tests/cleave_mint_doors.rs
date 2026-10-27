@@ -214,8 +214,7 @@ where
 }
 
 /// The control the dual rows lean on: the same construction certifies
-/// at `f64`, so their refusal is the lane's absence and not a residual
-/// the spec carries.
+/// at `f64`.
 #[test]
 fn the_bare_wall_spec_certifies_at_f64() {
     let (mut body, edge, spec, _) = bare_wall::<f64>();
@@ -224,25 +223,21 @@ fn the_bare_wall_spec_certifies_at_f64() {
     assert_eq!(m7_8_edges(&body), 1);
 }
 
+/// At a dual the edge door mints the class (DL3): the edge takes the
+/// spec, carrying no certificate.
 #[test]
-fn at_a_dual_set_edge_curve_refuses_the_class_naming_the_scalar() {
+fn at_a_dual_set_edge_curve_mints_the_class() {
     let (mut body, edge, spec, _) = bare_wall::<Dual64>();
-    let before = body.get_edge(edge).unwrap().curve;
-    assert_eq!(
-        body.set_edge_curve(edge, spec, Tol::witness()),
-        Err(EulerOpError::NurbsLaneUnsupported {
-            edge: Some(edge),
-            scalar: Dual64::NAME,
-        })
-    );
-    assert_eq!(body.get_edge(edge).unwrap().curve, before, "body untouched");
+    body.set_edge_curve(edge, spec, Tol::witness())
+        .expect("the dual's door mints the spec");
+    assert_eq!(m7_8_edges(&body), 1);
 }
 
 /// The wall face re-charts onto a fresh copy of its own net, and the
 /// listed spec names the wall's current key: the re-chart reads the
-/// same policy as the edge setter.
+/// same edge door as the edge setter, which at a dual mints.
 #[test]
-fn at_a_dual_a_rechart_refuses_the_class_naming_the_scalar() {
+fn at_a_dual_a_rechart_mints_the_class() {
     let (mut body, edge, spec, wall_face) = bare_wall::<Dual64>();
     let face = body.get_face(wall_face).unwrap().clone();
     let net = body.get_surface(face.surface).unwrap().clone();
@@ -256,19 +251,15 @@ fn at_a_dual_a_rechart_refuses_the_class_naming_the_scalar() {
         .map(|(k, _)| k)
         .collect();
     assert!(stranded.contains(&edge));
-    assert_eq!(
-        body.set_face_surfaces_describing(
+    let got = body
+        .set_face_surfaces_describing(
             vec![Rechart::new(net, wall_face, face.sense)],
             &[(edge, spec)],
             Tol::witness(),
         )
-        .map(|_| ()),
-        Err(EulerOpError::NurbsLaneUnsupported {
-            edge: Some(edge),
-            scalar: Dual64::NAME,
-        })
-    );
-    assert_eq!(body.get_face(wall_face).unwrap().surface, face.surface);
+        .map(|_| ());
+    assert_eq!(got, Ok(()), "the dual's door mints the listed spec");
+    assert_ne!(body.get_face(wall_face).unwrap().surface, face.surface);
 }
 
 /// `kev_describing` killing the edge that leaves a wall corner off the
@@ -298,22 +289,27 @@ where
         .map(|_| ())
 }
 
+/// `kev_describing` runs every edge it re-bases through the scalar's
+/// edge door: at `f64` the unlisted member the kill moves is certified
+/// and its start pin refuses, and at the dual the same member is minted,
+/// which reads no endpoint (DL3: the dual's evaluation is read against
+/// the `f64` one, which refused).
 #[test]
-fn at_a_dual_kev_describing_refuses_the_class_naming_the_scalar() {
-    let dual = kev_describing_the_class::<Dual64>();
-    let (_, edge, _, _) = bare_wall::<Dual64>();
-    assert_eq!(
-        dual,
-        Err(EulerOpError::NurbsLaneUnsupported {
-            edge: Some(edge),
-            scalar: Dual64::NAME,
-        })
-    );
-    // The control: at f64 the lane is held, so the listed spec reaches
-    // its own checks and the answer is not the lane's absence.
+fn kev_describing_runs_the_class_through_the_scalars_door() {
     let f = kev_describing_the_class::<f64>();
     assert!(
-        !matches!(f, Err(EulerOpError::NurbsLaneUnsupported { .. })),
-        "{f:?}"
+        matches!(
+            f,
+            Err(EulerOpError::RebasedCarrier {
+                error: geom_brep::CertifyError::ResidualExceeded {
+                    check: geom_brep::CertCheck::EndpointStart,
+                    ..
+                },
+                ..
+            })
+        ),
+        "f64 certifies the moved member and its start pin refuses: {f:?}"
     );
+    let dual = kev_describing_the_class::<Dual64>();
+    assert_eq!(dual, Ok(()), "the dual's door mints the moved member");
 }
