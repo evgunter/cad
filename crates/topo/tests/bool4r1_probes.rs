@@ -231,7 +231,7 @@ fn probe_g_a_post_through_the_container_is_the_reverse_ordering_s_interference()
     // Undeclared: the sixteen touches AND the decided interference.
     let undeclared =
         validate_pseudomanifold(&body, &ContactRecords::default(), Tol::witness()).unwrap_err();
-    let placements = placement_findings(&undeclared);
+    let placements = placement_findings(&body, &undeclared);
     assert_eq!(placements.len(), 1, "{undeclared:?}");
     assert!(is_reverse_interference(placements[0]), "{undeclared:?}");
     assert!(
@@ -360,7 +360,7 @@ fn probe_c_a_third_solids_findings_do_not_block_a_pair() {
         )),
         "{errors:?}"
     );
-    assert!(placement_findings(&errors).is_empty(), "{errors:?}");
+    assert!(placement_findings(&body, &errors).is_empty(), "{errors:?}");
 }
 
 /// **Probe D — a definitely-separated pair never reaches the material

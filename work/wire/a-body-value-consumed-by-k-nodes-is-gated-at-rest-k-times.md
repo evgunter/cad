@@ -41,7 +41,7 @@ Shell and blends do not produce one:
 
 - `Shelled.body` (`crates/topo/src/shell.rs:918`) is a plain `Body`.
   `topo::shell` runs tier 3 as its last act (`shell.rs:2190`) and drops
-  the verdict there (`work/flux/an-op-output-validated-at-its-last-act-drops-its-verdict.md`),
+  the verdict there (`work/measuredoor/an-op-output-validated-at-its-last-act-drops-its-verdict.md`),
   and `wire_shell` (`wire.rs:1991`) wraps that `Body`.
 - `Blended.body` (`crates/sweep/src/blend/build.rs:90`) is a plain `Body`,
   and the blends never run tier 3: `wire_blend` (`wire.rs:1941`) hands

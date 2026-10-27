@@ -61,7 +61,7 @@ every axis (`crates/sweep/tests/a_ring_on_a_sphere_face.rs`,
 builds ∩ in both orders and bar ∖ ball (two lumps) at the slice integral.
 ∪ in both orders and ball ∖ bar keep the ring as a hole of the ball's
 face and refuse at the result gate
-(`work/flux/sphere-face-with-a-hole-has-no-closed-form.md`). The 3985
+(`sphere-face-with-a-hole-has-no-closed-form`, closed by PR 4573). The 3985
 reviewer's own poses are not re-measured here, and nor is ×1e-3.
 
 ## 2026-10-07 — a run on both sides of its section plane reads (TANG)

@@ -19,10 +19,10 @@ in `geom-brep`, which `topo::bisect` cannot serve from its crate:
 - `ssi/section.rs` (`stack` of pieces);
 - `ssi/one_arc.rs`, twice (`(s, t, depth)` and `(x, depth)`);
 - `ssi/four.rs` (`(x, depth)`);
-- `props/quad.rs` (the quadrature's `(block, depth)` refinement).
+- `props/quad/` (the quadrature's `(block, depth)` refinement).
 
 Owners: `ssiarith` / `ssiedge` / `ssimarch` (the `ssi` walks) and
-`flux` / `fluxtail` / `quad` (`props/quad.rs`) — two programs, so filed
+`flux` / `fluxtail` / `quad` (`props/quad/trimmed.rs`) — two programs, so filed
 here. The question is whether the core moves down a crate (to
 `geom-core`, beside `Band`) so every localization shares one budget
 and one stop, or whether these walks' differing semantics (depth caps

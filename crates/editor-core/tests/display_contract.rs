@@ -2855,7 +2855,7 @@ fn maintenance_display_says_what_the_edit_did() {
         (
             Maintenance::ValueDropped {
                 placement: held(5, "Place"),
-                coord: editor_core::Coord::Spin(editor_core::TargetAxis::X),
+                coord: editor_core::Coord::Spin(Some(editor_core::TargetAxis::X)),
                 by: editor_core::SpokenVar::new(editor_core::VarId::new(0, tagged(7)), None),
             },
             vec![

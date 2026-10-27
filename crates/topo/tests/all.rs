@@ -65,6 +65,8 @@ mod probe_support;
 
 #[path = "a_callers_interval_is_refused_at_its_door.rs"]
 mod a_callers_interval_is_refused_at_its_door;
+#[path = "a_decided_overlap_decides_its_pair.rs"]
+mod a_decided_overlap_decides_its_pair;
 #[path = "a_doubled_line_does_not_revert.rs"]
 mod a_doubled_line_does_not_revert;
 #[path = "a_face_inside_an_edges_wedge_refuses_at_tier_3_prime.rs"]

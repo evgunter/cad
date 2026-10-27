@@ -30,5 +30,6 @@ Refusals of the file's evidence become interpretation refusals, named in ε_in w
 **When this lands:**
 - The ENCL door's interim size decision (`adoption-certification-reads-as-at-rest-with-the-eps-in-stopgap`) moves to the interpretation stage.
 - The set-ε-to-ε_in stopgap in D4 ¶1 is retired, except for that leftover class.
+- An imported carrier's chart-incidence refusal is healed too (Ev, `[ev]` PR 5838, 2026-10-27). One example: a conic on a cone face whose lowest point dips below the apex's height by less than ε_in (`OffMargin::Past`, `cone_conic_incidence`). Until this lands, an incidence refusal at the import door ends in the damaged-file ending and does not mention ε_in. When it lands, the case heals at ε_in, and what is left of the refusal names ε_in.
 
 Design record: `[ev]` PR 3380 and `docs/DESIGN-FORK-LOG.md` row 7.

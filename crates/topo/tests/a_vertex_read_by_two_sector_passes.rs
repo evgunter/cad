@@ -163,21 +163,21 @@ const SLIT_TOUCH: &str = "they touch where a face of one meets it along an edge 
 /// backs, an operand's own, which a kernel op called without
 /// `BooleanInputs` records does not carry, or a touch there between two
 /// solids where one passes into the other (a pyramid notched by
-/// another), or that the touch analysis does not read along a slit's
-/// line ([`SLIT_TOUCH`]). [`material_holds`] reads those results right. Where `along`, a
-/// pyramid's edge lies in a face of the other's, and that edge's own
-/// contact, which no record carries, may refuse too
+/// another, `TouchInterference`), or that the touch analysis does not
+/// read along a slit's line ([`SLIT_TOUCH`]). [`material_holds`] reads
+/// those results right. Where `along`, a pyramid's edge lies in a face
+/// of the other's, and that edge's own contact, which no record
+/// carries, may refuse too
 /// (`work/flush/a-corner-pair-with-an-edge-in-the-partners-face-plane-builds-with-unrecorded-contacts.md`).
 /// Where `ray` names the far end of the lying pyramid's ray along the
 /// top (relative to [`MEET`]), that ray's contacts may refuse too: its
 /// corner on the top and the ray on it, the operand's own, likewise not
-/// carried. The result's record carries an edge of the other
-/// operand's along the ray.
-/// Where `glued` names the corners, in order round it, of a rectangle in
-/// which one operand's own pieces touch, glued face to face, their own
-/// contacts there may refuse too: coincident corners, and edges
-/// overlapping along a side. Those are the operand's records, which an
-/// op called without them does not carry
+/// carried. The result's record carries an edge of the other operand's
+/// along the ray. Where `glued` names the corners, in order round it,
+/// of a rectangle in which one operand's own pieces touch, glued face
+/// to face, their own contacts there may refuse too: coincident
+/// corners, and edges overlapping along a side. Those are the operand's
+/// records, which an op called without them does not carry
 /// (`work/contacthold/a-booleans-records-are-complete-only-relative-to-the-records-passed-in.md`);
 /// an edge of the other operand through the rectangle's interior is not
 /// admitted. Returns whether 3′ held.
@@ -277,12 +277,11 @@ fn three_prime(
             },
             ValidationError::CensusUndecidable {
                 a, b, what: class, ..
-            } => {
-                (class.starts_with("one passes into the other where they touch")
-                    || class.starts_with(SLIT_TOUCH))
-                    && touches_meet(a)
-                    && touches_meet(b)
-            }
+            } => class.starts_with(SLIT_TOUCH) && touches_meet(a) && touches_meet(b),
+            ValidationError::TouchInterference { a, b, .. } => [a, b].iter().all(|&&cell| {
+                topo::census_cell_solid(&r.body, cell)
+                    .is_some_and(|s| touches_meet(&EntityId::Solid(s)))
+            }),
             _ => false,
         };
         assert!(
@@ -1508,7 +1507,7 @@ fn a_pyramid_resting_where_a_solid_touches_itself_holds_tier_three_prime() {
                 .flatten()
                 .filter(|e| {
                     matches!(e, ValidationError::CensusUndecidable { .. })
-                        || common::is_decided_overlap(e)
+                        || common::is_decided_overlap(&r.body, e)
                 })
                 .collect();
             assert!(pairs.is_empty(), "{what}: {errors:?}");
