@@ -4,12 +4,11 @@
 #![allow(clippy::unwrap_used, clippy::panic)]
 
 use geom::{Curve3, NurbsCurve3, NurbsSurface};
-use geom_core::spline::KnotVector;
 use geom_core::interval::certification::Certification;
+use geom_core::spline::KnotVector;
 use geom_core::{Band, Bounds, Point3, Tol, Vec3};
 
 use super::{ChartMeeting, SplineFaceRefusal};
-use crate::roots::Unsettled;
 use crate::ssi::enclose::{NurbsBoxes, UvWindow};
 
 fn band() -> Band {
@@ -42,7 +41,12 @@ fn dome() -> NurbsSurface<f64> {
     graph(2, 2, &z)
 }
 
-fn nurbs(p: usize, knots: Vec<f64>, control: &[[f64; 3]], weights: Option<&[f64]>) -> NurbsCurve3<f64> {
+fn nurbs(
+    p: usize,
+    knots: Vec<f64>,
+    control: &[[f64; 3]],
+    weights: Option<&[f64]>,
+) -> NurbsCurve3<f64> {
     let control: Vec<Point3<f64>> = control
         .iter()
         .map(|&[x, y, z]| Point3::new(x, y, z))
@@ -118,8 +122,14 @@ fn review_r2_an_end_on_a_crease_of_the_span_on_the_chart_is_the_ends() {
     let first = read(&bent, (0.0, 0.5), &flat());
     let second = read(&bent, (0.5, 1.0), &flat());
     eprintln!("leg {by_leg:?}\nline {by_line:?}\nfirst {first:?}\nsecond {second:?}");
-    assert!(matches!(by_leg.as_deref(), Ok([])), "the leg alone: {by_leg:?}");
-    assert!(matches!(by_line.as_deref(), Ok([])), "the line: {by_line:?}");
+    assert!(
+        matches!(by_leg.as_deref(), Ok([])),
+        "the leg alone: {by_leg:?}"
+    );
+    assert!(
+        matches!(by_line.as_deref(), Ok([])),
+        "the line: {by_line:?}"
+    );
     assert!(
         matches!(first.as_deref(), Ok([])) && matches!(second.as_deref(), Ok([])),
         "an end on the span's crease, on the chart, is the end's: {first:?} {second:?}"
@@ -134,9 +144,21 @@ fn review_r2_a_crossing_near_a_domain_end_is_reported_or_refused() {
     let (z, e) = (band().zero(), band().escalate());
     let mut bad = Vec::new();
     for slope in [1e6, 1.0, 1e-2, 1e-4] {
-        for lift in [0.5 * z, 2.0 * z, 0.5 * e, 1.5 * e, 4.0 * e, 32.0 * e, 1e3 * e] {
+        for lift in [
+            0.5 * z,
+            2.0 * z,
+            0.5 * e,
+            1.5 * e,
+            4.0 * e,
+            32.0 * e,
+            1e3 * e,
+        ] {
             let run = 0.4f64;
             let rise = run * slope;
+            // The span must reach below the patch for there to be a crossing.
+            if slope < 1e3 && lift >= 0.5 * rise {
+                continue;
+            }
             let (x0, z0) = if slope > 1e3 {
                 (0.4, lift - 0.5)
             } else {
@@ -146,7 +168,10 @@ fn review_r2_a_crossing_near_a_domain_end_is_reported_or_refused() {
             let got = read(&span, (0.0, 1.0), &flat());
             let dist = lift * (1.0 + 1.0 / (slope * slope)).sqrt();
             let n = got.as_ref().map(Vec::len);
-            eprintln!("slope {slope:e} lift {lift:e} dist {dist:e}: {n:?} {:?}", got.as_ref().err());
+            eprintln!(
+                "slope {slope:e} lift {lift:e} dist {dist:e}: {n:?} {:?}",
+                got.as_ref().err()
+            );
             if swallowed(&got, dist) {
                 bad.push((slope, lift, dist));
             }
@@ -244,7 +269,10 @@ fn review_r2_a_touch_beside_an_end_on_the_charts_edge_refuses() {
                 out
             };
             let xm = [0.3 - x1, -0.3];
-            let z = mul(&mul(&xs, &xm), &xm).iter().map(|c| c * amp).collect::<Vec<_>>();
+            let z = mul(&mul(&xs, &xm), &xm)
+                .iter()
+                .map(|c| c * amp)
+                .collect::<Vec<_>>();
             let span = power([&[0.3, -0.3, 0.0, 0.0], &[0.5, 0.0, 0.0, 0.0], &z]);
             let got = read(&span, (0.0, 1.0), &flat());
             eprintln!("A {amp} k {k}: {got:?}");
@@ -253,7 +281,10 @@ fn review_r2_a_touch_beside_an_end_on_the_charts_edge_refuses() {
             }
         }
     }
-    assert!(bad.is_empty(), "a touch beside an edge end answered: {bad:?}");
+    assert!(
+        bad.is_empty(),
+        "a touch beside an edge end answered: {bad:?}"
+    );
 }
 
 /// **The ruled sheet's boxes enclose the carrier and its derivative**
@@ -304,7 +335,14 @@ fn review_r2_the_sheets_boxes_enclose_the_carrier_and_its_derivative() {
                 let t = t0 + (t1 - t0) * f64::from(i) / 200.0;
                 let p = curve.eval(t);
                 let v = curve.deriv(t);
-                for (iv, x) in [(b.x, p.x), (b.y, p.y), (b.z, p.z), (d.x, v.x), (d.y, v.y), (d.z, v.z)] {
+                for (iv, x) in [
+                    (b.x, p.x),
+                    (b.y, p.y),
+                    (b.z, p.z),
+                    (d.x, v.x),
+                    (d.y, v.y),
+                    (d.z, v.z),
+                ] {
                     let out = (iv.lo() - x).max(x - iv.hi()).max(0.0);
                     if out > 1e-12 {
                         eprintln!("{name} [{t0}, {t1}] at {t}: {x} outside {iv:?}");
@@ -314,13 +352,10 @@ fn review_r2_the_sheets_boxes_enclose_the_carrier_and_its_derivative() {
             }
         }
     }
-    assert!(worst <= 1e-12, "the sheet's boxes miss the carrier by {worst:e}");
-}
-
-/// A pin on why one of the probes reads as it does.
-#[test]
-fn review_r2_unsettled_variant_compiles() {
-    let _ = Unsettled::Crease;
+    assert!(
+        worst <= 1e-12,
+        "the sheet's boxes miss the carrier by {worst:e}"
+    );
 }
 
 /// **A sharp second crossing beside an end on the chart is not absorbed**:
@@ -349,4 +384,17 @@ fn review_r2_a_sharp_second_crossing_beside_an_end_is_not_absorbed() {
         }
     }
     assert!(bad.is_empty(), "absorbed (x_end, k): {bad:?}");
+}
+
+/// **The analytic arm moved**: a line ending on the open chart's edge
+/// refused `Tangency` at the merge base and reads the end's (`Ok([])`)
+/// here, through the end's box. No row of the PR pins the analytic case.
+#[test]
+fn review_r2_a_line_ending_on_the_charts_edge_is_the_ends() {
+    let edge = Curve3::Line {
+        origin: Point3::new(0.3, 0.5, -0.3),
+        dir: Vec3::new(-0.3, 0.0, 0.3),
+    };
+    let got = read(&edge, (0.0, 1.0), &flat());
+    assert!(matches!(got.as_deref(), Ok([])), "the end's: {got:?}");
 }
