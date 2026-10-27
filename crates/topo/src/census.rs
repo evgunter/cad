@@ -581,8 +581,8 @@ pub struct CensusTrace {
     pub backstop: SweepPairs,
     /// The curved aligned arm's pairs (`curved_same_side_pairs`): those
     /// that reached its witness search, accepted where it found one.
-    /// Not among `CensusTrace::sweeps`: its candidates are the every-face
-    /// class's, which the backstop's own pairs already pin.
+    /// Not among `CensusTrace::sweeps`, which the differential suites
+    /// walk: it counts what the arm costs, not a candidate set they pin.
     pub aligned: SweepPairs,
 }
 
