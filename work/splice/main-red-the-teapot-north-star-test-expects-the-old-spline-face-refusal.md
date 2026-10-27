@@ -2,10 +2,11 @@
 id: main-red-the-teapot-north-star-test-expects-the-old-spline-face-refusal
 kind: issue
 title: main red: python test_north_star TestTeapot.test_both_joins_refuse_through_the_document expects the spline-face refusal the boundary pass replaced with PointSplitCarrierUnsupported
-status: open
+status: closed
 opened: 2026-10-26
 priority: P1
 cost: E
+closed: 2026-10-26
 ---
 
 
@@ -20,3 +21,7 @@ The python suite runs only when a PR touches `pncad-py`, so the PR that moved th
 ## Owed
 
 Re-pin the test to the refusal main gives, or, if SPLICE's open P1 fixes the split first, to whatever that fix gives. One line in the test. Either way, the test should name the refusal kind rather than a sentence of its text.
+
+## Closed (INTENT, 2026-10-26)
+
+Re-pinned by the refusal's arm, as owed: `refusal.inner_kind == "point_split_carrier_unsupported"` replaces the sentence of text, so SPLICE's fix for `a-meeting-on-a-spline-boundary-edge-has-no-split-parameter` moves this row loudly, by kind, rather than by wording. It was blocking INTENT's D′3 (#5636) and value-chart (#5742) PRs. `TestTeapot` passes locally (5 rows).

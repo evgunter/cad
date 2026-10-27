@@ -65,35 +65,43 @@ const SAIL_B_PARK: [f64; 3] = [-0.12, 0.02, 0.0];
 
 /// **A rest of two centred boxes' faces, with its values**: the picked
 /// faces' planes, the target flipped (the faces rest against each
-/// other), the copy slid `slide` along the target's chart and spun
-/// `spin` about the mated normal. Every part here is a box centred on
-/// its own origin, so a slide of zero centres the copy on its target's
-/// own axis.
-fn rest_choice(slide: [f64; 2], spin: f64) -> viewer::matetool::MateChoice {
-    use pncad::document::{Coord, TargetAxis};
+/// other), the copy slid along the two target axes `slides` names, as
+/// the snap's orientation charts them, and spun `spin` about the target
+/// face's own normal. Every part here is a box centred on its own origin, so a
+/// slide of zero centres the copy on its target's own axis.
+fn rest_choice(
+    slides: [(pncad::document::TargetAxis, f64); 2],
+    spin: f64,
+) -> viewer::matetool::MateChoice {
+    use pncad::document::Coord;
     viewer::matetool::MateChoice {
         kind: pncad::document::VarKind::Plane,
         flip: true,
         values: vec![
-            (Coord::Slide(TargetAxis::X), common::len(slide[0])),
-            (Coord::Slide(TargetAxis::Y), common::len(slide[1])),
-            (Coord::Spin(TargetAxis::Z), common::ang(spin)),
+            (Coord::Slide(slides[0].0), common::len(slides[0].1)),
+            (Coord::Slide(slides[1].0), common::len(slides[1].1)),
+            (Coord::SPIN, common::ang(spin)),
         ],
     }
 }
 
 /// **A sail's rest on one of the hub's walls**: the sail's underside
-/// on the wall, its middle at the wall's middle. The chart is the
-/// world's frame — the space the hub stands in — swung onto the wall's
-/// outward normal, the world's `∓y` (front, back): the shortest turn
-/// there keeps the world's `x`, so the chart's `y` is `∓y × x = ±z`.
-/// The sail's origin is its underside's middle and the wall's middle
-/// is `HUB_SIDE / 2` up the hub, which sits on the tower's top, so the
-/// slide along the chart's `y` is `±(TOWER_HEIGHT + HUB_SIDE / 2)`;
-/// `spin` turns the blade about the wall's normal from the world's `x`.
-fn sail_choice(front: bool, spin: f64) -> viewer::matetool::MateChoice {
+/// on the wall, its middle at the wall's middle. The snap turns the
+/// parked sail's underside, its `−z`, the least way onto the mated
+/// direction, the wall's normal reversed, the world's `±y` (front,
+/// back), and writes that quarter turn about the world's `x` as the
+/// mate's orientation: the copy's mated direction is then the mated
+/// one, so the chart is the world's frame — the space the hub stands
+/// in — and the wall leaves the slides along its `x` and `z`. The
+/// sail's origin is its underside's middle and the wall's middle is
+/// `HUB_SIDE / 2` up the hub, which sits on the tower's top, so the
+/// slide along `z` is `TOWER_HEIGHT + HUB_SIDE / 2` on either wall;
+/// `spin` turns the blade about the wall's own normal from the world's
+/// `x`.
+fn sail_choice(spin: f64) -> viewer::matetool::MateChoice {
+    use pncad::document::TargetAxis;
     let up = TOWER_HEIGHT + HUB_SIDE / 2.0;
-    rest_choice([0.0, if front { up } else { -up }], spin)
+    rest_choice([(TargetAxis::X, 0.0), (TargetAxis::Z, up)], spin)
 }
 
 /// A session over a throwaway document — the story starts from
@@ -112,8 +120,8 @@ fn open_at(path: &Path, tol: Tol) -> DocSession {
 }
 
 /// Author one box part through the creation ops — a new document, one
-/// centred rectangle, one extrude — assert its volume, and save it.
-/// Answers the part's document id.
+/// centred rectangle, one extrude, the box's copy its product — assert
+/// its volume, and save it. Answers the part's document id.
 fn author_box_part(
     session: &mut DocSession,
     name: &str,
@@ -130,6 +138,8 @@ fn author_box_part(
         near(body_volume(session, extrude, tol), width * height * depth),
         "the {name} part's volume is its box"
     );
+    let copy = common::copy_of(session.committed_doc(), extrude);
+    common::product_is(session, &[copy]);
     let saved = session.perform(SessionOp::Save(file.to_path_buf()));
     assert!(saved.refusal.is_none(), "{:?}", saved.refusal);
     session.committed_doc().id()
@@ -440,10 +450,14 @@ fn the_windmill_story() {
     );
     assert!(
         matches!(
-            crate::fixture::resolve_at_mint(RunCtx { doc, eval }, &hit.name),
-            Resolution::Resolved(_)
+            pncad::select::resolve(
+                RunCtx { doc, eval },
+                doc.output(hit.node, 0).expect("the tower's copy"),
+                &hit.name
+            ),
+            Ok(Resolution::Resolved(_))
         ),
-        "a just-picked name resolves in the run it was picked from"
+        "a just-picked name resolves in the copy it was picked on, in the run it was picked from"
     );
     let picked = FaceSelection {
         name: hit.name.clone(),
@@ -512,8 +526,17 @@ fn the_windmill_story() {
     assert!(matches!(tool.state(), MateToolState::Two { .. }));
     let seat_proposal = {
         let (doc, _) = session.landed_pair().expect("landed");
-        tool.proposal(doc, rest_choice([0.0; 2], 0.0))
-            .expect("the seat proposes")
+        tool.proposal(
+            doc,
+            rest_choice(
+                [
+                    (pncad::document::TargetAxis::X, 0.0),
+                    (pncad::document::TargetAxis::Y, 0.0),
+                ],
+                0.0,
+            ),
+        )
+        .expect("the seat proposes")
     };
     let outcome = session.perform(seat_proposal.op_into_target_space());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
@@ -552,8 +575,10 @@ fn the_windmill_story() {
 
     // The placement is SOLVED: the hub's underside centre sits on the
     // tower's top centre — a known world point, the tower being
-    // identity-placed — and the faces' normals meet opposed. The base
-    // CERTIFIES at rest: one declared contact, nested, answered.
+    // identity-placed — and the faces' normals meet opposed. The base,
+    // once the author says it is what the document makes, CERTIFIES at
+    // rest: one declared contact, nested, answered.
+    common::product_is(&mut session, &[tower_i, hub_i]);
     {
         let (_, eval) = session.landed_pair().expect("landed");
         let pose = face_frame(eval, hub_bottom.node, &hub_bottom.name)
@@ -596,7 +621,9 @@ fn the_windmill_story() {
     }
 
     // ── 9. UNDO AND REDO ACROSS THE MATE: the edit steps out and back
-    // in through the same doors as any other.
+    // in through the same doors as any other — behind the product the
+    // author set after it, which steps out first and back in last.
+    session.perform(SessionOp::Undo);
     session.perform(SessionOp::Undo);
     session.pump();
     assert!(
@@ -604,6 +631,7 @@ fn the_windmill_story() {
         "undo removes the mate"
     );
     assert_eq!(session.tree_rows().len(), 2, "the two instances again");
+    session.perform(SessionOp::Redo);
     session.perform(SessionOp::Redo);
     session.pump();
     assert!(
@@ -676,7 +704,7 @@ fn the_windmill_story() {
     tool.pick(session.doc(), front_wall.clone());
     let sail_a_proposal = {
         let (doc, _) = session.landed_pair().expect("landed");
-        tool.proposal(doc, sail_choice(true, 0.0))
+        tool.proposal(doc, sail_choice(0.0))
             .expect("the first sail proposes")
     };
     let outcome = session.perform(sail_a_proposal.op_into_target_space());
@@ -724,7 +752,7 @@ fn the_windmill_story() {
     tool.pick(session.doc(), back_wall.clone());
     let sail_b_proposal = {
         let (doc, _) = session.landed_pair().expect("landed");
-        tool.proposal(doc, sail_choice(false, core::f64::consts::FRAC_PI_2))
+        tool.proposal(doc, sail_choice(core::f64::consts::FRAC_PI_2))
             .expect("the second sail proposes")
     };
     let outcome = session.perform(sail_b_proposal.op_into_target_space());
@@ -760,12 +788,14 @@ fn the_windmill_story() {
     // overhang is ordinary authoring; the declaration the user
     // already made says the faces rest, once, for everything the seat
     // induces — the gate's verdict is the truth about this design,
-    // shown on the draw path rather than saved for an export.
+    // shown on the draw path rather than saved for an export — once the
+    // author says the four are what the document makes.
+    common::product_is(&mut session, &[tower_i, hub_i, sail_a, sail_b]);
     let rows = session.tree_rows();
     assert_eq!(
         rows.len(),
-        4,
-        "four instances, each its own placement, the mates their children"
+        5,
+        "four instances, each its own placement, the mates their children, and the product's ⊔"
     );
     for row in &rows {
         assert_eq!(row.status, RowStatus::Ok, "{row:?}");
@@ -825,7 +855,11 @@ fn the_windmill_story() {
         "save → reopen is bit-identity on the document"
     );
     let rows = reopened.tree_rows();
-    assert_eq!(rows.len(), 4, "the whole recipe came back");
+    assert_eq!(
+        rows.len(),
+        5,
+        "the whole recipe came back, the product's ⊔ with it"
+    );
     for row in &rows {
         assert_eq!(row.status, RowStatus::Ok, "{row:?}");
     }

@@ -6,7 +6,7 @@ status: parked
 opened: 2026-10-07
 priority: P2
 cost: H
-blocked_on: [a-tilted-plug-union-refuses-at-the-germ-segment-and-section-copy-rosters, nurbs-edge-crossing-rung-is-the-ring-composite]
+blocked_on: [a-tilted-plug-union-refuses-at-the-germ-segment-and-section-copy-rosters]
 ---
 
 ## The finding

@@ -349,12 +349,13 @@ fn sound(
     );
     // Within the certified bracket, which a face read by quadrature
     // widens, and the closed form's own quadrature.
-    let m = topo::mass_properties(body, tol()).unwrap();
+    let m =
+        topo::mass_properties(body, tol(), topo::test_support::pinned_resolution(tol())).unwrap();
     assert!(
-        (m.volume - volume).abs() < m.volume_pad + 1e-9,
+        (m.enclosure.volume - volume).abs() < m.enclosure.volume_pad + 1e-9,
         "{what}: volume {} ± {}, closed form {volume}",
-        m.volume,
-        m.volume_pad
+        m.enclosure.volume,
+        m.enclosure.volume_pad
     );
     let probes = probes();
     let mut read = 0;
@@ -438,7 +439,6 @@ fn every_op(
             let inputs = topo::BooleanInputs {
                 records_a: x.records.clone(),
                 records_b: y.records.clone(),
-                ..topo::BooleanInputs::default()
             };
             let r = match topo::boolean_op_with(
                 op,

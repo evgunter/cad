@@ -15,7 +15,8 @@ Line numbers cite main at `9f7f131` and drift. Each unit's lane re-greps.
   bound in a single unit, the same for every lane. It returns the narrowest
   enclosure reached and why it stopped.
 - **The predicate is closed data at the public doors:** `Sign`,
-  `Relation { op, bound }`, `Contains`, `Resolution(len)`.
+  `AtMost { bound }` and `AtLeast { bound }` (a relation, `≤` or `≥`),
+  `Contains`, `Resolution(len)`.
   - A deciding predicate is a named funnel predicate: it settles when
     definite, refines while it straddles, stops in the band, and is
     recorded every round it is asked.
@@ -29,7 +30,7 @@ Line numbers cite main at `9f7f131` and drift. Each unit's lane re-greps.
 
 ## Orchestrator rulings for the build (implementation level)
 
-- **R1. Lanes know no target.** A lane (`geom-brep` `props/quad.rs`,
+- **R1. Lanes know no target.** A lane (`geom-brep` `props/quad/`,
   `props/spiric.rs`) refines a face and reports, per round, the bounds and
   why it would stop:
   - `Refinable`: the next round is affordable and can narrow;
@@ -81,10 +82,12 @@ Line numbers cite main at `9f7f131` and drift. Each unit's lane re-greps.
   `refinable` rule (`Enclosure` margin, not `terminal_sliver`). One that
   lies wholly in the band escalates at once.
 - **R6. The predicate type** lives in `topo::props` as
-  `pub enum Settle { Sign, Relation { op: RelOp, bound: T }, Contains(T, T),
-  Resolution(Length) }`. It is re-exported through `pncad`, and Python takes
-  it as data.
-  - `Relation`'s bound is a value of the body's scalar, not a measured
+  `pub enum Settle { Sign, AtMost { bound: T }, AtLeast { bound: T },
+  Contains { lo, hi }, Resolution(Length) }`, each variant spelled as
+  Python's constructor (`sign`, `at_most`, `at_least`, `contains`,
+  `resolution`). It is re-exported through `pncad`, and Python takes it as
+  data.
+  - A relation's bound is a value of the body's scalar, not a measured
     enclosure: a relation between two measured quantities is the
     multi-body door (R7).
   - Each deciding variant carries the funnel predicate names its call site
@@ -115,7 +118,7 @@ Line numbers cite main at `9f7f131` and drift. Each unit's lane re-greps.
   `Body.mass_properties()`, `validate_geometric_measured()` and
   `ImportReport.enclosure`.
   - Each takes a required `Settle`.
-  - Each returns `Measured { enclosure, stop }`, where `stop` is one of
+  - Each returns `MassMeasurement { enclosure, stop }`, where `stop` is one of
     `Settled(verdict)`, `Met`, `Floor`, `Wall` or `Band`.
   - A number is `Settle::Resolution(len)`'s result.
   - `step-import`'s `ImportReport` stores the certificate, not a measured

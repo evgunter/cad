@@ -138,7 +138,7 @@ fn place_pip(
         .map(|(at, by)| (Coord::Slide(at), len(*by)));
     let spins = axes.into_iter().zip(axis).map(|(at, k)| {
         let by = if *k == 0.0 { 0.0 } else { k * a };
-        (Coord::Spin(at), ang(by))
+        (Coord::Spin(Some(at)), ang(by))
     });
     let placed = editor_core::Placed {
         mates: Vec::new(),
@@ -149,7 +149,7 @@ fn place_pip(
         log,
         TEdit::InsertNode {
             node: Box::new(editor_core::Node::place(
-                vec![editor_core::BodyRead::plain(Operand::Node(pip))],
+                editor_core::BodyRead::plain(Operand::Node(pip)),
                 Operand::Var(space),
                 placed.bundle(),
             )),

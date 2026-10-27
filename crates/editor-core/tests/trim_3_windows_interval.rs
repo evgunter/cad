@@ -101,9 +101,7 @@ fn translated(
     let at = editor_core::Frame::translation([0.0, 0.0, SENTINEL]);
     // With no target, the copy stands in the world by its three slides.
     let Some(target) = target else {
-        let placement = r.insert(crate::fixture::stood(vec![editor_core::BodyRead::plain(
-            body,
-        )]));
+        let placement = r.insert(crate::fixture::stood(editor_core::BodyRead::plain(body)));
         r.write(
             placement,
             editor_core::Placed::unmated(vec![
@@ -163,9 +161,7 @@ fn translated(
             _ => (coord, by),
         })
         .collect();
-    let placement = r.insert(crate::fixture::stood(vec![editor_core::BodyRead::plain(
-        body,
-    )]));
+    let placement = r.insert(crate::fixture::stood(editor_core::BodyRead::plain(body)));
     r.constrain(placement, mate, values);
     placement
 }
@@ -813,9 +809,14 @@ fn a_holed_cylinder_wall_drops_the_cells_in_its_hole() {
         &[(0.0, 0.0), (0.7, 0.0), (0.7, 0.6), (0.0, 0.6)],
         0.6,
     );
-    // Placed against the cylinder, whose `y` slide reads the other way
-    // round from the world's.
-    let tool = translated(&mut r, Some(cylinder), tool, [len(0.8), len(0.3), len(0.7)]);
+    // Placed against the cylinder, whose slides read along the world's
+    // axes: the tool spans `y ∈ [−0.3, 0.3]`, across the probe.
+    let tool = translated(
+        &mut r,
+        Some(cylinder),
+        tool,
+        [len(0.8), len(-0.3), len(0.7)],
+    );
     let cut = r.insert(Node::Subtract {
         from: cylinder.into(),
         tool: tool.into(),

@@ -26,11 +26,11 @@ use editor_core::Formula;
 use editor_core::CapEnd;
 use editor_core::{
     Coord, DocEdit, DocumentId, EditError, EntityKind, EvalOptions, Evaluation, Frame, Maintenance,
-    Mate, MateFault, MateRef, MateSide, NameRef, Node, NodeErrorKind, NodeResult, Operand,
-    ProfileDoc, ProfileVertexRef, RecipeNodeId, RoleSeg, StableName, TargetAxis, Value, VarId,
-    apply, load, product, relative_freedom_components, save,
+    Mate, MateFault, MateRef, MateSide, Node, NodeErrorKind, NodeResult, Operand, ProfileDoc,
+    ProfileVertexRef, RecipeNodeId, RoleSeg, StableName, TargetAxis, Value, VarId, apply, load,
+    product, relative_freedom_components, save,
 };
-use fixture::resolver::{PartStore, in_part, placement_of, with_resolver};
+use fixture::resolver::{PartName, PartStore, in_part, with_resolver};
 use fixture::{
     ang, flip, head, insert, len, on_frame, plane, point_of, rest, run, solve, square, step,
 };
@@ -76,40 +76,23 @@ impl Kit {
     }
 
     /// The part's own name for `seg` of kind `kind`, as its placement
-    /// carries it, worn inside `instance`'s `InPart`.
-    fn name(&self, kind: EntityKind, instance: RecipeNodeId, seg: RoleSeg) -> StableName {
-        let placed = StableName {
-            kind,
-            node: placement_of(self.body),
-            path: vec![RoleSeg::Placed {
-                of: NameRef::new(StableName {
-                    kind,
-                    node: self.body,
-                    path: vec![seg],
-                }),
-            }],
-        };
-        StableName {
-            kind,
-            node: instance,
-            path: vec![RoleSeg::InPart {
-                of: NameRef::new(placed),
-            }],
-        }
+    /// carries it, read at `instance`.
+    fn name(&self, kind: EntityKind, instance: RecipeNodeId, seg: RoleSeg) -> PartName {
+        fixture::resolver::in_part_of(kind, instance, self.body, seg)
     }
 
     /// The cap `end` of `instance`.
-    fn cap(&self, instance: RecipeNodeId, end: CapEnd) -> StableName {
+    fn cap(&self, instance: RecipeNodeId, end: CapEnd) -> PartName {
         in_part(instance, self.body, end)
     }
 
     /// Wall `k` of `instance`.
-    fn wall(&self, instance: RecipeNodeId, k: usize) -> StableName {
+    fn wall(&self, instance: RecipeNodeId, k: usize) -> PartName {
         self.name(EntityKind::Face, instance, self.walls[k].clone())
     }
 
     /// The lateral edge at corner `v` of `instance`: a vertical line.
-    fn edge(&self, instance: RecipeNodeId, v: usize) -> StableName {
+    fn edge(&self, instance: RecipeNodeId, v: usize) -> PartName {
         self.name(
             EntityKind::Edge,
             instance,
@@ -118,7 +101,7 @@ impl Kit {
     }
 
     /// The corner `v` of `instance`'s cap `end`.
-    fn corner(&self, instance: RecipeNodeId, end: CapEnd, v: usize) -> StableName {
+    fn corner(&self, instance: RecipeNodeId, end: CapEnd, v: usize) -> PartName {
         self.name(
             EntityKind::Vertex,
             instance,
@@ -128,8 +111,8 @@ impl Kit {
 }
 
 /// **A read of `name` in the instance it is headed at.**
-fn read(name: StableName) -> Operand {
-    Operand::select(Operand::Node(name.node), vec![name])
+fn read(name: PartName) -> Operand {
+    Operand::select(Operand::Node(name.at), vec![name.name])
 }
 
 /// An assembly of `n` instances of one part, and the kit that reads
@@ -255,7 +238,7 @@ fn determined_pair() -> (ProfileDoc, Vec<RecipeNodeId>, Kit, MateRef) {
         mate,
         &[(Coord::Slide(TargetAxis::Z), len(2.0))],
     );
-    (doc, ids, kit, coaxial)
+    (fixture::assemble_world_copies(doc), ids, kit, coaxial)
 }
 
 /// A pair determined by ONE mate: a frame coincidence of `b`'s bottom
@@ -313,9 +296,7 @@ fn row1_a_coaxial_slid_and_clocked_pair_is_determined_and_evaluates() {
         product(&doc, &ev, Tol::witness()).expect("the product gathers"),
         Tol::witness(),
     );
-    let volume = topo::mass_properties(&body, Tol::witness())
-        .expect("mass properties")
-        .volume;
+    let volume = topo::test_support::pinned_volume("mass properties", &body, Tol::witness()).volume;
     assert!(
         (volume - 2.0).abs() < 1e-9,
         "two unit blocks, apart, gather whole: {volume}"
@@ -342,9 +323,7 @@ fn row1_evaluation_and_save_bytes_are_bit_identical_across_runs() {
             product(&doc, ev, Tol::witness()).expect("gathers"),
             Tol::witness(),
         );
-        topo::mass_properties(&body, Tol::witness())
-            .expect("props")
-            .volume
+        topo::test_support::pinned_volume("props", &body, Tol::witness()).volume
     };
     assert_eq!(
         volume(&first).to_bits(),
@@ -501,9 +480,12 @@ fn row4c_deleting_the_target_strands_the_constraint_on_it() {
         1,
         "the constraint's `to` read of the target strands: {rows:?}"
     );
+    // The product's `⊔` reads the target's copy too, and strands it.
+    let product = doc.product().and_then(|var| doc.operation_of(var));
     assert!(
-        rows.iter()
-            .all(|r| *r == read || matches!(r, Maintenance::StrandedSelection { .. })),
+        rows.iter().all(|r| *r == read
+            || matches!(r, Maintenance::StrandedSelection { .. })
+            || matches!(r, Maintenance::StrandedRead { node, .. } if Some(node.id()) == product)),
         "the strands are the whole report: no frame is recorded: {rows:?}"
     );
     let poses = solve(&applied.doc, &kit.opts(), Tol::witness());
@@ -794,15 +776,17 @@ fn row6b_a_constraint_add_and_remove_place_nothing() {
 fn row6c_the_gather_takes_the_placements_alone() {
     let (doc, ids, kit, _) = determined_pair();
     let ev = run(&doc, &kit.opts());
-    assert_eq!(doc.len(), ids.len(), "the constraints are no nodes");
+    assert_eq!(
+        doc.len(),
+        ids.len() + 1,
+        "the constraints are no nodes: the two instances, and the `⊔` the product reads"
+    );
     let body = topo::test_support::finished(
         "body",
         product(&doc, &ev, Tol::witness()).expect("the product gathers"),
         Tol::witness(),
     );
-    let volume = topo::mass_properties(&body, Tol::witness())
-        .expect("props")
-        .volume;
+    let volume = topo::test_support::pinned_volume("props", &body, Tol::witness()).volume;
     assert!(
         (volume - 2.0).abs() < 1e-9,
         "the gather took the two instances: {volume}"
@@ -937,13 +921,43 @@ fn row6h_the_constraint_door_refuses_a_head_naming_no_node() {
 /// drew.
 #[test]
 fn row6i_the_load_check_refuses_a_mate_head_the_mint_never_minted() {
-    let (doc, ids, kit) = assembly("asm-r2a-mate-wire-id", 3);
-    let (doc, _) = add(doc, ids[1], plain_rest(&kit, ids[2], ids[1]));
+    let (doc, ids, kit) = assembly("asm-r2a-mate-wire-id", 2);
+    // The mate's `to` is a face of a body of THIS document, placed in
+    // the world: a part's name, read in an instance's copy, is spelled
+    // in the part's ids, which no mint of this document drew.
+    let (doc, profile) = on_frame(
+        doc,
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![square(0.0, 0.0, 0.5)],
+    );
+    let (doc, block) = insert(
+        doc,
+        Node::Extrude {
+            profile: profile.into(),
+            distance: len(1.0),
+        },
+    );
+    let (doc, placed) = fixture::place(doc, block);
+    let top = StableName {
+        kind: EntityKind::Face,
+        node: block,
+        path: vec![RoleSeg::Cap(CapEnd::End)],
+    };
+    let (doc, _) = add(
+        doc,
+        ids[1],
+        rest(
+            head(kit.cap(ids[1], CapEnd::Start)),
+            fixture::head_at(placed, top),
+        ),
+    );
     let text = save(&doc, &[], Tol::witness()).expect("saves");
     // Doctored by what it is, not by position: the one selection whose
-    // name is headed at `ids[2]` — the mate's `to` face — so a
-    // fixture or field-order change breaks the probe instead of
-    // silently moving it onto an unrelated id.
+    // name is headed at `block` — the mate's `to` face — so a fixture
+    // or field-order change breaks the probe instead of silently
+    // moving it onto an unrelated id.
     let corrupt = doctored(&text, |wire| {
         let vars = wire["snapshot"]["vars"]
             .as_object_mut()
@@ -952,11 +966,11 @@ fn row6i_the_load_check_refuses_a_mate_head_the_mint_never_minted() {
             .values_mut()
             .filter_map(|var| {
                 let head = var.pointer_mut("/def/Select/names/0")?;
-                (head["node"] == serde_json::json!(ids[2].0)).then_some(head)
+                (head["node"] == serde_json::json!(block.0)).then_some(head)
             })
             .collect();
         let [head] = aimed.as_mut_slice() else {
-            panic!("the probe is aimed at the one name headed at ids[2]");
+            panic!("the probe is aimed at the one name headed at the block");
         };
         head["node"] = serde_json::json!(RecipeNodeId::new(0, 99).0);
     });
@@ -993,32 +1007,39 @@ fn row6j_the_name_door_reads_a_mates_heads_like_any_payload_name() {
         .is_ok(),
         "the instance-qualified heads resolve in the instance's own table"
     );
-    // A head wearing a role the part product has no entity for.
+    // A head wearing a role the part product has no entity for. A
+    // part's name is spelled in the part's ids, which this document's
+    // evaluation holds no value for, so the door defers it, and the
+    // placement refuses it where it evaluates (issue
+    // `a-part-name-in-the-host-is-spelled-in-the-parts-ids`).
     let bogus = StableName {
         kind: EntityKind::Face,
-        node: ids[0],
-        path: vec![RoleSeg::InPart {
-            of: StableName {
-                kind: EntityKind::Face,
-                node: kit.body,
-                path: vec![RoleSeg::Lateral(fixture::no_piece().into())],
-            }
-            .into(),
-        }],
+        node: kit.body,
+        path: vec![RoleSeg::Lateral(fixture::no_piece().into())],
     };
-    let err = editor_core::apply_with_names(
+    let deferred = editor_core::apply_with_names(
         &doc,
-        &add(rest(on, head(bogus.clone()))),
+        &add(rest(
+            on,
+            head(PartName {
+                at: ids[0],
+                name: bogus.clone(),
+            }),
+        )),
         &ev,
         Tol::witness(),
     )
-    .unwrap_err();
-    assert_eq!(
-        err,
-        EditError::NameUnresolvedInEvaluation {
-            name: doc.spoken_name(&bogus)
-        },
-        "the constraint head is checkable, so it is checked"
+    .expect("a part's name is deferred to the evaluation")
+    .doc;
+    let refused = run(&deferred, &kit.opts());
+    assert!(
+        matches!(
+            refused.node_error(ids[1]).map(|e| &e.kind),
+            Some(NodeErrorKind::Mate(fault))
+                if matches!(**fault, editor_core::MateFault::SideUnevaluated { .. })
+        ),
+        "the placement refuses the head it cannot read: {:?}",
+        refused.node_error(ids[1])
     );
 }
 
@@ -1049,7 +1070,7 @@ fn row7a_a_value_on_a_freedom_its_mate_fixes_refuses_typed() {
             "a frame's spin",
             &doc,
             frame,
-            Coord::Spin(editor_core::TargetAxis::Z),
+            Coord::SPIN,
             ang(0.5),
             editor_core::VarKind::Frame,
         ),
@@ -1142,6 +1163,50 @@ fn times(a: [[f64; 3]; 3], b: [[f64; 3]; 3]) -> [[f64; 3]; 3] {
     std::array::from_fn(|i| std::array::from_fn(|j| (0..3).map(|k| a[i][k] * b[k][j]).sum()))
 }
 
+/// **An orientation on a point mate refuses at the door.** A point mate
+/// fixes no one direction, so it carries no orientation: the bundle with
+/// the identity is admitted, the same bundle with any other refuses
+/// `Unoriented`.
+///
+/// *Breaks if* the door lets an orientation ride a mate that never reads
+/// it.
+#[test]
+fn an_orientation_on_a_point_mate_refuses_at_the_door() {
+    use TargetAxis::{X, Y, Z};
+    let (doc, ids, kit) = assembly("asm-r2a-point-oriented", 2);
+    let ball = fixture::mate(
+        point_of(read(kit.corner(ids[1], CapEnd::Start, 0))),
+        point_of(read(kit.corner(ids[0], CapEnd::End, 2))),
+    );
+    let write = |mate: editor_core::Mate<Formula>| {
+        let values = [X, Y, Z].map(|a| (Coord::Spin(Some(a)), ang(0.0))).to_vec();
+        apply(
+            &doc,
+            &editor_core::Placed {
+                mates: vec![mate],
+                values,
+            }
+            .write(ids[1]),
+            Tol::witness(),
+        )
+    };
+    assert!(write(ball.clone()).is_ok(), "the identity is admitted");
+    let mut oriented = ball;
+    oriented.orient = editor_core::Orientation::new(
+        editor_core::SignedAxis::PlusY,
+        editor_core::SignedAxis::PlusZ,
+    )
+    .expect("x and z lie along two axes");
+    let refused = write(oriented);
+    assert!(
+        matches!(
+            &refused,
+            Err(EditError::MateRefused { fault, .. }) if matches!(**fault, MateFault::Unoriented { .. })
+        ),
+        "the door refuses an orientation on a point mate: {refused:?}"
+    );
+}
+
 /// **Test 20 (D′2): a lone point mate's rotation is a chain in the
 /// order written** (D10 `[placement.values]`). The second copy's start
 /// corner 0 is mated to the first's end corner 2, and its rotation
@@ -1167,7 +1232,7 @@ fn a_lone_point_mates_chain_turns_its_copy_in_the_order_written() {
     let chain = |spins: &[(TargetAxis, f64)]| -> Vec<(Coord, Formula)> {
         spins
             .iter()
-            .map(|&(a, t)| (Coord::Spin(a), ang(t)))
+            .map(|&(a, t)| (Coord::Spin(Some(a)), ang(t)))
             .collect()
     };
     let placed = fixture::with_values(

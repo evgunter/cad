@@ -23,20 +23,15 @@ use editor_core::{
     RecipeNodeId, SitedFace, SplitError, StableName, VarId, member_of,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
-use fixture::{gate, head, head_at, in_copy, insert, len, member_name, on_frame, run, scl, solve};
+use fixture::{gate, head_at, in_copy, insert, len, member_name, on_frame, run, scl, solve};
 use geom_core::Tol;
 
 // ---- the scene ----
 
-/// **The copy of `body` a node over an instance carries** — `node`'s
-/// copies keyed as the instance keys the copy of its part's `body`
-/// ([`fixture::resolver::copy_key`]): what a seat reading one body
-/// reads of a placement over the instance.
-fn one_copy(node: RecipeNodeId, body: RecipeNodeId) -> editor_core::BodyRead<Formula> {
-    editor_core::BodyRead::keyed(
-        editor_core::Operand::Node(node),
-        fixture::resolver::copy_key(body),
-    )
+/// **The copy of `body` a node over an instance carries**: `node`'s
+/// copy, whose part's product is `body`'s copy alone.
+fn one_copy(node: RecipeNodeId, _body: RecipeNodeId) -> editor_core::BodyRead<Formula> {
+    editor_core::BodyRead::plain(editor_core::Operand::Node(node))
 }
 
 const BASE_WIDTH: f64 = 3.0;
@@ -118,11 +113,11 @@ fn scene_with(label: &str, two: bool) -> Scene {
 impl Scene {
     /// The slab's top cap, read at the slab's own mint.
     fn base_cap(&self, base: RecipeNodeId) -> SitedFace {
-        head(in_part(base, self.base_body, CapEnd::End))
+        head_at(base, in_part(base, self.base_body, CapEnd::End))
     }
 
     /// The block's bottom cap, as the instance names it.
-    fn top_cap(&self) -> StableName {
+    fn top_cap(&self) -> crate::fixture::resolver::PartName {
         in_part(self.top, self.top_body, CapEnd::Start)
     }
 
@@ -181,7 +176,7 @@ fn seat(
 fn place(doc: ProfileDoc, body: RecipeNodeId, o: &EvalOptions) -> (ProfileDoc, RecipeNodeId) {
     fixture::insert_pinned(
         doc,
-        crate::fixture::stood(vec![editor_core::BodyRead::plain(body)]),
+        crate::fixture::stood(editor_core::BodyRead::plain(body)),
         o,
     )
 }
@@ -379,9 +374,9 @@ fn a2_two_spellings_through_a_union_are_one_member() {
 /// the `Part` verbatim. A value on a target read off a pattern's copy is
 /// charted on the space's frame
 /// (`work/intent/a-value-on-a-placed-copy-target-is-charted-on-the-space.md`),
-/// so the seat's slide of 5 along the swung y (the world's −y, the
-/// slab's frame turned over onto the downward normal) stands the slab
-/// under copy 1.
+/// so the seat's slide of 5 along y (the world's, the least turn from
+/// the slab's mated normal onto the mated direction being none) stands
+/// the slab under copy 1.
 #[test]
 fn a2_a_part_and_its_pattern_naming_one_copy_are_one_member() {
     let s = scene_with("msolve13-a2-part", false);
@@ -410,9 +405,8 @@ fn a2_a_part_and_its_pattern_naming_one_copy_are_one_member() {
         member_of(&doc, &head_at(pattern, copy1.clone())),
         "A2: one placement, one member"
     );
-    let (_, by_part) = seated_through(&s, doc.clone(), head_at(part, copy1.clone()), [0.0, -5.0]);
-    let (by_pattern_doc, by_pattern) =
-        seated_through(&s, doc, head_at(pattern, copy1), [0.0, -5.0]);
+    let (_, by_part) = seated_through(&s, doc.clone(), head_at(part, copy1.clone()), [0.0, 5.0]);
+    let (by_pattern_doc, by_pattern) = seated_through(&s, doc, head_at(pattern, copy1), [0.0, 5.0]);
     assert!(
         near(&by_part, &by_pattern),
         "A2: the two spellings seat the slab alike: {by_part:?} vs {by_pattern:?}"
@@ -560,8 +554,8 @@ fn placement_of(doc: &ProfileDoc, body: RecipeNodeId) -> RecipeNodeId {
     doc.placements()
         .into_iter()
         .find(|&p| {
-            matches!(doc.node(p), Some(Node::Place { shapes, .. })
-                if shapes.iter().any(|shape| doc.operation_of(shape.read) == Some(body)))
+            matches!(doc.node(p), Some(Node::Place { source, .. })
+                if (doc.operation_of(source.read) == Some(body)))
         })
         .expect("the body is placed")
 }

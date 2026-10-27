@@ -24,12 +24,10 @@
     clippy::useless_vec
 )]
 
-use crate::shared::patch::{Unmet, at_target, patch_net, to_target};
+use crate::shared::patch::{QUAD_TARGET_LEN_FACTOR, Unmet, at_target, patch_net, to_target};
 use core::num::NonZeroUsize;
 use geom_brep::props::PropsError;
-use geom_brep::props::quad::{
-    LaneEnd, LaneRun, QUAD_TARGET_LEN_FACTOR, mean_boundary_displacement, nurbs_patch_face,
-};
+use geom_brep::props::quad::{LaneEnd, LaneRun, mean_boundary_displacement, nurbs_patch_face};
 use geom_core::Bounds;
 use geom_core::Interval;
 use geom_core::Tol;
@@ -52,7 +50,7 @@ fn overshoot_ulps(lo: f64, hi: f64, v: f64) -> f64 {
 
 /// The corpus's declared ambient uncertainty — the ε the fixed
 /// quadrature schedule (D9) is dimensioned for, and the boundary the
-/// ε-keyed anti-vacuity claim below is pinned against (`quad.rs`'s own
+/// ε-keyed anti-vacuity claim below is pinned against (`props/quad/`'s own
 /// unit tests use the same constant for the same reason).
 const CORPUS_EPS: f64 = 1e-9;
 
@@ -106,7 +104,7 @@ const HUGE_CYLINDER_FLOOR: f64 = 5.996_463_398_199e-8;
 /// honest postures plus the degenerate-face refusal, which is sound
 /// but is a capability gap and so is pinned per carrier.
 ///
-/// This is `quad.rs`'s own `eps_posture` contract, ported: the target
+/// This is `props/quad/rational.rs`'s own `eps_posture` contract, ported: the target
 /// is `1024·ε` while the lane's floor and work wall do not move with
 /// ε, so the same patch that certifies at ε = 1e-6 genuinely cannot at
 /// ε = 1e-12. A probe that merely PRINTS its non-answer asserts
@@ -461,7 +459,7 @@ fn probe(
             Posture::Certified
         }
         // A lane that stopped short asserts the SAME contract as the
-        // crate's own `eps_posture` (quad.rs): its narrowest enclosure
+        // crate's own `eps_posture` (props/quad/rational.rs): its narrowest enclosure
         // still holds every truth in hand, and its width really missed
         // the run's own `1024·ε` target.
         Ok(run) => {

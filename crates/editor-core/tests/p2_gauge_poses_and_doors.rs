@@ -203,9 +203,9 @@ fn pinned_chain(doc: ProfileDoc, part: DocRef) -> (ProfileDoc, RecipeNodeId) {
     let ay = plus(at(1.0, sin()), at(2.0, cos()));
     let (c, s) = (0.3_f64.cos(), 0.3_f64.sin());
     let values = vec![
-        (Coord::Spin(TargetAxis::Y), ang(0.2)),
-        (Coord::Spin(TargetAxis::Z), spin()),
-        (Coord::Spin(TargetAxis::X), ang(0.3)),
+        (Coord::Spin(Some(TargetAxis::Y)), ang(0.2)),
+        (Coord::Spin(Some(TargetAxis::Z)), spin()),
+        (Coord::Spin(Some(TargetAxis::X)), ang(0.3)),
         (Coord::Slide(TargetAxis::X), plus(len(5.0), ax)),
         (
             Coord::Slide(TargetAxis::Y),
@@ -243,8 +243,10 @@ fn seat_rep() -> M {
 
 /// **Where a copy seated on a placed base stands, by D′2's chart**
 /// (`docs/INTENT-STAGE3-SPEC.md` §5′.2), written out independently of
-/// the solve: the target space's axes swung onto the base's upper cap's
-/// normal `n = (a, b, c)` by the shortest turn, `x' = (1 − a²/(1 + c),
+/// the solve: the target space's axes carried by the least turn from
+/// the copy's mated `−z` onto the mated direction, the base's upper
+/// cap's normal `n = (a, b, c)` reversed — the turn of `z` onto `n`,
+/// `x' = (1 − a²/(1 + c),
 /// −ab/(1 + c), −a)` and `y' = n × x'`; the copy's own axes land on them
 /// (no spin), its origin `at` along `x'` and `y'` from the space's
 /// origin and on the cap's plane, `height` up the base, along `n`.
@@ -307,8 +309,8 @@ fn a_seat_under_a_two_parameter_world_pin_poses_as_composed() {
     for (lv, tv) in [(2.0, 0.25), (7.0, -1.1)] {
         let doc = set_value(set_value(doc.clone(), lift(), lv), turn(), tv);
         let f = chain_frame(lv, tv).c(&root_off);
-        // Each seat's values chart on the world, swung onto the cap it
-        // rests on: a seat does not ride with its base in the cap's plane.
+        // Each seat's values chart on the world, carried by the least
+        // turn onto the cap it rests on: a seat does not ride with its base in the cap's plane.
         let w_top = space_seat(&f, BASE_HEIGHT, [1.0, 1.0]);
         let w_t = space_seat(&w_top, TOP_HEIGHT, [0.0, 0.0]);
         let poses = solve(&doc, &o, Tol::witness());
@@ -393,25 +395,23 @@ fn the_gate_checks_the_world_whatever_another_space_holds() {
         &doc,
         editor_core::MeasurePrimitive::Distance { a: 0, b: 1 },
         vec![
-            editor_core::SitedRef::at_mint(p.top_cap(top)),
-            editor_core::SitedRef::at_mint(p.top_upper_cap(top)),
+            crate::fixture::sited_ref(p.top_cap(top)),
+            crate::fixture::sited_ref(p.top_upper_cap(top)),
         ],
     );
     let ev = run(&doc_m, &o);
     assert!(ev.value(meas).is_some(), "{:?}", ev.node_error(meas));
     editor_core::assemble(&doc_m, &ev, Tol::witness())
         .expect("the world certifies whatever another space holds");
-    // The base goes: the world is empty.
+    // The base goes: the product reads a body that is gone.
     let (alone, _) = step(doc, DocEdit::DeleteNode { id: base });
     let ev = run(&alone, &o);
     match editor_core::assemble(&alone, &ev, Tol::witness()) {
         Err(editor_core::AssemblyError::Product(e)) => match *e {
-            editor_core::ProductError::EmptyProduct { ref unplaced, .. } => {
-                assert!(unplaced.is_empty(), "{unplaced:?}");
-            }
-            ref other => panic!("the gather refuses an empty world: {other:?}"),
+            editor_core::ProductError::StrandedProduct { .. } => {}
+            ref other => panic!("the gather refuses a stranded product: {other:?}"),
         },
-        other => panic!("an empty world refuses at the gather: {other:?}"),
+        other => panic!("a stranded product refuses at the gather: {other:?}"),
     }
 }
 
@@ -431,6 +431,7 @@ fn a_copy_in_another_space_below_stays_out_of_the_outer_product() {
     assert_eq!(sub.node_space(top), Some(space));
     let ev_sub = run(&sub, &o);
     let mut store = p.store.clone();
+    let sub = crate::fixture::assemble_world_copies(sub);
     let sub_ref = store.insert(sub.clone(), Tol::witness());
     let outer = ProfileDoc::empty(DocumentId::derive("r2-seam-outer"), Tol::witness());
     let (outer, _) = fixture::insert_pinned(
@@ -440,7 +441,8 @@ fn a_copy_in_another_space_below_stays_out_of_the_outer_product() {
     );
     let ev = run(&outer, &with_resolver(store));
     let vol = |b: &Body<f64>| {
-        topo::mass_properties(
+        topo::test_support::pinned_volume(
+            "mass",
             &topo::test_support::finished(
                 "the measured body",
                 topo::Body::clone(b),
@@ -448,7 +450,6 @@ fn a_copy_in_another_space_below_stays_out_of_the_outer_product() {
             ),
             Tol::witness(),
         )
-        .expect("mass")
         .volume
     };
     let gathered = editor_core::product(&outer, &ev, Tol::witness()).expect("the world gathers");

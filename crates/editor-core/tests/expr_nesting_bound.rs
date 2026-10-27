@@ -164,13 +164,14 @@ fn deepest_pose_document(levels: usize) -> Recorder {
         vec![Mate {
             on: cap(editor_core::CapEnd::Start),
             to: fixture::flip(to),
+            orient: editor_core::Orientation::IDENTITY,
         }],
         Vec::new(),
     );
     // A recorded edit applies or the recorder panics: the chain at the
     // bound is admitted.
     r.push(DocEdit::place(
-        vec![editor_core::BodyRead::plain(Operand::from(extrude))],
+        editor_core::BodyRead::plain(Operand::from(extrude)),
         Operand::Var(space),
         placed.bundle(),
     ));

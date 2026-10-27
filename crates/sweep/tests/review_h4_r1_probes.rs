@@ -366,7 +366,7 @@ fn the_fourth_quadrant_is_built_and_its_floor_rim_carves() {
     );
 
     // The carve, and the fill by Pappus.
-    let v0 = topo::mass_properties(&body, tol()).expect("props").volume;
+    let v0 = topo::test_support::pinned_volume("props", &body, tol()).volume;
     let out = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &arcs, r, tol())
         .unwrap_or_else(|e| panic!("the floor rim carves, got {e:?}"));
     assert_eq!(out.band_faces.len(), 1, "one band");
@@ -374,16 +374,17 @@ fn the_fourth_quadrant_is_built_and_its_floor_rim_carves() {
     let p1 = topo::mass_properties(
         &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol()),
         tol(),
+        topo::test_support::pinned_resolution(tol()),
     )
     .expect("props");
     assert_eq!(
-        p1.volume_pad, 0.0,
+        p1.enclosure.volume_pad, 0.0,
         "closed-form inventory: the pad is exactly zero"
     );
     assert!(
-        p1.volume > v0,
+        p1.enclosure.volume > v0,
         "a concave band ADDS material: {} vs {v0}",
-        p1.volume
+        p1.enclosure.volume
     );
 
     let o = (0.0, floor);
@@ -398,8 +399,8 @@ fn the_fourth_quadrant_is_built_and_its_floor_rim_carves() {
         (1.0, segment(o, big_r, v, f_s)),
     ]);
     assert!(
-        (p1.volume - v0 - fill).abs() < 1e-13,
+        (p1.enclosure.volume - v0 - fill).abs() < 1e-13,
         "the fill is the Pappus closed form: measured {} vs derived {fill}",
-        p1.volume - v0
+        p1.enclosure.volume - v0
     );
 }

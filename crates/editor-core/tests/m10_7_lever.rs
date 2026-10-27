@@ -83,20 +83,13 @@ fn mint(doc: &editor_core::ProfileDoc, node: AuthoredNode) -> (ProfileDoc, Recip
 }
 
 /// A named cap of the prism `body`, read at `site`: the prism itself,
-/// or a placement of it, whose copy wears the prism's name under its
-/// `Placed` layer.
+/// or a placement of it, whose copy carries the prism's name as it is.
 fn cap(ev: &Evaluation<f64>, site: RecipeNodeId, body: RecipeNodeId, end: CapEnd) -> SitedRef {
     let sel =
         Selector::of(NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Cap).side(end)));
     let mut found = select(ev, body, &sel);
     assert_eq!(found.len(), 1, "one {end:?} cap on node {body:?}");
-    let name = found.remove(0);
-    let name = if site == body {
-        name
-    } else {
-        crate::m10_5_clearance_interval::in_placement(site, name)
-    };
-    SitedRef::new(site, name)
+    SitedRef::new(site, found.remove(0))
 }
 
 /// **Two square plates of half-width `half`, the upper one TILTED by
@@ -163,9 +156,9 @@ fn measured(half: f64, theta: f64) -> (Evaluation<f64>, RecipeNodeId) {
     }));
     let (doc, upper) = mint(
         &doc,
-        crate::fixture::stood(vec![editor_core::BodyRead::plain(
-            editor_core::Operand::from(plates[1]),
-        )]),
+        crate::fixture::stood(editor_core::BodyRead::plain(editor_core::Operand::from(
+            plates[1],
+        ))),
     );
     let bottom = editor_core::Operand::select(
         plates[1],
@@ -180,6 +173,13 @@ fn measured(half: f64, theta: f64) -> (Evaluation<f64>, RecipeNodeId) {
         editor_core::Mate {
             on: fixture::plane(bottom),
             to: tilted,
+            // The bottom cap faces the frame's `xy` normal unflipped:
+            // the upper plate stands upended, its `z` along `−z`.
+            orient: editor_core::Orientation::new(
+                editor_core::SignedAxis::PlusX,
+                editor_core::SignedAxis::MinusZ,
+            )
+            .expect("x and z lie along two axes"),
         },
         vec![
             (
@@ -191,7 +191,7 @@ fn measured(half: f64, theta: f64) -> (Evaluation<f64>, RecipeNodeId) {
                 editor_core::Formula::zero(editor_core::Dimension::Length),
             ),
             (
-                editor_core::Coord::Spin(editor_core::TargetAxis::Z),
+                editor_core::Coord::SPIN,
                 editor_core::Formula::zero(editor_core::Dimension::Angle),
             ),
         ],

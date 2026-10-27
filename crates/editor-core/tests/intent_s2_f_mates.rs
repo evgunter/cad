@@ -61,7 +61,7 @@ fn seated(doc: ProfileDoc, mate: Mate<Formula>) -> (ProfileDoc, MateRef) {
         &[
             (Coord::Slide(TargetAxis::X), len(0.0)),
             (Coord::Slide(TargetAxis::Y), len(0.0)),
-            (Coord::Spin(editor_core::TargetAxis::Z), fixture::ang(0.0)),
+            (Coord::SPIN, fixture::ang(0.0)),
         ],
     );
     (doc, mate)
@@ -123,8 +123,8 @@ fn a_measure_couples_as_reads_do() {
         &doc,
         editor_core::MeasurePrimitive::Distance { a: 0, b: 1 },
         vec![
-            editor_core::SitedRef::at_mint(in_part(a, body, CapEnd::End)),
-            editor_core::SitedRef::at_mint(in_part(b, body, CapEnd::Start)),
+            crate::fixture::sited_ref(in_part(a, body, CapEnd::End)),
+            crate::fixture::sited_ref(in_part(b, body, CapEnd::Start)),
         ],
     );
     assert_eq!(
@@ -220,7 +220,7 @@ fn a_mate_on_unplaced_operands_states_nothing_of_the_world() {
             ]),
         },
     );
-    let (doc, placed) = insert(doc, crate::fixture::stood(vec![fused.into()]));
+    let (doc, placed) = insert(doc, crate::fixture::stood(fused));
     let doc = fixture::pinned(doc, placed, &with_resolver(store.clone()));
     let ev = run(&doc, &with_resolver(store.clone()));
     assert_eq!(
@@ -273,7 +273,7 @@ fn a_mate_on_unplaced_operands_states_nothing_of_the_world() {
 #[test]
 fn a_mates_on_side_is_read_in_its_own_placements_copy_alone() {
     use editor_core::coincide::NamedCell;
-    use editor_core::{Proof, RoleSeg, Rung};
+    use editor_core::{Proof, Rung};
     let (doc, [a, b], store, body) = pair("f-on-own");
     let opts = with_resolver(store);
     let doc = fixture::pin(
@@ -282,7 +282,7 @@ fn a_mates_on_side_is_read_in_its_own_placements_copy_alone() {
         &editor_core::Frame::translation([5.0, 0.0, 0.0]),
         &opts,
     );
-    let (doc, p) = insert(doc, crate::fixture::stood(vec![b.into()]));
+    let (doc, p) = insert(doc, crate::fixture::stood(b));
     // The seat, slid back over `a` from where `b`'s pin stands its copy,
     // so `p`'s copy rests on `a` and clear of `b`'s own.
     let (doc, mate) = fixture::mated(
@@ -292,7 +292,7 @@ fn a_mates_on_side_is_read_in_its_own_placements_copy_alone() {
         &[
             (Coord::Slide(TargetAxis::X), len(-5.0)),
             (Coord::Slide(TargetAxis::Y), len(0.0)),
-            (Coord::Spin(editor_core::TargetAxis::Z), fixture::ang(0.0)),
+            (Coord::SPIN, fixture::ang(0.0)),
         ],
     );
     let ev = run(&doc, &opts);
@@ -329,9 +329,9 @@ fn a_mates_on_side_is_read_in_its_own_placements_copy_alone() {
     for cell in &mut other.cells {
         if let NamedCell::Entity { input, name } = cell
             && doc.operation_of(*input) == Some(p)
-            && let [RoleSeg::Placed { of }] = name.path.as_slice()
         {
-            *name = (**of).clone();
+            // A copy names its faces as its source does.
+            *name = name.clone();
             *input = own;
         }
     }
@@ -351,15 +351,8 @@ fn a_mates_on_side_is_read_in_its_own_placements_copy_alone() {
 fn ghost_side(doc: ProfileDoc, mate: MateRef, instance: RecipeNodeId) -> ProfileDoc {
     let ghost = editor_core::StableName {
         kind: editor_core::EntityKind::Face,
-        node: instance,
-        path: vec![editor_core::RoleSeg::InPart {
-            of: editor_core::StableName {
-                kind: editor_core::EntityKind::Face,
-                node: RecipeNodeId::new(0, test_utils::refusal::tagged(77)),
-                path: vec![editor_core::RoleSeg::Cap(CapEnd::Start)],
-            }
-            .into(),
-        }],
+        node: RecipeNodeId::new(0, test_utils::refusal::tagged(77)),
+        path: vec![editor_core::RoleSeg::Cap(CapEnd::Start)],
     };
     step(
         doc,
@@ -404,13 +397,16 @@ fn a_mate_whose_side_no_longer_resolves_refuses_and_the_gate_says_so() {
         "{:?}",
         ev.node_error(mate.placement)
     );
-    // The placement is in the product, so the gather refuses it typed.
+    // The placement's copy is in the product's `⊔`, so the gather
+    // refuses it typed, poisoned through the placement.
     match assemble(&doc, &ev, Tol::witness()) {
         Err(AssemblyError::Product(refusal)) => assert!(
             matches!(
                 *refusal,
-                editor_core::ProductError::Root(editor_core::NodeStanding::Failed { node })
-                    if node == mate.placement
+                editor_core::ProductError::Root(editor_core::NodeStanding::Poisoned {
+                    through,
+                    ..
+                }) if through == mate.placement
             ),
             "{refusal:?}"
         ),
@@ -492,7 +488,7 @@ fn a_side_selection_of_a_patterns_copies_is_read_by_sides_alone() {
     let (doc, mate) = fixture::constrain(
         doc,
         fixture::rest(
-            fixture::head(in_part(top, top_body, CapEnd::Start)),
+            fixture::head_at(top, in_part(top, top_body, CapEnd::Start)),
             fixture::head(fixture::in_copy(
                 pattern,
                 2,
@@ -520,10 +516,11 @@ fn a_side_selection_of_a_patterns_copies_is_read_by_sides_alone() {
         &doc,
         &[editor_core::MeasurePrimitive::Distance {
             a: editor_core::Operand::Var(side),
-            b: editor_core::Operand::from(editor_core::SitedRef::new(
+            b: editor_core::Operand::from(crate::fixture::sited_ref(in_part(
                 top,
-                in_part(top, top_body, CapEnd::Start),
-            )),
+                top_body,
+                CapEnd::Start,
+            ))),
         }],
         Tol::witness(),
     );
@@ -551,7 +548,7 @@ fn a_selection_crossing_a_posed_placement_refuses() {
     let (doc, [x, t, px]) = lifted_cube_measured("f-posed");
     // Re-place `x` posed, in place of its world placement at the identity.
     let (doc, _) = step(doc, DocEdit::DeleteNode { id: px });
-    let (doc, posed) = insert(doc, crate::fixture::stood(vec![x.into()]));
+    let (doc, posed) = insert(doc, crate::fixture::stood(x));
     let doc = fixture::pin(
         doc,
         posed,

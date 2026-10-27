@@ -152,7 +152,7 @@ fn check(
             "{label}: two lumps the census cannot decide, got {census:?}"
         );
     }
-    let v = topo::mass_properties(&bb.body, tol).unwrap().volume;
+    let v = topo::test_support::pinned_volume("the measured body", &bb.body, tol).volume;
     assert!(
         (v - volume).abs() <= 1e-9 * volume.abs() + 1e-15 * scale,
         "{label}: volume {v} against the closed form {volume}"
@@ -640,7 +640,7 @@ fn a_large_ball_near_external_tangency_is_pinned() {
                 .ok()
                 .and_then(|r| r.body().map(|b| b.body.clone()))
                 .unwrap_or_else(|| panic!("gap {gap:e}, {op}: the sliver builds"));
-            let v = topo::mass_properties(&body, tol).unwrap().volume;
+            let v = topo::test_support::pinned_volume("the measured body", &body, tol).volume;
             let rel = (v - want).abs() / want;
             let bound = if gap == 1e-5 && op == "b ∩ a" {
                 3e-3

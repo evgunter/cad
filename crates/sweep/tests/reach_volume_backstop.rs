@@ -53,19 +53,20 @@ fn assert_sound(r: Result<topo::BooleanResult<f64>, BooleanError>, expect: f64, 
     let body = body_of(r, what);
     topo::validate_geometric_certificate(&body, tol())
         .unwrap_or_else(|e| panic!("{what}: the result does not certify at rest: {e:?}"));
-    let p = topo::mass_properties(&body, tol()).unwrap();
-    let miss = (p.volume - expect).abs();
+    let p =
+        topo::mass_properties(&body, tol(), topo::test_support::pinned_resolution(tol())).unwrap();
+    let miss = (p.enclosure.volume - expect).abs();
     assert!(
-        miss <= p.volume_pad,
+        miss <= p.enclosure.volume_pad,
         "{what}: the analytic {expect} is outside the enclosure {} ± {:e}",
-        p.volume,
-        p.volume_pad
+        p.enclosure.volume,
+        p.enclosure.volume_pad
     );
     assert!(
-        miss <= tol().eps() * p.surface_area,
+        miss <= tol().eps() * p.enclosure.surface_area,
         "{what}: the midpoint {} misses the analytic {expect} by more than ε over the area {}",
-        p.volume,
-        p.surface_area
+        p.enclosure.volume,
+        p.enclosure.surface_area
     );
 }
 
@@ -248,14 +249,15 @@ fn a_notched_wall_measures_in_closed_form() {
     );
     topo::validate_geometric_certificate(&body, tol())
         .unwrap_or_else(|e| panic!("the notched half-disk does not certify at rest: {e:?}"));
-    let p = topo::mass_properties(&body, tol()).unwrap();
+    let p =
+        topo::mass_properties(&body, tol(), topo::test_support::pinned_resolution(tol())).unwrap();
     let floor = 0.5 * 3.75f64.sqrt() + 4.0 * 0.25f64.asin() - 1.5;
     let expect = 2.0 * PI - 0.5 * floor;
-    assert_eq!(p.volume_pad, 0.0, "closed-form faces only");
+    assert_eq!(p.enclosure.volume_pad, 0.0, "closed-form faces only");
     assert!(
-        (p.volume - expect).abs() <= 1e-12 * expect,
+        (p.enclosure.volume - expect).abs() <= 1e-12 * expect,
         "the notched half-disk: {} against the analytic {expect}",
-        p.volume
+        p.enclosure.volume
     );
 }
 
@@ -274,11 +276,11 @@ fn a_curved_closed_form_tie_passes_on_the_faces_own_enclosures() {
     let rod = |first: f64| three_arc_cylinder(Point2::new(0.1, 0.2), 0.7, 0.0, 0.9, first);
     let (low, high) = (rod(45.0), rod(60.0));
     let volume = |b: &Body<f64>| {
-        topo::mass_properties(
+        topo::test_support::pinned_volume(
+            "the measured body",
             &topo::test_support::finished("the measured body", topo::Body::clone(b), tol()),
             tol(),
         )
-        .unwrap()
         .volume
     };
     assert!(
@@ -415,7 +417,7 @@ fn planted_subtraction_results_refuse_down_to_the_stated_resolution() {
 fn a_planted_union_result_short_by_less_than_the_reporting_pads_refuses() {
     let theta = 0.2;
     let u = body_of(topo::union(&base(), &boss(theta, 0.5), tol()), "U");
-    let pad_u = topo::mass_properties(&u, tol()).unwrap().volume_pad;
+    let pad_u = topo::test_support::pinned_volume("the measured body", &u, tol()).volume_pad;
     let h = 1e-4;
     let slope =
         (penetrating_union(theta, BOSS_R + h) - penetrating_union(theta, BOSS_R - h)) / (2.0 * h);
@@ -432,16 +434,17 @@ fn a_planted_union_result_short_by_less_than_the_reporting_pads_refuses() {
     let short_boss = finished("the short boss", short_boss, tol());
     let short = body_of(topo::union(&base(), &short_boss, tol()), "the short union");
     let (pu, ps) = (
-        topo::mass_properties(&u, tol()).unwrap(),
-        topo::mass_properties(&short, tol()).unwrap(),
+        topo::mass_properties(&u, tol(), topo::test_support::pinned_resolution(tol())).unwrap(),
+        topo::mass_properties(&short, tol(), topo::test_support::pinned_resolution(tol())).unwrap(),
     );
     assert!(
-        pu.volume - ps.volume < pu.volume_pad + ps.volume_pad,
+        pu.enclosure.volume - ps.enclosure.volume
+            < pu.enclosure.volume_pad + ps.enclosure.volume_pad,
         "the fixture's premise: the short union's midpoint {} is inside U's enclosures' reach ({} ± {:e}, ± {:e})",
-        ps.volume,
-        pu.volume,
-        pu.volume_pad,
-        ps.volume_pad
+        ps.enclosure.volume,
+        pu.enclosure.volume,
+        pu.enclosure.volume_pad,
+        ps.enclosure.volume_pad
     );
     assert_eq!(
         planted(BooleanOp::Union, &u, &base(), &short),
@@ -483,8 +486,8 @@ fn a_result_equal_in_truth_but_larger_at_the_midpoint_passes() {
     );
     let circle = oblique_rod(0.0, 0.5);
     let (vc, va) = (
-        topo::mass_properties(&circle, tol()).unwrap().volume,
-        topo::mass_properties(&arcs, tol()).unwrap().volume,
+        topo::test_support::pinned_volume("the measured body", &circle, tol()).volume,
+        topo::test_support::pinned_volume("the measured body", &arcs, tol()).volume,
     );
     assert!(
         vc != va,

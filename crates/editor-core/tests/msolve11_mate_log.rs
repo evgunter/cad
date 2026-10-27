@@ -20,10 +20,10 @@ use crate::fixture;
 use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
     CancelToken, CapEnd, Coord, DocEdit, DocumentId, EvalOptions, Evaluation, Formula, Mate,
-    MateRef, NameRef, Node, NodeErrorKind, NodeResult, Operand, PatternKind, ProfileDoc,
-    RecipeNodeId, RoleSeg, SitedFace, SitedRef, StableName, TargetAxis, evaluate,
+    MateRef, Node, NodeErrorKind, NodeResult, Operand, PatternKind, ProfileDoc, RecipeNodeId,
+    RoleSeg, SitedFace, SitedRef, StableName, TargetAxis, evaluate,
 };
-use fixture::resolver::{PartStore, in_part, placement_of, with_resolver};
+use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{ang, in_copy, insert, len, on_frame, scl};
 use geom_core::Tol;
 
@@ -51,24 +51,6 @@ fn slab(label: &str, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
             distance: len(h),
         },
     )
-}
-
-/// **`name`, an entity of a part's body, as `instance` wears it**:
-/// under the placement the part's world copies the body by, inside the
-/// instance's `InPart` wrapper.
-fn worn(instance: RecipeNodeId, body: RecipeNodeId, name: StableName) -> StableName {
-    let placed = StableName {
-        kind: name.kind,
-        node: placement_of(body),
-        path: vec![RoleSeg::Placed {
-            of: NameRef::new(name),
-        }],
-    };
-    StableName {
-        kind: placed.kind,
-        node: instance,
-        path: vec![RoleSeg::InPart { of: placed.into() }],
-    }
 }
 
 /// **`face`'s plane slid `h` along its own outward normal and
@@ -168,11 +150,7 @@ impl Scene {
     fn copy_edge(&self) -> Operand {
         fixture::axis(SitedRef::new(
             self.copy1,
-            in_copy(
-                self.pattern,
-                1,
-                worn(self.block, self.block_body, self.edge.clone()),
-            ),
+            in_copy(self.pattern, 1, self.edge.clone()),
         ))
     }
 
@@ -183,10 +161,7 @@ impl Scene {
 
     /// A block's lateral edge, as an axis read at the block.
     fn block_edge(&self, block: RecipeNodeId) -> Operand {
-        fixture::axis(SitedRef::new(
-            block,
-            worn(block, self.block_body, self.edge.clone()),
-        ))
+        fixture::axis(SitedRef::new(block, self.edge.clone()))
     }
 
     /// Inserts `node` through the door.
@@ -224,7 +199,7 @@ impl Scene {
             fixture::mate(self.block_edge(self.cap), self.copy_edge()),
             &[
                 (Coord::Slide(TargetAxis::Z), len(BLOCK_HEIGHT)),
-                (Coord::Spin(editor_core::TargetAxis::Z), ang(0.0)),
+                (Coord::SPIN, ang(0.0)),
             ],
         );
     }
@@ -238,7 +213,7 @@ impl Scene {
             &[
                 (Coord::Slide(TargetAxis::X), len(x)),
                 (Coord::Slide(TargetAxis::Y), len(y)),
-                (Coord::Spin(editor_core::TargetAxis::Z), ang(0.0)),
+                (Coord::SPIN, ang(0.0)),
             ],
         )
     }
@@ -283,7 +258,7 @@ const PATTERN_RULE: [&str; 2] = ["eval_direction_norm", "pattern_spacing"];
 /// `Part` that projects it) and its slide and spin, and the other
 /// block, held by a rest and three values against the base.
 ///
-/// - Each placement's chart (`mate_chart_reference_antipode`) is on its
+/// - Each placement's chart (`mate_chart_pole`) is on its
 ///   own log.
 /// - Neither placement's slides decide anything: each moves along its
 ///   chart's own axis (`value::settle`), so no line between two slides
@@ -306,7 +281,7 @@ fn each_decision_is_on_the_log_of_the_node_that_made_it() {
     let on = |got: &[&str], p: &str| got.contains(&p);
     for (what, got) in [("cap", &cap_log), ("other block", &other_log)] {
         assert!(
-            on(got, "mate_chart_reference_antipode"),
+            on(got, "mate_chart_pole"),
             "the {what} charts its values on its own log: {got:?}"
         );
     }
@@ -363,9 +338,7 @@ fn a_reused_placement_carries_the_log_a_fresh_one_does() {
     );
     let fresh_log = log(&fresh, s.cap);
     assert!(
-        fresh_log
-            .iter()
-            .any(|v| v.predicate == "mate_chart_reference_antipode"),
+        fresh_log.iter().any(|v| v.predicate == "mate_chart_pole"),
         "the fold charts the cap's values: {fresh_log:?}"
     );
     assert_eq!(
@@ -397,6 +370,7 @@ fn on_the_world(s: &mut Scene, h: f64) -> Mate<Formula> {
     Mate {
         on: fixture::plane(s.bottom(s.other)),
         to: fixture::flip(top),
+        orient: editor_core::Orientation::IDENTITY,
     }
 }
 

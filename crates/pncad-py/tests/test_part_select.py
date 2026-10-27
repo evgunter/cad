@@ -40,6 +40,7 @@ from pncad import (
 )
 
 from placing import placed, plane_on
+from measuring import pinned
 
 #: The box's footprint half-extent and height, metres — the corpus
 #: document's own constants, so the dyadic pins below are its pins.
@@ -100,7 +101,7 @@ def canonical(name):
 def mass_of(ev, node):
     body = ev.value(node).body()
     body.validate()
-    return body.mass_properties()
+    return pinned(body)
 
 
 def refusal(testcase, doc, node):
@@ -137,11 +138,11 @@ class TestTheHalfIsItsPort(unittest.TestCase):
                 self.assertIsNotNone(side)
                 self.assertEqual(ev.value(read).kind, "body")
                 self.assertEqual(
-                    mass_of(ev, read).volume, side.mass_properties().volume
+                    mass_of(ev, read).volume, pinned(side).volume
                 )
                 self.assertEqual(
                     mass_of(ev, read).surface_area,
-                    side.mass_properties().surface_area,
+                    pinned(side).surface_area,
                 )
 
     def test_the_two_halves_are_the_box_cut_where_the_plane_is(self):
@@ -234,7 +235,7 @@ class TestTheInstanceIsTheInstance(unittest.TestCase):
         for i, part in enumerate(parts):
             with self.subTest(instance=i):
                 self.assertEqual(
-                    mass_of(ev, part).volume, bodies[i].mass_properties().volume
+                    mass_of(ev, part).volume, pinned(bodies[i]).volume
                 )
         # A rigid step moves a body and changes neither oracle, so
         # every instance weighs the prototype's own dyadic mass.
@@ -352,7 +353,7 @@ class TestTheIndexIsStructural(unittest.TestCase):
                 ev = evaluate(doc)
                 self.assertEqual(
                     mass_of(ev, chosen).volume,
-                    ev.value(family).bodies()[which].mass_properties().volume,
+                    pinned(ev.value(family).bodies()[which]).volume,
                 )
         # And the bound index is judged the same way a literal one is.
         doc.apply(DocEdit.define_var(VarName("which"), FreeVar.count(COUNT)))

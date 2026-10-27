@@ -12,7 +12,7 @@ cost: M
 ## The finding
 
 Found by `linalg/certification-gains-a-sqrt-door`'s sweep for roots
-taken on bracket endpoints. That branch retired `props/quad.rs`'s
+taken on bracket endpoints. That branch retired `props/quad/trimmed.rs`'s
 `sqrt_enclosure` and `norm_lo` into `Certification::sqrt`. Four more
 roots in the same file are `f64` Euclidean lengths of differences of
 chord endpoints. Each is computed to nearest throughout: the

@@ -231,6 +231,7 @@ pub(crate) fn frame_rows<T: Decide + Bounds>(
             crate::RowCell::face(Operand::A, fa),
             crate::RowCell::face(Operand::B, fb),
         ],
+        more: [None; 3],
         relation,
         site,
         margin,
@@ -288,7 +289,7 @@ pub(crate) fn frame_rows<T: Decide + Bounds>(
 pub(crate) fn touched<T: geom_core::Real>(
     rows: &[crate::Coincidence],
     pending: &[super::reduce::PendingRow],
-    splits: &super::EdgeSplits,
+    splits: &super::Mints,
     [a, b]: [&Body<T>; 2],
 ) -> Vec<usize> {
     use crate::{Cell, RowCell};

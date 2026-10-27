@@ -158,6 +158,21 @@ fn gauss_rule(n: usize) -> Option<(&'static [f64], &'static [f64])> {
     }
 }
 
+/// **Whether [`loop_vector_area`] reads this carrier**, exactly as it
+/// does: a line, a circle, an ellipse, and a non-rational B-spline whose
+/// degree the fixed Gauss inventory covers. It refuses a spiric, a
+/// rational spline and a non-rational spline past that inventory (degree
+/// over 5). The one spelling of that set, which `topo`'s quadrature
+/// regions join across.
+#[must_use]
+pub fn vector_area_reads<T: SpanLocate>(carrier: &Curve3<T>) -> bool {
+    match carrier {
+        Curve3::Line { .. } | Curve3::Circle { .. } | Curve3::Ellipse { .. } => true,
+        Curve3::Nurbs(c) => !is_rational(c) && gauss_rule(c.degree().max(1)).is_some(),
+        Curve3::Spiric { .. } => false,
+    }
+}
+
 /// Is this carrier rational: are its weights not all one plain constant
 /// ([`NurbsCurve3::constant_weight`])? The one spelling of the question
 /// the closed form refuses on ([`nurbs_vector_area`]) and the certified
@@ -350,6 +365,68 @@ mod tests {
             "the certified lane holds the rational carrier's area: {:?} ∌ {simpson}",
             z[2]
         );
+    }
+
+    /// **[`vector_area_reads`] is the set [`loop_vector_area`] reads**:
+    /// on a line, a circle, an ellipse, a polynomial spline of degree 2
+    /// and of degree 5, a rational one, and a polynomial one of degree 6,
+    /// the predicate answers exactly where the integral does.
+    #[test]
+    fn the_predicate_answers_where_the_integral_reads() {
+        use geom_core::spline::KnotVector;
+        let p = |x: f64, y: f64| Point3::new(x, y, 0.0);
+        let spline = |degree: usize, weights: Vec<f64>| {
+            let n = weights.len();
+            let mut knots = vec![0.0; degree + 1];
+            knots.extend(vec![1.0; degree + 1]);
+            assert_eq!(n, degree + 1);
+            Curve3::Nurbs(std::sync::Arc::new(
+                NurbsCurve3::new(
+                    KnotVector::clamped(knots, degree).unwrap(),
+                    (0..n).map(|i| p(i as f64, (i % 2) as f64)).collect(),
+                    weights,
+                )
+                .unwrap(),
+            ))
+        };
+        let carriers = [
+            (
+                Curve3::Line {
+                    origin: p(0.0, 0.0),
+                    dir: Vec3::new(1.0, 0.0, 0.0),
+                },
+                true,
+            ),
+            (
+                Curve3::Circle {
+                    center: p(0.0, 0.0),
+                    axis: Vec3::new(0.0, 0.0, 1.0),
+                    radius: 1.0,
+                    u_ref: Vec3::new(1.0, 0.0, 0.0),
+                },
+                true,
+            ),
+            (
+                Curve3::Ellipse {
+                    center: p(0.0, 0.0),
+                    axis: Vec3::new(0.0, 0.0, 1.0),
+                    semi_u: 2.0,
+                    semi_v: 1.0,
+                    u_ref: Vec3::new(1.0, 0.0, 0.0),
+                },
+                true,
+            ),
+            (spline(2, vec![1.0; 3]), true),
+            (spline(5, vec![1.0; 6]), true),
+            (spline(2, vec![1.0, 2.0, 1.0]), false),
+            (spline(6, vec![1.0; 7]), false),
+        ];
+        for (carrier, reads) in carriers {
+            let edge = LoopEdge::hand_built(carrier.clone(), 0.0, 1.0, true, 0, 0);
+            let integral = loop_vector_area(core::slice::from_ref(&edge), p(0.5, -1.0));
+            assert_eq!(vector_area_reads(&carrier), reads, "{carrier:?}");
+            assert_eq!(integral.is_ok(), reads, "{carrier:?}: {integral:?}");
+        }
     }
 
     fn line_edge(a: Point3<f64>, b: Point3<f64>, forward: bool) -> LoopEdge<f64> {

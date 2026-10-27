@@ -38,16 +38,6 @@ pub enum SlotValue {
     Formula(Formula),
     /// A read of a variable, as written.
     Read(crate::Operand),
-    /// **A read of one copy** of a placement's `copies`, at a body seat
-    /// ([`crate::BodyRead::key`]): `of` is the copies read, `key` the
-    /// copy. The door checks the read's kind as written; whether the
-    /// key names a copy is evaluation's.
-    Copy {
-        /// The placement's copies.
-        of: crate::Operand,
-        /// The copy, by its key.
-        key: crate::CopyKey,
-    },
 }
 
 impl From<Formula> for SlotValue {
@@ -689,6 +679,14 @@ pub enum DocEdit<P: crate::ProfilePayload> {
         /// The new label, `None` to clear it.
         label: Option<crate::Label>,
     },
+    /// **Set or clear the product** (D10 `[operations]`): `Some` makes
+    /// the body `product` reads the document's one product, `None`
+    /// empties it. The read is a `Body` in the world; anything else
+    /// refuses ([`EditError::ProductRead`]).
+    SetProduct {
+        /// The body read, `None` for an empty product.
+        product: Option<crate::Operand>,
+    },
 }
 
 impl<P: crate::ProfilePayload> DocEdit<P> {
@@ -711,19 +709,19 @@ impl<P: crate::ProfilePayload> DocEdit<P> {
         }]
     }
 
-    /// **One copy of each of `shapes`, placed into `target` by
-    /// `constraints`** (D10): the insert of a [`Node::Place`] holding
-    /// the whole bundle, each constraint's id minted by the insert in
-    /// bundle order and a value naming a mate of it by the mate's id as
-    /// written ([`crate::node::ConstraintId::placeholder`]). Python's
+    /// **One copy of `source`, placed into `target` by `constraints`**
+    /// (D10): the insert of a [`Node::Place`] holding the whole bundle,
+    /// each constraint's id minted by the insert in bundle order and a
+    /// value naming a mate of it by the mate's id as written
+    /// ([`crate::node::ConstraintId::placeholder`]). Python's
     /// `Doc.place` is the same edit.
     pub fn place(
-        shapes: Vec<crate::BodyRead<Formula>>,
+        source: impl Into<crate::BodyRead<Formula>>,
         target: impl Into<crate::Operand>,
         constraints: Vec<crate::mate::Constraint<Formula>>,
     ) -> Self {
         Self::InsertNode {
-            node: Box::new(Node::place(shapes, target, constraints)),
+            node: Box::new(Node::place(source, target, constraints)),
             fresh: Vec::new(),
         }
     }
@@ -777,6 +775,7 @@ impl<P: crate::ProfilePayload> DocEdit<P> {
             | Self::SetAppearanceMeta { .. }
             | Self::ClearAppearanceMeta { .. }
             | Self::SetLabel { .. }
+            | Self::SetProduct { .. }
             | Self::UpdateReference { .. } => false,
         }
     }
@@ -1293,7 +1292,7 @@ fn lower_read<P: crate::ProfilePayload>(
     let unresolved = || EditError::OperandUnresolved {
         node: spoken(),
         slot,
-        read: read.clone(),
+        read: Box::new(read.clone()),
     };
     let var = match read {
         crate::Operand::Node(id) => {
@@ -1343,6 +1342,7 @@ fn lower_read<P: crate::ProfilePayload>(
             mint_selection(doc, spoken, slot, body, names, expected)?
         }
         crate::Operand::Pose(def) => mint_pose(doc, spoken, slot, def)?,
+        crate::Operand::Pick { placement, of } => mint_pick(doc, spoken, slot, placement, of)?,
     };
     // A selection read here is read in a body this seat admits, whoever
     // authored it: a selection of a pattern's copies, authored at a mate
@@ -1367,7 +1367,7 @@ fn lower_read<P: crate::ProfilePayload>(
             spoken,
             slot,
             body,
-            selection_body_admits(doc, slot, body),
+            selection_body_kind(slot),
             Reader::Observes,
             unresolved,
         )?;
@@ -1504,7 +1504,7 @@ fn mint_pose<P: crate::ProfilePayload>(
         return Err(shape(PoseFault::DoubleFlip));
     }
     // A copy carries the pose: what it reads as the copy is a
-    // placement's copies.
+    // placement's output.
     if let PoseDef::Carried { copy, .. } = &stored
         && !matches!(
             doc.operation_of(*copy).and_then(|at| doc.node(at)),
@@ -1532,29 +1532,12 @@ fn mint_pose<P: crate::ProfilePayload>(
 
 /// **What a selection authored at `slot` may be read in**: a `Body`, or
 /// at a mate side a `Bodies` too — a pattern's copies, the name's
-/// `Instance(i)` saying which one, as the member walk reads it. An
-/// instance's copies are admitted at every seat
-/// ([`selection_body_admits`]).
+/// `Instance(i)` saying which one, as the member walk reads it.
 pub(crate) fn selection_body_kind(slot: SlotId) -> crate::SlotKind {
     match slot {
         SlotId::Operand(crate::OperandSlot::Side { .. }) => crate::SlotKind::Placeable,
         _ => crate::SlotKind::Is(VarKind::Body),
     }
-}
-
-/// **What a selection authored at `slot` may be read in, given its
-/// body `body`**: [`selection_body_kind`], and an instance's copies at
-/// any seat, whose faces a selection names by the part-local name path
-/// as it named the instance's body (whether a selection holds a read of
-/// one copy is stage G's question).
-pub(crate) fn selection_body_admits<P>(doc: &Doc<P>, slot: SlotId, body: VarId) -> crate::SlotKind {
-    if matches!(
-        doc.operation_of(body).and_then(|at| doc.node(at)),
-        Some(Node::InstantiatePart { .. })
-    ) {
-        return crate::SlotKind::Placeable;
-    }
-    selection_body_kind(slot)
 }
 
 /// **A selection authored at a seat, minted** (D10): the body read
@@ -1573,33 +1556,14 @@ fn mint_selection<P: crate::ProfilePayload>(
     // The selection's body read observes, and may name a world copy:
     // every seat reading the selection is then asked whether it may
     // read that copy (`Doc::read_fault`).
-    let body = match lower_read(
+    let body = lower_read(
         doc,
         spoken,
         slot,
         body,
         selection_body_kind(slot),
         Reader::Observes,
-    ) {
-        Ok(read) => read,
-        // An instance's copies are read at any seat
-        // (`selection_body_admits`).
-        Err(narrow) => {
-            let wide = lower_read(
-                doc,
-                spoken,
-                slot,
-                body,
-                crate::SlotKind::Placeable,
-                Reader::Observes,
-            )
-            .map_err(|_| narrow.clone())?;
-            if selection_body_admits(doc, slot, wide) != crate::SlotKind::Placeable {
-                return Err(narrow);
-            }
-            wide
-        }
-    };
+    )?;
     let shape = |fault| EditError::SelectionShape {
         node: spoken(),
         slot,
@@ -1644,13 +1608,19 @@ fn mint_selection<P: crate::ProfilePayload>(
             fault => shape(fault),
         });
     }
+    let parted = doc.reaches_instance(body);
     for name in names {
+        if parted && !doc.nodes.contains_key(&name.node) {
+            continue;
+        }
         if !doc.nodes.contains_key(&name.node) {
             return Err(EditError::DeclareNamesMissingNode {
                 name: doc.spoken_name(name),
             });
         }
-        check_name_steps(doc, doc, name)?;
+        if !parted {
+            check_name_steps(doc, doc, name)?;
+        }
     }
     mint_anonymous(
         doc,
@@ -1662,6 +1632,116 @@ fn mint_selection<P: crate::ProfilePayload>(
             },
         ),
     )
+}
+
+/// **A pick authored at a seat, minted** (D10 `[placement.placement]`):
+/// the copy read lowered as a `Body` and held to be a placement's or an
+/// instance's output, the path walked through the source's placements
+/// and `⊔` operands ([`pick_fault`]), and one anonymous pick variable
+/// minted for the seat to read. An instance's path is in its part, which
+/// the door does not hold: its pieces are the evaluation's to answer.
+fn mint_pick<P: crate::ProfilePayload>(
+    doc: &mut Doc<P>,
+    spoken: &impl Fn() -> SpokenNode,
+    slot: SlotId,
+    placement: &crate::Operand,
+    of: &[VarId],
+) -> Result<VarId, EditError> {
+    let copy = lower_read(
+        doc,
+        spoken,
+        slot,
+        placement,
+        crate::SlotKind::Is(VarKind::Body),
+        Reader::Observes,
+    )?;
+    let refused = |at| EditError::PickPath {
+        node: spoken(),
+        slot,
+        at,
+    };
+    if let Some(at) = pick_fault(doc, copy, of) {
+        return Err(refused(at));
+    }
+    mint_anonymous(
+        doc,
+        WrittenDef::Pick(crate::var::Pick {
+            placement: copy,
+            of: of.to_vec(),
+        }),
+    )
+}
+
+/// **Why `of` names no piece of the copy `copy`**, or `None`: `Some(None)`
+/// where `copy` is no placement's or instance's output or `of` is empty,
+/// `Some(Some(k))` where step `k` names no one operand of the `⊔` the walk
+/// reaches before it: none, or one the `⊔` reads twice, which two pieces
+/// answer to. The walk goes through each placement to its source, and
+/// through a pick to the piece it reads, so a pick of a pick walks only
+/// the piece the inner pick kept. A walk entering an instance is in its
+/// part, which the door does not hold (`DocEdit::UpdateReference`: no
+/// edit door reads across the seam), so it stops there and the
+/// evaluation answers ([`crate::NodeErrorKind::NoSuchPiece`]).
+pub(crate) fn pick_fault<P>(doc: &Doc<P>, copy: VarId, of: &[VarId]) -> Option<Option<usize>> {
+    // What a read denotes once its placements and picks are walked: the
+    // body it copies, or a body inside an instance's part.
+    enum Reached {
+        Body(VarId),
+        Part,
+    }
+    let reach = |mut var: VarId| loop {
+        if let Some(pick) = doc.pick(var) {
+            match pick.of.last() {
+                Some(&piece) if !inside_part(doc, pick.placement) => var = piece,
+                _ => return Reached::Part,
+            }
+            continue;
+        }
+        match doc.operation_of(var).and_then(|at| doc.node(at)) {
+            Some(Node::Place { source, .. }) => var = source.read,
+            Some(Node::InstantiatePart { .. }) => return Reached::Part,
+            _ => return Reached::Body(var),
+        }
+    };
+    let copied = matches!(
+        doc.operation_of(copy).and_then(|at| doc.node(at)),
+        Some(Node::Place { .. } | Node::InstantiatePart { .. })
+    );
+    if !copied || of.is_empty() {
+        return Some(None);
+    }
+    let mut at = copy;
+    for (k, &step) in of.iter().enumerate() {
+        let var = match reach(at) {
+            Reached::Part => return None,
+            Reached::Body(var) => var,
+        };
+        let members = match doc.operation_of(var).and_then(|at| doc.node(at)) {
+            Some(Node::Assemble { members }) => members.rows(),
+            _ => return Some(Some(k)),
+        };
+        if members.iter().filter(|(_, read)| read.read == step).count() != 1 {
+            return Some(Some(k));
+        }
+        at = step;
+    }
+    None
+}
+
+/// Whether the copy `copy` reads, through its placements and picks, is
+/// inside an instance's part.
+fn inside_part<P>(doc: &Doc<P>, mut copy: VarId) -> bool {
+    loop {
+        if let Some(pick) = doc.pick(copy) {
+            copy = pick.placement;
+            continue;
+        }
+        match doc.operation_of(copy).and_then(|at| doc.node(at)) {
+            Some(Node::Place { source, .. }) => copy = source.read,
+            Some(Node::InstantiatePart { .. }) => return true,
+            _ => return false,
+        }
+    }
 }
 
 /// **The entity kind a selection of `names` at a seat of `expected`
@@ -1756,6 +1836,19 @@ pub fn selection_into<P>(
             names: names.to_vec(),
         },
     );
+    let id = doc.mint.declare_anonymous(&def);
+    doc.vars.insert(id, Var::written(def));
+    id
+}
+
+/// **A pick minted into `doc` as given**, outside any edit: the piece
+/// `of` names of the copy `placement` reads, with no door around it.
+#[cfg(any(test, feature = "test-support"))]
+pub fn pick_into<P>(doc: &mut Doc<P>, placement: VarId, of: &[VarId]) -> VarId {
+    let def = WrittenDef::Pick(crate::var::Pick {
+        placement,
+        of: of.to_vec(),
+    });
     let id = doc.mint.declare_anonymous(&def);
     doc.vars.insert(id, Var::written(def));
     id
@@ -2222,8 +2315,9 @@ pub enum EditError {
         node: SpokenNode,
         /// The slot.
         slot: SlotId,
-        /// What it reads, as written.
-        read: crate::Operand,
+        /// What it reads, as written, boxed: an operand is the widest
+        /// payload a refusal carries.
+        read: Box<crate::Operand>,
     },
     /// A read names a node by itself, and the node defines several
     /// outputs (a revolve's body and axis, a split's two halves): the
@@ -2268,6 +2362,21 @@ pub enum EditError {
         slot: SlotId,
         /// Why.
         fault: crate::var::SelectionFault,
+    },
+    /// A pick this edit authors at `slot` names no piece of its copy
+    /// (D10 `[placement.placement]`): its read is no placement's or
+    /// instance's copy, its path is empty, or step `at` of the path
+    /// names no one operand of the `⊔` the walk reaches through the
+    /// placements and picks before it: none, or one the `⊔` reads twice.
+    /// A path through any other operator refuses here.
+    PickPath {
+        /// The node whose seat the pick is authored at.
+        node: SpokenNode,
+        /// The seat.
+        slot: SlotId,
+        /// The step that names no piece, `None` where the read is no
+        /// copy or the path is empty.
+        at: Option<usize>,
     },
     /// A name this edit authors into a selection at `slot` denotes
     /// another entity kind than the seat reads (a face among a blend's
@@ -2721,14 +2830,6 @@ pub enum EditError {
         /// The value the edit offered.
         offered: FreeValue,
     },
-    /// A read of one copy ([`SlotValue::Copy`]) written at a slot that
-    /// is no body seat: only a body seat reads a member.
-    CopyReadOffBodySeat {
-        /// The node.
-        node: SpokenNode,
-        /// The slot.
-        slot: SlotId,
-    },
     /// A `SetExpression` path runs off the expression tree (spec D5).
     PathOffTree {
         /// The node whose slot the path addresses.
@@ -2972,6 +3073,17 @@ pub enum EditError {
     WorldIsUndeletable {
         /// The world.
         node: SpokenNode,
+    },
+    /// **A product read that is no body in the world** (D10
+    /// `[operations]`): `SetProduct`'s read resolves to no variable, to
+    /// a variable that is no `Body`, or to a body in another space; or
+    /// an edit would move the body the slot reads out of the world.
+    ProductRead {
+        /// The read as written, boxed: an operand is the widest payload
+        /// a refusal carries.
+        read: Box<crate::Operand>,
+        /// Why it is no product.
+        fault: ProductReadFault,
     },
     /// **A node whose reads lie in two spaces** (D10
     /// `[placement.spaces]`): an operator's operands, a measure's two
@@ -3347,6 +3459,11 @@ impl EditError {
                 slot: _,
                 fault: _,
             }
+            | Self::PickPath {
+                node,
+                slot: _,
+                at: _,
+            }
             | Self::PoseShape {
                 node,
                 slot: _,
@@ -3375,7 +3492,6 @@ impl EditError {
                 slot: _,
                 path: _,
             }
-            | Self::CopyReadOffBodySeat { node, slot: _ }
             | Self::WitnessOnNonSketch { node }
             | Self::DuplicateWitnessEntry { node }
             | Self::WorldIsUndeletable { node }
@@ -3565,6 +3681,7 @@ impl EditError {
                 referenced: _,
             }
             | Self::FreshUnread { index: _ }
+            | Self::ProductRead { read: _, fault: _ }
             | Self::Dimension(_)
             | Self::RebindKindMismatch { from: _, to: _ }
             | Self::EmptyWitnessBulk
@@ -3760,6 +3877,28 @@ impl EditError {
                         "name {} {} of the body the selection reads",
                         expected.article(),
                         expected.noun()
+                    ),
+                )
+            }
+            Self::PickPath { node, slot, at } => {
+                match at {
+                    Some(at) => write!(
+                        f,
+                        "{node}'s {slot} picks no piece: step {} of its path names no one \
+                         operand of the assemble the walk reaches",
+                        at + 1
+                    )?,
+                    None => write!(
+                        f,
+                        "{node}'s {slot} picks no piece: it reads no placement's copy, or its \
+                         path is empty"
+                    )?,
+                }
+                tail.recourse(
+                    f,
+                    format_args!(
+                        "pick a piece of a copy by the operands of the assembles inside its \
+                         source, through its placements"
                     ),
                 )
             }
@@ -4200,18 +4339,6 @@ impl EditError {
                     ),
                 )
             }
-            Self::CopyReadOffBodySeat { node, slot } => {
-                write!(
-                    f,
-                    "{node}'s {} slot is no body seat, so it cannot read one copy of a \
-                     placement's copies",
-                    slot.label()
-                )?;
-                tail.recourse(
-                    f,
-                    format_args!("read the copy at a body seat, or read a body here"),
-                )
-            }
             Self::PathOffTree { node, slot, path } => {
                 let steps: Vec<String> = path.iter().map(u8::to_string).collect();
                 write!(
@@ -4437,6 +4564,10 @@ impl EditError {
                     f,
                     format_args!("relate copies to the world; it is not deleted or written"),
                 )
+            }
+            Self::ProductRead { read, fault } => {
+                write!(f, "{read} is no product: {fault}")?;
+                tail.recourse(f, format_args!("set the product to a body in the world"))
             }
             Self::SpaceMismatch { node, a, b } => {
                 write!(
@@ -4721,6 +4852,18 @@ pub enum Maintenance {
         /// Another.
         b: crate::spoken::SpokenSpace,
     },
+    /// **The product's body this edit moved out of the world** (D10
+    /// `[operations]`): the slot reads `read`, which a re-target of its
+    /// copy put in `space`. It is admitted, as a re-target leaving reads
+    /// in two spaces is, and the gather refuses the slot
+    /// ([`crate::ProductError::ProductOutsideWorld`]) until an edit puts
+    /// the body back in the world or the slot reads another.
+    ProductOutsideWorld {
+        /// The body the slot reads.
+        read: SpokenVar,
+        /// The space it is in now.
+        space: crate::spoken::SpokenSpace,
+    },
     /// **A value this edit dropped from a bundle written whole**
     /// ([`DocEdit::AddConstraint`], [`DocEdit::RemoveConstraint`]): its
     /// freedom is one the bundle's new mates fix, or a turn the chain
@@ -4881,6 +5024,11 @@ impl core::fmt::Display for Maintenance {
                 "{node} reads {a} and {b}, which this edit left in two spaces, so {node} \
                  refuses until its reads are in one space"
             ),
+            Self::ProductOutsideWorld { read, space } => write!(
+                f,
+                "the product reads {read}, which this edit moved into {space}, so the product \
+                 refuses until it reads a body in the world"
+            ),
             Self::ValueDropped {
                 placement,
                 coord,
@@ -4987,14 +5135,24 @@ fn stranded_references<P: crate::ProfilePayload>(
         .collect()
 }
 
-/// Whether `carrier` is an appearance key whose body read the delete of
-/// `deleted` took: the operation defining it, in `before`.
+/// Whether `carrier` is an appearance key or a selection whose body
+/// read the delete of `deleted` took: the operation defining it, in
+/// `before`. A copy carries its source's names, so a name read in a
+/// copy goes with the copy whichever node minted it.
 fn body_went<P: crate::ProfilePayload>(
     before: &Doc<P>,
     carrier: NameCarrier<'_>,
     deleted: RecipeNodeId,
 ) -> bool {
-    matches!(carrier, NameCarrier::Store { body, .. } if before.operation_of(body) == Some(deleted))
+    let body = match carrier {
+        NameCarrier::Store { body, .. } => body,
+        NameCarrier::Select { var, .. } => match before.selection(var) {
+            Some(select) => select.body,
+            None => return false,
+        },
+        NameCarrier::Payload { .. } => return false,
+    };
+    before.operation_of(body) == Some(deleted)
 }
 
 /// **A `SetProgram`'s step ids, checked and minted** — before the
@@ -5326,6 +5484,9 @@ impl MaintenanceNet {
                     })
                 }
                 Maintenance::StrandedSpace { node, .. } => end.space_fault(node.id()).is_some(),
+                Maintenance::ProductOutsideWorld { read, .. } => {
+                    end.product() == Some(read.id()) && product_fault(end, read.id()).is_some()
+                }
                 Maintenance::ValueDropped { .. } | Maintenance::AnonymousVarRemoved { .. } => true,
             })
             .collect()
@@ -5809,10 +5970,12 @@ fn standing_var<P>(
         VarDef::Free(free) => Ok((id, doc.spoken_var(id), free.clone())),
         VarDef::Output { .. } => Err(EditError::output_refusal(doc, id, door)
             .unwrap_or_else(|| unreachable!("an output's refusal is the output's"))),
-        VarDef::Defined(_) | VarDef::Select(_) | VarDef::Pose(_) => Err(EditError::NotAFreeVar {
-            var: doc.spoken_var(id),
-            door,
-        }),
+        VarDef::Defined(_) | VarDef::Select(_) | VarDef::Pose(_) | VarDef::Pick(_) => {
+            Err(EditError::NotAFreeVar {
+                var: doc.spoken_var(id),
+                door,
+            })
+        }
     }
 }
 
@@ -5935,6 +6098,33 @@ fn check_node_inputs<P: crate::ProfilePayload>(
     })
 }
 
+/// **An appearance key's name, checked as this document's**: its node
+/// live and its steps minted — unless `body` reaches an instance,
+/// whose copy carries its part's names verbatim, spelled in ids this
+/// document never minted (issue
+/// `a-part-name-in-the-host-is-spelled-in-the-parts-ids`). There the
+/// node is checked only where it is one of this document's.
+fn check_appearance_name<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    new: &Doc<P>,
+    body: VarId,
+    name: &StableName,
+) -> Result<(), EditError> {
+    let parted = new.reaches_instance(body);
+    if parted && !new.nodes.contains_key(&name.node) {
+        return Ok(());
+    }
+    if !new.nodes.contains_key(&name.node) {
+        return Err(EditError::AppearanceNamesMissingNode {
+            name: doc.spoken_name(name),
+        });
+    }
+    if !parted {
+        check_name_steps(doc, new, name)?;
+    }
+    Ok(())
+}
+
 /// Spec D3 carve-out (ruled): a payload's name refs must point at LIVE
 /// nodes at edit time — a never-existed id is a typo. They are not DAG
 /// edges: later deletes may strand them (N5), so the edits that WRITE a
@@ -5951,7 +6141,22 @@ fn check_payload_refs<P: crate::ProfilePayload>(
     new: &Doc<P>,
     node: &Node<P>,
 ) -> Result<(), EditError> {
+    // A copy carries its source's names, so a face of an instance's
+    // copy is spelled in its part's ids, which this document never
+    // minted: such a name is the part's, held where an instance is,
+    // and its life is the part's (`work/intent/a-part-name-in-the-host-
+    // is-spelled-in-the-parts-ids.md`).
+    let parted = |name: &StableName| {
+        !new.has_minted(name.node)
+            && new
+                .nodes
+                .values()
+                .any(|n| matches!(n, Node::InstantiatePart { .. }))
+    };
     for name in node.payload_names() {
+        if parted(name) {
+            continue;
+        }
         if !new.nodes.contains_key(&name.node) {
             return Err(EditError::DeclareNamesMissingNode {
                 name: doc.spoken_name(name),
@@ -6097,7 +6302,7 @@ fn set_operand<P: Clone + crate::ProfilePayload>(
     reported: &mut Vec<Maintenance>,
     node: RecipeNodeId,
     slot: crate::OperandSlot,
-    (read, key): (&crate::Operand, Option<&crate::CopyKey>),
+    read: &crate::Operand,
     tol: Tol,
 ) -> Result<EditRecord, EditError> {
     let Some(current) = new.nodes.get(&node).cloned() else {
@@ -6111,19 +6316,8 @@ fn set_operand<P: Clone + crate::ProfilePayload>(
             slot: SlotId::Operand(slot),
         });
     }
-    // A read of one copy reads the copies, at a body seat alone.
-    if key.is_some() && current.body_read(slot).is_none() {
-        return Err(EditError::CopyReadOffBodySeat {
-            node: doc.spoken(node),
-            slot: SlotId::Operand(slot),
-        });
-    }
-    // The read as written: one copy by its key, or the variable plain
-    // (a body seat's indices kept either way).
+    // The read as written, a body seat's indices kept.
     let mut rewritten = current;
-    if let Some(body) = rewritten.body_read_mut(slot) {
-        body.key = key.cloned();
-    }
     // A re-point replaces the read whole, so a role the old read was
     // read through goes with it.
     if let Some(role) = rewritten.seat_role_mut(slot) {
@@ -6186,7 +6380,7 @@ fn write_reads<P: crate::ProfilePayload>(
 /// appearance keys read in such a body, in key order.
 /// **Whether a re-point took `name` out of reach**: a node its
 /// derivation names (its own head, or the head of a name it embeds — a
-/// copy's `Placed { of }`, a boolean's `From`) was reached before and is
+/// boolean's `From`) was reached before and is
 /// not after. Every embedded name is minted upstream of the name that
 /// embeds it, so a head still reached is no strand.
 fn taken_out_of_reach(
@@ -6210,35 +6404,7 @@ fn stranded_by_repoint<P: crate::ProfilePayload>(
         reach.insert(at);
         Some(reach)
     };
-    // A copy's name (`Placed { of }`) is in reach through the shapes its
-    // placement copies, never through its mates' reads: a re-pointed
-    // shape takes the copied body's names out of the copy, though a
-    // mate may still read that body.
-    let copied = |doc: &Doc<P>, placement: RecipeNodeId| match doc.nodes.get(&placement) {
-        Some(Node::Place { shapes, .. }) => Some(
-            shapes
-                .iter()
-                .filter_map(|shape| doc.read_operation(shape.read))
-                .flat_map(|at| {
-                    let mut reach = crate::doc::strict_ancestors(doc, at);
-                    reach.insert(at);
-                    reach
-                })
-                .collect::<std::collections::BTreeSet<RecipeNodeId>>(),
-        ),
-        _ => None,
-    };
-    let stranded = |was: &std::collections::BTreeSet<RecipeNodeId>,
-                    after: &std::collections::BTreeSet<RecipeNodeId>,
-                    name: &StableName| {
-        taken_out_of_reach(was, after, name)
-            || name.copy_of().is_some_and(|(placement, inner)| {
-                match (copied(before, placement), copied(new, placement)) {
-                    (Some(was), Some(after)) => taken_out_of_reach(&was, &after, inner),
-                    _ => false,
-                }
-            })
-    };
+    let stranded = taken_out_of_reach;
     let mut selections: Vec<VarId> = Vec::new();
     let mut rows = Vec::new();
     for (&carrier, node) in &new.nodes {
@@ -6426,12 +6592,23 @@ impl Recording<'_, crate::ProfileProgram> {
     /// the extrude's copy placed against `face` of `body` — a `Plane`
     /// mate from its start cap, flipped to look up its own `z`, to the
     /// face's plane, with the copy's origin over the face body's own
-    /// (the two slides the constant `0`) and turned `spin` about the
-    /// face's normal — and the face's body and the copy fused.
+    /// (the two slides the plane leaves the constant `0`) and turned
+    /// `spin` about the face's normal — and the face's body and the copy
+    /// fused. `orient` is the mate's orientation: where the profile's
+    /// axes lie among the target space's. `None` is the one nearest
+    /// where the copy stands, the profile's `z` along the face's outward
+    /// normal ([`crate::Orientation::toward`]), read off the face under
+    /// `opts`; a face that does not read takes the identity, which the
+    /// solve then judges. The profile's `z` lies along the target axis
+    /// the orientation puts it on, so the plane fixes that slide and the
+    /// bundle writes the other two; an `orient` putting `z` opposite the
+    /// face's normal refuses [`crate::MateFault::Backwards`], naming the
+    /// orientation to write.
     ///
     /// # Errors
     ///
     /// As [`Self::apply`]'s: the first door that refuses ends the action.
+    #[allow(clippy::too_many_arguments)] // the gesture's own arguments, each a seat
     pub fn sketch_on_face(
         &mut self,
         body: crate::Operand,
@@ -6439,8 +6616,11 @@ impl Recording<'_, crate::ProfileProgram> {
         profile: crate::ProfileProgram<Formula>,
         distance: Formula,
         spin: Formula,
+        orient: Option<crate::Orientation>,
+        opts: &crate::EvalOptions,
     ) -> Result<SketchedOnFace, EditError> {
         use crate::pose::{PoseDef, RoleRead};
+        let orient = orient.unwrap_or_else(|| self.nearest_to_face(&body, &face, opts));
         let profile = self.insert(Node::Profile(profile))?;
         let extrude = self.insert(Node::Extrude {
             profile: profile.into(),
@@ -6470,24 +6650,27 @@ impl Recording<'_, crate::ProfileProgram> {
             mates: vec![crate::Mate {
                 on,
                 to: plane(body.clone(), face),
+                orient,
             }],
-            values: vec![
+            values: crate::mate::slides_left_along(
+                crate::SubgroupFamily::Planar.slides(),
+                orient.apply(geom_core::linalg::Vec3::<f64>::unit_z()),
+            )
+            .axes()
+            .map(|axis| {
                 (
-                    crate::Coord::Slide(crate::TargetAxis::X),
+                    crate::Coord::Slide(axis),
                     Formula::zero(crate::expr::Dimension::Length),
-                ),
-                (
-                    crate::Coord::Slide(crate::TargetAxis::Y),
-                    Formula::zero(crate::expr::Dimension::Length),
-                ),
-                (crate::Coord::Spin(crate::TargetAxis::Z), spin),
-            ],
+                )
+            })
+            .chain([(crate::Coord::SPIN, spin)])
+            .collect(),
         };
         let placement = self.insert(Node::place(
-            vec![crate::BodyRead::plain(crate::Operand::Output {
+            crate::BodyRead::plain(crate::Operand::Output {
                 node: extrude,
                 port: 0,
-            })],
+            }),
             target,
             placed.bundle(),
         ))?;
@@ -6506,6 +6689,150 @@ impl Recording<'_, crate::ProfileProgram> {
             placement,
             union,
         })
+    }
+
+    /// **Add `mate` to `placement`'s bundle, as a gesture**: the edit
+    /// [`DocEdit::AddConstraint`] writes, with the slides it leaves read
+    /// off the copy's geometry rather than filled in axis order. The
+    /// structural door's bundle is tried first; where its slides do not
+    /// span what the mate leaves, the bundle is written again
+    /// ([`DocEdit::SetConstraints`], every kept constraint under its own
+    /// id) with the slides that solve's refusal names
+    /// ([`crate::NoChartWhy::SlidesDoNotSpan`], the slides
+    /// [`crate::mate::turn::slides_left_along`] picks), each value along
+    /// them kept and the rest reported dropped. The evaluation reads the
+    /// copy under `opts`. Answers the constraints it minted, the mate's
+    /// first.
+    ///
+    /// # Errors
+    ///
+    /// As [`DocEdit::AddConstraint`]'s.
+    pub fn constrain(
+        &mut self,
+        placement: RecipeNodeId,
+        mate: crate::mate::Mate<Formula>,
+        opts: &crate::EvalOptions,
+    ) -> Result<Vec<crate::node::ConstraintId>, EditError> {
+        self.rebundle_by_geometry(placement, Some(mate), None, opts)
+    }
+
+    /// **Take `constraint` out of `placement`'s bundle, as a gesture**:
+    /// [`DocEdit::RemoveConstraint`]'s bundle, its slides read off the
+    /// copy's geometry as [`Self::constrain`] reads them. Answers the
+    /// constraints it minted.
+    ///
+    /// # Errors
+    ///
+    /// As [`DocEdit::RemoveConstraint`]'s.
+    pub fn remove_mate(
+        &mut self,
+        placement: RecipeNodeId,
+        constraint: crate::node::ConstraintId,
+        opts: &crate::EvalOptions,
+    ) -> Result<Vec<crate::node::ConstraintId>, EditError> {
+        self.rebundle_by_geometry(placement, None, Some(constraint), opts)
+    }
+
+    /// [`Self::constrain`] and [`Self::remove_mate`]: the structural
+    /// door's bundle where its slides span, and otherwise the bundle
+    /// with the slides the solve names.
+    fn rebundle_by_geometry(
+        &mut self,
+        placement: RecipeNodeId,
+        added: Option<crate::mate::Mate<Formula>>,
+        removed: Option<crate::node::ConstraintId>,
+        opts: &crate::EvalOptions,
+    ) -> Result<Vec<crate::node::ConstraintId>, EditError> {
+        self.open()?;
+        let raw = match (&added, removed) {
+            (Some(mate), _) => DocEdit::AddConstraint {
+                placement,
+                mate: Box::new(mate.clone()),
+                fresh: Vec::new(),
+            },
+            (None, Some(constraint)) => DocEdit::RemoveConstraint {
+                placement,
+                constraint,
+            },
+            (None, None) => unreachable!("a gesture adds a mate or takes one out"),
+        };
+        let tried = apply_spaced(self.doc(), &raw, self.tol, None);
+        let tried = tried.map_err(|e| self.end(e))?;
+        let along = match crate::mate::solve_document(&tried.doc, opts, self.tol).fault(placement) {
+            Some(crate::MateFault::NoChart {
+                why: crate::NoChartWhy::SlidesDoNotSpan { write, .. },
+                ..
+            }) => *write,
+            _ => {
+                let minted = tried.record.minted_constraints.clone();
+                self.take(raw, tried);
+                return Ok(minted);
+            }
+        };
+        let doc = self.doc();
+        let mut reported = Vec::new();
+        let rewritten = held_bundle(doc, doc, placement).and_then(|held| {
+            let removed: Vec<_> = removed.into_iter().collect();
+            rebundled(
+                doc,
+                doc,
+                &mut reported,
+                placement,
+                added,
+                &removed,
+                Some(along),
+            )
+            .map(|whole| (held, whole))
+        });
+        let (held, whole) = rewritten.map_err(|e| self.end(e))?;
+        let edit = DocEdit::SetConstraints {
+            placement,
+            constraints: whole,
+            fresh: Vec::new(),
+        };
+        let applied = apply_spaced(self.doc(), &edit, self.tol, None);
+        let mut applied = applied.map_err(|e| self.end(e))?;
+        applied.maintenance.extend(reported);
+        let minted = applied
+            .record
+            .minted_constraints
+            .iter()
+            .copied()
+            .filter(|id| !held.iter().any(|c| c.id == *id))
+            .collect();
+        self.take(edit, applied);
+        Ok(minted)
+    }
+
+    /// **The orientation nearest where a sketch on `face` of `body`
+    /// stands**: the profile's `z` along the face's outward normal, read
+    /// off the face as it stands now under `opts`; the identity where
+    /// the face does not read.
+    fn nearest_to_face(
+        &self,
+        body: &crate::Operand,
+        face: &crate::StableName,
+        opts: &crate::EvalOptions,
+    ) -> crate::Orientation {
+        let doc = self.doc();
+        let at = match body {
+            crate::Operand::Output { node, port } => doc
+                .output(*node, *port)
+                .map_or(crate::At::Node(*node), crate::At::Read),
+            crate::Operand::Node(node) => crate::At::Node(*node),
+            crate::Operand::Var(var) => crate::At::Read(*var),
+            _ => return crate::Orientation::IDENTITY,
+        };
+        let ev: crate::Evaluation<f64> =
+            crate::evaluate(doc, None, &crate::CancelToken::new(), opts, self.tol);
+        crate::names::interrogate::face_frame(&ev, at, face).map_or(
+            crate::Orientation::IDENTITY,
+            |pose| {
+                let outward = if pose.sense { pose.axis } else { -pose.axis };
+                crate::Orientation::IDENTITY
+                    .toward(geom_core::linalg::Vec3::new(0.0, 0.0, 1.0), outward)
+            },
+        )
     }
 }
 
@@ -6528,6 +6855,7 @@ pub struct SketchOutcome {
 /// # Errors
 ///
 /// The first door's refusal; the document is untouched.
+#[allow(clippy::too_many_arguments)] // the gesture and its document
 pub fn sketch_on_face(
     doc: &Doc<crate::ProfileProgram>,
     body: crate::Operand,
@@ -6535,10 +6863,12 @@ pub fn sketch_on_face(
     profile: crate::ProfileProgram<Formula>,
     distance: Formula,
     spin: Formula,
+    orient: Option<crate::Orientation>,
+    opts: &crate::EvalOptions,
     tol: Tol,
 ) -> Result<SketchOutcome, EditError> {
     let mut action = Recording::start(doc, tol);
-    let sketched = action.sketch_on_face(body, face, profile, distance, spin)?;
+    let sketched = action.sketch_on_face(body, face, profile, distance, spin, orient, opts)?;
     let Recorded {
         doc,
         edits,
@@ -6824,6 +7154,31 @@ fn door<P: Clone + crate::ProfilePayload, T>(
             var: Box::new(new.spoken_var(var)),
         });
     }
+    // D10 `[operations]`, on EVERY arm: the slot reads a body in the
+    // world. `SetProduct` refuses any other read at its own door; an
+    // edit that moves the body the slot reads out of the world (a
+    // re-target of its copy) is reported, as a re-target leaving reads
+    // in two spaces is, and the gather refuses the slot until it reads
+    // a body in the world again.
+    if let Some(var) = new.product() {
+        match product_fault(&new, var) {
+            None => {}
+            Some(ProductReadFault::Space { space }) => {
+                if product_fault(doc, var).is_none() {
+                    reported.push(Maintenance::ProductOutsideWorld {
+                        read: new.spoken_var(var),
+                        space: *space,
+                    });
+                }
+            }
+            Some(fault) => {
+                return Err(EditError::ProductRead {
+                    read: Box::new(crate::Operand::Var(var)),
+                    fault,
+                });
+            }
+        }
+    }
     // The placement-rule backstop, on EVERY arm (GROUP-BOOLEAN-DESIGN):
     // "how many placements" has exactly ONE spelling, an explicit rule
     // lists at least one placement, and its frames meet the SAME bar
@@ -7081,22 +7436,53 @@ fn rebundle<P: Clone + crate::ProfilePayload>(
     fresh: &[FreshEntry],
     tol: Tol,
 ) -> Result<(Vec<crate::node::ConstraintId>, Vec<VarId>), EditError> {
-    use crate::mate::{Constraint, ConstraintKind, Mate, Value};
-    let bundle = match new.nodes.get(&placement) {
+    let bundle = held_bundle(doc, new, placement)?;
+    let whole = rebundled(doc, new, reported, placement, added, removed, None)?;
+    let (ids, fresh) = add_constraints(doc, new, placement, whole, true, fresh, tol)?;
+    // The ids it minted: the added mate's first, then each `0`'s.
+    let minted = ids
+        .into_iter()
+        .filter(|id| !bundle.iter().any(|c| c.id == *id))
+        .collect();
+    Ok((minted, fresh))
+}
+
+/// `placement`'s bundle in `new`, as [`rebundle`] reads it.
+fn held_bundle<P>(
+    doc: &Doc<P>,
+    new: &Doc<P>,
+    placement: RecipeNodeId,
+) -> Result<Vec<crate::mate::Constraint>, EditError> {
+    match new.nodes.get(&placement) {
         Some(node) => match crate::mate::solve::bundle_of(node) {
-            Some(bundle) => bundle.to_vec(),
-            None => {
-                return Err(EditError::ConstraintOnNonPlacement {
-                    node: doc.spoken(placement),
-                });
-            }
+            Some(bundle) => Ok(bundle.to_vec()),
+            None => Err(EditError::ConstraintOnNonPlacement {
+                node: doc.spoken(placement),
+            }),
         },
-        None => {
-            return Err(EditError::UnknownNode {
-                id: SpokenNode::absent(placement),
-            });
-        }
-    };
+        None => Err(EditError::UnknownNode {
+            id: SpokenNode::absent(placement),
+        }),
+    }
+}
+
+/// **[`rebundle`]'s bundle, before it is written**: the mates kept and
+/// `added`, the values kept, and the constant `0` on each freedom left
+/// unnamed, each kept constraint under its own id and each new one
+/// under the next placeholder. `along` is the slides a gesture read
+/// off the copy's geometry ([`crate::mate::turn::slides_left_along`]);
+/// `None` keeps and fills them in axis order, reading no geometry.
+fn rebundled<P: Clone + crate::ProfilePayload>(
+    doc: &Doc<P>,
+    new: &Doc<P>,
+    reported: &mut Vec<Maintenance>,
+    placement: RecipeNodeId,
+    added: Option<crate::mate::Mate<Formula>>,
+    removed: &[crate::node::ConstraintId],
+    along: Option<crate::SlideAxes>,
+) -> Result<Vec<crate::mate::Constraint<Formula>>, EditError> {
+    use crate::mate::{Constraint, ConstraintKind, Mate, Value};
+    let bundle = held_bundle(doc, new, placement)?;
     if let Some(&constraint) = removed
         .iter()
         .find(|id| !bundle.iter().any(|c| c.id == **id))
@@ -7127,6 +7513,7 @@ fn rebundle<P: Clone + crate::ProfilePayload>(
             kind: ConstraintKind::Mate(Mate {
                 on: crate::Operand::Var(m.on),
                 to: crate::Operand::Var(m.to),
+                orient: m.orient,
             }),
         })
     });
@@ -7148,7 +7535,7 @@ fn rebundle<P: Clone + crate::ProfilePayload>(
         })
         .collect();
     let written: Vec<crate::mate::Coord> = values.iter().map(|&(_, c)| c).collect();
-    let keep = crate::mate::pin::kept(residual, &written);
+    let keep = crate::mate::pin::kept(residual, &written, along);
     let mut kept = Vec::new();
     for ((held, coord), keep) in values.into_iter().zip(keep) {
         match (held, keep) {
@@ -7162,7 +7549,7 @@ fn rebundle<P: Clone + crate::ProfilePayload>(
         }
     }
     let named: Vec<crate::mate::Coord> = kept.iter().map(|&(_, c)| c).collect();
-    let zeros = crate::mate::pin::unnamed(residual, &named);
+    let zeros = crate::mate::pin::unnamed(residual, &named, along);
     let mut placeholder = (1..).map(crate::node::ConstraintId::placeholder);
     let mut next = || {
         placeholder
@@ -7189,13 +7576,7 @@ fn rebundle<P: Clone + crate::ProfilePayload>(
             },
         ));
     }
-    let (ids, fresh) = add_constraints(doc, new, placement, whole, true, fresh, tol)?;
-    // The ids it minted: the added mate's first, then each `0`'s.
-    let minted = ids
-        .into_iter()
-        .filter(|id| !bundle.iter().any(|c| c.id == *id))
-        .collect();
-    Ok((minted, fresh))
+    Ok(whole)
 }
 
 /// The record of a removal written whole again: the ids it minted for
@@ -7253,8 +7634,13 @@ fn add_constraints<P: Clone + crate::ProfilePayload>(
     }
     // The constraints lowered as a bundle of their own: their reads at
     // their seats, under the ids as written, which the mint replaces.
+    // The carrier copies the placement's own copy, a body read that
+    // lowers wherever the placement stands.
+    let copy = new
+        .output(placement, 0)
+        .unwrap_or_else(|| unreachable!("a placement defines its copy"));
     let carrier: Node<P::Authored, Formula> = Node::Place {
-        shapes: Vec::new(),
+        source: crate::BodyRead::plain(crate::Operand::Var(copy)),
         target: crate::Operand::Var(VarId::WORLD),
         constraints,
     };
@@ -7393,7 +7779,9 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 };
             let mut rewritten = current.clone();
             match &mut rewritten {
-                Node::Union { members: list, .. } | Node::Intersect { members: list, .. } => {
+                Node::Union { members: list, .. }
+                | Node::Intersect { members: list, .. }
+                | Node::Assemble { members: list, .. } => {
                     let reads = members.try_map(|slot, member| lower(new, slot, member))?;
                     let mut indices = Vec::new();
                     for (seat, member) in members.rows() {
@@ -7406,12 +7794,12 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                                 formula,
                             )?);
                         }
-                        indices.push((member.key.clone(), at));
+                        indices.push(at);
                     }
                     let mut indices = indices.into_iter();
                     *list = reads.try_map(|_, &read| {
-                        let (key, at) = indices.next().unwrap_or_default();
-                        Ok::<_, EditError>(crate::BodyRead { read, key, at })
+                        let at = indices.next().unwrap_or_default();
+                        Ok::<_, EditError>(crate::BodyRead { read, at })
                     })?;
                 }
                 Node::Loft { first, then, .. } => {
@@ -7603,8 +7991,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                     if !fresh.is_empty() {
                         return Err(EditError::FreshUnread { index: 0 });
                     }
-                    let record =
-                        set_operand(doc, new, reported, *node, *operand, (read, None), tol)?;
+                    let record = set_operand(doc, new, reported, *node, *operand, read, tol)?;
                     // A mate's pose re-pointed is a mate written: its
                     // two kinds must still agree.
                     if let crate::OperandSlot::Side { constraint, .. } = operand {
@@ -7612,18 +7999,6 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                         admit_bundle_make_up(new, *node)?;
                     }
                     return Ok(record);
-                }
-                (SlotId::Operand(operand), SlotValue::Copy { of, key }) => {
-                    if !fresh.is_empty() {
-                        return Err(EditError::FreshUnread { index: 0 });
-                    }
-                    return set_operand(doc, new, reported, *node, *operand, (of, Some(key)), tol);
-                }
-                (_, SlotValue::Copy { .. }) => {
-                    return Err(EditError::CopyReadOffBodySeat {
-                        node: doc.spoken(*node),
-                        slot: *slot,
-                    });
                 }
                 (_, SlotValue::Formula(formula)) => std::borrow::Cow::Borrowed(formula),
                 // A read at a scalar slot is the formula of the one
@@ -7784,8 +8159,8 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                         outputs: Vec::new(),
                     }
                 }
-                WrittenDef::Select(..) | WrittenDef::Pose(..) => {
-                    unreachable!("a declaration lowers to no selection and no pose")
+                WrittenDef::Select(..) | WrittenDef::Pose(..) | WrittenDef::Pick(..) => {
+                    unreachable!("a declaration lowers to no selection, pose or pick")
                 }
             };
             EditRecord {
@@ -7924,19 +8299,27 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                     to: to.kind,
                 });
             }
+            // A body that reaches an instance reads its part's names,
+            // spelled in ids this document never minted: the part's to
+            // check, at evaluation (`work/intent/a-part-name-in-the-host-
+            // is-spelled-in-the-parts-ids.md`).
+            let parted = body.is_some_and(|body| new.reaches_instance(body));
+            let foreign = |name: &StableName| parted && !new.has_minted(name.node);
             // The target must denote a LIVE node (node existence now;
             // name-level resolution at evaluation — the Declare
             // carve-out's split, spec D3).
-            if !new.nodes.contains_key(&to.node) {
-                return Err(EditError::RebindTargetMissingNode {
-                    name: doc.spoken_name(to),
-                });
+            if !foreign(to) {
+                if !new.nodes.contains_key(&to.node) {
+                    return Err(EditError::RebindTargetMissingNode {
+                        name: doc.spoken_name(to),
+                    });
+                }
+                check_name_steps(doc, new, to)?;
             }
-            check_name_steps(doc, new, to)?;
             // The source must have ONCE existed (ids are monotone and
             // never reused): dead-but-once-lived is exactly the
             // NodeGone repair; never-minted is a typo.
-            if !new.has_minted(from.node) {
+            if !foreign(from) && !new.has_minted(from.node) {
                 return Err(EditError::RebindUnknownName {
                     name: doc.spoken_name(from),
                 });
@@ -8020,12 +8403,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             // Node existence NOW, name-level resolution at evaluation
             // (the ruled Declare carve-out, applied to the second
             // name-referencing edit).
-            if !new.nodes.contains_key(&name.node) {
-                return Err(EditError::AppearanceNamesMissingNode {
-                    name: doc.spoken_name(name),
-                });
-            }
-            check_name_steps(doc, new, name)?;
+            check_appearance_name(doc, new, *body, name)?;
             check_appearance_body(doc, new, *body, name)?;
             new.appearance
                 .entry(crate::appearance::AppearanceKey::new(*body, name.clone()))
@@ -8129,12 +8507,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                     name: doc.spoken_name(name),
                 });
             }
-            if !new.nodes.contains_key(&name.node) {
-                return Err(EditError::AppearanceNamesMissingNode {
-                    name: doc.spoken_name(name),
-                });
-            }
-            check_name_steps(doc, new, name)?;
+            check_appearance_name(doc, new, *body, name)?;
             check_appearance_body(doc, new, *body, name)?;
             // D7's producer convention, by the one predicate
             // `MetaValue::require_versioned`, which the save/load
@@ -8260,6 +8633,20 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             &[],
             tol,
         )?),
+        DocEdit::SetProduct { product } => {
+            new.product = product
+                .as_ref()
+                .map(|read| product_read(new, read))
+                .transpose()?;
+            EditRecord {
+                minted: None,
+                minted_constraints: Vec::new(),
+                minted_var: None,
+                structural: false,
+                fresh: Vec::new(),
+                outputs: Vec::new(),
+            }
+        }
         DocEdit::SetLabel { node, label } => {
             if !new.nodes.contains_key(node) {
                 return Err(EditError::UnknownNode {
@@ -8651,11 +9038,12 @@ mod tests {
         let mate = crate::mate::Mate {
             on: plane(crate::node::RecipeNodeId::new(0, 3)),
             to: plane(crate::node::RecipeNodeId::new(0, 2)),
+            orient: crate::Orientation::IDENTITY,
         };
         let constraint = crate::node::ConstraintId(crate::MintId::new(0, 4));
         let writing: [DocEdit<ProfileProgram>; 3] = [
             DocEdit::place(
-                vec![crate::BodyRead::plain(crate::node::RecipeNodeId::new(0, 3))],
+                crate::BodyRead::plain(crate::node::RecipeNodeId::new(0, 3)),
                 crate::Operand::Var(crate::VarId::WORLD),
                 vec![crate::mate::Constraint::of_mate(
                     crate::node::ConstraintId::placeholder(1),
@@ -8736,5 +9124,90 @@ mod tests {
                 "{edit:?} writes no mate's datum; what it strands is the solve's"
             );
         }
+    }
+}
+
+/// **Why a read is no product** ([`EditError::ProductRead`]).
+#[derive(Debug, Clone, PartialEq)]
+pub enum ProductReadFault {
+    /// The read names no live variable.
+    Unresolved,
+    /// The variable read is of another kind than `Body`.
+    Kind {
+        /// Its kind.
+        found: VarKind,
+    },
+    /// The body read is in another space than the world.
+    Space {
+        /// The space it is in.
+        space: Box<crate::spoken::SpokenSpace>,
+    },
+}
+
+impl core::fmt::Display for ProductReadFault {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Unresolved => f.write_str("it names no live variable"),
+            Self::Kind { found } => write!(
+                f,
+                "it reads {} {found}, not a body",
+                crate::sentence::article(&found.to_string())
+            ),
+            Self::Space { space } => write!(f, "its body is in {space}, not the world"),
+        }
+    }
+}
+
+/// **The body a `SetProduct` read names**, held to be a `Body` in the
+/// world ([`EditError::ProductRead`]).
+fn product_read<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    read: &crate::Operand,
+) -> Result<VarId, EditError> {
+    let refused = |fault| EditError::ProductRead {
+        read: Box::new(read.clone()),
+        fault,
+    };
+    let var = match read {
+        crate::Operand::Node(id) => match doc.seat_outputs(*id, false).as_slice() {
+            [one] => Some(*one),
+            _ => None,
+        },
+        crate::Operand::Output { node, port } => doc.output(*node, *port),
+        crate::Operand::Var(var) => doc.var(*var).map(|_| *var),
+        crate::Operand::Name(name) => doc.var_named(name.as_str()),
+        crate::Operand::Select { .. } | crate::Operand::Pose(_) | crate::Operand::Pick { .. } => {
+            None
+        }
+    }
+    .filter(|&var| doc.unresolved_read(var).is_none())
+    .ok_or_else(|| refused(ProductReadFault::Unresolved))?;
+    let kind = doc.var(var).map(crate::Var::kind);
+    if kind != Some(VarKind::Body) {
+        return Err(refused(ProductReadFault::Kind {
+            found: kind.unwrap_or(VarKind::Body),
+        }));
+    }
+    match product_fault(doc, var) {
+        None => Ok(var),
+        Some(fault) => Err(refused(fault)),
+    }
+}
+
+/// **What is wrong with the slot reading `var`**: a live variable of
+/// another kind than `Body`, or a body outside the world. `None` for a
+/// slot that reads a body in the world, and for one whose variable or
+/// space is gone, which is a stranded reader
+/// ([`crate::ProductError::StrandedProduct`]).
+pub(crate) fn product_fault<P>(doc: &Doc<P>, var: VarId) -> Option<ProductReadFault> {
+    let held = doc.var(var)?;
+    if held.kind() != VarKind::Body {
+        return Some(ProductReadFault::Kind { found: held.kind() });
+    }
+    match doc.space_of(var) {
+        Some(VarId::WORLD) | None => None,
+        Some(space) => Some(ProductReadFault::Space {
+            space: Box::new(doc.spoken_space(space)),
+        }),
     }
 }

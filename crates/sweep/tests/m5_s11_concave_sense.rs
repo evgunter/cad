@@ -72,11 +72,11 @@ use topo::boolean::{SolidContainment, point_in_solid};
 use topo::{Body, FaceKey};
 
 fn vol(body: &Body<f64>) -> f64 {
-    topo::mass_properties(
+    topo::test_support::pinned_volume(
+        "the measured body",
         &topo::test_support::finished("the measured body", topo::Body::clone(body), Tol::witness()),
         Tol::witness(),
     )
-    .unwrap()
     .volume
 }
 
@@ -593,20 +593,23 @@ fn extruded_twin(loops: &[ProfileLoop<f64>], h: f64) -> Body<f64> {
 /// convergence predicate may escalate. Anything else is a real failure.
 fn assert_rational_volume(row: &str, body: &Body<f64>, want: f64) {
     let target = 1024.0 * Tol::witness().get().eps;
-    match topo::mass_properties(
+    let (m, unmet) = topo::test_support::measure_with_unmet_width(
         &topo::test_support::finished("the measured body", topo::Body::clone(body), Tol::witness()),
         Tol::witness(),
-    ) {
-        Ok(m) => {
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap_or_else(|e| panic!("{row}: not an honest quadrature posture: {e}"));
+    match unmet {
+        None => {
             // ACCURACY: the certified enclosure must CONTAIN the
             // independent oracle (`want` is the extruded twin's closed
             // form, pad exactly 0).
             assert!(
-                (m.volume - want).abs() <= m.volume_pad,
+                (m.enclosure.volume - want).abs() <= m.enclosure.volume_pad,
                 "{row}: the rational enclosure must contain the analytic \
                  volume: got {} ± {}, oracle {want}",
-                m.volume,
-                m.volume_pad
+                m.enclosure.volume,
+                m.enclosure.volume_pad
             );
             // PAD CEILING, pinned SEPARATELY: accuracy alone gets
             // easier as the enclosure degrades, so a loosening pad
@@ -622,41 +625,27 @@ fn assert_rational_volume(row: &str, body: &Body<f64>, want: f64) {
             // guarantees.
             let ceiling = 4.0 * target;
             assert!(
-                m.volume_pad.is_finite() && m.volume_pad < ceiling,
+                m.enclosure.volume_pad.is_finite() && m.enclosure.volume_pad < ceiling,
                 "{row}: volume pad {} vs {ceiling:e}",
-                m.volume_pad
+                m.enclosure.volume_pad
             );
             // The measure the ceiling's comment cites, held where it was taken.
             if row == "the lofted concave prism" && Tol::witness().get().eps == 1e-6 {
                 assert!(
-                    (m.volume_pad / LOFTED_CONCAVE_PAD_AT_1E6 - 1.0).abs() < 0.01,
+                    (m.enclosure.volume_pad / LOFTED_CONCAVE_PAD_AT_1E6 - 1.0).abs() < 0.01,
                     "{row}: volume pad {} moved from the {LOFTED_CONCAVE_PAD_AT_1E6} the \
                      ceiling's comment cites",
-                    m.volume_pad
+                    m.enclosure.volume_pad
                 );
             }
         }
-        Err(topo::MassPropsError::Face {
-            source:
-                geom_brep::PropsError::QuadratureBudget {
-                    width_len,
-                    target_len,
-                    ..
-                },
-            ..
-        }) => {
+        Some(width_len) => {
             assert!(
-                width_len.is_finite() && width_len > target_len,
-                "{row}: a budget refusal must carry a width that really \
-                 missed: {width_len:e} vs {target_len:e}"
-            );
-            assert!(
-                (target_len - target).abs() <= target * 1e-12,
-                "{row}: the refused target must BE 1024·ε for this run: \
-                 {target_len:e} vs {target:e}"
+                width_len.is_finite() && width_len > target && m.stop != topo::Stop::Met,
+                "{row}: a face short of the resolution has a width that really missed: \
+                 {width_len:e} vs {target:e}"
             );
         }
-        Err(other) => panic!("{row}: not an honest quadrature posture: {other}"),
     }
 }
 
@@ -820,8 +809,9 @@ fn a_tapered_concave_loft_keeps_the_prism_wall_directions() {
 /// was `union(notched, pellet)` on two disjoint solids: no surface
 /// intersections, so the operation asks `point_in_solid`, and a wrong
 /// `sense` on the concave wall made it answer `In` and swallow the
-/// pellet. On a LOFTED operand both doors refuse instead — the boolean
-/// layer rejects a rung-3 NURBS operand at admission, and
+/// pellet. On a LOFTED operand both doors refuse instead — the pellet
+/// sits inside the hull of the notch's NURBS walls, so the boolean
+/// cannot rule out a meeting it has no NURBS × plane arm for, and
 /// `point_in_solid` has no NURBS door at all.
 ///
 /// So the swallow is closed for loft by REFUSAL, not by the bit, which
@@ -858,12 +848,20 @@ fn a_lofted_operand_refuses_the_union_check_typed() {
     let pellet = finished("the pellet", pellet, Tol::witness());
 
     let err = match topo::boolean::union(&operand, &pellet, Tol::witness()) {
-        Err(e) => e.to_string(),
-        Ok(_) => panic!("a rung-3 NURBS operand has no boolean layer yet"),
+        Err(e) => e,
+        Ok(_) => panic!("a NURBS wall near the pellet has no boolean arm yet"),
     };
-    assert!(
-        err.contains("is a spiric or spline (NURBS) curve"),
-        "the refusal names the operand: {err}"
+    let topo::BooleanError::CurvedBooleanUnsupported {
+        operand: topo::boolean::Operand::A,
+        face,
+        kind: geom::SurfaceKind::Nurbs,
+    } = err
+    else {
+        panic!("the refusal names a NURBS face of the lofted operand: {err:?}");
+    };
+    assert_eq!(
+        face, lofted.side_faces[0][2],
+        "the named face is the concave top wall the pellet sits under"
     );
     let door = point_in_solid(
         &lofted.body,

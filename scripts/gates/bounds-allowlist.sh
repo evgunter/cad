@@ -519,8 +519,11 @@ BOUNDS_ALLOWLIST=(
   # `census::collinear_overlaps`, the edge-edge pass's tree over the
   # line edges' boxes: `reverted_lines_disjoint` (the seamed result's
   # lines) and `no_unjoined_line` (the fallbacks'). Neither reads a
-  # bracket of its own. 21 + 2 = 23.
-  'crates/topo/src/boolean/ops.rs 23 2026-07-29 (M5 PR 8), the driver amendment'
+  # bracket of its own. 21 + 2 = 23. One more is `boolean_op_given`,
+  # `boolean_op_with`'s body with a fold step's given pairs, which the
+  # n-ary door (`nary.rs`) calls; it forwards to `boolean_door` and
+  # reads no bracket of its own. 23 + 1 = 24.
+  'crates/topo/src/boolean/ops.rs 24 2026-07-29 (M5 PR 8), the driver amendment'
   # reduce.rs's four are the sweep's own doors (`first_unsupported_pair`,
   # `gate_operand_pairs`, `face_tree`, `sweep_direction`); the fifth,
   # `sweep_and_settle`, is the one driver every boolean sweeps through,
@@ -529,6 +532,14 @@ BOUNDS_ALLOWLIST=(
   # Three more ride to `carrier_touch::off_face` the same way:
   # `curved_face_arm`, `wall_crossing` and `settle_deferred`. 5 + 3 = 8.
   'crates/topo/src/boolean/reduce.rs 8 2026-07-29 (M5 PR 8), the driver amendment'
+  # nary.rs's two are `nary_boolean`, the n-ary union and intersect,
+  # and `run_members`, its body: it reads each member's box through
+  # `Separation::of` and runs every judgement and fold step through the
+  # boolean door (`boolean_op_given`), and neither reads a bracket of its
+  # own. It is the fold `editor-core`'s `wire_combine` ran under the same
+  # amendment, moved into the kernel
+  # (`work/flush/a-glue-verdict-is-not-bound-to-the-bodies-it-judged.md`).
+  'crates/topo/src/boolean/nary.rs 2 2026-07-29 (M5 PR 8), the driver amendment'
   # `separation.rs` is FOUR and the ledger entry enumerates THREE
   # (`Separation::of`, `Separation::certify`, `image`). The fourth,
   # `SolidSeparation::of`, is argued in that struct's own doc as
@@ -551,7 +562,15 @@ BOUNDS_ALLOWLIST=(
   # now reads its sections' profile values
   # (`a-loft-is-the-nominal-surface-in-every-generic-lane`), and none of
   # the three read a bound, so the headers go with the seam.
-  'crates/editor-core/src/eval/wire.rs 14 2026-07-29 (M5 PR 8), the driver amendment'
+  # 14 -> 17: `−` and `∩` distribute over `⊔` (D′3,
+  # `eval/wire/distribute.rs`). The subtract's and the union's
+  # lowerings each split in two around the per-piece recursion:
+  # `wire_subtract` calls `subtract_from`, and `wire_combine` calls
+  # `combine_members`, which calls `fold_members`. The three new
+  # headers are the boolean lane's own, ratified for the sweep's BVH
+  # brackets, and each is a caller spelling the pair verb's header
+  # (`run_pair`); none of them reads a bound.
+  'crates/editor-core/src/eval/wire.rs 17 2026-07-29 (M5 PR 8), the driver amendment'
   # M5 PR 11, the certified-quadrature plumbing.
   #
   # 19 -> 23 (TRIM-2 PR-1, the trimmed-region quadrature). The seam is
@@ -623,7 +642,13 @@ BOUNDS_ALLOWLIST=(
   # beneath it as `raw_door::classify_body_of` (`Decide +
   # CertifiedBounds`), the same certified lane `classify_shells_through`
   # reads; the `_structural` twins it moved with are plain `Decide`.
-  'crates/topo/src/props.rs 12 M5 PR 11, the certified-quadrature plumbing'
+  # 12 -> 13 (QUAD measure door unit C, PR 5741): `SignCertificate::measure`
+  # is the door at `Decide + Bounds`. A deciding predicate the walk runs
+  # out on is its refusal, and the refusal carries the enclosure's ends
+  # read outward (`undecided_refused`, at `T: Bounds` alone): a bracket
+  # REPORTED, never branched on. The walk beneath it
+  # (`SignCertificate::continued`) stays plain `Decide`.
+  'crates/topo/src/props.rs 13 M5 PR 11, the certified-quadrature plumbing'
   # quad_lane.rs 14 -> 15: `closed_form` re-derives a closed-form
   # face's flux at the interval scalar, lifting the face's geometry
   # through `Interval::from_certified` (`Decide + CertifiedBounds`), and

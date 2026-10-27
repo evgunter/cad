@@ -2,11 +2,10 @@
 id: an-instance-carries-its-parts-coincidences
 kind: issue
 title: An instance carries its part's coincidence rows, so the lint on a product document reports its parts' unproven glue
-status: parked
+status: open
 opened: 2026-10-08
 priority: P1
 cost: M
-blocked_on: [assemble-is-an-operator-and-the-product-is-a-slot]
 ---
 
 
@@ -74,3 +73,7 @@ The row's first blocker (`coincidences-are-recorded-at-one-door`, PR 4354) is cl
 **The premise, restated against D10.** `[assertions]` says a finding belongs to the `⊔` whose census decided it and is reported once there. `[placement.world]` says an instance's decisions are reported once, as that document's. So a part's unproven rows are the part's findings, and the host has nothing to re-decide or re-report. What still stands is the reading of the report: the host's lint is silent about its parts, and under `CheckKind::Certified` silence reads as "proven".
 
 **What closing it takes.** The host's report carries each of a part's unproven rows **as the part's**: once per part row, with its `Route`, judged by the part's own door and quieted only by the part's assertions. No assertion of the host quiets it. This is the shape J (PR 5325) and stage 5 C keep for carried interference (`CarriedInterference`, `once_per_part_row`). The design sketch above stands, except that the finding is the part's, reached through the instance, and is not the instance's own finding. Read the sketch's `FindingSubject::Node(instance)` as the route's first hop, not as the owner.
+
+## Released (INTENT, 2026-10-26)
+
+D′3 merged (PR 5636). An instance now defines one body, a copy of its part's product, and `PartValue` holds `coincidences` (`eval/parts.rs:118`, carried at `:145`/`:827`). Re-check against main whether the lint on a product document now reports its parts' unproven glue. ATREST's call: close it, or narrow it to what remains.

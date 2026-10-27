@@ -43,6 +43,7 @@ from pncad import (
     m,
     random_document_id,
 )
+from measuring import pinned
 
 
 def box(doc, width, depth, height):
@@ -132,7 +133,7 @@ class TestAReferenceNamesAVersion(StoreCase):
         self.assertEqual(content_pin(resolved), reference.pin)
         # And the geometry survives the round trip, which is the claim
         # a pin is standing in for.
-        volume = evaluate(resolved).value(node).body().mass_properties().volume
+        volume = pinned(evaluate(resolved).value(node).body()).volume
         self.assertEqual(volume, 6.0)
 
     def test_a_pin_that_moved_refuses_rather_than_retargeting(self):

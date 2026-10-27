@@ -782,13 +782,14 @@ fn cursors_across_the_pane_never_disagree_with_the_id_map() {
 // 5. One name drawn twice — the highlight's disambiguation
 // -------------------------------------------------------------------
 
-/// **Two copies of one body draw its names apart** (A10): each copy
-/// wraps the body's names in its own placement's qualifier, so no name
-/// is drawn twice — and every name the left copy draws, unwrapped, is a
-/// name the right copy draws too. The highlight's `(node, body)`
-/// narrowing below is still owed: a selection names its copy.
+/// **Two copies of one body draw its names, each on its own node**
+/// (D′3: a copy carries its source's names as they are): every name
+/// the left copy draws is a name the right copy draws too, so each is
+/// drawn twice, and what tells the two apart is the node that draws
+/// it — the highlight's `(node, body)` narrowing below: a selection
+/// names its copy.
 #[test]
-fn two_copies_of_one_body_draw_its_names_apart() {
+fn two_copies_of_one_body_draw_its_names_on_their_own_nodes() {
     let (doc, left, right) = two_placements();
     let mut session = DocSession::inline(doc, tol());
     session.pump();
@@ -798,16 +799,16 @@ fn two_copies_of_one_body_draw_its_names_apart() {
             .ids_of_node(copy)
             .into_iter()
             .filter_map(|id| index.name_of(id).ok())
-            .map(|name| {
-                let (placement, own) = name.copy_of().expect("a copy's name is wrapped");
-                assert_eq!(placement, copy, "headed at the copy that draws it");
-                own.clone()
-            })
+            .cloned()
             .collect()
     };
     for id in index.ids().ids() {
         if let Ok(name) = index.name_of(id) {
-            assert_eq!(index.ids_of(name).len(), 1, "{name:?} is drawn once");
+            assert_eq!(
+                index.ids_of(name).len(),
+                2,
+                "{name:?} is drawn once per copy"
+            );
         }
     }
     let (left_names, right_names) = (own(left), own(right));
@@ -879,8 +880,7 @@ fn a_held_face_marks_the_placement_it_was_picked_on_not_its_twin() {
             .node
     };
     // The same face of the body, picked off the other copy: the body's
-    // own name, under the other placement's wrap.
-    let (_, own) = face.name.copy_of().expect("a pick on a copy is wrapped");
+    // own name, on the other placement.
     let other = *session
         .committed_doc()
         .placements()
@@ -888,16 +888,20 @@ fn a_held_face_marks_the_placement_it_was_picked_on_not_its_twin() {
         .find(|&&placement| placement != face.node)
         .expect("the other placement");
     let twin = FaceSelection {
-        name: own.in_copy(other),
         node: other,
         ..face.clone()
     };
     assert_eq!(
         index.ids_of(&face.name).len(),
-        1,
-        "each copy's name is drawn once"
+        2,
+        "the body's name is drawn once per copy"
     );
-    assert_eq!(index.ids_of(&twin.name).len(), 1, "the twin's too");
+    assert_eq!(
+        index.ids_of_target(&face).len(),
+        1,
+        "once on the picked copy"
+    );
+    assert_eq!(index.ids_of_target(&twin).len(), 1, "and once on its twin");
     let held = marks::Held {
         faces: [None, Some(&face), Some(&twin)],
         edges: None,
@@ -919,8 +923,9 @@ fn a_held_face_marks_the_placement_it_was_picked_on_not_its_twin() {
 
 /// **A held face whose body is no longer drawn marks nothing.** The extrude under the two
 /// placements is not placed itself, so a pick held off its own body —
-/// the body's own name, on the extrude — names no drawn patch: each
-/// copy draws that name only under its own placement's wrap.
+/// the body's own name, on the extrude — names no drawn patch: the
+/// copies draw that name, each on its own placement, and a held face
+/// marks its own node's patches.
 #[test]
 fn a_held_face_whose_body_is_not_drawn_marks_nothing() {
     let (session, index, drawn) = right_top_face();
@@ -930,15 +935,13 @@ fn a_held_face_whose_body_is_not_drawn_marks_nothing() {
         matches!(doc.node(extrude), Some(Node::Extrude { .. })),
         "the right copy places the extrude"
     );
-    let (_, own) = drawn.name.copy_of().expect("a pick on a copy is wrapped");
     let face = FaceSelection {
-        name: own.clone(),
         node: extrude,
         ..drawn.clone()
     };
     assert!(
-        index.ids_of(&face.name).is_empty(),
-        "no copy draws the body's own name unwrapped"
+        index.ids_of_target(&face).is_empty(),
+        "no patch of the extrude's own is drawn"
     );
     let held = marks::Held {
         faces: [Some(&face), None, None],

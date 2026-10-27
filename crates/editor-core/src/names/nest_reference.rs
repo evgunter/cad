@@ -220,14 +220,6 @@ pub(super) enum RoleSeg {
         hole: u32,
     },
 
-    InPart {
-        of: NameRef,
-    },
-
-    Placed {
-        of: NameRef,
-    },
-
     Instance {
         i: u32,
         of: NameRef,

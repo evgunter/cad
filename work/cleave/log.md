@@ -1392,6 +1392,8 @@ Signed (CLEAVE orchestrator).
   - A torn face (stale key, missing or misstated row, unclosed walk) is `ClassificationInvariant`. A numerical or unbuilt walk refusal is `Sheet::Unread`, which W3 and W4 may still clear, and otherwise refuses R-unread.
   - Filed `w2-reads-a-torus-face-as-planar` here.
   - (CHART implementer)
+
+- 2026-10-26 — **Seam (QUAD):** measure door unit C (`quad/measure-c-no-default`) touches this program's ground. Every public number door now takes a required predicate and answers `topo::MassMeasurement { enclosure, stop }`: `topo::mass_properties(body, tol, settle)`, `SignCertificate::measure(settle)`, `HeldCertificate::measure(body, settle)` (step-import's `StepImport::Solid { certificate, .. }` replaces `enclosure`), and Python's `Body.mass_properties(settle)`, `validate_geometric_measured(settle)` and `ImportReport.measure(settle)` (`pncad.Settle`, `pncad.MassMeasurement`). `PropsError::QuadratureBudget`, `TargetUnreached`, `VolumeReading`, `refine_to_target`, `PropsCheck::Converged` and `QUAD_TARGET_LEN_FACTOR` are gone; an unmet resolution is a bracket with `stop` `Floor`/`Wall`, not a refusal. `ShellClassification`'s four number fields are one `enclosure: MassProperties`. Tests reading a number pass `topo::test_support::pinned_resolution(tol)` (1024·ε, where their pins were taken). (QUAD unit C lane)
 - 2026-10-24 — **Seam (CHART):** branch `chart/region-skeleton`, unit `the-region-doors-share-one-skeleton-three-times`, edits `topo/src/boolean/{region,sphere_region,torus_region,ruled_region,ruled_region_rows}.rs` (CLEAVE, HONE, INSIDE ground).
   - The three region doors share one skeleton in `region.rs`:
     - the boundary gather (`boundary`, with the doors' one difference carried as `Scaffolding`);
@@ -1492,6 +1494,7 @@ Signed (CLEAVE orchestrator).
   - The open slit branches file new rows here when they land, so the load will rise again; the next sitting cuts them on the same lines.
   - (CLEAVE orchestrator, slate-triage lane)
 - 2026-10-26 — (ATREST orchestrator) Filed `the-booleans-cone-reader-is-a-second-link` (P1 H) here. It is parked on ATREST's link build, which lifts the census's `Link` into a public `topo::link`. Whether `boolean::sectors`' cone reader can become that link over the boolean's working state is this program's question.
+- 2026-10-26 — **Moved to WIRE** by `git mv` in PR 5753, on the orchestrator's ruling: `a-meet-row-on-a-vertex-a-boolean-minted-on-an-edge-omits-the-cell-that-minted-it`, banded P1. Its pinch case has one spelling after 5753; what stays open is the minting cell outside ring ties, which needs `Coincidence` to hold a list of cells. (CLEAVE implementer)
 - 2026-10-26 — **PR 5765 merged (`e9d5f88c21`): CLEAVE's slate is split on its priority seam, per Ev's direction. CLEAVE drops from 270.5 to 28.5/30.**
   - **Re-banded:** 116 rows against the README Priority bands.
   - **Closed:** 7 stale rows, each checked against main's code.
@@ -1579,3 +1582,68 @@ Signed (CLEAVE orchestrator).
     - the strut prune is shared in `topo::strut`, used only for zip-reported struts and planar faces;
     - new typed gaps `CurvedFaceClosesAcrossSlit` and `SlitFaceClosesMidSlit`.
   - **Next:** PR 5545's lane is told to merge main, do the combination (drop `Flush` and `Closes`), and make ring + flush partner `y ∪ x` build. (CLEAVE orchestrator)
+- 2026-10-26 — **PR 5753: the ring-tie fix lands without its door guard.**
+  - The guard (every `Input` cell a row names is held) fires on a different class: sphere re-charts turn cells under new keys (72 sweep cells, 4 tests).
+  - That class is WIRE's row `a-re-charted-operands-rows-may-name-cells-the-re-chart-minted`, now P1. How to spell a re-charted cell is a design question there.
+  - **Ruling:** remove the guard from 5753 and preserve it on `cleave/rows-name-input-cells-guard` as the WIRE row's acceptance check. Nothing is skipped; the tests pass without the guard, as they do on main.
+  - **Measured:** the ring-tie class goes from 160 to 0 in sweep, 12 to 0 in editor-core and 77 to 0 in topo. (CLEAVE orchestrator)
+- 2026-10-26 — **[ev] 5780 updated after Ev's comment**, which asked about four points and said a guard that is redundant must go. Rounds 3 and 4 with the designers:
+  - Both keep the written-order asymmetry, with the principle that a boolean mints no surface.
+  - Both rewrote (3) and (4).
+  - The guard is NOT redundant: an acute neighbour's re-cut edge moves g/sin α. Both now place it inside the glue's Zero verdict.
+  - They differ only on sharpness: conservative g/sin α, or measured against the kept face.
+  - The diff and fork-log row 200 are updated, and a comment is posted for Ev. (CLEAVE orchestrator)
+- 2026-10-26 — PR 5545 is combined with 5544 (`5c9b777db9`).
+  - **Ring + flush partner `y ∪ x` now builds in all six ops.** The cause was in `finish_output`: it read the declared surface pairs before 5544's `close_struts` `kev` swept the dropped flush copy's surface. Pairs whose side the closing consumed are now dropped.
+  - `SlitFaceGlued` now carries `gap: SlitFaceGap` (RingRun / ArcsSeparate / TipUnread), and `FlankRead` is a type alias.
+  - **CI** is red only on SPLICE's filed python teapot test.
+  - **Next:** a narrow re-review (outcome, body and naming hash against main; the `finish_output` drop rule; `tip_wraps` spur versus tip) is dispatched before merge. (CLEAVE orchestrator)
+- 2026-10-26 — **PR 5753 merged (`7b3a08017b`), with CI green.** WIRE's P1 `a-fold-steps-ring-tie-row-names-a-pierce-vertex-its-operand-does-not-hold` is closed.
+  - **The fix:** a held pierce vertex reads as the face it was minted in, through the `Mints` table. A ring tie spells `Meet` of both cells and the pierced face, through `Coincidence::third`.
+  - **Rows naming a cell no input holds:** sweep 160 → 0, editor-core 12 → 0, topo 77 → 0.
+  - **The door guard** is parked on `cleave/rows-name-input-cells-guard` (`e14e5f7355`) as WIRE's re-chart row's acceptance check.
+  - **WIRE can now** delete `held_out` (seam note on WIRE's log).
+  - **New row filed by the lane:** TESS `main-red-thin-nested-rings-build-meshes-the-rings-its-pin-expects-refused`.
+  - **Disk:** the ringtie build cache was freed. (CLEAVE orchestrator)
+- 2026-10-26 — Seam note from WIRE (branch `wire/re-chart-rows-name-input-cells`, row `a-re-charted-operands-rows-may-name-cells-the-re-chart-minted`): `boolean/ops.rs` `apply_recuts` now returns each re-charted shell's cells in the re-cut operand (`Recharts`), and `respell_through_cuts` (which now takes the rows, not the body) reads each such cell as the least face of the input shell it was turned over. A `Meet` or `OnCarrier` row keeps its relation on that face; any other relation naming a re-charted cell refuses `FallbackExtentUnsupported`, except a face of a one-face shell. The debug check `rows_name_input_cells` from `cleave/rows-name-input-cells-guard` lands with it at `boolean_op_with`'s exit. No expected value in `topo` or `sweep` moved; rows on the four re-chart tests now name ball faces where they named turned edges. (WIRE implementer, wire-rechart)
+- 2026-10-26 — **[ev] 5780: Ev pointed out an overclaim.** 'A boolean mints no surface' is only ∂(A∪B) ⊆ ∂A ∪ ∂B. Once the glue moves geometry it does not choose the written order over a mean surface. The orchestrator conceded on the PR and replaced the principle in the diff (`125495b285`) with the reasons that do carry the choice:
+  - the kept surface stays exactly what was written, so structural glue elsewhere survives;
+  - no drift across chains of booleans;
+  - no general mean surface exists;
+  - a pick that reads values decides by rounding.
+
+  **Lesson:** check that a stated principle carries the claim it is offered for before it goes to Ev. (CLEAVE orchestrator)
+- 2026-10-26 — **PR 5545 narrow re-review on the combined head.** No wrong body, no regression.
+  - **Confirmed:** F2 is fixed; the outcome diff is the same at three ε; the `finish_output` drop rule is safe (it drops only orphaned surfaces); `tip_wraps` reads a spur as zero and a tip as the full turn; CI is red only on SPLICE's python red.
+  - **R1, a false claim:** 90 cells per ε gain correct lineage rows main never recorded, or lose a zero-area sliver's row. The body must say so.
+  - **Witness found:** `TipUnread` is reached by an arc-sided floor with an open keel, `x ∩ y`.
+  - The lane is told to fix the body and the row. Merge follows. (CLEAVE orchestrator)
+- 2026-10-26 — **PR 5545 merged (`f9d372b298`). CI was fully green, the python suite included.** `a-boolean-cuts-a-flush-face-kept-once-along-a-slits-line` is closed.
+  - **What landed:**
+    - the fate cut ends at a slit's tip (`tip_wraps`);
+    - doubled chords along a slit are skipped only where one kept face holds both sides;
+    - `Flush` and `Closes` are gone from `SlitLineGap`;
+    - `SlitFaceGlued` carries a gap field;
+    - the combination with 5544 is fixed in `finish_output`, so ring + flush partner builds in all six ops.
+  - **Naming:** 90 cells per ε gain the lineage main never recorded.
+  - **Seam note:** left on FLUSH's log about its fate-cut row. (CLEAVE orchestrator)
+- 2026-10-26 — Dispatched:
+  - the three flush-partner kernel-defect P1s from 5545's probe (box corner at the ring's tip, a fate cut between touching lumps, a ring partner inside the ring) on `cleave/flush-partners-at-a-slit-build`;
+  - `one-segment-tangent-rims-refuse-where-their-two-arc-forms-build` (P1 H; it blocks PATHS unit 4) on `cleave/one-segment-tangent-rims`.
+
+  Held: the two backstop P1s (they touch `volume_backstop`, so they wait on Ev's [ev] 5780 ruling), `glue-disagreements-…` (`design: true`), the crescent build (H, after the tangent-rims lane), and `a-vertex-piercing-two-declared-coincident-faces-reads-as-one`. (CLEAVE orchestrator)
+- 2026-10-26 — [ev] 5780: Ev asked whether two glued cubes are stored differently from a prism made directly. Answered on the PR (comment 6427582133): the result is the same 6-face, 12-edge, 8-vertex complex on the same planes; only the merged faces' lineage differs. The order dependence shows only where the two descriptions differ inside ε, and the two results then lie within ε of each other. (CLEAVE orchestrator)
+- 2026-10-26 — PR 5793 (riders read every edge in a face; both riders P1s) handed back with CI green. Claims and style reviews dispatched. The lane filed four rows: three CLEAVE rows (an arc in a curved face's interior, a no-area ring in a curved face, a closed edge lying in a face) and RESTREAD's tier-3′ curved own-solid edge row. The alternate-ε reds it saw on main went to a tracker lane, which checks last night's whole full-suite failing list (nightly run 72) against open rows and files a row for each red with none. (CLEAVE orchestrator)
+- 2026-10-26 — PR 5793 reviewed. Claims review: not ready. Three blocking findings:
+  - B1: a rim arc whose ends rest on a curved face's loop edges by v-e records is never asked about that face, so the rider form still ships (`pi_seam` `t ∖ d`, the dome through the tube's base). The filed closed-edge row cited that test by mistake.
+  - B2: six `a_pierce_held_in_a_curved_face` moves are missing from the body; the 60 s cap truncated them.
+  - B3: "divided against the first face" never builds. Arcs refuse `Curved` first, and a line edge across two coplanar faces refuses `Unplaced`.
+
+  Also taken:
+  - `holding` swallows `walls_inside`'s in-band errors; they are to be propagated.
+  - The bend margin is twice the reach displacement, and its site is shared with a distance margin.
+  - Most of the style review: stale docs on re-pinned tests, unrecorded lost coverage, the `on_carrier` name collision, two duplicated blocks, the two disclosed residues left unfiled.
+
+  The fix pass went back to the implementer. (CLEAVE orchestrator)
+- 2026-10-26 — Nightly 72: checked every red test and red job against open rows. One cause had no row: `certified_endpoint_census` moved for spiric.rs, rational_rim.rs and topo props.rs after FLUX #5696/#5699. Filed on FLUX (PR 5807, merged). (CLEAVE orchestrator)
+- 2026-10-27 — PR 5812 (flush partners at a slit; the three flush-partner P1s) and PR 5808 (one-segment tangent rims) handed back with CI green. 5812's claims and style reviews are dispatched, and 5808's are in. The 5812 lane found a main red, QUAD's `review_m1_pr5_internal::every_public_mutation_path_preserves_tier1` (slow set: `Certifier::validate_pseudomanifold` is missing from the roster). It filed the row on QUAD's slate in its branch; the same file is lifted to main here so it does not wait on 5812. (CLEAVE orchestrator)

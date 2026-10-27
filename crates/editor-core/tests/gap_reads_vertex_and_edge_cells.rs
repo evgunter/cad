@@ -81,11 +81,7 @@ fn resting(rest: Rest, lift: f64) -> (ProfileDoc, SitedRef, SitedRef) {
         Rest::Vertex => vname(prism, RoleSeg::CapVertex(CapEnd::End, apex)),
     };
     let top = fname(block, RoleSeg::Cap(CapEnd::End));
-    (
-        doc,
-        SitedRef::new(p, top.in_copy(p)),
-        SitedRef::new(q, cell.in_copy(q)),
-    )
+    (doc, SitedRef::new(p, top), SitedRef::new(q, cell))
 }
 
 /// A `Gap(outer, inner)` and a `Gap = 0` over it: the document after
@@ -250,14 +246,8 @@ mod real_bodies {
             let (doc, a, b, pa, pb) = two_blocks([1.0 + dx, 0.98, 0.98]);
             let ca = vpiece(&doc, a, 0, 2);
             let cb = vpiece(&doc, b, 0, 0);
-            let corner = SitedRef::new(
-                pa,
-                vname(a, RoleSeg::CapVertex(CapEnd::End, ca)).in_copy(pa),
-            );
-            let tip = SitedRef::new(
-                pb,
-                vname(b, RoleSeg::CapVertex(CapEnd::Start, cb)).in_copy(pb),
-            );
+            let corner = SitedRef::new(pa, vname(a, RoleSeg::CapVertex(CapEnd::End, ca)));
+            let tip = SitedRef::new(pb, vname(b, RoleSeg::CapVertex(CapEnd::Start, cb)));
             near(
                 gap(&doc, &corner, &tip),
                 want,
@@ -265,7 +255,7 @@ mod real_bodies {
             );
             // The block's +x/+y strut edge at (1, 1) reads the vertex too, in
             // either seat.
-            let strut = SitedRef::new(pa, ename(a, RoleSeg::LateralEdge(ca)).in_copy(pa));
+            let strut = SitedRef::new(pa, ename(a, RoleSeg::LateralEdge(ca)));
             near(
                 gap(&doc, &strut, &tip),
                 want,
@@ -288,12 +278,16 @@ mod real_bodies {
         (0.0, 3.0),
     ];
 
-    /// **A real L-bracket's reflex strut reads a vertex as the MIN**, and
-    /// its reflex top vertex (two convex rims, one concave strut) refuses
-    /// as a saddle. The cube's corner at `(1.02, 0.99)` is inside the
-    /// bracket's long leg (`y < 1`): `−0.01`. A `max` fold reads `+0.02`.
+    /// **A real L-bracket's reflex strut reads a vertex by its link, and
+    /// so does its reflex top vertex**, a saddle (two convex rims, one
+    /// concave strut). The cube's corner at `(1.02, 0.99)` is inside the
+    /// bracket's long leg (`y < 1`), `0.01` from its notch wall: `−0.01`;
+    /// at `(1.02, 1.01)` it is in the notch, `+0.01`. Reading the strut's
+    /// two face planes as an intersection reads `+0.02` in the leg, and
+    /// reading the vertex's three as either fold reads a wrong sign at
+    /// one of the two.
     #[test]
-    fn real_reflex_strut_reads_by_min_and_its_vertex_is_a_saddle() {
+    fn real_reflex_strut_and_its_saddle_vertex_read_by_their_links() {
         let doc = ProfileDoc::empty_derived("gap-cells-real-l", Tol::witness());
         let (doc, l) = extrude(doc, vec![poly(&L)], 1.0);
         let (doc, b) = extrude(doc, vec![poly(&UNIT)], 1.0);
@@ -302,11 +296,8 @@ mod real_bodies {
             let (doc, pb) = in_world(doc.clone(), b, &at([1.02, y, 0.5]));
             let reflex = vpiece(&doc, l, 0, 3);
             let cb = vpiece(&doc, b, 0, 0);
-            let strut = SitedRef::new(pl, ename(l, RoleSeg::LateralEdge(reflex)).in_copy(pl));
-            let tip = SitedRef::new(
-                pb,
-                vname(b, RoleSeg::CapVertex(CapEnd::Start, cb)).in_copy(pb),
-            );
+            let strut = SitedRef::new(pl, ename(l, RoleSeg::LateralEdge(reflex)));
+            let tip = SitedRef::new(pb, vname(b, RoleSeg::CapVertex(CapEnd::Start, cb)));
             near(
                 gap(&doc, &strut, &tip),
                 want,
@@ -317,14 +308,11 @@ mod real_bodies {
                 want,
                 &format!("reflex strut seat, y {y}"),
             );
-            let top = SitedRef::new(
-                pl,
-                vname(l, RoleSeg::CapVertex(CapEnd::End, reflex)).in_copy(pl),
-            );
-            let refused = gap(&doc, &top, &tip).expect_err("a saddle refuses");
-            assert!(
-                refused.contains("MeasureUnsupported") && refused.contains("a saddle vertex"),
-                "the reflex top vertex refuses as a saddle: {refused}"
+            let top = SitedRef::new(pl, vname(l, RoleSeg::CapVertex(CapEnd::End, reflex)));
+            near(
+                gap(&doc, &top, &tip),
+                want,
+                &format!("saddle vertex, y {y}"),
             );
         }
     }
@@ -332,8 +320,8 @@ mod real_bodies {
     /// **Two real ridges crossing at right angles.** The block's vertical
     /// `(1, 1)` strut (material `x, y ≤ 1`) and a wedge prism's apex ridge
     /// along `y` at `x = 1 + h, z = 0.5` (material `x ≥ 1 + h`): the ridges
-    /// are `h` apart. Each seat reads the sign of `h` (the magnitudes
-    /// differ: each is its own wedge's surrogate).
+    /// are `h` apart. Each seat reads the sign of `h`; the magnitudes are
+    /// each outer link's own distance to the inner segment.
     #[test]
     fn real_crossing_ridges_read_the_sign_in_both_seats() {
         for h in [0.0, 0.01, -0.01] {
@@ -351,8 +339,8 @@ mod real_bodies {
             let (doc, pw) = in_world(doc, w, &frame);
             let ca = vpiece(&doc, a, 0, 2);
             let apex = vpiece(&doc, w, 0, 0);
-            let strut = SitedRef::new(pa, ename(a, RoleSeg::LateralEdge(ca)).in_copy(pa));
-            let ridge = SitedRef::new(pw, ename(w, RoleSeg::LateralEdge(apex)).in_copy(pw));
+            let strut = SitedRef::new(pa, ename(a, RoleSeg::LateralEdge(ca)));
+            let ridge = SitedRef::new(pw, ename(w, RoleSeg::LateralEdge(apex)));
             let one = gap(&doc, &strut, &ridge).expect("strut outer reads");
             let two = gap(&doc, &ridge, &strut).expect("ridge outer reads");
             eprintln!("h {h}: strut-outer {one}, ridge-outer {two}");
@@ -364,6 +352,63 @@ mod real_bodies {
                 }
             }
         }
+    }
+
+    /// **Two real ridges whose lines meet read, in both seats, about any
+    /// axis.** The wedge prism turned a quarter turn about 24 axes off the
+    /// coordinate ones, placed so its apex ridge passes through
+    /// `(1, 1, 0.5)` on the block's strut. Each inner edge passes through
+    /// a point of the outer's boundary, so its lowest offset is zero or
+    /// below (below where its line enters the outer's cone, as a generic
+    /// line through a convex edge does). Every other row here is
+    /// axis-aligned, which hid the double roots rounding scatters about a
+    /// contact. Red if a seat refuses or reads above zero.
+    #[test]
+    fn real_ridges_whose_lines_meet_read_about_any_axis() {
+        let mut bad = Vec::new();
+        for k in 0..24 {
+            let kf = f64::from(k);
+            let a = [
+                1.0 + 0.37 * kf.sin(),
+                0.6 * (1.3 * kf).cos(),
+                0.25 + 0.5 * (0.7 * kf).sin(),
+            ];
+            let n = (a[0] * a[0] + a[1] * a[1] + a[2] * a[2]).sqrt();
+            let a = [a[0] / n, a[1] / n, a[2] / n];
+            // The quarter turn about `a` takes `+z` to `a × z + a·a_z`.
+            let d = [a[1] + a[0] * a[2], -a[0] + a[1] * a[2], a[2] * a[2]];
+            let doc = ProfileDoc::empty_derived("gap-cells-real-turned", Tol::witness());
+            let (doc, blk) = extrude(doc, vec![poly(&SQUARE)], 1.0);
+            let (doc, w) = extrude(doc, vec![poly(&[(0.0, 0.0), (1.0, -0.3), (1.0, 0.3)])], 2.0);
+            let (doc, pa) = place(doc, blk);
+            let frame = Frame::rotate_by_turns_then_translate(
+                a,
+                Turns::new(1, 4).expect("a quarter"),
+                [1.0 - d[0], 1.0 - d[1], 0.5 - d[2]],
+                crate::fixture::band(),
+            )
+            .expect("a unit axis");
+            let (doc, pw) = in_world(doc, w, &frame);
+            let ca = vpiece(&doc, blk, 0, 2);
+            let apex = vpiece(&doc, w, 0, 0);
+            let strut = SitedRef::new(pa, ename(blk, RoleSeg::LateralEdge(ca)));
+            let ridge = SitedRef::new(pw, ename(w, RoleSeg::LateralEdge(apex)));
+            for (o, i, seat) in [
+                (&strut, &ridge, "strut outer"),
+                (&ridge, &strut, "ridge outer"),
+            ] {
+                match gap(&doc, o, i) {
+                    Ok(g) if g <= 1e-9 => {}
+                    got => bad.push(format!("axis {k} {a:.3?}, {seat}: {got:?}")),
+                }
+            }
+        }
+        assert!(
+            bad.is_empty(),
+            "{} of 48 seats:\n{}",
+            bad.len(),
+            bad.join("\n")
+        );
     }
 
     /// **A real pin and a real bore read a vertex by their sense.** A disc
@@ -418,10 +463,7 @@ mod real_bodies {
             // The cube's start-cap vertex 0, local (0, −0.1, 0), stands at
             // (0.5 + d, 0, 0.25).
             let cb = vpiece(&doc, b, 0, 0);
-            let tip = SitedRef::new(
-                pb,
-                vname(b, RoleSeg::CapVertex(CapEnd::Start, cb)).in_copy(pb),
-            );
+            let tip = SitedRef::new(pb, vname(b, RoleSeg::CapVertex(CapEnd::Start, cb)));
             near(gap(&doc, &wall, &tip), want, &format!("bore {bore}, d {d}"));
             near(
                 gap(&doc, &tip, &wall),
@@ -453,38 +495,30 @@ mod real_bodies {
         }
     }
 
-    /// **The Interval lane reads the new arms soundly**: on the real convex
-    /// corner (vertex x vertex, edge x vertex in both seats) and the real
-    /// crossing ridges (edge x edge, through `gap_wedge_crossing`'s
-    /// division), the enclosure contains the f64 value, or refuses typed.
+    /// **The Interval lane reads the cell arms, and encloses the f64
+    /// value**: on the real convex corner (vertex x vertex, edge x vertex
+    /// in both seats) and the real crossing ridges (edge x edge, through
+    /// `lowest_on`'s candidates, at contact too), every reading reads and
+    /// its enclosure contains the f64 value. Red if one refuses, or misses.
+    /// (An enclosure over a box of inputs is `topo::link`'s
+    /// `an_interval_offset_encloses_its_box`.)
     #[test]
     fn interval_lane_encloses_the_f64_gap() {
+        let read = core::cell::Cell::new(0);
         let check = |doc: &ProfileDoc, o: &SitedRef, i: &SitedRef, what: &str| {
             let f = gap(doc, o, i).expect("f64 reads");
-            match gap_interval(doc, o, i) {
-                Ok((lo, hi)) => {
-                    eprintln!("{what}: f64 {f}, interval [{lo}, {hi}]");
-                    assert!(lo <= f && f <= hi, "{what}: [{lo}, {hi}] misses {f}");
-                }
-                Err(e) => {
-                    eprintln!("{what}: interval refused {e}");
-                    assert!(!e.contains("panic"), "{what}: {e}");
-                }
-            }
+            let (lo, hi) =
+                gap_interval(doc, o, i).unwrap_or_else(|e| panic!("{what}: refused {e}"));
+            assert!(lo <= f && f <= hi, "{what}: [{lo}, {hi}] misses {f}");
+            read.set(read.get() + 1);
         };
         for dx in [0.01, -0.01, 0.0] {
             let (doc, a, b, pa, pb) = two_blocks([1.0 + dx, 0.98, 0.98]);
             let ca = vpiece(&doc, a, 0, 2);
             let cb = vpiece(&doc, b, 0, 0);
-            let corner = SitedRef::new(
-                pa,
-                vname(a, RoleSeg::CapVertex(CapEnd::End, ca)).in_copy(pa),
-            );
-            let tip = SitedRef::new(
-                pb,
-                vname(b, RoleSeg::CapVertex(CapEnd::Start, cb)).in_copy(pb),
-            );
-            let strut = SitedRef::new(pa, ename(a, RoleSeg::LateralEdge(ca)).in_copy(pa));
+            let corner = SitedRef::new(pa, vname(a, RoleSeg::CapVertex(CapEnd::End, ca)));
+            let tip = SitedRef::new(pb, vname(b, RoleSeg::CapVertex(CapEnd::Start, cb)));
+            let strut = SitedRef::new(pa, ename(a, RoleSeg::LateralEdge(ca)));
             check(&doc, &corner, &tip, &format!("corner/vertex dx {dx}"));
             check(&doc, &strut, &tip, &format!("strut/vertex dx {dx}"));
             check(&doc, &tip, &strut, &format!("vertex/strut dx {dx}"));
@@ -504,10 +538,11 @@ mod real_bodies {
             let (doc, pw) = in_world(doc, w, &frame);
             let ca = vpiece(&doc, a, 0, 2);
             let apex = vpiece(&doc, w, 0, 0);
-            let strut = SitedRef::new(pa, ename(a, RoleSeg::LateralEdge(ca)).in_copy(pa));
-            let ridge = SitedRef::new(pw, ename(w, RoleSeg::LateralEdge(apex)).in_copy(pw));
+            let strut = SitedRef::new(pa, ename(a, RoleSeg::LateralEdge(ca)));
+            let ridge = SitedRef::new(pw, ename(w, RoleSeg::LateralEdge(apex)));
             check(&doc, &strut, &ridge, &format!("strut/ridge h {h}"));
             check(&doc, &ridge, &strut, &format!("ridge/strut h {h}"));
         }
+        assert_eq!(read.get(), 15, "every reading read");
     }
 }

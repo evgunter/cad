@@ -34,15 +34,21 @@ import math
 import unittest
 
 from pncad import (
+    Coord,
     Doc,
     DocEdit,
     EditError,
     EntityKind,
     EvaluationError,
     Formula,
+    Mate,
+    MateValue,
     Node,
     Open,
+    Orientation,
+    Placed,
     Pose,
+    PoseDef,
     ReadbackError,
     Start,
     SurfaceKind,
@@ -50,7 +56,9 @@ from pncad import (
     evaluate,
     m,
     rad,
+    solve_document,
 )
+from measuring import pinned
 
 SQUARE = [
     (Formula.length_in(0, m), Formula.length_in(0, m)),
@@ -225,6 +233,13 @@ def loop(points):
 PAD = loop([(-0.3, -0.3), (0.3, -0.3), (0.3, 0.3), (-0.3, 0.3)])
 
 
+def outward(ev, node, face):
+    """`node`'s face `face`'s outward normal: its sense times its axis."""
+    frame = ev.face_frame(node, face)
+    sign = 1.0 if frame.sense else -1.0
+    return tuple(sign * a for a in frame.axis)
+
+
 def positions(ev, node):
     """Every vertex of `node`, in metres."""
     return [tuple(c.meters for c in ev.vertex_position(node, v)) for v in ev.all_vertices(node)]
@@ -262,7 +277,7 @@ class TestSketchOnAFace(unittest.TestCase):
                 self.assertAlmostEqual(max(p[axis] for p in boss), hi, delta=1e-12)
         # The union holds the plate and the boss: 1 x 1 x 0.2 and
         # 0.6 x 0.6 x 0.3.
-        volume = ev.value(sketched.union).body().mass_properties().volume
+        volume = pinned(ev.value(sketched.union).body()).volume
         self.assertAlmostEqual(volume, 0.2 + 0.108, delta=1e-12)
 
     def test_the_four_nodes_are_one_recorded_action(self):
@@ -315,6 +330,197 @@ class TestSketchOnAFace(unittest.TestCase):
         self.assertIn(sketched.placement, stranded)
         with self.assertRaises(EvaluationError):
             evaluate(self.doc).value(sketched.placement)
+
+
+# A pad with no symmetry: a turn or a mirror of it is another set of
+# corners, so where its corners land says how the boss is turned.
+SKEW = loop([(0.1, 0.05), (0.4, 0.05), (0.4, 0.25), (0.1, 0.15)])
+
+AXES = {"+x": (1.0, 0.0, 0.0), "-x": (-1.0, 0.0, 0.0), "+y": (0.0, 1.0, 0.0),
+        "-y": (0.0, -1.0, 0.0), "+z": (0.0, 0.0, 1.0), "-z": (0.0, 0.0, -1.0)}
+
+
+class TestSketchOnEveryFace(unittest.TestCase):
+    """A sketch on each of the plate's six faces, the orientation left
+    to the gesture: the one nearest where the copy stands, the profile's
+    `z` along the face's outward normal. So the least turn is the
+    identity, the boss's own axes are the orientation's, its origin
+    stands on the face over the plate's own, and it grows 0.3 along the
+    outward normal, whichever face it is, the bottom included. An
+    orientation written backwards still refuses, naming the one to
+    write."""
+
+    def faces(self):
+        doc = Doc()
+        node = plate(doc, 0.2 * m)
+        ev = evaluate(doc)
+        return doc, node, {outward(ev, node, f): f for f in ev.all_faces(node)}
+
+    def test_the_boss_stands_on_every_face_turned_by_the_nearest_orientation(self):
+        """Breaks if the gesture writes the slide the face's plane fixes
+        (a side face refuses `slides_do_not_span`), leaves the bottom to a
+        refusal, or places the boss anywhere but on the face: its corners
+        are the skewed pad's, turned by the orientation the placement
+        carries and set on the face over the plate's origin."""
+        _, _, faces = self.faces()
+        self.assertEqual(len(faces), 6, "a plate has six faces, one per outward normal")
+        for normal in faces:
+            with self.subTest(normal=normal):
+                doc, node, by_normal = self.faces()
+                sketched = doc.sketch_on_face(node, by_normal[normal], SKEW, 0.3 * m)
+                self.assertIsNone(solve_document(doc).fault(sketched.placement))
+                (orient,) = [c.orient for _, c in doc.bundle(sketched.placement) if isinstance(c, Mate)]
+                cols = [AXES[orient.x], AXES[orient.y], AXES[orient.z]]
+                self.assertEqual(cols[2], normal, "the profile's z looks out of the face")
+                # The nearest: no orientation putting z on the normal has
+                # a greater trace, and a tie keeps the author's `+x`.
+                trace = cols[0][0] + cols[1][1] + cols[2][2]
+                rivals = [
+                    Orientation(x, orient.z)
+                    for x in AXES
+                    if x[1] != orient.z[1]
+                ]
+                best = max(AXES[o.x][0] + AXES[o.y][1] + AXES[o.z][2] for o in rivals)
+                self.assertEqual(trace, best, f"{orient} is the nearest")
+                if sum(AXES[o.x][0] + AXES[o.y][1] + AXES[o.z][2] == best for o in rivals) > 1:
+                    self.assertEqual(orient.x, "+x", "a tie keeps the author's x")
+                k = max(range(3), key=lambda i: abs(normal[i]))
+                face_at = (0.2 if k == 2 else 1.0) if normal[k] > 0 else 0.0
+                at = tuple(face_at if i == k else 0.0 for i in range(3))
+                corners = [(0.1, 0.05), (0.4, 0.05), (0.4, 0.25), (0.1, 0.15)]
+                want = sorted(
+                    tuple(at[i] + u * cols[0][i] + v * cols[1][i] + h * cols[2][i] for i in range(3))
+                    for u, v in corners
+                    for h in (0.0, 0.3)
+                )
+                got = sorted(positions(evaluate(doc), sketched.placement))
+                self.assertEqual(len(got), len(want))
+                for g, w in zip(got, want, strict=True):
+                    for a, b in zip(g, w, strict=True):
+                        self.assertAlmostEqual(a, b, delta=1e-12)
+
+    def test_an_orientation_written_backwards_refuses_naming_the_one_to_write(self):
+        """Breaks if the identity written on the bottom face is answered
+        by a half turn about an arbitrary axis, or the refusal names an
+        orientation that does not place the boss under the plate."""
+        doc, node, faces = self.faces()
+        bottom = faces[(0.0, 0.0, -1.0)]
+        sketched = doc.sketch_on_face(node, bottom, SKEW, 0.3 * m, orient=Orientation.identity())
+        fault = solve_document(doc).fault(sketched.placement)
+        self.assertIsNotNone(fault)
+        self.assertEqual(fault.variant, "mate_backwards")
+        self.assertEqual(fault.orient, Orientation.identity())
+        write = fault.write
+        doc, node, faces = self.faces()
+        sketched = doc.sketch_on_face(node, faces[(0.0, 0.0, -1.0)], SKEW, 0.3 * m, orient=write)
+        zs = [p[2] for p in positions(evaluate(doc), sketched.placement)]
+        self.assertAlmostEqual(max(zs), 0.0, delta=1e-12)
+        self.assertAlmostEqual(min(zs), -0.3, delta=1e-12)
+
+
+class TestARestSpinsOneWay(unittest.TestCase):
+    """A unit plate rests on a floor plate at slides `(3, 4)` and a
+    spin of 0.5, its contact spelled twice: the flip on the floor's
+    plane (as the viewer's mate tool and `Mate`'s docs write a rest), and
+    the flip on the copy's bottom (as `sketch_on_face` writes it). The
+    one spin turns about the target's own direction whatever side
+    carries the flip, so both stand the copy at one place, turned
+    counter-clockwise seen from `+z`."""
+
+    SPIN = 0.5
+
+    def rested(self, copy_side):
+        doc = Doc()
+        floor = doc.place(plate(doc, 0.2 * m), doc.world)
+        body = plate(doc, 0.2 * m)
+        copy = doc.place(body, doc.world)
+        ev = evaluate(doc)
+
+        def facing(node, z):
+            (face,) = [f for f in ev.all_faces(node) if outward(ev, node, f) == (0.0, 0.0, z)]
+            return PoseDef.plane(node, face)
+
+        bottom, top = facing(body, -1.0), facing(floor, 1.0)
+        mate = Mate(PoseDef.flip(bottom), top) if copy_side else Mate(bottom, PoseDef.flip(top))
+        doc.set_constraints(
+            copy,
+            [
+                mate,
+                MateValue(Coord.slide("x"), 3.0 * m),
+                MateValue(Coord.slide("y"), 4.0 * m),
+                MateValue(Coord.spin(), self.SPIN * rad),
+            ],
+        )
+        return sorted(positions(evaluate(doc), copy))
+
+    def test_both_spellings_stand_the_copy_at_one_place(self):
+        """Breaks if the spin turns about the mated direction with the
+        flip included: the floor-side flip points it down, turning that
+        copy the other way."""
+        floor_side, copy_side = self.rested(False), self.rested(True)
+        self.assertEqual(len(floor_side), len(copy_side))
+        for a, b in zip(floor_side, copy_side, strict=True):
+            for x, y in zip(a, b, strict=True):
+                self.assertAlmostEqual(x, y, delta=1e-12)
+
+    def test_a_positive_spin_turns_counter_clockwise_seen_from_above(self):
+        """Breaks if a positive spin on a floor rest turns clockwise seen
+        from `+z`: the copy's own corner `(1, 0, 0)` lands at
+        `(3 + cos 0.5, 4 + sin 0.5)` on the floor's top, 0.2 up."""
+        want = (3.0 + math.cos(self.SPIN), 4.0 + math.sin(self.SPIN), 0.2)
+        for copy_side in (False, True):
+            with self.subTest(copy_side=copy_side):
+                corners = self.rested(copy_side)
+                near = min(corners, key=lambda p: math.dist(p, want))
+                for got, w in zip(near, want, strict=True):
+                    self.assertAlmostEqual(got, w, delta=1e-12)
+
+
+class TestARestOnAWall(unittest.TestCase):
+    """A unit plate's `-x` face rests on a wall's `+x` face under the
+    identity orientation, so the plane fixes the slide along `x` and
+    leaves `y` and `z`. `Doc.constrain`, the gesture, reads the copy's
+    geometry and writes those two; the raw `DocEdit.add_constraint`
+    reads none and writes `x` and `y`, which the solve refuses, naming
+    the pair to write, and that pair places."""
+
+    def scene(self):
+        doc = Doc()
+        wall = doc.place(plate(doc, 0.2 * m), doc.world)
+        body = plate(doc, 0.2 * m)
+        copy = doc.place(body, doc.world)
+        ev = evaluate(doc)
+
+        def facing(node, normal):
+            (face,) = [f for f in ev.all_faces(node) if outward(ev, node, f) == normal]
+            return PoseDef.plane(node, face)
+
+        mate = Mate(facing(body, (-1.0, 0.0, 0.0)), PoseDef.flip(facing(wall, (1.0, 0.0, 0.0))))
+        return doc, copy, mate
+
+    def test_the_gesture_rests_the_plate_flush_on_the_wall(self):
+        """Breaks if `Doc.constrain` fills the slides in axis order, the
+        `x` the wall fixes among them."""
+        doc, copy, mate = self.scene()
+        doc.constrain(copy, mate)
+        self.assertIsNone(solve_document(doc).fault(copy))
+        xs = [p[0] for p in positions(evaluate(doc), copy)]
+        self.assertAlmostEqual(min(xs), 1.0, delta=1e-12)
+
+    def test_the_raw_edit_refuses_naming_the_pair_that_places(self):
+        """Breaks if the raw edit's refusal names no pair, or a pair that
+        does not place."""
+        doc, copy, mate = self.scene()
+        doc.apply(DocEdit.add_constraint(copy, mate))
+        fault = solve_document(doc).fault(copy)
+        self.assertIsNotNone(fault)
+        self.assertEqual(fault.why, "slides_do_not_span")
+        self.assertEqual(fault.slides, ["y", "z"])
+        self.assertIn("write the slides along y and z", str(fault))
+        doc, copy, mate = self.scene()
+        pair = [MateValue(Coord.slide("y"), 0.0 * m), MateValue(Coord.slide("z"), 0.0 * m)]
+        doc.set_constraints(copy, Placed.of(doc, [mate], pair))
+        self.assertIsNone(solve_document(doc).fault(copy))
 
 
 class TestSketchOnAFaceRefuses(unittest.TestCase):

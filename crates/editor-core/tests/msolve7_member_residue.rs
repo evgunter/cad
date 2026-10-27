@@ -27,7 +27,7 @@ use editor_core::{
     RecipeNodeId, RoleSeg, SitedFace, StableName, TargetAxis, VarName, apply, load, save,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
-use fixture::{ang, head, insert, len, on_frame, solve, step};
+use fixture::{ang, head_at, insert, len, on_frame, solve, step};
 use geom_core::linalg::Affine3;
 use geom_core::{Point3, Tol, Vec3};
 use test_utils::source;
@@ -202,13 +202,13 @@ fn scene(label: &str, params: &[(&'static str, FreeVar)], x: Formula, turn: Form
         doc,
         top,
         fixture::rest(
-            head(in_part(top, top_body, CapEnd::Start)),
-            head(in_part(base, base_body, CapEnd::End)),
+            head_at(top, in_part(top, top_body, CapEnd::Start)),
+            head_at(base, in_part(base, base_body, CapEnd::End)),
         ),
         &[
             (Coord::Slide(TargetAxis::X), x),
             (Coord::Slide(TargetAxis::Y), len(1.0)),
-            (Coord::Spin(editor_core::TargetAxis::Z), turn),
+            (Coord::SPIN, turn),
         ],
     );
     Scene {
@@ -392,19 +392,16 @@ fn saved_with_a_bundle(label: &str) -> (ProfileDoc, String) {
         ids.push(applied.record.minted.expect("a minted id"));
         doc = applied.doc;
     }
+    // A part's cap, read at the instance whose copy carries it.
     let name = |node, end| {
-        fixture::head(StableName {
-            kind: EntityKind::Face,
+        fixture::head_at(
             node,
-            path: vec![RoleSeg::InPart {
-                of: StableName {
-                    kind: EntityKind::Face,
-                    node: RecipeNodeId::new(0, 1),
-                    path: vec![RoleSeg::Cap(end)],
-                }
-                .into(),
-            }],
-        })
+            StableName {
+                kind: EntityKind::Face,
+                node: RecipeNodeId::new(0, 1),
+                path: vec![RoleSeg::Cap(end)],
+            },
+        )
     };
     let (doc, _) = fixture::mated(
         doc,
@@ -413,7 +410,7 @@ fn saved_with_a_bundle(label: &str) -> (ProfileDoc, String) {
             fixture::plane(name(ids[1], CapEnd::Start)),
             standoff(name(ids[0], CapEnd::End), 0.5),
         ),
-        &[(Coord::Spin(editor_core::TargetAxis::Z), ang(0.25))],
+        &[(Coord::SPIN, ang(0.25))],
     );
     let text = save(&doc, &[], Tol::witness()).expect("saves");
     (doc, text)
@@ -568,7 +565,7 @@ fn a4_the_same_bundle_without_the_key_loads() {
     assert_eq!(
         coords,
         [
-            Coord::Spin(TargetAxis::Z),
+            Coord::SPIN,
             Coord::Slide(TargetAxis::X),
             Coord::Slide(TargetAxis::Y),
         ],

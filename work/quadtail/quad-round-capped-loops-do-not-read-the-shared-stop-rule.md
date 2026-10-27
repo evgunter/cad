@@ -2,11 +2,12 @@
 id: quad-round-capped-loops-do-not-read-the-shared-stop-rule
 kind: issue
 title: the quadrature loops stop on a round count, not on the crate's stop rule (crate::descent)
-status: open
+status: closed
 opened: 2026-10-12
 priority: P4
 cost: M
 parent: the-measurement-door-refines-until-a-predicate-resolves
+closed: 2026-10-26
 ---
 
 
@@ -30,3 +31,7 @@ Owed: a decision on whether these loops should read `descent`. The questions:
 - Is the round count a work bound (a wall) in the rule's sense, or a structure choice the resumable `window.first` API depends on?
 
 If they should not, the answer belongs in `descent`'s module doc, which already names these loops as not reading the rule. Measure first: the per-round width traces over the props suites, in the way PR 4800 measured the offset fit's.
+
+## Closed
+
+Closed into the measurement door (`work/quad/the-measurement-door-refines-until-a-predicate-resolves`). PR 5589 replaced the round caps with one stop rule per lane (`Refinable`/`Floor`/`Wall`, `crate::descent`'s stall as the backstop) under one weighted work wall, and unit C removed the last round-capped reading, the interim number doors.

@@ -225,13 +225,15 @@ fn reaches_certification(lines: &[String]) -> bool {
 /// pinned in [`ROSTER`] like every other file's, so a read arriving in
 /// one of them reds, and [`every_listed_holder_exists`] reds when an
 /// entry names a file that is gone — a list that silently shrinks is
-/// the failure a list invites.
+/// the failure a list invites. An entry ending `/` lists a directory,
+/// every file under it ([`held`]): the quadrature's lanes, one module
+/// split by file.
 const HOLDERS: &[&str] = &[
     "crates/geom-brep/src/offset_fit.rs",
     "crates/geom-brep/src/offset_meters.rs",
     "crates/geom-brep/src/patch_bound.rs",
     "crates/geom-brep/src/props/mod.rs",
-    "crates/geom-brep/src/props/quad.rs",
+    "crates/geom-brep/src/props/quad/",
     "crates/geom-brep/src/ssi.rs",
     "crates/geom-brep/src/ssi/certify.rs",
     "crates/geom-brep/src/ssi/enclose.rs",
@@ -255,6 +257,19 @@ const HOLDERS: &[&str] = &[
     "crates/step-import/src/recognize_curve.rs",
     "crates/topo/src/props/quad_lane.rs",
 ];
+
+/// Whether `rel` is one of [`HOLDERS`]: a listed file, or a file under a
+/// listed directory (an entry ending `/`), so a file added to a listed
+/// directory is walked without a line here.
+fn held(rel: &str) -> bool {
+    HOLDERS.iter().any(|h| {
+        if h.ends_with('/') {
+            rel.starts_with(h)
+        } else {
+            rel == *h
+        }
+    })
+}
 
 /// One entry per file walked with at least one endpoint read — every
 /// `crates/*/src` file whose production code reaches certification
@@ -282,6 +297,7 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          that reached the fitted gate fails it, and `chart_image`'s domain door \
          refuses one in a span",
     ),
+    ("crates/geom-brep/src/curve_face/composite.rs", 8, 8, ""),
     (
         "crates/geom-brep/src/offset_fit.rs",
         10,
@@ -313,25 +329,69 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ("crates/geom-brep/src/pcurve_cache/projected.rs", 2, 2, ""),
     ("crates/geom-brep/src/props/bracket.rs", 4, 4, ""),
     (
-        "crates/geom-brep/src/props/quad.rs",
-        7,
+        "crates/geom-brep/src/props/quad/cells.rs",
+        3,
         2,
-        "the remaining 5 are safe by construction: `cos_step`/`sin_step` and the two \
-         half-angle clamps build from `pt` of a finite f64 with nonzero exact divisors, \
-         so no operand can leave a domain (argued at each). Every other read goes \
-         through `lo_or_refuse`/`certified_hi`/`mid` (`props/bracket.rs`), which are \
-         the guarded ones",
+        "`ratio_hull`'s 2 refuse the bracket they read by name. The remainder is \
+         `MeasureCells::build`'s `origin`, a frame choice: the measure quotients' \
+         `N = A·(A_u×A_v) + c·M̃` holds for every frame `c`, so no enclosure rests on \
+         which point it is",
     ),
     (
-        "crates/geom-brep/src/props/spiric.rs",
-        14,
-        13,
-        "the remaining 1 is `trig_range`'s half-width, safe by construction: it reads \
-         `pt` differences of two f64 ends the function has checked finite and ordered, \
-         so no operand can be refused. Every other read sits in a function that refuses \
-         a refused input by name (`trig_of`, `window_rates`, `span_rates`, \
-         `spiric_length_bound`, `piece_speed`, `composite`, `wall_chart`)",
+        "crates/geom-brep/src/props/quad/net.rs",
+        3,
+        1,
+        "`widen` refuses the bracket it reads by name. The remainder is \
+         `PatchNet::at` and `is_rational`, which read the weight channel that \
+         `PatchNet::new`, its one constructor, fills with `pt` of a weight it has \
+         checked finite: a point bracket that certifies, whose `lo` IS the weight",
     ),
+    (
+        "crates/geom-brep/src/props/quad/rational.rs",
+        2,
+        2,
+        "`rational_patch_face`'s 2 are weight reads (`net.rs`'s note) in a function \
+         that asks of other values",
+    ),
+    (
+        "crates/geom-brep/src/props/quad/trig.rs",
+        5,
+        0,
+        "`cos_step`/`sin_step` (3) and the two half-angle clamps build from `pt` of a \
+         finite f64 with nonzero exact divisors, so no operand can leave a domain \
+         (argued at each)",
+    ),
+    (
+        "crates/geom-brep/src/props/quad/trimmed.rs",
+        4,
+        2,
+        "`norm_lo` and `cuts`' crossing bracket refuse the bracket they read by name. \
+         The remainder is `composite_piece`'s 2: the located cell's containment test \
+         only picks which cell's polynomial the rule reads, and the rule then \
+         integrates at `chord.ell` of the same chord, whose slope's decoration rides \
+         into the piece's value (an uncertified slope makes an uncertified piece, and \
+         `widen` hands one on unwidened); the column bound's `h` is the width of a hull \
+         `ParamRange::certified` has just accepted, a difference of two finite point \
+         brackets. Every other read in `props/quad/` goes through \
+         `lo_or_refuse`/`certified_hi`/`mid` (`props/bracket.rs`), which are the \
+         guarded ones",
+    ),
+    ("crates/geom-brep/src/props/rational_rim.rs", 1, 1, ""),
+    (
+        "crates/geom-brep/src/props/spiric.rs",
+        12,
+        10,
+        "the remaining 2 are safe by construction. `trig_range`'s half-width reads \
+         `pt` differences of two f64 ends the function has checked finite and ordered, \
+         so no operand can be refused. `composite`'s integrand reads the `t` that \
+         `taylor::composite_by` hands it — a node's point bracket, a piece's \
+         `from_bounds` of two finite nodes, or the hull of two ends it has asked \
+         `is_certified()` of — so `t` certifies, and `trig_range` checks its ends \
+         again. Every other read sits in a function that refuses a refused input by \
+         name (`trig_of`, `window_rates`, `span_rates`, `spiric_length_bound`, \
+         `piece_speed`, `wall_chart_split`)",
+    ),
+    ("crates/geom-brep/src/props/taylor.rs", 3, 3, ""),
     (
         "crates/geom-brep/src/ssi.rs",
         6,
@@ -435,7 +495,18 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     ("crates/geom/src/curves/second_derivative.rs", 1, 1, ""),
     ("crates/mesh/src/chords.rs", 2, 2, ""),
-    ("crates/topo/src/props/quad_lane.rs", 10, 10, ""),
+    (
+        "crates/topo/src/props.rs",
+        5,
+        3,
+        "the 3 that ask are `deciding_walk`'s confirmation reads, which refine on a \
+         re-derivation that does not certify. The other 2: `far_from` reads the \
+         distances that decide whether a region is carried, a choice of reference \
+         point, and the carry it selects is refused by name in `carry_of` unless it \
+         certifies; `SignCertificate::interval_volume`'s ends are a refusal's payload \
+         (`outward_volume`, the bracket `Undecided` reports) and certify nothing",
+    ),
+    ("crates/topo/src/props/quad_lane.rs", 9, 9, ""),
 ];
 
 /// The repo root: this crate's directory, two levels up.
@@ -460,7 +531,7 @@ fn population(root: &std::path::Path) -> Vec<(String, Vec<String>)> {
     let mut out = Vec::new();
     for (rel, code) in sources {
         let lines = production(&code);
-        if !reaches_certification(&lines) && !HOLDERS.contains(&rel.as_str()) {
+        if !reaches_certification(&lines) && !held(&rel) {
             continue;
         }
         out.push((rel, lines));
@@ -782,7 +853,14 @@ fn every_listed_holder_exists() {
     let gone: Vec<&str> = HOLDERS
         .iter()
         .copied()
-        .filter(|p| !root.join(p).is_file())
+        .filter(|p| {
+            let at = root.join(p);
+            if p.ends_with('/') {
+                !at.is_dir()
+            } else {
+                !at.is_file()
+            }
+        })
         .collect();
     assert!(
         gone.is_empty(),

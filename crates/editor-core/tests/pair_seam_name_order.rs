@@ -524,10 +524,7 @@ fn a_subtract_of_a_transform_copy_names_each_crossing_apart() {
         );
         *by_edge_read.entry(read_of(edge)).or_insert(0) += 1;
         let inner = |n: &StableName| match n.path.first() {
-            Some(RoleSeg::From { of, .. }) => match of.path.as_slice() {
-                [RoleSeg::Placed { of }] => format!("{of:?}"),
-                _ => format!("{of:?}"),
-            },
+            Some(RoleSeg::From { of, .. }) => format!("{of:?}"),
             _ => unreachable!("read above"),
         };
         bare.insert((inner(edge), inner(face), format!("{sense:?}")));

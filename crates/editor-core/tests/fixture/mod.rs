@@ -160,9 +160,7 @@ pub fn floor(
     let (doc, inner) = insert(
         doc,
         Node::place(
-            vec![editor_core::BodyRead::plain(editor_core::Operand::output(
-                slab, 0,
-            ))],
+            editor_core::BodyRead::plain(editor_core::Operand::output(slab, 0)),
             editor_core::Operand::Var(space),
             sunk.bundle(),
         ),
@@ -171,16 +169,12 @@ pub fn floor(
     let (doc, outer) = insert(
         doc,
         Node::place(
-            vec![editor_core::BodyRead::plain(editor_core::Operand::output(
-                inner, 0,
-            ))],
+            editor_core::BodyRead::plain(editor_core::Operand::output(inner, 0)),
             editor_core::Operand::Var(VarId::WORLD),
             moved.bundle(),
         ),
     );
-    let top = fname(slab, RoleSeg::Cap(editor_core::CapEnd::End))
-        .in_copy(inner)
-        .in_copy(outer);
+    let top = fname(slab, RoleSeg::Cap(editor_core::CapEnd::End));
     let plane = plane(editor_core::Operand::select(
         editor_core::Operand::output(outer, 0),
         vec![top],
@@ -244,12 +238,17 @@ pub fn rest(
     editor_core::Mate {
         on: plane(on),
         to: flip(plane(to)),
+        orient: editor_core::Orientation::IDENTITY,
     }
 }
 
 /// **A mate equating two poses** as written, `on` reading the copy.
 pub fn mate(on: editor_core::Operand, to: editor_core::Operand) -> editor_core::Mate<Formula> {
-    editor_core::Mate { on, to }
+    editor_core::Mate {
+        on,
+        to,
+        orient: editor_core::Orientation::IDENTITY,
+    }
 }
 
 /// **The placement whose copy an authored face side reads**: the node
@@ -322,8 +321,8 @@ pub fn placed_by(doc: &ProfileDoc, mate: &editor_core::Mate<Formula>) -> RecipeN
             .placements()
             .into_iter()
             .filter(|&p| {
-                matches!(doc.node(p), Some(Node::Place { shapes, .. })
-                    if shapes.iter().any(|s| doc.operation_of(s.read) == read))
+                matches!(doc.node(p), Some(Node::Place { source, .. })
+                    if doc.operation_of(source.read) == read)
             })
             .collect();
         if let [one] = copying.as_slice() {
@@ -386,7 +385,9 @@ pub fn write_bundle(
     constraints: Vec<editor_core::Constraint<Formula>>,
 ) -> (ProfileDoc, Vec<editor_core::MateRef>) {
     let mut doc = doc;
-    for edit in bundle_edits(&doc, placement, constraints) {
+    let edits = bundle_edits(&doc, placement, constraints);
+    let retargets = edits.len() > 1;
+    for edit in edits {
         let applied = editor_core::apply(&doc, &edit, Tol::witness())
             .unwrap_or_else(|e| panic!("the bundle is admitted: {e}"));
         doc = applied.doc;
@@ -397,6 +398,11 @@ pub fn write_bundle(
                 .iter()
                 .map(|&id| editor_core::MateRef::new(placement, id))
                 .collect();
+            // A world product the fixture wrote is the world's copies,
+            // which a re-targeted copy may have joined or left.
+            if retargets && doc.product().is_some() {
+                doc = assemble_world_copies(doc);
+            }
             return (doc, minted);
         }
     }
@@ -456,6 +462,13 @@ pub fn into_new_space(doc: ProfileDoc, placement: RecipeNodeId) -> (ProfileDoc, 
         },
     )
     .0;
+    // A world product the fixture wrote is the world's copies, which
+    // this one has left.
+    let doc = if doc.product().is_some() {
+        assemble_world_copies(doc)
+    } else {
+        doc
+    };
     (doc, space)
 }
 
@@ -507,24 +520,24 @@ pub fn mated(
     (doc, minted[0])
 }
 
-/// **A placement node copying `shapes` into the space `constraints`'
+/// **A placement node copying `source` into the space `constraints`'
 /// mates read** ([`mates_space`]; the world for a bundle with no mate),
 /// its bundle written whole.
 pub fn place_node(
     doc: &ProfileDoc,
-    shapes: Vec<editor_core::BodyRead<Formula>>,
+    source: impl Into<editor_core::BodyRead<Formula>>,
     constraints: Vec<editor_core::Constraint<Formula>>,
 ) -> AuthoredNode {
     let target = mates_space(doc, &constraints).unwrap_or(VarId::WORLD);
-    Node::place(shapes, editor_core::Operand::Var(target), constraints)
+    Node::place(source, editor_core::Operand::Var(target), constraints)
 }
 
-/// **A placement node copying `shapes`, standing in the world**: the
+/// **A placement node copying `source`, standing in the world**: the
 /// identity bundle ([`editor_core::stand`]), which a row then writes
 /// over ([`write_bundle`]).
-pub fn stood(shapes: Vec<editor_core::BodyRead<Formula>>) -> AuthoredNode {
+pub fn stood(source: impl Into<editor_core::BodyRead<Formula>>) -> AuthoredNode {
     Node::place(
-        shapes,
+        source,
         editor_core::Operand::Var(VarId::WORLD),
         editor_core::stand().bundle(),
     )
@@ -545,7 +558,7 @@ pub fn stood_in(
     insert(
         doc,
         Node::place(
-            vec![editor_core::BodyRead::plain(read)],
+            editor_core::BodyRead::plain(read),
             editor_core::Operand::Var(target),
             editor_core::stand().bundle(),
         ),
@@ -608,12 +621,10 @@ pub fn pin(
 }
 
 /// **`placement`'s copy as its constraints read it**: a `Place` through
-/// its first shape, an instance through its own copies.
+/// its source, an instance through its own copy.
 fn copy_read(doc: &ProfileDoc, placement: RecipeNodeId) -> editor_core::Operand {
     match doc.node(placement) {
-        Some(Node::Place { shapes, .. }) => {
-            editor_core::Operand::Var(shapes.first().expect("a placement copies a shape").read)
-        }
+        Some(Node::Place { source, .. }) => editor_core::Operand::Var(source.read),
         Some(Node::InstantiatePart { .. }) => editor_core::Operand::Var(
             doc.output(placement, 0)
                 .expect("an instance defines its copies"),
@@ -661,14 +672,14 @@ pub fn pinned(doc: ProfileDoc, placement: RecipeNodeId, o: &EvalOptions) -> Prof
 
 /// **`node` inserted and pinned to the world at the identity**
 /// ([`pinned`]): an instance or a placement that stands where its
-/// shapes do, in the product.
+/// source does, in the product ([`assemble_world_copies`]).
 pub fn insert_pinned(
     doc: ProfileDoc,
     node: AuthoredNode,
     o: &EvalOptions,
 ) -> (ProfileDoc, RecipeNodeId) {
     let (doc, id) = insert(doc, node);
-    (pinned(doc, id, o), id)
+    (assemble_world_copies(pinned(doc, id, o)), id)
 }
 
 /// **The at-rest gate's verdict**, as a mate row wants to read it:
@@ -688,13 +699,124 @@ pub fn gate(doc: &editor_core::ProfileDoc, ev: &Evaluation<f64>) -> Result<(), A
 /// The `expect` in [`face`] is the fixture's own claim that the name it
 /// just made is a face — if it is not, the fixture is wrong and says so
 /// where it is built.
-pub fn head(name: StableName) -> editor_core::SitedFace {
-    editor_core::SitedFace::at_mint(face(name))
+pub fn head(name: impl Sited) -> editor_core::SitedFace {
+    name.sited()
 }
 
 /// The same side read at `at` rather than at its mint.
-pub fn head_at(at: RecipeNodeId, name: StableName) -> editor_core::SitedFace {
+pub fn head_at(at: RecipeNodeId, name: impl Into<StableName>) -> editor_core::SitedFace {
     editor_core::SitedFace::new(at, face(name))
+}
+
+/// **`name`'s product name**, read where it is read ([`Sited`]): the
+/// name itself where the product is the copy that carries it, else the
+/// product `⊔`'s name keyed by the copy it came from (`From { read }`),
+/// the copy that is the site's, or a placement's copy of it, where
+/// several carry it.
+///
+/// # Panics
+///
+/// If the product does not gather, or no copy, or several copies none
+/// of them the site's, carry `name`.
+pub fn product_name(doc: &ProfileDoc, ev: &Evaluation<f64>, name: impl Sited) -> StableName {
+    let at = name.site();
+    let name = name.name();
+    let (_, names) =
+        editor_core::product_named(doc, ev, Tol::witness()).expect("the product gathers");
+    if names.lookup(&name).is_some() {
+        return name;
+    }
+    let keyed = |n: &StableName| match n.path.as_slice() {
+        [RoleSeg::From { read, of }] if **of == name => Some(*read),
+        _ => None,
+    };
+    let found: Vec<(StableName, VarId)> = names
+        .iter()
+        .filter_map(|(n, _)| keyed(n).map(|read| (n.clone(), read)))
+        .collect();
+    match found.as_slice() {
+        [(one, _)] => one.clone(),
+        many => many
+            .iter()
+            .find(|(_, read)| copies(doc, *read, at))
+            .map(|(n, _)| n.clone())
+            .unwrap_or_else(|| panic!("{name:?} has one product name at {at:?}, not {found:?}")),
+    }
+}
+
+/// Whether the copy `read` is `at`'s, or a placement's copy of it,
+/// through every placement between.
+fn copies(doc: &ProfileDoc, read: VarId, at: RecipeNodeId) -> bool {
+    let mut node = doc.operation_of(read);
+    while let Some(id) = node {
+        if id == at {
+            return true;
+        }
+        node = match doc.node(id) {
+            Some(Node::Place { source, .. }) => doc.operation_of(source.read),
+            _ => None,
+        };
+    }
+    false
+}
+
+/// **A mate's read of a name** where the name is read ([`Sited`]).
+pub fn sited_ref(name: impl Sited) -> editor_core::SitedRef {
+    let at = name.site();
+    editor_core::SitedRef::new(at, name.name())
+}
+
+/// **`doc` with its product the world's copies**, in document order:
+/// the product a document whose placements are its assembly states
+/// ([`editor_core::test_support::assemble_world_copies`]). Called again
+/// after a placement is added, it writes the product anew.
+pub fn assemble_world_copies(doc: ProfileDoc) -> ProfileDoc {
+    editor_core::test_support::assemble_world_copies(doc, Tol::witness())
+}
+
+/// **A name and where it is read**: a name this document minted, at
+/// its mint; a part's name ([`resolver::PartName`]), at the instance whose
+/// copy carries it.
+pub trait Sited {
+    /// The node the name is read at.
+    fn site(&self) -> RecipeNodeId;
+    /// The name.
+    fn name(self) -> StableName;
+    /// The name as a mate side, read at [`Self::site`].
+    fn sited(self) -> editor_core::SitedFace
+    where
+        Self: Sized,
+    {
+        editor_core::SitedFace::new(self.site(), face(self.name()))
+    }
+}
+
+impl Sited for StableName {
+    fn site(&self) -> RecipeNodeId {
+        self.node
+    }
+    fn name(self) -> StableName {
+        self
+    }
+}
+
+/// A name read at a node of this document's choosing: `(at, name)`.
+impl Sited for (RecipeNodeId, StableName) {
+    fn site(&self) -> RecipeNodeId {
+        self.0
+    }
+    fn name(self) -> StableName {
+        self.1
+    }
+}
+
+impl Sited for resolver::PartName {
+    fn site(&self) -> RecipeNodeId {
+        self.at
+    }
+    fn name(self) -> StableName {
+        self.name
+    }
 }
 
 /// **`name` as the union `union` carries it from its member `member`**
@@ -704,8 +826,9 @@ pub fn member_name(
     doc: &ProfileDoc,
     union: RecipeNodeId,
     member: RecipeNodeId,
-    name: StableName,
+    name: impl Into<StableName>,
 ) -> StableName {
+    let name: StableName = name.into();
     StableName {
         kind: name.kind,
         node: union,
@@ -790,14 +913,15 @@ pub fn face_reads(doc: &ProfileDoc, pose: VarId) -> Vec<VarId> {
 }
 
 /// A fixture's name as an `editor_core::FaceName`.
-pub fn face(name: StableName) -> editor_core::FaceName {
-    editor_core::FaceName::new(name).expect("the fixture names a face")
+pub fn face(name: impl Into<StableName>) -> editor_core::FaceName {
+    editor_core::FaceName::new(name.into()).expect("the fixture names a face")
 }
 
 /// **A name worn as copy `i` of `pattern`** — one `Instance(i)`
 /// wrapper, the segment a pattern's table puts round every master
 /// name it emits. Nest the calls for a nested copy.
-pub fn in_copy(pattern: RecipeNodeId, i: u32, of: StableName) -> StableName {
+pub fn in_copy(pattern: RecipeNodeId, i: u32, of: impl Into<StableName>) -> StableName {
+    let of: StableName = of.into();
     StableName {
         kind: of.kind,
         node: pattern,
@@ -855,13 +979,15 @@ pub fn band() -> geom_core::Band {
 #[allow(unused_imports)]
 pub use editor_core::test_support::{ang, axes_at, len, len2, scl};
 
-/// [`editor_core::test_support::in_world`] at the witness tolerance.
+/// [`editor_core::test_support::in_world`] at the witness tolerance,
+/// the copy in the product ([`assemble_world_copies`]).
 pub fn in_world(
     doc: ProfileDoc,
     body: impl Into<editor_core::Operand>,
     at: &editor_core::Frame,
 ) -> (ProfileDoc, RecipeNodeId) {
-    editor_core::test_support::in_world(doc, body, at, Tol::witness())
+    let (doc, placement) = editor_core::test_support::in_world(doc, body, at, Tol::witness());
+    (assemble_world_copies(doc), placement)
 }
 
 /// [`editor_core::test_support::against`] at the witness tolerance.
@@ -1035,9 +1161,7 @@ pub fn value_bump(
     };
     let value = match coord {
         editor_core::Coord::Slide(_) => len(held + delta),
-        editor_core::Coord::Spin(editor_core::TargetAxis::Z) | editor_core::Coord::Spin(_) => {
-            ang(held + delta)
-        }
+        editor_core::Coord::SPIN | editor_core::Coord::Spin(_) => ang(held + delta),
     };
     DocEdit::SetParam {
         node: placement,
@@ -1076,7 +1200,19 @@ pub fn insert(doc: ProfileDoc, node: AuthoredNode) -> (ProfileDoc, RecipeNodeId)
             fresh: Vec::new(),
         },
     );
-    (doc, minted.unwrap())
+    let id = minted.unwrap();
+    // The fixture's product is the world's copies, which a placement
+    // into the world joins.
+    let joins = matches!(
+        doc.node(id),
+        Some(Node::Place { .. } | Node::InstantiatePart { .. })
+    ) && doc.node_space(id) == Some(VarId::WORLD);
+    let doc = if joins {
+        assemble_world_copies(doc)
+    } else {
+        doc
+    };
+    (doc, id)
 }
 
 /// **A primitive over indices into `refs`, sited**: the rows' spelling
@@ -1144,6 +1280,7 @@ pub fn authored(
             editor_core::ConstraintKind::Mate(editor_core::Mate {
                 on: editor_core::Operand::Var(m.on),
                 to: editor_core::Operand::Var(m.to),
+                orient: editor_core::Orientation::IDENTITY,
             })
         }
         editor_core::ConstraintKind::Value(v) => {
@@ -1206,21 +1343,22 @@ pub fn assertion_value(doc: &ProfileDoc, assertion: RecipeNodeId) -> editor_core
 }
 
 /// **One copy of `body` in the world** (A10), at the identity: the
-/// document's product is the copies its placements define.
+/// document's product is the world's copies, which this writes again
+/// ([`editor_core::test_support::assemble_world_copies`]).
 pub fn place(doc: ProfileDoc, body: RecipeNodeId) -> (ProfileDoc, RecipeNodeId) {
     let read = body_read(&doc, body.into());
-    insert(doc, stood(vec![editor_core::BodyRead::plain(read)]))
+    let (doc, placement) = insert(doc, stood(editor_core::BodyRead::plain(read)));
+    (
+        editor_core::test_support::assemble_world_copies(doc, Tol::witness()),
+        placement,
+    )
 }
 
-/// **A read of the copy of `body` an instance delivers** — `instance`'s
-/// copies, keyed by the copy's identity in its part
-/// ([`resolver::copy_key`]): what a seat reading one body of an instance
-/// reads.
-pub fn copy(instance: RecipeNodeId, body: RecipeNodeId) -> editor_core::BodyRead<Formula> {
-    editor_core::BodyRead::keyed(
-        editor_core::Operand::Node(instance),
-        resolver::copy_key(body),
-    )
+/// **A read of the copy of `body` an instance delivers**: the instance's
+/// copy, its part's product, which [`resolver::PartStore::insert_part`]
+/// makes the copy of `body` alone.
+pub fn copy(instance: RecipeNodeId, _body: RecipeNodeId) -> editor_core::BodyRead<Formula> {
+    editor_core::BodyRead::plain(editor_core::Operand::Node(instance))
 }
 
 /// **The body read a placement of `body` names**: a revolve named
@@ -1252,11 +1390,10 @@ pub fn with_placements(
 ) -> std::collections::BTreeSet<RecipeNodeId> {
     let mut out = cut.clone();
     for placement in doc.placements() {
-        if let Some(Node::Place { shapes, .. }) = doc.node(placement)
-            && shapes.iter().any(|shape| {
-                doc.operation_of(shape.read)
-                    .is_some_and(|at| cut.contains(&at))
-            })
+        if let Some(Node::Place { source, .. }) = doc.node(placement)
+            && doc
+                .operation_of(source.read)
+                .is_some_and(|at| cut.contains(&at))
         {
             out.insert(placement);
         }
@@ -1762,14 +1899,15 @@ impl Recorder {
                 vec![fname(cube, RoleSeg::Cap(CapEnd::Start))],
             ))
         };
-        let copy = self.insert(stood(vec![editor_core::BodyRead::plain(
+        let copy = self.insert(stood(editor_core::BodyRead::plain(
             editor_core::Operand::from(cube),
-        )]));
+        )));
         self.constrain(
             copy,
             editor_core::Mate {
                 on: cap(),
                 to: cap(),
+                orient: editor_core::Orientation::IDENTITY,
             },
             vec![
                 (
@@ -1780,10 +1918,7 @@ impl Recorder {
                     editor_core::Coord::Slide(editor_core::TargetAxis::Y),
                     Formula::zero(Dimension::Length),
                 ),
-                (
-                    editor_core::Coord::Spin(editor_core::TargetAxis::Z),
-                    Formula::zero(Dimension::Angle),
-                ),
+                (editor_core::Coord::SPIN, Formula::zero(Dimension::Angle)),
             ],
         );
         let ev = editor_core::evaluate::<f64>(
@@ -1800,14 +1935,9 @@ impl Recorder {
                 (p.x, p.y, p.z) == (0.0, 0.0, 0.0)
             })
             .expect("the cube has a vertex at the origin");
-        // The copy's vertex is the cube's, qualified by the copy.
-        let copied = StableName {
-            kind: vertex.kind,
-            node: copy,
-            path: vec![RoleSeg::Placed {
-                of: editor_core::NameRef::new(vertex.clone()),
-            }],
-        };
+        // The copy's vertex is the cube's: a copy names its entities
+        // as its source does.
+        let copied = vertex.clone();
         self.insert(Node::Measure {
             primitive: editor_core::MeasurePrimitive::Distance {
                 a: editor_core::SitedRef::new(cube, vertex).into(),
@@ -1816,13 +1946,20 @@ impl Recorder {
         })
     }
 
-    /// Inserts a node, returning its minted id.
+    /// Inserts a node, returning its minted id; a placement into the
+    /// world writes the product anew as the world's copies
+    /// ([`Self::assemble_world_copies`]).
     pub fn insert(&mut self, node: AuthoredNode) -> RecipeNodeId {
-        self.push(DocEdit::InsertNode {
-            node: Box::new(node),
-            fresh: Vec::new(),
-        })
-        .expect("minted id")
+        let at = self
+            .push(DocEdit::InsertNode {
+                node: Box::new(node),
+                fresh: Vec::new(),
+            })
+            .expect("minted id");
+        if self.doc.node_space(at) == Some(editor_core::VarId::WORLD) {
+            self.assemble_world_copies();
+        }
+        at
     }
 
     /// **`mate` and the `values` naming it, written onto `placement`**
@@ -1848,6 +1985,10 @@ impl Recorder {
         for edit in bundle_edits(&self.doc, placement, placed.bundle()) {
             self.push(edit);
         }
+        // A bundle may re-target its copy out of the world or into it.
+        if self.doc.product().is_some() {
+            self.assemble_world_copies();
+        }
     }
 
     /// **A placement of `read` written whole**: into the space the
@@ -1860,10 +2001,22 @@ impl Recorder {
     ) -> RecipeNodeId {
         let node = place_node(
             &self.doc,
-            vec![editor_core::BodyRead::plain(read)],
+            editor_core::BodyRead::plain(read),
             placed.bundle(),
         );
         self.insert(node)
+    }
+
+    /// **The product written anew as the world's copies**, recorded
+    /// ([`editor_core::test_support::assemble_world_copies_edits`]): what a
+    /// world placement calls, so a replayed log carries its product.
+    pub fn assemble_world_copies(&mut self) {
+        let (doc, edits) = editor_core::test_support::assemble_world_copies_edits(
+            self.doc.clone(),
+            Tol::witness(),
+        );
+        self.doc = doc;
+        self.edits.extend(edits);
     }
 
     /// **One copy of `body` in the world** (A10), standing where its
@@ -1966,7 +2119,11 @@ impl Recorder {
         self.insert_placed(
             read,
             editor_core::Placed {
-                mates: vec![editor_core::Mate { on: own, to: frame }],
+                mates: vec![editor_core::Mate {
+                    on: own,
+                    to: frame,
+                    orient: editor_core::Orientation::IDENTITY,
+                }],
                 values: Vec::new(),
             },
         )
@@ -1975,13 +2132,16 @@ impl Recorder {
     /// **A copy of the full revolve `revolve` standing on the `z` of
     /// `frame`** (a frame read off the body the copy joins, stated by
     /// exact moves, [`editor_core::moved_frame`]): an `Axis` mate from
-    /// the revolve's own axis, slid `along` it, its spin about it the
-    /// constant `0`. Returns the placement.
+    /// the revolve's own axis under `orient`, which puts that axis on the
+    /// target's `z` ([`meridian_up`] for an axis along its meridian's
+    /// `+y`), slid `along` it, its spin about it the constant `0`.
+    /// Returns the placement.
     pub fn on_axis(
         &mut self,
         revolve: RecipeNodeId,
         frame: editor_core::Operand,
         along: Formula,
+        orient: editor_core::Orientation,
     ) -> RecipeNodeId {
         use editor_core::pose::{PoseDef, PoseRole, RoleRead};
         let read = body_read(&self.doc, editor_core::Operand::output(revolve, 0));
@@ -1999,11 +2159,12 @@ impl Recorder {
                         port: 1,
                     },
                     to,
+                    orient,
                 }],
                 values: vec![
                     (editor_core::Coord::Slide(editor_core::TargetAxis::Z), along),
                     (
-                        editor_core::Coord::Spin(editor_core::TargetAxis::Z),
+                        editor_core::Coord::SPIN,
                         Formula::zero(editor_core::Dimension::Angle),
                     ),
                 ],
@@ -2030,9 +2191,9 @@ impl Recorder {
 }
 
 /// **One copy of `body` in the world, its whole motion stated by
-/// `values`** ([`Recorder::in_world_by`]): a bundle with no mate.
-/// Returns the document and the placement; its copy is the placement's
-/// output.
+/// `values`** ([`Recorder::in_world_by`]): a bundle with no mate, the
+/// copy in the product ([`assemble_world_copies`]). Returns the document and
+/// the placement; its copy is the placement's output.
 pub fn in_world_by(
     doc: ProfileDoc,
     body: impl Into<editor_core::Operand>,
@@ -2043,12 +2204,9 @@ pub fn in_world_by(
         mates: Vec::new(),
         values,
     };
-    let node = place_node(
-        &doc,
-        vec![editor_core::BodyRead::plain(read)],
-        placed.bundle(),
-    );
-    insert(doc, node)
+    let node = place_node(&doc, editor_core::BodyRead::plain(read), placed.bundle());
+    let (doc, placement) = insert(doc, node);
+    (assemble_world_copies(doc), placement)
 }
 
 /// **One copy of `body` in the world on `at`, a frame whose axes are
@@ -2143,7 +2301,7 @@ pub fn turned_to(
             .iter()
             .find(|(a, _)| *a == axis)
             .map_or_else(|| Formula::zero(Dimension::Angle), |(_, by)| by.clone());
-        (Coord::Spin(axis), by)
+        (Coord::Spin(Some(axis)), by)
     });
     slides.chain(spun).collect()
 }
@@ -2172,7 +2330,7 @@ pub fn upright_at(origin: [f64; 3]) -> Vec<(editor_core::Coord, Formula)> {
         (TargetAxis::Z, Formula::zero(Dimension::Angle)),
     ]
     .into_iter()
-    .map(|(axis, by)| (Coord::Spin(axis), by));
+    .map(|(axis, by)| (Coord::Spin(Some(axis)), by));
     slides.chain(spins).collect()
 }
 
@@ -2325,6 +2483,17 @@ pub fn die() -> Die {
 }
 
 pub mod pr4;
+
+/// **The orientation of a revolve whose axis is its meridian's `+y`,
+/// stood on a target's `z`**: its `x` kept, its `y` on `+z` (so its `z`
+/// on `−y`), a quarter turn about `x`.
+pub fn meridian_up() -> editor_core::Orientation {
+    editor_core::Orientation::new(
+        editor_core::SignedAxis::PlusX,
+        editor_core::SignedAxis::MinusY,
+    )
+    .expect("x and z lie along two axes")
+}
 
 /// **The witness tolerance a suite decides under** — `Tol::witness()`
 /// under the name the suites reach for it by.
@@ -3059,8 +3228,6 @@ fn embedded_names(seg: &RoleSeg) -> Vec<&StableName> {
         | RoleSeg::SplitFragment { parent: x, .. }
         | RoleSeg::OnToolVertex { of: x, .. }
         | RoleSeg::Instance { of: x, .. }
-        | RoleSeg::InPart { of: x }
-        | RoleSeg::Placed { of: x }
         | RoleSeg::BlendFace(x)
         | RoleSeg::CornerFace(x)
         | RoleSeg::Mitre { vertex: x }
@@ -3340,10 +3507,11 @@ pub fn read_at(at: RecipeNodeId, name: StableName) -> editor_core::Operand {
     editor_core::Operand::select(at, vec![name])
 }
 
-/// [`read_at`] at the node that minted `name`.
-pub fn read_minted(name: StableName) -> editor_core::Operand {
-    let at = name.node;
-    read_at(at, name)
+/// [`read_at`] where `name` is read ([`Sited`]): at the node that
+/// minted it, or a part's name at its instance.
+pub fn read_minted(name: impl Sited) -> editor_core::Operand {
+    let at = name.site();
+    read_at(at, name.name())
 }
 
 /// **A block's corner frame** (`PoseDef::Through`): `z` along the

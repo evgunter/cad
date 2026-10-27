@@ -61,14 +61,20 @@ fn two_hole_box_split_between_rehomes_both_ways() {
         mass_properties(
             &topo::test_support::finished("the measured body", (above).clone(), Tol::witness()),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
+        .met()
+        .expect("the pinned resolution is met")
         .volume,
         mass_properties(
             &topo::test_support::finished("the measured body", (below).clone(), Tol::witness()),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
+        .met()
+        .expect("the pinned resolution is met")
         .volume,
     );
     assert!((va - 10.0).abs() < 1e-12, "above {va}");
@@ -98,14 +104,20 @@ fn split_through_hole_two_section_polygons() {
         mass_properties(
             &topo::test_support::finished("the measured body", (above).clone(), Tol::witness()),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
+        .met()
+        .expect("the pinned resolution is met")
         .volume,
         mass_properties(
             &topo::test_support::finished("the measured body", (below).clone(), Tol::witness()),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .unwrap()
+        .met()
+        .expect("the pinned resolution is met")
         .volume,
     );
     // Total 20; below = 1·2·2 − (0.5·1·2 channel half) = 3.

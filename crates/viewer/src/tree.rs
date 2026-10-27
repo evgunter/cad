@@ -634,7 +634,7 @@ fn depth_of(inputs: &[RecipeNodeId], depths: &BTreeMap<RecipeNodeId, usize>) -> 
 /// whether there is one. `None` for a payload whose `Ok` is the whole
 /// of it: a body, a profile, a pattern's instances (its
 /// count is authored, and the words of any refusal state it), a
-/// placement's copies, the world.
+/// placement's copy, the world.
 fn readout_of(
     doc: &Doc<ProfileProgram>,
     id: RecipeNodeId,
@@ -662,8 +662,7 @@ fn readout_of(
         ValuePayload::Body(_)
         | ValuePayload::Boolean(BooleanValue::Body { .. })
         | ValuePayload::Profile(_)
-        | ValuePayload::Instances(_)
-        | ValuePayload::Copies(_) => None,
+        | ValuePayload::Instances(_) => None,
     }
 }
 
@@ -1010,7 +1009,6 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         // the repair is a re-point at the reading node itself.
         | NodeErrorKind::UnresolvedRead { .. }
         | NodeErrorKind::EmptyOperand { .. }
-        | NodeErrorKind::ProductOperand { .. }
         | NodeErrorKind::EmptyHalf { .. }
         | NodeErrorKind::InstanceOutOfRange { .. } => None,
         // Names an id no live node holds, so there is no row to go to.
@@ -1024,12 +1022,9 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         // repair is the reading node's own operands, or a placement's
         // target, and one link would pick for the reader.
         NodeErrorKind::SpaceMismatch { .. } => None,
-        // A copy read the placement does not hold, a copy of the wrong
-        // shape, or two copies under one key: the reading node's own
-        // read, or the placement's own shapes, are the repair.
-        NodeErrorKind::NoSuchCopy { .. }
-        | NodeErrorKind::CopyShape { .. }
-        | NodeErrorKind::CopiesShareAKey { .. } => None,
+        // A pick's path that reaches no piece of the copy, or a piece
+        // of the wrong shape: the pick's own path is the repair.
+        NodeErrorKind::NoSuchPiece { .. } | NodeErrorKind::PieceShape { .. } => None,
         // A payload that names a node does so as evidence: a name's
         // minting node, where the repair is the referring node's own
         // reference; an upstream table the naming pass found missing;
@@ -1132,6 +1127,8 @@ fn blamed_mates(fault: &MateFault) -> Vec<RecipeNodeId> {
         MateFault::NotOnTheCopy { mate }
         | MateFault::Unleverable { mate, .. }
         | MateFault::KindsDiffer { mate, .. }
+        | MateFault::Backwards { mate, .. }
+        | MateFault::Unoriented { mate }
         | MateFault::SideUnevaluated { mate, .. } => vec![mate.placement],
         MateFault::NoChart { value, .. } => vec![value.placement],
         // A claim about one bundle: its placement is the row.

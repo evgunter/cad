@@ -39,11 +39,11 @@ use std::sync::Arc;
 use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
     BoxAxis, CancelToken, CapEnd, Coord, Dimension, DocEdit, DocRef, DocumentId, EvalOptions,
-    Evaluation, Formula, FreeVar, MateRef, NameRef, Node, NodeResult, Operand, ParamBox,
-    PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName, TargetAxis, VarName,
-    all_vertices, evaluate, vertex_position,
+    Evaluation, Formula, FreeVar, MateRef, Node, NodeResult, Operand, ParamBox, PatternKind,
+    ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName, TargetAxis, VarName, all_vertices,
+    evaluate, vertex_position,
 };
-use fixture::resolver::{PartStore, in_part, placement_of, with_resolver};
+use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{ang, head, insert, len, on_frame, scl, solve, step};
 use geom_core::{Dual64, Interval, Tol};
 
@@ -155,24 +155,6 @@ fn parts(label: &str) -> Parts {
     }
 }
 
-/// **`name`, an entity of a part's body, as `instance` wears it**:
-/// under the placement the part's world copies the body by, inside the
-/// instance's `InPart` wrapper.
-fn worn(instance: RecipeNodeId, body: RecipeNodeId, name: &StableName) -> StableName {
-    let placed = StableName {
-        kind: name.kind,
-        node: placement_of(body),
-        path: vec![RoleSeg::Placed {
-            of: NameRef::new(name.clone()),
-        }],
-    };
-    StableName {
-        kind: placed.kind,
-        node: instance,
-        path: vec![RoleSeg::InPart { of: placed.into() }],
-    }
-}
-
 /// A pose slid `by` along a direction or an axis's direction.
 fn slid(pose: Operand, along: RoleRead<Operand>, by: Formula) -> Operand {
     Operand::Pose(Box::new(PoseDef::Slide {
@@ -204,30 +186,24 @@ impl Parts {
         with_resolver(self.store.clone())
     }
     /// The slab's top cap, as `slab` places it.
-    fn slab_top(&self, slab: RecipeNodeId) -> StableName {
+    fn slab_top(&self, slab: RecipeNodeId) -> crate::fixture::resolver::PartName {
         in_part(slab, self.slab_body, CapEnd::End)
     }
     /// The bolt's bottom cap, as `bolt` places it.
-    fn bolt_foot(&self, bolt: RecipeNodeId) -> StableName {
+    fn bolt_foot(&self, bolt: RecipeNodeId) -> crate::fixture::resolver::PartName {
         in_part(bolt, self.bolt_body, CapEnd::Start)
     }
     /// The bolt's top cap, as `bolt` places it.
-    fn bolt_head(&self, bolt: RecipeNodeId) -> StableName {
+    fn bolt_head(&self, bolt: RecipeNodeId) -> crate::fixture::resolver::PartName {
         in_part(bolt, self.bolt_body, CapEnd::End)
     }
     /// The bolt's lateral edge `k`, as an axis `bolt` places.
     fn bolt_edge(&self, bolt: RecipeNodeId, k: usize) -> Operand {
-        fixture::axis(SitedRef::new(
-            bolt,
-            worn(bolt, self.bolt_body, &self.bolt_names.lateral[k]),
-        ))
+        fixture::axis(SitedRef::new(bolt, self.bolt_names.lateral[k].clone()))
     }
     /// The slab's lateral edge `k`, as an axis `slab` places.
     fn slab_edge(&self, slab: RecipeNodeId, k: usize) -> Operand {
-        fixture::axis(SitedRef::new(
-            slab,
-            worn(slab, self.slab_body, &self.slab_names.lateral[k]),
-        ))
+        fixture::axis(SitedRef::new(slab, self.slab_names.lateral[k].clone()))
     }
     /// **One of the slab's two side directions**, as an axis: the `x`
     /// of the frame standing on its edge at canonical vertex 0 and aimed
@@ -237,10 +213,7 @@ impl Parts {
         RoleRead::through(
             through(
                 self.slab_edge(slab, 0),
-                fixture::point_of(SitedRef::new(
-                    slab,
-                    worn(slab, self.slab_body, &self.slab_names.corner[k]),
-                )),
+                fixture::point_of(SitedRef::new(slab, self.slab_names.corner[k].clone())),
             ),
             PoseRole::X,
         )
@@ -258,14 +231,15 @@ impl Parts {
 
 /// **A seat**: `mover`'s bottom cap resting on `onto`'s top cap,
 /// `by` above it, and the mover's origin at `(x, y)` on the target
-/// space's axes swung onto the cap's normal, turned `spin` about it — the rest and its three
-/// values, in `mover`'s bundle. Answers the rest's address.
+/// space's axes as the least turn onto the mated direction carries
+/// them, turned `spin` about the cap's own normal — the rest and its
+/// three values, in `mover`'s bundle. Answers the rest's address.
 #[allow(clippy::too_many_arguments)]
 fn seat(
     doc: ProfileDoc,
     mover: RecipeNodeId,
-    foot: StableName,
-    onto: StableName,
+    foot: impl crate::fixture::Sited,
+    onto: impl crate::fixture::Sited,
     by: Formula,
     (x, y, spin): (Formula, Formula, Formula),
 ) -> (ProfileDoc, MateRef) {
@@ -279,7 +253,7 @@ fn seat(
         &[
             (Coord::Slide(TargetAxis::X), x),
             (Coord::Slide(TargetAxis::Y), y),
-            (Coord::Spin(editor_core::TargetAxis::Z), spin),
+            (Coord::SPIN, spin),
         ],
     )
 }
@@ -288,8 +262,9 @@ fn seat(
 /// corner along its own sides**: that point, `U + R·(1, 1, 0)` with the
 /// corner `U = Rz(turn)·(5, 0, lift)` and the slab's turn
 /// `R = Rz(turn)·Rx(0.3)`, read on the seat's chart — the world's `x`
-/// and `y` swung onto the slab's normal `n = R·z` by the shortest turn,
-/// from the world's origin.
+/// and `y` carried by the least turn from the bolt's mated `−z` onto
+/// the mated direction `−n`, the slab's normal `n = R·z` reversed (the
+/// same turn as `z` onto `n`), from the world's origin.
 fn seat_on_the_pinned_slab(turn: f64, lift: f64) -> (f64, f64) {
     let (ct, st, c3, s3) = (turn.cos(), turn.sin(), 0.3_f64.cos(), 0.3_f64.sin());
     let rz = |v: [f64; 3]| [ct * v[0] - st * v[1], st * v[0] + ct * v[1], v[2]];
@@ -387,8 +362,11 @@ fn turned_slab(p: &Parts, label: &str) -> (ProfileDoc, RecipeNodeId) {
     let plus = |a: Formula, b: Formula| Formula::add(a, b).expect("a sum");
     let (c3, s3) = (0.3_f64.cos(), 0.3_f64.sin());
     let values = vec![
-        (Coord::Spin(TargetAxis::X), ang(0.3)),
-        (Coord::Spin(TargetAxis::Z), named(turn(), Dimension::Angle)),
+        (Coord::Spin(Some(TargetAxis::X)), ang(0.3)),
+        (
+            Coord::Spin(Some(TargetAxis::Z)),
+            named(turn(), Dimension::Angle),
+        ),
         (
             Coord::Slide(TargetAxis::X),
             plus(metres(5.0, cos()), metres(-s3, sin())),
@@ -619,7 +597,7 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
         fixture::mate(p.bolt_edge(bolts[0], 0), p.slab_line(slab, 4.0, 4.0)),
         &[
             (Coord::Slide(TargetAxis::Z), len(SLAB_HEIGHT + 0.25)),
-            (Coord::Spin(editor_core::TargetAxis::Z), ang(0.3)),
+            (Coord::SPIN, ang(0.3)),
         ],
     );
     out.push(("coaxial-slide-spin", doc, p.opts()));
@@ -647,10 +625,7 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
                 },
             ),
         };
-        through(
-            edge,
-            fixture::point_of(SitedRef::new(at, worn(at, body, &corner))),
-        )
+        through(edge, fixture::point_of(SitedRef::new(at, corner.clone())))
     };
     let (doc, _) = editor_core::test_support::beside_past_the_bundle_rule(
         &doc,
@@ -688,8 +663,9 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
     // and a seat on that: a chain of bundles back to the world.
     let p = parts("msolve14-c-pin");
     let (doc, slab) = turned_slab(&p, "msolve14-c-pin");
-    // A seat's values are charted on the world's axes swung onto the
-    // slab's normal `n = Rz(turn)·Rx(0.3)·z`, from the world's origin
+    // A seat's values are charted on the world's axes carried by the
+    // least turn onto the mated direction, the slab's normal
+    // `n = Rz(turn)·Rx(0.3)·z` reversed, from the world's origin
     // (§5′.2). The bolt is meant to stand `(1, 1)` along the slab's own
     // sides from its upper corner, so its values are that point read on
     // the chart at the parameters' nominal values (`turn = 0.25`,
@@ -967,9 +943,9 @@ fn run_at<T: editor_core::EvalScalar>(
 ///
 /// And for D′2 (a value charts on the target space, all three rows):
 /// every bundle is spelled in the new vocabulary and the content key's
-/// `VERSION` moved, so the ids moved; and a seat's values are charted
-/// on its target space's axes swung onto the mated normal rather than
-/// on the target body's frame. The two seats whose target stands off
+/// `VERSION` moved, so the ids moved; and a seat's values came to be
+/// charted on its target space's axes (then swung onto the mated
+/// normal) rather than on the target body's frame. The two seats whose target stands off
 /// its space's identity are written as the motion they mean: the
 /// pinned chain's bolts at the point `(1, 1)` along the slab's sides
 /// from its corner reads on the new chart
@@ -988,13 +964,37 @@ fn run_at<T: editor_core::EvalScalar>(
 /// entry bit-identical; every other solved pose of the corpus is main's
 /// bit for bit (each map dumped on main and on the branch).
 ///
+/// And for D′3 (the product is an authored `⊔`, a copy carries its
+/// source's names, all three rows): each corpus document writes its
+/// product as a `⊔` of its world copies, a node the digest walks, and
+/// its instances' copies name their faces as their parts do, so the
+/// evaluations' name tables and every id after the product moved.
+/// Re-blessed at all three ε; each seat still stands on what it is
+/// seated on ([`each_seat_stands_on_what_it_is_seated_on`]), and the
+/// solved poses were not compared id-free against main separately.
+/// Re-measured on main's plane pose merged in, at all three ε. Merged
+/// again over ATREST stage 4 I (PR 5637: a mate writes no class, and
+/// the census at a `⊔` keeps its verdict on the `⊔`'s value), the
+/// content key's `VERSION` moved to 21 and the mates' spelling with it,
+/// so every value token moved; re-measured at all three ε.
+///
 /// And, all three rows, when a certificate came to keep its turn: the
 /// evaluation digest feeds each edge curve's `Debug`, which now spells
-/// it. No pose, fault or point moved.
+/// it. No pose, fault or point moved. Re-measured with both merged, at
+/// all three ε.
+///
+/// And when the value chart came to read a written orientation (D10
+/// `[placement.values]`, all three rows): every mate carries its
+/// orientation and the content key's `VERSION` moved to 22, so every
+/// id and value token moved; and the pinned chain's two seats on the
+/// turned slab are turned by the least turn where the swing turned
+/// them, so their rotations' off-diagonal entries no longer agree bit
+/// for bit, one translation entry (`z`) moved by an ulp, and five of
+/// their vertices by an ulp each. Every other pose is main's.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0x56ec_a0b8_2662_e3c9),
-    (1e-6, 0xfc0f_2d40_8c90_1d43),
-    (1e-12, 0x5b91_d653_e6de_b52a),
+    (1e-9, 0xaa45_2c35_08a5_7082),
+    (1e-6, 0x12ee_6451_f129_634c),
+    (1e-12, 0x8257_e764_d53a_2109),
 ];
 
 /// **Each seat of the corpus stands on what it is seated on**: in the
@@ -1720,7 +1720,7 @@ fn a_tilted_plane_slid_within_itself_leaves_the_map_thin() {
         &[
             (Coord::Slide(TargetAxis::X), len(x)),
             (Coord::Slide(TargetAxis::Y), len(y)),
-            (Coord::Spin(TargetAxis::Z), ang(0.0)),
+            (Coord::SPIN, ang(0.0)),
         ],
     );
     let opts = p.opts();

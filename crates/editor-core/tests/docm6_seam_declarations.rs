@@ -3,15 +3,14 @@
 //!
 //! A part's contact RECORDS cross the document seam with its geometry,
 //! and its own at-rest refusal crosses whole, raised by the outermost
-//! gate before anything else this document has to say. A product is no
-//! boolean operand, however it is reached. And a row or fault of a part
-//! is said as the pinned part holds its nodes, never as the outer
-//! document holds the same ids.
+//! gate before anything else this document has to say. A body of
+//! several parts is an ordinary operand, however it is reached. And a
+//! row or fault of a part is said as the pinned part holds its nodes,
+//! never as the outer document holds the same ids.
 //!
 //! The store and the two part-face spellings come from
 //! `fixture::resolver`, which every assembly suite instantiates
-//! through; what stays here is this suite's own geometry and its
-//! `wrap`, the one rung a name climbs per seam.
+//! through; what stays here is this suite's own geometry.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
@@ -20,8 +19,7 @@ use editor_core::Formula;
 use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
     AssemblyError, CapEnd, Coord, DocEdit, DocRef, DocumentId, EntityKind, Frame, Mate, MateRef,
-    Node, Operand, ProfileDoc, RecipeNodeId, RoleSeg, StableName, TargetAxis, assemble,
-    product_recorded,
+    Node, Operand, ProfileDoc, RecipeNodeId, StableName, TargetAxis, assemble, product_recorded,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{insert, len, on_frame, run, step};
@@ -53,17 +51,16 @@ fn cube_part(label: &str) -> (ProfileDoc, RecipeNodeId) {
 
 /// `inner` seen through the instance `node` placed it at — one rung of
 /// the route a name climbs at each seam.
-fn wrap(node: RecipeNodeId, inner: StableName) -> StableName {
-    StableName {
-        kind: EntityKind::Face,
-        node,
-        path: vec![RoleSeg::InPart { of: inner.into() }],
+fn wrap(node: RecipeNodeId, inner: impl Into<StableName>) -> crate::fixture::resolver::PartName {
+    crate::fixture::resolver::PartName {
+        at: node,
+        name: inner.into(),
     }
 }
 
 /// Cube `k`'s `cap` as the stand `stand` names it in its product: the
-/// cube instance's cap, the instance being its own placement (A10).
-/// [`stand`] inserts its two cubes first.
+/// cube's own name, keyed by the copy of cube instance `k` that the
+/// stand's `⊔` reads. [`stand`] inserts its two cubes first.
 fn in_stand(
     store: &PartStore,
     stand: DocRef,
@@ -72,14 +69,32 @@ fn in_stand(
     cap: CapEnd,
 ) -> StableName {
     let doc = store.doc(stand.id);
-    in_part(doc.placements()[k], body, cap)
+    let copy = doc
+        .output(doc.placements()[k], 0)
+        .expect("the cube instance's copy");
+    let assembled = doc
+        .product()
+        .and_then(|var| doc.operation_of(var))
+        .expect("the stand's product is the `⊔` of its cubes");
+    StableName {
+        kind: EntityKind::Face,
+        node: assembled,
+        path: vec![editor_core::RoleSeg::From {
+            read: copy,
+            of: fixture::resolver::in_world(body, cap).into(),
+        }],
+    }
 }
 
 /// **A rest of face `on` on face `to`, `standoff` off it**: `on`'s
 /// plane equated with `to`'s slid `standoff` along its own outward
 /// normal and flipped, so the faces face each other `standoff` apart (a
 /// negative standoff passes `on` into `to`).
-fn seat(on: StableName, to: StableName, standoff: f64) -> Mate<Formula> {
+fn seat(
+    on: impl crate::fixture::Sited,
+    to: impl crate::fixture::Sited,
+    standoff: f64,
+) -> Mate<Formula> {
     let target = fixture::plane(fixture::head(to));
     let target = if standoff == 0.0 {
         target
@@ -104,7 +119,7 @@ fn seated(doc: ProfileDoc, mate: Mate<Formula>, shift: f64) -> (ProfileDoc, Mate
         &[
             (Coord::Slide(TargetAxis::X), len(shift)),
             (Coord::Slide(TargetAxis::Y), len(0.0)),
-            (Coord::Spin(editor_core::TargetAxis::Z), fixture::ang(0.0)),
+            (Coord::SPIN, fixture::ang(0.0)),
         ],
     );
     (doc, mate)
@@ -124,7 +139,8 @@ fn pinned_instance(doc: ProfileDoc, store: &PartStore, part: DocRef) -> (Profile
 /// by the identity bundle, which reads nothing of the copy, so the copy
 /// is the world's by its recipe.
 fn nominally_pinned_instance(doc: ProfileDoc, part: DocRef) -> (ProfileDoc, RecipeNodeId) {
-    insert(doc, crate::fixture::mated_instance(part))
+    let (doc, instance) = insert(doc, crate::fixture::mated_instance(part));
+    (fixture::assemble_world_copies(doc), instance)
 }
 
 /// `node`'s bundle replaced by one world mate at the translation `at`,
@@ -142,8 +158,10 @@ fn place(doc: ProfileDoc, store: &PartStore, node: RecipeNodeId, at: [f64; 3]) -
 
 /// Two instances of `part`, the first pinned to the world and the
 /// second seated on its top by ONE rest, `standoff` off it and slid
-/// `shift` along it. A standoff of `0` rests the cubes; `-0.5`
-/// penetrates and `0.5` gaps.
+/// `shift` along it. A standoff of `0` is the true declaration; `-0.5`
+/// penetrates and `0.5` gaps, both counter-evidence; a shift of `1` is
+/// the GRAZING seat — one carrier, no shared area, decidable in neither
+/// direction, so the census DECLINES the pair.
 fn stand(
     store: &mut PartStore,
     label: &str,
@@ -163,6 +181,7 @@ fn stand(
         ),
         shift,
     );
+    let doc = fixture::assemble_world_copies(doc);
     let id = doc.id();
     (
         store.insert(doc, Tol::witness()),
@@ -173,8 +192,8 @@ fn stand(
     )
 }
 
-/// `count` instances of `part` in a row, pinned `spacing` apart along
-/// +x.
+/// `count` instances of `part` in a row, pinned `spacing` apart along +x
+/// and declaring nothing about each other.
 fn row_of(
     store: &PartStore,
     label: &str,
@@ -191,10 +210,14 @@ fn row_of(
         doc = place(next, store, id, [dx, 0.0, 0.0]);
         ids.push(id);
     }
-    (doc, ids)
+    (fixture::assemble_world_copies(doc), ids)
 }
 
-// ---- An outer mate and a part's own pair ----
+// ---- The channel is total, and keyed ----
+
+// ---- The outermost gate reads what was carried ----
+
+// ---- Precedence, when both homes name one pair ----
 
 /// **The precedence rule, and why it is not observable today.**
 ///
@@ -263,18 +286,23 @@ fn an_outer_mate_cannot_name_a_pair_inside_one_instance() {
     assert_ne!(inner_id, doc.id());
 }
 
-// ---- A product is no boolean operand ----
+// ---- Inner mint health at the outermost gate ----
 
-/// **A product is no boolean operand.** An instance of a document with
-/// two mated parts is a product, an instance's output is its copies,
-/// and a seat that takes one body refuses a whole read of them at the
-/// edit door (`EditError::SlotVarKind`, `Bodies` where a `Body` goes),
-/// before anything evaluates.
+/// **A boolean reads a product as it is** (D10
+/// `[operations.operators]`: a `⊔`'s result is an ordinary operand,
+/// and FORK-2b's refusal of a product as a boolean operand is
+/// retired). An instance of a stand is one body of the stand's two
+/// cubes; a union of it with a cube placed far off keeps the cubes
+/// apart where they rest or stand off, so the result is three solids:
+/// the meeting inside the operand is not decided again. Cubes that
+/// interpenetrate inside the operand refuse where the union reads
+/// them, typed by the kernel.
 ///
-/// Every seat, so what refuses is the rule and not this geometry:
-/// penetrating, resting, gapped.
+/// A record or declaration row of the stand reaching the union's
+/// result is not this row's: the carry is its own unit
+/// (`docs/INTENT-STAGE3-SPEC.md` §12, "The carry").
 #[test]
-fn a_mated_product_is_no_boolean_operand() {
+fn a_boolean_over_a_product_keeps_its_parts() {
     for (label, standoff) in [("pen", -0.5), ("rest", 0.0), ("gap", 0.5)] {
         let (store, inner_ref, cube) = product_and_cube(label, standoff);
         let doc = ProfileDoc::empty(
@@ -282,13 +310,14 @@ fn a_mated_product_is_no_boolean_operand() {
             Tol::witness(),
         );
         let (doc, instance) = pinned_instance(doc, &store, inner_ref);
-        refuses_as_product(
-            &store,
-            &doc,
-            instance,
-            cube,
-            &format!("{label}: the instance"),
-        );
+        let what = format!("{label}: the instance");
+        match union_with_far_cube(&store, &doc, instance, cube) {
+            Ok(solids) => {
+                assert!(standoff >= 0.0, "{what}: interpenetrating parts unioned");
+                assert_eq!(solids, 3, "{what}: the two parts and the far cube");
+            }
+            Err((kernel, kind)) => assert!(standoff < 0.0 && kernel, "{what}: {kind}"),
+        }
     }
 }
 
@@ -304,75 +333,85 @@ fn product_and_cube(label: &str, standoff: f64) -> (PartStore, DocRef, DocRef) {
     (store, inner_ref, cube)
 }
 
-/// `Boolean(Union, a, cube placed far off)` refused at the edit door:
-/// `a` is a whole read of copies, where a member seat takes one body.
-fn refuses_as_product(
+/// `Union(a, cube placed far off)`, evaluated: how many solids it
+/// holds, or why it refused: whether the kernel's boolean refused, and
+/// the refusal.
+fn union_with_far_cube(
     store: &PartStore,
     doc: &ProfileDoc,
     a: RecipeNodeId,
     cube: DocRef,
-    what: &str,
-) {
+) -> Result<usize, (bool, String)> {
     let (doc, far) = insert(doc.clone(), crate::fixture::mated_instance(cube));
     let doc = place(doc, store, far, [50.0, 0.0, 0.0]);
-    let refused = fixture::insert_refused(
-        &doc,
+    let (doc, union) = insert(
+        doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![a.into(), far.into()]),
         },
     );
-    assert!(
-        matches!(
-            refused,
-            editor_core::EditError::SlotVarKind {
-                found: editor_core::VarKind::Bodies,
-                ..
-            }
-        ),
-        "{what}: a whole read of copies is no body: {refused:?}"
-    );
+    let ev = run(&doc, &with_resolver(store.clone()));
+    if let Some(e) = ev.node_error(union) {
+        return Err((
+            matches!(e.kind, editor_core::NodeErrorKind::Boolean(_)),
+            format!("{:?}", e.kind),
+        ));
+    }
+    match ev.value(union).map(|v| &v.payload) {
+        Some(editor_core::ValuePayload::Boolean(editor_core::BooleanValue::Body {
+            body, ..
+        })) => Ok(body.solids().count()),
+        other => panic!("a union of bodies is a body: {other:?}"),
+    }
 }
 
-/// **A sub-assembly carries the copies through.** A document whose ONE
-/// placement instantiates the stand delivers copies when it is itself
-/// instantiated, so the union of that instance refuses too.
+/// **A sub-assembly carries the parts through.** A document whose ONE
+/// placement instantiates the stand delivers both cubes when it is
+/// itself instantiated, and the union keeps them apart.
 #[test]
-fn a_product_inside_a_sub_assembly_still_refuses() {
+fn a_product_inside_a_sub_assembly_keeps_its_parts() {
     let (mut store, inner_ref, cube) = product_and_cube("nested", 0.0);
     let wrap = ProfileDoc::empty(DocumentId::derive("docm6-bool-nested-wrap"), Tol::witness());
     let (wrap, _) = pinned_instance(wrap, &store, inner_ref);
+    let wrap = fixture::assemble_world_copies(wrap);
     let wrap_ref = store.insert(wrap, Tol::witness());
     let doc = ProfileDoc::empty(
         DocumentId::derive("docm6-bool-nested-outer"),
         Tol::witness(),
     );
     let (doc, instance) = pinned_instance(doc, &store, wrap_ref);
-    refuses_as_product(&store, &doc, instance, cube, "the sub-assembly's instance");
+    assert_eq!(
+        union_with_far_cube(&store, &doc, instance, cube),
+        Ok(3),
+        "the sub-assembly's instance"
+    );
 }
 
-/// **A placer carries the copies through.** A placed copy of an
-/// instance is still its copies, so the union of it refuses at the door.
+/// **A placer carries the parts through.** A placed copy of an
+/// instance is still both cubes, and the union keeps them apart.
 #[test]
-fn a_placed_product_still_refuses() {
+fn a_placed_product_keeps_its_parts() {
     let (store, inner_ref, cube) = product_and_cube("moved", 0.0);
     let doc = ProfileDoc::empty(DocumentId::derive("docm6-bool-moved-outer"), Tol::witness());
     let (doc, instance) = pinned_instance(doc, &store, inner_ref);
     let (doc, moved) = insert(
         doc,
-        crate::fixture::stood(vec![editor_core::BodyRead::plain(
-            editor_core::Operand::from(instance),
-        )]),
+        crate::fixture::stood(editor_core::BodyRead::plain(editor_core::Operand::from(
+            instance,
+        ))),
     );
     let doc = fixture::pinned(doc, moved, &with_resolver(store.clone()));
-    refuses_as_product(&store, &doc, moved, cube, "the placed instance");
+    assert_eq!(
+        union_with_far_cube(&store, &doc, moved, cube),
+        Ok(3),
+        "the placed instance"
+    );
 }
 
-/// **A placed union of a product refuses too**: its prototype takes the
-/// copies, and its evaluation refuses them as a product of two parts
-/// (`NodeErrorKind::ProductOperand`), naming the explicit union as the
-/// recourse.
+/// **A placed union of a product places it whole**: its prototype is
+/// the instance's one body, both cubes, placed at each frame.
 #[test]
-fn a_placed_union_of_a_product_refuses() {
+fn a_placed_union_of_a_product_places_both_parts() {
     let (store, inner_ref, _) = product_and_cube("placed", 0.0);
     let doc = ProfileDoc::empty(
         DocumentId::derive("docm6-bool-placed-outer"),
@@ -391,16 +430,10 @@ fn a_placed_union_of_a_product_refuses() {
         },
     );
     let ev = run(&doc, &with_resolver(store));
-    let failure = ev
-        .node_error(group)
-        .expect("the placed union does not evaluate over a product");
     assert!(
-        matches!(
-            failure.kind,
-            editor_core::NodeErrorKind::ProductOperand { input: i, parts: 2 } if i == instance
-        ),
-        "the placed union's prototype: refused as a product: {:?}",
-        failure.kind
+        ev.node_error(group).is_none(),
+        "the placed union evaluates over a product: {:?}",
+        ev.node_error(group)
     );
 }
 
@@ -417,10 +450,7 @@ fn a_measure_on_a_product_evaluates() {
     let cap = |end| {
         editor_core::Operand::select(
             instance,
-            vec![wrap(
-                instance,
-                in_stand(&store, inner_ref, 1, cube_body, end),
-            )],
+            vec![wrap(instance, in_stand(&store, inner_ref, 1, cube_body, end)).name],
         )
     };
     let (doc, datum) = fixture::measure_node(
@@ -441,6 +471,8 @@ fn a_measure_on_a_product_evaluates() {
     );
     assert!(ev.value(datum).is_some(), "the measure has a value");
 }
+
+// ---- A carried row says a part's ids as the part holds them ----
 
 // ---- A carried level is spoken from the part only where the part is held ----
 
@@ -496,9 +528,11 @@ fn a_carried_level_says_the_parts_labels_where_the_outer_document_holds_its_ids(
     let mut store = PartStore::default();
     let (cube, cube_body) = store.insert_part(cube_part("speak-c-cube"), Tol::witness());
     let (inner, _) = overconstrained(&store, cube, cube_body, "speak-c-inner", "inner top");
+    let inner = fixture::assemble_world_copies(inner);
     let inner_ref = store.insert(inner.clone(), Tol::witness());
     let (outer, [held, _added]) =
         overconstrained(&store, cube, cube_body, "speak-c-outer", "outer top");
+    let outer = fixture::assemble_world_copies(outer);
     assert_eq!(
         inner.ids(),
         outer.ids(),
@@ -597,6 +631,7 @@ fn a_part_fault_says_the_labels_its_pin_fixes() {
     // One store per version: a store holds one version of a document.
     let instance_of = |part: ProfileDoc| {
         let mut store = store.clone();
+        let part = fixture::assemble_world_copies(part);
         let part_ref = store.insert(part, Tol::witness());
         let outer = ProfileDoc::empty(DocumentId::derive("speak-d-outer"), Tol::witness());
         let (outer, instance) = nominally_pinned_instance(outer, part_ref);
@@ -662,6 +697,7 @@ fn stranded(id: &str, label: &str) -> (ProfileDoc, RecipeNodeId) {
 fn a_parts_product_refusal_says_the_parts_label_where_the_outer_document_holds_the_id() {
     let mut store = PartStore::default();
     let (inner, block) = stranded("speak-p-inner", "inner block");
+    let inner = fixture::assemble_world_copies(inner);
     let inner_ref = store.insert(inner.clone(), Tol::witness());
     let (outer, outer_block) = stranded("speak-p-outer", "outer block");
     assert_eq!(
@@ -675,31 +711,18 @@ fn a_parts_product_refusal_says_the_parts_label_where_the_outer_document_holds_t
     let ev = run(&outer, &opts);
     let error = ev.node_error(instance).expect("the part has no product");
     let (fault, _) = part_fault(error);
-    let editor_core::PartFault::PartProduct { refusal, .. } = fault else {
-        panic!("the part's gather refuses: {fault:?}");
+    // The part's product is its placement's copy, and the placement
+    // reads a body that is gone: its root failed.
+    let editor_core::PartFault::PartRootFailed { node, .. } = fault else {
+        panic!("the part's root fails: {fault:?}");
     };
-    assert_eq!(
-        refusal.kind(),
-        editor_core::ProductErrorKind::StrandedPlacement
-    );
+    assert_eq!(*node, block, "the failed root is the stranded placement");
     let in_outer = error.spoken(&outer, &ev);
     assert!(
-        in_outer.contains(&format!(
-            "Place \"inner block\" ({t}) reads a body that is gone"
-        )) && !in_outer.contains("outer block"),
+        in_outer.contains(&format!("Place \"inner block\" ({t})"))
+            && !in_outer.contains("outer block"),
         "a part's refusal says the part's label, never the outer document's for its id: \
          {in_outer}"
-    );
-    let own = product_recorded(&inner, &run(&inner, &opts), Tol::witness())
-        .expect_err("the part's own gather refuses")
-        .spoken(&inner);
-    let in_part = fault.to_string();
-    assert!(
-        in_part.contains(
-            own.strip_prefix("product: ")
-                .expect("the gather's stage word")
-        ),
-        "as the part's own gather says it: {in_part} / {own}"
     );
 }
 

@@ -169,6 +169,7 @@ pub(crate) mod invalid_margin;
 pub(crate) mod iso;
 pub mod joint;
 pub(crate) mod lineage;
+pub mod link;
 pub(crate) mod live;
 // The one statement of a stored planar loop's signed winding, shared by
 // the merge's role assigner and tier 3's check 6. Non-doc comment for
@@ -292,6 +293,51 @@ pub mod test_support {
     use geom_core::Real;
 
     use crate::body::Body;
+
+    /// **The resolution the suites' pinned numbers are stated at**:
+    /// [`crate::Settle::Resolution`] of 1024·ε of mean boundary
+    /// displacement. A test that reads a volume or an area as a number,
+    /// against a closed form or a pin, measures through this: its
+    /// tolerances and pins were set where every face met 1024·ε, and a
+    /// face that converges within the work wall keeps its bits under it.
+    /// A test whose assertion needs another width states that one.
+    #[must_use]
+    pub fn pinned_resolution<T: Real>(tol: geom_core::Tol) -> crate::Settle<T> {
+        crate::Settle::Resolution(quantity::Length::from_meters(pinned_len(tol)))
+    }
+
+    /// **`body`'s volume and area as numbers met at
+    /// [`pinned_resolution`]**: [`crate::mass_properties`] under it, read
+    /// through [`crate::MassMeasurement::met`], so a row that compares a
+    /// number with a closed form or a pin reads it only where every face
+    /// met the resolution. `what` names the body in the panic.
+    ///
+    /// # Panics
+    ///
+    /// Where the door refuses, or the resolution went unmet.
+    #[must_use]
+    #[allow(clippy::panic)]
+    pub fn pinned_volume(
+        what: &str,
+        body: &crate::AtRestBody<f64>,
+        tol: geom_core::Tol,
+    ) -> crate::MassProperties<f64> {
+        match crate::mass_properties(body, tol, pinned_resolution(tol)) {
+            Ok(measured) => match measured.met() {
+                Ok(enclosure) => enclosure,
+                Err(unmet) => panic!("{what}: {unmet}"),
+            },
+            Err(refusal) => panic!("{what}: mass properties refused: {refusal}"),
+        }
+    }
+
+    /// [`pinned_resolution`]'s length (m), for a row that hands a face's
+    /// lane the resolution itself.
+    #[must_use]
+    pub fn pinned_len(tol: geom_core::Tol) -> f64 {
+        1024.0 * tol.eps()
+    }
+
     // `UNIT_SQUARE` is deliberately NOT here: `tests/cube_doors_agree.rs`
     // is the only suite that wants the literal, and it restates it on
     // purpose — a guard that reached for the constant the builder uses
@@ -300,8 +346,8 @@ pub mod test_support {
     pub use crate::props::{
         DoorOutcome, DoorRead, FaceReading, FaceTerm, every_door, face_reading,
         face_reading_structural, fold_order_bound, mass_properties_one_point,
-        mass_properties_with_face_terms, quadrature_rounds, read_points, region_carries_of,
-        shell_references,
+        mass_properties_with_face_terms, measure_with_unmet_width, quadrature_rounds, read_points,
+        region_carries_of, shell_references,
     };
     pub use crate::test_support_fixtures::{
         CubeOps, CylFrame, CylKey, FaceGeometry, NullStrutListing, Prism, PrismOps, RingFaceOps,
@@ -682,16 +728,12 @@ pub mod test_support {
     /// **The measurement door** ([`crate::props::measure_to`]) over every
     /// face of `body`, measured and certified through the certified lane,
     /// under `settle`: why it stopped and the enclosure it reached, or the
-    /// refusal's text. The door is crate-private until unit C makes it
-    /// every caller's; this is the one a suite drives it through.
+    /// refusal's text: [`crate::mass_properties`] over a body tier 3 has
+    /// not admitted, read as its stop and volume enclosure.
     ///
     /// # Errors
     ///
     /// The door's refusal, as text, or a tolerance that forms no band.
-    ///
-    /// # Panics
-    ///
-    /// On a resolution finer than ε, as the door does.
     pub fn measure_to(
         body: &Body<f64>,
         settle: crate::Settle<f64>,
@@ -1157,20 +1199,22 @@ pub use boolean::{
     CarrierEqError, CarrierRelation, CarryRefusal, Cell, Coincide, CoincidenceMeasure,
     CompletedPolygonPair, ConsumedExtent, Contact, ContactKind, ContactPairError, ContactRecords,
     ContainDecision, ContainError, Contradiction, DeclarationRead, DiscardRow, EdgeCarrierSite,
-    EdgeInFaceGap, EdgeJoin, EdgePieceClass, EeContact, EfContact, FaceContainment, FfContact,
-    Fusions, GlueVerdict, GluedPair, JOIN_LEVER, JOIN_SUBJECT, JoinReading, JoinRefusal,
-    JoinUndecided, LeverArm, LineWedgeFault, NodeWhy, NullEdgePairRecord, Operand, OperandKeys,
-    OperandRecords, PairFace, PairRefusalSite, PairSite, PairUnread, PierceRingRecord, PlaneDesc,
-    PlaneEqError, PlaneIdentity, PlaneRelation, PlaneRung, PointInSolidError, ReductionContacts,
-    RefusedRow, SectorRead, SectorRung, SelfCheck, SettleError, Settler, Settling,
-    ShellOrientation, SideCode, SlitLineGap, SolidContainment, SolidFaces, SphereQuestion,
-    SpiricLoops, SubstitutedFace, SweepStrategy, SweepTrace, TorusConvention, UncutFace,
-    UnreadNeighbourhood, UnreadPartner, VeContact, VfContact, VoidContainment, VoidEvidence,
-    VoidInsertError, VoidInserted, VvContact, WallRung, boolean_op_with, boolean_reduce,
-    carrier_eq, contfp, curved_face_containment, decision_words, face_carrier, flush_pair_relation,
-    insert_void, insert_voids, intersect, is_conventional_vertex, join_covers, joinable_vertices,
-    joined_cell, joined_edge, oriented_plane_eq, point_in_solid, point_in_solid_faces,
-    point_in_solid_of, rest_locus, subtract, tangent_pair_relation, union,
+    EdgeInFaceGap, EdgeJoin, EdgePieceClass, EeContact, EfContact, FaceContainment, FaceDescent,
+    FfContact, Fusions, GlueVerdict, JOIN_LEVER, JOIN_SUBJECT, JoinReading, JoinRefusal,
+    JoinUndecided, JudgedRow, LeverArm, LineWedgeFault, MemberFace, MemberInputs, MemberLineage,
+    NaryEnd, NaryJudgement, NaryMember, NaryOp, NaryRefusal, NaryRun, NaryStep, NodeWhy,
+    NullEdgePairRecord, Operand, OperandKeys, OperandRecords, PairFace, PairRefusalSite, PairSite,
+    PairUnread, PierceRingRecord, PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, PlaneRung,
+    PointInSolidError, ReductionContacts, RefusedRow, SectorRead, SectorRung, SelfCheck,
+    SettleError, Settler, Settling, ShellOrientation, SideCode, SlitFaceGap, SlitLineGap,
+    SolidContainment, SolidFaces, SphereQuestion, SpiricLoops, SubstitutedFace, SweepStrategy,
+    SweepTrace, TorusConvention, UncutFace, UnreadNeighbourhood, UnreadPartner, VeContact,
+    VfContact, VoidContainment, VoidEvidence, VoidInsertError, VoidInserted, VvContact, WallRung,
+    boolean_op_with, boolean_reduce, carrier_eq, contfp, curved_face_containment, decision_words,
+    face_carrier, flush_pair_relation, insert_void, insert_voids, intersect,
+    is_conventional_vertex, join_covers, joinable_vertices, joined_cell, joined_edge, nary_boolean,
+    oriented_plane_eq, point_in_solid, point_in_solid_faces, point_in_solid_of, rest_locus,
+    subtract, tangent_pair_relation, union,
 };
 pub use joint::{Deck, JointElement};
 pub use lineage::{
@@ -1193,9 +1237,9 @@ pub use chord_join::face_azimuth_window_traces;
 // vocabulary always, the door on the boolean sweep's terms.
 pub use attach::Rechart;
 pub use census::{
-    CensusStrategy, CensusTrace, FlushAtRest, RecordedAtRest, SweepPairs, TouchUnread,
-    census_cell_solid, census_contact_row, census_entity_solid, census_interference_solids,
-    census_rest_decision, census_uncleared_solids, record_at_rest,
+    CensusStrategy, CensusTrace, FlushAtRest, RecordedAtRest, SweepPairs, census_cell_solid,
+    census_contact_row, census_entity_solid, census_interference_solids, census_rest_decision,
+    census_uncleared_solids, record_at_rest,
 };
 #[cfg(feature = "sweep-testing")]
 pub use census::{census_traces, census_traces_planted};
@@ -1213,6 +1257,7 @@ pub use euler::{
 };
 pub use euler_kill::{KefResult, KevResult, KvfsResult, MergedMember, MfkrhCreated};
 pub use euler_ring::{KemrResult, KfmrhResult, MekrResult, MekrSite};
+pub use link::{Link, LinkRefusal, Material, TouchUnread};
 // The types that appear in this crate's own operator signatures, so a
 // consumer of the ops needs no direct geom-* imports for the common
 // path (the full geometry vocabulary still lives in those crates).
@@ -1254,11 +1299,11 @@ pub use pcurves::{
     pcurve_of,
 };
 pub use props::{
-    AtRestOutcome, AtRestPolicy, MassProperties, MassPropsError, QuadLane, RelOp, RoleNames,
-    Settle, ShellClassification, ShellClassifyError, ShellClassifyPayload, ShellDoor, ShellRole,
-    SignCertificate, SignLimit, SignNames, Stop, TargetUnreached, Verdict, VolumeEnclosure,
-    VolumeReading, classify_shells, classify_shells_of, classify_shells_structural,
-    mass_properties, mass_properties_structural,
+    AtRestOutcome, AtRestPolicy, CertifiedBody, Certifier, MassMeasurement, MassProperties,
+    MassPropsError, QuadLane, RoleNames, Settle, SettleVerdict, ShellClassification,
+    ShellClassifyError, ShellClassifyPayload, ShellDoor, ShellRole, SignCertificate, SignLimit,
+    SignNames, Stop, Unmet, VolumeEnclosure, classify_shells, classify_shells_of,
+    classify_shells_structural, mass_properties, mass_properties_structural,
 };
 pub use provenance::{Provenance, SplitLineageCycle};
 // The query VOCABULARY rides at the root like every other type;
@@ -1300,8 +1345,8 @@ pub use transform::{TransformError, transform_rigid};
 pub use validate::{
     AtRestBody, CensusContact, CensusSubject, CensusUnsupportedCause, ContactMark,
     CrossingSideVerdict, OrientationUnread, RingContact, RingPairContact, StaleDeclaration,
-    Unfinished, ValidationError, WedgeCheck, contact_marks, contact_marks_structural, validate,
-    validate_closed, validate_geometric, validate_geometric_certificate,
+    Undecidable, Unfinished, ValidationError, WedgeCheck, contact_marks, contact_marks_structural,
+    validate, validate_closed, validate_geometric, validate_geometric_certificate,
     validate_geometric_certificate_structural, validate_geometric_structural,
     validate_pseudomanifold, validate_pseudomanifold_certificate,
     validate_pseudomanifold_certificate_structural, validate_pseudomanifold_structural,

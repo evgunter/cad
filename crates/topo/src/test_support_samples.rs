@@ -784,16 +784,6 @@ fn props_errors() -> Vec<PropsError> {
             cause: diag(),
             check: geom_brep::props::PropsCheck::Inventory,
         },
-        PropsError::QuadratureBudget {
-            width_len: 1e-6,
-            target_len: 1e-9,
-            rounds: 12,
-        },
-        PropsError::QuadratureFloor {
-            width_len: 4.7e-6,
-            target_len: 1.024e-9,
-            rounds: 1,
-        },
         PropsError::QuadratureUnsupported {
             what: "a NURBS face",
         },
@@ -813,6 +803,16 @@ fn mass_props_errors() -> Vec<MassPropsError> {
         },
         MassPropsError::NullScaffoldEdge {
             edge: EdgeKey::default(),
+        },
+        MassPropsError::ResolutionFinerThanEps {
+            resolution: 1e-10,
+            eps: 1e-9,
+        },
+        MassPropsError::EmptyContains,
+        MassPropsError::Poisoned { cause: diag() },
+        MassPropsError::Undecided {
+            volume: (-1e-9, 1e-9),
+            stop: crate::Stop::Wall,
         },
     ]);
     v.extend(
@@ -1553,6 +1553,7 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
         ValidationError::VolumeSignUnresolved {
             solid,
             limit: crate::props::SignLimit::Scalar,
+            volume: Some((-1e-9, 1e-9)),
         },
     ));
     s.push((
@@ -1679,7 +1680,17 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
                 a,
                 b,
                 what: why.what(),
+                reason: crate::validate::Undecidable::MayOverlap,
             },
+        ));
+    }
+    for reason in [
+        crate::validate::Undecidable::ThinInBand,
+        crate::validate::Undecidable::MayOverlap,
+    ] {
+        s.push((
+            format!("CensusUndecidable/unread/{reason:?}"),
+            crate::census::unread_sample(face, face, reason),
         ));
     }
     s.push((
@@ -1690,7 +1701,7 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             witness: "(0.0, 0.0, 0.0)".to_owned(),
         },
     ));
-    for why in crate::census::TouchUnread::iter() {
+    for why in crate::link::TouchUnread::iter() {
         s.push((
             format!("FaceThroughEdgeWedgeUndecided/{why:?}"),
             ValidationError::FaceThroughEdgeWedgeUndecided {
@@ -1710,7 +1721,7 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
     ));
     // The reasons tier 3′'s line reading names: a sign in band, or an
     // edge's wedge with no reading.
-    let line_unread = core::iter::once((crate::census::TouchUnread::InBand, None))
+    let line_unread = core::iter::once((crate::link::TouchUnread::InBand, None))
         .chain(crate::census::WEDGE_UNREAD.map(|why| (why, Some(EdgeKey::default()))));
     for (why, unread) in line_unread {
         s.push((
@@ -1718,6 +1729,23 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             ValidationError::CoincidentWedgesOverlapUndecided {
                 edges: [EdgeKey::default(); 2],
                 unread,
+                witness: "(0.0, 0.0, 0.0)".to_owned(),
+                why,
+            },
+        ));
+    }
+    s.push((
+        "BoundaryCrossesItself".to_owned(),
+        ValidationError::BoundaryCrossesItself {
+            solid,
+            witness: "(0.0, 0.0, 0.0)".to_owned(),
+        },
+    ));
+    for why in crate::link::TouchUnread::iter() {
+        s.push((
+            format!("BoundaryCrossesItselfUndecided/{why:?}"),
+            ValidationError::BoundaryCrossesItselfUndecided {
+                solid,
                 witness: "(0.0, 0.0, 0.0)".to_owned(),
                 why,
             },

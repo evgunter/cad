@@ -113,19 +113,20 @@ fn shape_iii_volume_matches_the_derived_closed_form() {
             Tol::witness(),
         ),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .expect("mass properties");
     let exact = 9.0;
     assert!(
-        (m.volume - exact).abs() <= m.volume_pad + 1e-9,
+        (m.enclosure.volume - exact).abs() <= m.enclosure.volume_pad + 1e-9,
         "volume {} ± {} must bracket the derived {exact}",
-        m.volume,
-        m.volume_pad
+        m.enclosure.volume,
+        m.enclosure.volume_pad
     );
     assert!(
-        m.volume_pad < 1e-6,
+        m.enclosure.volume_pad < 1e-6,
         "the exact per-span lane is tight, pad = {}",
-        m.volume_pad
+        m.enclosure.volume_pad
     );
     // The caps' closed forms contribute pad-free; the walls' area is
     // an honest enclosure — positive, and NARROW. Positivity and
@@ -151,13 +152,13 @@ fn shape_iii_volume_matches_the_derived_closed_form() {
     // half-width is 1.1e-13 m³. The flux lane refines to machine
     // precision; the area lane stays at whatever its fixed resolution
     // bought. Nothing in the kernel METERS it — by ruling, not by
-    // omission (S-CERT Q1) — but `props/quad.rs`'s A2 gauge asserts a
+    // omission (S-CERT Q1) — but `props/quad/`'s A2 gauge asserts a
     // generous outer ceiling on it. Widening every face's bracket by a
     // common factor reds THIS row at 1.58x and trips that assert two
     // and a half orders further out: the acceptance row is the tight
     // meter, the assert is the tripwire outside it, and neither
     // substitutes for the other. The tripwire's own figures are not
-    // restated here — `props/quad.rs`'s `area_gauge_ok` is their one
+    // restated here — `props/quad/area.rs`'s `area_gauge_ok` is their one
     // home, and every restatement of them has gone stale once already.
     //
     // Spelled as a bare absolute because this loft has no closed-form
@@ -165,12 +166,12 @@ fn shape_iii_volume_matches_the_derived_closed_form() {
     // rows in `m5_pr11_quad_props.rs` scale to theirs. The tree spells
     // this kind of ceiling four ways and unifying them is not this
     // row's job.
-    assert!(m.surface_area > 0.0);
+    assert!(m.enclosure.surface_area > 0.0);
     assert!(
-        m.area_pad < 0.3,
+        m.enclosure.area_pad < 0.3,
         "the walls' area half-width is {} m² (surface area {} m²)",
-        m.area_pad,
-        m.surface_area
+        m.enclosure.area_pad,
+        m.enclosure.surface_area
     );
 }
 
@@ -255,11 +256,14 @@ mod certified {
                 Tol::witness(),
             ),
             Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
         )
         .expect("mass properties");
         let (lo, hi) = (
-            geom_core::Bounds::lo(m.volume) - geom_core::Bounds::hi(m.volume_pad),
-            geom_core::Bounds::hi(m.volume) + geom_core::Bounds::hi(m.volume_pad),
+            geom_core::Bounds::lo(m.enclosure.volume)
+                - geom_core::Bounds::hi(m.enclosure.volume_pad),
+            geom_core::Bounds::hi(m.enclosure.volume)
+                + geom_core::Bounds::hi(m.enclosure.volume_pad),
         );
         assert!(lo <= 9.0 && 9.0 <= hi, "9 ∈ [{lo}, {hi}]");
         // The same two ceilings the f64 row carries, against the same
@@ -269,8 +273,8 @@ mod certified {
         // `Interval`. Both pads come out bit-identical to the f64
         // lane's, so the constants are shared deliberately.
         let (vpad, apad) = (
-            geom_core::Bounds::hi(m.volume_pad),
-            geom_core::Bounds::hi(m.area_pad),
+            geom_core::Bounds::hi(m.enclosure.volume_pad),
+            geom_core::Bounds::hi(m.enclosure.area_pad),
         );
         assert!(
             vpad < 1e-6,

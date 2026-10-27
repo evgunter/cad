@@ -34,6 +34,7 @@ from pncad import (
     NamePat,
     Node,
     Open,
+    Orientation,
     PoseDef,
     RoleRead,
     VarName,
@@ -49,6 +50,7 @@ from pncad import (
 )
 
 from placing import against, own_frame
+from measuring import pinned
 
 
 def slab(doc, x, y, z):
@@ -85,7 +87,7 @@ def mass_of(doc, node):
     assert ev.succeeded(node), "the group evaluated"
     body = ev.value(node).body()
     body.validate()
-    return body.mass_properties()
+    return pinned(body)
 
 
 # The heat-sink fin, constant for constant with the corpus document
@@ -296,8 +298,10 @@ def die_tool_document():
     # The master ball is placed into the cube's space, its pole on the
     # cube's own frame at its origin corner (`Doc.corner_frame`: the
     # edge up the cube's z, the vertex along its x): an axis mate from
-    # the revolve's own axis, slid zero along it and spun zero about
-    # it — the corpus document's `Recorder::on_axis`, edit for edit.
+    # the revolve's own axis, under the orientation that puts the
+    # meridian's +y on the frame's z (its x kept), slid zero along it and
+    # spun zero about it — the corpus document's `Recorder::on_axis`,
+    # edit for edit.
     zero = (0 * m, 0 * m, 0 * m)
     own = doc.corner_frame(cube, zero, (0 * m, 0 * m, DIE_L * m), (DIE_L * m, 0 * m, 0 * m))
     master = doc.insert(
@@ -308,9 +312,10 @@ def die_tool_document():
                 Mate(
                     doc.output(ball, 1),
                     PoseDef.slide(RoleRead(own, "z"), RoleRead(own, "z"), Formula.zero("length")),
+                    orient=Orientation("+x", "-y"),
                 ),
                 MateValue(Coord.slide("z"), Formula.zero("length")),
-                MateValue(Coord.spin("z"), Formula.zero("angle")),
+                MateValue(Coord.spin(), Formula.zero("angle")),
             ],
         )
     )
@@ -321,8 +326,8 @@ def die_tool_document():
         Node.subtract(cube, tool)
     )
     # The pipped die is the product: placed once, last, as the corpus
-    # document places it.
-    doc.place(pipped, doc.world)
+    # document places it, and its copy the slot reads.
+    doc.set_product(doc.place(pipped, doc.world))
     return doc, master, tool, pipped
 
 
@@ -401,7 +406,7 @@ class TestTheDieTool(unittest.TestCase):
         cap = math.pi * PIP_H ** 2 * (3.0 * PIP_R - PIP_H) / 3.0
         want = DIE_L ** 3 - 6.0 * cap
         self.assertAlmostEqual(
-            body.mass_properties().volume, want, delta=1e-12 * want
+            pinned(body).volume, want, delta=1e-12 * want
         )
 
     def test_every_cavity_face_is_one_instance_segment_deep(self):

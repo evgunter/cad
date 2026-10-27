@@ -11,7 +11,7 @@ cost: E
 
 ## Found (QUAD, `quad/rational-quotient-statement`, 2026-10-22, §5 sweep)
 
-`crates/geom-brep/src/props/quad.rs` `rational_patch_face`:
+`crates/geom-brep/src/props/quad/rational.rs` `rational_patch_face`:
 `p_bound = (a_hull[0] / g_w).mag() + (a_hull[1] / g_w).mag() + (a_hull[2] / g_w).mag()`
 divides the refined homogeneous net's hull by the weight net's hull,
 three separately hulled inputs and an L1 fold. With positive weights
@@ -25,3 +25,8 @@ quantity), so it is not the translation row's defect.
 
 Not taken by the quotient-statement unit, whose two bounds were the
 flux's `f_dd` and the area pad.
+
+## Re-checked on main `9267d3ae` (QUAD tracker sweep, 2026-10-27)
+
+Still holds: `crates/geom-brep/src/props/quad/rational.rs:421`, read at
+`:603` (`boundary_defect * p_bound`).

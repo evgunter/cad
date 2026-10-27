@@ -124,6 +124,10 @@ pub fn stored_reading(
                 let body = given(doc, slot, body, read);
                 crate::edit::selection_into(&mut doc.borrow_mut(), slot, body, names)
             }
+            crate::Operand::Pick { placement, of } => {
+                let placement = given(doc, slot, placement, read);
+                crate::edit::pick_into(&mut doc.borrow_mut(), placement, of)
+            }
             crate::Operand::Pose(def) => {
                 let lowered = def
                     .try_map(
@@ -247,7 +251,7 @@ fn place_of(
 ) -> (ProfileDoc, RecipeNodeId) {
     let applied = crate::apply(
         &doc,
-        &DocEdit::place(vec![crate::BodyRead::plain(body)], target, placed.bundle()),
+        &DocEdit::place(crate::BodyRead::plain(body), target, placed.bundle()),
         tol,
     )
     .expect("a placement inserts");
@@ -329,12 +333,12 @@ pub fn moves_at(at: &crate::Frame) -> Vec<(crate::Coord, Formula)> {
         Some(chain) => chain
             .into_iter()
             .filter(|&(_, k)| k != 0)
-            .map(|(axis, k)| (Coord::Spin(axis), turn(k)))
+            .map(|(axis, k)| (Coord::Spin(Some(axis)), turn(k)))
             .collect(),
         None => euler_turns(&at.columns)
             .into_iter()
             .filter(|&(_, angle)| angle != 0.0)
-            .map(|(axis, angle)| (Coord::Spin(axis), ang(angle)))
+            .map(|(axis, angle)| (Coord::Spin(Some(axis)), ang(angle)))
             .collect(),
     };
     slides.chain(spins).collect()
@@ -456,8 +460,10 @@ pub fn placed_against_in(
     use crate::{Coord, TargetAxis};
     let ev: crate::Evaluation<f64> =
         crate::evaluate(doc, None, &crate::CancelToken::new(), opts, tol);
-    // The first planar face by id on the body's own xy, as the sign of
-    // its outward normal's z there.
+    // The first planar face by id on the body's own xy: its name, the
+    // sign of its outward normal's z there, and its outward normal and a
+    // point of it where the body stands in its space, which is where a
+    // mate reads it.
     let own_plane = |shape: &crate::Operand| {
         let (_, solid, table, motion) =
             crate::mate::corner::read_of(doc, &ev, shape).expect("the body has a value");
@@ -468,7 +474,7 @@ pub fn placed_against_in(
             let pose = topo::readback::face_pose(&solid, face).ok()?;
             let n = geom_brep::OutwardNormal::from_chart(pose.axis, pose.sense).vec();
             let o = pose.origin - geom_core::linalg::Point3::origin();
-            let (o, n) = match motion {
+            let (own_o, own_n) = match motion {
                 None => (o, n),
                 Some(m) => {
                     let back = m.linear.transpose();
@@ -479,15 +485,15 @@ pub fn placed_against_in(
                 body: 0,
                 key: crate::names::EntityKey::Face(face),
             })?;
-            [o.z, n.x, n.y]
+            [own_o.z, own_n.x, own_n.y]
                 .into_iter()
                 .all(|c| c == 0.0)
-                .then(|| (name.clone(), n.z.signum()))
+                .then(|| (name.clone(), own_n.z.signum(), n, o))
         })
     };
     // A body with no planar face on its own xy (a full revolve, an arc
     // tube) is placed by the moves `at` states, with no mate.
-    let (Some((copy_face, copy_z)), Some((target_face, target_z))) =
+    let (Some((copy_face, copy_z, _, _)), Some((target_face, _, d, face_at))) =
         (own_plane(body), own_plane(target))
     else {
         return crate::Placed::of(doc, Vec::new(), moves_at(at));
@@ -495,17 +501,24 @@ pub fn placed_against_in(
     let placed = at.affine::<f64>();
     // The copy's face's normal where `at` puts it.
     let m = placed.linear * geom_core::linalg::Vec3::new(0.0, 0.0, copy_z);
-    // An `at` tilting the copy's face off the target's xy is no face
+    // The target's axis its face's normal lies along, where it stands.
+    let normal_axis = [d.x, d.y, d.z]
+        .iter()
+        .position(|c| c.abs() == 1.0)
+        .filter(|&k| [d.x, d.y, d.z].iter().filter(|c| **c == 0.0).count() == 2 && k < 3);
+    // An `at` tilting the copy's face off the target's face is no face
     // rest: the copy is placed by the moves `at` states, with no mate.
-    if m.x != 0.0 || m.y != 0.0 {
+    let Some(k) = normal_axis.filter(|_| m.cross(d).norm() == 0.0) else {
         return crate::Placed::of(doc, Vec::new(), moves_at(at));
-    }
+    };
     let plane = |shape: &crate::Operand, face: crate::StableName| {
         crate::Operand::Pose(Box::new(PoseDef::Plane {
             face: crate::Operand::select(shape.clone(), vec![face]),
         }))
     };
-    let along = target_z * placed.translation.z;
+    // The standoff: how far along the target's normal the copy's face
+    // stands from the target's.
+    let along = d.dot(placed.translation - face_at);
     let to_plane = plane(target, target_face);
     let to = if along == 0.0 {
         to_plane
@@ -516,21 +529,30 @@ pub fn placed_against_in(
             by: len(along),
         }))
     };
+    let flipped = m.dot(d) < 0.0;
     let on = plane(body, copy_face);
-    let on = if m.z == target_z {
-        on
-    } else {
+    let on = if flipped {
         crate::Operand::Pose(Box::new(PoseDef::Flip {
             pose: RoleRead::plain(on),
         }))
+    } else {
+        on
     };
-    // The chart of a mate along the target's ±z: the target space's x
-    // kept, its y `d × x`; the copy's x where `at` turns it, measured
-    // about `d` in quarter turns where it lies on an axis.
-    let d = target_z;
-    let (sx, sy) = (placed.translation.x, d * placed.translation.y);
-    let xc = placed.linear * geom_core::linalg::Vec3::new(1.0, 0.0, 0.0);
-    let spin = match (xc.x, d * xc.y) {
+    // The orientation nearest where `at` turns the copy, which puts its
+    // face's normal on the target's: the least turn is the identity, the
+    // slides are the target's own coordinates across the normal, and the
+    // spin is what is left about it, in quarter turns where it is one.
+    let orient = crate::Orientation::nearest(&placed.linear);
+    let left = placed.linear * orient.matrix::<f64>().transpose();
+    let axes = [
+        geom_core::linalg::Vec3::new(1.0, 0.0, 0.0),
+        geom_core::linalg::Vec3::new(0.0, 1.0, 0.0),
+        geom_core::linalg::Vec3::new(0.0, 0.0, 1.0),
+    ];
+    let u = axes[(k + 1) % 3];
+    let turned = left * u;
+    let (c, s) = (u.dot(turned), u.cross(turned).dot(d));
+    let spin = match (c, s) {
         (1.0, 0.0) => Formula::zero(Dimension::Angle),
         (0.0, 1.0) => Formula::turn_over(4).expect("a quarter turn"),
         (-1.0, 0.0) => Formula::turn_over(2).expect("a half turn"),
@@ -539,6 +561,13 @@ pub fn placed_against_in(
         }
         (c, s) => ang(s.atan2(c)),
     };
+    let across = [TargetAxis::of_index(k + 1), TargetAxis::of_index(k + 2)];
+    let across = if across[0] < across[1] {
+        across
+    } else {
+        [across[1], across[0]]
+    };
+    let coordinate = |a: TargetAxis| axes[a.index()].dot(placed.translation);
     let slide = |by: f64| {
         if by == 0.0 {
             Formula::zero(Dimension::Length)
@@ -547,11 +576,11 @@ pub fn placed_against_in(
         }
     };
     crate::Placed {
-        mates: vec![crate::Mate { on, to }],
+        mates: vec![crate::Mate { on, to, orient }],
         values: vec![
-            (Coord::Slide(TargetAxis::X), slide(sx)),
-            (Coord::Slide(TargetAxis::Y), slide(sy)),
-            (Coord::Spin(TargetAxis::Z), spin),
+            (Coord::Slide(across[0]), slide(coordinate(across[0]))),
+            (Coord::Slide(across[1]), slide(coordinate(across[1]))),
+            (Coord::SPIN, spin),
         ],
     }
 }
@@ -1014,6 +1043,8 @@ pub enum VerbatimKind {
     Intact,
     /// `VerbatimEdge::Reflected`: a mirror's image.
     Reflected,
+    /// `VerbatimEdge::Copied`: a placement's or an instance's copy.
+    Copied,
 }
 
 /// **The name-carrying edge the recipe walks read `node` as, if any**:
@@ -1032,6 +1063,7 @@ pub fn verbatim_kind<P>(node: &Node<P>) -> Option<VerbatimKind> {
         VerbatimEdge::Selected { .. } => VerbatimKind::Selected,
         VerbatimEdge::Intact { .. } => VerbatimKind::Intact,
         VerbatimEdge::Reflected { .. } => VerbatimKind::Reflected,
+        VerbatimEdge::Copied { .. } => VerbatimKind::Copied,
     })
 }
 
@@ -1144,7 +1176,10 @@ pub fn beside_past_the_bundle_rule(
         <crate::program::ProfileProgram as crate::ProfilePayload>::Authored,
         Formula,
     > = Node::Place {
-        shapes: Vec::new(),
+        source: crate::BodyRead::plain(crate::Operand::Var(
+            out.output(placement, 0)
+                .unwrap_or_else(|| panic!("{placement:?} defines its copy")),
+        )),
         target: crate::Operand::Var(crate::VarId::WORLD),
         constraints: vec![crate::Constraint::of_mate(
             crate::node::ConstraintId::placeholder(1),
@@ -1191,15 +1226,16 @@ pub fn past_the_load_door(text: &str) -> ProfileDoc {
 
 // --- a union's fold rows, as their steps named them ---------------
 
-/// **One fold-step row as the step named it**: its two cells' names in
+/// **One fold-step row as the step named it**: its cells' names in
 /// the union's own space, collapsed ([`crate::names::collapse_table`]),
 /// the relation the step decided, and the row the union spelled from
 /// them in member space. A suite resolves the names to member cells by
 /// its own reading and holds the spelled row to it.
 #[derive(Clone, Debug)]
 pub struct FoldRowNames {
-    /// The two cells' collapsed names, in the order the step read them.
-    pub cells: [crate::names::StableName; 2],
+    /// The cells' collapsed names, in the order the step read them: two,
+    /// or a meeting's more (`topo::Coincidence::more`).
+    pub cells: Vec<crate::names::StableName>,
     /// What the step decided between them.
     pub relation: topo::Relation,
     /// The row the union spelled.
@@ -1241,14 +1277,180 @@ pub(crate) fn record_fold_row(
         crate::coincide::NamedCell::Entity { name, .. } => name.clone(),
         other => panic!("a fold row's cell is an entity of the union: {other:?}"),
     };
-    let [a, b] = named.cells.as_slice() else {
-        panic!("a fold step's row names two cells: {named:?}");
-    };
     rows.push(FoldRowNames {
-        cells: [name(a), name(b)],
+        cells: named.cells.iter().map(name).collect(),
         relation: named.relation,
         spelled: spelled.clone(),
     });
+}
+
+/// **The product said as the world's copies** (D10 `[operations]`): the
+/// slot set to the one world copy, or to a `⊔` of the world's copies in
+/// document order, written through the doors — what a fixture that
+/// places bodies into the world and makes all of them means. A `⊔` this
+/// wrote before is replaced, so a fixture that places one more body
+/// calls it again. A document with no world placement is left with an
+/// empty product. The one home of this fixture: a demo or a row about
+/// what a user authors names its product's copies instead.
+///
+/// # Panics
+///
+/// If a door refuses an edit it writes.
+#[must_use]
+pub fn assemble_world_copies(doc: ProfileDoc, tol: geom_core::Tol) -> ProfileDoc {
+    assemble_world_copies_edits(doc, tol).0
+}
+
+/// **[`assemble_world_copies`] with the edits it wrote**, in the order it
+/// wrote them: what a recorded log replays to reach the same product.
+///
+/// # Panics
+///
+/// If a door refuses an edit it writes.
+#[must_use]
+#[allow(clippy::expect_used)]
+pub fn assemble_world_copies_edits(
+    doc: ProfileDoc,
+    tol: geom_core::Tol,
+) -> (ProfileDoc, Vec<crate::DocEdit<ProfileProgram>>) {
+    let mut log = Vec::new();
+    let apply = |log: &mut Vec<_>, doc: &ProfileDoc, edit: crate::DocEdit<ProfileProgram>| {
+        let out = crate::apply(doc, &edit, tol)
+            .unwrap_or_else(|e| panic!("the product's edit applies: {e}"))
+            .doc;
+        log.push(edit);
+        out
+    };
+    let mut doc = doc;
+    // A `⊔` the slot reads, read by nothing else, is this helper's own.
+    let held = doc
+        .product()
+        .and_then(|var| doc.operation_of(var))
+        .filter(|&at| matches!(doc.node(at), Some(Node::Assemble { .. })))
+        .filter(|&at| {
+            let var = doc.output(at, 0);
+            !doc.ids().into_iter().any(|id| {
+                doc.node(id).is_some_and(|node| {
+                    node.operand_rows()
+                        .into_iter()
+                        .any(|(_, read)| Some(read) == var)
+                })
+            })
+        });
+    // A product already the world's copies is kept as it is, so a
+    // document written twice is the one document.
+    let world: Vec<crate::VarId> = doc
+        .placements()
+        .into_iter()
+        .filter(|&p| doc.node_space(p) == Some(crate::VarId::WORLD))
+        .filter_map(|p| doc.output(p, 0))
+        .filter(|&copy| {
+            doc.var(copy)
+                .is_some_and(|v| v.kind() == crate::VarKind::Body)
+        })
+        .collect();
+    let spelled = |copies: &[crate::VarId]| {
+        crate::Bodies::Spelled(
+            copies
+                .iter()
+                .map(|&copy| crate::BodyRead::plain(copy))
+                .collect(),
+        )
+    };
+    let kept = match world.as_slice() {
+        [] => doc.product().is_none(),
+        [one] => doc.product() == Some(*one),
+        several => held.is_some_and(|at| {
+            matches!(doc.node(at), Some(Node::Assemble { members }) if *members == spelled(several))
+        }),
+    };
+    if kept {
+        return (doc, log);
+    }
+    doc = apply(&mut log, &doc, crate::DocEdit::SetProduct { product: None });
+    if let Some(at) = held {
+        doc = apply(&mut log, &doc, crate::DocEdit::DeleteNode { id: at });
+    }
+    let product = match world.as_slice() {
+        [] => return (doc, log),
+        [one] => crate::Operand::Var(*one),
+        several => {
+            let insert = crate::DocEdit::InsertNode {
+                node: Box::new(Node::Assemble {
+                    members: crate::Bodies::Spelled(
+                        several
+                            .iter()
+                            .map(|&copy| crate::BodyRead::plain(crate::Operand::Var(copy)))
+                            .collect(),
+                    ),
+                }),
+                fresh: Vec::new(),
+            };
+            let outcome = crate::apply(&doc, &insert, tol)
+                .unwrap_or_else(|e| panic!("the world's copies assemble: {e}"));
+            log.push(insert);
+            doc = outcome.doc;
+            crate::Operand::Node(outcome.record.minted.expect("an insert mints its node"))
+        }
+    };
+    let doc = apply(
+        &mut log,
+        &doc,
+        crate::DocEdit::SetProduct {
+            product: Some(product),
+        },
+    );
+    (doc, log)
+}
+
+/// The judgement whose naming [`with_judgement_naming_fault`] refuses,
+/// while it runs.
+static JUDGEMENT_FAULT: std::sync::Mutex<Option<usize>> = std::sync::Mutex::new(None);
+
+/// What [`with_judgement_naming_fault`]'s refused naming says.
+pub const JUDGEMENT_NAMING_FAULT: &str = "a test refused the naming of a union's judgement";
+
+/// **`f`, with the naming of every union's judgement `k` refused**
+/// ([`JUDGEMENT_NAMING_FAULT`]): a seam for the order in which a union
+/// announces what goes wrong, which no geometry reaches on demand. One
+/// at a time: a nested call panics.
+///
+/// The seam is disarmed when `f` returns or unwinds.
+///
+/// # Panics
+///
+/// Where another call is running.
+pub fn with_judgement_naming_fault<R>(k: usize, f: impl FnOnce() -> R) -> R {
+    /// Disarms the seam on every way out of `f`.
+    struct Disarm;
+    impl Drop for Disarm {
+        fn drop(&mut self) {
+            *JUDGEMENT_FAULT
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner) = None;
+        }
+    }
+    {
+        let mut slot = JUDGEMENT_FAULT
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        assert!(slot.is_none(), "one judgement-naming fault at a time");
+        *slot = Some(k);
+    }
+    let _disarm = Disarm;
+    f()
+}
+
+/// The refusal [`with_judgement_naming_fault`] makes of judgement `k`'s
+/// naming, where it is running for `k`.
+pub(crate) fn judgement_naming_fault(k: usize) -> Option<crate::names::NamingError> {
+    (*JUDGEMENT_FAULT
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        == Some(k))
+    .then_some(crate::names::NamingError::Emission {
+        what: JUDGEMENT_NAMING_FAULT,
+    })
 }
 
 #[cfg(test)]
@@ -1278,7 +1480,7 @@ mod tests {
         ] {
             assert_eq!(
                 spins(axes_at([0.0; 3], x, y)),
-                vec![(Coord::Spin(axis), quarter.clone())],
+                vec![(Coord::Spin(Some(axis)), quarter.clone())],
                 "a quarter turn about {axis:?}"
             );
         }
@@ -1286,8 +1488,8 @@ mod tests {
         assert_eq!(
             spins(axes_at([0.0; 3], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0])),
             vec![
-                (Coord::Spin(TargetAxis::X), quarter.clone()),
-                (Coord::Spin(TargetAxis::Z), quarter),
+                (Coord::Spin(Some(TargetAxis::X)), quarter.clone()),
+                (Coord::Spin(Some(TargetAxis::Z)), quarter),
             ],
         );
     }

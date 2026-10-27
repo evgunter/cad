@@ -30,21 +30,18 @@ use crate::fixture::{axes_at, slid, value_slot};
 use crate::fixture::{face_vertices, insert, len, on_frame, out, step, table};
 
 use editor_core::{
-    Coord, DocEdit, EntityKey, EntityKind, Entry, Evaluation, LoopProgram, NameTable, NamingError,
-    Node, NodeErrorKind, ProfileDoc, ProfileProgram, Qualifier, RecipeNodeId, RoleSeg, StableName,
-    TargetAxis,
+    Coord, DocEdit, EntityKey, EntityKind, Entry, Evaluation, LoopProgram, NameTable, NamedCell,
+    NamingError, Node, NodeErrorKind, ProfileDoc, ProfileProgram, Qualifier, RecipeNodeId, RoleSeg,
+    StableName, TargetAxis,
 };
 use geom_core::Tol;
 
 /// `doc` with the placement `placed` slid to `to` along `axis` of its
-/// target's own frame. The values are charted on the target's flipped
-/// start cap, whose `y` runs along the target's `−y`.
+/// target's own frame: a slide is a coordinate on the target's own axes,
+/// its start cap where the identity orientation puts the copy's.
 fn moved(doc: ProfileDoc, placed: RecipeNodeId, axis: TargetAxis, to: f64) -> ProfileDoc {
     let slot = value_slot(&doc, placed, Coord::Slide(axis));
-    let by = match axis {
-        TargetAxis::Y => -to,
-        _ => to,
-    };
+    let by = to;
     step(
         doc,
         DocEdit::SetParam {
@@ -233,8 +230,26 @@ fn label(
             .map(|c| label(ev, doc, labels, c))
             .collect::<Vec<_>>()
             .join("+"),
-        _ => format!("{}:{}", labels[&n.node], plane_label(ev, n.node, n)),
+        _ => {
+            let at = holder(doc, labels, n);
+            format!("{}:{}", labels[&at], plane_label(ev, at, n))
+        }
     }
+}
+
+/// The labelled member that holds `n`, a name minted at `n.node`: that
+/// node itself, or a placement of it, whose copy carries its source's
+/// names verbatim.
+fn holder(doc: &ProfileDoc, labels: &BTreeMap<RecipeNodeId, &str>, n: &StableName) -> RecipeNodeId {
+    labels
+        .keys()
+        .copied()
+        .find(|&id| {
+            id == n.node
+                || matches!(doc.node(id), Some(editor_core::Node::Place { source, .. })
+                    if doc.operation_of(source.read) == Some(n.node))
+        })
+        .unwrap_or_else(|| panic!("no labelled member holds {n:?}"))
 }
 
 /// `node`'s split parents, each as the sorted list of its pieces' wall
@@ -284,15 +299,15 @@ struct Fixture {
 /// table (every name binding a face with the same centroid), and the
 /// split parents' wall sets are `fx.expect`. Returns the orders run.
 fn check(fx: &Fixture) -> usize {
-    let mut doc = ProfileDoc::empty_derived(fx.label, Tol::witness());
-    let mut ids = Vec::new();
-    let mut labels = BTreeMap::new();
-    for (l, m) in &fx.members {
-        let (d, id) = add(doc, ids.first().copied(), m);
-        doc = d;
-        ids.push(id);
-        labels.insert(id, *l);
-    }
+    let (doc, ids) = placed(
+        ProfileDoc::empty_derived(fx.label, Tol::witness()),
+        &fx.members,
+    );
+    let labels: BTreeMap<RecipeNodeId, &str> = ids
+        .iter()
+        .zip(&fx.members)
+        .map(|(&id, (l, _))| (id, *l))
+        .collect();
     let orders: Vec<Vec<usize>> = match fx.pair {
         Some(_) => vec![vec![0, 1]],
         None => permutations(&(0..ids.len()).collect::<Vec<_>>()),
@@ -555,18 +570,7 @@ fn a_boss_on_one_piece_is_not_cited_and_one_straddling_the_divider_is() {
 fn a_boss_whose_corner_touches_the_divider_is_part_of_it() {
     check(&u(
         "corner_boss",
-        vec![
-            ("plate", plate()),
-            ("slab", slab()),
-            (
-                "boss",
-                Mem::Prism(
-                    vec![vec![(1.4, 1.0), (1.0, 1.4), (0.6, 1.0), (1.0, 0.6)]],
-                    0.47,
-                    1.03,
-                ),
-            ),
-        ],
+        corner_boss_members(),
         vec![
             (
                 "plate:z=1.00",
@@ -584,6 +588,172 @@ fn a_boss_whose_corner_touches_the_divider_is_part_of_it() {
             slab_bottom(),
         ],
     ));
+}
+
+/// The corner boss's members: the plate, the slab across it, and a
+/// diamond prism whose corner edge lies in the slab's `x = 1.4` wall and
+/// crosses the plate's top.
+fn corner_boss_members() -> Vec<(&'static str, Mem)> {
+    vec![
+        ("plate", plate()),
+        ("slab", slab()),
+        (
+            "boss",
+            Mem::Prism(
+                vec![vec![(1.4, 1.0), (1.0, 1.4), (0.6, 1.0), (1.0, 0.6)]],
+                0.47,
+                1.03,
+            ),
+        ),
+    ]
+}
+
+/// `members` in `doc`, each placed by [`add`] against the first.
+fn placed(mut doc: ProfileDoc, members: &[(&'static str, Mem)]) -> (ProfileDoc, Vec<RecipeNodeId>) {
+    let mut ids = Vec::new();
+    for (_, m) in members {
+        let (d, id) = add(doc, ids.first().copied(), m);
+        doc = d;
+        ids.push(id);
+    }
+    (doc, ids)
+}
+
+/// The corner boss's members in `doc` ([`placed`]).
+pub(crate) fn corner_boss(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
+    placed(doc, &corner_boss_members())
+}
+
+/// A row cell's label, `member:place`: a face by [`label`], an edge by
+/// where its two ends stand, `x=1.40,y=1.00` for one parallel to `z`.
+fn cell_label(
+    ev: &Evaluation<f64>,
+    doc: &ProfileDoc,
+    labels: &BTreeMap<RecipeNodeId, &str>,
+    cell: &NamedCell,
+) -> String {
+    let NamedCell::Entity { name, .. } = cell else {
+        panic!("a boolean's row names entities: {cell:?}")
+    };
+    match name.kind {
+        EntityKind::Face => label(ev, doc, labels, name),
+        EntityKind::Edge => edge_label(ev, doc, labels, name),
+        other => panic!("a corner's meeting names a {other:?}: {name:?}"),
+    }
+}
+
+/// [`label`] for an edge name: its member, and where its ends stand.
+fn edge_label(
+    ev: &Evaluation<f64>,
+    doc: &ProfileDoc,
+    labels: &BTreeMap<RecipeNodeId, &str>,
+    n: &StableName,
+) -> String {
+    let place = |node: RecipeNodeId, of: &StableName| {
+        let Some(Entry::Unique(e)) = table(ev, node).lookup(of) else {
+            panic!("{of:?} is not named once by node {node:?}")
+        };
+        let EntityKey::Edge(k) = e.key else {
+            panic!("{of:?} is no edge")
+        };
+        let body = body_of(ev, node);
+        let edge = body.get_edge(k).unwrap();
+        let [p, q] = [edge.he_plus, edge.he_minus].map(|he| {
+            let v = body.get_half_edge(he).unwrap().start;
+            body.get_point(body.get_vertex(v).unwrap().point)
+                .unwrap()
+                .to_array()
+        });
+        if (p[0] - q[0]).abs() < 1e-9 && (p[1] - q[1]).abs() < 1e-9 {
+            format!("x={:.2},y={:.2}", p[0], p[1])
+        } else {
+            "slant".to_owned()
+        }
+    };
+    match n.path.as_slice() {
+        [RoleSeg::From { read, of }] => match doc
+            .defined_by(*read)
+            .map(|(member, _)| member)
+            .filter(|member| labels.contains_key(member))
+        {
+            Some(member) => format!("{}:{}", labels[&member], place(member, of)),
+            None => edge_label(ev, doc, labels, of),
+        },
+        _ => {
+            let at = holder(doc, labels, n);
+            format!("{}:{}", labels[&at], place(at, n))
+        }
+    }
+}
+
+/// **The corner boss's corner is one point, logged alike in every
+/// member order and in every pair boolean.** The boss's corner edge lies
+/// in the slab's wall and crosses the plate's top, so a step folding the
+/// plate onto the other two decides two pierces of the plate's top, the
+/// edge's and the wall's, one point. Each order's union logs that
+/// decision once, its one meeting of three cells: the boss's edge at
+/// (1.4, 1.0), the slab's wall `x = 1.4` and the plate's top `z = 1`.
+/// The plate's union and intersection with the slab-and-boss union, in
+/// both orders, and the subtract of the plate from that union build and
+/// log the same meeting.
+///
+/// *Breaks if* a step holds the decision out of its log, spells it in
+/// other cells, or a pair boolean refuses the row's cells as no input's.
+#[test]
+fn the_corner_boss_logs_its_corner_alike_in_every_order_and_every_pair_boolean() {
+    let members = corner_boss_members();
+    let corner = ["boss:x=1.40,y=1.00", "plate:z=1.00", "slab:x=1.40"];
+    let meeting = |what: &str, doc: &ProfileDoc, ids: &[RecipeNodeId], n: RecipeNodeId| {
+        let ev = run(doc);
+        assert!(failure(&ev, n).is_none(), "{what}: {:?}", failure(&ev, n));
+        let labels: BTreeMap<RecipeNodeId, &str> = ids
+            .iter()
+            .zip(&members)
+            .map(|(&id, (l, _))| (id, *l))
+            .collect();
+        let meetings: Vec<Vec<String>> = ev
+            .value(n)
+            .expect("the node evaluates")
+            .coincidences
+            .iter()
+            .filter(|r| r.relation == topo::Relation::Meet && r.cells.len() == 3)
+            .map(|r| {
+                let mut cells: Vec<String> = r
+                    .cells
+                    .iter()
+                    .map(|c| cell_label(&ev, doc, &labels, c))
+                    .collect();
+                cells.sort();
+                cells
+            })
+            .collect();
+        assert_eq!(meetings, [corner], "{what}: its one meeting of three cells");
+    };
+    let fresh = || corner_boss(ProfileDoc::empty_derived("corner_boss", Tol::witness()));
+    for order in permutations(&[0, 1, 2]) {
+        let (doc, ids) = fresh();
+        let ordered: Vec<RecipeNodeId> = order.iter().map(|&i| ids[i]).collect();
+        let (doc, n) = crate::fixture::union_over(doc, &ordered);
+        meeting(&format!("the union in order {order:?}"), &doc, &ids, n);
+    }
+    type Pair = fn(RecipeNodeId, RecipeNodeId) -> editor_core::AuthoredNode;
+    let pairs: [(&str, Pair); 5] = [
+        ("union, the boss first", |u, p| PairOp::Union.node(u, p)),
+        ("union, the plate first", |u, p| PairOp::Union.node(p, u)),
+        ("intersect, the boss first", |u, p| Node::Intersect {
+            members: editor_core::Bodies::Spelled(vec![u.into(), p.into()]),
+        }),
+        ("intersect, the plate first", |u, p| Node::Intersect {
+            members: editor_core::Bodies::Spelled(vec![p.into(), u.into()]),
+        }),
+        ("the plate subtracted", |u, p| PairOp::Subtract.node(u, p)),
+    ];
+    for (what, node) in pairs {
+        let (doc, ids) = fresh();
+        let (doc, boss_on_slab) = crate::fixture::union_over(doc, &[ids[1], ids[2]]);
+        let (doc, n) = insert(doc, node(boss_on_slab, ids[0]));
+        meeting(what, &doc, &ids, n);
+    }
 }
 
 /// **A member that engulfs the members before it** leaves the fold a

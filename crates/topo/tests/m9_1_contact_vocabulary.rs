@@ -49,7 +49,23 @@ fn a_rest_unions_and_replays_records_bit_identically() {
         "bit-identical replay must reproduce the RECORDS bit-identically (D9/C4)"
     );
     assert_eq!(
-        mass_properties(&x.body, Tol::witness()).unwrap().volume,
-        mass_properties(&y.body, Tol::witness()).unwrap().volume
+        mass_properties(
+            &x.body,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness())
+        )
+        .unwrap()
+        .met()
+        .expect("the pinned resolution is met")
+        .volume,
+        mass_properties(
+            &y.body,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness())
+        )
+        .unwrap()
+        .met()
+        .expect("the pinned resolution is met")
+        .volume
     );
 }

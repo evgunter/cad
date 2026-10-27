@@ -113,7 +113,15 @@ fn an_area_overlap_cap_contact_publishes_one_cap_top_and_bottom() {
     // Two octagonal caps and eight walls.
     assert_eq!(bb.body.faces().count(), 10);
     assert_eq!(
-        mass_properties(&bb.body, Tol::witness()).unwrap().volume,
+        mass_properties(
+            &bb.body,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness())
+        )
+        .unwrap()
+        .met()
+        .expect("the pinned resolution is met")
+        .volume,
         1.75
     );
     assert_green(&bb, "a ∪ f");
@@ -138,7 +146,14 @@ fn the_merged_union_takes_a_third_brick() {
     assert_eq!(faces_at_height(&bb.body, 0.0), 1, "one bottom cap");
     // Exact on purpose: every coordinate is dyadic and small, so each closed-form term and
     // their sum are exact in f64 (a zero pad states no rounding; here there is none).
-    assert_eq!(mass_properties(&bb.body, tol).unwrap().volume, 2.0);
+    assert_eq!(
+        mass_properties(&bb.body, tol, topo::test_support::pinned_resolution(tol))
+            .unwrap()
+            .met()
+            .expect("the pinned resolution is met")
+            .volume,
+        2.0
+    );
     assert_green(&bb, "(a ∪ f) ∪ c");
 }
 
@@ -211,7 +226,14 @@ fn a_bent_seam_around_a_hole_merges_to_one_ringed_cap() {
     // 9 − 2 + 3 − 1: the U, the bar, their two corner squares.
     // Exact on purpose: every coordinate is dyadic and small, so each closed-form term and
     // their sum are exact in f64 (a zero pad states no rounding; here there is none).
-    assert_eq!(mass_properties(&bb.body, tol).unwrap().volume, 9.0);
+    assert_eq!(
+        mass_properties(&bb.body, tol, topo::test_support::pinned_resolution(tol))
+            .unwrap()
+            .met()
+            .expect("the pinned resolution is met")
+            .volume,
+        9.0
+    );
     assert_green(&bb, "U ∪ bar");
 }
 
@@ -241,7 +263,11 @@ fn assert_plug_merges(plug: Body<f64>, volume: f64, what: &str) {
         bb.naming.merge_skipped
     );
     assert_eq!(
-        mass_properties(&bb.body, tol).unwrap().volume,
+        mass_properties(&bb.body, tol, topo::test_support::pinned_resolution(tol))
+            .unwrap()
+            .met()
+            .expect("the pinned resolution is met")
+            .volume,
         volume,
         "{what}"
     );
@@ -262,7 +288,11 @@ fn assert_plug_merges(plug: Body<f64>, volume: f64, what: &str) {
     );
     assert!(nb.naming.merge_skipped.is_empty(), "{what}: next union");
     assert_eq!(
-        mass_properties(&nb.body, tol).unwrap().volume,
+        mass_properties(&nb.body, tol, topo::test_support::pinned_resolution(tol))
+            .unwrap()
+            .met()
+            .expect("the pinned resolution is met")
+            .volume,
         volume + 4.0,
         "{what}: next union"
     );
@@ -332,6 +362,13 @@ fn a_plug_folded_first_merges_into_the_face_it_plugs() {
     assert_eq!(bb.body.faces().count(), 6);
     // Exact on purpose: every coordinate is dyadic and small, so each closed-form term and
     // their sum are exact in f64 (a zero pad states no rounding; here there is none).
-    assert_eq!(mass_properties(&bb.body, tol).unwrap().volume, 12.0);
+    assert_eq!(
+        mass_properties(&bb.body, tol, topo::test_support::pinned_resolution(tol))
+            .unwrap()
+            .met()
+            .expect("the pinned resolution is met")
+            .volume,
+        12.0
+    );
     assert_green(&bb, "plug ∪ block");
 }

@@ -31,7 +31,7 @@ use pncad::topo::{AtRestBody, Body, BooleanBody, BooleanResult, Curve3};
 use crate::booleans::finished;
 
 use crate::scalar::Scalar;
-use crate::{SceneBody, Stop, View};
+use crate::{SceneBody, TourStop, View};
 use pncad::geom_core::Tol;
 
 /// The plate: a 4×4×1 block, z ∈ [0, 1].
@@ -137,16 +137,19 @@ fn assert_seam_chords_shared(body: &Body<f64>, delta: f64, tol: Tol) -> usize {
 }
 
 /// The showcase stop.
-pub fn stops(tol: Tol) -> Vec<Stop> {
+pub fn stops(tol: Tol) -> Vec<TourStop> {
     let bb = build::<f64>(tol);
     let expect = 16.0 + core::f64::consts::PI * 0.25 * 0.6;
-    let vol = pncad::topo::mass_properties(&bb.body, tol).unwrap().volume;
+    let vol = pncad::topo::mass_properties(&bb.body, tol, crate::printed())
+        .unwrap()
+        .enclosure
+        .volume;
     assert!(
         (vol - expect).abs() < 1e-6,
         "vol(plate∪boss) = {vol}, closed form {expect}"
     );
     let seam_arcs = assert_seam_chords_shared(&bb.body, 1e-2, tol);
-    vec![Stop {
+    vec![TourStop {
         name: "bossplate",
         // Short — montage captions share the panel's width (review
         // NOTE: the long form truncated and collided with its

@@ -2,8 +2,9 @@
 id: a-value-chart-jumps-at-the-antipode-under-a-downward-face
 kind: issue
 title: A value charted on the target space jumps across the antipode: a body hung under a flat downward face moves 20 units for a 1e-9 tilt of its target
-status: open
+status: closed
 opened: 2026-10-23
+closed: 2026-10-24
 priority: P1
 cost: M
 design: true
@@ -48,3 +49,7 @@ Ev, on PR 5621: "F makes sense if it's reasonable". So slides run along the targ
 - the viewer's mate tool rewrites the slides it keeps so a freshly mated copy moves only by the snap.
 
 The implementation is `the-value-chart-reads-a-written-orientation`.
+
+## Closed (2026-10-24)
+
+Closed by `the-value-chart-reads-a-written-orientation`, which builds F. The swing is gone: a mate carries an orientation, and the least turn carries where it puts the copy's mated direction onto the mated one. The plate's tilt moves `d` near where the identity puts the boss's top, so the least turn is near the identity and is smooth there. The boss stays within `O(tilt)` of `x = +10`, continuously through zero, for tilts from 1e-12 to 0.1 about either axis, either sign. The row is `intent_value_chart_orientation::a_boss_hung_under_a_tilted_plate_stays_within_its_tilt_of_its_place`. The one pole left is the orientation written backwards, which refuses `MateFault::Backwards` in its band, naming the orientation to write (`the_pole_band_refuses_naming_the_orientation_to_write`).

@@ -44,8 +44,19 @@ default, 1e-6 and 1e-12, with this row's panic: `ARM: perimeter. Width
 The row's net has weights 2 (constant). ISO's PR 5635
 (`iso/one-polynomial-weight-test`, merge `9180a67d`) routes a
 constant-weight net to the integral arm
-(`geom_core::spline::constant_weight`; `props/quad.rs`
+(`geom_core::spline::constant_weight`; `props/quad/`
 `nurbs_patch_face_rounds`). So this net now takes the unit-weight path
 this row describes, where before it took the rational quotient lane.
 5635 did not cause the defect. It routed a probe row onto it, and the
 probe is now the main red. The fix stays this row's.
+
+## Re-checked on main `9267d3ae` (QUAD tracker sweep, 2026-10-27)
+
+Still holds, and main is still red. Re-run at 1e-6, 1e-9 and 1e-12:
+`cargo nextest run -p geom-brep --test all -E
+'test(knots_hugging_the_trim_edges_stay_sound)'` panics at every ε in
+`debug_assert_area_gauge`
+(`crates/geom-brep/src/props/quad/area.rs:372`; the panic is at `:379`),
+with `ARM: perimeter. Width 20009765.101737916 on a face whose perimeter
+is at least 8`. These are the same numbers as before. The lane is
+`nurbs_patch_face_rounds` (`props/quad/patch.rs:176`).

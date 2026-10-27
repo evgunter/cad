@@ -41,7 +41,11 @@ fn an_exterior_meridian_covers_the_sphere_twice_and_is_refused() {
         "the doubled ball is refused as covered twice: {errs:?}"
     );
     // Raw door: the measured body is a seam region covered twice, which tier 3 refuses (SeamRegionOvercovered).
-    let door = topo::test_support::measure_unvalidated(&body, tol);
+    let door = topo::test_support::measure_unvalidated(
+        &body,
+        tol,
+        topo::test_support::pinned_resolution(tol),
+    );
     assert!(
         matches!(
             door,
@@ -72,11 +76,11 @@ fn a_double_cover_whose_faces_each_read_their_own_side_is_refused() {
     split_faces_at_equator(&mut control, tol);
     topo::validate_geometric(&control, tol)
         .unwrap_or_else(|e| panic!("the ball split at its equator is valid: {e:?}"));
-    let got = topo::mass_properties(
+    let got = topo::test_support::pinned_volume(
+        "the measured body",
         &topo::test_support::finished("the measured body", topo::Body::clone(&control), tol),
         tol,
     )
-    .unwrap()
     .volume;
     assert!(
         (got - 4.0 * std::f64::consts::PI / 3.0).abs() <= 1e-9,
@@ -100,7 +104,11 @@ fn a_double_cover_whose_faces_each_read_their_own_side_is_refused() {
         "the split double cover is refused as covered twice: {errs:?}"
     );
     // Raw door: the measured body is a seam region covered twice, which tier 3 refuses (SeamRegionOvercovered).
-    let door = topo::test_support::measure_unvalidated(&body, tol);
+    let door = topo::test_support::measure_unvalidated(
+        &body,
+        tol,
+        topo::test_support::pinned_resolution(tol),
+    );
     assert!(
         matches!(
             door,

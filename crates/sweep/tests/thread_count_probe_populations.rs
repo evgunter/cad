@@ -1,17 +1,19 @@
 //! **The `probe` sample population does not move with the thread
-//! count** — what k-lint counts, read at 1 and 4 threads through the
-//! two doors whose walks run their faces or shells in parallel:
-//! `topo::mass_properties` and `topo::classify_shells`.
+//! count** — what k-lint counts, read at 1 and 4 threads through
+//! `topo::mass_properties`, whose face walk runs in parallel.
 //!
-//! These rows belonged to `mass_props_are_thread_count_invariant` and
-//! `shell_census_is_thread_count_invariant`, and they live apart for
-//! one reason: the sink only exists in a `probe` build, so the probe
-//! sweep (`scripts/k_probe_sweep.sh`) is the only thing that runs them,
-//! and it selects by module. While they sat in those suites the sweep
-//! re-ran the suites' ungated golden rows too — minutes of debug-build
-//! walks the `test` job already runs at the same default ε — to reach
-//! the one row nothing else executes. A file of its own is what lets
-//! the sweep select exactly the probe-gated half.
+//! This row belonged to `mass_props_are_thread_count_invariant`, and it
+//! lives apart for one reason: the sink only exists in a `probe` build,
+//! so the probe sweep (`scripts/k_probe_sweep.sh`) is the only thing
+//! that runs it, and it selects by module. While it sat in that suite
+//! the sweep re-ran the suite's ungated golden rows too — minutes of
+//! debug-build walks the `test` job already runs at the same default ε
+//! — to reach the one row nothing else executes. A file of its own is
+//! what lets the sweep select exactly the probe-gated half.
+//!
+//! The shell census has no row here: its walk is serial
+//! (`topo::props`' `decide_faces_serially`), so no thread count can
+//! move its population.
 //!
 //! **Rostered as EXECUTED** (`scripts/gates/probe-suite-census.sh`'s
 //! `RUN_FLOOR`, which `k_probe_sweep.sh` derives its default-selection
@@ -81,15 +83,10 @@ fn assert_identical(walk: impl Fn() + Send + Sync) {
 fn the_mass_props_sample_population_is_identical_at_one_and_four_threads() {
     let body = topo::test_support::finished("the probe arc loft", probe_arc_loft(), Tol::witness());
     assert_identical(|| {
-        let _ = topo::mass_properties(&body, Tol::witness());
-    });
-}
-
-/// The shell walk of the census door.
-#[test]
-fn the_shell_census_sample_population_is_identical_at_one_and_four_threads() {
-    let body = topo::test_support::finished("the probe arc loft", probe_arc_loft(), Tol::witness());
-    assert_identical(|| {
-        let _ = topo::classify_shells(&body, Tol::witness());
+        let _ = topo::mass_properties(
+            &body,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
+        );
     });
 }

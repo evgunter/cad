@@ -76,12 +76,22 @@ fn digest(rows: &[(&'static str, editor_core::Resolution)]) -> u64 {
 /// with it. Every row's Debug spelling, ordinals included, is main's
 /// with the mint digests masked: a spelling change.
 ///
+/// **Re-pinned for D′3** (a copy carries its source's names): the
+/// slab's copy names its faces as its block does, with no `Placed`
+/// qualifier, so the names the cut diagnoses are spelled anew. Every
+/// row keeps its shape (`PredicateFlip`, `Cascade`, `StructuralParam`,
+/// `NodeGone`, `Ambiguous`): a spelling change.
+///
+/// **Re-pinned for the merge over ATREST stage 4 I** (PR 5637): the
+/// slab's mate writes no class and the content key's `VERSION` moved
+/// to 21, so every mint id's digest moved with it: a spelling change.
+///
 /// **Re-pinned for a pair boolean's walls** (a `Borders` wall cites its
 /// parent as the boolean's own table names it, the `From` it came in
 /// through): the ambiguous row's piece's wall moved from the tool's bare
 /// face name to that `From`. Every row keeps its shape: a spelling
-/// change.
-const DIAGNOSIS_DIGEST: u64 = 0x368b_5e05_622b_e4af;
+/// change. Re-measured with both merged.
+const DIAGNOSIS_DIGEST: u64 = 0xd1bb_9861_e24b_88c2;
 
 #[test]
 fn diagnosis_corpus_is_golden() {

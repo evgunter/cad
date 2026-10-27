@@ -147,7 +147,7 @@ pub(super) struct SweepKnobs {
 pub(super) struct ContactAcc {
     records: ReductionContacts,
     /// Every edge split the sweep made, in split order.
-    pub(super) splits: super::EdgeSplits,
+    pub(super) splits: super::Mints,
     /// Every decision a push made, in decision order: the rows the
     /// records cite ([`Backing::Decided`](crate::Backing::Decided) names an index here until
     /// the result's carry renumbers it).
@@ -171,7 +171,9 @@ pub(super) struct ContactAcc {
 pub(crate) struct PendingRow {
     /// The two cells, each in its operand clone's keys: a vertex the
     /// reduction minted is still a vertex here, and the carry reads it
-    /// back to the input edge it was minted on.
+    /// back to the input cell it was minted in ([`super::Mints`]). A
+    /// ring tie's pierced face, which its row also names, is kept beside
+    /// the row (`ops::Ledger`).
     pub(crate) cells: [(Operand, super::Cell); 2],
     /// What was decided between them.
     pub(crate) relation: crate::Relation,
@@ -810,10 +812,7 @@ pub(super) fn gate_maximal_faces<T: Decide>(
                     ((t1 - t0) * T::from_f64(0.5)).min(T::from_f64(core::f64::consts::FRAC_PI_2));
                 radius.abs() * T::from_f64(2.0) * half.sin()
             }
-            geom::Curve3::Nurbs(n) => n
-                .control()
-                .iter()
-                .fold(T::zero(), |far, &q| far.max((q - at).norm())),
+            geom::Curve3::Nurbs(n) => geom_brep::control_net_reach(n.control(), at),
             _ => crate::census::edge_reach_in(body, edge_key, &super::boxes::BoxFrame::World)
                 .map(|(lo, hi)| geom_brep::ExtentBall::of_box(lo, hi).lever_from(at))
                 .unwrap_or_else(|| {
@@ -1103,7 +1102,8 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 match at {
                     FaceContainment::Out => continue,
                     FaceContainment::In => {
-                        let w = split_at(x, x_is, edge_key, t, tol, contacts)?;
+                        let w =
+                            split_at(x, x_is, edge_key, t, super::Cell::Face(face), tol, contacts)?;
                         push_vf(contacts, x_is, w, face, on);
                         if let Some(branch) = branch {
                             contacts.branches.insert((x_is, w), branch);
@@ -1122,8 +1122,18 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         )?;
                     }
                     FaceContainment::OnEdge(ey) => {
-                        let w = split_at(x, x_is, edge_key, t, tol, contacts)?;
-                        let wy = split_other_at_point(y, x_is.other(), ey, p, band, tol, contacts)?;
+                        let w =
+                            split_at(x, x_is, edge_key, t, super::Cell::Edge(ey), tol, contacts)?;
+                        let wy = split_other_at_point(
+                            y,
+                            x_is.other(),
+                            ey,
+                            p,
+                            super::Cell::Edge(edge_key),
+                            band,
+                            tol,
+                            contacts,
+                        )?;
                         push_vv(contacts, x_is, w, wy, on);
                         read_then_requeue(
                             &mut worklist,
@@ -1145,6 +1155,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                             edge_key,
                             t,
                             Some(y.resolve_vertex_point(vy, crate::live::Proven)),
+                            super::Cell::Vertex(vy),
                             tol,
                             contacts,
                         )?;
@@ -1199,18 +1210,12 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 let meet = match lane {
                     PlaneCrossingLane::Line => None,
                     // A spiric or a spline: its endpoints' sides neither
-                    // find its crossings nor place them.
-                    PlaneCrossingLane::Unlaned => {
-                        return Err(BooleanError::EdgeCarrierUnsupported {
-                            operand: x_is,
-                            edge: x
-                                .split_root(edge_key, |_| false)
-                                .map_err(BooleanError::SplitLineage)?,
-                            face,
-                            face_of: x_is.other(),
-                            site: super::EdgeCarrierSite::PlanarCrossing,
-                        });
-                    }
+                    // find its crossings nor place them. A spline span is
+                    // the curve × face table's ring-composite arm, whose
+                    // crossings take the conic's root rows below.
+                    PlaneCrossingLane::Unlaned => Some(ConicPlaneMeet::Roots(Ok(
+                        spline_plane_crossings((x, x_is, edge_key), &curve, (y, face), band)?,
+                    ))),
                     PlaneCrossingLane::Conic(meet) => Some(meet),
                 };
                 // Only the line lane's coplanar arm records a plane, and a
@@ -1359,7 +1364,15 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                             match containment {
                                 FaceContainment::Out => {}
                                 FaceContainment::In => {
-                                    let w = split_at(x, x_is, edge_key, t, tol, contacts)?;
+                                    let w = split_at(
+                                        x,
+                                        x_is,
+                                        edge_key,
+                                        t,
+                                        super::Cell::Face(face),
+                                        tol,
+                                        contacts,
+                                    )?;
                                     push_vf(contacts, x_is, w, face, on);
                                     read_then_requeue(
                                         &mut worklist,
@@ -1376,12 +1389,21 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                     break 'faces;
                                 }
                                 FaceContainment::OnEdge(ey) => {
-                                    let w = split_at(x, x_is, edge_key, t, tol, contacts)?;
+                                    let w = split_at(
+                                        x,
+                                        x_is,
+                                        edge_key,
+                                        t,
+                                        super::Cell::Edge(ey),
+                                        tol,
+                                        contacts,
+                                    )?;
                                     let wy = split_other_at_point(
                                         y,
                                         x_is.other(),
                                         ey,
                                         p,
+                                        super::Cell::Edge(edge_key),
                                         band,
                                         tol,
                                         contacts,
@@ -1408,6 +1430,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                         edge_key,
                                         t,
                                         Some(y.resolve_vertex_point(vy, crate::live::Proven)),
+                                        super::Cell::Vertex(vy),
                                         tol,
                                         contacts,
                                     )?;
@@ -1484,7 +1507,15 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     match containment {
                         FaceContainment::Out => {}
                         FaceContainment::In => {
-                            let w = split_at(x, x_is, edge_key, t, tol, contacts)?;
+                            let w = split_at(
+                                x,
+                                x_is,
+                                edge_key,
+                                t,
+                                super::Cell::Face(face),
+                                tol,
+                                contacts,
+                            )?;
                             push_vf(contacts, x_is, w, face, on);
                             read_then_requeue(
                                 &mut worklist,
@@ -1501,9 +1532,25 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                             break 'faces;
                         }
                         FaceContainment::OnEdge(ey) => {
-                            let w = split_at(x, x_is, edge_key, t, tol, contacts)?;
-                            let wy =
-                                split_other_at_point(y, x_is.other(), ey, p, band, tol, contacts)?;
+                            let w = split_at(
+                                x,
+                                x_is,
+                                edge_key,
+                                t,
+                                super::Cell::Edge(ey),
+                                tol,
+                                contacts,
+                            )?;
+                            let wy = split_other_at_point(
+                                y,
+                                x_is.other(),
+                                ey,
+                                p,
+                                super::Cell::Edge(edge_key),
+                                band,
+                                tol,
+                                contacts,
+                            )?;
                             push_vv(contacts, x_is, w, wy, on);
                             read_then_requeue(
                                 &mut worklist,
@@ -1526,6 +1573,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                 edge_key,
                                 t,
                                 Some(y.resolve_vertex_point(vy, crate::live::Proven)),
+                                super::Cell::Vertex(vy),
                                 tol,
                                 contacts,
                             )?;
@@ -3102,7 +3150,16 @@ fn along_boundary<T: Decide + crate::props::AtRestPolicy>(
     let (wy, margin) = match on {
         Some((FaceContainment::OnVertex(vy), margin)) => (vy, margin),
         Some((FaceContainment::OnEdge(ey), margin)) => (
-            split_other_at_point(y, x_is.other(), ey, pw, band, tol, contacts)?,
+            split_other_at_point(
+                y,
+                x_is.other(),
+                ey,
+                pw,
+                super::Cell::Vertex(w),
+                band,
+                tol,
+                contacts,
+            )?,
             margin,
         ),
         Some((FaceContainment::In | FaceContainment::Out, _)) | None => return Err(disagree()),
@@ -3622,6 +3679,72 @@ enum SpanVerdict<T: geom_core::Real> {
     /// ([`Unsettled::AtApex`]): the caller refuses
     /// [`BooleanError::CrossingAtConeApex`].
     AtApex,
+}
+
+/// **A spline span against a plane face**: the crossings strictly inside
+/// the span, ascending, by the curve × face table's ring-composite arm
+/// ([`geom_brep::NurbsLane::surface_crossings`]), read through the
+/// scalar's certified lane. A spiric span, or a scalar with no certified
+/// lane, has no arm.
+///
+/// # Errors
+///
+/// [`BooleanError::EdgeCarrierUnsupported`] where there is no arm,
+/// [`BooleanError::SplineCrossingUnsettled`] where the arm cannot count
+/// the crossings, and [`BooleanError::Escalated`] where it cannot place
+/// one.
+fn spline_plane_crossings<T: crate::props::AtRestPolicy>(
+    (x, x_is, edge_key): (&Body<T>, Operand, EdgeKey),
+    curve: &geom_brep::EdgeCurve<T>,
+    (y, face): (&Body<T>, FaceKey),
+    band: Band,
+) -> Result<Vec<T>, BooleanError> {
+    use geom_brep::curve_face::composite::CompositeRefusal;
+    use geom_brep::curve_face::{Door, route};
+    let root = || {
+        x.split_root(edge_key, |_| false)
+            .map_err(BooleanError::SplitLineage)
+    };
+    let surface = y
+        .get_face(face)
+        .and_then(|f| y.get_surface(f.surface))
+        .ok_or(BooleanError::ClassificationInvariant {
+            what: "planar lane: the face's plane does not resolve",
+        })?;
+    let arm = route(curve.carrier().kind(), surface.kind());
+    let (geom::Curve3::Nurbs(net), true, Some(lane)) = (
+        curve.carrier(),
+        arm.door == Door::SplineComposite && arm.implemented,
+        T::nurbs_lane(),
+    ) else {
+        return Err(BooleanError::EdgeCarrierUnsupported {
+            operand: x_is,
+            edge: root()?,
+            face,
+            face_of: x_is.other(),
+            site: super::EdgeCarrierSite::PlanarCrossing,
+        });
+    };
+    lane.surface_crossings(net, curve.params(), surface, band)
+        .or_else(|refusal| {
+            Err(match refusal {
+                CompositeRefusal::Escalated(diag) => BooleanError::Escalated {
+                    decision: BooleanDecision::Crossing(CrossingDecision::OnEdge),
+                    diag,
+                },
+                CompositeRefusal::Unsettled(why) => BooleanError::SplineCrossingUnsettled {
+                    operand: x_is,
+                    edge: root()?,
+                    face,
+                    face_of: x_is.other(),
+                    why,
+                },
+                CompositeRefusal::Unread(_) => BooleanError::ClassificationInvariant {
+                    what: "planar lane: a built spline carrier's composite against a plane \
+                           did not form",
+                },
+            })
+        })
 }
 
 /// The curved-wall crossing route: solve the certified roots — a
@@ -4334,7 +4457,16 @@ fn vertex_on_curved_face_at<T: Decide + crate::props::AtRestPolicy>(
             return Ok((Placement::Recorded, Some(vy)));
         }
         Some(FaceContainment::OnEdge(ey)) => {
-            let wy = split_other_at_point(y, x_is.other(), ey, px, band, tol, contacts)?;
+            let wy = split_other_at_point(
+                y,
+                x_is.other(),
+                ey,
+                px,
+                super::Cell::Vertex(vx),
+                band,
+                tol,
+                contacts,
+            )?;
             push_vv(contacts, x_is, vx, wy, on);
             return Ok((Placement::Recorded, Some(wy)));
         }
@@ -4498,7 +4630,16 @@ fn vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         FaceContainment::Out => return Ok(false),
         FaceContainment::In => push_vf(contacts, x_is, vx, face, Some(on_plane)),
         FaceContainment::OnEdge(ey) => {
-            let wy = split_other_at_point(y, x_is.other(), ey, px, band, tol, contacts)?;
+            let wy = split_other_at_point(
+                y,
+                x_is.other(),
+                ey,
+                px,
+                super::Cell::Vertex(vx),
+                band,
+                tol,
+                contacts,
+            )?;
             push_vv(contacts, x_is, vx, wy, on);
         }
         FaceContainment::OnVertex(vy) => push_vv(contacts, x_is, vx, vy, on),
@@ -4506,27 +4647,32 @@ fn vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     Ok(true)
 }
 
-/// Splits `x`'s `edge` at `t` and logs the split, the lineage a
-/// carried `(vertex, edge)` record follows onto the piece it rests on.
+/// Splits `x`'s `edge` at `t` where it crosses `by`, a cell of the
+/// other operand, and logs the split, the lineage a carried
+/// `(vertex, edge)` record follows onto the piece it rests on.
+#[allow(clippy::too_many_arguments)]
 fn split_at<T: Decide + crate::props::AtRestPolicy>(
     x: &mut Body<T>,
     x_is: Operand,
     edge: EdgeKey,
     t: T,
+    by: super::Cell,
     tol: Tol,
     contacts: &mut ContactAcc,
 ) -> Result<VertexKey, BooleanError> {
-    split_logged(x, x_is, edge, t, None, tol, contacts)
+    split_logged(x, x_is, edge, t, None, by, tol, contacts)
 }
 
 /// [`split_at`], the new vertex holding `at`'s bits where it is `Some`
 /// ([`Body::split_edge_onto`]).
+#[allow(clippy::too_many_arguments)]
 fn split_logged<T: Decide + crate::props::AtRestPolicy>(
     x: &mut Body<T>,
     x_is: Operand,
     edge: EdgeKey,
     t: T,
     at: Option<Point3<T>>,
+    by: super::Cell,
     tol: Tol,
     contacts: &mut ContactAcc,
 ) -> Result<VertexKey, BooleanError> {
@@ -4544,6 +4690,7 @@ fn split_logged<T: Decide + crate::props::AtRestPolicy>(
         parent: edge,
         vertex: created.vertex,
         child: created.new_edge,
+        by,
     })?;
     Ok(created.vertex)
 }
@@ -4553,7 +4700,8 @@ fn split_logged<T: Decide + crate::props::AtRestPolicy>(
 /// crossing into a v-v pair. The new vertex holds `p`'s own bits, not
 /// its carrier's at the parameter read back from `p`, so the pair it
 /// joins (an existing vertex, or the piercing edge's split at `p`)
-/// reads one point whichever operand's point the merge keeps.
+/// reads one point whichever operand's point the merge keeps. `by` is
+/// the cell of the splitting operand that meets the edge at `p`.
 ///
 /// The parameter is [`geom::Curve3::param_near`] anchored at the span's
 /// MIDPOINT: a line's projection `t = (p − origin)·dir`, a circle's
@@ -4583,11 +4731,13 @@ fn split_logged<T: Decide + crate::props::AtRestPolicy>(
 /// A `Nurbs` carrier has no point parameter and keeps the typed refusal
 /// [`BooleanError::PointSplitCarrierUnsupported`], its own variant
 /// because this precondition is NOT the operand gate's.
+#[allow(clippy::too_many_arguments)]
 fn split_other_at_point<T: Decide + crate::props::AtRestPolicy>(
     y: &mut Body<T>,
     y_is: Operand,
     edge: EdgeKey,
     p: Point3<T>,
+    by: super::Cell,
     band: Band,
     tol: Tol,
     contacts: &mut ContactAcc,
@@ -4637,7 +4787,7 @@ fn split_other_at_point<T: Decide + crate::props::AtRestPolicy>(
                 .split_root(edge, |_| false)
                 .map_err(BooleanError::SplitLineage)?,
         })?;
-    split_logged(y, y_is, edge, t, Some(p), tol, contacts)
+    split_logged(y, y_is, edge, t, Some(p), by, tol, contacts)
 }
 
 /// An edge the sweep has yet to read, from face index `start` on.
@@ -6337,11 +6487,15 @@ mod lying_on_rows {
         );
         let bottom = edge_between(&y, from, to);
         let mid = Point3::new(FRAC_PI_4.cos(), FRAC_PI_4.sin(), 0.0);
+        // The splitting operand: an eighth sheet, whose corner stands at
+        // the split.
+        let (x, _) = sheet(FRAC_PI_4);
         split_other_at_point(
             &mut y,
             Operand::B,
             bottom,
             mid,
+            crate::boolean::Cell::Vertex(vertex_at(&x, mid)),
             band(),
             Tol::witness(),
             &mut super::ContactAcc::default(),
@@ -7458,8 +7612,29 @@ mod spline_face_rows {
                 let p = p + axis.cross(d).normalize() * (0.5 * z);
                 let mut y = y.clone();
                 let mut acc = ContactAcc::default();
-                match super::split_other_at_point(&mut y, Operand::B, ek, p, band(), tol, &mut acc)
-                {
+                // The splitting operand: a block whose corner stands at
+                // the point.
+                let x = crate::test_support_fixtures::brick::<f64>(
+                    (p.x, p.x + 1.0),
+                    (p.y, p.y + 1.0),
+                    (p.z, p.z + 1.0),
+                    tol,
+                );
+                let corner = x
+                    .vertices()
+                    .map(|(v, _)| v)
+                    .find(|&v| (x.resolve_vertex_point(v, crate::live::Proven) - p).norm() == 0.0)
+                    .expect("the block's corner at the point");
+                match super::split_other_at_point(
+                    &mut y,
+                    Operand::B,
+                    ek,
+                    p,
+                    crate::boolean::Cell::Vertex(corner),
+                    band(),
+                    tol,
+                    &mut acc,
+                ) {
                     Ok(w) => {
                         let at = y.resolve_vertex_point(w, crate::live::Proven);
                         assert!(

@@ -34,6 +34,7 @@ from pncad import (
     evaluate,
     m,
 )
+from measuring import pinned
 
 # A box L x L x H hollowed to a wall T with ONE face opened: the cup
 # corpus document, whose closed form is exact at every dyadic value.
@@ -75,7 +76,7 @@ def walls_of(doc, box):
 
 
 def volume(doc, node):
-    return evaluate(doc).value(node).body().mass_properties().volume
+    return pinned(evaluate(doc).value(node).body()).volume
 
 
 class TestTheContinuousSlotEdit(unittest.TestCase):

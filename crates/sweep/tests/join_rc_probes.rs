@@ -256,7 +256,7 @@ fn assert_sound(
         topo::validate_geometric_certificate(&bb.body, tol()).is_ok(),
         "{what}: the at-rest certificate"
     );
-    let v = topo::mass_properties(&bb.body, tol()).unwrap().volume;
+    let v = topo::test_support::pinned_volume("the measured body", &bb.body, tol()).volume;
     assert!(
         (v - p.want[k]).abs() < 1e-9,
         "{what}: volume {v} against the closed form {}",

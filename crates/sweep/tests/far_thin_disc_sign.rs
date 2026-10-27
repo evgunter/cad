@@ -267,10 +267,7 @@ fn far_tilted_cut_discs_are_read_by_their_exact_volume() {
                         let classified = match &check7 {
                             Ok(()) => {
                                 let at_rest = finished(name, topo::Body::clone(body), tol);
-                                let props =
-                                    topo::mass_properties(&at_rest, tol).unwrap_or_else(|e| {
-                                        panic!("{what}, {name}: the disc measures: {e}")
-                                    });
+                                let props = topo::test_support::pinned_volume(name, &at_rest, tol);
                                 let exact = core::f64::consts::PI * R * R * h / tilt.cos();
                                 assert!(
                                     (props.volume - exact).abs()

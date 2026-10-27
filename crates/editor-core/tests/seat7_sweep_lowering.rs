@@ -443,6 +443,16 @@ fn both_sweeps_evaluate_in_one_document() {
 /// tokens this digest feeds; `m10_p_fence`'s ids-masked geometry fence
 /// held, so no point moved.
 ///
+/// RE-BLESSED for D′3 (a placement copies one source, and the product is
+/// a slot reading a `⊔`): a copy carries its source's names with no
+/// `Placed` layer, and a `⊔` keys each member's names by its read, so
+/// the name tables this digest feeds moved, and the `⊔` node moved the
+/// ids after it. No point moved: `m10_p_fence`'s ids-masked row, with
+/// the corpus's `⊔` nodes set aside, is main's pin. `cut_cylinder` and
+/// `kitchen_sink` were measured again with main's plane pose merged in
+/// (main, `34a2e26e61`, which reds both rows on its own), and carry both
+/// changes.
+///
 /// RE-BLESSED, every row, for a certificate that keeps its turn: the
 /// digest feeds each edge curve's `Debug`, which now spells the
 /// certificate's `turn`. No outcome or point moved.
@@ -450,14 +460,24 @@ fn both_sweeps_evaluate_in_one_document() {
 /// RE-BLESSED, `corner_table` only, for a run line's sense that is no
 /// longer optional: its `EdgeCrossing` names spell each line's sense
 /// bare. No outcome or point moved.
+///
+/// RE-BLESSED, the rows that moved, over main's merge into D′3 at
+/// `1235f4c050`: D′2's moves (main red, filed as
+/// `main-red-the-seat-and-name-table-goldens-moved-at-dprime2`),
+/// stage 4 I's ids and the walls' reads, beneath
+/// D′3's names and ids. `m10_p_fence`'s ids-masked row held.
+///
+/// Measured again for D′3 over main's merge at `4c341b9225`, which
+/// brings the run line's bare sense (above) beneath D′3's names and ids;
+/// the ids-masked fence held.
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
-        ("die", 0xcce3_bc80_9945_6069),
-        ("corner_table", 0x3a58_01fe_f60a_b936),
-        ("cut_cylinder", 0x687e_0fa1_7407_124c),
-        ("boss_union", 0x6a62_8956_3b55_e92e),
-        ("kitchen_sink", 0xf86d_b45d_276f_b984),
+        ("die", 0x8b0a_f8a3_bce4_167e),
+        ("corner_table", 0x0c2b_d8df_8c6b_8e3a),
+        ("cut_cylinder", 0xd82f_d380_9e2e_8e5e),
+        ("boss_union", 0x8a38_9154_e41e_4037),
+        ("kitchen_sink", 0xb9ff_1846_2c51_b69c),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {
@@ -1012,7 +1032,8 @@ fn one_declared_radius_decides_equal_radii_at_the_germ_as_its_kernel_twin_does()
         "one declared parameter's two walls must decide equal radii: {:?}",
         value.coincidences
     );
-    let from_document = topo::mass_properties(
+    let from_document = topo::test_support::pinned_volume(
+        "the measured body",
         &topo::test_support::finished(
             "the measured body",
             topo::Body::clone(body_of(&ev, union)),
@@ -1020,7 +1041,6 @@ fn one_declared_radius_decides_equal_radii_at_the_germ_as_its_kernel_twin_does()
         ),
         tol(),
     )
-    .unwrap()
     .volume;
 
     let raw_a = raw_spin(&raw_cylinder(R, H), Vec3::new(0.0, 0.0, 1.0), PHI);
@@ -1039,7 +1059,8 @@ fn one_declared_radius_decides_equal_radii_at_the_germ_as_its_kernel_twin_does()
         decides_equal_radii(raw.coincidences.iter().map(|c| (&c.relation, &c.site))),
         "the kernel-built twin at bit-identical radii decides equal radii too"
     );
-    let raw_volume = topo::mass_properties(&raw.body, tol()).unwrap().volume;
+    let raw_volume =
+        topo::test_support::pinned_volume("the measured body", &raw.body, tol()).volume;
     assert!(
         (from_document - raw_volume).abs() < 1e-9,
         "the document's union {from_document} against its kernel twin's {raw_volume}"

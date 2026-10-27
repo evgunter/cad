@@ -16,7 +16,7 @@
 //! certain, assembled into one body certificate over the face arena —
 //! one read of each face, whatever the solid count. A caller that wants
 //! the number continues the certificate
-//! ([`crate::SignCertificate::refine_to_target`]) and pays only the
+//! ([`crate::SignCertificate::measure`]) and pays only the
 //! rounds the check did not. The `()`-returning doors above ARE those
 //! calls with the value mapped away.
 //!
@@ -527,6 +527,44 @@ pub(crate) fn decide_nonzero<T: Decide>(
     band: Band,
 ) -> Result<geom_core::k_stats::NonzeroSign, Indeterminate> {
     geom_core::k_stats::decide_nonzero(name, margin, band)
+}
+
+/// **What a [`ValidationError::CensusUndecidable`] leaves open**: whether
+/// the two solids it names may interpenetrate, or only one face pair's
+/// own reading in band. `census_uncleared_solids` reads it: the first leaves
+/// the two solids uncleared, the second does not.
+///
+/// **NOT carried to the façade's curated list, and that is a decision
+/// rather than an omission** (`scripts/payload-rung-sweep.py` names this
+/// rung; the disposition table cites this paragraph as its home). A Rust
+/// caller can already name and match this type — `pncad` re-exports
+/// `topo` whole — and the Python door already says the arm
+/// (`census_undecidable`) and carries the sentence, which says whether
+/// the pair read in band. Publishing the name owes the CUR3 property row
+/// `carried_refusal_payloads_are_matchable_through_the_prelude` and a
+/// Python word per arm, both the façade crate's to write.
+///
+/// **The falsifier is a Python caller who must tell a pair hiding no
+/// overlap (move one face clear of the band) from a pair the census
+/// cannot clear (the solids may overlap)** without reading the sentence.
+/// When the façade carries the reason, delete this paragraph and the
+/// disposition row with it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Undecidable {
+    /// The census cannot clear the two of interpenetrating past the
+    /// band: a pair it cannot examine, a crossing or a touch it could
+    /// not read, a containment its material test could not answer.
+    MayOverlap,
+    /// Two planar faces of different solids whose carriers, or whose
+    /// lying flush, read within the band, and which hide no overlap
+    /// thicker than the band: the pair's one could-not-look finding
+    /// (`[assertions]`). An opposed pair: its two materials lie on
+    /// either side, so any overlap it hides is thinner than the band,
+    /// which the representation cannot tell from contact. An aligned
+    /// pair has both materials behind both faces, so it is this only
+    /// where the two share no area thicker than the band. It is no
+    /// evidence the two solids interpenetrate.
+    ThinInBand,
 }
 
 /// **What a census refusal is ABOUT** — the whole of the subject the
@@ -1582,6 +1620,18 @@ pub enum ValidationError {
         solid: SolidKey,
         /// What left it unresolved.
         limit: crate::props::SignLimit,
+        /// The volume's outward bracket `(lo, hi)` where the sign walk
+        /// stopped, the true volume between them: the one a refusal
+        /// reports (`SignCertificate::outward_volume`, as
+        /// `MassPropsError::Undecided` does), the faces' interval
+        /// re-derivation, falling back to the walk's own enclosure stepped
+        /// outward where no lane re-derives it. A
+        /// body refused here never reaches a number door, so this is
+        /// where its bracket surfaces. `None` only from the gate of an
+        /// operand that carries no verdict
+        /// ([`crate::AtRestBody::gate_unverdicted`]), a door that reads no
+        /// bracket end (`geom_core::Bounds`' scope rule).
+        volume: Option<(f64, f64)>,
     },
     /// Tier 3, check 7 — **no reading decides which side of the solid's
     /// faces infinity lies on**: a ray aimed at one of its faces met two
@@ -1955,6 +2005,8 @@ pub enum ValidationError {
         b: EntityId,
         /// The not-yet-supported class, named.
         what: &'static str,
+        /// What the refusal leaves open.
+        reason: Undecidable,
     },
     /// **Tier 3′: a face passes through an edge's material wedge.** An
     /// edge lies in a face of its own solid, and on decided readings the
@@ -1983,7 +2035,7 @@ pub enum ValidationError {
         witness: String,
         /// Why the reading was not taken; the finding renders it with
         /// its recourse.
-        why: crate::census::TouchUnread,
+        why: crate::link::TouchUnread,
     },
     /// **Tier 3′: two coincident edges' material wedges overlap.** Two
     /// line edges overlap along their line, the overlap backed, and on
@@ -2011,7 +2063,32 @@ pub enum ValidationError {
         witness: String,
         /// Why the reading was not taken; the finding renders it with
         /// its recourse.
-        why: crate::census::TouchUnread,
+        why: crate::link::TouchUnread,
+    },
+    /// **Tier 3′: a solid's boundary crosses itself at a point where it
+    /// touches itself.** On decided readings the solid's faces through
+    /// the point bound no one material there: two of its sheets cross,
+    /// or a region about the point lies behind one face bordering it and
+    /// in front of another (D1, `crates/topo/README.md` tier 3), so no
+    /// record makes this valid.
+    BoundaryCrossesItself {
+        /// The solid.
+        solid: SolidKey,
+        /// The point, as coordinates.
+        witness: String,
+    },
+    /// **Tier 3′: whether a solid's boundary crosses itself at a point
+    /// where it touches itself is undecided.** The reading of
+    /// [`Self::BoundaryCrossesItself`] could not be taken: `why` says
+    /// why.
+    BoundaryCrossesItselfUndecided {
+        /// The solid.
+        solid: SolidKey,
+        /// The point, as coordinates.
+        witness: String,
+        /// Why the reading was not taken; the finding renders it with
+        /// its recourse.
+        why: crate::link::TouchUnread,
     },
     /// Tier 3′: the census read a point at an arc's end that lies
     /// definitely off both of its edge's corners, on a body tier 3 passed
@@ -3385,25 +3462,11 @@ pub(crate) fn classify_mass_props(e: &crate::props::MassPropsError) -> MassProps
                     PropsCheck::Extent => {
                         "a face's area could not be certified positive at this tolerance"
                     }
-                    PropsCheck::Converged => {
-                        "the quadrature could not decide whether its \
-                                              enclosure of a face's contribution had converged"
-                    }
                 },
                 check
                     .ending(RefusedArm::Undecided(cause), Reading::AtRest)
                     .into(),
                 *check == PropsCheck::Exact,
-            ),
-            P::QuadratureBudget { width_len, .. } => reading(
-                "a face's contribution did not converge to the tolerance",
-                geom_brep::props::quadrature_budget_recourse(*width_len).into(),
-                false,
-            ),
-            P::QuadratureFloor { width_len, .. } => reading(
-                "a face's contribution is at its quadrature's floor, over the tolerance",
-                geom_brep::props::quadrature_budget_recourse(*width_len).into(),
-                false,
             ),
             P::Unimplemented
             | P::NotIsoRectangle { .. }
@@ -3501,6 +3564,26 @@ pub(crate) fn classify_mass_props(e: &crate::props::MassPropsError) -> MassProps
         M::Corrupt { .. } | M::NullScaffoldEdge { .. } => {
             reading("its structure is incomplete", DEFECT.into(), true)
         }
+        M::ResolutionFinerThanEps { .. } => reading(
+            "a measurement was asked for finer than the tolerance",
+            "Recourse: ask for a resolution of at least the tolerance".into(),
+            false,
+        ),
+        M::EmptyContains => reading(
+            "a measurement was asked whether the volume lies in a range whose least value is above its greatest",
+            "Recourse: give the least value first".into(),
+            false,
+        ),
+        M::Undecided { .. } => reading(
+            "the measurement's question is still undecided where refinement stopped",
+            geom_core::NOT_YET_ENDING.into(),
+            false,
+        ),
+        M::Poisoned { cause } => reading(
+            "the measurement's question could not be decided",
+            cause.to_string().into(),
+            false,
+        ),
     }
 }
 
@@ -4249,12 +4332,17 @@ impl fmt::Display for ValidationError {
                 "a solid holds {outer} separate pieces of material, and a solid is one piece. \
                  {DEFECT}"
             ),
-            Self::VolumeSignUnresolved { limit, .. } => write!(
-                f,
-                "the sign of a solid's volume cannot be read: {}. {}",
-                limit.words(),
-                limit.ending()
-            ),
+            Self::VolumeSignUnresolved { limit, volume, .. } => {
+                write!(
+                    f,
+                    "the sign of a solid's volume cannot be read: {}",
+                    limit.words()
+                )?;
+                if let Some((lo, hi)) = volume {
+                    write!(f, "; the volume lies in [{lo:e}, {hi:e}] m³")?;
+                }
+                write!(f, ". {}", limit.ending())
+            }
             Self::ShellRoleUndecided { error, .. } => {
                 f.write_str(
                     "a shell's role in its solid cannot be read, so the solid's shells cannot \
@@ -4375,7 +4463,7 @@ impl fmt::Display for ValidationError {
                 "a face's boundary reads an arc's end off its corner where certification pinned \
                  it: {gaps}. {DEFECT}"
             ),
-            Self::CensusUndecidable { a, b, what } => write!(
+            Self::CensusUndecidable { a, b, what, .. } => write!(
                 f,
                 "{} can be neither examined nor cleared: {what}",
                 match (a, b) {
@@ -4406,6 +4494,17 @@ impl fmt::Display for ValidationError {
                 "two edges lie along one line at {witness}, and whether the material each \
                  bounds overlaps the other's is undecided: {}",
                 why.sentence_on_line()
+            ),
+            Self::BoundaryCrossesItself { witness, .. } => write!(
+                f,
+                "a part touches itself at {witness}, and its faces there cross each other or \
+                 face both ways about one region, so they bound no one material. {DEFECT}"
+            ),
+            Self::BoundaryCrossesItselfUndecided { witness, why, .. } => write!(
+                f,
+                "a part touches itself at {witness}, and whether its faces there bound one \
+                 material is undecided: {}",
+                why.sentence()
             ),
             Self::InstanceInterference { .. } => write!(
                 f,
@@ -5400,9 +5499,9 @@ pub fn validate_geometric<
 /// needed and no further. There is no volume to read off it, by
 /// construction — a quadrature stopped at the round its caller was
 /// finished has not computed one — and
-/// [`crate::SignCertificate::refine_to_target`] is where a caller who
-/// wants the number asks for it, paying only the rounds that were not
-/// already run.
+/// [`crate::SignCertificate::measure`] is where a caller who
+/// wants the number asks for it under its own predicate, paying only the
+/// rounds that were not already run.
 ///
 /// **THE value, not a second one.** That continuation is bit-identical
 /// in all four fields to [`crate::mass_properties`] on the same body
@@ -5601,6 +5700,22 @@ fn structural_via<'b, T: geom_core::Decide + geom_core::Bounds + crate::props::A
     }
 }
 
+/// **How a door reads a solid's volume bracket, outward** — check 7's
+/// `VolumeSignUnresolved` carries it. A door whose scalar it reads as
+/// `geom_core::Bounds` passes the reader (`outward_volume!`); the
+/// unverdicted operand gate, which spells no bracket bound, passes one
+/// answering `None`.
+type Bracket<'f, 'b, T> = &'f dyn Fn(&crate::props::SignCertificate<'b, T>) -> Option<(f64, f64)>;
+
+/// The outward volume bracket of a certificate, at a door holding
+/// `geom_core::Bounds` (the [`Bracket`] reader): the one bracket a
+/// refusal reports, [`crate::props::SignCertificate::outward_volume`].
+macro_rules! outward_volume {
+    () => {
+        &|certificate| Some(certificate.outward_volume())
+    };
+}
+
 /// **Tier 3's certifying checks** — the +V global orientation invariant
 /// (check 7) and, behind it, shell winding (check 10), at a scalar with
 /// certification rights.
@@ -5621,7 +5736,7 @@ fn validate_geometric_certified<
         Err(error) => return Err(vec![ValidationError::Band { error }]),
     };
     let quad = Some(CertifiedLanes::<T>::held().quad);
-    let kept = plus_v_by_sign(body, band, tol, quad)?;
+    let kept = plus_v_by_sign(body, band, tol, quad, outward_volume!())?;
     // Check 10, behind a clean check 7 (`shell_winding_errors`).
     let errors = shell_winding_errors(body, band, tol, quad);
     if errors.is_empty() {
@@ -5659,7 +5774,7 @@ fn validate_geometric_certified<
 /// own sign straddles, and the certificates held and then handed on: the
 /// caller receives the body certificate they assemble to, continuable
 /// from there by a caller who wants the number
-/// ([`crate::SignCertificate::refine_to_target`]). So a body of several
+/// ([`crate::SignCertificate::measure`]). So a body of several
 /// solids reads each face once per round its solid's sign needs, never a
 /// further arena-wide walk. The walk's recordings interleave the solids
 /// round by round (each round takes every solid still open, in arena
@@ -5677,6 +5792,7 @@ fn plus_v_by_sign<'b, T: geom_core::Decide>(
     band: Band,
     tol: Tol,
     quad: Option<crate::props::QuadLane<T>>,
+    bracket: Bracket<'_, 'b, T>,
 ) -> Result<crate::props::SignCertificate<'b, T>, Vec<ValidationError>> {
     let subjects = check7_subjects(body);
     // Every solid's round 0, then one walk over the solids measured.
@@ -5703,7 +5819,11 @@ fn plus_v_by_sign<'b, T: geom_core::Decide>(
             parts.iter_mut().collect();
         crate::props::role_walk_set(&mut members, quad, PLUS_V_SIGN)
     };
-    let mut roles = roles.into_iter();
+    // Each solid's bracket where its walk stopped, read outward where the
+    // door reads a bracket end: an unresolved sign carries it. Read only
+    // for a sign left unresolved — it is an interval re-derivation of
+    // the solid's faces, which a decided sign never reports.
+    let mut roles = roles.into_iter().zip(parts.iter());
     let mut errors = Vec::new();
     for ((solid, faces), unmeasured) in subjects.into_iter().zip(unmeasured) {
         let verdict = match unmeasured {
@@ -5711,7 +5831,9 @@ fn plus_v_by_sign<'b, T: geom_core::Decide>(
                 errors.push(ValidationError::VolumeUncomputable { solid, source });
                 None
             }
-            None => roles.next().map(plus_v_verdict),
+            None => roles
+                .next()
+                .map(|(role, part)| plus_v_verdict(role, || bracket(part))),
         };
         errors.extend(plus_v_errors(body, solid, faces, verdict.as_ref(), band));
     }
@@ -5772,7 +5894,7 @@ pub(crate) fn wound_negative<T: geom_core::Decide + crate::props::AtRestPolicy>(
     tol: Tol,
     quad: Option<crate::props::QuadLane<T>>,
 ) -> Vec<ValidationError> {
-    match plus_v_by_sign(body, band, tol, quad) {
+    match plus_v_by_sign(body, band, tol, quad, &|_| None) {
         Ok(_) => shell_winding_errors(body, band, tol, quad)
             .into_iter()
             .filter(|e| matches!(e, ValidationError::ShellWinding { .. }))
@@ -6049,7 +6171,13 @@ pub(crate) enum PlusVVerdict {
     Uncomputable(crate::props::MassPropsError),
     /// The sign is unresolved by a limit of the measurement, not by the
     /// body ([`crate::props::SignLimit`]).
-    Unresolved(crate::props::SignLimit),
+    Unresolved {
+        /// What left the sign unresolved.
+        limit: crate::props::SignLimit,
+        /// The volume enclosure the walk stopped on, its ends read
+        /// outward, where the door reads a bracket end.
+        volume: Option<(f64, f64)>,
+    },
     /// The sign is undecided about the body itself: in band, carrying
     /// its escalation, or straddling zero by the body's own rounding.
     Undecided(Option<Indeterminate>),
@@ -6115,21 +6243,19 @@ pub(crate) fn plus_v_read<T: geom_core::Decide>(
 /// unresolved, and otherwise it is undecided about the body.
 fn plus_v_verdict(
     role: Result<crate::props::ShellRole, crate::props::RoleWalkRefusal>,
+    volume: impl FnOnce() -> Option<(f64, f64)>,
 ) -> PlusVVerdict {
     use crate::props::{RoleWalkRefusal, ShellRole};
     match role {
         Ok(ShellRole::Outer) => PlusVVerdict::Pass,
         Ok(ShellRole::Void) => PlusVVerdict::Refuse,
-        Err(
-            RoleWalkRefusal::Refused(source)
-            | RoleWalkRefusal::Unread {
-                measuring: Some(source),
-                ..
-            },
-        ) => PlusVVerdict::Uncomputable(source),
+        Err(RoleWalkRefusal::Refused(source)) => PlusVVerdict::Uncomputable(source),
         Err(RoleWalkRefusal::Unread {
             limit: Some(limit), ..
-        }) => PlusVVerdict::Unresolved(limit),
+        }) => PlusVVerdict::Unresolved {
+            limit,
+            volume: volume(),
+        },
         Err(RoleWalkRefusal::Poisoned(last) | RoleWalkRefusal::Unread { last, .. }) => {
             PlusVVerdict::Undecided(last.escalation())
         }
@@ -6182,7 +6308,7 @@ fn plus_v_errors<T: Decide>(
     let volume = || match walked {
         Some(PlusVVerdict::Pass) => Ok(SolidContainment::Out),
         Some(PlusVVerdict::Refuse) => Ok(SolidContainment::In),
-        Some(PlusVVerdict::Unresolved(limit)) => Err(Some(Err(*limit))),
+        Some(PlusVVerdict::Unresolved { limit, .. }) => Err(Some(Err(*limit))),
         Some(PlusVVerdict::Undecided(reading)) => Err(Some(Ok(*reading))),
         Some(PlusVVerdict::Uncomputable(_)) | None => Err(None),
     };
@@ -6198,7 +6324,17 @@ fn plus_v_errors<T: Decide>(
         Ok(Err(SideUnread::Fallback {
             volume: Some(Err(limit)),
             ..
-        })) => errors.push(ValidationError::VolumeSignUnresolved { solid, limit }),
+        })) => {
+            let volume = match walked {
+                Some(PlusVVerdict::Unresolved { volume, .. }) => *volume,
+                _ => unreachable!("an unresolved limit is read off the walk's Unresolved verdict"),
+            };
+            errors.push(ValidationError::VolumeSignUnresolved {
+                solid,
+                limit,
+                volume,
+            });
+        }
         Ok(Err(SideUnread::Fallback {
             volume: Some(Ok(margin)),
             aimed,
@@ -7794,7 +7930,7 @@ pub(crate) fn tier3_local_checks_marked<
         // for it — the same function `validate_geometric` makes check 7
         // through, so the two tiers cannot disagree on it at one lane.
         if let PlusVCheck::Through(quad) = plus_v {
-            match plus_v_by_sign(body, band, tol, quad) {
+            match plus_v_by_sign(body, band, tol, quad, outward_volume!()) {
                 Ok(derived) => certificate = Some(derived),
                 Err(verdicts) => errors.extend(verdicts),
             }
@@ -9624,9 +9760,10 @@ pub fn validate_pseudomanifold_structural<
 /// face-arena order, whatever the body's solid count — so a body of
 /// several solids pays one read of each face and no further
 /// arena-wide one. A caller that wants the number calls
-/// [`crate::SignCertificate::refine_to_target`], which pays only the
-/// rounds the check did not, and whose `Ok` is bit-identical to
-/// [`crate::mass_properties`] on the same body at the same `tol`.
+/// [`crate::SignCertificate::measure`], which pays only the
+/// rounds the check did not, and whose `Ok` under a resolution is
+/// bit-identical to [`crate::mass_properties`] on the same body at the
+/// same `tol` and resolution wherever no face stood past it.
 ///
 /// **This door is the one the import path pays.** `step-import`'s
 /// aggregate gate runs it over every assembled body and continues the
@@ -10922,6 +11059,18 @@ mod tests {
     /// here because no shipped surface kind reaches the world-origin arm
     /// now that every face is taken about a vertex of the body
     /// ([`crate::props::rederive`]).
+    /// **A decided sign reads no bracket**: the bracket is an interval
+    /// re-derivation of the solid's faces, which only an unresolved sign
+    /// reports, so check 7 reads it for no other verdict (a body that
+    /// passes was paying for one on every validation).
+    #[test]
+    fn a_decided_sign_reads_no_bracket() {
+        use crate::props::ShellRole;
+        for role in [ShellRole::Outer, ShellRole::Void] {
+            let _ = plus_v_verdict(Ok(role), || panic!("{role:?} read a bracket"));
+        }
+    }
+
     #[test]
     fn an_open_round_and_an_unresolved_one_stay_apart() {
         use crate::props::SignLimit;
@@ -10940,12 +11089,14 @@ mod tests {
                 Certified::Unresolved(unread, limit) => (unread, Some(limit)),
                 _ => unreachable!("only an open round runs the schedule out"),
             };
-            plus_v_verdict(Err(crate::props::RoleWalkRefusal::Unread {
-                last: Box::new(last),
-                limit,
-                measuring: None,
-                in_band: false,
-            }))
+            plus_v_verdict(
+                Err(crate::props::RoleWalkRefusal::Unread {
+                    last: Box::new(last),
+                    limit,
+                    in_band: false,
+                }),
+                || Some((-1.0, 1.0)),
+            )
         };
         assert!(
             matches!(
@@ -10969,13 +11120,14 @@ mod tests {
             assert!(
                 matches!(
                     at_target(Certified::Unresolved(unread(0.0), limit)),
-                    PlusVVerdict::Unresolved(l) if l == limit
+                    PlusVVerdict::Unresolved { limit: l, volume: Some(volume) } if l == limit && volume == (-1.0, 1.0)
                 ),
                 "unresolved by {limit:?}"
             );
             let text = ValidationError::VolumeSignUnresolved {
                 solid: SolidKey::default(),
                 limit,
+                volume: Some((-1.0, 1.0)),
             }
             .to_string();
             assert!(
@@ -16066,9 +16218,15 @@ mod tests {
         // could not refuse the flipped one even if it ran.
         let volume = |b: &Body<f64>| {
             // Raw door: the measured body still carries construction scaffolding, or a loop flipped against its role, which tier 3 refuses (ScaffoldAtRest, LoopRoleInverted).
-            crate::test_support::measure_unvalidated(b, Tol::witness())
-                .unwrap()
-                .volume
+            crate::test_support::measure_unvalidated(
+                b,
+                Tol::witness(),
+                crate::test_support::pinned_resolution(Tol::witness()),
+            )
+            .unwrap()
+            .met()
+            .expect("the pinned resolution is met")
+            .volume
         };
         assert_eq!(
             volume(&cube).to_bits(),

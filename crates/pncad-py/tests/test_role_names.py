@@ -68,6 +68,7 @@ from pncad import (
     meridian_vertex,
     rad,
 )
+from measuring import pinned
 
 # The ring: a square section between radii RI and RO, one turn about
 # the sketch's own +y. Four meridian segments, none of them on the
@@ -299,7 +300,7 @@ class TestTheDoorAnswersTheKernelsOwnText(unittest.TestCase):
         body = ev.value(node).body()
         body.validate()
         self.assertAlmostEqual(
-            body.mass_properties().volume, want, delta=1e-12 * want
+            pinned(body).volume, want, delta=1e-12 * want
         )
 
     def test_carried_is_the_name_a_survivor_of_the_next_op_wears(self):
@@ -357,7 +358,7 @@ class TestASelectionAuthoredBeforeAnyEvaluation(unittest.TestCase):
         # than to every bit — which is the bound worth asserting, not
         # a decimal copied off a run.
         self.assertAlmostEqual(
-            body.mass_properties().volume, want, delta=1e-12 * want
+            pinned(body).volume, want, delta=1e-12 * want
         )
         # The named face is gone and its rim stands where it was: one
         # designated chart, one annular rim.
@@ -404,7 +405,7 @@ class TestASelectionAuthoredBeforeAnyEvaluation(unittest.TestCase):
         )
         want = math.pi * (RO * RO - RI * RI) * H - removed
         self.assertAlmostEqual(
-            body.mass_properties().volume, want, delta=1e-12 * want
+            pinned(body).volume, want, delta=1e-12 * want
         )
 
 

@@ -144,7 +144,9 @@ pub use curved::{
     cone_face_closed_form, curved_face, curved_face_loops, require_iso_rectangle,
     require_one_chart_branch, seam_loops, sphere_region_cover, sphere_region_material_sign,
 };
-pub use loop_area::{arc_segment_term, chord_bulge, is_rational, loop_vector_area};
+pub use loop_area::{
+    arc_segment_term, chord_bulge, is_rational, loop_vector_area, vector_area_reads,
+};
 
 /// One traversed boundary edge of a face loop: a key-free view of
 /// (carrier, certified `he_plus`-forward parameter interval, traversal
@@ -461,10 +463,7 @@ pub enum PropsError {
     /// `Decide`-generic lane, a compound `Bounds` bound that
     /// `scripts/gates/bounds-allowlist.sh` exists to keep off
     /// `props/curved.rs`; one payload does not earn that seam. Every
-    /// arm of this enum that carries a measured `f64` gets it from a
-    /// concrete scalar ([`Self::QuadratureBudget`], from an
-    /// `Interval`), and the generic arms are name-only, as
-    /// [`Self::NotIsoRectangle`] is.
+    /// arm of this enum is name-only, as [`Self::NotIsoRectangle`] is.
     NotOneChartBranch {
         /// Which boundary edge, as its index in the loop slice the
         /// caller handed in — the same order `topo::props::loop_edges`
@@ -508,51 +507,6 @@ pub enum PropsError {
         /// recourse follows the check rather than the predicate's name,
         /// which stays routing a developer reads in `Debug`.
         check: PropsCheck,
-    },
-    /// The certified quadrature's enclosure did not tighten to the
-    /// reporting resolution before its lane stopped at the work wall (M5
-    /// PR 11; the [`quad`] module docs give the rule and the stop, and
-    /// `topo`'s number doors the resolution). A lane that stopped at its
-    /// floor is [`Self::QuadratureFloor`]. Certified bounds or typed
-    /// refusal — never a silently wide answer. Both payloads are LENGTHS
-    /// (mean boundary displacement), the same metering as tier 3's volume
-    /// check. A resolution is a sizing, so the width is compared with it
-    /// and nothing is decided: there is no in-band twin. The recourse is
-    /// the ε knob: the resolution scales with the run's ε.
-    QuadratureBudget {
-        /// The width of the narrowest enclosure the lane reached, as a
-        /// length (m). The narrowest round is chosen by flux width, so
-        /// this is not necessarily the last round's width, nor
-        /// necessarily over `target_len` in the area lever this length
-        /// is metered by.
-        width_len: f64,
-        /// The convergence target, as a length (m).
-        target_len: f64,
-        /// The refinement rounds the lane ran before it stopped: `0` on
-        /// the exact arm, which has no composite round. A receipt for
-        /// what the refusal cost.
-        rounds: usize,
-    },
-    /// **The certified quadrature's lane stopped at its floor, its
-    /// enclosure over the reporting target.** The lane stopped at
-    /// [`quad::LaneStop::Floor`]: at that round the rule's remainder,
-    /// the part of the width a later round removes, was at most
-    /// [`quad::FLOOR_SHARE`] of it, and the rest is the honesty pads (the
-    /// trim ends' brackets, the pcurves' map residuals) and the
-    /// arithmetic, which refinement does not aim at. That is where more
-    /// rounds stop paying, not a proof that none meets the target: the
-    /// rest moves between rounds as the pieces move (by 1–2% on a sliver
-    /// wall), so a target close to the width may yet be met. Where the
-    /// work wall stopped the lane, the refusal is
-    /// [`Self::QuadratureBudget`]. Payloads as that arm's.
-    QuadratureFloor {
-        /// The width of the narrowest enclosure the lane reached, as a
-        /// length (m).
-        width_len: f64,
-        /// The convergence target, as a length (m).
-        target_len: f64,
-        /// The refinement rounds the lane ran before it stopped.
-        rounds: usize,
     },
     /// A quadrature input is outside the lane's certified inventory
     /// (M5 PR 11): a rational pcurve channel, a chart kind without a
@@ -606,12 +560,6 @@ pub enum PropsCheck {
     /// whose margin gives one, the tolerance below which a smaller one
     /// certifies the extent positive.
     Extent,
-    /// **The certified quadrature's convergence meter** against its
-    /// target: the enclosure's own width, nothing of the model's, so
-    /// there is no coincidence to declare and no geometry to move. A
-    /// kernel approximation limit ([`Unsized::Fit`]), which is
-    /// the one shape D4 ¶1 (i) lets name loosening.
-    Converged,
 }
 
 /// The face-extent decision, whose refused side is a face too thin for
@@ -628,31 +576,6 @@ pub const FACE_EXTENT: SizedDecision = SizedDecision {
     no_size: None,
 };
 
-/// **The one recourse a spent quadrature budget names** (D4 ¶1 (i)'s
-/// last resort), with the value its payload gives: the convergence
-/// target is `QUAD_TARGET_LEN_FACTOR·ε`, linear in the run's ε, so the
-/// width the enclosure actually reached names the tolerance whose
-/// target that width would meet.
-///
-/// **"Simplify the trim" is not a lever this refusal has**, and it is
-/// gone. Nothing in the payload is about the trim; the refusal is
-/// raised where the lane stopped, at its floor or its work wall, where
-/// no trim complexity is implicated; and D4 ¶1 (i) names a
-/// quadrature budget spent as its own example of a refusal that would
-/// otherwise name no recourse at all, which is what licenses naming
-/// loosening here and nowhere a geometry lever exists.
-///
-/// `topo::validate`'s checks-window mirror composes this same sentence,
-/// so the two surfaces cannot disagree.
-#[must_use]
-pub fn quadrature_budget_recourse(width_len: f64) -> String {
-    format!(
-        "Recourse: loosen the tolerance to {:.3e} m or more, {}",
-        width_len / quad::QUAD_TARGET_LEN_FACTOR,
-        geom_core::KERNEL_LIMIT_LAST_RESORT
-    )
-}
-
 impl PropsCheck {
     /// What this check decides, as the question a refusal names before
     /// its payload.
@@ -665,7 +588,6 @@ impl PropsCheck {
             }
             Self::Inventory => "whether this face's boundary is one the closed forms here fold",
             Self::Extent => "whether the face's area is positive",
-            Self::Converged => "whether the quadrature's enclosure has converged",
         }
     }
 
@@ -677,7 +599,6 @@ impl PropsCheck {
             Self::Exact => Unsized::Defect.recourse(arm, reading),
             Self::Inventory => crate::recourse::not_yet(arm, reading),
             Self::Extent => FACE_EXTENT.recourse(arm, reading),
-            Self::Converged => Unsized::Fit.recourse(arm, reading),
         }
     }
 }
@@ -787,29 +708,6 @@ impl core::fmt::Display for PropsError {
                     check.subject(),
                     check.ending(RefusedArm::Undecided(cause), Reading::AtRest)
                 )
-            ),
-            Self::QuadratureBudget {
-                width_len,
-                target_len,
-                rounds,
-            } => write!(
-                f,
-                "a face's quadrature stopped after {rounds} refinement round(s) without its \
-                 certified contribution meeting the {target_len:.3e} m this tolerance targets; \
-                 its narrowest enclosure is {width_len:.3e} m wide. {}",
-                quadrature_budget_recourse(*width_len)
-            ),
-            Self::QuadratureFloor {
-                width_len,
-                target_len,
-                rounds,
-            } => write!(
-                f,
-                "a face's quadrature stopped at its floor after {rounds} refinement round(s), \
-                 where more rounds stop narrowing its certified contribution: its narrowest \
-                 enclosure is {width_len:.3e} m wide, over the {target_len:.3e} m this \
-                 tolerance targets. {}",
-                quadrature_budget_recourse(*width_len)
             ),
             Self::QuadratureUnsupported { what } => write!(
                 f,
@@ -1016,17 +914,6 @@ mod tests {
             "{}",
             under(PropsCheck::Extent)
         );
-        // The kernel's own approximation limit, and the one shape D4
-        // lets name loosening.
-        let converged = under(PropsCheck::Converged);
-        assert_eq!(
-            converged,
-            format!(
-                "whether the quadrature's enclosure has converged is undecided: margin 5e-9 lies \
-                 inside the ambiguity band (1e-9, 1e-8). {}",
-                geom_core::KERNEL_LIMIT_RECOURSE
-            )
-        );
     }
 
     /// **`PropsError`'s recourse claim, made enforceable** — the same
@@ -1088,16 +975,6 @@ mod tests {
             },
             PropsError::DegenerateFace,
             escalated,
-            PropsError::QuadratureBudget {
-                width_len: 2e-9,
-                target_len: 1e-9,
-                rounds: 3,
-            },
-            PropsError::QuadratureFloor {
-                width_len: 4.7e-6,
-                target_len: 1.024e-9,
-                rounds: 1,
-            },
             PropsError::QuadratureUnsupported {
                 what: "a rational pcurve channel",
             },
@@ -1110,7 +987,7 @@ mod tests {
             "state", "widen", "loosen", "report", "re-cut", "re-mint", "lie",
         ];
         let arms = props_error_arms();
-        assert_eq!(arms.len(), 18, "an arm was added without a row here");
+        assert_eq!(arms.len(), 16, "an arm was added without a row here");
         for arm in &arms {
             let msg = arm.to_string();
             assert_eq!(

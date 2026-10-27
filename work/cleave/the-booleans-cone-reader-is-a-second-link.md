@@ -2,11 +2,11 @@
 id: the-booleans-cone-reader-is-a-second-link
 kind: issue
 title: The boolean's cone reader (cone_side, wedge_classes) is a second parity reader of a point's material, kept in step with the census's link by a fuzz test
-status: parked
+status: open
 opened: 2026-10-26
 priority: P1
 cost: H
-blocked_on: [material-and-convexity-are-read-three-ways]
+refs: [material-and-convexity-are-read-three-ways]
 ---
 
 
@@ -19,3 +19,7 @@ Filed by the ATREST orchestrator.
 ## Slate triage (2026-10-26, CLEAVE)
 
 - Parked on `material-and-convexity-are-read-three-ways` (ATREST, P1, open), which it already named in `blocked_on`: the row's own text waits for that link to land before its question can be asked. It is of ONEHOME's class (two readers of one fact) and stays on CLEAVE's ground, as ATREST filed it.
+
+## Trigger fired (2026-10-26, ATREST link lane)
+
+`topo::link` landed on `atrest/topo-link-one-material-reader`, closing `material-and-convexity-are-read-three-ways`, so this row's question can now be asked and the row is open. The census's reader is `Link::reads` (`crates/topo/src/link.rs`); `cone_fuzz` reads it through `link::bare_cone_reads`. The live-body builders are `Link::at_point`, `Link::on_edge` and `Link::in_face`.
