@@ -1,0 +1,371 @@
+//! **The parallel-tori arm's rows**: two tori whose axes are parallel
+//! and apart. Each table row's count is checked against the section
+//! traced on the first torus's chart, and every witness against the
+//! traced component it lands on: one part per traced component, no two
+//! parts on one.
+//!
+//! Every row names the mutant that turns it red.
+
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::float_cmp
+)]
+
+use super::search_kit::{band, matched};
+use super::section_cert_rows::{IN, OUT, at, classify, on_both, p, tangent, torus};
+use super::*;
+use core::f64::consts::TAU;
+use geom::Surface;
+use geom_core::{Point3, Vec3};
+
+/// A torus about `axis` through `center`.
+fn torus_about(center: Point3<f64>, axis: Vec3<f64>, major: f64, minor: f64) -> Surface<f64> {
+    let axis = axis.normalize();
+    Surface::Torus {
+        center,
+        axis,
+        major_radius: major,
+        minor_radius: minor,
+        u_ref: axis.orthonormal_basis().0,
+    }
+}
+
+fn parts(s: &Section<f64>) -> (&[Component<f64>], bool) {
+    match s {
+        Section::Components { parts, single } => (parts, *single),
+        other => panic!("not classified: {other:?}"),
+    }
+}
+
+/// The first torus's chart, `N × N` cells over `(u, v)`, both periodic.
+const N: usize = 300;
+
+/// The torus `(R, r)` about `z` at the origin, at chart cell `(i, j)`.
+fn chart(big_r: f64, r: f64, i: usize, j: usize) -> Point3<f64> {
+    let (u, w) = (TAU * i as f64 / N as f64, TAU * j as f64 / N as f64);
+    let rho = big_r + r * w.cos();
+    p(rho * u.cos(), rho * u.sin(), r * w.sin())
+}
+
+fn find(parent: &mut [usize], mut x: usize) -> usize {
+    while parent[x] != x {
+        parent[x] = parent[parent[x]];
+        x = parent[x];
+    }
+    x
+}
+
+/// The partner's residual traced over the chart of the torus `(R, r)`
+/// about `z`: each cell whose corners change sign, labelled by its
+/// component (cell adjacency, both directions periodic).
+fn trace(big_r: f64, r: f64, partner: &Surface<f64>) -> (Vec<Option<usize>>, usize) {
+    let g: Vec<f64> = (0..N * N)
+        .map(|k| geom_brep::implicit_residual(partner, chart(big_r, r, k / N, k % N)))
+        .collect();
+    let at = |i: usize, j: usize| g[(i % N) * N + j % N];
+    let crossed: Vec<bool> = (0..N * N)
+        .map(|k| {
+            let (i, j) = (k / N, k % N);
+            let s = [at(i, j), at(i + 1, j), at(i, j + 1), at(i + 1, j + 1)];
+            s.iter().any(|&x| x > 0.0) && s.iter().any(|&x| x <= 0.0)
+        })
+        .collect();
+    let mut parent: Vec<usize> = (0..N * N).collect();
+    for k in (0..N * N).filter(|&k| crossed[k]) {
+        let (i, j) = (k / N, k % N);
+        for (di, dj) in [(1, 0), (0, 1), (1, 1), (1, N - 1)] {
+            let n = ((i + di) % N) * N + (j + dj) % N;
+            if crossed[n] {
+                let (x, y) = (find(&mut parent, k), find(&mut parent, n));
+                parent[x] = y;
+            }
+        }
+    }
+    let mut ids = std::collections::BTreeMap::new();
+    let label: Vec<Option<usize>> = (0..N * N)
+        .map(|k| {
+            crossed[k].then(|| {
+                let root = find(&mut parent, k);
+                let next = ids.len();
+                *ids.entry(root).or_insert(next)
+            })
+        })
+        .collect();
+    (label, ids.len())
+}
+
+/// The traced components within two cells of `w`'s chart cell.
+fn near(label: &[Option<usize>], big_r: f64, w: Point3<f64>) -> Vec<usize> {
+    let rho = w.x.hypot(w.y);
+    let cell = |t: f64| ((t.rem_euclid(TAU) / TAU * N as f64) as usize) % N;
+    let (i, j) = (cell(w.y.atan2(w.x)), cell(w.z.atan2(rho - big_r)));
+    let mut out = Vec::new();
+    for di in 0..5 {
+        for dj in 0..5 {
+            let k = ((i + N + di - 2) % N) * N + (j + N + dj - 2) % N;
+            if let Some(c) = label[k]
+                && !out.contains(&c)
+            {
+                out.push(c);
+            }
+        }
+    }
+    out
+}
+
+/// `(R, r)`, `(R₂, r₂)`, `(e, h)`, the traced count written down, and
+/// what the row is.
+type Row = ((f64, f64), (f64, f64), (f64, f64), usize, &'static str);
+
+/// **Every class the pose takes, against the trace.** The first torus
+/// about `z` at the origin, the partner about `z` through `(e, 0, h)`.
+/// Mutants: listing one mirror copy of a loop clear of `Π` (count),
+/// witnessing every point of `Π` instead of every other (count), the
+/// parity started on a point's strand read off the wrong sheet (two
+/// parts on one traced component), a lost meridian-circle pair (count).
+#[test]
+fn parallel_tori_every_class_against_the_trace() {
+    let rows: [Row; 8] = [
+        (
+            (2.0, 0.5),
+            (2.0, 0.5),
+            (1.0, 0.3),
+            2,
+            "equal tori, one raised",
+        ),
+        (
+            (2.0, 0.5),
+            (1.0, 0.3),
+            (1.0, 0.0),
+            2,
+            "cores internally tangent, the thinner tube nested there",
+        ),
+        (
+            (2.0, 0.5),
+            (1.0, 0.3),
+            (1.4, 0.0),
+            3,
+            "the thinner tube entering the fatter across Π, leaving it either side",
+        ),
+        (
+            (2.0, 0.5),
+            (0.5, 0.2),
+            (2.0, 0.0),
+            2,
+            "a small torus centred on the core circle",
+        ),
+        (
+            (2.0, 0.5),
+            (2.0, 0.3),
+            (4.5, 0.1),
+            1,
+            "outer equators overlapping across Π",
+        ),
+        ((2.0, 0.5), (1.0, 0.3), (5.0, 0.0), 0, "apart"),
+        ((2.0, 0.5), (2.0, 0.5), (1.0, 1.2), 0, "slabs apart"),
+        (
+            (2.0, 0.3),
+            (1.5, 0.6),
+            (0.8, 0.05),
+            3,
+            "the partner's tube spanning the first's heights",
+        ),
+    ];
+    for ((big_r, r), (big_r2, r2), (e, h), count, what) in rows {
+        let f = torus(p(0.0, 0.0, 0.0), big_r, r);
+        let g = torus(p(e, 0.0, h), big_r2, r2);
+        let s = classify(&f, &g);
+        let (ps, single) = parts(&s);
+        let (label, traced) = trace(big_r, r, &g);
+        assert_eq!(traced, count, "{what}: the trace counts the written count");
+        assert_eq!(ps.len(), count, "{what}: one part per component: {s:?}");
+        assert_eq!(single, count == 1, "{what}: single only on one component");
+        let candidates: Vec<Vec<usize>> = ps
+            .iter()
+            .map(|c| {
+                let w = c.witness.expect("every part carries a witness");
+                on_both(w, &f, &g);
+                near(&label, big_r, w)
+            })
+            .collect();
+        assert!(
+            matched(&candidates),
+            "{what}: each part's witness on a traced component of its own: {candidates:?}"
+        );
+        assert_eq!(
+            parts(&classify(&g, &f)).0.len(),
+            count,
+            "{what}: the swapped order counts the same"
+        );
+    }
+}
+
+/// **Two tubes of one radius at one height refuse R-tan**: their tops
+/// stand level, where the matching curve `W` has a node (both sheets
+/// turning at once), and the arm does not read its loops through it.
+/// Mutant: the top row decided on its near side (loops read through
+/// the node).
+#[test]
+fn level_tubes_of_one_radius_refuse_as_a_tangency() {
+    let s = classify(
+        &torus(p(0.0, 0.0, 0.0), 2.0, 0.5),
+        &torus(p(1.0, 0.0, 0.0), 2.0, 0.5),
+    );
+    assert_eq!(tangent(&s), "section_torus_parallel_tori_top");
+}
+
+/// The lily's stem torus, and its arch torus at the given offset `e`
+/// from it along the line to the fork (`3.9` on the lily: the cores
+/// internally tangent there) and height `h`, axes both `−y`.
+fn lily(e: f64, h: f64) -> [Surface<f64>; 2] {
+    let a = 22f64.to_radians();
+    let toward = Vec3::new(a.cos(), 0.0, a.sin());
+    let stem_c = p(-5.0, 0.0, 0.0);
+    let down = Vec3::new(0.0, -1.0, 0.0);
+    [
+        torus_about(stem_c, down, 5.0, 0.060),
+        torus_about(stem_c + toward * e + down * h, down, 1.1, 0.052),
+    ]
+}
+
+/// The lily's reach: the ball about its fork.
+fn classify_lily(f: &Surface<f64>, g: &Surface<f64>) -> Section<f64> {
+    let a = 22f64.to_radians();
+    super::classify(
+        f,
+        g,
+        Reach {
+            centre: p(-5.0 + 5.0 * a.cos(), 0.0, 5.0 * a.sin()),
+            radius: 2.0,
+        },
+        band(),
+    )
+}
+
+/// **The lily's wall 1 pair: two loops, mirror images across the plane
+/// of the axes, which is the weld plane.** Near the fork the arch's tube
+/// (`0.052`) stands nested in the stem's (`0.060`); either side of it the
+/// cores part and the arch's tube leaves through the stem's inner wall,
+/// one loop each side, neither on the weld plane. Mutant: a loop of `W`
+/// read wholly outside the triangle (no parts), or listed once.
+#[test]
+fn the_lilys_tube_walls_meet_in_two_mirror_loops_off_the_weld_plane() {
+    let [stem, arch] = lily(3.9, 0.0);
+    let fork = {
+        let a = 22f64.to_radians();
+        p(-5.0 + 5.0 * a.cos(), 0.0, 5.0 * a.sin())
+    };
+    let weld_normal = Vec3::new(-(22f64.to_radians().sin()), 0.0, 22f64.to_radians().cos());
+    for (f, g, order) in [(&stem, &arch, "stem, arch"), (&arch, &stem, "arch, stem")] {
+        let s = classify_lily(f, g);
+        let (ps, single) = parts(&s);
+        assert_eq!(ps.len(), 2, "{order}: two loops: {s:?}");
+        assert!(!single, "{order}: two components are never single");
+        let side: Vec<f64> = ps
+            .iter()
+            .map(|c| {
+                let w = c.witness.expect("witnessed");
+                on_both(w, f, g);
+                (w - fork).dot(weld_normal)
+            })
+            .collect();
+        assert!(
+            side[0] * side[1] < 0.0 && (side[0] + side[1]).abs() < 1e-9,
+            "{order}: the witnesses are mirror images either side of the weld plane: {side:?}"
+        );
+        assert!(
+            side.iter().all(|d| d.abs() > 0.1),
+            "{order}: neither stands on the weld plane: {side:?}"
+        );
+    }
+}
+
+/// **Both sides of the lily's boundary.** The arch's offset pushed past
+/// the tubes' difference (`0.008`) at the fork makes the meridian
+/// circles cross on the weld plane: one loop through it, witnessed there.
+/// Held within the band of that difference, the circles are tangent:
+/// R-tan, never two loops. Raised clear of the stem's slab, the arch
+/// meets nothing; within the band of touching it, R-tan. Mutants: the
+/// nest row decided on the near side of the band (a count on the
+/// tangency), the slab row dropped (parts for tori apart).
+#[test]
+fn the_lilys_pair_either_side_of_its_tangencies() {
+    let [stem, arch] = lily(3.9 + 0.02, 0.0);
+    let s = classify_lily(&stem, &arch);
+    let (ps, single) = parts(&s);
+    let a = 22f64.to_radians();
+    let weld_normal = Vec3::new(-a.sin(), 0.0, a.cos());
+    let fork = p(-5.0 + 5.0 * a.cos(), 0.0, 5.0 * a.sin());
+    let mut side: Vec<f64> = ps
+        .iter()
+        .map(|c| {
+            let w = c.witness.unwrap();
+            on_both(w, &stem, &arch);
+            (w - fork).dot(weld_normal)
+        })
+        .collect();
+    side.sort_by(f64::total_cmp);
+    // The arch's tube now pokes out of the stem's outer wall across the
+    // weld plane, and still leaves through its inner wall either side,
+    // where the cores cross.
+    assert_eq!(ps.len(), 3, "past the difference: three loops: {s:?}");
+    assert!(!single, "three loops are not single");
+    assert!(
+        side[0] < -0.1 && side[1].abs() < 1e-9 && side[2] > 0.1,
+        "one loop witnessed on the weld plane, a mirror pair off it: {side:?}"
+    );
+    let [stem, arch] = lily(3.9 + 0.008, 0.0);
+    assert_eq!(
+        tangent(&classify_lily(&stem, &arch)),
+        "section_torus_parallel_tori_nest",
+        "the meridian circles tangent at the fork refuse R-tan"
+    );
+    let [stem, arch] = lily(3.9, 0.2);
+    assert_eq!(
+        parts(&classify_lily(&stem, &arch)).0.len(),
+        0,
+        "slabs apart"
+    );
+    let [stem, arch] = lily(3.9, 0.112);
+    assert_eq!(
+        tangent(&classify_lily(&stem, &arch)),
+        "section_torus_parallel_tori_slabs",
+        "slabs touching refuse R-tan"
+    );
+}
+
+/// **The faces' windows decide the lily's pair, not the carriers.**
+/// With the stem's window ending at the weld plane and the arch's
+/// starting there, each loop's witness stands outside one window and
+/// the pair clears; with windows reaching across the weld plane over a
+/// loop and no event, the loop is interior to both and the pair refuses
+/// R-loop, never clear. Mutant: a classification that lists no loops for
+/// this pose (it would clear whatever the windows reach).
+#[test]
+fn the_lilys_pair_clears_only_on_windows_that_miss_its_loops() {
+    let [stem, arch] = lily(3.9, 0.0);
+    let s = classify_lily(&stem, &arch);
+    let a = 22f64.to_radians();
+    let weld_normal = Vec3::new(-a.sin(), 0.0, a.cos());
+    let fork = p(-5.0 + 5.0 * a.cos(), 0.0, 5.0 * a.sin());
+    // The stem's window ends at the weld plane, the arch's starts there.
+    let windows = |w: Point3<f64>| {
+        let after = (w - fork).dot(weld_normal) > 0.0;
+        [if after { OUT } else { IN }, if after { IN } else { OUT }]
+    };
+    let mut cleared = certify(&s, false, |_| Sheet::Not, windows)
+        .expect("windows parted by the weld plane clear both loops");
+    cleared.sort_by_key(|c| format!("{c:?}"));
+    assert_eq!(
+        cleared,
+        [Cleared::Out(Side::F), Cleared::Out(Side::G)],
+        "one loop outside the stem's window, the other outside the arch's"
+    );
+    assert_eq!(
+        certify(&s, false, |_| Sheet::Not, at(IN, IN)),
+        Err(Refusal::Loop),
+        "windows reaching over a loop with no event refuse R-loop"
+    );
+}
