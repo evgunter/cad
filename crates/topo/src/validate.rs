@@ -4599,7 +4599,7 @@ impl fmt::Display for ValidationError {
             ),
             Self::SameSideInterference { .. } => write!(
                 f,
-                "two instances overlap: a face of each lies on one plane facing the same way, \
+                "two instances overlap: a face of each lies on one surface facing the same way, \
                  sharing an area that both hold material under (an interference fit), which no \
                  declaration can make valid. Recourse: move the instances apart"
             ),
