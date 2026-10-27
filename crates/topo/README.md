@@ -118,8 +118,9 @@ side clears only
   anchors, either face's normal where it is planar, the offset from
   an axis or centre either face proposes to the other's nearest boundary
   segment point (`census::depth_gap::toward`), the normal of each arc's
-  chord on either face's boundary, and the line between the two faces'
-  carrier axes or centres (`census::depth_gap::across`). Along these turned
+  chord in its conic's plane on either face's boundary, and the line
+  between the two faces' carrier axes or centres
+  (`census::depth_gap::across`). Along these turned
   directions only (`boolean::separating::apart_by`), not the world axes,
   a sphere face is taken to reach no further than its boundary at an
   end whose pole the face places definitely `Out`
