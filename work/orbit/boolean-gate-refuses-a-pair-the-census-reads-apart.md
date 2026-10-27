@@ -44,6 +44,15 @@ normal, so no direction family helps it; a sharper reach does. The census's arm 
 
 That second reach places a point in the face (`curved_face_placement`).
 
+Since `restread/arm1-third-face-directions` arm 1 also reads, through
+`census::depth_gap::across`, each arc's chord normal on either face's
+boundary and the line between the two faces' carrier axes or centres:
+a sliver off a block's corner, the two pieces a lens cuts off a block,
+and two parallel walls apart off their seams
+(`sweep::cross_solid_apart`). These are geometry of the pair alone, so
+the first two doors could read them as they are; the measurement below
+should take those three shapes too.
+
 ## One home for the sharper reaches
 
 Two private sharpenings of `census::face_reach_in` now exist:
