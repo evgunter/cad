@@ -30,12 +30,13 @@
 //!
 //! # What lives here, and what may never
 //!
-//! A verb's payload ([`Blend`], [`Boolean`], [`Sweep`], [`Split`],
-//! [`Shell`]) is the operation's parameters reified as plain data:
+//! A verb's payload ([`Blend`], [`Boolean`], [`Members`], [`Sweep`],
+//! [`Split`], [`Shell`]) is the operation's parameters reified as plain data:
 //! scalars at `T`, entity references as arena keys. Operand bodies are
 //! NOT in the payload — they are borrowed at run time, and the payload's
 //! type is the door that answers it instead (one body in and one out
-//! for the blends, two bodies for the boolean, one validated PROFILE for
+//! for the blends, two bodies for the boolean, a list of member bodies
+//! for the boolean's union and intersect over a list, one validated PROFILE for
 //! the sweeps, one body in and TWO sides out for the split, and the
 //! shell's own door — the blends' two ends at a scalar that can certify
 //! — each a method of its payload type). Everything else a verb is committed to belongs to
@@ -83,4 +84,4 @@ mod verb;
 
 pub use flow::{EdgeScalar, FieldRole, FlowSource, ParamFlow, RoleFamily, ScalarParam};
 pub use run::{DoorScalar, PairOut, SplitOut, VerbError, VerbOut, VerbRecord};
-pub use verb::{Blend, Boolean, Shell, Split, Sweep, VerbKind};
+pub use verb::{Blend, Boolean, Members, Shell, Split, Sweep, VerbKind};

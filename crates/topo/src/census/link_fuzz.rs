@@ -37,11 +37,14 @@
 // Gated to the readings it checks and the band they decide with.
 test_utils::gated_to![
     "crates/topo/src/census.rs",
+    "crates/topo/src/link.rs",
     "crates/geom-core/src/predicate.rs",
     "crates/geom-core/src/tolerance.rs",
 ];
 
 use super::*;
+use crate::link::TOUCH_PLANE;
+use crate::link::metric::{self, Distance};
 use test_utils::fuzz::Rng;
 
 type V = [f64; 3];
@@ -386,12 +389,12 @@ fn verdict_at_origin(body: &mut Body<f64>, band: Band) -> TouchVerdict {
         .collect();
     assert_eq!(solids.len(), 2, "two solids at the origin");
     let o = Point3::new(0.0, 0.0, 0.0);
-    let link = |s| Link::at_point(body, &geo, &Ties::default(), s, &keys, o, band);
+    let link = |s| Link::touch_at_point(body, &geo, &Ties::default(), s, &keys, o, band);
     let mut it = solids.iter().copied();
     let (sa, sb) = (it.next().unwrap(), it.next().unwrap());
     match (link(sa), link(sb)) {
         (Ok(x), Ok(y)) => rest::judge(&x, &y, band),
-        (Err(v), _) | (_, Err(v)) => v,
+        (Err(v), _) | (_, Err(v)) => v.into(),
     }
 }
 
@@ -627,7 +630,7 @@ fn verdict_at<T: Decide + crate::props::AtRestPolicy>(
     let link = |v: VertexKey| {
         let keys = BTreeSet::from([geo.vpoint[&v]]);
         let solid = census_entity_solid(&body, EntityId::Vertex(v)).unwrap();
-        Link::at_point(
+        Link::touch_at_point(
             &body,
             &geo,
             &Ties::default(),
@@ -639,7 +642,7 @@ fn verdict_at<T: Decide + crate::props::AtRestPolicy>(
     };
     match (link(at_origin[0]), link(at_origin[1])) {
         (Ok(x), Ok(y)) => rest::judge(&x, &y, band),
-        (Err(v), _) | (_, Err(v)) => v,
+        (Err(v), _) | (_, Err(v)) => v.into(),
     }
 }
 

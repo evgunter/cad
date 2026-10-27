@@ -424,6 +424,37 @@ impl Default for BooleanNaming {
 }
 
 impl BooleanNaming {
+    /// **The one read of a result key back to its operand**: which
+    /// operand the result key `k` belongs to, its key in that operand's
+    /// space, and whether it was read back through the graft rows (`inv`,
+    /// the graft's destination → source keys of `k`'s kind). A result key
+    /// is an A key only where A's clone is the arena, and a B key either
+    /// through the graft rows or because B's clone is the arena itself.
+    /// Reading the other way, an operand's key into the result, matches
+    /// on [`Self::a_keys`] and [`Self::b_keys`] where it is read.
+    ///
+    /// # Panics
+    ///
+    /// On a layout the boolean never records: it builds its result as
+    /// A's clone with B grafted in, or as one operand's clone with the
+    /// other absent ([`Self::a_keys`], [`Self::b_keys`]).
+    #[track_caller]
+    pub fn operand_of<K: Copy + Ord>(&self, inv: &BTreeMap<K, K>, k: K) -> (Operand, K, bool) {
+        match (self.a_keys, self.b_keys) {
+            (OperandKeys::Direct, OperandKeys::Grafted) => match inv.get(&k) {
+                Some(&kb) => (Operand::B, kb, true),
+                None => (Operand::A, k, false),
+            },
+            (OperandKeys::Direct, OperandKeys::Absent) => (Operand::A, k, false),
+            (OperandKeys::Absent, OperandKeys::Direct) => (Operand::B, k, false),
+            (a_keys, b_keys) => unreachable!(
+                "a boolean's naming records operand keys {a_keys:?} and {b_keys:?}: the boolean \
+                 builds its result as A's clone with B grafted in, or as one operand's clone with \
+                 the other absent"
+            ),
+        }
+    }
+
     /// Each result vertex a zip or a parting fused away → the live cell
     /// of `body` its point lies in ([`Self::settler`]).
     ///
@@ -702,13 +733,28 @@ pub fn boolean_op_with<T: Decide + Bounds + crate::props::AtRestPolicy>(
     op: BooleanOp,
     a: &AtRestBody<T>,
     b: &AtRestBody<T>,
-    inputs: &BooleanInputs<T>,
+    inputs: &BooleanInputs,
+    strategy: SweepStrategy,
+    tol: Tol,
+) -> Result<BooleanResult<T>, BooleanError> {
+    boolean_op_given(op, a, b, inputs, None, strategy, tol)
+}
+
+/// [`boolean_op_with`], its coincidences `given` where they are a fold
+/// step's of the n-ary door ([`super::nary`]): `Some` makes those pairs
+/// the operation's only coincidences, and it decides none of its own.
+pub(crate) fn boolean_op_given<T: Decide + Bounds + crate::props::AtRestPolicy>(
+    op: BooleanOp,
+    a: &AtRestBody<T>,
+    b: &AtRestBody<T>,
+    inputs: &BooleanInputs,
+    given: Option<&[super::GluedPair<T>]>,
     strategy: SweepStrategy,
     tol: Tol,
 ) -> Result<BooleanResult<T>, BooleanError> {
     #[cfg(feature = "door-tier3-meter")]
     let door_from = std::time::Instant::now();
-    let result = boolean_door(op, a, b, &Glue::of(inputs), strategy, tol);
+    let result = boolean_door(op, a, b, &Glue::of(inputs, given), strategy, tol);
     #[cfg(feature = "door-tier3-meter")]
     super::door_meter::record(op, &result, door_from.elapsed(), [a.outcome(), b.outcome()]);
     if let Ok(BooleanResult::Body(out)) = &result {
@@ -4873,13 +4919,13 @@ fn cite_rows(
             "decision {k} is tied against two pierced faces: {:?}",
             ledger.pierced
         );
-        let (cells, third, relation) = spell(row.cells, through, row.relation, |end| {
-            input_end(end, &ledger.mints)
+        let (cells, more, relation) = spell(row.cells, through.as_slice(), row.relation, |end| {
+            input_read(end, &ledger.mints)
         })?;
         used.push(k);
         if let Some(&(_, c)) = ledger.glued.iter().find(|&&(p, _)| p == k) {
             let recorded = &coincidences[c as usize];
-            if recorded.cells != cells || recorded.third != third || recorded.relation != relation {
+            if recorded.cells != cells || recorded.more != more || recorded.relation != relation {
                 return Err(BooleanError::JoinDesync {
                     what: "a decision the op recorded already names other cells than its row",
                 });
@@ -4890,7 +4936,7 @@ fn cite_rows(
         at.push(super::reduce::index(coincidences.len()));
         coincidences.push(crate::Coincidence {
             cells,
-            third,
+            more,
             relation,
             site: crate::DecisionSite::VertexFusion,
             margin,
@@ -4909,32 +4955,35 @@ fn cite_rows(
 type Carried = (ContactRecords, Vec<crate::Coincidence>);
 
 /// **The one door a decision's cells pass to become a row's**: `read`
-/// takes each cell to the cell of the op's input it lies in, and a
-/// cell read as one of higher dimension (a vertex minted on an edge
-/// read as that edge, a vertex minted inside a face read as that face,
-/// a chart cut read as the face it runs in) is widened. The row keeps
-/// the relation decided where widening cannot change what it says: no
-/// cell widened; or, for a cell decided on another's carrier, the
-/// second widened under a first that is a point, which lies on whatever
-/// the second lies in; or two points decided one with the first
-/// widened, spelled the other way round. Any other spelling of a point
-/// decided on a cell states the point as the [`crate::Relation::Meet`]
-/// of the cells read and of `through` where the decision has one (the
-/// face a ring tie's two pierces pierced, which it was decided
-/// against), sorted. Every spelling drops the cell whose crossing
-/// minted a vertex widened onto an edge, which the reduction does not
-/// keep
-/// (`work/wire/a-meet-row-on-a-vertex-a-boolean-minted-on-an-edge-omits-the-cell-that-minted-it.md`).
+/// takes each cell to the cell of the op's input it lies in, and, for a
+/// vertex the op minted on an edge, to the cell of the other input whose
+/// crossing minted it ([`input_read`]). A cell read as one of higher
+/// dimension (a vertex minted on an edge read as that edge, a vertex
+/// minted inside a face read as that face, a chart cut read as the face
+/// it runs in) is widened. The row keeps the relation decided where
+/// widening cannot change what it says: no cell widened; or no minting
+/// cell beyond the two read and, for a cell decided on another's
+/// carrier, the second widened under a first that is a point, which
+/// lies on whatever the second lies in, or two points decided one with
+/// the first widened, spelled the other way round. Any other spelling
+/// of a point decided on a cell states the point as the
+/// [`crate::Relation::Meet`] of the cells read, of the cells whose
+/// crossings minted them, and of `through` (the face a ring tie's two
+/// pierces pierced, which it was decided against, or a meeting's cells
+/// read again), each once and sorted.
 ///
 /// # Errors
 ///
 /// [`BooleanError::JoinDesync`] for a widened cell of any other
-/// relation: only a point is decided on a cell.
+/// relation: only a point is decided on a cell; and for a meeting of
+/// more cells than a row holds, which no reading makes: two cells read
+/// with a minting cell each and one `through`, or two read with none
+/// and a meeting's three.
 fn spell(
     cells: [End; 2],
-    through: Option<End>,
+    through: &[End],
     relation: crate::Relation,
-    read: impl Fn(End) -> End,
+    read: impl Fn(End) -> Read,
 ) -> Result<Spelled, BooleanError> {
     let dim = |c: Cell| match c {
         Cell::Vertex(_) => 0,
@@ -4942,45 +4991,71 @@ fn spell(
         Cell::Face(_) => 2,
     };
     let row_cell = |(input, cell): End| crate::RowCell::Input { input, cell };
-    let read_cells = cells.map(&read);
+    let reads = cells.map(&read);
+    let read_cells = reads.map(|(at, _)| at);
     let widened = [0, 1].map(|i| dim(read_cells[i].1) > dim(cells[i].1));
-    let row = |[x, y]: [End; 2]| ([x, y].map(row_cell), None, relation);
+    let row = |[x, y]: [End; 2]| Ok(([x, y].map(row_cell), [None; 3], relation));
     let point = |c: Cell| matches!(c, Cell::Vertex(_));
-    // A meeting is unordered: its cells sorted, `through` once.
-    let meet = || {
-        let mut two = read_cells.map(row_cell);
-        two.sort();
-        match through
-            .map(|end| row_cell(read(end)))
-            .filter(|c| !two.contains(c))
-        {
-            None => (two, None, crate::Relation::Meet),
-            Some(third) => {
-                let mut all = [two[0], two[1], third];
-                all.sort();
-                let [x, y, z] = all;
-                ([x, y], Some(z), crate::Relation::Meet)
-            }
+    let two = read_cells.map(row_cell);
+    let bys = reads.iter().filter_map(|&(_, by)| by);
+    let minted = bys.clone().any(|by| !two.contains(&row_cell(by)));
+    let throughs = through.iter().flat_map(|&end| {
+        let (at, by) = read(end);
+        std::iter::once(at).chain(by)
+    });
+    let mut further: Vec<crate::RowCell> = Vec::new();
+    for c in bys.chain(throughs).map(row_cell) {
+        if !two.contains(&c) && !further.contains(&c) {
+            further.push(c);
         }
+    }
+    // A meeting is unordered: its cells sorted, each beyond the two read
+    // once.
+    let meet = || {
+        let mut all: Vec<crate::RowCell> = two.into_iter().chain(further.iter().copied()).collect();
+        all.sort();
+        let (x, y, rest) = match all.as_slice() {
+            [x, y, rest @ ..] if rest.len() <= 3 => (*x, *y, rest),
+            _ => {
+                return Err(BooleanError::JoinDesync {
+                    what: "a meeting holds more cells than a row does",
+                });
+            }
+        };
+        let mut more = [None; 3];
+        for (slot, &c) in more.iter_mut().zip(rest) {
+            *slot = Some(c);
+        }
+        Ok(([x, y], more, crate::Relation::Meet))
     };
     let on = relation == crate::Relation::OnCarrier;
     match widened {
-        _ if relation == crate::Relation::Meet => Ok(meet()),
-        [false, false] => Ok(row(read_cells)),
-        [false, true] if on && point(cells[0].1) => Ok(row(read_cells)),
+        _ if relation == crate::Relation::Meet => meet(),
+        [false, false] => row(read_cells),
+        _ if on && minted => meet(),
+        [false, true] if on && point(cells[0].1) => row(read_cells),
         [true, false] if on && point(cells[0].1) && point(cells[1].1) => {
-            Ok(row([read_cells[1], read_cells[0]]))
+            row([read_cells[1], read_cells[0]])
         }
-        _ if on => Ok(meet()),
+        _ if on => meet(),
         _ => Err(BooleanError::JoinDesync {
             what: "a decision other than a point's on a cell reads a cell it lies in",
         }),
     }
 }
 
-/// What [`spell`] makes of a decision: its row's two cells, its third
-/// ([`crate::Coincidence::third`]) and its relation.
-type Spelled = ([crate::RowCell; 2], Option<crate::RowCell>, crate::Relation);
+/// What [`spell`]'s `read` makes of a cell: the cell of the op's input
+/// it lies in, and the cell of the other input whose crossing minted it,
+/// where the op minted it on an edge.
+type Read = (End, Option<End>);
+
+/// What [`spell`] makes of a decision: its row's two cells, its further
+/// ones ([`crate::Coincidence::more`]) and its relation.
+type Spelled = (
+    [crate::RowCell; 2],
+    [Option<crate::RowCell>; 3],
+    crate::Relation,
+);
 
 /// A pending row's cell as the deciding op's input holds it
 /// ([`super::Mints`]): a vertex the reduction minted by splitting an
@@ -4990,6 +5065,19 @@ type Spelled = ([crate::RowCell; 2], Option<crate::RowCell>, crate::Relation);
 pub(super) fn input_cell(end: End, mints: &super::Mints) -> crate::RowCell {
     let (input, cell) = input_end(end, mints);
     crate::RowCell::Input { input, cell }
+}
+
+/// [`input_end`], and for a vertex the reduction minted on an edge the
+/// cell of the other operand whose crossing minted it
+/// ([`super::Mints::minted_by`]), read the same way.
+fn input_read((input, cell): End, mints: &super::Mints) -> Read {
+    let by = match cell {
+        Cell::Vertex(v) => mints
+            .minted_by(input, v)
+            .map(|by| input_end((input.other(), by), mints)),
+        Cell::Edge(_) | Cell::Face(_) => None,
+    };
+    (input_end((input, cell), mints), by)
 }
 
 /// [`input_cell`], as an operand and its cell.
@@ -7655,17 +7743,20 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
 /// spelled in the op's inputs' cells, one row for one, so the records
 /// cite the rows they cited.
 ///
-/// A re-charted shell's cell is read back as its input shell's faces
-/// ([`Recharts::input_faces`]), which wear the sphere the turn moved it
-/// over. A shell of one face holds a turned face whole, so a row on one
-/// keeps its relation. Any other reading widens the cell, and only a
-/// point decided on a cell holds of the cells that hold it
-/// ([`states_a_point`]).
+/// A re-charted shell's cell is read back as the set of its input
+/// shell's faces ([`Recharts::input_faces`]), which wear the sphere the
+/// turn moved it over, as a vertex minted on an edge is read as that
+/// edge. A shell of one face holds a turned face whole, so a row on one
+/// keeps its relation, and a turned edge or vertex reads as that face
+/// through [`spell`]. A set of several faces states only a point decided
+/// on a cell ([`states_a_point`]), as the [`crate::Relation::Meet`] of
+/// every cell the row's cells read as, sorted.
 ///
 /// # Errors
 ///
 /// [`BooleanError::RechartedRowUnstated`] for a row of any other
-/// decision widened by a re-chart; otherwise as [`spell`].
+/// decision on a re-charted cell, and for a meeting of more cells than a
+/// row holds; otherwise as [`spell`].
 fn respell_through_cuts(
     rows: &mut [crate::Coincidence],
     cuts: &CutsPerOperand,
@@ -7679,8 +7770,8 @@ fn respell_through_cuts(
         (input, cell, recharted[side(input)].input_faces(cell))
     };
     let read = |end: End| match recut(end) {
-        (input, _, Some(faces)) => (input, Cell::Face(faces[0])),
-        (input, cell, None) => (input, cell),
+        (input, _, Some(&[face])) => ((input, Cell::Face(face)), None),
+        (input, cell, _) => ((input, cell), None),
     };
     let end = |cell| match cell {
         crate::RowCell::Input { input, cell } => Some((input, cell)),
@@ -7690,14 +7781,21 @@ fn respell_through_cuts(
         let [Some(x), Some(y)] = row.cells.map(end) else {
             continue;
         };
-        let through = match row.third {
-            None => None,
-            Some(third) => Some(end(third).ok_or(BooleanError::JoinDesync {
-                what: "a meeting's third cell is no cell of the op's input",
-            })?),
-        };
+        let through = row
+            .more
+            .into_iter()
+            .flatten()
+            .map(|cell| {
+                end(cell).ok_or(BooleanError::JoinDesync {
+                    what: "a meeting's further cell is no cell of the op's input",
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let ends: Vec<End> = [x, y].into_iter().chain(through.iter().copied()).collect();
         let point = states_a_point(row.relation, recut(x).1);
-        for (operand, cell, faces) in [x, y].into_iter().chain(through).map(recut) {
+        // The first cell read as a set of several faces.
+        let mut set = None;
+        for (operand, cell, faces) in ends.iter().copied().map(recut) {
             let Some(faces) = faces else {
                 continue;
             };
@@ -7707,10 +7805,47 @@ fn respell_through_cuts(
                     operand,
                     relation: row.relation,
                     faces: faces.to_vec(),
+                    what: "only a point decided there is stated by the faces that hold it",
                 });
             }
+            if faces.len() > 1 && set.is_none() {
+                set = Some((operand, faces));
+            }
         }
-        (row.cells, row.third, row.relation) = spell([x, y], through, row.relation, read)?;
+        let Some((operand, faces)) = set else {
+            (row.cells, row.more, row.relation) = spell([x, y], &through, row.relation, read)?;
+            continue;
+        };
+        let mut all: Vec<crate::RowCell> = Vec::new();
+        for (input, cell, faces) in ends.iter().copied().map(recut) {
+            let read: Vec<Cell> = match faces {
+                Some(faces) => faces.iter().map(|&f| Cell::Face(f)).collect(),
+                None => vec![cell],
+            };
+            all.extend(
+                read.into_iter()
+                    .map(|cell| crate::RowCell::Input { input, cell }),
+            );
+        }
+        all.sort();
+        all.dedup();
+        let (x, y, rest) = match all.as_slice() {
+            [x, y, rest @ ..] if rest.len() <= row.more.len() => (*x, *y, rest),
+            _ => {
+                return Err(BooleanError::RechartedRowUnstated {
+                    operand,
+                    relation: row.relation,
+                    faces: faces.to_vec(),
+                    what: "the faces that hold it and the row's other cells are more cells \
+                           than a row holds",
+                });
+            }
+        };
+        let mut more = [None; 3];
+        for (slot, &c) in more.iter_mut().zip(rest) {
+            *slot = Some(c);
+        }
+        (row.cells, row.more, row.relation) = ([x, y], more, crate::Relation::Meet);
     }
     Ok(())
 }
@@ -8393,105 +8528,117 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
 mod tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-    /// **A re-charted shell's cell reads as its input shell's least
-    /// face** ([`super::respell_through_cuts`]): a meeting on a turned
-    /// edge of a two-face shell names that face, a carrier pair on a
-    /// turned face of a one-face shell keeps its relation on that face,
-    /// and the same pair on a two-face shell refuses typed, citing the
-    /// least face.
+    /// **A re-charted shell's cell reads as its input shell's faces**
+    /// ([`super::respell_through_cuts`]): a meeting on a turned edge, and
+    /// a vertex on a turned face, of a two-face shell are the meeting of
+    /// both faces; a carrier pair on a turned face of a one-face shell
+    /// keeps its relation on that face; a carrier pair on a two-face
+    /// shell, and a meeting of more cells than a row holds, refuse typed.
     #[test]
-    fn a_re_charted_cell_reads_as_its_input_shells_least_face() {
+    fn a_re_charted_cell_reads_as_its_input_shells_faces() {
         use super::{ChartCuts, Recharts, respell_through_cuts};
         use crate::boolean::{BooleanError, Cell, Operand};
         use crate::{Coincidence, Relation, RowCell};
         let key = |n: u64| slotmap::KeyData::from_ffi((1u64 << 32) | n);
         let face = |n| Cell::Face(key(n).into());
-        let (plane, least, other, turned_edge, turned_face) = (1, 2, 3, 4, 5);
-        let row = |b: Cell, relation| Coincidence {
-            cells: [
-                RowCell::Input {
-                    input: Operand::A,
-                    cell: face(plane),
-                },
-                RowCell::Input {
-                    input: Operand::B,
-                    cell: b,
-                },
-            ],
-            third: None,
+        let (plane, one, two, three, turned_edge, turned_face) = (1, 2, 3, 4, 5, 6);
+        let a = |cell| RowCell::Input {
+            input: Operand::A,
+            cell,
+        };
+        let b = |cell| RowCell::Input {
+            input: Operand::B,
+            cell,
+        };
+        let row = |first: RowCell, second: RowCell, relation| Coincidence {
+            cells: [first, second],
+            more: [None; 3],
             relation,
             site: crate::DecisionSite::VertexFusion,
             margin: geom_core::MarginDiag::value(0.0),
             discharge: crate::Discharge::Numeric,
         };
-        let recharted = |faces: &[u64]| {
-            let mut b = Recharts::default();
-            b.add(
+        let turned = |faces: &[u64]| {
+            let mut made = Recharts::default();
+            made.add(
                 [Cell::Edge(key(turned_edge).into()), face(turned_face)].into(),
                 faces.iter().rev().map(|&n| key(n).into()).collect(),
             );
-            [Recharts::default(), b]
+            made
         };
+        let b_turned = |faces: &[u64]| [Recharts::default(), turned(faces)];
         let cuts = [ChartCuts::default(), ChartCuts::default()];
+        let edge = b(Cell::Edge(key(turned_edge).into()));
+        let vertex = a(Cell::Vertex(key(plane).into()));
         let mut rows = [
-            row(Cell::Edge(key(turned_edge).into()), Relation::Meet),
-            row(face(other), Relation::SameOpposite),
+            row(a(face(plane)), edge, Relation::Meet),
+            row(vertex, b(face(turned_face)), Relation::OnCarrier),
+            row(a(face(plane)), b(face(two)), Relation::SameOpposite),
         ];
-        respell_through_cuts(&mut rows, &cuts, &recharted(&[least, other])).unwrap();
+        respell_through_cuts(&mut rows, &cuts, &b_turned(&[one, two])).unwrap();
         assert_eq!(
-            rows.map(|r| (r.cells[1], r.relation)),
+            rows.map(|r| (r.cells, r.more, r.relation)),
             [
-                (RowCell::face(Operand::B, key(least).into()), Relation::Meet),
                 (
-                    RowCell::face(Operand::B, key(other).into()),
+                    [a(face(plane)), b(face(one))],
+                    [Some(b(face(two))), None, None],
+                    Relation::Meet
+                ),
+                (
+                    [vertex, b(face(one))],
+                    [Some(b(face(two))), None, None],
+                    Relation::Meet
+                ),
+                (
+                    [a(face(plane)), b(face(two))],
+                    [None; 3],
                     Relation::SameOpposite
                 ),
             ],
-            "a turned edge's meeting names the shell's least face; a cell no shell turned is kept"
+            "a point on a two-face shell's turned cell meets both faces; a cell no shell \
+             turned is kept"
         );
-        let mut whole = [row(face(turned_face), Relation::SameOpposite)];
-        respell_through_cuts(&mut whole, &cuts, &recharted(&[least])).unwrap();
+        let mut whole = [row(
+            a(face(plane)),
+            b(face(turned_face)),
+            Relation::SameOpposite,
+        )];
+        respell_through_cuts(&mut whole, &cuts, &b_turned(&[one])).unwrap();
         assert_eq!(
-            (whole[0].cells[1], whole[0].relation),
-            (
-                RowCell::face(Operand::B, key(least).into()),
-                Relation::SameOpposite
-            ),
+            (whole[0].cells, whole[0].relation),
+            ([a(face(plane)), b(face(one))], Relation::SameOpposite),
             "a one-face shell holds its turned face whole, so the pair keeps its relation"
         );
         for relation in [Relation::SameOpposite, Relation::OnCarrier] {
-            let mut split = [row(face(turned_face), relation)];
-            let refused = respell_through_cuts(&mut split, &cuts, &recharted(&[least, other]));
+            let mut split = [row(a(face(plane)), b(face(turned_face)), relation)];
+            let refused = respell_through_cuts(&mut split, &cuts, &b_turned(&[one, two]));
             assert!(
                 matches!(
                     &refused,
-                    Err(BooleanError::RechartedRowUnstated { operand: Operand::B, relation: r, faces })
-                        if *r == relation && *faces == [key(least).into(), key(other).into()]
+                    Err(BooleanError::RechartedRowUnstated { operand: Operand::B, relation: r, faces, .. })
+                        if *r == relation && *faces == [key(one).into(), key(two).into()]
                 ),
                 "a {relation:?} face pair on a two-face shell's turned face refuses typed: \
                  {refused:?}"
             );
         }
-        let mut pierce = [row(face(turned_face), Relation::OnCarrier)];
-        pierce[0].cells[0] = RowCell::Input {
-            input: Operand::A,
-            cell: Cell::Vertex(key(plane).into()),
-        };
-        respell_through_cuts(&mut pierce, &cuts, &recharted(&[least, other])).unwrap();
-        assert_eq!(
-            (pierce[0].cells[1], pierce[0].relation),
-            (
-                RowCell::face(Operand::B, key(least).into()),
-                Relation::OnCarrier
+        let mut crowded = [row(
+            a(Cell::Edge(key(turned_edge).into())),
+            edge,
+            Relation::Meet,
+        )];
+        let both = [turned(&[one, two, three]), turned(&[one, two, three])];
+        let refused = respell_through_cuts(&mut crowded, &cuts, &both);
+        assert!(
+            matches!(
+                &refused,
+                Err(BooleanError::RechartedRowUnstated { operand: Operand::A, faces, .. })
+                    if faces.len() == 3
             ),
-            "a vertex on a two-face shell's turned face is a point, stated on the shell"
+            "six faces are more than a row holds: {refused:?}"
         );
     }
 
-    /// **Every pair of distinct, non-incident cells is recorded**
-    /// ([`super::record`]): a brick's edge against each face it does not
-    /// bound, and a cylinder sheet's edges against another sheet's
-    /// curved wall; a sheet's edges against its own wall are structure.
     #[test]
     fn every_non_incident_edge_face_pair_is_recorded_whatever_its_carriers() {
         use crate::boolean::{Cell, ContactRecords, Operand};
