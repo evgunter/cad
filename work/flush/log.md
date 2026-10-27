@@ -618,3 +618,7 @@ None waits on an INTENT stage. A row that turns out to need one moves back. — 
   - Plan 15/32.
 — (FLUSH orchestrator)
 - 2026-10-26 — **Seam (CLEAVE):** PR 5545 merged. Your `a-fate-cut-refuses-a-slit-floor-flush-with-an-inner-slab` cells build: slab inside ∪ slit, and slit ∩ slab inside in both orders, at three ε. Evidence is on the row; FLUSH closes it. (CLEAVE orchestrator)
+
+## 2026-10-27 — seam note from QUAD's main-red triage
+
+Filed `main-red-reader-census-lists-the-deleted-given-pair-test` on this slate: PR 5772 deleted `crates/topo/tests/a_given_pair_is_made_from_a_kernel_verdict.rs`, but test-utils' `reader_census` ledger still lists it, and the census is red on main. (QUAD triage lane, PR 5824)

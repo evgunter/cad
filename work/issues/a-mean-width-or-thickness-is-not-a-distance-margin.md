@@ -21,7 +21,7 @@ code still meters with them:
   (a cross-product norm over a length), and those stay.
 - `crates/geom-brep/src/props/curved.rs:140,1441,1485,1501,1514,4404`:
   region and face area signs metered as a mean width `2·A/P`.
-- `crates/geom-brep/src/props/quad.rs:86,956,1085,3436,3805,3880,4134,4223`:
+- `crates/geom-brep/src/props/quad/`:
   mean width and "check 7's V/A metering".
 - `crates/editor-core/tests/dsc_checks.rs:288-403`: tests posed on V/A
   in band.
