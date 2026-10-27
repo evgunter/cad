@@ -169,6 +169,7 @@ pub(crate) mod invalid_margin;
 pub(crate) mod iso;
 pub mod joint;
 pub(crate) mod lineage;
+pub mod link;
 pub(crate) mod live;
 // The one statement of a stored planar loop's signed winding, shared by
 // the merge's role assigner and tier 3's check 6. Non-doc comment for
@@ -1236,9 +1237,9 @@ pub use chord_join::face_azimuth_window_traces;
 // vocabulary always, the door on the boolean sweep's terms.
 pub use attach::Rechart;
 pub use census::{
-    CensusStrategy, CensusTrace, FlushAtRest, RecordedAtRest, SweepPairs, TouchUnread,
-    census_cell_solid, census_contact_row, census_entity_solid, census_interference_solids,
-    census_rest_decision, census_uncleared_solids, record_at_rest,
+    CensusStrategy, CensusTrace, FlushAtRest, RecordedAtRest, SweepPairs, census_cell_solid,
+    census_contact_row, census_entity_solid, census_interference_solids, census_rest_decision,
+    census_uncleared_solids, record_at_rest,
 };
 #[cfg(feature = "sweep-testing")]
 pub use census::{census_traces, census_traces_planted};
@@ -1256,6 +1257,7 @@ pub use euler::{
 };
 pub use euler_kill::{KefResult, KevResult, KvfsResult, MergedMember, MfkrhCreated};
 pub use euler_ring::{KemrResult, KfmrhResult, MekrResult, MekrSite};
+pub use link::{Link, LinkRefusal, Material, TouchUnread};
 // The types that appear in this crate's own operator signatures, so a
 // consumer of the ops needs no direct geom-* imports for the common
 // path (the full geometry vocabulary still lives in those crates).

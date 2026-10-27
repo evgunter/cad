@@ -3999,7 +3999,7 @@ pub enum LineWedgeFault {
         /// The result's edge.
         edge: EdgeKey,
         /// Why its wedge has no reading.
-        why: crate::census::TouchUnread,
+        why: crate::link::TouchUnread,
     },
 }
 

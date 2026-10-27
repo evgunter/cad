@@ -136,7 +136,7 @@ claim are agent text, CONTACT-7, commit 2b080332db).
 - **One reader, through the census's door.** The direction-side question
   ("is this direction on this polygon cone's material side") gets one reader
   in `topo`, deciding in metres through `metric::Distance` (the census's
-  doors rule, `the_touch_analysis_decides_only_through_its_doors`), over a cone
+  doors rule, `link::tests::the_link_decides_only_through_its_doors`), over a cone
   given as faces with real points on them. `boolean::sectors::cone_side`
   (levered deviations over `BoolSector`) is not lifted as it stands: the
   boolean calls the new reader if its side can move in the unit, and otherwise

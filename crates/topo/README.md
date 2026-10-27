@@ -341,10 +341,12 @@ straddle-hull treatment). Built as the document layer's
 `crates/editor-core/src/eval/measure.rs`), argument order the mating
 role, authored rather than inferred. Between a vertex or an edge and
 another cell, g is how far one cell stands out of the other's
-material, read as the half-spaces of the face carriers the reading
-cell lies on. The higher-dimensional cell reads, and of two edges or
-two vertices the outer. g is zero where the cell rests on them and
-negative inside (the arms are that module's table).
+material, read as the reading cell's link, the directions entering
+its solid at the point (a face's, the side of its carrier its material
+is on): the signed distance to it, negative inside. The
+higher-dimensional cell reads, and of two edges or two vertices the
+outer. g is zero where the cell rests on it (the arms are that
+module's table).
 
 **C6 — Interference fits.** No class states a fit; what an
 interference fit asserts is stage 5's question.
