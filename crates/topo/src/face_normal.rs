@@ -7,10 +7,12 @@
 //! and the shared [`crate::sector_face`] walk names the constructor
 //! itself for its curved arms.
 //!
-//! Three doors, one flip. By key: [`face_outward_normal`] answers for
-//! a PLANE, where the normal does not depend on where you stand, and
+//! Four doors, one flip. By key: [`face_outward_normal`] answers for
+//! a PLANE, where the normal does not depend on where you stand,
 //! [`face_outward_normal_at`] answers at a POINT, which is what a
-//! curved carrier requires and what the plane arm returns unchanged.
+//! curved carrier requires and what the plane arm returns unchanged,
+//! and [`face_outward_normal_at_foot`] answers at the FOOT of a point
+//! on the face's carrier, the point on or off it.
 //! By value, for a caller that has already resolved the face and must
 //! not discard a failed lookup: [`plane_outward_normal`] takes the
 //! [`Face`] and its plane's chart normal. Every one of them spells the
@@ -25,12 +27,16 @@
 //! cone's elevation on its face's nappe) and folds the RAW gradient it
 //! has just certified unit-magnitude. The
 //! by-value curved fold is [`geom_brep::implicit_outward_normal`],
-//! which normalizes and gates nothing — its callers (the contact
-//! verifier, the dihedral's material pairing, a blend battery's
-//! supports) certify the point themselves. The two can differ in the
-//! last ulps on the same input, so neither substitutes for the other:
-//! a caller that wants the gate takes the key; a caller handed a
-//! carrier and the bit takes the `geom_brep` door.
+//! which normalizes and gates nothing: it reads the normal at `p`'s
+//! foot on the carrier, which is the normal at `p` where `p` is on it,
+//! and its callers (the contact verifier, the dihedral's material
+//! pairing, a blend battery's supports) certify the point themselves
+//! where they need it on the carrier. [`face_outward_normal_at_foot`]
+//! is that fold by key, for a point no reading places on the carrier.
+//! The two readings can differ in the last ulps on the same input, so
+//! neither substitutes for the other: a caller that wants the gate
+//! takes [`face_outward_normal_at`]; a caller that reads a side at a
+//! point near the face takes the foot.
 //!
 //! # Why one door, and why here
 //!
@@ -111,7 +117,8 @@ pub fn face_outward_normal<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<O
     }
 }
 
-/// Why [`face_outward_normal_at`] could not answer.
+/// Why [`face_outward_normal_at`] or [`face_outward_normal_at_foot`]
+/// could not answer.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) enum NormalAtError {
     /// A margin landed in the band: the torus's own convention, or the
@@ -144,6 +151,11 @@ pub(crate) enum NormalAtError {
         /// The band the distance off the axis was classified against.
         band: Band,
     },
+    /// `p` stands where the carrier's nearest point is not one point (a
+    /// cylinder's axis, a sphere's centre, a torus's axis or core
+    /// circle), so the gradient there is no direction
+    /// ([`face_outward_normal_at_foot`] only).
+    NoFoot,
 }
 
 /// Which decision [`face_outward_normal_at`] escalated on.
@@ -323,36 +335,66 @@ pub(crate) fn face_outward_normal_at<T: Decide>(
     }
 }
 
-/// [`face_outward_normal_at`], for a point `p` its caller already reads
-/// as lying on the face's surface, or within the band of it: where the
-/// door's own on-surface reading lands in the band, the chart's
-/// gradient at `p`, made unit and folded with the face's sense, is the
-/// normal to first order in `p`'s offset, which is no larger than the
-/// band. The caller owns the reading that `p` lies on the surface, and
-/// raises it where it is in band and the answer matters.
+/// **The outward normal of a face's carrier at the foot of `p`**: at
+/// the point of the carrier nearest `p`, for a point on the carrier or
+/// off it. For the five implicit kinds the level sets of the implicit
+/// form are the carrier's parallel offsets, so the gradient's direction
+/// at `p` is the carrier's normal at `p`'s foot exactly
+/// ([`geom_brep::implicit_outward_normal`]), wherever that foot is one
+/// point. Nothing about `p` is certified, so it reads the side of a
+/// face at a point the caller places near it by a reading of its own
+/// (an edge read as lying on the face's surface, or within the band of
+/// it, [`crate::boolean`]'s parting). A plane answers as
+/// [`plane_outward_normal`].
 ///
 /// # Errors
 ///
-/// As [`face_outward_normal_at`], less its on-surface escalation.
-pub(crate) fn face_outward_normal_near<T: Decide>(
+/// [`NormalAtError::AtConeApex`] where `p` stands within the band of a
+/// cone's axis, as at [`face_outward_normal_at`];
+/// [`NormalAtError::DegenerateTorus`] or [`NormalAtError::Escalated`]
+/// for a torus outside the ring convention; [`NormalAtError::NoFoot`]
+/// where the gradient at `p` is no direction (a cylinder's axis, a
+/// sphere's centre, a torus's axis or core circle). A spline or
+/// approximating carrier has no implicit form: `Ok(None)`, as a face
+/// key that no longer resolves.
+pub(crate) fn face_outward_normal_at_foot<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     p: Point3<T>,
     band: Band,
 ) -> Result<Option<OutwardNormal<T>>, NormalAtError> {
-    match face_outward_normal_at(body, face, p, band) {
-        Err(NormalAtError::Escalated {
-            decision: NormalDecision::OnSurface,
+    let Some(f) = body.get_face(face) else {
+        return Ok(None);
+    };
+    let surface = body.face_surface_linked(face, f);
+    match surface {
+        geom::Surface::Plane { normal, .. } => return Ok(Some(plane_outward_normal(f, *normal))),
+        geom::Surface::Torus {
+            major_radius,
+            minor_radius,
             ..
-        }) => {
-            let Some(f) = body.get_face(face) else {
-                return Ok(None);
-            };
-            let surface = body.face_surface_linked(face, f);
-            let grad = geom_brep::implicit_gradient(surface, p).normalize();
-            Ok(Some(OutwardNormal::from_chart(grad, f.sense)))
+        } => {
+            ring_half(
+                TorusConvention::Tube,
+                geom::torus_tube(*minor_radius, band),
+                band,
+            )?;
+            ring_half(
+                TorusConvention::Ring,
+                geom::ring_torus(*major_radius, *minor_radius, band),
+                band,
+            )?;
         }
-        read => read,
+        geom::Surface::Cone { apex, axis, .. } => cone_axis_clearance(*apex, *axis, p, band)?,
+        geom::Surface::Cylinder { .. } | geom::Surface::Sphere { .. } => {}
+        geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => return Ok(None),
+    }
+    let n = geom_brep::implicit_outward_normal(surface, f.sense, p);
+    let v = n.vec();
+    if [v.x, v.y, v.z].into_iter().all(geom_core::is_finite_length) {
+        Ok(Some(n))
+    } else {
+        Err(NormalAtError::NoFoot)
     }
 }
 

@@ -4371,6 +4371,9 @@ impl BooleanError {
                 face,
                 band,
             },
+            NormalAtError::NoFoot => Self::ClassificationInvariant {
+                what: "the pierce door read a normal at a foot, which it does not ask",
+            },
         }
     }
 

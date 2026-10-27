@@ -97,13 +97,18 @@ the edge's midpoint, so it carries over.
   (`walls_inside`, whose own errors `slit::holding` raises, but
   `Crossed`: faces leaving on opposite sides say the edge does not lie
   there), and a face only a crossing record names is not asked where
-  its reading is in band. `walls_inside` reads the face's normal at the
-  edge's midpoint through `face_normal::face_outward_normal_near`,
-  which reads the chart's gradient where the point's own on-surface
-  reading is in band, the question `slit::holding` already asks of the
-  carrier (`bisector_nodes::the_near_node_poses_at_the_witness_band`,
-  A's cap at δ = 1e-4: a rim arc `2δ` long about `δ²/2` off the other
-  rod's wall, whose faces leave it on opposite sides).
+  its reading is in band. `walls_inside` reads the face's side at its
+  carrier's foot of the edge's midpoint
+  (`face_normal::face_outward_normal_at_foot`: the implicit gradient's
+  direction, which is the carrier's normal at the foot exactly, and
+  asks nothing of where the midpoint stands), and `carrier_on_surface`
+  reads every sample before answering, so one definitely off decides
+  "not on" beside others in band (`bisector_nodes`
+  `the_near_node_poses_at_the_witness_band` and
+  `a_single_cap_just_past_the_band_builds_as_the_parting_leaves_it`: a
+  cap's rim arc `2δ` long about `δ²/2` off the other rod's wall, whose
+  faces leave it on opposite sides, at δ = 1e-4 and
+  `δ = √(2·c·K·ε)`, c 1.1 to 1.3, building as on main).
 - Not read: an edge lying in a torus or spline face
   (`work/cleave/the-parting-reads-no-edge-lying-in-a-torus-or-spline-face.md`),
   and a closed edge
