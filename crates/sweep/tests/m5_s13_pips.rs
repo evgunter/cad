@@ -271,23 +271,23 @@ fn two_pips_cut_under_the_group_arm() {
 /// turn moved.** `slab ∖ (two balls)` re-charts both balls and keeps no
 /// shell, so the first turned ball becomes the re-cut operand with its
 /// input keys at turned places, and the second is grafted under new
-/// keys. Every cell a row names in the pair is the least face of one of
+/// keys. Every row naming a cell of the pair names every face of one of
 /// its input shells, both shells reached: the sphere each turned cell
 /// lies on. An input edge or vertex of the first ball, held under its
 /// own key but standing where the turn put it, names no row.
 #[test]
-fn a_re_charted_balls_rows_name_its_input_shells_least_face() {
+fn a_re_charted_balls_rows_name_its_input_shells_faces() {
     let pair = topo::union(&pip_ball(2.0, 1.2), &pip_ball(2.0, 2.8), Tol::witness())
         .expect("disjoint balls assemble")
         .body()
         .expect("a body")
         .body
         .clone();
-    let least: Vec<topo::FaceKey> = pair
+    let shells: Vec<std::collections::BTreeSet<topo::Cell>> = pair
         .shells()
-        .map(|(_, shell)| *shell.faces.iter().min().expect("a shell has faces"))
+        .map(|(_, shell)| shell.faces.iter().map(|&f| topo::Cell::Face(f)).collect())
         .collect();
-    assert_eq!(least.len(), 2, "two disjoint balls, two shells");
+    assert_eq!(shells.len(), 2, "two disjoint balls, two shells");
     let a = finished("operand A", slab(), Tol::witness());
     let out = boolean_op_with(
         BooleanOp::Subtract,
@@ -299,30 +299,36 @@ fn a_re_charted_balls_rows_name_its_input_shells_least_face() {
     )
     .expect("the two pips cut");
     let out = out.body().expect("a body");
-    let named: Vec<topo::Cell> = out
-        .coincidences
-        .iter()
-        .flat_map(topo::Coincidence::every_cell)
-        .filter_map(|cell| match cell {
-            topo::RowCell::Input {
-                input: topo::Operand::B,
-                cell,
-            } => Some(cell),
-            _ => None,
-        })
-        .collect();
-    for cell in &named {
+    let mut reached = vec![false; shells.len()];
+    for row in &out.coincidences {
+        let named: std::collections::BTreeSet<topo::Cell> = row
+            .every_cell()
+            .filter_map(|cell| match cell {
+                topo::RowCell::Input {
+                    input: topo::Operand::B,
+                    cell,
+                } => Some(cell),
+                _ => None,
+            })
+            .collect();
+        if named.is_empty() {
+            continue;
+        }
+        let shell = shells.iter().position(|faces| *faces == named);
         assert!(
-            matches!(cell, topo::Cell::Face(f) if least.contains(f)),
-            "a row names the pair's {cell:?}, not one of its shells' least faces {least:?}"
+            shell.is_some(),
+            "row {row:?} names the pair's {named:?}, not every face of one of its shells \
+             {shells:?}"
         );
+        if let Some(at) = shell {
+            reached[at] = true;
+        }
     }
-    for face in &least {
-        assert!(
-            named.contains(&topo::Cell::Face(*face)),
-            "no row names the shell whose least face is {face:?}: {named:?}"
-        );
-    }
+    assert_eq!(
+        reached,
+        [true, true],
+        "every shell's faces are named by a row"
+    );
 }
 
 // ---------------------------------------------------------------------

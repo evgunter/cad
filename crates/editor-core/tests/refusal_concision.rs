@@ -411,6 +411,7 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
                 operand: Operand::B,
                 relation: topo::Relation::SameOpposite,
                 faces: vec![face, face],
+                what: "only a point decided there is stated by the faces that hold it",
             },
         ),
         (

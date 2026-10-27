@@ -687,6 +687,9 @@ pub(crate) struct EdgeSplit {
     pub(crate) vertex: VertexKey,
     /// The trailing piece.
     pub(crate) child: crate::entity::EdgeKey,
+    /// The cell of the other operand's clone whose crossing minted
+    /// `vertex`: the face, edge or vertex the split edge met there.
+    pub(crate) by: Cell,
 }
 
 /// **Where a Boolean reduction minted each vertex off its operands'
@@ -702,12 +705,13 @@ pub(crate) struct EdgeSplit {
 pub(crate) struct Mints {
     divisions: [crate::lineage::EdgeDivisions; 2],
     /// Each operand's vertices minted on edges, one per row of its
-    /// divisions and in the same order: [`Self::push`] is the one writer
-    /// of both, and pushes the vertex only once the division's row is
-    /// in, so the `i`-th vertex is the one minted between the `i`-th
-    /// row's two edges (asserted where they are read together,
-    /// [`Self::of`]).
-    vertices: [Vec<VertexKey>; 2],
+    /// divisions and in the same order, each beside the cell of the other
+    /// operand whose crossing minted it ([`EdgeSplit::by`]):
+    /// [`Self::push`] is the one writer of both, and pushes the vertex
+    /// only once the division's row is in, so the `i`-th vertex is the
+    /// one minted between the `i`-th row's two edges (asserted where
+    /// they are read together, [`Self::of`]).
+    vertices: [Vec<(VertexKey, Cell)>; 2],
     /// Each operand's vertices minted inside faces, each with its face.
     in_faces: [Vec<(VertexKey, FaceKey)>; 2],
 }
@@ -737,7 +741,7 @@ impl Mints {
     pub(crate) fn push(&mut self, split: EdgeSplit) -> Result<(), crate::lineage::RowRefusal> {
         let side = usize::from(split.operand == Operand::B);
         self.divisions[side].push((split.child, split.parent))?;
-        self.vertices[side].push(split.vertex);
+        self.vertices[side].push((split.vertex, split.by));
         Ok(())
     }
 
@@ -757,7 +761,7 @@ impl Mints {
             .rows()
             .iter()
             .zip(&self.vertices[side])
-            .map(|(&(child, parent), &vertex)| (parent, vertex, child))
+            .map(|(&(child, parent), &(vertex, _))| (parent, vertex, child))
     }
 
     /// The edge of `operand`'s input the piece `edge` of its clone lies
@@ -793,6 +797,15 @@ impl Mints {
         self.of(operand)
             .find(|&(_, vertex, _)| vertex == v)
             .map(|(parent, _, _)| parent)
+    }
+
+    /// The cell of the other operand's clone whose crossing minted `v`
+    /// on an edge of `operand`'s, where a split minted it.
+    pub(crate) fn minted_by(&self, operand: Operand, v: VertexKey) -> Option<Cell> {
+        self.vertices[usize::from(operand == Operand::B)]
+            .iter()
+            .find(|&&(w, _)| w == v)
+            .map(|&(_, by)| by)
     }
 
     /// The keys of `edge`'s pieces after `operand`'s splits, in order
@@ -3489,12 +3502,13 @@ pub enum BooleanError {
     /// input cells that cell reads back as.** The containment re-cut
     /// turns a closed sphere shell about its centre
     /// (`ops::apply_recuts`), so each cell of the turned shell reads back
-    /// as the input shell's faces, which wear that sphere. A point decided
-    /// on such a cell (a meeting, a vertex on a carrier) holds of those
-    /// faces; any other decision, of carriers or of shapes, holds of them
-    /// only where the shell is one face and the cell that face, and is
-    /// otherwise refused here rather than published against faces it was
-    /// not decided on.
+    /// as the set of the input shell's faces, which wear that sphere. A
+    /// point decided on such a cell (a meeting, a vertex on a carrier) is
+    /// the meeting of those faces and the row's other cells, where a row
+    /// holds that many; any other decision, of carriers or of shapes,
+    /// holds of them only where the shell is one face and the cell that
+    /// face. Otherwise it is refused here rather than published against
+    /// faces it was not decided on.
     RechartedRowUnstated {
         /// The operand whose sphere shell was re-charted.
         operand: Operand,
@@ -3502,6 +3516,8 @@ pub enum BooleanError {
         relation: crate::Relation,
         /// The input shell's faces the turned cell reads back as, sorted.
         faces: Vec<FaceKey>,
+        /// Why they do not state it.
+        what: &'static str,
     },
     /// **Two sphere faces of the two solids touch** at the curved-extent
     /// scan, which runs only where the crossing layer found no edge
@@ -4741,13 +4757,15 @@ impl core::fmt::Display for BooleanError {
                 operand_word(*operand),
             ),
             Self::RechartedRowUnstated {
-                operand, relation, ..
+                operand,
+                relation,
+                what,
+                ..
             } => write!(
                 f,
                 "the Boolean turned a sphere of the {} operand about its centre to find where \
                  it crosses the other solid, and cannot state what it decided on the turned \
-                 sphere ({relation:?}) on that sphere's own faces: only a point decided there \
-                 is stated by the faces that hold it",
+                 sphere ({relation:?}) on that sphere's own faces: {what}",
                 operand_word(*operand),
             ),
             // No operand is named: the raise sites pass the operand being
@@ -6844,7 +6862,7 @@ fn tangent_row(fa: FaceKey, fb: FaceKey, margin: MarginDiag) -> crate::Coinciden
             crate::RowCell::face(Operand::A, fa),
             crate::RowCell::face(Operand::B, fb),
         ],
-        third: None,
+        more: [None; 3],
         relation: crate::Relation::SurfaceTangent,
         site: crate::DecisionSite::TangentWitness,
         margin,
@@ -6887,7 +6905,7 @@ fn verify_one_carrier_declaration<T: Decide>(
                 crate::RowCell::face(Operand::A, fa),
                 crate::RowCell::face(Operand::B, fb),
             ],
-            third: None,
+            more: [None; 3],
             relation,
             site: declared_site(a, fa, b, fb),
             margin,
@@ -9149,6 +9167,7 @@ mod tests {
                 operand: Operand::B,
                 relation: crate::Relation::SameOpposite,
                 faces: vec![face],
+                what: "only a point decided there is stated by the faces that hold it",
             },
             BooleanError::SpheresMeet {
                 operand: Operand::A,
