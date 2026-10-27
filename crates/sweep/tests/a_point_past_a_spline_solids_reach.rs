@@ -59,3 +59,35 @@ fn a_point_past_the_prisms_reach_is_outside_and_none_within_it_is_read() {
         );
     }
 }
+
+/// REVIEW 5814 scratch: no interior grid point, and no point just
+/// outside the true wall, reads Out or In.
+#[test]
+fn review_5814_interior_grid_never_reads() {
+    let tol = Tol::witness();
+    let band = Band::linear(tol).unwrap();
+    let prism = finished("the loft prism", loft_prism(tol), tol);
+    let mut n = 0;
+    let s = [-0.95, -0.5, 0.0, 0.5, 0.95];
+    let zs = [0.05, 0.5, 1.0, 1.5, 1.95];
+    for x in s {
+        for y in s {
+            for z in zs {
+                let q = Point3::new(x, y, z);
+                let got = topo::point_in_solid(&prism, q, band, tol);
+                assert!(
+                    !matches!(got, Ok(SolidContainment::Out | SolidContainment::In)),
+                    "{q:?}: {got:?}"
+                );
+                n += 1;
+            }
+        }
+    }
+    // Inside the flared wall at y = -0.9 (wall at x ≈ 1.356), and a hair
+    // past the anchor-axis support of the net on the far side.
+    for q in [Point3::new(1.35, -0.9, 1.0), Point3::new(1.30, -0.99, 1.0)] {
+        let got = topo::point_in_solid(&prism, q, band, tol);
+        assert!(!matches!(got, Ok(SolidContainment::Out)), "{q:?}: {got:?}");
+    }
+    eprintln!("REVIEW grid {n} points refuse");
+}

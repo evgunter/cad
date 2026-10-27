@@ -242,3 +242,67 @@ fn a_brick_beside_a_ball_builds_at_every_pose() {
         );
     }
 }
+
+/// REVIEW 5814 scratch: every one of the 13 poses, every op.
+#[test]
+fn review_5814_approx_cap_all_thirteen_poses() {
+    let tol = Tol::witness();
+    let (capped, _) = box_with_approx_cap(0.05, 1e-9);
+    let bar = brick::<f64>((2.3, 2.8), (0.5, 1.5), (0.2, 0.8), tol);
+    let mut bad = Vec::new();
+    for (pose, map) in poses() {
+        let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            assert_apart_every_op(
+                &pose,
+                (&posed("the capped box", &capped, &map, tol), 4.0),
+                (&posed("the bar", &bar, &map, tol), 0.3),
+            )
+        }));
+        eprintln!("REVIEW pose {pose}: {}", if r.is_ok() { "builds" } else { "FAILS" });
+        if r.is_err() {
+            bad.push(pose);
+        }
+    }
+    assert!(bad.is_empty(), "failing poses: {bad:?}");
+}
+
+/// REVIEW 5814 scratch: probes of the capped box itself at every pose.
+/// Interior / on-boundary / in-band points must never read Out or In;
+/// points definitely past must read Out.
+#[test]
+fn review_5814_capped_box_probes_at_every_pose() {
+    let tol = Tol::witness();
+    let band = crate::common::approx::band();
+    let (capped, _) = box_with_approx_cap(0.05, 1e-9);
+    let eps = tol.eps();
+    let refuse = [
+        ("centre", Point3::new(1.0, 1.0, 0.5)),
+        ("just under cap", Point3::new(1.0, 1.0, 1.0 - 1e-6)),
+        ("on cap", Point3::new(1.0, 1.0, 1.0)),
+        ("in band over cap", Point3::new(1.0, 1.0, 1.0 + 0.5 * eps)),
+        ("corner, in band", Point3::new(2.0 + 0.5 * eps, 2.0 + 0.5 * eps, 1.0 + 0.5 * eps)),
+        ("near side face inside", Point3::new(1.999_999, 0.000_001, 0.000_001)),
+    ];
+    let out = [
+        ("over cap", Point3::new(1.0, 1.0, 1.5)),
+        ("beside", Point3::new(2.5, 1.0, 0.5)),
+        ("diagonal far", Point3::new(3.0, 3.0, 3.0)),
+        ("just over cap", Point3::new(1.0, 1.0, 1.0 + 1e-6)),
+    ];
+    for (pose, map) in poses() {
+        let b = posed("the capped box", &capped, &map, tol);
+        for (what, q) in refuse {
+            let got = topo::point_in_solid(&b, map.transform_point(q), band, tol);
+            eprintln!("REVIEW {pose} {what}: {got:?}");
+            assert!(
+                !matches!(got, Ok(topo::SolidContainment::Out) | Ok(topo::SolidContainment::In)),
+                "{pose} {what}: {got:?}"
+            );
+        }
+        for (what, q) in out {
+            let got = topo::point_in_solid(&b, map.transform_point(q), band, tol);
+            eprintln!("REVIEW {pose} {what}: {got:?}");
+            assert!(matches!(got, Ok(topo::SolidContainment::Out)), "{pose} {what}: {got:?}");
+        }
+    }
+}
