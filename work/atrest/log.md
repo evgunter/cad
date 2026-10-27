@@ -257,3 +257,4 @@ Filed `main-red-reader-census-misses-topo-link-rs` on this slate: PR 5773's `cra
   - `axial_span` was replaced by the existing `boundary_axial`.
 
   The dual-review row is the last commit (`c2bda572`); it merges on green.
+- 2026-10-27 19:47Z (orchestrator): **#5853 merged** at `3bb4dc55`, head `c2bda572`, CI green. Before merging I built the merged tree with current main (which had moved `census.rs`, `solid_contain.rs` and `ValidationError`): workspace check clean, and the census, link, two_copies, curved-copies and at-rest rows 532/533. The one red is the inherited `kitchen_sink` golden at line 48 (#5817's). The lane is archived. Copies whose coincident faces are arc-bounded planes, cylinders or spheres are now interference.
