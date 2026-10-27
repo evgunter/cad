@@ -315,8 +315,15 @@ fn schedule<T: SpanLocate>(carrier: &Curve3<T>, (t0, t1): (T, T), n: u32) -> Vec
 /// ellipse's larger semi-axis, a spiric's rate bound over its period
 /// ([`geom::curves::spiric_rate_bounds`], `ρ ∈ [R − r, R + r]`, the sine
 /// held to 1), a spline's [`geom::NurbsCurve3::speed_upper_bound`].
+///
+/// Raised by a relative [`SPEED_MARGIN`]: at `f64` these are the
+/// certified expressions in round-to-nearest, which can land a few ulp
+/// under the speed they bound (a spline's coefficient ratios read 2e-9
+/// relative under its sampled speed once). The margin makes the slack
+/// it feeds an upper bound at every scalar; at `Interval` it only widens
+/// a bound already certified.
 fn speed_sup<T: SpanLocate>(carrier: &Curve3<T>) -> T {
-    match carrier {
+    let sup = match carrier {
         Curve3::Line { dir, .. } => dir.norm(),
         Curve3::Circle { radius, .. } => radius.abs(),
         Curve3::Ellipse { semi_u, semi_v, .. } => Curve3::semi_axes_by_size(*semi_u, *semi_v).0,
@@ -330,8 +337,14 @@ fn speed_sup<T: SpanLocate>(carrier: &Curve3<T>) -> T {
             geom::curves::spiric_rate_bounds(r, *offset, (big - r, big + r), T::one()).0
         }
         Curve3::Nurbs(spline) => spline.speed_upper_bound().get(),
-    }
+    };
+    sup * T::from_f64(1.0 + SPEED_MARGIN)
 }
+
+/// [`speed_sup`]'s relative margin over its round-to-nearest bound: far
+/// past the few-ulp drift of a carrier's speed expression, and far under
+/// anything the slack's tightness notices.
+const SPEED_MARGIN: f64 = 1e-6;
 
 /// The extent of an edge's own point set bounded from below: no more
 /// than its diameter `D`, the farthest distance between two of its
@@ -348,10 +361,11 @@ fn speed_sup<T: SpanLocate>(carrier: &Curve3<T>) -> T {
 /// edge's two faces, which is levered at the faces' extent
 /// ([`crate::folded_lever_arm`]'s `reach`).
 ///
-/// A reading that acts on its Zero levers at [`edge_extent_sup`], or,
-/// where it reads the edge from a point of it, at [`edge_reach_from`]:
-/// an arm short of `D` turns a reading that is Positive at `D` into a
-/// definite Zero.
+/// A reading that acts on its Zero and only refuses on a definite sign
+/// levers at [`edge_extent_sup`]: an arm short of `D` turns a reading
+/// that is Positive at `D` into a definite Zero. A reading that acts on
+/// every sign reads at both bounds and acts only where they agree
+/// ([`LeverBounds`]; from a point of the edge, [`edge_reach_bounds`]).
 ///
 /// Per carrier kind, the max of the chord `|end − start|` (a distance
 /// between two of the edge's points) and:
@@ -404,14 +418,20 @@ pub fn edge_extent_inf<T: SpanLocate>(carrier: &Curve3<T>, t0: T, t1: T, chord: 
 }
 
 /// The extent of an edge's own point set bounded from above: no two of
-/// its points lie farther apart. The lever arm of a reading consumed
-/// over the whole edge whose Zero is acted on and whose definite signs
-/// only refuse (a tangency verified, with any defect a contradiction),
-/// where [`edge_extent_inf`]'s shorter arm would read a definite Zero
-/// that the edge's own diameter reads Positive. A reading that acts on
-/// its definite signs too, read from a point of the edge, levers at
-/// [`edge_reach_from`] that point instead: the extent the region has
-/// from where it is read, which this bound passes by up to twice.
+/// its points lie farther apart, at every carrier kind and scalar. The
+/// lever arm of a reading consumed over the whole edge whose Zero is
+/// acted on and whose definite signs only refuse (a tangency verified,
+/// with any defect a contradiction), where [`edge_extent_inf`]'s shorter
+/// arm would read a definite Zero that the edge's own diameter reads
+/// Positive. A reading that acts on its definite signs too reads at
+/// both bounds and acts only where they agree ([`LeverBounds`]).
+///
+/// **Its tightness depends on the carrier.** It is the diameter on a
+/// line and a circle arc, and within a few percent of it on an ellipse
+/// arc. A spiric's and a spline's Lipschitz arm reads a whole-carrier
+/// speed bound, so near a spiric's pinch and on a spline window whose
+/// parameter runs unevenly it can pass the diameter many times over
+/// (the spline's control net caps it at the whole carrier's diameter).
 ///
 /// Per carrier kind, the max of the chord and the least of:
 ///
@@ -505,14 +525,21 @@ pub fn edge_extent_sup<T: SpanLocate>(carrier: &Curve3<T>, t0: T, t1: T, chord: 
 }
 
 /// **How far an edge reaches from `pivot`**, bounded from above: the
-/// farthest `|x − pivot|` over the edge's points `x`, never short of it.
-/// The lever of a reading consumed over the edge from a point of it (a
-/// departure at the vertex it leaves, a tangent at a point of its
-/// interior, a ball about its middle): no shorter than the region it
-/// consumes, and no longer than the edge's own measure from where it is
-/// read (module docs), so it serves a reading that acts on every sign.
-/// From a point of the edge it lies in `[D/2, D]`, `D` the edge's
-/// diameter.
+/// farthest `|x − pivot|` over the edge's points `x`, never short of it,
+/// at every carrier kind and scalar. The radius of a ball about `pivot`
+/// that must enclose the edge ([`ExtentBall`], the rest locus's), and the
+/// upper reading of a lever known from both sides
+/// ([`edge_reach_bounds`]).
+///
+/// **How far past the reach it stands depends on the carrier.** On a
+/// line and a circle arc it is the reach; on an ellipse arc it passes it
+/// by at most a quarter of its span's bulge. On a spiric and a spline
+/// it is read through a whole-carrier speed bound, so it is tight only
+/// where the parameter runs evenly: near a spiric's pinch, where the
+/// rate bound grows without limit, and on a spline window with wild
+/// weights or clustered knots, it can pass the reach many times over.
+/// So it is never by itself the lever of a reading that acts on every
+/// sign: such a reading reads [`edge_reach_bounds`] at both ends.
 ///
 /// - **Line**: its ends (distance to a point is convex along a line).
 /// - **Circle** and **Ellipse**: [`Reach::span_reach_from`] over
@@ -532,9 +559,7 @@ pub fn edge_reach_from<T: SpanLocate>(carrier: &Curve3<T>, t0: T, t1: T, pivot: 
         t0,
         t1,
     };
-    let sampled = schedule(carrier, (t0, t1), EXTENT_PIECES)
-        .into_iter()
-        .fold(T::zero(), |far, x| far.max((x - pivot).norm()));
+    let sampled = sampled_reach(carrier, (t0, t1), pivot);
     let bound = match carrier {
         Curve3::Line { .. } | Curve3::Circle { .. } | Curve3::Ellipse { .. } => {
             span.span_reach_from(pivot)
@@ -550,6 +575,96 @@ pub fn edge_reach_from<T: SpanLocate>(carrier: &Curve3<T>, t0: T, t1: T, pivot: 
     // a bound whose in-span reading was undecided (a full turn's crest),
     // which would otherwise reach down to the pivot itself.
     bound.max(sampled)
+}
+
+/// The farthest of the edge's points at `t₀ + k·(t₁ − t₀)/16`,
+/// `k = 0..=16`, from `pivot`: each a point of the edge, so the edge's
+/// reach from `pivot` is never below it.
+fn sampled_reach<T: SpanLocate>(carrier: &Curve3<T>, span: (T, T), pivot: Point3<T>) -> T {
+    schedule(carrier, span, EXTENT_PIECES)
+        .into_iter()
+        .fold(T::zero(), |far, x| far.max((x - pivot).norm()))
+}
+
+/// **A lever known exactly, or only between two bounds.** A reading
+/// that acts on every sign and is levered at a length known only from
+/// both sides is read at each bound, and decides only where the two
+/// readings agree: an arm short of the length turns a reading that is
+/// Positive at it into a definite Zero, and an arm past it turns an
+/// in-band reading Positive, so neither bound alone answers for it.
+/// Where they disagree the reading is the bounds' straddle of the band
+/// (`geom_core::k_stats::straddle`), refused as an in-band reading is.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum LeverBounds<T> {
+    /// The length itself: one reading answers for it.
+    Exact(T),
+    /// A length known to lie in `[below, above]`.
+    Between {
+        /// A length never past it.
+        below: T,
+        /// A length never short of it.
+        above: T,
+    },
+}
+
+impl<T: Real> LeverBounds<T> {
+    /// The bound from below (the length itself where exact).
+    pub fn below(self) -> T {
+        match self {
+            Self::Exact(x) | Self::Between { below: x, .. } => x,
+        }
+    }
+
+    /// The bound from above (the length itself where exact).
+    pub fn above(self) -> T {
+        match self {
+            Self::Exact(x) | Self::Between { above: x, .. } => x,
+        }
+    }
+
+    /// The bounds on the lesser of two lengths: each bound the lesser of
+    /// the two's, exact where both are.
+    #[must_use]
+    pub fn min(self, other: Self) -> Self {
+        match (self, other) {
+            (Self::Exact(a), Self::Exact(b)) => Self::Exact(a.min(b)),
+            _ => Self::Between {
+                below: self.below().min(other.below()),
+                above: self.above().min(other.above()),
+            },
+        }
+    }
+}
+
+/// A length known exactly.
+impl<T> From<T> for LeverBounds<T> {
+    fn from(x: T) -> Self {
+        Self::Exact(x)
+    }
+}
+
+/// **How far an edge reaches from `pivot`, bounded from both sides**:
+/// the lever of a reading that acts on every sign, read from a point of
+/// the edge (a corner's departure, a tangent at an interior point). On
+/// a line or a circle arc the reach is read exactly
+/// ([`edge_reach_from`]); otherwise it lies between the samples' reach
+/// (each sample a point of the edge) and [`edge_reach_from`], whose
+/// tightness depends on the carrier's parameterisation (its docs), so a
+/// consumer reads at both and acts only on a verdict they share.
+pub fn edge_reach_bounds<T: SpanLocate>(
+    carrier: &Curve3<T>,
+    t0: T,
+    t1: T,
+    pivot: Point3<T>,
+) -> LeverBounds<T> {
+    let above = edge_reach_from(carrier, t0, t1, pivot);
+    match carrier {
+        Curve3::Line { .. } | Curve3::Circle { .. } => LeverBounds::Exact(above),
+        Curve3::Ellipse { .. } | Curve3::Spiric { .. } | Curve3::Nurbs(_) => LeverBounds::Between {
+            below: sampled_reach(carrier, (t0, t1), pivot),
+            above,
+        },
+    }
 }
 
 /// **What a section classifier reads its axis rows across**: where on

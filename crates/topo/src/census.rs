@@ -337,8 +337,8 @@ use crate::link::{Germ, Hold, Link, Planar, Sector, TouchUnread, TouchVerdict, r
 #[cfg(test)]
 use crate::link::{PieceAt, face_piece};
 use crate::validate::{
-    CensusContact, CensusSubject, CensusUnsupportedCause, CrossingSideVerdict, StaleDeclaration,
-    Undecidable, ValidationError, decide,
+    CensusContact, CensusSubject, CensusUnsupportedCause, CrossingSideVerdict, Departure,
+    StaleDeclaration, Undecidable, ValidationError, decide,
 };
 
 /// One edge's exact census geometry (post-gate: a `Line` carrier).
@@ -1766,11 +1766,13 @@ fn pair_verified<T: Decide>(
 /// One corner of a face at a point of its boundary, in the plane tangent
 /// to the face there: the face's material, swept counterclockwise about
 /// the face's outward normal from `from` to `to`, each the departure
-/// along a boundary edge scaled to the edge.
+/// along a boundary edge scaled to the edge, at both bounds of its lever
+/// where that is known only from both sides
+/// ([`crate::validate::Departure`]).
 #[derive(Clone, Copy)]
 struct Corner<T: Real> {
-    from: Vec3<T>,
-    to: Vec3<T>,
+    from: Departure<T>,
+    to: Departure<T>,
 }
 
 impl<T: Decide> Corner<T> {
@@ -1780,7 +1782,7 @@ impl<T: Decide> Corner<T> {
     fn holds(
         self,
         axis: Vec3<T>,
-        d: Vec3<T>,
+        d: Departure<T>,
         band: Band,
         errors: &mut Vec<ValidationError>,
     ) -> Option<bool> {
@@ -1805,9 +1807,11 @@ impl<T: Decide> Corner<T> {
     /// A direction strictly inside the corner, wherever its bounds
     /// turn under a whole turn: `axis × (from̂ − tô)` is the bisector
     /// of the counterclockwise sweep from `from` to `to`.
-    fn middle(self, axis: Vec3<T>) -> Vec3<T> {
-        let (a, b) = (self.from.norm(), self.to.norm());
-        axis.cross(self.from / a - self.to / b) * (a * b / (a + b))
+    fn middle(self, axis: Vec3<T>) -> Departure<T> {
+        self.from.zip(self.to, |from, to| {
+            let (a, b) = (from.norm(), to.norm());
+            axis.cross(from / a - to / b) * (a * b / (a + b))
+        })
     }
 }
 
@@ -1841,6 +1845,7 @@ const OVERLAP_CORNER: crate::validate::WedgeNames = crate::validate::WedgeNames 
     before_arriving: "pm_census_overlap_corner_before_arriving",
     turn: "pm_census_overlap_corner_turn",
     straight: "pm_census_overlap_corner_straight",
+    straddle: "pm_census_overlap_corner_straddle",
 };
 
 /// A face's material about a point of its closure, in the plane
@@ -1895,7 +1900,7 @@ fn face_cone<T: Decide>(
                 (false, false) => return Err(Unread::Unbuilt),
             };
             let along = match geo.line_edge(e) {
-                Some(g) => g.dir * g.len,
+                Some(g) => Departure::Exact(g.dir * g.len),
                 None => {
                     let mut refused = Vec::new();
                     match curved::tangent_on_interior(body, e, q, band, &mut refused) {
@@ -2079,7 +2084,7 @@ fn in_overlap_closure<T: Decide>(
     for d in [dir, -dir] {
         let mut inside = |c: Cone<T>| match c {
             Cone::Full => Some(true),
-            Cone::Corner(w) => w.holds(axis, d * w.from.norm(), band, errors),
+            Cone::Corner(w) => w.holds(axis, w.from.map(|from| d * from.norm()), band, errors),
         };
         match (inside(x), inside(y)) {
             (Some(true), Some(true)) => return Some(true),
@@ -2619,6 +2624,8 @@ const LINE_WEDGE: crate::validate::WedgeNames = crate::validate::WedgeNames {
     before_arriving: LINE_WEDGE_BEFORE_ARRIVING,
     turn: LINE_WEDGE_TURN,
     straight: LINE_WEDGE_STRAIGHT,
+    // A line's wedge is scaled to its own arm, exact: never read twice.
+    straddle: "pm_census_wedge_straddle",
 };
 
 /// [`LINE_WEDGE`]'s first-bound sign.

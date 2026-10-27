@@ -28,14 +28,20 @@ circles' own travel.
 
 ## What the offset door hands it (OFFSET, PR 5875, 2026-10-27)
 
-`topo::offset_derive::section_closed` hands `cone_cylinder_section` the
-old edge's diameter bounded from above (`geom_brep::edge_extent_sup`),
-because `coc_axes_parallel` acts on its Zero. That number is an edge
-diameter, not a reach from the apex. So `separation_range`'s
-`|s| ≤ extent` and `coc_station_reach`'s admission `extent − |R·cot α|`
-read a length measured from somewhere else. The admission is the side
-where a longer number admits more, so it is the bound from above that
-admits a farther station there. For the old edges this door re-derives
-(coaxial circles), that bound is the circle's exact diameter `2R`, or
-its chord for an arc of under a half turn. The station's own reach from
-the apex, `|R·cot α|`, is the length this row's fix would read.
+`topo::offset_derive::section_closed` hands `cone_cylinder_section`
+both bounds on the old edge's diameter (`geom_brep::LeverBounds`), and
+each row reads its own side. `coc_axes_parallel` and the coaxial swing
+(`separation_range` over `|s| ≤ extent`) act on a Zero, so they read the
+bound from above (`geom_brep::edge_extent_sup`). The three convention
+guards and `coc_station_reach`'s admission `extent − |R·cot α|` act on
+a Positive, so they read the bound from below
+(`geom_brep::edge_extent_inf`). A longer number would admit a farther
+station, so the admission is no looser than before this PR.
+
+This row's own defect is unchanged. Both numbers are an edge's
+diameter, not a reach from the apex, so the swing and the admission
+still read a length measured from somewhere else. For the old edges
+this door re-derives (coaxial circles), both bounds are the circle's
+exact diameter `2R`, or its chord for an arc of under a half turn. The
+station's own reach from the apex, `|R·cot α|`, is the length this
+row's fix would read.

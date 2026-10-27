@@ -627,11 +627,14 @@ fn nearest<T: Decide>(
 /// `extent` is the old edge's extent from below
 /// ([`geom_brep::edge_extent_inf`]), which the plane pair's parallelism
 /// reads: its Zero refuses and its Positive certifies the crossing. The
-/// torus's axis fork (`pt_axis_in_plane`) and the cone and cylinder's
-/// parallelism (`coc_axes_parallel`) act on their Zero (a meridian or
-/// spiric pose, a coaxial pose) and refuse on a definite tilt, so they
-/// read the old edge's extent from above
-/// ([`geom_brep::edge_extent_sup`]).
+/// torus's axis fork (`pt_axis_in_plane`) acts on its Zero (a meridian
+/// or spiric pose) and refuses on a definite tilt, so it reads the old
+/// edge's extent from above ([`geom_brep::edge_extent_sup`]). The cone
+/// and cylinder are handed both bounds ([`geom_brep::LeverBounds`]):
+/// their parallelism and coaxial swing act on a Zero and read the bound
+/// from above, their convention guards and station admission act on a
+/// Positive and read the bound from below
+/// ([`geom_brep::intersect::cone_cylinder_section`]).
 pub(crate) fn section_closed<T: Decide>(
     new: &Surface<T>,
     held: &Surface<T>,
@@ -658,7 +661,11 @@ pub(crate) fn section_closed<T: Decide>(
             } else {
                 (held, new)
             };
-            let candidates = match c5::cone_cylinder_section(cone, cyl, sup, band) {
+            let extent = geom_brep::LeverBounds::Between {
+                below: extent,
+                above: sup,
+            };
+            let candidates = match c5::cone_cylinder_section(cone, cyl, extent, band) {
                 Ok(c5::ConeCylinderSection::CoaxialCircles { c1, c2 }) => vec![c1, c2],
                 Err(e) => return closed(e),
             };

@@ -136,7 +136,8 @@ pub use enters::{
     enters_material_order2, enters_material_reported, normal_alignment,
 };
 pub use extent::{
-    ExtentBall, Reach, control_net_reach, edge_extent_inf, edge_extent_sup, edge_reach_from,
+    ExtentBall, LeverBounds, Reach, control_net_reach, edge_extent_inf, edge_extent_sup,
+    edge_reach_bounds, edge_reach_from,
 };
 pub use fitted_lane::{FITTED_DOOR_HOLDERS, FittedLane};
 /// The ring-torus convention's one home is `geom` (below this crate, so
