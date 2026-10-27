@@ -1,31 +1,12 @@
 //! TODO header
 
-use geom_core::Bounds;
+use geom_core::interval::Interval;
 use geom_core::interval::certification::Certification;
-use geom_core::interval::{Interval, certified_hi, cross, dot};
-use geom_core::spline::algebra;
-use geom_core::spline::net::TensorNet;
-use geom_core::spline::{
-    AxisCut, CellAxis, CellBlock, CellMeasureQuotients, CoeffWindow, Derived, KnotVector,
-    LooseKnots, Param, ParamRange, QuotientPiece, RingRefinement, SplineCoeffs, SplineCoeffsBuf,
-    TensorChannels, cell_measure_quotients, constant_weight, diagonal_in_span, restrict_segment,
-};
-use geom_core::{Band, Decide, InfSpeed, Margin, Sign};
+use geom_core::{Band, Decide, Margin, Sign};
 
 use crate::descent::Work;
-use crate::offset_meters::mig;
-use crate::patch_bound::{certified_inf, certified_sup};
-use crate::props::bracket::{AbsEnclosure, lo_or_refuse, mid, pt};
+use crate::props::bracket::mid;
 use crate::props::{PropsCheck, PropsError};
-use super::area::*;
-use super::cells::*;
-use super::cylinder::*;
-use super::green::*;
-use super::net::*;
-use super::patch::*;
-use super::rational::*;
-use super::trig::*;
-use super::trimmed::*;
 
 /// **The work a face may spend over all its rounds**, in weighted cell
 /// evaluations: the unit is a tenth of one cell of the rational lane's
@@ -69,7 +50,7 @@ pub const FACE_WORK_WALL: usize = 14_250_000;
 /// early, with a sound but wider bracket.
 pub const FLOOR_SHARE: f64 = 1.0 / FLOOR_SHARE_INV;
 /// `1 /` [`FLOOR_SHARE`], exact: the floor test is `removable · 1024 ≤ width`.
-pub(super) const FLOOR_SHARE_INV: f64 = 1024.0;
+const FLOOR_SHARE_INV: f64 = 1024.0;
 
 /// **Whether flux enclosure `a` is narrower than `b`** — the one rule
 /// a face keeps its narrowest round by, within a lane's call
@@ -219,7 +200,7 @@ pub fn classify_len<T: Decide>(
 /// one test's only where that test has its process to itself, as
 /// nextest runs every test ([`rounds_run_by`]).
 #[cfg(any(test, feature = "test-support"))]
-pub(super) static ROUNDS_RUN: core::sync::atomic::AtomicUsize = core::sync::atomic::AtomicUsize::new(0);
+static ROUNDS_RUN: core::sync::atomic::AtomicUsize = core::sync::atomic::AtomicUsize::new(0);
 
 /// `run`'s answer, and the face-lane rounds it ran ([`ROUNDS_RUN`]).
 #[cfg(any(test, feature = "test-support"))]
@@ -280,7 +261,12 @@ impl<'c> Run<'c> {
     /// **The stop `round` ends on**, its work spent and its enclosure
     /// kept if it is the narrowest so far. `removable` is the part of
     /// `bounds.flux`'s width a later round removes.
-    pub(in crate::props) fn stop(&mut self, round: usize, bounds: FaceCutBounds, removable: f64) -> LaneStop {
+    pub(in crate::props) fn stop(
+        &mut self,
+        round: usize,
+        bounds: FaceCutBounds,
+        removable: f64,
+    ) -> LaneStop {
         #[cfg(any(test, feature = "test-support"))]
         ROUNDS_RUN.fetch_add(1, core::sync::atomic::Ordering::Relaxed);
         self.work.spend((self.cost)(round));
@@ -395,7 +381,7 @@ impl<'c> Run<'c> {
 /// value, so none decides it; a point or poisoned margin is no
 /// enclosure to narrow. Read off the escalation itself, so a predicate
 /// reaching here that is not enclosure-shaped refines nothing.
-pub(super) fn refinable(cause: &geom_core::Indeterminate) -> bool {
+fn refinable(cause: &geom_core::Indeterminate) -> bool {
     cause.margin.kind() == geom_core::MarginKind::Enclosure && !cause.terminal_sliver
 }
 
@@ -421,7 +407,7 @@ pub(super) fn refinable(cause: &geom_core::Indeterminate) -> bool {
 /// by round, as an O(h²) rule must. The payload lied, and the
 /// convergence predicate was decided by a division artifact instead of
 /// by the enclosure. When the flux width is also
-/// zero — [`cylinder_cut_face`]'s `area = [0, 0]` for a zero-UV-area
+/// zero — [`cylinder_cut_face`](super::cylinder::cylinder_cut_face)'s `area = [0, 0]` for a zero-UV-area
 /// trim loop — the same division is `0/0 = NaN`, which the funnel
 /// turns into `Indeterminate{margin: Invalid}`: a MIS-TYPED refusal,
 /// since [`PropsError::Escalated`] means an *in-band* margin, not a
@@ -486,8 +472,14 @@ pub fn mean_boundary_displacement(flux: Interval, area: Interval) -> Result<f64,
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
-    use crate::props::quad::test_target::{self, bounds_of, encloses, met, patch, to_target};
-    use geom_core::Tol;
+    use geom_core::Bounds;
+
+    use super::super::cells::AXIS_INIT_PIECES;
+    use super::super::cylinder::{EDGE_INIT_PIECES, W_CYLINDER};
+    use super::super::patch::W_INTEGRAL_COMPOSITE;
+    use super::super::rational::{W_RATIONAL_COMPOSITE, W_RATIONAL_EXACT_V};
+    use super::super::trimmed::{IMAGE_INIT_PIECES, w_trimmed, w_trimmed_composite};
+    use crate::props::bracket::pt;
 
     /// A round of flux width `w` about zero over a unit area.
     fn of_width(w: f64) -> FaceCutBounds {

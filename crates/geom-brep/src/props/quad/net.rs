@@ -2,30 +2,15 @@
 
 use geom_core::Bounds;
 use geom_core::interval::certification::Certification;
-use geom_core::interval::{Interval, certified_hi, cross, dot};
-use geom_core::spline::algebra;
+use geom_core::interval::{Interval, certified_hi};
 use geom_core::spline::net::TensorNet;
 use geom_core::spline::{
-    AxisCut, CellAxis, CellBlock, CellMeasureQuotients, CoeffWindow, Derived, KnotVector,
-    LooseKnots, Param, ParamRange, QuotientPiece, RingRefinement, SplineCoeffs, SplineCoeffsBuf,
-    TensorChannels, cell_measure_quotients, constant_weight, diagonal_in_span, restrict_segment,
+    CoeffWindow, Derived, KnotVector, LooseKnots, Param, ParamRange, SplineCoeffs, TensorChannels,
+    constant_weight, diagonal_in_span,
 };
-use geom_core::{Band, Decide, InfSpeed, Margin, Sign};
 
-use crate::descent::Work;
-use crate::offset_meters::mig;
-use crate::patch_bound::{certified_inf, certified_sup};
-use crate::props::bracket::{AbsEnclosure, lo_or_refuse, mid, pt};
-use crate::props::{PropsCheck, PropsError};
-use super::area::*;
-use super::cells::*;
-use super::cylinder::*;
-use super::green::*;
-use super::patch::*;
-use super::rational::*;
-use super::run::*;
-use super::trig::*;
-use super::trimmed::*;
+use crate::props::PropsError;
+use crate::props::bracket::pt;
 
 /// Interval de Boor on one span: the span's polynomial evaluated at an
 /// enclosed parameter from its `p + 1` active ring-bracketed
@@ -36,7 +21,7 @@ use super::trimmed::*;
 ///
 /// A `t` inside the span's closure is the piece's blossom on the
 /// diagonal; any other `t` is the extension ([`de_boor_on`]).
-pub(super) fn de_boor(win: CoeffWindow<'_, Interval>, t: Interval) -> Interval {
+fn de_boor(win: CoeffWindow<'_, Interval>, t: Interval) -> Interval {
     let span = win.span();
     let kv = span.knots_f64_interim();
     de_boor_on(
@@ -62,7 +47,7 @@ pub(super) fn de_boor(win: CoeffWindow<'_, Interval>, t: Interval) -> Interval {
 /// extension: de Boor's recurrence with the affine step
 /// `(1 − α)·x + α·y`, sound for any `α`, since a ratio past `[0, 1]` is
 /// no combination between its sources.
-pub(super) fn de_boor_on(u: &[f64], p: usize, first: usize, active: &[Interval], t: Interval) -> Interval {
+fn de_boor_on(u: &[f64], p: usize, first: usize, active: &[Interval], t: Interval) -> Interval {
     if let Some(value) = diagonal_in_span(u, p, first, active, t) {
         return value;
     }
@@ -146,7 +131,7 @@ pub(super) enum Dir {
 
 /// A derivative direction whose knot vector is **not representable** as
 /// a [`KnotVector`] — shared by the patch lanes' [`Dir`] and the 1-D
-/// [`Level`]. Its knots are a [`LooseKnots`], which locates spans as a
+/// [`Level`](super::green::Level). Its knots are a [`LooseKnots`], which locates spans as a
 /// clamped vector does.
 #[derive(Clone)]
 pub(super) enum Loose {
@@ -157,7 +142,7 @@ pub(super) enum Loose {
     /// multiplicity above the degree. Evaluated span-locally
     /// on the loose knots; the discontinuity is honest, and no
     /// patch cell spans it — the composite cells are cut on the
-    /// interior knots ([`knot_aligned_cuts`]).
+    /// interior knots ([`knot_aligned_cuts`](super::cells::knot_aligned_cuts)).
     Raw(LooseKnots),
     /// The degree-0 remnant a derivative ladder bottoms out at:
     /// coefficients are per-span constants over `knots[i]..knots[i+1]`
@@ -207,7 +192,7 @@ impl Loose {
 /// `line` as the coefficients of `knots`: every line a [`Loose`]
 /// direction reads is built at its [`LooseKnots::control_count`], so a
 /// line of another length is a broken grid, not an input.
-pub(super) fn loose_line<'l>(knots: &LooseKnots, line: &'l [Interval]) -> &'l [Interval] {
+fn loose_line<'l>(knots: &LooseKnots, line: &'l [Interval]) -> &'l [Interval] {
     if line.len() != knots.control_count() {
         unreachable!(
             "a loose direction's line is its count long: {} coefficients against {}",
@@ -233,7 +218,7 @@ pub(super) fn raw_eval(knots: &LooseKnots, coeffs: &[Interval], t: f64) -> Inter
 /// [`Loose::Raw`] counterpart of [`de_boor`]): the node lies in the
 /// closure of `mid`'s span, and the span polynomial is what the rule
 /// integrates.
-pub(super) fn raw_eval_in_span(knots: &LooseKnots, coeffs: &[Interval], mid: f64, t: &Interval) -> Interval {
+fn raw_eval_in_span(knots: &LooseKnots, coeffs: &[Interval], mid: f64, t: &Interval) -> Interval {
     match Param::new(mid) {
         Some(mid) => raw_de_boor(knots, coeffs, mid, *t),
         None => Interval::refused(),
@@ -243,7 +228,7 @@ pub(super) fn raw_eval_in_span(knots: &LooseKnots, coeffs: &[Interval], mid: f64
 /// [`de_boor_on`] in the span that `at` locates, which is in
 /// `degree ..= count − 1` ([`LooseKnots::span_of`]), so the window is
 /// in range.
-pub(super) fn raw_de_boor(knots: &LooseKnots, coeffs: &[Interval], at: Param, t: Interval) -> Interval {
+fn raw_de_boor(knots: &LooseKnots, coeffs: &[Interval], at: Param, t: Interval) -> Interval {
     let coeffs = loose_line(knots, coeffs);
     let (span, degree) = (knots.span_of(at), knots.degree());
     let first = span - degree;
@@ -253,7 +238,11 @@ pub(super) fn raw_de_boor(knots: &LooseKnots, coeffs: &[Interval], at: Param, t:
 /// Hull of a [`Loose::Raw`] spline over `range`: the local control
 /// blocks of every touched span (the same convexity fact
 /// [`range_hull`] uses), over a line built as [`raw_eval`]'s is.
-pub(super) fn raw_range_hull(knots: &LooseKnots, coeffs: &[Interval], range: ParamRange) -> Interval {
+pub(super) fn raw_range_hull(
+    knots: &LooseKnots,
+    coeffs: &[Interval],
+    range: ParamRange,
+) -> Interval {
     let coeffs = loose_line(knots, coeffs);
     let (start, end) = range.ends();
     let degree = knots.degree();
@@ -270,9 +259,9 @@ pub(super) fn raw_range_hull(knots: &LooseKnots, coeffs: &[Interval], range: Par
 
 /// Derivative coefficients on loose knots. `degree ≥ 1` and the
 /// line holds the direction's `knots.len() − degree − 1 ≥ 2`
-/// coefficients, by the construction of [`Loose::Raw`] and [`Level::Loose`],
+/// coefficients, by the construction of [`Loose::Raw`] and [`Level::Loose`](super::green::Level::Loose),
 /// so every index below is in range.
-pub(super) fn raw_deriv(loose: &LooseKnots, coeffs: &[Interval]) -> Vec<Interval> {
+fn raw_deriv(loose: &LooseKnots, coeffs: &[Interval]) -> Vec<Interval> {
     let coeffs = loose_line(loose, coeffs);
     let (knots, degree) = (loose.knots(), loose.degree());
     #[allow(clippy::cast_precision_loss)]
@@ -296,7 +285,7 @@ pub(super) fn raw_deriv(loose: &LooseKnots, coeffs: &[Interval]) -> Vec<Interval
 
 /// One direction's coefficient-differentiation step: the map from a
 /// line of the grid to the same line of its derivative grid.
-pub(super) type DerivTake = Box<dyn Fn(&[Interval]) -> Vec<Interval>>;
+type DerivTake = Box<dyn Fn(&[Interval]) -> Vec<Interval>>;
 
 impl Dir {
     /// The number of coefficients a line along this direction holds —
@@ -312,7 +301,7 @@ impl Dir {
 
 /// `t` as a [`Param`] when it is finite: the point arms refuse an
 /// infinite point as well as a NaN one.
-pub(super) fn finite_param(t: f64) -> Option<Param> {
+fn finite_param(t: f64) -> Option<Param> {
     Param::new(t).filter(|p| p.get().is_finite())
 }
 
@@ -419,11 +408,11 @@ impl PatchNet<'_> {
 /// One (possibly derivative-exhausted) tensor grid of a vector
 /// channel triple, three [`TensorNet`]s over one shared extent — the
 /// 2-D counterpart of
-/// [`DerivLadder`]'s levels: a [`Loose::Const`] direction holds
+/// [`DerivLadder`](super::green::DerivLadder)'s levels: a [`Loose::Const`] direction holds
 /// per-span constants, and a grid that differentiates to nothing at
 /// all is `Option<PatchGrid> = None`, read as identically zero — sound
 /// on a KNOT-FREE cell, where the piece really is one polynomial of
-/// exhausted degree, and that is what [`knot_aligned_cuts`] makes
+/// exhausted degree, and that is what [`knot_aligned_cuts`](super::cells::knot_aligned_cuts) makes
 /// every cell of both patch composites.
 ///
 /// Each net is `du.count() × dv.count()`: the base is built from a
@@ -595,7 +584,10 @@ impl PatchGrid {
 /// The windows over a bracket box `bu × bv`, or `None` when either side
 /// does not certify: a refused bracket names no region, so a hull over
 /// it is refused rather than read off a window it does not bound.
-pub(super) fn certified_box(bu: Interval, bv: Interval) -> Option<(Collapse<'static>, Collapse<'static>)> {
+pub(super) fn certified_box(
+    bu: Interval,
+    bv: Interval,
+) -> Option<(Collapse<'static>, Collapse<'static>)> {
     Some((
         Collapse::Over(ParamRange::certified(bu)?),
         Collapse::Over(ParamRange::certified(bv)?),
@@ -726,8 +718,7 @@ pub(super) fn rv_add(a: RVec3, b: RVec3) -> RVec3 {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
-    use crate::props::quad::test_target::{self, bounds_of, encloses, met, patch, to_target};
-    use geom_core::Tol;
+    use geom_core::Bounds;
 
     /// **A node straddling its span's end, whose true value lies past
     /// it, is enclosed by the extension.** On `t − 1` over `[0, 1]` (the

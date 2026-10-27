@@ -1,31 +1,13 @@
 //! TODO header
 
-use geom_core::Bounds;
 use geom_core::interval::certification::Certification;
-use geom_core::interval::{Interval, certified_hi, cross, dot};
-use geom_core::spline::algebra;
-use geom_core::spline::net::TensorNet;
-use geom_core::spline::{
-    AxisCut, CellAxis, CellBlock, CellMeasureQuotients, CoeffWindow, Derived, KnotVector,
-    LooseKnots, Param, ParamRange, QuotientPiece, RingRefinement, SplineCoeffs, SplineCoeffsBuf,
-    TensorChannels, cell_measure_quotients, constant_weight, diagonal_in_span, restrict_segment,
-};
-use geom_core::{Band, Decide, InfSpeed, Margin, Sign};
+use geom_core::interval::{Interval, certified_hi};
+use geom_core::spline::ParamRange;
 
-use crate::descent::Work;
-use crate::offset_meters::mig;
-use crate::patch_bound::{certified_inf, certified_sup};
-use crate::props::bracket::{AbsEnclosure, lo_or_refuse, mid, pt};
-use crate::props::{PropsCheck, PropsError};
-use super::cells::*;
-use super::cylinder::*;
-use super::green::*;
-use super::net::*;
-use super::patch::*;
-use super::rational::*;
-use super::run::*;
-use super::trig::*;
-use super::trimmed::*;
+use super::cells::knot_aligned_cuts;
+use super::net::{RVec3, widen};
+use crate::props::PropsError;
+use crate::props::bracket::{lo_or_refuse, pt};
 
 /// Cells per axis of BOTH patch lanes' area pass (fixed, D9). The
 /// shared [`area_midpoint_taylor`] rule is O(h), so the resolution sets
@@ -40,11 +22,11 @@ pub(super) const PERIMETER_CHORDS_PER_SIDE: usize = 16;
 /// explains the certified area bracket, as a multiple of the face's
 /// own certified perimeter ([`area_gauge_ok`] carries the calibration
 /// and the margin). A TRIPWIRE, deliberately far above the corpus.
-pub(super) const AREA_GAUGE_CEILING: f64 = 1.0;
+const AREA_GAUGE_CEILING: f64 = 1.0;
 /// The fallback relative gauge's ceiling — `area.width()/area.lo()`,
 /// read only where no positive certified perimeter is reachable
 /// ([`area_gauge_ok`]).
-pub(super) const AREA_GAUGE_REL_CEILING: f64 = 1.0e3;
+const AREA_GAUGE_REL_CEILING: f64 = 1.0e3;
 
 /// A certified LOWER bound on the length of the closed traversal of a
 /// UV rectangle's image boundary: a chord polygon inscribed in it.
@@ -157,7 +139,7 @@ pub fn boundary_chord_perimeter_lo(
 /// boundary would have to move, on average, for the area enclosure's
 /// width to be geometry rather than quadrature slack. It is the
 /// direct analogue of the flux funnel's
-/// [`mean_boundary_displacement`], which reads `flux.width()` over
+/// [`mean_boundary_displacement`](super::run::mean_boundary_displacement), which reads `flux.width()` over
 /// the area lever; here the area's own width is read over a certified
 /// perimeter LOWER bound ([`boundary_chord_perimeter_lo`]), so the
 /// quotient never understates the displacement.
@@ -257,7 +239,7 @@ pub fn boundary_chord_perimeter_lo(
 ///   perimeter is what backstops that, and where a caller supplies a
 ///   number that is neither (issue 1368) the gauge is running on the
 ///   chord bound alone.
-pub(super) fn area_gauge_ok(area: Interval, perimeter_lo: f64) -> bool {
+fn area_gauge_ok(area: Interval, perimeter_lo: f64) -> bool {
     let width = area.width();
     // A certified return whose width is not a number is the clearest
     // form of the bug this tripwire is for — and so is a NaN
@@ -330,7 +312,7 @@ pub(super) fn area_gauge_ok(area: Interval, perimeter_lo: f64) -> bool {
 /// A non-finite chord bound is not backstopped: that is a refused
 /// enclosure, the bug signal itself, and it propagates so the
 /// assertion fires.
-pub(super) fn area_gauge_denominator(perimeter_lo: f64, perimeter_caller: f64) -> f64 {
+fn area_gauge_denominator(perimeter_lo: f64, perimeter_caller: f64) -> f64 {
     if !perimeter_lo.is_finite() {
         return f64::NAN;
     }
@@ -345,7 +327,7 @@ pub(super) fn area_gauge_denominator(perimeter_lo: f64, perimeter_caller: f64) -
 /// and a message that described only the perimeter arm reported
 /// "perimeter is at least 0 — displacement inf" whenever the RELATIVE
 /// arm was the one that decided.
-pub(super) fn area_gauge_failure_message(area: Interval, denominator: f64) -> String {
+fn area_gauge_failure_message(area: Interval, denominator: f64) -> String {
     let width = area.width();
     let head = "the certified area bracket is wider than the A2 tripwire allows. The area rule \
                 is O(h) and wide by design, but not by this much: at a CERTIFIED return a width \
@@ -385,7 +367,11 @@ pub(super) fn area_gauge_failure_message(area: Interval, denominator: f64) -> St
 /// away, and the perimeter arrives as a thunk for the same reason.
 /// The message is built only on failure.
 #[inline]
-pub(super) fn debug_assert_area_gauge(area: Interval, perimeter_caller: f64, perimeter_lo: &dyn Fn() -> f64) {
+pub(super) fn debug_assert_area_gauge(
+    area: Interval,
+    perimeter_caller: f64,
+    perimeter_lo: &dyn Fn() -> f64,
+) {
     if cfg!(debug_assertions) {
         let denominator = area_gauge_denominator(perimeter_lo(), perimeter_caller);
         debug_assert!(
@@ -429,7 +415,7 @@ impl PatchRect {
 /// The window between two adjacent cuts of a [`PatchRect`] side.
 /// [`knot_aligned_cuts`] of a finite range is a sorted list of numbers,
 /// so the pair is ordered and neither end is NaN.
-pub(super) fn cut_window(a: f64, b: f64) -> ParamRange {
+fn cut_window(a: f64, b: f64) -> ParamRange {
     ParamRange::new(a, b)
         .unwrap_or_else(|| unreachable!("adjacent cuts of a finite range are ordered numbers"))
 }

@@ -2,30 +2,24 @@
 
 use geom_core::Bounds;
 use geom_core::interval::certification::Certification;
-use geom_core::interval::{Interval, certified_hi, cross, dot};
-use geom_core::spline::algebra;
-use geom_core::spline::net::TensorNet;
-use geom_core::spline::{
-    AxisCut, CellAxis, CellBlock, CellMeasureQuotients, CoeffWindow, Derived, KnotVector,
-    LooseKnots, Param, ParamRange, QuotientPiece, RingRefinement, SplineCoeffs, SplineCoeffsBuf,
-    TensorChannels, cell_measure_quotients, constant_weight, diagonal_in_span, restrict_segment,
-};
-use geom_core::{Band, Decide, InfSpeed, Margin, Sign};
+use geom_core::interval::{Interval, cross, dot};
+use geom_core::spline::KnotVector;
+use geom_core::{Band, Decide, Margin, Sign};
 
-use crate::descent::Work;
-use crate::offset_meters::mig;
-use crate::patch_bound::{certified_inf, certified_sup};
-use crate::props::bracket::{AbsEnclosure, lo_or_refuse, mid, pt};
+use super::area::{
+    AREA_CELLS_PER_AXIS, AreaCell, PERIMETER_CHORDS_PER_SIDE, PatchRect, area_midpoint_taylor,
+    boundary_chord_perimeter_lo, debug_assert_area_gauge,
+};
+use super::cells::{
+    AXIS_INIT_PIECES, HULL_BLOCKS_PER_AXIS, MeasureCells, RefinedNet, advance_block, cell_midpoint,
+    knot_aligned_cuts, remainder_cell_u, remainder_cell_v, span_cells, v_pieces,
+};
+use super::net::{
+    Collapse, PatchGrid, PatchNet, RVec3, clipped_spans, grid_vec, newton_cotes_weights, widen,
+};
+use super::run::{Accept, FaceCutBounds, LaneRun, RoundWindow, Run, classify_len};
+use crate::props::bracket::{lo_or_refuse, pt};
 use crate::props::{PropsCheck, PropsError};
-use super::area::*;
-use super::cells::*;
-use super::cylinder::*;
-use super::green::*;
-use super::net::*;
-use super::patch::*;
-use super::run::*;
-use super::trig::*;
-use super::trimmed::*;
 
 /// Weight of one cell of the rational lane's composite arm: the unit's ten.
 pub(super) const W_RATIONAL_COMPOSITE: usize = 10;
@@ -40,7 +34,7 @@ pub(super) const W_RATIONAL_EXACT_V: usize = 58;
 /// derivative. Two instantiations: the homogeneous position net
 /// `A = w·P` (all three channels) and the weight net `w` (channel 0,
 /// the other two structural zeros).
-pub(super) struct Ladder {
+struct Ladder {
     a: PatchGrid,
     au: Option<PatchGrid>,
     av: Option<PatchGrid>,
@@ -95,7 +89,7 @@ impl Ladder {
 /// The u-collapsed slice of the three grids the flux midpoint needs
 /// (`A`, `A_u`, `A_v`) plus the weight channel — [`PatchGrid::slice_u`]
 /// for why this exists.
-pub(super) struct FluxSlice {
+struct FluxSlice {
     a: [Vec<Interval>; 3],
     au: Option<[Vec<Interval>; 3]>,
     av: Option<[Vec<Interval>; 3]>,
@@ -191,7 +185,7 @@ impl Ladder {
 }
 
 /// **Certified RATIONAL patch contributions** (M8-3) — the same two
-/// numbers [`nurbs_patch_face`] certifies, for a patch whose weights
+/// numbers [`nurbs_patch_face`](super::patch::nurbs_patch_face) certifies, for a patch whose weights
 /// are not all 1.
 ///
 /// # The enclosure, derived
@@ -255,13 +249,13 @@ impl Ladder {
 /// fixed schedule cannot reach a target below it. Aligning the cuts
 /// removes the case instead of bounding it — a knot on a cell boundary
 /// is in no cell's interior — and the enclosure is O(h²) throughout.
-/// (The refinement to [`REFINED_SPANS_PER_AXIS`] does not do this on its
+/// (The refinement to [`REFINED_SPANS_PER_AXIS`](super::cells::REFINED_SPANS_PER_AXIS) does not do this on its
 /// own: inserted knots do not change smoothness, so the ORIGINAL knot
 /// vectors are what the cuts are taken from.) Whether a round is enough
 /// is the caller's question ([`Accept`]), and the face-extent gate
 /// `props_quad_face_extent` is asked of the round it accepts. A call the
 /// caller does not accept ends at the lane's floor or its work wall and
-/// says which ([`LaneEnd`]); a wide answer is never returned silently.
+/// says which ([`LaneEnd`](super::run::LaneEnd)); a wide answer is never returned silently.
 ///
 /// # The practical envelope (measured; every row re-measured)
 ///
@@ -270,7 +264,7 @@ impl Ladder {
 /// not: the frontier is a part-SIZE frontier. The lane's stops do not
 /// move with ε, so each carrier stops at the same displacement on every
 /// ε row and only the `1024·ε` target moves. The width here is the one
-/// the work wall stops the lane at ([`FACE_WORK_WALL`]): the composite
+/// the work wall stops the lane at ([`FACE_WORK_WALL`](super::run::FACE_WORK_WALL)): the composite
 /// arm's round 7, the exact-v arm's round 10. It is the Taylor
 /// remainder's, which quarters per round (exactly where every cell
 /// splits evenly; more slowly where a cell abuts an off-grid knot); the
@@ -316,7 +310,7 @@ impl Ladder {
 /// certifies a positive extent and stops at the wall with a width. The
 /// width is useless; saying so is the point.
 ///
-/// A carrier that stops short says where ([`LaneEnd`]) and hands back
+/// A carrier that stops short says where ([`LaneEnd`](super::run::LaneEnd)) and hands back
 /// its narrowest enclosure. The next levers, in order, are a
 /// higher-order rule (Simpson needs `A` to fifth derivatives) and a
 /// finer hull-block grid: with the cells knot-aligned the enclosure
@@ -644,7 +638,13 @@ pub(super) fn rational_patch_face<T: Decide>(
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
-    use crate::props::quad::test_target::{self, bounds_of, encloses, met, patch, to_target};
+    use geom_core::Bounds;
+
+    use super::super::cells::REFINED_SPANS_PER_AXIS;
+    use super::super::patch::{nurbs_patch_face, nurbs_patch_face_rounds};
+    use super::super::run::{LaneEnd, mean_boundary_displacement};
+    use crate::props::bracket::mid;
+    use crate::props::quad::test_target::{self, bounds_of, encloses, patch, to_target};
     use geom_core::Tol;
 
     /// The corpus's declared ambient uncertainty — the ε the fixed
@@ -1144,7 +1144,11 @@ mod tests {
             let samples =
                 |lo: f64, hi: f64| (0..3).map(move |i| lo + (hi - lo) * (f64::from(i) + 0.5) / 3.0);
             let cells = |kv: &KnotVector, knots: &[f64]| {
-                span_cells(kv, &knot_aligned_cuts(0.0, 1.0, HULL_BLOCKS_PER_AXIS, knots)).unwrap()
+                span_cells(
+                    kv,
+                    &knot_aligned_cuts(0.0, 1.0, HULL_BLOCKS_PER_AXIS, knots),
+                )
+                .unwrap()
             };
             let (cells_u, cells_v) = (cells(&ku, &knots_u), cells(&kv, &knots_v));
             let hulls = measure.block_hulls(&cells_u, &cells_v).unwrap();

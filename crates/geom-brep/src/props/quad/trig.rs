@@ -1,31 +1,11 @@
 //! TODO header
 
 use geom_core::Bounds;
+use geom_core::interval::Interval;
 use geom_core::interval::certification::Certification;
-use geom_core::interval::{Interval, certified_hi, cross, dot};
-use geom_core::spline::algebra;
-use geom_core::spline::net::TensorNet;
-use geom_core::spline::{
-    AxisCut, CellAxis, CellBlock, CellMeasureQuotients, CoeffWindow, Derived, KnotVector,
-    LooseKnots, Param, ParamRange, QuotientPiece, RingRefinement, SplineCoeffs, SplineCoeffsBuf,
-    TensorChannels, cell_measure_quotients, constant_weight, diagonal_in_span, restrict_segment,
-};
-use geom_core::{Band, Decide, InfSpeed, Margin, Sign};
 
-use crate::descent::Work;
-use crate::offset_meters::mig;
-use crate::patch_bound::{certified_inf, certified_sup};
-use crate::props::bracket::{AbsEnclosure, lo_or_refuse, mid, pt};
-use crate::props::{PropsCheck, PropsError};
-use super::area::*;
-use super::cells::*;
-use super::cylinder::*;
-use super::green::*;
-use super::net::*;
-use super::patch::*;
-use super::rational::*;
-use super::run::*;
-use super::trimmed::*;
+use super::cylinder::limit;
+use crate::props::bracket::pt;
 
 /// Enclosure of `cos s` for an EXACT step `s`, |s| ≤ 1.5, by the
 /// degree-8 alternating-series pair
@@ -38,7 +18,7 @@ use super::trimmed::*;
 /// divisor is a nonzero exact point, so no step can leave a domain
 /// and `lo`/`hi` are certified brackets whose endpoints mean what
 /// they say. The same argument covers [`sin_step`].
-pub(super) fn cos_step(s: f64) -> Interval {
+fn cos_step(s: f64) -> Interval {
     if s.is_nan() || s.abs() > 1.5 {
         return Interval::refused();
     }
@@ -53,7 +33,7 @@ pub(super) fn cos_step(s: f64) -> Interval {
 /// alternating-series pair `s − s³/6 + s⁵/120 − s⁷/5040 ≤ sin s ≤
 /// … + s⁹/362880` for s ≥ 0 (decreasing terms need s² ≤ 72), mirrored
 /// by oddness for s < 0.
-pub(super) fn sin_step(s: f64) -> Interval {
+fn sin_step(s: f64) -> Interval {
     if s.is_nan() || s.abs() > 1.5 {
         return Interval::refused();
     }
@@ -77,13 +57,18 @@ pub(super) fn sin_step(s: f64) -> Interval {
 /// enclosures are given. Intersecting with [−1, 1] after every
 /// compose keeps the propagated brackets from drifting past the
 /// circle (sound: the true values lie in both).
-pub(in crate::props) fn rotate(c: Interval, s: Interval, ch: Interval, sh: Interval) -> (Interval, Interval) {
+pub(in crate::props) fn rotate(
+    c: Interval,
+    s: Interval,
+    ch: Interval,
+    sh: Interval,
+) -> (Interval, Interval) {
     let clamp = |x: Interval| x.clamped_to(-1.0, 1.0);
     (clamp(c * ch - s * sh), clamp(s * ch + c * sh))
 }
 
 /// `(cos a, sin a)` at the limit `a` a trim edge's bracket `t` is
-/// integrated from or to ([`limit`], as [`TrimEdgeQ::limits`] takes it),
+/// integrated from or to ([`limit`], as [`TrimEdgeQ::limits`](super::cylinder::TrimEdgeQ::limits) takes it),
 /// by `trig_at` from the exact `(1, 0)` at `a = 0`: transcendental-free,
 /// and its width grows with `|a|` by the double-angle steps, 1.7e-13 at
 /// `a = π` and 3.4e-13 at `2π`. Refused for a refused bracket.

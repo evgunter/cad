@@ -1,31 +1,27 @@
 //! TODO header
 
-use geom_core::Bounds;
 use geom_core::interval::certification::Certification;
-use geom_core::interval::{Interval, certified_hi, cross, dot};
-use geom_core::spline::algebra;
-use geom_core::spline::net::TensorNet;
-use geom_core::spline::{
-    AxisCut, CellAxis, CellBlock, CellMeasureQuotients, CoeffWindow, Derived, KnotVector,
-    LooseKnots, Param, ParamRange, QuotientPiece, RingRefinement, SplineCoeffs, SplineCoeffsBuf,
-    TensorChannels, cell_measure_quotients, constant_weight, diagonal_in_span, restrict_segment,
-};
-use geom_core::{Band, Decide, InfSpeed, Margin, Sign};
+use geom_core::interval::{Interval, cross, dot};
+use geom_core::spline::KnotVector;
+use geom_core::{Band, Decide, Margin, Sign};
 
-use crate::descent::Work;
-use crate::offset_meters::mig;
-use crate::patch_bound::{certified_inf, certified_sup};
-use crate::props::bracket::{AbsEnclosure, lo_or_refuse, mid, pt};
+use super::area::{
+    AREA_CELLS_PER_AXIS, AreaCell, PERIMETER_CHORDS_PER_SIDE, PatchRect, area_midpoint_taylor,
+    boundary_chord_perimeter_lo, debug_assert_area_gauge,
+};
+use super::cells::{
+    AXIS_INIT_PIECES, cell_midpoint, knot_aligned_cuts, remainder_cell_u, remainder_cell_v,
+};
+use super::net::{
+    Collapse, PatchGrid, PatchNet, clipped_spans, grid_vec, newton_cotes_weights, norm_hi, widen,
+};
+use super::rational::rational_patch_face;
+use super::run::{
+    Accept, FaceCutBounds, LaneEnd, LaneRun, LaneStop, RoundWindow, Run, classify_len,
+};
+use super::trimmed::normal_partials;
+use crate::props::bracket::{lo_or_refuse, pt};
 use crate::props::{PropsCheck, PropsError};
-use super::area::*;
-use super::cells::*;
-use super::cylinder::*;
-use super::green::*;
-use super::net::*;
-use super::rational::*;
-use super::run::*;
-use super::trig::*;
-use super::trimmed::*;
 
 /// Weight of one cell of the integral patch lane's composite.
 pub(super) const W_INTEGRAL_COMPOSITE: usize = 32;
@@ -114,7 +110,7 @@ pub(super) fn patch_flux_exact(
 /// the same knot-aligned cells) — sound at every
 /// resolution and O(h), because the +V gate meters `V/A` and needs an
 /// honest denominator. A patch whose weights are not one constant
-/// ([`constant_weight`]) routes to [`rational_patch_face`] (M8-3), which certifies the same
+/// ([`constant_weight`](geom_core::spline::constant_weight)) routes to [`rational_patch_face`] (M8-3), which certifies the same
 /// two numbers through the quotient statement.
 ///
 /// Honesty pads (both directions accounted): `boundary_defect` is the
@@ -158,7 +154,7 @@ pub fn nurbs_patch_face<T: Decide>(
 /// its floor ([`LaneStop::Floor`]), and a window can neither start
 /// after it nor ask it for a tighter enclosure.
 ///
-/// `pub` for the same reason [`cylinder_cut_face_rounds`] is: its
+/// `pub` for the same reason [`cylinder_cut_face_rounds`](super::cylinder::cylinder_cut_face_rounds) is: its
 /// consumer is `topo`'s `props::quad_lane`, across the crate
 /// boundary.
 ///
@@ -422,8 +418,10 @@ pub fn nurbs_patch_face_rounds<T: Decide>(
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
+    use super::super::net::RVec3;
     use super::*;
-    use crate::props::quad::test_target::{self, bounds_of, encloses, met, patch, to_target};
+    use crate::props::quad::test_target::{met, patch, to_target};
+    use geom_core::Bounds;
     use geom_core::Tol;
 
     /// The patch lane on the flat unit square at z = 1: `S = (u, v, 1)`

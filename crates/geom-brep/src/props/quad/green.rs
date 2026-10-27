@@ -1,36 +1,17 @@
 //! TODO header
 
-use geom_core::Bounds;
+use geom_core::interval::Interval;
 use geom_core::interval::certification::Certification;
-use geom_core::interval::{Interval, certified_hi, cross, dot};
-use geom_core::spline::algebra;
-use geom_core::spline::net::TensorNet;
-use geom_core::spline::{
-    AxisCut, CellAxis, CellBlock, CellMeasureQuotients, CoeffWindow, Derived, KnotVector,
-    LooseKnots, Param, ParamRange, QuotientPiece, RingRefinement, SplineCoeffs, SplineCoeffsBuf,
-    TensorChannels, cell_measure_quotients, constant_weight, diagonal_in_span, restrict_segment,
-};
-use geom_core::{Band, Decide, InfSpeed, Margin, Sign};
+use geom_core::spline::{ParamRange, SplineCoeffs, SplineCoeffsBuf};
 
-use crate::descent::Work;
-use crate::offset_meters::mig;
-use crate::patch_bound::{certified_inf, certified_sup};
-use crate::props::bracket::{AbsEnclosure, lo_or_refuse, mid, pt};
-use crate::props::{PropsCheck, PropsError};
-use super::area::*;
-use super::cells::*;
-use super::cylinder::*;
-use super::net::*;
-use super::patch::*;
-use super::rational::*;
-use super::run::*;
-use super::trig::*;
-use super::trimmed::*;
+use super::net::{Loose, eval_at, range_hull, raw_eval, raw_range_hull};
+use crate::props::PropsError;
+use crate::props::bracket::pt;
 
 /// One level of a [`DerivLadder`]: the derivative's coefficients with
 /// the knot structure they are a proof about — a clamped vector, or the
 /// [`Loose`] structure no clamped vector spells, which is the same
-/// structure the patch lanes' [`Dir::Loose`] carries.
+/// structure the patch lanes' [`Dir::Loose`](super::net::Dir::Loose) carries.
 pub(super) enum Level {
     /// A clamped spline of degree ≥ 1: differentiated again through its
     /// own vector.
@@ -88,7 +69,7 @@ impl Level {
 /// knot the first-order hull rule, where no smoothness is assumed.
 /// The two PATCH lanes do it differently and should not be read
 /// through this sentence: their cells are cut ON the interior knots
-/// ([`knot_aligned_cuts`]), so a straddling cell does not arise.
+/// ([`knot_aligned_cuts`](super::cells::knot_aligned_cuts)), so a straddling cell does not arise.
 pub(super) struct DerivLadder {
     /// The first derivative — every channel has one, its vector having
     /// at least two coefficients.
@@ -234,8 +215,8 @@ pub fn bspline_green_integral(
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
-    use crate::props::quad::test_target::{self, bounds_of, encloses, met, patch, to_target};
-    use geom_core::Tol;
+    use geom_core::Bounds;
+    use geom_core::spline::KnotVector;
 
     /// The general B-spline lane on a known integral: u = t (deg 2),
     /// v = t² (deg 2) on [0, 1]; ∫ u·v' dt = ∫ 2t² dt = 2/3.

@@ -1,36 +1,18 @@
 //! TODO header
 
-use geom_core::Bounds;
 use geom_core::interval::certification::Certification;
-use geom_core::interval::{Interval, certified_hi, cross, dot};
-use geom_core::spline::algebra;
-use geom_core::spline::net::TensorNet;
-use geom_core::spline::{
-    AxisCut, CellAxis, CellBlock, CellMeasureQuotients, CoeffWindow, Derived, KnotVector,
-    LooseKnots, Param, ParamRange, QuotientPiece, RingRefinement, SplineCoeffs, SplineCoeffsBuf,
-    TensorChannels, cell_measure_quotients, constant_weight, diagonal_in_span, restrict_segment,
-};
-use geom_core::{Band, Decide, InfSpeed, Margin, Sign};
+use geom_core::interval::{Interval, certified_hi};
+use geom_core::{Band, Decide, Margin, Sign};
 
-use crate::descent::Work;
-use crate::offset_meters::mig;
-use crate::patch_bound::{certified_inf, certified_sup};
+use super::run::{Accept, FaceCutBounds, LaneRun, RoundWindow, Run, classify_len};
+use super::trig::{rotate, spread_cos, spread_sin, trig_at, trig_over};
 use crate::props::bracket::{AbsEnclosure, lo_or_refuse, mid, pt};
 use crate::props::{PropsCheck, PropsError};
-use super::area::*;
-use super::cells::*;
-use super::green::*;
-use super::net::*;
-use super::patch::*;
-use super::rational::*;
-use super::run::*;
-use super::trig::*;
-use super::trimmed::*;
 
 /// The initial piece count of the composite rule (round 0).
 pub(in crate::props) const EDGE_INIT_PIECES: usize = 16;
 
-/// Weight of one harmonic piece of a cylinder edge, in [`FACE_WORK_WALL`]'s unit.
+/// Weight of one harmonic piece of a cylinder edge, in [`FACE_WORK_WALL`](super::run::FACE_WORK_WALL)'s unit.
 pub(super) const W_CYLINDER: usize = 3;
 
 /// One harmonic chart channel `c₀ + c_a·cos t + c_b·sin t + c_l·t`
@@ -63,7 +45,7 @@ pub struct TrimEdgeQ {
     pub forward: bool,
     /// Enclosure of `(cos a, sin a)` at the start limit `a`
     /// ([`TrimEdgeQ::limits`]; the at-rest caller forms it by
-    /// [`trig_at_limit`]).
+    /// [`trig_at_limit`](super::trig::trig_at_limit)).
     pub trig0: (Interval, Interval),
     /// Enclosure of `(cos a, sin a)` at the end limit, formed as `trig0`
     /// is. Where the loop's junctions are read ([`chart_end`]), the end
@@ -87,7 +69,7 @@ impl TrimEdgeQ {
 
 /// The limit a trim edge is integrated from or to, off the bracket `t`
 /// of its parameter: the bracket's midpoint. [`TrimEdgeQ::limits`] and
-/// [`trig_at_limit`] both read it here, so the trig a caller hands the
+/// [`trig_at_limit`](super::trig::trig_at_limit) both read it here, so the trig a caller hands the
 /// lane is at the limit the lane integrates from.
 pub(super) fn limit(t: Interval) -> f64 {
     mid(t)
@@ -126,7 +108,7 @@ impl HarmChan {
 /// latter needs `radius` for the metric length); and the summed width
 /// of its remainder terms `F₂·h³/24`, the part of its width a later
 /// round removes.
-pub(super) fn harmonic_edge_integral(
+fn harmonic_edge_integral(
     e: &TrimEdgeQ,
     anchor: f64,
     pieces: usize,
@@ -199,7 +181,7 @@ pub(super) fn harmonic_edge_integral(
 
 /// A certified upper bound on the edge's METRIC length (metres):
 /// `∫ √(r²u'² + v'²) dt ≤ (r·sup|u'| + sup|v'|)·span`.
-pub(super) fn edge_metric_length(e: &TrimEdgeQ, radius: Interval) -> f64 {
+fn edge_metric_length(e: &TrimEdgeQ, radius: Interval) -> f64 {
     let (a, b) = e.limits();
     let span = b - a;
     let (c_all, s_all) = trig_over(e.trig0, 0.0, span);
@@ -217,7 +199,7 @@ pub(super) fn edge_metric_length(e: &TrimEdgeQ, radius: Interval) -> f64 {
 /// pads), over every loop of the face, the outer first: the Green form
 /// is a sum over edges, so a ring contributes its own `−∮ v du` with
 /// its own winding. Rounds run until `accept` takes one or the lane
-/// stops ([`LaneStop`]).
+/// stops ([`LaneStop`](super::run::LaneStop)).
 ///
 /// `o_dot_va` is the caller's closed-form `o·A⃗` term bracketed, `A⃗`
 /// summed over the same loops.
@@ -319,7 +301,7 @@ pub fn cylinder_cut_face_rounds<T: Decide>(
 
 /// An edge's chart point `(u, v)` where its traversal starts (`end`
 /// false) or ends, at its [`TrimEdgeQ::limits`].
-pub(super) fn chart_end(e: &TrimEdgeQ, end: bool) -> (Interval, Interval) {
+fn chart_end(e: &TrimEdgeQ, end: bool) -> (Interval, Interval) {
     let (a, b) = e.limits();
     let (trig, t) = if end == e.forward {
         (e.trig1.unwrap_or_else(|| trig_at(e.trig0, b - a)), b)
@@ -339,7 +321,7 @@ pub(super) fn chart_end(e: &TrimEdgeQ, end: bool) -> (Interval, Interval) {
 /// exceeds by at most `√2`, taken as `3/2`), plus the end's parameter
 /// bracket half-width times the edge's speed bound in that metric. The
 /// trig brackets need no term: [`chart_end`]'s enclosures carry them.
-pub(super) fn end_slack(e: &TrimEdgeQ, end: bool, radius: Interval) -> f64 {
+fn end_slack(e: &TrimEdgeQ, end: bool, radius: Interval) -> f64 {
     let (a, b) = e.limits();
     let bracket = if end == e.forward { e.t1 } else { e.t0 };
     let span = b - a;
@@ -362,7 +344,7 @@ pub(super) fn end_slack(e: &TrimEdgeQ, end: bool, radius: Interval) -> f64 {
 /// [`end_slack`] ([`crate::props::closure::interval_loop_turns`]).
 ///
 /// Returns, per loop, whether it winds.
-pub(super) fn loop_windings<T: Decide>(
+fn loop_windings<T: Decide>(
     loops: &[&[TrimEdgeQ]],
     radius: Interval,
     band: Band,
@@ -381,7 +363,8 @@ pub(super) fn loop_windings<T: Decide>(
                     slack: end_slack(e, true, radius) + end_slack(next, false, radius),
                 }
             });
-        let [k, _] = crate::props::closure::interval_loop_turns::<T, 2>(junctions, [true, false], band)?;
+        let [k, _] =
+            crate::props::closure::interval_loop_turns::<T, 2>(junctions, [true, false], band)?;
         windings.push([k]);
     }
     crate::props::closure::require_boundary_windings(&windings)?;
@@ -401,7 +384,7 @@ pub(super) fn loop_windings<T: Decide>(
 /// # Errors
 ///
 /// [`PropsError::DegenerateFace`] for a face whose loops hold no edge.
-pub(super) fn level_anchor(loops: &[&[TrimEdgeQ]]) -> Result<f64, PropsError> {
+fn level_anchor(loops: &[&[TrimEdgeQ]]) -> Result<f64, PropsError> {
     let (lo, hi) = loops
         .iter()
         .flat_map(|edges| edges.iter())
@@ -471,7 +454,12 @@ pub(super) fn require_holes_wound_against(
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
-    use crate::props::quad::test_target::{self, bounds_of, encloses, met, patch, to_target};
+    use crate::props::bracket::AbsEnclosure;
+    use geom_core::Bounds;
+
+    use super::super::run::{LaneEnd, LaneStop, mean_boundary_displacement};
+    use super::super::trig::trig_at_limit;
+    use crate::props::quad::test_target::{self, met, to_target};
     use geom_core::Tol;
 
     fn chan(c0: f64, ca: f64, cb: f64, cl: f64) -> HarmChan {

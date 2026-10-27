@@ -36,7 +36,7 @@
 //!
 //! # The integrand substrate is certification arithmetic
 //!
-//! Every enclosure here is [`Interval`] arithmetic — no
+//! Every enclosure here is [`Interval`](geom_core::interval::Interval) arithmetic — no
 //! transcendental is ever *evaluated* on the certified path. The two
 //! integrand families:
 //!
@@ -112,9 +112,9 @@
 //! several engines here. The others, so the header does not have to be
 //! reverse-engineered from the table of contents:
 //! [`nurbs_patch_face_rounds`] (the polynomial patch over a whole UV
-//! rectangle: [`patch_flux_exact`]'s per-span Newton–Cotes, with
+//! rectangle: [`patch_flux_exact`](patch::patch_flux_exact)'s per-span Newton–Cotes, with
 //! composite rounds behind it), `rational_patch_face` (the same
-//! rectangle through the quotient statement), [`area_midpoint_taylor`] (the
+//! rectangle through the quotient statement), [`area_midpoint_taylor`](area::area_midpoint_taylor) (the
 //! area rule both patch lanes share), and — since TRIM-2 —
 //! [`trimmed_patch_face_rounds`], whose region is what a face's chart
 //! IMAGE bounds rather than a rectangle of its chart. That last one is
@@ -159,18 +159,18 @@ mod trig;
 mod trimmed;
 
 pub use area::boundary_chord_perimeter_lo;
-pub use cylinder::{HarmChan, TrimEdgeQ, cylinder_cut_face, cylinder_cut_face_rounds};
 pub(super) use cylinder::EDGE_INIT_PIECES;
+pub use cylinder::{HarmChan, TrimEdgeQ, cylinder_cut_face, cylinder_cut_face_rounds};
 pub use green::bspline_green_integral;
 pub use net::{PatchNet, RVec3};
 pub use patch::{nurbs_patch_face, nurbs_patch_face_rounds};
+pub(super) use run::Run;
 #[cfg(any(test, feature = "test-support"))]
 pub use run::rounds_run_by;
 pub use run::{
     Accept, FACE_WORK_WALL, FLOOR_SHARE, FaceCutBounds, LaneEnd, LaneRun, LaneStop, RoundWindow,
     classify_len, mean_boundary_displacement, narrower,
 };
-pub(super) use run::Run;
 pub use trig::trig_at_limit;
 pub(super) use trig::{rotate, spread_cos, spread_sin, trig_at};
 pub use trimmed::{TrimChord, TrimPiece, trimmed_patch_face_rounds};
@@ -178,7 +178,9 @@ pub use trimmed::{TrimChord, TrimPiece, trimmed_patch_face_rounds};
 /// Test vocabulary for the lanes' callers in this crate.
 #[cfg(test)]
 pub(super) mod test_target {
-    use super::{FaceCutBounds, LaneEnd, LaneRun, LaneStop, PatchNet, RVec3, mean_boundary_displacement};
+    use super::{
+        FaceCutBounds, LaneEnd, LaneRun, LaneStop, PatchNet, RVec3, mean_boundary_displacement,
+    };
     use crate::props::PropsError;
     use geom_core::Bounds;
     use geom_core::interval::Interval;

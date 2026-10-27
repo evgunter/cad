@@ -4,28 +4,21 @@ use geom_core::Bounds;
 use geom_core::interval::certification::Certification;
 use geom_core::interval::{Interval, certified_hi, cross, dot};
 use geom_core::spline::algebra;
-use geom_core::spline::net::TensorNet;
 use geom_core::spline::{
-    AxisCut, CellAxis, CellBlock, CellMeasureQuotients, CoeffWindow, Derived, KnotVector,
-    LooseKnots, Param, ParamRange, QuotientPiece, RingRefinement, SplineCoeffs, SplineCoeffsBuf,
-    TensorChannels, cell_measure_quotients, constant_weight, diagonal_in_span, restrict_segment,
+    KnotVector, ParamRange, RingRefinement, constant_weight, restrict_segment,
 };
 use geom_core::{Band, Decide, InfSpeed, Margin, Sign};
 
-use crate::descent::Work;
+use super::area::AREA_CELLS_PER_AXIS;
+use super::cells::{AXIS_INIT_PIECES, knot_aligned_cuts};
+use super::net::{
+    Collapse, PatchGrid, PatchNet, RVec3, certified_box, grid_vec, newton_cotes_weights, norm_hi,
+    refused_vec, rv_add, widen,
+};
+use super::run::{Accept, FaceCutBounds, LaneRun, RoundWindow, Run, classify_len};
 use crate::offset_meters::mig;
-use crate::patch_bound::{certified_inf, certified_sup};
-use crate::props::bracket::{AbsEnclosure, lo_or_refuse, mid, pt};
+use crate::props::bracket::{lo_or_refuse, mid, pt};
 use crate::props::{PropsCheck, PropsError};
-use super::area::*;
-use super::cells::*;
-use super::cylinder::*;
-use super::green::*;
-use super::net::*;
-use super::patch::*;
-use super::rational::*;
-use super::run::*;
-use super::trig::*;
 
 /// Weight of one chord cell of the trimmed lane's exact arm, by the
 /// chart's bidegree `(p_u, p_v)`, read at face entry. A cell is one nested
@@ -116,7 +109,7 @@ pub(super) const IMAGE_INIT_PIECES: usize = AXIS_INIT_PIECES;
 /// bisection halves the chord, so a piece that is a graph over its
 /// chord anywhere becomes one within a few levels; a cusp or a fold
 /// never does, and refusing is the honest answer for it.
-pub(super) const MONOTONE_BISECTIONS: usize = 4;
+const MONOTONE_BISECTIONS: usize = 4;
 /// Cells per axis of the trimmed lane's AREA rule, per chord —
 /// [`AREA_CELLS_PER_AXIS`], and deliberately the same number.
 ///
@@ -128,10 +121,10 @@ pub(super) const MONOTONE_BISECTIONS: usize = 4;
 /// ordinary bidegree-(2,2) chart is the size of the face's own area,
 /// `area.lo()` goes negative and the extent gate answers
 /// `DegenerateFace`.
-pub(super) const TRIM_AREA_PIECES: usize = AREA_CELLS_PER_AXIS;
+const TRIM_AREA_PIECES: usize = AREA_CELLS_PER_AXIS;
 
 /// A chart-space point bracket (`(u, v)`).
-pub(super) type RPt2 = (Interval, Interval);
+type RPt2 = (Interval, Interval);
 
 /// The bracketed control net of one trim edge's **`General` chart
 /// image**, on the carrier's own parameter.
@@ -195,7 +188,7 @@ impl TrimPiece {
 }
 
 /// One trim-loop EDGE of the trimmed lane, fully bracketed by the
-/// caller (key-free, like [`TrimEdgeQ`]).
+/// caller (key-free, like [`TrimEdgeQ`](super::cylinder::TrimEdgeQ)).
 ///
 /// An iso image is one exact chord and carries no `piece`: its
 /// endpoints are structure (`p0 → p0 + pd`), so there is no arc to
@@ -239,7 +232,7 @@ pub(super) fn vertex(p: RPt2) -> (f64, f64) {
 
 /// The half-width of a chart-point bracket, as a chart-space radius
 /// (the 1-norm over-bounds the 2-norm; only an upper bound is read).
-pub(super) fn vertex_slack(p: RPt2) -> f64 {
+fn vertex_slack(p: RPt2) -> f64 {
     0.5 * (p.0.width() + p.1.width())
 }
 
@@ -250,7 +243,7 @@ pub(super) fn vertex_slack(p: RPt2) -> f64 {
 /// `[0, ½]` and `[½, 1]` of its segment on `[0, 1]`
 /// ([`restrict_segment`]), so both halves are certified enclosures of
 /// the same arc rather than re-approximations of it.
-pub(super) fn bezier_bisect(block: &[RPt2]) -> (Vec<RPt2>, Vec<RPt2>) {
+fn bezier_bisect(block: &[RPt2]) -> (Vec<RPt2>, Vec<RPt2>) {
     #[cfg(test)]
     tests::BISECTED.with(|b| b.borrow_mut().push(block.to_vec()));
     let half = |channel: &[Interval], ends: (f64, f64)| restrict_segment(channel, (0.0, 1.0), ends);
@@ -265,7 +258,7 @@ pub(super) fn bezier_bisect(block: &[RPt2]) -> (Vec<RPt2>, Vec<RPt2>) {
 
 /// Why [`bezier_blocks`] refused.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum BlockRefusal {
+enum BlockRefusal {
     /// The weights are not one constant: the blocks' hulls would not be
     /// the polynomial convex-hull fact.
     Rational,
@@ -286,7 +279,7 @@ pub(super) enum BlockRefusal {
 /// hulls the polynomial convex-hull fact. A rational net refuses
 /// ([`BlockRefusal::Rational`]), as does a malformed one: a zero
 /// degree, or a knot algebra that refuses ([`BlockRefusal::Malformed`]).
-pub(super) fn bezier_blocks(img: &TrimPiece, m: usize) -> Result<Vec<Vec<RPt2>>, BlockRefusal> {
+fn bezier_blocks(img: &TrimPiece, m: usize) -> Result<Vec<Vec<RPt2>>, BlockRefusal> {
     let kv = &img.knots;
     let p = kv.degree();
     if p == 0 {
@@ -329,7 +322,7 @@ pub(super) fn bezier_blocks(img: &TrimPiece, m: usize) -> Result<Vec<Vec<RPt2>>,
 
 /// The axis-aligned chart box of a bracketed control block — the
 /// convex-hull property, read per axis.
-pub(super) fn block_box(block: &[RPt2]) -> (Interval, Interval) {
+fn block_box(block: &[RPt2]) -> (Interval, Interval) {
     let mut bu = block[0].0;
     let mut bv = block[0].1;
     for q in &block[1..] {
@@ -344,7 +337,7 @@ pub(super) fn block_box(block: &[RPt2]) -> (Interval, Interval) {
 /// straddles zero contributes nothing — so a hull that has lost the
 /// direction answers `0`, which is the refusing direction wherever
 /// this is read.
-pub(super) fn norm_lo(v: RVec3) -> f64 {
+fn norm_lo(v: RVec3) -> f64 {
     let comp = |x: Interval| Interval::point(mig(x));
     let root = (comp(v[0]).sqr() + comp(v[1]).sqr() + comp(v[2]).sqr()).sqrt();
     if !root.is_certified() { 0.0 } else { root.lo() }
@@ -353,7 +346,7 @@ pub(super) fn norm_lo(v: RVec3) -> f64 {
 /// One piece of the chord polygon: its chord, and — for a `General`
 /// arc — the lune between arc and chord, as the region the integrand
 /// sups are read over and the chart AREA that region's lune occupies.
-pub(super) struct TrimCell {
+struct TrimCell {
     /// Which [`TrimChord`] of the loop this cell came from — the
     /// envelope pad is stated per EDGE and this lane's chords are the
     /// edges' pieces.
@@ -392,7 +385,7 @@ pub(super) struct TrimCell {
 /// The total variation of a bracketed control polygon per axis, taken
 /// outward off the brackets: an upper bound on the arc's own, by the
 /// variation-diminishing property of the B-spline basis.
-pub(super) fn polygon_variation(block: &[RPt2]) -> (f64, f64) {
+fn polygon_variation(block: &[RPt2]) -> (f64, f64) {
     let mut du = 0.0f64;
     let mut dv = 0.0f64;
     for w in block.windows(2) {
@@ -407,7 +400,7 @@ pub(super) fn polygon_variation(block: &[RPt2]) -> (f64, f64) {
 /// taken outward off the brackets. Exactly zero for a two-point block
 /// — a degree-1 arc IS its chord, so there is no lune at all, which is
 /// every image this head's producer mints (`PXN_IMAGE_DEGREE = 1`).
-pub(super) fn lune_area(block: &[RPt2], a: (f64, f64), b: (f64, f64)) -> f64 {
+fn lune_area(block: &[RPt2], a: (f64, f64), b: (f64, f64)) -> f64 {
     let (cu, cv) = (b.0 - a.0, b.1 - a.1);
     let len = (cu.powi(2) + cv.powi(2)).sqrt();
     if block.len() <= 2 {
@@ -434,7 +427,7 @@ pub(super) fn lune_area(block: &[RPt2], a: (f64, f64), b: (f64, f64)) -> f64 {
 
 /// The typed refusal a piece that is not a graph over its chord earns,
 /// named once so the row and the site cannot drift apart.
-pub(super) const TRIM_NOT_MONOTONE: &str = "a trim piece's monotonicity over its own chord is \
+const TRIM_NOT_MONOTONE: &str = "a trim piece's monotonicity over its own chord is \
                                  UNRESOLVED at this lane's resolution — the control \
                                  polygon still advances backwards along the chord after \
                                  the fixed bisection depth, which a cusp or a feature \
@@ -452,7 +445,7 @@ pub(super) const TRIM_NOT_MONOTONE: &str = "a trim piece's monotonicity over its
 /// vertices are brackets: consecutive chords must meet inside their
 /// own brackets, and the in-bracket disagreement is PADDED rather
 /// than assumed away.
-pub(super) const TRIM_OPEN_WALK: &str = "the trim loop's chord walk does not close — some chord's end \
+const TRIM_OPEN_WALK: &str = "the trim loop's chord walk does not close — some chord's end \
                               lies outside the bracket of the next chord's start, and \
                               Green's theorem has no winding number for an open curve; a \
                               loop assembled from one face's half-edges always closes, so \
@@ -461,7 +454,7 @@ pub(super) const TRIM_OPEN_WALK: &str = "the trim loop's chord walk does not clo
 /// The typed refusal a chart outside the INNER rule's node window
 /// earns. The outer rule has a composite arm past its own window; the
 /// inner one has none.
-pub(super) const TRIM_NC_WINDOW: &str = "trimmed lane's inner Newton–Cotes window — the chord integrand \
+const TRIM_NC_WINDOW: &str = "trimmed lane's inner Newton–Cotes window — the chord integrand \
                               has v-degree 3·p_v − 1 and the exact closed rule's INTERVAL \
                               count tops out at 12 (13 nodes), so the inner rule certifies \
                               p_v ≤ 4; the composite arm is the OUTER rule's only";
@@ -488,7 +481,7 @@ pub(super) const TRIM_NC_WINDOW: &str = "trimmed lane's inner Newton–Cotes win
 /// lane's resolution speaking, which is why the refusal names an
 /// unresolved margin rather than a cusp. Nothing on today's corpus is
 /// near the band; the audit row and the K roster entry say the same.
-pub(super) fn piece_monotone<T: Decide>(
+fn piece_monotone<T: Decide>(
     block: &[RPt2],
     a: (f64, f64),
     b: (f64, f64),
@@ -532,7 +525,7 @@ pub(super) fn piece_monotone<T: Decide>(
 /// `General` edge the Bézier blocks of its image at this round's
 /// lever, each decided monotone over its own chord and bisected while
 /// the verdict is short of definite.
-pub(super) fn trim_cells<T: Decide>(
+fn trim_cells<T: Decide>(
     chords: &[TrimChord],
     m: usize,
     su: Option<&PatchGrid>,
@@ -657,7 +650,7 @@ pub(super) fn breakpoints(kv: &KnotVector) -> Vec<f64> {
 
 /// The `[lo, hi]` cell of a breakpoint list containing `t` (clamped to
 /// the ends): the cell whose polynomial the rules evaluate.
-pub(super) fn cell_of(breaks: &[f64], t: f64) -> (f64, f64) {
+fn cell_of(breaks: &[f64], t: f64) -> (f64, f64) {
     for w in breaks.windows(2) {
         if w[1] > w[0] && t < w[1] {
             return (w[0], w[1]);
@@ -668,7 +661,7 @@ pub(super) fn cell_of(breaks: &[f64], t: f64) -> (f64, f64) {
 }
 
 /// The chart integrand `f = ⟨S, S_u×S_v⟩` at one collapse pair.
-pub(super) fn flux_at(
+fn flux_at(
     s: &PatchGrid,
     su: Option<&PatchGrid>,
     sv: Option<&PatchGrid>,
@@ -682,7 +675,7 @@ pub(super) fn flux_at(
 }
 
 /// The area integrand `g = |S_u×S_v|` at one collapse pair.
-pub(super) fn area_at(
+fn area_at(
     su: Option<&PatchGrid>,
     sv: Option<&PatchGrid>,
     cu: Collapse<'_>,
@@ -696,7 +689,7 @@ pub(super) fn area_at(
 /// hull of `g = |S_u×S_v|` and upper bounds on its two partials, all
 /// three read over the SAME extent the caller is about to pad with.
 ///
-/// This is [`area_midpoint_taylor`]'s `AreaCell` closure, written for
+/// This is [`area_midpoint_taylor`](super::area::area_midpoint_taylor)'s `AreaCell` closure, written for
 /// a lane whose cells are not a tensor grid: the rectangle lane hands
 /// its rule an `AreaBox` and the rule calls back; the trimmed lane's
 /// outer variable is a chord parameter and its inner extent depends on
@@ -704,7 +697,7 @@ pub(super) fn area_at(
 /// reading, which is the part the discipline lives in —
 /// `|∂_d |c|| ≤ |∂_d c|` is the Lipschitz constant, and a hull over a
 /// larger extent is a LOOSER one, never a wrong one.
-pub(super) fn area_cell(
+fn area_cell(
     su: Option<&PatchGrid>,
     sv: Option<&PatchGrid>,
     suu: Option<&PatchGrid>,
@@ -732,7 +725,7 @@ pub(super) fn area_cell(
 
 /// One chord `v = ℓ(u)` of the polygon, as both outer rules read it: a
 /// chord with `u_a = u_b` carries no `du` and is no chord here.
-pub(super) struct Chord {
+struct Chord {
     a: (f64, f64),
     b: (f64, f64),
     slope: Interval,
@@ -741,7 +734,7 @@ pub(super) struct Chord {
 /// How a chord's cuts meet a crossing of a `v`-knot, whose `u` is a
 /// certified bracket.
 #[derive(Clone, Copy)]
-pub(super) enum CrossingCut {
+enum CrossingCut {
     /// One cut at the bracket's midpoint; the triangle the definite cut
     /// leaves between the knot and `ℓ` is the SLIVER pad's.
     Midpoint,
@@ -751,7 +744,7 @@ pub(super) enum CrossingCut {
 }
 
 /// A chord's cut list, ascending, and what its crossings left to pay.
-pub(super) struct ChordCuts {
+struct ChordCuts {
     cuts: Vec<f64>,
     /// `Σ w²·|ℓ′|` over the midpoint cuts.
     sliver: f64,
@@ -861,7 +854,7 @@ impl Chord {
 /// The `v` cells one piece's column crosses: the complete spans `below`
 /// the located cell `[v_k, v_{k+1}]`, each `(lo, hi, locator)`, and the
 /// located cell's own start and locator.
-pub(super) struct Column {
+struct Column {
     below: Vec<(f64, f64, f64)>,
     vk: f64,
     mid_v: f64,
@@ -888,7 +881,7 @@ impl Column {
 /// `u`-partials have `v`-degree `3p_v − 1`), so at a point parameter the
 /// enclosure's width is the ring's, and at an enclosed one it holds the
 /// integral for every parameter and top in their brackets.
-pub(super) fn column_integral(
+fn column_integral(
     wv: &[Interval],
     column: &Column,
     top: Interval,
@@ -921,7 +914,7 @@ pub(super) fn column_integral(
 /// integrand's: the chart's second partials, and the two third partials
 /// `f_uu` needs, derived here so that every `None` is [`PatchGrid`]'s
 /// own "identically zero away from knots" and never "not built".
-pub(super) struct Curvature<'g> {
+struct Curvature<'g> {
     suu: Option<&'g PatchGrid>,
     suv: Option<&'g PatchGrid>,
     svv: Option<&'g PatchGrid>,
@@ -948,7 +941,7 @@ impl<'g> Curvature<'g> {
 /// **The trimmed lane's outer `u` rule**, chosen once at face entry by
 /// whether the exact rule's weights exist for the chord integrand's
 /// degree `3p_u + 3p_v − 1`.
-pub(super) enum OuterRule<'g> {
+enum OuterRule<'g> {
     /// Closed Newton–Cotes weights of that order: exact on a piece.
     Exact(Vec<Interval>),
     /// The composite midpoint rule with its certified remainder.
@@ -956,7 +949,7 @@ pub(super) enum OuterRule<'g> {
 }
 
 impl OuterRule<'_> {
-    /// Weight of one cell of this rule, in [`FACE_WORK_WALL`]'s unit.
+    /// Weight of one cell of this rule, in [`FACE_WORK_WALL`](super::run::FACE_WORK_WALL)'s unit.
     fn weight(&self, p_u: usize, p_v: usize) -> usize {
         match self {
             Self::Exact(_) => w_trimmed(p_u, p_v),
@@ -1000,7 +993,7 @@ pub(super) fn normal_partials(
 /// Enclosures of the chord integrand's first partials at one collapse
 /// pair: `f_u = ⟨S, ∂_u(S_u×S_v)⟩` and `f_v = ⟨S, ∂_v(S_u×S_v)⟩` (the
 /// `⟨S_u, S_u×S_v⟩` and `⟨S_v, S_u×S_v⟩` terms vanish).
-pub(super) fn flux_slopes(
+fn flux_slopes(
     s: &PatchGrid,
     su: Option<&PatchGrid>,
     sv: Option<&PatchGrid>,
@@ -1021,7 +1014,7 @@ pub(super) fn flux_slopes(
 
 /// Enclosure of `f_uu = ⟨S_u, S_uu×S_v⟩ + ⟨S, S_uuu×S_v + 2·S_uu×S_uv +
 /// S_u×S_uuv⟩` at one collapse pair (`⟨S_u, S_u×S_uv⟩` vanishes).
-pub(super) fn flux_uu(
+fn flux_uu(
     s: &PatchGrid,
     su: Option<&PatchGrid>,
     sv: Option<&PatchGrid>,
@@ -1043,7 +1036,7 @@ pub(super) fn flux_uu(
 }
 
 /// What [`chord_polygon_flux`] answers.
-pub(super) struct ChordFlux {
+struct ChordFlux {
     /// The polygon's flux, the composite rule's column pads included.
     flux: Interval,
     /// `Σ w²·|ℓ′|` over the exact rule's midpoint crossing cuts.
@@ -1085,9 +1078,9 @@ pub(super) struct ChordFlux {
 ///   first-order bound `h·|ℓ − v₀|·sup|f|` on its column instead.
 ///
 /// Nodes read through [`Collapse::AtSpan`], the piece's own midpoint
-/// pinning the cell, exactly as [`patch_flux_exact`] does.
+/// pinning the cell, exactly as [`patch_flux_exact`](super::patch::patch_flux_exact) does.
 #[allow(clippy::too_many_arguments)]
-pub(super) fn chord_polygon_flux(
+fn chord_polygon_flux(
     s: &PatchGrid,
     su: Option<&PatchGrid>,
     sv: Option<&PatchGrid>,
@@ -1155,7 +1148,7 @@ pub(super) fn chord_polygon_flux(
 
 /// One piece by the exact rule: `∫_p^q G_f(u, ℓ(u)) du`.
 #[allow(clippy::too_many_arguments)]
-pub(super) fn exact_piece(
+fn exact_piece(
     s: &PatchGrid,
     su: Option<&PatchGrid>,
     sv: Option<&PatchGrid>,
@@ -1188,7 +1181,7 @@ pub(super) fn exact_piece(
 }
 
 /// A composite piece's reading.
-pub(super) enum Piece {
+enum Piece {
     /// `h·φ(m)` and the remainder `(h³/24)·φ''`.
     Rule {
         value: Interval,
@@ -1201,7 +1194,7 @@ pub(super) enum Piece {
 /// One piece by the composite rule ([`chord_polygon_flux`]'s docs);
 /// `None` where a window does not certify.
 #[allow(clippy::too_many_arguments)]
-pub(super) fn composite_piece(
+fn composite_piece(
     s: &PatchGrid,
     su: Option<&PatchGrid>,
     sv: Option<&PatchGrid>,
@@ -1259,7 +1252,7 @@ pub(super) fn composite_piece(
 /// `G_g(u, v) = ∫_{v₀}^{v} g` — `g = |S_u×S_v|` is not polynomial, so
 /// it cannot be the exact rule the flux takes.
 ///
-/// **What runs instead is [`area_midpoint_taylor`]'s OWN cell rule**,
+/// **What runs instead is [`area_midpoint_taylor`](super::area::area_midpoint_taylor)'s OWN cell rule**,
 /// per sub-chord: `ℓ` is affine, so `∫_p^q G_g(u, ℓ(u)) du` is the
 /// integral of `g` over the trapezoid under the sub-chord, and that
 /// trapezoid has exactly the area of the rectangle
@@ -1292,7 +1285,7 @@ pub(super) fn composite_piece(
 /// block is its own chord) the area width halves per round, which is
 /// the per-chord cell rule's own `O(h)`.
 #[allow(clippy::too_many_arguments)]
-pub(super) fn chord_polygon_area(
+fn chord_polygon_area(
     su: Option<&PatchGrid>,
     sv: Option<&PatchGrid>,
     suu: Option<&PatchGrid>,
@@ -1400,7 +1393,7 @@ pub(super) fn chord_polygon_area(
 /// every chord endpoint bracket and every stored image net. An OUTER
 /// enclosure of the trim region, so a hull over it contains every
 /// cell's own.
-pub(super) fn trim_box(chords: &[TrimChord]) -> (Interval, Interval) {
+fn trim_box(chords: &[TrimChord]) -> (Interval, Interval) {
     let mut bu = Interval::refused();
     let mut bv = Interval::refused();
     let mut seeded = false;
@@ -1430,7 +1423,7 @@ pub(super) fn trim_box(chords: &[TrimChord]) -> (Interval, Interval) {
 /// the S10 winding, exactly as the rectangle lane reads it: the area
 /// is `|w|`-weighted and the flux is `w`-weighted, so Green's own
 /// signed answer IS the flux and the area takes this sign.
-pub(super) fn polygon_winding(cells: &[TrimCell]) -> f64 {
+fn polygon_winding(cells: &[TrimCell]) -> f64 {
     let mut acc = 0.0f64;
     for c in cells {
         acc += c.a.0 * c.b.1 - c.b.0 * c.a.1;
@@ -1773,10 +1766,12 @@ pub fn trimmed_patch_face_rounds<T: Decide>(
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
+    use super::super::patch::nurbs_patch_face_rounds;
+    use super::super::run::LaneEnd;
     use super::*;
     use crate::props::quad::test_target::{self, bounds_of, encloses, met, patch, to_target};
+    use geom_core::Bounds;
     use geom_core::Tol;
-
 
     // ---------------------------------------------------------------
     // TRIM-2 PR-1 — the trimmed-region lane (Q1–Q7)

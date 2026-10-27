@@ -1,38 +1,27 @@
 //! TODO header
 
 use geom_core::Bounds;
+use geom_core::interval::Interval;
 use geom_core::interval::certification::Certification;
-use geom_core::interval::{Interval, certified_hi, cross, dot};
 use geom_core::spline::algebra;
 use geom_core::spline::net::TensorNet;
 use geom_core::spline::{
-    AxisCut, CellAxis, CellBlock, CellMeasureQuotients, CoeffWindow, Derived, KnotVector,
-    LooseKnots, Param, ParamRange, QuotientPiece, RingRefinement, SplineCoeffs, SplineCoeffsBuf,
-    TensorChannels, cell_measure_quotients, constant_weight, diagonal_in_span, restrict_segment,
+    AxisCut, CellAxis, CellBlock, CellMeasureQuotients, KnotVector, QuotientPiece, RingRefinement,
+    TensorChannels, cell_measure_quotients,
 };
-use geom_core::{Band, Decide, InfSpeed, Margin, Sign};
 
-use crate::descent::Work;
-use crate::offset_meters::mig;
+use super::area::PatchRect;
+use super::net::PatchNet;
 use crate::patch_bound::{certified_inf, certified_sup};
-use crate::props::bracket::{AbsEnclosure, lo_or_refuse, mid, pt};
-use crate::props::{PropsCheck, PropsError};
-use super::area::*;
-use super::cylinder::*;
-use super::green::*;
-use super::net::*;
-use super::patch::*;
-use super::rational::*;
-use super::run::*;
-use super::trig::*;
-use super::trimmed::*;
+use crate::props::PropsError;
+use crate::props::bracket::pt;
 
 /// Initial pieces PER AXIS of the 2-D composite rule (cells = p²).
 pub(super) const AXIS_INIT_PIECES: usize = 8;
 /// Blocks per axis for the RATIONAL lane's Taylor-remainder hulls
 /// (fixed, D9 — never data-dependent). `AXIS_INIT_PIECES` is a
 /// multiple of it, so every block owns whole cells at every
-/// refinement level ([`rational_patch_face`]).
+/// refinement level ([`rational_patch_face`](super::rational::rational_patch_face)).
 pub(super) const HULL_BLOCKS_PER_AXIS: usize = 8;
 
 /// Spans per axis the RATIONAL lane refines its bracketed net to
@@ -83,7 +72,7 @@ impl RefinedNet {
 }
 
 /// A cut per axis, `None` along an axis kept whole.
-pub(super) type CellCuts = (Option<AxisCut>, Option<AxisCut>);
+type CellCuts = (Option<AxisCut>, Option<AxisCut>);
 
 /// **The rational lane's measure quotients**
 /// ([`cell_measure_quotients`]): one per span cell of the ORIGINAL net
@@ -182,7 +171,11 @@ impl MeasureCells {
 
     /// A cell's `(G_u, G_v, hull(g))`: upper bounds on
     /// `|∂_d(S_u×S_v)|` and the range of `|S_u×S_v|` over `u × v`.
-    pub(super) fn area_bounds(&self, u: &SpanCell, v: &SpanCell) -> Result<(f64, f64, Interval), PropsError> {
+    pub(super) fn area_bounds(
+        &self,
+        u: &SpanCell,
+        v: &SpanCell,
+    ) -> Result<(f64, f64, Interval), PropsError> {
         let (q, cuts) = self.on(u, v)?;
         let on = q.area_on(cuts).ok_or(Self::REFUSED_CUT)?;
         let (g_u, g_v, g_hi) = (
@@ -280,7 +273,7 @@ pub(super) fn cell_midpoint(lo: f64, hi: f64) -> (f64, Interval) {
 
 /// The hull of a scalar quotient over its piece, from its coefficient
 /// ratios; [`MeasureCells::REFUSED_CUT`] when they do not certify.
-pub(super) fn ratio_hull(q: &QuotientPiece<Interval, 1>) -> Result<Interval, PropsError> {
+fn ratio_hull(q: &QuotientPiece<Interval, 1>) -> Result<Interval, PropsError> {
     let [(lo, hi)] = q.coordinate_range();
     if lo.is_certified() && hi.is_certified() && lo.lo().is_finite() && hi.hi().is_finite() {
         Ok(Interval::from_bounds(lo.lo(), hi.hi()))
@@ -328,7 +321,7 @@ pub(super) fn ratio_hull(q: &QuotientPiece<Interval, 1>) -> Result<Interval, Pro
 /// the hull blocks' containment.
 ///
 /// Nor is it [`algebra::domain_grid_points`], the knot-blind grid
-/// [`RefinedNet`] and [`bezier_blocks`] take: that grid runs over a knot
+/// [`RefinedNet`] and the trimmed lane's `bezier_blocks` take: that grid runs over a knot
 /// vector's own domain and clears only its interior knots, while this
 /// range is the trim rectangle's and its knots are a raw slice that may
 /// be a derivative's. Both are [`algebra::range_grid_points`]
@@ -416,8 +409,7 @@ pub(super) fn remainder_cell_v(hu: Interval, hv: Interval) -> Interval {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
-    use crate::props::quad::test_target::{self, bounds_of, encloses, met, patch, to_target};
-    use geom_core::Tol;
+    use geom_core::Bounds;
 
     /// Adjacent-float pairs from bases of both mantissa parities, near
     /// knots the tests use, across binades: 2 000 pairs from each.
