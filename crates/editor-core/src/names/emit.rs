@@ -390,8 +390,6 @@ pub enum NamingError {
     /// its own chart instead of turning it
     /// (`work/orbit/closed-sphere-escape-is-re-charted-by-rotation-beside-the-meridian-cut.md`).
     UnsupportedTurnedCell {
-        /// The operand whose sphere was re-charted.
-        operand: topo::Operand,
         /// The turned cell, in the operand's re-cut keys: an edge or a
         /// vertex.
         cell: topo::Cell,
@@ -2275,7 +2273,6 @@ mod display_tests {
             ),
             (
                 NamingError::UnsupportedTurnedCell {
-                    operand: topo::Operand::B,
                     cell: topo::Cell::Vertex(vtx),
                 },
                 vec!["turned a sphere", "its pole", "descends from no cell"],

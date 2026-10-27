@@ -1601,19 +1601,19 @@ pub(crate) fn refuse_turned_cells<T: geom_core::Real>(
             let (operand, k, _) = naming.operand_of(&inv_edges, r);
             let cell = topo::Cell::Edge(k);
             if turned(operand, cell) {
-                hit = Some((operand, cell));
+                hit = Some(cell);
             }
             hit.is_some()
         })?;
-        if let Some((operand, cell)) = hit {
-            return Err(NamingError::UnsupportedTurnedCell { operand, cell });
+        if let Some(cell) = hit {
+            return Err(NamingError::UnsupportedTurnedCell { cell });
         }
     }
     for (v, _) in body.vertices() {
         let (operand, k, _) = naming.operand_of(&inv_vertices, v);
         let cell = topo::Cell::Vertex(k);
         if turned(operand, cell) {
-            return Err(NamingError::UnsupportedTurnedCell { operand, cell });
+            return Err(NamingError::UnsupportedTurnedCell { cell });
         }
     }
     Ok(())
