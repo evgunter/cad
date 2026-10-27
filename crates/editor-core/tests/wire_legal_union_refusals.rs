@@ -524,7 +524,7 @@ fn orders(n: usize) -> Vec<Vec<usize>> {
 /// missing rule some other row owns.
 ///
 /// The refusal that must never appear is the fold's own contact verdict:
-/// `judge_pairwise_contact` passed every member pair before the fold,
+/// the n-ary door (`topo::nary_boolean`) judged every member pair before the fold,
 /// so a fold step that refuses a contact would be judging one no pair
 /// has (`fold_step_refusal`).
 fn every_order(

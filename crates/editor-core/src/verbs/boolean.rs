@@ -11,8 +11,9 @@
 //!   body AND name table the lowering reads — the arity the kernel
 //!   kernel door takes (`verbs::Boolean::run_pair`).
 //! - **The kernel inputs** (`BooleanInputs`): each operand's own
-//!   contact records and, at a union's fold step, the verdicts its
-//!   pairwise judgement decided, already in arena keys.
+//!   contact records, already in arena keys; a union's or an
+//!   intersect's, each member's records and rank (`MemberInputs`), for
+//!   the kernel's n-ary door (`verbs::Members::run_members`).
 //! - **The contact-record carry**: the surviving contacts come back
 //!   in the verb's record channel and the lowering carries them into
 //!   the boolean VALUE (`BooleanValue::Body { contacts, .. }`), the
@@ -31,8 +32,11 @@
 //! a future verb never has to open it.
 
 use geom_core::{Decide, Tol};
-use topo::{Body, BooleanInputs, BooleanNaming, BooleanOp, BooleanResultKind, ContactRecords};
-use verbs::{Boolean, VerbRecord};
+use topo::{
+    Body, BooleanInputs, BooleanNaming, BooleanOp, BooleanResultKind, ContactRecords, MemberInputs,
+    NaryOp,
+};
+use verbs::{Boolean, Members, VerbRecord};
 
 use crate::names::{self, NamingError};
 use crate::node::RecipeNodeId;
@@ -58,7 +62,10 @@ pub(crate) struct PairVerb<T: Decide> {
     /// **Op selector + kernel inputs → the kernel verb.** The one
     /// place a document's op selector and its lowered inputs become a
     /// [`verbs::Boolean`] payload, per instance.
-    pub(crate) build: fn(BooleanOp, BooleanInputs<T>) -> Boolean<T>,
+    pub(crate) build: fn(BooleanOp, BooleanInputs) -> Boolean,
+    /// **Operation + each member's inputs → the kernel's n-ary verb**,
+    /// the union's and the intersect's over their members.
+    pub(crate) members: fn(NaryOp, Vec<MemberInputs>) -> Members,
     /// This verb's naming emitter.
     pub(crate) emitter: PairEmitter<T>,
     /// **This family's arm of the closed record channel**, as a
@@ -87,11 +94,16 @@ pub(crate) struct BooleanRecord {
 
 /// The boolean's kernel payload. A named function rather than a
 /// closure so it can be a plain `fn` pointer in the struct above.
-fn build_boolean<T: geom_core::Real>(op: BooleanOp, inputs: BooleanInputs<T>) -> Boolean<T> {
+fn build_boolean(op: BooleanOp, inputs: BooleanInputs) -> Boolean {
     Boolean {
         op,
         inputs: Box::new(inputs),
     }
+}
+
+/// The n-ary kernel payload.
+fn build_members(op: NaryOp, members: Vec<MemberInputs>) -> Members {
+    Members { op, members }
 }
 
 /// The boolean family's arm of the record channel. Exhaustive with no
@@ -125,6 +137,7 @@ fn boolean_record<T: geom_core::Real>(record: VerbRecord<T>) -> Option<BooleanRe
 pub(crate) fn boolean<T: Decide>() -> PairVerb<T> {
     PairVerb {
         build: build_boolean,
+        members: build_members,
         emitter: names::name_boolean,
         record: boolean_record,
         foreign_record: "the boolean returned a record that is not a boolean's",
@@ -143,11 +156,19 @@ mod tests {
     #[test]
     fn the_correspondence_builds_the_boolean() {
         for op in [BooleanOp::Union, BooleanOp::Intersect, BooleanOp::Subtract] {
-            let v: Boolean<f64> = (boolean::<f64>().build)(op, BooleanInputs::default());
+            let v: Boolean = (boolean::<f64>().build)(op, BooleanInputs::default());
             assert_eq!(
                 v.kind(),
                 VerbKind::Boolean(op),
                 "the boolean correspondence built a {v:?}"
+            );
+        }
+        for op in [NaryOp::Union, NaryOp::Intersect] {
+            let v = (boolean::<f64>().members)(op, Vec::new());
+            assert_eq!(
+                v.kind(),
+                VerbKind::Boolean(op.op()),
+                "the boolean correspondence built a {v:?} over members"
             );
         }
     }
