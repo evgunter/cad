@@ -51,3 +51,31 @@ Signed: (CARVE orchestrator)
   that file until E merges. The alternative was to build `SHELL-3` on
   E's branch, but E is still under dual review, so its head is not
   stable. Designers run in the meantime (`plan.md`).
+
+## 2026-10-27 — designers on the symbolic tier and on self-intersection
+
+- **The symbolic tier: decided, with no `[ev]`.** Each designer was
+  shown the other's report for one round, and they converged. The
+  decision is on the row (`## Decided`) and in fork-log row 202. It
+  merged in #5864.
+  - The door goes generic over `&Body<T>`, and the arithmetic stays
+    `Interval` through a lift on read.
+  - A door value on `AtRestPolicy` replaces `MinClearanceLane`.
+  - It is built in two steps: SHELL-3 moves the engine with the generic
+    signature, then the symbolic row turns `Sym` on.
+  - Filed: `clearance-replays-a-leaf-off-the-verdicts-lane`.
+- **Self-intersection: three rounds, then converged.** Rounds 1 and 2
+  each crossed on one or more points, and round 3 asked only about the
+  metric doors' pairing rule. The converged design is on the row:
+  embedding, departure and monotone certificates, second order at
+  cusps, and the pairing rule dropped. Fork-log row 203.
+  - What waits on Ev is the rewording of ERROR-DESIGN E7's scope
+    clause: `[ev]` #5866, with `needs_ev` set on the row.
+  - Class finding, both designers: the normal-cone rules, right-angle
+    and half-space alike, are unsound (the 370° ribbon). Recorded on
+    the row.
+- **SHELL-3's spec is drafted and waits for INTENT's E (#5811) to merge.**
+  `min-separation-tightening-crosses-the-drive`'s designers also wait
+  for E, as that row asks.
+- **Blinding.** The byte for both forks was drawn late, after the first
+  reports and before any `[ev]` PR. Both rows say so.
