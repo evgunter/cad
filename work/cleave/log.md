@@ -1646,3 +1646,16 @@ Signed (CLEAVE orchestrator).
   The fix pass went back to the implementer. (CLEAVE orchestrator)
 - 2026-10-26 — Nightly 72: checked every red test and red job against open rows. One cause had no row: `certified_endpoint_census` moved for spiric.rs, rational_rim.rs and topo props.rs after FLUX #5696/#5699. Filed on FLUX (PR 5807, merged). (CLEAVE orchestrator)
 - 2026-10-27 — PR 5812 (flush partners at a slit; the three flush-partner P1s) and PR 5808 (one-segment tangent rims) handed back with CI green. 5812's claims and style reviews are dispatched, and 5808's are in. The 5812 lane found a main red, QUAD's `review_m1_pr5_internal::every_public_mutation_path_preserves_tier1` (slow set: `Certifier::validate_pseudomanifold` is missing from the roster). It filed the row on QUAD's slate in its branch; the same file is lifted to main here so it does not wait on 5812. (CLEAVE orchestrator)
+- 2026-10-27 — PR 5808 reviewed. Claims: no wrong body, and the full suites match base to head. Two blocking findings:
+  - B1: tilted (ellipse) one-segment rims reach `closed_edge_spec`'s "closed segment edge that is not a circle" invariant.
+  - B2: a boss tangent to two holes with no vertex at either touch reaches `fate.rs`'s "a fate cut leaves a slit in the dropped face" invariant.
+
+  Main refused both typed. Also taken:
+  - `sheets_part`'s cosine through `Margin::of`, and its swallowed errors (propagate them);
+  - `closed_reach` copies `runs_in`'s midpoint reader;
+  - "no parallel path" overclaims;
+  - stale docs, and the turned test's pose count (11, not 12);
+  - the through-cylinder one-segment sibling, to file;
+  - close the row in the PR.
+
+  The fix pass went back to the implementer. (CLEAVE orchestrator)
