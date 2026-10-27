@@ -79,3 +79,7 @@ The prose arms are also listed by `kernel-bug-refusals-end-without-the-shared-en
 **Class 3** (`JoinRefusal::Kernel`): the last-resort recourse where certification's limit refused, as SELECT's row decides it. Do not panic.
 
 **`JoinRefusal::Kernel` wraps more than certification** (ENCL, PR 5528's review). `JoinRefusal::of` (`boolean/edge_join.rs`) turns every `BooleanError` that is not `JoinUndecided` or `JoinCarrierUnsupported` into `Kernel`. Besides Euler certification, that covers the bug-only `JoinDesync` arms (`edge_join.rs` ~952, ~1096), `MixedSeam` from the pair rule over the joined span (~1017), and `ops::seam_refusal`'s lever rung (`BooleanError::of_lever_rung` on `LeverArm::Seam`) and `Escalated { SeamJet }` from the `OnPair` re-ask (~1015). The wrapper hides the seam lever those carry. PR 5528 keeps the last resort at a build as the one ending honest across the mix. Repair: split `Kernel` by cause, so the seam refusals surface their own lever, the bug-only arms take their own reading, and the certification limit keeps the last resort.
+
+## The volume backstop left the operation path (2026-10-27)
+
+PR 5842, under `[ev]` PR 5780 (the boolean's volume relations are a test oracle, `topo::test_support::volume_relations`), deleted the backstop: `BooleanError::{ResultVolumeImplausible, VolumeUnmeasured, VolumeCorrupt, VolumeUndecided}`, `BooleanDecision::VolumeBackstop`, `AtRestPolicy::gate_volume_backstop` and the `volume_backstop*` predicates are gone. Its `refusal_routes.rs` `VolumeBackstop` item is gone; the rest stand.

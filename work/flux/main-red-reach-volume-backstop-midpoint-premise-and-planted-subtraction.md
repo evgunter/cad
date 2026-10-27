@@ -2,10 +2,12 @@
 id: main-red-reach-volume-backstop-midpoint-premise-and-planted-subtraction
 kind: issue
 title: main red: reach_volume_backstop's midpoint premise holds no more and its planted subtractions stop refusing, since 692f50942c
-status: open
+status: closed
 opened: 2026-10-27
 priority: P2
 cost: E
+pr: 5842
+closed: 2026-10-27
 ---
 
 
@@ -29,3 +31,7 @@ Red on main `be2b7a139c` and on `2f9e6f9e39`, with output identical to
 the PR's tree. Both rows were green in E1b's earlier full round on a
 tree carrying main `692f50942c`, so the move landed between
 `692f50942c` and `be2b7a139c`; not bisected.
+
+## Closed (2026-10-27)
+
+The volume backstop left the boolean's operation path (`[ev]` PR 5780: the volume relations are a test oracle the suites run on their own results, `topo::test_support::volume_relations`), so nothing refuses or passes on it. `reach_volume_backstop.rs` is now `curved_trims_build_at_their_volumes.rs`: the midpoint row tested the backstop's enclosure arithmetic and is deleted with it, and the planted subtractions are oracle rows (`planted_subtraction_results_break_the_volume_relations`: 1e-3 and 100ε fattenings flagged, the right answer and ε/100 held).

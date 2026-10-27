@@ -60,3 +60,7 @@ right, re-cut the digest at all three ε and say what moved. Re-pose the
 three-arc fixture so its premise holds again, and do not loosen its
 assertion. Then find why the planted ε/100 fattening refuses, and fix it
 at its source.
+
+## The volume backstop left the operation path (2026-10-27)
+
+PR 5842, under `[ev]` PR 5780 (the boolean's volume relations are a test oracle, `topo::test_support::volume_relations`), deleted the backstop: `BooleanError::{ResultVolumeImplausible, VolumeUnmeasured, VolumeCorrupt, VolumeUndecided}`, `BooleanDecision::VolumeBackstop`, `AtRestPolicy::gate_volume_backstop` and the `volume_backstop*` predicates are gone. The two `reach_volume_backstop` rows are settled: the file is now `curved_trims_build_at_their_volumes.rs`, the midpoint row is deleted with the backstop, and the planted subtractions are oracle rows (`planted_subtraction_results_break_the_volume_relations`). The thread-count digest's `tilted_cut_upper` line is this row's remaining red.

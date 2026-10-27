@@ -2,10 +2,12 @@
 id: undersized-rest-shaft-union-refuses-volume-backstop-while-intersect-and-differences-build
 kind: issue
 title: A shaft declared Rest 1e-10 under its bore: the union refuses ResultVolumeImplausible while ∩ and ∖ build, so the four ops disagree on whether it is a mate
-status: open
+status: closed
 opened: 2026-10-03
 priority: P2
 cost: M
+pr: 5842
+closed: 2026-10-27
 ---
 
 
@@ -37,3 +39,7 @@ shells and never meet the backstop. One mate, four ops, two answers to
 Whether the backstop's bound should carry the bridged displacement
 (the declared pair's band, times its area) or the zip should build to
 the smaller operand is the open question.
+
+## Closed (2026-10-27)
+
+The volume backstop left the boolean's operation path (`[ev]` PR 5780: the volume relations are a test oracle the suites run on their own results, `topo::test_support::volume_relations`), so nothing refuses or passes on it. The union returns the body the backstop refused, 3.1e-10 m³ (the 1e-10 bridged gap over the bore) above vol(A) + vol(B), within the ε of boundary displacement a correct result may carry; the four ops now agree the pair is a mate. Not re-measured here.

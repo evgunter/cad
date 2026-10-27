@@ -97,3 +97,4 @@ cleave-tangency)
 - 2026-10-26 — (easy-fixes lane) `a-kef-of-a-completed-null-face-is-ruled-out-by-a-debug-assert`: the guard is an `unreachable!` in every build. The row stays open on its proof or witness.
 - 2026-10-26 — (easy-fixes lane) Filed `topo-test-frames-hand-roll-the-across-axis-reference` (P4 E): four topo test fixtures hand-roll an across-axis reference beside `Vec3::orthonormal_basis`.
 - 2026-10-26 — `topo-test-frames-hand-roll-the-across-axis-reference` moved to PROBE, beside its sibling (HONE is now the P2 margins track).
+- 2026-10-27 — (seam, CLEAVE PR 5842) The volume backstop left the boolean's operation path under `[ev]` PR 5780 (its relations are a test oracle, `topo::test_support::volume_relations`): closed `the-subtract-volume-backstop-holds-flush-operands-bit-exact-and-refuses-a-correct-bar`: the turned bar builds.

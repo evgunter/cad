@@ -2,10 +2,12 @@
 id: main-red-reach-volume-backstop-rows-after-the-exact-sliver-bracket
 kind: issue
 title: Main red (slow set): two reach_volume_backstop rows fail since PR 5734's exact cylinder-sliver bracket
-status: open
+status: closed
 opened: 2026-10-26
 priority: P1
 cost: M
+pr: 5842
+closed: 2026-10-27
 ---
 
 
@@ -49,3 +51,7 @@ slow-set triage lane (branch `splice/slow-set-reds`).
 Decide, on FLUX's ground, whether the new readings are right. If they
 are, re-meter `last_round_open` and its doc and give the midpoint row
 a pair whose midpoints still differ. If they are not, fix the bracket.
+
+## Closed (2026-10-27)
+
+The volume backstop left the boolean's operation path (`[ev]` PR 5780: the volume relations are a test oracle the suites run on their own results, `topo::test_support::volume_relations`), so nothing refuses or passes on it. `reach_volume_backstop.rs` is now `curved_trims_build_at_their_volumes.rs`: the midpoint row tested the backstop's enclosure arithmetic and is deleted with it, and the planted subtractions are oracle rows (`planted_subtraction_results_break_the_volume_relations`: 1e-3 and 100ε fattenings flagged, the right answer and ε/100 held); `last_round_open` is gone.

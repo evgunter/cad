@@ -35,3 +35,7 @@ decided on a mean width or thickness, which no row questions today. For
 each site, either meter the sign at a lever where it is a point's
 displacement, or decide it by its certified sign alone (as PR 5119 does
 for the volume fallback).
+
+## The volume backstop left the operation path (2026-10-27)
+
+PR 5842, under `[ev]` PR 5780 (the boolean's volume relations are a test oracle, `topo::test_support::volume_relations`), deleted the backstop: `BooleanError::{ResultVolumeImplausible, VolumeUnmeasured, VolumeCorrupt, VolumeUndecided}`, `BooleanDecision::VolumeBackstop`, `AtRestPolicy::gate_volume_backstop` and the `volume_backstop*` predicates are gone. The backstop's V/A readers are gone with it (FLUSHTAIL's `the-volume-backstops-plus-v-posture-reads-a-sign-the-side-reader-cannot`, closed); the other sites stand.
