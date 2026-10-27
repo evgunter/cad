@@ -992,9 +992,9 @@ fn run_at<T: editor_core::EvalScalar>(
 /// for bit, one translation entry (`z`) moved by an ulp, and five of
 /// their vertices by an ulp each. Every other pose is main's.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0xaa45_2c35_08a5_7082),
-    (1e-6, 0x12ee_6451_f129_634c),
-    (1e-12, 0x8257_e764_d53a_2109),
+    (1e-9, 0xd5ec_4277_864d_1dcf),
+    (1e-6, 0x35c1_08d4_5569_8e4e),
+    (1e-12, 0x132e_b1b7_811d_4fd3),
 ];
 
 /// **Each seat of the corpus stands on what it is seated on**: in the
@@ -1045,6 +1045,12 @@ fn each_seat_stands_on_what_it_is_seated_on() {
 
 /// **A3, the `f64` fence**: the corpus's solved poses, spaces, faults and
 /// evaluations are byte-identical to the pre-generic tree's.
+///
+/// RE-BLESSED for limb 2 for every carrier (PR 5728): check 2's turn
+/// moved from the edge's `Certificate` onto the edge, which changes the
+/// edge curve's `Debug` the digest feeds. With that `Debug` written in
+/// main's shape every digest here reproduces main's value at all three
+/// ε rows, so nothing else moved.
 #[test]
 fn a3_the_f64_solve_is_mains_bit_for_bit_on_the_mate_corpus() {
     let eps = Tol::witness().eps();

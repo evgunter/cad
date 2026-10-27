@@ -103,8 +103,9 @@ pub mod torus_convention;
 pub use carrier_net::CarrierEnclosureRefusal;
 pub use certify::{
     CERT_SAMPLES, CertCheck, Certificate, CertifiedTurn, CertifyError, DraftedIntersection,
-    EdgeCurve, EdgeCurveSpec, ForwardReading, IntersectionDraft, NurbsLane, StatedImage,
-    StatedSpan, WindingReading, edge_extent, folded_parallelism, sample_param, schedule_param,
+    EdgeCurve, EdgeCurveSpec, ForwardReading, IntersectionDraft, MintedEdge, NurbsLane, SplineFoot,
+    StatedImage, StatedSpan, WindingReading, edge_extent, folded_parallelism, sample_param,
+    schedule_param,
 };
 pub use conic_bend::{BendBounds, ConicBend, ConicDeparture, conic_bend_side};
 pub use description::{
@@ -125,7 +126,8 @@ pub use dihedral_side::{
 };
 pub use edge_nurbs::{
     AnalyticRung3Refusal, CARRIER_DOMAIN_RECOURSE, CarrierDomainFault, CarrierDomainRefusal,
-    IncidenceRefusal, PlaneNurbsIncidence, PlaneNurbsLimbs, PlaneNurbsRefusal, Rung3Limb,
+    IncidenceRefusal, KERNEL_LIMIT_EXTENT_FACTOR, KERNEL_LIMIT_ROUNDING_FACTOR,
+    PlaneNurbsIncidence, PlaneNurbsLimbs, PlaneNurbsRefusal, Rung3Limb, analytic_edge_limbs,
     analytic_rung3, arc_rim_candidates, arc_rim_measured, first_within, is_analytic,
     nurbs_pair_limbs, pick_arc_rim, plane_nurbs_incidence, plane_nurbs_limbs, probe_pick,
     sub_arc_joint,

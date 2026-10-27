@@ -1126,7 +1126,7 @@ pub fn construction<P: crate::ProfilePayload>(
                     (RoleSeg::CrossingVertex { .. }, Node::Split { .. }) => {
                         let half = split_half(doc, read).ok_or(Unwalked::Misplaced(at))?;
                         Ok(Construction {
-                            origin: Origin::Minted(crossing(name, half)),
+                            origin: Origin::Minted(crossing(name, half, at)?),
                             maps,
                         })
                     }
@@ -1170,13 +1170,22 @@ fn split_half<P>(doc: &crate::doc::Doc<P>, read: crate::VarId) -> Option<crate::
 /// is the `Above` copy's read the other way (`Sense::other_half`). A
 /// crossing holds one piece of the edge on each side, so its sense
 /// always crosses.
-fn crossing(mut name: StableName, half: crate::SplitHalf) -> StableName {
+///
+/// # Errors
+///
+/// [`Unwalked::Misplaced`] at `at` for a `Below` copy whose sense no
+/// split reads on its line, which has no other half's read.
+fn crossing(
+    mut name: StableName,
+    half: crate::SplitHalf,
+    at: RecipeNodeId,
+) -> Result<StableName, Unwalked> {
     if half == crate::SplitHalf::Below
         && let Some(RoleSeg::CrossingVertex { edge, sense }) = name.path.first_mut()
     {
-        *sense = sense.other_half(edge);
+        *sense = sense.other_half(edge).ok_or(Unwalked::Misplaced(at))?;
     }
-    name
+    Ok(name)
 }
 
 /// **The operation defining the read `read`** that `at` takes (D10).

@@ -2,13 +2,15 @@
 id: closed-form-edge-carriers-pass-on-samples-with-no-stated-bound-between-them
 kind: unit
 title: A closed-form Intersection carrier passes its certificate on nine samples with no stated bound between them; the standing is provenance read off the variant
-status: spec
+status: closed
 opened: 2026-10-24
 priority: P0
 cost: H
 refs: [offset-lane-has-no-conic-carrier]
 parent: offset-lane-has-no-conic-carrier
 branch: offset/limb2-for-every-carrier
+closed: 2026-10-26
+pr: 5728
 ---
 
 
@@ -77,3 +79,39 @@ Banded P0 as part of the P0 build; it is also what closes the latent gap
   File a row for each gap found.
 
 The lane's earlier branch is `offset/limb2-for-every-carrier`, head `452e7d8757`.
+
+## Closed
+
+Built on branch `offset/limb2-for-every-carrier` on Ev's ruling on PR
+5689.
+
+- **The door split.** `geom_brep::EdgeCurve::mint` (generic over
+  `Decide`) constructs the canonical description, carrier, interval and
+  turn into a `MintedEdge`; `EdgeCurve::certify`, `certify_stated`,
+  `recertify` and `recertify_stated` are bounded on
+  `Decide + CertifiedBounds` and take `NurbsLane` as a plain argument
+  (`crates/geom-brep/src/certify.rs`). What an edge carries is the
+  scalar's: `geom_core::Real::Carries` is the `Certificate` at a
+  certifying scalar and `geom_core::Uncertified` at a dual, and only a
+  certifying scalar can hold a record (`CertifiedEnclosure::carried`)
+  while only a tangent-transport scalar can hold none
+  (`geom_core::TangentTransport`, `EdgeCurve::uncertified`). The policy's
+  edge door is `topo::AtRestPolicy::attach_edge`/`reattach_edge`; a
+  certifying door at a dual is a compile error (the `compile_fail` row on
+  `EdgeCurve::certify`). `Option<NurbsLane>`, `CertifyError::NurbsLaneNotSupplied`,
+  `topo::policy_lane::ByPolicy`, `EulerOpError::NurbsLaneUnsupported`
+  and `TransformError::NurbsLaneUnsupported` are gone; the spline foot
+  moved off the lane to `geom_brep::SplineFoot`.
+- **Limb 2 for every closed-form carrier**, as the earlier branch built it
+  (`edge_nurbs::analytic_edge_limbs`, `pcurve_cache::closed_form_offset_sup`);
+  the tube obligation is unchanged (unit 3).
+- **The dual corpus evaluates again**: the 63 dual rows of `editor-core`
+  and `sweep` pass (39 refused on the earlier branch).
+- **At `f64`** every at-rest door's check 2 runs the scalar's edge door,
+  so the `_structural` doors now re-derive every edge in full too.
+
+Filed: `a-dual-reads-the-closed-form-where-f64-escalates-to-the-quadrature`
+(the escalation check), `the-policys-other-lanes-encode-certification-rights-as-a-runtime-none`
+(the other optional lanes). The cost row
+`closed-form-limb-2-costs-milliseconds-per-curved-edge` stays open with
+this PR's measurements.

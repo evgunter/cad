@@ -6492,45 +6492,55 @@ mod frame_dispatch_tests {
     /// serve, so it escalates on the split.
     #[test]
     fn a_rim_patchs_turn_is_levered_at_its_arcs_in_the_germ_frame() {
-        let eps = Tol::witness().eps();
-        let (r, e, w) = (1000.0, 1e3 * eps, 1e5 * eps);
-        let mut body = crate::Body::<f64>::new();
-        let face = crate::test_support_fixtures::cyl_wall_sheet(
-            &mut body,
-            crate::test_support_fixtures::CylFrame::canonical(r),
-            (0.0, w / r),
-            (0.0, e),
-            Tol::witness(),
+        // Pinned to limb 2's kernel limit at ε = 1e-12: the 1 km-radius rim rounds at its radius
+        // (`work/offset/the-closed-form-net-builder-rounds-at-a-km-radius-not-at-the-span.md`).
+        test_utils::kernel_limit::pinned_row(
+            geom_core::Tol::witness().eps(),
+            &[1e-12],
+            "a_rim_patchs_turn_is_levered_at_its_arcs_in_the_germ_frame",
+            || {
+                let eps = Tol::witness().eps();
+                let (r, e, w) = (1000.0, 1e3 * eps, 1e5 * eps);
+                let mut body = crate::Body::<f64>::new();
+                let face = crate::test_support_fixtures::cyl_wall_sheet(
+                    &mut body,
+                    crate::test_support_fixtures::CylFrame::canonical(r),
+                    (0.0, w / r),
+                    (0.0, e),
+                    Tol::witness(),
+                );
+                for k in [0.5, 0.8, 0.95] {
+                    let c = k * Tol::witness().eps() / e;
+                    let normal = Vec3::new(0.0, (1.0 - c * c).sqrt(), c);
+                    for (label, got) in plane_frames(&body, face, Point3::new(r, 0.0, 0.0), normal)
+                    {
+                        assert_eq!(
+                            verdict(&got),
+                            "pc_axis_plane_parallel_straddle",
+                            "k = {k} ({label}): the span's rulings against the whole turn's conic"
+                        );
+                        let Err(FrameError::Escalated { diag, .. }) = got else {
+                            unreachable!("named as an escalation")
+                        };
+                        // The Boolean's ending: the section question's lever alone,
+                        // the straddle's, with no unreadable-margin note — the
+                        // enclosure is read, where the poison it replaced was not.
+                        let said = crate::boolean::BooleanError::coincidence(
+                            crate::boolean::Coincide::Section,
+                            crate::boolean::DeclarationRead::Moot,
+                            diag,
+                        )
+                        .to_string();
+                        assert!(
+                        said.ends_with(
+                            "Recourse: move the parts so they clearly meet or clearly stand apart there"
+                        ) && !said.contains(geom_core::UNREADABLE_MARGIN_NOTE),
+                        "k = {k} ({label}): {said}"
+                    );
+                    }
+                }
+            },
         );
-        for k in [0.5, 0.8, 0.95] {
-            let c = k * Tol::witness().eps() / e;
-            let normal = Vec3::new(0.0, (1.0 - c * c).sqrt(), c);
-            for (label, got) in plane_frames(&body, face, Point3::new(r, 0.0, 0.0), normal) {
-                assert_eq!(
-                    verdict(&got),
-                    "pc_axis_plane_parallel_straddle",
-                    "k = {k} ({label}): the span's rulings against the whole turn's conic"
-                );
-                let Err(FrameError::Escalated { diag, .. }) = got else {
-                    unreachable!("named as an escalation")
-                };
-                // The Boolean's ending: the section question's lever alone,
-                // the straddle's, with no unreadable-margin note — the
-                // enclosure is read, where the poison it replaced was not.
-                let said = crate::boolean::BooleanError::coincidence(
-                    crate::boolean::Coincide::Section,
-                    crate::boolean::DeclarationRead::Moot,
-                    diag,
-                )
-                .to_string();
-                assert!(
-                    said.ends_with(
-                        "Recourse: move the parts so they clearly meet or clearly stand apart there"
-                    ) && !said.contains(geom_core::UNREADABLE_MARGIN_NOTE),
-                    "k = {k} ({label}): {said}"
-                );
-            }
-        }
     }
 
     /// **A face at one station is cut across the axis in a conic, by the
