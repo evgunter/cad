@@ -374,16 +374,16 @@ rims: list[str] = ev.select_where(
 )
 narrowed_blend: NodeId = doc.insert(Node.fillet(lightened, Formula.length_in(0.01, m), straight))
 
-# The structural half: role-path shape, sides, sub-name prefixes, the
+# The structural half: role-path shape, sides, sub-name arguments, the
 # union — and `matches` on a materialized name, the binding reading
 # the text so your code never does.
 top_rim: Selector = Selector.of(
     NamePat.of_kind(EntityKind.Edge).seg(SegPat.tag(SegTag.RimEdge).side(CapEnd.End))
 )
-from_a: NamePat = NamePat.any().seg(
+cap_side: NamePat = NamePat.any().seg(
     SegPat.tag(SegTag.Seam).of([NamePat.of_kind(EntityKind.Face).seg(SegPat.tag(SegTag.Cap))])
 )
-both: Selector = top_rim.or_(from_a)
+both: Selector = top_rim.or_(cap_side)
 structural: list[str] = ev.select(lightened, both)
 hit: bool = both.matches(blend_edges[0])
 
