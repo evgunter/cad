@@ -397,7 +397,7 @@ fn a_corrupt_body_does_not_finish_and_the_raw_door_panics_only_where_it_did() {
 /// through the raw door, the inner shell's flip measures a positive,
 /// wrong volume with no refusal, the shell's sign flipping under a total
 /// that stays positive
-/// (`work/flux/a-sphere-shell-flipped-whole-in-a-multi-shell-body-measures-wrong-at-the-door.md`).
+/// (`a-sphere-shell-flipped-whole-in-a-multi-shell-body-measures-wrong-at-the-door`, closed by PR 5590).
 #[test]
 fn a_whole_flipped_shell_of_two_does_not_finish_and_the_raw_door_measures_it_wrong() {
     let tol = Tol::witness();

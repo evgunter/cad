@@ -1,6 +1,6 @@
 //! **Certified vector area of a rational spline rim** — the plane cap a
 //! `Curve3::Nurbs` with varying weights bounds
-//! (`work/flux/a-planar-face-bounded-by-a-rational-spline-rim-has-no-vector-area.md`).
+//! (`a-planar-face-bounded-by-a-rational-spline-rim-has-no-vector-area`, closed by PR 5689).
 //!
 //! A plane's flux is `anchor·A⃗` and its area `‖A⃗‖`, so the cap needs
 //! only each edge's vector-area term `(1/2)∫(P − ref) × P′ dt`. On a
@@ -636,7 +636,7 @@ mod tests {
     /// but is not live within the schedule's reach: `1/w²` peaks near
     /// `1e12` over about `1e-6` of the parameter, which equal pieces do not
     /// resolve
-    /// (`work/flux/a-rational-rim-with-a-near-zero-weight-is-not-live-on-equal-pieces.md`).
+    /// (`work/spanfold/a-rational-rim-with-a-near-zero-weight-is-not-live-on-equal-pieces.md`).
     #[test]
     fn a_high_degree_or_wide_weight_rim_holds_its_truth_and_narrows() {
         for (name, c, r, ends, truth) in hard_cases() {

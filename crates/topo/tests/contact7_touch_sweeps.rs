@@ -19,7 +19,7 @@ fn refused(body: &Body<f64>) -> bool {
     let errors = validate_pseudomanifold(body, &ContactRecords::default(), Tol::witness())
         .err()
         .unwrap_or_default();
-    !common::placement_findings(&errors).is_empty()
+    !common::placement_findings(body, &errors).is_empty()
 }
 
 /// What the census says of the placement: the first placement finding's
@@ -32,7 +32,7 @@ fn why(body: &Body<f64>) -> String {
         .iter()
         .find_map(|e| match e {
             ValidationError::CensusUndecidable { what, .. } => Some((*what).to_owned()),
-            e if common::is_decided_overlap(e) => Some("interference".to_owned()),
+            e if common::is_decided_overlap(body, e) => Some("interference".to_owned()),
             _ => None,
         })
         .map(|w| w.chars().take(70).collect())

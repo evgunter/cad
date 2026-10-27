@@ -6,6 +6,7 @@ status: open
 opened: 2026-10-26
 priority: P2
 cost: M
+design: true
 refs: [a-recorded-skip-scaffold-rests-declared-by-its-own-pushforward]
 ---
 
@@ -148,3 +149,18 @@ are `pub`. So any door can stamp any kind on a refusal:
 `pcurves::certify_refused` is the one constructor in the kernel only by
 convention. Should the stamp be unforgeable (a sealed constructor that
 reads the edge), or is the convention enough?
+
+## Ruling (Ev, `[ev]` PR 5838, 2026-10-27)
+
+Q1, after Ev asked "how can we just make it not happen?": the designers' joint answer ("looking good").
+- Topo's construction tier is the kernel's internal API: the Euler operators, `Body::set_edge_curve`, the edge and face description setters, and their spec types. pncad stops re-exporting it.
+- Every curve-and-face pair topo reads at a build is the kernel's own, so a definite incidence miss at a build is a kernel defect.
+- A future verb that takes a user's curve refuses it at its own door, with its own lever.
+- No ending reads `EdgeAuthority`. It is provenance only. `AuthorityKind`, `DeclaredOffChart`, `DeclaredIncidence` and `render_by` go.
+- A read in band (at a pose or undecided) ends in the decision's lever at every door. At rest, a definite miss is a stored contradiction.
+- A later unit: a refusal's `Display` carries only its payload, and its ending exists only through `render(at)`, with a gate over the production spelling sites.
+
+Q2: while import healing does not exist, an incidence refusal at the import door ends in the damaged-file ending, without mentioning ε_in. The healing row and the later ε_in wording are tracked in `work/exch/adoption-rebuilds-caches-at-eps-from-eps-in-interpretation.md`.
+
+The text: geom-brep README D3 and DESIGN D4 ¶1 (iv) (this PR). The implementation is `work/pcert/plan.md` E1d, and E1c follows it.
+

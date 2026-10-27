@@ -2,10 +2,12 @@
 id: an-integral-patch-with-knots-hugging-its-edges-trips-the-area-gauge
 kind: issue
 title: quad: an integral patch with knots 1e-9 from both trim edges certifies an area 2e7 wide and trips the A2 area-gauge debug_assert
-status: open
+status: closed
 opened: 2026-10-22
-priority: P2
+priority: P1
 cost: M
+closed: 2026-10-27
+branch: quad/knots-hugging-area-gauge
 ---
 
 
@@ -60,3 +62,27 @@ Still holds, and main is still red. Re-run at 1e-6, 1e-9 and 1e-12:
 with `ARM: perimeter. Width 20009765.101737916 on a face whose perimeter
 is at least 8`. These are the same numbers as before. The lane is
 `nurbs_patch_face_rounds` (`props/quad/patch.rs:176`).
+
+## 2026-10-27 — closed: the hull leaked the sliver span, not the rule
+
+`props::quad::net::range_hull` located a cell's closed end with
+`span_range`, which puts a knot in the span STARTING at it. Every
+middle-span area cell ending on `1 − 1e-9` therefore hulled the
+sliver span `[1 − 1e-9, 1]`, whose derivative coefficients are ~1e9,
+into its `S_u` hull: 64 cells × ~2.4e5 each is the 2e7 the gauge saw.
+The enclosure was sound but wide. The gauge's assert was right to
+call it lost geometry.
+
+The fix stops a range that ends on a knot at the span ending there.
+That is sound for every `KnotVector` direction because a clamped
+spline is continuous, so the left span's coefficients already hull the
+value at that knot. The probe now reads area `[1.1279, 3.7245]`, which
+is the rational twin's bracket. An independent oracle (arc length of
+the section, span-local Gauss–Legendre) gives `2.42841842244066`,
+inside it. The remaining width is the one-cell hull floor on each
+sliver span.
+
+The `Loose` arms keep closed-range semantics, because a `Raw` or
+`Const` direction is discontinuous at its knots. The same locator shape
+in `geom-core` and `ssi` is filed as `nurbs`'
+`a-closed-range-ending-on-a-knot-hulls-the-span-starting-there`.

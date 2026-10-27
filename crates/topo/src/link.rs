@@ -1883,6 +1883,17 @@ pub(crate) enum Germ<T: Real> {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct AtTheAxis;
 
+impl<T: Real> Germ<T> {
+    /// The touch point a link is about; `None` for a round face, which
+    /// holds no point of its own.
+    pub(crate) fn point(&self) -> Option<Point3<T>> {
+        match self {
+            Self::Cone(link) => Some(link.p),
+            Self::Round { .. } => None,
+        }
+    }
+}
+
 /// What a [`Round`]'s carrier is round about.
 #[derive(Clone, Copy, Debug)]
 enum Axis<T: Real> {
@@ -2142,9 +2153,17 @@ pub(crate) mod rest {
     /// A crossing is claimed on decided readings only; any other
     /// reading the test needed in band, or a sector whose pieces did not
     /// cut, leaves the touch [`TouchUnread::InBand`] (or the cut's own
-    /// refusal), and a probe lying on another face of its own link (a
-    /// slit, or a face doubled) leaves it [`TouchUnread::Degenerate`] —
-    /// never a crossing and never a rest.
+    /// refusal). A piece is SKIPPED, read for no crossing and no
+    /// overlap, where its probe reads on the plane of another sector of
+    /// its own link (`side == Some(Zero)`) and that sector's `place` of
+    /// it is `Inside` or `Bound` (a slit, or a face doubled: a fin, with
+    /// no material behind it), which notes the touch
+    /// [`TouchUnread::Degenerate`], or `None`, which notes it
+    /// [`TouchUnread::InBand`]. A skipped piece costs completeness, not
+    /// soundness: the argument for (1) and (2) holds of every piece read,
+    /// and a touch with a skipped piece never reads as a rest, so a
+    /// crossing that only a skipped piece would show refuses rather than
+    /// clears.
     pub(crate) fn judge<T: Decide>(a: &Link<T>, b: &Link<T>, band: Band) -> TouchVerdict {
         // Every reading over the pair is taken about `p`, while each
         // sector stands on its own apex, off `p` by at most its link's
@@ -2182,25 +2201,37 @@ pub(crate) mod rest {
             for (k, pieces) in &all[side] {
                 let s = &own.sectors[*k];
                 for &(c0, c1) in pieces {
-                    if crosses(other, &cut, &rays, (c0, c1), rd, &mut notes) {
-                        let mut scratch = Notes::default();
-                        if crosses(other, &cut, &rays, (near(c0), near(c1)), rd, &mut scratch) {
-                            return TouchVerdict::Crossing;
-                        }
-                        notes.in_band = true;
-                    }
                     let probe = c0 + (c1 - c0) * T::from_f64(0.5);
-                    // On another face of its own link: a slit or a face
-                    // doubled, no boundary the probe can stand on.
+                    // On another face of its own link (a slit or a face
+                    // doubled, no boundary the probe can stand on and no
+                    // material behind it), or in band of one: the piece
+                    // is skipped, and the touch never reads as a rest.
+                    let mut on_own = false;
                     for (j, t) in own.sectors.iter().enumerate() {
                         if j == *k || own.side(t, probe, rd) != Some(Sign::Zero) {
                             continue;
                         }
                         match t.place(own.p, probe, rd) {
                             Some(Place::Outside) => {}
-                            Some(Place::Inside | Place::Bound) => notes.degenerate = true,
-                            None => notes.in_band = true,
+                            Some(Place::Inside | Place::Bound) => {
+                                notes.degenerate = true;
+                                on_own = true;
+                            }
+                            None => {
+                                notes.in_band = true;
+                                on_own = true;
+                            }
                         }
+                    }
+                    if on_own {
+                        continue;
+                    }
+                    if crosses(other, &cut, &rays, (c0, c1), rd, &mut notes) {
+                        let mut scratch = Notes::default();
+                        if crosses(other, &cut, &rays, (near(c0), near(c1)), rd, &mut scratch) {
+                            return TouchVerdict::Crossing;
+                        }
+                        notes.in_band = true;
                     }
                     // Every point strictly inside the piece reads its one
                     // cell, so any one that decides is the piece's
