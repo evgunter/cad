@@ -24,7 +24,8 @@
 //! and between whose carriers the overlap lies, which the kernel's
 //! boolean decides (`beyond`). **What quiets a contact**
 //! ([`quiet_contact`]): a holding `Gap = 0` between the row's two cells,
-//! at whatever dimension they are. Both read the assertion's verdict,
+//! at whatever dimension they are, an at-rest row's or an operation's
+//! alike. Both read the assertion's verdict,
 //! never its measure's value, and an assertion speaks for nothing but
 //! its own site: every other finding is loud.
 //!
