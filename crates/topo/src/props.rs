@@ -6898,13 +6898,13 @@ pub trait AtRestPolicy: Decide {
         >,
     >;
 
-    /// **A spline chart's own length scale at `p` over `reach`, at this
-    /// scalar, or `None` where none is read here** — the arm the
-    /// boolean's seam reading levers a spline face's normal over
-    /// ([`geom_brep::NurbsLane::chart_arm`], [`geom_brep::classify_seam`]).
-    /// It is read from certified curvature bounds, at the certifying
-    /// scalars alone; a dual answers `None`, and the seam's arm reads
-    /// poison and escalates.
+    /// **A certified lower bound on a spline chart's arm at `p` over
+    /// `reach`, at this scalar, or `None` where none is read here** — the
+    /// lower end of the bracket the boolean's seam reading levers a spline
+    /// face's normal over ([`geom_brep::NurbsLane::chart_arm`],
+    /// [`geom_brep::classify_seam`]). It is read from certified curvature
+    /// bounds, at the certifying scalars alone; a dual answers `None`, and
+    /// the seam reads smooth or escalates, never transverse.
     fn spline_chart_arm(
         chart: &geom::NurbsSurface<Self>,
         p: geom_core::Point3<Self>,

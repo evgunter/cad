@@ -2531,18 +2531,18 @@ impl<T: Real> NurbsLane<T> {
         (self.surface_foot)(surface, point)
     }
 
-    /// **`chart`'s own length scale at `p`, over `reach`**: the largest
-    /// radius within `reach` over which a certified bound on the chart's
-    /// principal curvatures stays at most its reciprocal
-    /// ([`crate::offset_meters`]' `chart_arm`), the arm a spline face's
-    /// normal is levered over ([`crate::classify_seam`]). It reads the
-    /// chart near `p` alone: a bend farther out than the arm is not
-    /// charged, since a shorter arm shrinks every margin levered over it
-    /// toward Zero ([`crate::curvature_lever_arm`]'s docs).
+    /// **A certified lower bound on `chart`'s length scale at `p`, over
+    /// `reach`** (`crate::offset_meters`' `chart_arm`, which names its
+    /// slack): the largest radius within `reach` over which a certified
+    /// bound on the curvature of the chart's cells stays at most its
+    /// reciprocal. The true arm lies between it and `reach`, and
+    /// [`crate::classify_seam`] brackets a spline face's arm between the
+    /// two, so the slack, which has no bound, costs an escalation and never
+    /// a class.
     ///
-    /// `None` where no arm is read: a chart the patch bound refuses, a C⁰
-    /// crease within `reach`, an unbounded curvature at `p` (a pole), or
-    /// data wider than a point at `T`.
+    /// `None` where no bound is read: a chart the patch bound refuses, a
+    /// C⁰ crease within `reach`, an unbounded curvature at `p` (a pole),
+    /// or data wider than a point at `T`.
     #[must_use]
     pub fn chart_arm(self, chart: &geom::NurbsSurface<T>, p: Point3<T>, reach: T) -> Option<f64> {
         (self.chart_arm)(chart, p, reach)

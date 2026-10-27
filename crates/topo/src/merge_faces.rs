@@ -634,8 +634,8 @@ pub enum EdgeDescribeFailure {
     /// chart's normal vanishes ([`geom_brep::SeamEscalation::Crease`]).
     Crease,
     /// A spline face it bounds has no image of it in its chart to read
-    /// the face's normal at ([`crate::pcurves::pcurve_of`] derives none,
-    /// for the edge or, for a null edge, its neighbour in the face's loop).
+    /// the face's normal at: [`crate::pcurves::pcurve_of`] derives none, or
+    /// it is a null edge, which has no carrier.
     Unplaced,
 }
 

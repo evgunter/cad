@@ -3380,8 +3380,8 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
             geom_brep::SeamEscalation::Crease(_) => {
                 DescribeRefusal::failed(edge, EdgeDescribeFailure::Crease)
             }
-            geom_brep::SeamEscalation::Unplaced => {
-                DescribeRefusal::failed(edge, EdgeDescribeFailure::Unplaced)
+            geom_brep::SeamEscalation::SplineReadAsAnalytic => {
+                unreachable!("seam_face reads every spline face by its chart")
             }
         })? {
             geom_brep::DihedralClass::Transverse => {
@@ -3519,7 +3519,7 @@ pub(super) fn seam_class<T: Decide + crate::props::AtRestPolicy>(
             let (reading, diag) = DihedralReading::of_lever(e);
             seam_refusal(reading, diag)
         }
-        geom_brep::SeamEscalation::Crease(_) | geom_brep::SeamEscalation::Unplaced => {
+        geom_brep::SeamEscalation::Crease(_) | geom_brep::SeamEscalation::SplineReadAsAnalytic => {
             unreachable!("seam_class reads analytic pairs: {surf1:?} {surf2:?}")
         }
     })
@@ -3548,16 +3548,17 @@ fn seam_reading<T: Decide + crate::props::AtRestPolicy>(
 /// stored `Pcurve::Fitted` image was itself fitted through the chart's
 /// feet of a trace, placed on the face's sheet when it was minted.
 ///
-/// A null edge has no carrier and no image, and its witness is its one
-/// point, where the next half-edge of the face's loop starts: the read
-/// is placed there instead, off that half-edge's image at its start, as
-/// the sector walk reads a vertex ([`crate::sector_face`]).
+/// A null edge has no carrier and no image to read a spline face at, and
+/// is refused unplaced. Its witness could be placed off its neighbour in
+/// the face's loop, but no class would follow: its zero-length chord gives
+/// the wedge no reach, so its dihedral escalates at the arm whatever the
+/// faces read.
 ///
 /// # Errors
 ///
 /// [`DescribeRefusal::Failed`] with [`EdgeDescribeFailure::Unplaced`]:
-/// a spline face with no image of the edge (or of a null edge's
-/// neighbour) in its chart to read the witness's parameters off.
+/// a spline face with no image of the edge in its chart to read the
+/// witness's parameters off, or a null edge.
 fn seam_face<'s, T: Decide + crate::props::AtRestPolicy>(
     body: &Body<T>,
     edge: crate::entity::EdgeKey,
@@ -3570,28 +3571,9 @@ fn seam_face<'s, T: Decide + crate::props::AtRestPolicy>(
         return Ok(geom_brep::SeamFace::Analytic(surface));
     };
     let unplaced = || DescribeRefusal::failed(edge, EdgeDescribeFailure::Unplaced);
-    let (half_edge, t) = match curve {
-        Some(c) => {
-            let (t0, t1) = c.params();
-            (side.half_edge, geom::mid_param(t0, t1))
-        }
-        None => {
-            let next = body
-                .get_half_edge(side.half_edge)
-                .ok_or_else(unplaced)?
-                .next;
-            let next_edge = body.get_half_edge(next).ok_or_else(unplaced)?.edge;
-            let leaving = body.get_edge(next_edge).ok_or_else(unplaced)?;
-            let (t0, t1) = body
-                .edge_curve_linked(next_edge, leaving)
-                .certified()
-                .ok_or_else(unplaced)?
-                .params();
-            (next, if next == leaving.he_plus { t0 } else { t1 })
-        }
-    };
-    let image = crate::pcurves::pcurve_of(body, half_edge, band).map_err(|_| unplaced())?;
-    let uv = image.eval(t);
+    let (t0, t1) = curve.ok_or_else(unplaced)?.params();
+    let image = crate::pcurves::pcurve_of(body, side.half_edge, band).map_err(|_| unplaced())?;
+    let uv = image.eval(geom::mid_param(t0, t1));
     Ok(geom_brep::SeamFace::Spline {
         chart,
         uv: (uv.x, uv.y),
@@ -11855,14 +11837,13 @@ mod spline_seam_rows {
         );
     }
 
-    /// **A null edge is read where its loop goes on**: a null edge minted
-    /// at the cube's corner between the two spline faces has no carrier
-    /// and no image, so each face is read at the corner off the image of
-    /// the half-edge its loop leaves the corner by. Placed, it stops where
-    /// an analytic pair's null edge stops: its zero-length chord gives the
-    /// wedge no reach, and the arm reads no value.
+    /// **A null edge is refused unplaced**: a null edge minted at the
+    /// cube's corner between the two spline faces has no carrier and no
+    /// image to read either face at, and the describer says so rather than
+    /// placing it. Placed, it would stop at its arm, its zero-length chord
+    /// giving the wedge no reach.
     #[test]
-    fn a_null_edge_between_two_spline_faces_is_read_off_its_neighbours() {
+    fn a_null_edge_between_two_spline_faces_is_refused_unplaced() {
         let (mut body, [top, side], edge) = two_spline_faces(flat_top());
         let he_of = |body: &Body<f64>, face: FaceKey| {
             let e = body.get_edge(edge).unwrap();
@@ -11889,15 +11870,13 @@ mod spline_seam_rows {
             .unwrap();
         let got =
             crate::boolean::describe_edges(&mut body, [null.edge], &[], band(), Tol::witness());
-        assert!(
-            matches!(
-                got,
-                Err(DescribeRefusal::Undecided {
-                    reading: crate::merge_faces::DihedralReading::Lever(geom_brep::LeverRung::Arm),
-                    ..
-                })
-            ),
-            "placed, the null edge stops at its arm, as an analytic pair's does: {got:?}"
+        assert_eq!(
+            got,
+            Err(DescribeRefusal::failed(
+                null.edge,
+                crate::merge_faces::EdgeDescribeFailure::Unplaced
+            )),
+            "the null edge"
         );
     }
 }

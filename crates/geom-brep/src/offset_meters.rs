@@ -738,28 +738,38 @@ pub(crate) fn patch_curvature(cells: &[PatchCell]) -> (f64, f64) {
     (kappa_lo, kappa_hi)
 }
 
-/// **The chart's own length scale at `p`, over `reach`**: the largest
-/// radius `r ≤ reach` such that no principal curvature anywhere on the
-/// chart within `r` of `p` exceeds `1/r` — the radius over which the
-/// surface stays within its own curvature radius of its tangent plane at
-/// `p`. A sphere's or a cylinder's is its radius, the analytic carriers'
-/// length scale ([`crate::curvature_lever_arm`]); a bend past `r` is not
-/// charged, and one within it caps `r` near its distance.
+/// **A certified lower bound on the chart's length scale at `p`, over
+/// `reach`**: the largest radius `r ≤ reach` such that a certified bound
+/// on the principal curvatures of every cell within `r` of `p` is at most
+/// `1/r`. The true length scale is at least it; its slack has no bound,
+/// and comes from:
 ///
-/// The curvature is [`patch_curvature`]'s per-cell bound, on cells at
-/// the rational arm's resolution (both arms), and a cell's distance from
-/// `p` is that of its spatial enclosure: the chart at the cell's corner
-/// plus its partials' enclosures over the cell's sides (mean value,
-/// componentwise). That enclosure holds the cell, so a cell is counted at
-/// no more than its true distance; its slack, a cell's size, can only
-/// count a bend a little early.
+/// - the curvature bound itself ([`patch_curvature`]'s per-cell bound,
+///   on cells at the rational arm's resolution on both arms), which
+///   over-reads, most on a flat chart at uneven speed;
+/// - a cell whose curvature the bound refuses (a pole, a cell whose
+///   normal is not bounded from zero) anywhere within `r`, which reads
+///   as unbounded and stops the radius at that cell's distance;
+/// - curvature off the face's trim, and distance read in space rather
+///   than along the sheet: a cell near in space but far along the chart
+///   counts.
 ///
-/// `None` where no length scale is read: a chart the patch bound refuses
-/// (an integral chart with a C⁰ crease anywhere, a degree-0 direction, a
+/// A cell's distance from `p` is that of its spatial enclosure, the
+/// chart at the cell's low corner plus its partials' enclosures over the
+/// cell's sides (mean value, componentwise), up to the rounding of that
+/// corner and those sums. The enclosure holds the cell, so a cell counts
+/// at no more than its distance.
+///
+/// The bound is a lower end only ([`crate::classify_seam`] brackets the
+/// arm between it and the reach), so its slack can cost an escalation and
+/// never decide a class.
+///
+/// `None` where no bound is read: a chart the patch bound refuses (an
+/// integral chart with a C⁰ crease anywhere, a degree-0 direction, a
 /// rational degree past its ceiling), a rational chart's C⁰ crease
 /// bounding a cell within `reach` of `p` (no curvature is read across
-/// it), a cell containing `p` whose curvature is not bounded (a pole), or
-/// a poisoned `p` or `reach`.
+/// it), a cell containing `p` whose curvature is not bounded, or a
+/// poisoned `p` or `reach`.
 pub(crate) fn chart_arm(
     net: &geom::surfaces::NurbsSurface<f64>,
     p: geom_core::Point3<f64>,
@@ -769,6 +779,8 @@ pub(crate) fn chart_arm(
         return None;
     }
     let splits = crate::patch_bound::RATIONAL_CERT_SPLITS;
+    // Not `patch_cells_across_creases` alone: it reads an integral chart's
+    // raw spans, coarser than the refined schedule a turning span needs.
     let cells = if net.constant_weight().is_some() {
         patch_cells_refined(net, splits)
     } else {

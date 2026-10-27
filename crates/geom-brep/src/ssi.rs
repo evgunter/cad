@@ -281,9 +281,9 @@ impl PointLever {
 /// ends, refinement's chord midpoint ([`march::decide_transversality`])
 /// and the at-rest plane × NURBS check ([`crate::plane_nurbs_limbs`]), as
 /// does [`crate::dihedral_side`]'s spline face. A seam's spline face
-/// ([`crate::classify_seam`]) reads its arm off certified curvature
-/// bounds near the point instead ([`crate::NurbsLane::chart_arm`]), the
-/// same length scale charged over the cells the arm reaches.
+/// ([`crate::classify_seam`]) brackets its arm instead, between a
+/// certified lower bound read off curvature bounds near the point
+/// ([`crate::NurbsLane::chart_arm`]) and the reach.
 /// It is not [`crate::folded_lever_arm`], whose arms are each carrier
 /// kind's own length scale and poison on a NURBS carrier; the two agree
 /// where that scale is `1/κ`, on a plane, a sphere or a cylinder.

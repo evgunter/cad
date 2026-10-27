@@ -34,8 +34,10 @@ reads.
 The stations' chart parameters off each face's pcurve, as
 `ops::seam_face` reads the witness's; the first order through
 `classify_seam`; the second order's relative normal curvature from the
-two charts' jets at those parameters, levered over the same arm the first
-order reads (`NurbsLane::chart_arm`, the chart's own length scale at the
-station). Not a whole-chart curvature bound: a shorter arm shrinks the
-sagitta margin toward Zero, which here reads a determinate seam as
-under-determined.
+two charts' jets at those parameters, levered over the same bracket the
+first order reads (`classify_seam`): an arm between `NurbsLane::chart_arm`'s
+certified lower bound and the reach. The lower bound's slack has no bound,
+so each verdict is taken only at the end that cannot flip it: a sagitta
+decided past the band at the lower end is jet-determinate at every arm in
+the bracket, one reading Zero at the upper end is under-determined at
+every arm, and between them the rule escalates.
