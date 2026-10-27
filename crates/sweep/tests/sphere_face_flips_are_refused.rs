@@ -69,7 +69,12 @@ fn flips(label: &str, body: &Body<f64>, failures: &mut Vec<String>) -> usize {
         // reading of it
         // (`work/flux/a-sphere-shell-flipped-whole-in-a-multi-shell-body-measures-wrong-at-the-door.md`).
         // Raw door: the subject is the door's parity with tier 3 over flips tier 3 may refuse.
-        let door = topo::test_support::measure_unvalidated(&flipped, tol).map(|m| m.volume);
+        let door = topo::test_support::measure_unvalidated(
+            &flipped,
+            tol,
+            topo::test_support::pinned_resolution(tol),
+        )
+        .map(|m| m.enclosure.volume);
         let tier3 = topo::validate_geometric(&flipped, tol);
         match (&tier3, &door) {
             (Ok(()), Err(e)) => failures.push(format!(
@@ -84,8 +89,18 @@ fn flips(label: &str, body: &Body<f64>, failures: &mut Vec<String>) -> usize {
             Ok(()) => failures.push(format!(
                 "{label}: flipping {set:?} passes tier 3 (measures {:?}, unflipped {:?})",
                 // Raw door: a failure message, reading the flip and its unflipped body as the parity above does.
-                topo::test_support::measure_unvalidated(&flipped, tol).map(|m| m.volume),
-                topo::test_support::measure_unvalidated(body, tol).map(|m| m.volume),
+                topo::test_support::measure_unvalidated(
+                    &flipped,
+                    tol,
+                    topo::test_support::pinned_resolution(tol)
+                )
+                .map(|m| m.enclosure.volume),
+                topo::test_support::measure_unvalidated(
+                    body,
+                    tol,
+                    topo::test_support::pinned_resolution(tol)
+                )
+                .map(|m| m.enclosure.volume),
             )),
             Err(errs) => {
                 for &face in &set {
@@ -174,9 +189,17 @@ fn every_sphere_face_flip_is_refused_and_named() {
             let at_rest = topo::AtRestBody::validate(topo::Body::clone(body), tol);
             let tier3 = at_rest.is_ok();
             let door = match &at_rest {
-                Ok(finished) => topo::mass_properties(finished, tol).is_ok(),
+                Ok(finished) => {
+                    topo::mass_properties(finished, tol, topo::test_support::pinned_resolution(tol))
+                        .is_ok()
+                }
                 // Raw door: the subject is the door's parity with tier 3, here over the double cover tier 3 refuses.
-                Err(_) => topo::test_support::measure_unvalidated(body, tol).is_ok(),
+                Err(_) => topo::test_support::measure_unvalidated(
+                    body,
+                    tol,
+                    topo::test_support::pinned_resolution(tol),
+                )
+                .is_ok(),
             };
             if tier3 != door {
                 failures.push(format!(

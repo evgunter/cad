@@ -2,13 +2,14 @@
 id: quadrature-budget-prints-its-two-lengths-alike
 kind: issue
 title: QuadratureBudget renders target and achieved length on a fixed .3e grid, so the refusal can print the two lengths it exists to contrast as one number
-status: open
+status: closed
 opened: 2026-09-12
 refs: [2399]
 priority: P4
 cost: E
 rides_with: quadrature-budget-conflates-its-lanes-and-budgets
 parent: the-measurement-door-refines-until-a-predicate-resolves
+closed: 2026-10-26
 ---
 
 
@@ -84,3 +85,7 @@ No existing row asserts this sentence's numbers — verify that before
 relying on it. A pin that reds when the two lengths render alike is
 the durable half, on the `num_separates_two_lengths_the_kernel_can_certify_apart`
 shape PR 2399 landed.
+
+## Closed
+
+Moot. Measure door unit C removed `PropsError::QuadratureBudget` and its display with it.

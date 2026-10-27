@@ -48,6 +48,7 @@ from pncad import (
 )
 
 from placing import against
+from measuring import pinned
 
 ORIGIN = (0 * m, 0 * m)
 
@@ -565,7 +566,7 @@ class TestTheProfileNode(unittest.TestCase):
         body.validate()
         # 3 x 2 rectangle, one r = 0.5 corner rounded away.
         expected = 6.0 - (0.25 - math.pi / 16.0)
-        self.assertAlmostEqual(body.mass_properties().volume, expected, delta=1e-12)
+        self.assertAlmostEqual(pinned(body).volume, expected, delta=1e-12)
 
     def test_the_carrier_form_lands_as_its_own_program_arm(self):
         doc = Doc()
@@ -574,7 +575,7 @@ class TestTheProfileNode(unittest.TestCase):
         )
         ev = evaluate(doc)
         self.assertTrue(ev.succeeded(solid))
-        volume = ev.value(solid).body().mass_properties().volume
+        volume = pinned(ev.value(solid).body()).volume
         self.assertAlmostEqual(volume, math.pi * 0.25 * 2.0, delta=1e-12)
 
     def test_a_boss_placed_half_up_fuses_where_it_stands(self):
@@ -604,7 +605,7 @@ class TestTheProfileNode(unittest.TestCase):
         fused = doc.insert(Node.union([plate, boss]))
         ev = evaluate(doc)
         self.assertTrue(ev.succeeded(fused))
-        volume = ev.value(fused).body().mass_properties().volume
+        volume = pinned(ev.value(fused).body()).volume
         self.assertAlmostEqual(volume, 4.5, delta=1e-12)
 
     def test_the_program_survives_persistence_bit_for_bit(self):

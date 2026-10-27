@@ -49,23 +49,24 @@ fn certifies_exactly(name: &str) {
     else {
         panic!("{name} must import as a solid");
     };
-    topo::validate_geometric(&body, Tol::witness())
+    topo::validate_geometric(body.body(), Tol::witness())
         .unwrap_or_else(|e| panic!("{name} must pass tier 3: {e:?}"));
     let mp = topo::mass_properties(
-        &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
+        &topo::test_support::finished("the measured body", body.body().clone(), Tol::witness()),
         Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
     )
     .unwrap_or_else(|e| panic!("{name} must measure: {e:?}"));
     assert_eq!(
-        mp.volume_pad, 0.0,
+        mp.enclosure.volume_pad, 0.0,
         "{name}: the closed-form lane's pad is 0"
     );
     let exact = exact_volume();
-    let rel = (mp.volume - exact).abs() / exact;
+    let rel = (mp.enclosure.volume - exact).abs() / exact;
     assert!(
         rel < 1e-12,
         "{name}: volume {:.15e} != exact {exact:.15e} (rel {rel:.3e})",
-        mp.volume
+        mp.enclosure.volume
     );
 }
 
@@ -168,7 +169,7 @@ fn imported(name: &str) -> topo::Body<f64> {
     else {
         panic!("{name} must import as a solid");
     };
-    body
+    body.into_body()
 }
 
 /// **The join door refuses whole** (`Body::join_edges`).
@@ -251,13 +252,14 @@ fn a_curved_join_leaves_no_row_on_a_dead_cell() {
     let tol = Tol::witness();
     let band = geom_core::Band::linear(tol).unwrap();
     let Ok(StepImport::Solid {
-        mut body,
+        body,
         normalizations,
         ..
     }) = import_step(&fixture("halfcap.step"), &ImportOptions::default(), tol)
     else {
         panic!("halfcap.step must import as a solid");
     };
+    let mut body = body.into_body();
     let joined = normalizations
         .iter()
         .filter(|n| n.kind == step_import::NormalizationKind::JoinedEdges)

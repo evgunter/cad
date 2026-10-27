@@ -169,7 +169,15 @@ mod certified {
         assert_eq!(topo::validate_geometric(joined, Tol::witness()), Ok(()));
         assert_eq!(joined.shells().count(), 1);
         encloses(
-            mass_properties(joined, Tol::witness()).unwrap().volume,
+            mass_properties(
+                joined,
+                Tol::witness(),
+                topo::test_support::pinned_resolution(Tol::witness()),
+            )
+            .unwrap()
+            .met()
+            .expect("the pinned resolution is met")
+            .volume,
             16.0 + 2.0 * cap(1.0, 0.5),
             "the poking union",
         );
@@ -186,13 +194,29 @@ mod certified {
         let cut = topo::subtract(&a, &b, Tol::witness()).expect("the pip decides at Interval");
         let cut = &cut.body().expect("a body").body;
         assert_eq!(topo::validate_geometric(cut, Tol::witness()), Ok(()));
-        let v_cut = mass_properties(cut, Tol::witness()).unwrap().volume;
+        let v_cut = mass_properties(
+            cut,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
+        )
+        .unwrap()
+        .met()
+        .expect("the pinned resolution is met")
+        .volume;
         encloses(v_cut, 16.0 - cap(r, h), "the pip cavity");
 
         let met = topo::intersect(&a, &b, Tol::witness()).expect("the cap decides at Interval");
         let met = &met.body().expect("a body").body;
         assert_eq!(topo::validate_geometric(met, Tol::witness()), Ok(()));
-        let v_met = mass_properties(met, Tol::witness()).unwrap().volume;
+        let v_met = mass_properties(
+            met,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
+        )
+        .unwrap()
+        .met()
+        .expect("the pinned resolution is met")
+        .volume;
         encloses(v_met, cap(r, h), "the cap");
 
         encloses(v_cut + v_met, 16.0, "∖/∩ additivity");

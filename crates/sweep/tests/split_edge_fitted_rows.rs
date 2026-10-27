@@ -399,7 +399,12 @@ fn the_mint_rederives_the_carried_rows_and_the_trimmed_lane_refuses_their_sub_ra
     let (mut body, he, edge, chart) = general_seam_at_rest::<f64>();
     // Raw door: the measured body is a body whose edge descriptions do not certify, which tier 3 refuses (DescriptionNotAdjacent).
     assert!(
-        topo::test_support::measure_unvalidated(&body, Tol::witness()).is_ok(),
+        topo::test_support::measure_unvalidated(
+            &body,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness())
+        )
+        .is_ok(),
         "the trimmed lane measures the unsplit body"
     );
     let (t0, t1) = body.pcurve(he).unwrap().params();
@@ -415,7 +420,11 @@ fn the_mint_rederives_the_carried_rows_and_the_trimmed_lane_refuses_their_sub_ra
     );
     let wall = face_on(&body, chart);
     // Raw door: the measured body is a body whose edge descriptions do not certify, which tier 3 refuses (DescriptionNotAdjacent).
-    match topo::test_support::measure_unvalidated(&body, Tol::witness()) {
+    match topo::test_support::measure_unvalidated(
+        &body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    ) {
         Err(topo::MassPropsError::Face {
             face,
             source: geom_brep::PropsError::QuadratureUnsupported { .. },

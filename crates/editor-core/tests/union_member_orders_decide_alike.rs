@@ -437,9 +437,8 @@ fn built(
         body.edges().count(),
         body.vertices().count(),
     );
-    let volume = topo::mass_properties(&body, Tol::witness())
-        .expect("a built union measures")
-        .volume;
+    let volume =
+        topo::test_support::pinned_volume("a built union measures", &body, Tol::witness()).volume;
     Decided::Built {
         rows,
         names,

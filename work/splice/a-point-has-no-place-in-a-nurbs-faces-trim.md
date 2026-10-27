@@ -2,11 +2,12 @@
 id: a-point-has-no-place-in-a-nurbs-faces-trim
 kind: issue
 title: Point-in-face has no NURBS arm: contain::curved_interior_placement answers Trim(None) for a spline face, so a pierce found on one could not be placed
-status: open
+status: dispatched
 opened: 2026-10-26
 priority: P1
 cost: M
 refs: [an-analytic-edge-against-a-nurbs-face-has-no-crossing-lane]
+branch: splice/point-in-face
 ---
 
 

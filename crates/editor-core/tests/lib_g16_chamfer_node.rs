@@ -78,17 +78,22 @@ fn die_chamfer_evaluates_green_and_meters_the_closed_form() {
         "6 supports + 12 strips + 8 corner patches"
     );
 
-    let m = topo::mass_properties(&body, Tol::witness()).expect("mass properties");
+    let m = topo::mass_properties(
+        &body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .expect("mass properties");
     let (v, a) = chamfered_box(die_chamfer::L, die_chamfer::D);
     assert!(
-        (m.volume - v).abs() <= 1e-9 * v,
+        (m.enclosure.volume - v).abs() <= 1e-9 * v,
         "volume {} vs closed form {v}",
-        m.volume
+        m.enclosure.volume
     );
     assert!(
-        (m.surface_area - a).abs() <= 1e-9 * a,
+        (m.enclosure.surface_area - a).abs() <= 1e-9 * a,
         "area {} vs closed form {a}",
-        m.surface_area
+        m.enclosure.surface_area
     );
 }
 
@@ -106,9 +111,8 @@ fn the_chamfer_removes_more_than_the_fillet_of_the_same_size() {
         topo::Body::clone(body_of(&ev, ch.result.expect("head"))),
         Tol::witness(),
     );
-    let cv = topo::mass_properties(&chamfered, Tol::witness())
-        .expect("mass properties")
-        .volume;
+    let cv =
+        topo::test_support::pinned_volume("mass properties", &chamfered, Tol::witness()).volume;
 
     let fi = corpus::die_fillet::document();
     let fev = eval::<f64>(&fi.doc);
@@ -117,9 +121,7 @@ fn the_chamfer_removes_more_than_the_fillet_of_the_same_size() {
         topo::Body::clone(body_of(&fev, fi.result.expect("head"))),
         Tol::witness(),
     );
-    let fv = topo::mass_properties(&filleted, Tol::witness())
-        .expect("mass properties")
-        .volume;
+    let fv = topo::test_support::pinned_volume("mass properties", &filleted, Tol::witness()).volume;
 
     assert_eq!(die_chamfer::D, corpus::die_fillet::R, "same size, by value");
     assert!(

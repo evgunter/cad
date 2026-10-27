@@ -92,7 +92,7 @@ fn share_the_y0_plane(text: &str) -> String {
 
 fn imported(text: &str) -> Body<f64> {
     match import_step(text, &ImportOptions::default(), Tol::witness()) {
-        Ok(StepImport::Solid { body, .. }) => body,
+        Ok(StepImport::Solid { body, .. }) => body.into_body(),
         other => panic!("the Z-step imports as a solid, got {:?}", other.map(|_| ())),
     }
 }

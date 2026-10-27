@@ -6730,17 +6730,18 @@ mod wavy_loft {
     //! times, the first and third crossings with one sense.
     //!
     //! No body the kernel builds puts a face across such an edge yet: the
-    //! split refuses a plane that may meet one, and the boolean refuses
-    //! the edge where it meets a face of the other operand
-    //! (`EdgeCarrierUnsupported`,
-    //! [`a_union_across_a_nurbs_edge_refuses_until_a_crossing_rung_builds_it`],
-    //! which reds the day a crossing rung builds one).
+    //! boolean's sweep splits the corners where a face of the other
+    //! operand crosses them, the sector walk reads the spline walls
+    //! around each crossing vertex, and the union refuses one step on,
+    //! where a spline wall's trim cannot place a pierce point
+    //! ([`a_union_across_a_nurbs_edge_refuses_at_a_spline_walls_held_pierce`],
+    //! which reds the day that site reads one).
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
     use crate::edit::DocEdit;
     use crate::eval::{CancelToken, EvalOptions, ValuePayload, evaluate};
     use crate::ident::DocumentId;
-    use crate::names::table::{EntityKey, EntityRef, NameTable};
+    use crate::names::table::NameTable;
     use crate::node::{Node, RecipeNodeId};
     use crate::program::{LoopProgram, ProfileProgram};
     use crate::{Formula, ProfileDoc};
@@ -6865,22 +6866,22 @@ mod wavy_loft {
     /// united through the recipe with a box over `x ∈ [1, 3]`,
     /// `z ∈ [−½, 3½]`, whose face `x = 1` crosses each of the loft's two
     /// corner edges at `x = dx + 1` three times, the first and third with
-    /// one sense (asserted on the carriers). The union refuses at the
-    /// sweep's planar arm on a spline edge the loft's table names,
-    /// against a plane face of the box.
+    /// one sense (asserted on the carriers). The boolean's sweep reads
+    /// each corner against the face through the curve × face table's
+    /// ring-composite arm and splits it at all three (`sweep`'s
+    /// `a_face_across_a_wavy_corner` pins the splits), the sector walk
+    /// reads the spline walls each crossing vertex lies between
+    /// (`topo::sector_face`'s spline arm), and the union refuses one step
+    /// on: `vtxfac::faces_holding_pierce` asks a spline wall of the loft
+    /// whether it holds a pierce point of the face `x = 1`, and the
+    /// wall's trim cannot say (`HeldPierceUnbuilt`, `placed: false`).
     ///
-    /// It cannot witness the crossings it is placed for. A spline edge
-    /// claims no box (`boxes::EdgeBoxRule::NoSoundBox`), so the sweep
-    /// refuses the first spline edge it reads against the first face it
-    /// reads, wherever the box stands: neither the corner nor the face
-    /// `x = 1` is what it names, and the row asserts no more than the
-    /// refusal's kind and owners. It reds the day a crossing rung builds
-    /// this union; the end-to-end row that rung owes, the crossings
-    /// named through the boolean (the first and third, of one sense,
-    /// tie), is
-    /// `work/splice/nurbs-edge-crossing-rung-is-the-ring-composite.md`'s.
+    /// It reds the day that site places a point in a spline face. The
+    /// end-to-end row, the crossings named through the boolean (the
+    /// first and third, of one sense, tie), is
+    /// `work/splice/a-spline-wall-cannot-say-whether-it-holds-a-pierce-point.md`'s.
     #[test]
-    fn a_union_across_a_nurbs_edge_refuses_until_a_crossing_rung_builds_it() {
+    fn a_union_across_a_nurbs_edge_refuses_at_a_spline_walls_held_pierce() {
         let (doc, loft) = wavy_doc(0.3);
         let (doc, profile) = ins(
             doc,
@@ -6922,9 +6923,7 @@ mod wavy_loft {
             &EvalOptions::default(),
             Tol::witness(),
         );
-        let loft_value = ev.value(loft).expect("the loft evaluates");
-        let body = body_of(loft_value);
-        let table = ev.table_at(loft).expect("the loft's table");
+        let body = body_of(ev.value(loft).expect("the loft evaluates"));
         let near: Vec<EdgeKey> = body
             .edges()
             .map(|(e, _)| e)
@@ -6944,49 +6943,59 @@ mod wavy_loft {
                  {senses:?}"
             );
         }
-        let block_body = body_of(ev.value(copy).expect("the box's copy evaluates"));
         let Some(crate::eval::NodeError {
             kind:
-                crate::eval::NodeErrorKind::Boolean(topo::BooleanError::EdgeCarrierUnsupported {
+                crate::eval::NodeErrorKind::Boolean(topo::BooleanError::HeldPierceUnbuilt {
                     operand: topo::Operand::A,
-                    edge,
                     face,
-                    face_of: topo::Operand::B,
-                    site: topo::EdgeCarrierSite::PlanarCrossing,
+                    pierced,
+                    kind: geom::SurfaceKind::Nurbs,
+                    pierced_kind: geom::SurfaceKind::Plane,
+                    placed: false,
                 }),
             ..
         }) = ev.node_error(union)
         else {
             panic!(
-                "the union refuses at the planar crossing arm, got {:?}",
+                "the union refuses where a spline wall of the loft cannot place a pierce \
+                 point of the box, got {:?}",
                 ev.node_error(union).map(|e| &e.kind)
             );
         };
-        assert_eq!(
-            topo::query::edge_carrier_kind(body, *edge),
-            Some(topo::query::CurveKind::Nurbs),
-            "the refusal names a spline edge of the loft"
-        );
-        assert!(
-            table
-                .name_of(&EntityRef {
-                    body: 0,
-                    key: EntityKey::Edge(*edge),
-                })
-                .is_some(),
-            "the loft's table names the refused edge"
-        );
         // The recipe mints both bodies fresh, so their keys collide and
-        // `face_of` is what states the owner; read in the box, the key
-        // is a plane face.
+        // `operand` is what states the owner: `face` is read in the loft,
+        // `pierced` in the box.
         assert!(
             matches!(
-                block_body
-                    .get_face(*face)
-                    .and_then(|f| block_body.get_surface(f.surface)),
-                Some(geom::Surface::Plane { .. })
+                body.get_face(*face)
+                    .and_then(|f| body.get_surface(f.surface)),
+                Some(geom::Surface::Nurbs(_))
             ),
-            "the refusal names a plane face of the box"
+            "the refusal names a spline wall of the loft"
+        );
+        let block = ev
+            .value(copy)
+            .expect("the box evaluates")
+            .payload
+            .output_body(0)
+            .expect("the placed box");
+        assert!(
+            matches!(
+                block.get_face(*pierced).and_then(|f| block.get_surface(f.surface)),
+                Some(geom::Surface::Plane { origin, normal, .. })
+                    if (origin.x - 1.0).abs() < 1e-9 && normal.x.abs() > 1.0 - 1e-9
+            ),
+            "the pierced face is the box's face x = 1"
+        );
+        let walls: Vec<_> = near
+            .iter()
+            .filter_map(|&e| body.get_edge(e))
+            .flat_map(|e| [e.he_plus, e.he_minus])
+            .filter_map(|he| body.face_of_half_edge(he))
+            .collect();
+        assert!(
+            walls.contains(face),
+            "the refusal names a wall on a crossed corner: {face:?} of {walls:?}"
         );
     }
 }

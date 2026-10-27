@@ -120,11 +120,11 @@ fn segment(d: f64) -> f64 {
 fn assert_sound(body: &Body<f64>, expect: f64, what: &str) {
     topo::validate_geometric_certificate(body, tol())
         .unwrap_or_else(|e| panic!("{what}: the result does not certify at rest: {e:?}"));
-    let v = topo::mass_properties(
+    let v = topo::test_support::pinned_volume(
+        "the measured body",
         &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
         tol(),
     )
-    .unwrap()
     .volume;
     assert!(
         (v - expect).abs() < 1e-9,
@@ -263,13 +263,18 @@ fn an_oblique_cap_flats_through_its_ellipse_arc() {
         .unwrap_or_else(|e| panic!("the flat does not certify at rest: {e:?}"));
     // Its wall is trimmed by ellipse arcs, so its volume is a certified
     // quadrature: the slack is the enclosure's own half-width.
-    let m = topo::mass_properties(&flatted, tol()).unwrap();
+    let m = topo::mass_properties(
+        &flatted,
+        tol(),
+        topo::test_support::pinned_resolution(tol()),
+    )
+    .unwrap();
     let expect = 3.0 * (PI * R * R - segment(0.2));
     assert!(
-        (m.volume - expect).abs() <= m.volume_pad + 1e-12,
+        (m.enclosure.volume - expect).abs() <= m.enclosure.volume_pad + 1e-12,
         "the flat: volume {} ± {} against the analytic {expect}",
-        m.volume,
-        m.volume_pad
+        m.enclosure.volume,
+        m.enclosure.volume_pad
     );
 }
 

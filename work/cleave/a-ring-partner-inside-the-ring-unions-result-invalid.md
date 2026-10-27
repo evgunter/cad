@@ -2,10 +2,11 @@
 id: a-ring-partner-inside-the-ring-unions-result-invalid
 kind: issue
 title: The plate with a ring ∪ a flush partner whose edge lies wholly inside the ring, plate first, refuses ResultInvalid
-status: open
+status: dispatched
 opened: 2026-10-25
 priority: P1
 cost: M
+branch: cleave/flush-partners-at-a-slit-build
 ---
 
 

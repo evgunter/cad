@@ -112,7 +112,7 @@ fn the_counterclockwise_wedge_blends_outward_at_both_doors() {
         let d = d.unwrap_or_else(|r| panic!("{verb} at the dual: {r}")).body;
         validate_geometric(&f, tol)
             .unwrap_or_else(|e| panic!("{verb}: the result is finished: {e:?}"));
-        let volume = topo::mass_properties(&f, tol).unwrap().volume;
+        let volume = topo::test_support::pinned_volume("the measured body", &f, tol).volume;
         assert!(
             (volume - measured(verb)).abs() <= 5e-6,
             "{verb}: the blended wedge encloses {}, got {volume}",

@@ -3717,6 +3717,7 @@ fn every_validation_finding_carries_every_word_its_arm_has() {
             crossing_side: None,
             stale_kind: None,
             ring_contact_kind: None,
+            volume: None,
         }
     );
 
@@ -3736,6 +3737,7 @@ fn every_validation_finding_carries_every_word_its_arm_has() {
             crossing_side: None,
             stale_kind: None,
             ring_contact_kind: None,
+            volume: None,
         }
     );
 
@@ -3771,6 +3773,7 @@ fn every_validation_finding_carries_every_word_its_arm_has() {
             crossing_side: None,
             stale_kind: None,
             ring_contact_kind: None,
+            volume: None,
         }
     );
 }
@@ -4433,6 +4436,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "non_manifold_result",
             "non_maximal_faces",
             "normal_at_cone_apex",
+            "normal_at_spline_crease",
             "nurbs_extent_unsupported",
             "pairing_mismatch",
             "partner_along_face",
@@ -4455,6 +4459,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "slit_face_glued",
             "slit_line_crossed",
             "spheres_meet",
+            "spline_crossing_unsettled",
             "split_lineage_cycle",
             "tangent_crescent_unsupported",
             "torn_component",
@@ -5025,6 +5030,21 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "stranded_selection",
             "stranded_space",
             "value_dropped",
+        ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "mass_props_error_tag",
+        values: &[
+            "band",
+            "corrupt",
+            "empty_contains",
+            "face",
+            "null_scaffold_edge",
+            "poisoned",
+            "resolution_finer_than_eps",
+            "ring_on_curved_face",
+            "undecided",
         ],
         delegates: &[],
     },
@@ -6023,6 +6043,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "arc_end_off_corner",
             "back_pointer_mismatch",
             "band",
+            "boundary_crosses_itself",
+            "boundary_crosses_itself_undecided",
             "census_escalated",
             "census_lane_unsupported",
             "census_undecidable",
@@ -6188,7 +6210,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("anonymous_var_unread", 2),
     ("approx_lane_unsupported", 2),
     ("assertion_dimension", 2),
-    ("band", 17),
+    ("band", 18),
     ("cap_plane", 3),
     ("certify", 2),
     // One fact: a ring meeting its outer loop and a ring meeting
@@ -6197,7 +6219,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("circle_circle", 2),
     ("contact_contradicted", 2),
     ("containment", 2),
-    ("corrupt", 2),
+    ("corrupt", 3),
     ("cosurface_escalated", 2),
     // One fact (VR3) at the edit and load doors: a definition that
     // reads its own variable back.
@@ -6243,7 +6265,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("evaluation_of_another_document", 5),
     // `face` is also the face frame's operand slot (`operand_slot_tag`):
     // the seat that reads one face, the entity's own word.
-    ("face", 3),
+    ("face", 4),
     // One fact (INTENT-LITERALS C) at the edit door and outside it: a
     // formula reads a fresh-table entry its edit does not hold, or at
     // another kind.
@@ -6280,7 +6302,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("non_finite_placement", 2),
     ("non_rigid_placement", 2),
     ("not_a_body", 2),
-    ("null_scaffold_edge", 2),
+    ("null_scaffold_edge", 3),
     ("op", 3),
     ("part_unresolved", 2),
     // A coincidence: a sweep's path operand and a replay's path fault.
@@ -6302,7 +6324,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("pieces", 2),
     ("placement_rule_mismatch", 2),
     ("plane", 2),
-    ("poisoned", 2),
+    ("poisoned", 3),
     // One fact at the edit and load doors: a pose definition of a shape
     // no door admits (`PoseFault`), refused at the seat and in a file.
     ("pose_shape", 2),
@@ -6322,6 +6344,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // set (`selection_fault_tag`) as a profile's kept step ids.
     ("repeated", 2),
     ("revolve", 2),
+    ("ring_on_curved_face", 2),
     // One fact, as `inside_out_operand`: `topo::Unfinished::Scaffolding`.
     ("scaffolding_operand", 2),
     // One fact at the edit and load doors: a selection not in its
@@ -6357,7 +6380,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("transition", 2),
     // A coincidence: a crossing side the band left undecided, and a
     // rigidity margin the decided door left undecided.
-    ("undecided", 2),
+    ("undecided", 3),
     ("underflowed_direction", 2),
     // One fact for the boolean and the blends: the operand gate
     // (`topo::Unfinished::Unjoined`) found a vertex tier 3's check 11
@@ -6624,7 +6647,10 @@ fn a_lever_refusal_spells_a_shapes_reach_and_a_parts_alike() {
 /// list. That
 /// door's growth is walled by the compiler instead — the enum is not
 /// `#[non_exhaustive]` and the door matches it exhaustively.
-const TAG_CONSTS: &[(&str, &str)] = &[("STEP_IMPORT_WIREFRAME", "wireframe")];
+const TAG_CONSTS: &[(&str, &str)] = &[
+    ("MEASUREMENT_UNMET", "unmet"),
+    ("STEP_IMPORT_WIREFRAME", "wireframe"),
+];
 
 /// Everything [`read_tag_table`] recognised in the source it read.
 struct TagTable {

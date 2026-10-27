@@ -29,8 +29,9 @@ fn r2_lamina_verdicts_versus_measured_volume() {
     let v0 = topo::mass_properties(
         &topo::test_support::finished("the measured body", body.clone(), tol),
         tol,
+        topo::test_support::pinned_resolution(tol),
     )
-    .map(|m| m.volume);
+    .map(|m| m.enclosure.volume);
     println!(
         "R2 cut_cylinder: clean volume {v0:?} verdict {:?}",
         validate_geometric(&body, tol).is_ok()
@@ -49,7 +50,12 @@ fn r2_lamina_verdicts_versus_measured_volume() {
         let flipped = body.flipped_face_sense_for_tests(k).expect("live face");
         let errs = validate_geometric(&flipped, tol).unwrap_err();
         // Raw door: the measured body is a lamina (a flipped band), which tier 3 refuses (LaminaWedge).
-        let vol = topo::test_support::measure_unvalidated(&flipped, tol).map(|m| m.volume);
+        let vol = topo::test_support::measure_unvalidated(
+            &flipped,
+            tol,
+            topo::test_support::pinned_resolution(tol),
+        )
+        .map(|m| m.enclosure.volume);
         let all_lamina = errs
             .iter()
             .all(|e| matches!(e, ValidationError::LaminaWedge { .. }));
@@ -63,15 +69,21 @@ fn r2_lamina_verdicts_versus_measured_volume() {
     let v0 = topo::mass_properties(
         &topo::test_support::finished("the measured body", b.clone(), tol),
         tol,
+        topo::test_support::pinned_resolution(tol),
     )
-    .map(|m| m.volume);
+    .map(|m| m.enclosure.volume);
     println!("R2 ball: clean volume {v0:?}");
     let bands: Vec<_> = b.faces().map(|(k, _)| k).collect();
     for k in bands {
         let flipped = b.flipped_face_sense_for_tests(k).expect("live face");
         let errs = validate_geometric(&flipped, tol);
         // Raw door: the measured body is a lamina (a flipped band), which tier 3 refuses (LaminaWedge).
-        let vol = topo::test_support::measure_unvalidated(&flipped, tol).map(|m| m.volume);
+        let vol = topo::test_support::measure_unvalidated(
+            &flipped,
+            tol,
+            topo::test_support::pinned_resolution(tol),
+        )
+        .map(|m| m.enclosure.volume);
         println!("R2 ball band {k:?}: volume {vol:?}; verdict {errs:?}");
     }
 }

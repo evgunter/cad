@@ -165,9 +165,15 @@ fn check_success(bb: &BooleanBody<f64>, oracle: f64, label: &str) {
         Ok(()),
         "{label}: tier 3′"
     );
-    let v = mass_properties(&bb.body, Tol::witness())
-        .expect("mass properties")
-        .volume;
+    let v = mass_properties(
+        &bb.body,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .expect("mass properties")
+    .met()
+    .expect("the pinned resolution is met")
+    .volume;
     assert!(
         (v - oracle).abs() < 1e-12,
         "{label}: volume {v} vs exact oracle {oracle}"
@@ -294,9 +300,15 @@ fn az_plain_interval_refuses_or_encloses() {
         Err(_) => {} // conservative refusal: acceptable
         Ok(BooleanResult::Body(bb)) => {
             assert_eq!(validate_closed(&bb.body), Ok(()), "interval tier 2");
-            let v = mass_properties(&bb.body, Tol::witness())
-                .expect("interval mass properties")
-                .volume;
+            let v = mass_properties(
+                &bb.body,
+                Tol::witness(),
+                topo::test_support::pinned_resolution(Tol::witness()),
+            )
+            .expect("interval mass properties")
+            .met()
+            .expect("the pinned resolution is met")
+            .volume;
             assert!(
                 v.lo() <= ORACLE_PLAIN && ORACLE_PLAIN <= v.hi(),
                 "interval volume enclosure [{}, {}] excludes the oracle {ORACLE_PLAIN}",

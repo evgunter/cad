@@ -63,7 +63,7 @@ fn revolved(verts: Vec<(Point2<f64>, f64)>) -> Body<f64> {
 /// region the probes are judged by is the body that was built.
 fn prism_of(verts: Vec<(Point2<f64>, f64)>, volume: f64) -> Body<f64> {
     let body = topo::test_support::finished("body", prism(verts, 1.0, tol()), tol());
-    let v = topo::mass_properties(&body, tol()).unwrap().volume;
+    let v = topo::test_support::pinned_volume("the measured body", &body, tol()).volume;
     assert!(
         (v - volume).abs() < 1e-9,
         "the fixture is the region its truth describes: {v} vs {volume}"
@@ -751,7 +751,7 @@ fn a_box_inside_the_cut_cylinder_subtracts_through_the_containment_fallback() {
         other => panic!("the sunk box subtracts, got {other:?}"),
     };
     assert_eq!(topo::validate_geometric(&out, tol()), Ok(()), "tier 3");
-    let v = topo::mass_properties(&out, tol()).unwrap().volume;
+    let v = topo::test_support::pinned_volume("the measured body", &out, tol()).volume;
     let truth = core::f64::consts::PI * 1.25 - 0.4 * 0.4 * 0.4;
     assert!(
         (v - truth).abs() < TILTED_CUT_WALL_VOLUME,

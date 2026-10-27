@@ -550,7 +550,9 @@ pub fn inserted_and_evaluated(
 
 /// **The volume of `node`'s single body in `eval`** — an extrude's, a
 /// blend's or a boolean's. A node with no value panics with its own
-/// recorded error, not just the absence of a value.
+/// recorded error, not just the absence of a value. It is read at
+/// `topo`'s pinned resolution (1024·ε of mean boundary displacement),
+/// the one the viewer suites' volume pins are stated at.
 pub fn evaluated_volume(eval: &Evaluation<f64>, node: RecipeNodeId, tol: Tol) -> f64 {
     let value = eval
         .value(node)
@@ -563,8 +565,11 @@ pub fn evaluated_volume(eval: &Evaluation<f64>, node: RecipeNodeId, tol: Tol) ->
         &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(body), tol)
             .expect("the measured body passes tier 3"),
         tol,
+        pncad::topo::test_support::pinned_resolution(tol),
     )
     .expect("mass properties")
+    .met()
+    .expect("the pinned resolution is met")
     .volume
 }
 
