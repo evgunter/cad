@@ -389,7 +389,7 @@ fn a_plug_folded_first_merges_into_the_face_it_plugs() {
         };
         assert_eq!(
             description(&bb.body),
-            description(&*plug),
+            description(&plug),
             "the cap at z = {z} wears the plug's description"
         );
     }
