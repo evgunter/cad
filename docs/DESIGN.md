@@ -270,6 +270,7 @@ of them is a defect.
 | A cavity's birth | `topo::insert_void` | [topology.conventions] |
 | A body's at-rest validity | one gate, for native and imported bodies alike | [topology.tiers], [import] |
 | Contact records across an op | one lineage, one carry | [topology.records] |
+| Which description a glued pair keeps | decided once, at the glue | [coincidence.booleans] |
 | An edge's geometry | one intensional description; every representation a certified cache | [edges] |
 | A locus one chart defines | `Chart`, one (surface, `Pcurve`) form | [edges] |
 | Dependency | reading a variable | [operations] |
@@ -595,11 +596,7 @@ A consumer that hands the number on passes a resolution, the width
 predicate: the mean boundary displacement it needs. That is a sizing,
 decides nothing against ε ([intrinsic.epsilon]), and is not recorded.
 The model defines its measures only to ε of boundary displacement, so no
-finer resolution is offered. The enclosure covers what the
-representation leaves undefined: a face whose boundary stands off its
-carrier, within its certified residual ([tolerance.residuals]),
-contributes that standoff over its area to the width, so a body whose
-boundary lies on its carriers measures exactly. There is no default: every caller states
+finer resolution is offered. There is no default: every caller states
 its predicate, a resolution included, at the call, so the precision a
 measurement buys is always the one its consumer asked for.
 
@@ -622,17 +619,16 @@ forms are the levered door applied at named arms; there is no raw
 construction door. Consistency backstops between integral results
 decide on bare `T` through `k_stats::decide_invariant`, no Margin
 minted, and a certified violation is a Corrupt-class kernel-invariant
-error, never a validity refusal. A backstop between a result and its operands
-compares the result with the operands as the operation decided them, a
-glued face on its kept carrier ([topology]). A site where no door honestly fits
+error, never a validity refusal. A backstop between a result and its
+operands compares it with the operands as the operation decided them
+([coincidence.booleans]). A site where no door honestly fits
 is a finding, not a cast. The vector/linalg interior stays bare `T`.
 (ii) **No dimensionally-heterogeneous uniform payloads**: a field
 whose dimension depends on a runtime kind tag is illegal;
 kind-dependent data lives in per-kind enum variants. (iii)
 **Parameter-space values cross to model space only through per-kind
 metric doors.** (iv) **Inequality gates split sign from magnitude**:
-a certified sign-certain violation (certain past the measurement's
-enclosure, [tolerance.measure]) refuses with no ε involved; the
+a certified sign-certain violation refuses with no ε involved; the
 banded comparison governs only the near-zero region, and both arms
 consume the same metered comparand. Extension is opportunistic as
 signatures get touched; the migration ledger is
@@ -859,17 +855,7 @@ tiers".
 - **No snapping.** Every reduction comparison is a trilean
   ([verdicts]), and nothing beyond a Zero verdict moves geometry: a
   merged face keeps one operand's description, and nothing in the
-  sliver band is moved. Which description is kept is one decision,
-  taken once at the glue for each pair it decides Zero: the
-  first-written operand's. The other face takes the kept carrier and
-  its boundary is re-derived on it before the operation builds, so the
-  operation runs on its operands as decided and a glued face holds one
-  description, its carrier and its boundary alike. The Zero verdict
-  certifies the operand as re-derived, not only the face: it decides
-  the displacement the re-derivation induces, an edge re-cut where a
-  neighbour meets the kept carrier at dihedral angle α moving by the
-  carriers' separation over sin α, and where that is in band the glue
-  refuses. Booleans on independently modelled
+  sliver band is moved. Booleans on independently modelled
   nearly-touching bodies fail loudly rather than guess; the resolution
   is one construction or an explicit repair or adoption ([import]).
 - **Maximal faces and maximal edges.** Merging is never silent: a
@@ -1588,12 +1574,11 @@ of `A` both operands carry are glued structurally.
 
 Where its verdicts decide Zero, a union, a cut or a meet glues where
 an arm exists for the carrier pair ([topology]'s frontier), keeping
-one fixed operand's description for a merged face (the first-written
-operand's: its surface stays exactly the one that was written, so
-other cells built on that surface keep one description with it and the
-kept surface does not move; no surface derived from both exists for
-every pair of carriers; and a rule that read values would pick between
-two surfaces within the band of each other by rounding), and an assemble
+one fixed operand's description for a merged face and moving the
+other face onto it before the operation builds (which one is
+arbitrary; the kernel keeps the first-written operand's, the simplest
+fixed rule, where a rule that read values would choose by rounding
+between two descriptions within the band of each other), and an assemble
 records the touch ([topology.records]); each refuses what falls in the
 sliver band. Its result holds no in-band pair, a pair of result cells
 whose one census number lies in band. A solid's only shell is its outer
