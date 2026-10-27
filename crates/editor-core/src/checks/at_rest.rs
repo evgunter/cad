@@ -53,7 +53,7 @@ mod carried;
 
 pub use carried::{
     AtRestRow, CarriedAtRestFinding, CarriedCoincidence, CarriedCoincidenceRows, CarriedFindings,
-    CarriedInterference, Route,
+    CarriedInterference, PinnedDoc, Route,
 };
 pub(crate) use carried::{DocRows, PartRow, Pinned, once_per_part_row};
 

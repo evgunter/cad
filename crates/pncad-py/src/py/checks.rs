@@ -704,7 +704,7 @@ impl CheckFinding {
     /// intended" stays distinct from "not checked"; `enforce_checks`
     /// never refuses it. A part's carried finding names the part's own
     /// assertion, an id in the part's document
-    /// (`CarriedInterference.of`).
+    /// (`CarriedInterference.of`, `CarriedCoincidence.of`).
     #[getter]
     fn quiet(&self) -> Option<NodeId> {
         self.finding.quiet.map(NodeId)
@@ -765,7 +765,7 @@ impl CarriedCoincidence {
     fn finding(&self) -> CheckFinding {
         CheckFinding {
             finding: self.0.finding.clone(),
-            doc: Arc::clone(&self.0.doc),
+            doc: Arc::clone(self.0.doc.get()),
         }
     }
 

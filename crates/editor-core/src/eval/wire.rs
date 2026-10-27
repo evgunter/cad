@@ -860,8 +860,10 @@ where
     // keys verbatim. Re-deriving them from the placed geometry is the
     // scan-to-bless move F1 bans. Each record cites the part's record
     // it is, through this instance ([`crate::coincide::CitedInput::Part`]).
-    // The bookkeeping rows ride unchanged for the same reason; what is
-    // added here is each row's first hop, this instance
+    // The census findings ride unchanged for the same reason. The door
+    // rows ride unjudged for another: they are the part's, named in its
+    // document, and judged over it where a report asks. What is added to
+    // each row here is its first hop, this instance
     // ([`crate::checks::at_rest::PartRow::through`]).
     let carried = crate::checks::at_rest::CarriedFindings {
         interference: part
@@ -894,12 +896,7 @@ where
             .iter()
             .map(|row| {
                 let (route, pinned, _) = row.through(id);
-                crate::checks::at_rest::CarriedCoincidenceRows {
-                    route,
-                    pin: pinned.pin,
-                    doc: pinned.finding.doc,
-                    rows: pinned.finding.rows,
-                }
+                (route, pinned).into()
             })
             .collect(),
     };

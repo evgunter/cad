@@ -495,12 +495,16 @@ once per part row, by the first route in gather order, so a part placed
 twice reports its overlap once, as the part's (`CarriedInterference`,
 `CarriedAtRestFinding`), quiet or loud as the part's own assertions
 judged it, and never refusing. The rows a part owes its own coincidence
-door cross the same way, unproven (`PartValue::door_rows`, each with
-the part's pinned document): the host's door judges them over that
-document, as the part's own door would, and reports each unproven one
-once per part row at the route's first instance, as the part's
-(`CarriedCoincidence`), quiet only as the part's assertions quiet it. A finding that names no pair of solids
-(a census escalation, a pair it had no lane for, a stale record of a
+door cross the same way, unproven (`PartValue::door_rows`, each with the
+part's pinned document): the host's door judges them over that document,
+as the part's own door would, and reports each unproven one once per
+part row at the route's first instance, as the part's
+(`CarriedCoincidence`), quiet only as the part's assertions quiet it. A
+host `Gap` quiets none of them, wherever its cells lie, since a finding
+belongs to the door that decided it (D10 `[assertions]`). A loud one
+refuses at `Error` exactly when the part's own finding would, under the
+host's `unproven-coincidence` severity. A finding that names no pair of
+solids (a census escalation, a pair it had no lane for, a stale record of a
 vertex or an edge) is inside no one arrival, and is kept: one the census
 re-finds inside an instance's copy is reported as the host's beside the
 part's carried row, until the finding names its pair and the discard

@@ -6881,7 +6881,8 @@ class CheckFinding:
         quiet finding is listed, naming its assertion, so "checked and
         intended" stays distinct from "not checked"; `enforce_checks`
         never refuses it. A part's carried finding names the part's own
-        assertion, an id in the part's document."""
+        assertion, an id in the part's document (`CarriedInterference.of`,
+        `CarriedCoincidence.of`)."""
     def __eq__(self, other: object) -> bool: ...
 
 class ChecksReport:

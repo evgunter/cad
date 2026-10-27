@@ -22,8 +22,9 @@ use crate::spoken::HeldNodes;
 /// instantiating node here, the document the row is of, and the
 /// instantiating nodes in between.
 ///
-/// One type for every carrier of that fact — [`CarriedInterference`]
-/// and [`CarriedAtRestFinding`] — so a reader who has learned to read a
+/// One type for every carrier of that fact — [`CarriedInterference`],
+/// [`CarriedAtRestFinding`], [`CarriedCoincidenceRows`] and
+/// [`CarriedCoincidence`] — so a reader who has learned to read a
 /// route once reads every one of them, and a route can only be built
 /// one way.
 ///
@@ -122,9 +123,10 @@ impl<B: crate::spoken::Say> PartRow<B> {
 }
 
 impl<B> PartRow<B> {
-    /// `of`'s own row whose body names no node a sentence says: an
-    /// interference finding, whose copies are `of`'s variables and its
-    /// faces `of`'s names.
+    /// `of`'s own row whose body names no node a sentence says when it
+    /// is made: an interference finding, whose copies are `of`'s
+    /// variables and its faces `of`'s names, or door rows, said from
+    /// the pinned document they carry once judged.
     pub(crate) fn unspoken(of: crate::ident::DocumentId, body: B) -> Self {
         Self {
             of,
@@ -168,8 +170,8 @@ impl<B: Clone> PartRow<B> {
 }
 
 /// What one instantiated value carries up from the documents below it:
-/// their at-rest findings, each already tagged with the route it
-/// arrived by.
+/// their at-rest findings and the rows their coincidence doors have yet
+/// to judge, each already tagged with the route it arrived by.
 ///
 /// Bundled because the rows travel together and are filled at ONE site
 /// — the instantiate op — and are empty on every other op.
@@ -181,47 +183,83 @@ pub struct CarriedFindings {
     pub interference: Vec<CarriedInterference>,
     /// What the documents below could not look at.
     pub at_rest: Vec<CarriedAtRestFinding>,
-    /// The rows the documents below owe their own coincidence doors.
+    /// The rows the documents below owe their own coincidence doors,
+    /// not yet judged: a report's door judges them
+    /// ([`crate::DoorJob`]).
     pub coincidences: Vec<CarriedCoincidenceRows>,
+}
+
+/// **A part's document at the pin a carried row is of**: the version
+/// its rows were decided in, so the one its door replays and its
+/// findings are said from. Equal when it is the same document, its pin
+/// compared beside it by every carrier; its `Debug` names it and no
+/// more.
+#[derive(Clone)]
+pub struct PinnedDoc(Arc<crate::ProfileDoc>);
+
+impl PinnedDoc {
+    pub(crate) fn new(doc: Arc<crate::ProfileDoc>) -> Self {
+        Self(doc)
+    }
+
+    /// The document.
+    #[must_use]
+    pub fn get(&self) -> &Arc<crate::ProfileDoc> {
+        &self.0
+    }
+}
+
+impl PartialEq for PinnedDoc {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.id() == other.0.id()
+    }
+}
+
+impl core::fmt::Debug for PinnedDoc {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "PinnedDoc({})", self.0.id())
+    }
+}
+
+/// **A document's door rows as its part row**: the pinned document and
+/// its row sets, shared by every instance that carries them.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct DocRows {
+    pub(crate) doc: PinnedDoc,
+    pub(crate) sets: Arc<[crate::checks::DoorRows]>,
 }
 
 /// **The rows a document BELOW this one owes its own coincidence door**
 /// (D10 `[assertions]`), arriving across the instantiation seam
 /// unproven: each row set in `route.of`'s ids, quiet only as `route.of`'s
-/// assertions quiet it. The door that judges them runs over `doc`, the
-/// pinned version they were decided in, never over this document.
-#[derive(Debug, Clone)]
+/// assertions quiet it. The door that judges them runs over the pinned
+/// version they were decided in, never over this document.
+#[derive(Debug, Clone, PartialEq)]
 pub struct CarriedCoincidenceRows {
     /// How it reached this document.
     pub route: Route,
     /// The pin of `route.of` the rows are of.
     pub pin: crate::ident::ContentPin,
-    /// `route.of` at `pin`: the document the door replays.
-    pub(crate) doc: Arc<crate::ProfileDoc>,
-    /// Its row sets, as its own door asks about them.
-    pub(crate) rows: Vec<crate::checks::DoorRows>,
+    /// The rows, and `route.of` at `pin`.
+    pub(crate) rows: DocRows,
 }
 
-// The document is fixed by `route.of` and the pin, so it is not compared.
-impl PartialEq for CarriedCoincidenceRows {
-    fn eq(&self, other: &Self) -> bool {
-        (&self.route, self.pin, &self.rows) == (&other.route, other.pin, &other.rows)
+// A part's door rows as the document holding the instance reads them.
+impl From<(Route, Pinned<DocRows>)> for CarriedCoincidenceRows {
+    fn from((route, pinned): (Route, Pinned<DocRows>)) -> Self {
+        Self {
+            route,
+            pin: pinned.pin,
+            rows: pinned.finding,
+        }
     }
-}
-
-/// **A document's door rows as its part row**: the pinned document and
-/// its row sets ([`CarriedCoincidenceRows`]).
-#[derive(Debug, Clone)]
-pub(crate) struct DocRows {
-    pub(crate) doc: Arc<crate::ProfileDoc>,
-    pub(crate) rows: Vec<crate::checks::DoorRows>,
 }
 
 /// **A coincidence a document BELOW this one leaves unproven**, as its
 /// own door judged it over its own document: the part's
 /// `unproven-coincidence` finding, carried verbatim, quiet only as the
 /// part's assertions quiet it.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct CarriedCoincidence {
     /// How it reached this document.
     pub route: Route,
@@ -231,14 +269,7 @@ pub struct CarriedCoincidence {
     pub finding: crate::checks::CheckFinding,
     /// `route.of` at `pin`: the document the finding's ids are spelled
     /// in, and the one it is said from.
-    pub doc: Arc<crate::ProfileDoc>,
-}
-
-// The document is fixed by `route.of` and the pin, so it is not compared.
-impl PartialEq for CarriedCoincidence {
-    fn eq(&self, other: &Self) -> bool {
-        (&self.route, self.pin, &self.finding) == (&other.route, other.pin, &other.finding)
-    }
+    pub doc: PinnedDoc,
 }
 
 /// **An overlap a document BELOW this one reported between two of its
@@ -331,22 +362,17 @@ pub(crate) trait CarriedRow {
 /// One [`CarriedRow`] for each carried finding type: the same document,
 /// at the same pin, with the same finding.
 macro_rules! carried_row {
-    ($($row:ty),+) => {$(
+    ($body:ident: $($row:ty),+) => {$(
         impl CarriedRow for $row {
             fn same_row(&self, other: &Self) -> bool {
-                (self.route.of, self.pin, &self.finding) == (other.route.of, other.pin, &other.finding)
+                (self.route.of, self.pin, &self.$body) == (other.route.of, other.pin, &other.$body)
             }
         }
     )+};
 }
 
-carried_row!(CarriedInterference, CarriedAtRestFinding);
-
-impl CarriedRow for CarriedCoincidenceRows {
-    fn same_row(&self, other: &Self) -> bool {
-        (self.route.of, self.pin, &self.rows) == (other.route.of, other.pin, &other.rows)
-    }
-}
+carried_row!(finding: CarriedInterference, CarriedAtRestFinding);
+carried_row!(rows: CarriedCoincidenceRows);
 
 /// **A carried census finding with the pin of the document it is of**,
 /// the body of a part's census row ([`mod@crate::eval`]'s `PartValue`): which

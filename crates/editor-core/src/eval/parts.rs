@@ -787,8 +787,8 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
                     crate::checks::at_rest::Pinned {
                         pin: doc_ref.pin,
                         finding: crate::checks::at_rest::DocRows {
-                            doc: Arc::clone(doc),
-                            rows: own,
+                            doc: crate::checks::at_rest::PinnedDoc::new(Arc::clone(doc)),
+                            sets: own.into(),
                         },
                     },
                 )
@@ -803,10 +803,7 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
                             row.route,
                             crate::checks::at_rest::Pinned {
                                 pin: row.pin,
-                                finding: crate::checks::at_rest::DocRows {
-                                    doc: row.doc,
-                                    rows: row.rows,
-                                },
+                                finding: row.rows,
                             },
                             Arc::default(),
                         )
