@@ -10547,8 +10547,30 @@ pub(crate) fn flush_at_rest<T: Decide + Bounds>(
             }
         }
     }
-    curved_flush_at_rest(body, &geo, &group_of, band, &mut out);
+    let curved: Vec<FaceKey> = geo
+        .curved_faces
+        .iter()
+        .copied()
+        .filter(|&f| flush_curved_kind(body, f).is_some())
+        .collect();
+    let boxes = Class::build(
+        CensusStrategy::Realized,
+        curved
+            .iter()
+            .map(|&f| face_box(body, f, pad, band).unwrap_or_else(|_| Aabb::poison()))
+            .collect(),
+    );
+    curved_flush_at_rest(body, &geo, (&curved, &boxes), &group_of, band, &mut out);
     out
+}
+
+/// The kind of `f`'s carrier where it is a cylinder or a sphere, the
+/// curved kinds [`curved_flush_at_rest`] reads.
+fn flush_curved_kind<T: Real>(body: &Body<T>, f: FaceKey) -> Option<geom::SurfaceKind> {
+    match body.surfaces.get(body.get_face(f)?.surface)? {
+        s @ (geom::Surface::Cylinder { .. } | geom::Surface::Sphere { .. }) => Some(s.kind()),
+        _ => None,
+    }
 }
 
 /// **[`flush_at_rest`] on cylinders and spheres**: two faces of
@@ -10558,32 +10580,17 @@ pub(crate) fn flush_at_rest<T: Decide + Bounds>(
 /// ([`curved::interiors_meeting`], a shared run), and whose interiors
 /// are certified apart ([`face_interiors_meet`]). Interiors that meet
 /// are the census's `SameSideInterference` ([`curved_same_side_pairs`]),
-/// and a pair Door 1 reads otherwise is the census's to read.
-fn curved_flush_at_rest<T: Decide + Bounds>(
+/// and a pair Door 1 reads otherwise is the census's to read. `faces`
+/// are the cylinder and sphere faces, and `boxes` their candidate tree.
+fn curved_flush_at_rest<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
+    (faces, boxes): (&[FaceKey], &Class),
     group_of: &dyn Fn(FaceKey) -> Option<u32>,
     band: Band,
     out: &mut FlushAtRest,
 ) {
-    let kind = |f: FaceKey| match body.surfaces.get(body.get_face(f)?.surface)? {
-        s @ (geom::Surface::Cylinder { .. } | geom::Surface::Sphere { .. }) => Some(s.kind()),
-        _ => None,
-    };
-    let faces: Vec<FaceKey> = geo
-        .curved_faces
-        .iter()
-        .copied()
-        .filter(|&f| kind(f).is_some())
-        .collect();
-    let pad = sweep_pad(band);
-    let boxes = Class::build(
-        CensusStrategy::Realized,
-        faces
-            .iter()
-            .map(|&f| face_box(body, f, pad, band).unwrap_or_else(|_| Aabb::poison()))
-            .collect(),
-    );
+    let kind = |f| flush_curved_kind(body, f);
     let edges = |f| {
         crate::boolean::solid_contain::face_edges(body, f)
             .map(|edges| edges.into_iter().map(|e| e.edge).collect::<BTreeSet<_>>())
@@ -10591,7 +10598,7 @@ fn curved_flush_at_rest<T: Decide + Bounds>(
     };
     for (i, &fa) in faces.iter().enumerate() {
         for j in boxes.later(i) {
-            let fb = *candidate(&faces, j);
+            let fb = *candidate(faces, j);
             if kind(fa) != kind(fb) {
                 continue;
             }
