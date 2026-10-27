@@ -2829,8 +2829,14 @@ pub enum BooleanError {
     /// multiplicity at least the degree, a closed chart's seam), where
     /// the face has a normal on each side and the sector's side of the
     /// line is not read, or a point where `S_u × S_v` vanishes (a pole),
-    /// where it has none. The definite half: an in-band distance refuses
-    /// the same way, with no tolerance named.
+    /// where it has none. A vertex decided on the line or point and one
+    /// whose distance from it the band cannot decide refuse alike: the
+    /// arm has no escalating half, and the variant names no tolerance.
+    ///
+    /// No operand the boolean builds today reaches it: a crossing on a
+    /// spline edge's own crease refuses first, at the crossing rung, and
+    /// an at-rest body carries no pole. `sectors`' `spline_refusal_rows`
+    /// pins the mapping on the shared walk's fixture.
     NormalAtSplineCrease {
         /// The operand the spline face belongs to.
         operand: Operand,

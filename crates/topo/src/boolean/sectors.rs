@@ -613,23 +613,21 @@ pub(super) fn sector_face<T: Decide>(
             face,
             kind,
         },
-        SectorFaceError::Crease { face } => BooleanError::NormalAtSplineCrease {
+        SectorFaceError::Crease { face, .. } => BooleanError::NormalAtSplineCrease {
             operand,
             face,
             band,
         },
         // A spline face whose rows are not owed (C4's exemption) stores
         // no chart image of the edge, which the arm reads the vertex at.
-        SectorFaceError::Unplaced { face } => BooleanError::CurvedBooleanUnsupported {
+        SectorFaceError::Unplaced { face, kind } => BooleanError::CurvedBooleanUnsupported {
             operand,
             face,
-            kind: body
-                .face_surface_linked(face, proven(&body.faces, face, EntityId::Face))
-                .kind(),
+            kind,
         },
     })?;
     // Exhaustive on purpose, exactly as the splitting wrapper is: a
-    // fifth carrier arm added to the shared walk must be a compile
+    // new carrier arm added to the shared walk must be a compile
     // error in BOTH lanes, not silently accepted by the one whose
     // downstream algebra happens not to read the carrier.
     match resolved.carrier {
@@ -7142,6 +7140,64 @@ mod spline_departure_rows {
             matches!(corner.end_reach, Reach::Conic { extent, .. } if (extent - 2.0).abs() < 1e-12),
             "levered at its extent, the chord's length 2: {:?}",
             corner.end_reach
+        );
+    }
+}
+
+/// The boolean's adaptation of the shared walk's spline refusals
+/// ([`sector_face`]): no operand the boolean builds today reaches a
+/// vertex on a crease of a spline face (a crossing on a corner's own
+/// knot refuses first, at the crossing rung), so the mapping is pinned
+/// here, on the shared walk's own fixture.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod spline_refusal_rows {
+    use super::*;
+    use crate::sector_face::tests::{planar_chart, sector_of, split_at_half};
+    use geom_core::Tol;
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
+
+    /// A vertex on a crease of a spline face refuses
+    /// `NormalAtSplineCrease`, naming the operand, the face and the band.
+    #[test]
+    fn a_crease_vertex_refuses_normal_at_spline_crease() {
+        let creased = planar_chart(vec![0.0, 0.0, 0.5, 1.0, 1.0], 1, &[0.0, 0.5, 1.0]);
+        let (body, top, mid) = split_at_half(creased);
+        let got = sector_face(&body, Operand::B, mid, sector_of(&body, mid, top), band());
+        assert!(
+            matches!(
+                got,
+                Err(BooleanError::NormalAtSplineCrease { operand: Operand::B, face, band: b })
+                    if face == top && b == band()
+            ),
+            "{got:?}"
+        );
+    }
+
+    /// A spline face with no chart image of the edge into the vertex
+    /// refuses `CurvedBooleanUnsupported` on its own kind.
+    #[test]
+    fn a_spline_face_with_no_pcurve_refuses_curved_boolean_unsupported() {
+        let smooth = planar_chart(vec![0.0, 0.0, 1.0, 1.0], 1, &[0.0, 1.0]);
+        let (mut body, top, mid) = split_at_half(smooth);
+        let he = sector_of(&body, mid, top);
+        let into = body.mate(he).unwrap();
+        body.detach_pcurve(into)
+            .expect("the half-edge stores its row");
+        let got = sector_face(&body, Operand::A, mid, he, band());
+        assert!(
+            matches!(
+                got,
+                Err(BooleanError::CurvedBooleanUnsupported {
+                    operand: Operand::A,
+                    face,
+                    kind: geom::SurfaceKind::Nurbs,
+                }) if face == top
+            ),
+            "{got:?}"
         );
     }
 }

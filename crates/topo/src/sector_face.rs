@@ -44,8 +44,8 @@
 //! told the face was planar, and whether a `Sphere` face has a wired
 //! arm. The first two are adaptation the callers do; the third is
 //! reported here as a [`SectorCarrier`] and refused by the caller that
-//! has no arm for it. What is left — the traversal and all three
-//! normals — is one body.
+//! has no arm for it. What is left — the traversal and every arm's
+//! normal — is one body.
 //!
 //! Like [`crate::sector_shape`], this module is a **top-level sibling**
 //! of `boolean/` and `splitting/` precisely so neither half hosts the
@@ -129,6 +129,8 @@ pub(crate) enum SectorFaceError {
     Crease {
         /// The spline face.
         face: FaceKey,
+        /// Its kind, `Nurbs` or `Approx`.
+        kind: SurfaceKind,
     },
     /// A spline face's half-edge into the vertex has no chart image to
     /// read the vertex's chart parameters off: it stores no pcurve, or
@@ -136,6 +138,8 @@ pub(crate) enum SectorFaceError {
     Unplaced {
         /// The spline face.
         face: FaceKey,
+        /// Its kind, `Nurbs` or `Approx`.
+        kind: SurfaceKind,
     },
 }
 
@@ -175,7 +179,10 @@ pub(crate) fn resolve<T: Decide>(
     he: HalfEdgeKey,
     band: Band,
 ) -> Result<SectorFace<T>, SectorFaceError> {
-    let face = face_of(body, vertex, he);
+    let into = body
+        .proven_mate(he, crate::live::link(EntityId::Vertex(vertex), "orbit"))
+        .mate;
+    let face = body.face_of_linked(into);
     // The planar arm goes through the crate's ONE sense-flip door
     // ([`crate::face_normal`]) rather than re-deriving the flip, and
     // reads nothing else: a plane's outward normal is a property of
@@ -206,8 +213,14 @@ pub(crate) fn resolve<T: Decide>(
     let surface = body.face_surface_linked(face, face_data);
     if let Some(chart) = surface.spline_chart() {
         let kind = surface.kind();
-        let at = (vertex, point());
-        let normal = spline_normal(body, at, he, (face, sense), (chart, kind), band)?;
+        let normal = spline_normal(
+            body,
+            point(),
+            (he, into),
+            (face, sense),
+            (chart, kind),
+            band,
+        )?;
         return Ok(SectorFace {
             face,
             normal,
@@ -253,7 +266,7 @@ pub(crate) fn resolve<T: Decide>(
 }
 
 /// A spline face's outward normal at the vertex `at`, which ends the
-/// face's half-edge `mate(he)`.
+/// face's half-edge `into`, the mate of the orbit half-edge `he`.
 ///
 /// The vertex's chart parameters are that half-edge's pcurve (C4) at the
 /// edge's parameter of the vertex, not a projection foot: the pcurve is
@@ -262,11 +275,12 @@ pub(crate) fn resolve<T: Decide>(
 /// land on another sheet of the carrier that passes within the band.
 /// The normal is read only where the chart has one there
 /// ([`geom_brep::regular_jet`], [`geom_brep::chart_normal_at`]), over the
-/// face's farthest reach from the vertex, its control net's.
+/// carrier's farthest reach from the vertex, its control net's (the face
+/// is a trim of the carrier, so it reaches no farther).
 fn spline_normal<T: Decide>(
     body: &Body<T>,
-    (vertex, at): (VertexKey, geom_core::Point3<T>),
-    he: HalfEdgeKey,
+    at: geom_core::Point3<T>,
+    (he, into): (HalfEdgeKey, HalfEdgeKey),
     (face, sense): (FaceKey, bool),
     (chart, kind): (&geom::NurbsSurface<T>, SurfaceKind),
     band: Band,
@@ -274,10 +288,7 @@ fn spline_normal<T: Decide>(
     if chart.is_placeholder() {
         return Err(SectorFaceError::Unsupported { face, kind });
     }
-    let into = body
-        .proven_mate(he, crate::live::link(EntityId::Vertex(vertex), "orbit"))
-        .mate;
-    let unplaced = SectorFaceError::Unplaced { face };
+    let unplaced = SectorFaceError::Unplaced { face, kind };
     let he_data = crate::live::proven(&body.half_edges, he, EntityId::HalfEdge);
     let edge = crate::live::linked(
         &body.edges,
@@ -296,12 +307,8 @@ fn spline_normal<T: Decide>(
     let t = if he == edge.he_plus { t0 } else { t1 };
     let uv = body.pcurve(into).ok_or(unplaced)?.pcurve().eval(t);
     let uv = (uv.x, uv.y);
-    let reach = chart
-        .control()
-        .iter()
-        .map(|&c| (c - at).norm())
-        .fold(T::zero(), T::max);
-    let crease = |_| SectorFaceError::Crease { face };
+    let reach = geom_brep::control_net_reach(chart.control(), at);
+    let crease = |_| SectorFaceError::Crease { face, kind };
     let jet = geom_brep::regular_jet(chart, uv, reach, band).map_err(crease)?;
     geom_brep::chart_normal_at(chart, sense, &jet, uv, reach, band)
         .map(|(normal, _)| normal)
@@ -310,7 +317,7 @@ fn spline_normal<T: Decide>(
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::fixtures::raw_prism;
     use geom_core::Tol;
@@ -473,7 +480,11 @@ mod tests {
     /// The bilinear-in-`v` chart over the unit square at `z = 1` whose
     /// `u` columns stand at `xs` on the knots `ku`, `u` running along `x`
     /// and `v` along `y`: the plane `z = 1`, chart normal `+z`.
-    fn planar_chart(ku: Vec<f64>, degree_u: usize, xs: &[f64]) -> geom::NurbsSurface<f64> {
+    pub(crate) fn planar_chart(
+        ku: Vec<f64>,
+        degree_u: usize,
+        xs: &[f64],
+    ) -> geom::NurbsSurface<f64> {
         use geom_core::spline::KnotVector;
         let ku = KnotVector::clamped(ku, degree_u).unwrap();
         let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
@@ -506,8 +517,30 @@ mod tests {
         (body, cube.top_face)
     }
 
+    /// [`spline_topped_cube`] with the top face's `y = 0` edge split at
+    /// `x = ½`: the body, the top face and the new vertex.
+    pub(crate) fn split_at_half(chart: geom::NurbsSurface<f64>) -> (Body<f64>, FaceKey, VertexKey) {
+        let (mut body, top) = spline_topped_cube(chart, true);
+        let edge = body
+            .edges()
+            .map(|(e, _)| e)
+            .find(|&e| {
+                let c = body.stored_curve(e).unwrap();
+                let (t0, t1) = c.params();
+                let (a, b) = (c.carrier().eval(t0), c.carrier().eval(t1));
+                a.z == 1.0 && b.z == 1.0 && a.y == 0.0 && b.y == 0.0
+            })
+            .expect("the top face's y = 0 edge");
+        let (t0, t1) = body.stored_curve(edge).unwrap().params();
+        let mid = body
+            .split_edge(edge, 0.5 * (t0 + t1), Tol::witness())
+            .unwrap()
+            .vertex;
+        (body, top, mid)
+    }
+
     /// The orbit half-edge at `vertex` whose sector is a corner of `face`.
-    fn sector_of(body: &Body<f64>, vertex: VertexKey, face: FaceKey) -> HalfEdgeKey {
+    pub(crate) fn sector_of(body: &Body<f64>, vertex: VertexKey, face: FaceKey) -> HalfEdgeKey {
         body.vertex_orbit_linked(vertex)
             .into_iter()
             .find(|&he| face_of(body, vertex, he) == face)
@@ -576,26 +609,11 @@ mod tests {
             &[0.0, 0.25, 0.75, 1.0],
         );
         for (chart, crease) in [(creased, true), (smooth, false)] {
-            let (mut body, top) = spline_topped_cube(chart, true);
-            let edge = body
-                .edges()
-                .map(|(e, _)| e)
-                .find(|&e| {
-                    let c = body.stored_curve(e).unwrap();
-                    let (t0, t1) = c.params();
-                    let (a, b) = (c.carrier().eval(t0), c.carrier().eval(t1));
-                    a.z == 1.0 && b.z == 1.0 && a.y == 0.0 && b.y == 0.0
-                })
-                .expect("the top face's y = 0 edge");
-            let (t0, t1) = body.stored_curve(edge).unwrap().params();
-            let mid = body
-                .split_edge(edge, 0.5 * (t0 + t1), Tol::witness())
-                .unwrap()
-                .vertex;
+            let (body, top, mid) = split_at_half(chart);
             let got = resolve(&body, mid, sector_of(&body, mid, top), band());
             if crease {
                 assert!(
-                    matches!(got, Err(SectorFaceError::Crease { face }) if face == top),
+                    matches!(got, Err(SectorFaceError::Crease { face, kind: SurfaceKind::Nurbs }) if face == top),
                     "a vertex on the crease refuses: {got:?}"
                 );
             } else {
@@ -655,7 +673,7 @@ mod tests {
             let got = resolve(&body, v, sector_of(&body, v, top), band());
             if at.x == 0.5 {
                 assert!(
-                    matches!(got, Err(SectorFaceError::Crease { face }) if face == top),
+                    matches!(got, Err(SectorFaceError::Crease { face, kind: SurfaceKind::Nurbs }) if face == top),
                     "{at:?}: the irregular corner refuses: {got:?}"
                 );
             } else {
@@ -855,7 +873,7 @@ mod review_5802 {
             let mid = split_top(&mut body, |p| p.x == 0.0);
             let got = resolve(&body, mid, sector_of(&body, mid, top), band());
             assert!(
-                matches!(got, Err(SectorFaceError::Crease { face }) if face == top),
+                matches!(got, Err(SectorFaceError::Crease { face, kind: SurfaceKind::Nurbs }) if face == top),
                 "sense {sense}: {got:?}"
             );
         }

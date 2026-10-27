@@ -6987,6 +6987,16 @@ mod wavy_loft {
             ),
             "the pierced face is the box's face x = 1"
         );
+        let walls: Vec<_> = near
+            .iter()
+            .filter_map(|&e| body.get_edge(e))
+            .flat_map(|e| [e.he_plus, e.he_minus])
+            .filter_map(|he| body.face_of_half_edge(he))
+            .collect();
+        assert!(
+            walls.contains(face),
+            "the refusal names a wall on a crossed corner: {face:?} of {walls:?}"
+        );
     }
 }
 

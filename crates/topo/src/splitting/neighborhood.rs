@@ -108,17 +108,12 @@ pub(super) fn sector_face<T: Decide>(
     he: HalfEdgeKey,
     band: Band,
 ) -> Result<(FaceKey, OutwardNormal<T>, bool), SplitReduceError> {
-    let unsupported = |face| SplitReduceError::CurvedBooleanUnsupported {
-        face,
-        kind: body
-            .face_surface_linked(face, proven(&body.faces, face, EntityId::Face))
-            .kind(),
-    };
     let resolved = crate::sector_face::resolve(body, vertex, he, band).map_err(|e| match e {
-        SectorFaceError::Unsupported { face, kind } => {
+        SectorFaceError::Unsupported { face, kind }
+        | SectorFaceError::Crease { face, kind }
+        | SectorFaceError::Unplaced { face, kind } => {
             SplitReduceError::CurvedBooleanUnsupported { face, kind }
         }
-        SectorFaceError::Crease { face } | SectorFaceError::Unplaced { face } => unsupported(face),
     })?;
     match resolved.carrier {
         SectorCarrier::Plane => Ok((resolved.face, resolved.normal, true)),
