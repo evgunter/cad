@@ -2876,6 +2876,9 @@ mod round_rows;
 mod cleared_rows;
 
 #[cfg(test)]
+mod rev5856_r1_probes;
+
+#[cfg(test)]
 mod tests {
     #![allow(clippy::expect_used, clippy::panic)]
 
