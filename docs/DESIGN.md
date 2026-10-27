@@ -1882,6 +1882,10 @@ swallowed.
   orders). Where the measured condition is reachable by input, the
   preferred disposition is a reported value, not a tripwire
   (`topo::coherence`).
+- *Checks serve the code, not the reverse.* The code is never made
+  worse to support a test or a debug check: no representation, stage
+  or decision exists only so a check can read it. Where a check needs
+  one, the check changes or goes (Ev, PR 5780).
 - *Boundary rule.* `pncad-py` re-types at the FFI edge — anything the
   Python layer can trigger is validated into a typed error before the
   kernel call, so an `unreachable!` never crosses into a
