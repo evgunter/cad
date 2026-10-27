@@ -448,6 +448,57 @@ fn the_l_split_chain_reports_no_naming_failure() {
     }
 }
 
+/// **A chord of a tied face is named per candidate** (N4, NS3). The
+/// plane x = 3 crosses both prongs of [`fixture::u_cutter_tie`], so each
+/// of its two tied caps is crossed once in each candidate. Each chord
+/// is the whole section line across its face: the bare `SectionEdge`,
+/// which the two candidates' chords tie under. Whether the plane crosses
+/// the other candidate is outside the chord's cell, so it cannot
+/// qualify it.
+#[test]
+fn a_tied_faces_undivided_chords_tie_under_the_bare_name() {
+    let (doc, sub) = fixture::u_cutter_tie(ProfileDoc::empty_derived("lib_g14", Tol::witness()));
+    let tool = plane_on(&doc, sub, [3.0, 0.0, 0.0], [1.0, 0.0, 0.0]);
+    let (doc, split) = insert(
+        doc,
+        Node::Split {
+            target: sub.into(),
+            tool,
+        },
+    );
+    let ev = run(&doc);
+    let tied_faces: Vec<&StableName> = ties(table(&ev, sub))
+        .into_iter()
+        .filter(|(n, _)| n.kind == EntityKind::Face)
+        .map(|(n, _)| n)
+        .collect();
+    assert_eq!(
+        tied_faces.len(),
+        2,
+        "the two caps' prong pieces tie: {tied_faces:?}"
+    );
+    for h in [SplitHalf::Above, SplitHalf::Below] {
+        let t = crate::fixture::half(&ev, split, h);
+        for face in &tied_faces {
+            let chords: Vec<(&StableName, &Entry)> = t
+                .iter()
+                .filter(|(n, _)| {
+                    matches!(n.path.first(), Some(RoleSeg::SectionEdge { face: f }) if **f == **face)
+                })
+                .collect();
+            let [(name, Entry::Tied(c))] = chords.as_slice() else {
+                panic!("{h:?}: the chords of {face:?} are one tie: {chords:#?}");
+            };
+            assert_eq!(c.len(), 2, "{h:?}: one chord per candidate: {name:?}");
+            assert_eq!(
+                name.path.len(),
+                1,
+                "{h:?}: an undivided chord is bare: {name:?}"
+            );
+        }
+    }
+}
+
 // ---- #380: the emitter payload reaches the NODE-level prose. ----
 
 /// `NamingError`'s own `Display` landed separately (#516); what this
