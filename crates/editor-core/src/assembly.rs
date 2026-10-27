@@ -269,8 +269,11 @@ impl core::fmt::Display for CarriedAtRestFinding {
 /// record set the at-rest gate certified.
 #[derive(Debug)]
 pub struct Assembly<T: Decide> {
-    /// The gathered product body.
+    /// The gathered product body, in the frame its gather computed in
+    /// ([`crate::in_space`] composes it into the world).
     pub body: topo::Body<T>,
+    /// The frame [`Self::body`] is in: the product's.
+    pub(crate) frame: crate::eval::Frame<T>,
     /// Its stable names.
     pub names: NameTable,
     /// The certified record set: the records each copy carried, and
@@ -622,6 +625,7 @@ pub fn assemble_gathered<T: crate::checks::at_rest::LocalizeLane>(
     let mut interference = verdict(&product, tol)?;
     let Product {
         body,
+        frame,
         names,
         contacts,
         assembles,
@@ -636,6 +640,7 @@ pub fn assemble_gathered<T: crate::checks::at_rest::LocalizeLane>(
     let carried_interference = reported.carried;
     Ok(Assembly {
         body: body.into_body(),
+        frame,
         names,
         contacts,
         interference,

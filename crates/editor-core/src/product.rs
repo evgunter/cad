@@ -752,9 +752,10 @@ pub struct Product<T: Decide> {
     /// over it once ([`Self::census`]); [`crate::assemble_gathered`]
     /// reads both and runs neither again.
     pub body: topo::AtRestBody<T>,
-    /// **The frame [`Self::body`] is in** (D10 `[placement.frame]`): its
-    /// first source's, the frame the gather computed in. Export and the
-    /// viewer compose it into the world through
+    /// **The frame [`Self::body`] is in** (D10 `[placement.frame]`): the
+    /// frame the gather computed in, its first source in its space's
+    /// coordinates, else its first source's. Export, the façade's
+    /// read-outs and the viewer compose it into the world through
     /// [`crate::mate::in_space`] alone.
     pub(crate) frame: crate::eval::Frame<T>,
     /// Its stable names, re-keyed onto the aggregate ([`product_named`]).

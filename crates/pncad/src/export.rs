@@ -24,6 +24,13 @@
 //! rushed. Single-body values only (`Body`, or a non-empty `Boolean`):
 //! a `Split` or `Instances` value denotes SEVERAL bodies and gets a
 //! typed refusal naming its kind, not a silent first-element pick.
+//!
+//! # Read-outs
+//!
+//! The bindings' bodies leave through here too: [`body_in_space`],
+//! [`assembly_body_in_space`] and [`pick_mesh_in_space`] compose a body
+//! (or its pick mesh) into its space as export does, for a
+//! host-language read-out that never re-enters a document.
 
 use editor_core::{
     BooleanValue, Evaluation, NodeStanding, ProductError, ProfileDoc, RecipeNodeId, Said, Say,
@@ -188,6 +195,69 @@ fn in_its_space(
         return Ok(body.clone());
     }
     topo::transform_rigid(body, map, tol).map_err(ExportError::Compose)
+}
+
+/// **A body value as it stands in its space**, the façade's read-out
+/// door: the body composed through [`editor_core::in_space`], shared
+/// as it is where its frame is the identity.
+///
+/// A read-out is an export in D10 `[placement.world]`'s sense: what it
+/// answers (a host-language body, its points and measures) has no way
+/// back into a document. The bindings read a value's bodies through
+/// this door and compose nothing themselves.
+///
+/// # Errors
+///
+/// [`topo::TransformError`] when the kernel refuses the frame's rigid
+/// map.
+pub fn body_in_space(
+    body: &editor_core::Framed<f64>,
+    tol: Tol,
+) -> Result<std::sync::Arc<Body<f64>>, topo::TransformError> {
+    let map = editor_core::in_space(body);
+    if is_identity(&map) {
+        return Ok(std::sync::Arc::clone(body.shared()));
+    }
+    topo::transform_rigid(body.body(), &map, tol).map(std::sync::Arc::new)
+}
+
+/// **An assembly's body as it stands in the world**, [`body_in_space`]
+/// for the body [`editor_core::assemble`] gated: borrowed as it is
+/// where the gather computed in the world's coordinates. The rigid map
+/// keeps every arena key, so the assembly's contact records cite the
+/// composed body as they cited the gathered one.
+///
+/// # Errors
+///
+/// As [`body_in_space`].
+pub fn assembly_body_in_space(
+    assembly: &editor_core::Assembly<f64>,
+    tol: Tol,
+) -> Result<std::borrow::Cow<'_, Body<f64>>, topo::TransformError> {
+    let map = editor_core::in_space(assembly);
+    if is_identity(&map) {
+        return Ok(std::borrow::Cow::Borrowed(&assembly.body));
+    }
+    topo::transform_rigid(&assembly.body, &map, tol).map(std::borrow::Cow::Owned)
+}
+
+/// **A pick index's mesh as it stands in its space**, the read-out a
+/// host-language display draws: [`editor_core::NodePick::mesh`] is in
+/// its body's frame, and [`editor_core::pick_face`] reads a ray in the
+/// space's coordinates into that frame, so the mesh drawn is the one
+/// composed here. Borrowed as it is where the frame is the identity; a
+/// rigid map keeps every winding and every patch's and polyline's key.
+#[must_use]
+pub fn pick_mesh_in_space(pick: &editor_core::NodePick) -> std::borrow::Cow<'_, mesh::Mesh> {
+    let map = editor_core::in_space(pick);
+    if is_identity(&map) {
+        return std::borrow::Cow::Borrowed(pick.mesh());
+    }
+    let mut mesh = pick.mesh().clone();
+    for p in &mut mesh.positions {
+        *p = map.transform_point(*p);
+    }
+    std::borrow::Cow::Owned(mesh)
 }
 
 /// Whether `map` is the identity, bit for bit.

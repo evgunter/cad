@@ -21,6 +21,7 @@
 //! its BODY and its product names: what a consumer measures, exports
 //! and reads back.
 
+use std::borrow::Cow;
 use std::sync::Arc;
 
 use pyo3::prelude::*;
@@ -708,6 +709,29 @@ pub(crate) fn assemble(py: Python<'_>, doc: &Doc, evaluation: &Evaluation) -> Py
         .iter()
         .map(|(name, _)| name_text(py, name))
         .collect::<PyResult<Vec<String>>>()?;
+    // The body as it stands in the world, through the façade's
+    // read-out door: the gather computed it in its first source's frame.
+    let body = match pncad::export::assembly_body_in_space(&assembly, tol) {
+        Ok(Cow::Owned(body)) => Some(body),
+        Ok(Cow::Borrowed(_)) => None,
+        Err(err) => {
+            let none = || py.None().into_any();
+            return Err(typed_err(
+                py,
+                ErrorClass::Export,
+                format!("the assembled body could not be composed into the world: {err}"),
+                &[
+                    (
+                        "variant",
+                        PyString::new(py, "compose_refused").unbind().into_any(),
+                    ),
+                    ("node", none()),
+                    ("through", none()),
+                    ("kind", none()),
+                ],
+            ));
+        }
+    };
     let read = evaluation.doc_shared();
     let interference = assembly
         .interference
@@ -732,7 +756,10 @@ pub(crate) fn assemble(py: Python<'_>, doc: &Doc, evaluation: &Evaluation) -> Py
         // `Assembly` at all means tier 3′ ALREADY passed over exactly
         // this pair, so `Assembly.body.validate_pseudomanifold()` is
         // the same verdict re-taken, un-attributed.
-        body: Body::recorded(Arc::new(assembly.body), Arc::new(assembly.contacts)),
+        body: Body::recorded(
+            Arc::new(body.unwrap_or(assembly.body)),
+            Arc::new(assembly.contacts),
+        ),
         names,
         interference,
         carried_interference,

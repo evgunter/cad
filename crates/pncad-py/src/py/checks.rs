@@ -935,9 +935,19 @@ pub(crate) fn enforce_checks(
 /// no Python spelling, and a door that took one could hand a body
 /// another body's declarations).
 #[pyfunction]
-pub(crate) fn subject_body(evaluation: &Evaluation, root: &NodeId, output_ix: u32) -> Option<Body> {
+pub(crate) fn subject_body(
+    py: Python<'_>,
+    evaluation: &Evaluation,
+    root: &NodeId,
+    output_ix: u32,
+) -> PyResult<Option<Body>> {
     d::subject_body(&evaluation.inner, root.0, output_ix)
-        .map(|(body, contacts)| Body::recorded(Arc::clone(body.shared()), contacts))
+        .map(|(body, contacts)| {
+            pncad::export::body_in_space(&body, Tol::witness())
+                .map(|body| Body::recorded(body, contacts))
+                .map_err(|err| crate::py::value::compose_err(py, *root, &err))
+        })
+        .transpose()
 }
 
 /// Register the advisory-check registry on the module.

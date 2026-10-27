@@ -19,10 +19,19 @@
 # re-export and a longer name (`in_space_of`) are not calls.
 #
 # THE HOMES, each a whole-file skip, each a composing reader:
-#   pncad/src/export.rs        STEP export of a node and of the product;
+#   pncad/src/export.rs        STEP export of a node and of the product,
+#                              and the façade's read-outs (a value's
+#                              bodies, an assembly's body, a pick mesh)
+#                              that the bindings hand a host language;
 #   viewer/src/pickindex.rs    the picture's parts, drawn and picked where
 #                              their frames put them;
 #   viewer/src/scene.rs        the product's picture.
+#
+# THE BINDINGS NEVER COMPOSE. pncad-py reads a body as it stands in its
+# space through pncad's read-out doors alone (the Python façade holds no
+# code that is not a call to the Rust façade), so a pncad-py file is
+# never a home: the gate refuses a home list naming one, and a call in
+# pncad-py reds with its own diagnosis, naming the door to call.
 #
 # KNOWN GAPS. A home can grow a second call that feeds the model, and
 # nothing here sees it: a skip is per file. `in_space` passed as a value
@@ -57,7 +66,13 @@ gate() {
     gate_error "$(gate_name): no production source of editor-core, pncad, pncad-py or viewer is in this tree — the gate scanned nothing, which is not a pass"
     exit 1
   fi
-  local view hits
+  for f in "${IN_SPACE_HOMES[@]}"; do
+    if [[ "$f" == crates/pncad-py/* ]]; then
+      gate_error "$(gate_name): $f is listed as a home, and the bindings never compose — pncad-py reads a body through pncad's read-out doors (pncad/src/export.rs)"
+      exit 1
+    fi
+  done
+  local view hits bound
   if ! view=$(gate_rust_code --skip-cfg-test --statements "${scope[@]}"); then
     gate_error "$(gate_name): the shared Rust reader could not build the statement view, so what it did not match is unknown — that is not a pass"
     exit 1
@@ -65,6 +80,12 @@ gate() {
   hits=$(printf '%s\n' "$view" \
     | gate_grep -E '(^|[^A-Za-z0-9_])in_space[[:space:]]*(::[[:space:]]*<[^()]*>[[:space:]]*)?\(' \
     | gate_grep -vE "$(gate_record_anchor_any "${IN_SPACE_HOMES[@]}")")
+  bound=$(printf '%s\n' "$hits" | gate_grep -E '^crates/pncad-py/' || true)
+  if [ -n "$bound" ]; then
+    echo "$bound"
+    gate_error "in_space called by the bindings — pncad-py composes nothing: read a body as it stands in its space through pncad's read-out doors (pncad::export::body_in_space, assembly_body_in_space, pick_mesh_in_space)"
+    exit 1
+  fi
   if [ -n "$hits" ]; then
     echo "$hits"
     gate_error "in_space called outside export and the viewer's picture — a body is composed into its space for a picture or an export alone, never as an operation's input (D10 [placement.world]): relate two operands through Framed::relative, or, for a new picture or export path, add its file to this gate's homes with its reason"
@@ -100,6 +121,13 @@ plant_wrapped() {
   } > "$1/crates/pncad-py/src/planted.rs"
 }
 
+# The bindings composing a value's body themselves.
+plant_bound() {
+  mkdir -p "$1/crates/pncad-py/src/py"
+  printf 'fn read(b: &d::Framed<f64>) -> M { pncad::document::in_space(b) }\n' \
+    > "$1/crates/pncad-py/src/py/value.rs"
+}
+
 plant_turbofish() {
   mkdir -p "$1/crates/viewer/src"
   printf 'pub fn read(b: &Framed) -> M { in_space::<f64>(b) }\n' \
@@ -127,11 +155,13 @@ gate_selftest() {
   gate_selftest_clean
   gate_selftest_without_tool grep "it is grep saying it could not search"
   gate_selftest_case "$want" plant
-  gate_selftest_case "$want" plant_wrapped
+  local bound="in_space called by the bindings"
+  gate_selftest_case "$bound" plant_wrapped
+  gate_selftest_case "$bound" plant_bound
   gate_selftest_case "$want" plant_turbofish
   gate_selftest_passes "prose, a re-export, the definition, a longer name, a string, a test module and a crate outside the scope" plant_not_calls
   gate_selftest_homes --narrowed --subject "$IN_SPACE_SUBJECT" "${IN_SPACE_HOMES[@]}"
-  printf '%s selftest OK: passes a clean fixture carrying every home, and prose, a re-export, the definition, a longer name, a string, a test module and an out-of-scope crate; fires on a path call, a rustfmt-wrapped call and a turbofish call outside the homes; stays RED, with a diagnosis, when grep cannot run\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture carrying every home, and prose, a re-export, the definition, a longer name, a string, a test module and an out-of-scope crate; fires on a path call and a turbofish call outside the homes, and with its own diagnosis on a call (direct or rustfmt-wrapped) in the bindings; stays RED, with a diagnosis, when grep cannot run\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

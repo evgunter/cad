@@ -1079,17 +1079,21 @@ impl Value {
     /// "output body 0" names nothing there), so `Instances` and
     /// `Split` halves are plain — no home to read from, and none is
     /// invented.
-    fn recorded_body(&self, body: &d::Framed<f64>) -> Body {
-        let body = body.shared();
-        match &self.payload {
-            d::ValuePayload::Body(_) => {
-                Body::recorded(Arc::clone(body), Arc::clone(&self.contacts))
-            }
+    ///
+    /// The body is read as it stands in its space, through the façade's
+    /// read-out door ([`pncad::export::body_in_space`]); its records
+    /// cite it there as they cite its own coordinates, the rigid map
+    /// keeping every key.
+    fn recorded_body(&self, py: Python<'_>, body: &d::Framed<f64>) -> PyResult<Body> {
+        let body = pncad::export::body_in_space(body, Tol::witness())
+            .map_err(|err| compose_err(py, self.node, &err))?;
+        Ok(match &self.payload {
+            d::ValuePayload::Body(_) => Body::recorded(body, Arc::clone(&self.contacts)),
             d::ValuePayload::Boolean(d::BooleanValue::Body { contacts, .. }) => {
-                Body::recorded(Arc::clone(body), Arc::clone(contacts))
+                Body::recorded(body, Arc::clone(contacts))
             }
-            _ => Body::plain(Arc::clone(body)),
-        }
+            _ => Body::plain(body),
+        })
     }
 }
 
@@ -1110,9 +1114,9 @@ impl Value {
     /// kind, and for an empty Boolean.
     fn body(&self, py: Python<'_>) -> PyResult<Body> {
         match &self.payload {
-            d::ValuePayload::Body(body) => Ok(self.recorded_body(body)),
+            d::ValuePayload::Body(body) => self.recorded_body(py, body),
             d::ValuePayload::Boolean(d::BooleanValue::Body { body, .. }) => {
-                Ok(self.recorded_body(body))
+                self.recorded_body(py, body)
             }
             d::ValuePayload::Boolean(d::BooleanValue::Empty) => Err(eval_err(
                 py,
@@ -1132,31 +1136,33 @@ impl Value {
     /// Every body this value denotes: one for `Body`/`Boolean`, the
     /// whole list for `Instances`, both sides for a
     /// `Split`.
-    fn bodies(&self) -> Vec<Body> {
-        let wrap = |body: &d::Framed<f64>| self.recorded_body(body);
+    fn bodies(&self, py: Python<'_>) -> PyResult<Vec<Body>> {
+        let wrap = |body: &d::Framed<f64>| self.recorded_body(py, body);
         let side = |s: &d::SplitSide<f64>| match s {
             d::SplitSide::Body(body) => Some(wrap(body)),
             d::SplitSide::Empty => None,
         };
         match &self.payload {
-            d::ValuePayload::Body(body) => vec![wrap(body)],
-            d::ValuePayload::Boolean(d::BooleanValue::Body { body, .. }) => vec![wrap(body)],
+            d::ValuePayload::Body(body) => Ok(vec![wrap(body)?]),
+            d::ValuePayload::Boolean(d::BooleanValue::Body { body, .. }) => Ok(vec![wrap(body)?]),
             d::ValuePayload::Instances(bodies) => bodies.iter().map(wrap).collect(),
             d::ValuePayload::Split { above, below } => {
                 [side(above), side(below)].into_iter().flatten().collect()
             }
-            _ => Vec::new(),
+            _ => Ok(Vec::new()),
         }
     }
 
     /// A split's two sides, `(above, below)`; `None` where empty.
     fn split(&self, py: Python<'_>) -> PyResult<(Option<Body>, Option<Body>)> {
         let side = |s: &d::SplitSide<f64>| match s {
-            d::SplitSide::Body(body) => Some(Body::plain(Arc::clone(body.shared()))),
-            d::SplitSide::Empty => None,
+            d::SplitSide::Body(body) => pncad::export::body_in_space(body, Tol::witness())
+                .map(|body| Some(Body::plain(body)))
+                .map_err(|err| compose_err(py, self.node, &err)),
+            d::SplitSide::Empty => Ok(None),
         };
         match &self.payload {
-            d::ValuePayload::Split { above, below } => Ok((side(above), side(below))),
+            d::ValuePayload::Split { above, below } => Ok((side(above)?, side(below)?)),
             other => Err(eval_err(
                 py,
                 format!("a `{}` value is not a split", other.kind_name()),
@@ -1904,6 +1910,32 @@ impl Evaluation {
     fn __repr__(&self) -> String {
         format!("Evaluation({} nodes)", self.inner.order.len())
     }
+}
+
+/// Raise `ExportError` with variant `compose_refused` for a read-out
+/// whose body the kernel would not compose into its space
+/// ([`pncad::export::body_in_space`]): the same arm `export_step` raises
+/// for the same refusal, `node` the value's.
+pub(crate) fn compose_err(py: Python<'_>, node: NodeId, err: &topo::TransformError) -> PyErr {
+    let node_obj = match node.into_pyobject(py) {
+        Ok(bound) => bound.unbind().into_any(),
+        Err(failed) => return failed,
+    };
+    let fields: Vec<(&str, Py<PyAny>)> = vec![
+        (
+            "variant",
+            PyString::new(py, "compose_refused").unbind().into_any(),
+        ),
+        ("node", node_obj),
+        ("through", py.None().into_any()),
+        ("kind", py.None().into_any()),
+    ];
+    typed_err(
+        py,
+        ErrorClass::Export,
+        format!("the body could not be composed into its space: {err}"),
+        &fields,
+    )
 }
 
 /// Raise `ExportError` mirroring the Rust door's refusal: `variant`
