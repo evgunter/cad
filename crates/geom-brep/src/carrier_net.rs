@@ -298,15 +298,25 @@ fn span_basis_of(alpha: &Alpha, a: f64, b: f64) -> SpanBasis {
     let w = ib - ia;
     let binom = geom_core::spline::pieces::binomial;
     let choose = |i: usize, k: usize| Interval::from_f64(binom(i, k));
+    // The expansion's terms `C(j,k)·(a − m)^{j−k}·(b − a)^k`, formed
+    // once for both series.
+    let terms: Vec<Vec<Interval>> = (0..=n)
+        .map(|j| {
+            (0..=j)
+                .map(|k| {
+                    choose(j, k)
+                        * am.powi(i32::try_from(j - k).unwrap_or(i32::MAX))
+                        * w.powi(i32::try_from(k).unwrap_or(i32::MAX))
+                })
+                .collect()
+        })
+        .collect();
     let bernstein = |series: &Series| -> Vec<Interval> {
         // The polynomial's coefficients in `s`.
         let mut mono = vec![Interval::zero(); n + 1];
         for (j, cj) in series.iter().take(n + 1).enumerate() {
             for (k, mk) in mono.iter_mut().enumerate().take(j + 1) {
-                let term = choose(j, k)
-                    * am.powi(i32::try_from(j - k).unwrap_or(i32::MAX))
-                    * w.powi(i32::try_from(k).unwrap_or(i32::MAX));
-                *mk = *mk + *cj * term;
+                *mk = *mk + *cj * terms[j][k];
             }
         }
         // Monomial to Bernstein: `bᵢ = Σ_{k≤i} C(i,k)/C(n,k)·aₖ`.
