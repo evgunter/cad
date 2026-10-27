@@ -46,3 +46,9 @@ part of that row, or the booleans now hand it different faces.
 Ownership: the pinned behaviour is TESS's (the refusal row); the test
 file is TCOST's and TINT's.
 
+
+## Bisect (QUAD triage, 2026-10-27)
+
+A first-parent bisect at the default ε over `1ce7a33c..ab2b6108` names
+`463956a6`, the merge of **PR 5717** (`pred/mesh-sizing-rule`). Its first
+parent `5998b4f6` is green. The row is still red on main `3a0cd80f`.

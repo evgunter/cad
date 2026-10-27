@@ -28,11 +28,11 @@ S25: a function takes both a `Band` — whose `zero()` *is* the run tolerance �
 
 **Three signatures, all `(… eps: f64, band: Band)`:**
 
-- `crates/geom-brep/src/props/quad.rs:531` — `cylinder_cut_face`
-- `crates/geom-brep/src/props/quad.rs:2141` — `rational_patch_face`
-- `crates/geom-brep/src/props/quad.rs:2415` — `nurbs_patch_face`
+- `crates/geom-brep/src/props/quad/cylinder.rs` — `cylinder_cut_face`
+- `crates/geom-brep/src/props/quad/rational.rs` — `rational_patch_face`
+- `crates/geom-brep/src/props/quad/patch.rs` — `nurbs_patch_face`
 
-#692's body says the latter two carry the same `eps` *"without a `Band` in the signature"*. **They both have one**, identical in shape to `cylinder_cut_face`. The class in `quad.rs` is three, not one.
+#692's body says the latter two carry the same `eps` *"without a `Band` in the signature"*. **They both have one**, identical in shape to `cylinder_cut_face`. The class in `props/quad/` is three, not one.
 
 **Two call sites reading the global beside a locally-built band:**
 
@@ -49,7 +49,7 @@ That identity is **contingent on band linearity**, not typed. A non-linear band 
 
 ## Suggested disposition
 
-Whoever next lands in `props/` takes all five sites. The SSI answer — delete the parameter, derive from the band at the one place that knows — should transfer directly; `quad.rs`'s lanes have no equivalent of SSI's *"the marcher is deliberately the untrusted f64 candidate generator"*, which was the one structural reason SSI needed a type rather than a deletion.
+Whoever next lands in `props/` takes all five sites. The SSI answer — delete the parameter, derive from the band at the one place that knows — should transfer directly; `props/quad/`'s lanes have no equivalent of SSI's *"the marcher is deliberately the untrusted f64 candidate generator"*, which was the one structural reason SSI needed a type rather than a deletion.
 
 ## Also swept and cleared, so the next person does not redo it
 
@@ -60,4 +60,4 @@ Refs #692, and S25 in `docs/SMELL-SCAN-2026-08.md`.
 
 ## Home
 
-S-CERT: three of the five sites are in `crates/geom-brep/src/props/quad.rs` — the program's `crates/geom-brep/src/props/*` territory — and the issue's own disposition is "whoever next lands in `props/` takes all five". The `keep_out` fence on `props/quad.rs` names only the `C3`/`D30` consolidation, which this is not.
+S-CERT: three of the five sites are in `crates/geom-brep/src/props/quad/` — the program's `crates/geom-brep/src/props/*` territory — and the issue's own disposition is "whoever next lands in `props/` takes all five". The `keep_out` fence on `props/quad/` names only the `C3`/`D30` consolidation, which this is not.

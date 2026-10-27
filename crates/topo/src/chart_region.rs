@@ -2676,30 +2676,8 @@ fn certified_arms<T: Decide + Bounds>(
     v_hi: T,
     band: Band,
 ) -> Result<(InfSpeed<T>, InfSpeed<T>), ChartRegionError> {
-    // The arm gate: a lever arm is a metre RATE, gated as a length
-    // (the collapsed-arm idiom). Definite-positive walks on; a zero
-    // or negative arm is the chart having no certified extent in that
-    // channel; an in-band arm escalates rather than guessing.
     let gate = |arm: T, chart: &'static str| -> Result<T, ChartRegionError> {
-        // **Structure first (C6): an arm with no positive FLOOR is
-        // not a bound at all.** At `f64` the bracket is the value and
-        // this is exactly the `Zero`/`Negative` arm below. Under the
-        // interval scalar it is the case that arm carries — a folded
-        // net's `min_dot/|c|` quotient divides by a bracket straddling
-        // zero and comes back as the whole admissible range, whose
-        // floor is 0 — and reading the floor keeps that answer TYPED
-        // (`ArmUnbounded`, the chart honestly has no bound) instead of
-        // laundering it into an escalation that reads as "undecided
-        // measurement". Only the floor is ever leaned on downstream,
-        // so this is the same question the row asks, asked first.
-        if arm.lo() <= 0.0 {
-            return Err(ChartRegionError::ArmUnbounded { chart });
-        }
-        match decide("chart_region_arm_inf", Margin::of(arm), band) {
-            Ok(Sign::Positive) => Ok(arm),
-            Ok(Sign::Zero | Sign::Negative) => Err(ChartRegionError::ArmUnbounded { chart }),
-            Err(diag) => Err(ChartRegionError::Escalated(diag)),
-        }
+        gate_arm(ARM_INF, arm, arm.lo(), band).map_err(|g| g.of_chart(chart))
     };
     let (arm_u, arm_v) = match *surface {
         // A plane chart's coordinates ARE metres (unit u_ref frame).
@@ -2744,43 +2722,123 @@ fn certified_arms<T: Decide + Bounds>(
             } else {
                 "approximating surface"
             };
-            let inf = geom_brep::chart_stretch_inf(surface);
-            // Gate the per-axis infs FIRST: they are the assembly's
-            // divisors, and only a definitely-positive one makes the
-            // divisions below well-conditioned.
-            let (inf_u, inf_v) = (gate(inf.inf_u, chart)?, gate(inf.inf_v, chart)?);
-            // The skew discount `ρ` of `chart_stretch_inf`'s
-            // assembly: the smallest singular value of the Jacobian
-            // in the chart normalized by those infs, from a sup trace
-            // and an inf determinant (the conservative corner, since
-            // `λ_min` falls with the trace and rises with the
-            // determinant). `ρ` is 1 on an orthogonal chart of
-            // constant stretch, so the arms are then the per-axis
-            // infs verbatim; it is 0 on a chart whose derivative
-            // directions can align, which is the skew case the
-            // per-axis pair alone cannot see.
-            let trace_sup = (inf.sup_u / inf_u).powi(2) + (inf.sup_v / inf_v).powi(2);
-            let det_inf = (inf.area_inf / (inf_u * inf_v)).powi(2);
-            let root = (trace_sup.powi(2) - det_inf * T::from_f64(4.0))
-                .max(T::zero())
-                .sqrt();
-            // `2D/(T + √(T²−4D))` — the cancellation-free spelling of
-            // `(T − √(T²−4D))/2`.
-            // The `min(1)` is a SAFETY cap, not a tightening: `T` and
-            // `D` come from different points of the chart, so their
-            // corner can nominally exceed the true `λ_min ≤ 1` and an
-            // arm above its own per-axis inf would be unsound. It is
-            // also what makes `arm ≤ inf_u` near-tautological, so no
-            // test may use that inequality as evidence of anything —
-            // the swap row pins the arm's DERIVED VALUE for exactly
-            // this reason.
-            let rho = (det_inf * T::from_f64(2.0) / (trace_sup + root))
-                .sqrt()
-                .min(T::one());
-            (gate(inf_u * rho, chart)?, gate(inf_v * rho, chart)?)
+            return spline_chart_arms(surface, ARM_INF, |a: T| a.lo(), band)
+                .map_err(|g| g.of_chart(chart));
         }
     };
     Ok((InfSpeed::new(arm_u), InfSpeed::new(arm_v)))
+}
+
+/// The row a chart's inf-side lever arm is gated on.
+const ARM_INF: &str = "chart_region_arm_inf";
+
+/// Why [`gate_arm`] gates no rate.
+#[derive(Clone, Debug)]
+pub(crate) enum ArmGate {
+    /// The chart has no certified extent in that channel.
+    Unbounded,
+    /// The arm is in the band.
+    Escalated(Indeterminate),
+}
+
+impl ArmGate {
+    fn of_chart(self, chart: &'static str) -> ChartRegionError {
+        match self {
+            Self::Unbounded => ChartRegionError::ArmUnbounded { chart },
+            Self::Escalated(diag) => ChartRegionError::Escalated(diag),
+        }
+    }
+}
+
+/// **The arm gate**: a lever arm is a metre RATE, gated as a length on
+/// `name` (the collapsed-arm idiom). Definite-positive walks on; a zero
+/// or negative arm is the chart having no certified extent in that
+/// channel; an in-band arm escalates rather than guessing.
+///
+/// **Structure first (C6): an arm with no positive `floor` is not a
+/// bound at all.** At `f64` the bracket is the value and this is
+/// exactly the `Zero`/`Negative` arm. Under the interval scalar it is
+/// the case that arm carries — a folded net's `min_dot/|c|` quotient
+/// divides by a bracket straddling zero and comes back as the whole
+/// admissible range, whose floor is 0 — and reading the floor keeps
+/// that answer TYPED ([`ArmGate::Unbounded`], the chart honestly has
+/// no bound) instead of laundering it into an escalation that reads as
+/// "undecided measurement". Only the floor is ever leaned on
+/// downstream, so this is the same question the row asks, asked first.
+pub(crate) fn gate_arm<T: Decide>(
+    name: &'static str,
+    arm: T,
+    floor: f64,
+    band: Band,
+) -> Result<T, ArmGate> {
+    if floor <= 0.0 {
+        return Err(ArmGate::Unbounded);
+    }
+    match decide(name, Margin::of(arm), band) {
+        Ok(Sign::Positive) => Ok(arm),
+        Ok(Sign::Zero | Sign::Negative) => Err(ArmGate::Unbounded),
+        Err(diag) => Err(ArmGate::Escalated(diag)),
+    }
+}
+
+/// **A spline chart's two inf-side lever arms, gated** ([`gate_arm`] on
+/// `name`, each arm's floor read by `floor`): the per-axis infs of its
+/// stretch reading ([`geom_brep::chart_stretch_inf`]) gated FIRST, since
+/// they are the assembly's divisors and only a definitely-positive one
+/// makes its divisions well-conditioned, then the skew-discounted arms
+/// ([`skew_discounted_arms`]) gated again.
+pub(crate) fn spline_chart_arms<T: Decide>(
+    surface: &Surface<T>,
+    name: &'static str,
+    floor: impl Fn(T) -> f64,
+    band: Band,
+) -> Result<(InfSpeed<T>, InfSpeed<T>), ArmGate> {
+    let inf = geom_brep::chart_stretch_inf(surface);
+    let gate = |arm: T| gate_arm(name, arm, floor(arm), band);
+    let (inf_u, inf_v) = (gate(inf.inf_u)?, gate(inf.inf_v)?);
+    let (arm_u, arm_v) = skew_discounted_arms(&inf, inf_u, inf_v);
+    Ok((InfSpeed::new(gate(arm_u)?), InfSpeed::new(gate(arm_v)?)))
+}
+
+/// **A spline chart's two inf-side lever arms** from its stretch reading
+/// ([`geom_brep::chart_stretch_inf`]) and its per-axis infs `inf_u`,
+/// `inf_v`, gated definitely positive ([`spline_chart_arms`]): `(inf_u·ρ, inf_v·ρ)`,
+/// for a displacement `(du, dv)` of the chart maps to at least
+/// `√((inf_u·ρ·du)² + (inf_v·ρ·dv)²)` metres.
+fn skew_discounted_arms<T: geom_core::Real>(
+    inf: &geom_brep::ChartStretchInf<T>,
+    inf_u: T,
+    inf_v: T,
+) -> (T, T) {
+    // The skew discount `ρ` of `chart_stretch_inf`'s
+    // assembly: the smallest singular value of the Jacobian
+    // in the chart normalized by those infs, from a sup trace
+    // and an inf determinant (the conservative corner, since
+    // `λ_min` falls with the trace and rises with the
+    // determinant). `ρ` is 1 on an orthogonal chart of
+    // constant stretch, so the arms are then the per-axis
+    // infs verbatim; it is 0 on a chart whose derivative
+    // directions can align, which is the skew case the
+    // per-axis pair alone cannot see.
+    let trace_sup = (inf.sup_u / inf_u).powi(2) + (inf.sup_v / inf_v).powi(2);
+    let det_inf = (inf.area_inf / (inf_u * inf_v)).powi(2);
+    let root = (trace_sup.powi(2) - det_inf * T::from_f64(4.0))
+        .max(T::zero())
+        .sqrt();
+    // `2D/(T + √(T²−4D))` — the cancellation-free spelling of
+    // `(T − √(T²−4D))/2`.
+    // The `min(1)` is a SAFETY cap, not a tightening: `T` and
+    // `D` come from different points of the chart, so their
+    // corner can nominally exceed the true `λ_min ≤ 1` and an
+    // arm above its own per-axis inf would be unsound. It is
+    // also what makes `arm ≤ inf_u` near-tautological, so no
+    // test may use that inequality as evidence of anything —
+    // `the_sup_reading_over_states_where_the_inf_reading_is_owed`
+    // pins the arm's DERIVED VALUE for exactly this reason.
+    let rho = (det_inf * T::from_f64(2.0) / (trace_sup + root))
+        .sqrt()
+        .min(T::one());
+    (inf_u * rho, inf_v * rho)
 }
 
 /// [`certified_arms`]' two rates read back as numbers, for a test's

@@ -208,7 +208,7 @@ fn scene(label: &str, params: &[(&'static str, FreeVar)], x: Formula, turn: Form
         &[
             (Coord::Slide(TargetAxis::X), x),
             (Coord::Slide(TargetAxis::Y), len(1.0)),
-            (Coord::Spin(editor_core::TargetAxis::Z), turn),
+            (Coord::SPIN, turn),
         ],
     );
     Scene {
@@ -410,7 +410,7 @@ fn saved_with_a_bundle(label: &str) -> (ProfileDoc, String) {
             fixture::plane(name(ids[1], CapEnd::Start)),
             standoff(name(ids[0], CapEnd::End), 0.5),
         ),
-        &[(Coord::Spin(editor_core::TargetAxis::Z), ang(0.25))],
+        &[(Coord::SPIN, ang(0.25))],
     );
     let text = save(&doc, &[], Tol::witness()).expect("saves");
     (doc, text)
@@ -565,7 +565,7 @@ fn a4_the_same_bundle_without_the_key_loads() {
     assert_eq!(
         coords,
         [
-            Coord::Spin(TargetAxis::Z),
+            Coord::SPIN,
             Coord::Slide(TargetAxis::X),
             Coord::Slide(TargetAxis::Y),
         ],

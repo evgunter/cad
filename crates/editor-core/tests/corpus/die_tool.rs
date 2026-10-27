@@ -135,6 +135,7 @@ pub fn document() -> CorpusDoc {
         ball,
         own,
         editor_core::Formula::zero(editor_core::Dimension::Length),
+        crate::fixture::meridian_up(),
     );
 
     // ---- the whole cutting tool, in ONE node ----

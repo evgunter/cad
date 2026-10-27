@@ -33,7 +33,7 @@ escalated typed refusal, never a raw comparison.
 | C9 certification arithmetic | `crates/geom-core/src/interval/certification.rs` (the certification doors), `interval.rs`, `spline/hull.rs`, `spline/compose/{tensor,patch}.rs`; the importers in `scripts/gates/certification-doors.sh` |
 | C10 BVH | `crates/bvh` |
 | C11 NURBS substrate | `crates/geom/src/{curves,surfaces}/nurbs.rs`, `curves/fit.rs`, `*/projection.rs`; lofts in `crates/sweep/src/{loft,skin}.rs` |
-| C12 consumers | `crates/topo/src/splitting/`, `boolean/`, `merge_faces.rs`; `crates/mesh/src/curved.rs`; `crates/geom-brep/src/props/quad.rs`; `crates/geom-core/src/linalg/{svd,lsq}.rs` |
+| C12 consumers | `crates/topo/src/splitting/`, `boolean/`, `merge_faces.rs`; `crates/mesh/src/curved.rs`; `crates/geom-brep/src/props/quad/`; `crates/geom-core/src/linalg/{svd,lsq}.rs` |
 | O1 analytic offset mint | `crates/geom-brep/src/offset.rs` |
 | O2 approximating surface | `crates/geom/src/surfaces/approx.rs` (`Surface::Approx`) |
 | O3 meters and fit | `crates/geom-brep/src/offset_meters.rs`, `offset_fit.rs`, `patch_bound.rs` |
@@ -754,9 +754,17 @@ definitely on opposite sides, bisected and read on the surface; and
 otherwise cut where it is definitely past the band. A piece within the
 band that no cut parts, a meeting within the band of a crease and two
 crossings within the band of each other refuse. The composite reads the curved analytic faces too, but the
-curved lane does not dispatch a spline span to it, and every arm with a
-spline face is unbuilt. The analytic arms are the sweep's existing root
-doors.
+curved lane does not dispatch a spline span to it, and every arm of the
+table with a spline face is unbuilt. The analytic arms are the sweep's
+existing root doors. What such an arm will hand on, a meeting inside a
+spline face's chart, has its placement built
+(`topo::boolean::spline_region`, the spline arm of the boolean's
+point-in-face door): on the carrier by a foot decided within the band,
+off it where every Bézier cell of the chart is decided past it; then in
+where such a foot lies in the trim, read from the face's lifted pcurve
+loops, and out where a foot exists and every cell not decided past the
+band lies wholly outside the trim, each reading clear of the trim by
+more than the band along the chart.
 
 ### Fitted-cache structure
 
@@ -1008,7 +1016,7 @@ closes its chart's full period refuses. (6) Curved tessellation
 boundary walk with certified chordal bounds from hull-bounded jets
 (`nurbs_cert.rs`); general trimmed faces with pcurve-driven trim loops
 are not implemented (`UnsupportedCurvedShape`). (7) Mass properties on
-curved-cut faces are certified quadrature (C9, `props/quad.rs`):
+curved-cut faces are certified quadrature (C9, `props/quad/`):
 harmonic pcurve boundaries, polynomial and rational patch flux; a cone
 face needs none, its flux `apex·VA` and area `|axis·VA|/sin α` closed in
 the boundary's vector area; rational

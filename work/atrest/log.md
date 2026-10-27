@@ -122,3 +122,32 @@
 - 2026-10-26 — **D′3 (#5636) merged at 18:05Z. Stage 5 C `the-at-rest-census-is-a-check` (P0 H) is dispatched** to `session_01KHsaVgR5qUqu3aJ8nGrkth` on `atrest/the-at-rest-census-is-a-check`, against the re-cut spec (#5740) re-grepped on merged main. Its tier is dual, letter H, so the arm is concurrent. `at-rest-opposed-decides-a-unitless-dot-as-a-length` and `separation-quiets-only-first-rung-rows` ride it. `an-instance-carries-its-parts-coincidences` (P1) is open now that D′3 has released it; it is dispatched next, after 5 C's `checks.rs` shape is known, because both touch the lint's report of carried rows.
 - 2026-10-26 — #5773 fix pass 2 is pushed (`874b432d`): the ray side is read at q's own scale everywhere; near-double roots are closed form and t is frozen for Dual; the 90-cone oracle is now a suite row (`link/cone_oracle.rs`); the doors needles are widened; Corrupt propagates. Filed `the-census-reads-its-link-without-the-wide-parity` (P2). The delta reviewer reruns its own probe suite on 874b432d before merge.
 - 2026-10-26 — **`an-in-band-face-pair-at-rest-is-not-one-finding` merges** (#5782, `a691f64b`, all green), after two FULL reviews and two fix passes. The first review overturned the orchestrator's ruling on aligned pairs; the second found the parallel-edge shadow hole. In its final shape: an opposed in-band pair is `ThinInBand`, an aligned one `MayOverlap` unless `thin_overlap` holds, and an escalation with no meeting point always stands. Residues: `an-aligned-in-band-pair-is-never-read-as-interference` (P2), `an-in-band-pair-rides-an-interference-as-its-overlap` (P3, rides 5 C) and `an-in-band-pair-every-touch-of-which-a-seat-holds-is-silent` (P3).
+
+- 2026-10-26 (orchestrator): #5773 head `520f54ff` carries the dual-review row but reads `dirty` against main, so CI never ran. RESTREAD's #5704 (tier 3′ self-touch link reading) rewrote the census link code that #5773 lifts into `topo::link`: 6 hunks in `census.rs` and one in `.config/nextest.toml`. That is a semantic merge, so I sent it back to the link lane (session_019wGbSrLfmrqDKVBwjrputi) to carry #5704's change into `link.rs`, with the slow census goldens at three ε. I merge on green.
+- 2026-10-26 (orchestrator): main red at `ed68a59e`. #5704 (RESTREAD) added `BoundaryCrossesItself{,Undecided}` and `checks/at_rest.rs` `finding_solids`'s exhaustive match did not place them (E0004); the link lane found it while merging main into #5773. Fixed by #5803: both findings are placed at (s, s), as census `Named::of` reads them, so a self-crossing inside an already-censused arrival is that door's. The `None` group would have reported it a second time. #5773 carries the identical arm, and the 5 C lane is told.
+  #5803 merged at `ab2b6108` on green (gate ok; lint and test jobs).  Main compiles again.
+- 2026-10-27 (orchestrator): the link lane merged main into #5773 twice:
+  - #5704's tier 3′ changes are carried into `link.rs`, census consumers adapted, census bit-unchanged at three ε;
+  - then #5803's arm.
+
+  It also widened the oracle row `offset_and_lowest_on_meet_the_written_down_distance` for a sector's bound (`s²/2|d|`). That was latent on `c20f7473`, seed `0x2dcfe5e9359f1e41`. I clamped the divisor at an escalation: at d = 0 the floor read −inf. The link rows are green at three ε. The row was re-committed last, naming the final head; the PR head is `061996b7`.
+
+  Six `sweep::all` slow-set rows that the lane saw red also fail on main `ab2b6108`, and none is ATREST's. Two are filed: the TESS thin nested rings, and the meeting-axes pose under CHARTTAIL #5664. The rest are left to the nightly triage.
+- 2026-10-27 00:36Z (orchestrator): stage 5 C is PR #5810, frozen head `193b0d5d9f9230a2c27b9c15ebb8d9567f1792d4`, CI green. Concurrent dual review (letter H) dispatched together with identical briefs:
+  - R1 `session_01J1EsuQasjk8hBy7RciLkyX`;
+  - R2 `session_01PUfKiWnxhEAiHSGYwjfxCC`.
+
+  Lane isolation is on `review/atrest-s5c-*`. The implementer lane holds pushes until the adjudication.
+- 2026-10-27 02:13Z (orchestrator): **#5773 merged** at `6f9f74d8`, head `5f42dc1d`, CI green.
+  - Main was merged in a third time (SPLICE #5802; a slow-set name renamed on main, resolved as main's list plus the 24-axis row). The row was re-committed last.
+  - Before merging I built and tested the merged tree: workspace check, clippy, the ci profile 14485/14485, and the census goldens plus gap rows at three ε.
+  - Main builds after the merge. The link lane is archived.
+- 2026-10-27 02:15Z (orchestrator): dispatched the two P1 rows #5773 unblocked:
+  - `a-touch-the-analysis-decides-crossing-is-read-as-undecidable` → `session_018u3gVG9anzuXioY2jhVxXJ`, branch `atrest/a-crossing-touch-is-interference`;
+  - `gap-reads-no-curved-cell-below-a-face` (the sphere and cylinder arm) → `session_018u3gVKihT5A6xc3PGs8S9q`, branch `atrest/gap-reads-a-cell-against-a-curved-face`.
+
+  `an-instance-carries-its-parts-coincidences` waits for #5810 to merge, since it reshapes the same checks code. `curved-copies-filling-one-volume-read-as-undecidable` (H) waits for the crossing row, which shares its census path.
+
+## 2026-10-27 — seam note from QUAD's main-red triage
+
+Filed `main-red-reader-census-misses-topo-link-rs` on this slate: PR 5773's `crates/topo/src/link.rs` reads its own source, but test-utils' `reader_census` ledger has no entry for it, and the census is red on main. (QUAD triage lane, PR 5824)

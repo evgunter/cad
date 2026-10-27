@@ -16,7 +16,7 @@ the SIGN of the body's volume enclosure and nothing else
 Margin::over_lever(v_hi, surface_area), band)`). It obtains it from
 `mass_properties_certified` (`validate_geometric_certified`), the full
 certified quadrature refined per face to `QUAD_TARGET_LEN_FACTOR · ε`
-(`crates/geom-brep/src/props/quad.rs`, factor 1024; `QUAD_INIT_PIECES`
+(`crates/geom-brep/src/props/quad/`, factor 1024; `EDGE_INIT_PIECES`
 16, `QUAD_MAX_ROUNDS` 12, `last_round_refuses` predicting an
 unreachable target after round 0). Two consequences, both measured:
 
@@ -86,7 +86,7 @@ Tier 3's module docs state the ninth check's use ("deciding its sign
 is an act of certification rather than a measurement"); after this
 unit they also say what it costs and what it cannot refuse: a valid
 solid cannot fail check 7 for quadrature budget unless its sign is
-indefinite at the reporting target. `quad.rs`'s module docs gain the
+indefinite at the reporting target. `props/quad/mod.rs`'s module docs gain the
 two levels. Present tense only.
 
 ## 3. The pin
