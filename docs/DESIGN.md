@@ -555,7 +555,9 @@ tells the story of its exact and in-band siblings. Each decision
 says what its refused side is, and every definite reading of it ends
 by that at each door. A side the lever reaches tells the lever story
 everywhere. A contradiction between a stored description and its
-stored geometry tells the lever story at a build. At the import door
+stored geometry tells the lever story at a build where the door's
+caller stated both, and the kernel's defect where a kernel door
+composed both. At the import door
 it is the file's: the import refuses typed, naming the file. Every
 defect ending a bad file reaches there past ε_in names the file,
 whether the reading compares a value the file stored or one adoption

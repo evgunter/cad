@@ -6,6 +6,8 @@ status: open
 opened: 2026-10-26
 priority: P2
 cost: M
+design: true
+needs_ev: true
 refs: [a-recorded-skip-scaffold-rests-declared-by-its-own-pushforward]
 ---
 
