@@ -1819,6 +1819,7 @@ fn net_fidelity<T: Real>(net: &NurbsCurve3<T>, twin_net: &NurbsCurve3<T>) -> T {
 
 /// What limb 2's reader ([`crate::pcurve_cache::limb2_offset_sup`]) read
 /// of a carrier's distance from a surface.
+#[derive(Debug)]
 pub(crate) enum Offset<T> {
     /// A certified upper bound on it over the edge's interval.
     Bound(T),
@@ -1845,6 +1846,7 @@ pub(crate) struct NetSize {
 }
 
 /// [`Offset`] and the size of the net the rounds stopped on.
+#[derive(Debug)]
 pub(crate) struct OffsetRead<T> {
     /// The reading.
     pub(crate) offset: Offset<T>,

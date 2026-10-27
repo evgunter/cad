@@ -3359,7 +3359,10 @@ pub(crate) fn limb2_offset_sup<T: Decide + geom_core::Bounds + geom_core::Certif
             ((lo, hi), closed_form_grid(carrier, lo, hi), 1)
         }
     };
-    let hull = |cuts: &[f64]| -> Result<(projected::ProjectedHull, projected::NetSize), PcurveCertifyError> {
+    let round_hull = |cuts: &[f64]| -> Result<
+        (projected::ProjectedHull, projected::NetSize),
+        PcurveCertifyError,
+    > {
         let mut breaks: Vec<f64> = grid.iter().chain(cuts).copied().collect();
         breaks.sort_by(f64::total_cmp);
         breaks.dedup();
@@ -3380,12 +3383,132 @@ pub(crate) fn limb2_offset_sup<T: Decide + geom_core::Bounds + geom_core::Certif
         };
         Ok((hull, size))
     };
+    // The rounds read through limb 2's memo (`limb2_memo`): a round is
+    // a pure function of the key's inputs and its cuts.
+    let key = limb2_memo::Key::of(carrier, window, surface, band);
+    let hull = |cuts: &[f64]| limb2_memo::read(&key, cuts, || round_hull(cuts));
     let mut read = projected::offset_rounds(hull, window, &chart, &twin, band)?;
     read.upper = match &read.offset {
         projected::Offset::Bound(b) | projected::Offset::Miss { bound: Ok(b), .. } => b.hi(),
         projected::Offset::Miss { bound: Err(_), .. } => f64::NAN,
     };
     Ok(read)
+}
+
+/// **Limb 2's round memo**: one round of the composite
+/// ([`limb2_offset_sup`]'s `round_hull`: the carrier's framed net cut at
+/// the round's breaks, and the twin's composite along it, converted to
+/// metres per part) keyed by exactly what it reads.
+///
+/// **What the key holds, and why that is all.** The round reads the
+/// carrier, the operand surface (its orthonormal twin, the frame and the
+/// chart are derived from it, the chart also from the carrier's middle
+/// over the window and from the band), the window, the band and the
+/// cuts, and nothing else: no decision is taken in a round (the
+/// composite is certification arithmetic; the chart's decisions are
+/// taken outside the memo, every call), so a hit skips no verdict, no
+/// escalation and no decision count. Each scalar of the carrier, the
+/// surface and the window enters the key as its certified bracket's two
+/// ends' bits (NaN where it does not certify), beside the scalar's
+/// witness kind: the twin is formed in the scalar, and an exact scalar
+/// (`Interval`, and `Sym<Interval>`, whose value channel is
+/// `Interval`'s bit for bit) rounds it outward where an inexact one
+/// (`f64`, `Probe`) rounds it to nearest. The round's output is `f64`
+/// data with no symbolic node in it, so sharing one between `Interval`
+/// and `Sym<Interval>` hands each the bits it would have computed. The
+/// key is the whole rendering, compared whole: no hash stands for it,
+/// so no collision can return another input's round (D9: a hit returns
+/// exactly what a miss computes).
+///
+/// **Where it lives**: a thread-local map, cleared whole when it reaches
+/// [`limb2_memo::CAPACITY`] entries, so it is bounded, and it needs no
+/// owner to thread through every door that attaches an edge. A round
+/// is a pure function of its key, so an entry left from another body
+/// or document is still that key's round, never stale.
+mod limb2_memo {
+    use super::{PcurveCertifyError, projected};
+    use geom::{Curve3, Surface};
+    use geom_core::CertifiedBounds;
+    use geom_core::predicate::Band;
+
+    /// How many rounds the memo holds before it is cleared.
+    pub(super) const CAPACITY: usize = 4096;
+
+    type Round = Result<(projected::ProjectedHull, projected::NetSize), PcurveCertifyError>;
+
+    std::thread_local! {
+        static MEMO: core::cell::RefCell<std::collections::HashMap<(String, Vec<u64>), Round>> =
+            core::cell::RefCell::new(std::collections::HashMap::new());
+        static COUNTS: core::cell::Cell<(u64, u64)> = const { core::cell::Cell::new((0, 0)) };
+    }
+
+    /// The inputs a round reads, rendered whole.
+    pub(super) struct Key(String);
+
+    impl Key {
+        pub(super) fn of<T: CertifiedBounds>(
+            carrier: &Curve3<T>,
+            window: (T, T),
+            surface: &Surface<T>,
+            band: Band,
+        ) -> Self {
+            let end = |x: T, hi: bool| {
+                x.certified_bracket()
+                    .map_or(f64::NAN, |(lo, up)| if hi { up } else { lo })
+            };
+            let lo = |x: T| end(x, false);
+            let hi = |x: T| end(x, true);
+            let bits = |x: f64| x.to_bits();
+            Self(format!(
+                "{:?}|{:?}|{:?}|{:?}|{:?}|{:x?}|{:x},{:x}",
+                T::WITNESS,
+                carrier.map_scalar(lo),
+                carrier.map_scalar(hi),
+                surface.map_scalar(lo),
+                surface.map_scalar(hi),
+                [lo(window.0), hi(window.0), lo(window.1), hi(window.1)].map(bits),
+                band.zero().to_bits(),
+                band.escalate().to_bits(),
+            ))
+        }
+    }
+
+    /// The round at `key` cut at `cuts`: the memo's, or `compute`'s,
+    /// which is then kept.
+    pub(super) fn read(key: &Key, cuts: &[f64], compute: impl FnOnce() -> Round) -> Round {
+        let k = (
+            key.0.clone(),
+            cuts.iter().map(|c| c.to_bits()).collect::<Vec<_>>(),
+        );
+        if let Some(hit) = MEMO.with(|m| m.borrow().get(&k).cloned()) {
+            COUNTS.with(|c| c.set((c.get().0 + 1, c.get().1)));
+            return hit;
+        }
+        COUNTS.with(|c| c.set((c.get().0, c.get().1 + 1)));
+        let round = compute();
+        MEMO.with(|m| {
+            let mut m = m.borrow_mut();
+            if m.len() >= CAPACITY {
+                m.clear();
+            }
+            m.insert(k, round.clone());
+        });
+        round
+    }
+
+    /// This thread's memo hits and misses so far.
+    #[cfg(test)]
+    #[must_use]
+    pub(crate) fn counts() -> (u64, u64) {
+        COUNTS.with(core::cell::Cell::get)
+    }
+
+    /// Empties this thread's memo, so the next read of every key
+    /// computes.
+    #[cfg(test)]
+    pub(crate) fn clear() {
+        MEMO.with(|m| m.borrow_mut().clear());
+    }
 }
 
 /// The breaks a closed-form carrier's first net is cut at inside
@@ -12757,5 +12880,71 @@ mod check_4_class_rows {
             !ending.starts_with(geom_core::NOT_YET_ENDING),
             "an identity check ends as a defect: {ending}"
         );
+    }
+}
+
+/// Limb 2's round memo (`limb2_memo`): a hit is the miss's bits, and a
+/// changed input misses.
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod limb2_memo_rows {
+    use super::{limb2_memo, limb2_offset_sup};
+    use geom::{Curve3, Surface};
+    use geom_core::{Band, Point3, Vec3};
+
+    fn rim(radius: f64) -> (Curve3<f64>, Surface<f64>) {
+        let rim = Curve3::Circle {
+            center: Point3::new(0.3, -0.2, 0.7),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            radius,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let wall = Surface::Cylinder {
+            origin: Point3::new(0.3, -0.2, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            radius: 1.25,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        (rim, wall)
+    }
+
+    /// **A memo hit is the fresh compute, bit for bit; a changed input
+    /// misses.** The same rim against the same wall read three times:
+    /// cold (every round a miss), warm (every round a hit) and cold
+    /// again after the memo is emptied; the three readings render
+    /// identically, `f64` bits included. A rim a ulp wider is a key the
+    /// memo has not seen, so its first read misses. Red under a key that
+    /// leaves out an input the round reads, or a memo that returns a
+    /// neighbour's round.
+    #[test]
+    fn a_hit_is_the_fresh_compute_and_a_changed_input_misses() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let read = |radius: f64| {
+            let (c, s) = rim(radius);
+            format!("{:?}", limb2_offset_sup(&c, (0.2, 2.9), &s, band))
+        };
+        limb2_memo::clear();
+        let (h0, m0) = limb2_memo::counts();
+        let cold = read(1.25);
+        let (h1, m1) = limb2_memo::counts();
+        assert!(
+            m1 > m0 && h1 == h0,
+            "a cold read misses: {:?}",
+            (h1 - h0, m1 - m0)
+        );
+        let warm = read(1.25);
+        let (h2, m2) = limb2_memo::counts();
+        assert!(
+            h2 > h1 && m2 == m1,
+            "a warm read hits: {:?}",
+            (h2 - h1, m2 - m1)
+        );
+        assert_eq!(warm, cold, "a hit is the miss's bits");
+        limb2_memo::clear();
+        assert_eq!(read(1.25), cold, "a recompute is the same bits");
+        let (_, m3) = limb2_memo::counts();
+        let _ = read(1.25f64.next_up());
+        let (_, m4) = limb2_memo::counts();
+        assert!(m4 > m3, "a changed carrier misses");
     }
 }
