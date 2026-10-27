@@ -840,4 +840,11 @@ E1c waits on the answer.
   - Q1: the designers' round-3 answer. Topo's construction tier becomes kernel-internal (pncad stops re-exporting it). A build's miss is the kernel's defect. A read in band ends in the lever at every door. No ending reads `EdgeAuthority`.
   - Q2: "i don't care what it says while this functionality doesn't exist". An incidence refusal at import takes the damaged-file ending, without ε_in, until EXCH's healing lands. The healing and the later ε_in wording are tracked on `work/exch/adoption-rebuilds-caches-at-eps-from-eps-in-interpretation.md`.
   - New units: E1d (the ruling) and E1e (payload-only `Display`), ahead of E1c.
+- 2026-10-27 — **E1d (`pcert/door-endings`), the endings of Ev's PR 5838 ruling.**
+  - E1b's authority routing is out. `IncidenceRead::ending(at)` is the one map.
+  - A definite miss ends by the door: the kernel's defect at a build, the stored culprit at rest, the damaged file at import with no ε_in.
+  - A read in band ends in the geometry's lever at every door.
+  - The boolean loop walk reads an at-pose read as unread, and the edge join ends an incidence refusal by its read.
+  - Sealing the construction tier is split out to E1d2 (the orchestrator's call: inherent methods travel with `Body`, so re-export curation alone cannot seal them).
+  - Filed `policy-lane-origin-callers-outlives-the-sealed-construction-tier` and `stored-contradiction-at-a-build-still-tells-the-lever-story`.
 - 2026-10-27 — **Sequencing: E1d is split.** The implementer found that topo's Euler operators and setters are inherent methods on `Body`, so curating pncad's re-export cannot hide them. `pncad::profile`'s doc names the same limit. E1d lands the endings, and a new unit E1d2 seals the tier: a pub trait `topo::construction::Construct`, with the inherent methods made `pub(crate)` (the `profile` precedent). Until E1d2 lands, an external `set_edge_curve` miss reads as a kernel defect; no product code calls it. The alternative, sealing inside E1d, was rejected: the churn (about 160 files importing the trait) would bury the endings E1c waits on.

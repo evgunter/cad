@@ -771,10 +771,22 @@ impl JoinRefusal {
             Self::Undecided(JoinUndecided {
                 reading: JoinReading::ChartClass(geom_brep::IsoFamilyRefusal::Image(e)),
                 ..
-            }) => format!(
-                "two edges meeting at a vertex on one surface have no chart image to read \
-                 their family off ({e}). {defect}"
-            ),
+            }) => match e.render_ended(at) {
+                // The image's refusal ends by its own ending at this door:
+                // an incidence read by the one map (D3), a lane gap "not
+                // yet", an escalation once, as its decision ends it.
+                Some(ended) => format!(
+                    "two edges meeting at a vertex on one surface have no chart image to read \
+                     their family off: {ended}"
+                ),
+                // A refusal no decision owns whose payload carries no
+                // recourse (an unsupported class, a band the tolerance
+                // cannot form), on a body the kernel built.
+                None => format!(
+                    "two edges meeting at a vertex on one surface have no chart image to read \
+                     their family off ({e}). {defect}"
+                ),
+            },
             Self::CarrierUnsupported { carrier, closed } => format!(
                 "two edges meet at a vertex on one {} carrier, which the join cannot run an \
                  edge on {} yet (work/splice/joining-a-spline-carrier-is-unbuilt); there is no \
@@ -1409,6 +1421,122 @@ mod undecided_text {
                  a tighter enclosure, or {JOIN_LEVER}",
                 diag.payload()
             )
+        );
+    }
+
+    /// **A chart image refused on incidence ends by its read at the join**
+    /// (D3): a carrier decided off its chart is the door's defect, once; one
+    /// read in band at a pose ends in its lever, at a build and at rest,
+    /// with no defect appended.
+    #[test]
+    fn a_join_reading_an_incidence_refusal_ends_by_its_read() {
+        use geom_brep::recourse::Reading;
+        let refusal = |margin| {
+            JoinRefusal::Undecided(JoinUndecided {
+                vertex: crate::VertexKey::default(),
+                reading: JoinReading::ChartClass(geom_brep::IsoFamilyRefusal::Image(
+                    geom_brep::PcurveCertifyError::CarrierOffChart {
+                        chart: geom::SurfaceKind::Cone,
+                        carrier: geom::CurveKind::Circle,
+                        why: "WHY",
+                        margin,
+                    },
+                )),
+            })
+        };
+        let m = MarginDiag::value(4e-10);
+        for at in [Reading::Build, Reading::AtRest] {
+            let off = refusal(None).render(at);
+            let defect = geom_brep::recourse::defect_ending(geom_brep::recourse::ReadAt::from(at));
+            assert!(off.ends_with(defect), "{off}");
+            assert_eq!(off.matches("defect").count(), 1, "{off}");
+            let at_pose = refusal(Some(geom_brep::OffMargin::InBand(m))).render(at);
+            assert!(
+                at_pose.contains("Recourse: move the geometry so the edge sits clear")
+                    && !at_pose.contains("defect"),
+                "{at:?}: {at_pose}"
+            );
+        }
+    }
+
+    /// **The join's image arm ends a non-incidence refusal by its own
+    /// ending, once** (D4 ¶1 (iv)): a lane gap or a class reading
+    /// lever-only "not yet", never with a defect appended, and an
+    /// escalation of a defect check in the door's defect, once (review B's
+    /// probe on E1d).
+    #[test]
+    fn the_joins_image_arm_ends_a_refusal_by_its_own_ending() {
+        use geom_brep::recourse::Reading;
+        for (e, defect) in [
+            (
+                geom_brep::PcurveCertifyError::Escalated {
+                    check: geom_brep::PcurveCheck::ChartClass,
+                    sample: 0,
+                    cause: diag("pcurve_probe", MarginDiag::value(3e-9)),
+                },
+                false,
+            ),
+            (
+                geom_brep::PcurveCertifyError::NoGeneralLane {
+                    chart: geom::SurfaceKind::Torus,
+                    carrier: geom::CurveKind::Circle,
+                    gap: geom_brep::LaneGap::Unwritten,
+                },
+                false,
+            ),
+            (
+                geom_brep::PcurveCertifyError::Escalated {
+                    check: geom_brep::PcurveCheck::ChartWinding,
+                    sample: 0,
+                    cause: diag("pcurve_probe", MarginDiag::value(3e-9)),
+                },
+                true,
+            ),
+        ] {
+            let r = JoinRefusal::Undecided(JoinUndecided {
+                vertex: crate::VertexKey::default(),
+                reading: JoinReading::ChartClass(geom_brep::IsoFamilyRefusal::Image(e.clone())),
+            });
+            for at in [Reading::Build, Reading::AtRest] {
+                let text = r.render(at);
+                let ending = e.ending(at).unwrap_or_default();
+                assert!(
+                    !ending.is_empty() && text.ends_with(&ending),
+                    "{e:?} at {at:?}: {text}"
+                );
+                assert_eq!(text.matches("There is no way through").count(), 1, "{text}");
+                assert_eq!(text.contains("defect"), defect, "{e:?} at {at:?}: {text}");
+            }
+        }
+    }
+
+    /// **A refusal whose payload already ends gets no second ending**
+    /// (review on PR 5844, H5): a piece outside one sector carries its own
+    /// recourse and ends there, with no defect after it; an unsupported
+    /// chart carries none, and the join ends it in its defect, once.
+    #[test]
+    fn the_joins_image_arm_ends_a_self_ended_payload_once() {
+        use geom_brep::recourse::Reading;
+        let render = |e| {
+            JoinRefusal::Undecided(JoinUndecided {
+                vertex: crate::VertexKey::default(),
+                reading: JoinReading::ChartClass(geom_brep::IsoFamilyRefusal::Image(e)),
+            })
+            .render(Reading::Build)
+        };
+        let sector = render(geom_brep::PcurveCertifyError::SectorRefused {
+            piece: 1,
+            channel: geom_brep::SectorChannel::Azimuth,
+        });
+        assert_eq!(sector.matches("Recourse").count(), 1, "{sector}");
+        assert!(!sector.contains("defect"), "{sector}");
+        let unsupported = render(geom_brep::PcurveCertifyError::UnsupportedChart {
+            chart: geom::SurfaceKind::Sphere,
+        });
+        assert_eq!(
+            unsupported.matches(geom_core::KERNEL_DEFECT_ENDING).count(),
+            1,
+            "{unsupported}"
         );
     }
 
