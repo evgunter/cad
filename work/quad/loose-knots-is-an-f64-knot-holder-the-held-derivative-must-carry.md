@@ -29,3 +29,9 @@ whether a carrier may hold non-point knots) must carry `LooseKnots`
 with it, as `LooseKnots<T>` or as structure plus held values the way
 `Knots<T>` is. Until then the props ladder's `Loose` directions stay
 point-knot only, which today is every caller.
+
+## Re-checked on main `9267d3ae` (QUAD tracker sweep, 2026-10-27)
+
+Still holds. `LooseKnots` still holds `knots: Vec<f64>`
+(`crates/geom-core/src/spline/knots.rs:1623`). No PR in the measure door
+touched it.

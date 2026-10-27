@@ -18,3 +18,17 @@ In `props/quad/trimmed.rs`, `trimmed_patch_face_rounds` computes the face's area
 So `SignCertificate::refine_to_target`'s claim to be bit-identical to `mass_properties` does not hold for trimmed faces.
 
 Owed: the area is a function of the face, not of the window. Hold it across windows, or compute it once per face. Then pin windowed-equals-scheduled bits on a trimmed face. The measurement door's unit B (`docs/QUAD-MEASURE-SPEC.md`) owns the face state across windows (R11), so sequence this with it.
+
+## Re-checked on main `9267d3ae` (QUAD tracker sweep, 2026-10-27)
+
+Still holds. `trimmed_patch_face_rounds`
+(`crates/geom-brep/src/props/quad/trimmed.rs:1480`) still takes the area
+at the entering round (`area_at_first`, and the comment at `:1580`).
+Windowed callers still enter one round at a time: `walk_set` in
+`crates/topo/src/props.rs:877` resumes every refinable face with
+`RoundWindow::at(round)`. `SignCertificate::refine_to_target` is gone
+(PR 5741), and PR 5628 already gave up the claim that a continuation is
+bit-identical to `mass_properties`. So the owed pin is now "a sign walk's
+trimmed face reads the schedule's area". The cost half (66 s against
+2.4 s at round 6) was not re-measured. FaceRun is one state now (R11,
+PR 5628), but it holds no area across windows.
