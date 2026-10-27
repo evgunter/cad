@@ -553,6 +553,17 @@ pub enum PcurveMintError {
 }
 
 impl PcurveMintError {
+    /// The ending a nested certification refusal's decision gives it at
+    /// `at` ([`PcurveCertifyError::ending`]), or `None` for a refusal of
+    /// the pass itself, which the door that reports it ends.
+    #[must_use]
+    pub fn ending(&self, at: impl Into<geom_brep::recourse::ReadAt>) -> Option<String> {
+        match self {
+            Self::Certify { error, .. } => error.ending(at),
+            _ => None,
+        }
+    }
+
     /// This refusal's text read at `at`: a certification refusal nested
     /// whole renders at that door ([`PcurveCertifyError::render`]).
     #[must_use]

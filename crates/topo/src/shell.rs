@@ -199,7 +199,9 @@
 //! rows; that they were sound is the operand type's promise (above),
 //! and a stale-row operand refuses where it is gated, not here
 //! (`shell9_r2_probes`). The refusal is [`ShellError::Pcurve`], carrying
-//! the mint's refusal whole and ending by its ending at the build door.
+//! the mint's refusal whole: a certification refusal ends by its own
+//! ending at the build door, a refusal of the pass itself as the
+//! kernel's.
 //!
 //! # The record
 //!
@@ -610,10 +612,11 @@ pub enum ShellError<T: Real> {
     /// The closing pcurve mint refused on the assembled body (module
     /// docs, "The closing mint"). Every gate before it accepted the
     /// body — the offsets certified, the void door grafted, the rim
-    /// surgery closed — and the mint's refusal is carried whole,
-    /// ending by its own ending at the build door (a defect where it
-    /// reads one, the pose lever where an incidence read lands in band)
-    /// rather than as the validator's report of a stale row.
+    /// surgery closed — and the mint's refusal is carried whole
+    /// rather than as the validator's report of a stale row. A
+    /// certification refusal ends by its own ending at the build door
+    /// (the pose lever where an incidence read lands in band); a refusal
+    /// of the pass itself is the kernel's.
     Pcurve {
         /// The mint's typed refusal, verbatim.
         source: PcurveMintError,
@@ -748,13 +751,15 @@ impl<T: Real> core::fmt::Display for ShellError<T> {
                     source.ending("change the wall thickness, or move the geometry"),
                 )
             ),
-            // The mint's refusal ends by its own ending at the build
-            // door: an incidence read in band is the pose lever's, not
-            // a defect, though every gate before the mint accepted.
+            // The mint's certification refusal ends by its own ending at
+            // the build door (an incidence read in band is the pose
+            // lever's, not a defect); a refusal of the pass itself, on a
+            // body every gate before it accepted, is the kernel's. The
+            // payload (in `Debug`) names keys the user never saw.
             Self::Pcurve { source } => write!(
                 f,
-                "the finished thin solid's edges could not be parametrized on its faces: \
-                 {source}"
+                "the finished thin solid's edges could not be parametrized on its faces. {}",
+                shell_mint_ending(source)
             ),
             Self::RimSeamMixed { stations, .. } => write!(
                 f,
@@ -784,6 +789,15 @@ struct AsShelled<'a, T: Real>(&'a ReplaceFaceError<T>);
 
 /// The lever of every refusal a thinner wall answers.
 const THINNER_WALL: &str = "use a thinner wall";
+
+/// The ending of a pcurve mint the shell op ran: a certification
+/// refusal's own at the build door ([`PcurveMintError::ending`]), the
+/// kernel's defect for a refusal of the pass itself.
+fn shell_mint_ending(source: &PcurveMintError) -> std::borrow::Cow<'static, str> {
+    source
+        .ending(geom_brep::recourse::Reading::Build)
+        .map_or(KERNEL_DEFECT_ENDING.into(), Into::into)
+}
 
 impl<T: Real> core::fmt::Display for AsShelled<'_, T> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -897,6 +911,11 @@ impl<T: Real> core::fmt::Display for AsShelled<'_, T> {
                 f,
                 "the shell op asked to fit an offset of {d} m at a tolerance of {tolerance} m, \
                  which its thickness gate and its tolerance never allow. {KERNEL_DEFECT_ENDING}"
+            ),
+            R::Pcurve { source } => write!(
+                f,
+                "the offset body's edges could not be parametrized on their faces. {}",
+                shell_mint_ending(source)
             ),
             error => write!(f, "{error}"),
         }
