@@ -190,6 +190,8 @@ mod ring2_r2_probes;
 mod cert5_r2_probes;
 #[path = "chart_incidence.rs"]
 mod chart_incidence;
+#[path = "probe_5844.rs"]
+mod probe_5844;
 #[path = "cone_incidence_fuzz.rs"]
 mod cone_incidence_fuzz;
 #[path = "iso_parse_incidence.rs"]
